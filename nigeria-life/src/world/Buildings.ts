@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { InteractiveObject } from './World';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
+import { SignageLibrary } from '../materials/SignageLibrary';
 
 export class Buildings {
   public group: THREE.Group;
@@ -9,14 +10,18 @@ export class Buildings {
   public isGateOpen: boolean = false;
   private gateTargetZ: number = 0;
   private matLib: MaterialLibrary;
+  private signLib: SignageLibrary;
 
   constructor() {
     this.group = new THREE.Group();
     this.matLib = MaterialLibrary.getInstance();
+    this.signLib = SignageLibrary.getInstance();
 
     this.buildBank();
     this.buildMamaPutBuka();
+    this.buildUniqueBeautySalon();
     this.buildBetShopAndPos();
+    this.buildSaboTextiles();
     this.buildResidentialCompound();
     this.buildDanfoTerminus();
     this.buildPalmTrees();
@@ -258,9 +263,9 @@ export class Buildings {
     win2.rotation.y = -Math.PI / 2;
     bukaGroup.add(win2);
 
-    // Outdoor dining veranda with corrugated silver sheet awning
+    // Outdoor dining veranda with authentic green & white striped awning
     const awningGeo = new THREE.BoxGeometry(3.5, 0.15, 8.5);
-    const awning = new THREE.Mesh(awningGeo, this.matLib.corrugatedRoofSilver);
+    const awning = new THREE.Mesh(awningGeo, this.signLib.greenStripedAwningMaterial);
     awning.position.set(4.5, 3.2, 0);
     awning.rotation.z = -0.15;
     awning.castShadow = true;
@@ -273,6 +278,14 @@ export class Buildings {
     const fringe = new THREE.Mesh(fringeGeo, fringeMat);
     fringe.position.set(6.0, 2.9, 0);
     bukaGroup.add(fringe);
+
+    // Hand-painted "Chop Life Restaurant" Artisan Signboard facing Broad Street
+    const signGeo = new THREE.BoxGeometry(0.12, 1.4, 5.2);
+    const sign = new THREE.Mesh(signGeo, this.signLib.chopLifeSignMaterial);
+    sign.position.set(6.15, 3.85, 0);
+    sign.rotation.y = Math.PI / 2; // Facing the street
+    sign.castShadow = true;
+    bukaGroup.add(sign);
 
     // Wooden veranda support poles with rough timber finish
     const poleMat = new THREE.MeshStandardMaterial({
@@ -693,14 +706,11 @@ export class Buildings {
       }
     }
 
-    // Terminus Sign: "BRT & DANFO PARK - OSHODI / LEKKI / AJAH"
-    const signGeo = new THREE.BoxGeometry(0.2, 0.8, 4.0);
-    const signMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.3,
-    });
-    const sign = new THREE.Mesh(signGeo, signMat);
-    sign.position.set(2.1, 3.2, 0);
+    // Terminus Municipal Signboard: "BROAD ST. DANFO & BRT MOTOR PARK"
+    const signGeo = new THREE.BoxGeometry(0.12, 1.1, 4.6);
+    const sign = new THREE.Mesh(signGeo, this.signLib.danfoTerminusSignMaterial);
+    sign.position.set(2.15, 3.25, 0);
+    sign.rotation.y = -Math.PI / 2;
     sign.castShadow = true;
     terminusGroup.add(sign);
 
@@ -717,12 +727,272 @@ export class Buildings {
   }
 
   // =========================================================================
-  // 6. Tropical Palm Trees
+  // 6. Unique Beauty Salon & Spa (Broad Street Branch)
+  // =========================================================================
+  private buildUniqueBeautySalon(): void {
+    const salonGroup = new THREE.Group();
+    salonGroup.position.set(16, 0, -4);
+
+    // Main shop structure with cream plaster
+    const shopGeo = new THREE.BoxGeometry(8, 4.2, 7.5);
+    const shop = new THREE.Mesh(shopGeo, this.matLib.wallPlasterCream);
+    shop.position.y = 2.1;
+    shop.castShadow = true;
+    shop.receiveShadow = true;
+    salonGroup.add(shop);
+
+    // Concrete plinth & roof coping
+    const plinthGeo = new THREE.BoxGeometry(8.3, 0.4, 7.8);
+    const plinth = new THREE.Mesh(plinthGeo, this.matLib.concreteTrimMaterial);
+    plinth.position.y = 0.2;
+    plinth.castShadow = true;
+    plinth.receiveShadow = true;
+    salonGroup.add(plinth);
+
+    const roofCopingGeo = new THREE.BoxGeometry(8.2, 0.35, 7.7);
+    const roofCoping = new THREE.Mesh(roofCopingGeo, this.matLib.concreteTrimMaterial);
+    roofCoping.position.y = 4.3;
+    roofCoping.castShadow = true;
+    salonGroup.add(roofCoping);
+
+    // Cantilevered Pink & White Striped Awning extending over sidewalk
+    const awningGeo = new THREE.BoxGeometry(1.8, 0.12, 6.2);
+    const awning = new THREE.Mesh(awningGeo, this.signLib.pinkStripedAwningMaterial);
+    awning.position.set(-4.8, 3.2, 0);
+    awning.rotation.z = -0.12;
+    awning.castShadow = true;
+    awning.receiveShadow = true;
+    salonGroup.add(awning);
+
+    // Decorative valance fringe
+    const fringeGeo = new THREE.BoxGeometry(0.08, 0.3, 6.2);
+    const fringeMat = new THREE.MeshStandardMaterial({ color: 0xdb2777, roughness: 0.5 });
+    const fringe = new THREE.Mesh(fringeGeo, fringeMat);
+    fringe.position.set(-5.6, 2.95, 0);
+    salonGroup.add(fringe);
+
+    // Hand-painted "Unique Beauty Salon & Spa" Signboard
+    const signGeo = new THREE.BoxGeometry(0.12, 1.4, 5.6);
+    const sign = new THREE.Mesh(signGeo, this.signLib.beautySalonSignMaterial);
+    sign.position.set(-4.1, 3.8, 0);
+    sign.rotation.y = -Math.PI / 2;
+    sign.castShadow = true;
+    salonGroup.add(sign);
+
+    // Large Front Display Window
+    const winGeo = new THREE.BoxGeometry(0.2, 2.2, 3.2);
+    const win = new THREE.Mesh(winGeo, this.matLib.glassReflectiveMaterial);
+    win.position.set(-4.02, 1.8, 1.2);
+    win.castShadow = true;
+    salonGroup.add(win);
+
+    // Window frame
+    const frameGeo = new THREE.BoxGeometry(0.24, 2.3, 3.3);
+    const frame = new THREE.Mesh(frameGeo, this.matLib.concreteTrimMaterial);
+    frame.position.set(-4.02, 1.8, 1.2);
+    salonGroup.add(frame);
+
+    // Glass Entrance Door with brass handle
+    const doorGeo = new THREE.BoxGeometry(0.18, 2.6, 1.4);
+    const door = new THREE.Mesh(doorGeo, this.matLib.glassReflectiveMaterial);
+    door.position.set(-4.02, 1.4, -1.8);
+    door.castShadow = true;
+    salonGroup.add(door);
+
+    const handleGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.4);
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.9, roughness: 0.2 });
+    const handle = new THREE.Mesh(handleGeo, handleMat);
+    handle.position.set(-4.14, 1.4, -1.3);
+    salonGroup.add(handle);
+
+    // Outdoor Wall-mounted Split AC unit
+    const ac = this.createACUnit(-4.15, 2.8, 2.6, -Math.PI / 2);
+    salonGroup.add(ac);
+
+    this.group.add(salonGroup);
+
+    this.interactiveList.push({
+      mesh: salonGroup,
+      id: 'beauty-salon',
+      name: 'Unique Beauty Salon & Spa',
+      category: 'Fashion & Grooming',
+      description: 'Executive unisex salon. Knotless braids, Ghana weaving, dreadlocks, nails, and wig care.',
+      interactionPoint: new THREE.Vector3(10.5, 0, -4),
+    });
+  }
+
+  // =========================================================================
+  // 7. Sabo Textiles & Fabrics Emporium
+  // =========================================================================
+  private buildSaboTextiles(): void {
+    const textilesGroup = new THREE.Group();
+    textilesGroup.position.set(16, 0, 27);
+
+    // Main shop structure with warm ochre plaster
+    const shopGeo = new THREE.BoxGeometry(8.5, 4.2, 8.0);
+    const shop = new THREE.Mesh(shopGeo, this.matLib.wallPlasterOchre);
+    shop.position.y = 2.1;
+    shop.castShadow = true;
+    shop.receiveShadow = true;
+    textilesGroup.add(shop);
+
+    // Foundation plinth & roof coping
+    const plinthGeo = new THREE.BoxGeometry(8.8, 0.4, 8.3);
+    const plinth = new THREE.Mesh(plinthGeo, this.matLib.concreteTrimMaterial);
+    plinth.position.y = 0.2;
+    plinth.castShadow = true;
+    plinth.receiveShadow = true;
+    textilesGroup.add(plinth);
+
+    const roofCopingGeo = new THREE.BoxGeometry(8.7, 0.35, 8.2);
+    const roofCoping = new THREE.Mesh(roofCopingGeo, this.matLib.concreteTrimMaterial);
+    roofCoping.position.y = 4.3;
+    roofCoping.castShadow = true;
+    textilesGroup.add(roofCoping);
+
+    // Cantilevered Yellow & White Striped Awning extending over sidewalk
+    const awningGeo = new THREE.BoxGeometry(2.0, 0.12, 6.8);
+    const awning = new THREE.Mesh(awningGeo, this.signLib.yellowStripedAwningMaterial);
+    awning.position.set(-5.0, 3.25, 0);
+    awning.rotation.z = -0.12;
+    awning.castShadow = true;
+    awning.receiveShadow = true;
+    textilesGroup.add(awning);
+
+    // Valance fringe
+    const fringeGeo = new THREE.BoxGeometry(0.08, 0.32, 6.8);
+    const fringeMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.5 });
+    const fringe = new THREE.Mesh(fringeGeo, fringeMat);
+    fringe.position.set(-5.9, 3.0, 0);
+    textilesGroup.add(fringe);
+
+    // Hand-painted "Sabo Textiles & Fabrics" Signboard
+    const signGeo = new THREE.BoxGeometry(0.12, 1.4, 6.2);
+    const sign = new THREE.Mesh(signGeo, this.signLib.saboTextilesSignMaterial);
+    sign.position.set(-4.35, 3.8, 0);
+    sign.rotation.y = -Math.PI / 2;
+    sign.castShadow = true;
+    textilesGroup.add(sign);
+
+    // Outdoor Tiered Wooden Display Stall for Ankara Fabric Rolls
+    const stallGroup = new THREE.Group();
+    stallGroup.position.set(-4.8, 0, 0);
+
+    // 3-Tier Wooden Shelving Rack
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c2b0c, roughness: 0.8 });
+    const tierWidth = 3.6;
+
+    // Side A-frame supports
+    for (const sz of [-1.7, 1.7]) {
+      const legGeo = new THREE.BoxGeometry(0.1, 1.4, 0.1);
+      const leg1 = new THREE.Mesh(legGeo, woodMat);
+      leg1.position.set(-0.35, 0.7, sz);
+      leg1.rotation.z = 0.2;
+      stallGroup.add(leg1);
+
+      const leg2 = new THREE.Mesh(legGeo, woodMat);
+      leg2.position.set(0.35, 0.7, sz);
+      leg2.rotation.z = -0.2;
+      stallGroup.add(leg2);
+    }
+
+    // Shelf planks
+    const shelf1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, tierWidth), woodMat);
+    shelf1.position.set(0, 0.35, 0);
+    shelf1.castShadow = true;
+    stallGroup.add(shelf1);
+
+    const shelf2 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, tierWidth), woodMat);
+    shelf2.position.set(0, 0.75, 0);
+    shelf2.castShadow = true;
+    stallGroup.add(shelf2);
+
+    const shelf3 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, tierWidth), woodMat);
+    shelf3.position.set(0, 1.15, 0);
+    shelf3.castShadow = true;
+    stallGroup.add(shelf3);
+
+    // Stacked Ankara Fabric Rolls (cylinders wrapped in authentic procedural African wax prints)
+    const rollGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.95, 16);
+    const ankaraMats = this.signLib.ankaraFabrics;
+
+    // Bottom tier rolls
+    const zOffsetsBottom = [-1.1, 0, 1.1];
+    for (let r = 0; r < zOffsetsBottom.length; r++) {
+      const rollMat = ankaraMats[r % ankaraMats.length];
+      const roll = new THREE.Mesh(rollGeo, rollMat);
+      roll.rotation.x = Math.PI / 2;
+      roll.position.set(-0.15, 0.5, zOffsetsBottom[r]);
+      roll.castShadow = true;
+      stallGroup.add(roll);
+
+      const rollBack = new THREE.Mesh(rollGeo, ankaraMats[(r + 1) % ankaraMats.length]);
+      rollBack.rotation.x = Math.PI / 2;
+      rollBack.position.set(0.15, 0.5, zOffsetsBottom[r]);
+      rollBack.castShadow = true;
+      stallGroup.add(rollBack);
+    }
+
+    // Middle tier rolls
+    const zOffsetsMid = [-0.9, 0, 0.9];
+    for (let r = 0; r < zOffsetsMid.length; r++) {
+      const rollMat = ankaraMats[(r + 2) % ankaraMats.length];
+      const roll = new THREE.Mesh(rollGeo, rollMat);
+      roll.rotation.x = Math.PI / 2;
+      roll.position.set(0, 0.9, zOffsetsMid[r]);
+      roll.castShadow = true;
+      stallGroup.add(roll);
+    }
+
+    // Top tier rolls (Pyramid peak)
+    for (const tz of [-0.6, 0.6]) {
+      const rollMat = ankaraMats[tz > 0 ? 0 : 3];
+      const roll = new THREE.Mesh(rollGeo, rollMat);
+      roll.rotation.x = Math.PI / 2;
+      roll.position.set(0, 1.3, tz);
+      roll.castShadow = true;
+      stallGroup.add(roll);
+    }
+
+    // Upright Standing Fabric Bolts leaning on stall sides
+    const tallRollGeo = new THREE.CylinderGeometry(0.11, 0.11, 1.5, 16);
+    const standL = new THREE.Mesh(tallRollGeo, ankaraMats[1]);
+    standL.position.set(0.3, 0.75, -2.1);
+    standL.rotation.z = -0.15;
+    standL.castShadow = true;
+    stallGroup.add(standL);
+
+    const standR = new THREE.Mesh(tallRollGeo, ankaraMats[2]);
+    standR.position.set(0.3, 0.75, 2.1);
+    standR.rotation.z = -0.15;
+    standR.castShadow = true;
+    stallGroup.add(standR);
+
+    textilesGroup.add(stallGroup);
+
+    // Wall-mounted AC unit
+    const ac = this.createACUnit(-4.4, 2.8, -2.8, -Math.PI / 2);
+    textilesGroup.add(ac);
+
+    this.group.add(textilesGroup);
+
+    this.interactiveList.push({
+      mesh: textilesGroup,
+      id: 'sabo-textiles',
+      name: 'Sabo Textiles & Fabrics Emporium',
+      category: 'Commerce & Retail',
+      description: 'Wholesale & retail Ankara wax prints, Swiss lace, and luxury Guinea brocade.',
+      interactionPoint: new THREE.Vector3(10.5, 0, 27),
+    });
+  }
+
+  // =========================================================================
+  // 8. Tropical Palm Trees
   // =========================================================================
   private buildPalmTrees(): void {
     const treePositions = [
-      { x: 18, z: -3 },
-      { x: 18, z: 28 },
+      { x: 18, z: -14 },
+      { x: 18, z: 38 },
       { x: -18, z: -26 },
       { x: -18, z: 38 },
       { x: 19, z: -40 },

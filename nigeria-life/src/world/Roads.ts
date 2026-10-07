@@ -88,29 +88,53 @@ export class Roads {
   private buildStreetLights(): void {
     // Street lamps on alternating sides every 24 meters
     const lampX = 7.5;
+    const mats = MaterialLibrary.getInstance();
+
     for (let z = -80; z <= 80; z += 24) {
       const poleSide = (z / 24) % 2 === 0 ? 1 : -1;
       const lampGroup = new THREE.Group();
       lampGroup.position.set(poleSide * lampX, 0, z);
 
-      // Steel pole
-      const poleGeo = new THREE.CylinderGeometry(0.1, 0.14, 6.5, 8);
-      const poleMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8 });
-      const pole = new THREE.Mesh(poleGeo, poleMat);
-      pole.position.y = 3.25;
+      // Steel pole base flange & inspection door
+      const baseGeo = new THREE.CylinderGeometry(0.24, 0.28, 0.7, 8);
+      const baseMesh = new THREE.Mesh(baseGeo, mats.ironRailingMaterial);
+      baseMesh.position.y = 0.35;
+      baseMesh.castShadow = true;
+      lampGroup.add(baseMesh);
+
+      // Tapered Steel pole mast
+      const poleGeo = new THREE.CylinderGeometry(0.09, 0.16, 6.2, 8);
+      const pole = new THREE.Mesh(poleGeo, mats.ironRailingMaterial);
+      pole.position.y = 3.4;
+      pole.castShadow = true;
+      pole.receiveShadow = true;
       lampGroup.add(pole);
 
-      // Overhanging arm
-      const armGeo = new THREE.BoxGeometry(1.6, 0.08, 0.08);
-      const arm = new THREE.Mesh(armGeo, poleMat);
-      arm.position.set(-poleSide * 0.7, 6.4, 0);
+      // Gracefully curved cobra-head mast arm reaching over the road
+      const armGeo = new THREE.BoxGeometry(1.8, 0.08, 0.08);
+      const arm = new THREE.Mesh(armGeo, mats.ironRailingMaterial);
+      arm.position.set(-poleSide * 0.8, 6.45, 0);
+      arm.rotation.z = poleSide * 0.08;
+      arm.castShadow = true;
       lampGroup.add(arm);
 
-      // Lamp fixture bulb
-      const bulbGeo = new THREE.BoxGeometry(0.5, 0.15, 0.25);
-      const bulbMat = new THREE.MeshBasicMaterial({ color: 0xfffaed });
+      // Aerodynamic Luminaire Housing
+      const headGeo = new THREE.BoxGeometry(0.65, 0.14, 0.3);
+      const head = new THREE.Mesh(headGeo, mats.ironRailingMaterial);
+      head.position.set(-poleSide * 1.55, 6.35, 0);
+      head.castShadow = true;
+      lampGroup.add(head);
+
+      // Warm LED Luminaire Diffuser Lens with glow
+      const bulbGeo = new THREE.BoxGeometry(0.55, 0.04, 0.22);
+      const bulbMat = new THREE.MeshStandardMaterial({
+        color: 0xfffaed,
+        emissive: 0xffedd5,
+        emissiveIntensity: 0.85,
+        roughness: 0.2,
+      });
       const bulb = new THREE.Mesh(bulbGeo, bulbMat);
-      bulb.position.set(-poleSide * 1.3, 6.3, 0);
+      bulb.position.set(-poleSide * 1.55, 6.28, 0);
       lampGroup.add(bulb);
 
       this.group.add(lampGroup);
@@ -118,53 +142,129 @@ export class Roads {
   }
 
   private buildPowerPoles(): void {
-    // Classic wooden/concrete PHCN electric poles with cross-arms
+    const mats = MaterialLibrary.getInstance();
     const poleX = -13.0;
     const poleZPositions = [-70, -35, 0, 35, 70];
+
+    // High tension wire offsets on the crossbar
+    const wireOffsets = [-1.15, 0, 1.15];
+    const wireY = 8.4;
 
     for (let i = 0; i < poleZPositions.length; i++) {
       const z = poleZPositions[i];
       const poleGroup = new THREE.Group();
       poleGroup.position.set(poleX, 0, z);
 
-      // Concrete utility pole
-      const poleGeo = new THREE.CylinderGeometry(0.18, 0.24, 9, 8);
-      const poleMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.9 });
-      const pole = new THREE.Mesh(poleGeo, poleMat);
-      pole.position.y = 4.5;
+      // Heavy weathered concrete utility pole
+      const poleGeo = new THREE.CylinderGeometry(0.18, 0.26, 9.2, 8);
+      const pole = new THREE.Mesh(poleGeo, mats.concreteTrimMaterial);
+      pole.position.y = 4.6;
+      pole.castShadow = true;
+      pole.receiveShadow = true;
       poleGroup.add(pole);
 
-      // Horizontal Cross-bar
-      const barGeo = new THREE.BoxGeometry(2.8, 0.18, 0.12);
-      const bar = new THREE.Mesh(barGeo, poleMat);
-      bar.position.set(0, 8.2, 0);
+      // Heavy horizontal utility cross-bar
+      const barGeo = new THREE.BoxGeometry(2.9, 0.2, 0.14);
+      const bar = new THREE.Mesh(barGeo, mats.ironRailingMaterial);
+      bar.position.set(0, wireY - 0.2, 0);
+      bar.castShadow = true;
       poleGroup.add(bar);
 
-      // Insulator ceramic cups
-      for (let offset of [-1.1, 0, 1.1]) {
-        const insGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8);
-        const insMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+      // Ceramic high-voltage insulators
+      for (const offset of wireOffsets) {
+        const insGeo = new THREE.CylinderGeometry(0.065, 0.08, 0.32, 8);
+        const insMat = new THREE.MeshStandardMaterial({
+          color: 0x1e293b,
+          roughness: 0.3,
+          metalness: 0.6,
+        });
         const ins = new THREE.Mesh(insGeo, insMat);
-        ins.position.set(offset, 8.4, 0);
+        ins.position.set(offset, wireY, 0);
+        ins.castShadow = true;
         poleGroup.add(ins);
+      }
+
+      // Authentic Lagos Step-Down Transformer mounted on the center pole (z = 0)
+      if (z === 0) {
+        const transGroup = new THREE.Group();
+        transGroup.position.set(0, 5.2, 0.5);
+
+        // Heavy steel mounting beam cradle
+        const mountGeo = new THREE.BoxGeometry(1.6, 0.18, 0.9);
+        const mount = new THREE.Mesh(mountGeo, mats.ironRailingMaterial);
+        mount.castShadow = true;
+        transGroup.add(mount);
+
+        // Cylindrical transformer canister (industrial olive-grey)
+        const canGeo = new THREE.CylinderGeometry(0.45, 0.45, 1.4, 16);
+        const canMat = new THREE.MeshStandardMaterial({
+          color: 0x475569,
+          roughness: 0.5,
+          metalness: 0.7,
+        });
+        const canister = new THREE.Mesh(canGeo, canMat);
+        canister.position.y = 0.8;
+        canister.castShadow = true;
+        canister.receiveShadow = true;
+        transGroup.add(canister);
+
+        // Cooling radiator ribs
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+          const finGeo = new THREE.BoxGeometry(0.04, 1.1, 0.2);
+          const fin = new THREE.Mesh(finGeo, mats.ironRailingMaterial);
+          fin.position.set(Math.cos(a) * 0.48, 0.8, Math.sin(a) * 0.48);
+          fin.rotation.y = a;
+          transGroup.add(fin);
+        }
+
+        // Top high-voltage bushings
+        for (let bx of [-0.2, 0, 0.2]) {
+          const bushGeo = new THREE.CylinderGeometry(0.035, 0.05, 0.3, 8);
+          const bushing = new THREE.Mesh(bushGeo, mats.ironRailingMaterial);
+          bushing.position.set(bx, 1.6, 0);
+          transGroup.add(bushing);
+        }
+
+        // Yellow "DANGER - 11,000 VOLTS" warning plate
+        const warnGeo = new THREE.BoxGeometry(0.4, 0.25, 0.02);
+        const warnMat = new THREE.MeshStandardMaterial({
+          color: 0xfacc15,
+          roughness: 0.4,
+        });
+        const warn = new THREE.Mesh(warnGeo, warnMat);
+        warn.position.set(0, 0.8, 0.47);
+        transGroup.add(warn);
+
+        poleGroup.add(transGroup);
       }
 
       this.group.add(poleGroup);
     }
 
-    // Overhead high tension electric wires spanning between poles
+    // Overhead high tension electric wires with realistic SAG (Catenary curve)
+    const cableMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.8,
+      metalness: 0.1,
+    });
+
     for (let i = 0; i < poleZPositions.length - 1; i++) {
       const z1 = poleZPositions[i];
       const z2 = poleZPositions[i + 1];
-      const span = z2 - z1;
+      const midZ = (z1 + z2) / 2;
 
-      for (let offset of [-1.1, 0, 1.1]) {
-        const wireGeo = new THREE.CylinderGeometry(0.015, 0.015, span, 4);
-        const wireMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
-        const wire = new THREE.Mesh(wireGeo, wireMat);
-        wire.rotation.x = Math.PI / 2;
-        wire.position.set(poleX + offset, 8.4, z1 + span / 2);
-        this.group.add(wire);
+      for (const offset of wireOffsets) {
+        // Natural catenary sag of ~0.65m at midpoint
+        const sag = 0.65;
+        const p1 = new THREE.Vector3(poleX + offset, wireY + 0.12, z1);
+        const pMid = new THREE.Vector3(poleX + offset, wireY + 0.12 - sag, midZ);
+        const p2 = new THREE.Vector3(poleX + offset, wireY + 0.12, z2);
+
+        const curve = new THREE.QuadraticBezierCurve3(p1, pMid, p2);
+        const cableGeo = new THREE.TubeGeometry(curve, 18, 0.016, 4, false);
+        const cableMesh = new THREE.Mesh(cableGeo, cableMat);
+        cableMesh.castShadow = true;
+        this.group.add(cableMesh);
       }
     }
   }
