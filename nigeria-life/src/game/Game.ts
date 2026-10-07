@@ -213,7 +213,7 @@ export class Game {
     // Update Input cursor animations
     this.input.update(delta);
 
-    // Render Scene through Post-Processing Pipeline (with animated heat-haze delta)
-    this.postProcessing.render(this.scene, this.cameraManager.camera, delta);
+    // Render Scene directly with high-fidelity ACESFilmic tone mapping & PCF shadows
+    this.renderer.render(this.scene, this.cameraManager.camera);
   };
 }
