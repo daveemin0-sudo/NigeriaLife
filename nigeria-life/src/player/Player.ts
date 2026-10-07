@@ -218,14 +218,66 @@ export class Player {
     this.currentEmote = 'walk';
   }
 
-  public update(delta: number): void {
+  public stopMoving(): void {
+    this.targetPosition = null;
+    this.isMoving = false;
+    this.currentEmote = 'idle';
+  }
+
+  public update(delta: number, keys?: Record<string, boolean>): void {
     if (this.isDriving && this.currentVehicle) {
       this.mesh.position.copy(this.currentVehicle.mesh.position);
       this.mesh.rotation.y = this.currentVehicle.mesh.rotation.y;
       return;
     }
 
-    // 1. Moving state
+    // 0. Keyboard Walking Controls (WASD / Arrow Keys)
+    const hasMoveKey =
+      keys &&
+      (keys['w'] ||
+        keys['s'] ||
+        keys['a'] ||
+        keys['d'] ||
+        keys['arrowup'] ||
+        keys['arrowdown'] ||
+        keys['arrowleft'] ||
+        keys['arrowright']);
+
+    if (hasMoveKey && !this.isDriving) {
+      this.targetPosition = null;
+      let moveX = 0;
+      let moveZ = 0;
+      if (keys['w'] || keys['arrowup']) moveZ -= 1;
+      if (keys['s'] || keys['arrowdown']) moveZ += 1;
+      if (keys['a'] || keys['arrowleft']) moveX -= 1;
+      if (keys['d'] || keys['arrowright']) moveX += 1;
+
+      if (moveX !== 0 || moveZ !== 0) {
+        const moveDir = new THREE.Vector3(moveX, 0, moveZ).normalize();
+        const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+        this.mesh.rotation.y = THREE.MathUtils.lerp(this.mesh.rotation.y, targetAngle, 0.25);
+        this.mesh.position.addScaledVector(moveDir, this.speed * delta);
+        this.isMoving = true;
+        this.currentEmote = 'walk';
+
+        // Walk cycle animation
+        this.animTime += delta * 14;
+        const legAngle = Math.sin(this.animTime) * 0.55;
+        const armAngle = -legAngle * 0.55;
+
+        this.leftLeg.rotation.x = legAngle;
+        this.rightLeg.rotation.x = -legAngle;
+        this.leftArm.rotation.x = armAngle;
+        this.rightArm.rotation.x = -armAngle;
+
+        this.bodyMesh.position.y = 1.05 + Math.abs(Math.sin(this.animTime * 2)) * 0.08;
+        this.headMesh.position.y = 1.7 + Math.abs(Math.sin(this.animTime * 2)) * 0.06;
+        this.headwearGroup.position.y = 1.7 + Math.abs(Math.sin(this.animTime * 2)) * 0.06;
+        return;
+      }
+    }
+
+    // 1. Moving state (Point and Click)
     if (this.targetPosition && this.isMoving) {
       const currentPos = this.mesh.position;
       const direction = new THREE.Vector3().subVectors(this.targetPosition, currentPos);

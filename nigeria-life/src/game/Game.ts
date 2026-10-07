@@ -177,7 +177,7 @@ export class Game {
     const delta = Math.min(this.clock.getDelta(), 0.1);
 
     // Update Player Movement & Walking Cycle
-    this.player.update(delta);
+    this.player.update(delta, this.input.keys);
 
     // Update Camera Follow
     this.cameraManager.update(this.player, delta);

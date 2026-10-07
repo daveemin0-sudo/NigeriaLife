@@ -20,6 +20,7 @@ export class InputManager {
   private hoverGroundPoint = new THREE.Vector3();
   private cursorState: 'default' | 'walk' | 'interact' = 'default';
   public hoveredObject: InteractiveObject | null = null;
+  private pendingInteraction: InteractiveObject | null = null;
 
   public keys: Record<string, boolean> = {};
   public onToggleVehicle?: () => void;
@@ -78,6 +79,10 @@ export class InputManager {
 
       const k = e.key.toLowerCase();
       this.keys[k] = true;
+
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+        this.pendingInteraction = null;
+      }
 
       if (k === 'f') {
         this.onToggleVehicle?.();
@@ -153,17 +158,31 @@ export class InputManager {
 
     this.raycaster.setFromCamera(this.mouseCoords, this.camera);
 
-    // 1. Test click on interactive buildings
+    // 1. Test click on interactive buildings & objects
     const buildingMeshes = this.world.interactiveObjects.map((obj) => obj.mesh);
     const buildingHits = this.raycaster.intersectObjects(buildingMeshes, true);
 
     if (buildingHits.length > 0) {
       const hitObj = this.findInteractiveParent(buildingHits[0].object);
       if (hitObj) {
-        // Move player towards building entrance
-        this.player.setDestination(hitObj.interactionPoint);
-        this.spawnClickMarker(hitObj.interactionPoint, 0xfacc15); // Golden target
-        this.hud.showInteractionCard(hitObj);
+        const dist = this.player.position.distanceTo(hitObj.interactionPoint);
+        const threshold = hitObj.id.startsWith('veh-') ? 3.5 : 2.8;
+
+        if (dist <= threshold) {
+          // Already within close proximity: face object and open immediately
+          const lookDir = new THREE.Vector3().subVectors(hitObj.interactionPoint, this.player.position);
+          if (lookDir.lengthSq() > 0.01) {
+            this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+          }
+          this.pendingInteraction = null;
+          this.hud.showInteractionCard(hitObj);
+        } else {
+          // Player is at a distance: approach the object first, then interact on arrival
+          this.player.setDestination(hitObj.interactionPoint);
+          this.spawnClickMarker(hitObj.interactionPoint, 0xfacc15); // Golden approach target
+          this.pendingInteraction = hitObj;
+          this.hud.hideInteractionCard();
+        }
         return;
       }
     }
@@ -172,6 +191,7 @@ export class InputManager {
     const groundHits = this.raycaster.intersectObject(this.world.groundMesh);
     if (groundHits.length > 0) {
       const clickPoint = groundHits[0].point;
+      this.pendingInteraction = null;
       this.player.setDestination(clickPoint);
       this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
       this.hud.hideInteractionCard();
@@ -208,6 +228,34 @@ export class InputManager {
   }
 
   public update(delta: number): void {
+    // Check pending interaction approach arrival
+    if (this.pendingInteraction) {
+      const dist = this.player.position.distanceTo(this.pendingInteraction.interactionPoint);
+      const threshold = this.pendingInteraction.id.startsWith('veh-') ? 3.5 : 2.5;
+
+      if (dist <= threshold || !this.player.isMoving) {
+        const hitObj = this.pendingInteraction;
+        this.pendingInteraction = null;
+        this.player.stopMoving();
+
+        // Turn smoothly towards the interaction point
+        const lookDir = new THREE.Vector3().subVectors(hitObj.interactionPoint, this.player.position);
+        if (lookDir.lengthSq() > 0.01) {
+          this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+        }
+
+        this.hud.showInteractionCard(hitObj);
+      }
+    }
+
+    // Auto-dismiss interaction card if player moves far away
+    if (this.hud.currentActiveObject && !this.pendingInteraction) {
+      const activeDist = this.player.position.distanceTo(this.hud.currentActiveObject.interactionPoint);
+      if (activeDist > 6.0) {
+        this.hud.hideInteractionCard();
+      }
+    }
+
     // Animate click ripple marker
     if (this.markerAnimTime > 0) {
       this.markerAnimTime -= delta;

@@ -25,7 +25,7 @@ export class HUD {
   private player!: Player;
   private world?: World;
   private backend: BackendService;
-  private currentActiveObject: InteractiveObject | null = null;
+  public currentActiveObject: InteractiveObject | null = null;
 
   public onExitVehicle?: () => void;
   public onHonkVehicle?: () => void;
