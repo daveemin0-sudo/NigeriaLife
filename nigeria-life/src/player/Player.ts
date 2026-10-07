@@ -13,6 +13,8 @@ export class Player {
   public isMoving: boolean = false;
   public currentEmote: EmoteType = 'idle';
   public emoteTimer: number = 0;
+  public isDriving: boolean = false;
+  public currentVehicle: any = null;
 
   // Configuration
   public config: CharacterConfig;
@@ -217,6 +219,12 @@ export class Player {
   }
 
   public update(delta: number): void {
+    if (this.isDriving && this.currentVehicle) {
+      this.mesh.position.copy(this.currentVehicle.mesh.position);
+      this.mesh.rotation.y = this.currentVehicle.mesh.rotation.y;
+      return;
+    }
+
     // 1. Moving state
     if (this.targetPosition && this.isMoving) {
       const currentPos = this.mesh.position;

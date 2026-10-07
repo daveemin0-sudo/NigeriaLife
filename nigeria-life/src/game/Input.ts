@@ -19,6 +19,10 @@ export class InputManager {
   private markerAnimTime: number = 0;
   public hoveredObject: InteractiveObject | null = null;
 
+  public keys: Record<string, boolean> = {};
+  public onToggleVehicle?: () => void;
+  public onHonkVehicle?: () => void;
+
   constructor(
     camera: THREE.Camera,
     scene: THREE.Scene,
@@ -64,6 +68,26 @@ export class InputManager {
     // Setup Event Listeners
     window.addEventListener('pointermove', this.onPointerMove.bind(this));
     window.addEventListener('pointerdown', this.onPointerDown.bind(this));
+
+    // Keyboard driving controls
+    window.addEventListener('keydown', (e) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      const k = e.key.toLowerCase();
+      this.keys[k] = true;
+
+      if (k === 'f') {
+        this.onToggleVehicle?.();
+      } else if (k === 'h') {
+        this.onHonkVehicle?.();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const k = e.key.toLowerCase();
+      this.keys[k] = false;
+    });
   }
 
   private onPointerMove(event: MouseEvent): void {
@@ -110,12 +134,16 @@ export class InputManager {
       targetEl.closest('#character-creator-modal') ||
       targetEl.closest('#smartphone-wrapper') ||
       targetEl.closest('#street-chat-box') ||
-      targetEl.closest('#economy-modal')
+      targetEl.closest('#economy-modal') ||
+      targetEl.closest('#travel-modal')
     ) {
       if (!targetEl.closest('canvas')) {
         return;
       }
     }
+
+    // If player is currently driving a vehicle, do not steer/walk by clicking
+    if (this.player.isDriving) return;
 
     this.mouseCoords.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouseCoords.y = -(event.clientY / window.innerHeight) * 2 + 1;

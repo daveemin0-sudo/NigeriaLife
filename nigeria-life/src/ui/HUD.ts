@@ -5,21 +5,28 @@ import { InventoryModal } from './InventoryModal';
 import { ATMModal } from './ATMModal';
 import { PhoneModal } from './PhoneModal';
 import { EconomyModal } from './EconomyModal';
+import { TravelModal } from './TravelModal';
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 
 export class HUD {
   private container: HTMLDivElement;
   private interactionCard: HTMLDivElement;
+  private drivingHudEl!: HTMLDivElement;
   private creatorModal!: CharacterCreatorModal;
   private inventoryModal!: InventoryModal;
   private atmModal!: ATMModal;
   public phoneModal!: PhoneModal;
   public economyModal!: EconomyModal;
+  public travelModal!: TravelModal;
   private player!: Player;
   private world?: World;
   private backend: BackendService;
   private currentActiveObject: InteractiveObject | null = null;
+
+  public onExitVehicle?: () => void;
+  public onHonkVehicle?: () => void;
+  public onEnterVehicle?: (vehicleId: string) => void;
 
   constructor() {
     this.backend = BackendService.getInstance();
@@ -28,6 +35,7 @@ export class HUD {
     this.inventoryModal.onOpenATM = () => this.atmModal.open();
     this.phoneModal = new PhoneModal();
     this.economyModal = new EconomyModal();
+    this.travelModal = new TravelModal();
 
     this.container = document.createElement('div');
     this.container.id = 'hud-overlay';
@@ -62,6 +70,10 @@ export class HUD {
           <button class="hud-btn econ-btn-header" id="open-econ-btn" title="Shortcut: Key E">
             <span>🏢</span>
             <span>Enterprise [E]</span>
+          </button>
+          <button class="hud-btn travel-btn-header" id="open-travel-btn" title="Shortcut: Key T">
+            <span>🚌</span>
+            <span>Transit [T]</span>
           </button>
         </div>
 
@@ -116,11 +128,29 @@ export class HUD {
           <button class="btn-secondary" id="card-biz-btn" style="display: none;">💼 Enterprise & Ownership</button>
         </div>
       </div>
+
+      <!-- Driving HUD Widget (Speedometer & Controls) -->
+      <div class="driving-hud-panel" id="driving-hud" style="display: none;">
+        <div class="speedo-box">
+          <span class="speedo-val" id="speedo-val">0</span>
+          <span class="speedo-unit">KM/H</span>
+        </div>
+        <div class="driving-meta-box">
+          <h4 id="driving-veh-name">Danfo Minibus</h4>
+          <span class="driving-hint">WASD / Arrows to Drive • SPACE Handbrake</span>
+        </div>
+        <div class="driving-actions-bar">
+          <button class="btn-hud-horn" id="btn-drive-horn" title="Honk Horn [Key H]">📢 Honk [H]</button>
+          <button class="btn-hud-exit-veh" id="btn-drive-exit" title="Exit Vehicle [Key F]">🚪 Exit [F]</button>
+        </div>
+      </div>
     `;
 
     document.body.appendChild(this.container);
 
     this.interactionCard = document.getElementById('interaction-card') as HTMLDivElement;
+    this.drivingHudEl = document.getElementById('driving-hud') as HTMLDivElement;
+
     const closeBtn = document.getElementById('card-close') as HTMLButtonElement;
     closeBtn.addEventListener('click', () => this.hideInteractionCard());
 
@@ -176,6 +206,18 @@ export class HUD {
       this.economyModal.toggle();
     });
 
+    document.getElementById('open-travel-btn')?.addEventListener('click', () => {
+      this.travelModal.toggle();
+    });
+
+    document.getElementById('btn-drive-exit')?.addEventListener('click', () => {
+      this.onExitVehicle?.();
+    });
+
+    document.getElementById('btn-drive-horn')?.addEventListener('click', () => {
+      this.onHonkVehicle?.();
+    });
+
     // Emote buttons
     document.getElementById('emote-zanku')?.addEventListener('click', () => {
       this.player.playEmote('zanku', 4.0);
@@ -203,6 +245,8 @@ export class HUD {
         this.phoneModal.toggle();
       } else if (e.key.toLowerCase() === 'e') {
         this.economyModal.toggle();
+      } else if (e.key.toLowerCase() === 't') {
+        this.travelModal.toggle();
       } else if (e.key === '1') {
         this.player.playEmote('zanku', 4.0);
       } else if (e.key === '2') {
@@ -216,6 +260,7 @@ export class HUD {
         this.atmModal.close();
         this.phoneModal.close();
         this.economyModal.close();
+        this.travelModal.close();
       }
     });
   }
@@ -250,8 +295,11 @@ export class HUD {
       btnEl.textContent = isTenant ? '🚪 Open / Close Compound Gate' : '🏠 Ring Gate Bell (Visitor)';
       bizBtn.textContent = '🏡 Victoria Estate Property Office [E]';
       bizBtn.style.display = 'inline-block';
+    } else if (obj.id.startsWith('veh-')) {
+      btnEl.textContent = '🚗 Board & Drive [F]';
+      bizBtn.style.display = 'none';
     } else if (obj.id === 'danfo-stop') {
-      btnEl.textContent = '🚌 Board Danfo to Ikeja (₦500)';
+      btnEl.textContent = '🗺️ Lagos Inter-City Danfo Transit [T]';
       bizBtn.textContent = '🚌 Transport Fleet Management [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'npc-hawker') {
@@ -269,6 +317,28 @@ export class HUD {
     }
 
     this.interactionCard.style.display = 'block';
+  }
+
+  public showDrivingHUD(vehicleName: string): void {
+    if (this.drivingHudEl) {
+      this.drivingHudEl.style.display = 'flex';
+      const nameEl = document.getElementById('driving-veh-name');
+      if (nameEl) nameEl.textContent = vehicleName;
+    }
+  }
+
+  public hideDrivingHUD(): void {
+    if (this.drivingHudEl) {
+      this.drivingHudEl.style.display = 'none';
+    }
+  }
+
+  public updateDrivingHUD(speedMps: number): void {
+    const speedValEl = document.getElementById('speedo-val');
+    if (speedValEl) {
+      const kmh = Math.round(Math.abs(speedMps) * 3.6);
+      speedValEl.textContent = kmh.toString();
+    }
   }
 
   public hideInteractionCard(): void {
@@ -345,8 +415,16 @@ export class HUD {
       } else {
         alert('❌ Need ₦200 cash for water & gala!');
       }
-    } else if (id === 'danfo-stop' || id === 'npc-conductor') {
-      const fare = id === 'danfo-stop' ? 500 : 300;
+    } else if (id.startsWith('veh-')) {
+      this.hideInteractionCard();
+      this.onEnterVehicle?.(id);
+      return;
+    } else if (id === 'danfo-stop') {
+      this.hideInteractionCard();
+      this.travelModal.open();
+      return;
+    } else if (id === 'npc-conductor') {
+      const fare = 300;
       const success = this.backend.spendCash(fare, 'Danfo Bus Fare');
       if (success) {
         this.backend.addStreetCred(5);

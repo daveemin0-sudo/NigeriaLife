@@ -49,6 +49,7 @@ export class World {
     this.interactiveObjects = [
       ...this.buildings.interactiveList,
       ...this.npcs.interactiveList,
+      ...this.vehicles.interactiveList,
     ];
   }
 
@@ -91,9 +92,9 @@ export class World {
     this.scene.add(this.groundMesh);
   }
 
-  public update(delta: number): void {
-    // Update vehicle movements
-    this.vehicles.update(delta);
+  public update(delta: number, keys: Record<string, boolean> = {}): void {
+    // Update vehicle movements & drivable controls
+    this.vehicles.update(delta, keys);
 
     // Update ambient NPC walking & animations
     this.npcs.update(delta);

@@ -55,19 +55,70 @@ export class Game {
       this.hud
     );
 
-    // 8. Multiplayer & Street Chat
+    // 8. Vehicle Control Wiring
+    this.hud.onEnterVehicle = (vehId: string) => {
+      const v = this.world.vehicles.getVehicleById(vehId);
+      if (v) this.enterVehicle(v);
+    };
+
+    this.hud.onExitVehicle = () => {
+      this.exitVehicle();
+    };
+
+    this.hud.onHonkVehicle = () => {
+      if (this.player.isDriving && this.player.currentVehicle) {
+        this.player.currentVehicle.honk();
+      }
+    };
+
+    this.input.onToggleVehicle = () => {
+      if (this.player.isDriving) {
+        this.exitVehicle();
+      } else {
+        const v = this.world.vehicles.getNearestDrivableVehicle(this.player.position, 6.0);
+        if (v) {
+          this.enterVehicle(v);
+        }
+      }
+    };
+
+    this.input.onHonkVehicle = () => {
+      if (this.player.isDriving && this.player.currentVehicle) {
+        this.player.currentVehicle.honk();
+      }
+    };
+
+    // 9. Multiplayer & Street Chat
     this.network = new NetworkManager(this.scene, this.player);
     this.chatBox = new ChatBox(this.network);
     this.network.setOnPlayerCount((count) => this.hud.updateOnlineCount(count));
 
-    // 9. Clock for delta-timed updates
+    // 10. Clock for delta-timed updates
     this.clock = new THREE.Clock();
 
-    // 10. Window Resizing
+    // 11. Window Resizing
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
-    // 11. Start Loop
+    // 12. Start Loop
     this.loop();
+  }
+
+  private enterVehicle(vehicle: any): void {
+    vehicle.enter(this.player);
+    this.player.isDriving = true;
+    this.player.currentVehicle = vehicle;
+    this.hud.showDrivingHUD(vehicle.name);
+  }
+
+  private exitVehicle(): void {
+    if (this.player.isDriving && this.player.currentVehicle) {
+      const exitPos = this.player.currentVehicle.exit();
+      this.player.mesh.position.copy(exitPos);
+      this.player.mesh.visible = true;
+      this.player.isDriving = false;
+      this.player.currentVehicle = null;
+      this.hud.hideDrivingHUD();
+    }
   }
 
   private onWindowResize(): void {
@@ -86,8 +137,13 @@ export class Game {
     // Update Camera Follow
     this.cameraManager.update(this.player, delta);
 
-    // Update World (Traffic, NPCs, Animations)
-    this.world.update(delta);
+    // Update World (Vehicles, Traffic, NPCs, Animations) with keyboard states
+    this.world.update(delta, this.input.keys);
+
+    // Update Driving HUD Speedometer
+    if (this.player.isDriving && this.player.currentVehicle) {
+      this.hud.updateDrivingHUD(this.player.currentVehicle.currentSpeed);
+    }
 
     // Update Multiplayer networking & remote players
     this.network.update(delta);
