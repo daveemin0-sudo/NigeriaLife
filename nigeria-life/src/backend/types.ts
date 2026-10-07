@@ -38,32 +38,122 @@ export interface BusinessUpgrade {
   description: string;
 }
 
-export interface BusinessEnterprise {
-  id: string;
-  name: string;
-  category: string;
-  buildingId: string;
-  icon: string;
-  purchasePrice: number;
-  baseIncomePerCycle: number;
-  owned: boolean;
-  pendingRevenue: number;
-  level: number;
-  upgrades: BusinessUpgrade[];
-}
+export type PropertyType =
+  | 'room'
+  | 'self-contained'
+  | 'apartment'
+  | 'duplex'
+  | 'luxury apartment'
+  | 'house'
+  | 'shop'
+  | 'office'
+  | 'warehouse'
+  | 'land';
+
+export type PropertyStatus = 'available' | 'rented' | 'owned' | 'unavailable' | 'unowned' | 'purchased';
 
 export interface RealEstateProperty {
   id: string;
+  cityId: string;
+  districtId: string;
+  type: PropertyType;
   name: string;
-  type: 'residential' | 'commercial';
-  location: string;
-  buildingId: string;
-  icon: string;
+  position: { x: number; y: number; z: number };
+  streetPosition: { x: number; y: number; z: number };
   purchasePrice: number;
   rentalPriceMonthly: number;
-  status: 'unowned' | 'rented' | 'purchased';
-  perks: string[];
+  status: PropertyStatus;
+  ownerId: string;
+  level: number;
+  bedrooms: number;
+  businessCompatible: boolean;
+  description: string;
+  features: string[];
+  icon: string;
   safeBalance: number;
+  buildingId?: string;
+  location?: string;
+  perks?: string[];
+}
+
+export type BusinessType =
+  | 'restaurant'
+  | 'supermarket'
+  | 'pharmacy'
+  | 'fashion shop'
+  | 'phone shop'
+  | 'mechanic'
+  | 'salon'
+  | 'barbershop'
+  | 'hotel'
+  | 'logistics'
+  | 'filling station'
+  | 'tech company'
+  | 'transport business';
+
+export interface BusinessEnterprise {
+  id: string;
+  name: string;
+  cityId?: string;
+  districtId?: string;
+  propertyId?: string;
+  type?: BusinessType;
+  ownerId?: string;
+  category: string;
+  icon: string;
+  purchasePrice: number;
+  baseIncomePerCycle: number;
+  income?: number;
+  operatingCost?: number;
+  owned: boolean;
+  pendingRevenue: number;
+  level: number;
+  status?: 'open' | 'closed';
+  position?: { x: number; y: number; z: number };
+  streetPosition?: { x: number; y: number; z: number };
+  revenueEst?: string;
+  upgrades: BusinessUpgrade[];
+  buildingId?: string;
+}
+
+export type TransactionType =
+  | 'PROPERTY_PURCHASE'
+  | 'RENT_PAYMENT'
+  | 'JOB_SALARY'
+  | 'BUSINESS_INCOME'
+  | 'SHOP_PURCHASE'
+  | 'TRAVEL_COST'
+  | 'ATM_WITHDRAWAL'
+  | 'ATM_DEPOSIT';
+
+export interface TransactionRecord {
+  id: string;
+  playerId: string;
+  type: TransactionType;
+  amount: number;
+  timestamp: string;
+  description: string;
+  source: 'wallet' | 'bank';
+}
+
+export interface JobListing {
+  id: string;
+  title: string;
+  salary: number;
+  workplace: string;
+  districtId: string;
+  businessId?: string;
+  shiftDuration: number;
+  requiredLevel: number;
+  icon: string;
+  description: string;
+}
+
+export interface ActiveJobShift {
+  jobId: string;
+  startTime: number;
+  duration: number;
+  completed: boolean;
 }
 
 export interface CareerProfile {
@@ -89,6 +179,9 @@ export interface PlayerAccount {
   businesses: BusinessEnterprise[];
   properties: RealEstateProperty[];
   career: CareerProfile;
+  transactionHistory: TransactionRecord[];
+  activeJobShift?: ActiveJobShift | null;
+  activeHousingId?: string;
   activeLoan?: {
     lender: string;
     amount: number;
@@ -347,57 +440,494 @@ export const DEFAULT_BUSINESSES: BusinessEnterprise[] = [
 ];
 
 export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
+  // 1. Mainland
+  {
+    id: 'prop_mainland_room',
+    cityId: 'lagos',
+    districtId: 'mainland',
+    type: 'room',
+    name: 'Maryland Self-Contained Boys Quarters',
+    position: { x: -35, y: 0.5, z: -45 },
+    streetPosition: { x: -24, y: 0, z: -45 },
+    purchasePrice: 1800000,
+    rentalPriceMonthly: 25000,
+    status: 'available',
+    ownerId: 'npc_landlord_maryland',
+    level: 1,
+    bedrooms: 1,
+    businessCompatible: false,
+    description: 'Cozy self-contained room in Maryland with separate prepaid meter and private bathroom.',
+    features: ['Prepaid NEPA Meter', 'Private Water Tap', 'Gated Compound'],
+    icon: '🏠',
+    safeBalance: 0,
+    location: 'Maryland, Lagos Mainland',
+  },
+  {
+    id: 'prop_mainland_apt',
+    cityId: 'lagos',
+    districtId: 'mainland',
+    type: 'apartment',
+    name: 'Anthony Village 3-Bedroom Family Flat',
+    position: { x: -45, y: 0.5, z: -55 },
+    streetPosition: { x: -28, y: 0, z: -50 },
+    purchasePrice: 18500000,
+    rentalPriceMonthly: 120000,
+    status: 'available',
+    ownerId: 'npc_landlord_anthony',
+    level: 1,
+    bedrooms: 3,
+    businessCompatible: false,
+    description: 'Spacious 3-bedroom flat in a quiet residential avenue with dedicated parking and security.',
+    features: ['Dedicated Car Park', 'Overhead Water Tank', 'Night Security Guard'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Anthony Village, Lagos Mainland',
+  },
+  {
+    id: 'prop_mainland_shop',
+    cityId: 'lagos',
+    districtId: 'mainland',
+    type: 'shop',
+    name: 'Ikorodu Road Corner Trade Shop',
+    position: { x: -20, y: 0.5, z: -40 },
+    streetPosition: { x: -20, y: 0, z: -42 },
+    purchasePrice: 4500000,
+    rentalPriceMonthly: 45000,
+    status: 'available',
+    ownerId: 'npc_landlord_ikorodu',
+    level: 1,
+    bedrooms: 0,
+    businessCompatible: true,
+    description: 'High-footfall commercial lock-up shop fronting the bustling Ikorodu Road arterial.',
+    features: ['Roller Iron Shutter', 'Constant Foot Traffic', 'Signboard Space'],
+    icon: '🏪',
+    safeBalance: 0,
+    location: 'Ikorodu Road, Mainland',
+  },
+
+  // 2. Yaba
+  {
+    id: 'prop_yaba_student',
+    cityId: 'lagos',
+    districtId: 'yaba',
+    type: 'self-contained',
+    name: 'Unilag Student Studio Apartment',
+    position: { x: -10, y: 0.5, z: -25 },
+    streetPosition: { x: -10, y: 0, z: -25 },
+    purchasePrice: 3500000,
+    rentalPriceMonthly: 40000,
+    status: 'available',
+    ownerId: 'npc_yaba_hostel',
+    level: 1,
+    bedrooms: 1,
+    businessCompatible: false,
+    description: 'Walking distance to University of Lagos & Yabatech. Perfect student base with reading alcove.',
+    features: ['Study Table & Chair', 'Borehole Water', 'Close to Campus'],
+    icon: '🏠',
+    safeBalance: 0,
+    location: 'Akoka / Yaba, Lagos',
+  },
+  {
+    id: 'prop_yaba_tech_office',
+    cityId: 'lagos',
+    districtId: 'yaba',
+    type: 'office',
+    name: 'CcHub Cluster Co-Working Office',
+    position: { x: -18, y: 0.5, z: -20 },
+    streetPosition: { x: -15, y: 0, z: -20 },
+    purchasePrice: 28000000,
+    rentalPriceMonthly: 180000,
+    status: 'available',
+    ownerId: 'npc_cchub_ventures',
+    level: 2,
+    bedrooms: 0,
+    businessCompatible: true,
+    description: 'Glass-partitioned tech workspace on Herbert Macaulay Way with high-speed fiber internet.',
+    features: ['Starlink Fibre Link', 'Rooftop Solar Inverter', 'Meeting Room Access'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Herbert Macaulay Way, Yaba',
+  },
+
+  // 3. Ikeja
+  {
+    id: 'prop_ikeja_apt',
+    cityId: 'lagos',
+    districtId: 'ikeja',
+    type: 'apartment',
+    name: 'Allen Avenue Executive 2-Bed Residence',
+    position: { x: -15, y: 0.5, z: -110 },
+    streetPosition: { x: 0, y: 0, z: -95 },
+    purchasePrice: 35000000,
+    rentalPriceMonthly: 220000,
+    status: 'available',
+    ownerId: 'npc_ikeja_holdings',
+    level: 2,
+    bedrooms: 2,
+    businessCompatible: false,
+    description: 'Prime Allen Avenue apartment. Easy access to Ikeja City Mall and Government Secretariat.',
+    features: ['Standby Generator', 'Swimming Pool', 'CCTV Surveillance'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Allen Avenue, Ikeja',
+  },
+  {
+    id: 'prop_ikeja_tech_hub',
+    cityId: 'lagos',
+    districtId: 'ikeja',
+    type: 'office',
+    name: 'Computer Village Otigba Tech Office',
+    position: { x: 5, y: 0.5, z: -100 },
+    streetPosition: { x: 12, y: 0, z: -95 },
+    purchasePrice: 45000000,
+    rentalPriceMonthly: 300000,
+    status: 'available',
+    ownerId: 'npc_otigba_trust',
+    level: 2,
+    bedrooms: 0,
+    businessCompatible: true,
+    description: 'High-earning commercial office right in the buzzing heart of Computer Village electronics market.',
+    features: ['Direct Market Access', 'High-Security Iron Doors', 'Bulk Wholesale Storage'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Otigba Street, Computer Village, Ikeja',
+  },
+
+  // 4. Surulere
+  {
+    id: 'prop_surulere_terrace',
+    cityId: 'lagos',
+    districtId: 'surulere',
+    type: 'house',
+    name: 'Bode Thomas 3-Bedroom Terrace House',
+    position: { x: -55, y: 0.5, z: 10 },
+    streetPosition: { x: -55, y: 0, z: 15 },
+    purchasePrice: 48000000,
+    rentalPriceMonthly: 280000,
+    status: 'available',
+    ownerId: 'npc_surulere_heritage',
+    level: 2,
+    bedrooms: 3,
+    businessCompatible: false,
+    description: 'Charming colonial-style family terrace house near National Stadium and Adeniran Ogunsanya Mall.',
+    features: ['Private Front Courtyard', 'Borehole Water Purification', 'Interlocked Compound'],
+    icon: '🏡',
+    safeBalance: 0,
+    location: 'Bode Thomas, Surulere',
+  },
+
+  // 5. Victoria Island
+  {
+    id: 'prop_vi_luxury_apt',
+    cityId: 'lagos',
+    districtId: 'victoria_island',
+    type: 'luxury apartment',
+    name: 'Victoria Island Waterfront Luxury Flat',
+    position: { x: 10, y: 0.5, z: 85 },
+    streetPosition: { x: 0, y: 0, z: 85 },
+    purchasePrice: 95000000,
+    rentalPriceMonthly: 650000,
+    status: 'available',
+    ownerId: 'npc_eko_living',
+    level: 3,
+    bedrooms: 2,
+    businessCompatible: false,
+    description: 'High-end designer flat facing Five Cowries Creek. Seconds away from Quilox and Eko Hotel.',
+    features: ['Creek Waterfront View', 'Underground Valet Parking', '24/7 Central Chiller AC'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Victoria Island Waterfront, Lagos',
+  },
+  {
+    id: 'prop_vi_office_suite',
+    cityId: 'lagos',
+    districtId: 'victoria_island',
+    type: 'office',
+    name: 'Adeola Odeku Corporate Tower Suite',
+    position: { x: 25, y: 0.5, z: 95 },
+    streetPosition: { x: 14, y: 0, z: 95 },
+    purchasePrice: 120000000,
+    rentalPriceMonthly: 850000,
+    status: 'available',
+    ownerId: 'npc_vi_towers',
+    level: 3,
+    bedrooms: 0,
+    businessCompatible: true,
+    description: 'Executive corporate office overlooking Adeola Odeku. Houses multinational fintechs and oil firms.',
+    features: ['High-Speed Elevators', 'Executive Boardroom', 'Concierge Reception'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Adeola Odeku, Victoria Island',
+  },
+
+  // 6. Lekki Phase 1
+  {
+    id: 'prop_lekki_duplex',
+    cityId: 'lagos',
+    districtId: 'lekki',
+    type: 'duplex',
+    name: 'Lekki Phase 1 Gated 4-Bed Duplex',
+    position: { x: 65, y: 0.5, z: 25 },
+    streetPosition: { x: 55, y: 0, z: 0 },
+    purchasePrice: 165000000,
+    rentalPriceMonthly: 1200000,
+    status: 'available',
+    ownerId: 'npc_lekki_properties',
+    level: 3,
+    bedrooms: 4,
+    businessCompatible: false,
+    description: 'Luxurious 4-bedroom detached duplex in a private security estate off Admiralty Way with swimming pool.',
+    features: ['Private Swimming Pool', 'Armed MOPOL Guard Gate', 'Boys Quarters Attached', 'Full Solar Array'],
+    icon: '🏡',
+    safeBalance: 0,
+    location: 'Admiralty Way, Lekki Phase 1',
+  },
+  {
+    id: 'prop_lekki_boutique',
+    cityId: 'lagos',
+    districtId: 'lekki',
+    type: 'shop',
+    name: 'Admiralty Way Designer Boutique Shop',
+    position: { x: 75, y: 0.5, z: 15 },
+    streetPosition: { x: 65, y: 0, z: 0 },
+    purchasePrice: 32000000,
+    rentalPriceMonthly: 250000,
+    status: 'available',
+    ownerId: 'npc_lekki_retail',
+    level: 2,
+    bedrooms: 0,
+    businessCompatible: true,
+    description: 'Sleek glass boutique storefront near Nike Art Gallery with affluent pedestrian traffic.',
+    features: ['Floor-to-Ceiling Display Glass', 'Designer Track Lighting', 'High Affluence Shoppers'],
+    icon: '🏪',
+    safeBalance: 0,
+    location: 'Admiralty Way, Lekki',
+  },
+
+  // 7. Ajah
+  {
+    id: 'prop_ajah_duplex',
+    cityId: 'lagos',
+    districtId: 'ajah',
+    type: 'duplex',
+    name: 'Crown Estate Developing 4-Bed Duplex',
+    position: { x: 125, y: 0.5, z: 60 },
+    streetPosition: { x: 90, y: 0, z: 25 },
+    purchasePrice: 42000000,
+    rentalPriceMonthly: 280000,
+    status: 'available',
+    ownerId: 'npc_ajah_developers',
+    level: 1,
+    bedrooms: 4,
+    businessCompatible: false,
+    description: 'Modern 4-bedroom duplex currently completing roof framing. High appreciation upside!',
+    features: ['Rapid Equity Appreciation', 'Spacious 600sqm Plot', 'Perimeter Wall Erected'],
+    icon: '🏡',
+    safeBalance: 0,
+    location: 'Crown Estate, Ajah Peninsula',
+  },
+  {
+    id: 'prop_ajah_land',
+    cityId: 'lagos',
+    districtId: 'ajah',
+    type: 'land',
+    name: 'Lekki-Epe Expressway Dry Title Land Plot',
+    position: { x: 140, y: 0.5, z: 75 },
+    streetPosition: { x: 95, y: 0, z: 25 },
+    purchasePrice: 1800000,
+    rentalPriceMonthly: 0,
+    status: 'available',
+    ownerId: 'npc_ajah_landowners',
+    level: 1,
+    bedrooms: 0,
+    businessCompatible: true,
+    description: '100% dry virgin land with Governor’s Consent title. Ready for residential or warehouse development.',
+    features: ['Governor’s Consent Deed', '100% Dry Sand Soil', 'Direct Expressway Access'],
+    icon: '🌳',
+    safeBalance: 0,
+    location: 'Lekki-Epe Expressway, Ajah',
+  },
+
+  // 8. Eko Atlantic
+  {
+    id: 'prop_eko_penthouse',
+    cityId: 'lagos',
+    districtId: 'eko_atlantic',
+    type: 'luxury apartment',
+    name: 'Eko Atlantic Marina Skyline Penthouse',
+    position: { x: -25, y: 0.5, z: 125 },
+    streetPosition: { x: -25, y: 0, z: 95 },
+    purchasePrice: 380000000,
+    rentalPriceMonthly: 2500000,
+    status: 'available',
+    ownerId: 'npc_eko_atlantic_residences',
+    level: 4,
+    bedrooms: 3,
+    businessCompatible: false,
+    description: 'The pinnacle of West African luxury. Unobstructed panoramic views over the Atlantic Ocean.',
+    features: ['Atlantic Ocean Panoramic Horizon', 'Private Helipad Access', 'Smart Touch Automation', 'Zero Power Cuts'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Eko Atlantic City, Marina Boulevard',
+  },
+  {
+    id: 'prop_eko_corp_hq',
+    cityId: 'lagos',
+    districtId: 'eko_atlantic',
+    type: 'office',
+    name: 'Financial Centre Executive Suite',
+    position: { x: -15, y: 0.5, z: 135 },
+    streetPosition: { x: -25, y: 0, z: 95 },
+    purchasePrice: 290000000,
+    rentalPriceMonthly: 1900000,
+    status: 'available',
+    ownerId: 'npc_eko_financial_centre',
+    level: 4,
+    bedrooms: 0,
+    businessCompatible: true,
+    description: 'Ultra-prestigious corporate headquarters suite inside the Eko Atlantic International Financial Centre.',
+    features: ['Direct Fibre Internet Backbone', 'Dedicated Private Banking Wing', 'Diplomatic Grade Security'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Financial Boulevard, Eko Atlantic',
+  },
+
+  // 9. Lagos Island
   {
     id: 'prop_villa_estate',
+    cityId: 'lagos',
+    districtId: 'lagos_island',
+    type: 'duplex',
     name: 'Victoria Residence Estate Duplex',
-    type: 'residential',
-    location: 'Broad Street Extension, Lagos Island',
-    buildingId: 'villa-compound',
-    icon: '🏡',
+    position: { x: 0, y: 0.5, z: 20 },
+    streetPosition: { x: 0, y: 0, z: 20 },
     purchasePrice: 1200000,
     rentalPriceMonthly: 120000,
-    status: 'unowned',
-    perks: [
-      'Unlimited 100% Free Energy & Hunger Rest in your bedroom',
-      'Electronic Compound Gate Key for courtyard entry',
-      '+50 Street Cred & Respect across Lagos Island',
-      'Private Master Bedroom Cash Vault with 0% tax',
-    ],
+    status: 'available',
+    ownerId: 'npc_broad_st_estates',
+    level: 2,
+    bedrooms: 3,
+    businessCompatible: false,
+    description: 'Gated executive duplex with electronic courtyard gates, standby generator, and private cash vault.',
+    features: ['Unlimited Free Energy & Hunger Rest', 'Electronic Gate Keycard', '+50 Street Cred & Respect', 'Cash Vault Safe'],
+    icon: '🏡',
     safeBalance: 0,
+    location: 'Broad Street Extension, Lagos Island',
+    buildingId: 'villa-compound',
+    perks: ['Unlimited 100% Free Energy & Hunger Rest', 'Electronic Compound Gate Key', '+50 Street Cred'],
   },
   {
     id: 'prop_palm_view',
+    cityId: 'lagos',
+    districtId: 'lagos_island',
+    type: 'apartment',
     name: 'Palm View 2-Bedroom Residential Flat',
-    type: 'residential',
-    location: 'Tejuosho Block, Lagos Island',
-    buildingId: 'palm-view-flats',
-    icon: '🏢',
+    position: { x: -15, y: 0.5, z: 10 },
+    streetPosition: { x: -15, y: 0, z: 10 },
     purchasePrice: 850000,
     rentalPriceMonthly: 65000,
-    status: 'unowned',
-    perks: [
-      'Quiet top-floor balcony overlooking Broad Street',
-      'Dedicated GeePee 2,500L private water connection',
-      '+25 Street Cred in the neighborhood',
-    ],
+    status: 'available',
+    ownerId: 'npc_palm_view_realty',
+    level: 1,
+    bedrooms: 2,
+    businessCompatible: false,
+    description: 'Top-floor apartment balcony overlooking Broad Street with dedicated 2,500L GeePee water storage.',
+    features: ['Top-Floor Balcony View', '2,500L GeePee Water Tank', '+25 Street Cred'],
+    icon: '🏢',
     safeBalance: 0,
+    location: 'Tejuosho Block, Lagos Island',
+    buildingId: 'palm-view-flats',
+  },
+];
+
+export const DEFAULT_JOBS: JobListing[] = [
+  {
+    id: 'job_shop_assistant',
+    title: 'Trade Shop Assistant',
+    salary: 4500,
+    workplace: 'Balogun Wholesale Market',
+    districtId: 'lagos_island',
+    shiftDuration: 10,
+    requiredLevel: 1,
+    icon: '🏪',
+    description: 'Assist customers with fabric bales, count cash change, and arrange storefront shelves.',
   },
   {
-    id: 'prop_island_office',
-    name: 'Broad Street Commercial Plaza Suite',
-    type: 'commercial',
-    location: 'Marina Financial Corridor, Lagos',
-    buildingId: 'lagos-bank',
+    id: 'job_mechanic',
+    title: 'Auto Mechanic Apprentice',
+    salary: 6000,
+    workplace: "God's Grace Auto Repair",
+    districtId: 'lagos_island',
+    shiftDuration: 12,
+    requiredLevel: 1,
+    icon: '🔧',
+    description: 'Change motor oil, bleed brakes, and help master mechanic overhaul Japanese engines.',
+  },
+  {
+    id: 'job_danfo_driver',
+    title: 'Danfo Commercial Driver',
+    salary: 8000,
+    workplace: 'Broad Street Danfo Terminus',
+    districtId: 'lagos_island',
+    shiftDuration: 15,
+    requiredLevel: 1,
+    icon: '🚌',
+    description: 'Navigate Lagos traffic rush hour, honk at stubborn kekes, and collect passenger fares.',
+  },
+  {
+    id: 'job_food_seller',
+    title: 'Buka Kitchen Cook Assistant',
+    salary: 5000,
+    workplace: 'Mama Put Special Bukateria',
+    districtId: 'lagos_island',
+    shiftDuration: 10,
+    requiredLevel: 1,
+    icon: '🍲',
+    description: 'Stir steaming hot Amala, dish spicy party Jollof rice, and serve lunchtime bankers.',
+  },
+  {
+    id: 'job_office_worker',
+    title: 'Corporate Office Clerk',
+    salary: 12000,
+    workplace: 'Eko Commercial Bank Tower',
+    districtId: 'lagos_island',
+    shiftDuration: 18,
+    requiredLevel: 2,
     icon: '🏢',
-    purchasePrice: 650000,
-    rentalPriceMonthly: 60000,
-    status: 'unowned',
-    perks: [
-      '+30% Pay on all tech and freelance remote jobs',
-      'Dedicated Starlink Satellite Internet connection',
-      'Executive conference desk to host business partners',
-    ],
-    safeBalance: 0,
+    description: 'Sort bank trade vouchers, verify customer BVN documents, and prepare executive tea.',
+  },
+  {
+    id: 'job_software_dev',
+    title: 'Junior Software Engineer',
+    salary: 25000,
+    workplace: 'Co-Creation Hub (CcHub)',
+    districtId: 'yaba',
+    shiftDuration: 20,
+    requiredLevel: 2,
+    icon: '💻',
+    description: 'Write TypeScript microservices, push clean pull requests, and debug fintech API payment hooks.',
+  },
+  {
+    id: 'job_construction',
+    title: 'Site Framing Artisan',
+    salary: 8500,
+    workplace: 'Crown Luxury Estate Site',
+    districtId: 'ajah',
+    shiftDuration: 14,
+    requiredLevel: 1,
+    icon: '👷',
+    description: 'Mix Dangote cement mortar, stack 9-inch hollow blocks, and hoist roof timber rafters.',
+  },
+  {
+    id: 'job_security',
+    title: 'Estate Security Officer',
+    salary: 6500,
+    workplace: 'Victoria Residence Estate Gate',
+    districtId: 'lagos_island',
+    shiftDuration: 12,
+    requiredLevel: 1,
+    icon: '👮',
+    description: 'Screen incoming vehicles, verify visitor passes, and maintain quiet residential peace.',
   },
 ];
 
@@ -469,5 +999,17 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
   businesses: DEFAULT_BUSINESSES,
   properties: DEFAULT_PROPERTIES,
   career: DEFAULT_CAREER,
+  transactionHistory: [
+    {
+      id: 'tx_init_01',
+      playerId: 'usr_eko_001',
+      type: 'JOB_SALARY',
+      amount: 150000,
+      timestamp: 'Today, 08:30 AM',
+      description: 'Monthly Allowance / Freelance Pay',
+      source: 'bank',
+    },
+  ],
+  activeJobShift: null,
   createdAt: new Date().toISOString(),
 };

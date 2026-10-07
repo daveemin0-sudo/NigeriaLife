@@ -14,6 +14,9 @@ export class Districts {
   // Generator smoke
   private smokeParticles: THREE.Mesh[] = [];
 
+  // Airport radar scanner animation
+  private airportRadarMesh?: THREE.Mesh;
+
   constructor() {
     this.group = new THREE.Group();
 
@@ -29,7 +32,22 @@ export class Districts {
     // 4. Build Lekki Phase 1 & Lekki-Ikoyi Link Bridge (East)
     this.buildLekkiPhaseOne();
 
-    // 5. District Connecting Roads & Billboards
+    // 5. Build Yaba Tech Corridor & CcHub Innovation Hub (Central)
+    this.buildYabaTechStrip();
+
+    // 6. Build Surulere Sports Hub & Teslim Balogun Stadium (West)
+    this.buildSurulereStadium();
+
+    // 7. Build Murtala Muhammed Airport Terminal & Flight Deck (North-West)
+    this.buildAirportTerminal();
+
+    // 8. Build Ajah Peninsula Developing Residential Estate (Far East)
+    this.buildAjahDevelopingEstate();
+
+    // 9. Build Lagos Island CMS Marina & Balogun Fabric Market (Central South)
+    this.buildMarinaBalogunMarket();
+
+    // 10. District Connecting Roads & Billboards
     this.buildDistrictRoadsAndBillboards();
   }
 
@@ -436,7 +454,348 @@ export class Districts {
   }
 
   // =========================================================================
-  // 4. CONNECTING ROADS & NAIJA LED BILLBOARDS
+  // 5. YABA TECH STRIP & CCHUB INNOVATION INCUBATOR (Central: X -15, Z -25)
+  // =========================================================================
+  private buildYabaTechStrip(): void {
+    const yabaGroup = new THREE.Group();
+    yabaGroup.position.set(-15, 0, -25);
+
+    // Modern 3-story CcHub Glass Incubator
+    const hubGroup = new THREE.Group();
+    hubGroup.position.set(0, 0, 0);
+
+    const hubGeo = new THREE.BoxGeometry(15, 11, 14);
+    const hubMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.2,
+      metalness: 0.8,
+    });
+    const hub = new THREE.Mesh(hubGeo, hubMat);
+    hub.position.y = 5.5;
+    hub.castShadow = true;
+    hubGroup.add(hub);
+
+    // Vibrant Tech Stripes (Orange & Purple)
+    const orangeStripe = new THREE.Mesh(
+      new THREE.BoxGeometry(15.2, 0.8, 14.2),
+      new THREE.MeshBasicMaterial({ color: 0xf97316 })
+    );
+    orangeStripe.position.y = 4.0;
+    hubGroup.add(orangeStripe);
+
+    const purpleStripe = new THREE.Mesh(
+      new THREE.BoxGeometry(15.2, 0.8, 14.2),
+      new THREE.MeshBasicMaterial({ color: 0xa855f7 })
+    );
+    purpleStripe.position.y = 7.5;
+    hubGroup.add(purpleStripe);
+
+    // Rooftop Solar Photovoltaic Panels
+    for (let rx of [-4, 0, 4]) {
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(2.8, 0.2, 8),
+        new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.9, roughness: 0.1 })
+      );
+      panel.position.set(rx, 11.2, 0);
+      panel.rotation.x = 0.15;
+      hubGroup.add(panel);
+    }
+
+    // Street developer hackathon workbench with outdoor chairs
+    const desk = new THREE.Mesh(
+      new THREE.BoxGeometry(3.5, 0.9, 1.4),
+      new THREE.MeshStandardMaterial({ color: 0x475569 })
+    );
+    desk.position.set(0, 0.45, 8.5);
+    hubGroup.add(desk);
+
+    // Laptop mockups
+    for (let lx of [-0.8, 0.8]) {
+      const laptop = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.08, 0.4),
+        new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8 })
+      );
+      laptop.position.set(lx, 0.94, 8.5);
+      hubGroup.add(laptop);
+    }
+
+    yabaGroup.add(hubGroup);
+
+    this.interactiveList.push({
+      mesh: hubGroup,
+      id: 'yaba-cchub',
+      name: 'Co-Creation Hub (CcHub) & Tech Incubator',
+      category: 'Yaba Tech Corridor',
+      description: 'The Silicon Valley of West Africa. Silicon Valley venture funds, hackathons, and high-paying remote tech engineering sprints.',
+      interactionPoint: new THREE.Vector3(-15, 0, -20),
+    });
+
+    this.group.add(yabaGroup);
+  }
+
+  // =========================================================================
+  // 6. SURULERE SPORTS HUB & TESLIM BALOGUN STADIUM (West: X -55, Z +10)
+  // =========================================================================
+  private buildSurulereStadium(): void {
+    const surulereGroup = new THREE.Group();
+    surulereGroup.position.set(-55, 0, 10);
+
+    // Stadium Grandstand Canopy
+    const standGroup = new THREE.Group();
+
+    const bowlGeo = new THREE.BoxGeometry(24, 7, 16);
+    const bowlMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4 });
+    const bowl = new THREE.Mesh(bowlGeo, bowlMat);
+    bowl.position.y = 3.5;
+    standGroup.add(bowl);
+
+    // Green and white Nigerian sports canopy
+    const canopyGeo = new THREE.BoxGeometry(25, 0.6, 17);
+    const canopyMat = new THREE.MeshStandardMaterial({ color: 0x15803d });
+    const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+    canopy.position.y = 7.3;
+    standGroup.add(canopy);
+
+    // Stadium floodlight pylon towers (4 corners)
+    for (const [fx, fz] of [[-13, -9], [13, -9], [-13, 9], [13, 9]]) {
+      const pylon = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.28, 16, 8),
+        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7 })
+      );
+      pylon.position.set(fx, 8, fz);
+      standGroup.add(pylon);
+
+      const lightGrid = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 1.2, 0.4),
+        new THREE.MeshBasicMaterial({ color: 0xfef08a })
+      );
+      lightGrid.position.set(fx, 16, fz);
+      standGroup.add(lightGrid);
+    }
+
+    // Red Tartan Running Track Curve
+    const trackGeo = new THREE.PlaneGeometry(28, 6);
+    const trackMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.8 });
+    const track = new THREE.Mesh(trackGeo, trackMat);
+    track.rotation.x = -Math.PI / 2;
+    track.position.set(0, 0.02, 11);
+    standGroup.add(track);
+
+    surulereGroup.add(standGroup);
+
+    this.interactiveList.push({
+      mesh: standGroup,
+      id: 'surulere-stadium',
+      name: 'Teslim Balogun Stadium & Sports Arena',
+      category: 'Surulere Sports Hub',
+      description: 'Iconic sports arena celebrating Lagos sporting legends, AFCON qualifiers, tartan track workouts, and athletics training.',
+      interactionPoint: new THREE.Vector3(-55, 0, 15),
+    });
+
+    this.group.add(surulereGroup);
+  }
+
+  // =========================================================================
+  // 7. MURTALA MUHAMMED AIRPORT TERMINAL (North-West: X -80, Z -110)
+  // =========================================================================
+  private buildAirportTerminal(): void {
+    const airportGroup = new THREE.Group();
+    airportGroup.position.set(-80, 0, -110);
+
+    const terminalGroup = new THREE.Group();
+
+    // Curved Modern Departure Terminal
+    const termGeo = new THREE.BoxGeometry(22, 6.5, 14);
+    const termMat = new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      roughness: 0.2,
+      metalness: 0.7,
+    });
+    const term = new THREE.Mesh(termGeo, termMat);
+    term.position.y = 3.25;
+    terminalGroup.add(term);
+
+    // Blue glass atrium curtain wall
+    const glassGeo = new THREE.BoxGeometry(22.2, 4.5, 2.0);
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      roughness: 0.1,
+      metalness: 0.9,
+    });
+    const glass = new THREE.Mesh(glassGeo, glassMat);
+    glass.position.set(0, 3.5, 6.5);
+    terminalGroup.add(glass);
+
+    // Control Tower with Rotating Radar
+    const towerPole = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.2, 1.8, 14, 12),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
+    );
+    towerPole.position.set(-14, 7, 0);
+    terminalGroup.add(towerPole);
+
+    const towerCab = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.4, 1.8, 2.5, 12),
+      new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.1, metalness: 0.8 })
+    );
+    towerCab.position.set(-14, 15, 0);
+    terminalGroup.add(towerCab);
+
+    // Radar dish
+    const radarGeo = new THREE.BoxGeometry(3.2, 0.4, 0.2);
+    const radarMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+    this.airportRadarMesh = new THREE.Mesh(radarGeo, radarMat);
+    this.airportRadarMesh.position.set(-14, 16.6, 0);
+    terminalGroup.add(this.airportRadarMesh);
+
+    airportGroup.add(terminalGroup);
+
+    this.interactiveList.push({
+      mesh: terminalGroup,
+      id: 'mma-airport',
+      name: 'Murtala Muhammed International Airport (MMA2)',
+      category: 'Aviation & Interstate Hub',
+      description: 'Nigeria’s busiest international and domestic flight gateway. Direct flights to Abuja, Port Harcourt, and worldwide departures.',
+      interactionPoint: new THREE.Vector3(-80, 0, -105),
+    });
+
+    this.group.add(airportGroup);
+  }
+
+  // =========================================================================
+  // 8. AJAH PENINSULA DEVELOPING RESIDENTIAL ESTATE (East: X +90, Z +25)
+  // =========================================================================
+  private buildAjahDevelopingEstate(): void {
+    const ajahGroup = new THREE.Group();
+    ajahGroup.position.set(90, 0, 25);
+
+    const estateGroup = new THREE.Group();
+
+    // Developing modern duplex structure with timber rafters
+    const houseGeo = new THREE.BoxGeometry(12, 7.5, 12);
+    const houseMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.9 });
+    const house = new THREE.Mesh(houseGeo, houseMat);
+    house.position.y = 3.75;
+    estateGroup.add(house);
+
+    // Exposed red timber trusses on roof
+    for (let z = -5; z <= 5; z += 2.5) {
+      const truss = new THREE.Mesh(
+        new THREE.BoxGeometry(12.4, 0.25, 0.25),
+        new THREE.MeshStandardMaterial({ color: 0x92400e })
+      );
+      truss.position.set(0, 8.2, z);
+      estateGroup.add(truss);
+    }
+
+    // Concrete Hollow Block stacks
+    for (let bx of [-8, -8]) {
+      const blockStack = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 1.8, 1.6),
+        new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.95 })
+      );
+      blockStack.position.set(bx, 0.9, 7);
+      estateGroup.add(blockStack);
+    }
+
+    // Dangote Cement Bags on pallet
+    const cementStack = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 1.2, 1.5),
+      new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.7 })
+    );
+    cementStack.position.set(-5, 0.6, 7.5);
+    estateGroup.add(cementStack);
+
+    // Red Construction Sand Mound
+    const sandMound = new THREE.Mesh(
+      new THREE.ConeGeometry(2.4, 1.6, 12),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.95 })
+    );
+    sandMound.position.set(7, 0.8, 7.5);
+    estateGroup.add(sandMound);
+
+    ajahGroup.add(estateGroup);
+
+    this.interactiveList.push({
+      mesh: estateGroup,
+      id: 'ajah-estate',
+      name: 'Crown Luxury Estate Construction Site',
+      category: 'Ajah Peninsula Developments',
+      description: 'Fast-developing luxury duplexes on the Lekki-Epe expressway. Lucrative building artisan gigs and off-plan real estate investment.',
+      interactionPoint: new THREE.Vector3(90, 0, 20),
+    });
+
+    this.group.add(ajahGroup);
+  }
+
+  // =========================================================================
+  // 9. MARINA CMS & BALOGUN WHOLESALE FABRIC MARKET (South-Central: X +15, Z +45)
+  // =========================================================================
+  private buildMarinaBalogunMarket(): void {
+    const marinaGroup = new THREE.Group();
+    marinaGroup.position.set(15, 0, 45);
+
+    const marketGroup = new THREE.Group();
+
+    // Historic CMS Stone Tower
+    const towerGeo = new THREE.BoxGeometry(6, 18, 6);
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.8 });
+    const tower = new THREE.Mesh(towerGeo, towerMat);
+    tower.position.set(-10, 9, 0);
+    marketGroup.add(tower);
+
+    const steepleGeo = new THREE.ConeGeometry(3.5, 6, 4);
+    const steepleMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.5 });
+    const steeple = new THREE.Mesh(steepleGeo, steepleMat);
+    steeple.position.set(-10, 21, 0);
+    steeple.rotation.y = Math.PI / 4;
+    marketGroup.add(steeple);
+
+    // Vibrant Balogun Market Umbrellas & Fabric Stalls
+    const umbrellaColors = [0xef4444, 0xf59e0b, 0x10b981, 0x3b82f6];
+    for (let i = 0; i < 4; i++) {
+      const px = 2 + (i % 2) * 5;
+      const pz = -3 + Math.floor(i / 2) * 6;
+
+      const umbrella = new THREE.Mesh(
+        new THREE.ConeGeometry(2.4, 0.9, 8),
+        new THREE.MeshStandardMaterial({ color: umbrellaColors[i], roughness: 0.6 })
+      );
+      umbrella.position.set(px, 3.2, pz);
+      marketGroup.add(umbrella);
+
+      const stallTable = new THREE.Mesh(
+        new THREE.BoxGeometry(2.2, 1.2, 1.6),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
+      );
+      stallTable.position.set(px, 0.6, pz);
+      marketGroup.add(stallTable);
+
+      // Colorful Ankara fabric rolls on table
+      const fabric = new THREE.Mesh(
+        new THREE.BoxGeometry(1.8, 0.5, 1.2),
+        new THREE.MeshStandardMaterial({ color: umbrellaColors[(i + 1) % 4] })
+      );
+      fabric.position.set(px, 1.45, pz);
+      marketGroup.add(fabric);
+    }
+
+    marinaGroup.add(marketGroup);
+
+    this.interactiveList.push({
+      mesh: marketGroup,
+      id: 'balogun-market',
+      name: 'CMS Marina & Balogun Wholesale Market',
+      category: 'Lagos Island Heritage Trading',
+      description: 'Lagos Island’s legendary commercial powerhouse. Wholesale lace, vibrant Dutch Wax Ankara, and high-frequency commerce.',
+      interactionPoint: new THREE.Vector3(15, 0, 40),
+    });
+
+    this.group.add(marinaGroup);
+  }
+
+  // =========================================================================
+  // 10. CONNECTING ROADS & NAIJA LED BILLBOARDS
   // =========================================================================
   private buildDistrictRoadsAndBillboards(): void {
     // East-West Arterial Road to Lekki (X: 10 to 80, Z: 0)
@@ -508,6 +867,11 @@ export class Districts {
       if (sp.position.y > 3.8) {
         sp.position.y = 2.2;
       }
+    }
+
+    // Airport radar scanner rotation
+    if (this.airportRadarMesh) {
+      this.airportRadarMesh.rotation.y += delta * 2.5;
     }
   }
 }

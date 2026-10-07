@@ -111,14 +111,24 @@ export class PhoneModal {
             <button class="btn-phone-action" id="btn-send-transfer">Send Instant Transfer</button>
           </div>
 
-          <div class="app-section-title">Recent Transactions</div>
+          <div class="app-section-title">Recent Transactions & Audit</div>
           <div class="mini-tx-list">
-            ${data.bank.transactions.slice(0, 3).map((tx) => `
-              <div class="mini-tx-item">
-                <span>${tx.description}</span>
-                <strong class="${tx.type}">₦${tx.amount.toLocaleString()}</strong>
-              </div>
-            `).join('')}
+            ${(data.transactionHistory && data.transactionHistory.length > 0
+              ? data.transactionHistory.slice(0, 5).map((tx) => `
+                <div class="mini-tx-item">
+                  <span>${tx.description}</span>
+                  <strong class="${tx.type === 'JOB_SALARY' || tx.type === 'BUSINESS_INCOME' ? 'credit' : 'debit'}">
+                    ₦${tx.amount.toLocaleString()}
+                  </strong>
+                </div>
+              `).join('')
+              : data.bank.transactions.slice(0, 5).map((tx) => `
+                <div class="mini-tx-item">
+                  <span>${tx.description}</span>
+                  <strong class="${tx.type}">₦${tx.amount.toLocaleString()}</strong>
+                </div>
+              `).join('')
+            )}
           </div>
         </div>
       `;
@@ -179,6 +189,9 @@ export class PhoneModal {
     }
 
     if (this.currentApp === 'jobs') {
+      const activeShift = this.backend.getActiveJobShift();
+      const allJobs = this.backend.getJobs();
+
       return `
         <div class="phone-app-header">
           <button class="phone-back-btn" id="app-back-btn">←</button>
@@ -186,21 +199,38 @@ export class PhoneModal {
           <span>💼</span>
         </div>
         <div class="app-body jobs-app">
-          <p class="jobs-intro">Pick up street hustles & remote tasks to earn extra Naira cash!</p>
+          ${activeShift ? `
+            <div class="active-shift-card" style="background: linear-gradient(135deg, #1e293b, #0f172a); border: 2px solid #22c55e; border-radius: 12px; padding: 12px; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="color: #4ade80; font-size: 13px;">⏳ SHIFT IN PROGRESS</strong>
+                <span style="font-size: 12px; color: #94a3b8;">${activeShift.remainingSecs}s remaining (${activeShift.job.shiftDuration}s shift)</span>
+              </div>
+              <h4 style="margin: 6px 0 2px 0; color: #f8fafc;">${activeShift.job.title}</h4>
+              <p style="margin: 0 0 10px 0; font-size: 13px; color: #cbd5e1;">📍 ${activeShift.job.workplace} (${activeShift.job.districtId.toUpperCase()})</p>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #fbbf24; font-weight: bold;">Wage: ₦${activeShift.job.salary.toLocaleString()}</span>
+                <button class="btn-job-complete" id="btn-complete-active-shift" style="background: #22c55e; color: #0f172a; font-weight: bold; border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer;">
+                  Complete Shift
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <p class="jobs-intro">Apply for verified positions across Lagos mainland, island & industrial zones:</p>
           <div class="jobs-list">
-            ${this.phoneSystem.jobs.map((job) => `
+            ${allJobs.map((job) => `
               <div class="job-card">
                 <div class="job-top">
                   <span class="job-icon">${job.icon}</span>
                   <div>
                     <h5>${job.title}</h5>
-                    <span class="job-company">${job.company}</span>
+                    <span class="job-company">${job.workplace} • ${job.districtId.toUpperCase()}</span>
                   </div>
                 </div>
                 <p class="job-desc">${job.description}</p>
                 <div class="job-bottom">
-                  <span class="job-pay">+₦${job.pay.toLocaleString()}</span>
-                  <button class="btn-job-apply" data-job="${job.id}">Work Shift (-${job.energyCost}% ⚡)</button>
+                  <span class="job-pay">₦${job.salary.toLocaleString()} <small style="font-size: 11px; color: #94a3b8;">(${job.shiftDuration}s)</small></span>
+                  <button class="btn-job-apply" data-start-job="${job.id}">Apply & Start Shift</button>
                 </div>
               </div>
             `).join('')}
@@ -390,24 +420,27 @@ export class PhoneModal {
           <!-- Section: Real Estate -->
           <div class="app-section-title" style="margin-top: 18px;">Prime Lagos Real Estate</div>
           <div class="invest-list">
-            ${data.properties.map((prop) => `
-              <div class="invest-card property-card ${prop.status !== 'unowned' ? 'owned' : ''}">
+            ${data.properties.map((prop) => {
+              const isOwnedOrRented = prop.status === 'owned' || prop.status === 'rented' || prop.status === 'purchased';
+              const perksList = prop.perks || prop.features || [];
+              return `
+              <div class="invest-card property-card ${isOwnedOrRented ? 'owned' : ''}">
                 <div class="invest-card-header">
                   <span class="invest-icon">${prop.icon}</span>
                   <div class="invest-meta">
                     <h5>${prop.name}</h5>
-                    <span class="invest-cat">${prop.location}</span>
+                    <span class="invest-cat">${prop.location || prop.districtId}</span>
                   </div>
-                  <span class="invest-status-tag ${prop.status === 'purchased' ? 'tag-owned' : prop.status === 'rented' ? 'tag-rent' : 'tag-buy'}">
+                  <span class="invest-status-tag ${prop.status === 'purchased' || prop.status === 'owned' ? 'tag-owned' : prop.status === 'rented' ? 'tag-rent' : 'tag-buy'}">
                     ${prop.status.toUpperCase()}
                   </span>
                 </div>
 
                 <div class="prop-perks">
-                  ${prop.perks.map((pk) => `<div class="perk-bullet">✨ ${pk}</div>`).join('')}
+                  ${perksList.map((pk) => `<div class="perk-bullet">✨ ${pk}</div>`).join('')}
                 </div>
 
-                ${prop.status !== 'unowned' ? `
+                ${isOwnedOrRented ? `
                   <div class="prop-actions">
                     <button class="btn-prop-rest" data-rest-prop="${prop.id}">
                       🛏️ Rest & Recharge (100% ⚡)
@@ -424,7 +457,8 @@ export class PhoneModal {
                   </div>
                 `}
               </div>
-            `).join('')}
+            `;
+            }).join('')}
           </div>
         </div>
       `;
@@ -542,16 +576,26 @@ export class PhoneModal {
       };
     }
 
-    // Job apply buttons
-    const jobButtons = this.container.querySelectorAll('[data-job]');
-    jobButtons.forEach((btn) => {
+    // Job shift start buttons
+    const startJobBtns = this.container.querySelectorAll('[data-start-job]');
+    startJobBtns.forEach((btn) => {
       (btn as HTMLElement).onclick = () => {
-        const jobId = (btn as HTMLElement).getAttribute('data-job')!;
-        const res = this.phoneSystem.workJob(jobId);
+        const jobId = (btn as HTMLElement).getAttribute('data-start-job')!;
+        const res = this.backend.startJobShift(jobId);
         alert(res.message);
         this.render();
       };
     });
+
+    // Complete job shift button
+    const completeShiftBtn = document.getElementById('btn-complete-active-shift');
+    if (completeShiftBtn) {
+      completeShiftBtn.onclick = () => {
+        const res = this.backend.completeJobShift();
+        alert(res.message);
+        this.render();
+      };
+    }
 
     // Transfer send button
     const sendBtn = document.getElementById('btn-send-transfer');
@@ -639,7 +683,7 @@ export class PhoneModal {
     rentPropBtns.forEach((btn) => {
       (btn as HTMLElement).onclick = () => {
         const id = (btn as HTMLElement).getAttribute('data-rent-prop')!;
-        const res = this.backend.buyProperty(id, true);
+        const res = this.backend.rentProperty(id);
         alert(res.message);
         this.render();
       };
@@ -650,7 +694,7 @@ export class PhoneModal {
     buyPropBtns.forEach((btn) => {
       (btn as HTMLElement).onclick = () => {
         const id = (btn as HTMLElement).getAttribute('data-buy-prop')!;
-        const res = this.backend.buyProperty(id, false);
+        const res = this.backend.buyProperty(id);
         alert(res.message);
         this.render();
       };

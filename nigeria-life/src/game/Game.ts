@@ -128,11 +128,21 @@ export class Game {
     this.hud.onNavigateMode = (mode: 'street' | 'home' | 'map') => {
       this.cameraManager.setMode(mode);
       if (mode === 'home') {
+        this.world.worldMap.deactivate();
+        this.world.setStreetModeVisibility(true);
+        if (!this.player.isDriving) this.player.mesh.visible = true;
         this.player.mesh.position.set(0, 0, 184);
       } else if (mode === 'street') {
+        this.world.worldMap.deactivate();
+        this.world.setStreetModeVisibility(true);
+        if (!this.player.isDriving) this.player.mesh.visible = true;
         if (this.player.mesh.position.z > 160) {
           this.player.mesh.position.set(0, 0, 5);
         }
+      } else if (mode === 'map') {
+        this.world.setStreetModeVisibility(false);
+        this.player.mesh.visible = false;
+        this.world.worldMap.activate();
       }
     };
 
@@ -180,6 +190,7 @@ export class Game {
 
   private onWindowResize(): void {
     this.cameraManager.handleResize();
+    this.world.worldMap.handleResize();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.postProcessing.setSize(window.innerWidth, window.innerHeight);
   }
@@ -213,7 +224,11 @@ export class Game {
     // Update Input cursor animations
     this.input.update(delta);
 
-    // Render Scene directly with high-fidelity ACESFilmic tone mapping & PCF shadows
-    this.renderer.render(this.scene, this.cameraManager.camera);
+    // Render Scene with active presentation camera (Isometric World Map vs 3D Game Camera)
+    if (this.hud.currentNavMode === 'map') {
+      this.renderer.render(this.scene, this.world.worldMap.mapCamera);
+    } else {
+      this.renderer.render(this.scene, this.cameraManager.camera);
+    }
   };
 }

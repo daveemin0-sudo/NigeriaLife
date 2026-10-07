@@ -2,11 +2,16 @@ import {
   type PlayerAccount,
   type Item,
   type OriginDestiny,
+  type JobListing,
+  type TransactionRecord,
   INITIAL_PLAYER_DATA,
   DEFAULT_BUSINESSES,
   DEFAULT_PROPERTIES,
   DEFAULT_CAREER,
+  DEFAULT_JOBS,
 } from './types';
+import { TransactionService, type ProcessTransactionRequest, type TransactionResult } from './TransactionService';
+import { WorldDataManager } from '../world/data/WorldDataManager';
 
 type ListenerCallback = (data: PlayerAccount) => void;
 
@@ -16,9 +21,11 @@ export class BackendService {
   private data: PlayerAccount;
   private listeners: ListenerCallback[] = [];
   private passiveInterval: number | null = null;
+  private txService = TransactionService.getInstance();
 
   private constructor() {
     this.data = this.loadData();
+    this.syncPropertiesToWorld();
     this.startPassiveIncomeTimer();
   }
 
@@ -86,12 +93,37 @@ export class BackendService {
           businesses,
           properties,
           career,
+          transactionHistory: Array.isArray(parsed.transactionHistory)
+            ? parsed.transactionHistory
+            : INITIAL_PLAYER_DATA.transactionHistory,
+          activeJobShift: parsed.activeJobShift || null,
+          activeHousingId: parsed.activeHousingId,
         };
       }
     } catch (e) {
       console.warn('Failed to load saved data, initializing defaults', e);
     }
     return { ...INITIAL_PLAYER_DATA };
+  }
+
+  public syncPropertiesToWorld(): void {
+    const worldMgr = WorldDataManager.getInstance();
+    for (const prop of this.data.properties) {
+      const mappedStatus = prop.status === 'unowned' ? 'available' : prop.status === 'purchased' ? 'owned' : prop.status;
+      worldMgr.updatePropertyStatus(prop.id, mappedStatus, prop.ownerId);
+    }
+  }
+
+  public processTransaction(req: ProcessTransactionRequest): TransactionResult {
+    const res = this.txService.process(this.data, req);
+    if (res.success) {
+      this.saveData();
+    }
+    return res;
+  }
+
+  public getTransactionHistory(): TransactionRecord[] {
+    return this.data.transactionHistory || [];
   }
 
   private startPassiveIncomeTimer(): void {
@@ -370,36 +402,38 @@ export class BackendService {
 
   // === REAL ESTATE & PROPERTY SYSTEM ===
 
-  public buyProperty(propId: string, rentMode: boolean): { success: boolean; message: string } {
+  public buyProperty(propId: string, rentMode: boolean = false): { success: boolean; message: string } {
     const prop = this.data.properties.find((p) => p.id === propId);
     if (!prop) return { success: false, message: 'Property not found' };
-    if (prop.status === 'purchased') {
-      return { success: false, message: 'You already outright own this luxury property!' };
+    if (prop.status === 'owned') {
+      return { success: false, message: 'You already own this property!' };
     }
 
     const price = rentMode ? prop.rentalPriceMonthly : prop.purchasePrice;
+    const txType = rentMode ? 'RENT_PAYMENT' : 'PROPERTY_PURCHASE';
+    const txDesc = rentMode ? `Monthly Rent: ${prop.name}` : `Title Deed: ${prop.name}`;
 
-    if (this.data.bank.balance >= price) {
-      this.data.bank.balance -= price;
-      this.data.bank.transactions.unshift({
-        id: `tx_${Date.now()}`,
-        type: 'debit',
-        amount: price,
-        description: rentMode ? `Monthly Rent: ${prop.name}` : `Title Deed: ${prop.name}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      });
-    } else if (this.data.walletCash >= price) {
-      this.data.walletCash -= price;
-    } else {
-      return {
-        success: false,
-        message: `Insufficient funds! Need ₦${price.toLocaleString()}`,
-      };
+    const txRes = this.processTransaction({
+      type: txType,
+      amount: price,
+      description: txDesc,
+      source: this.data.bank.balance >= price ? 'bank' : 'wallet',
+    });
+
+    if (!txRes.success) {
+      return { success: false, message: txRes.message };
     }
 
-    prop.status = rentMode ? 'rented' : 'purchased';
+    prop.status = rentMode ? 'rented' : 'owned';
+    prop.ownerId = this.data.id;
+    if (rentMode) {
+      this.data.activeHousingId = prop.id;
+    }
 
-    // Add key to inventory bag
+    // Sync WorldDataManager so World Map & Street Mode reflect ownership immediately
+    WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+
+    // Add smart keycard to inventory bag
     this.addItem({
       id: `key_${prop.id}`,
       name: `${prop.name} Smart Keycard`,
@@ -416,14 +450,18 @@ export class BackendService {
     return {
       success: true,
       message: rentMode
-        ? `Lease confirmed! Welcome to ${prop.name}. Keycard added to bag.`
+        ? `Lease confirmed! Welcome to ${prop.name}. Smart keycard added to your bag.`
         : `Deed of Ownership Signed! You are now the official landlord of ${prop.name}!`,
     };
   }
 
+  public rentProperty(propId: string): { success: boolean; message: string } {
+    return this.buyProperty(propId, true);
+  }
+
   public restAtProperty(propId: string): { success: boolean; message: string } {
     const prop = this.data.properties.find((p) => p.id === propId);
-    if (!prop || prop.status === 'unowned') {
+    if (!prop || (prop.status !== 'owned' && prop.status !== 'rented')) {
       return { success: false, message: 'You must own or lease this property to rest here!' };
     }
 
@@ -434,6 +472,88 @@ export class BackendService {
     return {
       success: true,
       message: 'AC on blast, standby generator humming! Recharged 100% Energy & 100% Hunger.',
+    };
+  }
+
+  // === JOB SYSTEM ===
+
+  public getJobs(): JobListing[] {
+    return DEFAULT_JOBS;
+  }
+
+  public getJobById(id: string): JobListing | undefined {
+    return DEFAULT_JOBS.find((j) => j.id === id);
+  }
+
+  public startJobShift(jobId: string): { success: boolean; message: string } {
+    const job = this.getJobById(jobId);
+    if (!job) return { success: false, message: 'Job listing not found.' };
+
+    if (this.data.activeJobShift && !this.data.activeJobShift.completed) {
+      const elapsed = Date.now() - this.data.activeJobShift.startTime;
+      if (elapsed < this.data.activeJobShift.duration * 1000) {
+        const remaining = Math.max(0, Math.ceil((this.data.activeJobShift.duration * 1000 - elapsed) / 1000));
+        return { success: false, message: `You already have an active shift in progress (${remaining}s remaining)!` };
+      }
+    }
+
+    if (this.data.stats.energy < 15) {
+      return { success: false, message: 'You are too exhausted! Eat some food or rest to regain energy.' };
+    }
+
+    this.data.stats.energy = Math.max(0, this.data.stats.energy - 15);
+    this.data.activeJobShift = {
+      jobId,
+      startTime: Date.now(),
+      duration: job.shiftDuration,
+      completed: false,
+    };
+
+    this.saveData();
+    return {
+      success: true,
+      message: `Shift started for ${job.title}! Shift duration: ${job.shiftDuration}s. Hustle hard!`,
+    };
+  }
+
+  public getActiveJobShift(): { job: JobListing; progress: number; remainingSecs: number; isReady: boolean } | null {
+    if (!this.data.activeJobShift) return null;
+    const job = this.getJobById(this.data.activeJobShift.jobId);
+    if (!job) return null;
+
+    const elapsedMs = Date.now() - this.data.activeJobShift.startTime;
+    const totalMs = this.data.activeJobShift.duration * 1000;
+    const progress = Math.min(1.0, elapsedMs / totalMs);
+    const remainingSecs = Math.max(0, Math.ceil((totalMs - elapsedMs) / 1000));
+    const isReady = elapsedMs >= totalMs;
+
+    return { job, progress, remainingSecs, isReady };
+  }
+
+  public completeJobShift(): { success: boolean; reward: number; message: string } {
+    const shiftInfo = this.getActiveJobShift();
+    if (!shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
+    if (!shiftInfo.isReady) {
+      return { success: false, reward: 0, message: `Shift still ongoing! ${shiftInfo.remainingSecs}s remaining.` };
+    }
+
+    const { job } = shiftInfo;
+    const txRes = this.processTransaction({
+      type: 'JOB_SALARY',
+      amount: job.salary,
+      description: `Completed Shift: ${job.title}`,
+      source: 'wallet',
+    });
+
+    this.addJobExperience(25);
+    this.addStreetCred(10);
+    this.data.activeJobShift = null;
+    this.saveData();
+
+    return {
+      success: true,
+      reward: job.salary,
+      message: `Shift completed! Earned ₦${job.salary.toLocaleString()} cash in your pocket (${txRes.message}) and gained XP!`,
     };
   }
 

@@ -238,26 +238,29 @@ export class EconomyModal {
     if (this.activeTab === 'properties') {
       return `
         <div class="econ-items-list">
-          ${data.properties.map((prop) => `
-            <div class="econ-item-card property-card ${prop.status !== 'unowned' ? 'is-owned' : ''}" id="prop-item-${prop.buildingId}">
+          ${data.properties.map((prop) => {
+            const isOwnedOrRented = prop.status === 'owned' || prop.status === 'rented' || prop.status === 'purchased';
+            const perksList = prop.perks || prop.features || [];
+            return `
+            <div class="econ-item-card property-card ${isOwnedOrRented ? 'is-owned' : ''}" id="prop-item-${prop.buildingId || prop.id}">
               <div class="econ-card-top">
                 <div class="econ-icon-box">${prop.icon}</div>
                 <div class="econ-info-box">
                   <div class="econ-item-header">
                     <h3>${prop.name}</h3>
-                    <span class="econ-badge ${prop.status === 'purchased' ? 'badge-owned' : prop.status === 'rented' ? 'badge-rent' : 'badge-price'}">
+                    <span class="econ-badge ${prop.status === 'purchased' || prop.status === 'owned' ? 'badge-owned' : prop.status === 'rented' ? 'badge-rent' : 'badge-price'}">
                       ${prop.status.toUpperCase()}
                     </span>
                   </div>
-                  <span class="econ-category">📍 ${prop.location} • ${prop.type.toUpperCase()}</span>
+                  <span class="econ-category">📍 ${prop.location || prop.districtId} • ${prop.type.toUpperCase()}</span>
                 </div>
               </div>
 
               <div class="prop-perks-list">
-                ${prop.perks.map((p) => `<div class="prop-perk-row">✨ ${p}</div>`).join('')}
+                ${perksList.map((p) => `<div class="prop-perk-row">✨ ${p}</div>`).join('')}
               </div>
 
-              ${prop.status !== 'unowned' ? `
+              ${isOwnedOrRented ? `
                 <div class="prop-owner-controls">
                   <button class="btn-prop-rest" data-rest-prop="${prop.id}">
                     🛏️ Rest & Sleep in Bedroom (Instant 100% ⚡ Recharge)
@@ -280,7 +283,8 @@ export class EconomyModal {
                 </div>
               `}
             </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       `;
     }
@@ -389,7 +393,7 @@ export class EconomyModal {
     this.container.querySelectorAll('[data-rent-prop]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-rent-prop')!;
-        const res = this.backend.buyProperty(id, true);
+        const res = this.backend.rentProperty(id);
         alert(res.message);
         this.render(this.backend.getData());
       });
@@ -399,7 +403,7 @@ export class EconomyModal {
     this.container.querySelectorAll('[data-buy-prop]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-buy-prop')!;
-        const res = this.backend.buyProperty(id, false);
+        const res = this.backend.buyProperty(id);
         alert(res.message);
         this.render(this.backend.getData());
       });

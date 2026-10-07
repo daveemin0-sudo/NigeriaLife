@@ -8,8 +8,11 @@ import { PhoneModal } from './PhoneModal';
 import { EconomyModal } from './EconomyModal';
 import { TravelModal } from './TravelModal';
 import { InterStateModal } from './InterStateModal';
+import { WorldMapUI } from './WorldMapUI';
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
+import { WorldDataManager } from '../world/data/WorldDataManager';
+import type { MapBusiness } from '../world/data/WorldDataTypes';
 
 export class HUD {
   private container: HTMLDivElement;
@@ -22,6 +25,7 @@ export class HUD {
   public economyModal!: EconomyModal;
   public travelModal!: TravelModal;
   public interstateModal!: InterStateModal;
+  public worldMapUI!: WorldMapUI;
   private player!: Player;
   private world?: World;
   private backend: BackendService;
@@ -43,6 +47,7 @@ export class HUD {
     this.economyModal = new EconomyModal();
     this.travelModal = new TravelModal();
     this.interstateModal = new InterStateModal();
+    this.worldMapUI = new WorldMapUI();
 
     this.container = document.createElement('div');
     this.container.id = 'hud-overlay';
@@ -184,9 +189,19 @@ export class HUD {
         <span class="card-tag" id="card-category">Food & Health</span>
         <h2 class="card-title" id="card-title">Mama Put Buka</h2>
         <p class="card-desc" id="card-desc">Hot Jollof rice, plantain, and pepper soup.</p>
+        <div id="card-biz-meta" style="display: none; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: #94a3b8;">Status: <strong id="card-biz-status" style="color: #4ade80;">OPEN</strong></span>
+            <span style="color: #94a3b8;">Owner: <strong id="card-biz-owner" style="color: #f8fafc;">NPC</strong></span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #94a3b8;">Daily Revenue: <strong id="card-biz-revenue" style="color: #fbbf24;">₦45,000</strong></span>
+            <span style="color: #38bdf8; font-weight: 500;">Commercial Hub</span>
+          </div>
+        </div>
         <div class="card-actions">
           <button class="btn-primary" id="card-action-btn">Enter / Order</button>
-          <button class="btn-secondary" id="card-biz-btn" style="display: none;">💼 Enterprise & Ownership</button>
+          <button class="btn-secondary" id="card-biz-btn" style="display: none;">💼 View Business [E]</button>
         </div>
       </div>
 
@@ -317,6 +332,7 @@ export class HUD {
     navHomeBtn?.addEventListener('click', () => {
       this.currentNavMode = 'home';
       updateNavActive('nav-btn-home');
+      this.worldMapUI.close();
       const switcher = document.getElementById('map-city-switcher');
       if (switcher) switcher.style.display = 'none';
       const radar = document.getElementById('street-radar-bar');
@@ -332,9 +348,10 @@ export class HUD {
       this.currentNavMode = 'map';
       updateNavActive('nav-btn-map');
       const switcher = document.getElementById('map-city-switcher');
-      if (switcher) switcher.style.display = 'flex';
+      if (switcher) switcher.style.display = 'none';
       const radar = document.getElementById('street-radar-bar');
       if (radar) radar.style.display = 'none';
+      this.worldMapUI.open();
       this.onNavigateMode?.('map');
     });
 
@@ -345,12 +362,79 @@ export class HUD {
     document.getElementById('btn-walk-street')?.addEventListener('click', () => {
       this.currentNavMode = 'street';
       updateNavActive('');
+      this.worldMapUI.close();
       const switcher = document.getElementById('map-city-switcher');
       if (switcher) switcher.style.display = 'none';
       const radar = document.getElementById('street-radar-bar');
       if (radar) radar.style.display = 'flex';
       this.onNavigateMode?.('street');
     });
+
+    // Wire WorldMapUI event handlers
+    this.worldMapUI.onCloseMap = () => {
+      this.currentNavMode = 'street';
+      updateNavActive('');
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'flex';
+      this.onNavigateMode?.('street');
+    };
+
+    this.worldMapUI.onTravelToDistrict = (district) => {
+      this.currentNavMode = 'street';
+      updateNavActive('');
+      this.worldMapUI.close();
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'flex';
+      this.player.mesh.position.copy(district.streetSpawnPoint);
+      this.onNavigateMode?.('street');
+    };
+
+    this.worldMapUI.onInterstateTravel = (destCityId) => {
+      this.interstateModal.open((destCityId as any) || this.world?.cityManager.currentCityId);
+    };
+
+    this.worldMapUI.onSelectDistrictFromChips = (districtId) => {
+      this.world?.worldMap.focusOnDistrict(districtId);
+    };
+
+    this.worldMapUI.onSwitchCityTab = (cityId) => {
+      if (this.world) {
+        this.world.cityManager.switchCity(cityId as any, this.player, (newObjs) => {
+          if (this.world) this.world.interactiveObjects = newObjs;
+        });
+      }
+    };
+
+    this.worldMapUI.onTravelToProperty = (prop) => {
+      this.currentNavMode = 'street';
+      updateNavActive('');
+      this.worldMapUI.close();
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'flex';
+      this.player.mesh.position.set(prop.streetPosition.x, prop.streetPosition.y, prop.streetPosition.z);
+      this.world?.highlightStreetProperty(prop.streetPosition, prop.name);
+      this.onNavigateMode?.('street');
+    };
+
+    this.worldMapUI.onPropertyUpdated = () => {
+      this.world?.worldMap.renderer.refreshPropertyMarkers();
+    };
+
+    this.worldMapUI.onOpenEconomy = (propId) => {
+      this.economyModal.open(propId);
+    };
+
+    if (this.world) {
+      this.world.worldMap.onSelectItem = (event) => {
+        if (event.type === 'district') {
+          this.worldMapUI.showDistrictDetails(event.item as any);
+        } else if (event.type === 'landmark') {
+          this.worldMapUI.showLandmarkDetails(event.item as any);
+        } else if (event.type === 'property') {
+          this.worldMapUI.showPropertyDetails(event.item as any);
+        }
+      };
+    }
 
     document.getElementById('btn-open-interstate')?.addEventListener('click', () => {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
@@ -484,11 +568,41 @@ export class HUD {
     descEl.textContent = obj.description;
 
     const data = this.backend.getData();
-    const isTenant = data.properties.find((p) => p.buildingId === 'villa-compound')?.status !== 'unowned';
+    const villa = data.properties.find((p) => p.buildingId === 'villa-compound' || p.id === 'prop_villa_estate');
+    const isTenant = villa ? (villa.status === 'owned' || villa.status === 'rented' || villa.status === 'purchased') : false;
+
+    const bizMeta = document.getElementById('card-biz-meta');
+    const bizStatus = document.getElementById('card-biz-status');
+    const bizOwner = document.getElementById('card-biz-owner');
+    const bizRev = document.getElementById('card-biz-revenue');
+
+    const businesses = WorldDataManager.getInstance().getBusinesses();
+    const matchedBiz = businesses.find((b: MapBusiness) =>
+      b.id === obj.id ||
+      (obj.id === 'mama-put' && b.id === 'biz_mama_put') ||
+      (obj.id === 'bet-shop' && b.id === 'biz_bet9ja') ||
+      (obj.id === 'yaba-cchub' && b.id === 'biz_yaba_cchub') ||
+      ((obj.id === 'cv-plaza' || obj.id === 'slot-gadgets') && b.id === 'biz_otigba_gadgets') ||
+      (obj.id === 'amala-shitta' && b.id === 'biz_surulere_buka') ||
+      ((obj.id === 'vi-lounge' || obj.id === 'quilox-club') && b.id === 'biz_quilox') ||
+      (obj.id === 'pharmacy' && b.id === 'biz_lekki_clinic') ||
+      (obj.id === 'mechanic' && b.id === 'biz_gods_grace_mechanic') ||
+      (obj.id === 'fuel-station' && b.id === 'biz_oando_station') ||
+      (obj.id === 'vi-tower' && b.id === 'biz_eko_atlantic_fin')
+    );
+
+    if (matchedBiz && bizMeta && bizStatus && bizOwner && bizRev) {
+      bizMeta.style.display = 'block';
+      bizStatus.textContent = matchedBiz.status.toUpperCase();
+      bizOwner.textContent = matchedBiz.ownerId || 'NPC';
+      bizRev.textContent = `₦${matchedBiz.income.toLocaleString()}`;
+    } else if (bizMeta) {
+      bizMeta.style.display = 'none';
+    }
 
     if (obj.id === 'mama-put') {
       btnEl.textContent = '🍲 Order Jollof Rice & Asun (₦1,500)';
-      bizBtn.textContent = '💼 Buka Franchise & Revenue [E]';
+      bizBtn.textContent = '💼 View Business [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'lagos-bank') {
       btnEl.textContent = '🏧 Enter ATM Gallery';
@@ -622,6 +736,23 @@ export class HUD {
     } else if (obj.id === 'npc-banker') {
       btnEl.textContent = '📈 Invest in 90-Day Federal Treasury Bills (₦50,000)';
       bizBtn.style.display = 'none';
+    } else if (obj.id === 'yaba-cchub') {
+      btnEl.textContent = '💻 Join Tech Hackathon & Remote Sprint (+₦15,000)';
+      bizBtn.textContent = '🚀 Co-Creation Tech Incubator [E]';
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'surulere-stadium') {
+      btnEl.textContent = '🏃 Athletic Track Workout & Football Training (₦1,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'mma-airport') {
+      btnEl.textContent = '✈️ Book Interstate Flight to Abuja / Port Harcourt [M]';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'ajah-estate') {
+      btnEl.textContent = '👷 Work Construction Framing Shift (+₦8,500 Cash)';
+      bizBtn.textContent = '🏡 Ajah Peninsula Properties [E]';
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'balogun-market') {
+      btnEl.textContent = '👗 Buy Wholesale Ankara Fabric Bale (₦6,000)';
+      bizBtn.style.display = 'none';
     } else {
       btnEl.textContent = 'Enter / Inspect';
       bizBtn.style.display = 'none';
@@ -748,7 +879,8 @@ export class HUD {
         alert('❌ "Hold your ₦300 exact change first before entering my motor!" - Conductor');
       }
     } else if (id === 'villa-compound') {
-      const isTenant = this.backend.getData().properties.find((p) => p.buildingId === 'villa-compound')?.status !== 'unowned';
+      const villa = this.backend.getData().properties.find((p) => p.buildingId === 'villa-compound' || p.id === 'prop_villa_estate');
+      const isTenant = villa ? (villa.status === 'owned' || villa.status === 'rented' || villa.status === 'purchased') : false;
       if (isTenant && this.world) {
         const isOpen = this.world.buildings.toggleCompoundGate();
         alert(isOpen ? '🚪 Compound gate opened! You can walk into the estate courtyard.' : '🚪 Compound gate closed and secured.');
@@ -847,6 +979,55 @@ export class HUD {
       } else {
         alert('❌ Ineffective funds! ₦12,000 needed for the gallery artwork.');
       }
+    } else if (id === 'yaba-cchub') {
+      this.backend.restoreEnergy(20);
+      this.backend.addCash(15000);
+      this.backend.addStreetCred(25);
+      this.backend.addItem({
+        id: `github_token_${Date.now()}`,
+        name: 'CcHub High-Yield Smart Contract',
+        category: 'document',
+        icon: '💻',
+        description: 'Deployed web3 micro-service for a Silicon Valley fintech client.',
+        price: 25000,
+        usable: false,
+      });
+      alert('💻 CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash, +25 Street Cred, and deployed your code!');
+    } else if (id === 'surulere-stadium') {
+      const success = this.backend.spendCash(1000, 'Teslim Balogun Stadium Pass');
+      if (success) {
+        this.backend.restoreEnergy(50);
+        this.backend.addStreetCred(15);
+        this.player?.playEmote('groove', 4.0);
+        alert('🏃 SURULERE ATHLETIC WORKOUT: Ran laps around the Teslim Balogun tartan track! Energy boosted +50, Street Cred +15!');
+      } else {
+        alert('❌ Need ₦1,000 for stadium gate fee!');
+      }
+    } else if (id === 'mma-airport') {
+      this.hideInteractionCard();
+      this.interstateModal.toggle(this.world?.cityManager.currentCityId);
+      return;
+    } else if (id === 'ajah-estate') {
+      this.backend.addCash(8500);
+      this.backend.addStreetCred(10);
+      alert('👷 AJAH SITE LABOUR: Mixed mortar, hoisted hollow blocks, and completed framing! Earned ₦8,500 cash on the spot!');
+    } else if (id === 'balogun-market') {
+      const success = this.backend.spendCash(6000, 'Wholesale Ankara Bundle');
+      if (success) {
+        this.backend.addStreetCred(20);
+        this.backend.addItem({
+          id: `ankara_bundle_${Date.now()}`,
+          name: 'Balogun Luxury Ankara Fabric Bale',
+          category: 'document',
+          icon: '👗',
+          description: 'High-grade 6-yard Dutch Wax print direct from Balogun wholesale merchants.',
+          price: 14000,
+          usable: false,
+        });
+        alert('👗 BALOGUN MARKET WHOLESALE! Bought 6 yards of vibrant premium Ankara wax fabric for ₦6,000! Can be sold for ₦14,000 in your boutique!');
+      } else {
+        alert('❌ Need ₦6,000 for wholesale fabric bundle!');
+      }
     } else if (id === 'npc-punter') {
       alert('🗣️ Segun: "Guy, always play over 1.5 goals o! Don\'t play straight win, this league is crazy!"');
     } else if (id === 'aso-rock-lookout') {
@@ -935,6 +1116,10 @@ export class HUD {
     } else if (id === 'abuja-interstate-hub') {
       this.hideInteractionCard();
       this.interstateModal.open('abuja');
+      return;
+    } else if (id === 'mma-airport') {
+      this.hideInteractionCard();
+      this.interstateModal.open('lagos');
       return;
     } else if (id === 'flat-tv') {
       this.backend.restoreEnergy(25);

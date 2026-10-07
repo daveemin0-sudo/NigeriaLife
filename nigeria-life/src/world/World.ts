@@ -10,6 +10,11 @@ import { ApartmentInterior } from './ApartmentInterior';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { AtmosphereManager } from './AtmosphereManager';
+import { CityDensityManager } from './density/CityDensityManager';
+import { TrafficSpawner } from './traffic/TrafficSpawner';
+import { CityPopulation } from './population/CityPopulation';
+import { WorldMap } from './map/WorldMap';
+import { WorldDataManager } from './data/WorldDataManager';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -36,11 +41,19 @@ export class World {
   public cityManager: CityManager;
   public skyEnvironment: SkyEnvironmentManager;
 
+  // Visual Scale, Density, and Population extensions
+  public cityDensity: CityDensityManager;
+  public trafficSpawner: TrafficSpawner;
+  public cityPopulation: CityPopulation;
+  public worldMap: WorldMap;
+  public dataManager: WorldDataManager;
+
   public sunLight!: THREE.DirectionalLight;
   public hemiLight!: THREE.HemisphereLight;
 
   constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     this.scene = scene;
+    this.dataManager = WorldDataManager.getInstance();
 
     // 0. Procedural Sky Shader, PMREM Reflections, Sun & Fog
     this.skyEnvironment = new SkyEnvironmentManager(this.scene, renderer);
@@ -64,13 +77,25 @@ export class World {
     this.buildings = new Buildings();
     this.scene.add(this.buildings.group);
 
+    // 3b. High-Density Background Skylines & Street Details (80-90% background visual buildings)
+    this.cityDensity = new CityDensityManager();
+    this.scene.add(this.cityDensity.group);
+
     // 4. Vehicles (Drivable Danfo, Keke, SUV + Traffic)
     this.vehicles = new Vehicles();
     this.scene.add(this.vehicles.group);
 
+    // 4b. Multi-Vehicle Dynamic Traffic Population (BRT, Tanker, Trucks, Vans, Taxis)
+    this.trafficSpawner = new TrafficSpawner();
+    this.scene.add(this.trafficSpawner.group);
+
     // 5. Pedestrian NPCs & Street Vendors
     this.npcs = new NPCs();
     this.scene.add(this.npcs.group);
+
+    // 5b. High-Density Proximity NPC Population (12 Nigerian archetypes)
+    this.cityPopulation = new CityPopulation();
+    this.scene.add(this.cityPopulation.group);
 
     // 6. Lagos Expansion Multi-Districts (VI, Computer Village, Lekki Bridge)
     this.districts = new Districts();
@@ -79,6 +104,9 @@ export class World {
     // 7. Cutaway 3D Apartment Interior (Home Mode)
     this.apartment = new ApartmentInterior();
     this.scene.add(this.apartment.group);
+
+    // 8. Dedicated Isometric World Map Presentation Layer
+    this.worldMap = new WorldMap(this.scene);
 
     // Combine all clickable interactive objects across starter zone, districts, and apartment
     this.interactiveObjects = [
@@ -89,15 +117,18 @@ export class World {
       ...this.apartment.interactiveList,
     ];
 
-    // 8. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
+    // 9. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
     this.cityManager = new CityManager(this.scene);
     this.cityManager.registerSunLight(this.sunLight);
     this.cityManager.registerLagosInteractive(this.interactiveObjects);
     this.cityManager.registerLagosGroups([
       this.roads.group,
       this.buildings.group,
+      this.cityDensity.group,
       this.vehicles.group,
+      this.trafficSpawner.group,
       this.npcs.group,
+      this.cityPopulation.group,
       this.districts.group,
       this.apartment.group,
       this.atmosphere.group,
@@ -114,6 +145,25 @@ export class World {
     this.groundMesh.position.y = 0;
     this.groundMesh.receiveShadow = true;
     this.scene.add(this.groundMesh);
+  }
+
+  public setStreetModeVisibility(visible: boolean): void {
+    const lagosGroups = [
+      this.roads.group,
+      this.buildings.group,
+      this.cityDensity.group,
+      this.vehicles.group,
+      this.trafficSpawner.group,
+      this.npcs.group,
+      this.cityPopulation.group,
+      this.districts.group,
+      this.apartment.group,
+      this.atmosphere.group,
+      this.groundMesh,
+    ];
+    for (const g of lagosGroups) {
+      g.visible = visible;
+    }
   }
 
   public getDistrictAtPosition(pos: THREE.Vector3): { name: string; sub: string } {
@@ -134,25 +184,30 @@ export class World {
     if (pos.z > 165) {
       return { name: 'Lekki Luxury Flat', sub: 'Apartment Interior • Banana Island View' };
     }
-    // Lekki Phase 1 (East)
-    if (pos.x > 35) {
-      return { name: 'Lekki Phase 1', sub: 'Admiralty Way & Link Bridge' };
+
+    // Dynamically retrieve from unified WorldDataManager
+    const district = this.dataManager.getDistrictAt(pos);
+    if (district) {
+      return { name: district.name, sub: district.subtitle };
     }
-    // Victoria Island / Eko Atlantic (South)
-    if (pos.z > 50) {
-      return { name: 'Victoria Island', sub: 'Eko Atlantic Waterfront' };
-    }
-    // Computer Village / Mainland (North)
-    if (pos.z < -50) {
-      return { name: 'Mainland Ikeja', sub: 'Otigba St • Computer Village' };
-    }
-    // Lagos Island starter zone
+
     return { name: 'Lagos Island', sub: 'Broad Street' };
   }
 
   public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3): void {
     // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day
     this.skyEnvironment.update(delta, playerPos);
+
+    // Keep live player coordinate synced in WorldDataManager
+    if (playerPos) {
+      this.dataManager.updatePlayerPosition(playerPos);
+    }
+
+    // If World Map mode is currently active, update dedicated WorldMap presentations
+    if (this.worldMap.isActive) {
+      this.worldMap.update(delta);
+      return;
+    }
 
     if (this.cityManager.currentCityId === 'abuja') {
       this.cityManager.update(delta);
@@ -163,8 +218,14 @@ export class World {
     // Update vehicle movements & drivable controls
     this.vehicles.update(delta, keys);
 
+    // Update multi-vehicle traffic spawner
+    this.trafficSpawner.update(delta, playerPos?.z ?? 0);
+
     // Update ambient NPC walking & animations
     this.npcs.update(delta);
+
+    // Update high-density proximity population
+    this.cityPopulation.update(delta, playerPos?.z ?? 0);
 
     // Update building animations (e.g. compound gate)
     this.buildings.update(delta);
@@ -181,7 +242,91 @@ export class World {
     // Update atmosphere effects (Harmattan dust, smoke, puddles)
     this.atmosphere.update(delta, playerPos);
 
+    // Animate and fade out street property beacon
+    if (this.propertyBeacon && this.propertyBeaconTimer > 0) {
+      this.propertyBeaconTimer -= delta;
+      const ring = this.propertyBeacon.children[1] as THREE.Mesh;
+      if (ring) {
+        ring.rotation.z += delta * 2;
+        const scale = 1 + Math.sin(this.propertyBeaconTimer * 4) * 0.2;
+        ring.scale.set(scale, scale, 1);
+      }
+      if (this.propertyBeaconTimer <= 0) {
+        this.scene.remove(this.propertyBeacon);
+        this.propertyBeacon = null;
+      }
+    }
+
     // Update city manager
     this.cityManager.update(delta);
   }
+
+  // Temporary Street Highlight Beacon for Property Navigation
+  private propertyBeacon: THREE.Group | null = null;
+  private propertyBeaconTimer: number = 0;
+
+  public highlightStreetProperty(pos: { x: number; y: number; z: number } | THREE.Vector3, name: string): void {
+    if (this.propertyBeacon) {
+      this.scene.remove(this.propertyBeacon);
+      this.propertyBeacon = null;
+    }
+
+    const beacon = new THREE.Group();
+    beacon.position.set(pos.x, 0, pos.z);
+
+    // Glowing column
+    const cylinderGeo = new THREE.CylinderGeometry(0.8, 1.2, 14, 16);
+    const cylinderMat = new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide,
+    });
+    const cylinder = new THREE.Mesh(cylinderGeo, cylinderMat);
+    cylinder.position.y = 7;
+    beacon.add(cylinder);
+
+    // Expanding ground ring
+    const ringGeo = new THREE.RingGeometry(2.0, 2.6, 24);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x4ade80,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.15;
+    beacon.add(ring);
+
+    // Floating text sprite banner
+    const canvas = document.createElement('canvas');
+    canvas.width = 300;
+    canvas.height = 80;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.rect(6, 6, 288, 68);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`📍 ${name.length > 18 ? name.slice(0, 17) + '…' : name}`, 150, 46);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(8, 2.2, 1);
+    sprite.position.y = 14.5;
+    beacon.add(sprite);
+
+    this.scene.add(beacon);
+    this.propertyBeacon = beacon;
+    this.propertyBeaconTimer = 8.0; // Show for 8 seconds
+  }
 }
+

@@ -98,6 +98,11 @@ export class InputManager {
   }
 
   private onPointerMove(event: MouseEvent): void {
+    if (this.hud.currentNavMode === 'map') {
+      this.hoverReticle.visible = false;
+      return;
+    }
+
     // Convert to normalized device coordinates (-1 to +1)
     this.mouseCoords.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouseCoords.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -142,6 +147,8 @@ export class InputManager {
   }
 
   private onPointerDown(event: MouseEvent): void {
+    if (this.hud.currentNavMode === 'map') return;
+
     // Only respond to primary left click, ignore clicks on UI buttons & open modals
     if (event.button !== 0) return;
     const targetEl = event.target as HTMLElement;
