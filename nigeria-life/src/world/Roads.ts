@@ -12,6 +12,7 @@ export class Roads {
     this.buildRoadNetwork();
     this.buildStreetLights();
     this.buildPowerPoles();
+    this.buildGuttersAndStreetProps();
   }
 
   private buildRoadNetwork(): void {
@@ -267,5 +268,126 @@ export class Roads {
         this.group.add(cableMesh);
       }
     }
+  }
+
+  // =========================================================================
+  // 4. DRAINAGE GUTTERS, SPEED BUMPS & STREET CLUTTER
+  // =========================================================================
+  private buildGuttersAndStreetProps(): void {
+    const mats = MaterialLibrary.getInstance();
+
+    // A. Concrete Drainage Channels (Open Gutters flanking the road)
+    const gutterMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      roughness: 0.9,
+    });
+    const culvertMat = mats.concreteTrimMaterial;
+
+    for (const side of [-1, 1]) {
+      const gx = side * (this.roadWidth / 2 + 0.4);
+
+      // Deep gutter trough
+      const troughGeo = new THREE.BoxGeometry(0.7, 0.45, this.roadLength);
+      const trough = new THREE.Mesh(troughGeo, gutterMat);
+      trough.position.set(gx, -0.08, 0);
+      trough.receiveShadow = true;
+      this.group.add(trough);
+
+      // Concrete Culvert Bridges (Planks across gutters for pedestrians to enter shops)
+      for (let z = -90; z <= 90; z += 15) {
+        const slabGeo = new THREE.BoxGeometry(0.85, 0.1, 2.4);
+        const slab = new THREE.Mesh(slabGeo, culvertMat);
+        slab.position.set(gx, 0.16, z);
+        slab.castShadow = true;
+        slab.receiveShadow = true;
+        this.group.add(slab);
+      }
+    }
+
+    // B. Asphalt Speed Bumps (Classic Lagos road bumps with black/yellow caution stripes)
+    const bumpZPositions = [-35, 25, 85];
+    const bumpMat = new THREE.MeshStandardMaterial({
+      color: 0x33373d,
+      roughness: 0.88,
+    });
+
+    for (const bz of bumpZPositions) {
+      const bumpGeo = new THREE.CylinderGeometry(0.65, 0.65, this.roadWidth - 0.4, 16, 1, false, 0, Math.PI);
+      const bump = new THREE.Mesh(bumpGeo, bumpMat);
+      bump.rotation.z = Math.PI / 2;
+      bump.rotation.y = Math.PI / 2;
+      bump.position.set(0, 0.08, bz);
+      bump.receiveShadow = true;
+      this.group.add(bump);
+
+      // Yellow chevron warning stripes on speed bump
+      for (let x = -5.5; x <= 5.5; x += 1.8) {
+        const stripeGeo = new THREE.PlaneGeometry(0.35, 1.1);
+        const stripeMat = mats.roadLineMaterial;
+        const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+        stripe.rotation.x = -Math.PI / 2;
+        stripe.position.set(x, 0.17, bz);
+        this.group.add(stripe);
+      }
+    }
+
+    // C. Roadside Vendor Umbrellas & Display Tables (Recharge cards, snacks, fruits)
+    const umbrellaColors = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x8b5cf6];
+    const stallZPositions = [-72, -48, -18, 16, 42, 68, 96];
+
+    stallZPositions.forEach((sz, idx) => {
+      const side = idx % 2 === 0 ? -1 : 1;
+      const sx = side * (this.roadWidth / 2 + 3.2);
+
+      const stallGroup = new THREE.Group();
+      stallGroup.position.set(sx, 0.28, sz);
+
+      // Multicolored parasol umbrella
+      const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.5, 8);
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.8 });
+      const pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.y = 1.25;
+      pole.castShadow = true;
+      stallGroup.add(pole);
+
+      const canopyGeo = new THREE.ConeGeometry(1.6, 0.6, 12);
+      const canopyColor = umbrellaColors[idx % umbrellaColors.length];
+      const canopyMat = new THREE.MeshStandardMaterial({ color: canopyColor, roughness: 0.7 });
+      const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+      canopy.position.y = 2.4;
+      canopy.castShadow = true;
+      stallGroup.add(canopy);
+
+      // Wooden market display table
+      const tableGeo = new THREE.BoxGeometry(1.4, 0.8, 0.9);
+      const tableMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 });
+      const table = new THREE.Mesh(tableGeo, tableMat);
+      table.position.set(0, 0.4, 0.3);
+      table.castShadow = true;
+      table.receiveShadow = true;
+      stallGroup.add(table);
+
+      // Glass showcase box on table (displaying drinks / recharge cards)
+      const glassGeo = new THREE.BoxGeometry(1.1, 0.35, 0.6);
+      const glassMat = new THREE.MeshStandardMaterial({
+        color: 0x93c5fd,
+        transparent: true,
+        opacity: 0.5,
+        roughness: 0.2,
+      });
+      const glassBox = new THREE.Mesh(glassGeo, glassMat);
+      glassBox.position.set(0, 0.95, 0.3);
+      stallGroup.add(glassBox);
+
+      // Plastic garden chair
+      const chairGeo = new THREE.BoxGeometry(0.5, 0.75, 0.5);
+      const chairMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.5 });
+      const chair = new THREE.Mesh(chairGeo, chairMat);
+      chair.position.set(0, 0.38, -0.6);
+      chair.castShadow = true;
+      stallGroup.add(chair);
+
+      this.group.add(stallGroup);
+    });
   }
 }

@@ -25,6 +25,11 @@ export class Buildings {
     this.buildResidentialCompound();
     this.buildDanfoTerminus();
     this.buildPalmTrees();
+    this.buildCommercialPlazasAndShops();
+    this.buildApartmentBlocks();
+    this.buildFillingStation();
+    this.buildMechanicWorkshop();
+    this.buildConstructionSite();
   }
 
   // =========================================================================
@@ -1036,6 +1041,415 @@ export class Buildings {
 
       this.group.add(palmGroup);
     }
+  }
+
+  // =========================================================================
+  // 9. DENSE COMMERCIAL PLAZAS & SHOPS (Pharmacy, Supermarket, Gadgets, Barber)
+  // =========================================================================
+  private buildCommercialPlazasAndShops(): void {
+    // A. Yaba Central Pharmacy & Clinic (North-West: x = -18, z = -50)
+    const pharmGroup = new THREE.Group();
+    pharmGroup.position.set(-18, 0, -50);
+
+    const pharmGeo = new THREE.BoxGeometry(8.5, 6.8, 9.5);
+    const pharmMat = this.matLib.wallPlasterDistressedWhite;
+    const pharmBuilding = new THREE.Mesh(pharmGeo, pharmMat);
+    pharmBuilding.position.y = 3.4;
+    pharmBuilding.castShadow = true;
+    pharmBuilding.receiveShadow = true;
+    pharmGroup.add(pharmBuilding);
+
+    // Green cross pharmacy lightbox header
+    const pSignGeo = new THREE.BoxGeometry(0.3, 1.2, 8.5);
+    const pSignMat = new THREE.MeshStandardMaterial({
+      color: 0x059669,
+      roughness: 0.3,
+    });
+    const pSign = new THREE.Mesh(pSignGeo, pSignMat);
+    pSign.position.set(4.35, 3.6, 0);
+    pharmGroup.add(pSign);
+
+    // Illuminated Green Cross
+    const crossGeoH = new THREE.BoxGeometry(0.08, 0.28, 0.85);
+    const crossGeoV = new THREE.BoxGeometry(0.08, 0.85, 0.28);
+    const crossMat = new THREE.MeshBasicMaterial({ color: 0x34d399 });
+    const crossH = new THREE.Mesh(crossGeoH, crossMat);
+    const crossV = new THREE.Mesh(crossGeoV, crossMat);
+    crossH.position.set(4.55, 3.6, 0);
+    crossV.position.set(4.55, 3.6, 0);
+    pharmGroup.add(crossH);
+    pharmGroup.add(crossV);
+
+    // Windows & AC
+    pharmGroup.add(this.createWindow(1.8, 1.2));
+    pharmGroup.add(this.createACUnit(4.35, 5.2, -2.5, -Math.PI / 2));
+    this.group.add(pharmGroup);
+
+    this.interactiveList.push({
+      mesh: pharmGroup,
+      id: 'pharmacy',
+      name: 'Yaba Central Pharmacy & Wellness',
+      category: 'Health & Pharmacy',
+      description: 'First aid, vitamins, energy boosts, and malaria medication.',
+      interactionPoint: new THREE.Vector3(-10, 0, -50),
+    });
+
+    // B. Everyday Supermarket & Cold Drinks (North-East: x = 18, z = -45)
+    const martGroup = new THREE.Group();
+    martGroup.position.set(18, 0, -45);
+
+    const martGeo = new THREE.BoxGeometry(9.0, 7.5, 11.0);
+    const martBuilding = new THREE.Mesh(martGeo, this.matLib.wallPlasterCream);
+    martBuilding.position.y = 3.75;
+    martBuilding.castShadow = true;
+    martBuilding.receiveShadow = true;
+    martGroup.add(martBuilding);
+
+    // Brand header
+    const martHeaderGeo = new THREE.BoxGeometry(0.3, 1.3, 10.0);
+    const martHeaderMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.35 });
+    const martHeader = new THREE.Mesh(martHeaderGeo, martHeaderMat);
+    martHeader.position.set(-4.6, 4.2, 0);
+    martGroup.add(martHeader);
+
+    // Glass entrance front
+    const martGlassGeo = new THREE.BoxGeometry(0.2, 3.2, 7.5);
+    const martGlass = new THREE.Mesh(martGlassGeo, this.matLib.glassReflectiveMaterial);
+    martGlass.position.set(-4.55, 1.8, 0);
+    martGroup.add(martGlass);
+
+    martGroup.add(this.createACUnit(-4.6, 5.8, 2.5, Math.PI / 2));
+    this.group.add(martGroup);
+
+    this.interactiveList.push({
+      mesh: martGroup,
+      id: 'supermarket',
+      name: 'Everyday Supermarket & Mart',
+      category: 'Shopping & Groceries',
+      description: 'Chilled soft drinks, bread, snacks, household items, and groceries.',
+      interactionPoint: new THREE.Vector3(10, 0, -45),
+    });
+
+    // C. Slot Gadgets & Phone Clinic (South-East: x = 18, z = 35)
+    const slotGroup = new THREE.Group();
+    slotGroup.position.set(18, 0, 35);
+
+    const slotGeo = new THREE.BoxGeometry(8.5, 6.5, 8.5);
+    const slotBuilding = new THREE.Mesh(slotGeo, this.matLib.wallPlasterTeal);
+    slotBuilding.position.y = 3.25;
+    slotBuilding.castShadow = true;
+    slotBuilding.receiveShadow = true;
+    slotGroup.add(slotBuilding);
+
+    // Red Slot-style brand marquee
+    const slotMarqueeGeo = new THREE.BoxGeometry(0.3, 1.1, 8.0);
+    const slotMarqueeMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 });
+    const slotMarquee = new THREE.Mesh(slotMarqueeGeo, slotMarqueeMat);
+    slotMarquee.position.set(-4.35, 3.8, 0);
+    slotGroup.add(slotMarquee);
+
+    slotGroup.add(this.createACUnit(-4.35, 5.2, -1.8, Math.PI / 2));
+    this.group.add(slotGroup);
+
+    this.interactiveList.push({
+      mesh: slotGroup,
+      id: 'slot-gadgets',
+      name: 'Slot Gadgets & Phone Clinic',
+      category: 'Tech & Electronics',
+      description: 'Smartphones, power banks, chargers, AirPods, and screen repairs.',
+      interactionPoint: new THREE.Vector3(10, 0, 35),
+    });
+
+    // D. Fresh Cut Luxury Barbershop (South-West: x = -18, z = 35)
+    const barbGroup = new THREE.Group();
+    barbGroup.position.set(-18, 0, 35);
+
+    const barbGeo = new THREE.BoxGeometry(8.0, 5.5, 7.5);
+    const barbBuilding = new THREE.Mesh(barbGeo, this.matLib.wallPlasterOchre);
+    barbBuilding.position.y = 2.75;
+    barbBuilding.castShadow = true;
+    barbBuilding.receiveShadow = true;
+    barbGroup.add(barbBuilding);
+
+    // Rotating style barber pole prop
+    const poleGeo = new THREE.CylinderGeometry(0.12, 0.12, 1.2, 12);
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+    const bPole = new THREE.Mesh(poleGeo, poleMat);
+    bPole.position.set(4.2, 2.8, 2.8);
+    barbGroup.add(bPole);
+
+    this.group.add(barbGroup);
+
+    this.interactiveList.push({
+      mesh: barbGroup,
+      id: 'barber-shop',
+      name: 'Fresh Cut Executive Barbershop',
+      category: 'Grooming & Style',
+      description: 'Clean fade, beard oil treatment, and hot towel wash.',
+      interactionPoint: new THREE.Vector3(-10, 0, 35),
+    });
+  }
+
+  // =========================================================================
+  // 10. MULTI-STOREY RESIDENTIAL APARTMENT BLOCKS (2-4 Storey Lagos Blocks)
+  // =========================================================================
+  private buildApartmentBlocks(): void {
+    const aptConfigs = [
+      { x: -19, z: -85, floors: 3, color: 0xf0e4cc, name: 'Palm View Flats' },
+      { x: 19, z: -85, floors: 4, color: 0xd9b99a, name: 'Heritage Heights' },
+      { x: 19, z: 65, floors: 3, color: 0xe6c9a0, name: 'Tejuosho Mansions' },
+    ];
+
+    aptConfigs.forEach((cfg) => {
+      const aptGroup = new THREE.Group();
+      aptGroup.position.set(cfg.x, 0, cfg.z);
+
+      const W = 11.0;
+      const D = 10.0;
+      const H = 4.2 + cfg.floors * 3.2;
+
+      // Main structural block
+      const bGeo = new THREE.BoxGeometry(W, H, D);
+      const bMat = new THREE.MeshStandardMaterial({
+        color: cfg.color,
+        roughness: 0.85,
+      });
+      const bMesh = new THREE.Mesh(bGeo, bMat);
+      bMesh.position.y = H / 2;
+      bMesh.castShadow = true;
+      bMesh.receiveShadow = true;
+      aptGroup.add(bMesh);
+
+      // Windows and Balconies on each floor
+      const facingRoad = cfg.x < 0 ? 1 : -1;
+      const frontX = (facingRoad * W) / 2 + facingRoad * 0.05;
+
+      for (let f = 1; f <= cfg.floors; f++) {
+        const floorY = 2.0 + f * 3.0;
+
+        // Front Balcony Railing
+        const railGeo = new THREE.BoxGeometry(0.1, 0.9, 7.5);
+        const rail = new THREE.Mesh(railGeo, this.matLib.ironRailingMaterial);
+        rail.position.set(frontX, floorY + 0.45, 0);
+        rail.castShadow = true;
+        aptGroup.add(rail);
+
+        // Louvered Windows
+        for (const oz of [-2.8, 2.8]) {
+          const win = this.createWindow(1.6, 1.2);
+          win.position.set(frontX, floorY + 0.8, oz);
+          win.rotation.y = facingRoad > 0 ? -Math.PI / 2 : Math.PI / 2;
+          aptGroup.add(win);
+        }
+
+        // Outdoor AC unit
+        aptGroup.add(this.createACUnit(frontX, floorY + 1.2, 0, facingRoad > 0 ? -Math.PI / 2 : Math.PI / 2));
+      }
+
+      // Rooftop Black GeePee Polyethylene Water Tanks
+      for (const rx of [-2.5, 2.5]) {
+        const tankGeo = new THREE.CylinderGeometry(0.85, 0.85, 1.8, 16);
+        const tank = new THREE.Mesh(tankGeo, this.matLib.waterTankBlackMaterial);
+        tank.position.set(rx, H + 0.9, -1.5);
+        tank.castShadow = true;
+        aptGroup.add(tank);
+      }
+
+      this.group.add(aptGroup);
+    });
+  }
+
+  // =========================================================================
+  // 11. FILLING STATION (Oando / Total Style Petrol Forecourt)
+  // =========================================================================
+  private buildFillingStation(): void {
+    const stationGroup = new THREE.Group();
+    stationGroup.position.set(-21, 0, 75);
+
+    // Forecourt concrete pad
+    const padGeo = new THREE.BoxGeometry(16, 0.18, 18);
+    const padMat = this.matLib.concreteTrimMaterial;
+    const pad = new THREE.Mesh(padGeo, padMat);
+    pad.position.y = 0.09;
+    pad.receiveShadow = true;
+    stationGroup.add(pad);
+
+    // Large high-clearance illuminated canopy
+    const canopyGeo = new THREE.BoxGeometry(14, 0.75, 15);
+    const canopyMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+    const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+    canopy.position.y = 6.2;
+    canopy.castShadow = true;
+    stationGroup.add(canopy);
+
+    // Orange/Green corporate brand trim around canopy edge
+    const brandTrimGeo = new THREE.BoxGeometry(14.2, 0.4, 15.2);
+    const brandTrimMat = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.4 });
+    const brandTrim = new THREE.Mesh(brandTrimGeo, brandTrimMat);
+    brandTrim.position.y = 6.2;
+    stationGroup.add(brandTrim);
+
+    // 4 Heavy canopy steel support columns
+    const colGeo = new THREE.CylinderGeometry(0.3, 0.3, 6.0, 12);
+    const colMat = this.matLib.concreteTrimMaterial;
+    for (const cx of [-4.5, 4.5]) {
+      for (const cz of [-4.5, 4.5]) {
+        const col = new THREE.Mesh(colGeo, colMat);
+        col.position.set(cx, 3.0, cz);
+        col.castShadow = true;
+        stationGroup.add(col);
+      }
+    }
+
+    // 4 Dual-Hose Fuel Pump Dispensers (PMS Petrol & AGO Diesel)
+    const pumpGeo = new THREE.BoxGeometry(0.7, 1.8, 1.2);
+    const pumpMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 });
+
+    for (const pz of [-3.5, 3.5]) {
+      const pump = new THREE.Mesh(pumpGeo, pumpMat);
+      pump.position.set(0, 0.9, pz);
+      pump.castShadow = true;
+      stationGroup.add(pump);
+
+      // Digital volume & price screen
+      const screenGeo = new THREE.PlaneGeometry(0.4, 0.3);
+      const screenMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+      const screenL = new THREE.Mesh(screenGeo, screenMat);
+      screenL.rotation.y = -Math.PI / 2;
+      screenL.position.set(-0.36, 1.2, pz);
+      stationGroup.add(screenL);
+
+      const screenR = new THREE.Mesh(screenGeo, screenMat);
+      screenR.rotation.y = Math.PI / 2;
+      screenR.position.set(0.36, 1.2, pz);
+      stationGroup.add(screenR);
+    }
+
+    // Minimart station shop in background
+    const shopGeo = new THREE.BoxGeometry(5.5, 4.0, 12.0);
+    const shop = new THREE.Mesh(shopGeo, this.matLib.wallPlasterDistressedWhite);
+    shop.position.set(-6.5, 2.0, 0);
+    shop.castShadow = true;
+    shop.receiveShadow = true;
+    stationGroup.add(shop);
+
+    this.group.add(stationGroup);
+
+    this.interactiveList.push({
+      mesh: stationGroup,
+      id: 'fuel-station',
+      name: 'Oando Filling Station & Mart',
+      category: 'Fuel & Automotive',
+      description: 'Refuel your Danfo/Keke, purchase engine oil, or grab cold bottled water.',
+      interactionPoint: new THREE.Vector3(-11, 0, 75),
+    });
+  }
+
+  // =========================================================================
+  // 12. MECHANIC WORKSHOP (God's Grace Auto Works)
+  // =========================================================================
+  private buildMechanicWorkshop(): void {
+    const mechGroup = new THREE.Group();
+    mechGroup.position.set(-19, 0, 105);
+
+    // Open corrugated roof shed
+    const roofGeo = new THREE.BoxGeometry(10, 0.15, 12);
+    const roof = new THREE.Mesh(roofGeo, this.matLib.corrugatedRoofRusty);
+    roof.position.set(0, 4.5, 0);
+    roof.rotation.z = -0.08;
+    roof.castShadow = true;
+    mechGroup.add(roof);
+
+    // Timber posts
+    const postGeo = new THREE.CylinderGeometry(0.12, 0.12, 4.5, 8);
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.9 });
+    for (const px of [-4.5, 4.5]) {
+      for (const pz of [-5.5, 5.5]) {
+        const post = new THREE.Mesh(postGeo, postMat);
+        post.position.set(px, 2.25, pz);
+        post.castShadow = true;
+        mechGroup.add(post);
+      }
+    }
+
+    // Stacked used automobile tires
+    const tireGeo = new THREE.TorusGeometry(0.42, 0.16, 8, 16);
+    const tireMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+    for (let t = 0; t < 4; t++) {
+      const tire = new THREE.Mesh(tireGeo, tireMat);
+      tire.rotation.x = Math.PI / 2;
+      tire.position.set(3.5, 0.18 + t * 0.32, -4.0);
+      tire.castShadow = true;
+      mechGroup.add(tire);
+    }
+
+    // 55-Gallon blue engine oil drum
+    const drumGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.1, 16);
+    const drumMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, metalness: 0.6, roughness: 0.4 });
+    const drum = new THREE.Mesh(drumGeo, drumMat);
+    drum.position.set(3.5, 0.55, 3.5);
+    drum.castShadow = true;
+    mechGroup.add(drum);
+
+    this.group.add(mechGroup);
+
+    this.interactiveList.push({
+      mesh: mechGroup,
+      id: 'mechanic',
+      name: "God's Grace Auto Works",
+      category: 'Repairs & Upgrades',
+      description: 'Tune vehicle speed, change tires, repair broken down engine.',
+      interactionPoint: new THREE.Vector3(-10, 0, 105),
+    });
+  }
+
+  // =========================================================================
+  // 13. UNFINISHED CONSTRUCTION SITE (Classic Lagos 3-Storey Skeleton)
+  // =========================================================================
+  private buildConstructionSite(): void {
+    const conGroup = new THREE.Group();
+    conGroup.position.set(19, 0, 105);
+
+    const conMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.95 });
+    const rebarMat = new THREE.MeshStandardMaterial({ color: 0xb45309, metalness: 0.6, roughness: 0.7 });
+
+    // 3 Concrete floor slabs
+    for (let f = 1; f <= 3; f++) {
+      const slabGeo = new THREE.BoxGeometry(10, 0.3, 11);
+      const slab = new THREE.Mesh(slabGeo, conMat);
+      slab.position.y = f * 3.2;
+      slab.castShadow = true;
+      slab.receiveShadow = true;
+      conGroup.add(slab);
+    }
+
+    // Exposed concrete pillars with rusty protruding rebar spikes
+    const colGeo = new THREE.BoxGeometry(0.45, 10.5, 0.45);
+    for (const cx of [-4.5, 0, 4.5]) {
+      for (const cz of [-4.5, 4.5]) {
+        const col = new THREE.Mesh(colGeo, conMat);
+        col.position.set(cx, 5.25, cz);
+        col.castShadow = true;
+        conGroup.add(col);
+
+        // Rebar rods poking out top of pillar
+        for (let r = 0; r < 4; r++) {
+          const rodGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.2, 6);
+          const rod = new THREE.Mesh(rodGeo, rebarMat);
+          rod.position.set(cx + (r % 2 ? 0.12 : -0.12), 11.1, cz + (r > 1 ? 0.12 : -0.12));
+          conGroup.add(rod);
+        }
+      }
+    }
+
+    // Stack of 9-inch sandcrete building blocks on ground
+    const blockStackGeo = new THREE.BoxGeometry(2.4, 1.4, 2.0);
+    const blockStack = new THREE.Mesh(blockStackGeo, conMat);
+    blockStack.position.set(3.0, 0.7, 0);
+    blockStack.castShadow = true;
+    conGroup.add(blockStack);
+
+    this.group.add(conGroup);
   }
 
   public toggleCompoundGate(open?: boolean): boolean {
