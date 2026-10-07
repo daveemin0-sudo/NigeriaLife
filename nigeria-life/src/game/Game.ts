@@ -213,7 +213,7 @@ export class Game {
     // Update Input cursor animations
     this.input.update(delta);
 
-    // Render Scene through Post-Processing Pipeline
-    this.postProcessing.render(this.scene, this.cameraManager.camera);
+    // Render Scene through Post-Processing Pipeline (with animated heat-haze delta)
+    this.postProcessing.render(this.scene, this.cameraManager.camera, delta);
   };
 }

@@ -26,6 +26,7 @@ export class WeatherSystem {
   private sunLight: THREE.DirectionalLight | null = null;
   private hemiLight: THREE.HemisphereLight | null = null;
   private roadsMeshList: THREE.MeshStandardMaterial[] = [];
+  private atmosphere: any = null;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -40,6 +41,10 @@ export class WeatherSystem {
 
   public registerRoadMaterial(mat: THREE.MeshStandardMaterial): void {
     this.roadsMeshList.push(mat);
+  }
+
+  public registerAtmosphere(atmosphere: any): void {
+    this.atmosphere = atmosphere;
   }
 
   private createRainSystem(): void {
@@ -109,6 +114,10 @@ export class WeatherSystem {
         mat.metalness = 0.65;
       }
 
+      if (this.atmosphere && typeof this.atmosphere.setDustIntensity === 'function') {
+        this.atmosphere.setDustIntensity(0.1);
+      }
+
       this.startRainAudio();
     } else {
       this.rainParticles.visible = false;
@@ -134,6 +143,10 @@ export class WeatherSystem {
       for (const mat of this.roadsMeshList) {
         mat.roughness = 0.85;
         mat.metalness = 0.05;
+      }
+
+      if (this.atmosphere && typeof this.atmosphere.setDustIntensity === 'function') {
+        this.atmosphere.setDustIntensity(0.45);
       }
 
       this.stopRainAudio();

@@ -9,6 +9,7 @@ import { CityManager } from '../cities/CityManager';
 import { ApartmentInterior } from './ApartmentInterior';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
+import { AtmosphereManager } from './AtmosphereManager';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -31,6 +32,7 @@ export class World {
   public districts: Districts;
   public apartment: ApartmentInterior;
   public weather: WeatherSystem;
+  public atmosphere: AtmosphereManager;
   public cityManager: CityManager;
   public skyEnvironment: SkyEnvironmentManager;
 
@@ -47,9 +49,11 @@ export class World {
 
     this.createGround();
 
-    // 1. Weather & Atmosphere System
+    // 1. Atmosphere & Weather Systems
+    this.atmosphere = new AtmosphereManager(this.scene);
     this.weather = new WeatherSystem(this.scene);
     this.weather.registerLights(this.sunLight, this.hemiLight);
+    this.weather.registerAtmosphere(this.atmosphere);
 
     // 2. Roads Network & Street Furniture
     this.roads = new Roads();
@@ -96,6 +100,7 @@ export class World {
       this.npcs.group,
       this.districts.group,
       this.apartment.group,
+      this.atmosphere.group,
       this.groundMesh,
     ]);
   }
@@ -172,6 +177,9 @@ export class World {
 
     // Update weather effects (rain particles, lighting, thunder)
     this.weather.update(delta, playerPos);
+
+    // Update atmosphere effects (Harmattan dust, smoke, puddles)
+    this.atmosphere.update(delta, playerPos);
 
     // Update city manager
     this.cityManager.update(delta);

@@ -19,6 +19,8 @@ export const LagosAtmosphereShader = {
     warmth: { value: 0.035 },
     contrast: { value: 1.05 },
     saturation: { value: 1.04 },
+    time: { value: 0.0 },
+    heatShimmer: { value: 0.0012 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -34,10 +36,18 @@ export const LagosAtmosphereShader = {
     uniform float warmth;
     uniform float contrast;
     uniform float saturation;
+    uniform float time;
+    uniform float heatShimmer;
     varying vec2 vUv;
 
     void main() {
-      vec4 texel = texture2D(tDiffuse, vUv);
+      // 0. Distance Heat-Haze Shimmer (Iconic Lagos midday tarmac mirage)
+      // Only affects lower-middle horizon screen band where asphalt roads & distant junction meet
+      float heatBand = smoothstep(0.26, 0.42, vUv.y) * (1.0 - smoothstep(0.56, 0.72, vUv.y));
+      float shimmerWave = sin(vUv.y * 130.0 + time * 5.0) * cos(vUv.x * 85.0 + time * 3.8) * heatShimmer * heatBand;
+      vec2 sampleUv = vUv + vec2(shimmerWave, shimmerWave * 0.25);
+
+      vec4 texel = texture2D(tDiffuse, sampleUv);
       vec3 color = texel.rgb;
 
       // 1. Tropical Nigerian Warmth in midtones (Subtle golden-amber lift)
@@ -113,8 +123,11 @@ export class PostProcessingManager {
     this.composer.addPass(outputPass);
   }
 
-  public render(scene: THREE.Scene, camera: THREE.Camera): void {
+  public render(scene: THREE.Scene, camera: THREE.Camera, delta: number = 0.016): void {
     if (this.isEnabled) {
+      if (this.gradePass && this.gradePass.uniforms && this.gradePass.uniforms.time) {
+        this.gradePass.uniforms.time.value += delta;
+      }
       this.composer.render();
     } else {
       this.renderer.render(scene, camera);
