@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { PlayerNetState } from './types';
 import { ATTIRE_PRESETS } from '../player/CharacterCustomization';
+import { createColorCanvasTexture } from '../utils/TextureUtils';
 
 export class RemotePlayer {
   public id: string;
@@ -165,7 +166,7 @@ export class RemotePlayer {
     ctx.textBaseline = 'middle';
     ctx.fillText(`🇳🇬 ${name}`, 128, 32);
 
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = createColorCanvasTexture(canvas);
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
     this.nameplateSprite = new THREE.Sprite(spriteMat);
     this.nameplateSprite.position.set(0, 2.45, 0);
@@ -177,7 +178,7 @@ export class RemotePlayer {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 128;
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = createColorCanvasTexture(canvas);
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
     this.chatBubbleSprite = new THREE.Sprite(spriteMat);
     this.chatBubbleSprite.position.set(0, 3.1, 0);
@@ -207,7 +208,7 @@ export class RemotePlayer {
     ctx.textBaseline = 'middle';
     ctx.fillText(text.length > 30 ? text.substring(0, 28) + '...' : text, 256, 56);
 
-    this.chatBubbleSprite.material.map = new THREE.CanvasTexture(canvas);
+    this.chatBubbleSprite.material.map = createColorCanvasTexture(canvas);
     this.chatBubbleSprite.material.map.needsUpdate = true;
     this.chatBubbleSprite.visible = true;
     this.chatBubbleTimer = 5.0; // Show for 5 seconds

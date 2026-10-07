@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Player } from '../player/Player';
+import { createColorCanvasTexture } from '../utils/TextureUtils';
 
 export type VehicleType = 'danfo' | 'keke' | 'suv';
 
@@ -82,7 +83,7 @@ export class DrivableVehicle {
     ctx.textBaseline = 'middle';
     ctx.fillText('📢 PAA-PAA!', 128, 64);
 
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = createColorCanvasTexture(canvas);
     const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
     this.hornTextMesh = new THREE.Sprite(spriteMat);
     this.hornTextMesh.scale.set(3.2, 1.6, 1);

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { InteractiveObject } from './World';
+import { createColorCanvasTexture } from '../utils/TextureUtils';
 
 export class Districts {
   public group: THREE.Group;
@@ -481,7 +482,7 @@ export class Districts {
     ctx.fillStyle = '#f1f5f9';
     ctx.fillText(tag, 256, 170);
 
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = createColorCanvasTexture(canvas);
     const boardGeo = new THREE.BoxGeometry(8, 4, 0.4);
     const boardMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.3 });
     const board = new THREE.Mesh(boardGeo, boardMat);
