@@ -17,6 +17,8 @@ export class InputManager {
   private targetMarker: THREE.Mesh;
   private hoverReticle: THREE.Mesh;
   private markerAnimTime: number = 0;
+  private hoverGroundPoint = new THREE.Vector3();
+  private cursorState: 'default' | 'walk' | 'interact' = 'default';
   public hoveredObject: InteractiveObject | null = null;
 
   public keys: Record<string, boolean> = {};
@@ -97,29 +99,40 @@ export class InputManager {
 
     this.raycaster.setFromCamera(this.mouseCoords, this.camera);
 
-    // Check hover against interactive buildings
-    const buildingMeshes = this.world.interactiveObjects.map((obj) => obj.mesh);
-    const buildingHits = this.raycaster.intersectObjects(buildingMeshes, true);
+    // Smart cursor priority: interactive object > walkable ground > default.
+    const interactiveMeshes = this.world.interactiveObjects.map((obj) => obj.mesh);
+    const interactiveHits = this.raycaster.intersectObjects(interactiveMeshes, true);
 
-    if (buildingHits.length > 0) {
-      document.body.style.cursor = 'pointer';
-      const hitRoot = this.findInteractiveParent(buildingHits[0].object);
+    if (interactiveHits.length > 0) {
+      const hitRoot = this.findInteractiveParent(interactiveHits[0].object);
       this.hoveredObject = hitRoot;
+      this.hoverReticle.visible = false;
+
+      if (hitRoot) {
+        this.setCursor('interact');
+        // Show the reticle at the actual destination the player will walk to.
+        this.hoverReticle.position.copy(hitRoot.interactionPoint);
+        this.hoverReticle.position.y = 0.03;
+        this.hoverReticle.visible = true;
+        (this.hoverReticle.material as THREE.MeshBasicMaterial).opacity = 0.55;
+      }
       return;
-    } else {
-      this.hoveredObject = null;
     }
 
-    // Check hover against ground
-    const groundHits = this.raycaster.intersectObject(this.world.groundMesh);
+    this.hoveredObject = null;
+
+    // Check hover against walkable terrain.
+    const groundHits = this.raycaster.intersectObject(this.world.groundMesh, false);
     if (groundHits.length > 0) {
-      document.body.style.cursor = 'crosshair';
-      this.hoverReticle.position.x = groundHits[0].point.x;
-      this.hoverReticle.position.z = groundHits[0].point.z;
+      this.hoverGroundPoint.copy(groundHits[0].point);
+      this.hoverReticle.position.copy(this.hoverGroundPoint);
+      this.hoverReticle.position.y = 0.03;
       this.hoverReticle.visible = true;
+      (this.hoverReticle.material as THREE.MeshBasicMaterial).opacity = 0.4;
+      this.setCursor('walk');
     } else {
-      document.body.style.cursor = 'default';
       this.hoverReticle.visible = false;
+      this.setCursor('default');
     }
   }
 
@@ -127,19 +140,9 @@ export class InputManager {
     // Only respond to primary left click, ignore clicks on UI buttons & open modals
     if (event.button !== 0) return;
     const targetEl = event.target as HTMLElement;
-    if (
-      targetEl.closest('#hud-overlay') ||
-      targetEl.closest('#inventory-modal') ||
-      targetEl.closest('#atm-modal') ||
-      targetEl.closest('#character-creator-modal') ||
-      targetEl.closest('#smartphone-wrapper') ||
-      targetEl.closest('#street-chat-box') ||
-      targetEl.closest('#economy-modal') ||
-      targetEl.closest('#travel-modal')
-    ) {
-      if (!targetEl.closest('canvas')) {
-        return;
-      }
+    // UI owns its own clicks. Only the WebGL canvas controls game movement.
+    if (!targetEl.closest('canvas')) {
+      return;
     }
 
     // If player is currently driving a vehicle, do not steer/walk by clicking
@@ -173,6 +176,16 @@ export class InputManager {
       this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
       this.hud.hideInteractionCard();
     }
+  }
+
+  private setCursor(state: 'default' | 'walk' | 'interact'): void {
+    if (this.cursorState === state) return;
+    this.cursorState = state;
+
+    document.body.style.cursor =
+      state === 'interact' ? 'pointer' :
+      state === 'walk' ? 'crosshair' :
+      'default';
   }
 
   private findInteractiveParent(obj: THREE.Object3D): InteractiveObject | null {
