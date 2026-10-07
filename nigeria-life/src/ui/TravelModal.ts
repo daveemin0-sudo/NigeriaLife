@@ -90,6 +90,7 @@ export class TravelModal {
   private backend: BackendService;
   private isOpen: boolean = false;
   private isTraveling: boolean = false;
+  public onTravelArrived?: (destId: string) => void;
 
   constructor() {
     this.backend = BackendService.getInstance();
@@ -255,6 +256,7 @@ export class TravelModal {
         this.isTraveling = false;
         journeyScreen.style.display = 'none';
         this.close();
+        this.onTravelArrived?.(dest.id);
 
         // Add souvenir item to player inventory
         this.backend.addItem({

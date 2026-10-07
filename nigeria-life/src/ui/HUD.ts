@@ -45,8 +45,8 @@ export class HUD {
         <div class="hud-location">
           <span class="flag">🇳🇬</span>
           <div class="loc-details">
-            <span class="loc-name">Lagos Island</span>
-            <span class="loc-sub">Broad Street</span>
+            <span class="loc-name" id="hud-loc-name">Lagos Island</span>
+            <span class="loc-sub" id="hud-loc-sub">Broad Street</span>
           </div>
         </div>
 
@@ -74,6 +74,10 @@ export class HUD {
           <button class="hud-btn travel-btn-header" id="open-travel-btn" title="Shortcut: Key T">
             <span>🚌</span>
             <span>Transit [T]</span>
+          </button>
+          <button class="hud-btn weather-btn" id="hud-weather-btn" title="Toggle Lagos Weather (Sunny / Rainstorm)">
+            <span id="hud-weather-icon">☀️</span>
+            <span id="hud-weather-label">Sunny</span>
           </button>
         </div>
 
@@ -210,6 +214,13 @@ export class HUD {
       this.travelModal.toggle();
     });
 
+    document.getElementById('hud-weather-btn')?.addEventListener('click', () => {
+      if (this.world) {
+        const newW = this.world.weather.toggleWeather();
+        this.updateWeatherButton(newW);
+      }
+    });
+
     document.getElementById('btn-drive-exit')?.addEventListener('click', () => {
       this.onExitVehicle?.();
     });
@@ -265,6 +276,20 @@ export class HUD {
     });
   }
 
+  public updateLocation(name: string, sub: string): void {
+    const nameEl = document.getElementById('hud-loc-name');
+    const subEl = document.getElementById('hud-loc-sub');
+    if (nameEl && nameEl.textContent !== name) nameEl.textContent = name;
+    if (subEl && subEl.textContent !== sub) subEl.textContent = sub;
+  }
+
+  public updateWeatherButton(type: 'sunny' | 'rainy'): void {
+    const iconEl = document.getElementById('hud-weather-icon');
+    const labelEl = document.getElementById('hud-weather-label');
+    if (iconEl) iconEl.textContent = type === 'sunny' ? '☀️' : '🌧️';
+    if (labelEl) labelEl.textContent = type === 'sunny' ? 'Sunny' : 'Rainy';
+  }
+
   public showInteractionCard(obj: InteractiveObject): void {
     this.currentActiveObject = obj;
     const categoryEl = document.getElementById('card-category')!;
@@ -302,6 +327,21 @@ export class HUD {
       btnEl.textContent = '🗺️ Lagos Inter-City Danfo Transit [T]';
       bizBtn.textContent = '🚌 Transport Fleet Management [E]';
       bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'vi-tower') {
+      btnEl.textContent = '🏢 Enter Corporate Penthouse Reception';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'vi-lounge') {
+      btnEl.textContent = '🍹 Order Chilled Chapman & VIP Table (₦3,500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'cv-plaza') {
+      btnEl.textContent = '🔌 Buy 20,000mAh Power Bank & Cable (₦5,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'lekki-bridge') {
+      btnEl.textContent = '🌉 Pay Lekki-Ikoyi Toll & Cross Bridge (₦500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'nike-art-gallery') {
+      btnEl.textContent = '🎨 Purchase Handcrafted Adire Art (₦12,000)';
+      bizBtn.style.display = 'none';
     } else if (obj.id === 'npc-hawker') {
       btnEl.textContent = '🥤 Buy Pure Water & Gala (₦200)';
       bizBtn.style.display = 'none';
@@ -439,6 +479,69 @@ export class HUD {
         alert(isOpen ? '🚪 Compound gate opened! You can walk into the estate courtyard.' : '🚪 Compound gate closed and secured.');
       } else {
         alert('🔔 Gateman: "Good day Sah! If you want to lease or buy this duplex, check the Estate Office [E]!"');
+      }
+    } else if (id === 'vi-tower') {
+      alert('🏢 Eko Atlantic Corporate Concierge: "Welcome to the Financial District! Top-tier investments, private equity desks, and crypto fintechs are based here."');
+    } else if (id === 'vi-lounge') {
+      const success = this.backend.spendCash(3500, 'Eko VIP Chapman & Lounge Table');
+      if (success) {
+        this.backend.restoreEnergy(80);
+        this.backend.addStreetCred(15);
+        this.backend.addItem({
+          id: `chapman_${Date.now()}`,
+          name: 'Eko Chapman Cocktail',
+          category: 'food',
+          icon: '🍹',
+          description: 'Chilled signature Lagos cocktail with cucumber and angostura bitters.',
+          price: 3500,
+          usable: true,
+          energyRestore: 40,
+        });
+        alert('🍹 VIP Lounge Table booked! Chilled Chapman served, energy restored to near max, and Street Cred boosted by +15!');
+      } else {
+        alert('❌ Need ₦3,500 cash for VIP table & Chapman!');
+      }
+    } else if (id === 'cv-plaza') {
+      const success = this.backend.spendCash(5000, 'Otigba 20,000mAh Power Bank');
+      if (success) {
+        this.backend.addStreetCred(10);
+        this.backend.addItem({
+          id: `powerbank_${Date.now()}`,
+          name: 'Otigba 20,000mAh Fast Power Bank',
+          category: 'tool',
+          icon: '🔋',
+          description: 'Heavy-duty power bank with fast-charging cables for uninterrupted Lagos hustle.',
+          price: 5000,
+          usable: false,
+        });
+        alert('🔌 20,000mAh Power Bank purchased from Otigba market! Added to bag. Never get stranded on 1% battery again!');
+      } else {
+        alert('❌ Need ₦5,000 cash for the power bank!');
+      }
+    } else if (id === 'lekki-bridge') {
+      const success = this.backend.spendCash(500, 'Lekki Toll Transit');
+      if (success) {
+        this.backend.addStreetCred(5);
+        alert('🌉 Toll paid! Barrier green light lifted: "Welcome to Lekki Phase 1 & Admiralty Way!"');
+      } else {
+        alert('❌ Need ₦500 cash for bridge toll fee!');
+      }
+    } else if (id === 'nike-art-gallery') {
+      const success = this.backend.spendCash(12000, 'Handmade Nike Art Adire Batik');
+      if (success) {
+        this.backend.addStreetCred(35);
+        this.backend.addItem({
+          id: `adire_art_${Date.now()}`,
+          name: 'Nike Art Adire Batik Masterpiece',
+          category: 'document',
+          icon: '🎨',
+          description: 'Indigo-dyed handcrafted textile artwork from Nike Art Gallery.',
+          price: 25000,
+          usable: false,
+        });
+        alert('🎨 Exclusive Nigerian Batik artwork purchased! Added to bag. Street Cred skyrocketed by +35!');
+      } else {
+        alert('❌ Ineffective funds! ₦12,000 needed for the gallery artwork.');
       }
     } else if (id === 'npc-punter') {
       alert('🗣️ Segun: "Guy, always play over 1.5 goals o! Don\'t play straight win, this league is crazy!"');

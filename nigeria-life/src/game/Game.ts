@@ -88,18 +88,31 @@ export class Game {
       }
     };
 
-    // 9. Multiplayer & Street Chat
+    // 9. Travel Modal Inter-District Arrival Warp
+    this.hud.travelModal.onTravelArrived = (destId: string) => {
+      if (destId === 'dest_lekki') {
+        this.player.mesh.position.set(55, 0, 0);
+      } else if (destId === 'dest_oshodi') {
+        this.player.mesh.position.set(12, 0, -85);
+      } else if (destId === 'dest_vi') {
+        this.player.mesh.position.set(0, 0, 85);
+      } else if (destId === 'dest_ikeja') {
+        this.player.mesh.position.set(0, 0, -25);
+      }
+    };
+
+    // 10. Multiplayer & Street Chat
     this.network = new NetworkManager(this.scene, this.player);
     this.chatBox = new ChatBox(this.network);
     this.network.setOnPlayerCount((count) => this.hud.updateOnlineCount(count));
 
-    // 10. Clock for delta-timed updates
+    // 11. Clock for delta-timed updates
     this.clock = new THREE.Clock();
 
-    // 11. Window Resizing
+    // 12. Window Resizing
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
-    // 12. Start Loop
+    // 13. Start Loop
     this.loop();
   }
 
@@ -137,8 +150,12 @@ export class Game {
     // Update Camera Follow
     this.cameraManager.update(this.player, delta);
 
-    // Update World (Vehicles, Traffic, NPCs, Animations) with keyboard states
-    this.world.update(delta, this.input.keys);
+    // Update World (Vehicles, Traffic, NPCs, Weather, Districts) with keys & player position
+    this.world.update(delta, this.input.keys, this.player.position);
+
+    // Dynamic District Location Tracker in HUD
+    const district = this.world.getDistrictAtPosition(this.player.position);
+    this.hud.updateLocation(district.name, district.sub);
 
     // Update Driving HUD Speedometer
     if (this.player.isDriving && this.player.currentVehicle) {

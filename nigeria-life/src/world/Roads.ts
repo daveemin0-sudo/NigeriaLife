@@ -4,6 +4,7 @@ export class Roads {
   public group: THREE.Group;
   public roadLength: number = 240;
   public roadWidth: number = 14;
+  public asphaltMat!: THREE.MeshStandardMaterial;
 
   constructor() {
     this.group = new THREE.Group();
@@ -15,11 +16,11 @@ export class Roads {
   private buildRoadNetwork(): void {
     // 1. Asphalt Main Highway (Lagos Broad Street)
     const asphaltGeo = new THREE.PlaneGeometry(this.roadWidth, this.roadLength);
-    const asphaltMat = new THREE.MeshStandardMaterial({
+    this.asphaltMat = new THREE.MeshStandardMaterial({
       color: 0x1e2024,
       roughness: 0.85,
     });
-    const asphalt = new THREE.Mesh(asphaltGeo, asphaltMat);
+    const asphalt = new THREE.Mesh(asphaltGeo, this.asphaltMat);
     asphalt.rotation.x = -Math.PI / 2;
     asphalt.position.y = 0.01;
     asphalt.receiveShadow = true;

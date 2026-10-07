@@ -3,6 +3,8 @@ import { Roads } from './Roads';
 import { Buildings } from './Buildings';
 import { Vehicles } from './Vehicles';
 import { NPCs } from './NPCs';
+import { Districts } from './Districts';
+import { WeatherSystem } from './WeatherSystem';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -22,6 +24,11 @@ export class World {
   public buildings: Buildings;
   public vehicles: Vehicles;
   public npcs: NPCs;
+  public districts: Districts;
+  public weather: WeatherSystem;
+
+  private sunLight!: THREE.DirectionalLight;
+  private hemiLight!: THREE.HemisphereLight;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -29,27 +36,37 @@ export class World {
     this.createEnvironment();
     this.createGround();
 
-    // 1. Roads Network & Street Furniture
+    // 1. Weather & Atmosphere System
+    this.weather = new WeatherSystem(this.scene);
+    this.weather.registerLights(this.sunLight, this.hemiLight);
+
+    // 2. Roads Network & Street Furniture
     this.roads = new Roads();
     this.scene.add(this.roads.group);
+    this.weather.registerRoadMaterial(this.roads.asphaltMat);
 
-    // 2. Lagos Architectural Buildings
+    // 3. Lagos Architectural Buildings
     this.buildings = new Buildings();
     this.scene.add(this.buildings.group);
 
-    // 3. Vehicles (Danfo & Keke Napep)
+    // 4. Vehicles (Drivable Danfo, Keke, SUV + Traffic)
     this.vehicles = new Vehicles();
     this.scene.add(this.vehicles.group);
 
-    // 4. Pedestrian NPCs & Street Vendors
+    // 5. Pedestrian NPCs & Street Vendors
     this.npcs = new NPCs();
     this.scene.add(this.npcs.group);
 
-    // Combine all clickable interactive objects
+    // 6. Lagos Expansion Multi-Districts (VI, Computer Village, Lekki Bridge)
+    this.districts = new Districts();
+    this.scene.add(this.districts.group);
+
+    // Combine all clickable interactive objects across starter zone & expanded districts
     this.interactiveObjects = [
       ...this.buildings.interactiveList,
       ...this.npcs.interactiveList,
       ...this.vehicles.interactiveList,
+      ...this.districts.interactiveList,
     ];
   }
 
@@ -59,28 +76,28 @@ export class World {
     this.scene.fog = new THREE.FogExp2(0xa9d6f8, 0.012);
 
     // Tropical Skylight
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 1.3);
-    this.scene.add(hemiLight);
+    this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 1.3);
+    this.scene.add(this.hemiLight);
 
     // Direct Lagos Sun
-    const sunLight = new THREE.DirectionalLight(0xfff5db, 2.2);
-    sunLight.position.set(35, 60, 30);
-    sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 150;
+    this.sunLight = new THREE.DirectionalLight(0xfff5db, 2.2);
+    this.sunLight.position.set(35, 60, 30);
+    this.sunLight.castShadow = true;
+    this.sunLight.shadow.mapSize.width = 2048;
+    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.camera.near = 0.5;
+    this.sunLight.shadow.camera.far = 150;
     const d = 50;
-    sunLight.shadow.camera.left = -d;
-    sunLight.shadow.camera.right = d;
-    sunLight.shadow.camera.top = d;
-    sunLight.shadow.camera.bottom = -d;
-    this.scene.add(sunLight);
+    this.sunLight.shadow.camera.left = -d;
+    this.sunLight.shadow.camera.right = d;
+    this.sunLight.shadow.camera.top = d;
+    this.sunLight.shadow.camera.bottom = -d;
+    this.scene.add(this.sunLight);
   }
 
   private createGround(): void {
-    // Large terrain base
-    const groundGeo = new THREE.PlaneGeometry(240, 240);
+    // Large terrain base covering broad st and all expanded districts
+    const groundGeo = new THREE.PlaneGeometry(320, 320);
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x3d7038, // Tropical Nigerian grass green
       roughness: 0.9,
@@ -92,7 +109,24 @@ export class World {
     this.scene.add(this.groundMesh);
   }
 
-  public update(delta: number, keys: Record<string, boolean> = {}): void {
+  public getDistrictAtPosition(pos: THREE.Vector3): { name: string; sub: string } {
+    // Lekki Phase 1 (East)
+    if (pos.x > 35) {
+      return { name: 'Lekki Phase 1', sub: 'Admiralty Way & Link Bridge' };
+    }
+    // Victoria Island / Eko Atlantic (South)
+    if (pos.z > 50) {
+      return { name: 'Victoria Island', sub: 'Eko Atlantic Waterfront' };
+    }
+    // Computer Village / Mainland (North)
+    if (pos.z < -50) {
+      return { name: 'Mainland Ikeja', sub: 'Otigba St • Computer Village' };
+    }
+    // Lagos Island starter zone
+    return { name: 'Lagos Island', sub: 'Broad Street' };
+  }
+
+  public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3): void {
     // Update vehicle movements & drivable controls
     this.vehicles.update(delta, keys);
 
@@ -101,5 +135,11 @@ export class World {
 
     // Update building animations (e.g. compound gate)
     this.buildings.update(delta);
+
+    // Update expanded districts (ocean waves, smoke particles)
+    this.districts.update(delta);
+
+    // Update weather effects (rain particles, lighting, thunder)
+    this.weather.update(delta, playerPos);
   }
 }
