@@ -95,16 +95,16 @@ export class WeatherSystem {
       // Dark dramatic rain storm lighting
       if (this.scene.fog && this.scene.fog instanceof THREE.FogExp2) {
         this.scene.fog.color.setHex(0x334155);
-        this.scene.fog.density = 0.016;
+        this.scene.fog.density = 0.0035;
       }
       this.scene.background = new THREE.Color(0x1e293b);
 
       if (this.sunLight) {
-        this.sunLight.intensity = 0.6;
+        this.sunLight.intensity = 0.5;
         this.sunLight.color.setHex(0x94a3b8);
       }
       if (this.hemiLight) {
-        this.hemiLight.intensity = 0.7;
+        this.hemiLight.intensity = 0.4;
         this.hemiLight.color.setHex(0x64748b);
       }
 
@@ -123,20 +123,20 @@ export class WeatherSystem {
       this.rainParticles.visible = false;
       this.rainMaterial.opacity = 0;
 
-      // Warm tropical golden sunlight
+      // Crisp tropical golden sunlight
       if (this.scene.fog && this.scene.fog instanceof THREE.FogExp2) {
-        this.scene.fog.color.setHex(0xa9d6f8);
-        this.scene.fog.density = 0.012;
+        this.scene.fog.color.setHex(0x7ebcf8);
+        this.scene.fog.density = 0.0015;
       }
-      this.scene.background = new THREE.Color(0x6eb7f2);
+      this.scene.background = new THREE.Color(0x60a5fa);
 
       if (this.sunLight) {
-        this.sunLight.intensity = 2.2;
-        this.sunLight.color.setHex(0xfff5db);
+        this.sunLight.intensity = 1.5;
+        this.sunLight.color.setHex(0xfff5e4);
       }
       if (this.hemiLight) {
-        this.hemiLight.intensity = 1.3;
-        this.hemiLight.color.setHex(0xffffff);
+        this.hemiLight.intensity = 0.35;
+        this.hemiLight.color.setHex(0x70b8ff);
       }
 
       // Dry asphalt

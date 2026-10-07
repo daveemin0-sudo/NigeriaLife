@@ -69,7 +69,7 @@ export const LagosAtmosphereShader = {
       float vig = clamp(1.0 - distSq * vignetteDarkness, 0.0, 1.0);
       color *= vig;
 
-      gl_FragColor = vec4(clamp(color, 0.0, 1.0), texel.a);
+      gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
     }
   `,
 };
@@ -79,7 +79,7 @@ export class PostProcessingManager {
   private renderer: THREE.WebGLRenderer;
   private bloomPass: UnrealBloomPass;
   private gradePass: ShaderPass;
-  private isEnabled: boolean = true;
+  public isEnabled: boolean = false;
 
   constructor(scene: THREE.Scene, camera: THREE.Camera, renderer: THREE.WebGLRenderer) {
     this.renderer = renderer;
@@ -106,12 +106,12 @@ export class PostProcessingManager {
     this.composer.addPass(renderPass);
 
     // 2. High-Fidelity Unreal Bloom Pass
-    // Threshold: 0.84 (prevents matte roads/walls from blowing out while giving headlights,
+    // Threshold: 0.88 (prevents matte roads/walls from blooming while giving headlights,
     // brake lights, neon signs, and chrome highlights a luscious glow)
-    // Strength: 0.38 (refined and cinematic)
-    // Radius: 0.42 (natural optical light dispersion)
+    // Strength: 0.28 (refined and clean)
+    // Radius: 0.35 (natural optical light dispersion)
     const bloomResolution = new THREE.Vector2(width, height);
-    this.bloomPass = new UnrealBloomPass(bloomResolution, 0.38, 0.42, 0.84);
+    this.bloomPass = new UnrealBloomPass(bloomResolution, 0.28, 0.35, 0.88);
     this.composer.addPass(this.bloomPass);
 
     // 3. Lagos Tropical Color Grading & Cinematic Vignette Pass
@@ -128,7 +128,11 @@ export class PostProcessingManager {
       if (this.gradePass && this.gradePass.uniforms && this.gradePass.uniforms.time) {
         this.gradePass.uniforms.time.value += delta;
       }
-      this.composer.render();
+      try {
+        this.composer.render();
+      } catch {
+        this.renderer.render(scene, camera);
+      }
     } else {
       this.renderer.render(scene, camera);
     }

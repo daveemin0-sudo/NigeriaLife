@@ -2,7 +2,12 @@ import './style.css';
 import { Game } from './game/Game';
 
 // Initialize the Nigeria Life Engine
-const game = new Game();
-
-// Expose game instance to window for development/debugging
-(window as unknown as { game: Game }).game = game;
+try {
+  const game = new Game();
+  (window as any).game = game;
+  console.log('[NIGERIA LIFE] Game successfully initialized!');
+} catch (err: any) {
+  console.error('[NIGERIA LIFE ERROR]', err);
+  (window as any).__last_error = err?.message || String(err);
+  (window as any).__last_error_stack = err?.stack || '';
+}

@@ -55,7 +55,7 @@ export class MaterialLibrary {
   // 1. ROAD & SIDEWALK TEXTURES
   // ==========================================
   private initRoadMaterials(): void {
-    // A. Cracked Asphalt Texture
+    // A. Cracked Asphalt Texture (#3b3e44 with micro-grain aggregate and street cracks)
     const { colorMap: asphaltColor, bumpMap: asphaltBump, roughnessMap: asphaltRough } =
       this.generateAsphaltMaps();
 
@@ -64,54 +64,55 @@ export class MaterialLibrary {
       bumpMap: asphaltBump,
       bumpScale: 0.04,
       roughnessMap: asphaltRough,
-      roughness: 0.88,
-      metalness: 0.05,
+      roughness: 0.92,
+      metalness: 0.0,
+      color: 0xffffff,
     });
 
-    // B. Concrete Sidewalk Slabs
+    // B. Concrete Paver Slabs (#b9ad9c paver blocks)
     const { colorMap: sidewalkColor, bumpMap: sidewalkBump } = this.generateSidewalkMaps();
     this.sidewalkMaterial = new THREE.MeshStandardMaterial({
       map: sidewalkColor,
       bumpMap: sidewalkBump,
-      bumpScale: 0.03,
-      roughness: 0.8,
-      metalness: 0.05,
+      bumpScale: 0.04,
+      roughness: 0.95,
+      metalness: 0.0,
     });
 
-    // C. Nigerian Black & Yellow Curbs
+    // C. Nigerian Black & Yellow Curbs (#e9b81b and #16161a)
     const { colorMap: curbMap, bumpMap: curbBump } = this.generateCurbTexture();
     this.curbStripedMaterial = new THREE.MeshStandardMaterial({
       map: curbMap,
       bumpMap: curbBump,
-      bumpScale: 0.04,
-      roughness: 0.65,
+      bumpScale: 0.03,
+      roughness: 0.7,
     });
 
     this.curbYellowMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      roughness: 0.55,
+      color: 0xe9b81b,
+      roughness: 0.7,
       bumpMap: sidewalkBump,
       bumpScale: 0.02,
     });
 
     this.curbBlackMaterial = new THREE.MeshStandardMaterial({
-      color: 0x18181b,
-      roughness: 0.6,
+      color: 0x16161a,
+      roughness: 0.7,
       bumpMap: sidewalkBump,
       bumpScale: 0.02,
     });
 
-    // Road Markings (Standard material instead of Basic)
+    // Road Markings
     this.roadLineMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
+      color: 0xe9b81b,
       roughness: 0.5,
-      metalness: 0.05,
+      metalness: 0.0,
     });
 
     this.crosswalkMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc,
-      roughness: 0.6,
-      metalness: 0.02,
+      color: 0xf2f2ee,
+      roughness: 0.5,
+      metalness: 0.0,
     });
   }
 
@@ -132,8 +133,8 @@ export class MaterialLibrary {
     const bCtx = bumpCanvas.getContext('2d')!;
     const rCtx = roughCanvas.getContext('2d')!;
 
-    // Base charcoal
-    ctx.fillStyle = '#22252a';
+    // Base asphalt (#3b3e44 with micro-grain specks)
+    ctx.fillStyle = '#3b3e44';
     ctx.fillRect(0, 0, size, size);
 
     bCtx.fillStyle = '#808080';
@@ -142,52 +143,40 @@ export class MaterialLibrary {
     rCtx.fillStyle = '#cccccc';
     rCtx.fillRect(0, 0, size, size);
 
-    // Gravel aggregate specks
-    for (let i = 0; i < 7000; i++) {
+    // Micro-grain specks (from reference: 40+R()*50)
+    for (let i = 0; i < 9000; i++) {
       const x = Math.random() * size;
       const y = Math.random() * size;
-      const r = Math.random() * 1.8 + 0.5;
-      const shade = Math.floor(25 + Math.random() * 45);
+      const v = (40 + Math.random() * 50) | 0;
+      ctx.fillStyle = `rgb(${v}, ${v}, ${v + 4})`;
+      ctx.fillRect(x, y, 1.5, 1.5);
 
-      ctx.fillStyle = `rgb(${shade + 5}, ${shade + 7}, ${shade + 10})`;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Bump
-      bCtx.fillStyle = Math.random() > 0.5 ? '#a0a0a0' : '#606060';
-      bCtx.beginPath();
-      bCtx.arc(x, y, r, 0, Math.PI * 2);
-      bCtx.fill();
+      bCtx.fillStyle = Math.random() > 0.5 ? '#909090' : '#707070';
+      bCtx.fillRect(x, y, 1.5, 1.5);
     }
 
-    // Branching street cracks
-    const drawCrack = (startX: number, startY: number, length: number) => {
-      let cx = startX;
-      let cy = startY;
-      ctx.strokeStyle = '#121417';
-      ctx.lineWidth = 1.4;
+    // Street cracks (#1c1d20)
+    ctx.strokeStyle = '#1c1d20';
+    ctx.lineWidth = 1.5;
+    bCtx.strokeStyle = '#202020';
+    bCtx.lineWidth = 2.0;
+
+    for (let i = 0; i < 7; i++) {
+      let x = Math.random() * size;
+      let y = Math.random() * size;
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-
-      bCtx.strokeStyle = '#202020';
-      bCtx.lineWidth = 2.0;
       bCtx.beginPath();
-      bCtx.moveTo(cx, cy);
-
-      for (let s = 0; s < length; s++) {
-        cx += (Math.random() - 0.5) * 8 + 2;
-        cy += (Math.random() - 0.5) * 8 + 4;
-        ctx.lineTo(cx, cy);
-        bCtx.lineTo(cx, cy);
+      ctx.moveTo(x, y);
+      bCtx.moveTo(x, y);
+      for (let k = 0; k < 8; k++) {
+        x += Math.random() * 50 - 25;
+        y += Math.random() * 50 - 25;
+        ctx.lineTo(x, y);
+        bCtx.lineTo(x, y);
       }
       ctx.stroke();
       bCtx.stroke();
-    };
-
-    drawCrack(80, 50, 24);
-    drawCrack(320, 180, 28);
-    drawCrack(160, 360, 20);
+    }
 
     const colorMap = createColorCanvasTexture(colorCanvas, {
       wrapS: THREE.RepeatWrapping,
@@ -227,50 +216,22 @@ export class MaterialLibrary {
     const ctx = colorCanvas.getContext('2d')!;
     const bCtx = bumpCanvas.getContext('2d')!;
 
-    // Concrete gray base
-    ctx.fillStyle = '#8f949a';
+    // Reference paver blocks (#b9ad9c base with 30x30 cobblestone paver bricks)
+    ctx.fillStyle = '#b9ad9c';
     ctx.fillRect(0, 0, size, size);
 
     bCtx.fillStyle = '#808080';
     bCtx.fillRect(0, 0, size, size);
 
-    // Fine grain noise
-    for (let i = 0; i < 4000; i++) {
-      const x = Math.random() * size;
-      const y = Math.random() * size;
-      const shade = Math.floor(130 + Math.random() * 35);
-      ctx.fillStyle = `rgb(${shade}, ${shade}, ${shade})`;
-      ctx.fillRect(x, y, 1.5, 1.5);
-    }
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const v = (165 + Math.random() * 35) | 0;
+        ctx.fillStyle = `rgb(${v}, ${v - 8}, ${v - 20})`;
+        ctx.fillRect(x * 64 + 2, y * 64 + 2, 60, 60);
 
-    // Slab division lines (Concrete expansion joints)
-    ctx.strokeStyle = '#555a60';
-    ctx.lineWidth = 3;
-    bCtx.strokeStyle = '#202020';
-    bCtx.lineWidth = 3;
-
-    for (let i = 0; i <= size; i += 128) {
-      // Horizontal slab seam
-      ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(size, i);
-      ctx.stroke();
-
-      bCtx.beginPath();
-      bCtx.moveTo(0, i);
-      bCtx.lineTo(size, i);
-      bCtx.stroke();
-
-      // Vertical slab seam
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, size);
-      ctx.stroke();
-
-      bCtx.beginPath();
-      bCtx.moveTo(i, 0);
-      bCtx.lineTo(i, size);
-      bCtx.stroke();
+        bCtx.fillStyle = '#a0a0a0';
+        bCtx.fillRect(x * 64 + 2, y * 64 + 2, 60, 60);
+      }
     }
 
     const colorMap = createColorCanvasTexture(colorCanvas, {
@@ -436,46 +397,46 @@ export class MaterialLibrary {
   // 3. WALL PLASTER WITH PEELING & WATER STAINS
   // ==========================================
   private initWallMaterials(): void {
-    // A. Warm Cream Plaster
-    const { colorMap: creamColor, bumpMap: wallBump } = this.generatePlasterMaps('#dfd5c4', '#60584b');
+    // A. Warm Cream Plaster (#f0e4cc)
+    const { colorMap: creamColor, bumpMap: wallBump } = this.generatePlasterMaps('#f0e4cc', '#60584b');
     this.wallPlasterCream = new THREE.MeshStandardMaterial({
       map: creamColor,
       bumpMap: wallBump,
       bumpScale: 0.035,
-      roughness: 0.78,
+      roughness: 0.85,
     });
 
-    // B. Warm Ochre / Terracotta
-    const { colorMap: ochreColor } = this.generatePlasterMaps('#d07f42', '#522b12');
+    // B. Warm Sand / Ochre (#d9b99a)
+    const { colorMap: ochreColor } = this.generatePlasterMaps('#d9b99a', '#522b12');
     this.wallPlasterOchre = new THREE.MeshStandardMaterial({
       map: ochreColor,
       bumpMap: wallBump,
       bumpScale: 0.035,
-      roughness: 0.8,
+      roughness: 0.85,
     });
 
-    // C. Distressed Commercial White
-    const { colorMap: whiteColor } = this.generatePlasterMaps('#e6ebf2', '#4b5563');
+    // C. Sunlit Warm Stone Plaster (#e6c9a0)
+    const { colorMap: whiteColor } = this.generatePlasterMaps('#e6c9a0', '#4b5563');
     this.wallPlasterDistressedWhite = new THREE.MeshStandardMaterial({
       map: whiteColor,
       bumpMap: wallBump,
       bumpScale: 0.03,
-      roughness: 0.75,
+      roughness: 0.85,
     });
 
-    // D. Coastal Teal Plaster
-    const { colorMap: tealColor } = this.generatePlasterMaps('#4d828a', '#1e383d');
+    // D. Warm Terracotta Plaster (#d8a889)
+    const { colorMap: tealColor } = this.generatePlasterMaps('#d8a889', '#4a281b');
     this.wallPlasterTeal = new THREE.MeshStandardMaterial({
       map: tealColor,
       bumpMap: wallBump,
       bumpScale: 0.035,
-      roughness: 0.8,
+      roughness: 0.85,
     });
 
     // Concrete architectural trim
     this.concreteTrimMaterial = new THREE.MeshStandardMaterial({
-      color: 0x94a3b8,
-      roughness: 0.7,
+      color: 0xa59d90,
+      roughness: 0.8,
       bumpMap: wallBump,
       bumpScale: 0.02,
     });
@@ -501,66 +462,48 @@ export class MaterialLibrary {
     bCtx.fillStyle = '#808080';
     bCtx.fillRect(0, 0, size, size);
 
-    // Surface stippling texture
-    for (let i = 0; i < 3500; i++) {
-      const x = Math.random() * size;
-      const y = Math.random() * size;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
-      ctx.fillRect(x, y, 2, 2);
+    // Weathering stains and texture specks
+    for (let i = 0; i < 260; i++) {
+      ctx.fillStyle = `rgba(${(60 + Math.random() * 40) | 0}, ${(50 + Math.random() * 30) | 0}, 40, ${Math.random() * 0.07})`;
+      ctx.fillRect(Math.random() * size, Math.random() * size, 20 + Math.random() * 90, 10 + Math.random() * 70);
     }
 
-    // Vertical rainwater runoff stains (dripping down facade)
-    for (let s = 0; s < 14; s++) {
-      const sx = Math.random() * size;
-      const sw = Math.random() * 16 + 6;
-      const sh = Math.random() * 280 + 100;
-
-      const dripGrad = ctx.createLinearGradient(sx, 0, sx, sh);
-      dripGrad.addColorStop(0, stainHex);
-      dripGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-      ctx.fillStyle = dripGrad;
+    // Vertical runoff stains
+    for (let i = 0; i < 45; i++) {
+      const x = Math.random() * size;
+      const l = 60 + Math.random() * 220;
+      const gr = ctx.createLinearGradient(0, 0, 0, l);
+      gr.addColorStop(0, stainHex);
+      gr.addColorStop(1, '#00000000');
+      ctx.save();
+      ctx.translate(x, 0);
+      ctx.fillStyle = gr;
       ctx.globalAlpha = 0.28;
-      ctx.fillRect(sx, 0, sw, sh);
+      ctx.fillRect(0, 0, 3 + Math.random() * 8, l);
+      ctx.restore();
       ctx.globalAlpha = 1.0;
     }
 
-    // Peeling paint flakes exposing darker under-cement
-    for (let p = 0; p < 8; p++) {
-      const px = Math.random() * (size - 60) + 30;
-      const py = Math.random() * (size - 60) + 30;
-      const pr = Math.random() * 22 + 8;
-
-      ctx.fillStyle = '#4b5563'; // Raw concrete core
+    // Sunlit tropical highlights
+    for (let i = 0; i < 22; i++) {
+      ctx.fillStyle = 'rgba(255, 250, 240, 0.35)';
       ctx.beginPath();
-      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.ellipse(Math.random() * size, Math.random() * size, 8 + Math.random() * 25, 5 + Math.random() * 14, Math.random() * 3, 0, Math.PI * 2);
       ctx.fill();
-
-      // Flaked paint edge
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(px, py, pr + 1, 0, Math.PI * 2);
-      ctx.stroke();
-
-      bCtx.fillStyle = '#303030';
-      bCtx.beginPath();
-      bCtx.arc(px, py, pr, 0, Math.PI * 2);
-      bCtx.fill();
     }
 
     const colorMap = createColorCanvasTexture(colorCanvas, {
       wrapS: THREE.RepeatWrapping,
       wrapT: THREE.RepeatWrapping,
-      repeatX: 2,
-      repeatY: 2,
+      repeatX: 1,
+      repeatY: 1,
     });
 
     const bumpMap = createDataCanvasTexture(bumpCanvas, {
       wrapS: THREE.RepeatWrapping,
       wrapT: THREE.RepeatWrapping,
-      repeatX: 2,
-      repeatY: 2,
+      repeatX: 1,
+      repeatY: 1,
     });
 
     return { colorMap, bumpMap };

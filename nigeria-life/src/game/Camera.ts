@@ -6,7 +6,7 @@ export type CameraMode = 'street' | 'home' | 'map';
 export class GameCamera {
   public camera: THREE.PerspectiveCamera;
   public mode: CameraMode = 'street';
-  public offset: THREE.Vector3 = new THREE.Vector3(0, 10, 13);
+  public offset: THREE.Vector3 = new THREE.Vector3(0, 5.8, 11.5);
   private currentLookAt: THREE.Vector3 = new THREE.Vector3();
 
   // Mode camera targets
@@ -18,12 +18,12 @@ export class GameCamera {
 
   constructor() {
     this.camera = new THREE.PerspectiveCamera(
-      55,
+      54,
       window.innerWidth / window.innerHeight,
       0.1,
       1000
     );
-    this.camera.position.set(0, 10, 13);
+    this.camera.position.set(0, 6, 12);
   }
 
   public setMode(mode: CameraMode): void {
@@ -47,7 +47,7 @@ export class GameCamera {
       return;
     }
 
-    // Default 'street' mode: follow player in third person
+    // Default 'street' mode: cinematic third-person view showing player, street & vibrant horizon
     const targetCameraPos = new THREE.Vector3()
       .copy(player.position)
       .add(this.offset);
@@ -56,8 +56,8 @@ export class GameCamera {
 
     const targetLookAt = new THREE.Vector3(
       player.position.x,
-      1.2,
-      player.position.z
+      2.0,
+      player.position.z - 3.5
     );
     this.currentLookAt.lerp(targetLookAt, lerpFactor);
     this.camera.lookAt(this.currentLookAt);
