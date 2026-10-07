@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
 
 export class Roads {
   public group: THREE.Group;
@@ -14,12 +15,11 @@ export class Roads {
   }
 
   private buildRoadNetwork(): void {
-    // 1. Asphalt Main Highway (Lagos Broad Street)
+    const mats = MaterialLibrary.getInstance();
+
+    // 1. Asphalt Main Highway (Lagos Broad Street - Cracked Aggregate PBR)
     const asphaltGeo = new THREE.PlaneGeometry(this.roadWidth, this.roadLength);
-    this.asphaltMat = new THREE.MeshStandardMaterial({
-      color: 0x1e2024,
-      roughness: 0.85,
-    });
+    this.asphaltMat = mats.asphaltMaterial;
     const asphalt = new THREE.Mesh(asphaltGeo, this.asphaltMat);
     asphalt.rotation.x = -Math.PI / 2;
     asphalt.position.y = 0.01;
@@ -30,8 +30,7 @@ export class Roads {
     for (let offset of [-0.2, 0.2]) {
       for (let z = -this.roadLength / 2 + 5; z < this.roadLength / 2 - 5; z += 6) {
         const lineGeo = new THREE.PlaneGeometry(0.2, 3.8);
-        const lineMat = new THREE.MeshBasicMaterial({ color: 0xf5b041 });
-        const line = new THREE.Mesh(lineGeo, lineMat);
+        const line = new THREE.Mesh(lineGeo, mats.roadLineMaterial);
         line.rotation.x = -Math.PI / 2;
         line.position.set(offset, 0.02, z);
         this.group.add(line);
@@ -41,43 +40,34 @@ export class Roads {
     // 3. White Zebra Crosswalk near the main junction
     for (let x = -5.5; x <= 5.5; x += 1.2) {
       const stripeGeo = new THREE.PlaneGeometry(0.7, 4.5);
-      const stripeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+      const stripe = new THREE.Mesh(stripeGeo, mats.crosswalkMaterial);
       stripe.rotation.x = -Math.PI / 2;
       stripe.position.set(x, 0.02, 10);
       this.group.add(stripe);
     }
 
-    // 4. Sidewalks / Pavements with gutter drains
+    // 4. Sidewalks / Pavements with concrete slab bump map
     const walkWidth = 6.5;
     const walkGeo = new THREE.BoxGeometry(walkWidth, 0.28, this.roadLength);
-    const walkMat = new THREE.MeshStandardMaterial({
-      color: 0x8e9297,
-      roughness: 0.7,
-    });
 
-    const leftWalkway = new THREE.Mesh(walkGeo, walkMat);
+    const leftWalkway = new THREE.Mesh(walkGeo, mats.sidewalkMaterial);
     leftWalkway.position.set(-(this.roadWidth / 2 + walkWidth / 2), 0.14, 0);
     leftWalkway.receiveShadow = true;
     this.group.add(leftWalkway);
 
-    const rightWalkway = new THREE.Mesh(walkGeo, walkMat);
+    const rightWalkway = new THREE.Mesh(walkGeo, mats.sidewalkMaterial);
     rightWalkway.position.set(this.roadWidth / 2 + walkWidth / 2, 0.14, 0);
     rightWalkway.receiveShadow = true;
     this.group.add(rightWalkway);
 
-    // 5. Classic Nigerian Yellow & Black Kerb Stones
+    // 5. Classic Nigerian Yellow & Black Kerb Stones (Cached PBR materials)
     const curbHeight = 0.32;
     const curbWidth = 0.28;
     const segmentLen = 2.0;
 
     for (let z = -this.roadLength / 2; z < this.roadLength / 2; z += segmentLen) {
       const isYellow = Math.floor(z / segmentLen) % 2 === 0;
-      const curbColor = isYellow ? 0xfacc15 : 0x111111;
-      const curbMat = new THREE.MeshStandardMaterial({
-        color: curbColor,
-        roughness: 0.6,
-      });
+      const curbMat = isYellow ? mats.curbYellowMaterial : mats.curbBlackMaterial;
 
       const curbL = new THREE.Mesh(
         new THREE.BoxGeometry(curbWidth, curbHeight, segmentLen - 0.05),

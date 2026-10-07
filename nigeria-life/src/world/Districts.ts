@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { InteractiveObject } from './World';
 import { createColorCanvasTexture } from '../utils/TextureUtils';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
 
 export class Districts {
   public group: THREE.Group;
@@ -440,7 +441,7 @@ export class Districts {
   private buildDistrictRoadsAndBillboards(): void {
     // East-West Arterial Road to Lekki (X: 10 to 80, Z: 0)
     const lekkiRoadGeo = new THREE.PlaneGeometry(80, 12);
-    const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x1e2024, roughness: 0.85 });
+    const asphaltMat = MaterialLibrary.getInstance().asphaltMaterial;
     const lekkiRoad = new THREE.Mesh(lekkiRoadGeo, asphaltMat);
     lekkiRoad.rotation.x = -Math.PI / 2;
     lekkiRoad.position.set(48, 0.015, 0);

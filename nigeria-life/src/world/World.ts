@@ -8,6 +8,7 @@ import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
 import { ApartmentInterior } from './ApartmentInterior';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -102,10 +103,7 @@ export class World {
   private createGround(): void {
     // Large terrain base covering broad st and all expanded districts
     const groundGeo = new THREE.PlaneGeometry(320, 320);
-    const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x3d7038, // Tropical Nigerian grass green
-      roughness: 0.9,
-    });
+    const groundMat = MaterialLibrary.getInstance().groundGrassMaterial;
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
     this.groundMesh.rotation.x = -Math.PI / 2;
     this.groundMesh.position.y = 0;
