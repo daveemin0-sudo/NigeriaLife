@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { DrivableVehicle } from './DrivableVehicle';
 import type { InteractiveObject } from './World';
+import { SignageLibrary } from '../materials/SignageLibrary';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
 
 export class Vehicles {
   public group: THREE.Group;
@@ -128,21 +130,71 @@ export class Vehicles {
 
   // === AMBIENT TRAFFIC MODELS ===
   private createAmbientDanfo(): THREE.Group {
+    const signLib = SignageLibrary.getInstance();
     const bus = new THREE.Group();
+
     const bodyGeo = new THREE.BoxGeometry(2.3, 2.0, 5.2);
-    const yellowMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35 });
+    const yellowMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
     const body = new THREE.Mesh(bodyGeo, yellowMat);
     body.position.y = 1.4;
+    body.castShadow = true;
     bus.add(body);
 
-    const stripeGeo = new THREE.BoxGeometry(2.32, 0.28, 5.22);
-    const stripe = new THREE.Mesh(stripeGeo, new THREE.MeshBasicMaterial({ color: 0x111111 }));
-    stripe.position.y = 1.35;
-    bus.add(stripe);
+    // Twin black side route decals along left and right flanks
+    const decalGeo = new THREE.PlaneGeometry(5.18, 0.42);
+    const decalR = new THREE.Mesh(decalGeo, signLib.danfoSideStripeMaterial);
+    decalR.position.set(1.16, 1.35, 0);
+    decalR.rotation.y = Math.PI / 2;
+    bus.add(decalR);
+
+    const decalL = new THREE.Mesh(decalGeo, signLib.danfoSideStripeMaterial);
+    decalL.position.set(-1.16, 1.35, 0);
+    decalL.rotation.y = -Math.PI / 2;
+    bus.add(decalL);
+
+    // Windshield & sun visor
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.1, metalness: 0.9 });
+    const windshield = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.8), glassMat);
+    windshield.position.set(0, 1.8, 2.61);
+    bus.add(windshield);
+
+    const visor = new THREE.Mesh(new THREE.PlaneGeometry(1.98, 0.2), signLib.danfoVisorMaterial);
+    visor.position.set(0, 2.1, 2.615);
+    bus.add(visor);
+
+    // Headlights
+    for (const hx of [-0.85, 0.85]) {
+      const lightGeo = new THREE.BoxGeometry(0.32, 0.2, 0.08);
+      const lightMat = new THREE.MeshStandardMaterial({
+        color: 0xfffbeb,
+        emissive: 0xffedd5,
+        emissiveIntensity: 1.2,
+      });
+      const light = new THREE.Mesh(lightGeo, lightMat);
+      light.position.set(hx, 0.88, 2.61);
+      bus.add(light);
+    }
+
+    // Taillights
+    for (const hx of [-0.85, 0.85]) {
+      const tailGeo = new THREE.BoxGeometry(0.32, 0.2, 0.08);
+      const tailMat = new THREE.MeshStandardMaterial({
+        color: 0xdc2626,
+        emissive: 0xdc2626,
+        emissiveIntensity: 0.9,
+      });
+      const tail = new THREE.Mesh(tailGeo, tailMat);
+      tail.position.set(hx, 0.88, -2.61);
+      bus.add(tail);
+    }
 
     const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.32, 16);
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9 });
-    for (let off of [
+    for (const off of [
       { x: -1.15, z: 1.6 },
       { x: 1.15, z: 1.6 },
       { x: -1.15, z: -1.6 },
@@ -158,17 +210,46 @@ export class Vehicles {
   }
 
   private createAmbientKeke(): THREE.Group {
+    const matLib = MaterialLibrary.getInstance();
     const keke = new THREE.Group();
-    const baseGeo = new THREE.BoxGeometry(1.5, 1.0, 2.4);
-    const yellowMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4 });
+
+    const baseGeo = new THREE.BoxGeometry(1.5, 0.9, 2.4);
+    const yellowMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
     const base = new THREE.Mesh(baseGeo, yellowMat);
-    base.position.y = 0.85;
+    base.position.y = 0.8;
+    base.castShadow = true;
     keke.add(base);
 
-    const roofGeo = new THREE.BoxGeometry(1.55, 0.9, 2.2);
+    // Roll cage pillars
+    for (const px of [-0.72, 0.72]) {
+      for (const pz of [-1.0, 0.1, 1.0]) {
+        const pillarGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.9, 8);
+        const pillar = new THREE.Mesh(pillarGeo, matLib.ironRailingMaterial);
+        pillar.position.set(px, 1.3, pz);
+        keke.add(pillar);
+      }
+    }
+
+    const roofGeo = new THREE.BoxGeometry(1.55, 0.85, 2.2);
     const roof = new THREE.Mesh(roofGeo, new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.9 }));
     roof.position.y = 1.75;
     keke.add(roof);
+
+    // Front Cyclops Headlight
+    const headGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.1, 16);
+    const headMat = new THREE.MeshStandardMaterial({
+      color: 0xfffbeb,
+      emissive: 0xfffaed,
+      emissiveIntensity: 1.3,
+    });
+    const headlight = new THREE.Mesh(headGeo, headMat);
+    headlight.rotation.x = Math.PI / 2;
+    headlight.position.set(0, 0.82, 1.21);
+    keke.add(headlight);
 
     const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.22, 16);
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9 });
@@ -179,7 +260,7 @@ export class Vehicles {
     this.ambientKekeWheels.push(fWheel);
     keke.add(fWheel);
 
-    for (let rx of [-0.78, 0.78]) {
+    for (const rx of [-0.78, 0.78]) {
       const rWheel = new THREE.Mesh(wheelGeo, wheelMat);
       rWheel.rotation.z = Math.PI / 2;
       rWheel.position.set(rx, 0.3, -0.9);

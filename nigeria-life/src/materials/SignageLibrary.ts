@@ -18,11 +18,16 @@ export class SignageLibrary {
   public yellowStripedAwningMaterial!: THREE.MeshStandardMaterial;
   public pinkStripedAwningMaterial!: THREE.MeshStandardMaterial;
 
+  public danfoSideStripeMaterial!: THREE.MeshStandardMaterial;
+  public danfoRearSloganMaterial!: THREE.MeshStandardMaterial;
+  public danfoVisorMaterial!: THREE.MeshStandardMaterial;
+
   public ankaraFabrics: THREE.MeshStandardMaterial[] = [];
 
   private constructor() {
     this.initShopSignboards();
     this.initAwningMaterials();
+    this.initVehicleDecals();
     this.initAnkaraFabrics();
   }
 
@@ -549,5 +554,106 @@ export class SignageLibrary {
       repeatY: 1,
     });
     return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.8, metalness: 0.02 });
+  }
+
+  // =========================================================================
+  // 4. DANFO MINIBUS LIVERY & ROUTE DECALS
+  // =========================================================================
+  private initVehicleDecals(): void {
+    this.danfoSideStripeMaterial = this.createDanfoSideStripe();
+    this.danfoRearSloganMaterial = this.createDanfoRearSlogan();
+    this.danfoVisorMaterial = this.createDanfoVisor();
+  }
+
+  private createDanfoSideStripe(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+
+    // Danfo bright yellow base
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(0, 0, 1024, 128);
+
+    // Twin bold black stripes
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(0, 16, 1024, 38);
+    ctx.fillRect(0, 74, 1024, 38);
+
+    // Stencil text in white on the black stripe
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 22px Impact, "Arial Black", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CMS ⇄ YABA ⇄ TEJUOSHO ⇄ OJUELEGBA ⇄ OSHODI', 512, 42);
+    ctx.fillText('FEDERAL REPUBLIC OF NIGERIA • LAGOS STATE COMMUTER BUS', 512, 100);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({
+      map: texture,
+      roughness: 0.4,
+      metalness: 0.1,
+    });
+  }
+
+  private createDanfoRearSlogan(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(0, 0, 512, 128);
+
+    // Yellow registration plate
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(136, 18, 240, 48);
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(136, 18, 240, 48);
+
+    ctx.fillStyle = '#000000';
+    ctx.font = '900 28px Impact, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('EKO - 429 - BDG', 256, 52);
+
+    // Famous rear slogan in red & white
+    ctx.fillStyle = '#ef4444';
+    ctx.font = 'bold 20px "Arial Black", sans-serif';
+    ctx.fillText('NO CONDITION IS PERMANENT', 256, 96);
+    ctx.fillStyle = '#facc15';
+    ctx.font = 'italic bold 14px Arial, sans-serif';
+    ctx.fillText('• ALHAMDULILLAH • EKO ONI BAJE •', 256, 116);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({
+      map: texture,
+      roughness: 0.5,
+      metalness: 0.1,
+    });
+  }
+
+  private createDanfoVisor(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+
+    // Green & white sun visor banner
+    ctx.fillStyle = '#008751';
+    ctx.fillRect(0, 0, 512, 64);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 20, 512, 24);
+
+    ctx.fillStyle = '#008751';
+    ctx.font = '900 18px Impact, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('★ BROAD STREET EXPRESS ★ DIRECT ★', 256, 38);
+
+    const texture = createColorCanvasTexture(canvas);
+    return new THREE.MeshStandardMaterial({
+      map: texture,
+      roughness: 0.3,
+      metalness: 0.2,
+    });
   }
 }

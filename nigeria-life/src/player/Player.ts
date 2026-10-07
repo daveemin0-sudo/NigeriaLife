@@ -5,6 +5,7 @@ import {
   ATTIRE_PRESETS,
   type EmoteType,
 } from './CharacterCustomization';
+import { SignageLibrary } from '../materials/SignageLibrary';
 
 export class Player {
   public mesh: THREE.Group;
@@ -194,7 +195,15 @@ export class Player {
     // Update Attire
     const preset = ATTIRE_PRESETS[this.config.attire];
     if (preset) {
-      this.attireMaterial.color.setHex(preset.color);
+      if (this.config.attire === 'ankara_gold') {
+        const signLib = SignageLibrary.getInstance();
+        this.attireMaterial.map = signLib.ankaraFabrics[0]?.map ?? null;
+        this.attireMaterial.color.setHex(0xffffff);
+      } else {
+        this.attireMaterial.map = null;
+        this.attireMaterial.color.setHex(preset.color);
+      }
+      this.attireMaterial.needsUpdate = true;
       this.trousersMaterial.color.set(preset.trousers);
     }
 

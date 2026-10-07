@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Player } from '../player/Player';
 import { createColorCanvasTexture } from '../utils/TextureUtils';
+import { SignageLibrary } from '../materials/SignageLibrary';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
 
 export type VehicleType = 'danfo' | 'keke' | 'suv';
 
@@ -92,53 +94,159 @@ export class DrivableVehicle {
 
   // === 1. BUILD DANFO MINIBUS ===
   private buildDanfo(): void {
-    // Body chassis
+    const signLib = SignageLibrary.getInstance();
+    const matLib = MaterialLibrary.getInstance();
+
+    // Body chassis with signature Lagos yellow gloss paint
     const bodyGeo = new THREE.BoxGeometry(2.4, 2.0, 5.4);
-    const yellowMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35 });
+    const yellowMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
     const body = new THREE.Mesh(bodyGeo, yellowMat);
     body.position.y = 1.45;
     body.castShadow = true;
+    body.receiveShadow = true;
     this.mesh.add(body);
 
-    // Twin black racing stripes
-    const stripeGeo = new THREE.BoxGeometry(2.42, 0.3, 5.42);
-    const stripeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
-    const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-    stripe.position.y = 1.35;
-    this.mesh.add(stripe);
+    // Twin black side route decals along left and right flanks
+    const decalGeo = new THREE.PlaneGeometry(5.38, 0.45);
+    const decalR = new THREE.Mesh(decalGeo, signLib.danfoSideStripeMaterial);
+    decalR.position.set(1.21, 1.35, 0);
+    decalR.rotation.y = Math.PI / 2;
+    this.mesh.add(decalR);
 
-    // Windshield & side windows
+    const decalL = new THREE.Mesh(decalGeo, signLib.danfoSideStripeMaterial);
+    decalL.position.set(-1.21, 1.35, 0);
+    decalL.rotation.y = -Math.PI / 2;
+    this.mesh.add(decalL);
+
+    // Windshield with green/white sun visor banner
     const glassMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
       roughness: 0.1,
       metalness: 0.9,
     });
-    const windshieldGeo = new THREE.PlaneGeometry(2.1, 0.9);
+    const windshieldGeo = new THREE.PlaneGeometry(2.1, 0.88);
     const windshield = new THREE.Mesh(windshieldGeo, glassMat);
     windshield.position.set(0, 1.85, 2.71);
     this.mesh.add(windshield);
 
-    // Headlights
-    for (let hx of [-0.9, 0.9]) {
+    // Sun visor banner sticker
+    const visorGeo = new THREE.PlaneGeometry(2.08, 0.22);
+    const visor = new THREE.Mesh(visorGeo, signLib.danfoVisorMaterial);
+    visor.position.set(0, 2.18, 2.715);
+    this.mesh.add(visor);
+
+    // Side windows (Passenger windows)
+    for (const sx of [-1.21, 1.21]) {
+      const sideGlassGeo = new THREE.PlaneGeometry(4.2, 0.65);
+      const sideGlass = new THREE.Mesh(sideGlassGeo, glassMat);
+      sideGlass.position.set(sx, 1.95, -0.3);
+      sideGlass.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
+      this.mesh.add(sideGlass);
+    }
+
+    // Rear tailgate with slogan & registration plate
+    const rearSloganGeo = new THREE.PlaneGeometry(1.8, 0.45);
+    const rearSlogan = new THREE.Mesh(rearSloganGeo, signLib.danfoRearSloganMaterial);
+    rearSlogan.position.set(0, 1.15, -2.71);
+    rearSlogan.rotation.y = Math.PI;
+    this.mesh.add(rearSlogan);
+
+    // Headlights (Chrome reflector housing + warm emissive glow)
+    for (const hx of [-0.9, 0.9]) {
       const lightGeo = new THREE.BoxGeometry(0.35, 0.22, 0.1);
-      const lightMat = new THREE.MeshBasicMaterial({ color: 0xfffbeb });
+      const lightMat = new THREE.MeshStandardMaterial({
+        color: 0xfffbeb,
+        emissive: 0xffedd5,
+        emissiveIntensity: 1.2,
+        roughness: 0.2,
+      });
       const light = new THREE.Mesh(lightGeo, lightMat);
       light.position.set(hx, 0.9, 2.71);
+      light.castShadow = true;
       this.mesh.add(light);
     }
 
-    // Taillights
-    for (let hx of [-0.9, 0.9]) {
+    // Taillights (Red reflector + emissive red glow)
+    for (const hx of [-0.9, 0.9]) {
       const tailGeo = new THREE.BoxGeometry(0.35, 0.22, 0.1);
-      const tailMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+      const tailMat = new THREE.MeshStandardMaterial({
+        color: 0xdc2626,
+        emissive: 0xdc2626,
+        emissiveIntensity: 0.9,
+        roughness: 0.3,
+      });
       const tail = new THREE.Mesh(tailGeo, tailMat);
       tail.position.set(hx, 0.9, -2.71);
+      tail.castShadow = true;
       this.mesh.add(tail);
     }
 
-    // Wheels
-    const wheelGeo = new THREE.CylinderGeometry(0.44, 0.44, 0.35, 16);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9 });
+    // Heavy-duty black rubber front & rear bumpers
+    const bumperMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8 });
+    const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.26, 0.25), bumperMat);
+    frontBumper.position.set(0, 0.58, 2.78);
+    frontBumper.castShadow = true;
+    this.mesh.add(frontBumper);
+
+    const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.26, 0.25), bumperMat);
+    rearBumper.position.set(0, 0.58, -2.78);
+    rearBumper.castShadow = true;
+    this.mesh.add(rearBumper);
+
+    // Exterior Side Wing Mirrors
+    for (const mx of [-1.32, 1.32]) {
+      const mirrorGroup = new THREE.Group();
+      mirrorGroup.position.set(mx, 1.6, 2.3);
+
+      const stalkGeo = new THREE.BoxGeometry(0.18, 0.05, 0.05);
+      const stalk = new THREE.Mesh(stalkGeo, bumperMat);
+      mirrorGroup.add(stalk);
+
+      const mirrorGeo = new THREE.BoxGeometry(0.08, 0.26, 0.15);
+      const mirror = new THREE.Mesh(mirrorGeo, bumperMat);
+      mirror.position.set(mx > 0 ? 0.08 : -0.08, 0, 0);
+      mirrorGroup.add(mirror);
+
+      this.mesh.add(mirrorGroup);
+    }
+
+    // Welded Tubular Roof Luggage Rack with Cargo Sacks
+    const rackGroup = new THREE.Group();
+    rackGroup.position.set(0, 2.5, -0.4);
+
+    const rackFrameGeo = new THREE.BoxGeometry(2.1, 0.22, 3.8);
+    const rackFrame = new THREE.Mesh(rackFrameGeo, matLib.ironRailingMaterial);
+    rackGroup.add(rackFrame);
+
+    // Tied market cargo boxes / sacks on roof
+    const cargoMat1 = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.85 }); // Burlap sack
+    const cargoMat2 = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.7 }); // Plastic crate
+    const cargoMat3 = new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.8 }); // Carton
+
+    const sack1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.45, 1.1), cargoMat1);
+    sack1.position.set(-0.45, 0.32, -0.6);
+    sack1.castShadow = true;
+    rackGroup.add(sack1);
+
+    const sack2 = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.4, 0.9), cargoMat2);
+    sack2.position.set(0.45, 0.3, -0.5);
+    sack2.castShadow = true;
+    rackGroup.add(sack2);
+
+    const sack3 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.38, 0.8), cargoMat3);
+    sack3.position.set(0, 0.3, 0.8);
+    sack3.castShadow = true;
+    rackGroup.add(sack3);
+
+    this.mesh.add(rackGroup);
+
+    // Wheels with black rubber tire & chrome center hub
+    const tireMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.88 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xd4d4d8, metalness: 0.8, roughness: 0.3 });
 
     const wheelOffsets = [
       { x: -1.2, z: 1.7, isFront: true },
@@ -147,16 +255,23 @@ export class DrivableVehicle {
       { x: 1.2, z: -1.7, isFront: false },
     ];
 
-    for (let off of wheelOffsets) {
+    for (const off of wheelOffsets) {
       const wheelHolder = new THREE.Group();
       wheelHolder.position.set(off.x, 0.44, off.z);
 
-      const wheelMesh = new THREE.Mesh(wheelGeo, wheelMat);
-      wheelMesh.rotation.z = Math.PI / 2;
-      wheelHolder.add(wheelMesh);
+      const tireGeo = new THREE.CylinderGeometry(0.44, 0.44, 0.32, 16);
+      const tire = new THREE.Mesh(tireGeo, tireMat);
+      tire.rotation.z = Math.PI / 2;
+      tire.castShadow = true;
+      wheelHolder.add(tire);
+
+      const rimGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.33, 12);
+      const rim = new THREE.Mesh(rimGeo, rimMat);
+      rim.rotation.z = Math.PI / 2;
+      wheelHolder.add(rim);
 
       this.mesh.add(wheelHolder);
-      this.wheels.push(wheelMesh);
+      this.wheels.push(tire);
       if (off.isFront) {
         this.steerWheels.push(wheelHolder as any);
       }
@@ -165,49 +280,136 @@ export class DrivableVehicle {
 
   // === 2. BUILD KEKE NAPEP ===
   private buildKeke(): void {
-    const baseGeo = new THREE.BoxGeometry(1.5, 1.0, 2.4);
-    const yellowMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4 });
+    const matLib = MaterialLibrary.getInstance();
+
+    // Main yellow body chassis
+    const baseGeo = new THREE.BoxGeometry(1.5, 0.9, 2.4);
+    const yellowMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
     const base = new THREE.Mesh(baseGeo, yellowMat);
-    base.position.y = 0.85;
+    base.position.y = 0.8;
+    base.castShadow = true;
+    base.receiveShadow = true;
     this.mesh.add(base);
 
-    // Black curved canopy
-    const roofGeo = new THREE.BoxGeometry(1.55, 0.9, 2.2);
+    // Black curved canvas canopy roof
+    const roofGeo = new THREE.BoxGeometry(1.55, 0.85, 2.2);
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.9 });
     const roof = new THREE.Mesh(roofGeo, roofMat);
     roof.position.y = 1.75;
+    roof.castShadow = true;
     this.mesh.add(roof);
 
+    // Steel Tubular Roll Cage Pillars supporting canopy
+    for (const px of [-0.72, 0.72]) {
+      for (const pz of [-1.0, 0.1, 1.0]) {
+        const pillarGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.9, 8);
+        const pillar = new THREE.Mesh(pillarGeo, matLib.ironRailingMaterial);
+        pillar.position.set(px, 1.3, pz);
+        pillar.castShadow = true;
+        this.mesh.add(pillar);
+      }
+    }
+
+    // Safety passenger handrails at open side door
+    for (const hx of [-0.74, 0.74]) {
+      const railGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8);
+      const rail = new THREE.Mesh(railGeo, yellowMat);
+      rail.position.set(hx, 0.85, -0.3);
+      this.mesh.add(rail);
+    }
+
     // Windshield
-    const shieldGeo = new THREE.PlaneGeometry(1.3, 0.7);
-    const shieldMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1 });
+    const shieldGeo = new THREE.PlaneGeometry(1.3, 0.65);
+    const shieldMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.1,
+      metalness: 0.9,
+    });
     const shield = new THREE.Mesh(shieldGeo, shieldMat);
-    shield.position.set(0, 1.45, 1.21);
+    shield.position.set(0, 1.5, 1.21);
     this.mesh.add(shield);
 
-    // Wheels (1 front, 2 rear)
-    const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.24, 16);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9 });
+    // Cyclops Center Headlight with bright emissive beam
+    const headGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16);
+    const headMat = new THREE.MeshStandardMaterial({
+      color: 0xfffbeb,
+      emissive: 0xfffaed,
+      emissiveIntensity: 1.3,
+      roughness: 0.2,
+    });
+    const headlight = new THREE.Mesh(headGeo, headMat);
+    headlight.rotation.x = Math.PI / 2;
+    headlight.position.set(0, 0.85, 1.22);
+    headlight.castShadow = true;
+    this.mesh.add(headlight);
+
+    // Amber indicator pods
+    for (const ix of [-0.5, 0.5]) {
+      const podGeo = new THREE.SphereGeometry(0.07, 8, 8);
+      const podMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        emissive: 0xd97706,
+        emissiveIntensity: 0.7,
+      });
+      const pod = new THREE.Mesh(podGeo, podMat);
+      pod.position.set(ix, 0.85, 1.2);
+      this.mesh.add(pod);
+    }
+
+    // Handlebar controls inside cabin
+    const barGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8);
+    const bar = new THREE.Mesh(barGeo, matLib.ironRailingMaterial);
+    bar.rotation.z = Math.PI / 2;
+    bar.position.set(0, 1.05, 0.6);
+    this.mesh.add(bar);
+
+    // Rear mudflaps and license plate
+    const plateGeo = new THREE.BoxGeometry(0.4, 0.2, 0.02);
+    const plateMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4 });
+    const plate = new THREE.Mesh(plateGeo, plateMat);
+    plate.position.set(0, 0.6, -1.21);
+    this.mesh.add(plate);
+
+    // Wheels (1 front, 2 rear) with black rubber and steel rims
+    const tireMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.88 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xd4d4d8, metalness: 0.8, roughness: 0.3 });
 
     // Front wheel
     const frontHolder = new THREE.Group();
     frontHolder.position.set(0, 0.32, 1.1);
-    const frontWheel = new THREE.Mesh(wheelGeo, wheelMat);
-    frontWheel.rotation.z = Math.PI / 2;
-    frontHolder.add(frontWheel);
+    const fTire = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16), tireMat);
+    fTire.rotation.z = Math.PI / 2;
+    fTire.castShadow = true;
+    frontHolder.add(fTire);
+
+    const fRim = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.23, 12), rimMat);
+    fRim.rotation.z = Math.PI / 2;
+    frontHolder.add(fRim);
+
     this.mesh.add(frontHolder);
-    this.wheels.push(frontWheel);
+    this.wheels.push(fTire);
     this.steerWheels.push(frontHolder as any);
 
     // Rear wheels
-    for (let rx of [-0.8, 0.8]) {
+    for (const rx of [-0.8, 0.8]) {
       const rearHolder = new THREE.Group();
       rearHolder.position.set(rx, 0.32, -0.9);
-      const rearWheel = new THREE.Mesh(wheelGeo, wheelMat);
-      rearWheel.rotation.z = Math.PI / 2;
-      rearHolder.add(rearWheel);
+
+      const rTire = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16), tireMat);
+      rTire.rotation.z = Math.PI / 2;
+      rTire.castShadow = true;
+      rearHolder.add(rTire);
+
+      const rRim = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.23, 12), rimMat);
+      rRim.rotation.z = Math.PI / 2;
+      rearHolder.add(rRim);
+
       this.mesh.add(rearHolder);
-      this.wheels.push(rearWheel);
+      this.wheels.push(rTire);
     }
   }
 
