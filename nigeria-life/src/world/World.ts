@@ -5,6 +5,7 @@ import { Vehicles } from './Vehicles';
 import { NPCs } from './NPCs';
 import { Districts } from './Districts';
 import { WeatherSystem } from './WeatherSystem';
+import { CityManager } from '../cities/CityManager';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -26,6 +27,7 @@ export class World {
   public npcs: NPCs;
   public districts: Districts;
   public weather: WeatherSystem;
+  public cityManager: CityManager;
 
   private sunLight!: THREE.DirectionalLight;
   private hemiLight!: THREE.HemisphereLight;
@@ -68,6 +70,19 @@ export class World {
       ...this.vehicles.interactiveList,
       ...this.districts.interactiveList,
     ];
+
+    // 7. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
+    this.cityManager = new CityManager(this.scene);
+    this.cityManager.registerSunLight(this.sunLight);
+    this.cityManager.registerLagosInteractive(this.interactiveObjects);
+    this.cityManager.registerLagosGroups([
+      this.roads.group,
+      this.buildings.group,
+      this.vehicles.group,
+      this.npcs.group,
+      this.districts.group,
+      this.groundMesh,
+    ]);
   }
 
   private createEnvironment(): void {
@@ -110,6 +125,19 @@ export class World {
   }
 
   public getDistrictAtPosition(pos: THREE.Vector3): { name: string; sub: string } {
+    if (this.cityManager.currentCityId === 'abuja') {
+      if (pos.z < -60) {
+        return { name: 'Abuja FCT', sub: 'Aso Rock Monolith & Presidential Lookout' };
+      }
+      if (pos.x < -15) {
+        return { name: 'Abuja FCT', sub: 'National Mosque & Diplomatic Zone' };
+      }
+      if (pos.x > 15) {
+        return { name: 'Abuja FCT', sub: 'National Christian Centre & Central Area' };
+      }
+      return { name: 'Abuja FCT', sub: 'Shehu Shagari Way • Three Arms Zone' };
+    }
+
     // Lekki Phase 1 (East)
     if (pos.x > 35) {
       return { name: 'Lekki Phase 1', sub: 'Admiralty Way & Link Bridge' };
@@ -127,6 +155,12 @@ export class World {
   }
 
   public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3): void {
+    if (this.cityManager.currentCityId === 'abuja') {
+      this.cityManager.update(delta);
+      this.weather.update(delta, playerPos);
+      return;
+    }
+
     // Update vehicle movements & drivable controls
     this.vehicles.update(delta, keys);
 
@@ -141,5 +175,8 @@ export class World {
 
     // Update weather effects (rain particles, lighting, thunder)
     this.weather.update(delta, playerPos);
+
+    // Update city manager
+    this.cityManager.update(delta);
   }
 }

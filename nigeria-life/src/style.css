@@ -133,6 +133,17 @@ canvas {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4), 0 0 24px rgba(250, 204, 21, 0.35);
 }
 
+.interstate-btn-header {
+  border-color: rgba(14, 165, 233, 0.5);
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.interstate-btn-header:hover {
+  background: rgba(14, 165, 233, 0.3);
+  border-color: #38bdf8;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4), 0 0 24px rgba(14, 165, 233, 0.4);
+}
+
 .weather-btn {
   border-color: rgba(56, 189, 248, 0.4);
 }
@@ -371,7 +382,8 @@ canvas {
 #inventory-modal,
 #atm-modal,
 #economy-modal,
-#travel-modal {
+#travel-modal,
+#interstate-modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -2951,6 +2963,278 @@ canvas {
   border-radius: 10px;
   transition: width 0.1s linear;
 }
+
+/* =========================================
+   INTER-STATE TRAVEL & FLIGHTS MODAL
+   ========================================= */
+.interstate-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 860px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: linear-gradient(175deg, rgba(15, 23, 42, 0.96) 0%, rgba(2, 6, 23, 0.98) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(14, 165, 233, 0.2);
+  border-radius: 20px;
+  padding: 28px;
+  z-index: 10;
+  color: #f8fafc;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.dialog-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: rgba(0, 135, 81, 0.25);
+  border: 1px solid rgba(0, 210, 106, 0.4);
+  color: #4ade80;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+
+.dialog-title-wrap h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+}
+
+.dialog-title-wrap p {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.interstate-origin-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 20px;
+  border-radius: 14px;
+  margin: 20px 0;
+}
+
+.origin-flag {
+  font-size: 36px;
+}
+
+.origin-meta h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 4px 0;
+}
+
+.origin-meta p {
+  font-size: 13px;
+  color: #cbd5e1;
+  margin: 0;
+}
+
+.interstate-routes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.route-card {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.route-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(30, 41, 59, 0.75);
+}
+
+.route-card.flight-card {
+  border-left: 4px solid #38bdf8;
+}
+
+.route-card.bus-card {
+  border-left: 4px solid #facc15;
+}
+
+.route-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.route-operator {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.operator-icon {
+  font-size: 26px;
+}
+
+.route-operator h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.route-code {
+  font-size: 11px;
+  color: #38bdf8;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.route-fare {
+  font-size: 16px;
+  font-weight: 800;
+  color: #4ade80;
+}
+
+.route-stations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.station-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+}
+
+.station-row .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.station-row .dot.departure {
+  background: #38bdf8;
+}
+
+.station-row .dot.arrival {
+  background: #10b981;
+}
+
+.route-perk {
+  font-size: 12px;
+  color: #fbbf24;
+  line-height: 1.4;
+}
+
+.btn-book-route {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: auto;
+}
+
+.route-card.bus-card .btn-book-route {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+.btn-book-route:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+/* Flight in-progress journey animation screen */
+.flight-journey-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 15, 28, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.flight-journey-content {
+  text-align: center;
+  max-width: 480px;
+  padding: 30px;
+}
+
+.flight-plane-anim {
+  font-size: 58px;
+  display: inline-block;
+  animation: planeFlyAcross 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes planeFlyAcross {
+  from {
+    transform: translateX(-30px) translateY(8px) scale(0.95);
+  }
+  to {
+    transform: translateX(30px) translateY(-8px) scale(1.05);
+  }
+}
+
+.flight-journey-content h3 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #38bdf8;
+  margin: 18px 0 8px 0;
+}
+
+.flight-journey-content p {
+  font-size: 13px;
+  color: #cbd5e1;
+  font-style: italic;
+  margin-bottom: 24px;
+}
+
+.flight-progress-bar {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.flight-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #38bdf8, #10b981);
+  border-radius: 10px;
+  transition: width 0.1s linear;
+}
+
 
 
 

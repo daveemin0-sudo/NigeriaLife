@@ -6,6 +6,7 @@ import { ATMModal } from './ATMModal';
 import { PhoneModal } from './PhoneModal';
 import { EconomyModal } from './EconomyModal';
 import { TravelModal } from './TravelModal';
+import { InterStateModal } from './InterStateModal';
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 
@@ -19,6 +20,7 @@ export class HUD {
   public phoneModal!: PhoneModal;
   public economyModal!: EconomyModal;
   public travelModal!: TravelModal;
+  public interstateModal!: InterStateModal;
   private player!: Player;
   private world?: World;
   private backend: BackendService;
@@ -36,6 +38,7 @@ export class HUD {
     this.phoneModal = new PhoneModal();
     this.economyModal = new EconomyModal();
     this.travelModal = new TravelModal();
+    this.interstateModal = new InterStateModal();
 
     this.container = document.createElement('div');
     this.container.id = 'hud-overlay';
@@ -74,6 +77,10 @@ export class HUD {
           <button class="hud-btn travel-btn-header" id="open-travel-btn" title="Shortcut: Key T">
             <span>🚌</span>
             <span>Transit [T]</span>
+          </button>
+          <button class="hud-btn interstate-btn-header" id="open-interstate-btn" title="Inter-State Flights & Coaches (Lagos <-> Abuja FCT) [Shortcut: Key M]">
+            <span>✈️</span>
+            <span>Inter-State [M]</span>
           </button>
           <button class="hud-btn weather-btn" id="hud-weather-btn" title="Toggle Lagos Weather (Sunny / Rainstorm)">
             <span id="hud-weather-icon">☀️</span>
@@ -214,6 +221,10 @@ export class HUD {
       this.travelModal.toggle();
     });
 
+    document.getElementById('open-interstate-btn')?.addEventListener('click', () => {
+      this.interstateModal.toggle(this.world?.cityManager.currentCityId);
+    });
+
     document.getElementById('hud-weather-btn')?.addEventListener('click', () => {
       if (this.world) {
         const newW = this.world.weather.toggleWeather();
@@ -258,6 +269,8 @@ export class HUD {
         this.economyModal.toggle();
       } else if (e.key.toLowerCase() === 't') {
         this.travelModal.toggle();
+      } else if (e.key.toLowerCase() === 'm') {
+        this.interstateModal.toggle(this.world?.cityManager.currentCityId);
       } else if (e.key === '1') {
         this.player.playEmote('zanku', 4.0);
       } else if (e.key === '2') {
@@ -272,6 +285,7 @@ export class HUD {
         this.phoneModal.close();
         this.economyModal.close();
         this.travelModal.close();
+        this.interstateModal.close();
       }
     });
   }
@@ -341,6 +355,24 @@ export class HUD {
       bizBtn.style.display = 'none';
     } else if (obj.id === 'nike-art-gallery') {
       btnEl.textContent = '🎨 Purchase Handcrafted Adire Art (₦12,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'aso-rock-lookout') {
+      btnEl.textContent = '⛰️ Admire Geological Monolith & Presidential Lookout';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'abuja-mosque') {
+      btnEl.textContent = '🕌 Tour National Mosque Architecture';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'abuja-christian-centre') {
+      btnEl.textContent = '⛪ Visit National Christian Centre Sanctuary';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'abuja-secretariat') {
+      btnEl.textContent = '📜 Federal Government Procurement & Contracts';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'abuja-cab') {
+      btnEl.textContent = '🚕 Board Federal Green Cab to Maitama (₦800)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'abuja-interstate-hub') {
+      btnEl.textContent = '✈️ Book Flight / Luxury Coach to Lagos [M]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'npc-hawker') {
       btnEl.textContent = '🥤 Buy Pure Water & Gala (₦200)';
@@ -545,6 +577,93 @@ export class HUD {
       }
     } else if (id === 'npc-punter') {
       alert('🗣️ Segun: "Guy, always play over 1.5 goals o! Don\'t play straight win, this league is crazy!"');
+    } else if (id === 'aso-rock-lookout') {
+      const success = this.backend.spendCash(1500, 'Aso Rock Souvenir Plaque');
+      if (success) {
+        this.backend.restoreEnergy(30);
+        this.backend.addStreetCred(20);
+        this.backend.addItem({
+          id: `aso_rock_plaque_${Date.now()}`,
+          name: 'Aso Rock Presidential Plaque',
+          category: 'document',
+          icon: '⛰️',
+          description: 'Official commemorative stone souvenir plaque of the Aso Rock Monolith & Three Arms Zone.',
+          price: 3500,
+          usable: false,
+        });
+        alert('⛰️ Stood at the pinnacle of power! Aso Rock Presidential Plaque purchased and added to bag. Street Cred +20!');
+      } else {
+        alert('❌ Need ₦1,500 cash for the commemorative souvenir plaque!');
+      }
+    } else if (id === 'abuja-mosque') {
+      const success = this.backend.spendCash(500, 'Mosque Visit & Chilled Zobo');
+      if (success) {
+        this.backend.restoreEnergy(60);
+        this.backend.addStreetCred(15);
+        this.backend.addItem({
+          id: `abuja_zobo_${Date.now()}`,
+          name: 'Abuja Spiced Zobo Drink',
+          category: 'food',
+          icon: '🧃',
+          description: 'Chilled hibiscus tea with ginger, clove, and pineapple.',
+          price: 500,
+          usable: true,
+          energyRestore: 35,
+        });
+        alert('🕌 Visited the magnificent National Mosque! Chilled spiced Zobo drink acquired, energy refreshed, Street Cred +15!');
+      } else {
+        alert('❌ Need ₦500 for the visitor pack & zobo!');
+      }
+    } else if (id === 'abuja-christian-centre') {
+      const success = this.backend.spendCash(500, 'Ecumenical Fellowship Offering');
+      if (success) {
+        this.backend.restoreEnergy(60);
+        this.backend.addStreetCred(15);
+        this.backend.addItem({
+          id: `unity_hymnal_${Date.now()}`,
+          name: 'National Unity Hymnal & Medallion',
+          category: 'document',
+          icon: '📖',
+          description: 'Commemorative unity hymnal from the National Christian Centre.',
+          price: 1000,
+          usable: false,
+        });
+        alert('⛪ Admired the neo-gothic spire and pipe organ at National Christian Centre! Blessed with peaceful spirit and Street Cred +15!');
+      } else {
+        alert('❌ Need ₦500 cash offering!');
+      }
+    } else if (id === 'abuja-secretariat') {
+      const success = this.backend.spendCash(5000, 'Federal Government Tender Form');
+      if (success) {
+        this.backend.addStreetCred(50);
+        this.backend.addItem({
+          id: `fgn_cert_${Date.now()}`,
+          name: 'Official Federal Contractor Certificate',
+          category: 'document',
+          icon: '📜',
+          description: 'Registered Bureau of Public Procurement (BPP) Federal Contractor Certificate #FGN-2026.',
+          price: 15000,
+          usable: false,
+        });
+        alert('📜 Official Federal Contractor registration submitted! Verified BPP Certificate issued to bag. Capital Street Cred +50!');
+      } else {
+        alert('❌ Need ₦5,000 cash for the federal procurement registration documentation!');
+      }
+    } else if (id === 'abuja-cab') {
+      const success = this.backend.spendCash(800, 'Federal Green Cab Fare');
+      if (success) {
+        this.backend.addStreetCred(5);
+        if (this.player) {
+          this.player.mesh.position.z -= 30;
+        }
+        alert('🚕 Green Cab dropped you off smoothly by Shehu Shagari Way & Maitama Junction! "Oga drop here! Well done sir!"');
+      } else {
+        alert('❌ Need ₦800 cash for green cab fare!');
+      }
+    } else if (id === 'abuja-interstate-hub') {
+      this.hideInteractionCard();
+      this.interstateModal.open('abuja');
+      return;
     }
 
     this.hideInteractionCard();

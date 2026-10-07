@@ -101,6 +101,17 @@ export class Game {
       }
     };
 
+    // 9b. Inter-State Flights & Cross-Country Travel (Lagos <-> Abuja FCT)
+    this.hud.interstateModal.onInterStateTravelCompleted = (destId) => {
+      this.world.cityManager.switchCity(
+        destId,
+        this.player,
+        (newObjs) => {
+          this.world.interactiveObjects = newObjs;
+        }
+      );
+    };
+
     // 10. Multiplayer & Street Chat
     this.network = new NetworkManager(this.scene, this.player);
     this.chatBox = new ChatBox(this.network);
