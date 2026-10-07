@@ -239,6 +239,15 @@ export class BackendService {
     this.saveData();
   }
 
+  public depleteEnergy(amount: number): boolean {
+    if (this.data.stats.energy < amount) {
+      return false;
+    }
+    this.data.stats.energy = Math.max(0, this.data.stats.energy - amount);
+    this.saveData();
+    return true;
+  }
+
   public addStreetCred(amount: number): void {
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + amount);
     this.saveData();

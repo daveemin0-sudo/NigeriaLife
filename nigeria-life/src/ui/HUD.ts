@@ -566,10 +566,61 @@ export class HUD {
       btnEl.textContent = '🥤 Buy Pure Water & Gala (₦200)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'npc-conductor') {
-      btnEl.textContent = '🗣️ Board Danfo (₦300)';
+      btnEl.textContent = '🚌 Board Danfo Shuttle (₦300)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'npc-punter') {
-      btnEl.textContent = '💬 Gist with Segun';
+      btnEl.textContent = '💬 Gist with Segun (Bet9ja)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'pharmacy') {
+      btnEl.textContent = '💊 Buy Medicine & First Aid (₦1,500)';
+      bizBtn.textContent = '💼 Pharmacy Enterprise [E]';
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'supermarket') {
+      btnEl.textContent = '🛒 Buy Indomie Carton & Peak Milk (₦4,500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'slot-gadgets') {
+      btnEl.textContent = '📱 Buy 20,000mAh Power Bank & Charger (₦8,500)';
+      bizBtn.textContent = '💼 Slot Tech Enterprise [E]';
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'barber-shop') {
+      btnEl.textContent = '💈 Executive Fade & Beard Grooming (₦2,500)';
+      bizBtn.textContent = '💼 Barbershop Enterprise [E]';
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'fuel-station') {
+      btnEl.textContent = '⛽ Buy 10L Petrol Keg & Cold Drink (₦8,500)';
+      bizBtn.textContent = '💼 Oando Forecourt Franchise [E]';
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'mechanic') {
+      btnEl.textContent = '🔧 Tune Up Engine & Vehicle Overhaul (₦6,000)';
+      bizBtn.textContent = "💼 God's Grace Workshop [E]";
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'construction-site') {
+      btnEl.textContent = '👷 Work Construction Day Shift (+₦6,500 Cash)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'palm-view-flats') {
+      btnEl.textContent = '🏢 Inspect 2-Bedroom Apartment Flat';
+      bizBtn.textContent = '🏡 Palm View Property Office [E]';
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'npc-suya') {
+      btnEl.textContent = '🥩 Buy Hot Spicy Beef Suya & Onions (₦1,500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'npc-emeka') {
+      btnEl.textContent = '📱 Screen & Battery Phone Diagnostic (₦3,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'npc-mechanic') {
+      btnEl.textContent = '🛠️ Work Mechanic Apprentice Shift (+₦4,000 Gig)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'npc-warden') {
+      btnEl.textContent = '👮 Ask for Lagos Traffic & Safety Directions';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'npc-chief') {
+      btnEl.textContent = '👑 Greet Elder with Respect ("E nle o, Kabiyesi!")';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'npc-aunty') {
+      btnEl.textContent = '👗 Buy Premium Hollandais Wax Fabric (₦18,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'npc-banker') {
+      btnEl.textContent = '📈 Invest in 90-Day Federal Treasury Bills (₦50,000)';
       bizBtn.style.display = 'none';
     } else {
       btnEl.textContent = 'Enter / Inspect';
@@ -688,9 +739,13 @@ export class HUD {
       const success = this.backend.spendCash(fare, 'Danfo Bus Fare');
       if (success) {
         this.backend.addStreetCred(5);
-        alert(`🚌 You entered the Danfo! Fare paid: ₦${fare}. Conductor yelled: "Shift inside make people enter!"`);
+        if (this.player) {
+          // Commute shuttle across the commercial boulevard
+          this.player.mesh.position.set(-8.5, 0, -55);
+        }
+        alert(`🚌 DANFO COMMUTER SHUTTLE: Paid ₦${fare} fare! Conductor shouts: "Tejuosho Junction drop off! Oya alight, next passenger enter!" You commuted swiftly across Broad Street.`);
       } else {
-        alert('❌ "Hold your money first before entering my motor!" - Conductor');
+        alert('❌ "Hold your ₦300 exact change first before entering my motor!" - Conductor');
       }
     } else if (id === 'villa-compound') {
       const isTenant = this.backend.getData().properties.find((p) => p.buildingId === 'villa-compound')?.status !== 'unowned';
@@ -895,10 +950,210 @@ export class HUD {
     } else if (id === 'flat-sofa') {
       this.backend.restoreEnergy(30);
       alert('🛋️ Chilled out on the living room sofa enjoying cold malt drink. Energy +30%!');
-    } else if (id === 'flat-pet') {
-      this.backend.addStreetCred(5);
-      this.player?.playEmote('salute', 2.5);
-      alert('🐕 *Woof woof!* Bingo wags his tail excitedly and jumps into your arms! Mood is at 100%!');
+    } else if (id === 'pharmacy') {
+      const success = this.backend.spendCash(1500, 'Yaba Pharmacy First Aid & Coartem');
+      if (success) {
+        this.backend.restoreEnergy(50);
+        this.backend.addItem({
+          id: `first_aid_${Date.now()}`,
+          name: 'First Aid Kit & Coartem',
+          category: 'tool',
+          icon: '💊',
+          description: 'Emergency medical health kit with anti-malaria tablets and vitamins.',
+          price: 2500,
+          usable: true,
+          energyRestore: 50,
+        });
+        alert('💊 Yaba Central Pharmacy: Quality medications dispensed! Energy boosted +50% and First Aid Kit added to your bag!');
+      } else {
+        alert('❌ Need ₦1,500 cash for pharmacy medications!');
+      }
+    } else if (id === 'supermarket') {
+      const success = this.backend.spendCash(4500, 'Everyday Supermarket Groceries');
+      if (success) {
+        this.backend.restoreEnergy(80);
+        this.backend.addItem({
+          id: `indomie_pack_${Date.now()}`,
+          name: 'Carton of Indomie & Peak Milk',
+          category: 'food',
+          icon: '🍜',
+          description: 'Noodles, golden butter bread, and peak milk from the supermarket.',
+          price: 4500,
+          usable: true,
+          energyRestore: 80,
+        });
+        alert('🛒 Everyday Supermarket: Groceries checked out! Added Indomie Super Pack & Milk to your bag!');
+      } else {
+        alert('❌ Need ₦4,500 cash for supermarket groceries!');
+      }
+    } else if (id === 'slot-gadgets') {
+      const success = this.backend.spendCash(8500, 'Slot 20,000mAh Power Bank & Charger');
+      if (success) {
+        this.backend.addStreetCred(15);
+        this.backend.addItem({
+          id: `powerbank_slot_${Date.now()}`,
+          name: 'Slot 20,000mAh Dual-Port Power Bank',
+          category: 'gadget',
+          icon: '🔋',
+          description: 'High-capacity fast-charging power bank with braided nylon cables.',
+          price: 12000,
+          usable: false,
+        });
+        alert('📱 Slot Gadgets: High-capacity power bank & fast charger purchased! Added to bag. Street Cred +15!');
+      } else {
+        alert('❌ Need ₦8,500 cash for the power bank & charger!');
+      }
+    } else if (id === 'barber-shop') {
+      const success = this.backend.spendCash(2500, 'Executive Fade & Beard Grooming');
+      if (success) {
+        this.backend.restoreEnergy(40);
+        this.backend.addStreetCred(25);
+        this.player?.playEmote('groove', 4.0);
+        alert('💈 Fresh Cut Barbershop: Sharp executive fade with peppermint beard oil! You look clean! Street Cred +25!');
+      } else {
+        alert('❌ Need ₦2,500 cash for the haircut!');
+      }
+    } else if (id === 'fuel-station') {
+      const success = this.backend.spendCash(8500, '10L Petrol Fuel Keg');
+      if (success) {
+        this.backend.addStreetCred(10);
+        this.backend.addItem({
+          id: `fuel_keg_${Date.now()}`,
+          name: '10L Premium Petrol (Fuel Keg)',
+          category: 'tool',
+          icon: '⛽',
+          description: 'Yellow jerrycan filled with 10 litres of premium fuel for your generator or car.',
+          price: 8500,
+          usable: true,
+          energyRestore: 0,
+        });
+        alert('⛽ Oando Fuel Station: 10 Litres of petrol fueled! Ready for your car or home generator!');
+      } else {
+        alert('❌ Need ₦8,500 cash for 10L fuel!');
+      }
+    } else if (id === 'mechanic') {
+      const success = this.backend.spendCash(6000, 'Vehicle Tune Up & Oil Change');
+      if (success) {
+        this.backend.addStreetCred(20);
+        this.backend.addItem({
+          id: `engine_oil_${Date.now()}`,
+          name: 'Castrol High-Grade Engine Oil',
+          category: 'tool',
+          icon: '🛢️',
+          description: 'High-viscosity synthetic lubricant for vehicle engine overhaul.',
+          price: 6000,
+          usable: true,
+        });
+        alert("🔧 God's Grace Auto Works: Engine serviced, spark plugs cleaned, and fresh engine oil poured! Vehicle running at peak performance!");
+      } else {
+        alert('❌ Need ₦6,000 cash for vehicle service!');
+      }
+    } else if (id === 'construction-site') {
+      const energyDepleted = this.backend.depleteEnergy(25);
+      if (energyDepleted) {
+        const wage = 6500;
+        this.backend.addCash(wage);
+        this.backend.addStreetCred(10);
+        alert(`👷 Tough day shift completed! Carried sandcrete blocks and mixed concrete. +₦${wage.toLocaleString()} cash paid into your pocket! Energy -25%`);
+      } else {
+        alert('❌ You are too exhausted! (Need at least 25% Energy). Eat at Mama Put or sleep in your apartment first.');
+      }
+    } else if (id === 'palm-view-flats') {
+      this.hideInteractionCard();
+      this.economyModal.open('palm-view-flats');
+      return;
+    } else if (id === 'npc-suya') {
+      const success = this.backend.spendCash(1500, 'Hot Spicy Beef Suya');
+      if (success) {
+        this.backend.restoreEnergy(60);
+        this.backend.addItem({
+          id: `suya_wrap_${Date.now()}`,
+          name: 'Spicy Beef Suya Wrap',
+          category: 'food',
+          icon: '🥩',
+          description: 'Charcoal-grilled Nigerian beef suya coated in fragrant yaji spice and sliced onions.',
+          price: 1500,
+          usable: true,
+          energyRestore: 60,
+        });
+        alert('🥩 Mallam Bisi: "Gaskiya! Fresh hot suya wrapped with extra yaji pepper and sliced onions! Oya enjoy!"');
+      } else {
+        alert('❌ Need ₦1,500 cash for hot suya!');
+      }
+    } else if (id === 'npc-emeka') {
+      const success = this.backend.spendCash(3000, 'Phone Calibration & 5G SIM');
+      if (success) {
+        this.backend.addStreetCred(10);
+        this.backend.addItem({
+          id: `mtn_sim_${Date.now()}`,
+          name: '5G MTN High-Speed Data SIM',
+          category: 'gadget',
+          icon: '📶',
+          description: 'High-speed broadband SIM card with 10GB pre-loaded data bundle.',
+          price: 3000,
+          usable: false,
+        });
+        alert('📱 Emeka: "Phone charging port cleaned, firmware flashed, and 5G data SIM activated!"');
+      } else {
+        alert('❌ Need ₦3,000 cash for phone service & 5G SIM!');
+      }
+    } else if (id === 'npc-mechanic') {
+      const energyDepleted = this.backend.depleteEnergy(15);
+      if (energyDepleted) {
+        const gigWage = 4000;
+        this.backend.addCash(gigWage);
+        this.backend.addStreetCred(10);
+        alert(`🛠️ Master Tayo: "Good job boy! You helped align the alternator belt and brake pads. Take ₦${gigWage.toLocaleString()} cash for your pocket!" Energy -15%`);
+      } else {
+        alert('❌ Too exhausted for manual workshop labor! Rest first.');
+      }
+    } else if (id === 'npc-warden') {
+      this.backend.addStreetCred(10);
+      this.player?.playEmote('salute', 3.0);
+      alert('👮 Sgt. Bello: "Always obey traffic signals and cross at zebra lines! Broad Street traffic flows smoothly when citizens stay sharp! Street Cred +10!"');
+    } else if (id === 'npc-chief') {
+      this.backend.addStreetCred(25);
+      this.player?.playEmote('salute', 3.0);
+      alert('👑 Chief Alabi: "God bless you my child! In Lagos, integrity, perseverance and courage will open doors that ordinary money cannot open. Respect +25!"');
+    } else if (id === 'npc-aunty') {
+      const success = this.backend.spendCash(18000, 'Original Hollandais Wax Fabric');
+      if (success) {
+        this.backend.addStreetCred(30);
+        this.backend.addItem({
+          id: `ankara_hollandais_${Date.now()}`,
+          name: 'Original Hollandais Wax Fabric (6 Yards)',
+          category: 'document',
+          icon: '👗',
+          description: 'Prestigious Dutch wax cotton fabric with vibrant gold and indigo peacock motifs.',
+          price: 25000,
+          usable: false,
+        });
+        alert('👗 Mama Nkechi: "Original Vlisco Hollandais Dutch Wax! You have great taste my customer! Street Cred +30!"');
+      } else {
+        alert('❌ Need ₦18,000 cash for authentic Hollandais wax fabric!');
+      }
+    } else if (id === 'npc-banker') {
+      const cost = 50000;
+      let paid = this.backend.spendCash(cost, '90-Day FGN Treasury Bill');
+      if (!paid && this.backend.getData().bank.balance >= cost) {
+        this.backend.withdrawFromATM(cost);
+        paid = this.backend.spendCash(cost, '90-Day FGN Treasury Bill');
+      }
+      if (paid) {
+        this.backend.addStreetCred(40);
+        this.backend.addItem({
+          id: `tbill_${Date.now()}`,
+          name: '90-Day FGN Treasury Bill Note (18.5% ROI)',
+          category: 'document',
+          icon: '📈',
+          description: 'Official Central Bank sovereign security yielding 18.5% annual risk-free return.',
+          price: 59250,
+          usable: false,
+        });
+        alert('📈 Tunde: "Treasury bill registered with CSCS clearing depository! You will earn guaranteed 18.5% sovereign yield upon maturity! Street Cred +40!"');
+      } else {
+        alert('❌ Need ₦50,000 in cash or bank balance to purchase Treasury Bills!');
+      }
     }
 
     this.hideInteractionCard();
