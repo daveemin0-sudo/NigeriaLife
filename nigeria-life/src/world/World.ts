@@ -6,6 +6,7 @@ import { NPCs } from './NPCs';
 import { Districts } from './Districts';
 import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
+import { ApartmentInterior } from './ApartmentInterior';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -26,6 +27,7 @@ export class World {
   public vehicles: Vehicles;
   public npcs: NPCs;
   public districts: Districts;
+  public apartment: ApartmentInterior;
   public weather: WeatherSystem;
   public cityManager: CityManager;
 
@@ -63,15 +65,20 @@ export class World {
     this.districts = new Districts();
     this.scene.add(this.districts.group);
 
-    // Combine all clickable interactive objects across starter zone & expanded districts
+    // 7. Cutaway 3D Apartment Interior (Home Mode)
+    this.apartment = new ApartmentInterior();
+    this.scene.add(this.apartment.group);
+
+    // Combine all clickable interactive objects across starter zone, districts, and apartment
     this.interactiveObjects = [
       ...this.buildings.interactiveList,
       ...this.npcs.interactiveList,
       ...this.vehicles.interactiveList,
       ...this.districts.interactiveList,
+      ...this.apartment.interactiveList,
     ];
 
-    // 7. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
+    // 8. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
     this.cityManager = new CityManager(this.scene);
     this.cityManager.registerSunLight(this.sunLight);
     this.cityManager.registerLagosInteractive(this.interactiveObjects);
@@ -81,6 +88,7 @@ export class World {
       this.vehicles.group,
       this.npcs.group,
       this.districts.group,
+      this.apartment.group,
       this.groundMesh,
     ]);
   }
@@ -138,6 +146,10 @@ export class World {
       return { name: 'Abuja FCT', sub: 'Shehu Shagari Way • Three Arms Zone' };
     }
 
+    // Player Apartment Flat (Home Interior)
+    if (pos.z > 165) {
+      return { name: 'Lekki Luxury Flat', sub: 'Apartment Interior • Banana Island View' };
+    }
     // Lekki Phase 1 (East)
     if (pos.x > 35) {
       return { name: 'Lekki Phase 1', sub: 'Admiralty Way & Link Bridge' };
@@ -172,6 +184,9 @@ export class World {
 
     // Update expanded districts (ocean waves, smoke particles)
     this.districts.update(delta);
+
+    // Update apartment interior (standing fan rotation, TV glow, pet)
+    this.apartment.update(delta);
 
     // Update weather effects (rain particles, lighting, thunder)
     this.weather.update(delta, playerPos);

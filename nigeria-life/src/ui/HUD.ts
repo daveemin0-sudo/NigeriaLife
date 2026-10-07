@@ -1,5 +1,6 @@
 import type { InteractiveObject, World } from '../world/World';
 import { Player } from '../player/Player';
+import type { CityId } from '../cities/CityTypes';
 import { CharacterCreatorModal } from './CharacterCreator';
 import { InventoryModal } from './InventoryModal';
 import { ATMModal } from './ATMModal';
@@ -29,6 +30,9 @@ export class HUD {
   public onExitVehicle?: () => void;
   public onHonkVehicle?: () => void;
   public onEnterVehicle?: (vehicleId: string) => void;
+  public onNavigateMode?: (mode: 'street' | 'home' | 'map') => void;
+  public onRadarNavigate?: (destId: string) => void;
+  public currentNavMode: 'street' | 'home' | 'map' = 'street';
 
   constructor() {
     this.backend = BackendService.getInstance();
@@ -43,8 +47,55 @@ export class HUD {
     this.container = document.createElement('div');
     this.container.id = 'hud-overlay';
     this.container.innerHTML = `
-      <!-- Top Status Header -->
+      <!-- Top Status Header (Viral Lagos Life Replica) -->
       <header class="hud-header">
+        <!-- Top Left Badges (Match, Music, Gem Hunt) -->
+        <div class="hud-top-left-badges">
+          <div class="top-badge quest-badge" id="badge-super-eagles" title="Tap to celebrate & dance!">
+            <span class="badge-icon">⚽</span>
+            <div class="badge-text">
+              <span class="badge-title">Super Eagles Match</span>
+              <span class="badge-sub">Tap to cheer & dance</span>
+            </div>
+          </div>
+          <div class="top-badge music-badge" id="badge-afrobeats" title="Play Afrobeats Radio">
+            <span class="badge-icon">🎶</span>
+            <div class="badge-text">
+              <span class="badge-title">Play some music</span>
+              <span class="badge-sub">+2 Mood Boost</span>
+            </div>
+          </div>
+          <div class="top-badge gem-badge" id="badge-gem-hunt" title="Daily Naira Gem Quest">
+            <span class="badge-icon">💎</span>
+            <div class="badge-text">
+              <span class="badge-title">Daily gem hunt</span>
+              <span class="badge-sub">87,691 found • Next: ₦3,000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Floating Pill Bar -->
+        <div class="hud-center-pill-bar">
+          <div class="pill-item time-pill">
+            <span id="hud-weather-icon">☀️</span>
+            <span id="hud-clock-val">Wed 7 • 1:18 PM</span>
+          </div>
+          <div class="pill-item mood-pill" id="pill-mood" title="Current Character Mood">
+            <span id="hud-mood-icon">😄</span>
+            <span id="hud-mood-val">Very Happy</span>
+          </div>
+          <div class="pill-item online-pill">
+            <span>👥</span>
+            <span>17.6m • <strong style="color: #4ade80;">🟢 85k online</strong></span>
+          </div>
+          <button class="sound-toggle-btn" id="hud-sound-toggle" title="Toggle Afrobeats Radio">🔊</button>
+          <div class="pill-item money-pill-large" id="pill-money-wrap">
+            <span id="hud-money">₦25,000</span>
+            <button class="btn-quick-deposit" id="btn-quick-topup" title="Withdraw / Deposit at Bank ATM">+</button>
+          </div>
+        </div>
+
+        <!-- Top Right Mini District Indicator -->
         <div class="hud-location">
           <span class="flag">🇳🇬</span>
           <div class="loc-details">
@@ -52,62 +103,61 @@ export class HUD {
             <span class="loc-sub" id="hud-loc-sub">Broad Street</span>
           </div>
         </div>
-
-        <div class="hud-actions-center">
-          <button class="hud-btn" id="open-inventory-btn" title="Shortcut: Key I">
-            <span>🎒</span>
-            <span>Bag [I]</span>
-          </button>
-          <button class="hud-btn wardrobe-btn" id="open-wardrobe-btn" title="Shortcut: Key C">
-            <span>👔</span>
-            <span>Wardrobe [C]</span>
-          </button>
-          <button class="hud-btn atm-btn-header" id="open-atm-btn" title="Shortcut: Key B">
-            <span>🏧</span>
-            <span>ATM [B]</span>
-          </button>
-          <button class="hud-btn phone-btn-header" id="open-phone-btn" title="Shortcut: Key P">
-            <span>📱</span>
-            <span>Phone [P]</span>
-          </button>
-          <button class="hud-btn econ-btn-header" id="open-econ-btn" title="Shortcut: Key E">
-            <span>🏢</span>
-            <span>Enterprise [E]</span>
-          </button>
-          <button class="hud-btn travel-btn-header" id="open-travel-btn" title="Shortcut: Key T">
-            <span>🚌</span>
-            <span>Transit [T]</span>
-          </button>
-          <button class="hud-btn interstate-btn-header" id="open-interstate-btn" title="Inter-State Flights & Coaches (Lagos <-> Abuja FCT) [Shortcut: Key M]">
-            <span>✈️</span>
-            <span>Inter-State [M]</span>
-          </button>
-          <button class="hud-btn weather-btn" id="hud-weather-btn" title="Toggle Lagos Weather (Sunny / Rainstorm)">
-            <span id="hud-weather-icon">☀️</span>
-            <span id="hud-weather-label">Sunny</span>
-          </button>
-        </div>
-
-        <div class="hud-stats">
-          <div class="stat-pill online-pill">
-            <span class="stat-icon">🟢</span>
-            <span class="stat-val" id="hud-online-count">1 Online</span>
-          </div>
-          <div class="stat-pill money-pill">
-            <span class="stat-icon">💵</span>
-            <span class="stat-val" id="hud-money">₦25,000</span>
-          </div>
-          <div class="stat-pill energy-pill">
-            <span class="stat-icon">⚡</span>
-            <span class="stat-val" id="hud-energy">100% Energy</span>
-          </div>
-        </div>
       </header>
+
+      <!-- Street Distance Radar (Appears during Street Walk) -->
+      <div class="street-radar-bar" id="street-radar-bar">
+        <div class="radar-header-pill">
+          <span>📍</span>
+          <span id="radar-loc-title">Herbert Macaulay Way • Tejuosho Junction</span>
+        </div>
+        <div class="radar-pills-row">
+          <button class="radar-pill" data-dest="dest_cchub">💡 CcHub - 410m</button>
+          <button class="radar-pill" data-dest="dest_quilox">🍾 Quilox VIP - 350m</button>
+          <button class="radar-pill" data-dest="dest_amala">🍲 Amala Shitta - 220m</button>
+          <button class="radar-pill" data-dest="dest_lekki">🌉 Lekki Bridge - 850m</button>
+          <button class="radar-pill" data-dest="dest_ikeja">🔌 Computer Village - 600m</button>
+        </div>
+      </div>
+
+      <!-- Aerial Map City Switcher Bar (Appears when Map is active) -->
+      <div class="map-city-switcher" id="map-city-switcher" style="display: none;">
+        <div class="city-switch-tabs">
+          <button class="city-tab active" data-city="lagos">🏖️ Lagos</button>
+          <button class="city-tab" data-city="abuja">⛰️ Abuja</button>
+          <button class="city-tab" data-city="port_harcourt">🛢️ Port Harcourt</button>
+        </div>
+        <div class="map-filter-pills">
+          <button class="map-filter-btn active" id="btn-walk-street">🚶 Walk Street</button>
+          <button class="map-filter-btn" id="btn-open-interstate">✈️ Book Flights [M]</button>
+        </div>
+      </div>
+
+      <!-- Bottom Master Navigation Bar (Home | Buy | Map | Phone) -->
+      <div class="bottom-master-nav">
+        <button class="master-nav-item" id="nav-btn-home" title="Apartment Flat Interior">
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Home</span>
+        </button>
+        <button class="master-nav-item" id="nav-btn-buy" title="Real Estate, Cars & Businesses">
+          <span class="nav-icon">🛍️</span>
+          <span class="nav-label">Buy</span>
+        </button>
+        <button class="master-nav-item" id="nav-btn-map" title="Aerial City World Map">
+          <span class="nav-icon">🗺️</span>
+          <span class="nav-label">Map</span>
+        </button>
+        <button class="master-nav-item" id="nav-btn-phone" title="Smartphone OS [Key P]">
+          <span class="nav-icon">📱</span>
+          <span class="nav-label">Phone</span>
+          <span class="nav-badge">8</span>
+        </button>
+      </div>
 
       <!-- Bottom Guidance & Quick Emote Bar -->
       <footer class="hud-footer">
         <div class="emote-bar">
-          <span class="emote-bar-title">Naija Moves:</span>
+          <span class="emote-bar-title">Moves:</span>
           <button class="emote-btn" id="emote-zanku" title="Shortcut: Key 1">
             <span>🕺</span>
             <span>Zanku [1]</span>
@@ -124,7 +174,7 @@ export class HUD {
 
         <div class="hud-hint">
           <span class="mouse-icon">🖱️</span>
-          <span>Click street to walk • Click buildings & NPCs to interact</span>
+          <span>Click street to walk • Click items/NPCs to interact • Press C for Wardrobe</span>
         </div>
       </footer>
 
@@ -253,6 +303,118 @@ export class HUD {
       this.player.playEmote('salute', 3.0);
     });
 
+    // Bottom Master Navigation Bar (Home, Buy, Map, Phone)
+    const navHomeBtn = document.getElementById('nav-btn-home');
+    const navBuyBtn = document.getElementById('nav-btn-buy');
+    const navMapBtn = document.getElementById('nav-btn-map');
+    const navPhoneBtn = document.getElementById('nav-btn-phone');
+
+    const updateNavActive = (activeId: string) => {
+      [navHomeBtn, navBuyBtn, navMapBtn, navPhoneBtn].forEach((btn) => btn?.classList.remove('active'));
+      if (activeId) document.getElementById(activeId)?.classList.add('active');
+    };
+
+    navHomeBtn?.addEventListener('click', () => {
+      this.currentNavMode = 'home';
+      updateNavActive('nav-btn-home');
+      const switcher = document.getElementById('map-city-switcher');
+      if (switcher) switcher.style.display = 'none';
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'none';
+      this.onNavigateMode?.('home');
+    });
+
+    navBuyBtn?.addEventListener('click', () => {
+      this.economyModal.toggle();
+    });
+
+    navMapBtn?.addEventListener('click', () => {
+      this.currentNavMode = 'map';
+      updateNavActive('nav-btn-map');
+      const switcher = document.getElementById('map-city-switcher');
+      if (switcher) switcher.style.display = 'flex';
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'none';
+      this.onNavigateMode?.('map');
+    });
+
+    navPhoneBtn?.addEventListener('click', () => {
+      this.phoneModal.toggle();
+    });
+
+    document.getElementById('btn-walk-street')?.addEventListener('click', () => {
+      this.currentNavMode = 'street';
+      updateNavActive('');
+      const switcher = document.getElementById('map-city-switcher');
+      if (switcher) switcher.style.display = 'none';
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'flex';
+      this.onNavigateMode?.('street');
+    });
+
+    document.getElementById('btn-open-interstate')?.addEventListener('click', () => {
+      this.interstateModal.toggle(this.world?.cityManager.currentCityId);
+    });
+
+    // City tabs inside aerial map view
+    document.querySelectorAll('.city-tab').forEach((tab) => {
+      tab.addEventListener('click', (e) => {
+        document.querySelectorAll('.city-tab').forEach((t) => t.classList.remove('active'));
+        const target = e.currentTarget as HTMLElement;
+        target.classList.add('active');
+        const city = target.getAttribute('data-city') as CityId;
+        if (city && this.world) {
+          this.world.cityManager.switchCity(city, this.player, (newObjs) => {
+            if (this.world) this.world.interactiveObjects = newObjs;
+          });
+        }
+      });
+    });
+
+    // Top left badges
+    document.getElementById('badge-super-eagles')?.addEventListener('click', () => {
+      this.player.playEmote('groove', 4.0);
+      alert('⚽ 🇳🇬 SUPER EAGLES NAIJA! Goal celebration! Super Eagles 2 - 0 Rivals! The stadium goes wild!');
+    });
+
+    document.getElementById('badge-afrobeats')?.addEventListener('click', () => {
+      this.player.playEmote('groove', 5.0);
+      alert('🎶 Now Playing: Asake - "Amapiano" & Burna Boy - "City Boys" 🎧 Mood boosted!');
+    });
+
+    document.getElementById('badge-gem-hunt')?.addEventListener('click', () => {
+      const reward = 3000;
+      this.backend.addCash(reward);
+      this.backend.addStreetCred(10);
+      alert(`💎 Daily Naira Gem Hunt completed! Found hidden Lagos Gem! +₦${reward.toLocaleString()} cash credited to your wallet!`);
+    });
+
+    // Radar pills navigation
+    document.querySelectorAll('.radar-pill').forEach((pill) => {
+      pill.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const dest = target.getAttribute('data-dest');
+        if (dest) {
+          this.onRadarNavigate?.(dest);
+        }
+      });
+    });
+
+    // Quick ATM topup button
+    document.getElementById('btn-quick-topup')?.addEventListener('click', () => {
+      this.atmModal.open();
+    });
+
+    // Sound toggle button
+    document.getElementById('hud-sound-toggle')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLElement;
+      if (btn.textContent === '🔊') {
+        btn.textContent = '🔈';
+      } else {
+        btn.textContent = '🔊';
+      }
+    });
+
     // Keyboard Hotkeys
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
@@ -379,6 +541,21 @@ export class HUD {
       bizBtn.style.display = 'none';
     } else if (obj.id === 'abuja-interstate-hub') {
       btnEl.textContent = '✈️ Book Flight / Luxury Coach to Lagos [M]';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-tv') {
+      btnEl.textContent = '📺 Watch Super Eagles AFCON Match (Live Broadcast)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-bed') {
+      btnEl.textContent = '🛏️ Sleep on Luxury Bed (100% Full Energy Recharge)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-drum') {
+      btnEl.textContent = '🪣 Fetch Chilled Water & Bath with Red Bowl (Hygiene +100%)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-sofa') {
+      btnEl.textContent = '🛋️ Relax on Living Room Sofa (Energy +30%)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-pet') {
+      btnEl.textContent = '🐕 Pet Bingo & Feed Biscuit (Mood Boost +40%)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'npc-hawker') {
       btnEl.textContent = '🥤 Buy Pure Water & Gala (₦200)';
@@ -699,6 +876,24 @@ export class HUD {
       this.hideInteractionCard();
       this.interstateModal.open('abuja');
       return;
+    } else if (id === 'flat-tv') {
+      this.backend.restoreEnergy(25);
+      this.backend.addStreetCred(10);
+      this.player?.playEmote('groove', 4.0);
+      alert('📺 GOOOOAL! Osimhen scores for Super Eagles! 🦅 The whole flat erupts in wild celebration! Energy +25, Mood: Electric!');
+    } else if (id === 'flat-bed') {
+      this.backend.restoreEnergy(100);
+      alert('🛏️ Sweet dreams! You slept peacefully under the ceiling fan. Energy restored to 100%!');
+    } else if (id === 'flat-drum') {
+      this.backend.restoreEnergy(40);
+      alert('🪣 SPLASH! Cold water bath from the iconic blue drum with red bowl! You feel super clean, fresh and sharp! Energy +40%!');
+    } else if (id === 'flat-sofa') {
+      this.backend.restoreEnergy(30);
+      alert('🛋️ Chilled out on the living room sofa enjoying cold malt drink. Energy +30%!');
+    } else if (id === 'flat-pet') {
+      this.backend.addStreetCred(5);
+      this.player?.playEmote('salute', 2.5);
+      alert('🐕 *Woof woof!* Bingo wags his tail excitedly and jumps into your arms! Mood is at 100%!');
     }
 
     this.hideInteractionCard();

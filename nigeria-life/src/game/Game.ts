@@ -112,6 +112,27 @@ export class Game {
       );
     };
 
+    // 9c. Camera Navigation Modes (Home Flat | Street Walk | Aerial World Map)
+    this.hud.onNavigateMode = (mode: 'street' | 'home' | 'map') => {
+      this.cameraManager.setMode(mode);
+      if (mode === 'home') {
+        this.player.mesh.position.set(0, 0, 184);
+      } else if (mode === 'street') {
+        if (this.player.mesh.position.z > 160) {
+          this.player.mesh.position.set(0, 0, 5);
+        }
+      }
+    };
+
+    // 9d. Street Distance Radar Fast Navigation
+    this.hud.onRadarNavigate = (destId: string) => {
+      if (destId === 'dest_cchub') this.player.mesh.position.set(-15, 0, -20);
+      else if (destId === 'dest_quilox') this.player.mesh.position.set(22, 0, 75);
+      else if (destId === 'dest_amala') this.player.mesh.position.set(-18, 0, 15);
+      else if (destId === 'dest_lekki') this.player.mesh.position.set(55, 0, 0);
+      else if (destId === 'dest_ikeja') this.player.mesh.position.set(0, 0, -25);
+    };
+
     // 10. Multiplayer & Street Chat
     this.network = new NetworkManager(this.scene, this.player);
     this.chatBox = new ChatBox(this.network);
