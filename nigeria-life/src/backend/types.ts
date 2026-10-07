@@ -74,10 +74,14 @@ export interface CareerProfile {
   bonusMultiplier: number;
 }
 
+export type OriginDestiny = 'nepo' | 'lapo' | 'tech_bro';
+
 export interface PlayerAccount {
   id: string;
   username: string;
   phoneNumber: string;
+  originDestiny?: OriginDestiny;
+  destinyTitle?: string;
   walletCash: number;   // Physical cash in pocket (Naira ₦)
   bank: BankAccount;
   stats: PlayerStats;
@@ -85,6 +89,11 @@ export interface PlayerAccount {
   businesses: BusinessEnterprise[];
   properties: RealEstateProperty[];
   career: CareerProfile;
+  activeLoan?: {
+    lender: string;
+    amount: number;
+    weeklyRepayment: number;
+  };
   createdAt: string;
 }
 

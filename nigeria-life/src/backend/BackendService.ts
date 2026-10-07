@@ -1,6 +1,7 @@
 import {
   type PlayerAccount,
   type Item,
+  type OriginDestiny,
   INITIAL_PLAYER_DATA,
   DEFAULT_BUSINESSES,
   DEFAULT_PROPERTIES,
@@ -450,5 +451,169 @@ export class BackendService {
 
     this.saveData();
     return { leveledUp, newTitle: this.data.career.title };
+  }
+
+  // === VIRAL ORIGIN DESTINY (Nepo vs. Lapo vs. Tech Bro) ===
+
+  public applyOriginDestiny(destiny: OriginDestiny): { title: string; message: string } {
+    this.data.originDestiny = destiny;
+
+    if (destiny === 'nepo') {
+      this.data.destinyTitle = 'Banana Island Billionaire Heir';
+      this.data.walletCash = 2500000;
+      this.data.bank.balance = 10000000;
+      this.data.stats.energy = 100;
+      this.data.stats.hunger = 100;
+      this.data.stats.streetCred = 35;
+      this.data.activeLoan = undefined;
+
+      this.addItem({
+        id: 'amex_black',
+        name: 'Centurion Black Amex Card',
+        category: 'key',
+        icon: '💳',
+        description: 'Unlimited limit titanium card accepted at Quilox and Eko Atlantic.',
+        price: 5000000,
+        usable: false,
+      });
+      this.addItem({
+        id: 'cartier_shades',
+        name: 'Cartier Gold Frame Sunglasses',
+        category: 'gadget',
+        icon: '🕶️',
+        description: 'Bespoke designer sunglasses for Ikoyi and Banana Island high life.',
+        price: 1200000,
+        usable: false,
+      });
+      this.addItem({
+        id: 'iphone_promax',
+        name: 'iPhone 16 Pro Max 1TB Gold',
+        category: 'gadget',
+        icon: '📱',
+        description: 'Top-tier smartphone with custom gold chassis and OPay VIP.',
+        price: 2400000,
+        usable: true,
+      });
+      this.addItem({
+        id: 'penthouse_pass',
+        name: 'Banana Island Penthouse Access Card',
+        category: 'key',
+        icon: '🔑',
+        description: 'Exclusive keycard for private waterfront infinity pool and elevator.',
+        price: 10000000,
+        usable: false,
+      });
+
+      this.data.bank.transactions.unshift({
+        id: `tx_nepo_${Date.now()}`,
+        type: 'credit',
+        amount: 10000000,
+        description: 'Family Trust Fund Quarterly Dividend',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+
+      this.saveData();
+      return {
+        title: '🌟 Nepo Spawn: Banana Island Heir',
+        message: 'Born with a platinum spoon! ₦2,500,000 cash, ₦10,000,000 in bank, Cartier shades & Penthouse card unlocked!',
+      };
+    } else if (destiny === 'lapo') {
+      this.data.destinyTitle = 'Mainland Grassroots Hustler';
+      this.data.walletCash = 2500;
+      this.data.bank.balance = 1000;
+      this.data.stats.energy = 90;
+      this.data.stats.hunger = 50;
+      this.data.stats.streetCred = 80;
+      this.data.activeLoan = {
+        lender: 'Lapo Microfinance Bank',
+        amount: 50000,
+        weeklyRepayment: 7500,
+      };
+
+      this.addItem({
+        id: 'lapo_loan_slip',
+        name: 'Lapo Microfinance Loan Agreement',
+        category: 'document',
+        icon: '📄',
+        description: '₦50,000 seed loan document. Weekly repayment: ₦7,500.',
+        price: 50000,
+        usable: false,
+      });
+      this.addItem({
+        id: 'danfo_pass',
+        name: 'Danfo Weekly Commuter Slip',
+        category: 'document',
+        icon: '🎫',
+        description: 'Yellow bus ticket across Oshodi, Ojota, and Broad Street.',
+        price: 1500,
+        usable: false,
+      });
+      this.addItem({
+        id: 'pure_water_pack',
+        name: 'Bag of Chilled Pure Water (20 Sachets)',
+        category: 'food',
+        icon: '💧',
+        description: 'Street-ready cold pure water bag for quenching heat or reselling.',
+        price: 400,
+        usable: true,
+        energyRestore: 25,
+      });
+
+      this.saveData();
+      return {
+        title: '⚡ Lapo Spawn: Mainland Street Hustler',
+        message: 'Grassroots grit! Starting with ₦2,500 cash, ₦50,000 Lapo microloan, and maximum +80 Street Cred! Time to hustle to the top!',
+      };
+    } else {
+      this.data.destinyTitle = 'Yaba Tech Bro & Startup Founder';
+      this.data.walletCash = 150000;
+      this.data.bank.balance = 750000;
+      this.data.stats.energy = 95;
+      this.data.stats.hunger = 80;
+      this.data.stats.streetCred = 50;
+      this.data.activeLoan = undefined;
+
+      this.addItem({
+        id: 'macbook_m3',
+        name: 'Apple MacBook Pro M3 Max (36GB)',
+        category: 'gadget',
+        icon: '💻',
+        description: 'Heavyweight dev machine for remote contract work and smart contracts.',
+        price: 3500000,
+        usable: false,
+      });
+      this.addItem({
+        id: 'otigba_solar_powerbank',
+        name: 'Otigba 30,000mAh Solar Power Bank',
+        category: 'tool',
+        icon: '🔋',
+        description: 'Never get shut down when NEPA strikes in Yaba or Ikeja.',
+        price: 25000,
+        usable: false,
+      });
+      this.addItem({
+        id: 'usd_card',
+        name: 'Geegpay Virtual USD Visa Card',
+        category: 'key',
+        icon: '💳',
+        description: 'Direct dollar card for AWS, GitHub, and Silicon Valley remittances.',
+        price: 15000,
+        usable: false,
+      });
+
+      this.data.bank.transactions.unshift({
+        id: `tx_tech_${Date.now()}`,
+        type: 'credit',
+        amount: 750000,
+        description: 'Remote San Francisco Seed Retainer',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+
+      this.saveData();
+      return {
+        title: '💻 Tech Bro Spawn: Yaba Startup Founder',
+        message: 'Funded! ₦150,000 pocket cash, ₦750,000 bank, M3 MacBook Pro & USD Visa Card ready for code deployment!',
+      };
+    }
   }
 }

@@ -519,6 +519,142 @@ canvas {
   border-color: #00d26a;
 }
 
+/* =========================================
+   VIRAL ORIGIN DESTINY SPAWN SYSTEM
+   ========================================= */
+.origin-destiny-section {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px;
+  border-radius: 16px;
+}
+
+.destiny-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.destiny-subtitle {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 2px 0 0 0;
+}
+
+.btn-spin-destiny {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #000;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.35);
+  transition: all 0.15s ease;
+}
+
+.btn-spin-destiny:hover {
+  transform: translateY(-2px) scale(1.02);
+  filter: brightness(1.15);
+}
+
+.destiny-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.destiny-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.destiny-card:hover {
+  border-color: rgba(0, 210, 106, 0.4);
+  transform: translateY(-2px);
+  background: rgba(30, 41, 59, 0.95);
+}
+
+.destiny-card.active {
+  border-color: #00d26a;
+  background: rgba(0, 210, 106, 0.12);
+  box-shadow: 0 0 20px rgba(0, 210, 106, 0.25);
+}
+
+.destiny-card-top {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.destiny-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.nepo-badge {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.lapo-badge {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.tech-badge {
+  background: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.destiny-capital {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.destiny-card h4 {
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 2px 0 0 0;
+}
+
+.destiny-card p {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.destiny-perks {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #cbd5e1;
+}
+
 /* Skin Tone Swatches */
 .skin-palette {
   display: flex;

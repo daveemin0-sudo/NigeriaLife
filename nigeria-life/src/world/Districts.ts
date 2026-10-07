@@ -21,10 +21,13 @@ export class Districts {
     // 2. Build Computer Village & Otigba Street (North)
     this.buildComputerVillage();
 
-    // 3. Build Lekki Phase 1 & Lekki-Ikoyi Link Bridge (East)
+    // 3. Build Amala Shitta & Abula Bukateria (Mainland)
+    this.buildAmalaShitta();
+
+    // 4. Build Lekki Phase 1 & Lekki-Ikoyi Link Bridge (East)
     this.buildLekkiPhaseOne();
 
-    // 4. District Connecting Roads & Billboards
+    // 5. District Connecting Roads & Billboards
     this.buildDistrictRoadsAndBillboards();
   }
 
@@ -145,10 +148,10 @@ export class Districts {
 
     this.interactiveList.push({
       mesh: loungeGroup,
-      id: 'vi-lounge',
-      name: 'Eko Beachside Lounge & Nightclub',
-      category: 'Nightlife & Leisure',
-      description: 'Exclusive beachside VIP terrace. Chilled champagne, Afrobeats DJ sets, and Atlantic ocean breeze.',
+      id: 'quilox-club',
+      name: 'Quilox VIP Nightclub & Waterfront Lounge',
+      category: 'Ultra-Luxury Nightlife',
+      description: 'World-famous Victoria Island VIP club. Dom Pérignon champagne with sparklers, celebrity tables, and Afrobeats anthems.',
       interactionPoint: new THREE.Vector3(14, 0, 103),
     });
 
@@ -235,7 +238,88 @@ export class Districts {
       interactionPoint: new THREE.Vector3(12, 0, -95),
     });
 
+    this.interactiveList.push({
+      mesh: gen,
+      id: 'nepa-generator',
+      name: 'Tiger "I Pass My Neighbor" Generator & Fuel Keg',
+      category: 'Essential Power & Backup',
+      description: 'When NEPA strikes in Computer Village, pull the starter cord and pour ₦1,200 fuel to keep the hustle glowing!',
+      interactionPoint: new THREE.Vector3(12.5, 0, -105),
+    });
+
     this.group.add(cvGroup);
+  }
+
+  // =========================================================================
+  // 3. AMALA SHITTA & ABUJA BUGA BUKATERIA (Mainland: Z -85)
+  // =========================================================================
+  private buildAmalaShitta(): void {
+    const amalaGroup = new THREE.Group();
+    amalaGroup.position.set(-24, 0, -85);
+
+    // Rustic ochre yellow buka building
+    const bukaGeo = new THREE.BoxGeometry(14, 5.5, 12);
+    const bukaMat = new THREE.MeshStandardMaterial({ color: 0xca8a04, roughness: 0.8 });
+    const buka = new THREE.Mesh(bukaGeo, bukaMat);
+    buka.position.y = 2.75;
+    buka.castShadow = true;
+    amalaGroup.add(buka);
+
+    // Green corrugated roof
+    const roofGeo = new THREE.ConeGeometry(11, 2.8, 4);
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.5 });
+    const roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.position.y = 6.8;
+    roof.rotation.y = Math.PI / 4;
+    amalaGroup.add(roof);
+
+    // Amala Shitta signboard
+    const signGeo = new THREE.BoxGeometry(9.5, 1.4, 0.3);
+    const signMat = new THREE.MeshBasicMaterial({ color: 0x166534 });
+    const sign = new THREE.Mesh(signGeo, signMat);
+    sign.position.set(0, 4.4, 6.15);
+    amalaGroup.add(sign);
+
+    // Steaming black earthenware pot for hot Amala & Abula
+    const potGeo = new THREE.CylinderGeometry(0.8, 0.6, 1.2, 16);
+    const potMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.9 });
+    const pot = new THREE.Mesh(potGeo, potMat);
+    pot.position.set(4, 0.6, 7);
+    amalaGroup.add(pot);
+
+    // Steam particles rising from the hot buka pot
+    for (let p = 0; p < 4; p++) {
+      const steamGeo = new THREE.DodecahedronGeometry(0.15 + p * 0.06);
+      const steamMat = new THREE.MeshBasicMaterial({
+        color: 0xf1f5f9,
+        transparent: true,
+        opacity: 0.5 - p * 0.1,
+      });
+      const steam = new THREE.Mesh(steamGeo, steamMat);
+      steam.position.set(4, 1.3 + p * 0.3, 7);
+      this.smokeParticles.push(steam);
+      amalaGroup.add(steam);
+    }
+
+    // Traditional wooden dining benches
+    for (let bz of [-2, 2]) {
+      const benchGeo = new THREE.BoxGeometry(4.5, 0.45, 0.8);
+      const benchMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
+      const bench = new THREE.Mesh(benchGeo, benchMat);
+      bench.position.set(-2, 0.25, 7 + bz);
+      amalaGroup.add(bench);
+    }
+
+    this.group.add(amalaGroup);
+
+    this.interactiveList.push({
+      mesh: amalaGroup,
+      id: 'amala-shitta',
+      name: 'Amala Shitta & Abula Joint',
+      category: 'Authentic Nigerian Buka',
+      description: 'Legendary steaming hot Amala dudu, rich Gbegiri, fresh Ewedu, tender goat meat, and assorted beef (Orisirisi).',
+      interactionPoint: new THREE.Vector3(-16, 0, -85),
+    });
   }
 
   // =========================================================================

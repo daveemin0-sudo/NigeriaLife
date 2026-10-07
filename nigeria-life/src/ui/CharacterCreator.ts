@@ -6,14 +6,18 @@ import {
   type HeadwearType,
 } from '../player/CharacterCustomization';
 import { Player } from '../player/Player';
+import { BackendService } from '../backend/BackendService';
+import type { OriginDestiny } from '../backend/types';
 
 export class CharacterCreatorModal {
   private container: HTMLDivElement;
   private player: Player;
+  private backend: BackendService;
   private isOpen: boolean = false;
 
   constructor(player: Player) {
     this.player = player;
+    this.backend = BackendService.getInstance();
 
     this.container = document.createElement('div');
     this.container.id = 'character-creator-modal';
@@ -43,6 +47,8 @@ export class CharacterCreatorModal {
 
   private render(): void {
     const cfg = this.player.config;
+    const accountData = this.backend.getData();
+    const currentDestiny = accountData.originDestiny || 'lapo';
 
     this.container.innerHTML = `
       <div class="modal-backdrop"></div>
@@ -51,12 +57,67 @@ export class CharacterCreatorModal {
           <div class="dialog-title-wrap">
             <span class="dialog-badge">NIGERIA LIFE • V1</span>
             <h2>👔 Wardrobe & Character Studio</h2>
-            <p>Customize your Lagos look, attire, traditional caps, and jewelry.</p>
+            <p>Customize your Lagos look, choose your origin destiny, attire, and swagger.</p>
           </div>
           <button class="dialog-close-btn" id="creator-close-btn">&times;</button>
         </header>
 
         <div class="dialog-body">
+          <!-- Section 0: The Viral Origin Destiny (Nepo vs Lapo vs Tech Bro) -->
+          <div class="creator-section origin-destiny-section">
+            <div class="destiny-section-header">
+              <div>
+                <label class="section-label">🌟 Origin Destiny Spawn (Choose or Spin Your Fate)</label>
+                <p class="destiny-subtitle">Sets your starting capital, loans, exclusive items, and social class.</p>
+              </div>
+              <button type="button" class="btn-spin-destiny" id="btn-spin-destiny">🎲 Spin Random Fate</button>
+            </div>
+
+            <div class="destiny-grid">
+              <div class="destiny-card ${currentDestiny === 'nepo' ? 'active' : ''}" data-destiny="nepo">
+                <div class="destiny-card-top">
+                  <span class="destiny-badge nepo-badge">👑 BANANA ISLAND HEIR</span>
+                  <span class="destiny-capital">₦2.5M Cash • ₦10M Bank</span>
+                </div>
+                <h4>Nepo Spawn</h4>
+                <p>Born into billionaire connections. Starts with Centurion Black card, Cartier shades, and Penthouse pass.</p>
+                <div class="destiny-perks">
+                  <span>✨ ₦12.5M Total Net Worth</span>
+                  <span>✨ 100% Max Energy & Food</span>
+                  <span>✨ Luxury VIP Club Access</span>
+                </div>
+              </div>
+
+              <div class="destiny-card ${currentDestiny === 'lapo' ? 'active' : ''}" data-destiny="lapo">
+                <div class="destiny-card-top">
+                  <span class="destiny-badge lapo-badge">⚡ GRASSROOTS HUSTLER</span>
+                  <span class="destiny-capital">₦2,500 Cash • ₦50K Loan</span>
+                </div>
+                <h4>Lapo Spawn</h4>
+                <p>Starting from the trenches of Oshodi & Mushin with a Lapo microloan. High hunger, maximum street respect.</p>
+                <div class="destiny-perks">
+                  <span>🔥 +80 Maximum Street Cred</span>
+                  <span>🔥 Weekly Loan Repayments</span>
+                  <span>🔥 Danfo Commuter Pass</span>
+                </div>
+              </div>
+
+              <div class="destiny-card ${currentDestiny === 'tech_bro' ? 'active' : ''}" data-destiny="tech_bro">
+                <div class="destiny-card-top">
+                  <span class="destiny-badge tech-badge">💻 YABA STARTUP FOUNDER</span>
+                  <span class="destiny-capital">₦150K Cash • ₦750K Bank</span>
+                </div>
+                <h4>Tech Bro Spawn</h4>
+                <p>Funded software founder earning remote foreign contracts. Armed with M3 MacBook, solar power bank & USD card.</p>
+                <div class="destiny-perks">
+                  <span>🚀 M3 Max MacBook Pro</span>
+                  <span>🚀 Virtual USD Visa Card</span>
+                  <span>🚀 Solar Fast Power Bank</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Section 1: Character Name -->
           <div class="creator-section">
             <label class="section-label">Character Name</label>
@@ -144,6 +205,52 @@ export class CharacterCreatorModal {
 
     const saveBtn = document.getElementById('creator-save-btn');
     if (saveBtn) saveBtn.onclick = () => this.close();
+
+    // Origin Destiny Cards
+    const destinyCards = this.container.querySelectorAll('.destiny-card');
+    destinyCards.forEach((card) => {
+      (card as HTMLElement).onclick = () => {
+        const dest = (card as HTMLElement).getAttribute('data-destiny') as OriginDestiny;
+        if (dest) {
+          const res = this.backend.applyOriginDestiny(dest);
+          destinyCards.forEach((c) => c.classList.remove('active'));
+          card.classList.add('active');
+
+          if (dest === 'nepo') {
+            this.player.config.hasShades = true;
+            this.player.config.hasGoldChain = true;
+            this.player.applyCustomization(this.player.config);
+          }
+          alert(`${res.title}\n\n${res.message}`);
+        }
+      };
+    });
+
+    // Spin Destiny Button
+    const spinBtn = document.getElementById('btn-spin-destiny');
+    if (spinBtn) {
+      spinBtn.onclick = () => {
+        const pool: OriginDestiny[] = ['nepo', 'lapo', 'tech_bro'];
+        const chosen = pool[Math.floor(Math.random() * pool.length)];
+        const res = this.backend.applyOriginDestiny(chosen);
+
+        destinyCards.forEach((c) => {
+          if (c.getAttribute('data-destiny') === chosen) {
+            c.classList.add('active');
+          } else {
+            c.classList.remove('active');
+          }
+        });
+
+        if (chosen === 'nepo') {
+          this.player.config.hasShades = true;
+          this.player.config.hasGoldChain = true;
+          this.player.applyCustomization(this.player.config);
+        }
+
+        alert(`🎲 THE WHEEL OF DESTINY HAS SPOKEN!\n\n${res.title}\n\n${res.message}`);
+      };
+    }
 
     // Name input
     const nameInput = document.getElementById('cfg-name-input') as HTMLInputElement;

@@ -344,8 +344,14 @@ export class HUD {
     } else if (obj.id === 'vi-tower') {
       btnEl.textContent = '🏢 Enter Corporate Penthouse Reception';
       bizBtn.style.display = 'none';
-    } else if (obj.id === 'vi-lounge') {
-      btnEl.textContent = '🍹 Order Chilled Chapman & VIP Table (₦3,500)';
+    } else if (obj.id === 'vi-lounge' || obj.id === 'quilox-club') {
+      btnEl.textContent = '🍾 Order Dom Pérignon & VIP Table with Sparklers (₦25,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'amala-shitta') {
+      btnEl.textContent = '🍲 Order Hot Amala Dudu + Abula & Goat Meat (₦2,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'nepa-generator') {
+      btnEl.textContent = '⚡ Pull Starter Cord & Pour ₦1,200 Fuel ("UP NEPA!")';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'cv-plaza') {
       btnEl.textContent = '🔌 Buy 20,000mAh Power Bank & Cable (₦5,000)';
@@ -514,24 +520,53 @@ export class HUD {
       }
     } else if (id === 'vi-tower') {
       alert('🏢 Eko Atlantic Corporate Concierge: "Welcome to the Financial District! Top-tier investments, private equity desks, and crypto fintechs are based here."');
-    } else if (id === 'vi-lounge') {
-      const success = this.backend.spendCash(3500, 'Eko VIP Chapman & Lounge Table');
+    } else if (id === 'vi-lounge' || id === 'quilox-club') {
+      const success = this.backend.spendCash(25000, 'Quilox Dom Pérignon & VIP Sparklers Table');
       if (success) {
-        this.backend.restoreEnergy(80);
+        this.backend.restoreEnergy(100);
+        this.backend.addStreetCred(35);
+        this.backend.addItem({
+          id: `dom_perignon_${Date.now()}`,
+          name: 'Dom Pérignon Vintage Champagne',
+          category: 'food',
+          icon: '🍾',
+          description: 'Vintage French champagne served with blazing sparklers on Victoria Island.',
+          price: 65000,
+          usable: true,
+          energyRestore: 50,
+        });
+        this.player?.playEmote('groove', 5.0);
+        alert('🍾 QUILOX VIP TABLE IS LIT! Bottle sparklers flaming, DJ spinning Wizkid & Burna Boy, Dom Pérignon poured! Energy 100%, Street Cred +35! You are officially balling!');
+      } else {
+        alert('❌ Need ₦25,000 cash for Quilox VIP Table & champagne! Go to the ATM to withdraw funds.');
+      }
+    } else if (id === 'amala-shitta') {
+      const success = this.backend.spendCash(2000, 'Hot Amala Dudu + Abula & Goat Meat');
+      if (success) {
+        this.backend.restoreEnergy(100);
         this.backend.addStreetCred(15);
         this.backend.addItem({
-          id: `chapman_${Date.now()}`,
-          name: 'Eko Chapman Cocktail',
+          id: `amala_takeaway_${Date.now()}`,
+          name: 'Amala Shitta Takeaway Wrap',
           category: 'food',
-          icon: '🍹',
-          description: 'Chilled signature Lagos cocktail with cucumber and angostura bitters.',
-          price: 3500,
+          icon: '🍲',
+          description: 'Steaming hot yam flour amala with ewedu, gbegiri, and spicy goat meat.',
+          price: 2000,
           usable: true,
-          energyRestore: 40,
+          energyRestore: 60,
         });
-        alert('🍹 VIP Lounge Table booked! Chilled Chapman served, energy restored to near max, and Street Cred boosted by +15!');
+        alert('🍲 OYA CHOP AMALA! Steaming hot Amala Dudu served with yellow Gbegiri, green Ewedu & tender Goat Meat! 100% Energy restored, Street Cred +15!');
       } else {
-        alert('❌ Need ₦3,500 cash for VIP table & Chapman!');
+        alert('❌ Need ₦2,000 cash for hot Amala & Goat Meat!');
+      }
+    } else if (id === 'nepa-generator') {
+      const success = this.backend.spendCash(1200, '5L Mobil Petrol for Tiger Generator');
+      if (success) {
+        this.backend.restoreEnergy(20);
+        this.backend.addStreetCred(20);
+        alert('⚡ *KPA-KPA-KPA-VROOOOM!* Tiger generator cranked up! Blue smoke puffs and the entire market roars: "UP NEPA! OYA LIGHT DON ENTER!" Street Cred +20!');
+      } else {
+        alert('❌ Need ₦1,200 cash for 5 litres of generator petrol!');
       }
     } else if (id === 'cv-plaza') {
       const success = this.backend.spendCash(5000, 'Otigba 20,000mAh Power Bank');
