@@ -39,7 +39,7 @@ export class Game {
     document.body.appendChild(this.renderer.domElement);
 
     // 4. World & Environment
-    this.world = new World(this.scene);
+    this.world = new World(this.scene, this.renderer);
 
     // 5. Player Character
     this.player = new Player();

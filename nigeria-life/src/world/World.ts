@@ -7,6 +7,7 @@ import { Districts } from './Districts';
 import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
 import { ApartmentInterior } from './ApartmentInterior';
+import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -30,14 +31,19 @@ export class World {
   public apartment: ApartmentInterior;
   public weather: WeatherSystem;
   public cityManager: CityManager;
+  public skyEnvironment: SkyEnvironmentManager;
 
-  private sunLight!: THREE.DirectionalLight;
-  private hemiLight!: THREE.HemisphereLight;
+  public sunLight!: THREE.DirectionalLight;
+  public hemiLight!: THREE.HemisphereLight;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     this.scene = scene;
 
-    this.createEnvironment();
+    // 0. Procedural Sky Shader, PMREM Reflections, Sun & Fog
+    this.skyEnvironment = new SkyEnvironmentManager(this.scene, renderer);
+    this.sunLight = this.skyEnvironment.sunLight;
+    this.hemiLight = this.skyEnvironment.hemiLight;
+
     this.createGround();
 
     // 1. Weather & Atmosphere System
@@ -93,31 +99,6 @@ export class World {
     ]);
   }
 
-  private createEnvironment(): void {
-    // Lagos tropical sky color with warm daylight atmospheric fog
-    this.scene.background = new THREE.Color(0x6eb7f2);
-    this.scene.fog = new THREE.FogExp2(0xa9d6f8, 0.012);
-
-    // Tropical Skylight
-    this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 1.3);
-    this.scene.add(this.hemiLight);
-
-    // Direct Lagos Sun
-    this.sunLight = new THREE.DirectionalLight(0xfff5db, 2.2);
-    this.sunLight.position.set(35, 60, 30);
-    this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 2048;
-    this.sunLight.shadow.mapSize.height = 2048;
-    this.sunLight.shadow.camera.near = 0.5;
-    this.sunLight.shadow.camera.far = 150;
-    const d = 50;
-    this.sunLight.shadow.camera.left = -d;
-    this.sunLight.shadow.camera.right = d;
-    this.sunLight.shadow.camera.top = d;
-    this.sunLight.shadow.camera.bottom = -d;
-    this.scene.add(this.sunLight);
-  }
-
   private createGround(): void {
     // Large terrain base covering broad st and all expanded districts
     const groundGeo = new THREE.PlaneGeometry(320, 320);
@@ -167,6 +148,9 @@ export class World {
   }
 
   public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3): void {
+    // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day
+    this.skyEnvironment.update(delta, playerPos);
+
     if (this.cityManager.currentCityId === 'abuja') {
       this.cityManager.update(delta);
       this.weather.update(delta, playerPos);

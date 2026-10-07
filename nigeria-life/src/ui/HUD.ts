@@ -76,7 +76,7 @@ export class HUD {
 
         <!-- Center Floating Pill Bar -->
         <div class="hud-center-pill-bar">
-          <div class="pill-item time-pill">
+          <div class="pill-item time-pill" id="hud-time-pill" title="Click to cycle Time of Day (Midday / Sunset / Night / Morning)" style="cursor: pointer;">
             <span id="hud-weather-icon">☀️</span>
             <span id="hud-clock-val">Wed 7 • 1:18 PM</span>
           </div>
@@ -413,6 +413,11 @@ export class HUD {
       } else {
         btn.textContent = '🔊';
       }
+    });
+
+    // Time-of-day click cycle (Midday -> Golden Hour -> Night -> Morning)
+    document.getElementById('hud-time-pill')?.addEventListener('click', () => {
+      this.world?.skyEnvironment.cycleTimeOfDay();
     });
 
     // Keyboard Hotkeys
