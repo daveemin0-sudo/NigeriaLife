@@ -101,6 +101,17 @@ export class TravelModal {
     document.body.appendChild(this.container);
 
     this.backend.subscribe(this.render.bind(this));
+    this.setupGlobalShortcuts();
+  }
+
+  private setupGlobalShortcuts(): void {
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 't' || e.key === 'T') {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        this.toggle();
+      }
+    });
   }
 
   public open(): void {
@@ -125,7 +136,8 @@ export class TravelModal {
     if (!this.isOpen) return;
 
     this.container.innerHTML = `
-      <div class="modal-dialog travel-dialog">
+      <div class="modal-backdrop"></div>
+      <div class="travel-dialog">
         <header class="dialog-header">
           <div class="dialog-title-wrap">
             <span class="dialog-badge">LAGOS METROPOLITAN TRANSIT AUTHORITY (LAMATA)</span>
@@ -190,7 +202,11 @@ export class TravelModal {
   }
 
   private setupEvents(): void {
-    document.getElementById('travel-close-btn')?.addEventListener('click', () => this.close());
+    const closeBtn = document.getElementById('travel-close-btn');
+    if (closeBtn) closeBtn.onclick = () => this.close();
+
+    const backdrop = this.container.querySelector('.modal-backdrop');
+    if (backdrop) (backdrop as HTMLElement).onclick = () => this.close();
 
     this.container.querySelectorAll('[data-dest-id]').forEach((btn) => {
       btn.addEventListener('click', () => {
