@@ -6,6 +6,7 @@ import { InputManager } from './Input';
 import { HUD } from '../ui/HUD';
 import { NetworkManager } from '../multiplayer/NetworkManager';
 import { ChatBox } from '../ui/ChatBox';
+import { PostProcessingManager } from '../graphics/PostProcessingManager';
 
 export class Game {
   public scene: THREE.Scene;
@@ -17,6 +18,7 @@ export class Game {
   public hud: HUD;
   public network: NetworkManager;
   public chatBox: ChatBox;
+  public postProcessing: PostProcessingManager;
 
   private clock: THREE.Clock;
 
@@ -37,6 +39,13 @@ export class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(this.renderer.domElement);
+
+    // 3b. Post-Processing Pipeline (Phase 6: Bloom, Lagos Atmosphere Grade, OutputPass)
+    this.postProcessing = new PostProcessingManager(
+      this.scene,
+      this.cameraManager.camera,
+      this.renderer
+    );
 
     // 4. World & Environment
     this.world = new World(this.scene, this.renderer);
@@ -172,6 +181,7 @@ export class Game {
   private onWindowResize(): void {
     this.cameraManager.handleResize();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.postProcessing.setSize(window.innerWidth, window.innerHeight);
   }
 
   private loop = (): void => {
@@ -203,7 +213,7 @@ export class Game {
     // Update Input cursor animations
     this.input.update(delta);
 
-    // Render Scene
-    this.renderer.render(this.scene, this.cameraManager.camera);
+    // Render Scene through Post-Processing Pipeline
+    this.postProcessing.render(this.scene, this.cameraManager.camera);
   };
 }
