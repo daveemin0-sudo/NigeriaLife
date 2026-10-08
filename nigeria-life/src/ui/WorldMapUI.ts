@@ -3,6 +3,7 @@ import { WorldDataManager } from '../world/data/WorldDataManager';
 import { BackendService } from '../backend/BackendService';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import type { DestinationDefinition, TransportOption } from '../destinations/DestinationTypes';
+import { showGameToast } from './GameToast';
 
 export class WorldMapUI {
   private container: HTMLDivElement;
@@ -515,7 +516,7 @@ export class WorldMapUI {
 
       document.getElementById('btn-card-prop-buy')?.addEventListener('click', () => {
         const res = BackendService.getInstance().buyProperty(p.id);
-        alert(res.message);
+        showGameToast(res.message, res.success ? 'success' : 'error');
         if (res.success) {
           const updated = WorldDataManager.getInstance().getPropertyById(p.id);
           if (updated) this.showPropertyDetails(updated);
@@ -525,7 +526,7 @@ export class WorldMapUI {
 
       document.getElementById('btn-card-prop-rent')?.addEventListener('click', () => {
         const res = BackendService.getInstance().rentProperty(p.id);
-        alert(res.message);
+        showGameToast(res.message, res.success ? 'success' : 'error');
         if (res.success) {
           const updated = WorldDataManager.getInstance().getPropertyById(p.id);
           if (updated) this.showPropertyDetails(updated);

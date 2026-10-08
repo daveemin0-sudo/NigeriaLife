@@ -1,6 +1,7 @@
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import type { World } from '../world/World';
+import { showGameToast } from './GameToast';
 
 export class EconomyModal {
   private container: HTMLDivElement;
@@ -354,7 +355,7 @@ export class EconomyModal {
     // Claim all profits
     document.getElementById('btn-econ-claim-all')?.addEventListener('click', () => {
       const res = this.backend.collectBusinessRevenue();
-      alert(res.message);
+      showGameToast(res.message, res.totalCollected > 0 ? 'success' : 'info');
       this.render(this.backend.getData());
     });
 
@@ -363,7 +364,7 @@ export class EconomyModal {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-claim-biz')!;
         const res = this.backend.collectBusinessRevenue(id);
-        alert(res.message);
+        showGameToast(res.message, res.totalCollected > 0 ? 'success' : 'info');
         this.render(this.backend.getData());
       });
     });
@@ -373,7 +374,7 @@ export class EconomyModal {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-buy-biz')!;
         const res = this.backend.buyBusiness(id);
-        alert(res.message);
+        showGameToast(res.message, res.success ? 'success' : 'error');
         this.render(this.backend.getData());
       });
     });
@@ -384,7 +385,7 @@ export class EconomyModal {
         const bizId = (btn as HTMLElement).getAttribute('data-upg-biz')!;
         const upgId = (btn as HTMLElement).getAttribute('data-upg-id')!;
         const res = this.backend.upgradeBusiness(bizId, upgId);
-        alert(res.message);
+        showGameToast(res.message, res.success ? 'success' : 'error');
         this.render(this.backend.getData());
       });
     });
@@ -394,7 +395,7 @@ export class EconomyModal {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-rent-prop')!;
         const res = this.backend.rentProperty(id);
-        alert(res.message);
+        showGameToast(res.message, res.success ? 'success' : 'error');
         this.render(this.backend.getData());
       });
     });
@@ -404,7 +405,7 @@ export class EconomyModal {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-buy-prop')!;
         const res = this.backend.buyProperty(id);
-        alert(res.message);
+        showGameToast(res.message, res.success ? 'success' : 'error');
         this.render(this.backend.getData());
       });
     });
@@ -414,7 +415,7 @@ export class EconomyModal {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-rest-prop')!;
         const res = this.backend.restAtProperty(id);
-        alert(res.message);
+        showGameToast(res.message, res.success ? 'success' : 'info');
         this.render(this.backend.getData());
       });
     });
@@ -423,7 +424,7 @@ export class EconomyModal {
     document.getElementById('btn-toggle-compound-gate')?.addEventListener('click', () => {
       if (this.world) {
         const isOpen = this.world.buildings.toggleCompoundGate();
-        alert(isOpen ? '🚪 Compound gate opened! You can walk into the estate courtyard.' : '🚪 Compound gate secured and closed.');
+        showGameToast(isOpen ? '🚪 Compound gate opened! You can walk into the estate courtyard.' : '🚪 Compound gate secured and closed.', 'info');
       }
     });
   }

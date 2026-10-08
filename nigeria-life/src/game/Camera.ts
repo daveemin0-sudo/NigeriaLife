@@ -232,6 +232,25 @@ export class GameCamera {
       return;
     }
 
+    // Vehicle driving chase camera
+    if (player.isDriving && player.currentVehicle) {
+      const vehPos = player.currentVehicle.mesh.position;
+      const vehRot = player.currentVehicle.mesh.rotation.y;
+      const chaseDistance = 11.5;
+      const chaseHeight = 4.5;
+      const behindX = vehPos.x - Math.sin(vehRot) * chaseDistance;
+      const behindZ = vehPos.z - Math.cos(vehRot) * chaseDistance;
+      const targetCameraPos = new THREE.Vector3(behindX, vehPos.y + chaseHeight, behindZ);
+
+      const vehLerp = Math.min(delta * 8.0, 1);
+      this.camera.position.lerp(targetCameraPos, vehLerp);
+
+      const targetLookAt = new THREE.Vector3(vehPos.x, vehPos.y + 1.5, vehPos.z);
+      this.currentLookAt.lerp(targetLookAt, vehLerp);
+      this.camera.lookAt(this.currentLookAt);
+      return;
+    }
+
     // Default 'street' mode: rotatable framing centered on player
     const offset = this.computeOffset();
     const targetCameraPos = new THREE.Vector3()

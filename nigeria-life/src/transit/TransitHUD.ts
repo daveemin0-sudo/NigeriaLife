@@ -1,4 +1,5 @@
 import type { FlightDetails, FlightCameraView, FlightPhase, RideDetails, RideCameraView } from './TransitTypes';
+import { showGameToast } from '../ui/GameToast';
 
 export class TransitHUD {
   private container: HTMLDivElement;
@@ -140,11 +141,11 @@ export class TransitHUD {
 
     // In-flight snacks
     document.getElementById('btn-eat-chops')?.addEventListener('click', () => {
-      alert('🥟 You enjoyed hot puff-puff and samosa small chops! Energy +20');
+      showGameToast('🥟 You enjoyed hot puff-puff and samosa small chops! Energy +20', 'success');
     });
 
     document.getElementById('btn-drink-zobo')?.addEventListener('click', () => {
-      alert('🍷 Chilled Zobo with ginger and pineapple! Happiness +15');
+      showGameToast('🍷 Chilled Zobo with ginger and pineapple! Happiness +15', 'success');
     });
 
     document.getElementById('btn-ride-back')?.addEventListener('click', () => {

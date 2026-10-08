@@ -8,6 +8,7 @@ import {
 import { Player } from '../player/Player';
 import { BackendService } from '../backend/BackendService';
 import type { OriginDestiny } from '../backend/types';
+import { showGameToast } from './GameToast';
 
 export class CharacterCreatorModal {
   private container: HTMLDivElement;
@@ -221,7 +222,7 @@ export class CharacterCreatorModal {
             this.player.config.hasGoldChain = true;
             this.player.applyCustomization(this.player.config);
           }
-          alert(`${res.title}\n\n${res.message}`);
+          showGameToast(`🌟 ${res.title}: ${res.message}`, 'success', 4000);
         }
       };
     });
@@ -248,7 +249,7 @@ export class CharacterCreatorModal {
           this.player.applyCustomization(this.player.config);
         }
 
-        alert(`🎲 THE WHEEL OF DESTINY HAS SPOKEN!\n\n${res.title}\n\n${res.message}`);
+        showGameToast(`🎲 ${res.title}: ${res.message}`, 'success', 4500);
       };
     }
 

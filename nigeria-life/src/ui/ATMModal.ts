@@ -1,5 +1,6 @@
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
+import { showGameToast } from './GameToast';
 
 export class ATMModal {
   private container: HTMLDivElement;
@@ -123,9 +124,9 @@ export class ATMModal {
         const amount = Number((btn as HTMLElement).getAttribute('data-withdraw'));
         const success = this.backend.withdrawFromATM(amount);
         if (success) {
-          alert(`💸 Dispensing ₦${amount.toLocaleString()} cash from ATM! Check your pocket wallet.`);
+          showGameToast(`💸 Dispensing ₦${amount.toLocaleString()} cash from ATM! Check your wallet.`, 'success');
         } else {
-          alert('❌ Insufficient funds in bank account!');
+          showGameToast('❌ Insufficient funds in bank account!', 'error');
         }
       };
     });
@@ -137,9 +138,9 @@ export class ATMModal {
         const amount = Number((btn as HTMLElement).getAttribute('data-deposit'));
         const success = this.backend.depositToBank(amount);
         if (success) {
-          alert(`✅ Deposited ₦${amount.toLocaleString()} cash into your bank account!`);
+          showGameToast(`✅ Deposited ₦${amount.toLocaleString()} cash into your bank account!`, 'success');
         } else {
-          alert('❌ Not enough cash in your pocket wallet!');
+          showGameToast('❌ Not enough cash in your pocket wallet!', 'error');
         }
       };
     });

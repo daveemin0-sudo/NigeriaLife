@@ -498,7 +498,12 @@ export class HUD {
           `Transport (${transport.label}) to ${dest.name}`
         );
         if (!success) {
-          alert(`❌ Insufficient cash (₦${transport.fare.toLocaleString()}) for ${transport.label}! You can walk on foot for free.`);
+          this.showDialogueModal({
+            speakerName: transport.label,
+            speakerRole: 'Transit Booking Terminal',
+            speakerAvatar: '⚠️',
+            dialogueText: `Insufficient cash (₦${transport.fare.toLocaleString()}) for ${transport.label}! You can walk on foot for free.`,
+          });
           return;
         }
       }
@@ -609,19 +614,40 @@ export class HUD {
     // Top left badges
     document.getElementById('badge-super-eagles')?.addEventListener('click', () => {
       this.player.playEmote('groove', 4.0);
-      alert('⚽ 🇳🇬 SUPER EAGLES NAIJA! Goal celebration! Super Eagles 2 - 0 Rivals! The stadium goes wild!');
+      this.showDialogueModal({
+        speakerName: 'Super Eagles Supporters Club',
+        speakerRole: 'National Stadium Concourse',
+        speakerAvatar: '⚽',
+        soundType: 'cheer',
+        dialogueText: 'SUPER EAGLES NAIJA! Goal celebration! Super Eagles 2 - 0 Rivals! The entire stadium and street erupts in green-white-green pride!',
+        rewards: { streetCred: 15 },
+      });
     });
 
     document.getElementById('badge-afrobeats')?.addEventListener('click', () => {
       this.player.playEmote('groove', 5.0);
-      alert('🎶 Now Playing: Asake - "Amapiano" & Burna Boy - "City Boys" 🎧 Mood boosted!');
+      this.showDialogueModal({
+        speakerName: 'Lagos Sound City',
+        speakerRole: 'Afrobeats FM 99.9',
+        speakerAvatar: '🎶',
+        soundType: 'cheer',
+        dialogueText: 'Now Blasting: Asake - "Amapiano" & Burna Boy - "City Boys" 🎧 Lagos energy turned to maximum! Mood boosted!',
+        rewards: { energy: 20 },
+      });
     });
 
     document.getElementById('badge-gem-hunt')?.addEventListener('click', () => {
       const reward = 3000;
       this.backend.addCash(reward);
       this.backend.addStreetCred(10);
-      alert(`💎 Daily Naira Gem Hunt completed! Found hidden Lagos Gem! +₦${reward.toLocaleString()} cash credited to your wallet!`);
+      this.showDialogueModal({
+        speakerName: 'Lagos City Secret',
+        speakerRole: 'Daily Naira Gem Hunt',
+        speakerAvatar: '💎',
+        soundType: 'win',
+        dialogueText: `Daily Naira Gem Hunt completed! Discovered hidden Lagos Gem! +₦${reward.toLocaleString()} cash credited to your wallet!`,
+        rewards: { cash: reward, streetCred: 10 },
+      });
     });
 
     // Radar pills navigation
@@ -1072,6 +1098,162 @@ export class HUD {
     }
   }
 
+  public showDialogueModal(options: {
+    speakerName: string;
+    speakerRole?: string;
+    speakerAvatar?: string;
+    dialogueText: string;
+    soundType?: 'cash' | 'medical' | 'aviation' | 'academic' | 'general' | 'win' | 'cheer' | 'tech';
+    rewards?: {
+      cash?: number;
+      health?: number;
+      energy?: number;
+      streetCred?: number;
+      knowledge?: number;
+      item?: {
+        name: string;
+        icon: string;
+        category?: string;
+      };
+    };
+    onConfirm?: () => void;
+  }): void {
+    // Play Web Audio chime for video game feedback
+    this.playAudioChime(options.soundType || 'general');
+
+    // Remove any existing dialog modal
+    const existing = document.getElementById('game-dialogue-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'game-dialogue-overlay';
+    overlay.className = 'game-dialogue-overlay';
+
+    let rewardsHtml = '';
+    if (options.rewards) {
+      if (options.rewards.cash) {
+        rewardsHtml += `<div class="dialogue-reward-pill reward-cash">💵 +₦${options.rewards.cash.toLocaleString()} Cash</div>`;
+      }
+      if (options.rewards.health) {
+        rewardsHtml += `<div class="dialogue-reward-pill reward-health">💚 +${options.rewards.health}% Health</div>`;
+      }
+      if (options.rewards.energy) {
+        rewardsHtml += `<div class="dialogue-reward-pill reward-energy">⚡ +${options.rewards.energy}% Energy</div>`;
+      }
+      if (options.rewards.streetCred) {
+        rewardsHtml += `<div class="dialogue-reward-pill reward-cred">⭐ +${options.rewards.streetCred} Street Cred</div>`;
+      }
+      if (options.rewards.knowledge) {
+        rewardsHtml += `<div class="dialogue-reward-pill reward-knowledge">📚 +${options.rewards.knowledge} Knowledge</div>`;
+      }
+      if (options.rewards.item) {
+        rewardsHtml += `<div class="dialogue-reward-pill reward-item">${options.rewards.item.icon} ${options.rewards.item.name}</div>`;
+      }
+    }
+
+    overlay.innerHTML = `
+      <div class="game-dialogue-card">
+        <div class="dialogue-card-header">
+          <div class="dialogue-avatar-box">${options.speakerAvatar || '💬'}</div>
+          <div class="dialogue-speaker-meta">
+            <span class="dialogue-speaker-name">${options.speakerName}</span>
+            <span class="dialogue-speaker-role">${options.speakerRole || 'Lagos Citizen'}</span>
+          </div>
+        </div>
+        <div class="dialogue-speech-box">
+          "${options.dialogueText}"
+        </div>
+        ${rewardsHtml ? `<div class="dialogue-rewards-row">${rewardsHtml}</div>` : ''}
+        <button class="dialogue-confirm-btn" id="dialogue-confirm-btn">
+          <span>Oya Continue [E]</span>
+          <span>✨</span>
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      window.removeEventListener('keydown', handleKey);
+      overlay.remove();
+      options.onConfirm?.();
+    };
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'e' || e.key === 'E' || e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+    };
+
+    window.addEventListener('keydown', handleKey);
+    overlay.querySelector('#dialogue-confirm-btn')?.addEventListener('click', close);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+  }
+
+  private playAudioChime(type: string): void {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (type === 'cash') {
+        osc.frequency.setValueAtTime(987.77, now);
+        osc.frequency.setValueAtTime(1318.51, now + 0.08);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } else if (type === 'medical') {
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.25);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.start(now);
+        osc.stop(now + 0.45);
+      } else if (type === 'aviation') {
+        osc.frequency.setValueAtTime(739.99, now);
+        osc.frequency.setValueAtTime(554.37, now + 0.12);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        osc.start(now);
+        osc.stop(now + 0.5);
+      } else if (type === 'academic') {
+        osc.frequency.setValueAtTime(659.25, now);
+        osc.frequency.setValueAtTime(880.00, now + 0.1);
+        gain.gain.setValueAtTime(0.16, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      } else if (type === 'tech') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      } else {
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.setValueAtTime(880.00, now + 0.08);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      }
+    } catch {
+      // AudioContext fallback
+    }
+  }
+
   public hideInteractionCard(): void {
     this.interactionCard.style.display = 'none';
     this.currentActiveObject = null;
@@ -1117,9 +1299,21 @@ export class HUD {
       const success = this.backend.spendCash(500, 'Hospital Triage Registration');
       if (success) {
         this.backend.restoreHealth(20);
-        alert('🩺 Nurse Chidinma: "Registration complete! Blood pressure 120/80. Doctor Adeleke is waiting in Consultation Room 1."');
+        this.showDialogueModal({
+          speakerName: 'Nurse Chidinma',
+          speakerRole: 'Senior Triage Nurse • St. Nicholas Hospital',
+          speakerAvatar: '🩺',
+          soundType: 'medical',
+          dialogueText: 'Registration complete! Blood pressure 120/80. Doctor Adeleke is waiting in Consultation Room 1.',
+          rewards: { health: 20 },
+        });
       } else {
-        alert('❌ Need ₦500 cash for hospital patient registration!');
+        this.showDialogueModal({
+          speakerName: 'Hospital Triage Desk',
+          speakerRole: 'Patient Admissions',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦500 cash for hospital patient vitals registration!',
+        });
       }
       return;
     } else if (id === 'hosp_doctor_desk') {
@@ -1128,15 +1322,34 @@ export class HUD {
         this.backend.restoreHealth(100);
         this.backend.restoreEnergy(50);
         this.backend.addStreetCred(10);
-        alert('👨‍⚕️ Dr. Adeleke: "Your diagnosis is looking good! Administered a high-potency vitamin injection. Health fully restored to 100%!"');
+        this.showDialogueModal({
+          speakerName: 'Dr. Adeleke',
+          speakerRole: 'Chief Medical Consultant • St. Nicholas Hospital',
+          speakerAvatar: '👨‍⚕️',
+          soundType: 'medical',
+          dialogueText: 'Your diagnosis is looking good! Administered a high-potency vitamin injection. Health fully restored to 100%!',
+          rewards: { health: 100, energy: 50, streetCred: 10 },
+        });
       } else {
-        alert('❌ Need ₦2,500 cash for full medical consultation!');
+        this.showDialogueModal({
+          speakerName: 'Consultation Desk',
+          speakerRole: 'Dr. Adeleke Office',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦2,500 cash for full clinical medical consultation!',
+        });
       }
       return;
     } else if (id === 'hosp_ward_bed') {
       this.backend.restoreHealth(100);
       this.backend.restoreEnergy(100);
-      alert('💧 You rest peacefully on the medical bed. The saline drip cleanses your system. 100% Health & Energy restored!');
+      this.showDialogueModal({
+        speakerName: 'Ward Recovery Attendant',
+        speakerRole: 'Clinical Inpatient Ward',
+        speakerAvatar: '🛏️',
+        soundType: 'medical',
+        dialogueText: 'You rest peacefully on the medical bed. The saline drip cleanses your system. 100% Health & Energy restored!',
+        rewards: { health: 100, energy: 100 },
+      });
       return;
     } else if (id === 'hosp_pharmacy') {
       const success = this.backend.spendCash(1800, 'Coartem Malaria Pack');
@@ -1151,20 +1364,46 @@ export class HUD {
           usable: true,
           energyRestore: 40,
         });
-        alert('💊 Pharmacist Kemi: "Here is your Coartem dose! Added to your bag. Take two tablets twice daily with water."');
+        this.showDialogueModal({
+          speakerName: 'Pharm. Kemi',
+          speakerRole: 'Dispensary Lead • St. Nicholas Central Pharmacy',
+          speakerAvatar: '💊',
+          soundType: 'medical',
+          dialogueText: 'Here is your Coartem dose! Added to your bag. Take two tablets twice daily with water.',
+          rewards: { item: { name: 'Coartem Malaria Pack', icon: '💊', category: 'medicine' } },
+        });
       } else {
-        alert('❌ Need ₦1,800 cash for Coartem malaria medicine!');
+        this.showDialogueModal({
+          speakerName: 'Dispensary Counter',
+          speakerRole: 'Pharmacy',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,800 cash for Coartem malaria medicine!',
+        });
       }
       return;
     } else if (id === 'unilag_lecture_podium') {
       this.backend.addStreetCred(15);
       this.backend.restoreEnergy(10);
-      alert('📚 Prof. Balogun: "Excellent question from the hall! Attendance recorded on the department register. +30 Academic Knowledge, +15 Cred!"');
+      this.showDialogueModal({
+        speakerName: 'Prof. Balogun',
+        speakerRole: 'Faculty of Science • UNILAG Akoka',
+        speakerAvatar: '📚',
+        soundType: 'academic',
+        dialogueText: 'Excellent question from the hall! Attendance recorded on the department register. Great Akokite! +30 Academic Knowledge!',
+        rewards: { knowledge: 30, streetCred: 15, energy: 10 },
+      });
       return;
     } else if (id === 'unilag_library_desk') {
       this.backend.addStreetCred(20);
       this.backend.restoreEnergy(10);
-      alert('📖 You immerse yourself in the Law & Engineering journals in Yakubu Gowon Library. Academic prowess increased (+40 Knowledge, +20 Cred)!');
+      this.showDialogueModal({
+        speakerName: 'Yakubu Gowon Archives',
+        speakerRole: 'UNILAG Central Library',
+        speakerAvatar: '📖',
+        soundType: 'academic',
+        dialogueText: 'You immerse yourself in the Law & Engineering journals in Yakubu Gowon Library. Academic research mastery unlocked!',
+        rewards: { knowledge: 40, streetCred: 20, energy: 10 },
+      });
       return;
     } else if (id === 'unilag_admin_portal') {
       const success = this.backend.spendCash(1000, 'Semester Course Registration & Docket Printing');
@@ -1179,15 +1418,34 @@ export class HUD {
           usable: false,
         });
         this.backend.addStreetCred(10);
-        alert('📝 Portal Staff: "Courses submitted successfully! Here is your verified exam docket for the semester. Added to your inventory!"');
+        this.showDialogueModal({
+          speakerName: 'Academic Affairs Officer',
+          speakerRole: 'Senate Building Portal Desk',
+          speakerAvatar: '📝',
+          soundType: 'academic',
+          dialogueText: 'Courses submitted successfully! Here is your verified exam docket for the semester. Added to your inventory!',
+          rewards: { streetCred: 10, item: { name: 'UNILAG Examination Docket', icon: '📄', category: 'document' } },
+        });
       } else {
-        alert('❌ Need ₦1,000 cash for faculty docket processing!');
+        this.showDialogueModal({
+          speakerName: 'Portal Admin',
+          speakerRole: 'Course Registration',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,000 cash for faculty docket printing and exam clearance!',
+        });
       }
       return;
     } else if (id === 'unilag_quad_gist') {
       this.backend.restoreEnergy(30);
       this.backend.addStreetCred(15);
-      alert('💬 Comrade Femi & Chidinma: "Guy, no dulling! Unilag life na cruise plus focus. You share suya and vibes at the quad!" Energy +30, Cred +15!');
+      this.showDialogueModal({
+        speakerName: 'Comrade Femi & Chidinma',
+        speakerRole: 'Student Union Quad',
+        speakerAvatar: '💬',
+        soundType: 'cheer',
+        dialogueText: 'Guy, no dulling! Unilag life na cruise plus focus. You share roasted suya and sweet vibes at the love garden!',
+        rewards: { energy: 30, streetCred: 15 },
+      });
       return;
     } else if (id === 'airport_checkin_desk') {
       const success = this.backend.spendCash(1500, 'FAAN Checked Luggage Handling');
@@ -1202,23 +1460,54 @@ export class HUD {
           usable: true,
           energyRestore: 10,
         });
-        alert('🧳 FAAN Attendant: "Baggage tag 073-LOS tagged priority! Here is your boarding pass. Please proceed directly to screening."');
+        this.showDialogueModal({
+          speakerName: 'FAAN Check-in Staff',
+          speakerRole: 'Air Peace Concourse Desk • MMA2 Terminal',
+          speakerAvatar: '🧳',
+          soundType: 'aviation',
+          dialogueText: 'Baggage tag 073-LOS tagged priority! Here is your boarding pass. Please proceed directly to screening.',
+          rewards: { item: { name: 'First Class Boarding Pass (LOS)', icon: '🎫', category: 'document' } },
+        });
       } else {
-        alert('❌ Need ₦1,500 cash for FAAN luggage handling!');
+        this.showDialogueModal({
+          speakerName: 'Terminal Desk',
+          speakerRole: 'FAAN Baggage Handling',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,500 cash for FAAN priority luggage check-in!',
+        });
       }
       return;
     } else if (id === 'airport_security_gate') {
       this.backend.addStreetCred(10);
-      alert('🛂 FAAN Officer Ngozi: "Metal detector clear! Biometrics matched with NIMC database. Have a safe journey, welcome to Lagos airside!"');
+      this.showDialogueModal({
+        speakerName: 'Officer Ngozi',
+        speakerRole: 'FAAN Aviation Security Commander',
+        speakerAvatar: '🛂',
+        soundType: 'aviation',
+        dialogueText: 'Metal detector clear! Biometrics matched with NIMC database. Have a safe journey, welcome to Lagos airside!',
+        rewards: { streetCred: 10 },
+      });
       return;
     } else if (id === 'airport_flight_abuja') {
       const success = this.backend.spendCash(35000, 'Flight LOS to ABV (Abuja)');
       if (success) {
         this.backend.addStreetCred(50);
         this.backend.restoreEnergy(100);
-        alert('✈️ Arik Air Flight W3-214: "Cabin doors armed. Non-stop executive flight from Lagos to Nnamdi Azikiwe Intl Airport, Abuja FCT completed! Welcome to Abuja!"');
+        this.showDialogueModal({
+          speakerName: 'Capt. Ibrahim',
+          speakerRole: 'Arik Air • Flight W3-214 to Abuja',
+          speakerAvatar: '✈️',
+          soundType: 'aviation',
+          dialogueText: 'Cabin doors armed. Non-stop executive flight from Lagos to Nnamdi Azikiwe Intl Airport, Abuja FCT completed! Welcome to Abuja!',
+          rewards: { streetCred: 50, energy: 100 },
+        });
       } else {
-        alert('❌ Need ₦35,000 cash for direct flight ticket to Abuja FCT!');
+        this.showDialogueModal({
+          speakerName: 'Arik Air Ticketing',
+          speakerRole: 'Gate 1 Departures',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦35,000 cash for direct flight ticket to Abuja FCT!',
+        });
       }
       return;
     } else if (id === 'airport_flight_ph') {
@@ -1226,9 +1515,21 @@ export class HUD {
       if (success) {
         this.backend.addStreetCred(50);
         this.backend.restoreEnergy(100);
-        alert('✈️ Air Peace Flight P4-712: "Direct flight to Port Harcourt International Airport (Omagwa) completed! Welcome to the Garden City!"');
+        this.showDialogueModal({
+          speakerName: 'Air Peace Flight Crew',
+          speakerRole: 'Gate 2 • Flight P4-712 to Port Harcourt',
+          speakerAvatar: '✈️',
+          soundType: 'aviation',
+          dialogueText: 'Direct flight to Port Harcourt International Airport (Omagwa) completed! Welcome to the Garden City!',
+          rewards: { streetCred: 50, energy: 100 },
+        });
       } else {
-        alert('❌ Need ₦32,000 cash for flight ticket to Port Harcourt!');
+        this.showDialogueModal({
+          speakerName: 'Air Peace Ticketing',
+          speakerRole: 'Gate 2 Departures',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦32,000 cash for flight ticket to Port Harcourt!',
+        });
       }
       return;
     } else if (id === 'airport_vip_lounge') {
@@ -1237,24 +1538,57 @@ export class HUD {
         this.backend.restoreHealth(100);
         this.backend.restoreEnergy(100);
         this.backend.addStreetCred(25);
-        alert('🥂 Arik VIP Host: "Welcome to the executive lounge! Chilled vintage drinks, AC, high-speed Wi-Fi and gourmet snacks served. 100% Health & Energy restored!"');
+        this.showDialogueModal({
+          speakerName: 'Arik VIP Executive Host',
+          speakerRole: 'MMA2 Concourse Lounge',
+          speakerAvatar: '🥂',
+          soundType: 'win',
+          dialogueText: 'Welcome to the executive lounge! Chilled vintage drinks, AC, high-speed Wi-Fi and gourmet snacks served. 100% Health & Energy restored!',
+          rewards: { health: 100, energy: 100, streetCred: 25 },
+        });
       } else {
-        alert('❌ Need ₦5,000 cash for VIP lounge pass!');
+        this.showDialogueModal({
+          speakerName: 'VIP Lounge Concierge',
+          speakerRole: 'Executive Suite',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦5,000 cash for VIP lounge access!',
+        });
       }
       return;
     } else if (id === 'bank_atm_station') {
       this.backend.addCash(10000);
-      alert('🏧 *Cash dispenser sound* ₦10,000 cash dispensed into your pocket! Thank you for banking with Eko Commercial Bank.');
+      this.showDialogueModal({
+        speakerName: 'Eko Commercial Bank ATM',
+        speakerRole: 'Broad Street Branch ATM #04',
+        speakerAvatar: '🏧',
+        soundType: 'cash',
+        dialogueText: '*Cash dispenser sound* ₦10,000 cash dispensed into your pocket! Thank you for banking with Eko Commercial Bank.',
+        rewards: { cash: 10000 },
+      });
       return;
     } else if (id === 'bank_teller_station') {
       this.backend.addCash(25000);
       this.backend.addStreetCred(15);
-      alert('💱 Teller Ngozi: "Diaspora foreign wire transfer verified! ₦25,000 cash paid over the counter. Street Cred +15!"');
+      this.showDialogueModal({
+        speakerName: 'Teller Ngozi',
+        speakerRole: 'Foreign Remittance Desk',
+        speakerAvatar: '💱',
+        soundType: 'cash',
+        dialogueText: 'Diaspora foreign wire transfer verified! ₦25,000 cash paid over the counter. Street Cred +15!',
+        rewards: { cash: 25000, streetCred: 15 },
+      });
       return;
     } else if (id === 'bank_manager_desk') {
       this.backend.addCash(50000);
       this.backend.addStreetCred(30);
-      alert('💼 Manager Bankole: "Lagos SME Business Loan approved! ₦50,000 capital disbursed to your wallet! Street Cred +30!"');
+      this.showDialogueModal({
+        speakerName: 'Manager Bankole',
+        speakerRole: 'Branch Manager • Eko Commercial Bank',
+        speakerAvatar: '💼',
+        soundType: 'cash',
+        dialogueText: 'Lagos SME Business Loan approved! ₦50,000 capital disbursed to your wallet! Street Cred +30!',
+        rewards: { cash: 50000, streetCred: 30 },
+      });
       return;
     } else if (id === 'buka_food_counter') {
       const success = this.backend.spendCash(1800, 'Firewood Party Jollof & Chicken');
@@ -1271,9 +1605,21 @@ export class HUD {
           usable: true,
           energyRestore: 60,
         });
-        alert('🍲 Mama Nkechi: "Oya chop life! Smoky firewood Jollof dished fresh for you! Energy restored to 100%, and extra takeaway packed in your bag!"');
+        this.showDialogueModal({
+          speakerName: 'Mama Nkechi',
+          speakerRole: 'Chop Life Buka Lead Chef',
+          speakerAvatar: '🍲',
+          soundType: 'cheer',
+          dialogueText: 'Oya chop life! Smoky firewood Jollof dished fresh for you! Energy restored to 100%, and extra takeaway packed in your bag!',
+          rewards: { energy: 100, health: 30, item: { name: 'Takeaway Firewood Jollof Pack', icon: '🍲' } },
+        });
       } else {
-        alert('❌ Need ₦1,800 cash for firewood party jollof!');
+        this.showDialogueModal({
+          speakerName: 'Chop Life Counter',
+          speakerRole: 'Mama Put Cashier',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,800 cash for firewood party jollof & chicken!',
+        });
       }
       return;
     } else if (id === 'buka_table_vip') {
@@ -1282,47 +1628,102 @@ export class HUD {
         this.backend.restoreEnergy(100);
         this.backend.restoreHealth(50);
         this.backend.addStreetCred(20);
-        alert('🍹 Waiter Segun: "Chilled Chapman and catfish pepper soup served! Total relaxation achieved! Energy 100%, Street Cred +20!"');
+        this.showDialogueModal({
+          speakerName: 'Waiter Segun',
+          speakerRole: 'VIP Table Service',
+          speakerAvatar: '🍹',
+          soundType: 'cheer',
+          dialogueText: 'Chilled Chapman and catfish pepper soup served! Total relaxation achieved! Energy 100%, Street Cred +20!',
+          rewards: { energy: 100, health: 50, streetCred: 20 },
+        });
       } else {
-        alert('❌ Need ₦2,500 cash for VIP table & pepper soup!');
+        this.showDialogueModal({
+          speakerName: 'VIP Lounge',
+          speakerRole: 'Table Reservation',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦2,500 cash for VIP table & pepper soup!',
+        });
       }
       return;
     } else if (id === 'police_front_desk') {
       const success = this.backend.spendCash(500, 'Citizen Incident Report Documentation');
       if (success) {
         this.backend.addStreetCred(20);
-        alert('👮 Sgt. Danladi: "Report documented in the Lagos Area Command logbook! Reference Number: #NIG-8492. +20 Street Cred!"');
+        this.showDialogueModal({
+          speakerName: 'Sgt. Danladi',
+          speakerRole: 'Lagos Area Command Desk Sergeant',
+          speakerAvatar: '📝',
+          soundType: 'general',
+          dialogueText: 'Report documented in the Lagos Area Command logbook! Reference Number: #NIG-8492. Respect earned in the district (+20 Street Cred)!',
+          rewards: { streetCred: 20 },
+        });
       } else {
-        alert('❌ Need ₦500 documentation fee for report filing.');
+        this.showDialogueModal({
+          speakerName: 'Police Front Desk',
+          speakerRole: 'Area Command',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦500 administrative documentation fee for report filing.',
+        });
       }
       return;
     } else if (id === 'police_holding_cell') {
       const success = this.backend.spendCash(5000, 'Citizen Bail Bond');
       if (success) {
         this.backend.addStreetCred(40);
-        alert('⚖️ Sgt. Danladi: "Bail bond processed! Suspect Kazeem has been released on good behavior. You earned massive respect in the community (+40 Street Cred)!"');
+        this.showDialogueModal({
+          speakerName: 'Sgt. Danladi',
+          speakerRole: 'Area Command Detention Custody',
+          speakerAvatar: '⚖️',
+          soundType: 'win',
+          dialogueText: 'Bail bond processed! Suspect Kazeem has been released on good behavior. You earned massive respect in the community (+40 Street Cred)!',
+          rewards: { streetCred: 40 },
+        });
       } else {
-        alert('❌ Need ₦5,000 cash for bail bond release!');
+        this.showDialogueModal({
+          speakerName: 'Detention Desk',
+          speakerRole: 'Bail Office',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦5,000 cash for citizen bail bond release!',
+        });
       }
       return;
     } else if (id === 'flat-workstation') {
       this.backend.addCash(12000);
       this.backend.addStreetCred(20);
-      alert('💻 Pull request approved and merged! ₦12,000 remote salary credited to your wallet! Street Cred +20!');
+      this.showDialogueModal({
+        speakerName: 'Senior Engineering Manager',
+        speakerRole: 'Remote Tech Sprint',
+        speakerAvatar: '💻',
+        soundType: 'cash',
+        dialogueText: 'Pull request approved and merged! ₦12,000 remote salary credited to your wallet! Street Cred +20!',
+        rewards: { cash: 12000, streetCred: 20 },
+      });
       return;
     } else if (id.startsWith('interior_npc_')) {
-      alert(`💬 ${this.currentActiveObject.description}`);
+      this.showDialogueModal({
+        speakerName: this.currentActiveObject.name,
+        speakerRole: this.currentActiveObject.category || 'Resident / Staff',
+        speakerAvatar: '💬',
+        soundType: 'general',
+        dialogueText: this.currentActiveObject.description,
+      });
       return;
     } else if (id === 'bet-shop') {
       const success = this.backend.spendCash(1000, 'Bet9ja 5-Game Ticket');
       if (success) {
-        // 50% chance of winning quick ticket
         const won = Math.random() < 0.45;
         if (won) {
           const winAmount = 15000;
           this.backend.addCash(winAmount);
           this.backend.addStreetCred(10);
-          alert(`🎉 BOOM! Your match ticket came through! Won ₦${winAmount.toLocaleString()} cash! Oya celebration!`);
+          this.showDialogueModal({
+            speakerName: 'Bet9ja Cashier',
+            speakerRole: 'Ticket Payout Terminal',
+            speakerAvatar: '🎉',
+            soundType: 'win',
+            dialogueText: `BOOM! Your 5-game accumulator came through! Won ₦${winAmount.toLocaleString()} cash! Oya celebration!`,
+            rewards: { cash: winAmount, streetCred: 10 },
+          });
         } else {
           this.backend.addItem({
             id: `ticket_${Date.now()}`,
@@ -1333,10 +1734,22 @@ export class HUD {
             price: 1000,
             usable: false,
           });
-          alert('⚽ Ticket placed! Added to your bag. May your odds favor you!');
+          this.showDialogueModal({
+            speakerName: 'Segun (Odds Guru)',
+            speakerRole: 'Bet9ja Regular',
+            speakerAvatar: '⚽',
+            soundType: 'general',
+            dialogueText: 'Ticket placed! Added to your bag. May your odds favor you this weekend!',
+            rewards: { item: { name: 'Weekend Match Slip', icon: '🎫' } },
+          });
         }
       } else {
-        alert('❌ Not enough cash! ₦1,000 needed to book ticket.');
+        this.showDialogueModal({
+          speakerName: 'Bet9ja Counter',
+          speakerRole: 'Booking Cashier',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Not enough cash! ₦1,000 needed to book your accumulator slip.',
+        });
       }
     } else if (id === 'npc-hawker') {
       const success = this.backend.spendCash(200, 'Cold Water & Gala');
@@ -1352,9 +1765,21 @@ export class HUD {
           usable: true,
           energyRestore: 15,
         });
-        alert('🥤 Chilled water and Gala purchased! Added to bag and energy boosted.');
+        this.showDialogueModal({
+          speakerName: 'Chidi Hawker',
+          speakerRole: 'Traffic Vendor',
+          speakerAvatar: '🥤',
+          soundType: 'cheer',
+          dialogueText: 'Chilled pure water and hot Gala handed over! Energy boosted and thirst quenched.',
+          rewards: { energy: 25, item: { name: 'Chilled Pure Water Sachet', icon: '💧' } },
+        });
       } else {
-        alert('❌ Need ₦200 cash for water & gala!');
+        this.showDialogueModal({
+          speakerName: 'Chidi Hawker',
+          speakerRole: 'Traffic Vendor',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦200 cash for pure water and Gala sausage roll!',
+        });
       }
     } else if (id.startsWith('veh-')) {
       this.hideInteractionCard();
@@ -1370,24 +1795,53 @@ export class HUD {
       if (success) {
         this.backend.addStreetCred(5);
         if (this.player) {
-          // Commute shuttle across the commercial boulevard
           this.player.mesh.position.set(-8.5, 0, -55);
         }
-        alert(`🚌 DANFO COMMUTER SHUTTLE: Paid ₦${fare} fare! Conductor shouts: "Tejuosho Junction drop off! Oya alight, next passenger enter!" You commuted swiftly across Broad Street.`);
+        this.showDialogueModal({
+          speakerName: 'Danfo Conductor',
+          speakerRole: 'CMS / Obalende Route',
+          speakerAvatar: '🚌',
+          soundType: 'cheer',
+          dialogueText: `Paid ₦${fare} fare! Conductor shouts: "Tejuosho Junction drop off! Oya alight, next passenger enter!" You commuted swiftly across Broad Street.`,
+          rewards: { streetCred: 5 },
+        });
       } else {
-        alert('❌ "Hold your ₦300 exact change first before entering my motor!" - Conductor');
+        this.showDialogueModal({
+          speakerName: 'Danfo Conductor',
+          speakerRole: 'Transit Conductor',
+          speakerAvatar: '⚠️',
+          dialogueText: '"Hold your ₦300 exact change first before entering my motor!"',
+        });
       }
     } else if (id === 'villa-compound') {
       const villa = this.backend.getData().properties.find((p) => p.buildingId === 'villa-compound' || p.id === 'prop_villa_estate');
       const isTenant = villa ? (villa.status === 'owned' || villa.status === 'rented' || villa.status === 'purchased') : false;
       if (isTenant && this.world) {
         const isOpen = this.world.buildings.toggleCompoundGate();
-        alert(isOpen ? '🚪 Compound gate opened! You can walk into the estate courtyard.' : '🚪 Compound gate closed and secured.');
+        this.showDialogueModal({
+          speakerName: 'Estate Security Gate',
+          speakerRole: 'Compound Access',
+          speakerAvatar: '🚪',
+          soundType: 'general',
+          dialogueText: isOpen ? 'Compound gate opened! You can walk into the estate courtyard.' : 'Compound gate closed and secured.',
+        });
       } else {
-        alert('🔔 Gateman: "Good day Sah! If you want to lease or buy this duplex, check the Estate Office [E]!"');
+        this.showDialogueModal({
+          speakerName: 'Estate Gateman',
+          speakerRole: 'Palm View Compound Security',
+          speakerAvatar: '🔔',
+          soundType: 'general',
+          dialogueText: 'Good day Sah! If you want to lease or buy this duplex, check the Estate Office [E]!',
+        });
       }
     } else if (id === 'vi-tower') {
-      alert('🏢 Eko Atlantic Corporate Concierge: "Welcome to the Financial District! Top-tier investments, private equity desks, and crypto fintechs are based here."');
+      this.showDialogueModal({
+        speakerName: 'Corporate Concierge',
+        speakerRole: 'Eko Atlantic Financial Tower',
+        speakerAvatar: '🏢',
+        soundType: 'general',
+        dialogueText: 'Welcome to the Financial District! Top-tier investments, private equity desks, and crypto fintechs are based here.',
+      });
     } else if (id === 'vi-lounge' || id === 'quilox-club') {
       const success = this.backend.spendCash(25000, 'Quilox Dom Pérignon & VIP Sparklers Table');
       if (success) {
@@ -1404,9 +1858,21 @@ export class HUD {
           energyRestore: 50,
         });
         this.player?.playEmote('groove', 5.0);
-        alert('🍾 QUILOX VIP TABLE IS LIT! Bottle sparklers flaming, DJ spinning Wizkid & Burna Boy, Dom Pérignon poured! Energy 100%, Street Cred +35! You are officially balling!');
+        this.showDialogueModal({
+          speakerName: 'Quilox VIP Host',
+          speakerRole: 'Victoria Island Nightclub',
+          speakerAvatar: '🍾',
+          soundType: 'win',
+          dialogueText: 'QUILOX VIP TABLE IS LIT! Bottle sparklers flaming, DJ spinning Wizkid & Burna Boy, Dom Pérignon poured! You are officially balling!',
+          rewards: { energy: 100, streetCred: 35, item: { name: 'Dom Pérignon Vintage Champagne', icon: '🍾' } },
+        });
       } else {
-        alert('❌ Need ₦25,000 cash for Quilox VIP Table & champagne! Go to the ATM to withdraw funds.');
+        this.showDialogueModal({
+          speakerName: 'Quilox VIP Bouncer',
+          speakerRole: 'VIP Table Reservations',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦25,000 cash for Quilox VIP Table & champagne! Go to the ATM to withdraw funds.',
+        });
       }
     } else if (id === 'amala-shitta') {
       const success = this.backend.spendCash(2000, 'Hot Amala Dudu + Abula & Goat Meat');
@@ -1423,18 +1889,42 @@ export class HUD {
           usable: true,
           energyRestore: 60,
         });
-        alert('🍲 OYA CHOP AMALA! Steaming hot Amala Dudu served with yellow Gbegiri, green Ewedu & tender Goat Meat! 100% Energy restored, Street Cred +15!');
+        this.showDialogueModal({
+          speakerName: 'Iya Amala Shitta',
+          speakerRole: 'Traditional Buka Matron',
+          speakerAvatar: '🍲',
+          soundType: 'cheer',
+          dialogueText: 'OYA CHOP AMALA! Steaming hot Amala Dudu served with yellow Gbegiri, green Ewedu & tender Goat Meat! 100% Energy restored!',
+          rewards: { energy: 100, streetCred: 15, item: { name: 'Amala Shitta Takeaway Wrap', icon: '🍲' } },
+        });
       } else {
-        alert('❌ Need ₦2,000 cash for hot Amala & Goat Meat!');
+        this.showDialogueModal({
+          speakerName: 'Amala Shitta Cashier',
+          speakerRole: 'Buka Counter',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦2,000 cash for hot Amala & Goat Meat platter!',
+        });
       }
     } else if (id === 'nepa-generator') {
       const success = this.backend.spendCash(1200, '5L Mobil Petrol for Tiger Generator');
       if (success) {
         this.backend.restoreEnergy(20);
         this.backend.addStreetCred(20);
-        alert('⚡ *KPA-KPA-KPA-VROOOOM!* Tiger generator cranked up! Blue smoke puffs and the entire market roars: "UP NEPA! OYA LIGHT DON ENTER!" Street Cred +20!');
+        this.showDialogueModal({
+          speakerName: 'Tiger Gen Station',
+          speakerRole: 'Market Power Hub',
+          speakerAvatar: '⚡',
+          soundType: 'win',
+          dialogueText: '*KPA-KPA-KPA-VROOOOM!* Tiger generator cranked up! Blue smoke puffs and the entire market roars: "UP NEPA! OYA LIGHT DON ENTER!"',
+          rewards: { energy: 20, streetCred: 20 },
+        });
       } else {
-        alert('❌ Need ₦1,200 cash for 5 litres of generator petrol!');
+        this.showDialogueModal({
+          speakerName: 'Fuel Point Attendant',
+          speakerRole: 'Generator Fuel Hub',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,200 cash for 5 litres of generator petrol!',
+        });
       }
     } else if (id === 'cv-plaza') {
       const success = this.backend.spendCash(5000, 'Otigba 20,000mAh Power Bank');
@@ -1449,17 +1939,41 @@ export class HUD {
           price: 5000,
           usable: false,
         });
-        alert('🔌 20,000mAh Power Bank purchased from Otigba market! Added to bag. Never get stranded on 1% battery again!');
+        this.showDialogueModal({
+          speakerName: 'Otigba Gadget Vendor',
+          speakerRole: 'Computer Village Plaza',
+          speakerAvatar: '🔋',
+          soundType: 'tech',
+          dialogueText: '20,000mAh Power Bank tested and packed! Added to your bag. Never get stranded on 1% battery again!',
+          rewards: { streetCred: 10, item: { name: 'Otigba 20,000mAh Fast Power Bank', icon: '🔋', category: 'tool' } },
+        });
       } else {
-        alert('❌ Need ₦5,000 cash for the power bank!');
+        this.showDialogueModal({
+          speakerName: 'Computer Village Vendor',
+          speakerRole: 'Otigba Plaza',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦5,000 cash for the 20,000mAh fast-charge power bank!',
+        });
       }
     } else if (id === 'lekki-bridge') {
       const success = this.backend.spendCash(500, 'Lekki Toll Transit');
       if (success) {
         this.backend.addStreetCred(5);
-        alert('🌉 Toll paid! Barrier green light lifted: "Welcome to Lekki Phase 1 & Admiralty Way!"');
+        this.showDialogueModal({
+          speakerName: 'LCC Toll Attendant',
+          speakerRole: 'Lekki-Ikoyi Link Bridge',
+          speakerAvatar: '🌉',
+          soundType: 'cash',
+          dialogueText: 'Toll barrier lifted! Green light: "Welcome to Lekki Phase 1 & Admiralty Way!" Smooth cruising!',
+          rewards: { streetCred: 5 },
+        });
       } else {
-        alert('❌ Need ₦500 cash for bridge toll fee!');
+        this.showDialogueModal({
+          speakerName: 'LCC Toll Booth',
+          speakerRole: 'Toll Gate',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦500 cash for bridge toll fee!',
+        });
       }
     } else if (id === 'nike-art-gallery') {
       const success = this.backend.spendCash(12000, 'Handmade Nike Art Adire Batik');
@@ -1474,9 +1988,21 @@ export class HUD {
           price: 25000,
           usable: false,
         });
-        alert('🎨 Exclusive Nigerian Batik artwork purchased! Added to bag. Street Cred skyrocketed by +35!');
+        this.showDialogueModal({
+          speakerName: 'Chief Nike Okundaye',
+          speakerRole: 'Founder • Nike Art Gallery',
+          speakerAvatar: '🎨',
+          soundType: 'win',
+          dialogueText: 'Exquisite masterpiece! Authentic handcrafted Osogbo indigo Adire Batik textile artwork added to your bag! Street Cred +35!',
+          rewards: { streetCred: 35, item: { name: 'Nike Art Adire Batik Masterpiece', icon: '🎨', category: 'document' } },
+        });
       } else {
-        alert('❌ Ineffective funds! ₦12,000 needed for the gallery artwork.');
+        this.showDialogueModal({
+          speakerName: 'Gallery Curator',
+          speakerRole: 'Art Sales Desk',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦12,000 cash for the master handcrafted batik artwork!',
+        });
       }
     } else if (id === 'yaba-cchub') {
       this.backend.restoreEnergy(20);
@@ -1491,16 +2017,35 @@ export class HUD {
         price: 25000,
         usable: false,
       });
-      alert('💻 CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash, +25 Street Cred, and deployed your code!');
+      this.showDialogueModal({
+        speakerName: 'CcHub Incubator Lead',
+        speakerRole: '6th Floor Innovation Hub • Yaba',
+        speakerAvatar: '💻',
+        soundType: 'tech',
+        dialogueText: 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash, +25 Street Cred, and deployed your code!',
+        rewards: { cash: 15000, streetCred: 25, energy: 20, item: { name: 'CcHub High-Yield Smart Contract', icon: '💻', category: 'document' } },
+      });
     } else if (id === 'surulere-stadium') {
       const success = this.backend.spendCash(1000, 'Teslim Balogun Stadium Pass');
       if (success) {
         this.backend.restoreEnergy(50);
         this.backend.addStreetCred(15);
         this.player?.playEmote('groove', 4.0);
-        alert('🏃 SURULERE ATHLETIC WORKOUT: Ran laps around the Teslim Balogun tartan track! Energy boosted +50, Street Cred +15!');
+        this.showDialogueModal({
+          speakerName: 'Coach Bassey',
+          speakerRole: 'Teslim Balogun Athletic Track',
+          speakerAvatar: '🏃',
+          soundType: 'cheer',
+          dialogueText: 'SURULERE ATHLETIC WORKOUT! Ran intensive laps around the Teslim Balogun tartan track! Energy boosted +50, Street Cred +15!',
+          rewards: { energy: 50, streetCred: 15 },
+        });
       } else {
-        alert('❌ Need ₦1,000 for stadium gate fee!');
+        this.showDialogueModal({
+          speakerName: 'Stadium Turnstile',
+          speakerRole: 'Teslim Balogun Gate',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,000 cash for stadium athletic track pass!',
+        });
       }
     } else if (id === 'mma-airport') {
       this.hideInteractionCard();
@@ -1509,7 +2054,14 @@ export class HUD {
     } else if (id === 'ajah-estate') {
       this.backend.addCash(8500);
       this.backend.addStreetCred(10);
-      alert('👷 AJAH SITE LABOUR: Mixed mortar, hoisted hollow blocks, and completed framing! Earned ₦8,500 cash on the spot!');
+      this.showDialogueModal({
+        speakerName: 'Site Foreman Sunday',
+        speakerRole: 'Ajah Construction Project',
+        speakerAvatar: '👷',
+        soundType: 'cash',
+        dialogueText: 'AJAH SITE LABOUR COMPLETED! Mixed mortar, hoisted hollow blocks, and finished framing! Earned ₦8,500 cash on the spot!',
+        rewards: { cash: 8500, streetCred: 10 },
+      });
     } else if (id === 'balogun-market') {
       const success = this.backend.spendCash(6000, 'Wholesale Ankara Bundle');
       if (success) {
@@ -1523,12 +2075,30 @@ export class HUD {
           price: 14000,
           usable: false,
         });
-        alert('👗 BALOGUN MARKET WHOLESALE! Bought 6 yards of vibrant premium Ankara wax fabric for ₦6,000! Can be sold for ₦14,000 in your boutique!');
+        this.showDialogueModal({
+          speakerName: 'Alhaja Kudirat',
+          speakerRole: 'Balogun Wholesale Merchant',
+          speakerAvatar: '👗',
+          soundType: 'win',
+          dialogueText: 'BALOGUN MARKET WHOLESALE! Bought 6 yards of vibrant premium Ankara wax fabric for ₦6,000! Added to your inventory!',
+          rewards: { streetCred: 20, item: { name: 'Balogun Luxury Ankara Fabric Bale', icon: '👗', category: 'document' } },
+        });
       } else {
-        alert('❌ Need ₦6,000 for wholesale fabric bundle!');
+        this.showDialogueModal({
+          speakerName: 'Balogun Market Stall',
+          speakerRole: 'Wholesale Fabric Merchant',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦6,000 cash for wholesale fabric bundle!',
+        });
       }
     } else if (id === 'npc-punter') {
-      alert('🗣️ Segun: "Guy, always play over 1.5 goals o! Don\'t play straight win, this league is crazy!"');
+      this.showDialogueModal({
+        speakerName: 'Segun (Odds Guru)',
+        speakerRole: 'Bet9ja Regular',
+        speakerAvatar: '🗣️',
+        soundType: 'general',
+        dialogueText: 'Guy, always play over 1.5 goals o! Don\'t play straight win, this league is crazy!',
+      });
     } else if (id === 'aso-rock-lookout') {
       const success = this.backend.spendCash(1500, 'Aso Rock Souvenir Plaque');
       if (success) {
@@ -1543,9 +2113,21 @@ export class HUD {
           price: 3500,
           usable: false,
         });
-        alert('⛰️ Stood at the pinnacle of power! Aso Rock Presidential Plaque purchased and added to bag. Street Cred +20!');
+        this.showDialogueModal({
+          speakerName: 'Protocol Officer',
+          speakerRole: 'Three Arms Zone Lookout',
+          speakerAvatar: '⛰️',
+          soundType: 'win',
+          dialogueText: 'Stood at the pinnacle of power! Aso Rock Presidential Plaque purchased and added to bag. Capital Street Cred +20!',
+          rewards: { energy: 30, streetCred: 20, item: { name: 'Aso Rock Presidential Plaque', icon: '⛰️', category: 'document' } },
+        });
       } else {
-        alert('❌ Need ₦1,500 cash for the commemorative souvenir plaque!');
+        this.showDialogueModal({
+          speakerName: 'Souvenir Stand',
+          speakerRole: 'Aso Rock Lookout',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,500 cash for the commemorative souvenir plaque!',
+        });
       }
     } else if (id === 'abuja-mosque') {
       const success = this.backend.spendCash(500, 'Mosque Visit & Chilled Zobo');
@@ -1562,9 +2144,21 @@ export class HUD {
           usable: true,
           energyRestore: 35,
         });
-        alert('🕌 Visited the magnificent National Mosque! Chilled spiced Zobo drink acquired, energy refreshed, Street Cred +15!');
+        this.showDialogueModal({
+          speakerName: 'Ustaz Ahmed',
+          speakerRole: 'National Mosque Hospitality',
+          speakerAvatar: '🕌',
+          soundType: 'general',
+          dialogueText: 'Visited the magnificent National Mosque! Chilled spiced Zobo drink acquired, energy refreshed, Street Cred +15!',
+          rewards: { energy: 60, streetCred: 15, item: { name: 'Abuja Spiced Zobo Drink', icon: '🧃', category: 'food' } },
+        });
       } else {
-        alert('❌ Need ₦500 for the visitor pack & zobo!');
+        this.showDialogueModal({
+          speakerName: 'Visitor Welcome Stall',
+          speakerRole: 'National Mosque',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦500 for the visitor pack & zobo!',
+        });
       }
     } else if (id === 'abuja-christian-centre') {
       const success = this.backend.spendCash(500, 'Ecumenical Fellowship Offering');
@@ -1580,9 +2174,21 @@ export class HUD {
           price: 1000,
           usable: false,
         });
-        alert('⛪ Admired the neo-gothic spire and pipe organ at National Christian Centre! Blessed with peaceful spirit and Street Cred +15!');
+        this.showDialogueModal({
+          speakerName: 'Sanctuary Host',
+          speakerRole: 'National Christian Centre',
+          speakerAvatar: '⛪',
+          soundType: 'general',
+          dialogueText: 'Admired the neo-gothic spire and pipe organ at National Christian Centre! Blessed with peaceful spirit and Street Cred +15!',
+          rewards: { energy: 60, streetCred: 15, item: { name: 'National Unity Hymnal & Medallion', icon: '📖', category: 'document' } },
+        });
       } else {
-        alert('❌ Need ₦500 cash offering!');
+        this.showDialogueModal({
+          speakerName: 'Sanctuary Desk',
+          speakerRole: 'National Christian Centre',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦500 cash offering!',
+        });
       }
     } else if (id === 'abuja-secretariat') {
       const success = this.backend.spendCash(5000, 'Federal Government Tender Form');
@@ -1597,9 +2203,21 @@ export class HUD {
           price: 15000,
           usable: false,
         });
-        alert('📜 Official Federal Contractor registration submitted! Verified BPP Certificate issued to bag. Capital Street Cred +50!');
+        this.showDialogueModal({
+          speakerName: 'Federal Tender Director',
+          speakerRole: 'Bureau of Public Procurement (BPP)',
+          speakerAvatar: '📜',
+          soundType: 'win',
+          dialogueText: 'Official Federal Contractor registration submitted! Verified BPP Certificate issued to bag. Capital Street Cred +50!',
+          rewards: { streetCred: 50, item: { name: 'Official Federal Contractor Certificate', icon: '📜', category: 'document' } },
+        });
       } else {
-        alert('❌ Need ₦5,000 cash for the federal procurement registration documentation!');
+        this.showDialogueModal({
+          speakerName: 'Procurement Registry',
+          speakerRole: 'Federal Secretariat',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦5,000 cash for the federal procurement registration documentation!',
+        });
       }
     } else if (id === 'abuja-cab') {
       const success = this.backend.spendCash(800, 'Federal Green Cab Fare');
@@ -1608,9 +2226,21 @@ export class HUD {
         if (this.player) {
           this.player.mesh.position.z -= 30;
         }
-        alert('🚕 Green Cab dropped you off smoothly by Shehu Shagari Way & Maitama Junction! "Oga drop here! Well done sir!"');
+        this.showDialogueModal({
+          speakerName: 'Malam Garba',
+          speakerRole: 'Federal Green Cab Driver',
+          speakerAvatar: '🚕',
+          soundType: 'cash',
+          dialogueText: 'Green Cab dropped you off smoothly by Shehu Shagari Way & Maitama Junction! "Oga drop here! Well done sir!"',
+          rewards: { streetCred: 5 },
+        });
       } else {
-        alert('❌ Need ₦800 cash for green cab fare!');
+        this.showDialogueModal({
+          speakerName: 'Green Cab Driver',
+          speakerRole: 'Abuja Taxi Rank',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦800 cash for green cab fare!',
+        });
       }
     } else if (id === 'abuja-interstate-hub') {
       this.hideInteractionCard();
@@ -1624,16 +2254,44 @@ export class HUD {
       this.backend.restoreEnergy(25);
       this.backend.addStreetCred(10);
       this.player?.playEmote('groove', 4.0);
-      alert('📺 GOOOOAL! Osimhen scores for Super Eagles! 🦅 The whole flat erupts in wild celebration! Energy +25, Mood: Electric!');
+      this.showDialogueModal({
+        speakerName: 'SuperSport Naija',
+        speakerRole: 'Living Room TV',
+        speakerAvatar: '📺',
+        soundType: 'cheer',
+        dialogueText: 'GOOOOAL! Osimhen scores for Super Eagles! 🦅 The whole flat erupts in wild celebration! Energy +25, Mood: Electric!',
+        rewards: { energy: 25, streetCred: 10 },
+      });
     } else if (id === 'flat-bed') {
       this.backend.restoreEnergy(100);
-      alert('🛏️ Sweet dreams! You slept peacefully under the ceiling fan. Energy restored to 100%!');
+      this.showDialogueModal({
+        speakerName: 'Bedroom Sanctuary',
+        speakerRole: 'Rest & Recovery',
+        speakerAvatar: '🛏️',
+        soundType: 'win',
+        dialogueText: 'Sweet dreams! You slept peacefully under the ceiling fan. Energy restored to 100%!',
+        rewards: { energy: 100 },
+      });
     } else if (id === 'flat-drum') {
       this.backend.restoreEnergy(40);
-      alert('🪣 SPLASH! Cold water bath from the iconic blue drum with red bowl! You feel super clean, fresh and sharp! Energy +40%!');
+      this.showDialogueModal({
+        speakerName: 'Lagos Bathroom Ritual',
+        speakerRole: 'Blue Drum & Red Bowl',
+        speakerAvatar: '🪣',
+        soundType: 'cheer',
+        dialogueText: 'SPLASH! Cold water bath from the iconic blue drum with red bowl! You feel super clean, fresh and sharp! Energy +40%!',
+        rewards: { energy: 40 },
+      });
     } else if (id === 'flat-sofa') {
       this.backend.restoreEnergy(30);
-      alert('🛋️ Chilled out on the living room sofa enjoying cold malt drink. Energy +30%!');
+      this.showDialogueModal({
+        speakerName: 'Living Room Lounge',
+        speakerRole: 'Couch Relaxation',
+        speakerAvatar: '🛋️',
+        soundType: 'general',
+        dialogueText: 'Chilled out on the living room sofa enjoying cold malt drink. Energy +30%!',
+        rewards: { energy: 30 },
+      });
     } else if (id === 'pharmacy') {
       const success = this.backend.spendCash(1500, 'Yaba Pharmacy First Aid & Coartem');
       if (success) {
@@ -1648,9 +2306,21 @@ export class HUD {
           usable: true,
           energyRestore: 50,
         });
-        alert('💊 Yaba Central Pharmacy: Quality medications dispensed! Energy boosted +50% and First Aid Kit added to your bag!');
+        this.showDialogueModal({
+          speakerName: 'Pharm. Toyin',
+          speakerRole: 'Yaba Central Pharmacy',
+          speakerAvatar: '💊',
+          soundType: 'medical',
+          dialogueText: 'Yaba Central Pharmacy: Quality medications dispensed! Energy boosted +50% and First Aid Kit added to your bag!',
+          rewards: { energy: 50, item: { name: 'First Aid Kit & Coartem', icon: '💊', category: 'tool' } },
+        });
       } else {
-        alert('❌ Need ₦1,500 cash for pharmacy medications!');
+        this.showDialogueModal({
+          speakerName: 'Pharmacy Counter',
+          speakerRole: 'Medicine Dispensary',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,500 cash for pharmacy medications!',
+        });
       }
     } else if (id === 'supermarket') {
       const success = this.backend.spendCash(4500, 'Everyday Supermarket Groceries');
@@ -1666,9 +2336,21 @@ export class HUD {
           usable: true,
           energyRestore: 80,
         });
-        alert('🛒 Everyday Supermarket: Groceries checked out! Added Indomie Super Pack & Milk to your bag!');
+        this.showDialogueModal({
+          speakerName: 'Cashier Bolanle',
+          speakerRole: 'Everyday Supermarket',
+          speakerAvatar: '🛒',
+          soundType: 'cash',
+          dialogueText: 'Everyday Supermarket: Groceries checked out! Added Indomie Super Pack & Milk to your bag!',
+          rewards: { energy: 80, item: { name: 'Carton of Indomie & Peak Milk', icon: '🍜', category: 'food' } },
+        });
       } else {
-        alert('❌ Need ₦4,500 cash for supermarket groceries!');
+        this.showDialogueModal({
+          speakerName: 'Supermarket POS',
+          speakerRole: 'Everyday Supermarket',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦4,500 cash for supermarket groceries!',
+        });
       }
     } else if (id === 'slot-gadgets') {
       const success = this.backend.spendCash(8500, 'Slot 20,000mAh Power Bank & Charger');
@@ -1683,9 +2365,21 @@ export class HUD {
           price: 12000,
           usable: false,
         });
-        alert('📱 Slot Gadgets: High-capacity power bank & fast charger purchased! Added to bag. Street Cred +15!');
+        this.showDialogueModal({
+          speakerName: 'Slot Sales Team',
+          speakerRole: 'Slot Systems Ikeja',
+          speakerAvatar: '📱',
+          soundType: 'tech',
+          dialogueText: 'Slot Gadgets: High-capacity power bank & fast charger purchased! Added to bag. Street Cred +15!',
+          rewards: { streetCred: 15, item: { name: 'Slot 20,000mAh Dual-Port Power Bank', icon: '🔋', category: 'gadget' } },
+        });
       } else {
-        alert('❌ Need ₦8,500 cash for the power bank & charger!');
+        this.showDialogueModal({
+          speakerName: 'Slot Sales Desk',
+          speakerRole: 'Slot Systems',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦8,500 cash for the power bank & charger!',
+        });
       }
     } else if (id === 'barber-shop') {
       const success = this.backend.spendCash(2500, 'Executive Fade & Beard Grooming');
@@ -1693,9 +2387,21 @@ export class HUD {
         this.backend.restoreEnergy(40);
         this.backend.addStreetCred(25);
         this.player?.playEmote('groove', 4.0);
-        alert('💈 Fresh Cut Barbershop: Sharp executive fade with peppermint beard oil! You look clean! Street Cred +25!');
+        this.showDialogueModal({
+          speakerName: 'Master Kazeem',
+          speakerRole: 'Fresh Cut Barbershop',
+          speakerAvatar: '💈',
+          soundType: 'cheer',
+          dialogueText: 'Fresh Cut Barbershop: Sharp executive fade with peppermint beard oil! You look clean! Street Cred +25!',
+          rewards: { energy: 40, streetCred: 25 },
+        });
       } else {
-        alert('❌ Need ₦2,500 cash for the haircut!');
+        this.showDialogueModal({
+          speakerName: 'Barbershop Reception',
+          speakerRole: 'Fresh Cut Barbershop',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦2,500 cash for the haircut!',
+        });
       }
     } else if (id === 'fuel-station') {
       const success = this.backend.spendCash(8500, '10L Petrol Fuel Keg');
@@ -1711,9 +2417,21 @@ export class HUD {
           usable: true,
           energyRestore: 0,
         });
-        alert('⛽ Oando Fuel Station: 10 Litres of petrol fueled! Ready for your car or home generator!');
+        this.showDialogueModal({
+          speakerName: 'Oando Pump Attendant',
+          speakerRole: 'Oando Fuel Station',
+          speakerAvatar: '⛽',
+          soundType: 'cash',
+          dialogueText: 'Oando Fuel Station: 10 Litres of petrol fueled! Ready for your car or home generator!',
+          rewards: { streetCred: 10, item: { name: '10L Premium Petrol (Fuel Keg)', icon: '⛽', category: 'tool' } },
+        });
       } else {
-        alert('❌ Need ₦8,500 cash for 10L fuel!');
+        this.showDialogueModal({
+          speakerName: 'Fuel Attendant',
+          speakerRole: 'Oando Filling Station',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦8,500 cash for 10L fuel!',
+        });
       }
     } else if (id === 'mechanic') {
       const success = this.backend.spendCash(6000, 'Vehicle Tune Up & Oil Change');
@@ -1728,9 +2446,21 @@ export class HUD {
           price: 6000,
           usable: true,
         });
-        alert("🔧 God's Grace Auto Works: Engine serviced, spark plugs cleaned, and fresh engine oil poured! Vehicle running at peak performance!");
+        this.showDialogueModal({
+          speakerName: 'Master Tayo',
+          speakerRole: "God's Grace Auto Works",
+          speakerAvatar: '🔧',
+          soundType: 'win',
+          dialogueText: "God's Grace Auto Works: Engine serviced, spark plugs cleaned, and fresh engine oil poured! Vehicle running at peak performance!",
+          rewards: { streetCred: 20, item: { name: 'Castrol High-Grade Engine Oil', icon: '🛢️', category: 'tool' } },
+        });
       } else {
-        alert('❌ Need ₦6,000 cash for vehicle service!');
+        this.showDialogueModal({
+          speakerName: 'Workshop Office',
+          speakerRole: "God's Grace Auto Works",
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦6,000 cash for vehicle service!',
+        });
       }
     } else if (id === 'construction-site') {
       const energyDepleted = this.backend.depleteEnergy(25);
@@ -1738,9 +2468,21 @@ export class HUD {
         const wage = 6500;
         this.backend.addCash(wage);
         this.backend.addStreetCred(10);
-        alert(`👷 Tough day shift completed! Carried sandcrete blocks and mixed concrete. +₦${wage.toLocaleString()} cash paid into your pocket! Energy -25%`);
+        this.showDialogueModal({
+          speakerName: 'Site Supervisor Sunday',
+          speakerRole: 'Commercial High-Rise Site',
+          speakerAvatar: '👷',
+          soundType: 'cash',
+          dialogueText: `Tough day shift completed! Carried sandcrete blocks and mixed concrete. +₦${wage.toLocaleString()} cash paid into your pocket! Energy -25%`,
+          rewards: { cash: wage, streetCred: 10 },
+        });
       } else {
-        alert('❌ You are too exhausted! (Need at least 25% Energy). Eat at Mama Put or sleep in your apartment first.');
+        this.showDialogueModal({
+          speakerName: 'Site Safety Officer',
+          speakerRole: 'Construction Site Gate',
+          speakerAvatar: '⚠️',
+          dialogueText: 'You are too exhausted! (Need at least 25% Energy). Eat at Mama Put or sleep in your apartment first.',
+        });
       }
     } else if (id === 'palm-view-flats') {
       this.hideInteractionCard();
@@ -1760,9 +2502,21 @@ export class HUD {
           usable: true,
           energyRestore: 60,
         });
-        alert('🥩 Mallam Bisi: "Gaskiya! Fresh hot suya wrapped with extra yaji pepper and sliced onions! Oya enjoy!"');
+        this.showDialogueModal({
+          speakerName: 'Mallam Bisi',
+          speakerRole: 'Suya Grill Master',
+          speakerAvatar: '🥩',
+          soundType: 'cheer',
+          dialogueText: 'Gaskiya! Fresh hot suya wrapped with extra yaji pepper and sliced onions! Oya enjoy!',
+          rewards: { energy: 60, item: { name: 'Spicy Beef Suya Wrap', icon: '🥩', category: 'food' } },
+        });
       } else {
-        alert('❌ Need ₦1,500 cash for hot suya!');
+        this.showDialogueModal({
+          speakerName: 'Mallam Bisi',
+          speakerRole: 'Suya Spot',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦1,500 cash for hot suya!',
+        });
       }
     } else if (id === 'npc-emeka') {
       const success = this.backend.spendCash(3000, 'Phone Calibration & 5G SIM');
@@ -1777,9 +2531,21 @@ export class HUD {
           price: 3000,
           usable: false,
         });
-        alert('📱 Emeka: "Phone charging port cleaned, firmware flashed, and 5G data SIM activated!"');
+        this.showDialogueModal({
+          speakerName: 'Emeka Phone Tech',
+          speakerRole: 'Broad Street Electronics',
+          speakerAvatar: '📱',
+          soundType: 'tech',
+          dialogueText: 'Phone charging port cleaned, firmware flashed, and 5G data SIM activated!',
+          rewards: { streetCred: 10, item: { name: '5G MTN High-Speed Data SIM', icon: '📶', category: 'gadget' } },
+        });
       } else {
-        alert('❌ Need ₦3,000 cash for phone service & 5G SIM!');
+        this.showDialogueModal({
+          speakerName: 'Emeka Phone Tech',
+          speakerRole: 'Electronics Booth',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦3,000 cash for phone service & 5G SIM!',
+        });
       }
     } else if (id === 'npc-mechanic') {
       const energyDepleted = this.backend.depleteEnergy(15);
@@ -1787,18 +2553,44 @@ export class HUD {
         const gigWage = 4000;
         this.backend.addCash(gigWage);
         this.backend.addStreetCred(10);
-        alert(`🛠️ Master Tayo: "Good job boy! You helped align the alternator belt and brake pads. Take ₦${gigWage.toLocaleString()} cash for your pocket!" Energy -15%`);
+        this.showDialogueModal({
+          speakerName: 'Master Tayo',
+          speakerRole: "God's Grace Auto Works",
+          speakerAvatar: '🛠️',
+          soundType: 'cash',
+          dialogueText: `Good job boy! You helped align the alternator belt and brake pads. Take ₦${gigWage.toLocaleString()} cash for your pocket! Energy -15%`,
+          rewards: { cash: gigWage, streetCred: 10 },
+        });
       } else {
-        alert('❌ Too exhausted for manual workshop labor! Rest first.');
+        this.showDialogueModal({
+          speakerName: 'Master Tayo',
+          speakerRole: 'Mechanic Pit',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Too exhausted for manual workshop labor! Rest first.',
+        });
       }
     } else if (id === 'npc-warden') {
       this.backend.addStreetCred(10);
       this.player?.playEmote('salute', 3.0);
-      alert('👮 Sgt. Bello: "Always obey traffic signals and cross at zebra lines! Broad Street traffic flows smoothly when citizens stay sharp! Street Cred +10!"');
+      this.showDialogueModal({
+        speakerName: 'Sgt. Bello',
+        speakerRole: 'LASTMA Traffic Commander',
+        speakerAvatar: '👮',
+        soundType: 'general',
+        dialogueText: 'Always obey traffic signals and cross at zebra lines! Broad Street traffic flows smoothly when citizens stay sharp! Street Cred +10!',
+        rewards: { streetCred: 10 },
+      });
     } else if (id === 'npc-chief') {
       this.backend.addStreetCred(25);
       this.player?.playEmote('salute', 3.0);
-      alert('👑 Chief Alabi: "God bless you my child! In Lagos, integrity, perseverance and courage will open doors that ordinary money cannot open. Respect +25!"');
+      this.showDialogueModal({
+        speakerName: 'Chief Alabi',
+        speakerRole: 'Elders Council • Island Dignitary',
+        speakerAvatar: '👑',
+        soundType: 'win',
+        dialogueText: 'God bless you my child! In Lagos, integrity, perseverance and courage will open doors that ordinary money cannot open. Respect +25!',
+        rewards: { streetCred: 25 },
+      });
     } else if (id === 'npc-aunty') {
       const success = this.backend.spendCash(18000, 'Original Hollandais Wax Fabric');
       if (success) {
@@ -1812,9 +2604,21 @@ export class HUD {
           price: 25000,
           usable: false,
         });
-        alert('👗 Mama Nkechi: "Original Vlisco Hollandais Dutch Wax! You have great taste my customer! Street Cred +30!"');
+        this.showDialogueModal({
+          speakerName: 'Mama Nkechi',
+          speakerRole: 'Balogun Luxury Fabrics',
+          speakerAvatar: '👗',
+          soundType: 'win',
+          dialogueText: 'Original Vlisco Hollandais Dutch Wax! You have great taste my customer! Street Cred +30!',
+          rewards: { streetCred: 30, item: { name: 'Original Hollandais Wax Fabric (6 Yards)', icon: '👗', category: 'document' } },
+        });
       } else {
-        alert('❌ Need ₦18,000 cash for authentic Hollandais wax fabric!');
+        this.showDialogueModal({
+          speakerName: 'Mama Nkechi',
+          speakerRole: 'Fabric Shop',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦18,000 cash for authentic Hollandais wax fabric!',
+        });
       }
     } else if (id === 'npc-banker') {
       const cost = 50000;
@@ -1834,9 +2638,21 @@ export class HUD {
           price: 59250,
           usable: false,
         });
-        alert('📈 Tunde: "Treasury bill registered with CSCS clearing depository! You will earn guaranteed 18.5% sovereign yield upon maturity! Street Cred +40!"');
+        this.showDialogueModal({
+          speakerName: 'Tunde Bankole',
+          speakerRole: 'Investment VP • Eko Commercial Bank',
+          speakerAvatar: '📈',
+          soundType: 'win',
+          dialogueText: 'Treasury bill registered with CSCS clearing depository! You will earn guaranteed 18.5% sovereign yield upon maturity! Street Cred +40!',
+          rewards: { streetCred: 40, item: { name: '90-Day FGN Treasury Bill Note (18.5% ROI)', icon: '📈', category: 'document' } },
+        });
       } else {
-        alert('❌ Need ₦50,000 in cash or bank balance to purchase Treasury Bills!');
+        this.showDialogueModal({
+          speakerName: 'Tunde Bankole',
+          speakerRole: 'Investment Banking VP',
+          speakerAvatar: '⚠️',
+          dialogueText: 'Need ₦50,000 in cash or bank balance to purchase Treasury Bills!',
+        });
       }
     }
 

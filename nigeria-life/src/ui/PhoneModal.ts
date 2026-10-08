@@ -2,6 +2,7 @@ import { PhoneSystem } from '../phone/PhoneSystem';
 import { BackendService } from '../backend/BackendService';
 import type { PhoneAppId } from '../phone/types';
 import { HouseDecorationSystem } from '../housing/HouseDecorationSystem';
+import { showGameToast } from './GameToast';
 
 export class PhoneModal {
   private container: HTMLDivElement;
@@ -547,9 +548,10 @@ export class PhoneModal {
               transferAmount: amount,
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             });
+            showGameToast(`💸 Transferred ₦${amount.toLocaleString()} to ${contact.name}!`, 'success');
             this.render();
           } else {
-            alert(res.message);
+            showGameToast(res.message, 'error');
           }
         }
       };
@@ -637,7 +639,7 @@ export class PhoneModal {
           this.genMinigameStep = 2;
           this.render();
         } else {
-          alert('❌ Check the fuel first before opening the choke!');
+          showGameToast('❌ Check the fuel first before opening the choke!', 'warning');
         }
       };
     }
@@ -660,10 +662,10 @@ export class PhoneModal {
           this.genMinigameActive = false;
           this.backend.addCash(25000);
           this.backend.addStreetCred(35);
-          alert('🔥 GBRRRR-BRRRR! Generator fired up! Light restored to Trans-Amadi! You earned ₦25,000 cash and +35 Street Cred!');
+          showGameToast('🔥 GBRRRR-BRRRR! Generator fired up! Light restored to Trans-Amadi! +₦25,000 cash, +35 Street Cred!', 'success', 4500);
           this.render();
         } else {
-          alert('❌ Open the choke and check fuel before pulling the cord!');
+          showGameToast('❌ Open the choke and check fuel before pulling the cord!', 'warning');
         }
       };
     }
@@ -680,7 +682,7 @@ export class PhoneModal {
     if (passItBtn) {
       passItBtn.onclick = () => {
         this.genMinigameActive = false;
-        alert('Chidinma stepped in and pulled the cord. Safe bet! Job shift complete.');
+        showGameToast('Chidinma stepped in and pulled the cord. Safe bet! Job shift complete.', 'info');
         this.render();
       };
     }
@@ -695,9 +697,9 @@ export class PhoneModal {
         if (data.walletCash >= cost) {
           this.backend.spendCash(cost, `Chowdeck: ${name}`);
           this.backend.restoreEnergy(50);
-          alert(`🛵 Chowdeck dispatched! ${name} delivered to you! Restored +50% Energy!`);
+          showGameToast(`🛵 Chowdeck dispatched! ${name} delivered! Restored +50% Energy!`, 'success');
         } else {
-          alert(`❌ You need ₦${cost} cash to order from Chowdeck.`);
+          showGameToast(`❌ You need ₦${cost} cash to order from Chowdeck.`, 'error');
         }
       };
     });

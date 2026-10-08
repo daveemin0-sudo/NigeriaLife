@@ -170,6 +170,10 @@ export class Player {
         this.isMoving = true;
         this.currentEmote = 'walk';
 
+        // Physically traverse pedestrian bridge, stairs, and terrain elevation
+        const targetY = this.calculateWalkableHeight(this.mesh.position.x, this.mesh.position.z);
+        this.mesh.position.y = THREE.MathUtils.lerp(this.mesh.position.y, targetY, Math.min(1, delta * 14));
+
         this.animTime += delta;
         this.humanRig.updateAnimation(this.animTime, true);
         return;
@@ -199,6 +203,10 @@ export class Player {
         direction.normalize();
         const moveDist = Math.min(distance, this.speed * delta);
         this.mesh.position.addScaledVector(direction, moveDist);
+
+        // Physically traverse pedestrian bridge, stairs, and terrain elevation
+        const targetY = this.calculateWalkableHeight(this.mesh.position.x, this.mesh.position.z);
+        this.mesh.position.y = THREE.MathUtils.lerp(this.mesh.position.y, targetY, Math.min(1, delta * 14));
 
         this.animTime += delta;
         this.humanRig.updateAnimation(this.animTime, true);
@@ -240,5 +248,34 @@ export class Player {
     this.isDriving = driving;
     this.currentVehicle = vehicle;
     this.mesh.visible = !driving;
+  }
+
+  /**
+   * Calculates the walkable ground surface height for physical verticality.
+   * Enables physically traversing the overhead pedestrian bridge at z = 28.0m:
+   * Walking up the concrete stairs from z = 14.2m to 26.5m, walking across the
+   * overhead deck 5.4m above traffic, and walking down the stairs on the other side.
+   */
+  public calculateWalkableHeight(x: number, z: number): number {
+    const deckY = 5.4;
+
+    // West staircase (around x = -10.5) and East staircase (around x = +10.5)
+    const isWestStairs = Math.abs(x - (-10.5)) <= 1.8;
+    const isEastStairs = Math.abs(x - 10.5) <= 1.8;
+
+    // Staircase ramp span along Z: 14.2m (bottom on sidewalk) to 26.5m (top at deck)
+    if ((isWestStairs || isEastStairs) && z >= 14.2 && z <= 26.5) {
+      const progress = (z - 14.2) / (26.5 - 14.2);
+      return Math.max(0, Math.min(deckY, progress * deckY));
+    }
+
+    // Overhead walkway deck crossing the 4 highway lanes
+    // Spans from West pillar to East pillar (x: -11.0 to +11.0, z: 26.4 to 29.8)
+    if (Math.abs(x) <= 11.0 && z >= 26.4 && z <= 29.8) {
+      return deckY;
+    }
+
+    // Default street & sidewalk ground elevation
+    return 0;
   }
 }

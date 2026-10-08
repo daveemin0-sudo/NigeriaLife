@@ -7,11 +7,43 @@ export interface HumanConfig {
   username: string;
   skinTone?: string;
   hairColor?: string;
-  hairstyle?: 'short_crop' | 'fade' | 'afro' | 'braids' | 'bob_wig' | 'ponytail' | 'hardhat' | 'fila' | 'gele';
-  outfit?: 'engineer_vest' | 'senator' | 'blue_dress' | 'peplum_skirt' | 'casual_tee' | 'casual_blouse';
+  hairstyle?: 
+    | 'short_crop' 
+    | 'fade' 
+    | 'afro' 
+    | 'braids' 
+    | 'bob_wig' 
+    | 'ponytail' 
+    | 'hardhat' 
+    | 'fila' 
+    | 'gele'
+    | 'pilot_cap'
+    | 'police_cap'
+    | 'chef_toque';
+  outfit?: 
+    | 'engineer_vest' 
+    | 'senator' 
+    | 'blue_dress' 
+    | 'peplum_skirt' 
+    | 'casual_tee' 
+    | 'casual_blouse'
+    | 'doctor_coat'
+    | 'nurse_scrubs'
+    | 'pilot_uniform'
+    | 'security_uniform'
+    | 'student_casual'
+    | 'lecturer_suit'
+    | 'chef_attire'
+    | 'mechanic_overalls'
+    | 'traffic_warden'
+    | 'agbada';
   outfitColor?: number;
   secondaryColor?: number;
   heightScale?: number;
+  hasStethoscope?: boolean;
+  hasTie?: boolean;
+  hasBackpack?: boolean;
+  hasTray?: boolean;
 }
 
 export interface HumanRig {
@@ -159,17 +191,15 @@ export class HumanMeshBuilder {
       hipsMesh.position.set(0, -0.36, 0);
       torsoGroup.add(hipsMesh);
 
-      // D. High-Visibility Safety Vest (Like foreground worker in Image 3!)
-      if (config.outfit === 'engineer_vest' || config.outfit === undefined) {
+      // D. High-Visibility Safety Vest
+      if (config.outfit === 'engineer_vest') {
         const vestMat = new THREE.MeshStandardMaterial({
           color: 0xf97316, // Bright High-Vis Safety Orange
           roughness: 0.5,
         });
         materials.push(vestMat);
 
-        const stripeMat = new THREE.MeshBasicMaterial({
-          color: 0xecfccb, // Reflective Lime Yellow Striping
-        });
+        const stripeMat = new THREE.MeshBasicMaterial({ color: 0xecfccb });
         materials.push(stripeMat);
 
         // Reflective Silver / Lime Stripes across chest and waist
@@ -190,6 +220,135 @@ export class HumanMeshBuilder {
         susp2.position.set(0.16, 0.18, 0);
         torsoGroup.add(susp2);
       }
+    }
+
+    // =========================================================================
+    // OCCUPATION-SPECIFIC ATTIRE OVERLAYS (UNISEX / ADAPTABLE)
+    // =========================================================================
+    if (config.outfit === 'doctor_coat') {
+      // Doctor's Long Clinical Lab Coat (Pure White)
+      const coatMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
+      materials.push(coatMat);
+      const lapelL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.04), coatMat);
+      lapelL.position.set(-0.16, 0.16, 0.15);
+      torsoGroup.add(lapelL);
+      const lapelR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.04), coatMat);
+      lapelR.position.set(0.16, 0.16, 0.15);
+      torsoGroup.add(lapelR);
+
+      // Pocket with clinical pens
+      const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.03), coatMat);
+      pocket.position.set(-0.15, 0.22, 0.17);
+      torsoGroup.add(pocket);
+      const pen = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.08, 6), new THREE.MeshBasicMaterial({ color: 0x2563eb }));
+      pen.position.set(-0.14, 0.27, 0.18);
+      torsoGroup.add(pen);
+
+      // Coat tails hanging past hips
+      const coatTails = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.38, 0.28), coatMat);
+      coatTails.position.set(0, -0.42, -0.02);
+      torsoGroup.add(coatTails);
+    } else if (config.outfit === 'nurse_scrubs') {
+      // Cyan/Teal V-neck Medical Scrubs
+      const scrubMat = new THREE.MeshStandardMaterial({ color: config.outfitColor ?? 0x0284c7, roughness: 0.6 });
+      materials.push(scrubMat);
+      const idBadge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.11, 0.02), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+      idBadge.position.set(-0.14, 0.22, 0.16);
+      torsoGroup.add(idBadge);
+    } else if (config.outfit === 'pilot_uniform') {
+      // Captain Pilot Blazer with 4 Gold Epaulet Stripes & Gold Pilot Wings
+      const goldMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8, roughness: 0.3 });
+      materials.push(goldMat);
+      for (const sx of [-0.22, 0.22]) {
+        for (let stripe = 0; stripe < 4; stripe++) {
+          const epaulet = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.015, 0.18), goldMat);
+          epaulet.position.set(sx, 0.36 + stripe * 0.022, 0);
+          torsoGroup.add(epaulet);
+        }
+      }
+      // Gold pilot wings on left breast
+      const wings = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.02), goldMat);
+      wings.position.set(-0.15, 0.24, 0.16);
+      torsoGroup.add(wings);
+    } else if (config.outfit === 'security_uniform') {
+      // Tactical Security Shirt with Shield Crest
+      const badgeMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.85, roughness: 0.2 });
+      materials.push(badgeMat);
+      const shield = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.08, 5), badgeMat);
+      shield.rotation.x = Math.PI;
+      shield.position.set(-0.15, 0.24, 0.16);
+      torsoGroup.add(shield);
+    } else if (config.outfit === 'traffic_warden') {
+      // LASTMA / Police High-Vis Yellow-Lime Harness
+      const limeMat = new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.4 });
+      materials.push(limeMat);
+      const strapL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.52, 0.31), limeMat);
+      strapL.rotation.z = -0.25;
+      strapL.position.set(-0.06, 0.16, 0);
+      torsoGroup.add(strapL);
+      const strapR = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.52, 0.31), limeMat);
+      strapR.rotation.z = 0.25;
+      strapR.position.set(0.06, 0.16, 0);
+      torsoGroup.add(strapR);
+    } else if (config.outfit === 'chef_attire') {
+      // Double-breasted Chef Jacket with Red Scarf
+      const redScarf = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: 0xdc2626 }));
+      redScarf.rotation.x = Math.PI / 2;
+      redScarf.position.set(0, 0.36, 0.04);
+      torsoGroup.add(redScarf);
+    } else if (config.outfit === 'agbada') {
+      // Grand flowing Nigerian Agbada outer robe
+      const agbadaMat = new THREE.MeshStandardMaterial({ color: config.outfitColor ?? 0x047857, roughness: 0.7 });
+      materials.push(agbadaMat);
+      const robeGeo = new THREE.BoxGeometry(0.82, 0.85, 0.38);
+      const robe = new THREE.Mesh(robeGeo, agbadaMat);
+      robe.position.set(0, -0.06, 0);
+      torsoGroup.add(robe);
+
+      // Gold chest embroidery medallion
+      const embMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4 });
+      materials.push(embMat);
+      const emb = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 16), embMat);
+      emb.rotation.x = Math.PI / 2;
+      emb.position.set(0, 0.18, 0.2);
+      torsoGroup.add(emb);
+    }
+
+    // Optional Stethoscope around neck
+    if (config.hasStethoscope) {
+      const stethMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3 });
+      materials.push(stethMat);
+      const loop = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.025, 8, 16), stethMat);
+      loop.rotation.x = Math.PI / 3;
+      loop.position.set(0, 0.34, 0.08);
+      torsoGroup.add(loop);
+
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 12), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9 }));
+      disc.rotation.x = Math.PI / 2;
+      disc.position.set(0, 0.14, 0.16);
+      torsoGroup.add(disc);
+    }
+
+    // Optional Necktie
+    if (config.hasTie || config.outfit === 'pilot_uniform' || config.outfit === 'lecturer_suit') {
+      const tieMat = new THREE.MeshStandardMaterial({ color: 0x09090b });
+      materials.push(tieMat);
+      const tie = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.32, 0.03), tieMat);
+      tie.position.set(0, 0.15, 0.16);
+      torsoGroup.add(tie);
+    }
+
+    // Optional 3D Backpack (Students)
+    if (config.hasBackpack || config.outfit === 'student_casual') {
+      const packMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.6 });
+      materials.push(packMat);
+      const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.44, 0.2), packMat);
+      backpack.position.set(0, 0.08, -0.22);
+      torsoGroup.add(backpack);
+
+      const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 0.08), new THREE.MeshStandardMaterial({ color: 0x172554 }));
+      pocket.position.set(0, -0.04, -0.32);
+      torsoGroup.add(pocket);
     }
 
     // =========================================================================
@@ -322,12 +481,79 @@ export class HumanMeshBuilder {
         filaMesh.rotation.z = -0.15;
         filaMesh.position.set(0.04, 0.14, 0);
         headGroup.add(filaMesh);
+      } else if (maleStyle === 'pilot_cap' || config.hairstyle === 'pilot_cap') {
+        // Commercial Airline Pilot Peaked Cap with Gold Laurel Visor
+        const pilotCapMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+        materials.push(pilotCapMat);
+        const crown = new THREE.Mesh(new THREE.CylinderGeometry(headWidth * 1.15, headWidth * 1.05, 0.14, 16), pilotCapMat);
+        crown.position.set(0, 0.12, 0);
+        headGroup.add(crown);
+
+        const goldVisorMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8 });
+        materials.push(goldVisorMat);
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(headWidth * 1.25, 0.03, 0.16), new THREE.MeshStandardMaterial({ color: 0x020617 }));
+        visor.position.set(0, 0.06, headDepth * 0.95);
+        headGroup.add(visor);
+
+        const crest = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.06, 5), goldVisorMat);
+        crest.rotation.x = Math.PI;
+        crest.position.set(0, 0.16, headDepth * 0.9);
+        headGroup.add(crest);
+      } else if (maleStyle === 'police_cap' || config.hairstyle === 'police_cap') {
+        // Nigeria Police Service Peaked Cap
+        const policeCapMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.5 });
+        materials.push(policeCapMat);
+        const crown = new THREE.Mesh(new THREE.CylinderGeometry(headWidth * 1.12, headWidth * 1.04, 0.14, 16), policeCapMat);
+        crown.position.set(0, 0.12, 0);
+        headGroup.add(crown);
+
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(headWidth * 1.2, 0.03, 0.14), new THREE.MeshStandardMaterial({ color: 0x09090b }));
+        visor.position.set(0, 0.06, headDepth * 0.92);
+        headGroup.add(visor);
+
+        const badge = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), new THREE.MeshStandardMaterial({ color: 0xfacc15 }));
+        badge.position.set(0, 0.15, headDepth * 0.9);
+        headGroup.add(badge);
+      } else if (maleStyle === 'chef_toque' || config.hairstyle === 'chef_toque') {
+        // White Chef Pleated Toque
+        const toqueMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+        materials.push(toqueMat);
+        const toque = new THREE.Mesh(new THREE.CylinderGeometry(headWidth * 1.18, headWidth * 1.05, 0.36, 16), toqueMat);
+        toque.position.set(0, 0.24, 0);
+        headGroup.add(toque);
       } else {
         // Clean male fade / buzzcut
         const hairGeo = new THREE.SphereGeometry(headWidth * 1.02, 12, 8);
         const hairMesh = new THREE.Mesh(hairGeo, hairMat);
         hairMesh.position.set(0, 0.04, -0.02);
         headGroup.add(hairMesh);
+      }
+    }
+
+    // Street Drinks & Snacks Hawker Tray balanced on head
+    if (config.hasTray) {
+      const basinMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 }); // Red plastic basin
+      materials.push(basinMat);
+      const basin = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.38, 0.16, 16), basinMat);
+      basin.position.set(0, headHeight + 0.14, 0);
+      headGroup.add(basin);
+
+      // Sachet pure water bags & Gala sausage rolls in tray
+      const waterMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
+      materials.push(waterMat);
+      for (let w = -2; w <= 2; w++) {
+        const sachet = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.12), waterMat);
+        sachet.position.set(w * 0.12, headHeight + 0.22, (w % 2) * 0.1);
+        headGroup.add(sachet);
+      }
+
+      const galaMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 });
+      materials.push(galaMat);
+      for (let g = -1; g <= 1; g++) {
+        const gala = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.18, 8), galaMat);
+        gala.rotation.x = Math.PI / 2;
+        gala.position.set(g * 0.16, headHeight + 0.25, -0.1);
+        headGroup.add(gala);
       }
     }
 

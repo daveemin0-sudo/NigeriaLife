@@ -1,5 +1,6 @@
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
+import { showGameToast } from './GameToast';
 
 export interface TravelDestination {
   id: string;
@@ -223,7 +224,7 @@ export class TravelModal {
 
     const data = this.backend.getData();
     if (data.walletCash < dest.fare && data.bank.balance < dest.fare) {
-      alert(`❌ Ineffective funds! You need ₦${dest.fare.toLocaleString()} for bus fare to ${dest.name}.`);
+      showGameToast(`❌ Insufficient funds! You need ₦${dest.fare.toLocaleString()} for bus fare to ${dest.name}.`, 'error');
       return;
     }
 
@@ -279,11 +280,7 @@ export class TravelModal {
           this.backend.restoreEnergy(50);
         }
 
-        alert(
-          `🎉 Arrived safely at ${dest.name}!\n\n` +
-          `• Added "${dest.souvenirItem.name}" to your bag!\n` +
-          `• Earned Street Cred & Lagos transit experience.`
-        );
+        showGameToast(`🎉 Arrived safely at ${dest.name}! Added "${dest.souvenirItem.name}" to bag!`, 'success');
       }, dest.travelTimeSeconds * 1000);
     }
   }

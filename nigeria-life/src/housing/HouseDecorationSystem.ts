@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BackendService } from '../backend/BackendService';
+import { showGameToast } from '../ui/GameToast';
 
 export interface CatalogueItem {
   id: string;
@@ -227,7 +228,7 @@ export class HouseDecorationSystem {
     const data = this.backend.getData();
     const totalFunds = data.walletCash + data.bank.balance;
     if (totalFunds < item.price) {
-      alert(`❌ You need ₦${item.price.toLocaleString()} to purchase this item.`);
+      showGameToast(`❌ You need ₦${item.price.toLocaleString()} to purchase this item.`, 'error');
       return;
     }
 
@@ -256,7 +257,7 @@ export class HouseDecorationSystem {
     });
 
     this.closeCatalogueModal();
-    alert(`🎉 Successfully bought "${item.name}"! Delivered and installed in your residence!`);
+    showGameToast(`🎉 Bought "${item.name}"! Delivered & installed in your residence!`, 'success');
     this.onFurniturePlaced?.(item);
   }
 

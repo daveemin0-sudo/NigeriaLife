@@ -2,6 +2,7 @@ import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
 import type { CityId, CityTravelRoute } from '../cities/CityTypes';
+import { showGameToast } from './GameToast';
 
 export class InterStateModal {
   private container: HTMLDivElement;
@@ -165,7 +166,7 @@ export class InterStateModal {
   private executeInterStateTravel(route: CityTravelRoute, fare: number): void {
     const data = this.backend.getData();
     if (data.walletCash < fare && data.bank.balance < fare) {
-      alert(`❌ Ineffective funds! You need ₦${fare.toLocaleString()} to book this interstate ticket.`);
+      showGameToast(`❌ Insufficient funds! You need ₦${fare.toLocaleString()} to book this interstate ticket.`, 'error');
       return;
     }
 
@@ -242,11 +243,9 @@ export class InterStateModal {
 
         this.onInterStateTravelCompleted?.(route.destinationId);
 
-        alert(
-          `🇳🇬 Arrived in ${route.destinationId.toUpperCase()}!\n\n` +
-          `• Added "${route.souvenirItem.name}" to your bag!\n` +
-          `• Street Cred increased by +30.\n` +
-          `• Enjoy your stay in the new state!`
+        showGameToast(
+          `🇳🇬 Arrived in ${route.destinationId.toUpperCase()}! Added "${route.souvenirItem.name}" to bag! Street Cred +30!`,
+          'success'
         );
       }, route.durationSeconds * 1000);
     }

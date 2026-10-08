@@ -1,5 +1,6 @@
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
+import { showGameToast } from './GameToast';
 
 export class InventoryModal {
   private container: HTMLDivElement;
@@ -131,7 +132,7 @@ export class InventoryModal {
           return;
         }
         const res = this.backend.useItem(itemId);
-        alert(res.message);
+        showGameToast(res.message, res.success ? 'success' : 'error');
       };
     });
   }
