@@ -126,19 +126,23 @@ export class Game {
 
     // 9c. Camera Navigation Modes (Home Flat | Street Walk | Aerial World Map)
     this.hud.onNavigateMode = (mode: 'street' | 'home' | 'map') => {
-      this.cameraManager.setMode(mode);
       if (mode === 'home') {
         this.world.worldMap.deactivate();
-        this.world.setStreetModeVisibility(true);
-        if (!this.player.isDriving) this.player.mesh.visible = true;
-        this.player.mesh.position.set(0, 0, 184);
-      } else if (mode === 'street') {
+        this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
+        return;
+      }
+
+      if (this.world.interiorManager.isPlayerInside()) {
+        this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+      }
+
+      this.cameraManager.setMode(mode);
+      this.cameraManager.setLayerMode(mode);
+
+      if (mode === 'street') {
         this.world.worldMap.deactivate();
         this.world.setStreetModeVisibility(true);
         if (!this.player.isDriving) this.player.mesh.visible = true;
-        if (this.player.mesh.position.z > 160) {
-          this.player.mesh.position.set(0, 0, 5);
-        }
       } else if (mode === 'map') {
         this.world.setStreetModeVisibility(false);
         this.player.mesh.visible = false;
@@ -157,11 +161,11 @@ export class Game {
 
     // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)
     this.hud.onEnterInterior = (buildingId: string) => {
-      this.world.interiorManager.enterInterior(buildingId, this.player, this.cameraManager, this.hud);
+      this.world.interiorManager.enterInterior(buildingId, this.player, this.cameraManager, this.hud, this.world);
     };
 
     this.hud.onExitInterior = () => {
-      this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud);
+      this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
     };
 
     // 10. Multiplayer & Street Chat
@@ -216,11 +220,13 @@ export class Game {
     this.cameraManager.update(this.player, delta);
 
     // Update World (Vehicles, Traffic, NPCs, Weather, Districts) with keys & player position
-    this.world.update(delta, this.input.keys, this.player.position);
+    this.world.update(delta, this.input.keys, this.player.position, this.player);
 
-    // Dynamic District Location Tracker in HUD
-    const district = this.world.getDistrictAtPosition(this.player.position);
-    this.hud.updateLocation(district.name, district.sub);
+    // Dynamic District Location Tracker in HUD (only when outdoors in street mode)
+    if (!this.world.interiorManager.isPlayerInside()) {
+      const district = this.world.getDistrictAtPosition(this.player.position);
+      this.hud.updateLocation(district.name, district.sub);
+    }
 
     // Update Driving HUD Speedometer
     if (this.player.isDriving && this.player.currentVehicle) {

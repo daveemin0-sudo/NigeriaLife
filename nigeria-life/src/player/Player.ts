@@ -6,6 +6,7 @@ import {
   type EmoteType,
 } from './CharacterCustomization';
 import { SignageLibrary } from '../materials/SignageLibrary';
+import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 
 export class Player {
   public mesh: THREE.Group;
@@ -47,6 +48,11 @@ export class Player {
 
     this.createCharacterMesh();
     this.applyCustomization(this.config);
+
+    // Assign to dedicated PLAYER layer so player is visible in both street and interior
+    this.mesh.traverse((child) => {
+      child.layers.set(RENDER_LAYERS.PLAYER);
+    });
   }
 
   public get position(): THREE.Vector3 {

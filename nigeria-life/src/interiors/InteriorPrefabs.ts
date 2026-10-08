@@ -27,6 +27,7 @@ export class InteriorPrefabs {
     const floorGeo = new THREE.BoxGeometry(width, 0.4, length);
     const floorMat = new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.3 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.name = 'interior_floor_mesh';
     floor.position.set(0, -0.2, 0);
     floor.receiveShadow = true;
     room.add(floor);

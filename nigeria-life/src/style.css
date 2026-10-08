@@ -23,6 +23,17 @@ canvas {
   height: 100vh;
 }
 
+/* Interior Mode Cinematic Fade Transition */
+#interior-fade-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: #020617;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99999;
+  transition: opacity 0.28s ease-in-out;
+}
+
 /* =========================================
    HUD & UI OVERLAY (Glassmorphism & Lagos Vibes)
    ========================================= */

@@ -18,8 +18,8 @@ export class ResidentialInterior {
 
   constructor() {
     this.group = new THREE.Group();
-    // Isolated coordinate area for residential interior (Z = 180 is the established apartment coordinate)
-    const origin = new THREE.Vector3(0, 0, 180);
+    // Isolated coordinate area for residential interior
+    const origin = new THREE.Vector3(260, 0, 440);
     this.group.position.copy(origin);
 
     this.def = {

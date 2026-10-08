@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { PlayerNetState } from './types';
 import { ATTIRE_PRESETS } from '../player/CharacterCustomization';
 import { createColorCanvasTexture } from '../utils/TextureUtils';
+import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 
 export class RemotePlayer {
   public id: string;
@@ -45,6 +46,11 @@ export class RemotePlayer {
     this.createNameplate(initialState.name);
     this.createChatBubble();
     this.applyState(initialState);
+
+    // Tag remote players with STREET layer so they never show inside an interior
+    this.mesh.traverse((child) => {
+      child.layers.set(RENDER_LAYERS.STREET);
+    });
   }
 
   private createCharacterMesh(state: PlayerNetState): void {

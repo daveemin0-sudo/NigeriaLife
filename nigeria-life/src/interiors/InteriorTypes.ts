@@ -1,5 +1,14 @@
 import * as THREE from 'three';
 
+export type GameLocationMode = 'street' | 'interior' | 'world-map';
+
+export const RENDER_LAYERS = {
+  DEFAULT: 0,
+  STREET: 1,
+  INTERIOR: 2,
+  PLAYER: 3,
+} as const;
+
 export type BuildingTier = 
   | 'tier1_shell'      // Low-poly background facade (visual density, not enterable)
   | 'tier2_modular'    // Modular enterable template (residences, apartments, corner shops)

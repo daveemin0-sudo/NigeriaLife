@@ -16,6 +16,7 @@ import { CityPopulation } from './population/CityPopulation';
 import { WorldMap } from './map/WorldMap';
 import { WorldDataManager } from './data/WorldDataManager';
 import { InteriorManager } from '../interiors/InteriorManager';
+import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -142,6 +143,27 @@ export class World {
       this.atmosphere.group,
       this.groundMesh,
     ]);
+
+    // Layer separation: Tag street objects to STREET layer
+    const streetObjects = [
+      this.roads.group,
+      this.buildings.group,
+      this.cityDensity.group,
+      this.vehicles.group,
+      this.trafficSpawner.group,
+      this.npcs.group,
+      this.cityPopulation.group,
+      this.districts.group,
+      this.apartment.group,
+      this.atmosphere.group,
+      this.groundMesh,
+    ];
+    for (const obj of streetObjects) {
+      obj.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
+    }
+
+    // Tag Interior objects to INTERIOR layer
+    this.interiorManager.group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
   }
 
   private createGround(): void {
@@ -175,6 +197,14 @@ export class World {
   }
 
   public getDistrictAtPosition(pos: THREE.Vector3): { name: string; sub: string } {
+    // If player is inside a simulated 3-Tier Interior, display that interior's name
+    if (this.interiorManager.isPlayerInside() && this.interiorManager.currentInterior) {
+      return {
+        name: this.interiorManager.currentInterior.name,
+        sub: `Interior • ${this.interiorManager.currentInterior.districtName}`,
+      };
+    }
+
     if (this.cityManager.currentCityId === 'abuja') {
       if (pos.z < -60) {
         return { name: 'Abuja FCT', sub: 'Aso Rock Monolith & Presidential Lookout' };
@@ -202,13 +232,19 @@ export class World {
     return { name: 'Lagos Island', sub: 'Broad Street' };
   }
 
-  public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3): void {
+  public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3, player?: any): void {
     // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day
     this.skyEnvironment.update(delta, playerPos);
 
     // Keep live player coordinate synced in WorldDataManager
     if (playerPos) {
       this.dataManager.updatePlayerPosition(playerPos);
+    }
+
+    // If player is inside an interior, only update the active interior simulation
+    if (this.interiorManager.isPlayerInside()) {
+      this.interiorManager.update(delta, player);
+      return;
     }
 
     // If World Map mode is currently active, update dedicated WorldMap presentations

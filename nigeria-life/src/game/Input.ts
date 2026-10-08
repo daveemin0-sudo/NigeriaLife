@@ -119,8 +119,13 @@ export class InputManager {
 
     this.raycaster.setFromCamera(this.mouseCoords, this.camera);
 
+    const isInside = this.world.interiorManager.isPlayerInside();
+    const activeObjects = isInside
+      ? this.world.interiorManager.getActiveInteractiveObjects()
+      : this.world.interactiveObjects;
+
     // Smart cursor priority: interactive object > walkable ground > default.
-    const interactiveMeshes = this.world.interactiveObjects.map((obj) => obj.mesh);
+    const interactiveMeshes = activeObjects.map((obj) => obj.mesh);
     const interactiveHits = this.raycaster.intersectObjects(interactiveMeshes, true);
 
     if (interactiveHits.length > 0) {
@@ -141,19 +146,26 @@ export class InputManager {
 
     this.hoveredObject = null;
 
-    // Check hover against walkable terrain.
-    const groundHits = this.raycaster.intersectObject(this.world.groundMesh, false);
-    if (groundHits.length > 0) {
-      this.hoverGroundPoint.copy(groundHits[0].point);
-      this.hoverReticle.position.copy(this.hoverGroundPoint);
-      this.hoverReticle.position.y = 0.03;
-      this.hoverReticle.visible = true;
-      (this.hoverReticle.material as THREE.MeshBasicMaterial).opacity = 0.4;
-      this.setCursor('walk');
-    } else {
-      this.hoverReticle.visible = false;
-      this.setCursor('default');
+    // Check hover against walkable terrain / interior floor.
+    const floorMesh = isInside
+      ? this.world.interiorManager.getActiveFloorMesh()
+      : this.world.groundMesh;
+
+    if (floorMesh) {
+      const groundHits = this.raycaster.intersectObject(floorMesh, false);
+      if (groundHits.length > 0) {
+        this.hoverGroundPoint.copy(groundHits[0].point);
+        this.hoverReticle.position.copy(this.hoverGroundPoint);
+        this.hoverReticle.position.y = isInside ? 0.04 : 0.03;
+        this.hoverReticle.visible = true;
+        (this.hoverReticle.material as THREE.MeshBasicMaterial).opacity = 0.4;
+        this.setCursor('walk');
+        return;
+      }
     }
+
+    this.hoverReticle.visible = false;
+    this.setCursor('default');
   }
 
   private onPointerDown(event: MouseEvent): void {
@@ -175,8 +187,13 @@ export class InputManager {
 
     this.raycaster.setFromCamera(this.mouseCoords, this.camera);
 
+    const isInside = this.world.interiorManager.isPlayerInside();
+    const activeObjects = isInside
+      ? this.world.interiorManager.getActiveInteractiveObjects()
+      : this.world.interactiveObjects;
+
     // 1. Test click on interactive buildings & objects
-    const buildingMeshes = this.world.interactiveObjects.map((obj) => obj.mesh);
+    const buildingMeshes = activeObjects.map((obj) => obj.mesh);
     const buildingHits = this.raycaster.intersectObjects(buildingMeshes, true);
 
     if (buildingHits.length > 0) {
@@ -204,14 +221,20 @@ export class InputManager {
       }
     }
 
-    // 2. Test click on ground
-    const groundHits = this.raycaster.intersectObject(this.world.groundMesh);
-    if (groundHits.length > 0) {
-      const clickPoint = groundHits[0].point;
-      this.pendingInteraction = null;
-      this.player.setDestination(clickPoint);
-      this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
-      this.hud.hideInteractionCard();
+    // 2. Test click on ground / interior floor
+    const floorMesh = isInside
+      ? this.world.interiorManager.getActiveFloorMesh()
+      : this.world.groundMesh;
+
+    if (floorMesh) {
+      const groundHits = this.raycaster.intersectObject(floorMesh, false);
+      if (groundHits.length > 0) {
+        const clickPoint = groundHits[0].point;
+        this.pendingInteraction = null;
+        this.player.setDestination(clickPoint);
+        this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
+        this.hud.hideInteractionCard();
+      }
     }
   }
 
@@ -227,8 +250,12 @@ export class InputManager {
 
   private findInteractiveParent(obj: THREE.Object3D): InteractiveObject | null {
     let curr: THREE.Object3D | null = obj;
+    const list = this.world.interiorManager.isPlayerInside()
+      ? this.world.interiorManager.getActiveInteractiveObjects()
+      : this.world.interactiveObjects;
+
     while (curr) {
-      const match = this.world.interactiveObjects.find((item) => item.mesh === curr);
+      const match = list.find((item) => item.mesh === curr);
       if (match) return match;
       curr = curr.parent;
     }
@@ -295,8 +322,11 @@ export class InputManager {
   public findClosestInteractive(maxDist: number = 3.5): InteractiveObject | null {
     let closest: InteractiveObject | null = null;
     let minDist = maxDist;
+    const list = this.world.interiorManager.isPlayerInside()
+      ? this.world.interiorManager.getActiveInteractiveObjects()
+      : this.world.interactiveObjects;
 
-    for (const obj of this.world.interactiveObjects) {
+    for (const obj of list) {
       const d = this.player.position.distanceTo(obj.interactionPoint);
       if (d < minDist) {
         minDist = d;
