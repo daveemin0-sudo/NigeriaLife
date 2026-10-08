@@ -11,7 +11,7 @@ export interface TrafficVehicleInstance {
 export class TrafficSpawner {
   public group: THREE.Group;
   private vehicles: TrafficVehicleInstance[] = [];
-  private maxActiveVehicles: number = 14;
+  private maxActiveVehicles: number = 28;
 
   constructor() {
     this.group = new THREE.Group();
@@ -20,24 +20,31 @@ export class TrafficSpawner {
 
   private initTrafficStream(): void {
     const vehicleTypes = [
-      'danfo', 'keke', 'okada', 'brt', 'taxi', 'sedan', 'suv',
-      'pickup', 'delivery_van', 'truck', 'tanker', 'danfo', 'keke', 'sedan'
+      'danfo', 'keke', 'brt', 'taxi', 'sedan', 'suv',
+      'pickup', 'delivery_van', 'truck', 'tanker', 'danfo', 'keke', 'sedan', 'danfo'
     ];
 
     const colors = [0xfacc15, 0xdc2626, 0x2563eb, 0x16a34a, 0xffffff, 0x18181b, 0xd97706, 0x64748b];
 
+    // 4 Distinct Lanes: Northbound outer/inner (-4.9, -1.8) and Southbound inner/outer (1.8, 4.9)
+    const northLanes = [-4.9, -1.8];
+    const southLanes = [1.8, 4.9];
+
     for (let i = 0; i < this.maxActiveVehicles; i++) {
       const type = vehicleTypes[i % vehicleTypes.length];
       const isNorth = i % 2 === 0;
-      const laneX = isNorth ? -2.8 : 2.8;
-      const initialZ = -100 + i * 16;
+      const laneList = isNorth ? northLanes : southLanes;
+      const laneX = laneList[Math.floor(i / 2) % laneList.length];
+      const initialZ = -120 + (i / this.maxActiveVehicles) * 240 + (Math.random() - 0.5) * 8;
       const color = colors[i % colors.length];
 
       const v = this.buildVehicle(type, color);
       v.lane = isNorth ? 'north' : 'south';
       v.mesh.position.set(laneX, 0, initialZ);
       v.mesh.rotation.y = isNorth ? 0 : Math.PI;
-      v.speed = 10 + Math.random() * 5.0;
+      // Faster on inner lane, slightly slower on outer curbside lane
+      const baseSpeed = Math.abs(laneX) < 3.0 ? 12 : 9;
+      v.speed = baseSpeed + Math.random() * 4.5;
 
       this.vehicles.push(v);
       this.group.add(v.mesh);

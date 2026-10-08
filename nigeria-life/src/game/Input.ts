@@ -14,6 +14,9 @@ export class InputManager {
 
   // Camera Orbit Drag State
   private isRotatingCamera: boolean = false;
+  private isPointerDown: boolean = false;
+  private hasDragged: boolean = false;
+  private pointerDownPos = new THREE.Vector2();
   private lastMouseX: number = 0;
   private lastMouseY: number = 0;
 
@@ -82,11 +85,48 @@ export class InputManager {
     // Setup Event Listeners
     window.addEventListener('pointermove', this.onPointerMove.bind(this));
     window.addEventListener('pointerdown', this.onPointerDown.bind(this));
-    window.addEventListener('pointerup', (e) => {
-      if (e.button === 2 || e.button === 1) {
-        this.isRotatingCamera = false;
+    window.addEventListener('pointerup', this.onPointerUp.bind(this));
+
+    // Touch support for screen drag rotation
+    window.addEventListener('touchstart', (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        const targetEl = e.target as HTMLElement;
+        if (targetEl.closest('canvas')) {
+          this.isPointerDown = true;
+          this.hasDragged = false;
+          this.pointerDownPos.set(t.clientX, t.clientY);
+          this.lastMouseX = t.clientX;
+          this.lastMouseY = t.clientY;
+        }
       }
-    });
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e: TouchEvent) => {
+      if (e.touches.length === 1 && this.isPointerDown && this.cameraManager) {
+        const t = e.touches[0];
+        const dist = Math.hypot(t.clientX - this.pointerDownPos.x, t.clientY - this.pointerDownPos.y);
+        if (dist > 5) {
+          this.hasDragged = true;
+          this.isRotatingCamera = true;
+          const deltaX = t.clientX - this.lastMouseX;
+          const deltaY = t.clientY - this.lastMouseY;
+          this.lastMouseX = t.clientX;
+          this.lastMouseY = t.clientY;
+          this.cameraManager.rotate(-deltaX * 0.006, -deltaY * 0.004);
+        }
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchend', (e: TouchEvent) => {
+      const wasDragging = this.hasDragged;
+      this.isPointerDown = false;
+      this.isRotatingCamera = false;
+      if (!wasDragging && e.changedTouches.length > 0) {
+        const t = e.changedTouches[0];
+        this.handleCanvasClick(t.clientX, t.clientY);
+      }
+    }, { passive: true });
 
     // Prevent context menu on right click so player can freely rotate camera
     window.addEventListener('contextmenu', (e) => {
@@ -120,6 +160,18 @@ export class InputManager {
         this.onToggleVehicle?.();
       } else if (k === 'h') {
         this.onHonkVehicle?.();
+      } else if (k === 'v') {
+        // Toggle camera preset (Third-Person -> Street -> Isometric -> Aerial)
+        if (this.cameraManager) {
+          const next = this.cameraManager.cyclePreset();
+          const names: Record<string, string> = {
+            close: 'Third-Person Close',
+            street: 'Street Normal',
+            isometric: 'High Isometric',
+            aerial: 'Aerial Overview',
+          };
+          this.hud.showNotification(`📷 Camera View: ${names[next] || next}`);
+        }
       } else if (k === 'e') {
         if (this.hud.currentInteractionTarget) {
           e.preventDefault();
@@ -148,14 +200,25 @@ export class InputManager {
       return;
     }
 
-    // Camera rotation orbit drag
-    if (this.isRotatingCamera && this.cameraManager) {
-      const deltaX = event.clientX - this.lastMouseX;
-      const deltaY = event.clientY - this.lastMouseY;
-      this.lastMouseX = event.clientX;
-      this.lastMouseY = event.clientY;
-      const rotSpeed = 0.0055;
-      this.cameraManager.rotate(-deltaX * rotSpeed, -deltaY * rotSpeed * 0.7);
+    // Camera rotation orbit drag (with left-drag, right-drag, or middle-drag)
+    if (this.isPointerDown && this.cameraManager) {
+      const dist = Math.hypot(event.clientX - this.pointerDownPos.x, event.clientY - this.pointerDownPos.y);
+      if (dist > 4) {
+        this.hasDragged = true;
+        this.isRotatingCamera = true;
+        const deltaX = event.clientX - this.lastMouseX;
+        const deltaY = event.clientY - this.lastMouseY;
+        this.lastMouseX = event.clientX;
+        this.lastMouseY = event.clientY;
+        const rotSpeed = 0.0055;
+        this.cameraManager.rotate(-deltaX * rotSpeed, -deltaY * rotSpeed * 0.7);
+        this.hoverReticle.visible = false;
+        this.setCursor('default');
+        return;
+      }
+    }
+
+    if (this.isRotatingCamera) {
       return;
     }
 
@@ -218,31 +281,44 @@ export class InputManager {
 
   private onPointerDown(event: MouseEvent): void {
     if (this.hud.currentNavMode === 'map') return;
-
-    // Right-click or middle-click: start camera rotation drag
-    if (event.button === 2 || event.button === 1) {
-      const targetEl = event.target as HTMLElement;
-      if (targetEl.closest('canvas')) {
-        this.isRotatingCamera = true;
-        this.lastMouseX = event.clientX;
-        this.lastMouseY = event.clientY;
-      }
-      return;
-    }
-
-    // Only respond to primary left click, ignore clicks on UI buttons & open modals
-    if (event.button !== 0) return;
     const targetEl = event.target as HTMLElement;
-    // UI owns its own clicks. Only the WebGL canvas controls game movement.
-    if (!targetEl.closest('canvas')) {
+    if (!targetEl.closest('canvas')) return;
+
+    this.isPointerDown = true;
+    this.hasDragged = false;
+    this.pointerDownPos.set(event.clientX, event.clientY);
+    this.lastMouseX = event.clientX;
+    this.lastMouseY = event.clientY;
+
+    if (event.button === 2 || event.button === 1) {
+      this.isRotatingCamera = true;
+    }
+  }
+
+  private onPointerUp(event: MouseEvent): void {
+    const wasDragging = this.hasDragged || this.isRotatingCamera;
+    this.isPointerDown = false;
+    this.isRotatingCamera = false;
+
+    if (this.hud.currentNavMode === 'map') return;
+    const targetEl = event.target as HTMLElement;
+    if (!targetEl.closest('canvas')) return;
+
+    // If the user dragged to rotate the view, do not trigger walk or interaction!
+    if (wasDragging) {
       return;
     }
 
-    // If player is currently driving a vehicle, do not steer/walk by clicking
+    // Only respond to primary left click
+    if (event.button !== 0) return;
     if (this.player.isDriving) return;
 
-    this.mouseCoords.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this.mouseCoords.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    this.handleCanvasClick(event.clientX, event.clientY);
+  }
+
+  private handleCanvasClick(clientX: number, clientY: number): void {
+    this.mouseCoords.x = (clientX / window.innerWidth) * 2 - 1;
+    this.mouseCoords.y = -(clientY / window.innerHeight) * 2 + 1;
 
     this.raycaster.setFromCamera(this.mouseCoords, this.camera);
     this.raycaster.layers.enableAll();
@@ -297,7 +373,7 @@ export class InputManager {
       }
     }
 
-    // 3. Test click on ground / interior floor -> walk directly there!
+    // 3. Click on ground / interior floor -> walk directly there!
     if (floorHits.length > 0) {
       const clickPoint = floorHits[0].point;
       this.pendingInteraction = null;

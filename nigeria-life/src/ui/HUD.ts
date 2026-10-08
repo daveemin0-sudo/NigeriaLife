@@ -43,6 +43,7 @@ export class HUD {
   public onRadarNavigate?: (destId: string) => void;
   public onRotateCamera?: (deltaYaw: number) => void;
   public onResetCamera?: () => void;
+  public onCycleCameraPreset?: () => string;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
 
   constructor() {
@@ -107,12 +108,18 @@ export class HUD {
           </div>
         </div>
 
-        <!-- Top Right Mini District Indicator -->
-        <div class="hud-location">
-          <span class="flag">🇳🇬</span>
-          <div class="loc-details">
-            <span class="loc-name" id="hud-loc-name">Lagos Island</span>
-            <span class="loc-sub" id="hud-loc-sub">Broad Street</span>
+        <!-- Top Right Mini District Indicator & Camera View Switcher -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn-camera-view-toggle" id="btn-camera-view-toggle" title="Switch Camera View [V] (Third-Person / Street / Isometric / Aerial)">
+            <span>🎥</span>
+            <span id="cam-preset-label">STREET</span>
+          </button>
+          <div class="hud-location">
+            <span class="flag">🇳🇬</span>
+            <div class="loc-details">
+              <span class="loc-name" id="hud-loc-name">Lagos Island</span>
+              <span class="loc-sub" id="hud-loc-sub">Broad Street</span>
+            </div>
           </div>
         </div>
       </header>
@@ -350,6 +357,34 @@ export class HUD {
 
     document.getElementById('emote-salute')?.addEventListener('click', () => {
       this.player.playEmote('salute', 3.0);
+    });
+
+    // Camera Orbit & View Controls
+    document.getElementById('btn-cam-left')?.addEventListener('click', () => {
+      this.onRotateCamera?.(Math.PI / 4);
+    });
+
+    document.getElementById('btn-cam-right')?.addEventListener('click', () => {
+      this.onRotateCamera?.(-Math.PI / 4);
+    });
+
+    document.getElementById('btn-cam-reset')?.addEventListener('click', () => {
+      this.onResetCamera?.();
+    });
+
+    document.getElementById('btn-camera-view-toggle')?.addEventListener('click', () => {
+      if (this.onCycleCameraPreset) {
+        const next = this.onCycleCameraPreset();
+        const names: Record<string, string> = {
+          close: '3RD PERSON',
+          street: 'STREET',
+          isometric: 'ISOMETRIC',
+          aerial: 'AERIAL',
+        };
+        const lbl = document.getElementById('cam-preset-label');
+        if (lbl) lbl.textContent = names[next] || next.toUpperCase();
+        this.showNotification(`📷 Camera View: ${names[next] || next}`);
+      }
     });
 
     // Bottom Master Navigation Bar (Home, Buy, Map, Phone)
@@ -1604,5 +1639,47 @@ export class HUD {
     if (el) {
       el.textContent = `${count} Online`;
     }
+  }
+
+  public showNotification(msg: string): void {
+    let toast = document.getElementById('hud-floating-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'hud-floating-toast';
+      toast.style.cssText = `
+        position: fixed;
+        top: 84px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.92);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(56, 189, 248, 0.5);
+        color: #f8fafc;
+        padding: 10px 22px;
+        border-radius: 999px;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(56, 189, 248, 0.3);
+        z-index: 9999;
+        pointer-events: none;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+
+    if ((this as any)._toastTimeout) {
+      clearTimeout((this as any)._toastTimeout);
+    }
+    (this as any)._toastTimeout = setTimeout(() => {
+      if (toast) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(-10px)';
+      }
+    }, 2800);
   }
 }

@@ -64,6 +64,9 @@ export class Game {
     this.hud.onResetCamera = () => {
       this.cameraManager.resetOrientation();
     };
+    this.hud.onCycleCameraPreset = () => {
+      return this.cameraManager.cyclePreset();
+    };
 
     // 7. Input & Cursor Interaction
     this.input = new InputManager(

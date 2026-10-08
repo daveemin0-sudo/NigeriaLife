@@ -1119,18 +1119,26 @@ export class Buildings {
     martGroup.add(martGlass);
 
     martGroup.add(this.createACUnit(-4.6, 5.8, 2.5, Math.PI / 2));
+
+    // Supreme Court Pharmacy Fascia Board
+    const pharmSignGeo = new THREE.PlaneGeometry(8.5, 1.8);
+    const pharmSign = new THREE.Mesh(pharmSignGeo, this.signLib.supremeCourtPharmacyMaterial);
+    pharmSign.position.set(-4.62, 4.2, 0);
+    pharmSign.rotation.y = -Math.PI / 2;
+    martGroup.add(pharmSign);
+
     this.group.add(martGroup);
 
     this.interactiveList.push({
       mesh: martGroup,
-      id: 'supermarket',
-      name: 'Everyday Supermarket & Mart',
-      category: 'Shopping & Groceries',
-      description: 'Chilled soft drinks, bread, snacks, household items, and groceries.',
+      id: 'pharmacy',
+      name: 'Supreme Court Pharmacy',
+      category: 'Health & Pharmacy',
+      description: 'Prescription medicines, vitamin C, first aid, malaria drugs, and energy supplements.',
       interactionPoint: new THREE.Vector3(10, 0, -45),
     });
 
-    // C. Slot Gadgets & Phone Clinic (South-East: x = 18, z = 35)
+    // C. Victory Phones & Laptops Hub (South-East: x = 18, z = 35)
     const slotGroup = new THREE.Group();
     slotGroup.position.set(18, 0, 35);
 
@@ -1141,26 +1149,32 @@ export class Buildings {
     slotBuilding.receiveShadow = true;
     slotGroup.add(slotBuilding);
 
-    // Red Slot-style brand marquee
-    const slotMarqueeGeo = new THREE.BoxGeometry(0.3, 1.1, 8.0);
-    const slotMarqueeMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 });
-    const slotMarquee = new THREE.Mesh(slotMarqueeGeo, slotMarqueeMat);
-    slotMarquee.position.set(-4.35, 3.8, 0);
-    slotGroup.add(slotMarquee);
+    // Large Victory Phones & Laptops illuminated signboard
+    const vicSignGeo = new THREE.PlaneGeometry(8.0, 1.8);
+    const vicSign = new THREE.Mesh(vicSignGeo, this.signLib.victoryPhonesSignMaterial);
+    vicSign.position.set(-4.36, 4.0, 0);
+    vicSign.rotation.y = -Math.PI / 2;
+    slotGroup.add(vicSign);
+
+    // Glass storefront display window
+    const slotGlassGeo = new THREE.BoxGeometry(0.2, 2.8, 6.5);
+    const slotGlass = new THREE.Mesh(slotGlassGeo, this.matLib.glassReflectiveMaterial);
+    slotGlass.position.set(-4.32, 1.6, 0);
+    slotGroup.add(slotGlass);
 
     slotGroup.add(this.createACUnit(-4.35, 5.2, -1.8, Math.PI / 2));
     this.group.add(slotGroup);
 
     this.interactiveList.push({
       mesh: slotGroup,
-      id: 'slot-gadgets',
-      name: 'Slot Gadgets & Phone Clinic',
+      id: 'victory-phones',
+      name: 'Victory Phones & Laptops',
       category: 'Tech & Electronics',
-      description: 'Smartphones, power banks, chargers, AirPods, and screen repairs.',
+      description: 'Original iPhones, MacBooks, screen replacement, fast chargers, power banks, and AirPods.',
       interactionPoint: new THREE.Vector3(10, 0, 35),
     });
 
-    // D. Fresh Cut Luxury Barbershop (South-West: x = -18, z = 35)
+    // D. Lagos Barbershop & Grooming Lounge (South-West: x = -18, z = 35)
     const barbGroup = new THREE.Group();
     barbGroup.position.set(-18, 0, 35);
 
@@ -1170,6 +1184,13 @@ export class Buildings {
     barbBuilding.castShadow = true;
     barbBuilding.receiveShadow = true;
     barbGroup.add(barbBuilding);
+
+    // Lagos Barbershop Signboard
+    const barbSignGeo = new THREE.PlaneGeometry(7.5, 1.6);
+    const barbSign = new THREE.Mesh(barbSignGeo, this.signLib.lagosBarbershopMaterial);
+    barbSign.position.set(4.12, 3.8, 0);
+    barbSign.rotation.y = Math.PI / 2;
+    barbGroup.add(barbSign);
 
     // Rotating style barber pole prop
     const poleGeo = new THREE.CylinderGeometry(0.12, 0.12, 1.2, 12);
@@ -1183,9 +1204,9 @@ export class Buildings {
     this.interactiveList.push({
       mesh: barbGroup,
       id: 'barber-shop',
-      name: 'Fresh Cut Executive Barbershop',
+      name: 'Lagos Executive Barbershop',
       category: 'Grooming & Style',
-      description: 'Clean fade, beard oil treatment, and hot towel wash.',
+      description: 'Clean fade, waves, beard dye treatment, and hot towel wash.',
       interactionPoint: new THREE.Vector3(-10, 0, 35),
     });
   }
@@ -1404,18 +1425,22 @@ export class Buildings {
   }
 
   // =========================================================================
-  // 13. UNFINISHED CONSTRUCTION SITE (Classic Lagos 3-Storey Skeleton)
+  // 13. UNFINISHED ACTIVE CONSTRUCTION SITE (Lagos Multi-Storey Skeleton)
   // =========================================================================
   private buildConstructionSite(): void {
     const conGroup = new THREE.Group();
-    conGroup.position.set(19, 0, 105);
+    // Positioned along the main commercial strip at x = 19, z = 54
+    conGroup.position.set(19, 0, 54);
 
     const conMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.95 });
     const rebarMat = new THREE.MeshStandardMaterial({ color: 0xb45309, metalness: 0.6, roughness: 0.7 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.9 });
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.5, roughness: 0.5 });
 
-    // 3 Concrete floor slabs
-    for (let f = 1; f <= 3; f++) {
-      const slabGeo = new THREE.BoxGeometry(10, 0.3, 11);
+    // 1. 4 Concrete floor slabs
+    const floors = 4;
+    for (let f = 1; f <= floors; f++) {
+      const slabGeo = new THREE.BoxGeometry(11, 0.35, 12);
       const slab = new THREE.Mesh(slabGeo, conMat);
       slab.position.y = f * 3.2;
       slab.castShadow = true;
@@ -1423,33 +1448,142 @@ export class Buildings {
       conGroup.add(slab);
     }
 
-    // Exposed concrete pillars with rusty protruding rebar spikes
-    const colGeo = new THREE.BoxGeometry(0.45, 10.5, 0.45);
-    for (const cx of [-4.5, 0, 4.5]) {
-      for (const cz of [-4.5, 4.5]) {
+    // 2. Concrete Structural Columns with Protruding Rebar Spikes
+    const totalHeight = floors * 3.2;
+    const colGeo = new THREE.BoxGeometry(0.5, totalHeight, 0.5);
+    for (const cx of [-4.8, 0, 4.8]) {
+      for (const cz of [-5.2, 0, 5.2]) {
         const col = new THREE.Mesh(colGeo, conMat);
-        col.position.set(cx, 5.25, cz);
+        col.position.set(cx, totalHeight / 2, cz);
         col.castShadow = true;
         conGroup.add(col);
 
-        // Rebar rods poking out top of pillar
+        // Exposed rusty rebar rods protruding into the sky
         for (let r = 0; r < 4; r++) {
-          const rodGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.2, 6);
+          const rodGeo = new THREE.CylinderGeometry(0.016, 0.016, 1.4, 6);
           const rod = new THREE.Mesh(rodGeo, rebarMat);
-          rod.position.set(cx + (r % 2 ? 0.12 : -0.12), 11.1, cz + (r > 1 ? 0.12 : -0.12));
+          rod.position.set(
+            cx + (r % 2 ? 0.14 : -0.14),
+            totalHeight + 0.7,
+            cz + (r > 1 ? 0.14 : -0.14)
+          );
           conGroup.add(rod);
         }
       }
     }
 
-    // Stack of 9-inch sandcrete building blocks on ground
-    const blockStackGeo = new THREE.BoxGeometry(2.4, 1.4, 2.0);
-    const blockStack = new THREE.Mesh(blockStackGeo, conMat);
-    blockStack.position.set(3.0, 0.7, 0);
-    blockStack.castShadow = true;
-    conGroup.add(blockStack);
+    // 3. Steel Scaffolding Frame along the Street Facade
+    const scaffoldGeo = new THREE.CylinderGeometry(0.03, 0.03, totalHeight, 6);
+    for (const sx of [-4.5, -1.5, 1.5, 4.5]) {
+      const sp = new THREE.Mesh(scaffoldGeo, steelMat);
+      sp.position.set(-5.6, totalHeight / 2, sx);
+      conGroup.add(sp);
+    }
+    // Horizontal scaffolding tie-bars
+    for (let h = 2.0; h <= totalHeight; h += 2.0) {
+      const hBarGeo = new THREE.BoxGeometry(0.05, 0.05, 10.0);
+      const hBar = new THREE.Mesh(hBarGeo, steelMat);
+      hBar.position.set(-5.6, h, 0);
+      conGroup.add(hBar);
+
+      // Wooden scaffold walk plank
+      const plankGeo = new THREE.BoxGeometry(0.6, 0.08, 9.8);
+      const plank = new THREE.Mesh(plankGeo, woodMat);
+      plank.position.set(-5.4, h - 0.04, 0);
+      conGroup.add(plank);
+    }
+
+    // 4. Sharp River Sand Heap (Golden dune cone)
+    const sandGeo = new THREE.ConeGeometry(2.6, 1.3, 16);
+    const sandMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.95 });
+    const sandHeap = new THREE.Mesh(sandGeo, sandMat);
+    sandHeap.position.set(-6.2, 0.65, -3.2);
+    sandHeap.castShadow = true;
+    sandHeap.receiveShadow = true;
+    conGroup.add(sandHeap);
+
+    // 5. Granite Gravel Aggregate Heap (Grey rocky cone)
+    const gravelGeo = new THREE.ConeGeometry(2.2, 1.1, 16);
+    const gravelMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
+    const gravelHeap = new THREE.Mesh(gravelGeo, gravelMat);
+    gravelHeap.position.set(-6.2, 0.55, 3.2);
+    gravelHeap.castShadow = true;
+    gravelHeap.receiveShadow = true;
+    conGroup.add(gravelHeap);
+
+    // 6. Stack of 9-inch Hollow Sandcrete Blocks
+    for (let bx = 0; bx < 3; bx++) {
+      for (let bz = 0; bz < 3; bz++) {
+        const stackGeo = new THREE.BoxGeometry(1.2, 1.4, 0.8);
+        const stack = new THREE.Mesh(stackGeo, conMat);
+        stack.position.set(2.5 + bx * 1.3, 0.7, -3.5 + bz * 0.9);
+        stack.castShadow = true;
+        conGroup.add(stack);
+      }
+    }
+
+    // 7. Concrete Mixer Machine
+    const mixerChassis = new THREE.Group();
+    mixerChassis.position.set(-4.2, 0, 0);
+
+    const frameGeo = new THREE.BoxGeometry(1.4, 0.8, 1.2);
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0xea580c, metalness: 0.4, roughness: 0.6 });
+    const frame = new THREE.Mesh(frameGeo, frameMat);
+    frame.position.y = 0.6;
+    mixerChassis.add(frame);
+
+    // Tilted mixing drum
+    const drumGeo = new THREE.CylinderGeometry(0.55, 0.75, 1.3, 16);
+    const drumMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6, roughness: 0.5 });
+    const drum = new THREE.Mesh(drumGeo, drumMat);
+    drum.rotation.z = Math.PI / 4;
+    drum.position.set(0.2, 1.35, 0);
+    drum.castShadow = true;
+    mixerChassis.add(drum);
+
+    conGroup.add(mixerChassis);
+
+    // 8. Steel Construction Wheelbarrow
+    const wbGroup = new THREE.Group();
+    wbGroup.position.set(-5.5, 0, 1.0);
+    const tubGeo = new THREE.BoxGeometry(0.8, 0.35, 0.6);
+    const tubMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.5 });
+    const tub = new THREE.Mesh(tubGeo, tubMat);
+    tub.position.y = 0.4;
+    tub.castShadow = true;
+    wbGroup.add(tub);
+    // Wheel
+    const whGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.08, 12);
+    const whMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const wh = new THREE.Mesh(whGeo, whMat);
+    wh.rotation.x = Math.PI / 2;
+    wh.position.set(-0.45, 0.18, 0);
+    wbGroup.add(wh);
+    conGroup.add(wbGroup);
+
+    // 9. Official LASPPPA Development Notice Board
+    const signPostGeo = new THREE.BoxGeometry(0.1, 3.2, 0.1);
+    for (const pz of [-1.5, 1.5]) {
+      const post = new THREE.Mesh(signPostGeo, woodMat);
+      post.position.set(-6.8, 1.6, pz);
+      conGroup.add(post);
+    }
+    const lasSignGeo = new THREE.PlaneGeometry(3.2, 2.1);
+    const lasSign = new THREE.Mesh(lasSignGeo, this.signLib.laspppaConstructionSignMaterial);
+    lasSign.position.set(-6.82, 2.1, 0);
+    lasSign.rotation.y = -Math.PI / 2; // Facing the street
+    conGroup.add(lasSign);
 
     this.group.add(conGroup);
+
+    this.interactiveList.push({
+      mesh: conGroup,
+      id: 'construction-site',
+      name: 'Eko Mega Plaza Development Site',
+      category: 'Work & Labor',
+      description: 'Active 4-storey commercial development approved by LASPPPA. Casual day-labor available.',
+      interactionPoint: new THREE.Vector3(10, 0, 54),
+    });
   }
 
   public toggleCompoundGate(open?: boolean): boolean {

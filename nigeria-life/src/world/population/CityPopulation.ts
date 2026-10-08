@@ -67,17 +67,41 @@ export class CityPopulation {
       'elderly_person',
     ];
 
-    // Spawn 50 lightweight pedestrians along the sidewalks (Z: -120 to +120)
-    for (let i = 0; i < 50; i++) {
+    // Spawn 85 lightweight pedestrians along sidewalks, bridge and market stalls
+    for (let i = 0; i < 85; i++) {
       const type = archetypes[i % archetypes.length];
       const isWest = i % 2 === 0;
-      const x = isWest ? -8.2 - Math.random() * 2.5 : 8.2 + Math.random() * 2.5;
-      const z = -115 + (i / 50) * 230 + (Math.random() - 0.5) * 6;
 
-      const behavior: NPCBehavior =
-        i % 4 === 0 ? 'stand' : i % 5 === 0 ? 'talk' : i % 7 === 0 ? 'wait' : 'walk';
+      let x: number;
+      let y = 0;
+      let z: number;
+      let behavior: NPCBehavior = 'walk';
+
+      // Special cluster: Pedestrians walking across the overhead bridge!
+      if (i >= 78) {
+        x = -8.0 + (i - 78) * 2.3;
+        y = 5.4; // Bridge deck height!
+        z = 28.0 + (Math.random() - 0.5) * 1.5;
+        behavior = i % 2 === 0 ? 'walk' : 'stand';
+      } else if (i % 6 === 0) {
+        // Market shoppers standing under roadside umbrellas
+        x = isWest ? -10.2 : 10.2;
+        z = -75 + (i / 85) * 160 + (Math.random() - 0.5) * 4;
+        behavior = 'stand';
+      } else if (i % 7 === 0) {
+        // Chatting pairs on sidewalk
+        x = isWest ? -8.6 : 8.6;
+        z = -100 + (i / 85) * 200;
+        behavior = 'talk';
+      } else {
+        // Normal sidewalk pedestrians
+        x = isWest ? -8.2 - Math.random() * 2.2 : 8.2 + Math.random() * 2.2;
+        z = -115 + (i / 85) * 230 + (Math.random() - 0.5) * 6;
+        behavior = 'walk';
+      }
 
       const npc = this.createNPC(type, behavior, x, z);
+      npc.group.position.y = y;
       this.crowd.push(npc);
       this.group.add(npc.group);
     }

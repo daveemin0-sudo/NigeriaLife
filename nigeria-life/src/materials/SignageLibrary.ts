@@ -14,6 +14,15 @@ export class SignageLibrary {
   public saboTextilesSignMaterial!: THREE.MeshStandardMaterial;
   public danfoTerminusSignMaterial!: THREE.MeshStandardMaterial;
 
+  // Living City 1.0 Authentic Storefront & Infrastructure Signs
+  public victoryPhonesSignMaterial!: THREE.MeshStandardMaterial;
+  public supremeCourtPharmacyMaterial!: THREE.MeshStandardMaterial;
+  public mtnServiceCentreMaterial!: THREE.MeshStandardMaterial;
+  public lagosBarbershopMaterial!: THREE.MeshStandardMaterial;
+  public pedestrianBridgeBillboardMaterial!: THREE.MeshStandardMaterial;
+  public pedestrianBridgeWarningMaterial!: THREE.MeshStandardMaterial;
+  public laspppaConstructionSignMaterial!: THREE.MeshStandardMaterial;
+
   public greenStripedAwningMaterial!: THREE.MeshStandardMaterial;
   public yellowStripedAwningMaterial!: THREE.MeshStandardMaterial;
   public pinkStripedAwningMaterial!: THREE.MeshStandardMaterial;
@@ -53,6 +62,17 @@ export class SignageLibrary {
 
     // D. Broad St Danfo Terminus Route Board
     this.danfoTerminusSignMaterial = this.createDanfoTerminusSign();
+
+    // E. Living City 1.0 Storefronts
+    this.victoryPhonesSignMaterial = this.createVictoryPhonesSign();
+    this.supremeCourtPharmacyMaterial = this.createSupremeCourtPharmacySign();
+    this.mtnServiceCentreMaterial = this.createMtnServiceCentreSign();
+    this.lagosBarbershopMaterial = this.createLagosBarbershopSign();
+
+    // F. Infrastructure & Construction
+    this.pedestrianBridgeBillboardMaterial = this.createPedestrianBridgeBillboard();
+    this.pedestrianBridgeWarningMaterial = this.createPedestrianBridgeWarning();
+    this.laspppaConstructionSignMaterial = this.createLaspppaConstructionSign();
   }
 
   private createChopLifeSign(): THREE.MeshStandardMaterial {
@@ -345,9 +365,315 @@ export class SignageLibrary {
     });
   }
 
-  // =========================================================================
-  // 2. STRIPED AWNING FABRIC MATERIALS
-  // =========================================================================
+  private createVictoryPhonesSign(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Vibrant red glossy fascia board
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // Subtle brushed metallic highlights
+    const grad = ctx.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+    grad.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // White outline border
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(12, 12, 1000, 232);
+
+    // Top subtitle
+    ctx.fillStyle = '#fef08a';
+    ctx.font = 'bold 22px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('★ AUTHORIZED SALES & REPAIR HUB • IPHONE • SAMSUNG • LAPTOPS ★', 512, 48);
+
+    // Main brand title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 68px "Impact", "Arial Black", sans-serif';
+    ctx.fillText('VICTORY PHONES & LAPTOPS', 512, 138);
+
+    // Bottom banner
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(24, 172, 976, 56);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '900 24px "Arial Black", sans-serif';
+    ctx.fillText('IPHONES • MACBOOKS • SCREEN REPLACEMENT • ORIGINAL CHARGERS • AIRPODS', 512, 208);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.3, metalness: 0.2 });
+  }
+
+  private createSupremeCourtPharmacySign(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Deep medical royal blue background
+    ctx.fillStyle = '#1e3a8a';
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // White border
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(10, 10, 1004, 236);
+
+    // Green medical cross on left and right
+    const drawCross = (cx: number, cy: number) => {
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(cx - 30, cy - 10, 60, 20);
+      ctx.fillRect(cx - 10, cy - 30, 20, 60);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - 30, cy - 10, 60, 20);
+      ctx.strokeRect(cx - 10, cy - 30, 20, 60);
+    };
+    drawCross(80, 128);
+    drawCross(944, 128);
+
+    // Subtitle
+    ctx.fillStyle = '#86efac';
+    ctx.font = 'bold 20px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('RC: 294018 • REGISTERED PHARMACY COUNCIL OF NIGERIA', 512, 45);
+
+    // Brand Name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 60px "Impact", "Arial Black", sans-serif';
+    ctx.fillText('SUPREME COURT PHARMACY', 512, 125);
+
+    // Bottom service banner
+    ctx.fillStyle = '#facc15';
+    ctx.font = '900 24px Arial, sans-serif';
+    ctx.fillText('GENUINE DRUGS • BLOOD PRESSURE & SUGAR TEST • 24 HOURS SERVICE', 512, 195);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.35, metalness: 0.1 });
+  }
+
+  private createMtnServiceCentreSign(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Signature MTN Yellow
+    ctx.fillStyle = '#ffcc00';
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // Blue oval logo container
+    ctx.fillStyle = '#002b49';
+    ctx.beginPath();
+    ctx.ellipse(512, 75, 140, 50, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // MTN text
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = '900 48px Impact, "Arial Black", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('MTN', 512, 92);
+
+    // Brand label
+    ctx.fillStyle = '#002b49';
+    ctx.font = '900 52px "Arial Black", sans-serif';
+    ctx.fillText('CONNECT SERVICE CENTRE', 512, 175);
+
+    ctx.fillStyle = '#b45309';
+    ctx.font = 'bold 22px Arial, sans-serif';
+    ctx.fillText('SIM REGISTRATION • 5G BROADBAND ROUTERS • DATA & AIRTIME RECHARGE', 512, 220);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.3, metalness: 0.1 });
+  }
+
+  private createLagosBarbershopSign(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Dark sleek chalkboard black
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // Classic barber stripes on top and bottom border
+    const stripeW = 24;
+    for (let x = 0; x < 1024; x += stripeW * 3) {
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(x, 0, stripeW, 16);
+      ctx.fillRect(x, 240, stripeW, 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + stripeW, 0, stripeW, 16);
+      ctx.fillRect(x + stripeW, 240, stripeW, 16);
+      ctx.fillStyle = '#3b82f6';
+      ctx.fillRect(x + stripeW * 2, 0, stripeW, 16);
+      ctx.fillRect(x + stripeW * 2, 240, stripeW, 16);
+    }
+
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = '900 24px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('✂️ EXECUTIVE GROOMING LOUNGE • AIR-CONDITIONED ✂️', 512, 54);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 70px "Impact", "Arial Black", sans-serif';
+    ctx.fillText('LAGOS BARBERSHOP', 512, 140);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 24px Arial, sans-serif';
+    ctx.fillText('SHARP LOW CUT • WAVES • BEARD DYE • KIDS HAIRCUT • HOT TOWEL MASSAGE', 512, 200);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.4, metalness: 0.1 });
+  }
+
+  private createPedestrianBridgeBillboard(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Modern Nigerian digital media billboard: NLGTV
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // High tech cyan and gold grid lines
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+    ctx.lineWidth = 2;
+    for (let x = 0; x < 1024; x += 64) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 256);
+      ctx.stroke();
+    }
+
+    // Bold media banner
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(32, 24, 240, 56);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 36px Impact, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('LLTV / NLG', 152, 65);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 22px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('NIGERIA LIFE TELEVISION • LIVE BROADCAST 24/7', 300, 60);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '900 58px "Impact", "Arial Black", sans-serif';
+    ctx.fillText('LAGOS LIFE: THE LIVING CITY', 300, 138);
+
+    ctx.fillStyle = '#facc15';
+    ctx.font = 'bold 24px Arial, sans-serif';
+    ctx.fillText('STREAM AFROBEATS • LIVE EVENTS • REAL-TIME CITY RADIO • DIAL 99.3 FM', 300, 195);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.25, metalness: 0.2 });
+  }
+
+  private createPedestrianBridgeWarning(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Highway safety caution yellow background
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // Hazard warning diagonal black chevrons on top and bottom borders
+    const chW = 40;
+    for (let x = -chW; x < 1024 + chW; x += chW * 2) {
+      ctx.fillStyle = '#18181b';
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + 20, 0);
+      ctx.lineTo(x, 24);
+      ctx.lineTo(x - 20, 24);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(x, 232);
+      ctx.lineTo(x + 20, 232);
+      ctx.lineTo(x, 256);
+      ctx.lineTo(x - 20, 256);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#dc2626';
+    ctx.font = '900 32px "Arial Black", Impact, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠️ LAGOS STATE MINISTRY OF TRANSPORTATION (LASTMA) ⚠️', 512, 68);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '900 50px "Impact", "Arial Black", sans-serif';
+    ctx.fillText('USE THE BRIDGE. LAGOS DRIVERS NO DEY WAIT.', 512, 145);
+
+    ctx.fillStyle = '#b91c1c';
+    ctx.font = '900 24px Arial, sans-serif';
+    ctx.fillText('DO NOT DASH ACROSS HIGHWAY • JAYWALKING PROHIBITED • SAFETY FIRST', 512, 205);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.35, metalness: 0.05 });
+  }
+
+  private createLaspppaConstructionSign(): THREE.MeshStandardMaterial {
+    const canvas = document.createElement('canvas');
+    canvas.width = 768;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Clean white billboard with red and green header
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 768, 512);
+
+    // Green header bar
+    ctx.fillStyle = '#15803d';
+    ctx.fillRect(0, 0, 768, 72);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 24px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('LAGOS STATE PHYSICAL PLANNING PERMIT AUTHORITY (LASPPPA)', 384, 44);
+
+    // Permit Status
+    ctx.fillStyle = '#dc2626';
+    ctx.font = '900 38px "Impact", "Arial Black", sans-serif';
+    ctx.fillText('DEVELOPMENT IN PROGRESS', 384, 135);
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(32, 160, 704, 250);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 20px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('PROJECT: 4-STOREY COMMERCIAL PLAZA & RESIDENCES', 50, 200);
+    ctx.fillText('PLANNING PERMIT NO: LPPA/2026/CZ-8491/APP', 50, 240);
+    ctx.fillText('DEVELOPER: EKO MEGA INFRASTRUCTURE LTD', 50, 280);
+    ctx.fillText('CONTRACTOR: GLO-CONSTRUCT NIG PLC', 50, 320);
+    ctx.fillText('SAFETY OFFICER: ENGR. ADEBAYO BABATUNDE (COREN)', 50, 360);
+
+    // Caution footer
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(0, 440, 768, 72);
+    ctx.fillStyle = '#000000';
+    ctx.font = '900 24px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠️ CAUTION: MEN AT WORK • HARD HATS & BOOTS COMPULSORY', 384, 484);
+
+    const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
+    return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5, metalness: 0.05 });
+  }
   private initAwningMaterials(): void {
     this.greenStripedAwningMaterial = this.generateAwningTexture('#008751', '#ffffff');
     this.yellowStripedAwningMaterial = this.generateAwningTexture('#eab308', '#ffffff');

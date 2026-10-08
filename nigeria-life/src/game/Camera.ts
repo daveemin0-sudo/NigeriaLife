@@ -3,6 +3,7 @@ import { Player } from '../player/Player';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 
 export type CameraMode = 'street' | 'interior' | 'home' | 'map';
+export type CameraPreset = 'close' | 'street' | 'isometric' | 'aerial';
 
 export class GameCamera {
   public camera: THREE.PerspectiveCamera;
@@ -93,6 +94,59 @@ export class GameCamera {
     } else {
       this.distance = Math.max(4.0, Math.min(22.0, this.distance + deltaDistance));
     }
+  }
+
+  public currentPreset: CameraPreset = 'street';
+
+  /**
+   * Set a specific camera framing preset.
+   */
+  public setPreset(preset: CameraPreset): void {
+    this.currentPreset = preset;
+    if (this.mode === 'interior') {
+      if (preset === 'close') {
+        this.interiorPitch = 0.32;
+        this.interiorDistance = 6.2;
+      } else if (preset === 'street') {
+        this.interiorPitch = 0.58;
+        this.interiorDistance = 10.5;
+      } else if (preset === 'isometric') {
+        this.interiorPitch = 0.88;
+        this.interiorDistance = 14.5;
+      } else if (preset === 'aerial') {
+        this.interiorPitch = 1.20;
+        this.interiorDistance = 18.5;
+      }
+    } else {
+      if (preset === 'close') {
+        // Close third-person: shoulder-level view, character prominent
+        this.pitch = 0.22;
+        this.distance = 5.2;
+      } else if (preset === 'street') {
+        // Standard street view
+        this.pitch = 0.44;
+        this.distance = 8.5;
+      } else if (preset === 'isometric') {
+        // High angle overview looking down at sidewalks and road lanes
+        this.pitch = 0.82;
+        this.distance = 15.0;
+      } else if (preset === 'aerial') {
+        // High city aerial view
+        this.pitch = 1.18;
+        this.distance = 26.0;
+      }
+    }
+  }
+
+  /**
+   * Cycle through available camera presets (Close -> Street -> Isometric -> Aerial).
+   */
+  public cyclePreset(): CameraPreset {
+    const presets: CameraPreset[] = ['close', 'street', 'isometric', 'aerial'];
+    const idx = presets.indexOf(this.currentPreset);
+    const next = presets[(idx + 1) % presets.length];
+    this.setPreset(next);
+    return next;
   }
 
   /**
@@ -186,9 +240,10 @@ export class GameCamera {
 
     this.camera.position.lerp(targetCameraPos, lerpFactor);
 
+    const lookHeight = this.currentPreset === 'close' ? 1.35 : this.currentPreset === 'isometric' ? 0.9 : 1.6;
     const targetLookAt = new THREE.Vector3(
       player.position.x,
-      player.position.y + 1.6,
+      player.position.y + lookHeight,
       player.position.z
     );
     this.currentLookAt.lerp(targetLookAt, lerpFactor);

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
+import { SignageLibrary } from '../materials/SignageLibrary';
 
 export class Roads {
   public group: THREE.Group;
@@ -13,6 +14,7 @@ export class Roads {
     this.buildStreetLights();
     this.buildPowerPoles();
     this.buildGuttersAndStreetProps();
+    this.buildPedestrianOverheadBridge();
   }
 
   private buildRoadNetwork(): void {
@@ -331,63 +333,234 @@ export class Roads {
       }
     }
 
-    // C. Roadside Vendor Umbrellas & Display Tables (Recharge cards, snacks, fruits)
-    const umbrellaColors = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x8b5cf6];
-    const stallZPositions = [-72, -48, -18, 16, 42, 68, 96];
+    // C. Roadside Vendor Umbrellas & Display Tables (Lagos Living Street Culture)
+    const umbrellaThemes = [
+      { color: 0xdc2626, label: 'OPAY / MONIEPOINT POS', item: 'pos' },
+      { color: 0x0d9488, label: 'COLD DRINKS & MALTINA', item: 'drinks' },
+      { color: 0xf59e0b, label: 'FRESH FRUITS & SNACKS', item: 'fruits' },
+      { color: 0x16a34a, label: 'RECHARGE CARDS & DATA', item: 'cards' },
+      { color: 0x2563eb, label: 'MAMA SHADE COLD WATER', item: 'water' },
+      { color: 0x9333ea, label: 'SUNGLASSES & ACCESSORIES', item: 'shades' },
+    ];
+
+    const stallZPositions = [-78, -52, -22, 12, 44, 72, 98];
 
     stallZPositions.forEach((sz, idx) => {
       const side = idx % 2 === 0 ? -1 : 1;
       const sx = side * (this.roadWidth / 2 + 3.2);
+      const theme = umbrellaThemes[idx % umbrellaThemes.length];
 
       const stallGroup = new THREE.Group();
       stallGroup.position.set(sx, 0.28, sz);
 
-      // Multicolored parasol umbrella
-      const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.5, 8);
-      const poleMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.8 });
+      // 1. Umbrella pole (powder-coated metallic tube)
+      const poleGeo = new THREE.CylinderGeometry(0.045, 0.045, 2.7, 8);
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.85, roughness: 0.2 });
       const pole = new THREE.Mesh(poleGeo, poleMat);
-      pole.position.y = 1.25;
+      pole.position.y = 1.35;
       pole.castShadow = true;
       stallGroup.add(pole);
 
-      const canopyGeo = new THREE.ConeGeometry(1.6, 0.6, 12);
-      const canopyColor = umbrellaColors[idx % umbrellaColors.length];
-      const canopyMat = new THREE.MeshStandardMaterial({ color: canopyColor, roughness: 0.7 });
+      // 2. Wide octagonal parasol umbrella canopy
+      const canopyGeo = new THREE.ConeGeometry(1.9, 0.75, 8);
+      const canopyMat = new THREE.MeshStandardMaterial({
+        color: theme.color,
+        roughness: 0.65,
+        flatShading: true,
+      });
       const canopy = new THREE.Mesh(canopyGeo, canopyMat);
-      canopy.position.y = 2.4;
+      canopy.position.y = 2.6;
       canopy.castShadow = true;
       stallGroup.add(canopy);
 
-      // Wooden market display table
-      const tableGeo = new THREE.BoxGeometry(1.4, 0.8, 0.9);
-      const tableMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 });
+      // Scalloped valance trim around umbrella rim
+      const rimGeo = new THREE.CylinderGeometry(1.92, 1.92, 0.14, 8, 1, true);
+      const rimMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+      const rim = new THREE.Mesh(rimGeo, rimMat);
+      rim.position.y = 2.22;
+      stallGroup.add(rim);
+
+      // 3. Wooden market display table
+      const tableGeo = new THREE.BoxGeometry(1.6, 0.8, 1.0);
+      const tableMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
       const table = new THREE.Mesh(tableGeo, tableMat);
-      table.position.set(0, 0.4, 0.3);
+      table.position.set(0, 0.4, 0.35);
       table.castShadow = true;
       table.receiveShadow = true;
       stallGroup.add(table);
 
-      // Glass showcase box on table (displaying drinks / recharge cards)
-      const glassGeo = new THREE.BoxGeometry(1.1, 0.35, 0.6);
-      const glassMat = new THREE.MeshStandardMaterial({
-        color: 0x93c5fd,
-        transparent: true,
-        opacity: 0.5,
-        roughness: 0.2,
-      });
-      const glassBox = new THREE.Mesh(glassGeo, glassMat);
-      glassBox.position.set(0, 0.95, 0.3);
-      stallGroup.add(glassBox);
+      // 4. Foam icebox / drinks cooler (Coleman red or blue)
+      const coolerGeo = new THREE.BoxGeometry(0.65, 0.45, 0.45);
+      const coolerColor = idx % 2 === 0 ? 0xdc2626 : 0x0284c7;
+      const coolerMat = new THREE.MeshStandardMaterial({ color: coolerColor, roughness: 0.4 });
+      const cooler = new THREE.Mesh(coolerGeo, coolerMat);
+      cooler.position.set(-0.35, 0.95, 0.35);
+      cooler.castShadow = true;
+      stallGroup.add(cooler);
 
-      // Plastic garden chair
-      const chairGeo = new THREE.BoxGeometry(0.5, 0.75, 0.5);
-      const chairMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.5 });
-      const chair = new THREE.Mesh(chairGeo, chairMat);
-      chair.position.set(0, 0.38, -0.6);
-      chair.castShadow = true;
-      stallGroup.add(chair);
+      // White cooler lid
+      const lidGeo = new THREE.BoxGeometry(0.67, 0.08, 0.47);
+      const lid = new THREE.Mesh(lidGeo, new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+      lid.position.set(-0.35, 1.2, 0.35);
+      stallGroup.add(lid);
+
+      // 5. Plastic retail stool
+      const stoolGeo = new THREE.CylinderGeometry(0.24, 0.28, 0.55, 12);
+      const stoolMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.5 });
+      const stool = new THREE.Mesh(stoolGeo, stoolMat);
+      stool.position.set(0.1, 0.28, -0.65);
+      stool.castShadow = true;
+      stallGroup.add(stool);
 
       this.group.add(stallGroup);
     });
+  }
+
+  /**
+   * Builds the iconic Lagos Pedestrian Overhead Bridge (Flyover)
+   * Spanning across all 4 highway lanes with concrete stairs, blue safety canopy,
+   * and dual highway advertising & LASTMA warning billboards.
+   */
+  private buildPedestrianOverheadBridge(): void {
+    const bridgeGroup = new THREE.Group();
+    const bridgeZ = 28.0;
+    bridgeGroup.position.set(0, 0, bridgeZ);
+
+    const signs = SignageLibrary.getInstance();
+    const concMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.85 });
+    const blueSteelMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.4, roughness: 0.5 });
+    const deckY = 5.4; // 5.4m overhead vehicle clearance
+    const totalSpan = 21.0; // Across both sidewalks (x: -10.5 to +10.5)
+
+    // 1. Heavy Concrete Support Pillars (at curb edges)
+    for (const px of [-7.2, 7.2]) {
+      const colGeo = new THREE.BoxGeometry(1.0, deckY, 1.0);
+      const col = new THREE.Mesh(colGeo, concMat);
+      col.position.set(px, deckY / 2, 0);
+      col.castShadow = true;
+      col.receiveShadow = true;
+      bridgeGroup.add(col);
+
+      // Yellow & black hazard base footing
+      const baseGeo = new THREE.BoxGeometry(1.3, 0.9, 1.3);
+      const base = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 }));
+      base.position.set(px, 0.45, 0);
+      base.castShadow = true;
+      bridgeGroup.add(base);
+    }
+
+    // 2. Main Reinforced Walkway Deck
+    const deckGeo = new THREE.BoxGeometry(totalSpan, 0.5, 3.2);
+    const deck = new THREE.Mesh(deckGeo, concMat);
+    deck.position.set(0, deckY, 0);
+    deck.castShadow = true;
+    deck.receiveShadow = true;
+    bridgeGroup.add(deck);
+
+    // Steel support I-beams running underneath deck
+    for (const bz of [-1.3, 1.3]) {
+      const beamGeo = new THREE.BoxGeometry(totalSpan + 0.4, 0.4, 0.3);
+      const beam = new THREE.Mesh(beamGeo, blueSteelMat);
+      beam.position.set(0, deckY - 0.35, bz);
+      beam.castShadow = true;
+      bridgeGroup.add(beam);
+    }
+
+    // 3. Overhead Blue Steel Canopy / Arch Roof
+    const roofGeo = new THREE.BoxGeometry(totalSpan + 0.6, 0.18, 3.6);
+    const roof = new THREE.Mesh(roofGeo, blueSteelMat);
+    roof.position.set(0, deckY + 2.7, 0);
+    roof.castShadow = true;
+    bridgeGroup.add(roof);
+
+    // Blue vertical structural columns supporting the roof
+    for (let x = -9.5; x <= 9.5; x += 2.8) {
+      for (const bz of [-1.55, 1.55]) {
+        const postGeo = new THREE.BoxGeometry(0.12, 2.7, 0.12);
+        const post = new THREE.Mesh(postGeo, blueSteelMat);
+        post.position.set(x, deckY + 1.35, bz);
+        post.castShadow = true;
+        bridgeGroup.add(post);
+      }
+    }
+
+    // Safety mesh side railings along walkway
+    const railMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.75,
+      roughness: 0.3,
+    });
+    for (const bz of [-1.55, 1.55]) {
+      const railGeo = new THREE.BoxGeometry(totalSpan, 1.3, 0.05);
+      const rail = new THREE.Mesh(railGeo, railMat);
+      rail.position.set(0, deckY + 0.85, bz);
+      bridgeGroup.add(rail);
+    }
+
+    // 4. Concrete Staircases on West & East Sidewalks
+    // Descends southward from bridge deck towards sidewalk level
+    const numSteps = 14;
+    const stepRise = (deckY - 0.28) / numSteps;
+    const stepRun = 0.85;
+
+    for (const sx of [-10.5, 10.5]) {
+      const stairGroup = new THREE.Group();
+      stairGroup.position.set(sx, 0, 0);
+
+      for (let s = 0; s < numSteps; s++) {
+        const stepH = (s + 1) * stepRise;
+        const stepZ = -(s * stepRun) - 1.6;
+        const stepGeo = new THREE.BoxGeometry(2.4, stepRise + 0.02, stepRun);
+        const step = new THREE.Mesh(stepGeo, concMat);
+        step.position.set(0, stepH - stepRise / 2, stepZ);
+        step.castShadow = true;
+        step.receiveShadow = true;
+        stairGroup.add(step);
+      }
+
+      // Blue steel handrail running along the stairs
+      const railLen = Math.hypot(numSteps * stepRun, deckY);
+      const railAngle = Math.atan2(deckY, numSteps * stepRun);
+      const stairRailGeo = new THREE.BoxGeometry(0.08, 0.08, railLen);
+      const stairRail = new THREE.Mesh(stairRailGeo, blueSteelMat);
+      stairRail.rotation.x = railAngle;
+      stairRail.position.set(sx > 0 ? -1.15 : 1.15, deckY / 2 + 0.9, -((numSteps * stepRun) / 2) - 1.6);
+      stairGroup.add(stairRail);
+
+      bridgeGroup.add(stairGroup);
+    }
+
+    // 5. Giant Double-Sided Billboard Overhead
+    const bbW = 14.0;
+    const bbH = 2.8;
+
+    // North Face: NLGTV / LLTV Entertainment Board (facing southbound cars)
+    const northGeo = new THREE.PlaneGeometry(bbW, bbH);
+    const northBoard = new THREE.Mesh(northGeo, signs.pedestrianBridgeBillboardMaterial);
+    northBoard.position.set(0, deckY + 1.45, -1.65);
+    northBoard.rotation.y = Math.PI; // Faces toward negative Z (facing oncoming traffic)
+    bridgeGroup.add(northBoard);
+
+    // South Face: LASTMA Safety Caution Billboard (facing northbound cars)
+    const southGeo = new THREE.PlaneGeometry(bbW, bbH);
+    const southBoard = new THREE.Mesh(southGeo, signs.pedestrianBridgeWarningMaterial);
+    southBoard.position.set(0, deckY + 1.45, 1.65);
+    bridgeGroup.add(southBoard);
+
+    // Billboard backing structure
+    const backGeo = new THREE.BoxGeometry(bbW + 0.2, bbH + 0.2, 0.2);
+    const backMesh = new THREE.Mesh(backGeo, new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 }));
+    backMesh.position.set(0, deckY + 1.45, 0);
+    bridgeGroup.add(backMesh);
+
+    // 6. Yellow & Black Vehicle Height Hazard Striping along bottom beam
+    const hazardMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4 });
+    const hazardStripGeo = new THREE.BoxGeometry(this.roadWidth + 1.0, 0.22, 3.25);
+    const hazardStrip = new THREE.Mesh(hazardStripGeo, hazardMat);
+    hazardStrip.position.set(0, deckY - 0.22, 0);
+    bridgeGroup.add(hazardStrip);
+
+    this.group.add(bridgeGroup);
   }
 }
