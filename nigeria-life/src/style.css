@@ -4230,6 +4230,76 @@ canvas {
   50% { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 32px rgba(0, 210, 106, 0.55); }
 }
 
+/* =========================================
+   360° CAMERA ORBIT ROTATION CONTROLS
+   ========================================= */
+.camera-rotate-widget {
+  position: fixed;
+  bottom: 82px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 6px 10px;
+  border-radius: 30px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 16px rgba(0, 210, 106, 0.12);
+  pointer-events: auto;
+  z-index: 120;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.cam-rot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.cam-rot-btn:hover {
+  background: rgba(51, 65, 85, 0.95);
+  border-color: #38ef7d;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 210, 106, 0.25);
+}
+
+.cam-rot-btn:active {
+  transform: scale(0.94);
+}
+
+.cam-btn-lbl {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 800;
+  color: #38ef7d;
+}
+
+.cam-rot-btn.cam-center {
+  padding: 6px 10px;
+  font-size: 15px;
+  color: #38bdf8;
+}
+.cam-rot-btn.cam-center:hover {
+  border-color: #38bdf8;
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+}
+
 
 
 

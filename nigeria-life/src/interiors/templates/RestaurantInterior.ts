@@ -142,7 +142,7 @@ export class RestaurantInterior {
     this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-4, 4.2, 5), 0xfbbf24));
 
     // 3. Exit Door
-    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), 0);
+    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), Math.PI);
     this.group.add(exitDoor);
 
     this.interactiveList.push({
@@ -205,10 +205,11 @@ export class RestaurantInterior {
       });
     }
 
-    // 6. Register Station Interactive Objects
+    // 6. Register Station Interactive Objects with their actual furniture meshes
     for (const station of this.def.stations) {
+      const stationMesh = station.id === 'buka_food_counter' ? foodWarmer : table1;
       this.interactiveList.push({
-        mesh: this.group,
+        mesh: stationMesh,
         id: station.id,
         name: station.name,
         category: station.category,

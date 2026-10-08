@@ -210,7 +210,7 @@ export class HospitalInterior {
     this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(0, 4.2, 5), 0xe0f2fe));
 
     // 3. Exit Door leading back outside
-    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), 0);
+    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), Math.PI);
     this.group.add(exitDoor);
 
     // Register exit door interactive object
@@ -282,10 +282,16 @@ export class HospitalInterior {
       });
     }
 
-    // 6. Register Station Interactive Objects
+    // 6. Register Station Interactive Objects with their actual furniture meshes
     for (const station of this.def.stations) {
+      let stationMesh: THREE.Object3D = docDesk;
+      if (station.id === 'hosp_reception') stationMesh = triageCounter;
+      else if (station.id === 'hosp_doctor_desk') stationMesh = docDesk;
+      else if (station.id === 'hosp_ward_bed') stationMesh = bed1;
+      else if (station.id === 'hosp_pharmacy') stationMesh = pharmShelf;
+
       this.interactiveList.push({
-        mesh: this.group,
+        mesh: stationMesh,
         id: station.id,
         name: station.name,
         category: station.category,

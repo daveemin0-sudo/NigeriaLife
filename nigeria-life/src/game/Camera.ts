@@ -7,6 +7,17 @@ export type CameraMode = 'street' | 'interior' | 'home' | 'map';
 export class GameCamera {
   public camera: THREE.PerspectiveCamera;
   public mode: CameraMode = 'street';
+
+  // Street mode spherical coordinates
+  public yaw: number = 0;              // Horizontal azimuth around player (radians)
+  public pitch: number = 0.44;          // Vertical elevation angle (~25 deg)
+  public distance: number = 8.5;        // Distance to target (m)
+
+  // Interior mode spherical coordinates
+  public interiorYaw: number = 0;      // Starts facing into the room
+  public interiorPitch: number = 0.58;  // Elevated isometric angle (~33 deg)
+  public interiorDistance: number = 10.5; // Distance to target inside room (m)
+
   public offset: THREE.Vector3 = new THREE.Vector3(0, 3.8, 7.8);
   public interiorOffset: THREE.Vector3 = new THREE.Vector3(0, 8.5, 9.5);
   private currentLookAt: THREE.Vector3 = new THREE.Vector3();
@@ -52,35 +63,100 @@ export class GameCamera {
     }
   }
 
+  public getActiveYaw(): number {
+    return this.mode === 'interior' ? this.interiorYaw : this.yaw;
+  }
+
+  /**
+   * Rotate camera around the player horizontally (yaw) and vertically (pitch).
+   */
+  public rotate(deltaYaw: number, deltaPitch: number = 0): void {
+    if (this.mode === 'interior') {
+      this.interiorYaw += deltaYaw;
+      while (this.interiorYaw > Math.PI) this.interiorYaw -= Math.PI * 2;
+      while (this.interiorYaw < -Math.PI) this.interiorYaw += Math.PI * 2;
+      this.interiorPitch = Math.max(0.18, Math.min(1.25, this.interiorPitch + deltaPitch));
+    } else {
+      this.yaw += deltaYaw;
+      while (this.yaw > Math.PI) this.yaw -= Math.PI * 2;
+      while (this.yaw < -Math.PI) this.yaw += Math.PI * 2;
+      this.pitch = Math.max(0.12, Math.min(1.30, this.pitch + deltaPitch));
+    }
+  }
+
+  /**
+   * Zoom camera in or out smoothly.
+   */
+  public zoom(deltaDistance: number): void {
+    if (this.mode === 'interior') {
+      this.interiorDistance = Math.max(4.5, Math.min(18.0, this.interiorDistance + deltaDistance));
+    } else {
+      this.distance = Math.max(4.0, Math.min(22.0, this.distance + deltaDistance));
+    }
+  }
+
+  /**
+   * Reset orientation to default perspective.
+   */
+  public resetOrientation(): void {
+    if (this.mode === 'interior') {
+      this.interiorYaw = 0;
+      this.interiorPitch = 0.58;
+    } else {
+      this.yaw = 0;
+      this.pitch = 0.44;
+    }
+  }
+
+  /**
+   * Calculate 3D spherical offset vector relative to the player.
+   */
+  public computeOffset(): THREE.Vector3 {
+    if (this.mode === 'interior') {
+      const x = Math.sin(this.interiorYaw) * Math.cos(this.interiorPitch) * this.interiorDistance;
+      const y = Math.sin(this.interiorPitch) * this.interiorDistance;
+      const z = Math.cos(this.interiorYaw) * Math.cos(this.interiorPitch) * this.interiorDistance;
+      return new THREE.Vector3(x, y, z);
+    } else {
+      const x = Math.sin(this.yaw) * Math.cos(this.pitch) * this.distance;
+      const y = Math.sin(this.pitch) * this.distance + 0.6;
+      const z = Math.cos(this.yaw) * Math.cos(this.pitch) * this.distance;
+      return new THREE.Vector3(x, y, z);
+    }
+  }
+
   public snapToPlayer(player: Player, targetMode?: CameraMode): void {
     const currentMode = targetMode ?? this.mode;
     if (currentMode === 'interior') {
-      const targetPos = new THREE.Vector3().copy(player.position).add(this.interiorOffset);
+      const offset = this.computeOffset();
+      const targetPos = new THREE.Vector3().copy(player.position).add(offset);
       this.camera.position.copy(targetPos);
-      this.currentLookAt.set(player.position.x, 1.2, player.position.z);
+      this.currentLookAt.set(player.position.x, player.position.y + 1.2, player.position.z);
       this.camera.lookAt(this.currentLookAt);
     } else if (currentMode === 'street') {
-      const targetPos = new THREE.Vector3().copy(player.position).add(this.offset);
+      const offset = this.computeOffset();
+      const targetPos = new THREE.Vector3().copy(player.position).add(offset);
       this.camera.position.copy(targetPos);
-      this.currentLookAt.set(player.position.x, 1.6, player.position.z);
+      this.currentLookAt.set(player.position.x, player.position.y + 1.6, player.position.z);
       this.camera.lookAt(this.currentLookAt);
     }
   }
 
   public update(player: Player, delta: number): void {
-    const lerpFactor = Math.min(delta * 8.0, 1);
+    const lerpFactor = Math.min(delta * 9.0, 1);
 
     if (this.mode === 'interior') {
-      // Dynamic indoor isometric follow camera
+      // Dynamic indoor rotatable camera
+      const offset = this.computeOffset();
       const targetCameraPos = new THREE.Vector3()
         .copy(player.position)
-        .add(this.interiorOffset);
+        .add(offset);
 
       this.camera.position.lerp(targetCameraPos, lerpFactor);
 
       const targetLookAt = new THREE.Vector3(
         player.position.x,
-        1.2,
+        player.position.y + 1.2,
         player.position.z
       );
       this.currentLookAt.lerp(targetLookAt, lerpFactor);
@@ -102,16 +178,17 @@ export class GameCamera {
       return;
     }
 
-    // Default 'street' mode: reference framing centered on player at 7.8m distance
+    // Default 'street' mode: rotatable framing centered on player
+    const offset = this.computeOffset();
     const targetCameraPos = new THREE.Vector3()
       .copy(player.position)
-      .add(this.offset);
+      .add(offset);
 
     this.camera.position.lerp(targetCameraPos, lerpFactor);
 
     const targetLookAt = new THREE.Vector3(
       player.position.x,
-      1.6,
+      player.position.y + 1.6,
       player.position.z
     );
     this.currentLookAt.lerp(targetLookAt, lerpFactor);

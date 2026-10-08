@@ -52,11 +52,18 @@ export class Game {
 
     // 5. Player Character
     this.player = new Player();
+    this.player.cameraManager = this.cameraManager;
     this.scene.add(this.player.mesh);
 
     // 6. UI / HUD
     this.hud = new HUD();
     this.hud.init(this.player, this.world);
+    this.hud.onRotateCamera = (deltaYaw: number) => {
+      this.cameraManager.rotate(deltaYaw);
+    };
+    this.hud.onResetCamera = () => {
+      this.cameraManager.resetOrientation();
+    };
 
     // 7. Input & Cursor Interaction
     this.input = new InputManager(
@@ -64,7 +71,8 @@ export class Game {
       this.scene,
       this.player,
       this.world,
-      this.hud
+      this.hud,
+      this.cameraManager
     );
 
     // 8. Vehicle Control Wiring

@@ -145,7 +145,7 @@ export class ResidentialInterior {
     this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(7, 4.0, -5), 0xffedd5));
 
     // 3. Exit Door
-    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), 0);
+    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), Math.PI);
     this.group.add(exitDoor);
 
     this.interactiveList.push({
@@ -250,10 +250,17 @@ export class ResidentialInterior {
       });
     }
 
-    // 9. Register Station Interactive Objects
+    // 9. Register Station Interactive Objects with their actual furniture meshes
     for (const station of this.def.stations) {
+      let stationMesh: THREE.Object3D = tvUnit;
+      if (station.id === 'flat-tv') stationMesh = tvUnit;
+      else if (station.id === 'flat-bed') stationMesh = bedFrame;
+      else if (station.id === 'flat-drum') stationMesh = drum;
+      else if (station.id === 'flat-workstation') stationMesh = desk;
+      else if (station.id === 'flat-sofa') stationMesh = sofa;
+
       this.interactiveList.push({
-        mesh: this.group,
+        mesh: stationMesh,
         id: station.id,
         name: station.name,
         category: station.category,

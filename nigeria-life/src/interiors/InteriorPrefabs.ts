@@ -78,7 +78,7 @@ export class InteriorPrefabs {
   /**
    * Exit door glowing portal with clear green emergency exit signage.
    */
-  public static createExitDoor(pos: THREE.Vector3, rotY: number = 0): THREE.Group {
+  public static createExitDoor(pos: THREE.Vector3, rotY: number = Math.PI): THREE.Group {
     const doorGroup = new THREE.Group();
     doorGroup.position.copy(pos);
     doorGroup.rotation.y = rotY;

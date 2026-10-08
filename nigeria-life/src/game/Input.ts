@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Player } from '../player/Player';
 import { World, type InteractiveObject, type InteractionTarget } from '../world/World';
 import { HUD } from '../ui/HUD';
+import type { GameCamera } from './Camera';
 
 export class InputManager {
   private camera: THREE.Camera;
@@ -9,6 +10,12 @@ export class InputManager {
   private player: Player;
   private world: World;
   private hud: HUD;
+  public cameraManager?: GameCamera;
+
+  // Camera Orbit Drag State
+  private isRotatingCamera: boolean = false;
+  private lastMouseX: number = 0;
+  private lastMouseY: number = 0;
 
   private raycaster: THREE.Raycaster;
   private mouseCoords: THREE.Vector2;
@@ -32,13 +39,15 @@ export class InputManager {
     scene: THREE.Scene,
     player: Player,
     world: World,
-    hud: HUD
+    hud: HUD,
+    cameraManager?: GameCamera
   ) {
     this.camera = camera;
     this.scene = scene;
     this.player = player;
     this.world = world;
     this.hud = hud;
+    this.cameraManager = cameraManager;
 
     this.raycaster = new THREE.Raycaster();
     this.raycaster.layers.enableAll();
@@ -73,6 +82,27 @@ export class InputManager {
     // Setup Event Listeners
     window.addEventListener('pointermove', this.onPointerMove.bind(this));
     window.addEventListener('pointerdown', this.onPointerDown.bind(this));
+    window.addEventListener('pointerup', (e) => {
+      if (e.button === 2 || e.button === 1) {
+        this.isRotatingCamera = false;
+      }
+    });
+
+    // Prevent context menu on right click so player can freely rotate camera
+    window.addEventListener('contextmenu', (e) => {
+      const targetEl = e.target as HTMLElement;
+      if (targetEl.closest('canvas')) {
+        e.preventDefault();
+      }
+    });
+
+    // Mouse Wheel Zoom
+    window.addEventListener('wheel', (e: WheelEvent) => {
+      if (this.hud.currentNavMode === 'map') return;
+      if (this.cameraManager) {
+        this.cameraManager.zoom(e.deltaY * 0.005);
+      }
+    }, { passive: true });
 
     // Keyboard driving controls
     window.addEventListener('keydown', (e) => {
@@ -90,7 +120,7 @@ export class InputManager {
         this.onToggleVehicle?.();
       } else if (k === 'h') {
         this.onHonkVehicle?.();
-      } else      if (k === 'e') {
+      } else if (k === 'e') {
         if (this.hud.currentInteractionTarget) {
           e.preventDefault();
           this.hud.executeCurrentInteraction();
@@ -118,6 +148,17 @@ export class InputManager {
       return;
     }
 
+    // Camera rotation orbit drag
+    if (this.isRotatingCamera && this.cameraManager) {
+      const deltaX = event.clientX - this.lastMouseX;
+      const deltaY = event.clientY - this.lastMouseY;
+      this.lastMouseX = event.clientX;
+      this.lastMouseY = event.clientY;
+      const rotSpeed = 0.0055;
+      this.cameraManager.rotate(-deltaX * rotSpeed, -deltaY * rotSpeed * 0.7);
+      return;
+    }
+
     // Convert to normalized device coordinates (-1 to +1)
     this.mouseCoords.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouseCoords.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -130,44 +171,45 @@ export class InputManager {
       ? this.world.interiorManager.getActiveInteractiveObjects()
       : this.world.interactiveObjects;
 
-    // Smart cursor priority: interactive object > walkable ground > default.
+    // Check walkable terrain / interior floor
+    const floorMesh = isInside
+      ? this.world.interiorManager.getActiveFloorMesh()
+      : this.world.groundMesh;
+    const floorHits = floorMesh ? this.raycaster.intersectObject(floorMesh, false) : [];
+
+    // Interactive object hover
     const interactiveMeshes = activeObjects.map((obj) => obj.mesh);
     const interactiveHits = this.raycaster.intersectObjects(interactiveMeshes, true);
 
     if (interactiveHits.length > 0) {
-      const hitRoot = this.findInteractiveParent(interactiveHits[0].object);
-      this.hoveredObject = hitRoot;
-      this.hoverReticle.visible = false;
+      const closestHit = interactiveHits[0];
+      const floorHit = floorHits.length > 0 ? floorHits[0] : null;
+      const isDirectInteractiveHit = !floorHit || (closestHit.distance < floorHit.distance - 0.05);
 
-      if (hitRoot) {
-        this.setCursor('interact');
-        // Show the reticle at the actual destination the player will walk to.
-        this.hoverReticle.position.copy(hitRoot.interactionPoint);
-        this.hoverReticle.position.y = 0.03;
-        this.hoverReticle.visible = true;
-        (this.hoverReticle.material as THREE.MeshBasicMaterial).opacity = 0.55;
+      if (isDirectInteractiveHit) {
+        const hitRoot = this.findInteractiveParent(closestHit.object);
+        if (hitRoot) {
+          this.hoveredObject = hitRoot;
+          this.setCursor('interact');
+          this.hoverReticle.position.copy(hitRoot.interactionPoint);
+          this.hoverReticle.position.y = isInside ? 0.04 : 0.03;
+          this.hoverReticle.visible = true;
+          (this.hoverReticle.material as THREE.MeshBasicMaterial).opacity = 0.55;
+          return;
+        }
       }
-      return;
     }
 
     this.hoveredObject = null;
 
-    // Check hover against walkable terrain / interior floor.
-    const floorMesh = isInside
-      ? this.world.interiorManager.getActiveFloorMesh()
-      : this.world.groundMesh;
-
-    if (floorMesh) {
-      const groundHits = this.raycaster.intersectObject(floorMesh, false);
-      if (groundHits.length > 0) {
-        this.hoverGroundPoint.copy(groundHits[0].point);
-        this.hoverReticle.position.copy(this.hoverGroundPoint);
-        this.hoverReticle.position.y = isInside ? 0.04 : 0.03;
-        this.hoverReticle.visible = true;
-        (this.hoverReticle.material as THREE.MeshBasicMaterial).opacity = 0.4;
-        this.setCursor('walk');
-        return;
-      }
+    if (floorHits.length > 0) {
+      this.hoverGroundPoint.copy(floorHits[0].point);
+      this.hoverReticle.position.copy(this.hoverGroundPoint);
+      this.hoverReticle.position.y = isInside ? 0.04 : 0.03;
+      this.hoverReticle.visible = true;
+      (this.hoverReticle.material as THREE.MeshBasicMaterial).opacity = 0.4;
+      this.setCursor('walk');
+      return;
     }
 
     this.hoverReticle.visible = false;
@@ -176,6 +218,17 @@ export class InputManager {
 
   private onPointerDown(event: MouseEvent): void {
     if (this.hud.currentNavMode === 'map') return;
+
+    // Right-click or middle-click: start camera rotation drag
+    if (event.button === 2 || event.button === 1) {
+      const targetEl = event.target as HTMLElement;
+      if (targetEl.closest('canvas')) {
+        this.isRotatingCamera = true;
+        this.lastMouseX = event.clientX;
+        this.lastMouseY = event.clientY;
+      }
+      return;
+    }
 
     // Only respond to primary left click, ignore clicks on UI buttons & open modals
     if (event.button !== 0) return;
@@ -199,49 +252,58 @@ export class InputManager {
       ? this.world.interiorManager.getActiveInteractiveObjects()
       : this.world.interactiveObjects;
 
-    // 1. Test click on interactive buildings & objects
+    // 1. Raycast walkable terrain / interior floor FIRST
+    const floorMesh = isInside
+      ? this.world.interiorManager.getActiveFloorMesh()
+      : this.world.groundMesh;
+    const floorHits = floorMesh ? this.raycaster.intersectObject(floorMesh, false) : [];
+
+    // 2. Raycast interactive buildings & objects
     const buildingMeshes = activeObjects.map((obj) => obj.mesh);
     const buildingHits = this.raycaster.intersectObjects(buildingMeshes, true);
 
     if (buildingHits.length > 0) {
-      const hitObj = this.findInteractiveParent(buildingHits[0].object);
-      if (hitObj) {
-        const dist = this.player.position.distanceTo(hitObj.interactionPoint);
-        const threshold = hitObj.id.startsWith('veh-') ? 3.5 : 2.8;
+      const closestBuildingHit = buildingHits[0];
+      const floorHit = floorHits.length > 0 ? floorHits[0] : null;
 
-        if (dist <= threshold) {
-          // Already within close proximity: face object and open immediately
-          const lookDir = new THREE.Vector3().subVectors(hitObj.interactionPoint, this.player.position);
-          if (lookDir.lengthSq() > 0.01) {
-            this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+      // An interactive object is only directly clicked if:
+      // - There is no floor hit behind it, OR
+      // - The interactive object is physically closer to the camera than the floor
+      const isDirectInteractiveClick = !floorHit || (closestBuildingHit.distance < floorHit.distance - 0.05);
+
+      if (isDirectInteractiveClick) {
+        const hitObj = this.findInteractiveParent(closestBuildingHit.object);
+        if (hitObj) {
+          const dist = this.player.position.distanceTo(hitObj.interactionPoint);
+          const threshold = hitObj.id.startsWith('veh-') ? 3.5 : 2.8;
+
+          if (dist <= threshold) {
+            // Already within close proximity: face object and open immediately
+            const lookDir = new THREE.Vector3().subVectors(hitObj.interactionPoint, this.player.position);
+            if (lookDir.lengthSq() > 0.01) {
+              this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+            }
+            this.pendingInteraction = null;
+            this.hud.showInteractionCard(hitObj);
+          } else {
+            // Player is at a distance: approach the object first, then interact on arrival
+            this.player.setDestination(hitObj.interactionPoint);
+            this.spawnClickMarker(hitObj.interactionPoint, 0xfacc15); // Golden approach target
+            this.pendingInteraction = hitObj;
+            this.hud.hideInteractionCard();
           }
-          this.pendingInteraction = null;
-          this.hud.showInteractionCard(hitObj);
-        } else {
-          // Player is at a distance: approach the object first, then interact on arrival
-          this.player.setDestination(hitObj.interactionPoint);
-          this.spawnClickMarker(hitObj.interactionPoint, 0xfacc15); // Golden approach target
-          this.pendingInteraction = hitObj;
-          this.hud.hideInteractionCard();
+          return;
         }
-        return;
       }
     }
 
-    // 2. Test click on ground / interior floor
-    const floorMesh = isInside
-      ? this.world.interiorManager.getActiveFloorMesh()
-      : this.world.groundMesh;
-
-    if (floorMesh) {
-      const groundHits = this.raycaster.intersectObject(floorMesh, false);
-      if (groundHits.length > 0) {
-        const clickPoint = groundHits[0].point;
-        this.pendingInteraction = null;
-        this.player.setDestination(clickPoint);
-        this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
-        this.hud.hideInteractionCard();
-      }
+    // 3. Test click on ground / interior floor -> walk directly there!
+    if (floorHits.length > 0) {
+      const clickPoint = floorHits[0].point;
+      this.pendingInteraction = null;
+      this.player.setDestination(clickPoint);
+      this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
+      this.hud.hideInteractionCard();
     }
   }
 
@@ -256,12 +318,26 @@ export class InputManager {
   }
 
   private findInteractiveParent(obj: THREE.Object3D): InteractiveObject | null {
+    // Ground, terrain, interior floor and room root should NEVER be matched as interactive!
+    if (
+      obj.name === 'interior_floor_mesh' ||
+      obj.name === 'ground' ||
+      obj === this.world.groundMesh ||
+      obj === this.world.interiorManager.getActiveFloorMesh() ||
+      obj === this.world.interiorManager.getActiveInteriorGroup()
+    ) {
+      return null;
+    }
+
     let curr: THREE.Object3D | null = obj;
-    const list = this.world.interiorManager.isPlayerInside()
+    const isInside = this.world.interiorManager.isPlayerInside();
+    const list = isInside
       ? this.world.interiorManager.getActiveInteractiveObjects()
       : this.world.interactiveObjects;
+    const activeGroup = this.world.interiorManager.getActiveInteriorGroup();
 
     while (curr) {
+      if (isInside && curr === activeGroup) break;
       const match = list.find((item) => item.mesh === curr);
       if (match) return match;
       curr = curr.parent;
@@ -552,6 +628,17 @@ export class InputManager {
     if (this.hoverReticle.visible) {
       const pulse = 1 + Math.sin(Date.now() * 0.006) * 0.08;
       this.hoverReticle.scale.set(pulse, pulse, pulse);
+    }
+
+    // Keyboard Camera Rotation [Q] = Turn Left, [R] = Turn Right
+    if (this.cameraManager && this.hud.currentNavMode !== 'map') {
+      const rotRate = delta * 2.4;
+      if (this.keys['q'] || this.keys['[']) {
+        this.cameraManager.rotate(rotRate);
+      }
+      if (this.keys['r'] || this.keys[']']) {
+        this.cameraManager.rotate(-rotRate);
+      }
     }
   }
 

@@ -169,7 +169,7 @@ export class BankInterior {
     this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(6, 4.2, 4), 0xfef08a));
 
     // 3. Exit Door
-    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), 0);
+    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), Math.PI);
     this.group.add(exitDoor);
 
     this.interactiveList.push({
@@ -233,10 +233,15 @@ export class BankInterior {
       });
     }
 
-    // 6. Register Station Interactive Objects
+    // 6. Register Station Interactive Objects with their actual furniture meshes
     for (const station of this.def.stations) {
+      let stationMesh: THREE.Object3D = tellerCounter;
+      if (station.id === 'bank_teller_station') stationMesh = tellerCounter;
+      else if (station.id === 'bank_atm_station') stationMesh = atm1;
+      else if (station.id === 'bank_manager_desk') stationMesh = managerDesk;
+
       this.interactiveList.push({
-        mesh: this.group,
+        mesh: stationMesh,
         id: station.id,
         name: station.name,
         category: station.category,

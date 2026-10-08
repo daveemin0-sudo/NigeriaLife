@@ -7,6 +7,7 @@ import {
 } from './CharacterCustomization';
 import { SignageLibrary } from '../materials/SignageLibrary';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
+import type { GameCamera } from '../game/Camera';
 
 export class Player {
   public mesh: THREE.Group;
@@ -17,6 +18,7 @@ export class Player {
   public emoteTimer: number = 0;
   public isDriving: boolean = false;
   public currentVehicle: any = null;
+  public cameraManager: GameCamera | null = null;
 
   // Configuration
   public config: CharacterConfig;
@@ -268,7 +270,19 @@ export class Player {
       if (keys['d'] || keys['arrowright']) moveX += 1;
 
       if (moveX !== 0 || moveZ !== 0) {
-        const moveDir = new THREE.Vector3(moveX, 0, moveZ).normalize();
+        let moveDir: THREE.Vector3;
+        if (this.cameraManager) {
+          const yaw = this.cameraManager.getActiveYaw();
+          const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+          const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+          moveDir = new THREE.Vector3()
+            .addScaledVector(right, moveX)
+            .addScaledVector(forward, -moveZ)
+            .normalize();
+        } else {
+          moveDir = new THREE.Vector3(moveX, 0, moveZ).normalize();
+        }
+
         const targetAngle = Math.atan2(moveDir.x, moveDir.z);
         this.mesh.rotation.y = THREE.MathUtils.lerp(this.mesh.rotation.y, targetAngle, 0.25);
         this.mesh.position.addScaledVector(moveDir, this.speed * delta);

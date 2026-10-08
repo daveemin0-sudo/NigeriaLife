@@ -41,6 +41,8 @@ export class HUD {
   public onExitInterior?: () => void;
   public onNavigateMode?: (mode: 'street' | 'home' | 'map') => void;
   public onRadarNavigate?: (destId: string) => void;
+  public onRotateCamera?: (deltaYaw: number) => void;
+  public onResetCamera?: () => void;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
 
   constructor() {
@@ -184,9 +186,24 @@ export class HUD {
 
         <div class="hud-hint">
           <span class="mouse-icon">🖱️</span>
-          <span>Click street to walk • Click items/NPCs to interact • Press C for Wardrobe</span>
+          <span>Click to walk • Right-click drag or [Q]/[R] to rotate view • [E] Interact</span>
         </div>
       </footer>
+
+      <!-- Floating Camera Orbit Controls (360° View) -->
+      <div class="camera-rotate-widget" id="camera-rotate-widget">
+        <button class="cam-rot-btn" id="btn-cam-left" title="Rotate View Left [Q] or Right-Click Drag">
+          <span>↺</span>
+          <span class="cam-btn-lbl">Q</span>
+        </button>
+        <button class="cam-rot-btn cam-center" id="btn-cam-reset" title="Reset Camera View [⊙]">
+          <span>⊙</span>
+        </button>
+        <button class="cam-rot-btn" id="btn-cam-right" title="Rotate View Right [R] or Right-Click Drag">
+          <span class="cam-btn-lbl">R</span>
+          <span>↻</span>
+        </button>
+      </div>
 
       <!-- Interaction Modal / Card -->
       <div class="interaction-card" id="interaction-card" style="display: none;">
@@ -519,6 +536,22 @@ export class HUD {
     // Time-of-day click cycle (Midday -> Golden Hour -> Night -> Morning)
     document.getElementById('hud-time-pill')?.addEventListener('click', () => {
       this.world?.skyEnvironment.cycleTimeOfDay();
+    });
+
+    // Camera Orbit Controls Buttons
+    document.getElementById('btn-cam-left')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onRotateCamera?.(Math.PI / 4); // 45 degrees left
+    });
+
+    document.getElementById('btn-cam-right')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onRotateCamera?.(-Math.PI / 4); // 45 degrees right
+    });
+
+    document.getElementById('btn-cam-reset')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onResetCamera?.();
     });
 
     // Keyboard Hotkeys
