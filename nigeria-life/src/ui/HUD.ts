@@ -34,6 +34,8 @@ export class HUD {
   public onExitVehicle?: () => void;
   public onHonkVehicle?: () => void;
   public onEnterVehicle?: (vehicleId: string) => void;
+  public onEnterInterior?: (buildingId: string) => void;
+  public onExitInterior?: () => void;
   public onNavigateMode?: (mode: 'street' | 'home' | 'map') => void;
   public onRadarNavigate?: (destId: string) => void;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
@@ -567,10 +569,6 @@ export class HUD {
     titleEl.textContent = obj.name;
     descEl.textContent = obj.description;
 
-    const data = this.backend.getData();
-    const villa = data.properties.find((p) => p.buildingId === 'villa-compound' || p.id === 'prop_villa_estate');
-    const isTenant = villa ? (villa.status === 'owned' || villa.status === 'rented' || villa.status === 'purchased') : false;
-
     const bizMeta = document.getElementById('card-biz-meta');
     const bizStatus = document.getElementById('card-biz-status');
     const bizOwner = document.getElementById('card-biz-owner');
@@ -601,18 +599,67 @@ export class HUD {
     }
 
     if (obj.id === 'mama-put') {
-      btnEl.textContent = '🍲 Order Jollof Rice & Asun (₦1,500)';
-      bizBtn.textContent = '💼 View Business [E]';
+      btnEl.textContent = '🍲 Enter Buka & Mama Put [E]';
+      bizBtn.textContent = '💼 Business Office';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'lagos-bank') {
-      btnEl.textContent = '🏧 Enter ATM Gallery';
+      btnEl.textContent = '🏦 Enter Bank & Wealth Hub [E]';
+      bizBtn.textContent = '🏧 Instant ATM';
+      bizBtn.style.display = 'inline-block';
+    } else if (obj.id === 'lagos-hospital') {
+      btnEl.textContent = '🏥 Enter St. Nicholas General Hospital [E]';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'police-station') {
+      btnEl.textContent = '👮 Enter Area Command Police Station [E]';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'interior_exit_door') {
+      btnEl.textContent = '🚪 Exit to Street [E]';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'hosp_reception') {
+      btnEl.textContent = '📋 Register & Check Vitals (₦500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'hosp_doctor_desk') {
+      btnEl.textContent = '🩺 Full Medical Diagnosis & Treatment (₦2,500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'hosp_ward_bed') {
+      btnEl.textContent = '🛏️ Rest on Clinical Ward Bed (Full Recovery)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'hosp_pharmacy') {
+      btnEl.textContent = '💊 Buy Coartem Malaria Medicine (₦1,800)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'bank_atm_station') {
+      btnEl.textContent = '🏧 Withdraw ₦10,000 Cash';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'bank_teller_station') {
+      btnEl.textContent = '💱 Foreign Remittance Wire Pickup (+₦25,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'bank_manager_desk') {
+      btnEl.textContent = '💼 Apply for Lagos SME Loan (+₦50,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'buka_food_counter') {
+      btnEl.textContent = '🍲 Order Firewood Party Jollof (₦1,800)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'buka_table_vip') {
+      btnEl.textContent = '🍽️ Sit Down & Chop Life (₦2,500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'police_front_desk') {
+      btnEl.textContent = '📝 File Citizen Incident Report (₦500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'police_holding_cell') {
+      btnEl.textContent = '⚖️ Pay Citizen Bail Bond (₦5,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-workstation') {
+      btnEl.textContent = '💻 Complete Remote Tech Sprint (+₦12,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id.startsWith('interior_npc_')) {
+      btnEl.textContent = `💬 Gist & Consult ${obj.name}`;
       bizBtn.style.display = 'none';
     } else if (obj.id === 'bet-shop') {
       btnEl.textContent = '⚽ Place Match Ticket (₦1,000)';
       bizBtn.textContent = '💼 POS & Bet9ja Enterprise Hub [E]';
       bizBtn.style.display = 'inline-block';
-    } else if (obj.id === 'villa-compound') {
-      btnEl.textContent = isTenant ? '🚪 Open / Close Compound Gate' : '🏠 Ring Gate Bell (Visitor)';
+    } else if (obj.id === 'villa-compound' || obj.id === 'palm-view-flats') {
+      btnEl.textContent = '🏠 Enter Apartment / Residence [E]';
       bizBtn.textContent = '🏡 Victoria Estate Property Office [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id.startsWith('veh-')) {
@@ -793,26 +840,142 @@ export class HUD {
     const id = this.currentActiveObject.id;
 
     if (id === 'mama-put') {
-      const success = this.backend.spendCash(1500, 'Mama Put Jollof & Asun');
-      if (success) {
-        this.backend.restoreEnergy(100);
-        this.backend.addItem({
-          id: 'takeaway_jollof',
-          name: 'Takeaway Jollof Rice',
-          category: 'food',
-          icon: '🍲',
-          description: 'Hot party Jollof rice packed in a foil takeaway pack.',
-          price: 1500,
-          usable: true,
-          energyRestore: 50,
-        });
-        alert('🍲 Oya chop life! Energy fully restored to 100%, and an extra takeaway pack was added to your bag!');
-      } else {
-        alert('❌ You do not have enough cash in your pocket! Go to the bank ATM to withdraw cash.');
-      }
+      this.hideInteractionCard();
+      this.onEnterInterior?.('restaurant');
+      return;
     } else if (id === 'lagos-bank') {
       this.hideInteractionCard();
-      this.atmModal.open();
+      this.onEnterInterior?.('bank');
+      return;
+    } else if (id === 'lagos-hospital') {
+      this.hideInteractionCard();
+      this.onEnterInterior?.('hospital');
+      return;
+    } else if (id === 'police-station') {
+      this.hideInteractionCard();
+      this.onEnterInterior?.('police');
+      return;
+    } else if (id === 'villa-compound' || id === 'palm-view-flats') {
+      this.hideInteractionCard();
+      this.onEnterInterior?.('residence');
+      return;
+    } else if (id === 'interior_exit_door') {
+      this.hideInteractionCard();
+      this.onExitInterior?.();
+      return;
+    } else if (id === 'hosp_reception') {
+      const success = this.backend.spendCash(500, 'Hospital Triage Registration');
+      if (success) {
+        this.backend.restoreHealth(20);
+        alert('🩺 Nurse Chidinma: "Registration complete! Blood pressure 120/80. Doctor Adeleke is waiting in Consultation Room 1."');
+      } else {
+        alert('❌ Need ₦500 cash for hospital patient registration!');
+      }
+      return;
+    } else if (id === 'hosp_doctor_desk') {
+      const success = this.backend.spendCash(2500, 'Doctor Adeleke Medical Consultation');
+      if (success) {
+        this.backend.restoreHealth(100);
+        this.backend.restoreEnergy(50);
+        this.backend.addStreetCred(10);
+        alert('👨‍⚕️ Dr. Adeleke: "Your diagnosis is looking good! Administered a high-potency vitamin injection. Health fully restored to 100%!"');
+      } else {
+        alert('❌ Need ₦2,500 cash for full medical consultation!');
+      }
+      return;
+    } else if (id === 'hosp_ward_bed') {
+      this.backend.restoreHealth(100);
+      this.backend.restoreEnergy(100);
+      alert('💧 You rest peacefully on the medical bed. The saline drip cleanses your system. 100% Health & Energy restored!');
+      return;
+    } else if (id === 'hosp_pharmacy') {
+      const success = this.backend.spendCash(1800, 'Coartem Malaria Pack');
+      if (success) {
+        this.backend.addItem({
+          id: `coartem_${Date.now()}`,
+          name: 'Coartem Malaria Dose',
+          category: 'medicine',
+          icon: '💊',
+          description: 'Gold standard fast-acting anti-malarial blister pack.',
+          price: 1800,
+          usable: true,
+          energyRestore: 40,
+        });
+        alert('💊 Pharmacist Kemi: "Here is your Coartem dose! Added to your bag. Take two tablets twice daily with water."');
+      } else {
+        alert('❌ Need ₦1,800 cash for Coartem malaria medicine!');
+      }
+      return;
+    } else if (id === 'bank_atm_station') {
+      this.backend.addCash(10000);
+      alert('🏧 *Cash dispenser sound* ₦10,000 cash dispensed into your pocket! Thank you for banking with Eko Commercial Bank.');
+      return;
+    } else if (id === 'bank_teller_station') {
+      this.backend.addCash(25000);
+      this.backend.addStreetCred(15);
+      alert('💱 Teller Ngozi: "Diaspora foreign wire transfer verified! ₦25,000 cash paid over the counter. Street Cred +15!"');
+      return;
+    } else if (id === 'bank_manager_desk') {
+      this.backend.addCash(50000);
+      this.backend.addStreetCred(30);
+      alert('💼 Manager Bankole: "Lagos SME Business Loan approved! ₦50,000 capital disbursed to your wallet! Street Cred +30!"');
+      return;
+    } else if (id === 'buka_food_counter') {
+      const success = this.backend.spendCash(1800, 'Firewood Party Jollof & Chicken');
+      if (success) {
+        this.backend.restoreEnergy(100);
+        this.backend.restoreHealth(30);
+        this.backend.addItem({
+          id: `takeaway_jollof_${Date.now()}`,
+          name: 'Takeaway Firewood Jollof Pack',
+          category: 'food',
+          icon: '🍲',
+          description: 'Insulated foil takeaway pack with spicy firewood party jollof and chicken.',
+          price: 1800,
+          usable: true,
+          energyRestore: 60,
+        });
+        alert('🍲 Mama Nkechi: "Oya chop life! Smoky firewood Jollof dished fresh for you! Energy restored to 100%, and extra takeaway packed in your bag!"');
+      } else {
+        alert('❌ Need ₦1,800 cash for firewood party jollof!');
+      }
+      return;
+    } else if (id === 'buka_table_vip') {
+      const success = this.backend.spendCash(2500, 'VIP Chapman & Pepper Soup Platter');
+      if (success) {
+        this.backend.restoreEnergy(100);
+        this.backend.restoreHealth(50);
+        this.backend.addStreetCred(20);
+        alert('🍹 Waiter Segun: "Chilled Chapman and catfish pepper soup served! Total relaxation achieved! Energy 100%, Street Cred +20!"');
+      } else {
+        alert('❌ Need ₦2,500 cash for VIP table & pepper soup!');
+      }
+      return;
+    } else if (id === 'police_front_desk') {
+      const success = this.backend.spendCash(500, 'Citizen Incident Report Documentation');
+      if (success) {
+        this.backend.addStreetCred(20);
+        alert('👮 Sgt. Danladi: "Report documented in the Lagos Area Command logbook! Reference Number: #NIG-8492. +20 Street Cred!"');
+      } else {
+        alert('❌ Need ₦500 documentation fee for report filing.');
+      }
+      return;
+    } else if (id === 'police_holding_cell') {
+      const success = this.backend.spendCash(5000, 'Citizen Bail Bond');
+      if (success) {
+        this.backend.addStreetCred(40);
+        alert('⚖️ Sgt. Danladi: "Bail bond processed! Suspect Kazeem has been released on good behavior. You earned massive respect in the community (+40 Street Cred)!"');
+      } else {
+        alert('❌ Need ₦5,000 cash for bail bond release!');
+      }
+      return;
+    } else if (id === 'flat-workstation') {
+      this.backend.addCash(12000);
+      this.backend.addStreetCred(20);
+      alert('💻 Pull request approved and merged! ₦12,000 remote salary credited to your wallet! Street Cred +20!');
+      return;
+    } else if (id.startsWith('interior_npc_')) {
+      alert(`💬 ${this.currentActiveObject.description}`);
       return;
     } else if (id === 'bet-shop') {
       const success = this.backend.spendCash(1000, 'Bet9ja 5-Game Ticket');

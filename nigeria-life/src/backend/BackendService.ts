@@ -271,6 +271,10 @@ export class BackendService {
     this.saveData();
   }
 
+  public restoreHealth(amount: number = 100): void {
+    this.restoreEnergy(amount);
+  }
+
   public depleteEnergy(amount: number): boolean {
     if (this.data.stats.energy < amount) {
       return false;

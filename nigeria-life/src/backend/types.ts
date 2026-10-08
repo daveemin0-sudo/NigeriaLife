@@ -1,7 +1,7 @@
 export interface Item {
   id: string;
   name: string;
-  category: 'food' | 'tool' | 'document' | 'key' | 'gadget';
+  category: 'food' | 'tool' | 'document' | 'key' | 'gadget' | 'medicine' | 'luxury' | 'electronics';
   icon: string;
   description: string;
   price: number;

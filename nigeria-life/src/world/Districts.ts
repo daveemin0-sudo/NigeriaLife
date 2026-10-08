@@ -47,7 +47,11 @@ export class Districts {
     // 9. Build Lagos Island CMS Marina & Balogun Fabric Market (Central South)
     this.buildMarinaBalogunMarket();
 
-    // 10. District Connecting Roads & Billboards
+    // 10. Build General Hospital & Police Station Destinations
+    this.buildGeneralHospital();
+    this.buildPoliceStation();
+
+    // 11. District Connecting Roads & Billboards
     this.buildDistrictRoadsAndBillboards();
   }
 
@@ -795,7 +799,128 @@ export class Districts {
   }
 
   // =========================================================================
-  // 10. CONNECTING ROADS & NAIJA LED BILLBOARDS
+  // 10. GENERAL HOSPITAL & EMERGENCY CLINIC (East South: X 18, Z 75)
+  // =========================================================================
+  private buildGeneralHospital(): void {
+    const hospGroup = new THREE.Group();
+    hospGroup.position.set(18, 0, 75);
+
+    // Multi-story hospital modern medical complex
+    const mainGeo = new THREE.BoxGeometry(16, 12, 14);
+    const mainMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2 });
+    const mainBuilding = new THREE.Mesh(mainGeo, mainMat);
+    mainBuilding.position.y = 6;
+    mainBuilding.castShadow = true;
+    hospGroup.add(mainBuilding);
+
+    // Blue glass clinical windows
+    const windowBand = new THREE.Mesh(
+      new THREE.BoxGeometry(16.2, 1.8, 14.2),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.8, roughness: 0.1 })
+    );
+    windowBand.position.y = 7.5;
+    hospGroup.add(windowBand);
+
+    // Red Cross Hospital Emblem on front facade
+    const crossGroup = new THREE.Group();
+    crossGroup.position.set(-8.15, 8.5, 0);
+    crossGroup.rotation.y = -Math.PI / 2;
+    const barV = new THREE.Mesh(new THREE.BoxGeometry(0.8, 3.2, 0.1), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    const barH = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.8, 0.1), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    crossGroup.add(barV);
+    crossGroup.add(barH);
+    hospGroup.add(crossGroup);
+
+    // Entrance Canopy & Red Emergency Driveway
+    const canopy = new THREE.Mesh(
+      new THREE.BoxGeometry(6, 0.6, 6),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7 })
+    );
+    canopy.position.set(-6, 3.6, 0);
+    hospGroup.add(canopy);
+
+    // Signboard
+    const sign = new THREE.Mesh(
+      new THREE.BoxGeometry(5.5, 0.9, 0.2),
+      new THREE.MeshBasicMaterial({ color: 0x0f172a })
+    );
+    sign.position.set(-8.8, 3.6, 0);
+    sign.rotation.y = -Math.PI / 2;
+    hospGroup.add(sign);
+
+    this.group.add(hospGroup);
+
+    this.interactiveList.push({
+      mesh: hospGroup,
+      id: 'lagos-hospital',
+      name: 'St. Nicholas Lagos General Hospital',
+      category: 'Healthcare & Emergency',
+      description: 'Lagos Island premier medical centre. Enter for doctor consultation, treatments, medical checkups, and pharmacy.',
+      interactionPoint: new THREE.Vector3(12, 0, 75),
+    });
+  }
+
+  // =========================================================================
+  // 11. AREA COMMAND POLICE HEADQUARTERS (West South: X -25, Z 65)
+  // =========================================================================
+  private buildPoliceStation(): void {
+    const policeGroup = new THREE.Group();
+    policeGroup.position.set(-25, 0, 65);
+
+    // Fortress-style tactical police headquarters
+    const stationGeo = new THREE.BoxGeometry(15, 9, 14);
+    const stationMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
+    const station = new THREE.Mesh(stationGeo, stationMat);
+    station.position.y = 4.5;
+    station.castShadow = true;
+    policeGroup.add(station);
+
+    // Navy & gold police facade stripes
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(15.2, 1.2, 14.2),
+      new THREE.MeshBasicMaterial({ color: 0x1e3a8a })
+    );
+    stripe.position.y = 6.2;
+    policeGroup.add(stripe);
+
+    // Communication antenna tower on roof
+    const antenna = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.15, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 })
+    );
+    antenna.position.set(4, 14, -4);
+    policeGroup.add(antenna);
+
+    // Blinking red beacon on antenna top
+    const beacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.25, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    );
+    beacon.position.set(4, 19, -4);
+    policeGroup.add(beacon);
+
+    // Nigeria Police Crest Board
+    const crest = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 2.2, 3.8),
+      new THREE.MeshStandardMaterial({ color: 0x09090b })
+    );
+    crest.position.set(7.6, 5.5, 0);
+    policeGroup.add(crest);
+
+    this.group.add(policeGroup);
+
+    this.interactiveList.push({
+      mesh: policeGroup,
+      id: 'police-station',
+      name: 'Lagos State Area Command Police Station',
+      category: 'Law Enforcement & Security',
+      description: 'Lagos Command Headquarters. Enter for desk sergeant reports, bail bonds, citizen clearances, and holding cell.',
+      interactionPoint: new THREE.Vector3(-18, 0, 65),
+    });
+  }
+
+  // =========================================================================
+  // 12. CONNECTING ROADS & NAIJA LED BILLBOARDS
   // =========================================================================
   private buildDistrictRoadsAndBillboards(): void {
     // East-West Arterial Road to Lekki (X: 10 to 80, Z: 0)

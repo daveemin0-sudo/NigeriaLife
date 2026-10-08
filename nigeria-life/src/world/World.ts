@@ -15,6 +15,7 @@ import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
 import { WorldMap } from './map/WorldMap';
 import { WorldDataManager } from './data/WorldDataManager';
+import { InteriorManager } from '../interiors/InteriorManager';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -36,6 +37,7 @@ export class World {
   public npcs: NPCs;
   public districts: Districts;
   public apartment: ApartmentInterior;
+  public interiorManager: InteriorManager;
   public weather: WeatherSystem;
   public atmosphere: AtmosphereManager;
   public cityManager: CityManager;
@@ -105,19 +107,24 @@ export class World {
     this.apartment = new ApartmentInterior();
     this.scene.add(this.apartment.group);
 
-    // 8. Dedicated Isometric World Map Presentation Layer
+    // 8. 3-Tier Interior & Activity Destination Engine (Hospital, Bank, Buka, Police, Residence)
+    this.interiorManager = InteriorManager.getInstance();
+    this.scene.add(this.interiorManager.group);
+
+    // 9. Dedicated Isometric World Map Presentation Layer
     this.worldMap = new WorldMap(this.scene);
 
-    // Combine all clickable interactive objects across starter zone, districts, and apartment
+    // Combine all clickable interactive objects across starter zone, districts, apartment, and simulated interiors
     this.interactiveObjects = [
       ...this.buildings.interactiveList,
       ...this.npcs.interactiveList,
       ...this.vehicles.interactiveList,
       ...this.districts.interactiveList,
       ...this.apartment.interactiveList,
+      ...this.interiorManager.getAllInteractiveObjects(),
     ];
 
-    // 9. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
+    // 10. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
     this.cityManager = new CityManager(this.scene);
     this.cityManager.registerSunLight(this.sunLight);
     this.cityManager.registerLagosInteractive(this.interactiveObjects);
@@ -131,6 +138,7 @@ export class World {
       this.cityPopulation.group,
       this.districts.group,
       this.apartment.group,
+      this.interiorManager.group,
       this.atmosphere.group,
       this.groundMesh,
     ]);
@@ -259,6 +267,9 @@ export class World {
 
     // Update city manager
     this.cityManager.update(delta);
+
+    // Update 3D simulated interiors (fans, smoke, NPCs)
+    this.interiorManager.update(delta);
   }
 
   // Temporary Street Highlight Beacon for Property Navigation

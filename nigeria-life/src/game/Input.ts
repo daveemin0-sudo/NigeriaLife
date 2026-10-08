@@ -88,6 +88,16 @@ export class InputManager {
         this.onToggleVehicle?.();
       } else if (k === 'h') {
         this.onHonkVehicle?.();
+      } else if (k === 'e') {
+        if (this.hud.currentActiveObject) {
+          const actionBtn = document.getElementById('card-action-btn') as HTMLButtonElement;
+          actionBtn?.click();
+        } else {
+          const closest = this.findClosestInteractive(4.0);
+          if (closest) {
+            this.hud.showInteractionCard(closest);
+          }
+        }
       }
     });
 
@@ -280,5 +290,19 @@ export class InputManager {
       const pulse = 1 + Math.sin(Date.now() * 0.006) * 0.08;
       this.hoverReticle.scale.set(pulse, pulse, pulse);
     }
+  }
+
+  public findClosestInteractive(maxDist: number = 3.5): InteractiveObject | null {
+    let closest: InteractiveObject | null = null;
+    let minDist = maxDist;
+
+    for (const obj of this.world.interactiveObjects) {
+      const d = this.player.position.distanceTo(obj.interactionPoint);
+      if (d < minDist) {
+        minDist = d;
+        closest = obj;
+      }
+    }
+    return closest;
   }
 }

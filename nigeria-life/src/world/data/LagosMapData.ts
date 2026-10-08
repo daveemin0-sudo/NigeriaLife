@@ -408,6 +408,36 @@ export const LAGOS_LANDMARKS: MapLandmark[] = [
       { label: '🚶 Walk Street Mode', actionType: 'travel', targetId: 'lagos_island' },
     ],
   },
+  {
+    id: 'st_nicholas_hospital',
+    name: 'St. Nicholas Lagos General Hospital',
+    districtId: 'lagos_island',
+    type: 'landmark',
+    position: new THREE.Vector3(18, 0, 75),
+    icon: '🏥',
+    title: 'St. Nicholas Lagos General Hospital',
+    subtitle: 'Lagos Island Premier Healthcare & Medical Ward',
+    description: 'Full-service modern hospital with 24/7 triage, doctor consultation, treatment beds, and licensed pharmacy.',
+    actions: [
+      { label: '🏥 Enter Hospital [E]', actionType: 'enter' },
+      { label: '🚶 Walk to Hospital', actionType: 'travel', targetId: 'lagos_island' },
+    ],
+  },
+  {
+    id: 'lagos_area_command_police',
+    name: 'Lagos Area Command Police Headquarters',
+    districtId: 'lagos_island',
+    type: 'landmark',
+    position: new THREE.Vector3(-25, 0, 65),
+    icon: '👮',
+    title: 'Lagos Area Command Police Station',
+    subtitle: 'Central Command Charge Room & Holding Block',
+    description: 'State security command centre. File reports, character clearance documentation, and bail bond processing.',
+    actions: [
+      { label: '👮 Enter Police Command [E]', actionType: 'enter' },
+      { label: '🚶 Walk to Station', actionType: 'travel', targetId: 'lagos_island' },
+    ],
+  },
 ];
 
 export const LAGOS_PROPERTIES: MapProperty[] = [

@@ -155,6 +155,15 @@ export class Game {
       else if (destId === 'dest_ikeja') this.player.mesh.position.set(0, 0, -25);
     };
 
+    // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)
+    this.hud.onEnterInterior = (buildingId: string) => {
+      this.world.interiorManager.enterInterior(buildingId, this.player, this.cameraManager, this.hud);
+    };
+
+    this.hud.onExitInterior = () => {
+      this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud);
+    };
+
     // 10. Multiplayer & Street Chat
     this.network = new NetworkManager(this.scene, this.player);
     this.chatBox = new ChatBox(this.network);
