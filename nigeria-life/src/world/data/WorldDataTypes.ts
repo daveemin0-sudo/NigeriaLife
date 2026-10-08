@@ -5,7 +5,7 @@ export interface DistrictData {
   name: string;
   subtitle: string;
   tagline: string;
-  zone: 'Mainland' | 'Island' | 'Peninsula' | 'Industrial' | 'Special';
+  zone: 'Mainland' | 'Island' | 'Peninsula' | 'Industrial' | 'Special' | 'Diplomatic' | 'Garden' | 'High-Density';
   center: THREE.Vector3;
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   color: number;
@@ -115,6 +115,9 @@ export interface CityMapData {
   id: string;
   name: string;
   state: string;
+  cityId?: string;
+  cityName?: string;
+  stateName?: string;
   tagline: string;
   districts: DistrictData[];
   landmarks: MapLandmark[];
@@ -123,7 +126,7 @@ export interface CityMapData {
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   waterBodies: Array<{
     name: string;
-    type: 'ocean' | 'lagoon' | 'creek';
+    type: 'ocean' | 'lagoon' | 'creek' | 'lake';
     center: THREE.Vector3;
     size: THREE.Vector2;
   }>;

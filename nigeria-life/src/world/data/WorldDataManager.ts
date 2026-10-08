@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { LAGOS_MAP_DATA } from './LagosMapData';
+import { ABUJA_MAP_DATA } from './AbujaMapData';
+import { PORT_HARCOURT_MAP_DATA } from './PortHarcourtMapData';
 import type { CityMapData, DistrictData, MapLandmark, MapProperty, MapBusiness } from './WorldDataTypes';
 
 export class WorldDataManager {
   private static instance: WorldDataManager;
   private currentCity: CityMapData = LAGOS_MAP_DATA;
+  private currentCityId: string = 'lagos';
   private playerMapPosition: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
 
   private constructor() {}
@@ -14,6 +17,25 @@ export class WorldDataManager {
       WorldDataManager.instance = new WorldDataManager();
     }
     return WorldDataManager.instance;
+  }
+
+  public switchCity(cityId: string): CityMapData {
+    const cleanId = cityId.toLowerCase().replace(/[\s-]/g, '_');
+    if (cleanId.includes('abuja')) {
+      this.currentCity = ABUJA_MAP_DATA;
+      this.currentCityId = 'abuja';
+    } else if (cleanId.includes('port') || cleanId.includes('ph') || cleanId.includes('harcourt')) {
+      this.currentCity = PORT_HARCOURT_MAP_DATA;
+      this.currentCityId = 'port_harcourt';
+    } else {
+      this.currentCity = LAGOS_MAP_DATA;
+      this.currentCityId = 'lagos';
+    }
+    return this.currentCity;
+  }
+
+  public getCurrentCityId(): string {
+    return this.currentCityId;
   }
 
   public getCurrentCity(): CityMapData {

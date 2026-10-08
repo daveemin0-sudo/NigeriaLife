@@ -679,4 +679,414 @@ export class WorldMapPrefabs {
 
     return group;
   }
+
+  // =========================================================================
+  // 18. ASO ROCK MONOLITH (Abuja Landmark Monolith)
+  // =========================================================================
+  public static createAsoRock(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+    // Granite rock material (craggy, matte brownish-slate)
+    const rockMat = this.getMaterial('aso_rock_granite', 0x5a554a, 0.95, 0.05);
+    const darkRockMat = this.getMaterial('aso_rock_dark', 0x443f36, 0.98, 0.02);
+
+    // Main central towering monolith
+    const mainRock = new THREE.Mesh(new THREE.DodecahedronGeometry(12.0 * scale, 1), rockMat);
+    mainRock.scale.set(1.5, 1.1, 1.2);
+    mainRock.position.set(0, 7.5 * scale, 0);
+    mainRock.castShadow = true;
+    mainRock.receiveShadow = true;
+    group.add(mainRock);
+
+    // Secondary flanking crag (left)
+    const leftCrag = new THREE.Mesh(new THREE.DodecahedronGeometry(8.5 * scale, 1), darkRockMat);
+    leftCrag.scale.set(1.2, 0.9, 1.4);
+    leftCrag.position.set(-8.0 * scale, 5.0 * scale, 2.0 * scale);
+    leftCrag.castShadow = true;
+    group.add(leftCrag);
+
+    // Secondary flanking crag (right)
+    const rightCrag = new THREE.Mesh(new THREE.DodecahedronGeometry(9.0 * scale, 1), rockMat);
+    rightCrag.scale.set(1.1, 1.0, 1.1);
+    rightCrag.position.set(7.5 * scale, 5.5 * scale, -2.5 * scale);
+    rightCrag.castShadow = true;
+    group.add(rightCrag);
+
+    // Base boulder scatter
+    const basePositions = [
+      [-12, -4], [-5, 8], [8, 6], [11, -3], [-3, -9]
+    ];
+    for (const [bx, bz] of basePositions) {
+      const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(3.5 * scale, 0), darkRockMat);
+      boulder.position.set(bx * scale, 1.5 * scale, bz * scale);
+      group.add(boulder);
+    }
+
+    return group;
+  }
+
+  // =========================================================================
+  // 19. ABUJA NATIONAL MOSQUE (Golden Dome & 4 Soaring Minarets)
+  // =========================================================================
+  public static createNationalMosque(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+
+    // White marble terrace base
+    const marbleMat = this.getMaterial('mosque_marble', 0xf8fafc, 0.3, 0.1);
+    const goldMat = this.getMaterial('mosque_gold', 0xf59e0b, 0.2, 0.8);
+    const accentMat = this.getMaterial('mosque_accent', 0x059669, 0.5, 0.2);
+
+    const base = new THREE.Mesh(new THREE.BoxGeometry(10 * scale, 0.6 * scale, 10 * scale), marbleMat);
+    base.position.y = 0.3 * scale;
+    group.add(base);
+
+    // Main prayer hall cube
+    const hall = new THREE.Mesh(new THREE.BoxGeometry(7.0 * scale, 3.2 * scale, 7.0 * scale), marbleMat);
+    hall.position.y = 2.0 * scale;
+    hall.castShadow = true;
+    group.add(hall);
+
+    // Green archway accent band
+    const archBand = new THREE.Mesh(new THREE.BoxGeometry(7.2 * scale, 0.5 * scale, 7.2 * scale), accentMat);
+    archBand.position.y = 3.5 * scale;
+    group.add(archBand);
+
+    // Central octagonal drum
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(2.8 * scale, 3.0 * scale, 1.0 * scale, 8), marbleMat);
+    drum.position.y = 4.1 * scale;
+    group.add(drum);
+
+    // Iconic Golden Dome
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(2.7 * scale, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), goldMat);
+    dome.position.y = 4.6 * scale;
+    dome.castShadow = true;
+    group.add(dome);
+
+    // Crescent finial
+    const finial = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * scale, 0.08 * scale, 1.2 * scale, 6), goldMat);
+    finial.position.y = 7.6 * scale;
+    group.add(finial);
+
+    // 4 Soaring Minarets at four corners
+    const minaretOffsets = [
+      [-4.2, -4.2], [4.2, -4.2],
+      [-4.2, 4.2], [4.2, 4.2]
+    ];
+    for (const [mx, mz] of minaretOffsets) {
+      // Tower column
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.45 * scale, 0.6 * scale, 9.0 * scale, 12), marbleMat);
+      tower.position.set(mx * scale, 4.8 * scale, mz * scale);
+      tower.castShadow = true;
+      group.add(tower);
+
+      // Balcony ring
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.75 * scale, 0.75 * scale, 0.3 * scale, 12), accentMat);
+      ring.position.set(mx * scale, 8.0 * scale, mz * scale);
+      group.add(ring);
+
+      // Golden spire tip
+      const spire = new THREE.Mesh(new THREE.ConeGeometry(0.45 * scale, 2.0 * scale, 12), goldMat);
+      spire.position.set(mx * scale, 10.3 * scale, mz * scale);
+      group.add(spire);
+    }
+
+    return group;
+  }
+
+  // =========================================================================
+  // 20. NATIONAL CHRISTIAN CENTRE / ECUMENICAL CENTRE (Soaring White Spire)
+  // =========================================================================
+  public static createEcumenicalCentre(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+    const whiteMat = this.getMaterial('cathedral_white', 0xf1f5f9, 0.3, 0.1);
+    const glassMat = this.getMaterial('cathedral_glass', 0x38bdf8, 0.1, 0.8);
+    const roofMat = this.getMaterial('cathedral_roof', 0x64748b, 0.6, 0.2);
+
+    // Stepped foundation
+    const base = new THREE.Mesh(new THREE.BoxGeometry(11 * scale, 0.6 * scale, 8 * scale), whiteMat);
+    base.position.y = 0.3 * scale;
+    group.add(base);
+
+    // Neo-gothic cathedral nave
+    const nave = new THREE.Mesh(new THREE.BoxGeometry(8.0 * scale, 4.5 * scale, 5.5 * scale), whiteMat);
+    nave.position.y = 2.8 * scale;
+    nave.castShadow = true;
+    group.add(nave);
+
+    // High pitched roof
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(4.8 * scale, 3.2 * scale, 4), roofMat);
+    roof.position.y = 6.2 * scale;
+    roof.rotation.y = Math.PI / 4;
+    group.add(roof);
+
+    // Iconic Soaring Modernist Cathedral Spire
+    const spire = new THREE.Mesh(new THREE.ConeGeometry(1.2 * scale, 11.0 * scale, 6), whiteMat);
+    spire.position.set(0, 10.5 * scale, 0);
+    spire.castShadow = true;
+    group.add(spire);
+
+    // Cross at top
+    const crossMat = this.getMaterial('cathedral_cross', 0xf59e0b, 0.2, 0.9);
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.12 * scale, 1.4 * scale, 0.12 * scale), crossMat);
+    crossV.position.set(0, 16.5 * scale, 0);
+    group.add(crossV);
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.8 * scale, 0.12 * scale, 0.12 * scale), crossMat);
+    crossH.position.set(0, 16.8 * scale, 0);
+    group.add(crossH);
+
+    // Stained glass front window
+    const windowMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1 * scale, 3.0 * scale, 2.5 * scale), glassMat);
+    windowMesh.position.set(4.05 * scale, 2.8 * scale, 0);
+    group.add(windowMesh);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 21. NATIONAL ASSEMBLY (Three Arms Zone - Green Dome & Neoclassical Facade)
+  // =========================================================================
+  public static createNationalAssembly(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+    const marbleMat = this.getMaterial('nass_marble', 0xf8fafc, 0.4, 0.1);
+    const greenDomeMat = this.getMaterial('nass_green_dome', 0x15803d, 0.3, 0.3);
+    const colMat = this.getMaterial('nass_col', 0xe2e8f0, 0.5, 0.1);
+
+    // Plaza Base
+    const plaza = new THREE.Mesh(new THREE.BoxGeometry(13 * scale, 0.5 * scale, 9 * scale), marbleMat);
+    plaza.position.y = 0.25 * scale;
+    group.add(plaza);
+
+    // Monumental Parliament Complex Wings
+    const mainBlock = new THREE.Mesh(new THREE.BoxGeometry(10 * scale, 3.0 * scale, 6.5 * scale), marbleMat);
+    mainBlock.position.y = 1.8 * scale;
+    mainBlock.castShadow = true;
+    group.add(mainBlock);
+
+    // Senate & Reps flanking chambers
+    const leftChamber = new THREE.Mesh(new THREE.BoxGeometry(3.5 * scale, 2.2 * scale, 5.0 * scale), marbleMat);
+    leftChamber.position.set(-6.5 * scale, 1.4 * scale, 0);
+    group.add(leftChamber);
+
+    const rightChamber = new THREE.Mesh(new THREE.BoxGeometry(3.5 * scale, 2.2 * scale, 5.0 * scale), marbleMat);
+    rightChamber.position.set(6.5 * scale, 1.4 * scale, 0);
+    group.add(rightChamber);
+
+    // Grand Entrance Colonnade Pillars
+    for (let i = -3; i <= 3; i++) {
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * scale, 0.18 * scale, 2.8 * scale, 10), colMat);
+      col.position.set(i * 1.0 * scale, 1.8 * scale, 3.4 * scale);
+      group.add(col);
+    }
+
+    // Pediment Tri-arch Portico
+    const portico = new THREE.Mesh(new THREE.BoxGeometry(7.2 * scale, 0.8 * scale, 1.2 * scale), marbleMat);
+    portico.position.set(0, 3.4 * scale, 3.4 * scale);
+    group.add(portico);
+
+    // Central Green Dome
+    const domeDrum = new THREE.Mesh(new THREE.CylinderGeometry(2.4 * scale, 2.6 * scale, 1.0 * scale, 16), marbleMat);
+    domeDrum.position.y = 3.8 * scale;
+    group.add(domeDrum);
+
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(2.4 * scale, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), greenDomeMat);
+    dome.position.y = 4.3 * scale;
+    dome.castShadow = true;
+    group.add(dome);
+
+    // Flagpole
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04 * scale, 0.04 * scale, 2.5 * scale, 6), colMat);
+    pole.position.set(0, 7.5 * scale, 0);
+    group.add(pole);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 22. TRANSCORP HILTON (Maitama Landmark Luxury Hotel)
+  // =========================================================================
+  public static createTranscorp(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+    const concreteMat = this.getMaterial('transcorp_conc', 0xe2e8f0, 0.4);
+    const glassMat = this.getMaterial('transcorp_glass', 0x0284c7, 0.1, 0.8);
+
+    // Terraced Hotel Wings (signature Y/tri-wing form)
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(6.5 * scale, 9.5 * scale, 5.0 * scale), concreteMat);
+    tower.position.y = 4.75 * scale;
+    tower.castShadow = true;
+    group.add(tower);
+
+    // Blue glass curtain facade
+    const glassFront = new THREE.Mesh(new THREE.BoxGeometry(5.8 * scale, 8.5 * scale, 0.2 * scale), glassMat);
+    glassFront.position.set(0, 4.8 * scale, 2.55 * scale);
+    group.add(glassFront);
+
+    const glassBack = new THREE.Mesh(new THREE.BoxGeometry(5.8 * scale, 8.5 * scale, 0.2 * scale), glassMat);
+    glassBack.position.set(0, 4.8 * scale, -2.55 * scale);
+    group.add(glassBack);
+
+    // Helipad / rooftop lounge
+    const heliMat = this.getMaterial('transcorp_heli', 0x334155, 0.8);
+    const heli = new THREE.Mesh(new THREE.CylinderGeometry(2.0 * scale, 2.0 * scale, 0.2 * scale, 16), heliMat);
+    heli.position.y = 9.6 * scale;
+    group.add(heli);
+
+    // Entrance canopy porte-cochere
+    const canopyMat = this.getMaterial('transcorp_canopy', 0xd97706, 0.3, 0.5);
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(4.0 * scale, 0.3 * scale, 3.0 * scale), canopyMat);
+    canopy.position.set(0, 1.2 * scale, 3.8 * scale);
+    group.add(canopy);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 23. PORT HARCOURT BOLE & ROASTED FISH STALL (Iconic Street Gastronomy)
+  // =========================================================================
+  public static createBoleSpot(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+    const woodMat = this.getMaterial('bole_wood', 0x78350f, 0.8);
+    const charcoalMat = this.getMaterial('bole_charcoal', 0x18181b, 0.9);
+    const canopyMat = this.getMaterial('bole_canopy', 0xdc2626, 0.6); // Red canopy
+    const grillMat = this.getMaterial('bole_grill', 0x475569, 0.4, 0.7);
+    const plantainMat = this.getMaterial('bole_plantain', 0xb45309, 0.7); // Roasted brown-yellow
+
+    // Wooden shelter deck
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(4.5 * scale, 0.2 * scale, 4.0 * scale), woodMat);
+    deck.position.y = 0.1 * scale;
+    group.add(deck);
+
+    // Big charcoal barbecue grill drum
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.8 * scale, 0.8 * scale, 1.4 * scale, 12), grillMat);
+    drum.rotation.z = Math.PI / 2;
+    drum.position.set(0, 0.9 * scale, 0);
+    group.add(drum);
+
+    // Charcoal ember bed
+    const coals = new THREE.Mesh(new THREE.BoxGeometry(1.2 * scale, 0.1 * scale, 0.8 * scale), charcoalMat);
+    coals.position.set(0, 1.15 * scale, 0);
+    group.add(coals);
+
+    // Roasted plantain fingers (Bole)
+    for (let i = -2; i <= 2; i++) {
+      const plantain = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * scale, 0.08 * scale, 0.7 * scale, 8), plantainMat);
+      plantain.rotation.x = Math.PI / 2;
+      plantain.position.set(i * 0.22 * scale, 1.25 * scale, 0);
+      group.add(plantain);
+    }
+
+    // Big red market umbrella / canopy
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * scale, 0.06 * scale, 3.2 * scale, 8), woodMat);
+    pole.position.set(0, 1.6 * scale, -1.2 * scale);
+    group.add(pole);
+
+    const umbrella = new THREE.Mesh(new THREE.ConeGeometry(2.4 * scale, 0.8 * scale, 10), canopyMat);
+    umbrella.position.set(0, 3.0 * scale, -1.2 * scale);
+    group.add(umbrella);
+
+    // Benches for customers
+    const bench1 = new THREE.Mesh(new THREE.BoxGeometry(2.0 * scale, 0.4 * scale, 0.5 * scale), woodMat);
+    bench1.position.set(-1.5 * scale, 0.3 * scale, 1.2 * scale);
+    group.add(bench1);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 24. UNIPORT GATE (University of Port Harcourt Gateway)
+  // =========================================================================
+  public static createUniportGate(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+    const pillarMat = this.getMaterial('uniport_pillar', 0x1e3a8a, 0.5); // Navy blue
+    const whiteMat = this.getMaterial('uniport_white', 0xf8fafc, 0.4);
+    const gateMat = this.getMaterial('uniport_gate', 0x0284c7, 0.3);
+
+    // Gate Base
+    const base = new THREE.Mesh(new THREE.BoxGeometry(8.5 * scale, 0.25 * scale, 3.0 * scale), whiteMat);
+    base.position.y = 0.12 * scale;
+    group.add(base);
+
+    // Left Gate Pylon
+    const pylonL = new THREE.Mesh(new THREE.BoxGeometry(1.4 * scale, 4.5 * scale, 1.4 * scale), pillarMat);
+    pylonL.position.set(-3.2 * scale, 2.25 * scale, 0);
+    pylonL.castShadow = true;
+    group.add(pylonL);
+
+    // Right Gate Pylon
+    const pylonR = new THREE.Mesh(new THREE.BoxGeometry(1.4 * scale, 4.5 * scale, 1.4 * scale), pillarMat);
+    pylonR.position.set(3.2 * scale, 2.25 * scale, 0);
+    pylonR.castShadow = true;
+    group.add(pylonR);
+
+    // Overhead Arch Beam with UNIPORT Blue Header
+    const arch = new THREE.Mesh(new THREE.BoxGeometry(7.8 * scale, 1.2 * scale, 1.6 * scale), gateMat);
+    arch.position.set(0, 4.4 * scale, 0);
+    group.add(arch);
+
+    // Security Gatehouse
+    const booth = new THREE.Mesh(new THREE.BoxGeometry(1.6 * scale, 2.0 * scale, 1.6 * scale), whiteMat);
+    booth.position.set(-1.2 * scale, 1.0 * scale, 0);
+    group.add(booth);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 25. TRANS-AMADI PETROCHEMICAL REFINERY & INDUSTRIAL HUB
+  // =========================================================================
+  public static createPetrochemicalRefinery(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+    const concreteMat = this.getMaterial('refinery_base', 0x64748b, 0.8);
+    const metalMat = this.getMaterial('refinery_metal', 0x94a3b8, 0.3, 0.7);
+    const pipeMat = this.getMaterial('refinery_yellow_pipes', 0xeab308, 0.4, 0.3);
+    const tankMat = this.getMaterial('refinery_white_tanks', 0xf1f5f9, 0.3, 0.4);
+
+    // Industrial Apron
+    const apron = new THREE.Mesh(new THREE.BoxGeometry(14 * scale, 0.3 * scale, 10 * scale), concreteMat);
+    apron.position.y = 0.15 * scale;
+    group.add(apron);
+
+    // 2 Giant Distillation Fractionating Towers
+    for (const tx of [-4.5 * scale, -1.8 * scale]) {
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.9 * scale, 1.1 * scale, 9.0 * scale, 16), metalMat);
+      tower.position.set(tx, 4.65 * scale, -2.0 * scale);
+      tower.castShadow = true;
+      group.add(tower);
+
+      // Catwalk platform rings
+      for (const py of [3.0, 5.5, 7.8]) {
+        const platform = new THREE.Mesh(new THREE.CylinderGeometry(1.3 * scale, 1.3 * scale, 0.2 * scale, 16), metalMat);
+        platform.position.set(tx, py * scale, -2.0 * scale);
+        group.add(platform);
+      }
+    }
+
+    // Flare stack with gas burning flame tip
+    const flareStack = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * scale, 0.3 * scale, 12.0 * scale, 8), metalMat);
+    flareStack.position.set(5.0 * scale, 6.15 * scale, -3.0 * scale);
+    group.add(flareStack);
+
+    // Gas flare flame
+    const flameMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.4 * scale, 1.5 * scale, 8), flameMat);
+    flame.position.set(5.0 * scale, 12.8 * scale, -3.0 * scale);
+    group.add(flame);
+
+    // 4 Spherical & Cylindrical Petroleum Tanks
+    const tank1 = new THREE.Mesh(new THREE.SphereGeometry(1.8 * scale, 16, 16), tankMat);
+    tank1.position.set(2.5 * scale, 1.95 * scale, 2.0 * scale);
+    tank1.castShadow = true;
+    group.add(tank1);
+
+    const tank2 = new THREE.Mesh(new THREE.SphereGeometry(1.8 * scale, 16, 16), tankMat);
+    tank2.position.set(-2.5 * scale, 1.95 * scale, 2.0 * scale);
+    tank2.castShadow = true;
+    group.add(tank2);
+
+    // Interconnecting Yellow Pipelines
+    const mainPipe = new THREE.Mesh(new THREE.BoxGeometry(11 * scale, 0.25 * scale, 0.25 * scale), pipeMat);
+    mainPipe.position.set(0, 0.8 * scale, 0);
+    group.add(mainPipe);
+
+    return group;
+  }
 }
+

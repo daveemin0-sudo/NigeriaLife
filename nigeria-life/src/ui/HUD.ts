@@ -468,6 +468,8 @@ export class HUD {
 
     this.worldMapUI.onSwitchCityTab = (cityId) => {
       if (this.world) {
+        this.world.worldMap.switchCity(cityId);
+        this.worldMapUI.updateCityHeader(cityId);
         this.world.cityManager.switchCity(cityId as any, this.player, (newObjs) => {
           if (this.world) this.world.interactiveObjects = newObjs;
         });

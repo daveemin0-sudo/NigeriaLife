@@ -152,12 +152,44 @@ export class WorldMapUI {
         const target = e.currentTarget as HTMLElement;
         target.classList.add('active');
         const cityId = target.getAttribute('data-city');
-        if (cityId) this.onSwitchCityTab?.(cityId);
+        if (cityId) {
+          this.updateCityHeader(cityId);
+          this.onSwitchCityTab?.(cityId);
+        }
       });
     });
   }
 
-  private renderDistrictChips(): void {
+  public updateCityHeader(cityId: string): void {
+    const cleanId = cityId.toLowerCase().replace(/[\s-]/g, '_');
+    const nameEl = document.getElementById('map-ui-city-name');
+    const tagEl = this.container.querySelector('.city-tagline');
+
+    // Update active tab styling
+    this.container.querySelectorAll('.city-nav-tab').forEach((t) => {
+      const tabCity = t.getAttribute('data-city');
+      if (tabCity === cleanId || (cleanId.includes('port') && tabCity === 'port_harcourt')) {
+        t.classList.add('active');
+      } else {
+        t.classList.remove('active');
+      }
+    });
+
+    if (cleanId.includes('abuja')) {
+      if (nameEl) nameEl.textContent = 'ABUJA FCT';
+      if (tagEl) tagEl.textContent = 'Centre of Unity • Federal Seat of Power';
+    } else if (cleanId.includes('port') || cleanId.includes('ph') || cleanId.includes('harcourt')) {
+      if (nameEl) nameEl.textContent = 'PORT HARCOURT (GARDEN CITY)';
+      if (tagEl) tagEl.textContent = 'Treasure Base of the Nation • Oil & Gas Capital';
+    } else {
+      if (nameEl) nameEl.textContent = 'LAGOS STATE';
+      if (tagEl) tagEl.textContent = 'Commercial Capital • 11 Districts';
+    }
+
+    this.renderDistrictChips();
+  }
+
+  public renderDistrictChips(): void {
     const districts = WorldDataManager.getInstance().getDistricts();
     this.districtChipsEl.innerHTML = '';
 

@@ -222,6 +222,14 @@ export class WorldMap {
     }
   }
 
+  public switchCity(cityId: string): void {
+    WorldDataManager.getInstance().switchCity(cityId);
+    this.renderer.loadCity(cityId);
+    this.cameraTarget.set(0, 0, 0);
+    this.zoomLevel = 1.05;
+    this.updateCameraTransform();
+  }
+
   public activate(): void {
     this.isActive = true;
     this.renderer.group.visible = true;
