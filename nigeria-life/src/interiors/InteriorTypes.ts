@@ -21,7 +21,9 @@ export type InteriorType =
   | 'police' 
   | 'residence' 
   | 'shop' 
-  | 'office';
+  | 'office'
+  | 'university'
+  | 'airport';
 
 export interface InteriorActivityAction {
   id: string;
@@ -32,6 +34,8 @@ export interface InteriorActivityAction {
   rewardEnergy?: number;
   rewardHealth?: number;
   rewardCred?: number;
+  rewardKnowledge?: number;
+  rewardSocial?: number;
   itemReward?: {
     id: string;
     name: string;

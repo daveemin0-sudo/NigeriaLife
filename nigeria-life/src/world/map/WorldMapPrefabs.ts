@@ -588,6 +588,45 @@ export class WorldMapPrefabs {
   }
 
   // =========================================================================
+  // 15b. UNIVERSITY PREFAB (University of Lagos - UNILAG Senate & Gate)
+  // =========================================================================
+  public static createUniversity(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+
+    // Central Senate High-Rise Monolith
+    const senateMat = this.getMaterial('unilag_senate', 0x065f46, 0.4, 0.3); // Deep UNILAG green
+    const senate = new THREE.Mesh(new THREE.BoxGeometry(4.2 * scale, 5.5 * scale, 3.6 * scale), senateMat);
+    senate.position.y = 2.75 * scale;
+    senate.castShadow = true;
+    group.add(senate);
+
+    // Gold collegiate roof cap
+    const capMat = this.getMaterial('unilag_cap', 0xf59e0b, 0.2, 0.8);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(4.4 * scale, 0.4 * scale, 3.8 * scale), capMat);
+    cap.position.y = 5.7 * scale;
+    group.add(cap);
+
+    // Iconic Arched Main Entrance Gate in front
+    const gatePillarMat = this.getMaterial('unilag_gate_p', 0xd97706, 0.4);
+    for (const gx of [-2.5 * scale, 2.5 * scale]) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.6 * scale, 3.0 * scale, 0.6 * scale), gatePillarMat);
+      p.position.set(gx, 1.5 * scale, 3.0 * scale);
+      group.add(p);
+    }
+    const archTop = new THREE.Mesh(new THREE.BoxGeometry(5.6 * scale, 0.6 * scale, 0.6 * scale), gatePillarMat);
+    archTop.position.set(0, 3.3 * scale, 3.0 * scale);
+    group.add(archTop);
+
+    // Campus Quad Greenery Lawn
+    const lawnMat = this.getMaterial('unilag_lawn', 0x16a34a, 0.8);
+    const lawn = new THREE.Mesh(new THREE.BoxGeometry(6.4 * scale, 0.15 * scale, 4.0 * scale), lawnMat);
+    lawn.position.set(0, 0.08 * scale, 1.0 * scale);
+    group.add(lawn);
+
+    return group;
+  }
+
+  // =========================================================================
   // 16. PETROLEUM REFINERY & TANK FARM (Apapa & Lekki Free Zone)
   // =========================================================================
   public static createRefineryTanks(scale = 1.0): THREE.Group {

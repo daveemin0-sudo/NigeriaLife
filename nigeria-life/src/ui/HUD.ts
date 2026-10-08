@@ -490,6 +490,38 @@ export class HUD {
       this.onNavigateMode?.('street');
     };
 
+    this.worldMapUI.onTravelWithTransport = (dest, transport) => {
+      // 1. If transport requires fare, deduct cash from wallet
+      if (transport.fare > 0) {
+        const success = this.backend.spendCash(
+          transport.fare,
+          `Transport (${transport.label}) to ${dest.name}`
+        );
+        if (!success) {
+          alert(`❌ Insufficient cash (₦${transport.fare.toLocaleString()}) for ${transport.label}! You can walk on foot for free.`);
+          return;
+        }
+      }
+
+      // 2. Return to street mode
+      this.currentNavMode = 'street';
+      updateNavActive('');
+      this.worldMapUI.close();
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'flex';
+      this.onNavigateMode?.('street');
+
+      // 3. Teleport player character right outside the destination entrance
+      this.player.mesh.position.copy(dest.streetPosition);
+      this.player.position.copy(dest.streetPosition);
+      this.player.mesh.rotation.y = 0;
+      this.player.stopMoving();
+
+      // 4. Update HUD location badge and show notification
+      this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
+      this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}! Press [E] to enter.`);
+    };
+
     this.worldMapUI.onInterstateTravel = (destCityId) => {
       this.interstateModal.open((destCityId as any) || this.world?.cityManager.currentCityId);
     };
@@ -783,10 +815,16 @@ export class HUD {
       btnEl.textContent = '🏦 Enter Bank & Wealth Hub [E]';
       bizBtn.textContent = '🏧 Instant ATM';
       bizBtn.style.display = 'inline-block';
-    } else if (obj.id === 'lagos-hospital') {
+    } else if (obj.id === 'lagos-hospital' || obj.id === 'dest_lagos_hospital') {
       btnEl.textContent = '🏥 Enter St. Nicholas General Hospital [E]';
       bizBtn.style.display = 'none';
-    } else if (obj.id === 'police-station') {
+    } else if (obj.id === 'unilag-campus' || obj.id === 'dest_lagos_unilag') {
+      btnEl.textContent = '🎓 Enter University of Lagos (UNILAG) [E]';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'mma-airport' || obj.id === 'dest_lagos_airport') {
+      btnEl.textContent = '✈️ Enter Murtala Muhammed Intl Airport (LOS) [E]';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'police-station' || obj.id === 'dest_lagos_police') {
       btnEl.textContent = '👮 Enter Area Command Police Station [E]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'interior_exit_door') {
@@ -803,6 +841,33 @@ export class HUD {
       bizBtn.style.display = 'none';
     } else if (obj.id === 'hosp_pharmacy') {
       btnEl.textContent = '💊 Buy Coartem Malaria Medicine (₦1,800)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'unilag_lecture_podium') {
+      btnEl.textContent = '📚 Attend Faculty Lecture (+30 Knowledge)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'unilag_library_desk') {
+      btnEl.textContent = '📖 Yakubu Gowon Library Deep Study (+40 Knowledge)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'unilag_admin_portal') {
+      btnEl.textContent = '📝 Register Semester Courses & Print Docket (₦1,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'unilag_quad_gist') {
+      btnEl.textContent = '💬 Student Quad Social Gist (+25 Social, +20 Energy)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'airport_checkin_desk') {
+      btnEl.textContent = '🧳 FAAN Check-in & Baggage Weighing (₦1,500)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'airport_security_gate') {
+      btnEl.textContent = '🛂 Biometric Security & Metal Detector Screening';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'airport_flight_abuja') {
+      btnEl.textContent = '✈️ Board Flight LOS-ABV to Abuja FCT (₦35,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'airport_flight_ph') {
+      btnEl.textContent = '✈️ Board Flight LOS-PHC to Port Harcourt (₦32,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'airport_vip_lounge') {
+      btnEl.textContent = '🥂 Arik Air Executive VIP Lounge Access (₦5,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'bank_atm_station') {
       btnEl.textContent = '🏧 Withdraw ₦10,000 Cash';
@@ -1024,11 +1089,19 @@ export class HUD {
       this.hideInteractionCard();
       this.onEnterInterior?.('bank');
       return;
-    } else if (id === 'lagos-hospital') {
+    } else if (id === 'lagos-hospital' || id === 'dest_lagos_hospital') {
       this.hideInteractionCard();
       this.onEnterInterior?.('hospital');
       return;
-    } else if (id === 'police-station') {
+    } else if (id === 'unilag-campus' || id === 'dest_lagos_unilag') {
+      this.hideInteractionCard();
+      this.onEnterInterior?.('university');
+      return;
+    } else if (id === 'mma-airport' || id === 'dest_lagos_airport') {
+      this.hideInteractionCard();
+      this.onEnterInterior?.('airport');
+      return;
+    } else if (id === 'police-station' || id === 'dest_lagos_police') {
       this.hideInteractionCard();
       this.onEnterInterior?.('police');
       return;
@@ -1081,6 +1154,92 @@ export class HUD {
         alert('💊 Pharmacist Kemi: "Here is your Coartem dose! Added to your bag. Take two tablets twice daily with water."');
       } else {
         alert('❌ Need ₦1,800 cash for Coartem malaria medicine!');
+      }
+      return;
+    } else if (id === 'unilag_lecture_podium') {
+      this.backend.addStreetCred(15);
+      this.backend.restoreEnergy(10);
+      alert('📚 Prof. Balogun: "Excellent question from the hall! Attendance recorded on the department register. +30 Academic Knowledge, +15 Cred!"');
+      return;
+    } else if (id === 'unilag_library_desk') {
+      this.backend.addStreetCred(20);
+      this.backend.restoreEnergy(10);
+      alert('📖 You immerse yourself in the Law & Engineering journals in Yakubu Gowon Library. Academic prowess increased (+40 Knowledge, +20 Cred)!');
+      return;
+    } else if (id === 'unilag_admin_portal') {
+      const success = this.backend.spendCash(1000, 'Semester Course Registration & Docket Printing');
+      if (success) {
+        this.backend.addItem({
+          id: `unilag_docket_${Date.now()}`,
+          name: 'UNILAG Stamped Examination Docket',
+          category: 'document',
+          icon: '📄',
+          description: 'Official verified course registration docket signed by the Faculty Dean.',
+          price: 1000,
+          usable: false,
+        });
+        this.backend.addStreetCred(10);
+        alert('📝 Portal Staff: "Courses submitted successfully! Here is your verified exam docket for the semester. Added to your inventory!"');
+      } else {
+        alert('❌ Need ₦1,000 cash for faculty docket processing!');
+      }
+      return;
+    } else if (id === 'unilag_quad_gist') {
+      this.backend.restoreEnergy(30);
+      this.backend.addStreetCred(15);
+      alert('💬 Comrade Femi & Chidinma: "Guy, no dulling! Unilag life na cruise plus focus. You share suya and vibes at the quad!" Energy +30, Cred +15!');
+      return;
+    } else if (id === 'airport_checkin_desk') {
+      const success = this.backend.spendCash(1500, 'FAAN Checked Luggage Handling');
+      if (success) {
+        this.backend.addItem({
+          id: `boarding_pass_${Date.now()}`,
+          name: 'First Class Boarding Pass (LOS)',
+          category: 'document',
+          icon: '🎫',
+          description: 'Official FAAN priority boarding pass for interstate domestic departures.',
+          price: 1500,
+          usable: true,
+          energyRestore: 10,
+        });
+        alert('🧳 FAAN Attendant: "Baggage tag 073-LOS tagged priority! Here is your boarding pass. Please proceed directly to screening."');
+      } else {
+        alert('❌ Need ₦1,500 cash for FAAN luggage handling!');
+      }
+      return;
+    } else if (id === 'airport_security_gate') {
+      this.backend.addStreetCred(10);
+      alert('🛂 FAAN Officer Ngozi: "Metal detector clear! Biometrics matched with NIMC database. Have a safe journey, welcome to Lagos airside!"');
+      return;
+    } else if (id === 'airport_flight_abuja') {
+      const success = this.backend.spendCash(35000, 'Flight LOS to ABV (Abuja)');
+      if (success) {
+        this.backend.addStreetCred(50);
+        this.backend.restoreEnergy(100);
+        alert('✈️ Arik Air Flight W3-214: "Cabin doors armed. Non-stop executive flight from Lagos to Nnamdi Azikiwe Intl Airport, Abuja FCT completed! Welcome to Abuja!"');
+      } else {
+        alert('❌ Need ₦35,000 cash for direct flight ticket to Abuja FCT!');
+      }
+      return;
+    } else if (id === 'airport_flight_ph') {
+      const success = this.backend.spendCash(32000, 'Flight LOS to PHC (Port Harcourt)');
+      if (success) {
+        this.backend.addStreetCred(50);
+        this.backend.restoreEnergy(100);
+        alert('✈️ Air Peace Flight P4-712: "Direct flight to Port Harcourt International Airport (Omagwa) completed! Welcome to the Garden City!"');
+      } else {
+        alert('❌ Need ₦32,000 cash for flight ticket to Port Harcourt!');
+      }
+      return;
+    } else if (id === 'airport_vip_lounge') {
+      const success = this.backend.spendCash(5000, 'VIP Concourse Lounge Pass');
+      if (success) {
+        this.backend.restoreHealth(100);
+        this.backend.restoreEnergy(100);
+        this.backend.addStreetCred(25);
+        alert('🥂 Arik VIP Host: "Welcome to the executive lounge! Chilled vintage drinks, AC, high-speed Wi-Fi and gourmet snacks served. 100% Health & Energy restored!"');
+      } else {
+        alert('❌ Need ₦5,000 cash for VIP lounge pass!');
       }
       return;
     } else if (id === 'bank_atm_station') {

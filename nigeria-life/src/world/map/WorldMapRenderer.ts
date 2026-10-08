@@ -690,7 +690,9 @@ export class WorldMapRenderer {
         lmGroup.add(refTanks);
       } else if (lm.type === 'stadium') {
         lmGroup.add(WorldMapPrefabs.createStadium(0.95));
-      } else if (lm.id === 'st_nicholas_hospital') {
+      } else if (lm.type === 'university' || lm.id === 'dest_lagos_unilag') {
+        lmGroup.add(WorldMapPrefabs.createUniversity(1.15));
+      } else if (lm.id === 'st_nicholas_hospital' || lm.id === 'dest_lagos_hospital') {
         lmGroup.add(WorldMapPrefabs.createHospital(1.1));
       } else if (lm.id === 'broad_street_banks') {
         lmGroup.add(WorldMapPrefabs.createBank(1.05));

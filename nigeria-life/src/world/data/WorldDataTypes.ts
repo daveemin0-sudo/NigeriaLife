@@ -28,7 +28,7 @@ export interface MapLandmark {
   id: string;
   name: string;
   districtId: string;
-  type: 'airport' | 'port' | 'bridge' | 'stadium' | 'landmark' | 'commercial' | 'culture' | 'tech';
+  type: 'airport' | 'port' | 'bridge' | 'stadium' | 'landmark' | 'commercial' | 'culture' | 'tech' | 'university' | 'hospital';
   position: THREE.Vector3;
   rotationY?: number;
   icon: string;

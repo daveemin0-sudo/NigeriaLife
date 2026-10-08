@@ -10,6 +10,8 @@ import { BankInterior } from './templates/BankInterior';
 import { RestaurantInterior } from './templates/RestaurantInterior';
 import { PoliceInterior } from './templates/PoliceInterior';
 import { ResidentialInterior } from './templates/ResidentialInterior';
+import { UNILAGInterior } from './templates/UNILAGInterior';
+import { AirportInterior } from './templates/AirportInterior';
 import type { InteractiveObject, World } from '../world/World';
 import type { Player } from '../player/Player';
 import type { GameCamera } from '../game/Camera';
@@ -25,6 +27,8 @@ export class InteriorManager {
   public restaurant: RestaurantInterior;
   public police: PoliceInterior;
   public residence: ResidentialInterior;
+  public unilag: UNILAGInterior;
+  public airport: AirportInterior;
 
   // Active state
   public locationMode: GameLocationMode = 'street';
@@ -52,6 +56,8 @@ export class InteriorManager {
     this.restaurant = new RestaurantInterior();
     this.police = new PoliceInterior();
     this.residence = new ResidentialInterior();
+    this.unilag = new UNILAGInterior();
+    this.airport = new AirportInterior();
 
     // All interiors are hidden by default until specifically entered
     this.hospital.group.visible = false;
@@ -59,12 +65,16 @@ export class InteriorManager {
     this.restaurant.group.visible = false;
     this.police.group.visible = false;
     this.residence.group.visible = false;
+    this.unilag.group.visible = false;
+    this.airport.group.visible = false;
 
     this.group.add(this.hospital.group);
     this.group.add(this.bank.group);
     this.group.add(this.restaurant.group);
     this.group.add(this.police.group);
     this.group.add(this.residence.group);
+    this.group.add(this.unilag.group);
+    this.group.add(this.airport.group);
 
     // Tag entire interior group with INTERIOR layer
     this.group.traverse((child) => {
@@ -82,6 +92,8 @@ export class InteriorManager {
       ...this.restaurant.interactiveList,
       ...this.police.interactiveList,
       ...this.residence.interactiveList,
+      ...this.unilag.interactiveList,
+      ...this.airport.interactiveList,
     ];
   }
 
@@ -96,6 +108,8 @@ export class InteriorManager {
       case 'restaurant': return this.restaurant.interactiveList;
       case 'police': return this.police.interactiveList;
       case 'residence': return this.residence.interactiveList;
+      case 'university': return this.unilag.interactiveList;
+      case 'airport': return this.airport.interactiveList;
       default: return [];
     }
   }
@@ -111,6 +125,8 @@ export class InteriorManager {
       case 'restaurant': return this.restaurant.group;
       case 'police': return this.police.group;
       case 'residence': return this.residence.group;
+      case 'university': return this.unilag.group;
+      case 'airport': return this.airport.group;
       default: return null;
     }
   }
@@ -135,12 +151,15 @@ export class InteriorManager {
       this.restaurant.def,
       this.police.def,
       this.residence.def,
+      this.unilag.def,
+      this.airport.def,
     ];
 
+    const cleanId = id.toLowerCase();
     const match = list.find((item) => 
       item.streetBuildingId === id ||
       item.id === id ||
-      item.type === id ||
+      item.type === cleanId ||
       (id === 'hospital' && item.type === 'hospital') ||
       (id === 'st_nicholas_hospital' && item.type === 'hospital') ||
       (id === 'lagos-hospital' && item.type === 'hospital') ||
@@ -155,7 +174,9 @@ export class InteriorManager {
       (id === 'police-station' && item.type === 'police') ||
       (id === 'residence' && item.type === 'residence') ||
       (id === 'home' && item.type === 'residence') ||
-      ((id === 'villa-compound' || id === 'palm-view-flats' || id === 'residential-compound') && item.type === 'residence')
+      ((id === 'villa-compound' || id === 'palm-view-flats' || id === 'residential-compound') && item.type === 'residence') ||
+      ((cleanId.includes('unilag') || cleanId.includes('university') || id === 'unilag-campus' || id === 'dest_lagos_unilag') && item.type === 'university') ||
+      ((cleanId.includes('airport') || cleanId.includes('mma') || id === 'mma-airport' || id === 'airport_los' || id === 'dest_lagos_airport') && item.type === 'airport')
     );
 
     return match || null;
@@ -199,6 +220,8 @@ export class InteriorManager {
     this.restaurant.group.visible = target.type === 'restaurant';
     this.police.group.visible = target.type === 'police';
     this.residence.group.visible = target.type === 'residence';
+    this.unilag.group.visible = target.type === 'university';
+    this.airport.group.visible = target.type === 'airport';
 
     // 6. Teleport player character mesh into interior coordinates
     const spawnPos = target.interiorOrigin.clone().add(target.playerSpawnOffset);
@@ -251,6 +274,8 @@ export class InteriorManager {
     this.restaurant.group.visible = false;
     this.police.group.visible = false;
     this.residence.group.visible = false;
+    this.unilag.group.visible = false;
+    this.airport.group.visible = false;
 
     // 3. RESTORE outdoor street world visibility
     world.setStreetModeVisibility(true);
@@ -305,6 +330,12 @@ export class InteriorManager {
         break;
       case 'residence':
         this.residence.update(delta, this.animTime);
+        break;
+      case 'university':
+        this.unilag.update(delta, this.animTime);
+        break;
+      case 'airport':
+        this.airport.update(delta, this.animTime);
         break;
     }
 

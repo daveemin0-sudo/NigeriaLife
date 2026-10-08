@@ -349,6 +349,21 @@ export const LAGOS_LANDMARKS: MapLandmark[] = [
     ],
   },
   {
+    id: 'dest_lagos_unilag',
+    name: 'University of Lagos (UNILAG)',
+    districtId: 'yaba',
+    type: 'university',
+    position: new THREE.Vector3(-15, 0, -32),
+    icon: '🏛️',
+    title: 'University of Lagos (UNILAG)',
+    subtitle: 'Akoka Campus • Academic & Research Gateway',
+    description: 'Premier Nigerian federal research university. Lecture halls, Yakubu Gowon library, student quad, and tech innovation faculties.',
+    actions: [
+      { label: '🏛️ Enter UNILAG Campus [E]', actionType: 'enter' },
+      { label: '🚶 Walk to UNILAG', actionType: 'travel', targetId: 'yaba' },
+    ],
+  },
+  {
     id: 'national_stadium',
     name: 'National Stadium Surulere',
     districtId: 'surulere',

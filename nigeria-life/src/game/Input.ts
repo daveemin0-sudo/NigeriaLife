@@ -3,6 +3,7 @@ import { Player } from '../player/Player';
 import { World, type InteractiveObject, type InteractionTarget } from '../world/World';
 import { HUD } from '../ui/HUD';
 import type { GameCamera } from './Camera';
+import { DestinationRegistry } from '../destinations/DestinationRegistry';
 
 export class InputManager {
   private camera: THREE.Camera;
@@ -431,7 +432,11 @@ export class InputManager {
   }
 
   private getInteractionRadius(id: string): number {
-    if (['lagos-hospital', 'hospital', 'lagos-bank', 'bank', 'mama-put', 'buka', 'police-station', 'police', 'villa-compound', 'palm-view-flats'].includes(id)) {
+    const dest = DestinationRegistry.getInstance().getById(id);
+    if (dest) {
+      return dest.entrance.triggerRadius || 6.5;
+    }
+    if (['lagos-hospital', 'hospital', 'lagos-bank', 'bank', 'mama-put', 'buka', 'police-station', 'police', 'villa-compound', 'palm-view-flats', 'unilag-campus', 'mma-airport'].includes(id)) {
       return 6.5;
     }
     if (id === 'interior_exit_door') return 3.5;
@@ -442,6 +447,23 @@ export class InputManager {
 
   private createInteractionTarget(obj: InteractiveObject, dist: number): InteractionTarget {
     const id = obj.id;
+
+    // 1. Canonical Destination Registry Match (Single source of truth)
+    const dest = DestinationRegistry.getInstance().getById(id);
+    if (dest && dest.isEnterable) {
+      return {
+        id: dest.id,
+        name: dest.name,
+        category: dest.category,
+        label: dest.entrance.promptLabel,
+        action: 'enter-interior',
+        interiorId: dest.interiorId,
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
 
     if (id === 'lagos-hospital' || id === 'hospital') {
       return {
@@ -580,6 +602,15 @@ export class InputManager {
       buka_table_vip: '🍽️ Sit Down & Chop Life',
       police_front_desk: '📝 File Citizen Incident Report',
       police_holding_cell: '⚖️ Pay Citizen Bail Bond',
+      unilag_lecture_podium: '🎓 Attend Faculty Lecture',
+      unilag_library_desk: '📚 Deep Academic Research',
+      unilag_admin_portal: '📝 Register Semester Courses',
+      unilag_quad_gist: '💬 Socialize at Student Quad',
+      airport_checkin_desk: '🎫 Flight Check-In & Boarding Pass',
+      airport_security_gate: '🛡️ Aviation Security Screening',
+      airport_flight_abuja: '✈️ Board Flight to Abuja FCT',
+      airport_flight_ph: '✈️ Board Flight to Port Harcourt',
+      airport_vip_lounge: '🥂 Relax in Executive VIP Lounge',
       'flat-workstation': '💻 Complete Remote Tech Sprint',
     };
 
@@ -620,7 +651,9 @@ export class InputManager {
           !o.id.startsWith('hosp_') &&
           !o.id.startsWith('bank_') &&
           !o.id.startsWith('buka_') &&
-          !o.id.startsWith('police_')
+          !o.id.startsWith('police_') &&
+          !o.id.startsWith('unilag_') &&
+          !o.id.startsWith('airport_')
         );
       });
     }

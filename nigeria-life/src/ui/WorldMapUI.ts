@@ -1,6 +1,8 @@
 import type { DistrictData, MapLandmark, MapProperty } from '../world/data/WorldDataTypes';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { BackendService } from '../backend/BackendService';
+import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import type { DestinationDefinition, TransportOption } from '../destinations/DestinationTypes';
 
 export class WorldMapUI {
   private container: HTMLDivElement;
@@ -9,6 +11,7 @@ export class WorldMapUI {
 
   public onTravelToDistrict?: (district: DistrictData) => void;
   public onTravelToProperty?: (property: MapProperty) => void;
+  public onTravelWithTransport?: (dest: DestinationDefinition, transport: TransportOption) => void;
   public onPropertyUpdated?: (propertyId: string) => void;
   public onInterstateTravel?: (destCityId: string) => void;
   public onSelectDistrictFromChips?: (districtId: string) => void;
@@ -265,14 +268,20 @@ export class WorldMapUI {
 
     if (item.type === 'landmark') {
       const lm = item.data as MapLandmark;
-      icon = lm.icon || '📍';
-      title = lm.name || lm.title;
-      if (lm.id === 'st_nicholas_hospital') sub = '🏥 General Hospital • Click to Enter Inside';
-      else if (lm.id === 'broad_street_banks') sub = '🏦 Commercial Bank • Click to Enter Inside';
-      else if (lm.id === 'mama_put_buka') sub = '🍲 Mama Put Buka • Click to Enter Inside';
-      else if (lm.id === 'lagos_area_command_police') sub = '👮 Police Command • Click to Enter Inside';
-      else if (lm.type === 'airport') sub = '✈️ International Airport • Click to View & Fly';
-      else sub = `${lm.title} • Click to Enter / View`;
+      const canonicalDest = DestinationRegistry.getInstance().getById(lm.id);
+
+      if (canonicalDest) {
+        icon = canonicalDest.mapIcon || lm.icon || '📍';
+        title = canonicalDest.name;
+        sub = `${canonicalDest.category} • ${canonicalDest.districtName} • ${canonicalDest.shortDescription} • 🟢 ${canonicalDest.openingHours}`;
+      } else {
+        icon = lm.icon || '📍';
+        title = lm.name || lm.title;
+        if (lm.id === 'broad_street_banks') sub = '🏦 Commercial Bank • Click to View & Enter';
+        else if (lm.id === 'mama_put_buka') sub = '🍲 Mama Put Buka • Click to View & Enter';
+        else if (lm.id === 'lagos_area_command_police') sub = '👮 Police Command • Click to View & Enter';
+        else sub = `${lm.title} • 🟢 Open`;
+      }
     } else if (item.type === 'property') {
       const p = item.data as MapProperty;
       icon = p.icon || '🏠';
@@ -286,7 +295,7 @@ export class WorldMapUI {
     if (titleEl) titleEl.textContent = title;
     if (subEl) subEl.textContent = sub;
 
-    const posX = Math.min(screenPos.x + 14, window.innerWidth - 280);
+    const posX = Math.min(screenPos.x + 14, window.innerWidth - 300);
     const posY = Math.max(screenPos.y - 48, 16);
     tt.style.left = `${posX}px`;
     tt.style.top = `${posY}px`;
@@ -307,75 +316,131 @@ export class WorldMapUI {
     const lbl3 = document.getElementById('map-stat-lbl-3');
     const actions = document.getElementById('map-card-actions');
 
-    if (lbl1) lbl1.textContent = 'Category';
-    if (lbl2) lbl2.textContent = 'Location';
-    if (lbl3) lbl3.textContent = 'Status';
+    const canonicalDest = DestinationRegistry.getInstance().getById(lm.id);
 
-    if (chip) chip.textContent = lm.icon + ' LANDMARK';
-    if (zone) zone.textContent = lm.type.toUpperCase();
-    if (name) name.textContent = lm.name || lm.title;
-    if (sub) sub.textContent = lm.subtitle;
-    if (desc) desc.textContent = lm.description;
-    if (pop) pop.textContent = 'Active POI';
-    if (props) props.textContent = 'Lagos State';
-    if (biz) biz.textContent = 'Open 24/7';
+    if (canonicalDest) {
+      if (lbl1) lbl1.textContent = 'Category';
+      if (lbl2) lbl2.textContent = 'District';
+      if (lbl3) lbl3.textContent = 'Status';
 
-    // Check if this building maps to an interior simulation destination
-    let interiorTarget: string | null = null;
-    if (lm.id === 'st_nicholas_hospital' || lm.id.includes('hospital')) {
-      interiorTarget = 'hospital';
-    } else if (lm.id === 'broad_street_banks' || lm.id.includes('bank')) {
-      interiorTarget = 'bank';
-    } else if (lm.id === 'mama_put_buka' || lm.id.includes('buka') || lm.id.includes('restaurant')) {
-      interiorTarget = 'restaurant';
-    } else if (lm.id === 'lagos_area_command_police' || lm.id.includes('police')) {
-      interiorTarget = 'police';
-    }
+      if (chip) chip.textContent = `${canonicalDest.mapIcon} ${canonicalDest.category.toUpperCase()}`;
+      if (zone) zone.textContent = canonicalDest.districtName;
+      if (name) name.textContent = canonicalDest.name;
+      if (sub) sub.textContent = `${canonicalDest.category} • ${canonicalDest.districtName}`;
+      if (desc) desc.textContent = canonicalDest.destinationDescription;
+      if (pop) pop.textContent = canonicalDest.category;
+      if (props) props.textContent = canonicalDest.districtName;
+      if (biz) biz.textContent = canonicalDest.openingHours;
 
-    if (actions) {
-      actions.innerHTML = '';
+      if (actions) {
+        actions.innerHTML = `
+          <!-- Services Badges -->
+          <div style="display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0 12px 0;">
+            ${canonicalDest.services
+              .map(
+                (s) =>
+                  `<span style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">✓ ${s}</span>`
+              )
+              .join('')}
+          </div>
 
-      // 1. Direct "Enter Inside Building" action (if enterable destination)
-      if (interiorTarget) {
-        const enterBtn = document.createElement('button');
-        enterBtn.className = 'btn-primary-action';
-        enterBtn.id = 'btn-card-enter-building';
-        enterBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-        enterBtn.style.fontSize = '14px';
-        enterBtn.style.fontWeight = '800';
-        enterBtn.style.boxShadow = '0 4px 16px rgba(16, 185, 129, 0.45)';
-        enterBtn.innerHTML = `🚪 Enter Inside ${lm.title.split(' ')[0] || 'Building'}`;
-        enterBtn.addEventListener('click', () => {
-          this.close();
-          this.onEnterInterior?.(interiorTarget!);
-        });
-        actions.appendChild(enterBtn);
-      }
+          <!-- Transport Chooser Header -->
+          <div style="margin-bottom: 8px;">
+            <div style="font-size: 13px; font-weight: 800; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
+              <span>🚗</span> How would you like to get there?
+            </div>
+            <span style="font-size: 11px; color: #94a3b8;">Choose transport to travel directly outside ${canonicalDest.name}</span>
+          </div>
 
-      // 2. Direct "Walk Outside on Street" action
-      const walkBtn = document.createElement('button');
-      walkBtn.className = 'btn-primary-action';
-      walkBtn.style.background = 'linear-gradient(135deg, #0284c7, #0369a1)';
-      walkBtn.textContent = '🚶 Walk Outside on Street';
-      walkBtn.addEventListener('click', () => {
-        const d = WorldDataManager.getInstance().getDistrictById(lm.districtId);
-        if (d) this.onTravelToDistrict?.(d);
-      });
-      actions.appendChild(walkBtn);
+          <!-- 7-Mode Transport List -->
+          <div class="dest-transport-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 230px; overflow-y: auto; padding-right: 4px;">
+            ${canonicalDest.transportAvailability
+              .map(
+                (t) => `
+              <button class="btn-transport-row" data-mode="${t.mode}" style="display: flex; align-items: center; justify-content: space-between; background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 8px 12px; cursor: pointer; text-align: left; width: 100%; transition: background 0.15s ease;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 20px;">${t.icon}</span>
+                  <div>
+                    <div style="font-size: 13px; font-weight: 700; color: #f1f5f9;">${t.label}</div>
+                    <div style="font-size: 10px; color: #94a3b8;">${t.description}</div>
+                  </div>
+                </div>
+                <div style="text-align: right; min-width: 65px;">
+                  <div style="font-size: 12px; font-weight: 800; color: ${t.fare === 0 ? '#4ade80' : '#fbbf24'};">${t.fare === 0 ? 'FREE' : '₦' + t.fare.toLocaleString()}</div>
+                  <div style="font-size: 10px; color: #64748b;">⏱️ ~${t.travelTimeSec}s</div>
+                </div>
+              </button>
+            `
+              )
+              .join('')}
+          </div>
 
-      // 3. Other specific landmark actions (e.g. flight booking)
-      lm.actions.forEach((act) => {
-        if (act.actionType === 'interstate' && act.targetId) {
-          const btn = document.createElement('button');
-          btn.className = 'btn-primary-action';
-          btn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
-          btn.textContent = act.label;
-          btn.addEventListener('click', () => {
-            this.onInterstateTravel?.(act.targetId!);
+          <!-- Direct Actions -->
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button class="btn-primary-action" id="btn-card-direct-enter" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); font-weight: 800; font-size: 13px; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);">
+              🚪 Direct Enter Inside [E]
+            </button>
+            <button class="btn-primary-action" id="btn-card-walk-exterior" style="flex: 1; background: linear-gradient(135deg, #0284c7, #0369a1); font-size: 13px;">
+              🚶 Walk Outside
+            </button>
+          </div>
+        `;
+
+        // Wire each transport row button
+        canonicalDest.transportAvailability.forEach((t) => {
+          const rowBtn = actions.querySelector(`[data-mode="${t.mode}"]`);
+          rowBtn?.addEventListener('click', () => {
+            this.close();
+            this.onTravelWithTransport?.(canonicalDest, t);
           });
-          actions.appendChild(btn);
-        }
-      });
+        });
+
+        // Direct enter inside
+        document.getElementById('btn-card-direct-enter')?.addEventListener('click', () => {
+          this.close();
+          this.onEnterInterior?.(canonicalDest.interiorId);
+        });
+
+        // Walk outside on street
+        document.getElementById('btn-card-walk-exterior')?.addEventListener('click', () => {
+          const walkOpt = canonicalDest.transportAvailability.find((o) => o.mode === 'walk') || {
+            mode: 'walk' as const,
+            label: 'Walk on Foot',
+            icon: '🚶',
+            fare: 0,
+            travelTimeSec: 12,
+            description: 'Walk on foot',
+          };
+          this.close();
+          this.onTravelWithTransport?.(canonicalDest, walkOpt);
+        });
+      }
+    } else {
+      // Fallback for general landmarks without dedicated interior simulation
+      if (lbl1) lbl1.textContent = 'Category';
+      if (lbl2) lbl2.textContent = 'Location';
+      if (lbl3) lbl3.textContent = 'Status';
+
+      if (chip) chip.textContent = lm.icon + ' LANDMARK';
+      if (zone) zone.textContent = lm.type.toUpperCase();
+      if (name) name.textContent = lm.name || lm.title;
+      if (sub) sub.textContent = lm.subtitle;
+      if (desc) desc.textContent = lm.description;
+      if (pop) pop.textContent = 'Active POI';
+      if (props) props.textContent = 'Lagos State';
+      if (biz) biz.textContent = 'Open 24/7';
+
+      if (actions) {
+        actions.innerHTML = `
+          <button class="btn-primary-action" id="btn-card-walk-district" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
+            🚶 Walk Outside on Street
+          </button>
+        `;
+        document.getElementById('btn-card-walk-district')?.addEventListener('click', () => {
+          const d = WorldDataManager.getInstance().getDistrictById(lm.districtId);
+          if (d) this.onTravelToDistrict?.(d);
+        });
+      }
     }
 
     this.cardEl.style.display = 'block';

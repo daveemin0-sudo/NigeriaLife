@@ -35,6 +35,9 @@ export class Districts {
     // 5. Build Yaba Tech Corridor & CcHub Innovation Hub (Central)
     this.buildYabaTechStrip();
 
+    // 5b. Build University of Lagos (UNILAG) Akoka Campus & Senate Gates
+    this.buildUnilagCampus();
+
     // 6. Build Surulere Sports Hub & Teslim Balogun Stadium (West)
     this.buildSurulereStadium();
 
@@ -538,6 +541,130 @@ export class Districts {
   }
 
   // =========================================================================
+  // 5b. UNIVERSITY OF LAGOS (UNILAG) AKOKA MAIN GATE & CAMPUS (Central: X -15, Z -32)
+  // =========================================================================
+  private buildUnilagCampus(): void {
+    const campusGroup = new THREE.Group();
+    campusGroup.position.set(-15, 0, -32);
+
+    // 1. Senate Monolith in Background
+    const senateGeo = new THREE.BoxGeometry(16, 22, 10);
+    const senateMat = new THREE.MeshStandardMaterial({
+      color: 0x064e3b, // Deep collegiate UNILAG emerald green
+      roughness: 0.35,
+      metalness: 0.25,
+    });
+    const senate = new THREE.Mesh(senateGeo, senateMat);
+    senate.position.set(0, 11, -14);
+    senate.castShadow = true;
+    campusGroup.add(senate);
+
+    // Senate Roof Gold Cap & Finial
+    const cap = new THREE.Mesh(
+      new THREE.BoxGeometry(16.5, 1.2, 10.5),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 })
+    );
+    cap.position.set(0, 22.6, -14);
+    campusGroup.add(cap);
+
+    // 2. Iconic Arched Campus Entrance Gate
+    const gateGroup = new THREE.Group();
+    gateGroup.position.set(0, 0, 0);
+
+    // Dual Ochre Pillars
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
+    for (const px of [-6, 6]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 7.5, 1.6), pillarMat);
+      pillar.position.set(px, 3.75, 0);
+      pillar.castShadow = true;
+      gateGroup.add(pillar);
+
+      // Gold Pyramid Cap on Pillars
+      const pCap = new THREE.Mesh(
+        new THREE.ConeGeometry(1.4, 1.2, 4),
+        new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.6 })
+      );
+      pCap.position.set(px, 8.1, 0);
+      pCap.rotation.y = Math.PI / 4;
+      gateGroup.add(pCap);
+    }
+
+    // Curved Overhead Arch Span
+    const archMat = new THREE.MeshStandardMaterial({ color: 0x065f46, roughness: 0.4 });
+    const arch = new THREE.Mesh(new THREE.BoxGeometry(13.6, 1.4, 2.0), archMat);
+    arch.position.set(0, 7.2, 0);
+    gateGroup.add(arch);
+
+    // Signboard across the Arch
+    const sign = this.createNamedSignMesh(
+      'UNIVERSITY OF LAGOS (UNILAG)',
+      'AKOKA CAMPUS GATE • UNIVERSITY OF FIRST CHOICE',
+      '#064e3b',
+      '#ffffff',
+      12.8,
+      1.2
+    );
+    sign.position.set(0, 7.2, 1.1);
+    gateGroup.add(sign);
+
+    // Security Gatehouse Guard Booth
+    const booth = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 3.0, 2.4),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 })
+    );
+    booth.position.set(4.2, 1.5, 2.2);
+    gateGroup.add(booth);
+
+    // Security Boom Barrier
+    const barrier = new THREE.Mesh(
+      new THREE.BoxGeometry(7.0, 0.15, 0.15),
+      new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    );
+    barrier.position.set(0, 1.0, 1.2);
+    gateGroup.add(barrier);
+
+    // Campus Boulevard Palm Trees
+    for (const tx of [-8, 8]) {
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.35, 6, 8),
+        new THREE.MeshStandardMaterial({ color: 0x78350f })
+      );
+      trunk.position.set(tx, 3, -4);
+      gateGroup.add(trunk);
+
+      const crown = new THREE.Mesh(
+        new THREE.SphereGeometry(1.8, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.7 })
+      );
+      crown.position.set(tx, 6.2, -4);
+      gateGroup.add(crown);
+    }
+
+    campusGroup.add(gateGroup);
+    this.group.add(campusGroup);
+
+    // Register interactive destination object
+    this.interactiveList.push({
+      mesh: gateGroup,
+      id: 'dest_lagos_unilag',
+      name: 'University of Lagos (UNILAG)',
+      category: 'University & Research Hub',
+      description: 'Premier Nigerian federal research university. Enter for faculty lectures, library research, course registration, and campus life.',
+      interactionPoint: new THREE.Vector3(-15, 0, -30),
+    });
+
+    // Also register alias
+    this.interactiveList.push({
+      mesh: gateGroup,
+      id: 'unilag-campus',
+      name: 'University of Lagos (UNILAG)',
+      category: 'University & Research Hub',
+      description: 'Premier Nigerian federal research university. Enter for faculty lectures, library research, course registration, and campus life.',
+      interactionPoint: new THREE.Vector3(-15, 0, -30),
+    });
+  }
+
+  // =========================================================================
   // 6. SURULERE SPORTS HUB & TESLIM BALOGUN STADIUM (West: X -55, Z +10)
   // =========================================================================
   private buildSurulereStadium(): void {
@@ -652,14 +779,36 @@ export class Districts {
     this.airportRadarMesh.position.set(-14, 16.6, 0);
     terminalGroup.add(this.airportRadarMesh);
 
+    // High-contrast Airport Departures Signboard
+    const airportSign = this.createNamedSignMesh(
+      'MURTALA MUHAMMED INTL AIRPORT (LOS)',
+      'MMA2 DEPARTURES TERMINAL • DOMESTIC & INTERNATIONAL FLIGHTS',
+      '#0f172a',
+      '#ffffff',
+      18.0,
+      1.4
+    );
+    airportSign.position.set(0, 6.2, 7.6);
+    terminalGroup.add(airportSign);
+
     airportGroup.add(terminalGroup);
+
+    // Register canonical destination and aliases
+    this.interactiveList.push({
+      mesh: terminalGroup,
+      id: 'dest_lagos_airport',
+      name: 'Murtala Muhammed International Airport (LOS)',
+      category: 'Aviation & Airport',
+      description: 'Nigeria’s premier aviation hub. Check in for flights, pass security screening, and fly to Abuja and Port Harcourt.',
+      interactionPoint: new THREE.Vector3(-80, 0, -105),
+    });
 
     this.interactiveList.push({
       mesh: terminalGroup,
       id: 'mma-airport',
-      name: 'Murtala Muhammed International Airport (MMA2)',
-      category: 'Aviation & Interstate Hub',
-      description: 'Nigeria’s busiest international and domestic flight gateway. Direct flights to Abuja, Port Harcourt, and worldwide departures.',
+      name: 'Murtala Muhammed International Airport (LOS)',
+      category: 'Aviation & Airport',
+      description: 'Nigeria’s premier aviation hub. Check in for flights, pass security screening, and fly to Abuja and Port Harcourt.',
       interactionPoint: new THREE.Vector3(-80, 0, -105),
     });
 
@@ -839,16 +988,28 @@ export class Districts {
     canopy.position.set(-6, 3.6, 0);
     hospGroup.add(canopy);
 
-    // Signboard
-    const sign = new THREE.Mesh(
-      new THREE.BoxGeometry(5.5, 0.9, 0.2),
-      new THREE.MeshBasicMaterial({ color: 0x0f172a })
+    // High-contrast Hospital Emergency Signboard
+    const hospSign = this.createNamedSignMesh(
+      'ST. NICHOLAS GENERAL HOSPITAL',
+      'ACCIDENT, EMERGENCY & CLINICAL WARDS • 24/7 PHARMACY',
+      '#0284c7',
+      '#ffffff',
+      7.5,
+      1.2
     );
-    sign.position.set(-8.8, 3.6, 0);
-    sign.rotation.y = -Math.PI / 2;
-    hospGroup.add(sign);
+    hospSign.position.set(-6, 4.3, 3.1);
+    hospGroup.add(hospSign);
 
     this.group.add(hospGroup);
+
+    this.interactiveList.push({
+      mesh: hospGroup,
+      id: 'dest_lagos_hospital',
+      name: 'St. Nicholas Lagos General Hospital',
+      category: 'Healthcare & Emergency',
+      description: 'Lagos Island premier medical centre. Enter for doctor consultation, treatments, medical checkups, and pharmacy.',
+      interactionPoint: new THREE.Vector3(12, 0, 75),
+    });
 
     this.interactiveList.push({
       mesh: hospGroup,
@@ -975,6 +1136,45 @@ export class Districts {
     bbGroup.add(board);
 
     this.group.add(bbGroup);
+  }
+
+  private createNamedSignMesh(
+    title: string,
+    sub: string,
+    bgColor: string,
+    textColor: string,
+    width: number,
+    height: number
+  ): THREE.Mesh {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    // Background
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, 1024, 256);
+
+    // Decorative contrast border
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(6, 6, 1012, 244);
+
+    // Main Title
+    ctx.fillStyle = textColor;
+    ctx.font = 'bold 50px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(title, 512, 108);
+
+    // Subtitle
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillStyle = textColor === '#ffffff' ? '#cbd5e1' : '#334155';
+    ctx.fillText(sub, 512, 182);
+
+    const texture = createColorCanvasTexture(canvas);
+    const boardGeo = new THREE.BoxGeometry(width, height, 0.2);
+    const boardMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.3 });
+    return new THREE.Mesh(boardGeo, boardMat);
   }
 
   public update(delta: number): void {
