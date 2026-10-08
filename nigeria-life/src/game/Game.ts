@@ -7,6 +7,10 @@ import { HUD } from '../ui/HUD';
 import { NetworkManager } from '../multiplayer/NetworkManager';
 import { ChatBox } from '../ui/ChatBox';
 import { PostProcessingManager } from '../graphics/PostProcessingManager';
+import { FlightExperience } from '../transit/FlightExperience';
+import { RoadRideExperience } from '../transit/RoadRideExperience';
+import { TransitHUD } from '../transit/TransitHUD';
+import type { FlightDetails, RideDetails } from '../transit/TransitTypes';
 
 export class Game {
   public scene: THREE.Scene;
@@ -19,6 +23,11 @@ export class Game {
   public network: NetworkManager;
   public chatBox: ChatBox;
   public postProcessing: PostProcessingManager;
+
+  // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
+  public flightExperience: FlightExperience;
+  public roadRideExperience: RoadRideExperience;
+  public transitHUD: TransitHUD;
 
   private clock: THREE.Clock;
   private savedStreetFog: THREE.Fog | THREE.FogExp2 | null = null;
@@ -125,7 +134,7 @@ export class Game {
       }
     };
 
-    // 9b. Inter-State Flights & Cross-Country Travel (Lagos <-> Abuja FCT)
+    // 9b. Inter-State Flights & Cross-Country Travel (Lagos <-> Abuja FCT <-> Port Harcourt)
     this.hud.interstateModal.onInterStateTravelCompleted = (destId) => {
       this.world.cityManager.switchCity(
         destId,
@@ -134,6 +143,121 @@ export class Game {
           this.world.interactiveObjects = newObjs;
         }
       );
+    };
+
+    // 9b-2. Full 3D Commercial In-Flight & First-Person Road Ride Simulation (Nigeria Life Standard)
+    this.flightExperience = new FlightExperience();
+    this.scene.add(this.flightExperience.group);
+
+    this.roadRideExperience = new RoadRideExperience();
+    this.scene.add(this.roadRideExperience.group);
+
+    this.transitHUD = new TransitHUD();
+
+    // Wire Transit HUD Camera Switches & Skips
+    this.transitHUD.onSelectFlightCamera = (view) => {
+      this.flightExperience.setCameraView(view);
+      this.transitHUD.setFlightCameraActive(view);
+    };
+
+    this.transitHUD.onSelectRideCamera = (view) => {
+      this.roadRideExperience.setCameraView(view);
+      this.transitHUD.setRideCameraActive(view);
+    };
+
+    this.transitHUD.onSkipFlight = () => {
+      this.flightExperience.skipFlight();
+    };
+
+    this.transitHUD.onSkipRide = () => {
+      this.roadRideExperience.skipRide();
+    };
+
+    // Wire Flight Progression & Landing
+    this.flightExperience.onFlightPhaseChanged = (phase, timeRemaining, announcement) => {
+      this.transitHUD.updateFlightProgress(phase, timeRemaining, announcement);
+    };
+
+    this.flightExperience.onFlightCompleted = (flight) => {
+      this.transitHUD.hideFlightHUD();
+
+      // Launch Authentic Airport Road Ride into city center (Screenshot 1: G-Wagon in Port Harcourt/Lagos/Abuja)
+      const destName = flight.destinationId === 'port_harcourt'
+        ? 'Trans-Amadi Oil Base'
+        : flight.destinationId === 'abuja'
+        ? 'Three Arms Zone / Maitama'
+        : 'Victoria Island / Marina';
+
+      const rideDetails: RideDetails = {
+        vehicleName: 'Mercedes G-Wagon',
+        vehicleType: 'suv',
+        originName: flight.destinationName,
+        destinationName: destName,
+        durationSeconds: 16,
+        trafficCondition: 'Go-slow',
+        weatherCondition: 'Sunny',
+        destinationCityId: flight.destinationId,
+      };
+
+      this.roadRideExperience.startRide(rideDetails);
+      this.transitHUD.showRideHUD(rideDetails);
+    };
+
+    // Wire Road Ride Arrival & City Activation
+    this.roadRideExperience.onRideCompleted = (ride) => {
+      this.transitHUD.hideRideHUD();
+      this.world.setStreetModeVisibility(true);
+      this.player.mesh.visible = true;
+
+      this.world.cityManager.switchCity(
+        ride.destinationCityId,
+        this.player,
+        (newObjs) => {
+          this.world.interactiveObjects = newObjs;
+        }
+      );
+    };
+
+    // Wire InterState Modal to trigger the 3D Flight Experience
+    this.hud.interstateModal.onStartTravelSimulation = (route, _fare, onCompleted) => {
+      const destAirportNames: Record<string, { code: string; name: string }> = {
+        lagos: { code: 'LOS', name: 'Murtala Muhammed Int. Airport (LOS)' },
+        abuja: { code: 'ABV', name: 'Nnamdi Azikiwe Int. Airport (ABV)' },
+        port_harcourt: { code: 'PHC', name: 'Port Harcourt Int. Airport Omagwa (PHC)' },
+      };
+
+      const currOrigin = this.hud.interstateModal.currentOriginCityId;
+      const currCode = currOrigin === 'lagos' ? 'LOS' : currOrigin === 'abuja' ? 'ABV' : 'PHC';
+      const currName = currOrigin === 'lagos' ? 'Lagos MMIA' : currOrigin === 'abuja' ? 'Abuja NAIA' : 'Port Harcourt Omagwa';
+      const targetMeta = destAirportNames[route.destinationId] || { code: 'DEST', name: 'Destination Airport' };
+
+      const flightDetails: FlightDetails = {
+        flightCode: route.flightOrBusCode || 'NL 526',
+        airlineName: route.airlineOrOperator || 'Nigeria Life Air',
+        travelClass: 'Economy',
+        tailNumber: '5N-LLD',
+        originId: currOrigin,
+        destinationId: route.destinationId,
+        originCode: currCode,
+        destinationCode: targetMeta.code,
+        originName: currName,
+        destinationName: targetMeta.name,
+        durationSeconds: 22,
+      };
+
+      // Temporarily hide street mode while in-flight
+      this.world.setStreetModeVisibility(false);
+      this.player.mesh.visible = false;
+
+      this.flightExperience.startFlight(flightDetails);
+      this.transitHUD.showFlightHUD(flightDetails);
+
+      // Listen for eventual ride completion to signal modal
+      const prevRideComplete = this.roadRideExperience.onRideCompleted;
+      this.roadRideExperience.onRideCompleted = (ride) => {
+        prevRideComplete?.(ride);
+        onCompleted(route.destinationId);
+      };
     };
 
     // 9c. Camera Navigation Modes (Home Flat | Street Walk | Aerial World Map)
@@ -223,6 +347,8 @@ export class Game {
   private onWindowResize(): void {
     this.cameraManager.handleResize();
     this.world.worldMap.handleResize();
+    this.flightExperience.handleResize();
+    this.roadRideExperience.handleResize();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.postProcessing.setSize(window.innerWidth, window.innerHeight);
   }
@@ -238,11 +364,15 @@ export class Game {
     // Update Camera Follow
     this.cameraManager.update(this.player, delta);
 
+    // Update Transit Simulations (Flight & Road Ride)
+    this.flightExperience.update(delta);
+    this.roadRideExperience.update(delta);
+
     // Update World (Vehicles, Traffic, NPCs, Weather, Districts) with keys & player position
     this.world.update(delta, this.input.keys, this.player.position, this.player);
 
     // Dynamic District Location Tracker in HUD (only when outdoors in street mode)
-    if (!this.world.interiorManager.isPlayerInside()) {
+    if (!this.world.interiorManager.isPlayerInside() && !this.flightExperience.isActive && !this.roadRideExperience.isActive) {
       const district = this.world.getDistrictAtPosition(this.player.position);
       this.hud.updateLocation(district.name, district.sub);
     }
@@ -258,9 +388,13 @@ export class Game {
     // Update Input cursor animations
     this.input.update(delta);
 
-    // Render Scene with active presentation camera (Isometric World Map vs 3D Game Camera)
+    // Render Scene with active presentation camera (Isometric World Map vs In-Flight vs Road Ride vs 3D Game Camera)
     if (this.hud.currentNavMode === 'map') {
       this.renderer.render(this.scene, this.world.worldMap.mapCamera);
+    } else if (this.flightExperience.isActive) {
+      this.renderer.render(this.scene, this.flightExperience.flightCamera);
+    } else if (this.roadRideExperience.isActive) {
+      this.renderer.render(this.scene, this.roadRideExperience.rideCamera);
     } else {
       this.renderer.render(this.scene, this.cameraManager.camera);
     }

@@ -11,6 +11,11 @@ export class InterStateModal {
 
   public currentOriginCityId: CityId = 'lagos';
   public onInterStateTravelCompleted?: (destinationId: CityId) => void;
+  public onStartTravelSimulation?: (
+    route: CityTravelRoute,
+    fare: number,
+    onCompleted: (destId: CityId) => void
+  ) => void;
 
   constructor() {
     this.backend = BackendService.getInstance();
@@ -169,6 +174,30 @@ export class InterStateModal {
     if (!paidCash) {
       this.backend.withdrawFromATM(fare);
       this.backend.spendCash(fare, `${route.airlineOrOperator} Interstate Ticket`);
+    }
+
+    // Add boarding pass / souvenir to bag
+    this.backend.addItem({
+      id: `${route.souvenirItem.id}_${Date.now()}`,
+      name: route.souvenirItem.name,
+      category: 'document',
+      icon: route.souvenirItem.icon,
+      description: route.souvenirItem.description,
+      price: fare,
+      usable: false,
+    });
+    this.backend.addStreetCred(30);
+
+    // If full 3D interactive flight/road transit simulation is hooked:
+    if (this.onStartTravelSimulation) {
+      this.isTraveling = true;
+      this.close();
+      this.onStartTravelSimulation(route, fare, (destId) => {
+        this.isTraveling = false;
+        this.currentOriginCityId = destId;
+        this.onInterStateTravelCompleted?.(destId);
+      });
+      return;
     }
 
     this.isTraveling = true;
