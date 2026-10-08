@@ -15,6 +15,7 @@ export class WorldMapUI {
   public onCloseMap?: () => void;
   public onSwitchCityTab?: (cityId: string) => void;
   public onOpenEconomy?: (propertyId: string) => void;
+  public onEnterInterior?: (buildingId: string) => void;
 
   constructor() {
     this.container = document.createElement('div');
@@ -73,6 +74,15 @@ export class WorldMapUI {
         <!-- Rendered dynamically -->
       </div>
 
+      <!-- MAP HOVER TOOLTIP (Vibrant Lagos Life building hover tooltip) -->
+      <div class="map-hover-tooltip" id="map-hover-tooltip" style="display: none;">
+        <span class="map-tt-icon" id="map-tt-icon">🏥</span>
+        <div class="map-tt-body">
+          <div class="map-tt-title" id="map-tt-title">Building Name</div>
+          <div class="map-tt-sub" id="map-tt-sub">🟢 Open • Click to Enter Inside</div>
+        </div>
+      </div>
+
       <!-- MAP CONTEXTUAL INFO CARD (District / Landmark / Property / Airport) -->
       <div class="map-context-card" id="map-context-card" style="display: none;">
         <button class="card-close-x" id="map-card-close">&times;</button>
@@ -106,7 +116,7 @@ export class WorldMapUI {
 
       <!-- MAP CONTROLS HINT OVERLAY -->
       <div class="map-controls-hint">
-        <span>🖱️ Drag to Pan Map • Scroll Wheel to Zoom • Click any District / Landmark for Details</span>
+        <span>🖱️ Drag to Pan Map • Scroll to Zoom • Hover over any building to see name • Click to Enter Inside</span>
       </div>
     `;
 
@@ -202,6 +212,55 @@ export class WorldMapUI {
     this.cardEl.style.display = 'block';
   }
 
+  public showHoverTooltip(
+    item: { type: string; data: any } | null,
+    screenPos: { x: number; y: number }
+  ): void {
+    const tt = document.getElementById('map-hover-tooltip');
+    if (!tt) return;
+    if (!item) {
+      tt.style.display = 'none';
+      return;
+    }
+
+    const iconEl = document.getElementById('map-tt-icon');
+    const titleEl = document.getElementById('map-tt-title');
+    const subEl = document.getElementById('map-tt-sub');
+
+    let icon = '📍';
+    let title = '';
+    let sub = '🟢 Open • Click to Enter Inside';
+
+    if (item.type === 'landmark') {
+      const lm = item.data as MapLandmark;
+      icon = lm.icon || '📍';
+      title = lm.name || lm.title;
+      if (lm.id === 'st_nicholas_hospital') sub = '🏥 General Hospital • Click to Enter Inside';
+      else if (lm.id === 'broad_street_banks') sub = '🏦 Commercial Bank • Click to Enter Inside';
+      else if (lm.id === 'mama_put_buka') sub = '🍲 Mama Put Buka • Click to Enter Inside';
+      else if (lm.id === 'lagos_area_command_police') sub = '👮 Police Command • Click to Enter Inside';
+      else if (lm.type === 'airport') sub = '✈️ International Airport • Click to View & Fly';
+      else sub = `${lm.title} • Click to Enter / View`;
+    } else if (item.type === 'property') {
+      const p = item.data as MapProperty;
+      icon = p.icon || '🏠';
+      title = p.name;
+      sub = p.status === 'owned' 
+        ? '🔑 Owned Residence • Click to Enter Inside' 
+        : `₦${p.price.toLocaleString()} • Click to View & Buy`;
+    }
+
+    if (iconEl) iconEl.textContent = icon;
+    if (titleEl) titleEl.textContent = title;
+    if (subEl) subEl.textContent = sub;
+
+    const posX = Math.min(screenPos.x + 14, window.innerWidth - 280);
+    const posY = Math.max(screenPos.y - 48, 16);
+    tt.style.left = `${posX}px`;
+    tt.style.top = `${posY}px`;
+    tt.style.display = 'flex';
+  }
+
   public showLandmarkDetails(lm: MapLandmark): void {
     const chip = document.getElementById('map-card-chip');
     const zone = document.getElementById('map-card-zone');
@@ -222,30 +281,68 @@ export class WorldMapUI {
 
     if (chip) chip.textContent = lm.icon + ' LANDMARK';
     if (zone) zone.textContent = lm.type.toUpperCase();
-    if (name) name.textContent = lm.title;
+    if (name) name.textContent = lm.name || lm.title;
     if (sub) sub.textContent = lm.subtitle;
     if (desc) desc.textContent = lm.description;
     if (pop) pop.textContent = 'Active POI';
     if (props) props.textContent = 'Lagos State';
     if (biz) biz.textContent = 'Open 24/7';
 
+    // Check if this building maps to an interior simulation destination
+    let interiorTarget: string | null = null;
+    if (lm.id === 'st_nicholas_hospital' || lm.id.includes('hospital')) {
+      interiorTarget = 'hospital';
+    } else if (lm.id === 'broad_street_banks' || lm.id.includes('bank')) {
+      interiorTarget = 'bank';
+    } else if (lm.id === 'mama_put_buka' || lm.id.includes('buka') || lm.id.includes('restaurant')) {
+      interiorTarget = 'restaurant';
+    } else if (lm.id === 'lagos_area_command_police' || lm.id.includes('police')) {
+      interiorTarget = 'police';
+    }
+
     if (actions) {
       actions.innerHTML = '';
-      lm.actions.forEach((act) => {
-        const btn = document.createElement('button');
-        btn.className = 'btn-primary-action';
-        btn.textContent = act.label;
-        btn.addEventListener('click', () => {
-          if (act.actionType === 'interstate' && act.targetId) {
-            this.onInterstateTravel?.(act.targetId);
-          } else if (act.actionType === 'travel') {
-            const d = WorldDataManager.getInstance().getDistrictById(lm.districtId);
-            if (d) this.onTravelToDistrict?.(d);
-          } else {
-            alert(`Opening ${lm.title} details.`);
-          }
+
+      // 1. Direct "Enter Inside Building" action (if enterable destination)
+      if (interiorTarget) {
+        const enterBtn = document.createElement('button');
+        enterBtn.className = 'btn-primary-action';
+        enterBtn.id = 'btn-card-enter-building';
+        enterBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        enterBtn.style.fontSize = '14px';
+        enterBtn.style.fontWeight = '800';
+        enterBtn.style.boxShadow = '0 4px 16px rgba(16, 185, 129, 0.45)';
+        enterBtn.innerHTML = `🚪 Enter Inside ${lm.title.split(' ')[0] || 'Building'}`;
+        enterBtn.addEventListener('click', () => {
+          this.close();
+          this.onEnterInterior?.(interiorTarget!);
         });
-        actions.appendChild(btn);
+        actions.appendChild(enterBtn);
+      }
+
+      // 2. Direct "Walk Outside on Street" action
+      const walkBtn = document.createElement('button');
+      walkBtn.className = 'btn-primary-action';
+      walkBtn.style.background = 'linear-gradient(135deg, #0284c7, #0369a1)';
+      walkBtn.textContent = '🚶 Walk Outside on Street';
+      walkBtn.addEventListener('click', () => {
+        const d = WorldDataManager.getInstance().getDistrictById(lm.districtId);
+        if (d) this.onTravelToDistrict?.(d);
+      });
+      actions.appendChild(walkBtn);
+
+      // 3. Other specific landmark actions (e.g. flight booking)
+      lm.actions.forEach((act) => {
+        if (act.actionType === 'interstate' && act.targetId) {
+          const btn = document.createElement('button');
+          btn.className = 'btn-primary-action';
+          btn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+          btn.textContent = act.label;
+          btn.addEventListener('click', () => {
+            this.onInterstateTravel?.(act.targetId!);
+          });
+          actions.appendChild(btn);
+        }
       });
     }
 
@@ -285,11 +382,17 @@ export class WorldMapUI {
     if (actions) {
       const isOwned = p.status === 'owned' && p.ownerId === 'player';
       const isRented = p.status === 'rented' && p.ownerId === 'player';
+      const isResidential = ['house', 'duplex', 'apartment', 'room', 'luxury apartment'].includes(p.type);
 
       actions.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+          ${isResidential ? `
+            <button class="btn-primary-action" id="btn-card-prop-enter" style="background: linear-gradient(135deg, #10b981, #059669); font-weight: 800;">
+              🚪 Enter Residence Inside
+            </button>
+          ` : ''}
           <button class="btn-primary-action" id="btn-card-prop-view" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
-            🚶 Walk Street Here
+            🚶 Walk Street Outside
           </button>
           <div style="display: flex; gap: 8px; width: 100%;">
             <button class="btn-primary-action" id="btn-card-prop-buy" style="flex: 1; background: ${isOwned ? '#334155' : 'linear-gradient(135deg, #16a34a, #15803d)'}; cursor: ${isOwned ? 'default' : 'pointer'};" ${isOwned ? 'disabled' : ''}>
@@ -301,6 +404,13 @@ export class WorldMapUI {
           </div>
         </div>
       `;
+
+      if (isResidential) {
+        document.getElementById('btn-card-prop-enter')?.addEventListener('click', () => {
+          this.close();
+          this.onEnterInterior?.('residence');
+        });
+      }
 
       document.getElementById('btn-card-prop-view')?.addEventListener('click', () => {
         this.onTravelToProperty?.(p);
@@ -337,5 +447,7 @@ export class WorldMapUI {
   public close(): void {
     this.container.style.display = 'none';
     this.cardEl.style.display = 'none';
+    const tt = document.getElementById('map-hover-tooltip');
+    if (tt) tt.style.display = 'none';
   }
 }

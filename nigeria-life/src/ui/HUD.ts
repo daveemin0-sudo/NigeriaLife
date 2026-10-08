@@ -493,7 +493,23 @@ export class HUD {
       this.economyModal.open(propId);
     };
 
+    this.worldMapUI.onEnterInterior = (buildingId) => {
+      this.currentNavMode = 'street';
+      updateNavActive('');
+      this.worldMapUI.close();
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'flex';
+      this.onNavigateMode?.('street');
+      setTimeout(() => {
+        this.onEnterInterior?.(buildingId);
+      }, 50);
+    };
+
     if (this.world) {
+      this.world.worldMap.onHoverItem = (item, screenPos) => {
+        this.worldMapUI.showHoverTooltip(item, screenPos);
+      };
+
       this.world.worldMap.onSelectItem = (event) => {
         if (event.type === 'district') {
           this.worldMapUI.showDistrictDetails(event.item as any);

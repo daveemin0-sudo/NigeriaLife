@@ -35,6 +35,18 @@ export class WorldMapRenderer {
     this.group = new THREE.Group();
     this.dataManager = WorldDataManager.getInstance();
 
+    // Dedicated Bright Map Lighting (Ensures 100% vibrant, crisp, razor-sharp colors without haze)
+    const mapSun = new THREE.DirectionalLight(0xffffff, 2.5);
+    mapSun.position.set(60, 200, 80);
+    this.group.add(mapSun);
+
+    const mapFill = new THREE.DirectionalLight(0xe0f2fe, 1.2);
+    mapFill.position.set(-60, 160, -60);
+    this.group.add(mapFill);
+
+    const mapAmbient = new THREE.AmbientLight(0xffffff, 1.6);
+    this.group.add(mapAmbient);
+
     this.buildGeographyAndWater();
     this.buildDistrictTerritories();
     this.buildRoadNetworkAndBridges();
@@ -49,38 +61,38 @@ export class WorldMapRenderer {
   // =========================================================================
   private buildGeographyAndWater(): void {
     // Base Continental Shelf / Ocean Floor
-    const seaFloorGeo = new THREE.PlaneGeometry(420, 380);
+    const seaFloorGeo = new THREE.PlaneGeometry(480, 420);
     const seaFloorMat = new THREE.MeshStandardMaterial({
-      color: 0x0f2d4a,
-      roughness: 0.8,
+      color: 0x075985,
+      roughness: 0.6,
     });
     const seaFloor = new THREE.Mesh(seaFloorGeo, seaFloorMat);
     seaFloor.rotation.x = -Math.PI / 2;
     seaFloor.position.y = -0.8;
     this.group.add(seaFloor);
 
-    // Atlantic Ocean (South: Z > 60)
-    const oceanGeo = new THREE.PlaneGeometry(400, 140, 24, 16);
+    // Atlantic Ocean (South: Z > 40) - Tropical Sparkling Blue
+    const oceanGeo = new THREE.PlaneGeometry(440, 160, 24, 16);
     const oceanMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
-      roughness: 0.15,
-      metalness: 0.6,
+      roughness: 0.1,
+      metalness: 0.25,
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.92,
     });
     this.oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
     this.oceanMesh.rotation.x = -Math.PI / 2;
-    this.oceanMesh.position.set(0, -0.05, 130);
+    this.oceanMesh.position.set(0, -0.05, 125);
     this.group.add(this.oceanMesh);
 
-    // Lagos Lagoon (Central / East: X: 10 to 90, Z: -80 to 10)
-    const lagoonGeo = new THREE.PlaneGeometry(160, 100);
+    // Lagos Lagoon (Central / East) - Vibrant Tropical Cyan
+    const lagoonGeo = new THREE.PlaneGeometry(180, 110);
     const lagoonMat = new THREE.MeshStandardMaterial({
-      color: 0x0369a1,
-      roughness: 0.2,
-      metalness: 0.5,
+      color: 0x0ea5e9,
+      roughness: 0.12,
+      metalness: 0.2,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.88,
     });
     this.lagoonMesh = new THREE.Mesh(lagoonGeo, lagoonMat);
     this.lagoonMesh.rotation.x = -Math.PI / 2;
@@ -88,18 +100,63 @@ export class WorldMapRenderer {
     this.group.add(this.lagoonMesh);
 
     // Five Cowries Creek (Separating Lagos Island / Ikoyi from Victoria Island)
-    const creekGeo = new THREE.PlaneGeometry(130, 22);
+    const creekGeo = new THREE.PlaneGeometry(140, 24);
     const creekMat = new THREE.MeshStandardMaterial({
-      color: 0x0284c7,
-      roughness: 0.2,
-      metalness: 0.5,
+      color: 0x38bdf8,
+      roughness: 0.15,
+      metalness: 0.2,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.85,
     });
     this.creekMesh = new THREE.Mesh(creekGeo, creekMat);
     this.creekMesh.rotation.x = -Math.PI / 2;
     this.creekMesh.position.set(20, -0.03, 38);
     this.group.add(this.creekMesh);
+
+    // Surface Water & Territory Text Sprites (Matching Lagos Life Aesthetic)
+    this.addWaterLabel('ATLANTIC OCEAN', 0, 0.08, 140, 48, 12, '#ffffff');
+    this.addWaterLabel('LAGOS LAGOON', 45, 0.08, -55, 42, 10, '#ffffff');
+    this.addWaterLabel('FIVE COWRIES CREEK', 25, 0.08, 38, 34, 8, '#ffffff');
+    this.addWaterLabel('MAINLAND', -35, 0.6, -45, 30, 8, '#14532d');
+    this.addWaterLabel('ISLAND', 0, 0.6, -2, 26, 7, '#14532d');
+    this.addWaterLabel('IKOYI', 35, 0.6, 12, 24, 6, '#14532d');
+    this.addWaterLabel('EKO ATLANTIC', -25, 0.6, 125, 30, 8, '#0369a1');
+    this.addWaterLabel('LEKKI ESTATE', 85, 0.6, 25, 30, 8, '#14532d');
+  }
+
+  private addWaterLabel(text: string, x: number, y: number, z: number, w: number, h: number, color = '#ffffff'): void {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.fillStyle = color;
+    ctx.font = 'bold 44px "Arial Black", "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.letterSpacing = '4px';
+
+    // Soft drop shadow for crisp readability
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+
+    ctx.fillText(text, 256, 64);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const mat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
+
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x, y, z);
+    this.group.add(mesh);
   }
 
   // =========================================================================
@@ -108,26 +165,52 @@ export class WorldMapRenderer {
   private buildDistrictTerritories(): void {
     const districts = this.dataManager.getDistricts();
 
-    // Stylized low-poly district terrain plates
     for (const d of districts) {
       const w = d.bounds.maxX - d.bounds.minX;
       const h = d.bounds.maxZ - d.bounds.minZ;
       const cx = (d.bounds.minX + d.bounds.maxX) / 2;
       const cz = (d.bounds.minZ + d.bounds.maxZ) / 2;
 
+      // Pad Color: Crisp vibrant greens & distinct asphalt/industrial pads
+      let padColor = 0x22c55e; // Default vibrant green
+      if (d.id === 'airport') {
+        padColor = 0x1e293b; // Sleek tarmac dark slate
+      } else if (d.id === 'port_apapa') {
+        padColor = 0x64748b; // Industrial concrete harbor
+      } else if (d.zone === 'Mainland') {
+        padColor = 0x16a34a; // Lush grass green
+      } else if (d.zone === 'Island') {
+        padColor = 0x22c55e; // Vibrant emerald
+      } else if (d.zone === 'Peninsula') {
+        padColor = 0x4ade80; // Tropical bright green
+      }
+
       // Base terrain plate with beveled rounded aesthetic
-      const padGeo = new THREE.BoxGeometry(w * 0.94, 0.45, h * 0.94);
+      const padGeo = new THREE.BoxGeometry(w * 0.96, 0.45, h * 0.96);
       const padMat = new THREE.MeshStandardMaterial({
-        color: d.zone === 'Mainland' ? 0xe2d6c1 : d.zone === 'Island' ? 0xdfe9d6 : 0xd8e6c8,
-        roughness: 0.85,
+        color: padColor,
+        roughness: 0.7,
+        metalness: 0.1,
       });
       const pad = new THREE.Mesh(padGeo, padMat);
       pad.position.set(cx, 0.2, cz);
       pad.receiveShadow = true;
       this.group.add(pad);
 
+      // Clean White Grid Plot Overlay (Sim-City / Theme Park Plot Structure)
+      const gridHelper = new THREE.GridHelper(
+        Math.max(w, h) * 0.92,
+        Math.floor(Math.max(w, h) / 6),
+        0xffffff,
+        0xffffff
+      );
+      gridHelper.position.set(cx, 0.44, cz);
+      (gridHelper.material as THREE.Material).transparent = true;
+      (gridHelper.material as THREE.Material).opacity = 0.14;
+      this.group.add(gridHelper);
+
       // District outline boundary ring
-      const borderGeo = new THREE.BoxGeometry(w * 0.95, 0.1, h * 0.95);
+      const borderGeo = new THREE.BoxGeometry(w * 0.96, 0.12, h * 0.96);
       const borderMat = new THREE.MeshBasicMaterial({
         color: d.color,
         wireframe: true,
@@ -136,14 +219,14 @@ export class WorldMapRenderer {
       border.position.set(cx, 0.48, cz);
       this.group.add(border);
 
-      // Interactive Clickable / Hoverable zone trigger
-      const hitBoxGeo = new THREE.BoxGeometry(w, 2.5, h);
+      // Interactive Clickable / Hoverable zone trigger (FLAT at ground level so buildings take priority!)
+      const hitBoxGeo = new THREE.BoxGeometry(w, 0.3, h);
       const hitBoxMat = new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 0.0,
       });
       const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
-      hitBox.position.set(cx, 1.25, cz);
+      hitBox.position.set(cx, 0.15, cz);
       this.group.add(hitBox);
 
       this.interactiveMapObjects.push({
@@ -153,7 +236,7 @@ export class WorldMapRenderer {
       });
 
       // Highlight overlay mesh
-      const hlGeo = new THREE.PlaneGeometry(w * 0.93, h * 0.93);
+      const hlGeo = new THREE.PlaneGeometry(w * 0.94, h * 0.94);
       const hlMat = new THREE.MeshBasicMaterial({
         color: d.color,
         transparent: true,
@@ -162,13 +245,13 @@ export class WorldMapRenderer {
       });
       const hlMesh = new THREE.Mesh(hlGeo, hlMat);
       hlMesh.rotation.x = -Math.PI / 2;
-      hlMesh.position.set(cx, 0.44, cz);
+      hlMesh.position.set(cx, 0.46, cz);
       this.group.add(hlMesh);
       this.districtHighlightMeshes.set(d.id, hlMesh);
 
       // 3D District Floating Label Banner
       const labelSprite = this.createDistrictLabelSprite(d.name, d.subtitle, d.color);
-      labelSprite.position.set(cx, 8.5, cz);
+      labelSprite.position.set(cx, 10.5, cz);
       this.group.add(labelSprite);
     }
   }
@@ -249,36 +332,47 @@ export class WorldMapRenderer {
       lmGroup.position.copy(lm.position);
 
       if (lm.type === 'airport') {
-        lmGroup.add(WorldMapPrefabs.createAirport(0.85));
+        lmGroup.add(WorldMapPrefabs.createAirport(0.95));
       } else if (lm.type === 'port') {
-        lmGroup.add(WorldMapPrefabs.createPort(0.85));
+        lmGroup.add(WorldMapPrefabs.createPort(0.9));
+        const refTanks = WorldMapPrefabs.createRefineryTanks(0.85);
+        refTanks.position.set(-9, 0, -6);
+        lmGroup.add(refTanks);
       } else if (lm.type === 'stadium') {
-        lmGroup.add(WorldMapPrefabs.createStadium(0.9));
+        lmGroup.add(WorldMapPrefabs.createStadium(0.95));
+      } else if (lm.id === 'st_nicholas_hospital') {
+        lmGroup.add(WorldMapPrefabs.createHospital(1.1));
+      } else if (lm.id === 'broad_street_banks') {
+        lmGroup.add(WorldMapPrefabs.createBank(1.05));
+      } else if (lm.id === 'lagos_area_command_police') {
+        lmGroup.add(WorldMapPrefabs.createPoliceStation(1.1));
+      } else if (lm.id === 'mama_put_buka') {
+        lmGroup.add(WorldMapPrefabs.createShopPlaza(0xef4444, 1.25));
       } else if (lm.id === 'eko_atlantic_tower') {
         lmGroup.add(WorldMapPrefabs.createGlassTower(24, 0x0284c7, 0.95));
       } else if (lm.id === 'quilox_vi') {
         lmGroup.add(WorldMapPrefabs.createGlassTower(12, 0xa855f7, 0.85));
       } else if (lm.id === 'computer_village') {
-        lmGroup.add(WorldMapPrefabs.createShopPlaza(0xfacc15, 1.1));
+        lmGroup.add(WorldMapPrefabs.createShopPlaza(0xfacc15, 1.15));
       } else if (lm.id === 'cchub_yaba') {
-        lmGroup.add(WorldMapPrefabs.createGlassTower(10, 0x8b5cf6, 0.8));
+        lmGroup.add(WorldMapPrefabs.createGlassTower(11, 0x8b5cf6, 0.85));
       } else if (lm.id === 'nike_art_gallery') {
-        lmGroup.add(WorldMapPrefabs.createHouse(0xfffbeb, 0xb45309, 1.2));
+        lmGroup.add(WorldMapPrefabs.createHouse(0xfffbeb, 0xb45309, 1.25));
       } else {
         lmGroup.add(WorldMapPrefabs.createGlassTower(14, 0x059669, 0.8));
       }
 
-      // Marker Icon Badge above landmark
+      // Circular Marker Icon Badge above landmark (Matching Lagos Life)
       const badge = this.createLandmarkBadgeSprite(lm.icon, lm.name);
-      badge.position.y = 8.0;
+      badge.position.y = 8.5;
       lmGroup.add(badge);
 
-      // Hitbox for raycasting
+      // Hitbox for raycasting (Generous box so clicking and hovering works effortlessly)
       const hit = new THREE.Mesh(
-        new THREE.BoxGeometry(6.0, 7.0, 6.0),
+        new THREE.BoxGeometry(8.0, 11.0, 8.0),
         new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0 })
       );
-      hit.position.y = 3.5;
+      hit.position.y = 4.5;
       lmGroup.add(hit);
 
       this.interactiveMapObjects.push({
@@ -510,53 +604,37 @@ export class WorldMapRenderer {
 
   private createPropertyBadgeSprite(prop: MapProperty): THREE.Sprite {
     const canvas = document.createElement('canvas');
-    canvas.width = 280;
-    canvas.height = 84;
+    canvas.width = 160;
+    canvas.height = 160;
     const ctx = canvas.getContext('2d')!;
 
     const isOwned = prop.status === 'owned';
     const isRented = prop.status === 'rented';
 
-    // Dark Card Base
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
-    ctx.strokeStyle = isOwned ? '#22c55e' : isRented ? '#38bdf8' : '#f59e0b';
-    ctx.lineWidth = 3;
-    this.drawRoundedRect(ctx, 4, 4, 272, 76, 16);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+
+    ctx.beginPath();
+    ctx.arc(80, 80, 66, 0, Math.PI * 2);
+    ctx.fillStyle = isOwned ? '#f0fdf4' : isRented ? '#f0f9ff' : '#ffffff';
     ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = isOwned ? '#22c55e' : isRented ? '#0284c7' : '#f59e0b';
     ctx.stroke();
 
-    // Icon
-    ctx.font = '30px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(prop.icon || '🏠', 16, 52);
-
-    // Title
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 18px sans-serif';
-    const cleanName = prop.name.length > 17 ? prop.name.substring(0, 16) + '…' : prop.name;
-    ctx.fillText(cleanName, 58, 38);
-
-    // Subtitle
-    ctx.font = 'bold 14px sans-serif';
-    if (isOwned) {
-      ctx.fillStyle = '#4ade80';
-      ctx.fillText('🔑 OWNED BY YOU', 58, 62);
-    } else if (isRented) {
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillText('LEASED RESIDENCE', 58, 62);
-    } else {
-      ctx.fillStyle = '#fbbf24';
-      const formattedPrice = prop.price >= 1_000_000
-        ? `₦${(prop.price / 1_000_000).toFixed(prop.price % 1_000_000 === 0 ? 0 : 1)}M`
-        : `₦${(prop.price / 1000).toFixed(0)}K`;
-      ctx.fillText(`${formattedPrice} • ${prop.type.toUpperCase()}`, 58, 62);
-    }
+    ctx.font = '58px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(prop.icon || '🏠', 80, 84);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(10.5, 3.15, 1);
+    sprite.scale.set(5.5, 5.5, 1);
     return sprite;
   }
 
@@ -672,33 +750,39 @@ export class WorldMapRenderer {
     return sprite;
   }
 
-  private createLandmarkBadgeSprite(icon: string, name: string): THREE.Sprite {
+  private createLandmarkBadgeSprite(icon: string, _name: string): THREE.Sprite {
     const canvas = document.createElement('canvas');
-    canvas.width = 320;
-    canvas.height = 96;
+    canvas.width = 160;
+    canvas.height = 160;
     const ctx = canvas.getContext('2d')!;
 
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 3;
-    this.drawRoundedRect(ctx, 8, 8, 304, 80, 18);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 4;
+
+    // Crisp circular white pill disc
+    ctx.beginPath();
+    ctx.arc(80, 80, 68, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
     ctx.fill();
+
+    // Vibrant teal circular rim
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#0284c7';
     ctx.stroke();
 
-    ctx.font = '32px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(icon, 24, 56);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 22px sans-serif';
-    const cleanName = name.length > 18 ? name.substring(0, 17) + '…' : name;
-    ctx.fillText(cleanName, 72, 54);
+    // Centered emoji icon
+    ctx.font = '64px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(icon, 80, 84);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(12, 3.6, 1);
+    sprite.scale.set(6.5, 6.5, 1);
     return sprite;
   }
 

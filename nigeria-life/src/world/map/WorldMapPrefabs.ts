@@ -485,4 +485,198 @@ export class WorldMapPrefabs {
 
     return group;
   }
+
+  // =========================================================================
+  // 13. HOSPITAL PREFAB (St. Nicholas General Hospital)
+  // =========================================================================
+  public static createHospital(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+
+    // Main Hospital Ward Wing
+    const wallMat = this.getMaterial('hosp_wall', 0xf8fafc, 0.4);
+    const mainBody = new THREE.Mesh(new THREE.BoxGeometry(5.0 * scale, 3.2 * scale, 3.8 * scale), wallMat);
+    mainBody.position.y = 1.6 * scale;
+    mainBody.castShadow = true;
+    group.add(mainBody);
+
+    // Blue tinted medical windows band
+    const winMat = this.getMaterial('hosp_win', 0x38bdf8, 0.2, 0.8);
+    for (const wy of [1.2 * scale, 2.3 * scale]) {
+      const winStrip = new THREE.Mesh(new THREE.BoxGeometry(5.1 * scale, 0.4 * scale, 3.9 * scale), winMat);
+      winStrip.position.y = wy;
+      group.add(winStrip);
+    }
+
+    // Emergency Entrance Canopy
+    const emergMat = this.getMaterial('hosp_emerg', 0xef4444, 0.5);
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(2.4 * scale, 0.2 * scale, 1.2 * scale), emergMat);
+    canopy.position.set(0, 1.1 * scale, 2.4 * scale);
+    group.add(canopy);
+
+    // Rooftop Red Cross
+    const crossMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.3 * scale, 1.2 * scale, 0.1 * scale), crossMat);
+    crossV.position.set(0, 3.8 * scale, 1.91 * scale);
+    group.add(crossV);
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(1.0 * scale, 0.35 * scale, 0.1 * scale), crossMat);
+    crossH.position.set(0, 3.8 * scale, 1.91 * scale);
+    group.add(crossH);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 14. COMMERCIAL BANK PREFAB (Broad Street Banks)
+  // =========================================================================
+  public static createBank(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+
+    // Tower Body
+    const bankMat = this.getMaterial('bank_stone', 0x1e293b, 0.3, 0.5);
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(4.4 * scale, 6.0 * scale, 4.4 * scale), bankMat);
+    tower.position.y = 3.0 * scale;
+    tower.castShadow = true;
+    group.add(tower);
+
+    // Gold Top Crown
+    const goldMat = this.getMaterial('bank_gold', 0xf59e0b, 0.2, 0.9);
+    const crown = new THREE.Mesh(new THREE.BoxGeometry(4.6 * scale, 0.6 * scale, 4.6 * scale), goldMat);
+    crown.position.y = 6.2 * scale;
+    group.add(crown);
+
+    // Modern Glass Ribs
+    const glassMat = this.getMaterial('bank_glass', 0x10b981, 0.1, 0.85);
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(2.4 * scale, 5.2 * scale, 4.5 * scale), glassMat);
+    rib.position.y = 3.0 * scale;
+    group.add(rib);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 15. POLICE STATION PREFAB (Area Command)
+  // =========================================================================
+  public static createPoliceStation(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+
+    // Station House
+    const wallMat = this.getMaterial('police_wall', 0x1e3a8a, 0.5);
+    const station = new THREE.Mesh(new THREE.BoxGeometry(4.2 * scale, 2.4 * scale, 3.6 * scale), wallMat);
+    station.position.y = 1.2 * scale;
+    station.castShadow = true;
+    group.add(station);
+
+    // White trim band
+    const trimMat = this.getMaterial('police_trim', 0xffffff, 0.5);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(4.3 * scale, 0.3 * scale, 3.7 * scale), trimMat);
+    band.position.y = 1.8 * scale;
+    group.add(band);
+
+    // Radio Antenna Mast
+    const mastMat = this.getMaterial('police_mast', 0x94a3b8, 0.3);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.04 * scale, 0.08 * scale, 4.0 * scale, 6), mastMat);
+    mast.position.set(1.5 * scale, 4.2 * scale, -1.2 * scale);
+    group.add(mast);
+
+    // Beacon Light on roof
+    const beaconMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6 });
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.25 * scale, 8, 8), beaconMat);
+    beacon.position.set(0, 2.65 * scale, 0);
+    group.add(beacon);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 16. PETROLEUM REFINERY & TANK FARM (Apapa & Lekki Free Zone)
+  // =========================================================================
+  public static createRefineryTanks(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+
+    // Concrete Base Apron
+    const apronMat = this.getMaterial('refinery_apron', 0xcb9a4c, 0.7);
+    const apron = new THREE.Mesh(new THREE.BoxGeometry(9.0 * scale, 0.2 * scale, 7.5 * scale), apronMat);
+    apron.position.y = 0.1 * scale;
+    group.add(apron);
+
+    // 4 Cylindrical Oil Storage Tanks
+    const tankMat = this.getMaterial('refinery_tank', 0xe2e8f0, 0.3, 0.2);
+    const coneMat = this.getMaterial('refinery_roof', 0x94a3b8, 0.5);
+    const coords = [
+      [-2.4, -1.8],
+      [2.4, -1.8],
+      [-2.4, 1.8],
+      [2.4, 1.8],
+    ];
+
+    for (const [tx, tz] of coords) {
+      const tank = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.6 * scale, 1.6 * scale, 1.8 * scale, 18),
+        tankMat
+      );
+      tank.position.set(tx * scale, 1.0 * scale, tz * scale);
+      tank.castShadow = true;
+      group.add(tank);
+
+      const cap = new THREE.Mesh(
+        new THREE.ConeGeometry(1.62 * scale, 0.4 * scale, 18),
+        coneMat
+      );
+      cap.position.set(tx * scale, 2.05 * scale, tz * scale);
+      group.add(cap);
+    }
+
+    // Yellow pipeline grid
+    const pipeMat = this.getMaterial('refinery_pipe', 0xeab308, 0.4);
+    const pipe1 = new THREE.Mesh(new THREE.BoxGeometry(7.0 * scale, 0.15 * scale, 0.15 * scale), pipeMat);
+    pipe1.position.set(0, 0.5 * scale, 0);
+    group.add(pipe1);
+
+    return group;
+  }
+
+  // =========================================================================
+  // 17. LUXURY RESIDENTIAL ESTATE WITH SWIMMING POOL (Lekki / Ikoyi)
+  // =========================================================================
+  public static createResidentialEstate(scale = 1.0): THREE.Group {
+    const group = new THREE.Group();
+
+    // Manicured Green Lawn Compound
+    const turfMat = this.getMaterial('estate_turf', 0x22c55e, 0.85);
+    const lawn = new THREE.Mesh(new THREE.BoxGeometry(10.0 * scale, 0.2 * scale, 8.0 * scale), turfMat);
+    lawn.position.y = 0.1 * scale;
+    group.add(lawn);
+
+    // Neat White Fenced Plots
+    const fenceMat = this.getMaterial('estate_fence', 0xffffff, 0.5);
+    const fence = new THREE.Mesh(new THREE.BoxGeometry(9.6 * scale, 0.3 * scale, 7.6 * scale), fenceMat);
+    fence.position.y = 0.25 * scale;
+    group.add(fence);
+
+    // 6 Mini Duplexes
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 3; c++) {
+        const dx = (-2.8 + c * 2.8) * scale;
+        const dz = (-2.2 + r * 2.8) * scale;
+        const duplex = WorldMapPrefabs.createHouse(0xfffbeb, 0xb91c1c, 0.55 * scale);
+        duplex.position.set(dx, 0.2 * scale, dz);
+        group.add(duplex);
+      }
+    }
+
+    // Swimming Pool
+    const poolWaterMat = this.getMaterial('estate_pool', 0x0ea5e9, 0.1, 0.7);
+    const pool = new THREE.Mesh(new THREE.BoxGeometry(2.4 * scale, 0.08 * scale, 1.4 * scale), poolWaterMat);
+    pool.position.set(0, 0.22 * scale, 2.6 * scale);
+    group.add(pool);
+
+    // Palm Trees along border
+    for (const px of [-4.2 * scale, 4.2 * scale]) {
+      const palm = WorldMapPrefabs.createTree(true, 0.85 * scale);
+      palm.position.set(px, 0.2 * scale, 0);
+      group.add(palm);
+    }
+
+    return group;
+  }
 }

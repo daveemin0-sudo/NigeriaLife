@@ -438,6 +438,21 @@ export const LAGOS_LANDMARKS: MapLandmark[] = [
       { label: '🚶 Walk to Station', actionType: 'travel', targetId: 'lagos_island' },
     ],
   },
+  {
+    id: 'mama_put_buka',
+    name: 'Mama Put Buka & Chop Life Bar',
+    districtId: 'lagos_island',
+    type: 'commercial',
+    position: new THREE.Vector3(-12, 0, 18),
+    icon: '🍲',
+    title: 'Mama Put Buka & Chop Life Bar',
+    subtitle: 'Hot Jollof, Amala, Goat Meat & Cold Drinks',
+    description: 'Iconic street buka with savory local dishes, chilled malt, and lively dining music.',
+    actions: [
+      { label: '🍲 Enter Buka Restaurant [E]', actionType: 'enter' },
+      { label: '🚶 Walk to Buka', actionType: 'travel', targetId: 'lagos_island' },
+    ],
+  },
 ];
 
 export const LAGOS_PROPERTIES: MapProperty[] = [

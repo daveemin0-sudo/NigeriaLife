@@ -149,6 +149,8 @@ export class InteriorManager {
       (id === 'restaurant' && item.type === 'restaurant') ||
       (id === 'buka' && item.type === 'restaurant') ||
       (id === 'mama-put' && item.type === 'restaurant') ||
+      (id === 'mama_put_buka' && item.type === 'restaurant') ||
+      (id === 'chop-life' && item.type === 'restaurant') ||
       (id === 'police' && item.type === 'police') ||
       (id === 'police-station' && item.type === 'police') ||
       (id === 'residence' && item.type === 'residence') ||

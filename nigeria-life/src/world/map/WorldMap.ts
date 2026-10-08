@@ -28,6 +28,10 @@ export class WorldMap {
   // Callbacks
   public onSelectItem?: (event: MapSelectionEvent) => void;
   public onHoverDistrict?: (district: DistrictData | null) => void;
+  public onHoverItem?: (
+    item: { type: 'landmark' | 'property' | 'business'; data: any } | null,
+    screenPosition: { x: number; y: number }
+  ) => void;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -81,7 +85,7 @@ export class WorldMap {
         this.updateCameraTransform();
       }
 
-      // Check hover for districts and landmarks
+      // Check hover for buildings, landmarks, properties and districts
       this.handleHover(e);
     });
 
@@ -119,23 +123,41 @@ export class WorldMap {
     const intersects = this.raycaster.intersectObjects(hitObjects, true);
 
     if (intersects.length > 0) {
-      const hitObj = intersects[0].object;
-      const found = this.renderer.interactiveMapObjects.find(
-        (o) => o.mesh === hitObj || o.mesh.children.includes(hitObj)
-      );
+      // 1. FIRST PRIORITY: Check for Building / Landmark / Property hit
+      for (const hit of intersects) {
+        const found = this.renderer.interactiveMapObjects.find(
+          (o) => o.mesh === hit.object || o.mesh.children.includes(hit.object)
+        );
 
-      if (found && found.type === 'district') {
-        const dist = found.data as DistrictData;
-        if (this.hoveredDistrictId !== dist.id) {
-          this.hoveredDistrictId = dist.id;
-          this.renderer.highlightDistrict(dist.id);
-          this.onHoverDistrict?.(dist);
+        if (found && (found.type === 'landmark' || found.type === 'property' || found.type === 'business')) {
+          this.onHoverItem?.({ type: found.type, data: found.data }, { x: e.clientX, y: e.clientY });
           document.body.style.cursor = 'pointer';
+          return;
         }
-        return;
+      }
+
+      // 2. SECOND PRIORITY: Check for District ground hit
+      for (const hit of intersects) {
+        const found = this.renderer.interactiveMapObjects.find(
+          (o) => o.mesh === hit.object || o.mesh.children.includes(hit.object)
+        );
+
+        if (found && found.type === 'district') {
+          const dist = found.data as DistrictData;
+          this.onHoverItem?.(null, { x: e.clientX, y: e.clientY });
+          if (this.hoveredDistrictId !== dist.id) {
+            this.hoveredDistrictId = dist.id;
+            this.renderer.highlightDistrict(dist.id);
+            this.onHoverDistrict?.(dist);
+            document.body.style.cursor = 'pointer';
+          }
+          return;
+        }
       }
     }
 
+    // Nothing hit
+    this.onHoverItem?.(null, { x: e.clientX, y: e.clientY });
     if (this.hoveredDistrictId !== null) {
       this.hoveredDistrictId = null;
       this.renderer.highlightDistrict(null);
@@ -154,22 +176,37 @@ export class WorldMap {
     const intersects = this.raycaster.intersectObjects(hitObjects, true);
 
     if (intersects.length > 0) {
-      const hitObj = intersects[0].object;
-      const found = this.renderer.interactiveMapObjects.find(
-        (o) => o.mesh === hitObj || o.mesh.children.includes(hitObj)
-      );
+      // 1. Priority: Building / Landmark / Property
+      for (const hit of intersects) {
+        const found = this.renderer.interactiveMapObjects.find(
+          (o) => o.mesh === hit.object || o.mesh.children.includes(hit.object)
+        );
 
-      if (found) {
-        this.onSelectItem?.({
-          type: found.type,
-          item: found.data,
-          screenPosition: { x: e.clientX, y: e.clientY },
-        });
+        if (found && (found.type === 'landmark' || found.type === 'property' || found.type === 'business')) {
+          this.onSelectItem?.({
+            type: found.type,
+            item: found.data,
+            screenPosition: { x: e.clientX, y: e.clientY },
+          });
+          return;
+        }
+      }
 
-        // If district clicked, smoothly focus camera towards it
-        if (found.type === 'district') {
+      // 2. District Fallback
+      for (const hit of intersects) {
+        const found = this.renderer.interactiveMapObjects.find(
+          (o) => o.mesh === hit.object || o.mesh.children.includes(hit.object)
+        );
+
+        if (found && found.type === 'district') {
+          this.onSelectItem?.({
+            type: found.type,
+            item: found.data,
+            screenPosition: { x: e.clientX, y: e.clientY },
+          });
           const d = found.data as DistrictData;
           this.focusOnDistrict(d.id);
+          return;
         }
       }
     }

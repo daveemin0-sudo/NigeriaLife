@@ -21,6 +21,7 @@ export class Game {
   public postProcessing: PostProcessingManager;
 
   private clock: THREE.Clock;
+  private savedStreetFog: THREE.Fog | THREE.FogExp2 | null = null;
 
   constructor() {
     // 1. Scene
@@ -151,10 +152,17 @@ export class Game {
       this.cameraManager.setLayerMode(mode);
 
       if (mode === 'street') {
+        if (this.savedStreetFog) {
+          this.scene.fog = this.savedStreetFog;
+        }
         this.world.worldMap.deactivate();
         this.world.setStreetModeVisibility(true);
         if (!this.player.isDriving) this.player.mesh.visible = true;
       } else if (mode === 'map') {
+        if (this.scene.fog) {
+          this.savedStreetFog = this.scene.fog;
+        }
+        this.scene.fog = null; // 100% clear crisp view for world map without blurry haze
         this.world.setStreetModeVisibility(false);
         this.player.mesh.visible = false;
         this.world.worldMap.activate();
