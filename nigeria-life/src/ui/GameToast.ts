@@ -72,7 +72,7 @@ export function showGameToast(
       flex-direction: column;
       align-items: center;
       gap: 8px;
-      z-index: 99999;
+      z-index: var(--z-system-toast, 300);
       pointer-events: none;
     `;
     document.body.appendChild(toastContainer);

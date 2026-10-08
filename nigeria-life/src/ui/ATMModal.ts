@@ -2,11 +2,12 @@ import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
 import { SoundEngine } from '../audio/SoundEngine';
+import { UIStateManager } from './UIStateManager';
 
 export class ATMModal {
   private container: HTMLDivElement;
   private backend: BackendService;
-  private isOpen: boolean = false;
+  public isOpen: boolean = false;
 
   constructor() {
     this.backend = BackendService.getInstance();
@@ -23,11 +24,13 @@ export class ATMModal {
     this.isOpen = true;
     this.container.style.display = 'flex';
     this.render(this.backend.getData());
+    UIStateManager.getInstance().pushModal('atm');
   }
 
   public close(): void {
     this.isOpen = false;
     this.container.style.display = 'none';
+    UIStateManager.getInstance().popModal('atm');
   }
 
   private onDataUpdate(data: PlayerAccount): void {

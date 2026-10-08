@@ -1,3 +1,19 @@
+:root {
+  /* Documented Unified Z-Index Hierarchy */
+  --z-canvas: 0;
+  --z-hud-base: 10;
+  --z-hud-interactive: 20;
+  --z-hud-contextual: 30;
+  --z-hud-navigation: 40;
+  --z-hud-active-interaction: 50;
+  --z-mode-overlay: 60;
+  --z-modal-backdrop: 100;
+  --z-modal-dialog: 110;
+  --z-dialogue-overlay: 120;
+  --z-fade-transition: 200;
+  --z-system-toast: 300;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -21,6 +37,50 @@ canvas {
   display: block;
   width: 100vw;
   height: 100vh;
+  z-index: var(--z-canvas);
+}
+
+/* Centralized Modal Backdrop & Dimming Isolation */
+body.ui-modal-open #hud-overlay {
+  opacity: 0.18;
+  filter: blur(3px);
+  pointer-events: none !important;
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+body.ui-modal-open .bottom-master-nav,
+body.ui-modal-open .street-radar-bar,
+body.ui-modal-open .hud-proximity-prompt,
+body.ui-modal-open #street-chat-box,
+body.ui-modal-open #camera-rotate-widget,
+body.ui-modal-open .interaction-card {
+  pointer-events: none !important;
+}
+
+/* Mode-Aware Declarative Display Rules */
+body[data-ui-mode="world-map"] #hud-overlay,
+body[data-ui-mode="transit"] #hud-overlay {
+  display: none !important;
+}
+
+body[data-ui-mode="driving"] .bottom-master-nav,
+body[data-ui-mode="driving"] .street-radar-bar,
+body[data-ui-mode="driving"] .emote-bar,
+body[data-ui-mode="driving"] #camera-rotate-widget,
+body[data-ui-mode="world-map"] .bottom-master-nav,
+body[data-ui-mode="world-map"] .street-radar-bar,
+body[data-ui-mode="world-map"] .emote-bar,
+body[data-ui-mode="world-map"] #camera-rotate-widget,
+body[data-ui-mode="transit"] .bottom-master-nav,
+body[data-ui-mode="transit"] .street-radar-bar,
+body[data-ui-mode="transit"] .emote-bar,
+body[data-ui-mode="transit"] #camera-rotate-widget,
+body[data-ui-mode="interior"] .street-radar-bar,
+body[data-ui-mode="interior"] .emote-bar,
+body[data-ui-mode="interior"] #map-city-switcher,
+body[data-ui-mode="house"] .street-radar-bar,
+body[data-ui-mode="house"] .emote-bar {
+  display: none !important;
 }
 
 /* Interior Mode Cinematic Fade Transition */
@@ -30,7 +90,7 @@ canvas {
   background-color: #020617;
   opacity: 0;
   pointer-events: none;
-  z-index: 99999;
+  z-index: var(--z-fade-transition);
   transition: opacity 0.28s ease-in-out;
 }
 
@@ -44,7 +104,7 @@ canvas {
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: 100;
+  z-index: var(--z-hud-base);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -312,6 +372,10 @@ canvas {
 
 .emote-bar {
   pointer-events: auto;
+  position: fixed;
+  bottom: 74px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -321,6 +385,7 @@ canvas {
   padding: 8px 16px;
   border-radius: 999px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: var(--z-hud-interactive);
 }
 
 .emote-bar-title {
@@ -379,19 +444,32 @@ canvas {
    ========================================= */
 .interaction-card {
   pointer-events: auto;
-  position: absolute;
-  bottom: 90px;
+  position: fixed;
+  bottom: 84px;
   right: 28px;
   width: 320px;
-  background: rgba(18, 20, 26, 0.92);
+  max-width: calc(100vw - 56px);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: rgba(18, 20, 26, 0.94);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 210, 106, 0.35);
+  border: 1px solid rgba(0, 210, 106, 0.4);
   border-radius: 16px;
   padding: 22px;
   color: #fff;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 210, 106, 0.15);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 20px rgba(0, 210, 106, 0.15);
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: var(--z-hud-contextual);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), top 0.25s ease, bottom 0.25s ease, right 0.25s ease;
+}
+
+/* Responsive Contextual Docking: Shifts cleanly to Center-Right when Phone is open or on mobile */
+.interaction-card.card-dock-center-right {
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 28px;
 }
 
 @keyframes slideUp {
@@ -501,13 +579,15 @@ canvas {
 #atm-modal,
 #economy-modal,
 #travel-modal,
-#interstate-modal {
+#interstate-modal,
+#quest-modal-wrapper,
+#house-catalogue-modal {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 200;
+  z-index: var(--z-modal-dialog);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1274,9 +1354,15 @@ canvas {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
-  z-index: 120;
+  z-index: var(--z-hud-interactive);
   overflow: hidden;
   transition: all 0.25s ease;
+}
+
+#street-chat-box.chat-mobile-adapted {
+  bottom: 160px;
+  left: 20px;
+  width: 290px;
 }
 
 #street-chat-box.minimized .chat-messages,
@@ -1407,7 +1493,7 @@ canvas {
   position: fixed;
   bottom: 24px;
   right: 28px;
-  z-index: 150;
+  z-index: var(--z-modal-dialog);
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
 }
 
@@ -3086,10 +3172,10 @@ canvas {
    ============================================================ */
 .driving-hud-panel {
   position: fixed;
-  bottom: 95px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1200;
+  z-index: var(--z-hud-interactive);
   display: flex;
   align-items: center;
   gap: 18px;
@@ -4012,7 +4098,7 @@ canvas {
 
 /* --- Bottom Master Navigation Bar (Home | Buy | Map | Phone) --- */
 .bottom-master-nav {
-  position: absolute;
+  position: fixed;
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
@@ -4026,7 +4112,7 @@ canvas {
   border-radius: 999px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.9);
-  z-index: 55;
+  z-index: var(--z-hud-navigation);
   pointer-events: auto;
 }
 
@@ -4086,13 +4172,13 @@ canvas {
    NIGERIALIFE WORLD MAP MODE STYLING
    ========================================================================== */
 .world-map-ui-layer {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: 60;
+  z-index: var(--z-mode-overlay);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
@@ -4526,7 +4612,7 @@ canvas {
 .hud-proximity-prompt {
   pointer-events: auto;
   position: fixed;
-  bottom: 110px;
+  bottom: 196px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -4541,10 +4627,14 @@ canvas {
   border-radius: 999px;
   color: #ffffff;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  z-index: 150;
+  z-index: var(--z-hud-active-interaction);
   cursor: pointer;
   animation: promptPulse 2s infinite ease-in-out, promptSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+body[data-ui-mode="interior"] .hud-proximity-prompt {
+  bottom: 80px;
 }
 
 .hud-proximity-prompt:hover {
@@ -4597,8 +4687,9 @@ canvas {
    ========================================= */
 .camera-rotate-widget {
   position: fixed;
-  bottom: 82px;
+  top: 74px;
   right: 24px;
+  bottom: auto;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4610,7 +4701,7 @@ canvas {
   border-radius: 30px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 16px rgba(0, 210, 106, 0.12);
   pointer-events: auto;
-  z-index: 120;
+  z-index: var(--z-hud-interactive);
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
@@ -4666,13 +4757,13 @@ canvas {
    ========================================================================= */
 
 .transit-hud-layer {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: 1000;
+  z-index: var(--z-mode-overlay);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
@@ -4815,8 +4906,8 @@ canvas {
 
 /* 2. Flight Camera Bottom Bar (Screenshots 2, 3, 4, 5) */
 .flight-camera-bar {
-  position: absolute;
-  bottom: 88px;
+  position: fixed;
+  bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -4829,6 +4920,7 @@ canvas {
   border: 1px solid rgba(255, 255, 255, 0.15);
   pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: var(--z-hud-interactive);
 }
 
 .cam-pill-btn {
@@ -5452,7 +5544,7 @@ canvas {
 
 .house-catalogue-btn {
   position: fixed;
-  bottom: 84px;
+  bottom: 76px;
   left: 50%;
   transform: translateX(-50%);
   background: #10b981;
@@ -5467,7 +5559,7 @@ canvas {
   align-items: center;
   gap: 8px;
   box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
-  z-index: 100;
+  z-index: var(--z-hud-interactive);
   transition: transform 0.2s, background 0.2s;
 }
 .house-catalogue-btn:hover {
@@ -5626,7 +5718,7 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: var(--z-dialogue-overlay);
   animation: dialogueOverlayFadeIn 0.2s ease-out;
 }
 
@@ -7679,8 +7771,148 @@ canvas {
   animation: serverDotPulse 1.8s infinite ease-in-out;
 }
 
+/* =========================================================================
+   RESPONSIVE HUD ZONE LAYOUT ARCHITECTURE & SAFE-AREA SPACING
+   ========================================================================= */
 
+/* Laptops & Standard Desktops (1280px - 1440px) */
+@media (max-width: 1440px) {
+  .hud-header {
+    padding: 12px 18px;
+  }
+  .interaction-card {
+    max-width: min(340px, 90vw);
+  }
+  .map-top-bar {
+    left: 14px;
+    right: 14px;
+  }
+}
 
+/* Compact Laptops & Tablets (1024px - 1280px) */
+@media (max-width: 1280px) {
+  .interaction-card {
+    width: clamp(280px, 30vw, 340px);
+  }
+  .bottom-master-nav {
+    bottom: 12px;
+    gap: 3px;
+    padding: 3px 5px;
+  }
+  .master-nav-item {
+    padding: 6px 14px;
+    font-size: 11px;
+  }
+  .emote-bar {
+    bottom: 66px;
+    padding: 6px 12px;
+  }
+  .hud-proximity-prompt {
+    bottom: 178px;
+  }
+}
 
+/* Tablet Screens (768px - 1024px) */
+@media (max-width: 1024px) {
+  .hud-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .hud-top-center {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+  }
+  .camera-rotate-widget {
+    top: 96px;
+    right: 14px;
+    transform: scale(0.9);
+    transform-origin: top right;
+  }
+  .interaction-card {
+    right: 16px;
+    bottom: 84px;
+    width: clamp(260px, 85vw, 320px);
+    max-height: 70vh;
+  }
+  .interaction-card.card-dock-center-right {
+    top: 50%;
+    right: 16px;
+    bottom: auto;
+    transform: translateY(-50%) scale(0.95);
+    transform-origin: right center;
+  }
+  .driving-hud-panel {
+    padding: 8px 16px;
+    gap: 12px;
+  }
+}
 
-
+/* Mobile Screens (Under 768px) */
+@media (max-width: 768px) {
+  .hud-header {
+    padding: 6px 8px;
+  }
+  .player-pill-card, .hud-stat-pill {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .bottom-master-nav {
+    bottom: 10px;
+    padding: 2px 4px;
+    max-width: 95vw;
+  }
+  .master-nav-item {
+    padding: 6px 10px;
+    font-size: 11px;
+    gap: 4px;
+  }
+  .master-nav-item .nav-label {
+    font-size: 10px;
+  }
+  .emote-bar {
+    bottom: 60px;
+    gap: 6px;
+    padding: 4px 8px;
+  }
+  .emote-bar-title {
+    display: none;
+  }
+  .emote-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .hud-proximity-prompt {
+    bottom: 154px;
+    padding: 8px 16px;
+    font-size: 12px;
+    max-width: 90vw;
+  }
+  body[data-ui-mode="interior"] .hud-proximity-prompt {
+    bottom: 70px;
+  }
+  .interaction-card {
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-width: calc(100vw - 20px);
+    bottom: 70px;
+  }
+  .interaction-card.card-dock-center-right {
+    top: auto;
+    bottom: 74px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+  }
+  #smartphone-wrapper {
+    right: 10px;
+    bottom: 10px;
+  }
+  .smartphone-device {
+    width: min(320px, 92vw);
+    height: min(560px, 85vh);
+  }
+}

@@ -9,12 +9,13 @@ import { Player } from '../player/Player';
 import { BackendService } from '../backend/BackendService';
 import type { OriginDestiny } from '../backend/types';
 import { showGameToast } from './GameToast';
+import { UIStateManager } from './UIStateManager';
 
 export class CharacterCreatorModal {
   private container: HTMLDivElement;
   private player: Player;
   private backend: BackendService;
-  private isOpen: boolean = false;
+  public isOpen: boolean = false;
 
   constructor(player: Player) {
     this.player = player;
@@ -34,11 +35,13 @@ export class CharacterCreatorModal {
     this.container.style.display = 'flex';
     this.render();
     this.setupEvents();
+    UIStateManager.getInstance().pushModal('character-creator');
   }
 
   public close(): void {
     this.isOpen = false;
     this.container.style.display = 'none';
+    UIStateManager.getInstance().popModal('character-creator');
   }
 
   public toggle(): void {

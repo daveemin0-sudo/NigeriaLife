@@ -1,11 +1,12 @@
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
+import { UIStateManager } from './UIStateManager';
 
 export class InventoryModal {
   private container: HTMLDivElement;
   private backend: BackendService;
-  private isOpen: boolean = false;
+  public isOpen: boolean = false;
   public onOpenATM?: () => void;
 
   constructor() {
@@ -23,11 +24,13 @@ export class InventoryModal {
     this.isOpen = true;
     this.container.style.display = 'flex';
     this.render(this.backend.getData());
+    UIStateManager.getInstance().pushModal('inventory');
   }
 
   public close(): void {
     this.isOpen = false;
     this.container.style.display = 'none';
+    UIStateManager.getInstance().popModal('inventory');
   }
 
   public toggle(): void {

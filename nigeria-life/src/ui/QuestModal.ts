@@ -1,6 +1,7 @@
 import { QuestManager } from '../quests/QuestManager';
 import type { QuestCity } from '../quests/QuestTypes';
 import { SoundEngine } from '../audio/SoundEngine';
+import { UIStateManager } from './UIStateManager';
 
 export class QuestModal {
   private container: HTMLDivElement;
@@ -26,11 +27,13 @@ export class QuestModal {
     this.isOpen = true;
     this.container.className = 'quest-modal-open';
     this.render();
+    UIStateManager.getInstance().pushModal('quest');
   }
 
   public close(): void {
     this.isOpen = false;
     this.container.className = 'quest-modal-closed';
+    UIStateManager.getInstance().popModal('quest');
   }
 
   public toggle(): void {

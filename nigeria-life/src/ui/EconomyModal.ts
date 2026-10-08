@@ -2,12 +2,13 @@ import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import type { World } from '../world/World';
 import { showGameToast } from './GameToast';
+import { UIStateManager } from './UIStateManager';
 
 export class EconomyModal {
   private container: HTMLDivElement;
   private backend: BackendService;
   private world?: World;
-  private isOpen: boolean = false;
+  public isOpen: boolean = false;
   private activeTab: 'businesses' | 'properties' | 'career' = 'businesses';
   private highlightedBuildingId: string | null = null;
   public onFastTravel?: (pos: { x: number; y: number; z: number }, propName: string) => void;
@@ -23,18 +24,6 @@ export class EconomyModal {
     document.body.appendChild(this.container);
 
     this.backend.subscribe(this.render.bind(this));
-    this.setupGlobalShortcuts();
-  }
-
-  private setupGlobalShortcuts(): void {
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'e' || e.key === 'E') {
-        // Ignore if typing in input
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-        this.toggle();
-      }
-    });
   }
 
   public open(highlightBuildingId?: string): void {
@@ -47,6 +36,7 @@ export class EconomyModal {
     }
     this.container.style.display = 'flex';
     this.render(this.backend.getData());
+    UIStateManager.getInstance().pushModal('economy');
 
     // Scroll to highlighted item if present
     if (this.highlightedBuildingId) {
@@ -65,6 +55,7 @@ export class EconomyModal {
     this.isOpen = false;
     this.highlightedBuildingId = null;
     this.container.style.display = 'none';
+    UIStateManager.getInstance().popModal('economy');
   }
 
   public toggle(highlightBuildingId?: string): void {

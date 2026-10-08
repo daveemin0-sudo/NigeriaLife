@@ -4,6 +4,7 @@ import { BackendService } from '../backend/BackendService';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import type { DestinationDefinition, TransportOption } from '../destinations/DestinationTypes';
 import { showGameToast } from './GameToast';
+import { UIStateManager } from './UIStateManager';
 
 export class WorldMapUI {
   private container: HTMLDivElement;
@@ -540,6 +541,7 @@ export class WorldMapUI {
 
   public open(): void {
     this.container.style.display = 'block';
+    UIStateManager.getInstance().setMode('world-map');
   }
 
   public close(): void {
@@ -547,5 +549,8 @@ export class WorldMapUI {
     this.cardEl.style.display = 'none';
     const tt = document.getElementById('map-hover-tooltip');
     if (tt) tt.style.display = 'none';
+    if (UIStateManager.getInstance().isMode('world-map')) {
+      UIStateManager.getInstance().setMode('street');
+    }
   }
 }

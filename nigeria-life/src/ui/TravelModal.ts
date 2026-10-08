@@ -1,6 +1,7 @@
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
+import { UIStateManager } from './UIStateManager';
 
 export interface TravelDestination {
   id: string;
@@ -89,7 +90,7 @@ export const LAGOS_DESTINATIONS: TravelDestination[] = [
 export class TravelModal {
   private container: HTMLDivElement;
   private backend: BackendService;
-  private isOpen: boolean = false;
+  public isOpen: boolean = false;
   private isTraveling: boolean = false;
   public onTravelArrived?: (destId: string) => void;
 
@@ -121,12 +122,14 @@ export class TravelModal {
     this.isOpen = true;
     this.container.style.display = 'flex';
     this.render(this.backend.getData());
+    UIStateManager.getInstance().pushModal('travel');
   }
 
   public close(): void {
     if (this.isTraveling) return;
     this.isOpen = false;
     this.container.style.display = 'none';
+    UIStateManager.getInstance().popModal('travel');
   }
 
   public toggle(): void {

@@ -3,11 +3,12 @@ import type { PlayerAccount } from '../backend/types';
 import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
 import type { CityId, CityTravelRoute } from '../cities/CityTypes';
 import { showGameToast } from './GameToast';
+import { UIStateManager } from './UIStateManager';
 
 export class InterStateModal {
   private container: HTMLDivElement;
   private backend: BackendService;
-  private isOpen: boolean = false;
+  public isOpen: boolean = false;
   private isTraveling: boolean = false;
 
   public currentOriginCityId: CityId = 'lagos';
@@ -46,12 +47,14 @@ export class InterStateModal {
     this.isOpen = true;
     this.container.style.display = 'flex';
     this.render(this.backend.getData());
+    UIStateManager.getInstance().pushModal('interstate');
   }
 
   public close(): void {
     if (this.isTraveling) return;
     this.isOpen = false;
     this.container.style.display = 'none';
+    UIStateManager.getInstance().popModal('interstate');
   }
 
   public toggle(originCityId?: CityId): void {

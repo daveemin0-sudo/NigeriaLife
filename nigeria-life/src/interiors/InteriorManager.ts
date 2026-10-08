@@ -16,6 +16,7 @@ import type { InteractiveObject, World } from '../world/World';
 import type { Player } from '../player/Player';
 import type { GameCamera } from '../game/Camera';
 import type { HUD } from '../ui/HUD';
+import { UIStateManager } from '../ui/UIStateManager';
 
 export class InteriorManager {
   private static instance: InteriorManager | null = null;
@@ -208,6 +209,7 @@ export class InteriorManager {
     // 3. Update game location state
     this.locationMode = 'interior';
     this.currentInterior = target;
+    UIStateManager.getInstance().setMode('interior');
     console.log(`[Interior] entered: ${target.id}`);
 
     // 4. HIDE the entire outdoor street world
@@ -294,6 +296,7 @@ export class InteriorManager {
     // 6. Update state
     this.currentInterior = null;
     this.locationMode = 'street';
+    UIStateManager.getInstance().setMode('street');
 
     // 7. Restore district name in HUD
     const district = world.getDistrictAtPosition(player.position);

@@ -1,5 +1,6 @@
 import { GameCamera } from '../game/Camera';
 import { showGameToast } from './GameToast';
+import { UIStateManager } from './UIStateManager';
 
 export type PhotoFilterId = 'natural' | 'golden_hour' | 'cyberpunk' | 'vintage' | 'harmattan';
 
@@ -95,6 +96,7 @@ export class PhotoModeModal {
     this.container.className = 'photo-mode-active';
     this.applyCanvasFilter();
     this.render();
+    UIStateManager.getInstance().pushModal('photo-mode');
   }
 
   public close(): void {
@@ -102,6 +104,7 @@ export class PhotoModeModal {
     this.cameraManager.exitPhotoMode();
     this.container.className = 'photo-mode-hidden';
     this.canvasElement.style.filter = 'none';
+    UIStateManager.getInstance().popModal('photo-mode');
   }
 
   public toggle(): void {

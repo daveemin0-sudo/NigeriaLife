@@ -1,5 +1,6 @@
 import type { FlightDetails, FlightCameraView, FlightPhase, RideDetails, RideCameraView } from './TransitTypes';
 import { showGameToast } from '../ui/GameToast';
+import { UIStateManager } from '../ui/UIStateManager';
 
 export class TransitHUD {
   private container: HTMLDivElement;
@@ -162,6 +163,7 @@ export class TransitHUD {
     this.flightCameraNavEl.style.display = 'flex';
     this.rideCardEl.style.display = 'none';
     this.rideCameraNavEl.style.display = 'none';
+    UIStateManager.getInstance().setMode('transit');
 
     const codeEl = document.getElementById('f-hud-code');
     const tailEl = document.getElementById('f-hud-tail');
@@ -198,6 +200,7 @@ export class TransitHUD {
     this.flightCameraNavEl.style.display = 'none';
     if (this.rideCardEl.style.display === 'none') {
       this.container.style.display = 'none';
+      UIStateManager.getInstance().setMode('street');
     }
   }
 
@@ -210,6 +213,7 @@ export class TransitHUD {
     this.rideCameraNavEl.style.display = 'flex';
     this.flightCardEl.style.display = 'none';
     this.flightCameraNavEl.style.display = 'none';
+    UIStateManager.getInstance().setMode('transit');
 
     const titleEl = document.getElementById('r-hud-title');
     const trafficEl = document.getElementById('r-hud-badge-traffic');
@@ -236,6 +240,7 @@ export class TransitHUD {
     this.rideCameraNavEl.style.display = 'none';
     if (this.flightCardEl.style.display === 'none') {
       this.container.style.display = 'none';
+      UIStateManager.getInstance().setMode('street');
     }
   }
 

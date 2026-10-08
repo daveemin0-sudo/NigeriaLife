@@ -14,6 +14,7 @@ import type { FlightDetails, RideDetails } from '../transit/TransitTypes';
 import { PhotoModeModal } from '../ui/PhotoModeModal';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
+import { UIStateManager } from '../ui/UIStateManager';
 
 export class Game {
   public scene: THREE.Scene;
@@ -348,6 +349,7 @@ export class Game {
     this.player.isDriving = true;
     this.player.currentVehicle = vehicle;
     this.hud.showDrivingHUD(vehicle.name);
+    UIStateManager.getInstance().setMode('driving');
   }
 
   private exitVehicle(): void {
@@ -358,6 +360,7 @@ export class Game {
       this.player.isDriving = false;
       this.player.currentVehicle = null;
       this.hud.hideDrivingHUD();
+      UIStateManager.getInstance().setMode('street');
     }
   }
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
+import { UIStateManager } from '../ui/UIStateManager';
 
 export interface CatalogueItem {
   id: string;
@@ -197,6 +198,7 @@ export class HouseDecorationSystem {
     `;
 
     this.modalContainer.style.display = 'flex';
+    UIStateManager.getInstance().pushModal('house-catalogue');
 
     // Setup event listeners
     const closeBtn = document.getElementById('btn-close-catalogue');
@@ -218,7 +220,12 @@ export class HouseDecorationSystem {
   public closeCatalogueModal(): void {
     if (this.modalContainer) {
       this.modalContainer.style.display = 'none';
+      UIStateManager.getInstance().popModal('house-catalogue');
     }
+  }
+
+  public isCatalogueOpen(): boolean {
+    return Boolean(this.modalContainer && this.modalContainer.style.display === 'flex');
   }
 
   public purchaseAndPlace(itemId: string): void {

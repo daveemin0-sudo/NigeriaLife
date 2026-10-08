@@ -7,6 +7,7 @@ import { SoundEngine } from '../audio/SoundEngine';
 import { DEFAULT_JOBS } from '../backend/types';
 import { CloudSyncService } from '../backend/CloudSyncService';
 import { NetworkManager } from '../multiplayer/NetworkManager';
+import { UIStateManager } from './UIStateManager';
 
 export class PhoneModal {
   private container: HTMLDivElement;
@@ -47,12 +48,14 @@ export class PhoneModal {
       this.startShiftTicker();
     }
     this.render();
+    UIStateManager.getInstance().pushModal('phone');
   }
 
   public close(): void {
     this.isOpen = false;
     this.container.className = 'phone-closed';
     this.stopShiftTicker();
+    UIStateManager.getInstance().popModal('phone');
   }
 
   public toggle(): void {

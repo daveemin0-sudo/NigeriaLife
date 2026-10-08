@@ -21,6 +21,7 @@ import type { StoryQuest } from '../quests/QuestTypes';
 import { CloudSyncService } from '../backend/CloudSyncService';
 import { NetworkManager } from '../multiplayer/NetworkManager';
 import { showGameToast } from './GameToast';
+import { UIStateManager } from './UIStateManager';
 
 export class HUD {
   private container: HTMLDivElement;
@@ -447,6 +448,53 @@ export class HUD {
     if (world) this.economyModal.setWorld(world);
     this.creatorModal = new CharacterCreatorModal(player);
 
+    const uiState = UIStateManager.getInstance();
+    uiState.registerModal('character-creator', {
+      id: 'character-creator',
+      close: () => this.creatorModal.close(),
+      isOpen: () => this.creatorModal.isOpen,
+    });
+    uiState.registerModal('inventory', {
+      id: 'inventory',
+      close: () => this.inventoryModal.close(),
+      isOpen: () => this.inventoryModal.isOpen,
+    });
+    uiState.registerModal('atm', {
+      id: 'atm',
+      close: () => this.atmModal.close(),
+      isOpen: () => this.atmModal.isOpen,
+    });
+    uiState.registerModal('economy', {
+      id: 'economy',
+      close: () => this.economyModal.close(),
+      isOpen: () => this.economyModal.isOpen,
+    });
+    uiState.registerModal('travel', {
+      id: 'travel',
+      close: () => this.travelModal.close(),
+      isOpen: () => this.travelModal.isOpen,
+    });
+    uiState.registerModal('interstate', {
+      id: 'interstate',
+      close: () => this.interstateModal.close(),
+      isOpen: () => this.interstateModal.isOpen,
+    });
+    uiState.registerModal('phone', {
+      id: 'phone',
+      close: () => this.phoneModal.close(),
+      isOpen: () => this.phoneModal.isOpen,
+    });
+    uiState.registerModal('quest', {
+      id: 'quest',
+      close: () => this.questModal.close(),
+      isOpen: () => this.questModal.isOpen,
+    });
+    uiState.registerModal('house-catalogue', {
+      id: 'house-catalogue',
+      close: () => HouseDecorationSystem.getInstance().closeCatalogueModal(),
+      isOpen: () => HouseDecorationSystem.getInstance().isCatalogueOpen(),
+    });
+
     document.getElementById('open-wardrobe-btn')?.addEventListener('click', () => {
       this.creatorModal.toggle();
     });
@@ -581,12 +629,7 @@ export class HUD {
       this.currentNavMode = 'home';
       updateNavActive('nav-btn-home');
       this.worldMapUI.close();
-      const switcher = document.getElementById('map-city-switcher');
-      if (switcher) switcher.style.display = 'none';
-      const radar = document.getElementById('street-radar-bar');
-      if (radar) radar.style.display = 'none';
-      const decorBar = document.getElementById('house-decor-bar');
-      if (decorBar) decorBar.style.display = 'flex';
+      UIStateManager.getInstance().setMode('house');
       this.onNavigateMode?.('home');
     });
 
@@ -597,12 +640,6 @@ export class HUD {
     navMapBtn?.addEventListener('click', () => {
       this.currentNavMode = 'map';
       updateNavActive('nav-btn-map');
-      const switcher = document.getElementById('map-city-switcher');
-      if (switcher) switcher.style.display = 'none';
-      const radar = document.getElementById('street-radar-bar');
-      if (radar) radar.style.display = 'none';
-      const decorBar = document.getElementById('house-decor-bar');
-      if (decorBar) decorBar.style.display = 'none';
       this.worldMapUI.open();
       this.onNavigateMode?.('map');
     });
@@ -615,12 +652,7 @@ export class HUD {
       this.currentNavMode = 'street';
       updateNavActive('');
       this.worldMapUI.close();
-      const switcher = document.getElementById('map-city-switcher');
-      if (switcher) switcher.style.display = 'none';
-      const radar = document.getElementById('street-radar-bar');
-      if (radar) radar.style.display = 'flex';
-      const decorBar = document.getElementById('house-decor-bar');
-      if (decorBar) decorBar.style.display = 'none';
+      UIStateManager.getInstance().setMode('street');
       this.onNavigateMode?.('street');
     });
 
@@ -642,10 +674,7 @@ export class HUD {
     this.worldMapUI.onCloseMap = () => {
       this.currentNavMode = 'street';
       updateNavActive('');
-      const decorBar = document.getElementById('house-decor-bar');
-      if (decorBar) decorBar.style.display = 'none';
-      const radar = document.getElementById('street-radar-bar');
-      if (radar) radar.style.display = 'flex';
+      UIStateManager.getInstance().setMode('street');
       this.onNavigateMode?.('street');
     };
 
@@ -653,8 +682,7 @@ export class HUD {
       this.currentNavMode = 'street';
       updateNavActive('');
       this.worldMapUI.close();
-      const radar = document.getElementById('street-radar-bar');
-      if (radar) radar.style.display = 'flex';
+      UIStateManager.getInstance().setMode('street');
       this.player.mesh.position.copy(district.streetSpawnPoint);
       this.onNavigateMode?.('street');
     };
@@ -681,8 +709,7 @@ export class HUD {
       this.currentNavMode = 'street';
       updateNavActive('');
       this.worldMapUI.close();
-      const radar = document.getElementById('street-radar-bar');
-      if (radar) radar.style.display = 'flex';
+      UIStateManager.getInstance().setMode('street');
       this.onNavigateMode?.('street');
 
       // 3. Teleport player character right outside the destination entrance
@@ -718,8 +745,7 @@ export class HUD {
       this.currentNavMode = 'street';
       updateNavActive('');
       this.worldMapUI.close();
-      const radar = document.getElementById('street-radar-bar');
-      if (radar) radar.style.display = 'flex';
+      UIStateManager.getInstance().setMode('street');
       this.player.mesh.position.set(prop.streetPosition.x, prop.streetPosition.y, prop.streetPosition.z);
       this.world?.highlightStreetProperty(prop.streetPosition, prop.name);
       this.onNavigateMode?.('street');
@@ -1335,6 +1361,7 @@ export class HUD {
     }
 
     this.interactionCard.style.display = 'block';
+    UIStateManager.getInstance().setCardOpen(true);
   }
 
   public showDrivingHUD(vehicleName: string): void {
@@ -1468,10 +1495,17 @@ export class HUD {
     `;
 
     document.body.appendChild(overlay);
+    UIStateManager.getInstance().registerModal('dialogue', {
+      id: 'dialogue',
+      close: () => close(),
+      isOpen: () => Boolean(document.getElementById('game-dialogue-overlay')),
+    });
+    UIStateManager.getInstance().pushModal('dialogue');
 
     const close = () => {
       window.removeEventListener('keydown', handleKey);
       overlay.remove();
+      UIStateManager.getInstance().popModal('dialogue');
       options.onConfirm?.();
     };
 
@@ -1583,6 +1617,7 @@ export class HUD {
   public hideInteractionCard(): void {
     this.interactionCard.style.display = 'none';
     this.currentActiveObject = null;
+    UIStateManager.getInstance().setCardOpen(false);
   }
 
   private handleCardAction(): void {
