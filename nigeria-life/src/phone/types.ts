@@ -1,17 +1,49 @@
-export type PhoneAppId = 'home' | 'bank' | 'messages' | 'map' | 'jobs' | 'dating' | 'music' | 'invest';
+export type PhoneAppId =
+  | 'home'
+  | 'jobs'
+  | 'messages'
+  | 'meetumo'
+  | 'eleventhoo'
+  | 'popout'
+  | 'games'
+  | 'nollywood'
+  | 'bettips'
+  | 'versiah'
+  | 'contacts'
+  | 'help'
+  | 'ride'
+  | 'chowdeck'
+  | 'bank'
+  | 'boutique'
+  | 'forbes'
+  | 'houses'
+  | 'cars'
+  | 'invite'
+  | 'health'
+  | 'dating'
+  | 'music'
+  | 'invest'
+  | 'map';
+
+export interface ChatMessage {
+  id?: string;
+  sender: 'them' | 'me' | 'system';
+  text?: string;
+  time: string;
+  sticker?: 'lion' | 'fire' | 'heart' | 'money';
+  stickerCaption?: string;
+  transferAmount?: number;
+}
 
 export interface PhoneContact {
   id: string;
+  handle: string;
   name: string;
   avatar: string;
   status: string;
   lastMessage: string;
   unread: boolean;
-  messages: {
-    sender: 'them' | 'me';
-    text: string;
-    time: string;
-  }[];
+  messages: ChatMessage[];
 }
 
 export interface JobListing {

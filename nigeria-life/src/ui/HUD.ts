@@ -13,6 +13,7 @@ import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import type { MapBusiness } from '../world/data/WorldDataTypes';
+import { HouseDecorationSystem } from '../housing/HouseDecorationSystem';
 
 export class HUD {
   private container: HTMLDivElement;
@@ -150,6 +151,15 @@ export class HUD {
           <button class="map-filter-btn active" id="btn-walk-street">🚶 Walk Street</button>
           <button class="map-filter-btn" id="btn-open-interstate">✈️ Book Flights [M]</button>
         </div>
+      </div>
+
+      <!-- House Mode Toolbar (Buy mode on top-left, 88 Catalogue on bottom-center) (Screenshot 5) -->
+      <div class="house-decor-bar" id="house-decor-bar" style="display: none;">
+        <button class="house-buy-mode-btn" id="btn-house-buy-mode">Buy mode</button>
+        <button class="house-catalogue-btn" id="btn-house-catalogue">
+          <span style="font-size: 15px;">㗊</span>
+          <span>Catalogue</span>
+        </button>
       </div>
 
       <!-- Bottom Master Navigation Bar (Home | Buy | Map | Phone) -->
@@ -406,6 +416,8 @@ export class HUD {
       if (switcher) switcher.style.display = 'none';
       const radar = document.getElementById('street-radar-bar');
       if (radar) radar.style.display = 'none';
+      const decorBar = document.getElementById('house-decor-bar');
+      if (decorBar) decorBar.style.display = 'flex';
       this.onNavigateMode?.('home');
     });
 
@@ -420,6 +432,8 @@ export class HUD {
       if (switcher) switcher.style.display = 'none';
       const radar = document.getElementById('street-radar-bar');
       if (radar) radar.style.display = 'none';
+      const decorBar = document.getElementById('house-decor-bar');
+      if (decorBar) decorBar.style.display = 'none';
       this.worldMapUI.open();
       this.onNavigateMode?.('map');
     });
@@ -436,13 +450,31 @@ export class HUD {
       if (switcher) switcher.style.display = 'none';
       const radar = document.getElementById('street-radar-bar');
       if (radar) radar.style.display = 'flex';
+      const decorBar = document.getElementById('house-decor-bar');
+      if (decorBar) decorBar.style.display = 'none';
       this.onNavigateMode?.('street');
+    });
+
+    // Wire House Decor Bar buttons
+    document.getElementById('btn-house-catalogue')?.addEventListener('click', () => {
+      HouseDecorationSystem.getInstance().openCatalogueModal();
+    });
+
+    document.getElementById('btn-house-buy-mode')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLElement;
+      const decor = HouseDecorationSystem.getInstance();
+      decor.isBuyMode = !decor.isBuyMode;
+      btn.classList.toggle('active', decor.isBuyMode);
+      btn.textContent = decor.isBuyMode ? 'Exit Buy mode' : 'Buy mode';
+      this.showNotification(decor.isBuyMode ? '🛋️ Buy Mode Active: Open Catalogue to place items' : 'Live Resident Mode');
     });
 
     // Wire WorldMapUI event handlers
     this.worldMapUI.onCloseMap = () => {
       this.currentNavMode = 'street';
       updateNavActive('');
+      const decorBar = document.getElementById('house-decor-bar');
+      if (decorBar) decorBar.style.display = 'none';
       const radar = document.getElementById('street-radar-bar');
       if (radar) radar.style.display = 'flex';
       this.onNavigateMode?.('street');

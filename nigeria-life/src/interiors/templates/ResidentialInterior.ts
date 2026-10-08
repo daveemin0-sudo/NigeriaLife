@@ -3,6 +3,7 @@ import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
+import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
 
 export class ResidentialInterior {
   public group: THREE.Group;
@@ -29,22 +30,22 @@ export class ResidentialInterior {
       tier: 'tier3_simulated',
       districtName: 'Victoria Island Residential Compound',
       streetBuildingId: 'villa-compound',
-      streetEntrance: new THREE.Vector3(-14, 0, -45), // Outside residential compound gate
+      streetEntrance: new THREE.Vector3(-14, 0, -45),
       streetExitRotation: Math.PI / 2,
       interiorOrigin: origin,
-      playerSpawnOffset: new THREE.Vector3(0, 0, 9),
+      playerSpawnOffset: new THREE.Vector3(0, 0, 8),
       exitDoorOffset: new THREE.Vector3(0, 0, 11),
-      cameraOffset: new THREE.Vector3(0, 14, 18),
+      cameraOffset: new THREE.Vector3(0, 16, 20),
       ambientLightColor: 0xffedd5,
-      ambientLightIntensity: 1.2,
+      ambientLightIntensity: 1.3,
       rooms: [
         {
           id: 'residence_main',
           name: 'Executive Duplex Apartment',
-          size: { width: 26, length: 22, height: 4.2 },
+          size: { width: 30, length: 24, height: 4.2 },
           centerOffset: new THREE.Vector3(0, 0, 0),
-          floorColor: 0xf1f5f9,
-          wallColor: 0x334155,
+          floorColor: 0xf8fafc,
+          wallColor: 0xd97706, // Warm Ochre / Mustard Yellow (Screenshot 5)
         },
       ],
       stations: [
@@ -101,7 +102,7 @@ export class ResidentialInterior {
         },
         {
           id: 'flat-workstation',
-          name: 'Home Office Tech Workstation',
+          name: 'Remote Tech Workstation',
           category: 'Remote Work',
           description: 'Ergonomic dual-monitor setup with high-speed fiber internet for remote freelancing gigs.',
           relativePosition: new THREE.Vector3(-6.5, 0, -5.5),
@@ -117,35 +118,76 @@ export class ResidentialInterior {
           ],
         },
       ],
-      npcs: [
-        {
-          id: 'npc_aunty_funke',
-          name: 'Aunty Funke',
-          role: 'Resident',
-          title: 'Family / Host',
-          relativePosition: new THREE.Vector3(-2, 0, 4),
-          rotationY: Math.PI / 2,
-          outfitColor: 0xd97706, // Traditional golden Ankara
-          dialogueGreeting: 'Welcome back home my dear! Have you eaten? The jollof is inside the warmer, and the fan is on for you!',
-          actions: [],
-        },
-      ],
+      npcs: [],
     };
 
     this.build3DInterior();
   }
 
   private build3DInterior(): void {
-    // 1. Room structure
-    const room = InteriorPrefabs.createRoom(26, 22, 4.2, 0xf1f5f9, 0x334155);
-    this.group.add(room);
+    // 1. Ceramic Tiled Floor with Grid Grout Lines
+    const floorGeo = new THREE.BoxGeometry(32, 0.4, 26);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0xf1f5f9,
+      roughness: 0.25,
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.position.set(0, -0.2, 0);
+    floor.receiveShadow = true;
+    this.group.add(floor);
 
-    // 2. Ceiling Lights
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-6, 4.0, 3), 0xffedd5));
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(7, 4.0, -5), 0xffedd5));
+    // Warm Ochre / Mustard Yellow Walls (Screenshot 5)
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706, // Authentic Nigerian ochre wall paint
+      roughness: 0.7,
+    });
+    const wallH = 4.2;
+    const wallT = 0.4;
+
+    // Outer boundary walls (cutaway height so camera sees inside clearly)
+    // Back Wall
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(32, wallH, wallT), wallMat);
+    backWall.position.set(0, wallH / 2, -13);
+    this.group.add(backWall);
+
+    // Windows with Burglar-Proof Metal Bars along back wall (Screenshot 5)
+    for (const wx of [-10, 0, 10]) {
+      this.createBurglarProofWindow(wx, 2.4, -12.8);
+    }
+
+    // Left Wall
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 26), wallMat);
+    leftWall.position.set(-16, wallH / 2, 0);
+    this.group.add(leftWall);
+
+    // Right Wall
+    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 26), wallMat);
+    rightWall.position.set(16, wallH / 2, 0);
+    this.group.add(rightWall);
+
+    // Dividing Walls between Rooms (Living, Bedrooms, Bathroom)
+    // Horizontal divider separating Bedrooms from Living Room
+    const divH = new THREE.Mesh(new THREE.BoxGeometry(22, wallH, wallT), wallMat);
+    divH.position.set(-5, wallH / 2, -1);
+    this.group.add(divH);
+
+    // Vertical divider separating Master Bedroom from Center Bedroom
+    const divV1 = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 12), wallMat);
+    divV1.position.set(2, wallH / 2, -7);
+    this.group.add(divV1);
+
+    // Vertical divider separating Bathroom
+    const divV2 = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 13), wallMat);
+    divV2.position.set(6, wallH / 2, 5.5);
+    this.group.add(divV2);
+
+    // 2. Ceiling & Ambient Lights
+    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-6, 4.0, 4), 0xffedd5));
+    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(8, 4.0, -6), 0xffedd5));
+    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-5, 4.0, -6), 0xffedd5));
 
     // 3. Exit Door
-    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 11), Math.PI);
+    const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 12), Math.PI);
     this.group.add(exitDoor);
 
     this.interactiveList.push({
@@ -157,153 +199,300 @@ export class ResidentialInterior {
       interactionPoint: new THREE.Vector3(this.group.position.x, 0, this.group.position.z + 10),
     });
 
-    // 4. Living Room
-    // Emerald Green Velvet Sofa
-    const sofaGeo = new THREE.BoxGeometry(4.8, 1.2, 1.8);
-    const sofaMat = new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.7 });
-    const sofa = new THREE.Mesh(sofaGeo, sofaMat);
+    // 4. Living Room:
+    // A. Circular Orange & Gold Heritage Rug (Screenshot 5)
+    const rugOuter = new THREE.Mesh(
+      new THREE.RingGeometry(1.6, 2.7, 32),
+      new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.9, side: THREE.DoubleSide })
+    );
+    rugOuter.rotation.x = -Math.PI / 2;
+    rugOuter.position.set(-6, 0.02, 5);
+    this.group.add(rugOuter);
+
+    const rugInner = new THREE.Mesh(
+      new THREE.CircleGeometry(1.6, 32),
+      new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.9 })
+    );
+    rugInner.rotation.x = -Math.PI / 2;
+    rugInner.position.set(-6, 0.022, 5);
+    this.group.add(rugInner);
+
+    // B. Emerald Green 3-Seater Sofa
+    const sofa = new THREE.Mesh(
+      new THREE.BoxGeometry(4.8, 1.2, 1.8),
+      new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.7 })
+    );
     sofa.position.set(-2, 0.6, 6);
     this.group.add(sofa);
 
-    // 75-inch TV Unit
+    // C. Black Leather 2-Seater Sofa (Screenshot 5)
+    const sofaBlack = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 1.2, 3.4),
+      new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.6 })
+    );
+    sofaBlack.position.set(-7.5, 0.6, 2.5);
+    this.group.add(sofaBlack);
+
+    // D. Wooden Coffee Table in Living Room
+    const coffeeTable = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 0.6, 1.4),
+      new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.5 })
+    );
+    coffeeTable.position.set(-6, 0.3, 5);
+    this.group.add(coffeeTable);
+
+    // E. 75-inch Flat Screen TV & Entertainment Wall Console
     const tvUnit = new THREE.Mesh(
       new THREE.BoxGeometry(0.2, 3.2, 6.5),
       new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 })
     );
-    tvUnit.position.set(-12.8, 2.4, 3);
+    tvUnit.position.set(-15.8, 2.4, 4);
     this.group.add(tvUnit);
 
     const screenGeo = new THREE.PlaneGeometry(6.2, 2.8);
     const screenMat = new THREE.MeshBasicMaterial({ color: 0x15803d });
     this.tvScreen = new THREE.Mesh(screenGeo, screenMat);
     this.tvScreen.rotation.y = Math.PI / 2;
-    this.tvScreen.position.set(-12.65, 2.4, 3);
+    this.tvScreen.position.set(-15.65, 2.4, 4);
     this.group.add(this.tvScreen);
 
-    // Oscillating standing fan
-    const fan = this.createStandingFan(-1, 0, 2);
-    this.group.add(fan);
+    // F. Round Wooden Dining Table with 4 Chairs (Screenshot 5)
+    const diningTable = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.5, 1.5, 0.12, 24),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 })
+    );
+    diningTable.position.set(-8, 1.1, 10);
+    this.group.add(diningTable);
 
-    // 5. Master Bedroom
-    const bedFrame = new THREE.Mesh(
-      new THREE.BoxGeometry(4.5, 0.8, 5.2),
+    const tableLeg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, 1.1, 8),
+      new THREE.MeshStandardMaterial({ color: 0xd97706 })
+    );
+    tableLeg.position.set(-8, 0.55, 10);
+    this.group.add(tableLeg);
+
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 2) {
+      const chair = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.7, 0.5),
+        new THREE.MeshStandardMaterial({ color: 0x9a3412 })
+      );
+      chair.position.set(-8 + Math.cos(a) * 1.8, 0.35, 10 + Math.sin(a) * 1.8);
+      this.group.add(chair);
+    }
+
+    // G. Potted Indoor Majesty Palm Plant (Screenshot 5)
+    const pot = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.35, 0.25, 0.7, 14),
+      new THREE.MeshStandardMaterial({ color: 0xfef08a })
+    );
+    pot.position.set(-0.5, 0.35, 0.5);
+    this.group.add(pot);
+
+    // 5. Bedrooms:
+    // A. Master Bedroom (Right) - Purple Duvet King Bed (Screenshot 5)
+    const masterBed = new THREE.Mesh(
+      new THREE.BoxGeometry(4.8, 0.8, 5.2),
       new THREE.MeshStandardMaterial({ color: 0x1e293b })
     );
-    bedFrame.position.set(7.5, 0.4, -5.5);
-    this.group.add(bedFrame);
+    masterBed.position.set(10.5, 0.4, -6.5);
+    this.group.add(masterBed);
 
-    const mattress = new THREE.Mesh(
-      new THREE.BoxGeometry(4.2, 0.5, 4.8),
-      new THREE.MeshStandardMaterial({ color: 0x7c3aed, roughness: 0.7 }) // Royal purple duvet
+    const masterMattress = new THREE.Mesh(
+      new THREE.BoxGeometry(4.4, 0.5, 4.8),
+      new THREE.MeshStandardMaterial({ color: 0x7c3aed, roughness: 0.7 }) // Royal Purple
     );
-    mattress.position.set(7.5, 0.9, -5.5);
-    this.group.add(mattress);
+    masterMattress.position.set(10.5, 0.9, -6.5);
+    this.group.add(masterMattress);
 
-    // 6. Iconic Blue Water Drum & Red Bucket
+    // B. Center Bedroom - Purple Bed (Screenshot 5)
+    const centerBed = new THREE.Mesh(
+      new THREE.BoxGeometry(4.2, 0.8, 4.6),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b })
+    );
+    centerBed.position.set(-3, 0.4, -7);
+    this.group.add(centerBed);
+
+    const centerMattress = new THREE.Mesh(
+      new THREE.BoxGeometry(3.8, 0.5, 4.2),
+      new THREE.MeshStandardMaterial({ color: 0x7c3aed, roughness: 0.7 })
+    );
+    centerMattress.position.set(-3, 0.9, -7);
+    this.group.add(centerMattress);
+
+    // C. Guest Bedroom (Left) - Blue Bed (Screenshot 5)
+    const guestBed = new THREE.Mesh(
+      new THREE.BoxGeometry(3.6, 0.8, 4.4),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b })
+    );
+    guestBed.position.set(-12, 0.4, -7);
+    this.group.add(guestBed);
+
+    const guestMattress = new THREE.Mesh(
+      new THREE.BoxGeometry(3.3, 0.5, 4.0),
+      new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.7 }) // Vibrant Blue
+    );
+    guestMattress.position.set(-12, 0.9, -7);
+    this.group.add(guestMattress);
+
+    // 6. Bathroom (Tiled with Bathtub, Glass Shower, WC, Blue Drum & Red Bucket!):
+    // White Ceramic Bathtub
+    const tub = new THREE.Mesh(
+      new THREE.BoxGeometry(3.4, 0.8, 1.6),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
+    );
+    tub.position.set(9.5, 0.4, 3);
+    this.group.add(tub);
+
+    // Glass Shower Booth
+    const showerGlass = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 3.2, 2.2),
+      new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.4, roughness: 0.1 })
+    );
+    showerGlass.position.set(13.5, 1.6, 4.5);
+    this.group.add(showerGlass);
+
+    // Toilet WC
+    const wc = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.9, 1.1),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
+    );
+    wc.position.set(14, 0.45, 1.5);
+    this.group.add(wc);
+
+    // Iconic Nigerian Blue Water Storage Drum & Red Fetch Bucket (Screenshot 5)
     const drum = new THREE.Mesh(
       new THREE.CylinderGeometry(0.8, 0.8, 1.8, 16),
       new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.5 })
     );
-    drum.position.set(8.5, 0.9, 5.5);
+    drum.position.set(8.5, 0.9, 0.5);
     this.group.add(drum);
 
     const bucket = new THREE.Mesh(
       new THREE.CylinderGeometry(0.45, 0.35, 0.8, 16),
       new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 })
     );
-    bucket.position.set(9.7, 0.4, 5.7);
+    bucket.position.set(9.8, 0.4, 0.6);
     this.group.add(bucket);
 
-    // 7. Home Workstation Desk
-    const desk = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 1.1, 1.4),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b })
-    );
-    desk.position.set(-6.5, 0.55, -5.5);
-    this.group.add(desk);
+    // 7. Outdoor Covered Carport with Wooden Pergola & Parked Cars (Screenshot 5):
+    this.createOutdoorCarport(17.5, 0, 7.5);
 
-    // Laptop
-    const laptop = new THREE.Mesh(
-      new THREE.BoxGeometry(0.7, 0.08, 0.5),
-      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8 })
-    );
-    laptop.position.set(-6.5, 1.15, -5.5);
-    this.group.add(laptop);
+    // 8. Attach House Decoration System Placed Items Group
+    const decorationSystem = HouseDecorationSystem.getInstance();
+    this.group.add(decorationSystem.placedItemsGroup);
 
-    // 8. Build NPCs
-    for (const npcDef of this.def.npcs) {
-      const npcMesh = new InteriorNPCMesh(npcDef);
-      this.npcs.push(npcMesh);
-      this.group.add(npcMesh.group);
+    // Register stations into interactive list
+    this.interactiveList.push({
+      mesh: tvUnit,
+      id: 'flat-tv',
+      name: '75-Inch Smart TV & Soundbar',
+      category: 'Home Entertainment',
+      description: 'Live Super Eagles AFCON stream in 4K with pulsating soundbar.',
+      interactionPoint: new THREE.Vector3(this.group.position.x - 14, 0, this.group.position.y + 4),
+    });
 
-      this.interactiveList.push({
-        mesh: npcMesh.group,
-        id: `interior_npc_${npcDef.id}`,
-        name: `${npcDef.name} (${npcDef.title})`,
-        category: 'House Resident',
-        description: npcDef.dialogueGreeting,
-        interactionPoint: new THREE.Vector3(
-          this.group.position.x + npcDef.relativePosition.x,
-          0,
-          this.group.position.z + npcDef.relativePosition.z + 1.2
-        ),
-      });
-    }
+    this.interactiveList.push({
+      mesh: masterBed,
+      id: 'flat-bed',
+      name: 'King-Size Royal Master Bed',
+      category: 'Rest & Recovery',
+      description: 'Recharge 100% full energy under cool AC breeze.',
+      interactionPoint: new THREE.Vector3(this.group.position.x + 9, 0, this.group.position.z - 6),
+    });
 
-    // 9. Register Station Interactive Objects with their actual furniture meshes
-    for (const station of this.def.stations) {
-      let stationMesh: THREE.Object3D = tvUnit;
-      if (station.id === 'flat-tv') stationMesh = tvUnit;
-      else if (station.id === 'flat-bed') stationMesh = bedFrame;
-      else if (station.id === 'flat-drum') stationMesh = drum;
-      else if (station.id === 'flat-workstation') stationMesh = desk;
-      else if (station.id === 'flat-sofa') stationMesh = sofa;
-
-      this.interactiveList.push({
-        mesh: stationMesh,
-        id: station.id,
-        name: station.name,
-        category: station.category,
-        description: station.description,
-        interactionPoint: new THREE.Vector3(
-          this.group.position.x + station.relativePosition.x,
-          0,
-          this.group.position.z + station.relativePosition.z
-        ),
-      });
-    }
+    this.interactiveList.push({
+      mesh: drum,
+      id: 'flat-drum',
+      name: 'Nigerian Blue Plastic Water Drum & Red Bucket',
+      category: 'Home Essentials',
+      description: 'Borehole chilled water ready with the red bucket.',
+      interactionPoint: new THREE.Vector3(this.group.position.x + 8.5, 0, this.group.position.z + 1.5),
+    });
   }
 
-  private createStandingFan(x: number, y: number, z: number): THREE.Group {
-    const fanGroup = new THREE.Group();
-    fanGroup.position.set(x, y, z);
+  /**
+   * Builds burglar-proof metal window grills (Screenshot 5)
+   */
+  private createBurglarProofWindow(x: number, y: number, z: number): void {
+    const winGroup = new THREE.Group();
+    winGroup.position.set(x, y, z);
 
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.08, 16), new THREE.MeshStandardMaterial({ color: 0x18181b }));
-    fanGroup.add(base);
+    // White Window Frame
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(2.8, 2.2, 0.2),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
+    );
+    winGroup.add(frame);
 
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x71717a, metalness: 0.8 }));
-    pole.position.y = 1.1;
-    fanGroup.add(pole);
+    // Vertical Iron Burglar Proof Security Bars
+    for (let bx = -1.1; bx <= 1.1; bx += 0.32) {
+      const bar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 2.1, 8),
+        new THREE.MeshStandardMaterial({ color: 0x18181b, metalness: 0.8, roughness: 0.3 })
+      );
+      bar.position.set(bx, 0, 0.12);
+      winGroup.add(bar);
+    }
 
-    const headGroup = new THREE.Group();
-    headGroup.position.set(0, 2.2, 0);
-
-    const blades = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.02), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-    headGroup.add(blades);
-
-    this.fanBlades.push(blades);
-    this.fanHeads.push(headGroup);
-    fanGroup.add(headGroup);
-
-    return fanGroup;
+    this.group.add(winGroup);
   }
 
-  public update(delta: number, time: number): void {
+  /**
+   * Outdoor Carport with wooden pergola beams and parked cars (Screenshot 5)
+   */
+  private createOutdoorCarport(x: number, y: number, z: number): void {
+    const carportGroup = new THREE.Group();
+    carportGroup.position.set(x, y, z);
+
+    // Concrete driveway slab
+    const slab = new THREE.Mesh(
+      new THREE.BoxGeometry(6.5, 0.2, 8.5),
+      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.7 })
+    );
+    slab.position.y = -0.1;
+    carportGroup.add(slab);
+
+    // Wooden Pergola Frame (Yellow/Ochre timber posts)
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.6 });
+
+    // 4 Corner Posts
+    for (const px of [-3.0, 3.0]) {
+      for (const pz of [-4.0, 4.0]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.6, 0.25), woodMat);
+        post.position.set(px, 1.8, pz);
+        carportGroup.add(post);
+      }
+    }
+
+    // Top horizontal crossbeams
+    for (let rz = -3.8; rz <= 3.8; rz += 1.8) {
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.2, 0.25), woodMat);
+      beam.position.set(0, 3.6, rz);
+      carportGroup.add(beam);
+    }
+
+    // Parked Cars under carport
+    // Car 1: Silver Sedan
+    const car1 = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 1.1, 4.2),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.6 })
+    );
+    car1.position.set(-1.4, 0.55, 0);
+    carportGroup.add(car1);
+
+    // Car 2: Black Mercedes G-Wagon SUV (Screenshot 5)
+    const car2 = new THREE.Mesh(
+      new THREE.BoxGeometry(2.5, 1.5, 4.4),
+      new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.4, metalness: 0.4 })
+    );
+    car2.position.set(1.4, 0.75, 0);
+    carportGroup.add(car2);
+
+    this.group.add(carportGroup);
+  }
+
+  public update(delta: number, _time: number): void {
     this.animTime += delta;
-
-    for (const npc of this.npcs) {
-      npc.update(delta, time);
-    }
 
     for (const blade of this.fanBlades) {
       blade.rotation.z += delta * 24;

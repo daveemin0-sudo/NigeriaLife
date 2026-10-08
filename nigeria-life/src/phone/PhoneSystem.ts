@@ -7,7 +7,26 @@ export class PhoneSystem {
 
   public contacts: PhoneContact[] = [
     {
+      id: 'zay_ne',
+      handle: 'zay_ne',
+      name: 'Zainab (@zay_ne)',
+      avatar: '👑',
+      status: 'Online • Lekki Phase 1',
+      lastMessage: '🔥 E choke!',
+      unread: false,
+      messages: [
+        { sender: 'me', text: 'GOOD', time: '8:51 PM' },
+        { sender: 'me', text: 'Abi you waste the money', time: '8:51 PM' },
+        { sender: 'them', text: 'NOOOOOOOOO', time: '8:53 PM' },
+        { sender: 'system', transferAmount: 2000000000, time: '11:37 PM' },
+        { sender: 'them', sticker: 'lion', stickerCaption: 'Odogwu!', time: '8:04 AM' },
+        { sender: 'me', text: 'na less', time: '8:39 AM' },
+        { sender: 'them', sticker: 'fire', stickerCaption: 'E choke!', time: '9:53 AM' },
+      ],
+    },
+    {
       id: 'mama_put',
+      handle: 'mama_put_eko',
       name: 'Mama Put (Bukateria)',
       avatar: '🍲',
       status: 'Online • Broad St.',
@@ -20,6 +39,7 @@ export class PhoneSystem {
     },
     {
       id: 'segun_bet',
+      handle: 'segun_odds',
       name: 'Segun (Bet9ja Pal)',
       avatar: '⚽',
       status: 'Online',
@@ -33,6 +53,7 @@ export class PhoneSystem {
     },
     {
       id: 'blessing_lekki',
+      handle: 'blessing_vibes',
       name: 'Blessing (From Lekki)',
       avatar: '✨',
       status: 'Online',
@@ -45,6 +66,7 @@ export class PhoneSystem {
     },
     {
       id: 'alhaji_landlord',
+      handle: 'alhaji_estate',
       name: 'Alhaji (Landlord)',
       avatar: '🏠',
       status: 'Last seen 2h ago',
