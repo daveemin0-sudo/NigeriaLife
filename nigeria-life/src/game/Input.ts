@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Player } from '../player/Player';
-import { World, type InteractiveObject } from '../world/World';
+import { World, type InteractiveObject, type InteractionTarget } from '../world/World';
 import { HUD } from '../ui/HUD';
 
 export class InputManager {
@@ -21,6 +21,7 @@ export class InputManager {
   private cursorState: 'default' | 'walk' | 'interact' = 'default';
   public hoveredObject: InteractiveObject | null = null;
   private pendingInteraction: InteractiveObject | null = null;
+  private lastLoggedTargetId: string | null = null;
 
   public keys: Record<string, boolean> = {};
   public onToggleVehicle?: () => void;
@@ -40,6 +41,7 @@ export class InputManager {
     this.hud = hud;
 
     this.raycaster = new THREE.Raycaster();
+    this.raycaster.layers.enableAll();
     this.mouseCoords = new THREE.Vector2();
 
     // 1. Click Ripple Ring
@@ -88,8 +90,11 @@ export class InputManager {
         this.onToggleVehicle?.();
       } else if (k === 'h') {
         this.onHonkVehicle?.();
-      } else if (k === 'e') {
-        if (this.hud.currentActiveObject) {
+      } else      if (k === 'e') {
+        if (this.hud.currentInteractionTarget) {
+          e.preventDefault();
+          this.hud.executeCurrentInteraction();
+        } else if (this.hud.currentActiveObject) {
           const actionBtn = document.getElementById('card-action-btn') as HTMLButtonElement;
           actionBtn?.click();
         } else {
@@ -118,6 +123,7 @@ export class InputManager {
     this.mouseCoords.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
     this.raycaster.setFromCamera(this.mouseCoords, this.camera);
+    this.raycaster.layers.enableAll();
 
     const isInside = this.world.interiorManager.isPlayerInside();
     const activeObjects = isInside
@@ -186,6 +192,7 @@ export class InputManager {
     this.mouseCoords.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
     this.raycaster.setFromCamera(this.mouseCoords, this.camera);
+    this.raycaster.layers.enableAll();
 
     const isInside = this.world.interiorManager.isPlayerInside();
     const activeObjects = isInside
@@ -271,7 +278,236 @@ export class InputManager {
     this.markerAnimTime = 0.45; // Seconds duration
   }
 
+  private getInteractionRadius(id: string): number {
+    if (['lagos-hospital', 'hospital', 'lagos-bank', 'bank', 'mama-put', 'buka', 'police-station', 'police', 'villa-compound', 'palm-view-flats'].includes(id)) {
+      return 6.5;
+    }
+    if (id === 'interior_exit_door') return 3.5;
+    if (id.startsWith('veh-')) return 4.5;
+    if (id.startsWith('interior_npc_')) return 3.2;
+    return 3.8;
+  }
+
+  private createInteractionTarget(obj: InteractiveObject, dist: number): InteractionTarget {
+    const id = obj.id;
+
+    if (id === 'lagos-hospital' || id === 'hospital') {
+      return {
+        id: 'st_nicholas_hospital',
+        name: 'St. Nicholas General Hospital',
+        category: obj.category,
+        label: 'Enter St. Nicholas General Hospital',
+        action: 'enter-interior',
+        interiorId: 'hospital',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
+    if (id === 'lagos-bank' || id === 'bank') {
+      return {
+        id: 'lagos_bank',
+        name: 'Eko Commercial Bank',
+        category: obj.category,
+        label: 'Enter Eko Commercial Bank',
+        action: 'enter-interior',
+        interiorId: 'bank',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
+    if (id === 'mama-put' || id === 'buka') {
+      return {
+        id: 'mama_put_buka',
+        name: 'Mama Put Buka',
+        category: obj.category,
+        label: 'Enter Mama Put Buka',
+        action: 'enter-interior',
+        interiorId: 'restaurant',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
+    if (id === 'police-station' || id === 'police') {
+      return {
+        id: 'area_command_police',
+        name: 'Area Command Police Station',
+        category: obj.category,
+        label: 'Enter Area Command Police Station',
+        action: 'enter-interior',
+        interiorId: 'police',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
+    if (id === 'villa-compound') {
+      return {
+        id: 'villa-compound',
+        name: 'Victoria Residence Estate',
+        category: obj.category,
+        label: 'Enter Victoria Residence Apartment',
+        action: 'enter-interior',
+        interiorId: 'residence',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
+    if (id === 'palm-view-flats') {
+      return {
+        id: 'palm-view-flats',
+        name: 'Palm View Residence',
+        category: obj.category,
+        label: 'Enter Palm View Residence',
+        action: 'enter-interior',
+        interiorId: 'residence',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
+    if (id === 'interior_exit_door') {
+      return {
+        id: 'interior_exit_door',
+        name: 'Exit to Street',
+        category: obj.category,
+        label: 'Exit to Street',
+        action: 'exit-interior',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'door',
+      };
+    }
+    if (id.startsWith('veh-')) {
+      return {
+        id: obj.id,
+        name: obj.name,
+        category: obj.category,
+        label: `Board & Drive ${obj.name}`,
+        action: 'enter-vehicle',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'vehicle',
+      };
+    }
+    if (id.startsWith('interior_npc_')) {
+      return {
+        id: obj.id,
+        name: obj.name,
+        category: obj.category,
+        label: `Talk to ${obj.name}`,
+        action: 'interact',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'npc',
+      };
+    }
+
+    // Specific Stations inside interiors
+    const stationLabels: Record<string, string> = {
+      hosp_reception: '📋 Register & Vital Signs Check',
+      hosp_doctor_desk: '🩺 Full Medical Diagnosis & Treatment',
+      hosp_ward_bed: '🛏️ Rest on Clinical Ward Bed',
+      hosp_pharmacy: '💊 Purchase Coartem Malaria Medicine',
+      bank_atm_station: '🏧 Instant ATM Cash Withdrawal',
+      bank_teller_station: '💱 Foreign Remittance Wire Pickup',
+      bank_manager_desk: '💼 Apply for Lagos SME Loan',
+      buka_food_counter: '🍲 Order Firewood Party Jollof',
+      buka_table_vip: '🍽️ Sit Down & Chop Life',
+      police_front_desk: '📝 File Citizen Incident Report',
+      police_holding_cell: '⚖️ Pay Citizen Bail Bond',
+      'flat-workstation': '💻 Complete Remote Tech Sprint',
+    };
+
+    const label = stationLabels[id] || `Interact with ${obj.name}`;
+
+    return {
+      id: obj.id,
+      name: obj.name,
+      category: obj.category,
+      label,
+      action: 'interact',
+      distance: dist,
+      interactionPoint: obj.interactionPoint,
+      interactiveObject: obj,
+      type: id.startsWith('npc-') ? 'npc' : 'station',
+    };
+  }
+
+  public updateProximityTarget(): void {
+    if (this.hud.currentNavMode === 'map') {
+      if (this.hud.currentInteractionTarget) {
+        this.hud.setProximityTarget(null);
+      }
+      return;
+    }
+
+    const isInside = this.world.interiorManager.isPlayerInside();
+    let candidates: InteractiveObject[] = [];
+
+    if (isInside) {
+      candidates = this.world.interiorManager.getActiveInteractiveObjects();
+    } else {
+      // In street mode, exclude interior objects
+      candidates = this.world.interactiveObjects.filter((o) => {
+        return (
+          o.id !== 'interior_exit_door' &&
+          !o.id.startsWith('interior_npc_') &&
+          !o.id.startsWith('hosp_') &&
+          !o.id.startsWith('bank_') &&
+          !o.id.startsWith('buka_') &&
+          !o.id.startsWith('police_')
+        );
+      });
+    }
+
+    let nearestCandidate: InteractiveObject | null = null;
+    let minDistance = Infinity;
+
+    for (const obj of candidates) {
+      const radius = this.getInteractionRadius(obj.id);
+      const dist = this.player.position.distanceTo(obj.interactionPoint);
+      if (dist <= radius && dist < minDistance) {
+        minDistance = dist;
+        nearestCandidate = obj;
+      }
+    }
+
+    if (nearestCandidate) {
+      const target = this.createInteractionTarget(nearestCandidate, minDistance);
+      this.hud.setProximityTarget(target);
+
+      if (this.lastLoggedTargetId !== target.id) {
+        this.lastLoggedTargetId = target.id;
+        console.log(`[Interaction] mode: ${isInside ? 'interior' : 'street'}`);
+        console.log(`[Interaction] nearest target: ${target.name}`);
+        console.log(`[Interaction] distance: ${target.distance.toFixed(1)}`);
+        console.log(`[Interaction] prompt: ${target.label}`);
+      }
+    } else {
+      if (this.hud.currentInteractionTarget) {
+        this.hud.setProximityTarget(null);
+        this.lastLoggedTargetId = null;
+      }
+    }
+  }
+
   public update(delta: number): void {
+    // Continuously evaluate nearest proximity interactive target
+    this.updateProximityTarget();
+
     // Check pending interaction approach arrival
     if (this.pendingInteraction) {
       const dist = this.player.position.distanceTo(this.pendingInteraction.interactionPoint);

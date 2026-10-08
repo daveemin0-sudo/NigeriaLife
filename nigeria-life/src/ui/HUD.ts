@@ -1,4 +1,4 @@
-import type { InteractiveObject, World } from '../world/World';
+import type { InteractiveObject, InteractionTarget, World } from '../world/World';
 import { Player } from '../player/Player';
 import type { CityId } from '../cities/CityTypes';
 import { CharacterCreatorModal } from './CharacterCreator';
@@ -18,6 +18,9 @@ export class HUD {
   private container: HTMLDivElement;
   private interactionCard: HTMLDivElement;
   private drivingHudEl!: HTMLDivElement;
+  public proximityPromptEl: HTMLDivElement | null = null;
+  public promptLabelEl: HTMLSpanElement | null = null;
+  public currentInteractionTarget: InteractionTarget | null = null;
   private creatorModal!: CharacterCreatorModal;
   private inventoryModal!: InventoryModal;
   private atmModal!: ATMModal;
@@ -222,12 +225,24 @@ export class HUD {
           <button class="btn-hud-exit-veh" id="btn-drive-exit" title="Exit Vehicle [Key F]">🚪 Exit [F]</button>
         </div>
       </div>
+
+      <!-- Contextual Interaction Proximity Prompt Pill -->
+      <div class="hud-proximity-prompt" id="hud-proximity-prompt" style="display: none;">
+        <span class="prompt-key-badge">E</span>
+        <span class="prompt-label" id="hud-prompt-label">Enter Hospital</span>
+      </div>
     `;
 
     document.body.appendChild(this.container);
 
     this.interactionCard = document.getElementById('interaction-card') as HTMLDivElement;
     this.drivingHudEl = document.getElementById('driving-hud') as HTMLDivElement;
+    this.proximityPromptEl = document.getElementById('hud-proximity-prompt') as HTMLDivElement;
+    this.promptLabelEl = document.getElementById('hud-prompt-label') as HTMLSpanElement;
+
+    this.proximityPromptEl?.addEventListener('click', () => {
+      this.executeCurrentInteraction();
+    });
 
     const closeBtn = document.getElementById('card-close') as HTMLButtonElement;
     closeBtn.addEventListener('click', () => this.hideInteractionCard());
@@ -519,7 +534,15 @@ export class HUD {
       } else if (e.key.toLowerCase() === 'p') {
         this.phoneModal.toggle();
       } else if (e.key.toLowerCase() === 'e') {
-        this.economyModal.toggle();
+        if (this.currentInteractionTarget) {
+          e.preventDefault();
+          this.executeCurrentInteraction();
+        } else if (this.interactionCard && this.interactionCard.style.display !== 'none' && this.currentActiveObject) {
+          e.preventDefault();
+          this.handleCardAction();
+        } else {
+          this.economyModal.toggle();
+        }
       } else if (e.key.toLowerCase() === 't') {
         this.travelModal.toggle();
       } else if (e.key.toLowerCase() === 'm') {
@@ -541,6 +564,42 @@ export class HUD {
         this.interstateModal.close();
       }
     });
+  }
+
+  public setProximityTarget(target: InteractionTarget | null): void {
+    this.currentInteractionTarget = target;
+    if (!this.proximityPromptEl || !this.promptLabelEl) return;
+
+    if (!target) {
+      this.proximityPromptEl.style.display = 'none';
+      return;
+    }
+
+    this.promptLabelEl.textContent = target.label;
+    this.proximityPromptEl.style.display = 'flex';
+  }
+
+  public executeCurrentInteraction(): void {
+    if (!this.currentInteractionTarget) return;
+    const target = this.currentInteractionTarget;
+    console.log(`[Interaction] executing: ${target.id}`);
+
+    if (target.action === 'enter-interior') {
+      const interiorId = target.interiorId || target.id;
+      this.setProximityTarget(null);
+      this.hideInteractionCard();
+      this.onEnterInterior?.(interiorId);
+    } else if (target.action === 'exit-interior') {
+      this.setProximityTarget(null);
+      this.hideInteractionCard();
+      this.onExitInterior?.();
+    } else if (target.action === 'enter-vehicle') {
+      this.setProximityTarget(null);
+      this.hideInteractionCard();
+      this.onEnterVehicle?.(target.id);
+    } else {
+      this.showInteractionCard(target.interactiveObject);
+    }
   }
 
   public updateLocation(name: string, sub: string): void {

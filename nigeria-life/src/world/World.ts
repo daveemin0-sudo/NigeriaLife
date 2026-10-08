@@ -27,6 +27,19 @@ export interface InteractiveObject {
   interactionPoint: THREE.Vector3;
 }
 
+export interface InteractionTarget {
+  id: string;
+  name: string;
+  category: string;
+  label: string;
+  action: 'enter-interior' | 'exit-interior' | 'enter-vehicle' | 'interact' | 'inspect' | 'trade' | 'talk' | 'use';
+  distance: number;
+  interactionPoint: THREE.Vector3;
+  interactiveObject: InteractiveObject;
+  interiorId?: string;
+  type?: string;
+}
+
 export class World {
   public scene: THREE.Scene;
   public groundMesh!: THREE.Mesh;

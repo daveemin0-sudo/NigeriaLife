@@ -140,11 +140,20 @@ export class InteriorManager {
     const match = list.find((item) => 
       item.streetBuildingId === id ||
       item.id === id ||
-      (id === 'lagos-bank' && item.type === 'bank') ||
-      (id === 'mama-put' && item.type === 'restaurant') ||
+      item.type === id ||
+      (id === 'hospital' && item.type === 'hospital') ||
+      (id === 'st_nicholas_hospital' && item.type === 'hospital') ||
       (id === 'lagos-hospital' && item.type === 'hospital') ||
+      (id === 'bank' && item.type === 'bank') ||
+      (id === 'lagos-bank' && item.type === 'bank') ||
+      (id === 'restaurant' && item.type === 'restaurant') ||
+      (id === 'buka' && item.type === 'restaurant') ||
+      (id === 'mama-put' && item.type === 'restaurant') ||
+      (id === 'police' && item.type === 'police') ||
       (id === 'police-station' && item.type === 'police') ||
-      ((id === 'villa-compound' || id === 'palm-view-flats' || id === 'residential-compound' || id === 'home') && item.type === 'residence')
+      (id === 'residence' && item.type === 'residence') ||
+      (id === 'home' && item.type === 'residence') ||
+      ((id === 'villa-compound' || id === 'palm-view-flats' || id === 'residential-compound') && item.type === 'residence')
     );
 
     return match || null;
@@ -176,6 +185,7 @@ export class InteriorManager {
     // 3. Update game location state
     this.locationMode = 'interior';
     this.currentInterior = target;
+    console.log(`[Interior] entered: ${target.id}`);
 
     // 4. HIDE the entire outdoor street world
     world.setStreetModeVisibility(false);
@@ -227,6 +237,8 @@ export class InteriorManager {
     this.isTransitioning = true;
 
     const exitedName = this.currentInterior.name;
+    const exitedId = this.currentInterior.id;
+    console.log(`[Interior] exited: ${exitedId}`);
 
     // 1. Start cinematic fade to black
     await this.setFadeOverlay(1);

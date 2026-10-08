@@ -4158,6 +4158,79 @@ canvas {
   100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
 }
 
+/* =========================================
+   CONTEXTUAL PROXIMITY INTERACTION PROMPT PILL
+   ========================================= */
+.hud-proximity-prompt {
+  pointer-events: auto;
+  position: fixed;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid #00d26a;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 24px rgba(0, 210, 106, 0.35);
+  padding: 10px 22px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  z-index: 150;
+  cursor: pointer;
+  animation: promptPulse 2s infinite ease-in-out, promptSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.hud-proximity-prompt:hover {
+  transform: translateX(-50%) scale(1.04);
+  background: rgba(15, 23, 42, 0.98);
+  border-color: #38ef7d;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 32px rgba(0, 210, 106, 0.5);
+}
+
+.hud-proximity-prompt:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
+.prompt-key-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  background: linear-gradient(135deg, #008751 0%, #00d26a 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 14px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.5px;
+}
+
+.prompt-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+@keyframes promptSlideUp {
+  0% { opacity: 0; transform: translate(-50%, 15px); }
+  100% { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes promptPulse {
+  0%, 100% { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 210, 106, 0.3); }
+  50% { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 32px rgba(0, 210, 106, 0.55); }
+}
+
+
 
 
 
