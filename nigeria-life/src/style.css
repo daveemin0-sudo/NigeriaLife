@@ -113,10 +113,24 @@ body[data-ui-mode="house"] .emote-bar {
 
 /* Header */
 .hud-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 0;
+  pointer-events: none;
+  z-index: var(--z-hud-interactive);
+}
+
+.hud-top-right-group {
+  position: fixed;
+  top: 16px;
+  right: 20px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
+  z-index: var(--z-hud-interactive);
+  pointer-events: auto;
 }
 
 /* Vitals Status Bars (Track B1) */
@@ -423,20 +437,7 @@ body[data-ui-mode="house"] .emote-bar {
 }
 
 .hud-hint {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(18, 20, 24, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 8px 20px;
-  border-radius: 999px;
-  color: #cbd5e1;
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  letter-spacing: 0.2px;
+  display: none !important;
 }
 
 /* =========================================
@@ -3787,13 +3788,13 @@ body[data-ui-mode="house"] .emote-bar {
 
 /* --- Top-Left Stacked Quest & Mini-Badges --- */
 .hud-top-left-badges {
-  position: absolute;
+  position: fixed;
   top: 16px;
-  left: 18px;
+  left: 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  z-index: 50;
+  gap: 8px;
+  z-index: var(--z-hud-interactive);
   pointer-events: auto;
 }
 
@@ -3864,21 +3865,21 @@ body[data-ui-mode="house"] .emote-bar {
 
 /* --- Center Top Floating Pill Bar --- */
 .hud-center-pill-bar {
-  position: absolute;
+  position: fixed;
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  padding: 6px 18px;
+  padding: 6px 16px;
   border-radius: 999px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.9);
-  z-index: 50;
+  z-index: var(--z-hud-interactive);
   pointer-events: auto;
 }
 
@@ -3959,15 +3960,15 @@ body[data-ui-mode="house"] .emote-bar {
 
 /* --- Street Distance Radar Pills --- */
 .street-radar-bar {
-  position: absolute;
-  bottom: 84px;
+  position: fixed;
+  bottom: 126px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  z-index: 45;
+  z-index: var(--z-hud-interactive);
   pointer-events: auto;
 }
 
@@ -7780,6 +7781,27 @@ body[data-ui-mode="interior"] .hud-proximity-prompt {
   .hud-header {
     padding: 12px 18px;
   }
+  .hud-center-pill-bar {
+    gap: 8px;
+    padding: 5px 12px;
+  }
+  .hud-vitals-bar {
+    gap: 8px;
+    padding: 4px 10px;
+  }
+  .vital-track {
+    width: 32px;
+  }
+  .hud-top-right-group {
+    gap: 6px;
+  }
+  .hud-location {
+    padding: 6px 12px;
+  }
+  .btn-camera-view-toggle {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
   .interaction-card {
     max-width: min(340px, 90vw);
   }
@@ -7791,6 +7813,12 @@ body[data-ui-mode="interior"] .hud-proximity-prompt {
 
 /* Compact Laptops & Tablets (1024px - 1280px) */
 @media (max-width: 1280px) {
+  .hud-center-pill-bar .online-pill {
+    display: none;
+  }
+  .hud-top-right-group .loc-sub {
+    display: none;
+  }
   .interaction-card {
     width: clamp(280px, 30vw, 340px);
   }

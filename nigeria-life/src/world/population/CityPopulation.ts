@@ -85,17 +85,10 @@ export class CityPopulation {
       const isWest = i % 2 === 0;
 
       let x: number;
-      let y = 0;
       let z: number;
       let behavior: NPCBehavior = 'walk';
 
-      // Pedestrians walking across the overhead bridge
-      if (i >= 62) {
-        x = -8.0 + (i - 62) * 2.1;
-        y = 5.4; // Bridge deck height!
-        z = 28.0 + (Math.random() - 0.5) * 1.5;
-        behavior = i % 2 === 0 ? 'walk' : 'stand';
-      } else if (i % 6 === 0) {
+      if (i % 6 === 0) {
         // Market shoppers standing under roadside umbrellas
         x = isWest ? -10.2 : 10.2;
         z = -75 + (i / 70) * 160 + (Math.random() - 0.5) * 4;
@@ -106,14 +99,14 @@ export class CityPopulation {
         z = -100 + (i / 70) * 200;
         behavior = 'talk';
       } else {
-        // Normal sidewalk pedestrians
-        x = isWest ? -8.2 - Math.random() * 2.2 : 8.2 + Math.random() * 2.2;
+        // Normal sidewalk pedestrians - grounded perfectly on sidewalks
+        x = isWest ? -8.4 - Math.random() * 2.0 : 8.4 + Math.random() * 2.0;
         z = -115 + (i / 70) * 230 + (Math.random() - 0.5) * 6;
         behavior = 'walk';
       }
 
       const npc = this.createNPC(type, behavior, x, z, i);
-      npc.group.position.y = y;
+      npc.group.position.y = 0;
       this.crowd.push(npc);
       this.group.add(npc.group);
     }
@@ -196,6 +189,7 @@ export class CityPopulation {
 
       if (npc.behavior === 'walk') {
         npc.group.position.z += npc.walkDir * npc.speed * delta;
+        npc.group.position.y = 0; // Grounded on street sidewalk
         npc.rig.updateAnimation(npc.animTime, true);
 
         // Turn around at path bounds

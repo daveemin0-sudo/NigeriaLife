@@ -183,7 +183,7 @@ export class HUD {
         </div>
 
         <!-- Top Right Mini District Indicator & Camera View Switcher -->
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="hud-top-right-group">
           <button class="btn-camera-view-toggle" id="btn-camera-view-toggle" title="Switch Camera View [V] (Third-Person / Street / Isometric / Aerial)">
             <span>🎥</span>
             <span id="cam-preset-label">STREET</span>
@@ -280,11 +280,6 @@ export class HUD {
             <span>🫡</span>
             <span>Salute [3]</span>
           </button>
-        </div>
-
-        <div class="hud-hint">
-          <span class="mouse-icon">🖱️</span>
-          <span>Click to walk • Right-click drag or [Q]/[R] to rotate view • [E] Interact</span>
         </div>
       </footer>
 
