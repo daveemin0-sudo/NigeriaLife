@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
+import { isInJunctionGap, splitAroundJunctions } from './density/StreetLayout';
 
 export class Roads {
   public group: THREE.Group;
@@ -30,15 +31,13 @@ export class Roads {
     this.group.add(asphalt);
 
     // 2. Yellow Double Center Dividing Line
+    const dashMatrices: THREE.Matrix4[] = [];
     for (let offset of [-0.2, 0.2]) {
       for (let z = -this.roadLength / 2 + 5; z < this.roadLength / 2 - 5; z += 6) {
-        const lineGeo = new THREE.PlaneGeometry(0.2, 3.8);
-        const line = new THREE.Mesh(lineGeo, mats.roadLineMaterial);
-        line.rotation.x = -Math.PI / 2;
-        line.position.set(offset, 0.02, z);
-        this.group.add(line);
+        dashMatrices.push(new THREE.Matrix4().makeTranslation(offset, 0.02, z));
       }
     }
+    this.addInstanced(new THREE.PlaneGeometry(0.2, 3.8).rotateX(-Math.PI / 2), mats.roadLineMaterial, dashMatrices);
 
     // 3. White Zebra Crosswalk near the main junction
     for (let x = -5.5; x <= 5.5; x += 1.2) {
@@ -51,41 +50,45 @@ export class Roads {
 
     // 4. Sidewalks / Pavements with concrete slab bump map
     const walkWidth = 6.5;
-    const walkGeo = new THREE.BoxGeometry(walkWidth, 0.28, this.roadLength);
-
-    const leftWalkway = new THREE.Mesh(walkGeo, mats.sidewalkMaterial);
-    leftWalkway.position.set(-(this.roadWidth / 2 + walkWidth / 2), 0.14, 0);
-    leftWalkway.receiveShadow = true;
-    this.group.add(leftWalkway);
-
-    const rightWalkway = new THREE.Mesh(walkGeo, mats.sidewalkMaterial);
-    rightWalkway.position.set(this.roadWidth / 2 + walkWidth / 2, 0.14, 0);
-    rightWalkway.receiveShadow = true;
-    this.group.add(rightWalkway);
+    // Sidewalks open up wherever a side street joins Broad Street
+    for (const [zFrom, zTo] of splitAroundJunctions(-this.roadLength / 2, this.roadLength / 2)) {
+      const walkGeo = new THREE.BoxGeometry(walkWidth, 0.28, zTo - zFrom);
+      for (const side of [-1, 1]) {
+        const walkway = new THREE.Mesh(walkGeo, mats.sidewalkMaterial);
+        walkway.position.set(side * (this.roadWidth / 2 + walkWidth / 2), 0.14, (zFrom + zTo) / 2);
+        walkway.receiveShadow = true;
+        this.group.add(walkway);
+      }
+    }
 
     // 5. Classic Nigerian Yellow & Black Kerb Stones (Cached PBR materials)
     const curbHeight = 0.32;
     const curbWidth = 0.28;
     const segmentLen = 2.0;
 
+    // Hundreds of kerb stones drawn as two instanced meshes (one per colour)
+    const yellowKerbs: THREE.Matrix4[] = [];
+    const blackKerbs: THREE.Matrix4[] = [];
     for (let z = -this.roadLength / 2; z < this.roadLength / 2; z += segmentLen) {
+      if (isInJunctionGap(z + segmentLen / 2)) continue;
       const isYellow = Math.floor(z / segmentLen) % 2 === 0;
-      const curbMat = isYellow ? mats.curbYellowMaterial : mats.curbBlackMaterial;
-
-      const curbL = new THREE.Mesh(
-        new THREE.BoxGeometry(curbWidth, curbHeight, segmentLen - 0.05),
-        curbMat
-      );
-      curbL.position.set(-this.roadWidth / 2, curbHeight / 2, z + segmentLen / 2);
-      this.group.add(curbL);
-
-      const curbR = new THREE.Mesh(
-        new THREE.BoxGeometry(curbWidth, curbHeight, segmentLen - 0.05),
-        curbMat
-      );
-      curbR.position.set(this.roadWidth / 2, curbHeight / 2, z + segmentLen / 2);
-      this.group.add(curbR);
+      const list = isYellow ? yellowKerbs : blackKerbs;
+      for (const side of [-1, 1]) {
+        list.push(new THREE.Matrix4().makeTranslation((side * this.roadWidth) / 2, curbHeight / 2, z + segmentLen / 2));
+      }
     }
+    const kerbGeo = new THREE.BoxGeometry(curbWidth, curbHeight, segmentLen - 0.05);
+    this.addInstanced(kerbGeo, mats.curbYellowMaterial, yellowKerbs);
+    this.addInstanced(kerbGeo, mats.curbBlackMaterial, blackKerbs);
+  }
+
+  private addInstanced(geo: THREE.BufferGeometry, material: THREE.Material, matrices: THREE.Matrix4[]): void {
+    if (matrices.length === 0) return;
+    const mesh = new THREE.InstancedMesh(geo, material, matrices.length);
+    matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.receiveShadow = true;
+    this.group.add(mesh);
   }
 
   public streetBulbMaterials: THREE.MeshStandardMaterial[] = [];
@@ -180,6 +183,8 @@ export class Roads {
       } else {
         light.intensity = 0.0;
       }
+      // A switched-off lamp must not stay in the shader's light loop all day
+      light.visible = light.intensity > 0;
     }
   }
 
@@ -328,14 +333,17 @@ export class Roads {
       const gx = side * (this.roadWidth / 2 + 0.4);
 
       // Deep gutter trough
-      const troughGeo = new THREE.BoxGeometry(0.7, 0.45, this.roadLength);
-      const trough = new THREE.Mesh(troughGeo, gutterMat);
-      trough.position.set(gx, -0.08, 0);
-      trough.receiveShadow = true;
-      this.group.add(trough);
+      for (const [zFrom, zTo] of splitAroundJunctions(-this.roadLength / 2, this.roadLength / 2)) {
+        const troughGeo = new THREE.BoxGeometry(0.7, 0.45, zTo - zFrom);
+        const trough = new THREE.Mesh(troughGeo, gutterMat);
+        trough.position.set(gx, -0.08, (zFrom + zTo) / 2);
+        trough.receiveShadow = true;
+        this.group.add(trough);
+      }
 
       // Concrete Culvert Bridges (Planks across gutters for pedestrians to enter shops)
       for (let z = -90; z <= 90; z += 15) {
+        if (isInJunctionGap(z)) continue;
         const slabGeo = new THREE.BoxGeometry(0.85, 0.1, 2.4);
         const slab = new THREE.Mesh(slabGeo, culvertMat);
         slab.position.set(gx, 0.16, z);

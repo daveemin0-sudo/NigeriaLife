@@ -7944,3 +7944,67 @@ body[data-ui-mode="interior"] .hud-proximity-prompt {
     height: min(560px, 85vh);
   }
 }
+
+/* =========================================================================
+   TOP BAR ZONES: quests (left) | status pill (centre) | location + view controls (right)
+   The three zones are too wide for one row on any laptop, so the right zone stacks:
+   row 1 location, row 2 camera / photo / cloud, row 3 view rotation.
+   The status pill is sized to the gap that is left between the left and right zones.
+   Desktop / laptop only: tablets and phones keep the wrapped header rules above.
+   ========================================================================= */
+:root {
+  --hud-left-zone: 352px;   /* quest badge stack + gutter */
+  --hud-right-zone: 250px;  /* location badge + gutter */
+}
+
+@media (min-width: 1025px) {
+.hud-top-right-group {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: end;
+  align-items: center;
+  gap: 8px;
+  /* The grid box spans empty space beside the location badge: only its children take clicks */
+  pointer-events: none;
+}
+
+.hud-top-right-group > * {
+  pointer-events: auto;
+}
+
+.hud-top-right-group .hud-location {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.camera-rotate-widget {
+  top: 128px;
+  right: 20px;
+}
+
+.hud-center-pill-bar {
+  left: clamp(var(--hud-left-zone), calc(50vw - 380px), 100vw);
+  transform: none;
+  max-width: calc(100vw - var(--hud-left-zone) - var(--hud-right-zone));
+}
+
+/* The cloud pill in the right zone already shows the online count */
+.hud-center-pill-bar .online-pill {
+  display: none;
+}
+
+}
+
+@media (min-width: 1025px) and (max-width: 1500px) {
+  .hud-center-pill-bar .vital-track {
+    width: 24px;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1320px) {
+  .hud-center-pill-bar .vital-val {
+    display: none;
+  }
+}
+

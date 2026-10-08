@@ -39,6 +39,7 @@ export interface HumanConfig {
     | 'agbada';
   outfitColor?: number;
   secondaryColor?: number;
+  trousersColor?: number;
   heightScale?: number;
   hasStethoscope?: boolean;
   hasTie?: boolean;
@@ -97,7 +98,7 @@ export class HumanMeshBuilder {
     materials.push(secondaryClothingMat);
 
     const trousersMat = new THREE.MeshStandardMaterial({
-      color: isFemale ? 0x1e293b : 0xea580c,
+      color: config.trousersColor ?? (isFemale ? 0x1e293b : 0xea580c),
       roughness: 0.7,
     });
     materials.push(trousersMat);

@@ -68,6 +68,7 @@ export class Game {
     // 4. World & Environment
     this.world = new World(this.scene, this.renderer);
     this.cameraManager.collisionObjects = [this.world.buildings.group, this.world.districts.group];
+    this.world.viewCamera = this.cameraManager.camera;
 
     // 5. Player Character
     this.player = new Player();

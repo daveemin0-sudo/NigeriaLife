@@ -8,7 +8,6 @@ import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
 import { ApartmentInterior } from './ApartmentInterior';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
-import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { AtmosphereManager } from './AtmosphereManager';
 import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
@@ -64,6 +63,11 @@ export class World {
   public worldMap: WorldMap;
   public dataManager: WorldDataManager;
 
+  /** Gameplay camera, used to cull the instanced crowd and traffic to what is on screen */
+  public viewCamera?: THREE.Camera;
+  private viewFrustum = new THREE.Frustum();
+  private viewMatrix = new THREE.Matrix4();
+
   public sunLight!: THREE.DirectionalLight;
   public hemiLight!: THREE.HemisphereLight;
 
@@ -97,29 +101,30 @@ export class World {
     this.buildings = new Buildings();
     this.scene.add(this.buildings.group);
 
-    // 3b. High-Density Background Skylines & Street Details (80-90% background visual buildings)
-    this.cityDensity = new CityDensityManager();
-    this.scene.add(this.cityDensity.group);
-
     // 4. Vehicles (Drivable Danfo, Keke, SUV + Traffic)
     this.vehicles = new Vehicles();
     this.scene.add(this.vehicles.group);
-
-    // 4b. Multi-Vehicle Dynamic Traffic Population (BRT, Tanker, Trucks, Vans, Taxis)
-    this.trafficSpawner = new TrafficSpawner();
-    this.scene.add(this.trafficSpawner.group);
 
     // 5. Pedestrian NPCs & Street Vendors
     this.npcs = new NPCs();
     this.scene.add(this.npcs.group);
 
-    // 5b. High-Density Proximity NPC Population (12 Nigerian archetypes)
-    this.cityPopulation = new CityPopulation();
-    this.scene.add(this.cityPopulation.group);
-
     // 6. Lagos Expansion Multi-Districts (VI, Computer Village, Lekki Bridge)
     this.districts = new Districts();
     this.scene.add(this.districts.group);
+
+    // 6b. Dense Lagos Island city fabric: side streets, instanced tenements, plazas and towers.
+    // Built after the hand-made buildings and districts so it can fill in around them.
+    this.cityDensity = new CityDensityManager([this.buildings.group, this.districts.group]);
+    this.scene.add(this.cityDensity.group);
+
+    // 6c. Instanced go-slow traffic on Broad Street & Martins Street, parked cars on back streets
+    this.trafficSpawner = new TrafficSpawner(this.vehicles, this.cityDensity.fabric.parkingSpots);
+    this.scene.add(this.trafficSpawner.group);
+
+    // 6d. Instanced street crowd (walkers, bus-stop queues, stall traders)
+    this.cityPopulation = new CityPopulation(this.cityDensity.fabric.walkRuns, this.cityDensity.fabric.stallSpots);
+    this.scene.add(this.cityPopulation.group);
 
     // 7. Cutaway 3D Apartment Interior (Home Mode)
     this.apartment = new ApartmentInterior();
@@ -186,12 +191,50 @@ export class World {
   private createGround(): void {
     // Large terrain base covering broad st and all expanded districts
     const groundGeo = new THREE.PlaneGeometry(320, 320);
-    const groundMat = MaterialLibrary.getInstance().groundGrassMaterial;
+    const groundMat = this.createUrbanGroundMaterial();
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
     this.groundMesh.rotation.x = -Math.PI / 2;
     this.groundMesh.position.y = 0;
     this.groundMesh.receiveShadow = true;
     this.scene.add(this.groundMesh);
+  }
+
+  /**
+   * Lagos Island is built-up edge to edge: the terrain between plots is worn concrete
+   * and packed laterite, not lawn.
+   */
+  private createUrbanGroundMaterial(): THREE.MeshStandardMaterial {
+    const S = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#9b8f80';
+    ctx.fillRect(0, 0, S, S);
+
+    // Deterministic speckle: laterite dust, oil stains and patched concrete
+    let seed = 1337;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    const tones = ['#a8876a', '#8a8177', '#b09a82', '#7d766c', '#a39582'];
+    for (let i = 0; i < 900; i++) {
+      ctx.fillStyle = tones[Math.floor(rand() * tones.length)];
+      ctx.globalAlpha = 0.12 + rand() * 0.2;
+      const r = 2 + rand() * 14;
+      ctx.fillRect(rand() * S, rand() * S, r, r * (0.5 + rand()));
+    }
+    ctx.globalAlpha = 1;
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.repeat.set(36, 36);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 4;
+
+    return new THREE.MeshStandardMaterial({ map, roughness: 0.97, metalness: 0 });
   }
 
   public setStreetModeVisibility(visible: boolean): void {
@@ -279,14 +322,20 @@ export class World {
     // Update vehicle movements & drivable controls
     this.vehicles.update(delta, keys);
 
-    // Update multi-vehicle traffic spawner
-    this.trafficSpawner.update(delta, playerPos?.z ?? 0);
+    let frustum: THREE.Frustum | undefined;
+    if (this.viewCamera) {
+      this.viewMatrix.multiplyMatrices(this.viewCamera.projectionMatrix, this.viewCamera.matrixWorldInverse);
+      frustum = this.viewFrustum.setFromProjectionMatrix(this.viewMatrix);
+    }
+
+    // Update instanced go-slow traffic
+    this.trafficSpawner.update(delta, playerPos, frustum);
 
     // Update ambient NPC walking & animations
     this.npcs.update(delta, playerPos);
 
     // Update high-density proximity population
-    this.cityPopulation.update(delta, playerPos?.z ?? 0);
+    this.cityPopulation.update(delta, playerPos, frustum);
 
     // Update building animations (e.g. compound gate)
     this.buildings.update(delta);

@@ -4,7 +4,7 @@ import type { InteractiveObject } from './World';
 import { SignageLibrary } from '../materials/SignageLibrary';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 
-interface TrafficCar {
+export interface TrafficCar {
   group: THREE.Group;
   wheels: THREE.Mesh[];
   lane: 'north' | 'south';
@@ -29,8 +29,7 @@ export class Vehicles {
     // 2. Realistic Parked Vehicles across key city locations
     this.spawnParkedVehicles();
 
-    // 3. Dynamic 2-lane traffic stream (Danfo, Keke, Okada, Sedans, SUVs, Taxi, Police)
-    this.initDynamicTraffic();
+    // 3. Moving traffic is owned by TrafficSpawner, which instances these same vehicle models
   }
 
   // =========================================================================
@@ -202,53 +201,9 @@ export class Vehicles {
   }
 
   // =========================================================================
-  // 3. DYNAMIC AMBIENT TRAFFIC SYSTEM (Continuous 2-Lane Flow)
+  // 3. TRAFFIC VEHICLE PROTOTYPES (instanced by TrafficSpawner)
   // =========================================================================
-  private initDynamicTraffic(): void {
-    // 7 Northbound Vehicles (Lane X = -2.8, moves towards +Z)
-    const northConfigs: Array<{ type: string; z: number; color?: number }> = [
-      { type: 'danfo', z: -95 },
-      { type: 'sedan', z: -65, color: 0xe2e8f0 }, // Silver
-      { type: 'keke', z: -35 },
-      { type: 'suv', z: -5, color: 0x18181b }, // Black
-      { type: 'okada', z: 25, color: 0x3b82f6 },
-      { type: 'taxi', z: 55 },
-      { type: 'police', z: 85 },
-    ];
-
-    for (const cfg of northConfigs) {
-      const car = this.buildTrafficVehicle(cfg.type, cfg.color);
-      car.group.position.set(-2.8, 0, cfg.z);
-      car.group.rotation.y = 0; // facing +Z
-      car.lane = 'north';
-      car.speed = 11 + Math.random() * 4.5;
-      this.trafficCars.push(car);
-      this.group.add(car.group);
-    }
-
-    // 7 Southbound Vehicles (Lane X = +2.8, moves towards -Z)
-    const southConfigs: Array<{ type: string; z: number; color?: number }> = [
-      { type: 'keke', z: 95 },
-      { type: 'danfo', z: 65 },
-      { type: 'sedan', z: 35, color: 0xb45309 }, // Bronze/Gold
-      { type: 'okada', z: 5, color: 0xef4444 },
-      { type: 'suv', z: -25, color: 0xffffff }, // White
-      { type: 'taxi', z: -55 },
-      { type: 'danfo', z: -85 },
-    ];
-
-    for (const cfg of southConfigs) {
-      const car = this.buildTrafficVehicle(cfg.type, cfg.color);
-      car.group.position.set(2.8, 0, cfg.z);
-      car.group.rotation.y = Math.PI; // facing -Z
-      car.lane = 'south';
-      car.speed = 10.5 + Math.random() * 4.5;
-      this.trafficCars.push(car);
-      this.group.add(car.group);
-    }
-  }
-
-  private buildTrafficVehicle(type: string, colorHex?: number): TrafficCar {
+  public buildTrafficVehicle(type: string, colorHex?: number): TrafficCar {
     switch (type) {
       case 'danfo': {
         const { group, wheels } = this.createDanfo();
