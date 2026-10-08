@@ -11,6 +11,9 @@ import { FlightExperience } from '../transit/FlightExperience';
 import { RoadRideExperience } from '../transit/RoadRideExperience';
 import { TransitHUD } from '../transit/TransitHUD';
 import type { FlightDetails, RideDetails } from '../transit/TransitTypes';
+import { PhotoModeModal } from '../ui/PhotoModeModal';
+import { BackendService } from '../backend/BackendService';
+import { showGameToast } from '../ui/GameToast';
 
 export class Game {
   public scene: THREE.Scene;
@@ -23,6 +26,7 @@ export class Game {
   public network: NetworkManager;
   public chatBox: ChatBox;
   public postProcessing: PostProcessingManager;
+  public photoMode: PhotoModeModal;
 
   // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
   public flightExperience: FlightExperience;
@@ -31,6 +35,9 @@ export class Game {
 
   private clock: THREE.Clock;
   private savedStreetFog: THREE.Fog | THREE.FogExp2 | null = null;
+  private frameCount: number = 0;
+  private fpsTimer: number = 0;
+  private currentFPS: number = 60;
 
   constructor() {
     // 1. Scene
@@ -59,6 +66,7 @@ export class Game {
 
     // 4. World & Environment
     this.world = new World(this.scene, this.renderer);
+    this.cameraManager.collisionObjects = [this.world.buildings.group, this.world.districts.group];
 
     // 5. Player Character
     this.player = new Player();
@@ -76,6 +84,15 @@ export class Game {
     };
     this.hud.onCycleCameraPreset = () => {
       return this.cameraManager.cyclePreset();
+    };
+
+    // 6b. Cinematic Photo Studio Mode
+    this.photoMode = new PhotoModeModal(this.cameraManager, this.renderer.domElement);
+    this.hud.onOpenPhotoMode = () => {
+      this.photoMode.open();
+    };
+    this.hud.phoneModal.onOpenPhotoMode = () => {
+      this.photoMode.open();
     };
 
     // 7. Input & Cursor Interaction
@@ -358,8 +375,12 @@ export class Game {
 
     const delta = Math.min(this.clock.getDelta(), 0.1);
 
-    // Update Player Movement & Walking Cycle
-    this.player.update(delta, this.input.keys);
+    // Update Player Movement & Walking Cycle (frozen in Photo Mode so player can pose)
+    if (this.cameraManager.mode === 'photo') {
+      this.player.update(delta, {});
+    } else {
+      this.player.update(delta, this.input.keys);
+    }
 
     // Update Camera Follow
     this.cameraManager.update(this.player, delta);
@@ -370,6 +391,20 @@ export class Game {
 
     // Update World (Vehicles, Traffic, NPCs, Weather, Districts) with keys & player position
     this.world.update(delta, this.input.keys, this.player.position, this.player);
+
+    // Update Player Vitals (Hunger / Energy / Health Needs Loop)
+    const vitalsResult = BackendService.getInstance().updateVitals(
+      delta,
+      this.player.isSprinting,
+      this.player.isDriving
+    );
+    if (vitalsResult.starvedWarning) {
+      showGameToast('⚠️ Hunger is low! Stop by Mama Put or order QuickChop before you faint.', 'warning');
+    }
+    if (vitalsResult.collapsed) {
+      showGameToast('🚑 You collapsed from severe starvation! Rushed to local clinic (₦2,500 treatment fee).', 'error');
+      this.player.mesh.position.set(0, 0, 0);
+    }
 
     // Dynamic District Location Tracker in HUD (only when outdoors in street mode)
     if (!this.world.interiorManager.isPlayerInside() && !this.flightExperience.isActive && !this.roadRideExperience.isActive) {
@@ -397,6 +432,22 @@ export class Game {
       this.renderer.render(this.scene, this.roadRideExperience.rideCamera);
     } else {
       this.renderer.render(this.scene, this.cameraManager.camera);
+    }
+
+    // Performance Diagnostics Calculation
+    this.frameCount++;
+    this.fpsTimer += delta;
+    if (this.fpsTimer >= 0.5) {
+      this.currentFPS = Math.round(this.frameCount / this.fpsTimer);
+      this.frameCount = 0;
+      this.fpsTimer = 0;
+
+      const fpsEl = document.getElementById('perf-fps');
+      const msEl = document.getElementById('perf-ms');
+      const drawEl = document.getElementById('perf-draws');
+      if (fpsEl) fpsEl.textContent = `${this.currentFPS} FPS`;
+      if (msEl) msEl.textContent = `${(delta * 1000).toFixed(1)}ms`;
+      if (drawEl) drawEl.textContent = `${this.renderer.info.render.calls} draws`;
     }
   };
 }

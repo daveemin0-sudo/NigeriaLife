@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { PlayerNetState } from './types';
-import { ATTIRE_PRESETS } from '../player/CharacterCustomization';
+import { ATTIRE_PRESETS, type EmoteType } from '../player/CharacterCustomization';
 import { createColorCanvasTexture } from '../utils/TextureUtils';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 
@@ -10,7 +10,7 @@ export class RemotePlayer {
   public targetPosition: THREE.Vector3;
   public targetRotationY: number = 0;
   public isMoving: boolean = false;
-  public currentEmote: string = 'idle';
+  public currentEmote: EmoteType = 'idle';
 
   private walkTime: number = 0;
   private bodyMesh!: THREE.Mesh;

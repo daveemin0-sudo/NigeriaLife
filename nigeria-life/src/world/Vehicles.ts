@@ -91,7 +91,25 @@ export class Vehicles {
       -Math.PI / 2
     );
 
-    this.drivableVehicles = [danfo, keke, suv];
+    // 4. Drivable Okada parked near Suya Spot
+    const okada = new DrivableVehicle(
+      {
+        id: 'veh-okada',
+        name: 'QuickChop Delivery Okada',
+        type: 'okada',
+        maxSpeed: 28,
+        reverseSpeed: 6,
+        acceleration: 24,
+        braking: 22,
+        turnSpeed: 4.2,
+        friction: 2.5,
+        hornText: '📢 PEEP-PEEP! OKADA DEY COME!',
+      },
+      new THREE.Vector3(-8.8, 0, -2.0),
+      Math.PI / 2
+    );
+
+    this.drivableVehicles = [danfo, keke, suv, okada];
 
     for (const v of this.drivableVehicles) {
       this.group.add(v.mesh);

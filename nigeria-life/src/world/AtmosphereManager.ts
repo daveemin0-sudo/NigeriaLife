@@ -4,6 +4,7 @@ import {
   createSmokeParticleTexture,
   createPuddleTexture,
 } from '../utils/TextureUtils';
+import { SoundEngine } from '../audio/SoundEngine';
 
 /**
  * AtmosphereManager
@@ -381,6 +382,12 @@ export class AtmosphereManager {
     const ripple = 0.04 + Math.sin(this.elapsedTime * 2.0) * 0.015;
     for (const mat of this.puddleMaterials) {
       mat.roughness = ripple;
+    }
+
+    // 5. Ambient Tiger Generator Sound Attenuation
+    if (playerPos) {
+      const dist = Math.hypot(playerPos.x - 8.5, playerPos.z - 24.0);
+      SoundEngine.getInstance().updateAmbientGenerator(dist);
     }
   }
 

@@ -30,6 +30,7 @@ export class Buildings {
     this.buildFillingStation();
     this.buildMechanicWorkshop();
     this.buildConstructionSite();
+    this.buildPoliceCheckpoint();
   }
 
   // =========================================================================
@@ -486,9 +487,9 @@ export class Buildings {
     this.interactiveList.push({
       mesh: betGroup,
       id: 'bet-shop',
-      name: 'Bet9ja & POS Cash Point',
+      name: 'NaijaBet Mega & POS Cash Point',
       category: 'Entertainment & Gaming',
-      description: 'Place match tickets, virtual games, or fast cash out via Moniepoint POS.',
+      description: 'Place match tickets, virtual games, or fast cash out via KudiPoint POS.',
       interactionPoint: new THREE.Vector3(9.5, 0, 12),
     });
   }
@@ -1359,7 +1360,7 @@ export class Buildings {
     this.interactiveList.push({
       mesh: stationGroup,
       id: 'fuel-station',
-      name: 'Oando Filling Station & Mart',
+      name: 'NaijaPetro Filling Station & Mart',
       category: 'Fuel & Automotive',
       description: 'Refuel your Danfo/Keke, purchase engine oil, or grab cold bottled water.',
       interactionPoint: new THREE.Vector3(-11, 0, 75),
@@ -1583,6 +1584,178 @@ export class Buildings {
       category: 'Work & Labor',
       description: 'Active 4-storey commercial development approved by LASPPPA. Casual day-labor available.',
       interactionPoint: new THREE.Vector3(10, 0, 54),
+    });
+  }
+
+  // =========================================================================
+  // 14. Street Law Enforcement Checkpoint (Nigeria Police & LASTMA Barrier)
+  // =========================================================================
+  private buildPoliceCheckpoint(): void {
+    const cpGroup = new THREE.Group();
+    cpGroup.position.set(5.5, 0, -32);
+
+    // 1. Heavy Steel Oil Drum painted police blue with sandbag base
+    const drumGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.2, 16);
+    const drumMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.5 });
+    const drum = new THREE.Mesh(drumGeo, drumMat);
+    drum.position.set(-1.8, 0.6, 0);
+    drum.castShadow = true;
+    cpGroup.add(drum);
+
+    // White stenciled Police crest ring around drum
+    const ringGeo = new THREE.CylinderGeometry(0.51, 0.51, 0.25, 16);
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.set(-1.8, 0.6, 0);
+    cpGroup.add(ring);
+
+    // 2. Barricade Crossbeam (Black & Yellow hazard striped beam)
+    const beamGeo = new THREE.BoxGeometry(3.6, 0.35, 0.12);
+    const beam = new THREE.Mesh(beamGeo, this.matLib.curbStripedMaterial);
+    beam.position.set(0, 0.9, 0);
+    beam.castShadow = true;
+    cpGroup.add(beam);
+
+    // Two A-frame support legs for the wooden barricade
+    const legGeo = new THREE.BoxGeometry(0.12, 1.0, 0.6);
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
+    for (const lx of [-1.5, 1.5]) {
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(lx, 0.5, 0);
+      leg.castShadow = true;
+      cpGroup.add(leg);
+    }
+
+    // 3. Flashing Emergency Strobe Beacon Box (Red & Blue lights)
+    const strobeGeo = new THREE.BoxGeometry(0.35, 0.2, 0.25);
+    const strobeMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+    const strobe = new THREE.Mesh(strobeGeo, strobeMat);
+    strobe.position.set(0, 1.15, 0);
+    cpGroup.add(strobe);
+
+    const redLight = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    );
+    redLight.position.set(-0.1, 1.18, 0);
+    cpGroup.add(redLight);
+
+    const blueLight = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0x3b82f6 })
+    );
+    blueLight.position.set(0.1, 1.18, 0);
+    cpGroup.add(blueLight);
+
+    // 4. Traffic Cones with white retroreflective bands
+    const coneGeo = new THREE.ConeGeometry(0.24, 0.75, 12);
+    const coneMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.4 });
+    const bandMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+
+    const conePositions = [
+      new THREE.Vector3(1.8, 0.375, -1.0),
+      new THREE.Vector3(2.4, 0.375, 0.8),
+      new THREE.Vector3(-0.8, 0.375, -1.5),
+    ];
+
+    conePositions.forEach((pos) => {
+      const cone = new THREE.Mesh(coneGeo, coneMat);
+      cone.position.copy(pos);
+      cone.castShadow = true;
+
+      const coneBand = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.15, 12), bandMat);
+      coneBand.position.set(pos.x, pos.y + 0.05, pos.z);
+      cpGroup.add(cone);
+      cpGroup.add(coneBand);
+    });
+
+    // 5. Stenciled High-Vis Caution Sign
+    const signBoard = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 0.6, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4 })
+    );
+    signBoard.position.set(0, 1.6, 0);
+    signBoard.castShadow = true;
+    cpGroup.add(signBoard);
+
+    // 6. Stylized Uniformed Police Officer on Duty
+    const officerGroup = new THREE.Group();
+    officerGroup.position.set(-0.9, 0, 0.5);
+
+    // Boots & Legs
+    const officerLegMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+    const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.8, 8), officerLegMat);
+    legL.position.set(-0.13, 0.4, 0);
+    legL.castShadow = true;
+    const legR = legL.clone();
+    legR.position.set(0.13, 0.4, 0);
+    officerGroup.add(legL, legR);
+
+    // Torso with High-Vis Reflective Enforcement Vest
+    const torsoMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.7 });
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.6, 0.25), torsoMat);
+    torso.position.set(0, 1.05, 0);
+    torso.castShadow = true;
+    officerGroup.add(torso);
+
+    const vestMat = new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.5 });
+    const vest = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.45, 0.27), vestMat);
+    vest.position.set(0, 1.05, 0);
+    officerGroup.add(vest);
+
+    // Reflective Silver Stripe across vest
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2 });
+    const refStripe = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.08, 0.28), stripeMat);
+    refStripe.position.set(0, 1.05, 0);
+    officerGroup.add(refStripe);
+
+    // Head
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0x582f1b, roughness: 0.9 });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), skinMat);
+    head.position.set(0, 1.48, 0);
+    head.castShadow = true;
+    officerGroup.add(head);
+
+    // Police Peaked Cap
+    const capMat = new THREE.MeshStandardMaterial({ color: 0x020617, roughness: 0.5 });
+    const capCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.15, 0.08, 12), capMat);
+    capCrown.position.set(0, 1.58, 0);
+    officerGroup.add(capCrown);
+
+    const visorMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.2 });
+    const capVisor = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.02, 0.12), visorMat);
+    capVisor.position.set(0, 1.55, 0.12);
+    officerGroup.add(capVisor);
+
+    // Officer Arms
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.7 });
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.55, 0.1), armMat);
+    armL.position.set(-0.27, 1.05, 0);
+    armL.castShadow = true;
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.55, 0.1), armMat);
+    armR.position.set(0.27, 1.05, 0.05);
+    armR.rotation.x = -0.3; // holding inspection position
+    armR.castShadow = true;
+    officerGroup.add(armL, armR);
+
+    // Clipboard
+    const clipMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 });
+    const clipBoard = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.24, 0.02), clipMat);
+    clipBoard.position.set(0.27, 0.95, 0.22);
+    clipBoard.rotation.x = -0.3;
+    officerGroup.add(clipBoard);
+
+    cpGroup.add(officerGroup);
+
+    this.group.add(cpGroup);
+
+    this.interactiveList.push({
+      mesh: cpGroup,
+      id: 'street-checkpoint',
+      name: 'Police & LASTMA Checkpoint',
+      category: 'Law Enforcement',
+      description: 'Official street checkpoint. Vehicle particulars & safety gear verification inspection point.',
+      interactionPoint: new THREE.Vector3(5.5, 0, -32),
     });
   }
 

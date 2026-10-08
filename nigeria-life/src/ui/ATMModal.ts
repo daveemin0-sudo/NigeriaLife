@@ -1,6 +1,7 @@
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
+import { SoundEngine } from '../audio/SoundEngine';
 
 export class ATMModal {
   private container: HTMLDivElement;
@@ -124,6 +125,7 @@ export class ATMModal {
         const amount = Number((btn as HTMLElement).getAttribute('data-withdraw'));
         const success = this.backend.withdrawFromATM(amount);
         if (success) {
+          SoundEngine.getInstance().playTransactionSuccess();
           showGameToast(`💸 Dispensing ₦${amount.toLocaleString()} cash from ATM! Check your wallet.`, 'success');
         } else {
           showGameToast('❌ Insufficient funds in bank account!', 'error');
@@ -138,6 +140,7 @@ export class ATMModal {
         const amount = Number((btn as HTMLElement).getAttribute('data-deposit'));
         const success = this.backend.depositToBank(amount);
         if (success) {
+          SoundEngine.getInstance().playTransactionSuccess();
           showGameToast(`✅ Deposited ₦${amount.toLocaleString()} cash into your bank account!`, 'success');
         } else {
           showGameToast('❌ Not enough cash in your pocket wallet!', 'error');

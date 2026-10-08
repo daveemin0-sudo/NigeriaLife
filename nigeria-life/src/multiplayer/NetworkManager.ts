@@ -2,8 +2,12 @@ import * as THREE from 'three';
 import { Player } from '../player/Player';
 import { RemotePlayer } from './RemotePlayer';
 import type { NetPacket, PlayerNetState, ChatMessage } from './types';
+import { BackendService } from '../backend/BackendService';
+import { showGameToast } from '../ui/GameToast';
+import type { EmoteType } from '../player/CharacterCustomization';
 
 export class NetworkManager {
+  private static instance: NetworkManager | null = null;
   public localId: string;
   public remotePlayers: Map<string, RemotePlayer> = new Map();
   private scene: THREE.Scene;
@@ -15,6 +19,7 @@ export class NetworkManager {
   private onPlayerCountCallback?: (count: number) => void;
 
   constructor(scene: THREE.Scene, localPlayer: Player) {
+    NetworkManager.instance = this;
     this.scene = scene;
     this.localPlayer = localPlayer;
     this.localId = `naija_${Math.random().toString(36).substring(2, 8)}`;
@@ -30,6 +35,10 @@ export class NetworkManager {
     window.addEventListener('beforeunload', () => {
       this.broadcastLeave();
     });
+  }
+
+  public static getInstance(): NetworkManager | null {
+    return NetworkManager.instance;
   }
 
   public setOnChatMessage(cb: (msg: ChatMessage) => void): void {
@@ -85,10 +94,24 @@ export class NetworkManager {
       if (this.onChatMessageCallback) {
         this.onChatMessageCallback(packet.message);
       }
+    } else if (packet.type === 'p2p_transfer') {
+      if (packet.transfer.recipientId === this.localId) {
+        BackendService.getInstance().addCash(packet.transfer.amount);
+        showGameToast(
+          `+₦${packet.transfer.amount.toLocaleString()} from @${packet.transfer.senderName} (${packet.transfer.memo || 'Direct Transfer'})`,
+          'success'
+        );
+      }
+    } else if (packet.type === 'emote_sync') {
+      if (this.remotePlayers.has(packet.playerId)) {
+        const remote = this.remotePlayers.get(packet.playerId)!;
+        remote.currentEmote = packet.emote;
+      }
     }
   }
 
   public getLocalNetState(): PlayerNetState {
+    const data = BackendService.getInstance().getData();
     return {
       id: this.localId,
       name: this.localPlayer.config.name,
@@ -101,6 +124,7 @@ export class NetworkManager {
       isMoving: this.localPlayer.isMoving,
       currentEmote: this.localPlayer.currentEmote,
       config: this.localPlayer.config,
+      streetCred: data.stats.streetCred,
     };
   }
 
@@ -146,6 +170,77 @@ export class NetworkManager {
     if (this.onChatMessageCallback) {
       this.onChatMessageCallback(msg);
     }
+  }
+
+  public sendP2PTransfer(recipientId: string, amount: number, memo: string = 'EkoPay Instant Wire'): { success: boolean; message: string } {
+    const backend = BackendService.getInstance();
+    const success = backend.spendCash(amount, `P2P Transfer to @${recipientId}`);
+    if (!success) {
+      return { success: false, message: 'Insufficient cash in your wallet!' };
+    }
+
+    const packet: NetPacket = {
+      type: 'p2p_transfer',
+      transfer: {
+        id: `wire_${Date.now()}`,
+        senderId: this.localId,
+        senderName: this.localPlayer.config.name,
+        recipientId,
+        amount,
+        memo,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    };
+
+    this.channel.postMessage(packet);
+    showGameToast(`₦${amount.toLocaleString()} transferred to @${recipientId}.`, 'success');
+    return { success: true, message: `Transferred ₦${amount.toLocaleString()} successfully!` };
+  }
+
+  public syncEmote(emote: EmoteType): void {
+    const packet: NetPacket = {
+      type: 'emote_sync',
+      playerId: this.localId,
+      emote,
+    };
+    this.channel.postMessage(packet);
+  }
+
+  public getOnlinePlayersList(): Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    streetCred: number;
+    isLocal: boolean;
+    pingMs: number;
+    currentEmote: string;
+  }> {
+    const data = BackendService.getInstance().getData();
+    const list = [
+      {
+        id: this.localId,
+        name: `${this.localPlayer.config.name} (You)`,
+        avatar: '🇳🇬',
+        streetCred: data.stats.streetCred,
+        isLocal: true,
+        pingMs: 12,
+        currentEmote: this.localPlayer.currentEmote,
+      },
+    ];
+
+    this.remotePlayers.forEach((rp, id) => {
+      list.push({
+        id,
+        name: (rp as any).name || `@${id.substring(0, 8)}`,
+        avatar: '👤',
+        streetCred: 35,
+        isLocal: false,
+        pingMs: Math.floor(15 + Math.random() * 15),
+        currentEmote: rp.currentEmote,
+      });
+    });
+
+    return list;
   }
 
   public update(delta: number): void {

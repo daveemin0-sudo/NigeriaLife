@@ -88,6 +88,9 @@ export class Roads {
     }
   }
 
+  public streetBulbMaterials: THREE.MeshStandardMaterial[] = [];
+  public streetPointLights: THREE.PointLight[] = [];
+
   private buildStreetLights(): void {
     // Street lamps on alternating sides every 24 meters
     const lampX = 7.5;
@@ -128,19 +131,55 @@ export class Roads {
       head.castShadow = true;
       lampGroup.add(head);
 
-      // Warm LED Luminaire Diffuser Lens with glow
+      // Warm LED Luminaire Diffuser Lens with dynamic glow
       const bulbGeo = new THREE.BoxGeometry(0.55, 0.04, 0.22);
       const bulbMat = new THREE.MeshStandardMaterial({
         color: 0xfffaed,
         emissive: 0xffedd5,
-        emissiveIntensity: 0.85,
+        emissiveIntensity: 0.15,
         roughness: 0.2,
       });
+      this.streetBulbMaterials.push(bulbMat);
+
       const bulb = new THREE.Mesh(bulbGeo, bulbMat);
       bulb.position.set(-poleSide * 1.55, 6.28, 0);
       lampGroup.add(bulb);
 
+      // Night downward sodium / warm LED street light pool
+      const lampLight = new THREE.PointLight(0xffedd5, 0, 16, 1.8);
+      lampLight.position.set(-poleSide * 1.55, 6.1, 0);
+      this.streetPointLights.push(lampLight);
+      lampGroup.add(lampLight);
+
       this.group.add(lampGroup);
+    }
+  }
+
+  public setNightLighting(period: string): void {
+    const isNight = period === 'night';
+    const isGolden = period === 'golden_hour';
+
+    for (const mat of this.streetBulbMaterials) {
+      if (isNight) {
+        mat.emissive.setHex(0xfff1d6);
+        mat.emissiveIntensity = 2.4;
+      } else if (isGolden) {
+        mat.emissive.setHex(0xffc570);
+        mat.emissiveIntensity = 1.1;
+      } else {
+        mat.emissive.setHex(0xffedd5);
+        mat.emissiveIntensity = 0.15;
+      }
+    }
+
+    for (const light of this.streetPointLights) {
+      if (isNight) {
+        light.intensity = 1.8;
+      } else if (isGolden) {
+        light.intensity = 0.7;
+      } else {
+        light.intensity = 0.0;
+      }
     }
   }
 
@@ -335,8 +374,8 @@ export class Roads {
 
     // C. Roadside Vendor Umbrellas & Display Tables (Lagos Living Street Culture)
     const umbrellaThemes = [
-      { color: 0xdc2626, label: 'OPAY / MONIEPOINT POS', item: 'pos' },
-      { color: 0x0d9488, label: 'COLD DRINKS & MALTINA', item: 'drinks' },
+      { color: 0xdc2626, label: 'NAIJAPAY / KUDIPOINT POS', item: 'pos' },
+      { color: 0x0d9488, label: 'COLD DRINKS & MALT', item: 'drinks' },
       { color: 0xf59e0b, label: 'FRESH FRUITS & SNACKS', item: 'fruits' },
       { color: 0x16a34a, label: 'RECHARGE CARDS & DATA', item: 'cards' },
       { color: 0x2563eb, label: 'MAMA SHADE COLD WATER', item: 'water' },

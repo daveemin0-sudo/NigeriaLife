@@ -3,6 +3,7 @@ import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
+import { AssetManager } from '../../assets/AssetManager';
 
 export class AirportInterior {
   public group: THREE.Group;
@@ -12,6 +13,8 @@ export class AirportInterior {
 
   // Animated elements
   private departureBoardPulse: number = 0;
+  private turbineFans: THREE.Mesh[] = [];
+  private tarmacLights: THREE.Mesh[] = [];
 
   constructor() {
     this.group = new THREE.Group();
@@ -47,7 +50,7 @@ export class AirportInterior {
       stations: [
         {
           id: 'airport_checkin_desk',
-          name: 'Air Peace Flight Check-In Desk',
+          name: 'Wazobia Air Flight Check-In Desk',
           category: 'Aviation Check-In',
           description: 'Terminal ticket verification, luggage tagging, and boarding pass issuance.',
           relativePosition: new THREE.Vector3(-7, 0, 2),
@@ -55,12 +58,12 @@ export class AirportInterior {
             {
               id: 'airport_issue_boarding_pass',
               label: '🎫 Flight Check-In & Boarding Pass',
-              description: 'Check in baggage and receive verified Air Peace boarding pass.',
+              description: 'Check in baggage and receive verified Wazobia Air boarding pass.',
               cost: 0,
               rewardSocial: 10,
               itemReward: {
                 id: 'boarding_pass_ticket',
-                name: 'Air Peace Digital Boarding Pass',
+                name: 'Wazobia Air Digital Boarding Pass',
                 category: 'document',
                 price: 0,
                 usable: true,
@@ -98,10 +101,10 @@ export class AirportInterior {
             {
               id: 'airport_fly_abuja_action',
               label: '✈️ Board Flight to Abuja FCT (₦35,000)',
-              description: 'Board Air Peace Boeing 737 express flight directly to Abuja.',
+              description: 'Board Wazobia Air express jet flight directly to Abuja.',
               cost: 35000,
               rewardCred: 25,
-              dialogueResponse: '✈️ "Captain Ibrahim: Welcome aboard Flight P4-7120 to Abuja FCT. Fasten your seatbelts for takeoff!"',
+              dialogueResponse: '✈️ "Captain Ibrahim: Welcome aboard Flight WZ-7120 to Abuja FCT. Fasten your seatbelts for takeoff!"',
             },
           ],
         },
@@ -115,16 +118,16 @@ export class AirportInterior {
             {
               id: 'airport_fly_ph_action',
               label: '✈️ Board Flight to Port Harcourt (₦38,000)',
-              description: 'Board Ibom Air flight directly to Port Harcourt Garden City.',
+              description: 'Board EagleWings flight directly to Port Harcourt Garden City.',
               cost: 38000,
               rewardCred: 25,
-              dialogueResponse: '✈️ "Welcome aboard flight QI-0402 to Port Harcourt. Preparing for runway departure!"',
+              dialogueResponse: '✈️ "Welcome aboard flight EW-0402 to Port Harcourt. Preparing for runway departure!"',
             },
           ],
         },
         {
           id: 'airport_vip_lounge',
-          name: 'Arik VIP Executive Lounge',
+          name: 'EagleWings VIP Executive Lounge',
           category: 'Airport Lounge',
           description: 'First-class waiting lounge with buffet delicacies, chilled malt, private Wi-Fi, and plush sofas.',
           relativePosition: new THREE.Vector3(-9, 0, -7),
@@ -262,7 +265,7 @@ export class AirportInterior {
     this.interactiveList.push({
       mesh: deskGroup,
       id: 'airport_checkin_desk',
-      name: 'Air Peace Flight Check-In Desk',
+      name: 'Wazobia Air Flight Check-In Desk',
       category: 'Aviation Check-In',
       description: 'Terminal ticket verification, luggage tagging, and boarding pass issuance.',
       interactionPoint: new THREE.Vector3(-7, 0, 0.8),
@@ -371,7 +374,7 @@ export class AirportInterior {
       interactionPoint: new THREE.Vector3(12, 0, -6.5),
     });
 
-    // 9. Arik VIP Executive Lounge (Back Left)
+    // 9. EagleWings VIP Executive Lounge (Back Left)
     const vipGroup = new THREE.Group();
     vipGroup.position.set(-9, 0, -7);
 
@@ -396,7 +399,7 @@ export class AirportInterior {
     this.interactiveList.push({
       mesh: vipGroup,
       id: 'airport_vip_lounge',
-      name: 'Arik VIP Executive Lounge',
+      name: 'EagleWings VIP Executive Lounge',
       category: 'Airport Lounge',
       description: 'First-class waiting lounge with buffet delicacies, chilled malt, private Wi-Fi, and plush sofas.',
       interactionPoint: new THREE.Vector3(-9, 0, -5.2),
@@ -417,10 +420,273 @@ export class AirportInterior {
         interactionPoint: npcDef.relativePosition.clone().add(new THREE.Vector3(0, 0, 1.2)),
       });
     });
+
+    // 11. Apron Tarmac & Wazobia Air Commercial Jet View
+    this.buildTarmacAndAirliner();
+  }
+
+  // =========================================================================
+  // 11. APRON TARMAC & WAZOBIA AIR JET 737 REALISM
+  // =========================================================================
+  private buildTarmacAndAirliner(): void {
+    const tarmacGroup = new THREE.Group();
+    tarmacGroup.position.set(0, 0, -22);
+
+    // 1. Apron Asphalt Ground Plane
+    const asphaltGeo = new THREE.PlaneGeometry(36, 20);
+    const asphaltMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.85,
+      metalness: 0.1,
+    });
+    const tarmacGround = new THREE.Mesh(asphaltGeo, asphaltMat);
+    tarmacGround.rotation.x = -Math.PI / 2;
+    tarmacGround.position.y = -0.05;
+    tarmacGround.receiveShadow = true;
+    tarmacGroup.add(tarmacGround);
+
+    // 2. Yellow Taxiway Centerline & Stop Markings
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+    const taxiLine = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 18), lineMat);
+    taxiLine.rotation.x = -Math.PI / 2;
+    taxiLine.position.set(0, 0.01, 0);
+    tarmacGroup.add(taxiLine);
+
+    const stopLine = new THREE.Mesh(new THREE.PlaneGeometry(6.5, 0.4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    stopLine.rotation.x = -Math.PI / 2;
+    stopLine.position.set(0, 0.02, 3.5);
+    tarmacGroup.add(stopLine);
+
+    // 3. Runway Edge / Taxiway Guidance Blue & Green LED Beacons
+    for (const lx of [-16, 16]) {
+      for (let lz = -8; lz <= 8; lz += 4) {
+        const beacon = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.08, 0.08, 0.35, 8),
+          new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            emissive: 0x0284c7,
+            emissiveIntensity: 2.0,
+          })
+        );
+        beacon.position.set(lx, 0.18, lz);
+        tarmacGroup.add(beacon);
+        this.tarmacLights.push(beacon);
+      }
+    }
+
+    // 4. Panoramic Glass Concourse Wall (between gates and tarmac)
+    const glassWallGroup = new THREE.Group();
+    glassWallGroup.position.set(0, 2.5, -13.0);
+
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe0f2fe,
+      roughness: 0.05,
+      transmission: 0.85,
+      ior: 1.5,
+      transparent: true,
+      opacity: 0.7,
+    });
+    const glassPane = new THREE.Mesh(new THREE.PlaneGeometry(28, 5.0), glassMat);
+    glassWallGroup.add(glassPane);
+
+    // Brushed metal window mullions
+    const mullionMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.2 });
+    for (let mx = -14; mx <= 14; mx += 3.5) {
+      const mullion = new THREE.Mesh(new THREE.BoxGeometry(0.12, 5.0, 0.15), mullionMat);
+      mullion.position.set(mx, 0, 0.02);
+      glassWallGroup.add(mullion);
+    }
+    this.group.add(glassWallGroup);
+
+    // 5. Wazobia Air Boeing 737 Commercial Twin-Jet
+    const planeGroup = new THREE.Group();
+    planeGroup.position.set(3.5, 0, -2);
+    planeGroup.rotation.y = -Math.PI * 0.45; // Angled parked at gate
+
+    // A. Fuselage (Aerodynamic Main Tube)
+    const fuselageGeo = new THREE.CylinderGeometry(1.5, 1.5, 18, 20);
+    const planeMat = new THREE.MeshPhysicalMaterial({
+      color: 0xf8fafc,
+      roughness: 0.2,
+      metalness: 0.25,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.1,
+    });
+    const fuselage = new THREE.Mesh(fuselageGeo, planeMat);
+    fuselage.rotation.x = Math.PI / 2;
+    fuselage.position.y = 2.4;
+    fuselage.castShadow = true;
+    planeGroup.add(fuselage);
+
+    // B. Nose Cone
+    const noseGeo = new THREE.ConeGeometry(1.5, 3.2, 20);
+    const nose = new THREE.Mesh(noseGeo, planeMat);
+    nose.rotation.x = -Math.PI / 2;
+    nose.position.set(0, 2.4, 10.5);
+    planeGroup.add(nose);
+
+    // C. Wazobia Air Iconic Blue & Red Cheatline Ribbon
+    const ribbonMat = new THREE.MeshStandardMaterial({ color: 0x0284c7 }); // Sky blue
+    const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(1.52, 1.52, 14, 20, 1, true), ribbonMat);
+    ribbon.rotation.x = Math.PI / 2;
+    ribbon.position.set(0, 2.4, 1.0);
+    planeGroup.add(ribbon);
+
+    // D. Cockpit Windshield Glass
+    const cockpit = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 0.55, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.1, metalness: 0.9 })
+    );
+    cockpit.position.set(0, 3.1, 9.8);
+    cockpit.rotation.x = -0.3;
+    planeGroup.add(cockpit);
+
+    // E. Swept Main Wings & Winglets
+    const wingMat = new THREE.MeshPhysicalMaterial({ color: 0xe2e8f0, roughness: 0.3, metalness: 0.3 });
+    const wingGeo = new THREE.BoxGeometry(16, 0.25, 3.2);
+    const wings = new THREE.Mesh(wingGeo, wingMat);
+    wings.position.set(0, 1.8, 0.5);
+    wings.castShadow = true;
+    planeGroup.add(wings);
+
+    // Blue Wingtip Winglets
+    for (const wx of [-8.0, 8.0]) {
+      const winglet = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.1, 1.4), ribbonMat);
+      winglet.position.set(wx, 2.3, 0.5);
+      planeGroup.add(winglet);
+    }
+
+    // F. Twin Turbofan Jet Engines with Animated Turbine Fan Blades
+    const engineMat = new THREE.MeshPhysicalMaterial({ color: 0xf1f5f9, roughness: 0.25, metalness: 0.5 });
+    const fanMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.2 });
+
+    for (const ex of [-4.2, 4.2]) {
+      const nacelle = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.88, 3.6, 16), engineMat);
+      nacelle.rotation.x = Math.PI / 2;
+      nacelle.position.set(ex, 1.25, 1.0);
+      nacelle.castShadow = true;
+      planeGroup.add(nacelle);
+
+      // Spinning Intake Turbine Fan
+      const fanHub = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.45, 12), fanMat);
+      fanHub.rotation.x = -Math.PI / 2;
+      fanHub.position.set(ex, 1.25, 2.6);
+
+      // 12 Angled Turbine Blades
+      for (let b = 0; b < 12; b++) {
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.02), fanMat);
+        blade.rotation.z = (b * Math.PI) / 6;
+        blade.position.set(Math.cos(blade.rotation.z) * 0.35, Math.sin(blade.rotation.z) * 0.35, 0);
+        fanHub.add(blade);
+      }
+
+      planeGroup.add(fanHub);
+      this.turbineFans.push(fanHub);
+    }
+
+    // G. Vertical Tail Fin (Wazobia Air Livery)
+    const tailFinGeo = new THREE.BoxGeometry(0.2, 4.2, 3.5);
+    const tailFin = new THREE.Mesh(tailFinGeo, ribbonMat);
+    tailFin.position.set(0, 4.8, -7.5);
+    tailFin.rotation.x = -0.35;
+    planeGroup.add(tailFin);
+
+    // H. Horizontal Stabilizers
+    const hStabGeo = new THREE.BoxGeometry(6.2, 0.18, 1.8);
+    const hStab = new THREE.Mesh(hStabGeo, wingMat);
+    hStab.position.set(0, 3.2, -8.2);
+    planeGroup.add(hStab);
+
+    // I. Tricycle Landing Gear (Nose + Main Wheels)
+    const strutMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.85, roughness: 0.2 });
+    const tireMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.85 });
+
+    // Nose Gear
+    const noseStrut = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 8), strutMat);
+    noseStrut.position.set(0, 0.7, 8.5);
+    planeGroup.add(noseStrut);
+
+    for (const nx of [-0.18, 0.18]) {
+      const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.15, 16), tireMat);
+      tire.rotation.z = Math.PI / 2;
+      tire.position.set(nx, 0.3, 8.5);
+      planeGroup.add(tire);
+    }
+
+    // Main Gear (Left & Right)
+    for (const mx of [-2.4, 2.4]) {
+      const mainStrut = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.6, 8), strutMat);
+      mainStrut.position.set(mx, 0.8, -0.2);
+      planeGroup.add(mainStrut);
+
+      for (const tx of [-0.22, 0.22]) {
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.22, 16), tireMat);
+        tire.rotation.z = Math.PI / 2;
+        tire.position.set(mx + tx, 0.42, -0.2);
+        planeGroup.add(tire);
+      }
+    }
+
+    // 6. Ground Support: Mobile Passenger Boarding Stairs Truck
+    const stairsGroup = new THREE.Group();
+    stairsGroup.position.set(1.8, 0, 7.8);
+    stairsGroup.rotation.y = Math.PI * 0.45;
+
+    const truckBed = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.6, 4.0), new THREE.MeshStandardMaterial({ color: 0xfacc15 }));
+    truckBed.position.y = 0.4;
+    stairsGroup.add(truckBed);
+
+    // Angled staircase steps
+    const stairRamp = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 0.15, 3.6),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7 })
+    );
+    stairRamp.rotation.x = -0.55;
+    stairRamp.position.set(0, 1.6, 0.2);
+    stairsGroup.add(stairRamp);
+    planeGroup.add(stairsGroup);
+
+    // 7. Ground Support: Baggage Tug & Luggage Trailer
+    const tugGroup = new THREE.Group();
+    tugGroup.position.set(-6.5, 0, 4.5);
+    const tug = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 2.4), new THREE.MeshStandardMaterial({ color: 0xf59e0b }));
+    tug.position.y = 0.55;
+    tugGroup.add(tug);
+
+    const cart = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.7, 2.6), new THREE.MeshStandardMaterial({ color: 0x475569 }));
+    cart.position.set(0, 0.45, -3.2);
+    tugGroup.add(cart);
+    planeGroup.add(tugGroup);
+
+    tarmacGroup.add(planeGroup);
+    this.group.add(tarmacGroup);
+
+    // 8. Asynchronously swap in external GLB model if supplied
+    AssetManager.getInstance().instantiate('/models/aircraft/wazobia_jet737.glb').then((glbScene) => {
+      if (glbScene) {
+        tarmacGroup.remove(planeGroup);
+        glbScene.position.copy(planeGroup.position);
+        glbScene.rotation.copy(planeGroup.rotation);
+        tarmacGroup.add(glbScene);
+      }
+    });
   }
 
   public update(delta: number, animTime: number): void {
     this.departureBoardPulse += delta;
     this.npcs.forEach((npc) => npc.update(delta, animTime));
+
+    // Spin jet engine intake turbine fan blades
+    for (const fan of this.turbineFans) {
+      fan.rotation.x -= delta * 20.0;
+    }
+
+    // Gentle pulse on apron taxiway guidance lights
+    const lightPulse = 1.6 + Math.sin(this.departureBoardPulse * 3) * 0.4;
+    for (const beacon of this.tarmacLights) {
+      if (beacon.material && (beacon.material as any).emissiveIntensity !== undefined) {
+        (beacon.material as any).emissiveIntensity = lightPulse;
+      }
+    }
   }
 }

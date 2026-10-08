@@ -14,6 +14,13 @@ import type { PlayerAccount } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import type { MapBusiness } from '../world/data/WorldDataTypes';
 import { HouseDecorationSystem } from '../housing/HouseDecorationSystem';
+import { SoundEngine } from '../audio/SoundEngine';
+import { QuestManager } from '../quests/QuestManager';
+import { QuestModal } from './QuestModal';
+import type { StoryQuest } from '../quests/QuestTypes';
+import { CloudSyncService } from '../backend/CloudSyncService';
+import { NetworkManager } from '../multiplayer/NetworkManager';
+import { showGameToast } from './GameToast';
 
 export class HUD {
   private container: HTMLDivElement;
@@ -30,6 +37,8 @@ export class HUD {
   public travelModal!: TravelModal;
   public interstateModal!: InterStateModal;
   public worldMapUI!: WorldMapUI;
+  public questModal!: QuestModal;
+  private questManager: QuestManager;
   private player!: Player;
   private world?: World;
   private backend: BackendService;
@@ -45,6 +54,7 @@ export class HUD {
   public onRotateCamera?: (deltaYaw: number) => void;
   public onResetCamera?: () => void;
   public onCycleCameraPreset?: () => string;
+  public onOpenPhotoMode?: () => void;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
 
   constructor() {
@@ -53,23 +63,37 @@ export class HUD {
     this.atmModal = new ATMModal();
     this.inventoryModal.onOpenATM = () => this.atmModal.open();
     this.phoneModal = new PhoneModal();
+    this.phoneModal.onFastTravel = (pos, name) => {
+      this.currentNavMode = 'street';
+      this.worldMapUI.close();
+      const radar = document.getElementById('street-radar-bar');
+      if (radar) radar.style.display = 'flex';
+      const decorBar = document.getElementById('house-decor-bar');
+      if (decorBar) decorBar.style.display = 'none';
+      this.player?.mesh.position.set(pos.x, pos.y, pos.z);
+      this.showNotification(`📍 Arrived at your residence: ${name}!`);
+      this.onNavigateMode?.('street');
+    };
     this.economyModal = new EconomyModal();
+    this.economyModal.onFastTravel = this.phoneModal.onFastTravel;
     this.travelModal = new TravelModal();
     this.interstateModal = new InterStateModal();
     this.worldMapUI = new WorldMapUI();
+    this.questManager = QuestManager.getInstance();
+    this.questModal = new QuestModal();
 
     this.container = document.createElement('div');
     this.container.id = 'hud-overlay';
     this.container.innerHTML = `
       <!-- Top Status Header (Viral Lagos Life Replica) -->
       <header class="hud-header">
-        <!-- Top Left Badges (Match, Music, Gem Hunt) -->
+        <!-- Top Left Badges (Match, Music, Gem Hunt & Mission Tracker) -->
         <div class="hud-top-left-badges">
-          <div class="top-badge quest-badge" id="badge-super-eagles" title="Tap to celebrate & dance!">
-            <span class="badge-icon">⚽</span>
+          <div class="top-badge quest-badge" id="badge-super-eagles" title="Story Quests & Narrative Missions">
+            <span class="badge-icon">🎯</span>
             <div class="badge-text">
-              <span class="badge-title">Super Eagles Match</span>
-              <span class="badge-sub">Tap to cheer & dance</span>
+              <span class="badge-title">Naija Story Quests</span>
+              <span class="badge-sub">Multi-City Narrative</span>
             </div>
           </div>
           <div class="top-badge music-badge" id="badge-afrobeats" title="Play Afrobeats Radio">
@@ -86,6 +110,29 @@ export class HUD {
               <span class="badge-sub">87,691 found • Next: ₦3,000</span>
             </div>
           </div>
+
+          <!-- HUD Active Mission Tracker Card (Track B3) -->
+          <div class="hud-quest-tracker" id="hud-quest-tracker">
+            <div class="quest-tracker-header" id="quest-tracker-click-header" title="Open Nigeria Story Quests & Missions">
+              <span class="tracker-icon">🎯</span>
+              <div class="tracker-title-box">
+                <span class="tracker-arc" id="tracker-quest-arc">LAGOS ARC</span>
+                <h5 class="tracker-title" id="tracker-quest-title">Ch. 1: Mainland Hustle</h5>
+              </div>
+              <button class="btn-tracker-toggle" id="btn-tracker-toggle" title="Minimize/Expand Tracker">▾</button>
+            </div>
+            <div class="tracker-body" id="tracker-body">
+              <div class="tracker-objectives" id="tracker-objectives-list">
+                <div class="tracker-obj-item">
+                  <span class="obj-dot">○</span>
+                  <span>Complete any street job shift or hustle minigame</span>
+                </div>
+              </div>
+              <div class="tracker-reward-line">
+                <span id="tracker-rewards-text">💰 ₦15,000 • ⭐ +20 Cred</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Center Floating Pill Bar -->
@@ -98,9 +145,34 @@ export class HUD {
             <span id="hud-mood-icon">😄</span>
             <span id="hud-mood-val">Very Happy</span>
           </div>
-          <div class="pill-item online-pill">
+          <div class="hud-vitals-bar" id="hud-vitals-bar">
+            <div class="vital-item vital-health" title="Health">
+              <span class="vital-icon">❤️</span>
+              <div class="vital-track"><div class="vital-fill" id="vital-fill-health" style="width: 100%;"></div></div>
+              <span class="vital-val" id="vital-val-health">100%</span>
+            </div>
+            <div class="vital-item vital-energy" title="Energy">
+              <span class="vital-icon">⚡</span>
+              <div class="vital-track"><div class="vital-fill" id="vital-fill-energy" style="width: 100%;"></div></div>
+              <span class="vital-val" id="vital-val-energy">100%</span>
+            </div>
+            <div class="vital-item vital-hunger" title="Hunger">
+              <span class="vital-icon">🍗</span>
+              <div class="vital-track"><div class="vital-fill" id="vital-fill-hunger" style="width: 80%;"></div></div>
+              <span class="vital-val" id="vital-val-hunger">80%</span>
+            </div>
+            <div class="vital-item vital-cred" title="Street Cred">
+              <span class="vital-icon">⭐</span>
+              <div class="vital-track"><div class="vital-fill" id="vital-fill-cred" style="width: 25%;"></div></div>
+              <span class="vital-val" id="vital-val-cred">25</span>
+            </div>
+          </div>
+          <div class="pill-item online-pill" id="hud-online-pill" title="Toggle FPS & Render Stats [F3]" style="cursor: pointer;">
             <span>👥</span>
             <span>17.6m • <strong style="color: #4ade80;">🟢 85k online</strong></span>
+          </div>
+          <div class="pill-item perf-pill" id="hud-perf-pill" style="display: none; font-size: 11px; background: rgba(0,0,0,0.65); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;">
+            <span id="perf-fps">60 FPS</span> • <span id="perf-ms">16ms</span> • <span id="perf-draws">40 draws</span>
           </div>
           <button class="sound-toggle-btn" id="hud-sound-toggle" title="Toggle Afrobeats Radio">🔊</button>
           <div class="pill-item money-pill-large" id="pill-money-wrap">
@@ -114,6 +186,14 @@ export class HUD {
           <button class="btn-camera-view-toggle" id="btn-camera-view-toggle" title="Switch Camera View [V] (Third-Person / Street / Isometric / Aerial)">
             <span>🎥</span>
             <span id="cam-preset-label">STREET</span>
+          </button>
+          <button class="btn-camera-view-toggle" id="btn-photo-mode-toggle" title="Photo Mode [P] • Snap & Grade Shots" style="border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+            <span>📸</span>
+            <span>PHOTO</span>
+          </button>
+          <button class="btn-camera-view-toggle hud-cloud-pill" id="hud-btn-cloud-sync" title="Multiplayer & EkoCloud Hub • Click to Open Meetumo" style="border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.15); color: #4ade80;">
+            <span class="cloud-dot-live">🟢</span>
+            <span id="hud-online-count">1 Online</span> • <span id="hud-cloud-status">☁️ Synced</span>
           </button>
           <div class="hud-location">
             <span class="flag">🇳🇬</span>
@@ -302,15 +382,69 @@ export class HUD {
       moneyEl.textContent = `₦${data.walletCash.toLocaleString()}`;
     }
 
-    const energyEl = document.getElementById('hud-energy');
-    if (energyEl) {
-      energyEl.textContent = `${data.stats.energy}% Energy`;
+    const health = Math.round(data.stats.health ?? 100);
+    const energy = Math.round(data.stats.energy);
+    const hunger = Math.round(data.stats.hunger);
+    const cred = Math.round(data.stats.streetCred);
+
+    const hFill = document.getElementById('vital-fill-health');
+    const hVal = document.getElementById('vital-val-health');
+    if (hFill && hVal) {
+      hFill.style.width = `${health}%`;
+      hVal.textContent = `${health}%`;
+      hFill.parentElement?.classList.toggle('vital-critical', health < 25);
+    }
+
+    const eFill = document.getElementById('vital-fill-energy');
+    const eVal = document.getElementById('vital-val-energy');
+    if (eFill && eVal) {
+      eFill.style.width = `${energy}%`;
+      eVal.textContent = `${energy}%`;
+      eFill.parentElement?.classList.toggle('vital-critical', energy < 20);
+    }
+
+    const huFill = document.getElementById('vital-fill-hunger');
+    const huVal = document.getElementById('vital-val-hunger');
+    if (huFill && huVal) {
+      huFill.style.width = `${hunger}%`;
+      huVal.textContent = `${hunger}%`;
+      huFill.parentElement?.classList.toggle('vital-critical', hunger < 20);
+    }
+
+    const cFill = document.getElementById('vital-fill-cred');
+    const cVal = document.getElementById('vital-val-cred');
+    if (cFill && cVal) {
+      cFill.style.width = `${cred}%`;
+      cVal.textContent = `${cred}`;
+    }
+
+    // Dynamic Mood
+    const moodIcon = document.getElementById('hud-mood-icon');
+    const moodVal = document.getElementById('hud-mood-val');
+    if (moodIcon && moodVal) {
+      if (hunger <= 0 || health < 30) {
+        moodIcon.textContent = '😫';
+        moodVal.textContent = 'Starving';
+      } else if (hunger < 25) {
+        moodIcon.textContent = '🤤';
+        moodVal.textContent = 'Hungry';
+      } else if (energy < 20) {
+        moodIcon.textContent = '😴';
+        moodVal.textContent = 'Exhausted';
+      } else if (energy > 75 && hunger > 70) {
+        moodIcon.textContent = '🔥';
+        moodVal.textContent = 'Odogwu Fresh';
+      } else {
+        moodIcon.textContent = '😄';
+        moodVal.textContent = 'Very Happy';
+      }
     }
   }
 
   public init(player: Player, world?: World): void {
     this.player = player;
     this.world = world;
+    if (world) this.economyModal.setWorld(world);
     this.creatorModal = new CharacterCreatorModal(player);
 
     document.getElementById('open-wardrobe-btn')?.addEventListener('click', () => {
@@ -394,6 +528,41 @@ export class HUD {
         const lbl = document.getElementById('cam-preset-label');
         if (lbl) lbl.textContent = names[next] || next.toUpperCase();
         this.showNotification(`📷 Camera View: ${names[next] || next}`);
+      }
+    });
+
+    document.getElementById('btn-photo-mode-toggle')?.addEventListener('click', () => {
+      this.onOpenPhotoMode?.();
+    });
+
+    // Afrobeats Street Radio & Master Sound Toggles
+    const toggleRadioFn = () => {
+      const active = SoundEngine.getInstance().toggleRadio();
+      const soundBtn = document.getElementById('hud-sound-toggle');
+      if (soundBtn) {
+        soundBtn.textContent = active ? '🎶' : '🔊';
+        soundBtn.style.color = active ? '#38bdf8' : '#fff';
+      }
+      this.showNotification(active ? '📻 Afrobeats Radio: ON (112 BPM Groove)' : '📻 Afrobeats Radio: OFF');
+    };
+
+    document.getElementById('hud-sound-toggle')?.addEventListener('click', toggleRadioFn);
+    document.getElementById('badge-afrobeats')?.addEventListener('click', toggleRadioFn);
+
+    // Performance Diagnostics Toggle (Click or F3)
+    const togglePerfFn = () => {
+      const perfPill = document.getElementById('hud-perf-pill');
+      if (perfPill) {
+        const isHidden = perfPill.style.display === 'none';
+        perfPill.style.display = isHidden ? 'flex' : 'none';
+        this.showNotification(isHidden ? '📊 Performance Diagnostics: ON' : '📊 Performance Diagnostics: OFF');
+      }
+    };
+    document.getElementById('hud-online-pill')?.addEventListener('click', togglePerfFn);
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F3') {
+        e.preventDefault();
+        togglePerfFn();
       }
     });
 
@@ -596,6 +765,19 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
     });
 
+    // Cloud & Multiplayer Hub Pill
+    document.getElementById('hud-btn-cloud-sync')?.addEventListener('click', () => {
+      this.phoneModal.open();
+      this.phoneModal.openApp('meetumo');
+    });
+
+    CloudSyncService.getInstance().subscribe((info) => {
+      const cloudStatusEl = document.getElementById('hud-cloud-status');
+      if (cloudStatusEl) {
+        cloudStatusEl.textContent = `☁️ ${info.lastSyncedFormatted}`;
+      }
+    });
+
     // City tabs inside aerial map view
     document.querySelectorAll('.city-tab').forEach((tab) => {
       tab.addEventListener('click', (e) => {
@@ -611,18 +793,31 @@ export class HUD {
       });
     });
 
-    // Top left badges
+    // Top left badges & Story Quest Tracker
     document.getElementById('badge-super-eagles')?.addEventListener('click', () => {
-      this.player.playEmote('groove', 4.0);
-      this.showDialogueModal({
-        speakerName: 'Super Eagles Supporters Club',
-        speakerRole: 'National Stadium Concourse',
-        speakerAvatar: '⚽',
-        soundType: 'cheer',
-        dialogueText: 'SUPER EAGLES NAIJA! Goal celebration! Super Eagles 2 - 0 Rivals! The entire stadium and street erupts in green-white-green pride!',
-        rewards: { streetCred: 15 },
-      });
+      this.questModal.open();
     });
+
+    document.getElementById('quest-tracker-click-header')?.addEventListener('click', () => {
+      this.questModal.open();
+    });
+
+    document.getElementById('btn-tracker-toggle')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const body = document.getElementById('tracker-body');
+      const btn = document.getElementById('btn-tracker-toggle');
+      if (body) {
+        const isCollapsed = body.style.display === 'none';
+        body.style.display = isCollapsed ? 'block' : 'none';
+        if (btn) btn.textContent = isCollapsed ? '▾' : '▸';
+      }
+    });
+
+    // Wire quest manager updates & initialize tracker
+    this.questManager.subscribe((activeQuest) => {
+      this.onQuestUpdate(activeQuest);
+    });
+    this.onQuestUpdate(this.questManager.getActiveQuest());
 
     document.getElementById('badge-afrobeats')?.addEventListener('click', () => {
       this.player.playEmote('groove', 5.0);
@@ -719,6 +914,8 @@ export class HUD {
         } else {
           this.economyModal.toggle();
         }
+      } else if (e.key.toLowerCase() === 'q') {
+        this.questModal.toggle();
       } else if (e.key.toLowerCase() === 't') {
         this.travelModal.toggle();
       } else if (e.key.toLowerCase() === 'm') {
@@ -738,6 +935,7 @@ export class HUD {
         this.economyModal.close();
         this.travelModal.close();
         this.interstateModal.close();
+        this.questModal.close();
       }
     });
   }
@@ -790,6 +988,54 @@ export class HUD {
     const labelEl = document.getElementById('hud-weather-label');
     if (iconEl) iconEl.textContent = type === 'sunny' ? '☀️' : '🌧️';
     if (labelEl) labelEl.textContent = type === 'sunny' ? 'Sunny' : 'Rainy';
+  }
+
+  public onQuestUpdate(quest: StoryQuest | null): void {
+    const trackerEl = document.getElementById('hud-quest-tracker');
+    if (!trackerEl) return;
+
+    if (!quest) {
+      trackerEl.style.display = 'none';
+      return;
+    }
+
+    trackerEl.style.display = 'flex';
+    const arcEl = document.getElementById('tracker-quest-arc');
+    const titleEl = document.getElementById('tracker-quest-title');
+    const objListEl = document.getElementById('tracker-objectives-list');
+    const rewardsEl = document.getElementById('tracker-rewards-text');
+
+    if (arcEl) arcEl.textContent = `${quest.city.toUpperCase().replace('_', ' ')} ARC • ${quest.arcName}`;
+    if (titleEl) titleEl.textContent = `Ch. ${quest.chapterNumber}: ${quest.title}`;
+
+    if (objListEl) {
+      objListEl.innerHTML = quest.objectives
+        .map((obj) => {
+          const countStr = obj.targetCount && obj.targetCount > 1 
+            ? ` (${obj.currentCount || 0}/${obj.targetCount})` 
+            : '';
+          const checkIcon = obj.isCompleted ? '✅' : '○';
+          const completedClass = obj.isCompleted ? 'obj-done' : '';
+          return `
+            <div class="tracker-obj-item ${completedClass}">
+              <span class="obj-dot">${checkIcon}</span>
+              <span>${obj.description}${countStr}</span>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    if (rewardsEl) {
+      let rew = `💰 ₦${quest.rewards.cash.toLocaleString()} • ⭐ +${quest.rewards.streetCred} Cred`;
+      if (quest.rewards.careerXp) {
+        rew += ` • 💼 +${quest.rewards.careerXp} XP`;
+      }
+      if (quest.rewards.itemReward) {
+        rew += ` • ${quest.rewards.itemReward.icon} ${quest.rewards.itemReward.name}`;
+      }
+      rewardsEl.textContent = rew;
+    }
   }
 
   public showInteractionCard(obj: InteractiveObject): void {
@@ -893,7 +1139,7 @@ export class HUD {
       btnEl.textContent = '✈️ Board Flight LOS-PHC to Port Harcourt (₦32,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_vip_lounge') {
-      btnEl.textContent = '🥂 Arik Air Executive VIP Lounge Access (₦5,000)';
+      btnEl.textContent = '🥂 EagleWings Executive VIP Lounge Access (₦5,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'bank_atm_station') {
       btnEl.textContent = '🏧 Withdraw ₦10,000 Cash';
@@ -911,10 +1157,13 @@ export class HUD {
       btnEl.textContent = '🍽️ Sit Down & Chop Life (₦2,500)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'police_front_desk') {
-      btnEl.textContent = '📝 File Citizen Incident Report (₦500)';
+      btnEl.textContent = '📝 Area Command Desk & Clearance Services [E]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'police_holding_cell') {
-      btnEl.textContent = '⚖️ Pay Citizen Bail Bond (₦5,000)';
+      btnEl.textContent = '⚖️ Detention Cell & Citizen Bail Bond [E]';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'street-checkpoint') {
+      btnEl.textContent = '🛑 Approach Highway & Police Checkpoint [E]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'flat-workstation') {
       btnEl.textContent = '💻 Complete Remote Tech Sprint (+₦12,000)';
@@ -924,7 +1173,7 @@ export class HUD {
       bizBtn.style.display = 'none';
     } else if (obj.id === 'bet-shop') {
       btnEl.textContent = '⚽ Place Match Ticket (₦1,000)';
-      bizBtn.textContent = '💼 POS & Bet9ja Enterprise Hub [E]';
+      bizBtn.textContent = '💼 POS & NaijaBet Mega Hub [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'villa-compound' || obj.id === 'palm-view-flats') {
       btnEl.textContent = '🏠 Enter Apartment / Residence [E]';
@@ -998,14 +1247,14 @@ export class HUD {
       btnEl.textContent = '🚌 Board Danfo Shuttle (₦300)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'npc-punter') {
-      btnEl.textContent = '💬 Gist with Segun (Bet9ja)';
+      btnEl.textContent = '💬 Gist with Segun (NaijaBet)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'pharmacy') {
       btnEl.textContent = '💊 Buy Medicine & First Aid (₦1,500)';
       bizBtn.textContent = '💼 Pharmacy Enterprise [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'supermarket') {
-      btnEl.textContent = '🛒 Buy Indomie Carton & Peak Milk (₦4,500)';
+      btnEl.textContent = '🛒 Buy Noodles Carton & Tinned Milk (₦4,500)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'slot-gadgets') {
       btnEl.textContent = '📱 Buy 20,000mAh Power Bank & Charger (₦8,500)';
@@ -1017,7 +1266,7 @@ export class HUD {
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'fuel-station') {
       btnEl.textContent = '⛽ Buy 10L Petrol Keg & Cold Drink (₦8,500)';
-      bizBtn.textContent = '💼 Oando Forecourt Franchise [E]';
+      bizBtn.textContent = '💼 NaijaPetro Forecourt Franchise [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'mechanic') {
       btnEl.textContent = '🔧 Tune Up Engine & Vehicle Overhaul (₦6,000)';
@@ -1068,6 +1317,18 @@ export class HUD {
     } else if (obj.id === 'balogun-market') {
       btnEl.textContent = '👗 Buy Wholesale Ankara Fabric Bale (₦6,000)';
       bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-bed') {
+      btnEl.textContent = '🛏️ Sleep in Bed & Deep Rest (100% Energy & Health)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-drum') {
+      btnEl.textContent = '🚿 Fetch Water & Bath from Drum (+30 Energy, +20 Health)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-pet') {
+      btnEl.textContent = '🐶 Pet Bingo the Dog (+15 Mood, +5 Cred)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id.startsWith('remote_player_')) {
+      btnEl.textContent = '🤝 Citizen Interaction & EkoPay [E]';
+      bizBtn.style.display = 'none';
     } else {
       btnEl.textContent = 'Enter / Inspect';
       bizBtn.style.display = 'none';
@@ -1098,6 +1359,13 @@ export class HUD {
     }
   }
 
+  public updateOnlineCount(count: number): void {
+    const onlineEl = document.getElementById('hud-online-count');
+    if (onlineEl) {
+      onlineEl.textContent = `${count} Online`;
+    }
+  }
+
   public showDialogueModal(options: {
     speakerName: string;
     speakerRole?: string;
@@ -1116,6 +1384,12 @@ export class HUD {
         category?: string;
       };
     };
+    choices?: Array<{
+      id: string;
+      label: string;
+      badge?: string;
+      onSelect: () => void;
+    }>;
     onConfirm?: () => void;
   }): void {
     // Play Web Audio chime for video game feedback
@@ -1151,6 +1425,25 @@ export class HUD {
       }
     }
 
+    const hasChoices = Boolean(options.choices && options.choices.length > 0);
+    let choicesHtml = '';
+    if (hasChoices) {
+      choicesHtml = `
+        <div class="dialogue-choices-row" id="dialogue-choices-row">
+          ${options.choices!.map((c, idx) => `
+            <button class="dialogue-choice-btn" data-choice-index="${idx}">
+              <div class="choice-left">
+                <span class="choice-num">[${idx + 1}]</span>
+                <span class="choice-label">${c.label}</span>
+              </div>
+              ${c.badge ? `<span class="choice-badge">${c.badge}</span>` : ''}
+            </button>
+          `).join('')}
+        </div>
+        <div class="dialogue-choices-hint">Press 1-${options.choices!.length} or click an option above • [ESC] to dismiss</div>
+      `;
+    }
+
     overlay.innerHTML = `
       <div class="game-dialogue-card">
         <div class="dialogue-card-header">
@@ -1164,10 +1457,13 @@ export class HUD {
           "${options.dialogueText}"
         </div>
         ${rewardsHtml ? `<div class="dialogue-rewards-row">${rewardsHtml}</div>` : ''}
-        <button class="dialogue-confirm-btn" id="dialogue-confirm-btn">
-          <span>Oya Continue [E]</span>
-          <span>✨</span>
-        </button>
+        ${choicesHtml}
+        ${!hasChoices ? `
+          <button class="dialogue-confirm-btn" id="dialogue-confirm-btn">
+            <span>Oya Continue [E]</span>
+            <span>✨</span>
+          </button>
+        ` : ''}
       </div>
     `;
 
@@ -1180,14 +1476,44 @@ export class HUD {
     };
 
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'e' || e.key === 'E' || e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
-        e.preventDefault();
-        close();
+      if (hasChoices) {
+        const num = parseInt(e.key, 10);
+        if (!isNaN(num) && num >= 1 && num <= options.choices!.length) {
+          e.preventDefault();
+          const selected = options.choices![num - 1];
+          close();
+          selected.onSelect();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          close();
+          return;
+        }
+      } else {
+        if (e.key === 'e' || e.key === 'E' || e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          close();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKey);
-    overlay.querySelector('#dialogue-confirm-btn')?.addEventListener('click', close);
+    if (hasChoices) {
+      overlay.querySelectorAll('.dialogue-choice-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt((btn as HTMLElement).dataset.choiceIndex || '0', 10);
+          const selected = options.choices![idx];
+          close();
+          if (selected) {
+            selected.onSelect();
+          }
+        });
+      });
+    } else {
+      overlay.querySelector('#dialogue-confirm-btn')?.addEventListener('click', close);
+    }
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) close();
     });
@@ -1262,6 +1588,84 @@ export class HUD {
   private handleCardAction(): void {
     if (!this.currentActiveObject) return;
     const id = this.currentActiveObject.id;
+    this.questManager.triggerEvent('interact_object', { objectId: id });
+
+    if (id.startsWith('remote_player_')) {
+      this.hideInteractionCard();
+      const rawId = id.replace('remote_player_', '');
+      const net = NetworkManager.getInstance();
+      const citizenName = this.currentActiveObject?.name || `@${rawId.substring(0, 8)}`;
+
+      this.showDialogueModal({
+        speakerName: citizenName,
+        speakerRole: 'Lagos Island Citizen (Online)',
+        speakerAvatar: '🇳🇬',
+        soundType: 'general',
+        dialogueText: `You approach ${citizenName} strolling along Broad Street! How do you want to interact?`,
+        choices: [
+          {
+            id: 'wire_gift',
+            label: 'Send ₦1,000 EkoPay Cash Gift',
+            badge: '₦1,000 Wire',
+            onSelect: () => {
+              if (net) {
+                net.sendP2PTransfer(rawId, 1000, 'Street Cash Gift');
+              } else {
+                showGameToast('Network unavailable.', 'warning');
+              }
+            },
+          },
+          {
+            id: 'wire_big_gift',
+            label: 'Send ₦5,000 Big Boy VIP Cash Gift',
+            badge: '₦5,000 Wire',
+            onSelect: () => {
+              if (net) {
+                net.sendP2PTransfer(rawId, 5000, 'VIP Respect Wire');
+              } else {
+                showGameToast('Network unavailable.', 'warning');
+              }
+            },
+          },
+          {
+            id: 'sync_dance',
+            label: 'Perform Synchronized Zanku Dance',
+            badge: 'Zanku Emote',
+            onSelect: () => {
+              this.player.playEmote('zanku', 4.0);
+              if (net) {
+                net.syncEmote('zanku');
+              }
+              showGameToast(`🔥 Busting Zanku dance moves with ${citizenName}!`, 'success');
+            },
+          },
+          {
+            id: 'salute_peer',
+            label: 'Give Respectful Military Salute',
+            badge: 'Salute',
+            onSelect: () => {
+              this.player.playEmote('salute', 3.0);
+              if (net) {
+                net.syncEmote('salute');
+              }
+              showGameToast(`🫡 Saluted ${citizenName}! Respect acknowledged.`, 'info');
+            },
+          },
+          {
+            id: 'send_chat',
+            label: 'Send Quick Gist ("How far boss!")',
+            badge: 'Quick Chat',
+            onSelect: () => {
+              if (net) {
+                net.sendChatMessage(`How far, @${citizenName}! Safe journey across Lagos!`);
+                showGameToast(`💬 Chat broadcasted to ${citizenName}!`, 'info');
+              }
+            },
+          },
+        ],
+      });
+      return;
+    }
 
     if (id === 'mama-put') {
       this.hideInteractionCard();
@@ -1294,6 +1698,41 @@ export class HUD {
     } else if (id === 'interior_exit_door') {
       this.hideInteractionCard();
       this.onExitInterior?.();
+      return;
+    } else if (id === 'flat-bed') {
+      this.backend.restAtHome();
+      this.showDialogueModal({
+        speakerName: 'Home Sweet Home',
+        speakerRole: 'Bedroom Sanctum',
+        speakerAvatar: '🛏️',
+        soundType: 'general',
+        dialogueText: 'You lie down on the soft orthopedic mattress with cool AC breeze humming. 100% Health and Energy restored! Fatigue eliminated!',
+        rewards: { health: 100, energy: 100, streetCred: 5 },
+      });
+      return;
+    } else if (id === 'flat-drum') {
+      this.backend.restoreHealth(20);
+      this.backend.restoreEnergy(30);
+      this.showDialogueModal({
+        speakerName: 'Nigerian Domestic Resilience',
+        speakerRole: 'Chilled Borehole Water',
+        speakerAvatar: '🚿',
+        soundType: 'medical',
+        dialogueText: 'You scoop freezing chilled water with the red bucket and bath! The refreshed sensation jolts you with crisp vitality. +30% Energy & +20% Health!',
+        rewards: { health: 20, energy: 30 },
+      });
+      return;
+    } else if (id === 'flat-pet') {
+      this.backend.addStreetCred(5);
+      this.player.playEmote('groove', 3.0);
+      this.showDialogueModal({
+        speakerName: 'Bingo the Dog',
+        speakerRole: 'Faithful Nigerian Companion',
+        speakerAvatar: '🐶',
+        soundType: 'cheer',
+        dialogueText: 'Woof woof! Bingo wags his tail happily and nuzzles your palm! Your mood surges to maximum joy.',
+        rewards: { streetCred: 5, energy: 10 },
+      });
       return;
     } else if (id === 'hosp_reception') {
       const success = this.backend.spendCash(500, 'Hospital Triage Registration');
@@ -1462,7 +1901,7 @@ export class HUD {
         });
         this.showDialogueModal({
           speakerName: 'FAAN Check-in Staff',
-          speakerRole: 'Air Peace Concourse Desk • MMA2 Terminal',
+          speakerRole: 'Wazobia Air Concourse Desk • MMA2 Terminal',
           speakerAvatar: '🧳',
           soundType: 'aviation',
           dialogueText: 'Baggage tag 073-LOS tagged priority! Here is your boarding pass. Please proceed directly to screening.',
@@ -1495,7 +1934,7 @@ export class HUD {
         this.backend.restoreEnergy(100);
         this.showDialogueModal({
           speakerName: 'Capt. Ibrahim',
-          speakerRole: 'Arik Air • Flight W3-214 to Abuja',
+          speakerRole: 'Wazobia Air • Flight WZ-214 to Abuja',
           speakerAvatar: '✈️',
           soundType: 'aviation',
           dialogueText: 'Cabin doors armed. Non-stop executive flight from Lagos to Nnamdi Azikiwe Intl Airport, Abuja FCT completed! Welcome to Abuja!',
@@ -1503,7 +1942,7 @@ export class HUD {
         });
       } else {
         this.showDialogueModal({
-          speakerName: 'Arik Air Ticketing',
+          speakerName: 'Wazobia Air Ticketing',
           speakerRole: 'Gate 1 Departures',
           speakerAvatar: '⚠️',
           dialogueText: 'Need ₦35,000 cash for direct flight ticket to Abuja FCT!',
@@ -1516,8 +1955,8 @@ export class HUD {
         this.backend.addStreetCred(50);
         this.backend.restoreEnergy(100);
         this.showDialogueModal({
-          speakerName: 'Air Peace Flight Crew',
-          speakerRole: 'Gate 2 • Flight P4-712 to Port Harcourt',
+          speakerName: 'EagleWings Flight Crew',
+          speakerRole: 'Gate 2 • Flight EW-712 to Port Harcourt',
           speakerAvatar: '✈️',
           soundType: 'aviation',
           dialogueText: 'Direct flight to Port Harcourt International Airport (Omagwa) completed! Welcome to the Garden City!',
@@ -1525,7 +1964,7 @@ export class HUD {
         });
       } else {
         this.showDialogueModal({
-          speakerName: 'Air Peace Ticketing',
+          speakerName: 'EagleWings Ticketing',
           speakerRole: 'Gate 2 Departures',
           speakerAvatar: '⚠️',
           dialogueText: 'Need ₦32,000 cash for flight ticket to Port Harcourt!',
@@ -1539,7 +1978,7 @@ export class HUD {
         this.backend.restoreEnergy(100);
         this.backend.addStreetCred(25);
         this.showDialogueModal({
-          speakerName: 'Arik VIP Executive Host',
+          speakerName: 'EagleWings VIP Host',
           speakerRole: 'MMA2 Concourse Lounge',
           speakerAvatar: '🥂',
           soundType: 'win',
@@ -1645,47 +2084,450 @@ export class HUD {
         });
       }
       return;
+    } else if (id === 'street-checkpoint') {
+      this.hideInteractionCard();
+      const data = this.backend.getData();
+      const hasPapers = data.inventory.some((i: any) => i.category === 'document' || i.id.includes('docket') || i.id.includes('clearance'));
+      this.showDialogueModal({
+        speakerName: 'Inspector Danjuma & LASTMA Team',
+        speakerRole: 'Federal Highway & Area Command Joint Patrol',
+        speakerAvatar: '👮‍♂️',
+        soundType: 'general',
+        dialogueText: 'Stop there! Turn off ignition and present yourself! Routine vehicle particulars and security verification. Show me your roadworthiness particulars now!',
+        choices: [
+          {
+            id: 'checkpoint_papers',
+            label: hasPapers || data.stats.streetCred >= 25 ? 'Present Valid Particulars & Road Clearance' : 'Present Expired Papers & Plead Goodwill',
+            badge: hasPapers || data.stats.streetCred >= 25 ? 'Clearance Verified' : 'Risk Warning',
+            onSelect: () => {
+              if (hasPapers || data.stats.streetCred >= 25) {
+                this.backend.addStreetCred(20);
+                this.backend.restoreEnergy(15);
+                this.showDialogueModal({
+                  speakerName: 'Inspector Danjuma',
+                  speakerRole: 'Highway Joint Patrol Commander',
+                  speakerAvatar: '🫡',
+                  soundType: 'win',
+                  dialogueText: 'Inspector salutes! "Everything intact and certified! Your roadworthiness is clean. Respect to law-abiding citizens! Move on oga!"',
+                  rewards: { streetCred: 20, energy: 15 },
+                });
+              } else {
+                this.backend.addStreetCred(5);
+                this.showDialogueModal({
+                  speakerName: 'Inspector Danjuma',
+                  speakerRole: 'Highway Patrol',
+                  speakerAvatar: '⚠️',
+                  soundType: 'general',
+                  dialogueText: 'Inspector shakes head: "Your particulars are incomplete! Because you cooperated calmly, we give you a warning citation today. Go to the Area Command and get your papers right!"',
+                  rewards: { streetCred: 5 },
+                });
+              }
+            },
+          },
+          {
+            id: 'checkpoint_pure_water',
+            label: 'Offer ₦500 "Pure Water & Cold Minerals" Goodwill',
+            badge: '₦500 Cash',
+            onSelect: () => {
+              const success = this.backend.spendCash(500, 'Checkpoint Pure Water Goodwill');
+              if (success) {
+                this.backend.addStreetCred(15);
+                this.showDialogueModal({
+                  speakerName: 'Inspector Danjuma & Corporal',
+                  speakerRole: 'Joint Patrol Checkpoint',
+                  speakerAvatar: '🧃',
+                  soundType: 'cash',
+                  dialogueText: 'Officers burst into hearty smiles: "Hahaha, oga you be real man of the people! You respect the uniform and understand the Lagos heat! Safe journey, road is clear for you!"',
+                  rewards: { streetCred: 15 },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'Inspector Danjuma',
+                  speakerRole: 'Joint Patrol Checkpoint',
+                  speakerAvatar: '⚠️',
+                  dialogueText: 'Inspector frowns: "You don\'t even have ₦500 for pure water in your pockets! Park by the curb and sort yourself out!"',
+                });
+              }
+            },
+          },
+          {
+            id: 'checkpoint_vip',
+            label: 'Flash VIP & Area Commander Connection',
+            badge: 'Requires 40+ Cred',
+            onSelect: () => {
+              if (data.stats.streetCred >= 40) {
+                this.backend.addStreetCred(35);
+                this.backend.restoreEnergy(20);
+                this.player.playEmote('salute', 2.5);
+                this.showDialogueModal({
+                  speakerName: 'Inspector Danjuma',
+                  speakerRole: 'Joint Patrol Checkpoint',
+                  speakerAvatar: '🎖️',
+                  soundType: 'win',
+                  dialogueText: 'Inspector instantly snaps to attention! "Ah! Big Boss! We didn\'t recognize your convoy! Sgt. Danladi spoke highly of your goodwill at Area Command! Highway is yours, sir!"',
+                  rewards: { streetCred: 35, energy: 20 },
+                });
+              } else {
+                this.backend.addStreetCred(-5);
+                this.showDialogueModal({
+                  speakerName: 'Inspector Danjuma',
+                  speakerRole: 'Joint Patrol Checkpoint',
+                  speakerAvatar: '😠',
+                  soundType: 'general',
+                  dialogueText: 'Inspector scowls: "Who be your VIP?! Which connection?! Stop dropping names that don\'t know you! Show your papers or pay citation!"',
+                });
+              }
+            },
+          },
+        ],
+      });
+      return;
     } else if (id === 'police_front_desk') {
-      const success = this.backend.spendCash(500, 'Citizen Incident Report Documentation');
-      if (success) {
-        this.backend.addStreetCred(20);
-        this.showDialogueModal({
-          speakerName: 'Sgt. Danladi',
-          speakerRole: 'Lagos Area Command Desk Sergeant',
-          speakerAvatar: '📝',
-          soundType: 'general',
-          dialogueText: 'Report documented in the Lagos Area Command logbook! Reference Number: #NIG-8492. Respect earned in the district (+20 Street Cred)!',
-          rewards: { streetCred: 20 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Police Front Desk',
-          speakerRole: 'Area Command',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦500 administrative documentation fee for report filing.',
-        });
-      }
+      this.hideInteractionCard();
+      this.showDialogueModal({
+        speakerName: 'Sgt. Danladi',
+        speakerRole: 'Lagos State Area Command Desk Sergeant',
+        speakerAvatar: '👮',
+        soundType: 'general',
+        dialogueText: 'Welcome to Lagos State Area Command Headquarters. We operate 24/7 for citizen safety and order. State your official business citizen!',
+        choices: [
+          {
+            id: 'pfd_incident_report',
+            label: 'File Official Citizen Incident Report',
+            badge: '₦500 Admin Fee',
+            onSelect: () => {
+              const success = this.backend.spendCash(500, 'Citizen Incident Report Documentation');
+              if (success) {
+                this.backend.addStreetCred(25);
+                this.backend.restoreEnergy(10);
+                this.showDialogueModal({
+                  speakerName: 'Sgt. Danladi',
+                  speakerRole: 'Desk Sergeant',
+                  speakerAvatar: '📝',
+                  soundType: 'general',
+                  dialogueText: 'Report documented in the Area Command master logbook! Reference Number: #NIG-8492. Official stamp applied. +25 Street Cred!',
+                  rewards: { streetCred: 25, energy: 10 },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'Sgt. Danladi',
+                  speakerRole: 'Desk Sergeant',
+                  speakerAvatar: '⚠️',
+                  dialogueText: '₦500 administrative documentation fee required for formal incident logging.',
+                });
+              }
+            },
+          },
+          {
+            id: 'pfd_clearance_cert',
+            label: 'Obtain Official Police Character Clearance (CID)',
+            badge: '₦3,500 Fee',
+            onSelect: () => {
+              const success = this.backend.spendCash(3500, 'CID Character Clearance Certificate');
+              if (success) {
+                this.backend.addItem({
+                  id: `police_clearance_${Date.now()}`,
+                  name: 'Nigeria Police Good Conduct Certificate',
+                  category: 'document',
+                  icon: '📜',
+                  description: 'Official stamped certificate of good conduct from the Inspector General CID registry.',
+                  price: 3500,
+                  usable: false,
+                });
+                this.backend.addStreetCred(40);
+                this.showDialogueModal({
+                  speakerName: 'Sgt. Danladi',
+                  speakerRole: 'Desk Sergeant',
+                  speakerAvatar: '📜',
+                  soundType: 'win',
+                  dialogueText: 'Fingerprint biometrics verified against national criminal registry. Zero priors! Here is your official stamped Certificate of Character Clearance! Added to inventory!',
+                  rewards: { streetCred: 40, item: { name: 'Police Character Clearance Certificate', icon: '📜', category: 'document' } },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'Sgt. Danladi',
+                  speakerRole: 'Desk Sergeant',
+                  speakerAvatar: '⚠️',
+                  dialogueText: '₦3,500 required for official CID biometric fingerprinting and document sealing.',
+                });
+              }
+            },
+          },
+          {
+            id: 'pfd_security_gist',
+            label: 'Inquire About Neighborhood Safety & Checkpoints',
+            badge: 'Free Guidance',
+            onSelect: () => {
+              this.backend.addStreetCred(10);
+              this.showDialogueModal({
+                speakerName: 'Sgt. Danladi',
+                speakerRole: 'Desk Sergeant',
+                speakerAvatar: '💡',
+                soundType: 'academic',
+                dialogueText: '"Tip for navigating Lagos: Always keep valid vehicle registration, driver\'s license, or student dockets. At night checkpoints, turn on your cabin interior light so officers can see inside. Law and order protects everyone!"',
+                rewards: { streetCred: 10, knowledge: 20 },
+              });
+            },
+          },
+        ],
+      });
       return;
     } else if (id === 'police_holding_cell') {
-      const success = this.backend.spendCash(5000, 'Citizen Bail Bond');
-      if (success) {
-        this.backend.addStreetCred(40);
-        this.showDialogueModal({
-          speakerName: 'Sgt. Danladi',
-          speakerRole: 'Area Command Detention Custody',
-          speakerAvatar: '⚖️',
-          soundType: 'win',
-          dialogueText: 'Bail bond processed! Suspect Kazeem has been released on good behavior. You earned massive respect in the community (+40 Street Cred)!',
-          rewards: { streetCred: 40 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Detention Desk',
-          speakerRole: 'Bail Office',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦5,000 cash for citizen bail bond release!',
-        });
-      }
+      this.hideInteractionCard();
+      this.showDialogueModal({
+        speakerName: 'Detention Cell Block & Detainee Kazeem',
+        speakerRole: 'Area Command Holding Cell Block',
+        speakerAvatar: '⚖️',
+        soundType: 'general',
+        dialogueText: 'Inside the holding cell, Kazeem clutches the steel bars: "Bros abeg help me! They arrested me for driving one-way near Ikeja bus stop! My mother is waiting for me at home!"',
+        choices: [
+          {
+            id: 'cell_bail_kazeem',
+            label: 'Post Citizen Bail Bond for Kazeem',
+            badge: '₦5,000 Cash',
+            onSelect: () => {
+              const success = this.backend.spendCash(5000, 'Citizen Bail Bond for Kazeem');
+              if (success) {
+                this.backend.addStreetCred(50);
+                this.backend.restoreEnergy(20);
+                this.backend.addItem({
+                  id: `lucky_charm_${Date.now()}`,
+                  name: 'Kazeem\'s Hustler Lucky Charm',
+                  category: 'luxury',
+                  icon: '🧿',
+                  description: 'A beaded Yoruba good-luck wristband given by grateful citizen Kazeem.',
+                  price: 2500,
+                  usable: true,
+                  energyRestore: 25,
+                });
+                this.showDialogueModal({
+                  speakerName: 'Kazeem & Sgt. Danladi',
+                  speakerRole: 'Holding Cell Release',
+                  speakerAvatar: '🎉',
+                  soundType: 'win',
+                  dialogueText: 'Cell door clangs open! Kazeem kneels in tears of joy: "Boss! May your pocket never run dry! Take this lucky wristband my grandmother blessed for me! I swear I will never enter one-way again!"',
+                  rewards: { streetCred: 50, energy: 20, item: { name: 'Kazeem\'s Hustler Lucky Charm', icon: '🧿', category: 'luxury' } },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'Holding Cell Sergeant',
+                  speakerRole: 'Detention Block',
+                  speakerAvatar: '⚠️',
+                  dialogueText: 'Need ₦5,000 cash to satisfy official bail bond recognizance!',
+                });
+              }
+            },
+          },
+          {
+            id: 'cell_give_food',
+            label: 'Buy Gala & Cold Water for Detainees',
+            badge: '₦500 Cash',
+            onSelect: () => {
+              const success = this.backend.spendCash(500, 'Detainee Refreshment');
+              if (success) {
+                this.backend.addStreetCred(20);
+                this.backend.restoreEnergy(10);
+                this.showDialogueModal({
+                  speakerName: 'Detainee Kazeem',
+                  speakerRole: 'Holding Cell',
+                  speakerAvatar: '🙏',
+                  soundType: 'cheer',
+                  dialogueText: 'Kazeem gratefully sips the chilled water and shares the snack: "Thank you my brother! Human kindness is rare in this city. God go surely promote your hustle!"',
+                  rewards: { streetCred: 20, energy: 10 },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'Holding Cell Guard',
+                  speakerRole: 'Detention Block',
+                  speakerAvatar: '⚠️',
+                  dialogueText: 'Need ₦500 cash for canteen refreshment.',
+                });
+              }
+            },
+          },
+          {
+            id: 'cell_leave',
+            label: 'Step Back from Holding Cell',
+            badge: 'Leave',
+            onSelect: () => {
+              this.hideInteractionCard();
+            },
+          },
+        ],
+      });
+      return;
+    } else if (id === 'interior_npc_npc_sgt_danladi') {
+      this.hideInteractionCard();
+      this.showDialogueModal({
+        speakerName: 'Sgt. Danladi',
+        speakerRole: 'Lagos State Area Command Desk Sergeant',
+        speakerAvatar: '👮‍♂️',
+        soundType: 'general',
+        dialogueText: '"Lagos is peaceful when everyone respects the law. We coordinate with LASTMA, highway patrols, and local community vigilantes across all districts."',
+        choices: [
+          {
+            id: 'danladi_tips',
+            label: 'Ask for advice on road safety & checkpoint etiquette',
+            badge: '+15 Knowledge',
+            onSelect: () => {
+              this.backend.addStreetCred(15);
+              this.showDialogueModal({
+                speakerName: 'Sgt. Danladi',
+                speakerRole: 'Desk Sergeant',
+                speakerAvatar: '💡',
+                soundType: 'academic',
+                dialogueText: '"Never argue aggressively with an armed officer on highway patrol. Keep your composure, show your valid particulars, and speak with dignity. Professionalism opens doors across Nigeria."',
+                rewards: { knowledge: 15, streetCred: 10 },
+              });
+            },
+          },
+          {
+            id: 'danladi_welfare',
+            label: 'Contribute to Station Welfare & Generator Fuel Fund',
+            badge: '₦2,000 Cash',
+            onSelect: () => {
+              const success = this.backend.spendCash(2000, 'Station Welfare Contribution');
+              if (success) {
+                this.backend.addStreetCred(35);
+                this.showDialogueModal({
+                  speakerName: 'Sgt. Danladi',
+                  speakerRole: 'Desk Sergeant',
+                  speakerAvatar: '🤝',
+                  soundType: 'win',
+                  dialogueText: '"May God bless your pocket immensely! With fuel in our patrol generator, we can process night emergency cases without blackout. You are a true partner in security!"',
+                  rewards: { streetCred: 35 },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'Sgt. Danladi',
+                  speakerRole: 'Desk Sergeant',
+                  speakerAvatar: '⚠️',
+                  dialogueText: 'Need ₦2,000 cash for station generator fuel contribution.',
+                });
+              }
+            },
+          },
+        ],
+      });
+      return;
+    } else if (id === 'interior_npc_npc_constable_emeka') {
+      this.hideInteractionCard();
+      this.showDialogueModal({
+        speakerName: 'Constable Emeka',
+        speakerRole: 'Investigating Officer • Lagos Area Command',
+        speakerAvatar: '👮',
+        soundType: 'general',
+        dialogueText: '"Good day citizen! I handle fingerprint records and lost item investigations. Anything we can assist you with?"',
+        choices: [
+          {
+            id: 'emeka_lost_items',
+            label: 'Inquire About Lost & Found Property Registry',
+            badge: '+10 Knowledge',
+            onSelect: () => {
+              this.backend.addStreetCred(10);
+              this.showDialogueModal({
+                speakerName: 'Constable Emeka',
+                speakerRole: 'Investigating Officer',
+                speakerAvatar: '📂',
+                soundType: 'general',
+                dialogueText: '"If you ever lose a wallet or phone in a yellow Danfo or Keke, come report here immediately with the bus route and registration. We often recover property through the transport unions!"',
+                rewards: { streetCred: 10, knowledge: 15 },
+              });
+            },
+          },
+          {
+            id: 'emeka_drink',
+            label: 'Gift Chilled Malta Drink to Officer on Duty',
+            badge: '₦400 Cash',
+            onSelect: () => {
+              const success = this.backend.spendCash(400, 'Malta for Constable Emeka');
+              if (success) {
+                this.backend.addStreetCred(20);
+                this.showDialogueModal({
+                  speakerName: 'Constable Emeka',
+                  speakerRole: 'Investigating Officer',
+                  speakerAvatar: '🥤',
+                  soundType: 'cheer',
+                  dialogueText: '"Ah, chilled Malta in this hot afternoon! Thank you my brother! You have a good heart. Whenever you pass by this station, you are always welcome!"',
+                  rewards: { streetCred: 20 },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'Constable Emeka',
+                  speakerRole: 'Investigating Officer',
+                  speakerAvatar: '⚠️',
+                  dialogueText: 'Need ₦400 cash for chilled drink.',
+                });
+              }
+            },
+          },
+        ],
+      });
+      return;
+    } else if (id === 'interior_npc_npc_suspect_kazeem') {
+      this.hideInteractionCard();
+      this.showDialogueModal({
+        speakerName: 'Detainee Kazeem',
+        speakerRole: 'Detained Citizen • Cell Block 1',
+        speakerAvatar: '😢',
+        soundType: 'general',
+        dialogueText: '"Bros, please talk to Sgt. Danladi at the desk or use the bail terminal to get me out! ₦5,000 bail bond will set me free. My family is anxious at home!"',
+        choices: [
+          {
+            id: 'kazeem_bail_direct',
+            label: 'Pay ₦5,000 Bail Bond for Kazeem immediately',
+            badge: '₦5,000 Cash',
+            onSelect: () => {
+              const success = this.backend.spendCash(5000, 'Citizen Bail Bond for Kazeem');
+              if (success) {
+                this.backend.addStreetCred(50);
+                this.backend.restoreEnergy(20);
+                this.backend.addItem({
+                  id: `lucky_charm_${Date.now()}`,
+                  name: 'Kazeem\'s Hustler Lucky Charm',
+                  category: 'luxury',
+                  icon: '🧿',
+                  description: 'A beaded Yoruba good-luck wristband given by grateful citizen Kazeem.',
+                  price: 2500,
+                  usable: true,
+                  energyRestore: 25,
+                });
+                this.showDialogueModal({
+                  speakerName: 'Kazeem & Sgt. Danladi',
+                  speakerRole: 'Holding Cell Release',
+                  speakerAvatar: '🎉',
+                  soundType: 'win',
+                  dialogueText: 'Cell door clangs open! Kazeem kneels in tears of joy: "Boss! May your pocket never run dry! Take this lucky wristband! I swear I will never enter one-way again!"',
+                  rewards: { streetCred: 50, energy: 20, item: { name: 'Kazeem\'s Hustler Lucky Charm', icon: '🧿', category: 'luxury' } },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'Holding Cell Sergeant',
+                  speakerRole: 'Detention Block',
+                  speakerAvatar: '⚠️',
+                  dialogueText: 'Need ₦5,000 cash to satisfy official bail bond recognizance!',
+                });
+              }
+            },
+          },
+          {
+            id: 'kazeem_comfort',
+            label: 'Console Kazeem and promise to return soon',
+            badge: 'Console',
+            onSelect: () => {
+              this.backend.addStreetCred(5);
+              this.showDialogueModal({
+                speakerName: 'Kazeem',
+                speakerRole: 'Holding Cell',
+                speakerAvatar: '🙏',
+                soundType: 'general',
+                dialogueText: '"Thank you boss! Please don\'t forget me here! May God bless you!"',
+                rewards: { streetCred: 5 },
+              });
+            },
+          },
+        ],
+      });
       return;
     } else if (id === 'flat-workstation') {
       this.backend.addCash(12000);
@@ -1709,7 +2551,7 @@ export class HUD {
       });
       return;
     } else if (id === 'bet-shop') {
-      const success = this.backend.spendCash(1000, 'Bet9ja 5-Game Ticket');
+      const success = this.backend.spendCash(1000, 'NaijaBet 5-Game Ticket');
       if (success) {
         const won = Math.random() < 0.45;
         if (won) {
@@ -1717,7 +2559,7 @@ export class HUD {
           this.backend.addCash(winAmount);
           this.backend.addStreetCred(10);
           this.showDialogueModal({
-            speakerName: 'Bet9ja Cashier',
+            speakerName: 'NaijaBet Cashier',
             speakerRole: 'Ticket Payout Terminal',
             speakerAvatar: '🎉',
             soundType: 'win',
@@ -1736,7 +2578,7 @@ export class HUD {
           });
           this.showDialogueModal({
             speakerName: 'Segun (Odds Guru)',
-            speakerRole: 'Bet9ja Regular',
+            speakerRole: 'NaijaBet Regular',
             speakerAvatar: '⚽',
             soundType: 'general',
             dialogueText: 'Ticket placed! Added to your bag. May your odds favor you this weekend!',
@@ -1745,7 +2587,7 @@ export class HUD {
         }
       } else {
         this.showDialogueModal({
-          speakerName: 'Bet9ja Counter',
+          speakerName: 'NaijaBet Counter',
           speakerRole: 'Booking Cashier',
           speakerAvatar: '⚠️',
           dialogueText: 'Not enough cash! ₦1,000 needed to book your accumulator slip.',
@@ -1877,7 +2719,7 @@ export class HUD {
     } else if (id === 'amala-shitta') {
       const success = this.backend.spendCash(2000, 'Hot Amala Dudu + Abula & Goat Meat');
       if (success) {
-        this.backend.restoreEnergy(100);
+        this.backend.consumeFood('Hot Amala Dudu & Goat Meat', 85, 60, 30);
         this.backend.addStreetCred(15);
         this.backend.addItem({
           id: `amala_takeaway_${Date.now()}`,
@@ -2094,7 +2936,7 @@ export class HUD {
     } else if (id === 'npc-punter') {
       this.showDialogueModal({
         speakerName: 'Segun (Odds Guru)',
-        speakerRole: 'Bet9ja Regular',
+        speakerRole: 'NaijaBet Regular',
         speakerAvatar: '🗣️',
         soundType: 'general',
         dialogueText: 'Guy, always play over 1.5 goals o! Don\'t play straight win, this league is crazy!',
@@ -2263,13 +3105,13 @@ export class HUD {
         rewards: { energy: 25, streetCred: 10 },
       });
     } else if (id === 'flat-bed') {
-      this.backend.restoreEnergy(100);
+      this.backend.restAtHome();
       this.showDialogueModal({
         speakerName: 'Bedroom Sanctuary',
         speakerRole: 'Rest & Recovery',
         speakerAvatar: '🛏️',
         soundType: 'win',
-        dialogueText: 'Sweet dreams! You slept peacefully under the ceiling fan. Energy restored to 100%!',
+        dialogueText: 'Sweet dreams! You slept peacefully under the ceiling fan. Energy & Health fully restored to 100%!',
         rewards: { energy: 100 },
       });
     } else if (id === 'flat-drum') {
@@ -2418,17 +3260,17 @@ export class HUD {
           energyRestore: 0,
         });
         this.showDialogueModal({
-          speakerName: 'Oando Pump Attendant',
-          speakerRole: 'Oando Fuel Station',
+          speakerName: 'NaijaPetro Pump Attendant',
+          speakerRole: 'NaijaPetro Energy Station',
           speakerAvatar: '⛽',
           soundType: 'cash',
-          dialogueText: 'Oando Fuel Station: 10 Litres of petrol fueled! Ready for your car or home generator!',
+          dialogueText: 'NaijaPetro Energy: 10 Litres of petrol fueled! Ready for your car or home generator!',
           rewards: { streetCred: 10, item: { name: '10L Premium Petrol (Fuel Keg)', icon: '⛽', category: 'tool' } },
         });
       } else {
         this.showDialogueModal({
           speakerName: 'Fuel Attendant',
-          speakerRole: 'Oando Filling Station',
+          speakerRole: 'NaijaPetro Filling Station',
           speakerAvatar: '⚠️',
           dialogueText: 'Need ₦8,500 cash for 10L fuel!',
         });
@@ -2523,8 +3365,8 @@ export class HUD {
       if (success) {
         this.backend.addStreetCred(10);
         this.backend.addItem({
-          id: `mtn_sim_${Date.now()}`,
-          name: '5G MTN High-Speed Data SIM',
+          id: `naijacom_sim_${Date.now()}`,
+          name: '5G NaijaCom High-Speed Data SIM',
           category: 'gadget',
           icon: '📶',
           description: 'High-speed broadband SIM card with 10GB pre-loaded data bundle.',
@@ -2536,8 +3378,8 @@ export class HUD {
           speakerRole: 'Broad Street Electronics',
           speakerAvatar: '📱',
           soundType: 'tech',
-          dialogueText: 'Phone charging port cleaned, firmware flashed, and 5G data SIM activated!',
-          rewards: { streetCred: 10, item: { name: '5G MTN High-Speed Data SIM', icon: '📶', category: 'gadget' } },
+          dialogueText: 'Phone charging port cleaned, firmware flashed, and 5G NaijaCom data SIM activated!',
+          rewards: { streetCred: 10, item: { name: '5G NaijaCom High-Speed Data SIM', icon: '📶', category: 'gadget' } },
         });
       } else {
         this.showDialogueModal({
@@ -2657,13 +3499,6 @@ export class HUD {
     }
 
     this.hideInteractionCard();
-  }
-
-  public updateOnlineCount(count: number): void {
-    const el = document.getElementById('hud-online-count');
-    if (el) {
-      el.textContent = `${count} Online`;
-    }
   }
 
   public showNotification(msg: string): void {

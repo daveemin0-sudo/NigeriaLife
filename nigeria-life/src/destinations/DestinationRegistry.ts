@@ -318,7 +318,7 @@ export class DestinationRegistry {
         {
           id: 'npc_captain_ibrahim',
           name: 'Capt. Ibrahim Lawal',
-          role: 'Senior Air Peace Captain',
+          role: 'Senior Wazobia Air Captain',
           gender: 'male',
           attire: 'pilot_uniform',
           dialogueGreeting: 'Good afternoon. Pre-flight checks are green for our upcoming flight to Abuja.',
@@ -353,7 +353,7 @@ export class DestinationRegistry {
           rewardSocial: 10,
           itemReward: {
             id: 'boarding_pass',
-            name: 'Air Peace Boarding Pass',
+            name: 'Wazobia Air Boarding Pass',
             category: 'document',
             price: 0,
             icon: '🎫',
@@ -388,7 +388,7 @@ export class DestinationRegistry {
         },
         {
           id: 'airport_vip_lounge',
-          label: 'Relax in Arik Executive Lounge',
+          label: 'Relax in EagleWings Executive Lounge',
           icon: '🥂',
           description: 'Enjoy plush armchairs, cold malt, coffee, and recharging amenities.',
           cost: 5000,

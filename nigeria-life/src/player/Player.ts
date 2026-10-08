@@ -8,12 +8,18 @@ import {
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import type { GameCamera } from '../game/Camera';
 import { HumanMeshBuilder, type HumanRig } from '../graphics/HumanMeshBuilder';
+import { AssetManager } from '../assets/AssetManager';
+import { SoundEngine } from '../audio/SoundEngine';
+import { BackendService } from '../backend/BackendService';
 
 export class Player {
   public mesh: THREE.Group;
   public targetPosition: THREE.Vector3 | null = null;
+  public walkSpeed: number = 7.5;
+  public sprintSpeed: number = 12.0;
   public speed: number = 7.5;
   public isMoving: boolean = false;
+  public isSprinting: boolean = false;
   public currentEmote: EmoteType = 'idle';
   public emoteTimer: number = 0;
   public isDriving: boolean = false;
@@ -23,8 +29,14 @@ export class Player {
   // Configuration
   public config: CharacterConfig;
 
-  // Human anatomical rig
+  // Human anatomical procedural rig
   public humanRig!: HumanRig;
+
+  // Skinned GLTF Model & AnimationMixer
+  public glbModel: THREE.Group | null = null;
+  public mixer: THREE.AnimationMixer | null = null;
+  public actions: Map<string, THREE.AnimationAction> = new Map();
+  public currentAction: THREE.AnimationAction | null = null;
 
   // Animation state
   private animTime: number = 0;
@@ -52,6 +64,13 @@ export class Player {
     if (this.humanRig) {
       this.mesh.remove(this.humanRig.group);
     }
+    if (this.glbModel) {
+      this.mesh.remove(this.glbModel);
+      this.glbModel = null;
+      this.mixer = null;
+      this.actions.clear();
+      this.currentAction = null;
+    }
 
     const isFemale = this.config.gender === 'female';
     const attirePreset = ATTIRE_PRESETS[this.config.attire] || ATTIRE_PRESETS['agbada_green'];
@@ -76,6 +95,7 @@ export class Player {
       ? 'fila'
       : isFemale ? 'bob_wig' : 'hardhat';
 
+    // 1. Procedural Anatomical Model (Zero-latency instant render)
     this.humanRig = HumanMeshBuilder.createHuman({
       gender: this.config.gender || 'male',
       username: this.config.name || 'Bayo',
@@ -87,9 +107,45 @@ export class Player {
 
     this.mesh.add(this.humanRig.group);
 
+    // 2. Asynchronous GLB Humanoid Rig (if available in public/models/characters/)
+    const glbPath = `/models/characters/human_${this.config.gender || 'male'}.glb`;
+    AssetManager.getInstance().instantiate(glbPath).then((gltfScene) => {
+      if (gltfScene) {
+        this.mesh.remove(this.humanRig.group);
+        this.glbModel = gltfScene;
+        this.mesh.add(this.glbModel);
+
+        // Setup AnimationMixer
+        if (gltfScene.userData.animations && gltfScene.userData.animations.length > 0) {
+          this.mixer = new THREE.AnimationMixer(this.glbModel);
+          for (const clip of gltfScene.userData.animations) {
+            const action = this.mixer.clipAction(clip);
+            this.actions.set(clip.name.toLowerCase(), action);
+          }
+          this.playAnimation('idle');
+        }
+
+        this.mesh.traverse((child) => {
+          child.layers.set(RENDER_LAYERS.PLAYER);
+        });
+      }
+    });
+
     this.mesh.traverse((child) => {
       child.layers.set(RENDER_LAYERS.PLAYER);
     });
+  }
+
+  public playAnimation(clipName: string, fadeDuration: number = 0.25): void {
+    if (!this.mixer) return;
+    const target = this.actions.get(clipName.toLowerCase()) || this.actions.get('idle');
+    if (target && target !== this.currentAction) {
+      if (this.currentAction) {
+        this.currentAction.fadeOut(fadeDuration);
+      }
+      target.reset().fadeIn(fadeDuration).play();
+      this.currentAction = target;
+    }
   }
 
   public setDestination(target: THREE.Vector3): void {
@@ -114,22 +170,40 @@ export class Player {
     this.currentEmote = emote;
     this.emoteTimer = durationSeconds;
     this.isMoving = false;
+    this.playAnimation(emote);
   }
 
   public stopEmote(): void {
     this.emoteTimer = 0;
     this.isMoving = false;
     this.currentEmote = 'idle';
+    this.playAnimation('idle');
   }
 
   public update(delta: number, keys?: Record<string, boolean>): void {
+    // Tick GLB skeletal animation mixer if present
+    if (this.mixer) {
+      this.mixer.update(delta);
+    }
+
     if (this.isDriving && this.currentVehicle) {
       this.mesh.position.copy(this.currentVehicle.mesh.position);
       this.mesh.rotation.y = this.currentVehicle.mesh.rotation.y;
       return;
     }
 
-    // 0. Keyboard Walking Controls (WASD / Arrow Keys)
+    // 0. Sprint state via Shift key (depleted if energy < 5)
+    const backend = BackendService.getInstance();
+    const stats = backend.getData().stats;
+    const isShift = keys && (keys['shift'] || keys['shiftleft'] || keys['shiftright']);
+    this.isSprinting = !!isShift && stats.energy >= 5;
+    let currentBaseSpeed = this.isSprinting ? this.sprintSpeed : this.walkSpeed;
+    if (stats.hunger <= 0) {
+      currentBaseSpeed *= 0.72; // Starvation fatigue
+    }
+    this.speed = currentBaseSpeed;
+
+    // 1. Keyboard Walking & Running Controls (WASD / Arrow Keys)
     const hasMoveKey =
       keys &&
       (keys['w'] ||
@@ -165,22 +239,28 @@ export class Player {
         }
 
         const targetAngle = Math.atan2(moveDir.x, moveDir.z);
-        this.mesh.rotation.y = THREE.MathUtils.lerp(this.mesh.rotation.y, targetAngle, 0.25);
+        const diffAngle = Math.atan2(Math.sin(targetAngle - this.mesh.rotation.y), Math.cos(targetAngle - this.mesh.rotation.y));
+        this.mesh.rotation.y += diffAngle * Math.min(1, delta * 14.0);
         this.mesh.position.addScaledVector(moveDir, this.speed * delta);
         this.isMoving = true;
-        this.currentEmote = 'walk';
+        const moveAction = this.isSprinting ? 'run' : 'walk';
+        this.currentEmote = moveAction as EmoteType;
+        this.playAnimation(moveAction);
+        SoundEngine.getInstance().playFootstep(this.isSprinting);
 
         // Physically traverse pedestrian bridge, stairs, and terrain elevation
         const targetY = this.calculateWalkableHeight(this.mesh.position.x, this.mesh.position.z);
         this.mesh.position.y = THREE.MathUtils.lerp(this.mesh.position.y, targetY, Math.min(1, delta * 14));
 
         this.animTime += delta;
-        this.humanRig.updateAnimation(this.animTime, true);
+        if (this.humanRig) {
+          this.humanRig.updateAnimation(this.animTime, moveAction);
+        }
         return;
       }
     }
 
-    // 1. Moving state (Point and Click)
+    // 2. Moving state (Point and Click)
     if (this.targetPosition && this.isMoving) {
       const currentPos = this.mesh.position;
       const direction = new THREE.Vector3().subVectors(this.targetPosition, currentPos);
@@ -194,53 +274,58 @@ export class Player {
         this.isMoving = false;
         this.targetPosition = null;
         this.currentEmote = 'idle';
+        this.playAnimation('idle');
       } else {
         // Rotate smoothly
         const targetAngle = Math.atan2(direction.x, direction.z);
-        this.mesh.rotation.y = THREE.MathUtils.lerp(this.mesh.rotation.y, targetAngle, 0.2);
+        const diffAngle = Math.atan2(Math.sin(targetAngle - this.mesh.rotation.y), Math.cos(targetAngle - this.mesh.rotation.y));
+        this.mesh.rotation.y += diffAngle * Math.min(1, delta * 12.0);
 
         // Move forward
         direction.normalize();
         const moveDist = Math.min(distance, this.speed * delta);
         this.mesh.position.addScaledVector(direction, moveDist);
+        this.playAnimation('walk');
+        SoundEngine.getInstance().playFootstep(false);
 
         // Physically traverse pedestrian bridge, stairs, and terrain elevation
         const targetY = this.calculateWalkableHeight(this.mesh.position.x, this.mesh.position.z);
         this.mesh.position.y = THREE.MathUtils.lerp(this.mesh.position.y, targetY, Math.min(1, delta * 14));
 
         this.animTime += delta;
-        this.humanRig.updateAnimation(this.animTime, true);
+        if (this.humanRig) {
+          this.humanRig.updateAnimation(this.animTime, 'walk');
+        }
         return;
       }
     }
 
-    // 2. Emote Timer handling
+    // 3. Emote Timer handling
     if (this.emoteTimer > 0) {
       this.emoteTimer -= delta;
       if (this.emoteTimer <= 0) {
         this.currentEmote = 'idle';
+        this.playAnimation('idle');
       }
     }
 
-    // 3. Emotes / Idle Animations
+    // 4. Emotes / Idle Animations
     this.animTime += delta;
 
-    if (this.currentEmote === 'zanku') {
-      const beat = Math.sin(this.animTime * 14);
-      this.humanRig.leftLeg.rotation.x = beat * 0.9;
-      this.humanRig.rightArm.rotation.x = -beat * 0.8;
-      this.humanRig.torso.position.y = (this.config.gender === 'female' ? 1.05 : 1.1) + Math.abs(beat) * 0.15;
-    } else if (this.currentEmote === 'groove') {
-      const sway = Math.sin(this.animTime * 6);
-      this.humanRig.torso.rotation.z = sway * 0.15;
-      this.humanRig.leftArm.rotation.z = Math.abs(sway) * 0.4;
-      this.humanRig.rightArm.rotation.z = -Math.abs(sway) * 0.4;
-    } else if (this.currentEmote === 'salute') {
-      this.humanRig.rightArm.rotation.x = -Math.PI / 2.2;
-      this.humanRig.rightArm.rotation.z = -Math.PI / 6;
-    } else {
-      // Natural idle breathing
-      this.humanRig.updateAnimation(this.animTime, false);
+    if (this.humanRig) {
+      if (this.currentEmote === 'salute') {
+        this.humanRig.rightArm.rotation.x = -Math.PI / 2.2;
+        this.humanRig.rightArm.rotation.z = -Math.PI / 6;
+      } else if (this.currentEmote === 'zanku' || this.currentEmote === 'groove' || this.currentEmote === 'dance') {
+        this.humanRig.updateAnimation(this.animTime, 'dance');
+      } else if (this.currentEmote === 'talk') {
+        this.humanRig.updateAnimation(this.animTime, 'talk');
+      } else if (this.currentEmote === 'phone_call') {
+        this.humanRig.updateAnimation(this.animTime, 'phone_call');
+      } else {
+        // Natural idle breathing
+        this.humanRig.updateAnimation(this.animTime, 'idle');
+      }
     }
   }
 

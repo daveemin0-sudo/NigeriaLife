@@ -10,6 +10,7 @@ export class EconomyModal {
   private isOpen: boolean = false;
   private activeTab: 'businesses' | 'properties' | 'career' = 'businesses';
   private highlightedBuildingId: string | null = null;
+  public onFastTravel?: (pos: { x: number; y: number; z: number }, propName: string) => void;
 
   constructor(world?: World) {
     this.backend = BackendService.getInstance();
@@ -266,6 +267,9 @@ export class EconomyModal {
                   <button class="btn-prop-rest" data-rest-prop="${prop.id}">
                     🛏️ Rest & Sleep in Bedroom (Instant 100% ⚡ Recharge)
                   </button>
+                  <button class="btn-prop-travel" data-travel-prop="${prop.id}">
+                    🚀 Fast Travel to Property (Street Front)
+                  </button>
 
                   ${prop.buildingId === 'villa-compound' ? `
                     <button class="btn-gate-toggle" id="btn-toggle-compound-gate">
@@ -420,6 +424,23 @@ export class EconomyModal {
       });
     });
 
+    // Fast Travel to Property
+    this.container.querySelectorAll('[data-travel-prop]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = (btn as HTMLElement).getAttribute('data-travel-prop')!;
+        const prop = this.backend.getData().properties.find((p) => p.id === id);
+        if (prop && prop.streetPosition && this.onFastTravel) {
+          this.close();
+          this.onFastTravel(prop.streetPosition, prop.name);
+        } else if (prop && prop.streetPosition) {
+          showGameToast(`📍 Arrived at your residence: ${prop.name}!`, 'success');
+          this.close();
+        } else {
+          showGameToast('Cannot fast travel to this property.', 'info');
+        }
+      });
+    });
+
     // Toggle Compound Gate in 3D
     document.getElementById('btn-toggle-compound-gate')?.addEventListener('click', () => {
       if (this.world) {
@@ -427,5 +448,9 @@ export class EconomyModal {
         showGameToast(isOpen ? '🚪 Compound gate opened! You can walk into the estate courtyard.' : '🚪 Compound gate secured and closed.', 'info');
       }
     });
+  }
+
+  public setWorld(world: World): void {
+    this.world = world;
   }
 }

@@ -1,5 +1,6 @@
 import {
   type PlayerAccount,
+  type PlayerStats,
   type Item,
   type OriginDestiny,
   type JobListing,
@@ -88,6 +89,7 @@ export class BackendService {
           stats: {
             ...INITIAL_PLAYER_DATA.stats,
             ...(parsed.stats || {}),
+            health: typeof parsed.stats?.health === 'number' ? parsed.stats.health : 100,
           },
           inventory,
           businesses,
@@ -265,6 +267,92 @@ export class BackendService {
     return { success: true, message: `Used ${item.name}! Restored energy.` };
   }
 
+  private vitalsAccumulator = 0;
+  private lastStarveWarningTime = 0;
+
+  public updateVitals(delta: number, isSprinting: boolean, isDriving: boolean): { collapsed: boolean; stats: PlayerStats; starvedWarning: boolean } {
+    this.vitalsAccumulator += delta;
+    if (this.vitalsAccumulator < 1.0) {
+      return { collapsed: false, stats: this.data.stats, starvedWarning: false };
+    }
+    const elapsed = this.vitalsAccumulator;
+    this.vitalsAccumulator = 0;
+
+    // Base hunger drain: ~1 point every 30 seconds
+    const hungerDrain = (isSprinting ? 0.07 : isDriving ? 0.02 : 0.035) * elapsed;
+    this.data.stats.hunger = Math.max(0, this.data.stats.hunger - hungerDrain);
+
+    // Energy drain
+    if (isSprinting) {
+      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.35 * elapsed);
+    } else if (!isDriving) {
+      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.02 * elapsed);
+    }
+
+    let starvedWarning = false;
+    const now = Date.now();
+    if (this.data.stats.hunger <= 15 && now - this.lastStarveWarningTime > 45000) {
+      this.lastStarveWarningTime = now;
+      starvedWarning = true;
+    }
+
+    // Health drain when starving (hunger is 0)
+    let collapsed = false;
+    if (this.data.stats.hunger <= 0) {
+      this.data.stats.health = Math.max(0, this.data.stats.health - 0.15 * elapsed);
+      if (this.data.stats.health <= 0) {
+        collapsed = true;
+        this.data.stats.health = 50;
+        this.data.stats.hunger = 40;
+        this.data.stats.energy = 50;
+        const clinicBill = 2500;
+        if (this.data.walletCash >= clinicBill) {
+          this.data.walletCash -= clinicBill;
+        } else if (this.data.bank.balance >= clinicBill) {
+          this.data.bank.balance -= clinicBill;
+        }
+      }
+    } else if (this.data.stats.hunger >= 50 && this.data.stats.energy >= 40 && this.data.stats.health < 100) {
+      // Natural health regen when nourished
+      this.data.stats.health = Math.min(100, this.data.stats.health + 0.05 * elapsed);
+    }
+
+    this.notifyListeners();
+    return { collapsed, stats: this.data.stats, starvedWarning };
+  }
+
+  public consumeFood(foodName: string, hungerRestore: number, energyRestore: number, healthRestore: number = 10, price?: number): { success: boolean; message: string } {
+    if (price && price > 0) {
+      if (this.data.walletCash < price && this.data.bank.balance < price) {
+        return { success: false, message: `Insufficient funds! ${foodName} costs ₦${price.toLocaleString()}.` };
+      }
+      if (this.data.walletCash >= price) {
+        this.data.walletCash -= price;
+      } else {
+        this.data.bank.balance -= price;
+      }
+    }
+    this.data.stats.hunger = Math.min(100, this.data.stats.hunger + hungerRestore);
+    this.data.stats.energy = Math.min(100, this.data.stats.energy + energyRestore);
+    this.data.stats.health = Math.min(100, this.data.stats.health + healthRestore);
+    this.saveData();
+    return {
+      success: true,
+      message: `Chowed down! Enjoyed ${foodName}. +${hungerRestore}% Hunger, +${energyRestore}% Energy!`
+    };
+  }
+
+  public restAtHome(): { success: boolean; message: string } {
+    this.data.stats.energy = 100;
+    this.data.stats.health = 100;
+    this.data.stats.hunger = Math.min(100, this.data.stats.hunger + 15);
+    this.saveData();
+    return {
+      success: true,
+      message: 'Restful sleep in your apartment! Energy & Health restored to 100%.'
+    };
+  }
+
   public restoreEnergy(amount: number = 100): void {
     this.data.stats.energy = Math.min(100, this.data.stats.energy + amount);
     this.data.stats.hunger = Math.min(100, this.data.stats.hunger + amount);
@@ -272,7 +360,9 @@ export class BackendService {
   }
 
   public restoreHealth(amount: number = 100): void {
-    this.restoreEnergy(amount);
+    this.data.stats.health = Math.min(100, this.data.stats.health + amount);
+    this.data.stats.energy = Math.min(100, this.data.stats.energy + amount);
+    this.saveData();
   }
 
   public depleteEnergy(amount: number): boolean {
@@ -620,10 +710,10 @@ export class BackendService {
       });
       this.addItem({
         id: 'iphone_promax',
-        name: 'iPhone 16 Pro Max 1TB Gold',
+        name: 'Aura Pro Max 1TB Gold',
         category: 'gadget',
         icon: '📱',
-        description: 'Top-tier smartphone with custom gold chassis and OPay VIP.',
+        description: 'Top-tier smartphone with custom gold chassis and NaijaPay VIP.',
         price: 2400000,
         usable: true,
       });

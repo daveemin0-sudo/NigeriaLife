@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
 
 export type TimePeriod = 'morning' | 'midday' | 'golden_hour' | 'night';
 
@@ -100,6 +101,7 @@ export class SkyEnvironmentManager {
   public currentPeriod: TimePeriod = 'midday';
   private currentSkyTexture: THREE.CanvasTexture | null = null;
   private currentEnvTexture: THREE.Texture | null = null;
+  public onPeriodChange?: (period: TimePeriod) => void;
 
   constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     this.scene = scene;
@@ -211,6 +213,14 @@ export class SkyEnvironmentManager {
 
     this.renderer.toneMappingExposure = period === 'night' ? 0.92 : 1.05;
     this.updateClockHUD();
+
+    try {
+      MaterialLibrary.getInstance().setNightLighting(period);
+    } catch {}
+
+    if (this.onPeriodChange) {
+      this.onPeriodChange(period);
+    }
   }
 
   public getTimePeriodForHour(hour: number): TimePeriod {

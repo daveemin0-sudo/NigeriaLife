@@ -1093,9 +1093,9 @@ export class Districts {
     this.group.add(lekkiRoad);
 
     // Giant Lagos LED Digital Billboards
-    this.createBillboard(new THREE.Vector3(12, 0, 50), 0, 'AIR PEACE', 'Fly Eko to the World', 0x1e3a8a);
-    this.createBillboard(new THREE.Vector3(-12, 0, -50), Math.PI, 'DANGOTE CEMENT', 'Building the Giant of Africa', 0xb91c1c);
-    this.createBillboard(new THREE.Vector3(38, 0, 12), -Math.PI / 2, 'MTN 5G NAIJA', 'What are we doing today?', 0xfacc15);
+    this.createBillboard(new THREE.Vector3(12, 0, 50), 0, 'WAZOBIA AIR', 'Fly Eko to the World', 0x1e3a8a);
+    this.createBillboard(new THREE.Vector3(-12, 0, -50), Math.PI, 'GIANT CEMENT', 'Building the Giant of Africa', 0xb91c1c);
+    this.createBillboard(new THREE.Vector3(38, 0, 12), -Math.PI / 2, 'NAIJACOM 5G', 'Everywhere You Hustle', 0xfacc15);
   }
 
   private createBillboard(pos: THREE.Vector3, rotY: number, brand: string, tag: string, colorHex: number): void {

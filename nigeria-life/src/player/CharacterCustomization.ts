@@ -10,7 +10,7 @@ export type AttireStyle =
   | 'blue_dress'
   | 'peplum_gown'
   | 'ankara_skirt';
-export type EmoteType = 'idle' | 'walk' | 'zanku' | 'groove' | 'salute';
+export type EmoteType = 'idle' | 'walk' | 'run' | 'zanku' | 'groove' | 'dance' | 'salute' | 'talk' | 'phone_call';
 
 export interface CharacterConfig {
   name: string;

@@ -907,7 +907,7 @@ export const LAGOS_BUSINESSES: MapBusiness[] = [
   },
   {
     id: 'biz_oando_fuel',
-    name: 'Oando Filling Station & Forecourt Mart',
+    name: 'NaijaPetro Filling Station & Forecourt Mart',
     cityId: 'lagos',
     districtId: 'lagos_island',
     propertyId: 'prop_island_office',

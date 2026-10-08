@@ -474,20 +474,20 @@ export class SignageLibrary {
     ctx.ellipse(512, 75, 140, 50, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // MTN text
+    // NAIJACOM text
     ctx.fillStyle = '#ffcc00';
     ctx.font = '900 48px Impact, "Arial Black", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('MTN', 512, 92);
+    ctx.fillText('NAIJACOM', 512, 92);
 
     // Brand label
     ctx.fillStyle = '#002b49';
-    ctx.font = '900 52px "Arial Black", sans-serif';
-    ctx.fillText('CONNECT SERVICE CENTRE', 512, 175);
+    ctx.font = '900 46px "Arial Black", sans-serif';
+    ctx.fillText('5G EXPERIENCE CENTRE', 512, 175);
 
     ctx.fillStyle = '#b45309';
     ctx.font = 'bold 22px Arial, sans-serif';
-    ctx.fillText('SIM REGISTRATION • 5G BROADBAND ROUTERS • DATA & AIRTIME RECHARGE', 512, 220);
+    ctx.fillText('SIM REGISTRATION • 5G BROADBAND ROUTERS • EVERYWHERE YOU HUSTLE', 512, 220);
 
     const texture = createColorCanvasTexture(canvas, { anisotropy: 4 });
     return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.3, metalness: 0.1 });

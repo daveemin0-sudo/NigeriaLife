@@ -40,7 +40,7 @@ export class PhoneSystem {
     {
       id: 'segun_bet',
       handle: 'segun_odds',
-      name: 'Segun (Bet9ja Pal)',
+      name: 'Segun (NaijaBet Pal)',
       avatar: '⚽',
       status: 'Online',
       lastMessage: 'Guy play Real Madrid straight win today!',
@@ -57,11 +57,11 @@ export class PhoneSystem {
       name: 'Blessing (From Lekki)',
       avatar: '✨',
       status: 'Online',
-      lastMessage: 'When are you taking me to Hard Rock Cafe?',
+      lastMessage: 'When are you taking me to Grand Palms Lounge?',
       unread: true,
       messages: [
         { sender: 'them', text: 'Hey Bayo! Loved your Agbada outfit on your profile.', time: 'Yesterday' },
-        { sender: 'them', text: 'When are you taking me to Hard Rock Cafe?', time: '10:14 AM' },
+        { sender: 'them', text: 'When are you taking me to Grand Palms Lounge?', time: '10:14 AM' },
       ],
     },
     {
@@ -93,7 +93,7 @@ export class PhoneSystem {
     {
       id: 'job_pos',
       title: 'POS Cash Point Agent',
-      company: 'Moniepoint / OPay Hub',
+      company: 'KudiPoint / NaijaPay Hub',
       pay: 7500,
       energyCost: 20,
       durationSeconds: 3,

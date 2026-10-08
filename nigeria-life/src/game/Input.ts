@@ -4,6 +4,8 @@ import { World, type InteractiveObject, type InteractionTarget } from '../world/
 import { HUD } from '../ui/HUD';
 import type { GameCamera } from './Camera';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { VirtualJoystick } from '../ui/VirtualJoystick';
+import { NetworkManager } from '../multiplayer/NetworkManager';
 
 export class InputManager {
   private camera: THREE.Camera;
@@ -35,6 +37,7 @@ export class InputManager {
   private lastLoggedTargetId: string | null = null;
 
   public keys: Record<string, boolean> = {};
+  public virtualJoystick: VirtualJoystick;
   public onToggleVehicle?: () => void;
   public onHonkVehicle?: () => void;
 
@@ -52,6 +55,24 @@ export class InputManager {
     this.world = world;
     this.hud = hud;
     this.cameraManager = cameraManager;
+
+    // Mobile Virtual Joystick & Touch cluster
+    this.virtualJoystick = new VirtualJoystick();
+    this.virtualJoystick.onToggleVehicle = () => this.onToggleVehicle?.();
+    this.virtualJoystick.onHonk = () => this.onHonkVehicle?.();
+    this.virtualJoystick.onInteract = () => {
+      if (this.hud.currentInteractionTarget) {
+        this.hud.executeCurrentInteraction();
+      } else if (this.hud.currentActiveObject) {
+        const actionBtn = document.getElementById('card-action-btn') as HTMLButtonElement;
+        actionBtn?.click();
+      } else {
+        const closest = this.findClosestInteractive(4.5);
+        if (closest) {
+          this.hud.showInteractionCard(closest);
+        }
+      }
+    };
 
     this.raycaster = new THREE.Raycaster();
     this.raycaster.layers.enableAll();
@@ -442,6 +463,7 @@ export class InputManager {
     if (id === 'interior_exit_door') return 3.5;
     if (id.startsWith('veh-')) return 4.5;
     if (id.startsWith('interior_npc_')) return 3.2;
+    if (id.startsWith('remote_player_')) return 3.8;
     return 3.8;
   }
 
@@ -588,6 +610,19 @@ export class InputManager {
         type: 'npc',
       };
     }
+    if (id.startsWith('remote_player_')) {
+      return {
+        id: obj.id,
+        name: obj.name,
+        category: 'Online Citizen',
+        label: `Interact with ${obj.name} [E]`,
+        action: 'interact',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'npc',
+      };
+    }
 
     // Specific Stations inside interiors
     const stationLabels: Record<string, string> = {
@@ -656,6 +691,20 @@ export class InputManager {
           !o.id.startsWith('airport_')
         );
       });
+
+      const netMgr = NetworkManager.getInstance();
+      if (netMgr) {
+        netMgr.remotePlayers.forEach((rp, rId) => {
+          candidates.push({
+            mesh: rp.mesh,
+            id: `remote_player_${rId}`,
+            name: (rp as any).name || `@${rId.substring(0, 8)}`,
+            category: 'Online Citizen',
+            description: `Live Lagos Citizen strolling Broad Street. Emote: ${rp.currentEmote}. Press [E] to interact!`,
+            interactionPoint: rp.mesh.position.clone(),
+          });
+        });
+      }
     }
 
     let nearestCandidate: InteractiveObject | null = null;
@@ -690,6 +739,13 @@ export class InputManager {
   }
 
   public update(delta: number): void {
+    // Merge Virtual Joystick active keys
+    if (this.virtualJoystick && this.virtualJoystick.isVisible) {
+      for (const [k, v] of Object.entries(this.virtualJoystick.activeKeys)) {
+        if (v) this.keys[k] = true;
+      }
+    }
+
     // Continuously evaluate nearest proximity interactive target
     this.updateProximityTarget();
 
@@ -754,9 +810,26 @@ export class InputManager {
   public findClosestInteractive(maxDist: number = 3.5): InteractiveObject | null {
     let closest: InteractiveObject | null = null;
     let minDist = maxDist;
-    const list = this.world.interiorManager.isPlayerInside()
-      ? this.world.interiorManager.getActiveInteractiveObjects()
-      : this.world.interactiveObjects;
+    const isInside = this.world.interiorManager.isPlayerInside();
+    const list: InteractiveObject[] = isInside
+      ? [...this.world.interiorManager.getActiveInteractiveObjects()]
+      : [...this.world.interactiveObjects];
+
+    if (!isInside) {
+      const netMgr = NetworkManager.getInstance();
+      if (netMgr) {
+        netMgr.remotePlayers.forEach((rp, rId) => {
+          list.push({
+            mesh: rp.mesh,
+            id: `remote_player_${rId}`,
+            name: (rp as any).name || `@${rId.substring(0, 8)}`,
+            category: 'Online Citizen',
+            description: `Live Lagos Citizen strolling Broad Street. Emote: ${rp.currentEmote}. Press [E] to interact!`,
+            interactionPoint: rp.mesh.position.clone(),
+          });
+        });
+      }
+    }
 
     for (const obj of list) {
       const d = this.player.position.distanceTo(obj.interactionPoint);

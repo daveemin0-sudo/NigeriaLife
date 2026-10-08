@@ -706,4 +706,32 @@ export class MaterialLibrary {
       metalness: 0.7,
     });
   }
+
+  public setNightLighting(period: string): void {
+    const isNight = period === 'night';
+    const isGolden = period === 'golden_hour';
+
+    if (this.louveredWindowMaterial) {
+      if (isNight) {
+        this.louveredWindowMaterial.emissive.setHex(0xfbbf24); // warm golden interior lamp glow
+        this.louveredWindowMaterial.emissiveIntensity = 0.65;
+      } else if (isGolden) {
+        this.louveredWindowMaterial.emissive.setHex(0xf59e0b);
+        this.louveredWindowMaterial.emissiveIntensity = 0.25;
+      } else {
+        this.louveredWindowMaterial.emissive.setHex(0x000000);
+        this.louveredWindowMaterial.emissiveIntensity = 0.0;
+      }
+    }
+
+    if (this.glassReflectiveMaterial) {
+      if (isNight) {
+        this.glassReflectiveMaterial.emissive.setHex(0x38bdf8); // modern blue office tower glow
+        this.glassReflectiveMaterial.emissiveIntensity = 0.35;
+      } else {
+        this.glassReflectiveMaterial.emissive.setHex(0x000000);
+        this.glassReflectiveMaterial.emissiveIntensity = 0.0;
+      }
+    }
+  }
 }

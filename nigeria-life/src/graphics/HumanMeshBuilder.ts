@@ -58,7 +58,8 @@ export interface HumanRig {
   leftLeg: THREE.Group;
   rightLeg: THREE.Group;
   materials: THREE.Material[];
-  updateAnimation: (time: number, isWalking: boolean) => void;
+  updateAnimation: (time: number, animState?: boolean | string) => void;
+  phoneMesh?: THREE.Mesh;
 }
 
 /**
@@ -595,6 +596,15 @@ export class HumanMeshBuilder {
     rightHand.position.set(0, -armLength, 0);
     rightArmGroup.add(rightHand);
 
+    // Smartphone model attached to right hand (hidden until phone_call)
+    const phoneGeo = new THREE.BoxGeometry(0.08, 0.14, 0.02);
+    const phoneMat = new THREE.MeshStandardMaterial({ color: 0x18181b, metalness: 0.8, roughness: 0.2 });
+    materials.push(phoneMat);
+    const phoneMesh = new THREE.Mesh(phoneGeo, phoneMat);
+    phoneMesh.position.set(0.02, -armLength, 0.03);
+    phoneMesh.visible = false;
+    rightArmGroup.add(phoneMesh);
+
     // =========================================================================
     // 5. LEGS & FEET / SHOES
     // =========================================================================
@@ -647,21 +657,92 @@ export class HumanMeshBuilder {
 
     // =========================================================================
     // 7. ANIMATION TICK FUNCTION
+    // Supports: walk, run, dance (Afrobeats), talk, phone_call, idle
     // =========================================================================
-    const updateAnimation = (time: number, isWalking: boolean) => {
-      if (isWalking) {
+    const defaultY = isFemale ? 1.05 : 1.1;
+    const updateAnimation = (time: number, animState?: boolean | string) => {
+      const isWalking = animState === true || animState === 'walk';
+      const isRunning = animState === 'run';
+      const isDancing = animState === 'dance';
+      const isTalking = animState === 'talk';
+      const isCalling = animState === 'phone_call' || animState === 'call';
+
+      if (phoneMesh) {
+        phoneMesh.visible = isCalling;
+      }
+
+      if (isRunning) {
+        // High-energy sprint
+        const stride = Math.sin(time * 14);
+        leftLegGroup.rotation.x = stride * 0.95;
+        rightLegGroup.rotation.x = -stride * 0.95;
+        leftArmGroup.rotation.x = -stride * 0.85;
+        rightArmGroup.rotation.x = stride * 0.85;
+        leftArmGroup.rotation.z = -0.25;
+        rightArmGroup.rotation.z = 0.25;
+        torsoGroup.position.y = defaultY + Math.abs(Math.sin(time * 28)) * 0.08;
+        torsoGroup.rotation.x = 0.12;
+        torsoGroup.rotation.z = 0;
+        headGroup.rotation.set(0, 0, 0);
+      } else if (isWalking) {
+        // Stylized natural walk
         const stride = Math.sin(time * 8);
         leftLegGroup.rotation.x = stride * 0.6;
         rightLegGroup.rotation.x = -stride * 0.6;
         leftArmGroup.rotation.x = -stride * 0.5;
         rightArmGroup.rotation.x = stride * 0.5;
-        torsoGroup.position.y = (isFemale ? 1.05 : 1.1) + Math.abs(Math.sin(time * 16)) * 0.04;
+        leftArmGroup.rotation.z = 0;
+        rightArmGroup.rotation.z = 0;
+        torsoGroup.position.y = defaultY + Math.abs(Math.sin(time * 16)) * 0.04;
+        torsoGroup.rotation.x = 0;
+        torsoGroup.rotation.z = Math.sin(time * 8) * 0.03;
+        headGroup.rotation.set(0, 0, 0);
+      } else if (isDancing) {
+        // Authentic Afrobeats shoulder roll, hip sway & bounce
+        const beat = time * 8;
+        const bounce = Math.abs(Math.sin(beat)) * 0.08;
+        torsoGroup.position.y = defaultY - bounce;
+        torsoGroup.rotation.z = Math.sin(beat * 0.5) * 0.14; // Hip sway
+        torsoGroup.rotation.y = Math.cos(beat * 0.5) * 0.12;
+        torsoGroup.rotation.x = 0;
+
+        leftArmGroup.rotation.x = -1.1 + Math.sin(beat) * 0.35;
+        rightArmGroup.rotation.x = -1.1 + Math.cos(beat) * 0.35;
+        leftArmGroup.rotation.z = -0.4 + Math.sin(beat * 0.5) * 0.25;
+        rightArmGroup.rotation.z = 0.4 - Math.cos(beat * 0.5) * 0.25;
+
+        headGroup.rotation.y = Math.sin(beat * 0.5) * 0.18;
+        headGroup.rotation.x = Math.sin(beat) * 0.1;
+
+        leftLegGroup.rotation.x = Math.sin(beat * 0.5) * 0.2;
+        rightLegGroup.rotation.x = -Math.sin(beat * 0.5) * 0.2;
+      } else if (isCalling) {
+        // Holding phone to right ear with subtle conversational nod
+        torsoGroup.position.y = defaultY + Math.sin(time * 2) * 0.012;
+        torsoGroup.rotation.set(0, 0, 0);
+        rightArmGroup.rotation.set(-2.2, 0.35, 0.55);
+        leftArmGroup.rotation.set(Math.sin(time * 2) * 0.04, 0, 0);
+        headGroup.rotation.set(Math.sin(time * 2.5) * 0.05, 0, -0.12);
+        leftLegGroup.rotation.x = 0;
+        rightLegGroup.rotation.x = 0;
+      } else if (isTalking) {
+        // Conversational gesturing
+        const gesture = Math.sin(time * 4);
+        torsoGroup.position.y = defaultY + Math.sin(time * 2) * 0.015;
+        torsoGroup.rotation.set(0, 0, 0);
+        leftArmGroup.rotation.set(-0.4 + gesture * 0.2, 0, -0.2);
+        rightArmGroup.rotation.set(-0.75 + Math.cos(time * 3) * 0.25, 0, 0.25);
+        headGroup.rotation.set(Math.sin(time * 3) * 0.08, Math.sin(time * 1.5) * 0.12, 0);
+        leftLegGroup.rotation.x = 0;
+        rightLegGroup.rotation.x = 0;
       } else {
-        // Subtle natural breathing / idle sway
+        // Subtle natural breathing / idle posture
         const breath = Math.sin(time * 2) * 0.015;
-        torsoGroup.position.y = (isFemale ? 1.05 : 1.1) + breath;
-        leftArmGroup.rotation.x = Math.sin(time * 2) * 0.03;
-        rightArmGroup.rotation.x = -Math.sin(time * 2) * 0.03;
+        torsoGroup.position.y = defaultY + breath;
+        torsoGroup.rotation.set(0, 0, 0);
+        headGroup.rotation.set(0, 0, 0);
+        leftArmGroup.rotation.set(Math.sin(time * 2) * 0.03, 0, 0);
+        rightArmGroup.rotation.set(-Math.sin(time * 2) * 0.03, 0, 0);
         leftLegGroup.rotation.x = 0;
         rightLegGroup.rotation.x = 0;
       }
@@ -684,6 +765,7 @@ export class HumanMeshBuilder {
       rightLeg: rightLegGroup,
       materials,
       updateAnimation,
+      phoneMesh,
     };
   }
 

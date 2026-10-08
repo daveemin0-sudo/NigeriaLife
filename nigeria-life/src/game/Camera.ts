@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { Player } from '../player/Player';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 
-export type CameraMode = 'street' | 'interior' | 'home' | 'map';
+export type CameraMode = 'street' | 'interior' | 'home' | 'map' | 'photo';
 export type CameraPreset = 'close' | 'street' | 'isometric' | 'aerial';
 
 export class GameCamera {
   public camera: THREE.PerspectiveCamera;
   public mode: CameraMode = 'street';
+  public previousMode: CameraMode = 'street';
 
   // Street mode spherical coordinates
   public yaw: number = 0;              // Horizontal azimuth around player (radians)
@@ -19,9 +20,18 @@ export class GameCamera {
   public interiorPitch: number = 0.58;  // Elevated isometric angle (~33 deg)
   public interiorDistance: number = 10.5; // Distance to target inside room (m)
 
+  // Photo mode parameters
+  public photoYaw: number = 0;
+  public photoPitch: number = 0.35;
+  public photoDistance: number = 6.5;
+  public photoHeight: number = 1.35;
+  public photoFov: number = 55;
+
   public offset: THREE.Vector3 = new THREE.Vector3(0, 3.8, 7.8);
   public interiorOffset: THREE.Vector3 = new THREE.Vector3(0, 8.5, 9.5);
   private currentLookAt: THREE.Vector3 = new THREE.Vector3();
+  public collisionObjects: THREE.Object3D[] = [];
+  private collisionRaycaster: THREE.Raycaster = new THREE.Raycaster();
 
   // Mode camera targets
   private homeCamPos: THREE.Vector3 = new THREE.Vector3(16, 22, 198);
@@ -196,8 +206,47 @@ export class GameCamera {
     }
   }
 
+  public enterPhotoMode(): void {
+    this.previousMode = this.mode;
+    this.mode = 'photo';
+    this.photoYaw = this.yaw;
+    this.photoPitch = Math.max(0.12, Math.min(0.85, this.pitch));
+    this.photoDistance = 6.2;
+    this.photoHeight = 1.35;
+    this.setPhotoFov(55);
+  }
+
+  public exitPhotoMode(): void {
+    this.mode = this.previousMode || 'street';
+    this.setPhotoFov(55);
+  }
+
+  public setPhotoFov(fov: number): void {
+    this.photoFov = fov;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
   public update(player: Player, delta: number): void {
     const lerpFactor = Math.min(delta * 9.0, 1);
+
+    if (this.mode === 'photo') {
+      const x = Math.sin(this.photoYaw) * Math.cos(this.photoPitch) * this.photoDistance;
+      const y = Math.sin(this.photoPitch) * this.photoDistance + this.photoHeight;
+      const z = Math.cos(this.photoYaw) * Math.cos(this.photoPitch) * this.photoDistance;
+      const targetCameraPos = new THREE.Vector3().copy(player.position).add(new THREE.Vector3(x, y, z));
+
+      this.camera.position.lerp(targetCameraPos, lerpFactor * 1.5);
+
+      const targetLookAt = new THREE.Vector3(
+        player.position.x,
+        player.position.y + this.photoHeight,
+        player.position.z
+      );
+      this.currentLookAt.lerp(targetLookAt, lerpFactor * 1.5);
+      this.camera.lookAt(this.currentLookAt);
+      return;
+    }
 
     if (this.mode === 'interior') {
       // Dynamic indoor rotatable camera
@@ -253,13 +302,26 @@ export class GameCamera {
 
     // Default 'street' mode: rotatable framing centered on player
     const offset = this.computeOffset();
-    const targetCameraPos = new THREE.Vector3()
-      .copy(player.position)
-      .add(offset);
+    const lookHeight = this.currentPreset === 'close' ? 1.35 : this.currentPreset === 'isometric' ? 0.9 : 1.6;
+    const origin = new THREE.Vector3(player.position.x, player.position.y + lookHeight, player.position.z);
 
+    // Collision avoidance against city buildings & obstacles
+    let actualOffset = offset;
+    if (this.collisionObjects.length > 0) {
+      const rayDir = offset.clone().normalize();
+      const maxDist = offset.length();
+      this.collisionRaycaster.set(origin, rayDir);
+      this.collisionRaycaster.far = maxDist;
+      const hits = this.collisionRaycaster.intersectObjects(this.collisionObjects, true);
+      if (hits.length > 0 && hits[0].distance < maxDist) {
+        const clampedDist = Math.max(2.4, hits[0].distance - 0.5);
+        actualOffset = rayDir.multiplyScalar(clampedDist);
+      }
+    }
+
+    const targetCameraPos = new THREE.Vector3().copy(player.position).add(actualOffset);
     this.camera.position.lerp(targetCameraPos, lerpFactor);
 
-    const lookHeight = this.currentPreset === 'close' ? 1.35 : this.currentPreset === 'isometric' ? 0.9 : 1.6;
     const targetLookAt = new THREE.Vector3(
       player.position.x,
       player.position.y + lookHeight,

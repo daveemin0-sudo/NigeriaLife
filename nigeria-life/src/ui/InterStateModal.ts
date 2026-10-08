@@ -131,7 +131,7 @@ export class InterStateModal {
         <div class="flight-journey-screen" id="flight-journey-screen" style="display: none;">
           <div class="flight-journey-content">
             <div class="flight-plane-anim" id="journey-plane-anim">✈️💨</div>
-            <h3 id="flight-headline">Air Peace Flight Airborne...</h3>
+            <h3 id="flight-headline">Wazobia Air Flight Airborne...</h3>
             <p id="flight-subtext">"Cabin crew, prepare for takeoff. Cruising altitude 32,000 feet."</p>
             <div class="flight-progress-bar">
               <div class="flight-progress-fill" id="flight-progress-fill"></div>

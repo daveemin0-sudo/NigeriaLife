@@ -88,6 +88,10 @@ export class World {
     this.roads = new Roads();
     this.scene.add(this.roads.group);
     this.weather.registerRoadMaterial(this.roads.asphaltMat);
+    this.roads.setNightLighting(this.skyEnvironment.currentPeriod);
+    this.skyEnvironment.onPeriodChange = (period) => {
+      this.roads.setNightLighting(period);
+    };
 
     // 3. Lagos Architectural Buildings
     this.buildings = new Buildings();
@@ -279,7 +283,7 @@ export class World {
     this.trafficSpawner.update(delta, playerPos?.z ?? 0);
 
     // Update ambient NPC walking & animations
-    this.npcs.update(delta);
+    this.npcs.update(delta, playerPos);
 
     // Update high-density proximity population
     this.cityPopulation.update(delta, playerPos?.z ?? 0);

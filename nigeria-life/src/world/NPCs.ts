@@ -11,6 +11,7 @@ interface AmbientPedestrian {
   walkTime: number;
   minZ: number;
   maxZ: number;
+  idleAction?: string;
 }
 
 /**
@@ -27,6 +28,10 @@ export class NPCs {
 
   // Walking & animated crowd
   private pedestrians: AmbientPedestrian[] = [];
+
+  // Animated story character rigs
+  private storyRigs: { rig: HumanRig; animState: string }[] = [];
+  private storyAnimTime: number = 0;
 
   // Key interactive Hawker
   private hawkerGroup!: THREE.Group;
@@ -125,6 +130,7 @@ export class NPCs {
 
     conductorGroup.add(rig.group);
     this.group.add(conductorGroup);
+    this.storyRigs.push({ rig, animState: 'talk' });
 
     this.interactiveList.push({
       mesh: conductorGroup,
@@ -153,6 +159,7 @@ export class NPCs {
 
     betGroup.add(rig.group);
     this.group.add(betGroup);
+    this.storyRigs.push({ rig, animState: 'talk' });
 
     this.interactiveList.push({
       mesh: betGroup,
@@ -182,6 +189,7 @@ export class NPCs {
 
     auntyGroup.add(rig.group);
     this.group.add(auntyGroup);
+    this.storyRigs.push({ rig, animState: 'talk' });
 
     this.interactiveList.push({
       mesh: auntyGroup,
@@ -211,6 +219,7 @@ export class NPCs {
 
     bankerGroup.add(rig.group);
     this.group.add(bankerGroup);
+    this.storyRigs.push({ rig, animState: 'phone_call' });
 
     this.interactiveList.push({
       mesh: bankerGroup,
@@ -239,6 +248,7 @@ export class NPCs {
 
     suyaGroup.add(rig.group);
     this.group.add(suyaGroup);
+    this.storyRigs.push({ rig, animState: 'talk' });
 
     this.interactiveList.push({
       mesh: suyaGroup,
@@ -267,6 +277,7 @@ export class NPCs {
 
     phoneGroup.add(rig.group);
     this.group.add(phoneGroup);
+    this.storyRigs.push({ rig, animState: 'talk' });
 
     this.interactiveList.push({
       mesh: phoneGroup,
@@ -295,6 +306,7 @@ export class NPCs {
 
     mechGroup.add(rig.group);
     this.group.add(mechGroup);
+    this.storyRigs.push({ rig, animState: 'talk' });
 
     this.interactiveList.push({
       mesh: mechGroup,
@@ -323,6 +335,7 @@ export class NPCs {
 
     wardenGroup.add(rig.group);
     this.group.add(wardenGroup);
+    this.storyRigs.push({ rig, animState: 'talk' });
 
     this.interactiveList.push({
       mesh: wardenGroup,
@@ -351,6 +364,7 @@ export class NPCs {
 
     elderGroup.add(rig.group);
     this.group.add(elderGroup);
+    this.storyRigs.push({ rig, animState: 'idle' });
 
     this.interactiveList.push({
       mesh: elderGroup,
@@ -378,22 +392,23 @@ export class NPCs {
       minZ: number;
       maxZ: number;
       speed: number;
+      idleAction?: string;
     }> = [
       // West Sidewalk
       { x: -9.5, z: -32, gender: 'female', username: 'Amara', outfit: 'blue_dress', outfitColor: 0x2563eb, hairstyle: 'bob_wig', isWalking: true, minZ: -45, maxZ: -18, speed: 1.8 },
       { x: -9.2, z: -20, gender: 'male', username: 'Kelechi', outfit: 'casual_tee', outfitColor: 0xd97706, hairstyle: 'fade', isWalking: true, minZ: -30, maxZ: -10, speed: 2.1 },
-      { x: -9.0, z: -8, gender: 'female', username: 'Blessing', outfit: 'peplum_skirt', outfitColor: 0xdc2626, hairstyle: 'braids', isWalking: false, minZ: -8, maxZ: -8, speed: 0 },
+      { x: -9.0, z: -8, gender: 'female', username: 'Blessing', outfit: 'peplum_skirt', outfitColor: 0xdc2626, hairstyle: 'braids', isWalking: false, minZ: -8, maxZ: -8, speed: 0, idleAction: 'talk' },
       { x: -9.5, z: 2, gender: 'male', username: 'Tobi', outfit: 'student_casual', outfitColor: 0x1d4ed8, hairstyle: 'afro', isWalking: true, minZ: -10, maxZ: 15, speed: 2.2 },
       { x: -9.2, z: 12, gender: 'female', username: 'Ngozi', outfit: 'casual_blouse', outfitColor: 0x7c3aed, hairstyle: 'ponytail', isWalking: true, minZ: 0, maxZ: 25, speed: 1.9 },
-      { x: -9.0, z: 22, gender: 'male', username: 'Babajide', outfit: 'senator', outfitColor: 0x1e293b, hairstyle: 'short_crop', isWalking: false, minZ: 22, maxZ: 22, speed: 0 },
+      { x: -9.0, z: 22, gender: 'male', username: 'Babajide', outfit: 'senator', outfitColor: 0x1e293b, hairstyle: 'short_crop', isWalking: false, minZ: 22, maxZ: 22, speed: 0, idleAction: 'phone_call' },
 
       // East Sidewalk
       { x: 9.5, z: -30, gender: 'male', username: 'Femi', outfit: 'casual_tee', outfitColor: 0x16a34a, hairstyle: 'fade', isWalking: true, minZ: -42, maxZ: -15, speed: 2.0 },
       { x: 9.2, z: -18, gender: 'female', username: 'Zainab', outfit: 'blue_dress', outfitColor: 0x0284c7, hairstyle: 'braids', isWalking: true, minZ: -28, maxZ: -6, speed: 1.7 },
-      { x: 9.0, z: -2, gender: 'female', username: 'Funke', outfit: 'peplum_skirt', outfitColor: 0xf59e0b, hairstyle: 'gele', isWalking: false, minZ: -2, maxZ: -2, speed: 0 },
+      { x: 9.0, z: -2, gender: 'female', username: 'Funke', outfit: 'peplum_skirt', outfitColor: 0xf59e0b, hairstyle: 'gele', isWalking: false, minZ: -2, maxZ: -2, speed: 0, idleAction: 'dance' },
       { x: 9.5, z: 8, gender: 'male', username: 'Chinedu', outfit: 'engineer_vest', outfitColor: 0xf97316, hairstyle: 'hardhat', isWalking: true, minZ: -5, maxZ: 20, speed: 2.3 },
       { x: 9.2, z: 18, gender: 'female', username: 'Halima', outfit: 'casual_blouse', outfitColor: 0xec4899, hairstyle: 'bob_wig', isWalking: true, minZ: 6, maxZ: 28, speed: 1.8 },
-      { x: 9.0, z: 26, gender: 'male', username: 'Alhaji Musa', outfit: 'agbada', outfitColor: 0x065f46, hairstyle: 'fila', isWalking: false, minZ: 26, maxZ: 26, speed: 0 },
+      { x: 9.0, z: 26, gender: 'male', username: 'Alhaji Musa', outfit: 'agbada', outfitColor: 0x065f46, hairstyle: 'fila', isWalking: false, minZ: 26, maxZ: 26, speed: 0, idleAction: 'idle' },
     ];
 
     for (const item of roster) {
@@ -420,6 +435,7 @@ export class NPCs {
         walkTime: Math.random() * 10,
         minZ: item.minZ,
         maxZ: item.maxZ,
+        idleAction: item.idleAction,
       });
     }
   }
@@ -427,12 +443,14 @@ export class NPCs {
   // =========================================================================
   // UPDATE TICK
   // =========================================================================
-  public update(delta: number): void {
+  public update(delta: number, playerPos?: THREE.Vector3): void {
+    this.storyAnimTime += delta;
+
     // 1. Animate Drinks Hawker patrolling the street
     if (this.hawkerGroup && this.hawkerRig) {
       this.hawkerGroup.position.z += this.hawkerDir * this.hawkerSpeed * delta;
       this.hawkerWalkTime += delta * 6.5;
-      this.hawkerRig.updateAnimation(this.hawkerWalkTime, true);
+      this.hawkerRig.updateAnimation(this.hawkerWalkTime, 'walk');
 
       if (this.hawkerGroup.position.z > 25) {
         this.hawkerDir = -1;
@@ -443,12 +461,22 @@ export class NPCs {
       }
     }
 
-    // 2. Animate Sidewalk Pedestrians
+    // 2. Animate Story Character Rigs
+    for (const story of this.storyRigs) {
+      story.rig.updateAnimation(this.storyAnimTime, story.animState);
+    }
+
+    // 3. Animate Sidewalk Pedestrians with distance LOD culling
     for (const ped of this.pedestrians) {
+      if (playerPos) {
+        const distSq = (ped.group.position.x - playerPos.x) ** 2 + (ped.group.position.z - playerPos.z) ** 2;
+        if (distSq > 70 * 70) continue; // Skip bone kinematic calculations for NPCs farther than 70m
+      }
+
       if (ped.isWalking) {
         ped.group.position.z += ped.dir * ped.speed * delta;
         ped.walkTime += delta * 6.5;
-        ped.rig.updateAnimation(ped.walkTime, true);
+        ped.rig.updateAnimation(ped.walkTime, 'walk');
 
         // Turnaround at patrol bounds
         if (ped.group.position.z >= ped.maxZ) {
@@ -459,9 +487,9 @@ export class NPCs {
           ped.group.rotation.y = 0;
         }
       } else {
-        // Idle breathing and posture
+        // Expressive idle animation (talking, dancing, on phone, or breathing)
         ped.walkTime += delta * 1.5;
-        ped.rig.updateAnimation(ped.walkTime, false);
+        ped.rig.updateAnimation(ped.walkTime, ped.idleAction || 'idle');
       }
     }
   }

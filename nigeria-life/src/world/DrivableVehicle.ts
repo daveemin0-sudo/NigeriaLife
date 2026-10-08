@@ -3,8 +3,10 @@ import type { Player } from '../player/Player';
 import { createColorCanvasTexture } from '../utils/TextureUtils';
 import { SignageLibrary } from '../materials/SignageLibrary';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
+import { AssetManager } from '../assets/AssetManager';
+import { SoundEngine } from '../audio/SoundEngine';
 
-export type VehicleType = 'danfo' | 'keke' | 'suv';
+export type VehicleType = 'danfo' | 'keke' | 'suv' | 'okada';
 
 export interface VehicleConfig {
   id: string;
@@ -51,6 +53,8 @@ export class DrivableVehicle {
       this.buildDanfo();
     } else if (this.type === 'keke') {
       this.buildKeke();
+    } else if (this.type === 'okada') {
+      this.buildOkada();
     } else {
       this.buildLuxurySUV();
     }
@@ -61,6 +65,36 @@ export class DrivableVehicle {
     this.hornDisplayGroup.visible = false;
     this.mesh.add(this.hornDisplayGroup);
     this.createHornSprite();
+
+    // Asynchronous GLB model loading if available in public/models/vehicles/
+    const glbMap: Record<VehicleType, string> = {
+      danfo: '/models/vehicles/danfo_minibus.glb',
+      keke: '/models/vehicles/keke_napep.glb',
+      suv: '/models/vehicles/suv_luxury.glb',
+      okada: '/models/vehicles/okada_bike.glb',
+    };
+    AssetManager.getInstance().instantiate(glbMap[this.type]).then((glbScene) => {
+      if (glbScene) {
+        for (let i = this.mesh.children.length - 1; i >= 0; i--) {
+          const child = this.mesh.children[i];
+          if (child !== this.hornDisplayGroup) {
+            this.mesh.remove(child);
+          }
+        }
+        this.wheels = [];
+        this.steerWheels = [];
+        this.mesh.add(glbScene);
+
+        glbScene.traverse((node: any) => {
+          if (node.isMesh && node.name.toLowerCase().includes('wheel')) {
+            this.wheels.push(node);
+            if (node.name.toLowerCase().includes('front') || node.name.toLowerCase().includes('_f')) {
+              this.steerWheels.push(node);
+            }
+          }
+        });
+      }
+    });
   }
 
   private createHornSprite(): void {
@@ -97,12 +131,14 @@ export class DrivableVehicle {
     const signLib = SignageLibrary.getInstance();
     const matLib = MaterialLibrary.getInstance();
 
-    // Body chassis with signature Lagos yellow gloss paint
+    // Body chassis with signature Lagos yellow gloss paint & PBR clearcoat
     const bodyGeo = new THREE.BoxGeometry(2.4, 2.0, 5.4);
-    const yellowMat = new THREE.MeshStandardMaterial({
+    const yellowMat = new THREE.MeshPhysicalMaterial({
       color: 0xfacc15,
-      roughness: 0.35,
-      metalness: 0.1,
+      roughness: 0.25,
+      metalness: 0.55,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.15,
     });
     const body = new THREE.Mesh(bodyGeo, yellowMat);
     body.position.y = 1.45;
@@ -488,6 +524,67 @@ export class DrivableVehicle {
     }
   }
 
+  // === 4. BUILD OKADA MOTORCYCLE ===
+  private buildOkada(): void {
+    const frameMat = new THREE.MeshPhysicalMaterial({ color: 0x18181b, metalness: 0.85, roughness: 0.25, clearcoat: 0.5 });
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 1.6), frameMat);
+    frame.position.y = 0.65;
+    this.mesh.add(frame);
+
+    const tankMat = new THREE.MeshPhysicalMaterial({ color: 0xdc2626, metalness: 0.65, roughness: 0.2, clearcoat: 0.9, clearcoatRoughness: 0.1 });
+    const tank = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.25, 0.5), tankMat);
+    tank.position.set(0, 0.82, 0.2);
+    this.mesh.add(tank);
+
+    const seat = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.12, 0.65),
+      new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.85 })
+    );
+    seat.position.set(0, 0.8, -0.3);
+    this.mesh.add(seat);
+
+    // Courier Delivery Box (QuickChop Emerald)
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.45, 0.45),
+      new THREE.MeshPhysicalMaterial({ color: 0x059669, roughness: 0.4, clearcoat: 0.6 })
+    );
+    box.position.set(0, 1.05, -0.75);
+    this.mesh.add(box);
+
+    // Front Fork & Handlebars (steering group)
+    const forkGroup = new THREE.Group();
+    forkGroup.position.set(0, 0.35, 0.8);
+    this.mesh.add(forkGroup);
+    this.steerWheels.push(forkGroup as any);
+
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.05, 0.05), frameMat);
+    bar.position.set(0, 0.7, 0);
+    forkGroup.add(bar);
+
+    const light = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, 0.08, 12),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfffae0, emissiveIntensity: 1.5 })
+    );
+    light.rotation.x = Math.PI / 2;
+    light.position.set(0, 0.5, 0.08);
+    forkGroup.add(light);
+
+    // Front wheel attached to forkGroup
+    const tireMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.85 });
+    const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.12, 16);
+    const fWheel = new THREE.Mesh(wheelGeo, tireMat);
+    fWheel.rotation.z = Math.PI / 2;
+    forkGroup.add(fWheel);
+    this.wheels.push(fWheel);
+
+    // Rear wheel attached to body
+    const rWheel = new THREE.Mesh(wheelGeo, tireMat);
+    rWheel.rotation.z = Math.PI / 2;
+    rWheel.position.set(0, 0.35, -0.7);
+    this.mesh.add(rWheel);
+    this.wheels.push(rWheel);
+  }
+
   // === DRIVING & CONTROLS ===
 
   public enter(player: Player): void {
@@ -512,6 +609,7 @@ export class DrivableVehicle {
   public honk(): string {
     this.hornTimer = 1.2;
     this.hornDisplayGroup.visible = true;
+    SoundEngine.getInstance().playVehicleHorn(this.type);
     return this.config.hornText;
   }
 
@@ -548,6 +646,7 @@ export class DrivableVehicle {
         this.config.maxSpeed,
         this.currentSpeed + this.config.acceleration * delta
       );
+      SoundEngine.getInstance().playEngineAccelerate(Math.abs(this.currentSpeed) / this.config.maxSpeed);
     } else if (backward) {
       this.currentSpeed = Math.max(
         -this.config.reverseSpeed,
