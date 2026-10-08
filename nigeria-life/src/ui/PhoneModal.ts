@@ -1062,10 +1062,14 @@ export class PhoneModal {
     document.getElementById('btn-danfo-drop')?.addEventListener('click', () => {
       if (this.danfoMinigameStep >= 2) {
         this.danfoMinigameActive = false;
-        this.backend.addCash(12500);
-        this.backend.addStreetCred(25);
-        SoundEngine.getInstance().playTransactionSuccess();
-        showGameToast('🏁 CMS to Obalende trip complete! Earned ₦12,500 cash & +25 Street Cred!', 'success', 4500);
+        const gig = this.backend.performGig(12500, 20, 'Danfo Conductor Hustle');
+        if (gig.success) {
+          this.backend.addStreetCred(25);
+          SoundEngine.getInstance().playTransactionSuccess();
+          showGameToast('🏁 CMS to Obalende trip complete! Earned ₦12,500 cash & +25 Street Cred! Energy -20%', 'success', 4500);
+        } else {
+          showGameToast(`❌ ${gig.message}`, 'warning');
+        }
         this.render();
       } else {
         showGameToast('❌ Collect all passenger fares before dropping them off!', 'warning');
@@ -1097,10 +1101,14 @@ export class PhoneModal {
     document.getElementById('btn-tech-deploy')?.addEventListener('click', () => {
       if (this.techMinigameStep >= 2) {
         this.techMinigameActive = false;
-        this.backend.addCash(25000);
-        this.backend.addStreetCred(35);
-        SoundEngine.getInstance().playTransactionSuccess();
-        showGameToast('🚀 CI/CD build green! Pull request merged to main! Earned ₦25,000 & +35 Street Cred!', 'success', 4500);
+        const gig = this.backend.performGig(25000, 30, 'CcHub Tech Contract');
+        if (gig.success) {
+          this.backend.addStreetCred(35);
+          SoundEngine.getInstance().playTransactionSuccess();
+          showGameToast('🚀 CI/CD build green! Pull request merged to main! Earned ₦25,000 & +35 Street Cred! Energy -30%', 'success', 4500);
+        } else {
+          showGameToast(`❌ ${gig.message}`, 'warning');
+        }
         this.render();
       } else {
         showGameToast('❌ Optimize cache before shipping code to production!', 'warning');
@@ -1132,10 +1140,14 @@ export class PhoneModal {
     document.getElementById('btn-nepa-pull')?.addEventListener('click', () => {
       if (this.genMinigameStep >= 2) {
         this.genMinigameActive = false;
-        this.backend.addCash(20000);
-        this.backend.addStreetCred(30);
-        SoundEngine.getInstance().playTransactionSuccess();
-        showGameToast('🔥 GBRRRR-BRRRR! Tiger generator fired up! Light restored! +₦20,000 cash, +30 Street Cred!', 'success', 4500);
+        const gig = this.backend.performGig(20000, 25, 'Generator Repair Hustle');
+        if (gig.success) {
+          this.backend.addStreetCred(30);
+          SoundEngine.getInstance().playTransactionSuccess();
+          showGameToast('🔥 GBRRRR-BRRRR! Tiger generator fired up! Light restored! +₦20,000 cash, +30 Street Cred! Energy -25%', 'success', 4500);
+        } else {
+          showGameToast(`❌ ${gig.message}`, 'warning');
+        }
         this.render();
       } else {
         showGameToast('❌ Open the choke and check fuel before pulling the cord!', 'warning');

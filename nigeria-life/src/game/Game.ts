@@ -15,6 +15,12 @@ import { PhotoModeModal } from '../ui/PhotoModeModal';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import { UIStateManager } from '../ui/UIStateManager';
+import { emitGameEvent } from './GameEvents';
+import type { CityId } from '../cities/CityTypes';
+import type { SavedCityId } from '../backend/types';
+
+/** How often the player's position, the time of day and their vitals are written to the save */
+const AUTOSAVE_SECONDS = 5;
 
 export class Game {
   public scene: THREE.Scene;
@@ -39,6 +45,8 @@ export class Game {
   private frameCount: number = 0;
   private fpsTimer: number = 0;
   private currentFPS: number = 60;
+  private lastAutosaveAt: number = performance.now();
+  private onJourneyCompleted: (() => void) | null = null;
 
   constructor() {
     // 1. Scene
@@ -155,13 +163,7 @@ export class Game {
 
     // 9b. Inter-State Flights & Cross-Country Travel (Lagos <-> Abuja FCT <-> Port Harcourt)
     this.hud.interstateModal.onInterStateTravelCompleted = (destId) => {
-      this.world.cityManager.switchCity(
-        destId,
-        this.player,
-        (newObjs) => {
-          this.world.interactiveObjects = newObjs;
-        }
-      );
+      this.arriveInCity(destId);
     };
 
     // 9b-2. Full 3D Commercial In-Flight & First-Person Road Ride Simulation (Nigeria Life Standard)
@@ -228,13 +230,11 @@ export class Game {
       this.world.setStreetModeVisibility(true);
       this.player.mesh.visible = true;
 
-      this.world.cityManager.switchCity(
-        ride.destinationCityId,
-        this.player,
-        (newObjs) => {
-          this.world.interactiveObjects = newObjs;
-        }
-      );
+      this.arriveInCity(ride.destinationCityId);
+
+      const journeyCompleted = this.onJourneyCompleted;
+      this.onJourneyCompleted = null;
+      journeyCompleted?.();
     };
 
     // Wire InterState Modal to trigger the 3D Flight Experience
@@ -264,6 +264,9 @@ export class Game {
         durationSeconds: 22,
       };
 
+      // The ticket is already paid for: if the game closes mid-journey, the player resumes at the destination
+      this.saveArrivalInTransit(route.destinationId);
+
       // Temporarily hide street mode while in-flight
       this.world.setStreetModeVisibility(false);
       this.player.mesh.visible = false;
@@ -271,12 +274,8 @@ export class Game {
       this.flightExperience.startFlight(flightDetails);
       this.transitHUD.showFlightHUD(flightDetails);
 
-      // Listen for eventual ride completion to signal modal
-      const prevRideComplete = this.roadRideExperience.onRideCompleted;
-      this.roadRideExperience.onRideCompleted = (ride) => {
-        prevRideComplete?.(ride);
-        onCompleted(route.destinationId);
-      };
+      // Signal the modal once the road ride from the airport has finished
+      this.onJourneyCompleted = () => onCompleted(route.destinationId);
     };
 
     // 9c. Camera Navigation Modes (Home Flat | Street Walk | Aerial World Map)
@@ -341,8 +340,96 @@ export class Game {
     // 12. Window Resizing
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
+    // 12b. Resume where the player left off, then keep that position saved
+    this.restoreWorldState();
+    window.addEventListener('pagehide', () => this.saveWorldState());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.saveWorldState();
+    });
+
+    const loadNotice = BackendService.getInstance().loadNotice;
+    if (loadNotice) {
+      showGameToast(loadNotice, 'warning', 9000);
+    }
+
     // 13. Start Loop
     this.loop();
+  }
+
+  private isSavedCity(cityId: string): cityId is SavedCityId {
+    return cityId === 'lagos' || cityId === 'abuja' || cityId === 'port_harcourt';
+  }
+
+  /** Switches the world to a city the player has just travelled to, and reports the arrival. */
+  private arriveInCity(cityId: CityId): void {
+    this.hud.interstateModal.currentOriginCityId = cityId;
+    if (this.world.cityManager.currentCityId === cityId) return;
+
+    this.world.cityManager.switchCity(cityId, this.player, (newObjs) => {
+      this.world.interactiveObjects = newObjs;
+    });
+    emitGameEvent('arrive_city', { city: cityId });
+    this.saveWorldState();
+  }
+
+  private saveArrivalInTransit(cityId: CityId): void {
+    if (!this.isSavedCity(cityId)) return;
+    BackendService.getInstance().saveWorldState({
+      cityId,
+      x: 0,
+      z: 10,
+      rotationY: 0,
+      hour: this.world.skyEnvironment.currentHour,
+      inTransit: true,
+    });
+  }
+
+  /** Records the player's city, street position and the time of day in the saved game. */
+  private saveWorldState(): void {
+    // Mid-flight the destination was already saved when the ticket was bought
+    if (this.flightExperience.isActive || this.roadRideExperience.isActive) return;
+
+    const cityId = this.world.cityManager.currentCityId;
+    if (!this.isSavedCity(cityId)) return;
+
+    // Indoors or at the wheel, the place to come back to is the street door or the vehicle
+    const interiors = this.world.interiorManager;
+    const spot = interiors.isPlayerInside()
+      ? interiors.getStreetReturnPosition()
+      : this.player.isDriving && this.player.currentVehicle
+      ? this.player.currentVehicle.mesh.position
+      : this.player.position;
+
+    BackendService.getInstance().saveWorldState({
+      cityId,
+      x: Number(spot.x.toFixed(2)),
+      z: Number(spot.z.toFixed(2)),
+      rotationY: Number(this.player.mesh.rotation.y.toFixed(2)),
+      hour: Number(this.world.skyEnvironment.currentHour.toFixed(3)),
+    });
+  }
+
+  private restoreWorldState(): void {
+    const saved = BackendService.getInstance().getData().worldState;
+    if (!saved) return;
+
+    this.world.skyEnvironment.setHour(saved.hour);
+
+    if (saved.inTransit) {
+      // The game closed during a paid journey: finish it
+      this.arriveInCity(saved.cityId);
+      return;
+    }
+
+    if (saved.cityId !== this.world.cityManager.currentCityId) {
+      this.world.cityManager.switchCity(saved.cityId, this.player, (newObjs) => {
+        this.world.interactiveObjects = newObjs;
+      });
+      this.hud.interstateModal.currentOriginCityId = saved.cityId;
+    }
+    this.player.mesh.position.set(saved.x, 0, saved.z);
+    this.player.mesh.rotation.y = saved.rotationY;
+    this.cameraManager.snapToPlayer(this.player, 'street');
   }
 
   private enterVehicle(vehicle: any): void {
@@ -351,6 +438,7 @@ export class Game {
     this.player.currentVehicle = vehicle;
     this.hud.showDrivingHUD(vehicle.name);
     UIStateManager.getInstance().setMode('driving');
+    emitGameEvent('drive', { city: this.world.cityManager.currentCityId });
   }
 
   private exitVehicle(): void {
@@ -419,6 +507,13 @@ export class Game {
     // Update Driving HUD Speedometer
     if (this.player.isDriving && this.player.currentVehicle) {
       this.hud.updateDrivingHUD(this.player.currentVehicle.currentSpeed);
+    }
+
+    // Autosave position, time of day and vitals (wall-clock time, so a slow frame rate does not delay it)
+    const nowMs = performance.now();
+    if (nowMs - this.lastAutosaveAt >= AUTOSAVE_SECONDS * 1000) {
+      this.lastAutosaveAt = nowMs;
+      this.saveWorldState();
     }
 
     // Update Multiplayer networking & remote players

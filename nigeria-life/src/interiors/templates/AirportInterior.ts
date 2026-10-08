@@ -421,6 +421,11 @@ export class AirportInterior {
       });
     });
 
+    // Interaction points above are room-relative; the player walks in world space
+    for (const obj of this.interactiveList) {
+      obj.interactionPoint.add(this.group.position);
+    }
+
     // 11. Apron Tarmac & Wazobia Air Commercial Jet View
     this.buildTarmacAndAirliner();
   }

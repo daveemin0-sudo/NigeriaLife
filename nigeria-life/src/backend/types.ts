@@ -118,12 +118,25 @@ export interface BusinessEnterprise {
 }
 
 export type TransactionType =
-  | 'PROPERTY_PURCHASE'
-  | 'RENT_PAYMENT'
+  // Money in
   | 'JOB_SALARY'
   | 'BUSINESS_INCOME'
+  | 'QUEST_REWARD'
+  | 'TRANSFER_IN'
+  | 'WINNINGS'
+  | 'BONUS'
+  | 'LOAN_DISBURSEMENT'
+  // Money out
+  | 'PROPERTY_PURCHASE'
+  | 'RENT_PAYMENT'
+  | 'BUSINESS_PURCHASE'
   | 'SHOP_PURCHASE'
+  | 'FOOD_PURCHASE'
+  | 'MEDICAL_BILL'
   | 'TRAVEL_COST'
+  | 'TRANSFER_OUT'
+  | 'LOAN_REPAYMENT'
+  // Moves between the player's own bank account and wallet
   | 'ATM_WITHDRAWAL'
   | 'ATM_DEPOSIT';
 
@@ -167,7 +180,23 @@ export interface CareerProfile {
 
 export type OriginDestiny = 'nepo' | 'lapo' | 'tech_bro';
 
+/** Bump when the saved shape changes, and add a step to migrateAccount() in SaveSchema.ts */
+export const SAVE_SCHEMA_VERSION = 2;
+
+export type SavedCityId = 'lagos' | 'abuja' | 'port_harcourt';
+
+/** Where the player was standing, so a reload puts them back there */
+export interface SavedWorldState {
+  cityId: SavedCityId;
+  x: number;
+  z: number;
+  rotationY: number;
+  hour: number; // Time of day, 0 to 24
+  inTransit?: boolean; // Saved mid-journey: the trip is paid for, so a reload completes the arrival
+}
+
 export interface PlayerAccount {
+  schemaVersion: number;
   id: string;
   username: string;
   phoneNumber: string;
@@ -185,9 +214,14 @@ export interface PlayerAccount {
   activeHousingId?: string;
   activeLoan?: {
     lender: string;
-    amount: number;
+    amount: number; // Outstanding balance still owed
     weeklyRepayment: number;
   };
+  /** Timed payouts already collected: claim key -> when it was last collected (ms since epoch) */
+  claims: Record<string, number>;
+  /** When business revenue was last accrued (ms since epoch) */
+  lastRevenueAt?: number;
+  worldState?: SavedWorldState;
   createdAt: string;
 }
 
@@ -1079,6 +1113,7 @@ export const DEFAULT_CAREER: CareerProfile = {
 };
 
 export const INITIAL_PLAYER_DATA: PlayerAccount = {
+  schemaVersion: SAVE_SCHEMA_VERSION,
   id: 'usr_eko_001',
   username: 'Bayo',
   phoneNumber: '08023456789',
@@ -1151,5 +1186,6 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
     },
   ],
   activeJobShift: null,
+  claims: {},
   createdAt: new Date().toISOString(),
 };

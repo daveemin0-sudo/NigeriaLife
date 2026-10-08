@@ -2,6 +2,7 @@ import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
+import { emitGameEvent } from '../game/GameEvents';
 
 export interface TravelDestination {
   id: string;
@@ -225,18 +226,12 @@ export class TravelModal {
     const dest = LAGOS_DESTINATIONS.find((d) => d.id === destId);
     if (!dest) return;
 
-    const data = this.backend.getData();
-    if (data.walletCash < dest.fare && data.bank.balance < dest.fare) {
+    // Deduct fare: wallet first, bank covers any shortfall
+    if (!this.backend.pay(dest.fare, `Danfo Bus Fare to ${dest.name}`, 'TRAVEL_COST')) {
       showGameToast(`❌ Insufficient funds! You need ₦${dest.fare.toLocaleString()} for bus fare to ${dest.name}.`, 'error');
       return;
     }
-
-    // Deduct fare
-    const paidCash = this.backend.spendCash(dest.fare, `Danfo Bus Fare to ${dest.name}`);
-    if (!paidCash) {
-      this.backend.withdrawFromATM(dest.fare);
-      this.backend.spendCash(dest.fare, `Danfo Bus Fare to ${dest.name}`);
-    }
+    emitGameEvent('drive');
 
     this.isTraveling = true;
     const journeyScreen = document.getElementById('travel-journey-screen');

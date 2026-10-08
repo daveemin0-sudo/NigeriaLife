@@ -96,11 +96,17 @@ export class NetworkManager {
       }
     } else if (packet.type === 'p2p_transfer') {
       if (packet.transfer.recipientId === this.localId) {
-        BackendService.getInstance().addCash(packet.transfer.amount);
-        showGameToast(
-          `+₦${packet.transfer.amount.toLocaleString()} from @${packet.transfer.senderName} (${packet.transfer.memo || 'Direct Transfer'})`,
-          'success'
+        const received = BackendService.getInstance().addCash(
+          packet.transfer.amount,
+          `Transfer from @${packet.transfer.senderName}`,
+          'TRANSFER_IN'
         );
+        if (received) {
+          showGameToast(
+            `+₦${packet.transfer.amount.toLocaleString()} from @${packet.transfer.senderName} (${packet.transfer.memo || 'Direct Transfer'})`,
+            'success'
+          );
+        }
       }
     } else if (packet.type === 'emote_sync') {
       if (this.remotePlayers.has(packet.playerId)) {
@@ -173,8 +179,13 @@ export class NetworkManager {
   }
 
   public sendP2PTransfer(recipientId: string, amount: number, memo: string = 'EkoPay Instant Wire'): { success: boolean; message: string } {
+    // Nobody is listening for a player who is not here, so the money would simply vanish
+    if (!this.remotePlayers.has(recipientId)) {
+      return { success: false, message: `@${recipientId} is not online. No money was sent.` };
+    }
+
     const backend = BackendService.getInstance();
-    const success = backend.spendCash(amount, `P2P Transfer to @${recipientId}`);
+    const success = backend.spendCash(amount, `P2P Transfer to @${recipientId}`, 'TRANSFER_OUT');
     if (!success) {
       return { success: false, message: 'Insufficient cash in your wallet!' };
     }

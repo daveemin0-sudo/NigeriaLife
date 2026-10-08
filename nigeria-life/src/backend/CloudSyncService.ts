@@ -179,12 +179,8 @@ export class CloudSyncService {
   }
 
   private applyImportedAccount(account: PlayerAccount): void {
-    // Write directly into BackendService storage key and reload
-    localStorage.setItem('nigeria_life_account_data_v1', JSON.stringify(account));
-    // Trigger backend reload and listener notifications
-    (this.backend as any).data = (this.backend as any).loadData();
-    this.backend.syncPropertiesToWorld();
-    (this.backend as any).notifyListeners();
+    // The backend validates the imported account like any saved game, then saves and notifies
+    this.backend.replaceAccount(account);
   }
 
   public setServerRegion(region: 'lagos' | 'abuja' | 'port_harcourt'): void {

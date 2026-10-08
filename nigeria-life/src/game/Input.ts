@@ -709,11 +709,16 @@ export class InputManager {
 
     let nearestCandidate: InteractiveObject | null = null;
     let minDistance = Infinity;
+    let bestRank = Infinity;
 
     for (const obj of candidates) {
       const radius = this.getInteractionRadius(obj.id);
       const dist = this.player.position.distanceTo(obj.interactionPoint);
-      if (dist <= radius && dist < minDistance) {
+      // Some staffed stations share their exact standing spot with the attendant. The station
+      // carries the action, so it wins the tie; attendants standing apart keep their own prompt.
+      const rank = obj.id.startsWith('interior_npc_') ? dist + 0.3 : dist;
+      if (dist <= radius && rank < bestRank) {
+        bestRank = rank;
         minDistance = dist;
         nearestCandidate = obj;
       }

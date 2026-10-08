@@ -232,20 +232,10 @@ export class HouseDecorationSystem {
     const item = CATALOGUE_ITEMS.find((i) => i.id === itemId);
     if (!item) return;
 
-    const data = this.backend.getData();
-    const totalFunds = data.walletCash + data.bank.balance;
-    if (totalFunds < item.price) {
+    // Wallet first, bank covers any shortfall
+    if (!this.backend.pay(item.price, `Furnishing: ${item.name}`)) {
       showGameToast(`❌ You need ₦${item.price.toLocaleString()} to purchase this item.`, 'error');
       return;
-    }
-
-    // Deduct cash or bank balance
-    if (data.walletCash >= item.price) {
-      this.backend.spendCash(item.price, `Furnishing: ${item.name}`);
-    } else {
-      const remainder = item.price - data.walletCash;
-      this.backend.spendCash(data.walletCash, `Furnishing: ${item.name}`);
-      this.backend.withdrawFromATM(remainder);
     }
 
     // Spawn 3D furniture mesh in apartment

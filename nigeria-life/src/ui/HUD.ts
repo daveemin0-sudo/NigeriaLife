@@ -22,6 +22,7 @@ import { CloudSyncService } from '../backend/CloudSyncService';
 import { NetworkManager } from '../multiplayer/NetworkManager';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
+import { emitGameEvent } from '../game/GameEvents';
 
 export class HUD {
   private container: HTMLDivElement;
@@ -687,7 +688,8 @@ export class HUD {
       if (transport.fare > 0) {
         const success = this.backend.spendCash(
           transport.fare,
-          `Transport (${transport.label}) to ${dest.name}`
+          `Transport (${transport.label}) to ${dest.name}`,
+          'TRAVEL_COST'
         );
         if (!success) {
           this.showDialogueModal({
@@ -698,6 +700,7 @@ export class HUD {
           });
           return;
         }
+        emitGameEvent('drive', { city: this.world?.cityManager.currentCityId });
       }
 
       // 2. Return to street mode
@@ -854,7 +857,17 @@ export class HUD {
 
     document.getElementById('badge-gem-hunt')?.addEventListener('click', () => {
       const reward = 3000;
-      this.backend.addCash(reward);
+      const claim = this.backend.claimTimedPayout('daily_gem_hunt', reward, 'Daily Naira Gem Hunt', 24 * 60 * 60 * 1000);
+      if (!claim.success) {
+        const hours = Math.max(1, Math.ceil(claim.waitMs / 3600000));
+        this.showDialogueModal({
+          speakerName: 'Lagos City Secret',
+          speakerRole: 'Daily Naira Gem Hunt',
+          speakerAvatar: '💎',
+          dialogueText: `You already found today's gem. The next one appears in about ${hours} hour${hours === 1 ? '' : 's'}.`,
+        });
+        return;
+      }
       this.backend.addStreetCred(10);
       this.showDialogueModal({
         speakerName: 'Lagos City Secret',
@@ -1639,7 +1652,8 @@ export class HUD {
             badge: '₦1,000 Wire',
             onSelect: () => {
               if (net) {
-                net.sendP2PTransfer(rawId, 1000, 'Street Cash Gift');
+                const sent = net.sendP2PTransfer(rawId, 1000, 'Street Cash Gift');
+                if (!sent.success) showGameToast(sent.message, 'warning');
               } else {
                 showGameToast('Network unavailable.', 'warning');
               }
@@ -1651,7 +1665,8 @@ export class HUD {
             badge: '₦5,000 Wire',
             onSelect: () => {
               if (net) {
-                net.sendP2PTransfer(rawId, 5000, 'VIP Respect Wire');
+                const sent = net.sendP2PTransfer(rawId, 5000, 'VIP Respect Wire');
+                if (!sent.success) showGameToast(sent.message, 'warning');
               } else {
                 showGameToast('Network unavailable.', 'warning');
               }
@@ -2025,43 +2040,65 @@ export class HUD {
       }
       return;
     } else if (id === 'bank_atm_station') {
-      this.backend.addCash(10000);
-      this.showDialogueModal({
-        speakerName: 'Eko Commercial Bank ATM',
-        speakerRole: 'Broad Street Branch ATM #04',
-        speakerAvatar: '🏧',
-        soundType: 'cash',
-        dialogueText: '*Cash dispenser sound* ₦10,000 cash dispensed into your pocket! Thank you for banking with Eko Commercial Bank.',
-        rewards: { cash: 10000 },
-      });
+      // The branch ATM is the player's own account: it moves their money, it does not create any
+      this.hideInteractionCard();
+      this.atmModal.open();
       return;
     } else if (id === 'bank_teller_station') {
-      this.backend.addCash(25000);
-      this.backend.addStreetCred(15);
-      this.showDialogueModal({
-        speakerName: 'Teller Ngozi',
-        speakerRole: 'Foreign Remittance Desk',
-        speakerAvatar: '💱',
-        soundType: 'cash',
-        dialogueText: 'Diaspora foreign wire transfer verified! ₦25,000 cash paid over the counter. Street Cred +15!',
-        rewards: { cash: 25000, streetCred: 15 },
-      });
+      const claim = this.backend.claimTimedPayout('diaspora_remittance', 25000, 'Diaspora Remittance Pickup', 24 * 60 * 60 * 1000);
+      if (claim.success) {
+        this.backend.addStreetCred(15);
+        this.showDialogueModal({
+          speakerName: 'Teller Ngozi',
+          speakerRole: 'Foreign Remittance Desk',
+          speakerAvatar: '💱',
+          soundType: 'cash',
+          dialogueText: 'Diaspora foreign wire transfer verified! ₦25,000 cash paid over the counter. Street Cred +15!',
+          rewards: { cash: 25000, streetCred: 15 },
+        });
+      } else {
+        const hours = Math.max(1, Math.ceil(claim.waitMs / 3600000));
+        this.showDialogueModal({
+          speakerName: 'Teller Ngozi',
+          speakerRole: 'Foreign Remittance Desk',
+          speakerAvatar: '💱',
+          dialogueText: `No wire is waiting for you right now. Your family abroad sends one a day; check back in about ${hours} hour${hours === 1 ? '' : 's'}.`,
+        });
+      }
       return;
     } else if (id === 'bank_manager_desk') {
-      this.backend.addCash(50000);
-      this.backend.addStreetCred(30);
-      this.showDialogueModal({
-        speakerName: 'Manager Bankole',
-        speakerRole: 'Branch Manager • Eko Commercial Bank',
-        speakerAvatar: '💼',
-        soundType: 'cash',
-        dialogueText: 'Lagos SME Business Loan approved! ₦50,000 capital disbursed to your wallet! Street Cred +30!',
-        rewards: { cash: 50000, streetCred: 30 },
-      });
+      const loan = this.backend.getData().activeLoan;
+      if (loan) {
+        const repaid = this.backend.repayLoan();
+        if (repaid.success) {
+          this.backend.addStreetCred(30);
+        }
+        this.showDialogueModal({
+          speakerName: 'Manager Bankole',
+          speakerRole: 'Branch Manager • Eko Commercial Bank',
+          speakerAvatar: repaid.success ? '💼' : '⚠️',
+          soundType: repaid.success ? 'cash' : undefined,
+          dialogueText: repaid.success
+            ? `${repaid.message} Your credit record is clean and you may borrow again. Street Cred +30!`
+            : `${repaid.message} Come back with the full amount in your wallet or bank account.`,
+          rewards: repaid.success ? { streetCred: 30 } : undefined,
+        });
+      } else {
+        const borrowed = this.backend.takeLoan('Eko Commercial Bank', 50000, 55000);
+        this.showDialogueModal({
+          speakerName: 'Manager Bankole',
+          speakerRole: 'Branch Manager • Eko Commercial Bank',
+          speakerAvatar: '💼',
+          soundType: 'cash',
+          dialogueText: `Lagos SME Business Loan approved! ${borrowed.message} Return to this desk to repay it.`,
+          rewards: { cash: 50000 },
+        });
+      }
       return;
     } else if (id === 'buka_food_counter') {
-      const success = this.backend.spendCash(1800, 'Firewood Party Jollof & Chicken');
+      const success = this.backend.spendCash(1800, 'Firewood Party Jollof & Chicken', 'FOOD_PURCHASE');
       if (success) {
+        emitGameEvent('eat');
         this.backend.restoreEnergy(100);
         this.backend.restoreHealth(30);
         this.backend.addItem({
@@ -2092,8 +2129,9 @@ export class HUD {
       }
       return;
     } else if (id === 'buka_table_vip') {
-      const success = this.backend.spendCash(2500, 'VIP Chapman & Pepper Soup Platter');
+      const success = this.backend.spendCash(2500, 'VIP Chapman & Pepper Soup Platter', 'FOOD_PURCHASE');
       if (success) {
+        emitGameEvent('eat');
         this.backend.restoreEnergy(100);
         this.backend.restoreHealth(50);
         this.backend.addStreetCred(20);
@@ -2560,16 +2598,25 @@ export class HUD {
       });
       return;
     } else if (id === 'flat-workstation') {
-      this.backend.addCash(12000);
-      this.backend.addStreetCred(20);
-      this.showDialogueModal({
-        speakerName: 'Senior Engineering Manager',
-        speakerRole: 'Remote Tech Sprint',
-        speakerAvatar: '💻',
-        soundType: 'cash',
-        dialogueText: 'Pull request approved and merged! ₦12,000 remote salary credited to your wallet! Street Cred +20!',
-        rewards: { cash: 12000, streetCred: 20 },
-      });
+      const gig = this.backend.performGig(12000, 25, 'Remote Tech Sprint');
+      if (gig.success) {
+        this.backend.addStreetCred(20);
+        this.showDialogueModal({
+          speakerName: 'Senior Engineering Manager',
+          speakerRole: 'Remote Tech Sprint',
+          speakerAvatar: '💻',
+          soundType: 'cash',
+          dialogueText: 'Pull request approved and merged! ₦12,000 remote salary credited to your wallet! Energy -25%, Street Cred +20!',
+          rewards: { cash: 12000, streetCred: 20 },
+        });
+      } else {
+        this.showDialogueModal({
+          speakerName: 'Senior Engineering Manager',
+          speakerRole: 'Remote Tech Sprint',
+          speakerAvatar: '⚠️',
+          dialogueText: gig.message,
+        });
+      }
       return;
     } else if (id.startsWith('interior_npc_')) {
       this.showDialogueModal({
@@ -2583,10 +2630,11 @@ export class HUD {
     } else if (id === 'bet-shop') {
       const success = this.backend.spendCash(1000, 'NaijaBet 5-Game Ticket');
       if (success) {
-        const won = Math.random() < 0.45;
+        // 6% of ₦15,000 on a ₦1,000 ticket: the house keeps an edge, so betting is not an income
+        const won = Math.random() < 0.06;
         if (won) {
           const winAmount = 15000;
-          this.backend.addCash(winAmount);
+          this.backend.addCash(winAmount, 'NaijaBet Accumulator Win', 'WINNINGS');
           this.backend.addStreetCred(10);
           this.showDialogueModal({
             speakerName: 'NaijaBet Cashier',
@@ -2624,8 +2672,9 @@ export class HUD {
         });
       }
     } else if (id === 'npc-hawker') {
-      const success = this.backend.spendCash(200, 'Cold Water & Gala');
+      const success = this.backend.spendCash(200, 'Cold Water & Gala', 'FOOD_PURCHASE');
       if (success) {
+        emitGameEvent('eat');
         this.backend.restoreEnergy(25);
         this.backend.addItem({
           id: 'water_sachet',
@@ -2663,8 +2712,9 @@ export class HUD {
       return;
     } else if (id === 'npc-conductor') {
       const fare = 300;
-      const success = this.backend.spendCash(fare, 'Danfo Bus Fare');
+      const success = this.backend.spendCash(fare, 'Danfo Bus Fare', 'TRAVEL_COST');
       if (success) {
+        emitGameEvent('drive');
         this.backend.addStreetCred(5);
         if (this.player) {
           this.player.mesh.position.set(-8.5, 0, -55);
@@ -2747,7 +2797,7 @@ export class HUD {
         });
       }
     } else if (id === 'amala-shitta') {
-      const success = this.backend.spendCash(2000, 'Hot Amala Dudu + Abula & Goat Meat');
+      const success = this.backend.spendCash(2000, 'Hot Amala Dudu + Abula & Goat Meat', 'FOOD_PURCHASE');
       if (success) {
         this.backend.consumeFood('Hot Amala Dudu & Goat Meat', 85, 60, 30);
         this.backend.addStreetCred(15);
@@ -2877,26 +2927,34 @@ export class HUD {
         });
       }
     } else if (id === 'yaba-cchub') {
-      this.backend.restoreEnergy(20);
-      this.backend.addCash(15000);
-      this.backend.addStreetCred(25);
-      this.backend.addItem({
-        id: `github_token_${Date.now()}`,
-        name: 'CcHub High-Yield Smart Contract',
-        category: 'document',
-        icon: '💻',
-        description: 'Deployed web3 micro-service for a Silicon Valley fintech client.',
-        price: 25000,
-        usable: false,
-      });
-      this.showDialogueModal({
-        speakerName: 'CcHub Incubator Lead',
-        speakerRole: '6th Floor Innovation Hub • Yaba',
-        speakerAvatar: '💻',
-        soundType: 'tech',
-        dialogueText: 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash, +25 Street Cred, and deployed your code!',
-        rewards: { cash: 15000, streetCred: 25, energy: 20, item: { name: 'CcHub High-Yield Smart Contract', icon: '💻', category: 'document' } },
-      });
+      const gig = this.backend.performGig(15000, 30, 'CcHub Hackathon Sprint');
+      if (gig.success) {
+        this.backend.addStreetCred(25);
+        this.backend.addItem({
+          id: `github_token_${Date.now()}`,
+          name: 'CcHub High-Yield Smart Contract',
+          category: 'document',
+          icon: '💻',
+          description: 'Deployed web3 micro-service for a Silicon Valley fintech client.',
+          price: 25000,
+          usable: false,
+        });
+        this.showDialogueModal({
+          speakerName: 'CcHub Incubator Lead',
+          speakerRole: '6th Floor Innovation Hub • Yaba',
+          speakerAvatar: '💻',
+          soundType: 'tech',
+          dialogueText: 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash, +25 Street Cred, and deployed your code! Energy -30%',
+          rewards: { cash: 15000, streetCred: 25, item: { name: 'CcHub High-Yield Smart Contract', icon: '💻', category: 'document' } },
+        });
+      } else {
+        this.showDialogueModal({
+          speakerName: 'CcHub Incubator Lead',
+          speakerRole: '6th Floor Innovation Hub • Yaba',
+          speakerAvatar: '⚠️',
+          dialogueText: gig.message,
+        });
+      }
     } else if (id === 'surulere-stadium') {
       const success = this.backend.spendCash(1000, 'Teslim Balogun Stadium Pass');
       if (success) {
@@ -2924,16 +2982,25 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
       return;
     } else if (id === 'ajah-estate') {
-      this.backend.addCash(8500);
-      this.backend.addStreetCred(10);
-      this.showDialogueModal({
-        speakerName: 'Site Foreman Sunday',
-        speakerRole: 'Ajah Construction Project',
-        speakerAvatar: '👷',
-        soundType: 'cash',
-        dialogueText: 'AJAH SITE LABOUR COMPLETED! Mixed mortar, hoisted hollow blocks, and finished framing! Earned ₦8,500 cash on the spot!',
-        rewards: { cash: 8500, streetCred: 10 },
-      });
+      const gig = this.backend.performGig(8500, 25, 'Ajah Site Labour');
+      if (gig.success) {
+        this.backend.addStreetCred(10);
+        this.showDialogueModal({
+          speakerName: 'Site Foreman Sunday',
+          speakerRole: 'Ajah Construction Project',
+          speakerAvatar: '👷',
+          soundType: 'cash',
+          dialogueText: 'AJAH SITE LABOUR COMPLETED! Mixed mortar, hoisted hollow blocks, and finished framing! Earned ₦8,500 cash on the spot! Energy -25%',
+          rewards: { cash: 8500, streetCred: 10 },
+        });
+      } else {
+        this.showDialogueModal({
+          speakerName: 'Site Foreman Sunday',
+          speakerRole: 'Ajah Construction Project',
+          speakerAvatar: '⚠️',
+          dialogueText: gig.message,
+        });
+      }
     } else if (id === 'balogun-market') {
       const success = this.backend.spendCash(6000, 'Wholesale Ankara Bundle');
       if (success) {
@@ -3092,8 +3159,9 @@ export class HUD {
         });
       }
     } else if (id === 'abuja-cab') {
-      const success = this.backend.spendCash(800, 'Federal Green Cab Fare');
+      const success = this.backend.spendCash(800, 'Federal Green Cab Fare', 'TRAVEL_COST');
       if (success) {
+        emitGameEvent('drive', { city: 'abuja' });
         this.backend.addStreetCred(5);
         if (this.player) {
           this.player.mesh.position.z -= 30;
@@ -3335,10 +3403,9 @@ export class HUD {
         });
       }
     } else if (id === 'construction-site') {
-      const energyDepleted = this.backend.depleteEnergy(25);
+      const wage = 6500;
+      const energyDepleted = this.backend.performGig(wage, 25, 'Construction Site Day Shift').success;
       if (energyDepleted) {
-        const wage = 6500;
-        this.backend.addCash(wage);
         this.backend.addStreetCred(10);
         this.showDialogueModal({
           speakerName: 'Site Supervisor Sunday',
@@ -3361,8 +3428,9 @@ export class HUD {
       this.economyModal.open('palm-view-flats');
       return;
     } else if (id === 'npc-suya') {
-      const success = this.backend.spendCash(1500, 'Hot Spicy Beef Suya');
+      const success = this.backend.spendCash(1500, 'Hot Spicy Beef Suya', 'FOOD_PURCHASE');
       if (success) {
+        emitGameEvent('eat');
         this.backend.restoreEnergy(60);
         this.backend.addItem({
           id: `suya_wrap_${Date.now()}`,
@@ -3420,10 +3488,9 @@ export class HUD {
         });
       }
     } else if (id === 'npc-mechanic') {
-      const energyDepleted = this.backend.depleteEnergy(15);
+      const gigWage = 4000;
+      const energyDepleted = this.backend.performGig(gigWage, 15, 'Auto Workshop Gig').success;
       if (energyDepleted) {
-        const gigWage = 4000;
-        this.backend.addCash(gigWage);
         this.backend.addStreetCred(10);
         this.showDialogueModal({
           speakerName: 'Master Tayo',
@@ -3494,11 +3561,7 @@ export class HUD {
       }
     } else if (id === 'npc-banker') {
       const cost = 50000;
-      let paid = this.backend.spendCash(cost, '90-Day FGN Treasury Bill');
-      if (!paid && this.backend.getData().bank.balance >= cost) {
-        this.backend.withdrawFromATM(cost);
-        paid = this.backend.spendCash(cost, '90-Day FGN Treasury Bill');
-      }
+      const paid = this.backend.pay(cost, '90-Day FGN Treasury Bill');
       if (paid) {
         this.backend.addStreetCred(40);
         this.backend.addItem({

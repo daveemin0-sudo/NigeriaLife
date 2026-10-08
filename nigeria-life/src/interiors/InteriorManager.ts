@@ -312,6 +312,11 @@ export class InteriorManager {
     return this.locationMode === 'interior' && this.currentInterior !== null;
   }
 
+  /** Where the player returns to on the street when they leave the current interior. */
+  public getStreetReturnPosition(): THREE.Vector3 {
+    return this.streetReturnPosition;
+  }
+
   public update(delta: number, player?: Player): void {
     if (!this.isPlayerInside() || !this.currentInterior) return;
 

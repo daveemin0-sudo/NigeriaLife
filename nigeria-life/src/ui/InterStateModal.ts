@@ -167,17 +167,10 @@ export class InterStateModal {
   }
 
   private executeInterStateTravel(route: CityTravelRoute, fare: number): void {
-    const data = this.backend.getData();
-    if (data.walletCash < fare && data.bank.balance < fare) {
+    // Pay fare: wallet first, bank covers any shortfall
+    if (!this.backend.pay(fare, `${route.airlineOrOperator} Interstate Ticket`, 'TRAVEL_COST')) {
       showGameToast(`❌ Insufficient funds! You need ₦${fare.toLocaleString()} to book this interstate ticket.`, 'error');
       return;
-    }
-
-    // Pay fare
-    const paidCash = this.backend.spendCash(fare, `${route.airlineOrOperator} Interstate Ticket`);
-    if (!paidCash) {
-      this.backend.withdrawFromATM(fare);
-      this.backend.spendCash(fare, `${route.airlineOrOperator} Interstate Ticket`);
     }
 
     // Add boarding pass / souvenir to bag

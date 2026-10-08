@@ -388,7 +388,7 @@ export class ResidentialInterior {
       name: '75-Inch Smart TV & Soundbar',
       category: 'Home Entertainment',
       description: 'Live Super Eagles AFCON stream in 4K with pulsating soundbar.',
-      interactionPoint: new THREE.Vector3(this.group.position.x - 14, 0, this.group.position.y + 4),
+      interactionPoint: new THREE.Vector3(this.group.position.x - 14, 0, this.group.position.z + 4),
     });
 
     this.interactiveList.push({

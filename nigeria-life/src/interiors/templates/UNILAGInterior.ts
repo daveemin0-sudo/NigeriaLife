@@ -354,6 +354,11 @@ export class UNILAGInterior {
         interactionPoint: npcDef.relativePosition.clone().add(new THREE.Vector3(0, 0, 1.2)),
       });
     });
+
+    // Interaction points above are room-relative; the player walks in world space
+    for (const obj of this.interactiveList) {
+      obj.interactionPoint.add(this.group.position);
+    }
   }
 
   public update(delta: number, animTime: number): void {

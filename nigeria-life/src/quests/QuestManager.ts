@@ -1,7 +1,10 @@
 import { BackendService } from '../backend/BackendService';
 import { SoundEngine } from '../audio/SoundEngine';
 import { showGameToast } from '../ui/GameToast';
-import type { StoryQuest, QuestCity } from './QuestTypes';
+import { onGameEvent, type GameEventType, type GameEventData } from '../game/GameEvents';
+import type { StoryQuest, QuestCity, QuestStatus } from './QuestTypes';
+
+const QUEST_STATUSES: readonly QuestStatus[] = ['locked', 'available', 'active', 'completed'];
 
 export class QuestManager {
   private static instance: QuestManager;
@@ -9,10 +12,26 @@ export class QuestManager {
   private quests: StoryQuest[] = [];
   private activeQuestId: string | null = null;
   private listeners: ((activeQuest: StoryQuest | null, allQuests: StoryQuest[]) => void)[] = [];
+  private checkingGoals = false;
 
   private constructor() {
     this.initDefaultQuests();
     this.loadState();
+
+    // Everything the player does is reported as a game event; this is what moves the story forward
+    onGameEvent((type, data) => this.triggerEvent(type, data));
+
+    // Street Cred and wealth goals are met by account changes, not by a single action
+    BackendService.getInstance().subscribe(() => this.checkAccountGoals());
+
+    // Another tab of this browser shares the quest save: follow its progress instead of overwriting it
+    window.addEventListener('storage', (e) => {
+      if (e.key === this.STORAGE_KEY) {
+        this.initDefaultQuests();
+        this.loadState();
+        this.notifyListeners();
+      }
+    });
   }
 
   public static getInstance(): QuestManager {
@@ -267,27 +286,36 @@ export class QuestManager {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        if (!parsed || typeof parsed !== 'object') return;
         if (Array.isArray(parsed.quests)) {
           for (const s of parsed.quests) {
-            const existing = this.quests.find((q) => q.id === s.id);
+            const existing = s && this.quests.find((q) => q.id === s.id);
             if (existing) {
-              existing.status = s.status;
+              if (QUEST_STATUSES.includes(s.status)) {
+                existing.status = s.status;
+              }
               if (Array.isArray(s.objectives)) {
-                existing.objectives.forEach((obj, idx) => {
-                  if (s.objectives[idx]) {
-                    obj.isCompleted = s.objectives[idx].isCompleted;
-                  }
-                });
+                // Matched by id, so reordering or adding objectives in code cannot shift saved progress
+                for (const obj of existing.objectives) {
+                  const savedObj = s.objectives.find((o: any) => o && o.id === obj.id);
+                  if (savedObj) obj.isCompleted = savedObj.isCompleted === true;
+                }
               }
             }
           }
         }
-        if (parsed.activeQuestId) {
-          this.activeQuestId = parsed.activeQuestId;
+        // Only one quest is tracked at a time, and it must be one that can be tracked
+        const tracked = this.quests.find((q) => q.id === parsed.activeQuestId);
+        const trackedId = tracked && (tracked.status === 'active' || tracked.status === 'available') ? tracked.id : null;
+        for (const q of this.quests) {
+          if (q.status === 'active' && q.id !== trackedId) q.status = 'available';
         }
+        if (tracked && trackedId) tracked.status = 'active';
+        this.activeQuestId = trackedId;
       }
-    } catch {
-      // Fallback
+    } catch (e) {
+      console.warn('Saved quest progress was unreadable, starting the story from the beginning', e);
+      this.initDefaultQuests();
     }
   }
 
@@ -359,7 +387,8 @@ export class QuestManager {
   public completeObjective(objectiveId: string): void {
     let changed = false;
     for (const q of this.quests) {
-      if (q.status !== 'active') continue;
+      // Any unlocked quest progresses, tracked or not, so doing things in a different order never strands one
+      if (q.status !== 'active' && q.status !== 'available') continue;
       const obj = q.objectives.find((o) => o.id === objectiveId);
       if (obj && !obj.isCompleted) {
         obj.isCompleted = true;
@@ -383,13 +412,16 @@ export class QuestManager {
     const quest = this.quests.find((q) => q.id === questId);
     if (!quest || quest.status === 'completed') return;
 
+    const wasTracked = this.activeQuestId === quest.id;
     quest.status = 'completed';
     quest.objectives.forEach((o) => (o.isCompleted = true));
+    // Saved before paying out, so a reload at the wrong moment can never pay the reward twice
+    this.saveState();
 
     // Pay rewards through backend
     const backend = BackendService.getInstance();
     if (quest.rewards.cash > 0) {
-      backend.addCash(quest.rewards.cash);
+      backend.addCash(quest.rewards.cash, `Quest reward: ${quest.title}`, 'QUEST_REWARD');
     }
     if (quest.rewards.streetCred > 0) {
       backend.addStreetCred(quest.rewards.streetCred);
@@ -418,21 +450,48 @@ export class QuestManager {
     );
     if (nextChapter && nextChapter.status === 'locked') {
       nextChapter.status = 'available';
-      this.setActiveQuest(nextChapter.id);
-    } else {
+    }
+    // The tracker follows the arc the player was on; finishing an untracked quest leaves it alone
+    if (wasTracked) {
       this.activeQuestId = null;
+      if (nextChapter && nextChapter.status === 'available') {
+        this.setActiveQuest(nextChapter.id);
+      }
     }
 
     this.saveState();
   }
 
+  /** Street Cred, wealth and ownership goals, checked whenever the account changes. */
+  private checkAccountGoals(): void {
+    // Completing a quest pays a reward, which changes the account and would re-enter this check
+    if (this.checkingGoals) return;
+    this.checkingGoals = true;
+    try {
+      const data = BackendService.getInstance().getData();
+      const wealth = data.walletCash + data.bank.balance;
+      const ownsSomething =
+        data.businesses.some((b) => b.owned) ||
+        data.properties.some((p) => p.status === 'owned' || p.status === 'purchased');
+
+      if (data.stats.streetCred >= 35) {
+        this.completeObjective('obj_l2_cred');
+      }
+      if (data.stats.streetCred >= 60 && ownsSomething) {
+        this.completeObjective('obj_p3_cred');
+      }
+      if (wealth >= 100000) {
+        this.completeObjective('obj_l3_wealth');
+      }
+    } finally {
+      this.checkingGoals = false;
+    }
+  }
+
   /**
    * Global event dispatcher to auto-progress matching quest objectives
    */
-  public triggerEvent(eventType: 'eat' | 'work_shift' | 'drive' | 'arrive_city' | 'interact_object', data?: any): void {
-    const active = this.getActiveQuest();
-    if (!active) return;
-
+  public triggerEvent(eventType: GameEventType, data?: GameEventData): void {
     if (eventType === 'eat') {
       this.completeObjective('obj_l1_eat');
     } else if (eventType === 'work_shift') {
@@ -440,7 +499,10 @@ export class QuestManager {
       this.completeObjective('obj_p2_repair');
     } else if (eventType === 'drive') {
       this.completeObjective('obj_l2_drive');
-      this.completeObjective('obj_a1_cab');
+      // The Abuja cab objective is about getting around Abuja, not any ride anywhere
+      if (data?.city === 'abuja') {
+        this.completeObjective('obj_a1_cab');
+      }
     } else if (eventType === 'arrive_city') {
       if (data?.city === 'abuja') {
         this.completeObjective('obj_a1_arrive');
@@ -460,17 +522,6 @@ export class QuestManager {
       }
     }
 
-    // Check streetCred and wealth goals
-    const stats = BackendService.getInstance().getData().stats;
-    const cash = BackendService.getInstance().getData().walletCash + BackendService.getInstance().getData().bank.balance;
-    if (stats.streetCred >= 35) {
-      this.completeObjective('obj_l2_cred');
-    }
-    if (stats.streetCred >= 60) {
-      this.completeObjective('obj_p3_cred');
-    }
-    if (cash >= 100000) {
-      this.completeObjective('obj_l3_wealth');
-    }
+    this.checkAccountGoals();
   }
 }

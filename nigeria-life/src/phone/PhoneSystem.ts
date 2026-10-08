@@ -168,19 +168,17 @@ export class PhoneSystem {
     if (!job) return { success: false, message: 'Job not found' };
 
     const data = this.backend.getData();
-    if (data.stats.energy < job.energyCost) {
+    const multiplier = data.career?.bonusMultiplier || 1.0;
+    const finalPay = Math.round(job.pay * multiplier);
+
+    // Deduct energy & award cash
+    const gig = this.backend.performGig(finalPay, job.energyCost, `Shift at ${job.company}`);
+    if (!gig.success) {
       return {
         success: false,
         message: `❌ You do not have enough energy! (Need ${job.energyCost}%). Eat at Mama Put to recharge.`,
       };
     }
-
-    const multiplier = data.career?.bonusMultiplier || 1.0;
-    const finalPay = Math.round(job.pay * multiplier);
-
-    // Deduct energy & award cash
-    this.backend.restoreEnergy(-job.energyCost);
-    this.backend.addCash(finalPay);
     this.backend.addStreetCred(8);
     const careerResult = this.backend.addJobExperience(25);
 
@@ -226,23 +224,17 @@ export class PhoneSystem {
   }
 
   public transferMoney(recipientTag: string, amount: number): { success: boolean; message: string } {
-    const data = this.backend.getData();
-    if (amount <= 0) return { success: false, message: 'Invalid transfer amount' };
-
-    if (data.bank.balance < amount) {
-      return { success: false, message: `❌ Insufficient bank balance for ₦${amount.toLocaleString()} transfer.` };
-    }
-
     // Deduct from bank
-    this.backend.spendCash(0); // Trigger save
-    data.bank.balance -= amount;
-    data.bank.transactions.unshift({
-      id: `tx_${Date.now()}`,
-      type: 'debit',
+    const sent = this.backend.processTransaction({
+      type: 'TRANSFER_OUT',
       amount,
       description: `EkoPay Transfer to @${recipientTag}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      source: 'bank',
+      funding: 'strict',
     });
+    if (!sent.success) {
+      return { success: false, message: `❌ Insufficient bank balance for ₦${amount.toLocaleString()} transfer.` };
+    }
 
     return {
       success: true,
@@ -251,12 +243,9 @@ export class PhoneSystem {
   }
 
   public buyAirtime(network: string, amount: number): { success: boolean; message: string } {
-    const data = this.backend.getData();
-    if (data.walletCash < amount) {
+    if (!this.backend.spendCash(amount, `${network} Airtime Recharge`)) {
       return { success: false, message: `❌ You need ₦${amount} cash to purchase airtime.` };
     }
-
-    this.backend.spendCash(amount, `${network} Airtime Recharge`);
     return {
       success: true,
       message: `📲 Successfully recharged ₦${amount.toLocaleString()} ${network} Airtime & Data!`,

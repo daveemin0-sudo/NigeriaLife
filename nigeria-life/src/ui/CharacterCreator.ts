@@ -217,6 +217,10 @@ export class CharacterCreatorModal {
         const dest = (card as HTMLElement).getAttribute('data-destiny') as OriginDestiny;
         if (dest) {
           const res = this.backend.applyOriginDestiny(dest);
+          if (!res.applied) {
+            showGameToast(`🔒 ${res.title}: ${res.message}`, 'warning', 4000);
+            return;
+          }
           destinyCards.forEach((c) => c.classList.remove('active'));
           card.classList.add('active');
 
@@ -237,6 +241,10 @@ export class CharacterCreatorModal {
         const pool: OriginDestiny[] = ['nepo', 'lapo', 'tech_bro'];
         const chosen = pool[Math.floor(Math.random() * pool.length)];
         const res = this.backend.applyOriginDestiny(chosen);
+        if (!res.applied) {
+          showGameToast(`🔒 ${res.title}: ${res.message}`, 'warning', 4000);
+          return;
+        }
 
         destinyCards.forEach((c) => {
           if (c.getAttribute('data-destiny') === chosen) {
