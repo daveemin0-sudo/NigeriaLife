@@ -124,6 +124,7 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       z: Math.min(400, Math.max(-400, world.z)),
       rotationY: Number.isFinite(world.rotationY) ? world.rotationY : 0,
       hour: num(world.hour, 13.3, 'worldState.hour', 0, 24),
+      day: Math.floor(num(world.day, 0, 'worldState.day', 0)),
       ...(world.inTransit === true ? { inTransit: true } : {}),
     };
   } else if (world !== undefined && world !== null) {

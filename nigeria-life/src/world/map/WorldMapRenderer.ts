@@ -272,11 +272,6 @@ export class WorldMapRenderer {
         lmGroup.add(WorldMapPrefabs.createGlassTower(12, 0x10b981, 0.85));
       }
 
-      // Circular Pin Marker Badge
-      const badge = this.createLandmarkBadgeSprite(lm.icon, lm.name);
-      badge.position.y = 8.5;
-      lmGroup.add(badge);
-
       // Generous Hitbox for raycasting click & hover
       const hit = new THREE.Mesh(
         new THREE.BoxGeometry(9.0, 12.0, 9.0),
@@ -482,11 +477,6 @@ export class WorldMapRenderer {
       } else {
         lmGroup.add(WorldMapPrefabs.createGlassTower(11, 0x0284c7, 0.8));
       }
-
-      // Circular Pin Marker Badge
-      const badge = this.createLandmarkBadgeSprite(lm.icon, lm.name);
-      badge.position.y = 8.5;
-      lmGroup.add(badge);
 
       // Hitbox for raycasting click & hover
       const hit = new THREE.Mesh(
@@ -713,12 +703,6 @@ export class WorldMapRenderer {
       } else {
         lmGroup.add(WorldMapPrefabs.createGlassTower(14, 0x059669, 0.8));
       }
-
-      // Marker badge
-      const badge = this.createLandmarkBadgeSprite(lm.icon, lm.name);
-      badge.position.y = 8.5;
-      lmGroup.add(badge);
-
       // Hitbox
       const hit = new THREE.Mesh(
         new THREE.BoxGeometry(8.0, 11.0, 8.0),
@@ -840,11 +824,6 @@ export class WorldMapRenderer {
       });
 
       this.districtHighlightMeshes.set(d.id, hlMesh);
-
-      // 3D District Floating Label Banner
-      const labelSprite = this.createDistrictLabelSprite(d.name, d.subtitle, d.color);
-      labelSprite.position.set(cx, 10.5, cz);
-      this.cityContentGroup.add(labelSprite);
     }
   }
 
@@ -1085,95 +1064,6 @@ export class WorldMapRenderer {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(x, y, z);
     this.cityContentGroup.add(mesh);
-  }
-
-  private createDistrictLabelSprite(name: string, subtitle: string, colorHex: number): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 160;
-    const ctx = canvas.getContext('2d')!;
-
-    const hexStr = `#${colorHex.toString(16).padStart(6, '0')}`;
-
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetY = 6;
-
-    this.drawRoundedRect(ctx, 16, 16, 480, 128, 24);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    ctx.fill();
-
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = hexStr;
-    ctx.stroke();
-
-    this.drawRoundedRect(ctx, 24, 24, 12, 112, 6);
-    ctx.fillStyle = hexStr;
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 36px "Segoe UI", system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(name.toUpperCase(), 54, 72);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '22px "Segoe UI", system-ui, sans-serif';
-    ctx.fillText(subtitle, 54, 110);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(16, 5.0, 1);
-    return sprite;
-  }
-
-  private createLandmarkBadgeSprite(icon: string, name: string): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 140;
-    const ctx = canvas.getContext('2d')!;
-
-    // 1. Draw circular white badge pin
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 5;
-
-    ctx.beginPath();
-    ctx.arc(128, 52, 44, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#0284c7';
-    ctx.stroke();
-
-    ctx.font = '46px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(icon || '📍', 128, 54);
-
-    // 2. Name pill below circle
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-    ctx.shadowBlur = 8;
-    this.drawRoundedRect(ctx, 16, 102, 224, 32, 10);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
-    ctx.fill();
-
-    ctx.shadowColor = 'transparent';
-    ctx.font = 'bold 16px "Segoe UI", sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.fillText(name.length > 20 ? name.slice(0, 18) + '...' : name, 128, 123);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(8.5, 4.6, 1);
-    return sprite;
   }
 
   private createPropertyBadgeSprite(prop: MapProperty): THREE.Sprite {

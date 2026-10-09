@@ -372,24 +372,7 @@ export class InputManager {
       if (isDirectInteractiveClick) {
         const hitObj = this.findInteractiveParent(closestBuildingHit.object);
         if (hitObj) {
-          const dist = this.player.position.distanceTo(hitObj.interactionPoint);
-          const threshold = hitObj.id.startsWith('veh-') ? 3.5 : 2.8;
-
-          if (dist <= threshold) {
-            // Already within close proximity: face object and open immediately
-            const lookDir = new THREE.Vector3().subVectors(hitObj.interactionPoint, this.player.position);
-            if (lookDir.lengthSq() > 0.01) {
-              this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
-            }
-            this.pendingInteraction = null;
-            this.hud.showInteractionCard(hitObj);
-          } else {
-            // Player is at a distance: approach the object first, then interact on arrival
-            this.player.setDestination(hitObj.interactionPoint);
-            this.spawnClickMarker(hitObj.interactionPoint, 0xfacc15); // Golden approach target
-            this.pendingInteraction = hitObj;
-            this.hud.hideInteractionCard();
-          }
+          this.approachAndInteract(hitObj);
           return;
         }
       }
@@ -401,6 +384,31 @@ export class InputManager {
       this.pendingInteraction = null;
       this.player.setDestination(clickPoint);
       this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
+      this.hud.hideInteractionCard();
+    }
+  }
+
+  /**
+   * Walk the player up to an object and open its card on arrival (or at once if already beside it).
+   * Used by clicks in the 3D view and by on-screen shortcuts, so nothing needs the keyboard.
+   */
+  public approachAndInteract(obj: InteractiveObject): void {
+    const dist = this.player.position.distanceTo(obj.interactionPoint);
+    const threshold = obj.id.startsWith('veh-') ? 3.5 : 2.8;
+
+    if (dist <= threshold) {
+      // Already within close proximity: face object and open immediately
+      const lookDir = new THREE.Vector3().subVectors(obj.interactionPoint, this.player.position);
+      if (lookDir.lengthSq() > 0.01) {
+        this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+      }
+      this.pendingInteraction = null;
+      this.hud.showInteractionCard(obj);
+    } else {
+      // Player is at a distance: approach the object first, then interact on arrival
+      this.player.setDestination(obj.interactionPoint);
+      this.spawnClickMarker(obj.interactionPoint, 0xfacc15); // Golden approach target
+      this.pendingInteraction = obj;
       this.hud.hideInteractionCard();
     }
   }

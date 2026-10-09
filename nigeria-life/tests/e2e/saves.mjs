@@ -101,6 +101,19 @@ export async function run(browser, check) {
   check('reload restores the time of day', Math.abs(after.hour - 20.5) < 0.6, { hour: after.hour });
   check('reload restores drained vitals', after.hunger < 62 && after.hunger > 60 && after.energy < 47.1 && after.energy > 45.5, { hunger: after.hunger, energy: after.energy });
 
+  // The calendar: midnight starts a new day, and the day survives a reload
+  const dayOne = await page.evaluate(() => document.getElementById('hud-clock-val').textContent);
+  await page.evaluate(() => window.game.world.skyEnvironment.setHour(23.995));
+  let clock = { day: 0, label: '' };
+  for (let i = 0; i < 40 && clock.day < 1; i++) {
+    await wait(300);
+    clock = await page.evaluate(() => ({ day: window.game.world.skyEnvironment.day, label: document.getElementById('hud-clock-val').textContent }));
+  }
+  check('a new game starts on Wed 7, and midnight moves the clock on to Thu 8', dayOne.startsWith('Wed 7') && clock.day === 1 && clock.label.startsWith('Thu 8'), { dayOne, ...clock });
+  await reload(page);
+  const kept = await page.evaluate(() => ({ day: window.game.world.skyEnvironment.day, label: document.getElementById('hud-clock-val').textContent }));
+  check('reload keeps the day', kept.day === 1 && kept.label.startsWith('Thu 8'), kept);
+
   await page.evaluate(() => { window.game.player.mesh.position.set(-12, 0, 40); });
   await enterInterior(page, 'hospital');
   await wait(1500);

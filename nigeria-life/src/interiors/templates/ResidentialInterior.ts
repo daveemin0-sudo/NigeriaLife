@@ -132,9 +132,9 @@ export class ResidentialInterior {
       roughness: 0.25,
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.name = 'interior_floor_mesh';
     floor.position.set(0, -0.2, 0);
     floor.receiveShadow = true;
-    this.group.add(floor);
 
     // Warm Ochre / Mustard Yellow Walls (Screenshot 5)
     const wallMat = new THREE.MeshStandardMaterial({
@@ -144,11 +144,18 @@ export class ResidentialInterior {
     const wallH = 4.2;
     const wallT = 0.4;
 
-    // Outer boundary walls (cutaway height so camera sees inside clearly)
+    // Floor and outer walls form the room shell, so the camera can cut away whichever walls face it
+    const shell = new THREE.Group();
+    shell.name = 'interior_room_shell';
+    shell.userData.size = { width: 32, length: 26, height: wallH };
+    shell.add(floor);
+    this.group.add(shell);
+
     // Back Wall
     const backWall = new THREE.Mesh(new THREE.BoxGeometry(32, wallH, wallT), wallMat);
+    backWall.name = 'shell_wall_back';
     backWall.position.set(0, wallH / 2, -13);
-    this.group.add(backWall);
+    shell.add(backWall);
 
     // Windows with Burglar-Proof Metal Bars along back wall (Screenshot 5)
     for (const wx of [-10, 0, 10]) {
@@ -157,28 +164,33 @@ export class ResidentialInterior {
 
     // Left Wall
     const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 26), wallMat);
+    leftWall.name = 'shell_wall_left';
     leftWall.position.set(-16, wallH / 2, 0);
-    this.group.add(leftWall);
+    shell.add(leftWall);
 
     // Right Wall
     const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 26), wallMat);
+    rightWall.name = 'shell_wall_right';
     rightWall.position.set(16, wallH / 2, 0);
-    this.group.add(rightWall);
+    shell.add(rightWall);
 
-    // Dividing Walls between Rooms (Living, Bedrooms, Bathroom)
+    // Dividing Walls between Rooms (Living, Bedrooms, Bathroom).
+    // Kept low so every room stays visible from above.
+    const partitionH = 1.8;
+
     // Horizontal divider separating Bedrooms from Living Room
-    const divH = new THREE.Mesh(new THREE.BoxGeometry(22, wallH, wallT), wallMat);
-    divH.position.set(-5, wallH / 2, -1);
+    const divH = new THREE.Mesh(new THREE.BoxGeometry(22, partitionH, wallT), wallMat);
+    divH.position.set(-5, partitionH / 2, -1);
     this.group.add(divH);
 
     // Vertical divider separating Master Bedroom from Center Bedroom
-    const divV1 = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 12), wallMat);
-    divV1.position.set(2, wallH / 2, -7);
+    const divV1 = new THREE.Mesh(new THREE.BoxGeometry(wallT, partitionH, 12), wallMat);
+    divV1.position.set(2, partitionH / 2, -7);
     this.group.add(divV1);
 
     // Vertical divider separating Bathroom
-    const divV2 = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 13), wallMat);
-    divV2.position.set(6, wallH / 2, 5.5);
+    const divV2 = new THREE.Mesh(new THREE.BoxGeometry(wallT, partitionH, 13), wallMat);
+    divV2.position.set(6, partitionH / 2, 5.5);
     this.group.add(divV2);
 
     // 2. Ceiling & Ambient Lights

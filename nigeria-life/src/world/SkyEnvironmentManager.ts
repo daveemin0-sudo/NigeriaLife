@@ -97,6 +97,10 @@ export class SkyEnvironmentManager {
 
   // In-game time tracking (24-hour float: 13.3 = ~1:18 PM)
   public currentHour: number = 13.3;
+  /** Whole days played. Day 0 is the start date; each midnight adds one. */
+  public day: number = 0;
+  public onNewDay?: (day: number) => void;
+  private lastClockLabel: string = '';
   private timeScale: number = 0.04;
   public currentPeriod: TimePeriod = 'midday';
   private currentSkyTexture: THREE.CanvasTexture | null = null;
@@ -269,13 +273,28 @@ export class SkyEnvironmentManager {
     if (hours12 === 0) hours12 = 12;
 
     const minStr = minutes.toString().padStart(2, '0');
-    return `Wed 7 • ${hours12}:${minStr} ${ampm}`;
+    return `${this.getDateLabel()} • ${hours12}:${minStr} ${ampm}`;
+  }
+
+  /** The calendar date for the current day, e.g. "Wed 7". A new game starts on Wednesday 7 October. */
+  public getDateLabel(): string {
+    const date = new Date(2026, 9, 7 + this.day);
+    return `${date.toLocaleDateString('en-GB', { weekday: 'short' })} ${date.getDate()}`;
+  }
+
+  public setDay(day: number): void {
+    this.day = Math.max(0, Math.floor(day));
+    this.updateClockHUD();
   }
 
   public updateClockHUD(): void {
-    const clockEl = document.getElementById('hud-clock-val');
-    if (clockEl) {
-      clockEl.textContent = this.getFormattedTimeString();
+    const label = this.getFormattedTimeString();
+    if (label !== this.lastClockLabel) {
+      this.lastClockLabel = label;
+      const clockEl = document.getElementById('hud-clock-val');
+      if (clockEl) clockEl.textContent = label;
+      const mapClockEl = document.getElementById('map-ui-time');
+      if (mapClockEl) mapClockEl.textContent = label;
     }
 
     const weatherIconEl = document.getElementById('hud-weather-icon');
@@ -290,7 +309,11 @@ export class SkyEnvironmentManager {
 
   public update(delta: number, playerPosition?: THREE.Vector3): void {
     this.currentHour += delta * this.timeScale;
-    if (this.currentHour >= 24) this.currentHour -= 24;
+    if (this.currentHour >= 24) {
+      this.currentHour -= 24;
+      this.day += 1;
+      this.onNewDay?.(this.day);
+    }
 
     const period = this.getTimePeriodForHour(this.currentHour);
     if (period !== this.currentPeriod) {

@@ -192,6 +192,7 @@ export interface SavedWorldState {
   z: number;
   rotationY: number;
   hour: number; // Time of day, 0 to 24
+  day: number; // Whole days played since the start date
   inTransit?: boolean; // Saved mid-journey: the trip is paid for, so a reload completes the arrival
 }
 

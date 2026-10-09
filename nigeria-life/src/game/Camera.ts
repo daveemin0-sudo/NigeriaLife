@@ -5,6 +5,14 @@ import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 export type CameraMode = 'street' | 'interior' | 'home' | 'map' | 'photo';
 export type CameraPreset = 'close' | 'street' | 'isometric' | 'aerial';
 
+const STREET_FOV = 55;
+/** A narrower lens flattens perspective, so a room reads as a model you look into */
+const INTERIOR_FOV = 40;
+const INTERIOR_YAW = 0.62;
+const INTERIOR_PITCH = 0.86;
+/** How far the view drifts from the room centre toward the player (0 = fixed room view, 1 = follows the player) */
+const INTERIOR_FOLLOW = 0.55;
+
 export class GameCamera {
   public camera: THREE.PerspectiveCamera;
   public mode: CameraMode = 'street';
@@ -15,10 +23,14 @@ export class GameCamera {
   public pitch: number = 0.44;          // Vertical elevation angle (~25 deg)
   public distance: number = 8.5;        // Distance to target (m)
 
-  // Interior mode spherical coordinates
-  public interiorYaw: number = 0;      // Starts facing into the room
-  public interiorPitch: number = 0.58;  // Elevated isometric angle (~33 deg)
-  public interiorDistance: number = 10.5; // Distance to target inside room (m)
+  // Interior mode: a cutaway "diorama" view of the whole room from above one corner
+  public interiorYaw: number = INTERIOR_YAW;
+  public interiorPitch: number = INTERIOR_PITCH;
+  public interiorDistance: number = 30;
+  /** Distance at which the current room is comfortably framed; zoom limits scale from it */
+  private roomFrameDistance: number = 30;
+  private roomCenter: THREE.Vector3 | null = null;
+  private roomRadius: number = 15;
 
   // Photo mode parameters
   public photoYaw: number = 0;
@@ -58,6 +70,49 @@ export class GameCamera {
 
   public setMode(mode: CameraMode): void {
     this.mode = mode;
+    if (mode !== 'photo') {
+      this.setFov(mode === 'interior' ? INTERIOR_FOV : STREET_FOV);
+    }
+  }
+
+  private setFov(fov: number): void {
+    if (this.camera.fov === fov) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Point the interior camera at a room: it looks down into it from a front corner,
+   * far enough back that most of the floor is in view on the current screen shape.
+   */
+  public frameRoom(center: THREE.Vector3, width: number, length: number): void {
+    this.roomCenter = center.clone();
+    this.roomRadius = 0.5 * Math.hypot(width, length);
+    this.roomFrameDistance = this.computeRoomFrameDistance();
+    this.interiorDistance = this.roomFrameDistance;
+    this.interiorYaw = INTERIOR_YAW;
+    this.interiorPitch = INTERIOR_PITCH;
+    this.currentPreset = 'street';
+  }
+
+  private computeRoomFrameDistance(): number {
+    const halfFov = THREE.MathUtils.degToRad(INTERIOR_FOV / 2);
+    // Wide screens are limited by height, tall phone screens by width
+    const fitWidth = this.roomRadius / (Math.tan(halfFov) * this.camera.aspect);
+    return Math.max(this.roomRadius * 1.75, fitWidth * 1.05);
+  }
+
+  /** The point the interior camera looks at: the room centre, pulled part of the way toward the player. */
+  private interiorFocus(player: Player): THREE.Vector3 {
+    const focus = new THREE.Vector3(player.position.x, 1.0, player.position.z);
+    if (this.roomCenter) {
+      focus.set(
+        THREE.MathUtils.lerp(this.roomCenter.x, player.position.x, INTERIOR_FOLLOW),
+        1.0,
+        THREE.MathUtils.lerp(this.roomCenter.z, player.position.z, INTERIOR_FOLLOW)
+      );
+    }
+    return focus;
   }
 
   public setLayerMode(mode: 'street' | 'interior' | 'map'): void {
@@ -86,7 +141,8 @@ export class GameCamera {
       this.interiorYaw += deltaYaw;
       while (this.interiorYaw > Math.PI) this.interiorYaw -= Math.PI * 2;
       while (this.interiorYaw < -Math.PI) this.interiorYaw += Math.PI * 2;
-      this.interiorPitch = Math.max(0.18, Math.min(1.25, this.interiorPitch + deltaPitch));
+      // Never low enough to look through the walls from the side
+      this.interiorPitch = Math.max(0.5, Math.min(1.35, this.interiorPitch + deltaPitch));
     } else {
       this.yaw += deltaYaw;
       while (this.yaw > Math.PI) this.yaw -= Math.PI * 2;
@@ -100,7 +156,9 @@ export class GameCamera {
    */
   public zoom(deltaDistance: number): void {
     if (this.mode === 'interior') {
-      this.interiorDistance = Math.max(4.5, Math.min(18.0, this.interiorDistance + deltaDistance));
+      const min = this.roomFrameDistance * 0.4;
+      const max = this.roomFrameDistance * 1.6;
+      this.interiorDistance = Math.max(min, Math.min(max, this.interiorDistance + deltaDistance * 3));
     } else {
       this.distance = Math.max(4.0, Math.min(22.0, this.distance + deltaDistance));
     }
@@ -115,17 +173,17 @@ export class GameCamera {
     this.currentPreset = preset;
     if (this.mode === 'interior') {
       if (preset === 'close') {
-        this.interiorPitch = 0.32;
-        this.interiorDistance = 6.2;
+        this.interiorPitch = 0.62;
+        this.interiorDistance = this.roomFrameDistance * 0.55;
       } else if (preset === 'street') {
-        this.interiorPitch = 0.58;
-        this.interiorDistance = 10.5;
+        this.interiorPitch = INTERIOR_PITCH;
+        this.interiorDistance = this.roomFrameDistance;
       } else if (preset === 'isometric') {
-        this.interiorPitch = 0.88;
-        this.interiorDistance = 14.5;
+        this.interiorPitch = 1.05;
+        this.interiorDistance = this.roomFrameDistance * 1.25;
       } else if (preset === 'aerial') {
-        this.interiorPitch = 1.20;
-        this.interiorDistance = 18.5;
+        this.interiorPitch = 1.35;
+        this.interiorDistance = this.roomFrameDistance * 1.5;
       }
     } else {
       if (preset === 'close') {
@@ -164,8 +222,9 @@ export class GameCamera {
    */
   public resetOrientation(): void {
     if (this.mode === 'interior') {
-      this.interiorYaw = 0;
-      this.interiorPitch = 0.58;
+      this.interiorYaw = INTERIOR_YAW;
+      this.interiorPitch = INTERIOR_PITCH;
+      this.interiorDistance = this.roomFrameDistance;
     } else {
       this.yaw = 0;
       this.pitch = 0.44;
@@ -192,10 +251,9 @@ export class GameCamera {
   public snapToPlayer(player: Player, targetMode?: CameraMode): void {
     const currentMode = targetMode ?? this.mode;
     if (currentMode === 'interior') {
-      const offset = this.computeOffset();
-      const targetPos = new THREE.Vector3().copy(player.position).add(offset);
-      this.camera.position.copy(targetPos);
-      this.currentLookAt.set(player.position.x, player.position.y + 1.2, player.position.z);
+      const focus = this.interiorFocus(player);
+      this.camera.position.copy(focus).add(this.computeOffset());
+      this.currentLookAt.copy(focus);
       this.camera.lookAt(this.currentLookAt);
     } else if (currentMode === 'street') {
       const offset = this.computeOffset();
@@ -218,7 +276,7 @@ export class GameCamera {
 
   public exitPhotoMode(): void {
     this.mode = this.previousMode || 'street';
-    this.setPhotoFov(55);
+    this.setPhotoFov(this.mode === 'interior' ? INTERIOR_FOV : STREET_FOV);
   }
 
   public setPhotoFov(fov: number): void {
@@ -249,20 +307,11 @@ export class GameCamera {
     }
 
     if (this.mode === 'interior') {
-      // Dynamic indoor rotatable camera
-      const offset = this.computeOffset();
-      const targetCameraPos = new THREE.Vector3()
-        .copy(player.position)
-        .add(offset);
-
-      this.camera.position.lerp(targetCameraPos, lerpFactor);
-
-      const targetLookAt = new THREE.Vector3(
-        player.position.x,
-        player.position.y + 1.2,
-        player.position.z
-      );
-      this.currentLookAt.lerp(targetLookAt, lerpFactor);
+      // Room diorama: the camera stays above a corner and drifts gently as the player walks
+      const focus = this.interiorFocus(player);
+      const roomLerp = Math.min(delta * 4.0, 1);
+      this.currentLookAt.lerp(focus, roomLerp);
+      this.camera.position.lerp(focus.clone().add(this.computeOffset()), roomLerp);
       this.camera.lookAt(this.currentLookAt);
       return;
     }
@@ -334,5 +383,10 @@ export class GameCamera {
   public handleResize(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
+
+    // Keep the same zoom relative to the room when the screen shape changes
+    const zoom = this.interiorDistance / this.roomFrameDistance;
+    this.roomFrameDistance = this.computeRoomFrameDistance();
+    this.interiorDistance = this.roomFrameDistance * zoom;
   }
 }

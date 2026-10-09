@@ -24,6 +24,17 @@ import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
 import { emitGameEvent } from '../game/GameEvents';
 
+/** Map landmarks that have no interior, matched to the street object where their activity happens */
+const LANDMARK_STREET_SPOTS: Record<string, string> = {
+  quilox_vi: 'quilox-club',
+  national_stadium: 'surulere-stadium',
+  nike_art_gallery: 'nike-art-gallery',
+  computer_village: 'cv-plaza',
+  cchub_yaba: 'yaba-cchub',
+  lekki_bridge: 'lekki-bridge',
+  eko_atlantic_tower: 'vi-tower',
+};
+
 export class HUD {
   private container: HTMLDivElement;
   private interactionCard: HTMLDivElement;
@@ -683,7 +694,7 @@ export class HUD {
       this.onNavigateMode?.('street');
     };
 
-    this.worldMapUI.onTravelWithTransport = (dest, transport) => {
+    this.worldMapUI.onTravelWithTransport = (dest, transport, enterInside) => {
       // 1. If transport requires fare, deduct cash from wallet
       if (transport.fare > 0) {
         const success = this.backend.spendCash(
@@ -698,7 +709,7 @@ export class HUD {
             speakerAvatar: '⚠️',
             dialogueText: `Insufficient cash (₦${transport.fare.toLocaleString()}) for ${transport.label}! You can walk on foot for free.`,
           });
-          return;
+          return false;
         }
         emitGameEvent('drive', { city: this.world?.cityManager.currentCityId });
       }
@@ -716,9 +727,36 @@ export class HUD {
       this.player.mesh.rotation.y = 0;
       this.player.stopMoving();
 
-      // 4. Update HUD location badge and show notification
+      // 4. Update HUD location badge, then either walk straight in or wait at the door
       this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
-      this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}! Press [E] to enter.`);
+      if (enterInside && dest.isEnterable) {
+        setTimeout(() => this.onEnterInterior?.(dest.interiorId), 50);
+      } else {
+        this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}! Press [E] to enter.`);
+      }
+      return true;
+    };
+
+    // Places with no interior of their own: arrive at the spot on the street where their activity is
+    this.worldMapUI.onTravelToLandmark = (lm) => {
+      const spot = this.world?.interactiveObjects.find((o) => o.id === LANDMARK_STREET_SPOTS[lm.id]);
+      const district = WorldDataManager.getInstance().getDistrictById(lm.districtId);
+      if (!spot && !district) return;
+
+      this.currentNavMode = 'street';
+      updateNavActive('');
+      this.worldMapUI.close();
+      UIStateManager.getInstance().setMode('street');
+      this.onNavigateMode?.('street');
+
+      const arriveAt = spot ? spot.interactionPoint : district!.streetSpawnPoint;
+      this.player.mesh.position.set(arriveAt.x, 0, arriveAt.z);
+      this.player.stopMoving();
+      if (spot) {
+        this.showInteractionCard(spot);
+      } else {
+        this.showNotification(`📍 Arrived in ${district!.name}, near ${lm.name}.`);
+      }
     };
 
     this.worldMapUI.onInterstateTravel = (destCityId) => {

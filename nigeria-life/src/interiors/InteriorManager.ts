@@ -77,6 +77,11 @@ export class InteriorManager {
     this.group.add(this.unilag.group);
     this.group.add(this.airport.group);
 
+    // Each room stands on its own plot of ground, which is all the camera sees around it
+    for (const child of this.group.children) {
+      child.add(this.createGroundPlot());
+    }
+
     // Tag entire interior group with INTERIOR layer
     this.group.traverse((child) => {
       child.layers.set(RENDER_LAYERS.INTERIOR);
@@ -232,10 +237,18 @@ export class InteriorManager {
     player.mesh.rotation.y = 0; // Face forward into the room
     player.stopMoving();
 
-    // 7. Activate dedicated interior camera and layer filter
+    // 7. Activate dedicated interior camera and layer filter, framed on this room
+    const shellSize = this.getActiveShell()?.userData.size as { width: number; length: number } | undefined;
+    const room = target.rooms[0];
+    cameraManager.frameRoom(
+      target.interiorOrigin,
+      shellSize?.width ?? room.size.width,
+      shellSize?.length ?? room.size.length
+    );
     cameraManager.setMode('interior');
     cameraManager.setLayerMode('interior');
     cameraManager.snapToPlayer(player, 'interior');
+    this.updateCutaway(cameraManager.camera.position);
 
     // 8. Update HUD location badge and banner
     hud.updateLocation(target.name, `Interior • ${target.districtName}`);
@@ -310,6 +323,64 @@ export class InteriorManager {
 
   public isPlayerInside(): boolean {
     return this.locationMode === 'interior' && this.currentInterior !== null;
+  }
+
+  private createGroundPlot(): THREE.Group {
+    const plot = new THREE.Group();
+    plot.name = 'interior_ground_plot';
+
+    // Wide enough to fill the view at the lowest camera angle
+    const lawn = new THREE.Mesh(
+      new THREE.CircleGeometry(220, 48),
+      new THREE.MeshBasicMaterial({ color: 0xa9c4a1 })
+    );
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.position.y = -0.45;
+    plot.add(lawn);
+
+    // A paved apron so the building does not look like it floats on the grass
+    const apron = new THREE.Mesh(
+      new THREE.CircleGeometry(30, 48),
+      new THREE.MeshBasicMaterial({ color: 0xc9d6c2 })
+    );
+    apron.rotation.x = -Math.PI / 2;
+    apron.position.y = -0.43;
+    plot.add(apron);
+
+    return plot;
+  }
+
+  private getActiveShell(): THREE.Object3D | null {
+    return this.getActiveInteriorGroup()?.getObjectByName('interior_room_shell') ?? null;
+  }
+
+  /**
+   * Lowers whichever outer walls stand between the camera and the room, so the view into
+   * the room is never blocked however the player turns the camera.
+   */
+  public updateCutaway(cameraPosition: THREE.Vector3): void {
+    const shell = this.getActiveShell();
+    if (!shell || !this.currentInterior) return;
+
+    const size = shell.userData.size as { width: number; length: number; height: number };
+    const origin = this.currentInterior.interiorOrigin;
+    const dx = cameraPosition.x - origin.x;
+    const dz = cameraPosition.z - origin.z;
+    const margin = 2;
+    const cutHeight = 1.2;
+
+    const walls: Array<[string, boolean]> = [
+      ['shell_wall_back', dz < -(size.length / 2 - margin)],
+      ['shell_wall_left', dx < -(size.width / 2 - margin)],
+      ['shell_wall_right', dx > size.width / 2 - margin],
+    ];
+    for (const [name, facesCamera] of walls) {
+      const wall = shell.getObjectByName(name);
+      if (!wall) continue;
+      const height = facesCamera ? cutHeight : size.height;
+      wall.scale.y = height / size.height;
+      wall.position.y = height / 2;
+    }
   }
 
   /** Where the player returns to on the street when they leave the current interior. */

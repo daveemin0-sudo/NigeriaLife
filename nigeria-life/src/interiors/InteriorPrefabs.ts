@@ -22,6 +22,8 @@ export class InteriorPrefabs {
     wallColor: number = 0x334155
   ): THREE.Group {
     const room = new THREE.Group();
+    room.name = 'interior_room_shell';
+    room.userData.size = { width, length, height };
 
     // Floor
     const floorGeo = new THREE.BoxGeometry(width, 0.4, length);
@@ -38,18 +40,21 @@ export class InteriorPrefabs {
 
     // Back wall (Z = -length / 2)
     const backWall = new THREE.Mesh(new THREE.BoxGeometry(width, height, wallThick), wallMat);
+    backWall.name = 'shell_wall_back';
     backWall.position.set(0, height / 2, -length / 2);
     backWall.receiveShadow = true;
     room.add(backWall);
 
     // Left wall (X = -width / 2)
     const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, height, length), wallMat);
+    leftWall.name = 'shell_wall_left';
     leftWall.position.set(-width / 2, height / 2, 0);
     leftWall.receiveShadow = true;
     room.add(leftWall);
 
     // Right wall (X = width / 2)
     const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, height, length), wallMat);
+    rightWall.name = 'shell_wall_right';
     rightWall.position.set(width / 2, height / 2, 0);
     rightWall.receiveShadow = true;
     room.add(rightWall);

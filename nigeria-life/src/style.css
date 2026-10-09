@@ -1371,6 +1371,33 @@ body[data-ui-mode="house"] .emote-bar {
   display: none;
 }
 
+/* Closed, the chat is a small pill that stays out of the way; it opens on click or Enter */
+#street-chat-box.minimized {
+  width: auto;
+  border-radius: 999px;
+}
+
+#street-chat-box.minimized .chat-header {
+  border-bottom: none;
+  gap: 10px;
+  padding: 8px 12px 8px 14px;
+}
+
+#street-chat-box .chat-header {
+  cursor: pointer;
+}
+
+#street-chat-box.has-unread .chat-dot {
+  background: #facc15;
+  box-shadow: 0 0 10px #facc15;
+}
+
+/* The map and journeys are full-screen views; the chat would sit on top of them */
+body[data-ui-mode="world-map"] #street-chat-box,
+body[data-ui-mode="transit"] #street-chat-box {
+  display: none;
+}
+
 .chat-header {
   padding: 10px 14px;
   background: rgba(0, 0, 0, 0.25);
@@ -4581,6 +4608,314 @@ body[data-ui-mode="house"] .emote-bar {
   color: #4ade80;
 }
 
+/* =========================================
+   MAP PINS: one for every place, with its name. Page elements, so they stay sharp at any zoom.
+   ========================================= */
+.map-pin-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Its own layer, so a hovered pin can rise above other pins but never above the bars and the sheet */
+  isolation: isolate;
+  z-index: 0;
+}
+
+.map-pin,
+.map-area-name {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.map-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Anchor: bottom centre of the icon bubble sits on the place */
+  margin: -38px 0 0 -19px;
+  padding: 0;
+  font: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.map-pin-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.35), 0 0 0 2px rgba(255, 255, 255, 0.9);
+  transition: transform 0.15s ease;
+}
+
+.map-pin-name {
+  display: none;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.28);
+  white-space: nowrap;
+}
+
+.map-pin-layer.show-names .map-pin-name,
+.map-pin:hover .map-pin-name,
+.map-pin:focus-visible .map-pin-name {
+  display: block;
+}
+
+.map-pin:hover {
+  z-index: 2;
+}
+
+.map-pin:hover .map-pin-icon {
+  transform: scale(1.14);
+}
+
+.map-area-name {
+  margin: -8px 0 0 0;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.75), 0 0 10px rgba(15, 23, 42, 0.45);
+  white-space: nowrap;
+  translate: -50% 0;
+}
+
+.map-pin-layer:not(.show-names) .map-area-name {
+  opacity: 0.55;
+}
+
+.city-tab-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.map-names-toggle {
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.map-names-toggle.active {
+  color: #0f172a;
+  background: #facc15;
+}
+
+/* =========================================
+   MAP SHEET: the card for a place, district or property. Rises from the bottom, always fits the screen.
+   ========================================= */
+.map-context-card {
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  margin: 0 auto;
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+  padding: 20px 22px 18px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.35);
+  font-family: 'Outfit', 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+.map-context-card .card-close-x {
+  top: 12px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+  line-height: 1;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 50%;
+}
+
+.map-context-card .card-close-x:hover {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+.map-context-card .card-chip {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.map-context-card .card-zone {
+  color: #64748b;
+}
+
+.map-context-card .card-name {
+  padding-right: 40px;
+  color: #0f172a;
+}
+
+.map-context-card .card-sub {
+  color: #b45309;
+}
+
+.map-context-card .card-desc {
+  margin-bottom: 12px;
+  color: #475569;
+}
+
+.map-context-card .card-stats-grid {
+  background: #f1f5f9;
+}
+
+.map-context-card .card-stats-grid .stat-num {
+  color: #0f172a;
+}
+
+.map-context-card .card-stats-grid .stat-lbl {
+  color: #64748b;
+}
+
+.sheet-label {
+  margin: 12px 0 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.sheet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sheet-chip {
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+.transport-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.transport-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px 9px;
+  font: inherit;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.transport-tile:hover {
+  transform: translateY(-1px);
+  border-color: #94a3b8;
+}
+
+.transport-tile.selected {
+  background: #ecfdf5;
+  border-color: #059669;
+}
+
+.transport-icon {
+  font-size: 22px;
+}
+
+.transport-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  text-align: center;
+}
+
+.transport-fare {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.transport-fare.free {
+  color: #059669;
+}
+
+.sheet-go-btn {
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px 18px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffffff;
+  background: #059669;
+  border: none;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.35);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.sheet-go-btn:hover {
+  background: #047857;
+  transform: translateY(-1px);
+}
+
+.sheet-link-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #475569;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.sheet-link-btn:hover {
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+/* The pan/zoom hint would sit under an open sheet */
+.map-context-card[style*="display: block"] ~ .map-controls-hint {
+  display: none;
+}
+
 /* 3-Tier Interior Destination System UI */
 #interior-transition-banner {
   position: fixed;
@@ -4634,8 +4969,152 @@ body[data-ui-mode="house"] .emote-bar {
   transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
+/* Indoors the place card sits above the nav bar, so the prompt moves above the card */
 body[data-ui-mode="interior"] .hud-proximity-prompt {
-  bottom: 80px;
+  bottom: 196px;
+}
+
+/* =========================================
+   PLACE CARD (inside a building): where you are + a shortcut to everything in the room
+   ========================================= */
+.place-card {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  box-shadow: 0 10px 34px rgba(15, 23, 42, 0.22), 0 1px 3px rgba(15, 23, 42, 0.08);
+  z-index: var(--z-hud-navigation);
+  pointer-events: auto;
+  font-family: 'Outfit', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  animation: placeCardRise 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes placeCardRise {
+  from { opacity: 0; transform: translate(-50%, 14px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+body.ui-modal-open .place-card {
+  display: none !important;
+}
+
+.place-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.place-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 50%;
+}
+
+.place-titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.place-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.place-sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.place-leave-btn {
+  flex: none;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.place-leave-btn:hover {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.place-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.place-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.place-chip:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  transform: translateY(-1px);
+}
+
+.place-chip:active {
+  transform: translateY(0);
+}
+
+.place-chip-person {
+  background: #ffffff;
+  color: #475569;
+}
+
+.place-chip-icon {
+  font-size: 14px;
 }
 
 .hud-proximity-prompt:hover {

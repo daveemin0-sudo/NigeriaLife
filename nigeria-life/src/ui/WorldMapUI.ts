@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { DistrictData, MapLandmark, MapProperty } from '../world/data/WorldDataTypes';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { BackendService } from '../backend/BackendService';
@@ -6,14 +7,30 @@ import type { DestinationDefinition, TransportOption } from '../destinations/Des
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
 
+/** A label drawn over the map at a fixed map position */
+interface MapMarker {
+  el: HTMLElement;
+  position: THREE.Vector3;
+}
+
+/** "Quilox VIP Nightclub & Waterfront Lounge" -> "Quilox VIP Nightclub" */
+function shortPlaceName(name: string): string {
+  return name.split(' (')[0].split(' & ')[0];
+}
+
 export class WorldMapUI {
   private container: HTMLDivElement;
   private cardEl: HTMLDivElement;
   private districtChipsEl: HTMLDivElement;
+  private pinLayerEl!: HTMLDivElement;
+  private markers: MapMarker[] = [];
+  private projected = new THREE.Vector3();
 
   public onTravelToDistrict?: (district: DistrictData) => void;
+  public onTravelToLandmark?: (landmark: MapLandmark) => void;
   public onTravelToProperty?: (property: MapProperty) => void;
-  public onTravelWithTransport?: (dest: DestinationDefinition, transport: TransportOption) => void;
+  /** Returns false when the trip could not be paid for. `enterInside` continues through the door on arrival. */
+  public onTravelWithTransport?: (dest: DestinationDefinition, transport: TransportOption, enterInside: boolean) => boolean;
   public onPropertyUpdated?: (propertyId: string) => void;
   public onInterstateTravel?: (destCityId: string) => void;
   public onSelectDistrictFromChips?: (districtId: string) => void;
@@ -29,6 +46,9 @@ export class WorldMapUI {
     this.container.style.display = 'none';
 
     this.container.innerHTML = `
+      <!-- PLACE PINS & AREA NAMES (drawn over the 3D map, kept in step with the map camera) -->
+      <div class="map-pin-layer show-names" id="map-pin-layer"></div>
+
       <!-- TOP STATUS BAR (World Map Header) -->
       <header class="map-top-bar">
         <div class="map-top-left">
@@ -72,6 +92,8 @@ export class WorldMapUI {
         <button class="city-nav-tab active" data-city="lagos">🏖️ Lagos (Active)</button>
         <button class="city-nav-tab" data-city="abuja">⛰️ Abuja FCT</button>
         <button class="city-nav-tab" data-city="port_harcourt">🛢️ Port Harcourt</button>
+        <span class="city-tab-divider"></span>
+        <button class="map-names-toggle active" id="btn-map-names" title="Show or hide place names">🏷️ Names</button>
       </nav>
 
       <!-- DISTRICT QUICK CHIP NAVIGATOR -->
@@ -121,7 +143,7 @@ export class WorldMapUI {
 
       <!-- MAP CONTROLS HINT OVERLAY -->
       <div class="map-controls-hint">
-        <span>🖱️ Drag to Pan Map • Scroll to Zoom • Hover over any building to see name • Click to Enter Inside</span>
+        <span>🖱️ Drag to pan • Scroll to zoom • Tap a pin to see what is there and how to get to it</span>
       </div>
     `;
 
@@ -129,6 +151,7 @@ export class WorldMapUI {
 
     this.cardEl = document.getElementById('map-context-card') as HTMLDivElement;
     this.districtChipsEl = document.getElementById('map-district-chips') as HTMLDivElement;
+    this.pinLayerEl = document.getElementById('map-pin-layer') as HTMLDivElement;
 
     this.initEventListeners();
     this.renderDistrictChips();
@@ -148,6 +171,11 @@ export class WorldMapUI {
 
     document.getElementById('map-card-close')?.addEventListener('click', () => {
       this.cardEl.style.display = 'none';
+    });
+
+    document.getElementById('btn-map-names')?.addEventListener('click', (e) => {
+      const showing = this.pinLayerEl.classList.toggle('show-names');
+      (e.currentTarget as HTMLElement).classList.toggle('active', showing);
     });
 
     // City tabs
@@ -192,6 +220,7 @@ export class WorldMapUI {
     }
 
     this.renderDistrictChips();
+    this.rebuildPins();
   }
 
   public renderDistrictChips(): void {
@@ -210,6 +239,60 @@ export class WorldMapUI {
     });
   }
 
+  /**
+   * Builds a pin for every place and a name for every district of the city on show.
+   * They are ordinary page elements, so the text stays sharp at any zoom.
+   */
+  public rebuildPins(): void {
+    this.pinLayerEl.innerHTML = '';
+    this.markers = [];
+    const data = WorldDataManager.getInstance();
+
+    for (const d of data.getDistricts()) {
+      const label = document.createElement('div');
+      label.className = 'map-area-name';
+      label.textContent = d.name;
+      this.pinLayerEl.appendChild(label);
+      this.markers.push({ el: label, position: new THREE.Vector3(d.center.x, 0.6, d.center.z) });
+    }
+
+    for (const lm of data.getLandmarks()) {
+      const pin = document.createElement('button');
+      pin.className = 'map-pin';
+      pin.dataset.place = lm.id;
+      pin.title = lm.name;
+
+      const icon = document.createElement('span');
+      icon.className = 'map-pin-icon';
+      icon.textContent = lm.icon || '📍';
+      const name = document.createElement('span');
+      name.className = 'map-pin-name';
+      name.textContent = shortPlaceName(lm.name);
+      pin.append(icon, name);
+
+      pin.addEventListener('click', () => this.showLandmarkDetails(lm));
+      this.pinLayerEl.appendChild(pin);
+      // Sits just above the roof of the little building it marks
+      this.markers.push({ el: pin, position: new THREE.Vector3(lm.position.x, 9, lm.position.z) });
+    }
+  }
+
+  /** Moves every pin to where its place currently appears on screen. Call once a frame while the map is open. */
+  public updatePins(camera: THREE.Camera): void {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    for (const marker of this.markers) {
+      this.projected.copy(marker.position).project(camera);
+      const x = (this.projected.x + 1) * 0.5 * w;
+      const y = (1 - this.projected.y) * 0.5 * h;
+      const visible = this.projected.z < 1 && x > -80 && x < w + 80 && y > -40 && y < h + 40;
+      marker.el.style.display = visible ? '' : 'none';
+      if (visible) {
+        marker.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      }
+    }
+  }
+
   public showDistrictDetails(d: DistrictData): void {
     const chip = document.getElementById('map-card-chip');
     const zone = document.getElementById('map-card-zone');
@@ -223,6 +306,9 @@ export class WorldMapUI {
     const lbl2 = document.getElementById('map-stat-lbl-2');
     const lbl3 = document.getElementById('map-stat-lbl-3');
     const actions = document.getElementById('map-card-actions');
+
+    const stats = document.getElementById('map-card-stats');
+    if (stats) stats.style.display = '';
 
     if (lbl1) lbl1.textContent = 'Population';
     if (lbl2) lbl2.textContent = 'Properties';
@@ -310,138 +396,84 @@ export class WorldMapUI {
     const name = document.getElementById('map-card-name');
     const sub = document.getElementById('map-card-sub');
     const desc = document.getElementById('map-card-desc');
-    const pop = document.getElementById('map-stat-pop');
-    const props = document.getElementById('map-stat-props');
-    const biz = document.getElementById('map-stat-biz');
-    const lbl1 = document.getElementById('map-stat-lbl-1');
-    const lbl2 = document.getElementById('map-stat-lbl-2');
-    const lbl3 = document.getElementById('map-stat-lbl-3');
     const actions = document.getElementById('map-card-actions');
+
+    // The three-number grid is for districts and properties; a place shows what you can do there instead
+    const stats = document.getElementById('map-card-stats');
+    if (stats) stats.style.display = 'none';
 
     const canonicalDest = DestinationRegistry.getInstance().getById(lm.id);
 
     if (canonicalDest) {
-      if (lbl1) lbl1.textContent = 'Category';
-      if (lbl2) lbl2.textContent = 'District';
-      if (lbl3) lbl3.textContent = 'Status';
-
       if (chip) chip.textContent = `${canonicalDest.mapIcon} ${canonicalDest.category.toUpperCase()}`;
       if (zone) zone.textContent = canonicalDest.districtName;
       if (name) name.textContent = canonicalDest.name;
-      if (sub) sub.textContent = `${canonicalDest.category} • ${canonicalDest.districtName}`;
+      if (sub) sub.textContent = `🟢 ${canonicalDest.openingHours}`;
       if (desc) desc.textContent = canonicalDest.destinationDescription;
-      if (pop) pop.textContent = canonicalDest.category;
-      if (props) props.textContent = canonicalDest.districtName;
-      if (biz) biz.textContent = canonicalDest.openingHours;
 
       if (actions) {
+        const options = canonicalDest.transportAvailability;
         actions.innerHTML = `
-          <!-- Services Badges -->
-          <div style="display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0 12px 0;">
-            ${canonicalDest.services
-              .map(
-                (s) =>
-                  `<span style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">✓ ${s}</span>`
-              )
-              .join('')}
+          <div class="sheet-label">What you can do here</div>
+          <div class="sheet-chips">
+            ${canonicalDest.services.map((s) => `<span class="sheet-chip">${s}</span>`).join('')}
           </div>
 
-          <!-- Transport Chooser Header -->
-          <div style="margin-bottom: 8px;">
-            <div style="font-size: 13px; font-weight: 800; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
-              <span>🚗</span> How would you like to get there?
-            </div>
-            <span style="font-size: 11px; color: #94a3b8;">Choose transport to travel directly outside ${canonicalDest.name}</span>
-          </div>
-
-          <!-- 7-Mode Transport List -->
-          <div class="dest-transport-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 230px; overflow-y: auto; padding-right: 4px;">
-            ${canonicalDest.transportAvailability
+          <div class="sheet-label">How will you get there?</div>
+          <div class="transport-grid">
+            ${options
               .map(
                 (t) => `
-              <button class="btn-transport-row" data-mode="${t.mode}" style="display: flex; align-items: center; justify-content: space-between; background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 8px 12px; cursor: pointer; text-align: left; width: 100%; transition: background 0.15s ease;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <span style="font-size: 20px;">${t.icon}</span>
-                  <div>
-                    <div style="font-size: 13px; font-weight: 700; color: #f1f5f9;">${t.label}</div>
-                    <div style="font-size: 10px; color: #94a3b8;">${t.description}</div>
-                  </div>
-                </div>
-                <div style="text-align: right; min-width: 65px;">
-                  <div style="font-size: 12px; font-weight: 800; color: ${t.fare === 0 ? '#4ade80' : '#fbbf24'};">${t.fare === 0 ? 'FREE' : '₦' + t.fare.toLocaleString()}</div>
-                  <div style="font-size: 10px; color: #64748b;">⏱️ ~${t.travelTimeSec}s</div>
-                </div>
+              <button class="transport-tile" data-mode="${t.mode}" title="${t.description}">
+                <span class="transport-icon">${t.icon}</span>
+                <span class="transport-name">${t.label}</span>
+                <span class="transport-fare${t.fare === 0 ? ' free' : ''}">${t.fare === 0 ? 'Free' : '₦' + t.fare.toLocaleString()}</span>
               </button>
             `
               )
               .join('')}
           </div>
 
-          <!-- Direct Actions -->
-          <div style="display: flex; gap: 8px; margin-top: 10px;">
-            <button class="btn-primary-action" id="btn-card-direct-enter" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); font-weight: 800; font-size: 13px; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);">
-              🚪 Direct Enter Inside [E]
-            </button>
-            <button class="btn-primary-action" id="btn-card-walk-exterior" style="flex: 1; background: linear-gradient(135deg, #0284c7, #0369a1); font-size: 13px;">
-              🚶 Walk Outside
-            </button>
-          </div>
+          <button class="sheet-go-btn" id="btn-card-go"></button>
+          <button class="sheet-link-btn" id="btn-card-walk-exterior">Stop outside instead of going in</button>
         `;
 
-        // Wire each transport row button
-        canonicalDest.transportAvailability.forEach((t) => {
-          const rowBtn = actions.querySelector(`[data-mode="${t.mode}"]`);
-          rowBtn?.addEventListener('click', () => {
-            this.close();
-            this.onTravelWithTransport?.(canonicalDest, t);
+        const tiles = Array.from(actions.querySelectorAll<HTMLElement>('.transport-tile'));
+        const goBtn = document.getElementById('btn-card-go') as HTMLButtonElement;
+        let chosen = options[0];
+
+        const choose = (t: TransportOption) => {
+          chosen = t;
+          tiles.forEach((tile) => tile.classList.toggle('selected', tile.dataset.mode === t.mode));
+          goBtn.textContent = t.fare === 0 ? `Go by ${t.label} · Free` : `Go by ${t.label} · ₦${t.fare.toLocaleString()}`;
+        };
+        tiles.forEach((tile) => {
+          tile.addEventListener('click', () => {
+            const picked = options.find((o) => o.mode === tile.dataset.mode);
+            if (picked) choose(picked);
           });
         });
+        choose(chosen);
 
-        // Direct enter inside
-        document.getElementById('btn-card-direct-enter')?.addEventListener('click', () => {
-          this.close();
-          this.onEnterInterior?.(canonicalDest.interiorId);
-        });
-
-        // Walk outside on street
+        // The trip handler closes the map itself once the fare is paid, so a failed payment leaves the sheet open
+        goBtn.addEventListener('click', () => this.onTravelWithTransport?.(canonicalDest, chosen, true));
         document.getElementById('btn-card-walk-exterior')?.addEventListener('click', () => {
-          const walkOpt = canonicalDest.transportAvailability.find((o) => o.mode === 'walk') || {
-            mode: 'walk' as const,
-            label: 'Walk on Foot',
-            icon: '🚶',
-            fare: 0,
-            travelTimeSec: 12,
-            description: 'Walk on foot',
-          };
-          this.close();
-          this.onTravelWithTransport?.(canonicalDest, walkOpt);
+          this.onTravelWithTransport?.(canonicalDest, chosen, false);
         });
       }
     } else {
-      // Fallback for general landmarks without dedicated interior simulation
-      if (lbl1) lbl1.textContent = 'Category';
-      if (lbl2) lbl2.textContent = 'Location';
-      if (lbl3) lbl3.textContent = 'Status';
+      // Places without an interior of their own: travel to the spot on the street
+      const district = WorldDataManager.getInstance().getDistrictById(lm.districtId);
 
       if (chip) chip.textContent = lm.icon + ' LANDMARK';
-      if (zone) zone.textContent = lm.type.toUpperCase();
+      if (zone) zone.textContent = district ? district.name : lm.type.toUpperCase();
       if (name) name.textContent = lm.name || lm.title;
       if (sub) sub.textContent = lm.subtitle;
       if (desc) desc.textContent = lm.description;
-      if (pop) pop.textContent = 'Active POI';
-      if (props) props.textContent = 'Lagos State';
-      if (biz) biz.textContent = 'Open 24/7';
 
       if (actions) {
-        actions.innerHTML = `
-          <button class="btn-primary-action" id="btn-card-walk-district" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
-            🚶 Walk Outside on Street
-          </button>
-        `;
-        document.getElementById('btn-card-walk-district')?.addEventListener('click', () => {
-          const d = WorldDataManager.getInstance().getDistrictById(lm.districtId);
-          if (d) this.onTravelToDistrict?.(d);
-        });
+        actions.innerHTML = `<button class="sheet-go-btn" id="btn-card-go">Go there · Free</button>`;
+        document.getElementById('btn-card-go')?.addEventListener('click', () => this.onTravelToLandmark?.(lm));
       }
     }
 
@@ -464,6 +496,9 @@ export class WorldMapUI {
 
     const district = WorldDataManager.getInstance().getDistrictById(p.districtId);
     const districtName = district ? district.name : p.districtId;
+
+    const stats = document.getElementById('map-card-stats');
+    if (stats) stats.style.display = '';
 
     if (lbl1) lbl1.textContent = 'Purchase Price';
     if (lbl2) lbl2.textContent = 'Monthly Rent';
@@ -541,6 +576,7 @@ export class WorldMapUI {
 
   public open(): void {
     this.container.style.display = 'block';
+    this.rebuildPins();
     UIStateManager.getInstance().setMode('world-map');
   }
 

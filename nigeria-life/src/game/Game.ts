@@ -15,6 +15,7 @@ import { PhotoModeModal } from '../ui/PhotoModeModal';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import { UIStateManager } from '../ui/UIStateManager';
+import { PlaceCard } from '../ui/PlaceCard';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
 import type { SavedCityId } from '../backend/types';
@@ -34,6 +35,7 @@ export class Game {
   public chatBox: ChatBox;
   public postProcessing: PostProcessingManager;
   public photoMode: PhotoModeModal;
+  public placeCard: PlaceCard;
 
   // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
   public flightExperience: FlightExperience;
@@ -329,6 +331,18 @@ export class Game {
       this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
     };
 
+    // 9f. On-screen shortcuts to everything inside the current building
+    this.placeCard = new PlaceCard({
+      getPlace: () => {
+        const interiors = this.world.interiorManager;
+        return interiors.currentInterior
+          ? { def: interiors.currentInterior, objects: interiors.getActiveInteractiveObjects() }
+          : null;
+      },
+      goTo: (obj) => this.input.approachAndInteract(obj),
+      leave: () => this.hud.onExitInterior?.(),
+    });
+
     // 10. Multiplayer & Street Chat
     this.network = new NetworkManager(this.scene, this.player);
     this.chatBox = new ChatBox(this.network);
@@ -380,6 +394,7 @@ export class Game {
       z: 10,
       rotationY: 0,
       hour: this.world.skyEnvironment.currentHour,
+      day: this.world.skyEnvironment.day,
       inTransit: true,
     });
   }
@@ -406,6 +421,7 @@ export class Game {
       z: Number(spot.z.toFixed(2)),
       rotationY: Number(this.player.mesh.rotation.y.toFixed(2)),
       hour: Number(this.world.skyEnvironment.currentHour.toFixed(3)),
+      day: this.world.skyEnvironment.day,
     });
   }
 
@@ -413,6 +429,7 @@ export class Game {
     const saved = BackendService.getInstance().getData().worldState;
     if (!saved) return;
 
+    this.world.skyEnvironment.setDay(saved.day);
     this.world.skyEnvironment.setHour(saved.hour);
 
     if (saved.inTransit) {
@@ -476,6 +493,9 @@ export class Game {
 
     // Update Camera Follow
     this.cameraManager.update(this.player, delta);
+    if (this.world.interiorManager.isPlayerInside()) {
+      this.world.interiorManager.updateCutaway(this.cameraManager.camera.position);
+    }
 
     // Update Transit Simulations (Flight & Road Ride)
     this.flightExperience.update(delta);
@@ -521,6 +541,11 @@ export class Game {
 
     // Update Input cursor animations
     this.input.update(delta);
+
+    // Keep the map's place pins over their buildings
+    if (this.hud.currentNavMode === 'map') {
+      this.hud.worldMapUI.updatePins(this.world.worldMap.mapCamera);
+    }
 
     // Render Scene with active presentation camera (Isometric World Map vs In-Flight vs Road Ride vs 3D Game Camera)
     if (this.hud.currentNavMode === 'map') {

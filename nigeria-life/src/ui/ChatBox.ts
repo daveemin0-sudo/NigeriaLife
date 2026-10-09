@@ -12,13 +12,15 @@ export class ChatBox {
 
     this.container = document.createElement('div');
     this.container.id = 'street-chat-box';
+    // Starts closed so it does not cover the game; a new message lights the dot
+    this.container.className = 'minimized';
     this.container.innerHTML = `
-      <div class="chat-header">
+      <div class="chat-header" id="chat-header">
         <div class="chat-title">
           <span class="chat-dot"></span>
-          <span>Broad St. Street Chat</span>
+          <span>Street Chat</span>
         </div>
-        <button class="chat-minimize-btn" id="chat-toggle-btn">−</button>
+        <button class="chat-minimize-btn" id="chat-toggle-btn" aria-label="Open or close chat">+</button>
       </div>
       <div class="chat-messages" id="chat-messages-list">
         <div class="chat-msg system-msg">
@@ -54,9 +56,9 @@ export class ChatBox {
       this.inputEl.blur();
     });
 
-    const toggleBtn = document.getElementById('chat-toggle-btn') as HTMLButtonElement;
-    toggleBtn.addEventListener('click', () => {
-      this.container.classList.toggle('minimized');
+    // The whole header opens and closes the chat
+    document.getElementById('chat-header')!.addEventListener('click', () => {
+      this.setOpen(this.container.classList.contains('minimized'));
     });
 
     // Global 'Enter' key focuses chat input
@@ -65,15 +67,25 @@ export class ChatBox {
         const isFocused = document.activeElement === this.inputEl;
         if (!isFocused && (document.activeElement as HTMLElement)?.tagName !== 'INPUT') {
           e.preventDefault();
-          this.container.classList.remove('minimized');
+          this.setOpen(true);
           this.inputEl.focus();
         }
       }
     });
   }
 
+  private setOpen(open: boolean): void {
+    this.container.classList.toggle('minimized', !open);
+    if (open) this.container.classList.remove('has-unread');
+    const toggleBtn = document.getElementById('chat-toggle-btn');
+    if (toggleBtn) toggleBtn.textContent = open ? '−' : '+';
+  }
+
   public addMessage(msg: ChatMessage): void {
     const isSelf = msg.senderId === this.network.localId;
+    if (!isSelf && this.container.classList.contains('minimized')) {
+      this.container.classList.add('has-unread');
+    }
     const msgEl = document.createElement('div');
     msgEl.className = `chat-msg ${isSelf ? 'msg-self' : 'msg-remote'}`;
     msgEl.innerHTML = `
