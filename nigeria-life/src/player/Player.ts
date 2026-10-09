@@ -11,6 +11,8 @@ import { HumanMeshBuilder, type HumanRig } from '../graphics/HumanMeshBuilder';
 import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
 import { BackendService } from '../backend/BackendService';
+import { Actor } from '../interactions/Actor';
+import { InteractionDirector } from '../interactions/InteractionDirector';
 
 export class Player {
   public mesh: THREE.Group;
@@ -41,6 +43,9 @@ export class Player {
   // Animation state
   private animTime: number = 0;
 
+  /** Lets scripted interactions (doors, sitting, eating, waving) direct the player's body */
+  public actor: Actor;
+
   constructor() {
     this.mesh = new THREE.Group();
     this.mesh.position.set(0, 0, 5); // Start on Broad Street
@@ -49,6 +54,16 @@ export class Player {
     this.config = CharacterStorage.load();
 
     this.buildHumanMesh();
+
+    this.actor = new Actor({
+      id: 'player',
+      name: this.config.name || 'You',
+      root: this.mesh,
+      // The built-in body can be animated by hand; a loaded character model cannot (yet)
+      getRig: () => (this.glbModel ? null : this.humanRig),
+      speed: 4.2,
+    });
+    InteractionDirector.get().player = InteractionDirector.get().register(this.actor);
 
     // Assign to dedicated PLAYER layer so player is visible in both street and interior
     this.mesh.traverse((child) => {
@@ -184,6 +199,14 @@ export class Player {
     // Tick GLB skeletal animation mixer if present
     if (this.mixer) {
       this.mixer.update(delta);
+    }
+
+    // A scripted interaction is moving and animating the player: input waits until it ends
+    if (this.actor.scripted) {
+      this.targetPosition = null;
+      this.isMoving = false;
+      this.isSprinting = false;
+      return;
     }
 
     if (this.isDriving && this.currentVehicle) {

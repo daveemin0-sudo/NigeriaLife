@@ -16,6 +16,8 @@ import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import { UIStateManager } from '../ui/UIStateManager';
 import { PlaceCard } from '../ui/PlaceCard';
+import { InteractionDirector } from '../interactions/InteractionDirector';
+import { BukaOrderUI } from '../ui/BukaOrderUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
 import type { SavedCityId } from '../backend/types';
@@ -35,6 +37,10 @@ export class Game {
   public chatBox: ChatBox;
   public postProcessing: PostProcessingManager;
   public photoMode: PhotoModeModal;
+  public bukaUI!: BukaOrderUI;
+  /** Scripted interactions, exposed for the browser tests and for debugging in the console */
+  public interactions = InteractionDirector.get();
+  private lastStepDelta: number = 0;
   public placeCard: PlaceCard;
 
   // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
@@ -323,13 +329,18 @@ export class Game {
     };
 
     // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)
+    // The player walks in and out through the door wherever the place has one
     this.hud.onEnterInterior = (buildingId: string) => {
-      this.world.interiorManager.enterInterior(buildingId, this.player, this.cameraManager, this.hud, this.world);
+      this.world.interiorManager.enterThroughDoor(buildingId, this.player, this.cameraManager, this.hud, this.world);
     };
 
     this.hud.onExitInterior = () => {
-      this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+      this.world.interiorManager.leaveThroughDoor(this.player, this.cameraManager, this.hud, this.world);
     };
+
+    // 9e-2. The buka's menu and order status
+    this.bukaUI = new BukaOrderUI(this.world.interiorManager.restaurant.service);
+    this.hud.onOpenBukaMenu = (preferTable) => this.bukaUI.open(preferTable);
 
     // 9f. On-screen shortcuts to everything inside the current building
     this.placeCard = new PlaceCard({
@@ -481,8 +492,27 @@ export class Game {
 
   private loop = (): void => {
     requestAnimationFrame(this.loop);
+    this.step(Math.min(this.clock.getDelta(), 0.1));
+    this.render();
+  };
 
-    const delta = Math.min(this.clock.getDelta(), 0.1);
+  /**
+   * Runs the game forward by some seconds of game time without drawing every frame.
+   * For automated tests, so a scene that takes a minute to play out does not take a minute
+   * to check (and still plays out on a machine too slow to render it in real time).
+   */
+  public async advance(seconds: number, frame: number = 1 / 30): Promise<void> {
+    const frames = Math.ceil(seconds / frame);
+    for (let i = 0; i < frames; i++) {
+      this.step(frame);
+      // Let promise continuations (a sequence finishing, a door opening) run between frames
+      await Promise.resolve();
+    }
+    this.clock.getDelta();
+  }
+
+  /** One frame of game logic. */
+  private step(delta: number): void {
 
     // Update Player Movement & Walking Cycle (frozen in Photo Mode so player can pose)
     if (this.cameraManager.mode === 'photo') {
@@ -491,7 +521,11 @@ export class Game {
       this.player.update(delta, this.input.keys);
     }
 
-    // Update Camera Follow
+    // Scripted interactions: doors, sitting, serving, eating, waving
+    InteractionDirector.get().update(delta);
+
+    // Update Camera Follow (moved in closer while the player is seated)
+    this.cameraManager.setCloseUp(this.player.actor.hold !== null);
     this.cameraManager.update(this.player, delta);
     if (this.world.interiorManager.isPlayerInside()) {
       this.world.interiorManager.updateCutaway(this.cameraManager.camera.position);
@@ -547,6 +581,12 @@ export class Game {
       this.hud.worldMapUI.updatePins(this.world.worldMap.mapCamera);
     }
 
+    this.lastStepDelta = delta;
+  }
+
+  private render(): void {
+    const delta = this.lastStepDelta;
+
     // Render Scene with active presentation camera (Isometric World Map vs In-Flight vs Road Ride vs 3D Game Camera)
     if (this.hud.currentNavMode === 'map') {
       this.renderer.render(this.scene, this.world.worldMap.mapCamera);
@@ -573,5 +613,5 @@ export class Game {
       if (msEl) msEl.textContent = `${(delta * 1000).toFixed(1)}ms`;
       if (drawEl) drawEl.textContent = `${this.renderer.info.render.calls} draws`;
     }
-  };
+  }
 }

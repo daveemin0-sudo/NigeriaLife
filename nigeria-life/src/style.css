@@ -8487,3 +8487,251 @@ body.ui-modal-open .place-card {
   }
 }
 
+
+/* =========================================
+   BUKA: the menu sheet and the order status line (same light surface as the place card)
+   ========================================= */
+.buka-menu {
+  position: fixed;
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100vh - 170px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.3), 0 1px 3px rgba(15, 23, 42, 0.08);
+  z-index: var(--z-modal-dialog);
+  pointer-events: auto;
+  font-family: 'Outfit', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  animation: placeCardRise 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.buka-menu-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.buka-menu-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.buka-menu-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.buka-menu-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.buka-menu-close {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  font-size: 20px;
+  line-height: 1;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.buka-menu-close:hover {
+  background: #e2e8f0;
+}
+
+.buka-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.buka-dish {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: #0f172a;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.buka-dish:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  transform: translateY(-1px);
+}
+
+.buka-dish:focus-visible,
+.buka-menu-close:focus-visible,
+.buka-status-btn:focus-visible {
+  outline: 3px solid #15803d;
+  outline-offset: 2px;
+}
+
+.buka-dish-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.buka-dish-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.buka-dish-name {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+
+.buka-dish-desc {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.buka-dish-price {
+  flex: none;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #15803d;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A dish the player cannot afford: still listed, and it says how much is missing */
+.buka-dish-short {
+  background: #ffffff;
+}
+
+.buka-dish-short .buka-dish-name,
+.buka-dish-short .buka-dish-price {
+  color: #94a3b8;
+}
+
+.buka-dish-short .buka-dish-desc {
+  color: #b45309;
+  font-weight: 700;
+}
+
+.buka-dish-short:hover {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  transform: none;
+}
+
+.buka-menu-note {
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 12px;
+}
+
+.buka-order-status {
+  position: fixed;
+  left: 50%;
+  bottom: 196px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.24);
+  z-index: var(--z-hud-active-interaction);
+  pointer-events: auto;
+  font-family: 'Outfit', 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* While an order is running, its status line takes the proximity prompt's place */
+body[data-ui-mode="interior"]:has(.buka-order-status[style*="flex"]) .hud-proximity-prompt {
+  display: none !important;
+}
+
+body.ui-modal-open .buka-order-status {
+  display: none !important;
+}
+
+.buka-status-icon {
+  font-size: 20px;
+}
+
+.buka-status-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.buka-status-name {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.buka-status-line {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.buka-status-btn {
+  flex: none;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.buka-status-btn:hover {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}

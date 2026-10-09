@@ -6,6 +6,8 @@ import type { GameCamera } from './Camera';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { NetworkManager } from '../multiplayer/NetworkManager';
+import { InteractionDirector } from '../interactions/InteractionDirector';
+import { Sequence, steps } from '../interactions/Sequence';
 
 export class InputManager {
   private camera: THREE.Camera;
@@ -195,7 +197,9 @@ export class InputManager {
           this.hud.showNotification(`📷 Camera View: ${names[next] || next}`);
         }
       } else if (k === 'e') {
-        if (this.hud.currentInteractionTarget) {
+        if (e.defaultPrevented) {
+          // The HUD's own E handler already acted on this key press
+        } else if (this.hud.currentInteractionTarget) {
           e.preventDefault();
           this.hud.executeCurrentInteraction();
         } else if (this.hud.currentActiveObject) {
@@ -339,6 +343,10 @@ export class InputManager {
   }
 
   private handleCanvasClick(clientX: number, clientY: number): void {
+    const actor = this.player.actor;
+    // Walking through a doorway cannot be interrupted
+    if (actor.sequence && !actor.sequence.interruptible) return;
+
     this.mouseCoords.x = (clientX / window.innerWidth) * 2 - 1;
     this.mouseCoords.y = -(clientY / window.innerHeight) * 2 + 1;
 
@@ -372,6 +380,11 @@ export class InputManager {
       if (isDirectInteractiveClick) {
         const hitObj = this.findInteractiveParent(closestBuildingHit.object);
         if (hitObj) {
+          if (actor.hold) {
+            // Seated: look at who or what was clicked without getting up (to wave across the room, say)
+            this.hud.showInteractionCard(hitObj);
+            return;
+          }
           this.approachAndInteract(hitObj);
           return;
         }
@@ -382,7 +395,7 @@ export class InputManager {
     if (floorHits.length > 0) {
       const clickPoint = floorHits[0].point;
       this.pendingInteraction = null;
-      this.player.setDestination(clickPoint);
+      this.walkPlayerTo(clickPoint);
       this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
       this.hud.hideInteractionCard();
     }
@@ -406,11 +419,43 @@ export class InputManager {
       this.hud.showInteractionCard(obj);
     } else {
       // Player is at a distance: approach the object first, then interact on arrival
-      this.player.setDestination(obj.interactionPoint);
       this.spawnClickMarker(obj.interactionPoint, 0xfacc15); // Golden approach target
-      this.pendingInteraction = obj;
       this.hud.hideInteractionCard();
+      const routed = this.walkPlayerTo(obj.interactionPoint, () => {
+        const lookDir = new THREE.Vector3().subVectors(obj.interactionPoint, this.player.position);
+        if (lookDir.lengthSq() > 0.01) this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+        this.hud.showInteractionCard(obj);
+      });
+      this.pendingInteraction = routed ? null : obj;
     }
+  }
+
+  /**
+   * Sends the player to a point. In a room with a floor map they walk around the furniture
+   * (and `onArrive` runs when they get there); elsewhere they walk straight, as before.
+   * Returns true if the routed walk was used.
+   */
+  private walkPlayerTo(point: THREE.Vector3, onArrive?: () => void, retried = false): boolean {
+    const interiors = this.world.interiorManager;
+    const nav = interiors.isPlayerInside() ? interiors.getActiveNav() : null;
+    const actor = this.player.actor;
+    if (!nav) {
+      if (actor.scripted && InteractionDirector.get().interrupt(actor) === 'locked') return false;
+      this.player.setDestination(point);
+      return false;
+    }
+    if (InteractionDirector.get().interrupt(actor) === 'locked') {
+      // Getting up from a chair comes first; set off as soon as that is done
+      const current = actor.sequence;
+      if (current && !retried) current.finished.then(() => this.walkPlayerTo(point, onArrive, true));
+      return true;
+    }
+    const walk = new Sequence('walk', [actor]).add(steps.walk(actor, point, { nav, speed: 5.5 }));
+    walk.onEnd((reason) => {
+      if (reason === 'done') onArrive?.();
+    });
+    InteractionDirector.get().run(walk);
+    return true;
   }
 
   private setCursor(state: 'default' | 'walk' | 'interact'): void {
@@ -680,6 +725,13 @@ export class InputManager {
       return;
     }
 
+    // No prompt while walking through a doorway or sitting at a table
+    const actor = this.player.actor;
+    if ((actor.sequence && !actor.sequence.interruptible) || actor.hold) {
+      if (this.hud.currentInteractionTarget) this.hud.setProximityTarget(null);
+      return;
+    }
+
     const isInside = this.world.interiorManager.isPlayerInside();
     let candidates: InteractiveObject[] = [];
 
@@ -759,6 +811,14 @@ export class InputManager {
       }
     }
 
+    // Pushing a movement key or the joystick breaks out of a scripted action that allows it
+    if (this.player.actor.scripted) {
+      const k = this.keys;
+      if (k['w'] || k['a'] || k['s'] || k['d'] || k['arrowup'] || k['arrowdown'] || k['arrowleft'] || k['arrowright']) {
+        InteractionDirector.get().interrupt(this.player.actor);
+      }
+    }
+
     // Continuously evaluate nearest proximity interactive target
     this.updateProximityTarget();
 
@@ -783,7 +843,7 @@ export class InputManager {
     }
 
     // Auto-dismiss interaction card if player moves far away
-    if (this.hud.currentActiveObject && !this.pendingInteraction) {
+    if (this.hud.currentActiveObject && !this.pendingInteraction && !this.player.actor.hold) {
       const activeDist = this.player.position.distanceTo(this.hud.currentActiveObject.interactionPoint);
       if (activeDist > 6.0) {
         this.hud.hideInteractionCard();

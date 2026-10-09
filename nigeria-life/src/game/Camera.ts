@@ -31,6 +31,9 @@ export class GameCamera {
   private roomFrameDistance: number = 30;
   private roomCenter: THREE.Vector3 | null = null;
   private roomRadius: number = 15;
+  /** 0 = whole-room view, 1 = moved in on the player (while they sit at a table, say) */
+  private closeUp: number = 0;
+  private closeUpTarget: number = 0;
 
   // Photo mode parameters
   public photoYaw: number = 0;
@@ -93,6 +96,13 @@ export class GameCamera {
     this.interiorYaw = INTERIOR_YAW;
     this.interiorPitch = INTERIOR_PITCH;
     this.currentPreset = 'street';
+    this.closeUp = 0;
+    this.closeUpTarget = 0;
+  }
+
+  /** Moves the room view in on the player, or back out to the whole room. */
+  public setCloseUp(on: boolean): void {
+    this.closeUpTarget = on ? 1 : 0;
   }
 
   private computeRoomFrameDistance(): number {
@@ -106,10 +116,11 @@ export class GameCamera {
   private interiorFocus(player: Player): THREE.Vector3 {
     const focus = new THREE.Vector3(player.position.x, 1.0, player.position.z);
     if (this.roomCenter) {
+      const follow = THREE.MathUtils.lerp(INTERIOR_FOLLOW, 0.95, this.closeUp);
       focus.set(
-        THREE.MathUtils.lerp(this.roomCenter.x, player.position.x, INTERIOR_FOLLOW),
+        THREE.MathUtils.lerp(this.roomCenter.x, player.position.x, follow),
         1.0,
-        THREE.MathUtils.lerp(this.roomCenter.z, player.position.z, INTERIOR_FOLLOW)
+        THREE.MathUtils.lerp(this.roomCenter.z, player.position.z, follow)
       );
     }
     return focus;
@@ -236,9 +247,10 @@ export class GameCamera {
    */
   public computeOffset(): THREE.Vector3 {
     if (this.mode === 'interior') {
-      const x = Math.sin(this.interiorYaw) * Math.cos(this.interiorPitch) * this.interiorDistance;
-      const y = Math.sin(this.interiorPitch) * this.interiorDistance;
-      const z = Math.cos(this.interiorYaw) * Math.cos(this.interiorPitch) * this.interiorDistance;
+      const distance = this.interiorDistance * THREE.MathUtils.lerp(1, 0.45, this.closeUp);
+      const x = Math.sin(this.interiorYaw) * Math.cos(this.interiorPitch) * distance;
+      const y = Math.sin(this.interiorPitch) * distance;
+      const z = Math.cos(this.interiorYaw) * Math.cos(this.interiorPitch) * distance;
       return new THREE.Vector3(x, y, z);
     } else {
       const x = Math.sin(this.yaw) * Math.cos(this.pitch) * this.distance;
@@ -308,6 +320,7 @@ export class GameCamera {
 
     if (this.mode === 'interior') {
       // Room diorama: the camera stays above a corner and drifts gently as the player walks
+      this.closeUp += (this.closeUpTarget - this.closeUp) * Math.min(1, delta * 3);
       const focus = this.interiorFocus(player);
       const roomLerp = Math.min(delta * 4.0, 1);
       this.currentLookAt.lerp(focus, roomLerp);

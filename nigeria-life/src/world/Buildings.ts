@@ -1,11 +1,25 @@
 import * as THREE from 'three';
+import { HingedDoor } from '../interactions/Door';
+import { InteractionDirector } from '../interactions/InteractionDirector';
 import type { InteractiveObject } from './World';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
 
+/** A door on the street that leads into a building's interior. */
+export interface StreetDoor {
+  buildingId: string;
+  door: HingedDoor;
+  /** Where to stand on the pavement in front of it */
+  outside: THREE.Vector3;
+  /** A point just through the doorway */
+  inside: THREE.Vector3;
+}
+
 export class Buildings {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
+  /** Street doors the player can walk through, keyed by the building they belong to */
+  public placeDoors: StreetDoor[] = [];
   public compoundGateMesh: THREE.Mesh | null = null;
   public isGateOpen: boolean = false;
   private gateTargetZ: number = 0;
@@ -76,6 +90,30 @@ export class Buildings {
   // =========================================================================
   // HELPER: Louvered Slatted Window with Concrete Lintel and Sill
   // =========================================================================
+  /** A painted name board: a place's name, readable from the street. */
+  private static createNameBoardTexture(name: string, tagline: string): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 832;
+    canvas.height = 200;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(0, 0, 832, 200);
+    ctx.strokeStyle = '#15803d';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(7, 7, 818, 186);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#7f1d1d';
+    ctx.font = '900 92px Inter, system-ui, sans-serif';
+    ctx.fillText(name, 416, 108, 780);
+    ctx.fillStyle = '#15803d';
+    ctx.font = '700 40px Inter, system-ui, sans-serif';
+    ctx.fillText(tagline, 416, 164, 780);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
+  }
+
   private createWindow(w: number, h: number): THREE.Group {
     const winGroup = new THREE.Group();
 
@@ -366,15 +404,65 @@ export class Buildings {
     table.receiveShadow = true;
     bukaGroup.add(table);
 
+    // Front door, between the veranda posts, with the name over it
+    const doorZ = 1.9;
+    const doorway = new THREE.Group();
+    doorway.position.set(4.17, 0, doorZ); // on the pavement, in front of the plinth
+    doorway.rotation.y = Math.PI / 2; // faces Broad Street
+    bukaGroup.add(doorway);
+
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x3f1d0b, roughness: 0.8 });
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.5, 0.2), frameMat);
+      post.position.set(side * 0.68, 1.25, 0.06);
+      doorway.add(post);
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.16, 0.2), frameMat);
+    lintel.position.set(0, 2.5, 0.06);
+    doorway.add(lintel);
+
+    // What shows through the open door: the dim room beyond
+    const recess = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.2, 2.42),
+      new THREE.MeshBasicMaterial({ color: 0x1c0f07 })
+    );
+    recess.position.set(0, 1.21, 0.03);
+    doorway.add(recess);
+
+    const bukaDoor = new HingedDoor({
+      width: 1.2,
+      height: 2.4,
+      material: new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.55 }),
+      swing: -1.9,
+    });
+    bukaDoor.group.position.z = 0.1;
+    doorway.add(bukaDoor.group);
+    InteractionDirector.get().addDoor(bukaDoor);
+
+    const nameBoard = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.1, 0.5),
+      new THREE.MeshBasicMaterial({ map: Buildings.createNameBoardTexture('MAMA PUT BUKA', 'Hot food · Come in') })
+    );
+    nameBoard.position.set(0, 2.86, 0.09); // just over the door, under the awning
+    doorway.add(nameBoard);
+
     this.group.add(bukaGroup);
+
+    const doorWorld = new THREE.Vector3(bukaGroup.position.x + 4.17, 0, bukaGroup.position.z + doorZ);
+    this.placeDoors.push({
+      buildingId: 'mama-put',
+      door: bukaDoor,
+      outside: new THREE.Vector3(doorWorld.x + 2.4, 0, doorWorld.z),
+      inside: new THREE.Vector3(doorWorld.x - 1.5, 0, doorWorld.z),
+    });
 
     this.interactiveList.push({
       mesh: bukaGroup,
       id: 'mama-put',
-      name: 'Mama Put - Special Bukateria',
+      name: 'Mama Put Buka',
       category: 'Food & Health',
-      description: 'Hot smoky Party Jollof, spicy Asun, and Pounded Yam. Eat to restore 100% energy!',
-      interactionPoint: new THREE.Vector3(-9.5, 0, -10),
+      description: 'Jollof, fried rice, amala, eba and suya, served at your table. Walk in through the green door.',
+      interactionPoint: new THREE.Vector3(doorWorld.x + 2.4, 0, doorWorld.z),
     });
   }
 

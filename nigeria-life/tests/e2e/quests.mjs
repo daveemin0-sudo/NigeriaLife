@@ -1,5 +1,5 @@
 // Story quests advance when the player actually does the thing: eat, work, drive, travel.
-import { open, reload, wait, money, quest, newPlayer, enterInterior, leaveInterior, closeDialogs, useStation } from './lib.mjs';
+import { open, reload, wait, money, quest, newPlayer, enterInterior, leaveInterior, closeDialogs, useStation, playUntil } from './lib.mjs';
 
 export async function run(browser, check) {
   // --- Chapter 1 through the phone, chapter 2 by driving, then the Abuja arc by flying
@@ -76,8 +76,15 @@ export async function run(browser, check) {
   ctx = await newPlayer(browser);
   const { page: p2 } = await open(ctx);
   await enterInterior(p2, 'restaurant');
+  // At the buka a meal is ordered from the menu, brought to the table and eaten there
   const meal = await useStation(p2, 'buka_food_counter');
-  check('a buka meal completes the "eat" objective', (await quest(p2, 'quest_lagos_1')).obj.obj_l1_eat === true, meal);
+  await wait(200);
+  await p2.click('.buka-dish[data-dish="jollof_rice"]');
+  const ate = await playUntil(p2, () => {
+    const q = window.game.hud.questManager.getAllQuests().find((x) => x.id === 'quest_lagos_1');
+    return q.objectives.find((o) => o.id === 'obj_l1_eat').isCompleted ? true : null;
+  }, 60);
+  check('a buka meal completes the "eat" objective', !!ate && (await quest(p2, 'quest_lagos_1')).obj.obj_l1_eat === true, meal);
   await closeDialogs(p2);
   await leaveInterior(p2);
   const m0 = await money(p2);

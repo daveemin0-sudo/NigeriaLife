@@ -23,6 +23,8 @@ import { NetworkManager } from '../multiplayer/NetworkManager';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
 import { emitGameEvent } from '../game/GameEvents';
+import { InteractionDirector } from '../interactions/InteractionDirector';
+import { waveAt } from '../interactions/Social';
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
@@ -62,6 +64,8 @@ export class HUD {
   public onEnterVehicle?: (vehicleId: string) => void;
   public onEnterInterior?: (buildingId: string) => void;
   public onExitInterior?: () => void;
+  /** Opens the buka's menu; a table number seats the player at that table */
+  public onOpenBukaMenu?: (preferTable?: number) => void;
   public onNavigateMode?: (mode: 'street' | 'home' | 'map') => void;
   public onRadarNavigate?: (destId: string) => void;
   public onRotateCamera?: (deltaYaw: number) => void;
@@ -329,6 +333,7 @@ export class HUD {
         <div class="card-actions">
           <button class="btn-primary" id="card-action-btn">Enter / Order</button>
           <button class="btn-secondary" id="card-biz-btn" style="display: none;">💼 View Business [E]</button>
+          <button class="btn-secondary" id="card-wave-btn" style="display: none;">👋 Wave</button>
         </div>
       </div>
 
@@ -371,6 +376,16 @@ export class HUD {
 
     const actionBtn = document.getElementById('card-action-btn') as HTMLButtonElement;
     actionBtn.addEventListener('click', () => this.handleCardAction());
+
+    // Wave at whoever this card is about; they wave back
+    const waveBtn = document.getElementById('card-wave-btn') as HTMLButtonElement;
+    waveBtn.addEventListener('click', () => {
+      const person = this.currentActiveObject && InteractionDirector.get().actorFor(this.currentActiveObject.id);
+      this.hideInteractionCard();
+      if (!person) return;
+      const waved = waveAt(this.player.actor, person);
+      if (!waved.ok) this.showNotification('Finish what you are doing first.');
+    });
 
     const bizBtn = document.getElementById('card-biz-btn') as HTMLButtonElement;
     bizBtn.addEventListener('click', () => {
@@ -1222,11 +1237,14 @@ export class HUD {
     } else if (obj.id === 'bank_manager_desk') {
       btnEl.textContent = '💼 Apply for Lagos SME Loan (+₦50,000)';
       bizBtn.style.display = 'none';
-    } else if (obj.id === 'buka_food_counter') {
-      btnEl.textContent = '🍲 Order Firewood Party Jollof (₦1,800)';
+    } else if (obj.id === 'buka_food_counter' || obj.id === 'interior_npc_npc_mama_nkechi') {
+      btnEl.textContent = '📋 See the menu';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'buka_table_vip') {
-      btnEl.textContent = '🍽️ Sit Down & Chop Life (₦2,500)';
+      btnEl.textContent = '🪑 Sit here & order';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'interior_npc_npc_waiter_segun') {
+      btnEl.textContent = '📋 Ask Segun for the menu';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'police_front_desk') {
       btnEl.textContent = '📝 Area Command Desk & Clearance Services [E]';
@@ -1405,6 +1423,10 @@ export class HUD {
       btnEl.textContent = 'Enter / Inspect';
       bizBtn.style.display = 'none';
     }
+
+    // Anyone the interaction system can direct can be waved at
+    const waveBtn = document.getElementById('card-wave-btn') as HTMLButtonElement;
+    waveBtn.style.display = InteractionDirector.get().actorFor(obj.id) ? 'inline-block' : 'none';
 
     this.interactionCard.style.display = 'block';
     UIStateManager.getInstance().setCardOpen(true);
@@ -2133,62 +2155,14 @@ export class HUD {
         });
       }
       return;
-    } else if (id === 'buka_food_counter') {
-      const success = this.backend.spendCash(1800, 'Firewood Party Jollof & Chicken', 'FOOD_PURCHASE');
-      if (success) {
-        emitGameEvent('eat');
-        this.backend.restoreEnergy(100);
-        this.backend.restoreHealth(30);
-        this.backend.addItem({
-          id: `takeaway_jollof_${Date.now()}`,
-          name: 'Takeaway Firewood Jollof Pack',
-          category: 'food',
-          icon: '🍲',
-          description: 'Insulated foil takeaway pack with spicy firewood party jollof and chicken.',
-          price: 1800,
-          usable: true,
-          energyRestore: 60,
-        });
-        this.showDialogueModal({
-          speakerName: 'Mama Nkechi',
-          speakerRole: 'Chop Life Buka Lead Chef',
-          speakerAvatar: '🍲',
-          soundType: 'cheer',
-          dialogueText: 'Oya chop life! Smoky firewood Jollof dished fresh for you! Energy restored to 100%, and extra takeaway packed in your bag!',
-          rewards: { energy: 100, health: 30, item: { name: 'Takeaway Firewood Jollof Pack', icon: '🍲' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Chop Life Counter',
-          speakerRole: 'Mama Put Cashier',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦1,800 cash for firewood party jollof & chicken!',
-        });
-      }
+    } else if (id === 'buka_food_counter' || id === 'interior_npc_npc_mama_nkechi' || id === 'interior_npc_npc_waiter_segun') {
+      // Ordering is acted out in the room: seat, cook, waiter, plate. The menu only starts it.
+      this.hideInteractionCard();
+      this.onOpenBukaMenu?.();
       return;
     } else if (id === 'buka_table_vip') {
-      const success = this.backend.spendCash(2500, 'VIP Chapman & Pepper Soup Platter', 'FOOD_PURCHASE');
-      if (success) {
-        emitGameEvent('eat');
-        this.backend.restoreEnergy(100);
-        this.backend.restoreHealth(50);
-        this.backend.addStreetCred(20);
-        this.showDialogueModal({
-          speakerName: 'Waiter Segun',
-          speakerRole: 'VIP Table Service',
-          speakerAvatar: '🍹',
-          soundType: 'cheer',
-          dialogueText: 'Chilled Chapman and catfish pepper soup served! Total relaxation achieved! Energy 100%, Street Cred +20!',
-          rewards: { energy: 100, health: 50, streetCred: 20 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'VIP Lounge',
-          speakerRole: 'Table Reservation',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦2,500 cash for VIP table & pepper soup!',
-        });
-      }
+      this.hideInteractionCard();
+      this.onOpenBukaMenu?.(0);
       return;
     } else if (id === 'street-checkpoint') {
       this.hideInteractionCard();

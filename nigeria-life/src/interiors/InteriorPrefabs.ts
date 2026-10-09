@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { HingedDoor } from '../interactions/Door';
+import { InteractionDirector } from '../interactions/InteractionDirector';
 
 export class InteriorPrefabs {
   // Shared materials for efficient draw calls
@@ -88,17 +90,23 @@ export class InteriorPrefabs {
     doorGroup.position.copy(pos);
     doorGroup.rotation.y = rotY;
 
-    // Door frame
-    const frameGeo = new THREE.BoxGeometry(2.4, 3.2, 0.2);
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
-    const frame = new THREE.Mesh(frameGeo, frameMat);
-    frame.position.y = 1.6;
-    doorGroup.add(frame);
+    doorGroup.name = 'interior_exit_door';
 
-    // Glass double doors
-    const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.9, 0.05), this.matGlass);
-    doorGlass.position.y = 1.5;
-    doorGroup.add(doorGlass);
+    // Door frame: two posts and a lintel around an opening the player can walk through
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.45, 3.2, 0.2), frameMat);
+      post.position.set(side * 0.975, 1.6, 0);
+      doorGroup.add(post);
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 0.2), frameMat);
+    lintel.position.y = 3.05;
+    doorGroup.add(lintel);
+
+    // Glass door on a hinge; it swings outward, away from the room
+    const door = new HingedDoor({ width: 1.5, height: 2.9, material: this.matGlass, swing: 1.75, thickness: 0.05 });
+    doorGroup.add(door.group);
+    doorGroup.userData.door = InteractionDirector.get().addDoor(door);
 
     // Glowing Green "EXIT TO STREET" Sign
     const signGeo = new THREE.BoxGeometry(1.6, 0.5, 0.15);

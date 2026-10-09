@@ -24,7 +24,7 @@ const SPOT_CHIPS: Record<string, { icon: string; label: string }> = {
   bank_teller_station: { icon: '💱', label: 'Teller' },
   bank_manager_desk: { icon: '💼', label: 'Loans desk' },
   buka_food_counter: { icon: '🍲', label: 'Food counter' },
-  buka_table_vip: { icon: '🍽️', label: 'VIP table' },
+  buka_table_vip: { icon: '🪑', label: 'Free table' },
   police_front_desk: { icon: '📝', label: 'Front desk' },
   police_holding_cell: { icon: '⚖️', label: 'Holding cell' },
   unilag_lecture_podium: { icon: '🎓', label: 'Lecture hall' },

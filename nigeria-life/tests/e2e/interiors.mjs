@@ -1,6 +1,6 @@
 // Every interior: each station, NPC and exit door can be reached with the E prompt,
 // and the door actually lets the player out.
-import { open, wait, newPlayer } from './lib.mjs';
+import { open, wait, newPlayer, playUntil } from './lib.mjs';
 
 const TYPES = ['hospital', 'bank', 'restaurant', 'police', 'residence', 'university', 'airport'];
 
@@ -34,7 +34,7 @@ export async function run(browser, check) {
         g.hud.hideInteractionCard();
         g.player.stopMoving();
         g.player.mesh.position.set(x.interactionPoint.x, 0, x.interactionPoint.z);
-        await new Promise((r) => setTimeout(r, 220));
+        await window.game.advance(0.1);
         const p = g.player.mesh.position;
         return { target: g.hud.currentInteractionTarget?.id || null, pushedBack: +Math.hypot(p.x - x.interactionPoint.x, p.z - x.interactionPoint.z).toFixed(1) };
       }, o.id);
@@ -53,12 +53,15 @@ export async function run(browser, check) {
       if (!d) return { hasDoor: false };
       g.hud.hideInteractionCard();
       g.player.mesh.position.set(d.interactionPoint.x, 0, d.interactionPoint.z);
-      await new Promise((r) => setTimeout(r, 250));
+      await window.game.advance(0.1); // a frame of game logic, so the prompt reflects the new position
       return { hasDoor: true, prompt: g.hud.currentInteractionTarget?.id || null };
     });
     await page.keyboard.press('e');
-    await wait(1100);
-    const out = await page.evaluate(() => !window.game.world.interiorManager.isPlayerInside());
+    // The player opens the door and walks out through it, which takes a moment
+    const out = !!(await playUntil(page, () => {
+      const g = window.game;
+      return !g.world.interiorManager.isPlayerInside() && !g.world.interiorManager.busy && !g.player.actor.sequence ? true : null;
+    }, 20));
     check(`${type}: E at the exit door leaves the interior`, out, out ? undefined : door);
     if (!out) {
       await page.evaluate(() => { const g = window.game; return g.world.interiorManager.exitCurrentInterior(g.player, g.cameraManager, g.hud, g.world); });

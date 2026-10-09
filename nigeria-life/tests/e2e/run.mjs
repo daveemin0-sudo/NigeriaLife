@@ -5,7 +5,7 @@
 //   npm run test:e2e money (one suite: interiors | places | quests | money | saves)
 import { launch, reporter, GAME_URL } from './lib.mjs';
 
-const SUITES = ['interiors', 'places', 'quests', 'money', 'saves'];
+const SUITES = ['interiors', 'places', 'buka', 'quests', 'money', 'saves'];
 const wanted = process.argv.slice(2);
 const unknown = wanted.filter((name) => !SUITES.includes(name));
 if (unknown.length) {

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { InteractiveObject } from './World';
 import { HumanMeshBuilder, type HumanRig, type Gender } from '../graphics/HumanMeshBuilder';
+import { Actor } from '../interactions/Actor';
+import { InteractionDirector } from '../interactions/InteractionDirector';
 
 interface AmbientPedestrian {
   group: THREE.Group;
@@ -30,7 +32,8 @@ export class NPCs {
   private pedestrians: AmbientPedestrian[] = [];
 
   // Animated story character rigs
-  private storyRigs: { rig: HumanRig; animState: string }[] = [];
+  private storyRigs: { rig: HumanRig; animState: string; actor?: Actor }[] = [];
+  private hawkerActor: Actor | null = null;
   private storyAnimTime: number = 0;
 
   // Key interactive Hawker
@@ -48,6 +51,29 @@ export class NPCs {
 
     // 2. Ambient Lagos Sidewalk Crowd (diverse anatomical citizens)
     this.createSidewalkCrowd();
+
+    // 3. The named characters can be directed by scripted interactions (waving back, for a start)
+    this.registerActors();
+  }
+
+  private registerActors(): void {
+    const director = InteractionDirector.get();
+    for (const entry of this.interactiveList) {
+      const root = entry.mesh;
+      if (root === this.hawkerGroup) {
+        this.hawkerActor = director.register(
+          new Actor({ id: `npc:${entry.id}`, name: entry.name, root, getRig: () => this.hawkerRig }),
+          entry.id
+        );
+        continue;
+      }
+      const story = this.storyRigs.find((item) => item.rig.group.parent === root);
+      if (!story) continue;
+      story.actor = director.register(
+        new Actor({ id: `npc:${entry.id}`, name: entry.name, root, getRig: () => story.rig }),
+        entry.id
+      );
+    }
   }
 
   // =========================================================================
@@ -447,7 +473,9 @@ export class NPCs {
     this.storyAnimTime += delta;
 
     // 1. Animate Drinks Hawker patrolling the street
-    if (this.hawkerGroup && this.hawkerRig) {
+    if (this.hawkerGroup && this.hawkerRig && !this.hawkerActor?.scripted) {
+      // Head back along the patrol line after stopping to greet someone
+      this.hawkerGroup.rotation.y = this.hawkerDir > 0 ? 0 : Math.PI;
       this.hawkerGroup.position.z += this.hawkerDir * this.hawkerSpeed * delta;
       this.hawkerWalkTime += delta * 6.5;
       this.hawkerRig.updateAnimation(this.hawkerWalkTime, 'walk');
@@ -463,6 +491,7 @@ export class NPCs {
 
     // 2. Animate Story Character Rigs
     for (const story of this.storyRigs) {
+      if (story.actor?.scripted) continue;
       story.rig.updateAnimation(this.storyAnimTime, story.animState);
     }
 

@@ -466,6 +466,15 @@ export class BackendService {
     };
   }
 
+  /** One mouthful of a meal that has already been paid for. */
+  public eatBite(hunger: number, energy: number, health: number): void {
+    const stats = this.data.stats;
+    stats.hunger = Math.min(100, stats.hunger + Math.max(0, hunger));
+    stats.energy = Math.min(100, stats.energy + Math.max(0, energy));
+    stats.health = Math.min(100, stats.health + Math.max(0, health));
+    this.saveData();
+  }
+
   public restAtHome(): { success: boolean; message: string } {
     this.data.stats.energy = 100;
     this.data.stats.health = 100;

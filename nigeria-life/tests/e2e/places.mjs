@@ -1,6 +1,6 @@
 // Getting around without the keyboard: the room view shows the whole room, every station has a
 // shortcut you can tap, and the map's pins lead to a sheet whose Go button takes you there.
-import { open, wait, money, newPlayer, enterInterior, leaveInterior } from './lib.mjs';
+import { open, wait, money, newPlayer, enterInterior, leaveInterior, leaveByDoor } from './lib.mjs';
 
 const TYPES = ['hospital', 'bank', 'restaurant', 'police', 'residence', 'university', 'airport'];
 
@@ -49,8 +49,7 @@ export async function run(browser, check) {
   const m1 = await money(page);
   check('the pharmacy purchase then works by mouse alone (₦1,800)', m0.cash - m1.cash === 1800, { paid: m0.cash - m1.cash });
   await page.evaluate(() => document.getElementById('dialogue-confirm-btn')?.click());
-  await page.click('#place-leave-btn');
-  await wait(1500);
+  await leaveByDoor(page);
   const left = await page.evaluate(() => ({ inside: window.game.world.interiorManager.isPlayerInside(), card: document.getElementById('place-card').style.display }));
   check('the Leave button exits and the place card goes away', !left.inside && left.card === 'none', left);
 
@@ -87,8 +86,7 @@ export async function run(browser, check) {
   const after = await money(page);
   const arrived = await page.evaluate(() => ({ inside: window.game.world.interiorManager.currentInterior?.type || null, mapOpen: window.game.world.worldMap.isActive }));
   check('Go by keke charges the ₦400 fare and takes the player inside the hospital', before.cash - after.cash === 400 && arrived.inside === 'hospital' && !arrived.mapOpen, { fare: before.cash - after.cash, ...arrived });
-  await page.click('#place-leave-btn');
-  await wait(1500);
+  await leaveByDoor(page);
 
   // --- A fare the player cannot afford keeps them on the map
   await page.evaluate(() => { const be = window.game.hud.backend; be.depositToBank(be.getData().walletCash); });

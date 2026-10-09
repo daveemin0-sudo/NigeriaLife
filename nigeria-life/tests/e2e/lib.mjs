@@ -28,7 +28,11 @@ export async function launch() {
     headless: 'new',
     args: [
       // Real GPU rendering, so WebGL behaves as it does for a player
-      '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist',
+      ...(process.platform === 'win32'
+        ? ['--use-angle=d3d11', '--enable-gpu']
+        // No GPU on Linux servers and CI: software WebGL, and no sandbox when running as root
+        : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox']),
+      '--ignore-gpu-blocklist',
       '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
       '--disable-backgrounding-occluded-windows',
     ],
@@ -50,6 +54,25 @@ export async function open(ctx, opts = {}) {
   await page.waitForFunction('window.game', { timeout: 120000 });
   await wait(opts.settle ?? 3000);
   return { page, log };
+}
+
+/** Runs the game forward by this many seconds of game time, without waiting for it to be drawn. */
+export const advance = (page, seconds) => page.evaluate((s) => window.game.advance(s), seconds);
+
+/**
+ * Plays the game forward until `test` (a function run in the page) returns something truthy,
+ * and returns that value. Returns null if it has not happened after `seconds` of game time.
+ */
+export async function playUntil(page, test, seconds = 30, arg) {
+  const deadline = Date.now() + 120000;
+  for (let played = 0; played <= seconds && Date.now() < deadline; played += 0.25) {
+    const value = await page.evaluate(test, arg);
+    if (value) return value;
+    await advance(page, 0.25);
+    // Fades and other timers run on the real clock
+    await wait(40);
+  }
+  return null;
 }
 
 export async function reload(page, settle = 2500) {
@@ -78,6 +101,15 @@ export async function leaveInterior(page) {
   await wait(900);
 }
 
+/** Leaves the current building the way a player does: the Leave button, then the walk out of the door. */
+export async function leaveByDoor(page) {
+  await page.click('#place-leave-btn');
+  return playUntil(page, () => {
+    const g = window.game;
+    return !g.world.interiorManager.isPlayerInside() && !g.world.interiorManager.busy && !g.player.actor.sequence ? true : null;
+  }, 30);
+}
+
 export async function closeDialogs(page) {
   await page.evaluate(() => document.getElementById('dialogue-confirm-btn')?.click());
   if (await page.evaluate(() => !!document.getElementById('game-dialogue-overlay'))) await page.keyboard.press('Escape');
@@ -99,7 +131,7 @@ export async function useStation(page, id, inside = true) {
     g.hud.hideInteractionCard();
     g.player.stopMoving();
     g.player.mesh.position.set(o.interactionPoint.x, 0, o.interactionPoint.z);
-    await new Promise((r) => setTimeout(r, 250));
+    await window.game.advance(0.1); // a frame of game logic, so the prompt reflects the new position
     return g.hud.currentInteractionTarget?.id || 'no-prompt';
   }, { id, inside });
   if (prompt !== id) return { ok: false, prompt };

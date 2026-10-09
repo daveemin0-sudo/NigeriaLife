@@ -1,14 +1,66 @@
 import * as THREE from 'three';
-import type { InteriorDefinition } from '../InteriorTypes';
+import type { InteriorDefinition, InteriorNPCDef } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
+import type { NavGrid } from '../../interactions/NavGrid';
+import { BukaService, COUNTER_FRONT, WAITER_POST, COOK_POST } from '../buka/BukaService';
+
+const ROOM = { width: 24, length: 22, height: 4.5 };
+
+/** Regulars who are already at their tables. `seat` counts four per table, clockwise from the east chair. */
+const DINERS: Array<{ def: Omit<InteriorNPCDef, 'relativePosition' | 'rotationY'>; seat: number; dish: string; eaten: number }> = [
+  {
+    seat: 4 + 3,
+    dish: 'amala',
+    eaten: 0.3,
+    def: {
+      id: 'npc_baba_tunde',
+      name: 'Baba Tunde',
+      role: 'Customer',
+      title: 'Regular',
+      outfitColor: 0x1d4ed8,
+      dialogueGreeting: 'Ah, you don come! The amala here no get part two. Sit down, order, make you chop.',
+      actions: [],
+    },
+  },
+  {
+    seat: 4 + 0,
+    dish: 'fried_rice',
+    eaten: 0.5,
+    def: {
+      id: 'npc_aunty_bisi',
+      name: 'Aunty Bisi',
+      role: 'Customer',
+      title: 'Regular',
+      outfitColor: 0xbe185d,
+      dialogueGreeting: 'My dear, how far? Tell Segun to give you extra dodo, say na Aunty Bisi send you.',
+      actions: [],
+    },
+  },
+  {
+    seat: 8 + 3,
+    dish: 'jollof_rice',
+    eaten: 0.15,
+    def: {
+      id: 'npc_kunle',
+      name: 'Kunle',
+      role: 'Customer',
+      title: 'Lunch break',
+      outfitColor: 0x0f766e,
+      dialogueGreeting: 'Boss, I get thirty minutes break and I dey use am well. This jollof na firewood, I swear.',
+      actions: [],
+    },
+  },
+];
 
 export class RestaurantInterior {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
+  /** Table service: orders, seats, the cook and the waiter */
+  public service: BukaService;
   private smokeParticles: THREE.Mesh[] = [];
 
   constructor() {
@@ -16,18 +68,19 @@ export class RestaurantInterior {
     // Isolated coordinate area for the restaurant interior
     const origin = new THREE.Vector3(260, 0, 240);
     this.group.position.copy(origin);
+    this.service = new BukaService(this.group, origin, ROOM.width, ROOM.length);
 
     this.def = {
       id: 'interior_restaurant',
-      name: 'Mama Put Special Bukateria & Grill',
+      name: 'Mama Put Buka',
       type: 'restaurant',
       tier: 'tier3_simulated',
-      districtName: 'Broad Street Food & Culture Strip',
+      districtName: 'Broad Street, Lagos Island',
       streetBuildingId: 'mama-put',
-      streetEntrance: new THREE.Vector3(-9.5, 0, -10), // Outside buka door
+      streetEntrance: new THREE.Vector3(-9.5, 0, -10), // Replaced by the street door's position when it registers
       streetExitRotation: -Math.PI / 2,
       interiorOrigin: origin,
-      playerSpawnOffset: new THREE.Vector3(0, 0, 9),
+      playerSpawnOffset: new THREE.Vector3(0, 0, 8.6),
       exitDoorOffset: new THREE.Vector3(0, 0, 11),
       cameraOffset: new THREE.Vector3(0, 14, 18),
       ambientLightColor: 0xffedd5,
@@ -35,70 +88,30 @@ export class RestaurantInterior {
       rooms: [
         {
           id: 'buka_dining_hall',
-          name: 'Main Buka Dining Room & Open Kitchen',
-          size: { width: 24, length: 22, height: 4.5 },
+          name: 'Dining room & open kitchen',
+          size: ROOM,
           centerOffset: new THREE.Vector3(0, 0, 0),
           floorColor: 0xfef3c7, // Warm terracotta tile
           wallColor: 0x78350f,  // Warm wooden and amber rustic walls
         },
       ],
+      // What is on offer and what it costs lives in buka/BukaMenu.ts; ordering is the same at either spot
       stations: [
         {
           id: 'buka_food_counter',
-          name: 'Mama Put Serving Counter & Food Warmer',
-          category: 'Food Order Station',
-          description: 'Hot steel trays filled with spicy Asun, steaming Party Jollof, Fried Rice, and Egusi.',
-          relativePosition: new THREE.Vector3(-4, 0, -5),
-          actions: [
-            {
-              id: 'order_party_jollof',
-              label: '🍲 Order Firewood Party Jollof & Fried Chicken (₦1,800)',
-              description: 'Authentic smoky Nigerian party jollof with sweet fried plantain and crispy chicken.',
-              cost: 1800,
-              rewardEnergy: 100,
-              rewardHealth: 30,
-              itemReward: {
-                id: 'takeaway_party_jollof',
-                name: 'Takeaway Firewood Jollof Pack',
-                category: 'food',
-                icon: '🍲',
-                description: 'Insulated foil takeaway pack with spicy firewood party jollof and fried chicken.',
-                price: 1800,
-                usable: true,
-                energyRestore: 60,
-              },
-              dialogueResponse: '🍲 Mama Nkechi: "Oya chop life! Smoky firewood Jollof dished fresh for you! Energy restored to 100%, and extra takeaway packed in your bag!"',
-            },
-            {
-              id: 'order_amala_special',
-              label: '🍲 Order Hot Amala Dudu + Abula & Goat Meat (₦2,200)',
-              description: 'Steaming hot yam flour amala with ewedu, gbegiri, and spicy tender goat meat.',
-              cost: 2200,
-              rewardEnergy: 100,
-              rewardHealth: 45,
-              rewardCred: 15,
-              dialogueResponse: '🍲 Mama Nkechi: "Hot Amala and Abula served with tender goat meat! Eat and be strong! 100% Energy restored, Street Cred +15!"',
-            },
-          ],
+          name: 'Serving counter',
+          category: 'Order food',
+          description: 'Jollof, fried rice, amala, eba and suya. Order here, take a seat, and Segun brings it to your table.',
+          relativePosition: COUNTER_FRONT.clone(),
+          actions: [],
         },
         {
           id: 'buka_table_vip',
-          name: 'Central Dining Table & Pepper Soup Section',
-          category: 'Dining Table',
-          description: 'Comfortable dining table with fresh chilled Chapman, cold Malt, and pepper soup.',
-          relativePosition: new THREE.Vector3(4, 0, 2),
-          actions: [
-            {
-              id: 'sit_and_dine',
-              label: '🍽️ Sit Down & Enjoy Chilled Chapman & Pepper Soup (₦2,500)',
-              description: 'Take a seat, sip ice-cold Chapman mocktail, and enjoy hot catfish pepper soup.',
-              cost: 2500,
-              rewardEnergy: 100,
-              rewardHealth: 50,
-              rewardCred: 20,
-              dialogueResponse: '🍹 Waiter Segun: "Chilled Chapman with angostura bitters and catfish pepper soup served! Total relaxation achieved!"',
-            },
-          ],
+          name: 'Free table',
+          category: 'Dining table',
+          description: 'Sit down and order from your seat. You pay when the food reaches the table.',
+          relativePosition: new THREE.Vector3(4, 0, 4.23),
+          actions: [],
         },
       ],
       npcs: [
@@ -106,8 +119,8 @@ export class RestaurantInterior {
           id: 'npc_mama_nkechi',
           name: 'Mama Nkechi',
           role: 'Chef',
-          title: 'Owner & Executive Cook',
-          relativePosition: new THREE.Vector3(-4, 0, -6.5),
+          title: 'Owner & cook',
+          relativePosition: COOK_POST.clone(),
           rotationY: 0,
           outfitColor: 0xd97706, // Golden amber chef dress
           hasChefHat: true,
@@ -118,11 +131,11 @@ export class RestaurantInterior {
           id: 'npc_waiter_segun',
           name: 'Segun',
           role: 'Waiter',
-          title: 'Head Server',
-          relativePosition: new THREE.Vector3(4, 0, 0.5),
-          rotationY: Math.PI,
+          title: 'Head server',
+          relativePosition: WAITER_POST.clone(),
+          rotationY: 0,
           outfitColor: 0x15803d, // Green server apron
-          dialogueGreeting: 'Good day Sah! Table is ready for you. Can I get you chilled Malt, palm wine, or fresh Chapman?',
+          dialogueGreeting: 'Good day! Pick anything from the menu and take a seat. I will bring it to your table.',
           actions: [],
         },
       ],
@@ -131,9 +144,25 @@ export class RestaurantInterior {
     this.build3DInterior();
   }
 
+  /** Floor map used to walk characters around the tables and the counter. */
+  public get nav(): NavGrid {
+    return this.service.nav;
+  }
+
+  public onPlayerEntered(): void {
+    this.service.playerEntered();
+  }
+
+  public onPlayerLeft(): void {
+    this.service.playerLeft();
+  }
+
   private build3DInterior(): void {
+    const origin = this.group.position;
+    const worldPoint = (x: number, z: number) => new THREE.Vector3(origin.x + x, 0, origin.z + z);
+
     // 1. Room structure
-    const room = InteriorPrefabs.createRoom(24, 22, 4.5, 0xfef3c7, 0x78350f);
+    const room = InteriorPrefabs.createRoom(ROOM.width, ROOM.length, ROOM.height, 0xfef3c7, 0x78350f);
     this.group.add(room);
 
     // 2. Warm ambient lanterns & ceiling lights
@@ -148,22 +177,19 @@ export class RestaurantInterior {
     this.interactiveList.push({
       mesh: exitDoor,
       id: 'interior_exit_door',
-      name: 'Mama Put Exit Door',
+      name: 'Door to Broad Street',
       category: 'Exit to Street',
-      description: 'Step outside back to the bustling Broad Street market.',
-      interactionPoint: new THREE.Vector3(this.group.position.x, 0, this.group.position.z + 10),
+      description: 'Step back out onto Broad Street.',
+      interactionPoint: worldPoint(0, 9.7),
     });
 
-    // 4. Food Stations
-    // Food warmer buffet counter
+    // 4. Kitchen: food warmer counter, stove, steam. Tables, chairs and the pass come from the service.
     const foodWarmer = InteriorPrefabs.createFoodWarmer(new THREE.Vector3(-4, 0, -5), 0);
     this.group.add(foodWarmer);
 
-    // Kitchen industrial stove behind counter
     const stove = InteriorPrefabs.createKitchenStove(new THREE.Vector3(-4, 0, -8.5), 0);
     this.group.add(stove);
 
-    // Dynamic Steam / Smoke rising from the pots
     for (let p = 0; p < 5; p++) {
       const smokeGeo = new THREE.DodecahedronGeometry(0.18 + p * 0.08);
       const smokeMat = new THREE.MeshBasicMaterial({
@@ -177,48 +203,57 @@ export class RestaurantInterior {
       this.group.add(smoke);
     }
 
-    // Dining Tables
-    const table1 = InteriorPrefabs.createDiningTable(new THREE.Vector3(4, 0, 2));
-    const table2 = InteriorPrefabs.createDiningTable(new THREE.Vector3(4, 0, -4));
-    const table3 = InteriorPrefabs.createDiningTable(new THREE.Vector3(-4, 0, 4));
-    this.group.add(table1);
-    this.group.add(table2);
-    this.group.add(table3);
-
-    // 5. Build NPCs
+    // 5. Staff
     for (const npcDef of this.def.npcs) {
       const npcMesh = new InteriorNPCMesh(npcDef);
       this.npcs.push(npcMesh);
       this.group.add(npcMesh.group);
 
+      const isCook = npcDef.id === 'npc_mama_nkechi';
       this.interactiveList.push({
         mesh: npcMesh.group,
         id: `interior_npc_${npcDef.id}`,
         name: `${npcDef.name} (${npcDef.title})`,
         category: 'Restaurant Staff',
         description: npcDef.dialogueGreeting,
-        interactionPoint: new THREE.Vector3(
-          this.group.position.x + npcDef.relativePosition.x,
-          0,
-          this.group.position.z + npcDef.relativePosition.z + 1.2
-        ),
+        // The cook is spoken to across the counter; the waiter face to face
+        interactionPoint: isCook
+          ? worldPoint(COUNTER_FRONT.x, COUNTER_FRONT.z)
+          : worldPoint(npcDef.relativePosition.x, npcDef.relativePosition.z + 1.3),
+      });
+    }
+    const waiter = this.npcs.find((npc) => npc.def.id === 'npc_waiter_segun')!;
+    const cook = this.npcs.find((npc) => npc.def.id === 'npc_mama_nkechi')!;
+    this.service.setStaff(waiter.actor, cook.actor);
+
+    // 6. Regular customers already eating
+    for (const diner of DINERS) {
+      const npcMesh = this.service.addDiner(
+        { ...diner.def, relativePosition: new THREE.Vector3(), rotationY: 0 },
+        diner.seat,
+        diner.dish,
+        diner.eaten
+      );
+      this.npcs.push(npcMesh);
+      this.interactiveList.push({
+        mesh: npcMesh.group,
+        id: `interior_npc_${diner.def.id}`,
+        name: `${diner.def.name} (${diner.def.title})`,
+        category: 'Customer',
+        description: diner.def.dialogueGreeting,
+        interactionPoint: this.service.seatApproach(diner.seat),
       });
     }
 
-    // 6. Register Station Interactive Objects with their actual furniture meshes
+    // 7. Stations: the counter and a free table. Both open the same menu.
     for (const station of this.def.stations) {
-      const stationMesh = station.id === 'buka_food_counter' ? foodWarmer : table1;
       this.interactiveList.push({
-        mesh: stationMesh,
+        mesh: station.id === 'buka_food_counter' ? foodWarmer : this.service.tableMesh(0),
         id: station.id,
         name: station.name,
         category: station.category,
         description: station.description,
-        interactionPoint: new THREE.Vector3(
-          this.group.position.x + station.relativePosition.x,
-          0,
-          this.group.position.z + station.relativePosition.z
-        ),
+        interactionPoint: worldPoint(station.relativePosition.x, station.relativePosition.z),
       });
     }
   }
@@ -227,6 +262,7 @@ export class RestaurantInterior {
     for (const npc of this.npcs) {
       npc.update(delta, time);
     }
+    this.service.update(delta);
 
     // Smoke particle upward drift animation
     for (let i = 0; i < this.smokeParticles.length; i++) {

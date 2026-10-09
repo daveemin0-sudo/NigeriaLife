@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { InteriorNPCDef } from './InteriorTypes';
 import { HumanMeshBuilder, type HumanRig, type Gender } from '../graphics/HumanMeshBuilder';
+import { Actor } from '../interactions/Actor';
+import { InteractionDirector } from '../interactions/InteractionDirector';
 
 /**
  * InteriorNPCMesh
@@ -12,6 +14,8 @@ export class InteriorNPCMesh {
   public group: THREE.Group;
   public def: InteriorNPCDef;
   public humanRig: HumanRig;
+  /** Lets scripted interactions (serving, waving back) direct this character */
+  public actor: Actor;
   private animOffset: number = Math.random() * Math.PI * 2;
 
   constructor(def: InteriorNPCDef) {
@@ -133,6 +137,11 @@ export class InteriorNPCMesh {
     sprite.scale.set(1.8, 0.45, 1);
     sprite.position.y = isFemale ? 2.3 : 2.4;
     this.group.add(sprite);
+
+    this.actor = InteractionDirector.get().register(
+      new Actor({ id: `npc:${def.id}`, name: def.name, root: this.group, getRig: () => this.humanRig }),
+      `interior_npc_${def.id}`
+    );
   }
 
   private getRoleIcon(role: string): string {
@@ -153,6 +162,7 @@ export class InteriorNPCMesh {
   }
 
   public update(_delta: number, time: number): void {
+    if (this.actor.scripted) return;
     // Natural idle breathing & postural sway animation
     this.humanRig.updateAnimation(time + this.animOffset, false);
   }
