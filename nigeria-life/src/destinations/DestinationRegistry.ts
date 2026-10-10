@@ -461,6 +461,35 @@ export class DestinationRegistry {
       isEnterable: false,
     });
 
+    this.register({
+      id: 'dest_lagos_quilox',
+      aliases: ['quilox-club', 'quilox_vi', 'quilox', 'club'],
+      name: 'Quilox Nightclub',
+      category: 'Nightclub',
+      city: 'lagos',
+      district: 'victoria_island',
+      districtName: 'Victoria Island',
+      mapPosition: new THREE.Vector3(24, 0, 103),
+      mapVisualType: 'club',
+      mapIcon: '🎶',
+      exteriorType: 'nightclub',
+      streetPosition: new THREE.Vector3(14.8, 0, 103),
+      entrance: {
+        position: new THREE.Vector3(14.8, 0, 103),
+        promptLabel: 'Go in to Quilox',
+        triggerRadius: 6.5,
+      },
+      interiorId: 'club',
+      openingHours: '8 pm to 5 am',
+      shortDescription: 'Dance floor, DJ, bar and lounge. Gate fee at the desk inside.',
+      destinationDescription: 'A nightclub on Victoria Island. Pay the gate fee at the desk, then the bar, the dance floor and (with a bottle) the lounge are yours until closing. Shut through the day.',
+      services: ['Gate fee, once a night', 'Drinks at the bar', 'Dance floor', 'Lounge tables with a bottle'],
+      transportAvailability: defaultTransports,
+      npcPopulation: [],
+      activities: [],
+      isEnterable: true,
+    });
+
     // =========================================================================
     // ADDITIONAL CANONICAL DESTINATIONS (Existing or upcoming)
     // =========================================================================

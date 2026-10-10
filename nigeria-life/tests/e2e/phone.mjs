@@ -1,5 +1,5 @@
 // The phone: every app does something real in the game, once, and says so when it cannot.
-import { open, reload, wait, money, newPlayer, advance, playUntil, closeDialogs, enterInterior, leaveInterior, quest } from './lib.mjs';
+import { open, reload, wait, money, newPlayer, advance, playUntil, closeDialogs, enterInterior, leaveInterior, quest, steadyPoint } from './lib.mjs';
 
 const PHONE = '#smartphone-wrapper';
 
@@ -22,13 +22,8 @@ const tap = async (page, selector) => {
 };
 /** A real mouse click on something on the phone, at the place it is on the screen. */
 const click = async (page, selector, options = {}) => {
-  const at = await page.evaluate((sel) => {
-    const el = document.querySelector(sel);
-    if (!el) return null;
-    el.scrollIntoView({ block: 'center' });
-    const box = el.getBoundingClientRect();
-    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-  }, `${PHONE} ${selector}`);
+  // Where it is once it has stopped moving: the phone slides up when it is taken out
+  const at = await steadyPoint(page, `${PHONE} ${selector}`);
   if (!at) throw new Error(`Nothing on the phone matches ${selector}`);
   await page.mouse.click(at.x, at.y, options);
   await wait(200);
@@ -173,15 +168,17 @@ export async function run(browser, check) {
   const slowly = await page.evaluate(() => document.getElementById('invest-units').value);
   check('a number typed slowly while the prices update keeps its digits in order', slowly === '125', slowly);
   await type(page, '#invest-units', '3');
-  // The price moves with the game clock, so the quote is read at the moment of buying
+  const offered = await text(page, '#invest-buy-btn');
+  const cannotSellYet = await page.evaluate(() => document.getElementById('invest-sell-btn').disabled);
+  // The price moves with the game clock, so the quote is read in the same breath as the button is pressed
   const quote = await page.evaluate(() => {
     const g = window.game;
     const share = g.market.share('DNGC');
-    return { cost3: g.market.costToBuy(share, 3), back3: g.market.proceedsFromSale(share, 3), price: g.market.price(share) };
+    const now = { cost3: g.market.costToBuy(share, 3), back3: g.market.proceedsFromSale(share, 3), price: g.market.price(share) };
+    document.getElementById('invest-buy-btn').click();
+    return now;
   });
-  const offered = await text(page, '#invest-buy-btn');
-  const cannotSellYet = await page.evaluate(() => document.getElementById('invest-sell-btn').disabled);
-  await tap(page, '#invest-buy-btn');
+  await wait(360);
   let m1 = await money(page);
   let held = await page.evaluate(() => window.game.hud.backend.getData().investments.DNGC);
   check('buying 3 shares takes exactly the quoted cost (price plus the fee) once, and the shares are held',

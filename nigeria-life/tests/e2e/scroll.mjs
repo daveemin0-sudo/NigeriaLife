@@ -1,7 +1,7 @@
 // A list stays where it was scrolled to. The game keeps running underneath (needs tick every
 // second, the save is written every few seconds), and none of that may throw an open list
 // back to the top. Only going to a different screen starts from the top again.
-import { open, wait, newPlayer, advance, closeDialogs } from './lib.mjs';
+import { open, wait, newPlayer, advance, closeDialogs, pressSteady } from './lib.mjs';
 
 /** Where a scrolling element is, and how far it can go. */
 const at = (page, selector) => page.evaluate((sel) => {
@@ -119,7 +119,7 @@ export async function run(browser, check) {
   // ------------------------------------------------------------------ The phone
   await page.click('#nav-btn-phone');
   await wait(600);
-  await page.click('#smartphone-wrapper [data-app="jobs"]');
+  await pressSteady(page, '#smartphone-wrapper [data-app="jobs"]');
   await wait(400);
   held = await holdsItsPlace(page, '#smartphone-wrapper .phone-screen');
   check('a phone app stays where it was scrolled to while the game runs', held.ok, held);
@@ -146,7 +146,7 @@ export async function run(browser, check) {
   // Going to a different app is a new screen: that one starts at the top
   await page.evaluate(() => (document.getElementById('app-back-btn') ?? document.querySelector('#smartphone-wrapper [data-phone-back]')).click());
   await wait(300);
-  await page.click('#smartphone-wrapper [data-app="property"]');
+  await pressSteady(page, '#smartphone-wrapper [data-app="property"]');
   await wait(400);
   const fresh = await at(page, '#smartphone-wrapper .phone-screen');
   check('opening a different app starts at the top of that app', fresh && fresh.top === 0, fresh);

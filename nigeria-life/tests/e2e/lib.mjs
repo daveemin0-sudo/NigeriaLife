@@ -110,6 +110,38 @@ export async function leaveByDoor(page) {
   }, 30);
 }
 
+/**
+ * Where to press something, once it has stopped moving and nothing is lying over it. A panel
+ * that slides in (the phone coming out of the pocket) is not where it will be until it stops,
+ * and a press aimed at it mid-slide lands on whatever is behind. Null if it is not there.
+ */
+export async function steadyPoint(page, selector) {
+  return page.evaluate(async (sel) => {
+    let last = null;
+    for (let i = 0; i < 60; i++) {
+      const el = document.querySelector(sel);
+      if (el) {
+        el.scrollIntoView({ block: 'center' });
+        const box = el.getBoundingClientRect();
+        const point = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        const top = document.elementFromPoint(point.x, point.y);
+        const still = last && Math.abs(last.x - point.x) < 0.5 && Math.abs(last.y - point.y) < 0.5;
+        if (still && top && (top === el || el.contains(top))) return point;
+        last = point;
+      }
+      await new Promise((done) => setTimeout(done, 50));
+    }
+    return last;
+  }, selector);
+}
+
+/** Presses something with the mouse where it has come to rest. Throws if it is not on the page. */
+export async function pressSteady(page, selector, options = {}) {
+  const at = await steadyPoint(page, selector);
+  if (!at) throw new Error(`Nothing on the page matches ${selector}`);
+  await page.mouse.click(at.x, at.y, options);
+}
+
 export async function closeDialogs(page) {
   await page.evaluate(() => document.getElementById('dialogue-confirm-btn')?.click());
   if (await page.evaluate(() => !!document.getElementById('game-dialogue-overlay'))) await page.keyboard.press('Escape');

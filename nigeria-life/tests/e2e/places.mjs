@@ -106,12 +106,29 @@ export async function run(browser, check) {
   await wait(300);
 
   // --- A landmark with no interior lands the player at its spot on the street
-  await page.click('.map-pin[data-place="quilox_vi"]');
+  await page.click('.map-pin[data-place="nike_art_gallery"]');
   await wait(500);
   await page.click('#btn-card-go');
   await wait(2000);
-  const quilox = await page.evaluate(() => ({ card: window.game.hud.currentActiveObject?.id || null, mapOpen: window.game.world.worldMap.isActive }));
-  check('Go on a street landmark (Quilox) arrives there with its card open', quilox.card === 'quilox-club' && !quilox.mapOpen, quilox);
+  const gallery = await page.evaluate(() => ({ card: window.game.hud.currentActiveObject?.id || null, mapOpen: window.game.world.worldMap.isActive }));
+  check('Go on a street landmark (the art gallery) arrives there with its card open', gallery.card === 'nike-art-gallery' && !gallery.mapOpen, gallery);
+  await page.evaluate(() => window.game.hud.hideInteractionCard());
+
+  // --- A place that keeps hours: by day the map takes the player to the nightclub's door and no further
+  await page.evaluate(() => window.game.world.skyEnvironment.setHour(13));
+  await page.click('#nav-btn-map');
+  await wait(2000);
+  // The pin may be off the edge of the screen from here: it is pressed all the same
+  await page.evaluate(() => document.querySelector('.map-pin[data-place="quilox_vi"]')?.click());
+  await wait(500);
+  await page.evaluate(() => document.getElementById('btn-card-go')?.click());
+  await wait(2500);
+  const quilox = await page.evaluate(() => {
+    const g = window.game;
+    return { inside: g.world.interiorManager.isPlayerInside(), mapOpen: g.world.worldMap.isActive, fromDoor: Math.hypot(g.player.position.x - 14.8, g.player.position.z - 103), told: /closed/i.test(document.body.innerText) };
+  });
+  check('Go on the nightclub in the afternoon arrives at its door, which is shut: the player is told so and stays outside',
+    !quilox.inside && !quilox.mapOpen && quilox.fromDoor < 3 && quilox.told, quilox);
 
   // --- The chat no longer covers the game
   const chat = await page.evaluate(() => { const r = document.getElementById('street-chat-box').getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });

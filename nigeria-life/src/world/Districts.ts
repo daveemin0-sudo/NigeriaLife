@@ -125,29 +125,9 @@ export class Districts {
       interactionPoint: new THREE.Vector3(-14, 0, 95),
     });
 
-    // Eko Beachside Lounge & Nightclub
+    // The palms along the front of the nightclub, which is a landmark of its own (world/landmarks/Club)
     const loungeGroup = new THREE.Group();
     loungeGroup.position.set(24, 0, 8);
-
-    const loungeGeo = new THREE.BoxGeometry(14, 6.5, 12);
-    const loungeMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.3 });
-    const lounge = new THREE.Mesh(loungeGeo, loungeMat);
-    lounge.position.y = 3.25;
-    loungeGroup.add(lounge);
-
-    // Neon Rooftop Bar Canopy (Magenta & Violet Glow)
-    const roofBarGeo = new THREE.BoxGeometry(14.4, 0.5, 12.4);
-    const roofBarMat = new THREE.MeshStandardMaterial({ color: 0xa855f7 });
-    const roofBar = new THREE.Mesh(roofBarGeo, roofBarMat);
-    roofBar.position.y = 6.6;
-    loungeGroup.add(roofBar);
-
-    // Neon signage
-    const signGeo = new THREE.BoxGeometry(10, 1.2, 0.3);
-    const signMat = new THREE.MeshBasicMaterial({ color: 0xec4899 });
-    const sign = new THREE.Mesh(signGeo, signMat);
-    sign.position.set(0, 5.2, -6.2);
-    loungeGroup.add(sign);
 
     // Beach palm trees lining the ocean promenade
     for (let pz of [-10, 0, 10, 20]) {
@@ -168,15 +148,6 @@ export class Districts {
     }
 
     viGroup.add(loungeGroup);
-
-    this.interactiveList.push({
-      mesh: loungeGroup,
-      id: 'quilox-club',
-      name: 'Quilox VIP Nightclub & Waterfront Lounge',
-      category: 'Ultra-Luxury Nightlife',
-      description: 'World-famous Victoria Island VIP club. Dom Pérignon champagne with sparklers, celebrity tables, and Afrobeats anthems.',
-      interactionPoint: new THREE.Vector3(14, 0, 103),
-    });
 
     this.group.add(viGroup);
   }

@@ -13,6 +13,9 @@ import { ResidentialInterior } from './templates/ResidentialInterior';
 import { UNILAGInterior } from './templates/UNILAGInterior';
 import { AirportInterior } from './templates/AirportInterior';
 import { ShopInterior } from './templates/ShopInterior';
+import { ClubInterior } from './templates/ClubInterior';
+import { isOpen, closedNotice } from '../destinations/Hours';
+import { showGameToast } from '../ui/GameToast';
 import type { InteractiveObject, World } from '../world/World';
 import type { Player } from '../player/Player';
 import type { GameCamera } from '../game/Camera';
@@ -71,6 +74,9 @@ export class InteriorManager {
   public unilag: UNILAGInterior;
   public airport: AirportInterior;
   public shop: ShopInterior;
+  public club: ClubInterior;
+  /** The time on the game's clock, 0 to 24, for places that keep hours */
+  public clock: () => number = () => 12;
   /** Every interior, in one list: adding a place means adding it here */
   private templates: InteriorTemplate[];
 
@@ -111,9 +117,10 @@ export class InteriorManager {
     this.unilag = new UNILAGInterior();
     this.airport = new AirportInterior();
     this.shop = new ShopInterior();
+    this.club = new ClubInterior();
     this.templates = [
       this.hospital, this.bank, this.restaurant, this.police,
-      this.residence, this.unilag, this.airport, this.shop,
+      this.residence, this.unilag, this.airport, this.shop, this.club,
     ];
 
     // All interiors are hidden by default until specifically entered
@@ -212,6 +219,7 @@ export class InteriorManager {
     if (this.isTransitioning) return false;
     const target = this.getInteriorByBuildingId(typeOrId);
     if (!target) return false;
+    if (this.turnedAway(target)) return false;
 
     this.isTransitioning = true;
 
@@ -377,6 +385,19 @@ export class InteriorManager {
   }
 
   /** Links a door on the street to the interior behind it. */
+  /** A place that keeps hours cannot be gone into outside them, whichever way the player comes. Says so, and returns true. */
+  private turnedAway(target: InteriorDefinition): boolean {
+    if (!target.hours || isOpen(target.hours, this.clock())) return false;
+    showGameToast(closedNotice(target.name, target.hours), 'info', 3600);
+    return true;
+  }
+
+  /** Is this place open now? (Places that keep no hours always are.) */
+  public isOpenNow(typeOrId: InteriorType | string): boolean {
+    const target = this.getInteriorByBuildingId(typeOrId);
+    return !target || !target.hours || isOpen(target.hours, this.clock());
+  }
+
   public registerStreetDoor(streetDoor: StreetDoor): void {
     const target = this.getInteriorByBuildingId(streetDoor.buildingId);
     if (!target) return;
@@ -405,6 +426,7 @@ export class InteriorManager {
     if (this.isTransitioning || this.usingDoor) return false;
     const target = this.getInteriorByBuildingId(typeOrId);
     if (!target) return false;
+    if (this.turnedAway(target)) return false;
 
     const street = this.streetDoors.get(target.type);
     if (!street || this.isPlayerInside() || player.isDriving) {

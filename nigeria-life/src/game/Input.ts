@@ -4,6 +4,7 @@ import { World, type InteractiveObject, type InteractionTarget } from '../world/
 import { HUD } from '../ui/HUD';
 import type { GameCamera } from './Camera';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { InteriorManager } from '../interiors/InteriorManager';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { NetworkManager } from '../multiplayer/NetworkManager';
 import { InteractionDirector } from '../interactions/InteractionDirector';
@@ -575,11 +576,13 @@ export class InputManager {
     // 1. Canonical Destination Registry Match (Single source of truth)
     const dest = DestinationRegistry.getInstance().getById(id);
     if (dest && dest.isEnterable) {
+      // A place that keeps hours says so at its door when it is shut
+      const shut = !InteriorManager.getInstance().isOpenNow(dest.interiorId);
       return {
         id: dest.id,
         name: dest.name,
         category: dest.category,
-        label: dest.entrance.promptLabel,
+        label: shut ? `🔒 ${dest.name} is closed (${dest.openingHours})` : dest.entrance.promptLabel,
         action: 'enter-interior',
         interiorId: dest.interiorId,
         distance: dist,

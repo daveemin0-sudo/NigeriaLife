@@ -556,6 +556,12 @@ export class Game {
     this.deliveries.connect(() => this.whereabouts() === 'transit');
     this.messages.connect(() => sky.getFormattedTimeString());
     this.market.connect(() => sky.day * 24 + sky.currentHour);
+    const club = this.world.interiorManager.club.service;
+    club.connect(() => sky.day * 24 + sky.currentHour);
+    club.onClosingTime = () => {
+      showGameToast('Closing time. The lights are up and everyone is going home.', 'info', 4200);
+      this.world.interiorManager.leaveThroughDoor(this.player, this.cameraManager, this.hud, this.world);
+    };
 
     this.hud.phoneModal.connect({ world, rides: this.rides, deliveries: this.deliveries, messages: this.messages, market: this.market });
   }

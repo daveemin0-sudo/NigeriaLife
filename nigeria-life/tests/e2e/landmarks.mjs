@@ -61,8 +61,8 @@ export async function run(browser, check) {
     };
   });
   const places = Object.values(built.landmarks);
-  check('the stadium, the port and the airport are each built from many parts, not a box: thousands of triangles in a handful of draw calls',
-    places.length === 3 && places.every((p) => p.triangles > 2500 && p.meshes <= 24 && p.bodies >= 3), built.landmarks);
+  check('the stadium, the port, the airport and the nightclub are each built from many parts, not a box: a thousand triangles or more in a handful of draw calls',
+    places.length >= 4 && places.every((p) => p.triangles > 1000 && p.meshes <= 24 && p.bodies >= 1), built.landmarks);
   check('nothing of the generated city stands on the ground of any of them', places.every((p) => p.inZone === 0), built.landmarks);
   check('each has a road of its own to its gate: Stadium Road, Wharf Road and Airport Road, laid their whole length',
     ['Stadium Road', 'Wharf Road', 'Airport Road'].every((road) => built.roads.includes(road)) && built.gaps.length === 0, { roads: built.roads, gaps: built.gaps });

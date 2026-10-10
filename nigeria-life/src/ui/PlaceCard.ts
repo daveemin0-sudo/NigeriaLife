@@ -12,7 +12,7 @@ const PLACE_ICONS: Record<InteriorType, string> = {
   office: '🏢',
   university: '🎓',
   airport: '✈️',
-  club: '🪩',
+  club: '🎶',
 };
 
 /** Short names for the shortcut chips. Anything not listed falls back to the object's own name. */

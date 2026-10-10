@@ -144,9 +144,11 @@ export class World {
     // 8. 3-Tier Interior & Activity Destination Engine (Hospital, Bank, Buka, Police, Residence)
     this.interiorManager = InteriorManager.getInstance();
     this.scene.add(this.interiorManager.group);
-    for (const streetDoor of this.buildings.placeDoors) {
+    for (const streetDoor of [...this.buildings.placeDoors, ...this.landmarks.streetDoors()]) {
       this.interiorManager.registerStreetDoor(streetDoor);
     }
+    // Places that keep hours are shut outside them
+    this.interiorManager.clock = () => this.skyEnvironment.currentHour;
 
     // 9. Dedicated Isometric World Map Presentation Layer
     this.worldMap = new WorldMap(this.scene);

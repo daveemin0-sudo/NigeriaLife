@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-10, after the first landmark slice.
+Last updated: 2026-10-10, after the nightclub and opening hours.
 
 ## How to read it
 
@@ -18,7 +18,7 @@ Last updated: 2026-10-10, after the first landmark slice.
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 19 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 20 suites.
 
 ## The approach, from the brief's last rule
 
@@ -64,8 +64,9 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Bank, hospital, university, police | **Partial** | Interiors exist and are tested (`interiors`, `places`, `view`). Several are reached from a card, not through a door in the street. |
 | Co-creation hub | **Looks only** | A building with a one-click "hackathon" payment. |
 | Churches, mosques, public institutions | **Looks only** | Abuja's mosque and Christian centre are exteriors with a one-click button. None in Lagos. |
-| Nightclub (Quilox) | **Looks only** | An exterior with a one-click purchase. No interior. Opening hours are not enforced. |
-| Destination framework | **Partial** | `DestinationRegistry` holds name, place, services and hours as text; the new landmark contract holds ground, gates, actions and state. Opening hours are enforced at the stadium only. The two are not yet one thing. |
+| Nightclub (Quilox) | **Verified** | Built with the kit: lit front, canopy, real door, rope and doorman, roof terrace. Open 8 pm to 5 am and shut otherwise, whichever way it is approached; the prompt at the door says so. Inside: a desk where the gate fee (₦5,000) is paid once a night, a bar where the barman makes a drink and is paid as he hands it over, a dance floor with a crowd, a DJ and lights on the beat (a dance counts four times a night), and a lounge that seats those who have bought a bottle. Music plays while inside. At closing time the player is walked out. `club` suite. |
+| Nightclub: toilets, hype man, spraying money, other players in the room | **Missing** | The toilets are a door on the wall. |
+| Destination framework | **Partial** | Three pieces now work together. `PlaceActions`: any place registers what its own things do, and the card asks there, so a new place adds nothing to the HUD. `Hours`: a room that keeps hours cannot be entered outside them by any route, and its door prompt says so. `Landmark`: ground, gates, street doors, state. Still separate: `DestinationRegistry` keeps hours as text beside the real ones, and older places (bank 8 to 4, for one) do not enforce theirs. NPC roles, jobs and sound are not yet declared per place. |
 
 ## Phase 3: flights
 
@@ -88,7 +89,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Area | Status | Notes |
 | --- | --- | --- |
 | Interaction framework (walk, face, act, settle at the hand-over) | **Verified** | `buka`, `shop`, `home`, `social`, `actions` suites; now also the ticket booth and the loading bay. |
-| Older one-click buttons | **Looks only** | Many street cards still pay or charge on a click with a dialog. Listed in `HUD.handleCardAction`. |
+| Older one-click buttons | **Looks only** | Many street cards still pay or charge on a click with a dialog. Listed in `HUD.handleCardAction`. The stadium, port and nightclub ones are replaced; the nightclub's old branch there is now dead code. |
 | Home: bed, sofa, fridge, bath | **Verified** | `home` suite. |
 | Furniture buying and placing, wall colours | **Partial** | A decoration system exists; not re-audited or journey-tested in this pass. Furniture does not go with a home when it is sold. |
 | Clothing and appearance | **Partial** | The player's look can be changed and is saved. No clothes shops. |
@@ -111,7 +112,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Traffic, walkers, vendors, day and night, weather | **Partial** | All present. Opening hours affect only the stadium. |
+| Traffic, walkers, vendors, day and night, weather | **Partial** | All present. Opening hours are kept by the stadium and the nightclub only. |
 | Multiplayer | **Blocked** | Players on one machine, or on a home or office network through `npm run server`, see each other and trade. The server does not run the rules or hold money, so this is for people who trust each other. A public game needs a server that does: not built. |
 | Art direction and audio | **Partial** | One made-up airline, consistent on aircraft, hangar and departures board. Audio not reviewed. |
 | Performance | **Partial** | Landmarks add about 50 draw calls in all. The start view is about 1,300 calls on the target Intel HD 620. Interiors are all built at start, not on demand. |
@@ -124,7 +125,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | B. Home | **Partial** | Living in it is verified. Buying and placing furniture, wall colour and TV content are not. |
 | C. Property | **Verified** | `land`, `server`. |
 | D. Workplace | **Partial** | Real task and single payment verified at the port. No application or career state. |
-| E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university: yes. Refinery, nightclub: no. |
+| E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
 | F. City switching | **Partial** | The free-travel hole is closed and tested. The paid journey is not yet a test. |
 | G. Spatial integrity | **Partial** | Plan verified. Bridge not usable. |
 | H. Multiplayer | **Partial** | Two accounts in separate browser contexts and through the world server are tested. That is not evidence of secure online play, and is not claimed as such. |
@@ -132,7 +133,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 ## What comes next, in the brief's order
 
 1. The map: search and a route preview; the same real-city treatment for Abuja and Port Harcourt once those cities have more in them.
-2. One destination framework: fold `DestinationRegistry` and the landmark contract together, with opening hours that are enforced, starting with the nightclub (and its interior).
+2. Finish the destination framework: real hours for every place that states them, and one record per place instead of two.
 3. Flights: booking at the airport, a boarding pass, check-in, walking to the aircraft that is actually on the stand, explicit states, arrival at a real airport in Abuja and Port Harcourt.
 4. Walking at height and collision outdoors: the footbridge, stadium rows, building walls.
 5. Television showing the match; furniture and wall colours as a tested journey.
