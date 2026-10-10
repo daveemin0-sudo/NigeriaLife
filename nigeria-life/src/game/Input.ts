@@ -395,7 +395,9 @@ export class InputManager {
     if (floorHits.length > 0) {
       const clickPoint = floorHits[0].point;
       this.pendingInteraction = null;
-      this.walkPlayerTo(clickPoint);
+      // A click on a table or bed means "go over there", not "walk into it"
+      const nav = isInside ? this.world.interiorManager.getActiveNav() : null;
+      this.walkPlayerTo(nav ? nav.closestFree(clickPoint) : clickPoint);
       this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
       this.hud.hideInteractionCard();
     }

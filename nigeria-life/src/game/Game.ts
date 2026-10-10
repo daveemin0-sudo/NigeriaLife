@@ -18,6 +18,7 @@ import { UIStateManager } from '../ui/UIStateManager';
 import { PlaceCard } from '../ui/PlaceCard';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 import { BukaOrderUI } from '../ui/BukaOrderUI';
+import { ActivityStatusUI } from '../ui/ActivityStatusUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
 import type { SavedCityId } from '../backend/types';
@@ -289,6 +290,7 @@ export class Game {
     // 9c. Camera Navigation Modes (Home Flat | Street Walk | Aerial World Map)
     this.hud.onNavigateMode = (mode: 'street' | 'home' | 'map') => {
       if (mode === 'home') {
+        if (!this.canGoHome()) return;
         this.world.worldMap.deactivate();
         this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
         return;
@@ -331,6 +333,8 @@ export class Game {
     // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)
     // The player walks in and out through the door wherever the place has one
     this.hud.onEnterInterior = (buildingId: string) => {
+      const target = this.world.interiorManager.getInteriorByBuildingId(buildingId);
+      if (target?.type === 'residence' && !this.canGoHome()) return;
       this.world.interiorManager.enterThroughDoor(buildingId, this.player, this.cameraManager, this.hud, this.world);
     };
 
@@ -341,6 +345,20 @@ export class Game {
     // 9e-2. The buka's menu and order status
     this.bukaUI = new BukaOrderUI(this.world.interiorManager.restaurant.service);
     this.hud.onOpenBukaMenu = (preferTable) => this.bukaUI.open(preferTable);
+
+    // 9e-3. Home life: bed, sofa and TV, fridge, bath
+    const homeLife = this.world.interiorManager.residence.life;
+    const homeStatus = new ActivityStatusUI('home-activity-status', () => homeLife.status(), () => homeLife.stop());
+    homeLife.onChange = () => homeStatus.render();
+    this.hud.onHomeActivity = (objectId) => {
+      if (objectId === 'flat-bed') homeLife.sleep();
+      else if (objectId === 'flat-tv') homeLife.watchTv();
+      else if (objectId === 'flat-drum') homeLife.bathe();
+      else if (objectId === 'flat-fridge') {
+        const ate = homeLife.eatFromFridge();
+        if (!ate.ok && ate.reason) showGameToast(ate.reason, 'warning', 3600);
+      }
+    };
 
     // 9f. On-screen shortcuts to everything inside the current building
     this.placeCard = new PlaceCard({
@@ -379,6 +397,23 @@ export class Game {
 
     // 13. Start Loop
     this.loop();
+  }
+
+  /** Home is somewhere the player owns or rents. Without one, says so and stays put. */
+  private canGoHome(): boolean {
+    if (BackendService.getInstance().hasHome()) return true;
+    this.hud.currentNavMode = 'street';
+    document.getElementById('nav-btn-home')?.classList.remove('active');
+    if (UIStateManager.getInstance().isMode('house')) {
+      UIStateManager.getInstance().setMode(this.world.interiorManager.isPlayerInside() ? 'interior' : 'street');
+    }
+    this.hud.showDialogueModal({
+      speakerName: 'No home yet',
+      speakerRole: 'Housing',
+      speakerAvatar: '🔑',
+      dialogueText: 'You do not own or rent a place yet. Open Houses on your phone to rent or buy one, then come back.',
+    });
+    return false;
   }
 
   private isSavedCity(cityId: string): cityId is SavedCityId {

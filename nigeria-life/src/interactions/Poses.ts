@@ -4,12 +4,14 @@ import type { HumanRig } from '../graphics/HumanMeshBuilder';
  * What a character's body is doing, split in two so they combine freely:
  * someone can wave while seated, or carry a plate while walking.
  */
-export type LegPose = 'stand' | 'walk' | 'sit';
+export type LegPose = 'stand' | 'walk' | 'sit' | 'lie';
 export type ArmPose = 'rest' | 'swing' | 'wave' | 'eat' | 'carry' | 'reach' | 'talk';
 
 export interface PoseState {
   legs: LegPose;
   arms: ArmPose;
+  /** For 'lie': how high the surface being lain on is (a mattress top) */
+  height?: number;
 }
 
 /** Joint values a pose aims for. The rig is eased toward them, so poses never snap. */
@@ -26,12 +28,16 @@ export interface JointValues {
   headY: number;
   /** How far the whole body is lowered, e.g. onto a seat. */
   drop: number;
+  /** 0 = upright, 1 = flat on the back */
+  recline: number;
+  /** How far the whole body is raised, e.g. onto a bed. */
+  lift: number;
 }
 
 export function neutralJoints(): JointValues {
   return {
     leftArmX: 0, leftArmZ: 0, rightArmX: 0, rightArmZ: 0,
-    leftLegX: 0, rightLegX: 0, torsoX: 0, torsoLift: 0, headX: 0, headY: 0, drop: 0,
+    leftLegX: 0, rightLegX: 0, torsoX: 0, torsoLift: 0, headX: 0, headY: 0, drop: 0, recline: 0, lift: 0,
   };
 }
 
@@ -41,8 +47,19 @@ const SEAT_DROP = 0.17;
 export function poseTargets(pose: PoseState, time: number, out: JointValues): JointValues {
   const stride = Math.sin(time * 8);
 
+  out.recline = 0;
+  out.lift = 0;
+
   // Lower body
-  if (pose.legs === 'walk') {
+  if (pose.legs === 'lie') {
+    // Flat on the back on a bed; the body's thickness keeps it on top of the mattress
+    out.leftLegX = 0;
+    out.rightLegX = 0;
+    out.torsoLift = Math.sin(time * 1.2) * 0.012;
+    out.drop = 0;
+    out.recline = 1;
+    out.lift = (pose.height ?? 0.6) + 0.14;
+  } else if (pose.legs === 'walk') {
     out.leftLegX = stride * 0.6;
     out.rightLegX = -stride * 0.6;
     out.torsoLift = Math.abs(Math.sin(time * 16)) * 0.04;
@@ -135,7 +152,8 @@ export function writeJoints(rig: HumanRig, joints: JointValues, baseTorsoY: numb
   rig.torso.rotation.set(joints.torsoX, 0, 0);
   rig.torso.position.y = baseTorsoY + joints.torsoLift;
   rig.head.rotation.set(joints.headX, joints.headY, 0);
-  rig.group.position.y = -joints.drop;
+  rig.group.position.y = joints.lift - joints.drop;
+  rig.group.rotation.x = -joints.recline * (Math.PI / 2);
   if (rig.phoneMesh) rig.phoneMesh.visible = false;
 }
 
@@ -150,6 +168,8 @@ export function readJoints(rig: HumanRig, baseTorsoY: number, out: JointValues):
   out.torsoLift = rig.torso.position.y - baseTorsoY;
   out.headX = rig.head.rotation.x;
   out.headY = rig.head.rotation.y;
-  out.drop = -rig.group.position.y;
+  out.recline = -rig.group.rotation.x / (Math.PI / 2);
+  out.lift = Math.max(0, rig.group.position.y);
+  out.drop = Math.max(0, -rig.group.position.y);
   return out;
 }

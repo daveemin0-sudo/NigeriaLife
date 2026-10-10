@@ -86,7 +86,8 @@ export class Vehicles {
         friction: 2.0,
         hornText: '📢 POM-POM! VIP ESCORT / CLEAR WAY!',
       },
-      new THREE.Vector3(-9.2, 0, 24),
+      // Parked beside the compound gate, not across it: the gateway is where the owner walks in
+      new THREE.Vector3(-9.2, 0, 36.5),
       -Math.PI / 2
     );
 

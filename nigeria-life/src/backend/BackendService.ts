@@ -475,6 +475,19 @@ export class BackendService {
     this.saveData();
   }
 
+  /** Rest that restores energy and health only (sleep, a sit-down, a bath). `save` can wait when called every frame. */
+  public rest(energy: number, health: number, save: boolean = true): void {
+    const stats = this.data.stats;
+    stats.energy = Math.min(100, stats.energy + Math.max(0, energy));
+    stats.health = Math.min(100, stats.health + Math.max(0, health));
+    if (save) this.saveData();
+  }
+
+  /** Does the player own or rent somewhere to live? */
+  public hasHome(): boolean {
+    return this.data.properties.some((p) => (p.status === 'owned' || p.status === 'rented') && p.ownerId === this.data.id);
+  }
+
   public restAtHome(): { success: boolean; message: string } {
     this.data.stats.energy = 100;
     this.data.stats.health = 100;

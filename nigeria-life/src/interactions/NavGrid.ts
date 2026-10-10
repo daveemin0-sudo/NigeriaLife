@@ -87,6 +87,14 @@ export class NavGrid {
     return this.blocked[this.index(this.col(x), this.row(z))] === 0;
   }
 
+  /** The nearest clear spot to a world position (the position itself if it is already clear). */
+  public closestFree(point: THREE.Vector3): THREE.Vector3 {
+    if (this.isFree(point.x, point.z)) return new THREE.Vector3(point.x, 0, point.z);
+    const cell = this.nearestFree(this.col(point.x - this.origin.x), this.row(point.z - this.origin.z));
+    if (!cell) return new THREE.Vector3(point.x, 0, point.z);
+    return new THREE.Vector3(this.origin.x + this.cellX(cell[0]), 0, this.origin.z + this.cellZ(cell[1]));
+  }
+
   private nearestFree(c: number, r: number): [number, number] | null {
     if (!this.blocked[this.index(c, r)]) return [c, r];
     for (let ring = 1; ring < 24; ring++) {
@@ -112,7 +120,8 @@ export class NavGrid {
   }
 
   private clearLine(c0: number, r0: number, c1: number, r1: number): boolean {
-    const steps = Math.ceil(Math.hypot(c1 - c0, r1 - r0) * 2);
+    // Sampled finely enough that the line cannot clip the corner of a blocked cell unnoticed
+    const steps = Math.ceil(Math.hypot(c1 - c0, r1 - r0) * 8);
     for (let i = 0; i <= steps; i++) {
       const t = steps === 0 ? 0 : i / steps;
       const c = Math.round(c0 + (c1 - c0) * t);

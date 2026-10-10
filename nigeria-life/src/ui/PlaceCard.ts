@@ -36,7 +36,8 @@ const SPOT_CHIPS: Record<string, { icon: string; label: string }> = {
   airport_flight_abuja: { icon: '🛫', label: 'Gate 1 · Abuja' },
   airport_flight_ph: { icon: '🛫', label: 'Gate 2 · Port Harcourt' },
   airport_vip_lounge: { icon: '🥂', label: 'VIP lounge' },
-  'flat-tv': { icon: '📺', label: 'TV' },
+  'flat-tv': { icon: '📺', label: 'Sofa & TV' },
+  'flat-fridge': { icon: '🧊', label: 'Fridge' },
   'flat-bed': { icon: '🛏️', label: 'Bed' },
   'flat-drum': { icon: '🚿', label: 'Water drum' },
 };

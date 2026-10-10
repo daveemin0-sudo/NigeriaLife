@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HingedDoor } from '../interactions/Door';
+import { HingedDoor, SlidingGate, type Doorway } from '../interactions/Door';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 import type { InteractiveObject } from './World';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
@@ -8,7 +8,7 @@ import { SignageLibrary } from '../materials/SignageLibrary';
 /** A door on the street that leads into a building's interior. */
 export interface StreetDoor {
   buildingId: string;
-  door: HingedDoor;
+  door: Doorway;
   /** Where to stand on the pavement in front of it */
   outside: THREE.Vector3;
   /** A point just through the doorway */
@@ -22,7 +22,7 @@ export class Buildings {
   public placeDoors: StreetDoor[] = [];
   public compoundGateMesh: THREE.Mesh | null = null;
   public isGateOpen: boolean = false;
-  private gateTargetZ: number = 0;
+  private compoundGate: SlidingGate | null = null;
   private matLib: MaterialLibrary;
   private signLib: SignageLibrary;
 
@@ -607,7 +607,9 @@ export class Buildings {
     // Black rolling iron security gate with spearhead finials
     const gateGeo = new THREE.BoxGeometry(0.3, 2.6, 5);
     this.compoundGateMesh = new THREE.Mesh(gateGeo, this.matLib.ironRailingMaterial);
-    this.compoundGateMesh.position.set(8.1, 1.3, 0);
+    // Towards the far end of the wall, clear of the pedestrian bridge stairs on the pavement
+    const gateZ = 6.4;
+    this.compoundGateMesh.position.set(8.1, 1.3, gateZ);
     this.compoundGateMesh.castShadow = true;
     this.compoundGateMesh.receiveShadow = true;
 
@@ -624,6 +626,25 @@ export class Buildings {
       this.compoundGateMesh.add(finial);
     }
     compoundGroup.add(this.compoundGateMesh);
+
+    // What shows when the gate rolls aside: the shaded driveway into the compound
+    const gateway = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.6, 2.5),
+      new THREE.MeshBasicMaterial({ color: 0x1f2937 })
+    );
+    gateway.rotation.y = Math.PI / 2;
+    gateway.position.set(8.02, 1.25, gateZ);
+    compoundGroup.add(gateway);
+
+    // The gate is this home's street door: it rolls open and the player walks in through it
+    this.compoundGate = InteractionDirector.get().addDoor(new SlidingGate(this.compoundGateMesh, -4.6));
+    const gateWorld = new THREE.Vector3(compoundGroup.position.x + 8.1, 0, compoundGroup.position.z + gateZ);
+    this.placeDoors.push({
+      buildingId: 'villa-compound',
+      door: this.compoundGate,
+      outside: new THREE.Vector3(gateWorld.x + 2.4, 0, gateWorld.z),
+      inside: new THREE.Vector3(gateWorld.x - 1.8, 0, gateWorld.z),
+    });
 
     // Modern 2-storey Lagos duplex behind the wall
     const houseGeo = new THREE.BoxGeometry(11, 7.5, 11);
@@ -748,7 +769,7 @@ export class Buildings {
       name: 'Victoria Residence Estate',
       category: 'Real Estate & Living',
       description: 'Luxury 4-bedroom duplex with 24/7 borehole water & standby soundproof diesel gen.',
-      interactionPoint: new THREE.Vector3(-10.0, 0, 24),
+      interactionPoint: new THREE.Vector3(-9.5, 0, 30.4), // on the pavement in front of the gate
     });
   }
 
@@ -1849,17 +1870,12 @@ export class Buildings {
 
   public toggleCompoundGate(open?: boolean): boolean {
     this.isGateOpen = open !== undefined ? open : !this.isGateOpen;
-    this.gateTargetZ = this.isGateOpen ? 4.6 : 0;
+    if (this.isGateOpen) this.compoundGate?.open();
+    else this.compoundGate?.close();
     return this.isGateOpen;
   }
 
-  public update(delta: number): void {
-    if (this.compoundGateMesh) {
-      this.compoundGateMesh.position.z = THREE.MathUtils.lerp(
-        this.compoundGateMesh.position.z,
-        this.gateTargetZ,
-        Math.min(1, delta * 3.5)
-      );
-    }
+  public update(_delta: number): void {
+    // The compound gate is moved by the interaction system with every other door
   }
 }

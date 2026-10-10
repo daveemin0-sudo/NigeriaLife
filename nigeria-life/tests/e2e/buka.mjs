@@ -401,7 +401,7 @@ export async function run(browser, check) {
   await enterInterior(page, 'restaurant');
   await orderDish(page, 'jollof_rice');
   await playUntil(page, () => (window.game.player.actor.hold ? true : null), 20);
-  await page.evaluate(() => window.game.hud.onNavigateMode('home'));
+  await page.evaluate(() => { const be = window.game.hud.backend; be.rentProperty(be.getData().properties[0].id); window.game.hud.onNavigateMode('home'); });
   await wait(900);
   await advance(page, 0.5);
   const home = await page.evaluate(() => {

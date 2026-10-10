@@ -66,6 +66,8 @@ export class HUD {
   public onExitInterior?: () => void;
   /** Opens the buka's menu; a table number seats the player at that table */
   public onOpenBukaMenu?: (preferTable?: number) => void;
+  /** Starts something at home: the id of the bed, sofa, fridge or drum that was used */
+  public onHomeActivity?: (objectId: string) => void;
   public onNavigateMode?: (mode: 'street' | 'home' | 'map') => void;
   public onRadarNavigate?: (destId: string) => void;
   public onRotateCamera?: (deltaYaw: number) => void;
@@ -1316,13 +1318,16 @@ export class HUD {
       btnEl.textContent = '✈️ Book Flight / Luxury Coach to Lagos [M]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'flat-tv') {
-      btnEl.textContent = '📺 Watch Super Eagles AFCON Match (Live Broadcast)';
+      btnEl.textContent = '📺 Sit down & watch the match';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'flat-bed') {
-      btnEl.textContent = '🛏️ Sleep on Luxury Bed (100% Full Energy Recharge)';
+      btnEl.textContent = '🛏️ Lie down & sleep';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'flat-drum') {
-      btnEl.textContent = '🪣 Fetch Chilled Water & Bath with Red Bowl (Hygiene +100%)';
+      btnEl.textContent = '🚿 Take a bucket bath';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'flat-fridge') {
+      btnEl.textContent = '🧊 Eat something from your bag';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'flat-sofa') {
       btnEl.textContent = '🛋️ Relax on Living Room Sofa (Energy +30%)';
@@ -1804,28 +1809,10 @@ export class HUD {
       this.hideInteractionCard();
       this.onExitInterior?.();
       return;
-    } else if (id === 'flat-bed') {
-      this.backend.restAtHome();
-      this.showDialogueModal({
-        speakerName: 'Home Sweet Home',
-        speakerRole: 'Bedroom Sanctum',
-        speakerAvatar: '🛏️',
-        soundType: 'general',
-        dialogueText: 'You lie down on the soft orthopedic mattress with cool AC breeze humming. 100% Health and Energy restored! Fatigue eliminated!',
-        rewards: { health: 100, energy: 100, streetCred: 5 },
-      });
-      return;
-    } else if (id === 'flat-drum') {
-      this.backend.restoreHealth(20);
-      this.backend.restoreEnergy(30);
-      this.showDialogueModal({
-        speakerName: 'Nigerian Domestic Resilience',
-        speakerRole: 'Chilled Borehole Water',
-        speakerAvatar: '🚿',
-        soundType: 'medical',
-        dialogueText: 'You scoop freezing chilled water with the red bucket and bath! The refreshed sensation jolts you with crisp vitality. +30% Energy & +20% Health!',
-        rewards: { health: 20, energy: 30 },
-      });
+    } else if (id === 'flat-bed' || id === 'flat-tv' || id === 'flat-drum' || id === 'flat-fridge') {
+      // Acted out in the room: lie down, sit, reach into the fridge, bathe
+      this.hideInteractionCard();
+      this.onHomeActivity?.(id);
       return;
     } else if (id === 'flat-pet') {
       this.backend.addStreetCred(5);

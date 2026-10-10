@@ -1,5 +1,5 @@
 import type { Actor } from './Actor';
-import type { HingedDoor } from './Door';
+import type { Doorway } from './Door';
 import type { NavGrid } from './NavGrid';
 import type { PoseState } from './Poses';
 import { Sequence, steps, type Point, type Step } from './Sequence';
@@ -46,7 +46,7 @@ export class InteractionDirector {
   private actors = new Map<string, Actor>();
   private running: Sequence[] = [];
   private reservations = new Map<string, string>();
-  private doors: HingedDoor[] = [];
+  private doors: Doorway[] = [];
 
   public static get(): InteractionDirector {
     if (!InteractionDirector.instance) InteractionDirector.instance = new InteractionDirector();
@@ -64,7 +64,7 @@ export class InteractionDirector {
     return this.actors.get(objectId) ?? null;
   }
 
-  public addDoor(door: HingedDoor): HingedDoor {
+  public addDoor<T extends Doorway>(door: T): T {
     this.doors.push(door);
     return door;
   }

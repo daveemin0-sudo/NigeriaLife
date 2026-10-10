@@ -62,3 +62,10 @@ it, walk them through, and bring them out of the same door on the other side.
 3. Describe what happens there as interaction data and sequences.
 4. Add a suite under `tests/e2e/` that plays it. `advance(page, seconds)` and
    `playUntil(page, test)` run the game forward without waiting for frames to be drawn.
+
+## Second example: home
+
+`src/interiors/home/HomeLife.ts` uses the same pieces for the apartment: the compound's
+rolling gate is its street door (`SlidingGate`, any `Doorway` works), the bed uses the `lie`
+pose and a hold, the sofa a `sit` hold, and the fridge and bath are plain `InteractionDef`s.
+What an activity gives arrives while it runs (`update`), so stopping early keeps what was earned.

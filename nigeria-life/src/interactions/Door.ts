@@ -1,5 +1,18 @@
 import * as THREE from 'three';
 
+/** Anything that opens to let a character through: a hinged door, a sliding gate. */
+export interface Doorway {
+  open(): void;
+  close(): void;
+  /** Jump straight to open or closed, for when nobody is watching it move. */
+  set(open: boolean): void;
+  readonly isOpen: boolean;
+  readonly isClosed: boolean;
+  /** 0 = shut, 1 = fully open */
+  readonly openAmount: number;
+  update(delta: number): void;
+}
+
 export interface HingedDoorOptions {
   width: number;
   height: number;
@@ -13,7 +26,7 @@ export interface HingedDoorOptions {
  * A door leaf on a hinge. The group's origin is the middle of the doorway at floor level
  * and the door faces local +Z.
  */
-export class HingedDoor {
+export class HingedDoor implements Doorway {
   public readonly group: THREE.Group;
   private readonly pivot: THREE.Group;
   private readonly swing: number;
@@ -82,5 +95,56 @@ export class HingedDoor {
     // Ease in and out so the leaf does not start or stop abruptly
     const eased = this.amount * this.amount * (3 - 2 * this.amount);
     this.pivot.rotation.y = this.swing * eased;
+  }
+}
+
+/** A gate that slides sideways along its own Z axis, like a compound's rolling gate. */
+export class SlidingGate implements Doorway {
+  private readonly mesh: THREE.Object3D;
+  private readonly closedZ: number;
+  private readonly travel: number;
+  private amount = 0;
+  private target = 0;
+
+  constructor(mesh: THREE.Object3D, travel: number) {
+    this.mesh = mesh;
+    this.closedZ = mesh.position.z;
+    this.travel = travel;
+  }
+
+  public open(): void {
+    this.target = 1;
+  }
+
+  public close(): void {
+    this.target = 0;
+  }
+
+  public set(open: boolean): void {
+    this.target = open ? 1 : 0;
+    this.amount = this.target;
+    this.mesh.position.z = this.closedZ + this.travel * this.amount;
+  }
+
+  public get openAmount(): number {
+    return this.amount;
+  }
+
+  public get isOpen(): boolean {
+    return this.amount > 0.93;
+  }
+
+  public get isClosed(): boolean {
+    return this.amount < 0.02;
+  }
+
+  public update(delta: number): void {
+    if (this.amount === this.target) return;
+    const step = delta * 1.4;
+    this.amount = this.target > this.amount
+      ? Math.min(this.target, this.amount + step)
+      : Math.max(this.target, this.amount - step);
+    const eased = this.amount * this.amount * (3 - 2 * this.amount);
+    this.mesh.position.z = this.closedZ + this.travel * eased;
   }
 }

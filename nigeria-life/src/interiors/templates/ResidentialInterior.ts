@@ -4,12 +4,16 @@ import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
 import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
+import type { NavGrid } from '../../interactions/NavGrid';
+import { HomeLife, HOME } from '../home/HomeLife';
 
 export class ResidentialInterior {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
+  /** Daily life in the apartment: bed, sofa and TV, fridge, bath */
+  public life: HomeLife;
 
   // Animated elements
   private fanBlades: THREE.Mesh[] = [];
@@ -22,6 +26,7 @@ export class ResidentialInterior {
     // Isolated coordinate area for residential interior
     const origin = new THREE.Vector3(260, 0, 440);
     this.group.position.copy(origin);
+    this.life = new HomeLife(this.group, origin);
 
     this.def = {
       id: 'interior_residence',
@@ -48,80 +53,21 @@ export class ResidentialInterior {
           wallColor: 0xd97706, // Warm Ochre / Mustard Yellow (Screenshot 5)
         },
       ],
-      stations: [
-        {
-          id: 'flat-tv',
-          name: '75-Inch Smart TV & Soundbar',
-          category: 'Home Entertainment',
-          description: 'Live Super Eagles vs Rivals match streaming in 4K. Tap to cheer & dance!',
-          relativePosition: new THREE.Vector3(-10, 0, 3),
-          actions: [
-            {
-              id: 'watch_super_eagles',
-              label: '📺 Watch Super Eagles AFCON Match (Cheer & Dance)',
-              description: 'Watch live football broadcast with stadium roar.',
-              rewardEnergy: 30,
-              rewardCred: 5,
-              dialogueResponse: '⚽ GOOOAAAL! Super Eagles score a screamer! You dance with joy! Energy boosted +30%!',
-            },
-          ],
-        },
-        {
-          id: 'flat-bed',
-          name: 'King-Size Royal Master Bed',
-          category: 'Rest & Recovery',
-          description: 'Memory foam mattress with air conditioning blowing. Restores 100% full energy!',
-          relativePosition: new THREE.Vector3(7.5, 0, -5.5),
-          actions: [
-            {
-              id: 'sleep_luxury_bed',
-              label: '🛏️ Sleep on Luxury Bed (100% Full Energy Recharge)',
-              description: 'Fall into deep restorative sleep under luxury duvet.',
-              rewardEnergy: 100,
-              rewardHealth: 100,
-              dialogueResponse: '💤 You rest peacefully with the AC blowing. 100% Full Energy and Health restored!',
-            },
-          ],
-        },
-        {
-          id: 'flat-drum',
-          name: 'Nigerian Blue Plastic Water Drum & Red Bucket',
-          category: 'Home Essentials',
-          description: 'The undefeated symbol of Nigerian domestic resilience! Filled with chilled borehole water.',
-          relativePosition: new THREE.Vector3(8.5, 0, 5.5),
-          actions: [
-            {
-              id: 'fetch_water_bath',
-              label: '🪣 Fetch Chilled Water & Bath with Red Bowl (Hygiene +100%)',
-              description: 'Fetch chilled water with the red plastic bucket and take a refreshing bath.',
-              rewardEnergy: 40,
-              rewardHealth: 40,
-              dialogueResponse: '💧 Refreshing bath taken with the red bowl! Cool chilled borehole water clears your head. Energy +40%!',
-            },
-          ],
-        },
-        {
-          id: 'flat-workstation',
-          name: 'Remote Tech Workstation',
-          category: 'Remote Work',
-          description: 'Ergonomic dual-monitor setup with high-speed fiber internet for remote freelancing gigs.',
-          relativePosition: new THREE.Vector3(-6.5, 0, -5.5),
-          actions: [
-            {
-              id: 'work_remote_sprint',
-              label: '💻 Complete Remote Tech Engineering Sprint (+₦12,000 Cash)',
-              description: 'Ship code review and backend API endpoint for international client.',
-              rewardCash: 12000,
-              rewardCred: 20,
-              dialogueResponse: '💻 Pull request approved and merged into production! ₦12,000 remote salary credited to your wallet! Street Cred +20!',
-            },
-          ],
-        },
-      ],
+      // What can be done here is registered in build3DInterior and acted out by HomeLife
+      stations: [],
       npcs: [],
     };
 
     this.build3DInterior();
+  }
+
+  /** Floor map used to walk around the furniture and through the doorways. */
+  public get nav(): NavGrid {
+    return this.life.nav;
+  }
+
+  public onPlayerLeft(): void {
+    this.life.playerLeft();
   }
 
   private build3DInterior(): void {
@@ -178,20 +124,23 @@ export class ResidentialInterior {
     // Kept low so every room stays visible from above.
     const partitionH = 1.8;
 
-    // Horizontal divider separating Bedrooms from Living Room
-    const divH = new THREE.Mesh(new THREE.BoxGeometry(22, partitionH, wallT), wallMat);
-    divH.position.set(-5, partitionH / 2, -1);
-    this.group.add(divH);
+    // Each partition is built in pieces, leaving doorways to walk through
+    const partition = (centerX: number, centerZ: number, width: number, length: number) => {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(width, partitionH, length), wallMat);
+      wall.position.set(centerX, partitionH / 2, centerZ);
+      this.group.add(wall);
+      this.life.block(centerX, centerZ, width / 2, length / 2);
+    };
 
-    // Vertical divider separating Master Bedroom from Center Bedroom
-    const divV1 = new THREE.Mesh(new THREE.BoxGeometry(wallT, partitionH, 12), wallMat);
-    divV1.position.set(2, partitionH / 2, -7);
-    this.group.add(divV1);
+    // Between the bedrooms and the living room, with a doorway into the bedrooms
+    partition(-12.75, -1, 6.5, wallT);
+    partition(-0.6, -1, 13.2, wallT);
 
-    // Vertical divider separating Bathroom
-    const divV2 = new THREE.Mesh(new THREE.BoxGeometry(wallT, partitionH, 13), wallMat);
-    divV2.position.set(6, partitionH / 2, 5.5);
-    this.group.add(divV2);
+    // Between the two bedrooms, with a doorway at the living-room end
+    partition(2, -8.2, wallT, 9.6);
+
+    // Between the living room and the bathroom side, with a doorway beside the bedrooms
+    partition(6, 7.0, wallT, 10);
 
     // 2. Ceiling & Ambient Lights
     this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-6, 4.0, 4), 0xffedd5));
@@ -208,7 +157,7 @@ export class ResidentialInterior {
       name: 'Apartment Front Door',
       category: 'Exit to Street',
       description: 'Step outside through the compound gate back to the street.',
-      interactionPoint: new THREE.Vector3(this.group.position.x, 0, this.group.position.z + 10),
+      interactionPoint: new THREE.Vector3(this.group.position.x, 0, this.group.position.z + 10.6),
     });
 
     // 4. Living Room:
@@ -237,13 +186,23 @@ export class ResidentialInterior {
     sofa.position.set(-2, 0.6, 6);
     this.group.add(sofa);
 
-    // C. Black Leather 2-Seater Sofa (Screenshot 5)
-    const sofaBlack = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 1.2, 3.4),
-      new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.6 })
-    );
-    sofaBlack.position.set(-7.5, 0.6, 2.5);
+    // C. Black leather sofa facing the TV: a seat to sit on, with a back and arms
+    const sofaBlack = new THREE.Group();
+    sofaBlack.position.set(-7.5, 0, 2.5);
+    const leather = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.6 });
+    const sofaSeat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 3.4), leather);
+    sofaSeat.position.set(-0.15, 0.25, 0);
+    sofaBlack.add(sofaSeat);
+    const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.15, 3.4), leather);
+    sofaBack.position.set(0.7, 0.575, 0);
+    sofaBlack.add(sofaBack);
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.78, 0.3), leather);
+      arm.position.set(-0.15, 0.39, side * 1.55);
+      sofaBlack.add(arm);
+    }
     this.group.add(sofaBlack);
+    this.life.block(-7.5, 2.5, 0.9, 1.7);
 
     // D. Wooden Coffee Table in Living Room
     const coffeeTable = new THREE.Mesh(
@@ -393,32 +352,84 @@ export class ResidentialInterior {
     const decorationSystem = HouseDecorationSystem.getInstance();
     this.group.add(decorationSystem.placedItemsGroup);
 
-    // Register stations into interactive list
+    // 9. Kitchen corner: fridge
+    const fridge = new THREE.Group();
+    fridge.position.copy(HOME.fridge.position);
+    const fridgeBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.0, 2.1, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.5, roughness: 0.3 })
+    );
+    fridgeBody.position.y = 1.05;
+    fridge.add(fridgeBody);
+    const fridgeHandle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.9, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.3 })
+    );
+    fridgeHandle.position.set(0.53, 1.3, 0.3);
+    fridge.add(fridgeHandle);
+    this.group.add(fridge);
+
+    // Pillow at the head of the master bed
+    const pillow = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 0.22, 0.9),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.8 })
+    );
+    pillow.position.set(10.5, 1.26, -8.2);
+    this.group.add(pillow);
+
+    // 10. Everything solid, so walking goes around it
+    this.life.block(-2, 6, 2.4, 0.9); // green sofa
+    this.life.block(-6, 5, 1.2, 0.7); // coffee table
+    this.life.block(-8, 10, 2.05, 2.05); // dining table and chairs
+    this.life.block(-0.5, 0.5, 0.35, 0.35); // palm pot
+    this.life.block(10.5, -6.5, 2.4, 2.6); // master bed
+    this.life.block(-3, -7, 2.1, 2.3); // centre bed
+    this.life.block(-12, -7, 1.8, 2.2); // guest bed
+    this.life.block(9.5, 3, 1.7, 0.8); // bathtub
+    this.life.block(13.5, 4.5, 1.1, 1.1); // shower
+    this.life.block(14, 1.5, 0.4, 0.55); // toilet
+    this.life.block(HOME.drum.position.x, HOME.drum.position.z, 0.8, 0.8);
+    this.life.block(9.8, 0.6, 0.45, 0.45); // bucket
+    this.life.block(HOME.fridge.position.x, HOME.fridge.position.z, 0.5, 0.5);
+
+    // 11. Things to do, each registered where the player stands to use it
+    const origin = this.group.position;
+    const at = (local: THREE.Vector3) => new THREE.Vector3(origin.x + local.x, 0, origin.z + local.z);
+
     this.interactiveList.push({
-      mesh: tvUnit,
+      mesh: sofaBlack,
       id: 'flat-tv',
-      name: '75-Inch Smart TV & Soundbar',
+      name: 'Sofa & TV',
       category: 'Home Entertainment',
-      description: 'Live Super Eagles AFCON stream in 4K with pulsating soundbar.',
-      interactionPoint: new THREE.Vector3(this.group.position.x - 14, 0, this.group.position.z + 4),
+      description: 'Sit down and watch the Super Eagles. A little energy comes back while you relax.',
+      interactionPoint: at(HOME.sofa.front),
     });
 
     this.interactiveList.push({
       mesh: masterBed,
       id: 'flat-bed',
-      name: 'King-Size Royal Master Bed',
+      name: 'Master Bed',
       category: 'Rest & Recovery',
-      description: 'Recharge 100% full energy under cool AC breeze.',
-      interactionPoint: new THREE.Vector3(this.group.position.x + 9, 0, this.group.position.z - 6),
+      description: 'Lie down and sleep. Energy and health come back while you rest.',
+      interactionPoint: at(HOME.bed.side),
     });
 
     this.interactiveList.push({
       mesh: drum,
       id: 'flat-drum',
-      name: 'Nigerian Blue Plastic Water Drum & Red Bucket',
+      name: 'Water Drum & Bucket',
       category: 'Home Essentials',
-      description: 'Borehole chilled water ready with the red bucket.',
-      interactionPoint: new THREE.Vector3(this.group.position.x + 8.5, 0, this.group.position.z + 1.5),
+      description: 'Cold borehole water and the red bucket. A quick bath wakes you up.',
+      interactionPoint: at(HOME.drum.front),
+    });
+
+    this.interactiveList.push({
+      mesh: fridge,
+      id: 'flat-fridge',
+      name: 'Fridge',
+      category: 'Kitchen',
+      description: 'Eat something from your bag.',
+      interactionPoint: at(HOME.fridge.front),
     });
   }
 
@@ -509,6 +520,8 @@ export class ResidentialInterior {
     for (const blade of this.fanBlades) {
       blade.rotation.z += delta * 24;
     }
+
+    this.life.update(delta);
 
     for (const head of this.fanHeads) {
       head.rotation.y = Math.sin(this.animTime * 1.5) * 0.7;
