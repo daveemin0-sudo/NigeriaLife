@@ -3,6 +3,7 @@ import { WorldMapRenderer, type MapSelectionEvent } from './WorldMapRenderer';
 import { WorldDataManager } from '../data/WorldDataManager';
 import type { DistrictData } from '../data/WorldDataTypes';
 import { PointerScope } from '../../game/PointerScope';
+import { RENDER_LAYERS } from '../../interiors/InteriorTypes';
 
 export class WorldMap {
   public scene: THREE.Scene;
@@ -26,6 +27,11 @@ export class WorldMap {
   private mouseVec: THREE.Vector2 = new THREE.Vector2();
   public hoveredDistrictId: string | null = null;
 
+  /** Can this city's map be the city itself, seen from above? (Its real streets must be standing.) */
+  public useRealWorld?: (cityId: string) => boolean;
+  /** Told to bring the real city into view under the map, or to put it away again */
+  public onRealWorld?: (on: boolean) => void;
+
   // Callbacks
   public onSelectItem?: (event: MapSelectionEvent) => void;
   public onHoverDistrict?: (district: DistrictData | null) => void;
@@ -47,6 +53,8 @@ export class WorldMap {
       1,
       1000
     );
+    // The real city is on the street layer, and the map looks at it
+    this.mapCamera.layers.enable(RENDER_LAYERS.STREET);
     this.updateCameraTransform();
 
     this.setupEventListeners();
@@ -79,8 +87,8 @@ export class WorldMap {
         this.cameraTarget.z -= deltaY * panSpeed;
 
         // Clamp map bounds
-        this.cameraTarget.x = THREE.MathUtils.clamp(this.cameraTarget.x, -120, 160);
-        this.cameraTarget.z = THREE.MathUtils.clamp(this.cameraTarget.z, -140, 150);
+        this.cameraTarget.x = THREE.MathUtils.clamp(this.cameraTarget.x, -160, 160);
+        this.cameraTarget.z = THREE.MathUtils.clamp(this.cameraTarget.z, -160, 150);
 
         this.previousMousePosition = { x: e.clientX, y: e.clientY };
         this.updateCameraTransform();
@@ -224,15 +232,25 @@ export class WorldMap {
 
   public switchCity(cityId: string): void {
     WorldDataManager.getInstance().switchCity(cityId);
-    this.renderer.loadCity(cityId);
+    const real = this.useRealWorld?.(cityId) ?? false;
+    this.renderer.loadCity(cityId, real);
+    this.onRealWorld?.(this.isActive && real);
     this.cameraTarget.set(0, 0, 0);
     this.zoomLevel = 1.05;
     this.updateCameraTransform();
   }
 
+  /** True while the map on show is the real city. */
+  public get showingRealWorld(): boolean {
+    return this.isActive && this.renderer.realWorld;
+  }
+
   public activate(): void {
     this.isActive = true;
     this.renderer.group.visible = true;
+    const real = this.useRealWorld?.(this.renderer.currentCityId) ?? false;
+    if (real !== this.renderer.realWorld) this.renderer.loadCity(this.renderer.currentCityId, real);
+    this.onRealWorld?.(real);
 
     // Center camera on player's current location or city center
     const playerPos = WorldDataManager.getInstance().getPlayerPosition();
@@ -244,6 +262,7 @@ export class WorldMap {
   public deactivate(): void {
     this.isActive = false;
     this.renderer.group.visible = false;
+    this.onRealWorld?.(false);
     this.renderer.highlightDistrict(null);
     document.body.style.cursor = 'default';
   }

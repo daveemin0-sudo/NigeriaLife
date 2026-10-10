@@ -16,6 +16,7 @@ import { WorldMap } from './map/WorldMap';
 import { WorldDataManager } from './data/WorldDataManager';
 import { InteriorManager } from '../interiors/InteriorManager';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
+import { Landmarks } from './landmarks/Landmarks';
 import { lagosZones, obstructionsUnder, obstructionsOf, validatePlan, type Obstruction, type PlanInput, type Violation } from './plan/CityPlan';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { LAGOS_PLOTS } from '../realestate/PlotCatalogue';
@@ -55,6 +56,8 @@ export class World {
   public vehicles: Vehicles;
   public npcs: NPCs;
   public districts: Districts;
+  /** The stadium, the port and the airport */
+  public landmarks: Landmarks;
   public apartment: ApartmentInterior;
   public interiorManager: InteriorManager;
   public weather: WeatherSystem;
@@ -121,7 +124,9 @@ export class World {
 
     // 6b. Dense Lagos Island city fabric: side streets, instanced tenements, plazas and towers.
     // Built after the hand-made buildings and districts so it can fill in around them.
-    this.cityDensity = new CityDensityManager([this.buildings.group, this.districts.group], LAGOS_PLOTS.map((plot) => plot.rect));
+    this.landmarks = new Landmarks();
+    this.scene.add(this.landmarks.group);
+    this.cityDensity = new CityDensityManager([this.buildings.group, this.districts.group], LAGOS_PLOTS.map((plot) => plot.rect), this.landmarks.zones());
     this.scene.add(this.cityDensity.group);
 
     // 6c. Instanced go-slow traffic on Broad Street & Martins Street, parked cars on back streets
@@ -145,6 +150,9 @@ export class World {
 
     // 9. Dedicated Isometric World Map Presentation Layer
     this.worldMap = new WorldMap(this.scene);
+    // The map of Lagos is Lagos: its real streets, seen from above
+    this.worldMap.useRealWorld = (cityId) => cityId === 'lagos' && this.cityManager.currentCityId === 'lagos';
+    this.worldMap.onRealWorld = (on) => this.showCityUnderMap(on);
 
     // Combine all clickable interactive objects across starter zone, districts, apartment, and simulated interiors
     this.interactiveObjects = [
@@ -152,6 +160,7 @@ export class World {
       ...this.npcs.interactiveList,
       ...this.vehicles.interactiveList,
       ...this.districts.interactiveList,
+      ...this.landmarks.interactiveList,
       ...this.apartment.interactiveList,
       ...this.interiorManager.getAllInteractiveObjects(),
     ];
@@ -169,6 +178,7 @@ export class World {
       this.npcs.group,
       this.cityPopulation.group,
       this.districts.group,
+      this.landmarks.group,
       this.apartment.group,
       this.interiorManager.group,
       this.atmosphere.group,
@@ -185,6 +195,7 @@ export class World {
       this.npcs.group,
       this.cityPopulation.group,
       this.districts.group,
+      this.landmarks.group,
       this.apartment.group,
       this.atmosphere.group,
       this.groundMesh,
@@ -251,6 +262,8 @@ export class World {
     this.cityDensity.fabric.stallBoxes.forEach((stall, index) => {
       out.push({ owner: `Roadside stall #${index}`, structure: false, height: 1.1, ...stall });
     });
+    // The stadium, the port and the airport say for themselves what they put on the ground
+    out.push(...this.landmarks.obstructions());
     for (const source of this.builtByPlayers) out.push(...source());
     return out;
   }
@@ -262,6 +275,7 @@ export class World {
       if (destination.city !== 'lagos') continue;
       doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
     }
+    doors.push(...this.landmarks.doors());
     return {
       zones: lagosZones(),
       obstructions: [...this.standingOnTheGround(), ...extra],
@@ -325,6 +339,16 @@ export class World {
     return new THREE.MeshStandardMaterial({ map, roughness: 0.97, metalness: 0 });
   }
 
+  /**
+   * Brings what stands still in Lagos into view for the map (ground, roads, buildings,
+   * landmarks), or puts it away again. People and traffic stay out of it.
+   */
+  public showCityUnderMap(on: boolean): void {
+    for (const part of [this.groundMesh, this.roads.group, this.buildings.group, this.cityDensity.group, this.districts.group, this.landmarks.group]) {
+      part.visible = on;
+    }
+  }
+
   public setStreetModeVisibility(visible: boolean): void {
     const lagosGroups = [
       this.roads.group,
@@ -335,6 +359,7 @@ export class World {
       this.npcs.group,
       this.cityPopulation.group,
       this.districts.group,
+      this.landmarks.group,
       this.apartment.group,
       this.atmosphere.group,
       this.groundMesh,
@@ -398,6 +423,8 @@ export class World {
     // If World Map mode is currently active, update dedicated WorldMap presentations
     if (this.worldMap.isActive) {
       this.worldMap.update(delta);
+      // Seen on the map too: the match goes on and the aircraft comes and goes
+      if (this.worldMap.showingRealWorld) this.landmarks.update(delta, this.skyEnvironment.currentHour);
       return;
     }
 
@@ -430,6 +457,9 @@ export class World {
 
     // Update expanded districts (ocean waves, smoke particles)
     this.districts.update(delta);
+
+    // The match at the stadium, the cranes at the port, the aircraft at the airport
+    this.landmarks.update(delta, this.skyEnvironment.currentHour);
 
     // Update apartment interior (standing fan rotation, TV glow, pet)
     this.apartment.update(delta);

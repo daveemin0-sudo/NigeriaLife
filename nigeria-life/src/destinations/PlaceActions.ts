@@ -1,0 +1,47 @@
+import type { Actor } from '../interactions/Actor';
+import type { InteractionDirector } from '../interactions/InteractionDirector';
+import type { BackendService } from '../backend/BackendService';
+
+/** What a place needs from the game to let the player do something there. */
+export interface PlaceHost {
+  actor: Actor;
+  backend: BackendService;
+  director: InteractionDirector;
+  say(text: string, kind?: 'success' | 'warning' | 'info'): void;
+  /** Turns the street camera: which side of the player it is on, how high it looks down from, how far back. */
+  look(yaw: number, pitch: number, distance: number): void;
+  /** The time on the game's clock, 0 to 24 */
+  hour(): number;
+  /** Puts a question to the player with a few answers to pick from: a menu, a choice of seats. */
+  ask(question: { who: string; role?: string; text: string; choices: Array<{ label: string; note?: string; pick: () => void }> }): void;
+  /** Has the player dance, for this many seconds or until they walk off. */
+  emote(name: 'zanku' | 'groove' | 'dance', seconds: number): void;
+  /** Walks the player in through the door of a building, by the id its door is registered under. */
+  enter(buildingId: string): void;
+}
+
+/** What the button on a thing's card says, and what pressing it does. */
+export interface PlaceAction {
+  label(): string;
+  run(host: PlaceHost): void;
+}
+
+const actions = new Map<string, PlaceAction>();
+
+/**
+ * What can be done at each thing in the world, by the id of the thing. A place says what its
+ * own things do when it is built (a ticket booth, a loading bay, a bar), and the card that
+ * comes up for one of them asks here. This is the one way a place adds something to do:
+ * nothing about a particular place is written into the screen that shows the card.
+ */
+export const PlaceActions = {
+  register(id: string, action: PlaceAction): void {
+    actions.set(id, action);
+  },
+  registerAll(all: Record<string, PlaceAction>): void {
+    for (const [id, action] of Object.entries(all)) actions.set(id, action);
+  },
+  get(id: string): PlaceAction | null {
+    return actions.get(id) ?? null;
+  },
+};

@@ -25,3 +25,6 @@ dist-ssr
 
 # The world server keeps its registry here
 server/data
+
+# TypeScript incremental build state
+*.tsbuildinfo

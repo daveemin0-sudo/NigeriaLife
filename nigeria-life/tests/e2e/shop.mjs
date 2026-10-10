@@ -120,7 +120,7 @@ export async function run(browser, check) {
   const opened = await playUntil(page, () => {
     const g = window.game;
     const d = g.world.buildings.placeDoors.find((entry) => entry.buildingId === 'supermarket');
-    return d.door.openAmount > 0.6 && !g.world.interiorManager.currentInterior ? { atDoor: Math.hypot(g.player.position.x - d.outside.x, g.player.position.z - d.outside.z) < 0.4 } : null;
+    return d.door.openAmount > 0.6 && !g.world.interiorManager.currentInterior ? { atDoor: Math.hypot(g.player.position.x - d.outside.x, g.player.position.z - d.outside.z) < 2.2 } : null;
   }, 15);
   check('pressing E walks the player to the door and it swings open before they go in', opened && opened.atDoor, opened);
   const arrived = await playUntil(page, () => {

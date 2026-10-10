@@ -15,7 +15,14 @@ export class WorldMapRenderer {
   private propertyGroup: THREE.Group;
   private dataManager: WorldDataManager;
 
-  private currentCityId: 'lagos' | 'abuja' | 'port_harcourt' = 'lagos';
+  public currentCityId: 'lagos' | 'abuja' | 'port_harcourt' = 'lagos';
+  /**
+   * The map is the city itself seen from above, not a model of it: the real streets and
+   * buildings are shown under the map camera and this draws only what a map adds to them
+   * (the sea round the city, district outlines, pins). Lagos only, so far.
+   */
+  public realWorld = false;
+  private mapLights: { sun: THREE.DirectionalLight; fill: THREE.DirectionalLight; ambient: THREE.AmbientLight } | null = null;
 
   // Animated elements
   private waterMeshes: THREE.Mesh[] = [];
@@ -53,6 +60,7 @@ export class WorldMapRenderer {
 
     const mapAmbient = new THREE.AmbientLight(0xffffff, 1.7);
     this.group.add(mapAmbient);
+    this.mapLights = { sun: mapSun, fill: mapFill, ambient: mapAmbient };
 
     // Initial load defaults to current city in WorldDataManager
     const initialCity = this.dataManager.getCurrentCityId();
@@ -62,7 +70,8 @@ export class WorldMapRenderer {
   // =========================================================================
   // DYNAMIC CITY LOADER (Supports Lagos, Abuja FCT, and Port Harcourt)
   // =========================================================================
-  public loadCity(cityId: string): void {
+  public loadCity(cityId: string, realWorld: boolean = false): void {
+    this.realWorld = realWorld;
     const cleanId = cityId.toLowerCase().replace(/[\s-]/g, '_');
     if (cleanId.includes('abuja')) {
       this.currentCityId = 'abuja';
@@ -96,12 +105,21 @@ export class WorldMapRenderer {
       this.buildPortHarcourtLandmarks();
       this.buildPortHarcourtProceduralBlocks();
       this.buildPortHarcourtTraffic();
+    } else if (this.realWorld) {
+      this.buildSeaRoundTheCity();
     } else {
       this.buildLagosGeography();
       this.buildLagosRoadsAndBridges();
       this.buildLagosLandmarks();
       this.buildLagosProceduralBlocks();
       this.buildLagosTraffic();
+    }
+
+    // The real city is lit by its own sun; the model needs lights of its own
+    if (this.mapLights) {
+      this.mapLights.sun.intensity = this.realWorld ? 0 : 2.6;
+      this.mapLights.fill.intensity = this.realWorld ? 0.3 : 1.3;
+      this.mapLights.ambient.intensity = this.realWorld ? 0.55 : 1.7;
     }
 
     // Shared: build district territories, property markers, and player pin
@@ -630,6 +648,14 @@ export class WorldMapRenderer {
     this.addWaterLabel('LEKKI ESTATE', 85, 0.6, 25, 30, 8, '#14532d');
   }
 
+  /** Under and beyond the real city: water out to the horizon. */
+  private buildSeaRoundTheCity(): void {
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshBasicMaterial({ color: 0x0b6aa0 }));
+    sea.rotation.x = -Math.PI / 2;
+    sea.position.y = -0.4;
+    this.cityContentGroup.add(sea);
+  }
+
   private buildLagosRoadsAndBridges(): void {
     const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
 
@@ -761,10 +787,16 @@ export class WorldMapRenderer {
     const districts = this.dataManager.getDistricts();
 
     for (const d of districts) {
-      const w = d.bounds.maxX - d.bounds.minX;
-      const h = d.bounds.maxZ - d.bounds.minZ;
-      const cx = (d.bounds.minX + d.bounds.maxX) / 2;
-      const cz = (d.bounds.minZ + d.bounds.maxZ) / 2;
+      // Over the real city a district stops where the land does
+      const edge = this.realWorld ? 159 : Infinity;
+      const minX = Math.max(-edge, d.bounds.minX);
+      const maxX = Math.min(edge, d.bounds.maxX);
+      const minZ = Math.max(-edge, d.bounds.minZ);
+      const maxZ = Math.min(edge, d.bounds.maxZ);
+      const w = maxX - minX;
+      const h = maxZ - minZ;
+      const cx = (minX + maxX) / 2;
+      const cz = (minZ + maxZ) / 2;
 
       let padColor = 0x22c55e;
       if (d.id.includes('airport')) padColor = 0x1e293b;
@@ -774,17 +806,28 @@ export class WorldMapRenderer {
       else if (d.zone === 'Diplomatic') padColor = 0x059669;
       else if (d.zone === 'Peninsula' || d.zone === 'Garden') padColor = 0x15803d;
 
-      // Base District Land Pad
-      const padGeo = new THREE.BoxGeometry(w, 0.45, h);
-      const padMat = new THREE.MeshStandardMaterial({
-        color: padColor,
-        roughness: 0.75,
-        metalness: 0.05,
-      });
-      const pad = new THREE.Mesh(padGeo, padMat);
-      pad.position.set(cx, 0.22, cz);
-      pad.receiveShadow = true;
-      this.cityContentGroup.add(pad);
+      if (this.realWorld) {
+        // Over the real ground a district is a wash of colour, not a slab
+        const wash = new THREE.Mesh(
+          new THREE.PlaneGeometry(w, h),
+          new THREE.MeshBasicMaterial({ color: padColor, transparent: true, opacity: 0.13, depthWrite: false })
+        );
+        wash.rotation.x = -Math.PI / 2;
+        wash.position.set(cx, 0.36, cz);
+        this.cityContentGroup.add(wash);
+      } else {
+        // Base District Land Pad
+        const padGeo = new THREE.BoxGeometry(w, 0.45, h);
+        const padMat = new THREE.MeshStandardMaterial({
+          color: padColor,
+          roughness: 0.75,
+          metalness: 0.05,
+        });
+        const pad = new THREE.Mesh(padGeo, padMat);
+        pad.position.set(cx, 0.22, cz);
+        pad.receiveShadow = true;
+        this.cityContentGroup.add(pad);
+      }
 
       // District Border Outline
       const borderGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, 0.48, h));

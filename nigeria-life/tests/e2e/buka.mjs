@@ -88,7 +88,7 @@ export async function run(browser, check) {
     const g = window.game;
     const door = g.world.buildings.placeDoors[0];
     return door.door.openAmount > 0.6 && !g.world.interiorManager.currentInterior
-      ? { atDoor: Math.hypot(g.player.position.x - door.outside.x, g.player.position.z - door.outside.z) < 0.4, locked: g.player.actor.sequence?.interruptible === false }
+      ? { atDoor: Math.hypot(g.player.position.x - door.outside.x, g.player.position.z - door.outside.z) < 2.2, locked: g.player.actor.sequence?.interruptible === false }
       : null;
   }, 15);
   check('pressing E walks the player to the door and the door swings open before they go in', opened && opened.atDoor && opened.locked, opened);

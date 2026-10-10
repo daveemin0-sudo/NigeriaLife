@@ -16,10 +16,6 @@ const GRID = WORLD_HALF * 2;
 const LOT_GAP = 0.9;
 
 /** Open ground kept clear of generated buildings (airport apron, stadium forecourt) */
-const RESERVED: Array<[number, number, number, number]> = [
-  [-114, -60, -136, -96],
-  [-78, -38, -6, 22],
-];
 
 export interface WalkRun {
   axis: 'x' | 'z';
@@ -121,11 +117,12 @@ export class CityFabric {
   /**
    * @param obstacles hand-built parts of the city to build around
    * @param plots parcels of land that belong to the land registry: nothing is generated on them
+   * @param reserved ground taken by the great places (stadium, port, airport), kept clear the same way
    */
-  constructor(obstacles: THREE.Object3D[], plots: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
+  constructor(obstacles: THREE.Object3D[], plots: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [], reserved: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
     this.scanObstacles(obstacles);
     for (const plot of plots) this.mark(plot.minX - 0.5, plot.maxX + 0.5, plot.minZ - 0.5, plot.maxZ + 0.5, NO_BUILD);
-    for (const [minX, maxX, minZ, maxZ] of RESERVED) this.mark(minX, maxX, minZ, maxZ, NO_BUILD);
+    for (const zone of reserved) this.mark(zone.minX, zone.maxX, zone.minZ, zone.maxZ, NO_BUILD);
     this.mark(-MAIN_CORRIDOR_HALF, MAIN_CORRIDOR_HALF, MAIN_ROAD.zMin - 2, MAIN_ROAD.zMax + 2, ROAD);
 
     for (let i = 0; i < SIDE_STREETS.length; i++) this.layStreet(SIDE_STREETS[i], i);

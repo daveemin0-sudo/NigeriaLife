@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { OpeningHours } from '../destinations/Hours';
 
 export type GameLocationMode = 'street' | 'interior' | 'world-map';
 
@@ -23,7 +24,8 @@ export type InteriorType =
   | 'shop' 
   | 'office'
   | 'university'
-  | 'airport';
+  | 'airport'
+  | 'club';
 
 export interface InteriorActivityAction {
   id: string;
@@ -106,6 +108,8 @@ export interface InteriorDefinition {
   cameraOffset: THREE.Vector3;    // Camera viewing angle inside
   ambientLightColor: number;
   ambientLightIntensity: number;
+  /** When it can be gone into. Left out, it never shuts. */
+  hours?: OpeningHours;
   rooms: InteriorRoomDef[];
   stations: InteriorStationDef[];
   npcs: InteriorNPCDef[];

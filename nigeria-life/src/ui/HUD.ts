@@ -27,12 +27,16 @@ import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
 import { emitGameEvent } from '../game/GameEvents';
 import { InteractionDirector } from '../interactions/InteractionDirector';
+import { CITY_NAME } from '../realestate/PlotCatalogue';
+import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { PlaceActions } from '../destinations/PlaceActions';
 import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
   quilox_vi: 'quilox-club',
   national_stadium: 'surulere-stadium',
+  apapa_port: 'apapa-port',
   nike_art_gallery: 'nike-art-gallery',
   computer_village: 'cv-plaza',
   cchub_yaba: 'yaba-cchub',
@@ -73,6 +77,8 @@ export class HUD {
   public onVendorAction?: (objectId: string) => void;
   /** A plot of land's board was used: open what is known about that plot */
   public onPlotAction?: (plotId: string) => void;
+  /** Something wants the street camera somewhere in particular: a seat with a view, say */
+  public onLookFrom?: (yaw: number, pitch: number, distance: number) => void;
   /** Stations inside buildings that are used by walking up and doing something with the hands or talking */
   private static readonly ACTED_OUT = /^(hosp_|police_|unilag_|airport_|bank_)/;
   private actingOut = false;
@@ -720,6 +726,9 @@ export class HUD {
     navMapBtn?.addEventListener('click', () => {
       this.currentNavMode = 'map';
       updateNavActive('nav-btn-map');
+      // The map always opens on the city the player is standing in
+      const here = this.world?.cityManager.currentCityId;
+      if (here) this.viewCityOnMap(here, true);
       this.worldMapUI.open();
       this.onNavigateMode?.('map');
     });
@@ -840,14 +849,22 @@ export class HUD {
       this.world?.worldMap.focusOnDistrict(districtId);
     };
 
-    this.worldMapUI.onSwitchCityTab = (cityId) => {
-      if (this.world) {
-        this.world.worldMap.switchCity(cityId);
-        this.worldMapUI.updateCityHeader(cityId);
-        this.world.cityManager.switchCity(cityId as any, this.player, (newObjs) => {
-          if (this.world) this.world.interactiveObjects = newObjs;
-        });
-      }
+    this.worldMapUI.onSwitchCityTab = (cityId) => this.viewCityOnMap(cityId);
+    // On the map of the real city, a pin stands over the real place: the door a ride would drop you at
+    this.worldMapUI.locate = (lm) => {
+      if (!this.world || !(this.world.worldMap.useRealWorld?.(this.mapCity) ?? false)) return null;
+      const destination = DestinationRegistry.getInstance().getById(lm.id);
+      const spot = LANDMARK_STREET_SPOTS[lm.id];
+      // A place the size of a stadium is pinned in its middle; anything else at its door
+      const middle = this.world.landmarks.middleOf([lm.id, spot, destination?.id, ...(destination?.aliases ?? [])]);
+      if (middle) return middle;
+      if (destination) return destination.streetPosition;
+      return this.world.interactiveObjects.find((o) => o.id === spot)?.interactionPoint ?? null;
+    };
+    // Put away, the map goes back to the city the player is in
+    this.worldMapUI.onClosed = () => {
+      const here = this.world?.cityManager.currentCityId;
+      if (here && this.mapCity !== here) this.viewCityOnMap(here, true);
     };
 
     this.worldMapUI.onTravelToProperty = (prop) => {
@@ -920,11 +937,7 @@ export class HUD {
         const target = e.currentTarget as HTMLElement;
         target.classList.add('active');
         const city = target.getAttribute('data-city') as CityId;
-        if (city && this.world) {
-          this.world.cityManager.switchCity(city, this.player, (newObjs) => {
-            if (this.world) this.world.interactiveObjects = newObjs;
-          });
-        }
+        if (city) this.viewCityOnMap(city);
       });
     });
 
@@ -1197,6 +1210,27 @@ export class HUD {
     }
   }
 
+  /** Which city the map is showing, which need not be the one the player is in */
+  private mapCity = 'lagos';
+
+  /**
+   * Puts another city's map up. Looking at a map is free and moves nobody: the player stays in
+   * the city they are in, and gets to another one by paying for a flight or a coach.
+   */
+  private viewCityOnMap(cityId: string, quietly = false): void {
+    if (!this.world) return;
+    const here = this.world.cityManager.currentCityId;
+    if (this.mapCity !== cityId) this.world.worldMap.switchCity(cityId);
+    this.mapCity = cityId;
+    this.worldMapUI.updateCityHeader(cityId);
+    this.worldMapUI.markCityTabs(cityId, here);
+    document.querySelectorAll('.city-tab').forEach((tab) => tab.classList.toggle('active', tab.getAttribute('data-city') === cityId));
+    if (!quietly && cityId !== here) {
+      const names: Record<string, string> = CITY_NAME;
+      showGameToast(`This is the map of ${names[cityId] ?? cityId}. You are in ${names[here] ?? here}: book a flight or a coach to go there.`, 'info', 3800);
+    }
+  }
+
   public showInteractionCard(obj: InteractiveObject): void {
     this.currentActiveObject = obj;
     const categoryEl = document.getElementById('card-category')!;
@@ -1238,7 +1272,12 @@ export class HUD {
       bizMeta.style.display = 'none';
     }
 
-    if (obj.id === 'mama-put') {
+    const ownAction = PlaceActions.get(obj.id);
+    if (ownAction) {
+      // The place says for itself what can be done here (a ticket booth, a loading bay, a bar)
+      btnEl.textContent = ownAction.label();
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'mama-put') {
       btnEl.textContent = '🍲 Enter Buka & Mama Put [E]';
       bizBtn.textContent = '💼 Business Office';
       bizBtn.style.display = 'inline-block';
@@ -1475,9 +1514,6 @@ export class HUD {
       btnEl.textContent = '💻 Join Tech Hackathon & Remote Sprint (+₦15,000)';
       bizBtn.textContent = '🚀 Co-Creation Tech Incubator [E]';
       bizBtn.style.display = 'inline-block';
-    } else if (obj.id === 'surulere-stadium') {
-      btnEl.textContent = '🏃 Athletic Track Workout & Football Training (₦1,000)';
-      bizBtn.style.display = 'none';
     } else if (obj.id === 'mma-airport') {
       btnEl.textContent = '✈️ Book Interstate Flight to Abuja / Port Harcourt [M]';
       bizBtn.style.display = 'none';
@@ -1840,6 +1876,29 @@ export class HUD {
     const id = this.currentActiveObject.id;
     if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;
     this.questManager.triggerEvent('interact_object', { objectId: id });
+
+    const ownAction = PlaceActions.get(id);
+    if (ownAction && this.player) {
+      // Acted out where it happens: the card goes and the player walks to it
+      this.hideInteractionCard();
+      ownAction.run({
+        actor: this.player.actor,
+        backend: this.backend,
+        director: InteractionDirector.get(),
+        say: (text, kind = 'info') => showGameToast(text, kind, 3600),
+        look: (yaw, pitch, distance) => this.onLookFrom?.(yaw, pitch, distance),
+        hour: () => this.world?.skyEnvironment.currentHour ?? 12,
+        ask: (question) => this.showDialogueModal({
+          speakerName: question.who,
+          speakerRole: question.role,
+          dialogueText: question.text,
+          choices: question.choices.map((choice, index) => ({ id: `choice_${index}`, label: choice.label, badge: choice.note, onSelect: choice.pick })),
+        }),
+        emote: (name, seconds) => this.player.playEmote(name, seconds),
+        enter: (buildingId) => this.onEnterInterior?.(buildingId),
+      });
+      return;
+    }
 
     if (VendorUI.sells(id)) {
       // Bought hand to hand in the street; the list only starts it
@@ -3086,28 +3145,6 @@ export class HUD {
           speakerRole: '6th Floor Innovation Hub • Yaba',
           speakerAvatar: '⚠️',
           dialogueText: gig.message,
-        });
-      }
-    } else if (id === 'surulere-stadium') {
-      const success = this.backend.spendCash(1000, 'Teslim Balogun Stadium Pass');
-      if (success) {
-        this.backend.restoreEnergy(50);
-        this.backend.addStreetCred(15);
-        this.player?.playEmote('groove', 4.0);
-        this.showDialogueModal({
-          speakerName: 'Coach Bassey',
-          speakerRole: 'Teslim Balogun Athletic Track',
-          speakerAvatar: '🏃',
-          soundType: 'cheer',
-          dialogueText: 'SURULERE ATHLETIC WORKOUT! Ran intensive laps around the Teslim Balogun tartan track! Energy boosted +50, Street Cred +15!',
-          rewards: { energy: 50, streetCred: 15 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Stadium Turnstile',
-          speakerRole: 'Teslim Balogun Gate',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦1,000 cash for stadium athletic track pass!',
         });
       }
     } else if (id === 'mma-airport') {

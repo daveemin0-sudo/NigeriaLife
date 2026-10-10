@@ -11,6 +11,10 @@ import { UIStateManager } from './UIStateManager';
 interface MapMarker {
   el: HTMLElement;
   position: THREE.Vector3;
+  /** The place a pin is for (area names have none) */
+  place?: string;
+  /** The pin stands over the real place in the city, not over a drawing of it */
+  real?: boolean;
 }
 
 /** "Quilox VIP Nightclub & Waterfront Lounge" -> "Quilox VIP Nightclub" */
@@ -28,6 +32,8 @@ export class WorldMapUI {
 
   public onTravelToDistrict?: (district: DistrictData) => void;
   public onTravelToLandmark?: (landmark: MapLandmark) => void;
+  /** Where the place a pin stands for really is in the city, when the map is the city itself. Null if it has no real counterpart. */
+  public locate?: (landmark: MapLandmark) => THREE.Vector3 | null;
   public onTravelToProperty?: (property: MapProperty) => void;
   /** Returns false when the trip could not be paid for. `enterInside` continues through the door on arrival. */
   public onTravelWithTransport?: (dest: DestinationDefinition, transport: TransportOption, enterInside: boolean) => boolean;
@@ -36,6 +42,8 @@ export class WorldMapUI {
   public onSelectDistrictFromChips?: (districtId: string) => void;
   public onCloseMap?: () => void;
   public onSwitchCityTab?: (cityId: string) => void;
+  /** The map has been put away, however that was done */
+  public onClosed?: () => void;
   public onOpenEconomy?: (propertyId: string) => void;
   public onEnterInterior?: (buildingId: string) => void;
 
@@ -193,6 +201,16 @@ export class WorldMapUI {
     });
   }
 
+  /** Shows which city's map is up, and which city the player is actually standing in. */
+  public markCityTabs(viewing: string, playerCity: string): void {
+    const names: Record<string, string> = { lagos: '🏖️ Lagos', abuja: '⛰️ Abuja FCT', port_harcourt: '🛢️ Port Harcourt' };
+    this.container.querySelectorAll('.city-nav-tab').forEach((tab) => {
+      const city = tab.getAttribute('data-city') ?? '';
+      tab.classList.toggle('active', city === viewing);
+      tab.textContent = `${names[city] ?? city}${city === playerCity ? ' (you are here)' : ''}`;
+    });
+  }
+
   public updateCityHeader(cityId: string): void {
     const cleanId = cityId.toLowerCase().replace(/[\s-]/g, '_');
     const nameEl = document.getElementById('map-ui-city-name');
@@ -273,8 +291,16 @@ export class WorldMapUI {
       pin.addEventListener('click', () => this.showLandmarkDetails(lm));
       this.pinLayerEl.appendChild(pin);
       // Sits just above the roof of the little building it marks
-      this.markers.push({ el: pin, position: new THREE.Vector3(lm.position.x, 9, lm.position.z) });
+      // Over the real place when there is one; otherwise where the map's own drawing has it
+      const real = this.locate?.(lm) ?? null;
+      const at = real ?? lm.position;
+      this.markers.push({ el: pin, position: new THREE.Vector3(at.x, 9, at.z), place: lm.id, real: real !== null });
     }
+  }
+
+  /** Every place pinned on the map now, where its pin is, and whether that is a real place in the city. */
+  public pinPlaces(): Array<{ id: string; x: number; z: number; real: boolean }> {
+    return this.markers.filter((marker) => marker.place).map((marker) => ({ id: marker.place!, x: marker.position.x, z: marker.position.z, real: !!marker.real }));
   }
 
   /** Moves every pin to where its place currently appears on screen. Call once a frame while the map is open. */
@@ -588,5 +614,6 @@ export class WorldMapUI {
     if (UIStateManager.getInstance().isMode('world-map')) {
       UIStateManager.getInstance().setMode('street');
     }
+    this.onClosed?.();
   }
 }

@@ -401,6 +401,67 @@ export class DestinationRegistry {
     });
 
     // =========================================================================
+    // THE GREAT PLACES: built in the open city, with nothing to go inside (see world/landmarks)
+    // =========================================================================
+    this.register({
+      id: 'dest_lagos_stadium',
+      aliases: ['surulere-stadium', 'national_stadium', 'stadium'],
+      name: 'National Stadium, Surulere',
+      category: 'Stadium',
+      city: 'lagos',
+      district: 'surulere',
+      districtName: 'Stadium Road, Surulere',
+      mapPosition: new THREE.Vector3(-74, 0, 15),
+      mapVisualType: 'stadium',
+      mapIcon: '🏟️',
+      exteriorType: 'stadium',
+      streetPosition: new THREE.Vector3(-44.1, 0, 5),
+      entrance: {
+        position: new THREE.Vector3(-44.1, 0, 5),
+        promptLabel: 'Gate A of the National Stadium',
+        triggerRadius: 6.5,
+      },
+      interiorId: '',
+      openingHours: '09:00 - 23:00',
+      shortDescription: 'Football through the day. Tickets at the booth by Gate A.',
+      destinationDescription: 'A pitch and running track with stands on all four sides. Buy a ticket at the booth, go in through Gate A and watch the match from the foot of the east stand.',
+      services: ['Match tickets', 'Seats at the pitch side'],
+      transportAvailability: defaultTransports,
+      npcPopulation: [],
+      activities: [],
+      isEnterable: false,
+    });
+
+    this.register({
+      id: 'dest_lagos_port',
+      aliases: ['apapa-port', 'apapa_port', 'port'],
+      name: 'Apapa Port',
+      category: 'Seaport',
+      city: 'lagos',
+      district: 'port_apapa',
+      districtName: 'Wharf Road, Apapa',
+      mapPosition: new THREE.Vector3(-87.5, 0, 76),
+      mapVisualType: 'port',
+      mapIcon: '⚓',
+      exteriorType: 'container_port',
+      streetPosition: new THREE.Vector3(-43.4, 0, 48),
+      entrance: {
+        position: new THREE.Vector3(-43.4, 0, 48),
+        promptLabel: 'Gate 1 of Apapa Port',
+        triggerRadius: 6.5,
+      },
+      interiorId: '',
+      openingHours: 'Open 24/7',
+      shortDescription: 'Container terminal. Paid work at the loading bay inside the gate.',
+      destinationDescription: 'A quay with a cargo ship alongside, gantry cranes, a container yard, a shed and the terminal office. Lorries are loaded by hand at the bay just inside the gate.',
+      services: ['Loading work, paid by the lorry'],
+      transportAvailability: defaultTransports,
+      npcPopulation: [],
+      activities: [],
+      isEnterable: false,
+    });
+
+    // =========================================================================
     // ADDITIONAL CANONICAL DESTINATIONS (Existing or upcoming)
     // =========================================================================
     this.register({

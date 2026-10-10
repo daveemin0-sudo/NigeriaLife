@@ -12,6 +12,7 @@ const PLACE_ICONS: Record<InteriorType, string> = {
   office: '🏢',
   university: '🎓',
   airport: '✈️',
+  club: '🪩',
 };
 
 /** Short names for the shortcut chips. Anything not listed falls back to the object's own name. */
@@ -45,6 +46,10 @@ const SPOT_CHIPS: Record<string, { icon: string; label: string }> = {
   shop_shelf_snacks: { icon: '🍪', label: 'Snacks' },
   shop_shelf_household: { icon: '🔦', label: 'Household' },
   shop_checkout: { icon: '🧾', label: 'Till' },
+  club_door_desk: { icon: '🎟️', label: 'Door desk' },
+  club_bar: { icon: '🍹', label: 'Bar' },
+  club_dance_floor: { icon: '🕺', label: 'Dance floor' },
+  club_lounge: { icon: '🛋️', label: 'Lounge' },
 };
 
 export interface PlaceCardHooks {

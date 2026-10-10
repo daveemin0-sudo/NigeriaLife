@@ -14,9 +14,6 @@ export class Districts {
   // Generator smoke
   private smokeParticles: THREE.Mesh[] = [];
 
-  // Airport radar scanner animation
-  private airportRadarMesh?: THREE.Mesh;
-
   constructor() {
     this.group = new THREE.Group();
 
@@ -38,11 +35,7 @@ export class Districts {
     // 5b. Build University of Lagos (UNILAG) Akoka Campus & Senate Gates
     this.buildUnilagCampus();
 
-    // 6. Build Surulere Sports Hub & Teslim Balogun Stadium (West)
-    this.buildSurulereStadium();
-
-    // 7. Build Murtala Muhammed Airport Terminal & Flight Deck (North-West)
-    this.buildAirportTerminal();
+    // 6, 7. The stadium and the airport are landmarks of their own now: see world/landmarks
 
     // 8. Build Ajah Peninsula Developing Residential Estate (Far East)
     this.buildAjahDevelopingEstate();
@@ -672,157 +665,6 @@ export class Districts {
   }
 
   // =========================================================================
-  // 6. SURULERE SPORTS HUB & TESLIM BALOGUN STADIUM (West: X -55, Z +10)
-  // =========================================================================
-  private buildSurulereStadium(): void {
-    const surulereGroup = new THREE.Group();
-    surulereGroup.position.set(-55, 0, 10);
-
-    // Stadium Grandstand Canopy
-    const standGroup = new THREE.Group();
-
-    const bowlGeo = new THREE.BoxGeometry(24, 7, 16);
-    const bowlMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4 });
-    const bowl = new THREE.Mesh(bowlGeo, bowlMat);
-    bowl.position.y = 3.5;
-    standGroup.add(bowl);
-
-    // Green and white Nigerian sports canopy
-    const canopyGeo = new THREE.BoxGeometry(25, 0.6, 17);
-    const canopyMat = new THREE.MeshStandardMaterial({ color: 0x15803d });
-    const canopy = new THREE.Mesh(canopyGeo, canopyMat);
-    canopy.position.y = 7.3;
-    standGroup.add(canopy);
-
-    // Stadium floodlight pylon towers (4 corners)
-    for (const [fx, fz] of [[-13, -9], [13, -9], [-13, 9], [13, 9]]) {
-      const pylon = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.28, 16, 8),
-        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7 })
-      );
-      pylon.position.set(fx, 8, fz);
-      standGroup.add(pylon);
-
-      const lightGrid = new THREE.Mesh(
-        new THREE.BoxGeometry(1.6, 1.2, 0.4),
-        new THREE.MeshBasicMaterial({ color: 0xfef08a })
-      );
-      lightGrid.position.set(fx, 16, fz);
-      standGroup.add(lightGrid);
-    }
-
-    // Red Tartan Running Track Curve
-    const trackGeo = new THREE.PlaneGeometry(28, 6);
-    const trackMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.8 });
-    const track = new THREE.Mesh(trackGeo, trackMat);
-    track.rotation.x = -Math.PI / 2;
-    track.position.set(0, 0.02, 11);
-    standGroup.add(track);
-
-    surulereGroup.add(standGroup);
-
-    this.interactiveList.push({
-      mesh: standGroup,
-      id: 'surulere-stadium',
-      name: 'Teslim Balogun Stadium & Sports Arena',
-      category: 'Surulere Sports Hub',
-      description: 'Iconic sports arena celebrating Lagos sporting legends, AFCON qualifiers, tartan track workouts, and athletics training.',
-      interactionPoint: new THREE.Vector3(-55, 0, 15),
-    });
-
-    this.group.add(surulereGroup);
-  }
-
-  // =========================================================================
-  // 7. MURTALA MUHAMMED AIRPORT TERMINAL (North-West: X -80, Z -110)
-  // =========================================================================
-  private buildAirportTerminal(): void {
-    const airportGroup = new THREE.Group();
-    airportGroup.position.set(-80, 0, -110);
-
-    const terminalGroup = new THREE.Group();
-
-    // Curved Modern Departure Terminal
-    const termGeo = new THREE.BoxGeometry(22, 6.5, 14);
-    const termMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      roughness: 0.2,
-      metalness: 0.7,
-    });
-    const term = new THREE.Mesh(termGeo, termMat);
-    term.position.y = 3.25;
-    terminalGroup.add(term);
-
-    // Blue glass atrium curtain wall
-    const glassGeo = new THREE.BoxGeometry(22.2, 4.5, 2.0);
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: 0x0284c7,
-      roughness: 0.1,
-      metalness: 0.9,
-    });
-    const glass = new THREE.Mesh(glassGeo, glassMat);
-    glass.position.set(0, 3.5, 6.5);
-    terminalGroup.add(glass);
-
-    // Control Tower with Rotating Radar
-    const towerPole = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.2, 1.8, 14, 12),
-      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
-    );
-    towerPole.position.set(-14, 7, 0);
-    terminalGroup.add(towerPole);
-
-    const towerCab = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.4, 1.8, 2.5, 12),
-      new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.1, metalness: 0.8 })
-    );
-    towerCab.position.set(-14, 15, 0);
-    terminalGroup.add(towerCab);
-
-    // Radar dish
-    const radarGeo = new THREE.BoxGeometry(3.2, 0.4, 0.2);
-    const radarMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
-    this.airportRadarMesh = new THREE.Mesh(radarGeo, radarMat);
-    this.airportRadarMesh.position.set(-14, 16.6, 0);
-    terminalGroup.add(this.airportRadarMesh);
-
-    // High-contrast Airport Departures Signboard
-    const airportSign = this.createNamedSignMesh(
-      'MURTALA MUHAMMED INTL AIRPORT (LOS)',
-      'MMA2 DEPARTURES TERMINAL • DOMESTIC & INTERNATIONAL FLIGHTS',
-      '#0f172a',
-      '#ffffff',
-      18.0,
-      1.4
-    );
-    airportSign.position.set(0, 6.2, 7.6);
-    terminalGroup.add(airportSign);
-
-    airportGroup.add(terminalGroup);
-
-    // Register canonical destination and aliases
-    this.interactiveList.push({
-      mesh: terminalGroup,
-      id: 'dest_lagos_airport',
-      name: 'Murtala Muhammed International Airport (LOS)',
-      category: 'Aviation & Airport',
-      description: 'Nigeria’s premier aviation hub. Check in for flights, pass security screening, and fly to Abuja and Port Harcourt.',
-      interactionPoint: new THREE.Vector3(-80, 0, -101.2),
-    });
-
-    this.interactiveList.push({
-      mesh: terminalGroup,
-      id: 'mma-airport',
-      name: 'Murtala Muhammed International Airport (LOS)',
-      category: 'Aviation & Airport',
-      description: 'Nigeria’s premier aviation hub. Check in for flights, pass security screening, and fly to Abuja and Port Harcourt.',
-      interactionPoint: new THREE.Vector3(-80, 0, -101.2),
-    });
-
-    this.group.add(airportGroup);
-  }
-
-  // =========================================================================
   // 8. AJAH PENINSULA DEVELOPING RESIDENTIAL ESTATE (East: X +90, Z +25)
   // =========================================================================
   private buildAjahDevelopingEstate(): void {
@@ -1225,11 +1067,6 @@ export class Districts {
       if (sp.position.y > 3.8) {
         sp.position.y = 2.2;
       }
-    }
-
-    // Airport radar scanner rotation
-    if (this.airportRadarMesh) {
-      this.airportRadarMesh.rotation.y += delta * 2.5;
     }
   }
 }

@@ -609,6 +609,11 @@ export class Game {
     // While a building is being placed, a click on the plot moves it there instead of walking there
     this.input.onGroundClick = (point) => this.buildBar.moveTo(point.x, point.z);
     this.hud.onPlotAction = (plotId) => this.hud.phoneModal.openApp('land', `plot:${plotId}`);
+    this.hud.onLookFrom = (yaw, pitch, distance) => {
+      this.cameraManager.yaw = yaw;
+      this.cameraManager.pitch = pitch;
+      this.cameraManager.distance = distance;
+    };
 
     // The player's own vehicles are in the city only while the registry says they are theirs
     this.ownedVehicles = new OwnedVehicles(this.world, {

@@ -1391,7 +1391,8 @@ export class Buildings {
       // Each on a stretch of Broad Street frontage of its own, clear of the landmarks either side
       { x: -19, z: -100, floors: 3, color: 0xf0e4cc, name: 'Palm View Flats' },
       { x: 19, z: -74.5, floors: 4, color: 0xd9b99a, name: 'Heritage Heights' },
-      { x: -19, z: 48, floors: 3, color: 0xe6c9a0, name: 'Tejuosho Mansions' },
+      // Set back off Wharf Road, which runs to the port gate where this block used to stand
+      { x: -35.5, z: 36, floors: 3, color: 0xe6c9a0, name: 'Tejuosho Mansions' },
     ];
 
     aptConfigs.forEach((cfg) => {

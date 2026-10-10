@@ -39,6 +39,10 @@ export const SIDE_STREETS: SideStreet[] = [
   { id: 'back_east', name: 'Kakawa Street', axis: 'z', fixed: 44, from: -120, to: 94, halfRoad: 3.5, walk: 2, traffic: false },
   // The estate road of Banana Island, off the east end of Martins Street
   { id: 'banana', name: 'Banana Island Road', axis: 'z', fixed: 112, from: -55, to: 14, halfRoad: 4, walk: 2.2, traffic: false },
+  // The ways in to the great places on the west side: each runs from a street to a gate
+  { id: 'stadium', name: 'Stadium Road', axis: 'x', fixed: 5, from: -42, to: -14, halfRoad: 3, walk: 1.8, traffic: false },
+  { id: 'wharf', name: 'Wharf Road', axis: 'x', fixed: 48, from: -44.5, to: -13.5, halfRoad: 3, walk: 1.8, traffic: false },
+  { id: 'airport', name: 'Airport Road', axis: 'z', fixed: -80, from: -90, to: -62, halfRoad: 3, walk: 1.8, traffic: false },
 ];
 
 /** Z ranges where Broad Street's sidewalks, kerbs and gutters open for a junction */
