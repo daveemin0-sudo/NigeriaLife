@@ -35,6 +35,8 @@ export const CREDIT_TYPES: ReadonlySet<TransactionType> = new Set<TransactionTyp
   'PROPERTY_SALE',
   'ITEM_SALE',
   'ASSET_SALE',
+  'RENT_INCOME',
+  'PURCHASE_REFUND',
   'CONSTRUCTION_REFUND',
 ]);
 

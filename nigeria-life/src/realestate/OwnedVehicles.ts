@@ -3,8 +3,9 @@ import { DrivableVehicle } from '../world/DrivableVehicle';
 import type { World, InteractiveObject } from '../world/World';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import { MAIN_ROAD } from '../world/density/StreetLayout';
+import { AssetMarket } from './AssetMarket';
 import { Garage, vehicleModel } from './Garage';
-import { Registry } from './Registry';
+import { Registry, MY_ID } from './Registry';
 import type { VehicleRecord } from './types';
 
 /** How the game's small map is read as distance on a vehicle's clock: a hundred metres of map is a kilometre. */
@@ -19,15 +20,19 @@ export interface DriverHooks {
 }
 
 /**
- * The player's own vehicles as things in the city. A vehicle is in this player's world only
- * while the registry says it is theirs: sell it and it is gone from here, and the buyer's game
- * puts it in theirs. That is what stops someone driving a car they have sold.
+ * Players' vehicles as things in the city. Every vehicle that has been parked somewhere is
+ * seen there by everyone, with its owner's name on it. Only its owner can get in: the moment
+ * a vehicle is sold, the seller is out of the seat and it is the buyer's to drive.
+ *
+ * Other players' vehicles are shown where they were last parked. They are not followed
+ * while their owner is driving them.
  */
 export class OwnedVehicles {
   private readonly garage = Garage.get();
   private readonly world: World;
   private readonly hooks: DriverHooks;
-  private readonly spawned = new Map<string, { vehicle: DrivableVehicle; card: InteractiveObject; last: THREE.Vector3; metres: number }>();
+  private readonly spawned = new Map<string, { vehicle: DrivableVehicle; card: InteractiveObject; last: THREE.Vector3; metres: number; ownerId: string; at: string }>();
+  private readonly market = AssetMarket.get();
 
   constructor(world: World, hooks: DriverHooks) {
     this.world = world;
@@ -49,36 +54,55 @@ export class OwnedVehicles {
     return this.spawned.has(vehicleId);
   }
 
-  /** Makes the world match the registry: what is mine and parked somewhere is there, what is not mine is not. */
+  /** Why the player may not drive this, or null if they may. The city's own vehicles are for anyone. */
+  public cannotDrive(vehicle: DrivableVehicle): string | null {
+    const id = this.vehicleIdOf(vehicle);
+    if (!id) return null;
+    const owner = this.garage.ownerOf(id);
+    return owner === MY_ID ? null : `That belongs to ${this.market.nameOf(owner)}. Only its owner can drive it.`;
+  }
+
+  /** Makes the world match the registry: every parked vehicle is where it was left, under its owner's name. */
   public sync(): void {
-    const mine = new Map(this.garage.mine().map((record) => [record.id, record]));
+    const state = Registry.get().peek();
+    const parked = new Map(Object.values(state.vehicles).filter((record) => record.parkedAt).map((record) => [record.id, record]));
     for (const [id, entry] of Array.from(this.spawned)) {
-      if (mine.has(id)) continue;
-      // No longer this player's: out of the seat and out of this world
-      if (this.hooks.driving() === entry.vehicle) this.hooks.getOut();
-      this.world.removeVehicle(entry.vehicle, entry.card);
-      this.spawned.delete(id);
+      const record = parked.get(id);
+      const owner = this.garage.ownerOf(id);
+      const driving = this.hooks.driving() === entry.vehicle;
+      // Sold from under its driver: out of the seat at once
+      if (driving && owner !== MY_ID) this.hooks.getOut();
+      const where = record?.parkedAt ? `${record.parkedAt.x},${record.parkedAt.z},${record.parkedAt.yaw}` : '';
+      // Gone, changed hands, or parked somewhere else by its owner: take it away, and put it back below if it is still about
+      if (!record || owner !== entry.ownerId || (!driving && owner !== MY_ID && where !== entry.at)) {
+        this.world.removeVehicle(entry.vehicle, entry.card);
+        this.spawned.delete(id);
+      }
     }
-    for (const record of mine.values()) {
-      if (!this.spawned.has(record.id) && record.parkedAt) this.put(record, record.parkedAt.x, record.parkedAt.z, record.parkedAt.yaw);
+    for (const record of parked.values()) {
+      if (!this.spawned.has(record.id)) this.put(record, record.parkedAt!.x, record.parkedAt!.z, record.parkedAt!.yaw);
     }
   }
 
   private put(record: VehicleRecord, x: number, z: number, yaw: number): void {
     const model = vehicleModel(record.modelId);
     if (!model) return;
+    const ownerId = this.garage.ownerOf(record.id) ?? '';
+    const mine = ownerId === MY_ID;
     const vehicle = new DrivableVehicle({ id: this.instanceId(record.id), name: `${model.name} · ${record.plate}`, type: model.type, ...model.drive }, new THREE.Vector3(x, 0, z), yaw);
     vehicle.mesh.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
     const card: InteractiveObject = {
       mesh: vehicle.mesh,
       id: vehicle.id,
       name: vehicle.name,
-      category: 'Your vehicle',
-      description: `Yours. ${Math.round(record.mileage)} km on the clock, condition ${Math.round(record.condition)}%.`,
+      category: mine ? 'Your vehicle' : `Vehicle of ${this.market.nameOf(ownerId)}`,
+      description: mine
+        ? `Yours. ${Math.round(record.mileage)} km on the clock, condition ${Math.round(record.condition)}%.`
+        : `This belongs to ${this.market.nameOf(ownerId)}. Only its owner can drive it.`,
       interactionPoint: new THREE.Vector3(x + 1.8, 0, z),
     };
     this.world.addVehicle(vehicle, card);
-    this.spawned.set(record.id, { vehicle, card, last: vehicle.mesh.position.clone(), metres: 0 });
+    this.spawned.set(record.id, { vehicle, card, last: vehicle.mesh.position.clone(), metres: 0, ownerId, at: `${record.parkedAt?.x ?? x},${record.parkedAt?.z ?? z},${record.parkedAt?.yaw ?? yaw}` });
   }
 
   /**
@@ -101,8 +125,9 @@ export class OwnedVehicles {
       this.world.removeVehicle(existing.vehicle, existing.card);
       this.spawned.delete(vehicleId);
     }
-    this.put(record, x, z, yaw);
-    void this.garage.addMileage(vehicleId, 0, { x, z, yaw });
+    const at = { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10, yaw: Math.round(yaw * 100) / 100 };
+    this.put({ ...record, parkedAt: at }, at.x, at.z, at.yaw);
+    void this.garage.addMileage(vehicleId, 0, at);
     return null;
   }
 
@@ -123,6 +148,8 @@ export class OwnedVehicles {
     if (!id || !entry) return;
     const kilometres = entry.metres * KM_PER_METRE;
     entry.metres = 0;
-    void this.garage.addMileage(id, kilometres, { x: vehicle.mesh.position.x, z: vehicle.mesh.position.z, yaw: vehicle.mesh.rotation.y });
+    const at = { x: Math.round(vehicle.mesh.position.x * 10) / 10, z: Math.round(vehicle.mesh.position.z * 10) / 10, yaw: Math.round(vehicle.mesh.rotation.y * 100) / 100 };
+    entry.at = `${at.x},${at.z},${at.yaw}`;
+    void this.garage.addMileage(id, kilometres, at);
   }
 }

@@ -151,6 +151,22 @@ export function lagosZones(): Zone[] {
 
 export const JUNCTION_GAPS = MAIN_JUNCTION_GAPS;
 
+/** One straight avenue with a verge either side: the shape of Abuja's and Port Harcourt's main roads. */
+function avenue(id: string, street: string, halfRoad: number, walk: number, half: number): Zone[] {
+  return [
+    { id: `${id}:road`, kind: 'carriageway', street, axis: 'z', clear: CLEAR_LANE * 2, minX: -halfRoad, maxX: halfRoad, minZ: -half, maxZ: half },
+    { id: `${id}:walk:west`, kind: 'walkway', street, axis: 'z', clear: CLEAR_WALKWAY, minX: -halfRoad - walk, maxX: -halfRoad, minZ: -half, maxZ: half },
+    { id: `${id}:walk:east`, kind: 'walkway', street, axis: 'z', clear: CLEAR_WALKWAY, minX: halfRoad, maxX: halfRoad + walk, minZ: -half, maxZ: half },
+  ];
+}
+
+/** The streets of a city, as zones. */
+export function zonesFor(city: string): Zone[] {
+  if (city === 'abuja') return avenue('shagari', 'Shehu Shagari Way', 10, 3, 130);
+  if (city === 'port_harcourt') return avenue('aba', 'Aba Road', 9, 3.5, 130);
+  return lagosZones();
+}
+
 // ================================================================================================
 // What is standing on the ground
 // ================================================================================================

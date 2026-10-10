@@ -37,6 +37,8 @@ export const SIDE_STREETS: SideStreet[] = [
   { id: 'north_cap', name: 'Nnamdi Azikiwe Street', axis: 'x', fixed: -124, from: -52, to: 116, halfRoad: 4, walk: 2.2, traffic: false },
   { id: 'back_west', name: 'Odunlami Street', axis: 'z', fixed: -46, from: -120, to: -8, halfRoad: 3.5, walk: 2, traffic: false },
   { id: 'back_east', name: 'Kakawa Street', axis: 'z', fixed: 44, from: -120, to: 94, halfRoad: 3.5, walk: 2, traffic: false },
+  // The estate road of Banana Island, off the east end of Martins Street
+  { id: 'banana', name: 'Banana Island Road', axis: 'z', fixed: 112, from: -55, to: 14, halfRoad: 4, walk: 2.2, traffic: false },
 ];
 
 /** Z ranges where Broad Street's sidewalks, kerbs and gutters open for a junction */

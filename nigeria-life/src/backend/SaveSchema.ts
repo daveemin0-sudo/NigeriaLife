@@ -242,6 +242,7 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     relationships,
     investments,
     threads,
+    ...(Array.isArray(saved.releasedDeeds) ? { releasedDeeds: saved.releasedDeeds.filter((entry: unknown) => typeof entry === 'string').slice(0, 50) } : {}),
     lastRevenueAt: Number.isFinite(saved.lastRevenueAt) ? saved.lastRevenueAt : undefined,
     worldState,
     createdAt: str(saved.createdAt, base.createdAt, 'createdAt'),

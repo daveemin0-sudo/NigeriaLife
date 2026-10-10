@@ -141,6 +141,8 @@ export type TransactionType =
   // Land, vehicles and buildings: bought, sold and built
   | 'ASSET_PURCHASE'
   | 'ASSET_SALE'
+  | 'RENT_INCOME'
+  | 'PURCHASE_REFUND'
   | 'CONSTRUCTION_COST'
   | 'CONSTRUCTION_REFUND'
   | 'TRANSFER_OUT'
@@ -247,6 +249,8 @@ export interface PlayerAccount {
   investments: Record<string, { units: number; spent: number }>;
   /** Text conversations with people the player has met, by the person's id, oldest first */
   threads: Record<string, PhoneThread>;
+  /** Homes and businesses sold back to the open market whose title in the shared registry has not been given up yet */
+  releasedDeeds?: string[];
   /** When business revenue was last accrued (ms since epoch) */
   lastRevenueAt?: number;
   worldState?: SavedWorldState;

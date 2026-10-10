@@ -2,6 +2,30 @@ import * as THREE from 'three';
 import type { CityMapData, DistrictData, MapLandmark, MapProperty, MapBusiness } from './WorldDataTypes';
 
 export const LAGOS_DISTRICTS: DistrictData[] = [
+  // First in the list: it lies inside the wider Lekki bounds, and the first district that holds a point names it
+  {
+    id: 'banana_island',
+    name: 'Banana Island',
+    subtitle: 'Gated Waterfront Estate',
+    tagline: 'The most expensive address in the city',
+    zone: 'Island',
+    center: new THREE.Vector3(112, 0, -20),
+    bounds: { minX: 100, maxX: 140, minZ: -55, maxZ: 16 },
+    color: 0xfacc15,
+    populationEstimate: '12K residents',
+    propertyCount: 180,
+    businessCount: 24,
+    description: 'A quiet gated estate of mansions and low apartment blocks behind its own gate, off the east end of Martins Street.',
+    landmarks: ['Banana Island Gate', 'Banana Island Road'],
+    visualTheme: {
+      buildingDensity: 0.45,
+      avgHeight: 3,
+      residentialRatio: 0.85,
+      commercialRatio: 0.15,
+      industrialRatio: 0,
+    },
+    streetSpawnPoint: new THREE.Vector3(112, 0, -40),
+  },
   {
     id: 'ikeja',
     name: 'Ikeja',

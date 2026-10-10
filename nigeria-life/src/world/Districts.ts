@@ -54,6 +54,9 @@ export class Districts {
     this.buildGeneralHospital();
     this.buildPoliceStation();
 
+    // 10b. The gate of Banana Island
+    this.buildBananaIslandGate();
+
     // 11. District Connecting Roads & Billboards
     this.buildDistrictRoadsAndBillboards();
   }
@@ -1088,6 +1091,31 @@ export class Districts {
   // =========================================================================
   // 12. CONNECTING ROADS & NAIJA LED BILLBOARDS
   // =========================================================================
+  /** The gate of Banana Island: two piers either side of the estate road and a beam over it, high enough for a lorry. */
+  private buildBananaIslandGate(): void {
+    const gate = new THREE.Group();
+    gate.name = 'Banana Island Gate';
+    gate.position.set(112, 0, -50);
+    const stone = new THREE.MeshStandardMaterial({ color: 0xe7e0cf, roughness: 0.8 });
+    for (const side of [-1, 1]) {
+      const pier = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6.4, 1.2), stone);
+      pier.position.set(side * 7.4, 3.2, 0);
+      pier.castShadow = true;
+      gate.add(pier);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), new THREE.MeshStandardMaterial({ color: 0xfff3c4, emissive: 0xffe08a, emissiveIntensity: 0.6 }));
+      lamp.position.set(side * 7.4, 6.9, 0);
+      gate.add(lamp);
+    }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(16, 1.3, 0.9), new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.6 }));
+    beam.position.set(0, 5.9, 0);
+    gate.add(beam);
+    const sign = this.createNamedSignMesh('BANANA ISLAND', 'PRIVATE ESTATE', '#14532d', '#fef9c3', 10, 1.1);
+    sign.position.set(0, 5.9, -0.47);
+    sign.rotation.y = Math.PI;
+    gate.add(sign);
+    this.group.add(gate);
+  }
+
   private buildDistrictRoadsAndBillboards(): void {
     // East-West Arterial Road to Lekki (X: 10 to 80, Z: 0)
     const lekkiRoadGeo = new THREE.PlaneGeometry(80, 12);

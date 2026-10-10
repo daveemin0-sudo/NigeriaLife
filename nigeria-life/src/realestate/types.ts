@@ -12,7 +12,7 @@
  * this browser. A player's own saved game holds their money and nothing about who owns what.
  */
 
-export type AssetKind = 'plot' | 'vehicle';
+export type AssetKind = 'plot' | 'vehicle' | 'property' | 'business';
 
 export interface AssetRef {
   kind: AssetKind;
@@ -94,6 +94,8 @@ export interface Payout {
   toId: string;
   amount: number;
   reason: string;
+  /** A sale's proceeds unless it says otherwise */
+  kind?: 'sale' | 'rent';
   saleId?: string;
   createdAt: number;
   claimedAt?: number;
@@ -116,13 +118,27 @@ export interface PlotBuilding {
   /** Who started it */
   builderId: string;
   cost: number;
-  /** Game hours of work needed, and done so far */
+  /** Game hours of work it takes. How much is done follows from when it started: see WorldClock. */
   hoursNeeded: number;
-  hoursDone: number;
   startedAt: number;
-  finishedAt?: number;
-  /** Game hours of rent or takings a finished building is holding for its owner */
-  hoursHeld?: number;
+  /** When its takings were last collected */
+  collectedAt?: number;
+}
+
+/**
+ * A finished building offered to let, or let, to another player. The tenant lives there (a
+ * home) or runs it and keeps its takings (a business), and pays the owner by the week.
+ */
+export interface Tenancy {
+  plotId: string;
+  rentPerWeek: number;
+  /** Nobody yet while this is empty: the building is to let */
+  tenantId?: string;
+  since?: number;
+  /** Rent is paid up to this moment. After it, the tenancy is over. */
+  paidUntil?: number;
+  /** The owner has given notice: it runs out at `paidUntil` and cannot be renewed */
+  ending?: boolean;
 }
 
 export interface VehicleRecord {
@@ -156,6 +172,7 @@ export interface RegistryState {
   sales: Sale[];
   payouts: Record<string, Payout>;
   buildings: Record<string, PlotBuilding>;
+  tenancies: Record<string, Tenancy>;
   vehicles: Record<string, VehicleRecord>;
 }
 
@@ -169,6 +186,7 @@ export const emptyRegistry = (): RegistryState => ({
   sales: [],
   payouts: {},
   buildings: {},
+  tenancies: {},
   vehicles: {},
 });
 

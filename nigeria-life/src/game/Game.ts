@@ -32,12 +32,17 @@ import { SelfMenu } from '../ui/SelfMenu';
 import { Land } from '../realestate/Land';
 import { BuildBar } from '../ui/BuildBar';
 import { Garage } from '../realestate/Garage';
+import { Deeds } from '../realestate/Deeds';
+import { ServerLink } from '../realestate/ServerLink';
 import { OwnedVehicles } from '../realestate/OwnedVehicles';
 import { PlotWorld } from '../realestate/PlotWorld';
 import { AssetMarket } from '../realestate/AssetMarket';
 import { Registry } from '../realestate/Registry';
-import { lagosZones, grow, intersection, type Rect } from '../world/plan/CityPlan';
+import { zonesFor, grow, intersection, obstructionsUnder, type Rect, type Obstruction } from '../world/plan/CityPlan';
 import { LAGOS_DISTRICTS } from '../world/data/LagosMapData';
+import { ABUJA_DISTRICTS } from '../world/data/AbujaMapData';
+import { PH_DISTRICTS } from '../world/data/PortHarcourtMapData';
+import { CITY_NAME, type PlotCity } from '../realestate/PlotCatalogue';
 import { ActivityStatusUI } from '../ui/ActivityStatusUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
@@ -77,12 +82,13 @@ export class Game {
   public plotWorld!: PlotWorld;
   public buildBar!: BuildBar;
   public garage = Garage.get();
+  public deeds = Deeds.get();
   public ownedVehicles!: OwnedVehicles;
   private lastLandHour: number | null = null;
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink };
   private lastStepDelta: number = 0;
   public placeCard: PlaceCard;
 
@@ -507,6 +513,7 @@ export class Game {
         if (this.whereabouts() !== 'street') return 'It can be brought to you when you are standing on the street.';
         if (this.world.cityManager.currentCityId !== 'lagos') return 'Your vehicles are in Lagos.';
         const blocked = this.ownedVehicles.bringRound(vehicleId);
+        this.ownedVehicles.sync();
         if (!blocked) showGameToast('Your vehicle is at the kerb.', 'success', 3200);
         return blocked;
       },
@@ -549,22 +556,27 @@ export class Game {
 
   /** Land plots, what stands on them, and the market they are traded in. */
   private connectLand(): void {
-    const zones = lagosZones();
+    const districts: Record<string, typeof LAGOS_DISTRICTS> = { lagos: LAGOS_DISTRICTS, abuja: ABUJA_DISTRICTS, port_harcourt: PH_DISTRICTS };
+    const zones = new Map<string, ReturnType<typeof zonesFor>>();
     const near = new Map<string, Rect[]>();
     this.land.connect({
-      districtAt: (x, z) => {
-        const inside = LAGOS_DISTRICTS.find((d) => x >= d.bounds.minX && x <= d.bounds.maxX && z >= d.bounds.minZ && z <= d.bounds.maxZ);
-        const district = inside ?? [...LAGOS_DISTRICTS].sort((a, b) => Math.hypot(a.center.x - x, a.center.z - z) - Math.hypot(b.center.x - x, b.center.z - z))[0];
+      districtAt: (city, x, z) => {
+        const list = districts[city] ?? LAGOS_DISTRICTS;
+        const inside = list.find((d) => x >= d.bounds.minX && x <= d.bounds.maxX && z >= d.bounds.minZ && z <= d.bounds.maxZ);
+        const district = inside ?? [...list].sort((a, b) => Math.hypot(a.center.x - x, a.center.z - z) - Math.hypot(b.center.x - x, b.center.z - z))[0];
         return { id: district.id, name: district.name };
       },
-      zones: () => zones,
+      zones: (city) => {
+        if (!zones.has(city)) zones.set(city, zonesFor(city));
+        return zones.get(city)!;
+      },
       // What already stands beside a plot does not change, so it is worked out once for each plot
-      buildingsNear: (rect) => {
-        const key = `${rect.minX},${rect.minZ}`;
+      buildingsNear: (city, rect) => {
+        const key = `${city}:${rect.minX},${rect.minZ}`;
         let found = near.get(key);
         if (!found) {
           const around = grow(rect, 4);
-          found = this.world.standingOnTheGround().filter((thing) => thing.structure && intersection(around, thing) && !intersection(rect, thing));
+          found = this.standingIn(city).filter((thing) => thing.structure && intersection(around, thing) && !intersection(rect, thing));
           near.set(key, found);
         }
         return found;
@@ -573,8 +585,18 @@ export class Game {
 
     this.plotWorld = new PlotWorld();
     this.scene.add(this.plotWorld.group);
-    this.world.cityManager.addToLagos(this.plotWorld.group, this.plotWorld.interactiveList);
-    this.world.builtByPlayers.push(() => this.plotWorld.obstructions());
+    // Lagos plots come and go with the rest of Lagos; the other cities' plots are shown when the player is there
+    const lagos = this.plotWorld.of('lagos');
+    if (lagos.group) this.world.cityManager.addToLagos(lagos.group, lagos.cards);
+    this.world.cityManager.onCityChanged = (city) => {
+      this.plotWorld.showCity(city);
+      for (const card of this.plotWorld.of(city as PlotCity).cards) {
+        if (!this.world.interactiveObjects.includes(card)) this.world.interactiveObjects.push(card);
+      }
+      this.buildBar?.close();
+    };
+    this.plotWorld.showCity(this.world.cityManager.currentCityId);
+    this.world.builtByPlayers.push(() => this.plotWorld.obstructions('lagos'));
     BackendService.getInstance().addHomeCheck(() => this.land.hasHome());
 
     this.buildBar = new BuildBar(this.plotWorld);
@@ -592,6 +614,15 @@ export class Game {
       playerPosition: () => this.player.position,
     });
     void this.assetMarket.introduce(this.player.config.name);
+  }
+
+  /** What stands on the ground in a city: the full survey for Lagos, the landmarks for the others. */
+  public standingIn(city: string): Obstruction[] {
+    if (city === 'lagos') return this.world.standingOnTheGround();
+    const instance = city === 'abuja' ? this.world.cityManager.abujaCity : this.world.cityManager.portHarcourtCity;
+    const out = instance ? obstructionsUnder(instance.group, CITY_NAME[city as PlotCity] ?? city) : [];
+    out.push(...this.plotWorld.obstructions(city as PlotCity));
+    return out;
   }
 
   /** Clicking your own character opens a menu of who you are and what you can do where you stand. */
@@ -772,7 +803,7 @@ export class Game {
       seconds: 0.6,
       // At the very end, so nothing is still directing the body once it is in the seat
       effectAt: 1,
-      requires: () => (vehicle.driver ? 'Someone is already driving that.' : null),
+      requires: () => (vehicle.driver ? 'Someone is already driving that.' : this.ownedVehicles?.cannotDrive(vehicle) ?? null),
       effect: () => this.enterVehicle(vehicle),
     });
     if (!started.ok && started.reason && started.reason !== 'busy') showGameToast(started.reason, 'warning');
@@ -846,11 +877,14 @@ export class Game {
     // Drivers on the way, riders with orders, replies to messages
     this.rides.update(delta);
 
-    // Building work and rents run on the game clock
-    const sky = this.world.skyEnvironment;
-    const landHour = sky.day * 24 + sky.currentHour;
-    if (this.lastLandHour !== null && landHour > this.lastLandHour) this.land.update(Math.min(1, landHour - this.lastLandHour));
-    this.lastLandHour = landHour;
+    // Building work goes on by the world's clock whoever is playing: once a second, show how far it has got,
+    // pay any rent that is nearly due and clear any tenancy that has run out
+    const landSecond = Math.floor(performance.now() / 1000);
+    if (landSecond !== this.lastLandHour) {
+      this.lastLandHour = landSecond;
+      this.plotWorld.refresh();
+      void this.land.keepUp();
+    }
     this.ownedVehicles.update();
     this.deliveries.update(delta);
     this.messages.update(delta);

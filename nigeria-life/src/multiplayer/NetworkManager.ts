@@ -6,6 +6,20 @@ import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import type { EmoteType } from '../player/CharacterCustomization';
 import { InteriorManager } from '../interiors/InteriorManager';
+import { ServerLink } from '../realestate/ServerLink';
+
+/** How games reach each other: a channel between tabs of one browser, or the world server between devices. */
+interface Wire {
+  postMessage(packet: NetPacket): void;
+  onmessage: ((event: { data: NetPacket }) => void) | null;
+}
+
+function openWire(link: ServerLink | null): Wire {
+  if (!link) return new BroadcastChannel('nigeria_life_broad_st_v1') as unknown as Wire;
+  const wire: Wire = { postMessage: (packet) => link.relay(packet), onmessage: null };
+  link.on('net', (packet) => wire.onmessage?.({ data: packet as NetPacket }));
+  return wire;
+}
 
 export class NetworkManager {
   private static instance: NetworkManager | null = null;
@@ -13,7 +27,7 @@ export class NetworkManager {
   public remotePlayers: Map<string, RemotePlayer> = new Map();
   private scene: THREE.Scene;
   private localPlayer: Player;
-  private channel: BroadcastChannel;
+  private channel: Wire;
   private lastBroadcast: number = 0;
   private broadcastInterval: number = 50; // ~20 Hz
   private onChatMessageCallback?: (msg: ChatMessage) => void;
@@ -26,11 +40,21 @@ export class NetworkManager {
     NetworkManager.instance = this;
     this.scene = scene;
     this.localPlayer = localPlayer;
-    this.localId = `naija_${Math.random().toString(36).substring(2, 8)}`;
+    const link = ServerLink.get();
+    // On a server, a game's id is the one the server knows it by, so the server can say when it has gone
+    this.localId = link ? `net_${link.clientId.slice(0, 8)}` : `naija_${Math.random().toString(36).substring(2, 8)}`;
 
-    // Cross-tab real-time communication channel
-    this.channel = new BroadcastChannel('nigeria_life_broad_st_v1');
-    this.channel.onmessage = this.handleMessage.bind(this);
+    // Between tabs of this browser, or through the world server to other devices
+    this.channel = openWire(link);
+    this.channel.onmessage = (event) => this.handleMessage(event as MessageEvent);
+    if (link) {
+      // A game that closed without saying goodbye
+      link.on('gone', (data) => this.handleMessage({ data: { type: 'leave', id: `net_${String((data as { client?: string }).client ?? '').slice(0, 8)}` } } as MessageEvent));
+      // Joined, or back in touch: say who is here
+      link.on('link', (connected) => {
+        if (connected) this.broadcastJoin();
+      });
+    }
 
     // Announce presence
     this.broadcastJoin();

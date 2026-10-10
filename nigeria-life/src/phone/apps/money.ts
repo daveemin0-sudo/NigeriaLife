@@ -5,6 +5,8 @@ import type { TransactionRecord } from '../../backend/types';
 import { NetworkManager } from '../../multiplayer/NetworkManager';
 import { SHARES, FEE_RATE, type Share } from '../services/Market';
 import { SoundEngine } from '../../audio/SoundEngine';
+import { Deeds } from '../../realestate/Deeds';
+import { AssetMarket } from '../../realestate/AssetMarket';
 
 // ============================================================================================
 // Bank
@@ -275,6 +277,8 @@ export const businessApp: PhoneApp = {
     if (route.startsWith('b:')) {
       const biz = data.businesses.find((b) => b.id === route.slice(2));
       if (!biz) return { title: 'Business', body: empty('🏚️', 'Not found', 'That business is not on the books.') };
+      const takenBy = biz.owned ? null : Deeds.get().takenBy('business', biz.id);
+      const listing = Deeds.get().listingFor('business', biz.id);
       return {
         title: biz.owned ? 'Your business' : 'For sale',
         body: `
@@ -288,8 +292,14 @@ export const businessApp: PhoneApp = {
             </div>
             ${biz.owned
               ? `<div class="nl-card-line">Waiting to be collected: <strong>${naira(biz.pendingRevenue)}</strong></div>`
-              : `<button class="nl-btn nl-btn--primary nl-btn--block" data-act="buy" data-arg="${esc(biz.id)}">Buy for ${naira(biz.purchasePrice)}</button>
-                 <div class="nl-hint">Paid from your bank account (${naira(data.bank.balance)}).</div>`}
+              : takenBy
+                ? `<div class="nl-note" id="business-taken">${esc(AssetMarket.get().nameOf(takenBy))} owns this business. It can only be bought from them.</div>
+                   ${listing && listing.status === 'active' ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="business-their-listing" data-app="land" data-route="listing:${esc(listing.id)}">They are asking ${naira(listing.askingPrice)} · make an offer</button>` : ''}`
+                : `<button class="nl-btn nl-btn--primary nl-btn--block" data-act="buy" data-arg="${esc(biz.id)}">Buy for ${naira(biz.purchasePrice)}</button>
+                   <div class="nl-hint">Paid from your bank account (${naira(data.bank.balance)}).</div>`}
+            ${biz.owned ? (listing
+              ? `<button class="nl-btn nl-btn--block" id="business-listing" data-app="land" data-route="listing:${esc(listing.id)}">On the market at ${naira(listing.askingPrice)} · see offers</button>`
+              : `<button class="nl-btn nl-btn--block" id="business-sell-player" data-app="land" data-route="ask:business:${esc(biz.id)}">Sell to another player</button>`) : ''}
           </div>
           ${biz.owned ? `
             <div class="nl-section">Upgrades</div>

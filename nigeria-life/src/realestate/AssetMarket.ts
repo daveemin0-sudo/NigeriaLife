@@ -89,7 +89,7 @@ export class AssetMarket {
   }
 
   public nameOf(playerId: string | null): string {
-    if (playerId === null) return 'Lagos State';
+    if (playerId === null) return 'The state';
     if (playerId === MY_ID) return 'You';
     return this.registry.peek().players[playerId]?.name ?? 'Another player';
   }
@@ -104,6 +104,11 @@ export class AssetMarket {
     return Object.values(this.registry.peek().listings)
       .filter((listing) => (listing.status === 'active' || listing.status === 'pending') && filter(listing))
       .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /** Every listing there has ever been, open or closed, by id. */
+  public allListings(): Record<string, Listing> {
+    return this.registry.peek().listings;
   }
 
   public negotiationsOn(listingId: string): Negotiation[] {
@@ -152,7 +157,7 @@ export class AssetMarket {
       if (price === null || !whole(price)) return fail('The state is not selling this.');
       if (this.funds() < price) return fail(`The price is ${naira(price)} and you have ${naira(this.funds())} in all.`);
 
-      const paid = this.backend.processTransaction({ type: 'ASSET_PURCHASE', amount: price, description: `Bought ${provider.describe(asset.id)} from Lagos State`, source: 'bank', funding: 'split' });
+      const paid = this.backend.processTransaction({ type: 'ASSET_PURCHASE', amount: price, description: `Bought ${provider.describe(asset.id)} from the state`, source: 'bank', funding: 'split' });
       if (!paid.success) return fail('The payment did not go through, so nothing was bought.');
 
       const saleId = Registry.nextId(state, 'sale');
@@ -435,7 +440,7 @@ export class AssetMarket {
         await this.registry.transact((fresh) => {
           for (const payout of Object.values(fresh.payouts)) {
             if (payout.toId !== MY_ID || payout.claimedAt) continue;
-            const credited = this.backend.processTransaction({ type: 'ASSET_SALE', amount: payout.amount, description: payout.reason, source: 'bank' });
+            const credited = this.backend.processTransaction({ type: payout.kind === 'rent' ? 'RENT_INCOME' : 'ASSET_SALE', amount: payout.amount, description: payout.reason, source: 'bank' });
             if (credited.success) payout.claimedAt = Date.now();
           }
         });

@@ -1,6 +1,9 @@
 import type { PhoneApp } from '../PhoneApp';
 import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
+import { Deeds } from '../../realestate/Deeds';
+import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerLink';
+import { AssetMarket } from '../../realestate/AssetMarket';
 import { CloudSyncService } from '../../backend/CloudSyncService';
 import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
 import type { RealEstateProperty } from '../../backend/types';
@@ -186,6 +189,9 @@ export const propertyApp: PhoneApp = {
       const owned = prop.status === 'owned' || prop.status === 'purchased';
       const rented = prop.status === 'rented';
       const features = prop.perks?.length ? prop.perks : prop.features;
+      // Another player may own it outright, in which case only they can sell it
+      const takenBy = owned ? null : Deeds.get().takenBy('property', prop.id);
+      const listing = Deeds.get().listingFor('property', prop.id);
       return {
         title: owned ? 'Your property' : rented ? 'Your lease' : 'For sale or rent',
         body: `
@@ -197,16 +203,22 @@ export const propertyApp: PhoneApp = {
             <div class="nl-stats">
               <span><strong>${naira(prop.purchasePrice)}</strong>to buy</span>
               ${prop.rentalPriceMonthly > 0 ? `<span><strong>${naira(prop.rentalPriceMonthly)}</strong>to lease</span>` : ''}
-              <span><strong>${owned ? 'Owned' : rented ? 'Leased' : 'Available'}</strong>status</span>
+              <span><strong>${owned ? 'Owned' : rented ? 'Leased' : takenBy ? 'Owned' : 'Available'}</strong>status</span>
             </div>
           </div>
           ${owned || rented ? `
             <button class="nl-btn nl-btn--primary nl-btn--block" id="property-go-home" data-act="home">Go home</button>
             <button class="nl-btn nl-btn--block" data-act="decor">Furniture catalogue</button>
             ${owned
-              ? `<button class="nl-btn nl-btn--danger nl-btn--block" data-act="sell" data-arg="${esc(prop.id)}">Sell for ${naira(Math.round(prop.purchasePrice * 0.8))}</button>`
+              ? `${listing
+                  ? `<button class="nl-btn nl-btn--block" id="property-listing" data-app="land" data-route="listing:${esc(listing.id)}">On the market at ${naira(listing.askingPrice)} · see offers</button>`
+                  : `<button class="nl-btn nl-btn--block" id="property-sell-player" data-app="land" data-route="ask:property:${esc(prop.id)}">Sell to another player</button>`}
+                 <button class="nl-btn nl-btn--danger nl-btn--block" data-act="sell" data-arg="${esc(prop.id)}" ${listing ? 'disabled' : ''}>Sell to an agent now for ${naira(Math.round(prop.purchasePrice * 0.8))}</button>`
               : `<button class="nl-btn nl-btn--danger nl-btn--block" data-act="leave" data-arg="${esc(prop.id)}">Move out</button>
                  <button class="nl-btn nl-btn--block" data-act="buy" data-arg="${esc(prop.id)}" ${funds >= prop.purchasePrice ? '' : 'disabled'}>Buy it outright · ${naira(prop.purchasePrice)}</button>`}
+          ` : takenBy ? `
+            <div class="nl-note" id="property-taken">${esc(AssetMarket.get().nameOf(takenBy))} owns this home. It can only be bought from them.</div>
+            ${listing && listing.status === 'active' ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="property-their-listing" data-app="land" data-route="listing:${esc(listing.id)}">They are asking ${naira(listing.askingPrice)} · make an offer</button>` : ''}
           ` : `
             ${prop.rentalPriceMonthly > 0 ? `<button class="nl-btn nl-btn--primary nl-btn--block" data-phone-rent-prop="${esc(prop.id)}" data-act="rent" data-arg="${esc(prop.id)}" ${funds >= prop.rentalPriceMonthly ? '' : 'disabled'}>Lease · ${naira(prop.rentalPriceMonthly)}</button>` : ''}
             <button class="nl-btn nl-btn--block" data-phone-buy-prop="${esc(prop.id)}" data-act="buy" data-arg="${esc(prop.id)}" ${funds >= prop.purchasePrice ? '' : 'disabled'}>Buy · ${naira(prop.purchasePrice)}</button>
@@ -387,6 +399,18 @@ export const settingsApp: PhoneApp = {
           ${row({ icon: '🧑', title: esc(data.username), sub: esc(data.destinyTitle || data.career.title), trailing: '<span class="nl-tag">Profile</span>' })}
           ${row({ icon: '👕', title: 'Change your look', sub: 'Clothes, hair and skin tone', attrs: 'data-act="wardrobe"' })}
         </div>
+        <div class="nl-section">Playing with others</div>
+        ${SERVER_URL ? `
+          <div class="nl-card" id="settings-server">
+            <div class="nl-card-title">${ServerLink.get()?.connected ? '🟢 Connected' : '🟠 Trying to reach'} the world server</div>
+            <div class="nl-card-line">${esc(SERVER_URL)}</div>
+            <div class="nl-card-line">Land, buildings, vehicles and the market are shared with everyone on this server. Your money and your saved game stay on this device.</div>
+            <button class="nl-btn nl-btn--danger nl-btn--sm" data-act="server-off">Leave the server and play on this device only</button>
+          </div>` : `
+          <div class="nl-hint">Land and the market are shared by the players in this browser. To share them with other devices, run the world server (npm run server) and enter its address.</div>
+          <label class="nl-label" for="settings-server-url">World server address</label>
+          <input class="nl-field" id="settings-server-url" type="text" inputmode="url" autocomplete="off" placeholder="http://192.168.1.20:8787" value="${esc(host.get('settings.server', ''))}" data-bind="settings.server" />
+          <button class="nl-btn nl-btn--block" id="settings-server-join" data-act="server-on">Connect</button>`}
         <div class="nl-section">Saved game</div>
         <div class="nl-hint">The game saves itself on this device every few seconds. A copy as text lets you move it to another browser.</div>
         <div class="nl-list">
@@ -407,6 +431,22 @@ export const settingsApp: PhoneApp = {
     } else if (action === 'radio') {
       sound.toggleRadio();
       host.refresh();
+    } else if (action === 'server-on') {
+      const url = host.get('settings.server', '').trim();
+      if (!/^https?:\/\/[^\s]+$/.test(url)) return host.say('Enter the address the server printed, such as http://192.168.1.20:8787.', 'bad');
+      try {
+        const response = await fetch(`${url.replace(/\/+$/, '')}/health`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(String(response.status));
+      } catch {
+        return host.say('Nothing answered at that address. Check that the server is running and that this device can reach it.', 'bad');
+      }
+      if (!(await host.confirm('Connect to this world server? The game will restart. Land and vehicles you own in this browser stay here and are not taken to the server.', 'Connect'))) return;
+      rememberServer(url);
+      window.location.reload();
+    } else if (action === 'server-off') {
+      if (!(await host.confirm('Leave the world server? The game will restart and use the land registry in this browser.', 'Leave'))) return;
+      rememberServer(null);
+      window.location.reload();
     } else if (action === 'wardrobe') {
       host.close();
       host.world.openWardrobe();

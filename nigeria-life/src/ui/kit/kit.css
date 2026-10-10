@@ -1250,4 +1250,344 @@ body.ui-modal-open .mobile-controls-active {
   .street-radar-bar {
     display: none !important;
   }
+
+  /* The top of the screen, in three short rows that each fit the width:
+     1. the time and the money   2. the four needs   3. quest and shortcuts on the left, the place on the right */
+  .hud-center-pill-bar {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 8px;
+    padding: 6px 12px;
+    border-radius: 18px;
+  }
+  .hud-center-pill-bar #pill-mood,
+  .hud-center-pill-bar #hud-sound-toggle {
+    display: none;
+  }
+  .hud-center-pill-bar .hud-vitals-bar {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .hud-vitals-bar .vital-item {
+    flex: 1;
+    min-width: 0;
+  }
+  .hud-vitals-bar .vital-track {
+    flex: 1;
+    min-width: 0;
+  }
+  .hud-vitals-bar .vital-val {
+    display: none;
+  }
+
+  .hud-top-right-group {
+    top: 80px;
+    right: 8px;
+    display: flex;
+    gap: 6px;
+  }
+  /* The camera's own buttons are for a mouse; on a touch screen the view is turned by dragging */
+  #btn-camera-view-toggle,
+  #btn-photo-mode-toggle,
+  #hud-btn-cloud-sync,
+  .camera-rotate-widget {
+    display: none !important;
+  }
+  .hud-location {
+    gap: 6px;
+    padding: 5px 10px;
+    max-width: 44vw;
+  }
+  .hud-location .flag {
+    font-size: 13px;
+  }
+  .hud-location .loc-details {
+    min-width: 0;
+    font-size: 11px;
+  }
+  .hud-location .loc-details * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hud-top-left-badges {
+    top: 80px;
+    left: 8px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 52vw;
+  }
+  /* The three shortcuts shrink to their icons */
+  .hud-top-left-badges .top-badge {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  .hud-top-left-badges .top-badge .badge-text {
+    display: none;
+  }
+  /* The quest in hand is one line until it is opened */
+  .hud-quest-tracker {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 52vw;
+    padding: 6px 10px;
+  }
+  .hud-quest-tracker .tracker-body:not([style*="block"]) {
+    display: none;
+  }
+
+  /* The moves are in the menu that opens when you tap your character, so the bar gives up its place */
+  .emote-bar {
+    display: none !important;
+  }
+  /* The stick and the action buttons sit above the bottom bar, not on it */
+  .v-joystick-base {
+    bottom: 62px;
+    left: 14px;
+  }
+  .v-actions-cluster {
+    bottom: 62px;
+    right: 14px;
+  }
+  .hud-proximity-prompt {
+    bottom: 190px;
+  }
+  /* Street chat sits above the stick, clear of the bottom bar */
+  #street-chat-box,
+  #street-chat-box.chat-mobile-adapted {
+    left: 8px;
+    bottom: 184px;
+    max-width: calc(100vw - 16px);
+  }
+}
+
+/* =============================================================================================
+   The older dialogs (bag, cash machine, businesses, city travel, flights, quests)
+
+   They were each drawn their own way. This gives them the kit's surface, type, buttons,
+   cards, tabs and close button through the class names they already have, so they sit beside
+   the phone as one family.
+   ============================================================================================= */
+.inventory-dialog,
+.atm-dialog,
+.economy-dialog,
+.travel-dialog,
+.interstate-dialog,
+.quest-modal-dialog {
+  --nl-bg: #0b1410;
+  --nl-surface: #131f1a;
+  --nl-surface-2: #1b2b24;
+  --nl-line: rgba(255, 255, 255, 0.09);
+  --nl-text: #f2f6f3;
+  --nl-dim: #9db0a6;
+  --nl-accent: #1f9d6b;
+  font-family: var(--nl-font);
+  color: var(--nl-text);
+  background: var(--nl-bg) !important;
+  border: 1px solid var(--nl-line) !important;
+  border-radius: var(--nl-r-lg) !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* The businesses dialog had no backdrop and no header styles of its own */
+#economy-modal.lagos-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 8, 6, 0.62);
+  backdrop-filter: blur(6px);
+}
+.economy-dialog {
+  position: relative;
+  width: min(820px, 100%);
+}
+.economy-dialog .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--nl-line);
+}
+.economy-dialog .header-titles h2 {
+  margin: 6px 0 4px;
+  font: 800 24px/1.15 var(--nl-font);
+  color: var(--nl-text);
+}
+.economy-dialog .header-titles p {
+  margin: 0;
+  font: 500 13px/1.45 var(--nl-font);
+  color: var(--nl-dim);
+}
+.economy-dialog .modal-tag,
+.inventory-dialog .dialog-badge,
+.travel-dialog .dialog-badge,
+.interstate-dialog .dialog-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  font: 800 10.5px/1.2 var(--nl-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+  background: color-mix(in srgb, var(--nl-accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nl-accent) 55%, transparent);
+  border-radius: var(--nl-r-pill);
+}
+
+/* One close button */
+.inventory-dialog .dialog-close-btn,
+.atm-dialog .dialog-close-btn,
+.travel-dialog .dialog-close-btn,
+.interstate-dialog .dialog-close-btn,
+.economy-dialog .modal-close-btn,
+.quest-modal-dialog .quest-modal-close-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--nl-text);
+  background: var(--nl-surface-2);
+  border: 1px solid var(--nl-line);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.inventory-dialog .dialog-close-btn:hover,
+.atm-dialog .dialog-close-btn:hover,
+.travel-dialog .dialog-close-btn:hover,
+.interstate-dialog .dialog-close-btn:hover,
+.economy-dialog .modal-close-btn:hover,
+.quest-modal-dialog .quest-modal-close-btn:hover {
+  background: color-mix(in srgb, var(--nl-accent) 40%, var(--nl-surface-2));
+}
+
+/* One card */
+.inventory-dialog .fin-card,
+.inventory-dialog .inv-item-card,
+.economy-dialog .econ-metric-card,
+.economy-dialog .econ-item-card,
+.travel-dialog .dest-card,
+.interstate-dialog .route-card,
+.quest-modal-dialog .quest-card,
+.atm-dialog .atm-screen {
+  background: var(--nl-surface) !important;
+  border: 1px solid var(--nl-line) !important;
+  border-radius: var(--nl-r-md) !important;
+}
+
+/* One main button */
+.inventory-dialog .btn-save,
+.atm-dialog .btn-save,
+.economy-dialog .btn-econ-buy,
+.economy-dialog .btn-claim-all-econ,
+.travel-dialog .btn-board-transit,
+.interstate-dialog .btn-book-route {
+  min-height: var(--nl-tap);
+  font: 800 14px/1.2 var(--nl-font) !important;
+  color: #fff !important;
+  background: var(--nl-accent) !important;
+  border: 1px solid color-mix(in srgb, var(--nl-accent) 70%, #fff) !important;
+  border-radius: var(--nl-r-md) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+.inventory-dialog .btn-save:hover,
+.atm-dialog .btn-save:hover,
+.economy-dialog .btn-econ-buy:hover:not(:disabled),
+.travel-dialog .btn-board-transit:hover:not(:disabled),
+.interstate-dialog .btn-book-route:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--nl-accent) 82%, #fff) !important;
+}
+.economy-dialog .btn-econ-buy:disabled,
+.economy-dialog .btn-claim-all-econ:disabled,
+.travel-dialog .btn-board-transit:disabled,
+.interstate-dialog .btn-book-route:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.inventory-dialog .inv-btn-use,
+.atm-dialog .atm-btn {
+  min-height: 40px;
+  font: 700 13px/1.2 var(--nl-font);
+  color: #6ee7b7;
+  background: color-mix(in srgb, var(--nl-accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nl-accent) 60%, transparent);
+  border-radius: var(--nl-r-sm);
+  cursor: pointer;
+}
+.inventory-dialog .inv-btn-use:hover,
+.atm-dialog .atm-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--nl-accent) 34%, transparent);
+}
+
+/* One kind of tab */
+.economy-dialog .econ-tab-btn,
+.quest-modal-dialog .quest-tab-btn {
+  min-height: 38px;
+  padding: 8px 14px;
+  font: 700 13px/1.2 var(--nl-font);
+  color: var(--nl-dim);
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-pill);
+  cursor: pointer;
+}
+.economy-dialog .econ-tab-btn.active,
+.quest-modal-dialog .quest-tab-btn.active {
+  color: #fff;
+  background: var(--nl-accent);
+  border-color: transparent;
+  box-shadow: none;
+}
+.economy-dialog .econ-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 24px 4px;
+  border-bottom: none;
+}
+
+/* Keyboard users can see where they are in every one of them */
+.inventory-dialog button:focus-visible,
+.atm-dialog button:focus-visible,
+.economy-dialog button:focus-visible,
+.travel-dialog button:focus-visible,
+.interstate-dialog button:focus-visible,
+.quest-modal-dialog button:focus-visible {
+  outline: 3px solid #6ee7b7;
+  outline-offset: 2px;
+}
+
+/* The last of the old navy panels inside those dialogs */
+.atm-dialog .atm-header,
+.atm-dialog .atm-footer {
+  background: var(--nl-bg);
+  border-color: var(--nl-line);
+}
+.atm-dialog .atm-account-info,
+.atm-dialog .atm-tx-row,
+.travel-dialog .travel-origin-banner,
+.interstate-dialog .interstate-origin-banner,
+.interstate-dialog .route-stations {
+  background: var(--nl-surface-2);
+  border-color: var(--nl-line);
+}
+.atm-dialog .atm-section-title,
+.atm-dialog .atm-sub {
+  color: #6ee7b7;
 }

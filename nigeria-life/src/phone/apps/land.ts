@@ -5,8 +5,10 @@ import { AssetMarket, SALE_FEE_RATE } from '../../realestate/AssetMarket';
 import { buildingType, demolitionCost, refundOnCancel } from '../../realestate/BuildingCatalogue';
 import { Land, stageOf, STAGE_LABEL, STATUS_LABEL, type Plot, type PlotStatus } from '../../realestate/Land';
 import { MY_ID } from '../../realestate/Registry';
+import { CITY_NAME, STATE_NAME } from '../../realestate/PlotCatalogue';
+import { hoursDone, isFinished, isLet, worldNow, MS_PER_GAME_DAY } from '../../realestate/WorldClock';
 import { SETBACK } from '../../world/plan/CityPlan';
-import type { AssetRef, Negotiation } from '../../realestate/types';
+import type { AssetRef, Listing, Negotiation } from '../../realestate/types';
 
 const land = () => Land.get();
 const market = () => AssetMarket.get();
@@ -15,6 +17,10 @@ const USE_LABEL: Record<string, string> = { residential: 'Homes', commercial: 'B
 const STATUS_TONE: Record<PlotStatus, string> = { available: 'good', listed: 'good', negotiating: 'warn', reserved: 'warn', building: 'info', developed: 'info', owned: 'muted' };
 const tag = (text: string, tone = 'muted') => `<span class="nl-tag nl-tag--${tone}">${esc(text)}</span>`;
 const when = (at: number) => new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+/** How long is left of something paid for, in game days. */
+const daysLeft = (until: number) => Math.max(0, (until - worldNow()) / MS_PER_GAME_DAY);
+const stateOf = (plot: Plot) => STATE_NAME[plot.city];
+const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 /** What was typed as an amount: "45,000,000" and "45m" are both 45000000. Nothing usable is NaN. */
 function amountFrom(typed: string): number {
   const text = String(typed).trim().toLowerCase().replace(/[₦,\s]/g, '');
@@ -34,10 +40,77 @@ function plotRow(plot: Plot): string {
   return row({
     icon: mine ? '🟩' : status === 'available' ? '🟨' : '⬜',
     title: esc(plot.name),
-    sub: `${esc(plot.neighbourhood)} · ${Math.round(plot.area)} m² · ${plot.uses.map((use) => USE_LABEL[use]).join(' & ')}<br>${tag(mine ? 'Yours' : STATUS_LABEL[status], mine ? 'good' : STATUS_TONE[status])}`,
+    sub: `${esc(plot.neighbourhood)}, ${CITY_NAME[plot.city]} · ${Math.round(plot.area)} m² · ${plot.uses.map((use) => USE_LABEL[use]).join(' & ')}<br>${tag(mine ? 'Yours' : STATUS_LABEL[status], mine ? 'good' : STATUS_TONE[status])}${toLetTag(plot)}`,
     trailing: price !== null ? `<strong>${naira(price)}</strong>` : '<span class="nl-dim">Not for sale</span>',
     attrs: `data-go="plot:${esc(plot.id)}" data-plot="${esc(plot.id)}"`,
   });
+}
+
+/** A tag on a plot's row when its building can be rented, or is. */
+function toLetTag(plot: Plot): string {
+  const tenancy = land().tenancy(plot.id);
+  if (!tenancy) return '';
+  if (isLet(tenancy)) return ` ${tag(tenancy.tenantId === MY_ID ? 'You rent it' : 'Let', 'info')}`;
+  return tenancy.ending ? '' : ` ${tag(`To let · ${naira(tenancy.rentPerWeek)} a week`, 'warn')}`;
+}
+
+/** Everything about letting the building on a plot, for whoever is looking at it. */
+function lettingCard(host: PhoneHost, plot: Plot, mine: boolean): string {
+  const building = land().building(plot.id);
+  const type = building ? buildingType(building.typeId) : null;
+  if (!building || !type || !isFinished(building)) return '';
+  const tenancy = land().tenancy(plot.id);
+  const let_ = isLet(tenancy);
+  const what = type.home ? 'live in it' : 'run it and keep its takings';
+
+  if (mine) {
+    if (let_) {
+      return `
+        <div class="nl-card" id="land-let">
+          <div class="nl-card-title">Let to ${esc(market().nameOf(tenancy.tenantId))}</div>
+          <div class="nl-card-line">${naira(tenancy.rentPerWeek)} a week, paid up for ${daysLeft(tenancy.paidUntil).toFixed(1)} more game days.${tenancy.ending ? ' You have given notice: they leave when that runs out.' : ''}</div>
+          ${tenancy.ending ? '' : `<button class="nl-btn nl-btn--danger nl-btn--sm" id="land-notice" data-act="stop-letting" data-arg="${esc(plot.id)}">Give notice</button>`}
+        </div>`;
+    }
+    return `
+      <div class="nl-card" id="land-let">
+        <div class="nl-card-title">${tenancy ? `To let at ${naira(tenancy.rentPerWeek)} a week` : 'Let it to another player'}</div>
+        <div class="nl-card-line">A tenant pays you by the week and gets to ${what}. You still own it and can sell it.</div>
+        <label class="nl-label" for="land-rent">Weekly rent</label>
+        <input class="nl-field" id="land-rent" type="text" inputmode="numeric" autocomplete="off" value="${esc(host.get(`land.rent.${plot.id}`, String(tenancy?.rentPerWeek ?? Math.max(5000, Math.round((type.cost * 0.02) / 1000) * 1000))))}" data-bind="land.rent.${esc(plot.id)}" />
+        <div class="nl-split">
+          <button class="nl-btn nl-btn--sm" id="land-let-btn" data-act="offer-let" data-arg="${esc(plot.id)}">${tenancy ? 'Change the rent' : 'Offer it to let'}</button>
+          ${tenancy ? `<button class="nl-btn nl-btn--danger nl-btn--sm" id="land-unlet" data-act="stop-letting" data-arg="${esc(plot.id)}">Stop offering it</button>` : ''}
+        </div>
+      </div>`;
+  }
+
+  if (let_ && tenancy.tenantId === MY_ID) {
+    const takings = land().takings(plot.id);
+    return `
+      <div class="nl-card nl-card--live" id="land-tenancy">
+        <div class="nl-card-title">You rent this ${esc(type.name.toLowerCase())}</div>
+        <div class="nl-card-line">${naira(tenancy.rentPerWeek)} a week. Paid up for ${daysLeft(tenancy.paidUntil).toFixed(1)} more game days.${tenancy.ending ? ' The owner has given notice: it ends then.' : ' The next week is paid from your account when this one is nearly up.'}</div>
+        ${type.home ? '<button class="nl-btn nl-btn--primary nl-btn--block" id="land-go-in" data-act="go-in">Go inside</button>' : ''}
+        ${type.incomePerDay > 0 ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="land-collect" data-act="collect" data-arg="${esc(plot.id)}" ${takings > 0 ? '' : 'disabled'}>Collect ${naira(takings)}</button>` : ''}
+        <div class="nl-split">
+          ${tenancy.ending ? '' : `<button class="nl-btn nl-btn--sm" id="land-renew" data-act="pay-rent" data-arg="${esc(plot.id)}">Pay another week</button>`}
+          <button class="nl-btn nl-btn--danger nl-btn--sm" id="land-leave" data-act="leave-let" data-arg="${esc(plot.id)}">Give it up</button>
+        </div>
+      </div>`;
+  }
+  if (let_) return `<div class="nl-note" id="land-let">This ${esc(type.name.toLowerCase())} is let to ${esc(market().nameOf(tenancy.tenantId))}.</div>`;
+  if (tenancy && !tenancy.ending) {
+    const short = market().funds() < tenancy.rentPerWeek;
+    return `
+      <div class="nl-card" id="land-let">
+        <div class="nl-card-title">To let · ${naira(tenancy.rentPerWeek)} a week</div>
+        <div class="nl-card-line">Rent it and you ${what}. ${type.incomePerDay > 0 ? `It brings in ${naira(type.incomePerDay)} a game day and costs ${naira(type.upkeepPerDay)} to keep.` : ''} A week is seven game days, paid in advance.</div>
+        <button class="nl-btn nl-btn--primary nl-btn--block" id="land-rent-btn" data-act="pay-rent" data-arg="${esc(plot.id)}" ${short ? 'disabled' : ''}>Rent it · ${naira(tenancy.rentPerWeek)} for the first week</button>
+        ${short ? `<div class="nl-note nl-note--warn">You have ${naira(market().funds())} in all.</div>` : ''}
+      </div>`;
+  }
+  return '';
 }
 
 function dealRow(deal: Negotiation): string {
@@ -76,29 +149,32 @@ function plotScreen(host: PhoneHost, plot: Plot) {
   if (status === 'available') {
     const short = funds < plot.statePrice;
     actions = `
-      <button class="nl-btn nl-btn--primary nl-btn--block" id="land-buy" data-act="buy-state" data-arg="${esc(plot.id)}" ${short ? 'disabled' : ''}>Buy from Lagos State · ${naira(plot.statePrice)}</button>
+      <button class="nl-btn nl-btn--primary nl-btn--block" id="land-buy" data-act="buy-state" data-arg="${esc(plot.id)}" ${short ? 'disabled' : ''}>Buy from ${esc(stateOf(plot))} · ${naira(plot.statePrice)}</button>
       ${short ? `<div class="nl-note nl-note--warn" id="land-short">You have ${naira(funds)} in all. You need ${naira(plot.statePrice - funds)} more.</div>` : ''}`;
   } else if (mine) {
-    if (building && type && !building.finishedAt) {
-      const done = Math.round((building.hoursDone / building.hoursNeeded) * 100);
+    if (building && type && !isFinished(building)) {
+      const worked = hoursDone(building);
+      const done = Math.round((worked / building.hoursNeeded) * 100);
       actions += `
         <div class="nl-card nl-card--live" id="land-works">
           <div class="nl-card-title">${type.icon} ${esc(type.name)} going up</div>
-          <div class="nl-card-line">${STAGE_LABEL[stageOf(building)]} · ${done}% built · about ${Math.max(0, Math.ceil(building.hoursNeeded - building.hoursDone))} game hours of work left</div>
+          <div class="nl-card-line">${STAGE_LABEL[stageOf(building)]} · ${done}% built · about ${Math.max(0, Math.ceil(building.hoursNeeded - worked))} game hours of work left</div>
           ${meter(done)}
-          <div class="nl-card-line">Work goes on while you are in the game.</div>
-          <button class="nl-btn nl-btn--danger nl-btn--sm" data-act="stop-work" data-arg="${esc(plot.id)}">Stop work · ${naira(refundOnCancel(type, building.hoursDone))} back</button>
+          <div class="nl-card-line">The builders keep working whether or not you are in the game.</div>
+          <button class="nl-btn nl-btn--danger nl-btn--sm" data-act="stop-work" data-arg="${esc(plot.id)}">Stop work · ${naira(refundOnCancel(type, worked))} back</button>
         </div>`;
     } else if (building && type) {
       const takings = land().takings(plot.id);
+      const tenanted = isLet(land().tenancy(plot.id));
       actions += `
         <div class="nl-card" id="land-building">
           <div class="nl-card-title">${type.icon} ${esc(type.name)}</div>
-          <div class="nl-card-line">${type.incomePerDay > 0 ? `Brings in ${naira(type.incomePerDay)} a day and costs ${naira(type.upkeepPerDay)} a day to keep.` : `Costs ${naira(type.upkeepPerDay)} a day to keep.`}${type.home ? ' You can live here.' : ''}</div>
-          ${type.incomePerDay > 0 ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="land-collect" data-act="collect" data-arg="${esc(plot.id)}" ${takings > 0 ? '' : 'disabled'}>Collect ${naira(takings)}</button>` : ''}
-          ${type.home ? '<button class="nl-btn nl-btn--block" id="land-go-in" data-act="go-in">Go inside</button>' : ''}
-          <button class="nl-btn nl-btn--danger nl-btn--sm" data-act="demolish" data-arg="${esc(plot.id)}">Pull it down · costs ${naira(demolitionCost(type))}</button>
-        </div>`;
+          <div class="nl-card-line">${type.incomePerDay > 0 ? `Brings in ${naira(type.incomePerDay)} a day and costs ${naira(type.upkeepPerDay)} a day to keep.` : `Costs ${naira(type.upkeepPerDay)} a day to keep.`}${type.home && !tenanted ? ' You can live here.' : ''}</div>
+          ${type.incomePerDay > 0 && !tenanted ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="land-collect" data-act="collect" data-arg="${esc(plot.id)}" ${takings > 0 ? '' : 'disabled'}>Collect ${naira(takings)}</button>` : ''}
+          ${type.home && !tenanted ? '<button class="nl-btn nl-btn--block" id="land-go-in" data-act="go-in">Go inside</button>' : ''}
+          ${tenanted ? '' : `<button class="nl-btn nl-btn--danger nl-btn--sm" data-act="demolish" data-arg="${esc(plot.id)}">Pull it down · costs ${naira(demolitionCost(type))}</button>`}
+        </div>
+        ${lettingCard(host, plot, true)}`;
     } else if (!listing || listing.status === 'active') {
       actions += `<button class="nl-btn nl-btn--primary nl-btn--block" id="land-build" data-go="build:${esc(plot.id)}">Build on this plot</button>`;
     }
@@ -115,7 +191,7 @@ function plotScreen(host: PhoneHost, plot: Plot) {
             </div>` : ''}
         </div>
         ${offers.length ? `<div class="nl-section">Offers</div><div class="nl-list" id="land-offers">${offers.map(dealRow).join('')}</div>` : ''}`;
-    } else if (!building || building.finishedAt) {
+    } else if (!building || isFinished(building)) {
       actions += `<button class="nl-btn nl-btn--block" id="land-sell" data-go="sell:${esc(plot.id)}">Put up for sale</button>`;
     } else {
       actions += '<div class="nl-hint">Land with building work under way cannot be sold. Finish the building or stop the work first.</div>';
@@ -133,17 +209,18 @@ function plotScreen(host: PhoneHost, plot: Plot) {
   } else {
     actions = `<div class="nl-note" id="land-closed">This land belongs to ${esc(market().nameOf(owner))} and is not for sale. Only its owner can put it on the market.</div>`;
   }
+  if (!mine) actions += lettingCard(host, plot, false);
 
   return {
     title: plot.name,
     body: `
       <div class="nl-hero nl-hero--green">
-        <span class="nl-hero-label">${esc(plot.neighbourhood)} · ${esc(plot.street)}</span>
+        <span class="nl-hero-label">${esc(plot.neighbourhood)}, ${CITY_NAME[plot.city]} · ${esc(plot.street)}</span>
         <span class="nl-hero-title">${Math.round(plot.area)} m²</span>
         <span class="nl-hero-sub">${width} m × ${depth} m · ${mine ? 'Your land' : STATUS_LABEL[status]}</span>
       </div>
       <div class="nl-list" id="land-facts">
-        ${row({ icon: '👤', title: 'Owner', sub: esc(owner === null ? 'Lagos State (not yet sold to anyone)' : mine ? 'You' : market().nameOf(owner)) })}
+        ${row({ icon: '👤', title: 'Owner', sub: esc(owner === null ? `${cap(stateOf(plot))} (not yet sold to anyone)` : mine ? 'You' : market().nameOf(owner)) })}
         ${row({ icon: '🏗️', title: 'What may be built', sub: `${plot.uses.map((use) => USE_LABEL[use]).join(' and ')} · up to ${count(plot.maxFloors, 'floor')}` })}
         ${row({ icon: '📏', title: 'Rules', sub: `Buildings stand at least ${SETBACK} m inside the boundary and never on the road or the pavement.` })}
         ${row({ icon: '💰', title: status === 'available' ? 'State price' : listing ? 'Asking price' : 'Price', sub: status === 'available' ? `${naira(plot.statePrice)} · an in-game price` : listing ? `${naira(listing.askingPrice)} · offers are negotiated` : 'Not for sale' })}
@@ -153,7 +230,7 @@ function plotScreen(host: PhoneHost, plot: Plot) {
       ${title && title.history.length ? `
         <div class="nl-section">Who has owned it</div>
         <div class="nl-list" id="land-history">
-          ${[...title.history].reverse().map((entry) => row({ icon: '📜', title: `${esc(market().nameOf(entry.to))} bought it`, sub: `From ${esc(market().nameOf(entry.from))} · ${when(entry.at)}`, trailing: naira(entry.price) })).join('')}
+          ${[...title.history].reverse().map((entry) => row({ icon: '📜', title: `${esc(market().nameOf(entry.to))} bought it`, sub: `From ${esc(entry.from === null ? stateOf(plot) : market().nameOf(entry.from))} · ${when(entry.at)}`, trailing: naira(entry.price) })).join('')}
         </div>` : ''}
     `,
   };
@@ -183,7 +260,8 @@ function sellScreen(host: PhoneHost, plot: Plot) {
 
 function buildScreen(host: PhoneHost, plot: Plot) {
   const funds = market().funds();
-  const far = host.world.distanceTo((plot.rect.minX + plot.rect.maxX) / 2, (plot.rect.minZ + plot.rect.maxZ) / 2) > 60;
+  const elsewhere = host.world.cityId() !== plot.city;
+  const far = elsewhere || host.world.distanceTo((plot.rect.minX + plot.rect.maxX) / 2, (plot.rect.minZ + plot.rect.maxZ) / 2) > 60;
   return {
     title: 'Build',
     body: `
@@ -191,7 +269,7 @@ function buildScreen(host: PhoneHost, plot: Plot) {
         <div class="nl-card-title">${esc(plot.name)}</div>
         <div class="nl-card-line">${plot.rect.maxX - plot.rect.minX} m × ${plot.rect.maxZ - plot.rect.minZ} m · ${plot.uses.map((use) => USE_LABEL[use]).join(' and ')} · up to ${count(plot.maxFloors, 'floor')}</div>
       </div>
-      ${far ? '<div class="nl-note nl-note--warn" id="build-far">You choose where a building stands on the plot itself. Go there first.</div>' : ''}
+      ${far ? `<div class="nl-note nl-note--warn" id="build-far">You choose where a building stands on the plot itself. ${elsewhere ? `It is in ${CITY_NAME[plot.city]}: travel there first.` : 'Go there first.'}</div>` : ''}
       <div class="nl-list" id="build-designs">
         ${land().designsFor(plot.id).map(({ type, why }) => {
           const short = funds < type.cost;
@@ -267,6 +345,87 @@ function dealScreen(host: PhoneHost, deal: Negotiation) {
   };
 }
 
+const KIND_ICON: Record<string, string> = { plot: '🟨', vehicle: '🚙', property: '🏠', business: '🏪' };
+const KIND_LABEL: Record<string, string> = { plot: 'Land', vehicle: 'Vehicle', property: 'Home', business: 'Business' };
+
+function listingRow(listing: Listing): string {
+  const mine = listing.sellerId === MY_ID;
+  return row({
+    icon: KIND_ICON[listing.asset.kind] ?? '🏷️',
+    title: esc(assetName(listing.asset)),
+    sub: `${KIND_LABEL[listing.asset.kind] ?? 'Asset'} · ${mine ? 'Your listing' : `Seller: ${esc(market().nameOf(listing.sellerId))}`}${listing.status === 'pending' ? ' · sale agreed' : ''}`,
+    trailing: `<strong>${naira(listing.askingPrice)}</strong>`,
+    attrs: listing.asset.kind === 'plot' ? `data-go="plot:${esc(listing.asset.id)}"` : listing.asset.kind === 'vehicle' ? `data-app="garage" data-route="car:${esc(listing.asset.id)}"` : `data-go="listing:${esc(listing.id)}" data-listing="${esc(listing.id)}"`,
+  });
+}
+
+/** One listing of anything that is not land: a home or a business another player is selling, or this player's own. */
+function listingScreen(host: PhoneHost, listing: Listing) {
+  const mine = listing.sellerId === MY_ID;
+  const offers = market().negotiationsOn(listing.id).filter((deal) => deal.status === 'open' || deal.status === 'accepted');
+  const myDeal = offers.find((deal) => deal.buyerId === MY_ID);
+  const open = listing.status === 'active';
+  let actions = '';
+  if (mine) {
+    actions = `
+      <div class="nl-card">
+        <div class="nl-card-line">${listing.status === 'pending' ? 'A sale has been agreed and is waiting for the buyer\'s payment.' : listing.status === 'sold' ? 'Sold.' : listing.status === 'withdrawn' ? 'Taken off the market.' : `${count(offers.length, 'offer')}. It stays yours until you accept one and the buyer has paid.`}</div>
+        ${open ? `
+          <div class="nl-split">
+            <button class="nl-btn nl-btn--sm" data-go="ask:${listing.asset.kind}:${esc(listing.asset.id)}">Change price</button>
+            <button class="nl-btn nl-btn--danger nl-btn--sm" id="listing-withdraw" data-act="withdraw" data-arg="${esc(listing.id)}">Take off the market</button>
+          </div>` : ''}
+      </div>
+      ${offers.length ? `<div class="nl-section">Offers</div><div class="nl-list" id="listing-offers">${offers.map(dealRow).join('')}</div>` : ''}`;
+  } else if (myDeal) {
+    actions = `<div class="nl-list">${dealRow(myDeal)}</div>`;
+  } else if (open) {
+    actions = `
+      <label class="nl-label" for="listing-offer">Your offer</label>
+      <input class="nl-field" id="listing-offer" type="text" inputmode="numeric" autocomplete="off" placeholder="${naira(listing.askingPrice)}" value="${esc(host.get(`land.offer.${listing.id}`, ''))}" data-bind="land.offer.${esc(listing.id)}" />
+      <div class="nl-hint">${esc(market().nameOf(listing.sellerId))} is asking ${naira(listing.askingPrice)}. Offer that or anything else. You have ${naira(market().funds())} in all.</div>
+      <button class="nl-btn nl-btn--primary nl-btn--block" id="listing-offer-btn" data-act="offer" data-arg="${esc(listing.id)}|${esc(listing.id)}">Make this offer</button>`;
+  } else {
+    actions = `<div class="nl-note" id="listing-closed">${listing.status === 'pending' ? 'A sale to another buyer has been agreed.' : 'This is no longer on the market.'}</div>`;
+  }
+  return {
+    title: KIND_LABEL[listing.asset.kind] ?? 'For sale',
+    body: `
+      <div class="nl-hero nl-hero--amber">
+        <span class="nl-hero-label">${mine ? 'Your listing' : `For sale by ${esc(market().nameOf(listing.sellerId))}`}</span>
+        <span class="nl-hero-title">${esc(assetName(listing.asset))}</span>
+        <span class="nl-hero-sub">Asking ${naira(listing.askingPrice)}</span>
+      </div>
+      ${listing.description ? `<div class="nl-note">${esc(listing.description)}</div>` : ''}
+      ${actions}
+    `,
+  };
+}
+
+/** Naming an asking price for a home or a business the player owns outright. */
+function askScreen(host: PhoneHost, asset: AssetRef) {
+  const listing = market().listingFor(asset);
+  const guide = asset.kind === 'property' || asset.kind === 'business' ? host.backend.deedPrice(asset.kind, asset.id) : 0;
+  const key = `land.ask.${asset.kind}.${asset.id}`;
+  const typed = host.get(key, String(listing?.askingPrice ?? guide));
+  const asking = amountFrom(typed);
+  return {
+    title: listing ? 'Change the listing' : 'Sell to another player',
+    body: `
+      <div class="nl-card">
+        <div class="nl-card-title">${KIND_ICON[asset.kind] ?? ''} ${esc(assetName(asset))}</div>
+        ${guide ? `<div class="nl-card-line">It cost ${naira(guide)} on the open market.</div>` : ''}
+      </div>
+      <label class="nl-label" for="asset-ask">Asking price</label>
+      <input class="nl-field" id="asset-ask" type="text" inputmode="numeric" autocomplete="off" value="${esc(typed)}" data-bind="${esc(key)}" data-live />
+      <label class="nl-label" for="asset-note">What buyers should know (optional)</label>
+      <input class="nl-field" id="asset-note" type="text" maxlength="200" autocomplete="off" value="${esc(host.get(`${key}.note`, listing?.description ?? ''))}" data-bind="${esc(key)}.note" />
+      <div class="nl-hint">Listing sells nothing: it stays yours until you accept an offer and the buyer has paid. ${Number.isFinite(asking) ? `At ${naira(asking)} you would receive ${naira(asking - Math.round(asking * SALE_FEE_RATE))} after the ${Math.round(SALE_FEE_RATE * 100)}% fee.` : ''}</div>
+      <button class="nl-btn nl-btn--primary nl-btn--block" id="asset-list-btn" data-act="list-asset" data-arg="${asset.kind}:${esc(asset.id)}">${listing ? 'Save the listing' : 'Put it on the market'}</button>
+    `,
+  };
+}
+
 // ------------------------------------------------------------------------------------------------
 // The app
 // ------------------------------------------------------------------------------------------------
@@ -279,7 +438,7 @@ export const landApp: PhoneApp = {
   tint: ['#3f6212', '#84cc16'],
   purpose: 'Buy land, build on it, and trade it with other players',
   badge: () => market().waitingOnMe(),
-  live: () => land().myPlots().some((plot) => !!land().building(plot.id)),
+  live: () => land().myPlots().some((plot) => !!land().building(plot.id)) || land().myTenancies().length > 0,
 
   render(host, route) {
     if (route.startsWith('plot:')) {
@@ -296,6 +455,17 @@ export const landApp: PhoneApp = {
       if (plot && land().isMine(plot.id)) return buildScreen(host, plot);
       return { title: 'Land', body: empty('🚫', 'Not yours to build on', 'Only the owner of a plot can build on it.') };
     }
+    if (route.startsWith('listing:')) {
+      const id = route.slice(8);
+      const listing = Object.values(market().allListings()).find((entry) => entry.id === id);
+      return listing ? listingScreen(host, listing) : { title: 'Market', body: empty('🏷️', 'No such listing', 'It may have been sold or withdrawn.') };
+    }
+    if (route.startsWith('ask:')) {
+      const [, kind, ...rest] = route.split(':');
+      const asset = { kind, id: rest.join(':') } as AssetRef;
+      if (market().isMine(asset)) return askScreen(host, asset);
+      return { title: 'Market', body: empty('🚫', 'Not yours to sell', 'Only the owner can put it up for sale. If you have just bought it, give it a moment to be registered.') };
+    }
     if (route.startsWith('deal:')) {
       const deal = market().myNegotiations().find((entry) => entry.id === route.slice(5));
       return deal ? dealScreen(host, deal) : { title: 'Land', body: empty('🤝', 'No such negotiation', 'It may have been closed.') };
@@ -308,9 +478,16 @@ export const landApp: PhoneApp = {
     let content = '';
 
     if (tab === 'mine') {
-      content = mine.length === 0
+      const rented = land().myTenancies().map((tenancy) => land().plot(tenancy.plotId)).filter((plot): plot is Plot => plot !== null);
+      content = mine.length === 0 && rented.length === 0
         ? empty('🟨', 'You own no land', 'Plots for sale are under Browse. The yellow boards around the city mark them.')
-        : `<div class="nl-list" id="land-mine">${mine.map(plotRow).join('')}</div>`;
+        : `${mine.length ? `<div class="nl-list" id="land-mine">${mine.map(plotRow).join('')}</div>` : ''}
+           ${rented.length ? `<div class="nl-section">You rent</div><div class="nl-list" id="land-rented">${rented.map(plotRow).join('')}</div>` : ''}`;
+    } else if (tab === 'market') {
+      const others = market().listings((listing) => listing.asset.kind !== 'plot');
+      content = others.length === 0
+        ? empty('🏷️', 'Nothing else for sale', 'Homes, businesses and vehicles that players put up for sale appear here. Land is under Browse.')
+        : `<div class="nl-list" id="land-market">${others.map(listingRow).join('')}</div>`;
     } else if (tab === 'offers') {
       content = deals.length === 0
         ? empty('🤝', 'No offers', 'Offers you make, and offers on what you are selling, are kept here.')
@@ -326,15 +503,20 @@ export const landApp: PhoneApp = {
             trailing: `<strong class="${sale.buyerId === MY_ID ? 'nl-bad' : 'nl-good'}">${sale.buyerId === MY_ID ? '−' : '+'}${naira(sale.buyerId === MY_ID ? sale.price : sale.price - sale.fee)}</strong>`,
           })).join('')}</div>`;
     } else {
+      const city = host.get<string>('land.city', host.world.cityId());
       const where = host.get<string>('land.where', 'all');
       const show = host.get<string>('land.show', 'all');
       const use = host.get<string>('land.use', 'all');
       const sort = host.get<string>('land.sort', 'price');
       const search = host.get('land.search', '').trim().toLowerCase();
-      const places = Array.from(new Set(land().plots().map((plot) => plot.neighbourhood))).sort();
-      let list = land().plots().filter((plot) => {
+      const places = Array.from(new Set(land().plots(city).map((plot) => plot.neighbourhood))).sort();
+      let list = land().plots(city).filter((plot) => {
         const status = land().status(plot.id);
         if (where !== 'all' && plot.neighbourhood !== where) return false;
+        if (show === 'let') {
+          const tenancy = land().tenancy(plot.id);
+          if (!tenancy || tenancy.ending || isLet(tenancy)) return false;
+        }
         if (show === 'sale' && land().askingPrice(plot.id) === null) return false;
         if (show === 'state' && status !== 'available') return false;
         if (show === 'owners' && !(status === 'listed' || status === 'negotiating')) return false;
@@ -346,7 +528,8 @@ export const landApp: PhoneApp = {
       list = list.sort((a, b) => (sort === 'size' ? b.area - a.area : sort === 'dear' ? priceOf(b) - priceOf(a) : priceOf(a) - priceOf(b)));
       content = `
         <input class="nl-field nl-field--search" id="land-search" type="search" placeholder="Search by street or area" value="${esc(host.get('land.search', ''))}" data-bind="land.search" />
-        ${chips('land.show', show, [['all', 'All'], ['sale', 'For sale'], ['state', 'From the state'], ['owners', 'From owners']])}
+        ${chips('land.city', city, [['lagos', 'Lagos'], ['abuja', 'Abuja'], ['port_harcourt', 'Port Harcourt']])}
+        ${chips('land.show', show, [['all', 'All'], ['sale', 'For sale'], ['state', 'From the state'], ['owners', 'From owners'], ['let', 'To let']])}
         ${chips('land.where', where, [['all', 'Everywhere'], ...places.map((place) => [place, place] as [string, string])])}
         ${chips('land.use', use, [['all', 'Any use'], ['residential', 'Homes'], ['commercial', 'Business']])}
         ${chips('land.sort', sort, [['price', 'Cheapest'], ['dear', 'Dearest'], ['size', 'Biggest']])}
@@ -359,11 +542,11 @@ export const landApp: PhoneApp = {
       title: 'Land',
       body: `
         <div class="nl-hero nl-hero--green">
-          <span class="nl-hero-label">Lagos land registry</span>
+          <span class="nl-hero-label">Land registry</span>
           <span class="nl-hero-title" id="land-owned">${count(mine.length, 'plot')} yours</span>
           <span class="nl-hero-sub">${naira(market().funds())} to spend${waiting ? ` · ${count(waiting, 'offer')} waiting for your answer` : ''}</span>
         </div>
-        ${chips('land.tab', tab, [['browse', 'Browse'], ['mine', 'Mine'], ['offers', waiting ? `Offers (${waiting})` : 'Offers'], ['history', 'History']])}
+        ${chips('land.tab', tab, [['browse', 'Land'], ['market', 'Market'], ['mine', 'Mine'], ['offers', waiting ? `Offers (${waiting})` : 'Offers'], ['history', 'History']])}
         ${content}
         <div class="nl-hint">Ownership here is shared by the players in this browser. There is no server yet, so players on other devices do not see it.</div>
       `,
@@ -389,7 +572,7 @@ export const landApp: PhoneApp = {
     } else if (action === 'buy-state') {
       const plot = land().plot(arg);
       if (!plot) return;
-      if (!(await host.confirm(`Buy ${plot.name} from Lagos State for ${naira(plot.statePrice)}?`, 'Buy the land'))) return;
+      if (!(await host.confirm(`Buy ${plot.name} from ${stateOf(plot)} for ${naira(plot.statePrice)}?`, 'Buy the land'))) return;
       const result = await land().buyFromState(plot.id);
       done(result.ok, `${plot.name} is yours.`, result.reason);
     } else if (action === 'list') {
@@ -400,6 +583,18 @@ export const landApp: PhoneApp = {
       const note = host.get(`land.note.${plot.id}`, '');
       const listing = land().listingFor(plot.id);
       const result = listing ? await market().editListing(listing.id, price, note) : await market().list({ kind: 'plot', id: plot.id }, price, note);
+      if (result.ok) host.back();
+      done(result.ok, `On the market at ${naira(price)}.`, result.reason);
+    } else if (action === 'list-asset') {
+      const [kind, ...rest] = arg.split(':');
+      const asset = { kind, id: rest.join(':') } as AssetRef;
+      const key = `land.ask.${asset.kind}.${asset.id}`;
+      const listing = market().listingFor(asset);
+      const guide = asset.kind === 'property' || asset.kind === 'business' ? host.backend.deedPrice(asset.kind, asset.id) : 0;
+      const price = amountFrom(host.get(key, String(listing?.askingPrice ?? guide)));
+      if (!Number.isFinite(price)) return host.say('Enter an asking price, such as 2500000 or 2.5m.', 'bad');
+      const note = host.get(`${key}.note`, listing?.description ?? '');
+      const result = listing ? await market().editListing(listing.id, price, note) : await market().list(asset, price, note);
       if (result.ok) host.back();
       done(result.ok, `On the market at ${naira(price)}.`, result.reason);
     } else if (action === 'withdraw') {
@@ -443,7 +638,7 @@ export const landApp: PhoneApp = {
       const building = land().building(arg);
       const type = building ? buildingType(building.typeId) : null;
       if (!building || !type) return;
-      if (!(await host.confirm(`Stop work on the ${type.name.toLowerCase()}? ${naira(refundOnCancel(type, building.hoursDone))} of the ${naira(type.cost)} comes back and what has been built is cleared away.`, 'Stop the work'))) return;
+      if (!(await host.confirm(`Stop work on the ${type.name.toLowerCase()}? ${naira(refundOnCancel(type, hoursDone(building)))} of the ${naira(type.cost)} comes back and what has been built is cleared away.`, 'Stop the work'))) return;
       const result = await land().cancelBuilding(arg);
       done(result.ok, `Work stopped. ${naira(result.refund ?? 0)} was paid back.`, result.reason);
     } else if (action === 'demolish') {
@@ -453,6 +648,30 @@ export const landApp: PhoneApp = {
       if (!(await host.confirm(`Pull down the ${type.name.toLowerCase()}? It costs ${naira(demolitionCost(type))} and nothing comes back.`, 'Pull it down'))) return;
       const result = await land().demolish(arg);
       done(result.ok, 'The building is gone. The plot is empty again.', result.reason);
+    } else if (action === 'offer-let') {
+      const rent = amountFrom(host.get(`land.rent.${arg}`, ''));
+      const building = land().building(arg);
+      const type = building ? buildingType(building.typeId) : null;
+      const asked = Number.isFinite(rent) ? rent : land().tenancy(arg)?.rentPerWeek ?? (type ? Math.max(5000, Math.round((type.cost * 0.02) / 1000) * 1000) : NaN);
+      if (!Number.isFinite(asked)) return host.say('Enter a weekly rent, such as 60000 or 60k.', 'bad');
+      const result = await land().offerToLet(arg, asked);
+      done(result.ok, `To let at ${naira(asked)} a week.`, result.reason);
+    } else if (action === 'stop-letting') {
+      const tenanted = isLet(land().tenancy(arg));
+      if (tenanted && !(await host.confirm('Give the tenant notice? They stay until the rent they have paid runs out, and cannot renew.', 'Give notice'))) return;
+      const result = await land().stopLetting(arg);
+      done(result.ok, result.notice ? 'Notice given. The tenancy ends when the paid-up time runs out.' : 'It is no longer offered to let.', result.reason);
+    } else if (action === 'pay-rent') {
+      const tenancy = land().tenancy(arg);
+      if (!tenancy) return;
+      const first = !isLet(tenancy);
+      if (first && !(await host.confirm(`Rent it for ${naira(tenancy.rentPerWeek)} a week? The first week is paid now.`, 'Rent it'))) return;
+      const result = await land().payRent(arg);
+      done(result.ok, first ? 'It is yours to use. A week is paid.' : 'Another week is paid.', result.reason);
+    } else if (action === 'leave-let') {
+      if (!(await host.confirm('Give the place up now? The rent already paid is not returned.', 'Give it up'))) return;
+      const result = await land().leaveTenancy(arg);
+      done(result.ok, 'You have given it up.', result.reason);
     } else if (action === 'collect') {
       const result = await land().collect(arg);
       done(result.ok, `${naira(result.amount ?? 0)} paid into your bank account.`, result.reason);

@@ -942,7 +942,8 @@ export class HUD {
       const body = document.getElementById('tracker-body');
       const btn = document.getElementById('btn-tracker-toggle');
       if (body) {
-        const isCollapsed = body.style.display === 'none';
+        // As it is on screen now: on a small screen it starts closed without anyone having closed it
+        const isCollapsed = getComputedStyle(body).display === 'none';
         body.style.display = isCollapsed ? 'block' : 'none';
         if (btn) btn.textContent = isCollapsed ? '▾' : '▸';
       }

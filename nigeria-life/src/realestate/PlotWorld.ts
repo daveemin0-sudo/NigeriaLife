@@ -5,7 +5,9 @@ import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import { AssetMarket } from './AssetMarket';
 import { buildingType, footprintAt, type BuildingType } from './BuildingCatalogue';
 import { Land, stageOf, STAGE_LABEL, type Plot } from './Land';
+import { STATE_NAME, type PlotCity } from './PlotCatalogue';
 import { Registry, MY_ID } from './Registry';
+import { hoursDone, isFinished, isLet } from './WorldClock';
 import type { ConstructionStage, PlotBuilding } from './types';
 
 const EARTH = 0xa8855a;
@@ -76,7 +78,7 @@ function frontOf(plot: Plot): THREE.Vector3 {
  * One building at one stage of going up. The same function draws every design: what changes
  * between a bungalow and a hotel is only the numbers in the catalogue.
  */
-export function raise(type: BuildingType, building: Pick<PlotBuilding, 'x' | 'z' | 'turns' | 'hoursDone' | 'hoursNeeded'>, stage: ConstructionStage, facing: { dx: number; dz: number }): THREE.Group {
+export function raise(type: BuildingType, building: Pick<PlotBuilding, 'x' | 'z' | 'turns'>, stage: ConstructionStage, facing: { dx: number; dz: number }, done = 1): THREE.Group {
   const group = new THREE.Group();
   const rect = footprintAt(type, building.x, building.z, building.turns);
   const w = rect.maxX - rect.minX;
@@ -129,7 +131,7 @@ export function raise(type: BuildingType, building: Pick<PlotBuilding, 'x' | 'z'
 
   if (stage === 'structure') {
     // How many storeys of frame are up depends on how far through this stage the work is
-    const through = Math.min(1, Math.max(0, (building.hoursDone / building.hoursNeeded - 0.38) / 0.36));
+    const through = Math.min(1, Math.max(0, (done - 0.38) / 0.36));
     const floorsUp = Math.max(1, Math.ceil(through * type.floors));
     const top = floorsUp * type.floorHeight;
     eachColumn((x, z) => box(group, CONCRETE, 0.34, top, 0.34, x, 0.35 + top / 2, z));
@@ -202,8 +204,12 @@ export function raise(type: BuildingType, building: Pick<PlotBuilding, 'x' | 'z'
  * It draws what the registry says and nothing else, and redraws a plot only when that changes.
  */
 export class PlotWorld {
+  /** Everything, for all cities. Each city's plots are in a group of their own inside it. */
   public readonly group = new THREE.Group();
+  /** Every plot's card, whatever city it is in */
   public readonly interactiveList: InteractiveObject[] = [];
+  private readonly cityGroups = new Map<PlotCity, THREE.Group>();
+  private readonly cityCards = new Map<PlotCity, InteractiveObject[]>();
   private readonly land = Land.get();
   private readonly market = AssetMarket.get();
   private readonly roots = new Map<string, { root: THREE.Group; drawn: string }>();
@@ -212,13 +218,22 @@ export class PlotWorld {
   constructor() {
     this.group.name = 'plots';
     for (const plot of this.land.plots()) {
+      let cityGroup = this.cityGroups.get(plot.city);
+      if (!cityGroup) {
+        cityGroup = new THREE.Group();
+        cityGroup.name = `plots of ${plot.city}`;
+        cityGroup.visible = plot.city === 'lagos';
+        this.group.add(cityGroup);
+        this.cityGroups.set(plot.city, cityGroup);
+        this.cityCards.set(plot.city, []);
+      }
       const root = new THREE.Group();
       root.name = `Plot ${plot.name}`;
-      this.group.add(root);
+      cityGroup.add(root);
       this.roots.set(plot.id, { root, drawn: '' });
       const front = frontOf(plot);
       const { dx, dz } = towardStreet(plot);
-      this.interactiveList.push({
+      const card: InteractiveObject = {
         mesh: root,
         id: `plot_${plot.id}`,
         name: plot.name,
@@ -226,25 +241,43 @@ export class PlotWorld {
         description: '',
         // On the verge between the plot and the pavement
         interactionPoint: new THREE.Vector3(front.x + dx * 1.2, 0, front.z + dz * 1.2),
-      });
+      };
+      this.interactiveList.push(card);
+      this.cityCards.get(plot.city)!.push(card);
     }
     Registry.get().subscribe(() => this.refresh());
     this.refresh();
+  }
+
+  /** The plots of one city, as a group to show and hide and as cards to walk up to. */
+  public of(city: PlotCity): { group: THREE.Group | null; cards: InteractiveObject[] } {
+    return { group: this.cityGroups.get(city) ?? null, cards: this.cityCards.get(city) ?? [] };
+  }
+
+  /** Shows the plots of the city the player is in and hides the rest. */
+  public showCity(city: string): void {
+    for (const [name, group] of this.cityGroups) group.visible = name === city;
   }
 
   /** What a plot's board says. Also what its card in the world says. */
   public describe(plot: Plot): string[] {
     const status = this.land.status(plot.id);
     const owner = this.land.ownerOf(plot.id);
-    const who = owner === MY_ID ? 'YOUR LAND' : owner ? `OWNER: ${this.market.nameOf(owner).toUpperCase()}` : 'LAGOS STATE LAND';
+    const state = STATE_NAME[plot.city].replace(/^the /, '');
+    const who = owner === MY_ID ? 'YOUR LAND' : owner ? `OWNER: ${this.market.nameOf(owner).toUpperCase()}` : `${state.toUpperCase()} LAND`;
     const size = `${Math.round(plot.area)} m² · ${plot.neighbourhood}`;
     const building = this.land.building(plot.id);
     const type = building ? buildingType(building.typeId) : null;
-    if (status === 'available') return ['LAND FOR SALE', `₦${plot.statePrice.toLocaleString()}`, size, 'Lagos State Lands Bureau'];
+    if (status === 'available') return ['LAND FOR SALE', `₦${plot.statePrice.toLocaleString()}`, size, `${state} Lands Bureau`];
     if (status === 'listed' || status === 'negotiating') return ['FOR SALE BY OWNER', `Asking ₦${(this.land.askingPrice(plot.id) ?? 0).toLocaleString()}`, size, who];
     if (status === 'reserved') return ['SOLD', 'Subject to completion', size, who];
-    if (status === 'building' && building && type) return [`${type.name.toUpperCase()} GOING UP`, STAGE_LABEL[stageOf(building)], `${Math.round((building.hoursDone / building.hoursNeeded) * 100)}% built`, who];
-    if (status === 'developed' && type) return [type.name.toUpperCase(), who, size, 'Not for sale'];
+    if (status === 'building' && building && type) return [`${type.name.toUpperCase()} GOING UP`, STAGE_LABEL[stageOf(building)], `${Math.round((hoursDone(building) / building.hoursNeeded) * 100)}% built`, who];
+    if (status === 'developed' && type) {
+      const tenancy = this.land.tenancy(plot.id);
+      if (isLet(tenancy)) return [type.name.toUpperCase(), who, `LET TO ${tenancy.tenantId === MY_ID ? 'YOU' : this.market.nameOf(tenancy.tenantId).toUpperCase()}`, size];
+      if (tenancy && !tenancy.ending) return [`${type.name.toUpperCase()} TO LET`, `₦${tenancy.rentPerWeek.toLocaleString()} a week`, size, who];
+      return [type.name.toUpperCase(), who, size, 'Not for sale'];
+    }
     return ['PRIVATE LAND', 'Not for sale', size, who];
   }
 
@@ -254,7 +287,7 @@ export class PlotWorld {
       const building = this.land.building(plot.id);
       const lines = this.describe(plot);
       // Work is redrawn when it reaches the next storey, not for every hour
-      const progress = building && !building.finishedAt ? Math.floor((building.hoursDone / building.hoursNeeded) * 12) : -1;
+      const progress = building && !isFinished(building) ? Math.floor((hoursDone(building) / building.hoursNeeded) * 12) : -1;
       const signature = JSON.stringify([lines, building?.typeId, building?.x, building?.z, building?.turns, building ? stageOf(building) : null, progress]);
       if (signature === entry.drawn) continue;
       entry.drawn = signature;
@@ -285,7 +318,7 @@ export class PlotWorld {
     const status = this.land.status(plot.id);
 
     // The ground itself
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: building?.finishedAt ? 0x9a9186 : EARTH, roughness: 1 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: building && isFinished(building) ? 0x9a9186 : EARTH, roughness: 1 }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(cx, 0.04, cz);
     ground.receiveShadow = true;
@@ -319,15 +352,15 @@ export class PlotWorld {
 
     if (building) {
       const type = buildingType(building.typeId);
-      if (type) root.add(raise(type, building, stageOf(building), { dx, dz }));
+      if (type) root.add(raise(type, building, stageOf(building), { dx, dz }, hoursDone(building) / building.hoursNeeded));
     }
     root.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
   }
 
   /** What stands on the plots, for the city plan: every building, finished or not, is a building. */
-  public obstructions(): Obstruction[] {
+  public obstructions(city: PlotCity = 'lagos'): Obstruction[] {
     const out: Obstruction[] = [];
-    for (const plot of this.land.plots()) {
+    for (const plot of this.land.plots(city)) {
       const building = this.land.building(plot.id);
       const type = building ? buildingType(building.typeId) : null;
       if (!building || !type) continue;
@@ -361,7 +394,7 @@ export class PlotWorld {
     door.position.set(x + dx * (w / 2), 1.2, z + dz * (d / 2));
     ghost.add(door);
     ghost.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
-    this.group.add(ghost);
+    (this.cityGroups.get(plot.city) ?? this.group).add(ghost);
     this.ghost = ghost;
   }
 
@@ -373,7 +406,7 @@ export class PlotWorld {
       const material = mesh.material as THREE.Material | undefined;
       material?.dispose();
     });
-    this.group.remove(this.ghost);
+    this.ghost.parent?.remove(this.ghost);
     this.ghost = null;
   }
 

@@ -486,6 +486,111 @@ export class BackendService {
     if (save) this.saveData();
   }
 
+  /**
+   * Remembers the account as it is now and returns a way to put it back. Used around a change
+   * that takes money and then has to be recorded somewhere else: if the record cannot be
+   * made, the money is put back.
+   */
+  public checkpoint(): () => void {
+    const copy = JSON.stringify(this.data);
+    return () => {
+      this.data = JSON.parse(copy) as PlayerAccount;
+      this.saveData();
+    };
+  }
+
+  // === HOMES AND BUSINESSES OWNED OUTRIGHT ===
+  // Who owns one is recorded in the registry all players share. These are the points where
+  // this saved game and that record meet.
+
+  private deedGate: ((kind: 'property' | 'business', id: string) => string | null) | null = null;
+  private deedChanged: (() => void) | null = null;
+
+  /** `gate` says why something cannot be bought on the open market; `changed` is told when what this game holds changes. */
+  public setDeedHooks(gate: (kind: 'property' | 'business', id: string) => string | null, changed: () => void): void {
+    this.deedGate = gate;
+    this.deedChanged = changed;
+  }
+
+  /** Everything this saved game says the player owns outright. */
+  public deedsHeld(): Array<{ kind: 'property' | 'business'; id: string }> {
+    this.syncFromStorage();
+    return [
+      ...this.data.properties.filter((p) => p.status === 'owned' && p.ownerId === this.data.id).map((p) => ({ kind: 'property' as const, id: p.id })),
+      ...this.data.businesses.filter((b) => b.owned).map((b) => ({ kind: 'business' as const, id: b.id })),
+    ];
+  }
+
+  public deedPrice(kind: 'property' | 'business', id: string): number {
+    return (kind === 'property' ? this.data.properties.find((p) => p.id === id)?.purchasePrice : this.data.businesses.find((b) => b.id === id)?.purchasePrice) ?? 0;
+  }
+
+  /**
+   * Was this sold back to the open market, with the title still to be given up? Answers once.
+   * It is kept in the saved game, so closing the game between the sale and the registry
+   * catching up cannot hand the property back for free.
+   */
+  public deedJustReleased(kind: 'property' | 'business', id: string): boolean {
+    const list = this.data.releasedDeeds ?? [];
+    const at = list.indexOf(`${kind}:${id}`);
+    if (at < 0) return false;
+    list.splice(at, 1);
+    this.data.releasedDeeds = list;
+    this.saveData();
+    return true;
+  }
+
+  /** Bought from another player: it is this player's now. Nothing is charged here; the sale took the money. */
+  public grantDeed(kind: 'property' | 'business', id: string): void {
+    this.syncFromStorage();
+    if (kind === 'property') {
+      const prop = this.data.properties.find((p) => p.id === id);
+      if (!prop || (prop.status === 'owned' && prop.ownerId === this.data.id)) return;
+      prop.status = 'owned';
+      prop.ownerId = this.data.id;
+      WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+      this.addItem({ id: `key_${prop.id}`, name: `${prop.name} Smart Keycard`, category: 'key', icon: '🔑', description: `Official master key and electronic access fob for ${prop.name}.`, price: 5000, usable: true });
+    } else {
+      const biz = this.data.businesses.find((b) => b.id === id);
+      if (!biz || biz.owned) return;
+      biz.owned = true;
+      biz.pendingRevenue = 0;
+    }
+    this.saveData();
+  }
+
+  /**
+   * It is no longer this player's: sold to another player (`refund` false), or it turned out
+   * another player had bought it first (`refund` true, and what was paid comes back).
+   */
+  public surrenderDeed(kind: 'property' | 'business', id: string, refund: boolean): void {
+    this.syncFromStorage();
+    let price = 0;
+    let name = '';
+    if (kind === 'property') {
+      const prop = this.data.properties.find((p) => p.id === id);
+      if (!prop || prop.status !== 'owned') return;
+      prop.status = 'available';
+      prop.ownerId = '';
+      if (this.data.activeHousingId === prop.id) this.data.activeHousingId = undefined;
+      this.removeKeyFor(prop.id);
+      WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+      price = prop.purchasePrice;
+      name = prop.name;
+    } else {
+      const biz = this.data.businesses.find((b) => b.id === id);
+      if (!biz || !biz.owned) return;
+      // What it had taken and not paid over goes with the seller
+      if (biz.pendingRevenue > 0) this.processTransaction({ type: 'BUSINESS_INCOME', amount: biz.pendingRevenue, description: `Final takings: ${biz.name}`, source: 'bank' });
+      biz.owned = false;
+      biz.pendingRevenue = 0;
+      price = biz.purchasePrice;
+      name = biz.name;
+    }
+    if (refund && price > 0) this.processTransaction({ type: 'PURCHASE_REFUND', amount: price, description: `Refund: ${name} was already sold`, source: 'bank' });
+    this.saveData();
+  }
+
   /** Other places a player may have a home that this account does not hold itself: a house on their own land */
   private homeChecks: Array<() => boolean> = [];
 
@@ -622,7 +727,9 @@ export class BackendService {
     this.removeKeyFor(prop.id);
     WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
     this.processTransaction({ type: 'PROPERTY_SALE', amount: value, description: `Sold ${prop.name}`, source: 'bank' });
+    this.data.releasedDeeds = [...(this.data.releasedDeeds ?? []), `property:${prop.id}`];
     this.saveData();
+    this.deedChanged?.();
     return { success: true, message: `${prop.name} sold. ₦${value.toLocaleString()} paid into your bank account.` };
   }
 
@@ -700,6 +807,8 @@ export class BackendService {
     const biz = this.data.businesses.find((b) => b.id === bizId);
     if (!biz) return { success: false, message: 'Business enterprise not found' };
     if (biz.owned) return { success: false, message: 'You already own this enterprise!' };
+    const taken = this.deedGate?.('business', bizId);
+    if (taken) return { success: false, message: taken };
 
     // Check bank or cash
     const paid = this.processTransaction({
@@ -719,6 +828,7 @@ export class BackendService {
     biz.pendingRevenue = 0;
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + 25);
     this.saveData();
+    this.deedChanged?.();
     return {
       success: true,
       message: `Congratulations! You now own ${biz.name}! Passive income has started.`,
@@ -799,6 +909,9 @@ export class BackendService {
     if (prop.status === 'owned') {
       return { success: false, message: 'You already own this property!' };
     }
+    // A home another player owns outright is theirs to sell, not the market's
+    const taken = rentMode ? null : this.deedGate?.('property', propId);
+    if (taken) return { success: false, message: taken };
 
     const price = rentMode ? prop.rentalPriceMonthly : prop.purchasePrice;
     const txType = rentMode ? 'RENT_PAYMENT' : 'PROPERTY_PURCHASE';
@@ -837,6 +950,7 @@ export class BackendService {
 
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + (rentMode ? 25 : 50));
     this.saveData();
+    if (!rentMode) this.deedChanged?.();
 
     return {
       success: true,

@@ -23,7 +23,7 @@ export async function run(browser, check) {
   });
   check('Lagos passes its own city plan: nothing on a road, every pavement walkable, no buildings overlapping, every door reachable',
     city.violations.length === 0, city.violations.slice(0, 6).map((v) => `${v.rule}: ${v.what} at (${v.at.x}, ${v.at.z})`));
-  check('the plan covers the whole city: every street, every building, every door', city.roads === 5 && city.walks >= 12 && city.buildings > 150 && city.doors >= 8 && city.things > 400,
+  check('the plan covers the whole city: every street, every building, every door', city.roads === 6 && city.walks >= 14 && city.buildings > 150 && city.doors >= 8 && city.things > 400,
     { roads: city.roads, walks: city.walks, buildings: city.buildings, doors: city.doors, things: city.things });
   check('every side street was laid along its whole planned length', city.gaps.length === 0, city.gaps);
 
@@ -70,23 +70,34 @@ export async function run(browser, check) {
   // ------------------------------------------------------------------ Plots sit inside the plan
   const plots = await page.evaluate(() => {
     const g = window.game;
-    const input = g.world.planInput();
+    // The other cities are built the first time someone goes there
+    g.world.cityManager.initAbuja();
+    g.world.cityManager.initPortHarcourt();
     const hits = (a, b) => a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
     const list = g.land.plots();
     const problems = [];
-    for (const plot of list) {
-      const r = plot.rect;
-      for (const zone of input.zones) if (hits(zone, r)) problems.push(`${plot.id} is on ${zone.street}`);
-      for (const t of input.obstructions) if (t.structure && hits(t, r)) problems.push(`${plot.id} has ${t.owner} on it`);
-      for (const other of list) if (other !== plot && hits(other.rect, r)) problems.push(`${plot.id} overlaps ${other.id}`);
-      // Its frontage is beside a pavement of the street it is named for
-      const grown = { minX: r.minX - 2.6, maxX: r.maxX + 2.6, minZ: r.minZ - 2.6, maxZ: r.maxZ + 2.6 };
-      if (!input.zones.some((zone) => zone.kind === 'walkway' && zone.street === plot.street && hits(zone, grown))) problems.push(`${plot.id} does not front ${plot.street}`);
+    const cities = {};
+    for (const city of ['lagos', 'abuja', 'port_harcourt']) {
+      const zones = g.modules.zonesFor(city);
+      const things = g.standingIn(city);
+      const inCity = list.filter((p) => p.city === city);
+      cities[city] = { plots: inCity.length, buildings: things.filter((t) => t.structure).length };
+      for (const plot of inCity) {
+        const r = plot.rect;
+        for (const zone of zones) if (hits(zone, r)) problems.push(`${plot.id} is on ${zone.street}`);
+        for (const t of things) if (t.structure && hits(t, r)) problems.push(`${plot.id} has ${t.owner} on it`);
+        for (const other of inCity) if (other !== plot && hits(other.rect, r)) problems.push(`${plot.id} overlaps ${other.id}`);
+        // Its frontage is beside a pavement of the street it is named for
+        const grown = { minX: r.minX - 2.6, maxX: r.maxX + 2.6, minZ: r.minZ - 2.6, maxZ: r.maxZ + 2.6 };
+        if (!zones.some((zone) => zone.kind === 'walkway' && zone.street === plot.street && hits(zone, grown))) problems.push(`${plot.id} does not front ${plot.street}`);
+      }
     }
-    return { count: list.length, ids: new Set(list.map((p) => p.id)).size, problems };
+    return { count: list.length, ids: new Set(list.map((p) => p.id)).size, problems, cities, banana: g.land.plot('lag-banana-e1').neighbourhood };
   });
-  check('every plot of land is clear of roads, pavements, buildings and other plots, and fronts the street it is named for',
-    plots.count === 16 && plots.ids === 16 && plots.problems.length === 0, plots.problems.slice(0, 6));
+  check('every plot of land, in all three cities, is clear of roads, pavements, buildings and other plots, and fronts the street it is named for',
+    plots.count === 29 && plots.ids === 29 && plots.problems.length === 0 && plots.cities.lagos.plots === 20 && plots.cities.abuja.plots === 5 && plots.cities.port_harcourt.plots === 4
+      && plots.cities.abuja.buildings >= 3 && plots.cities.port_harcourt.buildings >= 1, { problems: plots.problems.slice(0, 6), cities: plots.cities });
+  check('Banana Island is a district on the map with its own estate road', plots.banana === 'Banana Island' && city.roads === 6, plots.banana);
 
   check('plan: no console errors', log.errors.length === 0, log.errors.slice(0, 6));
   await ctx.close();

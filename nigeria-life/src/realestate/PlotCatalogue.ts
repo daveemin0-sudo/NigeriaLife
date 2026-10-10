@@ -2,18 +2,21 @@ import type { Rect } from '../world/plan/CityPlan';
 import type { LandUse } from './BuildingCatalogue';
 
 /**
- * The parcels of land in Lagos that can be owned.
+ * The parcels of land that can be owned, in every city.
  *
  * A plot is a fixed piece of the map: its id and its boundary never change, whoever owns it
- * and whatever is built on it. Nothing else in the city is for sale as land: roads, pavements
+ * and whatever is built on it. Nothing else in a city is for sale as land: roads, pavements
  * and the ground the landmarks stand on are not plots, and the generated streets are built
  * around these parcels, never on them.
  *
  * Every plot fronts a street, so a building on it has a door people can walk to.
  */
 
+export type PlotCity = 'lagos' | 'abuja' | 'port_harcourt';
+
 export interface PlotDef {
   id: string;
+  city: PlotCity;
   name: string;
   /** The street it fronts */
   street: string;
@@ -26,9 +29,12 @@ export interface PlotDef {
   maxFloors: number;
 }
 
-const plot = (id: string, name: string, street: string, frontage: PlotDef['frontage'], minX: number, maxX: number, minZ: number, maxZ: number, uses: LandUse[], maxFloors: number): PlotDef => ({
-  id, name, street, frontage, rect: { minX, maxX, minZ, maxZ }, uses, maxFloors,
+const plotIn = (city: PlotCity) => (id: string, name: string, street: string, frontage: PlotDef['frontage'], minX: number, maxX: number, minZ: number, maxZ: number, uses: LandUse[], maxFloors: number): PlotDef => ({
+  id, city, name, street, frontage, rect: { minX, maxX, minZ, maxZ }, uses, maxFloors,
 });
+const plot = plotIn('lagos');
+const abuja = plotIn('abuja');
+const ph = plotIn('port_harcourt');
 
 const HOMES: LandUse[] = ['residential'];
 const TRADE: LandUse[] = ['commercial'];
@@ -51,25 +57,60 @@ export const LAGOS_PLOTS: PlotDef[] = [
   plot('lag-odunlami-w3', '2 Odunlami Street', 'Odunlami Street', 'east', -66.5, -52.5, -112, -98, MIXED, 4),
   // Martins Street
   plot('lag-martins-n1', '40 Martins Street', 'Martins Street', 'south', 60, 76, -84, -70, TRADE, 5),
-  plot('lag-martins-s1', '63 Martins Street', 'Martins Street', 'north', 96, 110, -54, -42, HOMES, 2),
+  plot('lag-martins-s1', '63 Martins Street', 'Martins Street', 'north', 70, 84, -54, -42, HOMES, 2),
   plot('lag-martins-n2', '8 Martins Street', 'Martins Street', 'south', -100, -86, -82, -70, MIXED, 3),
   // Nnamdi Azikiwe Street, along the north of the island
   plot('lag-azikiwe-s1', '20 Nnamdi Azikiwe Street', 'Nnamdi Azikiwe Street', 'north', 52, 68, -117, -103, TRADE, 5),
   plot('lag-azikiwe-s2', '34 Nnamdi Azikiwe Street', 'Nnamdi Azikiwe Street', 'north', 72, 86, -117, -105, HOMES, 3),
+  // Banana Island: large plots for low houses behind the estate gate
+  plot('lag-banana-e1', '2 Banana Island Road', 'Banana Island Road', 'west', 119.5, 135.5, -42, -24, HOMES, 3),
+  plot('lag-banana-e2', '6 Banana Island Road', 'Banana Island Road', 'west', 119.5, 135.5, -18, 0, HOMES, 3),
+  plot('lag-banana-w1', '1 Banana Island Road', 'Banana Island Road', 'east', 88.5, 104.5, -47, -29, HOMES, 3),
+  plot('lag-banana-w2', '9 Banana Island Road', 'Banana Island Road', 'east', 90.5, 104.5, -6, 10, MIXED, 3),
 ];
+
+/** Abuja: plots along the capital boulevard, between the landmarks. */
+export const ABUJA_PLOTS: PlotDef[] = [
+  abuja('abj-boulevard-e1', '14 Shehu Shagari Way', 'Shehu Shagari Way', 'west', 14.5, 30.5, -62, -46, MIXED, 6),
+  abuja('abj-boulevard-e2', '40 Shehu Shagari Way', 'Shehu Shagari Way', 'west', 14.5, 30.5, 52, 68, MIXED, 5),
+  abuja('abj-boulevard-w1', '11 Shehu Shagari Way', 'Shehu Shagari Way', 'east', -30.5, -14.5, -62, -46, MIXED, 6),
+  abuja('abj-boulevard-w2', '37 Shehu Shagari Way', 'Shehu Shagari Way', 'east', -30.5, -14.5, 52, 68, HOMES, 3),
+  abuja('abj-boulevard-w3', '25 Shehu Shagari Way', 'Shehu Shagari Way', 'east', -30.5, -14.5, -6, 10, TRADE, 6),
+];
+
+/** Port Harcourt: plots along Aba Road. */
+export const PORT_HARCOURT_PLOTS: PlotDef[] = [
+  ph('phc-aba-e1', '22 Aba Road', 'Aba Road', 'west', 14, 28, -8, 8, MIXED, 5),
+  ph('phc-aba-e2', '58 Aba Road', 'Aba Road', 'west', 14, 28, 62, 78, HOMES, 3),
+  ph('phc-aba-w1', '17 Aba Road', 'Aba Road', 'east', -30, -14, -24, -8, MIXED, 4),
+  ph('phc-aba-w2', '49 Aba Road', 'Aba Road', 'east', -30, -14, 44, 60, HOMES, 3),
+];
+
+export const ALL_PLOTS: PlotDef[] = [...LAGOS_PLOTS, ...ABUJA_PLOTS, ...PORT_HARCOURT_PLOTS];
+
+/** Who sells land nobody has bought yet, in each city. */
+export const STATE_NAME: Record<PlotCity, string> = {
+  lagos: 'Lagos State',
+  abuja: 'the FCT Administration',
+  port_harcourt: 'Rivers State',
+};
+
+export const CITY_NAME: Record<PlotCity, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
 
 /**
  * What land costs, in the game's own money, for each square metre of plot.
  *
  * These are prices in NigeriaLife's economy, set against what a shift of work pays and what
  * a business earns in the game. They are not valuations of real land. The order between
- * neighbourhoods follows the city as people know it: the island and the waterfront dear,
- * the mainland and the outskirts cheaper. Change a figure here and every price follows.
+ * neighbourhoods follows the cities as people know them: the islands and the diplomatic
+ * quarters dear, the mainland and the outskirts cheaper. Change a figure here and every
+ * price follows.
  *
- * Keyed by the district ids the map already uses.
+ * Keyed by the district ids the maps already use.
  */
 export const LAND_PRICE_PER_SQM: Record<string, number> = {
-  banana_island: 90_000, // no plots yet: the district is not on the map
+  // Lagos
+  banana_island: 90_000,
   eko_atlantic: 45_000,
   victoria_island: 32_000,
   lekki: 24_000,
@@ -81,6 +122,22 @@ export const LAND_PRICE_PER_SQM: Record<string, number> = {
   airport: 7_000,
   port_apapa: 6_500,
   ajah: 5_000,
+  // Abuja
+  maitama: 30_000,
+  asokoro: 28_000,
+  cbd_abuja: 22_000,
+  wuse: 15_000,
+  garki: 12_000,
+  jabi: 11_000,
+  gwarinpa: 7_000,
+  airport_abuja: 6_000,
+  // Port Harcourt
+  old_gra: 14_000,
+  d_line: 10_000,
+  trans_amadi: 9_000,
+  township: 6_000,
+  choba_uniport: 5_000,
+  airport_ph: 4_500,
 };
 export const DEFAULT_LAND_PRICE_PER_SQM = 8_000;
 
