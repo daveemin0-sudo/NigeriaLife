@@ -29,13 +29,18 @@ pulled down and replaced without the plot or its history changing.
 4. every door and destination can be walked to from the street;
 5. every planned street was actually laid.
 
-`world.validateCityPlan()` returns the violations for Lagos (an empty list is a pass). It reads
-what is really standing in the scene: hand-built landmarks and districts, the generated
-streets, street furniture, and players' buildings. `zonesFor(city)` gives the zones of any city
-and `game.standingIn(city)` what stands in it.
+`game.validateCity(city)` returns the violations for Lagos, Abuja or Port Harcourt (an empty
+list is a pass). It reads what is really standing in the scene: hand-built landmarks and
+districts, the generated streets, street furniture, and players' buildings. `zonesFor(city)`
+gives the zones of a city and `game.standingIn(city)` what stands in it.
 
 Two tags let a mesh opt out of the scan: `userData.surface = true` for things that are part of
-the ground (a speed bump), and a name starting `facade_` for trim fixed to a wall.
+the ground (a speed bump), and a name starting `facade_` for trim fixed to a wall. A mesh
+drawn with a fully transparent material (a box that only marks where to click) is ignored.
+
+In Abuja the plan found Shehu Shagari Way running on under Aso Rock, through the lookout
+platform: the avenue now stops at the lookout, and has pavements. In Port Harcourt the transit
+terminal's entrance point was in the middle of the building.
 
 The generated city (`CityFabric`) leaves every plot empty, keeps a street's line reserved even
 where it could not be laid, and lets a street pass under an overhead canopy.
@@ -94,9 +99,11 @@ can reach it (and knows the key, if set) can write to the registry. It is for pl
 people you trust on a home or office network. It is not hardened for the public internet,
 and a public game needs a server that also applies the rules and keeps the accounts.
 
-Land, vehicles and buildings owned in a browser's own registry are not carried to a server:
-they are two different worlds. Homes and businesses in a saved game are, because the saved
-game says the player owns them and the title is claimed on the server if it is free.
+A player who joins a server brings what they own in the browser's own registry
+(`realestate/Carry.ts`): their plots, the buildings on them as they stand, and their vehicles.
+A plot that already has an owner on the server stays behind in the browser. What comes across
+is removed from the browser's registry, so it exists in one world. Homes and businesses in the
+saved game are claimed on the server the same way, if they are free there.
 
 `tests/e2e/server.mjs` starts a real server and drives two separate browsers against it.
 
@@ -163,17 +170,24 @@ the game what the registry says the player has bought, and takes back what they 
 two players buy the same one at the same instant, the second is refunded. A lease from a
 landlord is not ownership and stays in the tenant's own game.
 
+The upgrades installed in a business are kept in the registry beside its title (`fittings`),
+so they are sold with it: the buyer gets them, and the seller's copy goes back to a bare one.
+
 ## Vehicles (`realestate/Garage.ts`, `OwnedVehicles.ts`)
 
 The dealer makes a new vehicle, registers it to the buyer and takes the price in one step.
 Every parked vehicle is shown to everyone where its owner left it, under the owner's name,
 and only the owner can get in. Selling it puts the seller out of the seat at once.
 
+A driver's game sends where their vehicle is with their own position, several times a
+second, and `multiplayer/VehicleSync.ts` moves the same vehicle in everyone else's game. That
+covers the city's own vehicles as well as owned ones. While someone is at the wheel nobody
+else can get in, and their body is not drawn separately.
+
 ## Not built yet
 
 - A server that applies the rules and holds the money (see "What it is not" above).
-- A vehicle is shown where it was last parked; it is not followed while its owner drives it.
-- Upgrades bought for a business stay with the seller's saved game; the buyer gets the business as new.
+- Two players getting into the same city vehicle in the same instant are not arbitrated: each
+  drives their own copy until one gets out.
 - Staff and stock for buildings; rent between players for the older apartments.
-- Abuja and Port Harcourt are checked for plots clear of roads and landmarks, but do not yet
-  have the full plan validation Lagos has (they have one avenue and a few landmarks each).
+- Furniture placed in a home does not go with the home when it is sold.

@@ -11,6 +11,8 @@ export interface PlayerNetState {
   config: CharacterConfig;
   /** The building they are inside, if any. Their position is then a place in that room, not on the street. */
   place?: string;
+  /** The vehicle they are at the wheel of, and where it is. They are inside it, so their own body is not shown. */
+  driving?: { id: string; x: number; z: number; yaw: number };
   /** What the body is doing in a scripted action (waving, shaking hands, sitting); absent when walking about freely */
   pose?: { legs: LegPose; arms: ArmPose; height?: number };
   streetCred?: number;

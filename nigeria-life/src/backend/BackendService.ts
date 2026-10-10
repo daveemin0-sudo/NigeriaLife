@@ -540,8 +540,17 @@ export class BackendService {
     return true;
   }
 
-  /** Bought from another player: it is this player's now. Nothing is charged here; the sale took the money. */
-  public grantDeed(kind: 'property' | 'business', id: string): void {
+  /** The upgrades installed in a business this game holds, by id, in a fixed order. */
+  public businessFittings(id: string): string[] {
+    const biz = this.data.businesses.find((b) => b.id === id);
+    return biz ? biz.upgrades.filter((u) => u.purchased).map((u) => u.id).sort() : [];
+  }
+
+  /**
+   * Bought from another player: it is this player's now. Nothing is charged here; the sale
+   * took the money. A business arrives with the upgrades its last owner installed.
+   */
+  public grantDeed(kind: 'property' | 'business', id: string, fittings: string[] = []): void {
     this.syncFromStorage();
     if (kind === 'property') {
       const prop = this.data.properties.find((p) => p.id === id);
@@ -555,6 +564,12 @@ export class BackendService {
       if (!biz || biz.owned) return;
       biz.owned = true;
       biz.pendingRevenue = 0;
+      let installed = 0;
+      for (const upgrade of biz.upgrades) {
+        upgrade.purchased = fittings.includes(upgrade.id);
+        if (upgrade.purchased) installed++;
+      }
+      biz.level = 1 + installed;
     }
     this.saveData();
   }
@@ -584,6 +599,9 @@ export class BackendService {
       if (biz.pendingRevenue > 0) this.processTransaction({ type: 'BUSINESS_INCOME', amount: biz.pendingRevenue, description: `Final takings: ${biz.name}`, source: 'bank' });
       biz.owned = false;
       biz.pendingRevenue = 0;
+      // Its upgrades went with it
+      for (const upgrade of biz.upgrades) upgrade.purchased = false;
+      biz.level = 1;
       price = biz.purchasePrice;
       name = biz.name;
     }
@@ -860,6 +878,7 @@ export class BackendService {
     biz.level += 1;
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + 10);
     this.saveData();
+    this.deedChanged?.();
     return {
       success: true,
       message: `Upgrade installed: ${upg.name}! +₦${upg.bonusIncomePerCycle.toLocaleString()} revenue per cycle.`,

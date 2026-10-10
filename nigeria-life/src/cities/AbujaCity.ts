@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ABUJA_AVENUE } from '../world/plan/CityPlan';
 import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
 
@@ -52,14 +53,16 @@ export class AbujaCity implements CityInstance {
   private buildCapitalBoulevard(): void {
     const roadGroup = new THREE.Group();
 
-    // Dual carriage asphalt lanes
-    const roadWidth = 20;
-    const roadLen = 260;
+    // Dual carriage asphalt lanes, from the south of the city to the lookout at the foot of Aso Rock.
+    // The same figures the city plan holds the avenue to.
+    const roadWidth = ABUJA_AVENUE.halfRoad * 2;
+    const roadLen = ABUJA_AVENUE.to - ABUJA_AVENUE.from;
+    const roadMid = (ABUJA_AVENUE.from + ABUJA_AVENUE.to) / 2;
     const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLen);
     const roadMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8 });
     const road = new THREE.Mesh(roadGeo, roadMat);
     road.rotation.x = -Math.PI / 2;
-    road.position.y = 0.01;
+    road.position.set(0, 0.01, roadMid);
     road.receiveShadow = true;
     roadGroup.add(road);
 
@@ -67,12 +70,21 @@ export class AbujaCity implements CityInstance {
     const medianGeo = new THREE.BoxGeometry(2.2, 0.35, roadLen);
     const medianMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.9 });
     const median = new THREE.Mesh(medianGeo, medianMat);
-    median.position.set(0, 0.18, 0);
+    median.position.set(0, 0.18, roadMid);
     roadGroup.add(median);
+
+    // A paved walkway down each side
+    const walkMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.9 });
+    for (const side of [-1, 1]) {
+      const walk = new THREE.Mesh(new THREE.BoxGeometry(ABUJA_AVENUE.walk, 0.26, roadLen), walkMat);
+      walk.position.set(side * (ABUJA_AVENUE.halfRoad + ABUJA_AVENUE.walk / 2), 0.13, roadMid);
+      walk.receiveShadow = true;
+      roadGroup.add(walk);
+    }
 
     // White lane dividers
     for (let laneX of [-5.5, 5.5]) {
-      for (let z = -roadLen / 2 + 5; z < roadLen / 2 - 5; z += 8) {
+      for (let z = ABUJA_AVENUE.from + 5; z < ABUJA_AVENUE.to - 5; z += 8) {
         const lineGeo = new THREE.PlaneGeometry(0.25, 4.0);
         const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const line = new THREE.Mesh(lineGeo, lineMat);
@@ -84,7 +96,7 @@ export class AbujaCity implements CityInstance {
 
     // Modern Capital Streetlamps with double arched arms
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7 });
-    for (let z = -100; z <= 100; z += 30) {
+    for (let z = -70; z <= 110; z += 30) {
       const poleGeo = new THREE.CylinderGeometry(0.18, 0.22, 10, 12);
       const pole = new THREE.Mesh(poleGeo, poleMat);
       pole.position.set(0, 5, z);

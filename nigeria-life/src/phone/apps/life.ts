@@ -440,7 +440,7 @@ export const settingsApp: PhoneApp = {
       } catch {
         return host.say('Nothing answered at that address. Check that the server is running and that this device can reach it.', 'bad');
       }
-      if (!(await host.confirm('Connect to this world server? The game will restart. Land and vehicles you own in this browser stay here and are not taken to the server.', 'Connect'))) return;
+      if (!(await host.confirm('Connect to this world server? The game will restart. Land and vehicles you own in this browser come with you, except any plot that already has an owner there.', 'Connect'))) return;
       rememberServer(url);
       window.location.reload();
     } else if (action === 'server-off') {

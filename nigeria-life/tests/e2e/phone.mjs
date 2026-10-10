@@ -185,7 +185,8 @@ export async function run(browser, check) {
   let m1 = await money(page);
   let held = await page.evaluate(() => window.game.hud.backend.getData().investments.DNGC);
   check('buying 3 shares takes exactly the quoted cost (price plus the fee) once, and the shares are held',
-    m0.total - m1.total === quote.cost3 && quote.cost3 > quote.price * 3 && held?.units === 3 && offered.includes(quote.cost3.toLocaleString()) && cannotSellYet && (await ledger(page, 'INVESTMENT_PURCHASE')) === 1,
+    // The price on the button was drawn up to a second earlier, and prices move with the clock: it is within a whisker of what was charged
+    m0.total - m1.total === quote.cost3 && quote.cost3 > quote.price * 3 && held?.units === 3 && Math.abs(Number(offered.replace(/[^\d]/g, '')) - quote.cost3) <= quote.cost3 * 0.004 && cannotSellYet && (await ledger(page, 'INVESTMENT_PURCHASE')) === 1,
     { paid: m0.total - m1.total, quote, held, offered });
 
   await reload(page);

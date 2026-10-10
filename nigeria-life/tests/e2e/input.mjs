@@ -135,7 +135,12 @@ export async function run(browser, check) {
   await wait(700);
   const phoneOpen = await page.evaluate(() => window.game.hud.phoneModal.isOpen === true || document.body.classList.contains('ui-modal-open'));
   before = await zoomState(page);
-  const phone = await probe(page, '.phone-screen');
+  // The phone slides up the screen: wait until it has stopped and its screen is under the pointer
+  let phone = await probe(page, '.phone-screen');
+  for (let i = 0; i < 20 && !phone.under; i++) {
+    await wait(150);
+    phone = await probe(page, '.phone-screen');
+  }
   // Make sure there is something to scroll, whatever the home screen holds today
   await page.evaluate(() => {
     const screen = document.querySelector('.phone-screen');

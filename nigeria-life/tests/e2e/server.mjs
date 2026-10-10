@@ -144,6 +144,8 @@ export async function run(browser, check) {
     const block = (request) => { if (request.url().endsWith('/commit')) request.abort(); else request.continue(); };
     a.on('request', block);
     const P4 = 'lag-kakawa-w2';
+    const purchases = () => a.evaluate(() => window.game.hud.backend.getData().transactionHistory.filter((tx) => tx.type === 'ASSET_PURCHASE').length);
+    const purchasesBefore = await purchases();
     a0 = await money(a);
     const lost = await a.evaluate((id) => window.game.land.buyFromState(id), P4);
     a1 = await money(a);
@@ -151,12 +153,82 @@ export async function run(browser, check) {
     await a.setRequestInterception(false);
     const unowned = await until(b, (id) => (window.game.land.ownerOf(id) === null ? true : null), P4);
     check('if the payment is taken but the server never records the purchase, the money is put back and the plot is still for sale',
-      !lost.ok && a1.total === a0.total && unowned && (await a.evaluate(() => window.game.hud.backend.getData().transactionHistory.filter((tx) => tx.type === 'ASSET_PURCHASE').length)) === 2, { lost, delta: a1.total - a0.total });
+      !lost.ok && a1.total === a0.total && unowned && (await purchases()) === purchasesBefore, { lost, delta: a1.total - a0.total });
 
     // The lock that game was holding is taken back, and the next change goes through
     await wait(5400);
     const after = await b.evaluate((id) => window.game.land.buyFromState(id), P4);
     check('a lock left held by a game that went quiet is taken back, so nobody is stuck behind it', after.ok, after);
+
+    // ------------------------------------------------------------------ A vehicle driven on one device is seen moving on the other
+    await a.evaluate(async () => { const g = window.game; g.player.stopMoving(); g.player.mesh.position.set(10, 0, 100); await g.garage.buyNew('keke'); const car = g.garage.mine()[0]; g.ownedVehicles.bringRound(car.id); });
+    const kekeId = await a.evaluate(() => window.game.garage.mine()[0].id);
+    const parkedOnB = await until(b, (id) => { const v = window.game.world.vehicles.getVehicleById(`veh-own-${id}`); return v ? { x: v.mesh.position.x, z: v.mesh.position.z } : null; }, kekeId);
+    await a.bringToFront();
+    await a.evaluate((id) => { const g = window.game; g.enterVehicle(g.world.vehicles.getVehicleById(`veh-own-${id}`)); }, kekeId);
+    await a.keyboard.down('w');
+    for (let i = 0; i < 12; i++) { await advance(a, 0.4); await wait(120); await advance(b, 0.4); await wait(120); }
+    const onA = await a.evaluate((id) => { const v = window.game.world.vehicles.getVehicleById(`veh-own-${id}`); return { x: v.mesh.position.x, z: v.mesh.position.z }; }, kekeId);
+    const whileDriven = await b.evaluate((id) => {
+      const g = window.game;
+      const v = g.world.vehicles.getVehicleById(`veh-own-${id}`);
+      const driver = [...g.network.remotePlayers.values()][0];
+      return { x: v.mesh.position.x, z: v.mesh.position.z, busy: g.vehicleSync.driverOf(v) !== null, driverShown: driver.mesh.visible, parked: g.garage.record(id).parkedAt };
+    }, kekeId);
+    await a.keyboard.up('w');
+    const movedOnA = Math.hypot(onA.x - parkedOnB.x, onA.z - parkedOnB.z);
+    const gap = Math.hypot(whileDriven.x - onA.x, whileDriven.z - onA.z);
+    check('a vehicle driven on one device is seen moving on the other, with its driver inside it, and nobody else can get in while it is driven',
+      parkedOnB && movedOnA > 8 && gap < movedOnA * 0.5 && whileDriven.busy && whileDriven.driverShown === false, { movedOnA: +movedOnA.toFixed(1), gap: +gap.toFixed(1), whileDriven });
+    await a.evaluate(() => window.game.exitVehicle());
+    for (let i = 0; i < 4; i++) { await advance(a, 0.3); await wait(150); await advance(b, 0.3); await wait(150); }
+    const afterParking = await until(b, (id) => { const g = window.game; const v = g.world.vehicles.getVehicleById(`veh-own-${id}`); const p = g.garage.record(id).parkedAt; return v && Math.hypot(v.mesh.position.x - p.x, v.mesh.position.z - p.z) < 1 && g.vehicleSync.driverOf(v) === null ? { x: p.x, z: p.z } : null; }, kekeId, 60);
+    check('when the driver gets out it is parked where they left it on both devices', afterParking && Math.hypot(afterParking.x - parkedOnB.x, afterParking.z - parkedOnB.z) > 8, afterParking);
+
+    // ------------------------------------------------------------------ Coming to a server with land and a vehicle from playing alone
+    const solo = await newPlayer(browser);
+    const c = await solo.newPage();
+    await c.setViewport({ width: 1000, height: 700 });
+    await c.goto(GAME_URL, { waitUntil: 'load', timeout: 120000 });
+    await c.waitForFunction('window.game && window.game.plotWorld', { timeout: 120000 });
+    await wait(2500);
+    await closeDialogs(c);
+    const FREE = 'lag-kakawa-e3';
+    const before = await c.evaluate(async ({ free, taken }) => {
+      const g = window.game;
+      g.hud.backend.data.bank.balance = 40000000; g.hud.backend.saveData();
+      await g.land.buyFromState(free);
+      await g.land.buyFromState(taken);
+      const r = g.land.plot(free).rect;
+      await g.land.startBuilding(free, 'bungalow', (r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2, 0);
+      await g.garage.buyNew('okada');
+      const d = g.hud.backend.getData();
+      return { id: g.assetMarket.me, plots: g.land.myPlots().map((p) => p.id), plate: g.garage.mine()[0].plate, started: g.land.building(free).startedAt, money: d.walletCash + d.bank.balance };
+    }, { free: FREE, taken: P2 });
+    await c.goto(`${GAME_URL}?server=${encodeURIComponent(SERVER)}`, { waitUntil: 'load', timeout: 120000 });
+    await c.waitForFunction('window.game && window.game.plotWorld', { timeout: 120000 });
+    const carried = await until(c, () => (window.game.carried !== undefined ? window.game.carried ?? 'nothing' : null), null, 80);
+    const arrived = await c.evaluate(({ free, taken }) => {
+      const g = window.game;
+      const d = g.hud.backend.getData();
+      const local = JSON.parse(localStorage.getItem('nigeria_life_world_registry_v1'));
+      return {
+        id: g.assetMarket.me, mine: g.land.myPlots().map((p) => p.id), building: g.land.building(free), cars: g.garage.mine().map((v) => v.plate), takenOwner: g.land.ownerOf(taken),
+        money: d.walletCash + d.bank.balance, localFree: local.titles[`plot:${free}`] ?? null, localTaken: local.titles[`plot:${taken}`]?.ownerId ?? null, localCars: Object.keys(local.vehicles).length,
+      };
+    }, { free: FREE, taken: P2 });
+    const seenByB = await until(b, (id) => { const g = window.game; const owner = g.land.ownerOf(id); return owner && g.land.building(id) ? { owner, type: g.land.building(id).typeId } : null; }, FREE);
+    check('a player who joins the server brings the land they own, the building going up on it and their vehicle, and keeps their money',
+      before.id === 'local:main' && arrived.id.startsWith('net:') && carried && carried !== 'nothing' && carried.plots.join() === FREE && carried.vehicles === 1
+        && arrived.mine.join() === FREE && arrived.building && arrived.building.typeId === 'bungalow' && arrived.building.startedAt === before.started
+        && arrived.cars.join() === before.plate && arrived.money === before.money && seenByB && seenByB.owner === arrived.id && seenByB.type === 'bungalow', { carried, arrived: { ...arrived, building: arrived.building?.typeId } });
+    check('a plot that already has an owner on the server stays behind in the browser, and what did come across is no longer there',
+      carried.stayed.join() === P2 && arrived.takenOwner !== arrived.id && arrived.localTaken === 'local:main' && arrived.localFree === null && arrived.localCars === 0, { stayed: carried.stayed, localTaken: arrived.localTaken });
+    await c.reload({ waitUntil: 'load', timeout: 120000 });
+    await c.waitForFunction('window.game && window.game.plotWorld', { timeout: 120000 });
+    const twice = await until(c, () => (window.game.carried !== undefined ? { carried: window.game.carried, plots: window.game.land.myPlots().length, cars: window.game.garage.mine().length } : null), null, 80);
+    check('joining again brings nothing twice', twice && (twice.carried === null || (twice.carried.plots.length === 0 && twice.carried.vehicles === 0)) && twice.plots === 1 && twice.cars === 1, twice);
+    await solo.close();
 
     check('server: no page errors on either device', A.errors.length + B.errors.length === 0, [...A.errors, ...B.errors].slice(0, 5));
   } finally {

@@ -62,6 +62,9 @@ export class OwnedVehicles {
     return owner === MY_ID ? null : `That belongs to ${this.market.nameOf(owner)}. Only its owner can drive it.`;
   }
 
+  /** Set by the game: is this vehicle being driven from another game right now? */
+  public movingElsewhere: (vehicle: DrivableVehicle) => boolean = () => false;
+
   /** Makes the world match the registry: every parked vehicle is where it was left, under its owner's name. */
   public sync(): void {
     const state = Registry.get().peek();
@@ -74,7 +77,8 @@ export class OwnedVehicles {
       if (driving && owner !== MY_ID) this.hooks.getOut();
       const where = record?.parkedAt ? `${record.parkedAt.x},${record.parkedAt.z},${record.parkedAt.yaw}` : '';
       // Gone, changed hands, or parked somewhere else by its owner: take it away, and put it back below if it is still about
-      if (!record || owner !== entry.ownerId || (!driving && owner !== MY_ID && where !== entry.at)) {
+      const away = this.movingElsewhere(entry.vehicle);
+      if (!record || owner !== entry.ownerId || (!driving && !away && owner !== MY_ID && where !== entry.at)) {
         this.world.removeVehicle(entry.vehicle, entry.card);
         this.spawned.delete(id);
       }

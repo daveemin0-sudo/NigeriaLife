@@ -33,12 +33,14 @@ import { Land } from '../realestate/Land';
 import { BuildBar } from '../ui/BuildBar';
 import { Garage } from '../realestate/Garage';
 import { Deeds } from '../realestate/Deeds';
+import { carryToServer, type Carried } from '../realestate/Carry';
+import { VehicleSync } from '../multiplayer/VehicleSync';
 import { ServerLink } from '../realestate/ServerLink';
 import { OwnedVehicles } from '../realestate/OwnedVehicles';
 import { PlotWorld } from '../realestate/PlotWorld';
 import { AssetMarket } from '../realestate/AssetMarket';
 import { Registry } from '../realestate/Registry';
-import { zonesFor, grow, intersection, obstructionsUnder, type Rect, type Obstruction } from '../world/plan/CityPlan';
+import { zonesFor, grow, intersection, obstructionsUnder, validatePlan, type Rect, type Obstruction, type Violation } from '../world/plan/CityPlan';
 import { LAGOS_DISTRICTS } from '../world/data/LagosMapData';
 import { ABUJA_DISTRICTS } from '../world/data/AbujaMapData';
 import { PH_DISTRICTS } from '../world/data/PortHarcourtMapData';
@@ -84,6 +86,10 @@ export class Game {
   public garage = Garage.get();
   public deeds = Deeds.get();
   public ownedVehicles!: OwnedVehicles;
+  /** Vehicles other players are driving, kept moving in this game */
+  public vehicleSync!: VehicleSync;
+  /** What came with the player from this browser's own registry when they joined a world server, once that is known */
+  public carried: Carried | null | undefined = undefined;
   private lastLandHour: number | null = null;
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
@@ -613,7 +619,23 @@ export class Game {
       },
       playerPosition: () => this.player.position,
     });
+    this.vehicleSync = new VehicleSync(this.world.vehicles, this.network, () => (this.player.isDriving ? this.player.currentVehicle : null));
+    this.ownedVehicles.movingElsewhere = (vehicle) => this.vehicleSync.driverOf(vehicle) !== null;
     void this.assetMarket.introduce(this.player.config.name);
+
+    // On a world server: bring along the land and vehicles owned in this browser
+    void carryToServer().then((carried) => {
+      this.carried = carried;
+      if (!carried) return;
+      const parts: string[] = [];
+      if (carried.plots.length) parts.push(`${carried.plots.length} plot${carried.plots.length === 1 ? '' : 's'} of land`);
+      if (carried.vehicles) parts.push(`${carried.vehicles} vehicle${carried.vehicles === 1 ? '' : 's'}`);
+      if (parts.length) showGameToast(`${parts.join(' and ')} came with you to this server.`, 'success', 5200);
+      if (carried.stayed.length) {
+        const names = carried.stayed.map((id) => this.land.plot(id)?.name ?? id).join(', ');
+        showGameToast(`${names} already ${carried.stayed.length === 1 ? 'has' : 'have'} an owner on this server, so ${carried.stayed.length === 1 ? 'it stays' : 'they stay'} in this browser.`, 'warning', 6400);
+      }
+    });
   }
 
   /** What stands on the ground in a city: the full survey for Lagos, the landmarks for the others. */
@@ -623,6 +645,24 @@ export class Game {
     const out = instance ? obstructionsUnder(instance.group, CITY_NAME[city as PlotCity] ?? city) : [];
     out.push(...this.plotWorld.obstructions(city as PlotCity));
     return out;
+  }
+
+  /** Checks a city against its plan: roads clear, walkways passable, nothing overlapping, every door reachable. */
+  public validateCity(city: string, extra: Obstruction[] = []): Violation[] {
+    if (city === 'lagos') return this.world.validateCityPlan(extra);
+    const instance = city === 'abuja' ? this.world.cityManager.abujaCity : this.world.cityManager.portHarcourtCity;
+    const doors = (instance?.interactiveList ?? []).map((item) => ({ name: item.name, x: item.interactionPoint.x, z: item.interactionPoint.z }));
+    for (const destination of DestinationRegistry.getInstance().getAll()) {
+      if (destination.city === city) doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
+    }
+    const zones = zonesFor(city);
+    const walk = zones.find((zone) => zone.kind === 'walkway');
+    return validatePlan({
+      zones,
+      obstructions: [...this.standingIn(city), ...extra],
+      doors,
+      start: walk ? { x: (walk.minX + walk.maxX) / 2, z: 0 } : { x: 0, z: 0 },
+    });
   }
 
   /** Clicking your own character opens a menu of who you are and what you can do where you stand. */
@@ -803,7 +843,7 @@ export class Game {
       seconds: 0.6,
       // At the very end, so nothing is still directing the body once it is in the seat
       effectAt: 1,
-      requires: () => (vehicle.driver ? 'Someone is already driving that.' : this.ownedVehicles?.cannotDrive(vehicle) ?? null),
+      requires: () => (vehicle.driver || this.vehicleSync?.driverOf(vehicle) ? 'Someone is already driving that.' : this.ownedVehicles?.cannotDrive(vehicle) ?? null),
       effect: () => this.enterVehicle(vehicle),
     });
     if (!started.ok && started.reason && started.reason !== 'busy') showGameToast(started.reason, 'warning');
@@ -884,8 +924,11 @@ export class Game {
       this.lastLandHour = landSecond;
       this.plotWorld.refresh();
       void this.land.keepUp();
+      // A vehicle someone else was driving is put where they parked it once they have stopped
+      this.ownedVehicles.sync();
     }
     this.ownedVehicles.update();
+    this.vehicleSync.update(delta);
     this.deliveries.update(delta);
     this.messages.update(delta);
 

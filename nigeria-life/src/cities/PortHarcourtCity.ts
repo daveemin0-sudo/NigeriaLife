@@ -240,7 +240,8 @@ export class PortHarcourtCity implements CityInstance {
       name: 'Port Harcourt Interstate Transit Terminal',
       category: 'Inter-State Travel',
       description: 'Direct flight connections and luxury interstate express buses to Lagos and Abuja.',
-      interactionPoint: new THREE.Vector3(18, 0, 45),
+      // On the forecourt between the pavement and the terminal, not in the middle of the building
+      interactionPoint: new THREE.Vector3(13.6, 0, 45),
     });
   }
 

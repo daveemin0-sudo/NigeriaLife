@@ -130,8 +130,8 @@ export class RemotePlayer {
     this.isMoving = state.isMoving;
     this.currentEmote = state.currentEmote;
     this.name = state.name;
-    // Someone inside a building is not on the street to be seen
-    this.mesh.visible = !state.place;
+    // Someone inside a building is not on the street to be seen, and someone driving is inside their vehicle
+    this.mesh.visible = !state.place && !state.driving;
     this.pose = state.pose ? { legs: state.pose.legs, arms: state.pose.arms, height: state.pose.height } : null;
     this.rebuildBody(state.config);
 

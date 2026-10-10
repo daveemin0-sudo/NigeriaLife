@@ -174,6 +174,8 @@ export interface RegistryState {
   buildings: Record<string, PlotBuilding>;
   tenancies: Record<string, Tenancy>;
   vehicles: Record<string, VehicleRecord>;
+  /** What has been added to a business its owner holds: the ids of the upgrades installed. They are sold with it. */
+  fittings: Record<string, string[]>;
 }
 
 export const emptyRegistry = (): RegistryState => ({
@@ -188,6 +190,7 @@ export const emptyRegistry = (): RegistryState => ({
   buildings: {},
   tenancies: {},
   vehicles: {},
+  fittings: {},
 });
 
 export interface Outcome {

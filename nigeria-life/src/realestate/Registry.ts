@@ -53,6 +53,7 @@ function sanitise(raw: unknown): RegistryState {
     buildings: record(from.buildings),
     tenancies: record(from.tenancies),
     vehicles: record(from.vehicles),
+    fittings: record(from.fittings),
   };
 }
 

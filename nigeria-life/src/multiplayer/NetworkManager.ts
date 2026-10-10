@@ -33,6 +33,8 @@ export class NetworkManager {
   private onChatMessageCallback?: (msg: ChatMessage) => void;
   private onPlayerCountCallback?: (count: number) => void;
   private onDirectMessageCallback?: (fromId: string, fromName: string, text: string) => void;
+  private onVehicleCallback?: (playerId: string, vehicle: { id: string; x: number; z: number; yaw: number }) => void;
+  private onPlayerLeftCallback?: (playerId: string) => void;
   /** Transfers already paid in, so the same one arriving twice is only counted once */
   private receivedTransfers = new Set<string>();
 
@@ -77,6 +79,15 @@ export class NetworkManager {
     this.onDirectMessageCallback = cb;
   }
 
+  /** Told where a vehicle is each time the player driving it says so. */
+  public setOnVehicle(cb: (playerId: string, vehicle: { id: string; x: number; z: number; yaw: number }) => void): void {
+    this.onVehicleCallback = cb;
+  }
+
+  public setOnPlayerLeft(cb: (playerId: string) => void): void {
+    this.onPlayerLeftCallback = cb;
+  }
+
   public setOnPlayerCount(cb: (count: number) => void): void {
     this.onPlayerCountCallback = cb;
     cb(this.remotePlayers.size + 1);
@@ -108,11 +119,16 @@ export class NetworkManager {
         const remote = this.remotePlayers.get(state.id)!;
         remote.applyState(state);
       }
+      const driving = state.driving;
+      if (driving && typeof driving.id === 'string' && Number.isFinite(driving.x) && Number.isFinite(driving.z) && Number.isFinite(driving.yaw)) {
+        this.onVehicleCallback?.(state.id, driving);
+      }
     } else if (packet.type === 'leave') {
       if (this.remotePlayers.has(packet.id)) {
         const remote = this.remotePlayers.get(packet.id)!;
         this.scene.remove(remote.mesh);
         this.remotePlayers.delete(packet.id);
+        this.onPlayerLeftCallback?.(packet.id);
 
         if (this.onPlayerCountCallback) {
           this.onPlayerCountCallback(this.remotePlayers.size + 1);
@@ -178,6 +194,14 @@ export class NetworkManager {
       currentEmote: this.localPlayer.currentEmote,
       config: this.localPlayer.config,
       place: InteriorManager.getInstance().currentInterior?.id,
+      driving: this.localPlayer.isDriving && this.localPlayer.currentVehicle
+        ? {
+            id: this.localPlayer.currentVehicle.id,
+            x: Number(this.localPlayer.currentVehicle.mesh.position.x.toFixed(2)),
+            z: Number(this.localPlayer.currentVehicle.mesh.position.z.toFixed(2)),
+            yaw: Number(this.localPlayer.currentVehicle.mesh.rotation.y.toFixed(3)),
+          }
+        : undefined,
       // While a scripted action runs, others see the same pose
       pose: actor.scripted ? { legs: actor.pose.legs, arms: actor.pose.arms, height: actor.pose.height } : undefined,
       streetCred: data.stats.streetCred,

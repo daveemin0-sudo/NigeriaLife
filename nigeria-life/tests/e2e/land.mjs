@@ -435,7 +435,7 @@ export async function run(browser, check) {
   check('as game hours go by the work moves through its stages, and each stage is what stands on the plot',
     stages[0].done >= 1 && stages[1].done > stages[0].done && stages[2].done > stages[1].done && new Set(stages.map((s) => s.stage)).size >= 2 && stages.every((s) => s.done <= 14), stages);
 
-  const seenFromB = await until(b, (id) => { const g = window.game; const building = g.land.building(id); return building ? { status: g.land.status(id), board: g.plotWorld.interactiveList.find((i) => i.id === `plot_${id}`).description } : null; }, P4);
+  const seenFromB = await until(b, ({ id, stage }) => { const g = window.game; const building = g.land.building(id); const board = g.plotWorld.interactiveList.find((i) => i.id === `plot_${id}`).description; return building && board.includes(stage) ? { status: g.land.status(id), board } : null; }, { id: P4, stage: stages[2].stage });
   check('another player sees the same site at the same stage, under its owner\'s name', seenFromB && seenFromB.status === 'building' && /OWNER: /.test(seenFromB.board) && seenFromB.board.includes(stages[2].stage), seenFromB);
 
   const beforeReload = await worked(a, P4);
@@ -602,6 +602,9 @@ export async function run(browser, check) {
   const stolen = await b.evaluate((id) => window.game.assetMarket.list({ kind: 'vehicle', id }, 100000, ''), car.record.id);
   check('another player cannot list a vehicle that is not theirs', !stolen.ok && /Only the owner/.test(stolen.reason), stolen);
 
+  // The other game was in a background tab while it was driven: give it a moment to see that the driver has stopped
+  await wait(1700);
+  await advance(b, 1.2);
   const parked = await until(b, (id) => {
     const g = window.game;
     const v = g.world.vehicles.drivableVehicles.find((x) => x.id === `veh-own-${id}`);
@@ -746,6 +749,9 @@ export async function run(browser, check) {
   await seller.evaluate((id) => window.game.hud.backend.buyBusiness(id), BIZ);
   await until(buyer, (id) => window.game.deeds.ownerOf('business', id), BIZ);
   const cannot = await buyer.evaluate((id) => window.game.hud.backend.buyBusiness(id), BIZ);
+  // The seller fits an upgrade before selling
+  const fitted = await seller.evaluate((id) => { const bk = window.game.hud.backend; bk.data.bank.balance += 5000000; const up = bk.getData().businesses.find((x) => x.id === id).upgrades[0]; const r = bk.upgradeBusiness(id, up.id); return { ok: r.success, upgrade: up.id }; }, BIZ);
+  await until(buyer, ({ id, upgrade }) => ((window.game.registry.peek().fittings[`business:${id}`] ?? []).includes(upgrade) ? true : null), { id: BIZ, upgrade: fitted.upgrade });
   await seller.evaluate((id) => { const bk = window.game.hud.backend; bk.data.businesses.find((x) => x.id === id).pendingRevenue = 6400; bk.saveData(); }, BIZ);
   const bizListing = await seller.evaluate((id) => window.game.assetMarket.list({ kind: 'business', id }, 120000, 'Busy junction'), BIZ);
   await until(buyer, (id) => window.game.deeds.listingFor('business', id), BIZ);
@@ -764,6 +770,13 @@ export async function run(browser, check) {
   const takings = s1.total - s0.total - 98_000;
   check('a business is sold between players the same way: the buyer owns it, and the seller is paid the price less the fee and keeps the takings that were in the till',
     !cannot.success && bizMoved && y0.total - y1.total === 100_000 && takings >= 6400 && takings < 30_000, { cannot, paid: y0.total - y1.total, got: s1.total - s0.total, takings });
+
+  const fittedAfter = {
+    buyer: await buyer.evaluate((id) => { const biz = window.game.hud.backend.getData().businesses.find((x) => x.id === id); return { installed: biz.upgrades.filter((u) => u.purchased).map((u) => u.id), level: biz.level }; }, BIZ),
+    seller: await seller.evaluate((id) => { const biz = window.game.hud.backend.getData().businesses.find((x) => x.id === id); return { installed: biz.upgrades.filter((u) => u.purchased).length, level: biz.level }; }, BIZ),
+  };
+  check('the upgrade the seller fitted goes with the business: the buyer has it installed, and the seller\'s is back to a bare one for sale',
+    fitted.ok && fittedAfter.buyer.installed.join() === fitted.upgrade && fittedAfter.buyer.level === 2 && fittedAfter.seller.installed === 0 && fittedAfter.seller.level === 1, { fitted, fittedAfter });
 
   // ------------------------------------------------------------------ After everything: one owner each, books that add up
   const books = await a.evaluate(() => {
