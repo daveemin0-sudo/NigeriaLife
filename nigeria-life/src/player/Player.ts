@@ -2,17 +2,18 @@ import * as THREE from 'three';
 import {
   type CharacterConfig,
   CharacterStorage,
-  ATTIRE_PRESETS,
   type EmoteType,
 } from './CharacterCustomization';
+import { createHumanForConfig } from './HumanFromConfig';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import type { GameCamera } from '../game/Camera';
-import { HumanMeshBuilder, type HumanRig } from '../graphics/HumanMeshBuilder';
+import type { HumanRig } from '../graphics/HumanMeshBuilder';
 import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
 import { BackendService } from '../backend/BackendService';
 import { Actor } from '../interactions/Actor';
 import { InteractionDirector } from '../interactions/InteractionDirector';
+import { holdCarriedItem } from '../interactions/Poses';
 
 export class Player {
   public mesh: THREE.Group;
@@ -87,38 +88,8 @@ export class Player {
       this.currentAction = null;
     }
 
-    const isFemale = this.config.gender === 'female';
-    const attirePreset = ATTIRE_PRESETS[this.config.attire] || ATTIRE_PRESETS['agbada_green'];
-
-    const outfitType = this.config.attire === 'blue_dress'
-      ? 'blue_dress'
-      : this.config.attire === 'engineer_vest'
-      ? 'engineer_vest'
-      : this.config.attire === 'senator_navy'
-      ? 'senator'
-      : isFemale ? 'blue_dress' : 'engineer_vest';
-
-    const hairstyleToUse = this.config.headwear === 'hardhat'
-      ? 'hardhat'
-      : this.config.headwear === 'braids'
-      ? 'braids'
-      : this.config.headwear === 'bob_wig'
-      ? 'bob_wig'
-      : this.config.headwear === 'gele'
-      ? 'gele'
-      : this.config.headwear === 'fila_cream'
-      ? 'fila'
-      : isFemale ? 'bob_wig' : 'hardhat';
-
     // 1. Procedural Anatomical Model (Zero-latency instant render)
-    this.humanRig = HumanMeshBuilder.createHuman({
-      gender: this.config.gender || 'male',
-      username: this.config.name || 'Bayo',
-      skinTone: this.config.skinTone,
-      outfit: outfitType,
-      outfitColor: attirePreset.color,
-      hairstyle: hairstyleToUse,
-    });
+    this.humanRig = createHumanForConfig(this.config);
 
     this.mesh.add(this.humanRig.group);
 
@@ -196,6 +167,14 @@ export class Player {
   }
 
   public update(delta: number, keys?: Record<string, boolean>): void {
+    this.updateBody(delta, keys);
+    // Something in the hands (a shop basket) stays held while walking about freely
+    if (!this.actor.scripted && this.actor.carried && this.humanRig && !this.glbModel) {
+      holdCarriedItem(this.humanRig);
+    }
+  }
+
+  private updateBody(delta: number, keys?: Record<string, boolean>): void {
     // Tick GLB skeletal animation mixer if present
     if (this.mixer) {
       this.mixer.update(delta);

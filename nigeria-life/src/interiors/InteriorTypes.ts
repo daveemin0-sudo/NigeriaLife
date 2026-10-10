@@ -68,6 +68,8 @@ export interface InteriorNPCDef {
   relativePosition: THREE.Vector3;
   rotationY: number;
   outfitColor: number;
+  /** Stated outright where the name and role do not make it plain */
+  gender?: 'male' | 'female';
   hairColor?: number;
   skinColor?: number;
   hasStethoscope?: boolean;

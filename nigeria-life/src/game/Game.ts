@@ -3,6 +3,7 @@ import { World } from '../world/World';
 import { Player } from '../player/Player';
 import { GameCamera } from './Camera';
 import { InputManager } from './Input';
+import { PointerScope } from './PointerScope';
 import { HUD } from '../ui/HUD';
 import { NetworkManager } from '../multiplayer/NetworkManager';
 import { ChatBox } from '../ui/ChatBox';
@@ -18,10 +19,14 @@ import { UIStateManager } from '../ui/UIStateManager';
 import { PlaceCard } from '../ui/PlaceCard';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 import { BukaOrderUI } from '../ui/BukaOrderUI';
+import { ShopUI } from '../ui/ShopUI';
+import { VendorUI } from '../ui/VendorUI';
 import { ActivityStatusUI } from '../ui/ActivityStatusUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
 import type { SavedCityId } from '../backend/types';
+import { WorldDataManager } from '../world/data/WorldDataManager';
+import { HouseDecorationSystem, CATALOGUE_ITEMS } from '../housing/HouseDecorationSystem';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -39,8 +44,12 @@ export class Game {
   public postProcessing: PostProcessingManager;
   public photoMode: PhotoModeModal;
   public bukaUI!: BukaOrderUI;
+  public shopUI!: ShopUI;
+  public vendorUI!: VendorUI;
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
+  /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS };
   private lastStepDelta: number = 0;
   public placeCard: PlaceCard;
 
@@ -74,6 +83,7 @@ export class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(this.renderer.domElement);
+    PointerScope.init(this.renderer.domElement);
 
     // 3b. Post-Processing Pipeline (Phase 6: Bloom, Lagos Atmosphere Grade, OutputPass)
     this.postProcessing = new PostProcessingManager(
@@ -127,7 +137,7 @@ export class Game {
     // 8. Vehicle Control Wiring
     this.hud.onEnterVehicle = (vehId: string) => {
       const v = this.world.vehicles.getVehicleById(vehId);
-      if (v) this.enterVehicle(v);
+      if (v) this.walkToVehicleAndGetIn(v);
     };
 
     this.hud.onExitVehicle = () => {
@@ -146,7 +156,7 @@ export class Game {
       } else {
         const v = this.world.vehicles.getNearestDrivableVehicle(this.player.position, 6.0);
         if (v) {
-          this.enterVehicle(v);
+          this.walkToVehicleAndGetIn(v);
         }
       }
     };
@@ -345,6 +355,23 @@ export class Game {
     // 9e-2. The buka's menu and order status
     this.bukaUI = new BukaOrderUI(this.world.interiorManager.restaurant.service);
     this.hud.onOpenBukaMenu = (preferTable) => this.bukaUI.open(preferTable);
+    const bukaService = this.world.interiorManager.restaurant.service;
+    this.hud.canSitWith = (objectId) => this.world.interiorManager.currentInterior?.type === 'restaurant' && bukaService.canSitWith(objectId);
+    this.hud.onSitWith = (objectId) => {
+      const sat = bukaService.sitWith(objectId);
+      if (!sat.ok && sat.reason) showGameToast(sat.reason, 'warning', 3600);
+    };
+
+    // 9e-2b. The supermarket's shelves, basket and till
+    this.shopUI = new ShopUI(this.world.interiorManager.shop.service);
+    this.hud.onShopAction = (objectId) => {
+      if (objectId.startsWith('shop_shelf_')) this.shopUI.openShelf(objectId.replace('shop_shelf_', ''));
+      else this.shopUI.openBasket();
+    };
+
+    // 9e-2c. Street sellers who hand over what is bought
+    this.vendorUI = new VendorUI(() => this.player.actor);
+    this.hud.onVendorAction = (objectId) => this.vendorUI.open(objectId);
 
     // 9e-3. Home life: bed, sofa and TV, fridge, bath
     const homeLife = this.world.interiorManager.residence.life;
@@ -495,6 +522,35 @@ export class Game {
     this.cameraManager.snapToPlayer(this.player, 'street');
   }
 
+  /** Getting in is seen: the player walks round to the driver's door, reaches for it, and is then at the wheel. */
+  private walkToVehicleAndGetIn(vehicle: any): void {
+    if (this.player.isDriving) return;
+    const actor = this.player.actor;
+    const director = InteractionDirector.get();
+    if (director.interrupt(actor) === 'locked') return;
+    this.player.stopMoving();
+
+    const door = new THREE.Vector3(-2.2, 0, 0)
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), vehicle.mesh.rotation.y)
+      .add(vehicle.mesh.position)
+      .setY(0);
+    const started = director.perform({
+      id: 'get in vehicle',
+      actor,
+      point: door,
+      target: () => vehicle.mesh.position,
+      speed: 6.5,
+      ifStuck: 'snap',
+      animation: { arms: 'reach' },
+      seconds: 0.6,
+      // At the very end, so nothing is still directing the body once it is in the seat
+      effectAt: 1,
+      requires: () => (vehicle.driver ? 'Someone is already driving that.' : null),
+      effect: () => this.enterVehicle(vehicle),
+    });
+    if (!started.ok && started.reason && started.reason !== 'busy') showGameToast(started.reason, 'warning');
+  }
+
   private enterVehicle(vehicle: any): void {
     vehicle.enter(this.player);
     this.player.isDriving = true;
@@ -560,10 +616,11 @@ export class Game {
     InteractionDirector.get().update(delta);
 
     // Update Camera Follow (moved in closer while the player is seated)
-    this.cameraManager.setCloseUp(this.player.actor.hold !== null);
+    const playerActor = this.player.actor;
+    this.cameraManager.setCloseUp(playerActor.hold !== null || (playerActor.busy && playerActor.sequence?.closeUp === true));
     this.cameraManager.update(this.player, delta);
     if (this.world.interiorManager.isPlayerInside()) {
-      this.world.interiorManager.updateCutaway(this.cameraManager.camera.position);
+      this.world.interiorManager.updateCutaway(delta, this.cameraManager.camera, this.player);
     }
 
     // Update Transit Simulations (Flight & Road Ride)

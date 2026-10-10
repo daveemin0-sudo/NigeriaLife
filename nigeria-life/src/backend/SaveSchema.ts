@@ -116,6 +116,13 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     }
   }
 
+  const relationships: Record<string, number> = {};
+  if (isRecord(saved.relationships)) {
+    for (const [who, level] of Object.entries(saved.relationships)) {
+      if (typeof level === 'number' && Number.isFinite(level)) relationships[who] = Math.min(100, Math.max(0, level));
+    }
+  }
+
   let worldState: SavedWorldState | undefined;
   if (isRecord(world) && SAVED_CITIES.has(world.cityId) && Number.isFinite(world.x) && Number.isFinite(world.z)) {
     worldState = {
@@ -211,6 +218,7 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
           }
         : undefined,
     claims,
+    relationships,
     lastRevenueAt: Number.isFinite(saved.lastRevenueAt) ? saved.lastRevenueAt : undefined,
     worldState,
     createdAt: str(saved.createdAt, base.createdAt, 'createdAt'),

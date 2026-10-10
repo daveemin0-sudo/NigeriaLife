@@ -220,6 +220,8 @@ export interface PlayerAccount {
   };
   /** Timed payouts already collected: claim key -> when it was last collected (ms since epoch) */
   claims: Record<string, number>;
+  /** How well each person knows the player, 0 (stranger) to 100, by the person's id */
+  relationships: Record<string, number>;
   /** When business revenue was last accrued (ms since epoch) */
   lastRevenueAt?: number;
   worldState?: SavedWorldState;
@@ -1188,5 +1190,6 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
   ],
   activeJobShift: null,
   claims: {},
+  relationships: {},
   createdAt: new Date().toISOString(),
 };

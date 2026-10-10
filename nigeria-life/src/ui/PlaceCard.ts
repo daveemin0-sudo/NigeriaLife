@@ -40,6 +40,11 @@ const SPOT_CHIPS: Record<string, { icon: string; label: string }> = {
   'flat-fridge': { icon: '🧊', label: 'Fridge' },
   'flat-bed': { icon: '🛏️', label: 'Bed' },
   'flat-drum': { icon: '🚿', label: 'Water drum' },
+  shop_shelf_drinks: { icon: '🥤', label: 'Cold drinks' },
+  shop_shelf_food: { icon: '🍞', label: 'Food shelf' },
+  shop_shelf_snacks: { icon: '🍪', label: 'Snacks' },
+  shop_shelf_household: { icon: '🔦', label: 'Household' },
+  shop_checkout: { icon: '🧾', label: 'Till' },
 };
 
 export interface PlaceCardHooks {

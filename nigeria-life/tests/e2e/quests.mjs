@@ -1,5 +1,5 @@
 // Story quests advance when the player actually does the thing: eat, work, drive, travel.
-import { open, reload, wait, money, quest, newPlayer, enterInterior, leaveInterior, closeDialogs, useStation, playUntil } from './lib.mjs';
+import { open, reload, wait, money, quest, newPlayer, enterInterior, leaveInterior, closeDialogs, useStation, playUntil, advance } from './lib.mjs';
 
 export async function run(browser, check) {
   // --- Chapter 1 through the phone, chapter 2 by driving, then the Abuja arc by flying
@@ -38,6 +38,8 @@ export async function run(browser, check) {
   await page.evaluate(() => { const g = window.game; const v = g.world.vehicles.getNearestDrivableVehicle(g.player.position, 1e9); g.player.mesh.position.set(v.mesh.position.x + 2, 0, v.mesh.position.z); });
   await wait(300);
   await page.keyboard.press('f');
+  // The player walks round to the driver's door and gets in
+  await advance(page, 3);
   await wait(600);
   const driving = await page.evaluate(() => window.game.player.isDriving);
   const q2 = await quest(page, 'quest_lagos_2');

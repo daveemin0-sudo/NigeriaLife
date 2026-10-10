@@ -86,14 +86,14 @@ export async function run(browser, check) {
 
   // --- Furniture with a short wallet: wallet + bank must drop by exactly the price
   const item = await page.evaluate(async () => {
-    const mod = await import('/src/housing/HouseDecorationSystem.ts');
+    const mod = window.game.modules;
     const be = window.game.hud.backend;
     be.depositToBank(be.getData().walletCash - 20000); // leave ₦20,000 in the wallet
     const pick = mod.CATALOGUE_ITEMS.find((i) => i.price > 20000);
     return { id: pick.id, price: pick.price };
   });
   m0 = await money(page);
-  await page.evaluate(async (id) => { const mod = await import('/src/housing/HouseDecorationSystem.ts'); mod.HouseDecorationSystem.getInstance().purchaseAndPlace(id); }, item.id);
+  await page.evaluate((id) => { window.game.modules.HouseDecorationSystem.getInstance().purchaseAndPlace(id); }, item.id);
   await wait(300);
   m1 = await money(page);
   check(`furniture (₦${item.price.toLocaleString()}) bought with a short wallet charges the full price`, m0.total - m1.total === item.price && m1.cash >= 0 && m1.bank >= 0, { charged: m0.total - m1.total, wallet: m1.cash, bank: m1.bank });

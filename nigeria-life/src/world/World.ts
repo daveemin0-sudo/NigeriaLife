@@ -24,6 +24,8 @@ export interface InteractiveObject {
   category: string;
   description: string;
   interactionPoint: THREE.Vector3;
+  /** Walks about: a door or a desk the player is standing at takes the prompt before someone passing by */
+  moving?: boolean;
 }
 
 export interface InteractionTarget {

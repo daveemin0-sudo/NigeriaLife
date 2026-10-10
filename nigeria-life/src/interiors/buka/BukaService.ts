@@ -94,6 +94,8 @@ export class BukaService {
   private leftover: { meal: Meal; seat: Seat } | null = null;
   private playerInside = false;
   private playerSeat: Seat | null = null;
+  /** The regular the player has sat down with, if they joined someone's table */
+  public companion: string | null = null;
 
   constructor(group: THREE.Group, origin: THREE.Vector3, roomWidth: number, roomLength: number) {
     this.group = group;
@@ -176,13 +178,13 @@ export class BukaService {
   // --- Ordering ----------------------------------------------------------------------------
 
   /** Why this dish cannot be ordered right now, or null if it can. */
-  public cannotOrder(dish: Dish): string | null {
+  public cannotOrder(dish: Dish, alreadySeated = false): string | null {
     if (this.order) return 'You already have an order. Finish it or cancel it first.';
     const cash = this.backend.getData().walletCash;
     if (cash < dish.price) {
       return `${dish.name} is ₦${dish.price.toLocaleString()}. You have ₦${cash.toLocaleString()} cash, so you need ₦${(dish.price - cash).toLocaleString()} more.`;
     }
-    if (!this.pickSeat()) return 'Every seat is taken right now.';
+    if (!alreadySeated && !this.pickSeat()) return 'Every seat is taken right now.';
     return null;
   }
 
@@ -207,24 +209,60 @@ export class BukaService {
     return best;
   }
 
+  /** The seated regular this clickable person is, if they are one. */
+  private dinerFor(objectId: string): Diner | null {
+    const actor = this.director.actorFor(objectId);
+    return this.diners.find((diner) => diner.npc.actor === actor) ?? null;
+  }
+
+  /** Can the player pull up a chair beside this person? */
+  public canSitWith(objectId: string): boolean {
+    const diner = this.dinerFor(objectId);
+    return !!diner && !this.order && this.playerSeat?.table !== diner.seat.table;
+  }
+
   /**
-   * Places an order. Nothing is charged here: the customer pays when the plate reaches the table.
+   * Sit down at a regular's table to keep them company. Nothing is ordered; the player can
+   * order from the seat afterwards, or just talk.
    */
-  public placeOrder(dishId: string, preferTable?: number): OrderResult {
-    const dish = findDish(dishId);
+  public sitWith(objectId: string): OrderResult {
+    const diner = this.dinerFor(objectId);
     const player = this.director.player;
-    if (!dish || !player || !this.waiter) return { ok: false, reason: 'That is not on the menu.' };
-    const blocked = this.cannotOrder(dish);
-    if (blocked) return { ok: false, reason: blocked };
+    if (!diner || !player) return { ok: false, reason: 'There is nobody to sit with there.' };
+    const short = diner.npc.def.name;
+    if (this.order) return { ok: false, reason: 'Finish your meal, or cancel your order, first.' };
+    if (this.playerSeat?.table === diner.seat.table) return { ok: false, reason: `You are already sitting with ${short}.` };
+    const free = this.seats.filter((seat) => seat.table === diner.seat.table && !this.director.isTaken(seat.id));
+    if (free.length === 0) return { ok: false, reason: `There is no free chair at the table ${short} is at.` };
     if (this.director.interrupt(player) === 'locked') return { ok: false, reason: 'Finish what you are doing first.' };
 
-    const seat = this.pickSeat(preferTable)!;
+    const here = player.worldPosition();
+    const seat = free.reduce((best, entry) =>
+      here.distanceTo(this.world(entry.stand)) < here.distanceTo(this.world(best.stand)) ? entry : best);
     this.director.reserve(seat.id, player);
-    const order: BukaOrder = { dish, seat, stage: 'going_to_seat', paid: false, bitesLeft: dish.bites, meal: null, ready: false };
-    this.order = order;
-    this.ateSomething = false;
+    this.sitDownAt(player, seat, (seated) => {
+      if (!seated) {
+        this.director.release(seat.id, player);
+        return;
+      }
+      this.companion = short;
+      if (!diner.npc.actor.busy) {
+        this.director.perform({
+          id: 'welcome to the table',
+          actor: diner.npc.actor,
+          animation: { arms: 'talk' },
+          seconds: 1.8,
+          effectAt: 0.05,
+          effect: () => diner.npc.actor.say('Ah! Join me, sit down.', 2.4),
+        }, { casual: true });
+      }
+      this.changed();
+    });
+    return { ok: true };
+  }
 
-    // 1. The customer walks to the table and sits down
+  /** Walks a customer to a chair and seats them. `done(true)` once seated, `done(false)` if they never got there. */
+  private sitDownAt(player: Actor, seat: Seat, done: (seated: boolean) => void): void {
     const tableCenter = this.world(TABLES[seat.table]);
     const sitDown = new Sequence('sit at table', [player]).add(
       steps.walk(player, this.world(seat.stand), { nav: this.nav }),
@@ -234,9 +272,8 @@ export class BukaService {
       steps.wait(0.3)
     );
     sitDown.onEnd((reason) => {
-      if (this.order !== order) return;
       if (reason !== 'done') {
-        this.endOrder('You did not sit down, so the order was cancelled. You were not charged.');
+        done(false);
         return;
       }
       player.yaw = seat.yaw;
@@ -244,10 +281,42 @@ export class BukaService {
       player.hold = { release: (instant) => this.standUp(instant) };
       player.setScripted(true);
       player.pose = { legs: 'sit', arms: 'rest' };
-      order.stage = 'waiting';
-      this.changed();
+      done(true);
     });
     this.director.run(sitDown);
+  }
+
+  /**
+   * Places an order. Nothing is charged here: the customer pays when the plate reaches the table.
+   */
+  public placeOrder(dishId: string, preferTable?: number): OrderResult {
+    const dish = findDish(dishId);
+    const player = this.director.player;
+    if (!dish || !player || !this.waiter) return { ok: false, reason: 'That is not on the menu.' };
+    // Already sitting down (keeping someone company): the order comes to this seat
+    const seated = this.playerSeat && player.hold && !player.busy ? this.playerSeat : null;
+    const blocked = this.cannotOrder(dish, seated !== null);
+    if (blocked) return { ok: false, reason: blocked };
+    if (!seated && this.director.interrupt(player) === 'locked') return { ok: false, reason: 'Finish what you are doing first.' };
+
+    const seat = seated ?? this.pickSeat(preferTable)!;
+    this.director.reserve(seat.id, player);
+    const order: BukaOrder = { dish, seat, stage: seated ? 'waiting' : 'going_to_seat', paid: false, bitesLeft: dish.bites, meal: null, ready: false };
+    this.order = order;
+    this.ateSomething = false;
+
+    // 1. The customer walks to the table and sits down
+    if (!seated) {
+      this.sitDownAt(player, seat, (sat) => {
+        if (this.order !== order) return;
+        if (!sat) {
+          this.endOrder('You did not sit down, so the order was cancelled. You were not charged.');
+          return;
+        }
+        order.stage = 'waiting';
+        this.changed();
+      });
+    }
 
     // 2. The cook plates the food and puts it on the pass
     this.cook.say(`${dish.short}, one!`);
@@ -445,6 +514,12 @@ export class BukaService {
     if (this.order) this.endOrder(this.leavingMessage(this.order));
   }
 
+  /** Get up from the table (the on-screen button, when sitting without an order). */
+  public leaveTable(): void {
+    const player = this.director.player;
+    if (!this.order && player?.hold && this.playerSeat) player.hold.release();
+  }
+
   private leavingMessage(order: BukaOrder): string | undefined {
     if (!order.paid) return 'Order cancelled. You were not charged.';
     if (order.stage === 'eating') return 'You left the rest of your meal.';
@@ -461,6 +536,7 @@ export class BukaService {
     const player = this.director.player;
     const seat = this.playerSeat;
     this.playerSeat = null;
+    this.companion = null;
     if (!player) return;
     player.hold = null;
     if (seat) this.director.release(seat.id, player);
@@ -574,6 +650,7 @@ export class BukaService {
       for (const seat of this.seats) this.director.release(seat.id, player);
     }
     this.playerSeat = null;
+    this.companion = null;
     for (const staff of [this.waiter, this.cook]) {
       if (!staff) continue;
       this.director.forceFree(staff);

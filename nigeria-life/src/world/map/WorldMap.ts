@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WorldMapRenderer, type MapSelectionEvent } from './WorldMapRenderer';
 import { WorldDataManager } from '../data/WorldDataManager';
 import type { DistrictData } from '../data/WorldDataTypes';
+import { PointerScope } from '../../game/PointerScope';
 
 export class WorldMap {
   public scene: THREE.Scene;
@@ -60,7 +61,7 @@ export class WorldMap {
   private setupEventListeners(): void {
     window.addEventListener('mousedown', (e) => {
       if (!this.isActive) return;
-      if ((e.target as HTMLElement).tagName !== 'CANVAS') return;
+      if (!PointerScope.isGameView(e.target)) return;
       this.isDragging = true;
       this.previousMousePosition = { x: e.clientX, y: e.clientY };
     });
@@ -93,22 +94,21 @@ export class WorldMap {
       this.isDragging = false;
     });
 
-    window.addEventListener('wheel', (e) => {
-      if (!this.isActive) return;
-      if ((e.target as HTMLElement).tagName !== 'CANVAS') return;
-
-      const zoomDelta = e.deltaY * 0.001;
+    // Wheel zoom, only for wheel turns over the map itself (see PointerScope)
+    PointerScope.onGameWheel((pixels) => {
+      if (!this.isActive) return false;
       this.zoomLevel = THREE.MathUtils.clamp(
-        this.zoomLevel + zoomDelta,
+        this.zoomLevel + pixels * 0.001,
         this.minZoom,
         this.maxZoom
       );
       this.updateCameraTransform();
+      return true;
     });
 
     window.addEventListener('click', (e) => {
       if (!this.isActive) return;
-      if ((e.target as HTMLElement).tagName !== 'CANVAS') return;
+      if (!PointerScope.isGameView(e.target)) return;
       this.handleClick(e);
     });
   }

@@ -28,7 +28,7 @@ export class InteriorNPCMesh {
     // Determine gender based on role and name
     const lowerRole = (def.role || '').toLowerCase();
     const lowerName = (def.name || '').toLowerCase();
-    const isFemale =
+    const isFemale = def.gender ? def.gender === 'female' :
       lowerRole.includes('nurse') ||
       lowerName.includes('chidinma') ||
       lowerName.includes('kemi') ||

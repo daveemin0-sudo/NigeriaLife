@@ -12,6 +12,10 @@ const INTERIOR_YAW = 0.62;
 const INTERIOR_PITCH = 0.86;
 /** How far the view drifts from the room centre toward the player (0 = fixed room view, 1 = follows the player) */
 const INTERIOR_FOLLOW = 0.55;
+/** How far the room is raised on the screen, as a share of the camera distance, to clear the cards along the bottom */
+const INTERIOR_SCREEN_LIFT = 0.12;
+/** Seconds between checks for buildings between the street camera and the player */
+const COLLISION_CHECK_EVERY = 0.08;
 
 export class GameCamera {
   public camera: THREE.PerspectiveCamera;
@@ -47,6 +51,10 @@ export class GameCamera {
   private currentLookAt: THREE.Vector3 = new THREE.Vector3();
   public collisionObjects: THREE.Object3D[] = [];
   private collisionRaycaster: THREE.Raycaster = new THREE.Raycaster();
+  /** How far out the street camera may sit: what the last check found, and the eased value actually used */
+  private collisionFound: number = Infinity;
+  private collisionLimit: number = Infinity;
+  private collisionTimer: number = 0;
 
   // Mode camera targets
   private homeCamPos: THREE.Vector3 = new THREE.Vector3(16, 22, 198);
@@ -122,6 +130,10 @@ export class GameCamera {
         1.0,
         THREE.MathUtils.lerp(this.roomCenter.z, player.position.z, follow)
       );
+      // Aim a little short of that, so the room sits above the cards along the bottom of the screen
+      const lift = this.interiorDistance * THREE.MathUtils.lerp(1, 0.45, this.closeUp) * INTERIOR_SCREEN_LIFT;
+      focus.x += Math.sin(this.interiorYaw) * lift;
+      focus.z += Math.cos(this.interiorYaw) * lift;
     }
     return focus;
   }
@@ -268,6 +280,10 @@ export class GameCamera {
       this.currentLookAt.copy(focus);
       this.camera.lookAt(this.currentLookAt);
     } else if (currentMode === 'street') {
+      // Placed afresh: whatever was between the camera and the player before no longer applies
+      this.collisionFound = Infinity;
+      this.collisionLimit = Infinity;
+      this.collisionTimer = 0;
       const offset = this.computeOffset();
       const targetPos = new THREE.Vector3().copy(player.position).add(offset);
       this.camera.position.copy(targetPos);
@@ -372,13 +388,23 @@ export class GameCamera {
     if (this.collisionObjects.length > 0) {
       const rayDir = offset.clone().normalize();
       const maxDist = offset.length();
-      this.collisionRaycaster.set(origin, rayDir);
-      this.collisionRaycaster.far = maxDist;
-      const hits = this.collisionRaycaster.intersectObjects(this.collisionObjects, true);
-      if (hits.length > 0 && hits[0].distance < maxDist) {
-        const clampedDist = Math.max(2.4, hits[0].distance - 0.5);
-        actualOffset = rayDir.multiplyScalar(clampedDist);
+      // Looking for what is in the way is costly in a dense city, so it is done a few times a second
+      this.collisionTimer -= delta;
+      if (this.collisionTimer <= 0) {
+        this.collisionTimer = COLLISION_CHECK_EVERY;
+        this.collisionRaycaster.set(origin, rayDir);
+        this.collisionRaycaster.far = maxDist;
+        const hits = this.collisionRaycaster.intersectObjects(this.collisionObjects, true);
+        this.collisionFound = hits.length > 0 && hits[0].distance < maxDist ? Math.max(2.4, hits[0].distance - 0.5) : Infinity;
       }
+      // In quickly, so the camera is never left inside a wall; back out slowly, so it does not
+      // lurch in and out as buildings pass between it and the player
+      const wanted = Math.min(maxDist, this.collisionFound);
+      if (!Number.isFinite(this.collisionLimit)) this.collisionLimit = wanted;
+      const rate = wanted < this.collisionLimit ? 14 : 2.5;
+      this.collisionLimit += (wanted - this.collisionLimit) * Math.min(1, delta * rate);
+      this.collisionLimit = Math.min(this.collisionLimit, maxDist);
+      if (this.collisionLimit < maxDist - 0.01) actualOffset = rayDir.multiplyScalar(this.collisionLimit);
     }
 
     const targetCameraPos = new THREE.Vector3().copy(player.position).add(actualOffset);

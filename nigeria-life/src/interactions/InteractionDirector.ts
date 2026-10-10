@@ -43,6 +43,8 @@ export class InteractionDirector {
   private static instance: InteractionDirector | null = null;
 
   public player: Actor | null = null;
+  /** Seconds of game time since the game started, for anything that must not happen too often */
+  public time = 0;
   private actors = new Map<string, Actor>();
   private running: Sequence[] = [];
   private reservations = new Map<string, string>();
@@ -154,7 +156,7 @@ export class InteractionDirector {
   }
 
   /** Performs one interaction, or several in a row as a single uninterrupted scene. */
-  public perform(defs: InteractionDef | InteractionDef[], options: { locked?: boolean } = {}): PerformResult {
+  public perform(defs: InteractionDef | InteractionDef[], options: { locked?: boolean; casual?: boolean } = {}): PerformResult {
     const list = Array.isArray(defs) ? defs : [defs];
     const reason = list[0].requires?.() ?? null;
     if (reason) return { ok: false, reason };
@@ -162,6 +164,7 @@ export class InteractionDirector {
     const actors = [...new Set(list.map((def) => def.actor))];
     const sequence = new Sequence(list.map((def) => def.id).join(' > '), actors);
     if (options.locked) sequence.locked();
+    if (options.casual) sequence.asCasual();
     for (const def of list) sequence.add(...this.stepsFor(def));
     if (!this.run(sequence)) return { ok: false, reason: 'busy' };
     return { ok: true, sequence };
@@ -194,6 +197,7 @@ export class InteractionDirector {
   }
 
   public update(delta: number): void {
+    this.time += delta;
     if (this.running.length > 0) {
       for (const sequence of [...this.running]) sequence.update(delta);
       this.running = this.running.filter((sequence) => !sequence.ended);

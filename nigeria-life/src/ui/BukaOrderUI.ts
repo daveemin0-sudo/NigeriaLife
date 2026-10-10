@@ -127,10 +127,44 @@ export class BukaOrderUI {
     }
   }
 
+  /** Sitting at someone's table without an order: say so, and offer the menu or the way up. */
+  private renderCompany(name: string): void {
+    this.status.innerHTML = '';
+    this.status.dataset.progress = 'company';
+    const icon = document.createElement('span');
+    icon.className = 'buka-status-icon';
+    icon.textContent = '🪑';
+    const text = document.createElement('span');
+    text.className = 'buka-status-text';
+    const title = document.createElement('span');
+    title.className = 'buka-status-name';
+    title.textContent = `Sitting with ${name}`;
+    const line = document.createElement('span');
+    line.className = 'buka-status-line';
+    line.textContent = 'Order from your seat, or just keep them company';
+    text.append(title, line);
+    const menu = document.createElement('button');
+    menu.className = 'buka-status-btn';
+    menu.id = 'buka-company-order';
+    menu.textContent = 'Menu';
+    menu.addEventListener('click', () => this.open());
+    const up = document.createElement('button');
+    up.className = 'buka-status-btn';
+    up.id = 'buka-company-stand';
+    up.textContent = 'Stand up';
+    up.addEventListener('click', () => this.service.leaveTable());
+    this.status.append(icon, text, menu, up);
+    this.status.style.display = 'flex';
+  }
+
   private renderStatus(): void {
     const order = this.service.order;
     const progress = this.service.progress();
     const inside = UIStateManager.getInstance().isMode('interior');
+    if (inside && !order && this.service.companion) {
+      this.renderCompany(this.service.companion);
+      return;
+    }
     if (!order || !progress || !inside) {
       this.status.style.display = 'none';
       return;

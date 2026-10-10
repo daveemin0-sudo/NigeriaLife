@@ -462,6 +462,35 @@ export class DestinationRegistry {
     });
 
     this.register({
+      id: 'dest_lagos_supermarket',
+      aliases: ['supermarket', 'everyday_supermarket', 'everyday-supermarket'],
+      name: 'Everyday Supermarket',
+      category: 'Supermarket',
+      city: 'lagos',
+      district: 'lagos_island',
+      districtName: 'Lagos Island',
+      mapPosition: new THREE.Vector3(14, 0, 36),
+      mapVisualType: 'shop',
+      mapIcon: '🛒',
+      exteriorType: 'shop_facade',
+      streetPosition: new THREE.Vector3(10.9, 0, -45),
+      entrance: {
+        position: new THREE.Vector3(10.9, 0, -45),
+        promptLabel: 'Enter Everyday Supermarket',
+        triggerRadius: 6.5,
+      },
+      interiorId: 'shop',
+      openingHours: '07:00 - 22:00',
+      shortDescription: 'Cold drinks, bread, noodles, snacks and household things',
+      destinationDescription: 'A neighbourhood supermarket. Take a basket, pick from the shelves and pay at the till.',
+      services: ['Groceries', 'Cold Drinks', 'Household & Gadgets'],
+      transportAvailability: defaultTransports,
+      npcPopulation: [],
+      activities: [],
+      isEnterable: true,
+    });
+
+    this.register({
       id: 'dest_lagos_police',
       aliases: ['police-station', 'lagos_area_command_police', 'police', 'area_command_police'],
       name: 'Lagos Area Command Police Headquarters',

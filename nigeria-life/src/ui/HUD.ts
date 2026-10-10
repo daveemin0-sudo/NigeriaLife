@@ -1,4 +1,7 @@
+import * as THREE from 'three';
 import type { InteractiveObject, InteractionTarget, World } from '../world/World';
+import { VendorUI } from './VendorUI';
+import { STREET_VENDORS } from '../world/StreetVendors';
 import { Player } from '../player/Player';
 import type { CityId } from '../cities/CityTypes';
 import { CharacterCreatorModal } from './CharacterCreator';
@@ -24,7 +27,7 @@ import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
 import { emitGameEvent } from '../game/GameEvents';
 import { InteractionDirector } from '../interactions/InteractionDirector';
-import { waveAt } from '../interactions/Social';
+import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
@@ -66,6 +69,14 @@ export class HUD {
   public onExitInterior?: () => void;
   /** Opens the buka's menu; a table number seats the player at that table */
   public onOpenBukaMenu?: (preferTable?: number) => void;
+  public onShopAction?: (objectId: string) => void;
+  public onVendorAction?: (objectId: string) => void;
+  /** Stations inside buildings that are used by walking up and doing something with the hands or talking */
+  private static readonly ACTED_OUT = /^(hosp_|police_|unilag_|airport_|bank_)/;
+  private actingOut = false;
+  /** Sitting down with someone: can it be done, and do it */
+  public canSitWith?: (objectId: string) => boolean;
+  public onSitWith?: (objectId: string) => void;
   /** Starts something at home: the id of the bed, sofa, fridge or drum that was used */
   public onHomeActivity?: (objectId: string) => void;
   public onNavigateMode?: (mode: 'street' | 'home' | 'map') => void;
@@ -81,6 +92,11 @@ export class HUD {
     this.inventoryModal = new InventoryModal();
     this.atmModal = new ATMModal();
     this.inventoryModal.onOpenATM = () => this.atmModal.open();
+    // At the bank's own machine, the player is seen taking the cash or feeding it in
+    this.atmModal.onCashMoved = () => {
+      if (this.world?.interiorManager.currentInterior?.type !== 'bank' || !this.player) return;
+      InteractionDirector.get().perform({ id: 'atm cash', actor: this.player.actor, animation: { arms: 'reach' }, seconds: 0.9 });
+    };
     this.phoneModal = new PhoneModal();
     this.phoneModal.onFastTravel = (pos, name) => {
       this.currentNavMode = 'street';
@@ -335,7 +351,14 @@ export class HUD {
         <div class="card-actions">
           <button class="btn-primary" id="card-action-btn">Enter / Order</button>
           <button class="btn-secondary" id="card-biz-btn" style="display: none;">💼 View Business [E]</button>
-          <button class="btn-secondary" id="card-wave-btn" style="display: none;">👋 Wave</button>
+        </div>
+        <div class="card-social" id="card-social" style="display: none;">
+          <span class="card-social-label" id="card-social-label">Stranger</span>
+          <button class="card-social-btn" id="card-wave-btn" style="display: none;">👋 Wave</button>
+          <button class="card-social-btn" id="card-greet-btn" style="display: none;">🙏 Greet</button>
+          <button class="card-social-btn" id="card-shake-btn" style="display: none;">🤝 Shake hands</button>
+          <button class="card-social-btn" id="card-chat-btn" style="display: none;">💬 Chat</button>
+          <button class="card-social-btn" id="card-sit-btn" style="display: none;">🪑 Sit together</button>
         </div>
       </div>
 
@@ -379,14 +402,45 @@ export class HUD {
     const actionBtn = document.getElementById('card-action-btn') as HTMLButtonElement;
     actionBtn.addEventListener('click', () => this.handleCardAction());
 
-    // Wave at whoever this card is about; they wave back
-    const waveBtn = document.getElementById('card-wave-btn') as HTMLButtonElement;
-    waveBtn.addEventListener('click', () => {
-      const person = this.currentActiveObject && InteractionDirector.get().actorFor(this.currentActiveObject.id);
+    // Wave, greet, shake hands or chat with whoever this card is about; they answer in kind
+    const social = (buttonId: string, kind: 'wave' | 'greet' | 'handshake' | 'chat') => {
+      document.getElementById(buttonId)?.addEventListener('click', () => {
+        const obj = this.currentActiveObject;
+        this.hideInteractionCard();
+        if (!obj) return;
+        const me = this.player.actor;
+        const person = InteractionDirector.get().actorFor(obj.id);
+
+        if (!person) {
+          // Another player online: the gesture is made here and they are told about it
+          if (!obj.id.startsWith('remote_player_') || (kind !== 'wave' && kind !== 'greet')) return;
+          const made = gestureToward(kind, me, obj.mesh.position.clone());
+          if (made.ok) NetworkManager.getInstance()?.sendSocial(obj.id.replace('remote_player_', ''), kind);
+          else this.showNotification('Finish what you are doing first.');
+          return;
+        }
+
+        const interiors = this.world?.interiorManager;
+        const inside = interiors?.isPlayerInside() ?? false;
+        const options = { nav: inside ? interiors?.getActiveNav() ?? null : null, standAt: inside ? obj.interactionPoint : undefined };
+        const result = kind === 'wave' ? waveAt(me, person)
+          : kind === 'greet' ? greet(me, person)
+          : kind === 'handshake' ? shakeHands(me, person, options)
+          : chatWith(me, person, options);
+        if (!result.ok) {
+          this.showNotification(result.reason && result.reason !== 'busy' ? result.reason : 'Finish what you are doing first.');
+        }
+      });
+    };
+    social('card-wave-btn', 'wave');
+    social('card-greet-btn', 'greet');
+    social('card-shake-btn', 'handshake');
+    social('card-chat-btn', 'chat');
+
+    document.getElementById('card-sit-btn')?.addEventListener('click', () => {
+      const obj = this.currentActiveObject;
       this.hideInteractionCard();
-      if (!person) return;
-      const waved = waveAt(this.player.actor, person);
-      if (!waved.ok) this.showNotification('Finish what you are doing first.');
+      if (obj) this.onSitWith?.(obj.id);
     });
 
     const bizBtn = document.getElementById('card-biz-btn') as HTMLButtonElement;
@@ -1248,6 +1302,15 @@ export class HUD {
     } else if (obj.id === 'interior_npc_npc_waiter_segun') {
       btnEl.textContent = '📋 Ask Segun for the menu';
       bizBtn.style.display = 'none';
+    } else if (obj.id.startsWith('shop_shelf_')) {
+      btnEl.textContent = '🛒 See what is on this shelf';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'shop_checkout' || obj.id === 'interior_npc_npc_shop_cashier') {
+      btnEl.textContent = '🧾 Basket & pay';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'supermarket') {
+      btnEl.textContent = '🛒 Enter Everyday Supermarket [E]';
+      bizBtn.style.display = 'none';
     } else if (obj.id === 'police_front_desk') {
       btnEl.textContent = '📝 Area Command Desk & Clearance Services [E]';
       bizBtn.style.display = 'none';
@@ -1348,9 +1411,6 @@ export class HUD {
       btnEl.textContent = '💊 Buy Medicine & First Aid (₦1,500)';
       bizBtn.textContent = '💼 Pharmacy Enterprise [E]';
       bizBtn.style.display = 'inline-block';
-    } else if (obj.id === 'supermarket') {
-      btnEl.textContent = '🛒 Buy Noodles Carton & Tinned Milk (₦4,500)';
-      bizBtn.style.display = 'none';
     } else if (obj.id === 'slot-gadgets') {
       btnEl.textContent = '📱 Buy 20,000mAh Power Bank & Charger (₦8,500)';
       bizBtn.textContent = '💼 Slot Tech Enterprise [E]';
@@ -1429,9 +1489,31 @@ export class HUD {
       bizBtn.style.display = 'none';
     }
 
-    // Anyone the interaction system can direct can be waved at
-    const waveBtn = document.getElementById('card-wave-btn') as HTMLButtonElement;
-    waveBtn.style.display = InteractionDirector.get().actorFor(obj.id) ? 'inline-block' : 'none';
+    if (VendorUI.sells(obj.id)) {
+      btnEl.textContent = `🛍️ See what ${STREET_VENDORS[obj.id].name} is selling`;
+      bizBtn.style.display = 'none';
+    }
+
+    // Anyone the interaction system can direct can be waved at, greeted, spoken to; another player can be waved at and greeted
+    const person = InteractionDirector.get().actorFor(obj.id);
+    const otherPlayer = obj.id.startsWith('remote_player_');
+    const show = (buttonId: string, on: boolean) => {
+      const button = document.getElementById(buttonId);
+      if (button) button.style.display = on ? 'inline-block' : 'none';
+    };
+    show('card-wave-btn', !!person || otherPlayer);
+    show('card-greet-btn', !!person || otherPlayer);
+    show('card-shake-btn', !!person && cannotShakeHands(this.player.actor, person, { nav: this.world?.interiorManager.isPlayerInside() ? this.world.interiorManager.getActiveNav() : null }) === null);
+    show('card-chat-btn', !!person);
+    show('card-sit-btn', this.canSitWith?.(obj.id) ?? false);
+    const socialRow = document.getElementById('card-social');
+    if (socialRow) socialRow.style.display = person || otherPlayer ? 'flex' : 'none';
+    const standingLabel = document.getElementById('card-social-label');
+    if (standingLabel) {
+      const standing = person ? standingWith(person) : 'stranger';
+      standingLabel.textContent = otherPlayer ? 'Player' : standing === 'friend' ? 'Friend' : standing === 'acquaintance' ? 'Knows you' : 'Stranger';
+      standingLabel.dataset.standing = standing;
+    }
 
     this.interactionCard.style.display = 'block';
     UIStateManager.getInstance().setCardOpen(true);
@@ -1693,10 +1775,58 @@ export class HUD {
     UIStateManager.getInstance().setCardOpen(false);
   }
 
+  /**
+   * Things done at a desk, a machine or a counter are seen to be done: the player walks up,
+   * faces it and uses it, and what it does happens part-way through. Returns true if that
+   * has been started (or cannot be, because the player is half-way through a door).
+   */
+  private actOut(obj: InteractiveObject): boolean {
+    const interiors = this.world?.interiorManager;
+    if (!interiors?.isPlayerInside() || !this.player) return false;
+    const actor = this.player.actor;
+    const director = InteractionDirector.get();
+    if (director.interrupt(actor) === 'locked') return true;
+
+    const target = obj.mesh.getWorldPosition(new THREE.Vector3());
+    const facing = Math.hypot(target.x - obj.interactionPoint.x, target.z - obj.interactionPoint.z) > 0.4 ? target : undefined;
+    const withHands = /atm|bed|cell|gate|podium|portal/.test(obj.id);
+    this.hideInteractionCard();
+    return director.perform({
+      id: `use ${obj.id}`,
+      actor,
+      point: obj.interactionPoint,
+      target: facing,
+      nav: interiors.getActiveNav(),
+      ifStuck: 'snap',
+      speed: 5,
+      animation: { arms: withHands ? 'reach' : 'talk' },
+      seconds: withHands ? 0.9 : 1.2,
+      effectAt: 0.6,
+      effect: () => {
+        this.currentActiveObject = obj;
+        this.actingOut = true;
+        try {
+          this.handleCardAction();
+        } finally {
+          this.actingOut = false;
+          if (this.interactionCard.style.display === 'none') this.currentActiveObject = null;
+        }
+      },
+    }).ok;
+  }
+
   private handleCardAction(): void {
     if (!this.currentActiveObject) return;
     const id = this.currentActiveObject.id;
+    if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;
     this.questManager.triggerEvent('interact_object', { objectId: id });
+
+    if (VendorUI.sells(id)) {
+      // Bought hand to hand in the street; the list only starts it
+      this.hideInteractionCard();
+      this.onVendorAction?.(id);
+      return;
+    }
 
     if (id.startsWith('remote_player_')) {
       this.hideInteractionCard();
@@ -1800,6 +1930,15 @@ export class HUD {
     } else if (id === 'police-station' || id === 'dest_lagos_police') {
       this.hideInteractionCard();
       this.onEnterInterior?.('police');
+      return;
+    } else if (id === 'supermarket') {
+      this.hideInteractionCard();
+      this.onEnterInterior?.('shop');
+      return;
+    } else if (id.startsWith('shop_shelf_') || id === 'shop_checkout' || id === 'interior_npc_npc_shop_cashier') {
+      // Shopping is acted out in the shop: basket, shelves, till. The sheet only asks for it.
+      this.hideInteractionCard();
+      this.onShopAction?.(id);
       return;
     } else if (id === 'villa-compound' || id === 'palm-view-flats') {
       this.hideInteractionCard();
@@ -2670,37 +2809,6 @@ export class HUD {
           dialogueText: 'Not enough cash! ₦1,000 needed to book your accumulator slip.',
         });
       }
-    } else if (id === 'npc-hawker') {
-      const success = this.backend.spendCash(200, 'Cold Water & Gala', 'FOOD_PURCHASE');
-      if (success) {
-        emitGameEvent('eat');
-        this.backend.restoreEnergy(25);
-        this.backend.addItem({
-          id: 'water_sachet',
-          name: 'Chilled Pure Water Sachet',
-          category: 'food',
-          icon: '💧',
-          description: 'Chilled sachet water to quench Lagos afternoon heat.',
-          price: 100,
-          usable: true,
-          energyRestore: 15,
-        });
-        this.showDialogueModal({
-          speakerName: 'Chidi Hawker',
-          speakerRole: 'Traffic Vendor',
-          speakerAvatar: '🥤',
-          soundType: 'cheer',
-          dialogueText: 'Chilled pure water and hot Gala handed over! Energy boosted and thirst quenched.',
-          rewards: { energy: 25, item: { name: 'Chilled Pure Water Sachet', icon: '💧' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Chidi Hawker',
-          speakerRole: 'Traffic Vendor',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦200 cash for pure water and Gala sausage roll!',
-        });
-      }
     } else if (id.startsWith('veh-')) {
       this.hideInteractionCard();
       this.onEnterVehicle?.(id);
@@ -3259,36 +3367,6 @@ export class HUD {
           speakerRole: 'Medicine Dispensary',
           speakerAvatar: '⚠️',
           dialogueText: 'Need ₦1,500 cash for pharmacy medications!',
-        });
-      }
-    } else if (id === 'supermarket') {
-      const success = this.backend.spendCash(4500, 'Everyday Supermarket Groceries');
-      if (success) {
-        this.backend.restoreEnergy(80);
-        this.backend.addItem({
-          id: `indomie_pack_${Date.now()}`,
-          name: 'Carton of Indomie & Peak Milk',
-          category: 'food',
-          icon: '🍜',
-          description: 'Noodles, golden butter bread, and peak milk from the supermarket.',
-          price: 4500,
-          usable: true,
-          energyRestore: 80,
-        });
-        this.showDialogueModal({
-          speakerName: 'Cashier Bolanle',
-          speakerRole: 'Everyday Supermarket',
-          speakerAvatar: '🛒',
-          soundType: 'cash',
-          dialogueText: 'Everyday Supermarket: Groceries checked out! Added Indomie Super Pack & Milk to your bag!',
-          rewards: { energy: 80, item: { name: 'Carton of Indomie & Peak Milk', icon: '🍜', category: 'food' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Supermarket POS',
-          speakerRole: 'Everyday Supermarket',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦4,500 cash for supermarket groceries!',
         });
       }
     } else if (id === 'slot-gadgets') {

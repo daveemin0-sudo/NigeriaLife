@@ -520,6 +520,20 @@ export class BackendService {
     return true;
   }
 
+  // === PEOPLE ===
+
+  /** How well this person knows the player: 0 is a stranger, 100 an old friend. */
+  public familiarity(personId: string): number {
+    return (this.data.relationships ??= {})[personId] ?? 0;
+  }
+
+  public addFamiliarity(personId: string, amount: number): number {
+    const level = Math.min(100, Math.max(0, this.familiarity(personId) + amount));
+    this.data.relationships[personId] = level;
+    this.saveData();
+    return level;
+  }
+
   public addStreetCred(amount: number): void {
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + amount);
     this.saveData();

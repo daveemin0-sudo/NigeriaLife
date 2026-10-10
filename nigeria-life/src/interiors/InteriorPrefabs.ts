@@ -12,6 +12,37 @@ export class InteriorPrefabs {
   private static matRedFabric = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.7 });
   private static matGlass = new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.45, roughness: 0.1 });
 
+  private static tileImage: HTMLCanvasElement | null = null;
+
+  /** Floor tiles with grout lines, tinted by the floor's own colour. One tile is 1.5 m square. */
+  private static tileTexture(width: number, length: number): THREE.CanvasTexture {
+    if (!this.tileImage) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 128, 128);
+      // A faint sheen across each tile, and the grout between them
+      const sheen = ctx.createLinearGradient(0, 0, 128, 128);
+      sheen.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      sheen.addColorStop(1, 'rgba(0, 0, 0, 0.05)');
+      ctx.fillStyle = sheen;
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = 'rgba(40, 40, 50, 0.2)';
+      ctx.fillRect(0, 0, 128, 3);
+      ctx.fillRect(0, 0, 3, 128);
+      this.tileImage = canvas;
+    }
+    const texture = new THREE.CanvasTexture(this.tileImage);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(width / 1.5, length / 1.5);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    return texture;
+  }
+
   /**
    * Build a modular room with floor, cutaway low front walls (for isometric camera clarity),
    * and high back/side walls.
@@ -29,7 +60,7 @@ export class InteriorPrefabs {
 
     // Floor
     const floorGeo = new THREE.BoxGeometry(width, 0.4, length);
-    const floorMat = new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.3 });
+    const floorMat = new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.3, map: this.tileTexture(width, length) });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.name = 'interior_floor_mesh';
     floor.position.set(0, -0.2, 0);
@@ -60,6 +91,31 @@ export class InteriorPrefabs {
     rightWall.position.set(width / 2, height / 2, 0);
     rightWall.receiveShadow = true;
     room.add(rightWall);
+
+    // A painted lower band with a rail above it runs round the three tall walls. Each piece is
+    // part of its wall, so it comes down with the wall when the camera looks over it.
+    const bandColor = new THREE.Color(wallColor).multiplyScalar(0.7);
+    const bandMat = new THREE.MeshStandardMaterial({ color: bandColor, roughness: 0.75 });
+    const railMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(wallColor).lerp(new THREE.Color(0xffffff), 0.55), roughness: 0.6 });
+    const bandH = 1.1;
+    const inner = wallThick / 2 + 0.015;
+    const dress = (wall: THREE.Mesh, span: number, alongX: boolean, inward: number) => {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(alongX ? span : 0.03, bandH, alongX ? 0.03 : span), bandMat);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(alongX ? span : 0.06, 0.08, alongX ? 0.06 : span), railMat);
+      band.position.y = -height / 2 + bandH / 2;
+      rail.position.y = -height / 2 + bandH + 0.04;
+      if (alongX) {
+        band.position.z = inward * inner;
+        rail.position.z = inward * (inner + 0.015);
+      } else {
+        band.position.x = inward * inner;
+        rail.position.x = inward * (inner + 0.015);
+      }
+      wall.add(band, rail);
+    };
+    dress(backWall, width - wallThick, true, 1);
+    dress(leftWall, length - wallThick, false, 1);
+    dress(rightWall, length - wallThick, false, -1);
 
     // Front Low Cutaway Wall (Z = length / 2, height = 1.0) with door opening
     const halfFrontW = (width - 3.2) / 2;

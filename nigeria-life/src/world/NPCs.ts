@@ -34,6 +34,8 @@ export class NPCs {
   // Animated story character rigs
   private storyRigs: { rig: HumanRig; animState: string; actor?: Actor }[] = [];
   private hawkerActor: Actor | null = null;
+  /** The hawker's clickable entry: where to stand to reach him moves as he walks */
+  private hawkerSpot: THREE.Vector3 | null = null;
   private storyAnimTime: number = 0;
 
   // Key interactive Hawker
@@ -129,13 +131,15 @@ export class NPCs {
     this.hawkerGroup.add(this.hawkerRig.group);
     this.group.add(this.hawkerGroup);
 
+    this.hawkerSpot = new THREE.Vector3(-8.5, 0, -15);
     this.interactiveList.push({
       mesh: this.hawkerGroup,
       id: 'npc-hawker',
       name: 'Chidi (Street Drinks & Gala)',
       category: 'Street Vendor',
-      description: 'Chilled pure water (₦100) and hot beef Gala sausage (₦100) fresh from the traffic gridlock.',
-      interactionPoint: new THREE.Vector3(-8.5, 0, -15),
+      description: 'Chilled pure water (₦100) and hot beef Gala sausage (₦250), carried on his head through the go-slow.',
+      interactionPoint: this.hawkerSpot,
+      moving: true,
     });
   }
 
@@ -487,6 +491,11 @@ export class NPCs {
         this.hawkerDir = 1;
         this.hawkerGroup.rotation.y = 0;
       }
+    }
+
+    // He is reached wherever he has walked to, not where he set out from
+    if (this.hawkerGroup && this.hawkerSpot) {
+      this.hawkerSpot.set(this.hawkerGroup.position.x, 0, this.hawkerGroup.position.z);
     }
 
     // 2. Animate Story Character Rigs

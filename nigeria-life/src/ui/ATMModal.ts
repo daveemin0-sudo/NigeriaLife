@@ -8,6 +8,8 @@ export class ATMModal {
   private container: HTMLDivElement;
   private backend: BackendService;
   public isOpen: boolean = false;
+  /** Called when cash has actually been dispensed or paid in, so it can be shown at the machine */
+  public onCashMoved?: (kind: 'withdraw' | 'deposit') => void;
 
   constructor() {
     this.backend = BackendService.getInstance();
@@ -130,6 +132,7 @@ export class ATMModal {
         if (success) {
           SoundEngine.getInstance().playTransactionSuccess();
           showGameToast(`💸 Dispensing ₦${amount.toLocaleString()} cash from ATM! Check your wallet.`, 'success');
+          this.onCashMoved?.('withdraw');
         } else {
           showGameToast('❌ Insufficient funds in bank account!', 'error');
         }
@@ -145,6 +148,7 @@ export class ATMModal {
         if (success) {
           SoundEngine.getInstance().playTransactionSuccess();
           showGameToast(`✅ Deposited ₦${amount.toLocaleString()} cash into your bank account!`, 'success');
+          this.onCashMoved?.('deposit');
         } else {
           showGameToast('❌ Not enough cash in your pocket wallet!', 'error');
         }

@@ -1,4 +1,5 @@
 import type { CharacterConfig, EmoteType } from '../player/CharacterCustomization';
+import type { ArmPose, LegPose } from '../interactions/Poses';
 
 export interface PlayerNetState {
   id: string;
@@ -8,6 +9,10 @@ export interface PlayerNetState {
   isMoving: boolean;
   currentEmote: EmoteType;
   config: CharacterConfig;
+  /** The building they are inside, if any. Their position is then a place in that room, not on the street. */
+  place?: string;
+  /** What the body is doing in a scripted action (waving, shaking hands, sitting); absent when walking about freely */
+  pose?: { legs: LegPose; arms: ArmPose; height?: number };
   streetCred?: number;
   chatBubble?: {
     text: string;
@@ -39,4 +44,5 @@ export type NetPacket =
   | { type: 'chat'; message: ChatMessage }
   | { type: 'p2p_transfer'; transfer: P2PTransferMessage }
   | { type: 'emote_sync'; playerId: string; emote: EmoteType }
+  | { type: 'social'; fromId: string; fromName: string; toId: string; kind: 'wave' | 'greet' }
   | { type: 'leave'; id: string };

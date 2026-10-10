@@ -27,6 +27,10 @@ export class Sequence {
   public interruptible = true;
   /** A sequence that runs longer than this is assumed stuck and is failed. */
   public maxSeconds = 90;
+  /** Worth watching from close by: the camera moves in on the player while it runs. */
+  public closeUp = false;
+  /** Nothing that matters: an answering wave, a word of welcome. Anyone may call the actor away from it. */
+  public casual = false;
   public ended: EndReason | null = null;
   public failure = '';
 
@@ -56,6 +60,11 @@ export class Sequence {
 
   public locked(): this {
     this.interruptible = false;
+    return this;
+  }
+
+  public asCasual(): this {
+    this.casual = true;
     return this;
   }
 

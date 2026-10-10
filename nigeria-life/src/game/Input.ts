@@ -8,6 +8,7 @@ import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { NetworkManager } from '../multiplayer/NetworkManager';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 import { Sequence, steps } from '../interactions/Sequence';
+import { PointerScope } from './PointerScope';
 
 export class InputManager {
   private camera: THREE.Camera;
@@ -115,8 +116,7 @@ export class InputManager {
     window.addEventListener('touchstart', (e: TouchEvent) => {
       if (e.touches.length === 1) {
         const t = e.touches[0];
-        const targetEl = e.target as HTMLElement;
-        if (targetEl.closest('canvas')) {
+        if (PointerScope.isGameView(e.target)) {
           this.isPointerDown = true;
           this.hasDragged = false;
           this.pointerDownPos.set(t.clientX, t.clientY);
@@ -154,19 +154,17 @@ export class InputManager {
 
     // Prevent context menu on right click so player can freely rotate camera
     window.addEventListener('contextmenu', (e) => {
-      const targetEl = e.target as HTMLElement;
-      if (targetEl.closest('canvas')) {
+      if (PointerScope.isGameView(e.target)) {
         e.preventDefault();
       }
     });
 
-    // Mouse Wheel Zoom
-    window.addEventListener('wheel', (e: WheelEvent) => {
-      if (this.hud.currentNavMode === 'map') return;
-      if (this.cameraManager) {
-        this.cameraManager.zoom(e.deltaY * 0.005);
-      }
-    }, { passive: true });
+    // Mouse wheel zoom, only for wheel turns over the 3D view (see PointerScope)
+    PointerScope.onGameWheel((pixels) => {
+      if (this.hud.currentNavMode === 'map' || !this.cameraManager) return false;
+      this.cameraManager.zoom(pixels * 0.005);
+      return true;
+    });
 
     // Keyboard driving controls
     window.addEventListener('keydown', (e) => {
@@ -307,8 +305,7 @@ export class InputManager {
 
   private onPointerDown(event: MouseEvent): void {
     if (this.hud.currentNavMode === 'map') return;
-    const targetEl = event.target as HTMLElement;
-    if (!targetEl.closest('canvas')) return;
+    if (!PointerScope.isGameView(event.target)) return;
 
     this.isPointerDown = true;
     this.hasDragged = false;
@@ -327,8 +324,7 @@ export class InputManager {
     this.isRotatingCamera = false;
 
     if (this.hud.currentNavMode === 'map') return;
-    const targetEl = event.target as HTMLElement;
-    if (!targetEl.closest('canvas')) return;
+    if (!PointerScope.isGameView(event.target)) return;
 
     // If the user dragged to rotate the view, do not trigger walk or interaction!
     if (wasDragging) {
@@ -690,6 +686,11 @@ export class InputManager {
       bank_manager_desk: '💼 Apply for Lagos SME Loan',
       buka_food_counter: '🍲 Order Firewood Party Jollof',
       buka_table_vip: '🍽️ Sit Down & Chop Life',
+      shop_shelf_drinks: '🥤 Look in the drinks fridge',
+      shop_shelf_food: '🍞 Look along the food shelf',
+      shop_shelf_snacks: '🍪 Look along the snacks shelf',
+      shop_shelf_household: '🔦 Look along the household shelf',
+      shop_checkout: '🧾 Pay at the till',
       police_front_desk: '📝 File Citizen Incident Report',
       police_holding_cell: '⚖️ Pay Citizen Bail Bond',
       unilag_lecture_podium: '🎓 Attend Faculty Lecture',
@@ -748,6 +749,7 @@ export class InputManager {
           !o.id.startsWith('hosp_') &&
           !o.id.startsWith('bank_') &&
           !o.id.startsWith('buka_') &&
+          !o.id.startsWith('shop_') &&
           !o.id.startsWith('police_') &&
           !o.id.startsWith('unilag_') &&
           !o.id.startsWith('airport_')
@@ -760,7 +762,7 @@ export class InputManager {
           candidates.push({
             mesh: rp.mesh,
             id: `remote_player_${rId}`,
-            name: (rp as any).name || `@${rId.substring(0, 8)}`,
+            name: rp.name || `@${rId.substring(0, 8)}`,
             category: 'Online Citizen',
             description: `Live Lagos Citizen strolling Broad Street. Emote: ${rp.currentEmote}. Press [E] to interact!`,
             interactionPoint: rp.mesh.position.clone(),
@@ -778,7 +780,8 @@ export class InputManager {
       const dist = this.player.position.distanceTo(obj.interactionPoint);
       // Some staffed stations share their exact standing spot with the attendant. The station
       // carries the action, so it wins the tie; attendants standing apart keep their own prompt.
-      const rank = obj.id.startsWith('interior_npc_') ? dist + 0.3 : dist;
+      // Someone walking past does not take the prompt from the door or desk the player is standing at
+      const rank = obj.moving ? dist + 6 : obj.id.startsWith('interior_npc_') ? dist + 0.3 : dist;
       if (dist <= radius && rank < bestRank) {
         bestRank = rank;
         minDistance = dist;
@@ -897,7 +900,7 @@ export class InputManager {
           list.push({
             mesh: rp.mesh,
             id: `remote_player_${rId}`,
-            name: (rp as any).name || `@${rId.substring(0, 8)}`,
+            name: rp.name || `@${rId.substring(0, 8)}`,
             category: 'Online Citizen',
             description: `Live Lagos Citizen strolling Broad Street. Emote: ${rp.currentEmote}. Press [E] to interact!`,
             interactionPoint: rp.mesh.position.clone(),

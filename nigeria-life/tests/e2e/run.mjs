@@ -2,10 +2,10 @@
 //
 //   npm run dev            (in one terminal)
 //   npm run test:e2e       (all suites)
-//   npm run test:e2e money (one suite: interiors | places | buka | home | quests | money | saves)
+//   npm run test:e2e money (one suite: input | view | interiors | places | buka | shop | social | actions | home | quests | money | saves)
 import { launch, reporter, GAME_URL } from './lib.mjs';
 
-const SUITES = ['interiors', 'places', 'buka', 'home', 'quests', 'money', 'saves'];
+const SUITES = ['input', 'view', 'interiors', 'places', 'buka', 'shop', 'social', 'actions', 'home', 'quests', 'money', 'saves'];
 const wanted = process.argv.slice(2);
 const unknown = wanted.filter((name) => !SUITES.includes(name));
 if (unknown.length) {

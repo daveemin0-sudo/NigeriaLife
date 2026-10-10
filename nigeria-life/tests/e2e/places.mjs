@@ -1,6 +1,6 @@
 // Getting around without the keyboard: the room view shows the whole room, every station has a
 // shortcut you can tap, and the map's pins lead to a sheet whose Go button takes you there.
-import { open, wait, money, newPlayer, enterInterior, leaveInterior, leaveByDoor } from './lib.mjs';
+import { open, wait, money, newPlayer, enterInterior, leaveInterior, leaveByDoor, advance } from './lib.mjs';
 
 const TYPES = ['hospital', 'bank', 'restaurant', 'police', 'residence', 'university', 'airport'];
 
@@ -45,6 +45,8 @@ export async function run(browser, check) {
   }
   check('tapping the Pharmacy shortcut walks there and opens the pharmacy', opened === 'hosp_pharmacy', { opened });
   await page.click('#card-action-btn');
+  // The player is seen speaking to the pharmacist; the sale lands part-way through
+  await advance(page, 2.6);
   await wait(400);
   const m1 = await money(page);
   check('the pharmacy purchase then works by mouse alone (₦1,800)', m0.cash - m1.cash === 1800, { paid: m0.cash - m1.cash });
@@ -57,8 +59,7 @@ export async function run(browser, check) {
   await page.click('#nav-btn-map');
   await wait(2500);
   const pins = await page.evaluate(async () => {
-    const { WorldDataManager } = await import('/src/world/data/WorldDataManager.ts');
-    const landmarks = WorldDataManager.getInstance().getLandmarks().length;
+    const landmarks = window.game.modules.WorldDataManager.getInstance().getLandmarks().length;
     const all = [...document.querySelectorAll('.map-pin')];
     return { landmarks, pins: all.length, named: all.every((p) => p.querySelector('.map-pin-name').textContent.length > 2), areas: document.querySelectorAll('.map-area-name').length };
   });

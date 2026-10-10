@@ -4,6 +4,7 @@ import { InteractionDirector } from '../interactions/InteractionDirector';
 import type { InteractiveObject } from './World';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
+import { dressBuilding } from './FacadeKit';
 
 /** A door on the street that leads into a building's interior. */
 export interface StreetDoor {
@@ -252,6 +253,9 @@ export class Buildings {
       bankGroup.add(panel);
     }
 
+    // A portico, side windows, a proper parapet and what sits on a bank's roof
+    dressBuilding(bankGroup, { style: 'bank', facing: -Math.PI / 2, floors: 2, accent: 0xbe123c, frontBays: 0, openGround: true, doorAt: 1.0 });
+
     this.group.add(bankGroup);
 
     this.interactiveList.push({
@@ -446,6 +450,9 @@ export class Buildings {
     nameBoard.position.set(0, 2.86, 0.09); // just over the door, under the awning
     doorway.add(nameBoard);
 
+    // Two-tone paint, barred side windows, a bench and the day's menu on the wall
+    dressBuilding(bukaGroup, { style: 'eatery', facing: Math.PI / 2, floors: 1, accent: 0x7c2d12, frontBays: 0, flatRoof: false, doorAt: -doorZ });
+
     this.group.add(bukaGroup);
 
     const doorWorld = new THREE.Vector3(bukaGroup.position.x + 4.17, 0, bukaGroup.position.z + doorZ);
@@ -570,6 +577,7 @@ export class Buildings {
     genGroup.add(exhaust);
 
     betGroup.add(genGroup);
+    dressBuilding(betGroup, { style: 'shop', facing: -Math.PI / 2, accent: 0xdc2626, frontBays: 0, openGround: true });
     this.group.add(betGroup);
 
     this.interactiveList.push({
@@ -761,6 +769,8 @@ export class Buildings {
     towerGroup.add(pvcPipe);
 
     compoundGroup.add(towerGroup);
+    // The duplex behind the wall: a porch, barred windows all round, a painted lower band
+    dressBuilding(compoundGroup, { style: 'house', facing: Math.PI / 2, floors: 2, accent: 0xb45309, frontBays: 0, flatRoof: false });
     this.group.add(compoundGroup);
 
     this.interactiveList.push({
@@ -924,6 +934,7 @@ export class Buildings {
     const ac = this.createACUnit(-4.15, 2.8, 2.6, -Math.PI / 2);
     salonGroup.add(ac);
 
+    dressBuilding(salonGroup, { style: 'shop', facing: -Math.PI / 2, accent: 0xdb2777, frontBays: 0, openGround: true });
     this.group.add(salonGroup);
 
     this.interactiveList.push({
@@ -1089,6 +1100,7 @@ export class Buildings {
     const ac = this.createACUnit(-4.4, 2.8, -2.8, -Math.PI / 2);
     textilesGroup.add(ac);
 
+    dressBuilding(textilesGroup, { style: 'shop', facing: -Math.PI / 2, accent: 0x7c3aed, frontBays: 0, openGround: true });
     this.group.add(textilesGroup);
 
     this.interactiveList.push({
@@ -1193,6 +1205,7 @@ export class Buildings {
     // Windows & AC
     pharmGroup.add(this.createWindow(1.8, 1.2));
     pharmGroup.add(this.createACUnit(4.35, 5.2, -2.5, -Math.PI / 2));
+    dressBuilding(pharmGroup, { style: 'shop', facing: Math.PI / 2, floors: 2, accent: 0x059669, frontBays: 2 });
     this.group.add(pharmGroup);
 
     this.interactiveList.push({
@@ -1230,22 +1243,69 @@ export class Buildings {
 
     martGroup.add(this.createACUnit(-4.6, 5.8, 2.5, Math.PI / 2));
 
-    // Supreme Court Pharmacy Fascia Board
-    const pharmSignGeo = new THREE.PlaneGeometry(8.5, 1.8);
-    const pharmSign = new THREE.Mesh(pharmSignGeo, this.signLib.supremeCourtPharmacyMaterial);
-    pharmSign.position.set(-4.62, 4.2, 0);
-    pharmSign.rotation.y = -Math.PI / 2;
-    martGroup.add(pharmSign);
+    // Name board over the entrance
+    const martSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(7.4, 1.78),
+      new THREE.MeshBasicMaterial({ map: Buildings.createNameBoardTexture('EVERYDAY', 'Supermarket · Cold drinks · Open daily') })
+    );
+    martSign.position.set(-4.76, 4.2, 0);
+    martSign.rotation.y = -Math.PI / 2;
+    martGroup.add(martSign);
+
+    // Front door in the glass shopfront, facing Broad Street
+    const martDoorway = new THREE.Group();
+    martDoorway.position.set(-4.72, 0, 0);
+    martDoorway.rotation.y = -Math.PI / 2;
+    martGroup.add(martDoorway);
+
+    const martFrameMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.5 });
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.6, 0.2), martFrameMat);
+      post.position.set(side * 0.78, 1.3, 0.06);
+      martDoorway.add(post);
+    }
+    const martLintel = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.16, 0.2), martFrameMat);
+    martLintel.position.set(0, 2.6, 0.06);
+    martDoorway.add(martLintel);
+
+    // What shows through the open door: the bright shop floor beyond
+    const martRecess = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.4, 2.52),
+      new THREE.MeshBasicMaterial({ color: 0xe2e8f0 })
+    );
+    martRecess.position.set(0, 1.26, 0.03);
+    martDoorway.add(martRecess);
+
+    const martDoor = new HingedDoor({
+      width: 1.4,
+      height: 2.5,
+      material: new THREE.MeshStandardMaterial({ color: 0x93c5fd, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.8 }),
+      swing: -1.9,
+      thickness: 0.05,
+    });
+    martDoor.group.position.z = 0.1;
+    martDoorway.add(martDoor.group);
+    InteractionDirector.get().addDoor(martDoor);
+
+    dressBuilding(martGroup, { style: 'shop', facing: -Math.PI / 2, floors: 2, accent: 0x2563eb, frontBays: 0, openGround: true });
 
     this.group.add(martGroup);
 
+    const martDoorWorld = new THREE.Vector3(martGroup.position.x - 4.72, 0, martGroup.position.z);
+    this.placeDoors.push({
+      buildingId: 'supermarket',
+      door: martDoor,
+      outside: new THREE.Vector3(martDoorWorld.x - 2.4, 0, martDoorWorld.z),
+      inside: new THREE.Vector3(martDoorWorld.x + 1.5, 0, martDoorWorld.z),
+    });
+
     this.interactiveList.push({
       mesh: martGroup,
-      id: 'pharmacy',
-      name: 'Supreme Court Pharmacy',
-      category: 'Health & Pharmacy',
-      description: 'Prescription medicines, vitamin C, first aid, malaria drugs, and energy supplements.',
-      interactionPoint: new THREE.Vector3(10, 0, -45),
+      id: 'supermarket',
+      name: 'Everyday Supermarket',
+      category: 'Shopping',
+      description: 'Cold drinks, bread, noodles, snacks and things for the house. Take a basket and pay at the till.',
+      interactionPoint: new THREE.Vector3(martDoorWorld.x - 2.4, 0, martDoorWorld.z),
     });
 
     // C. Victory Phones & Laptops Hub (South-East: x = 18, z = 35)
@@ -1273,6 +1333,7 @@ export class Buildings {
     slotGroup.add(slotGlass);
 
     slotGroup.add(this.createACUnit(-4.35, 5.2, -1.8, Math.PI / 2));
+    dressBuilding(slotGroup, { style: 'shop', facing: -Math.PI / 2, floors: 2, accent: 0x0d9488, frontBays: 0, openGround: true });
     this.group.add(slotGroup);
 
     this.interactiveList.push({
@@ -1309,6 +1370,7 @@ export class Buildings {
     bPole.position.set(4.2, 2.8, 2.8);
     barbGroup.add(bPole);
 
+    dressBuilding(barbGroup, { style: 'shop', facing: Math.PI / 2, floors: 2, accent: 0xb91c1c, frontBays: 2, frontTop: 2.9 });
     this.group.add(barbGroup);
 
     this.interactiveList.push({
@@ -1351,40 +1413,16 @@ export class Buildings {
       bMesh.receiveShadow = true;
       aptGroup.add(bMesh);
 
-      // Windows and Balconies on each floor
+      // A balcony with railings and a door on every upper floor, barred windows with hoods,
+      // a stair core behind pierced blocks, and a parapet roof with its tank and dish
       const facingRoad = cfg.x < 0 ? 1 : -1;
-      const frontX = (facingRoad * W) / 2 + facingRoad * 0.05;
-
-      for (let f = 1; f <= cfg.floors; f++) {
-        const floorY = 2.0 + f * 3.0;
-
-        // Front Balcony Railing
-        const railGeo = new THREE.BoxGeometry(0.1, 0.9, 7.5);
-        const rail = new THREE.Mesh(railGeo, this.matLib.ironRailingMaterial);
-        rail.position.set(frontX, floorY + 0.45, 0);
-        rail.castShadow = true;
-        aptGroup.add(rail);
-
-        // Louvered Windows
-        for (const oz of [-2.8, 2.8]) {
-          const win = this.createWindow(1.6, 1.2);
-          win.position.set(frontX, floorY + 0.8, oz);
-          win.rotation.y = facingRoad > 0 ? -Math.PI / 2 : Math.PI / 2;
-          aptGroup.add(win);
-        }
-
-        // Outdoor AC unit
-        aptGroup.add(this.createACUnit(frontX, floorY + 1.2, 0, facingRoad > 0 ? -Math.PI / 2 : Math.PI / 2));
-      }
-
-      // Rooftop Black GeePee Polyethylene Water Tanks
-      for (const rx of [-2.5, 2.5]) {
-        const tankGeo = new THREE.CylinderGeometry(0.85, 0.85, 1.8, 16);
-        const tank = new THREE.Mesh(tankGeo, this.matLib.waterTankBlackMaterial);
-        tank.position.set(rx, H + 0.9, -1.5);
-        tank.castShadow = true;
-        aptGroup.add(tank);
-      }
+      dressBuilding(aptGroup, {
+        style: 'flats',
+        facing: (facingRoad * Math.PI) / 2,
+        floors: cfg.floors + 1,
+        accent: new THREE.Color(cfg.color).multiplyScalar(0.62).getHex(),
+        frontBays: 4,
+      });
 
       this.group.add(aptGroup);
     });

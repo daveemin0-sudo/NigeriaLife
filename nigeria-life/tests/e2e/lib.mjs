@@ -143,6 +143,8 @@ export async function useStation(page, id, inside = true) {
     if (btn && obj) { btn.click(); return obj.id; }
     return null;
   });
+  // Desks, counters and machines are used with a visible action; what they do lands part-way through it
+  await advance(page, 2.6);
   await wait(350);
   return { ok: true, card };
 }

@@ -66,6 +66,11 @@ export class Actor {
     return this.sequence !== null && this.sequence.ended === null;
   }
 
+  /** Busy with something that should not be broken off for small talk (serving a table, ringing up a sale). */
+  public get engaged(): boolean {
+    return this.busy && !this.sequence!.casual;
+  }
+
   public get yaw(): number {
     return this.root.rotation.y;
   }

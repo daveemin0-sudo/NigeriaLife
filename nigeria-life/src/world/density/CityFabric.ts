@@ -637,78 +637,47 @@ export class CityFabric {
     this.commitSigns();
   }
 
-  /** Box with facade UVs tiled per bay / per floor; roof and base sample a plain wall texel */
+  /**
+   * Box with facade UVs tiled per bay / per floor; roof and base sample a plain wall texel.
+   * The facade texture holds two bays by two floors, each a little different, so neighbouring
+   * windows on a building are not all the same.
+   */
   private createBodyGeometry(bays: number, floors: number): THREE.BufferGeometry {
     const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
     const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
     // BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z (4 vertices each)
     for (let i = 0; i < uv.count; i++) {
       const face = Math.floor(i / 4);
-      if (face === 2 || face === 3) uv.setXY(i, 0.04, 0.5);
-      else uv.setXY(i, uv.getX(i) * bays, uv.getY(i) * floors);
+      if (face === 2 || face === 3) uv.setXY(i, 0.02, 0.805);
+      else uv.setXY(i, (uv.getX(i) * bays) / 2, (uv.getY(i) * floors) / 2);
     }
     uv.needsUpdate = true;
     return geo;
   }
 
-  /** One bay × one floor tile. Walls are near-white so the per-instance colour tints them. */
+  /**
+   * Two bays by two floors, each cell a little different. Walls are near-white so the
+   * per-instance colour tints them.
+   */
   private createFacadeTexture(kind: FacadeKind): THREE.CanvasTexture {
-    const S = 128;
+    const C = 128; // one bay by one floor
+    const S = C * 2;
     const canvas = document.createElement('canvas');
     canvas.width = S;
     canvas.height = S;
     const ctx = canvas.getContext('2d')!;
     const rand = seededRandom(kind.length * 977);
 
-    if (kind === 'tenement') {
-      ctx.fillStyle = '#f2ede2';
-      ctx.fillRect(0, 0, S, S);
-      // Weathering streaks
-      for (let i = 0; i < 26; i++) {
-        ctx.fillStyle = `rgba(90, 70, 50, ${0.03 + rand() * 0.05})`;
-        ctx.fillRect(rand() * S, rand() * S, 2 + rand() * 5, 10 + rand() * 40);
-      }
-      // Floor slab band
-      ctx.fillStyle = '#cfc8ba';
-      ctx.fillRect(0, S - 9, S, 9);
-      // Louvred window with frame
-      ctx.fillStyle = '#e4dccb';
-      ctx.fillRect(30, 26, 68, 70);
-      ctx.fillStyle = '#27323d';
-      ctx.fillRect(35, 31, 58, 60);
-      ctx.fillStyle = 'rgba(160, 190, 205, 0.55)';
-      for (let y = 34; y < 90; y += 7) ctx.fillRect(36, y, 56, 3);
-      ctx.fillStyle = '#e4dccb';
-      ctx.fillRect(62, 31, 4, 60);
-    } else if (kind === 'commercial') {
-      ctx.fillStyle = '#f3f3f0';
-      ctx.fillRect(0, 0, S, S);
-      ctx.fillStyle = '#d4d4cf';
-      ctx.fillRect(0, S - 16, S, 16);
-      // Ribbon glazing
-      ctx.fillStyle = '#2f4a63';
-      ctx.fillRect(8, 28, 112, 62);
-      const sheen = ctx.createLinearGradient(0, 28, 0, 90);
-      sheen.addColorStop(0, 'rgba(170, 205, 230, 0.55)');
-      sheen.addColorStop(1, 'rgba(40, 70, 100, 0.1)');
-      ctx.fillStyle = sheen;
-      ctx.fillRect(8, 28, 112, 62);
-      ctx.fillStyle = '#e8e8e4';
-      ctx.fillRect(62, 28, 4, 62);
-      ctx.fillRect(8, 57, 112, 3);
-    } else {
-      // Curtain-wall glass
-      const glass = ctx.createLinearGradient(0, 0, 0, S);
-      glass.addColorStop(0, '#e8f2fa');
-      glass.addColorStop(1, '#b4c8d8');
-      ctx.fillStyle = glass;
-      ctx.fillRect(0, 0, S, S);
-      ctx.fillStyle = 'rgba(60, 80, 100, 0.55)';
-      ctx.fillRect(0, S - 20, S, 20);
-      ctx.fillStyle = '#6b7785';
-      ctx.fillRect(0, 0, 4, S);
-      ctx.fillRect(S / 2 - 2, 0, 4, S);
-      ctx.fillRect(0, 0, S, 4);
+    for (let cell = 0; cell < 4; cell++) {
+      ctx.save();
+      ctx.translate((cell % 2) * C, Math.floor(cell / 2) * C);
+      ctx.beginPath();
+      ctx.rect(0, 0, C, C);
+      ctx.clip();
+      if (kind === 'tenement') this.drawTenementCell(ctx, C, cell, rand);
+      else if (kind === 'commercial') this.drawCommercialCell(ctx, C, cell, rand);
+      else this.drawTowerCell(ctx, C, cell, rand);
+      ctx.restore();
     }
 
     const tex = new THREE.CanvasTexture(canvas);
@@ -717,6 +686,171 @@ export class CityFabric {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
     return tex;
+  }
+
+  /** A flat in a walk-up block: a louvred window behind burglar bars, or the door onto a balcony. */
+  private drawTenementCell(ctx: CanvasRenderingContext2D, C: number, cell: number, rand: () => number): void {
+    ctx.fillStyle = '#f2ede2';
+    ctx.fillRect(0, 0, C, C);
+    // Rain streaks down the plaster, heaviest under the slab above
+    for (let i = 0; i < 22; i++) {
+      ctx.fillStyle = `rgba(90, 70, 50, ${0.03 + rand() * 0.06})`;
+      ctx.fillRect(rand() * C, rand() * C * 0.5, 2 + rand() * 4, 14 + rand() * 46);
+    }
+    // Painted lower band and the floor slab
+    ctx.fillStyle = 'rgba(70, 55, 40, 0.13)';
+    ctx.fillRect(0, C - 40, C, 31);
+    ctx.fillStyle = '#cfc8ba';
+    ctx.fillRect(0, C - 9, C, 9);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+    ctx.fillRect(0, C - 10, C, 2);
+
+    if (cell === 2) {
+      // The door onto the balcony, with washing on a line across it
+      ctx.fillStyle = '#e4dccb';
+      ctx.fillRect(40, 24, 48, 95);
+      ctx.fillStyle = '#2b3640';
+      ctx.fillRect(45, 29, 38, 90);
+      ctx.fillStyle = 'rgba(160, 190, 205, 0.4)';
+      ctx.fillRect(47, 32, 34, 34);
+      ctx.strokeStyle = 'rgba(40, 40, 40, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(4, 62);
+      ctx.lineTo(124, 66);
+      ctx.stroke();
+      const cloths = ['#c2413a', '#f1f1ec', '#3b6fb5', '#d8b23a'];
+      cloths.forEach((color, i) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(8 + i * 9 + (i > 1 ? 66 : 0), 63 + i * 0.4, 8, 16 + (i % 2) * 6);
+      });
+      return;
+    }
+
+    // Concrete hood, frame, dark opening, glass louvres
+    ctx.fillStyle = '#d9d2c2';
+    ctx.fillRect(24, 19, 80, 6);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    ctx.fillRect(26, 25, 76, 3);
+    ctx.fillStyle = '#e4dccb';
+    ctx.fillRect(30, 26, 68, 70);
+    ctx.fillStyle = '#27323d';
+    ctx.fillRect(35, 31, 58, 60);
+    ctx.fillStyle = 'rgba(160, 190, 205, 0.55)';
+    for (let y = 34; y < 90; y += 7) ctx.fillRect(36, y, 56, 3);
+    if (cell === 1) {
+      // A curtain drawn half across
+      ctx.fillStyle = 'rgba(196, 120, 90, 0.75)';
+      ctx.fillRect(36, 32, 24, 58);
+    }
+    ctx.fillStyle = '#e4dccb';
+    ctx.fillRect(62, 31, 4, 60);
+    // Burglar bars
+    ctx.fillStyle = 'rgba(25, 30, 36, 0.85)';
+    for (let x = 41; x < 92; x += 9) ctx.fillRect(x, 31, 1.5, 60);
+    ctx.fillRect(35, 60, 58, 1.5);
+    // Sill
+    ctx.fillStyle = '#d9d2c2';
+    ctx.fillRect(27, 96, 74, 5);
+
+    if (cell === 0) {
+      // A split-unit compressor on brackets, and the stain under its drain
+      ctx.fillStyle = '#dfe2e6';
+      ctx.fillRect(96, 100, 28, 17);
+      ctx.fillStyle = '#6b7280';
+      ctx.fillRect(100, 103, 14, 11);
+      ctx.fillStyle = 'rgba(60, 70, 60, 0.28)';
+      ctx.fillRect(108, 117, 3, 2);
+    } else if (cell === 3) {
+      // A dish bolted beside the window
+      ctx.fillStyle = '#c9ced4';
+      ctx.beginPath();
+      ctx.ellipse(13, 44, 9, 7, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#6b7280';
+      ctx.fillRect(12, 44, 2, 12);
+    }
+  }
+
+  /** An office floor: a ribbon of glazing, with blinds, sun-fins or a plant-room grille. */
+  private drawCommercialCell(ctx: CanvasRenderingContext2D, C: number, cell: number, rand: () => number): void {
+    ctx.fillStyle = '#f3f3f0';
+    ctx.fillRect(0, 0, C, C);
+    for (let i = 0; i < 10; i++) {
+      ctx.fillStyle = `rgba(80, 80, 70, ${0.02 + rand() * 0.04})`;
+      ctx.fillRect(rand() * C, 0, 2 + rand() * 4, 10 + rand() * 20);
+    }
+    // Spandrel and slab edge
+    ctx.fillStyle = '#d4d4cf';
+    ctx.fillRect(0, C - 16, C, 16);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+    ctx.fillRect(0, C - 17, C, 2);
+    // Ribbon glazing
+    ctx.fillStyle = '#2f4a63';
+    ctx.fillRect(8, 28, 112, 62);
+    const sheen = ctx.createLinearGradient(0, 28, 0, 90);
+    sheen.addColorStop(0, 'rgba(170, 205, 230, 0.55)');
+    sheen.addColorStop(1, 'rgba(40, 70, 100, 0.1)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(8, 28, 112, 62);
+    if (cell === 1) {
+      // Blinds part of the way down
+      ctx.fillStyle = 'rgba(232, 230, 220, 0.82)';
+      ctx.fillRect(8, 28, 54, 26 + rand() * 14);
+      ctx.fillRect(66, 28, 54, 12 + rand() * 20);
+    } else if (cell === 3) {
+      // A lit office late in the day
+      ctx.fillStyle = 'rgba(250, 220, 150, 0.35)';
+      ctx.fillRect(66, 28, 54, 62);
+    }
+    ctx.fillStyle = '#e8e8e4';
+    ctx.fillRect(62, 28, 4, 62);
+    ctx.fillRect(8, 57, 112, 3);
+    if (cell === 2) {
+      // Vertical sun-fins across the glass
+      ctx.fillStyle = 'rgba(236, 236, 230, 0.95)';
+      for (let x = 14; x < 120; x += 15) ctx.fillRect(x, 24, 4, 70);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      for (let x = 18; x < 124; x += 15) ctx.fillRect(x, 24, 2, 70);
+    }
+    if (cell === 0) {
+      // A louvred panel where the air handling sits
+      ctx.fillStyle = '#b9bcc0';
+      ctx.fillRect(86, 96, 30, 12);
+      ctx.fillStyle = '#7b8088';
+      for (let y = 98; y < 107; y += 3) ctx.fillRect(88, y, 26, 1);
+    }
+  }
+
+  /** A tower's curtain wall: panes that each catch the sky a little differently. */
+  private drawTowerCell(ctx: CanvasRenderingContext2D, C: number, cell: number, rand: () => number): void {
+    const glass = ctx.createLinearGradient(0, 0, 0, C);
+    glass.addColorStop(0, '#e8f2fa');
+    glass.addColorStop(1, '#b4c8d8');
+    ctx.fillStyle = glass;
+    ctx.fillRect(0, 0, C, C);
+    // Each pane a shade of its own
+    for (const x of [4, C / 2 + 2]) {
+      ctx.fillStyle = `rgba(${40 + rand() * 60}, ${80 + rand() * 50}, ${120 + rand() * 60}, ${0.1 + rand() * 0.22})`;
+      ctx.fillRect(x, 4, C / 2 - 6, C - 24);
+    }
+    if (cell === 1 || cell === 2) {
+      // Clouds caught in the glass
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.beginPath();
+      ctx.ellipse(30 + cell * 20, 40 + cell * 8, 30, 10, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Spandrel panel, mullions and transom
+    ctx.fillStyle = 'rgba(60, 80, 100, 0.55)';
+    ctx.fillRect(0, C - 20, C, 20);
+    ctx.fillStyle = '#6b7785';
+    ctx.fillRect(0, 0, 4, C);
+    ctx.fillRect(C / 2 - 2, 0, 4, C);
+    ctx.fillRect(0, 0, C, 4);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fillRect(4, 4, 1.5, C - 24);
+    ctx.fillRect(C / 2 + 2, 4, 1.5, C - 24);
   }
 
   /** All shop signboards share one atlas texture; each instance picks its cell in the shader */

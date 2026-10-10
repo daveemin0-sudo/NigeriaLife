@@ -468,6 +468,21 @@ export const LAGOS_LANDMARKS: MapLandmark[] = [
       { label: '🚶 Walk to Buka', actionType: 'travel', targetId: 'lagos_island' },
     ],
   },
+  {
+    id: 'everyday_supermarket',
+    name: 'Everyday Supermarket',
+    districtId: 'lagos_island',
+    type: 'commercial',
+    position: new THREE.Vector3(14, 0, 36),
+    icon: '🛒',
+    title: 'Everyday Supermarket',
+    subtitle: 'Cold Drinks, Bread, Snacks & Household Things',
+    description: 'A neighbourhood supermarket. Take a basket, pick from the shelves and pay at the till.',
+    actions: [
+      { label: '🛒 Enter Supermarket [E]', actionType: 'enter' },
+      { label: '🚶 Walk to Supermarket', actionType: 'travel', targetId: 'lagos_island' },
+    ],
+  },
 ];
 
 export const LAGOS_PROPERTIES: MapProperty[] = [

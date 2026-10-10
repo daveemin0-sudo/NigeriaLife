@@ -5,6 +5,7 @@ import type { NetPacket, PlayerNetState, ChatMessage } from './types';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import type { EmoteType } from '../player/CharacterCustomization';
+import { InteriorManager } from '../interiors/InteriorManager';
 
 export class NetworkManager {
   private static instance: NetworkManager | null = null;
@@ -108,6 +109,12 @@ export class NetworkManager {
           );
         }
       }
+    } else if (packet.type === 'social') {
+      if (packet.toId === this.localId) {
+        const text = packet.kind === 'wave' ? '👋 How far!' : '🙏 Good day!';
+        this.remotePlayers.get(packet.fromId)?.showSpeechBubble(text);
+        showGameToast(`@${packet.fromName} ${packet.kind === 'wave' ? 'waved at you' : 'greeted you'}.`, 'info', 3200);
+      }
     } else if (packet.type === 'emote_sync') {
       if (this.remotePlayers.has(packet.playerId)) {
         const remote = this.remotePlayers.get(packet.playerId)!;
@@ -118,6 +125,7 @@ export class NetworkManager {
 
   public getLocalNetState(): PlayerNetState {
     const data = BackendService.getInstance().getData();
+    const actor = this.localPlayer.actor;
     return {
       id: this.localId,
       name: this.localPlayer.config.name,
@@ -130,6 +138,9 @@ export class NetworkManager {
       isMoving: this.localPlayer.isMoving,
       currentEmote: this.localPlayer.currentEmote,
       config: this.localPlayer.config,
+      place: InteriorManager.getInstance().currentInterior?.id,
+      // While a scripted action runs, others see the same pose
+      pose: actor.scripted ? { legs: actor.pose.legs, arms: actor.pose.arms, height: actor.pose.height } : undefined,
       streetCred: data.stats.streetCred,
     };
   }
@@ -208,6 +219,18 @@ export class NetworkManager {
     return { success: true, message: `Transferred ₦${amount.toLocaleString()} successfully!` };
   }
 
+  /** Tells another player that this one waved at or greeted them. Everyone nearby sees the gesture itself. */
+  public sendSocial(toId: string, kind: 'wave' | 'greet'): void {
+    const packet: NetPacket = {
+      type: 'social',
+      fromId: this.localId,
+      fromName: this.localPlayer.config.name,
+      toId,
+      kind,
+    };
+    this.channel.postMessage(packet);
+  }
+
   public syncEmote(emote: EmoteType): void {
     const packet: NetPacket = {
       type: 'emote_sync',
@@ -242,7 +265,7 @@ export class NetworkManager {
     this.remotePlayers.forEach((rp, id) => {
       list.push({
         id,
-        name: (rp as any).name || `@${id.substring(0, 8)}`,
+        name: rp.name || `@${id.substring(0, 8)}`,
         avatar: '👤',
         streetCred: 35,
         isLocal: false,

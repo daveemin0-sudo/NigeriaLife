@@ -5,7 +5,7 @@ import type { HumanRig } from '../graphics/HumanMeshBuilder';
  * someone can wave while seated, or carry a plate while walking.
  */
 export type LegPose = 'stand' | 'walk' | 'sit' | 'lie';
-export type ArmPose = 'rest' | 'swing' | 'wave' | 'eat' | 'carry' | 'reach' | 'talk';
+export type ArmPose = 'rest' | 'swing' | 'wave' | 'eat' | 'carry' | 'reach' | 'talk' | 'greet' | 'shake';
 
 export interface PoseState {
   legs: LegPose;
@@ -122,6 +122,21 @@ export function poseTargets(pose: PoseState, time: number, out: JointValues): Jo
       out.headX = 0.08 + lift * 0.2;
       break;
     }
+    case 'greet':
+      // A respectful half-bow with the right hand to the chest
+      out.leftArmX = seated ? -0.45 : 0;
+      out.rightArmX = -0.95;
+      out.rightArmZ = -0.62;
+      out.torsoX = seated ? 0.16 : 0.27;
+      out.headX = 0.22;
+      break;
+    case 'shake':
+      // Right hand out at waist height, pumping gently
+      out.leftArmX = seated ? -0.45 : 0;
+      out.rightArmX = -1.12 + Math.sin(time * 11) * 0.13;
+      out.rightArmZ = -0.08;
+      out.torsoX = 0.07;
+      break;
     case 'talk':
       out.leftArmX = -0.4 + Math.sin(time * 4) * 0.2;
       out.leftArmZ = -0.2;
@@ -155,6 +170,15 @@ export function writeJoints(rig: HumanRig, joints: JointValues, baseTorsoY: numb
   rig.group.position.y = joints.lift - joints.drop;
   rig.group.rotation.x = -joints.recline * (Math.PI / 2);
   if (rig.phoneMesh) rig.phoneMesh.visible = false;
+}
+
+/**
+ * Keeps both hands on whatever is being carried while the character's usual owner animates
+ * the rest of the body (the player walking about freely with a shop basket).
+ */
+export function holdCarriedItem(rig: HumanRig): void {
+  rig.leftArm.rotation.set(-1.25, 0, 0.14);
+  rig.rightArm.rotation.set(-1.25, 0, -0.14);
 }
 
 export function readJoints(rig: HumanRig, baseTorsoY: number, out: JointValues): JointValues {

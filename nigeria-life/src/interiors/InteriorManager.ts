@@ -12,6 +12,7 @@ import { PoliceInterior } from './templates/PoliceInterior';
 import { ResidentialInterior } from './templates/ResidentialInterior';
 import { UNILAGInterior } from './templates/UNILAGInterior';
 import { AirportInterior } from './templates/AirportInterior';
+import { ShopInterior } from './templates/ShopInterior';
 import type { InteractiveObject, World } from '../world/World';
 import type { Player } from '../player/Player';
 import type { GameCamera } from '../game/Camera';
@@ -23,11 +24,14 @@ import { Sequence, steps } from '../interactions/Sequence';
 import type { HingedDoor } from '../interactions/Door';
 import type { NavGrid } from '../interactions/NavGrid';
 import type { StreetDoor } from '../world/Buildings';
+import { RoomCutaway } from './RoomCutaway';
 
 /** What an interior can optionally provide beyond its room and stations. */
 interface InteriorTemplate {
   group: THREE.Group;
   def: InteriorDefinition;
+  interactiveList: InteractiveObject[];
+  update: (delta: number, time: number) => void;
   /** Floor map for routing characters around the furniture */
   nav?: NavGrid;
   /** Called once the player is inside, and when they have left */
@@ -66,6 +70,9 @@ export class InteriorManager {
   public residence: ResidentialInterior;
   public unilag: UNILAGInterior;
   public airport: AirportInterior;
+  public shop: ShopInterior;
+  /** Every interior, in one list: adding a place means adding it here */
+  private templates: InteriorTemplate[];
 
   // Active state
   public locationMode: GameLocationMode = 'street';
@@ -78,6 +85,10 @@ export class InteriorManager {
   private streetDoors = new Map<InteriorType, StreetDoor>();
   /** True from the moment the player commits to a doorway until they are through it */
   private usingDoor: boolean = false;
+  /** Keeps the player in view indoors: lowers outer walls and fades whatever else is in the way */
+  public readonly cutaway = new RoomCutaway();
+  /** The last clear floor the player stood on indoors, to put them back when they walk into furniture */
+  private lastClearSpot: THREE.Vector3 | null = null;
 
   public static getInstance(): InteriorManager {
     if (!InteriorManager.instance) {
@@ -99,23 +110,17 @@ export class InteriorManager {
     this.residence = new ResidentialInterior();
     this.unilag = new UNILAGInterior();
     this.airport = new AirportInterior();
+    this.shop = new ShopInterior();
+    this.templates = [
+      this.hospital, this.bank, this.restaurant, this.police,
+      this.residence, this.unilag, this.airport, this.shop,
+    ];
 
     // All interiors are hidden by default until specifically entered
-    this.hospital.group.visible = false;
-    this.bank.group.visible = false;
-    this.restaurant.group.visible = false;
-    this.police.group.visible = false;
-    this.residence.group.visible = false;
-    this.unilag.group.visible = false;
-    this.airport.group.visible = false;
-
-    this.group.add(this.hospital.group);
-    this.group.add(this.bank.group);
-    this.group.add(this.restaurant.group);
-    this.group.add(this.police.group);
-    this.group.add(this.residence.group);
-    this.group.add(this.unilag.group);
-    this.group.add(this.airport.group);
+    for (const template of this.templates) {
+      template.group.visible = false;
+      this.group.add(template.group);
+    }
 
     // Each room stands on its own plot of ground, which is all the camera sees around it
     for (const child of this.group.children) {
@@ -132,49 +137,21 @@ export class InteriorManager {
    * Get all interactive objects across all active interiors.
    */
   public getAllInteractiveObjects(): InteractiveObject[] {
-    return [
-      ...this.hospital.interactiveList,
-      ...this.bank.interactiveList,
-      ...this.restaurant.interactiveList,
-      ...this.police.interactiveList,
-      ...this.residence.interactiveList,
-      ...this.unilag.interactiveList,
-      ...this.airport.interactiveList,
-    ];
+    return this.templates.flatMap((template) => template.interactiveList);
   }
 
   /**
    * Get interactive objects for only the currently active interior.
    */
   public getActiveInteractiveObjects(): InteractiveObject[] {
-    if (!this.currentInterior) return [];
-    switch (this.currentInterior.type) {
-      case 'hospital': return this.hospital.interactiveList;
-      case 'bank': return this.bank.interactiveList;
-      case 'restaurant': return this.restaurant.interactiveList;
-      case 'police': return this.police.interactiveList;
-      case 'residence': return this.residence.interactiveList;
-      case 'university': return this.unilag.interactiveList;
-      case 'airport': return this.airport.interactiveList;
-      default: return [];
-    }
+    return this.getActiveTemplate()?.interactiveList ?? [];
   }
 
   /**
    * Get the active interior Three.js Group.
    */
   public getActiveInteriorGroup(): THREE.Group | null {
-    if (!this.currentInterior) return null;
-    switch (this.currentInterior.type) {
-      case 'hospital': return this.hospital.group;
-      case 'bank': return this.bank.group;
-      case 'restaurant': return this.restaurant.group;
-      case 'police': return this.police.group;
-      case 'residence': return this.residence.group;
-      case 'university': return this.unilag.group;
-      case 'airport': return this.airport.group;
-      default: return null;
-    }
+    return this.getActiveTemplate()?.group ?? null;
   }
 
   /**
@@ -191,15 +168,7 @@ export class InteriorManager {
    * Find interior definition matching a street building ID or interior ID.
    */
   public getInteriorByBuildingId(id: string): InteriorDefinition | null {
-    const list = [
-      this.hospital.def,
-      this.bank.def,
-      this.restaurant.def,
-      this.police.def,
-      this.residence.def,
-      this.unilag.def,
-      this.airport.def,
-    ];
+    const list = this.templates.map((template) => template.def);
 
     const cleanId = id.toLowerCase();
     const match = list.find((item) => 
@@ -216,6 +185,7 @@ export class InteriorManager {
       (id === 'mama-put' && item.type === 'restaurant') ||
       (id === 'mama_put_buka' && item.type === 'restaurant') ||
       (id === 'chop-life' && item.type === 'restaurant') ||
+      ((id === 'supermarket' || id === 'everyday_supermarket' || id === 'dest_lagos_supermarket') && item.type === 'shop') ||
       (id === 'police' && item.type === 'police') ||
       (id === 'police-station' && item.type === 'police') ||
       (id === 'residence' && item.type === 'residence') ||
@@ -267,13 +237,9 @@ export class InteriorManager {
     world.apartment.group.visible = false;
 
     // 5. Isolate interior rendering: show ONLY target interior group
-    this.hospital.group.visible = target.type === 'hospital';
-    this.bank.group.visible = target.type === 'bank';
-    this.restaurant.group.visible = target.type === 'restaurant';
-    this.police.group.visible = target.type === 'police';
-    this.residence.group.visible = target.type === 'residence';
-    this.unilag.group.visible = target.type === 'university';
-    this.airport.group.visible = target.type === 'airport';
+    for (const template of this.templates) {
+      template.group.visible = template.def === target;
+    }
 
     // 6. Teleport player character mesh into interior coordinates
     const spawnPos = options.spawnAt ?? target.interiorOrigin.clone().add(target.playerSpawnOffset);
@@ -281,6 +247,7 @@ export class InteriorManager {
     player.position.copy(spawnPos);
     player.mesh.rotation.y = options.spawnYaw ?? 0; // Face forward into the room
     player.stopMoving();
+    this.lastClearSpot = null;
     this.getActiveTemplate()?.onPlayerEntered?.();
 
     // 7. Activate dedicated interior camera and layer filter, framed on this room
@@ -294,7 +261,9 @@ export class InteriorManager {
     cameraManager.setMode('interior');
     cameraManager.setLayerMode('interior');
     cameraManager.snapToPlayer(player, 'interior');
-    this.updateCutaway(cameraManager.camera.position);
+    const activeGroup = this.getActiveInteriorGroup();
+    if (activeGroup) this.cutaway.attach(activeGroup, target.interiorOrigin);
+    this.cutaway.update(0, cameraManager.camera, player.position, true);
 
     // 8. Update HUD location badge and banner
     hud.updateLocation(target.name, `Interior • ${target.districtName}`);
@@ -336,14 +305,11 @@ export class InteriorManager {
     // 1. Start cinematic fade to black
     await this.setFadeOverlay(1);
 
-    // 2. Hide all interior groups
-    this.hospital.group.visible = false;
-    this.bank.group.visible = false;
-    this.restaurant.group.visible = false;
-    this.police.group.visible = false;
-    this.residence.group.visible = false;
-    this.unilag.group.visible = false;
-    this.airport.group.visible = false;
+    // 2. Hide all interior groups, with every wall and fitting back as it was
+    this.cutaway.detach();
+    for (const template of this.templates) {
+      template.group.visible = false;
+    }
 
     // 3. RESTORE outdoor street world visibility
     world.setStreetModeVisibility(true);
@@ -385,16 +351,7 @@ export class InteriorManager {
   }
 
   private templateFor(type: InteriorType): InteriorTemplate | null {
-    switch (type) {
-      case 'hospital': return this.hospital;
-      case 'bank': return this.bank;
-      case 'restaurant': return this.restaurant;
-      case 'police': return this.police;
-      case 'residence': return this.residence;
-      case 'university': return this.unilag;
-      case 'airport': return this.airport;
-      default: return null;
-    }
+    return this.templates.find((template) => template.def.type === type) ?? null;
   }
 
   /** Floor map of the current room, if it has one, for walking around the furniture. */
@@ -630,32 +587,12 @@ export class InteriorManager {
   }
 
   /**
-   * Lowers whichever outer walls stand between the camera and the room, so the view into
-   * the room is never blocked however the player turns the camera.
+   * Keeps the view into the room clear however the player turns the camera: outer walls on
+   * the camera's side are lowered, and anything tall between the camera and the player fades.
    */
-  public updateCutaway(cameraPosition: THREE.Vector3): void {
-    const shell = this.getActiveShell();
-    if (!shell || !this.currentInterior) return;
-
-    const size = shell.userData.size as { width: number; length: number; height: number };
-    const origin = this.currentInterior.interiorOrigin;
-    const dx = cameraPosition.x - origin.x;
-    const dz = cameraPosition.z - origin.z;
-    const margin = 2;
-    const cutHeight = 1.2;
-
-    const walls: Array<[string, boolean]> = [
-      ['shell_wall_back', dz < -(size.length / 2 - margin)],
-      ['shell_wall_left', dx < -(size.width / 2 - margin)],
-      ['shell_wall_right', dx > size.width / 2 - margin],
-    ];
-    for (const [name, facesCamera] of walls) {
-      const wall = shell.getObjectByName(name);
-      if (!wall) continue;
-      const height = facesCamera ? cutHeight : size.height;
-      wall.scale.y = height / size.height;
-      wall.position.y = height / 2;
-    }
+  public updateCutaway(delta: number, camera: THREE.Camera, player: Player): void {
+    if (!this.currentInterior) return;
+    this.cutaway.update(delta, camera, player.position);
   }
 
   /** Where the player returns to on the street when they leave the current interior. */
@@ -669,29 +606,7 @@ export class InteriorManager {
     this.animTime += delta;
 
     // Only update animations and NPCs of the active interior
-    switch (this.currentInterior.type) {
-      case 'hospital':
-        this.hospital.update(delta, this.animTime);
-        break;
-      case 'bank':
-        this.bank.update(delta, this.animTime);
-        break;
-      case 'restaurant':
-        this.restaurant.update(delta, this.animTime);
-        break;
-      case 'police':
-        this.police.update(delta, this.animTime);
-        break;
-      case 'residence':
-        this.residence.update(delta, this.animTime);
-        break;
-      case 'university':
-        this.unilag.update(delta, this.animTime);
-        break;
-      case 'airport':
-        this.airport.update(delta, this.animTime);
-        break;
-    }
+    this.getActiveTemplate()?.update(delta, this.animTime);
 
     // Keep player inside interior room boundaries (not while a doorway sequence walks them out)
     if (player && !this.usingDoor && this.currentInterior.rooms.length > 0) {
@@ -708,6 +623,39 @@ export class InteriorManager {
       player.mesh.position.z = THREE.MathUtils.clamp(player.mesh.position.z, minZ, maxZ);
       player.position.copy(player.mesh.position);
     }
+
+    if (player && !this.usingDoor) this.keepOffFurniture(player);
+  }
+
+  /**
+   * Walking about freely in a room with a floor map, the player cannot pass through its
+   * furniture: a step into something solid slides along it, or is not taken.
+   * Scripted actions (sitting on a chair, lying on a bed) go where they need to.
+   */
+  private keepOffFurniture(player: Player): void {
+    const nav = this.getActiveNav();
+    if (!nav) return;
+    const spot = player.mesh.position;
+    if (player.actor.scripted || nav.isFree(spot.x, spot.z)) {
+      if (nav.isFree(spot.x, spot.z)) (this.lastClearSpot ??= new THREE.Vector3()).set(spot.x, 0, spot.z);
+      return;
+    }
+    const last = this.lastClearSpot;
+    if (!last || Math.hypot(spot.x - last.x, spot.z - last.z) > 1.5) {
+      // Put down somewhere solid (stood up from a seat, or moved here by something else): step to the nearest floor
+      const clear = nav.closestFree(spot);
+      spot.x = clear.x;
+      spot.z = clear.z;
+    } else if (nav.isFree(spot.x, last.z)) {
+      spot.z = last.z;
+    } else if (nav.isFree(last.x, spot.z)) {
+      spot.x = last.x;
+    } else {
+      spot.x = last.x;
+      spot.z = last.z;
+    }
+    if (nav.isFree(spot.x, spot.z)) (this.lastClearSpot ??= new THREE.Vector3()).set(spot.x, 0, spot.z);
+    player.position.copy(spot);
   }
 
   private setFadeOverlay(opacity: number): Promise<void> {
