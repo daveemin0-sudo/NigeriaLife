@@ -4,6 +4,7 @@ import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
 import type { CityId, CityTravelRoute } from '../cities/CityTypes';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
+import { draw, forget } from './kit/StableView';
 
 export class InterStateModal {
   private container: HTMLDivElement;
@@ -46,6 +47,7 @@ export class InterStateModal {
     if (originCityId) this.currentOriginCityId = originCityId;
     this.isOpen = true;
     this.container.style.display = 'flex';
+    forget(this.container);
     this.render(this.backend.getData());
     UIStateManager.getInstance().pushModal('interstate');
   }
@@ -68,7 +70,7 @@ export class InterStateModal {
     const origin = NIGERIA_CITIES_REGISTRY[this.currentOriginCityId];
     const routes = origin.routes;
 
-    this.container.innerHTML = `
+    const html = `
       <div class="modal-backdrop"></div>
       <div class="interstate-dialog">
         <header class="dialog-header">
@@ -144,7 +146,7 @@ export class InterStateModal {
       </div>
     `;
 
-    this.setupEvents(routes);
+    draw(this.container, html, { drawn: () => this.setupEvents(routes) });
   }
 
   private setupEvents(routes: CityTravelRoute[]): void {

@@ -1310,7 +1310,7 @@ export class Buildings {
 
     // C. Victory Phones & Laptops Hub (South-East: x = 18, z = 35)
     const slotGroup = new THREE.Group();
-    slotGroup.position.set(18, 0, 35);
+    slotGroup.position.set(18, 0, 36.2);
 
     const slotGeo = new THREE.BoxGeometry(8.5, 6.5, 8.5);
     const slotBuilding = new THREE.Mesh(slotGeo, this.matLib.wallPlasterTeal);
@@ -1342,12 +1342,12 @@ export class Buildings {
       name: 'Victory Phones & Laptops',
       category: 'Tech & Electronics',
       description: 'Original iPhones, MacBooks, screen replacement, fast chargers, power banks, and AirPods.',
-      interactionPoint: new THREE.Vector3(10, 0, 35),
+      interactionPoint: new THREE.Vector3(10, 0, 36.2),
     });
 
     // D. Lagos Barbershop & Grooming Lounge (South-West: x = -18, z = 35)
     const barbGroup = new THREE.Group();
-    barbGroup.position.set(-18, 0, 35);
+    barbGroup.position.set(-18, 0, 37.3);
 
     const barbGeo = new THREE.BoxGeometry(8.0, 5.5, 7.5);
     const barbBuilding = new THREE.Mesh(barbGeo, this.matLib.wallPlasterOchre);
@@ -1379,7 +1379,7 @@ export class Buildings {
       name: 'Lagos Executive Barbershop',
       category: 'Grooming & Style',
       description: 'Clean fade, waves, beard dye treatment, and hot towel wash.',
-      interactionPoint: new THREE.Vector3(-10, 0, 35),
+      interactionPoint: new THREE.Vector3(-10, 0, 37.3),
     });
   }
 
@@ -1388,9 +1388,10 @@ export class Buildings {
   // =========================================================================
   private buildApartmentBlocks(): void {
     const aptConfigs = [
-      { x: -19, z: -85, floors: 3, color: 0xf0e4cc, name: 'Palm View Flats' },
-      { x: 19, z: -85, floors: 4, color: 0xd9b99a, name: 'Heritage Heights' },
-      { x: 19, z: 65, floors: 3, color: 0xe6c9a0, name: 'Tejuosho Mansions' },
+      // Each on a stretch of Broad Street frontage of its own, clear of the landmarks either side
+      { x: -19, z: -100, floors: 3, color: 0xf0e4cc, name: 'Palm View Flats' },
+      { x: 19, z: -74.5, floors: 4, color: 0xd9b99a, name: 'Heritage Heights' },
+      { x: -19, z: 48, floors: 3, color: 0xe6c9a0, name: 'Tejuosho Mansions' },
     ];
 
     aptConfigs.forEach((cfg) => {
@@ -1433,7 +1434,7 @@ export class Buildings {
   // =========================================================================
   private buildFillingStation(): void {
     const stationGroup = new THREE.Group();
-    stationGroup.position.set(-21, 0, 75);
+    stationGroup.position.set(-21, 0, 78.2);
 
     // Forecourt concrete pad
     const padGeo = new THREE.BoxGeometry(16, 0.18, 18);
@@ -1510,7 +1511,7 @@ export class Buildings {
       name: 'NaijaPetro Filling Station & Mart',
       category: 'Fuel & Automotive',
       description: 'Refuel your Danfo/Keke, purchase engine oil, or grab cold bottled water.',
-      interactionPoint: new THREE.Vector3(-11, 0, 75),
+      interactionPoint: new THREE.Vector3(-11, 0, 78.2),
     });
   }
 
@@ -1519,7 +1520,7 @@ export class Buildings {
   // =========================================================================
   private buildMechanicWorkshop(): void {
     const mechGroup = new THREE.Group();
-    mechGroup.position.set(-19, 0, 105);
+    mechGroup.position.set(-19, 0, 109);
 
     // Open corrugated roof shed
     const roofGeo = new THREE.BoxGeometry(10, 0.15, 12);
@@ -1568,7 +1569,7 @@ export class Buildings {
       name: "God's Grace Auto Works",
       category: 'Repairs & Upgrades',
       description: 'Tune vehicle speed, change tires, repair broken down engine.',
-      interactionPoint: new THREE.Vector3(-10, 0, 105),
+      interactionPoint: new THREE.Vector3(-10, 0, 109),
     });
   }
 
@@ -1578,7 +1579,7 @@ export class Buildings {
   private buildConstructionSite(): void {
     const conGroup = new THREE.Group();
     // Positioned along the main commercial strip at x = 19, z = 54
-    conGroup.position.set(19, 0, 54);
+    conGroup.position.set(19, 0, 54.8);
 
     const conMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.95 });
     const rebarMat = new THREE.MeshStandardMaterial({ color: 0xb45309, metalness: 0.6, roughness: 0.7 });
@@ -1730,7 +1731,7 @@ export class Buildings {
       name: 'Eko Mega Plaza Development Site',
       category: 'Work & Labor',
       description: 'Active 4-storey commercial development approved by LASPPPA. Casual day-labor available.',
-      interactionPoint: new THREE.Vector3(10, 0, 54),
+      interactionPoint: new THREE.Vector3(10, 0, 54.8),
     });
   }
 

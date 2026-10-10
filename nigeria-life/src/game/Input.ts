@@ -28,6 +28,11 @@ export class InputManager {
 
   private raycaster: THREE.Raycaster;
   private mouseCoords: THREE.Vector2;
+  /** A tap arrives twice, as a mouse-style release and as a touch one; the first to act on it sets this */
+  private tapHandled = false;
+  private selfFeet = new THREE.Vector3();
+  private selfHead = new THREE.Vector3();
+  private selfNearest = new THREE.Vector3();
 
   // Visual Click Target Marker (Ripple ring on ground)
   private targetMarker: THREE.Mesh;
@@ -43,6 +48,10 @@ export class InputManager {
   public virtualJoystick: VirtualJoystick;
   public onToggleVehicle?: () => void;
   public onHonkVehicle?: () => void;
+  /** A click landed on open ground. Return true to use it instead of walking there. */
+  public onGroundClick?: (point: THREE.Vector3) => boolean;
+  /** The player clicked their own character, at this point on the screen */
+  public onSelfClicked?: (screen: { x: number; y: number }) => void;
 
   constructor(
     camera: THREE.Camera,
@@ -116,7 +125,7 @@ export class InputManager {
     window.addEventListener('touchstart', (e: TouchEvent) => {
       if (e.touches.length === 1) {
         const t = e.touches[0];
-        if (PointerScope.isGameView(e.target)) {
+        if (PointerScope.isGameView(e.target) && !PointerScope.pressIgnored) {
           this.isPointerDown = true;
           this.hasDragged = false;
           this.pointerDownPos.set(t.clientX, t.clientY);
@@ -146,7 +155,9 @@ export class InputManager {
       const wasDragging = this.hasDragged;
       this.isPointerDown = false;
       this.isRotatingCamera = false;
-      if (!wasDragging && e.changedTouches.length > 0) {
+      // The mouse-style release that comes with a tap has already dealt with it
+      if (this.tapHandled || PointerScope.pressIgnored) return;
+      if (!wasDragging && e.changedTouches.length > 0 && PointerScope.isGameView(e.target)) {
         const t = e.changedTouches[0];
         this.handleCanvasClick(t.clientX, t.clientY);
       }
@@ -258,6 +269,13 @@ export class InputManager {
       ? this.world.interiorManager.getActiveInteractiveObjects()
       : this.world.interactiveObjects;
 
+    if (this.onSelfClicked && this.pointerOnSelf(activeObjects)) {
+      this.hoveredObject = null;
+      this.hoverReticle.visible = false;
+      this.setCursor('interact');
+      return;
+    }
+
     // Check walkable terrain / interior floor
     const floorMesh = isInside
       ? this.world.interiorManager.getActiveFloorMesh()
@@ -304,8 +322,11 @@ export class InputManager {
   }
 
   private onPointerDown(event: MouseEvent): void {
+    this.tapHandled = false;
     if (this.hud.currentNavMode === 'map') return;
     if (!PointerScope.isGameView(event.target)) return;
+    // This press closed a menu; it does nothing else
+    if (PointerScope.pressIgnored) return;
 
     this.isPointerDown = true;
     this.hasDragged = false;
@@ -325,6 +346,7 @@ export class InputManager {
 
     if (this.hud.currentNavMode === 'map') return;
     if (!PointerScope.isGameView(event.target)) return;
+    if (PointerScope.pressIgnored) return;
 
     // If the user dragged to rotate the view, do not trigger walk or interaction!
     if (wasDragging) {
@@ -335,13 +357,31 @@ export class InputManager {
     if (event.button !== 0) return;
     if (this.player.isDriving) return;
 
+    this.tapHandled = true;
     this.handleCanvasClick(event.clientX, event.clientY);
+  }
+
+  /**
+   * Is the pointer on the player's own character? The body is thin on screen, so anything
+   * within arm's reach of it counts, unless someone or something to interact with is in front.
+   * Expects the raycaster to be aimed already.
+   */
+  private pointerOnSelf(activeObjects: InteractiveObject[]): boolean {
+    if (!this.player.mesh.visible || this.player.isDriving) return false;
+    const feet = this.selfFeet.copy(this.player.mesh.position);
+    feet.y += 0.15;
+    const head = this.selfHead.copy(this.player.mesh.position);
+    head.y += this.player.actor.pose?.legs === 'lie' ? 0.5 : this.player.actor.hold ? 1.35 : 1.8;
+    const ray = this.raycaster.ray;
+    if (ray.distanceSqToSegment(feet, head, undefined, this.selfNearest) > 0.42 * 0.42) return false;
+
+    const reach = ray.origin.distanceTo(this.selfNearest);
+    const inFront = this.raycaster.intersectObjects(activeObjects.map((obj) => obj.mesh), true)[0];
+    return !inFront || inFront.distance > reach - 0.3 || this.findInteractiveParent(inFront.object) === null;
   }
 
   private handleCanvasClick(clientX: number, clientY: number): void {
     const actor = this.player.actor;
-    // Walking through a doorway cannot be interrupted
-    if (actor.sequence && !actor.sequence.interruptible) return;
 
     this.mouseCoords.x = (clientX / window.innerWidth) * 2 - 1;
     this.mouseCoords.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -353,6 +393,16 @@ export class InputManager {
     const activeObjects = isInside
       ? this.world.interiorManager.getActiveInteractiveObjects()
       : this.world.interactiveObjects;
+
+    // 0. The player's own character: their menu, whatever they are in the middle of
+    if (this.onSelfClicked && this.pointerOnSelf(activeObjects)) {
+      this.pendingInteraction = null;
+      this.onSelfClicked({ x: clientX, y: clientY });
+      return;
+    }
+
+    // Walking through a doorway cannot be interrupted
+    if (actor.sequence && !actor.sequence.interruptible) return;
 
     // 1. Raycast walkable terrain / interior floor FIRST
     const floorMesh = isInside
@@ -390,6 +440,7 @@ export class InputManager {
     // 3. Click on ground / interior floor -> walk directly there!
     if (floorHits.length > 0) {
       const clickPoint = floorHits[0].point;
+      if (!isInside && this.onGroundClick?.(clickPoint)) return;
       this.pendingInteraction = null;
       // A click on a table or bed means "go over there", not "walk into it"
       const nav = isInside ? this.world.interiorManager.getActiveNav() : null;
@@ -633,6 +684,19 @@ export class InputManager {
         interactionPoint: obj.interactionPoint,
         interactiveObject: obj,
         type: 'door',
+      };
+    }
+    if (id.startsWith('plot_')) {
+      return {
+        id: obj.id,
+        name: obj.name,
+        category: obj.category,
+        label: `📋 Inspect the plot at ${obj.name}`,
+        action: 'interact',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'station',
       };
     }
     if (id.startsWith('veh-')) {

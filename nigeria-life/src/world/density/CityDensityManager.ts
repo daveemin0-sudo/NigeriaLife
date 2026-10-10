@@ -9,13 +9,14 @@ export class CityDensityManager {
 
   /**
    * @param obstacles hand-built world groups the generated city fabric must build around
+   * @param plots land parcels that are left empty for whoever owns them
    */
-  constructor(obstacles: THREE.Object3D[] = []) {
+  constructor(obstacles: THREE.Object3D[] = [], plots: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
     this.group = new THREE.Group();
     this.matLib = MaterialLibrary.getInstance();
 
     // Instanced side streets, tenements, plazas and towers filling the whole of Lagos Island
-    this.fabric = new CityFabric(obstacles);
+    this.fabric = new CityFabric(obstacles, plots);
     this.group.add(this.fabric.group);
 
     this.buildStreetDetailsAndProps();
@@ -36,8 +37,9 @@ export class CityDensityManager {
 
     // C. LAWMA Lagos Trash Wheelie Bins along sidewalks
     for (let z of [-80, -40, 2, 40, 80]) {
-      this.createTrashBin(-8.2, 0, z);
-      this.createTrashBin(8.2, 0, z + 12);
+      // At the kerb, so the middle of the pavement stays open
+      this.createTrashBin(-7.75, 0, z);
+      this.createTrashBin(7.75, 0, z + 12);
     }
 
     // D. Traffic Warning Signs & Speed Limit 40 km/h

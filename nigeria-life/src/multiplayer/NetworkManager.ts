@@ -18,6 +18,9 @@ export class NetworkManager {
   private broadcastInterval: number = 50; // ~20 Hz
   private onChatMessageCallback?: (msg: ChatMessage) => void;
   private onPlayerCountCallback?: (count: number) => void;
+  private onDirectMessageCallback?: (fromId: string, fromName: string, text: string) => void;
+  /** Transfers already paid in, so the same one arriving twice is only counted once */
+  private receivedTransfers = new Set<string>();
 
   constructor(scene: THREE.Scene, localPlayer: Player) {
     NetworkManager.instance = this;
@@ -44,6 +47,10 @@ export class NetworkManager {
 
   public setOnChatMessage(cb: (msg: ChatMessage) => void): void {
     this.onChatMessageCallback = cb;
+  }
+
+  public setOnDirectMessage(cb: (fromId: string, fromName: string, text: string) => void): void {
+    this.onDirectMessageCallback = cb;
   }
 
   public setOnPlayerCount(cb: (count: number) => void): void {
@@ -95,13 +102,21 @@ export class NetworkManager {
       if (this.onChatMessageCallback) {
         this.onChatMessageCallback(packet.message);
       }
+    } else if (packet.type === 'dm') {
+      // A private message is for one player: everyone else ignores it
+      if (packet.toId === this.localId) {
+        this.onDirectMessageCallback?.(packet.fromId, packet.fromName, String(packet.text).slice(0, 240));
+        showGameToast(`💬 @${packet.fromName}: ${String(packet.text).slice(0, 60)}`, 'info', 3600);
+      }
     } else if (packet.type === 'p2p_transfer') {
-      if (packet.transfer.recipientId === this.localId) {
-        const received = BackendService.getInstance().addCash(
-          packet.transfer.amount,
-          `Transfer from @${packet.transfer.senderName}`,
-          'TRANSFER_IN'
-        );
+      if (packet.transfer.recipientId === this.localId && !this.receivedTransfers.has(packet.transfer.id)) {
+        this.receivedTransfers.add(packet.transfer.id);
+        const received = BackendService.getInstance().processTransaction({
+          type: 'TRANSFER_IN',
+          amount: packet.transfer.amount,
+          description: `Transfer from @${packet.transfer.senderName}`,
+          source: packet.transfer.into === 'bank' ? 'bank' : 'wallet',
+        }).success;
         if (received) {
           showGameToast(
             `+₦${packet.transfer.amount.toLocaleString()} from @${packet.transfer.senderName} (${packet.transfer.memo || 'Direct Transfer'})`,
@@ -189,6 +204,53 @@ export class NetworkManager {
     }
   }
 
+  public sendDirectMessage(toId: string, text: string): void {
+    const packet: NetPacket = { type: 'dm', fromId: this.localId, fromName: this.localPlayer.config.name, toId, text: text.slice(0, 240) };
+    this.channel.postMessage(packet);
+  }
+
+  /**
+   * Sends money to another player who is online. The money leaves the sender's bank account
+   * or their cash, whichever they chose, and arrives in the matching pocket on the other side.
+   * Each transfer carries its own id, so it can only ever be paid in once.
+   */
+  public sendTransfer(recipientId: string, amount: number, memo: string, from: 'bank' | 'wallet'): { success: boolean; message: string } {
+    const recipient = this.remotePlayers.get(recipientId);
+    if (!recipient) return { success: false, message: 'That player is not online, so no money was sent.' };
+    if (recipientId === this.localId) return { success: false, message: 'You cannot send money to yourself.' };
+    if (!Number.isInteger(amount) || amount <= 0) return { success: false, message: 'Enter a whole amount to send.' };
+
+    const backend = BackendService.getInstance();
+    const paid = backend.processTransaction({
+      type: 'TRANSFER_OUT',
+      amount,
+      description: `Transfer to @${recipient.name}`,
+      source: from,
+      funding: 'strict',
+    });
+    if (!paid.success) {
+      const data = backend.getData();
+      const have = from === 'bank' ? data.bank.balance : data.walletCash;
+      return { success: false, message: `You have ₦${have.toLocaleString()} ${from === 'bank' ? 'in the bank' : 'in cash'}, which is not enough to send ₦${amount.toLocaleString()}.` };
+    }
+
+    const packet: NetPacket = {
+      type: 'p2p_transfer',
+      transfer: {
+        id: `wire_${this.localId}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+        senderId: this.localId,
+        senderName: this.localPlayer.config.name,
+        recipientId,
+        amount,
+        memo,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        into: from,
+      },
+    };
+    this.channel.postMessage(packet);
+    return { success: true, message: `Sent ₦${amount.toLocaleString()} to @${recipient.name}.` };
+  }
+
   public sendP2PTransfer(recipientId: string, amount: number, memo: string = 'EkoPay Instant Wire'): { success: boolean; message: string } {
     // Nobody is listening for a player who is not here, so the money would simply vanish
     if (!this.remotePlayers.has(recipientId)) {
@@ -204,7 +266,7 @@ export class NetworkManager {
     const packet: NetPacket = {
       type: 'p2p_transfer',
       transfer: {
-        id: `wire_${Date.now()}`,
+        id: `wire_${this.localId}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
         senderId: this.localId,
         senderName: this.localPlayer.config.name,
         recipientId,

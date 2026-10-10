@@ -2,6 +2,7 @@ import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
+import { draw, forget } from './kit/StableView';
 import { emitGameEvent } from '../game/GameEvents';
 
 export interface TravelDestination {
@@ -122,6 +123,7 @@ export class TravelModal {
     if (this.isTraveling) return;
     this.isOpen = true;
     this.container.style.display = 'flex';
+    forget(this.container);
     this.render(this.backend.getData());
     UIStateManager.getInstance().pushModal('travel');
   }
@@ -141,7 +143,7 @@ export class TravelModal {
   private render(data: PlayerAccount): void {
     if (!this.isOpen) return;
 
-    this.container.innerHTML = `
+    const html = `
       <div class="modal-backdrop"></div>
       <div class="travel-dialog">
         <header class="dialog-header">
@@ -204,7 +206,7 @@ export class TravelModal {
       </div>
     `;
 
-    this.setupEvents();
+    draw(this.container, html, { drawn: () => this.setupEvents() });
   }
 
   private setupEvents(): void {

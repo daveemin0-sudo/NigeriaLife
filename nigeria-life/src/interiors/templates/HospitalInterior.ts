@@ -23,7 +23,7 @@ export class HospitalInterior {
       tier: 'tier3_simulated',
       districtName: 'Lagos Island Medical District',
       streetBuildingId: 'lagos-hospital',
-      streetEntrance: new THREE.Vector3(12, 0, 75), // Door outside in district
+      streetEntrance: new THREE.Vector3(8.8, 0, 75), // Door outside in district
       streetExitRotation: Math.PI,
       interiorOrigin: origin,
       playerSpawnOffset: new THREE.Vector3(0, 0, 9),

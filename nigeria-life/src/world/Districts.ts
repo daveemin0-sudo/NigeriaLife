@@ -354,7 +354,8 @@ export class Districts {
   // =========================================================================
   private buildLekkiPhaseOne(): void {
     const lekkiGroup = new THREE.Group();
-    lekkiGroup.position.set(65, 0, 0);
+    // The bridge lands on the east side of Kakawa Street, not across it
+    lekkiGroup.position.set(68.6, 0, 0);
 
     // Lekki-Ikoyi Link Bridge Iconic Suspension Pylon
     const pylonGroup = new THREE.Group();
@@ -419,7 +420,7 @@ export class Districts {
       name: 'Lekki-Ikoyi Cable-Stayed Link Bridge & Toll Plaza',
       category: 'Infrastructure Landmark',
       description: 'Iconic suspension bridge connecting Ikoyi to Admiralty Way, Lekki Phase 1. Scenic coastal expressway.',
-      interactionPoint: new THREE.Vector3(45, 0, 0),
+      interactionPoint: new THREE.Vector3(48.6, 0, 0),
     });
 
     // Nike Art Gallery & Luxury Studio (Admiralty Way)
@@ -454,7 +455,7 @@ export class Districts {
       name: 'Nike Art & Contemporary African Studio',
       category: 'Arts & Culture',
       description: 'Legendary 5-story cultural gallery showcasing handmade Adire batiks, beadwork, and bronze masterpieces.',
-      interactionPoint: new THREE.Vector3(72, 0, -8),
+      interactionPoint: new THREE.Vector3(75.6, 0, -8),
     });
 
     this.group.add(lekkiGroup);
@@ -465,7 +466,8 @@ export class Districts {
   // =========================================================================
   private buildYabaTechStrip(): void {
     const yabaGroup = new THREE.Group();
-    yabaGroup.position.set(-15, 0, -25);
+    // Its front wall on the building line, clear of the pavement and of the university gate beside it
+    yabaGroup.position.set(-21.5, 0, -23.8);
 
     // Modern 3-story CcHub Glass Incubator
     const hubGroup = new THREE.Group();
@@ -534,7 +536,7 @@ export class Districts {
       name: 'Co-Creation Hub (CcHub) & Tech Incubator',
       category: 'Yaba Tech Corridor',
       description: 'The Silicon Valley of West Africa. Silicon Valley venture funds, hackathons, and high-paying remote tech engineering sprints.',
-      interactionPoint: new THREE.Vector3(-15, 0, -20),
+      interactionPoint: new THREE.Vector3(-12.5, 0, -23.8),
     });
 
     this.group.add(yabaGroup);
@@ -555,7 +557,8 @@ export class Districts {
       metalness: 0.25,
     });
     const senate = new THREE.Mesh(senateGeo, senateMat);
-    senate.position.set(0, 11, -14);
+    // Behind the gate, between the pavement buildings and Odunlami Street
+    senate.position.set(-17, 11, -8);
     senate.castShadow = true;
     campusGroup.add(senate);
 
@@ -564,7 +567,7 @@ export class Districts {
       new THREE.BoxGeometry(16.5, 1.2, 10.5),
       new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 })
     );
-    cap.position.set(0, 22.6, -14);
+    cap.position.set(-17, 22.6, -8);
     campusGroup.add(cap);
 
     // 2. Iconic Arched Campus Entrance Gate
@@ -612,7 +615,8 @@ export class Districts {
       new THREE.BoxGeometry(2.4, 3.0, 2.4),
       new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 })
     );
-    booth.position.set(4.2, 1.5, 2.2);
+    // Inside the gate, off the public pavement
+    booth.position.set(-4.2, 1.5, 2.2);
     gateGroup.add(booth);
 
     // Security Boom Barrier
@@ -620,7 +624,7 @@ export class Districts {
       new THREE.BoxGeometry(7.0, 0.15, 0.15),
       new THREE.MeshBasicMaterial({ color: 0xef4444 })
     );
-    barrier.position.set(0, 1.0, 1.2);
+    barrier.position.set(-2.2, 1.0, 1.2);
     gateGroup.add(barrier);
 
     // Campus Boulevard Palm Trees
@@ -800,7 +804,7 @@ export class Districts {
       name: 'Murtala Muhammed International Airport (LOS)',
       category: 'Aviation & Airport',
       description: 'Nigeria’s premier aviation hub. Check in for flights, pass security screening, and fly to Abuja and Port Harcourt.',
-      interactionPoint: new THREE.Vector3(-80, 0, -105),
+      interactionPoint: new THREE.Vector3(-80, 0, -101.2),
     });
 
     this.interactiveList.push({
@@ -809,7 +813,7 @@ export class Districts {
       name: 'Murtala Muhammed International Airport (LOS)',
       category: 'Aviation & Airport',
       description: 'Nigeria’s premier aviation hub. Check in for flights, pass security screening, and fly to Abuja and Port Harcourt.',
-      interactionPoint: new THREE.Vector3(-80, 0, -105),
+      interactionPoint: new THREE.Vector3(-80, 0, -101.2),
     });
 
     this.group.add(airportGroup);
@@ -894,13 +898,14 @@ export class Districts {
     const towerGeo = new THREE.BoxGeometry(6, 18, 6);
     const towerMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.8 });
     const tower = new THREE.Mesh(towerGeo, towerMat);
-    tower.position.set(-10, 9, 0);
+    // Behind the market stalls, well back from Broad Street
+    tower.position.set(13, 9, 0);
     marketGroup.add(tower);
 
     const steepleGeo = new THREE.ConeGeometry(3.5, 6, 4);
     const steepleMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.5 });
     const steeple = new THREE.Mesh(steepleGeo, steepleMat);
-    steeple.position.set(-10, 21, 0);
+    steeple.position.set(13, 21, 0);
     steeple.rotation.y = Math.PI / 4;
     marketGroup.add(steeple);
 
@@ -1008,7 +1013,7 @@ export class Districts {
       name: 'St. Nicholas Lagos General Hospital',
       category: 'Healthcare & Emergency',
       description: 'Lagos Island premier medical centre. Enter for doctor consultation, treatments, medical checkups, and pharmacy.',
-      interactionPoint: new THREE.Vector3(12, 0, 75),
+      interactionPoint: new THREE.Vector3(8.8, 0, 75),
     });
 
     this.interactiveList.push({
@@ -1017,7 +1022,7 @@ export class Districts {
       name: 'St. Nicholas Lagos General Hospital',
       category: 'Healthcare & Emergency',
       description: 'Lagos Island premier medical centre. Enter for doctor consultation, treatments, medical checkups, and pharmacy.',
-      interactionPoint: new THREE.Vector3(12, 0, 75),
+      interactionPoint: new THREE.Vector3(8.8, 0, 75),
     });
   }
 
@@ -1076,7 +1081,7 @@ export class Districts {
       name: 'Lagos State Area Command Police Station',
       category: 'Law Enforcement & Security',
       description: 'Lagos Command Headquarters. Enter for desk sergeant reports, bail bonds, citizen clearances, and holding cell.',
-      interactionPoint: new THREE.Vector3(-18, 0, 65),
+      interactionPoint: new THREE.Vector3(-15.4, 0, 65),
     });
   }
 

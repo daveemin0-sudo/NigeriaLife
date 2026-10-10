@@ -1,3 +1,4 @@
+import { profileKey } from './Profile';
 import {
   type PlayerAccount,
   type PlayerStats,
@@ -7,6 +8,8 @@ import {
   type TransactionRecord,
   type TransactionType,
   type SavedWorldState,
+  type PhoneMessage,
+  type PhoneThread,
   DEFAULT_JOBS,
 } from './types';
 import { TransactionService, type ProcessTransactionRequest, type TransactionResult } from './TransactionService';
@@ -21,8 +24,8 @@ const REVENUE_CYCLE_MS = 45000;
 
 export class BackendService {
   private static instance: BackendService;
-  private readonly STORAGE_KEY = 'nigeria_life_account_data_v1';
-  private readonly BACKUP_KEY = 'nigeria_life_account_data_v1__backup';
+  private readonly STORAGE_KEY = profileKey('nigeria_life_account_data_v1');
+  private readonly BACKUP_KEY = profileKey('nigeria_life_account_data_v1__backup');
   private data: PlayerAccount;
   /** The exact save text this tab last wrote or loaded. If storage holds anything else, another tab has saved. */
   private lastSavedText: string | null = null;
@@ -483,9 +486,16 @@ export class BackendService {
     if (save) this.saveData();
   }
 
+  /** Other places a player may have a home that this account does not hold itself: a house on their own land */
+  private homeChecks: Array<() => boolean> = [];
+
+  public addHomeCheck(check: () => boolean): void {
+    this.homeChecks.push(check);
+  }
+
   /** Does the player own or rent somewhere to live? */
   public hasHome(): boolean {
-    return this.data.properties.some((p) => (p.status === 'owned' || p.status === 'rented') && p.ownerId === this.data.id);
+    return this.data.properties.some((p) => (p.status === 'owned' || p.status === 'rented') && p.ownerId === this.data.id) || this.homeChecks.some((check) => check());
   }
 
   public restAtHome(): { success: boolean; message: string } {
@@ -497,6 +507,14 @@ export class BackendService {
       success: true,
       message: 'Restful sleep in your apartment! Energy & Health restored to 100%.'
     };
+  }
+
+  /** What a hospital does for someone brought in by ambulance: out of danger, fed, but not fully well. */
+  public treatEmergency(): void {
+    this.data.stats.health = Math.max(this.data.stats.health, 70);
+    this.data.stats.hunger = Math.max(this.data.stats.hunger, 35);
+    this.data.stats.energy = Math.max(this.data.stats.energy, 30);
+    this.saveData();
   }
 
   public restoreEnergy(amount: number = 100): void {
@@ -518,6 +536,138 @@ export class BackendService {
     this.data.stats.energy = Math.max(0, this.data.stats.energy - amount);
     this.saveData();
     return true;
+  }
+
+  // === INVESTMENTS ===
+
+  /**
+   * Buys or sells units of a share at the price given (the market works the price out from
+   * the game's clock). Buying takes the money from the bank account; selling pays into it.
+   * Whole units only, never more than is held, never for money that is not there.
+   */
+  public tradeInvestment(
+    ticker: string,
+    units: number,
+    total: number,
+    side: 'buy' | 'sell',
+    label: string
+  ): { success: boolean; message: string } {
+    this.syncFromStorage();
+    if (!Number.isInteger(units) || units <= 0 || !Number.isFinite(total) || total <= 0) {
+      return { success: false, message: 'Enter a whole number of units.' };
+    }
+    const amount = Math.round(total);
+    const holdings = (this.data.investments ??= {});
+    const held = holdings[ticker] ?? { units: 0, spent: 0 };
+
+    if (side === 'buy') {
+      const paid = this.processTransaction({ type: 'INVESTMENT_PURCHASE', amount, description: `Bought ${units} ${label}`, source: 'bank', funding: 'strict' });
+      if (!paid.success) {
+        return { success: false, message: `That costs ₦${amount.toLocaleString()} and your bank account has ₦${this.data.bank.balance.toLocaleString()}.` };
+      }
+      holdings[ticker] = { units: held.units + units, spent: held.spent + amount };
+      this.saveData();
+      return { success: true, message: `Bought ${units} ${label} for ₦${amount.toLocaleString()}.` };
+    }
+
+    if (units > held.units) {
+      return { success: false, message: `You hold ${held.units} ${label}, so you cannot sell ${units}.` };
+    }
+    const costOfSold = Math.round((held.spent * units) / held.units);
+    const left = held.units - units;
+    if (left === 0) delete holdings[ticker];
+    else holdings[ticker] = { units: left, spent: held.spent - costOfSold };
+    this.processTransaction({ type: 'INVESTMENT_SALE', amount, description: `Sold ${units} ${label}`, source: 'bank' });
+    this.saveData();
+    const gain = amount - costOfSold;
+    return {
+      success: true,
+      message: `Sold ${units} ${label} for ₦${amount.toLocaleString()} (${gain >= 0 ? 'gain' : 'loss'} of ₦${Math.abs(gain).toLocaleString()}).`,
+    };
+  }
+
+  // === SELLING THINGS ===
+
+  /** Things that can be sold on: not keys, cards or papers. */
+  public resaleValue(item: Item): number {
+    if (item.category === 'key' || item.category === 'document' || item.id === 'atm_card') return 0;
+    return Math.floor(item.price * 0.4);
+  }
+
+  /** Sells one of something from the bag for 40% of what it costs new. */
+  public sellItem(itemId: string): { success: boolean; message: string } {
+    this.syncFromStorage();
+    const index = this.data.inventory.findIndex((entry) => entry.id === itemId);
+    const item = index === -1 ? null : this.data.inventory[index];
+    if (!item || item.quantity <= 0) return { success: false, message: 'That is not in your bag.' };
+    const value = this.resaleValue(item);
+    if (value <= 0) return { success: false, message: `${item.name} cannot be sold.` };
+
+    item.quantity -= 1;
+    if (item.quantity <= 0) this.data.inventory.splice(index, 1);
+    this.processTransaction({ type: 'ITEM_SALE', amount: value, description: `Sold ${item.name}`, source: 'wallet' });
+    this.saveData();
+    return { success: true, message: `Sold ${item.name} for ₦${value.toLocaleString()}.` };
+  }
+
+  /** Sells a property the player owns back to the market for 80% of its price. */
+  public sellProperty(propId: string): { success: boolean; message: string } {
+    this.syncFromStorage();
+    const prop = this.data.properties.find((entry) => entry.id === propId);
+    if (!prop || prop.status !== 'owned') return { success: false, message: 'You can only sell a property you own.' };
+    const value = Math.round(prop.purchasePrice * 0.8);
+    prop.status = 'available';
+    prop.ownerId = '';
+    if (this.data.activeHousingId === prop.id) this.data.activeHousingId = undefined;
+    this.removeKeyFor(prop.id);
+    WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+    this.processTransaction({ type: 'PROPERTY_SALE', amount: value, description: `Sold ${prop.name}`, source: 'bank' });
+    this.saveData();
+    return { success: true, message: `${prop.name} sold. ₦${value.toLocaleString()} paid into your bank account.` };
+  }
+
+  /** Gives up a lease. Nothing is refunded. */
+  public endLease(propId: string): { success: boolean; message: string } {
+    this.syncFromStorage();
+    const prop = this.data.properties.find((entry) => entry.id === propId);
+    if (!prop || prop.status !== 'rented') return { success: false, message: 'You are not renting that property.' };
+    prop.status = 'available';
+    prop.ownerId = '';
+    if (this.data.activeHousingId === prop.id) this.data.activeHousingId = undefined;
+    this.removeKeyFor(prop.id);
+    WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+    this.saveData();
+    return { success: true, message: `You have moved out of ${prop.name}.` };
+  }
+
+  private removeKeyFor(propId: string): void {
+    this.data.inventory = this.data.inventory.filter((entry) => entry.id !== `key_${propId}`);
+  }
+
+  // === MESSAGES ===
+
+  public thread(personId: string): PhoneThread {
+    return (this.data.threads ??= {})[personId] ?? { messages: [], unread: 0 };
+  }
+
+  public addMessage(personId: string, message: PhoneMessage, unread: boolean): void {
+    const threads = (this.data.threads ??= {});
+    const thread = (threads[personId] ??= { messages: [], unread: 0 });
+    thread.messages.push({ ...message, text: message.text.slice(0, 240) });
+    if (thread.messages.length > 40) thread.messages.splice(0, thread.messages.length - 40);
+    if (unread) thread.unread += 1;
+    this.saveData();
+  }
+
+  public markThreadRead(personId: string): void {
+    const thread = this.data.threads?.[personId];
+    if (!thread || thread.unread === 0) return;
+    thread.unread = 0;
+    this.saveData();
+  }
+
+  public unreadMessages(): number {
+    return Object.values(this.data.threads ?? {}).reduce((sum, thread) => sum + thread.unread, 0);
   }
 
   // === PEOPLE ===
@@ -738,6 +888,10 @@ export class BackendService {
       }
     }
 
+    if (job.requiredLevel > this.data.career.rankLevel) {
+      return { success: false, message: `${job.title} needs career rank ${job.requiredLevel}. You are rank ${this.data.career.rankLevel}: finish more shifts to move up.` };
+    }
+
     if (this.data.stats.energy < 15) {
       return { success: false, message: 'You are too exhausted! Eat some food or rest to regain energy.' };
     }
@@ -779,9 +933,11 @@ export class BackendService {
     }
 
     const { job } = shiftInfo;
+    // A higher career rank is paid more for the same shift
+    const pay = Math.round(job.salary * (this.data.career.bonusMultiplier || 1));
     const txRes = this.processTransaction({
       type: 'JOB_SALARY',
-      amount: job.salary,
+      amount: pay,
       description: `Completed Shift: ${job.title}`,
       source: 'wallet',
     });
@@ -794,8 +950,8 @@ export class BackendService {
 
     return {
       success: true,
-      reward: job.salary,
-      message: `Shift completed! Earned ₦${job.salary.toLocaleString()} cash in your pocket (${txRes.message}) and gained XP!`,
+      reward: pay,
+      message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket (${txRes.message}) and gained XP!`,
     };
   }
 

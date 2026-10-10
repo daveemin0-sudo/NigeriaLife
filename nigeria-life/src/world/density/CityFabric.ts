@@ -8,7 +8,8 @@ const OBSTACLE = 1; // hand-built buildings, districts, props
 const NO_BUILD = 2; // paved district ground, reserved forecourts
 const ROAD = 4; // asphalt + sidewalks
 const LOT = 8; // generated building lots
-const ANY = OBSTACLE | NO_BUILD | ROAD | LOT;
+const OVERHEAD = 16; // canopies, roofs and decks with clear room underneath: no building goes under one, but a street can
+const ANY = OBSTACLE | NO_BUILD | ROAD | LOT | OVERHEAD;
 
 const WORLD_HALF = 160;
 const GRID = WORLD_HALF * 2;
@@ -84,6 +85,12 @@ export class CityFabric {
   public parkingSpots: StreetSpot[] = [];
   public stallSpots: StreetSpot[] = [];
   public buildingCount = 0;
+  /** The ground each generated building stands on, for the city plan */
+  public footprints: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; height: number }> = [];
+  /** Roadside stalls the fabric put on its walkways */
+  public stallBoxes: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [];
+  /** Stretches of side street that could not be laid because something hand-built stood on their line */
+  public roadGaps: Array<{ street: string; axis: 'x' | 'z'; fixed: number; from: number; to: number }> = [];
 
   private occ = new Uint8Array(GRID * GRID);
   private rand = seededRandom(20261008);
@@ -111,8 +118,13 @@ export class CityFabric {
     { kind: 'tower', floors: 18, bays: 6, floorHeight: 3.6, items: [] },
   ];
 
-  constructor(obstacles: THREE.Object3D[]) {
+  /**
+   * @param obstacles hand-built parts of the city to build around
+   * @param plots parcels of land that belong to the land registry: nothing is generated on them
+   */
+  constructor(obstacles: THREE.Object3D[], plots: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
     this.scanObstacles(obstacles);
+    for (const plot of plots) this.mark(plot.minX - 0.5, plot.maxX + 0.5, plot.minZ - 0.5, plot.maxZ + 0.5, NO_BUILD);
     for (const [minX, maxX, minZ, maxZ] of RESERVED) this.mark(minX, maxX, minZ, maxZ, NO_BUILD);
     this.mark(-MAIN_CORRIDOR_HALF, MAIN_CORRIDOR_HALF, MAIN_ROAD.zMin - 2, MAIN_ROAD.zMax + 2, ROAD);
 
@@ -171,7 +183,8 @@ export class CityFabric {
         if (box.max.y < 0.45) {
           if (sx * sz >= 16 && sx < 200 && sz < 260) this.mark(box.min.x, box.max.x, box.min.z, box.max.z, NO_BUILD);
         } else if (sx < 120 && sz < 120) {
-          this.mark(box.min.x - 0.5, box.max.x + 0.5, box.min.z - 0.5, box.max.z + 0.5, OBSTACLE);
+          // Something whose underside is above a lorry's roof does not stand in a street's way
+          this.mark(box.min.x - 0.5, box.max.x + 0.5, box.min.z - 0.5, box.max.z + 0.5, box.min.y >= 3.4 ? OVERHEAD : OBSTACLE);
         }
       });
     }
@@ -214,6 +227,11 @@ export class CityFabric {
       const blocked = !inMain && this.hit(rMinX, rMaxX, rMinZ, rMaxZ, OBSTACLE);
       if (blocked) {
         runs[0] = runs[1] = null;
+        // The line of the street stays reserved even where it could not be laid: nothing is built on it
+        this.mark(isX ? s : st.fixed - st.halfRoad - st.walk, isX ? s + STEP : st.fixed + st.halfRoad + st.walk, isX ? st.fixed - st.halfRoad - st.walk : s, isX ? st.fixed + st.halfRoad + st.walk : s + STEP, ROAD);
+        const last = this.roadGaps[this.roadGaps.length - 1];
+        if (last && last.street === st.name && last.to === s) last.to = s + STEP;
+        else this.roadGaps.push({ street: st.name, axis: st.axis, fixed: st.fixed, from: s, to: s + STEP });
         continue;
       }
 
@@ -272,13 +290,15 @@ export class CityFabric {
 
         // Roadside umbrella stalls & street lamps along the building edge of the sidewalk
         const tick = Math.round(s / STEP);
-        const edge = st.fixed + sign * (st.halfRoad + st.walk - 0.55);
+        // On a narrow pavement stalls stand hard against the buildings
+        const narrow = st.walk < 2.4;
+        const edge = st.fixed + sign * (st.halfRoad + st.walk - (narrow ? 0.32 : 0.55));
         const px = isX ? mid : edge;
         const pz = isX ? edge : mid;
         if (tick % 12 === (side === 0 ? 0 : 6)) {
           this.addStreetLamp(px, pz, isX, -sign);
         } else if (tick % 4 === 1 && this.rand() < 0.5) {
-          this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2);
+          this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2, narrow);
         }
       }
     }
@@ -296,7 +316,9 @@ export class CityFabric {
     this.boxes.push({ m: this.mat(hx, 6.16, hz, 0.42, 0.14, 0.42), c: new THREE.Color(0xfff3c4) });
   }
 
-  private addUmbrellaStall(x: number, z: number, yaw: number): void {
+  /** A stall on a narrow pavement is a shallower table, so people can still get past it. */
+  private addUmbrellaStall(x: number, z: number, yaw: number, narrow = false): void {
+    const deep = narrow ? 0.6 : 0.8;
     const canopy = [0xdc2626, 0x16a34a, 0xfacc15, 0x2563eb, 0xf97316, 0xffffff, 0xdb2777];
     this.cylinders.push({ m: this.mat(x, 0, z, 0.07, 2.3, 0.07), c: new THREE.Color(0x4b5563) });
     this.umbrellas.push({
@@ -304,10 +326,14 @@ export class CityFabric {
       c: new THREE.Color(this.pick(canopy)),
     });
     // Wooden table stacked with goods
-    this.boxes.push({ m: this.mat(x, 0.28, z, 1.3, 0.7, 0.8, yaw), c: new THREE.Color(0x8b5a2b) });
+    this.boxes.push({ m: this.mat(x, 0.28, z, 1.3, 0.7, deep, yaw), c: new THREE.Color(0x8b5a2b) });
     const goods = [0xf59e0b, 0xef4444, 0x22c55e, 0xfde047, 0xf8fafc];
-    this.boxes.push({ m: this.mat(x, 0.98, z, 1.05, 0.22, 0.6, yaw), c: new THREE.Color(this.pick(goods)) });
+    this.boxes.push({ m: this.mat(x, 0.98, z, 1.05, 0.22, deep - 0.2, yaw), c: new THREE.Color(this.pick(goods)) });
     this.stallSpots.push({ x, z, yaw });
+    // The table, whichever way it is turned
+    const alongX = Math.abs(Math.cos(yaw)) > 0.5;
+    const half = deep / 2;
+    this.stallBoxes.push({ minX: x - (alongX ? 0.65 : half), maxX: x + (alongX ? 0.65 : half), minZ: z - (alongX ? half : 0.65), maxZ: z + (alongX ? half : 0.65) });
   }
 
   /** Zebra crossings on all four arms of the Broad Street / Martins Street junction */
@@ -444,6 +470,7 @@ export class CityFabric {
     };
     const wall = new THREE.Color(this.pick(palettes[arch.kind])).multiplyScalar(0.84 + this.rand() * 0.16);
     arch.items.push({ m: this.mat(cx, 0, cz, w, h, d), c: wall });
+    this.footprints.push({ minX, maxX, minZ, maxZ, height: h });
 
     // Paved yard under and around the building so no lawn shows between plots
     const ground = [0x9a9186, 0xa08468, 0x8f8a80, 0xa39a8c];

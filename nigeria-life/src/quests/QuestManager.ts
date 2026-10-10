@@ -3,12 +3,13 @@ import { SoundEngine } from '../audio/SoundEngine';
 import { showGameToast } from '../ui/GameToast';
 import { onGameEvent, type GameEventType, type GameEventData } from '../game/GameEvents';
 import type { StoryQuest, QuestCity, QuestStatus } from './QuestTypes';
+import { profileKey } from '../backend/Profile';
 
 const QUEST_STATUSES: readonly QuestStatus[] = ['locked', 'available', 'active', 'completed'];
 
 export class QuestManager {
   private static instance: QuestManager;
-  private readonly STORAGE_KEY = 'nigeria_life_story_quests_v2';
+  private readonly STORAGE_KEY = profileKey('nigeria_life_story_quests_v2');
   private quests: StoryQuest[] = [];
   private activeQuestId: string | null = null;
   private listeners: ((activeQuest: StoryQuest | null, allQuests: StoryQuest[]) => void)[] = [];

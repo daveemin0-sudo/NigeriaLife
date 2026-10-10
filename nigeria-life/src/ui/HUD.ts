@@ -71,6 +71,8 @@ export class HUD {
   public onOpenBukaMenu?: (preferTable?: number) => void;
   public onShopAction?: (objectId: string) => void;
   public onVendorAction?: (objectId: string) => void;
+  /** A plot of land's board was used: open what is known about that plot */
+  public onPlotAction?: (plotId: string) => void;
   /** Stations inside buildings that are used by walking up and doing something with the hands or talking */
   private static readonly ACTED_OUT = /^(hosp_|police_|unilag_|airport_|bank_)/;
   private actingOut = false;
@@ -1083,6 +1085,19 @@ export class HUD {
     });
   }
 
+  /** Opens the bag, the wardrobe and the other screens the HUD owns, for anything that needs to (the phone, the player's own menu). */
+  public openInventory(): void {
+    this.inventoryModal.open();
+  }
+
+  public openWardrobe(): void {
+    if (!this.creatorModal.isOpen) this.creatorModal.toggle();
+  }
+
+  public openAtm(): void {
+    this.atmModal.open();
+  }
+
   public setProximityTarget(target: InteractionTarget | null): void {
     this.currentInteractionTarget = target;
     if (!this.proximityPromptEl || !this.promptLabelEl) return;
@@ -1493,6 +1508,10 @@ export class HUD {
       btnEl.textContent = `🛍️ See what ${STREET_VENDORS[obj.id].name} is selling`;
       bizBtn.style.display = 'none';
     }
+    if (obj.id.startsWith('plot_')) {
+      btnEl.textContent = '📋 Inspect this plot';
+      bizBtn.style.display = 'none';
+    }
 
     // Anyone the interaction system can direct can be waved at, greeted, spoken to; another player can be waved at and greeted
     const person = InteractionDirector.get().actorFor(obj.id);
@@ -1825,6 +1844,12 @@ export class HUD {
       // Bought hand to hand in the street; the list only starts it
       this.hideInteractionCard();
       this.onVendorAction?.(id);
+      return;
+    }
+
+    if (id.startsWith('plot_')) {
+      this.hideInteractionCard();
+      this.onPlotAction?.(id.slice(5));
       return;
     }
 

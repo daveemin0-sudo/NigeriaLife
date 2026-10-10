@@ -29,7 +29,7 @@ export class AirportInterior {
       tier: 'tier3_simulated',
       districtName: 'Ikeja Aviation Corridor',
       streetBuildingId: 'mma-airport',
-      streetEntrance: new THREE.Vector3(-80, 0, -105),
+      streetEntrance: new THREE.Vector3(-80, 0, -101.2),
       streetExitRotation: 0,
       interiorOrigin: origin,
       playerSpawnOffset: new THREE.Vector3(0, 0, 10),

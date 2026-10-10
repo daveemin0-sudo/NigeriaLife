@@ -8,12 +8,22 @@ export async function run(browser, check) {
 
   check('new game: chapter 1 is tracked and incomplete', (await quest(page, 'quest_lagos_1')).status === 'active');
 
+  // Food ordered on the phone is brought by a rider, paid for at the door, and counts once it is eaten
   await page.evaluate(() => window.game.hud.phoneModal.openApp('chowdeck'));
-  await wait(300);
-  await page.evaluate(() => document.querySelector('[data-food-cost]').click());
-  await wait(400);
+  await wait(700);
+  await page.evaluate(() => document.querySelector('#smartphone-wrapper [data-add]').click());
+  await wait(200);
+  await page.evaluate(() => document.getElementById('shopping-order-btn').click());
+  await wait(200);
   let q1 = await quest(page, 'quest_lagos_1');
-  check('ordering QuickChop completes the "eat" objective', q1.obj.obj_l1_eat === true, q1);
+  const beforeItArrives = q1.obj.obj_l1_eat;
+  await advance(page, 20);
+  const phoneMeal = await page.evaluate(() => window.game.hud.backend.getData().inventory.find((item) => item.id.startsWith('meal_'))?.id ?? null);
+  await page.evaluate((id) => window.game.hud.backend.useItem(id), phoneMeal);
+  await wait(300);
+  q1 = await quest(page, 'quest_lagos_1');
+  check('QuickChop from the phone completes the "eat" objective when the food has arrived and been eaten, not when it is ordered',
+    beforeItArrives === false && phoneMeal && q1.obj.obj_l1_eat === true, { beforeItArrives, phoneMeal, q1 });
 
   await page.evaluate(() => window.game.hud.phoneModal.openApp('jobs'));
   await wait(300);

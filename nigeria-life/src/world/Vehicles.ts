@@ -32,6 +32,17 @@ export class Vehicles {
     // 3. Moving traffic is owned by TrafficSpawner, which instances these same vehicle models
   }
 
+  /** Puts another vehicle that can be driven into the city (a player's own, brought to them). */
+  public addDrivable(vehicle: DrivableVehicle): void {
+    this.drivableVehicles.push(vehicle);
+    this.group.add(vehicle.mesh);
+  }
+
+  public removeDrivable(vehicle: DrivableVehicle): void {
+    this.drivableVehicles = this.drivableVehicles.filter((entry) => entry !== vehicle);
+    this.group.remove(vehicle.mesh);
+  }
+
   // =========================================================================
   // 1. DRIVABLE VEHICLES
   // =========================================================================

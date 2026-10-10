@@ -1,5 +1,6 @@
 import { BackendService } from './BackendService';
 import type { PlayerAccount } from './types';
+import { profileKey } from './Profile';
 
 export interface CloudSyncInfo {
   status: 'synced' | 'syncing' | 'offline';
@@ -14,8 +15,8 @@ export interface CloudSyncInfo {
 
 export class CloudSyncService {
   private static instance: CloudSyncService;
-  private readonly CLOUD_STORAGE_KEY = 'nigeria_life_cloud_backup_v2';
-  private readonly CLOUD_META_KEY = 'nigeria_life_cloud_meta_v2';
+  private readonly CLOUD_STORAGE_KEY = profileKey('nigeria_life_cloud_backup_v2');
+  private readonly CLOUD_META_KEY = profileKey('nigeria_life_cloud_meta_v2');
   private backend = BackendService.getInstance();
   private lastSyncedTimestamp: number = Date.now();
   private backupCode: string = '';

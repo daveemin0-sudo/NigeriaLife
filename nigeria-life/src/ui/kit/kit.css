@@ -1,0 +1,1253 @@
+/* =============================================================================================
+   NigeriaLife UI kit
+
+   One set of parts for every screen: buttons, chips, fields, rows, cards, meters, toggles,
+   empty states, menus. A screen picks a surface (`nl-dark` for the phone, `nl-light` for
+   menus over the world) and the parts take their colours from it.
+   ============================================================================================= */
+
+:root {
+  --nl-font: 'Outfit', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --nl-r-sm: 10px;
+  --nl-r-md: 14px;
+  --nl-r-lg: 20px;
+  --nl-r-pill: 999px;
+  --nl-tap: 44px;
+  --nl-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nl-dark {
+  --nl-bg: #0b1410;
+  --nl-surface: #131f1a;
+  --nl-surface-2: #1b2b24;
+  --nl-line: rgba(255, 255, 255, 0.09);
+  --nl-text: #f2f6f3;
+  --nl-dim: #9db0a6;
+  --nl-accent: #1f9d6b;
+  --nl-accent-text: #ffffff;
+  --nl-good: #4ade80;
+  --nl-warn: #fbbf24;
+  --nl-bad: #f87171;
+  --nl-focus: #6ee7b7;
+  --nl-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+.nl-light {
+  --nl-bg: #ffffff;
+  --nl-surface: #f8fafc;
+  --nl-surface-2: #eef2f6;
+  --nl-line: #e2e8f0;
+  --nl-text: #0f172a;
+  --nl-dim: #5b6779;
+  --nl-accent: #15803d;
+  --nl-accent-text: #ffffff;
+  --nl-good: #15803d;
+  --nl-warn: #b45309;
+  --nl-bad: #b91c1c;
+  --nl-focus: #15803d;
+  --nl-shadow: 0 16px 44px rgba(15, 23, 42, 0.28);
+  color-scheme: light;
+}
+
+/* --- Scrollbars: the same thin bar everywhere, always usable -------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.85);
+  background-clip: padding-box;
+}
+
+/* --- Buttons --------------------------------------------------------------------------------- */
+.nl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--nl-tap);
+  padding: 0 16px;
+  font: 700 14px/1.2 var(--nl-font);
+  color: var(--nl-text);
+  background: var(--nl-surface-2);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-md);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s var(--nl-ease), opacity 0.15s ease;
+}
+.nl-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+.nl-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.nl-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.nl-btn--primary {
+  color: var(--nl-accent-text);
+  background: var(--nl-accent);
+  border-color: transparent;
+}
+.nl-btn--danger {
+  color: var(--nl-bad);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--nl-bad) 45%, transparent);
+}
+.nl-btn--glass {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.nl-btn--sm {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12.5px;
+  border-radius: var(--nl-r-sm);
+}
+.nl-btn--block {
+  display: flex;
+  width: 100%;
+  margin-top: 8px;
+}
+.nl-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Every interactive part shows where the keyboard is */
+.nl-btn:focus-visible,
+.nl-chip:focus-visible,
+.nl-row:focus-visible,
+.nl-field:focus-visible,
+.nl-toggle:focus-visible,
+.nl-step:focus-visible,
+.nl-menu-item:focus-visible {
+  outline: 3px solid var(--nl-focus);
+  outline-offset: 2px;
+}
+
+/* --- Chips: tabs and filters ----------------------------------------------------------------- */
+.nl-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  flex: none;
+}
+.nl-chip {
+  flex: none;
+  min-height: 36px;
+  padding: 0 14px;
+  font: 700 12.5px/1 var(--nl-font);
+  color: var(--nl-dim);
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nl-chip:hover {
+  color: var(--nl-text);
+}
+.nl-chip.is-on {
+  color: var(--nl-accent-text);
+  background: var(--nl-accent);
+  border-color: transparent;
+}
+
+/* --- Fields ---------------------------------------------------------------------------------- */
+.nl-field {
+  width: 100%;
+  min-height: var(--nl-tap);
+  padding: 0 14px;
+  font: 500 14px/1.2 var(--nl-font);
+  color: var(--nl-text);
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-md);
+  user-select: text;
+}
+.nl-field::placeholder {
+  color: var(--nl-dim);
+}
+.nl-field--search {
+  margin: 4px 0 8px;
+}
+.nl-label {
+  display: block;
+  margin: 12px 0 6px;
+  font: 700 11px/1 var(--nl-font);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--nl-dim);
+}
+.nl-hint {
+  margin: 8px 2px;
+  font: 500 12px/1.45 var(--nl-font);
+  color: var(--nl-dim);
+}
+.nl-note {
+  margin: 10px 0;
+  padding: 10px 12px;
+  font: 500 12px/1.45 var(--nl-font);
+  color: var(--nl-dim);
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-md);
+}
+.nl-note--warn {
+  color: var(--nl-warn);
+  border-color: color-mix(in srgb, var(--nl-warn) 40%, transparent);
+}
+
+/* --- Lists and rows -------------------------------------------------------------------------- */
+.nl-section {
+  margin: 16px 2px 8px;
+  font: 800 12px/1 var(--nl-font);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--nl-dim);
+}
+.nl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.nl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 9px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--nl-text);
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-md);
+}
+button.nl-row {
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s var(--nl-ease);
+}
+button.nl-row:hover:not(:disabled) {
+  background: var(--nl-surface-2);
+}
+button.nl-row:disabled {
+  cursor: not-allowed;
+}
+.nl-row--muted {
+  opacity: 0.55;
+}
+.nl-row-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  font-size: 19px;
+  font-weight: 800;
+  background: var(--nl-surface-2);
+  border-radius: 12px;
+}
+.nl-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nl-row-title {
+  font: 700 14px/1.25 var(--nl-font);
+  overflow-wrap: anywhere;
+}
+.nl-row-sub {
+  font: 500 12px/1.35 var(--nl-font);
+  color: var(--nl-dim);
+  overflow-wrap: anywhere;
+}
+.nl-row-trail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 700 13.5px/1.2 var(--nl-font);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.nl-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.nl-amount--in {
+  color: var(--nl-good);
+}
+.nl-amount--out {
+  color: var(--nl-bad);
+}
+.nl-amount--move {
+  color: var(--nl-dim);
+}
+.nl-check {
+  color: var(--nl-good);
+  font-weight: 800;
+}
+
+/* --- Tags, dots ------------------------------------------------------------------------------ */
+.nl-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  font: 700 10.5px/1.2 var(--nl-font);
+  letter-spacing: 0.03em;
+  color: var(--nl-dim);
+  background: var(--nl-surface-2);
+  border-radius: var(--nl-r-pill);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.nl-tag--good {
+  color: var(--nl-good);
+}
+.nl-tag--muted {
+  opacity: 0.8;
+}
+.nl-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 8px 0;
+}
+.nl-dot {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font: 800 10.5px/1 var(--nl-font);
+  color: #fff;
+  background: #ef4444;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+/* --- Cards ----------------------------------------------------------------------------------- */
+.nl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 14px;
+  color: var(--nl-text);
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-lg);
+}
+.nl-card--warn {
+  border-color: color-mix(in srgb, var(--nl-warn) 40%, transparent);
+}
+.nl-card--live {
+  border-color: color-mix(in srgb, var(--nl-accent) 70%, transparent);
+  background: color-mix(in srgb, var(--nl-accent) 12%, var(--nl-surface));
+}
+.nl-card-title {
+  font: 800 15px/1.25 var(--nl-font);
+}
+.nl-card-line {
+  font: 500 12.5px/1.45 var(--nl-font);
+  color: var(--nl-dim);
+}
+.nl-card-line strong {
+  color: var(--nl-text);
+}
+.nl-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 8px;
+  margin: 6px 0 2px;
+}
+.nl-stats span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  font: 500 11px/1.3 var(--nl-font);
+  color: var(--nl-dim);
+  background: var(--nl-surface-2);
+  border-radius: var(--nl-r-sm);
+}
+.nl-stats strong {
+  font: 800 13.5px/1.2 var(--nl-font);
+  color: var(--nl-text);
+}
+
+/* The large panel at the top of a screen */
+.nl-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin: 2px 0 8px;
+  padding: 18px 16px;
+  font: inherit;
+  text-align: left;
+  color: #fff;
+  background: linear-gradient(150deg, #0f5132 0%, #17805a 55%, #0c3b27 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--nl-r-lg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.nl-hero--blue {
+  background: linear-gradient(150deg, #172554 0%, #1d4ed8 60%, #172554 100%);
+}
+.nl-hero--amber {
+  background: linear-gradient(150deg, #78350f 0%, #c2760c 60%, #713f12 100%);
+}
+.nl-hero--indigo {
+  background: linear-gradient(150deg, #312e81 0%, #4f46e5 60%, #312e81 100%);
+}
+.nl-hero--green {
+  background: linear-gradient(150deg, #064e3b 0%, #0f9f72 60%, #064e3b 100%);
+}
+.nl-hero-label {
+  font: 600 12px/1.2 var(--nl-font);
+  opacity: 0.82;
+}
+.nl-hero-value {
+  font: 800 30px/1.1 var(--nl-font);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.nl-hero-title {
+  font: 800 20px/1.2 var(--nl-font);
+}
+.nl-hero-sub {
+  font: 500 12px/1.4 var(--nl-font);
+  opacity: 0.85;
+}
+.nl-hero-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.nl-hero-actions .nl-btn {
+  flex: 1;
+  min-height: 40px;
+}
+.nl-hero .nl-meter {
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* --- Meters, sparklines ---------------------------------------------------------------------- */
+.nl-meter {
+  display: block;
+  height: 7px;
+  background: var(--nl-surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.nl-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--nl-accent);
+  border-radius: 999px;
+  transition: width 0.4s var(--nl-ease);
+}
+.nl-meter--good > span {
+  background: var(--nl-good);
+}
+.nl-meter--warn > span {
+  background: var(--nl-warn);
+}
+.nl-meter--bad > span {
+  background: var(--nl-bad);
+}
+.nl-spark {
+  margin-top: 8px;
+  max-width: 100%;
+}
+.nl-spark path {
+  stroke: currentColor;
+}
+.nl-spark--up {
+  color: #86efac;
+}
+.nl-spark--down {
+  color: #fca5a5;
+}
+.nl-need {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 0;
+}
+.nl-need-top {
+  display: flex;
+  justify-content: space-between;
+  font: 700 13.5px/1.2 var(--nl-font);
+}
+
+/* --- Toggle, stepper ------------------------------------------------------------------------- */
+.nl-toggle {
+  flex: none;
+  width: 46px;
+  height: 28px;
+  padding: 3px;
+  background: var(--nl-surface-2);
+  border: 1px solid var(--nl-line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.nl-toggle > span {
+  display: block;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s var(--nl-ease);
+}
+.nl-toggle.is-on {
+  background: var(--nl-accent);
+}
+.nl-toggle.is-on > span {
+  transform: translateX(18px);
+}
+.nl-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 800 13px/1 var(--nl-font);
+}
+.nl-step {
+  width: 30px;
+  height: 30px;
+  font: 800 16px/1 var(--nl-font);
+  color: var(--nl-text);
+  background: var(--nl-surface-2);
+  border: 1px solid var(--nl-line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.nl-step:hover {
+  background: var(--nl-accent);
+  color: var(--nl-accent-text);
+}
+
+/* --- Nothing to show ------------------------------------------------------------------------- */
+.nl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 18px;
+  text-align: center;
+  color: var(--nl-dim);
+}
+.nl-empty-icon {
+  font-size: 30px;
+}
+.nl-empty-title {
+  font: 800 15px/1.3 var(--nl-font);
+  color: var(--nl-text);
+}
+.nl-empty-text {
+  font: 500 12.5px/1.5 var(--nl-font);
+  max-width: 30ch;
+}
+
+/* --- A bar that stays at the bottom of a scrolling screen ------------------------------------- */
+.nl-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--nl-bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-md);
+}
+.nl-bar-text {
+  font: 700 12.5px/1.3 var(--nl-font);
+  color: var(--nl-text);
+}
+
+/* --- Chat ------------------------------------------------------------------------------------ */
+.nl-chat-who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.nl-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-height: 120px;
+}
+.nl-bubble {
+  max-width: 82%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  font: 500 13.5px/1.4 var(--nl-font);
+  border-radius: 16px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.nl-bubble small {
+  font-size: 10px;
+  opacity: 0.65;
+}
+.nl-bubble--them {
+  align-self: flex-start;
+  color: var(--nl-text);
+  background: var(--nl-surface-2);
+  border-bottom-left-radius: 5px;
+}
+.nl-bubble--me {
+  align-self: flex-end;
+  color: var(--nl-accent-text);
+  background: var(--nl-accent);
+  border-bottom-right-radius: 5px;
+}
+.nl-chat-form {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  background: var(--nl-bg);
+}
+.nl-chat-form .nl-field {
+  flex: 1;
+}
+
+/* --- Menu that opens beside something in the world -------------------------------------------- */
+.nl-menu {
+  position: fixed;
+  z-index: var(--z-modal-dialog);
+  width: min(300px, calc(100vw - 20px));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  font-family: var(--nl-font);
+  color: var(--nl-text);
+  background: color-mix(in srgb, var(--nl-bg) 97%, transparent);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-lg);
+  box-shadow: var(--nl-shadow);
+  pointer-events: auto;
+  animation: nlMenuIn 0.16s var(--nl-ease);
+}
+.nl-menu[hidden] {
+  display: none;
+}
+@keyframes nlMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+.nl-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid var(--nl-line);
+}
+.nl-menu-head strong {
+  display: block;
+  font: 800 15px/1.2 var(--nl-font);
+}
+.nl-menu-head small {
+  font: 500 12px/1.3 var(--nl-font);
+  color: var(--nl-dim);
+}
+.nl-menu-back {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  color: var(--nl-text);
+  background: var(--nl-surface-2);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.nl-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 6px;
+  overflow-y: auto;
+}
+.nl-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--nl-tap);
+  padding: 6px 10px;
+  font: 700 14px/1.25 var(--nl-font);
+  text-align: left;
+  color: var(--nl-text);
+  background: transparent;
+  border: none;
+  border-radius: var(--nl-r-sm);
+  cursor: pointer;
+}
+.nl-menu-item:hover:not([aria-disabled="true"]) {
+  background: var(--nl-surface-2);
+}
+.nl-menu-item[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+.nl-menu-item[aria-disabled="true"] .nl-menu-label,
+.nl-menu-item[aria-disabled="true"] .nl-menu-icon {
+  opacity: 0.45;
+}
+.nl-menu-icon {
+  flex: none;
+  width: 26px;
+  text-align: center;
+  font-size: 17px;
+}
+.nl-menu-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.nl-menu-why {
+  font: 500 11.5px/1.3 var(--nl-font);
+  color: var(--nl-dim);
+}
+.nl-menu-more {
+  color: var(--nl-dim);
+}
+.nl-menu-needs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 8px;
+  font: 700 11.5px/1.2 var(--nl-font);
+}
+.nl-menu-needs span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nl-menu:focus {
+  outline: none;
+}
+/* The few things wanted from anywhere, as one row under the list */
+.nl-menu-quick {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--nl-line);
+}
+.nl-menu-quick .nl-menu-item {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+  font-size: 11.5px;
+  text-align: center;
+  background: var(--nl-surface-2);
+}
+.nl-menu-quick .nl-menu-icon {
+  width: auto;
+}
+
+/* =============================================================================================
+   The phone
+   ============================================================================================= */
+#smartphone-wrapper .smartphone-device.nlphone {
+  --nl-bg: #0b1410;
+  --nl-surface: #131f1a;
+  --nl-surface-2: #1b2b24;
+  --nl-line: rgba(255, 255, 255, 0.09);
+  --nl-text: #f2f6f3;
+  --nl-dim: #9db0a6;
+  --nl-accent: #1f9d6b;
+  --nl-accent-text: #ffffff;
+  --nl-good: #4ade80;
+  --nl-warn: #fbbf24;
+  --nl-bad: #f87171;
+  --nl-focus: #6ee7b7;
+  color-scheme: dark;
+
+  width: min(376px, calc(100vw - 20px));
+  height: min(760px, calc(100vh - 92px));
+  font-family: var(--nl-font);
+  color: var(--nl-text);
+  background: var(--nl-bg);
+  border: 5px solid #26302c;
+  border-radius: 46px;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  user-select: none;
+}
+/* The handset is not selectable text, but what is typed into it is */
+.nlphone input,
+.nlphone textarea {
+  user-select: text;
+}
+.nlphone .phone-status-bar {
+  padding: 14px 24px 6px;
+  font: 700 12px/1 var(--nl-font);
+  color: var(--nl-text);
+}
+.nlphone .phone-status-place {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--nl-dim);
+}
+.nlphone-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px 8px;
+}
+.nlphone-bar[hidden] {
+  display: none;
+}
+.nlphone-back {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--nl-text);
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.nlphone-back:disabled {
+  opacity: 0.35;
+}
+.nlphone-back:focus-visible,
+.nlphone-nav-btn:focus-visible,
+.nlphone-app:focus-visible,
+.nlphone-dock-btn:focus-visible,
+.nlphone-now:focus-visible,
+.nlphone-needs:focus-visible,
+.nlphone-wallet:focus-visible {
+  outline: 3px solid var(--nl-focus);
+  outline-offset: 2px;
+}
+.nlphone-title {
+  font: 800 18px/1.2 var(--nl-font);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Laid over the screen, so a message arriving does not push the list about */
+.nlphone-notice {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 70px;
+  z-index: 20;
+  padding: 10px 12px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
+  animation: nlMenuIn 0.18s var(--nl-ease);
+  font: 600 12.5px/1.4 var(--nl-font);
+  color: var(--nl-text);
+  background: var(--nl-surface-2);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-md);
+}
+.nlphone-notice[hidden] {
+  display: none;
+}
+.nlphone-notice[data-tone="good"] {
+  border-color: color-mix(in srgb, var(--nl-good) 55%, transparent);
+}
+.nlphone-notice[data-tone="bad"] {
+  border-color: color-mix(in srgb, var(--nl-bad) 60%, transparent);
+  color: #fecaca;
+}
+.nlphone .phone-screen {
+  flex: 1;
+  min-height: 0;
+  display: block;
+  padding: 2px 14px 14px;
+  color: var(--nl-text);
+  background: var(--nl-bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.nlphone-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 4px 26px 10px;
+  background: var(--nl-bg);
+  border-top: 1px solid var(--nl-line);
+}
+.nlphone-nav-btn {
+  height: 40px;
+  font-size: 20px;
+  color: var(--nl-dim);
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.nlphone-nav-btn:hover {
+  color: var(--nl-text);
+  background: var(--nl-surface);
+}
+.nlphone-nav-home span {
+  display: inline-block;
+  width: 84px;
+  height: 5px;
+  background: currentColor;
+  border-radius: 999px;
+}
+.nlphone-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.6);
+}
+.nlphone-confirm[hidden] {
+  display: none;
+}
+.nlphone-confirm-card {
+  width: 100%;
+  padding: 18px 16px 16px;
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-lg);
+  animation: nlMenuIn 0.18s var(--nl-ease);
+}
+.nlphone-confirm-card p {
+  margin: 0 0 6px;
+  font: 700 15px/1.45 var(--nl-font);
+}
+
+/* Home screen */
+.nlphone-home {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+}
+.nlphone-clock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 4px 2px;
+}
+.nlphone-clock-time {
+  font: 800 40px/1 var(--nl-font);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.nlphone-clock-date {
+  font: 600 13px/1.3 var(--nl-font);
+  color: var(--nl-dim);
+}
+.nlphone-wallet {
+  margin: 0;
+  cursor: pointer;
+}
+.nlphone-wallet:hover {
+  filter: brightness(1.08);
+}
+.nlphone-needs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  font: 700 12px/1 var(--nl-font);
+  color: var(--nl-text);
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-md);
+  cursor: pointer;
+}
+.nlphone-needs > span {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px;
+}
+.nlphone-now {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--nl-text);
+  background: color-mix(in srgb, var(--nl-accent) 16%, var(--nl-surface));
+  border: 1px solid color-mix(in srgb, var(--nl-accent) 60%, transparent);
+  border-radius: var(--nl-r-md);
+  cursor: pointer;
+}
+.nlphone-now > span:first-child {
+  font-size: 22px;
+}
+.nlphone-now strong {
+  display: block;
+  font: 800 13.5px/1.25 var(--nl-font);
+}
+.nlphone-now small {
+  font: 500 12px/1.3 var(--nl-font);
+  color: var(--nl-dim);
+}
+.nlphone-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px 6px;
+  padding: 8px 0 4px;
+}
+.nlphone .nlphone-app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font: inherit;
+  color: var(--nl-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.nlphone-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  font-size: 27px;
+  border-radius: 18px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.15s var(--nl-ease);
+}
+.nlphone-app:hover .nlphone-tile {
+  transform: translateY(-2px) scale(1.04);
+}
+.nlphone-app-name {
+  font: 600 11.5px/1.2 var(--nl-font);
+  color: var(--nl-text);
+}
+.nlphone-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  font: 800 11px/1 var(--nl-font);
+  color: #fff;
+  background: #ef4444;
+  border: 2px solid var(--nl-bg);
+  border-radius: 999px;
+}
+.nlphone-dock {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--nl-surface);
+  border: 1px solid var(--nl-line);
+  border-radius: 22px;
+}
+.nlphone-dock-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 0;
+  font-size: 20px;
+  color: var(--nl-text);
+  background: transparent;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+}
+.nlphone-dock-btn:hover {
+  background: var(--nl-surface-2);
+}
+.nlphone-dock-btn small {
+  font: 600 10.5px/1 var(--nl-font);
+  color: var(--nl-dim);
+}
+
+@media (max-width: 520px) {
+  #smartphone-wrapper {
+    right: 10px;
+    bottom: 10px;
+  }
+  #smartphone-wrapper .smartphone-device.nlphone {
+    height: min(720px, calc(100vh - 70px));
+    border-radius: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-menu,
+  .nlphone-confirm-card {
+    animation: none;
+  }
+  .nl-meter > span,
+  .nl-toggle > span,
+  .nlphone-tile {
+    transition: none;
+  }
+}
+
+/* --- Bits the land and market screens use ------------------------------------------------------ */
+.nl-tag--warn {
+  color: #fde68a;
+  background: color-mix(in srgb, var(--nl-warn) 26%, transparent);
+}
+.nl-tag--info {
+  color: #bae6fd;
+  background: color-mix(in srgb, #38bdf8 24%, transparent);
+}
+.nl-note--good {
+  border-color: color-mix(in srgb, var(--nl-good) 55%, transparent);
+}
+.nl-dim {
+  color: var(--nl-dim);
+  font-weight: 600;
+}
+.nl-good {
+  color: var(--nl-good);
+}
+.nl-bad {
+  color: var(--nl-bad);
+}
+.nl-bubble-at {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  opacity: 0.7;
+}
+
+/* --- Placing a building on a plot -------------------------------------------------------------- */
+.nl-buildbar {
+  position: fixed;
+  left: 50%;
+  bottom: 86px;
+  z-index: var(--z-modal-dialog);
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 20px));
+  padding: 12px 14px;
+  font-family: var(--nl-font);
+  color: var(--nl-text);
+  background: color-mix(in srgb, var(--nl-bg) 97%, transparent);
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-r-lg);
+  box-shadow: var(--nl-shadow);
+  pointer-events: auto;
+}
+.nl-buildbar[hidden] {
+  display: none;
+}
+.nl-buildbar-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 15px;
+}
+.nl-buildbar-head span {
+  font-size: 12.5px;
+  color: var(--nl-dim);
+}
+.nl-buildbar-say {
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  font: 600 12.5px/1.4 var(--nl-font);
+  border-radius: var(--nl-r-sm);
+  background: var(--nl-surface-2);
+}
+.nl-buildbar-say.is-bad {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.nl-buildbar-say.is-good {
+  color: #166534;
+  background: #dcfce7;
+}
+.nl-buildbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.nl-buildbar-row .nl-btn--primary {
+  margin-left: auto;
+}
+.nl-buildbar-pad {
+  display: flex;
+  gap: 4px;
+}
+/* While a building is being placed the bottom of the screen belongs to it */
+body:has(#build-bar:not([hidden])) .emote-bar,
+body:has(#build-bar:not([hidden])) .street-radar-bar {
+  display: none !important;
+}
+
+/* --- Small screens and touch ------------------------------------------------------------------- */
+/* A dialog owns the screen: the touch stick and its buttons step aside instead of lying over it */
+body.ui-modal-open .mobile-controls-active {
+  display: none !important;
+}
+/* On a phone the list of nearby places would sit on top of the character; the map has them all */
+@media (max-width: 700px) {
+  .street-radar-bar {
+    display: none !important;
+  }
+}

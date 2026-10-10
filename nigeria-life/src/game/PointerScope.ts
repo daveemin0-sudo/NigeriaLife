@@ -12,6 +12,7 @@ type GameWheelHandler = (pixels: number, event: WheelEvent) => boolean;
 export class PointerScope {
   private static canvas: HTMLCanvasElement | null = null;
   private static handlers: GameWheelHandler[] = [];
+  private static ignored = false;
 
   /** Call once, with the canvas the game is drawn on. */
   public static init(canvas: HTMLCanvasElement): void {
@@ -19,6 +20,20 @@ export class PointerScope {
     PointerScope.canvas = canvas;
     // Not passive: a wheel turn that reaches the end of a list must be stopped there
     window.addEventListener('wheel', PointerScope.onWheel, { passive: false });
+    // First in line for every press, so each one starts out counting
+    window.addEventListener('pointerdown', () => { PointerScope.ignored = false; }, true);
+  }
+
+  /**
+   * The press now under way was used up by the interface (it closed a menu, say) and must not
+   * also walk the character or turn the camera. Holds until the next press begins.
+   */
+  public static ignoreThisPress(): void {
+    PointerScope.ignored = true;
+  }
+
+  public static get pressIgnored(): boolean {
+    return PointerScope.ignored;
   }
 
   /** Is this event aimed at the 3D view itself, not at a button, panel or list over it? */

@@ -3,6 +3,7 @@ import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
 import { SoundEngine } from '../audio/SoundEngine';
 import { UIStateManager } from './UIStateManager';
+import { draw, forget } from './kit/StableView';
 
 export class ATMModal {
   private container: HTMLDivElement;
@@ -25,6 +26,7 @@ export class ATMModal {
   public open(): void {
     this.isOpen = true;
     this.container.style.display = 'flex';
+    forget(this.container);
     this.render(this.backend.getData());
     UIStateManager.getInstance().pushModal('atm');
   }
@@ -42,7 +44,7 @@ export class ATMModal {
   }
 
   private render(data: PlayerAccount): void {
-    this.container.innerHTML = `
+    const html = `
       <div class="modal-backdrop"></div>
       <div class="creator-dialog atm-dialog">
         <header class="atm-header">
@@ -110,7 +112,7 @@ export class ATMModal {
       </div>
     `;
 
-    this.setupEvents();
+    draw(this.container, html, { drawn: () => this.setupEvents() });
   }
 
   private setupEvents(): void {

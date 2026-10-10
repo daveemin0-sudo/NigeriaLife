@@ -363,10 +363,13 @@ export class Roads {
     for (const bz of bumpZPositions) {
       const bumpGeo = new THREE.CylinderGeometry(0.65, 0.65, this.roadWidth - 0.4, 16, 1, false, 0, Math.PI);
       const bump = new THREE.Mesh(bumpGeo, bumpMat);
+      // Lying across the road, round side up
       bump.rotation.z = Math.PI / 2;
-      bump.rotation.y = Math.PI / 2;
       bump.position.set(0, 0.08, bz);
+      bump.scale.set(0.42, 1, 1.4);
       bump.receiveShadow = true;
+      // Part of the road surface: traffic drives over it
+      bump.userData.surface = true;
       this.group.add(bump);
 
       // Yellow chevron warning stripes on speed bump
@@ -477,10 +480,10 @@ export class Roads {
     const concMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.85 });
     const blueSteelMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.4, roughness: 0.5 });
     const deckY = 5.4; // 5.4m overhead vehicle clearance
-    const totalSpan = 21.0; // Across both sidewalks (x: -10.5 to +10.5)
+    const totalSpan = 24.0; // Across both pavements (x: -12 to +12)
 
-    // 1. Heavy Concrete Support Pillars (at curb edges)
-    for (const px of [-7.2, 7.2]) {
+    // 1. Heavy Concrete Support Pillars, on the pavement just inside the kerb, clear of the carriageway
+    for (const px of [-7.95, 7.95]) {
       const colGeo = new THREE.BoxGeometry(1.0, deckY, 1.0);
       const col = new THREE.Mesh(colGeo, concMat);
       col.position.set(px, deckY / 2, 0);
@@ -489,7 +492,7 @@ export class Roads {
       bridgeGroup.add(col);
 
       // Yellow & black hazard base footing
-      const baseGeo = new THREE.BoxGeometry(1.3, 0.9, 1.3);
+      const baseGeo = new THREE.BoxGeometry(1.0, 0.9, 1.0);
       const base = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 }));
       base.position.set(px, 0.45, 0);
       base.castShadow = true;
@@ -551,14 +554,15 @@ export class Roads {
     const stepRise = (deckY - 0.28) / numSteps;
     const stepRun = 0.85;
 
-    for (const sx of [-10.5, 10.5]) {
+    // Against the building line, leaving two metres of pavement between the stair and the pillar
+    for (const sx of [-11.2, 11.2]) {
       const stairGroup = new THREE.Group();
       stairGroup.position.set(sx, 0, 0);
 
       for (let s = 0; s < numSteps; s++) {
         const stepH = (s + 1) * stepRise;
         const stepZ = -(s * stepRun) - 1.6;
-        const stepGeo = new THREE.BoxGeometry(2.4, stepRise + 0.02, stepRun);
+        const stepGeo = new THREE.BoxGeometry(1.5, stepRise + 0.02, stepRun);
         const step = new THREE.Mesh(stepGeo, concMat);
         step.position.set(0, stepH - stepRise / 2, stepZ);
         step.castShadow = true;
@@ -572,7 +576,7 @@ export class Roads {
       const stairRailGeo = new THREE.BoxGeometry(0.08, 0.08, railLen);
       const stairRail = new THREE.Mesh(stairRailGeo, blueSteelMat);
       stairRail.rotation.x = railAngle;
-      stairRail.position.set(sx > 0 ? -1.15 : 1.15, deckY / 2 + 0.9, -((numSteps * stepRun) / 2) - 1.6);
+      stairRail.position.set(sx > 0 ? -0.7 : 0.7, deckY / 2 + 0.9, -((numSteps * stepRun) / 2) - 1.6);
       stairGroup.add(stairRail);
 
       bridgeGroup.add(stairGroup);

@@ -2,6 +2,7 @@ import { QuestManager } from '../quests/QuestManager';
 import type { QuestCity } from '../quests/QuestTypes';
 import { SoundEngine } from '../audio/SoundEngine';
 import { UIStateManager } from './UIStateManager';
+import { draw, forget } from './kit/StableView';
 
 export class QuestModal {
   private container: HTMLDivElement;
@@ -26,6 +27,7 @@ export class QuestModal {
   public open(): void {
     this.isOpen = true;
     this.container.className = 'quest-modal-open';
+    forget(this.container);
     this.render();
     UIStateManager.getInstance().pushModal('quest');
   }
@@ -45,7 +47,7 @@ export class QuestModal {
     const cityQuests = this.questManager.getQuestsByCity(this.selectedCity);
     const activeQuest = this.questManager.getActiveQuest();
 
-    this.container.innerHTML = `
+    const html = `
       <div class="quest-modal-backdrop" id="quest-backdrop"></div>
       <div class="quest-modal-dialog">
         <!-- Header -->
@@ -139,7 +141,7 @@ export class QuestModal {
       </div>
     `;
 
-    this.setupEvents();
+    draw(this.container, html, { drawn: () => this.setupEvents() });
   }
 
   private setupEvents(): void {
@@ -151,6 +153,7 @@ export class QuestModal {
     tabBtns.forEach((tab) => {
       (tab as HTMLElement).onclick = () => {
         this.selectedCity = (tab as HTMLElement).getAttribute('data-city') as QuestCity;
+        forget(this.container);
         this.render();
       };
     });

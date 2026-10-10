@@ -36,6 +36,8 @@ export interface P2PTransferMessage {
   amount: number;
   memo: string;
   timestamp: string;
+  /** Which of the receiver's pockets it lands in: a bank transfer goes to their bank account */
+  into?: 'wallet' | 'bank';
 }
 
 export type NetPacket =
@@ -45,4 +47,5 @@ export type NetPacket =
   | { type: 'p2p_transfer'; transfer: P2PTransferMessage }
   | { type: 'emote_sync'; playerId: string; emote: EmoteType }
   | { type: 'social'; fromId: string; fromName: string; toId: string; kind: 'wave' | 'greet' }
+  | { type: 'dm'; fromId: string; fromName: string; toId: string; text: string }
   | { type: 'leave'; id: string };

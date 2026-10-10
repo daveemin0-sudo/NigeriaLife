@@ -32,6 +32,22 @@ export class CityManager {
     this.lagosInteractiveObjects = objects;
   }
 
+  public addLagosInteractive(object: InteractiveObject): void {
+    this.lagosInteractiveObjects.push(object);
+  }
+
+  public removeLagosInteractive(object: InteractiveObject): void {
+    const at = this.lagosInteractiveObjects.indexOf(object);
+    if (at >= 0) this.lagosInteractiveObjects.splice(at, 1);
+  }
+
+  /** Adds something to Lagos after the city was first put together: it is shown, hidden and clickable with the rest of Lagos. */
+  public addToLagos(group: THREE.Object3D, objects: InteractiveObject[]): void {
+    this.lagosGroups.push(group);
+    this.lagosInteractiveObjects.push(...objects);
+    group.visible = this.currentCityId === 'lagos';
+  }
+
   public registerLagosGroups(groups: THREE.Object3D[]): void {
     this.lagosGroups = groups;
   }

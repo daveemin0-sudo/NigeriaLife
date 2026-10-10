@@ -23,7 +23,7 @@ export interface TransactionResult {
   newBalance?: number;
 }
 
-const CREDIT_TYPES: ReadonlySet<TransactionType> = new Set<TransactionType>([
+export const CREDIT_TYPES: ReadonlySet<TransactionType> = new Set<TransactionType>([
   'JOB_SALARY',
   'BUSINESS_INCOME',
   'QUEST_REWARD',
@@ -31,6 +31,11 @@ const CREDIT_TYPES: ReadonlySet<TransactionType> = new Set<TransactionType>([
   'WINNINGS',
   'BONUS',
   'LOAN_DISBURSEMENT',
+  'INVESTMENT_SALE',
+  'PROPERTY_SALE',
+  'ITEM_SALE',
+  'ASSET_SALE',
+  'CONSTRUCTION_REFUND',
 ]);
 
 const MAX_HISTORY = 50;

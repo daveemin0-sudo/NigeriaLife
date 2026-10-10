@@ -126,7 +126,11 @@ export type TransactionType =
   | 'WINNINGS'
   | 'BONUS'
   | 'LOAN_DISBURSEMENT'
+  | 'INVESTMENT_SALE'
+  | 'PROPERTY_SALE'
+  | 'ITEM_SALE'
   // Money out
+  | 'INVESTMENT_PURCHASE'
   | 'PROPERTY_PURCHASE'
   | 'RENT_PAYMENT'
   | 'BUSINESS_PURCHASE'
@@ -134,6 +138,11 @@ export type TransactionType =
   | 'FOOD_PURCHASE'
   | 'MEDICAL_BILL'
   | 'TRAVEL_COST'
+  // Land, vehicles and buildings: bought, sold and built
+  | 'ASSET_PURCHASE'
+  | 'ASSET_SALE'
+  | 'CONSTRUCTION_COST'
+  | 'CONSTRUCTION_REFUND'
   | 'TRANSFER_OUT'
   | 'LOAN_REPAYMENT'
   // Moves between the player's own bank account and wallet
@@ -196,6 +205,18 @@ export interface SavedWorldState {
   inTransit?: boolean; // Saved mid-journey: the trip is paid for, so a reload completes the arrival
 }
 
+export interface PhoneMessage {
+  from: 'me' | 'them';
+  text: string;
+  /** When it was sent, as the game's clock read then */
+  at: string;
+}
+
+export interface PhoneThread {
+  messages: PhoneMessage[];
+  unread: number;
+}
+
 export interface PlayerAccount {
   schemaVersion: number;
   id: string;
@@ -222,6 +243,10 @@ export interface PlayerAccount {
   claims: Record<string, number>;
   /** How well each person knows the player, 0 (stranger) to 100, by the person's id */
   relationships: Record<string, number>;
+  /** Shares held, by ticker: how many units and what was paid for them in all */
+  investments: Record<string, { units: number; spent: number }>;
+  /** Text conversations with people the player has met, by the person's id, oldest first */
+  threads: Record<string, PhoneThread>;
   /** When business revenue was last accrued (ms since epoch) */
   lastRevenueAt?: number;
   worldState?: SavedWorldState;
@@ -1191,5 +1216,7 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
   activeJobShift: null,
   claims: {},
   relationships: {},
+  investments: {},
+  threads: {},
   createdAt: new Date().toISOString(),
 };

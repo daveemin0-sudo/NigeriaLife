@@ -1,3 +1,4 @@
+import { profileKey } from '../backend/Profile';
 export type Gender = 'male' | 'female';
 export type HeadwearType = 'fila_cream' | 'igbo_red_cap' | 'afro_hair' | 'braids' | 'bob_wig' | 'gele' | 'hardhat' | 'none';
 export type AttireStyle =
@@ -111,7 +112,7 @@ export const HEADWEAR_OPTIONS: { id: HeadwearType; name: string }[] = [
 ];
 
 export class CharacterStorage {
-  private static STORAGE_KEY = 'nigeria_life_character_v1';
+  private static STORAGE_KEY = profileKey('nigeria_life_character_v1');
 
   public static load(): CharacterConfig {
     try {

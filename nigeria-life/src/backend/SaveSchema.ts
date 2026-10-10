@@ -123,6 +123,27 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     }
   }
 
+  const investments: PlayerAccount['investments'] = {};
+  if (isRecord(saved.investments)) {
+    for (const [ticker, held] of Object.entries(saved.investments)) {
+      if (isRecord(held) && Number.isFinite(held.units) && held.units > 0 && Number.isFinite(held.spent)) {
+        investments[ticker] = { units: Math.floor(held.units), spent: Math.max(0, Math.round(held.spent)) };
+      }
+    }
+  }
+
+  const threads: PlayerAccount['threads'] = {};
+  if (isRecord(saved.threads)) {
+    for (const [who, thread] of Object.entries(saved.threads)) {
+      if (!isRecord(thread) || !Array.isArray(thread.messages)) continue;
+      const messages = thread.messages
+        .filter((m: unknown) => isRecord(m) && (m.from === 'me' || m.from === 'them') && typeof m.text === 'string')
+        .slice(-40)
+        .map((m: Raw) => ({ from: m.from, text: String(m.text).slice(0, 240), at: typeof m.at === 'string' ? m.at : '' }));
+      threads[who] = { messages, unread: Number.isFinite(thread.unread) ? Math.max(0, Math.floor(thread.unread)) : 0 };
+    }
+  }
+
   let worldState: SavedWorldState | undefined;
   if (isRecord(world) && SAVED_CITIES.has(world.cityId) && Number.isFinite(world.x) && Number.isFinite(world.z)) {
     worldState = {
@@ -219,6 +240,8 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
         : undefined,
     claims,
     relationships,
+    investments,
+    threads,
     lastRevenueAt: Number.isFinite(saved.lastRevenueAt) ? saved.lastRevenueAt : undefined,
     worldState,
     createdAt: str(saved.createdAt, base.createdAt, 'createdAt'),

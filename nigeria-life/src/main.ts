@@ -1,4 +1,5 @@
 import './style.css';
+import './ui/kit/kit.css';
 import { Game } from './game/Game';
 
 // Initialize the Nigeria Life Engine

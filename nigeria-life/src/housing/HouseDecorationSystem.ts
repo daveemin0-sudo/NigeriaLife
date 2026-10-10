@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import { UIStateManager } from '../ui/UIStateManager';
+import { profileKey } from '../backend/Profile';
 
 export interface CatalogueItem {
   id: string;
@@ -128,7 +129,7 @@ export class HouseDecorationSystem {
   private static instance: HouseDecorationSystem;
   private backend: BackendService;
   public placedItemsGroup: THREE.Group;
-  private storageKey = 'nigeria_life_placed_furniture_v1';
+  private storageKey = profileKey('nigeria_life_placed_furniture_v1');
   public isBuyMode: boolean = false;
   private modalContainer: HTMLDivElement | null = null;
   public onFurniturePlaced?: (item: CatalogueItem) => void;

@@ -21,6 +21,23 @@ import { InteractionDirector } from '../interactions/InteractionDirector';
 import { BukaOrderUI } from '../ui/BukaOrderUI';
 import { ShopUI } from '../ui/ShopUI';
 import { VendorUI } from '../ui/VendorUI';
+import { SoundEngine } from '../audio/SoundEngine';
+import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { RideService } from '../phone/services/RideService';
+import { DeliveryService } from '../phone/services/DeliveryService';
+import { MessageService } from '../phone/services/MessageService';
+import { Market } from '../phone/services/Market';
+import type { PhoneWorld } from '../phone/PhoneApp';
+import { SelfMenu } from '../ui/SelfMenu';
+import { Land } from '../realestate/Land';
+import { BuildBar } from '../ui/BuildBar';
+import { Garage } from '../realestate/Garage';
+import { OwnedVehicles } from '../realestate/OwnedVehicles';
+import { PlotWorld } from '../realestate/PlotWorld';
+import { AssetMarket } from '../realestate/AssetMarket';
+import { Registry } from '../realestate/Registry';
+import { lagosZones, grow, intersection, type Rect } from '../world/plan/CityPlan';
+import { LAGOS_DISTRICTS } from '../world/data/LagosMapData';
 import { ActivityStatusUI } from '../ui/ActivityStatusUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
@@ -46,10 +63,26 @@ export class Game {
   public bukaUI!: BukaOrderUI;
   public shopUI!: ShopUI;
   public vendorUI!: VendorUI;
+  /** What the phone's apps work with: rides, deliveries, messages and the market. They run whether or not the phone is open. */
+  public rides = new RideService();
+  public deliveries = new DeliveryService();
+  public messages = new MessageService();
+  public market = new Market();
+  /** The menu that opens on a click on the player's own character */
+  public selfMenu!: SelfMenu;
+  /** Land, what is built on it, and buying and selling between players */
+  public land = Land.get();
+  public assetMarket = AssetMarket.get();
+  public registry = Registry.get();
+  public plotWorld!: PlotWorld;
+  public buildBar!: BuildBar;
+  public garage = Garage.get();
+  public ownedVehicles!: OwnedVehicles;
+  private lastLandHour: number | null = null;
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry };
   private lastStepDelta: number = 0;
   public placeCard: PlaceCard;
 
@@ -404,6 +437,11 @@ export class Game {
     this.chatBox = new ChatBox(this.network);
     this.network.setOnPlayerCount((count) => this.hud.updateOnlineCount(count));
 
+    // 10b. The phone: its apps act on this game through the hooks below
+    this.connectPhone();
+    this.connectSelfMenu();
+    this.connectLand();
+
     // 11. Clock for delta-timed updates
     this.clock = new THREE.Clock();
 
@@ -424,6 +462,195 @@ export class Game {
 
     // 13. Start Loop
     this.loop();
+  }
+
+  /** Where the player is, as far as a driver, a rider or an ambulance is concerned. */
+  private whereabouts(): 'street' | 'inside' | 'driving' | 'transit' {
+    if (this.flightExperience.isActive || this.roadRideExperience.isActive) return 'transit';
+    if (this.player.isDriving) return 'driving';
+    if (this.world.interiorManager.isPlayerInside()) return 'inside';
+    return 'street';
+  }
+
+  private connectPhone(): void {
+    const sky = this.world.skyEnvironment;
+    const cityNames: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+    const cityId = () => this.world.cityManager.currentCityId;
+    const placeName = () => this.world.getDistrictAtPosition(this.player.position).name;
+
+    const world: PhoneWorld = {
+      clock: () => {
+        const label = sky.getFormattedTimeString();
+        const [date, time] = label.split(' • ');
+        return { day: sky.day, hour: sky.currentHour, label, date, time: time ?? label };
+      },
+      weather: () => (this.world.weather.currentWeather === 'rainy' ? 'rainy' : 'sunny'),
+      cityId,
+      cityName: () => cityNames[cityId()] ?? cityId(),
+      where: () => this.whereabouts(),
+      placeName,
+      goHome: () => document.getElementById('nav-btn-home')?.click(),
+      openMap: () => document.getElementById('nav-btn-map')?.click(),
+      openFlights: () => this.hud.interstateModal.open(cityId()),
+      openCamera: () => this.photoMode.open(),
+      openWardrobe: () => this.hud.openWardrobe(),
+      openQuests: () => this.hud.questModal.open(),
+      openBag: () => this.hud.openInventory(),
+      ambulance: () => this.callAmbulance(),
+      distanceTo: (x, z) => Math.hypot(this.player.position.x - x, this.player.position.z - z),
+      showPlace: (x, z, name) => {
+        this.hud.phoneModal.close();
+        this.world.highlightStreetProperty({ x, y: 0, z }, name);
+      },
+      placeBuilding: (plotId, typeId) => this.buildBar.open(plotId, typeId),
+      bringVehicle: (vehicleId) => {
+        if (this.whereabouts() !== 'street') return 'It can be brought to you when you are standing on the street.';
+        if (this.world.cityManager.currentCityId !== 'lagos') return 'Your vehicles are in Lagos.';
+        const blocked = this.ownedVehicles.bringRound(vehicleId);
+        if (!blocked) showGameToast('Your vehicle is at the kerb.', 'success', 3200);
+        return blocked;
+      },
+    };
+
+    this.rides.connect({
+      where: () => this.whereabouts(),
+      cityId,
+      startJourney: (destination, vehicle, arrived) => {
+        const ride: RideDetails = {
+          vehicleName: vehicle.label,
+          vehicleType: vehicle.mode,
+          originName: placeName(),
+          destinationName: destination.name,
+          durationSeconds: 9,
+          trafficCondition: 'Go-slow',
+          weatherCondition: 'Sunny',
+          destinationCityId: cityId(),
+        };
+        this.onJourneyCompleted = arrived;
+        this.hud.phoneModal.close();
+        this.world.setStreetModeVisibility(false);
+        this.player.mesh.visible = false;
+        this.roadRideExperience.startRide(ride);
+        this.transitHUD.showRideHUD(ride);
+      },
+      arriveAt: (destination) => {
+        this.player.stopMoving();
+        this.player.mesh.position.set(destination.streetPosition.x, 0, destination.streetPosition.z);
+        this.cameraManager.snapToPlayer(this.player, 'street');
+        showGameToast(`You have arrived at ${destination.name}.`, 'success', 3600);
+      },
+    });
+    this.deliveries.connect(() => this.whereabouts() === 'transit');
+    this.messages.connect(() => sky.getFormattedTimeString());
+    this.market.connect(() => sky.day * 24 + sky.currentHour);
+
+    this.hud.phoneModal.connect({ world, rides: this.rides, deliveries: this.deliveries, messages: this.messages, market: this.market });
+  }
+
+  /** Land plots, what stands on them, and the market they are traded in. */
+  private connectLand(): void {
+    const zones = lagosZones();
+    const near = new Map<string, Rect[]>();
+    this.land.connect({
+      districtAt: (x, z) => {
+        const inside = LAGOS_DISTRICTS.find((d) => x >= d.bounds.minX && x <= d.bounds.maxX && z >= d.bounds.minZ && z <= d.bounds.maxZ);
+        const district = inside ?? [...LAGOS_DISTRICTS].sort((a, b) => Math.hypot(a.center.x - x, a.center.z - z) - Math.hypot(b.center.x - x, b.center.z - z))[0];
+        return { id: district.id, name: district.name };
+      },
+      zones: () => zones,
+      // What already stands beside a plot does not change, so it is worked out once for each plot
+      buildingsNear: (rect) => {
+        const key = `${rect.minX},${rect.minZ}`;
+        let found = near.get(key);
+        if (!found) {
+          const around = grow(rect, 4);
+          found = this.world.standingOnTheGround().filter((thing) => thing.structure && intersection(around, thing) && !intersection(rect, thing));
+          near.set(key, found);
+        }
+        return found;
+      },
+    });
+
+    this.plotWorld = new PlotWorld();
+    this.scene.add(this.plotWorld.group);
+    this.world.cityManager.addToLagos(this.plotWorld.group, this.plotWorld.interactiveList);
+    this.world.builtByPlayers.push(() => this.plotWorld.obstructions());
+    BackendService.getInstance().addHomeCheck(() => this.land.hasHome());
+
+    this.buildBar = new BuildBar(this.plotWorld);
+    // While a building is being placed, a click on the plot moves it there instead of walking there
+    this.input.onGroundClick = (point) => this.buildBar.moveTo(point.x, point.z);
+    this.hud.onPlotAction = (plotId) => this.hud.phoneModal.openApp('land', `plot:${plotId}`);
+
+    // The player's own vehicles are in the city only while the registry says they are theirs
+    this.ownedVehicles = new OwnedVehicles(this.world, {
+      driving: () => (this.player.isDriving ? this.player.currentVehicle : null),
+      getOut: () => {
+        this.exitVehicle();
+        showGameToast('This vehicle is no longer yours.', 'warning', 3600);
+      },
+      playerPosition: () => this.player.position,
+    });
+    void this.assetMarket.introduce(this.player.config.name);
+  }
+
+  /** Clicking your own character opens a menu of who you are and what you can do where you stand. */
+  private connectSelfMenu(): void {
+    const actor = this.player.actor;
+    const interiors = this.world.interiorManager;
+    const director = InteractionDirector.get();
+    const nearbyVehicle = () => (this.whereabouts() === 'street' ? this.world.vehicles.getNearestDrivableVehicle(this.player.position, 6.0) : null);
+
+    this.selfMenu = new SelfMenu({
+      name: () => this.player.config.name,
+      where: () => this.whereabouts(),
+      locked: () => interiors.busy || (actor.sequence !== null && !actor.sequence.interruptible),
+      interior: () => interiors.currentInterior?.type ?? null,
+      vehicleNearby: () => nearbyVehicle()?.name ?? null,
+      seated: () => actor.hold !== null,
+      standUp: () => actor.hold?.release(),
+      openWardrobe: () => this.hud.openWardrobe(),
+      openBag: () => this.hud.openInventory(),
+      openPhone: (app) => (app ? this.hud.phoneModal.openApp(app) : this.hud.phoneModal.open()),
+      openQuests: () => this.hud.questModal.open(),
+      emote: (kind) => {
+        if (kind === 'wave' || kind === 'greet') {
+          // To nobody in particular: the same gesture a wave at someone uses, without the someone
+          director.perform({ id: kind, actor, animation: { arms: kind }, seconds: kind === 'wave' ? 1.9 : 1.5 });
+          return;
+        }
+        if (director.interrupt(actor) === 'locked') return;
+        this.player.stopMoving();
+        this.player.playEmote(kind, kind === 'salute' ? 3.0 : 4.0);
+        this.network.syncEmote(kind);
+      },
+      getIntoVehicle: () => {
+        const vehicle = nearbyVehicle();
+        if (vehicle) this.walkToVehicleAndGetIn(vehicle);
+      },
+      sleep: () => interiors.residence.life.sleep(),
+      sitOnSofa: () => interiors.residence.life.watchTv(),
+      sitAtTable: () => this.bukaUI.open(),
+    });
+    this.input.onSelfClicked = (screen) => {
+      if (UIStateManager.getInstance().isAnyModalOpen() || this.hud.currentNavMode === 'map') return;
+      this.hud.hideInteractionCard();
+      this.selfMenu.open(screen);
+    };
+  }
+
+  /** An ambulance takes the player to the hospital and they are treated on arrival. The bill goes on credit if it cannot be paid. */
+  private callAmbulance(): boolean {
+    const where = this.whereabouts();
+    if (where === 'transit' || where === 'driving' || this.world.interiorManager.busy) return false;
+    if (this.world.cityManager.currentCityId !== 'lagos') return false;
+    const backend = BackendService.getInstance();
+    backend.processTransaction({ type: 'MEDICAL_BILL', amount: 3500, description: 'Ambulance and emergency treatment' });
+    backend.treatEmergency();
+    this.world.worldMap.deactivate();
+    void this.world.interiorManager.enterInterior('hospital', this.player, this.cameraManager, this.hud, this.world);
+    showGameToast('The ambulance brought you to St. Nicholas. You have been treated: ₦3,500.', 'success', 5200);
+    return true;
   }
 
   /** Home is somewhere the player owns or rents. Without one, says so and stays put. */
@@ -562,6 +789,7 @@ export class Game {
 
   private exitVehicle(): void {
     if (this.player.isDriving && this.player.currentVehicle) {
+      this.ownedVehicles?.leftVehicle(this.player.currentVehicle);
       const exitPos = this.player.currentVehicle.exit();
       this.player.mesh.position.copy(exitPos);
       this.player.mesh.visible = true;
@@ -614,6 +842,18 @@ export class Game {
 
     // Scripted interactions: doors, sitting, serving, eating, waving
     InteractionDirector.get().update(delta);
+
+    // Drivers on the way, riders with orders, replies to messages
+    this.rides.update(delta);
+
+    // Building work and rents run on the game clock
+    const sky = this.world.skyEnvironment;
+    const landHour = sky.day * 24 + sky.currentHour;
+    if (this.lastLandHour !== null && landHour > this.lastLandHour) this.land.update(Math.min(1, landHour - this.lastLandHour));
+    this.lastLandHour = landHour;
+    this.ownedVehicles.update();
+    this.deliveries.update(delta);
+    this.messages.update(delta);
 
     // Update Camera Follow (moved in closer while the player is seated)
     const playerActor = this.player.actor;

@@ -16,6 +16,10 @@ import { WorldMap } from './map/WorldMap';
 import { WorldDataManager } from './data/WorldDataManager';
 import { InteriorManager } from '../interiors/InteriorManager';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
+import { lagosZones, obstructionsUnder, obstructionsOf, validatePlan, type Obstruction, type PlanInput, type Violation } from './plan/CityPlan';
+import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { LAGOS_PLOTS } from '../realestate/PlotCatalogue';
+import type { DrivableVehicle } from './DrivableVehicle';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -117,7 +121,7 @@ export class World {
 
     // 6b. Dense Lagos Island city fabric: side streets, instanced tenements, plazas and towers.
     // Built after the hand-made buildings and districts so it can fill in around them.
-    this.cityDensity = new CityDensityManager([this.buildings.group, this.districts.group]);
+    this.cityDensity = new CityDensityManager([this.buildings.group, this.districts.group], LAGOS_PLOTS.map((plot) => plot.rect));
     this.scene.add(this.cityDensity.group);
 
     // 6c. Instanced go-slow traffic on Broad Street & Martins Street, parked cars on back streets
@@ -191,6 +195,85 @@ export class World {
 
     // Tag Interior objects to INTERIOR layer
     this.interiorManager.group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+  }
+
+  // =========================================================================
+  // THE CITY PLAN
+  // =========================================================================
+
+  /** A vehicle joins the city: it can be seen, walked up to and driven. */
+  public addVehicle(vehicle: DrivableVehicle, card: InteractiveObject): void {
+    this.vehicles.addDrivable(vehicle);
+    this.cityManager.addLagosInteractive(card);
+  }
+
+  public removeVehicle(vehicle: DrivableVehicle, card: InteractiveObject): void {
+    this.vehicles.removeDrivable(vehicle);
+    this.cityManager.removeLagosInteractive(card);
+  }
+
+  /** Other things that stand in the city and answer to the plan: what players have built on their land. */
+  public builtByPlayers: Array<() => Obstruction[]> = [];
+
+  /** Everything standing on the ground in Lagos: landmarks, generated streets, stalls, street furniture and players' buildings. */
+  public standingOnTheGround(): Obstruction[] {
+    const named = (list: InteractiveObject[], fallback: string) => (child: THREE.Object3D, index: number) => {
+      let found: string | null = null;
+      for (const item of list) {
+        let node: THREE.Object3D | null = item.mesh;
+        while (node && node !== child) node = node.parent;
+        if (node === child) {
+          found = item.name;
+          break;
+        }
+      }
+      return found ?? (child.name || `${fallback} #${index} near (${Math.round(child.position.x)}, ${Math.round(child.position.z)})`);
+    };
+
+    const out: Obstruction[] = [];
+    out.push(...obstructionsUnder(this.buildings.group, 'Building', named(this.buildings.interactiveList, 'Building')));
+    // A district is a group of buildings: each of its children is one thing
+    this.districts.group.children.forEach((district, d) => {
+      out.push(...obstructionsUnder(district, `District ${d}`, (child, index) => {
+        const viaList = named(this.districts.interactiveList, '')(child, index);
+        return viaList.startsWith(' #') ? `${district.name || `District ${d}`} part ${index} near (${Math.round(district.position.x + child.position.x)}, ${Math.round(district.position.z + child.position.z)})` : viaList;
+      }));
+    });
+    // Street furniture placed by hand: booths, generator cages, bins, signs, the footbridge
+    this.cityDensity.group.updateWorldMatrix(true, true);
+    out.push(...obstructionsOf(this.cityDensity.group.children.filter((child) => child !== this.cityDensity.fabric.group), 'Street furniture'));
+    out.push(...obstructionsUnder(this.roads.group, 'Road furniture'));
+
+    // The generated streets know their own footprints
+    this.cityDensity.fabric.footprints.forEach((lot, index) => {
+      out.push({ owner: `Generated building #${index}`, structure: true, height: lot.height, minX: lot.minX, maxX: lot.maxX, minZ: lot.minZ, maxZ: lot.maxZ });
+    });
+    this.cityDensity.fabric.stallBoxes.forEach((stall, index) => {
+      out.push({ owner: `Roadside stall #${index}`, structure: false, height: 1.1, ...stall });
+    });
+    for (const source of this.builtByPlayers) out.push(...source());
+    return out;
+  }
+
+  /** What the plan is checked against: the streets, what stands in the city, and the doors people must reach. */
+  public planInput(extra: Obstruction[] = []): PlanInput {
+    const doors: PlanInput['doors'] = this.buildings.placeDoors.map((door) => ({ name: `Door of ${door.buildingId}`, x: door.outside.x, z: door.outside.z }));
+    for (const destination of DestinationRegistry.getInstance().getAll()) {
+      if (destination.city !== 'lagos') continue;
+      doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
+    }
+    return {
+      zones: lagosZones(),
+      obstructions: [...this.standingOnTheGround(), ...extra],
+      doors,
+      start: { x: 10, z: 0 },
+      roadGaps: this.cityDensity.fabric.roadGaps,
+    };
+  }
+
+  /** Checks the whole of Lagos against the city plan. An empty list is a clean bill. */
+  public validateCityPlan(extra: Obstruction[] = []): Violation[] {
+    return validatePlan(this.planInput(extra));
   }
 
   private createGround(): void {
