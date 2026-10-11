@@ -37,6 +37,22 @@ import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, s
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
+  // Abuja
+  aso_rock: 'aso-rock-lookout',
+  national_mosque: 'abuja-mosque',
+  ecumenical_centre: 'abuja-christian-centre',
+  federal_secretariat: 'abuja-secretariat',
+  utako_motor_park: 'abuja-interstate-hub',
+  abuja_cab_rank: 'abuja-cab',
+  abuja_airport: 'abuja-airport',
+  // Port Harcourt
+  ph_refinery_hub: 'ph-refinery-complex',
+  ph_airport_omagwa: 'ph-airport',
+  bole_king_ph: 'ph-bole-king',
+  uniport_campus: 'ph-uniport',
+  waterlines_motor_park: 'ph-transit-hub',
+  // Lagos
+  jibowu_motor_park: 'jibowu-park-tickets',
   quilox_vi: 'quilox-club',
   national_stadium: 'surulere-stadium',
   apapa_port: 'apapa-port',
@@ -908,15 +924,16 @@ export class HUD {
 
     this.worldMapUI.onSwitchCityTab = (cityId) => this.viewCityOnMap(cityId);
     // On the map of the real city, a pin stands over the real place: the door a ride would drop you at
-    this.worldMapUI.locate = (lm) => {
-      if (!this.world || !(this.world.worldMap.useRealWorld?.(this.mapCity) ?? false)) return null;
-      const destination = DestinationRegistry.getInstance().getById(lm.id);
+    this.worldMapUI.locate = (lm, cityId = this.mapCity) => {
+      if (!this.world) return null;
       const spot = LANDMARK_STREET_SPOTS[lm.id];
+      if (cityId !== 'lagos') return this.world.cityManager.thingsIn(cityId).find((o) => o.id === spot)?.interactionPoint ?? null;
+      const destination = DestinationRegistry.getInstance().getById(lm.id);
       // A place the size of a stadium is pinned in its middle; anything else at its door
       const middle = this.world.landmarks.middleOf([lm.id, spot, destination?.id, ...(destination?.aliases ?? [])]);
       if (middle) return middle;
       if (destination) return destination.streetPosition;
-      return this.world.interactiveObjects.find((o) => o.id === spot)?.interactionPoint ?? null;
+      return this.world.cityManager.thingsIn('lagos').find((o) => o.id === spot)?.interactionPoint ?? null;
     };
     // Put away, the map goes back to the city the player is in
     this.worldMapUI.onClosed = () => {
@@ -1329,6 +1346,7 @@ export class HUD {
     const here = this.world.cityManager.currentCityId;
     if (this.mapCity !== cityId) this.world.worldMap.switchCity(cityId);
     this.mapCity = cityId;
+    this.world.worldMap.renderer.playerIsHere = cityId === here;
     this.worldMapUI.updateCityHeader(cityId);
     this.worldMapUI.markCityTabs(cityId, here);
     document.querySelectorAll('.city-tab').forEach((tab) => tab.classList.toggle('active', tab.getAttribute('data-city') === cityId));

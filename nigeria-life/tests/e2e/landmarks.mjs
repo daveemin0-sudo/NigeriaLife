@@ -262,7 +262,9 @@ export async function run(browser, check) {
   await page.evaluate(() => document.querySelector('.city-nav-tab[data-city="abuja"]')?.click());
   await wait(900);
   const abujaMap = await seen();
-  check('the map of another city is still a drawing, and Lagos is put away while it is up', !abujaMap.real && !abujaMap.buildings && !abujaMap.landmarks && abujaMap.model, abujaMap);
+  const abujaUp = await page.evaluate(() => window.game.world.cityManager.abujaCity?.group.visible ?? false);
+  check('the map of another city is that city seen from above, and Lagos is put away while it is up (what is on it is in the cities suite)',
+    abujaMap.real && abujaUp && !abujaMap.buildings && !abujaMap.streets && !abujaMap.landmarks && abujaMap.pins >= 5 && abujaMap.drawnOnly.length === 0, { ...abujaMap, abujaUp });
   const looking = await page.evaluate(() => {
     const g = window.game;
     return {

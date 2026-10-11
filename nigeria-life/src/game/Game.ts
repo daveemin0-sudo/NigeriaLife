@@ -887,7 +887,11 @@ export class Game {
   /** The hall inside is one room: it carries the name of the airport of the city it is entered from. */
   private nameAirportHall(city: string): void {
     const airport = AIRPORTS[city as FlightCity];
-    if (airport) this.world.interiorManager.airport.def.name = `${airport.name} (${airport.code})`;
+    if (!airport) return;
+    const hall = this.world.interiorManager.airport.def;
+    hall.name = `${airport.name} (${airport.code})`;
+    // It is in the city it is entered from, not always in Ikeja
+    hall.districtName = city === 'lagos' ? 'Ikeja Aviation Corridor' : `${airport.city} airport`;
   }
 
   /** The passenger is through the aircraft door: doors close and the flight goes. */

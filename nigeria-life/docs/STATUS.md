@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after a bought bed that is slept in and a street that follows the hour.
+Last updated: 2026-10-11, after one city drawn at a time and real maps for all three.
 
 ## How to read it
 
@@ -18,7 +18,7 @@ Last updated: 2026-10-11, after a bought bed that is slept in and a street that 
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 27 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 28 suites.
 
 ## The approach, from the brief's last rule
 
@@ -48,7 +48,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Bungalow, duplex, mansion, hotel, church, mosque, school, refinery, fuel station as kit assets | **Missing** | The kit exists; these have not been made with it. |
 | Furniture that reads as furniture | **Verified** | Sofa (seat, back, arms, cushions), armchair, bed (frame, mattress, pillows, cover), television (screen in a frame on a console), bookshelf with books, wardrobe, lamp, freezer and inverter are built with the kit. The catalogue's sofa, bed and television used to come out as one green box. The home's own sofa and beds are dressed the same way. `furnish` suite checks every catalogue piece is a model, not a box. |
 | The map of Lagos | **Verified** | The map is the city itself seen from above: its real ground, streets, buildings and landmarks, with district washes and pins added. Zooming in shows the real streets. Every pin stands over the real place (a landmark's middle, or the door a ride drops you at). The match and the aircraft carry on while it is open. `landmarks` suite. |
-| The maps of Abuja and Port Harcourt | **Looks only** | Still the old miniature drawings, not drawn from those cities. |
+| The maps of Abuja and Port Harcourt | **Verified** | Each is the city itself seen from above, like Lagos's, from whichever city it is looked at (a city is put up to be looked at even if the player has never been there). A pin stands over each real place and there is none for a place that is not there: the old drawings showed a Hilton, two malls, a hospital, a bank, a zoo, a stadium and a second university that neither city has. The way to a place is drawn and measured there as in Lagos. The "you are here" pin shows only on the map of the city the player is in. `cities` suite. The district outlines on them are still the old drawing's, and so are a few property markers standing on empty ground. The old miniature builders in `WorldMapRenderer` are no longer used. |
 | Clicking a building on the map | **Missing** | Places are chosen by their pins and by the district chips, not by clicking the building. |
 | Map search | **Verified** | A box on the map finds places by name and by what is done there ("loading work" finds the port), in the city on show first and then in the others. Choosing one brings it up with its card open; one in another city puts that city's map up. `ways` suite. |
 | Route preview | **Verified** | The card of a place in the player's city says how far it is on foot and the way is drawn on the map along the streets, from where the player stands to the door, framed clear of the card (which stands at the side on a wide screen). Lagos only: the other two maps are not yet the real city. `ways` suite. |
@@ -61,7 +61,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | --- | --- | --- |
 | Murtala Muhammed airport, outside | **Verified** | Terminal with kerbside canopy and car park, control tower with turning radar, apron, hangar, runway, ground equipment, fence. Two airliners in the made-up NigeriaLife Air colours. One works a whole flight: boarding, pushback, taxi, take-off, away, approach, landing, taxi in, arrived. Test: it keeps that order, never passes through a building, and is only ever airborne over the open ground west of the city. |
 | Airport, inside | **Partial** | The hall is one room used by all three airports and carries the name of the one it is entered from. Its desk sells tickets and checks in, security clears, and the two gates lead out to the apron, each doing one step of a booking in order (see phase 3). The lounge is still a one-click purchase. No baggage claim. |
-| Abuja and Port Harcourt airports | **Verified** | The same airport, from the same maker, set down in each city with a road of its own to the main avenue. Both cities still pass the city plan. `flights` suite. |
+| Abuja and Port Harcourt airports | **Verified** | The same airport, from the same maker, set down in each city with a road of its own to the main avenue. Both cities still pass the city plan. `flights` suite. **Corrected here:** this line said "verified" while the terminal hall was not drawn at all in either city (see the faults below). The `flights` suite checked where the passenger was and never what was on the screen. The `cities` suite now draws a frame inside the hall in Abuja and in Port Harcourt and checks that the room is in it. |
 | Apapa Port | **Verified** | Quay, moored ship, two gantry cranes (one working), container yard with a tractor on its round, shed, office, fence and gate on Wharf Road. Paid work at the loading bay: three crates carried by hand to a lorry, ₦9,000 paid once when the last is on, 30% energy; walking away pays nothing; the lorry leaves and another comes. |
 | Port: customs, warehouses to go inside, boats | **Missing** | |
 | Refineries and industrial sites | **Missing** | |
@@ -97,6 +97,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Free jumps within a city | **Verified fixed** | "Walk" on a place, a district or a property used to put the player at the door at once and for nothing, which made every fare pointless; so did "Personal Car", whether or not the player owned one. On foot is now a walk by the streets, ending through the door if that was asked for, and the personal-car ride is gone (a car is driven). Paid rides still set the player down at the door. `ways`, `places`, `jobs` suites. |
 | Abuja, Port Harcourt | **Partial** | One avenue each with a few landmarks, an airport and a motor park; both pass the city plan (`plan` suite). Thin beside Lagos. |
 | State carried between cities | **Verified** | Money, inventory, ownership, city and ticket are kept across the journey and across a reload (`flights`, `saves`). |
+| One city drawn at a time | **Verified** | Which city is drawn is decided in one place (`CityManager.show`): the street of the city the player is in, no street indoors or on a journey, and on the map the city whose map is up, without its people and traffic. Rooms are behind doors in every city and are never put away with Lagos. `cities` suite: Lagos, Abuja and Port Harcourt, in the street, in the terminal, out again, with the map opened and closed and another city's map looked at. |
 | What the screen shows in another city | **Partial** | The bar of nearby places is now the real nearest places of the city the player is in, with true distances, and pressing one walks there (it used to be five fixed Lagos shortcuts that jumped the player for nothing). Phone services and job listings are not yet per city. |
 
 ## Phases 5 to 11: systems
@@ -137,23 +138,23 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 | Journey | Status | Notes |
 | --- | --- | --- |
-| A. Airport, booking to arrival | **Verified** | `flights` suite: map, terminal, ticket, check-in, security, gate, apron, steps, flight, Abuja apron, terminal, street; then Abuja to Port Harcourt and Port Harcourt to Lagos the same way. |
+| A. Airport, booking to arrival | **Verified** | `flights` suite: map, terminal, ticket, check-in, security, gate, apron, steps, flight, Abuja apron, terminal, street; then Abuja to Port Harcourt and Port Harcourt to Lagos the same way. What is on the screen at the far end (the hall drawn, the right city outside it) is in the `cities` suite. |
 | B. Home | **Verified** | `furnish` and `home` suites: in, buy and place a sofa and a television, paint the walls, sit, football on, buy a bed and sleep in it, out, reload, still there. |
 | C. Property | **Verified** | `land`, `server`. |
 | D. Workplace | **Verified** | `jobs` suite: map to the port, turned away, taken on by the foreman, four lorries loaded, paid by grade, promoted, on the phone, kept after a reload; then the building site: sent to the supervisor, taken on, a course of blocks laid and paid, a half course abandoned and unpaid, knocked off after hours, both jobs on the phone. Two workplaces from one module; more are added by saying where things are lifted and set down. |
 | E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
-| F. City switching | **Partial** | By air it is verified both ways, and the free-travel holes are closed (map tabs, places on another city's map). Each city's own services and listings are not yet checked. |
+| F. City switching | **Partial** | By air and by coach it is verified both ways, the free-travel holes are closed (map tabs, places on another city's map), each city is drawn alone and has its own real map (`cities`). Each city's own phone services and listings are not yet checked, and Abuja and Port Harcourt have little in them. |
 | G. Spatial integrity | **Verified** | `plan`, `streets` and `ways` suites: roads and pavements clear, doors reachable, the footbridge crossed on foot, walls solid, gates open, and a way found on foot between any two places. Building on a plot is checked against the same plan (`land`). |
 | H. Multiplayer | **Partial** | Two accounts in separate browser contexts and through the world server are tested. That is not evidence of secure online play, and is not claimed as such. |
 
 ## What comes next, in the brief's order
 
-1. The map: the same real-city treatment for Abuja and Port Harcourt once those cities have more in them (their route preview comes with it); filters by kind of place; clicking a building.
+1. The map: filters by kind of place; clicking a building; district outlines and property markers for Abuja and Port Harcourt that match those cities as built.
 2. Finish the destination framework: one record per place for its name, position and services too (hours are done). Stalls that shut and windows that light at night.
 3. Travel: cabin crew and service on the aircraft; baggage claim; a highway for the coach to go down, with a stop on the way.
 4. Walking at height: the stadium's upper rows, and the footbridge as part of a found way (it is climbed by walking at its stairs; the way-finder crosses the road underneath).
 5. The home: furniture on walls, floors, and furniture that goes with a home when it is sold.
-6. More kit assets (houses, worship, hotels, refinery), then the same treatment for Abuja and Port Harcourt.
+6. More in Abuja and Port Harcourt, built with the kit: their maps now show plainly how little stands there (five to seven places each). Houses, a hotel, a bank branch, a market, worship, the refinery.
 7. A server that runs the rules, if the game is to be public.
 
 ## Faults found on the way and put right
@@ -165,6 +166,11 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 - Quilox sold a ₦25,000 bottle at any hour from a black box.
 - Two games in one browser buying the same plot at the same instant could both be charged and one get nothing: localStorage reaches another tab a moment late, so the second buyer could read the registry as it was. The registry is now also kept in the browser's database and read from there while the lock is held. It showed up once in several full runs; a test now forces it.
 - The footbridge's stairs were modelled rising away from the deck, with their top step twelve metres from it, and the code that lifts the player was written for stairs that were not there.
+- In Abuja and Port Harcourt the inside of the airport terminal was not drawn: the rooms behind doors were put away with Lagos whenever the player was in another city, so a passenger who went in stood in an empty sky with a card of things to do. Every flight to or from those cities went through it.
+- In Abuja and Port Harcourt, coming out of the terminal or putting the map away drew Lagos on top of the city: Broad Street with its traffic and crowds across Shehu Shagari Way. The code that brings the street back only knew Lagos.
+- The maps of Abuja and Port Harcourt drew the real city and the old miniature of it on top of each other, with pins for a Hilton, malls, a hospital, a bank, a zoo and a stadium that are not there, at places that matched nothing.
+- The terminal in Abuja said it was in the Ikeja Aviation Corridor.
+- Lagos's own motor park had no pin on the map of Lagos.
 - Broad Street was as full of people and traffic at three in the morning as at noon.
 - The building site on Broad Street paid ₦6,500 for a "day shift" at the press of a button, as often as it was pressed while there was energy for it.
 - About thirty street cards took or paid money the instant they were pressed, with the player standing wherever they happened to be.

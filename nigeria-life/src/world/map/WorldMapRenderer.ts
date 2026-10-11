@@ -27,6 +27,8 @@ export class WorldMapRenderer {
   // Animated elements
   private waterMeshes: THREE.Mesh[] = [];
   private playerPin!: THREE.Group;
+  /** Whether the player is in the city whose map this is: the "you are here" pin is only shown in the city they are in */
+  public playerIsHere = true;
   private miniTraffic: Array<{ mesh: THREE.Group; path: THREE.LineCurve3; t: number; speed: number }> = [];
   private animTime: number = 0;
 
@@ -93,7 +95,10 @@ export class WorldMapRenderer {
     this.waterMeshes = [];
 
     // Build city-specific geography, infrastructure & landmarks
-    if (this.currentCityId === 'abuja') {
+    if (this.realWorld) {
+      // The city itself is what is looked at: only what lies round it is drawn here
+      this.buildSeaRoundTheCity();
+    } else if (this.currentCityId === 'abuja') {
       this.buildAbujaGeography();
       this.buildAbujaRoads();
       this.buildAbujaLandmarks();
@@ -105,8 +110,6 @@ export class WorldMapRenderer {
       this.buildPortHarcourtLandmarks();
       this.buildPortHarcourtProceduralBlocks();
       this.buildPortHarcourtTraffic();
-    } else if (this.realWorld) {
-      this.buildSeaRoundTheCity();
     } else {
       this.buildLagosGeography();
       this.buildLagosRoadsAndBridges();
@@ -650,7 +653,9 @@ export class WorldMapRenderer {
 
   /** Under and beyond the real city: water out to the horizon. */
   private buildSeaRoundTheCity(): void {
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshBasicMaterial({ color: 0x0b6aa0 }));
+    // Lagos stands in the lagoon; Abuja on the savanna; Port Harcourt among the creeks and mangrove
+    const round = this.currentCityId === 'abuja' ? 0x5c7a32 : this.currentCityId === 'port_harcourt' ? 0x2f6b4a : 0x0b6aa0;
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshBasicMaterial({ color: round }));
     sea.rotation.x = -Math.PI / 2;
     sea.position.y = -0.4;
     this.cityContentGroup.add(sea);
@@ -1212,6 +1217,7 @@ export class WorldMapRenderer {
 
     // Live update player location pin
     if (this.playerPin) {
+      this.playerPin.visible = this.playerIsHere;
       const playerPos = this.dataManager.getPlayerPosition();
       this.playerPin.position.set(playerPos.x, 0, playerPos.z);
       this.playerPin.position.y = Math.sin(this.animTime * 3.5) * 0.25;

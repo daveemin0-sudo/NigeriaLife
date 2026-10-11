@@ -16,6 +16,11 @@ export class CityManager {
   public lagosGroups: THREE.Object3D[] = [];
   public lagosInteractiveObjects: InteractiveObject[] = [];
   public onCityChanged?: (cityId: CityId) => void;
+  /** The rooms behind every door, in whatever city the door is: never put away with a city */
+  public rooms: THREE.Object3D | null = null;
+  /** The parts of Lagos that are its people and traffic: left out when the city is only being looked at on the map */
+  public lagosLife = new Set<THREE.Object3D>();
+  private lagosOnShow = true;
 
   // Environment elements
   private sunLight: THREE.DirectionalLight | null = null;
@@ -50,6 +55,34 @@ export class CityManager {
 
   public registerLagosGroups(groups: THREE.Object3D[]): void {
     this.lagosGroups = groups;
+  }
+
+  /** Makes sure a city has been put up, so that it can be shown or asked about before anyone has been there. */
+  public ensure(cityId: string): void {
+    if (cityId === 'abuja') this.initAbuja();
+    else if (cityId === 'port_harcourt') this.initPortHarcourt();
+  }
+
+  /** What can be walked up to and used in a city. */
+  public thingsIn(cityId: string): InteractiveObject[] {
+    this.ensure(cityId);
+    if (cityId === 'abuja') return this.abujaCity?.interactiveList ?? [];
+    if (cityId === 'port_harcourt') return this.portHarcourtCity?.interactiveList ?? [];
+    return this.lagosInteractiveObjects;
+  }
+
+  /**
+   * Shows one city and no other, or none (indoors, or on a journey). With `life` false only
+   * what stands still is shown: the city as a map shows it, without its people and traffic.
+   * This is the one place that decides which city is drawn.
+   */
+  public show(cityId: string | null, life = true): void {
+    if (cityId) this.ensure(cityId);
+    const lagos = cityId === 'lagos';
+    for (const group of this.lagosGroups) group.visible = lagos && (life || !this.lagosLife.has(group));
+    if (lagos !== this.lagosOnShow) this.showLagosThings(lagos);
+    if (this.abujaCity) this.abujaCity.group.visible = cityId === 'abuja';
+    if (this.portHarcourtCity) this.portHarcourtCity.group.visible = cityId === 'port_harcourt';
   }
 
   public initAbuja(): void {
@@ -162,9 +195,21 @@ export class CityManager {
     for (const group of this.lagosGroups) {
       group.visible = visible;
     }
+    this.showLagosThings(visible);
+  }
+
+  /** The things of Lagos that can be used, shown or put away with the city. What is indoors is left as it is. */
+  private showLagosThings(visible: boolean): void {
+    this.lagosOnShow = visible;
     for (const obj of this.lagosInteractiveObjects) {
+      if (this.isIndoors(obj.mesh)) continue;
       obj.mesh.visible = visible;
     }
+  }
+
+  private isIndoors(object: THREE.Object3D): boolean {
+    for (let at: THREE.Object3D | null = object; at; at = at.parent) if (at === this.rooms) return true;
+    return false;
   }
 
   public update(delta: number): void {

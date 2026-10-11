@@ -45,7 +45,7 @@ export class WorldMapUI {
   public onTravelToDistrict?: (district: DistrictData) => void;
   public onTravelToLandmark?: (landmark: MapLandmark) => void;
   /** Where the place a pin stands for really is in the city, when the map is the city itself. Null if it has no real counterpart. */
-  public locate?: (landmark: MapLandmark) => THREE.Vector3 | null;
+  public locate?: (landmark: MapLandmark, cityId?: string) => THREE.Vector3 | null;
   public onTravelToProperty?: (property: MapProperty) => void;
   /** Returns false when the trip could not be paid for. `enterInside` continues through the door on arrival. */
   public onTravelWithTransport?: (dest: DestinationDefinition, transport: TransportOption, enterInside: boolean) => boolean;
@@ -257,6 +257,8 @@ export class WorldMapUI {
         const dest = registry.getById(lm.id);
         const score = rank(dest?.name ?? lm.name, [lm.type, lm.subtitle, dest?.category ?? '', ...(dest?.services ?? [])]);
         if (score < 0) continue;
+        // Only places that are there
+        if (this.locate && !this.locate(lm, city)) continue;
         const where = here ? dest?.districtName ?? data.getDistrictById(lm.districtId)?.name ?? '' : `In ${CITY_LABEL[city]}`;
         hits.push({ id: lm.id, name: dest?.name ?? lm.name, icon: lm.icon || dest?.mapIcon || '📍', where, city, here, rank: score + (here ? 0 : 10) });
       }
@@ -404,11 +406,13 @@ export class WorldMapUI {
 
       pin.addEventListener('click', () => this.showLandmarkDetails(lm));
       this.pinLayerEl.appendChild(pin);
-      // Sits just above the roof of the little building it marks
-      // Over the real place when there is one; otherwise where the map's own drawing has it
+      // The map is the city: a pin stands over the real place, and a place that is not there has no pin
       const real = this.locate?.(lm) ?? null;
-      const at = real ?? lm.position;
-      this.markers.push({ el: pin, position: new THREE.Vector3(at.x, 9, at.z), place: lm.id, real: real !== null });
+      if (!real) {
+        pin.remove();
+        continue;
+      }
+      this.markers.push({ el: pin, position: new THREE.Vector3(real.x, 9, real.z), place: lm.id, real: true });
     }
   }
 

@@ -30,7 +30,7 @@ export class WorldMap {
   /** Can this city's map be the city itself, seen from above? (Its real streets must be standing.) */
   public useRealWorld?: (cityId: string) => boolean;
   /** Told to bring the real city into view under the map, or to put it away again */
-  public onRealWorld?: (on: boolean) => void;
+  public onRealWorld?: (on: boolean, cityId: string) => void;
 
   // Callbacks
   public onSelectItem?: (event: MapSelectionEvent) => void;
@@ -264,7 +264,7 @@ export class WorldMap {
     WorldDataManager.getInstance().switchCity(cityId);
     const real = this.useRealWorld?.(cityId) ?? false;
     this.renderer.loadCity(cityId, real);
-    this.onRealWorld?.(this.isActive && real);
+    this.onRealWorld?.(this.isActive && real, cityId);
     this.cameraTarget.set(0, 0, 0);
     this.zoomLevel = 1.05;
     this.updateCameraTransform();
@@ -280,7 +280,7 @@ export class WorldMap {
     this.renderer.group.visible = true;
     const real = this.useRealWorld?.(this.renderer.currentCityId) ?? false;
     if (real !== this.renderer.realWorld) this.renderer.loadCity(this.renderer.currentCityId, real);
-    this.onRealWorld?.(real);
+    this.onRealWorld?.(real, this.renderer.currentCityId);
 
     // Center camera on player's current location or city center
     const playerPos = WorldDataManager.getInstance().getPlayerPosition();
@@ -292,7 +292,7 @@ export class WorldMap {
   public deactivate(): void {
     this.isActive = false;
     this.renderer.group.visible = false;
-    this.onRealWorld?.(false);
+    this.onRealWorld?.(false, this.renderer.currentCityId);
     this.renderer.highlightDistrict(null);
     document.body.style.cursor = 'default';
   }

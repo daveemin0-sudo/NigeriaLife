@@ -283,6 +283,18 @@ export const LAGOS_DISTRICTS: DistrictData[] = [
 
 export const LAGOS_LANDMARKS: MapLandmark[] = [
   {
+    id: 'jibowu_motor_park',
+    name: 'Jibowu Motor Park',
+    districtId: 'mainland',
+    type: 'commercial',
+    position: new THREE.Vector3(92.5, 0, -85),
+    icon: '🚌',
+    title: 'Jibowu Motor Park',
+    subtitle: 'Coaches to Abuja and Port Harcourt',
+    description: 'Where the coaches to the other cities leave from and pull in. Tickets at the window by the gate.',
+    actions: [{ label: '🚶 Walk there', actionType: 'travel' }],
+  },
+  {
     id: 'airport_los',
     name: 'Murtala Muhammed International Airport (LOS)',
     districtId: 'airport',

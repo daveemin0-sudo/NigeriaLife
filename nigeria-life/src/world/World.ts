@@ -161,8 +161,9 @@ export class World {
     this.worldMap = new WorldMap(this.scene);
     this.scene.add(this.routeLine.group);
     // The map of Lagos is Lagos: its real streets, seen from above
-    this.worldMap.useRealWorld = (cityId) => cityId === 'lagos' && this.cityManager.currentCityId === 'lagos';
-    this.worldMap.onRealWorld = (on) => this.showCityUnderMap(on);
+    // The map of every city is that city, seen from above
+    this.worldMap.useRealWorld = () => true;
+    this.worldMap.onRealWorld = (on, cityId) => this.showCityUnderMap(on, cityId);
 
     // Combine all clickable interactive objects across starter zone, districts, apartment, and simulated interiors
     this.interactiveObjects = [
@@ -190,10 +191,12 @@ export class World {
       this.districts.group,
       this.landmarks.group,
       this.apartment.group,
-      this.interiorManager.group,
       this.atmosphere.group,
       this.groundMesh,
     ]);
+    // Rooms are behind doors in every city: they are not part of Lagos, and are not put away with it
+    this.cityManager.rooms = this.interiorManager.group;
+    for (const life of [this.vehicles.group, this.trafficSpawner.group, this.npcs.group, this.cityPopulation.group, this.apartment.group, this.atmosphere.group]) this.cityManager.lagosLife.add(life);
 
     // Layer separation: Tag street objects to STREET layer
     const streetObjects = [
@@ -369,10 +372,8 @@ export class World {
    * Brings what stands still in Lagos into view for the map (ground, roads, buildings,
    * landmarks), or puts it away again. People and traffic stay out of it.
    */
-  public showCityUnderMap(on: boolean): void {
-    for (const part of [this.groundMesh, this.roads.group, this.buildings.group, this.cityDensity.group, this.districts.group, this.landmarks.group]) {
-      part.visible = on;
-    }
+  public showCityUnderMap(on: boolean, cityId: string = this.cityManager.currentCityId): void {
+    this.cityManager.show(on ? cityId : null, false);
     this.routeLine.group.visible = on && this.routeLine.points.length > 0;
   }
 
@@ -382,24 +383,12 @@ export class World {
     this.routeLine.group.visible = this.routeLine.points.length > 0 && this.worldMap.showingRealWorld;
   }
 
+  /**
+   * Shows the street of the city the player is in, or puts every street away (indoors, on a
+   * journey, behind the map). It used to show Lagos whatever city the player was in.
+   */
   public setStreetModeVisibility(visible: boolean): void {
-    const lagosGroups = [
-      this.roads.group,
-      this.buildings.group,
-      this.cityDensity.group,
-      this.vehicles.group,
-      this.trafficSpawner.group,
-      this.npcs.group,
-      this.cityPopulation.group,
-      this.districts.group,
-      this.landmarks.group,
-      this.apartment.group,
-      this.atmosphere.group,
-      this.groundMesh,
-    ];
-    for (const g of lagosGroups) {
-      g.visible = visible;
-    }
+    this.cityManager.show(visible ? this.cityManager.currentCityId : null, true);
   }
 
   public getDistrictAtPosition(pos: THREE.Vector3): { name: string; sub: string } {
