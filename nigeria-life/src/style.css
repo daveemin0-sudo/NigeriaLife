@@ -4283,6 +4283,105 @@ body[data-ui-mode="transit"] #street-chat-box {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* Finding a place on the map by name */
+.map-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+}
+
+.map-search input {
+  width: 230px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f8fafc;
+  font: inherit;
+  font-weight: 600;
+  padding: 3px 0;
+}
+
+.map-search input::placeholder {
+  color: #94a3b8;
+}
+
+.map-search-results {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  width: 340px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+  z-index: 5;
+}
+
+.map-search-hit {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  column-gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.map-search-hit:hover,
+.map-search-hit:first-child {
+  background: #f1f5f9;
+}
+
+.map-search-hit .hit-icon {
+  grid-row: span 2;
+  align-self: center;
+  font-size: 18px;
+}
+
+.map-search-hit .hit-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.map-search-hit .hit-where {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.map-search-none {
+  padding: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.sheet-note {
+  margin: 9px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+@media (max-width: 1100px) {
+  .map-search input {
+    width: 150px;
+  }
+}
+
 .map-stat-pill.money-stat {
   background: linear-gradient(135deg, #059669, #10b981);
   color: #ffffff;
@@ -4740,6 +4839,53 @@ body[data-ui-mode="transit"] #street-chat-box {
   border-radius: 24px;
   box-shadow: 0 18px 50px rgba(15, 23, 42, 0.35);
   font-family: 'Outfit', 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* On a wide screen the card of a place stands at the side, so the map and the way drawn on it stay in view */
+@media (min-width: 1000px) {
+  .map-context-card {
+    left: auto;
+    right: 18px;
+    margin: 0;
+    width: 400px;
+    top: 166px;
+    bottom: auto;
+    max-height: calc(100vh - 180px);
+    padding: 16px 18px 14px;
+  }
+
+  /* Standing at the side it is narrower, so what is in it is set closer: the whole card shows without scrolling on a laptop */
+  .map-context-card .transport-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .map-context-card .transport-tile {
+    padding: 6px 4px;
+    gap: 0;
+    border-radius: 12px;
+  }
+
+  .map-context-card .transport-icon {
+    font-size: 17px;
+  }
+
+  .map-context-card .transport-name {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .map-context-card .card-desc {
+    margin-bottom: 4px;
+  }
+
+  .map-context-card .sheet-label {
+    margin: 9px 0 5px;
+  }
+
+  .map-context-card .sheet-go-btn {
+    margin-top: 10px;
+  }
 }
 
 .map-context-card .card-close-x {

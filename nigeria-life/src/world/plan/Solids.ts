@@ -25,9 +25,13 @@ const WALL_HEIGHT = 1.5;
 export class Solids {
   private readonly cells = new Map<string, Solid[]>();
   public readonly count: number;
+  /** Every one of them, for whoever needs to lay them out (the way-finder) */
+  public readonly all: ReadonlyArray<Readonly<Solid>>;
 
   constructor(obstructions: Obstruction[]) {
     let count = 0;
+    const all: Solid[] = [];
+    this.all = all;
     for (const thing of obstructions) {
       // A stall, a bin or a kerb is stepped round by eye, not by rule; a pole is too thin to matter
       if (thing.height < WALL_HEIGHT) continue;
@@ -36,6 +40,7 @@ export class Solids {
       if (Math.max(width, depth) < 0.9) continue;
       const solid: Solid = { minX: thing.minX, maxX: thing.maxX, minZ: thing.minZ, maxZ: thing.maxZ };
       count += 1;
+      all.push(solid);
       for (let cx = Math.floor(solid.minX / CELL); cx <= Math.floor(solid.maxX / CELL); cx++) {
         for (let cz = Math.floor(solid.minZ / CELL); cz <= Math.floor(solid.maxZ / CELL); cz++) {
           const key = `${cx},${cz}`;

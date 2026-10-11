@@ -74,6 +74,13 @@ export class WorldDataManager {
     return this.currentCity.landmarks;
   }
 
+  /** The places on the map of any city, whichever map is up */
+  public landmarksOf(cityId: string): MapLandmark[] {
+    if (cityId === 'abuja') return ABUJA_MAP_DATA.landmarks;
+    if (cityId === 'port_harcourt') return PORT_HARCOURT_MAP_DATA.landmarks;
+    return LAGOS_MAP_DATA.landmarks;
+  }
+
   public getLandmarkById(id: string): MapLandmark | undefined {
     return this.currentCity.landmarks.find((l) => l.id === id);
   }

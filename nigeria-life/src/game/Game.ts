@@ -57,6 +57,7 @@ import { FurnishBar } from '../ui/FurnishBar';
 import { Television } from '../housing/Television';
 import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
+import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
@@ -415,6 +416,9 @@ export class Game {
     // 9d. Street Distance Radar Fast Navigation
     // A place pressed on the bar of nearby places is walked to, not jumped to
     this.hud.onWalkToPlace = (place) => this.input.approachAndInteract(place);
+    // Going somewhere on foot from the map is a walk by the streets, not a jump
+    this.hud.onWalkTo = (point, then) => this.player.setDestination(new THREE.Vector3(point.x, 0, point.z), then);
+    this.hud.wayTo = (x, z) => this.wayTo(x, z);
 
     // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)
     // The player walks in and out through the door wherever the place has one
@@ -673,6 +677,8 @@ export class Game {
 
     // Buildings and walls are solid to someone on foot and to a vehicle being driven
     this.player.solids = () => this.solidsHere();
+    this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
+    this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
     DrivableVehicle.solids = () => this.solidsHere();
     // What players build on their plots is solid too: when that changes, the list is made again
     this.registry.subscribe((state) => {
@@ -680,6 +686,7 @@ export class Game {
       if (built === this.builtOnPlots) return;
       this.builtOnPlots = built;
       this.solidsByCity.clear();
+      this.waysByCity.clear();
     });
 
     // Flying: the hall is the same room in every city, and the flight starts at the aircraft door
@@ -829,7 +836,27 @@ export class Game {
   }
 
   private solidsByCity = new Map<string, Solids>();
+  private waysByCity = new Map<string, Wayfinder>();
   private builtOnPlots = '';
+
+  /** Finds the way on foot in the city the player is in. Nothing while they are indoors. */
+  public waysHere(): Wayfinder | null {
+    const solids = this.solidsHere();
+    if (!solids) return null;
+    const city = this.world.cityManager.currentCityId;
+    let ways = this.waysByCity.get(city);
+    if (!ways) {
+      ways = new Wayfinder(solids, zonesFor(city));
+      this.waysByCity.set(city, ways);
+    }
+    return ways;
+  }
+
+  /** The way on foot from where the player stands to a point in the city they are in. */
+  public wayTo(x: number, z: number): Way | null {
+    const from = this.player.position;
+    return this.waysHere()?.route(from.x, from.z, x, z) ?? null;
+  }
 
   /**
    * What cannot be walked or driven through where the player is: the buildings, walls and

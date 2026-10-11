@@ -12,6 +12,7 @@ import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
 import { FOOTBRIDGE, FOOTBRIDGE_STAIR } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
+import type { Way } from '../world/plan/Wayfinder';
 import { BackendService } from '../backend/BackendService';
 import { Actor } from '../interactions/Actor';
 import { InteractionDirector } from '../interactions/InteractionDirector';
@@ -136,13 +137,50 @@ export class Player {
     }
   }
 
-  public setDestination(target: THREE.Vector3): void {
+  /**
+   * Sets the player walking to a point. In the street they go by the way a person would: round
+   * buildings, through gates, along the pavement. `onArrive` runs once if they get there, and
+   * not at all if they are stopped or sent somewhere else first.
+   */
+  public setDestination(target: THREE.Vector3, onArrive?: () => void): void {
     this.nearest = Infinity;
     this.sinceNearer = 0;
     this.roundIt = null;
-    this.targetPosition = target.clone();
+    this.way = [];
+    this.goal = target.clone();
+    this.arrived = onArrive ?? null;
+    let first = target;
+    // The footbridge is climbed by walking straight at its stairs: it is not ground the way-finder knows
+    const here = this.mesh.position;
+    if (!this.onBridge && !this.onTheFootbridge(target.x, target.z) && !this.onTheFootbridge(here.x, here.z)) {
+      const way = this.wayfinder?.(here.x, here.z, target.x, target.z);
+      if (way && way.points.length > 0) {
+        const points = way.points.map((point) => new THREE.Vector3(point.x, target.y, point.z));
+        first = points[0];
+        this.way = points.slice(1);
+        this.goal = points[points.length - 1].clone();
+      }
+    }
+    this.targetPosition = first.clone();
     this.isMoving = true;
     this.currentEmote = 'walk';
+  }
+
+  /** Is this spot under or on the footbridge: its deck or one of its flights of stairs? */
+  private onTheFootbridge(x: number, z: number): boolean {
+    if (this.footbridge && !this.footbridge()) return false;
+    const onDeck = Math.abs(x) <= FOOTBRIDGE.halfSpan && Math.abs(z - FOOTBRIDGE.z) <= FOOTBRIDGE.halfWidth;
+    const onStairs = Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15 && z >= FOOTBRIDGE_STAIR.bottom - 0.4 && z <= FOOTBRIDGE_STAIR.top;
+    return onDeck || onStairs;
+  }
+
+  /** The walk is over. If it ended where it was going, whoever sent the player there is told. */
+  private endWalk(): void {
+    const then = this.arrived;
+    const goal = this.goal;
+    this.stopMoving();
+    this.playAnimation('idle');
+    if (then && goal && Math.hypot(goal.x - this.mesh.position.x, goal.z - this.mesh.position.z) < 2.8) then();
   }
 
   /**
@@ -155,6 +193,14 @@ export class Player {
       return;
     }
     const p = this.mesh.position;
+    const solids = this.solids?.();
+    if (this.footbridge && !this.footbridge()) {
+      if (!solids) return;
+      const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
+      p.x = step.x;
+      p.z = step.z;
+      return;
+    }
     const inLine = (x: number) => Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15;
     const inFlight = (x: number, z: number) => inLine(x) && z >= FOOTBRIDGE_STAIR.bottom + 1.2 && z <= FOOTBRIDGE_STAIR.top;
     const fromItsFoot = inLine(cameFrom.x) && cameFrom.z >= FOOTBRIDGE_STAIR.bottom - 0.4 && cameFrom.z <= FOOTBRIDGE_STAIR.top;
@@ -166,7 +212,6 @@ export class Player {
     }
     // On a flight the stairs' own rule governs. Everywhere else, buildings and walls are solid.
     if (inLine(p.x) && p.z >= FOOTBRIDGE_STAIR.bottom - 0.4 && p.z <= FOOTBRIDGE_STAIR.top) return;
-    const solids = this.solids?.();
     if (!solids) return;
     const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
     p.x = step.x;
@@ -174,6 +219,9 @@ export class Player {
   }
 
   public stopMoving(): void {
+    this.way = [];
+    this.goal = null;
+    this.arrived = null;
     this.targetPosition = null;
     this.isMoving = false;
     this.currentEmote = 'idle';
@@ -215,6 +263,8 @@ export class Player {
 
     // A scripted interaction is moving and animating the player: input waits until it ends
     if (this.actor.scripted) {
+      this.way = [];
+      this.arrived = null;
       this.targetPosition = null;
       this.isMoving = false;
       this.isSprinting = false;
@@ -251,6 +301,8 @@ export class Player {
         keys['arrowright']);
 
     if (hasMoveKey && !this.isDriving) {
+      this.way = [];
+      this.arrived = null;
       this.targetPosition = null;
       let moveX = 0;
       let moveZ = 0;
@@ -300,6 +352,12 @@ export class Player {
     // 2. Moving state (Point and Click)
     if (this.targetPosition && this.isMoving) {
       const currentPos = this.mesh.position;
+      // A point on the way is passed, not stopped at: on to the next as soon as this one is underfoot
+      while (this.way.length > 0 && Math.hypot(this.targetPosition.x - currentPos.x, this.targetPosition.z - currentPos.z) <= 0.45) {
+        this.targetPosition = this.way.shift()!;
+        this.nearest = Infinity;
+        this.sinceNearer = 0;
+      }
       const direction = new THREE.Vector3().subVectors(this.targetPosition, currentPos);
       direction.y = 0;
       const distance = direction.length();
@@ -308,10 +366,7 @@ export class Player {
       if (distance <= arriveTolerance) {
         this.mesh.position.x = this.targetPosition.x;
         this.mesh.position.z = this.targetPosition.z;
-        this.isMoving = false;
-        this.targetPosition = null;
-        this.currentEmote = 'idle';
-        this.playAnimation('idle');
+        this.endWalk();
       } else {
         // Rotate smoothly
         const targetAngle = Math.atan2(direction.x, direction.z);
@@ -359,8 +414,7 @@ export class Player {
         if (!stepped || this.sinceNearer > (this.onBridge ? 0.3 : 2.5)) {
           this.mesh.position.x = stepped ? this.mesh.position.x : cameFrom.x;
           this.mesh.position.z = stepped ? this.mesh.position.z : cameFrom.z;
-          this.stopMoving();
-          this.playAnimation('idle');
+          this.endWalk();
           return;
         }
         this.playAnimation('walk');
@@ -423,6 +477,14 @@ export class Player {
   public onBridge = false;
   /** What cannot be walked through where the player is now: the buildings and walls of the city. Nothing indoors. */
   public solids: (() => Solids | null) | null = null;
+  /** The way on foot between two points in the city the player is in, round what stands in between. Null indoors. */
+  public wayfinder: ((fromX: number, fromZ: number, toX: number, toZ: number) => Way | null) | null = null;
+  /** Is the footbridge in the city the player is in? (It is in Lagos.) */
+  public footbridge: (() => boolean) | null = null;
+  /** A walk by a found way: the points still to pass after the one being walked to, and where it all ends */
+  private way: THREE.Vector3[] = [];
+  public goal: THREE.Vector3 | null = null;
+  private arrived: (() => void) | null = null;
   /** Walking to a clicked point: the nearest they have got to it, and how long since they got any nearer */
   private nearest = Infinity;
   private sinceNearer = 0;
@@ -436,6 +498,10 @@ export class Player {
    */
   public calculateWalkableHeight(x: number, z: number): number {
     if (this.isDriving) return 0;
+    if (this.footbridge && !this.footbridge()) {
+      this.onBridge = false;
+      return 0;
+    }
     const onStairs = Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15 && z >= FOOTBRIDGE_STAIR.bottom && z <= FOOTBRIDGE_STAIR.top;
     if (onStairs) {
       const height = ((z - FOOTBRIDGE_STAIR.bottom) / (FOOTBRIDGE_STAIR.top - FOOTBRIDGE_STAIR.bottom)) * FOOTBRIDGE.top;

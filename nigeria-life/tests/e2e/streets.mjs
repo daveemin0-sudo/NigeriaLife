@@ -104,6 +104,9 @@ export async function run(browser, check) {
     side.every((s) => s.y < 0.05) && stopped.x > -10.5, { stopped });
 
   // ------------------------------------------------------------------ Buildings are solid
+  // Walked straight at, as the keys walk: the way-finder (which would go round by the gate) is left out of it here.
+  // What it does is in the ways suite.
+  await page.evaluate(() => { const p = window.game.player; window.__wayfinder = p.wayfinder; p.wayfinder = null; });
   const bank = await page.evaluate(() => {
     const all = window.game.world.standingOnTheGround().filter((o) => /Eko Commercial Bank/.test(o.owner) && o.structure);
     return { minX: Math.min(...all.map((o) => o.minX)), maxX: Math.max(...all.map((o) => o.maxX)), minZ: Math.min(...all.map((o) => o.minZ)), maxZ: Math.max(...all.map((o) => o.maxZ)), solids: window.game.solidsHere().count };
@@ -137,6 +140,8 @@ export async function run(browser, check) {
   await put(page, (bank.minX + bank.maxX) / 2, midZ);
   const out = (await walk(page, 8.5, midZ, 12)).pop();
   check('someone who finds themselves inside a building can always walk out of it', Math.abs(out.x - 8.5) < 0.3, out);
+
+  await page.evaluate(() => { window.game.player.wayfinder = window.__wayfinder; });
 
   // Driving
   const car = await page.evaluate(async ({ z }) => {

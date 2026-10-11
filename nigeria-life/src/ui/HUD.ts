@@ -15,7 +15,7 @@ import { WorldMapUI } from './WorldMapUI';
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
-import type { MapBusiness } from '../world/data/WorldDataTypes';
+import type { MapBusiness, MapLandmark } from '../world/data/WorldDataTypes';
 import { HouseDecorationSystem } from '../housing/HouseDecorationSystem';
 import { SoundEngine } from '../audio/SoundEngine';
 import { QuestManager } from '../quests/QuestManager';
@@ -83,6 +83,10 @@ export class HUD {
   public onPlotAction?: (plotId: string) => void;
   /** A nearby place was pressed on the bar: walk there */
   public onWalkToPlace?: (place: InteractiveObject) => void;
+  /** Walk to a point in the city by the streets; `then` runs on getting there */
+  public onWalkTo?: (point: THREE.Vector3, then?: () => void) => void;
+  /** The way on foot from where the player stands to a point in the city they are in */
+  public wayTo?: (x: number, z: number) => { points: Array<{ x: number; z: number }>; metres: number } | null;
   /** Something wants the street camera somewhere in particular: a seat with a view, say */
   public onLookFrom?: (yaw: number, pitch: number, distance: number) => void;
   /** Stations inside buildings that are used by walking up and doing something with the hands or talking */
@@ -766,16 +770,48 @@ export class HUD {
       this.onNavigateMode?.('street');
     };
 
-    this.worldMapUI.onTravelToDistrict = (district) => {
+    const backToTheStreet = () => {
       this.currentNavMode = 'street';
       updateNavActive('');
       this.worldMapUI.close();
       UIStateManager.getInstance().setMode('street');
-      this.player.mesh.position.copy(district.streetSpawnPoint);
       this.onNavigateMode?.('street');
+    };
+    // Nothing on the map of another city can be gone to from here: that is a flight or a coach
+    const inAnotherCity = (): boolean => {
+      const here = this.world?.cityManager.currentCityId;
+      if (!here || here === this.mapCity) return false;
+      const names: Record<string, string> = CITY_NAME;
+      showGameToast(`That is in ${names[this.mapCity] ?? this.mapCity}. You are in ${names[here] ?? here}: book a flight or a coach to go there.`, 'warning', 3800);
+      return true;
+    };
+    /** Sets off on foot from the map: the map is put away and the player walks there by the streets. */
+    const walkFromMap = (point: THREE.Vector3, name: string, then?: () => void) => {
+      backToTheStreet();
+      const way = this.wayTo?.(point.x, point.z);
+      this.onWalkTo?.(point, then);
+      this.showNotification(way ? `🚶 Walking to ${name}: ${Math.round(way.metres)} m.` : `🚶 Walking to ${name}.`);
+    };
+
+    this.worldMapUI.onTravelToDistrict = (district) => {
+      if (inAnotherCity()) return;
+      walkFromMap(district.streetSpawnPoint, district.name);
     };
 
     this.worldMapUI.onTravelWithTransport = (dest, transport, enterInside) => {
+      if (inAnotherCity()) return false;
+      // On foot is on foot: the player walks there, and goes in at the door if that was asked for
+      if (transport.mode === 'walk') {
+        walkFromMap(dest.streetPosition, dest.name, () => {
+          this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
+          if (enterInside && dest.isEnterable) this.onEnterInterior?.(dest.interiorId);
+          else this.showNotification(`🚶 You are at ${dest.name}.${dest.isEnterable ? ' Press [E] to go in.' : ''}`);
+        });
+        return true;
+      }
+      // Your own car is driven there, not summoned
+      if (transport.mode === 'car') return false;
+
       // 1. If transport requires fare, deduct cash from wallet
       if (transport.fare > 0) {
         const success = this.backend.spendCash(
@@ -820,24 +856,45 @@ export class HUD {
 
     // Places with no interior of their own: arrive at the spot on the street where their activity is
     this.worldMapUI.onTravelToLandmark = (lm) => {
+      if (inAnotherCity()) return;
       const spot = this.world?.interactiveObjects.find((o) => o.id === LANDMARK_STREET_SPOTS[lm.id]);
       const district = WorldDataManager.getInstance().getDistrictById(lm.districtId);
       if (!spot && !district) return;
-
-      this.currentNavMode = 'street';
-      updateNavActive('');
-      this.worldMapUI.close();
-      UIStateManager.getInstance().setMode('street');
-      this.onNavigateMode?.('street');
-
       const arriveAt = spot ? spot.interactionPoint : district!.streetSpawnPoint;
-      this.player.mesh.position.set(arriveAt.x, 0, arriveAt.z);
-      this.player.stopMoving();
-      if (spot) {
-        this.showInteractionCard(spot);
-      } else {
-        this.showNotification(`📍 Arrived in ${district!.name}, near ${lm.name}.`);
+      walkFromMap(arriveAt, lm.name, () => {
+        if (spot) this.showInteractionCard(spot);
+        else this.showNotification(`📍 You are in ${district!.name}, near ${lm.name}.`);
+      });
+    };
+
+    // The card of a place on the map: how far it is on foot, with the way drawn along the streets
+    const doorOf = (lm: MapLandmark): THREE.Vector3 | null => {
+      const destination = DestinationRegistry.getInstance().getById(lm.id);
+      if (destination) return destination.streetPosition;
+      const spot = this.world?.interactiveObjects.find((o) => o.id === LANDMARK_STREET_SPOTS[lm.id]);
+      return spot?.interactionPoint ?? WorldDataManager.getInstance().getDistrictById(lm.districtId)?.streetSpawnPoint ?? null;
+    };
+    this.worldMapUI.standing = () => ({ here: this.world?.cityManager.currentCityId ?? this.mapCity, viewing: this.mapCity });
+    this.worldMapUI.wayTo = (lm) => {
+      const door = doorOf(lm);
+      const way = door ? this.wayTo?.(door.x, door.z) ?? null : null;
+      const line = way ? [{ x: this.player.position.x, z: this.player.position.z }, ...way.points] : null;
+      this.world?.showRoute(line);
+      // The whole way in view, clear of the card that stands at the side of a wide screen
+      if (line && this.world?.worldMap.showingRealWorld) {
+        const xs = line.map((point) => point.x);
+        const zs = line.map((point) => point.z);
+        this.world.worldMap.frame(Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), window.innerWidth >= 1000 ? 430 / window.innerWidth : 0);
       }
+      return way ? { metres: way.metres } : null;
+    };
+    this.worldMapUI.onCardClosed = () => this.world?.showRoute(null);
+    this.worldMapUI.onFocus = (lm) => {
+      // Where there is a way to it, the way is what is brought into view (see wayTo); otherwise the place itself
+      const here = this.world?.cityManager.currentCityId === this.mapCity;
+      if (here && this.world?.worldMap.showingRealWorld && doorOf(lm)) return;
+      const at = this.worldMapUI.locate?.(lm) ?? lm.position;
+      this.world?.worldMap.focusOn(at.x, at.z);
     };
 
     this.worldMapUI.onInterstateTravel = (destCityId) => {
@@ -867,13 +924,9 @@ export class HUD {
     };
 
     this.worldMapUI.onTravelToProperty = (prop) => {
-      this.currentNavMode = 'street';
-      updateNavActive('');
-      this.worldMapUI.close();
-      UIStateManager.getInstance().setMode('street');
-      this.player.mesh.position.set(prop.streetPosition.x, prop.streetPosition.y, prop.streetPosition.z);
+      if (inAnotherCity()) return;
       this.world?.highlightStreetProperty(prop.streetPosition, prop.name);
-      this.onNavigateMode?.('street');
+      walkFromMap(prop.streetPosition, prop.name);
     };
 
     this.worldMapUI.onPropertyUpdated = () => {

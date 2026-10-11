@@ -230,6 +230,36 @@ export class WorldMap {
     }
   }
 
+  /** Brings a spot to the middle of the map, close enough to see what stands there. */
+  public focusOn(x: number, z: number): void {
+    this.cameraTarget.set(THREE.MathUtils.clamp(x, -160, 160), 0, THREE.MathUtils.clamp(z, -160, 150));
+    this.zoomLevel = Math.min(this.zoomLevel, 0.8);
+    this.updateCameraTransform();
+  }
+
+  /**
+   * Brings a stretch of the city into view, all of it: a way from one place to another, say.
+   * `coveredRight` is how much of the right of the screen something else is standing over
+   * (the card of a place), so what is framed sits in the part that is left.
+   */
+  public frame(minX: number, maxX: number, minZ: number, maxZ: number, coveredRight = 0): void {
+    const free = 1 - coveredRight;
+    // At zoom 1 the camera takes in about this much ground across and from front to back
+    const across = 158 * this.mapCamera.aspect * free;
+    const deep = 200;
+    const zoom = Math.max((maxX - minX + 30) / across, (maxZ - minZ + 40) / deep);
+    this.zoomLevel = THREE.MathUtils.clamp(zoom, this.minZoom, this.maxZoom);
+    // Looking a little to the right of it puts it in the free part of the screen on the left
+    const shift = (coveredRight / 2) * 158 * this.mapCamera.aspect * this.zoomLevel;
+    this.cameraTarget.set(THREE.MathUtils.clamp((minX + maxX) / 2 + shift, -160, 160), 0, THREE.MathUtils.clamp((minZ + maxZ) / 2, -160, 150));
+    this.updateCameraTransform();
+  }
+
+  /** Where the map is looking, and how closely */
+  public get view(): { x: number; z: number; zoom: number } {
+    return { x: this.cameraTarget.x, z: this.cameraTarget.z, zoom: this.zoomLevel };
+  }
+
   public switchCity(cityId: string): void {
     WorldDataManager.getInstance().switchCity(cityId);
     const real = this.useRealWorld?.(cityId) ?? false;

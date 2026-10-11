@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after solid buildings.
+Last updated: 2026-10-11, after finding the way (walks by the streets, the map's search and route).
 
 ## How to read it
 
@@ -47,7 +47,10 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | The map of Lagos | **Verified** | The map is the city itself seen from above: its real ground, streets, buildings and landmarks, with district washes and pins added. Zooming in shows the real streets. Every pin stands over the real place (a landmark's middle, or the door a ride drops you at). The match and the aircraft carry on while it is open. `landmarks` suite. |
 | The maps of Abuja and Port Harcourt | **Looks only** | Still the old miniature drawings, not drawn from those cities. |
 | Clicking a building on the map | **Missing** | Places are chosen by their pins and by the district chips, not by clicking the building. |
-| Map search, filters, route preview | **Missing** | |
+| Map search | **Verified** | A box on the map finds places by name and by what is done there ("loading work" finds the port), in the city on show first and then in the others. Choosing one brings it up with its card open; one in another city puts that city's map up. `ways` suite. |
+| Route preview | **Verified** | The card of a place in the player's city says how far it is on foot and the way is drawn on the map along the streets, from where the player stands to the door, framed clear of the card (which stands at the side on a wide screen). Lagos only: the other two maps are not yet the real city. `ways` suite. |
+| Map filters by kind of place | **Missing** | |
+| Made-up numbers on the map | **Verified fixed** | The map's header claimed "Online: 85,420" and "Happiness: 98%". Both are gone; the search box is in their place. |
 
 ## Phase 2: landmarks
 
@@ -83,7 +86,8 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Free travel by map tab | **Verified fixed** | Choosing a city on the map now only shows that city's map. The player stays put, pays nothing, and the map goes back to their own city when closed (`landmarks` suite). |
+| Free travel by map tab | **Verified fixed** | Choosing a city on the map now only shows that city's map. The player stays put, pays nothing, and the map goes back to their own city when closed (`landmarks` suite). A place on another city's map offers no ride and no walk, only the way to the flights and coaches, and nothing behind the card will move the player or take a fare either (`ways` suite). |
+| Free jumps within a city | **Verified fixed** | "Walk" on a place, a district or a property used to put the player at the door at once and for nothing, which made every fare pointless; so did "Personal Car", whether or not the player owned one. On foot is now a walk by the streets, ending through the door if that was asked for, and the personal-car ride is gone (a car is driven). Paid rides still set the player down at the door. `ways`, `places`, `jobs` suites. |
 | Abuja, Port Harcourt | **Partial** | One avenue each with a few landmarks; both pass the city plan (`plan` suite). Thin beside Lagos. |
 | State carried between cities | **Verified** | Money, inventory, ownership, city and ticket are kept across the journey and across a reload (`flights`, `saves`). |
 | What the screen shows in another city | **Partial** | The bar of nearby places is now the real nearest places of the city the player is in, with true distances, and pressing one walks there (it used to be five fixed Lagos shortcuts that jumped the player for nothing). Phone services and job listings are not yet per city. |
@@ -109,6 +113,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | City plan: roads clear, pavements walkable, nothing overlapping, doors reachable | **Verified** | `plan` suite, all three cities, nine Lagos streets. |
 | Footbridge | **Verified** | Its two flights of stairs were built climbing away from the deck. They now climb from the pavement to the deck and arrive against it, as solid flights with a handrail, and the deck rail opens at each stair head. The player climbs, crosses above the road, comes down the other side, is held by the rails while up there, and walks under the bridge at street level like anyone else. `streets` suite. |
 | Walking at height elsewhere (stadium rows, steps into buildings) | **Missing** | The footbridge is the one place the player leaves the ground. The stadium's upper rows are still out of reach. |
+| Finding the way on foot | **Verified** | `world/plan/Wayfinder.ts`: the ground of each city in half-metre squares, made from the same solids that stop the walker and the same zones the plan is checked against. A walk to any point goes round buildings and through gates, by the pavement for choice, across open ground where that is shorter, and across a road by the shortest way; a place that cannot be reached is walked up to as near as anyone can get. Found in tens of milliseconds across the whole city. Every clicked walk uses it: the ground, a door, the bar of nearby places, the map. `ways` suite. |
 | Collision with buildings in the street | **Verified** | Buildings, walls, fences and stands are solid to someone on foot and to a vehicle being driven, in all three cities (`world/plan/Solids.ts`, made from the same list the city plan checks). Gates and doors that are ways in still are. A walker who meets something on the pavement steps round it; one who cannot get nearer stops. Someone set down inside a building can always walk out. A driven vehicle used to be held to the middle of Lagos (it could not reach the stadium, port or airport): it now has the whole city. `streets` suite. Not solid: people, parked and passing vehicles, stalls, poles, trees. |
 | Side-road junctions with Broad Street | **Partial** | Stadium Road and Wharf Road meet the Broad Street pavement without a dropped kerb. |
 
@@ -130,16 +135,16 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | C. Property | **Verified** | `land`, `server`. |
 | D. Workplace | **Verified** | `jobs` suite: map to the port, turned away, taken on by the foreman, four lorries loaded, paid by grade, promoted, on the phone, kept after a reload. One workplace; more are to be added the same way. |
 | E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
-| F. City switching | **Partial** | By air it is verified both ways, and the free-travel hole is closed. Each city's own services and listings are not yet checked. |
-| G. Spatial integrity | **Verified** | `plan` and `streets` suites: roads and pavements clear, doors reachable, the footbridge crossed on foot, walls solid, gates open. Building on a plot is checked against the same plan (`land`). |
+| F. City switching | **Partial** | By air it is verified both ways, and the free-travel holes are closed (map tabs, places on another city's map). Each city's own services and listings are not yet checked. |
+| G. Spatial integrity | **Verified** | `plan`, `streets` and `ways` suites: roads and pavements clear, doors reachable, the footbridge crossed on foot, walls solid, gates open, and a way found on foot between any two places. Building on a plot is checked against the same plan (`land`). |
 | H. Multiplayer | **Partial** | Two accounts in separate browser contexts and through the world server are tested. That is not evidence of secure online play, and is not claimed as such. |
 
 ## What comes next, in the brief's order
 
-1. The map: search and a route preview; the same real-city treatment for Abuja and Port Harcourt once those cities have more in them.
+1. The map: the same real-city treatment for Abuja and Port Harcourt once those cities have more in them (their route preview comes with it); filters by kind of place; clicking a building.
 2. Finish the destination framework: real hours for every place that states them, and one record per place instead of two.
 3. Travel: a coach park to leave from; cabin crew and service; baggage claim.
-4. Finding a way: a walk to a far point goes straight and steps round what it meets, which gets round a building but not through a maze. Then the stadium's upper rows.
+4. Walking at height: the stadium's upper rows, and the footbridge as part of a found way (it is climbed by walking at its stairs; the way-finder crosses the road underneath).
 5. The home: sleeping in a bought bed, furniture on walls, floors, and furniture that goes with a home when it is sold.
 6. More kit assets (houses, worship, hotels, refinery), then the same treatment for Abuja and Port Harcourt.
 7. A server that runs the rules, if the game is to be public.
@@ -153,6 +158,10 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 - Quilox sold a ₦25,000 bottle at any hour from a black box.
 - Two games in one browser buying the same plot at the same instant could both be charged and one get nothing: localStorage reaches another tab a moment late, so the second buyer could read the registry as it was. The registry is now also kept in the browser's database and read from there while the lock is held. It showed up once in several full runs; a test now forces it.
 - The footbridge's stairs were modelled rising away from the deck, with their top step twelve metres from it, and the code that lifts the player was written for stairs that were not there.
+- "Walk" on the map was not a walk: it put the player at the door of any place in the city at once, free, which made the okada, keke, danfo and taxi fares pointless. "Personal Car" did the same for anyone, car or no car. Districts and properties jumped the same way.
+- With another city's map up, "Go there" moved the player to that city's coordinates while they were still standing in Lagos, and announced an arrival in a district of the other city.
+- The map's header showed "Online: 85,420" and "Happiness: 98%": numbers that were typed in, not counted.
+- In Abuja and Port Harcourt the player climbed the stairs of the Lagos footbridge, which are not there: walking the west pavement of Shehu Shagari Way lifted them 5.65 m into the air.
 - Every building in the street could be walked and driven through, and a driven vehicle was held inside a box in the middle of Lagos that stopped short of the stadium, the port and the airport.
 - The furniture catalogue took the money and dropped the piece at a random spot in the home, and its sofa, bed and television were each a plain green box.
 - Two street-door tests and three phone tests sampled or pressed before the thing they tested had finished moving. The game was right; the tests now wait for it.

@@ -22,6 +22,16 @@ function shortPlaceName(name: string): string {
   return name.split(' (')[0].split(' & ')[0];
 }
 
+const CITY_LABEL: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+
+/** How long a walk of so many metres takes at the pace the player walks */
+function walkingTime(metres: number): string {
+  const seconds = metres / 7.5;
+  if (seconds < 55) return `${Math.max(5, Math.round(seconds / 5) * 5)} seconds`;
+  const minutes = Math.round(seconds / 60);
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
+
 export class WorldMapUI {
   private container: HTMLDivElement;
   private cardEl: HTMLDivElement;
@@ -44,6 +54,14 @@ export class WorldMapUI {
   public onSwitchCityTab?: (cityId: string) => void;
   /** The map has been put away, however that was done */
   public onClosed?: () => void;
+  /** The city the player is standing in, and the city whose map is up */
+  public standing?: () => { here: string; viewing: string };
+  /** How far it is on foot to a place in the city the player is in. Asking also draws the way on the map. */
+  public wayTo?: (landmark: MapLandmark) => { metres: number } | null;
+  /** The card of a place has been put away: so is the way that was drawn to it */
+  public onCardClosed?: () => void;
+  /** Bring a place to the middle of the map */
+  public onFocus?: (landmark: MapLandmark) => void;
   public onOpenEconomy?: (propertyId: string) => void;
   public onEnterInterior?: (buildingId: string) => void;
 
@@ -74,13 +92,10 @@ export class WorldMapUI {
             <span>☀️</span>
             <span id="map-ui-time">Wed 7 • 1:18 PM</span>
           </div>
-          <div class="map-stat-pill">
-            <span>😄</span>
-            <span>Happiness: <strong>98%</strong></span>
-          </div>
-          <div class="map-stat-pill">
-            <span>👥</span>
-            <span>Online: <strong style="color: #4ade80;">85,420</strong></span>
+          <div class="map-search" id="map-search">
+            <span>🔎</span>
+            <input id="map-search-input" type="search" placeholder="Find a place: bank, food, stadium" autocomplete="off" spellcheck="false" />
+            <div class="map-search-results" id="map-search-results" style="display: none;"></div>
           </div>
           <div class="map-stat-pill money-stat">
             <span id="map-ui-money">₦25,000</span>
@@ -179,6 +194,20 @@ export class WorldMapUI {
 
     document.getElementById('map-card-close')?.addEventListener('click', () => {
       this.cardEl.style.display = 'none';
+      this.onCardClosed?.();
+    });
+
+    // Finding a place by name, or by what is done there
+    const search = document.getElementById('map-search-input') as HTMLInputElement | null;
+    search?.addEventListener('input', () => this.showSearchResults(search.value));
+    search?.addEventListener('focus', () => this.showSearchResults(search.value));
+    search?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') (document.querySelector('#map-search-results .map-search-hit') as HTMLElement | null)?.click();
+      if (e.key === 'Escape') {
+        search.value = '';
+        this.showSearchResults('');
+        search.blur();
+      }
     });
 
     document.getElementById('btn-map-names')?.addEventListener('click', (e) => {
@@ -199,6 +228,89 @@ export class WorldMapUI {
         }
       });
     });
+  }
+
+  /**
+   * Places that answer to what was typed: by name first, then by what kind of place it is and
+   * what is done there. Those in the city on show come first, then those in the other cities.
+   */
+  public findPlaces(text: string): Array<{ id: string; name: string; icon: string; where: string; city: string; here: boolean }> {
+    const wanted = text.trim().toLowerCase();
+    if (wanted.length < 2) return [];
+    const registry = DestinationRegistry.getInstance();
+    const viewing = this.standing?.().viewing ?? 'lagos';
+    const rank = (name: string, more: string[]): number => {
+      const lower = name.toLowerCase();
+      if (lower.startsWith(wanted)) return 0;
+      if (lower.split(/[^a-z0-9]+/).some((word) => word.startsWith(wanted))) return 1;
+      if (lower.includes(wanted)) return 2;
+      if (more.some((term) => term.toLowerCase().includes(wanted))) return 3;
+      return -1;
+    };
+    const hits: Array<{ id: string; name: string; icon: string; where: string; city: string; here: boolean; rank: number }> = [];
+    const data = WorldDataManager.getInstance();
+    for (const city of [viewing, ...Object.keys(CITY_LABEL).filter((one) => one !== viewing)]) {
+      const here = city === viewing;
+      for (const lm of data.landmarksOf(city)) {
+        const dest = registry.getById(lm.id);
+        const score = rank(dest?.name ?? lm.name, [lm.type, lm.subtitle, dest?.category ?? '', ...(dest?.services ?? [])]);
+        if (score < 0) continue;
+        const where = here ? dest?.districtName ?? data.getDistrictById(lm.districtId)?.name ?? '' : `In ${CITY_LABEL[city]}`;
+        hits.push({ id: lm.id, name: dest?.name ?? lm.name, icon: lm.icon || dest?.mapIcon || '📍', where, city, here, rank: score + (here ? 0 : 10) });
+      }
+    }
+    return hits.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).slice(0, 8);
+  }
+
+  private showSearchResults(text: string): void {
+    const list = document.getElementById('map-search-results');
+    if (!list) return;
+    const hits = this.findPlaces(text);
+    list.innerHTML = '';
+    if (text.trim().length < 2) {
+      list.style.display = 'none';
+      return;
+    }
+    list.style.display = 'block';
+    if (hits.length === 0) {
+      const none = document.createElement('div');
+      none.className = 'map-search-none';
+      none.textContent = `Nothing called "${text.trim()}" on the map.`;
+      list.appendChild(none);
+      return;
+    }
+    for (const hit of hits) {
+      const row = document.createElement('button');
+      row.className = 'map-search-hit';
+      row.dataset.place = hit.id;
+      const icon = document.createElement('span');
+      icon.className = 'hit-icon';
+      icon.textContent = hit.icon;
+      const name = document.createElement('span');
+      name.className = 'hit-name';
+      name.textContent = hit.name;
+      const where = document.createElement('span');
+      where.className = 'hit-where';
+      where.textContent = hit.where;
+      row.append(icon, name, where);
+      row.addEventListener('click', () => {
+        list.style.display = 'none';
+        this.goToPlace(hit.id, hit.city);
+      });
+      list.appendChild(row);
+    }
+  }
+
+  /** Brings a place up on the map: its city's map if another one is on show, the place in the middle, its card open. */
+  public goToPlace(placeId: string, city: string): boolean {
+    if ((this.standing?.().viewing ?? city) !== city) this.onSwitchCityTab?.(city);
+    const registry = DestinationRegistry.getInstance();
+    const wanted = registry.getById(placeId);
+    const lm = WorldDataManager.getInstance().getLandmarks().find((one) => one.id === placeId || (wanted !== null && registry.getById(one.id)?.id === wanted.id));
+    if (!lm) return false;
+    this.onFocus?.(lm);
+    this.showLandmarkDetails(lm);
+    return true;
   }
 
   /** Shows which city's map is up, and which city the player is actually standing in. */
@@ -430,7 +542,39 @@ export class WorldMapUI {
 
     const canonicalDest = DestinationRegistry.getInstance().getById(lm.id);
 
-    if (canonicalDest) {
+    // A place in another city is looked at, not gone to: getting there is a flight or a coach
+    const standing = this.standing?.();
+    const elsewhere = !!standing && standing.here !== standing.viewing;
+    const way = elsewhere ? null : this.wayTo?.(lm) ?? null;
+    const onFoot = way ? `${Math.round(way.metres).toLocaleString()} m on foot by the streets, about ${walkingTime(way.metres)}` : '';
+    const elsewhereHtml = elsewhere
+      ? `
+          <div class="sheet-label">How to get there</div>
+          <p class="sheet-note" id="map-card-elsewhere">This is in ${CITY_LABEL[standing!.viewing] ?? standing!.viewing}. You are in ${CITY_LABEL[standing!.here] ?? standing!.here}: you go there by air or by coach.</p>
+          <button class="sheet-go-btn" id="btn-card-interstate">Flights and coaches to ${CITY_LABEL[standing!.viewing] ?? standing!.viewing}</button>
+        `
+      : '';
+    const wireElsewhere = () => {
+      document.getElementById('btn-card-interstate')?.addEventListener('click', () => this.onInterstateTravel?.(standing!.viewing));
+    };
+
+    if (canonicalDest && elsewhere) {
+      if (chip) chip.textContent = `${canonicalDest.mapIcon} ${canonicalDest.category.toUpperCase()}`;
+      if (zone) zone.textContent = canonicalDest.districtName;
+      if (name) name.textContent = canonicalDest.name;
+      if (sub) sub.textContent = canonicalDest.openingHours;
+      if (desc) desc.textContent = canonicalDest.destinationDescription;
+      if (actions) {
+        actions.innerHTML = `
+          <div class="sheet-label">What you can do here</div>
+          <div class="sheet-chips">
+            ${canonicalDest.services.map((s) => `<span class="sheet-chip">${s}</span>`).join('')}
+          </div>
+          ${elsewhereHtml}
+        `;
+        wireElsewhere();
+      }
+    } else if (canonicalDest) {
       if (chip) chip.textContent = `${canonicalDest.mapIcon} ${canonicalDest.category.toUpperCase()}`;
       if (zone) zone.textContent = canonicalDest.districtName;
       if (name) name.textContent = canonicalDest.name;
@@ -438,7 +582,8 @@ export class WorldMapUI {
       if (desc) desc.textContent = canonicalDest.destinationDescription;
 
       if (actions) {
-        const options = canonicalDest.transportAvailability;
+        // Your own car is something you get into and drive: it is not a ride that can be called
+        const options = canonicalDest.transportAvailability.filter((t) => t.mode !== 'car');
         actions.innerHTML = `
           <div class="sheet-label">What you can do here</div>
           <div class="sheet-chips">
@@ -459,6 +604,7 @@ export class WorldMapUI {
               )
               .join('')}
           </div>
+          ${onFoot ? `<p class="sheet-note" id="map-card-way">🚶 ${onFoot}</p>` : ''}
 
           <button class="sheet-go-btn" id="btn-card-go"></button>
           <button class="sheet-link-btn" id="btn-card-walk-exterior">Stop outside instead of going in</button>
@@ -497,8 +643,14 @@ export class WorldMapUI {
       if (sub) sub.textContent = lm.subtitle;
       if (desc) desc.textContent = lm.description;
 
-      if (actions) {
-        actions.innerHTML = `<button class="sheet-go-btn" id="btn-card-go">Go there · Free</button>`;
+      if (actions && elsewhere) {
+        actions.innerHTML = elsewhereHtml;
+        wireElsewhere();
+      } else if (actions) {
+        actions.innerHTML = `
+          ${onFoot ? `<p class="sheet-note" id="map-card-way">🚶 ${onFoot}</p>` : ''}
+          <button class="sheet-go-btn" id="btn-card-go">Walk there · Free</button>
+        `;
         document.getElementById('btn-card-go')?.addEventListener('click', () => this.onTravelToLandmark?.(lm));
       }
     }
@@ -609,6 +761,11 @@ export class WorldMapUI {
   public close(): void {
     this.container.style.display = 'none';
     this.cardEl.style.display = 'none';
+    this.onCardClosed?.();
+    const results = document.getElementById('map-search-results');
+    if (results) results.style.display = 'none';
+    const search = document.getElementById('map-search-input') as HTMLInputElement | null;
+    if (search) search.value = '';
     const tt = document.getElementById('map-hover-tooltip');
     if (tt) tt.style.display = 'none';
     if (UIStateManager.getInstance().isMode('world-map')) {

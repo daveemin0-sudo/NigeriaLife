@@ -1,6 +1,6 @@
 // Getting around without the keyboard: the room view shows the whole room, every station has a
 // shortcut you can tap, and the map's pins lead to a sheet whose Go button takes you there.
-import { open, wait, money, newPlayer, enterInterior, leaveInterior, leaveByDoor, advance } from './lib.mjs';
+import { open, wait, money, newPlayer, enterInterior, leaveInterior, leaveByDoor, advance, untilStopped } from './lib.mjs';
 
 const TYPES = ['hospital', 'bank', 'restaurant', 'police', 'residence', 'university', 'airport'];
 
@@ -105,13 +105,16 @@ export async function run(browser, check) {
   await page.click('#map-card-close');
   await wait(300);
 
-  // --- A landmark with no interior lands the player at its spot on the street
-  await page.click('.map-pin[data-place="nike_art_gallery"]');
+  // --- A landmark with no interior: the player walks to its spot on the street
+  // (the map has turned to show the way to the hospital, so the pin may be off the edge: it is pressed all the same)
+  await page.evaluate(() => document.querySelector('.map-pin[data-place="nike_art_gallery"]')?.click());
   await wait(500);
-  await page.click('#btn-card-go');
-  await wait(2000);
+  await page.evaluate(() => document.getElementById('btn-card-go')?.click());
+  await wait(400);
+  await untilStopped(page, 90);
+  await wait(300);
   const gallery = await page.evaluate(() => ({ card: window.game.hud.currentActiveObject?.id || null, mapOpen: window.game.world.worldMap.isActive }));
-  check('Go on a street landmark (the art gallery) arrives there with its card open', gallery.card === 'nike-art-gallery' && !gallery.mapOpen, gallery);
+  check('Go on a street landmark (the art gallery) walks the player there and opens its card on arrival', gallery.card === 'nike-art-gallery' && !gallery.mapOpen, gallery);
   await page.evaluate(() => window.game.hud.hideInteractionCard());
 
   // --- A place that keeps hours: by day the map takes the player to the nightclub's door and no further
@@ -122,7 +125,9 @@ export async function run(browser, check) {
   await page.evaluate(() => document.querySelector('.map-pin[data-place="quilox_vi"]')?.click());
   await wait(500);
   await page.evaluate(() => document.getElementById('btn-card-go')?.click());
-  await wait(2500);
+  await wait(400);
+  await untilStopped(page, 90);
+  await wait(600);
   const quilox = await page.evaluate(() => {
     const g = window.game;
     return { inside: g.world.interiorManager.isPlayerInside(), mapOpen: g.world.worldMap.isActive, fromDoor: Math.hypot(g.player.position.x - 14.8, g.player.position.z - 103), told: /closed/i.test(document.body.innerText) };

@@ -1,7 +1,7 @@
 // A job at a real workplace: go to the port, be taken on by the foreman, do the work with
 // your hands, be paid once for each piece of it at the rate of your grade, move up a grade
 // as the work adds up, and find all of that on the phone and still there tomorrow.
-import { open, reload, newPlayer, closeDialogs, advance, playUntil, money, wait } from './lib.mjs';
+import { open, reload, newPlayer, closeDialogs, advance, playUntil, money, wait, untilStopped } from './lib.mjs';
 
 const port = (page) => page.evaluate(() => window.game.world.landmarks.status()['apapa-port']);
 const career = (page) => page.evaluate(() => ({ ...window.game.hud.backend.getData().career }));
@@ -55,13 +55,15 @@ export async function run(browser, check) {
   await wait(600);
   const sheet = await page.evaluate(() => document.body.innerText);
   await page.evaluate(() => document.getElementById('btn-card-go')?.click());
-  await wait(2200);
+  await wait(400);
+  // On foot from the map is a walk by the streets
+  await untilStopped(page, 60);
   const arrived = await page.evaluate(() => {
     const g = window.game;
     const gate = g.world.interactiveObjects.find((o) => o.id === 'apapa-port').interactionPoint;
     return { mapOpen: g.world.worldMap.isActive, fromGate: Math.hypot(g.player.position.x - gate.x, g.player.position.z - gate.z) };
   });
-  check('the port is chosen on the map and Go takes the player to its gate on Wharf Road', /Apapa Port/.test(sheet) && !arrived.mapOpen && arrived.fromGate < 3, arrived);
+  check('the port is chosen on the map and Go walks the player to its gate on Wharf Road', /Apapa Port/.test(sheet) && !arrived.mapOpen && arrived.fromGate < 3, arrived);
 
   // ------------------------------------------------------------------ Not taken on, no work
   const start = await money(page);

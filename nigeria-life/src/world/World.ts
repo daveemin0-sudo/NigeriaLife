@@ -13,6 +13,8 @@ import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
 import { WorldMap } from './map/WorldMap';
+import { RouteLine } from './map/RouteLine';
+import type { WayPoint } from './plan/Wayfinder';
 import { WorldDataManager } from './data/WorldDataManager';
 import { InteriorManager } from '../interiors/InteriorManager';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
@@ -71,6 +73,8 @@ export class World {
   public trafficSpawner: TrafficSpawner;
   public cityPopulation: CityPopulation;
   public worldMap: WorldMap;
+  /** The way to a place picked on the map, drawn along the streets */
+  public routeLine = new RouteLine();
   public dataManager: WorldDataManager;
 
   /** Gameplay camera, used to cull the instanced crowd and traffic to what is on screen */
@@ -153,6 +157,7 @@ export class World {
 
     // 9. Dedicated Isometric World Map Presentation Layer
     this.worldMap = new WorldMap(this.scene);
+    this.scene.add(this.routeLine.group);
     // The map of Lagos is Lagos: its real streets, seen from above
     this.worldMap.useRealWorld = (cityId) => cityId === 'lagos' && this.cityManager.currentCityId === 'lagos';
     this.worldMap.onRealWorld = (on) => this.showCityUnderMap(on);
@@ -358,6 +363,13 @@ export class World {
     for (const part of [this.groundMesh, this.roads.group, this.buildings.group, this.cityDensity.group, this.districts.group, this.landmarks.group]) {
       part.visible = on;
     }
+    this.routeLine.group.visible = on && this.routeLine.points.length > 0;
+  }
+
+  /** Draws the way to a place on the map of the real city (its first point is where it starts), or takes it away. */
+  public showRoute(points: WayPoint[] | null): void {
+    this.routeLine.set(points);
+    this.routeLine.group.visible = this.routeLine.points.length > 0 && this.worldMap.showingRealWorld;
   }
 
   public setStreetModeVisibility(visible: boolean): void {

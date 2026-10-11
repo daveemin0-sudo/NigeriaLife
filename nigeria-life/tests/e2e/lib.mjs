@@ -147,6 +147,15 @@ export async function pressSteady(page, selector, options = {}) {
  * own steps (check in, security, board), without walking the terminal. For suites that need
  * a player to have flown; the walk itself is what the flights suite tests.
  */
+/** Plays on until the player, sent walking somewhere, has stopped. Returns where they are (null if still walking). */
+export async function untilStopped(page, seconds = 90) {
+  await advance(page, 0.25);
+  return playUntil(page, () => {
+    const p = window.game.player;
+    return p.isMoving ? null : { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2) };
+  }, seconds);
+}
+
 export function boardHeldFlight(page) {
   return page.evaluate(() => {
     const g = window.game;
