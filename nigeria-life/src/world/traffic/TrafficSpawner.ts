@@ -3,6 +3,7 @@ import { bakeToGeometry, seededRandom } from '../../graphics/MeshBaker';
 import type { Vehicles } from '../Vehicles';
 import type { StreetSpot } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD, SIDE_STREETS } from '../density/StreetLayout';
+import { isAbroad } from '../StreetLife';
 
 type VehicleKind =
   | 'danfo' | 'keke' | 'okada' | 'sedan' | 'suv' | 'taxi' | 'police'
@@ -63,6 +64,8 @@ interface Car {
   cruise: number;
   length: number;
   dwell: number;
+  /** Its place among the day's traffic: which of them are on the road when only a share are */
+  place?: number;
 }
 
 interface Batch {
@@ -103,6 +106,9 @@ const ALL_RED = 1.6;
 export class TrafficSpawner {
   public group: THREE.Group;
   public vehicleCount = 0;
+  /** The share of the day's moving traffic that is on the road at this hour. Parked vehicles stay parked. */
+  public abroad = 1;
+  private places = 0;
 
   private rand = seededRandom(7741);
   private batches: Batch[] = [];
@@ -449,6 +455,19 @@ export class TrafficSpawner {
     }
   }
 
+  /** How many vehicles are moving on the roads now, and how many there are by day. */
+  public get moving(): { now: number; byDay: number } {
+    let now = 0;
+    let byDay = 0;
+    for (const lane of this.lanes) {
+      for (const car of lane.cars) {
+        byDay += 1;
+        if (car.place === undefined || isAbroad(car.place, this.abroad)) now += 1;
+      }
+    }
+    return { now, byDay };
+  }
+
   // =========================================================================
   // SIMULATION
   // =========================================================================
@@ -519,6 +538,9 @@ export class TrafficSpawner {
       const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       this.dummy.rotation.set(0, yaw, 0);
       for (const car of lane.cars) {
+        // Off the road at this hour: it keeps its place in the lane, and is not seen
+        car.place ??= this.places++;
+        if (!isAbroad(car.place, this.abroad)) continue;
         const along = car.u * lane.dir;
         const x = lane.axis === 'z' ? lane.fixed : along;
         const z = lane.axis === 'z' ? along : lane.fixed;

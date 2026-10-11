@@ -8,7 +8,7 @@ import { Builder } from '../world/kit/ArchKit';
  */
 
 /** What a piece is for, beyond being looked at. */
-export type FurnitureUse = 'seat' | 'tv' | 'none';
+export type FurnitureUse = 'seat' | 'tv' | 'bed' | 'none';
 
 export interface FurnitureKind {
   /** People walk round it. A rug is walked over. */
@@ -16,13 +16,15 @@ export interface FurnitureKind {
   use: FurnitureUse;
   /** Where someone sits on it, measured on the piece (a seat only) */
   seat?: { x: number; z: number };
+  /** Where someone lies on it (a bed only): where their feet are, how high the mattress is, and how far out from its middle its side is */
+  bed?: { x: number; z: number; top: number; side: number };
 }
 
 export const FURNITURE: Record<string, FurnitureKind> = {
   sofa_emerald: { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } },
   armchair: { solid: true, use: 'seat', seat: { x: 0, z: 0.06 } },
   tv_75: { solid: true, use: 'tv' },
-  king_bed: { solid: true, use: 'none' },
+  king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.75, top: 0.7, side: 1.05 } },
   bookshelf: { solid: true, use: 'none' },
   wardrobe: { solid: true, use: 'none' },
   floor_lamp: { solid: true, use: 'none' },

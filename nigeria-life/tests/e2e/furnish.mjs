@@ -242,6 +242,46 @@ export async function run(browser, check) {
   check('the walls are painted sage green for ₦15,000, once: choosing the colour they already are takes nothing',
     wallBefore !== wallAfter && (await decor(page)).wall === 'sage' && beforePaint.total - (await money(page)).total === 15000, { wallBefore, wallAfter, paid: beforePaint.total - (await money(page)).total });
 
+  // ------------------------------------------------------------------ A bed that is bought is slept in
+  await idle(page, 10);
+  await page.evaluate(() => { const g = window.game; g.player.actor.hold?.release(true); g.hud.backend.depleteEnergy(60); });
+  const beforeBed = await money(page);
+  await pick(page, 'king_bed');
+  // Somewhere in the living room with room for it
+  const spot = await page.evaluate(() => {
+    const d = window.game.modules.HouseDecorationSystem.getInstance();
+    for (const [x, z] of [[9, 6], [8, 4], [6, 7], [-2, 7], [1, 2], [10, 2]]) {
+      d.moveTo(x, z);
+      if (d.blocked() === null) return { x, z };
+    }
+    return null;
+  });
+  await pressSteady(page, '#furnish-bar-confirm');
+  await wait(300);
+  const bedItem = (await decor(page)).placed.find((item) => item.id === 'king_bed');
+  const bedPrice = beforeBed.total - (await money(page)).total;
+  const tired = await page.evaluate(() => window.game.hud.backend.getData().stats.energy);
+  const bedLabel = bedItem ? await useFurniture(page, bedItem.uid) : null;
+  const bedChoices = await choices(page);
+  await choose(page, 'Lie down and sleep');
+  const asleep = await playUntil(page, () => {
+    const g = window.game;
+    const life = g.world.interiorManager.residence.life;
+    const home = g.world.interiorManager.residence.group.position;
+    return life.doing === 'sleeping' && g.player.actor.pose.legs === 'lie' ? { x: +(g.player.position.x - home.x).toFixed(2), z: +(g.player.position.z - home.z).toFixed(2), title: life.status()?.title } : null;
+  }, 25);
+  await advance(page, 8);
+  const rested = await page.evaluate(() => window.game.hud.backend.getData().stats.energy);
+  await page.evaluate(() => window.game.world.interiorManager.residence.life.stop());
+  const upAgain = await idle(page, 10);
+  const afterUp = await page.evaluate(() => ({ doing: window.game.world.interiorManager.residence.life.doing, legs: window.game.player.actor.pose.legs, free: !window.game.player.actor.scripted }));
+  check('a bed bought from the catalogue and put down is slept in where it stands: the player walks to its side, lies down on it, and energy comes back while they sleep (it used to be furniture to look at)',
+    !!spot && !!bedItem && bedPrice > 0 && /Sleep in it/.test(bedLabel || '') && bedChoices.some((c) => /Lie down and sleep/.test(c)) && !!asleep && Math.hypot(asleep.x - bedItem.x, asleep.z - bedItem.z) < 1.3 && /Sleeping/.test(asleep.title || '')
+      && rested > tired && upAgain === true && afterUp.doing === null && afterUp.legs === 'stand' && afterUp.free, { spot, bedItem, bedPrice, bedLabel, asleep, tired, rested, afterUp });
+  // Sold again, so what follows is about the two pieces it has always been about
+  const soldBed = bedItem ? await page.evaluate((uid) => window.game.modules.HouseDecorationSystem.getInstance().sell(uid), bedItem.uid) : null;
+  check('and it is sold again for half of what it cost', !!soldBed && soldBed.ok && soldBed.refund === Math.round(bedPrice / 2) && (await decor(page)).placed.length === 2, { soldBed, bedPrice });
+
   // ------------------------------------------------------------------ Still there tomorrow
   const kept = await decor(page);
   const purse = await money(page);

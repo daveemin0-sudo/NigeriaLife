@@ -59,6 +59,24 @@ export async function run(browser, check) {
       && record.hospital.hours === null && record.hospital.words === 'Open all day' && record.police.hours === null
       && record.clubItself.opens === record.club.hours.opens && record.clubItself.closes === record.club.hours.closes, record);
 
+  // ------------------------------------------------------------------ The street at night
+  const streetAt = async (hour) => {
+    await setHour(page, hour);
+    await advance(page, 0.3);
+    return page.evaluate(() => {
+      const w = window.game.world;
+      const drawn = w.cityPopulation.variants.reduce((sum, variant) => sum + variant.drawn, 0);
+      return { walkers: w.cityPopulation.outNow, ofWalkers: w.cityPopulation.count, drawn, traffic: w.trafficSpawner.moving };
+    });
+  };
+  const noon = await streetAt(12);
+  const evening = await streetAt(21);
+  const small = await streetAt(3);
+  const dawn = await streetAt(7.5);
+  check('the street is as busy as the hour: everyone is out at noon, fewer by nine in the evening, about one in ten of the people and the traffic at three in the morning, and all of them again by half past seven (it was as full at 3 am as at noon)',
+    noon.walkers === noon.ofWalkers && noon.traffic.now === noon.traffic.byDay && evening.walkers < noon.walkers * 0.7 && evening.walkers > small.walkers
+      && small.walkers < noon.walkers * 0.2 && small.walkers > 0 && small.traffic.now < noon.traffic.byDay * 0.2 && small.drawn <= small.walkers && dawn.walkers === noon.walkers && dawn.traffic.now === noon.traffic.byDay, { noon, evening, small, dawn });
+
   // ------------------------------------------------------------------ The bank by day
   await setHour(page, 13);
   const dayPrompt = await atDoor(page, 'lagos-bank');

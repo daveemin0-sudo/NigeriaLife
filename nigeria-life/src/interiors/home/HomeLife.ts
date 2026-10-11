@@ -110,22 +110,33 @@ export class HomeLife {
 
   /** Walk to the bed, lie down and sleep. Energy and health come back while asleep. */
   public sleep(): boolean {
+    return this.sleepAt(HOME.bed.root, HOME.bed.side, 0, HOME.bed.top);
+  }
+
+  /**
+   * Walk to a bed, lie down on it and sleep: the bed the home came with, or one the player
+   * has bought and put down. `root` (where the sleeper's feet are) and `side` (where they
+   * stand to get in) are measured from the middle of the home; `facing` is the way the foot
+   * of the bed points; `top` is how high the mattress is.
+   */
+  public sleepAt(root: THREE.Vector3, side: THREE.Vector3, facing: number, top: number): boolean {
     const player = this.director.player;
     if (!player || this.director.interrupt(player) === 'locked') return false;
-    const lying = { legs: 'lie' as const, arms: 'rest' as const, height: HOME.bed.top };
+    const lying = { legs: 'lie' as const, arms: 'rest' as const, height: top };
+    const standAt = side.clone();
 
     const lieDown = new Sequence('lie down', [player]).add(
-      steps.walk(player, this.world(HOME.bed.side), { nav: this.nav }),
-      steps.face(player, this.world(HOME.bed.root)),
-      steps.slide(player, this.world(HOME.bed.root), 0.5),
-      steps.face(player, 0),
+      steps.walk(player, this.world(standAt), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, this.world(root)),
+      steps.slide(player, this.world(root), 0.5),
+      steps.face(player, facing),
       steps.setPose(player, lying),
       steps.wait(0.5)
     );
     lieDown.onEnd((reason) => {
       if (reason !== 'done') return;
-      player.yaw = 0;
-      player.hold = { release: (instant) => this.leaveFurniture(HOME.bed.side, instant) };
+      player.yaw = facing;
+      player.hold = { release: (instant) => this.leaveFurniture(standAt, instant) };
       player.setScripted(true);
       player.pose = lying;
       this.begin('sleeping');

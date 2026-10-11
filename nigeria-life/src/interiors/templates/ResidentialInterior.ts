@@ -142,6 +142,7 @@ export class ResidentialInterior {
       label: () => {
         const set = this.sets.get(item.uid);
         if (kind.use === 'seat') return '🛋️ Sit down, move it or sell it';
+        if (kind.use === 'bed') return '🛏️ Sleep in it, move it or sell it';
         if (kind.use === 'tv') return set?.on ? `📺 On: ${set.showing()}` : '📺 Turn it on, move it or sell it';
         return '🪑 Move it or sell it';
       },
@@ -156,6 +157,17 @@ export class ResidentialInterior {
           const seat = new THREE.Vector3(item.x + kind.seat.x * Math.cos(turn) + kind.seat.z * Math.sin(turn), 0, item.z - kind.seat.x * Math.sin(turn) + kind.seat.z * Math.cos(turn));
           const front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
           choices.push({ label: 'Sit down', pick: () => { this.life.sitAt(seat, front, Math.atan2(face.x, face.z)); } });
+        }
+        if (kind.use === 'bed' && kind.bed) {
+          // Its foot points the way the piece faces; the sleeper gets in from whichever side has room to stand
+          const turn = (item.turns * Math.PI) / 2;
+          const onIt = (x: number, z: number) => new THREE.Vector3(item.x + x * Math.cos(turn) + z * Math.sin(turn), 0, item.z - x * Math.sin(turn) + z * Math.cos(turn));
+          const feet = onIt(kind.bed.x, kind.bed.z);
+          const origin = this.group.position;
+          const sides = [onIt(kind.bed.side + 0.6, 0.3), onIt(-kind.bed.side - 0.6, 0.3)];
+          const side = sides.find((point) => this.life.nav.isFree(origin.x + point.x, origin.z + point.z)) ?? sides[0];
+          const top = kind.bed.top;
+          choices.push({ label: 'Lie down and sleep', pick: () => { this.life.sleepAt(feet, side, turn, top); } });
         }
         if (kind.use === 'tv' && set) {
           for (const channel of CHANNELS) {

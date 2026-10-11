@@ -3,6 +3,7 @@ import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuil
 import { bakeToGeometry, seededRandom } from '../../graphics/MeshBaker';
 import type { StreetSpot, WalkRun } from '../density/CityFabric';
 import { MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
+import { isAbroad } from '../StreetLife';
 
 type Mode = 'walk' | 'idle' | 'talk';
 
@@ -53,6 +54,8 @@ const DRAW_DISTANCE = 90;
 export class CityPopulation {
   public group: THREE.Group;
   public count = 0;
+  /** The share of them who are out at this hour: the rest are at home, and not drawn */
+  public abroad = 1;
 
   private rand = seededRandom(90210);
   private variants: Variant[] = [];
@@ -295,6 +298,13 @@ export class CityPopulation {
     this.group.add(this.shadows);
   }
 
+  /** How many of them are out now. */
+  public get outNow(): number {
+    let out = 0;
+    for (let i = 0; i < this.agents.length; i++) if (isAbroad(i, this.abroad)) out += 1;
+    return out;
+  }
+
   // =========================================================================
   // SIMULATION
   // =========================================================================
@@ -338,6 +348,8 @@ export class CityPopulation {
         rax = -lax;
       }
 
+      // Those who are at home at this hour are not in the street
+      if (!isAbroad(i, this.abroad)) continue;
       // Everyone keeps walking, but only pedestrians the camera can see are drawn
       if (playerPos) {
         const dx = a.x - playerPos.x;

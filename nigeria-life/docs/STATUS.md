@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after a second workplace and acted street cards.
+Last updated: 2026-10-11, after a bought bed that is slept in and a street that follows the hour.
 
 ## How to read it
 
@@ -105,7 +105,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | --- | --- | --- |
 | Interaction framework (walk, face, act, settle at the hand-over) | **Verified** | `buka`, `shop`, `home`, `social`, `actions` suites; now also the ticket booth and the loading bay. |
 | Older street cards | **Partial** | About thirty things in the street (the barber, the petrol pump, the suya man, Abuja's cab and mosque and so on) took or paid money the moment their button was pressed. They are now acted out by one wrapper (`HUD.actOutInStreet`): the player walks up, faces the thing, speaks or reaches, and what the card does lands part-way through; the money still moves once. `actions` suite. What they do is still a single payment with a message: nobody is seen cutting hair. Their branches are still listed in `HUD.handleCardAction`; the stadium, port, nightclub, motor park and building site have places of their own, and those old branches are dead code. |
-| Home: bed, sofa, fridge, bath | **Verified** | `home` suite. |
+| Home: bed, sofa, fridge, bath | **Verified** | `home` suite. A bed bought from the catalogue is slept in where it was put, whichever way it is turned: the player gets in from whichever side has room to stand (`furnish` suite). It used to be furniture to look at. |
 | Furniture buying and placing, wall colours | **Verified** | A piece is chosen in the catalogue and put down where the player wants it: shown see-through on a patch that is green or red, moved by a tap on the floor or the arrows, turned, and paid for when placed. It cannot go through a wall, on other furniture or across the way in. It can be picked up again for nothing and sold for half. People walk round it. Walls can be painted six colours. All of it is kept per profile and survives a reload. `furnish` suite. Still open: furniture does not go with a home when the home is sold; floors cannot be changed; pieces cannot be put on walls. |
 | Clothing and appearance | **Partial** | The player's look can be changed and is saved. No clothes shops. |
 | Television | **Verified** | The set on the wall and any set the player buys show a picture drawn several times a second: football (the match really being played at the National Stadium, same score), news and music. Channels are changed from the set or, when sitting, from the status line. Sofas and armchairs the player buys are sat on where they were put. `furnish` suite reads the picture and checks it changes. |
@@ -128,7 +128,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Traffic, walkers, vendors, day and night, weather | **Partial** | All present. Every place that states hours now keeps them (see phase 2). The street's own life does not yet change with the hour: the same walkers and traders at 3 am as at noon. |
+| Traffic, walkers, vendors, day and night, weather | **Partial** | All present. Every place that states hours now keeps them (see phase 2). The street is as busy as the hour (`world/StreetLife.ts`): everyone out from seven to seven, thinning through the evening, about one in ten of the walkers and the moving traffic in the small hours, back before dawn; the same ones stay home each night. `hours` suite. Lagos only. Still the same at every hour: the stalls and their umbrellas, the traders who sell by hand, and the lights in windows. |
 | Multiplayer | **Blocked** | Players on one machine, or on a home or office network through `npm run server`, see each other and trade. The server does not run the rules or hold money, so this is for people who trust each other. A public game needs a server that does: not built. |
 | Art direction and audio | **Partial** | One made-up airline, NigeriaLife Air, on aircraft, hangar, departures board, tickets, lounge and gate (an older name, EagleWings, was still on the lounge, two boarding passes and the gate crew: gone). One made-up coach operator, SwiftRoute, on the coaches, the parks and the timetable. Audio not reviewed. |
 | Performance | **Partial** | Landmarks add about 50 draw calls in all. The start view is about 1,300 calls on the target Intel HD 620. Interiors are all built at start, not on demand. |
@@ -138,7 +138,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Journey | Status | Notes |
 | --- | --- | --- |
 | A. Airport, booking to arrival | **Verified** | `flights` suite: map, terminal, ticket, check-in, security, gate, apron, steps, flight, Abuja apron, terminal, street; then Abuja to Port Harcourt and Port Harcourt to Lagos the same way. |
-| B. Home | **Verified** | `furnish` and `home` suites: in, buy and place a sofa and a television, paint the walls, sit, football on, out, reload, still there. The bought bed is not yet slept in (the home's own bed is). |
+| B. Home | **Verified** | `furnish` and `home` suites: in, buy and place a sofa and a television, paint the walls, sit, football on, buy a bed and sleep in it, out, reload, still there. |
 | C. Property | **Verified** | `land`, `server`. |
 | D. Workplace | **Verified** | `jobs` suite: map to the port, turned away, taken on by the foreman, four lorries loaded, paid by grade, promoted, on the phone, kept after a reload; then the building site: sent to the supervisor, taken on, a course of blocks laid and paid, a half course abandoned and unpaid, knocked off after hours, both jobs on the phone. Two workplaces from one module; more are added by saying where things are lifted and set down. |
 | E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
@@ -149,10 +149,10 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 ## What comes next, in the brief's order
 
 1. The map: the same real-city treatment for Abuja and Port Harcourt once those cities have more in them (their route preview comes with it); filters by kind of place; clicking a building.
-2. Finish the destination framework: one record per place for its name, position and services too (hours are done), and the street's life changing with the hour.
+2. Finish the destination framework: one record per place for its name, position and services too (hours are done). Stalls that shut and windows that light at night.
 3. Travel: cabin crew and service on the aircraft; baggage claim; a highway for the coach to go down, with a stop on the way.
 4. Walking at height: the stadium's upper rows, and the footbridge as part of a found way (it is climbed by walking at its stairs; the way-finder crosses the road underneath).
-5. The home: sleeping in a bought bed, furniture on walls, floors, and furniture that goes with a home when it is sold.
+5. The home: furniture on walls, floors, and furniture that goes with a home when it is sold.
 6. More kit assets (houses, worship, hotels, refinery), then the same treatment for Abuja and Port Harcourt.
 7. A server that runs the rules, if the game is to be public.
 
@@ -165,6 +165,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 - Quilox sold a ₦25,000 bottle at any hour from a black box.
 - Two games in one browser buying the same plot at the same instant could both be charged and one get nothing: localStorage reaches another tab a moment late, so the second buyer could read the registry as it was. The registry is now also kept in the browser's database and read from there while the lock is held. It showed up once in several full runs; a test now forces it.
 - The footbridge's stairs were modelled rising away from the deck, with their top step twelve metres from it, and the code that lifts the player was written for stairs that were not there.
+- Broad Street was as full of people and traffic at three in the morning as at noon.
 - The building site on Broad Street paid ₦6,500 for a "day shift" at the press of a button, as often as it was pressed while there was energy for it.
 - About thirty street cards took or paid money the instant they were pressed, with the player standing wherever they happened to be.
 - A coach to another city left from wherever the booking sheet was opened: the fare was taken and the road began, in the middle of a street or inside a shop. Lagos had no coach park at all; Abuja's was a box and Port Harcourt's a borrowed shop front, each with a button. Port Harcourt's said it had coaches to Lagos and Abuja and the timetable had none.

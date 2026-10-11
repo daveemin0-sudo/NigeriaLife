@@ -13,6 +13,7 @@ import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
 import { WorldMap } from './map/WorldMap';
+import { shareAbroad } from './StreetLife';
 import { RouteLine } from './map/RouteLine';
 import type { WayPoint } from './plan/Wayfinder';
 import { WorldDataManager } from './data/WorldDataManager';
@@ -476,6 +477,11 @@ export class World {
       this.viewMatrix.multiplyMatrices(this.viewCamera.projectionMatrix, this.viewCamera.matrixWorldInverse);
       frustum = this.viewFrustum.setFromProjectionMatrix(this.viewMatrix);
     }
+
+    // The street is as busy as the hour: full by day, thin in the evening, nearly empty in the small hours
+    const abroad = shareAbroad(this.skyEnvironment.currentHour);
+    this.trafficSpawner.abroad = abroad;
+    this.cityPopulation.abroad = abroad;
 
     // Update instanced go-slow traffic
     this.trafficSpawner.update(delta, playerPos, frustum);
