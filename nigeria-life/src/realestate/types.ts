@@ -165,6 +165,8 @@ export interface RegistryState {
   version: 1;
   /** Counter for ids made in this registry */
   serial: number;
+  /** Goes up by one each time the registry is changed, so a newer copy can be told from an older one */
+  rev?: number;
   players: Record<string, PlayerCard>;
   titles: Record<string, Title>;
   listings: Record<string, Listing>;

@@ -168,6 +168,26 @@ export async function run(browser, check) {
   check('when two players buy the same plot at the same instant, exactly one gets it and exactly one pays',
     winners === 1 && paidA + paidB === price2 && (paidA === 0 || paidB === 0) && p2.owner === (race[0].ok ? idA : idB), { race, paidA, paidB, owner: p2.owner });
 
+  // A browser copies localStorage to each tab a moment after it is written, so the tab that buys second can
+  // for that moment still be reading the registry as it was. Here the second buyer's tab is held to the old
+  // copy on purpose: it must be refused all the same, and pay nothing.
+  const PS = 'phc-aba-w2';
+  b0 = await money(b);
+  await b.evaluate(() => {
+    const key = 'nigeria_life_world_registry_v1';
+    const old = localStorage.getItem(key);
+    const real = Storage.prototype.getItem;
+    window.__freshRegistry = () => { Storage.prototype.getItem = real; };
+    Storage.prototype.getItem = function (name) { return name === key ? old : real.call(this, name); };
+  });
+  const firstIn = await a.evaluate((id) => window.game.land.buyFromState(id), PS);
+  const lateIn = await b.evaluate((id) => window.game.land.buyFromState(id), PS);
+  await b.evaluate(() => window.__freshRegistry());
+  b1 = await money(b);
+  const pS = await plotState(a, PS);
+  check('a second buyer whose tab has not yet caught up with the first sale is still refused and pays nothing',
+    firstIn.ok && !lateIn.ok && b1.total === b0.total && pS.owner === idA, { firstIn, lateIn, paid: b0.total - b1.total, owner: pS.owner });
+
   // The same press twice by one player
   const P3 = 'lag-azikiwe-s2';
   const price3 = await a.evaluate((id) => window.game.land.plot(id).statePrice, P3);

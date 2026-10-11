@@ -165,6 +165,8 @@ export async function run(browser, check) {
     const kekeId = await a.evaluate(() => window.game.garage.mine()[0].id);
     const parkedOnB = await until(b, (id) => { const v = window.game.world.vehicles.getVehicleById(`veh-own-${id}`); return v ? { x: v.mesh.position.x, z: v.mesh.position.z } : null; }, kekeId);
     await a.bringToFront();
+    // The owner's own game puts the vehicle at the kerb at its next once-a-second look at the registry
+    await until(a, (id) => (window.game.world.vehicles.getVehicleById(`veh-own-${id}`) ? true : null), kekeId);
     await a.evaluate((id) => { const g = window.game; g.enterVehicle(g.world.vehicles.getVehicleById(`veh-own-${id}`)); }, kekeId);
     await a.keyboard.down('w');
     for (let i = 0; i < 12; i++) { await advance(a, 0.4); await wait(120); await advance(b, 0.4); await wait(120); }

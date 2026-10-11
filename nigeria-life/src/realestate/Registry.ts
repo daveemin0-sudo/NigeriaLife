@@ -27,6 +27,78 @@ const STORAGE_KEY = 'nigeria_life_world_registry_v1';
 const LOCK_NAME = 'nigeria_life_world_registry';
 
 /**
+ * A second copy of the registry, kept in the browser's database.
+ *
+ * Two tabs take turns through a lock, but that alone is not enough. A browser copies
+ * localStorage to each tab a moment after it is written, so the tab that takes the lock
+ * straight after another has let go of it can still be reading the registry as it was before:
+ * it would then sell again what was sold an instant ago. The database is read from the
+ * browser's own copy, inside a transaction, so what the last holder of the lock wrote is
+ * there. Each change carries a number one higher than the last; whoever holds the lock takes
+ * the copy with the higher number.
+ */
+const DB_NAME = 'nigeria_life_world_registry';
+const DB_STORE = 'registry';
+const DB_KEY = 'doc';
+
+interface Kept {
+  rev: number;
+  text: string;
+}
+
+let database: Promise<IDBDatabase | null> | null = null;
+
+function openDatabase(): Promise<IDBDatabase | null> {
+  if (database) return database;
+  database = new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === 'undefined') return resolve(null);
+      const opening = indexedDB.open(DB_NAME, 1);
+      opening.onupgradeneeded = () => opening.result.createObjectStore(DB_STORE);
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => resolve(null);
+      opening.onblocked = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+  return database;
+}
+
+async function readKept(): Promise<Kept | null> {
+  const db = await openDatabase();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const asking = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(DB_KEY);
+      asking.onsuccess = () => {
+        const kept = asking.result as Kept | undefined;
+        resolve(kept && typeof kept.text === 'string' && Number.isFinite(kept.rev) ? kept : null);
+      };
+      asking.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function keep(kept: Kept): Promise<void> {
+  const db = await openDatabase();
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    try {
+      const writing = db.transaction(DB_STORE, 'readwrite');
+      writing.objectStore(DB_STORE).put(kept, DB_KEY);
+      writing.oncomplete = () => resolve();
+      writing.onerror = () => resolve();
+      writing.onabort = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+/**
  * This player's stable id. On a world server it is an id made once for this device's player;
  * otherwise it comes from which local profile the tab is playing. Never from a display name.
  */
@@ -44,6 +116,7 @@ function sanitise(raw: unknown): RegistryState {
   return {
     version: 1,
     serial: Number.isFinite(from.serial) ? Number(from.serial) : 0,
+    rev: Number.isFinite(from.rev) ? Number(from.rev) : 0,
     players: record(from.players),
     titles: record(from.titles),
     listings: record(from.listings),
@@ -172,39 +245,55 @@ export class Registry {
       return next;
     }
 
-    const run = (): T => {
-      const state = this.load();
+    /** `kept` is the browser's own copy, read while the lock is held. The change itself is made without waiting. */
+    const run = (kept: Kept | null): { result: T; toKeep: Kept | null } => {
+      let state = this.load();
+      // This tab's localStorage may not have caught up with what the last holder of the lock wrote
+      if (kept && kept.rev > (state.rev ?? 0)) {
+        state = parse(kept.text);
+        this.cachedText = kept.text;
+      }
+      const before = JSON.stringify(state);
       const undo = BackendService.getInstance().checkpoint();
       const result = change(state);
       if (refused(result)) {
-        this.cache = this.load();
-        return result;
+        this.cache = parse(before);
+        return { result, toKeep: null };
       }
-      const text = JSON.stringify(state);
-      const changed = text !== this.cachedText;
+      const changed = JSON.stringify(state) !== before;
+      let toKeep: Kept | null = null;
       if (changed) {
+        state.rev = Math.max(state.rev ?? 0, kept?.rev ?? 0) + 1;
+        const text = JSON.stringify(state);
         try {
           localStorage.setItem(STORAGE_KEY, text);
         } catch (error) {
           console.warn('The ownership registry could not be saved', error);
           undo();
-          this.cache = this.load();
-          return { ok: false, reason: 'The change could not be saved, so nothing was changed.' } as T;
+          this.cache = parse(before);
+          return { result: { ok: false, reason: 'The change could not be saved, so nothing was changed.' } as T, toKeep: null };
         }
         this.cachedText = text;
+        toKeep = { rev: state.rev, text };
       }
       this.cache = state;
       // Only a real change is announced: a check that found nothing to do must not set off another round of checks
       if (changed) this.tell();
-      return result;
+      return { result, toKeep };
     };
 
     const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
     if (locks?.request) {
-      return locks.request(LOCK_NAME, () => run()) as Promise<T>;
+      return locks.request(LOCK_NAME, async () => {
+        const done = run(await readKept());
+        // Written to the browser's own copy before the lock is let go, so the next holder reads it
+        if (done.toKeep) await keep(done.toKeep);
+        return done.result;
+      }) as Promise<T>;
     }
     // No cross-tab lock in this browser: one at a time within this tab is the best there is
-    const next = this.queue.then(run, run);
+    const alone = () => run(null).result;
+    const next = this.queue.then(alone, alone);
     this.queue = next.catch(() => undefined);
     return next;
   }
