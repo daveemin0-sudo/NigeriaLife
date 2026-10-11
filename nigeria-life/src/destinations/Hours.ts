@@ -9,6 +9,20 @@ export interface OpeningHours {
 
 export const ALWAYS_OPEN: OpeningHours = { opens: 0, closes: 24 };
 
+/**
+ * When each place that keeps hours is open. This is the one record of it: the map, the door,
+ * the room behind the door and the landmark itself all read it from here. A place that is
+ * not in it never shuts.
+ */
+export const PLACE_HOURS = {
+  bank: { opens: 8, closes: 16 },
+  university: { opens: 7, closes: 21 },
+  supermarket: { opens: 7, closes: 22 },
+  buka: { opens: 9, closes: 23 },
+  stadium: { opens: 9, closes: 23 },
+  club: { opens: 20, closes: 5 },
+} satisfies Record<string, OpeningHours>;
+
 export function isOpen(hours: OpeningHours | undefined, hour: number): boolean {
   if (!hours) return true;
   if (hours.opens === hours.closes || (hours.opens <= 0 && hours.closes >= 24)) return true;
@@ -30,6 +44,12 @@ export function clockTime(hour: number): string {
 export function describeHours(hours: OpeningHours | undefined): string {
   if (!hours || isOpen(hours, 0) && isOpen(hours, 6) && isOpen(hours, 12) && isOpen(hours, 18) && hours.opens <= 0) return 'Open all day';
   return `${clockTime(hours.opens)} to ${clockTime(hours.closes)}`;
+}
+
+/** What a place's card says about now: "Open all day", "Open now, until 4 pm", "Closed now, opens at 8 am". */
+export function openNow(hours: OpeningHours | undefined, hour: number): { open: boolean; text: string } {
+  if (!hours || describeHours(hours) === 'Open all day') return { open: true, text: 'Open all day' };
+  return isOpen(hours, hour) ? { open: true, text: `Open now, until ${clockTime(hours.closes)}` } : { open: false, text: `Closed now, opens at ${clockTime(hours.opens)}` };
 }
 
 /** What to tell someone at the door of a place that is shut. */

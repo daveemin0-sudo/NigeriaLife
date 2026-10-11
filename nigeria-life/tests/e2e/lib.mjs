@@ -92,7 +92,18 @@ export const quest = (page, id) => page.evaluate((qid) => {
 }, id);
 
 export async function enterInterior(page, type) {
-  await page.evaluate((t) => { const g = window.game; return g.world.interiorManager.enterInterior(t, g.player, g.cameraManager, g.hud, g.world); }, type);
+  await page.evaluate((t) => {
+    const g = window.game;
+    // The suites that use this are about what happens inside a place, not about when it is open (the
+    // hours suite is about that). If it is shut at this hour and open at noon, the visit is made at noon.
+    const sky = g.world.skyEnvironment;
+    if (!g.world.interiorManager.isOpenNow(t)) {
+      const was = sky.currentHour;
+      sky.setHour(12);
+      if (!g.world.interiorManager.isOpenNow(t)) sky.setHour(was);
+    }
+    return g.world.interiorManager.enterInterior(t, g.player, g.cameraManager, g.hud, g.world);
+  }, type);
   await wait(900);
 }
 

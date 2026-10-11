@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Builder, signBoard } from '../kit/ArchKit';
+import { createCashMachine } from '../kit/CashMachine';
 import { clickBox, figure, type Landmark, type LandmarkHost } from './Landmark';
 import { Sequence, steps, type Step } from '../../interactions/Sequence';
 import type { Actor } from '../../interactions/Actor';
@@ -426,9 +427,13 @@ export function createAirport(options: AirportOptions): AirportLandmark {
     'Arrived': 'ARRIVED',
   };
 
-  const door = clickBox(30, 6, 6);
-  door.position.copy(local(-84, 3, -101));
+  // The front of the terminal is the way in, all but its east end, where the cash machine is in the wall
+  const door = clickBox(22, 6, 6);
+  door.position.copy(local(-87, 3, -101));
   group.add(door);
+  const machine = createCashMachine({ id: `airport-${code.toLowerCase()}`, name, x: -72.5 + move.x, z: -102.94 + move.z, facing: 0 });
+  machine.group.position.copy(local(-72.5, 0, -102.94));
+  group.add(machine.group);
   const entrance = at(-80, -101.2);
   const leaving = flights.routesFrom(options.city);
   const description = `${AIRLINE} flies from here to ${leaving.map((route) => AIRPORTS[route.to].city).join(' and ')}. Buy a ticket and check in inside, then walk out to the aircraft.`;
@@ -471,6 +476,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
     group,
     obstructions: b.obstructions(name, site.x, site.z),
     interactive: [
+      machine.interactive,
       ...options.ids.map((id) => ({
         mesh: door,
         id,

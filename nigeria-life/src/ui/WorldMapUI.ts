@@ -6,6 +6,8 @@ import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import type { DestinationDefinition, TransportOption } from '../destinations/DestinationTypes';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
+import { openNow } from '../destinations/Hours';
+import { InteriorManager } from '../interiors/InteriorManager';
 
 /** A label drawn over the map at a fixed map position */
 interface MapMarker {
@@ -499,7 +501,8 @@ export class WorldMapUI {
       if (canonicalDest) {
         icon = canonicalDest.mapIcon || lm.icon || '📍';
         title = canonicalDest.name;
-        sub = `${canonicalDest.category} • ${canonicalDest.districtName} • ${canonicalDest.shortDescription} • 🟢 ${canonicalDest.openingHours}`;
+        const now = openNow(canonicalDest.hours, InteriorManager.getInstance().clock());
+        sub = `${canonicalDest.category} • ${canonicalDest.districtName} • ${canonicalDest.shortDescription} • ${now.open ? '🟢' : '🔴'} ${now.text}`;
       } else {
         icon = lm.icon || '📍';
         title = lm.name || lm.title;
@@ -578,7 +581,12 @@ export class WorldMapUI {
       if (chip) chip.textContent = `${canonicalDest.mapIcon} ${canonicalDest.category.toUpperCase()}`;
       if (zone) zone.textContent = canonicalDest.districtName;
       if (name) name.textContent = canonicalDest.name;
-      if (sub) sub.textContent = `🟢 ${canonicalDest.openingHours}`;
+      // Open or shut at this hour, by the same record the door goes by
+      const now = openNow(canonicalDest.hours, InteriorManager.getInstance().clock());
+      if (sub) {
+        sub.textContent = now.text === 'Open all day' ? '🟢 Open all day' : `${now.open ? '🟢' : '🔴'} ${now.text} (${canonicalDest.openingHours})`;
+        sub.classList.toggle('shut', !now.open);
+      }
       if (desc) desc.textContent = canonicalDest.destinationDescription;
 
       if (actions) {

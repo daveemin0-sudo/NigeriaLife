@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after finding the way (walks by the streets, the map's search and route).
+Last updated: 2026-10-11, after opening hours and cash machines.
 
 ## How to read it
 
@@ -18,7 +18,7 @@ Last updated: 2026-10-11, after finding the way (walks by the streets, the map's
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 25 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 26 suites.
 
 ## The approach, from the brief's last rule
 
@@ -69,7 +69,9 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Churches, mosques, public institutions | **Looks only** | Abuja's mosque and Christian centre are exteriors with a one-click button. None in Lagos. |
 | Nightclub (Quilox) | **Verified** | Built with the kit: lit front, canopy, real door, rope and doorman, roof terrace. Open 8 pm to 5 am and shut otherwise, whichever way it is approached; the prompt at the door says so. Inside: a desk where the gate fee (₦5,000) is paid once a night, a bar where the barman makes a drink and is paid as he hands it over, a dance floor with a crowd, a DJ and lights on the beat (a dance counts four times a night), and a lounge that seats those who have bought a bottle. Music plays while inside. At closing time the player is walked out. `club` suite. |
 | Nightclub: toilets, hype man, spraying money, other players in the room | **Missing** | The toilets are a door on the wall. |
-| Destination framework | **Partial** | Three pieces now work together. `PlaceActions`: any place registers what its own things do, and the card asks there, so a new place adds nothing to the HUD. `Hours`: a room that keeps hours cannot be entered outside them by any route, and its door prompt says so. `Landmark`: ground, gates, street doors, state. Still separate: `DestinationRegistry` keeps hours as text beside the real ones, and older places (bank 8 to 4, for one) do not enforce theirs. NPC roles, jobs and sound are not yet declared per place. |
+| Destination framework | **Partial** | Three pieces now work together. `PlaceActions`: any place registers what its own things do, and the card asks there, so a new place adds nothing to the HUD. `Hours`: one table (`PLACE_HOURS`) says when each place that keeps hours is open; the registry, the room behind the door, the stadium, the nightclub and the map all read it, and what a card says about hours is written from it, never typed in. A place that is shut cannot be entered by any route, and its door prompt says so. `Landmark`: ground, gates, street doors, state. Still separate: a place's name, position and services are in `DestinationRegistry` and again in its room's definition. NPC roles, jobs and sound are not yet declared per place. |
+| Opening hours | **Verified** | The bank (8 am to 4 pm), the university (7 am to 9 pm), the supermarket (7 am to 10 pm), the buka (9 am to 11 pm), the stadium (9 am to 11 pm) and the nightclub (8 pm to 5 am) are open in their hours and shut outside them; the hospital, the police, the airport and the port never shut. The bank, the university, the supermarket and the buka used to state hours and let anyone in at any time. The map's card says "Open now, until 4 pm" or "Closed now, opens at 8 am" (it showed a green light at every hour). Someone already inside at closing time is left to finish, except in the nightclub, which empties. `hours` suite. |
+| Cash machines | **Verified** | Cash is taken out and paid in at a machine: the one in the banking hall, the ones in the wall of the bank on Broad Street, and one in the wall of each of the three airports, made by one maker (`world/kit/CashMachine.ts`). They work at any hour. The player walks up, puts a hand to it, and its screen comes up. The B key, the + beside the money and the card in the inventory used to put that screen up anywhere at all; now they open it only at a machine, and otherwise say where the nearest is and set the player walking to it. `hours` and `actions` suites. |
 
 ## Phase 3: flights
 
@@ -121,7 +123,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Traffic, walkers, vendors, day and night, weather | **Partial** | All present. Opening hours are kept by the stadium and the nightclub only. |
+| Traffic, walkers, vendors, day and night, weather | **Partial** | All present. Every place that states hours now keeps them (see phase 2). The street's own life does not yet change with the hour: the same walkers and traders at 3 am as at noon. |
 | Multiplayer | **Blocked** | Players on one machine, or on a home or office network through `npm run server`, see each other and trade. The server does not run the rules or hold money, so this is for people who trust each other. A public game needs a server that does: not built. |
 | Art direction and audio | **Partial** | One made-up airline, consistent on aircraft, hangar and departures board. Audio not reviewed. |
 | Performance | **Partial** | Landmarks add about 50 draw calls in all. The start view is about 1,300 calls on the target Intel HD 620. Interiors are all built at start, not on demand. |
@@ -142,7 +144,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 ## What comes next, in the brief's order
 
 1. The map: the same real-city treatment for Abuja and Port Harcourt once those cities have more in them (their route preview comes with it); filters by kind of place; clicking a building.
-2. Finish the destination framework: real hours for every place that states them, and one record per place instead of two.
+2. Finish the destination framework: one record per place for its name, position and services too (hours are done), and the street's life changing with the hour.
 3. Travel: a coach park to leave from; cabin crew and service; baggage claim.
 4. Walking at height: the stadium's upper rows, and the footbridge as part of a found way (it is climbed by walking at its stairs; the way-finder crosses the road underneath).
 5. The home: sleeping in a bought bed, furniture on walls, floors, and furniture that goes with a home when it is sold.
@@ -158,6 +160,9 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 - Quilox sold a ₦25,000 bottle at any hour from a black box.
 - Two games in one browser buying the same plot at the same instant could both be charged and one get nothing: localStorage reaches another tab a moment late, so the second buyer could read the registry as it was. The registry is now also kept in the browser's database and read from there while the lock is held. It showed up once in several full runs; a test now forces it.
 - The footbridge's stairs were modelled rising away from the deck, with their top step twelve metres from it, and the code that lifts the player was written for stairs that were not there.
+- The cash machine's screen came up anywhere: on the B key, on the + beside the money, on the card in the inventory. Bank and wallet were one purse, and the bank and its machines were scenery.
+- The bank, the university, the supermarket and the buka each stated opening hours and kept none. The map showed a green light beside them at every hour.
+- At laptop width (1366 px) the location badge lay over the money and the + beside it: the amount could not be read in full and the button could not be pressed.
 - "Walk" on the map was not a walk: it put the player at the door of any place in the city at once, free, which made the okada, keke, danfo and taxi fares pointless. "Personal Car" did the same for anyone, car or no car. Districts and properties jumped the same way.
 - With another city's map up, "Go there" moved the player to that city's coordinates while they were still standing in Lagos, and announced an arrival in a district of the other city.
 - The map's header showed "Online: 85,420" and "Happiness: 98%": numbers that were typed in, not counted.

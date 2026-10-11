@@ -25,6 +25,8 @@ export interface PlaceHost {
   enter(buildingId: string, comeOutAt?: THREE.Vector3): void;
   /** Takes the player out of the room they are in, to this point outside rather than back the way they came. */
   leave(comeOutAt: THREE.Vector3, facing?: number): void;
+  /** Puts the screen of the cash machine the player is standing at in front of them. */
+  cashMachine(): void;
 }
 
 /** What the button on a thing's card says, and what pressing it does. */

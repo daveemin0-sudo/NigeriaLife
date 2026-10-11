@@ -3,6 +3,7 @@ import type {
   DestinationDefinition, 
   TransportOption 
 } from './DestinationTypes';
+import { PLACE_HOURS, describeHours } from './Hours';
 
 export class DestinationRegistry {
   private static instance: DestinationRegistry | null = null;
@@ -109,7 +110,6 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'hospital',
-      openingHours: 'Open 24/7',
       shortDescription: 'Triage, medical consultations, recovery beds & 24/7 pharmacy',
       destinationDescription:
         'Lagos Island premier state medical centre. Offers 24/7 emergency care, physician consultations, clinical recovery beds, and anti-malaria medications.',
@@ -207,7 +207,7 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'university',
-      openingHours: '07:00 - 21:00',
+      hours: PLACE_HOURS.university,
       shortDescription: 'University of First Choice: Lecture halls, library, faculty campus & student quad',
       destinationDescription:
         'Premier Nigerian federal research university situated on the Akoka lagoon shore. Famous for rigorous academic programs, tech incubator minds, vibrant student life, and historic faculties.',
@@ -308,7 +308,6 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'airport',
-      openingHours: 'Open 24/7',
       shortDescription: 'Domestic & international departures, flight check-in, security & VIP lounge',
       destinationDescription:
         'West Africa’s busiest international air transport hub. Modern departure terminal, baggage screening, flight check-in, security screening, and direct flights to Abuja, Port Harcourt, and worldwide.',
@@ -422,7 +421,7 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: '',
-      openingHours: '09:00 - 23:00',
+      hours: PLACE_HOURS.stadium,
       shortDescription: 'Football through the day. Tickets at the booth by Gate A.',
       destinationDescription: 'A pitch and running track with stands on all four sides. Buy a ticket at the booth, go in through Gate A and watch the match from the foot of the east stand.',
       services: ['Match tickets', 'Seats at the pitch side'],
@@ -451,7 +450,6 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: '',
-      openingHours: 'Open 24/7',
       shortDescription: 'Container terminal. Paid work at the loading bay inside the gate.',
       destinationDescription: 'A quay with a cargo ship alongside, gantry cranes, a container yard, a shed and the terminal office. Lorries are loaded by hand at the bay just inside the gate.',
       services: ['Loading work, paid by the lorry'],
@@ -480,7 +478,7 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'club',
-      openingHours: '8 pm to 5 am',
+      hours: PLACE_HOURS.club,
       shortDescription: 'Dance floor, DJ, bar and lounge. Gate fee at the desk inside.',
       destinationDescription: 'A nightclub on Victoria Island. Pay the gate fee at the desk, then the bar, the dance floor and (with a bottle) the lounge are yours until closing. Shut through the day.',
       services: ['Gate fee, once a night', 'Drinks at the bar', 'Dance floor', 'Lounge tables with a bottle'],
@@ -512,7 +510,7 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'bank',
-      openingHours: '08:00 - 16:00',
+      hours: PLACE_HOURS.bank,
       shortDescription: 'ATMs, foreign remittance wire pickups & business loans',
       destinationDescription: 'Historic financial thoroughfare on Broad Street hosting headquarters of top commercial banks.',
       services: ['ATM Cash Withdrawal', 'Foreign Wire Pickup', 'SME Business Loans'],
@@ -541,7 +539,7 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'restaurant',
-      openingHours: '09:00 - 23:00',
+      hours: PLACE_HOURS.buka,
       shortDescription: 'Firewood party jollof, goat meat, amala & chilled drinks',
       destinationDescription: 'Iconic street bukateria famous for sizzling Nigerian delicacies and lively music.',
       services: ['Order Food', 'Sit & Dine', 'Takeaway Packs'],
@@ -570,7 +568,7 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'shop',
-      openingHours: '07:00 - 22:00',
+      hours: PLACE_HOURS.supermarket,
       shortDescription: 'Cold drinks, bread, noodles, snacks and household things',
       destinationDescription: 'A neighbourhood supermarket. Take a basket, pick from the shelves and pay at the till.',
       services: ['Groceries', 'Cold Drinks', 'Household & Gadgets'],
@@ -599,7 +597,6 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'police',
-      openingHours: 'Open 24/7',
       shortDescription: 'Citizen incident reporting, character clearance & bail bond desk',
       destinationDescription: 'Central area command station upholding peace and civil security in Lagos Island.',
       services: ['Incident Reports', 'Character Clearance', 'Bail Processing'],
@@ -628,7 +625,6 @@ export class DestinationRegistry {
         triggerRadius: 6.5,
       },
       interiorId: 'residence',
-      openingHours: 'Open 24/7',
       shortDescription: 'Furnished residential apartment with bedroom, kitchen & living room',
       destinationDescription: 'Comfortable private home with generator power, living room furniture, and full amenities.',
       services: ['Rest & Sleep', 'Decorate Home', 'Cook Food'],
@@ -639,7 +635,9 @@ export class DestinationRegistry {
     });
   }
 
-  public register(dest: DestinationDefinition): void {
+  /** A place goes on the record. What its card says about its hours is written from the hours themselves. */
+  public register(place: Omit<DestinationDefinition, 'openingHours'>): void {
+    const dest: DestinationDefinition = { ...place, openingHours: describeHours(place.hours) };
     this.destinations.set(dest.id, dest);
     this.aliasMap.set(dest.id, dest.id);
     for (const alias of dest.aliases) {

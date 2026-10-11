@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Builder, signBoard } from '../kit/ArchKit';
 import { MatchSim } from './MatchSim';
+import { PLACE_HOURS } from '../../destinations/Hours';
 import { clickBox, figure, type Landmark, type LandmarkHost } from './Landmark';
 import { Sequence, steps } from '../../interactions/Sequence';
 
@@ -32,8 +33,8 @@ const GATE_FROM = -13;
 const GATE_TO = -7;
 const GATE_Z = (GATE_FROM + GATE_TO) / 2;
 
-const OPENS = 9;
-const CLOSES = 23;
+const OPENS = PLACE_HOURS.stadium.opens;
+const CLOSES = PLACE_HOURS.stadium.closes;
 export const TICKET_PRICE = 1500;
 
 const GREEN = 0x15803d;

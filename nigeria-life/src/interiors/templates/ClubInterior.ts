@@ -101,7 +101,6 @@ export class ClubInterior {
       cameraOffset: new THREE.Vector3(0, 14, 18),
       ambientLightColor: 0xddd6fe,
       ambientLightIntensity: 1.7,
-      hours: CLUB.hours,
       rooms: [
         { id: 'club_floor', name: 'Main room', size: CLUB.room, centerOffset: new THREE.Vector3(0, 0, 0), floorColor: 0x3a3350, wallColor: 0x4a2a78 },
       ],

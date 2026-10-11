@@ -30,6 +30,7 @@ import { InteractionDirector } from '../interactions/InteractionDirector';
 import { CITY_NAME } from '../realestate/PlotCatalogue';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { PlaceActions } from '../destinations/PlaceActions';
+import { CASH_MACHINE } from '../world/kit/CashMachine';
 import { esc } from './kit/html';
 import { draw as drawStable } from './kit/StableView';
 import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
@@ -108,7 +109,7 @@ export class HUD {
     this.backend = BackendService.getInstance();
     this.inventoryModal = new InventoryModal();
     this.atmModal = new ATMModal();
-    this.inventoryModal.onOpenATM = () => this.atmModal.open();
+    this.inventoryModal.onOpenATM = () => this.goToCashMachine();
     // At the bank's own machine, the player is seen taking the cash or feeding it in
     this.atmModal.onCashMoved = () => {
       if (this.world?.interiorManager.currentInterior?.type !== 'bank' || !this.player) return;
@@ -229,7 +230,7 @@ export class HUD {
           <button class="sound-toggle-btn" id="hud-sound-toggle" title="Toggle Afrobeats Radio">🔊</button>
           <div class="pill-item money-pill-large" id="pill-money-wrap">
             <span id="hud-money">₦25,000</span>
-            <button class="btn-quick-deposit" id="btn-quick-topup" title="Withdraw / Deposit at Bank ATM">+</button>
+            <button class="btn-quick-deposit" id="btn-quick-topup" title="Go to the nearest cash machine to take cash out or pay it in">+</button>
           </div>
         </div>
 
@@ -593,7 +594,7 @@ export class HUD {
     });
 
     document.getElementById('open-atm-btn')?.addEventListener('click', () => {
-      this.atmModal.open();
+      this.goToCashMachine();
     });
 
     document.getElementById('open-phone-btn')?.addEventListener('click', () => {
@@ -1065,7 +1066,7 @@ export class HUD {
 
     // Quick ATM topup button
     document.getElementById('btn-quick-topup')?.addEventListener('click', () => {
-      this.atmModal.open();
+      this.goToCashMachine();
     });
 
     // Sound toggle button
@@ -1108,7 +1109,7 @@ export class HUD {
       } else if (e.key.toLowerCase() === 'i') {
         this.inventoryModal.toggle();
       } else if (e.key.toLowerCase() === 'b') {
-        this.atmModal.open();
+        this.goToCashMachine();
       } else if (e.key.toLowerCase() === 'p') {
         this.phoneModal.toggle();
       } else if (e.key.toLowerCase() === 'e') {
@@ -1158,6 +1159,40 @@ export class HUD {
 
   public openAtm(): void {
     this.atmModal.open();
+  }
+
+  /**
+   * Cash is taken out and paid in at a cash machine, not wherever the player happens to be.
+   * Standing at one, its screen comes up. Anywhere else, the player is told where the
+   * nearest is and sets off for it.
+   */
+  public goToCashMachine(): void {
+    if (!this.world || !this.player) return;
+    if (this.player.isDriving) {
+      showGameToast('Get out of the vehicle first: a cash machine is used on foot.', 'info', 3200);
+      return;
+    }
+    const interiors = this.world.interiorManager;
+    const inside = interiors.isPlayerInside();
+    const from = this.player.position;
+    // Indoors, the only machine is the one in the banking hall; in the street, the ones in walls
+    const machines = inside
+      ? this.world.interactiveObjects.filter((o) => o.id === 'bank_atm_station' && interiors.currentInterior?.type === 'bank')
+      : this.world.interactiveObjects.filter((o) => o.id.startsWith(CASH_MACHINE));
+    if (machines.length === 0) {
+      showGameToast(inside ? 'There is no cash machine in here. There are machines in the street, and in the banking hall.' : 'There is no cash machine in this part of town.', 'info', 3600);
+      return;
+    }
+    const far = (o: InteractiveObject) => Math.hypot(o.interactionPoint.x - from.x, o.interactionPoint.z - from.z);
+    const nearest = machines.reduce((best, one) => (far(one) < far(best) ? one : best));
+    if (far(nearest) <= 2.8) {
+      if (inside) this.showInteractionCard(nearest);
+      else this.atmModal.open();
+      return;
+    }
+    const way = inside ? null : this.wayTo?.(nearest.interactionPoint.x, nearest.interactionPoint.z);
+    showGameToast(`The nearest ${nearest.name.charAt(0).toLowerCase()}${nearest.name.slice(1)} is ${Math.round(way?.metres ?? far(nearest))} m away. Walking there.`, 'info', 3600);
+    this.onWalkToPlace?.(nearest);
   }
 
   public setProximityTarget(target: InteractionTarget | null): void {
@@ -1969,6 +2004,7 @@ export class HUD {
         emote: (name, seconds) => this.player.playEmote(name, seconds),
         enter: (buildingId, comeOutAt) => this.onEnterInterior?.(buildingId, comeOutAt),
         leave: (comeOutAt, facing) => this.onLeaveInteriorTo?.(comeOutAt, facing),
+        cashMachine: () => this.atmModal.open(),
       });
       return;
     }

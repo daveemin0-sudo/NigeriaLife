@@ -14,7 +14,7 @@ import { UNILAGInterior } from './templates/UNILAGInterior';
 import { AirportInterior } from './templates/AirportInterior';
 import { ShopInterior } from './templates/ShopInterior';
 import { ClubInterior } from './templates/ClubInterior';
-import { isOpen, closedNotice } from '../destinations/Hours';
+import { isOpen, closedNotice, type OpeningHours } from '../destinations/Hours';
 import { showGameToast } from '../ui/GameToast';
 import type { InteractiveObject, World } from '../world/World';
 import type { Player } from '../player/Player';
@@ -387,15 +387,22 @@ export class InteriorManager {
   /** Links a door on the street to the interior behind it. */
   /** A place that keeps hours cannot be gone into outside them, whichever way the player comes. Says so, and returns true. */
   private turnedAway(target: InteriorDefinition): boolean {
-    if (!target.hours || isOpen(target.hours, this.clock())) return false;
-    showGameToast(closedNotice(target.name, target.hours), 'info', 3600);
+    const hours = this.hoursOf(target);
+    if (!hours || isOpen(hours, this.clock())) return false;
+    showGameToast(closedNotice(target.name, hours), 'info', 3600);
     return true;
+  }
+
+  /** When a room can be gone into: what the record of places says for the place it is the inside of. */
+  private hoursOf(target: InteriorDefinition): OpeningHours | undefined {
+    return DestinationRegistry.getInstance().getAll().find((place) => place.interiorId === target.type)?.hours ?? target.hours;
   }
 
   /** Is this place open now? (Places that keep no hours always are.) */
   public isOpenNow(typeOrId: InteriorType | string): boolean {
     const target = this.getInteriorByBuildingId(typeOrId);
-    return !target || !target.hours || isOpen(target.hours, this.clock());
+    const hours = target ? this.hoursOf(target) : undefined;
+    return !hours || isOpen(hours, this.clock());
   }
 
   public registerStreetDoor(streetDoor: StreetDoor): void {

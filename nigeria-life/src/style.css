@@ -8601,6 +8601,20 @@ body.ui-modal-open .place-card {
   grid-column: 1 / -1;
   grid-row: 1;
   justify-self: end;
+  /* It keeps to its own zone: a long district name is cut short and does not lie over the money beside it */
+  max-width: calc(var(--hud-right-zone) - 20px);
+  box-sizing: border-box;
+}
+
+.hud-top-right-group .hud-location .loc-details {
+  min-width: 0;
+}
+
+.hud-top-right-group .hud-location .loc-name,
+.hud-top-right-group .hud-location .loc-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .camera-rotate-widget {

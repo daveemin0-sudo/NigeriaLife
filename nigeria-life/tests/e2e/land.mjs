@@ -420,6 +420,8 @@ export async function run(browser, check) {
   const duplexCost = 1_200_000;
   await a.evaluate(() => { const btn = document.getElementById('build-bar-confirm'); btn.click(); btn.click(); });
   await until(a, (id) => (window.game.land.building(id) ? true : null), P4);
+  // The bar goes once the sale is written down, which is a moment after the registry shows it
+  await until(a, () => (window.game.buildBar.isOpen ? null : true));
   a1 = await money(a);
   const site = await a.evaluate((id) => {
     const g = window.game;

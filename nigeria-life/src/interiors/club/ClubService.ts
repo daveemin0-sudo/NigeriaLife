@@ -6,13 +6,13 @@ import type { Actor } from '../../interactions/Actor';
 import { BackendService } from '../../backend/BackendService';
 import { profileKey } from '../../backend/Profile';
 import type { PlaceHost } from '../../destinations/PlaceActions';
-import { type OpeningHours, isOpen, clockTime } from '../../destinations/Hours';
+import { type OpeningHours, PLACE_HOURS, isOpen, clockTime } from '../../destinations/Hours';
 
 /** Where everything stands in the club, measured from the middle of the room. The door is in the south wall. */
 export const CLUB = {
   name: 'Quilox',
   room: { width: 20, length: 16, height: 4.6 },
-  hours: { opens: 20, closes: 5 } as OpeningHours,
+  hours: PLACE_HOURS.club as OpeningHours,
   gateFee: 5000,
   desk: { x: 5.2, z: 5.6, halfWidth: 1.3, halfLength: 0.45 },
   deskStand: new THREE.Vector3(5.2, 0, 6.8),

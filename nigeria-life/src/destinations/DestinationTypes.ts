@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { OpeningHours } from './Hours';
 
 export type DestinationCategory =
   | 'Healthcare'
@@ -90,6 +91,9 @@ export interface DestinationDefinition {
   npcPopulation: DestinationNPCSpec[];
   activities: DestinationActivity[];
   services: string[];
+  /** When it is open. Left out, it never shuts. */
+  hours?: OpeningHours;
+  /** The same, in words: written from `hours` when the place is registered, never typed in */
   openingHours: string;
   destinationDescription: string;
   shortDescription: string;

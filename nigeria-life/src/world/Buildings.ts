@@ -5,6 +5,7 @@ import type { InteractiveObject } from './World';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
 import { dressBuilding } from './FacadeKit';
+import { createCashMachine } from './kit/CashMachine';
 
 /** A door on the street that leads into a building's interior. */
 export interface StreetDoor {
@@ -257,6 +258,11 @@ export class Buildings {
     dressBuilding(bankGroup, { style: 'bank', facing: -Math.PI / 2, floors: 2, accent: 0xbe123c, frontBays: 0, openGround: true, doorAt: 1.0 });
 
     this.group.add(bankGroup);
+
+    // The machines in the wall of the gallery work at any hour, when the branch is shut too
+    const machine = createCashMachine({ id: 'broad-street', name: 'Eko Commercial Bank', x: 10.24, z: -14.5, facing: -Math.PI / 2, fasciaOnly: true });
+    this.group.add(machine.group);
+    this.interactiveList.push(machine.interactive);
 
     this.interactiveList.push({
       mesh: bankGroup,
