@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { Builder, signBoard } from '../kit/ArchKit';
 import { clickBox, figure, Route, type Landmark, type LandmarkHost } from './Landmark';
-import { Sequence, steps } from '../../interactions/Sequence';
 import { RENDER_LAYERS } from '../../interiors/InteriorTypes';
 import { Employment } from '../../jobs/Employment';
+import { createHandWork } from '../../jobs/HandWork';
 
 /**
  * A container port: a quay with a cargo ship alongside, gantry cranes that lift boxes off
@@ -286,55 +286,43 @@ export function createPort(options: PortOptions): Landmark {
   type Bay = 'ready' | 'loading' | 'leaving' | 'away' | 'arriving';
   let bay: Bay = 'ready';
   let bayClock = 0;
-  let loaded = 0;
-  let paidRuns = 0;
 
-  const loadLorry = (host: LandmarkHost) => {
-    const actor = host.actor;
-    bay = 'loading';
-    loaded = 0;
-    const work = new Sequence('load the lorry', [actor]);
-    work.maxSeconds = 150;
-    for (let i = 0; i < CRATES; i++) {
-      const bed = onBed(i);
-      work.add(
-        steps.walk(actor, at(onPallet(i).x, pallet.z - 1), { speed: 3.6 }),
-        steps.face(actor, 0),
-        steps.animate(actor, { arms: 'reach' }, 0.7, [{
-          at: 0.6,
-          run: () => {
-            crates[i].removeFromParent();
-            actor.carry(crates[i]);
-          },
-        }]),
-        steps.walk(actor, at(BAY_X + bed.x, BAY_Z + 1.85), { speed: 3 }),
-        steps.face(actor, Math.PI),
-        steps.animate(actor, { arms: 'reach' }, 0.7, [{
-          at: 0.6,
-          run: () => {
-            actor.letGo();
-            lorry.add(crates[i]);
-            crates[i].position.copy(bed);
-            streetLayer(crates[i]);
-            loaded = i + 1;
-          },
-        }])
-      );
-    }
-    // Paid when the last crate is on, and only then
-    work.add(steps.call('paid for the load', () => {
-      const result = jobs.complete(options.id);
-      if (!result.ok) {
-        host.say(result.reason ?? 'The foreman will not pay for that.', 'warning');
-        return false;
-      }
-      paidRuns += 1;
-      host.say(result.promoted
-        ? `The foreman pays you ₦${result.pay!.toLocaleString()} and makes you ${result.promoted.title.toLowerCase()}: ₦${result.promoted.pay.toLocaleString()} a load from now on.`
-        : `The foreman pays you ₦${result.pay!.toLocaleString()} for the load. Energy -${effort}%.`, 'success');
-    }));
-    work.onEnd((reason) => {
-      if (reason === 'done') {
+  const loading = createHandWork({
+    employerId: options.id,
+    name: 'load the lorry',
+    words: {
+      boss: 'Foreman Sunday',
+      theBoss: 'the foreman',
+      says: 'Foreman',
+      role: `Loading bay, ${options.name}`,
+      offer: 'We take hands on by the lorry',
+      ready: 'The lorry is at the bay.',
+      piece: 'load',
+      done: 'loaded',
+    },
+    count: CRATES,
+    lift: (i) => ({
+      stand: at(onPallet(i).x, pallet.z - 1),
+      face: 0,
+      take: (actor) => {
+        crates[i].removeFromParent();
+        actor.carry(crates[i]);
+      },
+    }),
+    set: (i) => ({
+      stand: at(BAY_X + onBed(i).x, BAY_Z + 1.85),
+      face: Math.PI,
+      put: (actor) => {
+        actor.letGo();
+        lorry.add(crates[i]);
+        crates[i].position.copy(onBed(i));
+        streetLayer(crates[i]);
+      },
+    }),
+    cannotStart: () => (bay !== 'ready' ? 'Foreman: "That one is full. Wait for the next lorry."' : null),
+    began: () => { bay = 'loading'; },
+    ended: (paid, host) => {
+      if (paid) {
         bay = 'leaving';
         bayClock = 0;
         return;
@@ -342,17 +330,13 @@ export function createPort(options: PortOptions): Landmark {
       // Walked away, or too tired to finish: the crates go back and nothing is paid
       putCratesBack(host);
       bay = 'ready';
-    });
-    if (!host.director.run(work)) {
-      bay = 'ready';
-    }
-  };
+    },
+  });
 
   const foremanBox = clickBox(1.2, 2, 1.2);
   foremanBox.position.set(foreman.position.x, 1, foreman.position.z);
   group.add(foremanBox);
   const foremanId = `${options.id}-foreman`;
-  const terms = () => (employer?.grades ?? []).map((grade) => `₦${grade.pay.toLocaleString()} a load${grade.from ? ` once you have done ${grade.from}` : ' to start'}`).join(', ');
 
   const bayBox = clickBox(16, 3.4, 5);
   bayBox.position.set((pallet.x + BAY_X) / 2 + 1, 1.7, BAY_Z + 1);
@@ -391,7 +375,7 @@ export function createPort(options: PortOptions): Landmark {
         id: foremanId,
         name: 'Foreman Sunday',
         category: 'Seaport · Work',
-        description: `Runs the loading bay. He takes hands on: ${terms()}.`,
+        description: `Runs the loading bay. He takes hands on: ${loading.terms()}.`,
         interactionPoint: at(foreman.position.x, foreman.position.z - 1.3),
       },
     ],
@@ -401,74 +385,17 @@ export function createPort(options: PortOptions): Landmark {
         run: (host) => host.say(jobs.isEmployed(options.id) ? 'Guard: "Morning. The bay is straight in, on your left."' : 'Guard: "They want hands at the loading bay. See the foreman: straight in, on your left."', 'info'),
       },
       [foremanId]: {
-        label: () => {
-          const grade = jobs.grade(options.id);
-          return jobs.isEmployed(options.id) && grade ? `🧑‍🏭 ${grade.title}: ${jobs.done(options.id)} loaded` : '🧑‍🏭 Ask the foreman for work';
-        },
-        run: (host) => {
-          if (!jobs.isEmployed(options.id)) {
-            host.ask({
-              who: 'Foreman Sunday',
-              role: `Loading bay, ${options.name}`,
-              text: `We take hands on by the lorry: ${terms()}. Each load takes ${effort}% of your strength. Do you want the work?`,
-              choices: [
-                {
-                  label: 'Take the job',
-                  pick: () => {
-                    const taken = jobs.apply(options.id);
-                    host.say(taken.ok ? `You are taken on at ${options.name} as a ${(jobs.grade(options.id)?.title ?? 'hand').toLowerCase()}. The lorry is at the bay.` : taken.reason ?? '', taken.ok ? 'success' : 'warning');
-                  },
-                },
-                { label: 'Not today', pick: () => undefined },
-              ],
-            });
-            return;
-          }
-          const grade = jobs.grade(options.id)!;
-          const next = jobs.nextGrade(options.id);
-          host.ask({
-            who: 'Foreman Sunday',
-            role: `Loading bay, ${options.name}`,
-            text: `${grade.title}, ${jobs.done(options.id)} loaded, ₦${grade.pay.toLocaleString()} a load. ${next ? `${next.from - jobs.done(options.id)} more and you are ${next.title.toLowerCase()} on ₦${next.pay.toLocaleString()}.` : 'You are at the top of my book.'}`,
-            choices: [
-              { label: 'Carry on', pick: () => undefined },
-              {
-                label: 'Leave the job',
-                note: 'Start again from the bottom if you come back',
-                pick: () => {
-                  jobs.resign(options.id);
-                  host.say(`You have left the job at ${options.name}.`, 'info');
-                },
-              },
-            ],
-          });
-        },
+        label: () => loading.bossLabel(),
+        run: (host) => loading.askBoss(host),
       },
       [bayId]: {
         label: () => {
           if (!jobs.isEmployed(options.id)) return '📦 Hands wanted: ask the foreman';
           if (bay === 'ready') return `📦 Load the lorry: ${CRATES} crates (₦${rate().toLocaleString()})`;
-          if (bay === 'loading') return `📦 Loading: ${loaded} of ${CRATES} on`;
+          if (bay === 'loading') return `📦 Loading: ${loading.setDown} of ${CRATES} on`;
           return '🚚 The next lorry is on its way';
         },
-        run: (host) => {
-          if (bay === 'loading') return;
-          if (!jobs.isEmployed(options.id)) {
-            host.say('Foreman: "I do not know you. Ask me for work first."', 'info');
-            return;
-          }
-          if (bay !== 'ready') {
-            host.say('Foreman: "That one is full. Wait for the next lorry."', 'info');
-            return;
-          }
-          const tooTired = jobs.cannotWork(options.id);
-          if (tooTired) {
-            host.say(tooTired, 'warning');
-            return;
-          }
-          if (host.director.interrupt(host.actor) === 'locked') return;
-          loadLorry(host);
-        },
+        run: (host) => loading.start(host),
       },
     },
     doors: [{ name: `Gate of ${options.name}`, x: site.x + HALF_X + 1.6, z: site.z + GATE_Z }],
@@ -528,8 +455,8 @@ export function createPort(options: PortOptions): Landmark {
     },
     status: () => ({
       bay,
-      loaded,
-      paidRuns,
+      loaded: loading.setDown,
+      paidRuns: loading.paid,
       employed: jobs.isEmployed(options.id),
       grade: jobs.grade(options.id)?.title ?? null,
       rate: rate(),

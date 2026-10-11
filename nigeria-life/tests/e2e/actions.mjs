@@ -200,6 +200,62 @@ export async function run(browser, check) {
   const out = await page.evaluate(() => ({ driving: window.game.player.isDriving, visible: window.game.player.mesh.visible, free: !window.game.player.actor.scripted }));
   check('pressing F again gets them out, standing beside it', !out.driving && out.visible && out.free, out);
 
+  // ------------------------------------------------------------------ The older street cards are acted out too
+  // A place whose card used to take the money the moment its button was pressed: the barber, the petrol pump, the mosque in Abuja
+  const useInStreet = async (id, back) => {
+    await page.evaluate(({ id, back }) => {
+      const g = window.game;
+      const o = g.world.interactiveObjects.find((x) => x.id === id);
+      document.getElementById('game-dialogue-overlay')?.remove();
+      g.hud.hideInteractionCard();
+      g.player.stopMoving();
+      g.player.mesh.position.set(o.interactionPoint.x + back.x, 0, o.interactionPoint.z + back.z);
+      g.hud.showInteractionCard(o);
+    }, { id, back });
+    await advance(page, 0.1);
+    const start = await state(page);
+    await page.evaluate(() => document.getElementById('card-action-btn').click());
+    await advance(page, 0.1);
+    const pressed = await state(page);
+    const gesture = await playUntil(page, (key) => {
+      const g = window.game;
+      const o = g.world.interactiveObjects.find((x) => x.id === key);
+      return g.player.actor.sequence?.name === `use ${key}` && (g.player.actor.pose.arms === 'reach' || g.player.actor.pose.arms === 'talk')
+        ? { arms: g.player.actor.pose.arms, ledger: g.hud.backend.getData().transactionHistory.length, away: +Math.hypot(g.player.position.x - o.interactionPoint.x, g.player.position.z - o.interactionPoint.z).toFixed(2) }
+        : null;
+    }, 8, id);
+    await playUntil(page, () => (window.game.player.actor.sequence ? null : true), 6);
+    await advance(page, 0.5);
+    const done = await state(page);
+    await page.evaluate(() => { document.getElementById('dialogue-confirm-btn')?.click(); document.getElementById('game-dialogue-overlay')?.remove(); });
+    return { start, pressed, gesture, done };
+  };
+
+  await setCash(page, 20000);
+  const barber = await useInStreet('barber-shop', { x: 0, z: -2 });
+  check('the barber: pressing the card takes no money; the player walks up and reaches first, and then the ₦2,500 is taken, once',
+    barber.pressed.cash === barber.start.cash && barber.pressed.me.doing === 'use barber-shop' && !!barber.gesture && barber.gesture.ledger === barber.start.ledger && barber.gesture.away < 0.6
+      && barber.start.cash - barber.done.cash === 2500 && !barber.done.me.scripted, { pressed: barber.pressed.me, gesture: barber.gesture, paid: barber.start.cash - barber.done.cash });
+
+  const pump = await useInStreet('fuel-station', { x: 2, z: 0 });
+  check('the petrol pump the same: reached for, then paid for once (₦8,500)',
+    pump.pressed.cash === pump.start.cash && !!pump.gesture && pump.gesture.ledger === pump.start.ledger && pump.start.cash - pump.done.cash === 8500, { gesture: pump.gesture, paid: pump.start.cash - pump.done.cash });
+
+  // A door is still a door: its card walks the player through it, with no gesture of this kind
+  await page.evaluate(() => {
+    const g = window.game;
+    const o = g.world.interactiveObjects.find((x) => x.id === 'lagos-bank');
+    g.world.skyEnvironment.setHour(11);
+    g.player.stopMoving();
+    g.player.mesh.position.set(o.interactionPoint.x, 0, o.interactionPoint.z);
+    g.hud.showInteractionCard(o);
+    document.getElementById('card-action-btn').click();
+  });
+  await advance(page, 0.2);
+  const door = await page.evaluate(() => window.game.player.actor.sequence?.name ?? null);
+  const inBank = await playUntil(page, () => (window.game.world.interiorManager.currentInterior?.type === 'bank' && !window.game.world.interiorManager.busy ? true : null), 20);
+  check('a door is still a door: the card of the bank walks the player in through it', door !== 'use lagos-bank' && inBank === true, { door, inBank });
+
   check('actions: no console errors', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();
 }

@@ -118,16 +118,16 @@ export class AirportInterior {
             {
               id: 'airport_fly_ph_action',
               label: '✈️ Board Flight to Port Harcourt (₦38,000)',
-              description: 'Board EagleWings flight directly to Port Harcourt Garden City.',
+              description: 'Board NigeriaLife Air flight directly to Port Harcourt Garden City.',
               cost: 38000,
               rewardCred: 25,
-              dialogueResponse: '✈️ "Welcome aboard flight EW-0402 to Port Harcourt. Preparing for runway departure!"',
+              dialogueResponse: '✈️ "Welcome aboard flight NL 310 to Port Harcourt. Preparing for runway departure!"',
             },
           ],
         },
         {
           id: 'airport_vip_lounge',
-          name: 'EagleWings VIP Executive Lounge',
+          name: 'NigeriaLife Air VIP Executive Lounge',
           category: 'Airport Lounge',
           description: 'First-class waiting lounge with buffet delicacies, chilled malt, private Wi-Fi, and plush sofas.',
           relativePosition: new THREE.Vector3(-9, 0, -7),
@@ -374,7 +374,7 @@ export class AirportInterior {
       interactionPoint: new THREE.Vector3(12, 0, -6.5),
     });
 
-    // 9. EagleWings VIP Executive Lounge (Back Left)
+    // 9. NigeriaLife Air VIP Executive Lounge (Back Left)
     const vipGroup = new THREE.Group();
     vipGroup.position.set(-9, 0, -7);
 
@@ -399,7 +399,7 @@ export class AirportInterior {
     this.interactiveList.push({
       mesh: vipGroup,
       id: 'airport_vip_lounge',
-      name: 'EagleWings VIP Executive Lounge',
+      name: 'NigeriaLife Air VIP Executive Lounge',
       category: 'Airport Lounge',
       description: 'First-class waiting lounge with buffet delicacies, chilled malt, private Wi-Fi, and plush sofas.',
       interactionPoint: new THREE.Vector3(-9, 0, -5.2),

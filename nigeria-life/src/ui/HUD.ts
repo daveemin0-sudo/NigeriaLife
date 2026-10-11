@@ -1444,7 +1444,7 @@ export class HUD {
       btnEl.textContent = '✈️ Board Flight LOS-PHC to Port Harcourt (₦32,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_vip_lounge') {
-      btnEl.textContent = '🥂 EagleWings Executive VIP Lounge Access (₦5,000)';
+      btnEl.textContent = '🥂 NigeriaLife Air Executive VIP Lounge Access (₦5,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'bank_atm_station') {
       btnEl.textContent = '🏧 Withdraw ₦10,000 Cash';
@@ -1978,10 +1978,58 @@ export class HUD {
     }).ok;
   }
 
+  /** Things in the street whose button takes the player somewhere (through a door, into a vehicle) and so has a way of its own of being walked to */
+  private static readonly GOES_SOMEWHERE = /^(mama-put|lagos-bank|lagos-hospital|dest_|unilag-campus|mma-airport|police-station|supermarket|villa-compound|palm-view-flats|veh-|danfo-stop)/;
+
+  /**
+   * In the street, a thing is walked up to and used with a word or a hand before anything
+   * comes of it: the barber is spoken to before the haircut is paid for, the pump is reached
+   * for before the petrol is. What it does then is whatever its card always did, and lands
+   * part-way through the gesture. Returns true if the action has been taken in hand.
+   */
+  private actOutInStreet(obj: InteractiveObject): boolean {
+    if (!this.world || !this.player) return false;
+    if (this.world.interiorManager.isPlayerInside() || this.player.isDriving) return false;
+    const id = obj.id;
+    // Places that say for themselves what is done there, people selling hand to hand, plots and other players have their own ways
+    if (PlaceActions.get(id) || VendorUI.sells(id) || id.startsWith('plot_') || id.startsWith('remote_player_') || HUD.GOES_SOMEWHERE.test(id)) return false;
+    const actor = this.player.actor;
+    const director = InteractionDirector.get();
+    if (director.interrupt(actor) === 'locked') return true;
+
+    const target = obj.mesh.getWorldPosition(new THREE.Vector3());
+    const facing = Math.hypot(target.x - obj.interactionPoint.x, target.z - obj.interactionPoint.z) > 0.4 ? target : undefined;
+    // Someone is spoken to; a thing is reached for
+    const spokenTo = id.startsWith('npc-') || obj.moving === true;
+    this.hideInteractionCard();
+    return director.perform({
+      id: `use ${id}`,
+      actor,
+      point: obj.interactionPoint,
+      target: facing,
+      ifStuck: 'snap',
+      speed: 5,
+      animation: { arms: spokenTo ? 'talk' : 'reach' },
+      seconds: 1.2,
+      effectAt: 0.6,
+      effect: () => {
+        this.currentActiveObject = obj;
+        this.actingOut = true;
+        try {
+          this.handleCardAction();
+        } finally {
+          this.actingOut = false;
+          if (this.interactionCard.style.display === 'none') this.currentActiveObject = null;
+        }
+      },
+    }).ok;
+  }
+
   private handleCardAction(): void {
     if (!this.currentActiveObject) return;
     const id = this.currentActiveObject.id;
     if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;
+    if (!this.actingOut && this.actOutInStreet(this.currentActiveObject)) return;
     this.questManager.triggerEvent('interact_object', { objectId: id });
 
     const ownAction = PlaceActions.get(id);
@@ -2380,8 +2428,8 @@ export class HUD {
         this.backend.addStreetCred(50);
         this.backend.restoreEnergy(100);
         this.showDialogueModal({
-          speakerName: 'EagleWings Flight Crew',
-          speakerRole: 'Gate 2 • Flight EW-712 to Port Harcourt',
+          speakerName: 'NigeriaLife Air Flight Crew',
+          speakerRole: 'Gate 2 • Flight NL 310 to Port Harcourt',
           speakerAvatar: '✈️',
           soundType: 'aviation',
           dialogueText: 'Direct flight to Port Harcourt International Airport (Omagwa) completed! Welcome to the Garden City!',
@@ -2389,7 +2437,7 @@ export class HUD {
         });
       } else {
         this.showDialogueModal({
-          speakerName: 'EagleWings Ticketing',
+          speakerName: 'NigeriaLife Air Ticketing',
           speakerRole: 'Gate 2 Departures',
           speakerAvatar: '⚠️',
           dialogueText: 'Need ₦32,000 cash for flight ticket to Port Harcourt!',
@@ -2403,7 +2451,7 @@ export class HUD {
         this.backend.restoreEnergy(100);
         this.backend.addStreetCred(25);
         this.showDialogueModal({
-          speakerName: 'EagleWings VIP Host',
+          speakerName: 'NigeriaLife Air VIP Host',
           speakerRole: 'MMA2 Concourse Lounge',
           speakerAvatar: '🥂',
           soundType: 'win',

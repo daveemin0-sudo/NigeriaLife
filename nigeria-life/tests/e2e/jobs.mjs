@@ -135,6 +135,74 @@ export async function run(browser, check) {
   check('the foreman knows where the player stands (dock hand, four loaded, four more to gang leader); leaving the job shuts the bay to them again',
     /Dock hand: 4 loaded/.test(mine || '') && /4 more/.test(book) && /gang leader/i.test(book) && !state.employed && /ask the foreman/i.test(shut || '') && (await port(page)).bay === 'ready', { mine, state, shut });
 
+  // ------------------------------------------------------------------ A second workplace, on the same footing: the building site
+  const site = (page) => page.evaluate(() => window.game.world.landmarks.status()['eko-plaza-site']);
+  await page.evaluate(() => { window.game.world.skyEnvironment.setHour(10); window.game.hud.backend.restoreEnergy(100); });
+  await advance(page, 0.2);
+  const oldCard = await use(page, 'construction-site');
+  await advance(page, 0.5);
+  const sent = await said(page, 'See the supervisor in the yard');
+  const siteStart = await money(page);
+  const shutOut = await use(page, 'eko-plaza-site-blocks');
+  await advance(page, 1);
+  let yard = await site(page);
+  check('the building site on Broad Street no longer pays for a shift nobody works (it used to hand over ₦6,500 at a press): its card sends people to the supervisor, and the pallet is not for strangers',
+    /Ask at the site about work/.test(oldCard || '') && sent && /ask the supervisor/i.test(shutOut || '') && !yard.working && !yard.employed && (await money(page)).total === siteStart.total, { oldCard, sent, shutOut, yard });
+
+  const bossLabel = await use(page, 'eko-plaza-site-supervisor');
+  const siteTerms = await asked(page);
+  await choose(page, 'Take the job');
+  await advance(page, 0.5);
+  yard = await site(page);
+  check('the supervisor states her terms (₦5,000 a course, ₦6,500 after three, ₦8,000 after eight) and takes the player on as a labourer',
+    /Ask the supervisor for work/.test(bossLabel || '') && /5,000 a course/.test(siteTerms) && /6,500/.test(siteTerms) && /8,000/.test(siteTerms) && yard.employed && yard.grade === 'Labourer' && yard.rate === 5000, { bossLabel, yard });
+
+  // One course: six blocks, each carried to the wall and seen there
+  const beforeCourse = await money(page);
+  const energyBefore = await energy(page);
+  const courseLabel = await use(page, 'eko-plaza-site-blocks');
+  const carrying = await playUntil(page, () => {
+    const g = window.game;
+    const s = g.world.landmarks.status()['eko-plaza-site'];
+    return s.setDown >= 2 && g.player.actor.carried ? { setDown: s.setDown, inWall: s.inWall, onPallet: s.onPallet, doing: g.player.actor.sequence?.name, paid: g.hud.backend.getData().transactionHistory.filter((t) => /Eko Mega Plaza/.test(t.description)).length } : null;
+  }, 60);
+  await playUntil(page, () => (window.game.player.actor.sequence ? null : true), 90);
+  await advance(page, 0.5);
+  yard = await site(page);
+  const coursePaid = (await money(page)).total - beforeCourse.total;
+  // The work takes a quarter of their energy; a minute on their feet takes a little more, as it always does
+  const spent = Math.round(energyBefore - (await energy(page)));
+  check('laying a course: the player carries the blocks one at a time, each is on the wall where it was set while the next is in their hands and nothing is paid yet; when the sixth is down they are paid ₦5,000 once and it has cost a quarter of their energy',
+    /Lay a course: 6 blocks/.test(courseLabel || '') && /5,000/.test(courseLabel || '') && !!carrying && carrying.doing === 'lay a course of blocks' && carrying.inWall === carrying.setDown && carrying.onPallet < 6 && carrying.paid === 0
+      && coursePaid === 5000 && yard.courses === 1 && yard.inWall === 6 && yard.onPallet === 6 && yard.paidRuns === 1 && yard.done === 1 && spent >= 25 && spent <= 32, { courseLabel, carrying, coursePaid, spent, yard });
+
+  // Walking off part-way: nothing paid, and the half course comes down
+  await page.evaluate(() => window.game.hud.backend.restoreEnergy(100));
+  const beforeWalkOff = await money(page);
+  await use(page, 'eko-plaza-site-blocks');
+  await playUntil(page, () => (window.game.world.landmarks.status()['eko-plaza-site'].setDown >= 2 ? true : null), 60);
+  await page.evaluate(() => { const g = window.game; g.interactions.interrupt(g.player.actor); });
+  await advance(page, 1);
+  yard = await site(page);
+  check('walking off with the course half laid pays nothing: the blocks set so far come off the wall and the six are back on the pallet',
+    !yard.working && yard.courses === 1 && yard.inWall === 6 && yard.onPallet === 6 && yard.done === 1 && (await money(page)).total === beforeWalkOff.total, yard);
+
+  // After hours
+  await page.evaluate(() => window.game.world.skyEnvironment.setHour(21));
+  await advance(page, 0.3);
+  const lateLabel = await use(page, 'eko-plaza-site-blocks');
+  await advance(page, 1);
+  const late = { told: await said(page, 'knocked off for the day'), yard: await site(page) };
+  check('the site keeps working hours: at nine at night the gang has knocked off, and the pallet says when work starts', /Knocked off\. Work starts at 7 am/.test(lateLabel || '') && late.told && !late.yard.working && !late.yard.open, { lateLabel, late });
+
+  // Both jobs on the phone
+  await page.evaluate(() => { window.game.world.skyEnvironment.setHour(10); window.game.jobs.apply('apapa-port'); window.game.hud.phoneModal.openApp('jobs'); });
+  await wait(600);
+  const bothJobs = await page.evaluate(() => document.getElementById('jobs-employment')?.innerText ?? '');
+  await page.evaluate(() => window.game.hud.phoneModal.close());
+  check('the Jobs app on the phone shows both places the player works, each with its own trade, grade and rate',
+    /Eko Mega Plaza site/.test(bothJobs) && /Labourer/.test(bothJobs) && /5,000/.test(bothJobs) && /Apapa Port/.test(bothJobs) && /Casual hand/.test(bothJobs), bothJobs.split(String.fromCharCode(10)).join(' | ').slice(0, 400));
+
   check('no errors were logged at any of it', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();
 }

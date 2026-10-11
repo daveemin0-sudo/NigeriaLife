@@ -101,12 +101,13 @@ export async function run(browser, check) {
   await closeDialogs(p2);
   await leaveInterior(p2);
   const m0 = await money(p2);
-  const gig = await useStation(p2, 'construction-site', false);
+  // A day's labour paid at a press, at the estate site in Ajah (the Broad Street site is real work now: see the jobs suite)
+  const gig = await useStation(p2, 'ajah-estate', false);
   const wage = await p2.evaluate(() => window.game.hud.backend.getData().transactionHistory.find((t) => t.type === 'JOB_SALARY'));
   const m1 = await money(p2);
   // The chapter completes here too, so the wallet also receives the ₦15,000 chapter reward
-  check('a street hustle pays ₦6,500, is recorded, and completes the "work" objective',
-    (await quest(p2, 'quest_lagos_1')).obj.obj_l1_work === true && wage && wage.amount === 6500 && m1.cash - m0.cash === 6500 + 15000,
+  check('a street hustle pays ₦8,500, is recorded, and completes the "work" objective',
+    (await quest(p2, 'quest_lagos_1')).obj.obj_l1_work === true && wage && wage.amount === 8500 && m1.cash - m0.cash === 8500 + 15000,
     { gig, wage: wage && wage.amount, walletDelta: m1.cash - m0.cash });
   await ctx.close();
 }

@@ -74,9 +74,9 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
         perkDescription: 'Smooth descent into Lagos coastal airspace, +35 Street Cred.',
         souvenirItem: {
           id: 'flight_ticket_lagos',
-          name: 'EagleWings Abuja-Lagos Boarding Pass',
+          name: 'NigeriaLife Air Abuja-Lagos Boarding Pass',
           icon: '🎫',
-          description: 'Official EagleWings Express boarding pass for flight EW-320.',
+          description: 'Official NigeriaLife Air boarding pass for flight NL 205.',
         },
       },
       {
@@ -139,7 +139,7 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
         perkDescription: 'Direct flight to the Federal Capital Territory, +35 Street Cred.',
         souvenirItem: {
           id: 'flight_ticket_ph_abv',
-          name: 'EagleWings PH-Abuja Boarding Pass',
+          name: 'NigeriaLife Air PH-Abuja Boarding Pass',
           icon: '🎫',
           description: 'Boarding pass into the Three Arms Zone.',
         },

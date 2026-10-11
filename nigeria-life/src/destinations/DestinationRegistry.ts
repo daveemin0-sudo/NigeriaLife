@@ -387,7 +387,7 @@ export class DestinationRegistry {
         },
         {
           id: 'airport_vip_lounge',
-          label: 'Relax in EagleWings Executive Lounge',
+          label: 'Relax in NigeriaLife Air Executive Lounge',
           icon: '🥂',
           description: 'Enjoy plush armchairs, cold malt, coffee, and recharging amenities.',
           cost: 5000,

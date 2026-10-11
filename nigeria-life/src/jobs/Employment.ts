@@ -47,6 +47,20 @@ export const EMPLOYERS: Employer[] = [
       { title: 'Gang leader', pay: 12000, from: 8 },
     ],
   },
+  {
+    id: 'eko-plaza-site',
+    name: 'Eko Mega Plaza site',
+    place: 'the yard on the south side of the site, on Broad Street',
+    trade: 'Building work',
+    task: 'Lay a course: six blocks from the pallet to the wall',
+    energy: 25,
+    xp: 15,
+    grades: [
+      { title: 'Labourer', pay: 5000, from: 0 },
+      { title: 'Block carrier', pay: 6500, from: 3 },
+      { title: 'Site hand', pay: 8000, from: 8 },
+    ],
+  },
 ];
 
 interface Service {

@@ -21,6 +21,8 @@ export const PLACE_HOURS = {
   buka: { opens: 9, closes: 23 },
   stadium: { opens: 9, closes: 23 },
   club: { opens: 20, closes: 5 },
+  // Places of work that keep working hours: taken on at any hour, but the work is done in these
+  buildingSite: { opens: 7, closes: 18 },
 } satisfies Record<string, OpeningHours>;
 
 export function isOpen(hours: OpeningHours | undefined, hour: number): boolean {

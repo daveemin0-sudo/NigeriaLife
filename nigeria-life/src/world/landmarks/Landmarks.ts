@@ -8,6 +8,7 @@ import { createPort } from './Port';
 import { createAirport, type AirportLandmark } from './Airport';
 import { createClub } from './Club';
 import { createMotorPark, type MotorParkLandmark } from './MotorPark';
+import { createBuildingSite } from './BuildingSite';
 import { CLUB } from '../../interiors/club/ClubService';
 import type { StreetDoor } from '../Buildings';
 
@@ -22,6 +23,7 @@ export class Landmarks {
   public readonly airport: AirportLandmark;
   public readonly club: Landmark;
   public readonly motorPark: MotorParkLandmark;
+  public readonly buildingSite: Landmark;
   public readonly list: Landmark[];
   public readonly interactiveList: InteractiveObject[] = [];
 
@@ -36,7 +38,9 @@ export class Landmarks {
     this.club = createClub({ id: 'quilox-club', name: CLUB.name, x: 24, z: 103, hours: CLUB.hours, gateFee: CLUB.gateFee });
     // Jibowu Motor Park, on the north side of Martins Street: where the coaches to Abuja and Port Harcourt leave from
     this.motorPark = createMotorPark({ id: 'jibowu-park', city: 'lagos', x: 92.5, z: -69.6, faces: 'south' });
-    this.list = [this.stadium, this.port, this.airport, this.club, this.motorPark];
+    // The yard of the Eko Mega Plaza site on Broad Street, where the block work is done
+    this.buildingSite = createBuildingSite({ id: 'eko-plaza-site', name: 'Eko Mega Plaza site', x: 19.4, z: 64.3, siteCardId: 'construction-site' });
+    this.list = [this.stadium, this.port, this.airport, this.club, this.motorPark, this.buildingSite];
     for (const landmark of this.list) {
       this.group.add(landmark.group);
       this.interactiveList.push(...landmark.interactive);

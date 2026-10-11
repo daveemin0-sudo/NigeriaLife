@@ -61,8 +61,10 @@ export async function run(browser, check) {
     };
   });
   const places = Object.values(built.landmarks);
-  check('the stadium, the port, the airport and the nightclub are each built from many parts, not a box: a thousand triangles or more in a handful of draw calls',
-    places.length >= 4 && places.every((p) => p.triangles > 1000 && p.meshes <= 24 && p.bodies >= 1), built.landmarks);
+  // The great places, by name. (A yard where blocks are laid is on the same list and is not claimed to be one.)
+  const great = ['surulere-stadium', 'apapa-port', 'dest_lagos_airport', 'quilox-club', 'jibowu-park'].map((id) => built.landmarks[id]);
+  check('the stadium, the port, the airport, the nightclub and the motor park are each built from many parts, not a box: a thousand triangles or more in a handful of draw calls',
+    great.every((p) => !!p && p.triangles > 1000 && p.meshes <= 24 && p.bodies >= 1), built.landmarks);
   check('nothing of the generated city stands on the ground of any of them', places.every((p) => p.inZone === 0), built.landmarks);
   check('each has a road of its own to its gate: Stadium Road, Wharf Road and Airport Road, laid their whole length',
     ['Stadium Road', 'Wharf Road', 'Airport Road'].every((road) => built.roads.includes(road)) && built.gaps.length === 0, { roads: built.roads, gaps: built.gaps });
