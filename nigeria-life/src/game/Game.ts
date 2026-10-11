@@ -55,6 +55,7 @@ import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type F
 import { openAirportHall } from '../travel/AirportHall';
 import { FurnishBar } from '../ui/FurnishBar';
 import { Television } from '../housing/Television';
+import { Employment } from '../jobs/Employment';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -104,6 +105,8 @@ export class Game {
 
   // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
   public flightExperience: FlightExperience;
+  /** Where the player is employed, and how much work they have done there */
+  public jobs = Employment.get();
   public furnishBar!: FurnishBar;
   /** Tickets and where each has got to */
   public flights = FlightService.get();
@@ -590,6 +593,7 @@ export class Game {
     this.deliveries.connect(() => this.whereabouts() === 'transit');
     this.messages.connect(() => sky.getFormattedTimeString());
     this.market.connect(() => sky.day * 24 + sky.currentHour);
+    this.jobs.today = () => sky.day;
     const club = this.world.interiorManager.club.service;
     club.connect(() => sky.day * 24 + sky.currentHour);
     club.onClosingTime = () => {

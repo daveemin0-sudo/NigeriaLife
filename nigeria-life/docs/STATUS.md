@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after furnishing the home.
+Last updated: 2026-10-11, after jobs at the port.
 
 ## How to read it
 
@@ -18,7 +18,7 @@ Last updated: 2026-10-11, after furnishing the home.
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 22 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 23 suites.
 
 ## The approach, from the brief's last rule
 
@@ -98,8 +98,8 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Furniture buying and placing, wall colours | **Verified** | A piece is chosen in the catalogue and put down where the player wants it: shown see-through on a patch that is green or red, moved by a tap on the floor or the arrows, turned, and paid for when placed. It cannot go through a wall, on other furniture or across the way in. It can be picked up again for nothing and sold for half. People walk round it. Walls can be painted six colours. All of it is kept per profile and survives a reload. `furnish` suite. Still open: furniture does not go with a home when the home is sold; floors cannot be changed; pieces cannot be put on walls. |
 | Clothing and appearance | **Partial** | The player's look can be changed and is saved. No clothes shops. |
 | Television | **Verified** | The set on the wall and any set the player buys show a picture drawn several times a second: football (the match really being played at the National Stadium, same score), news and music. Channels are changed from the set or, when sitting, from the status line. Sofas and armchairs the player buys are sat on where they were put. `furnish` suite reads the picture and checks it changes. |
-| Jobs | **Partial** | Phone job shifts and street gigs pay; the port loading job is real work. No applying, no career ladder at a workplace. |
-| Land, building, market, letting | **Verified** | `land` and `server` suites: buy a plot, build, list, haggle, sell once. |
+| Jobs | **Partial** | One real employer so far, Apapa Port (`jobs/Employment.ts`). The foreman states the terms and takes the player on; the loading bay is shut to anyone else; each lorry loaded is paid once at the rate of the grade reached (casual hand ₦6,000, dock hand ₦9,000 after three, gang leader ₦12,000 after eight) and counts for the career; the job shows in the phone's Jobs app, is kept across a reload, and can be left. `jobs` suite. The phone's other shifts are still timers started from anywhere, and the street gigs are still one click. |
+| Land, building, market, letting | **Verified** | `land` and `server` suites: buy a plot, build, list, haggle, sell once. A race in which two tabs could both be sold the same plot was found and closed (see the faults below). |
 | Phone (12 apps) and scrolling | **Verified** | `phone`, `scroll` suites. |
 
 ## Phase 12: roads, bridges, collision
@@ -128,7 +128,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | A. Airport, booking to arrival | **Verified** | `flights` suite: map, terminal, ticket, check-in, security, gate, apron, steps, flight, Abuja apron, terminal, street; then Abuja to Port Harcourt and Port Harcourt to Lagos the same way. |
 | B. Home | **Verified** | `furnish` and `home` suites: in, buy and place a sofa and a television, paint the walls, sit, football on, out, reload, still there. The bought bed is not yet slept in (the home's own bed is). |
 | C. Property | **Verified** | `land`, `server`. |
-| D. Workplace | **Partial** | Real task and single payment verified at the port. No application or career state. |
+| D. Workplace | **Verified** | `jobs` suite: map to the port, turned away, taken on by the foreman, four lorries loaded, paid by grade, promoted, on the phone, kept after a reload. One workplace; more are to be added the same way. |
 | E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
 | F. City switching | **Partial** | By air it is verified both ways, and the free-travel hole is closed. Each city's own services and listings are not yet checked. |
 | G. Spatial integrity | **Partial** | Plan verified. Bridge not usable. |
@@ -151,5 +151,6 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 - The sheet's coach button looked its journey up by city alone, so it ran the flight to that city.
 - The five shortcuts under the street view jumped the player across Lagos for nothing, showed made-up distances, and stayed on screen in other cities.
 - Quilox sold a ₦25,000 bottle at any hour from a black box.
+- Two games in one browser buying the same plot at the same instant could both be charged and one get nothing: localStorage reaches another tab a moment late, so the second buyer could read the registry as it was. The registry is now also kept in the browser's database and read from there while the lock is held. It showed up once in several full runs; a test now forces it.
 - The furniture catalogue took the money and dropped the piece at a random spot in the home, and its sofa, bed and television were each a plain green box.
 - Two street-door tests and three phone tests sampled or pressed before the thing they tested had finished moving. The game was right; the tests now wait for it.

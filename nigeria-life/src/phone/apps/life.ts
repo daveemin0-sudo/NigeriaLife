@@ -1,6 +1,7 @@
 import type { PhoneApp } from '../PhoneApp';
 import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
+import { Employment, EMPLOYERS } from '../../jobs/Employment';
 import { Deeds } from '../../realestate/Deeds';
 import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerLink';
 import { AssetMarket } from '../../realestate/AssetMarket';
@@ -105,6 +106,23 @@ export const jobsApp: PhoneApp = {
               ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="btn-claim-shift-salary" data-act="claim">Collect ${naira(Math.round(shift.job.salary * (career.bonusMultiplier || 1)))}</button>`
               : `<div class="nl-card-line" id="jobs-shift-time">${shift.remainingSecs}s left on this shift</div>`}
           </div>` : ''}
+
+        <div class="nl-section">Where you work</div>
+        <div class="nl-list" id="jobs-employment">
+          ${Employment.get().jobs().map((job) => row({
+            icon: '🧑‍🏭',
+            title: `${esc(job.employer.name)} · ${esc(job.grade.title)}`,
+            sub: `${esc(job.employer.task)} · ${count(job.done, 'load')} done${job.next ? ` · ${esc(job.next.title)} at ${job.next.from}` : ' · top grade'}`,
+            trailing: `<strong>${naira(job.grade.pay)}</strong>`,
+          })).join('')}
+          ${EMPLOYERS.filter((employer) => !Employment.get().isEmployed(employer.id)).map((employer) => row({
+            icon: '📌',
+            title: `${esc(employer.name)} is taking hands on`,
+            sub: `${esc(employer.trade)} · ask at ${esc(employer.place)}`,
+            trailing: `<strong>${naira(employer.grades[0].pay)}</strong>`,
+            tone: 'muted',
+          })).join('')}
+        </div>
 
         <div class="nl-section">Shifts</div>
         <div class="nl-list" id="jobs-list">

@@ -124,6 +124,8 @@ export async function run(browser, check) {
   check('the player gets up from the seat and is free to walk again', up, up);
 
   // ------------------------------------------------------------------ The port: paid work, carried by hand
+  // Taken on first (the jobs suite does this through the foreman): the loading bay is for the port's own hands
+  await page.evaluate(() => window.game.jobs.apply('apapa-port'));
   let bay = await status(page, 'apapa-port');
   card = await cardFor(page, 'apapa-port-loading-bay');
   before = await money(page);
@@ -139,8 +141,8 @@ export async function run(browser, check) {
   const energyAfter = await energy(page);
   check('at the loading bay the player carries three crates, one at a time, from the pallet to the lorry',
     bay.bay === 'ready' && /Load the lorry/.test(card.label || '') && !!carrying && midway.bay === 'loading' && !!done && loaded.cratesOnLorry === 3, { bay, card, carrying, midway, loaded });
-  check('the load is paid for once, when the last crate is on: ₦9,000, and it costs 30% energy',
-    after.cash - before.cash === 9000 && loaded.paidRuns === 1 && Math.round(energyBefore - energyAfter) === 30, { paid: after.cash - before.cash, runs: loaded.paidRuns, energy: energyBefore - energyAfter });
+  check('the load is paid for once, when the last crate is on: ₦6,000 for a casual hand, and it costs 30% energy',
+    after.cash - before.cash === 6000 && loaded.paidRuns === 1 && Math.round(energyBefore - energyAfter) === 30, { paid: after.cash - before.cash, runs: loaded.paidRuns, energy: energyBefore - energyAfter });
 
   card = await cardFor(page, 'apapa-port-loading-bay');
   await press(page);
