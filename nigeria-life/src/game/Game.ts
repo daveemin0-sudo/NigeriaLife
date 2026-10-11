@@ -56,6 +56,8 @@ import { openAirportHall } from '../travel/AirportHall';
 import { FurnishBar } from '../ui/FurnishBar';
 import { Television } from '../housing/Television';
 import { Employment } from '../jobs/Employment';
+import { Solids } from '../world/plan/Solids';
+import { DrivableVehicle } from '../world/DrivableVehicle';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -669,6 +671,17 @@ export class Game {
     Television.matchOn = () => this.world.landmarks.stadium.status?.().open === true;
     Television.clock = () => ({ day: this.world.skyEnvironment.day, hour: this.world.skyEnvironment.currentHour });
 
+    // Buildings and walls are solid to someone on foot and to a vehicle being driven
+    this.player.solids = () => this.solidsHere();
+    DrivableVehicle.solids = () => this.solidsHere();
+    // What players build on their plots is solid too: when that changes, the list is made again
+    this.registry.subscribe((state) => {
+      const built = Object.keys(state.buildings).sort().join(',');
+      if (built === this.builtOnPlots) return;
+      this.builtOnPlots = built;
+      this.solidsByCity.clear();
+    });
+
     // Flying: the hall is the same room in every city, and the flight starts at the aircraft door
     const hereCity = () => this.world.cityManager.currentCityId as FlightCity;
     openAirportHall({ city: hereCity, apronDoor: () => this.world.airportOf(hereCity())?.apron.door ?? null });
@@ -813,6 +826,25 @@ export class Game {
       dialogueText: 'You do not own or rent a place yet. Open Houses on your phone to rent or buy one, then come back.',
     });
     return false;
+  }
+
+  private solidsByCity = new Map<string, Solids>();
+  private builtOnPlots = '';
+
+  /**
+   * What cannot be walked or driven through where the player is: the buildings, walls and
+   * fences of the city they are in, from the same list the city plan is checked against.
+   * Nothing while they are indoors, where rooms have floor maps of their own.
+   */
+  public solidsHere(): Solids | null {
+    if (this.world.interiorManager.isPlayerInside() || this.world.interiorManager.busy) return null;
+    const city = this.world.cityManager.currentCityId;
+    let solids = this.solidsByCity.get(city);
+    if (!solids) {
+      solids = new Solids(this.standingIn(city));
+      this.solidsByCity.set(city, solids);
+    }
+    return solids;
   }
 
   /** The hall inside is one room: it carries the name of the airport of the city it is entered from. */

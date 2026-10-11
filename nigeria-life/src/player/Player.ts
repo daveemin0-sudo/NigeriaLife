@@ -11,6 +11,7 @@ import type { HumanRig } from '../graphics/HumanMeshBuilder';
 import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
 import { FOOTBRIDGE, FOOTBRIDGE_STAIR } from '../world/density/StreetLayout';
+import type { Solids } from '../world/plan/Solids';
 import { BackendService } from '../backend/BackendService';
 import { Actor } from '../interactions/Actor';
 import { InteractionDirector } from '../interactions/InteractionDirector';
@@ -136,6 +137,9 @@ export class Player {
   }
 
   public setDestination(target: THREE.Vector3): void {
+    this.nearest = Infinity;
+    this.sinceNearer = 0;
+    this.roundIt = null;
     this.targetPosition = target.clone();
     this.isMoving = true;
     this.currentEmote = 'walk';
@@ -158,7 +162,15 @@ export class Player {
     if (inFlight(p.x, p.z) && !fromItsFoot) {
       p.x = cameFrom.x;
       p.z = cameFrom.z;
+      return;
     }
+    // On a flight the stairs' own rule governs. Everywhere else, buildings and walls are solid.
+    if (inLine(p.x) && p.z >= FOOTBRIDGE_STAIR.bottom - 0.4 && p.z <= FOOTBRIDGE_STAIR.top) return;
+    const solids = this.solids?.();
+    if (!solids) return;
+    const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
+    p.x = step.x;
+    p.z = step.z;
   }
 
   public stopMoving(): void {
@@ -309,11 +321,44 @@ export class Player {
         // Move forward
         direction.normalize();
         const moveDist = Math.min(distance, this.speed * delta);
+        // A frame in which no time has passed is not a step that failed
+        if (moveDist < 1e-5) return;
         const cameFrom = this.mesh.position.clone();
-        this.mesh.position.addScaledVector(direction, moveDist);
-        this.stayOnTheWay(cameFrom);
-        // Stopped by a rail: there is no walking on from here toward that point
-        if (this.onBridge && this.mesh.position.distanceTo(cameFrom) < moveDist * 0.2) {
+        const tryStep = (turn: number): boolean => {
+          const cos = Math.cos(turn);
+          const sin = Math.sin(turn);
+          this.mesh.position.set(cameFrom.x + (direction.x * cos + direction.z * sin) * moveDist, cameFrom.y, cameFrom.z + (-direction.x * sin + direction.z * cos) * moveDist);
+          this.stayOnTheWay(cameFrom);
+          return Math.hypot(this.mesh.position.x - cameFrom.x, this.mesh.position.z - cameFrom.z) > moveDist * 0.5;
+        };
+        // Straight for it; or, for a moment after meeting something, on round the side they turned to
+        if (this.roundIt) {
+          this.roundIt.left -= delta;
+          if (this.roundIt.left <= 0) this.roundIt = null;
+        }
+        let stepped = tryStep(this.roundIt?.turn ?? 0);
+        if (!stepped && !this.onBridge) {
+          // Something is in the way: step round it, to whichever side is open, as a person does
+          const first = this.roundIt ? Math.sign(this.roundIt.turn) || 1 : 1;
+          for (const turn of [0.9 * first, -0.9 * first, 1.5 * first, -1.5 * first]) {
+            if (tryStep(turn)) {
+              this.roundIt = { turn, left: 0.45 };
+              stepped = true;
+              break;
+            }
+          }
+        }
+        // Getting no nearer (a rail, or walls on every side): there is no walking on to that point from here
+        const leftToGo = Math.hypot(this.targetPosition.x - this.mesh.position.x, this.targetPosition.z - this.mesh.position.z);
+        if (leftToGo < this.nearest - 0.05) {
+          this.nearest = leftToGo;
+          this.sinceNearer = 0;
+        } else {
+          this.sinceNearer += delta;
+        }
+        if (!stepped || this.sinceNearer > (this.onBridge ? 0.3 : 2.5)) {
+          this.mesh.position.x = stepped ? this.mesh.position.x : cameFrom.x;
+          this.mesh.position.z = stepped ? this.mesh.position.z : cameFrom.z;
           this.stopMoving();
           this.playAnimation('idle');
           return;
@@ -376,6 +421,13 @@ export class Player {
    */
   /** Up on the footbridge (having climbed its stairs), as against walking along the street underneath it */
   public onBridge = false;
+  /** What cannot be walked through where the player is now: the buildings and walls of the city. Nothing indoors. */
+  public solids: (() => Solids | null) | null = null;
+  /** Walking to a clicked point: the nearest they have got to it, and how long since they got any nearer */
+  private nearest = Infinity;
+  private sinceNearer = 0;
+  /** Stepping round something in the way: which way they turned, and for how much longer */
+  private roundIt: { turn: number; left: number } | null = null;
 
   /**
    * How high the ground is under a point, for someone walking there: the street, a stair of

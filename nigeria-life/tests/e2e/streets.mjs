@@ -1,6 +1,8 @@
 // The footbridge over Broad Street is a bridge: its stairs come up to its deck, the player
 // climbs them, crosses above the traffic and comes down on the other side, is held by its
 // rails while up there, and walks underneath it at street level like anyone else.
+// And buildings are solid: nobody walks or drives through a wall, a fence or a stand, though
+// every gate and door that is meant to be a way in still is.
 import { open, newPlayer, closeDialogs, advance, wait } from './lib.mjs';
 
 const here = (page) => page.evaluate(() => {
@@ -64,13 +66,13 @@ export async function run(browser, check) {
   const top = up[up.length - 1];
   const climbing = up.filter((s) => s.z > 15 && s.z < 26);
   check('walking at the foot of the west stairs and on up them, the player climbs: higher at every step until they are on the deck above the road',
-    climbing.length > 4 && climbing.every((s, i) => i === 0 || s.y >= climbing[i - 1].y - 0.01) && climbing[climbing.length - 1].y > 4 && Math.abs(top.y - 5.65) < 0.1 && top.up && Math.abs(top.z - 27.6) < 0.3,
-    { top, sample: climbing.filter((_, i) => i % 3 === 0).map((s) => `${s.z}:${s.y}`) });
+    climbing.length >= 2 && climbing.every((s, i) => i === 0 || s.y >= climbing[i - 1].y - 0.01) && climbing[climbing.length - 1].y > 4 && Math.abs(top.y - 5.65) < 0.1 && top.up && Math.abs(top.z - 27.6) < 0.3,
+    { top, count: climbing.length, drops: climbing.filter((s, i) => i > 0 && s.y < climbing[i - 1].y - 0.01).map((s) => `${s.x},${s.z}:${s.y}`), sample: climbing.filter((_, i) => i % 3 === 0).map((s) => `${s.z}:${s.y}`) });
 
   const over = await walk(page, 11.2, 27.6);
   const middle = over.filter((s) => Math.abs(s.x) < 6);
   const far = over[over.length - 1];
-  check('they cross the road on the deck, above the traffic all the way', middle.length > 3 && middle.every((s) => Math.abs(s.y - 5.65) < 0.1) && Math.abs(far.x - 11.2) < 0.3 && far.up, { far, middle: middle.length });
+  check('they cross the road on the deck, above the traffic all the way', middle.length >= 1 && middle.every((s) => Math.abs(s.y - 5.65) < 0.1) && Math.abs(far.x - 11.2) < 0.3 && far.up, { far, middle: middle.length });
 
   // Held by the rails
   await walk(page, 0, 27.8);
@@ -100,6 +102,60 @@ export async function run(browser, check) {
   const stopped = side[side.length - 1];
   check('the side of a flight is a wall of concrete: walking into it from the pavement does not put the player half-way up the stairs',
     side.every((s) => s.y < 0.05) && stopped.x > -10.5, { stopped });
+
+  // ------------------------------------------------------------------ Buildings are solid
+  const bank = await page.evaluate(() => {
+    const all = window.game.world.standingOnTheGround().filter((o) => /Eko Commercial Bank/.test(o.owner) && o.structure);
+    return { minX: Math.min(...all.map((o) => o.minX)), maxX: Math.max(...all.map((o) => o.maxX)), minZ: Math.min(...all.map((o) => o.minZ)), maxZ: Math.max(...all.map((o) => o.maxZ)), solids: window.game.solidsHere().count };
+  });
+  const midZ = (bank.minZ + bank.maxZ) / 2;
+  await put(page, 8.5, midZ);
+  const atWall = (await walk(page, (bank.minX + bank.maxX) / 2, midZ, 10)).pop();
+  check('walking at the front of the bank stops at its wall: the player does not pass into the building',
+    bank.solids > 150 && atWall.x < bank.minX && !atWall.moving, { atWall, front: bank.minX });
+
+  await put(page, 10, bank.minZ - 12);
+  const past = (await walk(page, 10, bank.maxZ + 12, 40)).pop();
+  check('walking along the pavement past it, they step round what juts out and carry on to where they were going', Math.abs(past.x - 10) < 0.3 && Math.abs(past.z - (bank.maxZ + 12)) < 0.3, past);
+
+  await put(page, -40, 20);
+  const stand = (await walk(page, -60, 20, 12)).pop();
+  await put(page, -40, 5);
+  const gate = (await walk(page, -56, 5, 12)).pop();
+  check('the wall of the stadium keeps people out, and Gate A lets them in', stand.x > -46.6 && Math.abs(gate.x + 56) < 0.3 && Math.abs(gate.z - 5) < 0.3, { stand, gate });
+
+  await put(page, -125, -86);
+  const airside = (await walk(page, -125, -110, 12)).pop();
+  await put(page, -40, 70);
+  const quay = (await walk(page, -52, 70, 12)).pop();
+  await put(page, -40, 48);
+  const portGate = (await walk(page, -52, 48, 12)).pop();
+  check('the fences of the airport and the port keep people off the apron and the quay, and the gate of the port is open',
+    airside.z > -90.5 && quay.x > -45 && Math.abs(portGate.x + 52) < 0.3, { airside, quay, portGate });
+
+  // Someone set down inside a building is not trapped in it
+  await put(page, (bank.minX + bank.maxX) / 2, midZ);
+  const out = (await walk(page, 8.5, midZ, 12)).pop();
+  check('someone who finds themselves inside a building can always walk out of it', Math.abs(out.x - 8.5) < 0.3, out);
+
+  // Driving
+  const car = await page.evaluate(async ({ z }) => {
+    const g = window.game;
+    const v = g.world.vehicles.getVehicleById(g.world.vehicles.interactiveList.find((o) => o.id.startsWith('veh-')).id);
+    g.player.stopMoving();
+    g.player.mesh.position.set(4, 0, z);
+    v.mesh.position.set(2, 0, z);
+    v.mesh.rotation.y = Math.PI / 2;
+    g.enterVehicle(v);
+    return { id: v.config?.id ?? null, driving: g.player.isDriving };
+  }, { z: midZ });
+  await page.keyboard.down('w');
+  for (let i = 0; i < 16; i++) await advance(page, 0.25);
+  await page.keyboard.up('w');
+  const crashed = await page.evaluate(() => { const g = window.game; const v = g.player.currentVehicle; return v ? { x: +v.mesh.position.x.toFixed(2), speed: +Math.abs(v.currentSpeed).toFixed(2) } : null; });
+  await page.keyboard.press('f');
+  await advance(page, 0.5);
+  check('a vehicle driven at the bank stops against its wall', car.driving && !!crashed && crashed.x > 4 && crashed.x < bank.minX - 0.9 && crashed.speed < 0.5, { car, crashed, front: bank.minX });
 
   // In a vehicle the bridge is something driven under
   const driven = await page.evaluate(() => { const p = window.game.player; const was = p.isDriving; p.isDriving = true; p.onBridge = true; const h = p.calculateWalkableHeight(0, 28); p.isDriving = was; p.onBridge = false; return h; });

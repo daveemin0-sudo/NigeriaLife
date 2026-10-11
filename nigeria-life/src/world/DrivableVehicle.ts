@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Player } from '../player/Player';
+import type { Solids } from './plan/Solids';
 import { createColorCanvasTexture } from '../utils/TextureUtils';
 import { SignageLibrary } from '../materials/SignageLibrary';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
@@ -22,6 +23,9 @@ export interface VehicleConfig {
 }
 
 export class DrivableVehicle {
+  /** What cannot be driven through where the game is now: set once by the game */
+  public static solids: (() => Solids | null) | null = null;
+
   public id: string;
   public name: string;
   public type: VehicleType;
@@ -698,11 +702,22 @@ export class DrivableVehicle {
     const forwardVector = new THREE.Vector3(0, 0, 1);
     forwardVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.mesh.rotation.y);
 
+    const fromX = this.mesh.position.x;
+    const fromZ = this.mesh.position.z;
     this.mesh.position.addScaledVector(forwardVector, this.currentSpeed * delta);
 
-    // Keep within world bounds (-95 to 95)
-    this.mesh.position.x = THREE.MathUtils.clamp(this.mesh.position.x, -85, 85);
-    this.mesh.position.z = THREE.MathUtils.clamp(this.mesh.position.z, -95, 95);
+    // A building does not give way to a vehicle: it slides along the wall, or stops against it
+    const solids = this.driver ? DrivableVehicle.solids?.() : null;
+    if (solids) {
+      const step = solids.step(fromX, fromZ, this.mesh.position.x, this.mesh.position.z, 1.1);
+      this.mesh.position.x = step.x;
+      this.mesh.position.z = step.z;
+      if (step.stopped) this.currentSpeed = 0;
+    }
+
+    // Keep within the city: its ground runs out a little way past its last streets
+    this.mesh.position.x = THREE.MathUtils.clamp(this.mesh.position.x, -156, 156);
+    this.mesh.position.z = THREE.MathUtils.clamp(this.mesh.position.z, -156, 156);
 
     // Rotate wheels
     for (let w of this.wheels) {
