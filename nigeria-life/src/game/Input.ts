@@ -51,6 +51,8 @@ export class InputManager {
   public onHonkVehicle?: () => void;
   /** A click landed on open ground. Return true to use it instead of walking there. */
   public onGroundClick?: (point: THREE.Vector3) => boolean;
+  /** A click landed on the floor of a room. Return true to use it instead of walking there. */
+  public onFloorClick?: (point: THREE.Vector3) => boolean;
   /** The player clicked their own character, at this point on the screen */
   public onSelfClicked?: (screen: { x: number; y: number }) => void;
 
@@ -442,6 +444,7 @@ export class InputManager {
     if (floorHits.length > 0) {
       const clickPoint = floorHits[0].point;
       if (!isInside && this.onGroundClick?.(clickPoint)) return;
+      if (isInside && this.onFloorClick?.(clickPoint)) return;
       this.pendingInteraction = null;
       // A click on a table or bed means "go over there", not "walk into it"
       const nav = isInside ? this.world.interiorManager.getActiveNav() : null;

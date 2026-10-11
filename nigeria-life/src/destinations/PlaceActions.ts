@@ -48,6 +48,10 @@ export const PlaceActions = {
   registerAll(all: Record<string, PlaceAction>): void {
     for (const [id, action] of Object.entries(all)) actions.set(id, action);
   },
+  /** The thing is gone (a piece of furniture sold, say): nothing can be done at it any more. */
+  unregister(id: string): void {
+    actions.delete(id);
+  },
   get(id: string): PlaceAction | null {
     return actions.get(id) ?? null;
   },

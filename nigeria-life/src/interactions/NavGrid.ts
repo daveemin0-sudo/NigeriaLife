@@ -68,6 +68,19 @@ export class NavGrid {
     }
   }
 
+  /** Opens up exactly what `blockRect` with the same numbers closed: a piece of furniture taken away. */
+  public clearRect(centerX: number, centerZ: number, halfWidth: number, halfLength: number): void {
+    const hw = halfWidth + this.clearance;
+    const hl = halfLength + this.clearance;
+    for (let r = this.row(centerZ - hl); r <= this.row(centerZ + hl); r++) {
+      for (let c = this.col(centerX - hw); c <= this.col(centerX + hw); c++) {
+        if (Math.abs(this.cellX(c) - centerX) <= hw && Math.abs(this.cellZ(r) - centerZ) <= hl) {
+          this.blocked[this.index(c, r)] = 0;
+        }
+      }
+    }
+  }
+
   public blockDisc(centerX: number, centerZ: number, radius: number): void {
     const reach = radius + this.clearance;
     for (let r = this.row(centerZ - reach); r <= this.row(centerZ + reach); r++) {

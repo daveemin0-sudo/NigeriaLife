@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after flights and the airports of all three cities.
+Last updated: 2026-10-11, after furnishing the home.
 
 ## How to read it
 
@@ -18,7 +18,7 @@ Last updated: 2026-10-11, after flights and the airports of all three cities.
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 21 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 22 suites.
 
 ## The approach, from the brief's last rule
 
@@ -43,7 +43,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Stadium, port, airport as architecture | **Verified** | See phase 2. |
 | Generated streets (tenements, shops, towers) | **Partial** | Instanced and varied, with dressed fronts on the hand-built ones. Still box-bodied. Not yet rebuilt with the kit. |
 | Bungalow, duplex, mansion, hotel, church, mosque, school, refinery, fuel station as kit assets | **Missing** | The kit exists; these have not been made with it. |
-| Furniture that reads as furniture | **Partial** | Home bed, sofa, fridge and bath are used and tested (`home` suite). Not reviewed piece by piece in this pass. |
+| Furniture that reads as furniture | **Verified** | Sofa (seat, back, arms, cushions), armchair, bed (frame, mattress, pillows, cover), television (screen in a frame on a console), bookshelf with books, wardrobe, lamp, freezer and inverter are built with the kit. The catalogue's sofa, bed and television used to come out as one green box. The home's own sofa and beds are dressed the same way. `furnish` suite checks every catalogue piece is a model, not a box. |
 | The map of Lagos | **Verified** | The map is the city itself seen from above: its real ground, streets, buildings and landmarks, with district washes and pins added. Zooming in shows the real streets. Every pin stands over the real place (a landmark's middle, or the door a ride drops you at). The match and the aircraft carry on while it is open. `landmarks` suite. |
 | The maps of Abuja and Port Harcourt | **Looks only** | Still the old miniature drawings, not drawn from those cities. |
 | Clicking a building on the map | **Missing** | Places are chosen by their pins and by the district chips, not by clicking the building. |
@@ -95,9 +95,9 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Interaction framework (walk, face, act, settle at the hand-over) | **Verified** | `buka`, `shop`, `home`, `social`, `actions` suites; now also the ticket booth and the loading bay. |
 | Older one-click buttons | **Looks only** | Many street cards still pay or charge on a click with a dialog. Listed in `HUD.handleCardAction`. The stadium, port and nightclub ones are replaced; the nightclub's old branch there is now dead code. |
 | Home: bed, sofa, fridge, bath | **Verified** | `home` suite. |
-| Furniture buying and placing, wall colours | **Partial** | A decoration system exists; not re-audited or journey-tested in this pass. Furniture does not go with a home when it is sold. |
+| Furniture buying and placing, wall colours | **Verified** | A piece is chosen in the catalogue and put down where the player wants it: shown see-through on a patch that is green or red, moved by a tap on the floor or the arrows, turned, and paid for when placed. It cannot go through a wall, on other furniture or across the way in. It can be picked up again for nothing and sold for half. People walk round it. Walls can be painted six colours. All of it is kept per profile and survives a reload. `furnish` suite. Still open: furniture does not go with a home when the home is sold; floors cannot be changed; pieces cannot be put on walls. |
 | Clothing and appearance | **Partial** | The player's look can be changed and is saved. No clothes shops. |
-| TV with something on it | **Partial** | The player sits and watches. The stadium's match can be drawn flat for a screen (`MatchSim.drawBroadcast`) but no television shows it yet. |
+| Television | **Verified** | The set on the wall and any set the player buys show a picture drawn several times a second: football (the match really being played at the National Stadium, same score), news and music. Channels are changed from the set or, when sitting, from the status line. Sofas and armchairs the player buys are sat on where they were put. `furnish` suite reads the picture and checks it changes. |
 | Jobs | **Partial** | Phone job shifts and street gigs pay; the port loading job is real work. No applying, no career ladder at a workplace. |
 | Land, building, market, letting | **Verified** | `land` and `server` suites: buy a plot, build, list, haggle, sell once. |
 | Phone (12 apps) and scrolling | **Verified** | `phone`, `scroll` suites. |
@@ -126,7 +126,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Journey | Status | Notes |
 | --- | --- | --- |
 | A. Airport, booking to arrival | **Verified** | `flights` suite: map, terminal, ticket, check-in, security, gate, apron, steps, flight, Abuja apron, terminal, street; then Abuja to Port Harcourt and Port Harcourt to Lagos the same way. |
-| B. Home | **Partial** | Living in it is verified. Buying and placing furniture, wall colour and TV content are not. |
+| B. Home | **Verified** | `furnish` and `home` suites: in, buy and place a sofa and a television, paint the walls, sit, football on, out, reload, still there. The bought bed is not yet slept in (the home's own bed is). |
 | C. Property | **Verified** | `land`, `server`. |
 | D. Workplace | **Partial** | Real task and single payment verified at the port. No application or career state. |
 | E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
@@ -140,7 +140,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 2. Finish the destination framework: real hours for every place that states them, and one record per place instead of two.
 3. Travel: a coach park to leave from; cabin crew and service; baggage claim.
 4. Walking at height and collision outdoors: the footbridge, stadium rows, building walls.
-5. Television showing the match; furniture and wall colours as a tested journey.
+5. The home: sleeping in a bought bed, furniture on walls, floors, and furniture that goes with a home when it is sold.
 6. More kit assets (houses, worship, hotels, refinery), then the same treatment for Abuja and Port Harcourt.
 7. A server that runs the rules, if the game is to be public.
 
@@ -151,4 +151,5 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 - The sheet's coach button looked its journey up by city alone, so it ran the flight to that city.
 - The five shortcuts under the street view jumped the player across Lagos for nothing, showed made-up distances, and stayed on screen in other cities.
 - Quilox sold a ₦25,000 bottle at any hour from a black box.
+- The furniture catalogue took the money and dropped the piece at a random spot in the home, and its sofa, bed and television were each a plain green box.
 - Two street-door tests and three phone tests sampled or pressed before the thing they tested had finished moving. The game was right; the tests now wait for it.

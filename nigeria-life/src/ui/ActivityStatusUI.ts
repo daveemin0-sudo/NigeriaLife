@@ -5,6 +5,8 @@ export interface ActivityStatus {
   title: string;
   line: string;
   stopLabel: string;
+  /** Other things that can be done from here: channels to turn to, say */
+  choices?: Array<{ id: string; label: string; current?: boolean; pick: () => void }>;
 }
 
 /**
@@ -52,7 +54,16 @@ export class ActivityStatusUI {
     stop.id = `${this.el.id}-stop`;
     stop.textContent = status.stopLabel;
     stop.addEventListener('click', () => this.onStop());
-    this.el.append(icon, text, stop);
+    this.el.append(icon, text);
+    for (const choice of status.choices ?? []) {
+      const button = document.createElement('button');
+      button.className = `buka-status-btn activity-choice${choice.current ? ' current' : ''}`;
+      button.dataset.choice = choice.id;
+      button.textContent = choice.label;
+      button.addEventListener('click', () => choice.pick());
+      this.el.append(button);
+    }
+    this.el.append(stop);
     this.el.style.display = 'flex';
   }
 }

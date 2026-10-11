@@ -8903,3 +8903,54 @@ body.ui-modal-open .buka-order-status {
   outline: 3px solid #38bdf8;
   outline-offset: 2px;
 }
+
+/* The furniture catalogue: wall colours to paint with */
+.cat-walls {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.3);
+}
+.cat-walls h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.cat-wall-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cat-wall-swatch {
+  min-width: 96px;
+  min-height: 56px;
+  border-radius: 12px;
+  border: 2px solid rgba(15, 23, 42, 0.25);
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  padding: 0;
+  overflow: hidden;
+}
+.cat-wall-swatch span {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 6px;
+  text-align: left;
+}
+.cat-wall-swatch.current {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+}
+
+/* Things to pick from in the status line: channels on the television */
+.buka-status-btn.activity-choice {
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font-weight: 600;
+}
+.buka-status-btn.activity-choice.current {
+  background: #16a34a;
+  color: #ffffff;
+}

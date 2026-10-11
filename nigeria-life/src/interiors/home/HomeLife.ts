@@ -18,6 +18,9 @@ export const HOME = {
 
 export type HomeActivity = 'sleeping' | 'watching_tv';
 
+/** What is on, for the line under "Watching": null when no television is on. */
+export type OnTheTelevision = () => string | null;
+
 /** What the on-screen status line needs to know about the activity in progress. */
 export interface HomeStatus {
   activity: HomeActivity;
@@ -25,6 +28,8 @@ export interface HomeStatus {
   title: string;
   line: string;
   stopLabel: string;
+  /** While sitting: what the television can be turned to */
+  choices?: Array<{ id: string; label: string; current?: boolean; pick: () => void }>;
 }
 
 const SLEEP = { energyPerSecond: 9, healthPerSecond: 5, longestSeconds: 14 };
@@ -47,6 +52,14 @@ export class HomeLife {
   private activity: HomeActivity | null = null;
   private elapsed = 0;
   private gained = 0;
+  /** Says what the nearest television that is on is showing */
+  public onTheTelevision: OnTheTelevision = () => null;
+  /** What the television can be turned to, for whoever is sitting in front of it */
+  public channelChoices: () => HomeStatus['choices'] = () => [];
+  /** The player has sat down on the sofa to watch: the set comes on if it was off */
+  public onWatch: (() => void) | null = null;
+  /** Everything the home came with that stands on the floor, as it was marked solid */
+  public readonly solids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
 
   constructor(group: THREE.Group, origin: THREE.Vector3) {
     this.group = group;
@@ -72,10 +85,11 @@ export class HomeLife {
     if (this.activity === 'watching_tv') {
       return {
         activity: 'watching_tv',
-        icon: '📺',
-        title: 'Watching the match',
+        icon: this.onTheTelevision() ? '📺' : '🛋️',
+        title: this.onTheTelevision() ?? 'Sitting down',
         line: this.gained >= TV.mostEnergy ? 'Fully relaxed' : `Relaxing · Energy ${Math.round(stats.energy)}%`,
         stopLabel: 'Stand up',
+        choices: this.channelChoices(),
       };
     }
     return null;
@@ -123,21 +137,32 @@ export class HomeLife {
 
   /** Walk to the sofa, sit and watch the match. Sitting there slowly restores a little energy. */
   public watchTv(): boolean {
+    this.onWatch?.();
+    return this.sitAt(HOME.sofa.seat, HOME.sofa.front, -Math.PI / 2);
+  }
+
+  /**
+   * Walk to a seat and sit on it: the sofa the home came with, or one the player has bought
+   * and put down. `seat` and `front` are measured from the middle of the home; `facing` is
+   * the way the sitter looks.
+   */
+  public sitAt(seat: THREE.Vector3, front: THREE.Vector3, facing: number): boolean {
     const player = this.director.player;
     if (!player || this.director.interrupt(player) === 'locked') return false;
-    const facingTv = -Math.PI / 2;
+    const facingTv = facing;
+    const standAt = front.clone();
 
     const sitDown = new Sequence('sit on sofa', [player]).add(
-      steps.walk(player, this.world(HOME.sofa.front), { nav: this.nav }),
+      steps.walk(player, this.world(standAt), { nav: this.nav, ifStuck: 'snap' }),
       steps.face(player, facingTv),
-      steps.slide(player, this.world(HOME.sofa.seat), 0.45),
+      steps.slide(player, this.world(seat), 0.45),
       steps.setPose(player, { legs: 'sit', arms: 'rest' }),
       steps.wait(0.3)
     );
     sitDown.onEnd((reason) => {
       if (reason !== 'done') return;
       player.yaw = facingTv;
-      player.hold = { release: (instant) => this.leaveFurniture(HOME.sofa.front, instant) };
+      player.hold = { release: (instant) => this.leaveFurniture(standAt, instant) };
       player.setScripted(true);
       player.pose = { legs: 'sit', arms: 'rest' };
       this.begin('watching_tv');
@@ -287,6 +312,17 @@ export class HomeLife {
   /** Marks a piece of furniture as solid. Coordinates are relative to the room centre. */
   public block(centerX: number, centerZ: number, halfWidth: number, halfLength: number): void {
     this.nav.blockRect(centerX, centerZ, halfWidth, halfLength);
+    this.solids.push({ x: centerX, z: centerZ, halfWidth, halfLength });
+  }
+
+  /** Tells the status line to draw itself again (the television was turned to something else). */
+  public refresh(): void {
+    this.changed();
+  }
+
+  /** What the player is doing on the furniture, if anything. */
+  public get doing(): HomeActivity | null {
+    return this.activity;
   }
 
   public toInteriorLayer(object: THREE.Object3D): void {

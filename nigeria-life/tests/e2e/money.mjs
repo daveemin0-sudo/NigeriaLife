@@ -93,10 +93,11 @@ export async function run(browser, check) {
     return { id: pick.id, price: pick.price };
   });
   m0 = await money(page);
-  await page.evaluate((id) => { window.game.modules.HouseDecorationSystem.getInstance().purchaseAndPlace(id); }, item.id);
+  // Chosen, put down on a clear patch of floor, and paid for there
+  const placedIt = await page.evaluate((id) => { const d = window.game.modules.HouseDecorationSystem.getInstance(); d.beginPlacing(id); d.moveTo(3, 5); return d.confirm(); }, item.id);
   await wait(300);
   m1 = await money(page);
-  check(`furniture (₦${item.price.toLocaleString()}) bought with a short wallet charges the full price`, m0.total - m1.total === item.price && m1.cash >= 0 && m1.bank >= 0, { charged: m0.total - m1.total, wallet: m1.cash, bank: m1.bank });
+  check(`furniture (₦${item.price.toLocaleString()}) bought with a short wallet charges the full price`, placedIt.ok && m0.total - m1.total === item.price && m1.cash >= 0 && m1.bank >= 0, { charged: m0.total - m1.total, wallet: m1.cash, bank: m1.bank });
 
   // --- Transfer to someone who is not there
   m0 = await money(page);

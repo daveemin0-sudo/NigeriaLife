@@ -223,6 +223,8 @@ export async function run(browser, check) {
     closeIn.seated && closeIn.end < closeIn.start * 0.7 && closeIn.biggestStep < 1.6 && inTheWay.length === 0, { ...closeIn, inTheWay });
   await page.evaluate(() => window.game.world.interiorManager.residence.life.stop());
   await advance(page, 2);
+  // Sitting down turned the television on, which changes its screen: off again, as the room was found
+  await page.evaluate(() => window.game.world.interiorManager.residence.television.turnOff());
 
   // ------------------------------------------------------------------ Leaving puts everything back
   await leaveInterior(page);

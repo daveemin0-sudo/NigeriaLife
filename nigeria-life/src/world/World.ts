@@ -428,6 +428,8 @@ export class World {
     // If player is inside an interior, only update the active interior simulation
     if (this.interiorManager.isPlayerInside()) {
       this.interiorManager.update(delta, player);
+      // The city carries on while the player is indoors: the match on the television is the one at the stadium
+      this.landmarks.update(delta, this.skyEnvironment.currentHour);
       return;
     }
 

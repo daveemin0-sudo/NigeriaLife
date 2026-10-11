@@ -53,6 +53,8 @@ import { WorldDataManager } from '../world/data/WorldDataManager';
 import { HouseDecorationSystem, CATALOGUE_ITEMS } from '../housing/HouseDecorationSystem';
 import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type FlightStatus } from '../travel/Flights';
 import { openAirportHall } from '../travel/AirportHall';
+import { FurnishBar } from '../ui/FurnishBar';
+import { Television } from '../housing/Television';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -102,6 +104,7 @@ export class Game {
 
   // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
   public flightExperience: FlightExperience;
+  public furnishBar!: FurnishBar;
   /** Tickets and where each has got to */
   public flights = FlightService.get();
   public roadRideExperience: RoadRideExperience;
@@ -646,6 +649,21 @@ export class Game {
     // While a building is being placed, a click on the plot moves it there instead of walking there
     this.input.onGroundClick = (point) => this.buildBar.moveTo(point.x, point.z);
     this.hud.onPlotAction = (plotId) => this.hud.phoneModal.openApp('land', `plot:${plotId}`);
+
+    // Furnishing the home: a piece is put down where the player chooses, starting in front of them
+    const decor = HouseDecorationSystem.getInstance();
+    const home = this.world.interiorManager.residence;
+    this.furnishBar = new FurnishBar();
+    decor.startAt = () => {
+      const facing = this.player.mesh.rotation.y;
+      return { x: this.player.position.x - home.group.position.x + Math.sin(facing) * 1.8, z: this.player.position.z - home.group.position.z + Math.cos(facing) * 1.8 };
+    };
+    this.input.onFloorClick = (point) =>
+      this.world.interiorManager.currentInterior?.type === 'residence' && decor.moveTo(point.x - home.group.position.x, point.z - home.group.position.z);
+    // What is on television is what is going on in the city
+    Television.match = this.world.landmarks.stadium.match;
+    Television.matchOn = () => this.world.landmarks.stadium.status?.().open === true;
+    Television.clock = () => ({ day: this.world.skyEnvironment.day, hour: this.world.skyEnvironment.currentHour });
 
     // Flying: the hall is the same room in every city, and the flight starts at the aircraft door
     const hereCity = () => this.world.cityManager.currentCityId as FlightCity;
