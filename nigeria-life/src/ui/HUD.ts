@@ -1215,9 +1215,10 @@ export class HUD {
     if (!row || !this.world) return;
     const short = (name: string) => name.split(/[&(,·]/)[0].trim();
     const seen = new Set<string>();
+    const people = new Set(this.world.npcs.interactiveList);
     const near = this.world.interactiveObjects
       // Places, not people, vehicles, plots of land or the airside of an airport
-      .filter((o) => !o.moving && !/^(npc-|veh-|plot_|remote_player_|interior_)/.test(o.id) && !o.category.includes('·') && o.mesh.visible)
+      .filter((o) => !o.moving && !people.has(o) && !/^(npc-|veh-|plot_|remote_player_|interior_)/.test(o.id) && !o.category.includes('·') && o.mesh.visible)
       .map((o) => ({ o, name: short(o.name), metres: Math.hypot(o.interactionPoint.x - x, o.interactionPoint.z - z) }))
       .sort((a, b) => a.metres - b.metres)
       .filter((place) => (seen.has(place.name) ? false : !!seen.add(place.name)))

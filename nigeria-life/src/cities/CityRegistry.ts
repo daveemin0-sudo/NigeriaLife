@@ -25,9 +25,9 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
         perkDescription: 'VIP Flight service, airline snack box, +35 Street Cred.',
         souvenirItem: {
           id: 'flight_ticket_abuja',
-          name: 'Wazobia Air Lagos-Abuja Boarding Pass',
+          name: 'NigeriaLife Air Lagos-Abuja Boarding Pass',
           icon: '🎫',
-          description: 'Official Wazobia Air priority boarding pass for flight WZ-7120.',
+          description: 'NigeriaLife Air boarding pass for flight NL 204.',
         },
       },
       {
@@ -59,7 +59,7 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
         perkDescription: 'Flight into Garden City oil metropolis, authentic Bole & Fish souvenir, +40 Street Cred.',
         souvenirItem: {
           id: 'flight_ticket_ph',
-          name: 'Wazobia Air Lagos-Port Harcourt Boarding Pass',
+          name: 'NigeriaLife Air Lagos-Port Harcourt Boarding Pass',
           icon: '🎫',
           description: 'Priority flight ticket into the Oil & Gas Capital.',
         },

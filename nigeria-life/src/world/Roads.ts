@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
-import { isInJunctionGap, splitAroundJunctions } from './density/StreetLayout';
+import { isInJunctionGap, splitAroundJunctions, FOOTBRIDGE, FOOTBRIDGE_STAIR } from './density/StreetLayout';
 
 export class Roads {
   public group: THREE.Group;
@@ -473,7 +473,7 @@ export class Roads {
    */
   private buildPedestrianOverheadBridge(): void {
     const bridgeGroup = new THREE.Group();
-    const bridgeZ = 28.0;
+    const bridgeZ = FOOTBRIDGE.z;
     bridgeGroup.position.set(0, 0, bridgeZ);
 
     const signs = SignageLibrary.getInstance();
@@ -542,7 +542,9 @@ export class Roads {
       roughness: 0.3,
     });
     for (const bz of [-1.55, 1.55]) {
-      const railGeo = new THREE.BoxGeometry(totalSpan, 1.3, 0.05);
+      // The south rail stops short at each end, where the stairs come up on to the deck
+      const railSpan = bz < 0 ? (FOOTBRIDGE.stairX - FOOTBRIDGE.stairHalfWidth) * 2 : totalSpan;
+      const railGeo = new THREE.BoxGeometry(railSpan, 1.3, 0.05);
       const rail = new THREE.Mesh(railGeo, railMat);
       rail.position.set(0, deckY + 0.85, bz);
       bridgeGroup.add(rail);
@@ -550,21 +552,25 @@ export class Roads {
 
     // 4. Concrete Staircases on West & East Sidewalks
     // Descends southward from bridge deck towards sidewalk level
-    const numSteps = 14;
-    const stepRise = (deckY - 0.28) / numSteps;
-    const stepRun = 0.85;
+    // Each flight climbs northward from the pavement and arrives at the south edge of the deck
+    const numSteps = FOOTBRIDGE.steps;
+    const stepRise = FOOTBRIDGE.top / numSteps;
+    const stepRun = FOOTBRIDGE.run;
+    const flightTop = FOOTBRIDGE_STAIR.top - bridgeZ;
 
     // Against the building line, leaving two metres of pavement between the stair and the pillar
-    for (const sx of [-11.2, 11.2]) {
+    for (const sx of [-FOOTBRIDGE.stairX, FOOTBRIDGE.stairX]) {
       const stairGroup = new THREE.Group();
       stairGroup.position.set(sx, 0, 0);
 
       for (let s = 0; s < numSteps; s++) {
-        const stepH = (s + 1) * stepRise;
-        const stepZ = -(s * stepRun) - 1.6;
-        const stepGeo = new THREE.BoxGeometry(1.5, stepRise + 0.02, stepRun);
+        // The top step is level with the deck and against it; each one south of it is a step lower.
+        // Every step stands on the ground, so the flight is a solid block and not a row of floating treads.
+        const stepH = (numSteps - s) * stepRise;
+        const stepZ = flightTop - (s + 0.5) * stepRun;
+        const stepGeo = new THREE.BoxGeometry(FOOTBRIDGE.stairHalfWidth * 2, stepH, stepRun);
         const step = new THREE.Mesh(stepGeo, concMat);
-        step.position.set(0, stepH - stepRise / 2, stepZ);
+        step.position.set(0, stepH / 2, stepZ);
         step.castShadow = true;
         step.receiveShadow = true;
         stairGroup.add(step);
@@ -575,8 +581,9 @@ export class Roads {
       const railAngle = Math.atan2(deckY, numSteps * stepRun);
       const stairRailGeo = new THREE.BoxGeometry(0.08, 0.08, railLen);
       const stairRail = new THREE.Mesh(stairRailGeo, blueSteelMat);
-      stairRail.rotation.x = railAngle;
-      stairRail.position.set(sx > 0 ? -0.7 : 0.7, deckY / 2 + 0.9, -((numSteps * stepRun) / 2) - 1.6);
+      // Rising with the stairs: low at the pavement end, high at the deck
+      stairRail.rotation.x = -railAngle;
+      stairRail.position.set(sx > 0 ? -0.7 : 0.7, FOOTBRIDGE.top / 2 + 0.9, flightTop - (numSteps * stepRun) / 2);
       stairGroup.add(stairRail);
 
       bridgeGroup.add(stairGroup);

@@ -4,6 +4,31 @@
  * Roads, city fabric, traffic and pedestrians all read these values.
  */
 
+/**
+ * The footbridge over Broad Street, in one place: the road furniture is built from it and
+ * whoever walks over it is carried by it. The deck crosses the road; a flight of stairs
+ * comes up to it from the pavement on each side, climbing northward to the deck's south edge.
+ */
+export const FOOTBRIDGE = {
+  /** Where the deck crosses, along the road */
+  z: 28,
+  /** Half the deck's length across the road, and half its width along it */
+  halfSpan: 12,
+  halfWidth: 1.6,
+  /** The walking surface of the deck, above the road */
+  top: 5.65,
+  /** The stairs: where each stands across the road, half its width, and how it runs along the road */
+  stairX: 11.2,
+  stairHalfWidth: 0.75,
+  steps: 14,
+  run: 0.85,
+};
+/** Where the stairs start at the pavement and where they reach the deck, along the road */
+export const FOOTBRIDGE_STAIR = {
+  top: FOOTBRIDGE.z - FOOTBRIDGE.halfWidth,
+  bottom: FOOTBRIDGE.z - FOOTBRIDGE.halfWidth - FOOTBRIDGE.steps * FOOTBRIDGE.run,
+};
+
 export interface SideStreet {
   id: string;
   name: string;

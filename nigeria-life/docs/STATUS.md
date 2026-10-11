@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after jobs at the port.
+Last updated: 2026-10-11, after the footbridge.
 
 ## How to read it
 
@@ -18,7 +18,7 @@ Last updated: 2026-10-11, after jobs at the port.
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 23 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 24 suites.
 
 ## The approach, from the brief's last rule
 
@@ -107,8 +107,8 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Area | Status | Notes |
 | --- | --- | --- |
 | City plan: roads clear, pavements walkable, nothing overlapping, doors reachable | **Verified** | `plan` suite, all three cities, nine Lagos streets. |
-| Footbridge | **Looks only** | Correctly placed, cannot be climbed. |
-| Walking at height (stairs, ramps, stands) | **Missing** | The player is always on the ground. This also keeps them out of the stadium's upper rows. |
+| Footbridge | **Verified** | Its two flights of stairs were built climbing away from the deck. They now climb from the pavement to the deck and arrive against it, as solid flights with a handrail, and the deck rail opens at each stair head. The player climbs, crosses above the road, comes down the other side, is held by the rails while up there, and walks under the bridge at street level like anyone else. `streets` suite. |
+| Walking at height elsewhere (stadium rows, steps into buildings) | **Missing** | The footbridge is the one place the player leaves the ground. The stadium's upper rows are still out of reach. |
 | Collision with buildings in the street | **Missing** | The player and vehicles pass through walls outdoors. Landmarks already report their footprints, ready for it. |
 | Side-road junctions with Broad Street | **Partial** | Stadium Road and Wharf Road meet the Broad Street pavement without a dropped kerb. |
 
@@ -131,7 +131,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | D. Workplace | **Verified** | `jobs` suite: map to the port, turned away, taken on by the foreman, four lorries loaded, paid by grade, promoted, on the phone, kept after a reload. One workplace; more are to be added the same way. |
 | E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
 | F. City switching | **Partial** | By air it is verified both ways, and the free-travel hole is closed. Each city's own services and listings are not yet checked. |
-| G. Spatial integrity | **Partial** | Plan verified. Bridge not usable. |
+| G. Spatial integrity | **Partial** | The city plan and the footbridge are verified. Buildings can still be walked through outdoors. |
 | H. Multiplayer | **Partial** | Two accounts in separate browser contexts and through the world server are tested. That is not evidence of secure online play, and is not claimed as such. |
 
 ## What comes next, in the brief's order
@@ -139,7 +139,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 1. The map: search and a route preview; the same real-city treatment for Abuja and Port Harcourt once those cities have more in them.
 2. Finish the destination framework: real hours for every place that states them, and one record per place instead of two.
 3. Travel: a coach park to leave from; cabin crew and service; baggage claim.
-4. Walking at height and collision outdoors: the footbridge, stadium rows, building walls.
+4. Collision outdoors: the player and vehicles still pass through buildings in the street. Every landmark and generated building already reports its footprint, so this is a matter of using them. Then stadium rows.
 5. The home: sleeping in a bought bed, furniture on walls, floors, and furniture that goes with a home when it is sold.
 6. More kit assets (houses, worship, hotels, refinery), then the same treatment for Abuja and Port Harcourt.
 7. A server that runs the rules, if the game is to be public.
@@ -152,5 +152,6 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 - The five shortcuts under the street view jumped the player across Lagos for nothing, showed made-up distances, and stayed on screen in other cities.
 - Quilox sold a ₦25,000 bottle at any hour from a black box.
 - Two games in one browser buying the same plot at the same instant could both be charged and one get nothing: localStorage reaches another tab a moment late, so the second buyer could read the registry as it was. The registry is now also kept in the browser's database and read from there while the lock is held. It showed up once in several full runs; a test now forces it.
+- The footbridge's stairs were modelled rising away from the deck, with their top step twelve metres from it, and the code that lifts the player was written for stairs that were not there.
 - The furniture catalogue took the money and dropped the piece at a random spot in the home, and its sofa, bed and television were each a plain green box.
 - Two street-door tests and three phone tests sampled or pressed before the thing they tested had finished moving. The game was right; the tests now wait for it.
