@@ -2,11 +2,14 @@ import * as THREE from 'three';
 import { ABUJA_AVENUE } from '../world/plan/CityPlan';
 import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
+import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
+import { PlaceActions } from '../destinations/PlaceActions';
 
 export class AbujaCity implements CityInstance {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public groundMesh: THREE.Mesh;
+  public airport: AirportLandmark;
 
   private flagMeshes: THREE.Mesh[] = [];
   private animTime: number = 0;
@@ -45,6 +48,13 @@ export class AbujaCity implements CityInstance {
 
     // 8. Inter-State Travel Terminal to Lagos
     this.buildAbujaTransitHub();
+
+    // 9. Nnamdi Azikiwe Airport, south-west of the centre: the same airport as Lagos's, set down here,
+    // with a road of its own round to Shehu Shagari Way
+    this.airport = createAirport({ ids: ['abuja-airport'], city: 'abuja', z: 71, ownDoor: true, approach: { alongZ: -80, toX: -13 } });
+    this.group.add(this.airport.group);
+    this.interactiveList.push(...this.airport.interactive);
+    PlaceActions.registerAll(this.airport.actions);
   }
 
   // =========================================================================
@@ -414,9 +424,9 @@ export class AbujaCity implements CityInstance {
     this.interactiveList.push({
       mesh: hubGroup,
       id: 'abuja-interstate-hub',
-      name: 'Nnamdi Azikiwe Airport & Utako Transit Lounge',
+      name: 'Utako Coach Park & Ticket Office',
       category: 'Inter-State Travel',
-      description: 'Direct flight connections and luxury interstate express buses to Lagos Island and Nigerian states.',
+      description: 'Luxury coaches to Lagos, and flight tickets for the airport on the south-west side of town.',
       interactionPoint: new THREE.Vector3(18, 0, 36),
     });
   }
@@ -428,6 +438,7 @@ export class AbujaCity implements CityInstance {
     for (let flag of this.flagMeshes) {
       flag.rotation.y = Math.sin(this.animTime * 4.5) * 0.15;
     }
+    this.airport.update?.(delta, 12);
   }
 
   public dispose(): void {

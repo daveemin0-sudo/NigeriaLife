@@ -1,6 +1,6 @@
 // One place that feels real: walk in off the street through the door, order, sit, be served
 // at the table, eat, pay once, and walk back out to the same spot. Plus waving at people.
-import { open, reload, wait, money, quest, newPlayer, enterInterior, advance, playUntil, useStation, closeDialogs } from './lib.mjs';
+import { open, reload, wait, money, quest, newPlayer, enterInterior, advance, playUntil, useStation, closeDialogs, pressSteady } from './lib.mjs';
 
 const ROOM = { x: 260, z: 240 };
 
@@ -58,7 +58,7 @@ const openMenu = async (page) => {
 const orderDish = async (page, dish) => {
   const menu = await openMenu(page);
   if (!menu.open) throw new Error(`the menu did not open for ${dish}: ${JSON.stringify(menu)} ${JSON.stringify(await snapshot(page))}`);
-  await page.click(`.buka-dish[data-dish="${dish}"]`);
+  await pressSteady(page, `.buka-dish[data-dish="${dish}"]`);
   await wait(150);
 };
 const setCash = (page, amount) => page.evaluate((target) => {
@@ -113,7 +113,7 @@ export async function run(browser, check) {
   const dishes = await page.evaluate(() => [...document.querySelectorAll('.buka-dish')].map((d) => ({ id: d.dataset.dish, price: d.querySelector('.buka-dish-price').textContent })));
   check('the counter opens a menu of jollof, fried rice, amala, eba and suya with prices',
     menu.open && dishes.map((d) => d.id).join() === 'jollof_rice,fried_rice,amala,eba,suya' && dishes.every((d) => /^₦[\d,]+$/.test(d.price)), dishes);
-  await page.click('#buka-menu-close');
+  await pressSteady(page, '#buka-menu-close');
 
   // ------------------------------------------------------------------ Cannot afford it
   const startCash = (await money(page)).cash;
@@ -126,7 +126,7 @@ export async function run(browser, check) {
   check('a dish the player cannot afford is refused with the reason, and nothing happens',
     !!refused.note && /₦1,200 more/.test(refused.note) && refused.stillOpen && !s.order && s.cash === 1000 && s.foodBills === 0 && s.seatsTaken.length === 3 && !s.waiterDoing && !s.cookDoing,
     { note: refused.note, order: s.order, cash: s.cash });
-  await page.click('#buka-menu-close');
+  await pressSteady(page, '#buka-menu-close');
   await setCash(page, startCash);
 
   // ------------------------------------------------------------------ Order, sit, be served, eat, pay
@@ -219,7 +219,7 @@ export async function run(browser, check) {
   before = await snapshot(page);
   await orderDish(page, 'suya');
   await playUntil(page, () => (window.game.world.interiorManager.restaurant.service.waiter.carried ? true : null), 25);
-  await page.click('#buka-order-stop');
+  await pressSteady(page, '#buka-order-stop');
   s = await untilSettled(page);
   check('ordering again works, and cancelling while the food is on its way costs nothing and leaves the room tidy',
     settled(s) && s.cash === before.cash && s.foodBills === 1 && s.seatsTaken.length === 3,
@@ -255,7 +255,7 @@ export async function run(browser, check) {
 
   // Waving from the table: no getting up, and the meal carries on afterwards
   await page.evaluate(() => { const g = window.game; g.hud.showInteractionCard(g.world.interiorManager.getActiveInteractiveObjects().find((o) => o.id === 'interior_npc_npc_kunle')); });
-  await page.click('#card-wave-btn');
+  await pressSteady(page, '#card-wave-btn');
   const seatedWave = await playUntil(page, () => {
     const g = window.game;
     return g.player.actor.pose.arms === 'wave' ? { seated: g.player.actor.hold !== null, legs: g.player.actor.pose.legs } : null;
@@ -269,7 +269,7 @@ export async function run(browser, check) {
     seatedWave && seatedWave.seated && seatedWave.legs === 'sit' && !!kunleWaved && !!backToEating, { seatedWave, kunleWaved, backToEating });
 
   await playUntil(page, () => { const o = window.game.world.interiorManager.restaurant.service.order; return o && o.stage === 'eating' && o.bitesLeft <= 4 ? true : null; }, 60);
-  await page.click('#buka-order-stop');
+  await pressSteady(page, '#buka-order-stop');
   s = await untilSettled(page);
   check('standing up half-way keeps what was paid and eaten, and the table is cleared',
     settled(s) && before.cash - s.cash === 2200 && s.foodBills === 2 && s.hunger > before.hunger, { settled: settled(s), paid: before.cash - s.cash, bills: s.foodBills, hungerGain: +(s.hunger - before.hunger).toFixed(1) });
@@ -277,10 +277,10 @@ export async function run(browser, check) {
   // ------------------------------------------------------------------ Waving
   const wave = async (spot, clickSelector) => {
     await closeDialogs(page);
-    await page.click(clickSelector);
+    await pressSteady(page, clickSelector);
     await playUntil(page, (id) => (window.game.hud.currentActiveObject?.id === id ? true : null), 20, spot);
     const offered = await page.evaluate(() => getComputedStyle(document.getElementById('card-wave-btn')).display !== 'none');
-    await page.click('#card-wave-btn');
+    await pressSteady(page, '#card-wave-btn');
     const home = await page.evaluate((id) => window.game.interactions.actorFor(id).homeYaw, spot);
     const seen = { player: false, them: false, facedPlayer: false };
     for (let i = 0; i < 40; i++) {
@@ -314,7 +314,7 @@ export async function run(browser, check) {
   check('waving at Baba Tunde: he waves back from his seat and carries on eating', w.offered && w.player && w.them && w.backToNormal, w);
 
   // ------------------------------------------------------------------ Out through the door, back to the same spot
-  await page.click('#place-leave-btn');
+  await pressSteady(page, '#place-leave-btn');
   const leaving = await playUntil(page, () => {
     const g = window.game;
     const inner = g.world.interiorManager.restaurant.group.getObjectByName('interior_exit_door').userData.door;
@@ -349,7 +349,7 @@ export async function run(browser, check) {
     g.hud.showInteractionCard(obj);
     return getComputedStyle(document.getElementById('card-wave-btn')).display !== 'none';
   });
-  await page.click('#card-wave-btn');
+  await pressSteady(page, '#card-wave-btn');
   const streetReply = await playUntil(page, () => {
     const them = window.game.interactions.actorFor('bet-customer');
     return them.pose.arms === 'wave' && them.scripted ? true : null;
@@ -360,11 +360,11 @@ export async function run(browser, check) {
 
   // ------------------------------------------------------------------ Going back in, and closing the game mid-meal
   // Arriving by the map: the trip ends at the door, and the player walks in through it
-  await page.click('#nav-btn-map');
+  await pressSteady(page, '#nav-btn-map');
   await wait(1500);
-  await page.click('.map-pin[data-place="mama_put_buka"]');
+  await pressSteady(page, '.map-pin[data-place="mama_put_buka"]');
   await wait(500);
-  await page.click('#btn-card-go');
+  await pressSteady(page, '#btn-card-go');
   const mapArrival = await playUntil(page, () => {
     const g = window.game;
     const door = g.world.buildings.placeDoors[0];

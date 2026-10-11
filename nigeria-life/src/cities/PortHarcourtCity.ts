@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
+import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
+import { PlaceActions } from '../destinations/PlaceActions';
 import { WorldMapPrefabs } from '../world/map/WorldMapPrefabs';
 
 export class PortHarcourtCity implements CityInstance {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public groundMesh: THREE.Mesh;
+  public airport: AirportLandmark;
 
   private animTime: number = 0;
   private flareFlame!: THREE.Mesh;
@@ -45,6 +48,12 @@ export class PortHarcourtCity implements CityInstance {
 
     // 8. Inter-State Transit Hub to Lagos & Abuja
     this.buildTransitHub();
+
+    // 9. Port Harcourt Airport, north-west of Aba Road: the same airport as Lagos's, with a road of its own
+    this.airport = createAirport({ ids: ['ph-airport'], city: 'port_harcourt', ownDoor: true, approach: { alongZ: -78, toX: -12.5 } });
+    this.group.add(this.airport.group);
+    this.interactiveList.push(...this.airport.interactive);
+    PlaceActions.registerAll(this.airport.actions);
   }
 
   // =========================================================================
@@ -237,9 +246,9 @@ export class PortHarcourtCity implements CityInstance {
     this.interactiveList.push({
       mesh: trigger,
       id: 'ph-transit-hub',
-      name: 'Port Harcourt Interstate Transit Terminal',
+      name: 'Port Harcourt Coach Park & Ticket Office',
       category: 'Inter-State Travel',
-      description: 'Direct flight connections and luxury interstate express buses to Lagos and Abuja.',
+      description: 'Luxury coaches to Lagos and Abuja, and flight tickets for the airport north-west of Aba Road.',
       // On the forecourt between the pavement and the terminal, not in the middle of the building
       interactionPoint: new THREE.Vector3(13.6, 0, 45),
     });
@@ -252,5 +261,6 @@ export class PortHarcourtCity implements CityInstance {
       this.flareFlame.scale.y = 1.0 + Math.sin(this.animTime * 12.0) * 0.25;
       this.flareFlame.scale.x = 1.0 + Math.cos(this.animTime * 10.0) * 0.15;
     }
+    this.airport.update?.(delta, 12);
   }
 }

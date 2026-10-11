@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { Builder, signBoard } from '../kit/ArchKit';
-import { clickBox, figure, type Landmark } from './Landmark';
+import { clickBox, figure, type Landmark, type LandmarkHost } from './Landmark';
+import { Sequence, steps, type Step } from '../../interactions/Sequence';
+import type { Actor } from '../../interactions/Actor';
+import { FlightService, AIRLINE, AIRPORTS, ROUTES, type FlightCity } from '../../travel/Flights';
+
+export { AIRLINE };
 
 /**
  * An airport: a terminal with a kerbside canopy, a control tower, an apron with parked
@@ -22,8 +27,6 @@ const WHITE = 0xf8fafc;
 const LIVERY_GREEN = 0x0b7a43;
 const LIVERY_GOLD = 0xf2b705;
 const DARK = 0x1f2937;
-
-export const AIRLINE = 'NigeriaLife Air';
 
 export type FlightState =
   | 'Boarding'
@@ -108,6 +111,40 @@ const FLIGHT: Leg[] = [
   { state: 'Arrived', seconds: 12, x: STAND.x, y: 0, z: STAND.z, heading: 180 },
 ];
 const FLIGHT_SECONDS = FLIGHT.reduce((total, leg) => total + leg.seconds, 0);
+/** When in the round each state begins, in seconds */
+const startOf = (state: FlightState): number => {
+  let at = 0;
+  for (const leg of FLIGHT) {
+    if (leg.state === state) return at;
+    at += leg.seconds;
+  }
+  return 0;
+};
+const BOARDING_ENDS = FLIGHT[0].seconds;
+const AWAY_FROM = startOf('In flight');
+const APPROACH_FROM = startOf('Approaching');
+const ARRIVED_FROM = startOf('Arrived');
+
+/** Up a flight of steps: across the ground and up at once, which walking alone cannot do. */
+function climb(actor: Actor, to: () => THREE.Vector3, rise: number, seconds: number): Step {
+  const from = new THREE.Vector3();
+  let t = 0;
+  return {
+    name: 'climb the steps',
+    begin() {
+      actor.worldPosition(from);
+      t = 0;
+      actor.pose = { legs: 'walk', arms: 'swing' };
+    },
+    tick(delta) {
+      t = Math.min(1, t + delta / seconds);
+      const top = to();
+      actor.setWorldPosition(from.x + (top.x - from.x) * t, from.z + (top.z - from.z) * t);
+      actor.root.position.y = rise * t;
+      return t >= 1;
+    },
+  };
+}
 
 const EASE: Record<NonNullable<Leg['ease']>, (t: number) => number> = {
   line: (t) => t,
@@ -159,20 +196,35 @@ export function flightAt(seconds: number): FlightPose {
 export interface AirportOptions {
   /** The ids its entrance answers to */
   ids: string[];
-  name: string;
-  code: string;
+  /** The city whose flights leave from here */
+  city: FlightCity;
   /** Where the drawing's origin goes. Leave out to stand where it was drawn. */
   x?: number;
   z?: number;
-  routes: Array<{ flight: string; back: string; to: string }>;
+  /** This airport opens its own front door. Left out where the door is already something else's to open. */
+  ownDoor?: boolean;
+  /** A road of its own from the forecourt: south to this z, then east to this x (both as drawn) */
+  approach?: { alongZ: number; toX: number };
 }
 
 export interface AirportLandmark extends Landmark {
+  city: FlightCity;
   /** The flight's clock, in seconds: set it to put the aircraft anywhere in its round */
   flight: { clock: number; readonly seconds: number };
+  /** Outside the front door, at the kerb */
+  kerb: THREE.Vector3;
+  /** On the apron: outside the terminal's door to it, and at the foot of the aircraft steps */
+  apron: { door: THREE.Vector3; steps: THREE.Vector3 };
+  /** Is the aircraft on the stand with its door open? */
+  atStand(): boolean;
+  /** Puts the aircraft on the stand as one that has just come in, for passengers to get off */
+  receive(): void;
 }
 
 export function createAirport(options: AirportOptions): AirportLandmark {
+  const flights = FlightService.get();
+  const name = AIRPORTS[options.city].name;
+  const code = AIRPORTS[options.city].code;
   const site = { x: options.x ?? DRAWN.x, z: options.z ?? DRAWN.z };
   const move = { x: site.x - DRAWN.x, z: site.z - DRAWN.z };
   const at = (x: number, z: number) => new THREE.Vector3(x + move.x, 0, z + move.z);
@@ -206,6 +258,19 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   const TAXI = 0xfacc15;
   b.ground(TAXI, 0.25, 15, -78, 0.036, -134.5).ground(TAXI, 42, 0.25, -99, 0.036, STAND.z);
   for (const x of [STAND.x, -112]) b.ground(TAXI, 0.25, 5, x - 7, 0.036, STAND.z);
+
+  // A road of its own, where the city has none that comes this way: out of the forecourt and round to the avenue
+  if (options.approach) {
+    const { alongZ, toX } = options.approach;
+    const down = alongZ + 90;
+    const across = toX + 83;
+    b.ground(0x3f3f46, 6, down + 3, -80, 0.022, -90 + (down + 3) / 2).ground(0x3f3f46, across, 6, -83 + across / 2, 0.022, alongZ);
+    for (const side of [-1, 1]) {
+      b.ground(0xbdb5a8, 1.8, down - 3, -80 + side * 3.9, 0.02, -90 + (down - 3) / 2);
+      b.ground(0xbdb5a8, across - 3.9, 1.8, -83 + 3.9 + (across - 3.9) / 2, 0.02, alongZ + side * 3.9);
+    }
+    for (let x = -76; x < toX - 2; x += 6) b.ground(WHITE, 2.6, 0.16, x, 0.03, alongZ);
+  }
 
   // --- The terminal -----------------------------------------------------------------------
   b.box(0xf1f5f9, 40, 8, 12, -90, 0, -109, { solid: true });
@@ -272,7 +337,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   group.position.set(site.x, 0, site.z);
   const local = (x: number, y: number, z: number) => new THREE.Vector3(x - DRAWN.x, y, z - DRAWN.z);
 
-  const nameSign = signBoard([options.name.toUpperCase(), `Domestic Terminal  ·  ${options.code}`], 20, 2.3, '#0f172a');
+  const nameSign = signBoard([name.toUpperCase(), `Domestic Terminal  ·  ${code}`], 20, 2.3, '#0f172a');
   nameSign.position.copy(local(-90, 10.75, -102.5));
   const gates = signBoard(['GATES 1 - 2'], 6, 0.8, '#0f172a', '#facc15');
   gates.position.copy(local(-91, 4.6, -115.14));
@@ -321,7 +386,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
     ctx.textAlign = 'left';
     ctx.fillStyle = '#facc15';
     ctx.font = '800 44px system-ui, sans-serif';
-    ctx.fillText(`${AIRLINE.toUpperCase()}  ·  ${options.code}`, 28, 48);
+    ctx.fillText(`${AIRLINE.toUpperCase()}  ·  ${code}`, 28, 48);
     rows.forEach(([kind, flight, place, status], index) => {
       const y = 140 + index * 96;
       ctx.fillStyle = '#94a3b8';
@@ -365,41 +430,143 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   door.position.copy(local(-84, 3, -101));
   group.add(door);
   const entrance = at(-80, -101.2);
-  const description = `${AIRLINE} flies from here to ${options.routes.map((route) => route.to).join(' and ')}. Check in inside; the aircraft outside are the ones you board.`;
+  const leaving = flights.routesFrom(options.city);
+  const description = `${AIRLINE} flies from here to ${leaving.map((route) => AIRPORTS[route.to].city).join(' and ')}. Buy a ticket and check in inside, then walk out to the aircraft.`;
 
   const flight = { clock: 0, seconds: FLIGHT_SECONDS };
   let pose = flightAt(0);
   let round = 0;
+  const atStand = () => pose.state === 'Boarding' || pose.state === 'Arrived';
+
+  // --- On the apron: the door from the terminal, and the steps up to the aircraft -----------
+  const apronDoor = at(-91, -117.4);
+  const stepsFoot = at(stairs.x, stairs.top + 4.6);
+  const cabinDoor = at(stairs.x, stairs.top + 0.2);
+  const doorBox = clickBox(4, 3, 2.4);
+  doorBox.position.copy(local(-91, 1.5, -116));
+  const stepsBox = clickBox(2.6, 3, 5.4);
+  stepsBox.position.copy(local(stairs.x, 1.5, stairs.top + 2.2));
+  group.add(doorBox, stepsBox);
+  const stepsId = `${options.ids[0]}-steps`;
+  const apronDoorId = `${options.ids[0]}-apron-door`;
+  /** The flight the board shows: the one a checked-in passenger is waiting for, or the next in turn */
+  const showing = () => {
+    const held = flights.booking;
+    return held && held.route.from === options.city ? held.route : leaving[round % leaving.length];
+  };
 
   const landmark: AirportLandmark = {
     id: options.ids[0],
-    name: options.name,
+    name,
+    city: options.city,
     flight,
+    kerb: entrance,
+    apron: { door: apronDoor, steps: stepsFoot },
+    atStand,
+    receive() {
+      flight.clock = Math.floor(flight.clock / FLIGHT_SECONDS) * FLIGHT_SECONDS + ARRIVED_FROM + 0.05;
+      landmark.update?.(0, 12);
+    },
     zone: { minX: -158 + move.x, maxX: -69 + move.x, minZ: -156 + move.z, maxZ: -90 + move.z },
     group,
-    obstructions: b.obstructions(options.name, site.x, site.z),
-    interactive: options.ids.map((id) => ({
-      mesh: door,
-      id,
-      name: `${options.name} (${options.code})`,
-      category: 'Airport',
-      description,
-      interactionPoint: entrance,
-    })),
-    actions: {},
-    doors: [{ name: `Way in to ${options.name}`, x: entrance.x, z: entrance.z }],
+    obstructions: b.obstructions(name, site.x, site.z),
+    interactive: [
+      ...options.ids.map((id) => ({
+        mesh: door,
+        id,
+        name: `${name} (${code})`,
+        category: 'Airport',
+        description,
+        interactionPoint: entrance,
+      })),
+      {
+        mesh: stepsBox,
+        id: stepsId,
+        name: 'Aircraft steps',
+        category: 'Airport · Boarding',
+        description: 'The way on to the aircraft on the stand, for passengers who have checked in and been through security.',
+        interactionPoint: stepsFoot,
+      },
+      {
+        mesh: doorBox,
+        id: apronDoorId,
+        name: 'Terminal, from the apron',
+        category: 'Airport · Arrivals',
+        description: 'Through the terminal to the street.',
+        interactionPoint: apronDoor,
+      },
+    ],
+    actions: {
+      ...(options.ownDoor
+        ? Object.fromEntries(options.ids.map((id) => [id, { label: () => '🚪 Go into the terminal', run: (host: LandmarkHost) => host.enter('airport', entrance) }]))
+        : {}),
+      [apronDoorId]: {
+        label: () => '🚪 Into the terminal, and through to the street',
+        run: (host) => host.enter('airport', entrance),
+      },
+      [stepsId]: {
+        label: () => {
+          const held = flights.booking;
+          if (!held || held.route.from !== options.city) return '✈️ Boarding is for passengers with a ticket';
+          if (held.state === 'booked' || held.state === 'checked-in') return '🎫 Check in and clear security in the terminal first';
+          return atStand() ? `🛫 Board ${held.route.flight} to ${AIRPORTS[held.route.to].city}` : '⏳ Your aircraft is on its way to the stand';
+        },
+        run: (host) => {
+          const held = flights.booking;
+          if (!held || held.route.from !== options.city) {
+            host.say('Boarding is for passengers with a ticket. The ticket desk is in the terminal.', 'info');
+            return;
+          }
+          if (held.state !== 'cleared') {
+            host.say('Check in at the desk and go through security first. Both are in the terminal.', 'info');
+            return;
+          }
+          if (!atStand()) {
+            host.say('Your aircraft is coming in. Boarding starts when it is on the stand.', 'info');
+            return;
+          }
+          const actor = host.actor;
+          if (host.director.interrupt(actor) === 'locked') return;
+          const board = new Sequence('board the aircraft', [actor]).add(
+            steps.walk(actor, stepsFoot, { speed: 4 }),
+            steps.face(actor, cabinDoor),
+            climb(actor, () => cabinDoor, 1.5, 2.2),
+            steps.call('through the door', () => {
+              const result = flights.board(options.city);
+              if (!result.ok) {
+                host.say(result.reason ?? 'You cannot board.', 'warning');
+                return false;
+              }
+            })
+          );
+          // Back on the ground, however it ends: whoever takes the passenger on from here places them
+          board.onEnd(() => { actor.root.position.y = 0; });
+          host.director.run(board);
+        },
+      },
+    },
+    doors: [{ name: `Way in to ${name}`, x: entrance.x, z: entrance.z }],
     update(delta) {
-      flight.clock += delta;
+      let next = flight.clock + delta;
+      if (flights.expectedAt(options.city)) {
+        const within = ((flight.clock % FLIGHT_SECONDS) + FLIGHT_SECONDS) % FLIGHT_SECONDS;
+        const base = flight.clock - within;
+        // A flight waits on the stand for a passenger who has checked in, and one that is away comes straight back for them
+        if (within < BOARDING_ENDS) next = Math.min(next, base + BOARDING_ENDS - 0.3);
+        else if (within >= AWAY_FROM && within < APPROACH_FROM) next = base + APPROACH_FROM;
+      }
+      flight.clock = next;
       round = Math.floor(flight.clock / FLIGHT_SECONDS);
       pose = flightAt(flight.clock);
       working.visible = !pose.away;
       working.position.set(pose.x - DRAWN.x, pose.y, pose.z - DRAWN.z);
       working.rotation.set(0, (-pose.heading * Math.PI) / 180, pose.pitch);
       radar.rotation.y += delta * 1.6;
-      const route = options.routes[round % options.routes.length];
+      const route = showing();
+      const back = ROUTES.find((other) => other.from === route.to && other.to === route.from);
       show([
-        ['DEPARTURE', route.flight, route.to.toUpperCase(), DEPARTING[pose.state]],
-        ['ARRIVAL', route.back, route.to.toUpperCase(), ARRIVING[pose.state]],
+        ['DEPARTURE', route.flight, AIRPORTS[route.to].city.toUpperCase(), DEPARTING[pose.state]],
+        ['ARRIVAL', back?.flight ?? '', AIRPORTS[route.to].city.toUpperCase(), ARRIVING[pose.state]],
       ]);
     },
     status: () => {
@@ -412,7 +579,9 @@ export function createAirport(options: AirportOptions): AirportLandmark {
       return {
         airline: AIRLINE,
         state: pose.state,
-        route: options.routes[round % options.routes.length],
+        route: { flight: showing().flight, to: AIRPORTS[showing().to].city },
+        atStand: atStand(),
+        waiting: flights.expectedAt(options.city),
         x, y: pose.y, z,
         heading: pose.heading,
         visible: !pose.away,

@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-10, after the nightclub and opening hours.
+Last updated: 2026-10-11, after flights and the airports of all three cities.
 
 ## How to read it
 
@@ -18,7 +18,7 @@ Last updated: 2026-10-10, after the nightclub and opening hours.
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 20 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 21 suites.
 
 ## The approach, from the brief's last rule
 
@@ -54,8 +54,8 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Place | Status | Notes |
 | --- | --- | --- |
 | Murtala Muhammed airport, outside | **Verified** | Terminal with kerbside canopy and car park, control tower with turning radar, apron, hangar, runway, ground equipment, fence. Two airliners in the made-up NigeriaLife Air colours. One works a whole flight: boarding, pushback, taxi, take-off, away, approach, landing, taxi in, arrived. Test: it keeps that order, never passes through a building, and is only ever airborne over the open ground west of the city. |
-| Airport, inside | **Partial** | The existing hall with check-in, security, gates and lounge is entered from the same door (tested). Its stations are still one-click. No baggage claim. The player does not walk out to the aircraft. |
-| Abuja and Port Harcourt airports | **Looks only** | A transit building in each. Not built as airports. |
+| Airport, inside | **Partial** | The hall is one room used by all three airports and carries the name of the one it is entered from. Its desk sells tickets and checks in, security clears, and the two gates lead out to the apron, each doing one step of a booking in order (see phase 3). The lounge is still a one-click purchase. No baggage claim. |
+| Abuja and Port Harcourt airports | **Verified** | The same airport, from the same maker, set down in each city with a road of its own to the main avenue. Both cities still pass the city plan. `flights` suite. |
 | Apapa Port | **Verified** | Quay, moored ship, two gantry cranes (one working), container yard with a tractor on its round, shed, office, fence and gate on Wharf Road. Paid work at the loading bay: three crates carried by hand to a lorry, ₦9,000 paid once when the last is on, 30% energy; walking away pays nothing; the lorry leaves and another comes. |
 | Port: customs, warehouses to go inside, boats | **Missing** | |
 | Refineries and industrial sites | **Missing** | |
@@ -72,9 +72,12 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Booking and fare | **Partial** | The interstate sheet takes the fare and starts a cabin sequence with boarding, cruise and landing. It can be opened from anywhere, not only at an airport. No booking record, boarding pass or check-in that depends on it. |
-| Aircraft cabin | **Partial** | A cabin view with a seat-back screen exists. No crew, service or seat choice. |
-| Lifecycle states | **Partial** | The aircraft outside has all nine states. The player's own flight has three and is not tied to that aircraft. |
+| Booking and fare | **Verified** | One booking (`travel/Flights.ts`). A ticket is bought at the airport's desk, or on the interstate sheet, for a flight from the city the player is in; the fare is taken once, and a second ticket cannot be bought while one is held. It can be handed back before check-in for four fifths. Kept per profile. |
+| Through the airport | **Verified** | Check in at the desk (seat and gate), then security, then the right gate, in that order and no other; the gate leads out to the apron; the aircraft is held on its stand for a checked-in passenger (and comes straight back if it was away); the player walks up the steps and through the door. `flights` suite walks Lagos to Abuja to Port Harcourt and back. |
+| Arrival | **Verified** | The player gets off at the foot of the steps on the destination's apron, goes into the terminal and out of its front door into that city. A flight interrupted by closing the game still arrives (`saves` suite). |
+| Lifecycle states | **Verified** | Scheduled, boarding closed, taxiing, taking off, in flight, approaching, landing, arrived, cancelled, on the ticket, in order. |
+| Aircraft cabin | **Partial** | The existing cabin view with a seat-back screen and three cameras. The seat on the ticket is shown. No crew, cabin service that is acted out, or choosing a seat. The aircraft seen outside is not the one seen from the cabin's outside camera. |
+| Coaches | **Partial** | A coach is paid for on the sheet and goes by road. It can be taken from anywhere in the city: there is no coach park to leave from. |
 
 ## Phase 4: three cities
 
@@ -82,7 +85,8 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | --- | --- | --- |
 | Free travel by map tab | **Verified fixed** | Choosing a city on the map now only shows that city's map. The player stays put, pays nothing, and the map goes back to their own city when closed (`landmarks` suite). |
 | Abuja, Port Harcourt | **Partial** | One avenue each with a few landmarks; both pass the city plan (`plan` suite). Thin beside Lagos. |
-| State carried between cities | **Partial** | Money, inventory, ownership and city are saved (`saves` suite). Not yet walked end to end as a journey test. |
+| State carried between cities | **Verified** | Money, inventory, ownership, city and ticket are kept across the journey and across a reload (`flights`, `saves`). |
+| What the screen shows in another city | **Partial** | The bar of nearby places is now the real nearest places of the city the player is in, with true distances, and pressing one walks there (it used to be five fixed Lagos shortcuts that jumped the player for nothing). Phone services and job listings are not yet per city. |
 
 ## Phases 5 to 11: systems
 
@@ -121,12 +125,12 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 | Journey | Status | Notes |
 | --- | --- | --- |
-| A. Airport, booking to arrival | **Partial** | Outside and the way in are verified. The booking-to-boarding chain is phase 3. |
+| A. Airport, booking to arrival | **Verified** | `flights` suite: map, terminal, ticket, check-in, security, gate, apron, steps, flight, Abuja apron, terminal, street; then Abuja to Port Harcourt and Port Harcourt to Lagos the same way. |
 | B. Home | **Partial** | Living in it is verified. Buying and placing furniture, wall colour and TV content are not. |
 | C. Property | **Verified** | `land`, `server`. |
 | D. Workplace | **Partial** | Real task and single payment verified at the port. No application or career state. |
 | E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
-| F. City switching | **Partial** | The free-travel hole is closed and tested. The paid journey is not yet a test. |
+| F. City switching | **Partial** | By air it is verified both ways, and the free-travel hole is closed. Each city's own services and listings are not yet checked. |
 | G. Spatial integrity | **Partial** | Plan verified. Bridge not usable. |
 | H. Multiplayer | **Partial** | Two accounts in separate browser contexts and through the world server are tested. That is not evidence of secure online play, and is not claimed as such. |
 
@@ -134,8 +138,17 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 1. The map: search and a route preview; the same real-city treatment for Abuja and Port Harcourt once those cities have more in them.
 2. Finish the destination framework: real hours for every place that states them, and one record per place instead of two.
-3. Flights: booking at the airport, a boarding pass, check-in, walking to the aircraft that is actually on the stand, explicit states, arrival at a real airport in Abuja and Port Harcourt.
+3. Travel: a coach park to leave from; cabin crew and service; baggage claim.
 4. Walking at height and collision outdoors: the footbridge, stadium rows, building walls.
 5. Television showing the match; furniture and wall colours as a tested journey.
 6. More kit assets (houses, worship, hotels, refinery), then the same treatment for Abuja and Port Harcourt.
 7. A server that runs the rules, if the game is to be public.
+
+## Faults found on the way and put right
+
+- The airport hall's two gates took ₦35,000 and ₦32,000, announced an arrival, and left the player standing in Lagos.
+- A flight could be taken from anywhere by opening the interstate sheet, and choosing a city on the map moved the player there for nothing.
+- The sheet's coach button looked its journey up by city alone, so it ran the flight to that city.
+- The five shortcuts under the street view jumped the player across Lagos for nothing, showed made-up distances, and stayed on screen in other cities.
+- Quilox sold a ₦25,000 bottle at any hour from a black box.
+- Two street-door tests and three phone tests sampled or pressed before the thing they tested had finished moving. The game was right; the tests now wait for it.

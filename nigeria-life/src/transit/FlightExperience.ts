@@ -530,6 +530,11 @@ export class FlightExperience {
     }
   }
 
+  /** How far through the flight it is, for anything that follows it. */
+  public progress(): { phase: FlightPhase; elapsed: number; total: number } {
+    return { phase: this.currentPhase, elapsed: this.elapsedTime, total: this.totalFlightTime };
+  }
+
   public setCameraView(view: FlightCameraView): void {
     this.currentCameraView = view;
     this.updateCameraTransform();

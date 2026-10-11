@@ -1,3 +1,4 @@
+import type * as THREE from 'three';
 import type { Actor } from '../interactions/Actor';
 import type { InteractionDirector } from '../interactions/InteractionDirector';
 import type { BackendService } from '../backend/BackendService';
@@ -16,8 +17,14 @@ export interface PlaceHost {
   ask(question: { who: string; role?: string; text: string; choices: Array<{ label: string; note?: string; pick: () => void }> }): void;
   /** Has the player dance, for this many seconds or until they walk off. */
   emote(name: 'zanku' | 'groove' | 'dance', seconds: number): void;
-  /** Walks the player in through the door of a building, by the id its door is registered under. */
-  enter(buildingId: string): void;
+  /**
+   * Takes the player into a building, by the id its door is registered under. With `comeOutAt`,
+   * they go straight in from where they stand and will come out at that point instead: in
+   * from the apron, say, and out at the kerb.
+   */
+  enter(buildingId: string, comeOutAt?: THREE.Vector3): void;
+  /** Takes the player out of the room they are in, to this point outside rather than back the way they came. */
+  leave(comeOutAt: THREE.Vector3, facing?: number): void;
 }
 
 /** What the button on a thing's card says, and what pressing it does. */

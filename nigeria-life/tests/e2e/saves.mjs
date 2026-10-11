@@ -1,6 +1,6 @@
 // The saved game: damaged saves are repaired, the player resumes where they were,
 // and two tabs of the same browser cannot overwrite each other.
-import { open, reload, wait, money, quest, newPlayer, enterInterior } from './lib.mjs';
+import { open, reload, wait, money, quest, newPlayer, enterInterior, boardHeldFlight } from './lib.mjs';
 
 const SAVE_KEY = 'nigeria_life_account_data_v1';
 // Writes a save before the game boots, once (so a later reload keeps what the game saved)
@@ -121,16 +121,27 @@ export async function run(browser, check) {
   const out = await page.evaluate(() => { const g = window.game; return { x: g.player.position.x, z: g.player.position.z, inside: g.world.interiorManager.isPlayerInside() }; });
   check('saved while indoors: reload puts the player on the street outside', !out.inside && Math.abs(out.x + 12) < 1 && Math.abs(out.z - 40) < 1, out);
 
-  const beforeFlight = await money(page);
+  // What has been paid for travel, from the ledger: a quest pays out on arrival, so the purse alone does not show the fare
+  const fares = () => page.evaluate(() => window.game.hud.backend.getData().transactionHistory.filter((t) => t.type === 'TRAVEL_COST').reduce((sum, t) => sum + t.amount, 0));
+  const beforeFlight = await fares();
   await page.evaluate(() => window.game.hud.interstateModal.open('lagos'));
   await wait(500);
+  // The sheet sells the ticket; the flight is then boarded at the airport
   await page.evaluate(() => document.querySelector('[data-dest-id="port_harcourt"]').click());
+  await wait(600);
+  await boardHeldFlight(page);
   await wait(1500);
   const inFlight = await page.evaluate(() => window.game.flightExperience.isActive);
   await reload(page);
-  const landed = await page.evaluate(() => window.game.world.cityManager.currentCityId);
-  const afterFlight = await money(page);
-  check('reload mid-flight: the paid journey is not lost, the player resumes in Port Harcourt', inFlight && landed === 'port_harcourt' && beforeFlight.total - afterFlight.total > 0, { inFlight, landed, fare: beforeFlight.total - afterFlight.total });
+  const landed = await page.evaluate(() => {
+    const g = window.game;
+    const airport = g.world.airportOf('port_harcourt');
+    return { city: g.world.cityManager.currentCityId, ticket: g.flights.status(), fromSteps: airport ? Math.hypot(g.player.position.x - airport.apron.steps.x, g.player.position.z - airport.apron.steps.z) : null };
+  });
+  const afterFlight = await fares();
+  check('reload mid-flight: the paid journey is not lost, the player resumes in Port Harcourt at the foot of the aircraft steps, the ticket used, the fare taken once',
+    inFlight && landed.city === 'port_harcourt' && landed.ticket.state === 'arrived' && !landed.ticket.active && landed.fromSteps < 1 && afterFlight - beforeFlight === 38000,
+    { inFlight, landed, fare: afterFlight - beforeFlight });
   check('that arrival still counts for the Port Harcourt quest', (await quest(page, 'quest_ph_1')).obj.obj_p1_arrive === true);
   check('persistence: no console errors', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();

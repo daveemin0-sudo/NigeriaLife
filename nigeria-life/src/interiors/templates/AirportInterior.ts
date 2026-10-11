@@ -50,7 +50,7 @@ export class AirportInterior {
       stations: [
         {
           id: 'airport_checkin_desk',
-          name: 'Wazobia Air Flight Check-In Desk',
+          name: 'NigeriaLife Air Tickets & Check-In',
           category: 'Aviation Check-In',
           description: 'Terminal ticket verification, luggage tagging, and boarding pass issuance.',
           relativePosition: new THREE.Vector3(-7, 0, 2),
@@ -265,7 +265,7 @@ export class AirportInterior {
     this.interactiveList.push({
       mesh: deskGroup,
       id: 'airport_checkin_desk',
-      name: 'Wazobia Air Flight Check-In Desk',
+      name: 'NigeriaLife Air Tickets & Check-In',
       category: 'Aviation Check-In',
       description: 'Terminal ticket verification, luggage tagging, and boarding pass issuance.',
       interactionPoint: new THREE.Vector3(-7, 0, 0.8),

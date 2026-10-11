@@ -51,6 +51,8 @@ import type { CityId } from '../cities/CityTypes';
 import type { SavedCityId } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { HouseDecorationSystem, CATALOGUE_ITEMS } from '../housing/HouseDecorationSystem';
+import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type FlightStatus } from '../travel/Flights';
+import { openAirportHall } from '../travel/AirportHall';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -100,6 +102,8 @@ export class Game {
 
   // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
   public flightExperience: FlightExperience;
+  /** Tickets and where each has got to */
+  public flights = FlightService.get();
   public roadRideExperience: RoadRideExperience;
   public transitHUD: TransitHUD;
 
@@ -265,6 +269,10 @@ export class Game {
 
     this.flightExperience.onFlightCompleted = (flight) => {
       this.transitHUD.hideFlightHUD();
+      if (this.flights.status().state === 'boarded') {
+        this.disembark(flight.destinationId);
+        return;
+      }
 
       // Launch Authentic Airport Road Ride into city center (Screenshot 1: G-Wagon in Port Harcourt/Lagos/Abuja)
       const destName = flight.destinationId === 'port_harcourt'
@@ -303,6 +311,26 @@ export class Game {
 
     // Wire InterState Modal to trigger the 3D Flight Experience
     this.hud.interstateModal.onStartTravelSimulation = (route, _fare, onCompleted) => {
+      if (route.mode !== 'flight') {
+        // A coach goes by road, all the way
+        this.onJourneyCompleted = () => onCompleted(route.destinationId);
+        this.saveArrivalInTransit(route.destinationId);
+        this.world.setStreetModeVisibility(false);
+        this.player.mesh.visible = false;
+        const ride: RideDetails = {
+          vehicleName: route.airlineOrOperator,
+          vehicleType: 'suv',
+          originName: route.departureStation,
+          destinationName: route.arrivalStation,
+          durationSeconds: 18,
+          trafficCondition: 'Clear',
+          weatherCondition: 'Sunny',
+          destinationCityId: route.destinationId,
+        };
+        this.roadRideExperience.startRide(ride);
+        this.transitHUD.showRideHUD(ride);
+        return;
+      }
       const destAirportNames: Record<string, { code: string; name: string }> = {
         lagos: { code: 'LOS', name: 'Murtala Muhammed Int. Airport (LOS)' },
         abuja: { code: 'ABV', name: 'Nnamdi Azikiwe Int. Airport (ABV)' },
@@ -377,20 +405,23 @@ export class Game {
     };
 
     // 9d. Street Distance Radar Fast Navigation
-    this.hud.onRadarNavigate = (destId: string) => {
-      if (destId === 'dest_cchub') this.player.mesh.position.set(-15, 0, -20);
-      else if (destId === 'dest_quilox') this.player.mesh.position.set(22, 0, 75);
-      else if (destId === 'dest_amala') this.player.mesh.position.set(-18, 0, 15);
-      else if (destId === 'dest_lekki') this.player.mesh.position.set(55, 0, 0);
-      else if (destId === 'dest_ikeja') this.player.mesh.position.set(0, 0, -25);
-    };
+    // A place pressed on the bar of nearby places is walked to, not jumped to
+    this.hud.onWalkToPlace = (place) => this.input.approachAndInteract(place);
 
     // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)
     // The player walks in and out through the door wherever the place has one
-    this.hud.onEnterInterior = (buildingId: string) => {
+    this.hud.onEnterInterior = (buildingId: string, comeOutAt?: THREE.Vector3) => {
       const target = this.world.interiorManager.getInteriorByBuildingId(buildingId);
       if (target?.type === 'residence' && !this.canGoHome()) return;
+      if (comeOutAt) {
+        // In by one way and out by another: from the apron into the terminal, and out at the kerb
+        void this.world.interiorManager.enterInterior(buildingId, this.player, this.cameraManager, this.hud, this.world, { returnTo: comeOutAt, returnYaw: 0 });
+        return;
+      }
       this.world.interiorManager.enterThroughDoor(buildingId, this.player, this.cameraManager, this.hud, this.world);
+    };
+    this.hud.onLeaveInteriorTo = (comeOutAt, facing) => {
+      void this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world, { emergeAt: comeOutAt, emergeYaw: facing ?? 0 });
     };
 
     this.hud.onExitInterior = () => {
@@ -615,6 +646,12 @@ export class Game {
     // While a building is being placed, a click on the plot moves it there instead of walking there
     this.input.onGroundClick = (point) => this.buildBar.moveTo(point.x, point.z);
     this.hud.onPlotAction = (plotId) => this.hud.phoneModal.openApp('land', `plot:${plotId}`);
+
+    // Flying: the hall is the same room in every city, and the flight starts at the aircraft door
+    const hereCity = () => this.world.cityManager.currentCityId as FlightCity;
+    openAirportHall({ city: hereCity, apronDoor: () => this.world.airportOf(hereCity())?.apron.door ?? null });
+    this.flights.onBoarded = (booking) => this.depart(booking);
+    this.nameAirportHall(hereCity());
     this.hud.onLookFrom = (yaw, pitch, distance) => {
       this.cameraManager.yaw = yaw;
       this.cameraManager.pitch = pitch;
@@ -654,6 +691,7 @@ export class Game {
     if (city === 'lagos') return this.world.standingOnTheGround();
     const instance = city === 'abuja' ? this.world.cityManager.abujaCity : this.world.cityManager.portHarcourtCity;
     const out = instance ? obstructionsUnder(instance.group, CITY_NAME[city as PlotCity] ?? city) : [];
+    if (instance?.airport) out.push(...instance.airport.obstructions);
     out.push(...this.plotWorld.obstructions(city as PlotCity));
     return out;
   }
@@ -662,7 +700,10 @@ export class Game {
   public validateCity(city: string, extra: Obstruction[] = []): Violation[] {
     if (city === 'lagos') return this.world.validateCityPlan(extra);
     const instance = city === 'abuja' ? this.world.cityManager.abujaCity : this.world.cityManager.portHarcourtCity;
-    const doors = (instance?.interactiveList ?? []).map((item) => ({ name: item.name, x: item.interactionPoint.x, z: item.interactionPoint.z }));
+    // The steps and the apron door are inside the airport's fence, reached through the terminal: its way in is the kerb
+    const airside = new Set(instance?.airport?.interactive ?? []);
+    const doors = (instance?.interactiveList ?? []).filter((item) => !airside.has(item)).map((item) => ({ name: item.name, x: item.interactionPoint.x, z: item.interactionPoint.z }));
+    if (instance?.airport) doors.push(...instance.airport.doors);
     for (const destination of DestinationRegistry.getInstance().getAll()) {
       if (destination.city === city) doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
     }
@@ -752,6 +793,86 @@ export class Game {
     return false;
   }
 
+  /** The hall inside is one room: it carries the name of the airport of the city it is entered from. */
+  private nameAirportHall(city: string): void {
+    const airport = AIRPORTS[city as FlightCity];
+    if (airport) this.world.interiorManager.airport.def.name = `${airport.name} (${airport.code})`;
+  }
+
+  /** The passenger is through the aircraft door: doors close and the flight goes. */
+  private depart(booking: Booking): void {
+    const route = booking.route;
+    const from = AIRPORTS[route.from];
+    const to = AIRPORTS[route.to];
+    const details: FlightDetails = {
+      flightCode: route.flight,
+      airlineName: AIRLINE,
+      travelClass: `Economy · seat ${booking.seat}`,
+      tailNumber: '5N-NLA',
+      originId: route.from,
+      destinationId: route.to,
+      originCode: from.code,
+      destinationCode: to.code,
+      originName: from.name,
+      destinationName: to.name,
+      durationSeconds: 24,
+    };
+    // The fare is paid and the passenger is aboard: if the game closes now, they still arrive
+    this.saveArrivalInTransit(route.to);
+    InteractionDirector.get().forceFree(this.player.actor);
+    this.player.stopMoving();
+    this.player.mesh.position.y = 0;
+    this.hud.hideInteractionCard();
+    this.world.setStreetModeVisibility(false);
+    this.player.mesh.visible = false;
+    this.flightExperience.startFlight(details);
+    this.transitHUD.showFlightHUD(details);
+  }
+
+  /** Where the flight has got to, as its passenger's ticket records it. */
+  private trackFlight(): void {
+    if (!this.flightExperience.isActive || this.flights.status().state !== 'boarded') return;
+    const { phase, elapsed, total } = this.flightExperience.progress();
+    let status: FlightStatus = 'In flight';
+    if (phase === 'boarding') status = elapsed < 2.5 ? 'Boarding closed' : 'Taxiing';
+    else if (phase === 'landing') status = 'Landing';
+    else if (elapsed < 11) status = 'Taking off';
+    else if (elapsed > total - 10) status = 'Approaching';
+    this.flights.setStatus(status);
+  }
+
+  /** Landed: the player gets off at the foot of the steps on the destination's apron. */
+  private disembark(cityId: CityId): void {
+    this.world.setStreetModeVisibility(true);
+    this.player.mesh.visible = true;
+    this.arriveInCity(cityId);
+    this.standOnApron(cityId);
+    const flown = this.flights.arrive();
+    this.saveWorldState();
+    const airport = AIRPORTS[cityId as FlightCity];
+    if (flown && airport) {
+      showGameToast(`${flown.route.flight} has landed at ${airport.name}. Welcome to ${airport.city}. The terminal is ahead: go through it for the street.`, 'success', 6200);
+    }
+    const journeyCompleted = this.onJourneyCompleted;
+    this.onJourneyCompleted = null;
+    journeyCompleted?.();
+  }
+
+  /** Puts the player at the foot of the aircraft steps, with the aircraft that brought them on the stand. */
+  private standOnApron(cityId: string): void {
+    const airport = this.world.airportOf(cityId);
+    if (!airport) return;
+    airport.receive();
+    this.player.stopMoving();
+    this.player.mesh.position.set(airport.apron.steps.x, 0, airport.apron.steps.z);
+    this.player.position.copy(this.player.mesh.position);
+    // Facing the terminal
+    this.player.mesh.rotation.y = 0;
+    // Seen from the open apron, with the aircraft behind them
+    this.cameraManager.yaw = -Math.PI / 2;
+    this.cameraManager.snapToPlayer(this.player, 'street');
+  }
+
   private isSavedCity(cityId: string): cityId is SavedCityId {
     return cityId === 'lagos' || cityId === 'abuja' || cityId === 'port_harcourt';
   }
@@ -759,6 +880,7 @@ export class Game {
   /** Switches the world to a city the player has just travelled to, and reports the arrival. */
   private arriveInCity(cityId: CityId): void {
     this.hud.interstateModal.currentOriginCityId = cityId;
+    this.nameAirportHall(cityId);
     if (this.world.cityManager.currentCityId === cityId) return;
 
     this.world.cityManager.switchCity(cityId, this.player, (newObjs) => {
@@ -817,6 +939,12 @@ export class Game {
     if (saved.inTransit) {
       // The game closed during a paid journey: finish it
       this.arriveInCity(saved.cityId);
+      // A flight that was in the air has landed: its passenger is on the apron, ticket used
+      if (this.flights.status().state === 'boarded') {
+        this.standOnApron(saved.cityId);
+        this.flights.arrive();
+        this.saveWorldState();
+      }
       return;
     }
 
@@ -937,6 +1065,7 @@ export class Game {
       void this.land.keepUp();
       // A vehicle someone else was driving is put where they parked it once they have stopped
       this.ownedVehicles.sync();
+      this.hud.refreshNearby(this.player.position.x, this.player.position.z);
     }
     this.ownedVehicles.update();
     this.vehicleSync.update(delta);
@@ -953,6 +1082,7 @@ export class Game {
 
     // Update Transit Simulations (Flight & Road Ride)
     this.flightExperience.update(delta);
+    this.trackFlight();
     this.roadRideExperience.update(delta);
 
     // Update World (Vehicles, Traffic, NPCs, Weather, Districts) with keys & player position

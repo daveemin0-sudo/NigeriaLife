@@ -139,9 +139,11 @@ export async function run(browser, check) {
   const during = [];
   for (let i = 0; i < 4; i++) {
     await wait(1100);
-    during.push((await at(page, '#smartphone-wrapper .phone-screen')).top);
+    during.push(await at(page, '#smartphone-wrapper .phone-screen'));
   }
-  check('while the shift timer counts down on screen, the list does not move', during.every((top) => Math.abs(top - afterTap.top) < 4), { started: afterTap.top, during });
+  // It was left at the bottom. If the shift's card above grows a line, the bottom is further down and the list is still at it
+  check('while the shift timer counts down on screen, the list does not move',
+    during.every((now) => Math.abs(now.top - afterTap.top) < 4 || now.top >= now.max - 4), { started: afterTap.top, during: during.map((now) => `${now.top}/${now.max}`) });
 
   // Going to a different app is a new screen: that one starts at the top
   await page.evaluate(() => (document.getElementById('app-back-btn') ?? document.querySelector('#smartphone-wrapper [data-phone-back]')).click());

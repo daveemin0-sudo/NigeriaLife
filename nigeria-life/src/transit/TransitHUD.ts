@@ -184,7 +184,7 @@ export class TransitHUD {
     if (annEl) annEl.textContent = `"${announcement}"`;
 
     if (phase === 'boarding') {
-      if (timeEl) timeEl.textContent = `Boarding · Gate 4 · ${Math.round(timeRemainingSec)}s`;
+      if (timeEl) timeEl.textContent = `Doors closing · ${Math.round(timeRemainingSec)}s`;
       if (fillEl) fillEl.style.width = '10%';
     } else if (phase === 'cruise') {
       if (timeEl) timeEl.textContent = `${Math.round(timeRemainingSec)} min to landing`;

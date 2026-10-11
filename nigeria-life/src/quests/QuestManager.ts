@@ -147,7 +147,7 @@ export class QuestManager {
         giverAvatar: '🏛️',
         status: 'available',
         objectives: [
-          { id: 'obj_a1_arrive', description: 'Travel to Abuja via Wazobia Air flight or road ride', isCompleted: false },
+          { id: 'obj_a1_arrive', description: 'Travel to Abuja by NigeriaLife Air or by coach', isCompleted: false },
           { id: 'obj_a1_cab', description: 'Ride an Abuja Federal Green Cab or stroll Shehu Shagari Way', isCompleted: false },
         ],
         rewards: {

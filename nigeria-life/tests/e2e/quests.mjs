@@ -1,5 +1,5 @@
 // Story quests advance when the player actually does the thing: eat, work, drive, travel.
-import { open, reload, wait, money, quest, newPlayer, enterInterior, leaveInterior, closeDialogs, useStation, playUntil, advance } from './lib.mjs';
+import { open, reload, wait, money, quest, newPlayer, enterInterior, leaveInterior, closeDialogs, useStation, playUntil, advance, boardHeldFlight } from './lib.mjs';
 
 export async function run(browser, check) {
   // --- Chapter 1 through the phone, chapter 2 by driving, then the Abuja arc by flying
@@ -61,11 +61,12 @@ export async function run(browser, check) {
   const beforeFlight = await money(page);
   await page.evaluate(() => window.game.hud.interstateModal.open('lagos'));
   await wait(500);
+  // The sheet sells the ticket; the flight is then boarded at the airport
   await page.evaluate(() => document.querySelector('[data-dest-id="abuja"]').click());
+  await wait(600);
+  await boardHeldFlight(page);
   await wait(1200);
   await page.evaluate(() => window.game.flightExperience.skipFlight());
-  await wait(2500);
-  await page.evaluate(() => window.game.roadRideExperience.skipRide());
   await wait(2500);
   const city = await page.evaluate(() => window.game.world.cityManager.currentCityId);
   const afterFlight = await money(page);

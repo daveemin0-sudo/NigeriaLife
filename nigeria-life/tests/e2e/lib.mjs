@@ -142,6 +142,21 @@ export async function pressSteady(page, selector, options = {}) {
   await page.mouse.click(at.x, at.y, options);
 }
 
+/**
+ * Takes a ticket-holder through the airport and on to the aircraft by the flight service's
+ * own steps (check in, security, board), without walking the terminal. For suites that need
+ * a player to have flown; the walk itself is what the flights suite tests.
+ */
+export function boardHeldFlight(page) {
+  return page.evaluate(() => {
+    const g = window.game;
+    const city = g.world.cityManager.currentCityId;
+    g.flights.checkIn(city);
+    g.flights.clearSecurity(city);
+    return g.flights.board(city);
+  });
+}
+
 export async function closeDialogs(page) {
   await page.evaluate(() => document.getElementById('dialogue-confirm-btn')?.click());
   if (await page.evaluate(() => !!document.getElementById('game-dialogue-overlay'))) await page.keyboard.press('Escape');

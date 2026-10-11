@@ -17,6 +17,7 @@ import { WorldDataManager } from './data/WorldDataManager';
 import { InteriorManager } from '../interiors/InteriorManager';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import { Landmarks } from './landmarks/Landmarks';
+import type { AirportLandmark } from './landmarks/Airport';
 import { lagosZones, obstructionsUnder, obstructionsOf, validatePlan, type Obstruction, type PlanInput, type Violation } from './plan/CityPlan';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { LAGOS_PLOTS } from '../realestate/PlotCatalogue';
@@ -213,6 +214,14 @@ export class World {
   // =========================================================================
   // THE CITY PLAN
   // =========================================================================
+
+  /** The airport of a city, once that city has been put up. */
+  public airportOf(city: string): AirportLandmark | null {
+    if (city === 'lagos') return this.landmarks.airport;
+    if (city === 'abuja') return this.cityManager.abujaCity?.airport ?? null;
+    if (city === 'port_harcourt') return this.cityManager.portHarcourtCity?.airport ?? null;
+    return null;
+  }
 
   /** A vehicle joins the city: it can be seen, walked up to and driven. */
   public addVehicle(vehicle: DrivableVehicle, card: InteractiveObject): void {

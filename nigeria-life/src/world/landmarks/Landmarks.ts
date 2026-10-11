@@ -29,12 +29,7 @@ export class Landmarks {
     this.port = createPort({ id: 'apapa-port', name: 'Apapa Port', x: -87.5, z: 76, ship: 'MV EKO PRIDE' });
     this.airport = createAirport({
       ids: ['dest_lagos_airport', 'mma-airport'],
-      name: 'Murtala Muhammed Airport',
-      code: 'LOS',
-      routes: [
-        { flight: 'NL 204', back: 'NL 205', to: 'Abuja' },
-        { flight: 'NL 310', back: 'NL 311', to: 'Port Harcourt' },
-      ],
+      city: 'lagos',
     });
     this.club = createClub({ id: 'quilox-club', name: CLUB.name, x: 24, z: 103, hours: CLUB.hours, gateFee: CLUB.gateFee });
     this.list = [this.stadium, this.port, this.airport, this.club];

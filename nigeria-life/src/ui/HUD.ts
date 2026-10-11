@@ -30,6 +30,8 @@ import { InteractionDirector } from '../interactions/InteractionDirector';
 import { CITY_NAME } from '../realestate/PlotCatalogue';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { PlaceActions } from '../destinations/PlaceActions';
+import { esc } from './kit/html';
+import { draw as drawStable } from './kit/StableView';
 import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
@@ -69,7 +71,9 @@ export class HUD {
   public onExitVehicle?: () => void;
   public onHonkVehicle?: () => void;
   public onEnterVehicle?: (vehicleId: string) => void;
-  public onEnterInterior?: (buildingId: string) => void;
+  public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
+  /** Out of the room to a given point outside, not back the way the player came in */
+  public onLeaveInteriorTo?: (comeOutAt: THREE.Vector3, facing?: number) => void;
   public onExitInterior?: () => void;
   /** Opens the buka's menu; a table number seats the player at that table */
   public onOpenBukaMenu?: (preferTable?: number) => void;
@@ -77,6 +81,8 @@ export class HUD {
   public onVendorAction?: (objectId: string) => void;
   /** A plot of land's board was used: open what is known about that plot */
   public onPlotAction?: (plotId: string) => void;
+  /** A nearby place was pressed on the bar: walk there */
+  public onWalkToPlace?: (place: InteractiveObject) => void;
   /** Something wants the street camera somewhere in particular: a seat with a view, say */
   public onLookFrom?: (yaw: number, pitch: number, distance: number) => void;
   /** Stations inside buildings that are used by walking up and doing something with the hands or talking */
@@ -88,7 +94,6 @@ export class HUD {
   /** Starts something at home: the id of the bed, sofa, fridge or drum that was used */
   public onHomeActivity?: (objectId: string) => void;
   public onNavigateMode?: (mode: 'street' | 'home' | 'map') => void;
-  public onRadarNavigate?: (destId: string) => void;
   public onRotateCamera?: (deltaYaw: number) => void;
   public onResetCamera?: () => void;
   public onCycleCameraPreset?: () => string;
@@ -252,15 +257,9 @@ export class HUD {
       <div class="street-radar-bar" id="street-radar-bar">
         <div class="radar-header-pill">
           <span>📍</span>
-          <span id="radar-loc-title">Herbert Macaulay Way • Tejuosho Junction</span>
+          <span id="radar-loc-title">Nearby</span>
         </div>
-        <div class="radar-pills-row">
-          <button class="radar-pill" data-dest="dest_cchub">💡 CcHub - 410m</button>
-          <button class="radar-pill" data-dest="dest_quilox">🍾 Quilox VIP - 350m</button>
-          <button class="radar-pill" data-dest="dest_amala">🍲 Amala Shitta - 220m</button>
-          <button class="radar-pill" data-dest="dest_lekki">🌉 Lekki Bridge - 850m</button>
-          <button class="radar-pill" data-dest="dest_ikeja">🔌 Computer Village - 600m</button>
-        </div>
+        <div class="radar-pills-row" id="radar-pills"></div>
       </div>
 
       <!-- Aerial Map City Switcher Bar (Appears when Map is active) -->
@@ -1004,15 +1003,11 @@ export class HUD {
       });
     });
 
-    // Radar pills navigation
-    document.querySelectorAll('.radar-pill').forEach((pill) => {
-      pill.addEventListener('click', (e) => {
-        const target = e.currentTarget as HTMLElement;
-        const dest = target.getAttribute('data-dest');
-        if (dest) {
-          this.onRadarNavigate?.(dest);
-        }
-      });
+    // The places nearby: pressing one walks the player to it
+    document.getElementById('radar-pills')?.addEventListener('click', (e) => {
+      const pill = (e.target as HTMLElement).closest('.radar-pill');
+      const place = this.world?.interactiveObjects.find((o) => o.id === pill?.getAttribute('data-place'));
+      if (place) this.onWalkToPlace?.(place);
     });
 
     // Quick ATM topup button
@@ -1208,6 +1203,29 @@ export class HUD {
       }
       rewardsEl.textContent = rew;
     }
+  }
+
+  /**
+   * Fills the bar of nearby places from where the player is standing: the nearest real places
+   * in the city they are in, with how far each is. Called about once a second.
+   */
+  public refreshNearby(x: number, z: number): void {
+    const row = document.getElementById('radar-pills');
+    const title = document.getElementById('radar-loc-title');
+    if (!row || !this.world) return;
+    const short = (name: string) => name.split(/[&(,·]/)[0].trim();
+    const seen = new Set<string>();
+    const near = this.world.interactiveObjects
+      // Places, not people, vehicles, plots of land or the airside of an airport
+      .filter((o) => !o.moving && !/^(npc-|veh-|plot_|remote_player_|interior_)/.test(o.id) && !o.category.includes('·') && o.mesh.visible)
+      .map((o) => ({ o, name: short(o.name), metres: Math.hypot(o.interactionPoint.x - x, o.interactionPoint.z - z) }))
+      .sort((a, b) => a.metres - b.metres)
+      .filter((place) => (seen.has(place.name) ? false : !!seen.add(place.name)))
+      .slice(0, 5);
+    const city = (CITY_NAME as Record<string, string>)[this.world.cityManager.currentCityId] ?? '';
+    if (title) title.textContent = near.length ? `${city} · near ${near[0].name}` : city;
+    // To the nearest five metres, so the bar is not redrawn at every step
+    drawStable(row, near.map((place) => `<button class="radar-pill" data-place="${esc(place.o.id)}">${esc(place.name)} · ${Math.max(5, Math.round(place.metres / 5) * 5)} m</button>`).join(''));
   }
 
   /** Which city the map is showing, which need not be the one the player is in */
@@ -1895,7 +1913,8 @@ export class HUD {
           choices: question.choices.map((choice, index) => ({ id: `choice_${index}`, label: choice.label, badge: choice.note, onSelect: choice.pick })),
         }),
         emote: (name, seconds) => this.player.playEmote(name, seconds),
-        enter: (buildingId) => this.onEnterInterior?.(buildingId),
+        enter: (buildingId, comeOutAt) => this.onEnterInterior?.(buildingId, comeOutAt),
+        leave: (comeOutAt, facing) => this.onLeaveInteriorTo?.(comeOutAt, facing),
       });
       return;
     }

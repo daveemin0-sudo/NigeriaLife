@@ -3,6 +3,7 @@ import type { PlayerAccount } from '../backend/types';
 import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
 import type { CityId, CityTravelRoute } from '../cities/CityTypes';
 import { showGameToast } from './GameToast';
+import { FlightService } from '../travel/Flights';
 import { UIStateManager } from './UIStateManager';
 import { draw, forget } from './kit/StableView';
 
@@ -160,7 +161,8 @@ export class InterStateModal {
       btn.addEventListener('click', () => {
         const destId = (btn as HTMLElement).getAttribute('data-dest-id') as CityId;
         const fare = parseInt((btn as HTMLElement).getAttribute('data-fare') || '0', 10);
-        const route = routes.find((r) => r.destinationId === destId);
+        // A city is reached by air and by road: the button pressed says which, by its fare
+        const route = routes.find((r) => r.destinationId === destId && r.fare === fare) ?? routes.find((r) => r.destinationId === destId);
         if (route) {
           this.executeInterStateTravel(route, fare);
         }
@@ -169,6 +171,21 @@ export class InterStateModal {
   }
 
   private executeInterStateTravel(route: CityTravelRoute, fare: number): void {
+    // A flight is bought here and flown from the airport: check in, security, the gate, the aircraft
+    if (route.mode === 'flight') {
+      const flights = FlightService.get();
+      const leg = flights.routesFrom(this.currentOriginCityId).find((one) => one.to === route.destinationId);
+      if (!leg) return;
+      const sold = flights.book(leg, this.currentOriginCityId);
+      if (!sold.ok) {
+        showGameToast(sold.reason ?? 'The ticket could not be sold.', 'warning', 4200);
+        return;
+      }
+      this.close();
+      showGameToast(`Ticket bought: ${flights.describe(leg)}, ₦${leg.fare.toLocaleString()}. Go to the airport to check in and board.`, 'success', 5200);
+      return;
+    }
+
     // Pay fare: wallet first, bank covers any shortfall
     if (!this.backend.pay(fare, `${route.airlineOrOperator} Interstate Ticket`, 'TRAVEL_COST')) {
       showGameToast(`❌ Insufficient funds! You need ₦${fare.toLocaleString()} to book this interstate ticket.`, 'error');
@@ -208,11 +225,9 @@ export class InterStateModal {
 
     if (screen && plane && headline && subtext && fill) {
       screen.style.display = 'flex';
-      plane.textContent = route.mode === 'flight' ? '✈️💨' : '🚌💨';
+      plane.textContent = '🚌💨';
       headline.textContent = `${route.airlineOrOperator} En Route to ${route.destinationId.toUpperCase()}...`;
-      subtext.textContent = route.mode === 'flight'
-        ? '"Cabin crew prepare cabin for landing. Welcome to the Federal Capital Territory."'
-        : '"Cruising on the Federal Express highway with AC & Afrobeats radio."';
+      subtext.textContent = '"Cruising on the Federal Express highway with AC & Afrobeats radio."';
       fill.style.width = '0%';
 
       setTimeout(() => {
