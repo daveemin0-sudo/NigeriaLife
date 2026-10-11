@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { InteractiveObject } from '../world/World';
 import type { AirportLandmark } from '../world/landmarks/Airport';
+import type { MotorParkLandmark } from '../world/landmarks/MotorPark';
 
 export type CityId = 'lagos' | 'abuja' | 'ibadan' | 'kano' | 'port_harcourt';
 
@@ -42,6 +43,8 @@ export interface CityInstance {
   groundMesh?: THREE.Mesh;
   /** Its airport, built by the same maker as Lagos's */
   airport?: AirportLandmark;
+  /** Its motor park, where the coaches to other cities leave from and pull in */
+  motorPark?: MotorParkLandmark;
   update(delta: number): void;
   dispose?(): void;
 }

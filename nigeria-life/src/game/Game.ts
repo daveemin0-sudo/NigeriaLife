@@ -52,6 +52,7 @@ import type { SavedCityId } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { HouseDecorationSystem, CATALOGUE_ITEMS } from '../housing/HouseDecorationSystem';
 import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type FlightStatus } from '../travel/Flights';
+import { CoachService, MOTOR_PARKS, OPERATOR, type CoachCity, type CoachTicket } from '../travel/Coaches';
 import { openAirportHall } from '../travel/AirportHall';
 import { FurnishBar } from '../ui/FurnishBar';
 import { Television } from '../housing/Television';
@@ -113,6 +114,10 @@ export class Game {
   public furnishBar!: FurnishBar;
   /** Tickets and where each has got to */
   public flights = FlightService.get();
+  public coaches = CoachService.get();
+  /** The coach the player has just boarded is pulling out of its park: they go where it goes */
+  private coachPullingOut: THREE.Object3D | null = null;
+  private viewBeforeCoach: { pitch: number; distance: number } | null = null;
   public roadRideExperience: RoadRideExperience;
   public transitHUD: TransitHUD;
 
@@ -312,6 +317,8 @@ export class Game {
       this.player.mesh.visible = true;
 
       this.arriveInCity(ride.destinationCityId);
+      // A coach pulls in at the motor park of the city it was going to
+      if (this.coaches.status().state === 'boarded') this.stepDownAtPark(ride.destinationCityId);
 
       const journeyCompleted = this.onJourneyCompleted;
       this.onJourneyCompleted = null;
@@ -693,6 +700,7 @@ export class Game {
     const hereCity = () => this.world.cityManager.currentCityId as FlightCity;
     openAirportHall({ city: hereCity, apronDoor: () => this.world.airportOf(hereCity())?.apron.door ?? null });
     this.flights.onBoarded = (booking) => this.depart(booking);
+    this.coaches.onBoarded = (ticket) => this.departByCoach(ticket);
     this.nameAirportHall(hereCity());
     this.hud.onLookFrom = (yaw, pitch, distance) => {
       this.cameraManager.yaw = yaw;
@@ -734,6 +742,7 @@ export class Game {
     const instance = city === 'abuja' ? this.world.cityManager.abujaCity : this.world.cityManager.portHarcourtCity;
     const out = instance ? obstructionsUnder(instance.group, CITY_NAME[city as PlotCity] ?? city) : [];
     if (instance?.airport) out.push(...instance.airport.obstructions);
+    if (instance?.motorPark) out.push(...instance.motorPark.obstructions);
     out.push(...this.plotWorld.obstructions(city as PlotCity));
     return out;
   }
@@ -746,6 +755,7 @@ export class Game {
     const airside = new Set(instance?.airport?.interactive ?? []);
     const doors = (instance?.interactiveList ?? []).filter((item) => !airside.has(item)).map((item) => ({ name: item.name, x: item.interactionPoint.x, z: item.interactionPoint.z }));
     if (instance?.airport) doors.push(...instance.airport.doors);
+    if (instance?.motorPark) doors.push(...instance.motorPark.doors);
     for (const destination of DestinationRegistry.getInstance().getAll()) {
       if (destination.city === city) doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
     }
@@ -910,6 +920,79 @@ export class Game {
     this.transitHUD.showFlightHUD(details);
   }
 
+  /** The passenger is up the steps of the coach: it pulls out of the park with them on it, and takes the road. */
+  private departByCoach(ticket: CoachTicket): void {
+    const route = ticket.route;
+    // The fare is paid and the passenger is aboard: if the game closes now, they still arrive
+    this.saveArrivalInTransit(route.to);
+    InteractionDirector.get().forceFree(this.player.actor);
+    this.player.stopMoving();
+    this.hud.hideInteractionCard();
+    this.player.mesh.visible = false;
+    const takeTheRoad = () => {
+      this.coachPullingOut = null;
+      this.world.setStreetModeVisibility(false);
+      const ride: RideDetails = {
+        vehicleName: `${OPERATOR} coach ${route.coach}`,
+        vehicleType: 'coach',
+        originName: MOTOR_PARKS[route.from].name,
+        destinationName: MOTOR_PARKS[route.to].name,
+        durationSeconds: 20,
+        trafficCondition: 'Clear',
+        weatherCondition: 'Sunny',
+        destinationCityId: route.to,
+      };
+      this.roadRideExperience.startRide(ride);
+      this.transitHUD.showRideHUD(ride);
+    };
+    const park = this.world.motorParkOf(route.from);
+    if (!park) {
+      takeTheRoad();
+      return;
+    }
+    this.coachPullingOut = park.coach;
+    // Seen from the back of the yard, over the coach, as it goes out through the gate
+    this.viewBeforeCoach = { pitch: this.cameraManager.pitch, distance: this.cameraManager.distance };
+    this.cameraManager.yaw = Math.atan2(-park.leaves.x, -park.leaves.z);
+    this.cameraManager.pitch = 0.5;
+    this.cameraManager.distance = 24;
+    park.sendOff(takeTheRoad);
+  }
+
+  /** While the coach pulls out, its passenger is where it is, so the view goes out through the gate with it. */
+  private rideOutOfThePark(): void {
+    if (!this.coachPullingOut) return;
+    const at = this.coachPullingOut.getWorldPosition(new THREE.Vector3());
+    this.player.mesh.position.set(at.x, 0, at.z);
+    this.player.position.copy(this.player.mesh.position);
+  }
+
+  /** Pulled in: the player gets down beside the coach in the motor park of the city they have come to. */
+  private stepDownAtPark(cityId: string): void {
+    const park = this.world.motorParkOf(cityId);
+    const ridden = this.coaches.arrive();
+    if (park) {
+      park.receive();
+      this.player.stopMoving();
+      this.player.mesh.position.set(park.setDown.x, 0, park.setDown.z);
+      this.player.position.copy(this.player.mesh.position);
+      this.player.mesh.rotation.y = park.setDownFacing;
+      // From behind them, looking at the gate, as near as they had the view before they set off
+      this.cameraManager.yaw = Math.atan2(-park.leaves.x, -park.leaves.z);
+      if (this.viewBeforeCoach) {
+        this.cameraManager.pitch = this.viewBeforeCoach.pitch;
+        this.cameraManager.distance = this.viewBeforeCoach.distance;
+        this.viewBeforeCoach = null;
+      }
+      this.cameraManager.snapToPlayer(this.player, 'street');
+    }
+    this.saveWorldState();
+    const there = MOTOR_PARKS[cityId as CoachCity];
+    if (ridden && there) {
+      showGameToast(`${ridden.route.coach} has pulled in at ${there.name}. Welcome to ${there.city}. The gate to the street is ahead.`, 'success', 6200);
+    }
+  }
+
   /** Where the flight has got to, as its passenger's ticket records it. */
   private trackFlight(): void {
     if (!this.flightExperience.isActive || this.flights.status().state !== 'boarded') return;
@@ -1025,6 +1108,9 @@ export class Game {
         this.standOnApron(saved.cityId);
         this.flights.arrive();
         this.saveWorldState();
+      } else if (this.coaches.status().state === 'boarded') {
+        // A coach that was on the road has pulled in: its passenger is in the motor park, ticket used
+        this.stepDownAtPark(saved.cityId);
       }
       return;
     }
@@ -1168,6 +1254,8 @@ export class Game {
 
     // Update World (Vehicles, Traffic, NPCs, Weather, Districts) with keys & player position
     this.world.update(delta, this.input.keys, this.player.position, this.player);
+    // After the world has moved the coach: its passenger is exactly where it is
+    this.rideOutOfThePark();
 
     // Update Player Vitals (Hunger / Energy / Health Needs Loop)
     const vitalsResult = BackendService.getInstance().updateVitals(

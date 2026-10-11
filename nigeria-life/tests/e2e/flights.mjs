@@ -281,22 +281,7 @@ export async function run(browser, check) {
   const elsewhere = await page.evaluate(() => { const f = window.game.flights; return { checkIn: f.checkIn('abuja'), board: f.board('abuja') }; });
   check('a ticket from Lagos is no use at another city\'s airport', !elsewhere.checkIn.ok && !elsewhere.board.ok, elsewhere);
 
-  // ------------------------------------------------------------------ A coach still goes by road
-  await page.evaluate(() => { const f = window.game.flights; f.clearSecurity('lagos'); f.board('lagos'); });
-  await wait(800);
-  await page.evaluate(() => window.game.flightExperience.skipFlight());
-  await wait(2000);
-  before = await fares(page);
-  await page.evaluate(() => window.game.hud.interstateModal.open('abuja'));
-  await wait(400);
-  await page.evaluate(() => [...document.querySelectorAll('.btn-book-route')].find((b) => /Coach/i.test(b.textContent))?.click());
-  await wait(800);
-  const riding = await page.evaluate(() => ({ road: window.game.roadRideExperience.isActive, air: window.game.flightExperience.isActive }));
-  await page.evaluate(() => window.game.roadRideExperience.skipRide());
-  await wait(2500);
-  here = await where(page);
-  check('a coach is still a journey of its own, by road: Abuja to Lagos for its fare, with no aircraft in it',
-    riding.road && !riding.air && here.city === 'lagos' && (await fares(page)) - before === 12000 && !(await ticket(page)).active, { riding, here, charged: (await fares(page)) - before });
+  // (Coaches have a suite of their own: coaches.mjs)
 
   check('no errors were logged at any of it', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();

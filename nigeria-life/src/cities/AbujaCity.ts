@@ -3,6 +3,7 @@ import { ABUJA_AVENUE } from '../world/plan/CityPlan';
 import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
 import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
+import { createMotorPark, type MotorParkLandmark } from '../world/landmarks/MotorPark';
 import { PlaceActions } from '../destinations/PlaceActions';
 
 export class AbujaCity implements CityInstance {
@@ -10,6 +11,7 @@ export class AbujaCity implements CityInstance {
   public interactiveList: InteractiveObject[] = [];
   public groundMesh: THREE.Mesh;
   public airport: AirportLandmark;
+  public motorPark: MotorParkLandmark;
 
   private flagMeshes: THREE.Mesh[] = [];
   private animTime: number = 0;
@@ -46,8 +48,11 @@ export class AbujaCity implements CityInstance {
     // 7. Abuja Green & White Cabs
     this.buildAbujaGreenCabs();
 
-    // 8. Inter-State Travel Terminal to Lagos
-    this.buildAbujaTransitHub();
+    // 8. Utako Motor Park, east of the boulevard: where the coaches to Lagos and Port Harcourt leave from
+    this.motorPark = createMotorPark({ id: 'utako-park', city: 'abuja', x: 15, z: 35, faces: 'west', apron: 2, ticketsId: 'abuja-interstate-hub' });
+    this.group.add(this.motorPark.group);
+    this.interactiveList.push(...this.motorPark.interactive);
+    PlaceActions.registerAll(this.motorPark.actions);
 
     // 9. Nnamdi Azikiwe Airport, south-west of the centre: the same airport as Lagos's, set down here,
     // with a road of its own round to Shehu Shagari Way
@@ -400,37 +405,6 @@ export class AbujaCity implements CityInstance {
     });
   }
 
-  // =========================================================================
-  // 7. ABUJA INTERSTATE TRANSIT TERMINAL (Airport & Coach to Lagos)
-  // =========================================================================
-  private buildAbujaTransitHub(): void {
-    const hubGroup = new THREE.Group();
-    hubGroup.position.set(28, 0, 36);
-
-    const terminalGeo = new THREE.BoxGeometry(16, 5, 12);
-    const terminalMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 });
-    const terminal = new THREE.Mesh(terminalGeo, terminalMat);
-    terminal.position.y = 2.5;
-    hubGroup.add(terminal);
-
-    // Flight & Bus indicator canopy
-    const canopyGeo = new THREE.BoxGeometry(16.4, 0.6, 12.4);
-    const canopy = new THREE.Mesh(canopyGeo, new THREE.MeshBasicMaterial({ color: 0x0284c7 }));
-    canopy.position.y = 5.2;
-    hubGroup.add(canopy);
-
-    this.group.add(hubGroup);
-
-    this.interactiveList.push({
-      mesh: hubGroup,
-      id: 'abuja-interstate-hub',
-      name: 'Utako Coach Park & Ticket Office',
-      category: 'Inter-State Travel',
-      description: 'Luxury coaches to Lagos, and flight tickets for the airport on the south-west side of town.',
-      interactionPoint: new THREE.Vector3(18, 0, 36),
-    });
-  }
-
   public update(delta: number): void {
     this.animTime += delta;
 
@@ -439,6 +413,7 @@ export class AbujaCity implements CityInstance {
       flag.rotation.y = Math.sin(this.animTime * 4.5) * 0.15;
     }
     this.airport.update?.(delta, 12);
+    this.motorPark.update?.(delta, 12);
   }
 
   public dispose(): void {

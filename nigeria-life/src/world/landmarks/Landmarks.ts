@@ -7,11 +7,12 @@ import { createStadium, type StadiumLandmark } from './Stadium';
 import { createPort } from './Port';
 import { createAirport, type AirportLandmark } from './Airport';
 import { createClub } from './Club';
+import { createMotorPark, type MotorParkLandmark } from './MotorPark';
 import { CLUB } from '../../interiors/club/ClubService';
 import type { StreetDoor } from '../Buildings';
 
 /**
- * The great places of Lagos: the stadium, the port, the airport and the nightclub. Each is
+ * The great places of Lagos: the stadium, the port, the airport, the nightclub and the motor park. Each is
  * built from the building kit by its own maker, which can be called again for another city.
  */
 export class Landmarks {
@@ -20,6 +21,7 @@ export class Landmarks {
   public readonly port: Landmark;
   public readonly airport: AirportLandmark;
   public readonly club: Landmark;
+  public readonly motorPark: MotorParkLandmark;
   public readonly list: Landmark[];
   public readonly interactiveList: InteractiveObject[] = [];
 
@@ -32,7 +34,9 @@ export class Landmarks {
       city: 'lagos',
     });
     this.club = createClub({ id: 'quilox-club', name: CLUB.name, x: 24, z: 103, hours: CLUB.hours, gateFee: CLUB.gateFee });
-    this.list = [this.stadium, this.port, this.airport, this.club];
+    // Jibowu Motor Park, on the north side of Martins Street: where the coaches to Abuja and Port Harcourt leave from
+    this.motorPark = createMotorPark({ id: 'jibowu-park', city: 'lagos', x: 92.5, z: -69.6, faces: 'south' });
+    this.list = [this.stadium, this.port, this.airport, this.club, this.motorPark];
     for (const landmark of this.list) {
       this.group.add(landmark.group);
       this.interactiveList.push(...landmark.interactive);

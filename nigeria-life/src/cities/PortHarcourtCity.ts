@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
 import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
+import { createMotorPark, type MotorParkLandmark } from '../world/landmarks/MotorPark';
 import { PlaceActions } from '../destinations/PlaceActions';
 import { WorldMapPrefabs } from '../world/map/WorldMapPrefabs';
 
@@ -10,6 +11,7 @@ export class PortHarcourtCity implements CityInstance {
   public interactiveList: InteractiveObject[] = [];
   public groundMesh: THREE.Mesh;
   public airport: AirportLandmark;
+  public motorPark: MotorParkLandmark;
 
   private animTime: number = 0;
   private flareFlame!: THREE.Mesh;
@@ -47,7 +49,11 @@ export class PortHarcourtCity implements CityInstance {
     this.buildPortHarcourtCabs();
 
     // 8. Inter-State Transit Hub to Lagos & Abuja
-    this.buildTransitHub();
+    // Waterlines Motor Park, east of Aba Road: where the coaches to Lagos and Abuja leave from
+    this.motorPark = createMotorPark({ id: 'waterlines-park', city: 'port_harcourt', x: 14.5, z: 38, faces: 'west', apron: 2, ticketsId: 'ph-transit-hub' });
+    this.group.add(this.motorPark.group);
+    this.interactiveList.push(...this.motorPark.interactive);
+    PlaceActions.registerAll(this.motorPark.actions);
 
     // 9. Port Harcourt Airport, north-west of Aba Road: the same airport as Lagos's, with a road of its own
     this.airport = createAirport({ ids: ['ph-airport'], city: 'port_harcourt', ownDoor: true, approach: { alongZ: -78, toX: -12.5 } });
@@ -228,32 +234,6 @@ export class PortHarcourtCity implements CityInstance {
     }
   }
 
-  // =========================================================================
-  // 7. TRANSIT HUB TO LAGOS & ABUJA
-  // =========================================================================
-  private buildTransitHub(): void {
-    const terminal = WorldMapPrefabs.createShopPlaza(0x1e3a8a, 1.3);
-    terminal.position.set(18, 0, 45);
-    this.group.add(terminal);
-
-    const trigger = new THREE.Mesh(
-      new THREE.BoxGeometry(7.0, 4.0, 7.0),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0 })
-    );
-    trigger.position.set(18, 2.0, 45);
-    this.group.add(trigger);
-
-    this.interactiveList.push({
-      mesh: trigger,
-      id: 'ph-transit-hub',
-      name: 'Port Harcourt Coach Park & Ticket Office',
-      category: 'Inter-State Travel',
-      description: 'Luxury coaches to Lagos and Abuja, and flight tickets for the airport north-west of Aba Road.',
-      // On the forecourt between the pavement and the terminal, not in the middle of the building
-      interactionPoint: new THREE.Vector3(13.6, 0, 45),
-    });
-  }
-
   // Update Animation
   public update(delta: number): void {
     this.animTime += delta;
@@ -262,5 +242,6 @@ export class PortHarcourtCity implements CityInstance {
       this.flareFlame.scale.x = 1.0 + Math.cos(this.animTime * 10.0) * 0.15;
     }
     this.airport.update?.(delta, 12);
+    this.motorPark.update?.(delta, 12);
   }
 }

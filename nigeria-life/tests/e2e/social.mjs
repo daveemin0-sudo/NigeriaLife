@@ -184,7 +184,8 @@ export async function run(browser, check) {
     return { cash: d.walletCash, bills: d.transactionHistory.filter((t) => t.type === 'FOOD_PURCHASE').length };
   });
   check('the food is brought to that seat and paid for once when it arrives', eating && cashBefore - paid.cash === 1200 && paid.bills === 1, { paid: cashBefore - paid.cash, bills: paid.bills });
-  await page.click('#buka-order-stop');
+  // The line the button is on is redrawn as the meal goes on: it is pressed where it is now, not where it was a moment ago
+  await page.evaluate(() => document.getElementById('buka-order-stop')?.click());
   await playUntil(page, () => { const g = window.game; return !g.player.actor.hold && !g.player.actor.sequence ? true : null; }, 15);
   const up = await page.evaluate(() => ({ companion: window.game.world.interiorManager.restaurant.service.companion, free: !window.game.player.actor.scripted }));
   check('standing up leaves the table and the company', up.companion === null && up.free, up);

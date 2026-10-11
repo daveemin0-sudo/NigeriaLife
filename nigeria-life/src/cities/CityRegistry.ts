@@ -1,4 +1,5 @@
 import type { CityMetadata } from './CityTypes';
+import { COACH_ROUTES, MOTOR_PARKS, OPERATOR } from '../travel/CoachTimetable';
 
 export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
   lagos: {
@@ -28,23 +29,6 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
           name: 'NigeriaLife Air Lagos-Abuja Boarding Pass',
           icon: '🎫',
           description: 'NigeriaLife Air boarding pass for flight NL 204.',
-        },
-      },
-      {
-        destinationId: 'abuja',
-        mode: 'luxury_coach',
-        airlineOrOperator: 'SwiftRoute Executive Coach',
-        flightOrBusCode: 'SRE-709 Luxury Scania',
-        fare: 12000,
-        durationSeconds: 5,
-        departureStation: 'Jibowu / Ojota Interstate Bus Terminal',
-        arrivalStation: 'Utako Transport Hub, Abuja',
-        perkDescription: 'Cross-country highway journey with roadside plantain & scenery.',
-        souvenirItem: {
-          id: 'swiftroute_coach_pass',
-          name: 'SwiftRoute Cross-Country Coach Ticket',
-          icon: '🚌',
-          description: 'Executive interstate air-conditioned bus pass with WiFi.',
         },
       },
       {
@@ -93,23 +77,6 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
           name: 'EagleWings Abuja-Lagos Boarding Pass',
           icon: '🎫',
           description: 'Official EagleWings Express boarding pass for flight EW-320.',
-        },
-      },
-      {
-        destinationId: 'lagos',
-        mode: 'luxury_coach',
-        airlineOrOperator: 'Rising Star Motors',
-        flightOrBusCode: 'RSM-Express Luxury Coach',
-        fare: 12000,
-        durationSeconds: 5,
-        departureStation: 'Utako Terminal, Abuja',
-        arrivalStation: 'Broad Street Danfo Terminus, Lagos',
-        perkDescription: 'Night highway luxury bus with Afrobeats in-flight entertainment.',
-        souvenirItem: {
-          id: 'ysg_bus_ticket',
-          name: 'Rising Star Interstate Bus Ticket',
-          icon: '🚌',
-          description: 'Interstate coach ticket through Kogi and Edo states into Lagos.',
         },
       },
       {
@@ -180,3 +147,24 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
     ],
   },
 };
+
+// The coaches: a row for each on the sheet of the city it leaves from, written from the one timetable
+for (const route of COACH_ROUTES) {
+  NIGERIA_CITIES_REGISTRY[route.from].routes.push({
+    destinationId: route.to,
+    mode: 'luxury_coach',
+    airlineOrOperator: `${OPERATOR} Coaches`,
+    flightOrBusCode: route.coach,
+    fare: route.fare,
+    durationSeconds: 20,
+    departureStation: MOTOR_PARKS[route.from].name,
+    arrivalStation: MOTOR_PARKS[route.to].name,
+    perkDescription: `By road, about ${route.hours} hours. The ticket is shown to the conductor at the coach, in the middle bay of the park.`,
+    souvenirItem: {
+      id: `coach_ticket_${route.from}_${route.to}`,
+      name: `${OPERATOR} ticket, ${MOTOR_PARKS[route.from].city} to ${MOTOR_PARKS[route.to].city}`,
+      icon: '🚌',
+      description: `Coach ${route.coach}.`,
+    },
+  });
+}

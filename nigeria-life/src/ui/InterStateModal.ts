@@ -4,6 +4,7 @@ import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
 import type { CityId, CityTravelRoute } from '../cities/CityTypes';
 import { showGameToast } from './GameToast';
 import { FlightService } from '../travel/Flights';
+import { CoachService, MOTOR_PARKS } from '../travel/Coaches';
 import { UIStateManager } from './UIStateManager';
 import { draw, forget } from './kit/StableView';
 
@@ -126,7 +127,7 @@ export class InterStateModal {
                 </div>
 
                 <button class="btn-book-route" data-dest-id="${route.destinationId}" data-fare="${route.fare}">
-                  ${isFlight ? '✈️ Book Flight Ticket' : '🚌 Board Luxury Coach'} (₦${route.fare.toLocaleString()})
+                  ${isFlight ? '✈️ Book Flight Ticket' : '🚌 Buy Coach Ticket'} (₦${route.fare.toLocaleString()})
                 </button>
               </div>
             `;
@@ -183,6 +184,21 @@ export class InterStateModal {
       }
       this.close();
       showGameToast(`Ticket bought: ${flights.describe(leg)}, ₦${leg.fare.toLocaleString()}. Go to the airport to check in and board.`, 'success', 5200);
+      return;
+    }
+
+    // A coach ticket is bought here too, and the coach is boarded at the motor park
+    if (route.mode === 'luxury_coach') {
+      const coaches = CoachService.get();
+      const leg = coaches.routesFrom(this.currentOriginCityId).find((one) => one.to === route.destinationId);
+      if (!leg) return;
+      const sold = coaches.buy(leg, this.currentOriginCityId);
+      if (!sold.ok) {
+        showGameToast(sold.reason ?? 'The ticket could not be sold.', 'warning', 4200);
+        return;
+      }
+      this.close();
+      showGameToast(`Ticket bought: ${coaches.describe(leg)}, ₦${leg.fare.toLocaleString()}. Go to ${MOTOR_PARKS[leg.from].name} and show it to the conductor at the coach.`, 'success', 5600);
       return;
     }
 

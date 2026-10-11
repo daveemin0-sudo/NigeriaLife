@@ -4,7 +4,7 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after opening hours and cash machines.
+Last updated: 2026-10-11, after motor parks and coaches.
 
 ## How to read it
 
@@ -18,7 +18,7 @@ Last updated: 2026-10-11, after opening hours and cash machines.
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 26 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 27 suites.
 
 ## The approach, from the brief's last rule
 
@@ -34,6 +34,9 @@ One reusable way of building big places, proved on one neighbourhood, then repea
   reachable on foot, and the button on its card is its own.
 - **The first neighbourhood**: the west side of Lagos. Stadium, port and airport, each on a
   road of its own off the existing streets.
+- **Proved by repeating it**: the airport and the motor park are each one maker, called once
+  for each of the three cities. The motor park is drawn looking in from its street, so the
+  same yard faces south in Lagos and west in Abuja and Port Harcourt.
 
 ## Phase 1: a real 3D world
 
@@ -82,7 +85,9 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Arrival | **Verified** | The player gets off at the foot of the steps on the destination's apron, goes into the terminal and out of its front door into that city. A flight interrupted by closing the game still arrives (`saves` suite). |
 | Lifecycle states | **Verified** | Scheduled, boarding closed, taxiing, taking off, in flight, approaching, landing, arrived, cancelled, on the ticket, in order. |
 | Aircraft cabin | **Partial** | The existing cabin view with a seat-back screen and three cameras. The seat on the ticket is shown. No crew, cabin service that is acted out, or choosing a seat. The aircraft seen outside is not the one seen from the cabin's outside camera. |
-| Coaches | **Partial** | A coach is paid for on the sheet and goes by road. It can be taken from anywhere in the city: there is no coach park to leave from. |
+| Motor parks | **Verified** | One in each city, from one maker (`world/landmarks/MotorPark.ts`): Jibowu on Martins Street in Lagos, Utako on Shehu Shagari Way in Abuja, Waterlines on Aba Road in Port Harcourt. A fenced yard with a gate and a name board, a ticket office with a window, a shelter with benches and people waiting, three bays with a coach in each, a conductor at the door of the one that goes. About 1,800 triangles in ten meshes. Each city passes its plan with its park in it. In Abuja the park replaces a plain box, and in Port Harcourt a borrowed shop front, that were each called a coach park and only opened the booking sheet. `coaches` suite. |
+| Coaches | **Verified** | One ticket (`travel/Coaches.ts`), from one timetable (`travel/CoachTimetable.ts`: a coach each way on every road, ₦11,000 to ₦13,000). A ticket is bought at the park's window, where the clerk offers the destinations and the player reaches for it, or on the booking sheet; either way it is only a ticket. It is shown to the conductor at the coach in the middle bay; the player goes aboard, the coach pulls out of its bay and through the gate with them on it, and the road follows. They get down beside the coach in the park of the city they were going to and walk out through its gate. A second ticket cannot be bought while one is held; one not yet used is handed back at the window for four fifths. A game closed on the road opens at the destination park. `coaches` suite. |
+| The road itself | **Partial** | Seen from a passenger's seat in the coach: rows of seats, the aisle, other passengers, windows down both sides, the driver ahead. What goes by outside is still the old city street, not a highway, and nothing happens on the way: no stops, no one selling at the window. |
 
 ## Phase 4: three cities
 
@@ -90,7 +95,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | --- | --- | --- |
 | Free travel by map tab | **Verified fixed** | Choosing a city on the map now only shows that city's map. The player stays put, pays nothing, and the map goes back to their own city when closed (`landmarks` suite). A place on another city's map offers no ride and no walk, only the way to the flights and coaches, and nothing behind the card will move the player or take a fare either (`ways` suite). |
 | Free jumps within a city | **Verified fixed** | "Walk" on a place, a district or a property used to put the player at the door at once and for nothing, which made every fare pointless; so did "Personal Car", whether or not the player owned one. On foot is now a walk by the streets, ending through the door if that was asked for, and the personal-car ride is gone (a car is driven). Paid rides still set the player down at the door. `ways`, `places`, `jobs` suites. |
-| Abuja, Port Harcourt | **Partial** | One avenue each with a few landmarks; both pass the city plan (`plan` suite). Thin beside Lagos. |
+| Abuja, Port Harcourt | **Partial** | One avenue each with a few landmarks, an airport and a motor park; both pass the city plan (`plan` suite). Thin beside Lagos. |
 | State carried between cities | **Verified** | Money, inventory, ownership, city and ticket are kept across the journey and across a reload (`flights`, `saves`). |
 | What the screen shows in another city | **Partial** | The bar of nearby places is now the real nearest places of the city the player is in, with true distances, and pressing one walks there (it used to be five fixed Lagos shortcuts that jumped the player for nothing). Phone services and job listings are not yet per city. |
 
@@ -145,7 +150,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 
 1. The map: the same real-city treatment for Abuja and Port Harcourt once those cities have more in them (their route preview comes with it); filters by kind of place; clicking a building.
 2. Finish the destination framework: one record per place for its name, position and services too (hours are done), and the street's life changing with the hour.
-3. Travel: a coach park to leave from; cabin crew and service; baggage claim.
+3. Travel: cabin crew and service on the aircraft; baggage claim; a highway for the coach to go down, with a stop on the way.
 4. Walking at height: the stadium's upper rows, and the footbridge as part of a found way (it is climbed by walking at its stairs; the way-finder crosses the road underneath).
 5. The home: sleeping in a bought bed, furniture on walls, floors, and furniture that goes with a home when it is sold.
 6. More kit assets (houses, worship, hotels, refinery), then the same treatment for Abuja and Port Harcourt.
@@ -160,6 +165,8 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 - Quilox sold a ₦25,000 bottle at any hour from a black box.
 - Two games in one browser buying the same plot at the same instant could both be charged and one get nothing: localStorage reaches another tab a moment late, so the second buyer could read the registry as it was. The registry is now also kept in the browser's database and read from there while the lock is held. It showed up once in several full runs; a test now forces it.
 - The footbridge's stairs were modelled rising away from the deck, with their top step twelve metres from it, and the code that lifts the player was written for stairs that were not there.
+- A coach to another city left from wherever the booking sheet was opened: the fare was taken and the road began, in the middle of a street or inside a shop. Lagos had no coach park at all; Abuja's was a box and Port Harcourt's a borrowed shop front, each with a button. Port Harcourt's said it had coaches to Lagos and Abuja and the timetable had none.
+- Aboard a coach, the road was seen from behind the steering wheel of a car.
 - The cash machine's screen came up anywhere: on the B key, on the + beside the money, on the card in the inventory. Bank and wallet were one purse, and the bank and its machines were scenery.
 - The bank, the university, the supermarket and the buka each stated opening hours and kept none. The map showed a green light beside them at every hour.
 - At laptop width (1366 px) the location badge lay over the money and the + beside it: the amount could not be read in full and the button could not be pressed.
