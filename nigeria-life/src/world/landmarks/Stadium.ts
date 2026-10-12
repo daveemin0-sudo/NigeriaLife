@@ -139,12 +139,33 @@ export function createStadium(options: StadiumOptions): StadiumLandmark {
   }
   const standDepth = OUTER_X - STAND_X;
   const top = TIERS * TIER_RISE;
-  b.occupy(-OUTER_X, OUTER_X, -OUTER_Z, -STAND_Z, top + 2.2).occupy(-OUTER_X, OUTER_X, STAND_Z, OUTER_Z, top + 2.2);
-  b.occupy(-OUTER_X, -STAND_X, -STAND_Z, STAND_Z, top + 2.2);
-  b.occupy(STAND_X, OUTER_X, -STAND_Z, GATE_FROM, top + 2.2).occupy(STAND_X, OUTER_X, GATE_TO, STAND_Z, top + 2.2);
+  const wallH = top + 2.2;
+  // Outer perimeter wall of the stadium keeps outsiders out from the streets outside
+  b.occupy(-OUTER_X, -OUTER_X + 0.6, -OUTER_Z, OUTER_Z, wallH);
+  b.occupy(OUTER_X - 0.6, OUTER_X, -OUTER_Z, GATE_FROM, wallH);
+  b.occupy(OUTER_X - 0.6, OUTER_X, GATE_TO, OUTER_Z, wallH);
+  b.occupy(-OUTER_X, OUTER_X, -OUTER_Z, -OUTER_Z + 0.6, wallH);
+  b.occupy(-OUTER_X, OUTER_X, OUTER_Z - 0.6, OUTER_Z, wallH);
+
+  // Gangway stairwells cutting through tiers with concrete steps and safety treads
+  for (let t = 0; t < TIERS; t++) {
+    const stepTop = TIER_RISE * (t + 1);
+    const out = TIER_DEPTH * (t + 0.5);
+    // East stand stairway (north of Gate A)
+    b.box(0xd1d5db, TIER_DEPTH, stepTop, 1.4, STAND_X + out, 0, GATE_TO + 1.8);
+    b.box(0xfacc15, TIER_DEPTH, 0.05, 1.4, STAND_X + out, stepTop, GATE_TO + 1.8);
+    // West stand stairway
+    b.box(0xd1d5db, TIER_DEPTH, stepTop, 1.4, -(STAND_X + out), 0, 0);
+    b.box(0xfacc15, TIER_DEPTH, 0.05, 1.4, -(STAND_X + out), stepTop, 0);
+    // North stand stairway
+    b.box(0xd1d5db, 1.4, stepTop, TIER_DEPTH, 0, 0, -(STAND_Z + out));
+    b.box(0xfacc15, 1.4, 0.05, TIER_DEPTH, 0, stepTop, -(STAND_Z + out));
+    // South stand stairway
+    b.box(0xd1d5db, 1.4, stepTop, TIER_DEPTH, 0, 0, STAND_Z + out);
+    b.box(0xfacc15, 1.4, 0.05, TIER_DEPTH, 0, stepTop, STAND_Z + out);
+  }
 
   // The wall round the outside, with a green band along the top
-  const wallH = top + 2.2;
   b.box(CONCRETE, OUTER_X * 2, wallH, 0.5, 0, 0, -(OUTER_Z - 0.25)).box(CONCRETE, OUTER_X * 2, wallH, 0.5, 0, 0, OUTER_Z - 0.25);
   b.box(CONCRETE, 0.5, wallH, OUTER_Z * 2, -(OUTER_X - 0.25), 0, 0);
   const northPiece = GATE_FROM + OUTER_Z;
@@ -362,6 +383,41 @@ export function createStadium(options: StadiumOptions): StadiumLandmark {
     host.director.run(sitDown);
   };
 
+  const upperGate = clickBox(4, 5, 8);
+  upperGate.position.set(STAND_X + 4.2, 4.0, 5.0);
+  group.add(upperGate);
+
+  const takeGrandstandSeat = (host: LandmarkHost) => {
+    const actor = host.actor;
+    const facingPitch = -Math.PI / 2;
+    const climbUp = new Sequence('take a seat in upper grandstand', [actor]).add(
+      steps.walk(actor, at(OUTER_X + 1.5, GATE_Z), { speed: 4 }),
+      steps.walk(actor, at(STAND_X - 1.4, GATE_Z), { speed: 4 }),
+      steps.walk(actor, at(STAND_X + 0.5, GATE_TO + 1.8), { speed: 4 }),
+      steps.walk(actor, at(STAND_X + 4.2, GATE_TO + 1.8), { speed: 4 }),
+      steps.walk(actor, at(STAND_X + 4.2, 5.0), { speed: 4 }),
+      steps.face(actor, facingPitch),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.wait(0.3)
+    );
+    climbUp.onEnd((reason) => {
+      if (reason !== 'done') return;
+      actor.yaw = facingPitch;
+      actor.hold = {
+        release: () => {
+          actor.hold = null;
+          actor.pose = { legs: 'stand', arms: 'rest' };
+          actor.setScripted(false);
+        },
+      };
+      actor.setScripted(true);
+      actor.pose = { legs: 'sit', arms: 'rest' };
+      host.look(Math.PI / 2, 1.1, 24);
+      host.say(`${sim.scoreLine()}, ${sim.minute} minutes played. Watching from the elevated grandstand. Move to get up.`, 'info');
+    });
+    host.director.run(climbUp);
+  };
+
   let time = 0;
   let bouncing = false;
 
@@ -381,6 +437,14 @@ export function createStadium(options: StadiumOptions): StadiumLandmark {
         description: `Football through the day, ${OPENS}:00 to ${CLOSES}:00. A ticket is ₦${TICKET_PRICE.toLocaleString()} at the booth by Gate A and is good for the match being played.`,
         interactionPoint: at(OUTER_X + 2.4, GATE_Z),
       },
+      {
+        mesh: upperGate,
+        id: 'surulere-stadium-upper',
+        name: `${options.name} · Upper Grandstand`,
+        category: 'Stadium',
+        description: 'Elevated seating tier 4.0m above pitch level with expansive match view.',
+        interactionPoint: at(STAND_X + 4.2, 5.0),
+      },
     ],
     actions: {
       [options.id]: {
@@ -395,6 +459,21 @@ export function createStadium(options: StadiumOptions): StadiumLandmark {
           }
           if (host.director.interrupt(host.actor) === 'locked') return;
           if (hasTicket()) takeSeat(host);
+          else buyTicket(host);
+        },
+      },
+      ['surulere-stadium-upper']: {
+        label: () => {
+          if (!open) return `🔒 Closed. The gates open at ${OPENS}:00`;
+          return hasTicket() ? '🏟️ Take your seat in Upper Grandstand' : `🎟️ Buy a ticket for the match (₦${TICKET_PRICE.toLocaleString()})`;
+        },
+        run: (host) => {
+          if (!open) {
+            host.say(`The stadium is closed. The gates open at ${OPENS}:00.`, 'info');
+            return;
+          }
+          if (host.director.interrupt(host.actor) === 'locked') return;
+          if (hasTicket()) takeGrandstandSeat(host);
           else buyTicket(host);
         },
       },

@@ -513,7 +513,54 @@ export class Player {
     const overDeck = Math.abs(x) <= FOOTBRIDGE.halfSpan && Math.abs(z - FOOTBRIDGE.z) <= FOOTBRIDGE.halfWidth;
     if (overDeck && this.onBridge) return FOOTBRIDGE.top;
     if (!overDeck) this.onBridge = false;
+
+    // National Stadium Surulere stands elevation (5 tiers rising from 0.8m to 4.0m)
+    const stadY = this.stadiumHeight(x, z);
+    if (stadY !== null) return stadY;
+
     return 0;
+  }
+
+  /**
+   * How high above the ground someone is inside the National Stadium stands
+   */
+  public stadiumHeight(x: number, z: number): number | null {
+    if (this.footbridge && !this.footbridge()) return null;
+
+    // National Stadium Surulere center at (-74, 15)
+    const sx = -74;
+    const sz = 15;
+    const dx = x - sx;
+    const dz = z - sz;
+    const absX = Math.abs(dx);
+    const absZ = Math.abs(dz);
+
+    const OUTER_X = 27.5;
+    const OUTER_Z = 21.5;
+    // Outside the stadium boundary
+    if (absX > OUTER_X || absZ > OUTER_Z) return null;
+
+    // Gate A entrance corridor through East stand at ground level
+    const STAND_X = 21.5;
+    const STAND_Z = 15.5;
+    if (dx >= STAND_X && dz >= -13 && dz <= -7) {
+      return 0;
+    }
+
+    // Inside pitch and running track at ground level
+    if (absX < STAND_X && absZ < STAND_Z) {
+      return 0;
+    }
+
+    // Inside the stepped seating stands
+    const distX = Math.max(0, absX - STAND_X);
+    const distZ = Math.max(0, absZ - STAND_Z);
+    const dist = Math.max(distX, distZ);
+
+    const TIER_DEPTH = 1.1;
+    const TIER_RISE = 0.8;
+    const tier = THREE.MathUtils.clamp(Math.floor(dist / TIER_DEPTH), 0, 4);
+    return (tier + 1) * TIER_RISE;
   }
 
   /**
