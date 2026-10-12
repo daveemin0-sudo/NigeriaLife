@@ -8,7 +8,9 @@ export class Roads {
   public roadLength: number = 240;
   public roadWidth: number = 14;
   public asphaltMat!: THREE.MeshStandardMaterial;
-
+  public streetBulbMaterials: THREE.MeshStandardMaterial[] = [];
+  public streetPointLights: THREE.PointLight[] = [];
+  private roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
   constructor() {
     this.group = new THREE.Group();
     this.buildRoadNetwork();
@@ -90,9 +92,6 @@ export class Roads {
     mesh.receiveShadow = true;
     this.group.add(mesh);
   }
-
-  public streetBulbMaterials: THREE.MeshStandardMaterial[] = [];
-  public streetPointLights: THREE.PointLight[] = [];
 
   private buildStreetLights(): void {
     // Street lamps on alternating sides every 24 meters
@@ -185,6 +184,25 @@ export class Roads {
       }
       // A switched-off lamp must not stay in the shader's light loop all day
       light.visible = light.intensity > 0;
+    }
+
+    // Roadside umbrella stalls pack down when evening arrives and set back up before dawn
+    for (const stall of this.roadsideStalls) {
+      if (isNight) {
+        stall.canopy.position.y = 1.35;
+        stall.canopy.scale.set(0.18, 0.85, 0.18);
+        stall.rim.visible = false;
+        stall.cooler.visible = false;
+        stall.lid.visible = false;
+        stall.stool.position.set(0, 0.28, 0.2);
+      } else {
+        stall.canopy.position.y = 2.6;
+        stall.canopy.scale.set(1, 1, 1);
+        stall.rim.visible = true;
+        stall.cooler.visible = true;
+        stall.lid.visible = true;
+        stall.stool.position.set(0.1, 0.28, -0.65);
+      }
     }
   }
 
@@ -463,6 +481,7 @@ export class Roads {
       stallGroup.add(stool);
 
       this.group.add(stallGroup);
+      this.roadsideStalls.push({ canopy, rim, cooler, lid, stool });
     });
   }
 

@@ -4,7 +4,12 @@ import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
 import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
 import { createMotorPark, type MotorParkLandmark } from '../world/landmarks/MotorPark';
+import { buildTownscape } from '../world/kit/Townscape';
+import { createCashMachine } from '../world/kit/CashMachine';
+import { ABUJA_BUILDINGS } from './Townscapes';
+import type { Obstruction } from '../world/plan/CityPlan';
 import { PlaceActions } from '../destinations/PlaceActions';
+import { emitGameEvent } from '../game/GameEvents';
 
 export class AbujaCity implements CityInstance {
   public group: THREE.Group;
@@ -12,6 +17,7 @@ export class AbujaCity implements CityInstance {
   public groundMesh: THREE.Mesh;
   public airport: AirportLandmark;
   public motorPark: MotorParkLandmark;
+  public standing: Obstruction[] = [];
 
   private flagMeshes: THREE.Mesh[] = [];
   private animTime: number = 0;
@@ -54,12 +60,225 @@ export class AbujaCity implements CityInstance {
     this.interactiveList.push(...this.motorPark.interactive);
     PlaceActions.registerAll(this.motorPark.actions);
 
+    // The ordinary buildings of the city: offices, shops, flats, houses, a hotel, along the boulevard and behind it
+    const town = buildTownscape('Abuja townscape', ABUJA_BUILDINGS);
+    this.group.add(town.group);
+    this.standing = town.obstructions;
+    // A cash machine in the wall of the bank on the boulevard
+    const machine = createCashMachine({ id: 'savanna-bank-abuja', name: 'Savanna Bank', x: 16.9, z: -8.6, facing: -Math.PI / 2 });
+    this.group.add(machine.group);
+    this.interactiveList.push(machine.interactive);
+
     // 9. Nnamdi Azikiwe Airport, south-west of the centre: the same airport as Lagos's, set down here,
     // with a road of its own round to Shehu Shagari Way
     this.airport = createAirport({ ids: ['abuja-airport'], city: 'abuja', z: 71, ownDoor: true, approach: { alongZ: -80, toX: -13 } });
     this.group.add(this.airport.group);
     this.interactiveList.push(...this.airport.interactive);
     PlaceActions.registerAll(this.airport.actions);
+
+    this.registerCityActions();
+  }
+
+  private registerCityActions(): void {
+    PlaceActions.register('abuja-secretariat', {
+      label: () => '📜 Federal Government Procurement & Contracts',
+      run: (host) => {
+        host.ask({
+          who: 'Alhaji Shehu',
+          role: 'Bureau of Public Procurement (BPP) Director',
+          text: 'Federal Secretariat Complex, Three Arms Zone. Official headquarters for civil service administration, federal contractor documentation, and ministerial affairs.',
+          choices: [
+            {
+              label: '📜 Register Official Federal Contractor Certificate',
+              note: '₦5,000 Fee · +50 Capital Cred',
+              pick: () => {
+                if (host.backend.spendCash(5000, 'Federal Government Tender Form')) {
+                  host.backend.addStreetCred(50);
+                  host.backend.addItem({
+                    id: `fgn_cert_${Date.now()}`,
+                    name: 'Official Federal Contractor Certificate',
+                    category: 'document',
+                    icon: '📜',
+                    description: 'Registered Bureau of Public Procurement (BPP) Federal Contractor Certificate #FGN-2026.',
+                    price: 15000,
+                    usable: false,
+                  });
+                  host.say('Federal Contractor registration submitted! Verified BPP Certificate issued to bag. Capital Street Cred +50!', 'success');
+                } else {
+                  host.say('Procurement Registry: "Need ₦5,000 cash for the federal procurement registration documentation!"', 'warning');
+                }
+              },
+            },
+            {
+              label: '💼 Complete Ministerial Policy Drafting Sprint',
+              note: '+₦14,000 · -30% Energy · +35 Cred',
+              pick: () => {
+                const gig = host.backend.performGig(14000, 30, 'Federal Secretariat Policy Sprint');
+                if (gig.success) {
+                  host.backend.addStreetCred(35);
+                  host.say('Ministerial policy memo finalized and submitted! Earned ₦14,000 cash and +35 Cred!', 'success');
+                } else {
+                  host.say(gig.message, 'warning');
+                }
+              },
+            },
+            {
+              label: '🏛️ Federal Civil Service Administrative Briefing',
+              note: '+25 Knowledge · Free Guidance',
+              pick: () => {
+                host.backend.addStreetCred(15);
+                host.say('Alhaji Shehu: "Public accountability is the foundation of federal administration. Always keep tender proposals compliant with the Public Procurement Act!"', 'info');
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    PlaceActions.register('aso-rock-lookout', {
+      label: () => '⛰️ Admire Geological Monolith & Presidential Lookout',
+      run: (host) => {
+        host.ask({
+          who: 'Protocol Officer Bello',
+          role: 'Lookout Custodian',
+          text: 'You stand at the foot of the magnificent 400-meter Aso Rock inselberg, gazing out over the Three Arms Zone, Supreme Court, and National Assembly.',
+          choices: [
+            {
+              label: '⛰️ Buy Commemorative Aso Rock Presidential Plaque',
+              note: '₦1,500 · +30 Energy · +20 Cred',
+              pick: () => {
+                if (host.backend.spendCash(1500, 'Aso Rock Souvenir Plaque')) {
+                  host.backend.restoreEnergy(30);
+                  host.backend.addStreetCred(20);
+                  host.backend.addItem({
+                    id: `aso_rock_plaque_${Date.now()}`,
+                    name: 'Aso Rock Presidential Plaque',
+                    category: 'document',
+                    icon: '⛰️',
+                    description: 'Official commemorative stone souvenir plaque of the Aso Rock Monolith & Three Arms Zone.',
+                    price: 3500,
+                    usable: false,
+                  });
+                  host.say('Stood at the pinnacle of power! Aso Rock Presidential Plaque added to bag. Capital Cred +20!', 'success');
+                } else {
+                  host.say('Souvenir Stand: "Need ₦1,500 cash for the commemorative souvenir plaque!"', 'warning');
+                }
+              },
+            },
+            {
+              label: '🔭 Panoramic Valley Sightseeing',
+              note: '+40 Energy · +10 Cred',
+              pick: () => {
+                host.backend.restoreEnergy(40);
+                host.backend.addStreetCred(10);
+                host.say('Lookout panorama enjoyed! Breathtaking view of the Presidential Valley. Energy restored!', 'success');
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    PlaceActions.register('abuja-mosque', {
+      label: () => '🕌 Tour National Mosque Architecture',
+      run: (host) => {
+        host.ask({
+          who: 'Ustaz Ahmed',
+          role: 'National Mosque Hospitality',
+          text: 'Assalamu Alaikum! Welcome to the Abuja National Mosque with its four soaring 120-foot minarets and gleaming golden dome.',
+          choices: [
+            {
+              label: '🧃 Hospitality Welcome: Chilled Spiced Zobo & Dates',
+              note: '₦500 · +60 Energy · +15 Cred',
+              pick: () => {
+                if (host.backend.spendCash(500, 'Mosque Visit & Chilled Zobo')) {
+                  host.backend.restoreEnergy(60);
+                  host.backend.addStreetCred(15);
+                  host.backend.addItem({
+                    id: `abuja_zobo_${Date.now()}`,
+                    name: 'Abuja Spiced Zobo Drink',
+                    category: 'food',
+                    icon: '🧃',
+                    description: 'Chilled hibiscus tea with ginger, clove, and pineapple.',
+                    price: 500,
+                    usable: true,
+                    energyRestore: 35,
+                  });
+                  host.say('Visited the National Mosque! Chilled spiced Zobo drink acquired, energy refreshed, Street Cred +15!', 'success');
+                } else {
+                  host.say('Visitor Welcome Stall: "Need ₦500 for the visitor pack & zobo!"', 'warning');
+                }
+              },
+            },
+            {
+              label: '🏛️ Architectural Heritage Guided Tour',
+              note: '+30 Knowledge · +15 Cred',
+              pick: () => {
+                host.backend.addStreetCred(15);
+                host.say('Admired the intricate Islamic geometric calligraphy and central gilded dome! Knowledge +30!', 'info');
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    PlaceActions.register('abuja-christian-centre', {
+      label: () => '⛪ Visit National Christian Centre Sanctuary',
+      run: (host) => {
+        host.ask({
+          who: 'Sanctuary Host',
+          role: 'National Christian Centre',
+          text: 'Welcome to the National Christian Centre (Ecumenical Centre), cathedral of national unity designed with soaring neo-gothic granite arches.',
+          choices: [
+            {
+              label: '📖 Ecumenical Offering & National Unity Medallion',
+              note: '₦500 Offering · +60 Energy · +15 Cred',
+              pick: () => {
+                if (host.backend.spendCash(500, 'Ecumenical Fellowship Offering')) {
+                  host.backend.restoreEnergy(60);
+                  host.backend.addStreetCred(15);
+                  host.backend.addItem({
+                    id: `unity_hymnal_${Date.now()}`,
+                    name: 'National Unity Hymnal & Medallion',
+                    category: 'document',
+                    icon: '📖',
+                    description: 'Commemorative unity hymnal from the National Christian Centre.',
+                    price: 1000,
+                    usable: false,
+                  });
+                  host.say('Admired the neo-gothic spire and pipe organ! Blessed with peace and Street Cred +15!', 'success');
+                } else {
+                  host.say('Sanctuary Desk: "Need ₦500 cash offering!"', 'warning');
+                }
+              },
+            },
+            {
+              label: '🎵 Pipe Organ Recital & Architectural Tour',
+              note: '+30 Knowledge · +15 Cred',
+              pick: () => {
+                host.backend.addStreetCred(15);
+                host.say('Listened to the majestic pipe organ beneath the grand vaulted nave! Knowledge +30!', 'info');
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    PlaceActions.register('abuja-cab', {
+      label: () => '🚕 Board Federal Green Cab to Maitama (₦800)',
+      run: (host) => {
+        if (host.backend.spendCash(800, 'Federal Green Cab Fare', 'TRAVEL_COST')) {
+          emitGameEvent('drive', { city: 'abuja' });
+          host.backend.addStreetCred(5);
+          host.actor.root.position.z -= 30;
+          host.say('Malam Garba: "Oga drop here by Maitama Junction! Safe movement!" Dropped off smoothly!', 'success');
+        } else {
+          host.say('Green Cab Driver: "Need ₦800 cash for green cab express fare!"', 'warning');
+        }
+      },
+    });
   }
 
   // =========================================================================

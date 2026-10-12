@@ -772,6 +772,7 @@ export class InputManager {
       airport_flight_abuja: '✈️ Board Flight to Abuja FCT',
       airport_flight_ph: '✈️ Board Flight to Port Harcourt',
       airport_vip_lounge: '🥂 Relax in Executive VIP Lounge',
+      airport_baggage_carousel: '🧳 Claim Checked Luggage',
       'flat-workstation': '💻 Complete Remote Tech Sprint',
     };
 

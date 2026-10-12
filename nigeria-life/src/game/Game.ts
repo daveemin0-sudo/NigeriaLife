@@ -281,6 +281,10 @@ export class Game {
       this.transitHUD.updateFlightProgress(phase, timeRemaining, announcement);
     };
 
+    this.flightExperience.onAnnouncement = (announcement) => {
+      this.transitHUD.setAnnouncement(announcement);
+    };
+
     this.flightExperience.onFlightCompleted = (flight) => {
       this.transitHUD.hideFlightHUD();
       if (this.flights.status().state === 'boarded') {
@@ -743,6 +747,7 @@ export class Game {
     const out = instance ? obstructionsUnder(instance.group, CITY_NAME[city as PlotCity] ?? city) : [];
     if (instance?.airport) out.push(...instance.airport.obstructions);
     if (instance?.motorPark) out.push(...instance.motorPark.obstructions);
+    if (instance?.standing) out.push(...instance.standing);
     out.push(...this.plotWorld.obstructions(city as PlotCity));
     return out;
   }

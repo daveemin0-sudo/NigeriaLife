@@ -106,8 +106,8 @@ export async function run(browser, check) {
   const abujaMap = await mapPins(page);
   const underMap = await drawn(page);
   const fake = ['transcorp_hilton', 'jabi_lake_mall', 'national_hospital_abuja', 'central_bank_abuja', 'novare_mall_wuse', 'national_assembly'];
-  check('the map of Abuja is Abuja as built: the city itself under the map, a pin over each real place (the mosque, the Christian centre, the secretariat, Aso Rock, the cab rank, the motor park, the airport), and none for the hotel, malls, hospital and bank that were drawn on the old map and are not there',
-    abujaMap.viewing === 'abuja' && abujaMap.real && abujaMap.onRealThings && abujaMap.youAreHere && abujaMap.pins.length === 7 && ['national_mosque', 'ecumenical_centre', 'federal_secretariat', 'aso_rock', 'abuja_cab_rank', 'utako_motor_park', 'abuja_airport'].every((id) => abujaMap.pins.includes(id))
+  check('the map of Abuja is Abuja as built: the city itself under the map, a pin over each real place (the mosque, the Christian centre, the secretariat, Aso Rock, the cab rank, the motor park, the bank, the airport), and none for the hotel, malls, hospital and bank that were drawn on the old map and are not there',
+    abujaMap.viewing === 'abuja' && abujaMap.real && abujaMap.onRealThings && abujaMap.youAreHere && abujaMap.pins.length === 8 && ['national_mosque', 'ecumenical_centre', 'federal_secretariat', 'aso_rock', 'abuja_cab_rank', 'utako_motor_park', 'abuja_airport', 'savanna_bank_abuja'].every((id) => abujaMap.pins.includes(id))
       && !fake.some((id) => abujaMap.pins.includes(id)) && underMap.abuja && noneOfLagos(underMap), { abujaMap, underMap });
 
   await page.evaluate(() => window.game.hud.worldMapUI.goToPlace('utako_motor_park', 'abuja'));
@@ -148,8 +148,8 @@ export async function run(browser, check) {
   await page.type('#map-search-input', 'zoo');
   await wait(400);
   const zoo = await page.evaluate(() => document.getElementById('map-search-results').innerText);
-  check('from Lagos, the map of Port Harcourt is Port Harcourt as built, though the player has never been: the refinery, the bole spot, the university, the motor park and the airport, each pinned where it stands',
-    backInLagos && phMap.viewing === 'port_harcourt' && phMap.real && phMap.onRealThings && phMap.pins.length === 5 && phMap.pins.includes('waterlines_motor_park') && phUnder.portHarcourt && !phUnder.lagos.roads && phUnder.city === 'lagos', { backInLagos, phMap, phUnder });
+  check('from Lagos, the map of Port Harcourt is Port Harcourt as built, though the player has never been: the refinery, the bole spot, the university, the motor park, the bank and the airport, each pinned where it stands',
+    backInLagos && phMap.viewing === 'port_harcourt' && phMap.real && phMap.onRealThings && phMap.pins.length === 6 && phMap.pins.includes('waterlines_motor_park') && phMap.pins.includes('delta_bank_ph') && phUnder.portHarcourt && !phUnder.lagos.roads && phUnder.city === 'lagos', { backInLagos, phMap, phUnder });
   check('searching finds the three motor parks, one in each city, and nothing for the zoo that was only ever on the old drawing',
     parks.length === 3 && parks.some((p) => /Waterlines/.test(p)) && parks.some((p) => /Jibowu/.test(p) && /In Lagos/.test(p)) && parks.some((p) => /Utako/.test(p) && /In Abuja/.test(p)) && /Nothing called/.test(zoo), { parks, zoo });
   await page.click('#btn-map-back-street');
@@ -168,6 +168,78 @@ export async function run(browser, check) {
   now = await drawn(page);
   check('in Port Harcourt too the terminal is drawn inside, and outside it the street of Port Harcourt and no other',
     inPhTerminal && phHall.rooms && !phHall.portHarcourt && phColours > 30 && now.city === 'port_harcourt' && now.portHarcourt && noneOfLagos(now) && !now.abuja, { phHall, phColours, now });
+
+  // ------------------------------------------------------------------ The towns themselves
+  const town = async (city) => page.evaluate((city) => {
+    const g = window.game;
+    if (g.world.cityManager.currentCityId !== city) g.arriveInCity(city);
+    const inst = city === 'abuja' ? g.world.cityManager.abujaCity : g.world.cityManager.portHarcourtCity;
+    const group = inst.group.children.find((c) => /townscape/.test(c.name));
+    let meshes = 0;
+    let triangles = 0;
+    group.traverse((o) => { if (o.isMesh) { meshes += 1; triangles += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; } });
+    const bodies = inst.standing.filter((o) => o.structure);
+    const ways = g.waysHere();
+    const solids = g.solidsHere();
+    // The middle of every building is somewhere nobody can stand, and the way from one side of a building to the other goes round it
+    const sealed = bodies.every((o) => !ways.canStand((o.minX + o.maxX) / 2, (o.minZ + o.maxZ) / 2));
+    const one = bodies[0];
+    const round = ways.route(one.minX - 2, (one.minZ + one.maxZ) / 2, one.maxX + 2, (one.minZ + one.maxZ) / 2);
+    const machine = g.world.interactiveObjects.find((o) => /^atm-(savanna|delta)/.test(o.id));
+    return {
+      buildings: bodies.length, meshes, triangles: Math.round(triangles), plan: g.validateCity(city).map((v) => `${v.rule}: ${v.what}`), sealed,
+      round: round ? { reaches: round.reaches, metres: +round.metres.toFixed(1), straight: +(one.maxX - one.minX + 4).toFixed(1) } : null,
+      solidInTheMiddle: solids.at((one.minX + one.maxX) / 2, (one.minZ + one.maxZ) / 2, 0),
+      machine: machine ? { id: machine.id, reached: ways.route(11.5, 0, machine.interactionPoint.x, machine.interactionPoint.z)?.reaches ?? false } : null,
+    };
+  }, city);
+  const abujaTown = await town('abuja');
+  check('Abuja has streets of buildings now: over twenty offices, shops, blocks of flats and houses and a hotel, in a handful of meshes, each solid, each walked round and not through, with a bank whose cash machine is reached on foot, and the city still passes its plan',
+    abujaTown.buildings >= 20 && abujaTown.meshes <= 8 && abujaTown.triangles > 8000 && abujaTown.plan.length === 0 && abujaTown.sealed && abujaTown.solidInTheMiddle && !!abujaTown.round && abujaTown.round.reaches && abujaTown.round.metres > abujaTown.round.straight + 2
+      && abujaTown.machine?.id === 'atm-savanna-bank-abuja' && abujaTown.machine.reached, abujaTown);
+  const phTown = await town('port_harcourt');
+  await advance(page, 0.3);
+  // The creek is water
+  await page.evaluate(() => { const g = window.game; g.player.stopMoving(); g.player.mesh.position.set(47, 0, 12); g.player.wayfinder = null; g.player.setDestination(new g.player.position.constructor(65, 0, 12)); });
+  for (let i = 0; i < 24; i++) await advance(page, 0.25);
+  const atTheBank = await page.evaluate(() => ({ x: +window.game.player.position.x.toFixed(1), moving: window.game.player.isMoving, canStandInIt: window.game.waysHere().canStand(65, 12) }));
+  check('Port Harcourt the same, with its houses between Aba Road and the creek; and the creek is water: walking at it stops at its bank (it could be walked across)',
+    phTown.buildings >= 20 && phTown.meshes <= 8 && phTown.plan.length === 0 && phTown.sealed && phTown.machine?.id === 'atm-delta-bank-ph' && phTown.machine.reached && atTheBank.x < 51 && !atTheBank.canStandInIt, { phTown, atTheBank });
+
+  // ------------------------------------------------------------------ City PlaceActions
+  // Port Harcourt Bole King
+  const phBoleTest = await page.evaluate(async () => {
+    const g = window.game;
+    const boleObj = g.world.interactiveObjects.find((o) => o.id === 'ph-bole-king');
+    if (!boleObj) return { found: false };
+    g.player.stopMoving();
+    g.player.mesh.position.set(boleObj.interactionPoint.x + 1, 0, boleObj.interactionPoint.z);
+    g.hud.showInteractionCard(boleObj);
+    const label = document.getElementById('card-action-btn')?.textContent ?? '';
+    document.getElementById('card-action-btn')?.click();
+    return { found: true, label, dialog: document.getElementById('dialogue-modal')?.style.display !== 'none' };
+  });
+  check('Port Harcourt Bole King has an active PlaceAction that opens Mama Blessing\'s menu',
+    phBoleTest.found && /Order Hot Bole/.test(phBoleTest.label) && phBoleTest.dialog, phBoleTest);
+  await closeDialogs(page);
+
+  // Abuja Federal Secretariat
+  await page.evaluate(() => window.game.arriveInCity('abuja'));
+  await advance(page, 0.5);
+  const abujaSecTest = await page.evaluate(async () => {
+    const g = window.game;
+    const secObj = g.world.interactiveObjects.find((o) => o.id === 'abuja-secretariat');
+    if (!secObj) return { found: false };
+    g.player.stopMoving();
+    g.player.mesh.position.set(secObj.interactionPoint.x + 1, 0, secObj.interactionPoint.z);
+    g.hud.showInteractionCard(secObj);
+    const label = document.getElementById('card-action-btn')?.textContent ?? '';
+    document.getElementById('card-action-btn')?.click();
+    return { found: true, label, dialog: document.getElementById('dialogue-modal')?.style.display !== 'none' };
+  });
+  check('Abuja Federal Secretariat has an active PlaceAction opening BPP procurement desk',
+    abujaSecTest.found && /Federal Government Procurement/.test(abujaSecTest.label) && abujaSecTest.dialog, abujaSecTest);
+  await closeDialogs(page);
 
   check('no errors were logged at any of it', log.errors.length === 0, log.errors.slice(0, 5));
   await wait(100);

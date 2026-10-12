@@ -205,17 +205,18 @@ export async function run(browser, check) {
     g.arriveInCity('abuja');
     const machines = g.world.interactiveObjects.filter((o) => o.id.startsWith('atm-'));
     const kerb = g.world.cityManager.abujaCity.airport.kerb;
-    const way = machines[0] ? g.waysHere().route(kerb.x, kerb.z + 3, machines[0].interactionPoint.x, machines[0].interactionPoint.z) : null;
+    const atAirport = machines.find((m) => m.id.startsWith('atm-airport'));
+    const way = atAirport ? g.waysHere().route(kerb.x, kerb.z + 3, atAirport.interactionPoint.x, atAirport.interactionPoint.z) : null;
     return { ids: machines.map((m) => m.id), reaches: way?.reaches ?? false, metres: way ? +way.metres.toFixed(1) : null, plan: g.validateCity('abuja').length, planPh: g.validateCity('port_harcourt').length };
   });
-  check('there is a cash machine in the wall of each airport, reached on foot from the kerb, and every city still passes its plan with them there',
-    /^atm-airport-/.test(lagosAirport.id ?? '') && lagosAirport.reaches && lagosAirport.plan === 0 && lagosAirport.door && abuja.ids.length === 1 && /^atm-airport-/.test(abuja.ids[0]) && abuja.reaches && abuja.plan === 0 && abuja.planPh === 0, { lagosAirport, abuja });
+  check('there is a cash machine in the wall of each airport, reached on foot from the kerb (and one at the bank on Abuja’s boulevard), and every city still passes its plan with them there',
+    /^atm-airport-/.test(lagosAirport.id ?? '') && lagosAirport.reaches && lagosAirport.plan === 0 && lagosAirport.door && abuja.ids.length === 2 && abuja.ids.some((id) => /^atm-airport-/.test(id)) && abuja.ids.includes('atm-savanna-bank-abuja') && abuja.reaches && abuja.plan === 0 && abuja.planPh === 0, { lagosAirport, abuja });
 
   await page.keyboard.press('b');
   await wait(400);
   await advance(page, 0.4);
   const abujaAsked = await page.evaluate(() => ({ screen: document.getElementById('atm-modal').style.display === 'flex', moving: window.game.player.isMoving, city: window.game.world.cityManager.currentCityId }));
-  check('in Abuja, asking for a cash machine sends the player to the one at Abuja airport, not to Lagos', abujaAsked.city === 'abuja' && !abujaAsked.screen && abujaAsked.moving, abujaAsked);
+  check('in Abuja, asking for a cash machine sends the player to one in Abuja, not to Lagos', abujaAsked.city === 'abuja' && !abujaAsked.screen && abujaAsked.moving, abujaAsked);
 
   void cash0;
   check('no errors were logged at any of it', log.errors.length === 0, log.errors.slice(0, 5));

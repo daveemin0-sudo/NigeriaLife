@@ -71,6 +71,29 @@ export async function run(browser, check) {
   const namesOn = await page.evaluate(() => getComputedStyle(document.querySelector('.map-pin-name')).display);
   check('the Names button hides and shows the place names', namesOff === 'none' && namesOn !== 'none', { namesOff, namesOn });
 
+  // --- Category filter buttons
+  await page.click('.map-filter-btn[data-filter="food"]');
+  await wait(300);
+  const foodFiltered = await page.evaluate(() => {
+    const pins = [...document.querySelectorAll('.map-pin')];
+    const visible = pins.filter((p) => p.style.display !== 'none');
+    return {
+      all: pins.length,
+      visibleCount: visible.length,
+      bukaVisible: document.querySelector('.map-pin[data-place="mama_put_buka"]')?.style.display !== 'none',
+      stadiumHidden: document.querySelector('.map-pin[data-place="national_stadium"]')?.style.display === 'none',
+    };
+  });
+  check('filtering by food keeps food pins visible and hides unrelated landmarks', foodFiltered.bukaVisible && foodFiltered.stadiumHidden && foodFiltered.visibleCount < foodFiltered.all, foodFiltered);
+
+  await page.click('.map-filter-btn[data-filter="all"]');
+  await wait(300);
+  const allRestored = await page.evaluate(() => {
+    const pins = [...document.querySelectorAll('.map-pin')];
+    return pins.every((p) => p.style.display !== 'none');
+  });
+  check('filtering by All restores all landmark pins', allRestored, { allRestored });
+
   // --- Destination sheet: fits the screen, pick transport, Go pays and walks you in
   await page.click('.map-pin[data-place="st_nicholas_hospital"]');
   await wait(600);

@@ -31,6 +31,8 @@ export class WorldMap {
   public useRealWorld?: (cityId: string) => boolean;
   /** Told to bring the real city into view under the map, or to put it away again */
   public onRealWorld?: (on: boolean, cityId: string) => void;
+  /** Where the place a pin/landmark stands really is in the city */
+  public locate?: (landmark: any, cityId?: string) => THREE.Vector3 | null;
 
   // Callbacks
   public onSelectItem?: (event: MapSelectionEvent) => void;
@@ -164,6 +166,63 @@ export class WorldMap {
       }
     }
 
+    // 3. 3D GROUND / TERRAIN RAYCAST FALLBACK (Direct 3D hover on real townscape buildings & landmarks)
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const groundHit = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(groundPlane, groundHit)) {
+      const data = WorldDataManager.getInstance();
+      // Check nearest landmark within 24m
+      let nearestLm: any = null;
+      let minLmDist = 24;
+      for (const lm of data.getLandmarks()) {
+        const pos = this.locate?.(lm) ?? lm.position;
+        const d = Math.hypot(pos.x - groundHit.x, pos.z - groundHit.z);
+        if (d < minLmDist) {
+          minLmDist = d;
+          nearestLm = lm;
+        }
+      }
+      if (nearestLm) {
+        this.onHoverItem?.({ type: 'landmark', data: nearestLm }, { x: e.clientX, y: e.clientY });
+        document.body.style.cursor = 'pointer';
+        return;
+      }
+
+      // Check nearest property within 20m
+      let nearestProp: any = null;
+      let minPropDist = 20;
+      for (const prop of data.getProperties()) {
+        const pos = prop.streetPosition || prop.position;
+        const d = Math.hypot(pos.x - groundHit.x, pos.z - groundHit.z);
+        if (d < minPropDist) {
+          minPropDist = d;
+          nearestProp = prop;
+        }
+      }
+      if (nearestProp) {
+        this.onHoverItem?.({ type: 'property', data: nearestProp }, { x: e.clientX, y: e.clientY });
+        document.body.style.cursor = 'pointer';
+        return;
+      }
+
+      // Check district bounds
+      for (const dist of data.getDistricts()) {
+        if (
+          groundHit.x >= dist.bounds.minX && groundHit.x <= dist.bounds.maxX &&
+          groundHit.z >= dist.bounds.minZ && groundHit.z <= dist.bounds.maxZ
+        ) {
+          this.onHoverItem?.(null, { x: e.clientX, y: e.clientY });
+          if (this.hoveredDistrictId !== dist.id) {
+            this.hoveredDistrictId = dist.id;
+            this.renderer.highlightDistrict(dist.id);
+            this.onHoverDistrict?.(dist);
+            document.body.style.cursor = 'pointer';
+          }
+          return;
+        }
+      }
+    }
+
     // Nothing hit
     this.onHoverItem?.(null, { x: e.clientX, y: e.clientY });
     if (this.hoveredDistrictId !== null) {
@@ -214,6 +273,68 @@ export class WorldMap {
           });
           const d = found.data as DistrictData;
           this.focusOnDistrict(d.id);
+          return;
+        }
+      }
+    }
+
+    // 3. 3D GROUND / TERRAIN RAYCAST FALLBACK (Direct 3D click on real townscape buildings & landmarks)
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const groundHit = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(groundPlane, groundHit)) {
+      const data = WorldDataManager.getInstance();
+      // Nearest landmark within 24m
+      let nearestLm: any = null;
+      let minLmDist = 24;
+      for (const lm of data.getLandmarks()) {
+        const pos = this.locate?.(lm) ?? lm.position;
+        const d = Math.hypot(pos.x - groundHit.x, pos.z - groundHit.z);
+        if (d < minLmDist) {
+          minLmDist = d;
+          nearestLm = lm;
+        }
+      }
+      if (nearestLm) {
+        this.onSelectItem?.({
+          type: 'landmark',
+          item: nearestLm,
+          screenPosition: { x: e.clientX, y: e.clientY },
+        });
+        return;
+      }
+
+      // Nearest property within 20m
+      let nearestProp: any = null;
+      let minPropDist = 20;
+      for (const prop of data.getProperties()) {
+        const pos = prop.streetPosition || prop.position;
+        const d = Math.hypot(pos.x - groundHit.x, pos.z - groundHit.z);
+        if (d < minPropDist) {
+          minPropDist = d;
+          nearestProp = prop;
+        }
+      }
+      if (nearestProp) {
+        this.onSelectItem?.({
+          type: 'property',
+          item: nearestProp,
+          screenPosition: { x: e.clientX, y: e.clientY },
+        });
+        return;
+      }
+
+      // District bounds fallback
+      for (const dist of data.getDistricts()) {
+        if (
+          groundHit.x >= dist.bounds.minX && groundHit.x <= dist.bounds.maxX &&
+          groundHit.z >= dist.bounds.minZ && groundHit.z <= dist.bounds.maxZ
+        ) {
+          this.onSelectItem?.({
+            type: 'district',
+            item: dist,
+            screenPosition: { x: e.clientX, y: e.clientY },
+          });
+          this.focusOnDistrict(dist.id);
           return;
         }
       }

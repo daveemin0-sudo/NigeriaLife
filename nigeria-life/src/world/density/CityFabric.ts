@@ -102,6 +102,9 @@ export class CityFabric {
   private umbrellas: Inst[] = [];
   private signs: Array<Inst & { atlas: number }> = [];
 
+  public facadeMats?: Record<FacadeKind, THREE.MeshStandardMaterial>;
+  public umbrellaMesh?: THREE.InstancedMesh | null;
+
   private archetypes: Archetype[] = [
     { kind: 'tenement', floors: 2, bays: 4, floorHeight: 3.2, items: [] },
     { kind: 'tenement', floors: 3, bays: 4, floorHeight: 3.2, items: [] },
@@ -636,13 +639,37 @@ export class CityFabric {
       commercial: this.createFacadeTexture('commercial'),
       tower: this.createFacadeTexture('tower'),
     };
-    const facadeMats: Record<FacadeKind, THREE.MeshStandardMaterial> = {
-      tenement: new THREE.MeshStandardMaterial({ map: facadeMaps.tenement, roughness: 0.9 }),
-      commercial: new THREE.MeshStandardMaterial({ map: facadeMaps.commercial, roughness: 0.75 }),
-      tower: new THREE.MeshStandardMaterial({ map: facadeMaps.tower, roughness: 0.22, metalness: 0.55 }),
+    const facadeEmissiveMaps: Record<FacadeKind, THREE.CanvasTexture> = {
+      tenement: this.createFacadeEmissiveTexture('tenement'),
+      commercial: this.createFacadeEmissiveTexture('commercial'),
+      tower: this.createFacadeEmissiveTexture('tower'),
+    };
+    this.facadeMats = {
+      tenement: new THREE.MeshStandardMaterial({
+        map: facadeMaps.tenement,
+        emissiveMap: facadeEmissiveMaps.tenement,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.0,
+        roughness: 0.9,
+      }),
+      commercial: new THREE.MeshStandardMaterial({
+        map: facadeMaps.commercial,
+        emissiveMap: facadeEmissiveMaps.commercial,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.0,
+        roughness: 0.75,
+      }),
+      tower: new THREE.MeshStandardMaterial({
+        map: facadeMaps.tower,
+        emissiveMap: facadeEmissiveMaps.tower,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.0,
+        roughness: 0.22,
+        metalness: 0.55,
+      }),
     };
     for (const arch of this.archetypes) {
-      this.instanced(this.createBodyGeometry(arch.bays, arch.floors), facadeMats[arch.kind], arch.items, true, true);
+      this.instanced(this.createBodyGeometry(arch.bays, arch.floors), this.facadeMats[arch.kind], arch.items, true, true);
     }
 
     // --- Roofs, trim and street furniture ---
@@ -650,7 +677,7 @@ export class CityFabric {
     this.instanced(unitBox, trimMat, this.boxes, false, true);
     this.instanced(unitCylinder, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), this.cylinders, false, false);
     this.instanced(unitHip, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }), this.hipRoofs, true, false);
-    this.instanced(
+    this.umbrellaMesh = this.instanced(
       unitUmbrella,
       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide, flatShading: true }),
       this.umbrellas,
@@ -875,6 +902,74 @@ export class CityFabric {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.fillRect(4, 4, 1.5, C - 24);
     ctx.fillRect(C / 2 + 2, 4, 1.5, C - 24);
+  }
+
+  /**
+   * Generates night emissive maps for building facades: walls remain black (#000000),
+   * while windows shine with warm domestic and office lights.
+   */
+  private createFacadeEmissiveTexture(kind: FacadeKind): THREE.CanvasTexture {
+    const C = 128;
+    const S = C * 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, S, S);
+
+    for (let cell = 0; cell < 4; cell++) {
+      ctx.save();
+      ctx.translate((cell % 2) * C, Math.floor(cell / 2) * C);
+      if (kind === 'tenement') {
+        if (cell === 2) {
+          // Door onto balcony - subtle interior hallway glow
+          ctx.fillStyle = '#ffba52';
+          ctx.fillRect(47, 32, 34, 34);
+        } else {
+          // Warm domestic golden light through louvred window panes
+          ctx.fillStyle = cell === 0 ? '#ffba52' : '#f59e0b';
+          ctx.fillRect(35, 31, 58, 60);
+          if (cell === 1) {
+            // Drawn curtain creates dark section
+            ctx.fillStyle = '#1c0f05';
+            ctx.fillRect(36, 32, 24, 58);
+          }
+        }
+      } else if (kind === 'commercial') {
+        // Office ribbon windows glowing with bright warm fluorescent/lamp light
+        ctx.fillStyle = cell === 0 ? '#fffae0' : cell === 1 ? '#fef08a' : '#ffe4a0';
+        ctx.fillRect(8, 28, 112, 62);
+      } else {
+        // Modern glass tower curtain wall panes glowing with corporate lights
+        ctx.fillStyle = cell === 0 ? '#7dd3fc' : cell === 1 ? '#bae6fd' : cell === 2 ? '#ffedd5' : '#e0f2fe';
+        for (const x of [4, C / 2 + 2]) {
+          ctx.fillRect(x, 4, C / 2 - 6, C - 24);
+        }
+      }
+      ctx.restore();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  public setNightLighting(period: string): void {
+    const isNight = period === 'night';
+    const isGolden = period === 'golden_hour';
+    const intensity = isNight ? 1.0 : isGolden ? 0.35 : 0.0;
+    if (this.facadeMats) {
+      for (const mat of Object.values(this.facadeMats)) {
+        mat.emissiveIntensity = intensity;
+      }
+    }
+    if (this.umbrellaMesh) {
+      this.umbrellaMesh.visible = !isNight;
+    }
   }
 
   /** All shop signboards share one atlas texture; each instance picks its cell in the shader */

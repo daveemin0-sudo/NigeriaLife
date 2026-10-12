@@ -111,6 +111,8 @@ export class World {
     this.roads.setNightLighting(this.skyEnvironment.currentPeriod);
     this.skyEnvironment.onPeriodChange = (period) => {
       this.roads.setNightLighting(period);
+      this.districts.setNightLighting(period);
+      this.cityDensity.setNightLighting(period);
     };
 
     // 3. Lagos Architectural Buildings
@@ -127,6 +129,7 @@ export class World {
 
     // 6. Lagos Expansion Multi-Districts (VI, Computer Village, Lekki Bridge)
     this.districts = new Districts();
+    this.districts.setNightLighting(this.skyEnvironment.currentPeriod);
     this.scene.add(this.districts.group);
 
     // 6b. Dense Lagos Island city fabric: side streets, instanced tenements, plazas and towers.
@@ -134,6 +137,7 @@ export class World {
     this.landmarks = new Landmarks();
     this.scene.add(this.landmarks.group);
     this.cityDensity = new CityDensityManager([this.buildings.group, this.districts.group], LAGOS_PLOTS.map((plot) => plot.rect), this.landmarks.zones());
+    this.cityDensity.setNightLighting(this.skyEnvironment.currentPeriod);
     this.scene.add(this.cityDensity.group);
 
     // 6c. Instanced go-slow traffic on Broad Street & Martins Street, parked cars on back streets
@@ -413,13 +417,23 @@ export class World {
       return { name: 'Abuja FCT', sub: 'Shehu Shagari Way • Three Arms Zone' };
     }
 
+    // Port Harcourt: its own districts, never Lagos's (the loaded map data may be another city's)
+    const city = this.cityManager.currentCityId;
+    if (city === 'port_harcourt') {
+      const district = this.dataManager.districtIn('port_harcourt', pos);
+      return { name: 'Port Harcourt', sub: district ? `${district.name} • Aba Road` : 'Aba Road' };
+    }
+    if (city !== 'lagos') {
+      return { name: city.charAt(0).toUpperCase() + city.slice(1), sub: 'City centre' };
+    }
+
     // Player Apartment Flat (Home Interior)
     if (pos.z > 165) {
       return { name: 'Lekki Luxury Flat', sub: 'Apartment Interior • Banana Island View' };
     }
 
-    // Dynamically retrieve from unified WorldDataManager
-    const district = this.dataManager.getDistrictAt(pos);
+    // Lagos districts, asked of Lagos by name
+    const district = this.dataManager.districtIn('lagos', pos);
     if (district) {
       return { name: district.name, sub: district.subtitle };
     }

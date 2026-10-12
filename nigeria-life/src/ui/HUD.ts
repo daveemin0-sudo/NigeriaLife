@@ -45,12 +45,14 @@ const LANDMARK_STREET_SPOTS: Record<string, string> = {
   utako_motor_park: 'abuja-interstate-hub',
   abuja_cab_rank: 'abuja-cab',
   abuja_airport: 'abuja-airport',
+  savanna_bank_abuja: 'atm-savanna-bank-abuja',
   // Port Harcourt
   ph_refinery_hub: 'ph-refinery-complex',
   ph_airport_omagwa: 'ph-airport',
   bole_king_ph: 'ph-bole-king',
   uniport_campus: 'ph-uniport',
   waterlines_motor_park: 'ph-transit-hub',
+  delta_bank_ph: 'atm-delta-bank-ph',
   // Lagos
   jibowu_motor_park: 'jibowu-park-tickets',
   quilox_vi: 'quilox-club',
@@ -817,12 +819,21 @@ export class HUD {
 
     this.worldMapUI.onTravelWithTransport = (dest, transport, enterInside) => {
       if (inAnotherCity()) return false;
+      const spotId = LANDMARK_STREET_SPOTS[dest.id] ?? dest.aliases?.map((a) => LANDMARK_STREET_SPOTS[a]).find(Boolean);
+      const spot = spotId ? this.world?.interactiveObjects.find((o) => o.id === spotId) : null;
+      const targetPos = (!dest.isEnterable && spot) ? spot.interactionPoint : dest.streetPosition;
+
       // On foot is on foot: the player walks there, and goes in at the door if that was asked for
       if (transport.mode === 'walk') {
-        walkFromMap(dest.streetPosition, dest.name, () => {
+        walkFromMap(targetPos, dest.name, () => {
           this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
-          if (enterInside && dest.isEnterable) this.onEnterInterior?.(dest.interiorId);
-          else this.showNotification(`🚶 You are at ${dest.name}.${dest.isEnterable ? ' Press [E] to go in.' : ''}`);
+          if (enterInside && dest.isEnterable) {
+            this.onEnterInterior?.(dest.interiorId);
+          } else if (spot) {
+            this.showInteractionCard(spot);
+          } else {
+            this.showNotification(`🚶 You are at ${dest.name}.${dest.isEnterable ? ' Press [E] to go in.' : ''}`);
+          }
         });
         return true;
       }
@@ -856,8 +867,8 @@ export class HUD {
       this.onNavigateMode?.('street');
 
       // 3. Teleport player character right outside the destination entrance
-      this.player.mesh.position.copy(dest.streetPosition);
-      this.player.position.copy(dest.streetPosition);
+      this.player.mesh.position.copy(targetPos);
+      this.player.position.copy(targetPos);
       this.player.mesh.rotation.y = 0;
       this.player.stopMoving();
 
@@ -865,8 +876,10 @@ export class HUD {
       this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
       if (enterInside && dest.isEnterable) {
         setTimeout(() => this.onEnterInterior?.(dest.interiorId), 50);
+      } else if (spot) {
+        this.showInteractionCard(spot);
       } else {
-        this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}! Press [E] to enter.`);
+        this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}!${dest.isEnterable ? ' Press [E] to enter.' : ''}`);
       }
       return true;
     };
@@ -968,6 +981,8 @@ export class HUD {
     };
 
     if (this.world) {
+      this.world.worldMap.locate = (lm) => this.worldMapUI.locate?.(lm) ?? null;
+
       this.world.worldMap.onHoverItem = (item, screenPos) => {
         this.worldMapUI.showHoverTooltip(item, screenPos);
       };
@@ -1463,6 +1478,9 @@ export class HUD {
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_vip_lounge') {
       btnEl.textContent = '🥂 NigeriaLife Air Executive VIP Lounge Access (₦5,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'airport_baggage_carousel') {
+      btnEl.textContent = '🧳 Claim Checked Travel Luggage';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'bank_atm_station') {
       btnEl.textContent = '🏧 Withdraw ₦10,000 Cash';
@@ -2484,6 +2502,18 @@ export class HUD {
           dialogueText: 'Need ₦5,000 cash for VIP lounge access!',
         });
       }
+      return;
+    } else if (id === 'airport_baggage_carousel') {
+      this.backend.restoreEnergy(20);
+      this.backend.addStreetCred(10);
+      this.showDialogueModal({
+        speakerName: 'Baggage Services Officer',
+        speakerRole: 'Arrivals Luggage Reclaim • Carousel 1',
+        speakerAvatar: '🧳',
+        soundType: 'aviation',
+        dialogueText: 'Luggage collected from Carousel 1! Personal bags verified and cleared. Curbside doors to the street are right ahead.',
+        rewards: { streetCred: 10, energy: 20 },
+      });
       return;
     } else if (id === 'bank_atm_station') {
       // The branch ATM is the player's own account: it moves their money, it does not create any

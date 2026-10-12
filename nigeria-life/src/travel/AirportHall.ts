@@ -131,10 +131,28 @@ export function openAirportHall(setting: HallSetting): void {
     },
   });
 
+  const baggageClaim: PlaceAction = {
+    label: () => {
+      const held = flights.booking;
+      if (held?.state === 'arrived') return '🧳 Claim your checked luggage';
+      return '🧳 Baggage Claim Carousel 1';
+    },
+    run: (host: PlaceHost) => {
+      const city = setting.city();
+      const held = flights.booking;
+      if (held?.state === 'arrived') {
+        host.say(`You retrieved your travel suitcase from Carousel 1 at ${AIRPORTS[city].name}. Luggage verified and cleared! The curbside doors to the street are just ahead.`, 'success');
+      } else {
+        host.say(`Carousel 1 is circulating luggage for incoming flights at ${AIRPORTS[city].name}. If you are departing, proceed to the ticket desk. Curbside doors lead out to the street.`, 'info');
+      }
+    },
+  };
+
   PlaceActions.registerAll({
     airport_checkin_desk: desk,
     airport_security_gate: security,
     airport_flight_abuja: gate(1),
     airport_flight_ph: gate(2),
+    airport_baggage_carousel: baggageClaim,
   });
 }

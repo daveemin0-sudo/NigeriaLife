@@ -4219,6 +4219,7 @@ body[data-ui-mode="transit"] #street-chat-box {
   justify-content: space-between;
   align-items: center;
   pointer-events: auto;
+  z-index: 50;
 }
 
 .map-top-left {
@@ -4322,7 +4323,7 @@ body[data-ui-mode="transit"] #street-chat-box {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
-  z-index: 5;
+  z-index: 100;
 }
 
 .map-search-hit {
@@ -4423,7 +4424,10 @@ body[data-ui-mode="transit"] #street-chat-box {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  gap: 6px;
   background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -4432,6 +4436,7 @@ body[data-ui-mode="transit"] #street-chat-box {
   border: 1px solid rgba(255, 255, 255, 0.15);
   pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 30;
 }
 
 .city-nav-tab {
@@ -4455,6 +4460,67 @@ body[data-ui-mode="transit"] #street-chat-box {
   background: #2563eb;
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.city-tab-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.2);
+  align-self: center;
+}
+
+.map-names-toggle {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.map-names-toggle:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.map-names-toggle.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.map-filter-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.map-filter-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.map-filter-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.map-filter-btn.active {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
 }
 
 .map-district-strip {

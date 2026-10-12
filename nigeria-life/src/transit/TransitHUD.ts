@@ -44,6 +44,7 @@ export class TransitHUD {
         <div class="flight-catering-row">
           <button class="btn-catering" id="btn-eat-chops">🥟 Small Chops</button>
           <button class="btn-catering" id="btn-drink-zobo">🍷 Cold Zobo</button>
+          <button class="btn-catering" id="btn-lemon-wipe">🍋 Lemon Wipe</button>
           <button class="btn-flight-skip" id="btn-flight-skip">Skip flight ⏭️</button>
         </div>
       </div>
@@ -140,13 +141,17 @@ export class TransitHUD {
       this.onSkipRide?.();
     });
 
-    // In-flight snacks
+    // In-flight snacks & refreshments
     document.getElementById('btn-eat-chops')?.addEventListener('click', () => {
-      showGameToast('🥟 You enjoyed hot puff-puff and samosa small chops! Energy +20', 'success');
+      showGameToast('🥟 You enjoyed warm meat pie and sweet puff-puff small chops! Energy +20', 'success');
     });
 
     document.getElementById('btn-drink-zobo')?.addEventListener('click', () => {
-      showGameToast('🍷 Chilled Zobo with ginger and pineapple! Happiness +15', 'success');
+      showGameToast('🍷 Chilled Zobo with ginger and pineapple! Thirst quenched, Happiness +15', 'success');
+    });
+
+    document.getElementById('btn-lemon-wipe')?.addEventListener('click', () => {
+      showGameToast('🍋 Refreshing warm lemon towel: your hands and face feel clean and revived!', 'info');
     });
 
     document.getElementById('btn-ride-back')?.addEventListener('click', () => {
@@ -193,6 +198,11 @@ export class TransitHUD {
       if (timeEl) timeEl.textContent = `Touching down · 4 min`;
       if (fillEl) fillEl.style.width = '95%';
     }
+  }
+
+  public setAnnouncement(announcement: string): void {
+    const annEl = document.getElementById('f-hud-announcement');
+    if (annEl) annEl.textContent = `"${announcement}"`;
   }
 
   public hideFlightHUD(): void {

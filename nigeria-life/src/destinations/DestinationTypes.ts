@@ -16,7 +16,10 @@ export type DestinationCategory =
   | 'Refinery'
   | 'Hotel'
   | 'Supermarket'
-  | 'Residential';
+  | 'Residential'
+  | 'Transit'
+  | 'Civic'
+  | 'Culture';
 
 export type TransportMode =
   | 'walk'

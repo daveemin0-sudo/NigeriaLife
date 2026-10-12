@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { InteractiveObject } from '../world/World';
 import type { AirportLandmark } from '../world/landmarks/Airport';
 import type { MotorParkLandmark } from '../world/landmarks/MotorPark';
+import type { Obstruction } from '../world/plan/CityPlan';
 
 export type CityId = 'lagos' | 'abuja' | 'ibadan' | 'kano' | 'port_harcourt';
 
@@ -43,6 +44,8 @@ export interface CityInstance {
   groundMesh?: THREE.Mesh;
   /** Its airport, built by the same maker as Lagos's */
   airport?: AirportLandmark;
+  /** What its kit-built buildings put on the ground, for the city plan and for whoever walks or drives there */
+  standing?: Obstruction[];
   /** Its motor park, where the coaches to other cities leave from and pull in */
   motorPark?: MotorParkLandmark;
   update(delta: number): void;

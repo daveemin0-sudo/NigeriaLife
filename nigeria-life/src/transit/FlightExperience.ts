@@ -30,8 +30,15 @@ export class FlightExperience {
   private ifeContext!: CanvasRenderingContext2D;
   private ifeTexture!: THREE.CanvasTexture;
 
+  // Cabin Crew, Catering Trolley & Tray Refreshments
+  private hostessGroup: THREE.Group = new THREE.Group();
+  private trayItemsGroup: THREE.Group = new THREE.Group();
+  private hostessZ: number = -7.5;
+  private announcementIndex: number = -1;
+
   // Callbacks
   public onFlightPhaseChanged?: (phase: FlightPhase, timeRemainingSec: number, announcement: string) => void;
+  public onAnnouncement?: (announcement: string) => void;
   public onFlightCompleted?: (flight: FlightDetails) => void;
 
   constructor() {
@@ -160,6 +167,19 @@ export class FlightExperience {
     ctx.fillStyle = '#facc15';
     ctx.font = '28px sans-serif';
     ctx.fillText('✈️', curX, curY + 8);
+
+    // Bottom In-Flight Status & Refreshment Service Ribbon
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, h - 38, w, 38);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 15px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    const serviceText = this.currentPhase === 'boarding'
+      ? 'BOARDING & TAXI · PLEASE FASTEN SEATBELT'
+      : this.currentPhase === 'cruise'
+      ? 'CRUISING 35,000 FT · IN-FLIGHT SERVICE ACTIVE 🥟 🍷 🍋'
+      : 'APPROACH & LANDING · STOW TRAY TABLES';
+    ctx.fillText(serviceText, w / 2, h - 14);
 
     this.ifeTexture.needsUpdate = true;
   }
@@ -372,32 +392,191 @@ export class FlightExperience {
     tray.position.set(-1.1, 0.95, 0.0);
     this.cabinGroup.add(tray);
 
-    // Refreshment cup on tray
-    const cupMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.3 }); // Zobo Red cup
-    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.18, 10), cupMat);
-    cup.position.set(-0.85, 1.05, 0.05);
-    this.cabinGroup.add(cup);
+    // Tray Table Refreshments (Served by Cabin Crew during cruise)
+    this.trayItemsGroup = new THREE.Group();
+    this.trayItemsGroup.position.set(-1.1, 0.97, 0.0);
 
-    // Small chops snack box on tray
-    const boxMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 });
-    const snackBox = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.22), boxMat);
-    snackBox.position.set(-1.25, 1.0, 0.02);
-    this.cabinGroup.add(snackBox);
+    // Refreshment cup (Chilled Zobo with straw & lemon slice)
+    const cupMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.2 });
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.18, 12), cupMat);
+    cup.position.set(0.25, 0.09, 0.05);
+    this.trayItemsGroup.add(cup);
 
-    // Air Hostess & Catering Trolley in aisle
-    const trolleyMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7 });
-    const trolley = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 1.2), trolleyMat);
-    trolley.position.set(0, 0.6, -7.5);
-    this.cabinGroup.add(trolley);
+    const strawMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+    const straw = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.22, 6), strawMat);
+    straw.rotation.z = 0.25;
+    straw.position.set(0.28, 0.18, 0.05);
+    this.trayItemsGroup.add(straw);
 
-    const hostessMat = new THREE.MeshStandardMaterial({ color: 0x15803d }); // Green uniform
-    const hostessBody = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.2, 0.35), hostessMat);
-    hostessBody.position.set(0, 1.7, -8.3);
-    this.cabinGroup.add(hostessBody);
+    const lemonMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.4 });
+    const lemon = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.015, 8), lemonMat);
+    lemon.rotation.x = Math.PI / 2;
+    lemon.position.set(0.22, 0.17, 0.05);
+    this.trayItemsGroup.add(lemon);
 
-    const hostessHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), new THREE.MeshStandardMaterial({ color: 0x6b4226 }));
-    hostessHead.position.set(0, 2.45, -8.3);
-    this.cabinGroup.add(hostessHead);
+    // Small chops pastry box (Warm Nigerian meat pie + puff-puff)
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.5 });
+    const snackBox = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.24), boxMat);
+    snackBox.position.set(-0.15, 0.04, 0.02);
+    this.trayItemsGroup.add(snackBox);
+
+    // Golden Nigerian Meat Pie inside box
+    const pieMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.7 });
+    const meatPie = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.04, 10), pieMat);
+    meatPie.rotation.x = Math.PI / 2;
+    meatPie.position.set(-0.2, 0.09, 0.02);
+    this.trayItemsGroup.add(meatPie);
+
+    // Golden Puff-Puff ball
+    const puffMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.8 });
+    const puffPuff = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), puffMat);
+    puffPuff.position.set(-0.1, 0.09, 0.05);
+    this.trayItemsGroup.add(puffPuff);
+
+    // Samosa triangle
+    const samosaMat = new THREE.MeshStandardMaterial({ color: 0xca8a04, roughness: 0.6 });
+    const samosa = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.05, 3), samosaMat);
+    samosa.rotation.x = Math.PI / 2;
+    samosa.position.set(-0.1, 0.09, -0.04);
+    this.trayItemsGroup.add(samosa);
+
+    // Lemon Handwipe foil sachet
+    const wipeMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.3 });
+    const lemonWipe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.01, 0.08), wipeMat);
+    lemonWipe.position.set(0.02, 0.01, 0.12);
+    this.trayItemsGroup.add(lemonWipe);
+
+    // Folded airline paper napkin
+    const napMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+    const napkin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.015, 0.14), napMat);
+    napkin.position.set(0.02, 0.01, -0.05);
+    this.trayItemsGroup.add(napkin);
+
+    this.cabinGroup.add(this.trayItemsGroup);
+
+    // =======================================================================
+    // AIR HOSTESS & IN-FLIGHT CATERING TROLLEY (Moves down aisle during cruise)
+    // =======================================================================
+    this.hostessGroup = new THREE.Group();
+    this.hostessGroup.position.set(0, 0, this.hostessZ);
+
+    // 1. Airline Catering Galley Cart
+    const cartMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.75, roughness: 0.25 });
+    const cartBody = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.95, 1.15), cartMat);
+    cartBody.position.set(0, 0.55, 0);
+    this.hostessGroup.add(cartBody);
+
+    // Cart wheels & bumper
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+    for (const wx of [-0.28, 0.28]) {
+      for (const wz of [-0.45, 0.45]) {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 8), wheelMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(wx, 0.06, wz);
+        this.hostessGroup.add(wheel);
+      }
+    }
+
+    // Top Service Deck of Trolley
+    // Beverage dispenser / coffee thermos
+    const thermosMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.85, roughness: 0.15 });
+    const carafe1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.28, 10), thermosMat);
+    carafe1.position.set(-0.16, 1.15, -0.32);
+    this.hostessGroup.add(carafe1);
+
+    const carafe2 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.28, 10), thermosMat);
+    carafe2.position.set(0.16, 1.15, -0.32);
+    this.hostessGroup.add(carafe2);
+
+    // Stacks of cups
+    for (const cz of [-0.05, 0.15]) {
+      const cups = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.22, 10), cupMat);
+      cups.position.set(-0.18, 1.12, cz);
+      this.hostessGroup.add(cups);
+    }
+
+    // Basket of hot meat pies & snacks on cart
+    const basketMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
+    const basket = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.35), basketMat);
+    basket.position.set(0.16, 1.06, 0.05);
+    this.hostessGroup.add(basket);
+
+    // Pastries in basket
+    const pieOnCart = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.25), pieMat);
+    pieOnCart.position.set(0.16, 1.12, 0.05);
+    this.hostessGroup.add(pieOnCart);
+
+    // Chilled Drink Cans & Water bottles
+    const canMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.7, roughness: 0.3 }); // Eva Blue
+    const water = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.16, 8), canMat);
+    water.position.set(0, 1.1, 0.35);
+    this.hostessGroup.add(water);
+
+    // Push Handle bar
+    const handleBar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.58, 8), thermosMat);
+    handleBar.rotation.z = Math.PI / 2;
+    handleBar.position.set(0, 1.08, -0.58);
+    this.hostessGroup.add(handleBar);
+
+    // 2. Air Hostess Amina in NigeriaLife Air Uniform
+    const hostessUniformMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.5 }); // Emerald airline green
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8, roughness: 0.2 }); // Gold trim & wings badge
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.8 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9 });
+
+    // Hostess Torso & Uniform Jacket
+    const hostessTorso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.3), hostessUniformMat);
+    hostessTorso.position.set(0, 1.5, -0.92);
+    this.hostessGroup.add(hostessTorso);
+
+    // Gold airline wings badge on left lapel
+    const badge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.02), goldMat);
+    badge.position.set(-0.14, 1.7, -0.76);
+    this.hostessGroup.add(badge);
+
+    // White shirt collar
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.04), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    collar.position.set(0, 1.82, -0.78);
+    this.hostessGroup.add(collar);
+
+    // Tailored pencil skirt
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.65, 0.28), hostessUniformMat);
+    skirt.position.set(0, 0.9, -0.92);
+    this.hostessGroup.add(skirt);
+
+    // Hostess Arms reaching forward to hold trolley handle
+    const armMat = hostessUniformMat;
+    for (const side of [-0.26, 0.26]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.42), armMat);
+      arm.position.set(side, 1.28, -0.74);
+      arm.rotation.x = -0.3;
+      this.hostessGroup.add(arm);
+
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), skinMat);
+      hand.position.set(side, 1.1, -0.58);
+      this.hostessGroup.add(hand);
+    }
+
+    // Hostess Head
+    const hostessHead = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), skinMat);
+    hostessHead.position.set(0, 2.05, -0.92);
+    this.hostessGroup.add(hostessHead);
+
+    // Styled hair bun
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), hairMat);
+    hair.position.set(0, 2.12, -1.04);
+    this.hostessGroup.add(hair);
+
+    // Stewardess pillbox hat with gold trim
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.17, 0.08, 12), hostessUniformMat);
+    hat.position.set(0, 2.24, -0.92);
+    this.hostessGroup.add(hat);
+
+    const hatBadge = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.02), goldMat);
+    hatBadge.position.set(0, 2.24, -0.75);
+    this.hostessGroup.add(hatBadge);
+
+    this.cabinGroup.add(this.hostessGroup);
   }
 
   // =========================================================================
@@ -494,7 +673,13 @@ export class FlightExperience {
     this.group.visible = true;
     this.elapsedTime = 0;
     this.phaseTimer = 0;
+    this.announcementIndex = -1;
     this.totalFlightTime = flight.durationSeconds || 32;
+
+    this.hostessZ = -7.5;
+    this.hostessGroup.position.set(0, 0, -7.5);
+    this.hostessGroup.rotation.y = 0;
+    this.trayItemsGroup.visible = false;
 
     this.setPhase('boarding');
     this.setCameraView('seat');
@@ -590,6 +775,50 @@ export class FlightExperience {
     // Spin Jet Turbofans
     for (const fan of this.engineFans) {
       fan.rotation.y += delta * 45;
+    }
+
+    // Timed Captain & Cabin Crew In-Flight Announcements
+    const dest = this.currentFlight?.destinationName || 'Destination Airport';
+    const code = this.currentFlight?.flightCode || 'NL 204';
+    const announcements = [
+      { time: 0.6, text: `Captain Lawal: "Welcome aboard flight ${code}. Cabin crew, arm doors for departure."` },
+      { time: 4.2, text: `Amina (Cabin Crew): "Ladies and gentlemen, please fasten seatbelts and lock tray tables upright."` },
+      { time: 8.5, text: `Captain Lawal: "Cabin crew, take your seats for takeoff."` },
+      { time: 11.2, text: `Ding-dong 🔔 Captain Lawal: "We have reached our cruising altitude of 35,000 feet. Cabin crew, you may begin in-flight service."` },
+      { time: 14.5, text: `Ding-dong 🔔 Amina (Cabin Crew): "Complimentary refreshments: warm meat pie, puff-puff small chops, chilled Zobo, and warm lemon wipes!"` },
+      { time: 18.5, text: `Ding-dong 🔔 Captain Lawal: "Cabin crew, prepare cabin for arrival into ${dest}. Please stow tray tables."` },
+    ];
+
+    for (let i = this.announcementIndex + 1; i < announcements.length; i++) {
+      if (this.elapsedTime >= announcements[i].time) {
+        this.announcementIndex = i;
+        this.onAnnouncement?.(announcements[i].text);
+      } else {
+        break;
+      }
+    }
+
+    // Cabin Crew Catering Trolley Movement along Aisle during Cruise
+    if (this.currentPhase === 'cruise') {
+      if (this.elapsedTime >= 11.2 && this.elapsedTime < 14.6) {
+        // Rolling down the aisle toward row 14
+        const t = (this.elapsedTime - 11.2) / 3.4;
+        this.hostessZ = THREE.MathUtils.lerp(-7.5, -0.7, t);
+        this.hostessGroup.position.set(0, Math.sin(this.animTime * 7) * 0.02, this.hostessZ);
+        this.hostessGroup.rotation.y = 0;
+      } else if (this.elapsedTime >= 14.6 && this.elapsedTime < 18.5) {
+        // Paused beside passenger row, serving tray table
+        this.hostessZ = -0.7;
+        this.hostessGroup.position.set(0, 0, this.hostessZ);
+        this.hostessGroup.rotation.y = -0.32;
+        this.trayItemsGroup.visible = true;
+      } else if (this.elapsedTime >= 18.5 && this.elapsedTime < 22.0) {
+        // Rolling back toward forward galley as landing approaches
+        const t = (this.elapsedTime - 18.5) / 3.5;
+        this.hostessZ = THREE.MathUtils.lerp(-0.7, -7.5, t);
+        this.hostessGroup.position.set(0, Math.sin(this.animTime * 7) * 0.02, this.hostessZ);
+        this.hostessGroup.rotation.y = 0;
+      }
     }
 
     // Drift Clouds past plane at cruising airspeed

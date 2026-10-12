@@ -70,6 +70,25 @@ export class WorldDataManager {
     return closest;
   }
 
+  /**
+   * The district of a named city that holds this point (or the nearest to it). The map's own
+   * city can differ from the player's (another city's map can be up), so a lookup about where
+   * the player stands names the city it means.
+   */
+  public districtIn(cityId: string, pos: THREE.Vector3): DistrictData | undefined {
+    const data = cityId === 'abuja' ? ABUJA_MAP_DATA : cityId === 'port_harcourt' ? PORT_HARCOURT_MAP_DATA : cityId === 'lagos' ? LAGOS_MAP_DATA : null;
+    if (!data) return undefined;
+    const inside = data.districts.find((d) => pos.x >= d.bounds.minX && pos.x <= d.bounds.maxX && pos.z >= d.bounds.minZ && pos.z <= d.bounds.maxZ);
+    if (inside) return inside;
+    let closest: DistrictData | undefined;
+    let minDist = Infinity;
+    for (const district of data.districts) {
+      const d = district.center.distanceTo(pos);
+      if (d < minDist) { minDist = d; closest = district; }
+    }
+    return closest;
+  }
+
   public getLandmarks(): MapLandmark[] {
     return this.currentCity.landmarks;
   }

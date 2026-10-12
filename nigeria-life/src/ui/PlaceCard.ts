@@ -37,6 +37,7 @@ const SPOT_CHIPS: Record<string, { icon: string; label: string }> = {
   airport_flight_abuja: { icon: '🛫', label: 'Gate 1' },
   airport_flight_ph: { icon: '🛫', label: 'Gate 2' },
   airport_vip_lounge: { icon: '🥂', label: 'VIP lounge' },
+  airport_baggage_carousel: { icon: '🧳', label: 'Baggage claim' },
   'flat-tv': { icon: '📺', label: 'Sofa & TV' },
   'flat-fridge': { icon: '🧊', label: 'Fridge' },
   'flat-bed': { icon: '🛏️', label: 'Bed' },

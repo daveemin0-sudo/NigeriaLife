@@ -17,6 +17,8 @@ interface MapMarker {
   place?: string;
   /** The pin stands over the real place in the city, not over a drawing of it */
   real?: boolean;
+  category?: 'transit' | 'food' | 'work' | 'civic' | 'other';
+  filtered?: boolean;
 }
 
 /** "Quilox VIP Nightclub & Waterfront Lounge" -> "Quilox VIP Nightclub" */
@@ -41,6 +43,7 @@ export class WorldMapUI {
   private pinLayerEl!: HTMLDivElement;
   private markers: MapMarker[] = [];
   private projected = new THREE.Vector3();
+  private activeFilter: string = 'all';
 
   public onTravelToDistrict?: (district: DistrictData) => void;
   public onTravelToLandmark?: (landmark: MapLandmark) => void;
@@ -119,6 +122,14 @@ export class WorldMapUI {
         <button class="city-nav-tab" data-city="port_harcourt">🛢️ Port Harcourt</button>
         <span class="city-tab-divider"></span>
         <button class="map-names-toggle active" id="btn-map-names" title="Show or hide place names">🏷️ Names</button>
+        <span class="city-tab-divider"></span>
+        <div class="map-filter-group" id="map-filter-group">
+          <button class="map-filter-btn active" data-filter="all">All</button>
+          <button class="map-filter-btn" data-filter="transit">🚌 Transit</button>
+          <button class="map-filter-btn" data-filter="food">🍲 Food</button>
+          <button class="map-filter-btn" data-filter="work">💼 Work</button>
+          <button class="map-filter-btn" data-filter="civic">🏛️ Civic</button>
+        </div>
       </nav>
 
       <!-- DISTRICT QUICK CHIP NAVIGATOR -->
@@ -228,6 +239,14 @@ export class WorldMapUI {
           this.updateCityHeader(cityId);
           this.onSwitchCityTab?.(cityId);
         }
+      });
+    });
+
+    // Place category filters
+    this.container.querySelectorAll('.map-filter-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const filter = (e.currentTarget as HTMLElement).getAttribute('data-filter') || 'all';
+        this.applyFilter(filter);
       });
     });
   }
@@ -373,6 +392,83 @@ export class WorldMapUI {
     });
   }
 
+  /** Categorizes a landmark into transit, food, work, or civic for quick map filtering */
+  public placeCategory(lm: MapLandmark): 'transit' | 'food' | 'work' | 'civic' | 'other' {
+    const dest = DestinationRegistry.getInstance().getById(lm.id);
+    const cat = dest?.category?.toLowerCase() ?? '';
+    const type = lm.type?.toLowerCase() ?? '';
+    const id = lm.id?.toLowerCase() ?? '';
+    const name = (dest?.name ?? lm.name ?? '').toLowerCase();
+
+    // Transit: Airport, Seaport, motor parks, cab stops, terminals, bridges
+    if (
+      cat === 'airport' || cat === 'seaport' ||
+      type === 'airport' || type === 'port' || type === 'bridge' ||
+      id.includes('airport') || id.includes('park') || id.includes('cab') ||
+      id.includes('terminal') || id.includes('transit') || id.includes('motor') ||
+      id.includes('waterlines') || name.includes('airport') || name.includes('motor park') ||
+      name.includes('terminal') || name.includes('wharf')
+    ) {
+      return 'transit';
+    }
+
+    // Food: Restaurants, buka, bole, grill, food market, cafes, nightclubs
+    if (
+      cat === 'restaurant' || cat === 'nightclub' || cat === 'supermarket' ||
+      id.includes('buka') || id.includes('bole') || id.includes('food') ||
+      id.includes('grill') || id.includes('eats') || id.includes('chicken') ||
+      id.includes('mama_put') || id.includes('quilox') || id.includes('market') ||
+      cat === 'market' || name.includes('buka') || name.includes('bole') ||
+      name.includes('food') || name.includes('market') || name.includes('restaurant')
+    ) {
+      return 'food';
+    }
+
+    // Work: Commercial, banking, refineries, secretariat, tech exchanges, corporate offices
+    if (
+      cat === 'bank' || cat === 'refinery' ||
+      type === 'commercial' || type === 'tech' ||
+      id.includes('bank') || id.includes('refinery') || id.includes('secretariat') ||
+      id.includes('work') || id.includes('complex') || id.includes('techexchange') ||
+      id.includes('hub') || id.includes('office') || name.includes('bank') ||
+      name.includes('refinery') || name.includes('secretariat') || name.includes('exchange')
+    ) {
+      return 'work';
+    }
+
+    // Civic: Healthcare/Hospital, University, Church, Mosque, Stadium, Cultural landmarks, Government/Police
+    if (
+      cat === 'healthcare' || cat === 'university' || cat === 'church' || cat === 'stadium' ||
+      type === 'hospital' || type === 'university' || type === 'culture' || type === 'stadium' ||
+      id.includes('police') || id.includes('hospital') || id.includes('clinic') ||
+      id.includes('church') || id.includes('mosque') || id.includes('centre') ||
+      id.includes('stadium') || id.includes('rock') || id.includes('lookout') ||
+      id.includes('uniport') || id.includes('unilag') || name.includes('hospital') ||
+      name.includes('church') || name.includes('mosque') || name.includes('stadium') ||
+      name.includes('university') || name.includes('police') || name.includes('aso rock')
+    ) {
+      return 'civic';
+    }
+
+    return 'other';
+  }
+
+  public applyFilter(filter: string): void {
+    this.activeFilter = filter;
+    this.container.querySelectorAll('.map-filter-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-filter') === filter);
+    });
+
+    for (const marker of this.markers) {
+      if (!marker.place) continue;
+      if (filter === 'all') {
+        marker.filtered = false;
+      } else {
+        marker.filtered = marker.category !== filter;
+      }
+    }
+  }
+
   /**
    * Builds a pin for every place and a name for every district of the city on show.
    * They are ordinary page elements, so the text stays sharp at any zoom.
@@ -412,7 +508,16 @@ export class WorldMapUI {
         pin.remove();
         continue;
       }
-      this.markers.push({ el: pin, position: new THREE.Vector3(real.x, 9, real.z), place: lm.id, real: true });
+      const category = this.placeCategory(lm);
+      const filtered = this.activeFilter !== 'all' && category !== this.activeFilter;
+      this.markers.push({
+        el: pin,
+        position: new THREE.Vector3(real.x, 9, real.z),
+        place: lm.id,
+        real: true,
+        category,
+        filtered,
+      });
     }
   }
 
@@ -429,7 +534,7 @@ export class WorldMapUI {
       this.projected.copy(marker.position).project(camera);
       const x = (this.projected.x + 1) * 0.5 * w;
       const y = (1 - this.projected.y) * 0.5 * h;
-      const visible = this.projected.z < 1 && x > -80 && x < w + 80 && y > -40 && y < h + 40;
+      const visible = !marker.filtered && this.projected.z < 1 && x > -80 && x < w + 80 && y > -40 && y < h + 40;
       marker.el.style.display = visible ? '' : 'none';
       if (visible) {
         marker.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
@@ -629,7 +734,7 @@ export class WorldMapUI {
         const choose = (t: TransportOption) => {
           chosen = t;
           tiles.forEach((tile) => tile.classList.toggle('selected', tile.dataset.mode === t.mode));
-          goBtn.textContent = t.fare === 0 ? `Go by ${t.label} · Free` : `Go by ${t.label} · ₦${t.fare.toLocaleString()}`;
+          goBtn.textContent = t.mode === 'walk' ? 'Walk there · Free' : `Go by ${t.label} · ₦${t.fare.toLocaleString()}`;
         };
         tiles.forEach((tile) => {
           tile.addEventListener('click', () => {

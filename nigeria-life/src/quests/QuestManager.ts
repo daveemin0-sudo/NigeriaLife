@@ -518,6 +518,8 @@ export class QuestManager {
         this.completeObjective('obj_a2_tender');
       } else if (objId === 'aso-rock-lookout') {
         this.completeObjective('obj_a3_lookout');
+      } else if (objId === 'abuja-cab') {
+        this.completeObjective('obj_a1_cab');
       } else if (objId === 'nepa-generator' || objId === 'mechanic') {
         this.completeObjective('obj_p2_repair');
       }

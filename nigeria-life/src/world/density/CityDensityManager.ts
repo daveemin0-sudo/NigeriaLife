@@ -23,6 +23,10 @@ export class CityDensityManager {
     this.buildStreetDetailsAndProps();
   }
 
+  public setNightLighting(period: string): void {
+    this.fabric.setNightLighting(period);
+  }
+
   // =========================================================================
   // STREET PROPS & DETAILS (Drainage, Generators, Signs, Cones, Tanks)
   // =========================================================================

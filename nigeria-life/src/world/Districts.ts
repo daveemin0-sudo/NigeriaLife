@@ -14,6 +14,26 @@ export class Districts {
   // Generator smoke
   private smokeParticles: THREE.Mesh[] = [];
 
+  // Market stalls
+  private marketStallUmbrellas: THREE.Mesh[] = [];
+  private marketFabricRolls: THREE.Mesh[] = [];
+
+  public setNightLighting(period: string): void {
+    const isNight = period === 'night';
+    for (const umbrella of this.marketStallUmbrellas) {
+      if (isNight) {
+        umbrella.position.y = 1.6;
+        umbrella.scale.set(0.18, 0.85, 0.18);
+      } else {
+        umbrella.position.y = 3.2;
+        umbrella.scale.set(1, 1, 1);
+      }
+    }
+    for (const fabric of this.marketFabricRolls) {
+      fabric.visible = !isNight;
+    }
+  }
+
   constructor() {
     this.group = new THREE.Group();
 
@@ -737,6 +757,7 @@ export class Districts {
       );
       umbrella.position.set(px, 3.2, pz);
       marketGroup.add(umbrella);
+      this.marketStallUmbrellas.push(umbrella);
 
       const stallTable = new THREE.Mesh(
         new THREE.BoxGeometry(2.2, 1.2, 1.6),
@@ -752,6 +773,7 @@ export class Districts {
       );
       fabric.position.set(px, 1.45, pz);
       marketGroup.add(fabric);
+      this.marketFabricRolls.push(fabric);
     }
 
     marinaGroup.add(marketGroup);

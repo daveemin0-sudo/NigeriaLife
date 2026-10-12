@@ -15,6 +15,8 @@ export class AirportInterior {
   private departureBoardPulse: number = 0;
   private turbineFans: THREE.Mesh[] = [];
   private tarmacLights: THREE.Mesh[] = [];
+  private carouselBags: Array<{ group: THREE.Group; trackT: number }> = [];
+  private carouselCenter: THREE.Vector3 = new THREE.Vector3(7.5, 0, 4.5);
 
   constructor() {
     this.group = new THREE.Group();
@@ -140,6 +142,23 @@ export class AirportInterior {
               rewardHealth: 100,
               rewardEnergy: 100,
               dialogueResponse: '🥂 "Welcome to the VIP Lounge. Enjoy chilled Chapman and gourmet small chops. 100% Health & Energy restored!"',
+            },
+          ],
+        },
+        {
+          id: 'airport_baggage_carousel',
+          name: '🧳 Baggage Claim Carousel 1',
+          category: 'Aviation Baggage Claim',
+          description: 'Rotating baggage reclaim belt for arriving domestic and regional flights.',
+          relativePosition: new THREE.Vector3(7.5, 0, 4.5),
+          actions: [
+            {
+              id: 'airport_claim_baggage',
+              label: '🧳 Claim Your Checked Luggage',
+              description: 'Retrieve your tagged traveling suitcase from Carousel 1.',
+              cost: 0,
+              rewardSocial: 15,
+              dialogueResponse: '🧳 Baggage Claim: You retrieved your heavy travel suitcase from Carousel 1! Everything intact. Curbside doors to the street are just ahead.',
             },
           ],
         },
@@ -404,6 +423,9 @@ export class AirportInterior {
       description: 'First-class waiting lounge with buffet delicacies, chilled malt, private Wi-Fi, and plush sofas.',
       interactionPoint: new THREE.Vector3(-9, 0, -5.2),
     });
+
+    // 9b. Arrivals Concourse: Motorized Baggage Claim Carousel 1
+    this.buildBaggageCarousel();
 
     // 10. Instantiate Character 2.0 NPCs
     this.def.npcs.forEach((npcDef) => {
@@ -677,6 +699,185 @@ export class AirportInterior {
     });
   }
 
+  // =========================================================================
+  // 10b. BAGGAGE CLAIM CAROUSEL & ARRIVALS LUGGAGE RECLAIM
+  // =========================================================================
+  private buildBaggageCarousel(): void {
+    const carouselGroup = new THREE.Group();
+    carouselGroup.position.copy(this.carouselCenter);
+
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.25 });
+    const beltMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
+    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.1 });
+    const innerMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.7, roughness: 0.3 });
+
+    const straightL = 3.8;
+    const radius = 1.35;
+
+    // 1. Outer Brushed Stainless Steel Protective Bumpers
+    const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.45, straightL), metalMat);
+    wallL.position.set(-radius - 0.2, 0.225, 0);
+    carouselGroup.add(wallL);
+
+    const wallR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.45, straightL), metalMat);
+    wallR.position.set(radius + 0.2, 0.225, 0);
+    carouselGroup.add(wallR);
+
+    // North & South curved outer bumper caps
+    for (const zEnd of [-straightL / 2, straightL / 2]) {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.3, radius + 0.3, 0.45, 16, 1, false, 0, Math.PI), metalMat);
+      cap.rotation.y = zEnd > 0 ? 0 : Math.PI;
+      cap.position.set(0, 0.225, zEnd);
+      carouselGroup.add(cap);
+    }
+
+    // 2. Slanted Rubber Conveyor Bed
+    const deckL = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.1, straightL), beltMat);
+    deckL.position.set(-radius, 0.38, 0);
+    deckL.rotation.z = -0.15; // tilted inward
+    carouselGroup.add(deckL);
+
+    const deckR = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.1, straightL), beltMat);
+    deckR.position.set(radius, 0.38, 0);
+    deckR.rotation.z = 0.15; // tilted inward
+    carouselGroup.add(deckR);
+
+    // 3. Central Island Enclosure
+    const island = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.36, straightL + 0.4), innerMat);
+    island.position.set(0, 0.18, 0);
+    carouselGroup.add(island);
+
+    // 4. Luggage Delivery Chute from east wall
+    const chute = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.15, 3.2), metalMat);
+    chute.position.set(3.4, 1.2, -0.6);
+    chute.rotation.z = 0.42; // slants down into carousel
+    carouselGroup.add(chute);
+
+    // Flexible rubber curtain flaps at chute mouth
+    const flapMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+    for (let f = -0.4; f <= 0.4; f += 0.2) {
+      const flap = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.55, 0.04), flapMat);
+      flap.position.set(1.9, 0.75, -0.6 + f);
+      flap.rotation.z = 0.2;
+      carouselGroup.add(flap);
+    }
+
+    // 5. Overhead Digital LED Flight Reclaim Sign
+    const signGroup = new THREE.Group();
+    signGroup.position.set(0, 3.6, 0);
+
+    const signHousing = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.75, 0.2), new THREE.MeshStandardMaterial({ color: 0x020617, roughness: 0.2 }));
+    signGroup.add(signHousing);
+
+    const ledDisplay = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.6, 0.05), new THREE.MeshBasicMaterial({ color: 0xf59e0b })); // Amber glowing display
+    ledDisplay.position.set(0, 0, 0.11);
+    signGroup.add(ledDisplay);
+
+    // Suspension cables up to ceiling
+    for (const sx of [-1.6, 1.6]) {
+      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 2.3, 6), chromeMat);
+      cable.position.set(sx, 1.15, 0);
+      signGroup.add(cable);
+    }
+    carouselGroup.add(signGroup);
+
+    // 6. Airport Passenger Luggage Push Carts (Nested row beside carousel)
+    const cartGroup = new THREE.Group();
+    cartGroup.position.set(3.2, 0, 1.6);
+    for (let c = 0; c < 3; c++) {
+      const trolleyFrame = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.95, 0.7), chromeMat);
+      trolleyFrame.position.set(0, 0.48, c * 0.35);
+      cartGroup.add(trolleyFrame);
+    }
+    carouselGroup.add(cartGroup);
+
+    // 7. 6 Animated Luggage Pieces Circulating on Carousel
+    const bagConfigs = [
+      { color: 0x1e3a8a, size: [0.65, 0.28, 0.42] },
+      { color: 0x991b1b, size: [0.70, 0.32, 0.45] },
+      { color: 0x15803d, size: [0.58, 0.35, 0.38] },
+      { color: 0xd97706, size: [0.68, 0.40, 0.48] },
+      { color: 0x334155, size: [0.55, 0.26, 0.38] },
+      { color: 0xeab308, size: [0.62, 0.30, 0.44] },
+    ];
+
+    const tagMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    bagConfigs.forEach((cfg, idx) => {
+      const bagMeshGroup = new THREE.Group();
+      const bagMat = new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.6 });
+      const mainBag = new THREE.Mesh(new THREE.BoxGeometry(cfg.size[0], cfg.size[1], cfg.size[2]), bagMat);
+      mainBag.position.y = cfg.size[1] / 2;
+      bagMeshGroup.add(mainBag);
+
+      // White airline barcode luggage tag
+      const tag = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.08), tagMat);
+      tag.position.set(0, cfg.size[1] + 0.01, 0.12);
+      bagMeshGroup.add(tag);
+
+      // Telescopic pull handle
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.04), chromeMat);
+      handle.position.set(0, cfg.size[1] + 0.03, -cfg.size[2] / 2 + 0.04);
+      bagMeshGroup.add(handle);
+
+      const initialT = idx / bagConfigs.length;
+      const pt = this.getCarouselTrackPoint(initialT);
+      bagMeshGroup.position.copy(pt.pos);
+      bagMeshGroup.rotation.y = pt.angle;
+
+      carouselGroup.add(bagMeshGroup);
+      this.carouselBags.push({ group: bagMeshGroup, trackT: initialT });
+    });
+
+    this.group.add(carouselGroup);
+
+    this.interactiveList.push({
+      mesh: carouselGroup,
+      id: 'airport_baggage_carousel',
+      name: '🧳 Baggage Claim Carousel 1',
+      category: 'Aviation Baggage Claim',
+      description: 'Rotating baggage reclaim belt for arriving domestic and regional flights.',
+      interactionPoint: new THREE.Vector3(7.5, 0, 2.2),
+    });
+  }
+
+  private getCarouselTrackPoint(t: number): { pos: THREE.Vector3; angle: number } {
+    const L = 3.8;
+    const R = 1.35;
+    const semi = Math.PI * R;
+    const total = 2 * L + 2 * semi;
+    let dist = (t % 1.0) * total;
+    if (dist < 0) dist += total;
+
+    if (dist < L) {
+      // West straight: z going from -L/2 to +L/2
+      const z = -L / 2 + dist;
+      return { pos: new THREE.Vector3(-R, 0.44, z), angle: 0 };
+    }
+    dist -= L;
+
+    if (dist < semi) {
+      // North semicircle: angle 0 to PI
+      const angle = dist / R;
+      const x = -R * Math.cos(angle);
+      const z = L / 2 + R * Math.sin(angle);
+      return { pos: new THREE.Vector3(x, 0.44, z), angle: Math.PI / 2 + angle };
+    }
+    dist -= semi;
+
+    if (dist < L) {
+      // East straight: z going from +L/2 to -L/2
+      const z = L / 2 - dist;
+      return { pos: new THREE.Vector3(R, 0.44, z), angle: Math.PI };
+    }
+    dist -= L;
+
+    // South semicircle
+    const angle = dist / R;
+    const x = R * Math.cos(angle);
+    const z = -L / 2 - R * Math.sin(angle);
+    return { pos: new THREE.Vector3(x, 0.44, z), angle: -Math.PI / 2 + angle };
+  }
+
   public update(delta: number, animTime: number): void {
     this.departureBoardPulse += delta;
     this.npcs.forEach((npc) => npc.update(delta, animTime));
@@ -692,6 +893,14 @@ export class AirportInterior {
       if (beacon.material && (beacon.material as any).emissiveIntensity !== undefined) {
         (beacon.material as any).emissiveIntensity = lightPulse;
       }
+    }
+
+    // Rotate luggage pieces continuously along carousel conveyor
+    for (const bag of this.carouselBags) {
+      bag.trackT = (bag.trackT + delta * 0.035) % 1.0;
+      const pt = this.getCarouselTrackPoint(bag.trackT);
+      bag.group.position.copy(pt.pos);
+      bag.group.rotation.y = pt.angle;
     }
   }
 }
