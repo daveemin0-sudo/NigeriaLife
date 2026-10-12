@@ -170,8 +170,7 @@ the game what the registry says the player has bought, and takes back what they 
 two players buy the same one at the same instant, the second is refunded. A lease from a
 landlord is not ownership and stays in the tenant's own game.
 
-The upgrades installed in a business are kept in the registry beside its title (`fittings`),
-so they are sold with it: the buyer gets them, and the seller's copy goes back to a bare one.
+The upgrades installed in a business, and all furniture, wall mountings, wall colours and floor styles in an owned property, are kept in the registry beside its title (`fittings`), so they are sold with it: the buyer gets them, and the seller's copy goes back to a bare one.
 
 ## Vehicles (`realestate/Garage.ts`, `OwnedVehicles.ts`)
 
@@ -190,4 +189,3 @@ else can get in, and their body is not drawn separately.
 - Two players getting into the same city vehicle in the same instant are not arbitrated: each
   drives their own copy until one gets out.
 - Staff and stock for buildings; rent between players for the older apartments.
-- Furniture placed in a home does not go with the home when it is sold.

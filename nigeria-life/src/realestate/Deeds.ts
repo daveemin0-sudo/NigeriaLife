@@ -113,9 +113,10 @@ export class Deeds {
     const deeds = this.backend.deedsHeld();
     const held = new Set(deeds.map((deed) => assetKey(deed)));
     for (const key of held) if (state.titles[key]?.ownerId !== MY_ID) return true;
-    // What is installed in a business this player owns is on record, so it can be sold with it
+    // What is installed in a business or home this player owns is on record, so it can be sold with it
     for (const deed of deeds) {
       if (deed.kind === 'business' && (state.fittings[assetKey(deed)] ?? []).join() !== this.backend.businessFittings(deed.id).join()) return true;
+      if (deed.kind === 'property' && (state.fittings[assetKey(deed)] ?? []).join() !== this.backend.propertyFittings(deed.id).join()) return true;
     }
     for (const [key, title] of Object.entries(state.titles)) {
       if (title.ownerId === MY_ID && !held.has(key) && (key.startsWith('property:') || key.startsWith('business:'))) return true;
@@ -150,9 +151,13 @@ export class Deeds {
         if (!sold) showGameToast(`${name} had already gone to ${state.players[title.ownerId]?.name ?? 'another player'}. Your money has been returned.`, 'warning', 5200);
         continue;
       }
-      // What is installed in a business this player owns is kept on record, so it is sold with it
+      // What is installed in a business or home this player owns is kept on record, so it is sold with it
       if (deed.kind === 'business') {
         const fitted = this.backend.businessFittings(deed.id);
+        if (fitted.length > 0) state.fittings[key] = fitted;
+        else delete state.fittings[key];
+      } else if (deed.kind === 'property') {
+        const fitted = this.backend.propertyFittings(deed.id);
         if (fitted.length > 0) state.fittings[key] = fitted;
         else delete state.fittings[key];
       }

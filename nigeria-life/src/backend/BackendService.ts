@@ -506,10 +506,18 @@ export class BackendService {
   private deedGate: ((kind: 'property' | 'business', id: string) => string | null) | null = null;
   private deedChanged: (() => void) | null = null;
 
+  public propertyFittingsProvider?: (id: string) => string[];
+  public onPropertyFittingsGranted?: (id: string, fittings: string[]) => void;
+  public onPropertySoldToAgent?: (id: string) => void;
+
   /** `gate` says why something cannot be bought on the open market; `changed` is told when what this game holds changes. */
   public setDeedHooks(gate: (kind: 'property' | 'business', id: string) => string | null, changed: () => void): void {
     this.deedGate = gate;
     this.deedChanged = changed;
+  }
+
+  public notifyDeedChanged(): void {
+    this.deedChanged?.();
   }
 
   /** Everything this saved game says the player owns outright. */
@@ -546,9 +554,15 @@ export class BackendService {
     return biz ? biz.upgrades.filter((u) => u.purchased).map((u) => u.id).sort() : [];
   }
 
+  /** The furniture and decoration fittings placed in an owned property. */
+  public propertyFittings(id: string): string[] {
+    return this.propertyFittingsProvider ? this.propertyFittingsProvider(id) : [];
+  }
+
   /**
    * Bought from another player: it is this player's now. Nothing is charged here; the sale
-   * took the money. A business arrives with the upgrades its last owner installed.
+   * took the money. A business arrives with the upgrades its last owner installed; a home
+   * arrives with the furniture and styling fitted by its previous owner.
    */
   public grantDeed(kind: 'property' | 'business', id: string, fittings: string[] = []): void {
     this.syncFromStorage();
@@ -559,6 +573,7 @@ export class BackendService {
       prop.ownerId = this.data.id;
       WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
       this.addItem({ id: `key_${prop.id}`, name: `${prop.name} Smart Keycard`, category: 'key', icon: '🔑', description: `Official master key and electronic access fob for ${prop.name}.`, price: 5000, usable: true });
+      this.onPropertyFittingsGranted?.(id, fittings);
     } else {
       const biz = this.data.businesses.find((b) => b.id === id);
       if (!biz || biz.owned) return;
@@ -592,6 +607,7 @@ export class BackendService {
       WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
       price = prop.purchasePrice;
       name = prop.name;
+      this.onPropertySoldToAgent?.(id);
     } else {
       const biz = this.data.businesses.find((b) => b.id === id);
       if (!biz || !biz.owned) return;
@@ -746,6 +762,7 @@ export class BackendService {
     WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
     this.processTransaction({ type: 'PROPERTY_SALE', amount: value, description: `Sold ${prop.name}`, source: 'bank' });
     this.data.releasedDeeds = [...(this.data.releasedDeeds ?? []), `property:${prop.id}`];
+    this.onPropertySoldToAgent?.(propId);
     this.saveData();
     this.deedChanged?.();
     return { success: true, message: `${prop.name} sold. ₦${value.toLocaleString()} paid into your bank account.` };

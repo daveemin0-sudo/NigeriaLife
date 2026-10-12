@@ -10,10 +10,16 @@ import { Builder } from '../world/kit/ArchKit';
 /** What a piece is for, beyond being looked at. */
 export type FurnitureUse = 'seat' | 'tv' | 'bed' | 'none';
 
+/** Where a piece is attached in a room: standing on the floor or mounted on a wall */
+export type FurnitureMount = 'floor' | 'wall';
+
 export interface FurnitureKind {
-  /** People walk round it. A rug is walked over. */
+  /** People walk round it. A rug is walked over. Wall furniture hangs above head height. */
   solid: boolean;
   use: FurnitureUse;
+  mount?: FurnitureMount;
+  /** Height in metres above floor level for wall-mounted items */
+  elevation?: number;
   /** Where someone sits on it, measured on the piece (a seat only) */
   seat?: { x: number; z: number };
   /** Where someone lies on it (a bed only): where their feet are, how high the mattress is, and how far out from its middle its side is */
@@ -37,6 +43,10 @@ export const FURNITURE: Record<string, FurnitureKind> = {
   cooker: { solid: true, use: 'none' },
   potted_plant: { solid: true, use: 'none' },
   rug_circle: { solid: false, use: 'none' },
+  split_ac: { solid: false, use: 'none', mount: 'wall', elevation: 2.3 },
+  wall_clock: { solid: false, use: 'none', mount: 'wall', elevation: 2.1 },
+  wall_art: { solid: false, use: 'none', mount: 'wall', elevation: 2.0 },
+  wall_mirror: { solid: false, use: 'none', mount: 'wall', elevation: 1.8 },
 };
 
 /** The name a television's picture goes by inside its model. */
@@ -140,6 +150,48 @@ function freezer(): THREE.Group {
   return b.build('freezer');
 }
 
+function splitAc(): THREE.Group {
+  const b = new Builder();
+  // Sleek white indoor split AC unit: body, louver, LED temperature readout
+  b.box(0xf8fafc, 1.4, 0.42, 0.28, 0, 0, 0)
+    .box(0xe2e8f0, 1.36, 0.08, 0.04, 0, -0.16, 0.14) // bottom air outlet louver
+    .box(0x38bdf8, 0.1, 0.04, 0.02, 0.48, 0.05, 0.14, { glow: true }) // cool blue digital temperature glow
+    .box(0x1e293b, 0.08, 0.02, 0.01, -0.48, 0.05, 0.14); // subtle brand badge
+  return b.build('split_ac');
+}
+
+function wallClock(): THREE.Group {
+  const b = new Builder();
+  // Round brass wall clock
+  b.cylinder(0xd4af37, 0.38, 0.06, 0, 0, 0, { sides: 24, pitch: Math.PI / 2 }) // brass outer bezel
+    .cylinder(0xffffff, 0.33, 0.02, 0, 0, 0.025, { sides: 24, pitch: Math.PI / 2 }) // white clock face
+    .box(0x18181b, 0.02, 0.18, 0.01, 0, 0.08, 0.04) // minute hand pointing up
+    .box(0x18181b, 0.12, 0.025, 0.01, 0.05, 0, 0.04) // hour hand pointing at 3
+    .cylinder(0xdc2626, 0.02, 0.02, 0, 0, 0.045, { sides: 8, pitch: Math.PI / 2 }); // central red pivot
+  return b.build('wall_clock');
+}
+
+function wallArt(): THREE.Group {
+  const b = new Builder();
+  // Framed Benin bronze heritage canvas artwork
+  b.box(0x451a03, 1.6, 1.2, 0.06, 0, 0, 0) // rich mahogany frame
+    .box(0xfef3c7, 1.44, 1.04, 0.02, 0, 0, 0.025) // textured canvas mount
+    .box(0xb45309, 0.6, 0.7, 0.03, 0, 0, 0.04) // bronze relief figure
+    .box(0x78350f, 0.3, 0.18, 0.02, 0, 0.38, 0.05) // crown headdress
+    .box(0xd97706, 0.9, 0.04, 0.01, 0, -0.4, 0.04); // gold inscribed title plaque
+  return b.build('wall_art');
+}
+
+function wallMirror(): THREE.Group {
+  const b = new Builder();
+  // Gilded ornate accent wall mirror
+  b.box(0xd4af37, 1.1, 1.5, 0.06, 0, 0, 0) // gold gilded frame
+    .box(0xe0f2fe, 0.94, 1.34, 0.02, 0, 0, 0.025) // mirror glass pane
+    .box(0xf59e0b, 1.16, 0.08, 0.08, 0, 0.77, 0) // top ornate crest
+    .box(0xf59e0b, 1.16, 0.08, 0.08, 0, -0.77, 0); // bottom decorative scroll
+  return b.build('wall_mirror');
+}
+
 const MAKERS: Record<string, () => THREE.Group> = {
   sofa_emerald: () => sofa(3, 0x065f46, 0x10b981, 0x064e3b),
   armchair,
@@ -150,6 +202,10 @@ const MAKERS: Record<string, () => THREE.Group> = {
   floor_lamp: floorLamp,
   solar_inverter: inverter,
   freezer,
+  split_ac: splitAc,
+  wall_clock: wallClock,
+  wall_art: wallArt,
+  wall_mirror: wallMirror,
 };
 
 /** A piece of furniture of this kind, or null if the kit has no design for it. */

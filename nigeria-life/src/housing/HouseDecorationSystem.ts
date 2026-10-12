@@ -161,6 +161,42 @@ export const CATALOGUE_ITEMS: CatalogueItem[] = [
     description: 'A warm shade on a tall stem, for a corner.',
     modelType: 'floor_lamp',
   },
+  {
+    id: 'split_ac',
+    name: 'Panasonic 2.5HP Inverter Split AC',
+    category: 'appliances',
+    price: 185000,
+    icon: '❄️',
+    description: 'Rapid turbo-cooling wall unit with silent inverter compressor and digital temp display.',
+    modelType: 'split_ac',
+  },
+  {
+    id: 'wall_clock',
+    name: 'Eko Vintage Brass Wall Clock',
+    category: 'decor',
+    price: 16000,
+    icon: '🕰️',
+    description: 'Classic silent sweep wall clock with polished brass trim and clear hour markings.',
+    modelType: 'wall_clock',
+  },
+  {
+    id: 'wall_art',
+    name: 'Benin Bronze Heritage Framed Canvas',
+    category: 'decor',
+    price: 48000,
+    icon: '🖼️',
+    description: 'Stunning framed gallery canvas depicting traditional Edo bronze artwork and symbols.',
+    modelType: 'wall_art',
+  },
+  {
+    id: 'wall_mirror',
+    name: 'Ornate Gilded Wall Mirror',
+    category: 'decor',
+    price: 32000,
+    icon: '🪞',
+    description: 'Gilded accent wall mirror that catches the light and adds depth to any room.',
+    modelType: 'wall_mirror',
+  },
 ];
 
 /** A piece of furniture standing in the home. */
@@ -206,6 +242,16 @@ export const WALL_COLOURS: Array<{ id: string; name: string; hex: number }> = [
   { id: 'slate', name: 'Slate', hex: 0x64748b },
 ];
 export const PAINT_PRICE = 15000;
+
+export const FLOOR_STYLES: Array<{ id: string; name: string; hex: number; roughness: number }> = [
+  { id: 'ceramic_white', name: 'Polished Ceramic', hex: 0xf1f5f9, roughness: 0.2 },
+  { id: 'parquet_wood', name: 'Warm Hardwood Parquet', hex: 0x78350f, roughness: 0.45 },
+  { id: 'terrazzo', name: 'Lagos Terrazzo Tile', hex: 0xd1d5db, roughness: 0.35 },
+  { id: 'marble_black', name: 'Nero Black Marble', hex: 0x1e293b, roughness: 0.15 },
+  { id: 'royal_maroon', name: 'Royal Maroon Velvet Carpet', hex: 0x881337, roughness: 0.8 },
+];
+export const FLOOR_PRICE = 25000;
+
 /** What is given back for a piece that is sold on */
 export const SELL_SHARE = 0.5;
 const GRID = 0.25;
@@ -226,12 +272,16 @@ export class HouseDecorationSystem {
   public placing: Placing | null = null;
   /** The colour the walls are painted */
   public wallColour = 'ochre';
+  /** The style of flooring fitted */
+  public floorStyle = 'ceramic_white';
   /** Told when furniture is added, moved or taken away */
   public onChanged: (() => void) | null = null;
   /** Told whenever the piece being put down moves, turns, lands or is given up */
   public onPlacingChanged: (() => void) | null = null;
   /** Told to paint the walls */
   public onPaint: ((hex: number) => void) | null = null;
+  /** Told to fit the floor */
+  public onFloor: ((hex: number, roughness: number) => void) | null = null;
   /** Where a new piece first appears: in front of the player */
   public startAt: (() => { x: number; z: number }) | null = null;
 
@@ -242,11 +292,15 @@ export class HouseDecorationSystem {
 
   private constructor() {
     this.backend = BackendService.getInstance();
+    this.backend.propertyFittingsProvider = () => this.exportFittings();
+    this.backend.onPropertyFittingsGranted = (_id, fittings) => this.importFittings(fittings);
+    this.backend.onPropertySoldToAgent = () => this.clearPlaced();
     this.placedItemsGroup = new THREE.Group();
     this.loadSavedFurniture();
     try {
       const look = JSON.parse(localStorage.getItem(this.lookKey) || 'null');
       if (look && WALL_COLOURS.some((colour) => colour.id === look.wall)) this.wallColour = look.wall;
+      if (look && FLOOR_STYLES.some((f) => f.id === look.floor)) this.floorStyle = look.floor;
     } catch {
       // A look that cannot be read back is the one the home came with
     }
@@ -268,10 +322,17 @@ export class HouseDecorationSystem {
     this.room = room;
     for (const item of this.placed) this.solidify(item, true);
     this.onPaint?.(this.wallHex());
+    const fi = this.floorInfo();
+    this.onFloor?.(fi.hex, fi.roughness);
   }
 
   public wallHex(): number {
     return WALL_COLOURS.find((colour) => colour.id === this.wallColour)?.hex ?? WALL_COLOURS[0].hex;
+  }
+
+  public floorInfo(): { hex: number; roughness: number } {
+    const style = FLOOR_STYLES.find((f) => f.id === this.floorStyle) ?? FLOOR_STYLES[0];
+    return { hex: style.hex, roughness: style.roughness };
   }
 
   public kind(modelType: string): FurnitureKind {
@@ -305,8 +366,9 @@ export class HouseDecorationSystem {
     else this.room.unblock(item.x, item.z, size.width / 2, size.depth / 2);
   }
 
-  private dress(mesh: THREE.Group, x: number, z: number, turns: number): void {
-    mesh.position.set(x, 0, z);
+  private dress(mesh: THREE.Group, x: number, z: number, turns: number, modelType?: string): void {
+    const elevation = (modelType ? this.kind(modelType).elevation : undefined) ?? 0;
+    mesh.position.set(x, elevation, z);
     mesh.rotation.y = (turns * Math.PI) / 2;
     mesh.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
   }
@@ -424,7 +486,7 @@ export class HouseDecorationSystem {
       this.placed.push(item);
       this.placedItemsGroup.add(item.mesh);
     }
-    this.dress(item.mesh, item.x, item.z, item.turns);
+    this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
     this.solidify(item, true);
     const wasNew = !placing.moving;
     this.placing = null;
@@ -493,7 +555,7 @@ export class HouseDecorationSystem {
       this.ghostMark.rotation.x = -Math.PI / 2;
       this.placedItemsGroup.add(this.ghost, this.ghostMark);
     }
-    this.dress(this.ghost, placing.x, placing.z, placing.turns);
+    this.dress(this.ghost, placing.x, placing.z, placing.turns, placing.item.modelType);
     const size = this.footprint(placing.item.modelType, placing.turns);
     if (this.ghostMark) {
       this.ghostMark.position.set(placing.x, 0.03, placing.z);
@@ -513,7 +575,7 @@ export class HouseDecorationSystem {
   }
 
   // =========================================================================
-  // THE WALLS
+  // THE WALLS & FLOORS
   // =========================================================================
 
   /** Paints the walls another colour. Painting them the colour they are costs nothing and does nothing. */
@@ -526,12 +588,112 @@ export class HouseDecorationSystem {
     }
     this.wallColour = colour.id;
     try {
-      localStorage.setItem(this.lookKey, JSON.stringify({ wall: colour.id }));
+      localStorage.setItem(this.lookKey, JSON.stringify({ wall: colour.id, floor: this.floorStyle }));
     } catch {
       // Storage shut off: the colour holds until the page is closed
     }
     this.onPaint?.(colour.hex);
+    this.backend.notifyDeedChanged();
     return { ok: true };
+  }
+
+  /** Fits a different style of flooring. Fitting the style already fitted costs nothing and does nothing. */
+  public paintFloor(styleId: string): { ok: boolean; reason?: string } {
+    const style = FLOOR_STYLES.find((one) => one.id === styleId);
+    if (!style) return { ok: false, reason: 'No such flooring.' };
+    if (style.id === this.floorStyle) return { ok: false, reason: `The floor is ${style.name.toLowerCase()} already.` };
+    if (!this.backend.pay(FLOOR_PRICE, `Fitting ${style.name.toLowerCase()} flooring`)) {
+      return { ok: false, reason: `Flooring costs ₦${FLOOR_PRICE.toLocaleString()}. You do not have it.` };
+    }
+    this.floorStyle = style.id;
+    try {
+      localStorage.setItem(this.lookKey, JSON.stringify({ wall: this.wallColour, floor: style.id }));
+    } catch {
+      // Storage shut off: the flooring holds until the page is closed
+    }
+    this.onFloor?.(style.hex, style.roughness);
+    this.backend.notifyDeedChanged();
+    return { ok: true };
+  }
+
+  /** Serializes placed furniture to accompany a property deed transfer */
+  public exportFittings(): string[] {
+    const list = this.placed.map((item) => JSON.stringify({
+      uid: item.uid,
+      id: item.id,
+      modelType: item.modelType,
+      x: item.x,
+      z: item.z,
+      turns: item.turns,
+    }));
+    list.push(JSON.stringify({ type: 'look', wall: this.wallColour, floor: this.floorStyle }));
+    return list;
+  }
+
+  /** Populates furniture into the home from an inherited deed transfer */
+  public importFittings(fittings: string[]): void {
+    this.clearPlaced();
+    for (const entry of fittings) {
+      try {
+        const parsed = JSON.parse(entry);
+        if (parsed?.type === 'look') {
+          if (parsed.wall && WALL_COLOURS.some((c) => c.id === parsed.wall)) {
+            this.wallColour = parsed.wall;
+            this.onPaint?.(this.wallHex());
+          }
+          if (parsed.floor && FLOOR_STYLES.some((f) => f.id === parsed.floor)) {
+            this.floorStyle = parsed.floor;
+            const fi = this.floorInfo();
+            this.onFloor?.(fi.hex, fi.roughness);
+          }
+          try {
+            localStorage.setItem(this.lookKey, JSON.stringify({ wall: this.wallColour, floor: this.floorStyle }));
+          } catch {
+            // Storage unavailable
+          }
+          continue;
+        }
+        if (!parsed || !parsed.modelType) continue;
+        const item: PlacedItem = {
+          uid: parsed.uid ?? `${parsed.id}_${Date.now().toString(36)}`,
+          id: parsed.id,
+          modelType: parsed.modelType,
+          x: parsed.x ?? 0,
+          z: parsed.z ?? 4,
+          turns: parsed.turns ?? 0,
+          mesh: this.createFurniture3DMesh(parsed.modelType),
+        };
+        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
+        this.placed.push(item);
+        this.placedItemsGroup.add(item.mesh);
+        this.solidify(item, true);
+      } catch {
+        // Skip malformed fitting
+      }
+    }
+    this.save();
+    this.onChanged?.();
+  }
+
+  /** Clears placed furniture when ownership is relinquished */
+  public clearPlaced(): void {
+    for (const item of this.placed) {
+      this.solidify(item, false);
+      item.mesh.removeFromParent();
+    }
+    this.placed.length = 0;
+    this.wallColour = 'ochre';
+    this.floorStyle = 'ceramic_white';
+    try {
+      localStorage.setItem(this.lookKey, JSON.stringify({ wall: this.wallColour, floor: this.floorStyle }));
+    } catch {
+      // Storage unavailable
+    }
+    this.onPaint?.(this.wallHex());
+    const fi = this.floorInfo();
+    this.onFloor?.(fi.hex, fi.roughness);
+    this.save();
+    this.onChanged?.();
   }
 
   // =========================================================================
@@ -596,6 +758,16 @@ export class HouseDecorationSystem {
               </button>`).join('')}
           </div>
         </div>
+
+        <div class="cat-floors" id="cat-floors" style="margin-top: 14px;">
+          <h4>Fit the flooring · ₦${FLOOR_PRICE.toLocaleString()}</h4>
+          <div class="cat-wall-row">
+            ${FLOOR_STYLES.map((style) => `
+              <button class="cat-wall-swatch${style.id === this.floorStyle ? ' current' : ''}" data-floor="${style.id}" title="${style.name}" style="background:#${style.hex.toString(16).padStart(6, '0')}">
+                <span>${style.name}${style.id === this.floorStyle ? ' ✓' : ''}</span>
+              </button>`).join('')}
+          </div>
+        </div>
       </div>
     `;
 
@@ -626,6 +798,18 @@ export class HouseDecorationSystem {
           this.openCatalogueModal();
         } else {
           showGameToast(painted.reason ?? 'The walls could not be painted.', 'warning');
+        }
+      };
+    });
+
+    this.modalContainer.querySelectorAll('[data-floor]').forEach((swatch) => {
+      (swatch as HTMLElement).onclick = () => {
+        const fitted = this.paintFloor((swatch as HTMLElement).getAttribute('data-floor')!);
+        if (fitted.ok) {
+          showGameToast(`The floor is fitted. ₦${FLOOR_PRICE.toLocaleString()} paid.`, 'success');
+          this.openCatalogueModal();
+        } else {
+          showGameToast(fitted.reason ?? 'The floor could not be fitted.', 'warning');
         }
       };
     });
@@ -803,6 +987,7 @@ export class HouseDecorationSystem {
     } catch {
       // Storage full or shut off: the furniture stays until the page is closed
     }
+    this.backend.notifyDeedChanged();
   }
 
   private loadSavedFurniture(): void {
@@ -820,7 +1005,7 @@ export class HouseDecorationSystem {
           turns: entry.turns ?? 0,
           mesh: this.createFurniture3DMesh(entry.modelType),
         };
-        this.dress(item.mesh, item.x, item.z, item.turns);
+        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
         this.placed.push(item);
         this.placedItemsGroup.add(item.mesh);
       });

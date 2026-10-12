@@ -28,6 +28,7 @@ export class ResidentialInterior {
   /** Sets the player has bought, by the piece of furniture each is */
   public readonly sets = new Map<string, Television>();
   private wallPaint!: THREE.MeshStandardMaterial;
+  private floorMat!: THREE.MeshStandardMaterial;
   private furnitureIds: string[] = [];
   private animTime: number = 0;
 
@@ -144,6 +145,10 @@ export class ResidentialInterior {
         if (kind.use === 'seat') return '🛋️ Sit down, move it or sell it';
         if (kind.use === 'bed') return '🛏️ Sleep in it, move it or sell it';
         if (kind.use === 'tv') return set?.on ? `📺 On: ${set.showing()}` : '📺 Turn it on, move it or sell it';
+        if (item.modelType === 'split_ac') return '❄️ AC, move it or sell it';
+        if (item.modelType === 'wall_clock') return '🕰️ Clock, move it or sell it';
+        if (item.modelType === 'wall_art') return '🖼️ Artwork, move it or sell it';
+        if (item.modelType === 'wall_mirror') return '🪞 Mirror, move it or sell it';
         return '🪑 Move it or sell it';
       },
       run: (host) => {
@@ -175,6 +180,47 @@ export class ResidentialInterior {
           }
           if (set.on) choices.push({ label: 'Turn it off', pick: () => { set.turnOff(); this.life.refresh(); } });
         }
+        if (item.modelType === 'split_ac') {
+          choices.push({
+            label: 'Toggle AC Turbo Cooling',
+            note: 'Refreshing chill',
+            pick: () => {
+              host.say('The Panasonic Inverter Split AC blows an ice-cold mountain breeze across the room. Ahhh!', 'success');
+            },
+          });
+        }
+        if (item.modelType === 'wall_clock') {
+          choices.push({
+            label: 'Check the clock',
+            pick: () => {
+              const hour = host.hour();
+              const h = Math.floor(hour);
+              const m = Math.floor((hour - h) * 60);
+              const ampm = h >= 12 ? 'PM' : 'AM';
+              const displayH = h % 12 === 0 ? 12 : h % 12;
+              const timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${ampm}`;
+              host.say(`The brass wall clock ticks steadily. It is ${timeStr}.`, 'info');
+            },
+          });
+        }
+        if (item.modelType === 'wall_art') {
+          choices.push({
+            label: 'Admire artwork',
+            note: '+1 Street Cred',
+            pick: () => {
+              host.say('You admire the intricate carvings of the Benin bronze heritage canvas.', 'info');
+            },
+          });
+        }
+        if (item.modelType === 'wall_mirror') {
+          choices.push({
+            label: 'Check reflection',
+            note: 'Looking sharp',
+            pick: () => {
+              host.say('You check your reflection in the ornate gilded mirror. Looking confident and ready!', 'info');
+            },
+          });
+        }
         choices.push({ label: 'Move it', note: 'Free', pick: () => { decor.pickUp(item.uid); } });
         choices.push({
           label: 'Sell it',
@@ -196,6 +242,7 @@ export class ResidentialInterior {
       color: 0xf1f5f9,
       roughness: 0.25,
     });
+    this.floorMat = floorMat;
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.name = 'interior_floor_mesh';
     floor.position.set(0, -0.2, 0);
@@ -488,6 +535,10 @@ export class ResidentialInterior {
     const decorationSystem = HouseDecorationSystem.getInstance();
     this.group.add(decorationSystem.placedItemsGroup);
     decorationSystem.onPaint = (hex) => this.wallPaint.color.setHex(hex);
+    decorationSystem.onFloor = (hex, roughness) => {
+      this.floorMat.color.setHex(hex);
+      this.floorMat.roughness = roughness;
+    };
     decorationSystem.onChanged = () => this.furnitureChanged();
     decorationSystem.attach({
       halfWidth: 16,
