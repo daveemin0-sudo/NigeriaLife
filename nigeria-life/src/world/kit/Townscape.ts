@@ -15,7 +15,7 @@ import type { Obstruction } from '../plan/CityPlan';
 export type Facing = 'east' | 'west' | 'north' | 'south';
 
 export interface TownBuilding {
-  kind: 'office' | 'shops' | 'flats' | 'house' | 'hotel';
+  kind: 'office' | 'shops' | 'flats' | 'house' | 'hotel' | 'duplex' | 'bungalow' | 'market' | 'bank';
   /** The middle of its footprint */
   x: number;
   z: number;
@@ -90,6 +90,98 @@ export function buildTownscape(name: string, buildings: TownBuilding[]): { group
         sign.rotation.y = front.yaw;
         signs.push(sign);
       }
+    } else if (one.kind === 'bank') {
+      // Grand commercial banking hall: two storeys with monumental front pillars and ATM bay
+      const height = 7.0;
+      box(colour, one.width, height, one.depth, 0, 0, 0, { solid: true });
+      // Neoclassical portico facade with columns
+      box(trim, one.width + 0.2, 0.4, one.depth + 0.2, 0, height, 0);
+      box(0x334155, one.width * 0.8, 0.3, 1.8, 0, 0, reach + 0.9);
+      for (const col of [-0.3, -0.1, 0.1, 0.3]) {
+        box(0xf8fafc, 0.5, 6.2, 0.5, one.width * col, 0.3, reach + 1.2);
+      }
+      box(0x1e293b, one.width * 0.75, 0.5, 1.2, 0, 6.5, reach + 1.2);
+      // Glazed banking hall entrance and ATM recess
+      box(DARK_GLASS, one.width * 0.5, 3.2, 0.08, -one.width * 0.1, 0.4, reach + 0.04);
+      box(DOOR, 2.0, 2.6, 0.1, -one.width * 0.1, 0, reach + 0.08);
+      // 24/7 ATM Bay alcove with illuminated canopy
+      box(0x0284c7, 2.4, 3.0, 0.8, one.width * 0.32, 0, reach + 0.2);
+      box(0x38bdf8, 1.8, 0.8, 0.1, one.width * 0.32, 2.4, reach + 0.62, { glow: true });
+      // Upper glazed floor
+      box(LIT_GLASS, one.width * 0.6, 1.8, 0.08, 0, 4.2, reach + 0.04, { glow: true });
+      if (one.name) {
+        const sign = signBoard([one.name.toUpperCase(), 'COMMERCIAL BANK & 24/7 ATM'], Math.min(one.width - 1.2, 10), 1.2, '#0f172a', '#38bdf8');
+        sign.position.set(X(0, reach + 0.8), 5.4, Z(0, reach + 0.8));
+        sign.rotation.y = front.yaw;
+        signs.push(sign);
+      }
+    } else if (one.kind === 'market') {
+      // Open-air covered market pavilion / trading stalls
+      box(colour, one.width, 3.8, one.depth, 0, 0, 0, { solid: true });
+      box(trim, one.width + 0.2, 0.4, one.depth + 0.2, 0, 3.8, 0);
+      const stalls = Math.max(2, Math.round(one.width / 4.0));
+      const each = one.width / stalls;
+      const CANOPY_COLOURS = [0x15803d, 0xb91c1c, 0xd97706, 0x1d4ed8, 0x7c3aed];
+      for (let s = 0; s < stalls; s++) {
+        const at = -one.width / 2 + (s + 0.5) * each;
+        // Timber stall display counter
+        box(0x78350f, each - 0.8, 1.1, 1.4, at, 0, reach + 0.7);
+        // Produce baskets
+        box(s % 2 ? 0xd97706 : 0x16a34a, each - 1.2, 0.35, 1.0, at, 1.1, reach + 0.7);
+        // Colourful awning over stall
+        box(CANOPY_COLOURS[s % CANOPY_COLOURS.length], each - 0.3, 0.12, 1.8, at, 2.8, reach + 0.9);
+      }
+      if (one.name) {
+        const sign = signBoard([one.name.toUpperCase()], Math.min(one.width - 1.5, 9), 1.0, '#14532d', '#fef08a');
+        sign.position.set(X(0, reach + 0.2), 3.4, Z(0, reach + 0.2));
+        sign.rotation.y = front.yaw;
+        signs.push(sign);
+      }
+    } else if (one.kind === 'duplex') {
+      // Luxury two-storey duplex villa with upper cantilevered balcony, security gate, and hip roof
+      const height = 6.4;
+      box(colour, one.width, height, one.depth, 0, 0, 0, { solid: true });
+      // Front entrance porch
+      box(trim, 3.0, 0.25, 1.6, 0, 0, reach + 0.8);
+      box(DOOR, 1.4, 2.4, 0.1, 0, 0, reach + 0.04);
+      box(LIT_GLASS, 1.8, 1.4, 0.08, -one.width * 0.28, 1.0, reach + 0.04, { glow: true });
+      box(LIT_GLASS, 1.8, 1.4, 0.08, one.width * 0.28, 1.0, reach + 0.04, { glow: true });
+      // First floor cantilevered balcony with steel balustrade
+      box(trim, one.width * 0.6, 0.18, 1.4, 0, 3.2, reach + 0.7);
+      box(trim, one.width * 0.6, 0.9, 0.06, 0, 3.38, reach + 1.35);
+      box(DARK_GLASS, 2.0, 2.2, 0.08, 0, 3.2, reach + 0.04);
+      // Windows on first floor
+      box(LIT_GLASS, 1.6, 1.4, 0.08, -one.width * 0.32, 4.0, reach + 0.04, { glow: true });
+      box(LIT_GLASS, 1.6, 1.4, 0.08, one.width * 0.32, 4.0, reach + 0.04, { glow: true });
+      // Terracotta pitched roof
+      const roof = one.trim ?? 0x9a3412;
+      const slope = 0.45;
+      const half = one.width / 2 + 0.5;
+      const run = half / Math.cos(slope);
+      for (const side of [-1, 1]) {
+        const tilt = alongX ? { roll: -side * slope } : { pitch: side * slope };
+        b.box(roof, alongX ? run : one.depth + 0.8, 0.16, alongX ? one.depth + 0.8 : run, X(side * half * 0.5, 0), height + (half * 0.5) * Math.tan(slope) - 0.08, Z(side * half * 0.5, 0), tilt);
+      }
+      for (const end of [-1, 1]) box(colour, one.width * 0.5, (half * Math.tan(slope)) * 0.55, 0.12, 0, height, end * (reach - 0.06));
+    } else if (one.kind === 'bungalow') {
+      // Compound bungalow with veranda plinth, columns, and hipped roof
+      box(colour, one.width, 3.6, one.depth, 0, 0, 0, { solid: true });
+      // Front veranda porch
+      box(trim, one.width * 0.8, 0.3, 1.6, 0, 0, reach + 0.8);
+      box(trim, 0.3, 3.2, 0.3, -one.width * 0.35, 0.3, reach + 1.4);
+      box(trim, 0.3, 3.2, 0.3, one.width * 0.35, 0.3, reach + 1.4);
+      box(trim, one.width * 0.8, 0.2, 1.6, 0, 3.4, reach + 0.8);
+      box(DOOR, 1.2, 2.3, 0.1, 0, 0, reach + 0.04);
+      for (const side of [-1, 1]) box(LIT_GLASS, 1.5, 1.2, 0.08, side * one.width * 0.3, 1.1, reach + 0.04, { glow: true });
+      const roof = one.trim ?? 0x7c2d12;
+      const slope = 0.45;
+      const half = one.width / 2 + 0.4;
+      const run = half / Math.cos(slope);
+      for (const side of [-1, 1]) {
+        const tilt = alongX ? { roll: -side * slope } : { pitch: side * slope };
+        b.box(roof, alongX ? run : one.depth + 0.8, 0.16, alongX ? one.depth + 0.8 : run, X(side * half * 0.5, 0), 3.6 + (half * 0.5) * Math.tan(slope) - 0.08, Z(side * half * 0.5, 0), tilt);
+      }
+      for (const end of [-1, 1]) box(colour, one.width * 0.5, (half * Math.tan(slope)) * 0.55, 0.12, 0, 3.6, end * (reach - 0.06));
     } else if (one.kind === 'shops') {
       // One storey, a row of fronts: a shutter or a window each, an awning over it, a band of colour for the name
       box(colour, one.width, 4.2, one.depth, 0, 0, 0, { solid: true });

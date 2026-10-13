@@ -3,6 +3,7 @@ import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
 import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
 import { createMotorPark, type MotorParkLandmark } from '../world/landmarks/MotorPark';
+import { createRefinery, type RefineryLandmark } from '../world/landmarks/Refinery';
 import { buildTownscape } from '../world/kit/Townscape';
 import { createCashMachine } from '../world/kit/CashMachine';
 import { PORT_HARCOURT_BUILDINGS } from './Townscapes';
@@ -16,10 +17,10 @@ export class PortHarcourtCity implements CityInstance {
   public groundMesh: THREE.Mesh;
   public airport: AirportLandmark;
   public motorPark: MotorParkLandmark;
+  public refinery: RefineryLandmark;
   public standing: Obstruction[] = [];
 
   private animTime: number = 0;
-  private flareFlame!: THREE.Mesh;
 
   constructor() {
     this.group = new THREE.Group();
@@ -41,8 +42,11 @@ export class PortHarcourtCity implements CityInstance {
     // 3. Port Harcourt Creek Canal with Mangroves
     this.buildCreekCanal();
 
-    // 4. Trans-Amadi Petrochemical Refinery & Flare Stack
-    this.buildRefineryHub();
+    // 4. Trans-Amadi Petrochemical Refinery built with the building kit
+    this.refinery = createRefinery({ id: 'ph-refinery-complex', x: 37, z: -46 });
+    this.group.add(this.refinery.group);
+    this.interactiveList.push(...this.refinery.interactive);
+    PlaceActions.registerAll(this.refinery.actions);
 
     // 5. Authentic Port Harcourt Bole King & Roasted Fish Stall
     this.buildBoleKingSpot();
@@ -64,7 +68,7 @@ export class PortHarcourtCity implements CityInstance {
     const town = buildTownscape('Port Harcourt townscape', PORT_HARCOURT_BUILDINGS);
     this.group.add(town.group);
     // The creek is water: nobody walks or drives on it
-    this.standing = [...town.obstructions, { owner: 'The creek', structure: false, height: 2, minX: 51, maxX: 79, minZ: -140, maxZ: 140 }];
+    this.standing = [...town.obstructions, ...this.refinery.obstructions, { owner: 'The creek', structure: false, height: 2, minX: 51, maxX: 79, minZ: -140, maxZ: 140 }];
     // A cash machine in the wall of the bank on Aba Road
     const machine = createCashMachine({ id: 'delta-bank-ph', name: 'Delta Bank', x: 16.9, z: -22.4, facing: -Math.PI / 2 });
     this.group.add(machine.group);
@@ -331,38 +335,6 @@ export class PortHarcourtCity implements CityInstance {
   }
 
   // =========================================================================
-  // 3. TRANS-AMADI REFINERY BACKDROP
-  // =========================================================================
-  private buildRefineryHub(): void {
-    const refGroup = WorldMapPrefabs.createPetrochemicalRefinery(1.4);
-    refGroup.position.set(38, 0, -50);
-    this.group.add(refGroup);
-
-    // Flare stack flame reference for animation
-    const flameMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
-    this.flareFlame = new THREE.Mesh(new THREE.ConeGeometry(0.6, 2.2, 8), flameMat);
-    this.flareFlame.position.set(45, 18, -54);
-    this.group.add(this.flareFlame);
-
-    // Refinery Gatehouse Interaction
-    const gateBox = new THREE.Mesh(
-      new THREE.BoxGeometry(4.0, 3.0, 4.0),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0 })
-    );
-    gateBox.position.set(30, 1.5, -35);
-    this.group.add(gateBox);
-
-    this.interactiveList.push({
-      mesh: gateBox,
-      id: 'ph-refinery-complex',
-      name: 'Trans-Amadi Petrochemical Complex',
-      category: 'Petrochemical Industry',
-      description: 'Major oil and gas refining center, storage tanks, and engineering operations.',
-      interactionPoint: new THREE.Vector3(30, 0, -35),
-    });
-  }
-
-  // =========================================================================
   // 4. PORT HARCOURT BOLE KING & ROASTED FISH STALL
   // =========================================================================
   private buildBoleKingSpot(): void {
@@ -428,10 +400,7 @@ export class PortHarcourtCity implements CityInstance {
   // Update Animation
   public update(delta: number): void {
     this.animTime += delta;
-    if (this.flareFlame) {
-      this.flareFlame.scale.y = 1.0 + Math.sin(this.animTime * 12.0) * 0.25;
-      this.flareFlame.scale.x = 1.0 + Math.cos(this.animTime * 10.0) * 0.15;
-    }
+    this.refinery.update?.(delta, 12);
     this.airport.update?.(delta, 12);
     this.motorPark.update?.(delta, 12);
   }

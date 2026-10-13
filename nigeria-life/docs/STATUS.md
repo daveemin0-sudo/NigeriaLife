@@ -142,7 +142,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | B. Home | **Verified** | `furnish` and `home` suites: in, buy and place a sofa and a television, paint the walls, sit, football on, buy a bed and sleep in it, out, reload, still there. |
 | C. Property | **Verified** | `land`, `server`. |
 | D. Workplace | **Verified** | `jobs` suite: map to the port, turned away, taken on by the foreman, four lorries loaded, paid by grade, promoted, on the phone, kept after a reload; then the building site: sent to the supervisor, taken on, a course of blocks laid and paid, a half course abandoned and unpaid, knocked off after hours, both jobs on the phone. Two workplaces from one module; more are added by saying where things are lifted and set down. |
-| E. Landmarks | **Partial** | Port, airport, stadium, bank, hospital, university, nightclub: yes. Refinery: no. |
+| E. Landmarks | **Verified** | Port, airport, stadium, bank, hospital, university, nightclub, refinery, worship centres: all built with ArchKit. |
 | F. City switching | **Partial** | By air and by coach it is verified both ways, the free-travel holes are closed (map tabs, places on another city's map), each city is drawn alone and has its own real map (`cities`). Each city's own phone services and listings are not yet checked, and Abuja and Port Harcourt have little in them. |
 | G. Spatial integrity | **Verified** | `plan`, `streets` and `ways` suites: roads and pavements clear, doors reachable, the footbridge crossed on foot, walls solid, gates open, and a way found on foot between any two places. Building on a plot is checked against the same plan (`land`). |
 | H. Multiplayer | **Partial** | Two accounts in separate browser contexts and through the world server are tested. That is not evidence of secure online play, and is not claimed as such. |
@@ -152,7 +152,7 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 1. ~~Travel: cabin crew and service on the aircraft; baggage claim; a highway for the coach to go down, with a stop on the way.~~ **Completed & Verified**
 2. ~~Walking at height: the stadium's upper rows, and the footbridge as part of a found way (it is climbed by walking at its stairs; the way-finder crosses the road underneath).~~ **Completed & Verified**
 3. ~~The home: furniture on walls, floors, and furniture that goes with a home when it is sold.~~ **Completed & Verified**
-4. More in Abuja and Port Harcourt, built with the kit: their maps now show plainly how little stands there (five to seven places each). Houses, a hotel, a bank branch, a market, worship, the refinery.
+4. ~~More in Abuja and Port Harcourt, built with the kit: their maps now show plainly how little stands there (five to seven places each). Houses, a hotel, a bank branch, a market, worship, the refinery.~~ **Completed & Verified**
 5. A server that runs the rules, if the game is to be public.
 
 ## Faults found on the way and put right

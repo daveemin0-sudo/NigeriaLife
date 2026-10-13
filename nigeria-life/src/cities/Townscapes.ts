@@ -21,8 +21,8 @@ export const ABUJA_BUILDINGS: TownBuilding[] = [
   // East side, south to north
   // (The north end of the boulevard is the foot of Aso Rock, which overhangs it: only low shops stand there)
   { kind: 'shops', x: 25, z: -69, width: 7, depth: 14, faces: 'west', colour: SAND, trim: 0x475569 },
-  { kind: 'office', x: 25, z: -4.5, width: 12, depth: 16, faces: 'west', floors: 5, colour: STONE, trim: 0x7f1d1d, name: 'Savanna Bank' },
-  { kind: 'shops', x: 26, z: 15.5, width: 6, depth: 16, faces: 'west', colour: CREAM, trim: 0x475569 },
+  { kind: 'bank', x: 25, z: -4.5, width: 12, depth: 16, faces: 'west', floors: 5, colour: STONE, trim: 0x7f1d1d, name: 'Savanna Bank' },
+  { kind: 'market', x: 26, z: 15.5, width: 6, depth: 16, faces: 'west', colour: CREAM, trim: 0x15803d, name: 'Wuse Farmers Market' },
   { kind: 'flats', x: 26, z: 78, width: 14, depth: 16, faces: 'west', floors: 4, colour: SAND, trim: 0x78716c },
   { kind: 'hotel', x: 27, z: 99, width: 18, depth: 18, faces: 'west', floors: 8, colour: WHITE, trim: 0x0f5132, name: 'Unity Fountain Hotel' },
   // West side, south to north
@@ -31,20 +31,20 @@ export const ABUJA_BUILDINGS: TownBuilding[] = [
   { kind: 'shops', x: -25, z: 17, width: 8, depth: 18, faces: 'east', colour: SAND, trim: 0x475569 },
   { kind: 'office', x: -25, z: 46, width: 7, depth: 18, faces: 'east', floors: 3, colour: CREAM, trim: 0x475569 },
   { kind: 'flats', x: -26, z: 80, width: 16, depth: 18, faces: 'east', floors: 5, colour: SAGE, trim: 0x57534e },
-  // The streets behind, east: houses in rows
-  { kind: 'house', x: 46, z: -58, width: 10, depth: 9, faces: 'west', colour: ROSE, trim: 0x7c2d12 },
-  { kind: 'house', x: 46, z: -44, width: 10, depth: 9, faces: 'west', colour: WHITE, trim: 0x9a3412 },
-  { kind: 'house', x: 62, z: -30, width: 10, depth: 9, faces: 'west', colour: SAND, trim: 0x1e3a5f },
-  { kind: 'house', x: 62, z: -58, width: 10, depth: 9, faces: 'west', colour: CREAM, trim: 0x9a3412 },
+  // The streets behind, east: houses in rows (duplexes and bungalows)
+  { kind: 'duplex', x: 46, z: -58, width: 10, depth: 9, faces: 'west', colour: ROSE, trim: 0x7c2d12 },
+  { kind: 'bungalow', x: 46, z: -44, width: 10, depth: 9, faces: 'west', colour: WHITE, trim: 0x9a3412 },
+  { kind: 'duplex', x: 62, z: -30, width: 10, depth: 9, faces: 'west', colour: SAND, trim: 0x1e3a5f },
+  { kind: 'bungalow', x: 62, z: -58, width: 10, depth: 9, faces: 'west', colour: CREAM, trim: 0x9a3412 },
   { kind: 'house', x: 62, z: -44, width: 10, depth: 9, faces: 'west', colour: SAGE, trim: 0x7c2d12 },
-  { kind: 'house', x: 46, z: 64, width: 10, depth: 9, faces: 'west', colour: WHITE, trim: 0x1e3a5f },
+  { kind: 'duplex', x: 46, z: 64, width: 10, depth: 9, faces: 'west', colour: WHITE, trim: 0x1e3a5f },
   { kind: 'house', x: 46, z: 78, width: 10, depth: 9, faces: 'west', colour: TERRACOTTA, trim: 0x7c2d12 },
   { kind: 'house', x: 46, z: 92, width: 10, depth: 9, faces: 'west', colour: CREAM, trim: 0x9a3412 },
   // The streets behind, west
   { kind: 'house', x: -62, z: -60, width: 10, depth: 9, faces: 'east', colour: SAND, trim: 0x9a3412 },
-  { kind: 'house', x: -48, z: -60, width: 10, depth: 9, faces: 'east', colour: WHITE, trim: 0x7c2d12 },
+  { kind: 'duplex', x: -48, z: -60, width: 10, depth: 9, faces: 'east', colour: WHITE, trim: 0x7c2d12 },
   { kind: 'house', x: -48, z: -46, width: 10, depth: 9, faces: 'east', colour: ROSE, trim: 0x1e3a5f },
-  { kind: 'house', x: -48, z: 12, width: 10, depth: 9, faces: 'east', colour: CREAM, trim: 0x9a3412 },
+  { kind: 'duplex', x: -48, z: 12, width: 10, depth: 9, faces: 'east', colour: CREAM, trim: 0x9a3412 },
   { kind: 'flats', x: -50, z: 30, width: 14, depth: 12, faces: 'east', floors: 3, colour: TERRACOTTA, trim: 0x57534e },
 ];
 
@@ -53,8 +53,8 @@ export const PORT_HARCOURT_BUILDINGS: TownBuilding[] = [
   // East side, south to north
   { kind: 'office', x: 25, z: -98, width: 16, depth: 16, faces: 'west', floors: 6, colour: SKY, trim: 0x1e3a5f },
   { kind: 'flats', x: 25, z: -72, width: 16, depth: 16, faces: 'west', floors: 4, colour: SAND, trim: 0x78716c },
-  { kind: 'office', x: 24, z: -19, width: 10, depth: 14, faces: 'west', floors: 4, colour: STONE, trim: 0x7f1d1d, name: 'Delta Bank' },
-  { kind: 'shops', x: 25, z: 15.5, width: 9, depth: 16, faces: 'west', colour: CREAM, trim: 0x475569 },
+  { kind: 'bank', x: 24, z: -19, width: 10, depth: 14, faces: 'west', floors: 4, colour: STONE, trim: 0x7f1d1d, name: 'Delta Bank' },
+  { kind: 'market', x: 25, z: 15.5, width: 9, depth: 16, faces: 'west', colour: CREAM, trim: 0x15803d, name: 'Mile 1 Creek Market' },
   { kind: 'hotel', x: 27, z: 92, width: 18, depth: 18, faces: 'west', floors: 7, colour: WHITE, trim: 0x0c4a6e, name: 'Garden City Hotel' },
   // West side, south to north
   { kind: 'flats', x: -26, z: -60, width: 16, depth: 18, faces: 'east', floors: 4, colour: SAGE, trim: 0x57534e },
@@ -63,19 +63,19 @@ export const PORT_HARCOURT_BUILDINGS: TownBuilding[] = [
   { kind: 'flats', x: -26, z: 74, width: 16, depth: 18, faces: 'east', floors: 5, colour: TERRACOTTA, trim: 0x57534e },
   { kind: 'office', x: -26, z: 98, width: 16, depth: 16, faces: 'east', floors: 3, colour: CREAM, trim: 0x475569 },
   // The streets behind, east: houses, between the road and the creek
-  { kind: 'house', x: 42, z: -98, width: 10, depth: 9, faces: 'west', colour: CREAM, trim: 0x9a3412 },
-  { kind: 'house', x: 42, z: -84, width: 10, depth: 9, faces: 'west', colour: WHITE, trim: 0x1e3a5f },
-  { kind: 'house', x: 42, z: -70, width: 10, depth: 9, faces: 'west', colour: ROSE, trim: 0x7c2d12 },
+  { kind: 'duplex', x: 42, z: -98, width: 10, depth: 9, faces: 'west', colour: CREAM, trim: 0x9a3412 },
+  { kind: 'bungalow', x: 42, z: -84, width: 10, depth: 9, faces: 'west', colour: WHITE, trim: 0x1e3a5f },
+  { kind: 'duplex', x: 42, z: -70, width: 10, depth: 9, faces: 'west', colour: ROSE, trim: 0x7c2d12 },
   { kind: 'house', x: 42, z: -22, width: 10, depth: 9, faces: 'west', colour: SAND, trim: 0x9a3412 },
-  { kind: 'house', x: 42, z: -8, width: 10, depth: 9, faces: 'west', colour: CREAM, trim: 0x7c2d12 },
+  { kind: 'bungalow', x: 42, z: -8, width: 10, depth: 9, faces: 'west', colour: CREAM, trim: 0x7c2d12 },
   { kind: 'house', x: 42, z: 6, width: 10, depth: 9, faces: 'west', colour: SAGE, trim: 0x9a3412 },
-  { kind: 'house', x: 42, z: 66, width: 10, depth: 9, faces: 'west', colour: WHITE, trim: 0x9a3412 },
+  { kind: 'duplex', x: 42, z: 66, width: 10, depth: 9, faces: 'west', colour: WHITE, trim: 0x9a3412 },
   { kind: 'house', x: 42, z: 80, width: 10, depth: 9, faces: 'west', colour: TERRACOTTA, trim: 0x1e3a5f },
   // The streets behind, west
-  { kind: 'house', x: -50, z: -58, width: 10, depth: 9, faces: 'east', colour: WHITE, trim: 0x7c2d12 },
+  { kind: 'duplex', x: -50, z: -58, width: 10, depth: 9, faces: 'east', colour: WHITE, trim: 0x7c2d12 },
   { kind: 'house', x: -50, z: -16, width: 10, depth: 9, faces: 'east', colour: CREAM, trim: 0x9a3412 },
   { kind: 'house', x: -50, z: -2, width: 10, depth: 9, faces: 'east', colour: ROSE, trim: 0x1e3a5f },
-  { kind: 'house', x: -50, z: 26, width: 10, depth: 9, faces: 'east', colour: SAND, trim: 0x9a3412 },
+  { kind: 'duplex', x: -50, z: 26, width: 10, depth: 9, faces: 'east', colour: SAND, trim: 0x9a3412 },
   { kind: 'house', x: -50, z: 40, width: 10, depth: 9, faces: 'east', colour: SAGE, trim: 0x7c2d12 },
   { kind: 'house', x: -50, z: 74, width: 10, depth: 9, faces: 'east', colour: CREAM, trim: 0x9a3412 },
 ];

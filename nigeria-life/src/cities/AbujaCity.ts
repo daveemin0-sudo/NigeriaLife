@@ -5,6 +5,8 @@ import type { InteractiveObject } from '../world/World';
 import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
 import { createMotorPark, type MotorParkLandmark } from '../world/landmarks/MotorPark';
 import { buildTownscape } from '../world/kit/Townscape';
+import { Builder } from '../world/kit/ArchKit';
+import { clickBox } from '../world/landmarks/Landmark';
 import { createCashMachine } from '../world/kit/CashMachine';
 import { ABUJA_BUILDINGS } from './Townscapes';
 import type { Obstruction } from '../world/plan/CityPlan';
@@ -410,63 +412,56 @@ export class AbujaCity implements CityInstance {
   // 3. ABUJA NATIONAL MOSQUE (Central Golden Dome & 4 Minarets)
   // =========================================================================
   private buildNationalMosque(): void {
-    const mosqueGroup = new THREE.Group();
-    mosqueGroup.position.set(-28, 0, -25);
+    const b = new Builder().around(0, 0);
 
     // Main prayer hall cube
-    const hallGeo = new THREE.BoxGeometry(18, 12, 18);
-    const hallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.25 });
-    const hall = new THREE.Mesh(hallGeo, hallMat);
-    hall.position.y = 6;
-    hall.castShadow = true;
-    mosqueGroup.add(hall);
+    b.box(0xf8fafc, 18, 12, 18, 0, 0, 0, { solid: true });
 
-    // Gleaming central gilded gold dome
-    const domeGeo = new THREE.SphereGeometry(7, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-    const goldMat = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      metalness: 0.85,
-      roughness: 0.15,
-    });
-    const dome = new THREE.Mesh(domeGeo, goldMat);
-    dome.position.y = 12;
-    mosqueGroup.add(dome);
+    // Colonnade porticos on east and south
+    b.box(0xe2e8f0, 19, 0.4, 3, 0, 0, 10);
+    for (const cx of [-7, -3.5, 0, 3.5, 7]) {
+      b.cylinder(0xf8fafc, 0.35, 6, cx, 0.4, 10);
+    }
+    b.box(0xe2e8f0, 19, 0.5, 3, 0, 6.4, 10);
 
-    // Crescent finial on dome apex
-    const finialGeo = new THREE.CylinderGeometry(0.12, 0.12, 3.2, 8);
-    const finial = new THREE.Mesh(finialGeo, goldMat);
-    finial.position.y = 19.8;
-    mosqueGroup.add(finial);
+    // Gilded central gold dome with crescent finial
+    b.cylinder(0xfacc15, 6.5, 2.5, 0, 12, 0);
+    b.cylinder(0xfacc15, 5.5, 2.5, 0, 14.5, 0);
+    b.cylinder(0xfacc15, 4.0, 2.0, 0, 17, 0);
+    b.cylinder(0xfacc15, 2.0, 1.5, 0, 19, 0);
+    b.cylinder(0xfacc15, 0.15, 3.5, 0, 20.5, 0);
 
-    // 4 Soaring Minarets (42 meters high)
+    // 4 Soaring Minarets (38 meters high) with balconies and conical spires
     const minaretOffsets = [
       { x: -11, z: -11 },
       { x: 11, z: -11 },
       { x: -11, z: 11 },
       { x: 11, z: 11 },
     ];
-
-    for (let off of minaretOffsets) {
-      const minaretTower = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.8, 1.1, 38, 16),
-        hallMat
-      );
-      minaretTower.position.set(off.x, 19, off.z);
-      mosqueGroup.add(minaretTower);
-
-      // Gold conical cap
-      const cap = new THREE.Mesh(
-        new THREE.ConeGeometry(1.2, 4.5, 16),
-        goldMat
-      );
-      cap.position.set(off.x, 40, off.z);
-      mosqueGroup.add(cap);
+    for (const off of minaretOffsets) {
+      b.cylinder(0xf8fafc, 1.1, 38, off.x, 0, off.z, { topRadius: 0.8, solid: true });
+      b.cylinder(0xfacc15, 1.4, 0.5, off.x, 24, off.z);
+      b.cylinder(0xfacc15, 1.3, 0.5, off.x, 34, off.z);
+      b.cylinder(0xfacc15, 1.2, 4.5, off.x, 38, off.z, { topRadius: 0.1 });
     }
+
+    // Arched portal door and glowing windows
+    b.box(0x1e293b, 3.2, 5.0, 0.2, 0, 0, 9.1);
+    b.box(0xfacc15, 2.8, 0.3, 0.3, 0, 5.1, 9.1);
+    b.windows(0x38bdf8, 4, 2, 14, 2.5, 7, 0, 9.05, 0, { glow: true });
+    b.windows(0x38bdf8, 4, 2, 14, 2.5, 7, 0, -9.05, Math.PI, { glow: true });
+
+    const mosqueGroup = b.build('Abuja National Mosque');
+    mosqueGroup.position.set(-28, 0, -25);
+
+    const click = clickBox(22, 14, 22);
+    click.position.set(0, 0, 0);
+    mosqueGroup.add(click);
 
     this.group.add(mosqueGroup);
 
     this.interactiveList.push({
-      mesh: mosqueGroup,
+      mesh: click,
       id: 'abuja-mosque',
       name: 'Abuja National Mosque',
       category: 'National Architectural Landmark',
@@ -479,37 +474,42 @@ export class AbujaCity implements CityInstance {
   // 4. NATIONAL CHRISTIAN CENTRE (Ecumenical Centre)
   // =========================================================================
   private buildChristianCentre(): void {
-    const centreGroup = new THREE.Group();
+    const b = new Builder().around(0, 0);
+
+    // Cathedral Nave
+    b.box(0x94a3b8, 16, 14, 22, 0, 0, 0, { solid: true });
+
+    // Granite flying buttresses
+    for (const bz of [-8, -4, 0, 4, 8]) {
+      b.box(0x475569, 1.2, 12, 1.0, -8.6, 0, bz);
+      b.box(0x475569, 1.2, 12, 1.0, 8.6, 0, bz);
+    }
+
+    // Neo-Gothic Central Spire (32m high) with Cross
+    b.box(0x334155, 6, 8, 6, 0, 14, 0);
+    b.cylinder(0x1e293b, 3.2, 20, 0, 22, 0, { topRadius: 0.2 });
+    b.box(0xfacc15, 0.2, 3.5, 0.2, 0, 42, 0);
+    b.box(0xfacc15, 2.0, 0.2, 0.2, 0, 43.5, 0);
+
+    // Stained glass rose window and clerestory
+    b.box(0x38bdf8, 0.1, 5.5, 5.5, -8.05, 11, 0, { glow: true });
+    b.windows(0x60a5fa, 4, 3, 18, 2.5, 9, 8.05, 0, Math.PI / 2, { glow: true });
+    b.windows(0x60a5fa, 4, 3, 18, 2.5, 9, -8.05, 0, -Math.PI / 2, { glow: true });
+
+    // Arched portal door
+    b.box(0x1e293b, 3.0, 4.5, 0.2, -8.1, 0, 0);
+
+    const centreGroup = b.build('National Christian Centre');
     centreGroup.position.set(28, 0, -25);
 
-    // Main nave basilica block
-    const naveGeo = new THREE.BoxGeometry(16, 14, 22);
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 });
-    const nave = new THREE.Mesh(naveGeo, stoneMat);
-    nave.position.y = 7;
-    nave.castShadow = true;
-    centreGroup.add(nave);
-
-    // Neo-Gothic Central Spire
-    const spireGeo = new THREE.ConeGeometry(4.5, 26, 4);
-    const spireMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.3 });
-    const spire = new THREE.Mesh(spireGeo, spireMat);
-    spire.position.y = 27;
-    spire.rotation.y = Math.PI / 4;
-    centreGroup.add(spire);
-
-    // Stained glass rose window
-    const windowGeo = new THREE.CircleGeometry(3.2, 24);
-    const windowMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const roseWindow = new THREE.Mesh(windowGeo, windowMat);
-    roseWindow.position.set(-8.05, 11, 0);
-    roseWindow.rotation.y = -Math.PI / 2;
-    centreGroup.add(roseWindow);
+    const click = clickBox(20, 16, 24);
+    click.position.set(0, 0, 0);
+    centreGroup.add(click);
 
     this.group.add(centreGroup);
 
     this.interactiveList.push({
-      mesh: centreGroup,
+      mesh: click,
       id: 'abuja-christian-centre',
       name: 'National Christian Centre (Ecumenical Centre)',
       category: 'National Architectural Landmark',
