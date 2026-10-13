@@ -43,37 +43,126 @@ export type FlightState =
 /** An airliner in the airline's colours, nose toward +x, standing on its wheels. */
 function airliner(): THREE.Group {
   const b = new Builder();
-  const body = 2;
-  b.tube(WHITE, 1.1, 1.1, 9.5, 0.25, body, 0).tube(WHITE, 1.1, 0.28, 2.4, 6.2, body, 0).tube(WHITE, 0.3, 1.1, 3.6, -6.3, body + 0.12, 0);
-  b.box(DARK, 0.9, 0.34, 1.5, 5.75, body + 0.3, 0);
-  // A green line down each side below the windows
-  b.box(LIVERY_GREEN, 9.5, 0.28, 2.06, 0.25, body - 0.64, 0).box(LIVERY_GOLD, 9.5, 0.08, 2.1, 0.25, body - 0.36, 0);
-  b.box(0x0c4a6e, 8.2, 0.2, 2.19, 0.6, body + 0.13, 0);
-  // Wings, swept back, with green tips
-  b.box(0xe5e7eb, 2.6, 0.22, 6.6, -0.6, 1.45, 3.6, { yaw: -0.32 }).box(0xe5e7eb, 2.6, 0.22, 6.6, -0.6, 1.45, -3.6, { yaw: 0.32 });
-  b.box(LIVERY_GREEN, 0.9, 0.9, 0.12, -1.85, 1.5, 6.78).box(LIVERY_GREEN, 0.9, 0.9, 0.12, -1.85, 1.5, -6.78);
-  for (const side of [-1, 1]) {
-    b.tube(0xe5e7eb, 0.5, 0.56, 2, 0.5, 0.98, side * 2.9).tube(DARK, 0.44, 0.44, 0.08, 1.52, 0.98, side * 2.9);
-    b.box(0xe5e7eb, 1.2, 0.36, 0.2, 0.2, 1.25, side * 2.9);
-    b.box(0xe5e7eb, 1.5, 0.14, 2.7, -7, body + 0.5, side * 1.75, { yaw: side * -0.35 });
-    b.box(0x9ca3af, 0.15, 1, 0.15, -0.8, 0.4, side * 1.6).box(DARK, 0.7, 0.62, 0.4, -0.8, 0, side * 1.6);
-  }
-  // The fin, in the airline's green with a gold sun on it
-  b.box(LIVERY_GREEN, 2.3, 3.4, 0.22, -7.1, body + 0.9, 0, { roll: 0.4 });
-  b.cylinder(LIVERY_GOLD, 0.62, 0.28, -7.55, body + 2.6 - 0.14, 0, { pitch: Math.PI / 2, sides: 20 });
-  b.box(0x9ca3af, 0.15, 0.9, 0.15, 4.6, 0.3, 0).box(DARK, 0.5, 0.5, 0.34, 4.6, 0, 0);
-  const plane = b.build('airliner');
+  const body = 2.1;
 
-  const name = signBoard([AIRLINE], 4.4, 0.62, '#f8fafc', '#0b7a43');
-  name.position.set(1.6, body + 0.72, 0.95);
-  name.rotation.x = -0.52;
-  const otherSide = new THREE.Group();
-  otherSide.rotation.y = Math.PI;
-  const mirrored = name.clone();
-  mirrored.position.set(-1.6, body + 0.72, 0.95);
-  otherSide.add(mirrored);
-  plane.add(name, otherSide);
-  return plane;
+  // --- Fuselage ---
+  // Main passenger cabin
+  b.tube(WHITE, 1.35, 1.35, 11.5, 0.5, body, 0);
+  // Forward fuselage
+  b.tube(WHITE, 1.35, 1.15, 3.8, 8.15, body, 0);
+  // Cockpit section and aerodynamic nose cone
+  b.tube(WHITE, 1.15, 0.45, 2.8, 11.45, body - 0.12, 0);
+  b.tube(0x334155, 0.45, 0.25, 0.9, 13.3, body - 0.15, 0);
+  // Aft fuselage taper
+  b.tube(WHITE, 0.65, 1.35, 6.2, -8.35, body + 0.16, 0);
+  // Tail cone and APU exhaust
+  b.tube(0x94a3b8, 0.28, 0.65, 2.2, -12.55, body + 0.35, 0);
+  b.tube(DARK, 0.16, 0.16, 0.25, -13.75, body + 0.35, 0);
+
+  // --- Flight Deck Cockpit Windscreen ---
+  // Dark tinted multi-pane flight deck glass
+  b.box(DARK, 0.85, 0.45, 1.3, 10.6, body + 0.38, 0, { pitch: -0.16 });
+  b.box(0x0c4a6e, 0.8, 0.4, 0.75, 10.15, body + 0.36, 0.85, { yaw: -0.38, pitch: -0.14 });
+  b.box(0x0c4a6e, 0.8, 0.4, 0.75, 10.15, body + 0.36, -0.85, { yaw: 0.38, pitch: -0.14 });
+  b.box(0xe2e8f0, 0.95, 0.08, 1.45, 10.6, body + 0.62, 0);
+
+  // --- Livery Cheatlines & Passenger Windows ---
+  // Dynamic emerald green cheatline along both flanks
+  b.box(LIVERY_GREEN, 14.5, 0.32, 2.74, 0.0, body - 0.68, 0);
+  // Bright gold pinstripe accent
+  b.box(LIVERY_GOLD, 14.5, 0.1, 2.76, 0.0, body - 0.44, 0);
+  // Continuous dark blue window ribbon with passenger windows
+  b.box(0x0c4a6e, 13.8, 0.25, 2.78, 0.0, body + 0.16, 0);
+  b.box(0x7dd3fc, 13.2, 0.14, 2.8, 0.0, body + 0.16, 0);
+
+  // --- Passenger Doors & Exits ---
+  // Forward passenger door L1 (port side, z = -1.39) - exact match for boarding stairs
+  b.box(0xd1d5db, 0.95, 1.75, 0.06, 4.5, body - 0.75, -1.39);
+  b.box(WHITE, 0.82, 1.62, 0.08, 4.5, body - 0.75, -1.39);
+  b.box(0x0c4a6e, 0.22, 0.36, 0.1, 4.5, body + 0.08, -1.39);
+  b.box(0x475569, 0.14, 0.06, 0.12, 4.2, body - 0.12, -1.39);
+  // Aft passenger door L2 (port side)
+  b.box(0xd1d5db, 0.9, 1.65, 0.06, -6.6, body - 0.65, -1.39);
+  b.box(WHITE, 0.78, 1.52, 0.08, -6.6, body - 0.65, -1.39);
+  // Starboard service doors R1 & R2 (z = +1.39)
+  b.box(0xd1d5db, 0.95, 1.75, 0.06, 4.5, body - 0.75, 1.39);
+  b.box(WHITE, 0.82, 1.62, 0.08, 4.5, body - 0.75, 1.39);
+  b.box(0xd1d5db, 0.9, 1.65, 0.06, -6.6, body - 0.65, 1.39);
+  b.box(WHITE, 0.78, 1.52, 0.08, -6.6, body - 0.65, 1.39);
+  // Overwing emergency exits
+  b.box(0xd1d5db, 0.68, 1.1, 0.06, -0.2, body - 0.45, -1.39);
+  b.box(0xd1d5db, 0.68, 1.1, 0.06, -0.2, body - 0.45, 1.39);
+
+  // --- Wings & Flap Track Fairings ---
+  // Aerodynamic swept wings with polished leading edge
+  b.box(0xe5e7eb, 3.2, 0.24, 8.8, -1.1, body - 0.52, 4.8, { yaw: -0.34, roll: -0.06 });
+  b.box(0xe5e7eb, 3.2, 0.24, 8.8, -1.1, body - 0.52, -4.8, { yaw: 0.34, roll: 0.06 });
+  // Wing belly center fairing
+  b.box(WHITE, 5.6, 0.65, 3.4, -0.6, body - 0.92, 0);
+  // Flap track canoe fairings under wings
+  for (const side of [-1, 1]) {
+    for (const dist of [2.8, 4.6, 6.4]) {
+      b.tube(0x9ca3af, 0.1, 0.16, 1.4, -2.4 - dist * 0.18, body - 0.82, side * dist, { sides: 8 });
+    }
+  }
+  // Upward canted winglet / sharklets at wingtips in emerald green with gold stripe
+  b.box(LIVERY_GREEN, 0.95, 1.35, 0.14, -2.5, body + 0.15, 8.92, { roll: 0.15 });
+  b.box(LIVERY_GOLD, 0.95, 0.12, 0.16, -2.5, body + 0.45, 8.92, { roll: 0.15 });
+  b.box(LIVERY_GREEN, 0.95, 1.35, 0.14, -2.5, body + 0.15, -8.92, { roll: -0.15 });
+  b.box(LIVERY_GOLD, 0.95, 0.12, 0.16, -2.5, body + 0.45, -8.92, { roll: -0.15 });
+  // Wingtip navigation & strobe lights
+  b.box(0xef4444, 0.16, 0.16, 0.16, -2.5, body + 0.82, 8.95, { glow: true });
+  b.box(0x22c55e, 0.16, 0.16, 0.16, -2.5, body + 0.82, -8.95, { glow: true });
+  b.box(0xffffff, 0.12, 0.12, 0.12, -2.7, body + 0.82, 8.95, { glow: true });
+  b.box(0xffffff, 0.12, 0.12, 0.12, -2.7, body + 0.82, -8.95, { glow: true });
+
+  // --- High-Bypass Turbofan Engines ---
+  for (const side of [-1, 1]) {
+    const ez = side * 3.4;
+    // Pylon attaching engine to wing
+    b.box(0xcbd5e1, 1.8, 0.52, 0.24, 0.7, body - 0.52, ez);
+    // Aerodynamic nacelle cowl
+    b.tube(WHITE, 0.68, 0.72, 2.5, 1.1, body - 0.92, ez);
+    // Polished chrome intake lip
+    b.tube(0xd1d5db, 0.72, 0.7, 0.22, 2.42, body - 0.92, ez);
+    // Dark engine interior
+    b.tube(DARK, 0.62, 0.62, 0.15, 2.22, body - 0.92, ez);
+    // Central spinner cone
+    b.cone(0x374151, 0.22, 0.42, 2.15, body - 1.12, ez, 12, { pitch: Math.PI / 2 });
+    // Exhaust nozzle & cone
+    b.tube(0x475569, 0.42, 0.56, 0.6, -0.3, body - 0.92, ez);
+    b.cone(0x1f2937, 0.24, 0.52, -0.6, body - 1.16, ez, 10, { pitch: -Math.PI / 2 });
+  }
+
+  // --- Empennage / Tail ---
+  // Swept vertical stabilizer in emerald green
+  b.box(LIVERY_GREEN, 3.2, 4.4, 0.25, -10.2, body + 1.25, 0, { roll: 0.45 });
+  b.box(0xe2e8f0, 0.16, 4.5, 0.27, -9.0, body + 1.25, 0, { roll: 0.45 });
+  b.box(DARK, 0.05, 3.8, 0.27, -11.4, body + 1.45, 0, { roll: 0.45 });
+  // Airline golden sun disc emblem on both sides of tail fin
+  b.cylinder(LIVERY_GOLD, 0.85, 0.32, -10.8, body + 3.15, 0, { pitch: Math.PI / 2, sides: 24 });
+  // Swept horizontal tailplanes with elevator surfaces
+  b.box(0xe5e7eb, 2.2, 0.18, 3.4, -11.6, body + 0.82, 2.2, { yaw: -0.36 });
+  b.box(0xe5e7eb, 2.2, 0.18, 3.4, -11.6, body + 0.82, -2.2, { yaw: 0.36 });
+
+  // --- Tricycle Landing Gear ---
+  // Nose gear
+  b.cylinder(0x9ca3af, 0.1, 1.25, 8.5, 0.3, 0);
+  b.tube(DARK, 0.32, 0.32, 0.22, 8.5, 0.32, 0.22, { sides: 12 });
+  b.tube(DARK, 0.32, 0.32, 0.22, 8.5, 0.32, -0.22, { sides: 12 });
+  b.box(0xfef08a, 0.15, 0.15, 0.15, 8.65, 0.8, 0, { glow: true });
+  // Main gear (twin multi-wheel bogies under wing roots)
+  for (const side of [-1, 1]) {
+    const mz = side * 1.95;
+    b.cylinder(0x9ca3af, 0.14, 1.4, -1.2, 0.3, mz);
+    b.box(0x4b5563, 1.2, 0.15, 0.25, -1.2, 0.32, mz);
+    b.tube(DARK, 0.42, 0.42, 0.24, -1.6, 0.42, mz + 0.22, { sides: 14 });
+    b.tube(DARK, 0.42, 0.42, 0.24, -1.6, 0.42, mz - 0.22, { sides: 14 });
+    b.tube(DARK, 0.42, 0.42, 0.24, -0.8, 0.42, mz + 0.22, { sides: 14 });
+    b.tube(DARK, 0.42, 0.42, 0.24, -0.8, 0.42, mz - 0.22, { sides: 14 });
+  }
+
+  return b.build('airliner');
 }
 
 interface Leg {
@@ -232,10 +321,14 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   const b = new Builder().around(DRAWN.x, DRAWN.z);
 
   // --- Ground -----------------------------------------------------------------------------
-  b.ground(0x6b8f47, 89, 66, -113.5, 0.012, -123);
-  b.ground(0xa3a3a3, 60, 27, -100, 0.02, -128.5);
-  b.ground(0x27272a, 86, 8, -113, 0.026, RUNWAY_Z);
+  b.ground(0x4d7c0f, 92, 70, -113.5, 0.012, -123);
+  b.ground(0xa1a1aa, 68, 34, -102, 0.02, -128.5);
+  b.ground(0x18181b, 88, 11, -113, 0.026, RUNWAY_Z);
   b.ground(0xbdb5a8, 43, 5, -90.5, 0.02, -100.5);
+  // Taxiway links between apron and runway
+  b.ground(0x27272a, 14, 17, -78, 0.024, -137.5);
+  b.ground(0x27272a, 14, 17, -136, 0.024, -137.5);
+
   // The forecourt: a set-down road along the kerb and a row of parked cars beyond it
   b.ground(0x3f3f46, 41, 4, -90.5, 0.022, -96).ground(0x52525b, 41, 4, -90.5, 0.02, -92);
   for (let x = -110; x <= -71; x += 3) b.ground(WHITE, 0.12, 3.6, x, 0.03, -92);
@@ -248,17 +341,40 @@ export function createAirport(options: AirportOptions): AirportLandmark {
     b.cylinder(0xe5e7eb, 0.07, 8, x, 0, -94.1, { solid: true });
     b.box(0x0b7a43, 0.6, 1, 0.04, x + 0.37, 6.9, -94.1).box(0xffffff, 0.6, 1, 0.04, x + 0.97, 6.9, -94.1).box(0x0b7a43, 0.6, 1, 0.04, x + 1.57, 6.9, -94.1);
   }
-  for (let x = -150; x <= -76; x += 6) b.ground(WHITE, 3, 0.3, x, 0.036, RUNWAY_Z);
+
+  // Runway threshold piano keys and touchdown zone markings
+  for (let x = -150; x <= -76; x += 6) b.ground(WHITE, 3.2, 0.35, x, 0.036, RUNWAY_Z);
   for (const end of [-153.5, -72.5]) {
-    for (let k = -3; k <= 3; k++) if (k !== 0) b.ground(WHITE, 3, 0.45, end, 0.036, RUNWAY_Z + k);
+    for (let k = -4; k <= 4; k++) if (k !== 0) b.ground(WHITE, 3.6, 0.45, end, 0.036, RUNWAY_Z + k * 1.05);
   }
-  for (let x = -154; x <= -72; x += 8) {
-    b.box(0xfef08a, 0.22, 0.2, 0.22, x, 0, RUNWAY_Z - 4.3, { glow: true }).box(0xfef08a, 0.22, 0.2, 0.22, x, 0, RUNWAY_Z + 4.3, { glow: true });
+  // Runway edge lights (amber/white) and green threshold bar lights
+  for (let x = -154; x <= -72; x += 7) {
+    b.box(0xfef08a, 0.22, 0.25, 0.22, x, 0, RUNWAY_Z - 5.2, { glow: true }).box(0xfef08a, 0.22, 0.25, 0.22, x, 0, RUNWAY_Z + 5.2, { glow: true });
   }
-  // Taxi lines, and where each aircraft stops
+  for (let k = -4.5; k <= 4.5; k += 1.2) {
+    b.box(0x22c55e, 0.22, 0.22, 0.22, -154, 0, RUNWAY_Z + k, { glow: true });
+    b.box(0x22c55e, 0.22, 0.22, 0.22, -72, 0, RUNWAY_Z + k, { glow: true });
+  }
+
+  // Taxi lines, apron markings and aircraft stand safety envelopes
   const TAXI = 0xfacc15;
-  b.ground(TAXI, 0.25, 15, -78, 0.036, -134.5).ground(TAXI, 42, 0.25, -99, 0.036, STAND.z);
-  for (const x of [STAND.x, -112]) b.ground(TAXI, 0.25, 5, x - 7, 0.036, STAND.z);
+  b.ground(TAXI, 0.28, 16, -78, 0.036, -134.5);
+  b.ground(TAXI, 48, 0.28, -102, 0.036, STAND.z);
+  // Stand lead-in lines and nose wheel stop bars
+  for (const x of [STAND.x, -112]) b.ground(TAXI, 0.35, 6, x - 7, 0.036, STAND.z);
+  // Red safety boundary boxes around Stand 1 and Stand 2
+  b.ground(0xdc2626, 26, 0.28, -90, 0.036, -119.5);
+  b.ground(0xdc2626, 26, 0.28, -90, 0.036, -134.5);
+  b.ground(0xdc2626, 0.28, 15, -77, 0.036, -127);
+  b.ground(0xdc2626, 0.28, 15, -103, 0.036, -127);
+  b.ground(0xdc2626, 22, 0.28, -112, 0.036, -119.5);
+  b.ground(0xdc2626, 22, 0.28, -112, 0.036, -134.5);
+  b.ground(0xdc2626, 0.28, 15, -123, 0.036, -127);
+  // Taxiway blue edge marker lights
+  for (const z of [-130, -135, -140]) {
+    b.box(0x38bdf8, 0.18, 0.2, 0.18, -85.5, 0, z, { glow: true });
+    b.box(0x38bdf8, 0.18, 0.2, 0.18, -70.5, 0, z, { glow: true });
+  }
 
   // A road of its own, where the city has none that comes this way: out of the forecourt and round to the avenue
   if (options.approach) {
@@ -274,38 +390,69 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   }
 
   // --- The terminal -----------------------------------------------------------------------
-  b.box(0xf1f5f9, 40, 8, 12, -90, 0, -109, { solid: true });
-  b.box(0x0c4a6e, 36.4, 5.6, 0.1, -90, 1.2, -102.96).windows(0x7dd3fc, 14, 2, 36, 1.2, 5.6, -90, -102.9, 0);
-  b.box(0x0c4a6e, 36.4, 5.6, 0.1, -90, 1.2, -115.04).windows(0x7dd3fc, 14, 2, 36, 1.2, 5.6, -90, -115.1, Math.PI);
-  b.box(0xe2e8f0, 42, 0.4, 14.6, -90, 8, -109, { pitch: 0.04 }).box(LIVERY_GREEN, 42, 0.7, 0.3, -90, 7.5, -101.75);
-  b.box(WHITE, 18, 2.2, 6, -90, 8.3, -109).windows(0xfef9c3, 8, 1, 17, 8.5, 1.8, -90, -105.96, 0, { glow: true });
-  b.box(0xe2e8f0, 19, 0.3, 7, -90, 10.5, -109);
+  b.box(0xf1f5f9, 42, 8.5, 12, -90, 0, -109, { solid: true });
+  b.box(0x0c4a6e, 38, 5.8, 0.12, -90, 1.2, -102.96).windows(0x7dd3fc, 16, 2, 38, 1.2, 5.8, -90, -102.9, 0, { glow: true });
+  b.box(0x0c4a6e, 38, 5.8, 0.12, -90, 1.2, -115.04).windows(0x7dd3fc, 16, 2, 38, 1.2, 5.8, -90, -115.1, Math.PI, { glow: true });
+  b.box(0xe2e8f0, 44, 0.45, 15, -90, 8.2, -109, { pitch: 0.03 });
+  b.box(LIVERY_GREEN, 44.2, 0.8, 0.35, -90, 7.8, -101.35).box(LIVERY_GOLD, 44.2, 0.12, 0.38, -90, 7.65, -101.35);
+  b.box(LIVERY_GREEN, 44.2, 0.8, 0.35, -90, 7.8, -116.65);
+  b.box(WHITE, 22, 2.2, 6.5, -90, 8.5, -109).windows(0xfef9c3, 10, 1, 21, 8.7, 1.8, -90, -105.7, 0, { glow: true });
+  b.box(0xe2e8f0, 23, 0.35, 7.5, -90, 10.7, -109);
   // The way in, under a canopy at the kerb
-  b.box(0x0f172a, 4.6, 3.3, 0.2, -80, 0, -102.92).box(0x93c5fd, 3.8, 2.9, 0.26, -80, 0, -102.92);
-  b.box(WHITE, 26, 0.3, 4.8, -84, 4.3, -100.5).box(LIVERY_GREEN, 26, 0.45, 0.2, -84, 4.2, -98.2);
-  for (const x of [-96.5, -90, -85, -75, -71.5]) b.cylinder(0x94a3b8, 0.18, 4.3, x, 0, -98.5, { solid: true });
+  b.box(0x0f172a, 4.8, 3.4, 0.22, -80, 0, -102.92).box(0x93c5fd, 4.0, 3.0, 0.28, -80, 0, -102.92);
+  b.box(WHITE, 28, 0.35, 5.2, -84, 4.4, -100.3).box(LIVERY_GREEN, 28, 0.5, 0.25, -84, 4.3, -97.8);
+  for (const x of [-96.5, -90, -85, -75, -71.5]) b.cylinder(0x94a3b8, 0.18, 4.4, x, 0, -98.0, { solid: true });
   // Posts for the name on the roof
-  for (const x of [-98, -82]) b.box(0x94a3b8, 0.2, 1.2, 0.2, x, 8.4, -102.6);
-  b.box(0x0f172a, 20.3, 2.5, 0.14, -90, 9.5, -102.6);
+  for (const x of [-98, -82]) b.box(0x94a3b8, 0.2, 1.4, 0.2, x, 8.4, -102.6);
+  b.box(0x0f172a, 22.3, 2.6, 0.14, -90, 9.6, -102.6);
   // Doors onto the apron
-  for (const x of [-98, -84]) b.box(0x0f172a, 3, 2.8, 0.2, x, 0, -115.08);
+  for (const x of [-98, -84]) b.box(0x0f172a, 3.2, 2.8, 0.2, x, 0, -115.08);
+
+  // --- Articulated Passenger Jet Bridges ---
+  // Gate 1 Jet Bridge (extending from second-floor Gate 1 at x = -84 to Stand 1)
+  b.cylinder(0xe2e8f0, 1.2, 2.8, -84, 3.8, -115.5, { sides: 16 });
+  b.box(WHITE, 1.9, 2.1, 7.2, -87.8, 3.0, -119.5, { yaw: -0.78, pitch: -0.09 });
+  b.box(0x7dd3fc, 0.08, 0.9, 6.6, -88.5, 3.5, -119.5, { yaw: -0.78, glow: true });
+  b.box(0xf1f5f9, 1.7, 1.9, 6.4, -92.2, 2.2, -123.8, { yaw: -0.78, pitch: -0.06 });
+  b.box(DARK, 1.85, 2.0, 0.6, -93.6, 1.75, -125.0, { yaw: -0.78 });
+  b.cylinder(0x94a3b8, 0.14, 2.2, -92.2, 0, -123.8);
+  b.tube(DARK, 0.35, 0.35, 0.8, -92.2, 0.35, -123.8);
+  b.box(0x334155, 2.1, 2.1, 1.4, -94.2, 1.45, -125.4, { yaw: 0.15 });
+  b.box(DARK, 2.3, 2.2, 0.25, -94.35, 1.45, -125.7, { yaw: 0.15 });
+
+  // Gate 2 Jet Bridge (extending from second-floor Gate 2 at x = -104 to Stand 2)
+  b.cylinder(0xe2e8f0, 1.2, 2.8, -104, 3.8, -115.5, { sides: 16 });
+  b.box(WHITE, 1.9, 2.1, 7.2, -108.5, 3.0, -119.5, { yaw: 0.82, pitch: -0.09 });
+  b.box(0x7dd3fc, 0.08, 0.9, 6.6, -109.2, 3.5, -119.5, { yaw: 0.82, glow: true });
+  b.box(0xf1f5f9, 1.7, 1.9, 6.4, -113.8, 2.2, -123.8, { yaw: 0.82, pitch: -0.06 });
+  b.cylinder(0x94a3b8, 0.14, 2.2, -113.8, 0, -123.8);
+  b.box(0x334155, 2.1, 2.1, 1.4, -115.8, 1.45, -125.4, { yaw: -0.2 });
+  b.box(DARK, 2.3, 2.2, 0.25, -116.0, 1.45, -125.7, { yaw: -0.2 });
 
   // --- The control tower ------------------------------------------------------------------
   const tower = { x: -120, z: -108 };
-  b.box(0xe5e7eb, 7, 3.2, 6, tower.x, 0, tower.z, { solid: true }).windows(0x7dd3fc, 3, 1, 6, 0.8, 2, tower.x, tower.z + 3.02, 0);
-  b.cylinder(0xf1f5f9, 1.8, 16.5, tower.x, 0, tower.z, { topRadius: 1.5 });
-  b.cylinder(0xe2e8f0, 2.5, 0.4, tower.x, 16.1, tower.z, { sides: 10 });
-  b.cylinder(0x0c4a6e, 2.4, 2.6, tower.x, 16.5, tower.z, { topRadius: 3, sides: 10 });
-  b.cylinder(0x7dd3fc, 2.5, 1.5, tower.x, 17.2, tower.z, { topRadius: 2.85, sides: 10, glow: true });
-  b.cylinder(0xe2e8f0, 3.25, 0.4, tower.x, 19.1, tower.z, { sides: 10 });
-  b.cylinder(0x94a3b8, 0.08, 4, tower.x + 1.4, 19.5, tower.z).box(0xdc2626, 0.3, 0.3, 0.3, tower.x + 1.4, 23.5, tower.z, { glow: true });
+  b.box(0xe5e7eb, 8.5, 3.6, 7.5, tower.x, 0, tower.z, { solid: true });
+  b.windows(0x7dd3fc, 4, 1, 7.2, 1.0, 2.2, tower.x, tower.z + 3.77, 0, { glow: true });
+  b.cylinder(0xf1f5f9, 2.2, 17.5, tower.x, 0, tower.z, { topRadius: 1.8, sides: 18 });
+  b.box(0x94a3b8, 0.3, 17.0, 4.8, tower.x, 0, tower.z);
+  b.box(0x94a3b8, 4.8, 17.0, 0.3, tower.x, 0, tower.z);
+  b.cylinder(0xe2e8f0, 3.0, 0.5, tower.x, 17.1, tower.z, { sides: 12 });
+  b.cylinder(0x64748b, 3.1, 0.9, tower.x, 17.6, tower.z, { topRadius: 3.1, sides: 12 });
+  b.cylinder(0x0c4a6e, 2.8, 2.8, tower.x, 17.6, tower.z, { topRadius: 3.4, sides: 12 });
+  b.cylinder(0x7dd3fc, 2.9, 1.8, tower.x, 18.2, tower.z, { topRadius: 3.3, sides: 12, glow: true });
+  b.cylinder(0xe2e8f0, 3.6, 0.45, tower.x, 20.4, tower.z, { sides: 12 });
+  b.dome(0xf8fafc, 0.8, tower.x - 1.2, 20.85, tower.z + 1.0);
+  b.cylinder(0x94a3b8, 0.08, 4.8, tower.x + 1.4, 20.85, tower.z);
+  b.box(0xef4444, 0.35, 0.35, 0.35, tower.x + 1.4, 25.65, tower.z, { glow: true });
 
   // --- The hangar -------------------------------------------------------------------------
   const hangar = { x: -144, z: -122 };
-  b.box(0xcbd5e1, 16, 8, 14, hangar.x, 0, hangar.z, { solid: true });
-  b.box(0x94a3b8, 16.6, 0.25, 7.5, hangar.x, 8.8, hangar.z - 3.55, { pitch: -0.25 }).box(0x94a3b8, 16.6, 0.25, 7.5, hangar.x, 8.8, hangar.z + 3.55, { pitch: 0.25 });
-  b.box(0xcbd5e1, 0.3, 1, 9, hangar.x + 8, 8, hangar.z).box(0xcbd5e1, 0.3, 1, 9, hangar.x - 8, 8, hangar.z);
-  b.box(0x334155, 0.14, 6.2, 11, hangar.x + 8.04, 0, hangar.z);
+  b.box(0xcbd5e1, 18, 9.2, 16, hangar.x, 0, hangar.z, { solid: true });
+  b.box(0x94a3b8, 18.6, 0.3, 8.5, hangar.x, 10.0, hangar.z - 4.1, { pitch: -0.22 });
+  b.box(0x94a3b8, 18.6, 0.3, 8.5, hangar.x, 10.0, hangar.z + 4.1, { pitch: 0.22 });
+  b.box(0xcbd5e1, 0.3, 1.2, 10, hangar.x + 9, 9.2, hangar.z);
+  b.box(0xcbd5e1, 0.3, 1.2, 10, hangar.x - 9, 9.2, hangar.z);
+  b.box(0x1e293b, 0.18, 7.2, 13, hangar.x + 9.04, 0, hangar.z);
 
   // --- Ground equipment -------------------------------------------------------------------
   // Steps up to the forward door of the aircraft on the stand
@@ -313,20 +460,45 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   for (let step = 0; step < 6; step++) {
     b.box(0xe5e7eb, 1.3, 1.5 - step * 0.25, 0.55, stairs.x, 0, stairs.top + 0.28 + step * 0.55);
   }
-  b.box(0xfacc15, 1.5, 0.5, 1.6, stairs.x, 0, stairs.top + 3.9).box(0x94a3b8, 0.06, 1, 3.3, stairs.x - 0.65, 1.1, stairs.top + 1.65, { pitch: 0.42 });
-  // A tug with a train of baggage carts
-  b.box(0xf97316, 1.8, 1, 1.2, -79.5, 0.2, -117).box(DARK, 1.2, 0.6, 1.1, -79.8, 1.2, -117);
+  b.box(0xfacc15, 1.6, 0.52, 1.8, stairs.x, 0, stairs.top + 3.9);
+  b.box(0x94a3b8, 0.06, 1.0, 3.4, stairs.x - 0.65, 1.1, stairs.top + 1.65, { pitch: 0.42 });
+  b.box(0x94a3b8, 0.06, 1.0, 3.4, stairs.x + 0.65, 1.1, stairs.top + 1.65, { pitch: 0.42 });
+
+  // Pushback Tug with tow hitch
+  b.box(0xf97316, 2.2, 1.1, 1.5, -78.5, 0.2, -121.5);
+  b.box(DARK, 1.5, 0.7, 1.4, -78.8, 1.3, -121.5);
+  b.tube(DARK, 0.45, 0.45, 0.32, -77.7, 0.45, -120.7, { sides: 12 });
+  b.tube(DARK, 0.45, 0.45, 0.32, -77.7, 0.45, -122.3, { sides: 12 });
+  b.tube(DARK, 0.45, 0.45, 0.32, -79.3, 0.45, -120.7, { sides: 12 });
+  b.tube(DARK, 0.45, 0.45, 0.32, -79.3, 0.45, -122.3, { sides: 12 });
+  b.cylinder(0xfacc15, 0.08, 2.8, -80.6, 0.3, -121.5, { roll: Math.PI / 2 });
+
+  // Baggage tractor with train of luggage carts
+  b.box(0xf97316, 1.8, 1.0, 1.2, -79.5, 0.2, -117).box(DARK, 1.2, 0.6, 1.1, -79.8, 1.2, -117);
   for (let cart = 0; cart < 3; cart++) {
     const x = -82 - cart * 2.3;
-    b.box(0x64748b, 1.9, 0.2, 1.2, x, 0.45, -117).box(cart === 1 ? 0x1d4ed8 : 0x7c2d12, 1.5, 0.7, 1, x, 0.65, -117).box(DARK, 1.6, 0.4, 1.3, x, 0, -117);
+    b.box(0x64748b, 1.9, 0.2, 1.2, x, 0.45, -117);
+    b.box(cart === 1 ? 0x1d4ed8 : cart === 2 ? 0x15803d : 0xb91c1c, 1.5, 0.7, 1, x, 0.65, -117);
+    b.box(DARK, 1.6, 0.4, 1.3, x, 0, -117);
   }
-  // A fuel bowser by the parked aircraft
-  b.box(0xdc2626, 1.6, 1.8, 2, -104.8, 0.4, -120.5).tube(0xe5e7eb, 0.9, 0.9, 3, -107.3, 1.5, -120.5).box(DARK, 4.6, 0.5, 2, -106.4, 0, -120.5);
+
+  // Aviation fuel tanker bowser
+  b.box(0xdc2626, 1.8, 1.8, 2.2, -104.5, 0.4, -120.5);
+  b.box(DARK, 0.8, 0.8, 2.1, -104.5, 1.4, -120.5);
+  b.tube(0xe5e7eb, 0.95, 0.95, 3.4, -107.2, 1.55, -120.5);
+  b.box(DARK, 5.0, 0.5, 2.2, -106.2, 0, -120.5);
+
+  // Apron high-mast floodlight towers
   for (const [x, z] of [[-128.5, -116.5], [-71, -116.5]]) {
-    b.cylinder(0x94a3b8, 0.26, 15, x, 0, z, { topRadius: 0.16, solid: true }).box(0xfff7c2, 2.6, 0.5, 1.1, x, 15, z - 0.4, { glow: true });
+    b.cylinder(0x94a3b8, 0.28, 16, x, 0, z, { topRadius: 0.16, solid: true });
+    b.box(0x475569, 3.2, 0.8, 0.4, x, 16.0, z - 0.2);
+    b.box(0xfff7c2, 3.0, 0.6, 0.15, x, 16.0, z - 0.4, { glow: true });
   }
-  // A windsock
-  b.cylinder(0xe5e7eb, 0.07, 5, -131, 0, -134).tube(0xf97316, 0.42, 0.16, 1.9, -130, 4.9, -134);
+
+  // Windsock on swivel mast
+  b.cylinder(0xe5e7eb, 0.08, 5.5, -131, 0, -134);
+  b.tube(0xf97316, 0.45, 0.18, 2.1, -130, 5.4, -134);
+  b.tube(WHITE, 0.35, 0.28, 0.7, -130, 5.4, -134);
 
   // --- The fence between the street and the airfield --------------------------------------
   const FENCE = 0x64748b;
@@ -338,13 +510,13 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   group.position.set(site.x, 0, site.z);
   const local = (x: number, y: number, z: number) => new THREE.Vector3(x - DRAWN.x, y, z - DRAWN.z);
 
-  const nameSign = signBoard([name.toUpperCase(), `Domestic Terminal  ·  ${code}`], 20, 2.3, '#0f172a');
+  const nameSign = signBoard([name.toUpperCase(), `International & Domestic Terminals  ·  ${code}`], 22, 2.4, '#0f172a', '#facc15');
   nameSign.position.copy(local(-90, 10.75, -102.5));
-  const gates = signBoard(['GATES 1 - 2'], 6, 0.8, '#0f172a', '#facc15');
+  const gates = signBoard(['GATES 1 - 4'], 7, 0.9, '#0f172a', '#facc15');
   gates.position.copy(local(-91, 4.6, -115.14));
   gates.rotation.y = Math.PI;
-  const hangarSign = signBoard([AIRLINE, 'Engineering'], 8, 1.5, '#f8fafc', '#0b7a43');
-  hangarSign.position.copy(local(hangar.x + 8.14, 7.1, hangar.z));
+  const hangarSign = signBoard([AIRLINE, 'Aircraft Maintenance & Engineering'], 10, 1.6, '#f8fafc', '#0b7a43');
+  hangarSign.position.copy(local(hangar.x + 9.14, 7.2, hangar.z));
   hangarSign.rotation.y = Math.PI / 2;
   const marshal = figure(0xfacc15, 0x1f2937, 0x5b3a1e, 0xf97316);
   marshal.position.copy(local(STAND.x - 10.5, 0, STAND.z + 2.6));
