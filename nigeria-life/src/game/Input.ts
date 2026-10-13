@@ -49,6 +49,8 @@ export class InputManager {
   public virtualJoystick: VirtualJoystick;
   public onToggleVehicle?: () => void;
   public onHonkVehicle?: () => void;
+  public onRefuelVehicle?: () => void;
+  public onToggleShowcase?: () => void;
   /** A click landed on open ground. Return true to use it instead of walking there. */
   public onGroundClick?: (point: THREE.Vector3) => boolean;
   /** A click landed on the floor of a room. Return true to use it instead of walking there. */
@@ -188,6 +190,12 @@ export class InputManager {
       const k = e.key.toLowerCase();
       this.keys[k] = true;
 
+      if (e.key === 'F9') {
+        e.preventDefault();
+        this.onToggleShowcase?.();
+        return;
+      }
+
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
         this.pendingInteraction = null;
       }
@@ -196,6 +204,8 @@ export class InputManager {
         this.onToggleVehicle?.();
       } else if (k === 'h') {
         this.onHonkVehicle?.();
+      } else if (k === 'r') {
+        this.onRefuelVehicle?.();
       } else if (k === 'v') {
         // Toggle camera preset (Third-Person -> Street -> Isometric -> Aerial)
         if (this.cameraManager) {

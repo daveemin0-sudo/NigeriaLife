@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Builder, signBoard } from '../kit/ArchKit';
 import { clickBox, type Landmark, type LandmarkAction, type LandmarkHost } from './Landmark';
 import { RENDER_LAYERS } from '../../interiors/InteriorTypes';
+import { CareerMinigames } from '../../jobs/CareerMinigames';
 
 export interface RefineryLandmark extends Landmark {
   flareFlame: THREE.Mesh;
@@ -199,16 +200,15 @@ export function createRefinery(config: RefineryConfig = {}): RefineryLandmark {
             },
           },
           {
-            label: '🛢️ Supervise Fuel Tanker Gantry Dispatch',
-            note: '+₦15,000 · -30% Energy · +30 Cred',
+            label: '🛢️ Calibrate Cracking Valves & Tanker Dispatch (Minigame)',
+            note: 'Interactive · +₦18,000 · +35 XP · +30 Cred',
             pick: () => {
-              const gig = host.backend.performGig(15000, 30, 'Port Harcourt Refinery Tanker Dispatch');
-              if (gig.success) {
-                host.backend.addStreetCred(30);
-                host.say('Tanker dispatch completed! 33,000L PMS cleared for South-South distribution. Earned ₦15,000 & +30 Cred!', 'success');
-              } else {
-                host.say(gig.message, 'warning');
-              }
+              CareerMinigames.get().openRefineryMinigame((success) => {
+                if (success) {
+                  host.backend.addStreetCred(30);
+                  host.say('Tanker dispatch completed! 33,000L PMS cleared for South-South distribution. Earned top petrochemical payout & XP!', 'success');
+                }
+              });
             },
           },
           {

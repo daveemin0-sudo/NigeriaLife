@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import puppeteer from 'puppeteer-core';
 
-export const GAME_URL = process.env.GAME_URL || 'http://localhost:5174/';
+export const GAME_URL = process.env.GAME_URL || 'http://localhost:5173/';
 export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function findChrome() {

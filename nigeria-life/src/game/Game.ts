@@ -60,6 +60,7 @@ import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
 import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
+import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -120,6 +121,7 @@ export class Game {
   private viewBeforeCoach: { pitch: number; distance: number } | null = null;
   public roadRideExperience: RoadRideExperience;
   public transitHUD: TransitHUD;
+  public qualityShowcase: CharacterQualityTestScene;
 
   private clock: THREE.Clock;
   private savedStreetFog: THREE.Fog | THREE.FogExp2 | null = null;
@@ -229,6 +231,15 @@ export class Game {
         this.player.currentVehicle.honk();
       }
     };
+
+    const refuelActiveVehicle = () => {
+      if (this.player.isDriving && this.player.currentVehicle) {
+        this.player.currentVehicle.refuel();
+      }
+    };
+
+    this.hud.onRefuelVehicle = refuelActiveVehicle;
+    this.input.onRefuelVehicle = refuelActiveVehicle;
 
     // 9. Travel Modal Inter-District Arrival Warp
     this.hud.travelModal.onTravelArrived = (destId: string) => {
@@ -524,6 +535,19 @@ export class Game {
     const loadNotice = BackendService.getInstance().loadNotice;
     if (loadNotice) {
       showGameToast(loadNotice, 'warning', 9000);
+    }
+
+    // 12c. Character & Vehicle Quality Studio Showcase (Milestone A Acceptance Gate)
+    this.qualityShowcase = new CharacterQualityTestScene();
+    this.scene.add(this.qualityShowcase.group);
+
+    this.hud.onToggleShowcase = () => this.qualityShowcase.toggle(this);
+    this.input.onToggleShowcase = () => this.qualityShowcase.toggle(this);
+
+    if (typeof window !== 'undefined' && (window.location.search.includes('showcase') || window.location.hash.includes('showcase'))) {
+      setTimeout(() => {
+        this.qualityShowcase.open(this);
+      }, 350);
     }
 
     // 13. Start Loop
@@ -1218,6 +1242,11 @@ export class Game {
 
   /** One frame of game logic. */
   private step(delta: number): void {
+    if (this.qualityShowcase && this.qualityShowcase.isActive) {
+      this.qualityShowcase.update(delta, this);
+      this.lastStepDelta = delta;
+      return;
+    }
 
     // Update Player Movement & Walking Cycle (frozen in Photo Mode so player can pose)
     if (this.cameraManager.mode === 'photo') {
@@ -1286,9 +1315,17 @@ export class Game {
       this.hud.updateLocation(district.name, district.sub);
     }
 
-    // Update Driving HUD Speedometer
+    // Update Driving HUD Speedometer & Vehicle Simulation Metrics
     if (this.player.isDriving && this.player.currentVehicle) {
-      this.hud.updateDrivingHUD(this.player.currentVehicle.currentSpeed);
+      const v = this.player.currentVehicle;
+      this.hud.updateDrivingHUD(
+        v.currentSpeed,
+        v.fuel,
+        v.passengers,
+        v.maxPassengers,
+        v.totalFaresCollected,
+        v.isCommercialTransit
+      );
     }
 
     // Autosave position, time of day and vitals (wall-clock time, so a slow frame rate does not delay it)

@@ -28,3 +28,7 @@ server/data
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# Scratch workspace scripts
+scratch/
+

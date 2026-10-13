@@ -34,6 +34,7 @@ import { CASH_MACHINE } from '../world/kit/CashMachine';
 import { esc } from './kit/html';
 import { draw as drawStable } from './kit/StableView';
 import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
+import { CareerMinigames } from '../jobs/CareerMinigames';
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
@@ -89,6 +90,7 @@ export class HUD {
 
   public onExitVehicle?: () => void;
   public onHonkVehicle?: () => void;
+  public onRefuelVehicle?: () => void;
   public onEnterVehicle?: (vehicleId: string) => void;
   public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
   /** Out of the room to a given point outside, not back the way the player came in */
@@ -121,6 +123,7 @@ export class HUD {
   public onResetCamera?: () => void;
   public onCycleCameraPreset?: () => string;
   public onOpenPhotoMode?: () => void;
+  public onToggleShowcase?: () => void;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
 
   constructor() {
@@ -251,6 +254,12 @@ export class HUD {
             <button class="btn-quick-deposit" id="btn-quick-topup" title="Go to the nearest cash machine to take cash out or pay it in">+</button>
           </div>
         </div>
+
+        <!-- Studio Showcase Floating Trigger [F9] -->
+        <button class="quality-showcase-floating-btn" id="hud-quality-showcase-btn" title="Realistic Character & Vehicle Studio Showcase [F9]" style="position: fixed; bottom: 84px; right: 20px; z-index: 999; cursor: pointer; background: linear-gradient(135deg, #0284c7, #0369a1); border: 1px solid #38bdf8; color: #ffffff; font-weight: 700; border-radius: 999px; padding: 6px 14px; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.5);">
+          <span>✨</span>
+          <span>Showcase [F9]</span>
+        </button>
 
         <!-- Top Right Mini District Indicator & Camera View Switcher -->
         <div class="hud-top-right-group">
@@ -401,8 +410,13 @@ export class HUD {
         <div class="driving-meta-box">
           <h4 id="driving-veh-name">Danfo Minibus</h4>
           <span class="driving-hint">WASD / Arrows to Drive • SPACE Handbrake</span>
+          <div class="driving-stats-strip" style="display: flex; gap: 10px; margin-top: 4px; font-size: 11px;">
+            <span id="driving-fuel-pill" style="color: #4ade80; font-weight: 700;">⛽ <span id="driving-fuel-val">85%</span></span>
+            <span id="driving-transit-pill" style="color: #facc15; font-weight: 700; display: none;">👥 <span id="driving-passengers-val">0/8</span> • <span id="driving-fares-val">₦0</span></span>
+          </div>
         </div>
         <div class="driving-actions-bar">
+          <button class="btn-hud-refuel" id="btn-drive-refuel" title="Refuel Fuel Tank [Key R]" style="background: #059669; color: #fff; border: 0; padding: 6px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 11px;">⛽ Refuel [R]</button>
           <button class="btn-hud-horn" id="btn-drive-horn" title="Honk Horn [Key H]">📢 Honk [H]</button>
           <button class="btn-hud-exit-veh" id="btn-drive-exit" title="Exit Vehicle [Key F]">🚪 Exit [F]</button>
         </div>
@@ -646,6 +660,10 @@ export class HUD {
       this.onHonkVehicle?.();
     });
 
+    document.getElementById('btn-drive-refuel')?.addEventListener('click', () => {
+      this.onRefuelVehicle?.();
+    });
+
     // Emote buttons
     document.getElementById('emote-zanku')?.addEventListener('click', () => {
       this.player.playEmote('zanku', 4.0);
@@ -720,6 +738,10 @@ export class HUD {
         e.preventDefault();
         togglePerfFn();
       }
+    });
+
+    document.getElementById('hud-quality-showcase-btn')?.addEventListener('click', () => {
+      this.onToggleShowcase?.();
     });
 
     // Bottom Master Navigation Bar (Home, Buy, Map, Phone)
@@ -1732,11 +1754,37 @@ export class HUD {
     }
   }
 
-  public updateDrivingHUD(speedMps: number): void {
+  public updateDrivingHUD(
+    speedMps: number,
+    fuel?: number,
+    passengers?: number,
+    maxPassengers?: number,
+    fares?: number,
+    isCommercial?: boolean
+  ): void {
     const speedValEl = document.getElementById('speedo-val');
     if (speedValEl) {
       const kmh = Math.round(Math.abs(speedMps) * 3.6);
       speedValEl.textContent = kmh.toString();
+    }
+    if (fuel !== undefined) {
+      const fuelValEl = document.getElementById('driving-fuel-val');
+      if (fuelValEl) {
+        fuelValEl.textContent = `${Math.round(fuel)}%`;
+        fuelValEl.style.color = fuel < 20 ? '#ef4444' : fuel < 45 ? '#facc15' : '#4ade80';
+      }
+    }
+    const transitPill = document.getElementById('driving-transit-pill');
+    if (transitPill) {
+      if (isCommercial) {
+        transitPill.style.display = 'inline-block';
+        const passValEl = document.getElementById('driving-passengers-val');
+        if (passValEl) passValEl.textContent = `${passengers ?? 0}/${maxPassengers ?? 8}`;
+        const faresValEl = document.getElementById('driving-fares-val');
+        if (faresValEl) faresValEl.textContent = `₦${(fares ?? 0).toLocaleString()}`;
+      } else {
+        transitPill.style.display = 'none';
+      }
     }
   }
 
@@ -3324,34 +3372,51 @@ export class HUD {
         });
       }
     } else if (id === 'yaba-cchub') {
-      const gig = this.backend.performGig(15000, 30, 'CcHub Hackathon Sprint');
-      if (gig.success) {
-        this.backend.addStreetCred(25);
-        this.backend.addItem({
-          id: `github_token_${Date.now()}`,
-          name: 'CcHub High-Yield Smart Contract',
-          category: 'document',
-          icon: '💻',
-          description: 'Deployed web3 micro-service for a Silicon Valley fintech client.',
-          price: 25000,
-          usable: false,
-        });
-        this.showDialogueModal({
-          speakerName: 'CcHub Incubator Lead',
-          speakerRole: '6th Floor Innovation Hub • Yaba',
-          speakerAvatar: '💻',
-          soundType: 'tech',
-          dialogueText: 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash, +25 Street Cred, and deployed your code! Energy -30%',
-          rewards: { cash: 15000, streetCred: 25, item: { name: 'CcHub High-Yield Smart Contract', icon: '💻', category: 'document' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'CcHub Incubator Lead',
-          speakerRole: '6th Floor Innovation Hub • Yaba',
-          speakerAvatar: '⚠️',
-          dialogueText: gig.message,
-        });
-      }
+      this.showDialogueModal({
+        speakerName: 'CcHub Incubator Lead',
+        speakerRole: '6th Floor Innovation Hub • Yaba',
+        speakerAvatar: '💻',
+        soundType: 'tech',
+        dialogueText: 'Welcome to CcHub Yaba! Ready to build high-throughput fintech APIs or ship a production sprint?',
+        choices: [
+          {
+            id: 'cchub-sprint-minigame',
+            label: '💻 Launch FinTech Code Sprint Minigame (+₦26,000)',
+            onSelect: () => {
+              const ov = document.getElementById('game-dialogue-overlay');
+              if (ov) ov.remove();
+              CareerMinigames.get().openTechHubMinigame();
+            },
+          },
+          {
+            id: 'cchub-instant-hackathon',
+            label: '⚡ Fast Hackathon Shift (₦15,000)',
+            onSelect: () => {
+              const ov = document.getElementById('game-dialogue-overlay');
+              if (ov) ov.remove();
+              const gig = this.backend.performGig(15000, 30, 'CcHub Hackathon Sprint');
+              if (gig.success) {
+                this.backend.addStreetCred(25);
+                this.showDialogueModal({
+                  speakerName: 'CcHub Incubator Lead',
+                  speakerRole: '6th Floor Innovation Hub • Yaba',
+                  speakerAvatar: '💻',
+                  soundType: 'tech',
+                  dialogueText: 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash and +25 Street Cred! Energy -30%',
+                  rewards: { cash: 15000, streetCred: 25 },
+                });
+              } else {
+                this.showDialogueModal({
+                  speakerName: 'CcHub Incubator Lead',
+                  speakerRole: '6th Floor Innovation Hub • Yaba',
+                  speakerAvatar: '⚠️',
+                  dialogueText: gig.message,
+                });
+              }
+            },
+          },
+        ],
+      });
     } else if (id === 'mma-airport') {
       this.hideInteractionCard();
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
@@ -3863,6 +3928,25 @@ export class HUD {
         soundType: 'general',
         dialogueText: 'Always obey traffic signals and cross at zebra lines! Broad Street traffic flows smoothly when citizens stay sharp! Street Cred +10!',
         rewards: { streetCred: 10 },
+        choices: [
+          {
+            id: 'lastma-minigame-opt',
+            label: '🚦 Take Traffic Control Shift (LASTMA Minigame)',
+            onSelect: () => {
+              const ov = document.getElementById('game-dialogue-overlay');
+              if (ov) ov.remove();
+              CareerMinigames.get().openLastmaMinigame();
+            },
+          },
+          {
+            id: 'lastma-salute-opt',
+            label: '🫡 Understood, Commander!',
+            onSelect: () => {
+              const ov = document.getElementById('game-dialogue-overlay');
+              if (ov) ov.remove();
+            },
+          },
+        ],
       });
     } else if (id === 'npc-chief') {
       this.backend.addStreetCred(25);

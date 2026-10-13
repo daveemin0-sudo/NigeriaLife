@@ -61,6 +61,62 @@ export const EMPLOYERS: Employer[] = [
       { title: 'Site hand', pay: 8000, from: 8 },
     ],
   },
+  {
+    id: 'ph-refinery',
+    name: 'Port Harcourt Petroleum Refinery',
+    place: 'the main process plant gate on Eleme Road',
+    trade: 'Petrochemical engineering',
+    task: 'Calibrate catalytic cracking valves and clear tanker dispatch',
+    energy: 30,
+    xp: 35,
+    grades: [
+      { title: 'Safety Trainee', pay: 12000, from: 0 },
+      { title: 'Plant Technician', pay: 18000, from: 3 },
+      { title: 'Operations Lead', pay: 26000, from: 8 },
+    ],
+  },
+  {
+    id: 'lastma-warden',
+    name: 'LASTMA Traffic Management Authority',
+    place: 'the Broad Street & Marina traffic corridor',
+    trade: 'Traffic enforcement & urban mobility',
+    task: 'Direct intersection traffic flow and penalize BRT lane violators',
+    energy: 25,
+    xp: 25,
+    grades: [
+      { title: 'Cadet Warden', pay: 8500, from: 0 },
+      { title: 'Senior Controller', pay: 14000, from: 3 },
+      { title: 'Sector Commander', pay: 22000, from: 8 },
+    ],
+  },
+  {
+    id: 'cchub-yaba',
+    name: 'CcHUB Yaba Tech Accelerator',
+    place: 'the 6th floor innovation lab on Herbert Macaulay Way',
+    trade: 'Software Engineering & FinTech',
+    task: 'Ship payment API updates and resolve production latency bugs',
+    energy: 20,
+    xp: 40,
+    grades: [
+      { title: 'Junior Dev', pay: 16000, from: 0 },
+      { title: 'Full-Stack Engineer', pay: 26000, from: 3 },
+      { title: 'Tech Lead / VP Eng', pay: 42000, from: 8 },
+    ],
+  },
+  {
+    id: 'lagos-transit',
+    name: 'Lagos State Transit & Danfo Union',
+    place: 'the Broad Street Danfo Terminus rank',
+    trade: 'Commercial transit operations',
+    task: 'Drive commercial shuttle routes and collect passenger fares',
+    energy: 20,
+    xp: 25,
+    grades: [
+      { title: 'Route Conductor', pay: 7500, from: 0 },
+      { title: 'Commercial Pilot', pay: 12000, from: 3 },
+      { title: 'Fleet Master', pay: 18000, from: 8 },
+    ],
+  },
 ];
 
 interface Service {
