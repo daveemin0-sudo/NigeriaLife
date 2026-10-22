@@ -167,7 +167,7 @@ export async function run(browser, check) {
     dropped.bay === 'ready' && dropped.cratesOnLorry === 0 && !hands && dropped.paidRuns === 1 && (await money(page)).cash === before.cash, { dropped, hands });
 
   // Too tired to work
-  await page.evaluate(() => window.game.hud.backend.performGig(1, 65, 'test: worn out'));
+  await page.evaluate(() => { const b = window.game.hud.backend; b.data.stats.energy = 20; b.saveData(); });
   before = await money(page);
   const tired = await energy(page);
   await cardFor(page, 'apapa-port-loading-bay');

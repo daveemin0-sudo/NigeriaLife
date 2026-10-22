@@ -93,8 +93,8 @@ export class PointerScope {
       if (!scrollsY && !scrollsX) continue;
 
       if (scrollsY && !sideways) {
-        const atEnd = amount < 0 ? el.scrollTop <= 0 : el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-        if (atEnd) event.preventDefault();
+        el.scrollTop += PointerScope.toPixels(event, amount);
+        event.preventDefault();
         return;
       }
       if (scrollsX) {

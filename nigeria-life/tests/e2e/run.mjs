@@ -21,17 +21,19 @@ try {
 }
 
 const { check, summary } = reporter();
-const browser = await launch();
-
 for (const name of wanted.length ? wanted : SUITES) {
   console.log(`\n--- ${name} ---`);
+  const browser = await launch();
   try {
     const suite = await import(`./${name}.mjs`);
     await suite.run(browser, check);
   } catch (e) {
     check(`${name}: ran to completion`, false, String((e && e.stack) || e).slice(0, 600));
+  } finally {
+    try {
+      await browser.close();
+    } catch {}
   }
 }
 
-await browser.close();
 process.exit(summary() ? 1 : 0);

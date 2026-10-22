@@ -189,6 +189,7 @@ export class InputManager {
 
       const k = e.key.toLowerCase();
       this.keys[k] = true;
+      this.keys[e.code] = true;
 
       if (e.key === 'F9') {
         e.preventDefault();
@@ -239,6 +240,7 @@ export class InputManager {
     window.addEventListener('keyup', (e) => {
       const k = e.key.toLowerCase();
       this.keys[k] = false;
+      this.keys[e.code] = false;
     });
   }
 

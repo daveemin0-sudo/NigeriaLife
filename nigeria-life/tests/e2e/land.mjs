@@ -23,6 +23,7 @@ async function until(page, test, arg, tries = 40) {
   for (let i = 0; i < tries; i++) {
     const value = await page.evaluate(test, arg);
     if (value) return value;
+    await advance(page, 0.1);
     await wait(150);
   }
   return null;
@@ -33,10 +34,19 @@ const ledger = (page, kind) => page.evaluate((type) => window.game.hud.backend.g
 const plotState = (page, id) => page.evaluate((plotId) => { const g = window.game; return { status: g.land.status(plotId), owner: g.land.ownerOf(plotId), asking: g.land.askingPrice(plotId) }; }, id);
 const tap = async (page, selector) => {
   const ok = await page.evaluate((sel) => { const el = document.querySelector(sel); if (!el || el.disabled) return false; el.scrollIntoView({ block: 'center' }); el.click(); return true; }, `${PHONE} ${selector}`);
+  await page.waitForFunction(() => !window.game?.hud?.phoneModal?.busy, { timeout: 10000 }).catch(() => undefined);
   await wait(220);
   return ok;
 };
-const yes = async (page) => { await wait(120); await page.evaluate(() => document.getElementById('phone-confirm-yes').click()); await wait(350); };
+const yes = async (page) => {
+  await wait(120);
+  await page.evaluate(() => document.getElementById('phone-confirm-yes').click());
+  await page.waitForFunction(() => {
+    const phone = window.game?.hud?.phoneModal;
+    return !phone || (!phone.busy && document.getElementById('phone-confirm')?.hidden);
+  }, { timeout: 10000 }).catch(() => wait(600));
+  await wait(250);
+};
 const typeInto = async (page, selector, value) => {
   const at = await page.evaluate((sel) => { const el = document.querySelector(sel); el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }, `${PHONE} ${selector}`);
   await page.bringToFront();
@@ -441,6 +451,7 @@ export async function run(browser, check) {
   check('land with work under way cannot be sold, and a second building cannot be started on it', !blockedSale.ok && /under way/.test(blockedSale.reason) && !second.ok && /already a building/.test(second.reason), { blockedSale, second });
 
   // ------------------------------------------------------------------ Work goes on by the world's clock, whoever is playing
+  await until(b, (id) => (window.game.registry.peek().buildings[id] ? true : null), P4);
   const t0 = await worked(b, P4);
   await wait(2600);
   const t1 = await worked(b, P4);

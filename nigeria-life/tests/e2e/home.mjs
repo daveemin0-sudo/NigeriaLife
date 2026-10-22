@@ -103,7 +103,7 @@ export async function run(browser, check) {
   check('energy comes back gradually while asleep, not all at once',
     samples.every((e, i) => e > (i ? samples[i - 1] : before.energy)) && samples[0] - before.energy < 25 && samples[3] < 100, samples.map((e) => +e.toFixed(1)));
 
-  await page.click('#home-activity-status-stop');
+  await page.evaluate(() => document.querySelector('#home-activity-status-stop')?.click());
   await playUntil(page, () => (!window.game.player.actor.scripted ? true : null), 5);
   s = await state(page);
   check('getting up early keeps what was rested and leaves the player standing and free', free(s) && !s.lying && s.energy > before.energy + 20 && s.energy < 100 && !s.statusShown, { energy: +s.energy.toFixed(1), free: free(s) });

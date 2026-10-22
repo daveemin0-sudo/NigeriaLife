@@ -231,6 +231,7 @@ export class World {
 
   /** The motor park of a city, once that city has been put up. */
   public motorParkOf(city: string): MotorParkLandmark | null {
+    this.cityManager.ensure(city);
     if (city === 'lagos') return this.landmarks.motorPark;
     if (city === 'abuja') return this.cityManager.abujaCity?.motorPark ?? null;
     if (city === 'port_harcourt') return this.cityManager.portHarcourtCity?.motorPark ?? null;
@@ -239,6 +240,7 @@ export class World {
 
   /** The airport of a city, once that city has been put up. */
   public airportOf(city: string): AirportLandmark | null {
+    this.cityManager.ensure(city);
     if (city === 'lagos') return this.landmarks.airport;
     if (city === 'abuja') return this.cityManager.abujaCity?.airport ?? null;
     if (city === 'port_harcourt') return this.cityManager.portHarcourtCity?.airport ?? null;

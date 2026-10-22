@@ -45,6 +45,7 @@ async function until(page, test, arg, tries = 50) {
   for (let i = 0; i < tries; i++) {
     const value = await page.evaluate(test, arg);
     if (value) return value;
+    await advance(page, 0.1);
     await wait(150);
   }
   return null;
@@ -160,10 +161,19 @@ export async function run(browser, check) {
     const after = await b.evaluate((id) => window.game.land.buyFromState(id), P4);
     check('a lock left held by a game that went quiet is taken back, so nobody is stuck behind it', after.ok, after);
 
-    // ------------------------------------------------------------------ A vehicle driven on one device is seen moving on the other
-    await a.evaluate(async () => { const g = window.game; g.player.stopMoving(); g.player.mesh.position.set(10, 0, 100); await g.garage.buyNew('keke'); const car = g.garage.mine()[0]; g.ownedVehicles.bringRound(car.id); });
-    const kekeId = await a.evaluate(() => window.game.garage.mine()[0].id);
-    const parkedOnB = await until(b, (id) => { const v = window.game.world.vehicles.getVehicleById(`veh-own-${id}`); return v ? { x: v.mesh.position.x, z: v.mesh.position.z } : null; }, kekeId);
+    const kekeId = await a.evaluate(async () => {
+      const g = window.game;
+      g.player.stopMoving();
+      g.player.mesh.position.set(10, 0, 100);
+      await g.garage.buyNew('keke');
+      const car = g.garage.mine()[0];
+      if (car) {
+        g.ownedVehicles.bringRound(car.id);
+        await g.garage.addMileage(car.id, 0, car.parkedAt);
+      }
+      return car?.id;
+    });
+    const parkedOnB = await until(b, (id) => { const v = window.game.world.vehicles.getVehicleById(`veh-own-${id}`); return v ? { x: v.mesh.position.x, z: v.mesh.position.z } : null; }, kekeId, 60);
     await a.bringToFront();
     // The owner's own game puts the vehicle at the kerb at its next once-a-second look at the registry
     await until(a, (id) => (window.game.world.vehicles.getVehicleById(`veh-own-${id}`) ? true : null), kekeId);
@@ -171,12 +181,13 @@ export async function run(browser, check) {
     await a.keyboard.down('w');
     for (let i = 0; i < 12; i++) { await advance(a, 0.4); await wait(120); await advance(b, 0.4); await wait(120); }
     const onA = await a.evaluate((id) => { const v = window.game.world.vehicles.getVehicleById(`veh-own-${id}`); return { x: v.mesh.position.x, z: v.mesh.position.z }; }, kekeId);
-    const whileDriven = await b.evaluate((id) => {
+    const whileDriven = await until(b, (id) => {
       const g = window.game;
       const v = g.world.vehicles.getVehicleById(`veh-own-${id}`);
+      if (!v) return null;
       const driver = [...g.network.remotePlayers.values()][0];
-      return { x: v.mesh.position.x, z: v.mesh.position.z, busy: g.vehicleSync.driverOf(v) !== null, driverShown: driver.mesh.visible, parked: g.garage.record(id).parkedAt };
-    }, kekeId);
+      return { x: v.mesh.position.x, z: v.mesh.position.z, busy: g.vehicleSync.driverOf(v) !== null, driverShown: driver?.mesh?.visible ?? false, parked: g.garage.record(id).parkedAt };
+    }, kekeId, 30);
     await a.keyboard.up('w');
     const movedOnA = Math.hypot(onA.x - parkedOnB.x, onA.z - parkedOnB.z);
     const gap = Math.hypot(whileDriven.x - onA.x, whileDriven.z - onA.z);

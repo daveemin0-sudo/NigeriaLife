@@ -197,8 +197,13 @@ export async function run(browser, check) {
   const typedFive = await page.evaluate(() => document.getElementById('invest-units').value);
   await type(page, '#invest-units', '3');
   m0 = await money(page);
-  const back = await page.evaluate(() => { const g = window.game; return g.market.proceedsFromSale(g.market.share('DNGC'), 3); });
-  await tap(page, '#invest-sell-btn');
+  const back = await page.evaluate(() => {
+    const g = window.game;
+    const now = g.market.proceedsFromSale(g.market.share('DNGC'), 3);
+    document.getElementById('invest-sell-btn').click();
+    return now;
+  });
+  await wait(360);
   await tap(page, '#invest-sell-btn'); // a second press has nothing left to sell
   m1 = await money(page);
   held = await page.evaluate(() => window.game.hud.backend.getData().investments.DNGC ?? null);

@@ -120,7 +120,79 @@ export class Vehicles {
       Math.PI / 2
     );
 
-    this.drivableVehicles = [danfo, keke, suv, okada];
+    // 5. Toyota Corolla Tokunbo Sedan parked outside Eko Commercial Bank
+    const sedan = new DrivableVehicle(
+      {
+        id: 'veh-sedan',
+        name: 'Toyota Corolla Tokunbo (Cold AC Spec)',
+        type: 'sedan',
+        maxSpeed: 30,
+        reverseSpeed: 9,
+        acceleration: 20,
+        braking: 20,
+        turnSpeed: 3.0,
+        friction: 2.1,
+        hornText: '📢 PEEP-PEEP! RIDE-HAILING ARRIVED!',
+      },
+      new THREE.Vector3(12.5, 0, -6.5),
+      Math.PI / 2
+    );
+
+    // 6. Mercedes-AMG G63 G-Wagon parked outside VIP Lounge
+    const gwagon = new DrivableVehicle(
+      {
+        id: 'veh-gwagon',
+        name: 'Mercedes-AMG G63 (Billionaire Row Edition)',
+        type: 'gwagon',
+        maxSpeed: 36,
+        reverseSpeed: 11,
+        acceleration: 30,
+        braking: 25,
+        turnSpeed: 2.4,
+        friction: 1.9,
+        hornText: '📢 BOOM-BOOM! HEAVY CONVOY MOVING!',
+      },
+      new THREE.Vector3(8.5, 0, 24.0),
+      -Math.PI / 2
+    );
+
+    // 7. Porsche 911 GT3 Supercar parked outside Marina Luxury Showroom
+    const sportsCar = new DrivableVehicle(
+      {
+        id: 'veh-sports',
+        name: 'Porsche 911 GT3 (Rosso Corsa Supercar)',
+        type: 'sports_car',
+        maxSpeed: 46,
+        reverseSpeed: 14,
+        acceleration: 38,
+        braking: 32,
+        turnSpeed: 3.8,
+        friction: 1.6,
+        hornText: '📢 BEEP-BEEP! TRACK SPEC!',
+      },
+      new THREE.Vector3(-8.5, 0, -22.0),
+      Math.PI
+    );
+
+    // 8. LASAMBUS Emergency Rescue Van in Emergency Bay
+    const ambulance = new DrivableVehicle(
+      {
+        id: 'veh-ambulance',
+        name: 'LASAMBUS Lagos Emergency Rescue Van',
+        type: 'ambulance',
+        maxSpeed: 34,
+        reverseSpeed: 10,
+        acceleration: 23,
+        braking: 24,
+        turnSpeed: 2.5,
+        friction: 2.1,
+        hornText: '🚨 WEE-WOO! EMERGENCY PASSING!',
+      },
+      new THREE.Vector3(12.0, 0, 14.0),
+      0
+    );
+
+    this.drivableVehicles = [danfo, keke, suv, okada, sedan, gwagon, sportsCar, ambulance];
 
     for (const v of this.drivableVehicles) {
       this.group.add(v.mesh);
@@ -354,13 +426,17 @@ export class Vehicles {
     upperCabin.castShadow = true;
     bus.add(upperCabin);
 
-    // Curved Roof Crown
-    const roofGeo = new THREE.CylinderGeometry(1.14, 1.14, 5.15, 16);
-    roofGeo.scale(1, 0.22, 1);
-    const roof = new THREE.Mesh(roofGeo, yellowMat);
-    roof.rotation.x = Math.PI / 2;
-    roof.position.set(0, 2.45, -0.05);
-    bus.add(roof);
+    // Curved Roof Crown - Sculpted van roof with ribs
+    const roofPanel = new THREE.Mesh(new THREE.BoxGeometry(2.26, 0.12, 5.12), yellowMat);
+    roofPanel.position.set(0, 2.44, -0.05);
+    roofPanel.castShadow = true;
+    bus.add(roofPanel);
+
+    for (const rx of [-0.65, -0.22, 0.22, 0.65]) {
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 4.8), yellowMat);
+      rib.position.set(rx, 2.51, -0.05);
+      bus.add(rib);
+    }
 
     // Twin black side route stripes
     const decalGeo = new THREE.PlaneGeometry(5.28, 0.42);

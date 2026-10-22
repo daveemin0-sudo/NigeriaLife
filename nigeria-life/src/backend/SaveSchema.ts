@@ -66,6 +66,7 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
 
   const bank = isRecord(saved.bank) ? saved.bank : {};
   const stats = isRecord(saved.stats) ? saved.stats : {};
+  const skills = isRecord(saved.skills) ? saved.skills : {};
   const career = isRecord(saved.career) ? saved.career : {};
 
   const bankRows = list(bank.transactions, 'bank.transactions');
@@ -188,7 +189,22 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       health: num(stats.health, 100, 'stats.health', 0, 100),
       energy: num(stats.energy, base.stats.energy, 'stats.energy', 0, 100),
       hunger: num(stats.hunger, base.stats.hunger, 'stats.hunger', 0, 100),
+      fun: num(stats.fun, base.stats.fun ?? 70, 'stats.fun', 0, 100),
+      social: num(stats.social, base.stats.social ?? 60, 'stats.social', 0, 100),
+      hygiene: num(stats.hygiene, base.stats.hygiene ?? 75, 'stats.hygiene', 0, 100),
+      bladder: num(stats.bladder, base.stats.bladder ?? 70, 'stats.bladder', 0, 100),
       streetCred: num(stats.streetCred, base.stats.streetCred, 'stats.streetCred', 0, 100),
+    },
+    skills: {
+      coding: num(skills.coding, base.skills?.coding ?? 1, 'skills.coding', 1, 10),
+      charisma: num(skills.charisma, base.skills?.charisma ?? 1, 'skills.charisma', 1, 10),
+      music: num(skills.music, base.skills?.music ?? 1, 'skills.music', 1, 10),
+      hustle: num(skills.hustle, base.skills?.hustle ?? 1, 'skills.hustle', 1, 10),
+      fitness: num(skills.fitness, base.skills?.fitness ?? 1, 'skills.fitness', 1, 10),
+      cooking: num(skills.cooking, base.skills?.cooking ?? 1, 'skills.cooking', 1, 10),
+      craft: num(skills.craft, base.skills?.craft ?? 1, 'skills.craft', 1, 10),
+      driving: num(skills.driving, base.skills?.driving ?? 1, 'skills.driving', 1, 10),
+      academics: num(skills.academics, base.skills?.academics ?? 1, 'skills.academics', 1, 10),
     },
     inventory,
     businesses: DEFAULT_BUSINESSES.map((def) => {

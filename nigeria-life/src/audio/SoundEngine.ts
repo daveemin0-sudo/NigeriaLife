@@ -71,16 +71,62 @@ export class SoundEngine {
   // =========================================================================
   // 1. VEHICLE HORN: Authentic Nigerian Danfo / Okada Dual-Tone "Pim-Pim!"
   // =========================================================================
-  public playVehicleHorn(type: 'danfo' | 'okada' | 'suv' | 'keke' = 'danfo'): void {
+  public playVehicleHorn(type: string = 'danfo'): void {
     const ctx = this.ensureContext();
     if (!ctx || this.isMuted || !this.masterGain) return;
 
     const now = ctx.currentTime;
+    if (type === 'ambulance') {
+      // Emergency two-tone siren yelp (high-low alternating warble)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(960, now);
+      osc.frequency.linearRampToValueAtTime(740, now + 0.18);
+      osc.frequency.linearRampToValueAtTime(960, now + 0.36);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now);
+      osc.stop(now + 0.38);
+      return;
+    }
+
+    if (type === 'electric_car') {
+      // Modern smooth acoustic pedestrian warning chime
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.16); // A5
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now);
+      osc.stop(now + 0.22);
+      return;
+    }
+
     const duration = type === 'okada' || type === 'keke' ? 0.15 : 0.22;
 
     // Dual-tone harmonic horn frequencies
-    const freq1 = type === 'okada' ? 620 : type === 'keke' ? 680 : type === 'suv' ? 380 : 440;
-    const freq2 = type === 'okada' ? 780 : type === 'keke' ? 850 : type === 'suv' ? 475 : 554; // Musical major third interval
+    let freq1 = 440;
+    let freq2 = 554;
+    if (type === 'okada') {
+      freq1 = 620; freq2 = 780;
+    } else if (type === 'keke') {
+      freq1 = 680; freq2 = 850;
+    } else if (type === 'suv' || type === 'gwagon') {
+      freq1 = 340; freq2 = 425; // Deep booming truck horn
+    } else if (type === 'luxury_sedan') {
+      freq1 = 370; freq2 = 466; // Refined European executive dual-tone
+    } else if (type === 'sports_car') {
+      freq1 = 510; freq2 = 640; // High-pitched aggressive sports horn
+    } else if (type === 'sedan') {
+      freq1 = 415; freq2 = 520;
+    }
 
     [freq1, freq2].forEach((freq) => {
       const osc = ctx.createOscillator();

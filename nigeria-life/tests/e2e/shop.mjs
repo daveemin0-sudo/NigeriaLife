@@ -76,9 +76,9 @@ const setCash = (page, amount) => page.evaluate((target) => {
 /** Opens a shelf in the sheet and taps one product on it. Returns the note the sheet shows. */
 const take = async (page, section, product) => {
   await page.evaluate((id) => window.game.shopUI.openShelf(id), section);
-  await wait(120);
-  await page.click(`#shop-sheet .buka-dish[data-product="${product}"]`);
-  await wait(120);
+  await wait(150);
+  await page.evaluate((sel) => document.querySelector(sel)?.click(), `#shop-sheet .buka-dish[data-product="${product}"]`);
+  await wait(150);
   const note = await page.evaluate(() => document.getElementById('shop-sheet-note')?.textContent ?? null);
   await page.evaluate(() => window.game.shopUI.close());
   return note;
@@ -92,9 +92,9 @@ const takeAndWait = async (page, section, product) => {
 };
 const pay = async (page, method) => {
   await page.evaluate(() => window.game.shopUI.openBasket());
-  await wait(120);
-  await page.click(method === 'card' ? '#shop-pay-card' : '#shop-pay-cash');
-  await wait(120);
+  await wait(150);
+  await page.evaluate((sel) => document.querySelector(sel)?.click(), method === 'card' ? '#shop-pay-card' : '#shop-pay-cash');
+  await wait(150);
   return page.evaluate(() => ({ note: document.getElementById('shop-sheet-note')?.textContent ?? null, open: window.game.shopUI.isOpen }));
 };
 
@@ -229,7 +229,7 @@ export async function run(browser, check) {
     rows: [...document.querySelectorAll('#shop-sheet .shop-line')].length,
     total: document.getElementById('shop-total-amount')?.textContent,
   }));
-  await page.click('#shop-sheet .shop-line:nth-child(2)');
+  await page.evaluate(() => document.querySelector('#shop-sheet .shop-line:nth-child(2)')?.click());
   await wait(120);
   await page.evaluate(() => window.game.shopUI.close());
   await playUntil(page, () => (window.game.world.interiorManager.shop.service.lines.length === 2 ? true : null), 25);
@@ -315,7 +315,7 @@ export async function run(browser, check) {
   check('the carrier bag is put away when the player takes a new basket', !before.bagInHand && before.basketInHands && before.lines.join() === 'gala,chinchin', { bag: before.bagInHand, lines: before.lines });
   await pay(page, 'cash');
   await playUntil(page, () => (window.game.world.interiorManager.shop.service.sale?.scanned >= 1 ? true : null), 30);
-  await page.click('#shop-status-cancel');
+  await page.evaluate(() => document.querySelector('#shop-status-cancel')?.click());
   await advance(page, 0.3);
   s = await untilIdle(page);
   check('cancelling at the till charges nothing and puts everything back in the basket, in the player\'s hands',

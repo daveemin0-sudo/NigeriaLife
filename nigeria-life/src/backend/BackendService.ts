@@ -2,6 +2,7 @@ import { profileKey } from './Profile';
 import {
   type PlayerAccount,
   type PlayerStats,
+  type PlayerSkills,
   type Item,
   type OriginDestiny,
   type JobListing,
@@ -16,6 +17,7 @@ import { TransactionService, type ProcessTransactionRequest, type TransactionRes
 import { createFreshAccount, parseSavedAccount } from './SaveSchema';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { emitGameEvent } from '../game/GameEvents';
+import { showGameToast } from '../ui/GameToast';
 
 type ListenerCallback = (data: PlayerAccount) => void;
 
@@ -237,6 +239,8 @@ export class BackendService {
   }
 
   public getData(): PlayerAccount {
+    this.syncFromStorage();
+    this.accrueBusinessRevenue();
     return { ...this.data };
   }
 
@@ -307,6 +311,41 @@ export class BackendService {
     this.saveData();
     emitGameEvent('work_shift');
     return { success: true, message: `Earned ₦${pay.toLocaleString()} cash. Energy -${energyCost}%` };
+  }
+
+  /** Modifies a specific need (0-100 clamped) and notifies UI/audio listeners */
+  public modifyNeed(
+    need: 'energy' | 'hunger' | 'fun' | 'social' | 'hygiene' | 'bladder' | 'health',
+    delta: number
+  ): void {
+    this.syncFromStorage();
+    if (this.data.stats[need] === undefined) {
+      this.data.stats[need] = 50;
+    }
+    this.data.stats[need] = Math.max(0, Math.min(100, Math.round(this.data.stats[need] + delta)));
+    this.saveData();
+  }
+
+  /** Awards experience / levels to one of the 9 official skills (1-10 clamped) */
+  public addSkillExp(skill: string, levels: number = 1): void {
+    this.syncFromStorage();
+    if (!this.data.skills) {
+      this.data.skills = {
+        coding: 1,
+        charisma: 1,
+        music: 1,
+        hustle: 1,
+        fitness: 1,
+        cooking: 1,
+        craft: 1,
+        driving: 1,
+        academics: 1,
+      };
+    }
+    const current = (this.data.skills as any)[skill] ?? 1;
+    (this.data.skills as any)[skill] = Math.max(1, Math.min(10, current + levels));
+    this.saveData();
+    emitGameEvent('skill_leveled' as any);
   }
 
   // === LOANS ===
@@ -423,6 +462,17 @@ export class BackendService {
       this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.02 * elapsed);
     }
 
+    // Benchmark 6-needs decay (proportional to benchmark rates: hunger 5.5, energy 4.0, fun 4.5, social 3.0, hygiene 3.5, bladder 7.0 /hr)
+    if (this.data.stats.fun === undefined) this.data.stats.fun = 100;
+    if (this.data.stats.social === undefined) this.data.stats.social = 100;
+    if (this.data.stats.hygiene === undefined) this.data.stats.hygiene = 100;
+    if (this.data.stats.bladder === undefined) this.data.stats.bladder = 100;
+
+    this.data.stats.fun = Math.max(0, this.data.stats.fun - hungerDrain * 0.82);
+    this.data.stats.social = Math.max(0, this.data.stats.social - hungerDrain * 0.55);
+    this.data.stats.hygiene = Math.max(0, this.data.stats.hygiene - hungerDrain * (isSprinting ? 1.2 : 0.64));
+    this.data.stats.bladder = Math.max(0, this.data.stats.bladder - hungerDrain * 1.27);
+
     let starvedWarning = false;
     const now = Date.now();
     if (this.data.stats.hunger <= 15 && now - this.lastStarveWarningTime > 45000) {
@@ -449,6 +499,60 @@ export class BackendService {
 
     this.notifyListeners();
     return { collapsed, stats: this.data.stats, starvedWarning };
+  }
+
+  /** Retrieve the player's 9 skill proficiencies (1 to 10) */
+  public getSkills(): PlayerSkills {
+    if (!this.data.skills) {
+      this.data.skills = {
+        coding: 1,
+        charisma: 1,
+        music: 1,
+        hustle: 1,
+        fitness: 1,
+        cooking: 1,
+        craft: 1,
+        driving: 1,
+        academics: 1,
+      };
+    }
+    return this.data.skills;
+  }
+
+  /** Award skill experience/levels (capped at 10) */
+  public addSkillXp(skill: keyof PlayerSkills, points: number = 1): { skill: keyof PlayerSkills; level: number; leveledUp: boolean } {
+    const skills = this.getSkills();
+    const current = skills[skill] ?? 1;
+    const next = Math.min(10, Math.max(1, current + points));
+    const leveledUp = next > current;
+    skills[skill] = next;
+    this.saveData();
+    if (leveledUp) {
+      emitGameEvent('skill_train', { objectId: skill });
+    }
+    return { skill, level: next, leveledUp };
+  }
+
+  /** Restore one of the 6 benchmark needs */
+  public restoreNeed(need: 'fun' | 'social' | 'hygiene' | 'bladder' | 'hunger' | 'energy' | 'health', amount: number): void {
+    const stats = this.data.stats;
+    if (need === 'fun') stats.fun = Math.min(100, (stats.fun ?? 100) + amount);
+    else if (need === 'social') stats.social = Math.min(100, (stats.social ?? 100) + amount);
+    else if (need === 'hygiene') stats.hygiene = Math.min(100, (stats.hygiene ?? 100) + amount);
+    else if (need === 'bladder') stats.bladder = Math.min(100, (stats.bladder ?? 100) + amount);
+    else if (need === 'hunger') stats.hunger = Math.min(100, stats.hunger + amount);
+    else if (need === 'energy') stats.energy = Math.min(100, stats.energy + amount);
+    else if (need === 'health') stats.health = Math.min(100, stats.health + amount);
+    this.saveData();
+    this.notifyListeners();
+  }
+
+  public relieveBladder(): void {
+    this.restoreNeed('bladder', 100);
+  }
+
+  public takeShower(): void {
+    this.restoreNeed('hygiene', 100);
   }
 
   public consumeFood(foodName: string, hungerRestore: number, energyRestore: number, healthRestore: number = 10, price?: number): { success: boolean; message: string } {
@@ -1016,6 +1120,51 @@ export class BackendService {
     };
   }
 
+  /**
+   * Process weekly Saturday rent tick for any leased properties.
+   */
+  public processDailyRentTick(day: number): void {
+    const date = new Date(2026, 9, 7 + day);
+    // Saturday is day 6 of the week (0 = Sunday, 6 = Saturday)
+    if (date.getDay() !== 6) return;
+
+    const rentedProperties = this.data.properties.filter(
+      (p) => p.status === 'rented' && (p.ownerId === this.data.id || p.id === this.data.activeHousingId)
+    );
+
+    if (rentedProperties.length === 0) return;
+
+    for (const prop of rentedProperties) {
+      const weeklyDue = prop.weeklyRent ?? Math.max(100, Math.round(prop.rentalPriceMonthly / 4));
+      const totalFunds = this.data.bank.balance + this.data.walletCash;
+
+      if (totalFunds < weeklyDue) {
+        showGameToast(
+          `⚠️ Rent Overdue! ₦${weeklyDue.toLocaleString()} owed for ${prop.name}. Fund your bank or wallet to avoid eviction.`,
+          'warning',
+          5000
+        );
+        continue;
+      }
+
+      const tx = this.processTransaction({
+        type: 'RENT_PAYMENT',
+        amount: weeklyDue,
+        description: `Saturday Weekly Rent: ${prop.name}`,
+        source: this.data.bank.balance >= weeklyDue ? 'bank' : 'wallet',
+      });
+
+      if (tx.success) {
+        showGameToast(
+          `🏠 Saturday Rent Paid: ₦${weeklyDue.toLocaleString()} debited for ${prop.name}.`,
+          'info',
+          4000
+        );
+      }
+    }
+    this.saveData();
+  }
+
   // === JOB SYSTEM ===
 
   public getJobs(): JobListing[] {
@@ -1094,6 +1243,18 @@ export class BackendService {
 
     this.addJobExperience(25);
     this.addStreetCred(10);
+    const skillMap: Record<string, keyof PlayerSkills> = {
+      job_shop_assistant: 'hustle',
+      job_mechanic: 'craft',
+      job_danfo_driver: 'driving',
+      job_food_seller: 'cooking',
+      job_office_worker: 'academics',
+      job_software_dev: 'coding',
+      job_construction: 'fitness',
+      job_security: 'fitness',
+    };
+    const trained = skillMap[job.id] || 'hustle';
+    this.addSkillXp(trained, 1);
     this.data.activeJobShift = null;
     this.saveData();
     emitGameEvent('work_shift');

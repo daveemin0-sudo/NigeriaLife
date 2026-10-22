@@ -519,6 +519,11 @@ export class Game {
     this.connectSelfMenu();
     this.connectLand();
 
+    // 10c. Day & Saturday Rent Tick
+    this.world.skyEnvironment.onNewDay = (day: number) => {
+      BackendService.getInstance().processDailyRentTick(day);
+    };
+
     // 11. Clock for delta-timed updates
     this.clock = new THREE.Clock();
 
@@ -714,6 +719,7 @@ export class Game {
     this.player.solids = () => this.solidsHere();
     this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
+    this.player.getOtherPedestrians = () => this.world.npcs.getPedestrianPositions();
     DrivableVehicle.solids = () => this.solidsHere();
     // What players build on their plots is solid too: when that changes, the list is made again
     this.registry.subscribe((state) => {
@@ -1102,8 +1108,14 @@ export class Game {
 
   /** Records the player's city, street position and the time of day in the saved game. */
   private saveWorldState(): void {
-    // Mid-flight the destination was already saved when the ticket was bought
-    if (this.flightExperience.isActive || this.roadRideExperience.isActive) return;
+    // Mid-journey or while boarding/pulling out, the destination was already saved when the ticket was bought
+    if (
+      this.flightExperience.isActive ||
+      this.roadRideExperience.isActive ||
+      this.coachPullingOut !== null ||
+      this.coaches.status().state === 'boarded' ||
+      this.flights.status().state === 'boarded'
+    ) return;
 
     const cityId = this.world.cityManager.currentCityId;
     if (!this.isSavedCity(cityId)) return;
@@ -1133,19 +1145,24 @@ export class Game {
     this.world.skyEnvironment.setDay(saved.day);
     this.world.skyEnvironment.setHour(saved.hour);
 
-    if (saved.inTransit) {
-      // The game closed during a paid journey: finish it
-      this.arriveInCity(saved.cityId);
-      // A flight that was in the air has landed: its passenger is on the apron, ticket used
-      if (this.flights.status().state === 'boarded') {
-        this.standOnApron(saved.cityId);
-        this.flights.arrive();
-        this.saveWorldState();
-      } else if (this.coaches.status().state === 'boarded') {
-        // A coach that was on the road has pulled in: its passenger is in the motor park, ticket used
-        this.stepDownAtPark(saved.cityId);
+    const coachState = this.coaches.status();
+    const flightState = this.flights.status();
+    if (saved.inTransit || coachState.state === 'boarded' || flightState.state === 'boarded') {
+      const destCity = (saved.inTransit ? saved.cityId : (coachState.to ?? flightState.to)) as CityId;
+      if (destCity) {
+        // The game closed during a paid journey: finish it
+        this.arriveInCity(destCity);
+        // A flight that was in the air has landed: its passenger is on the apron, ticket used
+        if (flightState.state === 'boarded') {
+          this.standOnApron(destCity);
+          this.flights.arrive();
+          this.saveWorldState();
+        } else if (coachState.state === 'boarded') {
+          // A coach that was on the road has pulled in: its passenger is in the motor park, ticket used
+          this.stepDownAtPark(destCity);
+        }
+        return;
       }
-      return;
     }
 
     if (saved.cityId !== this.world.cityManager.currentCityId) {

@@ -71,8 +71,11 @@ export class Wayfinder {
 
   constructor(solids: Solids, zones: Zone[]) {
     for (const solid of solids.all) {
-      this.fill(this.walk, solid.minX - STAND, solid.maxX + STAND, solid.minZ - STAND, solid.maxZ + STAND, 0);
-      this.fill(this.open, solid.minX - OPEN, solid.maxX + OPEN, solid.minZ - OPEN, solid.maxZ + OPEN, 0);
+      const isSmall = (solid.maxX - solid.minX < 0.9) && (solid.maxZ - solid.minZ < 0.9);
+      const standMargin = isSmall ? 0.35 : STAND;
+      const openMargin = isSmall ? 0.45 : OPEN;
+      this.fill(this.walk, solid.minX - standMargin, solid.maxX + standMargin, solid.minZ - standMargin, solid.maxZ + standMargin, 0);
+      this.fill(this.open, solid.minX - openMargin, solid.maxX + openMargin, solid.minZ - openMargin, solid.maxZ + openMargin, 0);
     }
     // A carriageway that crosses a pavement is a carriageway there: the pavement gives way to the junction
     for (const zone of zones) if (zone.kind === 'walkway') this.fill(this.kind, zone.minX, zone.maxX, zone.minZ, zone.maxZ, PAVEMENT);

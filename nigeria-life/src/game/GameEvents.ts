@@ -3,7 +3,7 @@
  * Gameplay code reports what happened here instead of calling the quest system directly,
  * so an activity cannot be wired up without its progress being counted.
  */
-export type GameEventType = 'eat' | 'work_shift' | 'drive' | 'arrive_city' | 'interact_object';
+export type GameEventType = 'eat' | 'work_shift' | 'drive' | 'arrive_city' | 'interact_object' | 'skill_train';
 
 export interface GameEventData {
   city?: string;

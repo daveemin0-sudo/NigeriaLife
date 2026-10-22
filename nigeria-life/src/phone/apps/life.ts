@@ -7,7 +7,7 @@ import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerL
 import { AssetMarket } from '../../realestate/AssetMarket';
 import { CloudSyncService } from '../../backend/CloudSyncService';
 import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
-import type { RealEstateProperty } from '../../backend/types';
+import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
 
 // ============================================================================================
 // Jobs
@@ -22,6 +22,26 @@ interface Gig {
   cred: number;
   steps: [string, string, string];
 }
+
+interface SkillMeta {
+  key: keyof PlayerSkills;
+  name: string;
+  icon: string;
+  desc: string;
+  activity: string;
+}
+
+const SKILL_METAS: SkillMeta[] = [
+  { key: 'coding', name: 'Coding', icon: '💻', desc: 'Software engineering, algorithms & fintech APIs', activity: 'CcHUB Innovation Lab' },
+  { key: 'charisma', name: 'Charisma', icon: '🗣️', desc: 'Negotiation, public speaking & VIP networking', activity: 'High Society Events' },
+  { key: 'music', name: 'Music', icon: '🎵', desc: 'Afrobeats rhythm, sound mixing & live brass', activity: 'New Afrika Shrine' },
+  { key: 'hustle', name: 'Hustle', icon: '💼', desc: 'Street commerce, bargaining & container trade', activity: 'Balogun Wholesale Market' },
+  { key: 'fitness', name: 'Fitness', icon: '🏋️', desc: 'Athletic endurance, strength & agility', activity: 'i-Fitness Gym Lekki' },
+  { key: 'cooking', name: 'Cooking', icon: '🍲', desc: 'Traditional Nigerian cuisine, buka recipes & spices', activity: 'Amala Shitta Surulere' },
+  { key: 'craft', name: 'Craft', icon: '🛠️', desc: 'Mechanical repair, masonry & styling arts', activity: 'Artisan Workshop' },
+  { key: 'driving', name: 'Driving', icon: '🚗', desc: 'Commercial navigation, route mastery & piloting', activity: 'Broad St Transit Terminal' },
+  { key: 'academics', name: 'Academics', icon: '📚', desc: 'University research, analytics & medicine', activity: 'UNILAG Campus Akoka' },
+];
 
 /** Short pieces of work done step by step. Each costs energy and pays once, when the last step is done. */
 const GIGS: Gig[] = [
@@ -124,6 +144,25 @@ export const jobsApp: PhoneApp = {
           })).join('')}
         </div>
 
+        <div class="nl-section">9 Life Skills</div>
+        <div class="nl-list" id="jobs-skills">
+          ${(() => {
+            const skills = host.backend.getSkills();
+            return SKILL_METAS.map((m) => {
+              const lvl = skills[m.key] ?? 1;
+              const maxed = lvl >= 10;
+              return row({
+                icon: m.icon,
+                title: `${m.name} · Level ${lvl}/10`,
+                sub: `${esc(m.desc)} · ${esc(m.activity)}`,
+                trailing: maxed
+                  ? '<span class="nl-tag nl-tag--good">Mastered</span>'
+                  : `<button class="nl-btn nl-btn--sm" data-act="train-skill" data-arg="${m.key}">Train (-15⚡)</button>`,
+              });
+            }).join('');
+          })()}
+        </div>
+
         <div class="nl-section">Shifts</div>
         <div class="nl-list" id="jobs-list">
           ${host.backend.getJobs().map((job) => {
@@ -159,6 +198,20 @@ export const jobsApp: PhoneApp = {
       const result = host.backend.completeJobShift();
       if (result.success) SoundEngine.getInstance().playTransactionSuccess();
       host.say(result.message, result.success ? 'good' : 'bad');
+    } else if (action === 'train-skill') {
+      const skillKey = (el.dataset.arg || '') as keyof PlayerSkills;
+      const data = host.backend.getData();
+      if (data.stats.energy < 15) {
+        host.say('You are too exhausted to train! Eat food or rest first (needs 15% energy).', 'bad');
+        return;
+      }
+      data.stats.energy = Math.max(0, data.stats.energy - 15);
+      const res = host.backend.addSkillXp(skillKey, 1);
+      SoundEngine.getInstance().playTransactionSuccess();
+      const meta = SKILL_METAS.find((s) => s.key === skillKey);
+      const name = meta ? meta.name : skillKey;
+      host.say(`Trained ${name}! Level is now ${res.level}/10. (-15% Energy)`, 'good');
+      host.refresh();
     } else if (action === 'gig-step') {
       const gig = GIGS.find((entry) => entry.id === el.dataset.arg);
       if (!gig) return;

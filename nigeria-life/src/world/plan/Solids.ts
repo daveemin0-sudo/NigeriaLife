@@ -19,8 +19,9 @@ interface Solid {
 
 const CELL = 8;
 
-/** Tall enough to be a wall and not a kerb, a table or a bollard */
-const WALL_HEIGHT = 1.5;
+/** Tall enough to be a solid physical obstacle (structures, stalls, bins, street lamps, poles) */
+const MIN_SOLID_HEIGHT = 0.65;
+const MIN_SOLID_SIZE = 0.20;
 
 export class Solids {
   private readonly cells = new Map<string, Solid[]>();
@@ -33,11 +34,11 @@ export class Solids {
     const all: Solid[] = [];
     this.all = all;
     for (const thing of obstructions) {
-      // A stall, a bin or a kerb is stepped round by eye, not by rule; a pole is too thin to matter
-      if (thing.height < WALL_HEIGHT) continue;
+      // Kerb edges and ground stripes < 0.65m are stepped over; real physical props & structures block movement
+      if (thing.height < MIN_SOLID_HEIGHT) continue;
       const width = thing.maxX - thing.minX;
       const depth = thing.maxZ - thing.minZ;
-      if (Math.max(width, depth) < 0.9) continue;
+      if (Math.max(width, depth) < MIN_SOLID_SIZE) continue;
       const solid: Solid = { minX: thing.minX, maxX: thing.maxX, minZ: thing.minZ, maxZ: thing.maxZ };
       count += 1;
       all.push(solid);

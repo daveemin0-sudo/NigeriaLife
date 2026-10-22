@@ -11,10 +11,26 @@ export interface Item {
 }
 
 export interface PlayerStats {
-  health: number;       // 0 to 100
-  energy: number;       // 0 to 100
-  hunger: number;       // 0 to 100
-  streetCred: number;   // 0 to 100 (Reputation)
+  health: number; // 0 to 100
+  energy: number; // 0 to 100 (Decays 4.0/hr)
+  hunger: number; // 0 to 100 (Decays 5.5/hr)
+  fun?: number; // 0 to 100 (Decays 4.5/hr)
+  social?: number; // 0 to 100 (Decays 3.0/hr)
+  hygiene?: number; // 0 to 100 (Decays 3.5/hr)
+  bladder?: number; // 0 to 100 (Decays 7.0/hr)
+  streetCred: number; // 0 to 100 (Reputation)
+}
+
+export interface PlayerSkills {
+  coding: number; // CcHub, Tech, Petroleum Eng, ATC
+  charisma: number; // Banking, Content Creator, Teaching, Retail
+  music: number; // New Afrika Shrine, DJ Quilox
+  hustle: number; // Balogun Trading, Hairstyling, Event Planning
+  fitness: number; // i-Fitness, Nursing, Airport Security
+  cooking: number; // Amala Shitta Chef, Bukas
+  craft: number; // Building construction, Artisan works
+  driving: number; // Commercial Danfo, Okada, Taxi
+  academics: number; // UNILAG, research, medicine
 }
 
 export interface BankAccount {
@@ -63,6 +79,7 @@ export interface RealEstateProperty {
   streetPosition: { x: number; y: number; z: number };
   purchasePrice: number;
   rentalPriceMonthly: number;
+  weeklyRent?: number;
   status: PropertyStatus;
   ownerId: string;
   level: number;
@@ -229,6 +246,7 @@ export interface PlayerAccount {
   walletCash: number;   // Physical cash in pocket (Naira ₦)
   bank: BankAccount;
   stats: PlayerStats;
+  skills?: PlayerSkills;
   inventory: Item[];
   businesses: BusinessEnterprise[];
   properties: RealEstateProperty[];
@@ -507,7 +525,29 @@ export const DEFAULT_BUSINESSES: BusinessEnterprise[] = [
 ];
 
 export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
-  // 1. Mainland
+  // 1. Mainland (Mushin & Maryland)
+  {
+    id: 'prop_mushin_room',
+    cityId: 'lagos',
+    districtId: 'mainland',
+    type: 'room',
+    name: 'Mushin Self-Contained Boys Quarters',
+    position: { x: -30, y: 0.5, z: -40 },
+    streetPosition: { x: -24, y: 0, z: -40 },
+    purchasePrice: 350000,
+    rentalPriceMonthly: 1680,
+    weeklyRent: 420,
+    status: 'available',
+    ownerId: 'npc_landlord_mushin',
+    level: 1,
+    bedrooms: 1,
+    businessCompatible: false,
+    description: 'Budget-friendly self-contained room in Mushin with private water drum and prepaid meter.',
+    features: ['Prepaid NEPA Meter', 'Private Water Drum', 'Street Access'],
+    icon: '🏠',
+    safeBalance: 0,
+    location: 'Olosha, Mushin, Lagos Mainland',
+  },
   {
     id: 'prop_mainland_room',
     cityId: 'lagos',
@@ -518,6 +558,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: -24, y: 0, z: -45 },
     purchasePrice: 1800000,
     rentalPriceMonthly: 25000,
+    weeklyRent: 6250,
     status: 'available',
     ownerId: 'npc_landlord_maryland',
     level: 1,
@@ -583,6 +624,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: -10, y: 0, z: -25 },
     purchasePrice: 3500000,
     rentalPriceMonthly: 40000,
+    weeklyRent: 1050,
     status: 'available',
     ownerId: 'npc_yaba_hostel',
     level: 1,
@@ -595,6 +637,28 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     location: 'Akoka / Yaba, Lagos',
   },
   {
+    id: 'prop_magodo_estate',
+    cityId: 'lagos',
+    districtId: 'mainland',
+    type: 'duplex',
+    name: 'Magodo GRA Shangisha 4-Bed Duplex',
+    position: { x: -50, y: 0.5, z: -60 },
+    streetPosition: { x: -35, y: 0, z: -55 },
+    purchasePrice: 48000000,
+    rentalPriceMonthly: 60000,
+    weeklyRent: 15000,
+    status: 'available',
+    ownerId: 'npc_magodo_realty',
+    level: 3,
+    bedrooms: 4,
+    businessCompatible: false,
+    description: 'Serene executive home in Magodo Phase 2 with strict gated access and 24-hour estate patrols.',
+    features: ['24/7 Gatehouse Security', 'Interlocked Compound', 'Constant Clean Water'],
+    icon: '🏡',
+    safeBalance: 0,
+    location: 'Magodo Phase 2, Lagos Mainland',
+  },
+  {
     id: 'prop_yaba_tech_office',
     cityId: 'lagos',
     districtId: 'yaba',
@@ -604,6 +668,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: -15, y: 0, z: -20 },
     purchasePrice: 28000000,
     rentalPriceMonthly: 180000,
+    weeklyRent: 45000,
     status: 'available',
     ownerId: 'npc_cchub_ventures',
     level: 2,
@@ -627,6 +692,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: 0, y: 0, z: -95 },
     purchasePrice: 35000000,
     rentalPriceMonthly: 220000,
+    weeklyRent: 55000,
     status: 'available',
     ownerId: 'npc_ikeja_holdings',
     level: 2,
@@ -648,6 +714,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: 12, y: 0, z: -95 },
     purchasePrice: 45000000,
     rentalPriceMonthly: 300000,
+    weeklyRent: 75000,
     status: 'available',
     ownerId: 'npc_otigba_trust',
     level: 2,
@@ -671,6 +738,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: -55, y: 0, z: 15 },
     purchasePrice: 48000000,
     rentalPriceMonthly: 280000,
+    weeklyRent: 70000,
     status: 'available',
     ownerId: 'npc_surulere_heritage',
     level: 2,
@@ -694,6 +762,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: 0, y: 0, z: 85 },
     purchasePrice: 95000000,
     rentalPriceMonthly: 650000,
+    weeklyRent: 6500,
     status: 'available',
     ownerId: 'npc_eko_living',
     level: 3,
@@ -715,6 +784,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: 14, y: 0, z: 95 },
     purchasePrice: 120000000,
     rentalPriceMonthly: 850000,
+    weeklyRent: 212500,
     status: 'available',
     ownerId: 'npc_vi_towers',
     level: 3,
@@ -738,6 +808,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: 55, y: 0, z: 0 },
     purchasePrice: 165000000,
     rentalPriceMonthly: 1200000,
+    weeklyRent: 3000,
     status: 'available',
     ownerId: 'npc_lekki_properties',
     level: 3,
@@ -748,6 +819,28 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     icon: '🏡',
     safeBalance: 0,
     location: 'Admiralty Way, Lekki Phase 1',
+  },
+  {
+    id: 'prop_ikoyi_mansion',
+    cityId: 'lagos',
+    districtId: 'ikoyi',
+    type: 'luxury apartment',
+    name: 'Ikoyi Waterfront Executive Residence',
+    position: { x: 30, y: 0.5, z: 40 },
+    streetPosition: { x: 25, y: 0, z: 40 },
+    purchasePrice: 85000000,
+    rentalPriceMonthly: 176000,
+    weeklyRent: 44000,
+    status: 'available',
+    ownerId: 'npc_bourdillon_holdings',
+    level: 4,
+    bedrooms: 5,
+    businessCompatible: false,
+    description: 'Stately waterfront property on Bourdillon Road with private boat jetty and manicured gardens.',
+    features: ['Private Boat Jetty', 'Manicured Lawns', 'Diplomatic Security'],
+    icon: '🏰',
+    safeBalance: 0,
+    location: 'Bourdillon Road, Ikoyi',
   },
   {
     id: 'prop_lekki_boutique',
@@ -916,7 +1009,8 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     position: { x: 35, y: 0.5, z: 45 },
     streetPosition: { x: 35, y: 0, z: 40 },
     purchasePrice: 450000000,
-    rentalPriceMonthly: 4500000,
+    rentalPriceMonthly: 1040000,
+    weeklyRent: 260000,
     status: 'available',
     ownerId: 'npc_banana_island_trust',
     level: 5,
@@ -939,8 +1033,9 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     name: 'Gwarinpa 4-Bedroom Detached Duplex',
     position: { x: -85, y: 0.5, z: -35 },
     streetPosition: { x: -85, y: 0, z: -35 },
-    purchasePrice: 45000000,
-    rentalPriceMonthly: 450000,
+    purchasePrice: 18000000,
+    rentalPriceMonthly: 4200,
+    weeklyRent: 1050,
     status: 'available',
     ownerId: 'npc_abuja_housing',
     level: 2,
@@ -954,6 +1049,29 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     perks: ['FCT Residency Permit', '100% Energy Sleep', '+35 Street Cred'],
   },
   {
+    id: 'prop_kubwa_flat',
+    cityId: 'abuja',
+    districtId: 'gwarinpa',
+    type: 'apartment',
+    name: 'Kubwa Modern 2-Bedroom Residential Flat',
+    position: { x: -95, y: 0.5, z: -40 },
+    streetPosition: { x: -90, y: 0, z: -40 },
+    purchasePrice: 2500000,
+    rentalPriceMonthly: 1960,
+    weeklyRent: 490,
+    status: 'available',
+    ownerId: 'npc_kubwa_properties',
+    level: 1,
+    bedrooms: 2,
+    businessCompatible: false,
+    description: 'Comfortable family flat along the Kubwa expressway corridor near the Abuja light rail station.',
+    features: ['Close to Light Rail', 'Prepaid Electricity', 'Overhead Tank'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Kubwa Expressway, Abuja',
+    perks: ['Rapid Commuter Access', '+15 Street Cred'],
+  },
+  {
     id: 'prop_maitama_penthouse',
     cityId: 'abuja',
     districtId: 'maitama',
@@ -961,8 +1079,9 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     name: 'Maitama Diplomatic Luxury Penthouse',
     position: { x: 45, y: 0.5, z: -45 },
     streetPosition: { x: 45, y: 0, z: -45 },
-    purchasePrice: 180000000,
-    rentalPriceMonthly: 1200000,
+    purchasePrice: 120000000,
+    rentalPriceMonthly: 168000,
+    weeklyRent: 42000,
     status: 'available',
     ownerId: 'npc_maitama_diplomatic',
     level: 4,
@@ -976,6 +1095,29 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     perks: ['Diplomatic Elite Status', '100% Energy Sleep', '+80 Street Cred'],
   },
   {
+    id: 'prop_wuse_residence',
+    cityId: 'abuja',
+    districtId: 'wuse',
+    type: 'apartment',
+    name: 'Wuse 2 Aminu Kano Executive Residence',
+    position: { x: -40, y: 0.5, z: -40 },
+    streetPosition: { x: -40, y: 0, z: -40 },
+    purchasePrice: 28000000,
+    rentalPriceMonthly: 23800,
+    weeklyRent: 5950,
+    status: 'available',
+    ownerId: 'npc_wuse_residential',
+    level: 3,
+    bedrooms: 3,
+    businessCompatible: false,
+    description: 'Prime residence off Aminu Kano Crescent near high-end restaurants, boutiques and business plazas.',
+    features: ['Aminu Kano Proximity', 'Estate Patrol', 'Solar Backup'],
+    icon: '🏡',
+    safeBalance: 0,
+    location: 'Aminu Kano Crescent, Wuse 2, Abuja',
+    perks: ['Central Abuja Presence', '+40 Street Cred'],
+  },
+  {
     id: 'prop_wuse_office',
     cityId: 'abuja',
     districtId: 'wuse',
@@ -985,6 +1127,7 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     streetPosition: { x: -45, y: 0, z: -45 },
     purchasePrice: 65000000,
     rentalPriceMonthly: 600000,
+    weeklyRent: 150000,
     status: 'available',
     ownerId: 'npc_wuse_commercial',
     level: 3,
@@ -997,6 +1140,29 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     location: 'Aminu Kano Crescent, Wuse 2, Abuja',
     perks: ['Corporate Headquarters Presence', '+45 Street Cred'],
   },
+  {
+    id: 'prop_asokoro_mansion',
+    cityId: 'abuja',
+    districtId: 'asokoro',
+    type: 'luxury apartment',
+    name: 'Asokoro Presidential Hillside Mansion',
+    position: { x: 55, y: 0.5, z: -55 },
+    streetPosition: { x: 50, y: 0, z: -55 },
+    purchasePrice: 380000000,
+    rentalPriceMonthly: 980000,
+    weeklyRent: 245000,
+    status: 'available',
+    ownerId: 'npc_asokoro_estates',
+    level: 5,
+    bedrooms: 6,
+    businessCompatible: false,
+    description: 'Ultra-exclusive presidential-grade residence overlooking the Three Arms Zone with private guard towers.',
+    features: ['Aso Rock Hillside View', 'Private Guard Towers', 'Reinforced Perimeter', 'Olympic Pool'],
+    icon: '🏰',
+    safeBalance: 0,
+    location: 'Yakubu Gowon Crescent, Asokoro, Abuja',
+    perks: ['Presidential Villa Access', '100% Free Health & Energy Recovery', '+95 Street Cred'],
+  },
 
   // 12. Port Harcourt (Garden City)
   {
@@ -1007,8 +1173,9 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     name: 'Old GRA 5-Bedroom Executive Mansion',
     position: { x: 0, y: 0.5, z: 45 },
     streetPosition: { x: 0, y: 0, z: 45 },
-    purchasePrice: 95000000,
-    rentalPriceMonthly: 850000,
+    purchasePrice: 75000000,
+    rentalPriceMonthly: 154000,
+    weeklyRent: 38500,
     status: 'available',
     ownerId: 'npc_ph_estates',
     level: 3,
@@ -1029,8 +1196,9 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     name: 'Aba Road Serviced 2-Bedroom Flat',
     position: { x: -25, y: 0.5, z: 0 },
     streetPosition: { x: -25, y: 0, z: 0 },
-    purchasePrice: 32000000,
-    rentalPriceMonthly: 320000,
+    purchasePrice: 8500000,
+    rentalPriceMonthly: 4200,
+    weeklyRent: 1050,
     status: 'available',
     ownerId: 'npc_dline_realty',
     level: 2,
@@ -1042,6 +1210,75 @@ export const DEFAULT_PROPERTIES: RealEstateProperty[] = [
     safeBalance: 0,
     location: 'Aba Road Corridor, D-Line, Port Harcourt',
     perks: ['Trans-Amadi Access', '100% Energy Sleep', '+30 Street Cred'],
+  },
+  {
+    id: 'prop_rumuokoro_flat',
+    cityId: 'port_harcourt',
+    districtId: 'rumuokoro',
+    type: 'apartment',
+    name: 'Rumuokoro Junction Transit Flat',
+    position: { x: -35, y: 0.5, z: -15 },
+    streetPosition: { x: -30, y: 0, z: -15 },
+    purchasePrice: 950000,
+    rentalPriceMonthly: 1800,
+    weeklyRent: 450,
+    status: 'available',
+    ownerId: 'npc_rumuokoro_landlord',
+    level: 1,
+    bedrooms: 2,
+    businessCompatible: false,
+    description: 'High-connectivity commuter flat adjacent to the East-West Road flyover interchange.',
+    features: ['East-West Road Transit', 'Borehole Tap', 'Market Access'],
+    icon: '🏢',
+    safeBalance: 0,
+    location: 'Rumuokoro Flyover Junction, Port Harcourt',
+    perks: ['Transit Hub Convenience', '+15 Street Cred'],
+  },
+  {
+    id: 'prop_woji_estate',
+    cityId: 'port_harcourt',
+    districtId: 'trans_amadi',
+    type: 'duplex',
+    name: 'Woji Estate 3-Bedroom Family Duplex',
+    position: { x: 15, y: 0.5, z: 20 },
+    streetPosition: { x: 10, y: 0, z: 20 },
+    purchasePrice: 26000000,
+    rentalPriceMonthly: 22400,
+    weeklyRent: 5600,
+    status: 'available',
+    ownerId: 'npc_woji_properties',
+    level: 2,
+    bedrooms: 3,
+    businessCompatible: false,
+    description: 'Modern residential home in quiet Woji near the Trans-Amadi industrial and commercial hub.',
+    features: ['Fenced Compound', 'Dedicated Transformer', 'Water Treatment'],
+    icon: '🏡',
+    safeBalance: 0,
+    location: 'Woji Housing Estate, Port Harcourt',
+    perks: ['Trans-Amadi Work Commute', '+35 Street Cred'],
+  },
+  {
+    id: 'prop_peter_odili_mansion',
+    cityId: 'port_harcourt',
+    districtId: 'trans_amadi',
+    type: 'luxury apartment',
+    name: 'Peter Odili Road Waterfront Palace',
+    position: { x: 25, y: 0.5, z: 35 },
+    streetPosition: { x: 20, y: 0, z: 35 },
+    purchasePrice: 340000000,
+    rentalPriceMonthly: 900000,
+    weeklyRent: 225000,
+    status: 'available',
+    ownerId: 'npc_odili_waterfront',
+    level: 5,
+    bedrooms: 6,
+    businessCompatible: false,
+    description: 'Lavish architectural masterpiece overlooking the Bonny River tributary with private dock.',
+    features: ['Bonny River Dock', 'Private Yacht Slip', 'Soundproof Perkins 150kVA', 'Executive Penthouse Suite'],
+    icon: '🏰',
+    safeBalance: 0,
+    location: 'Peter Odili Road Waterfront, Port Harcourt',
+    perks: ['Oil Baron Status', '100% Free Health & Energy Recovery', '+90 Street Cred'],
   },
 ];
 
@@ -1166,9 +1403,24 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
   },
   stats: {
     health: 100,
-    energy: 100,
+    energy: 85,
     hunger: 80,
+    fun: 70,
+    social: 60,
+    hygiene: 75,
+    bladder: 70,
     streetCred: 25,
+  },
+  skills: {
+    coding: 1,
+    charisma: 1,
+    music: 1,
+    hustle: 1,
+    fitness: 1,
+    cooking: 1,
+    craft: 1,
+    driving: 1,
+    academics: 1,
   },
   inventory: [
     {

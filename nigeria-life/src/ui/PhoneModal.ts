@@ -49,6 +49,7 @@ interface Place {
  */
 export class PhoneModal {
   public isOpen = false;
+  public busy: Promise<unknown> | null = null;
   /** Kept for callers that still set them; the phone reaches the game through `connect` */
   public onOpenPhotoMode?: () => void;
   public onFastTravel?: (pos: { x: number; y: number; z: number }, propName: string) => void;
@@ -117,7 +118,12 @@ export class PhoneModal {
       refresh: () => phone.refresh(),
       say: (text, tone) => phone.say(text, tone),
       confirm: (question, yes) => phone.confirm(question, yes),
-      get: <T,>(key: string, initial: T) => (phone.memory.has(key) ? (phone.memory.get(key) as T) : initial),
+      get: <T,>(key: string, initial: T) => {
+        if (phone.memory.has(key)) return phone.memory.get(key) as T;
+        const input = phone.screen?.querySelector<HTMLInputElement>(`[data-bind="${key}"]`);
+        if (input && input.value !== '') return input.value as unknown as T;
+        return initial;
+      },
       set: (key, value) => { phone.memory.set(key, value); },
     };
     services.rides.onChange = () => this.refresh();
@@ -153,6 +159,7 @@ export class PhoneModal {
   public openApp(appId: string, route = ''): void {
     const app = this.appFor(appId);
     if (!app) return;
+    if (this.answer) this.settle(false);
     if (!this.isOpen) this.open();
     // The older names carry which part of the app they meant
     const start = route || (appId === 'chowdeck' ? 'food' : appId === 'boutique' || appId === 'market' ? 'market' : '');
@@ -281,10 +288,17 @@ export class PhoneModal {
       return this.refresh();
     }
     if (el.dataset.act) {
+      this.screen?.querySelectorAll<HTMLInputElement>('[data-bind]').forEach((field) => {
+        if (field.dataset.bind) this.memory.set(field.dataset.bind, field.value);
+      });
       const here = this.here();
       const app = this.appFor(here.app);
-      void app?.act?.(this.host, el.dataset.act, el, here.route);
-      this.refresh();
+      const actPromise = Promise.resolve(app?.act?.(this.host, el.dataset.act, el, here.route));
+      this.busy = actPromise;
+      actPromise.finally(() => {
+        if (this.busy === actPromise) this.busy = null;
+        this.refresh();
+      });
     }
   }
 
