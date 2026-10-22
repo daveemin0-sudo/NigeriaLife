@@ -145,6 +145,16 @@ export class ResidentialInterior {
         if (kind.use === 'seat') return '🛋️ Sit down, move it or sell it';
         if (kind.use === 'bed') return '🛏️ Sleep in it, move it or sell it';
         if (kind.use === 'tv') return set?.on ? `📺 On: ${set.showing()}` : '📺 Turn it on, move it or sell it';
+        if (kind.use === 'cook') return '🍳 Cook food, move it or sell it';
+        if (kind.use === 'bath') return '🛁 Bath & Spa, move it or sell it';
+        if (kind.use === 'game') return '🎮 Play PS5, move it or sell it';
+        if (kind.use === 'work') return '💻 Workstation, move it or sell it';
+        if (kind.use === 'music') return '🎹 Play music, move it or sell it';
+        if (kind.use === 'snooker') return '🎱 Play snooker, move it or sell it';
+        if (kind.use === 'fitness') return '🏋️ Workout, move it or sell it';
+        if (kind.use === 'drink') return '🧊 Refreshment, move it or sell it';
+        if (kind.use === 'power') return '⚡ Generator / Inverter, move it or sell it';
+        if (kind.use === 'clean') return '🧺 Laundry, move it or sell it';
         if (item.modelType === 'split_ac') return '❄️ AC, move it or sell it';
         if (item.modelType === 'wall_clock') return '🕰️ Clock, move it or sell it';
         if (item.modelType === 'wall_art') return '🖼️ Artwork, move it or sell it';
@@ -179,6 +189,125 @@ export class ResidentialInterior {
             choices.push({ label: `${channel.icon} ${channel.name}`, note: set.on && set.channel === channel.id ? 'On now' : undefined, pick: () => { set.turnOn(channel.id); this.life.refresh(); } });
           }
           if (set.on) choices.push({ label: 'Turn it off', pick: () => { set.turnOff(); this.life.refresh(); } });
+        }
+        if (kind.use === 'cook') {
+          choices.push({
+            label: 'Cook Party Jollof & Fried Dodo',
+            note: 'Hunger -60, Cooking +1',
+            pick: () => {
+              (host as any).backend.modifyNeed('hunger', -60);
+              (host as any).backend.modifyNeed('energy', -10);
+              (host as any).backend.addSkillExp('cooking', 1);
+              host.say('You cooked a fragrant pot of smoky party Jollof with sweet fried plantain! Hunger replenished.', 'success');
+            },
+          });
+          choices.push({
+            label: 'Boil Tea & Breakfast Coffee',
+            note: 'Energy +25',
+            pick: () => {
+              (host as any).backend.modifyNeed('energy', 25);
+              (host as any).backend.modifyNeed('hunger', -15);
+              host.say('Hot brew prepared! Energy +25.', 'success');
+            },
+          });
+        }
+        if (kind.use === 'bath') {
+          choices.push({
+            label: 'Take Hot Soaking Bath / Jacuzzi Hydrojets',
+            note: 'Hygiene 100%, Energy +30',
+            pick: () => {
+              (host as any).backend.modifyNeed('hygiene', 100);
+              (host as any).backend.modifyNeed('energy', 30);
+              (host as any).backend.modifyNeed('fun', 25);
+              host.say('Deep warm hydrotherapy soak! Hygiene 100% restored, body completely revitalized.', 'success');
+            },
+          });
+        }
+        if (kind.use === 'game') {
+          choices.push({
+            label: 'Play PS5 Tournament',
+            note: 'Fun +40, Energy -10',
+            pick: () => {
+              (host as any).backend.modifyNeed('fun', 40);
+              (host as any).backend.modifyNeed('energy', -10);
+              host.say('Intense gaming championship match with the squad! Fun +40.', 'success');
+            },
+          });
+        }
+        if (kind.use === 'work') {
+          choices.push({
+            label: 'Code Tech Startup MVP',
+            note: 'Coding +1, Energy -15',
+            pick: () => {
+              (host as any).backend.addSkillExp('coding', 1);
+              (host as any).backend.modifyNeed('energy', -15);
+              host.say('Deployed 3 clean microservices to production! Coding skill +1.', 'success');
+            },
+          });
+        }
+        if (kind.use === 'music') {
+          choices.push({
+            label: 'Play Afrobeats Melodies',
+            note: 'Music +1, Fun +30',
+            pick: () => {
+              (host as any).backend.addSkillExp('music', 1);
+              (host as any).backend.modifyNeed('fun', 30);
+              host.say('Playing soulful Afrobeats chords and bass grooves! Music +1, Fun +30.', 'success');
+            },
+          });
+        }
+        if (kind.use === 'snooker') {
+          choices.push({
+            label: 'Play a Game of Snooker',
+            note: 'Fun +35, Hustle +1',
+            pick: () => {
+              (host as any).backend.modifyNeed('fun', 35);
+              (host as any).backend.addSkillExp('hustle', 1);
+              host.say('Pocketed the black ball with an exquisite spin shot! Fun +35, Hustle +1.', 'success');
+            },
+          });
+        }
+        if (kind.use === 'fitness') {
+          choices.push({
+            label: 'Cardio & Dumbbell Workout',
+            note: 'Fitness +1, Energy -20',
+            pick: () => {
+              (host as any).backend.addSkillExp('fitness', 1);
+              (host as any).backend.modifyNeed('energy', -20);
+              (host as any).backend.modifyNeed('hygiene', -15);
+              host.say('Crushed 5km on the treadmill and dumbbell presses! Fitness skill +1.', 'success');
+            },
+          });
+        }
+        if (kind.use === 'drink') {
+          choices.push({
+            label: 'Pour Ice-Cold Chapman & Refreshment',
+            note: 'Hunger -20, Fun +15',
+            pick: () => {
+              (host as any).backend.modifyNeed('hunger', -20);
+              (host as any).backend.modifyNeed('fun', 15);
+              host.say('Poured a chilled Chapman with cucumber and Angostura bitters! So refreshing.', 'success');
+            },
+          });
+        }
+        if (kind.use === 'power') {
+          choices.push({
+            label: 'Start Standby Generator / Inverter Power',
+            note: 'NEPA Backup',
+            pick: () => {
+              host.say('Engine hums smoothly with stable 230V sine-wave output. Full household power guaranteed!', 'success');
+            },
+          });
+        }
+        if (kind.use === 'clean') {
+          choices.push({
+            label: 'Run Automatic Wash & Dry Cycle',
+            note: 'Hygiene +25',
+            pick: () => {
+              (host as any).backend.modifyNeed('hygiene', 25);
+              host.say('Clothes washed, sanitized and smelling crisp! Hygiene +25.', 'success');
+            },
+          });
         }
         if (item.modelType === 'split_ac') {
           choices.push({

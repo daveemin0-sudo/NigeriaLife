@@ -70,6 +70,7 @@ export class OwnedVehicles {
     const state = Registry.get().peek();
     const parked = new Map(Object.values(state.vehicles).filter((record) => record.parkedAt).map((record) => [record.id, record]));
     for (const [id, entry] of Array.from(this.spawned)) {
+      const veh = state.vehicles[id];
       const record = parked.get(id);
       const owner = this.garage.ownerOf(id);
       const driving = this.hooks.driving() === entry.vehicle;
@@ -78,7 +79,7 @@ export class OwnedVehicles {
       const where = record?.parkedAt ? `${record.parkedAt.x},${record.parkedAt.z},${record.parkedAt.yaw}` : '';
       // Gone, changed hands, or parked somewhere else by its owner: take it away, and put it back below if it is still about
       const away = this.movingElsewhere(entry.vehicle);
-      if (!record || owner !== entry.ownerId || (!driving && !away && owner !== MY_ID && where !== entry.at)) {
+      if (!veh || owner !== entry.ownerId || (owner !== MY_ID && !driving && !away && (!record || where !== entry.at))) {
         this.world.removeVehicle(entry.vehicle, entry.card);
         this.spawned.delete(id);
       }
@@ -130,6 +131,9 @@ export class OwnedVehicles {
       this.spawned.delete(vehicleId);
     }
     const at = { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10, yaw: Math.round(yaw * 100) / 100 };
+    record.parkedAt = at;
+    const peek = Registry.get().peek();
+    if (peek.vehicles[vehicleId]) peek.vehicles[vehicleId].parkedAt = at;
     this.put({ ...record, parkedAt: at }, at.x, at.z, at.yaw);
     void this.garage.addMileage(vehicleId, 0, at);
     return null;

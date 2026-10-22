@@ -31,12 +31,36 @@ export const VEHICLE_MODELS: VehicleModel[] = [
     drive: { maxSpeed: 18, reverseSpeed: 7, acceleration: 17, braking: 18, turnSpeed: 3.4, friction: 2.8, hornText: '📢 PII-PII!' },
   },
   {
-    id: 'danfo', name: 'Danfo Bus', icon: '🚐', type: 'danfo', price: 4_800_000, blurb: 'Fourteen seats and a sliding door. The working vehicle of Lagos.',
+    id: 'sedan', name: 'Toyota Corolla Tokunbo', icon: '🚗', type: 'sedan', price: 3_200_000, blurb: 'The king of Lagos roads. Reliable, cold AC, trusted by ride-hailers and civil servants.',
+    drive: { maxSpeed: 30, reverseSpeed: 9, acceleration: 20, braking: 20, turnSpeed: 3.0, friction: 2.1, hornText: '📢 PEEP-PEEP!' },
+  },
+  {
+    id: 'danfo', name: 'Danfo Bus', icon: '🚐', type: 'danfo', price: 4_800_000, blurb: 'Fourteen seats and a sliding door. The working commercial backbone of Lagos.',
     drive: { maxSpeed: 24, reverseSpeed: 8, acceleration: 15, braking: 16, turnSpeed: 2.3, friction: 2.2, hornText: '📢 PAA-PAA!' },
   },
   {
-    id: 'suv', name: 'Prado SUV', icon: '🚙', type: 'suv', price: 9_500_000, blurb: 'Big, black and fast. People move out of its way.',
+    id: 'suv', name: 'Prado TXL SUV', icon: '🚙', type: 'suv', price: 9_500_000, blurb: 'Big, black, high clearance. Potholes on Ikorodu road disappear under its tires.',
     drive: { maxSpeed: 32, reverseSpeed: 10, acceleration: 22, braking: 20, turnSpeed: 2.6, friction: 2.0, hornText: '📢 POM-POM!' },
+  },
+  {
+    id: 'ambulance', name: 'LASAMBUS Emergency Rescue Van', icon: '🚑', type: 'ambulance', price: 18_000_000, blurb: 'Lagos State Emergency high-roof responder van with siren strobe lightbar.',
+    drive: { maxSpeed: 34, reverseSpeed: 10, acceleration: 23, braking: 24, turnSpeed: 2.5, friction: 2.1, hornText: '🚨 WEE-WOO!' },
+  },
+  {
+    id: 'luxury_sedan', name: 'Mercedes-Maybach S680', icon: '🚘', type: 'luxury_sedan', price: 45_000_000, blurb: 'Obsidian black VIP flagship sedan with panoramic glass and vertical waterfall grille.',
+    drive: { maxSpeed: 38, reverseSpeed: 12, acceleration: 28, braking: 26, turnSpeed: 2.8, friction: 1.8, hornText: '📢 HONK-HONK!' },
+  },
+  {
+    id: 'electric_car', name: 'Tesla Model S Plaid EV', icon: '⚡', type: 'electric_car', price: 52_000_000, blurb: 'Instant electric torque, continuous LED lightbars, zero fuel visits required.',
+    drive: { maxSpeed: 42, reverseSpeed: 14, acceleration: 36, braking: 30, turnSpeed: 3.2, friction: 1.7, hornText: '🔔 CHIME-CHIME!' },
+  },
+  {
+    id: 'gwagon', name: 'Mercedes-AMG G63 G-Wagon', icon: '🦾', type: 'gwagon', price: 68_000_000, blurb: 'Matte black V8 Biturbo, Panamericana grille, side exhausts and bull bar. Billionaires row signature.',
+    drive: { maxSpeed: 36, reverseSpeed: 11, acceleration: 30, braking: 25, turnSpeed: 2.4, friction: 1.9, hornText: '📢 BOOM-BOOM!' },
+  },
+  {
+    id: 'sports_car', name: 'Porsche 911 GT3 Supercar', icon: '🏎️', type: 'sports_car', price: 85_000_000, blurb: 'Rosso Corsa Crimson, carbon aero splitter, GT wing spoiler and quad titanium exhausts.',
+    drive: { maxSpeed: 46, reverseSpeed: 14, acceleration: 38, braking: 32, turnSpeed: 3.8, friction: 1.6, hornText: '📢 BEEP-BEEP!' },
   },
 ];
 

@@ -206,8 +206,22 @@ export class Registry {
     }
   }
 
+  private refreshIfStale(): void {
+    if (this.link) return;
+    try {
+      const text = localStorage.getItem(STORAGE_KEY);
+      if (text && text !== this.cachedText) {
+        this.cachedText = text;
+        this.cache = parse(text);
+      }
+    } catch {
+      // Storage unavailable
+    }
+  }
+
   /** The registry as this game last saw it. For drawing screens; never for deciding a sale. */
   public peek(): RegistryState {
+    this.refreshIfStale();
     return this.cache;
   }
 

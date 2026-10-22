@@ -87,7 +87,8 @@ export function footprintAt(type: BuildingType, x: number, z: number, turns: num
 
 /** What comes back if work is stopped part-way: half of the money for the work not yet done. */
 export function refundOnCancel(type: BuildingType, hoursDone: number): number {
-  const left = Math.max(0, 1 - hoursDone / type.hours);
+  const completedHours = Math.floor(hoursDone);
+  const left = Math.max(0, 1 - completedHours / type.hours);
   return Math.round((type.cost * left * 0.5) / 1000) * 1000;
 }
 

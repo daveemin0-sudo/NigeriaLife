@@ -8,7 +8,21 @@ import { Builder } from '../world/kit/ArchKit';
  */
 
 /** What a piece is for, beyond being looked at. */
-export type FurnitureUse = 'seat' | 'tv' | 'bed' | 'none';
+export type FurnitureUse =
+  | 'seat'
+  | 'tv'
+  | 'bed'
+  | 'cook'
+  | 'power'
+  | 'bath'
+  | 'game'
+  | 'work'
+  | 'music'
+  | 'snooker'
+  | 'fitness'
+  | 'drink'
+  | 'clean'
+  | 'none';
 
 /** Where a piece is attached in a room: standing on the floor or mounted on a wall */
 export type FurnitureMount = 'floor' | 'wall';
@@ -27,26 +41,90 @@ export interface FurnitureKind {
 }
 
 export const FURNITURE: Record<string, FurnitureKind> = {
+  // Comfort & Seating
   sofa_emerald: { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } },
+  sectional_sofa: { solid: true, use: 'seat', seat: { x: 0, z: 0.1 } },
   armchair: { solid: true, use: 'seat', seat: { x: 0, z: 0.06 } },
-  tv_75: { solid: true, use: 'tv' },
+  chaise_longue: { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } },
+  ottoman: { solid: true, use: 'seat', seat: { x: 0, z: 0 } },
+  velvet_looveseat: { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } },
+
+  // Bedroom & Sleep
   king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.75, top: 0.7, side: 1.05 } },
-  bookshelf: { solid: true, use: 'none' },
+  queen_canopy_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.75, top: 0.75, side: 1.0 } },
+  bunk_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.65, top: 0.65, side: 0.7 } },
+  single_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.65, top: 0.6, side: 0.65 } },
   wardrobe: { solid: true, use: 'none' },
-  floor_lamp: { solid: true, use: 'none' },
-  solar_inverter: { solid: true, use: 'none' },
-  generator_small: { solid: true, use: 'none' },
-  generator_big: { solid: true, use: 'none' },
-  standing_fan: { solid: true, use: 'none' },
+  walkin_closet: { solid: true, use: 'none' },
+  nightstand: { solid: true, use: 'none' },
+
+  // Dining & Kitchen
+  dining_table_6: { solid: true, use: 'seat', seat: { x: 0, z: 0.8 } },
+  dining_table_10: { solid: true, use: 'seat', seat: { x: 0, z: 1.2 } },
+  kitchen_island: { solid: true, use: 'seat', seat: { x: 0, z: 0.6 } },
+  cooker: { solid: true, use: 'cook' },
+  kerosene_stove: { solid: true, use: 'cook' },
   freezer: { solid: true, use: 'none' },
-  drum_bucket: { solid: true, use: 'none' },
-  cooker: { solid: true, use: 'none' },
-  potted_plant: { solid: true, use: 'none' },
+  double_door_fridge: { solid: true, use: 'drink' },
+  microwave_oven: { solid: true, use: 'cook' },
+  blender_toaster: { solid: true, use: 'cook' },
+
+  // Bathroom & Spa
+  bathtub: { solid: true, use: 'bath' },
+  rain_shower: { solid: true, use: 'bath' },
+  jacuzzi_spa: { solid: true, use: 'bath' },
+  toilet_wc: { solid: true, use: 'seat', seat: { x: 0, z: 0 } },
+  bathroom_vanity: { solid: true, use: 'bath' },
+  towel_rack: { solid: false, use: 'none', mount: 'wall', elevation: 1.6 },
+  washing_machine: { solid: true, use: 'clean' },
+
+  // Entertainment & Music
+  tv_75: { solid: true, use: 'tv' },
+  ps5_station: { solid: true, use: 'game', seat: { x: 0, z: 0.5 } },
+  home_cinema: { solid: true, use: 'tv' },
+  snooker_table: { solid: true, use: 'snooker' },
+  grand_piano: { solid: true, use: 'music', seat: { x: 0, z: 0.5 } },
+  hifi_soundbar: { solid: true, use: 'music' },
+
+  // Work, Studio & Skills
+  executive_desk: { solid: true, use: 'work', seat: { x: 0, z: 0.55 } },
+  ergonomic_chair: { solid: true, use: 'seat', seat: { x: 0, z: 0 } },
+  dual_pc_setup: { solid: true, use: 'work', seat: { x: 0, z: 0.5 } },
+  creator_ringlight: { solid: true, use: 'work' },
+  bookshelf: { solid: true, use: 'work' },
+
+  // Decor, Rugs & Lighting
   rug_circle: { solid: false, use: 'none' },
-  split_ac: { solid: false, use: 'none', mount: 'wall', elevation: 2.3 },
-  wall_clock: { solid: false, use: 'none', mount: 'wall', elevation: 2.1 },
+  persian_rug: { solid: false, use: 'none' },
+  bronze_ife_head: { solid: true, use: 'none' },
+  crystal_chandelier: { solid: false, use: 'none', mount: 'wall', elevation: 2.8 },
+  floor_lamp: { solid: true, use: 'none' },
   wall_art: { solid: false, use: 'none', mount: 'wall', elevation: 2.0 },
   wall_mirror: { solid: false, use: 'none', mount: 'wall', elevation: 1.8 },
+  wall_clock: { solid: false, use: 'none', mount: 'wall', elevation: 2.1 },
+  potted_plant: { solid: true, use: 'none' },
+  curtains_velvet: { solid: false, use: 'none', mount: 'wall', elevation: 2.4 },
+
+  // Nigerian Power & Household Essentials
+  generator_small: { solid: true, use: 'power' },
+  generator_big: { solid: true, use: 'power' },
+  solar_inverter: { solid: true, use: 'power' },
+  standing_fan: { solid: true, use: 'power' },
+  split_ac: { solid: false, use: 'power', mount: 'wall', elevation: 2.3 },
+  drum_bucket: { solid: true, use: 'bath' },
+
+  // Luxury & Outdoor
+  pool_lounger: { solid: true, use: 'seat', seat: { x: 0, z: 0.2 } },
+  outdoor_fountain: { solid: true, use: 'none' },
+  wine_wall: { solid: true, use: 'drink' },
+  home_gym: { solid: true, use: 'fitness' },
+  massage_chair: { solid: true, use: 'seat', seat: { x: 0, z: 0.05 } },
+  private_helicopter: { solid: true, use: 'none' },
+  drinks_trolley: { solid: true, use: 'drink' },
+  vintage_gramophone: { solid: true, use: 'music' },
+  calabar_chest: { solid: true, use: 'none' },
+  benin_bronze_leopard: { solid: true, use: 'none' },
+  smart_mirror: { solid: false, use: 'clean', mount: 'wall', elevation: 1.55 },
 };
 
 /** The name a television's picture goes by inside its model. */
@@ -192,20 +270,408 @@ function wallMirror(): THREE.Group {
   return b.build('wall_mirror');
 }
 
+function sectionalSofa(): THREE.Group {
+  const b = new Builder();
+  b.box(0x18181b, 2.6, 0.42, 1.0, 0, 0, 0)
+    .box(0x27272a, 2.6, 0.78, 0.24, 0, 0.42, -0.38)
+    .box(0x18181b, 1.1, 0.42, 1.4, 0.75, 0, 1.2)
+    .box(0x27272a, 0.24, 0.78, 1.4, 1.18, 0.42, 1.2);
+  for (let i = 0; i < 3; i++) {
+    b.box(0x3f3f46, 0.76, 0.16, 0.72, -0.8 + i * 0.8, 0.42, 0.08)
+      .box(0xf59e0b, 0.72, 0.42, 0.14, -0.8 + i * 0.8, 0.6, -0.2, { pitch: -0.16 });
+  }
+  b.box(0x3f3f46, 0.94, 0.16, 1.3, 0.75, 0.42, 1.2);
+  return b.build('sectional_sofa');
+}
+
+function canopyBed(): THREE.Group {
+  const b = new Builder();
+  const wood = 0x451a03;
+  b.box(wood, 2.2, 0.36, 2.4, 0, 0.1, 0)
+    .box(wood, 2.24, 1.3, 0.16, 0, 0, -1.16)
+    .box(0xf8fafc, 2.08, 0.28, 2.2, 0, 0.46, 0.04);
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    b.cylinder(wood, 0.05, 2.4, x * 1.05, 0, z * 1.15, { sides: 8 });
+  }
+  b.box(wood, 2.2, 0.06, 0.06, 0, 2.37, -1.15)
+    .box(wood, 2.2, 0.06, 0.06, 0, 2.37, 1.15)
+    .box(wood, 0.06, 0.06, 2.36, -1.05, 2.37, 0)
+    .box(wood, 0.06, 0.06, 2.36, 1.05, 2.37, 0)
+    .box(0xfef08a, 2.22, 0.22, 2.38, 0, 2.26, 0);
+  for (const x of [-0.55, 0.55]) b.box(0xffffff, 0.78, 0.18, 0.46, x, 0.74, -0.74);
+  b.box(0xb45309, 2.12, 0.08, 1.4, 0, 0.74, 0.45);
+  return b.build('queen_canopy_bed');
+}
+
+function gasCooker(): THREE.Group {
+  const b = new Builder();
+  b.box(0x475569, 0.95, 0.88, 0.75, 0, 0.05, 0)
+    .box(0x1e293b, 0.75, 0.5, 0.04, 0, 0.35, 0.38)
+    .box(0x94a3b8, 0.65, 0.05, 0.06, 0, 0.65, 0.4)
+    .box(0x334155, 0.96, 0.06, 0.76, 0, 0.93, 0);
+  for (const [x, z] of [[-0.24, -0.18], [0.24, -0.18], [-0.24, 0.18], [0.24, 0.18]]) {
+    b.cylinder(0x09090b, 0.09, 0.02, x, 0.96, z, { sides: 12 });
+  }
+  for (let k = -3; k <= 3; k += 2) {
+    b.cylinder(0x0f172a, 0.025, 0.03, k * 0.12, 0.85, 0.39, { sides: 8, pitch: Math.PI / 2 });
+  }
+  b.cylinder(0xea580c, 0.2, 0.62, 0.72, 0, 0, { sides: 16 })
+    .cylinder(0xea580c, 0.14, 0.12, 0.72, 0.62, 0, { sides: 16 })
+    .cylinder(0xd4af37, 0.03, 0.06, 0.72, 0.74, 0, { sides: 8 });
+  return b.build('cooker');
+}
+
+function doubleDoorFridge(): THREE.Group {
+  const b = new Builder();
+  b.box(0x94a3b8, 1.1, 1.95, 0.85, 0, 0.04, 0)
+    .box(0x64748b, 0.53, 1.25, 0.04, -0.27, 0.72, 0.44)
+    .box(0x64748b, 0.53, 1.25, 0.04, 0.27, 0.72, 0.44)
+    .box(0x475569, 1.08, 0.6, 0.04, 0, -0.22, 0.44)
+    .box(0x0f172a, 0.28, 0.38, 0.02, -0.27, 0.95, 0.47)
+    .box(0x38bdf8, 0.2, 0.08, 0.01, -0.27, 1.18, 0.48, { glow: true });
+  return b.build('double_door_fridge');
+}
+
+function diningTable(seats: 6 | 10): THREE.Group {
+  const b = new Builder();
+  const len = seats === 10 ? 3.4 : 2.2;
+  const marbleColor = seats === 10 ? 0xf8fafc : 0x78350f;
+  b.box(marbleColor, 1.1, 0.08, len, 0, 0.74, 0);
+  for (const [x, z] of [[-0.45, -len / 2 + 0.2], [0.45, -len / 2 + 0.2], [-0.45, len / 2 - 0.2], [0.45, len / 2 - 0.2]]) {
+    b.box(0x1c1917, 0.09, 0.74, 0.09, x, 0, z);
+  }
+  const chairCountEachSide = seats === 10 ? 4 : 2;
+  const step = (len - 0.6) / (chairCountEachSide - 1 || 1);
+  for (let c = 0; c < chairCountEachSide; c++) {
+    const cz = -len / 2 + 0.3 + c * step;
+    for (const side of [-1, 1]) {
+      b.box(0x18181b, 0.42, 0.44, 0.42, side * 0.75, 0, cz)
+        .box(0x0284c7, 0.44, 0.08, 0.44, side * 0.75, 0.44, cz)
+        .box(0x18181b, 0.08, 0.52, 0.44, side * 0.92, 0.52, cz);
+    }
+  }
+  return b.build(`dining_table_${seats}`);
+}
+
+function bathtub(): THREE.Group {
+  const b = new Builder();
+  b.box(0xf8fafc, 1.8, 0.62, 0.88, 0, 0.05, 0)
+    .box(0x0284c7, 1.6, 0.48, 0.72, 0, 0.16, 0, { glow: true })
+    .cylinder(0xe2e8f0, 0.04, 0.85, 0.85, 0, 0, { sides: 12 });
+  return b.build('bathtub');
+}
+
+function jacuzzi(): THREE.Group {
+  const b = new Builder();
+  b.cylinder(0x78350f, 1.35, 0.85, 0, 0, 0, { sides: 8 })
+    .cylinder(0xf8fafc, 1.15, 0.86, 0, 0.02, 0, { sides: 16 })
+    .cylinder(0x38bdf8, 0.98, 0.68, 0, 0.18, 0, { sides: 16, glow: true });
+  for (let a = 0; a < 6; a++) {
+    const rad = (a * Math.PI) / 3;
+    b.cylinder(0xe2e8f0, 0.04, 0.04, Math.cos(rad) * 0.98, 0.55, Math.sin(rad) * 0.98, { sides: 8 });
+  }
+  return b.build('jacuzzi_spa');
+}
+
+function toiletWc(): THREE.Group {
+  const b = new Builder();
+  b.box(0xf8fafc, 0.44, 0.44, 0.65, 0, 0, 0.05)
+    .box(0xf8fafc, 0.44, 0.48, 0.28, 0, 0.44, -0.22)
+    .cylinder(0xe2e8f0, 0.035, 0.02, 0, 0.92, -0.22, { sides: 12 });
+  return b.build('toilet_wc');
+}
+
+function ps5Station(): THREE.Group {
+  const b = new Builder();
+  b.box(0x09090b, 1.5, 0.74, 0.75, 0, 0, 0)
+    .box(0x6366f1, 1.48, 0.03, 0.03, 0, 0.74, -0.36, { glow: true })
+    .box(0x18181b, 0.85, 0.52, 0.05, 0, 0.78, -0.2)
+    .box(0xf8fafc, 0.12, 0.38, 0.28, 0.55, 0.75, -0.1)
+    .box(0x3b82f6, 0.02, 0.36, 0.02, 0.55, 0.76, 0.04, { glow: true });
+  return b.build('ps5_station');
+}
+
+function snookerTable(): THREE.Group {
+  const b = new Builder();
+  b.box(0x5b2c0a, 1.5, 0.78, 2.7, 0, 0, 0)
+    .box(0x15803d, 1.34, 0.05, 2.54, 0, 0.78, 0)
+    .box(0x78350f, 1.54, 0.08, 0.12, 0, 0.82, -1.34)
+    .box(0x78350f, 1.54, 0.08, 0.12, 0, 0.82, 1.34)
+    .box(0x78350f, 0.12, 0.08, 2.76, -0.74, 0.82, 0)
+    .box(0x78350f, 0.12, 0.08, 2.76, 0.74, 0.82, 0)
+    .box(0xdc2626, 0.24, 0.04, 0.24, 0, 0.83, 0.45);
+  return b.build('snooker_table');
+}
+
+function grandPiano(): THREE.Group {
+  const b = new Builder();
+  b.box(0x09090b, 1.45, 0.42, 1.6, 0, 0.65, 0)
+    .box(0x09090b, 1.48, 0.05, 1.65, 0, 1.05, 0, { pitch: 0.22 })
+    .box(0xffffff, 1.15, 0.06, 0.22, 0, 0.72, 0.75);
+  for (let k = -5; k <= 5; k++) {
+    b.box(0x050505, 0.045, 0.04, 0.14, k * 0.09, 0.76, 0.73);
+  }
+  b.cylinder(0x09090b, 0.04, 0.65, -0.65, 0, 0.65, { sides: 8 })
+    .cylinder(0x09090b, 0.04, 0.65, 0.65, 0, 0.65, { sides: 8 })
+    .cylinder(0x09090b, 0.04, 0.65, 0, 0, -0.72, { sides: 8 });
+  return b.build('grand_piano');
+}
+
+function executiveDesk(): THREE.Group {
+  const b = new Builder();
+  b.box(0x451a03, 1.8, 0.08, 0.95, 0, 0.74, 0)
+    .box(0x311302, 0.45, 0.74, 0.9, -0.65, 0, 0)
+    .box(0x311302, 0.45, 0.74, 0.9, 0.65, 0, 0)
+    .box(0x18181b, 0.75, 0.01, 0.55, 0, 0.78, 0)
+    .cylinder(0xd4af37, 0.06, 0.32, -0.65, 0.78, -0.25, { sides: 12 });
+  return b.build('executive_desk');
+}
+
+function dualPcSetup(): THREE.Group {
+  const b = new Builder();
+  b.box(0x18181b, 1.8, 0.74, 0.85, 0, 0, 0)
+    .box(0x0f172a, 0.72, 0.44, 0.04, -0.42, 0.78, -0.22, { yaw: 0.12 })
+    .box(0x0f172a, 0.72, 0.44, 0.04, 0.42, 0.78, -0.22, { yaw: -0.12 })
+    .box(0x22c55e, 0.65, 0.38, 0.01, -0.42, 0.8, -0.2, { yaw: 0.12, glow: true })
+    .box(0x38bdf8, 0.65, 0.38, 0.01, 0.42, 0.8, -0.2, { yaw: -0.12, glow: true })
+    .box(0x09090b, 0.28, 0.48, 0.48, 0.75, 0.76, 0.1)
+    .box(0xa855f7, 0.02, 0.42, 0.42, 0.88, 0.78, 0.1, { glow: true });
+  return b.build('dual_pc_setup');
+}
+
+function bronzeIfeHead(): THREE.Group {
+  const b = new Builder();
+  b.box(0x064e3b, 0.44, 0.85, 0.44, 0, 0, 0)
+    .cylinder(0xb45309, 0.16, 0.42, 0, 0.85, 0, { sides: 16 })
+    .cylinder(0xd97706, 0.18, 0.18, 0, 1.25, 0, { sides: 16 })
+    .box(0xfacc15, 0.28, 0.08, 0.02, 0, 0.45, 0.23);
+  return b.build('bronze_ife_head');
+}
+
+function homeGym(): THREE.Group {
+  const b = new Builder();
+  b.box(0x18181b, 0.75, 0.2, 1.6, -0.5, 0, 0)
+    .box(0x09090b, 0.55, 0.02, 1.3, -0.5, 0.2, 0)
+    .box(0x27272a, 0.65, 1.15, 0.1, -0.5, 0.2, 0.75)
+    .box(0xef4444, 0.35, 0.15, 0.02, -0.5, 1.1, 0.8, { glow: true })
+    .box(0x3f3f46, 0.95, 0.85, 0.45, 0.55, 0, 0);
+  return b.build('home_gym');
+}
+
+function drumBucket(): THREE.Group {
+  const b = new Builder();
+  b.cylinder(0x0284c7, 0.45, 0.95, 0, 0, 0, { sides: 20 })
+    .cylinder(0x0f172a, 0.46, 0.06, 0, 0.95, 0, { sides: 20 })
+    .cylinder(0xdc2626, 0.16, 0.24, 0.55, 0, 0.3, { sides: 14 });
+  return b.build('drum_bucket');
+}
+
+function smallGen(): THREE.Group {
+  const b = new Builder();
+  b.box(0x18181b, 0.8, 0.65, 0.55, 0, 0.05, 0)
+    .box(0xdc2626, 0.72, 0.22, 0.48, 0, 0.7, 0)
+    .cylinder(0x09090b, 0.06, 0.04, 0, 0.92, 0, { sides: 12 })
+    .cylinder(0xf59e0b, 0.11, 0.08, 0.42, 0.38, 0, { sides: 12, roll: Math.PI / 2 });
+  return b.build('generator_small');
+}
+
+function bigGen(): THREE.Group {
+  const b = new Builder();
+  b.box(0x15803d, 2.4, 1.55, 1.25, 0, 0.08, 0)
+    .box(0x09090b, 0.5, 0.3, 0.02, 0.8, 1.0, 0.64)
+    .cylinder(0x18181b, 0.1, 0.75, 0.85, 1.6, 0, { sides: 12 });
+  return b.build('generator_big');
+}
+
+function standingFan(): THREE.Group {
+  const b = new Builder();
+  b.cylinder(0x0284c7, 0.35, 0.08, 0, 0, 0, { sides: 16 })
+    .cylinder(0x0f172a, 0.035, 1.35, 0, 0.08, 0, { sides: 8 })
+    .cylinder(0x38bdf8, 0.42, 0.08, 0, 1.45, 0.05, { sides: 16, pitch: Math.PI / 2 });
+  return b.build('standing_fan');
+}
+
+function rugCircle(): THREE.Group {
+  const b = new Builder();
+  // Concentric circular woven African rug with border rings and central medallion
+  b.cylinder(0xf97316, 1.8, 0.015, 0, 0.008, 0, { sides: 32 })
+    .cylinder(0xd97706, 1.3, 0.018, 0, 0.010, 0, { sides: 32 })
+    .cylinder(0xfef3c7, 0.7, 0.021, 0, 0.012, 0, { sides: 32 })
+    .cylinder(0x92400e, 0.25, 0.024, 0, 0.014, 0, { sides: 24 });
+  return b.build('rug_circle');
+}
+
+function persianRug(): THREE.Group {
+  const b = new Builder();
+  // Ornate rectangular rug with multiple layered borders and center medallion
+  b.box(0x991b1b, 2.4, 0.015, 3.6, 0, 0.008, 0)
+    .box(0x1e3a8a, 2.1, 0.018, 3.3, 0, 0.010, 0)
+    .box(0xfef08a, 1.6, 0.021, 2.6, 0, 0.012, 0)
+    .box(0x991b1b, 1.1, 0.024, 1.8, 0, 0.014, 0)
+    .box(0xd4af37, 0.5, 0.027, 0.9, 0, 0.016, 0);
+  return b.build('persian_rug');
+}
+
+function drinksTrolley(): THREE.Group {
+  const b = new Builder();
+  b.cylinder(0xd4af37, 0.02, 0.75, -0.35, 0.02, -0.22, { sides: 8 })
+    .cylinder(0xd4af37, 0.02, 0.75, 0.35, 0.02, -0.22, { sides: 8 })
+    .cylinder(0xd4af37, 0.02, 0.75, -0.35, 0.02, 0.22, { sides: 8 })
+    .cylinder(0xd4af37, 0.02, 0.75, 0.35, 0.02, 0.22, { sides: 8 })
+    .cylinder(0x18181b, 0.04, 0.02, -0.35, 0.01, -0.22, { roll: Math.PI / 2, sides: 12 })
+    .cylinder(0x18181b, 0.04, 0.02, 0.35, 0.01, -0.22, { roll: Math.PI / 2, sides: 12 })
+    .cylinder(0x18181b, 0.04, 0.02, -0.35, 0.01, 0.22, { roll: Math.PI / 2, sides: 12 })
+    .cylinder(0x18181b, 0.04, 0.02, 0.35, 0.01, 0.22, { roll: Math.PI / 2, sides: 12 })
+    .box(0xd4af37, 0.8, 0.02, 0.52, 0, 0.18, 0)
+    .box(0x1e293b, 0.74, 0.015, 0.46, 0, 0.2, 0)
+    .box(0xd4af37, 0.8, 0.02, 0.52, 0, 0.72, 0)
+    .box(0x1e293b, 0.74, 0.015, 0.46, 0, 0.74, 0)
+    .cylinder(0xd4af37, 0.02, 0.48, -0.42, 0.80, 0, { yaw: Math.PI / 2, sides: 8 })
+    .cylinder(0x047857, 0.035, 0.2, -0.15, 0.75, 0.08, { sides: 8 })
+    .cylinder(0xb45309, 0.04, 0.22, 0.05, 0.75, 0.05, { sides: 8 })
+    .cylinder(0xe2e8f0, 0.045, 0.18, 0.2, 0.75, -0.05, { sides: 6 });
+  return b.build('drinks_trolley');
+}
+
+function vintageGramophone(): THREE.Group {
+  const b = new Builder();
+  b.box(0x451a03, 0.44, 0.24, 0.44, 0, 0, 0)
+    .box(0xd4af37, 0.46, 0.02, 0.46, 0, 0.02, 0)
+    .box(0xd4af37, 0.46, 0.02, 0.46, 0, 0.23, 0)
+    .cylinder(0xd4af37, 0.16, 0.02, 0, 0.24, 0, { sides: 16 })
+    .cylinder(0x09090b, 0.15, 0.008, 0, 0.26, 0, { sides: 16 })
+    .cylinder(0xd4af37, 0.03, 0.01, 0, 0.268, 0, { sides: 16 })
+    .cylinder(0xd4af37, 0.008, 0.14, 0.1, 0.28, 0.06, { pitch: Math.PI / 4, sides: 8 })
+    .cylinder(0xd4af37, 0.015, 0.28, -0.14, 0.24, -0.12, { sides: 8 })
+    .cylinder(0xeab308, 0.03, 0.18, -0.1, 0.45, -0.06, { pitch: Math.PI / 4, sides: 12 })
+    .cylinder(0xd4af37, 0.12, 0.14, -0.04, 0.55, 0.02, { pitch: Math.PI / 4, sides: 16 });
+  return b.build('vintage_gramophone');
+}
+
+function calabarChest(): THREE.Group {
+  const b = new Builder();
+  b.box(0x451a03, 0.95, 0.42, 0.55, 0, 0.04, 0)
+    .cylinder(0x27170a, 0.05, 0.04, -0.4, 0, -0.2, { sides: 10 })
+    .cylinder(0x27170a, 0.05, 0.04, 0.4, 0, -0.2, { sides: 10 })
+    .cylinder(0x27170a, 0.05, 0.04, -0.4, 0, 0.2, { sides: 10 })
+    .cylinder(0x27170a, 0.05, 0.04, 0.4, 0, 0.2, { sides: 10 })
+    .box(0x5c2408, 0.97, 0.08, 0.57, 0, 0.46, 0)
+    .box(0xd4af37, 0.04, 0.44, 0.56, -0.3, 0.04, 0)
+    .box(0xd4af37, 0.04, 0.44, 0.56, 0.3, 0.04, 0)
+    .box(0xd4af37, 0.08, 0.1, 0.02, 0, 0.25, 0.28);
+  return b.build('calabar_chest');
+}
+
+function beninBronzeLeopard(): THREE.Group {
+  const b = new Builder();
+  b.box(0x18181b, 0.4, 0.12, 0.24, 0, 0, 0)
+    .box(0x92400e, 0.26, 0.12, 0.12, 0, 0.24, 0)
+    .cylinder(0xb45309, 0.025, 0.14, -0.09, 0.12, -0.04, { sides: 8 })
+    .cylinder(0xb45309, 0.025, 0.14, 0.09, 0.12, -0.04, { sides: 8 })
+    .cylinder(0xb45309, 0.025, 0.14, -0.09, 0.12, 0.04, { sides: 8 })
+    .cylinder(0xb45309, 0.025, 0.14, 0.09, 0.12, 0.04, { sides: 8 })
+    .box(0xb45309, 0.09, 0.09, 0.1, 0.14, 0.28, 0)
+    .cylinder(0x92400e, 0.015, 0.03, 0.15, 0.36, -0.03, { sides: 6 })
+    .cylinder(0x92400e, 0.015, 0.03, 0.15, 0.36, 0.03, { sides: 6 })
+    .cylinder(0x92400e, 0.018, 0.18, -0.16, 0.26, 0, { pitch: -0.6, sides: 8 });
+  return b.build('benin_bronze_leopard');
+}
+
+function smartMirror(): THREE.Group {
+  const b = new Builder();
+  b.box(0x0f172a, 0.72, 1.12, 0.04, 0, 0, 0)
+    .box(0x38bdf8, 0.76, 1.16, 0.015, 0, 0, -0.015)
+    .box(0xe2e8f0, 0.66, 1.04, 0.015, 0, 0, 0.02)
+    .box(0x0284c7, 0.24, 0.06, 0.018, -0.16, 0.38, 0.025)
+    .box(0xf59e0b, 0.18, 0.04, 0.018, 0.16, 0.38, 0.025);
+  return b.build('smart_mirror');
+}
+
 const MAKERS: Record<string, () => THREE.Group> = {
+  // Comfort
   sofa_emerald: () => sofa(3, 0x065f46, 0x10b981, 0x064e3b),
+  sectional_sofa: sectionalSofa,
   armchair,
-  tv_75: television,
+  chaise_longue: () => sofa(1, 0x7c2d12, 0xf59e0b, 0x451a03),
+  ottoman: () => sofa(1, 0x1e3a8a, 0x3b82f6, 0x0f172a),
+  velvet_looveseat: () => sofa(2, 0x991b1b, 0xef4444, 0x450a0a),
+
+  // Bedroom
   king_bed: bed,
-  bookshelf,
+  queen_canopy_bed: canopyBed,
+  bunk_bed: bed,
+  single_bed: bed,
   wardrobe,
-  floor_lamp: floorLamp,
-  solar_inverter: inverter,
+  walkin_closet: wardrobe,
+  nightstand: () => executiveDesk(),
+
+  // Kitchen & Dining
+  dining_table_6: () => diningTable(6),
+  dining_table_10: () => diningTable(10),
+  kitchen_island: () => diningTable(6),
+  cooker: gasCooker,
+  kerosene_stove: gasCooker,
   freezer,
-  split_ac: splitAc,
-  wall_clock: wallClock,
+  double_door_fridge: doubleDoorFridge,
+  microwave_oven: freezer,
+  blender_toaster: freezer,
+
+  // Bath & Spa
+  bathtub,
+  rain_shower: bathtub,
+  jacuzzi_spa: jacuzzi,
+  toilet_wc: toiletWc,
+  bathroom_vanity: () => executiveDesk(),
+  towel_rack: splitAc,
+  washing_machine: freezer,
+
+  // Entertainment
+  tv_75: television,
+  ps5_station: ps5Station,
+  home_cinema: television,
+  snooker_table: snookerTable,
+  grand_piano: grandPiano,
+  hifi_soundbar: splitAc,
+
+  // Work & Skills
+  executive_desk: executiveDesk,
+  ergonomic_chair: armchair,
+  dual_pc_setup: dualPcSetup,
+  creator_ringlight: floorLamp,
+  bookshelf,
+
+  // Decor & Lighting
+  rug_circle: rugCircle,
+  persian_rug: persianRug,
+  bronze_ife_head: bronzeIfeHead,
+  crystal_chandelier: floorLamp,
+  floor_lamp: floorLamp,
   wall_art: wallArt,
   wall_mirror: wallMirror,
+  wall_clock: wallClock,
+  potted_plant: floorLamp,
+  curtains_velvet: wallArt,
+
+  // Nigerian Power & Household
+  generator_small: smallGen,
+  generator_big: bigGen,
+  solar_inverter: inverter,
+  standing_fan: standingFan,
+  split_ac: splitAc,
+  drum_bucket: drumBucket,
+
+  // Luxury & Outdoor
+  pool_lounger: () => sofa(1, 0x0284c7, 0x38bdf8, 0x0f172a),
+  outdoor_fountain: jacuzzi,
+  wine_wall: bookshelf,
+  home_gym: homeGym,
+  massage_chair: () => sofa(1, 0x18181b, 0xd4af37, 0x09090b),
+  private_helicopter: bigGen,
+  drinks_trolley: drinksTrolley,
+  vintage_gramophone: vintageGramophone,
+  calabar_chest: calabarChest,
+  benin_bronze_leopard: beninBronzeLeopard,
+  smart_mirror: smartMirror,
 };
 
 /** A piece of furniture of this kind, or null if the kit has no design for it. */
