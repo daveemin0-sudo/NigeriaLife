@@ -21,9 +21,10 @@ import { holdCarriedItem } from '../interactions/Poses';
 export class Player {
   public mesh: THREE.Group;
   public targetPosition: THREE.Vector3 | null = null;
-  public walkSpeed: number = 7.5;
-  public sprintSpeed: number = 12.0;
-  public speed: number = 7.5;
+  public walkSpeed: number = 4.8;
+  public sprintSpeed: number = 8.0;
+  public speed: number = 4.8;
+  private currentVelocity: THREE.Vector3 = new THREE.Vector3();
   public isMoving: boolean = false;
   public isSprinting: boolean = false;
   public currentEmote: EmoteType = 'idle';
@@ -98,15 +99,15 @@ export class Player {
 
     // 2. Asynchronous GLB Humanoid Rig (if available in public/models/characters/)
     const glbPath = `/models/characters/human_${this.config.gender || 'male'}.glb`;
-    AssetManager.getInstance().instantiate(glbPath).then((gltfScene) => {
+    AssetManager.getInstance().instantiate(glbPath).then((gltfScene: THREE.Group | null) => {
       if (gltfScene) {
         this.mesh.remove(this.humanRig.group);
         this.glbModel = gltfScene;
-        this.mesh.add(this.glbModel);
+        this.mesh.add(gltfScene);
 
         // Setup AnimationMixer
         if (gltfScene.userData.animations && gltfScene.userData.animations.length > 0) {
-          this.mixer = new THREE.AnimationMixer(this.glbModel);
+          this.mixer = new THREE.AnimationMixer(gltfScene);
           for (const clip of gltfScene.userData.animations) {
             const action = this.mixer.clipAction(clip);
             this.actions.set(clip.name.toLowerCase(), action);
@@ -212,10 +213,25 @@ export class Player {
     }
     // On a flight the stairs' own rule governs. Everywhere else, buildings and walls are solid.
     if (inLine(p.x) && p.z >= FOOTBRIDGE_STAIR.bottom - 0.4 && p.z <= FOOTBRIDGE_STAIR.top) return;
-    if (!solids) return;
-    const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
-    p.x = step.x;
-    p.z = step.z;
+    if (solids) {
+      const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
+      p.x = step.x;
+      p.z = step.z;
+    }
+    if (this.getOtherPedestrians) {
+      const peds = this.getOtherPedestrians();
+      for (const ped of peds) {
+        const dx = p.x - ped.x;
+        const dz = p.z - ped.z;
+        const dist = Math.hypot(dx, dz);
+        const minDist = 0.35 + (ped.radius || 0.35);
+        if (dist < minDist && dist > 1e-4) {
+          const push = minDist - dist;
+          p.x += (dx / dist) * push;
+          p.z += (dz / dist) * push;
+        }
+      }
+    }
   }
 
   public stopMoving(): void {
@@ -329,7 +345,9 @@ export class Player {
         const diffAngle = Math.atan2(Math.sin(targetAngle - this.mesh.rotation.y), Math.cos(targetAngle - this.mesh.rotation.y));
         this.mesh.rotation.y += diffAngle * Math.min(1, delta * 14.0);
         const cameFrom = this.mesh.position.clone();
-        this.mesh.position.addScaledVector(moveDir, this.speed * delta);
+        const targetVel = moveDir.clone().multiplyScalar(this.speed);
+        this.currentVelocity.lerp(targetVel, Math.min(1, delta * 14.0));
+        this.mesh.position.addScaledVector(this.currentVelocity, delta);
         this.stayOnTheWay(cameFrom);
         this.isMoving = true;
         const moveAction = this.isSprinting ? 'run' : 'walk';
@@ -341,7 +359,8 @@ export class Player {
         const targetY = this.calculateWalkableHeight(this.mesh.position.x, this.mesh.position.z);
         this.mesh.position.y = THREE.MathUtils.lerp(this.mesh.position.y, targetY, Math.min(1, delta * 14));
 
-        this.animTime += delta;
+        const currentMoveSpeed = Math.hypot(this.currentVelocity.x, this.currentVelocity.z);
+        this.animTime += delta * Math.max(0.6, currentMoveSpeed / 4.8);
         if (this.humanRig) {
           this.humanRig.updateAnimation(this.animTime, moveAction);
         }
@@ -443,6 +462,10 @@ export class Player {
 
     // 4. Emotes / Idle Animations
     this.animTime += delta;
+    if (!this.isMoving && !this.isDriving) {
+      const targetY = this.calculateWalkableHeight(this.mesh.position.x, this.mesh.position.z);
+      this.mesh.position.y = THREE.MathUtils.lerp(this.mesh.position.y, targetY, Math.min(1, delta * 14));
+    }
 
     if (this.humanRig) {
       if (this.currentEmote === 'salute') {
@@ -481,6 +504,8 @@ export class Player {
   public wayfinder: ((fromX: number, fromZ: number, toX: number, toZ: number) => Way | null) | null = null;
   /** Is the footbridge in the city the player is in? (It is in Lagos.) */
   public footbridge: (() => boolean) | null = null;
+  /** Active pedestrian positions for collision avoidance */
+  public getOtherPedestrians: (() => Array<{ x: number; z: number; radius: number }>) | null = null;
   /** A walk by a found way: the points still to pass after the one being walked to, and where it all ends */
   private way: THREE.Vector3[] = [];
   public goal: THREE.Vector3 | null = null;
@@ -518,6 +543,7 @@ export class Player {
     const stadY = this.stadiumHeight(x, z);
     if (stadY !== null) return stadY;
 
+    // Broad Street ground level (0.0m)
     return 0;
   }
 

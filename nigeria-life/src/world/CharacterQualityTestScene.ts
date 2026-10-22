@@ -214,12 +214,12 @@ export class CharacterQualityTestScene {
         gender: cfg.gender,
         username: cfg.name,
         skinTone: cfg.skinTone,
-        outfit: cfg.outfit as any,
+        outfit: cfg.outfit,
         outfitColor: cfg.outfitColor,
         secondaryColor: cfg.secondaryColor,
         hasStethoscope: cfg.hasStethoscope,
         hasBackpack: cfg.hasBackpack,
-        hairstyle: cfg.hairstyle as any,
+        hairstyle: cfg.hairstyle,
       });
       rig.group.position.y = 0.25; // Stand on top of plinth
       platform.add(rig.group);
@@ -241,29 +241,29 @@ export class CharacterQualityTestScene {
         id: 'showcase-danfo',
         name: 'Lagos Danfo Minibus',
         type: 'danfo' as const,
-        pos: new THREE.Vector3(-9.5, 0, 4.5),
-        rotY: 0.25,
+        pos: new THREE.Vector3(-12.5, 0, 1.2),
+        rotY: 0.40,
       },
       {
         id: 'showcase-keke',
         name: 'Lagos Keke Napep Tricycle',
         type: 'keke' as const,
-        pos: new THREE.Vector3(-4.5, 0, 5.2),
-        rotY: 0.15,
+        pos: new THREE.Vector3(-8.2, 0, 4.8),
+        rotY: 0.30,
       },
       {
         id: 'showcase-suv',
         name: 'Executive Black SUV (V8 Prado)',
         type: 'suv' as const,
-        pos: new THREE.Vector3(1.2, 0, 4.8),
-        rotY: -0.15,
+        pos: new THREE.Vector3(8.2, 0, 4.8),
+        rotY: -0.30,
       },
       {
         id: 'showcase-okada',
         name: 'QuickChop Delivery Okada',
         type: 'okada' as const,
-        pos: new THREE.Vector3(6.8, 0, 5.2),
-        rotY: -0.25,
+        pos: new THREE.Vector3(12.5, 0, 1.2),
+        rotY: -0.40,
       },
     ];
 
@@ -408,24 +408,24 @@ export class CharacterQualityTestScene {
         cam.position.set(0, 1.4, -8.5);
         cam.lookAt(this.targetFocus);
         break;
-      case 'danfo': // Focus on Danfo minibus
-        this.targetFocus.set(-9.5, 1.4, 4.5);
-        cam.position.set(-9.5, 2.2, 10.5);
+      case 'danfo': // Focus on Danfo minibus (front 3/4 beauty angle)
+        this.targetFocus.set(-12.5, 1.4, 1.2);
+        cam.position.set(-9.2, 2.1, 6.2);
         cam.lookAt(this.targetFocus);
         break;
-      case 'keke': // Focus on Keke Napep
-        this.targetFocus.set(-4.5, 1.1, 5.2);
-        cam.position.set(-4.5, 1.8, 9.8);
+      case 'keke': // Focus on Keke Napep (front 3/4 beauty angle)
+        this.targetFocus.set(-8.2, 1.1, 4.8);
+        cam.position.set(-5.6, 1.7, 8.8);
         cam.lookAt(this.targetFocus);
         break;
-      case 'suv': // Focus on Executive Black SUV
-        this.targetFocus.set(1.2, 1.3, 4.8);
-        cam.position.set(1.2, 2.0, 10.5);
+      case 'suv': // Focus on Executive Black SUV (front 3/4 beauty angle)
+        this.targetFocus.set(8.2, 1.3, 4.8);
+        cam.position.set(10.8, 2.0, 9.4);
         cam.lookAt(this.targetFocus);
         break;
       case 'okada': // Focus on Delivery Okada
-        this.targetFocus.set(6.8, 0.9, 5.2);
-        cam.position.set(6.8, 1.6, 8.8);
+        this.targetFocus.set(12.5, 0.9, 1.2);
+        cam.position.set(9.8, 1.5, 5.0);
         cam.lookAt(this.targetFocus);
         break;
       case 'overview':

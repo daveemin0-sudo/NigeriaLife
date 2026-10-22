@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { InteractiveObject } from './World';
-import { HumanMeshBuilder, type HumanRig, type Gender } from '../graphics/HumanMeshBuilder';
+import { HumanMeshBuilder, type HumanRig, type Gender, type Outfit, type Hairstyle } from '../graphics/HumanMeshBuilder';
 import { Actor } from '../interactions/Actor';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 
@@ -14,6 +14,8 @@ interface AmbientPedestrian {
   minZ: number;
   maxZ: number;
   idleAction?: string;
+  baseX: number;
+  lateralOffset: number;
 }
 
 /**
@@ -116,7 +118,7 @@ export class NPCs {
   // A. Street Drinks Hawker (Chidi)
   private createHawker(): void {
     this.hawkerGroup = new THREE.Group();
-    this.hawkerGroup.position.set(-8.5, 0, -15);
+    this.hawkerGroup.position.set(-8.5, 0.28, -15);
 
     this.hawkerRig = HumanMeshBuilder.createHuman({
       gender: 'male',
@@ -131,7 +133,7 @@ export class NPCs {
     this.hawkerGroup.add(this.hawkerRig.group);
     this.group.add(this.hawkerGroup);
 
-    this.hawkerSpot = new THREE.Vector3(-8.5, 0, -15);
+    this.hawkerSpot = new THREE.Vector3(-8.5, 0.28, -15);
     this.interactiveList.push({
       mesh: this.hawkerGroup,
       id: 'npc-hawker',
@@ -146,7 +148,7 @@ export class NPCs {
   // B. Danfo Conductor
   private createDanfoConductor(): void {
     const conductorGroup = new THREE.Group();
-    conductorGroup.position.set(7.5, 0, 5);
+    conductorGroup.position.set(7.5, 0.28, 5);
     conductorGroup.rotation.y = -Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
@@ -175,7 +177,7 @@ export class NPCs {
   // C. Bet Customer (Segun)
   private createBetCustomer(): void {
     const betGroup = new THREE.Group();
-    betGroup.position.set(-13, 0, 4.5);
+    betGroup.position.set(-13, 0.28, 4.5);
     betGroup.rotation.y = Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
@@ -197,14 +199,14 @@ export class NPCs {
       name: 'Segun (Odds Expert)',
       category: 'Citizen',
       description: '"Guy, Arsenal and Real Madrid straight win go deliver this weekend! My slip cut by one game yesterday, but today na my turn!"',
-      interactionPoint: new THREE.Vector3(-13, 0, 4.5),
+      interactionPoint: new THREE.Vector3(-13, 0.28, 4.5),
     });
   }
 
   // D. Elegant Market Trader Aunty (Mama Nkechi)
   private createAuntyAnkara(): void {
     const auntyGroup = new THREE.Group();
-    auntyGroup.position.set(13, 0, -28);
+    auntyGroup.position.set(13, 0.28, -28);
     auntyGroup.rotation.y = -Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
@@ -227,14 +229,14 @@ export class NPCs {
       name: 'Mama Nkechi (Fabric Trader)',
       category: 'Market Merchant',
       description: '"Nne, look at this Hollandis wax! Pure grade one quality for wedding owambe. I will give you good customer discount!"',
-      interactionPoint: new THREE.Vector3(13, 0, -28),
+      interactionPoint: new THREE.Vector3(13, 0.28, -28),
     });
   }
 
   // E. Corporate Banker (Tunde)
   private createCorporateBanker(): void {
     const bankerGroup = new THREE.Group();
-    bankerGroup.position.set(12, 0, -11);
+    bankerGroup.position.set(12, 0.28, -11);
     bankerGroup.rotation.y = -Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
@@ -257,14 +259,14 @@ export class NPCs {
       name: 'Tunde (Wealth Advisor)',
       category: 'Finance Professional',
       description: '"Our dollar card limits and treasury bill yields are among the highest in Lagos. Speak to our account officers inside for SME expansion capital."',
-      interactionPoint: new THREE.Vector3(12, 0, -11),
+      interactionPoint: new THREE.Vector3(12, 0.28, -11),
     });
   }
 
   // F. Suya Master (Mallam Bisi)
   private createSuyaMaster(): void {
     const suyaGroup = new THREE.Group();
-    suyaGroup.position.set(-13, 0, 16.5);
+    suyaGroup.position.set(-13, 0.28, 16.5);
     suyaGroup.rotation.y = Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
@@ -286,14 +288,14 @@ export class NPCs {
       name: 'Mallam Bisi (Master Suya Griller)',
       category: 'Street Chef',
       description: '"Spicy beef fillet, kidney, and chicken suya seasoned with genuine Yaji pepper and sliced sweet red onions. Hot from the glowing firewood grill!"',
-      interactionPoint: new THREE.Vector3(-13, 0, 16.5),
+      interactionPoint: new THREE.Vector3(-13, 0.28, 16.5),
     });
   }
 
   // G. Phone Specialist (Emeka)
   private createPhoneTechnician(): void {
     const phoneGroup = new THREE.Group();
-    phoneGroup.position.set(13, 0, -5);
+    phoneGroup.position.set(13, 0.28, -5);
     phoneGroup.rotation.y = -Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
@@ -315,14 +317,14 @@ export class NPCs {
       name: 'Emeka (Device Technician)',
       category: 'Gadget Specialist',
       description: '"Original iPhone, Samsung screens, replacement charging ICs, and high-speed Starlink kits. 100% genuine warranty guaranteed!"',
-      interactionPoint: new THREE.Vector3(13, 0, -5),
+      interactionPoint: new THREE.Vector3(13, 0.28, -5),
     });
   }
 
   // H. Lead Mechanic (Master Tayo)
   private createLeadMechanic(): void {
     const mechGroup = new THREE.Group();
-    mechGroup.position.set(-13, 0, -25);
+    mechGroup.position.set(-13, 0.28, -25);
     mechGroup.rotation.y = Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
@@ -344,7 +346,7 @@ export class NPCs {
       name: "Master Tayo (God's Grace Auto)",
       category: 'Auto Specialist',
       description: '"Toyota and Lexus suspension, gearbox overhaul, and computer brainbox diagnostics. No car fault can defeat God\'s Grace Auto Works!"',
-      interactionPoint: new THREE.Vector3(-13, 0, -25),
+      interactionPoint: new THREE.Vector3(-13, 0.28, -25),
     });
   }
 
@@ -360,7 +362,7 @@ export class NPCs {
       skinTone: '#452718',
       outfit: 'traffic_warden',
       outfitColor: 0xfacc15,
-      hairstyle: 'hardhat',
+      hairstyle: 'police_cap',
     });
 
     wardenGroup.add(rig.group);
@@ -380,7 +382,7 @@ export class NPCs {
   // J. Community Elder (Chief Alabi)
   private createCommunityElder(): void {
     const elderGroup = new THREE.Group();
-    elderGroup.position.set(12.5, 0, 20);
+    elderGroup.position.set(12.5, 0.28, 20);
     elderGroup.rotation.y = -Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
@@ -402,7 +404,7 @@ export class NPCs {
       name: 'Chief Alabi (Community Elder)',
       category: 'Respected Elder',
       description: '"Welcome my child. Broad Street has seen many generations come and go. Maintain your peace of mind and integrity as you hustle in this vibrant city."',
-      interactionPoint: new THREE.Vector3(12.5, 0, 20),
+      interactionPoint: new THREE.Vector3(12.5, 0.28, 20),
     });
   }
 
@@ -415,9 +417,9 @@ export class NPCs {
       z: number;
       gender: Gender;
       username: string;
-      outfit: any;
+      outfit: Outfit;
       outfitColor: number;
-      hairstyle: any;
+      hairstyle: Hairstyle;
       isWalking: boolean;
       minZ: number;
       maxZ: number;
@@ -443,7 +445,7 @@ export class NPCs {
 
     for (const item of roster) {
       const pedGroup = new THREE.Group();
-      pedGroup.position.set(item.x, 0, item.z);
+      pedGroup.position.set(item.x, 0.28, item.z);
 
       const rig = HumanMeshBuilder.createHuman({
         gender: item.gender,
@@ -466,8 +468,30 @@ export class NPCs {
         minZ: item.minZ,
         maxZ: item.maxZ,
         idleAction: item.idleAction,
+        baseX: item.x,
+        lateralOffset: 0,
       });
     }
+  }
+
+  /**
+   * Queries physical footprints of all active street characters (story NPCs, vendors, crowd).
+   * Used for reciprocal continuous pedestrian collision resolution with player.
+   */
+  public getPedestrianPositions(): Array<{ x: number; z: number; radius: number }> {
+    const list: Array<{ x: number; z: number; radius: number }> = [];
+    if (this.hawkerGroup) {
+      list.push({ x: this.hawkerGroup.position.x, z: this.hawkerGroup.position.z, radius: 0.35 });
+    }
+    for (const item of this.interactiveList) {
+      if (item.mesh !== this.hawkerGroup) {
+        list.push({ x: item.mesh.position.x, z: item.mesh.position.z, radius: 0.35 });
+      }
+    }
+    for (const ped of this.pedestrians) {
+      list.push({ x: ped.group.position.x, z: ped.group.position.z, radius: 0.35 });
+    }
+    return list;
   }
 
   // =========================================================================
@@ -495,7 +519,7 @@ export class NPCs {
 
     // He is reached wherever he has walked to, not where he set out from
     if (this.hawkerGroup && this.hawkerSpot) {
-      this.hawkerSpot.set(this.hawkerGroup.position.x, 0, this.hawkerGroup.position.z);
+      this.hawkerSpot.set(this.hawkerGroup.position.x, 0.28, this.hawkerGroup.position.z);
     }
 
     // 2. Animate Story Character Rigs
@@ -504,7 +528,7 @@ export class NPCs {
       story.rig.updateAnimation(this.storyAnimTime, story.animState);
     }
 
-    // 3. Animate Sidewalk Pedestrians with distance LOD culling
+    // 3. Animate Sidewalk Pedestrians with predictive avoidance & mutual collision
     for (const ped of this.pedestrians) {
       if (playerPos) {
         const distSq = (ped.group.position.x - playerPos.x) ** 2 + (ped.group.position.z - playerPos.z) ** 2;
@@ -512,6 +536,35 @@ export class NPCs {
       }
 
       if (ped.isWalking) {
+        // Predictive local steering avoidance: check oncoming pedestrians or player
+        let targetLateral = 0;
+        const currentZ = ped.group.position.z;
+        const currentX = ped.group.position.x;
+
+        if (playerPos) {
+          const dz = (playerPos.z - currentZ) * ped.dir;
+          const dx = Math.abs(playerPos.x - currentX);
+          if (dz > 0 && dz < 3.2 && dx < 0.75) {
+            const avoidDir = ped.baseX < 0 ? (playerPos.x > currentX ? -1 : 1) : (playerPos.x < currentX ? 1 : -1);
+            targetLateral += avoidDir * 0.40;
+          }
+        }
+
+        for (const other of this.pedestrians) {
+          if (other === ped) continue;
+          const dz = (other.group.position.z - currentZ) * ped.dir;
+          const dx = Math.abs(other.group.position.x - currentX);
+          if (dz > 0 && dz < 2.8 && dx < 0.65) {
+            const avoidDir = ped.dir * (other.group.position.x >= currentX ? -1 : 1);
+            targetLateral += avoidDir * 0.35;
+          }
+        }
+
+        ped.lateralOffset = THREE.MathUtils.lerp(ped.lateralOffset, targetLateral, Math.min(1, delta * 3.5));
+        const sidewalkMinX = ped.baseX < 0 ? -10.8 : 8.6;
+        const sidewalkMaxX = ped.baseX < 0 ? -8.6 : 10.8;
+        ped.group.position.x = THREE.MathUtils.clamp(ped.baseX + ped.lateralOffset, sidewalkMinX, sidewalkMaxX);
+
         ped.group.position.z += ped.dir * ped.speed * delta;
         ped.walkTime += delta * 6.5;
         ped.rig.updateAnimation(ped.walkTime, 'walk');
@@ -528,6 +581,47 @@ export class NPCs {
         // Expressive idle animation (talking, dancing, on phone, or breathing)
         ped.walkTime += delta * 1.5;
         ped.rig.updateAnimation(ped.walkTime, ped.idleAction || 'idle');
+      }
+    }
+
+    // Continuous physical collision non-penetration between pedestrians & player
+    for (let i = 0; i < this.pedestrians.length; i++) {
+      const p1 = this.pedestrians[i];
+      for (let j = i + 1; j < this.pedestrians.length; j++) {
+        const p2 = this.pedestrians[j];
+        const dx = p1.group.position.x - p2.group.position.x;
+        const dz = p1.group.position.z - p2.group.position.z;
+        const dist = Math.hypot(dx, dz);
+        const minDist = 0.70; // 2 * 0.35m radius
+        if (dist < minDist && dist > 1e-4) {
+          const overlap = (minDist - dist) * 0.5;
+          const nx = dx / dist;
+          const nz = dz / dist;
+          if (p1.isWalking) {
+            p1.group.position.x += nx * overlap;
+            p1.group.position.z += nz * overlap;
+          }
+          if (p2.isWalking) {
+            p2.group.position.x -= nx * overlap;
+            p2.group.position.z -= nz * overlap;
+          }
+        }
+      }
+
+      if (playerPos) {
+        const dx = p1.group.position.x - playerPos.x;
+        const dz = p1.group.position.z - playerPos.z;
+        const dist = Math.hypot(dx, dz);
+        const minDist = 0.70;
+        if (dist < minDist && dist > 1e-4) {
+          const overlap = minDist - dist;
+          const nx = dx / dist;
+          const nz = dz / dist;
+          if (p1.isWalking) {
+            p1.group.position.x += nx * overlap;
+            p1.group.position.z += nz * overlap;
+          }
+        }
       }
     }
   }

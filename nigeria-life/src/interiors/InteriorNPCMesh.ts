@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { InteriorNPCDef } from './InteriorTypes';
-import { HumanMeshBuilder, type HumanRig, type Gender } from '../graphics/HumanMeshBuilder';
+import { HumanMeshBuilder, type HumanRig, type Gender, type Outfit, type Hairstyle } from '../graphics/HumanMeshBuilder';
 import { Actor } from '../interactions/Actor';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 
@@ -47,8 +47,8 @@ export class InteriorNPCMesh {
       : isFemale ? '#5c3722' : '#4a2c1d';
 
     // Map role to authentic occupation outfit
-    let outfit: any = 'casual_tee';
-    let hairstyle: any = isFemale ? 'bob_wig' : 'fade';
+    let outfit: Outfit = 'casual_tee';
+    let hairstyle: Hairstyle = isFemale ? 'bob_wig' : 'fade';
     let hasStethoscope = false;
     let hasTie = false;
     let hasBackpack = false;
