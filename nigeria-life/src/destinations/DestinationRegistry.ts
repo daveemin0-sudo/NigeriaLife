@@ -4,6 +4,9 @@ import type {
   TransportOption 
 } from './DestinationTypes';
 import { PLACE_HOURS, describeHours } from './Hours';
+import { getLagosBenchmarkDestinations } from './data/LagosBenchmarkPlaces';
+import { getAbujaBenchmarkDestinations } from './data/AbujaBenchmarkPlaces';
+import { getPortHarcourtBenchmarkDestinations } from './data/PortHarcourtBenchmarkPlaces';
 
 export class DestinationRegistry {
   private static instance: DestinationRegistry | null = null;
@@ -1184,6 +1187,19 @@ export class DestinationRegistry {
       activities: [],
       isEnterable: false,
     });
+
+    // =========================================================================
+    // BENCHMARK EXPANSIONS (Full 125 Places: 24 Lagos, 69 Abuja, 32 PH)
+    // =========================================================================
+    for (const place of getLagosBenchmarkDestinations(defaultTransports)) {
+      this.register(place);
+    }
+    for (const place of getAbujaBenchmarkDestinations(defaultTransports)) {
+      this.register(place);
+    }
+    for (const place of getPortHarcourtBenchmarkDestinations(defaultTransports)) {
+      this.register(place);
+    }
   }
 
   /** A place goes on the record. What its card says about its hours is written from the hours themselves. */
