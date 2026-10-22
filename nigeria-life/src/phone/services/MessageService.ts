@@ -33,6 +33,11 @@ const REPLIES: Record<Standing, string[]> = {
     'Correct! Anything for you. When you dey come?',
     'Na you I dey wait for. No dull, show face.',
   ],
+  partner: [
+    'Oga Chairman! Big deal on the table, let us link up.',
+    'Senior partner! The wire transfer don clear. Good business!',
+    'Respect, my boss! Anything you need, consider it done.',
+  ],
 };
 
 const REPLY_SECONDS = 2.5;

@@ -4,7 +4,7 @@ import { BackendService } from '../backend/BackendService';
 import type { Actor } from '../interactions/Actor';
 import { InteractionDirector, type PerformResult } from '../interactions/InteractionDirector';
 import { Sequence, steps } from '../interactions/Sequence';
-import { spotNear } from '../interactions/Social';
+import { spotNear, standingWith } from '../interactions/Social';
 import { showGameToast } from '../ui/GameToast';
 
 /** One thing a street seller has to offer. */
@@ -81,9 +81,12 @@ function goodMesh(entry: VendorGood): THREE.Mesh {
 export function cannotBuy(vendor: Actor, entry: VendorGood): string | null {
   const short = vendor.name.split('(')[0].trim();
   if (vendor.engaged) return `${short} is busy with someone else.`;
+  const standing = standingWith(vendor);
+  const discount = standing === 'partner' ? 0.85 : standing === 'friend' ? 0.90 : standing === 'acquaintance' ? 0.95 : 1.0;
+  const effectivePrice = Math.round(entry.price * discount);
   const cash = BackendService.getInstance().getData().walletCash;
-  if (cash < entry.price) {
-    return `${entry.name} is ₦${entry.price.toLocaleString()}. You have ₦${cash.toLocaleString()} cash, so you need ₦${(entry.price - cash).toLocaleString()} more.`;
+  if (cash < effectivePrice) {
+    return `${entry.name} is ₦${effectivePrice.toLocaleString()}. You have ₦${cash.toLocaleString()} cash, so you need ₦${(effectivePrice - cash).toLocaleString()} more.`;
   }
   return null;
 }
@@ -100,6 +103,10 @@ export function buyFromVendor(vendor: Actor, customer: Actor, entry: VendorGood)
   if (blocked) return { ok: false, reason: blocked };
   if (director.interrupt(customer) === 'locked') return { ok: false, reason: 'busy' };
 
+  const standing = standingWith(vendor);
+  const discount = standing === 'partner' ? 0.85 : standing === 'friend' ? 0.90 : standing === 'acquaintance' ? 0.95 : 1.0;
+  const finalPrice = Math.round(entry.price * discount);
+
   const mesh = goodMesh(entry);
   let handedOver = false;
 
@@ -107,7 +114,10 @@ export function buyFromVendor(vendor: Actor, customer: Actor, entry: VendorGood)
     steps.walk(customer, () => spotNear(vendor, customer, 1.05), { ifStuck: 'snap' }),
     steps.face(vendor, () => customer.worldPosition()),
     steps.face(customer, () => vendor.worldPosition()),
-    steps.call('price', () => vendor.say(`${entry.name}: ₦${entry.price.toLocaleString()}`, 2.4)),
+    steps.call('price', () => {
+      const discountNote = discount < 1.0 ? ` (${Math.round((1 - discount) * 100)}% relationship discount)` : '';
+      vendor.say(`${entry.name}: ₦${finalPrice.toLocaleString()}${discountNote}`, 2.4);
+    }),
     // The seller takes it out and holds it out
     steps.animate(vendor, { arms: 'reach' }, 0.9, [{ at: 0.5, run: () => vendor.carry(mesh) }]),
     // The customer takes it: this is the sale
@@ -115,19 +125,31 @@ export function buyFromVendor(vendor: Actor, customer: Actor, entry: VendorGood)
       at: 0.55,
       run: () => {
         if (handedOver) return false;
-        const paid = backend.spendCash(entry.price, `${entry.name} from ${short}`, entry.item.category === 'food' ? 'FOOD_PURCHASE' : 'SHOP_PURCHASE');
+        const paid = backend.spendCash(finalPrice, `${entry.name} from ${short}`, entry.item.category === 'food' ? 'FOOD_PURCHASE' : 'SHOP_PURCHASE');
         if (!paid) {
           vendor.say('Oga, your money no reach o.', 2.4);
           return false;
         }
         handedOver = true;
+        backend.addFamiliarity(vendor.id, 4);
+        backend.addStreetCred(1);
         if (vendor.carried === mesh) vendor.letGo();
         customer.carry(mesh);
         backend.addItem(entry.item, 1);
-        showGameToast(`Paid ₦${entry.price.toLocaleString()}. ${entry.name} is in your bag.`, 'success', 3200);
+        showGameToast(`Paid ₦${finalPrice.toLocaleString()}. ${entry.name} is in your bag.`, 'success', 3200);
       },
     }]),
-    steps.call('thanks', () => vendor.say('Thank you! God bless.', 2.2)),
+    steps.call('thanks', () => {
+      const thanks =
+        standing === 'partner'
+          ? 'Billionaire partner! Chairman, may your pocket never dry!'
+          : standing === 'friend'
+          ? 'My person! Thank you plenty, see you soon!'
+          : standing === 'acquaintance'
+          ? 'Thank you, my customer! Safe journey.'
+          : 'Thank you! God bless.';
+      vendor.say(thanks, 2.2);
+    }),
     steps.wait(1.1),
     steps.call('put away', () => {
       if (customer.carried === mesh) customer.letGo();

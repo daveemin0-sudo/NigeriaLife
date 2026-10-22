@@ -238,7 +238,7 @@ export class ShopService {
       take.add(
         steps.walk(player, this.world(SHOP.baskets.stand), { nav: this.nav, speed: 5 }),
         steps.face(player, this.world(SHOP.baskets.position)),
-        steps.animate(player, { arms: 'reach' }, 0.6, [{ at: 0.55, run: () => this.takeBasket(player) }])
+        steps.animate(player, { arms: 'reach' }, 0.8, [{ at: 0.2, run: () => this.takeBasket(player) }])
       );
     }
     take.add(
