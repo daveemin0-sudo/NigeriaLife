@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nigeria Life admin</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb; --accent: #047857; --bad: #b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111827; --card: #1f2937; --ink: #f3f4f6; --muted: #9ca3af; --line: #374151; --accent: #34d399; --bad: #f87171; } }
+  body { margin: 0; padding: 16px; font: 14px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; max-width: 980px; }
+  h2 { font-size: 14px; margin: 0 0 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  input, button { font: inherit; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  button { cursor: pointer; background: var(--accent); color: #fff; border: 0; }
+  button.bad { background: var(--bad); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .stat b { display: block; font-size: 20px; }
+  .muted { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  pre { white-space: pre-wrap; margin: 0; }
+</style>
+</head>
+<body>
+<h1>Nigeria Life admin</h1>
+<section>
+  <div class="row"><label>Admin key <input id="key" type="password" autocomplete="off" /></label><button id="load">Load</button><span id="status" class="muted"></span></div>
+</section>
+<section>
+  <h2>Now</h2>
+  <div class="stats" id="stats"><span class="muted">Enter the key and load.</span></div>
+</section>
+<section>
+  <h2>A player</h2>
+  <div class="row"><input id="who" placeholder="Account id (acc_...)" size="26" /><button id="look">Look up</button></div>
+  <div class="row">
+    <input id="minutes" type="number" value="60" min="1" style="width:6em" /> minutes <button id="mute">Mute</button>
+    <button id="ban" class="bad">Ban</button><button id="unban">Unban</button>
+    <input id="amount" type="number" placeholder="₦ amount" style="width:8em" /><input id="memo" placeholder="Why (shown in their ledger)" size="28" /><button id="grant">Grant</button>
+  </div>
+  <div id="player" class="muted"></div>
+</section>
+<section>
+  <h2>Alerts</h2>
+  <table id="alerts"></table>
+</section>
+<section>
+  <h2>Reports from players</h2>
+  <table id="reports"></table>
+</section>
+<script>
+  const $ = (id) => document.getElementById(id);
+  try { $('key').value = sessionStorage.getItem('nl-admin') || ''; } catch {}
+  const naira = (n) => '₦' + Number(n || 0).toLocaleString();
+  const when = (t) => new Date(t).toLocaleString();
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  async function call(path, body) {
+    const key = $('key').value;
+    try { sessionStorage.setItem('nl-admin', key); } catch {}
+    const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'x-nl-admin': key, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.reason || r.status);
+    return data;
+  }
+  async function load() {
+    try {
+      const s = await call('/admin/stats');
+      const instances = Object.entries(s.online.byInstance).map(([k, v]) => `${esc(k)}: ${v}`).join('<br>') || 'none';
+      $('stats').innerHTML = `
+        <div class="stat"><b>${s.online.players}</b>online now</div>
+        <div class="stat"><b>${s.accounts.verified}</b>verified accounts<div class="muted">${s.accounts.all} in all</div></div>
+        <div class="stat"><b>${naira(s.economy.money)}</b>money held by players</div>
+        <div class="stat"><b>${naira(s.economy.lastHour.earned)}</b>earned in the last hour<div class="muted">${naira(s.economy.lastHour.spent)} spent</div></div>
+        <div class="stat">instances<div class="muted">${instances}</div></div>`;
+      $('alerts').innerHTML = '<tr><th>When</th><th>Account</th><th>Kind</th><th>Detail</th></tr>' + s.economy.alerts.map((a) => `<tr><td>${when(a.at)}</td><td>${esc(a.account_id)}</td><td>${esc(a.kind)}</td><td>${esc(a.detail)}</td></tr>`).join('');
+      const r = await call('/admin/reports');
+      $('reports').innerHTML = '<tr><th>When</th><th>From</th><th>About</th><th>Why</th><th>Said</th></tr>' + r.reports.map((x) => `<tr><td>${when(x.at)}</td><td>${esc(x.reporter)}</td><td>${esc(x.reported)}</td><td>${esc(x.reason)}</td><td><pre>${esc(x.context)}</pre></td></tr>`).join('');
+      $('status').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    } catch (e) {
+      $('status').textContent = 'Could not load: ' + e.message;
+    }
+  }
+  async function look() {
+    try {
+      const p = await call('/admin/ledger?id=' + encodeURIComponent($('who').value.trim()));
+      $('player').innerHTML = p.account ? `<p><b>${esc(p.account.name)}</b> ${p.account.verified ? 'verified' : 'guest'}${p.account.banned ? ', banned' : ''}. Cash ${naira(p.wallet.cash)}, bank ${naira(p.wallet.bank)}.</p>
+        <table><tr><th>When</th><th>Kind</th><th>Cash</th><th>Bank</th><th>Checked</th><th>Why</th></tr>${p.ledger.map((l) => `<tr><td>${when(l.at)}</td><td>${esc(l.kind)}</td><td>${l.cash_delta}</td><td>${l.bank_delta}</td><td>${l.verified ? 'server' : 'game'}</td><td>${esc(l.memo)}</td></tr>`).join('')}</table>` : 'No such account.';
+    } catch (e) { $('player').textContent = e.message; }
+  }
+  const act = (path, extra) => async () => { try { await call(path, { id: $('who').value.trim(), ...extra() }); await look(); await load(); } catch (e) { $('player').textContent = e.message; } };
+  $('load').onclick = load;
+  $('look').onclick = look;
+  $('mute').onclick = act('/admin/mute', () => ({ minutes: Number($('minutes').value) }));
+  $('ban').onclick = act('/admin/ban', () => ({ banned: true }));
+  $('unban').onclick = act('/admin/ban', () => ({ banned: false }));
+  $('grant').onclick = act('/admin/grant', () => ({ amount: Number($('amount').value), memo: $('memo').value }));
+  setInterval(() => { if ($('key').value) load(); }, 10000);
+</script>
+</body>
+</html>
