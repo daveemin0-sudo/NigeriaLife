@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
-import { bakeToGeometry, seededRandom } from '../../graphics/MeshBaker';
+import { bakeToGeometry, seededRandom, simplifyByClustering } from '../../graphics/MeshBaker';
 import type { StreetSpot, WalkRun } from '../density/CityFabric';
 import { MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
 import { isAbroad } from '../StreetLife';
@@ -19,6 +19,12 @@ interface Variant {
   drawn: number;
   body?: THREE.InstancedMesh;
   limbs: THREE.InstancedMesh[];
+  /** The same person simplified, for beyond NEAR_DISTANCE */
+  farBodyGeo: THREE.BufferGeometry;
+  farLimbGeos: THREE.BufferGeometry[];
+  drawnFar: number;
+  farBody?: THREE.InstancedMesh;
+  farLimbs: THREE.InstancedMesh[];
 }
 
 interface Agent {
@@ -61,6 +67,10 @@ const TROUSERS = [0x1e293b, 0x1f2937, 0x334155, 0x57534e, 0x1e3a8a, 0x292524];
 
 /** Pedestrians further than this from the player are simulated but not drawn */
 const DRAW_DISTANCE = 90;
+/** Nearer than this a pedestrian is drawn in full; further away, simplified (no one can see the fingers at 20 m) */
+const NEAR_DISTANCE = 22;
+/** Size of the cubes the far model's vertices are gathered into, metres */
+const FAR_CELL = 0.045;
 
 /**
  * CityPopulation
@@ -73,6 +83,9 @@ export class CityPopulation {
   public count = 0;
   /** The share of them who are out at this hour: the rest are at home, and not drawn */
   public abroad = 1;
+  /** How far away pedestrians are drawn at all, and drawn in full (the graphics setting changes these) */
+  public drawDistance = DRAW_DISTANCE;
+  public nearDistance = NEAR_DISTANCE;
 
   private rand = seededRandom(90210);
   private variants: Variant[] = [];
@@ -88,6 +101,8 @@ export class CityPopulation {
   private scl = new THREE.Vector3();
   private euler = new THREE.Euler();
   private sphere = new THREE.Sphere(new THREE.Vector3(), 1.9);
+  private limbX = [0, 0, 0, 0];
+  private limbZ = [0, 0, 0, 0];
   private static readonly UP = new THREE.Vector3(0, 1, 0);
 
   constructor(walkRuns: WalkRun[] = [], stallSpots: StreetSpot[] = []) {
@@ -163,6 +178,10 @@ export class CityPopulation {
       this.variants.push({
         bodyGeo,
         limbGeos: limbGeos as THREE.BufferGeometry[],
+        farBodyGeo: simplifyByClustering(bodyGeo, FAR_CELL),
+        farLimbGeos: (limbGeos as THREE.BufferGeometry[]).map((geo) => simplifyByClustering(geo, FAR_CELL)),
+        drawnFar: 0,
+        farLimbs: [],
         pivots: limbs.map((limb) => limb.position.clone()),
         footY: rig.leftLeg.position.y + legGeo.boundingBox!.min.y,
         count: 0,
@@ -340,6 +359,16 @@ export class CityPopulation {
         this.group.add(mesh);
         return mesh;
       });
+
+      variant.farBody = new THREE.InstancedMesh(variant.farBodyGeo, material, variant.count);
+      variant.farBody.frustumCulled = false;
+      this.group.add(variant.farBody);
+      variant.farLimbs = variant.farLimbGeos.map((geo) => {
+        const mesh = new THREE.InstancedMesh(geo, material, variant.count);
+        mesh.frustumCulled = false;
+        this.group.add(mesh);
+        return mesh;
+      });
     }
 
     // One shared contact-shadow blob under every pedestrian
@@ -362,7 +391,10 @@ export class CityPopulation {
   // =========================================================================
   public update(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
     const { base, limb, out, pos, quat, scl, euler, sphere } = this;
-    for (const variant of this.variants) variant.drawn = 0;
+    for (const variant of this.variants) {
+      variant.drawn = 0;
+      variant.drawnFar = 0;
+    }
     let shadowCount = 0;
 
     for (let i = 0; i < this.agents.length; i++) {
@@ -438,16 +470,21 @@ export class CityPopulation {
       // Those who are at home at this hour are not in the street
       if (!isAbroad(i, this.abroad)) continue;
       // Everyone keeps walking, but only pedestrians the camera can see are drawn
+      let far = false;
       if (playerPos) {
         const dx = a.x - playerPos.x;
         const dz = a.z - playerPos.z;
-        if (dx * dx + dz * dz > DRAW_DISTANCE * DRAW_DISTANCE) continue;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > this.drawDistance * this.drawDistance) continue;
+        far = d2 > this.nearDistance * this.nearDistance;
       }
       if (frustum) {
         sphere.center.set(a.x, 1, a.z);
         if (!frustum.intersectsSphere(sphere)) continue;
       }
-      const slot = variant.drawn++;
+      const slot = far ? variant.drawnFar++ : variant.drawn++;
+      const bodyMesh = far ? variant.farBody! : variant.body;
+      const limbMeshes = far ? variant.farLimbs : variant.limbs;
 
       // Broad Street's sidewalk drops to road level where a side street cuts through
       const ground = a.onMainWalk && isInJunctionGap(a.z) ? 0.02 : MAIN_ROAD.sidewalkTop;
@@ -456,15 +493,21 @@ export class CityPopulation {
       quat.setFromAxisAngle(CityPopulation.UP, a.yaw);
       scl.setScalar(a.scale);
       base.compose(pos, quat, scl);
-      variant.body.setMatrixAt(slot, base);
+      bodyMesh.setMatrixAt(slot, base);
 
-      const rx = [lax, rax, llx, rlx];
-      const rz = [laz, raz, 0, 0];
+      const rx = this.limbX;
+      const rz = this.limbZ;
+      rx[0] = lax;
+      rx[1] = rax;
+      rx[2] = llx;
+      rx[3] = rlx;
+      rz[0] = laz;
+      rz[1] = raz;
       for (let l = 0; l < 4; l++) {
         limb.makeRotationFromEuler(euler.set(rx[l], 0, rz[l]));
         limb.setPosition(variant.pivots[l]);
         out.multiplyMatrices(base, limb);
-        variant.limbs[l].setMatrixAt(slot, out);
+        limbMeshes[l].setMatrixAt(slot, out);
       }
 
       if (this.shadows) {
@@ -474,14 +517,18 @@ export class CityPopulation {
       }
     }
 
+    // A mesh with nobody in it this frame is hidden, so it costs no draw call
+    const settle = (mesh: THREE.InstancedMesh, count: number) => {
+      mesh.count = count;
+      mesh.visible = count > 0;
+      if (count > 0) mesh.instanceMatrix.needsUpdate = true;
+    };
     for (const variant of this.variants) {
       if (!variant.body) continue;
-      variant.body.count = variant.drawn;
-      variant.body.instanceMatrix.needsUpdate = true;
-      for (const mesh of variant.limbs) {
-        mesh.count = variant.drawn;
-        mesh.instanceMatrix.needsUpdate = true;
-      }
+      settle(variant.body, variant.drawn);
+      for (const mesh of variant.limbs) settle(mesh, variant.drawn);
+      settle(variant.farBody!, variant.drawnFar);
+      for (const mesh of variant.farLimbs) settle(mesh, variant.drawnFar);
     }
     if (this.shadows) {
       this.shadows.count = shadowCount;

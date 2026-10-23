@@ -59,6 +59,7 @@ import { Television } from '../housing/Television';
 import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
+import { GraphicsQuality } from '../graphics/GraphicsQuality';
 import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
 import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
@@ -107,6 +108,8 @@ export class Game {
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
   public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink };
   private lastStepDelta: number = 0;
+  /** How much is drawn on this device (Phone › Life › Settings) */
+  public graphics!: GraphicsQuality;
   public placeCard: PlaceCard;
 
   // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
@@ -727,6 +730,15 @@ export class Game {
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
     this.player.getOtherPedestrians = () => this.world.npcs.getPedestrianPositions();
     DrivableVehicle.solids = () => this.solidsHere();
+    DrivableVehicle.loadSettings();
+    this.graphics = new GraphicsQuality({
+      renderer: this.renderer,
+      sun: this.world.skyEnvironment.sunLight,
+      scene: this.scene,
+      crowd: this.world.cityPopulation,
+      resized: () => this.postProcessing.setSize(window.innerWidth, window.innerHeight),
+      tell: (text) => showGameToast(text, 'info', 7000),
+    });
     // The queues at Broad Street's bus stops are who a danfo or keke picks up
     const crowd = this.world.cityPopulation;
     DrivableVehicle.busStops = {
@@ -1270,6 +1282,7 @@ export class Game {
   private loop = (): void => {
     requestAnimationFrame(this.loop);
     const rawDelta = this.clock.getDelta();
+    this.graphics?.watch(rawDelta);
     // Cap maximum delta to prevent excessive steps after browser tab backgrounding
     const clampedDelta = Math.min(rawDelta, 0.15);
     if (clampedDelta > 0.055) {

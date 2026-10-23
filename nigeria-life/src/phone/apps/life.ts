@@ -242,6 +242,12 @@ export const jobsApp: PhoneApp = {
 // ============================================================================================
 
 const isMine = (prop: RealEstateProperty) => prop.status === 'owned' || prop.status === 'rented' || prop.status === 'purchased';
+/** What each graphics level gives up, in the player's terms */
+const GRAPHICS_NOTES: Record<string, string> = {
+  high: 'everything drawn in full',
+  balanced: 'sharp on ordinary screens, distant people simpler',
+  low: 'softer picture, no sun shadows, fewer people far off',
+};
 const CITY_NAMES: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
 
 export const propertyApp: PhoneApp = {
@@ -484,6 +490,15 @@ export const settingsApp: PhoneApp = {
           <label class="nl-label" for="settings-server-url">World server address</label>
           <input class="nl-field" id="settings-server-url" type="text" inputmode="url" autocomplete="off" placeholder="http://192.168.1.20:8787" value="${esc(host.get('settings.server', ''))}" data-bind="settings.server" />
           <button class="nl-btn nl-btn--block" id="settings-server-join" data-act="server-on">Connect</button>`}
+        <div class="nl-section">Graphics</div>
+        <div class="nl-list">
+          ${row({
+            icon: '🖥️',
+            title: 'Graphics quality',
+            sub: `${(window as any).game?.graphics?.label ?? 'High'}: ${GRAPHICS_NOTES[(window as any).game?.graphics?.level ?? 'high']}`,
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-graphics">Change</button>',
+          })}
+        </div>
         <div class="nl-section">Driving & Vehicle Handling</div>
         <div class="nl-list">
           ${row({
@@ -543,20 +558,27 @@ export const settingsApp: PhoneApp = {
     } else if (action === 'radio') {
       sound.toggleRadio();
       host.refresh();
+    } else if (action === 'toggle-graphics') {
+      const graphics = (window as any).game?.graphics;
+      if (graphics) graphics.choose(graphics.next());
+      host.refresh();
     } else if (action === 'toggle-steer-sens') {
       DrivableVehicle.steeringSensitivity =
         DrivableVehicle.steeringSensitivity >= 1.25 ? 0.70 :
         DrivableVehicle.steeringSensitivity <= 0.75 ? 1.0 : 1.30;
+      DrivableVehicle.saveSettings();
       host.refresh();
     } else if (action === 'toggle-lane-assist') {
       DrivableVehicle.laneAssistStrength =
         DrivableVehicle.laneAssistStrength === 0 ? 0.85 :
         DrivableVehicle.laneAssistStrength >= 1.0 ? 0.0 : 1.0;
+      DrivableVehicle.saveSettings();
       host.refresh();
     } else if (action === 'toggle-cam-smooth') {
       DrivableVehicle.cameraSmoothing =
         DrivableVehicle.cameraSmoothing >= 1.2 ? 0.6 :
         DrivableVehicle.cameraSmoothing <= 0.7 ? 1.0 : 1.3;
+      DrivableVehicle.saveSettings();
       host.refresh();
     } else if (action === 'toggle-clock-mode') {
       const sky = (window as any).game?.world.skyEnvironment;

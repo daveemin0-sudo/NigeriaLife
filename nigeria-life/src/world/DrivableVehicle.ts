@@ -70,6 +70,30 @@ export class DrivableVehicle {
   public static laneAssistStrength: number = 0.85;
   public static cameraSmoothing: number = 1.0;
 
+  /** Keeps the three driving options on this device */
+  public static saveSettings(): void {
+    try {
+      localStorage.setItem(
+        'nigerialife.driving',
+        JSON.stringify({ steering: DrivableVehicle.steeringSensitivity, assist: DrivableVehicle.laneAssistStrength, camera: DrivableVehicle.cameraSmoothing })
+      );
+    } catch {
+      // Not kept, but still in force for this visit
+    }
+  }
+
+  public static loadSettings(): void {
+    try {
+      const saved = JSON.parse(localStorage.getItem('nigerialife.driving') || 'null');
+      const ok = (v: unknown, lo: number, hi: number) => typeof v === 'number' && v >= lo && v <= hi;
+      if (saved && ok(saved.steering, 0.5, 1.5)) DrivableVehicle.steeringSensitivity = saved.steering;
+      if (saved && ok(saved.assist, 0, 1)) DrivableVehicle.laneAssistStrength = saved.assist;
+      if (saved && ok(saved.camera, 0.5, 1.5)) DrivableVehicle.cameraSmoothing = saved.camera;
+    } catch {
+      // Defaults
+    }
+  }
+
   public steerInput: number = 0;
   public isCenteringActive: boolean = false;
   private velocityDirection: THREE.Vector2 = new THREE.Vector2(0, 1);
