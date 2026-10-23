@@ -113,11 +113,13 @@ export class CityPopulation {
   }
 
   private bakeVariants(): void {
+    // The street model, as the other walkers use: the detailed one (jointed fingers, sculpted face) cost
+    // about 14,000 triangles a pedestrian, over a million for the crowd in view, which no one can see at street distance
     const looks: HumanConfig[] = [];
     const male = (cfg: Partial<HumanConfig>) =>
-      looks.push({ gender: 'male', username: '', skinTone: this.pick(SKIN_TONES), trousersColor: this.pick(TROUSERS), ...cfg });
+      looks.push({ gender: 'male', username: '', lod: 'street', skinTone: this.pick(SKIN_TONES), trousersColor: this.pick(TROUSERS), ...cfg });
     const female = (cfg: Partial<HumanConfig>) =>
-      looks.push({ gender: 'female', username: '', skinTone: this.pick(SKIN_TONES), ...cfg });
+      looks.push({ gender: 'female', username: '', lod: 'street', skinTone: this.pick(SKIN_TONES), ...cfg });
 
     // Everyday Lagos men
     for (const color of [0x10b981, 0xdc2626, 0xf8fafc, 0xfacc15, 0x38bdf8]) {
