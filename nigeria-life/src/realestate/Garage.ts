@@ -157,14 +157,14 @@ export class Garage {
   }
 
   /** Records driving done in a vehicle: distance on the clock and the wear that goes with it. Only its owner can. */
-  public async addMileage(id: string, kilometres: number, parkedAt?: { x: number; z: number; yaw: number }): Promise<void> {
+  public async addMileage(id: string, kilometres: number, parkedAt?: { x: number; z: number; yaw: number; city?: string }): Promise<void> {
     if (kilometres <= 0 && !parkedAt) return;
     await this.registry.transact((state) => {
       const record = state.vehicles[id];
       if (!record || state.titles[assetKey({ kind: 'vehicle', id })]?.ownerId !== MY_ID) return;
       record.mileage = Math.round((record.mileage + kilometres) * 10) / 10;
       record.condition = Math.max(20, Math.round((record.condition - kilometres * 0.2) * 10) / 10);
-      if (parkedAt) record.parkedAt = { x: Math.round(parkedAt.x * 10) / 10, z: Math.round(parkedAt.z * 10) / 10, yaw: Math.round(parkedAt.yaw * 100) / 100 };
+      if (parkedAt) record.parkedAt = { x: Math.round(parkedAt.x * 10) / 10, z: Math.round(parkedAt.z * 10) / 10, yaw: Math.round(parkedAt.yaw * 100) / 100, city: parkedAt.city ?? 'lagos' };
     });
   }
 }

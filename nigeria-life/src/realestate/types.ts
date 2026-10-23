@@ -151,8 +151,8 @@ export interface VehicleRecord {
   mileage: number;
   plate: string;
   boughtNewAt: number;
-  /** Where its owner last left it */
-  parkedAt?: { x: number; z: number; yaw: number };
+  /** Where its owner last left it, and in which city (none: Lagos, as every vehicle was before cities were kept) */
+  parkedAt?: { x: number; z: number; yaw: number; city?: string };
 }
 
 export interface PlayerCard {

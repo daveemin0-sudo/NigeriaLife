@@ -61,6 +61,8 @@ export class DrivableVehicle {
   public mesh: THREE.Group;
   public config: VehicleConfig;
 
+  /** The city it stands in: it is drawn and moved only while that city is the one on show */
+  public city: string = 'lagos';
   public currentSpeed: number = 0;
   public turnAngle: number = 0;
   public driver: Player | null = null;

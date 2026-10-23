@@ -2,11 +2,14 @@ import * as THREE from 'three';
 import { DrivableVehicle } from '../world/DrivableVehicle';
 import type { World, InteractiveObject } from '../world/World';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
-import { MAIN_ROAD } from '../world/density/StreetLayout';
 import { AssetMarket } from './AssetMarket';
 import { Garage, vehicleModel } from './Garage';
 import { Registry, MY_ID } from './Registry';
 import type { VehicleRecord } from './types';
+import { CITY_NAME, type PlotCity } from './PlotCatalogue';
+
+/** Where a vehicle stands, as one string to compare: a vehicle with no city is in Lagos */
+const placeKey = (at: { x: number; z: number; yaw: number; city?: string }) => `${at.city ?? 'lagos'}:${at.x},${at.z},${at.yaw}`;
 
 /** How the game's small map is read as distance on a vehicle's clock: a hundred metres of map is a kilometre. */
 const KM_PER_METRE = 0.01;
@@ -17,6 +20,10 @@ export interface DriverHooks {
   /** Gets the player out of whatever they are driving, at once */
   getOut(): void;
   playerPosition(): THREE.Vector3;
+  /** The city the player is in */
+  city(): string;
+  /** A clear spot at the kerb of the nearest road, facing along it the way the traffic goes on that side */
+  kerbNear(x: number, z: number): { x: number; z: number; yaw: number } | null;
 }
 
 /**
@@ -76,7 +83,7 @@ export class OwnedVehicles {
       const driving = this.hooks.driving() === entry.vehicle;
       // Sold from under its driver: out of the seat at once
       if (driving && owner !== MY_ID) this.hooks.getOut();
-      const where = record?.parkedAt ? `${record.parkedAt.x},${record.parkedAt.z},${record.parkedAt.yaw}` : '';
+      const where = record?.parkedAt ? placeKey(record.parkedAt) : '';
       // Gone, changed hands, or parked somewhere else by its owner: take it away, and put it back below if it is still about
       const away = this.movingElsewhere(entry.vehicle);
       if (!veh || owner !== entry.ownerId || (owner !== MY_ID && !driving && !away && (!record || where !== entry.at))) {
@@ -95,6 +102,7 @@ export class OwnedVehicles {
     const ownerId = this.garage.ownerOf(record.id) ?? '';
     const mine = ownerId === MY_ID;
     const vehicle = new DrivableVehicle({ id: this.instanceId(record.id), name: `${model.name} · ${record.plate}`, type: model.type, ...model.drive }, new THREE.Vector3(x, 0, z), yaw);
+    vehicle.city = record.parkedAt?.city ?? 'lagos';
     vehicle.mesh.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
     const card: InteractiveObject = {
       mesh: vehicle.mesh,
@@ -106,8 +114,8 @@ export class OwnedVehicles {
         : `This belongs to ${this.market.nameOf(ownerId)}. Only its owner can drive it.`,
       interactionPoint: new THREE.Vector3(x + 1.8, 0, z),
     };
-    this.world.addVehicle(vehicle, card);
-    this.spawned.set(record.id, { vehicle, card, last: vehicle.mesh.position.clone(), metres: 0, ownerId, at: `${record.parkedAt?.x ?? x},${record.parkedAt?.z ?? z},${record.parkedAt?.yaw ?? yaw}` });
+    this.world.addVehicle(vehicle, card, vehicle.city);
+    this.spawned.set(record.id, { vehicle, card, last: vehicle.mesh.position.clone(), metres: 0, ownerId, at: placeKey(record.parkedAt ?? { x, z, yaw }) });
   }
 
   /**
@@ -120,17 +128,21 @@ export class OwnedVehicles {
     const existing = this.spawned.get(vehicleId);
     if (existing && this.hooks.driving() === existing.vehicle) return 'You are driving it.';
     const player = this.hooks.playerPosition();
-    // At the edge of the carriageway nearest the player, facing along the street
-    const side = player.x >= 0 ? 1 : -1;
-    const onBroadStreet = Math.abs(player.x) < MAIN_ROAD.halfRoad + MAIN_ROAD.walk + 4 && player.z > MAIN_ROAD.zMin && player.z < MAIN_ROAD.zMax;
-    const x = onBroadStreet ? side * (MAIN_ROAD.halfRoad - 1.6) : player.x + 3;
-    const z = player.z;
-    const yaw = onBroadStreet ? (side > 0 ? Math.PI : 0) : 0;
+    const city = this.hooks.city();
+    // A vehicle is brought round in the city it stands in; one never yet parked is delivered wherever its owner is
+    const parkedIn = record.parkedAt ? record.parkedAt.city ?? 'lagos' : null;
+    if (parkedIn && parkedIn !== city) {
+      return `It is parked in ${CITY_NAME[parkedIn as PlotCity] ?? parkedIn}. A vehicle can only be brought round in the city it is in.`;
+    }
+    // At the kerb of the road nearest the player, on their side, facing the way the traffic goes there
+    const kerb = this.hooks.kerbNear(player.x, player.z);
+    if (!kerb) return 'There is no road near enough here to bring it to.';
+    const { x, z, yaw } = kerb;
     if (existing) {
       this.world.removeVehicle(existing.vehicle, existing.card);
       this.spawned.delete(vehicleId);
     }
-    const at = { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10, yaw: Math.round(yaw * 100) / 100 };
+    const at = { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10, yaw: Math.round(yaw * 100) / 100, city };
     record.parkedAt = at;
     const peek = Registry.get().peek();
     if (peek.vehicles[vehicleId]) peek.vehicles[vehicleId].parkedAt = at;
@@ -156,8 +168,8 @@ export class OwnedVehicles {
     if (!id || !entry) return;
     const kilometres = entry.metres * KM_PER_METRE;
     entry.metres = 0;
-    const at = { x: Math.round(vehicle.mesh.position.x * 10) / 10, z: Math.round(vehicle.mesh.position.z * 10) / 10, yaw: Math.round(vehicle.mesh.rotation.y * 100) / 100 };
-    entry.at = `${at.x},${at.z},${at.yaw}`;
+    const at = { x: Math.round(vehicle.mesh.position.x * 10) / 10, z: Math.round(vehicle.mesh.position.z * 10) / 10, yaw: Math.round(vehicle.mesh.rotation.y * 100) / 100, city: vehicle.city };
+    entry.at = placeKey(at);
     void this.garage.addMileage(id, kilometres, at);
   }
 }

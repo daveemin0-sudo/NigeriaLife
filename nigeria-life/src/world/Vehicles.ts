@@ -34,14 +34,15 @@ export class Vehicles {
   }
 
   /** Puts another vehicle that can be driven into the city (a player's own, brought to them). */
-  public addDrivable(vehicle: DrivableVehicle): void {
+  /** Adds a vehicle to be driven; `holder` is where it is drawn (Lagos's traffic group unless it stands in another city). */
+  public addDrivable(vehicle: DrivableVehicle, holder: THREE.Object3D = this.group): void {
     this.drivableVehicles.push(vehicle);
-    this.group.add(vehicle.mesh);
+    holder.add(vehicle.mesh);
   }
 
   public removeDrivable(vehicle: DrivableVehicle): void {
     this.drivableVehicles = this.drivableVehicles.filter((entry) => entry !== vehicle);
-    this.group.remove(vehicle.mesh);
+    vehicle.mesh.parent?.remove(vehicle.mesh);
   }
 
   // =========================================================================
@@ -881,9 +882,15 @@ export class Vehicles {
   // =========================================================================
   // 5. UPDATE LOOP
   // =========================================================================
-  public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3): void {
-    // 1. Update Drivable Vehicles with distance LOD culling
+  public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3, city: string = 'lagos'): void {
+    this.updateDrivables(delta, keys, playerPos, city);
+    this.updateTraffic(delta, playerPos);
+  }
+
+  /** The vehicles that can be driven, in the city on show: moved, and drawn when near. Those elsewhere wait where they are. */
+  public updateDrivables(delta: number, keys: Record<string, boolean>, playerPos: THREE.Vector3 | undefined, city: string): void {
     for (const v of this.drivableVehicles) {
+      if (v.city !== city) continue;
       if (playerPos) {
         const dSq = (v.mesh.position.x - playerPos.x) ** 2 + (v.mesh.position.z - playerPos.z) ** 2;
         const visible = dSq < 48 * 48;
@@ -894,7 +901,9 @@ export class Vehicles {
       }
       v.update(delta, keys);
     }
+  }
 
+  private updateTraffic(delta: number, playerPos?: THREE.Vector3): void {
     // 2. Distance culling on static parked vehicles
     if (playerPos) {
       for (const car of this.parkedVehicles) {

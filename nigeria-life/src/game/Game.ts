@@ -609,7 +609,6 @@ export class Game {
       placeBuilding: (plotId, typeId) => this.buildBar.open(plotId, typeId),
       bringVehicle: (vehicleId) => {
         if (this.whereabouts() !== 'street') return 'It can be brought to you when you are standing on the street.';
-        if (this.world.cityManager.currentCityId !== 'lagos') return 'Your vehicles are in Lagos.';
         const blocked = this.ownedVehicles.bringRound(vehicleId);
         this.ownedVehicles.sync();
         if (!blocked) showGameToast('Your vehicle is at the kerb.', 'success', 3200);
@@ -781,6 +780,8 @@ export class Game {
         showGameToast('This vehicle is no longer yours.', 'warning', 3600);
       },
       playerPosition: () => this.player.position,
+      city: () => this.world.cityManager.currentCityId,
+      kerbNear: (x, z) => this.kerbNear(x, z),
     });
     this.vehicleSync = new VehicleSync(this.world.vehicles, this.network, () => (this.player.isDriving ? this.player.currentVehicle : null));
     this.ownedVehicles.movingElsewhere = (vehicle) => this.vehicleSync.driverOf(vehicle) !== null;
@@ -939,6 +940,37 @@ export class Game {
    * fences of the city they are in, from the same list the city plan is checked against.
    * Nothing while they are indoors, where rooms have floor maps of their own.
    */
+  /**
+   * A clear spot at the kerb of the road nearest (x, z), on that side of it, facing the way
+   * traffic drives there (Nigeria drives on the right). Null if no road is within 40 m.
+   */
+  public kerbNear(x: number, z: number): { x: number; z: number; yaw: number } | null {
+    const roads = DrivableVehicle.roads?.() ?? [];
+    const solids = this.solidsHere();
+    const inset = 1.6;
+    let best: { x: number; z: number; yaw: number; d: number } | null = null;
+    for (const road of roads) {
+      if (road.kind !== 'carriageway') continue;
+      const clampTo = (v: number, lo: number, hi: number) => Math.min(hi - 3, Math.max(lo + 3, v));
+      // Along the road as near the player as it goes, then try a few steps either way for a clear spot
+      for (const shift of [0, 4, -4, 8, -8]) {
+        let spot: { x: number; z: number; yaw: number };
+        if (road.axis === 'z') {
+          const east = x >= (road.minX + road.maxX) / 2;
+          spot = { x: east ? road.maxX - inset : road.minX + inset, z: clampTo(z + shift, road.minZ, road.maxZ), yaw: east ? Math.PI : 0 };
+        } else {
+          const south = z >= (road.minZ + road.maxZ) / 2;
+          spot = { x: clampTo(x + shift, road.minX, road.maxX), z: south ? road.maxZ - inset : road.minZ + inset, yaw: south ? Math.PI / 2 : -Math.PI / 2 };
+        }
+        if (solids?.at(spot.x, spot.z, 1.2)) continue;
+        const d = Math.hypot(spot.x - x, spot.z - z);
+        if (d <= 40 && (!best || d < best.d)) best = { ...spot, d };
+        break;
+      }
+    }
+    return best ? { x: best.x, z: best.z, yaw: best.yaw } : null;
+  }
+
   public solidsHere(): Solids | null {
     if (this.world.interiorManager.isPlayerInside() || this.world.interiorManager.busy) return null;
     const city = this.world.cityManager.currentCityId;
@@ -1116,6 +1148,8 @@ export class Game {
     this.hud.interstateModal.currentOriginCityId = cityId;
     this.nameAirportHall(cityId);
     if (this.world.cityManager.currentCityId === cityId) return;
+    // A vehicle stays in the city it was left in: nobody arrives by air or coach still at its wheel
+    if (this.player.isDriving) this.exitVehicle();
 
     this.world.cityManager.switchCity(cityId, this.player, (newObjs) => {
       this.world.interactiveObjects = newObjs;

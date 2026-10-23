@@ -269,14 +269,43 @@ export class World {
   }
 
   /** A vehicle joins the city: it can be seen, walked up to and driven. */
-  public addVehicle(vehicle: DrivableVehicle, card: InteractiveObject): void {
-    this.vehicles.addDrivable(vehicle);
-    this.cityManager.addLagosInteractive(card);
+  /** A vehicle standing in a city: drawn with that city and clickable there. */
+  public addVehicle(vehicle: DrivableVehicle, card: InteractiveObject, city: string = 'lagos'): void {
+    vehicle.city = city;
+    if (city === 'lagos') {
+      this.vehicles.addDrivable(vehicle);
+      this.cityManager.addLagosInteractive(card);
+      return;
+    }
+    this.cityManager.ensure(city);
+    this.vehicles.addDrivable(vehicle, this.vehiclesIn(city));
+    this.cityManager.thingsIn(city).push(card);
+  }
+
+  /**
+   * Where the vehicles parked in a city other than Lagos are drawn: beside that city's own group,
+   * not inside it, so they are not taken for buildings when the city's solids are worked out.
+   * Shown whenever the city is (see the start of update).
+   */
+  private vehicleHolders = new Map<string, THREE.Group>();
+  private vehiclesIn(city: string): THREE.Group {
+    let holder = this.vehicleHolders.get(city);
+    if (!holder) {
+      holder = new THREE.Group();
+      holder.name = `vehicles in ${city}`;
+      this.scene.add(holder);
+      this.vehicleHolders.set(city, holder);
+    }
+    return holder;
   }
 
   public removeVehicle(vehicle: DrivableVehicle, card: InteractiveObject): void {
     this.vehicles.removeDrivable(vehicle);
-    this.cityManager.removeLagosInteractive(card);
+    for (const city of ['lagos', 'abuja', 'port_harcourt']) {
+      const list = this.cityManager.thingsIn(city);
+      const at = list.indexOf(card);
+      if (at >= 0) list.splice(at, 1);
+    }
   }
 
   /** Other things that stand in the city and answer to the plan: what players have built on their land. */
@@ -465,6 +494,11 @@ export class World {
   }
 
   public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3, player?: any): void {
+    // Vehicles parked in another city are drawn exactly when that city is
+    for (const [city, holder] of this.vehicleHolders) {
+      const group = city === 'abuja' ? this.cityManager.abujaCity?.group : this.cityManager.portHarcourtCity?.group;
+      holder.visible = !!group?.visible;
+    }
     // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day
     this.skyEnvironment.update(delta, playerPos);
 
@@ -491,12 +525,14 @@ export class World {
 
     if (this.cityManager.currentCityId === 'abuja') {
       this.cityManager.update(delta);
+      // The vehicles parked in Abuja are driven here like anywhere else
+      this.vehicles.updateDrivables(delta, keys, playerPos, 'abuja');
       this.weather.update(delta, playerPos);
       return;
     }
 
     // Update vehicle movements & drivable controls with distance culling
-    this.vehicles.update(delta, keys, playerPos);
+    this.vehicles.update(delta, keys, playerPos, this.cityManager.currentCityId);
 
     let frustum: THREE.Frustum | undefined;
     if (this.viewCamera) {
