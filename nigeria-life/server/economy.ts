@@ -13,8 +13,10 @@
  *   - Reported by the game (not yet verified), for the actions that still run in the browser.
  *     Spending is always accepted (it can only cost the player); money moved between the
  *     player's own cash and bank is accepted if it balances; earning is accepted only up to a
- *     limit in any ten minutes, and anything beyond is refused and raised as an alert. Each
- *     action moved to the server takes its earnings out of this path.
+ *     limit in any ten minutes. Anything beyond is held for the admin to look at and release:
+ *     not refused outright, because an honest sale of a plot can be worth more than the limit
+ *     and the seller must not lose both the plot and the money. Each action moved to the
+ *     server takes its earnings out of this path.
  *
  * Fast money of any kind raises an alert for the admin page.
  */
@@ -35,7 +37,7 @@ export interface Position {
   at: number;
 }
 
-type Result<T = object> = ({ ok: true; wallet: Wallet } & T) | { ok: false; reason: string; wallet?: Wallet };
+type Result<T = object> = ({ ok: true; wallet: Wallet } & T) | { ok: false; reason: string; wallet?: Wallet; held?: number };
 
 /** Earnings the game may report without the server checking them, in any ten minutes */
 export const UNVERIFIED_EARNING_LIMIT = 60_000;
@@ -131,8 +133,12 @@ export class Economy {
     if (net > 0) {
       const already = this.earnedSince(accountId, Date.now() - TEN_MINUTES, true);
       if (already + net > UNVERIFIED_EARNING_LIMIT) {
-        alert(this.db, accountId, 'unverified-earning-refused', `₦${net.toLocaleString()} for "${memo}" after ₦${already.toLocaleString()} in ten minutes`);
-        return { ok: false, reason: 'That money could not be paid just now.', wallet: this.wallet(accountId) };
+        if (this.db.prepare("SELECT 1 FROM held WHERE account_id = ? AND memo = ? AND status = 'waiting' AND at > ?").get(accountId, `${idem} ${memo}`, Date.now() - TEN_MINUTES)) {
+          return { ok: false, reason: 'That money is already waiting to be checked.', wallet: this.wallet(accountId) };
+        }
+        const held = this.db.prepare('INSERT INTO held (at, account_id, amount, memo) VALUES (?, ?, ?, ?)').run(Date.now(), accountId, net, `${idem} ${memo}`);
+        alert(this.db, accountId, 'earning-held', `₦${net.toLocaleString()} for "${memo}" after ₦${already.toLocaleString()} in ten minutes`);
+        return { ok: false, held: Number(held.lastInsertRowid), reason: `₦${net.toLocaleString()} is being checked and will reach you once it has been.`, wallet: this.wallet(accountId) };
       }
     }
     return this.apply(accountId, 'client', cash, bank, memo, false, idem);
@@ -235,6 +241,63 @@ export class Economy {
     if (!sent.ok || ('replay' in sent && sent.replay)) return sent;
     this.apply(toId, 'transfer-in', into === 'wallet' ? amount : 0, into === 'bank' ? amount : 0, `From ${fromId}: ${memo}`, true, `in:${idem}`);
     return sent;
+  }
+
+  public heldList(): unknown[] {
+    return this.db.prepare("SELECT id, at, account_id, amount, memo, status FROM held WHERE status = 'waiting' ORDER BY id").all();
+  }
+
+  /** The admin lets held money through (or not). Releasing pays it once. */
+  public decideHeld(id: number, release: boolean): Result {
+    const row = this.db.prepare("SELECT account_id, amount, memo FROM held WHERE id = ? AND status = 'waiting'").get(id) as { account_id: string; amount: number; memo: string } | undefined;
+    if (!row) return { ok: false, reason: 'Nothing waiting with that number.' };
+    this.db.prepare('UPDATE held SET status = ? WHERE id = ?').run(release ? 'released' : 'refused', id);
+    if (!release) return { ok: true, wallet: this.wallet(row.account_id) };
+    return this.apply(row.account_id, 'released', row.amount, 0, `Checked and released: ${row.memo.replace(/^\S+ /, '')}`, true, `held:${id}`);
+  }
+
+  /**
+   * Payments made through the registry (a sale completed, rent paid): taken from the payer and
+   * paid to whoever is owed, all of them or none, each once (keyed by its payout id).
+   */
+  public settlePayouts(moves: Array<{ payer: string; payee: string; pay: number; receive: number; memo: string; key: string }>): { ok: true } | { ok: false; reason: string } {
+    for (const m of moves) {
+      if (!Number.isInteger(m.pay) || !Number.isInteger(m.receive) || m.pay < 0 || m.receive < 0 || m.receive > m.pay) return { ok: false, reason: 'A payment in that change is not valid.' };
+    }
+    const changed = new Map<string, Wallet>();
+    try {
+      transaction(this.db, () => {
+        for (const m of moves) {
+          if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(m.payer, `${m.key}:out`)) continue;
+          const payer = this.wallet(m.payer);
+          // From the bank first, then the pocket, as the game pays
+          const fromBank = Math.min(payer.bank, m.pay);
+          const fromCash = m.pay - fromBank;
+          if (fromCash > payer.cash) throw new Error(`short:${m.memo}`);
+          const after = { cash: payer.cash - fromCash, bank: payer.bank - fromBank };
+          this.db
+            .prepare('INSERT INTO ledger (account_id, at, kind, cash_delta, bank_delta, cash_after, bank_after, verified, memo, idem) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)')
+            .run(m.payer, Date.now(), 'registry-out', -fromCash, -fromBank, after.cash, after.bank, m.memo, `${m.key}:out`);
+          this.db.prepare('UPDATE wallets SET cash = ?, bank = ? WHERE account_id = ?').run(after.cash, after.bank, m.payer);
+          changed.set(m.payer, after);
+          const payee = this.wallet(m.payee);
+          const got = { cash: payee.cash, bank: payee.bank + m.receive };
+          this.db
+            .prepare('INSERT INTO ledger (account_id, at, kind, cash_delta, bank_delta, cash_after, bank_after, verified, memo, idem) VALUES (?, ?, ?, 0, ?, ?, ?, 1, ?, ?)')
+            .run(m.payee, Date.now(), 'registry-in', m.receive, got.cash, got.bank, m.memo, `${m.key}:in`);
+          this.db.prepare('UPDATE wallets SET cash = ?, bank = ? WHERE account_id = ?').run(got.cash, got.bank, m.payee);
+          changed.set(m.payee, got);
+        }
+      });
+    } catch (error) {
+      const reason = String((error as Error).message ?? '');
+      return { ok: false, reason: reason.startsWith('short:') ? `There is not enough money for that (${reason.slice(6)}).` : 'The payment could not be made.' };
+    }
+    for (const [id, wallet] of changed) {
+      this.watchForFastMoney(id);
+      this.onChange(id, wallet);
+    }
+    return { ok: true };
   }
 
   public grant(accountId: string, amount: number, memo: string): Result {

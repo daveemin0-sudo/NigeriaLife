@@ -1,5 +1,7 @@
 // The world server: two separate browsers, standing in for two devices, share one land
-// registry and see each other, through a real server process started for the test.
+// registry and see each other, through a real server process started for the test. It is the
+// game server, which holds every player's money: players are given money for the test through
+// its admin page, as the game team would, not by editing the browser's copy.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,9 +10,10 @@ import { wait, newPlayer, closeDialogs, money, advance, GAME_URL } from './lib.m
 
 const PORT = 8700 + Math.floor(Math.random() * 200);
 const SERVER = `http://localhost:${PORT}`;
+const ADMIN = 'server-suite-admin';
 
 function startServer(dataDir) {
-  const child = spawn(process.execPath, ['server/world-server.mjs'], { env: { ...process.env, PORT: String(PORT), NL_DATA: dataDir, NL_KEY: '' }, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['server/world-server.mjs'], { env: { ...process.env, PORT: String(PORT), NL_DATA: dataDir, NL_KEY: '', NL_DEV: '1', NL_ADMIN_KEY: ADMIN }, stdio: 'ignore' });
   return child;
 }
 
@@ -37,7 +40,11 @@ async function join(browser, cash) {
   await page.waitForFunction('window.game && window.game.plotWorld', { timeout: 120000 });
   await wait(2500);
   await closeDialogs(page);
-  await page.evaluate((amount) => { const b = window.game.hud.backend; b.data.bank.balance = amount; b.saveData(); }, cash);
+  // Signed in to the server, then given money there so they hold `cash` in all
+  await page.waitForFunction(() => window.game.modules.OnlineAccount.get()?.wallet && window.game.modules.OnlineAccount.get()?.id, { timeout: 60000 });
+  const { id, total } = await page.evaluate(() => { const o = window.game.modules.OnlineAccount.get(); return { id: o.id, total: o.wallet.cash + o.wallet.bank }; });
+  await fetch(`${SERVER}/admin/grant`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nl-admin': ADMIN }, body: JSON.stringify({ id, amount: cash - total, memo: 'For the test' }) });
+  await page.waitForFunction((amount) => { const d = window.game.hud.backend.getData(); return d.walletCash + d.bank.balance === amount; }, { timeout: 20000 }, cash);
   return { ctx, page, errors };
 }
 
@@ -231,10 +238,11 @@ export async function run(browser, check) {
       };
     }, { free: FREE, taken: P2 });
     const seenByB = await until(b, (id) => { const g = window.game; const owner = g.land.ownerOf(id); return owner && g.land.building(id) ? { owner, type: g.land.building(id).typeId } : null; }, FREE);
-    check('a player who joins the server brings the land they own, the building going up on it and their vehicle, and keeps their money',
+    // Money in a local save is only the browser's word: a game server takes in at most ₦2,000,000 of it, once
+    check('a player who joins the server brings the land they own, the building going up on it and their vehicle, and their money up to the ₦2,000,000 a local save may bring',
       before.id === 'local:main' && arrived.id.startsWith('net:') && carried && carried !== 'nothing' && carried.plots.join() === FREE && carried.vehicles === 1
         && arrived.mine.join() === FREE && arrived.building && arrived.building.typeId === 'bungalow' && arrived.building.startedAt === before.started
-        && arrived.cars.join() === before.plate && arrived.money === before.money && seenByB && seenByB.owner === arrived.id && seenByB.type === 'bungalow', { carried, arrived: { ...arrived, building: arrived.building?.typeId } });
+        && arrived.cars.join() === before.plate && Math.abs(arrived.money - Math.min(before.money, 2_000_000)) <= 2 && seenByB && seenByB.owner === arrived.id && seenByB.type === 'bungalow', { carried, arrived: { ...arrived, building: arrived.building?.typeId } });
     check('a plot that already has an owner on the server stays behind in the browser, and what did come across is no longer there',
       carried.stayed.join() === P2 && arrived.takenOwner !== arrived.id && arrived.localTaken === 'local:main' && arrived.localFree === null && arrived.localCars === 0, { stayed: carried.stayed, localTaken: arrived.localTaken });
     await c.reload({ waitUntil: 'load', timeout: 120000 });

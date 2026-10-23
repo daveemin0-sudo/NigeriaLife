@@ -1,3 +1,4 @@
+import { newId } from '../utils/ids';
 import { profileKey } from '../backend/Profile';
 
 /**
@@ -57,7 +58,7 @@ function networkPlayerId(): string {
   const key = profileKey('nigeria_life_network_player_id');
   let id = localStorage.getItem(key);
   if (!id) {
-    id = `net:${crypto.randomUUID()}`;
+    id = `net:${newId()}`;
     localStorage.setItem(key, id);
   }
   return id;
@@ -67,10 +68,19 @@ export const NETWORK_PLAYER_ID = SERVER_URL ? networkPlayerId() : null;
 
 type Handler = (data: unknown) => void;
 
+/** The server answered, and said no (as opposed to not answering at all). */
+export class RefusedByServer extends Error {
+  public readonly status: number;
+  constructor(reason: string, status: number) {
+    super(reason);
+    this.status = status;
+  }
+}
+
 export class ServerLink {
   private static instance: ServerLink | null = null;
   /** One per running game, so the server knows which game a message came from */
-  public readonly clientId = crypto.randomUUID();
+  public readonly clientId = newId();
   public connected = false;
   private readonly handlers = new Map<string, Handler[]>();
   private outbox: unknown[] = [];
@@ -115,8 +125,16 @@ export class ServerLink {
     this.handlers.set(type, [...(this.handlers.get(type) ?? []), handler]);
   }
 
+  /** The player's sign-in on the game server, sent with registry changes so the server knows who pays: set by the game */
+  public static authorization: () => string | null = () => null;
+
+  private headers(json: boolean): Record<string, string> {
+    const auth = ServerLink.authorization();
+    return { ...(json ? { 'content-type': 'application/json' } : {}), ...(address.key ? { 'x-nl-key': address.key } : {}), ...(auth ? { authorization: `Bearer ${auth}` } : {}) };
+  }
+
   public async get<T>(path: string): Promise<T> {
-    const response = await fetch(`${this.url}${path}`, { headers: address.key ? { 'x-nl-key': address.key } : {}, cache: 'no-store' });
+    const response = await fetch(`${this.url}${path}`, { headers: this.headers(false), cache: 'no-store' });
     if (!response.ok) throw new Error(`world server said ${response.status}`);
     return (await response.json()) as T;
   }
@@ -124,10 +142,14 @@ export class ServerLink {
   public async post<T>(path: string, body: unknown): Promise<T> {
     const response = await fetch(`${this.url}${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...(address.key ? { 'x-nl-key': address.key } : {}) },
+      headers: this.headers(true),
       body: JSON.stringify(body),
     });
-    if (!response.ok) throw new Error(`world server said ${response.status}`);
+    if (!response.ok) {
+      // A refusal the server explains (not enough money for a sale, say) is passed on as it was said
+      const said = (await response.json().catch(() => null)) as { reason?: string } | null;
+      throw new RefusedByServer(said?.reason ?? `world server said ${response.status}`, response.status);
+    }
     return (await response.json()) as T;
   }
 

@@ -85,6 +85,14 @@ CREATE TABLE IF NOT EXISTS blocks (
   blocked TEXT NOT NULL,
   PRIMARY KEY (account_id, blocked)
 );
+CREATE TABLE IF NOT EXISTS held (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at INTEGER NOT NULL,
+  account_id TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  memo TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'waiting'   -- 'waiting' | 'released' | 'refused'
+);
 CREATE TABLE IF NOT EXISTS alerts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at INTEGER NOT NULL,
@@ -101,6 +109,10 @@ export function openStore(dataDir: string): Store {
   const db = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 2000;');
   db.exec(SCHEMA);
+  // Columns added after the first release of the schema
+  const columns = (db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>).map((c) => c.name);
+  if (!columns.includes('registry_id')) db.exec('ALTER TABLE accounts ADD COLUMN registry_id TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_registry ON accounts(registry_id) WHERE registry_id IS NOT NULL');
   return db;
 }
 

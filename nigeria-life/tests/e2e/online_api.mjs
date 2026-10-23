@@ -66,7 +66,7 @@ export async function run(_browser, check) {
     check('online: spending is taken, and the same report sent twice is paid once', spent.ok && spent.wallet.cash === 23000 && earned.wallet.cash === 53000 && again.ok && again.wallet.cash === 53000, { spent: spent.wallet, earned: earned.wallet, again: again.wallet });
     const tooMuch = await call('/money/report', { cash: 1_000_000_000, memo: 'devtools', idem: idem() }, ada.token);
     const overdraw = await call('/money/report', { cash: -10_000_000, memo: 'too dear', idem: idem() }, ada.token);
-    check('online: a billion naira from the game is refused, nothing goes below zero, and the wallet is unchanged', !tooMuch.ok && tooMuch.wallet.cash === 53000 && !overdraw.ok && overdraw.wallet.cash === 53000, { tooMuch, overdraw });
+    check('online: a billion naira from the game is not paid but held for checking, nothing goes below zero, and the wallet is unchanged', !tooMuch.ok && tooMuch.held > 0 && tooMuch.wallet.cash === 53000 && !overdraw.ok && overdraw.wallet.cash === 53000, { tooMuch, overdraw });
 
     // A job shift, checked by the server
     const a = await connect(ada.token);
@@ -155,7 +155,14 @@ export async function run(_browser, check) {
     const ledger = await call(`/admin/ledger?id=${ada.account.id}`, null, null, ADMIN);
     const alerts = stats.economy?.alerts?.map((x) => x.kind) ?? [];
     check('online: the admin API needs the key, counts verified accounts apart, and shows each ledger row with whether the server checked it', refusedAdmin.status === 403 && stats.accounts.verified === 1 && stats.accounts.all === 2 && ledger.ledger.some((l) => l.kind === 'shift' && l.verified === 1) && ledger.ledger.some((l) => l.kind === 'client' && l.verified === 0), { verified: stats.accounts, kinds: ledger.ledger.map((l) => l.kind) });
-    check('online: the refused billion and the too-fast shift were raised as alerts', alerts.includes('unverified-earning-refused') && alerts.includes('shift-too-fast'), alerts);
+    check('online: the held billion and the too-fast shift were raised as alerts', alerts.includes('earning-held') && alerts.includes('shift-too-fast'), alerts);
+    // An honest big sale held the same way is paid once when the admin releases it
+    const sale = await call('/money/report', { cash: 250000, memo: 'Sold a plot', idem: idem() }, bayo.token);
+    const bayoBefore = (await call('/me', null, bayo.token)).wallet.cash;
+    const released = await call('/admin/held', { held: sale.held, release: true }, null, ADMIN);
+    const releasedAgain = await call('/admin/held', { held: sale.held, release: true }, null, ADMIN);
+    const bayoAfter = (await call('/me', null, bayo.token)).wallet.cash;
+    check('online: held money the admin releases is paid once', sale.held > 0 && released.ok && !releasedAgain.ok && bayoAfter - bayoBefore === 250000, { sale, bayoBefore, bayoAfter });
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

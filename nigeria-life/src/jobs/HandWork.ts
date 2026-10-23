@@ -2,7 +2,8 @@ import type * as THREE from 'three';
 import type { Actor } from '../interactions/Actor';
 import type { PlaceHost } from '../destinations/PlaceActions';
 import { Sequence, steps } from '../interactions/Sequence';
-import { Employment } from './Employment';
+import { Employment, type WorkResult } from './Employment';
+import { OnlineAccount } from '../online/OnlineAccount';
 
 /**
  * Work that is done by hand at a place: someone in charge who takes people on, and a job of
@@ -13,6 +14,11 @@ import { Employment } from './Employment';
  * rest the same way everywhere: being taken on, the terms, the walk with each thing in the
  * hands, being paid once when the last is down and not at all if the worker walks off, and
  * moving up a grade as the work adds up. The record of it all is `Employment`.
+ *
+ * On a game server the server checks and pays the work: it is told when the work starts (and
+ * refuses if the player is not taken on or not at the workplace), and when the last thing is
+ * down it times the work by its own clock, checks the player is still there, and pays from its
+ * own record of their grade. The game then shows what the server paid.
  */
 
 export interface HandWorkWords {
@@ -95,6 +101,19 @@ export function createHandWork(options: HandWorkOptions): HandWork {
     options.began?.();
     const work = new Sequence(options.name, [actor]);
     work.maxSeconds = options.maxSeconds ?? 150;
+    const online = OnlineAccount.get();
+    let shift: string | null = null;
+    if (online) {
+      work.add(steps.settle(`${words.theBoss} notes the start`, async () => {
+        const started = await online.startWork(id);
+        if (!started.ok || !started.shift) {
+          host.say(started.reason ?? `${capital(words.theBoss)} cannot start you just now.`, 'warning');
+          return false;
+        }
+        shift = started.shift;
+        return true;
+      }));
+    }
     for (let i = 0; i < options.count; i++) {
       const from = options.lift(i);
       const to = options.set(i);
@@ -114,8 +133,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       );
     }
     // Paid when the last thing is down, and only then
-    work.add(steps.call(`paid for the ${words.piece}`, () => {
-      const result = jobs.complete(id);
+    const announce = (result: WorkResult): boolean => {
       if (!result.ok) {
         host.say(result.reason ?? `${capital(words.theBoss)} will not pay for that.`, 'warning');
         return false;
@@ -124,7 +142,17 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       host.say(result.promoted
         ? `${capital(words.theBoss)} pays you ₦${result.pay!.toLocaleString()} and makes you ${result.promoted.title.toLowerCase()}: ₦${result.promoted.pay.toLocaleString()} a ${words.piece} from now on.`
         : `${capital(words.theBoss)} pays you ₦${result.pay!.toLocaleString()} for the ${words.piece}. Energy -${effort}%.`, 'success');
-    }));
+      return true;
+    };
+    if (online) {
+      work.add(steps.settle(`paid for the ${words.piece}`, async () => {
+        const finished = await online.finishWork(shift ?? '');
+        if (!finished.ok) return announce({ ok: false, reason: finished.reason });
+        return announce(jobs.settledByServer(id, finished.pay ?? rate(), finished.done ?? 0));
+      }));
+    } else {
+      work.add(steps.call(`paid for the ${words.piece}`, () => announce(jobs.complete(id))));
+    }
     work.onEnd((reason) => {
       working = false;
       options.ended(reason === 'done', host);

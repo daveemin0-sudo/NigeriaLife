@@ -190,6 +190,30 @@ export class Accounts {
     });
   }
 
+  /**
+   * The player this account is in the ownership registry. Bound once: the first registry id an
+   * account brings is its own for good, and no other account can take it. Signing in on another
+   * device returns the one already bound, which that device then uses.
+   */
+  public bindRegistry(account: Account, raw: unknown): { ok: true; id: string } | { ok: false; reason: string } {
+    const r = this.db.prepare('SELECT registry_id FROM accounts WHERE id = ?').get(account.id) as { registry_id: string | null } | undefined;
+    if (r?.registry_id) return { ok: true, id: r.registry_id };
+    const id = String(raw ?? '');
+    if (!/^net:[0-9a-f-]{36}$/.test(id)) return { ok: false, reason: 'That is not a player of the registry.' };
+    if (this.db.prepare('SELECT 1 FROM accounts WHERE registry_id = ?').get(id)) return { ok: false, reason: 'That player belongs to another account.' };
+    this.db.prepare('UPDATE accounts SET registry_id = ? WHERE id = ?').run(id, account.id);
+    return { ok: true, id };
+  }
+
+  public byRegistry(id: string): Account | null {
+    const r = this.db.prepare('SELECT id FROM accounts WHERE registry_id = ?').get(id) as { id: string } | undefined;
+    return r ? this.row(r.id) : null;
+  }
+
+  public registryOf(account: Account): string | null {
+    return (this.db.prepare('SELECT registry_id FROM accounts WHERE id = ?').get(account.id) as { registry_id: string | null } | undefined)?.registry_id ?? null;
+  }
+
   public rename(account: Account, rawName: unknown): Account | null {
     const name = cleanName(rawName);
     if (!name) return null;

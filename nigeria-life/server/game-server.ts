@@ -25,8 +25,8 @@ import { openStore } from './store.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
-const DATA_DIR = process.env.NL_DATA || path.join(here, 'data');
-const STATIC_DIR = process.env.NL_STATIC || path.join(here, '..', 'dist');
+const DATA_DIR = path.resolve(process.env.NL_DATA || path.join(here, 'data'));
+const STATIC_DIR = path.resolve(process.env.NL_STATIC || path.join(here, '..', 'dist'));
 const ROOM_KEY = process.env.NL_KEY || '';
 const ADMIN_KEY = process.env.NL_ADMIN_KEY || '';
 const DEV = process.env.NL_DEV === '1';
@@ -46,6 +46,52 @@ const server = http.createServer((req, res) => void route(req, res));
 const rooms = new Rooms(server, accounts, db);
 const economy = new Economy(db, (id) => rooms.positionOf(id));
 economy.onChange = (id, wallet) => rooms.tell(id, { type: 'wallet', wallet });
+
+/** The share of a sale's price the market keeps: as the game (src/realestate/AssetMarket.ts) */
+const SALE_FEE_RATE = 0.02;
+
+/**
+ * A registry change that writes new payouts (a sale completed, rent paid) moves real money: the
+ * server takes it from the player who sent the change and pays whoever is owed, then marks the
+ * payouts paid in the document it keeps, so nobody's game claims them again.
+ */
+registry.onCommit = (beforeText, afterText, req) => {
+  type Doc = { payouts?: Record<string, { id: string; toId: string; amount: number; reason: string; saleId?: string; claimedAt?: number; settledBy?: string }>; sales?: Array<{ id: string; buyerId: string; sellerId: string; price: number }> };
+  let before: Doc;
+  let after: Doc;
+  try {
+    before = beforeText ? JSON.parse(beforeText) : {};
+    after = JSON.parse(afterText);
+  } catch {
+    return { reason: 'That change could not be read.' };
+  }
+  const fresh = Object.values(after.payouts ?? {}).filter((p) => !before.payouts?.[p.id]);
+  if (fresh.length === 0) return { text: afterText };
+  const sender = accounts.authenticate(tokenOf(req));
+  const senderId = sender ? accounts.registryOf(sender) : null;
+  if (!sender || !senderId) return { reason: 'Sign in to buy, sell or pay rent.' };
+  const moves = [];
+  for (const payout of fresh) {
+    const payee = accounts.byRegistry(String(payout.toId));
+    if (!payee) return { reason: 'The one being paid has no account on this server.' };
+    const amount = Math.trunc(Number(payout.amount));
+    let pay = amount;
+    if (payout.saleId) {
+      const sale = after.sales?.find((s) => s.id === payout.saleId);
+      if (!sale || sale.buyerId !== senderId || sale.sellerId !== payout.toId) return { reason: 'That sale is not the sender\'s to complete.' };
+      pay = Math.trunc(Number(sale.price));
+      if (amount !== pay - Math.round(pay * SALE_FEE_RATE)) return { reason: 'The amount paid for that sale is not right.' };
+    }
+    moves.push({ payer: sender.id, payee: payee.id, pay, receive: amount, memo: String(payout.reason ?? 'Payment').slice(0, 120), key: `payout:${payout.id}` });
+  }
+  const settled = economy.settlePayouts(moves);
+  if (!settled.ok) return { reason: settled.reason };
+  for (const payout of fresh) {
+    after.payouts![payout.id].claimedAt = Date.now();
+    after.payouts![payout.id].settledBy = 'server';
+  }
+  return { text: JSON.stringify(after) };
+};
 /** Money requests from one account: plenty for play, too few to hammer the server */
 const moneyRate = new RateLimit(120, 60_000);
 
@@ -86,8 +132,8 @@ const tokenOf = (req: http.IncomingMessage) => String(req.headers.authorization 
 function serveStatic(res: http.ServerResponse, pathname: string): boolean {
   if (!fs.existsSync(STATIC_DIR)) return false;
   const safe = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
-  let file = path.join(STATIC_DIR, safe);
-  if (!file.startsWith(STATIC_DIR)) return false;
+  let file = path.resolve(STATIC_DIR, `.${path.sep}${safe}`);
+  if (file !== STATIC_DIR && !file.startsWith(STATIC_DIR + path.sep)) return false;
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(STATIC_DIR, 'index.html');
   if (!fs.existsSync(file)) return false;
   const types: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
@@ -169,6 +215,10 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
   switch (`${req.method} ${url.pathname}`) {
     case 'GET /me':
       return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id) });
+    case 'POST /me/registry': {
+      const bound = accounts.bindRegistry(account, body.id);
+      return reply(res, bound.ok ? 200 : 409, bound);
+    }
     case 'POST /me/name': {
       const renamed = accounts.rename(account, body.name);
       return renamed ? reply(res, 200, { ok: true, account: renamed }) : reply(res, 400, { ok: false, reason: 'A name is 2 to 20 letters or numbers.' });
@@ -224,6 +274,12 @@ async function admin(req: http.IncomingMessage, res: http.ServerResponse, url: U
     case 'POST /admin/mute':
       accounts.mute(id, Math.max(0, Math.min(60 * 24 * 30, Number(body.minutes) || 60)));
       return reply(res, 200, { ok: true });
+    case 'GET /admin/held':
+      return reply(res, 200, { ok: true, held: economy.heldList() });
+    case 'POST /admin/held': {
+      const result = economy.decideHeld(Number(body.held), body.release !== false);
+      return reply(res, result.ok ? 200 : 409, result);
+    }
     case 'POST /admin/grant': {
       const result = economy.grant(id, Number(body.amount) || 0, String(body.memo ?? ''));
       return reply(res, result.ok ? 200 : 409, result);

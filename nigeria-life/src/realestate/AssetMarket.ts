@@ -1,3 +1,4 @@
+import { OnlineAccount } from '../online/OnlineAccount';
 import { BackendService } from '../backend/BackendService';
 import { Registry, MY_ID } from './Registry';
 import {
@@ -393,7 +394,9 @@ export class AssetMarket {
       if (this.funds() < price) return abandon(`You have ${naira(this.funds())} in all, which does not cover the agreed ${naira(price)}.`);
 
       const what = this.describe(negotiation.asset);
-      const paid = this.backend.processTransaction({ type: 'ASSET_PURCHASE', amount: price, description: `Bought ${what} from ${state.players[listing.sellerId]?.name ?? 'another player'}`, source: 'bank', funding: 'split' });
+      // On a game server the server takes this from the buyer and pays the seller when the change is kept
+      const buy = () => this.backend.processTransaction({ type: 'ASSET_PURCHASE', amount: price, description: `Bought ${what} from ${state.players[listing.sellerId]?.name ?? 'another player'}`, source: 'bank', funding: 'split' });
+      const paid = OnlineAccount.get() ? this.backend.settledByServer(buy) : buy();
       if (!paid.success) return abandon('The payment did not go through.');
 
       const fee = Math.round(price * SALE_FEE_RATE);

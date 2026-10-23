@@ -27,6 +27,11 @@ export class Registry {
   private waiting: Array<{ client: string; grant: (token: string | null) => void; timer: NodeJS.Timeout }> = [];
   private listeners = new Map<string, http.ServerResponse>();
   private corsHeaders: Record<string, string>;
+  /**
+   * Asked before a change is kept, with who sent it: returns the document to keep (it may mark
+   * payouts as paid), or a reason to refuse the change.
+   */
+  public onCommit: (before: string, after: string, req: http.IncomingMessage) => { text: string } | { reason: string } = (_b, after) => ({ text: after });
 
   constructor(dataDir: string, corsHeaders: Record<string, string>) {
     this.dataDir = dataDir;
@@ -126,12 +131,19 @@ export class Registry {
       }
       if (typeof body.text === 'string' && body.text !== this.registry.text) {
         JSON.parse(body.text);
-        this.registry = { text: body.text, version: this.registry.version + 1 };
+        const verdict = this.onCommit(this.registry.text, body.text, req);
+        if ('reason' in verdict) {
+          this.release(String(body.token));
+          reply(res, 409, { ok: false, reason: verdict.reason });
+          return true;
+        }
+        this.registry = { text: verdict.text, version: this.registry.version + 1 };
         this.persist();
         this.broadcast('registry', { version: this.registry.version });
       }
       this.release(String(body.token));
-      reply(res, 200, { ok: true, version: this.registry.version });
+      // If the server changed what it keeps (payments settled), the game is given that copy
+      reply(res, 200, { ok: true, version: this.registry.version, text: typeof body.text === 'string' && body.text !== this.registry.text ? this.registry.text : undefined });
     } else if (req.method === 'POST' && url.pathname === '/net') {
       const body = await readBody(req);
       if (Array.isArray(body.packets)) {

@@ -310,6 +310,33 @@ export const steps = {
     return { name, tick: () => (run() === false ? 'fail' : true) };
   },
 
+  /**
+   * Wait for something that takes its own time (an answer from the game server, say) without
+   * holding up the frame. It is asked once when the step begins; resolving false, failing or
+   * taking longer than the timeout aborts the sequence.
+   */
+  settle(name: string, work: () => Promise<boolean>, timeoutSeconds = 15): Step {
+    let state: 'waiting' | 'done' | 'failed' = 'waiting';
+    let elapsed = 0;
+    return {
+      name,
+      begin() {
+        state = 'waiting';
+        elapsed = 0;
+        work().then(
+          (ok) => (state = ok ? 'done' : 'failed'),
+          () => (state = 'failed')
+        );
+      },
+      tick(delta) {
+        if (state === 'done') return true;
+        if (state === 'failed') return 'fail';
+        elapsed += delta;
+        return elapsed >= timeoutSeconds ? 'fail' : false;
+      },
+    };
+  },
+
   wait(seconds: number): Step {
     let elapsed = 0;
     return {

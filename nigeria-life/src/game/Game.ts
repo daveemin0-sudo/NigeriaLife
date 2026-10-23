@@ -60,6 +60,7 @@ import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
 import { GraphicsQuality } from '../graphics/GraphicsQuality';
+import { OnlineAccount } from '../online/OnlineAccount';
 import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
 import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
@@ -106,7 +107,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -518,7 +519,20 @@ export class Game {
       leave: () => this.hud.onExitInterior?.(),
     });
 
-    // 10. Multiplayer & Street Chat
+    // 10. Multiplayer & Street Chat. On a game server the player has an account there first: the
+    // server holds their money from now on, and the city's players are reached through it
+    const backend = BackendService.getInstance();
+    const start = backend.getData();
+    const online = OnlineAccount.start({ name: start.username, save: { cash: start.walletCash, bank: start.bank.balance } });
+    if (online) {
+      backend.authority = { report: (cash, bank, memo) => online.report(cash, bank, memo) };
+      online.on('wallet', (wallet) => backend.applyServerWallet(wallet));
+      online.on('notice', (text) => showGameToast(String(text), 'warning', 5200));
+      ServerLink.authorization = () => online.authorization;
+      Registry.onRefused = () => online.resync();
+      online.on('signed-in', (event) => showGameToast(event.upgraded ? 'Your progress is kept on your email address now.' : `Signed in as ${event.account.name}.`, 'success'));
+    }
+    NetworkManager.city = () => this.world.cityManager.currentCityId;
     this.network = new NetworkManager(this.scene, this.player);
     this.chatBox = new ChatBox(this.network);
     this.network.setOnPlayerCount((count) => this.hud.updateOnlineCount(count));

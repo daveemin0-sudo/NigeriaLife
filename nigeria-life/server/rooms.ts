@@ -52,6 +52,7 @@ interface Client {
   city: string;
   instance: string;
   state: NetState | null;
+  stateText: string;
   /** When this player's state last changed */
   changed: number;
   /** Who this player can see, and when each was last sent to them */
@@ -146,7 +147,7 @@ export class Rooms {
       old.ws.close(4001, 'Signed in somewhere else');
     }
     const city = 'lagos';
-    const client: Client = { ws, account, city, instance: this.place(account.id, city), state: null, changed: 0, seen: new Map(), chats: [], distrustUntil: 0, jumps: [], position: null };
+    const client: Client = { ws, account, city, instance: this.place(account.id, city), state: null, stateText: '', changed: 0, seen: new Map(), chats: [], distrustUntil: 0, jumps: [], position: null };
     this.clients.set(account.id, client);
     this.send(client, { type: 'welcome', id: account.id, name: account.name, verified: account.verified, instance: client.instance });
 
@@ -199,6 +200,7 @@ export class Rooms {
       case 'leave':
         this.leaveInstance(c);
         c.state = null;
+        c.stateText = '';
         return;
     }
   }
@@ -235,9 +237,14 @@ export class Rooms {
       c.seen.clear();
       this.send(c, { type: 'welcome', id: c.account.id, name: c.account.name, verified: c.account.verified, instance: c.instance });
     }
-    // The server's id and name, whatever the game sent
-    c.state = { ...player, id: c.account.id, name: c.account.name, city, place };
-    c.changed = now;
+    // The server's id and name, whatever the game sent; others are only sent it again if it changed
+    const state = { ...player, id: c.account.id, name: c.account.name, city, place };
+    const text = JSON.stringify(state);
+    if (text !== c.stateText) {
+      c.state = state;
+      c.stateText = text;
+      c.changed = now;
+    }
   }
 
   private chat(c: Client, message: { text?: unknown; scope?: unknown; id?: unknown } | undefined): void {

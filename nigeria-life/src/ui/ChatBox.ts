@@ -88,10 +88,13 @@ export class ChatBox {
     }
     const msgEl = document.createElement('div');
     msgEl.className = `chat-msg ${isSelf ? 'msg-self' : 'msg-remote'}`;
+    // Everything that came from another player is escaped, the name included
+    const at = new Date(msg.timestamp);
+    const time = Number.isNaN(at.getTime()) ? msg.timestamp : at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     msgEl.innerHTML = `
-      <span class="msg-sender">${msg.senderName}:</span>
-      <span class="msg-text">${this.escapeHtml(msg.text)}</span>
-      <span class="msg-time">${msg.timestamp}</span>
+      <span class="msg-sender">${this.escapeHtml(String(msg.senderName))}:</span>
+      <span class="msg-text">${this.escapeHtml(String(msg.text))}</span>
+      <span class="msg-time">${this.escapeHtml(String(time))}</span>
     `;
 
     this.messageListEl.appendChild(msgEl);
@@ -99,6 +102,6 @@ export class ChatBox {
   }
 
   private escapeHtml(str: string): string {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 }

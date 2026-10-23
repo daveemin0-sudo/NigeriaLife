@@ -7,6 +7,7 @@ import { showGameToast } from '../ui/GameToast';
 import type { EmoteType } from '../player/CharacterCustomization';
 import { InteriorManager } from '../interiors/InteriorManager';
 import { ServerLink } from '../realestate/ServerLink';
+import { OnlineAccount } from '../online/OnlineAccount';
 
 /** How games reach each other: a channel between tabs of one browser, or the world server between devices. */
 interface Wire {
@@ -14,7 +15,13 @@ interface Wire {
   onmessage: ((event: { data: NetPacket }) => void) | null;
 }
 
-function openWire(link: ServerLink | null): Wire {
+function openWire(link: ServerLink | null, online: OnlineAccount | null): Wire {
+  // On a game server: one WebSocket, the server choosing who sees what
+  if (online) {
+    const wire: Wire = { postMessage: (packet) => online.send(packet), onmessage: null };
+    online.on('packet', (packet) => wire.onmessage?.({ data: packet as NetPacket }));
+    return wire;
+  }
   if (!link) return new BroadcastChannel('nigeria_life_broad_st_v1') as unknown as Wire;
   const wire: Wire = { postMessage: (packet) => link.relay(packet), onmessage: null };
   link.on('net', (packet) => wire.onmessage?.({ data: packet as NetPacket }));
@@ -38,18 +45,32 @@ export class NetworkManager {
   /** Transfers already paid in, so the same one arriving twice is only counted once */
   private receivedTransfers = new Set<string>();
 
+  /** The city the player is in, for the server's rooms: set by the game */
+  public static city: () => string = () => 'lagos';
+  private online: OnlineAccount | null;
+
   constructor(scene: THREE.Scene, localPlayer: Player) {
     NetworkManager.instance = this;
     this.scene = scene;
     this.localPlayer = localPlayer;
     const link = ServerLink.get();
+    this.online = OnlineAccount.get();
     // On a server, a game's id is the one the server knows it by, so the server can say when it has gone
-    this.localId = link ? `net_${link.clientId.slice(0, 8)}` : `naija_${Math.random().toString(36).substring(2, 8)}`;
+    this.localId = this.online?.id ?? (link ? `net_${link.clientId.slice(0, 8)}` : `naija_${Math.random().toString(36).substring(2, 8)}`);
 
-    // Between tabs of this browser, or through the world server to other devices
-    this.channel = openWire(link);
+    // Between tabs of this browser, through the game server's rooms, or the old relay to other devices
+    this.channel = openWire(link, this.online);
     this.channel.onmessage = (event) => this.handleMessage(event as MessageEvent);
-    if (link) {
+    if (this.online) {
+      // The server says who this player is, and announces money other players send
+      this.online.on('welcome', (message) => {
+        this.localId = message.id;
+        this.broadcastJoin();
+      });
+      this.online.on('transfer', (message) => {
+        showGameToast(`+₦${Number(message.amount).toLocaleString()} from @${message.fromName}${message.memo ? ` (${message.memo})` : ''}`, 'success');
+      });
+    } else if (link) {
       // A game that closed without saying goodbye
       link.on('gone', (data) => this.handleMessage({ data: { type: 'leave', id: `net_${String((data as { client?: string }).client ?? '').slice(0, 8)}` } } as MessageEvent));
       // Joined, or back in touch: say who is here
@@ -65,6 +86,13 @@ export class NetworkManager {
     window.addEventListener('beforeunload', () => {
       this.broadcastLeave();
     });
+  }
+
+  /** Players this one has blocked: whatever still arrives from them is not shown */
+  private blocked = new Set<string>();
+
+  public blockLocally(id: string): void {
+    this.blocked.add(id);
   }
 
   public static getInstance(): NetworkManager | null {
@@ -135,6 +163,7 @@ export class NetworkManager {
         }
       }
     } else if (packet.type === 'chat') {
+      if (this.blocked.has(packet.message.senderId)) return;
       if (this.remotePlayers.has(packet.message.senderId)) {
         const remote = this.remotePlayers.get(packet.message.senderId)!;
         remote.showSpeechBubble(packet.message.text);
@@ -149,6 +178,8 @@ export class NetworkManager {
         showGameToast(`💬 @${packet.fromName}: ${String(packet.text).slice(0, 60)}`, 'info', 3600);
       }
     } else if (packet.type === 'p2p_transfer') {
+      // On a game server money only moves through the server
+      if (this.online) return;
       if (packet.transfer.recipientId === this.localId && !this.receivedTransfers.has(packet.transfer.id)) {
         this.receivedTransfers.add(packet.transfer.id);
         const received = BackendService.getInstance().processTransaction({
@@ -193,6 +224,7 @@ export class NetworkManager {
       isMoving: this.localPlayer.isMoving,
       currentEmote: this.localPlayer.currentEmote,
       config: this.localPlayer.config,
+      city: NetworkManager.city(),
       place: InteriorManager.getInstance().currentInterior?.id,
       driving: this.localPlayer.isDriving && this.localPlayer.currentVehicle
         ? {
@@ -268,6 +300,14 @@ export class NetworkManager {
     if (recipientId === this.localId) return { success: false, message: 'You cannot send money to yourself.' };
     if (!Number.isInteger(amount) || amount <= 0) return { success: false, message: 'Enter a whole amount to send.' };
 
+    // On a game server the server moves it, once, from one account to the other
+    if (this.online) {
+      void this.online.sendMoney(recipientId, amount, from, memo).then((result) => {
+        showGameToast(result.ok ? `Sent ₦${amount.toLocaleString()} to @${recipient.name}.` : result.reason ?? 'The money was not sent.', result.ok ? 'success' : 'warning');
+      });
+      return { success: true, message: `Sending ₦${amount.toLocaleString()} to @${recipient.name}…` };
+    }
+
     const backend = BackendService.getInstance();
     const paid = backend.processTransaction({
       type: 'TRANSFER_OUT',
@@ -304,6 +344,7 @@ export class NetworkManager {
     if (!this.remotePlayers.has(recipientId)) {
       return { success: false, message: `@${recipientId} is not online. No money was sent.` };
     }
+    if (this.online) return this.sendTransfer(recipientId, amount, memo, 'wallet');
 
     const backend = BackendService.getInstance();
     const success = backend.spendCash(amount, `P2P Transfer to @${recipientId}`, 'TRANSFER_OUT');

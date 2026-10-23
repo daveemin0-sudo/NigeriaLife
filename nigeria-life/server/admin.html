@@ -44,6 +44,11 @@
   <div id="player" class="muted"></div>
 </section>
 <section>
+  <h2>Money waiting to be checked</h2>
+  <p class="muted">Earnings the game reported above the limit for unchecked money. Release pays it once.</p>
+  <table id="held"></table>
+</section>
+<section>
   <h2>Alerts</h2>
   <table id="alerts"></table>
 </section>
@@ -76,6 +81,9 @@
         <div class="stat"><b>${naira(s.economy.lastHour.earned)}</b>earned in the last hour<div class="muted">${naira(s.economy.lastHour.spent)} spent</div></div>
         <div class="stat">instances<div class="muted">${instances}</div></div>`;
       $('alerts').innerHTML = '<tr><th>When</th><th>Account</th><th>Kind</th><th>Detail</th></tr>' + s.economy.alerts.map((a) => `<tr><td>${when(a.at)}</td><td>${esc(a.account_id)}</td><td>${esc(a.kind)}</td><td>${esc(a.detail)}</td></tr>`).join('');
+      const h = await call('/admin/held');
+      $('held').innerHTML = '<tr><th>When</th><th>Account</th><th>Amount</th><th>Why</th><th></th></tr>' + h.held.map((x) => `<tr><td>${when(x.at)}</td><td>${esc(x.account_id)}</td><td>${naira(x.amount)}</td><td>${esc(String(x.memo).replace(/^\S+ /, ''))}</td><td><button data-held="${x.id}" data-release="1">Release</button> <button class="bad" data-held="${x.id}" data-release="0">Refuse</button></td></tr>`).join('');
+      for (const btn of document.querySelectorAll('[data-held]')) btn.onclick = async () => { await call('/admin/held', { held: Number(btn.dataset.held), release: btn.dataset.release === '1' }); load(); };
       const r = await call('/admin/reports');
       $('reports').innerHTML = '<tr><th>When</th><th>From</th><th>About</th><th>Why</th><th>Said</th></tr>' + r.reports.map((x) => `<tr><td>${when(x.at)}</td><td>${esc(x.reporter)}</td><td>${esc(x.reported)}</td><td>${esc(x.reason)}</td><td><pre>${esc(x.context)}</pre></td></tr>`).join('');
       $('status').textContent = 'Updated ' + new Date().toLocaleTimeString();

@@ -1,3 +1,4 @@
+import { OnlineAccount } from '../online/OnlineAccount';
 import { BackendService } from '../backend/BackendService';
 import { cannotBuild, type Rect, type Zone } from '../world/plan/CityPlan';
 import { AssetMarket, type AssetProvider } from './AssetMarket';
@@ -363,7 +364,9 @@ export class Land {
       if (from + MS_PER_RENT_WEEK > now + MAX_WEEKS_AHEAD * MS_PER_RENT_WEEK) return fail(`Rent can be paid up to ${MAX_WEEKS_AHEAD} weeks ahead.`);
       const rent = tenancy.rentPerWeek;
       if (this.market.funds() < rent) return fail(`The rent is ${naira(rent)} a week and you have ${naira(this.market.funds())} in all.`);
-      const paid = this.backend.processTransaction({ type: 'RENT_PAYMENT', amount: rent, description: `A week's rent for the ${built.type.name.toLowerCase()} at ${this.plot(plotId)?.name ?? 'a plot'}`, source: 'bank', funding: 'split' });
+      // On a game server the server takes the rent from the tenant and pays the owner when the change is kept
+      const payRent = () => this.backend.processTransaction({ type: 'RENT_PAYMENT', amount: rent, description: `A week's rent for the ${built.type.name.toLowerCase()} at ${this.plot(plotId)?.name ?? 'a plot'}`, source: 'bank', funding: 'split' });
+      const paid = OnlineAccount.get() ? this.backend.settledByServer(payRent) : payRent();
       if (!paid.success) return fail('The payment did not go through, so nothing was rented.');
 
       if (!sitting) {

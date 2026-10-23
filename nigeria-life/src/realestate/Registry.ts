@@ -1,6 +1,6 @@
 import { BackendService } from '../backend/BackendService';
 import { PROFILE_ID } from '../backend/Profile';
-import { ServerLink, NETWORK_PLAYER_ID } from './ServerLink';
+import { ServerLink, NETWORK_PLAYER_ID, RefusedByServer } from './ServerLink';
 import { emptyRegistry, type RegistryState } from './types';
 
 /**
@@ -271,10 +271,12 @@ export class Registry {
       const undo = BackendService.getInstance().checkpoint();
       const result = change(state);
       if (refused(result)) {
+        undo.keep();
         this.cache = parse(before);
         return { result, toKeep: null };
       }
       const changed = JSON.stringify(state) !== before;
+      undo.keep();
       let toKeep: Kept | null = null;
       if (changed) {
         state.rev = Math.max(state.rev ?? 0, kept?.rev ?? 0) + 1;
@@ -333,21 +335,34 @@ export class Registry {
       throw error;
     }
 
-    const text = refused(result) ? null : JSON.stringify(state);
+    let text = refused(result) ? null : JSON.stringify(state);
+    let kept = state;
     try {
-      await link.post('/commit', { token: granted.token, text });
-    } catch {
+      const done = await link.post<{ text?: string }>('/commit', { token: granted.token, text });
+      // The server may have settled payments in it (a game server marks payouts paid): keep its copy
+      if (text !== null && typeof done.text === 'string') {
+        text = done.text;
+        kept = parse(done.text);
+      }
+    } catch (error) {
       // The server never took the change: put this player's account back as it was
       undo();
+      Registry.onRefused?.();
+      if (error instanceof RefusedByServer && error.status === 409 && !/took too long/.test(error.message)) return { ok: false, reason: error.message } as T;
       return OFFLINE as T;
     }
+    // Kept by the server: now the money that moved with it can be told
+    undo.keep();
     if (text !== null && text !== this.cachedText) {
       this.cachedText = text;
-      this.cache = state;
+      this.cache = kept;
       this.tell();
     }
     return result;
   }
+
+  /** Called when the server refused a change, so the game can show the money as the server holds it again */
+  public static onRefused: (() => void) | null = null;
 
   /** A new id that no other record in the registry has. Call inside `transact`. */
   public static nextId(state: RegistryState, prefix: string): string {

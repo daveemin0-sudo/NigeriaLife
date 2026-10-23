@@ -23,6 +23,7 @@ import { QuestModal } from './QuestModal';
 import type { StoryQuest } from '../quests/QuestTypes';
 import { CloudSyncService } from '../backend/CloudSyncService';
 import { NetworkManager } from '../multiplayer/NetworkManager';
+import { OnlineAccount } from '../online/OnlineAccount';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
 import { emitGameEvent } from '../game/GameEvents';
@@ -399,6 +400,8 @@ export class HUD {
           <button class="card-social-btn" id="card-shake-btn" style="display: none;">🤝 Shake hands</button>
           <button class="card-social-btn" id="card-chat-btn" style="display: none;">💬 Chat</button>
           <button class="card-social-btn" id="card-sit-btn" style="display: none;">🪑 Sit together</button>
+          <button class="card-social-btn" id="card-block-btn" style="display: none;">🚫 Block</button>
+          <button class="card-social-btn" id="card-report-btn" style="display: none;">⚑ Report</button>
         </div>
       </div>
 
@@ -495,6 +498,33 @@ export class HUD {
     social('card-greet-btn', 'greet');
     social('card-shake-btn', 'handshake');
     social('card-chat-btn', 'chat');
+
+    // Another player online: stop hearing from them, or tell the game team about them
+    const safety = (buttonId: string, run: (online: OnlineAccount, id: string, name: string) => Promise<string>) => {
+      document.getElementById(buttonId)?.addEventListener('click', async () => {
+        const obj = this.currentActiveObject;
+        const online = OnlineAccount.get();
+        this.hideInteractionCard();
+        if (!obj || !online || !obj.id.startsWith('remote_player_')) return;
+        this.showNotification(await run(online, obj.id.replace('remote_player_', ''), obj.name));
+      });
+    };
+    safety('card-block-btn', async (online, id, name) => {
+      const done = await online.block(id);
+      if (!done.ok) return 'That did not go through. Try again.';
+      NetworkManager.getInstance()?.blockLocally(id);
+      return `You will not hear from ${name} again.`;
+    });
+    safety('card-report-btn', async (online, id, name) => {
+      // What they said lately goes with the report, so the game team can see it
+      const said = [...document.querySelectorAll('.chat-msg')]
+        .map((el) => el.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+        .filter((line) => line.startsWith(`${name}:`))
+        .slice(-10)
+        .join(' / ');
+      const done = await online.reportPlayer(id, 'Reported from their card', said);
+      return done.ok ? `${name} has been reported. The game team will look at it.` : 'The report did not go through. Try again.';
+    });
 
     document.getElementById('card-sit-btn')?.addEventListener('click', () => {
       const obj = this.currentActiveObject;
@@ -1769,6 +1799,8 @@ export class HUD {
     show('card-shake-btn', !!person && cannotShakeHands(this.player.actor, person, { nav: this.world?.interiorManager.isPlayerInside() ? this.world.interiorManager.getActiveNav() : null }) === null);
     show('card-chat-btn', !!person);
     show('card-sit-btn', this.canSitWith?.(obj.id) ?? false);
+    show('card-block-btn', otherPlayer && !!OnlineAccount.get());
+    show('card-report-btn', otherPlayer && !!OnlineAccount.get());
     const socialRow = document.getElementById('card-social');
     if (socialRow) socialRow.style.display = person || otherPlayer ? 'flex' : 'none';
     const standingLabel = document.getElementById('card-social-label');

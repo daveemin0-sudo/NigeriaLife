@@ -153,6 +153,8 @@ export class BackendService {
 
   public processTransaction(req: ProcessTransactionRequest): TransactionResult {
     this.syncFromStorage();
+    const cashBefore = this.data.walletCash;
+    const bankBefore = this.data.bank.balance;
     const res = this.txService.process(this.data, req);
     if (res.success) {
       const at = Date.now();
@@ -160,8 +162,44 @@ export class BackendService {
         this.recentTransactions.push({ record, at });
       }
       this.saveData();
+      // On a game server the server holds the money: tell it what was done here
+      const cash = this.data.walletCash - cashBefore;
+      const bank = this.data.bank.balance - bankBefore;
+      if (this.authority && !this.settling && (cash !== 0 || bank !== 0)) {
+        const holding = this.heldReports[this.heldReports.length - 1];
+        if (holding) holding.push([cash, bank, `${req.type}: ${req.description}`]);
+        else this.authority.report(cash, bank, `${req.type}: ${req.description}`);
+      }
     }
     return res;
+  }
+
+  /**
+   * The game server, when the game is playing on one: it is told about every money movement
+   * made here, and its answer is the balance (`applyServerWallet`). Null in this browser only.
+   */
+  public authority: { report(cash: number, bank: number, memo: string): void } | null = null;
+  private settling = false;
+  /** Reports waiting for a registry change to be kept (see checkpoint) */
+  private heldReports: Array<Array<[number, number, string]>> = [];
+
+  /** Money the server itself has already paid or taken (a job shift): shown here, not reported back. */
+  public settledByServer<T>(work: () => T): T {
+    this.settling = true;
+    try {
+      return work();
+    } finally {
+      this.settling = false;
+    }
+  }
+
+  /** The balance as the server holds it: what the player has, whatever this browser thought. */
+  public applyServerWallet(wallet: { cash: number; bank: number }): void {
+    this.syncFromStorage();
+    if (this.data.walletCash === wallet.cash && this.data.bank.balance === wallet.bank) return;
+    this.data.walletCash = wallet.cash;
+    this.data.bank.balance = wallet.bank;
+    this.saveData();
   }
 
   public getTransactionHistory(): TransactionRecord[] {
@@ -595,12 +633,30 @@ export class BackendService {
    * that takes money and then has to be recorded somewhere else: if the record cannot be
    * made, the money is put back.
    */
-  public checkpoint(): () => void {
+  public checkpoint(): (() => void) & { keep: () => void } {
     const copy = JSON.stringify(this.data);
-    return () => {
+    // Money moved while a registry change is being made is only told to the game server once
+    // that change is kept: if it is undone, the server never hears of it
+    const held: Array<[number, number, string]> = [];
+    this.heldReports.push(held);
+    let open = true;
+    const close = (): boolean => {
+      if (!open) return false;
+      open = false;
+      const at = this.heldReports.indexOf(held);
+      if (at >= 0) this.heldReports.splice(at, 1);
+      return true;
+    };
+    const undo = () => {
+      close();
       this.data = JSON.parse(copy) as PlayerAccount;
       this.saveData();
     };
+    return Object.assign(undo, {
+      keep: () => {
+        if (close()) for (const [cash, bank, memo] of held) this.authority?.report(cash, bank, memo);
+      },
+    });
   }
 
   // === HOMES AND BUSINESSES OWNED OUTRIGHT ===

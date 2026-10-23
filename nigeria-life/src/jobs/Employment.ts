@@ -1,5 +1,6 @@
 import { BackendService } from '../backend/BackendService';
 import { profileKey } from '../backend/Profile';
+import { emitGameEvent } from '../game/GameEvents';
 
 /**
  * Being employed somewhere: taken on at a real workplace, doing its work there, paid for each
@@ -149,6 +150,25 @@ export class Employment {
    * were on when they did it; it takes its energy, counts toward the next grade and counts
    * for the player's career.
    */
+  /**
+   * A piece of work the game server has checked and paid (it holds the money and the count of
+   * work done): the record here catches up and the work's energy is spent. Nothing is paid here.
+   */
+  public settledByServer(id: string, pay: number, done: number): WorkResult {
+    const employer = this.employer(id);
+    const record = this.records[id];
+    const grade = this.grade(id);
+    if (!employer || !record || !grade) return { ok: false, reason: 'You do not work there.' };
+    this.backend.modifyNeed('energy', -employer.energy);
+    this.backend.addJobExperience(employer.xp);
+    if (employer.skill) this.backend.addSkillXp(employer.skill, 1);
+    record.done = Math.max(record.done + 1, done);
+    const now = this.grade(id)!;
+    this.changed();
+    emitGameEvent('work_shift');
+    return { ok: true, pay, promoted: now !== grade ? now : undefined };
+  }
+
   public complete(id: string): WorkResult {
     const employer = this.employer(id);
     const record = this.records[id];

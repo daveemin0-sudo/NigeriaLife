@@ -9,6 +9,8 @@ export interface PlayerNetState {
   isMoving: boolean;
   currentEmote: EmoteType;
   config: CharacterConfig;
+  /** The city they are in (the game server puts players in a room per city) */
+  city?: string;
   /** The building they are inside, if any. Their position is then a place in that room, not on the street. */
   place?: string;
   /** The vehicle they are at the wheel of, and where it is. They are inside it, so their own body is not shown. */

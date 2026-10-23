@@ -9,6 +9,7 @@ import { CloudSyncService } from '../../backend/CloudSyncService';
 import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
 import { DrivableVehicle } from '../../world/DrivableVehicle';
 import { LagosStreetLifeSystem } from '../../world/LagosStreetLifeSystem';
+import { OnlineAccount } from '../../online/OnlineAccount';
 import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
 
 // ============================================================================================
@@ -242,6 +243,26 @@ export const jobsApp: PhoneApp = {
 // ============================================================================================
 
 const isMine = (prop: RealEstateProperty) => prop.status === 'owned' || prop.status === 'rented' || prop.status === 'purchased';
+/** Who the player is on the game server, and how a guest keeps their progress */
+function accountSection(host: { get(key: string, fallback: string): string }): string {
+  const online = OnlineAccount.get();
+  if (!online) return '';
+  const account = online.account;
+  const devLink = host.get('settings.devLink', '');
+  const status = !account ? 'Signing in…' : account.verified ? `${esc(account.name)}, kept on ${esc(account.email ?? 'your email')}` : `${esc(account.name)}, playing as a guest`;
+  return `
+        <div class="nl-section">Your account</div>
+        <div class="nl-list">
+          ${row({ icon: account?.verified ? '✅' : '👤', title: online.connected ? 'Online' : 'Connecting…', sub: status })}
+        </div>
+        ${account && !account.verified ? `
+        <div class="nl-hint">A guest's progress lives on this server under this device. Add an email address to keep it for good and to play it on another phone.</div>
+        <label class="nl-label" for="settings-email">Email address</label>
+        <input class="nl-field" id="settings-email" type="email" autocomplete="email" placeholder="you@example.com" value="${esc(host.get('settings.email', ''))}" data-bind="settings.email" />
+        <button class="nl-btn nl-btn--block" id="settings-email-send" data-act="account-email">Send me a sign-in link</button>
+        ${devLink ? `<div class="nl-hint" id="settings-dev-link">Sign-in link: <a href="${esc(devLink)}">${esc(devLink)}</a></div>` : ''}` : ''}`;
+}
+
 /** What each graphics level gives up, in the player's terms */
 const GRAPHICS_NOTES: Record<string, string> = {
   high: 'everything drawn in full',
@@ -490,6 +511,7 @@ export const settingsApp: PhoneApp = {
           <label class="nl-label" for="settings-server-url">World server address</label>
           <input class="nl-field" id="settings-server-url" type="text" inputmode="url" autocomplete="off" placeholder="http://192.168.1.20:8787" value="${esc(host.get('settings.server', ''))}" data-bind="settings.server" />
           <button class="nl-btn nl-btn--block" id="settings-server-join" data-act="server-on">Connect</button>`}
+        ${accountSection(host)}
         <div class="nl-section">Graphics</div>
         <div class="nl-list">
           ${row({
@@ -557,6 +579,15 @@ export const settingsApp: PhoneApp = {
       host.refresh();
     } else if (action === 'radio') {
       sound.toggleRadio();
+      host.refresh();
+    } else if (action === 'account-email') {
+      const online = OnlineAccount.get();
+      const email = host.get('settings.email', '').trim();
+      if (!online) return;
+      const result = await online.askForSignInLink(email);
+      if (!result.ok) return host.say(result.reason ?? 'The link could not be sent.', 'bad');
+      host.set('settings.devLink', result.devLink ?? '');
+      host.say(result.devLink ? 'No email service is set up on this server: the link is shown below.' : `A sign-in link is on its way to ${email}. Open it within 15 minutes.`, 'good');
       host.refresh();
     } else if (action === 'toggle-graphics') {
       const graphics = (window as any).game?.graphics;
