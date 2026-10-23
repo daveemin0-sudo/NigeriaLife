@@ -9,6 +9,7 @@ import { CityManager } from '../cities/CityManager';
 import { ApartmentInterior } from './ApartmentInterior';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { AtmosphereManager } from './AtmosphereManager';
+import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
@@ -180,6 +181,25 @@ export class World {
       ...this.apartment.interactiveList,
       ...this.interiorManager.getAllInteractiveObjects(),
     ];
+
+    if (this.atmosphere.generatorMesh) {
+      this.interactiveObjects.push({
+        mesh: this.atmosphere.generatorMesh,
+        id: 'prop-tiger-generator',
+        name: 'Tiger TG950 ("I Pass My Neighbor")',
+        category: 'Power Equipment',
+        description: 'Classic Tiger 2-stroke generator outside Bet9ja. Pull the recoil starter cord when NEPA takes light to power the shops.',
+        interactionPoint: new THREE.Vector3(8.5, 0.28, 24.0),
+      });
+    }
+
+    // Register living street system
+    LagosStreetLifeSystem.getInstance().registerSystems(
+      this.roads,
+      this.districts,
+      this.cityDensity,
+      this.atmosphere
+    );
 
     // 10. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
     this.cityManager = new CityManager(this.scene);
@@ -515,6 +535,9 @@ export class World {
 
     // Update atmosphere effects (Harmattan dust, smoke, puddles)
     this.atmosphere.update(delta, playerPos);
+
+    // Update living street life (NEPA blackout cycles & street triggers)
+    LagosStreetLifeSystem.getInstance().update(delta, this.skyEnvironment.currentPeriod);
 
     // Animate and fade out street property beacon
     if (this.propertyBeacon && this.propertyBeaconTimer > 0) {

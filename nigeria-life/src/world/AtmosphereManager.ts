@@ -39,7 +39,7 @@ export class AtmosphereManager {
   private smokeCount: number = 80;
 
   // Prop references
-  private generatorMesh: THREE.Group | null = null;
+  public generatorMesh: THREE.Group | null = null;
   private genVibrationTimer: number = 0;
 
   // Elapsed time for animations

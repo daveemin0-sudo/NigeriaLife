@@ -399,4 +399,144 @@ export class SoundEngine {
       this.generatorGain.gain.setValueAtTime(vol, ctx.currentTime);
     }
   }
+
+  // =========================================================================
+  // 7. DANFO CONDUCTOR ROOF / BODY SLAP ("Piam-Piam! Carry go!")
+  // =========================================================================
+  public playConductorSlap(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain) return;
+    const now = ctx.currentTime;
+    [0, 0.12].forEach((offset) => {
+      const t = now + offset;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(140, t);
+      osc.frequency.exponentialRampToValueAtTime(45, t + 0.08);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(420, t);
+
+      gain.gain.setValueAtTime(0.35, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain!);
+
+      osc.start(t);
+      osc.stop(t + 0.1);
+    });
+  }
+
+  // =========================================================================
+  // 8. NEPA BLACKOUT TRANSFORMER TRIP ("Kpa-Bzzt!")
+  // =========================================================================
+  public playTransformerTrip(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain) return;
+    const now = ctx.currentTime;
+
+    // Explosive low punch ("Kpa!")
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(110, now);
+    osc.frequency.exponentialRampToValueAtTime(28, now + 0.22);
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.26);
+
+    // High electrical fizzle arc ("Bzzt!")
+    const spark = ctx.createOscillator();
+    const sparkGain = ctx.createGain();
+    spark.type = 'square';
+    spark.frequency.setValueAtTime(1200, now + 0.04);
+    spark.frequency.linearRampToValueAtTime(300, now + 0.18);
+    sparkGain.gain.setValueAtTime(0.18, now + 0.04);
+    sparkGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    spark.connect(sparkGain);
+    sparkGain.connect(this.masterGain);
+    spark.start(now + 0.04);
+    spark.stop(now + 0.22);
+  }
+
+  // =========================================================================
+  // 9. UP NEPA POWER RESTORATION SURGE ("Bzzzt-Ting!")
+  // =========================================================================
+  public playNepaRestored(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain) return;
+    const now = ctx.currentTime;
+
+    // Rising power hum
+    const hum = ctx.createOscillator();
+    const humGain = ctx.createGain();
+    hum.type = 'sine';
+    hum.frequency.setValueAtTime(50, now);
+    hum.frequency.exponentialRampToValueAtTime(100, now + 0.35);
+    humGain.gain.setValueAtTime(0.02, now);
+    humGain.gain.linearRampToValueAtTime(0.25, now + 0.3);
+    humGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    hum.connect(humGain);
+    humGain.connect(this.masterGain);
+    hum.start(now);
+    hum.stop(now + 0.46);
+
+    // Relay contactor snap ("Clack!")
+    const snap = ctx.createOscillator();
+    const snapGain = ctx.createGain();
+    snap.type = 'triangle';
+    snap.frequency.setValueAtTime(800, now + 0.32);
+    snap.frequency.exponentialRampToValueAtTime(80, now + 0.38);
+    snapGain.gain.setValueAtTime(0.3, now + 0.32);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.39);
+    snap.connect(snapGain);
+    snapGain.connect(this.masterGain);
+    snap.start(now + 0.32);
+    snap.stop(now + 0.4);
+  }
+
+  // =========================================================================
+  // 10. RECOIL PULL STARTER & GENERATOR CRANK
+  // =========================================================================
+  public playGeneratorPull(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain) return;
+    const now = ctx.currentTime;
+
+    // Pull friction whoosh
+    const pull = ctx.createOscillator();
+    const pullGain = ctx.createGain();
+    pull.type = 'sawtooth';
+    pull.frequency.setValueAtTime(220, now);
+    pull.frequency.exponentialRampToValueAtTime(480, now + 0.15);
+    pullGain.gain.setValueAtTime(0.2, now);
+    pullGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    pull.connect(pullGain);
+    pullGain.connect(this.masterGain);
+    pull.start(now);
+    pull.stop(now + 0.2);
+
+    // 2-stroke sputter catches
+    [0.18, 0.28, 0.36, 0.43, 0.49].forEach((tOff, i) => {
+      const t = now + tOff;
+      const chug = ctx.createOscillator();
+      const chugGain = ctx.createGain();
+      chug.type = 'sawtooth';
+      chug.frequency.setValueAtTime(65 + i * 4, t);
+      chugGain.gain.setValueAtTime(0.22, t);
+      chugGain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      chug.connect(chugGain);
+      chugGain.connect(this.masterGain!);
+      chug.start(t);
+      chug.stop(t + 0.07);
+    });
+  }
 }

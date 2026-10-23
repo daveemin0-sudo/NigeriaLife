@@ -8,6 +8,7 @@ import { AssetMarket } from '../../realestate/AssetMarket';
 import { CloudSyncService } from '../../backend/CloudSyncService';
 import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
 import { DrivableVehicle } from '../../world/DrivableVehicle';
+import { LagosStreetLifeSystem } from '../../world/LagosStreetLifeSystem';
 import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
 
 // ============================================================================================
@@ -513,6 +514,15 @@ export const settingsApp: PhoneApp = {
             trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-clock-mode">Switch</button>',
           })}
         </div>
+        <div class="nl-section">Lagos Street Life & Power</div>
+        <div class="nl-list">
+          ${row({
+            icon: '⚡',
+            title: 'Lagos power grid (NEPA)',
+            sub: LagosStreetLifeSystem.getInstance().isNepaOn ? 'Grid is ON ("UP NEPA!")' : 'Blackout! Generators Running',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-nepa-power">Toggle</button>',
+          })}
+        </div>
         <div class="nl-section">Saved game</div>
         <div class="nl-hint">The game saves itself on this device every few seconds. A copy as text lets you move it to another browser.</div>
         <div class="nl-list">
@@ -555,6 +565,10 @@ export const settingsApp: PhoneApp = {
         sky.setClockMode(nextMode);
         host.refresh();
       }
+    } else if (action === 'toggle-nepa-power') {
+      const sky = (window as any).game?.world.skyEnvironment;
+      LagosStreetLifeSystem.getInstance().toggleNepaPower(sky?.currentPeriod || 'night');
+      host.refresh();
     } else if (action === 'server-on') {
       const url = host.get('settings.server', '').trim();
       if (!/^https?:\/\/[^\s]+$/.test(url)) return host.say('Enter the address the server printed, such as http://192.168.1.20:8787.', 'bad');

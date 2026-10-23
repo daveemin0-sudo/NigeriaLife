@@ -7,6 +7,7 @@ import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
 import { showGameToast } from '../ui/GameToast';
 import { BackendService } from '../backend/BackendService';
+import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 
 export type VehicleType =
   | 'danfo'
@@ -1744,6 +1745,21 @@ export class DrivableVehicle {
       this.currentSpeed = Math.max(0, this.currentSpeed - delta * 4);
     }
 
+    // In-Traffic Street Hawker System (Chidi approaching window in go-slow)
+    const streetLife = LagosStreetLifeSystem.getInstance();
+    streetLife.updateTrafficHawker(delta, this.currentSpeed, !!this.driver);
+    if (streetLife.isHawkerAtWindow) {
+      if (keys['h'] || keys['KeyH']) {
+        keys['h'] = false;
+        keys['KeyH'] = false;
+        streetLife.buyFromWindowHawker('water');
+      } else if (keys['g'] || keys['KeyG']) {
+        keys['g'] = false;
+        keys['KeyG'] = false;
+        streetLife.buyFromWindowHawker('gala');
+      }
+    }
+
     // Commercial Passenger Boarding & Fare Collection (Danfo & Keke)
     if (this.isCommercialTransit) {
       if (Math.abs(this.currentSpeed) < 0.6) {
@@ -1754,7 +1770,11 @@ export class DrivableVehicle {
           this.totalFaresCollected += this.fareRate;
           SoundEngine.getInstance().playTransactionSuccess();
           BackendService.getInstance().addCash(this.fareRate, `Transit Fare: ${this.name}`);
-          showGameToast(`👥 Passenger boarded! +₦${this.fareRate.toLocaleString()} fare collected (${this.passengers}/${this.maxPassengers} seats filled)`, 'success');
+          if (this.type === 'danfo') {
+            streetLife.triggerConductorShout();
+          } else {
+            showGameToast(`👥 Passenger boarded! +₦${this.fareRate.toLocaleString()} fare collected (${this.passengers}/${this.maxPassengers} seats filled)`, 'success');
+          }
         }
       } else {
         // While driving along route, occasional passenger disembarking with tip

@@ -28,6 +28,7 @@ import { UIStateManager } from './UIStateManager';
 import { emitGameEvent } from '../game/GameEvents';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 import { CITY_NAME } from '../realestate/PlotCatalogue';
+import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { PlaceActions } from '../destinations/PlaceActions';
 import { CASH_MACHINE } from '../world/kit/CashMachine';
@@ -420,6 +421,13 @@ export class HUD {
           <button class="btn-hud-horn" id="btn-drive-horn" title="Honk Horn [Key H]">📢 Honk [H]</button>
           <button class="btn-hud-exit-veh" id="btn-drive-exit" title="Exit Vehicle [Key F]">🚪 Exit [F]</button>
         </div>
+        <div id="driving-hawker-pill" style="display: none; align-items: center; justify-content: space-between; gap: 8px; background: rgba(20, 83, 45, 0.95); border: 1px solid #4ade80; border-radius: 8px; padding: 4px 10px; margin-top: 6px; font-size: 11px;">
+          <span style="color: #fef08a; font-weight: 700;">🥤 Chidi at Window:</span>
+          <div style="display: flex; gap: 6px;">
+            <button id="btn-traffic-water" style="background: #0284c7; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">💧 Water [H] ₦100</button>
+            <button id="btn-traffic-gala" style="background: #b91c1c; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">🌭 Gala [G] ₦250</button>
+          </div>
+        </div>
       </div>
 
       <!-- Contextual Interaction Proximity Prompt Pill -->
@@ -435,6 +443,13 @@ export class HUD {
     this.drivingHudEl = document.getElementById('driving-hud') as HTMLDivElement;
     this.proximityPromptEl = document.getElementById('hud-proximity-prompt') as HTMLDivElement;
     this.promptLabelEl = document.getElementById('hud-prompt-label') as HTMLSpanElement;
+
+    document.getElementById('btn-traffic-water')?.addEventListener('click', () => {
+      LagosStreetLifeSystem.getInstance().buyFromWindowHawker('water');
+    });
+    document.getElementById('btn-traffic-gala')?.addEventListener('click', () => {
+      LagosStreetLifeSystem.getInstance().buyFromWindowHawker('gala');
+    });
 
     this.proximityPromptEl?.addEventListener('click', () => {
       this.executeCurrentInteraction();
@@ -1719,6 +1734,12 @@ export class HUD {
     } else if (obj.id === 'flat-pet') {
       btnEl.textContent = '🐶 Pet Bingo the Dog (+15 Mood, +5 Cred)';
       bizBtn.style.display = 'none';
+    } else if (obj.id === 'prop-tiger-generator') {
+      btnEl.textContent = '⚡ Pull Recoil Starter (Start Generator / Power Shops)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'npc-agbero') {
+      btnEl.textContent = '🧢 Settle Loading Dues (₦200) / Greet Chairman';
+      bizBtn.style.display = 'none';
     } else if (obj.id.startsWith('remote_player_')) {
       btnEl.textContent = '🤝 Citizen Interaction & EkoPay [E]';
       bizBtn.style.display = 'none';
@@ -1806,6 +1827,10 @@ export class HUD {
       } else {
         transitPill.style.display = 'none';
       }
+    }
+    const hawkerPill = document.getElementById('driving-hawker-pill');
+    if (hawkerPill) {
+      hawkerPill.style.display = LagosStreetLifeSystem.getInstance().isHawkerAtWindow ? 'flex' : 'none';
     }
   }
 
@@ -2166,6 +2191,48 @@ export class HUD {
       // Bought hand to hand in the street; the list only starts it
       this.hideInteractionCard();
       this.onVendorAction?.(id);
+      return;
+    }
+
+    if (id === 'prop-tiger-generator') {
+      this.hideInteractionCard();
+      LagosStreetLifeSystem.getInstance().pullGeneratorCord();
+      return;
+    }
+
+    if (id === 'npc-agbero') {
+      this.hideInteractionCard();
+      this.showDialogueModal({
+        speakerName: 'Alaye (Terminus Chairman)',
+        speakerRole: 'Street Authority & Transport Union',
+        speakerAvatar: '🧢',
+        soundType: 'general',
+        dialogueText: '"Driver! Weekend loading levy ₦200! Settle the boys or park your motor one side! Chairman dey loyal to who dey loyal!"',
+        choices: [
+          {
+            id: 'settle_levy',
+            label: 'Settle Chairman Loading Dues (₦200)',
+            badge: '-₦200 • +5 Cred',
+            onSelect: () => LagosStreetLifeSystem.getInstance().handleAgberoToll('settle'),
+          },
+          {
+            id: 'evade_checkpoint',
+            label: 'Zoom Past with Aggressive Horn [F]',
+            badge: 'Speed Run',
+            onSelect: () => LagosStreetLifeSystem.getInstance().handleAgberoToll('evade'),
+          },
+          {
+            id: 'street_gist',
+            label: 'Greet Chairman with Respect ("Chairman, your boys dey greet!")',
+            badge: '+1 Cred',
+            onSelect: () => {
+              SoundEngine.getInstance().playConductorSlap();
+              this.backend.addStreetCred(1);
+              showGameToast('Alaye: "Ah, my brother! You get sense well well! Safe movement!"', 'success', 3500);
+            },
+          },
+        ],
+      });
       return;
     }
 

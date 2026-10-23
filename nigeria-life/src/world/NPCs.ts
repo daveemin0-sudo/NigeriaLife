@@ -113,6 +113,9 @@ export class NPCs {
 
     // 10. Respected Community Elder outside Palm View Apartments (Chief Alabi)
     this.createCommunityElder();
+
+    // 11. Agbero / Terminus Chairman (Alaye)
+    this.createAgberoChairman();
   }
 
   // A. Street Drinks Hawker (Chidi)
@@ -415,6 +418,37 @@ export class NPCs {
       category: 'Respected Elder',
       description: '"Welcome my child. Broad Street has seen many generations come and go. Maintain your peace of mind and integrity as you hustle in this vibrant city."',
       interactionPoint: new THREE.Vector3(12.5, 0.28, 20),
+    });
+  }
+
+  // K. Agbero / Terminus Chairman (Alaye)
+  private createAgberoChairman(): void {
+    const agberoGroup = new THREE.Group();
+    agberoGroup.position.set(7.8, 0.28, 12);
+    agberoGroup.rotation.y = -Math.PI / 2;
+
+    const rig = HumanMeshBuilder.createHuman({
+      gender: 'male',
+      username: 'Alaye (Terminus Chairman)',
+      skinTone: '#3f2518',
+      outfit: 'casual_tee',
+      outfitColor: 0x15803d, // Green & white Nigerian street jersey
+      secondaryColor: 0xffffff,
+      hairstyle: 'fade',
+      lod: 'street',
+    });
+
+    agberoGroup.add(rig.group);
+    this.group.add(agberoGroup);
+    this.storyRigs.push({ rig, animState: 'idle' });
+
+    this.interactiveList.push({
+      mesh: agberoGroup,
+      id: 'npc-agbero',
+      name: 'Alaye (Terminus Chairman)',
+      category: 'Street Authority',
+      description: '"Owo loading! Settle the boys or park your motor one side! Chairman dey loyal to who dey loyal!"',
+      interactionPoint: new THREE.Vector3(7.8, 0.28, 12),
     });
   }
 
