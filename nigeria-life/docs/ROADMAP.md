@@ -30,16 +30,30 @@ Audited 2026-10-23 at `16933f0` (branch `stabilise-core`).
 
 ## Phase 1: real online foundation
 
+Built 2026-10-23 (`server/`, `src/online/OnlineAccount.ts`). Proved by `online_api` (the
+server's rules through its real interface, 18 checks) and `online` (two separate browser
+processes on this machine's network address, one a 360 x 740 phone with its processor slowed
+four times: accounts, seeing each other, chat, money edited in the browser not surviving, a
+port shift paid by the server; 8 checks). Two physical phones have not been tried.
+
+**Playing on a home network now:** `npm run build`, then `npm run server` on the computer, and
+open `http://<that computer's address>:8787/` on each phone. Set `NL_ADMIN_KEY` for the admin
+page at `/admin`.
+
 | # | Item | Status | Where / what is missing |
 | --- | --- | --- | --- |
-| 1.1 | Game server, rooms per city, interest management, 10-20 Hz | Partial | `server/world-server.mjs` relays to everyone; no rooms, no interest management. |
-| 1.2 | `NetworkManager` over the server, same API, BroadcastChannel fallback | Partial | Already has the fallback; transport is HTTP POST + SSE. |
-| 1.3 | Accounts: guest, upgrade, email / phone / Google, rate limits, verified flag | Missing | A device id only (`ServerLink.networkPlayerId`). |
-| 1.4 | Database (accounts, wallets, ledger, ...) | Missing | Registry is one JSON file. |
-| 1.5 | Server-authoritative economy, ledger, idempotency, cooldowns, anomaly alerts | Missing | See the corrections above. |
-| 1.6 | Chat: city / proximity / DM, filter, report, mute, block, slow mode, moderation | Partial | Street chat and private messages exist (`ChatBox`, `NetworkManager`); no filter or moderation. |
-| 1.7 | Reliability: health, restart, scaling, queue screen, status page, load test | Partial | `/health` only. |
-| 1.8 | Admin panel | Missing | |
+| 1.1 | Game server, rooms per city, interest management, 10-20 Hz | **Done** | `server/rooms.ts`: a room per city in instances of 200, only players within 120 m (and in the same building) sent, 10 Hz, unchanged players not resent. One process: several processes behind a balancer is not built. |
+| 1.2 | `NetworkManager` over the server, same API, BroadcastChannel fallback | **Done** | WebSocket wire when on a server; the old relay and BroadcastChannel still work without one. |
+| 1.3 | Accounts: guest, upgrade, email / phone / Google, rate limits, verified flag | **Partial** | Guest at once, email sign-in link that keeps the guest's progress, verified counted apart, rate limits (`server/accounts.ts`). Email is printed in the server log until a sending service is chosen; phone OTP and Google need outside accounts (decisions below). |
+| 1.4 | Database | **Partial** | Node's built-in SQLite behind `server/store.ts`. Postgres and Redis are not set up: one server process does not need Redis; many will. |
+| 1.5 | Server-authoritative economy | **Partial** | The server holds every online wallet and an append-only ledger with idempotency keys; nothing goes below zero; a number edited in the browser is gone at the next change or reload. **Checked by the server:** job shifts at the port and the building site (taken on, at the worksite at start and end, timed by the server, paid from its grade record); transfers between players; every sale between players and every rent payment written into the registry (the server takes the money from whoever sends the change and pays whoever is owed, refuses the change if the money is not there, and marks the payout paid). Money moved inside a registry change only reaches the server once the change is kept. **Still done by the game and reported:** every other earning and spending; spending is always accepted, earning up to ₦60,000 in ten minutes, more is held for the admin to release. Energy and the prices of things bought from the game are still the game's word. A local save brings at most ₦2,000,000 onto a new account, once. |
+| 1.6 | Chat: city / proximity / DM, filter, report, mute, block, slow mode, moderation | **Done** | On the server (`rooms.ts`, `chatFilter.ts`, `/social/*`, admin mute and ban); Block and Report on another player's card (a report carries what they said). The word list needs native speakers' review before launch. |
+| 1.7 | Reliability | **Partial** | `/health`, clean shutdown, the game reconnects by itself. No supervisor to restart it, no queue screen, no status page, no load test with bots. |
+| 1.8 | Admin panel | **Done** | `/admin`: online by instance, verified accounts, money held, earnings in the last hour, held money with release / refuse, alerts, reports, any player's ledger, mute, ban, grant. |
+
+Found on the way: the game could not start at all on a phone opening it from a computer on the
+home network, because `crypto.randomUUID` only exists on https pages (`src/utils/ids.ts` now
+falls back). And chat put the sender's name into the page without escaping it.
 
 ## Phase 2: core loops
 
@@ -107,7 +121,9 @@ These cost money, need accounts with outside companies, or decide what the game 
 
 ## Order of work
 
-Phase 1 first, in this order, each with its own suite: accounts and the database; the server
-wallet and ledger; the first server-validated action (a job shift); rooms per city with
-interest management over WebSocket; chat moderation; admin page; load test with bots. Then
-each later phase starts with its data model (types, database tables, save version) for review.
+1. Finish Phase 1: a load test with a few hundred bot players to find the first limit of one
+   process; a supervisor that restarts the server.
+2. Move the next earners onto the server, biggest first (business takings, building income), so
+   the ₦60,000 allowance for game-reported money can shrink.
+3. Phase 2 starts with its data model for review: the six needs, traits, the weekly cycle
+   (rent, loans, tax) as server tables and `SAVE_SCHEMA_VERSION` changes, before any feature.

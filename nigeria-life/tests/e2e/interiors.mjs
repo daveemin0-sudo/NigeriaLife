@@ -11,6 +11,8 @@ export async function run(browser, check) {
   for (const type of TYPES) {
     const entered = await page.evaluate((t) => {
       const g = window.game;
+      // The clock is Lagos time now: a place shut at this hour (the bank after four) is visited at noon
+      if (!g.world.interiorManager.isOpenNow(t)) g.world.skyEnvironment.setHour(12);
       return g.world.interiorManager.enterInterior(t, g.player, g.cameraManager, g.hud, g.world);
     }, type);
     await wait(900);
