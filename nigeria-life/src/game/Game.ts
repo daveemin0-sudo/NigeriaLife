@@ -1144,10 +1144,13 @@ export class Game {
     const saved = BackendService.getInstance().getData().worldState;
     if (!saved) return;
 
-    this.world.skyEnvironment.setDay(saved.day);
-    this.world.skyEnvironment.setHour(saved.hour);
-    if (saved.clockMode) {
-      this.world.skyEnvironment.clockMode = saved.clockMode;
+    if (saved.clockMode === 'SIMULATED_TIME') {
+      this.world.skyEnvironment.setDay(saved.day);
+      this.world.skyEnvironment.setHour(saved.hour);
+      this.world.skyEnvironment.clockMode = 'SIMULATED_TIME';
+    } else {
+      // Default to REAL_TIME (Africa/Lagos UTC+1 WAT)
+      this.world.skyEnvironment.setClockMode('REAL_TIME');
     }
     if (saved.weather) {
       this.world.weather.setWeather(saved.weather as any);

@@ -155,7 +155,7 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       hour: num(world.hour, 13.3, 'worldState.hour', 0, 24),
       day: Math.floor(num(world.day, 0, 'worldState.day', 0)),
       ...(typeof world.weather === 'string' ? { weather: world.weather } : {}),
-      ...(world.clockMode === 'REAL_TIME' ? { clockMode: 'REAL_TIME' } : {}),
+      ...(world.clockMode === 'REAL_TIME' || world.clockMode === 'SIMULATED_TIME' ? { clockMode: world.clockMode } : {}),
       ...(world.inTransit === true ? { inTransit: true } : {}),
     };
   } else if (world !== undefined && world !== null) {

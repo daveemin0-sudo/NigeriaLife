@@ -211,7 +211,7 @@ export class HUD {
 
         <!-- Center Floating Pill Bar -->
         <div class="hud-center-pill-bar">
-          <div class="pill-item time-pill" id="hud-time-pill" title="Click to cycle Time of Day (Midday / Sunset / Night / Morning)" style="cursor: pointer;">
+          <div class="pill-item time-pill" id="hud-time-pill" title="World Clock • Click to toggle Real-Time (WAT) / Simulated time presets" style="cursor: pointer;">
             <span id="hud-weather-icon">☀️</span>
             <span id="hud-clock-val">Wed 7 • 1:18 PM</span>
           </div>
@@ -1133,9 +1133,12 @@ export class HUD {
       }
     });
 
-    // Time-of-day click cycle (Midday -> Golden Hour -> Night -> Morning)
+    // Time-of-day & Clock Mode click cycle (Real-Time WAT <-> Simulated Morning / Midday / Golden Hour / Night)
     document.getElementById('hud-time-pill')?.addEventListener('click', () => {
-      this.world?.skyEnvironment.cycleTimeOfDay();
+      const res = this.world?.skyEnvironment.cycleWorldClock();
+      if (res) {
+        showGameToast(`⏱️ ${res.label}`, 'info', 3000);
+      }
     });
 
     // Camera Orbit Controls Buttons

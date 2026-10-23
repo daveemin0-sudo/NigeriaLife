@@ -551,7 +551,8 @@ export const settingsApp: PhoneApp = {
     } else if (action === 'toggle-clock-mode') {
       const sky = (window as any).game?.world.skyEnvironment;
       if (sky) {
-        sky.clockMode = sky.clockMode === 'REAL_TIME' ? 'SIMULATED_TIME' : 'REAL_TIME';
+        const nextMode = sky.clockMode === 'REAL_TIME' ? 'SIMULATED_TIME' : 'REAL_TIME';
+        sky.setClockMode(nextMode);
         host.refresh();
       }
     } else if (action === 'server-on') {

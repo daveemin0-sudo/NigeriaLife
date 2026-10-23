@@ -123,14 +123,14 @@ export class SkyEnvironmentManager {
   public hemiLight: THREE.HemisphereLight;
 
   // Authoritative World Clock
-  public clockMode: ClockMode = 'SIMULATED_TIME';
-  public currentHour: number = 13.3; // 24-hour float (e.g. 13.3 = ~1:18 PM)
+  public clockMode: ClockMode = 'REAL_TIME';
+  public currentHour: number = 8.0; // 24-hour float (e.g. 8.0 = 8:00 AM)
   public day: number = 0; // Whole days elapsed since start date (Wed 7 Oct 2026)
   public timeScale: number = 0.04; // Simulated seconds to in-game time advancement rate
   public onNewDay?: (day: number) => void;
   public onPeriodChange?: (period: TimePeriod) => void;
 
-  public currentPeriod: TimePeriod = 'midday';
+  public currentPeriod: TimePeriod = 'morning';
   private lastClockLabel: string = '';
   private currentSkyTexture: THREE.CanvasTexture | null = null;
   private currentEnvTexture: THREE.Texture | null = null;
@@ -172,7 +172,11 @@ export class SkyEnvironmentManager {
     this.scene.add(this.sunLight.target);
 
     // 3. Initial Mode Apply
-    this.applyMode(this.currentPeriod);
+    if (this.clockMode === 'REAL_TIME') {
+      this.syncRealTime();
+    } else {
+      this.applyMode(this.currentPeriod);
+    }
   }
 
   private makeSkyTexture(top: string, mid: string, hor: string, glow: string): THREE.CanvasTexture {
@@ -276,6 +280,7 @@ export class SkyEnvironmentManager {
   }
 
   public setHour(hour: number): void {
+    this.clockMode = 'SIMULATED_TIME';
     this.currentHour = ((hour % 24) + 24) % 24;
     const period = this.getTimePeriodForHour(this.currentHour);
     if (period !== this.currentPeriod) {
@@ -284,20 +289,68 @@ export class SkyEnvironmentManager {
     this.updateClockHUD();
   }
 
+  public setClockMode(mode: ClockMode): void {
+    this.clockMode = mode;
+    if (mode === 'REAL_TIME') {
+      this.syncRealTime();
+    } else {
+      this.updateClockHUD();
+    }
+  }
+
+  /** Syncs current hour directly to West Africa Time (WAT, UTC+1) */
+  public syncRealTime(): void {
+    const now = new Date();
+    const utcHours = now.getUTCHours();
+    const utcMinutes = now.getUTCMinutes();
+    const utcSeconds = now.getUTCSeconds();
+    const utcMs = now.getUTCMilliseconds();
+    const lagosHour = (utcHours + 1 + utcMinutes / 60 + (utcSeconds + utcMs / 1000) / 3600) % 24;
+    this.currentHour = lagosHour;
+
+    const period = this.getTimePeriodForHour(this.currentHour);
+    if (period !== this.currentPeriod) {
+      this.applyMode(period);
+    }
+    this.updateClockHUD();
+  }
+
+  /** Cycles clock between Real-Time Lagos (WAT) and simulated time-of-day presets */
+  public cycleWorldClock(): { mode: ClockMode; label: string } {
+    if (this.clockMode === 'REAL_TIME') {
+      this.clockMode = 'SIMULATED_TIME';
+      this.currentHour = 8.0;
+      this.applyMode('morning');
+      this.updateClockHUD();
+      return { mode: 'SIMULATED_TIME', label: 'Simulated Morning (8:00 AM)' };
+    }
+
+    if (this.currentPeriod === 'morning') {
+      this.currentHour = 13.3;
+      this.applyMode('midday');
+      this.updateClockHUD();
+      return { mode: 'SIMULATED_TIME', label: 'Simulated Midday (1:18 PM)' };
+    } else if (this.currentPeriod === 'midday') {
+      this.currentHour = 18.0;
+      this.applyMode('golden_hour');
+      this.updateClockHUD();
+      return { mode: 'SIMULATED_TIME', label: 'Simulated Golden Hour (6:00 PM)' };
+    } else if (this.currentPeriod === 'golden_hour') {
+      this.currentHour = 21.5;
+      this.applyMode('night');
+      this.updateClockHUD();
+      return { mode: 'SIMULATED_TIME', label: 'Simulated Night (9:30 PM)' };
+    } else {
+      this.clockMode = 'REAL_TIME';
+      this.syncRealTime();
+      const timeStr = this.getFormattedTimeString();
+      return { mode: 'REAL_TIME', label: `Real-Time Lagos (WAT) • ${timeStr}` };
+    }
+  }
+
   public toggleTimeOfDay(): TimePeriod {
-    const cycle: TimePeriod[] = ['midday', 'golden_hour', 'night', 'morning'];
-    const idx = cycle.indexOf(this.currentPeriod);
-    const nextPeriod = cycle[(idx + 1) % cycle.length];
-
-    const targetHour =
-      nextPeriod === 'morning' ? 8.0 :
-      nextPeriod === 'midday' ? 13.3 :
-      nextPeriod === 'golden_hour' ? 18.0 :
-      21.5;
-
-    this.currentHour = targetHour;
-    this.applyMode(nextPeriod);
-    return nextPeriod;
+    this.cycleWorldClock();
+    return this.currentPeriod;
   }
 
   public cycleTimeOfDay(): TimePeriod {
@@ -316,13 +369,20 @@ export class SkyEnvironmentManager {
     return `${this.getDateLabel()} • ${hours12}:${minStr} ${ampm}`;
   }
 
-  /** The calendar date for the current day, e.g. "Wed 7". A new game starts on Wednesday 7 October 2026. */
+  /** The calendar date for current clock mode. Real-Time uses live Lagos date; Simulated uses 2026-10-07 + day. */
   public getDateLabel(): string {
+    if (this.clockMode === 'REAL_TIME') {
+      const now = new Date();
+      const watDate = new Date(now.getTime() + 3600000);
+      const weekday = watDate.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+      return `${weekday} ${watDate.getUTCDate()}`;
+    }
     const date = new Date(2026, 9, 7 + this.day);
     return `${date.toLocaleDateString('en-GB', { weekday: 'short' })} ${date.getDate()}`;
   }
 
   public setDay(day: number): void {
+    this.clockMode = 'SIMULATED_TIME';
     this.day = Math.max(0, Math.floor(day));
     this.updateClockHUD();
   }
@@ -335,6 +395,16 @@ export class SkyEnvironmentManager {
       if (clockEl) clockEl.textContent = label;
       const mapClockEl = document.getElementById('map-ui-time');
       if (mapClockEl) mapClockEl.textContent = label;
+    }
+
+    const pillEl = document.getElementById('hud-time-pill');
+    if (pillEl) {
+      pillEl.setAttribute(
+        'title',
+        this.clockMode === 'REAL_TIME'
+          ? 'World Clock: Real-Time Lagos (WAT) • Click to cycle time presets'
+          : `World Clock: Simulated ${this.currentPeriod} • Click to cycle time / switch to Real-Time (WAT)`
+      );
     }
 
     const weatherIconEl = document.getElementById('hud-weather-icon');
@@ -435,16 +505,11 @@ export class SkyEnvironmentManager {
       const utcSeconds = now.getUTCSeconds();
       const utcMs = now.getUTCMilliseconds();
       const lagosHour = (utcHours + 1 + utcMinutes / 60 + (utcSeconds + utcMs / 1000) / 3600) % 24;
-      this.currentHour = lagosHour;
-
-      // Calculate days elapsed since start date 2026-10-07
-      const startMs = Date.UTC(2026, 9, 7);
-      const lagosNowMs = now.getTime() + 3600000;
-      const elapsedDays = Math.max(0, Math.floor((lagosNowMs - startMs) / 86400000));
-      if (this.day !== elapsedDays) {
-        this.day = elapsedDays;
+      if (lagosHour < this.currentHour - 12) {
+        this.day += 1;
         this.onNewDay?.(this.day);
       }
+      this.currentHour = lagosHour;
     } else {
       // SIMULATED_TIME: advance according to timeScale
       this.currentHour += safeDelta * this.timeScale;
