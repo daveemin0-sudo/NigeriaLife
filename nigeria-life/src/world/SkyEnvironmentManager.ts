@@ -1,5 +1,27 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
+import { SkyDome } from './SkyDome';
+
+/** Lagos local time, from the time zone itself rather than a fixed offset */
+const LAGOS_PARTS = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Africa/Lagos',
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+  second: 'numeric',
+});
+const LAGOS_LABEL = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', weekday: 'short', day: 'numeric' });
+
+/** Minutes Lagos is ahead of UTC at a moment, read from the time zone database. */
+export function lagosOffsetMinutes(at: Date): number {
+  const parts = LAGOS_PARTS.formatToParts(at);
+  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+  return Math.round((asUtc - Math.floor(at.getTime() / 1000) * 1000) / 60000);
+}
 
 export type TimePeriod = 'morning' | 'midday' | 'golden_hour' | 'night';
 export type ClockMode = 'SIMULATED_TIME' | 'REAL_TIME';
@@ -132,8 +154,17 @@ export class SkyEnvironmentManager {
 
   public currentPeriod: TimePeriod = 'morning';
   private lastClockLabel: string = '';
-  private currentSkyTexture: THREE.CanvasTexture | null = null;
-  private currentEnvTexture: THREE.Texture | null = null;
+  private lastClockKey: string = '';
+  /** The sky itself, coloured from the clock every frame */
+  public readonly dome = new SkyDome();
+  /** What shows behind anything the dome does not cover: the horizon colour */
+  private skyColour = new THREE.Color();
+  /** Reflections for glossy paint and glass, one per part of the day, each made once */
+  private envByPeriod = new Map<TimePeriod, THREE.Texture | null>();
+  /** Lagos's offset from UTC, re-read from the time zone once a minute */
+  private lagosOffset = { minutes: 60, readAt: -Infinity };
+  private lightDir = new THREE.Vector3();
+  private origin = new THREE.Vector3();
 
   // Weather influence multipliers
   public weatherSunMultiplier: number = 1.0;
@@ -170,6 +201,8 @@ export class SkyEnvironmentManager {
 
     this.scene.add(this.sunLight);
     this.scene.add(this.sunLight.target);
+    this.scene.add(this.dome.mesh);
+    this.scene.background = this.skyColour;
 
     // 3. Initial Mode Apply
     if (this.clockMode === 'REAL_TIME') {
@@ -206,12 +239,14 @@ export class SkyEnvironmentManager {
 
     // Soft tropical African clouds
     g.fillStyle = '#ffffff55';
+    let seed = 11;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let i = 0; i < 40; i++) {
       g.beginPath();
-      const ex = Math.random() * w;
-      const ey = h * (0.12 + Math.random() * 0.3);
-      const rx = 30 + Math.random() * 70;
-      const ry = 6 + Math.random() * 10;
+      const ex = rand() * w;
+      const ey = h * (0.12 + rand() * 0.3);
+      const rx = 30 + rand() * 70;
+      const ry = 6 + rand() * 10;
       g.ellipse(ex, ey, rx, ry, 0, 0, Math.PI * 2);
       g.fill();
     }
@@ -226,30 +261,29 @@ export class SkyEnvironmentManager {
     this.currentPeriod = period;
     const m = MODES[period];
 
-    // Dispose old textures cleanly
-    if (this.currentSkyTexture) {
-      this.currentSkyTexture.dispose();
+    // Reflections for this part of the day: made the first time it comes round, then kept
+    if (!this.envByPeriod.has(period)) {
+      const sky = this.makeSkyTexture(m.top, m.mid, m.hor, m.glow);
+      let env: THREE.Texture | null = null;
+      try {
+        env = this.pmrem.fromEquirectangular(sky).texture;
+      } catch {
+        env = null;
+      }
+      sky.dispose();
+      this.envByPeriod.set(period, env);
     }
-    if (this.currentEnvTexture) {
-      this.currentEnvTexture.dispose();
-    }
+    this.scene.environment = this.envByPeriod.get(period) ?? null;
+    this.scene.background = this.skyColour;
 
-    // Generate new equirectangular sky
-    this.currentSkyTexture = this.makeSkyTexture(m.top, m.mid, m.hor, m.glow);
-    this.scene.background = this.currentSkyTexture;
-
-    // PMREM environment map for glossy metals, glass, and cars
-    try {
-      const envTarget = this.pmrem.fromEquirectangular(this.currentSkyTexture);
-      this.currentEnvTexture = envTarget.texture;
-      this.scene.environment = this.currentEnvTexture;
-    } catch {
-      this.scene.environment = null;
-    }
-
-    // Atmospheric Fog
+    // Atmospheric fog (one fog, recoloured: the continuous lighting below keeps it moving)
     const baseFogDensity = m.fogDensity * this.weatherFogDensityMultiplier;
-    this.scene.fog = new THREE.FogExp2(m.fog, baseFogDensity);
+    if (this.scene.fog instanceof THREE.FogExp2) {
+      this.scene.fog.color.setHex(m.fog);
+      this.scene.fog.density = baseFogDensity;
+    } else {
+      this.scene.fog = new THREE.FogExp2(m.fog, baseFogDensity);
+    }
 
     // Sun & Hemi light baseline
     this.sunLight.color.setHex(m.sun);
@@ -298,15 +332,19 @@ export class SkyEnvironmentManager {
     }
   }
 
-  /** Syncs current hour directly to West Africa Time (WAT, UTC+1) */
+  /** The hour now in Lagos (0-24, with fractions), from the Africa/Lagos time zone. */
+  public lagosHourNow(now: Date = new Date()): number {
+    const ms = now.getTime();
+    if (ms - this.lagosOffset.readAt > 60000 || ms < this.lagosOffset.readAt) {
+      this.lagosOffset = { minutes: lagosOffsetMinutes(now), readAt: ms };
+    }
+    const minutesOfDay = (((ms / 60000 + this.lagosOffset.minutes) % 1440) + 1440) % 1440;
+    return minutesOfDay / 60;
+  }
+
+  /** Sets the clock to the time now in Lagos */
   public syncRealTime(): void {
-    const now = new Date();
-    const utcHours = now.getUTCHours();
-    const utcMinutes = now.getUTCMinutes();
-    const utcSeconds = now.getUTCSeconds();
-    const utcMs = now.getUTCMilliseconds();
-    const lagosHour = (utcHours + 1 + utcMinutes / 60 + (utcSeconds + utcMs / 1000) / 3600) % 24;
-    this.currentHour = lagosHour;
+    this.currentHour = this.lagosHourNow();
 
     const period = this.getTimePeriodForHour(this.currentHour);
     if (period !== this.currentPeriod) {
@@ -372,10 +410,10 @@ export class SkyEnvironmentManager {
   /** The calendar date for current clock mode. Real-Time uses live Lagos date; Simulated uses 2026-10-07 + day. */
   public getDateLabel(): string {
     if (this.clockMode === 'REAL_TIME') {
-      const now = new Date();
-      const watDate = new Date(now.getTime() + 3600000);
-      const weekday = watDate.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
-      return `${weekday} ${watDate.getUTCDate()}`;
+      const parts = LAGOS_LABEL.formatToParts(new Date());
+      const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+      const day = parts.find((p) => p.type === 'day')?.value ?? '';
+      return `${weekday} ${day}`;
     }
     const date = new Date(2026, 9, 7 + this.day);
     return `${date.toLocaleDateString('en-GB', { weekday: 'short' })} ${date.getDate()}`;
@@ -388,6 +426,12 @@ export class SkyEnvironmentManager {
   }
 
   public updateClockHUD(): void {
+    // Called every frame: the page is only touched when the minute, the mode or the part of the day changes
+    const key = `${this.clockMode}|${this.currentPeriod}|${this.day}|${Math.floor(this.currentHour * 60)}`;
+    if (key === this.lastClockKey) return;
+    // Not remembered until the HUD is on the page, so the first label is not lost
+    if (document.getElementById('hud-clock-val')) this.lastClockKey = key;
+
     const label = this.getFormattedTimeString();
     if (label !== this.lastClockLabel) {
       this.lastClockLabel = label;
@@ -498,13 +542,8 @@ export class SkyEnvironmentManager {
     const safeDelta = Math.min(delta, 0.25);
 
     if (this.clockMode === 'REAL_TIME') {
-      // African/Lagos timezone is UTC+1 (West Africa Time, no DST)
-      const now = new Date();
-      const utcHours = now.getUTCHours();
-      const utcMinutes = now.getUTCMinutes();
-      const utcSeconds = now.getUTCSeconds();
-      const utcMs = now.getUTCMilliseconds();
-      const lagosHour = (utcHours + 1 + utcMinutes / 60 + (utcSeconds + utcMs / 1000) / 3600) % 24;
+      // Lagos time from the Africa/Lagos time zone
+      const lagosHour = this.lagosHourNow();
       if (lagosHour < this.currentHour - 12) {
         this.day += 1;
         this.onNewDay?.(this.day);
@@ -529,7 +568,13 @@ export class SkyEnvironmentManager {
     this.updateClockHUD();
 
     // Continuous lighting and celestial sun position tracking
-    const targetPos = playerPosition || new THREE.Vector3(0, 0, 0);
+    const targetPos = playerPosition || this.origin.set(0, 0, 0);
     this.applyContinuousLighting(targetPos);
+
+    // The sky, from the same hour and the same sun, greyed by cloud cover
+    this.lightDir.subVectors(this.sunLight.position, this.sunLight.target.position);
+    this.dome.update(this.currentHour, this.lightDir, 1 - this.weatherSunMultiplier, performance.now() / 1000);
+    this.skyColour.copy(this.dome.horizonColour);
+    if (this.scene.background !== this.skyColour) this.scene.background = this.skyColour;
   }
 }
