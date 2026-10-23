@@ -4,7 +4,10 @@ This is the working inventory for the "Ultimate Master Upgrade" brief. It is kep
 as each phase lands. Nothing is called complete here because it compiles: a line says
 "verified" only when a test drives it in the running game, and names the test.
 
-Last updated: 2026-10-11, after one city drawn at a time and real maps for all three.
+Last updated: 2026-10-23, after driving, the danfo route, and the clock and sky were rebuilt.
+
+Fifteen commits (86fecbc to 23e8888) were made by another agent between 2026-10-12 and 2026-10-23. Their rows
+below say "Verified" in that agent's words; they were re-run on 2026-10-23 and any row that did not hold up says so.
 
 ## How to read it
 
@@ -18,7 +21,7 @@ Last updated: 2026-10-11, after one city drawn at a time and real maps for all t
 | **Blocked** | Needs something the project does not have (named in the line). |
 
 Tests are run against a frozen build: `npm run build`, serve it, then
-`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 28 suites.
+`GAME_URL=<url> node tests/e2e/run.mjs [suite ...]`. There are 32 suites.
 
 ## The approach, from the brief's last rule
 
@@ -123,16 +126,20 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 | Walking at height elsewhere (stadium rows, steps into buildings) | **Verified** | National Stadium Surulere stands now feature 5 stepped tiers rising from 0.8m to 4.0m with concrete gangway stairs on all four stands, perimeter concrete wall collision, dynamic vertical elevation in `Player.ts`, and interactive grandstand seating at height overlooking the pitch. |
 | Finding the way on foot | **Verified** | `world/plan/Wayfinder.ts`: the ground of each city in half-metre squares, made from the same solids that stop the walker and the same zones the plan is checked against. A walk to any point goes round buildings and through gates, by the pavement for choice, across open ground where that is shorter, and across a road by the shortest way; a place that cannot be reached is walked up to as near as anyone can get. Found in tens of milliseconds across the whole city. Every clicked walk uses it: the ground, a door, the bar of nearby places, the map. `ways` suite. |
 | Collision with buildings in the street | **Verified** | Buildings, walls, fences and stands are solid to someone on foot and to a vehicle being driven, in all three cities (`world/plan/Solids.ts`, made from the same list the city plan checks). Gates and doors that are ways in still are. A walker who meets something on the pavement steps round it; one who cannot get nearer stops. Someone set down inside a building can always walk out. A driven vehicle used to be held to the middle of Lagos (it could not reach the stadium, port or airport): it now has the whole city. `streets` suite. Not solid: people, parked and passing vehicles, stalls, poles, trees. |
+| Driving a vehicle | **Verified** | One handling model for every vehicle (`world/VehicleHandling.ts`). The keys turn the wheel at a set rate and it comes back to the middle within a twentieth of a second of letting go; the vehicle turns as fast as its speed and wheelbase allow and no faster than its tyres hold (a sedan on full lock at 28 m/s pulls 8.5 m/s² sideways; it pulled 23). At walking pace it turns in a 4 m circle instead of spinning on the spot. A tap at 20 m/s turns the car about one degree and it then runs straight. A road assist holds a car going straight in its lane on every street of the city, at the lanes the traffic uses; let go a metre out of lane it settles without crossing the lane centre (it worked on one stretch of Broad Street and was underdamped, which is what made cars weave). Lifting off coasts; pulling away is brisk, not instant. A car that strikes a wall slides along it. The same drive ends within 0.6 m at 20, 60 and 144 frames a second. `steering` and `driving_weather` suites. Not done: vehicles in Abuja and Port Harcourt (below), traffic that notices the player's car. |
+| Danfo and keke fares | **Verified** | A danfo or keke pulled up at one of Broad Street's four bus stops loads from the queue standing there: the person at the front walks along the kerb to the door and pays as they step in; one who reaches an empty kerb stays and pays nothing; those aboard get down at the next stop. Parked anywhere else, nothing. `danfo` suite. Those getting down are not yet seen getting out. |
+| Vehicles outside Lagos | **Broken** | A vehicle has no city: its parking place is x and z only and every vehicle is drawn with Lagos. A car brought round in Abuja or Port Harcourt is put, unseen, into Lagos at those coordinates, and the street of Abuja does not move vehicles at all (`World.update` returns before them). |
 | Side-road junctions with Broad Street | **Partial** | Stadium Road and Wharf Road meet the Broad Street pavement without a dropped kerb. |
 
 ## Phases 13 to 16
 
 | Area | Status | Notes |
 | --- | --- | --- |
+| Clock, day and night, sky | **Verified** | One clock (`world/SkyEnvironmentManager.ts`): real Lagos time by default, read from the Africa/Lagos time zone (it was UTC plus a fixed hour), or a simulated day of ten real minutes; the phone and the clock pill switch between them. The sky is one dome coloured from the clock every frame (`world/SkyDome.ts`): nowhere in the day does three minutes change it by more than 16 of 255. The old sky was a picture swapped at 5:48, 11:30, 16:30 and 19:18, jumping 156 of 255 at dawn, with new clouds each time and new reflections made each time (a stall). Reflections are now made once per part of the day and kept. Overcast greys the sky. `sky` suite, which reads the drawn frame. Weather changes only when the player chooses it. |
 | Traffic, walkers, vendors, day and night, weather | **Partial** | All present. Every place that states hours now keeps them (see phase 2). The street is as busy as the hour (`world/StreetLife.ts`): everyone out from seven to seven, thinning through the evening, about one in ten of the walkers and the moving traffic in the small hours, back before dawn; the same ones stay home each night. `hours` suite. Lagos only. Still the same at every hour: the stalls and their umbrellas, the traders who sell by hand, and the lights in windows. |
 | Multiplayer | **Blocked** | Players on one machine, or on a home or office network through `npm run server`, see each other and trade. The server does not run the rules or hold money, so this is for people who trust each other. A public game needs a server that does: not built. |
 | Art direction and audio | **Partial** | One made-up airline, NigeriaLife Air, on aircraft, hangar, departures board, tickets, lounge and gate (an older name, EagleWings, was still on the lounge, two boarding passes and the gate crew: gone). One made-up coach operator, SwiftRoute, on the coaches, the parks and the timetable. Audio not reviewed. |
-| Performance | **Partial** | Landmarks add about 50 draw calls in all. The start view is about 1,300 calls on the target Intel HD 620. Interiors are all built at start, not on demand. |
+| Performance | **Partial** | Measured 2026-10-23 on the Intel HD 620 at 1366x768, Broad Street at noon, the build before and after alternated: 15.4 to 18.6 fps standing, 15.3 to 19.0 walking (median frame 66.7 to 50 ms). Game logic is about 2 ms a frame and drawing is bound by the graphics chip: the scene in view was 1.3 million triangles, 1.18 million of them the street crowd, each pedestrian built with the detailed model (jointed fingers, sculpted face, about 14,000 triangles) since the other agent's anatomy commits. The crowd now uses the street model, as the other walkers do: 0.74 million in view. About 600 to 830 draw calls. Still to do: the crowd's heads and bodies (about 3,700 triangles each), a lower-quality setting, interiors built on demand. |
 
 ## Phase 17: the journeys
 
@@ -156,6 +163,16 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 5. A server that runs the rules, if the game is to be public.
 
 ## Faults found on the way and put right
+
+- The street crowd was drawn with the detailed character model, over a million triangles for the people in view, which halved the frame rate on the target machine.
+- Re-running the other agent's last commit (23e8888) suite by suite: `social` (the second player is not told about a wave), `actions` (the hawker's list of goods does not open) and `saves` failed on their own. The first two pass on the current build. `saves` fails now and then on both: a business's takings grow on a five-second timer of the computer's clock (`BackendService.passiveInterval`), not the game's, so how much has built up depends on how slowly the test ran. That timer should become part of the one game clock.
+
+- A danfo, keke or ambulance standing still anywhere was paid ₦350 (₦1,200 for the ambulance) every 2.2 seconds by passengers who were not there, and paid a ₦100 "tip" at random while moving.
+- Pressing H to honk in slow traffic also bought a ₦100 pure water from the window hawker, and a quick tap of the hawker's keys was lost between frames on a slow machine.
+- Driving weaved: the lane assist corrected too hard for its damping (a damping ratio of about 0.3 at 25 m/s), a car turned at the same rate at 3 m/s as at 15 (a 1.6 m circle), lifting off the accelerator stopped a car in about a second, and touching a wall stopped it dead.
+- The sky changed picture at four set hours, so it jumped (156 of 255 at 5:48), its clouds moved, and each change built new reflections.
+- Real time was the computer's UTC clock plus one hour, written in three places, not Lagos's time zone.
+- The clock in the top bar rewrote the page every frame (its tooltip and the weather icon), whether or not anything had changed.
 
 - The art gallery street landmark on the map walked the player to the spot without opening its interaction card: now properly opens the interaction card on arrival via foot or transport.
 - Federal Secretariat and Port Harcourt Refinery canonical destinations placed entrances inside buildings/creek, triggering `door-unreachable` in the city plan validator: aligned accurately to walkable entrance gates.
