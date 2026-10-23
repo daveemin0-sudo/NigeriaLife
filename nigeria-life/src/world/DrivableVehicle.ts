@@ -47,6 +47,15 @@ export class DrivableVehicle {
   public turnAngle: number = 0;
   public driver: Player | null = null;
 
+  // Vehicle Handling, Steering Physics & Lane Centering
+  public static steeringSensitivity: number = 1.0;
+  public static laneAssistStrength: number = 0.85;
+  public static cameraSmoothing: number = 1.0;
+
+  public steerInput: number = 0;
+  public isCenteringActive: boolean = false;
+  private velocityDirection: THREE.Vector2 = new THREE.Vector2(0, 1);
+
   // Fuel System (Milestone B)
   public fuel: number = 85; // 0 - 100%
   public isLowFuelWarned: boolean = false;
@@ -1777,18 +1786,99 @@ export class DrivableVehicle {
       this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, 0, delta * this.config.friction);
     }
 
-    // Steering
-    const targetTurn = left ? 1 : right ? -1 : 0;
-    this.turnAngle = THREE.MathUtils.lerp(this.turnAngle, targetTurn, delta * 8);
+    // Progressive steering model with S-curve response and fast neutral centering
+    let rawSteer = 0;
+    if (left && !right) rawSteer = 1;
+    else if (right && !left) rawSteer = -1;
 
-    if (Math.abs(this.currentSpeed) > 0.2) {
+    if (rawSteer !== 0) {
+      // Progressive build-up: small taps produce gentle inputs (~0.25) for fine lane adjustments,
+      // while sustained holds smoothly ramp up to 1.0 for full turning lock.
+      const steerAttackRate = 3.6;
+      this.steerInput = THREE.MathUtils.clamp(
+        this.steerInput + rawSteer * steerAttackRate * delta,
+        -1,
+        1
+      );
+      // Instant direction switch if player presses opposite key
+      if ((rawSteer > 0 && this.steerInput < 0) || (rawSteer < 0 && this.steerInput > 0)) {
+        this.steerInput = 0;
+      }
+    } else {
+      // Critically damped return to neutral when steering keys are released
+      this.steerInput = THREE.MathUtils.lerp(this.steerInput, 0, Math.min(1, delta * 11.0));
+      if (Math.abs(this.steerInput) < 0.005) this.steerInput = 0;
+    }
+
+    // Progressive non-linear steering response curve (forgiving near center, sharp at full lock)
+    const sign = Math.sign(this.steerInput);
+    const absInput = Math.abs(this.steerInput);
+    const curvedSteer = sign * Math.pow(absInput, 1.35) * DrivableVehicle.steeringSensitivity;
+    this.turnAngle = curvedSteer;
+
+    // Speed-dependent steering sensitivity scaling:
+    // High speeds require smaller steering angles to maintain stability and prevent zigzagging,
+    // while low speeds retain full turning angle for U-turns and parking.
+    const absSpeed = Math.abs(this.currentSpeed);
+    const speedSensitivity = 1.0 / (1.0 + Math.pow(absSpeed / 8.5, 0.85));
+    const effectiveTurnSpeed = this.config.turnSpeed * speedSensitivity;
+
+    // Automatic Lane Centering & Directional Stability
+    let laneAssistTorque = 0;
+    const isPlayerSteering = Math.abs(this.steerInput) > 0.12;
+    const isDrivingForward = this.currentSpeed > 2.0;
+    this.isCenteringActive = false;
+
+    if (isDrivingForward && !isPlayerSteering && DrivableVehicle.laneAssistStrength > 0) {
+      const pos = this.mesh.position;
+      const rotY = this.mesh.rotation.y;
+
+      // Check Broad Street corridor (|x| <= 6.8, |z| <= 122)
+      if (Math.abs(pos.x) <= 6.8 && Math.abs(pos.z) <= 122) {
+        // Forward vector along Z axis is cos(rotY)
+        const fwdZ = Math.cos(rotY);
+        // Driving south (+Z, rotY ~ 0) or north (-Z, rotY ~ PI)
+        if (fwdZ > 0.40) {
+          // Driving South (+Z) on West side (Nigeria drives on the right: x < 0)
+          // Lanes at x = -4.9 (outer/slow) and x = -1.8 (inner/fast)
+          const targetLaneX = pos.x < -3.35 ? -4.9 : -1.8;
+          const latOffset = pos.x - targetLaneX; // positive = drifted right of lane center
+          // Heading error towards 0 radians (South)
+          const headingErr = THREE.MathUtils.euclideanModulo(rotY + Math.PI, Math.PI * 2) - Math.PI;
+
+          // Proportional-derivative damping: align with road direction and nudge to lane center
+          const headingTorque = -headingErr * 2.2;
+          const latTorque = -latOffset * 0.42;
+          laneAssistTorque = THREE.MathUtils.clamp(headingTorque + latTorque, -0.40, 0.40);
+          this.isCenteringActive = true;
+        } else if (fwdZ < -0.40) {
+          // Driving North (-Z) on East side (Nigeria drives on the right: x > 0)
+          // Lanes at x = +1.8 (inner/fast) and x = +4.9 (outer/slow)
+          const targetLaneX = pos.x > 3.35 ? 4.9 : 1.8;
+          const latOffset = pos.x - targetLaneX;
+          // Heading error towards PI radians (North)
+          const headingErr = THREE.MathUtils.euclideanModulo(rotY, Math.PI * 2) - Math.PI;
+
+          const headingTorque = -headingErr * 2.2;
+          const latTorque = latOffset * 0.42;
+          laneAssistTorque = THREE.MathUtils.clamp(headingTorque + latTorque, -0.40, 0.40);
+          this.isCenteringActive = true;
+        }
+      }
+    }
+
+    // Apply steering and lane assistance to vehicle yaw
+    if (absSpeed > 0.15) {
       const dirSign = this.currentSpeed >= 0 ? 1 : -1;
-      this.mesh.rotation.y += this.turnAngle * this.config.turnSpeed * delta * dirSign;
+      const playerTurnRate = this.turnAngle * effectiveTurnSpeed * dirSign;
+      const assistFade = THREE.MathUtils.clamp(1.0 - Math.abs(this.steerInput) / 0.12, 0, 1);
+      const totalTurnRate = playerTurnRate + laneAssistTorque * DrivableVehicle.laneAssistStrength * assistFade;
+      this.mesh.rotation.y += totalTurnRate * delta;
     }
 
     // Steer visual front wheels
     for (const w of this.steerWheels) {
-      w.rotation.y = this.turnAngle * 0.45;
+      w.rotation.y = this.turnAngle * 0.42;
     }
 
     // Roll wheels according to ground velocity
@@ -1827,11 +1917,21 @@ export class DrivableVehicle {
 
   private moveForward(delta: number): void {
     const moveDist = this.currentSpeed * delta;
-    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      this.mesh.rotation.y
-    );
-    const nextPos = this.mesh.position.clone().addScaledVector(forward, moveDist);
+    const forwardX = Math.sin(this.mesh.rotation.y);
+    const forwardZ = Math.cos(this.mesh.rotation.y);
+
+    // Lateral grip inertia: lerp travel velocity vector towards car heading
+    if (!this.velocityDirection) {
+      this.velocityDirection = new THREE.Vector2(forwardX, forwardZ);
+    }
+    const gripFactor = Math.min(1.0, delta * 12.0);
+    this.velocityDirection.x = THREE.MathUtils.lerp(this.velocityDirection.x, forwardX, gripFactor);
+    this.velocityDirection.y = THREE.MathUtils.lerp(this.velocityDirection.y, forwardZ, gripFactor);
+    this.velocityDirection.normalize();
+
+    const nextPos = this.mesh.position.clone();
+    nextPos.x += this.velocityDirection.x * moveDist;
+    nextPos.z += this.velocityDirection.y * moveDist;
 
     // Collision check against city buildings and walls
     const solidsFn = DrivableVehicle.solids;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 
 export type TimePeriod = 'morning' | 'midday' | 'golden_hour' | 'night';
+export type ClockMode = 'SIMULATED_TIME' | 'REAL_TIME';
 
 export interface SkyModeConfig {
   period: TimePeriod;
@@ -87,6 +88,32 @@ const MODES: Record<TimePeriod, SkyModeConfig> = {
   },
 };
 
+// 24-Hour continuous lighting keyframe profile
+interface LightingKeyframe {
+  hour: number;
+  sunColor: number;
+  sunIntensity: number;
+  hemiSky: number;
+  hemiGround: number;
+  hemiIntensity: number;
+  fogColor: number;
+  fogDensity: number;
+  exposure: number;
+}
+
+const LIGHTING_TIMELINE: LightingKeyframe[] = [
+  { hour: 0.0,  sunColor: 0x334d77, sunIntensity: 0.35, hemiSky: 0x182238, hemiGround: 0x0a1018, hemiIntensity: 0.25, fogColor: 0x0c1220, fogDensity: 0.0075, exposure: 0.88 },
+  { hour: 5.5,  sunColor: 0x445588, sunIntensity: 0.40, hemiSky: 0x222a44, hemiGround: 0x101420, hemiIntensity: 0.28, fogColor: 0x1a1e30, fogDensity: 0.0070, exposure: 0.90 },
+  { hour: 6.2,  sunColor: 0xffaa66, sunIntensity: 1.20, hemiSky: 0xffb888, hemiGround: 0x554433, hemiIntensity: 0.48, fogColor: 0x996655, fogDensity: 0.0062, exposure: 0.96 },
+  { hour: 7.5,  sunColor: 0xfff2d4, sunIntensity: 2.30, hemiSky: 0xcde4ff, hemiGround: 0x8a7a62, hemiIntensity: 0.65, fogColor: 0xe2d6c2, fogDensity: 0.0050, exposure: 1.05 },
+  { hour: 12.5, sunColor: 0xfff0d0, sunIntensity: 2.60, hemiSky: 0xbfdcff, hemiGround: 0x8a7a62, hemiIntensity: 0.75, fogColor: 0xd9cdb4, fogDensity: 0.0055, exposure: 1.05 },
+  { hour: 16.5, sunColor: 0xffe0b0, sunIntensity: 2.50, hemiSky: 0xc4dcff, hemiGround: 0x8a7a62, hemiIntensity: 0.70, fogColor: 0xdec8ab, fogDensity: 0.0056, exposure: 1.05 },
+  { hour: 18.0, sunColor: 0xffa65c, sunIntensity: 2.30, hemiSky: 0xffbf8a, hemiGround: 0x775544, hemiIntensity: 0.55, fogColor: 0xe0b184, fogDensity: 0.0060, exposure: 1.02 },
+  { hour: 19.3, sunColor: 0xdd6644, sunIntensity: 0.95, hemiSky: 0x775588, hemiGround: 0x332233, hemiIntensity: 0.38, fogColor: 0x4a2a44, fogDensity: 0.0068, exposure: 0.94 },
+  { hour: 20.5, sunColor: 0x3b5284, sunIntensity: 0.45, hemiSky: 0x1e2a44, hemiGround: 0x0f1722, hemiIntensity: 0.30, fogColor: 0x101726, fogDensity: 0.0070, exposure: 0.90 },
+  { hour: 24.0, sunColor: 0x334d77, sunIntensity: 0.35, hemiSky: 0x182238, hemiGround: 0x0a1018, hemiIntensity: 0.25, fogColor: 0x0c1220, fogDensity: 0.0075, exposure: 0.88 },
+];
+
 export class SkyEnvironmentManager {
   private scene: THREE.Scene;
   private renderer: THREE.WebGLRenderer;
@@ -95,24 +122,36 @@ export class SkyEnvironmentManager {
   public sunLight: THREE.DirectionalLight;
   public hemiLight: THREE.HemisphereLight;
 
-  // In-game time tracking (24-hour float: 13.3 = ~1:18 PM)
-  public currentHour: number = 13.3;
-  /** Whole days played. Day 0 is the start date; each midnight adds one. */
-  public day: number = 0;
+  // Authoritative World Clock
+  public clockMode: ClockMode = 'SIMULATED_TIME';
+  public currentHour: number = 13.3; // 24-hour float (e.g. 13.3 = ~1:18 PM)
+  public day: number = 0; // Whole days elapsed since start date (Wed 7 Oct 2026)
+  public timeScale: number = 0.04; // Simulated seconds to in-game time advancement rate
   public onNewDay?: (day: number) => void;
-  private lastClockLabel: string = '';
-  private timeScale: number = 0.04;
+  public onPeriodChange?: (period: TimePeriod) => void;
+
   public currentPeriod: TimePeriod = 'midday';
+  private lastClockLabel: string = '';
   private currentSkyTexture: THREE.CanvasTexture | null = null;
   private currentEnvTexture: THREE.Texture | null = null;
-  public onPeriodChange?: (period: TimePeriod) => void;
+
+  // Weather influence multipliers
+  public weatherSunMultiplier: number = 1.0;
+  public weatherHemiMultiplier: number = 1.0;
+  public weatherFogDensityMultiplier: number = 1.0;
+  public weatherFogColorMultiplier: THREE.Color = new THREE.Color(1, 1, 1);
+
+  // Temporary color buffers for smooth per-frame lerping without GC pressure
+  private tempColorA = new THREE.Color();
+  private tempColorB = new THREE.Color();
+  private tempColorResult = new THREE.Color();
 
   constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     this.scene = scene;
     this.renderer = renderer;
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
 
-    // 1. Hemisphere Light
+    // 1. Hemisphere Ambient Light
     this.hemiLight = new THREE.HemisphereLight(0xbfdcff, 0x8a7a62, 0.75);
     this.scene.add(this.hemiLight);
 
@@ -165,7 +204,7 @@ export class SkyEnvironmentManager {
     g.fillStyle = '#ffffff55';
     for (let i = 0; i < 40; i++) {
       g.beginPath();
-      const ex = (Math.random() * w);
+      const ex = Math.random() * w;
       const ey = h * (0.12 + Math.random() * 0.3);
       const rx = 30 + Math.random() * 70;
       const ry = 6 + Math.random() * 10;
@@ -183,7 +222,7 @@ export class SkyEnvironmentManager {
     this.currentPeriod = period;
     const m = MODES[period];
 
-    // Dispose old textures
+    // Dispose old textures cleanly
     if (this.currentSkyTexture) {
       this.currentSkyTexture.dispose();
     }
@@ -205,15 +244,16 @@ export class SkyEnvironmentManager {
     }
 
     // Atmospheric Fog
-    this.scene.fog = new THREE.FogExp2(m.fog, m.fogDensity);
+    const baseFogDensity = m.fogDensity * this.weatherFogDensityMultiplier;
+    this.scene.fog = new THREE.FogExp2(m.fog, baseFogDensity);
 
-    // Sun & Hemi light
+    // Sun & Hemi light baseline
     this.sunLight.color.setHex(m.sun);
-    this.sunLight.intensity = m.si;
+    this.sunLight.intensity = m.si * this.weatherSunMultiplier;
 
     this.hemiLight.color.setHex(m.hemiSky);
     this.hemiLight.groundColor.setHex(m.hemiGround);
-    this.hemiLight.intensity = m.hi;
+    this.hemiLight.intensity = m.hi * this.weatherHemiMultiplier;
 
     this.renderer.toneMappingExposure = period === 'night' ? 0.92 : 1.05;
     this.updateClockHUD();
@@ -228,10 +268,10 @@ export class SkyEnvironmentManager {
   }
 
   public getTimePeriodForHour(hour: number): TimePeriod {
-    const h = (hour % 24 + 24) % 24;
-    if (h >= 6 && h < 11) return 'morning';
-    if (h >= 11 && h < 17) return 'midday';
-    if (h >= 17 && h < 20) return 'golden_hour';
+    const h = ((hour % 24) + 24) % 24;
+    if (h >= 5.8 && h < 11.5) return 'morning';
+    if (h >= 11.5 && h < 16.5) return 'midday';
+    if (h >= 16.5 && h < 19.3) return 'golden_hour';
     return 'night';
   }
 
@@ -250,9 +290,9 @@ export class SkyEnvironmentManager {
     const nextPeriod = cycle[(idx + 1) % cycle.length];
 
     const targetHour =
-      nextPeriod === 'morning' ? 8 :
+      nextPeriod === 'morning' ? 8.0 :
       nextPeriod === 'midday' ? 13.3 :
-      nextPeriod === 'golden_hour' ? 18.2 :
+      nextPeriod === 'golden_hour' ? 18.0 :
       21.5;
 
     this.currentHour = targetHour;
@@ -266,7 +306,7 @@ export class SkyEnvironmentManager {
 
   public getFormattedTimeString(): string {
     const totalMinutes = Math.floor(this.currentHour * 60);
-    let hours24 = Math.floor(totalMinutes / 60) % 24;
+    const hours24 = Math.floor(totalMinutes / 60) % 24;
     const minutes = totalMinutes % 60;
     const ampm = hours24 >= 12 ? 'PM' : 'AM';
     let hours12 = hours24 % 12;
@@ -276,7 +316,7 @@ export class SkyEnvironmentManager {
     return `${this.getDateLabel()} • ${hours12}:${minStr} ${ampm}`;
   }
 
-  /** The calendar date for the current day, e.g. "Wed 7". A new game starts on Wednesday 7 October. */
+  /** The calendar date for the current day, e.g. "Wed 7". A new game starts on Wednesday 7 October 2026. */
   public getDateLabel(): string {
     const date = new Date(2026, 9, 7 + this.day);
     return `${date.toLocaleDateString('en-GB', { weekday: 'short' })} ${date.getDate()}`;
@@ -307,14 +347,115 @@ export class SkyEnvironmentManager {
     }
   }
 
-  public update(delta: number, playerPosition?: THREE.Vector3): void {
-    this.currentHour += delta * this.timeScale;
-    if (this.currentHour >= 24) {
-      this.currentHour -= 24;
-      this.day += 1;
-      this.onNewDay?.(this.day);
+  /** Interpolates lighting parameters smoothly between keyframes across the 24-hour cycle */
+  private applyContinuousLighting(targetPos: THREE.Vector3): void {
+    const h = ((this.currentHour % 24) + 24) % 24;
+
+    // Find bounding keyframes
+    let k0 = LIGHTING_TIMELINE[0];
+    let k1 = LIGHTING_TIMELINE[1];
+    for (let i = 0; i < LIGHTING_TIMELINE.length - 1; i++) {
+      if (h >= LIGHTING_TIMELINE[i].hour && h <= LIGHTING_TIMELINE[i + 1].hour) {
+        k0 = LIGHTING_TIMELINE[i];
+        k1 = LIGHTING_TIMELINE[i + 1];
+        break;
+      }
     }
 
+    const span = k1.hour - k0.hour;
+    const t = span > 0 ? (h - k0.hour) / span : 0;
+
+    // 1. Sun Direction (Lagos Celestial Solar Arc)
+    // Lagos latitude is ~6.5° N (tropical near-equator). Sun rises roughly East (+X), peaks overhead at midday, sets West (-X).
+    const isDay = h >= 5.8 && h <= 18.8;
+    if (isDay) {
+      const solarPhase = ((h - 6.0) / 12.0) * Math.PI;
+      const sunX = Math.cos(solarPhase) * 60;
+      const sunY = Math.max(6.0, Math.sin(solarPhase) * 75);
+      const sunZ = Math.cos(((h - 12.0) / 12.0) * Math.PI) * 25;
+      this.sunLight.position.set(targetPos.x + sunX, sunY, targetPos.z + sunZ);
+    } else {
+      // Moon position at night
+      const nightPhase = ((((h + 6.0) % 24) - 6.0) / 12.0) * Math.PI;
+      const moonX = -Math.cos(nightPhase) * 45;
+      const moonY = Math.max(10.0, Math.sin(nightPhase) * 55);
+      const moonZ = -20;
+      this.sunLight.position.set(targetPos.x + moonX, moonY, targetPos.z + moonZ);
+    }
+    this.sunLight.target.position.copy(targetPos);
+    this.sunLight.target.updateMatrixWorld();
+
+    // 2. Directional Sun/Moon Light Color & Intensity
+    this.tempColorA.setHex(k0.sunColor);
+    this.tempColorB.setHex(k1.sunColor);
+    this.tempColorResult.copy(this.tempColorA).lerp(this.tempColorB, t);
+    this.sunLight.color.copy(this.tempColorResult);
+    const baseSunInt = THREE.MathUtils.lerp(k0.sunIntensity, k1.sunIntensity, t);
+    this.sunLight.intensity = baseSunInt * this.weatherSunMultiplier;
+
+    // 3. Hemisphere Ambient Light
+    this.tempColorA.setHex(k0.hemiSky);
+    this.tempColorB.setHex(k1.hemiSky);
+    this.hemiLight.color.copy(this.tempColorA).lerp(this.tempColorB, t);
+
+    this.tempColorA.setHex(k0.hemiGround);
+    this.tempColorB.setHex(k1.hemiGround);
+    this.hemiLight.groundColor.copy(this.tempColorA).lerp(this.tempColorB, t);
+
+    const baseHemiInt = THREE.MathUtils.lerp(k0.hemiIntensity, k1.hemiIntensity, t);
+    this.hemiLight.intensity = baseHemiInt * this.weatherHemiMultiplier;
+
+    // 4. Atmospheric Fog
+    if (this.scene.fog && this.scene.fog instanceof THREE.FogExp2) {
+      this.tempColorA.setHex(k0.fogColor);
+      this.tempColorB.setHex(k1.fogColor);
+      this.tempColorResult.copy(this.tempColorA).lerp(this.tempColorB, t);
+      // Modulate with weather fog tint
+      this.tempColorResult.multiply(this.weatherFogColorMultiplier);
+      this.scene.fog.color.copy(this.tempColorResult);
+
+      const baseDensity = THREE.MathUtils.lerp(k0.fogDensity, k1.fogDensity, t);
+      this.scene.fog.density = baseDensity * this.weatherFogDensityMultiplier;
+    }
+
+    // 5. Tone Mapping Exposure
+    const baseExposure = THREE.MathUtils.lerp(k0.exposure, k1.exposure, t);
+    this.renderer.toneMappingExposure = baseExposure;
+  }
+
+  public update(delta: number, playerPosition?: THREE.Vector3): void {
+    // Delta clamping prevents burst jumps when tab is backgrounded
+    const safeDelta = Math.min(delta, 0.25);
+
+    if (this.clockMode === 'REAL_TIME') {
+      // African/Lagos timezone is UTC+1 (West Africa Time, no DST)
+      const now = new Date();
+      const utcHours = now.getUTCHours();
+      const utcMinutes = now.getUTCMinutes();
+      const utcSeconds = now.getUTCSeconds();
+      const utcMs = now.getUTCMilliseconds();
+      const lagosHour = (utcHours + 1 + utcMinutes / 60 + (utcSeconds + utcMs / 1000) / 3600) % 24;
+      this.currentHour = lagosHour;
+
+      // Calculate days elapsed since start date 2026-10-07
+      const startMs = Date.UTC(2026, 9, 7);
+      const lagosNowMs = now.getTime() + 3600000;
+      const elapsedDays = Math.max(0, Math.floor((lagosNowMs - startMs) / 86400000));
+      if (this.day !== elapsedDays) {
+        this.day = elapsedDays;
+        this.onNewDay?.(this.day);
+      }
+    } else {
+      // SIMULATED_TIME: advance according to timeScale
+      this.currentHour += safeDelta * this.timeScale;
+      if (this.currentHour >= 24) {
+        this.currentHour -= 24;
+        this.day += 1;
+        this.onNewDay?.(this.day);
+      }
+    }
+
+    // Check if period category changed (for skybox texture and building night lights)
     const period = this.getTimePeriodForHour(this.currentHour);
     if (period !== this.currentPeriod) {
       this.applyMode(period);
@@ -322,15 +463,8 @@ export class SkyEnvironmentManager {
 
     this.updateClockHUD();
 
+    // Continuous lighting and celestial sun position tracking
     const targetPos = playerPosition || new THREE.Vector3(0, 0, 0);
-    const m = MODES[this.currentPeriod];
-
-    this.sunLight.position.set(
-      targetPos.x + m.dir[0],
-      m.dir[1],
-      targetPos.z + m.dir[2]
-    );
-    this.sunLight.target.position.copy(targetPos);
-    this.sunLight.target.updateMatrixWorld();
+    this.applyContinuousLighting(targetPos);
   }
 }

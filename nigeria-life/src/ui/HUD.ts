@@ -647,7 +647,7 @@ export class HUD {
 
     document.getElementById('hud-weather-btn')?.addEventListener('click', () => {
       if (this.world) {
-        const newW = this.world.weather.toggleWeather();
+        const newW = this.world.weather.cycleWeather();
         this.updateWeatherButton(newW);
       }
     });
@@ -1292,11 +1292,29 @@ export class HUD {
     if (subEl && subEl.textContent !== sub) subEl.textContent = sub;
   }
 
-  public updateWeatherButton(type: 'sunny' | 'rainy'): void {
+  public updateWeatherButton(type: string): void {
     const iconEl = document.getElementById('hud-weather-icon');
     const labelEl = document.getElementById('hud-weather-label');
-    if (iconEl) iconEl.textContent = type === 'sunny' ? '☀️' : '🌧️';
-    if (labelEl) labelEl.textContent = type === 'sunny' ? 'Sunny' : 'Rainy';
+    const icons: Record<string, string> = {
+      sunny: '☀️',
+      clear: '☀️',
+      partly_cloudy: '⛅',
+      overcast: '☁️',
+      rainy: '🌧️',
+      thunderstorm: '⛈️',
+      harmattan: '🌫️',
+    };
+    const labels: Record<string, string> = {
+      sunny: 'Sunny',
+      clear: 'Clear',
+      partly_cloudy: 'Partly Cloudy',
+      overcast: 'Overcast',
+      rainy: 'Rainy',
+      thunderstorm: 'Thunderstorm',
+      harmattan: 'Harmattan',
+    };
+    if (iconEl) iconEl.textContent = icons[type] || '☀️';
+    if (labelEl) labelEl.textContent = labels[type] || type;
   }
 
   public onQuestUpdate(quest: StoryQuest | null): void {

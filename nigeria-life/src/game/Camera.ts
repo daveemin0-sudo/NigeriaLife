@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Player } from '../player/Player';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
+import { DrivableVehicle } from '../world/DrivableVehicle';
 
 export type CameraMode = 'street' | 'interior' | 'home' | 'map' | 'photo';
 export type CameraPreset = 'close' | 'street' | 'isometric' | 'aerial';
@@ -62,6 +63,10 @@ export class GameCamera {
 
   private mapCamPos: THREE.Vector3 = new THREE.Vector3(0, 120, 50);
   private mapLookAt: THREE.Vector3 = new THREE.Vector3(0, 0, 10);
+
+  // Vehicle driving chase camera heading filter
+  private cameraVehYaw: number = 0;
+  private hasInitializedVehCam: boolean = false;
 
   constructor() {
     this.camera = new THREE.PerspectiveCamera(
@@ -363,19 +368,43 @@ export class GameCamera {
     if (player.isDriving && player.currentVehicle) {
       const vehPos = player.currentVehicle.mesh.position;
       const vehRot = player.currentVehicle.mesh.rotation.y;
-      const chaseDistance = 11.5;
-      const chaseHeight = 4.5;
-      const behindX = vehPos.x - Math.sin(vehRot) * chaseDistance;
-      const behindZ = vehPos.z - Math.cos(vehRot) * chaseDistance;
+      const vehSpeed = Math.abs(player.currentVehicle.currentSpeed || 0);
+
+      if (!this.hasInitializedVehCam) {
+        this.cameraVehYaw = vehRot;
+        this.hasInitializedVehCam = true;
+      } else {
+        // Smoothly track vehicle heading to decouple visual camera rotation from high-frequency wheel inputs
+        const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
+        const angleDiff = THREE.MathUtils.euclideanModulo(vehRot - this.cameraVehYaw + Math.PI, Math.PI * 2) - Math.PI;
+        this.cameraVehYaw += angleDiff * Math.min(delta * (4.6 / smoothMultiplier), 1.0);
+      }
+
+      // Dynamic distance and height: pull back slightly at top speed
+      const speedNorm = Math.min(1.0, vehSpeed / 30);
+      const chaseDistance = 11.2 + speedNorm * 2.2;
+      const chaseHeight = 4.4 + speedNorm * 0.8;
+
+      const behindX = vehPos.x - Math.sin(this.cameraVehYaw) * chaseDistance;
+      const behindZ = vehPos.z - Math.cos(this.cameraVehYaw) * chaseDistance;
       const targetCameraPos = new THREE.Vector3(behindX, vehPos.y + chaseHeight, behindZ);
 
-      const vehLerp = Math.min(delta * 8.0, 1);
+      const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
+      const vehLerp = Math.min(delta * (6.5 / smoothMultiplier), 1);
       this.camera.position.lerp(targetCameraPos, vehLerp);
 
-      const targetLookAt = new THREE.Vector3(vehPos.x, vehPos.y + 1.5, vehPos.z);
+      // Look ahead of vehicle along travel direction to provide natural driving perspective
+      const lookAhead = Math.min(Math.max(vehSpeed * 0.16, 1.6), 5.5);
+      const targetLookAt = new THREE.Vector3(
+        vehPos.x + Math.sin(this.cameraVehYaw) * lookAhead,
+        vehPos.y + 1.5,
+        vehPos.z + Math.cos(this.cameraVehYaw) * lookAhead
+      );
       this.currentLookAt.lerp(targetLookAt, vehLerp);
       this.camera.lookAt(this.currentLookAt);
       return;
+    } else {
+      this.hasInitializedVehCam = false;
     }
 
     // Default 'street' mode: rotatable framing centered on player

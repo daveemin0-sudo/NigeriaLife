@@ -242,6 +242,13 @@ export class InputManager {
       this.keys[k] = false;
       this.keys[e.code] = false;
     });
+
+    // Prevent stuck keys when browser window/tab loses focus
+    window.addEventListener('blur', () => {
+      for (const k of Object.keys(this.keys)) {
+        this.keys[k] = false;
+      }
+    });
   }
 
   private onPointerMove(event: MouseEvent): void {

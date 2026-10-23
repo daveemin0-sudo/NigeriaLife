@@ -1135,6 +1135,8 @@ export class Game {
       rotationY: Number(this.player.mesh.rotation.y.toFixed(2)),
       hour: Number(this.world.skyEnvironment.currentHour.toFixed(3)),
       day: this.world.skyEnvironment.day,
+      weather: this.world.weather.currentWeather,
+      clockMode: this.world.skyEnvironment.clockMode,
     });
   }
 
@@ -1144,6 +1146,13 @@ export class Game {
 
     this.world.skyEnvironment.setDay(saved.day);
     this.world.skyEnvironment.setHour(saved.hour);
+    if (saved.clockMode) {
+      this.world.skyEnvironment.clockMode = saved.clockMode;
+    }
+    if (saved.weather) {
+      this.world.weather.setWeather(saved.weather as any);
+      this.hud.updateWeatherButton(saved.weather);
+    }
 
     const coachState = this.coaches.status();
     const flightState = this.flights.status();

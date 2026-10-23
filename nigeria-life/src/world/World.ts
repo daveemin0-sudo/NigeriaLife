@@ -103,6 +103,7 @@ export class World {
     this.weather = new WeatherSystem(this.scene);
     this.weather.registerLights(this.sunLight, this.hemiLight);
     this.weather.registerAtmosphere(this.atmosphere);
+    this.weather.registerSkyEnvironment(this.skyEnvironment);
 
     // 2. Roads Network & Street Furniture
     this.roads = new Roads();

@@ -221,6 +221,8 @@ export interface SavedWorldState {
   rotationY: number;
   hour: number; // Time of day, 0 to 24
   day: number; // Whole days played since the start date
+  weather?: string; // Active weather condition
+  clockMode?: 'SIMULATED_TIME' | 'REAL_TIME'; // World clock simulation mode
   inTransit?: boolean; // Saved mid-journey: the trip is paid for, so a reload completes the arrival
 }
 

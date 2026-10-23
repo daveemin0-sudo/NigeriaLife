@@ -7,6 +7,7 @@ import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerL
 import { AssetMarket } from '../../realestate/AssetMarket';
 import { CloudSyncService } from '../../backend/CloudSyncService';
 import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
+import { DrivableVehicle } from '../../world/DrivableVehicle';
 import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
 
 // ============================================================================================
@@ -482,6 +483,36 @@ export const settingsApp: PhoneApp = {
           <label class="nl-label" for="settings-server-url">World server address</label>
           <input class="nl-field" id="settings-server-url" type="text" inputmode="url" autocomplete="off" placeholder="http://192.168.1.20:8787" value="${esc(host.get('settings.server', ''))}" data-bind="settings.server" />
           <button class="nl-btn nl-btn--block" id="settings-server-join" data-act="server-on">Connect</button>`}
+        <div class="nl-section">Driving & Vehicle Handling</div>
+        <div class="nl-list">
+          ${row({
+            icon: '🚗',
+            title: 'Steering sensitivity',
+            sub: DrivableVehicle.steeringSensitivity <= 0.75 ? 'Forgiving (70%)' : DrivableVehicle.steeringSensitivity >= 1.25 ? 'High (130%)' : 'Standard (100%)',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-steer-sens">Change</button>',
+          })}
+          ${row({
+            icon: '🛣️',
+            title: 'Lane centering assistance',
+            sub: DrivableVehicle.laneAssistStrength === 0 ? 'Off (0%)' : DrivableVehicle.laneAssistStrength >= 1.0 ? 'Strong (100%)' : 'Balanced (85%)',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-lane-assist">Change</button>',
+          })}
+          ${row({
+            icon: '🎥',
+            title: 'Driving chase camera',
+            sub: DrivableVehicle.cameraSmoothing <= 0.7 ? 'Direct / Crisp' : DrivableVehicle.cameraSmoothing >= 1.2 ? 'Smooth Follow' : 'Balanced',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-cam-smooth">Change</button>',
+          })}
+        </div>
+        <div class="nl-section">World Clock & Time Model</div>
+        <div class="nl-list">
+          ${row({
+            icon: '⏰',
+            title: 'Authoritative world clock',
+            sub: (window as any).game?.world.skyEnvironment.clockMode === 'REAL_TIME' ? 'Real Time (WAT Africa/Lagos)' : 'Simulated Accelerated Time',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-clock-mode">Switch</button>',
+          })}
+        </div>
         <div class="nl-section">Saved game</div>
         <div class="nl-hint">The game saves itself on this device every few seconds. A copy as text lets you move it to another browser.</div>
         <div class="nl-list">
@@ -502,6 +533,27 @@ export const settingsApp: PhoneApp = {
     } else if (action === 'radio') {
       sound.toggleRadio();
       host.refresh();
+    } else if (action === 'toggle-steer-sens') {
+      DrivableVehicle.steeringSensitivity =
+        DrivableVehicle.steeringSensitivity >= 1.25 ? 0.70 :
+        DrivableVehicle.steeringSensitivity <= 0.75 ? 1.0 : 1.30;
+      host.refresh();
+    } else if (action === 'toggle-lane-assist') {
+      DrivableVehicle.laneAssistStrength =
+        DrivableVehicle.laneAssistStrength === 0 ? 0.85 :
+        DrivableVehicle.laneAssistStrength >= 1.0 ? 0.0 : 1.0;
+      host.refresh();
+    } else if (action === 'toggle-cam-smooth') {
+      DrivableVehicle.cameraSmoothing =
+        DrivableVehicle.cameraSmoothing >= 1.2 ? 0.6 :
+        DrivableVehicle.cameraSmoothing <= 0.7 ? 1.0 : 1.3;
+      host.refresh();
+    } else if (action === 'toggle-clock-mode') {
+      const sky = (window as any).game?.world.skyEnvironment;
+      if (sky) {
+        sky.clockMode = sky.clockMode === 'REAL_TIME' ? 'SIMULATED_TIME' : 'REAL_TIME';
+        host.refresh();
+      }
     } else if (action === 'server-on') {
       const url = host.get('settings.server', '').trim();
       if (!/^https?:\/\/[^\s]+$/.test(url)) return host.say('Enter the address the server printed, such as http://192.168.1.20:8787.', 'bad');
