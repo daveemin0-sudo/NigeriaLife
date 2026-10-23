@@ -56,6 +56,7 @@ export interface HumanConfig {
   hasShades?: boolean;
   hasGoldChain?: boolean;
   hasCoralBeads?: boolean;
+  lod?: 'detailed' | 'street';
 }
 
 export interface HumanRig {
@@ -791,140 +792,191 @@ export class HumanMeshBuilder {
     // --- PHYSICAL 3D SCULPTED FACIAL ANATOMY (Matching Reference 2) ---
     // Precise surface coordinates guarantee eyes, nose, lips and tribal marks are 100% visible and unoccluded.
 
-    // 1. Almond 3D Eyes (White Sclera, Warm African Amber Iris, Pupil & Corneal Catchlight Sparkle)
-    const catchlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    materials.push(catchlightMat);
+    if (config.lod === 'street') {
+      // Streamlined Street Face: Clean, recognizable stylized features with minimal draw calls
+      // 1. Almond Eyes (White Sclera + Amber/Dark Pupil)
+      for (const ex of [-0.055, 0.055]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 8), eyeWhiteMat);
+        eye.scale.set(1.2, 0.8, 0.5);
+        eye.position.set(ex, 0.012, 0.206);
+        headGroup.add(eye);
 
-    for (const ex of [-0.055, 0.055]) {
-      // Sclera (White Eye Capsule)
-      const sclera = new THREE.Mesh(new THREE.SphereGeometry(0.022, 14, 12), eyeWhiteMat);
-      sclera.scale.set(1.22, 0.85, 0.88);
-      sclera.position.set(ex, 0.012, 0.204);
-      headGroup.add(sclera);
-
-      // Iris (Warm African Amber)
-      const iris = new THREE.Mesh(new THREE.CylinderGeometry(0.0135, 0.0135, 0.004, 16), irisMat);
-      iris.rotation.x = Math.PI / 2;
-      iris.position.set(ex, 0.012, 0.219);
-      headGroup.add(iris);
-
-      // Pupil (Deep Black Center)
-      const pupil = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.005, 12), pupilMat);
-      pupil.rotation.x = Math.PI / 2;
-      pupil.position.set(ex, 0.012, 0.221);
-      headGroup.add(pupil);
-
-      // Lifelike Corneal Catchlight (Pixar/Disney specular sparkle matching Reference 2)
-      const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 6, 6), catchlightMat);
-      catchlight.position.set(ex + 0.0045, 0.016, 0.224);
-      headGroup.add(catchlight);
-
-      // Upper Eyelid Fold
-      const upperLid = new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.054, 8), skinMat);
-      upperLid.rotation.z = Math.PI / 2;
-      upperLid.position.set(ex, 0.024, 0.218);
-      headGroup.add(upperLid);
-
-      // Lower Eyelid
-      const lowerLid = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.048, 8), skinMat);
-      lowerLid.rotation.z = Math.PI / 2;
-      lowerLid.position.set(ex, -0.004, 0.216);
-      headGroup.add(lowerLid);
-    }
-
-    // 2. Arched Eyebrows (Reference 2)
-    for (const bx of [-0.058, 0.058]) {
-      const isLeft = bx < 0;
-      const brow = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.011, 0.006, 0.075, 8),
-        browMat
-      );
-      brow.rotation.z = isLeft ? -Math.PI / 2 - 0.16 : Math.PI / 2 + 0.16;
-      brow.rotation.y = isLeft ? 0.20 : -0.20;
-      brow.position.set(bx, 0.050, 0.208);
-      headGroup.add(brow);
-    }
-
-    // 3. African Nasal Architecture (Defined Bridge, Rounded Apex & Nostril Wings)
-    const bridge = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.019, 0.052, 8), skinMat);
-    bridge.position.set(0, 0.006, 0.214);
-    headGroup.add(bridge);
-
-    const apex = new THREE.Mesh(new THREE.SphereGeometry(0.020, 12, 10), skinMat);
-    apex.scale.set(1.22, 0.92, 1.15);
-    apex.position.set(0, -0.024, 0.236);
-    headGroup.add(apex);
-
-    for (const nx of [-0.023, 0.023]) {
-      const nostril = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), skinMat);
-      nostril.scale.set(0.95, 0.82, 1.15);
-      nostril.position.set(nx, -0.028, 0.220);
-      headGroup.add(nostril);
-    }
-
-    // 4. Contoured Cupid's Bow Lips (Reference 2)
-    for (const lx of [-0.015, 0.015]) {
-      const peak = new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 8), lipMat);
-      peak.scale.set(1.2, 0.70, 1.05);
-      peak.position.set(lx, -0.058, 0.209);
-      headGroup.add(peak);
-    }
-    const upperBar = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.060, 8), lipMat);
-    upperBar.rotation.z = Math.PI / 2;
-    upperBar.position.set(0, -0.060, 0.207);
-    headGroup.add(upperBar);
-
-    const lowerLip = new THREE.Mesh(new THREE.SphereGeometry(0.020, 12, 10), lipMat);
-    lowerLip.scale.set(1.42, 0.68, 1.0);
-    lowerLip.position.set(0, -0.078, 0.208);
-    headGroup.add(lowerLip);
-
-    // 5. Authentic Yoruba Tribal Cheek Marks (3 Delicate Horizontal Pélé Marks - Reference 2)
-    const tribalMarkMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
-    materials.push(tribalMarkMat);
-    for (const side of [-1, 1]) {
-      for (let m = 0; m < 3; m++) {
-        const markY = -0.010 - m * 0.011;
-        const mark = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.002, 0.002, 0.044, 6),
-          tribalMarkMat
-        );
-        mark.rotation.z = side * -0.22; // Gentle upward cheek curve toward ear
-        mark.rotation.y = side * 0.35;
-        mark.position.set(side * 0.082, markY, 0.202);
-        headGroup.add(mark);
+        const pupil = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.004, 8), irisMat);
+        pupil.rotation.x = Math.PI / 2;
+        pupil.position.set(ex, 0.012, 0.216);
+        headGroup.add(pupil);
       }
-    }
 
-    // 6. Male Facial Grooming (Sculpted Mustache & Chin Goatee matching Reference 2)
-    if (!isFemale) {
-      const stache = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.005, 0.068, 8), browMat);
-      stache.rotation.z = Math.PI / 2;
-      stache.position.set(0, -0.050, 0.212);
-      headGroup.add(stache);
+      // 2. Eyebrows
+      for (const bx of [-0.058, 0.058]) {
+        const isLeft = bx < 0;
+        const brow = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.014, 0.01), browMat);
+        brow.rotation.z = isLeft ? -0.16 : 0.16;
+        brow.position.set(bx, 0.050, 0.208);
+        headGroup.add(brow);
+      }
 
-      const goatee = new THREE.Mesh(new THREE.SphereGeometry(0.020, 10, 8), browMat);
-      goatee.scale.set(1.15, 0.75, 0.85);
-      goatee.position.set(0, -0.110, 0.178);
-      headGroup.add(goatee);
-    }
+      // 3. Sculpted African Nasal Architecture (Unified bridge & apex)
+      const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.024, 0.065, 8), skinMat);
+      nose.position.set(0, -0.010, 0.224);
+      headGroup.add(nose);
 
-    // 7. Anatomical Ears
-    const earHeight = 0.005;
-    for (const ex of [-headWidth * 0.98, headWidth * 0.98]) {
-      const earGroup = new THREE.Group();
-      earGroup.position.set(ex, earHeight, -0.015);
-      earGroup.rotation.y = ex > 0 ? -0.20 : 0.20; // 12 deg natural backward angle
+      // 4. Lips (Unified contoured feature)
+      const lips = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), lipMat);
+      lips.scale.set(1.6, 0.65, 0.8);
+      lips.position.set(0, -0.068, 0.208);
+      headGroup.add(lips);
 
-      const earHelix = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.007, 8, 12, Math.PI * 1.4), skinMat);
-      earHelix.rotation.z = ex > 0 ? 0.35 : -0.35;
-      earGroup.add(earHelix);
+      // 5. Ears
+      for (const ex of [-headWidth * 0.98, headWidth * 0.98]) {
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), skinMat);
+        ear.scale.set(0.35, 1.1, 0.7);
+        ear.position.set(ex, 0.005, -0.015);
+        headGroup.add(ear);
+      }
 
-      const earConcha = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), skinMat);
-      earConcha.scale.set(0.35, 1.1, 0.8);
-      earGroup.add(earConcha);
+      if (!isFemale) {
+        const goatee = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), browMat);
+        goatee.scale.set(1.1, 0.6, 0.8);
+        goatee.position.set(0, -0.105, 0.178);
+        headGroup.add(goatee);
+      }
+    } else {
+      // 1. Almond 3D Eyes (White Sclera, Warm African Amber Iris, Pupil & Corneal Catchlight Sparkle)
+      const catchlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      materials.push(catchlightMat);
 
-      headGroup.add(earGroup);
+      for (const ex of [-0.055, 0.055]) {
+        // Sclera (White Eye Capsule)
+        const sclera = new THREE.Mesh(new THREE.SphereGeometry(0.022, 14, 12), eyeWhiteMat);
+        sclera.scale.set(1.22, 0.85, 0.88);
+        sclera.position.set(ex, 0.012, 0.204);
+        headGroup.add(sclera);
+
+        // Iris (Warm African Amber)
+        const iris = new THREE.Mesh(new THREE.CylinderGeometry(0.0135, 0.0135, 0.004, 16), irisMat);
+        iris.rotation.x = Math.PI / 2;
+        iris.position.set(ex, 0.012, 0.219);
+        headGroup.add(iris);
+
+        // Pupil (Deep Black Center)
+        const pupil = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.005, 12), pupilMat);
+        pupil.rotation.x = Math.PI / 2;
+        pupil.position.set(ex, 0.012, 0.221);
+        headGroup.add(pupil);
+
+        // Lifelike Corneal Catchlight (Pixar/Disney specular sparkle matching Reference 2)
+        const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 6, 6), catchlightMat);
+        catchlight.position.set(ex + 0.0045, 0.016, 0.224);
+        headGroup.add(catchlight);
+
+        // Upper Eyelid Fold
+        const upperLid = new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.054, 8), skinMat);
+        upperLid.rotation.z = Math.PI / 2;
+        upperLid.position.set(ex, 0.024, 0.218);
+        headGroup.add(upperLid);
+
+        // Lower Eyelid
+        const lowerLid = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.048, 8), skinMat);
+        lowerLid.rotation.z = Math.PI / 2;
+        lowerLid.position.set(ex, -0.004, 0.216);
+        headGroup.add(lowerLid);
+      }
+
+      // 2. Arched Eyebrows (Reference 2)
+      for (const bx of [-0.058, 0.058]) {
+        const isLeft = bx < 0;
+        const brow = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.011, 0.006, 0.075, 8),
+          browMat
+        );
+        brow.rotation.z = isLeft ? -Math.PI / 2 - 0.16 : Math.PI / 2 + 0.16;
+        brow.rotation.y = isLeft ? 0.20 : -0.20;
+        brow.position.set(bx, 0.050, 0.208);
+        headGroup.add(brow);
+      }
+
+      // 3. African Nasal Architecture (Defined Bridge, Rounded Apex & Nostril Wings)
+      const bridge = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.019, 0.052, 8), skinMat);
+      bridge.position.set(0, 0.006, 0.214);
+      headGroup.add(bridge);
+
+      const apex = new THREE.Mesh(new THREE.SphereGeometry(0.020, 12, 10), skinMat);
+      apex.scale.set(1.22, 0.92, 1.15);
+      apex.position.set(0, -0.024, 0.236);
+      headGroup.add(apex);
+
+      for (const nx of [-0.023, 0.023]) {
+        const nostril = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), skinMat);
+        nostril.scale.set(0.95, 0.82, 1.15);
+        nostril.position.set(nx, -0.028, 0.220);
+        headGroup.add(nostril);
+      }
+
+      // 4. Contoured Cupid's Bow Lips (Reference 2)
+      for (const lx of [-0.015, 0.015]) {
+        const peak = new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 8), lipMat);
+        peak.scale.set(1.2, 0.70, 1.05);
+        peak.position.set(lx, -0.058, 0.209);
+        headGroup.add(peak);
+      }
+      const upperBar = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.060, 8), lipMat);
+      upperBar.rotation.z = Math.PI / 2;
+      upperBar.position.set(0, -0.060, 0.207);
+      headGroup.add(upperBar);
+
+      const lowerLip = new THREE.Mesh(new THREE.SphereGeometry(0.020, 12, 10), lipMat);
+      lowerLip.scale.set(1.42, 0.68, 1.0);
+      lowerLip.position.set(0, -0.078, 0.208);
+      headGroup.add(lowerLip);
+
+      // 5. Authentic Yoruba Tribal Cheek Marks (3 Delicate Horizontal Pélé Marks - Reference 2)
+      const tribalMarkMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+      materials.push(tribalMarkMat);
+      for (const side of [-1, 1]) {
+        for (let m = 0; m < 3; m++) {
+          const markY = -0.010 - m * 0.011;
+          const mark = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.002, 0.002, 0.044, 6),
+            tribalMarkMat
+          );
+          mark.rotation.z = side * -0.22; // Gentle upward cheek curve toward ear
+          mark.rotation.y = side * 0.35;
+          mark.position.set(side * 0.082, markY, 0.202);
+          headGroup.add(mark);
+        }
+      }
+
+      // 6. Male Facial Grooming (Sculpted Mustache & Chin Goatee matching Reference 2)
+      if (!isFemale) {
+        const stache = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.005, 0.068, 8), browMat);
+        stache.rotation.z = Math.PI / 2;
+        stache.position.set(0, -0.050, 0.212);
+        headGroup.add(stache);
+
+        const goatee = new THREE.Mesh(new THREE.SphereGeometry(0.020, 10, 8), browMat);
+        goatee.scale.set(1.15, 0.75, 0.85);
+        goatee.position.set(0, -0.110, 0.178);
+        headGroup.add(goatee);
+      }
+
+      // 7. Anatomical Ears
+      const earHeight = 0.005;
+      for (const ex of [-headWidth * 0.98, headWidth * 0.98]) {
+        const earGroup = new THREE.Group();
+        earGroup.position.set(ex, earHeight, -0.015);
+        earGroup.rotation.y = ex > 0 ? -0.20 : 0.20; // 12 deg natural backward angle
+
+        const earHelix = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.007, 8, 12, Math.PI * 1.4), skinMat);
+        earHelix.rotation.z = ex > 0 ? 0.35 : -0.35;
+        earGroup.add(earHelix);
+
+        const earConcha = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), skinMat);
+        earConcha.scale.set(0.35, 1.1, 0.8);
+        earGroup.add(earConcha);
+
+        headGroup.add(earGroup);
+      }
     }
 
     // 8. Optional Accessories (Designer Sunglasses & Cuban Gold Chain)
@@ -1217,6 +1269,25 @@ export class HumanMeshBuilder {
       knuckleBar.rotation.z = Math.PI / 2;
       knuckleBar.position.set(0, -0.070, 0.004);
       handGroup.add(knuckleBar);
+
+      if (config.lod === 'street') {
+        // Optimized street hand: contoured palm, thumb, and sculpted curled fingers block
+        const thumbGroup = new THREE.Group();
+        thumbGroup.position.set(thumbDir * 0.028, -0.028, 0.008);
+        thumbGroup.rotation.z = thumbDir * -0.65;
+        thumbGroup.rotation.x = 0.35;
+        const thumbMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.010, 0.038, 6), skinMat);
+        thumbMesh.position.set(0, -0.019, 0);
+        thumbGroup.add(thumbMesh);
+        handGroup.add(thumbGroup);
+
+        const fingersGeo = new THREE.BoxGeometry(0.062, 0.044, 0.022);
+        const fingersMesh = new THREE.Mesh(fingersGeo, skinMat);
+        fingersMesh.position.set(0, -0.090, 0.006);
+        fingersMesh.rotation.x = 0.22;
+        handGroup.add(fingersMesh);
+        return handGroup;
+      }
 
       // 4. Articulated Opposable Thumb (Metacarpal + Distal Phalanx angled forward)
       const thumbGroup = new THREE.Group();

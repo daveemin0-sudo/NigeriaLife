@@ -128,6 +128,7 @@ export class NPCs {
       outfitColor: 0xeab308, // Iconic Lagos street yellow shirt
       hairstyle: 'short_crop',
       hasTray: true, // Plastic red basin with sachet pure water & gala on head
+      lod: 'street',
     });
 
     this.hawkerGroup.add(this.hawkerRig.group);
@@ -158,6 +159,7 @@ export class NPCs {
       outfit: 'casual_tee',
       outfitColor: 0xd97706, // Amber street tee
       hairstyle: 'afro',
+      lod: 'street',
     });
 
     conductorGroup.add(rig.group);
@@ -187,6 +189,7 @@ export class NPCs {
       outfit: 'casual_tee',
       outfitColor: 0x16a34a, // Green sports jersey
       hairstyle: 'fade',
+      lod: 'street',
     });
 
     betGroup.add(rig.group);
@@ -217,6 +220,7 @@ export class NPCs {
       outfitColor: 0xe11d48, // Rich Nigerian lace/ankara magenta
       secondaryColor: 0xfacc15,
       hairstyle: 'gele', // Grand Gele headwrap
+      lod: 'street',
     });
 
     auntyGroup.add(rig.group);
@@ -247,6 +251,7 @@ export class NPCs {
       outfitColor: 0x0f172a, // Deep midnight navy Senator suit
       hairstyle: 'short_crop',
       hasTie: true,
+      lod: 'street',
     });
 
     bankerGroup.add(rig.group);
@@ -276,6 +281,7 @@ export class NPCs {
       outfit: 'chef_attire',
       outfitColor: 0x7c2d12,
       hairstyle: 'fila',
+      lod: 'street',
     });
 
     suyaGroup.add(rig.group);
@@ -305,6 +311,7 @@ export class NPCs {
       outfit: 'casual_tee',
       outfitColor: 0x0284c7,
       hairstyle: 'fade',
+      lod: 'street',
     });
 
     phoneGroup.add(rig.group);
@@ -334,6 +341,7 @@ export class NPCs {
       outfit: 'mechanic_overalls',
       outfitColor: 0x1e3a8a,
       hairstyle: 'short_crop',
+      lod: 'street',
     });
 
     mechGroup.add(rig.group);
@@ -363,6 +371,7 @@ export class NPCs {
       outfit: 'traffic_warden',
       outfitColor: 0xfacc15,
       hairstyle: 'police_cap',
+      lod: 'street',
     });
 
     wardenGroup.add(rig.group);
@@ -392,6 +401,7 @@ export class NPCs {
       outfit: 'agbada',
       outfitColor: 0x047857, // Deep green royal Agbada
       hairstyle: 'fila',
+      lod: 'street',
     });
 
     elderGroup.add(rig.group);
@@ -453,6 +463,7 @@ export class NPCs {
         outfit: item.outfit,
         outfitColor: item.outfitColor,
         hairstyle: item.hairstyle,
+        lod: 'street',
       });
 
       pedGroup.add(rig.group);
@@ -474,24 +485,41 @@ export class NPCs {
     }
   }
 
+  private cachedPedPositions: Array<{ x: number; z: number; radius: number }> = [];
+
   /**
    * Queries physical footprints of all active street characters (story NPCs, vendors, crowd).
    * Used for reciprocal continuous pedestrian collision resolution with player.
    */
   public getPedestrianPositions(): Array<{ x: number; z: number; radius: number }> {
-    const list: Array<{ x: number; z: number; radius: number }> = [];
+    let idx = 0;
     if (this.hawkerGroup) {
-      list.push({ x: this.hawkerGroup.position.x, z: this.hawkerGroup.position.z, radius: 0.35 });
+      if (!this.cachedPedPositions[idx]) this.cachedPedPositions[idx] = { x: 0, z: 0, radius: 0.35 };
+      this.cachedPedPositions[idx].x = this.hawkerGroup.position.x;
+      this.cachedPedPositions[idx].z = this.hawkerGroup.position.z;
+      this.cachedPedPositions[idx].radius = 0.35;
+      idx++;
     }
-    for (const item of this.interactiveList) {
+    for (let i = 0; i < this.interactiveList.length; i++) {
+      const item = this.interactiveList[i];
       if (item.mesh !== this.hawkerGroup) {
-        list.push({ x: item.mesh.position.x, z: item.mesh.position.z, radius: 0.35 });
+        if (!this.cachedPedPositions[idx]) this.cachedPedPositions[idx] = { x: 0, z: 0, radius: 0.35 };
+        this.cachedPedPositions[idx].x = item.mesh.position.x;
+        this.cachedPedPositions[idx].z = item.mesh.position.z;
+        this.cachedPedPositions[idx].radius = 0.35;
+        idx++;
       }
     }
-    for (const ped of this.pedestrians) {
-      list.push({ x: ped.group.position.x, z: ped.group.position.z, radius: 0.35 });
+    for (let i = 0; i < this.pedestrians.length; i++) {
+      const ped = this.pedestrians[i];
+      if (!this.cachedPedPositions[idx]) this.cachedPedPositions[idx] = { x: 0, z: 0, radius: 0.35 };
+      this.cachedPedPositions[idx].x = ped.group.position.x;
+      this.cachedPedPositions[idx].z = ped.group.position.z;
+      this.cachedPedPositions[idx].radius = 0.35;
+      idx++;
     }
-    return list;
+    this.cachedPedPositions.length = idx;
+    return this.cachedPedPositions;
   }
 
   // =========================================================================
@@ -500,13 +528,19 @@ export class NPCs {
   public update(delta: number, playerPos?: THREE.Vector3): void {
     this.storyAnimTime += delta;
 
-    // 1. Animate Drinks Hawker patrolling the street
+    // 1. Animate Drinks Hawker patrolling the street with distance culling
     if (this.hawkerGroup && this.hawkerRig && !this.hawkerActor?.scripted) {
+      if (playerPos) {
+        const dSq = (this.hawkerGroup.position.x - playerPos.x) ** 2 + (this.hawkerGroup.position.z - playerPos.z) ** 2;
+        this.hawkerGroup.visible = dSq < 45 * 45;
+      }
       // Head back along the patrol line after stopping to greet someone
       this.hawkerGroup.rotation.y = this.hawkerDir > 0 ? 0 : Math.PI;
       this.hawkerGroup.position.z += this.hawkerDir * this.hawkerSpeed * delta;
       this.hawkerWalkTime += delta * 6.5;
-      this.hawkerRig.updateAnimation(this.hawkerWalkTime, 'walk');
+      if (this.hawkerGroup.visible) {
+        this.hawkerRig.updateAnimation(this.hawkerWalkTime, 'walk');
+      }
 
       if (this.hawkerGroup.position.z > 25) {
         this.hawkerDir = -1;
@@ -522,17 +556,26 @@ export class NPCs {
       this.hawkerSpot.set(this.hawkerGroup.position.x, 0.28, this.hawkerGroup.position.z);
     }
 
-    // 2. Animate Story Character Rigs
+    // 2. Animate Story Character Rigs with distance visibility culling
     for (const story of this.storyRigs) {
+      const parent = story.rig.group.parent;
+      if (playerPos && parent) {
+        const dSq = (parent.position.x - playerPos.x) ** 2 + (parent.position.z - playerPos.z) ** 2;
+        const isNear = dSq < 48 * 48;
+        parent.visible = isNear;
+        if (!isNear) continue;
+      }
       if (story.actor?.scripted) continue;
       story.rig.updateAnimation(this.storyAnimTime, story.animState);
     }
 
-    // 3. Animate Sidewalk Pedestrians with predictive avoidance & mutual collision
+    // 3. Animate Sidewalk Pedestrians with distance LOD culling & predictive avoidance
     for (const ped of this.pedestrians) {
       if (playerPos) {
         const distSq = (ped.group.position.x - playerPos.x) ** 2 + (ped.group.position.z - playerPos.z) ** 2;
-        if (distSq > 70 * 70) continue; // Skip bone kinematic calculations for NPCs farther than 70m
+        const isNear = distSq < 38 * 38;
+        ped.group.visible = isNear;
+        if (!isNear) continue;
       }
 
       if (ped.isWalking) {

@@ -311,6 +311,9 @@ export class CharacterQualityTestScene {
   public open(game: Game): void {
     if (this.isActive) return;
     this.isActive = true;
+    if (this.group.parent !== game.scene) {
+      game.scene.add(this.group);
+    }
     this.group.visible = true;
 
     // Save camera state
@@ -335,6 +338,9 @@ export class CharacterQualityTestScene {
     if (!this.isActive) return;
     this.isActive = false;
     this.group.visible = false;
+    if (this.group.parent === game.scene) {
+      game.scene.remove(this.group);
+    }
 
     // Restore camera
     game.cameraManager.camera.position.copy(this.prevCameraPos);

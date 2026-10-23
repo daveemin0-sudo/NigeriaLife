@@ -119,13 +119,13 @@ export class SkyEnvironmentManager {
     // 2. Directional Sun Light with PCF Soft Shadows
     this.sunLight = new THREE.DirectionalLight(0xfff0d0, 2.6);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.mapSize.set(1536, 1536);
 
     const sc = this.sunLight.shadow.camera;
-    sc.left = sc.bottom = -45;
-    sc.right = sc.top = 45;
+    sc.left = sc.bottom = -35;
+    sc.right = sc.top = 35;
     sc.near = 1;
-    sc.far = 160;
+    sc.far = 150;
     this.sunLight.shadow.bias = -0.0004;
     this.sunLight.shadow.normalBias = 0.04;
 

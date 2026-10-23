@@ -246,7 +246,7 @@ export class HUD {
             <span>17.6m • <strong style="color: #4ade80;">🟢 85k online</strong></span>
           </div>
           <div class="pill-item perf-pill" id="hud-perf-pill" style="display: none; font-size: 11px; background: rgba(0,0,0,0.65); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;">
-            <span id="perf-fps">60 FPS</span> • <span id="perf-ms">16ms</span> • <span id="perf-draws">40 draws</span>
+            <span id="perf-fps">60 FPS</span> • <span id="perf-ms">16ms</span> • <span id="perf-draws">40 draws</span> • <span id="perf-speed">0m/s [IDLE]</span>
           </div>
           <button class="sound-toggle-btn" id="hud-sound-toggle" title="Toggle Afrobeats Radio">🔊</button>
           <div class="pill-item money-pill-large" id="pill-money-wrap">

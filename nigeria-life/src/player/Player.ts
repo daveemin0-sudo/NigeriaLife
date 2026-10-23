@@ -21,9 +21,9 @@ import { holdCarriedItem } from '../interactions/Poses';
 export class Player {
   public mesh: THREE.Group;
   public targetPosition: THREE.Vector3 | null = null;
-  public walkSpeed: number = 4.8;
-  public sprintSpeed: number = 8.0;
-  public speed: number = 4.8;
+  public walkSpeed: number = 5.6;
+  public sprintSpeed: number = 9.8;
+  public speed: number = 5.6;
   private currentVelocity: THREE.Vector3 = new THREE.Vector3();
   public isMoving: boolean = false;
   public isSprinting: boolean = false;
@@ -220,9 +220,11 @@ export class Player {
     }
     if (this.getOtherPedestrians) {
       const peds = this.getOtherPedestrians();
-      for (const ped of peds) {
+      for (let i = 0; i < peds.length; i++) {
+        const ped = peds[i];
         const dx = p.x - ped.x;
         const dz = p.z - ped.z;
+        if (Math.abs(dx) > 1.2 || Math.abs(dz) > 1.2) continue;
         const dist = Math.hypot(dx, dz);
         const minDist = 0.35 + (ped.radius || 0.35);
         if (dist < minDist && dist > 1e-4) {
@@ -343,10 +345,10 @@ export class Player {
 
         const targetAngle = Math.atan2(moveDir.x, moveDir.z);
         const diffAngle = Math.atan2(Math.sin(targetAngle - this.mesh.rotation.y), Math.cos(targetAngle - this.mesh.rotation.y));
-        this.mesh.rotation.y += diffAngle * Math.min(1, delta * 14.0);
+        this.mesh.rotation.y += diffAngle * Math.min(1, delta * 18.0);
         const cameFrom = this.mesh.position.clone();
         const targetVel = moveDir.clone().multiplyScalar(this.speed);
-        this.currentVelocity.lerp(targetVel, Math.min(1, delta * 14.0));
+        this.currentVelocity.lerp(targetVel, Math.min(1, delta * 24.0));
         this.mesh.position.addScaledVector(this.currentVelocity, delta);
         this.stayOnTheWay(cameFrom);
         this.isMoving = true;
@@ -360,7 +362,7 @@ export class Player {
         this.mesh.position.y = THREE.MathUtils.lerp(this.mesh.position.y, targetY, Math.min(1, delta * 14));
 
         const currentMoveSpeed = Math.hypot(this.currentVelocity.x, this.currentVelocity.z);
-        this.animTime += delta * Math.max(0.6, currentMoveSpeed / 4.8);
+        this.animTime += delta * Math.max(0.65, (currentMoveSpeed / this.walkSpeed) * 1.15);
         if (this.humanRig) {
           this.humanRig.updateAnimation(this.animTime, moveAction);
         }

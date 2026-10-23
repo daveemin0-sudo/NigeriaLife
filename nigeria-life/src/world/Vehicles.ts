@@ -19,6 +19,7 @@ export class Vehicles {
 
   // Dynamic Ambient Traffic System
   private trafficCars: TrafficCar[] = [];
+  public parkedVehicles: THREE.Group[] = [];
 
   constructor() {
     this.group = new THREE.Group();
@@ -282,6 +283,8 @@ export class Vehicles {
     aptSedan.position.set(-10.2, 0, -78.0);
     aptSedan.rotation.y = -Math.PI / 2;
     this.group.add(aptSedan);
+
+    this.parkedVehicles = [oandoCar, bankCar, marketSUV, mechCar, okada1, okada2, aptSedan];
   }
 
   // =========================================================================
@@ -325,79 +328,42 @@ export class Vehicles {
   // 4. VEHICLE PROCEDURAL MODEL BUILDERS
   // =========================================================================
 
+  private static sharedTireMat: THREE.MeshStandardMaterial | null = null;
+  private static sharedRimMat: THREE.MeshStandardMaterial | null = null;
+
   /** Helper: builds a high-detail automotive wheel assembly */
   private createRealisticWheel(radius: number, width: number, rimRadius: number): { holder: THREE.Group; tire: THREE.Mesh } {
     const holder = new THREE.Group();
 
-    const tireMat = new THREE.MeshStandardMaterial({
-      color: 0x18181b,
-      roughness: 0.88,
-      metalness: 0.05,
-    });
-    const rimMat = new THREE.MeshStandardMaterial({
-      color: 0xd4d4d8,
-      metalness: 0.85,
-      roughness: 0.25,
-    });
-    const brakeMat = new THREE.MeshStandardMaterial({
-      color: 0x94a3b8,
-      metalness: 0.9,
-      roughness: 0.35,
-    });
-    const caliperMat = new THREE.MeshStandardMaterial({
-      color: 0xdc2626,
-      roughness: 0.4,
-    });
-
-    // Main rubber tire
-    const tireGeo = new THREE.CylinderGeometry(radius, radius, width, 16);
-    const tire = new THREE.Mesh(tireGeo, tireMat);
-    tire.rotation.z = Math.PI / 2;
-    tire.castShadow = true;
-    holder.add(tire);
-
-    // Tread rings
-    for (const t of [-width * 0.25, width * 0.25]) {
-      const tread = new THREE.Mesh(
-        new THREE.TorusGeometry(radius * 0.96, 0.015, 6, 16),
-        tireMat
-      );
-      tread.position.set(t, 0, 0);
-      tread.rotation.y = Math.PI / 2;
-      holder.add(tread);
+    if (!Vehicles.sharedTireMat) {
+      Vehicles.sharedTireMat = new THREE.MeshStandardMaterial({
+        color: 0x18181b,
+        roughness: 0.88,
+        metalness: 0.05,
+      });
+    }
+    if (!Vehicles.sharedRimMat) {
+      Vehicles.sharedRimMat = new THREE.MeshStandardMaterial({
+        color: 0xd4d4d8,
+        metalness: 0.85,
+        roughness: 0.25,
+      });
     }
 
+    // Main rubber tire
+    const tireGeo = new THREE.CylinderGeometry(radius, radius, width, 14);
+    const tire = new THREE.Mesh(tireGeo, Vehicles.sharedTireMat);
+    tire.rotation.z = Math.PI / 2;
+    holder.add(tire);
+
     // Silver alloy rim
-    const rim = new THREE.Mesh(new THREE.CylinderGeometry(rimRadius, rimRadius, width * 1.02, 14), rimMat);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(rimRadius, rimRadius, width * 1.02, 10), Vehicles.sharedRimMat);
     rim.rotation.z = Math.PI / 2;
     holder.add(rim);
 
-    // 5-Spoke Wheel Face
-    for (let s = 0; s < 5; s++) {
-      const angle = (s * Math.PI * 2) / 5;
-      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.04, rimRadius * 0.85, width * 1.03), rimMat);
-      spoke.position.set(0, Math.cos(angle) * (rimRadius * 0.45), Math.sin(angle) * (rimRadius * 0.45));
-      spoke.rotation.x = angle;
-      holder.add(spoke);
-    }
-
-    // Center hubcap
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(rimRadius * 0.3, rimRadius * 0.3, width * 1.05, 10), rimMat);
-    hub.rotation.z = Math.PI / 2;
-    holder.add(hub);
-
-    // Brake disc rotor & caliper behind rim
-    const brakeDisc = new THREE.Mesh(new THREE.CylinderGeometry(rimRadius * 0.72, rimRadius * 0.72, 0.02, 12), brakeMat);
-    brakeDisc.rotation.z = Math.PI / 2;
-    brakeDisc.position.set(-width * 0.15, 0, 0);
-    holder.add(brakeDisc);
-
-    const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.04, rimRadius * 0.35, rimRadius * 0.25), caliperMat);
-    caliper.position.set(-width * 0.15, rimRadius * 0.35, 0);
-    holder.add(caliper);
-
     return { holder, tire };
   }
+
 
   // A. Classic Yellow Lagos Danfo Minibus
   private createDanfo(): { group: THREE.Group; wheels: THREE.Mesh[] } {
@@ -915,13 +881,29 @@ export class Vehicles {
   // =========================================================================
   // 5. UPDATE LOOP
   // =========================================================================
-  public update(delta: number, keys: Record<string, boolean> = {}): void {
-    // 1. Update Drivable Vehicles
+  public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3): void {
+    // 1. Update Drivable Vehicles with distance LOD culling
     for (const v of this.drivableVehicles) {
+      if (playerPos) {
+        const dSq = (v.mesh.position.x - playerPos.x) ** 2 + (v.mesh.position.z - playerPos.z) ** 2;
+        const visible = dSq < 48 * 48;
+        v.mesh.visible = visible;
+        if (!visible) continue;
+      } else {
+        v.mesh.visible = true;
+      }
       v.update(delta, keys);
     }
 
-    // 2. Update Dynamic Continuous Ambient Traffic Stream
+    // 2. Distance culling on static parked vehicles
+    if (playerPos) {
+      for (const car of this.parkedVehicles) {
+        const dSq = (car.position.x - playerPos.x) ** 2 + (car.position.z - playerPos.z) ** 2;
+        car.visible = dSq < 45 * 45;
+      }
+    }
+
+    // 3. Update Dynamic Continuous Ambient Traffic Stream
     for (const car of this.trafficCars) {
       if (car.lane === 'north') {
         car.group.position.z += car.speed * delta;

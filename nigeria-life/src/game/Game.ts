@@ -544,7 +544,7 @@ export class Game {
 
     // 12c. Character & Vehicle Quality Studio Showcase (Milestone A Acceptance Gate)
     this.qualityShowcase = new CharacterQualityTestScene();
-    this.scene.add(this.qualityShowcase.group);
+    // Attached dynamically to scene only when opened to protect street rendering performance
 
     this.hud.onToggleShowcase = () => this.qualityShowcase.toggle(this);
     this.input.onToggleShowcase = () => this.qualityShowcase.toggle(this);
@@ -1238,7 +1238,17 @@ export class Game {
 
   private loop = (): void => {
     requestAnimationFrame(this.loop);
-    this.step(Math.min(this.clock.getDelta(), 0.1));
+    const rawDelta = this.clock.getDelta();
+    // Cap maximum delta to prevent excessive steps after browser tab backgrounding
+    const clampedDelta = Math.min(rawDelta, 0.15);
+    if (clampedDelta > 0.055) {
+      // Sub-step on longer frames to maintain smooth physics, velocity integration and consistent movement speed
+      const half = clampedDelta * 0.5;
+      this.step(half);
+      this.step(half);
+    } else {
+      this.step(clampedDelta);
+    }
     this.render();
   };
 
@@ -1391,9 +1401,16 @@ export class Game {
       const fpsEl = document.getElementById('perf-fps');
       const msEl = document.getElementById('perf-ms');
       const drawEl = document.getElementById('perf-draws');
+      const speedEl = document.getElementById('perf-speed');
       if (fpsEl) fpsEl.textContent = `${this.currentFPS} FPS`;
       if (msEl) msEl.textContent = `${(delta * 1000).toFixed(1)}ms`;
-      if (drawEl) drawEl.textContent = `${this.renderer.info.render.calls} draws`;
+      if (drawEl) drawEl.textContent = `${this.renderer.info.render.calls} draws (${(this.renderer.info.render.triangles / 1000).toFixed(0)}k tris)`;
+      if (speedEl) {
+        const pSpeed = this.player.isMoving
+          ? `${this.player.speed.toFixed(1)}m/s [${this.player.isSprinting ? 'RUN' : 'WALK'}]`
+          : '0m/s [IDLE]';
+        speedEl.textContent = pSpeed;
+      }
     }
   }
 }

@@ -474,8 +474,8 @@ export class World {
       return;
     }
 
-    // Update vehicle movements & drivable controls
-    this.vehicles.update(delta, keys);
+    // Update vehicle movements & drivable controls with distance culling
+    this.vehicles.update(delta, keys, playerPos);
 
     let frustum: THREE.Frustum | undefined;
     if (this.viewCamera) {

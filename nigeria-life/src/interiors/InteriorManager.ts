@@ -138,6 +138,8 @@ export class InteriorManager {
     this.group.traverse((child) => {
       child.layers.set(RENDER_LAYERS.INTERIOR);
     });
+    // Hidden while on street; enabled dynamically when entering an interior
+    this.group.visible = false;
   }
 
   /**
@@ -245,6 +247,7 @@ export class InteriorManager {
     world.apartment.group.visible = false;
 
     // 5. Isolate interior rendering: show ONLY target interior group
+    this.group.visible = true;
     for (const template of this.templates) {
       template.group.visible = template.def === target;
     }
@@ -318,6 +321,7 @@ export class InteriorManager {
     for (const template of this.templates) {
       template.group.visible = false;
     }
+    this.group.visible = false;
 
     // 3. RESTORE outdoor street world visibility
     world.setStreetModeVisibility(true);
