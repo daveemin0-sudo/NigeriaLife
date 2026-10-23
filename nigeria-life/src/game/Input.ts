@@ -49,6 +49,8 @@ export class InputManager {
   public virtualJoystick: VirtualJoystick;
   public onToggleVehicle?: () => void;
   public onHonkVehicle?: () => void;
+  /** J or G pressed while driving: buy from the hawker at the window, if one is there */
+  public onBuyFromWindow?: (item: 'water' | 'gala') => void;
   public onRefuelVehicle?: () => void;
   public onToggleShowcase?: () => void;
   /** A click landed on open ground. Return true to use it instead of walking there. */
@@ -205,6 +207,9 @@ export class InputManager {
         this.onToggleVehicle?.();
       } else if (k === 'h') {
         this.onHonkVehicle?.();
+      } else if (k === 'j' || k === 'g') {
+        // On the key going down, so a quick tap between two frames is not lost
+        this.onBuyFromWindow?.(k === 'j' ? 'water' : 'gala');
       } else if (k === 'r') {
         this.onRefuelVehicle?.();
       } else if (k === 'v') {

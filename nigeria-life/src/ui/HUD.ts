@@ -424,7 +424,7 @@ export class HUD {
         <div id="driving-hawker-pill" style="display: none; align-items: center; justify-content: space-between; gap: 8px; background: rgba(20, 83, 45, 0.95); border: 1px solid #4ade80; border-radius: 8px; padding: 4px 10px; margin-top: 6px; font-size: 11px;">
           <span style="color: #fef08a; font-weight: 700;">🥤 Chidi at Window:</span>
           <div style="display: flex; gap: 6px;">
-            <button id="btn-traffic-water" style="background: #0284c7; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">💧 Water [H] ₦100</button>
+            <button id="btn-traffic-water" style="background: #0284c7; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">💧 Water [J] ₦100</button>
             <button id="btn-traffic-gala" style="background: #b91c1c; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">🌭 Gala [G] ₦250</button>
           </div>
         </div>

@@ -42,7 +42,7 @@ export async function launch() {
 /** A private browser context: a brand new player with an empty save. */
 export const newPlayer = (browser) => browser.createBrowserContext();
 
-/** Opens the game and waits until it is running. `before` is script text run before the page loads. */
+/** Opens the game and waits until it is running. `before` is script text run before the page loads; `url` overrides GAME_URL. */
 export async function open(ctx, opts = {}) {
   const page = await ctx.newPage();
   await page.setViewport({ width: opts.w || 1366, height: opts.h || 768 });
@@ -50,7 +50,7 @@ export async function open(ctx, opts = {}) {
   page.on('pageerror', (e) => log.errors.push('PAGEERR ' + e.message.slice(0, 240)));
   page.on('console', (m) => { if (m.type() === 'error') log.errors.push('CONSOLE ' + m.text().slice(0, 240)); });
   if (opts.before) await page.evaluateOnNewDocument(opts.before);
-  await page.goto(GAME_URL, { waitUntil: 'load', timeout: 120000 });
+  await page.goto(opts.url || GAME_URL, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction('window.game', { timeout: 120000 });
   await wait(opts.settle ?? 3000);
   return { page, log };

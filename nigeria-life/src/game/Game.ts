@@ -58,6 +58,7 @@ import { FurnishBar } from '../ui/FurnishBar';
 import { Television } from '../housing/Television';
 import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
+import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
 import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
 import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
@@ -230,6 +231,11 @@ export class Game {
       if (this.player.isDriving && this.player.currentVehicle) {
         this.player.currentVehicle.honk();
       }
+    };
+
+    this.input.onBuyFromWindow = (item) => {
+      const streetLife = LagosStreetLifeSystem.getInstance();
+      if (this.player.isDriving && streetLife.isHawkerAtWindow) streetLife.buyFromWindowHawker(item);
     };
 
     const refuelActiveVehicle = () => {
@@ -721,6 +727,19 @@ export class Game {
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
     this.player.getOtherPedestrians = () => this.world.npcs.getPedestrianPositions();
     DrivableVehicle.solids = () => this.solidsHere();
+    // The queues at Broad Street's bus stops are who a danfo or keke picks up
+    const crowd = this.world.cityPopulation;
+    DrivableVehicle.busStops = {
+      stopAt: (x, z) => (this.world.cityManager.currentCityId === 'lagos' ? crowd.stopAt(x, z) : -1),
+      board: (stop, doorX, doorZ, onBoard) => crowd.board(stop, doorX, doorZ, onBoard),
+    };
+    const roadsByCity = new Map<string, ReturnType<typeof zonesFor>>();
+    DrivableVehicle.roads = () => {
+      const city = this.world.cityManager.currentCityId;
+      let roads = roadsByCity.get(city);
+      if (!roads) roadsByCity.set(city, (roads = zonesFor(city)));
+      return roads;
+    };
     // What players build on their plots is solid too: when that changes, the list is made again
     this.registry.subscribe((state) => {
       const built = Object.keys(state.buildings).sort().join(',');

@@ -37,7 +37,24 @@ interface Agent {
   max: number;
   /** Walks Broad Street's sidewalk, which drops to road level at junctions */
   onMainWalk: boolean;
+  /** The bus stop this person is queueing at, if any (index into BUS_STOPS) */
+  stop?: number;
+  /** Walking to a bus door: where it is, and what happens when they step in */
+  boarding?: { x: number; z: number; done: () => boolean };
+  /** Seconds until someone who has ridden off comes back to the queue (0 or absent: here) */
+  away?: number;
 }
+
+/** Where people wait for a danfo: on the kerb of Broad Street, west side for southbound, east for northbound */
+export const BUS_STOPS: ReadonlyArray<{ z: number; side: -1 | 1 }> = [
+  { z: -20, side: -1 },
+  { z: 60, side: -1 },
+  { z: 40, side: 1 },
+  { z: -90, side: 1 },
+];
+/** How long a rider is gone before someone takes their place at the back of the queue, seconds */
+const RIDER_AWAY = 120;
+const BOARDING_SPEED = 1.7;
 
 const SKIN_TONES = ['#3b2416', '#4a2c1d', '#5c3722', '#6b4226', '#7a4a2b', '#8d5a3b'];
 const TROUSERS = [0x1e293b, 0x1f2937, 0x334155, 0x57534e, 0x1e3a8a, 0x292524];
@@ -221,23 +238,56 @@ export class CityPopulation {
 
   /** Commuters queueing at the kerb for danfo and BRT */
   private spawnBusStopQueues(): void {
-    const stops = [
-      { z: -20, side: -1 },
-      { z: 60, side: -1 },
-      { z: 40, side: 1 },
-      { z: -90, side: 1 },
-    ];
-    for (const stop of stops) {
+    BUS_STOPS.forEach((stop, index) => {
       const queue = 6 + Math.floor(this.rand() * 4);
       for (let i = 0; i < queue; i++) {
         this.addAgent({
+          stop: index,
           mode: this.rand() < 0.3 ? 'talk' : 'idle',
           x: stop.side * (MAIN_ROAD.halfRoad + 0.9 + this.rand() * 0.8),
           z: stop.z - i * 0.85 * stop.side + (this.rand() - 0.5) * 0.3,
           yaw: stop.side < 0 ? Math.PI / 2 : -Math.PI / 2,
         });
       }
+    });
+  }
+
+  // =========================================================================
+  // RIDERS
+  // =========================================================================
+  /** The bus stop a vehicle at (x, z) is pulled up at, or -1: in the kerb lane, alongside the queue. */
+  public stopAt(x: number, z: number): number {
+    return BUS_STOPS.findIndex((stop) => Math.sign(x) === stop.side && Math.abs(x) > 3 && Math.abs(z - stop.z) < 9);
+  }
+
+  /** How many are waiting at a stop now. */
+  public waitingAt(stop: number): number {
+    let n = 0;
+    for (let i = 0; i < this.agents.length; i++) {
+      const a = this.agents[i];
+      if (a.stop === stop && !a.away && !a.boarding && isAbroad(i, this.abroad)) n++;
     }
+    return n;
+  }
+
+  /**
+   * The one at the front of the queue at `stop` walks along the kerb to a door at (doorX, doorZ)
+   * and steps in; `onBoard` runs at that moment and says whether the vehicle was still there to
+   * get into (if not, they stay at the stop). False if nobody is waiting.
+   */
+  public board(stop: number, doorX: number, doorZ: number, onBoard: () => boolean): boolean {
+    let front: Agent | null = null;
+    for (let i = 0; i < this.agents.length; i++) {
+      const a = this.agents[i];
+      if (a.stop !== stop || a.away || a.boarding || !isAbroad(i, this.abroad)) continue;
+      // The front of the queue is the end nearest the stop sign
+      if (!front || Math.abs(a.z - BUS_STOPS[stop].z) < Math.abs(front.z - BUS_STOPS[stop].z)) front = a;
+    }
+    if (!front) return false;
+    const kerbX = BUS_STOPS[stop].side * (MAIN_ROAD.halfRoad + 0.25);
+    front.boarding = { x: Math.abs(doorX) > Math.abs(kerbX) ? doorX : kerbX, z: doorZ, done: onBoard };
+    front.mode = 'walk';
+    return true;
   }
 
   /** Small knots of people gisting outside the shopfronts */
@@ -321,7 +371,42 @@ export class CityPopulation {
       // Limb rotations: [leftArm, rightArm, leftLeg, rightLeg] as (x, z) pairs
       let lax = 0, laz = 0, rax = 0, raz = 0, llx = 0, rlx = 0, bob = 0;
 
-      if (a.mode === 'walk') {
+      if (a.away) {
+        a.away = Math.max(0, a.away - delta);
+        if (a.away > 0) continue;
+        // Someone else turns up at the back of the queue
+        const stop = BUS_STOPS[a.stop ?? 0];
+        a.mode = 'idle';
+        a.x = stop.side * (MAIN_ROAD.halfRoad + 0.9 + this.rand() * 0.8);
+        a.z = stop.z - (5 + this.rand() * 3) * 0.85 * stop.side;
+        a.yaw = stop.side < 0 ? Math.PI / 2 : -Math.PI / 2;
+      }
+
+      if (a.boarding) {
+        const dx = a.boarding.x - a.x;
+        const dz = a.boarding.z - a.z;
+        const d = Math.hypot(dx, dz);
+        const step = BOARDING_SPEED * delta;
+        if (d <= step) {
+          const done = a.boarding.done;
+          a.boarding = undefined;
+          a.mode = 'idle';
+          if (done()) {
+            a.away = RIDER_AWAY;
+            continue;
+          }
+        }
+        a.x += (dx / d) * step;
+        a.z += (dz / d) * step;
+        a.yaw = Math.atan2(dx, dz);
+        a.phase += delta * (BOARDING_SPEED / 1.35);
+        const stride = Math.sin(a.phase * 8);
+        llx = stride * 0.6;
+        rlx = -stride * 0.6;
+        lax = -stride * 0.5;
+        rax = stride * 0.5;
+        bob = Math.abs(stride) * 0.035;
+      } else if (a.mode === 'walk') {
         a.phase += delta * (a.speed / 1.35);
         const along = (a.axis === 'x' ? a.x : a.z) + a.dir * a.speed * delta;
         if (along > a.max) a.dir = -1;

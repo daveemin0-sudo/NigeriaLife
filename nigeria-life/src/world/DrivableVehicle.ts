@@ -8,6 +8,8 @@ import { SoundEngine } from '../audio/SoundEngine';
 import { showGameToast } from '../ui/GameToast';
 import { BackendService } from '../backend/BackendService';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
+import type { Zone } from './plan/CityPlan';
+import { ASSIST_HANDS_ON, assistYawRate, handlingOf, nextSpeed, roadUnder, turnWheel, wheelAngle, yawRate } from './VehicleHandling';
 
 export type VehicleType =
   | 'danfo'
@@ -20,6 +22,14 @@ export type VehicleType =
   | 'sports_car'
   | 'electric_car'
   | 'ambulance';
+
+/** Where people wait for a ride, and getting them aboard (the street crowd does this) */
+export interface BusStops {
+  /** The stop a vehicle at (x, z) is pulled up at, or -1 */
+  stopAt(x: number, z: number): number;
+  /** The front of the queue walks to the door; `onBoard` says if the vehicle was still there. False if nobody waits. */
+  board(stop: number, doorX: number, doorZ: number, onBoard: () => boolean): boolean;
+}
 
 export interface VehicleConfig {
   id: string;
@@ -37,6 +47,13 @@ export interface VehicleConfig {
 export class DrivableVehicle {
   /** What cannot be driven through where the game is now: set once by the game */
   public static solids: (() => Solids | null) | null = null;
+  /** The streets of the city the game is in, for the road assist: set once by the game */
+  public static roads: (() => readonly Zone[] | null) | null = null;
+  /** The bus stops and the people waiting at them, for danfos and kekes: set once by the game */
+  public static busStops: BusStops | null = null;
+  /** The stop where the people now aboard got on (-1: none yet) */
+  private boardedAt: number = -1;
+  private boardingNow: boolean = false;
 
   public id: string;
   public name: string;
@@ -81,7 +98,7 @@ export class DrivableVehicle {
     this.type = config.type;
     this.config = config;
 
-    this.isCommercialTransit = this.type === 'danfo' || this.type === 'keke' || this.type === 'ambulance';
+    this.isCommercialTransit = this.type === 'danfo' || this.type === 'keke';
     this.maxPassengers =
       this.type === 'danfo' ? 8 :
       this.type === 'keke' ? 3 :
@@ -1717,7 +1734,7 @@ export class DrivableVehicle {
     if (!this.driver) {
       // Natural rolling friction when unoccupied
       if (Math.abs(this.currentSpeed) > 0.1) {
-        this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, 0, delta * this.config.friction);
+        this.currentSpeed = nextSpeed(this.currentSpeed, delta, { gas: false, brake: false }, this.config);
         this.moveForward(delta);
       } else {
         this.currentSpeed = 0;
@@ -1746,159 +1763,36 @@ export class DrivableVehicle {
     }
 
     // In-Traffic Street Hawker System (Chidi approaching window in go-slow)
-    const streetLife = LagosStreetLifeSystem.getInstance();
-    streetLife.updateTrafficHawker(delta, this.currentSpeed, !!this.driver);
-    if (streetLife.isHawkerAtWindow) {
-      if (keys['h'] || keys['KeyH']) {
-        keys['h'] = false;
-        keys['KeyH'] = false;
-        streetLife.buyFromWindowHawker('water');
-      } else if (keys['g'] || keys['KeyG']) {
-        keys['g'] = false;
-        keys['KeyG'] = false;
-        streetLife.buyFromWindowHawker('gala');
-      }
-    }
+    LagosStreetLifeSystem.getInstance().updateTrafficHawker(delta, this.currentSpeed, !!this.driver);
 
-    // Commercial Passenger Boarding & Fare Collection (Danfo & Keke)
-    if (this.isCommercialTransit) {
-      if (Math.abs(this.currentSpeed) < 0.6) {
-        this.pickupTimer += delta;
-        if (this.pickupTimer >= 2.2 && this.passengers < this.maxPassengers) {
-          this.pickupTimer = 0;
-          this.passengers += 1;
-          this.totalFaresCollected += this.fareRate;
-          SoundEngine.getInstance().playTransactionSuccess();
-          BackendService.getInstance().addCash(this.fareRate, `Transit Fare: ${this.name}`);
-          if (this.type === 'danfo') {
-            streetLife.triggerConductorShout();
-          } else {
-            showGameToast(`👥 Passenger boarded! +₦${this.fareRate.toLocaleString()} fare collected (${this.passengers}/${this.maxPassengers} seats filled)`, 'success');
-          }
-        }
-      } else {
-        // While driving along route, occasional passenger disembarking with tip
-        if (this.passengers > 0 && Math.random() < delta * 0.015) {
-          this.passengers -= 1;
-          const tip = 100;
-          BackendService.getInstance().addCash(tip, 'Passenger Drop-Off Tip');
-          showGameToast(`🚏 Passenger dropped off at bus stop! +₦${tip} tip`, 'info');
-        }
-      }
-    }
+    // Danfos and kekes: pull up at a bus stop and the queue boards, each paying as they step in
+    if (this.isCommercialTransit) this.workTheRoute(delta);
 
-    // Acceleration & Braking
-    if (gas) {
-      this.currentSpeed = Math.min(
-        this.config.maxSpeed,
-        this.currentSpeed + this.config.acceleration * delta
-      );
-    } else if (brake) {
-      if (this.currentSpeed > 0.5) {
-        this.currentSpeed = Math.max(0, this.currentSpeed - this.config.braking * delta);
-      } else {
-        this.currentSpeed = Math.max(
-          -this.config.reverseSpeed,
-          this.currentSpeed - this.config.acceleration * 0.7 * delta
-        );
-      }
-    } else {
-      this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, 0, delta * this.config.friction);
-    }
+    // Pedals, then the wheel, then how fast that turns the vehicle at this speed (see VehicleHandling)
+    this.currentSpeed = nextSpeed(this.currentSpeed, delta, { gas, brake }, this.config);
 
-    // Progressive steering model with S-curve response and fast neutral centering
-    let rawSteer = 0;
-    if (left && !right) rawSteer = 1;
-    else if (right && !left) rawSteer = -1;
+    const held: -1 | 0 | 1 = left && !right ? 1 : right && !left ? -1 : 0;
+    this.steerInput = turnWheel(this.steerInput, held, this.currentSpeed, delta);
+    const handling = handlingOf(this.config.turnSpeed, DrivableVehicle.steeringSensitivity);
+    this.turnAngle = wheelAngle(this.steerInput, this.currentSpeed, handling);
+    let turn = yawRate(this.type, this.turnAngle, this.currentSpeed);
 
-    if (rawSteer !== 0) {
-      // Progressive build-up: small taps produce gentle inputs (~0.25) for fine lane adjustments,
-      // while sustained holds smoothly ramp up to 1.0 for full turning lock.
-      const steerAttackRate = 3.6;
-      this.steerInput = THREE.MathUtils.clamp(
-        this.steerInput + rawSteer * steerAttackRate * delta,
-        -1,
-        1
-      );
-      // Instant direction switch if player presses opposite key
-      if ((rawSteer > 0 && this.steerInput < 0) || (rawSteer < 0 && this.steerInput > 0)) {
-        this.steerInput = 0;
-      }
-    } else {
-      // Critically damped return to neutral when steering keys are released
-      this.steerInput = THREE.MathUtils.lerp(this.steerInput, 0, Math.min(1, delta * 11.0));
-      if (Math.abs(this.steerInput) < 0.005) this.steerInput = 0;
-    }
-
-    // Progressive non-linear steering response curve (forgiving near center, sharp at full lock)
-    const sign = Math.sign(this.steerInput);
-    const absInput = Math.abs(this.steerInput);
-    const curvedSteer = sign * Math.pow(absInput, 1.35) * DrivableVehicle.steeringSensitivity;
-    this.turnAngle = curvedSteer;
-
-    // Speed-dependent steering sensitivity scaling:
-    // High speeds require smaller steering angles to maintain stability and prevent zigzagging,
-    // while low speeds retain full turning angle for U-turns and parking.
-    const absSpeed = Math.abs(this.currentSpeed);
-    const speedSensitivity = 1.0 / (1.0 + Math.pow(absSpeed / 8.5, 0.85));
-    const effectiveTurnSpeed = this.config.turnSpeed * speedSensitivity;
-
-    // Automatic Lane Centering & Directional Stability
-    let laneAssistTorque = 0;
-    const isPlayerSteering = Math.abs(this.steerInput) > 0.12;
-    const isDrivingForward = this.currentSpeed > 2.0;
+    // Road assist: keeps a car going straight in its lane, and stays out of the way while the driver steers
     this.isCenteringActive = false;
-
-    if (isDrivingForward && !isPlayerSteering && DrivableVehicle.laneAssistStrength > 0) {
+    const roads = DrivableVehicle.roads?.();
+    if (roads && DrivableVehicle.laneAssistStrength > 0 && Math.abs(this.steerInput) < ASSIST_HANDS_ON) {
       const pos = this.mesh.position;
-      const rotY = this.mesh.rotation.y;
-
-      // Check Broad Street corridor (|x| <= 6.8, |z| <= 122)
-      if (Math.abs(pos.x) <= 6.8 && Math.abs(pos.z) <= 122) {
-        // Forward vector along Z axis is cos(rotY)
-        const fwdZ = Math.cos(rotY);
-        // Driving south (+Z, rotY ~ 0) or north (-Z, rotY ~ PI)
-        if (fwdZ > 0.40) {
-          // Driving South (+Z) on West side (Nigeria drives on the right: x < 0)
-          // Lanes at x = -4.9 (outer/slow) and x = -1.8 (inner/fast)
-          const targetLaneX = pos.x < -3.35 ? -4.9 : -1.8;
-          const latOffset = pos.x - targetLaneX; // positive = drifted right of lane center
-          // Heading error towards 0 radians (South)
-          const headingErr = THREE.MathUtils.euclideanModulo(rotY + Math.PI, Math.PI * 2) - Math.PI;
-
-          // Proportional-derivative damping: align with road direction and nudge to lane center
-          const headingTorque = -headingErr * 2.2;
-          const latTorque = -latOffset * 0.42;
-          laneAssistTorque = THREE.MathUtils.clamp(headingTorque + latTorque, -0.40, 0.40);
-          this.isCenteringActive = true;
-        } else if (fwdZ < -0.40) {
-          // Driving North (-Z) on East side (Nigeria drives on the right: x > 0)
-          // Lanes at x = +1.8 (inner/fast) and x = +4.9 (outer/slow)
-          const targetLaneX = pos.x > 3.35 ? 4.9 : 1.8;
-          const latOffset = pos.x - targetLaneX;
-          // Heading error towards PI radians (North)
-          const headingErr = THREE.MathUtils.euclideanModulo(rotY, Math.PI * 2) - Math.PI;
-
-          const headingTorque = -headingErr * 2.2;
-          const latTorque = latOffset * 0.42;
-          laneAssistTorque = THREE.MathUtils.clamp(headingTorque + latTorque, -0.40, 0.40);
-          this.isCenteringActive = true;
-        }
+      const assist = assistYawRate(roadUnder(roads, pos.x, pos.z), pos.x, pos.z, this.mesh.rotation.y, this.currentSpeed);
+      if (assist !== 0) {
+        this.isCenteringActive = true;
+        turn += assist * DrivableVehicle.laneAssistStrength * (1 - Math.abs(this.steerInput) / ASSIST_HANDS_ON);
       }
     }
-
-    // Apply steering and lane assistance to vehicle yaw
-    if (absSpeed > 0.15) {
-      const dirSign = this.currentSpeed >= 0 ? 1 : -1;
-      const playerTurnRate = this.turnAngle * effectiveTurnSpeed * dirSign;
-      const assistFade = THREE.MathUtils.clamp(1.0 - Math.abs(this.steerInput) / 0.12, 0, 1);
-      const totalTurnRate = playerTurnRate + laneAssistTorque * DrivableVehicle.laneAssistStrength * assistFade;
-      this.mesh.rotation.y += totalTurnRate * delta;
-    }
+    this.mesh.rotation.y += turn * delta;
 
     // Steer visual front wheels
     for (const w of this.steerWheels) {
-      w.rotation.y = this.turnAngle * 0.42;
+      w.rotation.y = this.turnAngle;
     }
 
     // Roll wheels according to ground velocity
@@ -1914,6 +1808,53 @@ export class DrivableVehicle {
       this.driver.mesh.position.copy(this.mesh.position);
       this.driver.mesh.rotation.y = this.mesh.rotation.y;
     }
+  }
+
+  /**
+   * Stopped at a bus stop: those aboard who got on elsewhere get down first, then the queue gets
+   * on one at a time. Each one walks to the door, and pays the fare as they step in, so the money
+   * comes from someone who is really there and is aboard.
+   */
+  private workTheRoute(delta: number): void {
+    const stops = DrivableVehicle.busStops;
+    const pos = this.mesh.position;
+    const stop = stops && Math.abs(this.currentSpeed) < 0.6 ? stops.stopAt(pos.x, pos.z) : -1;
+    if (!stops || stop < 0) {
+      this.pickupTimer = 0;
+      return;
+    }
+    this.pickupTimer += delta;
+    if (this.pickupTimer < 1.4) return;
+    this.pickupTimer = 0;
+
+    if (stop !== this.boardedAt && this.passengers > 0) {
+      this.passengers -= 1;
+      showGameToast(`🚏 A passenger gets down here (${this.passengers}/${this.maxPassengers} aboard).`, 'info');
+      if (this.passengers === 0) this.boardedAt = stop;
+      return;
+    }
+    this.boardedAt = stop;
+    if (this.boardingNow || this.passengers >= this.maxPassengers) return;
+
+    const pulledUpX = pos.x;
+    const pulledUpZ = pos.z;
+    const doorX = pulledUpX + (Math.sign(pulledUpX) || 1) * 1.1;
+    const doorZ = pulledUpZ;
+    this.boardingNow = stops.board(stop, doorX, doorZ, () => {
+      this.boardingNow = false;
+      // Pulled away before they reached the door: they wait for the next one
+      if (Math.hypot(this.mesh.position.x - pulledUpX, this.mesh.position.z - pulledUpZ) > 3 || !this.driver) return false;
+      this.passengers += 1;
+      this.totalFaresCollected += this.fareRate;
+      SoundEngine.getInstance().playTransactionSuccess();
+      BackendService.getInstance().addCash(this.fareRate, `Transit Fare: ${this.name}`);
+      if (this.type === 'danfo') {
+        LagosStreetLifeSystem.getInstance().triggerConductorShout();
+      } else {
+        showGameToast(`👥 A passenger gets in and pays ₦${this.fareRate.toLocaleString()} (${this.passengers}/${this.maxPassengers} aboard)`, 'success');
+      }
+      return true;
+    });
   }
 
   public refuel(): boolean {
@@ -1940,29 +1881,41 @@ export class DrivableVehicle {
     const forwardX = Math.sin(this.mesh.rotation.y);
     const forwardZ = Math.cos(this.mesh.rotation.y);
 
-    // Lateral grip inertia: lerp travel velocity vector towards car heading
+    // Lateral grip inertia: the direction of travel follows the heading closely but not instantly
     if (!this.velocityDirection) {
       this.velocityDirection = new THREE.Vector2(forwardX, forwardZ);
     }
-    const gripFactor = Math.min(1.0, delta * 12.0);
+    const gripFactor = 1 - Math.exp(-12 * delta);
     this.velocityDirection.x = THREE.MathUtils.lerp(this.velocityDirection.x, forwardX, gripFactor);
     this.velocityDirection.y = THREE.MathUtils.lerp(this.velocityDirection.y, forwardZ, gripFactor);
     this.velocityDirection.normalize();
 
-    const nextPos = this.mesh.position.clone();
-    nextPos.x += this.velocityDirection.x * moveDist;
-    nextPos.z += this.velocityDirection.y * moveDist;
+    const pos = this.mesh.position;
+    const stepX = this.velocityDirection.x * moveDist;
+    const stepZ = this.velocityDirection.y * moveDist;
 
-    // Collision check against city buildings and walls
-    const solidsFn = DrivableVehicle.solids;
-    if (solidsFn) {
-      const solids = solidsFn();
-      if (solids && solids.at(nextPos.x, nextPos.z, 1.2)) {
+    // Buildings and walls: only the part of the speed along the wall survives the blow, so a car
+    // driven straight at a wall stops and one that strikes it at a glancing angle slides along it
+    const solids = DrivableVehicle.solids?.();
+    if (solids && solids.at(pos.x + stepX, pos.z + stepZ, 1.2)) {
+      const alongX = !solids.at(pos.x + stepX, pos.z, 1.2);
+      const alongZ = !solids.at(pos.x, pos.z + stepZ, 1.2);
+      const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
+      const length = Math.hypot(stepX, stepZ);
+      const along = length > 0 ? Math.abs(slideX ? stepX : stepZ) / length : 0;
+      if ((!slideX && !alongZ) || along < 0.2) {
         this.currentSpeed = 0;
         return;
       }
+      this.currentSpeed *= along * Math.exp(-1.5 * delta);
+      // Now travelling along the wall, not into it
+      this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
+      if (slideX) pos.x += stepX;
+      else pos.z += stepZ;
+      return;
     }
 
-    this.mesh.position.copy(nextPos);
+    pos.x += stepX;
+    pos.z += stepZ;
   }
 }
