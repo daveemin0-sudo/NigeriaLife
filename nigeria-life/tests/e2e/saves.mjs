@@ -27,13 +27,16 @@ export async function run(browser, check) {
     const biz = d.businesses.find((x) => x.id === 'biz_mama_put');
     return {
       username: d.username, cash: d.walletCash, bank: d.bank.balance, cred: d.stats.streetCred, gala: d.inventory.find((i) => i.id === 'gala_snack')?.quantity,
-      items: d.inventory.length, biz: { owned: biz.owned, pending: biz.pendingRevenue, level: biz.level, cook: biz.upgrades.find((u) => u.id === 'upg_cook').purchased },
+      items: d.inventory.length, biz: { owned: biz.owned, pending: biz.pendingRevenue, perCycle: biz.baseIncomePerCycle + biz.upgrades.filter((u) => u.purchased).reduce((a, u) => a + u.bonusIncomePerCycle, 0), level: biz.level, cook: biz.upgrades.find((u) => u.id === 'upg_cook').purchased },
       room: d.properties.find((p) => p.id === 'prop_mainland_room').status, rank: d.career.rankLevel, destiny: d.originDestiny, housing: d.activeHousingId, notice: be.loadNotice,
     };
   });
+  // A business keeps earning by the real clock from the moment the game is open (one payout every 45 s),
+  // so on a slow machine whole payouts may have been added to what was saved: that is the game working
+  const earnedSince = (pending, saved, perCycle) => pending >= saved && (pending - saved) % perCycle === 0;
   check('an existing save from before versioning loads unchanged, with no warning',
     old.username === 'Ada' && old.cash === 4321 && old.bank === 98765 && old.cred === 33 && old.gala === 5 && old.items === 1
-      && old.biz.owned && old.biz.pending === 24000 && old.biz.level === 2 && old.biz.cook === true
+      && old.biz.owned && earnedSince(old.biz.pending, 24000, old.biz.perCycle) && old.biz.level === 2 && old.biz.cook === true
       && old.room === 'rented' && old.rank === 2 && old.destiny === 'tech_bro' && old.housing === 'prop_mainland_room' && old.notice === null,
     old);
   await ctx.close();
@@ -61,8 +64,9 @@ export async function run(browser, check) {
     numbersOk && r.inventoryIsList && r.stats.health >= 0 && r.stats.health < 1 && r.stats.streetCred === 100 && r.cash === 25000 && r.bank === 150000,
     { cash: r.cash, bank: r.bank, stats: r.stats, version: r.version });
   check('the HUD shows no NaN/undefined', r.hudHasNaN === false);
-  check('valid parts of a damaged save are kept (business still owned, price taken from code)',
-    r.biz.owned === true && r.biz.pendingRevenue === 0 && r.biz.purchasePrice === 180000,
+  const rPerCycle = r.biz.baseIncomePerCycle + r.biz.upgrades.filter((u) => u.purchased).reduce((a, u) => a + u.bonusIncomePerCycle, 0);
+  check('valid parts of a damaged save are kept (business still owned, its broken takings reset to nothing, price taken from code)',
+    r.biz.owned === true && earnedSince(r.biz.pendingRevenue, 0, rPerCycle) && r.biz.purchasePrice === 180000,
     { owned: r.biz.owned, pendingRevenue: r.biz.pendingRevenue, purchasePrice: r.biz.purchasePrice });
   check('the player is told, and the original save is backed up', !!r.notice && r.backup, { notice: r.notice });
   check('damaged save: no console errors', log.errors.length === 0, log.errors.slice(0, 5));
