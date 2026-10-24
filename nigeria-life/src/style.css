@@ -9195,6 +9195,7 @@ body.ui-modal-open .buka-order-status {
 @media (max-width: 700px) {
   /* While a card or a dialog is open the stick and the buttons step aside, so a tap reaches the card */
   body.ui-card-open #virtual-mobile-controls,
+  body.ui-menu-open #virtual-mobile-controls,
   body.ui-modal-open #virtual-mobile-controls {
     display: none !important;
   }

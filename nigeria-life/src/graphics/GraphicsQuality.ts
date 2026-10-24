@@ -53,18 +53,25 @@ export class GraphicsQuality {
   private frames = 0;
   private sampled = 0;
   private targets: QualityTargets;
+  /** This device had a level kept from before */
+  private storedLevel = false;
 
   constructor(targets: QualityTargets) {
     this.targets = targets;
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
       if (saved && ORDER.includes(saved.level)) {
+        this.storedLevel = true;
         this.level = saved.level;
         this.chosen = !!saved.chosen;
       }
     } catch {
       // No storage (private window): start at High
     }
+    // A phone's first visit starts at Balanced: most phones cannot draw High smoothly (a real
+    // Android phone measured 4 to 16 frames a second on the street at High). The player can
+    // still choose High, and that choice is kept.
+    if (!this.chosen && !this.storedLevel && typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) this.level = 'balanced';
     this.apply(this.level);
   }
 

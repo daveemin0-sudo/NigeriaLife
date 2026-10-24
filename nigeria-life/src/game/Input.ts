@@ -47,6 +47,8 @@ export class InputManager {
 
   public keys: Record<string, boolean> = {};
   public virtualJoystick: VirtualJoystick;
+  /** Keys the joystick is holding down now, so they are let go of when it is released */
+  private joystickHeld = new Set<string>();
   public onToggleVehicle?: () => void;
   public onHonkVehicle?: () => void;
   /** J or G pressed while driving: buy from the hawker at the window, if one is there */
@@ -296,7 +298,7 @@ export class InputManager {
       ? this.world.interiorManager.getActiveInteractiveObjects()
       : this.world.interactiveObjects;
 
-    if (this.onSelfClicked && this.pointerOnSelf(activeObjects)) {
+    if (this.onSelfClicked && this.pointerOnSelf(activeObjects, event.clientX, event.clientY)) {
       this.hoveredObject = null;
       this.hoverReticle.visible = false;
       this.setCursor('interact');
@@ -389,20 +391,34 @@ export class InputManager {
   }
 
   /**
-   * Is the pointer on the player's own character? The body is thin on screen, so anything
-   * within arm's reach of it counts, unless someone or something to interact with is in front.
-   * Expects the raycaster to be aimed already.
+   * Is the pointer on the player's own character? Judged on the screen: inside the shape the
+   * body takes up from head to feet, a little wider than it is so a finger can find it, unless
+   * someone or something to interact with is in front. The name above the head does not count,
+   * and nor does the ground just past the body: that is where a player taps to walk forward.
+   * (It used to be anything the line of sight passed within 0.42 m of, which on a phone took in
+   * the street straight ahead of the character.) Expects the raycaster to be aimed already.
    */
-  private pointerOnSelf(activeObjects: InteractiveObject[]): boolean {
+  private pointerOnSelf(activeObjects: InteractiveObject[], clientX: number, clientY: number): boolean {
     if (!this.player.mesh.visible || this.player.isDriving) return false;
     const feet = this.selfFeet.copy(this.player.mesh.position);
-    feet.y += 0.15;
+    feet.y += 0.05;
     const head = this.selfHead.copy(this.player.mesh.position);
     head.y += this.player.actor.pose?.legs === 'lie' ? 0.5 : this.player.actor.hold ? 1.35 : 1.8;
-    const ray = this.raycaster.ray;
-    if (ray.distanceSqToSegment(feet, head, undefined, this.selfNearest) > 0.42 * 0.42) return false;
+    const toScreen = (v: THREE.Vector3) => {
+      const p = v.clone().project(this.camera);
+      return { x: ((p.x + 1) / 2) * window.innerWidth, y: ((1 - p.y) / 2) * window.innerHeight };
+    };
+    const top = toScreen(head);
+    const bottom = toScreen(feet);
+    const tall = Math.hypot(top.x - bottom.x, top.y - bottom.y);
+    // How far along the body (0 at the feet, 1 at the head) the pointer is, and how far to the side
+    const along = ((clientX - bottom.x) * (top.x - bottom.x) + (clientY - bottom.y) * (top.y - bottom.y)) / Math.max(1, tall * tall);
+    const side = Math.abs((clientX - bottom.x) * (top.y - bottom.y) - (clientY - bottom.y) * (top.x - bottom.x)) / Math.max(1, tall);
+    const slack = 6 / Math.max(1, tall);
+    if (along < -slack || along > 1 + slack || side > Math.max(14, tall * 0.2)) return false;
+    this.raycaster.ray.closestPointToPoint(head.clone().lerp(feet, 0.5), this.selfNearest);
 
-    const reach = ray.origin.distanceTo(this.selfNearest);
+    const reach = this.raycaster.ray.origin.distanceTo(this.selfNearest);
     const inFront = this.raycaster.intersectObjects(activeObjects.map((obj) => obj.mesh), true)[0];
     return !inFront || inFront.distance > reach - 0.3 || this.findInteractiveParent(inFront.object) === null;
   }
@@ -422,7 +438,7 @@ export class InputManager {
       : this.world.interactiveObjects;
 
     // 0. The player's own character: their menu, whatever they are in the middle of
-    if (this.onSelfClicked && this.pointerOnSelf(activeObjects)) {
+    if (this.onSelfClicked && this.pointerOnSelf(activeObjects, clientX, clientY)) {
       this.pendingInteraction = null;
       this.onSelfClicked({ x: clientX, y: clientY });
       return;
@@ -904,10 +920,21 @@ export class InputManager {
   }
 
   public update(delta: number): void {
-    // Merge Virtual Joystick active keys
-    if (this.virtualJoystick && this.virtualJoystick.isVisible) {
-      for (const [k, v] of Object.entries(this.virtualJoystick.activeKeys)) {
-        if (v) this.keys[k] = true;
+    // The joystick holds keys down while it is pushed, and lets go of exactly those when it is
+    // released. (It used to only ever press them: once pushed forward the player walked on for
+    // good, forward and back cancelled each other, and a tap on the ground or a station was
+    // undone at once by the "held" key.)
+    if (this.virtualJoystick) {
+      const joystick = this.virtualJoystick.isVisible ? this.virtualJoystick.activeKeys : {};
+      for (const k of ['w', 'a', 's', 'd', 'shift']) {
+        const pushed = !!(joystick as Record<string, boolean>)[k];
+        if (pushed) {
+          this.keys[k] = true;
+          this.joystickHeld.add(k);
+        } else if (this.joystickHeld.has(k)) {
+          this.keys[k] = false;
+          this.joystickHeld.delete(k);
+        }
       }
     }
 

@@ -82,6 +82,7 @@ export class ContextMenu {
     this.path = [];
     this.pressedHere = false;
     this.el.hidden = false;
+    document.body.classList.add('ui-menu-open');
     this.render();
     this.place(options.anchor);
     // The keyboard is on the menu from here; the arrow keys pick the first line
@@ -91,6 +92,7 @@ export class ContextMenu {
   public close(): void {
     if (this.el.hidden) return;
     this.el.hidden = true;
+    document.body.classList.remove('ui-menu-open');
     this.options = null;
     this.path = [];
   }
@@ -121,6 +123,7 @@ export class ContextMenu {
           <strong id="${this.el.id}-title">${esc(inside ? inside.label : options.title)}</strong>
           ${!inside && options.subtitle ? `<small>${esc(options.subtitle)}</small>` : ''}
         </div>
+        <button class="nl-menu-close" data-menu-close aria-label="Close">×</button>
       </div>
       ${!inside && options.header ? options.header : ''}
       <div class="nl-menu-list">
@@ -173,6 +176,7 @@ export class ContextMenu {
     // The keyboard (and anything that calls click() itself) has no press: detail is 0
     if (!this.pressedHere && event.detail !== 0) return;
     const target = event.target as HTMLElement;
+    if (target.closest('[data-menu-close]')) return this.close();
     if (target.closest('[data-menu-back]')) return this.up();
     const button = target.closest<HTMLElement>('[data-menu-item]');
     if (!button) return;
