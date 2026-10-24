@@ -186,6 +186,8 @@ export class World {
       ...this.landmarks.interactiveList,
       ...this.apartment.interactiveList,
       ...this.interiorManager.getAllInteractiveObjects(),
+      // The places along the expressway
+      ...this.expressway.roadside.interactive,
     ];
 
     if (this.atmosphere.generatorMesh) {

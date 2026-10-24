@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
 import type { Obstruction } from '../plan/CityPlan';
-import { EXPRESS } from './layout';
+import { EXPRESS, roadsideAt } from './layout';
+import { Roadside } from './Roadside';
 
 /**
  * The expressway out of Lagos Island. Broad Street carries straight on south and becomes it:
@@ -64,8 +65,13 @@ export class Expressway {
   private readonly chunks: Array<{ group: THREE.Group; z: number }> = [];
   private readonly rand = seededRandom(4410);
 
+  /** The places along it: showroom, cathedral, mosque, beach, mall, hotel and the rest */
+  public readonly roadside = new Roadside();
+
   constructor() {
     this.group.name = 'Expressway';
+    this.group.add(this.roadside.group);
+    this.obstructions.push(...this.roadside.obstructions);
     for (let z = EXPRESS.from; z < EXPRESS.to; z += CHUNK) this.buildChunk(z, Math.min(EXPRESS.to, z + CHUNK));
     this.buildRoundabout();
     this.buildLagoon();
@@ -81,6 +87,7 @@ export class Expressway {
   /** Draws only the pieces near the player */
   public update(playerZ: number): void {
     for (const chunk of this.chunks) chunk.group.visible = Math.abs(chunk.z - playerZ) < DRAW;
+    this.roadside.update(playerZ);
   }
 
   private add(chunkZ: number, object: THREE.Object3D): void {
@@ -202,6 +209,12 @@ export class Expressway {
       while (z < z1 - 6) {
         const width = Math.min(z1 - z - 1, 9 + this.rand() * 15);
         if (width < 6) break;
+        // A place of its own stands here: go on past it
+        const place = roadsideAt(side, z, z + width);
+        if (place) {
+          z = place.z + place.length / 2 + 3;
+          continue;
+        }
         const depth = 10 + this.rand() * 12;
         // Towers near the island and near the mainland centre; low shops and houses between
         const tall = (z < 700 || z > 3300) && this.rand() < 0.25;

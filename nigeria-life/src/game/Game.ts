@@ -842,6 +842,7 @@ export class Game {
       },
     });
     DrivableVehicle.solids = () => this.solidsHere();
+    this.world.expressway.roadside.hooks = { openApp: (app) => this.hud.phoneModal.openApp(app) };
     this.cameraManager.blocked = (x, z) => this.solidsHere()?.at(x, z, 0.4) ?? false;
     // Broad Street is crossed on foot at the junction's zebra crossings or over the footbridge, nowhere else
     let toldAt = 0;
