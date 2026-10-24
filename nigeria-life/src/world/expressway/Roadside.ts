@@ -5,6 +5,8 @@ import type { InteractiveObject } from '../World';
 import { PlaceActions, type PlaceHost } from '../../destinations/PlaceActions';
 import { buildCarBody, CAR_SPECS, type CarSpec } from '../vehicles/CarBodyKit';
 import { EXPRESS, ROADSIDE } from './layout';
+import { buildJet, buildYacht } from './FleetModels';
+import type { FleetKind } from '../../assets/Fleet';
 
 /**
  * Places worth stopping at along the expressway: a car showroom, a cathedral, a mosque, a
@@ -15,7 +17,19 @@ import { EXPRESS, ROADSIDE } from './layout';
 export interface RoadsideHooks {
   /** Opens the phone on one of its apps */
   openApp(app: string): void;
+  /** Opens the jets and yachts for sale and owned */
+  openFleet(kind: FleetKind): void;
+  /** The player's own jets or yachts, by id and what to call them */
+  mine(kind: FleetKind): Array<{ uid: string; label: string }>;
+  /** Flies the player in their jet to another city */
+  fly(uid: string, city: string): void;
+  /** Takes the player out on the lagoon in their yacht */
+  cruise(uid: string): void;
 }
+
+/** Where the airfield's stands and the marina's berths are */
+export const AIRFIELD = { apronX: 70, runwayX: 132, stands: [2735, 2790, 2845, 2900], from: 2712, to: 2948 };
+export const MARINA = { pierZ: 1322, berths: [52, 92, 132, 172] };
 
 type Place = (typeof ROADSIDE)[number];
 
@@ -48,15 +62,44 @@ export class Roadside {
   private readonly parts: Array<{ group: THREE.Group; z: number }> = [];
 
   /** Set by the game */
-  public hooks: RoadsideHooks = { openApp: () => {} };
+  public hooks: RoadsideHooks = { openApp: () => {}, openFleet: () => {}, mine: () => [], fly: () => {}, cruise: () => {} };
+  /** The jets and yachts standing at the airfield and the marina, by their id */
+  public readonly craft = new Map<string, THREE.Group>();
+  private readonly fleetGroup = new THREE.Group();
 
   constructor() {
     this.group.name = 'Expressway places';
     for (const place of ROADSIDE) this.build(place);
+    this.fleetGroup.name = 'Jets and yachts';
+    this.group.add(this.fleetGroup);
+  }
+
+  /** Puts the owned jets on their stands and the yachts at their berths, each as painted */
+  public showFleet(jets: Array<{ uid: string; length: number; paint: number; name: string }>, yachts: Array<{ uid: string; length: number; paint: number; name: string }>): void {
+    this.fleetGroup.clear();
+    this.craft.clear();
+    jets.slice(0, AIRFIELD.stands.length).forEach((jet, i) => {
+      const mesh = buildJet(jet.length, jet.paint, jet.name);
+      // Nose to the road
+      mesh.position.set(AIRFIELD.apronX, 0, AIRFIELD.stands[i]);
+      mesh.rotation.y = Math.PI;
+      mesh.userData.home = mesh.position.clone();
+      this.fleetGroup.add(mesh);
+      this.craft.set(jet.uid, mesh);
+    });
+    yachts.slice(0, MARINA.berths.length).forEach((yacht, i) => {
+      const mesh = buildYacht(yacht.length, yacht.paint, yacht.name);
+      const beam = yacht.length * 0.24;
+      mesh.position.set(MARINA.berths[i] + yacht.length * 0.5 - 18, -3.6, MARINA.pierZ + 2.2 + beam / 2);
+      mesh.userData.home = mesh.position.clone();
+      this.fleetGroup.add(mesh);
+      this.craft.set(yacht.uid, mesh);
+    });
   }
 
   public update(playerZ: number): void {
     for (const part of this.parts) part.group.visible = Math.abs(part.z - playerZ) < 340;
+    for (const mesh of this.craft.values()) mesh.visible = Math.abs(mesh.position.z - playerZ) < 420;
   }
 
   /** Where a place's front is, on the pavement, and the x of its face */
@@ -208,6 +251,31 @@ export class Roadside {
         card = { name: 'Ikeja Golf Club', category: 'Golf club', description: 'Nine holes on green grass, caddies, and the clubhouse bar after.' };
         break;
       }
+      case 'lagoon-marina': {
+        // A clubhouse on the shore, a pier out over the water along the shore, and berths off it
+        b.box(0xf8fafc, 12, 4, 20, faceX + s * 8, 0, place.z - 10).box(0x0e7490, 13, 0.4, 21, faceX + s * 8, 4, place.z - 10);
+        this.obstructions.push({ owner: place.id, minX: faceX + s * 2, maxX: faceX + s * 14, minZ: place.z - 20, maxZ: place.z, height: 4, structure: true });
+        b.box(0xa16207, 4, 0.3, 26, 34, -0.3, EXPRESS.lagoonFrom + 11);
+        b.box(0xa16207, 170, 0.3, 4, 105, -0.3, MARINA.pierZ);
+        for (let x = 22; x <= 190; x += 8) for (const dz of [-1.8, 1.8]) b.cylinder(0x78350f, 0.18, 3.4, x, -3.6, MARINA.pierZ + dz);
+        for (const x of MARINA.berths) b.box(0xfacc15, 0.4, 0.5, 0.4, x - 15, 0, MARINA.pierZ + 1.7, { glow: true });
+        label('EKO MARINA', 'Berths · Fuel · Yacht club', '#0e7490', 5, 20);
+        card = { name: 'Eko Marina', category: 'Marina', description: 'Yachts and speedboats on the lagoon. Buy one, berth it here, take your people out on the water.' };
+        break;
+      }
+      case 'private-airfield': {
+        // An apron, a short runway beside it, a small terminal by the road, a windsock
+        b.box(0xa1a1aa, AIRFIELD.runwayX + 14 - 18, 0.04, AIRFIELD.to - AIRFIELD.from, (AIRFIELD.runwayX + 14 + 18) / 2, 0, (AIRFIELD.from + AIRFIELD.to) / 2);
+        b.box(0x27272a, 22, 0.06, AIRFIELD.to - AIRFIELD.from, AIRFIELD.runwayX, 0, (AIRFIELD.from + AIRFIELD.to) / 2);
+        for (let z = AIRFIELD.from + 6; z < AIRFIELD.to - 6; z += 14) b.box(0xf8fafc, 0.5, 0.07, 7, AIRFIELD.runwayX, 0, z);
+        for (const z of AIRFIELD.stands) b.box(0xfacc15, 30, 0.07, 0.3, AIRFIELD.apronX, 0, z).box(0xfacc15, 0.3, 0.07, 30, AIRFIELD.apronX, 0, z);
+        b.box(0xf8fafc, 16, 6, 40, 26, 0, 2830).box(0x1e3a8a, 16.4, 0.5, 40.4, 26, 6, 2830).box(0x0f172a, 0.1, 2.4, 34, 34.05, 1.8, 2830);
+        this.obstructions.push({ owner: place.id, minX: 18, maxX: 34, minZ: 2810, maxZ: 2850, height: 6, structure: true });
+        b.cylinder(0x9ca3af, 0.08, 6, 150, 0, AIRFIELD.from + 10).cone(0xf97316, 0.5, 2, 150.6, 6, AIRFIELD.from + 10, 8, { roll: Math.PI / 2 });
+        label('EKO EXECUTIVE AIRFIELD', 'Private jets · Charter · Fuel', '#1e3a8a', 7.4, 28);
+        card = { name: 'Eko Executive Airfield', category: 'Private airfield', description: 'Private jets only. Buy one, park it on your stand, and fly anywhere in Nigeria when you like.' };
+        break;
+      }
       default: {
         // The government house: white, columns, a flag
         b.box(0xf8fafc, place.depth, 12, place.length, depthMid, 0, place.z);
@@ -298,6 +366,33 @@ export class Roadside {
       'government-house': {
         label: '🏛️ Visit',
         run: (host) => host.say('"Leave your petition with us. The Governor will see it." You are given a stamped receipt.', 'info'),
+      },
+    };
+    menu['lagoon-marina'] = {
+      label: '🛥️ My yachts',
+      run: (host) => {
+        const mine = this.hooks.mine('yacht');
+        host.ask({ who: 'Harbour master', role: 'Eko Marina', text: mine.length ? 'Which one are we taking out today?' : 'You have no yacht berthed here yet.', choices: [
+          ...mine.map((y) => ({ label: `Take "${y.label}" out on the lagoon`, note: 'Fun +40, Social +25', pick: () => this.hooks.cruise(y.uid) })),
+          { label: mine.length ? 'Buy another, or repaint' : 'See yachts for sale', pick: () => this.hooks.openFleet('yacht') },
+        ] });
+      },
+    };
+    menu['private-airfield'] = {
+      label: '✈️ My jets',
+      run: (host) => {
+        const mine = this.hooks.mine('jet');
+        if (!mine.length) {
+          host.ask({ who: 'Ground handler', role: 'Eko Executive Airfield', text: 'You have no jet on a stand here yet.', choices: [{ label: 'See jets for sale', pick: () => this.hooks.openFleet('jet') }] });
+          return;
+        }
+        host.ask({ who: 'Ground handler', role: 'Eko Executive Airfield', text: 'Your crew is ready. Which jet are we flying?', choices: [
+          ...mine.map((j) => ({ label: `Fly "${j.label}"`, pick: () => host.ask({ who: 'Captain', role: j.label, text: 'Where to?', choices: [
+            { label: 'Abuja', note: 'Nnamdi Azikiwe Airport · fuel ₦2,500,000', pick: () => this.hooks.fly(j.uid, 'abuja') },
+            { label: 'Port Harcourt', note: 'Port Harcourt Airport · fuel ₦2,000,000', pick: () => this.hooks.fly(j.uid, 'port_harcourt') },
+          ] }) })),
+          { label: 'Buy another, or repaint', pick: () => this.hooks.openFleet('jet') },
+        ] });
       },
     };
     const entry = menu[placeId] ?? menu['government-house'];

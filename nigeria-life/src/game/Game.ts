@@ -57,6 +57,12 @@ import { openAirportHall } from '../travel/AirportHall';
 import { FurnishBar } from '../ui/FurnishBar';
 import { Bodies, bodyOf, type CarBody } from '../world/Bodies';
 import { MusicSheet } from '../ui/MusicSheet';
+import { FleetSheet } from '../ui/FleetSheet';
+import { TopMenu } from '../ui/TopMenu';
+import { Fleet, fleetColour, fleetModel } from '../assets/Fleet';
+import { buildJet, buildYacht } from '../world/expressway/FleetModels';
+import { AIRFIELD, MARINA } from '../world/expressway/Roadside';
+import { FurnitureThumbs } from '../ui/FurnitureThumbs';
 import { DriveControls } from '../ui/DriveControls';
 import { StreetAmbience } from '../audio/StreetAmbience';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD } from '../world/density/StreetLayout';
@@ -842,7 +848,45 @@ export class Game {
       },
     });
     DrivableVehicle.solids = () => this.solidsHere();
-    this.world.expressway.roadside.hooks = { openApp: (app) => this.hud.phoneModal.openApp(app) };
+    // Jets and yachts: bought here, standing at the airfield and the marina, flown and sailed from there
+    const fleet = Fleet.get();
+    const fleetSheet = new FleetSheet();
+    this.fleetSheet = fleetSheet;
+    const roadside = this.world.expressway.roadside;
+    roadside.hooks = {
+      openApp: (app) => this.hud.phoneModal.openApp(app),
+      openFleet: (kind) => fleetSheet.open(kind),
+      mine: (kind) => fleet.mine(kind).map((c) => ({ uid: c.uid, label: c.name })),
+      fly: (uid, city) => this.flyPrivate(uid, city),
+      cruise: (uid) => this.cruise(uid),
+    };
+    const showFleet = () => {
+      const craft = (kind: 'jet' | 'yacht') => fleet.mine(kind).map((c) => ({ uid: c.uid, length: fleetModel(c.modelId)!.length, paint: fleetColour(c.colour), name: c.name }));
+      roadside.showFleet(craft('jet'), craft('yacht'));
+    };
+    fleet.onChange(showFleet);
+    showFleet();
+
+    // The drop-down under the top bar: time, needs, money, and a tap to everything else
+    new TopMenu({
+      clock: () => document.getElementById('hud-clock-val')?.textContent ?? '',
+      city: () => document.getElementById('hud-loc-name')?.textContent ?? 'Lagos',
+      openQuests: () => this.hud.questModal.open(),
+      openMusic: () => this.hud.onOpenMusic?.(),
+      openFleet: () => fleetSheet.open('mine'),
+      openApp: (app) => this.hud.phoneModal.openApp(app),
+      openMap: () => document.getElementById('nav-btn-map')?.click(),
+      cashMachine: () => this.hud.goToCashMachine(),
+      musicPlaying: () => SoundEngine.getInstance().isRadioActive(),
+    });
+    // Pictures for the catalogue and for the jets and yachts come from one small renderer
+    const furniture = (key: string) => HouseDecorationSystem.getInstance().createFurniture3DMesh(key);
+    FurnitureThumbs.build = (key) => {
+      if (!key.startsWith('fleet:')) return furniture(key);
+      const [, id, colour] = key.split(':');
+      const model = fleetModel(id)!;
+      return model.kind === 'jet' ? buildJet(model.length, fleetColour(colour), 'NAIJA ONE') : buildYacht(model.length, fleetColour(colour), 'NAIJA ONE');
+    };
     this.cameraManager.blocked = (x, z) => this.solidsHere()?.at(x, z, 0.4) ?? false;
     // Broad Street is crossed on foot at the junction's zebra crossings or over the footbridge, nowhere else
     let toldAt = 0;
@@ -1052,6 +1096,119 @@ export class Game {
   }
 
   private ambienceClock: number | undefined;
+  public fleetSheet!: FleetSheet;
+  /** A jet taking off or a yacht out on the lagoon, with the player aboard */
+  private ride: { craft: THREE.Group; t: number; total: number; deck: number; hidden: boolean; view?: { distance: number; pitch: number }; path: (p: number) => { x: number; y: number; z: number; dx: number; dz: number; pitch: number }; end: () => void } | null = null;
+
+  /** Moves the craft along its way and keeps the player aboard; nothing else moves them meanwhile */
+  private stepRide(delta: number): void {
+    const ride = this.ride;
+    if (!ride) return;
+    ride.t += delta;
+    const p = Math.min(1, ride.t / ride.total);
+    const at = ride.path(p);
+    ride.craft.position.set(at.x, at.y, at.z);
+    ride.craft.quaternion.setFromEuler(new THREE.Euler(0, Math.atan2(-at.dz, at.dx), at.pitch, 'YZX'));
+    this.player.stopMoving();
+    this.player.mesh.position.set(at.x, at.y + ride.deck, at.z);
+    this.player.position.copy(this.player.mesh.position);
+    this.player.mesh.rotation.y = Math.atan2(at.dx, at.dz);
+    // The camera stands well back and above, so the whole craft is in view
+    if (!ride.view) {
+      ride.view = { distance: this.cameraManager.distance, pitch: this.cameraManager.pitch };
+      this.cameraManager.distance = Math.max(14, (ride.craft.userData.length as number) * 1.1);
+      this.cameraManager.pitch = 0.42;
+    }
+    // Behind the craft, swinging round with it
+    const behind = Math.atan2(at.dx, at.dz) + Math.PI;
+    const turn = Math.atan2(Math.sin(behind - this.cameraManager.yaw), Math.cos(behind - this.cameraManager.yaw));
+    this.cameraManager.yaw += turn * Math.min(1, delta * 2);
+    if (p >= 1) {
+      this.ride = null;
+      this.player.mesh.visible = true;
+      this.cameraManager.distance = ride.view.distance;
+      this.cameraManager.pitch = ride.view.pitch;
+      ride.end();
+    }
+  }
+
+  /** Flies the player in their own jet: taxi, take-off over the airfield, and on landing they are at the destination's apron */
+  private flyPrivate(uid: string, city: string): void {
+    const craft = this.world.expressway.roadside.craft.get(uid);
+    const owned = Fleet.get().mine('jet').find((c) => c.uid === uid);
+    if (!craft || !owned || this.ride) return;
+    const fuel = city === 'abuja' ? 2_500_000 : 2_000_000;
+    const paid = BackendService.getInstance().processTransaction({ type: 'TRAVEL_COST', amount: fuel, description: `Fuel and crew, "${owned.name}" to ${city === 'abuja' ? 'Abuja' : 'Port Harcourt'}` });
+    if (!paid.success) {
+      showGameToast(`Fuel and crew come to ₦${fuel.toLocaleString()}. You do not have it.`, 'warning', 4000);
+      return;
+    }
+    const home = (craft.userData.home as THREE.Vector3).clone();
+    const start = new THREE.Vector3(AIRFIELD.runwayX, 0, AIRFIELD.from + 12);
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+    this.player.mesh.visible = false;
+    showGameToast(`✈️ "${owned.name}" is taxiing. Sit back: wheels up in a moment.`, 'info', 4000);
+    this.ride = {
+      craft, t: 0, total: 16, deck: 2, hidden: true,
+      path: (p) => {
+        if (p < 0.25) {
+          const t = p / 0.25;
+          return { x: lerp(home.x, start.x, t), y: 0, z: lerp(home.z, start.z, t), dx: start.x - home.x, dz: start.z - home.z, pitch: 0 };
+        }
+        // Down the runway faster and faster, then up and away over the city
+        const t = (p - 0.25) / 0.75;
+        const run = t * t * (AIRFIELD.to - start.z + 900);
+        const climb = Math.max(0, run - (AIRFIELD.to - start.z - 40));
+        return { x: start.x, y: climb * 0.22, z: start.z + run, dx: 0, dz: 1, pitch: climb > 0 ? 0.22 : 0 };
+      },
+      end: () => {
+        craft.position.copy(home);
+        craft.rotation.set(0, Math.PI, 0);
+        this.arriveInCity(city as CityId);
+        this.standOnApron(city);
+        showGameToast(`🛬 "${owned.name}" has landed you in ${city === 'abuja' ? 'Abuja' : 'Port Harcourt'}. Your crew takes her back to Lagos.`, 'success', 6000);
+      },
+    };
+  }
+
+  /** Takes the player out on the lagoon in their own yacht, round and back to the berth */
+  private cruise(uid: string): void {
+    const craft = this.world.expressway.roadside.craft.get(uid);
+    const owned = Fleet.get().mine('yacht').find((c) => c.uid === uid);
+    if (!craft || !owned || this.ride) return;
+    const home = (craft.userData.home as THREE.Vector3).clone();
+    const length = (craft.userData.length as number) ?? 15;
+    const centre = { x: 280, z: 1760 };
+    const radius = 190;
+    const into = { x: centre.x, z: centre.z - radius };
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+    showGameToast(`🛥️ All aboard "${owned.name}"! Out on the lagoon.`, 'info', 3500);
+    this.ride = {
+      craft, t: 0, total: 42, deck: (craft.userData.top as number) ?? 2, hidden: false,
+      path: (p) => {
+        if (p < 0.12) {
+          const t = p / 0.12;
+          return { x: lerp(home.x, into.x, t), y: home.y, z: lerp(home.z, into.z, t), dx: into.x - home.x, dz: into.z - home.z, pitch: 0 };
+        }
+        if (p < 0.88) {
+          const a = ((p - 0.12) / 0.76) * Math.PI * 2;
+          return { x: centre.x + Math.sin(a) * radius, y: home.y + Math.sin(a * 6) * 0.08, z: centre.z - Math.cos(a) * radius, dx: Math.cos(a), dz: Math.sin(a), pitch: Math.sin(a * 5) * 0.02 };
+        }
+        const t = (p - 0.88) / 0.12;
+        return { x: lerp(into.x, home.x, t), y: home.y, z: lerp(into.z, home.z, t), dx: home.x - into.x, dz: home.z - into.z, pitch: 0 };
+      },
+      end: () => {
+        craft.position.copy(home);
+        craft.rotation.set(0, 0, 0);
+        this.player.mesh.position.set(home.x - length * 0.2, 0, MARINA.pierZ);
+        this.player.position.copy(this.player.mesh.position);
+        const backend = BackendService.getInstance();
+        backend.modifyNeed('fun', 40);
+        backend.modifyNeed('social', 25);
+        showGameToast(`What a ride! Sunset on the lagoon in "${owned.name}". Fun +40, Social +25.`, 'success', 5000);
+      },
+    };
+  }
   private lastDrivenZ: number | null = null;
   private rushToldAt = -1;
 
@@ -1544,6 +1701,8 @@ export class Game {
 
     // Scripted interactions: doors, sitting, serving, eating, waving
     InteractionDirector.get().update(delta);
+    // Riding in a jet or a yacht of one's own
+    this.stepRide(delta);
 
     // Drivers on the way, riders with orders, replies to messages
     this.rides.update(delta);

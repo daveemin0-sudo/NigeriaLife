@@ -10092,3 +10092,225 @@ canvas {
     font: 700 13px var(--nl-font);
   }
 }
+
+/* =========================================================================
+   THE TOP MENU: a chevron on the top bar opens everything
+   ========================================================================= */
+.top-menu-btn {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(15, 23, 42, 0.86);
+  color: #fff;
+  font: 800 18px/1 var(--nl-font);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  z-index: calc(var(--z-modal-dialog, 110) + 1);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.top-menu-btn span {
+  display: inline-block;
+  transform: translateY(-3px);
+  transition: transform 0.2s ease;
+}
+.top-menu-btn.is-open {
+  background: #f8fafc;
+  color: #0f172a;
+}
+.top-menu-btn.is-open span {
+  transform: translateY(3px) rotate(180deg);
+}
+body[data-ui-mode="world-map"] .top-menu-btn,
+body[data-ui-mode="driving"] .top-menu-btn {
+  top: 8px;
+}
+@media (max-width: 700px) {
+  .top-menu-btn {
+    top: 100px;
+    width: 46px;
+    height: 26px;
+  }
+}
+.top-menu {
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  background: #131c26;
+  color: #e6edf5;
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  padding: 14px;
+  z-index: var(--z-modal-dialog, 110);
+  font-family: var(--nl-font);
+  animation: catUp 0.2s ease-out;
+}
+.top-menu[hidden] {
+  display: none;
+}
+@media (max-width: 700px) {
+  .top-menu {
+    top: 132px;
+    max-height: calc(100vh - 220px);
+  }
+}
+.tm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 10px;
+}
+.tm-clock {
+  display: block;
+  font: 800 26px/1.1 var(--nl-font);
+}
+.tm-city {
+  font: 600 13px var(--nl-text-font);
+  color: #8fa3b8;
+}
+.tm-needs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 16px;
+  background: #1a2531;
+}
+.tm-need {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.tm-need i {
+  flex: 1;
+  height: 7px;
+  border-radius: 99px;
+  background: #0e151d;
+  overflow: hidden;
+}
+.tm-need b {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+.tm-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 10px;
+  border: 0;
+  border-bottom: 1px solid #1e2a37;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tm-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #1a2531;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.tm-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tm-text strong {
+  font: 700 15px var(--nl-font);
+}
+.tm-text em {
+  font: 500 12px var(--nl-text-font);
+  font-style: normal;
+  color: #8fa3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tm-trail {
+  color: #64748b;
+  font-size: 20px;
+}
+.tm-plus {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 18px;
+}
+.tm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.tm-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: 16px;
+  border: 1px solid #223041;
+  background: #1a2531;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+.tm-chip span {
+  font: 700 11px var(--nl-font);
+  color: #c8d5e2;
+}
+/* Jets and yachts */
+.fleet-buy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fleet-buy .cat-img {
+  max-height: 180px;
+}
+.fleet-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: 700 13px var(--nl-font);
+  color: #c8d5e2;
+}
+.fleet-input {
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid #2a3949;
+  background: #0e151d;
+  color: #fff;
+  padding: 0 14px;
+  font: 800 16px var(--nl-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.fleet-actions,
+.fleet-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}

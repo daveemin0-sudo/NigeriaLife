@@ -29,6 +29,8 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'redemption-cathedral', side: -1, z: 620, length: 34, depth: 28 },
   { id: 'central-mosque', side: 1, z: 820, length: 32, depth: 30 },
   { id: 'lagoon-beach', side: -1, z: 1235, length: 120, depth: 110 },
+  { id: 'lagoon-marina', side: 1, z: 1240, length: 100, depth: 40 },
+  { id: 'private-airfield', side: 1, z: 2830, length: 240, depth: 140 },
   { id: 'shopwell-mall', side: -1, z: 3150, length: 56, depth: 32 },
   { id: 'eko-grand-hotel', side: 1, z: 3330, length: 32, depth: 26 },
   { id: 'police-command', side: -1, z: 3520, length: 34, depth: 22 },

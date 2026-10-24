@@ -24,7 +24,7 @@ export async function run(browser, check) {
       lane: !g.solidsHere().at(-4.9, 600, 1.2),
     };
   });
-  check('expressway: it is built in pieces, with ten places along it, all of them in the world', layout.pieces > 30 && layout.places.length === 10 && layout.inWorld, layout);
+  check('expressway: it is built in pieces, with twelve places along it, all of them in the world', layout.pieces > 30 && layout.places.length === 12 && layout.inWorld, layout);
   check('expressway: traffic is out on it, the barrier down the middle is solid and the lanes are clear', layout.carsOut > 50 && layout.barrier && layout.lane, layout);
 
   // Drive from Broad Street past the toll and over the bridge, on an empty road

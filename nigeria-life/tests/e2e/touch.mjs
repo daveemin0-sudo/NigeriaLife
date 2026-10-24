@@ -21,7 +21,7 @@ export async function run(_browser, check) {
 
   const pos = () => page.evaluate(() => ({ x: window.game.player.position.x, z: window.game.player.position.z }));
   const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
-  const street = () => page.evaluate(() => { const g = window.game; g.world.skyEnvironment.setHour(12); g.player.stopMoving(); g.player.mesh.position.set(-9, 0.28, -40); g.player.mesh.rotation.y = Math.PI; });
+  const street = () => page.evaluate(() => { const g = window.game; g.world.skyEnvironment.setHour(12); g.player.stopMoving(); g.player.mesh.position.set(-9, 0.28, -40); g.player.mesh.rotation.y = Math.PI; g.cameraManager.yaw = 0; });
   await street();
   await wait(800);
   const joy = await page.evaluate(() => { const r = document.querySelector('.v-joystick-base').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
