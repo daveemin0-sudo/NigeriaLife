@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { PublicProfile } from '../social/Profile';
 import type { PlayerNetState } from './types';
 import type { CharacterConfig, EmoteType } from '../player/CharacterCustomization';
 import { createHumanForConfig } from '../player/HumanFromConfig';
@@ -21,6 +22,12 @@ export class RemotePlayer {
   public targetRotationY: number = 0;
   public isMoving: boolean = false;
   public currentEmote: EmoteType = 'idle';
+  /** Their card and CV, as they last sent it */
+  public profile: PublicProfile | null = null;
+  /** Where they are and what they are doing, from their last state */
+  public place: string | null = null;
+  public driving = false;
+  public seated = false;
   /** Drives the body while the other player is in the middle of a scripted action */
   public actor: Actor;
 
@@ -132,6 +139,9 @@ export class RemotePlayer {
     this.name = state.name;
     // Someone inside a building is not on the street to be seen, and someone driving is inside their vehicle
     this.mesh.visible = !state.place && !state.driving;
+    this.place = state.place ?? null;
+    this.driving = !!state.driving;
+    this.seated = state.pose?.legs === 'sit';
     this.pose = state.pose ? { legs: state.pose.legs, arms: state.pose.arms, height: state.pose.height } : null;
     this.rebuildBody(state.config);
 

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { cleanProfile, type PublicProfile } from '../social/Profile';
+import { FEE_MAX, FEE_MIN, ROLES, Ties, type Offer, type OfferState } from '../social/Ties';
 import { Player } from '../player/Player';
 import { RemotePlayer } from './RemotePlayer';
-import type { NetPacket, PlayerNetState, ChatMessage } from './types';
+import type { NetPacket, PlayerNetState, ChatMessage, TieKind } from './types';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import type { EmoteType } from '../player/CharacterCustomization';
@@ -42,6 +44,15 @@ export class NetworkManager {
   private onDirectMessageCallback?: (fromId: string, fromName: string, text: string) => void;
   private onVehicleCallback?: (playerId: string, vehicle: { id: string; x: number; z: number; yaw: number }) => void;
   private onPlayerLeftCallback?: (playerId: string) => void;
+  /** What this player shows of themselves (set by the game) */
+  public static profile: () => PublicProfile | null = () => null;
+  /** A family or bae request, or the answer to one */
+  public onTie: ((fromId: string, fromName: string, kind: TieKind) => void) | null = null;
+  /** A job offered to this player */
+  public onOffer: ((offer: Offer) => void) | null = null;
+  /** A step in a job between this player and another */
+  public onOfferUpdate: ((id: string, fromId: string, state: OfferState, rating?: number) => void) | null = null;
+  private profileClock = 0;
   /** Transfers already paid in, so the same one arriving twice is only counted once */
   private receivedTransfers = new Set<string>();
 
@@ -143,6 +154,8 @@ export class NetworkManager {
         if (packet.type === 'join') {
           this.broadcastState();
         }
+        // And who we are
+        this.broadcastProfile();
       } else {
         const remote = this.remotePlayers.get(state.id)!;
         remote.applyState(state);
@@ -174,6 +187,7 @@ export class NetworkManager {
     } else if (packet.type === 'dm') {
       // A private message is for one player: everyone else ignores it
       if (packet.toId === this.localId) {
+        Ties.get().grow(packet.fromId, String(packet.fromName).slice(0, 32), 2);
         this.onDirectMessageCallback?.(packet.fromId, packet.fromName, String(packet.text).slice(0, 240));
         showGameToast(`💬 @${packet.fromName}: ${String(packet.text).slice(0, 60)}`, 'info', 3600);
       }
@@ -200,7 +214,27 @@ export class NetworkManager {
         const text = packet.kind === 'wave' ? '👋 How far!' : '🙏 Good day!';
         this.remotePlayers.get(packet.fromId)?.showSpeechBubble(text);
         showGameToast(`@${packet.fromName} ${packet.kind === 'wave' ? 'waved at you' : 'greeted you'}.`, 'info', 3200);
+        Ties.get().grow(packet.fromId, String(packet.fromName).slice(0, 32), 2);
       }
+    } else if (packet.type === 'profile') {
+      const remote = this.remotePlayers.get(packet.playerId);
+      if (remote) remote.profile = cleanProfile(packet.profile);
+    } else if (packet.type === 'tie') {
+      if (packet.toId === this.localId && !this.blocked.has(packet.fromId)) this.onTie?.(packet.fromId, String(packet.fromName).slice(0, 32), packet.kind);
+    } else if (packet.type === 'offer') {
+      const o = packet.offer;
+      if (o && o.workerId === this.localId && !this.blocked.has(o.employerId)) {
+        const fee = Math.round(Number(o.fee));
+        const budget = Math.round(Number(o.budget) || 0);
+        if (!Number.isFinite(fee) || fee < FEE_MIN || fee > FEE_MAX) return;
+        this.onOffer?.({
+          id: String(o.id).slice(0, 60), employerId: o.employerId, employerName: String(o.employerName).slice(0, 32), workerId: this.localId, workerName: this.localPlayer.config.name,
+          role: ROLES.some((r) => r.id === o.role) ? o.role : 'hustle', details: String(o.details ?? '').slice(0, 140), fee, budget: Math.max(0, Math.min(FEE_MAX, budget)),
+          when: ['now', '1h', '3h', '6h', 'tomorrow'].includes(o.when) ? o.when : 'now', at: Date.now(), state: 'offered',
+        });
+      }
+    } else if (packet.type === 'offer_update') {
+      if (packet.toId === this.localId) this.onOfferUpdate?.(String(packet.id), packet.fromId, packet.state, typeof packet.rating === 'number' ? packet.rating : undefined);
     } else if (packet.type === 'emote_sync') {
       if (this.remotePlayers.has(packet.playerId)) {
         const remote = this.remotePlayers.get(packet.playerId)!;
@@ -382,6 +416,24 @@ export class NetworkManager {
     this.channel.postMessage(packet);
   }
 
+  /** Tells everyone who this player is: their card and CV */
+  public broadcastProfile(): void {
+    const profile = NetworkManager.profile();
+    if (profile) this.channel.postMessage({ type: 'profile', playerId: this.localId, profile });
+  }
+
+  public sendTie(toId: string, kind: TieKind): void {
+    this.channel.postMessage({ type: 'tie', fromId: this.localId, fromName: this.localPlayer.config.name, toId, kind });
+  }
+
+  public sendOffer(offer: Offer): void {
+    this.channel.postMessage({ type: 'offer', offer });
+  }
+
+  public sendOfferUpdate(toId: string, id: string, state: OfferState, rating?: number): void {
+    this.channel.postMessage({ type: 'offer_update', id, fromId: this.localId, toId, state, rating });
+  }
+
   public syncEmote(emote: EmoteType): void {
     const packet: NetPacket = {
       type: 'emote_sync',
@@ -434,6 +486,12 @@ export class NetworkManager {
     if (now - this.lastBroadcast > this.broadcastInterval) {
       this.broadcastState();
       this.lastBroadcast = now;
+    }
+    // Who this player is, now and then: a newer job or rating shows on their card
+    this.profileClock -= delta;
+    if (this.profileClock <= 0) {
+      this.profileClock = 15;
+      this.broadcastProfile();
     }
 
     // 2. Update remote players interpolation and walk cycles

@@ -1,5 +1,6 @@
 import type { CharacterConfig, EmoteType } from '../player/CharacterCustomization';
 import type { ArmPose, LegPose } from '../interactions/Poses';
+import type { Offer, OfferState } from '../social/Ties';
 
 export interface PlayerNetState {
   id: string;
@@ -52,4 +53,13 @@ export type NetPacket =
   | { type: 'emote_sync'; playerId: string; emote: EmoteType }
   | { type: 'social'; fromId: string; fromName: string; toId: string; kind: 'wave' | 'greet' }
   | { type: 'dm'; fromId: string; fromName: string; toId: string; text: string }
-  | { type: 'leave'; id: string };
+  | { type: 'leave'; id: string }
+  /** What a player shows of themselves: their card and CV (see social/Profile) */
+  | { type: 'profile'; playerId: string; profile: unknown }
+  /** Family and bae: asked, and the answer */
+  | { type: 'tie'; fromId: string; fromName: string; toId: string; kind: TieKind }
+  /** A job offered to another player, and each step it takes after */
+  | { type: 'offer'; offer: Offer }
+  | { type: 'offer_update'; id: string; fromId: string; toId: string; state: OfferState; rating?: number };
+
+export type TieKind = 'family_ask' | 'family_yes' | 'family_no' | 'bae_ask' | 'bae_yes' | 'bae_no';

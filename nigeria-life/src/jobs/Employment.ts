@@ -30,11 +30,23 @@ export interface WorkResult {
 }
 
 const STORE = 'nigeria_life_employment_v1';
+/** Jobs left, kept for the CV */
+const PAST = 'nigeria_life_employment_past_v1';
+
+export interface PastJob {
+  employer: string;
+  title: string;
+  trade: string;
+  since: number;
+  until: number;
+  done: number;
+}
 
 export class Employment {
   private static instance: Employment | null = null;
   private readonly backend = BackendService.getInstance();
   private records: { [employerId: string]: Service } = {};
+  private history: PastJob[] = [];
   private listeners: Array<() => void> = [];
   /** The day on the game's calendar, for the date someone was taken on */
   public today: () => number = () => 1;
@@ -54,6 +66,17 @@ export class Employment {
     } catch {
       // A record that cannot be read back is as if they had never worked there
     }
+    try {
+      const past = JSON.parse(localStorage.getItem(profileKey(PAST)) || '[]');
+      if (Array.isArray(past)) this.history = past.filter((j) => j && typeof j.employer === 'string').slice(0, 30);
+    } catch {
+      // No past jobs kept
+    }
+  }
+
+  /** The jobs held before, latest first */
+  public past(): readonly PastJob[] {
+    return this.history;
   }
 
   private changed(): void {
@@ -131,6 +154,16 @@ export class Employment {
 
   public resign(id: string): boolean {
     if (!this.records[id]) return false;
+    const employer = this.employer(id);
+    if (employer) {
+      this.history.unshift({ employer: employer.name, title: this.grade(id)?.title ?? employer.trade, trade: employer.trade, since: this.records[id].since, until: this.today(), done: this.records[id].done });
+      this.history = this.history.slice(0, 30);
+      try {
+        localStorage.setItem(profileKey(PAST), JSON.stringify(this.history));
+      } catch {
+        // Not kept
+      }
+    }
     delete this.records[id];
     this.changed();
     return true;

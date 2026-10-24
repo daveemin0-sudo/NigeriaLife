@@ -254,6 +254,8 @@ export async function run(browser, check) {
   await wait(200);
   before = await state(page);
   await openMenu(page);
+  // Profile & look, My card & CV, then the bag
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   const focused = await page.evaluate(() => document.activeElement?.dataset?.menuItem ?? null);

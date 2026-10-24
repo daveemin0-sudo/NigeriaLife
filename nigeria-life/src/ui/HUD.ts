@@ -32,6 +32,7 @@ import { CITY_NAME } from '../realestate/PlotCatalogue';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { PlaceActions, type PlaceHost } from '../destinations/PlaceActions';
+import { Ties } from '../social/Ties';
 import { CASH_MACHINE } from '../world/kit/CashMachine';
 import { esc } from './kit/html';
 import { draw as drawStable } from './kit/StableView';
@@ -95,6 +96,8 @@ export class HUD {
   public onRefuelVehicle?: () => void;
   /** Opens the pump at a filling station (or the nearest one's directions) */
   public onOpenPump?: (stationId?: string) => void;
+  /** Opens another player's card (by their id) */
+  public onOpenProfile?: (playerId: string) => void;
   public onEnterVehicle?: (vehicleId: string) => void;
   public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
   /** Out of the room to a given point outside, not back the way the player came in */
@@ -481,7 +484,10 @@ export class HUD {
           // Another player online: the gesture is made here and they are told about it
           if (!obj.id.startsWith('remote_player_') || (kind !== 'wave' && kind !== 'greet')) return;
           const made = gestureToward(kind, me, obj.mesh.position.clone());
-          if (made.ok) NetworkManager.getInstance()?.sendSocial(obj.id.replace('remote_player_', ''), kind);
+          if (made.ok) {
+            NetworkManager.getInstance()?.sendSocial(obj.id.replace('remote_player_', ''), kind);
+            Ties.get().grow(obj.id.replace('remote_player_', ''), obj.name, 4);
+          }
           else this.showNotification('Finish what you are doing first.');
           return;
         }
@@ -1784,7 +1790,7 @@ export class HUD {
       btnEl.textContent = '🧢 Settle Loading Dues (₦200) / Greet Chairman';
       bizBtn.style.display = 'none';
     } else if (obj.id.startsWith('remote_player_')) {
-      btnEl.textContent = '🤝 Citizen Interaction & EkoPay [E]';
+      btnEl.textContent = '👤 See their card · chat, hire, CV';
       bizBtn.style.display = 'none';
     } else {
       btnEl.textContent = 'Enter / Inspect';
@@ -2299,6 +2305,11 @@ export class HUD {
       return;
     }
 
+    if (id.startsWith('remote_player_') && this.onOpenProfile) {
+      this.hideInteractionCard();
+      this.onOpenProfile(id.replace('remote_player_', ''));
+      return;
+    }
     if (id.startsWith('remote_player_')) {
       this.hideInteractionCard();
       const rawId = id.replace('remote_player_', '');

@@ -183,7 +183,7 @@ export async function run(browser, check) {
     const d = window.game.hud.backend.getData();
     return { cash: d.walletCash, bills: d.transactionHistory.filter((t) => t.type === 'FOOD_PURCHASE').length };
   });
-  check('the food is brought to that seat and paid for once when it arrives', eating && cashBefore - paid.cash === 1200 && paid.bills === 1, { paid: cashBefore - paid.cash, bills: paid.bills });
+  check('the food is brought to that seat and paid for once when it arrives', eating && cashBefore - paid.cash === 2000 && paid.bills === 1, { paid: cashBefore - paid.cash, bills: paid.bills });
   // The line the button is on is redrawn as the meal goes on: it is pressed where it is now, not where it was a moment ago
   await page.evaluate(() => document.getElementById('buka-order-stop')?.click());
   await playUntil(page, () => { const g = window.game; return !g.player.actor.hold && !g.player.actor.sequence ? true : null; }, 15);

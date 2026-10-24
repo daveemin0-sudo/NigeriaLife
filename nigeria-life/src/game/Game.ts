@@ -60,6 +60,10 @@ import { Bodies, bodyOf, type CarBody } from '../world/Bodies';
 import { MusicSheet } from '../ui/MusicSheet';
 import { FleetSheet } from '../ui/FleetSheet';
 import { PumpSheet } from '../ui/PumpSheet';
+import { ProfileSheet } from '../ui/ProfileSheet';
+import { myProfile } from '../social/Profile';
+import { BAE_AT, ROLES, Ties } from '../social/Ties';
+import type { RemotePlayer } from '../multiplayer/RemotePlayer';
 import { FORECOURT, STATIONS, jerryCanShare, nearestStation, stationNear, type Station } from '../world/Fuel';
 import { TopMenu } from '../ui/TopMenu';
 import { Fleet, fleetColour, fleetModel } from '../assets/Fleet';
@@ -684,6 +688,7 @@ export class Game {
     this.network = new NetworkManager(this.scene, this.player);
     this.chatBox = new ChatBox(this.network);
     this.network.setOnPlayerCount((count) => this.hud.updateOnlineCount(count));
+    this.connectProfiles();
 
     // 10b. The phone: its apps act on this game through the hooks below
     this.connectPhone();
@@ -1095,6 +1100,7 @@ export class Game {
       seated: () => actor.hold !== null,
       standUp: () => actor.hold?.release(),
       openWardrobe: () => this.hud.openWardrobe(),
+      openProfile: () => this.profileSheet.open(null),
       openBag: () => this.hud.openInventory(),
       openPhone: (app) => (app ? this.hud.phoneModal.openApp(app) : this.hud.phoneModal.open()),
       openQuests: () => this.hud.questModal.open(),
@@ -1157,6 +1163,81 @@ export class Game {
 
   private ambienceClock: number | undefined;
   public fleetSheet!: FleetSheet;
+  public profileSheet!: ProfileSheet;
+  /** The player's ties with other players (closeness, family, bae, jobs) */
+  public readonly profileTies = Ties.get();
+
+  /**
+   * Players to one another: each shows a card and a CV made from their own records; they chat,
+   * become family or bae, and hire one another for jobs that are paid when done.
+   */
+  private connectProfiles(): void {
+    const net = this.network;
+    const ties = Ties.get();
+    NetworkManager.profile = () => myProfile(net.localId, { skin: this.player.config.skinTone });
+    const doing = (r: RemotePlayer) => (r.driving ? 'driving' : r.seated ? 'sitting down' : r.isMoving ? 'walking about' : 'hanging out');
+    const sheet = new ProfileSheet({
+      me: () => ({ id: net.localId, profile: myProfile(net.localId, { skin: this.player.config.skinTone }) }),
+      other: (id) => {
+        const r = net.remotePlayers.get(id);
+        if (!r) return null;
+        const place = r.place ? this.world.interiorManager.nameOfPlace(r.place) ?? 'a building' : null;
+        const where = place ? `Here at ${place}` : `On ${this.world.getDistrictAtPosition(r.mesh.position).sub || 'the street'}`;
+        return { name: r.name, profile: r.profile, where: `${where} · ${doing(r)}` };
+      },
+      sendMessage: (toId, text) => net.sendDirectMessage(toId, text),
+      sendTie: (toId, kind) => net.sendTie(toId, kind),
+      sendOffer: (offer) => net.sendOffer(offer),
+      sendOfferUpdate: (toId, id, state, rating) => net.sendOfferUpdate(toId, id, state, rating),
+      pay: (toId, amount, memo) => {
+        const sent = net.sendTransfer(toId, amount, memo, 'bank');
+        return sent.success ? null : sent.message;
+      },
+      openLook: () => this.hud.openWardrobe(),
+    });
+    this.profileSheet = sheet;
+    this.hud.onOpenProfile = (id) => sheet.open(id);
+    const nameOf = (id: string, fallback: string) => net.remotePlayers.get(id)?.name ?? fallback;
+    net.onTie = (fromId, fromName, kind) => {
+      if (kind === 'family_ask') sheet.ask(fromId, fromName, 'family');
+      else if (kind === 'bae_ask') {
+        // A bae is asked only by someone close enough; otherwise it is turned down for them
+        if (ties.closeness(fromId) >= BAE_AT || ties.bae()?.id === fromId) sheet.ask(fromId, fromName, 'bae');
+        else net.sendTie(fromId, 'bae_no');
+      } else if (kind === 'family_yes') {
+        ties.addFamily(fromId, fromName);
+        showGameToast(`👪 @${fromName} said yes: you are family now.`, 'success', 4000);
+      } else if (kind === 'bae_yes') {
+        ties.setBae(fromId, fromName);
+        showGameToast(`💘 @${fromName} said yes!`, 'success', 4000);
+      } else {
+        showGameToast(`@${fromName} said not now.`, 'info', 3200);
+      }
+    };
+    net.onOffer = (offer) => {
+      ties.keep(offer);
+      showGameToast(`🧰 @${offer.employerName} wants to hire you: ${ROLES.find((r) => r.id === offer.role)?.name}, ₦${offer.fee.toLocaleString()}.`, 'info', 5000);
+      sheet.offered(offer);
+    };
+    net.onOfferUpdate = (id, fromId, state, rating) => {
+      const offer = ties.offer(id);
+      // Only the other side of the job can move it on
+      if (!offer || (fromId !== offer.employerId && fromId !== offer.workerId)) return;
+      const moved = ties.advance(id, state, rating);
+      if (!moved) return;
+      const who = nameOf(fromId, fromId === offer.workerId ? offer.workerName : offer.employerName);
+      if (state === 'accepted') showGameToast(`🧰 @${who} took the job.`, 'success', 3600);
+      else if (state === 'declined') showGameToast(`@${who} turned the job down.`, 'info', 3600);
+      else if (state === 'done') {
+        showGameToast(`✅ @${who} says the job is done. Pay them in My hustle.`, 'success', 5000);
+        sheet.openJobs();
+      } else if (state === 'paid') {
+        ties.grow(fromId, who, 8);
+        showGameToast(`⭐ @${who} paid ₦${offer.fee.toLocaleString()} and rated you ★${moved.rating ?? '-'}.`, 'success', 5000);
+        net.broadcastProfile();
+      }
+    };
+  }
   public pumpSheet!: PumpSheet;
   /** The filling station whose pump is open */
   private pumpAt: Station | null = null;

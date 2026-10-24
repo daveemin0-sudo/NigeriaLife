@@ -16,6 +16,8 @@ export interface SelfMenuHooks {
   seated(): boolean;
   standUp(): void;
   openWardrobe(): void;
+  /** The player's own card as others see it, their CV and their hustle */
+  openProfile(): void;
   openBag(): void;
   openPhone(app?: string): void;
   openQuests(): void;
@@ -98,6 +100,7 @@ export class SelfMenu {
         </div>`,
       items: [
         { id: 'look', icon: '👕', label: 'Profile & look', note: 'Name, clothes, hair', run: () => hooks.openWardrobe() },
+        { id: 'card', icon: '🪪', label: 'My card & CV', note: 'How other players see you · jobs you were offered', run: () => hooks.openProfile() },
         { id: 'bag', icon: '🎒', label: 'Bag', note: items === 0 ? 'Empty' : count(items, 'thing'), run: () => hooks.openBag() },
         { id: 'money', icon: '💳', label: 'Money', note: `${naira(data.walletCash)} cash · ${naira(data.bank.balance)} in the bank`, run: () => hooks.openPhone('bank') },
         { id: 'needs', icon: '❤️', label: 'Health & needs', note: stats.health < 40 || stats.hunger < 25 ? 'You need looking after' : 'You are doing fine', run: () => hooks.openPhone('health') },

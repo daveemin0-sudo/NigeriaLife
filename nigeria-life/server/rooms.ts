@@ -13,6 +13,8 @@
  *                  slow-moded, refused while muted, not delivered to anyone who blocked the sender
  *   dm             to one player only, filtered, not to anyone who blocked the sender
  *   social, emote_sync   to the one asked, or to those in sight
+ *   profile              to those in sight
+ *   tie, offer, offer_update   to the one asked, unless they blocked the sender
  *   p2p_transfer   refused: money between players goes through the economy (POST /money/send)
  * The server adds `wallet` (the player's balance after any change) and `welcome`.
  */
@@ -188,6 +190,37 @@ export class Rooms {
         const to = this.clients.get(String(packet.toId ?? ''));
         if (to && to.instance === c.instance && !this.blocked(to.account.id, c.account.id)) {
           this.send(to, { type: 'social', fromId: c.account.id, fromName: c.account.name, toId: to.account.id, kind: packet.kind === 'greet' ? 'greet' : 'wave' });
+        }
+        return;
+      }
+      case 'profile': {
+        // Who a player shows themselves to be: to those who can see them, never bigger than a card
+        const text = JSON.stringify(packet.profile ?? null);
+        if (text.length > 4000) return;
+        for (const other of this.membersOf(c.instance)) if (other !== c && other.seen.has(c.account.id)) this.send(other, { type: 'profile', playerId: c.account.id, profile: JSON.parse(text) });
+        return;
+      }
+      case 'tie':
+      case 'offer':
+      case 'offer_update': {
+        // One player to another: the sender is who the server says they are, and a block stops it
+        const target = packet.type === 'offer' ? String((packet.offer as Record<string, unknown> | undefined)?.workerId ?? '') : String(packet.toId ?? '');
+        const to = this.clients.get(target);
+        if (!to || to.instance !== c.instance || this.blocked(to.account.id, c.account.id)) return;
+        if (packet.type === 'tie') {
+          const kinds = ['family_ask', 'family_yes', 'family_no', 'bae_ask', 'bae_yes', 'bae_no'];
+          if (!kinds.includes(String(packet.kind))) return;
+          this.send(to, { type: 'tie', fromId: c.account.id, fromName: c.account.name, toId: to.account.id, kind: packet.kind });
+        } else if (packet.type === 'offer') {
+          const o = (packet.offer ?? {}) as Record<string, unknown>;
+          const fee = Math.round(Number(o.fee));
+          if (!Number.isFinite(fee) || fee < 1000 || fee > 10_000_000) return;
+          this.send(to, { type: 'offer', offer: { id: String(o.id ?? '').slice(0, 60), employerId: c.account.id, employerName: c.account.name, workerId: to.account.id, workerName: to.account.name, role: String(o.role ?? 'hustle').slice(0, 20), details: String(o.details ?? '').slice(0, 140), fee, budget: Math.max(0, Math.min(10_000_000, Math.round(Number(o.budget) || 0))), when: String(o.when ?? 'now').slice(0, 10), at: Date.now(), state: 'offered' } });
+        } else {
+          const states = ['accepted', 'declined', 'done', 'paid'];
+          if (!states.includes(String(packet.state))) return;
+          const rating = typeof packet.rating === 'number' ? Math.max(1, Math.min(5, Math.round(packet.rating))) : undefined;
+          this.send(to, { type: 'offer_update', id: String(packet.id ?? '').slice(0, 60), fromId: c.account.id, toId: to.account.id, state: packet.state, rating });
         }
         return;
       }

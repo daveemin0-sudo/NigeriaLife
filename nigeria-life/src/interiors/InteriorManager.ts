@@ -360,6 +360,12 @@ export class InteriorManager {
   // DOORS: the same walk-in / walk-out for every place that has one
   // =========================================================================
 
+  /** What a building is called, by the id a player inside it is said to be in */
+  public nameOfPlace(id: string): string | null {
+    const t = this.templates.find((x) => x.def.id === id || x.def.streetBuildingId === id || x.def.type === id);
+    return t?.def.name ?? null;
+  }
+
   private getActiveTemplate(): InteriorTemplate | null {
     if (!this.currentInterior) return null;
     return this.templateFor(this.currentInterior.type);
