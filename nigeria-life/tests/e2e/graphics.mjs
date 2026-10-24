@@ -81,7 +81,7 @@ export async function run(browser, check) {
   );
   await press(page, 'toggle-graphics');
   const low = await state(page);
-  check('graphics: pressed again it moves to Low: a softer picture (0.75), no sun shadows, fewer people far off', low.level === 'low' && low.pixelRatio === 0.75 && !low.shadows && low.crowd[0] === 50, low);
+  check('graphics: pressed again it moves to Low: a softer picture (0.75), no sun shadows, fewer people far off', low.level === 'low' && low.pixelRatio === 0.75 && !low.shadows /* 0.75 on this 1x test screen; 1 on a phone */ && low.crowd[0] === 50, low);
 
   await page.evaluate(() => window.game.hud.phoneModal.close?.());
   await page.keyboard.press('Escape');
