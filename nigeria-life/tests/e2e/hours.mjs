@@ -70,12 +70,14 @@ export async function run(browser, check) {
     });
   };
   const noon = await streetAt(12);
+  const rush = await streetAt(18);
   const evening = await streetAt(21);
   const small = await streetAt(3);
   const dawn = await streetAt(7.5);
-  check('the street is as busy as the hour: everyone is out at noon, fewer by nine in the evening, about one in ten of the people and the traffic at three in the morning, and all of them again by half past seven (it was as full at 3 am as at noon)',
-    noon.walkers === noon.ofWalkers && noon.traffic.now === noon.traffic.byDay && evening.walkers < noon.walkers * 0.7 && evening.walkers > small.walkers
-      && small.walkers < noon.walkers * 0.2 && small.walkers > 0 && small.traffic.now < noon.traffic.byDay * 0.2 && small.drawn <= small.walkers && dawn.walkers === noon.walkers && dawn.traffic.now === noon.traffic.byDay, { noon, evening, small, dawn });
+  check('the street is as busy as the hour: everyone is out in the rush hours (7:30 am, 6 pm), fewer at noon, fewer again by nine at night, about one in ten at three in the morning',
+    rush.walkers === rush.ofWalkers && rush.traffic.now === rush.traffic.byDay && dawn.walkers === rush.walkers && dawn.traffic.now === rush.traffic.byDay
+      && noon.walkers < rush.walkers && noon.walkers > rush.walkers * 0.45 && evening.walkers < rush.walkers * 0.8 && evening.walkers > small.walkers
+      && small.walkers < rush.walkers * 0.2 && small.walkers > 0 && small.traffic.now < rush.traffic.byDay * 0.2 && small.drawn <= small.walkers, { noon, rush, evening, small, dawn });
 
   // ------------------------------------------------------------------ The bank by day
   await setHour(page, 13);

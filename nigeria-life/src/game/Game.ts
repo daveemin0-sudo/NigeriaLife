@@ -10,6 +10,7 @@ import { ChatBox } from '../ui/ChatBox';
 import { PostProcessingManager } from '../graphics/PostProcessingManager';
 import { FlightExperience } from '../transit/FlightExperience';
 import { RoadRideExperience } from '../transit/RoadRideExperience';
+import { createHumanForConfig } from '../player/HumanFromConfig';
 import { TransitHUD } from '../transit/TransitHUD';
 import type { FlightDetails, RideDetails } from '../transit/TransitTypes';
 import { PhotoModeModal } from '../ui/PhotoModeModal';
@@ -130,7 +131,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -302,6 +303,8 @@ export class Game {
 
     this.roadRideExperience = new RoadRideExperience();
     this.scene.add(this.roadRideExperience.group);
+    // The player rides as themselves: their own figure sits in the back, or behind the okada man
+    this.roadRideExperience.passengerLook = () => createHumanForConfig(this.player.config);
 
     this.transitHUD = new TransitHUD();
 

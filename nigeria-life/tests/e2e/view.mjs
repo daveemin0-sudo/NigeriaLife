@@ -81,7 +81,10 @@ const materialSnapshot = (page, type) => page.evaluate((type) => {
   group.traverse((o) => { if (o.isMesh) ids.push((Array.isArray(o.material) ? o.material : [o.material]).map((m) => m.uuid).join('+')); });
   let walls = [];
   group.getObjectByName('interior_room_shell').traverse((o) => { if (o.name.startsWith('shell_wall_')) walls.push(+o.scale.y.toFixed(3)); });
-  return { ids: ids.join(','), count: ids.length, walls, hidden: (() => { let n = 0; group.traverse((o) => { if (o.isMesh && !o.visible) n++; }); return n; })() };
+  // What the home came with is shown or not by how well it is furnished (a cheap room has no big sofa): not counted here
+  const kits = new Set((window.game.world.interiorManager[type].kits ?? []).map((k) => k.object));
+  const inKit = (o) => { for (let n = o; n; n = n.parent) if (kits.has(n)) return true; return false; };
+  return { ids: ids.join(','), count: ids.length, walls, hidden: (() => { let n = 0; group.traverse((o) => { if (o.isMesh && !o.visible && !inKit(o)) n++; }); return n; })() };
 }, type);
 
 export async function run(browser, check) {

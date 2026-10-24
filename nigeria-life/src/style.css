@@ -10125,9 +10125,8 @@ canvas {
 .top-menu-btn.is-open span {
   transform: translateY(3px) rotate(180deg);
 }
-body[data-ui-mode="world-map"] .top-menu-btn,
-body[data-ui-mode="driving"] .top-menu-btn {
-  top: 8px;
+body[data-ui-mode="world-map"] .top-menu-btn {
+  display: none;
 }
 @media (max-width: 700px) {
   .top-menu-btn {

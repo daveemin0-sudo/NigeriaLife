@@ -196,6 +196,8 @@ export async function run(browser, check) {
     const v = g.world.vehicles.drivableVehicles[0];
     g.player.stopMoving();
     g.player.mesh.position.set(v.mesh.position.x - 3.5, 0, v.mesh.position.z);
+    // The camera on the player's side, so the vehicle is not between it and them
+    g.cameraManager.yaw = -Math.PI / 2;
     g.cameraManager.snapToPlayer(g.player, 'street');
     return v.name;
   });
@@ -265,6 +267,8 @@ export async function run(browser, check) {
 
   // ------------------------------------------------------------------ On a phone-sized screen
   // Turning on touch reloads the page, as a real phone would have loaded it
+  // (the reload this causes gets as long as any other page load on a slow machine)
+  page.setDefaultNavigationTimeout(120000);
   await page.setViewport({ width: 390, height: 780, hasTouch: true, isMobile: true });
   await page.waitForFunction('window.game', { timeout: 120000 });
   await wait(3000);

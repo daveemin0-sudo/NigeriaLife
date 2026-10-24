@@ -122,6 +122,12 @@ export class Builder {
     return this;
   }
 
+  /** Any shape, given by its own middle: an extruded profile, a curved panel, a half-cylinder */
+  public shape(hex: number, geometry: THREE.BufferGeometry, x: number, y: number, z: number, options: PartOptions = {}): this {
+    this.place(geometry, hex, x, y, z, options);
+    return this;
+  }
+
   /** A flat ring painted on the ground: a centre circle, a helipad mark. */
   public ring(hex: number, inner: number, outer: number, x: number, y: number, z: number): this {
     const ring = new THREE.RingGeometry(inner, outer, 40);
@@ -166,11 +172,11 @@ export class Builder {
   }
 
   /** Finishes the building: one mesh for everything, and one for what glows if anything does. */
-  public build(name: string): THREE.Group {
+  public build(name: string, finish: { roughness?: number; metalness?: number } = {}): THREE.Group {
     const group = new THREE.Group();
     group.name = name;
     if (this.solidParts.length > 0) {
-      const mesh = new THREE.Mesh(mergeGeometries(this.solidParts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.04 }));
+      const mesh = new THREE.Mesh(mergeGeometries(this.solidParts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: finish.roughness ?? 0.85, metalness: finish.metalness ?? 0.04 }));
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       // Measured for the city plan through its footprints, not through this one big mesh

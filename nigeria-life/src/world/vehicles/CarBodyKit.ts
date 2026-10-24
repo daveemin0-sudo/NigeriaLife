@@ -57,9 +57,13 @@ export interface CarSpec {
 const BEVEL = 0.07;
 
 /** Turns a profile drawn as (along the car, height) into a solid of the car's width, narrowed and rounded */
+/** How finely the body is drawn: 'light' for traffic, drawn by the hundred */
+let detail: 'full' | 'light' = 'full';
+
 function extrudeProfile(shape: THREE.Shape, width: number, spec: CarSpec, curve = 10, narrowFrom = spec.belt): THREE.BufferGeometry {
   const depth = Math.max(0.1, width - 2 * BEVEL);
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: BEVEL * 0.8, bevelSegments: 3, curveSegments: curve });
+  const light = detail === 'light';
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: BEVEL * 0.8, bevelSegments: light ? 1 : 3, curveSegments: light ? Math.max(3, Math.round(curve / 3)) : curve });
   const position = geometry.attributes.position as THREE.BufferAttribute;
   const halfL = spec.length / 2;
   const r = Math.max(0.2, spec.length * 0.16 * (0.4 + spec.roundness));
@@ -76,7 +80,9 @@ function extrudeProfile(shape: THREE.Shape, width: number, spec: CarSpec, curve 
     // Round corners seen from above
     const end = Math.abs(along) - (halfL - r);
     if (end > 0) across *= 1 - 0.1 * spec.roundness * Math.min(1, end / r) ** 2;
-    position.setXYZ(i, across, up, along);
+    // Across turned the other way too, so this is a turn and not a mirror: a mirror would leave the
+    // faces inside out, and the body would be seen through from outside
+    position.setXYZ(i, -across, up, along);
   }
   geometry.deleteAttribute('normal');
   geometry.deleteAttribute('uv');
@@ -196,7 +202,8 @@ export function carMaterials(paint: number): CarMaterials {
 }
 
 /** A car body to these measurements. Wheels are not included. */
-export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.paint)): THREE.Group {
+export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.paint), level: 'full' | 'light' = 'full'): THREE.Group {
+  detail = level;
   const car = new THREE.Group();
   car.name = 'car body';
   const s = spec;
@@ -237,10 +244,10 @@ export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.
   const lampY = s.noseTop - (s.style === 'boxy' ? 0.24 : 0.14);
   for (const side of [-1, 1]) {
     if (s.lamps === 'round') {
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, 24), m.chrome);
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, detail === 'light' ? 10 : 24), m.chrome);
       ring.rotation.x = Math.PI / 2;
       ring.position.set(side * (halfW - 0.3), lampY, front + 0.03);
-      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.105, 24), m.lamp);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.105, detail === 'light' ? 10 : 24), m.lamp);
       lens.position.set(side * (halfW - 0.3), lampY, front + 0.065);
       car.add(ring, lens);
     } else {
@@ -301,10 +308,10 @@ export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.
     for (const side of [-1, 1]) car.add(box(m.trim, 0.04, 0.26, 0.12, side * 0.5, s.tailTop + 0.14, back + 0.3));
   }
   if (s.spare) {
-    const spare = new THREE.Mesh(new THREE.CylinderGeometry(s.wheelRadius * 0.95, s.wheelRadius * 0.95, 0.26, 24), m.trim);
+    const spare = new THREE.Mesh(new THREE.CylinderGeometry(s.wheelRadius * 0.95, s.wheelRadius * 0.95, 0.26, detail === 'light' ? 10 : 24), m.trim);
     spare.rotation.x = Math.PI / 2;
     spare.position.set(0, (s.clearance + s.belt) / 2 + 0.15, back - 0.15);
-    const cover = new THREE.Mesh(new THREE.CircleGeometry(s.wheelRadius * 0.7, 24), m.paint);
+    const cover = new THREE.Mesh(new THREE.CircleGeometry(s.wheelRadius * 0.7, detail === 'light' ? 10 : 24), m.paint);
     cover.position.set(0, spare.position.y, back - 0.285);
     cover.rotation.y = Math.PI;
     car.add(spare, cover);

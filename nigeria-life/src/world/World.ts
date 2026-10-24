@@ -14,6 +14,7 @@ import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
 import { Expressway } from './expressway/Expressway';
+import { EXPRESS } from './expressway/layout';
 import { WorldMap } from './map/WorldMap';
 import { shareAbroad } from './StreetLife';
 import { RouteLine } from './map/RouteLine';
@@ -495,9 +496,10 @@ export class World {
       return { name: city.charAt(0).toUpperCase() + city.slice(1), sub: 'City centre' };
     }
 
-    // Player Apartment Flat (Home Interior)
+    // North of the island's last buildings: the expressway, over the lagoon to the mainland
     if (pos.z > 165) {
-      return { name: 'Lekki Luxury Flat', sub: 'Apartment Interior • Banana Island View' };
+      const stretch = pos.z < EXPRESS.lagoonFrom ? 'Island approach' : pos.z < EXPRESS.lagoonTo ? 'Bridge over the lagoon' : pos.z > EXPRESS.ring.z - 150 ? 'Oworonshoki roundabout' : 'Mainland · Ikeja side';
+      return { name: 'Third Mainland Expressway', sub: stretch };
     }
 
     // Lagos districts, asked of Lagos by name

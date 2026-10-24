@@ -392,7 +392,7 @@ export async function run(browser, check) {
     { paid: m0.total - m1.total, owned, back: m2.total - m1.total, sold });
 
   // ------------------------------------------------------------------ Businesses
-  await give(page, 400000);
+  await give(page, 4_000_000);
   await openApp(page, 'business');
   await tap(page, '[data-go="b:biz_pos_kiosk"]');
   m0 = await money(page);

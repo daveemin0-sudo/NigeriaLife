@@ -183,9 +183,30 @@ From the player's comparison with the reference game on a real Android phone.
 | Fonts bundled (Outfit, Plus Jakarta Sans, OFL) | Built | `main.ts` |
 | New players start on the east pavement, not in the road | Verified (`phonelife`) | `Player` constructor |
 
-Not done: yachts and private jets to buy; the top bar's drop-down menu; traffic still drawn with the old box models; furniture is not solid to the player indoors beyond the floor map.
+Not done here: furniture is not solid to the player indoors beyond the floor map. (Jets, yachts, the drop-down and the traffic models came next, below.)
+
+## 2026-10-24, later: the long road, places, jets and yachts, rides
+
+The player's second list, built in the agreed order.
+
+| What | State | Where |
+| --- | --- | --- |
+| Real prices for cars, houses, land (by area: Banana Island and by the airport dearest), businesses and buildings | Verified (`land`, `vehicles`, `saves`) | `backend/RealPrices.ts`, `realestate/Garage.ts`, `realestate/PlotCatalogue.ts`, `realestate/BuildingCatalogue.ts` |
+| Street voices only on the main road; conductors louder and faster, calling chained routes | Built, not measurable headless | `audio/StreetAmbience.ts` |
+| No walking across Broad Street outside the junction or across the expressway: the footbridges or the zebra | Verified (`expressway`, `streets`) | `Game.NO_CROSSING`, `Player.mayNotStep` |
+| 17 more cars (Corollas, Camry, Accord, Lexus, Highlander, Range Rover, Cayenne, Urus, Cullinan, 911, Huracán, Aventador, Chiron and more) and the Sankofa Motors showroom | Verified (`vehicles`) | `world/vehicles/CarBodyKit.ts`, `realestate/Garage.ts` |
+| A 4 km expressway north of Broad Street: median and barrier, lamps, buildings all along, a footbridge every 400 m, U-turns, the lagoon bridge, the toll (₦400), a roundabout at the end; two rush hours | Verified (`expressway`, `hours`) | `world/expressway/` |
+| Ten places along it, each with things to do, a marina and a private airfield | Verified (`expressway`, `places`) | `world/expressway/Roadside.ts` |
+| Private jets and yachts with the owner's name and colour, flown to Abuja or Port Harcourt and cruised on the lagoon; a drop-down from the top bar | Verified (`fleet`) | `assets/Fleet.ts`, `ui/FleetSheet.ts`, `world/expressway/FleetModels.ts`, `ui/TopMenu.ts` |
+| Taxi, keke and okada rides: a real car body (the taxi in yellow with its checker band), a keke and an okada, a driver whose hands stay on the wheel or the bars as they turn, the player sitting in it as themselves, a Lagos road going by (shops, flats with water tanks, a filling station, a bus stop with people, hawkers, power lines, billboards, a footbridge) and real traffic that keeps its lanes; inside, chase and side views framed for a tall phone | Verified (`rides`) | `transit/RideModels.ts`, `transit/RideStreet.ts`, `transit/RoadRideExperience.ts` |
+| Street traffic drawn with the shaped cars (Corollas, Camrys, Accords, Lexus, Highlanders, Range Rovers, G-Wagons; taxis in yellow), at a lighter detail for traffic | Looks (screenshots); `bodies`, `streets` | `TrafficSpawner.KINDS`, `world/vehicles/KitCar.ts` |
+
+Still to do from the list: an airport interior and more aircraft; Amala Shitta, Unilag, barracks, prison and a polling unit to go into; a bigger map with the expressway on it; jobs, companies with branches and staff, a supermarket to stock, building storeys; home ceilings, doors, a bigger carport; convoys.
 
 ## Faults found on the way and put right
+
+- Every shaped car body was built inside out (its sides were turned by swapping two axes, which mirrors them), so from outside one saw the inside of the far side. It looked right while cars were empty; with seats and a driver in the cabin the doors looked see-through. Turning the body the right way also showed that its lower half is one solid with a top at window height, so a car to sit in has that top cut out.
+- Out on the expressway the place name read "Lekki Luxury Flat": anything north of z 165 was taken for the flat the home used to be. It now names the stretch of the expressway.
 
 - The street crowd was drawn with the detailed character model, over a million triangles for the people in view, which halved the frame rate on the target machine.
 - Re-running the other agent's last commit (23e8888) suite by suite: `social` (the second player is not told about a wave), `actions` (the hawker's list of goods does not open) and `saves` failed on their own. The first two pass on the current build. `saves` failed now and then on both because two checks expected a business's takings to stay as saved, while the game rightly adds one payout per 45 real seconds from loading (takings are counted from a saved real-world time on purpose, so a business earns while the player is away); on a slow machine the test took longer than that. The checks now allow whole payouts earned since loading.

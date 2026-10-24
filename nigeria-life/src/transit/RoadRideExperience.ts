@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import type { RideDetails, RideCameraView } from './TransitTypes';
 import { WorldMapPrefabs } from '../world/map/WorldMapPrefabs';
+import type { HumanRig } from '../graphics/HumanMeshBuilder';
+import { RideStreet, LANES } from './RideStreet';
+import { buildRideCar, buildRideKeke, buildRideOkada, holdOn, seatPassenger, type RideVehicle } from './RideModels';
 import { Builder } from '../world/kit/ArchKit';
 import { showGameToast } from '../ui/GameToast';
 
@@ -14,17 +17,26 @@ export class RoadRideExperience {
   private cameraTarget: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
 
   // Subgroups
+  /** The vehicle being ridden in, the driver at its wheel, the player in the back */
   private vehicleGroup: THREE.Group = new THREE.Group();
+  /** The Lagos road it goes down, and the traffic on it; built the first time it is needed */
+  private street: RideStreet | null = null;
+  private readonly rides = new Map<string, RideVehicle>();
+  private ride: RideVehicle | null = null;
+  /** The player's own figure, to sit them in the vehicle; given by the game */
+  public passengerLook: (() => HumanRig | null) | null = null;
+  private speed = 0;
+  private targetSpeed = 0;
+  private nextChange = 0;
+  private steerAngle = 0;
+  private distance = 0;
   /** The inside of a coach, for a journey that is ridden and not driven */
   private coachGroup: THREE.Group = new THREE.Group();
   private byCoach = false;
-  private trafficGroup: THREE.Group = new THREE.Group();
-  private sceneryGroup: THREE.Group = new THREE.Group();
   /** Authentic Nigerian Expressway and Inter-State Highway Rest Stop */
   private highwaySceneryGroup: THREE.Group = new THREE.Group();
   private restStopAnnounced: boolean = false;
   private restDepartureAnnounced: boolean = false;
-  private steeringWheel!: THREE.Group;
 
   // Active Ride Metadata
   public currentRide: RideDetails | null = null;
@@ -32,8 +44,6 @@ export class RoadRideExperience {
   private totalDuration: number = 24; // seconds for demo ride
   private animTime: number = 0;
 
-  // Traffic vehicles
-  private trafficCars: Array<{ mesh: THREE.Group; baseZ: number; speed: number }> = [];
 
   // Callbacks
   public onRideCompleted?: (ride: RideDetails) => void;
@@ -49,10 +59,8 @@ export class RoadRideExperience {
       600
     );
 
-    this.group.add(this.sceneryGroup);
     this.group.add(this.highwaySceneryGroup);
     this.group.add(this.vehicleGroup);
-    this.group.add(this.trafficGroup);
 
     // Warm Sun and Ambient
     const sunLight = new THREE.DirectionalLight(0xfffbeb, 2.5);
@@ -62,11 +70,8 @@ export class RoadRideExperience {
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.6);
     this.group.add(ambientLight);
 
-    this.buildStreetScenery();
     this.buildHighwayAndRestStop();
-    this.buildPlayerVehicleCockpit();
     this.buildCoachCabin();
-    this.buildDenseTraffic();
   }
 
   // =========================================================================
@@ -133,58 +138,6 @@ export class RoadRideExperience {
   }
 
   // =========================================================================
-  // 1. STREET SCENERY & SURROUNDING BUILDINGS
-  // =========================================================================
-  private buildStreetScenery(): void {
-    const roadWidth = 16;
-    const roadLen = 300;
-
-    // Asphalt Road
-    const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLen);
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
-    const road = new THREE.Mesh(roadGeo, roadMat);
-    road.rotation.x = -Math.PI / 2;
-    road.position.y = 0.05;
-    this.sceneryGroup.add(road);
-
-    // Yellow Dashed Centerlines
-    const stripeGeo = new THREE.PlaneGeometry(0.3, 3.5);
-    const stripeMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-    for (let z = -140; z <= 140; z += 7) {
-      const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-      stripe.rotation.x = -Math.PI / 2;
-      stripe.position.set(0, 0.06, z);
-      this.sceneryGroup.add(stripe);
-    }
-
-    // Sidewalks
-    const walkGeo = new THREE.BoxGeometry(4.0, 0.25, roadLen);
-    const walkMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.7 });
-
-    const walkL = new THREE.Mesh(walkGeo, walkMat);
-    walkL.position.set(-10, 0.12, 0);
-    this.sceneryGroup.add(walkL);
-
-    const walkR = new THREE.Mesh(walkGeo, walkMat);
-    walkR.position.set(10, 0.12, 0);
-    this.sceneryGroup.add(walkR);
-
-    // Street Stalls with colorful awnings along sidewalk
-    const canopyColors = [0xdc2626, 0x2563eb, 0x16a34a, 0xf59e0b, 0x9333ea];
-    for (let z = -120; z <= 120; z += 18) {
-      // Left stall
-      const cColor = canopyColors[Math.abs(z) % canopyColors.length];
-      const stallL = WorldMapPrefabs.createShopPlaza(cColor, 0.75);
-      stallL.position.set(-14, 0.25, z);
-      this.sceneryGroup.add(stallL);
-
-      // Right stall
-      const stallR = WorldMapPrefabs.createShopPlaza(canopyColors[(Math.abs(z) + 1) % canopyColors.length], 0.75);
-      stallR.position.set(14, 0.25, z + 8);
-      this.sceneryGroup.add(stallR);
-    }
-  }
-
   // =========================================================================
   // 1b. INTER-STATE HIGHWAY & ROADSIDE REST STOP (Ore / Lokoja / Benin Oasis)
   // =========================================================================
@@ -562,134 +515,6 @@ export class RoadRideExperience {
   }
 
   // =========================================================================
-  // 2. 3D FIRST-PERSON COCKPIT (Mercedes G-Wagon Dashboard & Steering Wheel)
-  // =========================================================================
-  private buildPlayerVehicleCockpit(): void {
-    const dashMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 });
-    const leatherMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8 });
-    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.2, metalness: 0.8 });
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: 0xbae6fd,
-      roughness: 0.1,
-      metalness: 0.3,
-      transparent: true,
-      opacity: 0.25,
-    });
-
-    // A. Main Dashboard Deck
-    const dashGeo = new THREE.BoxGeometry(2.3, 0.45, 1.1);
-    const dashboard = new THREE.Mesh(dashGeo, dashMat);
-    dashboard.position.set(0, 1.15, 0.55);
-    this.vehicleGroup.add(dashboard);
-
-    // Instrument Cluster Visor
-    const binnacleGeo = new THREE.BoxGeometry(0.75, 0.25, 0.5);
-    const binnacle = new THREE.Mesh(binnacleGeo, dashMat);
-    binnacle.position.set(-0.45, 1.45, 0.35);
-    this.vehicleGroup.add(binnacle);
-
-    // Central Infotainment Screen
-    const screenGeo = new THREE.BoxGeometry(0.55, 0.3, 0.08);
-    const screenMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
-    const screen = new THREE.Mesh(screenGeo, screenMat);
-    screen.position.set(0.1, 1.48, 0.5);
-    this.vehicleGroup.add(screen);
-
-    // B. 3D Steering Wheel (matching Screenshot 1)
-    this.steeringWheel = new THREE.Group();
-    this.steeringWheel.position.set(-0.45, 1.25, 0.22);
-    this.steeringWheel.rotation.x = -0.38;
-
-    // Torus rim
-    const rimGeo = new THREE.TorusGeometry(0.32, 0.045, 12, 28);
-    const rim = new THREE.Mesh(rimGeo, leatherMat);
-    this.steeringWheel.add(rim);
-
-    // Center Horn Boss
-    const bossGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.06, 16);
-    const boss = new THREE.Mesh(bossGeo, leatherMat);
-    boss.rotation.x = Math.PI / 2;
-    this.steeringWheel.add(boss);
-
-    // Spokes
-    const spokeGeo = new THREE.BoxGeometry(0.56, 0.05, 0.03);
-    const spoke = new THREE.Mesh(spokeGeo, chromeMat);
-    this.steeringWheel.add(spoke);
-
-    this.vehicleGroup.add(this.steeringWheel);
-
-    // C. Windshield & A-Pillars Frame
-    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
-
-    // Left A-Pillar
-    const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.12), pillarMat);
-    pillarL.position.set(-1.15, 1.7, 0.7);
-    pillarL.rotation.z = -0.22;
-    pillarL.rotation.x = 0.35;
-    this.vehicleGroup.add(pillarL);
-
-    // Right A-Pillar
-    const pillarR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.12), pillarMat);
-    pillarR.position.set(1.15, 1.7, 0.7);
-    pillarR.rotation.z = 0.22;
-    pillarR.rotation.x = 0.35;
-    this.vehicleGroup.add(pillarR);
-
-    // Windshield Glass
-    const glassGeo = new THREE.PlaneGeometry(2.2, 1.0);
-    const windshield = new THREE.Mesh(glassGeo, glassMat);
-    windshield.position.set(0, 1.72, 0.75);
-    windshield.rotation.x = -0.35;
-    this.vehicleGroup.add(windshield);
-
-    // Rearview Mirror
-    const mirrorGeo = new THREE.BoxGeometry(0.35, 0.12, 0.08);
-    const mirror = new THREE.Mesh(mirrorGeo, dashMat);
-    mirror.position.set(0, 2.15, 0.65);
-    this.vehicleGroup.add(mirror);
-
-    // Hood / Bonnet extending outward
-    const hoodGeo = new THREE.BoxGeometry(2.1, 0.15, 1.6);
-    const hoodMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.4 });
-    const hood = new THREE.Mesh(hoodGeo, hoodMat);
-    hood.position.set(0, 1.05, 1.8);
-    this.vehicleGroup.add(hood);
-  }
-
-  // =========================================================================
-  // 3. DENSE TRAFFIC STREAM (Go-Slow: Danfos, Sedans, Blue Taxis, SUVs)
-  // =========================================================================
-  private buildDenseTraffic(): void {
-    const trafficConfigs = [
-      // Right ahead in player lane
-      { type: 'car', color: 0xfef08a, offset: new THREE.Vector3(-0.45, 0, 7.5) },
-      { type: 'car', color: 0xdc2626, offset: new THREE.Vector3(-0.45, 0, 14.5) },
-      { type: 'danfo', color: 0xfacc15, offset: new THREE.Vector3(-0.45, 0, 22.0) },
-      // Adjacent left lane
-      { type: 'car', color: 0x0284c7, offset: new THREE.Vector3(-4.2, 0, 5.0) }, // Blue PH taxi
-      { type: 'car', color: 0x475569, offset: new THREE.Vector3(-4.2, 0, 12.0) },
-      { type: 'danfo', color: 0xfacc15, offset: new THREE.Vector3(-4.2, 0, 19.5) },
-      // Opposite northbound lanes
-      { type: 'car', color: 0x0284c7, offset: new THREE.Vector3(3.8, 0, 8.0) },
-      { type: 'car', color: 0x16a34a, offset: new THREE.Vector3(3.8, 0, 16.0) },
-      { type: 'danfo', color: 0xfacc15, offset: new THREE.Vector3(3.8, 0, 25.0) },
-    ];
-
-    for (const conf of trafficConfigs) {
-      const car = WorldMapPrefabs.createMiniVehicle(conf.type as any, conf.color);
-      car.scale.set(1.5, 1.5, 1.5);
-      car.position.copy(conf.offset);
-      car.position.y = 0.35;
-      this.trafficGroup.add(car);
-
-      this.trafficCars.push({
-        mesh: car,
-        baseZ: conf.offset.z,
-        speed: 3.5 + Math.random() * 1.5,
-      });
-    }
-  }
-
   // =========================================================================
   // RIDE LIFECYCLE & CAMERAS
   // =========================================================================
@@ -703,15 +528,84 @@ export class RoadRideExperience {
     // A coach is ridden from a passenger's seat, on an open road; anything else is driven in traffic
     this.byCoach = ride.vehicleType === 'coach';
     this.vehicleGroup.visible = !this.byCoach;
-    this.trafficGroup.visible = !this.byCoach;
     this.coachGroup.visible = this.byCoach;
-
-    this.sceneryGroup.visible = !this.byCoach;
     this.highwaySceneryGroup.visible = this.byCoach;
+    if (!this.byCoach) this.boardVehicle(ride);
     this.restStopAnnounced = false;
     this.restDepartureAnnounced = false;
 
     this.setCameraView('inside');
+  }
+
+  /** The vehicle for this ride, its driver at the wheel and the player sat in it, on the road */
+  private boardVehicle(ride: RideDetails): void {
+    if (!this.street) {
+      this.street = new RideStreet();
+      this.vehicleGroup.add(this.street.group);
+    }
+    const kind = ride.vehicleType === 'bike' || ride.vehicleType === 'okada' ? 'okada' : ride.vehicleType === 'keke' ? 'keke' : ride.vehicleType === 'taxi' ? 'taxi' : 'car';
+    let vehicle = this.rides.get(kind);
+    if (!vehicle) {
+      vehicle = kind === 'okada' ? buildRideOkada() : kind === 'keke' ? buildRideKeke() : kind === 'taxi' ? buildRideCar('corolla_2008', undefined, true, 0) : buildRideCar('gwagon', 0x111214, false, 1);
+      this.rides.set(kind, vehicle);
+      this.vehicleGroup.add(vehicle.body);
+    }
+    for (const other of this.rides.values()) other.body.visible = other === vehicle;
+    this.ride = vehicle;
+    seatPassenger(vehicle, this.passengerLook?.() ?? null, kind === 'okada' ? 'bike' : kind === 'keke' ? 'bench' : 'car');
+    this.street.setLane(vehicle.lane === 'kerb' ? LANES.kerb : LANES.inner);
+    // Go-slow or not, it pulls away from a stop
+    this.speed = 0;
+    this.targetSpeed = ride.trafficCondition === 'Clear' ? 13 : 6;
+    this.nextChange = 2;
+    this.steerAngle = 0;
+    this.distance = 0;
+    this.street.advance(0, 0, 0);
+    this.poseVehicle(0);
+  }
+
+  /** The vehicle going along: the wheel turned a little this way and that, the body swaying, the wheels rolling */
+  private poseVehicle(delta: number): void {
+    const ride = this.ride;
+    if (!ride) return;
+    const t = this.animTime;
+    // Small corrections all the time, and now and then a bigger turn round something
+    const want = Math.sin(t * 0.9) * 0.12 + Math.sin(t * 0.37 + 1.3) * 0.22 * Math.min(1, this.speed / 6);
+    this.steerAngle += (want - this.steerAngle) * Math.min(1, delta * 3);
+    ride.steer.rotation.z = this.steerAngle * (ride.lane === 'kerb' ? 0.5 : 1.6);
+    if (ride.lane === 'kerb') {
+      // Handlebars turn about their column
+      ride.steer.rotation.set(ride.steer.rotation.x, this.steerAngle * 0.45, 0);
+    }
+    ride.body.rotation.set(Math.sin(t * 7) * 0.004 * Math.min(1, this.speed / 3), -this.steerAngle * 0.05, -this.steerAngle * 0.04 * (ride.lane === 'kerb' ? 3 : 1));
+    ride.body.position.y = Math.abs(Math.sin(t * 9)) * 0.008 * Math.min(1, this.speed / 4);
+    for (const wheel of ride.wheels) wheel.rotation.x += (this.speed * delta) / ride.wheelRadius;
+    // The driver looks about now and then
+    ride.driver.rig.head.rotation.y = Math.sin(t * 0.5) > 0.85 ? 0.45 : Math.sin(t * 0.31) > 0.9 ? -0.35 : 0;
+    holdOn(ride);
+  }
+
+  /** Where the camera is for this view: fixed to the vehicle, wide enough on a tall phone screen */
+  private placeRideCamera(): void {
+    const ride = this.ride;
+    if (!ride) return;
+    const view = ride.views[this.currentCameraView] ?? ride.views.inside;
+    ride.body.updateMatrixWorld(true);
+    const at = ride.body.localToWorld(view.at.clone());
+    const look = ride.body.localToWorld(view.look.clone());
+    this.rideCamera.position.copy(at);
+    this.rideCamera.lookAt(look);
+    const aspect = this.rideCamera.aspect;
+    // On a tall screen, keep as much side to side in view as a wide one would show
+    const across = THREE.MathUtils.degToRad(this.currentCameraView === 'inside' ? 52 : 44);
+    const fov = aspect < 1 ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(across / 2) / aspect)) : view.fov;
+    const next = THREE.MathUtils.clamp(fov, view.fov, 88);
+    if (Math.abs(this.rideCamera.fov - next) > 0.01) {
+      this.rideCamera.fov = next;
+      this.rideCamera.updateProjectionMatrix();
+    }
+    for (const part of ride.hideInside) part.visible = this.currentCameraView !== 'inside';
+    if (this.street) this.street.keepClear = this.currentCameraView === 'side';
   }
 
   public setCameraView(view: RideCameraView): void {
@@ -747,22 +641,7 @@ export class RoadRideExperience {
       this.rideCamera.lookAt(this.cameraTarget);
       return;
     }
-    if (this.currentCameraView === 'inside') {
-      // First-person cockpit view behind steering wheel
-      this.rideCamera.position.set(-0.45, 1.52, -0.05);
-      this.cameraTarget.set(-0.45, 1.48, 12);
-      this.rideCamera.lookAt(this.cameraTarget);
-    } else if (this.currentCameraView === 'chase') {
-      // Third-person chase cam behind vehicle
-      this.rideCamera.position.set(0, 3.8, -7.5);
-      this.cameraTarget.set(0, 1.6, 6);
-      this.rideCamera.lookAt(this.cameraTarget);
-    } else {
-      // Side tracking profile shot
-      this.rideCamera.position.set(6.5, 2.2, 1.5);
-      this.cameraTarget.set(0, 1.5, 2.5);
-      this.rideCamera.lookAt(this.cameraTarget);
-    }
+    this.placeRideCamera();
   }
 
   // =========================================================================
@@ -775,22 +654,21 @@ export class RoadRideExperience {
     this.elapsedTime += delta;
 
     if (!this.byCoach) {
-      // Gentle micro-steer oscillation on steering wheel
-      if (this.steeringWheel) {
-        this.steeringWheel.rotation.z = Math.sin(this.animTime * 1.8) * 0.08;
+      // Lagos traffic: crawl, stop, go, stop; a clear road now and then
+      this.nextChange -= delta;
+      if (this.nextChange <= 0) {
+        const goSlow = this.currentRide?.trafficCondition !== 'Clear';
+        const roll = Math.random();
+        this.targetSpeed = goSlow ? (roll < 0.25 ? 0 : roll < 0.6 ? 3 + Math.random() * 3 : 8 + Math.random() * 5) : 10 + Math.random() * 6;
+        this.nextChange = 2.5 + Math.random() * 3.5;
       }
-
-      // Go-slow traffic bumper movement
-      for (const car of this.trafficCars) {
-        car.mesh.position.z += Math.sin(this.animTime * 2.2) * 0.02;
-      }
-
-      // Scenery backward scrolling to simulate forward motion in city go-slow
-      const speed = 6.0;
-      this.sceneryGroup.position.z -= speed * delta;
-      if (this.sceneryGroup.position.z < -60) {
-        this.sceneryGroup.position.z += 60;
-      }
+      const rate = this.targetSpeed > this.speed ? 2.2 : 4.5;
+      this.speed += THREE.MathUtils.clamp(this.targetSpeed - this.speed, -rate * delta, rate * delta);
+      const moved = this.speed * delta;
+      this.distance += moved;
+      this.street?.advance(moved, this.speed, delta);
+      this.poseVehicle(delta);
+      this.placeRideCamera();
     } else {
       // Express Coach travel along inter-state highway with roadside rest stop oasis
       const progress = Math.min(1.0, this.elapsedTime / this.totalDuration);
@@ -827,5 +705,6 @@ export class RoadRideExperience {
   public handleResize(): void {
     this.rideCamera.aspect = window.innerWidth / window.innerHeight;
     this.rideCamera.updateProjectionMatrix();
+    if (this.isActive && !this.byCoach) this.placeRideCamera();
   }
 }

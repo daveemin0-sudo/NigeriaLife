@@ -92,7 +92,13 @@ export async function run(browser, check) {
     await g.advance(0.5);
     return { driving: true, moved: +moved.toFixed(1) };
   }, id);
-  await wait(600);
+  // Where it was left is saved a moment later (the save is written in the background)
+  await page.waitForFunction((id) => {
+    const g = window.game;
+    const v = g.world.vehicles.drivableVehicles.find((x) => x.id === `veh-own-${id}`);
+    const at = g.garage.mine().find((r) => r.id === id)?.parkedAt;
+    return v && at && Math.abs(at.z - v.mesh.position.z) < 0.2;
+  }, { timeout: 8000 }, id).catch(() => null);
   const leftAt = await where(page, id);
   check(
     'vehicles: driven up Shehu Shagari Way it moves, and where it is left is recorded, in Abuja',

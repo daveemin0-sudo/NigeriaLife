@@ -89,8 +89,9 @@ export async function run(browser, check) {
   await page.click('.map-filter-btn[data-filter="all"]');
   await wait(300);
   const allRestored = await page.evaluate(() => {
-    const pins = [...document.querySelectorAll('.map-pin')];
-    return pins.every((p) => p.style.display !== 'none');
+    // A pin off the edge of the screen is hidden too; what matters is that none is filtered out
+    const markers = window.game.hud.worldMapUI.markers;
+    return markers.length > 0 && markers.every((m) => !m.filtered);
   });
   check('filtering by All restores all landmark pins', allRestored, { allRestored });
 

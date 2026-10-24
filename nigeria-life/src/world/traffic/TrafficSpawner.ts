@@ -6,6 +6,7 @@ import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD, SIDE_STREETS } from '../
 import { isAbroad } from '../StreetLife';
 import { EXPRESS } from '../expressway/layout';
 import type { CarBody } from '../Bodies';
+import { buildKitCar } from '../vehicles/KitCar';
 
 type VehicleKind =
   | 'danfo' | 'keke' | 'okada' | 'sedan' | 'suv' | 'taxi' | 'police'
@@ -21,15 +22,27 @@ interface KindSpec {
   /** Pulls over at bus stops to load passengers */
   stopsForPassengers: boolean;
   parkable: boolean;
+  /** A shaped car from the body kit (see CarBodyKit), for the cars people really drive in Lagos */
+  body?: string;
 }
 
 const KINDS: KindSpec[] = [
   { kind: 'danfo', weight: 20, cruise: 11.5, tinted: false, stopsForPassengers: true, parkable: false },
   { kind: 'keke', weight: 14, cruise: 8.5, tinted: false, stopsForPassengers: true, parkable: true },
   { kind: 'okada', weight: 12, cruise: 13.5, tinted: false, stopsForPassengers: false, parkable: true },
-  { kind: 'sedan', weight: 18, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
-  { kind: 'suv', weight: 11, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
-  { kind: 'taxi', weight: 8, cruise: 11.5, tinted: false, stopsForPassengers: false, parkable: true },
+  // Saloons: Corollas old and new, Camrys, Accords
+  { kind: 'sedan', body: 'corolla_2008', weight: 6, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'camry', weight: 4, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'corolla_2020', weight: 3, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'accord', weight: 3, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'sedan', weight: 2, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  // Jeeps: Lexus, Highlander, the odd Range Rover and G-Wagon
+  { kind: 'suv', body: 'lexus_rx', weight: 4, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'highlander', weight: 3, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'suv', weight: 2, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'range_rover', weight: 1, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'gwagon', weight: 1, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'taxi', body: 'corolla_2008', weight: 8, cruise: 11.5, tinted: false, stopsForPassengers: false, parkable: true },
   { kind: 'pickup', weight: 5, cruise: 11.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'delivery_van', weight: 4, cruise: 11, tinted: false, stopsForPassengers: false, parkable: true },
   { kind: 'brt', weight: 3, cruise: 10, tinted: false, stopsForPassengers: true, parkable: false },
@@ -159,9 +172,11 @@ export class TrafficSpawner {
     const white = new THREE.Color(0xffffff);
 
     for (const spec of KINDS) {
-      const proto = fromGarage.has(spec.kind)
-        ? vehicles.buildTrafficVehicle(spec.kind, spec.tinted ? PAINT_KEY : undefined).group
-        : this.buildHeavyVehicle(spec.kind);
+      const proto = spec.body
+        ? buildKitCar(spec.body, spec.tinted ? PAINT_KEY : undefined, { taxi: spec.kind === 'taxi', light: true }).group
+        : fromGarage.has(spec.kind)
+          ? vehicles.buildTrafficVehicle(spec.kind, spec.tinted ? PAINT_KEY : undefined).group
+          : this.buildHeavyVehicle(spec.kind);
 
       const bodyGeo = bakeToGeometry(proto, { filter: (_m, mat) => !(spec.tinted && isPaint(mat)) });
       const paintGeo = spec.tinted ? bakeToGeometry(proto, { filter: (_m, mat) => (isPaint(mat) ? white : false) }) : null;
