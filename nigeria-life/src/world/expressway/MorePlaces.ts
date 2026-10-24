@@ -33,6 +33,7 @@ export interface PlaceKit {
   openApp(app: string): void;
   /** Opens the pump: the player's vehicles, their tanks, and filling them */
   openPump(stationId: string): void;
+  openStateHouse(mode: 'house' | 'polling' | 'view'): void;
 }
 
 /** Where on a filling station's forecourt a vehicle stands to be filled, from its face to the road */
@@ -332,10 +333,8 @@ export function moreMenu(id: string, k: PlaceKit): { label: string; run(host: Pl
         { label: 'A cold drink and some suya', note: 'Hunger', price: 4000, done: (h) => need(h, { hunger: 30 }), said: 'Suya and a cold malt for half-time.' },
       ]) };
     case 'polling-unit':
-      return { label: '🗳️ The polling unit', run: (host) => host.ask({ who: 'Presiding officer', role: 'INEC, Polling Unit 001', text: 'Bring your voter card, please.', choices: [
-        { label: 'Check my name on the register', note: 'Free', pick: () => k.act(host, 'reach', 2, () => host.say('Your name is on the register, page 14. Come back on election day.', 'info')) },
-        { label: 'Vote', note: 'Social +10', pick: () => k.act(host, 'reach', 3, () => { need(host, { social: 10 }); host.say('Thumb in the ink, ballot in the box. Your vote has been cast.', 'success'); }) },
-      ] }) };
+      // The ballot is the State House's own: this week's candidates for each office, one vote each
+      return { label: '🗳️ Vote', run: () => k.openStateHouse('polling') };
     case 'afrika-shrine':
       return { label: '🎷 Inside the Shrine', run: offer('Gateman', 'New Afrika Shrine', 'The band never stops. Come in!', [
         { label: 'The Thursday jam', note: 'Fun +40, Social +20', price: 5000, arms: 'wave', seconds: 5, done: (h) => need(h, { fun: 40, social: 20 }), said: 'Horns, drums and a crowd dancing till morning.' },

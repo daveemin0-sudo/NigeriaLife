@@ -46,6 +46,8 @@ export class Employment {
   private static instance: Employment | null = null;
   private readonly backend = BackendService.getInstance();
   private records: { [employerId: string]: Service } = {};
+  /** What the law adds to every shift's pay (a minimum wage raise), set by the game */
+  public static payBoost: () => number = () => 1;
   private history: PastJob[] = [];
   private listeners: Array<() => void> = [];
   /** The day on the game's calendar, for the date someone was taken on */
@@ -207,7 +209,8 @@ export class Employment {
     const record = this.records[id];
     const grade = this.grade(id);
     if (!employer || !record || !grade) return { ok: false, reason: 'You do not work there.' };
-    const paid = this.backend.performGig(grade.pay, employer.energy, `${grade.title}, ${employer.name}`);
+    const pay = Math.round(grade.pay * Employment.payBoost());
+    const paid = this.backend.performGig(pay, employer.energy, `${grade.title}, ${employer.name}`);
     if (!paid.success) return { ok: false, reason: paid.message };
     this.backend.addJobExperience(employer.xp);
     if (employer.skill) {
@@ -216,6 +219,6 @@ export class Employment {
     record.done += 1;
     const now = this.grade(id)!;
     this.changed();
-    return { ok: true, pay: grade.pay, promoted: now !== grade ? now : undefined };
+    return { ok: true, pay, promoted: now !== grade ? now : undefined };
   }
 }

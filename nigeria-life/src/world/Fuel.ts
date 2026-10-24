@@ -33,11 +33,14 @@ export function tankLitres(type: string): number {
   return TANKS[type] ?? 60;
 }
 
+/** What the law does to the pump price (a fuel subsidy), set by the game */
+export const petrolPolicy = { factor: (): number => 1 };
+
 /** What it costs to fill from this much (0 to 100) to full */
 export function fillCost(type: string, fuel: number): number {
   const missing = Math.max(0, 100 - fuel) / 100;
   if (type === 'electric_car') return Math.round((FULL_CHARGE * missing) / 50) * 50;
-  return Math.round((tankLitres(type) * missing * PETROL_PER_LITRE) / 50) * 50;
+  return Math.round((tankLitres(type) * missing * PETROL_PER_LITRE * petrolPolicy.factor()) / 50) * 50;
 }
 
 /** How far what is in the tank goes */

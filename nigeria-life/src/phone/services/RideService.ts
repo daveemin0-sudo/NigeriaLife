@@ -40,6 +40,8 @@ const BOOKABLE = new Set(['keke', 'taxi', 'bike']);
  * arrives and the player gets in; cancelling before that costs nothing.
  */
 export class RideService {
+  /** What the law does to fares (cheaper transport), set by the game */
+  public static fareFactor: () => number = () => 1;
   public ride: ActiveRide | null = null;
   public onChange: (() => void) | null = null;
   private readonly backend = BackendService.getInstance();
@@ -85,7 +87,7 @@ export class RideService {
     const blocked = this.cannotBook(vehicle);
     if (blocked) return { ok: false, reason: blocked };
 
-    this.ride = { destination, vehicle, fare: vehicle.fare, stage: 'driver_coming', eta: PICKUP_SECONDS, paid: false };
+    this.ride = { destination, vehicle, fare: Math.round(vehicle.fare * RideService.fareFactor()), stage: 'driver_coming', eta: PICKUP_SECONDS, paid: false };
     this.changed();
     return { ok: true };
   }

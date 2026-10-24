@@ -127,6 +127,7 @@ function sanitise(raw: unknown): RegistryState {
     tenancies: record(from.tenancies),
     vehicles: record(from.vehicles),
     fittings: record(from.fittings),
+    politics: from.politics && typeof from.politics === 'object' ? from.politics : undefined,
   };
 }
 

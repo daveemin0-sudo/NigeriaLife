@@ -12,6 +12,9 @@ export interface TopMenuHooks {
   openMap(): void;
   cashMachine(): void;
   musicPlaying(): boolean;
+  /** Lagos State House, and who governs now */
+  openStateHouse(): void;
+  governor(): string | null;
 }
 
 /**
@@ -89,6 +92,7 @@ export class TopMenu {
       ${row('quests', '🎯', "Today's missions", 'Goals, story and rewards')}
       ${row('music', '🎵', 'Music', this.hooks.musicPlaying() ? 'Playing now' : 'Afrobeats, Amapiano and your own songs')}
       ${row('fleet', '✈️', 'Jets & yachts', 'Buy, paint your name on, fly and cruise')}
+      ${row('state', '🏛️', 'Lagos State House', this.hooks.governor() ? `Governor @${this.hooks.governor()} · laws and the election` : 'The weekly election is on')}
       <div class="tm-grid">
         <button class="tm-chip" data-act="app:garage">🚗<span>Cars</span></button>
         <button class="tm-chip" data-act="app:jobs">💼<span>Jobs</span></button>
@@ -111,6 +115,7 @@ export class TopMenu {
     else if (act === 'quests') this.hooks.openQuests();
     else if (act === 'music') this.hooks.openMusic();
     else if (act === 'fleet') this.hooks.openFleet();
+    else if (act === 'state') this.hooks.openStateHouse();
     else if (act === 'map') this.hooks.openMap();
     else if (act.startsWith('app:')) this.hooks.openApp(act.slice(4));
   }

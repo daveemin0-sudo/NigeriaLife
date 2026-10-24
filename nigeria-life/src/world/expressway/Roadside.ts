@@ -30,6 +30,8 @@ export interface RoadsideHooks {
   cruise(uid: string): void;
   /** Opens the pump at a filling station */
   openPump(stationId: string): void;
+  /** Opens Lagos State House: at Government House, at the polling unit, or just to read */
+  openStateHouse(mode: 'house' | 'polling' | 'view'): void;
 }
 
 /** Where the airfield's stands and the marina's berths are */
@@ -69,7 +71,7 @@ export class Roadside {
   private readonly names = new Map<string, string>();
 
   /** Set by the game */
-  public hooks: RoadsideHooks = { openApp: () => {}, openFleet: () => {}, mine: () => [], fly: () => {}, cruise: () => {}, openPump: () => {} };
+  public hooks: RoadsideHooks = { openApp: () => {}, openFleet: () => {}, mine: () => [], fly: () => {}, cruise: () => {}, openPump: () => {}, openStateHouse: () => {} };
   /** The jets and yachts standing at the airfield and the marina, by their id */
   public readonly craft = new Map<string, THREE.Group>();
   private readonly fleetGroup = new THREE.Group();
@@ -398,8 +400,8 @@ export class Roadside {
         ] }),
       },
       'government-house': {
-        label: '🏛️ Visit',
-        run: (host) => host.say('"Leave your petition with us. The Governor will see it." You are given a stamped receipt.', 'info'),
+        label: '🏛️ Lagos State House',
+        run: () => this.hooks.openStateHouse('house'),
       },
     };
     menu['lagoon-marina'] = {
@@ -429,7 +431,7 @@ export class Roadside {
         ] });
       },
     };
-    const entry = menu[placeId] ?? moreMenu(placeId, { act, pay, openApp: (app) => this.hooks.openApp(app), openPump: (station) => this.hooks.openPump(station) }) ?? menu['government-house'];
+    const entry = menu[placeId] ?? moreMenu(placeId, { act, pay, openApp: (app) => this.hooks.openApp(app), openPump: (station) => this.hooks.openPump(station), openStateHouse: (mode) => this.hooks.openStateHouse(mode) }) ?? menu['government-house'];
     return { label: () => entry.label, run: (host: PlaceHost) => entry.run(host) };
   }
 }

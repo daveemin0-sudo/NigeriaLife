@@ -180,6 +180,33 @@ export interface RegistryState {
   vehicles: Record<string, VehicleRecord>;
   /** What has been added to a business its owner holds: the ids of the upgrades installed. They are sold with it. */
   fittings: Record<string, string[]>;
+  /** Who holds office, who is standing, and the votes (see politics/Politics) */
+  politics?: PoliticsState;
+}
+
+export type OfficeId = 'governor' | 'senator' | 'president';
+
+export interface Politician {
+  id: string;
+  name: string;
+  slogan: string;
+  policy: string;
+  votes: number;
+}
+
+export interface PoliticsState {
+  /** The week of the election under way (weeks since 1 January 2026) */
+  week: number;
+  /** Who holds each office now, and since which week */
+  holders: Partial<Record<OfficeId, Politician & { since: number }>>;
+  /** Who is standing this week, by office, by player id */
+  candidates: Partial<Record<OfficeId, Record<string, Politician>>>;
+  /** Who has voted this week, by office: voter ids */
+  voted: Partial<Record<OfficeId, string[]>>;
+  /** The governor's commissioners: role and player */
+  cabinet: Array<{ id: string; name: string; role: string }>;
+  /** Weekly claims already taken (youth fund, commissioner's pay): key -> week */
+  claims: Record<string, number>;
 }
 
 export const emptyRegistry = (): RegistryState => ({

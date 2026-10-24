@@ -105,7 +105,7 @@ export function buyFromVendor(vendor: Actor, customer: Actor, entry: VendorGood)
 
   const standing = standingWith(vendor);
   const discount = standing === 'partner' ? 0.85 : standing === 'friend' ? 0.90 : standing === 'acquaintance' ? 0.95 : 1.0;
-  const finalPrice = Math.round(entry.price * discount);
+  const finalPrice = Math.round(entry.price * discount * hawkerPrices.factor());
 
   const mesh = goodMesh(entry);
   let handedOver = false;
@@ -168,3 +168,6 @@ export function buyFromVendor(vendor: Actor, customer: Actor, entry: VendorGood)
   if (!director.run(sale)) return { ok: false, reason: 'busy' };
   return { ok: true, sequence: sale };
 }
+
+/** What the law does to street prices (Clean Lagos: a little cheaper), set by the game */
+export const hawkerPrices = { factor: (): number => 1 };

@@ -25,6 +25,8 @@ type ListenerCallback = (data: PlayerAccount) => void;
 const REVENUE_CYCLE_MS = 45000;
 
 export class BackendService {
+  /** What the law adds to every business's takings (a tax cut), set by the game */
+  public static revenueBoost: () => number = () => 1;
   private static instance: BackendService;
   private readonly STORAGE_KEY = profileKey('nigeria_life_account_data_v1');
   private readonly BACKUP_KEY = profileKey('nigeria_life_account_data_v1__backup');
@@ -235,7 +237,7 @@ export class BackendService {
             cycleEarnings += upg.bonusIncomePerCycle;
           }
         }
-        biz.pendingRevenue += cycleEarnings * cycles;
+        biz.pendingRevenue += Math.round(cycleEarnings * cycles * BackendService.revenueBoost());
         revenueGenerated = true;
       }
     }

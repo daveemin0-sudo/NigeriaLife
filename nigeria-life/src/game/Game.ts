@@ -24,7 +24,6 @@ import { ShopUI } from '../ui/ShopUI';
 import { VendorUI } from '../ui/VendorUI';
 import { SoundEngine } from '../audio/SoundEngine';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
-import { RideService } from '../phone/services/RideService';
 import { DeliveryService } from '../phone/services/DeliveryService';
 import { MessageService } from '../phone/services/MessageService';
 import { Market } from '../phone/services/Market';
@@ -61,6 +60,11 @@ import { MusicSheet } from '../ui/MusicSheet';
 import { FleetSheet } from '../ui/FleetSheet';
 import { PumpSheet } from '../ui/PumpSheet';
 import { ProfileSheet } from '../ui/ProfileSheet';
+import { StateHouseSheet } from '../ui/StateHouseSheet';
+import { Politics, Policies } from '../politics/Politics';
+import { hawkerPrices } from '../world/StreetVendors';
+import { petrolPolicy } from '../world/Fuel';
+import { RideService } from '../phone/services/RideService';
 import { myProfile } from '../social/Profile';
 import { BAE_AT, ROLES, Ties } from '../social/Ties';
 import type { RemotePlayer } from '../multiplayer/RemotePlayer';
@@ -689,6 +693,7 @@ export class Game {
     this.chatBox = new ChatBox(this.network);
     this.network.setOnPlayerCount((count) => this.hud.updateOnlineCount(count));
     this.connectProfiles();
+    this.connectGovernment();
 
     // 10b. The phone: its apps act on this game through the hooks below
     this.connectPhone();
@@ -924,6 +929,7 @@ export class Game {
       fly: (uid, city) => this.flyPrivate(uid, city),
       cruise: (uid) => this.cruise(uid),
       openPump: (station) => this.hud.onOpenPump?.(station),
+      openStateHouse: (mode) => this.stateHouse.open(mode),
     };
     const showFleet = () => {
       const craft = (kind: 'jet' | 'yacht') => fleet.mine(kind).map((c) => ({ uid: c.uid, length: fleetModel(c.modelId)!.length, paint: fleetColour(c.colour), name: c.name }));
@@ -943,6 +949,8 @@ export class Game {
       openMap: () => document.getElementById('nav-btn-map')?.click(),
       cashMachine: () => this.hud.goToCashMachine(),
       musicPlaying: () => SoundEngine.getInstance().isRadioActive(),
+      openStateHouse: () => this.stateHouse.open('view'),
+      governor: () => this.politics.holder('governor')?.name ?? null,
     });
     // Pictures for the catalogue and for the jets and yachts come from one small renderer
     const furniture = (key: string) => HouseDecorationSystem.getInstance().createFurniture3DMesh(key);
@@ -1164,6 +1172,25 @@ export class Game {
   private ambienceClock: number | undefined;
   public fleetSheet!: FleetSheet;
   public profileSheet!: ProfileSheet;
+  public stateHouse!: StateHouseSheet;
+  public readonly politics = Politics.get();
+
+  /** The government the players elect: its laws in force for everyone, its house to visit, its polling unit */
+  private connectGovernment(): void {
+    Employment.payBoost = Policies.pay;
+    BackendService.revenueBoost = Policies.business;
+    RideService.fareFactor = Policies.transport;
+    hawkerPrices.factor = Policies.hawkers;
+    petrolPolicy.factor = Policies.petrol;
+    const politics = this.politics;
+    this.stateHouse = new StateHouseSheet({
+      name: () => this.player.config.name,
+      knownPlayers: () => [...this.network.remotePlayers.values()].map((r) => ({ id: r.id, name: r.name })),
+    });
+    // Each new week the votes are counted, by whichever game sees the week turn first
+    void politics.refresh();
+    window.setInterval(() => void politics.refresh(), 60_000);
+  }
   /** The player's ties with other players (closeness, family, bae, jobs) */
   public readonly profileTies = Ties.get();
 
@@ -1371,8 +1398,12 @@ export class Game {
     this.lastDrivenZ = z;
     if (before === null || Math.abs(car.mesh.position.x) > EXPRESS.half + 2) return;
     if ((before - EXPRESS.toll) * (z - EXPRESS.toll) < 0) {
-      const paid = BackendService.getInstance().processTransaction({ type: 'TRAVEL_COST', amount: 400, description: 'Lekki toll plaza (eTag)' });
-      showGameToast(paid.success ? '🛣️ Toll ₦400 paid by eTag. Safe journey!' : '🛣️ eTag empty: the toll could not be paid. Top up soon o.', paid.success ? 'info' : 'warning', 3200);
+      const toll = Math.round(400 * Policies.toll());
+      if (toll === 0) showGameToast('🛣️ No toll this week: the Senator made the roads toll-free.', 'info', 3200);
+      else {
+        const paid = BackendService.getInstance().processTransaction({ type: 'TRAVEL_COST', amount: toll, description: 'Lekki toll plaza (eTag)' });
+        showGameToast(paid.success ? `🛣️ Toll ₦${toll} paid by eTag. Safe journey!` : '🛣️ eTag empty: the toll could not be paid. Top up soon o.', paid.success ? 'info' : 'warning', 3200);
+      }
     }
     // Entering the expressway at rush hour
     if (before < MAIN_ROAD.zMax && z >= MAIN_ROAD.zMax && isRushHour(this.world.skyEnvironment.currentHour) && this.world.skyEnvironment.day !== this.rushToldAt) {
