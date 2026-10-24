@@ -1,3 +1,4 @@
+import { EXPRESS } from '../expressway/layout';
 import * as THREE from 'three';
 import { MAIN_ROAD, SIDE_STREETS, MAIN_JUNCTION_GAPS, splitAroundJunctions, type SideStreet } from '../density/StreetLayout';
 
@@ -133,6 +134,8 @@ function zonesForSideStreet(st: SideStreet): Zone[] {
 export function lagosZones(): Zone[] {
   const zones: Zone[] = [
     { id: 'broad:road', kind: 'carriageway', street: 'Broad Street', axis: 'z', clear: CLEAR_LANE * 2, minX: -MAIN_ROAD.halfRoad, maxX: MAIN_ROAD.halfRoad, minZ: MAIN_ROAD.zMin, maxZ: MAIN_ROAD.zMax },
+    // Broad Street carries on south as the expressway: three lanes each way either side of the barrier
+    { id: 'express:road', kind: 'carriageway', street: 'Third Mainland Expressway', axis: 'z', clear: CLEAR_LANE * 2, minX: -EXPRESS.half, maxX: EXPRESS.half, minZ: MAIN_ROAD.zMax, maxZ: EXPRESS.to + 10 },
   ];
   // Broad Street's pavements stop for the junction and start again on the far side
   let part = 0;

@@ -1,16 +1,27 @@
 /**
  * How busy the street is at each hour: the share of the day's people and traffic that are
- * out. Full from seven in the morning to seven at night, thinning through the evening, a
- * few night people and the odd vehicle in the small hours, filling again before dawn.
+ * out. Lagos has two rush hours, packed from seven to half past nine in the morning and from
+ * five to eight in the evening; the middle of the day is lighter, the night nearly empty.
  */
 const THROUGH_THE_DAY: Array<[number, number]> = [
-  [0, 0.1],
+  [0, 0.08],
   [4.5, 0.1],
+  [6, 0.5],
   [7, 1],
-  [19, 1],
+  [9.5, 1],
+  [11, 0.6],
+  [15.5, 0.65],
+  [17, 1],
+  [20, 1],
   [22, 0.3],
-  [24, 0.1],
+  [24, 0.08],
 ];
+
+/** Is this hour a rush hour: the roads full and slow? */
+export function isRushHour(hour: number): boolean {
+  const h = ((hour % 24) + 24) % 24;
+  return (h >= 7 && h < 9.5) || (h >= 17 && h < 20);
+}
 
 export function shareAbroad(hour: number): number {
   const h = ((hour % 24) + 24) % 24;

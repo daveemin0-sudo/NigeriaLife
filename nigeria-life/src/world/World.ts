@@ -13,6 +13,7 @@ import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
+import { Expressway } from './expressway/Expressway';
 import { WorldMap } from './map/WorldMap';
 import { shareAbroad } from './StreetLife';
 import { RouteLine } from './map/RouteLine';
@@ -74,6 +75,7 @@ export class World {
   // Visual Scale, Density, and Population extensions
   public cityDensity: CityDensityManager;
   public trafficSpawner: TrafficSpawner;
+  public expressway!: Expressway;
   public cityPopulation: CityPopulation;
   public worldMap: WorldMap;
   /** The way to a place picked on the map, drawn along the streets */
@@ -150,6 +152,10 @@ export class World {
     this.cityPopulation = new CityPopulation(this.cityDensity.fabric.walkRuns, this.cityDensity.fabric.stallSpots);
     this.scene.add(this.cityPopulation.group);
 
+    // Broad Street carries on south as the expressway, over the lagoon to the mainland
+    this.expressway = new Expressway();
+    this.scene.add(this.expressway.group);
+
     // 7. Cutaway 3D Apartment Interior (Home Mode)
     this.apartment = new ApartmentInterior();
     this.scene.add(this.apartment.group);
@@ -218,6 +224,7 @@ export class World {
       this.apartment.group,
       this.atmosphere.group,
       this.groundMesh,
+      this.expressway.group,
     ]);
     // Rooms are behind doors in every city: they are not part of Lagos, and are not put away with it
     this.cityManager.rooms = this.interiorManager.group;
@@ -225,6 +232,7 @@ export class World {
 
     // Layer separation: Tag street objects to STREET layer
     const streetObjects = [
+      this.expressway.group,
       this.roads.group,
       this.buildings.group,
       this.cityDensity.group,
@@ -349,6 +357,7 @@ export class World {
     });
     // The stadium, the port and the airport say for themselves what they put on the ground
     out.push(...this.landmarks.obstructions());
+    out.push(...this.expressway.obstructions);
     for (const source of this.builtByPlayers) out.push(...source());
     return out;
   }
@@ -552,6 +561,7 @@ export class World {
 
     // Update instanced go-slow traffic
     this.trafficSpawner.update(delta, playerPos, frustum);
+    if (playerPos) this.expressway.update(playerPos.z);
 
     // Update ambient NPC walking & animations
     this.npcs.update(delta, playerPos);

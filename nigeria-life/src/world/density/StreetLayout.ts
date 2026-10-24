@@ -23,6 +23,19 @@ export const FOOTBRIDGE = {
   steps: 14,
   run: 0.85,
 };
+/** Every footbridge over Broad Street, by where its deck crosses (all the same shape as FOOTBRIDGE) */
+export const FOOTBRIDGES: number[] = [FOOTBRIDGE.z, -33, -110, 116];
+
+/** The footbridge a point is at or nearest to: where its deck crosses, and where its stairs start and reach the deck */
+export function bridgeNear(z: number): { z: number; top: number; bottom: number } {
+  const run = FOOTBRIDGE.steps * FOOTBRIDGE.run;
+  let best = FOOTBRIDGES[0];
+  // Measured from the middle of bridge and stairs together
+  for (const b of FOOTBRIDGES) if (Math.abs(b - run / 2 - z) < Math.abs(best - run / 2 - z)) best = b;
+  const top = best - FOOTBRIDGE.halfWidth;
+  return { z: best, top, bottom: top - run };
+}
+
 /** Where the stairs start at the pavement and where they reach the deck, along the road */
 export const FOOTBRIDGE_STAIR = {
   top: FOOTBRIDGE.z - FOOTBRIDGE.halfWidth,

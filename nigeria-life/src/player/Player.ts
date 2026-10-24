@@ -10,7 +10,7 @@ import type { GameCamera } from '../game/Camera';
 import type { HumanRig } from '../graphics/HumanMeshBuilder';
 import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
-import { FOOTBRIDGE, FOOTBRIDGE_STAIR } from '../world/density/StreetLayout';
+import { FOOTBRIDGE, bridgeNear } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
 import { Bodies, outOfCar, outOfPerson, waysRoundCar } from '../world/Bodies';
 import type { Way } from '../world/plan/Wayfinder';
@@ -172,9 +172,10 @@ export class Player {
 
   /** Is this spot under or on the footbridge: its deck or one of its flights of stairs? */
   private onTheFootbridge(x: number, z: number): boolean {
+    const fb = bridgeNear(z);
     if (this.footbridge && !this.footbridge()) return false;
-    const onDeck = Math.abs(x) <= FOOTBRIDGE.halfSpan && Math.abs(z - FOOTBRIDGE.z) <= FOOTBRIDGE.halfWidth;
-    const onStairs = Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15 && z >= FOOTBRIDGE_STAIR.bottom - 0.4 && z <= FOOTBRIDGE_STAIR.top;
+    const onDeck = Math.abs(x) <= FOOTBRIDGE.halfSpan && Math.abs(z - fb.z) <= FOOTBRIDGE.halfWidth;
+    const onStairs = Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15 && z >= fb.bottom - 0.4 && z <= fb.top;
     return onDeck || onStairs;
   }
 
@@ -192,6 +193,7 @@ export class Player {
    * walks into the side of a flight of stairs and finds themselves half-way up it.
    */
   private stayOnTheWay(cameFrom: THREE.Vector3): void {
+    const fb = bridgeNear(this.mesh.position.z);
     if (this.onBridge) {
       this.keepOnBridge();
       return;
@@ -207,8 +209,8 @@ export class Player {
       return;
     }
     const inLine = (x: number) => Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15;
-    const inFlight = (x: number, z: number) => inLine(x) && z >= FOOTBRIDGE_STAIR.bottom + 1.2 && z <= FOOTBRIDGE_STAIR.top;
-    const fromItsFoot = inLine(cameFrom.x) && cameFrom.z >= FOOTBRIDGE_STAIR.bottom - 0.4 && cameFrom.z <= FOOTBRIDGE_STAIR.top;
+    const inFlight = (x: number, z: number) => inLine(x) && z >= fb.bottom + 1.2 && z <= fb.top;
+    const fromItsFoot = inLine(cameFrom.x) && cameFrom.z >= fb.bottom - 0.4 && cameFrom.z <= fb.top;
     // The foot of the stairs is the way on. Anywhere else, the flight is a block of concrete to walk round.
     if (inFlight(p.x, p.z) && !fromItsFoot) {
       p.x = cameFrom.x;
@@ -216,7 +218,7 @@ export class Player {
       return;
     }
     // On a flight the stairs' own rule governs. Everywhere else, buildings and walls are solid.
-    if (inLine(p.x) && p.z >= FOOTBRIDGE_STAIR.bottom - 0.4 && p.z <= FOOTBRIDGE_STAIR.top) return;
+    if (inLine(p.x) && p.z >= fb.bottom - 0.4 && p.z <= fb.top) return;
     if (solids) {
       const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
       p.x = step.x;
@@ -606,20 +608,21 @@ export class Player {
    * anyone else at the same spot is on the road below it.
    */
   public calculateWalkableHeight(x: number, z: number): number {
+    const fb = bridgeNear(z);
     if (this.isDriving) return 0;
     if (this.footbridge && !this.footbridge()) {
       this.onBridge = false;
       return 0;
     }
-    const onStairs = Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15 && z >= FOOTBRIDGE_STAIR.bottom && z <= FOOTBRIDGE_STAIR.top;
+    const onStairs = Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15 && z >= fb.bottom && z <= fb.top;
     if (onStairs) {
-      const height = ((z - FOOTBRIDGE_STAIR.bottom) / (FOOTBRIDGE_STAIR.top - FOOTBRIDGE_STAIR.bottom)) * FOOTBRIDGE.top;
+      const height = ((z - fb.bottom) / (fb.top - fb.bottom)) * FOOTBRIDGE.top;
       // Half-way up they are on the bridge; back near the bottom they are on the street again
       if (height > FOOTBRIDGE.top * 0.5) this.onBridge = true;
       else if (height < 0.9) this.onBridge = false;
       return height;
     }
-    const overDeck = Math.abs(x) <= FOOTBRIDGE.halfSpan && Math.abs(z - FOOTBRIDGE.z) <= FOOTBRIDGE.halfWidth;
+    const overDeck = Math.abs(x) <= FOOTBRIDGE.halfSpan && Math.abs(z - fb.z) <= FOOTBRIDGE.halfWidth;
     if (overDeck && this.onBridge) return FOOTBRIDGE.top;
     if (!overDeck) this.onBridge = false;
 
@@ -678,9 +681,10 @@ export class Player {
    * step off the side into the air. Call after moving.
    */
   private keepOnBridge(): void {
+    const fb = bridgeNear(this.mesh.position.z);
     if (!this.onBridge) return;
     const p = this.mesh.position;
-    const southRail = FOOTBRIDGE.z - FOOTBRIDGE.halfWidth + 0.2;
+    const southRail = fb.z - FOOTBRIDGE.halfWidth + 0.2;
     if (p.z < southRail) {
       // South of the deck there are only the two flights of stairs
       const side = p.x < 0 ? -1 : 1;
@@ -689,13 +693,13 @@ export class Player {
         // The rail along the deck holds
         p.z = southRail;
         p.x = THREE.MathUtils.clamp(p.x, -FOOTBRIDGE.halfSpan + 0.2, FOOTBRIDGE.halfSpan - 0.2);
-      } else if (p.z >= FOOTBRIDGE_STAIR.bottom) {
+      } else if (p.z >= fb.bottom) {
         // On a flight: its handrails keep them on it
         p.x = THREE.MathUtils.clamp(p.x, side * FOOTBRIDGE.stairX - FOOTBRIDGE.stairHalfWidth + 0.1, side * FOOTBRIDGE.stairX + FOOTBRIDGE.stairHalfWidth - 0.1);
       }
       return;
     }
-    p.z = Math.min(p.z, FOOTBRIDGE.z + FOOTBRIDGE.halfWidth - 0.2);
+    p.z = Math.min(p.z, fb.z + FOOTBRIDGE.halfWidth - 0.2);
     p.x = THREE.MathUtils.clamp(p.x, -FOOTBRIDGE.halfSpan + 0.2, FOOTBRIDGE.halfSpan - 0.2);
   }
 }

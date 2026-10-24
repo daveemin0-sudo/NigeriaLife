@@ -4,6 +4,7 @@ import type { Vehicles } from '../Vehicles';
 import type { StreetSpot } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD, SIDE_STREETS } from '../density/StreetLayout';
 import { isAbroad } from '../StreetLife';
+import { EXPRESS } from '../expressway/layout';
 import type { CarBody } from '../Bodies';
 
 type VehicleKind =
@@ -261,10 +262,26 @@ export class TrafficSpawner {
         axis: 'z',
         fixed: x,
         dir,
-        uMin: -(MAIN_ROAD.zMax + 6),
-        uMax: MAIN_ROAD.zMax + 6,
+        // On down the expressway to its far end (going south), or from there (coming north)
+        uMin: dir > 0 ? -(MAIN_ROAD.zMax + 6) : -(EXPRESS.to - 20),
+        uMax: dir > 0 ? EXPRESS.to - 20 : MAIN_ROAD.zMax + 6,
         stops: [{ u: dir * CROSS_STREET_Z - stopBefore, group: 'main' }],
         busStops: outer ? (dir > 0 ? [-20, 60] : [-40, 90]) : [],
+        cars: [],
+      });
+    }
+
+    // The expressway's third, outer lane each way
+    for (const x of [-EXPRESS.lanes[2], EXPRESS.lanes[2]]) {
+      const dir: 1 | -1 = x < 0 ? 1 : -1;
+      this.lanes.push({
+        axis: 'z',
+        fixed: x,
+        dir,
+        uMin: dir > 0 ? EXPRESS.from + 40 : -(EXPRESS.to - 20),
+        uMax: dir > 0 ? EXPRESS.to - 20 : -(EXPRESS.from + 40),
+        stops: [],
+        busStops: [],
         cars: [],
       });
     }
@@ -327,7 +344,9 @@ export class TrafficSpawner {
           length: batch.length,
           dwell: 0,
         });
-        u -= batch.length / 2 + 3.5 + this.rand() * (isMain ? 13 : 19);
+        // Out on the expressway the cars are further apart, until rush hour fills it
+        const out = isMain && Math.abs(u * lane.dir) > MAIN_ROAD.zMax + 20;
+        u -= batch.length / 2 + 3.5 + this.rand() * (isMain ? 13 : 19) * (out ? 2.2 : 1);
       }
     }
   }

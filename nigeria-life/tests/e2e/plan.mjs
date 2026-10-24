@@ -23,7 +23,7 @@ export async function run(browser, check) {
   });
   check('Lagos passes its own city plan: nothing on a road, every pavement walkable, no buildings overlapping, every door reachable',
     city.violations.length === 0, city.violations.slice(0, 6).map((v) => `${v.rule}: ${v.what} at (${v.at.x}, ${v.at.z})`));
-  check('the plan covers the whole city: every street, every building, every door', city.roads === 9 && city.walks >= 20 && city.buildings > 150 && city.doors >= 8 && city.things > 400,
+  check('the plan covers the whole city: every street, every building, every door', city.roads === 10 && city.walks >= 20 && city.buildings > 150 && city.doors >= 8 && city.things > 400,
     { roads: city.roads, walks: city.walks, buildings: city.buildings, doors: city.doors, things: city.things });
   check('every side street was laid along its whole planned length', city.gaps.length === 0, city.gaps);
 
@@ -97,7 +97,7 @@ export async function run(browser, check) {
   check('every plot of land, in all three cities, is clear of roads, pavements, buildings and other plots, and fronts the street it is named for',
     plots.count === 29 && plots.ids === 29 && plots.problems.length === 0 && plots.cities.lagos.plots === 20 && plots.cities.abuja.plots === 5 && plots.cities.port_harcourt.plots === 4
       && plots.cities.abuja.buildings >= 3 && plots.cities.port_harcourt.buildings >= 1, { problems: plots.problems.slice(0, 6), cities: plots.cities });
-  check('Banana Island is a district on the map with its own estate road', plots.banana === 'Banana Island' && city.roads === 9, plots.banana);
+  check('Banana Island is a district on the map with its own estate road', plots.banana === 'Banana Island' && city.roads === 10, plots.banana);
 
   // ------------------------------------------------------------------ Abuja and Port Harcourt are held to the same plan
   const others = await page.evaluate(() => {

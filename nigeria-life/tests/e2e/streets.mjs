@@ -44,6 +44,9 @@ export async function run(browser, check) {
       const width = b.max.x - b.min.x;
       const depth = b.max.z - b.min.z;
       // The deck: a slab right across the road
+      // (Broad Street has several footbridges: this looks at the first, whose deck crosses at z = 28)
+      const nearFirst = Math.abs((b.min.z + b.max.z) / 2 - 28) < 20;
+      if (!nearFirst) return;
       if (width > 20 && depth > 3 && depth < 3.4 && b.max.y > 5 && b.max.y < 6 && b.min.y > 4.5) deck = { minZ: b.min.z, maxZ: b.max.z, top: b.max.y, minX: b.min.x, maxX: b.max.x };
       // A step: as wide as a flight, less than a metre deep, standing on the ground beside the road
       if (Math.abs(width - 1.5) < 0.05 && Math.abs(depth - 0.85) < 0.05 && Math.abs(Math.abs(cx) - 11.2) < 0.1 && b.min.y < 0.05) (cx < 0 ? stairs.west : stairs.east).push({ z: (b.min.z + b.max.z) / 2, top: b.max.y, maxZ: b.max.z });

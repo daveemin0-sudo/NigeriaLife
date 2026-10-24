@@ -217,7 +217,10 @@ export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.
       const midY = (fromY + toY) / 2;
       const len = Math.hypot(toZ - fromZ, toY - fromY);
       const p = box(pillarMat, 0.05, len, thick, side * (glassHalfWidth(s, midY) + 0.012), midY, (fromZ + toZ) / 2);
+      // Tilted along the car with the glass, and leaning in as the roof narrows
+      p.rotation.order = 'ZXY';
       p.rotation.x = Math.atan2(toZ - fromZ, toY - fromY);
+      p.rotation.z = side * Math.atan2(glassHalfWidth(s, fromY) - glassHalfWidth(s, toY), toY - fromY);
       car.add(p);
     }
   };

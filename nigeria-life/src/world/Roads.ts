@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
-import { isInJunctionGap, splitAroundJunctions, FOOTBRIDGE, FOOTBRIDGE_STAIR } from './density/StreetLayout';
+import { isInJunctionGap, splitAroundJunctions, FOOTBRIDGE, FOOTBRIDGES, bridgeNear } from './density/StreetLayout';
 
 export class Roads {
   public group: THREE.Group;
@@ -17,7 +17,7 @@ export class Roads {
     this.buildStreetLights();
     this.buildPowerPoles();
     this.buildGuttersAndStreetProps();
-    this.buildPedestrianOverheadBridge();
+    for (const z of FOOTBRIDGES) this.buildPedestrianOverheadBridge(z);
   }
 
   private buildRoadNetwork(): void {
@@ -490,9 +490,8 @@ export class Roads {
    * Spanning across all 4 highway lanes with concrete stairs, blue safety canopy,
    * and dual highway advertising & LASTMA warning billboards.
    */
-  private buildPedestrianOverheadBridge(): void {
+  private buildPedestrianOverheadBridge(bridgeZ: number = FOOTBRIDGE.z): void {
     const bridgeGroup = new THREE.Group();
-    const bridgeZ = FOOTBRIDGE.z;
     bridgeGroup.position.set(0, 0, bridgeZ);
 
     const signs = SignageLibrary.getInstance();
@@ -575,7 +574,7 @@ export class Roads {
     const numSteps = FOOTBRIDGE.steps;
     const stepRise = FOOTBRIDGE.top / numSteps;
     const stepRun = FOOTBRIDGE.run;
-    const flightTop = FOOTBRIDGE_STAIR.top - bridgeZ;
+    const flightTop = bridgeNear(bridgeZ).top - bridgeZ;
 
     // Against the building line, leaving two metres of pavement between the stair and the pillar
     for (const sx of [-FOOTBRIDGE.stairX, FOOTBRIDGE.stairX]) {

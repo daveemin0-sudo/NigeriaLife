@@ -60,6 +60,8 @@ import { MusicSheet } from '../ui/MusicSheet';
 import { DriveControls } from '../ui/DriveControls';
 import { StreetAmbience } from '../audio/StreetAmbience';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD } from '../world/density/StreetLayout';
+import { EXPRESS } from '../world/expressway/layout';
+import { isRushHour } from '../world/StreetLife';
 import { ResidentialInterior } from '../interiors/templates/ResidentialInterior';
 import { standardOf } from '../housing/HomeStandard';
 import { Television } from '../housing/Television';
@@ -79,6 +81,8 @@ const AUTOSAVE_SECONDS = 5;
 const NO_CROSSING = [
   { minX: -MAIN_ROAD.halfRoad + 0.2, maxX: MAIN_ROAD.halfRoad - 0.2, minZ: MAIN_ROAD.zMin, maxZ: CROSS_STREET_Z - 9 },
   { minX: -MAIN_ROAD.halfRoad + 0.2, maxX: MAIN_ROAD.halfRoad - 0.2, minZ: CROSS_STREET_Z + 9, maxZ: MAIN_ROAD.zMax },
+  // and the whole expressway beyond it
+  { minX: -EXPRESS.half + 0.2, maxX: EXPRESS.half - 0.2, minZ: MAIN_ROAD.zMax, maxZ: EXPRESS.to },
 ];
 
 export class Game {
@@ -1047,6 +1051,33 @@ export class Game {
   }
 
   private ambienceClock: number | undefined;
+  private lastDrivenZ: number | null = null;
+  private rushToldAt = -1;
+
+  /**
+   * Driving on the expressway: the toll is paid passing the plaza (either way), and at rush hour
+   * the driver is told what they are in for.
+   */
+  private onTheExpressway(): void {
+    const car = this.player.isDriving ? this.player.currentVehicle : null;
+    if (!car || this.world.cityManager.currentCityId !== 'lagos') {
+      this.lastDrivenZ = null;
+      return;
+    }
+    const z = car.mesh.position.z;
+    const before = this.lastDrivenZ;
+    this.lastDrivenZ = z;
+    if (before === null || Math.abs(car.mesh.position.x) > EXPRESS.half + 2) return;
+    if ((before - EXPRESS.toll) * (z - EXPRESS.toll) < 0) {
+      const paid = BackendService.getInstance().processTransaction({ type: 'TRAVEL_COST', amount: 400, description: 'Lekki toll plaza (eTag)' });
+      showGameToast(paid.success ? '🛣️ Toll ₦400 paid by eTag. Safe journey!' : '🛣️ eTag empty: the toll could not be paid. Top up soon o.', paid.success ? 'info' : 'warning', 3200);
+    }
+    // Entering the expressway at rush hour
+    if (before < MAIN_ROAD.zMax && z >= MAIN_ROAD.zMax && isRushHour(this.world.skyEnvironment.currentHour) && this.world.skyEnvironment.day !== this.rushToldAt) {
+      this.rushToldAt = this.world.skyEnvironment.day;
+      showGameToast('🚗 Rush hour! Third Mainland is packed. Na Lagos be this: hold your patience.', 'warning', 4200);
+    }
+  }
   private solidsByCity = new Map<string, Solids>();
   private waysByCity = new Map<string, Wayfinder>();
   private builtOnPlots = '';
@@ -1561,6 +1592,8 @@ export class Game {
         hour: this.world.skyEnvironment.currentHour,
       });
     }
+
+    this.onTheExpressway();
 
     // Walkers step round the player, or round the vehicle the player is driving
     const avoid = this.world.cityPopulation.avoid;
