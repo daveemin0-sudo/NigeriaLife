@@ -624,6 +624,8 @@ export class Game {
       honk: () => this.hud.onHonkVehicle?.(),
       getOut: () => this.hud.onExitVehicle?.(),
       refuel: () => this.hud.onRefuelVehicle?.(),
+      music: () => SoundEngine.getInstance().toggleRadio(),
+      musicOn: () => SoundEngine.getInstance().isRadioActive(),
     });
     UIStateManager.getInstance().onModeChange((mode) => drive.show(mode === 'driving'));
 

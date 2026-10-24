@@ -11,6 +11,9 @@ export interface DriveHooks {
   getOut(): void;
   refuel(): void;
   name(): string;
+  /** The car stereo: starts or stops the music; says whether it is on */
+  music(): boolean;
+  musicOn(): boolean;
 }
 
 export class DriveControls {
@@ -25,7 +28,7 @@ export class DriveControls {
     this.el.id = 'drive-controls';
     this.el.className = 'drive-controls';
     this.el.innerHTML = `
-      <div class="drive-top"><span class="drive-name" data-name></span><span class="drive-fuel" data-fuel></span><button class="drive-chip" data-refuel>⛽ Refuel</button></div>
+      <div class="drive-top"><span class="drive-name" data-name></span><span class="drive-fuel" data-fuel></span><button class="drive-chip" data-music aria-label="Car stereo">🎵</button><button class="drive-chip" data-refuel>⛽ Refuel</button></div>
       <div class="drive-steer" aria-label="Steering">
         <button class="drive-arrow" data-key="a" aria-label="Steer left">◀</button>
         <span class="drive-steer-knob" aria-hidden="true"></span>
@@ -75,6 +78,10 @@ export class DriveControls {
       if ('horn' in target.dataset) this.hooks.honk();
       else if ('out' in target.dataset) this.hooks.getOut();
       else if ('refuel' in target.dataset) this.hooks.refuel();
+      else if ('music' in target.dataset) {
+        const on = this.hooks.music();
+        target.classList.toggle('is-on', on);
+      }
     });
   }
 
@@ -92,6 +99,7 @@ export class DriveControls {
     name.textContent = this.hooks.name();
     const speed = this.el.querySelector('[data-speed]')!;
     const fuel = this.el.querySelector('[data-fuel]')!;
+    this.el.querySelector('[data-music]')?.classList.toggle('is-on', this.hooks.musicOn());
     const tick = () => {
       speed.textContent = String(Math.round(Math.abs(this.hooks.speed()) * 3.6));
       fuel.textContent = `⛽ ${Math.round(this.hooks.fuel())}%`;

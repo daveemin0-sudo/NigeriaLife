@@ -6,6 +6,7 @@ import { RideStreet, LANES } from './RideStreet';
 import { buildRideCar, buildRideKeke, buildRideOkada, holdOn, seatPassenger, type RideVehicle } from './RideModels';
 import { Builder } from '../world/kit/ArchKit';
 import { showGameToast } from '../ui/GameToast';
+import { SoundEngine } from '../audio/SoundEngine';
 
 export class RoadRideExperience {
   public group: THREE.Group;
@@ -30,6 +31,8 @@ export class RoadRideExperience {
   private nextChange = 0;
   private steerAngle = 0;
   private distance = 0;
+  /** The ride turned the music on, so it turns it off at the end */
+  private startedMusic = false;
   /** The inside of a coach, for a journey that is ridden and not driven */
   private coachGroup: THREE.Group = new THREE.Group();
   private byCoach = false;
@@ -552,6 +555,9 @@ export class RoadRideExperience {
     }
     for (const other of this.rides.values()) other.body.visible = other === vehicle;
     this.ride = vehicle;
+    // A taxi or a car has its stereo on; an okada and a keke have the street
+    const sound = SoundEngine.getInstance();
+    this.startedMusic = (kind === 'taxi' || kind === 'car') && !sound.isRadioActive() && sound.toggleRadio();
     seatPassenger(vehicle, this.passengerLook?.() ?? null, kind === 'okada' ? 'bike' : kind === 'keke' ? 'bench' : 'car');
     this.street.setLane(vehicle.lane === 'kerb' ? LANES.kerb : LANES.inner);
     // Go-slow or not, it pulls away from a stop
@@ -619,6 +625,8 @@ export class RoadRideExperience {
 
   private completeRide(): void {
     this.isActive = false;
+    if (this.startedMusic && SoundEngine.getInstance().isRadioActive()) SoundEngine.getInstance().toggleRadio();
+    this.startedMusic = false;
     this.group.visible = false;
     if (this.currentRide) {
       this.onRideCompleted?.(this.currentRide);

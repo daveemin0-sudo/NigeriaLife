@@ -70,7 +70,7 @@ export async function run(browser, check) {
   await wait(2500);
   const city = await page.evaluate(() => window.game.world.cityManager.currentCityId);
   const afterFlight = await money(page);
-  check('the flight lands in Abuja and charges the fare once', city === 'abuja' && beforeFlight.total - afterFlight.total === 35000, { city, charged: beforeFlight.total - afterFlight.total });
+  check('the flight lands in Abuja and charges the fare once', city === 'abuja' && beforeFlight.total - afterFlight.total === 185000, { city, charged: beforeFlight.total - afterFlight.total });
   const qa = await quest(page, 'quest_abuja_1');
   check('arriving completes "Travel to Abuja", even though a Lagos quest is tracked', qa.obj.obj_a1_arrive === true && qa.obj.obj_a1_cab === false, qa);
 

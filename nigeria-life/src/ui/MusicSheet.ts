@@ -111,7 +111,7 @@ export class MusicSheet {
         <h4 class="cat-h">NaijaFM · songs made for NigeriaLife</h4>
         ${p.tracks().filter((t) => t.kind === 'song').map(row).join('')}
         <h4 class="cat-h">My music</h4>
-        ${p.myTracks.map(row).join('') || '<p class="music-note">Put your favourite songs in the game: they play here, in your car and at home. They stay on this phone.</p>'}
+        ${p.myTracks.map(row).join('') || '<p class="music-note">Add the songs you love (Asake, Burna, Wizkid, Rema, Tems…) from your phone: they play here, on your car stereo, in taxis and at the club, before the game’s own. They stay on this phone.</p>'}
         <label class="music-add">➕ Add songs from your phone<input type="file" accept="audio/*" multiple data-files hidden></label>
       </div>`;
   }

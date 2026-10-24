@@ -124,7 +124,7 @@ export class MusicPlayer {
   public async play(id?: string): Promise<boolean> {
     const out = this.output();
     if (!out) return false;
-    const track = (id && this.tracks().find((t) => t.id === id)) || this.current || this.tracks()[0];
+    const track = (id && this.tracks().find((t) => t.id === id)) || this.current || this.preferred();
     if (!track) return false;
     this.stopSound();
     this.current = track;
@@ -146,6 +146,13 @@ export class MusicPlayer {
     this.playing = true;
     this.changed();
     return true;
+  }
+
+  /** Where music starts when nothing was chosen: the player's own songs first, picked at random, else the game's */
+  private preferred(): Track | undefined {
+    if (this.mine.length) return this.mine[Math.floor(Math.random() * this.mine.length)];
+    const list = this.tracks();
+    return list[Math.floor(Math.random() * list.length)];
   }
 
   private stopSound(): void {

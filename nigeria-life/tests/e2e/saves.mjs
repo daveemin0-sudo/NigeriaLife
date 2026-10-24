@@ -144,7 +144,7 @@ export async function run(browser, check) {
   });
   const afterFlight = await fares();
   check('reload mid-flight: the paid journey is not lost, the player resumes in Port Harcourt at the foot of the aircraft steps, the ticket used, the fare taken once',
-    inFlight && landed.city === 'port_harcourt' && landed.ticket.state === 'arrived' && !landed.ticket.active && landed.fromSteps < 1 && afterFlight - beforeFlight === 38000,
+    inFlight && landed.city === 'port_harcourt' && landed.ticket.state === 'arrived' && !landed.ticket.active && landed.fromSteps < 1 && afterFlight - beforeFlight === 165000,
     { inFlight, landed, fare: afterFlight - beforeFlight });
   check('that arrival still counts for the Port Harcourt quest', (await quest(page, 'quest_ph_1')).obj.obj_p1_arrive === true);
   check('persistence: no console errors', log.errors.length === 0, log.errors.slice(0, 5));

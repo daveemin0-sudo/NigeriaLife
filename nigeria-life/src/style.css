@@ -10323,3 +10323,7 @@ body[data-ui-mode="world-map"] .top-menu-btn {
 .pump-text em { font-style: normal; font-size: 12.5px; opacity: 0.7; }
 .pump-fill { white-space: nowrap; padding: 10px 16px; border-radius: 999px; }
 .pump-full { opacity: 0.6; font-size: 14px; padding: 0 8px; }
+
+/* The car stereo's button lights up while the music is on */
+.drive-chip[data-music] { min-width: 40px; background: #1f2937; }
+.drive-chip[data-music].is-on { background: #16a34a; color: #fff; box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.35); }

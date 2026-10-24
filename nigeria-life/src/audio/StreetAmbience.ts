@@ -7,33 +7,106 @@ import { SoundEngine } from './SoundEngine';
  * own speech, said in a Nigerian voice where the phone has one.
  */
 
-/** Conductors calling their routes, all of them at once, the way they do at the bus stop */
-const CONDUCTORS = [
+/** Who says a line: a man, a woman, or either */
+type Speaker = 'man' | 'woman' | 'either';
+interface Call {
+  text: string;
+  who: Speaker;
+}
+
+/** Conductors calling their routes, all of them at once, the way they do at the bus stop: men, deep and fast */
+const CONDUCTORS: Call[] = [
   'Oshodi! Oshodi! Oshodi! Oshodi, Oshodi, enter with your change!',
   'Obalende, CMS, Obalende, CMS! Wole, wole, wole! Shift, shift, shift!',
-  'Ojuelegba, Stadium, Costain, Iddo! Ojuelegba-o! One chance remain!',
+  'Ojuelegba, Stadium, Costain, Iddo! Ojuelegba o! One chance remain!',
   'Yaba, Yaba, Yaba! Sabo, Yaba, Oyingbo! Enter, enter, we dey go!',
   'Ikeja along, Ikeja along! Allen, Opebi, Ikeja along! Change o, change!',
-  'Lekki, Ajah, Lekki, Ajah! Lekki-Ajah, enter with your change o!',
+  'Lekki, Ajah, Lekki, Ajah! Lekki Ajah, enter with your change o!',
   'Mile two, Mile two, Mile two! Oya oya oya, we don full!',
   'Berger, Berger, Berger! Ojota, Ketu, Mile twelve, Berger!',
+  'CMS, CMS, CMS! Idumota, CMS! Last two seats, CMS!',
+  'Agege, Agege, Pen Cinema! Agege, one more person, we dey go!',
+  'Ikorodu, Ikorodu, Ikorodu! Owode, Ikorodu garage!',
+  'Surulere, Surulere, Masha, Surulere! Enter with your change!',
+].map((text) => ({ text, who: 'man' as Speaker }));
+
+/** Everyone else on a busy road: hawkers, women and men, and people shouting */
+const STREET: Call[] = [
+  { text: 'Pure water! Buy your pure water! Cold pure water!', who: 'woman' },
+  { text: 'Gala! Gala! Buy your Gala! Gala dey!', who: 'man' },
+  { text: 'Agege bread! Hot agege bread, hot hot!', who: 'woman' },
+  { text: 'Mama Put dey open! Come chop!', who: 'woman' },
+  { text: 'Buy your plantain chips! Plantain chips, sweet one!', who: 'woman' },
+  { text: 'Fan ice! Fan yogurt! Cold one!', who: 'man' },
+  { text: 'Recharge card! MTN, Glo, Airtel! Recharge card!', who: 'man' },
+  { text: 'Boli and groundnut! Hot boli!', who: 'woman' },
+  { text: 'Oga, abeg shift small!', who: 'man' },
+  { text: 'Driver, park well! Park well jor!', who: 'man' },
+  { text: 'Hey! Stop there! Stop!', who: 'either' },
+  { text: 'Wetin you dey look? Move now!', who: 'woman' },
+  { text: 'No vex o, I dey come!', who: 'either' },
+  { text: 'Okada! Okada! Where you dey go?', who: 'man' },
 ];
 
-/** Everyone else on a busy road */
-const STREET = [
-  'Pure water! Buy your pure water! Cold pure water!',
-  'Gala! Gala! Buy your Gala! Gala dey!',
-  'Oga, abeg shift small!',
-  'Driver, park well! Park well jor!',
-  'Hey! Stop there! Stop!',
-  'Wetin you dey look? Move now!',
-  'Agege bread! Hot agege bread, hot hot!',
-  'No vex o, I dey come!',
-  'Mama Put dey open! Come chop!',
-  'Okada! Okada! Where you dey go?',
+const EVENING: Call[] = [
+  { text: 'Suya! Hot suya! Suya don ready!', who: 'man' },
+  { text: 'Last bus! Last bus to Ikorodu! Ikorodu last bus!', who: 'man' },
+  { text: 'Up NEPA! Light don come!', who: 'either' },
+  { text: 'Roasted corn and pear! Hot corn!', who: 'woman' },
 ];
 
-const EVENING = ['Suya! Hot suya! Suya don ready!', 'Last bus! Last bus to Ikorodu! Ikorodu last bus!', 'Up NEPA! Light don come!'];
+/**
+ * How a Lagos name is said, spelt for a speech engine that reads English: Oshodi as
+ * "Oh-shaw-dee", not "O-shoddy"; CMS letter by letter.
+ */
+const SAID: Array<[RegExp, string]> = [
+  [/\bOshodi\b/gi, 'Oh shaw dee'],
+  [/\bObalende\b/gi, 'Oh bah len day'],
+  [/\bCMS\b/g, 'C. M. S.'],
+  [/\bWole\b/gi, 'woh lay'],
+  [/\bOjuelegba\b/gi, 'Oh joo eh leg bah'],
+  [/\bCostain\b/gi, 'Coss tain'],
+  [/\bIddo\b/gi, 'Ee doh'],
+  [/\bIdumota\b/gi, 'Ee doo moh tah'],
+  [/\bOyingbo\b/gi, 'Oh yin boh'],
+  [/\bSabo\b/gi, 'Sah boh'],
+  [/\bYaba\b/gi, 'Yah bah'],
+  [/\bIkeja\b/gi, 'Ee keh jah'],
+  [/\bOpebi\b/gi, 'Oh peh bee'],
+  [/\bLekki\b/gi, 'Lek kee'],
+  [/\bAjah\b/gi, 'Ah jah'],
+  [/\bBerger\b/gi, 'Ber jer'],
+  [/\bOjota\b/gi, 'Oh joh tah'],
+  [/\bKetu\b/gi, 'Keh too'],
+  [/\bIkorodu\b/gi, 'Ee koh roh doo'],
+  [/\bOwode\b/gi, 'Oh woh day'],
+  [/\bAgege\b/gi, 'Ah geh geh'],
+  [/\bSurulere\b/gi, 'Shoo roo leh reh'],
+  [/\bMasha\b/gi, 'Mah shah'],
+  [/\bOga\b/gi, 'Oh gah'],
+  [/\bOya\b/gi, 'Oh yah'],
+  [/\babeg\b/gi, 'ah beg'],
+  [/\bjor\b/gi, 'jaw'],
+  [/\bdey\b/gi, 'day'],
+  [/\bwetin\b/gi, 'weh tin'],
+  [/\bGala\b/gi, 'Gah lah'],
+  [/\bOkada\b/gi, 'Oh kah dah'],
+  [/\bSuya\b/gi, 'Soo yah'],
+  [/\bboli\b/gi, 'boh lee'],
+  [/\bNEPA\b/g, 'Nee pah'],
+  [/\bGlo\b/g, 'Gloh'],
+  [/\bo\b/g, 'oh'],
+];
+
+/** A line as the speech engine should be given it */
+export function spoken(text: string): string {
+  let out = text.replace(/-/g, ' ');
+  for (const [pattern, said] of SAID) out = out.replace(pattern, said);
+  return out;
+}
+
+const MALE = /\b(male|man|abeo|david|mark|guy|george|james|daniel|fred|alex|tom|aaron|arthur|oliver|ryan|eric|thomas|christopher|roger|brian|matthew|justin|joey|rishi|ravi|liam|william|richard|sean|connor|mitchell|prabhat)\b/i;
+const FEMALE = /\b(female|woman|ezinne|zira|susan|hazel|samantha|karen|moira|tessa|victoria|fiona|kate|serena|aria|jenny|libby|sonia|natasha|catherine|clara|emily|heera|linda|leah|olivia|sarah|zoe|amy|anna|ava|allison|neerja)\b/i;
 
 export interface StreetHere {
   /** In the street (not indoors, not on the map) */
@@ -59,7 +132,8 @@ export class StreetAmbience {
   private nextHorn = 4;
   private nextCall = 8;
   private time = 0;
-  private voice: SpeechSynthesisVoice | null | undefined;
+  /** The voices for men and for women, chosen once the browser has listed its voices */
+  private voiceSet: { man: SpeechSynthesisVoice | null; woman: SpeechSynthesisVoice | null; any: SpeechSynthesisVoice | null } | null = null;
   /** Voices in the street (a setting) */
   public voices = true;
 
@@ -156,20 +230,44 @@ export class StreetAmbience {
     }
   }
 
-  private call(lines: string[], loud = false): void {
+  /** A man's voice and a woman's, Nigerian English first, from what this browser has */
+  private pickVoices(all: SpeechSynthesisVoice[]): { man: SpeechSynthesisVoice | null; woman: SpeechSynthesisVoice | null; any: SpeechSynthesisVoice | null } {
+    const english = all.filter((v) => /^en/i.test(v.lang));
+    const nigerian = english.filter((v) => /en[-_]NG/i.test(v.lang) || /nigeria/i.test(v.name));
+    const pick = (test: RegExp) => nigerian.find((v) => test.test(v.name)) ?? english.find((v) => test.test(v.name) && /GB|NG|ZA|KE|GH/i.test(v.lang)) ?? english.find((v) => test.test(v.name)) ?? null;
+    return { man: pick(MALE), woman: pick(FEMALE), any: nigerian[0] ?? english[0] ?? null };
+  }
+
+  private call(lines: Call[], conductor = false): void {
     const speech = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
     if (!speech || SoundEngine.getInstance().isMuted || speech.speaking) return;
-    if (this.voice === undefined) {
+    if (!this.voiceSet) {
       const all = speech.getVoices();
       if (all.length === 0) return; // Not loaded yet: next time
-      this.voice = all.find((v) => /en[-_]NG/i.test(v.lang)) ?? all.find((v) => /nigeria/i.test(v.name)) ?? all.find((v) => /^en/i.test(v.lang)) ?? null;
+      this.voiceSet = this.pickVoices(all);
     }
-    const line = new SpeechSynthesisUtterance(lines[Math.floor(Math.random() * lines.length)]);
-    if (this.voice) line.voice = this.voice;
-    // A conductor shouts fast and high; a hawker sings it out
-    line.volume = loud ? 0.5 : 0.36;
-    line.rate = loud ? 1.35 + Math.random() * 0.2 : 1.12 + Math.random() * 0.15;
-    line.pitch = loud ? 1.15 + Math.random() * 0.35 : 0.85 + Math.random() * 0.45;
+    const chosen = lines[Math.floor(Math.random() * lines.length)];
+    const who: 'man' | 'woman' = chosen.who === 'either' ? (Math.random() < 0.5 ? 'man' : 'woman') : chosen.who;
+    const line = new SpeechSynthesisUtterance(spoken(chosen.text));
+    const voice = this.voiceSet[who];
+    const used = voice ?? this.voiceSet.any;
+    if (used) line.voice = used;
+    line.lang = used?.lang ?? 'en-NG';
+    // Without a voice of the right kind, the pitch makes it one: a conductor deep, a woman higher
+    const fitted = !!voice;
+    if (conductor) {
+      line.volume = 0.55;
+      line.rate = 1.22 + Math.random() * 0.15;
+      line.pitch = fitted ? 0.62 + Math.random() * 0.15 : 0.35 + Math.random() * 0.1;
+    } else if (who === 'woman') {
+      line.volume = 0.4;
+      line.rate = 1.08 + Math.random() * 0.15;
+      line.pitch = fitted ? 1.05 + Math.random() * 0.2 : 1.45 + Math.random() * 0.2;
+    } else {
+      line.volume = 0.4;
+      line.rate = 1.08 + Math.random() * 0.15;
+      line.pitch = fitted ? 0.82 + Math.random() * 0.15 : 0.6 + Math.random() * 0.12;
+    }
     speech.speak(line);
   }
 }
