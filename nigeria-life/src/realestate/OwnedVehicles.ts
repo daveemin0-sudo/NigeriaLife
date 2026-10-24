@@ -118,6 +118,7 @@ export class OwnedVehicles {
     const mine = ownerId === MY_ID;
     const vehicle = new DrivableVehicle({ id: this.instanceId(record.id), name: `${model.name} · ${record.plate}`, type: model.type, ...model.drive }, new THREE.Vector3(x, 0, z), yaw);
     vehicle.city = record.parkedAt?.city ?? 'lagos';
+    vehicle.fuel = record.fuel ?? 85;
     vehicle.mesh.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
     const card: InteractiveObject = {
       mesh: vehicle.mesh,
@@ -186,5 +187,19 @@ export class OwnedVehicles {
     const at = { x: Math.round(vehicle.mesh.position.x * 10) / 10, z: Math.round(vehicle.mesh.position.z * 10) / 10, yaw: Math.round(vehicle.mesh.rotation.y * 100) / 100, city: vehicle.city };
     entry.at = placeKey(at);
     void this.garage.addMileage(id, kilometres, at);
+    void this.garage.setFuel(id, vehicle.fuel);
+  }
+
+  /** The player's own vehicles that are out in the world, with the drivable standing for each */
+  public mine(): Array<{ id: string; vehicle: DrivableVehicle }> {
+    const out: Array<{ id: string; vehicle: DrivableVehicle }> = [];
+    for (const [id, entry] of this.spawned) if (entry.ownerId === MY_ID) out.push({ id, vehicle: entry.vehicle });
+    return out;
+  }
+
+  /** A vehicle's tank has been filled: kept with its record */
+  public fuelled(vehicle: DrivableVehicle): void {
+    const id = this.vehicleIdOf(vehicle);
+    if (id) void this.garage.setFuel(id, vehicle.fuel);
   }
 }

@@ -102,9 +102,9 @@ export class AirportInterior {
           actions: [
             {
               id: 'airport_fly_abuja_action',
-              label: '✈️ Board Flight to Abuja FCT (₦35,000)',
+              label: '✈️ Board Flight to Abuja FCT (₦185,000)',
               description: 'Board Wazobia Air express jet flight directly to Abuja.',
-              cost: 35000,
+              cost: 185000,
               rewardCred: 25,
               dialogueResponse: '✈️ "Captain Ibrahim: Welcome aboard Flight WZ-7120 to Abuja FCT. Fasten your seatbelts for takeoff!"',
             },
@@ -119,9 +119,9 @@ export class AirportInterior {
           actions: [
             {
               id: 'airport_fly_ph_action',
-              label: '✈️ Board Flight to Port Harcourt (₦38,000)',
+              label: '✈️ Board Flight to Port Harcourt (₦165,000)',
               description: 'Board NigeriaLife Air flight directly to Port Harcourt Garden City.',
-              cost: 38000,
+              cost: 165000,
               rewardCred: 25,
               dialogueResponse: '✈️ "Welcome aboard flight NL 310 to Port Harcourt. Preparing for runway departure!"',
             },
@@ -136,9 +136,9 @@ export class AirportInterior {
           actions: [
             {
               id: 'airport_enter_vip_lounge',
-              label: '🥂 Relax in Executive VIP Lounge (₦5,000)',
+              label: '🥂 Relax in Executive VIP Lounge (₦40,000)',
               description: 'Recharge completely with luxury hospitality before your flight departure.',
-              cost: 5000,
+              cost: 40000,
               rewardHealth: 100,
               rewardEnergy: 100,
               dialogueResponse: '🥂 "Welcome to the VIP Lounge. Enjoy chilled Chapman and gourmet small chops. 100% Health & Energy restored!"',

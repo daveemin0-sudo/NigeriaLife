@@ -1880,7 +1880,7 @@ export class DrivableVehicle {
       if (this.fuel < 15 && !this.isLowFuelWarned) {
         this.isLowFuelWarned = true;
         SoundEngine.getInstance().playClickSound();
-        showGameToast('⛽ Low Fuel Alert! Pull over and press [R] to refuel.', 'warning');
+        showGameToast('⛽ Low fuel! Drive onto a filling station and press ⛽ (or R) at the pump.', 'warning', 5000);
       }
     }
     if (this.fuel <= 0) {

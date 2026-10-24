@@ -35,12 +35,12 @@ export interface FlightRoute {
 
 /** The timetable. Every route has a flight each way, with its own number. */
 export const ROUTES: FlightRoute[] = [
-  { flight: 'NL 204', from: 'lagos', to: 'abuja', fare: 35000, minutes: 55, gate: 1 },
-  { flight: 'NL 310', from: 'lagos', to: 'port_harcourt', fare: 38000, minutes: 60, gate: 2 },
-  { flight: 'NL 205', from: 'abuja', to: 'lagos', fare: 35000, minutes: 55, gate: 1 },
-  { flight: 'NL 420', from: 'abuja', to: 'port_harcourt', fare: 36000, minutes: 50, gate: 2 },
-  { flight: 'NL 311', from: 'port_harcourt', to: 'lagos', fare: 38000, minutes: 60, gate: 1 },
-  { flight: 'NL 421', from: 'port_harcourt', to: 'abuja', fare: 36000, minutes: 50, gate: 2 },
+  { flight: 'NL 204', from: 'lagos', to: 'abuja', fare: 185000, minutes: 55, gate: 1 },
+  { flight: 'NL 310', from: 'lagos', to: 'port_harcourt', fare: 165000, minutes: 60, gate: 2 },
+  { flight: 'NL 205', from: 'abuja', to: 'lagos', fare: 185000, minutes: 55, gate: 1 },
+  { flight: 'NL 420', from: 'abuja', to: 'port_harcourt', fare: 175000, minutes: 50, gate: 2 },
+  { flight: 'NL 311', from: 'port_harcourt', to: 'lagos', fare: 165000, minutes: 60, gate: 1 },
+  { flight: 'NL 421', from: 'port_harcourt', to: 'abuja', fare: 175000, minutes: 50, gate: 2 },
 ];
 
 /** Where the passenger has got to. */

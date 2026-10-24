@@ -59,6 +59,8 @@ import { FurnishBar } from '../ui/FurnishBar';
 import { Bodies, bodyOf, type CarBody } from '../world/Bodies';
 import { MusicSheet } from '../ui/MusicSheet';
 import { FleetSheet } from '../ui/FleetSheet';
+import { PumpSheet } from '../ui/PumpSheet';
+import { FORECOURT, STATIONS, jerryCanShare, nearestStation, stationNear, type Station } from '../world/Fuel';
 import { TopMenu } from '../ui/TopMenu';
 import { Fleet, fleetColour, fleetModel } from '../assets/Fleet';
 import { buildJet, buildYacht } from '../world/expressway/FleetModels';
@@ -270,11 +272,63 @@ export class Game {
       if (this.player.isDriving && streetLife.isHawkerAtWindow) streetLife.buyFromWindowHawker(item);
     };
 
-    const refuelActiveVehicle = () => {
-      if (this.player.isDriving && this.player.currentVehicle) {
-        this.player.currentVehicle.refuel();
+    // The pump: at a filling station, the player's vehicles and their tanks; far from one, with the tank dry, a jerry can
+    const pumpSheet = new PumpSheet({
+      rows: () => {
+        const at = this.pumpAt;
+        const driving = this.player.isDriving ? this.player.currentVehicle : null;
+        const mine = this.ownedVehicles?.mine() ?? [];
+        const rows = mine.map(({ vehicle }) => vehicle);
+        if (driving && !rows.includes(driving)) rows.unshift(driving);
+        return rows.map((v) => ({
+          id: v.id,
+          name: v.name.split(' · ')[0],
+          type: v.type,
+          fuel: v.fuel,
+          here: !!at && v.city === at.city && Math.hypot(v.mesh.position.x - at.x, v.mesh.position.z - at.z) < FORECOURT + 8,
+        }));
+      },
+      fill: (id, cost) => {
+        const v = this.world.vehicles.drivableVehicles.find((x) => x.id === id) ?? (this.player.currentVehicle?.id === id ? this.player.currentVehicle : null);
+        if (!v) return 'That vehicle is not here.';
+        if (!BackendService.getInstance().pay(cost, `Fuel, ${v.name.split(' · ')[0]}`, 'TRAVEL_COST')) return `Filling up comes to ₦${cost.toLocaleString()}. You do not have it.`;
+        v.fuel = 100;
+        v.isLowFuelWarned = false;
+        this.ownedVehicles?.fuelled(v);
+        SoundEngine.getInstance().playTransactionSuccess();
+        return null;
+      },
+      jerryCan: (cost) => {
+        const v = this.player.currentVehicle;
+        if (!v) return 'Get into the vehicle first.';
+        if (!BackendService.getInstance().pay(cost, 'Jerry can of petrol, brought out', 'TRAVEL_COST')) return `The jerry can comes to ₦${cost.toLocaleString()}. You do not have it.`;
+        v.fuel = Math.min(100, v.fuel + jerryCanShare(v.type));
+        v.isLowFuelWarned = false;
+        this.ownedVehicles?.fuelled(v);
+        return null;
+      },
+    });
+    this.pumpSheet = pumpSheet;
+    const openPump = (stationId?: string) => {
+      const city = this.world.cityManager.currentCityId;
+      const here = this.player.isDriving && this.player.currentVehicle ? this.player.currentVehicle.mesh.position : this.player.position;
+      const station = stationId ? STATIONS.find((s) => s.id === stationId) ?? null : stationNear(here.x, here.z, city);
+      if (station) {
+        this.pumpAt = station;
+        pumpSheet.open(station.name);
+        return;
       }
+      this.pumpAt = null;
+      const v = this.player.isDriving ? this.player.currentVehicle : null;
+      if (v && v.fuel < 8) {
+        pumpSheet.openJerryCan();
+        return;
+      }
+      const near = nearestStation(here.x, here.z, city);
+      showGameToast(near ? `⛽ No pump here. The nearest filling station is ${near.station.name}, ${Math.round(near.metres).toLocaleString()} m away.` : '⛽ There is no filling station near. When the tank is nearly empty, a jerry can can be brought to you.', 'info', 4800);
     };
+    this.hud.onOpenPump = openPump;
+    const refuelActiveVehicle = () => openPump();
 
     this.hud.onRefuelVehicle = refuelActiveVehicle;
     this.input.onRefuelVehicle = refuelActiveVehicle;
@@ -862,6 +916,7 @@ export class Game {
       mine: (kind) => fleet.mine(kind).map((c) => ({ uid: c.uid, label: c.name })),
       fly: (uid, city) => this.flyPrivate(uid, city),
       cruise: (uid) => this.cruise(uid),
+      openPump: (station) => this.hud.onOpenPump?.(station),
     };
     const showFleet = () => {
       const craft = (kind: 'jet' | 'yacht') => fleet.mine(kind).map((c) => ({ uid: c.uid, length: fleetModel(c.modelId)!.length, paint: fleetColour(c.colour), name: c.name }));
@@ -1100,6 +1155,9 @@ export class Game {
 
   private ambienceClock: number | undefined;
   public fleetSheet!: FleetSheet;
+  public pumpSheet!: PumpSheet;
+  /** The filling station whose pump is open */
+  private pumpAt: Station | null = null;
   /** A jet taking off or a yacht out on the lagoon, with the player aboard */
   private ride: { craft: THREE.Group; t: number; total: number; deck: number; hidden: boolean; view?: { distance: number; pitch: number }; path: (p: number) => { x: number; y: number; z: number; dx: number; dz: number; pitch: number }; end: () => void } | null = null;
 

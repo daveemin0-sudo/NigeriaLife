@@ -24,7 +24,7 @@ export async function run(browser, check) {
       lane: !g.solidsHere().at(-4.9, 600, 1.2),
     };
   });
-  check('expressway: it is built in pieces, with twelve places along it, all of them in the world', layout.pieces > 30 && layout.places.length === 12 && layout.inWorld, layout);
+  check('expressway: it is built in pieces, with its 28 places along it (25 to visit, 3 filling stations), all of them in the world', layout.pieces > 30 && layout.places.length === 28 && layout.inWorld, layout);
   check('expressway: traffic is out on it, the barrier down the middle is solid and the lanes are clear', layout.carsOut > 50 && layout.barrier && layout.lane, layout);
 
   // Drive from Broad Street past the toll and over the bridge, on an empty road
@@ -73,7 +73,42 @@ export async function run(browser, check) {
     g.hud.showInteractionCard(o);
     return { title: document.getElementById('interaction-card')?.innerText.slice(0, 80), action: document.getElementById('card-action-btn')?.textContent };
   });
-  check('expressway: the beach has a card with something to do there', /Lagoon Beach/.test(card.title ?? '') && /beach/i.test(card.action ?? ''), card);
+  check('expressway: the beach has a card with something to do there', /Elegushi Beach/.test(card.title ?? '') && /beach/i.test(card.action ?? ''), card);
+
+  // The places the phone and the map name: each has a building and a card where they send you
+  const placed = await page.evaluate(() => {
+    const g = window.game;
+    const ids = ['dest_lagos_marina_towers', 'dest_lagos_freedom_park', 'dest_lagos_ivory_rooftop', 'dest_lagos_the_library', 'dest_lagos_ifitness', 'dest_lagos_lekki_conservation', 'dest_lagos_refinery', 'dest_lagos_radio', 'dest_lagos_balogun_market', 'dest_lagos_amala_shitta', 'dest_lagos_mama_bisi_salon', 'dest_lagos_polling_unit', 'dest_lagos_afrika_shrine', 'dest_lagos_chapel', 'dest_lagos_central_mosque', 'dest_lagos_elegushi_beach', 'dest_lagos_palms_lekki'];
+    const registry = g.modules.DestinationRegistry.getInstance();
+    const cards = g.world.interactiveObjects.filter((o) => o.id.startsWith('roadside-'));
+    const bad = [];
+    for (const id of ids) {
+      const d = registry.getById(id);
+      const card = d && cards.find((o) => Math.hypot(o.interactionPoint.x - d.streetPosition.x, o.interactionPoint.z - d.streetPosition.z) < 2.5);
+      const building = card && g.world.expressway.roadside.group.getObjectByName(card.id.replace('roadside-', ''));
+      let meshes = 0;
+      building?.traverse((o) => { if (o.isMesh && o.geometry?.attributes.position?.count > 100) meshes++; });
+      if (!d || !card || card.name !== d.name || meshes < 1) bad.push({ id, name: d?.name, card: card?.name ?? null, meshes });
+    }
+    return { count: ids.length, bad };
+  });
+  check('expressway: every place the phone names (church, shrine, market, refinery, polling unit and the rest) is built, with its card at the spot a ride or a pin takes you to', placed.bad.length === 0, placed);
+
+  const rode = await page.evaluate(async () => {
+    const g = window.game;
+    g.hud.backend.performGig(100000, 0, 'test: fare');
+    g.player.mesh.position.set(9, 0, 40);
+    const booked = g.rides.book('dest_lagos_amala_shitta', 'taxi');
+    for (let i = 0; i < 80 && (g.rides.ride || g.roadRideExperience.isActive || !booked.ok); i++) {
+      await g.advance(0.5);
+      if (g.roadRideExperience.isActive) g.roadRideExperience.skipRide();
+    }
+    const card = g.world.interactiveObjects.find((o) => o.id === 'roadside-amala-shitta');
+    await g.advance(0.5);
+    const shop = g.world.expressway.roadside.group.getObjectByName('amala-shitta');
+    return { booked: booked.ok, away: +Math.hypot(g.player.position.x - card.interactionPoint.x, g.player.position.z - card.interactionPoint.z).toFixed(1), shown: !!shop?.visible };
+  });
+  check('expressway: a taxi booked to Amala Shitta leaves the player at its door, with the buka there in front of them', rode.booked && rode.away < 3 && rode.shown, rode);
 
   check('expressway: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();

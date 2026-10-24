@@ -27,10 +27,10 @@ export interface CoachRoute {
 
 /** The board at the park. Every road has a coach each way, with its own number. */
 export const COACH_ROUTES: CoachRoute[] = [
-  { coach: 'SR 12', from: 'lagos', to: 'abuja', fare: 12000, hours: 10 },
-  { coach: 'SR 14', from: 'lagos', to: 'port_harcourt', fare: 13000, hours: 9 },
-  { coach: 'SR 21', from: 'abuja', to: 'lagos', fare: 12000, hours: 10 },
-  { coach: 'SR 24', from: 'abuja', to: 'port_harcourt', fare: 11000, hours: 8 },
-  { coach: 'SR 41', from: 'port_harcourt', to: 'lagos', fare: 13000, hours: 9 },
-  { coach: 'SR 42', from: 'port_harcourt', to: 'abuja', fare: 11000, hours: 8 },
+  { coach: 'SR 12', from: 'lagos', to: 'abuja', fare: 42000, hours: 10 },
+  { coach: 'SR 14', from: 'lagos', to: 'port_harcourt', fare: 38000, hours: 9 },
+  { coach: 'SR 21', from: 'abuja', to: 'lagos', fare: 42000, hours: 10 },
+  { coach: 'SR 24', from: 'abuja', to: 'port_harcourt', fare: 36000, hours: 8 },
+  { coach: 'SR 41', from: 'port_harcourt', to: 'lagos', fare: 38000, hours: 9 },
+  { coach: 'SR 42', from: 'port_harcourt', to: 'abuja', fare: 36000, hours: 8 },
 ];

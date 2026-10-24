@@ -79,7 +79,7 @@ export async function run(browser, check) {
   const ctx = await newPlayer(browser);
   const { page, log } = await open(ctx);
   await closeDialogs(page);
-  await page.evaluate(() => window.game.hud.backend.performGig(200000, 0, 'test: travelling money'));
+  await page.evaluate(() => window.game.hud.backend.performGig(600000, 0, 'test: travelling money'));
 
   // ------------------------------------------------------------------ The parks
   const lagos = await park(page, 'lagos');
@@ -99,7 +99,7 @@ export async function run(browser, check) {
   check('Jibowu Motor Park stands on Martins Street: a yard of over a thousand triangles in a handful of meshes, with a ticket window and a coach to board, both reached on foot through its gate, and Lagos still passes its plan with nothing generated on its ground',
     lagos.name === 'Jibowu Motor Park' && built.triangles > 1000 && built.meshes <= 10 && built.reach.every(Boolean) && built.throughTheGate && built.plan.length === 0 && built.generatedInIt === 0 && lagos.coachInBay && lagos.coach.shown, { lagos: { name: lagos.name, things: lagos.things }, built });
   check('there is a coach each way on every road between the three cities, from one timetable',
-    built.rows.lagos.length === 2 && built.rows.abuja.length === 2 && built.rows.port_harcourt.length === 2 && built.rows.lagos.includes('SR 12 abuja 12000') && built.rows.port_harcourt.includes('SR 42 abuja 11000'), built.rows);
+    built.rows.lagos.length === 2 && built.rows.abuja.length === 2 && built.rows.port_harcourt.length === 2 && built.rows.lagos.includes('SR 12 abuja 42000') && built.rows.port_harcourt.includes('SR 42 abuja 36000'), built.rows);
 
   // ------------------------------------------------------------------ No ticket, no coach
   const start = await fares(page);
@@ -118,9 +118,9 @@ export async function run(browser, check) {
   await wait(600);
   await advance(page, 1);
   const afterSheet = { ...(await where(page)), ticket: await ticket(page), charged: (await fares(page)) - start };
-  check('the sheet lists the coaches from Lagos with their park and fare, and buying one there takes ₦12,000 for a ticket and moves nobody (it used to start the journey from wherever the player stood)',
-    sheet.length === 2 && sheet.some((row) => /SR 12/.test(row) && /Jibowu Motor Park/.test(row) && /12,000/.test(row)) && afterSheet.city === 'lagos' && !afterSheet.road && afterSheet.shown
-      && Math.hypot(afterSheet.x - stood.x, afterSheet.z - stood.z) < 0.5 && afterSheet.ticket.active && afterSheet.ticket.state === 'booked' && afterSheet.ticket.coach === 'SR 12' && afterSheet.charged === 12000, { sheet, afterSheet });
+  check('the sheet lists the coaches from Lagos with their park and fare, and buying one there takes ₦42,000 for a ticket and moves nobody (it used to start the journey from wherever the player stood)',
+    sheet.length === 2 && sheet.some((row) => /SR 12/.test(row) && /Jibowu Motor Park/.test(row) && /42,000/.test(row)) && afterSheet.city === 'lagos' && !afterSheet.road && afterSheet.shown
+      && Math.hypot(afterSheet.x - stood.x, afterSheet.z - stood.z) < 0.5 && afterSheet.ticket.active && afterSheet.ticket.state === 'booked' && afterSheet.ticket.coach === 'SR 12' && afterSheet.charged === 42000, { sheet, afterSheet });
 
   // A second ticket is refused; the first can be handed back at the window for four fifths
   const purse = await money(page);
@@ -134,7 +134,7 @@ export async function run(browser, check) {
   await advance(page, 1.2);
   const handedBack = { ticket: await ticket(page), back: (await money(page)).total - purse.total };
   check('a second ticket cannot be bought while one is held; at the window the one held is handed back for four fifths of its fare',
-    !second.ok && /Your ticket: SR 12 to Abuja/.test(held ?? '') && offeredBack.some((c) => /Hand the ticket back/.test(c) && /9,600/.test(c)) && !handedBack.ticket.active && handedBack.back === 9600, { second, held, offeredBack, handedBack });
+    !second.ok && /Your ticket: SR 12 to Abuja/.test(held ?? '') && offeredBack.some((c) => /Hand the ticket back/.test(c) && /33,600/.test(c)) && !handedBack.ticket.active && handedBack.back === 33600, { second, held, offeredBack, handedBack });
 
   // ------------------------------------------------------------------ By the map to the park, and a ticket at the window
   await page.evaluate(() => { const p = window.game.player; p.stopMoving(); p.mesh.position.set(46, 0, -62); });
@@ -143,9 +143,9 @@ export async function run(browser, check) {
   const before = await fares(page);
   const bought = await buyAtTheWindow(page, 'jibowu-park-tickets', 'Abuja');
   const now = await ticket(page);
-  check('walking in at the gate and asking at the window: the clerk offers Abuja and Port Harcourt with fares and hours, the player reaches for the ticket before it is theirs, and ₦12,000 is taken once',
-    !!atGate && Math.hypot(atGate.x - lagos.gate.x, atGate.z - lagos.gate.z) < 1 && bought.offered.some((c) => /Abuja, SR 12/.test(c) && /12,000/.test(c) && /10 hours/.test(c)) && bought.offered.some((c) => /Port Harcourt, SR 14/.test(c))
-      && !!bought.reached && bought.reached.held === false && now.active && now.state === 'booked' && now.from === 'lagos' && now.to === 'abuja' && (await fares(page)) - before === 12000, { atGate, bought, now, charged: (await fares(page)) - before });
+  check('walking in at the gate and asking at the window: the clerk offers Abuja and Port Harcourt with fares and hours, the player reaches for the ticket before it is theirs, and ₦42,000 is taken once',
+    !!atGate && Math.hypot(atGate.x - lagos.gate.x, atGate.z - lagos.gate.z) < 1 && bought.offered.some((c) => /Abuja, SR 12/.test(c) && /42,000/.test(c) && /10 hours/.test(c)) && bought.offered.some((c) => /Port Harcourt, SR 14/.test(c))
+      && !!bought.reached && bought.reached.held === false && now.active && now.state === 'booked' && now.from === 'lagos' && now.to === 'abuja' && (await fares(page)) - before === 42000, { atGate, bought, now, charged: (await fares(page)) - before });
 
   // ------------------------------------------------------------------ The wrong park is no use
   const wrongPark = await page.evaluate(() => window.game.coaches.board('abuja'));
@@ -169,7 +169,7 @@ export async function run(browser, check) {
   const used = await ticket(page);
   check('the coach pulls in at Utako Motor Park in Abuja: the player gets down beside it in the middle bay, inside the park, the ticket used, with nothing more to pay',
     there.city === 'abuja' && there.shown && !there.road && Math.hypot(there.x - utako.setDown.x, there.z - utako.setDown.z) < 1 && inside(utako.zone, there) && utako.coachInBay && utako.coach.shown && used.state === 'arrived' && !used.active
-      && (await fares(page)) - before === 12000 && (await said(page, 'pulled in at Utako Motor Park')), { there, utako: { name: utako.name, coach: utako.coach, things: utako.things }, used });
+      && (await fares(page)) - before === 42000 && (await said(page, 'pulled in at Utako Motor Park')), { there, utako: { name: utako.name, coach: utako.coach, things: utako.things }, used });
 
   await page.evaluate(() => { const g = window.game; const gate = g.world.motorParkOf('abuja').doors[0]; g.player.setDestination(new g.player.position.constructor(gate.x - 2, 0, gate.z)); });
   const out = await untilStopped(page, 30);
@@ -186,8 +186,8 @@ export async function run(browser, check) {
   await advance(page, 0.5);
   const inPh = await where(page);
   const waterlines = await park(page, 'port_harcourt');
-  check('what was a dark box called a coach park in Abuja is now the ticket window of Utako Motor Park; a ticket to Port Harcourt bought there (₦11,000) takes the coach out of its west gate and down at Waterlines Motor Park',
-    !!abujaWindow && /Utako Motor Park, ticket window/.test(abujaWindow.name) && bought2.offered.some((c) => /Port Harcourt, SR 24/.test(c)) && (await fares(page)) - before2 === 11000 && moving2.length >= 3
+  check('what was a dark box called a coach park in Abuja is now the ticket window of Utako Motor Park; a ticket to Port Harcourt bought there (₦36,000) takes the coach out of its west gate and down at Waterlines Motor Park',
+    !!abujaWindow && /Utako Motor Park, ticket window/.test(abujaWindow.name) && bought2.offered.some((c) => /Port Harcourt, SR 24/.test(c)) && (await fares(page)) - before2 === 36000 && moving2.length >= 3
       && moving2[moving2.length - 1].coach.x < ride2.trail[0].coach.x - 6 && inPh.city === 'port_harcourt' && inside(waterlines.zone, inPh) && waterlines.things.includes('ph-transit-hub'), { abujaWindow, inPh, lastMoving: moving2[moving2.length - 1] });
 
   // ------------------------------------------------------------------ The coach left behind comes back to its bay

@@ -93,6 +93,8 @@ export class HUD {
   public onExitVehicle?: () => void;
   public onHonkVehicle?: () => void;
   public onRefuelVehicle?: () => void;
+  /** Opens the pump at a filling station (or the nearest one's directions) */
+  public onOpenPump?: (stationId?: string) => void;
   public onEnterVehicle?: (vehicleId: string) => void;
   public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
   /** Out of the room to a given point outside, not back the way the player came in */
@@ -1711,7 +1713,7 @@ export class HUD {
       bizBtn.textContent = '💼 Barbershop Enterprise [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'fuel-station') {
-      btnEl.textContent = '⛽ Buy 10L Petrol Keg & Cold Drink (₦8,500)';
+      btnEl.textContent = '⛽ The pump';
       bizBtn.textContent = '💼 NaijaPetro Forecourt Franchise [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'mechanic') {
@@ -3879,35 +3881,7 @@ export class HUD {
         });
       }
     } else if (id === 'fuel-station') {
-      const success = this.backend.spendCash(8500, '10L Petrol Fuel Keg');
-      if (success) {
-        this.backend.addStreetCred(10);
-        this.backend.addItem({
-          id: `fuel_keg_${Date.now()}`,
-          name: '10L Premium Petrol (Fuel Keg)',
-          category: 'tool',
-          icon: '⛽',
-          description: 'Yellow jerrycan filled with 10 litres of premium fuel for your generator or car.',
-          price: 8500,
-          usable: true,
-          energyRestore: 0,
-        });
-        this.showDialogueModal({
-          speakerName: 'NaijaPetro Pump Attendant',
-          speakerRole: 'NaijaPetro Energy Station',
-          speakerAvatar: '⛽',
-          soundType: 'cash',
-          dialogueText: 'NaijaPetro Energy: 10 Litres of petrol fueled! Ready for your car or home generator!',
-          rewards: { streetCred: 10, item: { name: '10L Premium Petrol (Fuel Keg)', icon: '⛽', category: 'tool' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Fuel Attendant',
-          speakerRole: 'NaijaPetro Filling Station',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦8,500 cash for 10L fuel!',
-        });
-      }
+      this.onOpenPump?.('fuel-station');
     } else if (id === 'mechanic') {
       const success = this.backend.spendCash(6000, 'Vehicle Tune Up & Oil Change');
       if (success) {

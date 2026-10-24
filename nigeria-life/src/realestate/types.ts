@@ -153,6 +153,8 @@ export interface VehicleRecord {
   boughtNewAt: number;
   /** Where its owner last left it, and in which city (none: Lagos, as every vehicle was before cities were kept) */
   parkedAt?: { x: number; z: number; yaw: number; city?: string };
+  /** What is in its tank, 0 to 100 (none recorded: 85, as a new one comes) */
+  fuel?: number;
 }
 
 export interface PlayerCard {

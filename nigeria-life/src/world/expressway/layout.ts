@@ -37,6 +37,24 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'efcc-office', side: 1, z: 3680, length: 30, depth: 22 },
   { id: 'ikeja-golf', side: -1, z: 3860, length: 90, depth: 80 },
   { id: 'government-house', side: 1, z: 3990, length: 40, depth: 32 },
+  // The places the phone and the map name, each with somewhere to stand (see MorePlaces)
+  { id: 'marina-towers', side: 1, z: 250, length: 40, depth: 30 },
+  { id: 'freedom-park', side: 1, z: 340, length: 60, depth: 50 },
+  { id: 'ivory-rooftop', side: 1, z: 540, length: 30, depth: 24 },
+  { id: 'the-library', side: 1, z: 640, length: 26, depth: 20 },
+  { id: 'i-fitness', side: 1, z: 720, length: 34, depth: 26 },
+  { id: 'balogun-market', side: -1, z: 300, length: 70, depth: 40 },
+  { id: 'amala-shitta', side: -1, z: 425, length: 24, depth: 18 },
+  { id: 'viewing-centre', side: -1, z: 485, length: 20, depth: 16 },
+  { id: 'polling-unit', side: -1, z: 760, length: 26, depth: 20 },
+  { id: 'afrika-shrine', side: -1, z: 2750, length: 50, depth: 36 },
+  { id: 'lekki-conservation', side: 1, z: 3050, length: 70, depth: 70 },
+  { id: 'dangote-refinery', side: 1, z: 3500, length: 120, depth: 120 },
+  { id: 'radio-house', side: 1, z: 3800, length: 30, depth: 22 },
+  // Filling stations: on the island before the toll, just off the bridge, and on the mainland
+  { id: 'station-island', side: -1, z: 900, length: 44, depth: 30 },
+  { id: 'station-bridge', side: 1, z: 2650, length: 44, depth: 30 },
+  { id: 'station-mainland', side: -1, z: 3330, length: 44, depth: 30 },
 ];
 
 /** Is this stretch of frontage taken by one of the places? */

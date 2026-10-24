@@ -138,15 +138,15 @@ export async function run(browser, check) {
   check('before the gate fee is paid there is no bar and no dance floor, and nothing is charged', noMenu && !state.dancing && !state.paid && (await money(page)).total === cash.total, { noMenu, state });
 
   // Too poor for the gate
-  await page.evaluate(() => { const b = window.game.hud.backend; const d = b.getData(); b.pay(d.walletCash + d.bank.balance - 3000, 'test: nearly broke'); });
+  await page.evaluate(() => { const b = window.game.hud.backend; const d = b.getData(); b.pay(d.walletCash + d.bank.balance - 30000, 'test: nearly broke'); });
   cash = await money(page);
   card = await cardFor(page, 'club_door_desk', true);
   await press(page);
   await idle(page);
   state = await club(page);
-  check('with ₦3,000 the ₦5,000 gate fee is refused and nothing is taken', /Pay the gate fee/.test(card.label || '') && !state.paid && (await money(page)).total === cash.total, { card, state });
+  check('with ₦30,000 the ₦50,000 gate fee is refused and nothing is taken', /Pay the gate fee/.test(card.label || '') && !state.paid && (await money(page)).total === cash.total, { card, state });
 
-  await page.evaluate(() => window.game.hud.backend.performGig(90000, 0, 'test: paid'));
+  await page.evaluate(() => window.game.hud.backend.performGig(1500000, 0, 'test: paid'));
   cash = await money(page);
   card = await cardFor(page, 'club_door_desk', true);
   await press(page);
@@ -157,8 +157,8 @@ export async function run(browser, check) {
   await press(page);
   await advance(page, 2);
   state = await club(page);
-  check('the gate fee is paid at the desk, ₦5,000 once: asking again takes nothing more',
-    state.paid && cash.total - after.total === 5000 && /in for the night/.test(card.label || '') && (await money(page)).total === after.total, { paid: cash.total - after.total, card, state });
+  check('the gate fee is paid at the desk, ₦50,000 once: asking again takes nothing more',
+    state.paid && cash.total - after.total === 50000 && /in for the night/.test(card.label || '') && (await money(page)).total === after.total, { paid: cash.total - after.total, card, state });
 
   // ------------------------------------------------------------------ The bar
   await page.evaluate(() => window.game.hud.backend.depleteEnergy(40));
@@ -181,8 +181,8 @@ export async function run(browser, check) {
   after = await money(page);
   const refreshed = await stats(page);
   const emptyHands = await page.evaluate(() => !window.game.player.actor.carried);
-  check('the bar lists what there is with prices; a Chapman is made by the barman, paid for once as he hands it over (₦2,500), drunk, and the glass is gone',
-    menu.length === 3 && menu.some((m) => /Chapman/.test(m) && /2,500/.test(m)) && !!glass && cash.total - after.total === 2500 && Math.round(refreshed.energy - tired.energy) === 14 && emptyHands,
+  check('the bar lists what there is with prices; a Chapman is made by the barman, paid for once as he hands it over (₦12,000), drunk, and the glass is gone',
+    menu.length >= 3 && menu.some((m) => /Chapman/.test(m) && /12,000/.test(m)) && !!glass && cash.total - after.total === 12000 && Math.round(refreshed.energy - tired.energy) === 14 && emptyHands,
     { menu, glass, paid: cash.total - after.total, energy: refreshed.energy - tired.energy, emptyHands });
 
   // ------------------------------------------------------------------ The floor
@@ -225,7 +225,7 @@ export async function run(browser, check) {
   card = await cardFor(page, 'club_lounge', true);
   await press(page);
   const seated = await playUntil(page, () => { const a = window.game.player.actor; return a.hold && a.pose.legs === 'sit' ? true : null; }, 25);
-  check('a bottle (₦25,000, once) buys a table: the lounge then seats the player', cash.total - after.total === 25000 && /Sit at your table/.test(card.label || '') && !!seated, { paid: cash.total - after.total, card, seated });
+  check('a bottle (₦450,000, once) buys a table: the lounge then seats the player', cash.total - after.total === 450000 && /Sit at your table/.test(card.label || '') && !!seated, { paid: cash.total - after.total, card, seated });
   await page.evaluate(() => window.game.player.actor.hold?.release());
   await advance(page, 0.3);
 

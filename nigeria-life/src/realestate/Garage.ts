@@ -224,6 +224,15 @@ export class Garage {
     });
   }
 
+  /** Records what is in a vehicle's tank. Only its owner can. */
+  public async setFuel(id: string, fuel: number): Promise<void> {
+    await this.registry.transact((state) => {
+      const record = state.vehicles[id];
+      if (!record || state.titles[assetKey({ kind: 'vehicle', id })]?.ownerId !== MY_ID) return;
+      record.fuel = Math.round(Math.max(0, Math.min(100, fuel)) * 10) / 10;
+    });
+  }
+
   /** Records driving done in a vehicle: distance on the clock and the wear that goes with it. Only its owner can. */
   public async addMileage(id: string, kilometres: number, parkedAt?: { x: number; z: number; yaw: number; city?: string }): Promise<void> {
     if (kilometres <= 0 && !parkedAt) return;

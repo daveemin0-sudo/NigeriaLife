@@ -223,7 +223,7 @@ export class LagosStreetLifeSystem {
       showGameToast('💧 Chilled Pure Water bought through car window! Energy +15 restored.', 'success', 3000);
       return true;
     } else {
-      const price = 250;
+      const price = 500;
       if (data.walletCash < price) {
         showGameToast('Oga your money no reach ₦250 for Gala o.', 'warning', 2500);
         return false;
@@ -237,7 +237,7 @@ export class LagosStreetLifeSystem {
         category: 'food',
         icon: '🌭',
         description: 'The legendary King of highway and street snacks.',
-        price: 250,
+        price: 500,
         usable: true,
         energyRestore: 25,
       }, 1);

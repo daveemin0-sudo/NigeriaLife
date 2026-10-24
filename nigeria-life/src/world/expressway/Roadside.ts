@@ -6,6 +6,9 @@ import { PlaceActions, type PlaceHost } from '../../destinations/PlaceActions';
 import { buildCarBody, CAR_SPECS, type CarSpec } from '../vehicles/CarBodyKit';
 import { EXPRESS, ROADSIDE } from './layout';
 import { buildJet, buildYacht } from './FleetModels';
+import { buildMorePlace, moreMenu, DESTINATIONS_HERE, FORECOURT_DEPTH } from './MorePlaces';
+import { STATIONS } from '../Fuel';
+import { DestinationRegistry } from '../../destinations/DestinationRegistry';
 import type { FleetKind } from '../../assets/Fleet';
 
 /**
@@ -25,6 +28,8 @@ export interface RoadsideHooks {
   fly(uid: string, city: string): void;
   /** Takes the player out on the lagoon in their yacht */
   cruise(uid: string): void;
+  /** Opens the pump at a filling station */
+  openPump(stationId: string): void;
 }
 
 /** Where the airfield's stands and the marina's berths are */
@@ -60,9 +65,11 @@ export class Roadside {
   public readonly interactive: InteractiveObject[] = [];
   /** Each place's own group, for drawing only the ones near */
   private readonly parts: Array<{ group: THREE.Group; z: number }> = [];
+  /** What each place is called on its card */
+  private readonly names = new Map<string, string>();
 
   /** Set by the game */
-  public hooks: RoadsideHooks = { openApp: () => {}, openFleet: () => {}, mine: () => [], fly: () => {}, cruise: () => {} };
+  public hooks: RoadsideHooks = { openApp: () => {}, openFleet: () => {}, mine: () => [], fly: () => {}, cruise: () => {}, openPump: () => {} };
   /** The jets and yachts standing at the airfield and the marina, by their id */
   public readonly craft = new Map<string, THREE.Group>();
   private readonly fleetGroup = new THREE.Group();
@@ -70,6 +77,23 @@ export class Roadside {
   constructor() {
     this.group.name = 'Expressway places';
     for (const place of ROADSIDE) this.build(place);
+    // The filling stations along the road, where their forecourts are
+    for (const place of ROADSIDE) {
+      if (!place.id.startsWith('station-')) continue;
+      const { faceX } = this.front(place);
+      STATIONS.push({ id: place.id, name: this.names.get(place.id) ?? 'NaijaPetro', x: faceX + place.side * FORECOURT_DEPTH, z: place.z, city: 'lagos' });
+    }
+    // The phone's and the map's places: a ride there, or a pin, goes to the door of the one built here
+    const registry = DestinationRegistry.getInstance();
+    for (const [destination, placeId] of Object.entries(DESTINATIONS_HERE)) {
+      const place = ROADSIDE.find((p) => p.id === placeId);
+      const d = registry.getById(destination);
+      if (!place || !d) continue;
+      const { standX } = this.front(place);
+      d.streetPosition = new THREE.Vector3(standX, 0, place.z);
+      if (d.entrance) d.entrance.position = new THREE.Vector3(standX, 0, place.z);
+      d.name = this.names.get(placeId) ?? d.name;
+    }
     this.fleetGroup.name = 'Jets and yachts';
     this.group.add(this.fleetGroup);
   }
@@ -196,8 +220,8 @@ export class Roadside {
         // A bar hut by the road
         b.box(0xb45309, 5, 3, 7, faceX + s * 4, 0, z0 + place.length / 2).cone(0xd6b46a, 5.4, 2, faceX + s * 4, 3, z0 + place.length / 2, 4);
         this.obstructions.push({ owner: place.id, minX: faceX + s * 4 - 2.5, maxX: faceX + s * 4 + 2.5, minZ: place.z - 3.5, maxZ: place.z + 3.5, height: 3, structure: true });
-        label('LAGOON BEACH', 'Chill · Suya · Coconut · Afrobeats', '#0e7490', 4.6, 18);
-        card = { name: 'Lagoon Beach', category: 'Beach', description: 'Sand, the lagoon breeze, cold drinks and music. Lie down for a while and forget the go-slow.' };
+        label('ELEGUSHI BEACH', 'Chill · Suya · Coconut · Afrobeats', '#0e7490', 4.6, 18);
+        card = { name: 'Elegushi Beach', category: 'Beach', description: 'Sand, the lagoon breeze, cold drinks and music. Lie down for a while and forget the go-slow.' };
         break;
       }
       case 'shopwell-mall': {
@@ -205,8 +229,8 @@ export class Roadside {
         b.box(0xdc2626, 0.3, 2.4, place.length, faceX - s * 0.15, 8.5, place.z);
         b.box(0x93c5fd, 0.2, 5, place.length * 0.5, faceX - s * 0.1, 0, place.z);
         footprint(11);
-        label('SHOPWELL MALL', 'Supermarket · Food court · Cinema', '#dc2626', 9.7, 30);
-        card = { name: 'ShopWell Mall', category: 'Supermarket & mall', description: 'Groceries, drinks, phones and clothes under one roof, with air-conditioning and generator light.' };
+        label('THE PALMS MALL', 'Supermarket · Food court · Cinema', '#dc2626', 9.7, 30);
+        card = { name: 'The Palms Mall', category: 'Supermarket & mall', description: 'Groceries, drinks, phones and clothes under one roof, with air-conditioning and generator light.' };
         break;
       }
       case 'eko-grand-hotel': {
@@ -277,6 +301,15 @@ export class Roadside {
         break;
       }
       default: {
+        const more = buildMorePlace({
+          b, place, faceX, s, depthMid, z0, group, footprint,
+          obstruct: (minX, maxX, minZ, maxZ, height) => this.obstructions.push({ owner: place.id, minX, maxX, minZ, maxZ, height, structure: true }),
+          label,
+        });
+        if (more) {
+          card = more;
+          break;
+        }
         // The government house: white, columns, a flag
         b.box(0xf8fafc, place.depth, 12, place.length, depthMid, 0, place.z);
         for (let z = z0 + 3; z < z0 + place.length - 2; z += 3.5) b.cylinder(0xffffff, 0.45, 9, faceX + s * -1.2, 0, z);
@@ -297,6 +330,7 @@ export class Roadside {
     marker.position.set(faceX - s * 1.6, 2, place.z);
     group.add(marker);
     const id = `roadside-${place.id}`;
+    this.names.set(place.id, card.name);
     this.interactive.push({ mesh: marker, id, name: card.name, category: card.category, description: card.description, interactionPoint: new THREE.Vector3(standX, 0, place.z) });
     PlaceActions.register(id, this.actionFor(place.id, card.name));
   }
@@ -328,7 +362,7 @@ export class Roadside {
       },
       'lagoon-beach': {
         label: '🏖️ Relax on the beach',
-        run: (host) => host.ask({ who: 'Beach bar', role: 'Lagoon Beach', text: 'Welcome! Lounger, drink, suya?', choices: [
+        run: (host) => host.ask({ who: 'Beach bar', role: 'Elegushi Beach', text: 'Welcome! Lounger, drink, suya?', choices: [
           { label: 'Lie on a lounger by the water', note: '₦3,000 · Fun +30, Energy +10', pick: () => act(host, 'wave', 3, () => { if (pay(host, 3000, 'Lounger')) { host.backend.modifyNeed('fun', 30); host.backend.modifyNeed('energy', 10); host.say('Breeze, waves, Afrobeats. You needed this.', 'success'); } }) },
           { label: 'Fresh coconut water', note: '₦1,500 · Hunger', pick: () => act(host, 'reach', 1.5, () => { if (pay(host, 1500, 'Coconut water')) { host.backend.modifyNeed('hunger', 15); host.say('Cold coconut water, straight from the nut.', 'success'); } }) },
           { label: 'Suya and a cold drink', note: '₦4,500 · Hunger', pick: () => act(host, 'reach', 1.5, () => { if (pay(host, 4500, 'Suya')) { host.backend.modifyNeed('hunger', 35); host.backend.modifyNeed('fun', 5); host.say('Hot suya with yaji. Sweet!', 'success'); } }) },
@@ -395,7 +429,7 @@ export class Roadside {
         ] });
       },
     };
-    const entry = menu[placeId] ?? menu['government-house'];
+    const entry = menu[placeId] ?? moreMenu(placeId, { act, pay, openApp: (app) => this.hooks.openApp(app), openPump: (station) => this.hooks.openPump(station) }) ?? menu['government-house'];
     return { label: () => entry.label, run: (host: PlaceHost) => entry.run(host) };
   }
 }

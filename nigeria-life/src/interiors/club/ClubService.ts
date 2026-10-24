@@ -13,7 +13,8 @@ export const CLUB = {
   name: 'Quilox',
   room: { width: 20, length: 16, height: 4.6 },
   hours: PLACE_HOURS.club as OpeningHours,
-  gateFee: 5000,
+  // A big Lagos club at today's prices: the gate, and a bar where a bottle is a statement
+  gateFee: 50000,
   desk: { x: 5.2, z: 5.6, halfWidth: 1.3, halfLength: 0.45 },
   deskStand: new THREE.Vector3(5.2, 0, 6.8),
   cashier: new THREE.Vector3(5.2, 0, 4.6),
@@ -41,9 +42,14 @@ export interface Drink {
 }
 
 export const DRINKS: Drink[] = [
-  { id: 'malt', name: 'Cold malt', price: 1500, energy: 10, cred: 0, colour: 0x7c2d12 },
-  { id: 'chapman', name: 'Chapman', price: 2500, energy: 14, cred: 1, colour: 0xdc2626 },
-  { id: 'bubbly', name: 'Bottle of bubbly with sparklers', price: 25000, energy: 8, cred: 12, table: true, colour: 0xfde68a },
+  { id: 'water', name: 'Bottled water', price: 3000, energy: 4, cred: 0, colour: 0xbae6fd },
+  { id: 'malt', name: 'Cold malt', price: 5000, energy: 10, cred: 0, colour: 0x7c2d12 },
+  { id: 'beer', name: 'Heineken', price: 7000, energy: 8, cred: 1, colour: 0x15803d },
+  { id: 'chapman', name: 'Chapman', price: 12000, energy: 14, cred: 1, colour: 0xdc2626 },
+  { id: 'cocktail', name: 'House cocktail', price: 18000, energy: 12, cred: 2, colour: 0xf472b6 },
+  { id: 'henny', name: 'Hennessy VS, the bottle', price: 280000, energy: 8, cred: 8, table: true, colour: 0x92400e },
+  { id: 'bubbly', name: 'Moët bubbly with sparklers', price: 450000, energy: 8, cred: 12, table: true, colour: 0xfde68a },
+  { id: 'ace', name: "Ace of Spades with sparklers and the DJ's shout-out", price: 3500000, energy: 8, cred: 30, table: true, colour: 0xd4af37 },
 ];
 
 const DANCE_SECONDS = 9;

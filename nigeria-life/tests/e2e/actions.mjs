@@ -60,7 +60,7 @@ export async function run(browser, check) {
     goods: [...document.querySelectorAll('#vendor-sheet .buka-dish')].map((row) => ({ id: row.dataset.good, price: row.querySelector('.buka-dish-price').textContent })),
   }));
   check('the hawker walks his beat, and his card opens a list of what he is carrying, with prices',
-    walking > 0.5 && /Chidi is selling/.test(label) && list.open && list.goods.map((g) => g.id).join() === 'water_sachet,gala_snack' && list.goods[1].price === '₦250', { walking: +walking.toFixed(2), label, list });
+    walking > 0.5 && /Chidi is selling/.test(label) && list.open && list.goods.map((g) => g.id).join() === 'water_sachet,gala_snack' && list.goods[1].price === '₦500', { walking: +walking.toFixed(2), label, list });
 
   let before = await state(page);
   await page.click('#vendor-sheet .buka-dish[data-good="gala_snack"]');
@@ -75,13 +75,13 @@ export async function run(browser, check) {
   const handed = await playUntil(page, () => (window.game.player.actor.carried?.name === 'vendor_good_gala_snack' ? true : null), 10);
   let s = await state(page);
   check('the player takes it from his hand, and at that moment pays ₦250 once and has one more in the bag',
-    handed && before.cash - s.cash === 250 && s.gala === before.gala + 1 && s.ledger === before.ledger + 1 && s.hawker.carrying === null, { paid: before.cash - s.cash, gala: s.gala - before.gala, ledger: s.ledger - before.ledger });
+    handed && before.cash - s.cash === 500 && s.gala === before.gala + 1 && s.ledger === before.ledger + 1 && s.hawker.carrying === null, { paid: before.cash - s.cash, gala: s.gala - before.gala, ledger: s.ledger - before.ledger });
   await playUntil(page, () => { const g = window.game; return !g.player.actor.sequence && !g.interactions.actorFor('npc-hawker').sequence ? true : null; }, 10);
   const z1 = (await state(page)).hawker.z;
   await advance(page, 1.5);
   s = await state(page);
   check('then both carry on: hands empty, the player free, the hawker back on his beat, and no second charge',
-    !s.me.scripted && !s.hawker.scripted && s.me.carrying === null && Math.abs(s.hawker.z - z1) > 0.5 && before.cash - s.cash === 250, { hawkerMoved: +Math.abs(s.hawker.z - z1).toFixed(2), paid: before.cash - s.cash });
+    !s.me.scripted && !s.hawker.scripted && s.me.carrying === null && Math.abs(s.hawker.z - z1) > 0.5 && before.cash - s.cash === 500, { hawkerMoved: +Math.abs(s.hawker.z - z1).toFixed(2), paid: before.cash - s.cash });
 
   // Not enough money: refused before anything starts
   const startCash = s.cash;
@@ -94,7 +94,7 @@ export async function run(browser, check) {
   await advance(page, 1);
   s = await state(page);
   check('without the money the hawker is not even stopped: the list says how much is missing and nothing changes',
-    refused.open && /₦150 more/.test(refused.note || '') && s.cash === 100 && s.gala === before.gala && !s.me.scripted && !s.hawker.scripted, { note: refused.note });
+    refused.open && /₦400 more/.test(refused.note || '') && s.cash === 100 && s.gala === before.gala && !s.me.scripted && !s.hawker.scripted, { note: refused.note });
   await page.click('#vendor-sheet-close');
 
   // The money goes between asking and taking: no sale
@@ -238,8 +238,9 @@ export async function run(browser, check) {
       && barber.start.cash - barber.done.cash === 2500 && !barber.done.me.scripted, { pressed: barber.pressed.me, gesture: barber.gesture, paid: barber.start.cash - barber.done.cash });
 
   const pump = await useInStreet('fuel-station', { x: 2, z: 0 });
-  check('the petrol pump the same: reached for, then paid for once (₦8,500)',
-    pump.pressed.cash === pump.start.cash && !!pump.gesture && pump.gesture.ledger === pump.start.ledger && pump.start.cash - pump.done.cash === 8500, { gesture: pump.gesture, paid: pump.start.cash - pump.done.cash });
+  const pumpOpen = await page.evaluate(() => { const el = document.getElementById('pump-sheet'); const open = !!el && el.style.display !== 'none'; window.game.pumpSheet.close(); return open; });
+  check('the filling station: walked up to, the pump comes up with the vehicles to fill, and nothing is taken just for asking',
+    pump.pressed.cash === pump.start.cash && !!pump.gesture && pumpOpen && pump.start.cash === pump.done.cash, { gesture: pump.gesture, pumpOpen, paid: pump.start.cash - pump.done.cash });
 
   // A door is still a door: its card walks the player through it, with no gesture of this kind
   await page.evaluate(() => {

@@ -124,7 +124,7 @@ export async function run(browser, check) {
   await advance(page, 2);
   s = await snapshot(page);
   check('a dish the player cannot afford is refused with the reason, and nothing happens',
-    !!refused.note && /₦1,200 more/.test(refused.note) && refused.stillOpen && !s.order && s.cash === 1000 && s.foodBills === 0 && s.seatsTaken.length === 3 && !s.waiterDoing && !s.cookDoing,
+    !!refused.note && /₦2,000 more/.test(refused.note) && refused.stillOpen && !s.order && s.cash === 1000 && s.foodBills === 0 && s.seatsTaken.length === 3 && !s.waiterDoing && !s.cookDoing,
     { note: refused.note, order: s.order, cash: s.cash });
   await pressSteady(page, '#buka-menu-close');
   await setCash(page, startCash);
@@ -183,7 +183,7 @@ export async function run(browser, check) {
   }, 25);
   s = await snapshot(page);
   check('he sets it down at the player\'s place, and that is when they pay: once, the menu price',
-    served && served.onTable && !served.inHands && before.cash - s.cash === 1800 && s.foodBills === 1 && s.order.paid, { paid: before.cash - s.cash, bills: s.foodBills });
+    served && served.onTable && !served.inHands && before.cash - s.cash === 3500 && s.foodBills === 1 && s.order.paid, { paid: before.cash - s.cash, bills: s.foodBills });
   check('the player eats: the eating animation plays at the table', s.arms === 'eat' && s.legs === 'sit' && s.seated);
 
   // Hunger and the food on the plate change together, a mouthful at a time
@@ -210,7 +210,7 @@ export async function run(browser, check) {
   check('when the plate is clean the player stands, the seat is free again and the waiter clears the table',
     settled(s) && s.seatsTaken.length === 3, { order: s.order, doing: s.doing, waiter: s.waiterDoing, meals: s.meals, seats: s.seatsTaken.length });
   check('the whole meal was charged exactly once, and it filled the player up',
-    before.cash - s.cash === 1800 && s.foodBills === 1 && s.hunger - before.hunger > 45, { paid: before.cash - s.cash, bills: s.foodBills, hungerGain: +(s.hunger - before.hunger).toFixed(1) });
+    before.cash - s.cash === 3500 && s.foodBills === 1 && s.hunger - before.hunger > 45, { paid: before.cash - s.cash, bills: s.foodBills, hungerGain: +(s.hunger - before.hunger).toFixed(1) });
   const trail = await page.evaluate(() => window.__trail);
   check('everyone walked around the tables and the counter, never through them', trail.worst > 0.1 && trail.counter === 0, { closestToATable: +trail.worst.toFixed(2), who: trail.who, framesInsideCounter: trail.counter });
   check('eating at the buka counts for the "eat" quest objective', (await quest(page, 'quest_lagos_1')).obj.obj_l1_eat === true);
@@ -272,7 +272,7 @@ export async function run(browser, check) {
   await pressSteady(page, '#buka-order-stop');
   s = await untilSettled(page);
   check('standing up half-way keeps what was paid and eaten, and the table is cleared',
-    settled(s) && before.cash - s.cash === 2200 && s.foodBills === 2 && s.hunger > before.hunger, { settled: settled(s), paid: before.cash - s.cash, bills: s.foodBills, hungerGain: +(s.hunger - before.hunger).toFixed(1) });
+    settled(s) && before.cash - s.cash === 3000 && s.foodBills === 2 && s.hunger > before.hunger, { settled: settled(s), paid: before.cash - s.cash, bills: s.foodBills, hungerGain: +(s.hunger - before.hunger).toFixed(1) });
 
   // ------------------------------------------------------------------ Waving
   const wave = async (spot, clickSelector) => {
@@ -395,7 +395,7 @@ export async function run(browser, check) {
     };
   });
   check('closing the game mid-meal brings the player back at the buka door, charged once for that meal',
-    !resumed.inside && resumed.fromDoor < 1 && resumed.free && before.cash - resumed.cash === 1200 && resumed.bills === before.foodBills + 1, resumed);
+    !resumed.inside && resumed.fromDoor < 1 && resumed.free && before.cash - resumed.cash === 2000 && resumed.bills === before.foodBills + 1, resumed);
 
   // The plain enter/leave used by other shortcuts (Home, Map) still cleans up a meal in progress
   await enterInterior(page, 'restaurant');

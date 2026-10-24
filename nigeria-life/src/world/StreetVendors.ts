@@ -43,24 +43,24 @@ export const STREET_VENDORS: Record<string, StreetVendor> = {
     stall: 'Drinks & snacks, from the tray on his head',
     goods: [
       good('water_sachet', 'Chilled Pure Water Sachet', '💧', 100, 0xbae6fd, 'packet', 'Cold sachet water for the afternoon heat.', 'food', 15),
-      good('gala_snack', 'Beef Gala Sausage Roll', '🌭', 250, 0xb91c1c, 'packet', 'The legendary King of highway and street snacks.', 'food', 25),
+      good('gala_snack', 'Beef Gala Sausage Roll', '🌭', 500, 0xb91c1c, 'packet', 'The legendary King of highway and street snacks.', 'food', 25),
     ],
   },
   'suya-master': {
     name: 'Mallam Bisi',
     stall: 'Suya, hot off the grill',
     goods: [
-      good('suya_beef_wrap', 'Beef suya, wrapped', '🥩', 1500, 0x7c2d12, 'wrap', 'Peppered beef suya with onions, wrapped in paper to take away.', 'food', 35),
-      good('suya_chicken_wrap', 'Chicken suya, wrapped', '🍗', 2000, 0x9a3412, 'wrap', 'Chicken suya with yaji and tomatoes, wrapped to take away.', 'food', 40),
-      good('kilishi_pack', 'Kilishi', '🥓', 1000, 0x57260f, 'packet', 'Thin, dried, spiced beef. Keeps for the road.', 'food', 22),
+      good('suya_beef_wrap', 'Beef suya, wrapped', '🥩', 3000, 0x7c2d12, 'wrap', 'Peppered beef suya with onions, wrapped in paper to take away.', 'food', 35),
+      good('suya_chicken_wrap', 'Chicken suya, wrapped', '🍗', 4000, 0x9a3412, 'wrap', 'Chicken suya with yaji and tomatoes, wrapped to take away.', 'food', 40),
+      good('kilishi_pack', 'Kilishi', '🥓', 2500, 0x57260f, 'packet', 'Thin, dried, spiced beef. Keeps for the road.', 'food', 22),
     ],
   },
   'aunty-ankara': {
     name: 'Mama Nkechi',
     stall: 'Wax print and lace, by the six yards',
     goods: [
-      good('ankara_six_yards', 'Ankara, six yards', '🧵', 6000, 0xe11d48, 'bundle', 'Bright wax print, enough for a full outfit.', 'luxury'),
-      good('hollandais_wax', 'Hollandais wax, six yards', '👗', 18000, 0x7c3aed, 'bundle', 'Grade one wax for a wedding or an owambe.', 'luxury'),
+      good('ankara_six_yards', 'Ankara, six yards', '🧵', 18000, 0xe11d48, 'bundle', 'Bright wax print, enough for a full outfit.', 'luxury'),
+      good('hollandais_wax', 'Hollandais wax, six yards', '👗', 65000, 0x7c3aed, 'bundle', 'Grade one wax for a wedding or an owambe.', 'luxury'),
     ],
   },
 };
