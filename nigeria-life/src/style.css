@@ -9180,3 +9180,91 @@ body.ui-modal-open .buka-order-status {
   background: #16a34a;
   color: #ffffff;
 }
+
+/* =========================================
+   PHONES: cards, the place card and the on-screen controls do not cover each other
+   ========================================= */
+/* A card about something (the bed's choices, say) is above the place card, never behind it */
+.interaction-card {
+  z-index: var(--z-hud-active-interaction);
+}
+/* The stick and the action buttons are part of the HUD: dialogs and sheets go over them */
+#virtual-mobile-controls {
+  z-index: var(--z-hud-active-interaction);
+}
+@media (max-width: 700px) {
+  /* While a card or a dialog is open the stick and the buttons step aside, so a tap reaches the card */
+  body.ui-card-open #virtual-mobile-controls,
+  body.ui-modal-open #virtual-mobile-controls {
+    display: none !important;
+  }
+  /* And the place card gives the card the bottom of the screen */
+  body.ui-card-open .place-card {
+    display: none !important;
+  }
+  /* Inside a building the stick, the buttons, the prompt and the chat sit above the place card */
+  body[data-ui-mode="interior"] .v-joystick-base,
+  body[data-ui-mode="interior"] .v-actions-cluster {
+    bottom: var(--place-card-clear, 220px);
+  }
+  body[data-ui-mode="interior"] #street-chat-box,
+  body[data-ui-mode="interior"] #street-chat-box.chat-mobile-adapted {
+    bottom: calc(var(--place-card-clear, 220px) + 124px);
+  }
+  body[data-ui-mode="interior"] .hud-proximity-prompt {
+    bottom: calc(var(--place-card-clear, 220px) + 124px);
+  }
+}
+
+/* =========================================
+   PHONES: the map's header in rows that fit, and no stick over the map
+   ========================================= */
+@media (max-width: 700px) {
+  body[data-ui-mode="world-map"] #virtual-mobile-controls {
+    display: none !important;
+  }
+  .map-top-bar {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .map-city-badge {
+    padding: 6px 12px;
+  }
+  .map-city-badge .city-tagline,
+  .map-top-center .map-stat-pill {
+    display: none;
+  }
+  /* Search takes the second row, the whole width */
+  .map-top-center {
+    order: 3;
+    flex: 1 1 100%;
+    padding: 4px 8px;
+  }
+  .map-top-center .map-search {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* The cities, the names switch and the filters, then the districts: one row each, swiped sideways */
+  .map-city-tabs,
+  .map-district-strip {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    max-width: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-radius: 16px;
+  }
+  .map-city-tabs {
+    top: 104px;
+  }
+  .map-district-strip {
+    top: 152px;
+  }
+  .map-city-tabs::-webkit-scrollbar {
+    display: none;
+  }
+}

@@ -11,6 +11,8 @@
  */
 
 export class VirtualJoystick {
+  /** How many times the stick has been touched (for the device report to the game server) */
+  public touches = 0;
   private container: HTMLDivElement;
   private joystickBase: HTMLDivElement;
   private joystickThumb: HTMLDivElement;
@@ -110,6 +112,7 @@ export class VirtualJoystick {
         if (this.activeTouchId === null && e.changedTouches.length > 0) {
           const t = e.changedTouches[0];
           this.activeTouchId = t.identifier;
+          this.touches += 1;
           const rect = this.joystickBase.getBoundingClientRect();
           this.baseCenter = {
             x: rect.left + rect.width / 2,

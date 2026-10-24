@@ -92,6 +92,9 @@ registry.onCommit = (beforeText, afterText, req) => {
   }
   return { text: JSON.stringify(after) };
 };
+/** How the game runs on each player's device, as it last said (kept in memory only, for the admin page) */
+const devices = new Map<string, Record<string, unknown>>();
+
 /** Money requests from one account: plenty for play, too few to hammer the server */
 const moneyRate = new RateLimit(120, 60_000);
 
@@ -215,6 +218,14 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
   switch (`${req.method} ${url.pathname}`) {
     case 'GET /me':
       return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id) });
+    case 'POST /me/device': {
+      const keep = ['fps', 'quality', 'pixelRatio', 'deviceRatio', 'screen', 'touch', 'triangles', 'drawCalls', 'mode', 'walked', 'joystickTouches', 'agent'];
+      const report: Record<string, unknown> = { at: Date.now(), name: account.name };
+      for (const key of keep) if (key in body) report[key] = typeof body[key] === 'string' ? String(body[key]).slice(0, 160) : body[key];
+      devices.set(account.id, report);
+      console.log(`[device] ${account.name} ${report.screen} x${report.deviceRatio} ${report.fps} fps, ${report.quality} (pixels x${report.pixelRatio}), ${report.triangles} triangles, ${report.mode}, walked ${report.walked} m, stick touched ${report.joystickTouches}`);
+      return reply(res, 200, { ok: true });
+    }
     case 'POST /me/registry': {
       const bound = accounts.bindRegistry(account, body.id);
       return reply(res, bound.ok ? 200 : 409, bound);
@@ -263,6 +274,8 @@ async function admin(req: http.IncomingMessage, res: http.ServerResponse, url: U
   switch (`${req.method} ${url.pathname}`) {
     case 'GET /admin/stats':
       return reply(res, 200, { ok: true, online: rooms.online(), accounts: accounts.counts(), economy: economy.totals() });
+    case 'GET /admin/devices':
+      return reply(res, 200, { ok: true, devices: Array.from(devices, ([id, d]) => ({ id, ...d }) as Record<string, unknown>).filter((d) => Date.now() - Number(d.at) < 10 * 60_000) });
     case 'GET /admin/reports':
       return reply(res, 200, { ok: true, reports: db.prepare('SELECT * FROM reports ORDER BY id DESC LIMIT 100').all() });
     case 'GET /admin/ledger':

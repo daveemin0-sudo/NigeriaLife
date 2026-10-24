@@ -77,6 +77,16 @@ export class PlaceCard {
     this.el.style.display = 'none';
     document.body.appendChild(this.el);
 
+    // How far up the screen the card reaches, so on a phone the stick, the buttons and the chat
+    // can sit above it instead of on top of its buttons (style.css, --place-card-clear)
+    const publish = () => {
+      const shown = this.el.style.display !== 'none';
+      const top = shown ? window.innerHeight - this.el.getBoundingClientRect().top : 0;
+      document.documentElement.style.setProperty('--place-card-clear', `${Math.ceil(top) + 10}px`);
+    };
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(publish).observe(this.el);
+    window.addEventListener('resize', publish);
+
     UIStateManager.getInstance().onModeChange((mode) => {
       if (mode === 'interior') {
         this.render();

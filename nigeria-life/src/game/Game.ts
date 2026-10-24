@@ -133,6 +133,8 @@ export class Game {
   private frameCount: number = 0;
   private fpsTimer: number = 0;
   private currentFPS: number = 60;
+  /** Frames drawn since the game started, counted by the wall clock (the device report's frame rate) */
+  private framesDrawn = 0;
   private lastAutosaveAt: number = performance.now();
   private onJourneyCompleted: (() => void) | null = null;
 
@@ -529,6 +531,44 @@ export class Game {
       online.on('wallet', (wallet) => backend.applyServerWallet(wallet));
       online.on('notice', (text) => showGameToast(String(text), 'warning', 5200));
       ServerLink.authorization = () => online.authorization;
+      // Every 20 s, how the game is running on this device (frame rate, screen, quality, whether
+      // the player could move), so the game team can see what a real phone does. Nothing personal.
+      let lastAt = this.player.position.clone();
+      let walked = 0;
+      let lastTouches = 0;
+      let lastFrames = 0;
+      let lastReport = performance.now();
+      setInterval(() => {
+        const here = this.player.position;
+        walked += Math.hypot(here.x - lastAt.x, here.z - lastAt.z);
+        lastAt = here.clone();
+      }, 1000);
+      setInterval(() => {
+        // Not before the player is signed in (a slow phone can take a while)
+        if (!online.authorization || !online.connected) return;
+        const joystick = this.input.virtualJoystick;
+        const info = this.renderer.info.render;
+        const now = performance.now();
+        const fps = (this.framesDrawn - lastFrames) / ((now - lastReport) / 1000);
+        lastFrames = this.framesDrawn;
+        lastReport = now;
+        void online.request('/me/device', {
+          fps: Math.round(fps * 10) / 10,
+          quality: this.graphics?.level,
+          pixelRatio: this.renderer.getPixelRatio(),
+          deviceRatio: window.devicePixelRatio,
+          screen: `${window.innerWidth}x${window.innerHeight}`,
+          touch: joystick.isVisible,
+          triangles: info.triangles,
+          drawCalls: info.calls,
+          mode: document.body.dataset.uiMode ?? '',
+          walked: Math.round(walked),
+          joystickTouches: joystick.touches - lastTouches,
+          agent: navigator.userAgent.slice(0, 160),
+        });
+        walked = 0;
+        lastTouches = joystick.touches;
+      }, 20_000);
       Registry.onRefused = () => online.resync();
       online.on('signed-in', (event) => showGameToast(event.upgraded ? 'Your progress is kept on your email address now.' : `Signed in as ${event.account.name}.`, 'success'));
     }
@@ -1483,6 +1523,7 @@ export class Game {
     }
 
     // Performance Diagnostics Calculation
+    this.framesDrawn++;
     this.frameCount++;
     this.fpsTimer += delta;
     if (this.fpsTimer >= 0.5) {

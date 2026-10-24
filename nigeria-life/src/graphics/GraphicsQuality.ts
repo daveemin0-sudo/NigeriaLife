@@ -10,8 +10,8 @@ export type Quality = 'high' | 'balanced' | 'low';
 
 interface Level {
   label: string;
-  /** Most pixels drawn per screen pixel */
-  pixelRatio: number;
+  /** Pixels drawn per screen point, from the screen's own density */
+  pixelRatio: (deviceRatio: number) => number;
   shadows: boolean;
   shadowMapSize: number;
   /** Pedestrians drawn at all within this, in full within crowdNear, metres */
@@ -20,9 +20,10 @@ interface Level {
 }
 
 export const QUALITY_LEVELS: Record<Quality, Level> = {
-  high: { label: 'High', pixelRatio: 2, shadows: true, shadowMapSize: 1536, crowdDraw: 90, crowdNear: 22 },
-  balanced: { label: 'Balanced', pixelRatio: 1, shadows: true, shadowMapSize: 1024, crowdDraw: 70, crowdNear: 14 },
-  low: { label: 'Low', pixelRatio: 0.75, shadows: false, shadowMapSize: 512, crowdDraw: 50, crowdNear: 8 },
+  high: { label: 'High', pixelRatio: (d) => Math.min(d, 2), shadows: true, shadowMapSize: 1536, crowdDraw: 90, crowdNear: 22 },
+  balanced: { label: 'Balanced', pixelRatio: (d) => Math.min(d, 1.5), shadows: true, shadowMapSize: 1024, crowdDraw: 70, crowdNear: 14 },
+  // On a phone's dense screen fewer than one pixel per point is a blur; on an ordinary monitor 0.75 is the saving that counts
+  low: { label: 'Low', pixelRatio: (d) => (d >= 1.5 ? 1 : 0.75), shadows: false, shadowMapSize: 512, crowdDraw: 50, crowdNear: 8 },
 };
 
 const ORDER: Quality[] = ['high', 'balanced', 'low'];
@@ -87,7 +88,7 @@ export class GraphicsQuality {
     const l = QUALITY_LEVELS[level];
     const { renderer, sun, scene, crowd } = this.targets;
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, l.pixelRatio));
+    renderer.setPixelRatio(l.pixelRatio(window.devicePixelRatio || 1));
     this.targets.resized?.();
 
     // Turning shadows on or off changes every lit material's shader, so only touch them on a change

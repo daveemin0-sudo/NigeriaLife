@@ -44,6 +44,11 @@
   <div id="player" class="muted"></div>
 </section>
 <section>
+  <h2>Devices playing now</h2>
+  <p class="muted">How the game runs on each player's device, as it reported in the last ten minutes (every 20 s).</p>
+  <table id="devices"></table>
+</section>
+<section>
   <h2>Money waiting to be checked</h2>
   <p class="muted">Earnings the game reported above the limit for unchecked money. Release pays it once.</p>
   <table id="held"></table>
@@ -81,6 +86,8 @@
         <div class="stat"><b>${naira(s.economy.lastHour.earned)}</b>earned in the last hour<div class="muted">${naira(s.economy.lastHour.spent)} spent</div></div>
         <div class="stat">instances<div class="muted">${instances}</div></div>`;
       $('alerts').innerHTML = '<tr><th>When</th><th>Account</th><th>Kind</th><th>Detail</th></tr>' + s.economy.alerts.map((a) => `<tr><td>${when(a.at)}</td><td>${esc(a.account_id)}</td><td>${esc(a.kind)}</td><td>${esc(a.detail)}</td></tr>`).join('');
+      const dv = await call('/admin/devices');
+      $('devices').innerHTML = '<tr><th>Player</th><th>Frames a second</th><th>Graphics</th><th>Screen</th><th>Triangles</th><th>Where</th><th>Walked / stick</th><th>Device</th></tr>' + dv.devices.map((d) => `<tr><td>${esc(d.name)}</td><td>${esc(d.fps)}</td><td>${esc(d.quality)} (x${esc(d.pixelRatio)})</td><td>${esc(d.screen)} x${esc(d.deviceRatio)}</td><td>${Number(d.triangles || 0).toLocaleString()}</td><td>${esc(d.mode)}</td><td>${esc(d.walked)} m / ${esc(d.joystickTouches)}</td><td class="muted">${esc(d.agent)}</td></tr>`).join('');
       const h = await call('/admin/held');
       $('held').innerHTML = '<tr><th>When</th><th>Account</th><th>Amount</th><th>Why</th><th></th></tr>' + h.held.map((x) => `<tr><td>${when(x.at)}</td><td>${esc(x.account_id)}</td><td>${naira(x.amount)}</td><td>${esc(String(x.memo).replace(/^\S+ /, ''))}</td><td><button data-held="${x.id}" data-release="1">Release</button> <button class="bad" data-held="${x.id}" data-release="0">Refuse</button></td></tr>`).join('');
       for (const btn of document.querySelectorAll('[data-held]')) btn.onclick = async () => { await call('/admin/held', { held: Number(btn.dataset.held), release: btn.dataset.release === '1' }); load(); };
