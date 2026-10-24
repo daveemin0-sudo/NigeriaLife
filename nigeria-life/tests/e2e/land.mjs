@@ -4,7 +4,7 @@ import { wait, newPlayer, advance, closeDialogs, money, GAME_URL } from './lib.m
 
 const PHONE = '#smartphone-wrapper';
 
-async function join(ctx, player, cash = 60_000_000) {
+async function join(ctx, player, cash = 6_000_000_000) {
   const page = await ctx.newPage();
   await page.setViewport({ width: 1366, height: 768 });
   const errors = [];
@@ -318,10 +318,10 @@ export async function run(browser, check) {
   let p3 = await until(a, (id) => (window.game.land.status(id) === 'listed' ? { status: window.game.land.status(id), owner: window.game.land.ownerOf(id) } : null), P3);
   check('if the buyer cannot pay when the seller accepts, the sale falls through: no money moves, the seller keeps the land and it is back on the market',
     fell && /does not cover/.test(fell) && a1.total === a0.total && b1.total === b0.total && p3 && p3.owner === idA && p3.status === 'listed', { fell, p3 });
-  await b.evaluate(() => { const bk = window.game.hud.backend; bk.data.bank.balance = 40000000; bk.saveData(); });
+  await b.evaluate(() => { const bk = window.game.hud.backend; bk.data.bank.balance = 4_000_000_000; bk.saveData(); });
 
   // ------------------------------------------------------------------ Two buyers bidding: only one sale
-  const C = await join(ctx, 'ada', 30_000_000);
+  const C = await join(ctx, 'ada', 3_000_000_000);
   const c = C.page;
   const idC = await me(c);
   await until(c, (id) => (window.game.land.status(id) === 'listed' ? true : null), P3);
@@ -427,7 +427,7 @@ export async function run(browser, check) {
   check('a click on the plot moves the preview there, and does not send the character walking',
     moved.placing.blocked === null && Math.abs(moved.placing.x - (rules.plot.cx + 1)) < 1.5 && Math.hypot(moved.x - stood.x, moved.z - stood.z) < 0.05 && !moved.moving, { spot, moved: moved.placing });
 
-  const duplexCost = 1_200_000;
+  const duplexCost = 150_000_000;
   await a.evaluate(() => { const btn = document.getElementById('build-bar-confirm'); btn.click(); btn.click(); });
   await until(a, (id) => (window.game.land.building(id) ? true : null), P4);
   // The bar goes once the sale is written down, which is a moment after the registry shows it
@@ -507,7 +507,7 @@ export async function run(browser, check) {
   const stopped = await a.evaluate((id) => window.game.land.cancelBuilding(id), P5);
   a1 = await money(a);
   check('stopping work part-way clears the site and pays back half of the cost of the work not yet done',
-    stopped.ok && stopped.refund === 75_000 && a1.total - a0.total === stopped.refund && (await a.evaluate((id) => window.game.land.building(id), P5)) === null, stopped);
+    stopped.ok && stopped.refund === 2_000_000 && a1.total - a0.total === stopped.refund && (await a.evaluate((id) => window.game.land.building(id), P5)) === null, stopped);
 
   await a.evaluate((c) => window.game.land.startBuilding(c.id, 'shop', c.x, c.z, 0), { id: P5, ...shopAt });
   await age(a, P5, 6.5);
@@ -519,7 +519,7 @@ export async function run(browser, check) {
   const againCollect = await a.evaluate((id) => window.game.land.collect(id), P5);
   a1 = await money(a);
   check('a finished shop takes money each game day, less its upkeep; the owner collects it once',
-    due >= 7000 && due <= 8000 && got.ok && got.amount >= due && a1.bank - a0.bank === got.amount && (!againCollect.ok || againCollect.amount < 500), { due, got, againCollect });
+    due >= 195_000 && due <= 205_000 && got.ok && got.amount >= due && a1.bank - a0.bank === got.amount && (!againCollect.ok || againCollect.amount < 15_000), { due, got, againCollect });
   const notMine = await b.evaluate((id) => window.game.land.collect(id), P5);
   check('nobody but the owner can collect a building\'s takings', !notMine.ok, notMine);
 
@@ -596,7 +596,7 @@ export async function run(browser, check) {
   const down = await a.evaluate((id) => window.game.land.demolish(id), P5);
   a1 = await money(a);
   check('pulling down a finished building costs a tenth of its price and leaves the plot empty and still owned',
-    down.ok && a0.total - a1.total === 30_000 && (await plotState(a, P5)).status === 'owned', { down, paid: a0.total - a1.total });
+    down.ok && a0.total - a1.total === 800_000 && (await plotState(a, P5)).status === 'owned', { down, paid: a0.total - a1.total });
 
   // ------------------------------------------------------------------ Vehicles
   await a.bringToFront();
@@ -611,7 +611,7 @@ export async function run(browser, check) {
   a1 = await money(a);
   const car = await a.evaluate(() => { const g = window.game; const mine = g.garage.mine(); return { count: mine.length, record: mine[0], owner: mine[0] ? g.garage.ownerOf(mine[0].id) : null, out: mine[0] ? g.ownedVehicles.isOut(mine[0].id) : null }; });
   check('a new vehicle from the dealer is paid for once and registered to the buyer, with a plate, no mileage and full condition',
-    noCars && a0.total - a1.total === 280_000 && car.count === 1 && car.owner === idA && car.record.mileage === 0 && car.record.condition === 100 && /^LAG-\d{3}-[A-Z]{2}$/.test(car.record.plate), { paid: a0.total - a1.total, car });
+    noCars && a0.total - a1.total === 1_850_000 && car.count === 1 && car.owner === idA && car.record.mileage === 0 && car.record.condition === 100 && /^LAG-\d{3}-[A-Z]{2}$/.test(car.record.plate), { paid: a0.total - a1.total, car });
 
   await openApp(a, 'garage', `car:${car.record.id}`);
   await tap(a, '#garage-bring');
@@ -696,8 +696,8 @@ export async function run(browser, check) {
 
   // ------------------------------------------------------------------ Homes and businesses bought outright
   const HOME = 'prop_mainland_room';
-  await a.evaluate(() => { const bk = window.game.hud.backend; bk.data.bank.balance = 30000000; bk.saveData(); });
-  await b.evaluate(() => { const bk = window.game.hud.backend; bk.data.bank.balance = 30000000; bk.saveData(); });
+  await a.evaluate(() => { const bk = window.game.hud.backend; bk.data.bank.balance = 3_000_000_000; bk.saveData(); });
+  await b.evaluate(() => { const bk = window.game.hud.backend; bk.data.bank.balance = 3_000_000_000; bk.saveData(); });
   const homePrice = await a.evaluate((id) => window.game.hud.backend.deedPrice('property', id), HOME);
   a0 = await money(a);
   const boughtHome = await a.evaluate((id) => window.game.hud.backend.buyProperty(id), HOME);

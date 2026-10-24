@@ -1,3 +1,4 @@
+import { applyRealPrices } from './RealPrices';
 import {
   type PlayerAccount,
   type Item,
@@ -30,7 +31,7 @@ type Raw = Record<string, any>;
 const isRecord = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 export function createFreshAccount(): PlayerAccount {
-  return structuredClone(INITIAL_PLAYER_DATA);
+  return applyRealPrices(structuredClone(INITIAL_PLAYER_DATA));
 }
 
 /**
@@ -288,5 +289,5 @@ export function parseSavedAccount(json: string): LoadedAccount | null {
 
   const repaired: string[] = [];
   const account = sanitizeAccount(parsed, repaired);
-  return { account, repaired, savedVersion };
+  return { account: applyRealPrices(account), repaired, savedVersion };
 }

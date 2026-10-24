@@ -342,3 +342,30 @@ export const CAR_SPECS: Record<string, Omit<CarSpec, 'paint'> & { paint?: number
     tumblehome: 0.04, roundness: 0.12, grille: 'black', lamps: 'round', spare: true, flares: true, paint: 0x2a2b2f,
   },
 };
+
+// ------------------------------------------------------------------------------------------
+// More shapes, for the dealers' full ranges. Each is a variation on the six above.
+// ------------------------------------------------------------------------------------------
+const S = CAR_SPECS;
+Object.assign(CAR_SPECS, {
+  // Saloons
+  corolla_2008: { ...S.sedan, length: 4.55, roof: 1.5, belt: 1.0, roundness: 0.55, tumblehome: 0.12, lamps: 'square', paint: 0xb91c1c },
+  corolla_2020: { ...S.sedan, length: 4.63, roof: 1.44, noseTop: 0.78, roundness: 0.8, lamps: 'slim', grille: 'black', paint: 0xf8fafc },
+  camry: { ...S.sedan, length: 4.88, width: 1.84, roof: 1.45, screenFoot: 1.0, backFoot: -1.6, frontAxle: 1.45, rearAxle: -1.38, roundness: 0.7, paint: 0x1e3a8a },
+  accord: { ...S.sedan, length: 4.9, width: 1.86, roof: 1.43, screenTop: 0.1, backTop: -0.75, backFoot: -1.7, roundness: 0.85, grille: 'black', paint: 0x6b7280 },
+  // Executive and fastback
+  panamera: { ...S.electric_car, length: 5.05, roof: 1.4, grille: 'mesh', lamps: 'slim', tailBar: true, paint: 0x334155 },
+  bmw_7: { ...S.luxury_sedan, length: 5.25, grille: 'chrome', lamps: 'slim', paint: 0x0f172a },
+  // SUVs
+  lexus_rx: { ...S.suv, length: 4.9, roof: 1.72, belt: 1.12, backTop: -1.85, backFoot: -2.2, tumblehome: 0.14, roundness: 0.7, spare: false, flares: false, lamps: 'slim', grille: 'mesh', paint: 0xe5e7eb },
+  highlander: { ...S.suv, length: 4.95, roof: 1.76, spare: false, flares: false, roundness: 0.6, lamps: 'slim', paint: 0x78350f },
+  range_rover: { ...S.suv, length: 5.0, width: 2.0, roof: 1.87, belt: 1.2, tumblehome: 0.06, roundness: 0.35, spare: false, flares: false, lamps: 'slim', grille: 'black', blackRoof: true, paint: 0x14532d },
+  cayenne: { ...S.suv, length: 4.93, width: 1.98, roof: 1.7, belt: 1.1, backTop: -1.7, backFoot: -2.25, tumblehome: 0.16, roundness: 0.85, spare: false, flares: false, lamps: 'slim', grille: 'mesh', paint: 0x9ca3af },
+  urus: { ...S.suv, length: 5.11, width: 2.02, clearance: 0.24, roof: 1.64, belt: 1.05, noseTop: 0.9, screenFoot: 1.15, screenTop: 0.15, backTop: -1.4, backFoot: -2.3, tumblehome: 0.2, roundness: 0.9, spare: false, flares: false, lamps: 'slim', grille: 'mesh', paint: 0xeab308 },
+  cullinan: { ...S.gwagon, length: 5.34, width: 2.0, roof: 1.84, belt: 1.25, screenFoot: 1.15, screenTop: 0.7, backTop: -2.45, backFoot: -2.55, frontAxle: 1.7, rearAxle: -1.6, roundness: 0.25, spare: false, flares: false, grille: 'chrome', lamps: 'square', paint: 0x1f2937 },
+  // Sports and super cars
+  porsche_911: { ...S.sports_car, wing: false, length: 4.52, roof: 1.3, roundness: 1, paint: 0xf8fafc },
+  huracan: { ...S.sports_car, wing: false, length: 4.52, width: 1.93, roof: 1.16, belt: 0.74, noseTop: 0.55, tailTop: 0.82, screenFoot: 1.0, screenTop: -0.05, backTop: -0.75, backFoot: -1.85, roundness: 0.45, tumblehome: 0.26, lamps: 'slim', grille: 'mesh', paint: 0x84cc16 },
+  aventador: { ...S.sports_car, wing: true, length: 4.8, width: 2.03, roof: 1.14, belt: 0.72, noseTop: 0.52, tailTop: 0.85, screenFoot: 1.15, screenTop: 0.05, backTop: -0.8, backFoot: -2.0, frontAxle: 1.45, rearAxle: -1.3, roundness: 0.35, tumblehome: 0.28, lamps: 'slim', grille: 'mesh', paint: 0xf97316 },
+  chiron: { ...S.sports_car, wing: false, length: 4.54, width: 2.04, roof: 1.21, belt: 0.78, noseTop: 0.6, tailTop: 0.9, screenFoot: 0.95, screenTop: 0.0, backTop: -0.7, backFoot: -1.8, roundness: 1, tumblehome: 0.24, lamps: 'slim', grille: 'chrome', tailBar: true, blackRoof: true, paint: 0x1d4ed8 },
+} as Record<string, Omit<CarSpec, 'paint'> & { paint?: number }>);

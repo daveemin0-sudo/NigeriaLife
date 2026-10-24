@@ -66,7 +66,7 @@ export async function run(browser, check) {
   check('the HUD shows no NaN/undefined', r.hudHasNaN === false);
   const rPerCycle = r.biz.baseIncomePerCycle + r.biz.upgrades.filter((u) => u.purchased).reduce((a, u) => a + u.bonusIncomePerCycle, 0);
   check('valid parts of a damaged save are kept (business still owned, its broken takings reset to nothing, price taken from code)',
-    r.biz.owned === true && earnedSince(r.biz.pendingRevenue, 0, rPerCycle) && r.biz.purchasePrice === 180000,
+    r.biz.owned === true && earnedSince(r.biz.pendingRevenue, 0, rPerCycle) && r.biz.purchasePrice === 8_000_000,
     { owned: r.biz.owned, pendingRevenue: r.biz.pendingRevenue, purchasePrice: r.biz.purchasePrice });
   check('the player is told, and the original save is backed up', !!r.notice && r.backup, { notice: r.notice });
   check('damaged save: no console errors', log.errors.length === 0, log.errors.slice(0, 5));
@@ -181,13 +181,14 @@ export async function run(browser, check) {
   check('a tab-to-tab transfer neither creates nor destroys money', sent.success && afterTransfer[0] === start + 1000 && afterTransfer[1] === start + 1000, { expected: start + 1000, afterTransfer });
 
   // An owned business must pay one cycle once, not once per open tab
-  await A.evaluate(() => { const be = window.game.hud.backend; be.data.bank.balance += 500000; be.buyBusiness('biz_mama_put'); });
+  await A.evaluate(() => { const be = window.game.hud.backend; be.data.bank.balance += 50_000_000; be.buyBusiness('biz_mama_put'); });
   await wait(600);
   await A.evaluate(() => { const be = window.game.hud.backend; be.data.lastRevenueAt = Date.now() - 46000; be.saveData(); });
   await wait(6500);
   const pending = (p) => p.evaluate(() => window.game.hud.backend.getData().businesses.find((x) => x.id === 'biz_mama_put').pendingRevenue);
   const revenue = [await pending(A), await pending(B)];
-  check('one business cycle is paid once across two tabs', revenue[0] === 12000 && revenue[1] === 12000, { revenue, onePayout: 12000 });
+  const onePayout = await A.evaluate(() => window.game.hud.backend.getData().businesses.find((x) => x.id === 'biz_mama_put').baseIncomePerCycle);
+  check('one business cycle is paid once across two tabs', revenue[0] === onePayout && revenue[1] === onePayout, { revenue, onePayout });
 
   const { page: C } = await open(ctx);
   check('a newly opened tab loads the state both tabs agree on', (await money(C)).total === (await money(A)).total);

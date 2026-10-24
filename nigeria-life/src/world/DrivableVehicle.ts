@@ -44,6 +44,10 @@ export interface VehicleConfig {
   turnSpeed: number;
   friction: number;
   hornText: string;
+  /** The body to build it with (a CarBodyKit shape), when it differs from its type's own */
+  body?: string;
+  /** Its paint colour */
+  paint?: number;
 }
 
 export class DrivableVehicle {
@@ -147,7 +151,7 @@ export class DrivableVehicle {
     this.mesh.rotation.y = initialRotY;
 
     // Build the 3D vehicle model: cars from the car-body kit, the rest by hand
-    if (CAR_SPECS[this.type]) {
+    if (CAR_SPECS[config.body ?? this.type]) {
       this.buildFromKit();
     } else if (this.type === 'danfo') {
       this.buildDanfo();
@@ -254,8 +258,8 @@ export class DrivableVehicle {
    */
   /** A car with a shaped body (see CarBodyKit) on four wheels that turn and steer */
   private buildFromKit(): void {
-    const base = CAR_SPECS[this.type];
-    const spec: CarSpec = { ...base, paint: base.paint ?? 0x9ca3af };
+    const base = CAR_SPECS[this.config.body ?? this.type];
+    const spec: CarSpec = { ...base, paint: this.config.paint ?? base.paint ?? 0x9ca3af };
     this.mesh.add(buildCarBody(spec));
     for (const [z, front] of [[spec.frontAxle, true], [spec.rearAxle, false]] as Array<[number, boolean]>) {
       for (const side of [-1, 1]) {

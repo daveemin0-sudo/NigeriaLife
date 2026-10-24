@@ -48,7 +48,7 @@ export async function run(browser, check) {
   await closeDialogs(page);
 
   // Buy a motorbike at the dealer on the phone, with enough in the bank
-  await page.evaluate(() => { const bk = window.game.hud.backend; bk.data.bank.balance += 500000; bk.saveData(); });
+  await page.evaluate(() => { const bk = window.game.hud.backend; bk.data.bank.balance += 50_000_000; bk.saveData(); });
   await openApp(page, 'garage');
   await tap(page, '[data-set="garage.tab"][data-value="dealer"]');
   await tap(page, '[data-model="okada"]');

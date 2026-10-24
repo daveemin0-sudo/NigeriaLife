@@ -72,7 +72,7 @@ export class Wayfinder {
   /** What stands in the city: a straightened line is checked against it exactly, not only square by square */
   private readonly solids: Solids;
 
-  constructor(solids: Solids, zones: Zone[]) {
+  constructor(solids: Solids, zones: Zone[], closed: ReadonlyArray<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
     this.solids = solids;
     for (const solid of solids.all) {
       const isSmall = (solid.maxX - solid.minX < 0.9) && (solid.maxZ - solid.minZ < 0.9);
@@ -84,6 +84,11 @@ export class Wayfinder {
     // A carriageway that crosses a pavement is a carriageway there: the pavement gives way to the junction
     for (const zone of zones) if (zone.kind === 'walkway') this.fill(this.kind, zone.minX, zone.maxX, zone.minZ, zone.maxZ, PAVEMENT);
     for (const zone of zones) if (zone.kind === 'carriageway') this.fill(this.kind, zone.minX, zone.maxX, zone.minZ, zone.maxZ, ROAD);
+    // Roads nobody may walk across (an expressway away from its crossings): no way goes over them
+    for (const rect of closed) {
+      this.fill(this.walk, rect.minX, rect.maxX, rect.minZ, rect.maxZ, 0);
+      this.fill(this.open, rect.minX, rect.maxX, rect.minZ, rect.maxZ, 0);
+    }
     this.findParts();
   }
 

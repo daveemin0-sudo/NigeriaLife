@@ -98,10 +98,8 @@ export const STATE_NAME: Record<PlotCity, string> = {
 export const CITY_NAME: Record<PlotCity, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
 
 /**
- * What land costs, in the game's own money, for each square metre of plot.
- *
- * These are prices in NigeriaLife's economy, set against what a shift of work pays and what
- * a business earns in the game. They are not valuations of real land. The order between
+ * What land costs, in naira, for each square metre of plot: close to what land sells for in
+ * these neighbourhoods in 2025, so a plot on Banana Island costs what it does. The order between
  * neighbourhoods follows the cities as people know them: the islands and the diplomatic
  * quarters dear, the mainland and the outskirts cheaper. Change a figure here and every
  * price follows.
@@ -110,36 +108,36 @@ export const CITY_NAME: Record<PlotCity, string> = { lagos: 'Lagos', abuja: 'Abu
  */
 export const LAND_PRICE_PER_SQM: Record<string, number> = {
   // Lagos
-  banana_island: 90_000,
-  eko_atlantic: 45_000,
-  victoria_island: 32_000,
-  lekki: 24_000,
-  lagos_island: 20_000,
-  ikeja: 12_000,
-  yaba: 11_000,
-  surulere: 9_000,
-  mainland: 8_000,
-  airport: 7_000,
-  port_apapa: 6_500,
-  ajah: 5_000,
+  banana_island: 2_500_000,
+  eko_atlantic: 1_400_000,
+  victoria_island: 1_000_000,
+  lagos_island: 650_000,
+  lekki: 550_000,
+  ikeja: 400_000,
+  airport: 380_000,
+  yaba: 300_000,
+  surulere: 240_000,
+  port_apapa: 260_000,
+  mainland: 160_000,
+  ajah: 130_000,
   // Abuja
-  maitama: 30_000,
-  asokoro: 28_000,
-  cbd_abuja: 22_000,
-  wuse: 15_000,
-  garki: 12_000,
-  jabi: 11_000,
-  gwarinpa: 7_000,
-  airport_abuja: 6_000,
+  maitama: 1_100_000,
+  asokoro: 1_000_000,
+  cbd_abuja: 800_000,
+  wuse: 550_000,
+  garki: 450_000,
+  jabi: 420_000,
+  gwarinpa: 180_000,
+  airport_abuja: 140_000,
   // Port Harcourt
-  old_gra: 14_000,
-  d_line: 10_000,
-  trans_amadi: 9_000,
-  township: 6_000,
-  choba_uniport: 5_000,
-  airport_ph: 4_500,
+  old_gra: 350_000,
+  d_line: 250_000,
+  trans_amadi: 230_000,
+  township: 140_000,
+  choba_uniport: 90_000,
+  airport_ph: 70_000,
 };
-export const DEFAULT_LAND_PRICE_PER_SQM = 8_000;
+export const DEFAULT_LAND_PRICE_PER_SQM = 160_000;
 
 /** Land the law lets businesses use is worth a little more than land for homes only. */
 export const COMMERCIAL_PREMIUM = 1.15;

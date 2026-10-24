@@ -10077,3 +10077,18 @@ body[data-ui-mode="driving"] .music-fab {
 canvas {
   touch-action: none;
 }
+
+/* Phones: the map's Names switch is its own button, always in reach (it was at the far end of a row that scrolls) */
+@media (max-width: 700px) {
+  #btn-map-names {
+    position: fixed;
+    right: 14px;
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    z-index: 30;
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 999px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    font: 700 13px var(--nl-font);
+  }
+}

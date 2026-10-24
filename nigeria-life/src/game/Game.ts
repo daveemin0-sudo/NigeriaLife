@@ -59,6 +59,7 @@ import { Bodies, bodyOf, type CarBody } from '../world/Bodies';
 import { MusicSheet } from '../ui/MusicSheet';
 import { DriveControls } from '../ui/DriveControls';
 import { StreetAmbience } from '../audio/StreetAmbience';
+import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD } from '../world/density/StreetLayout';
 import { ResidentialInterior } from '../interiors/templates/ResidentialInterior';
 import { standardOf } from '../housing/HomeStandard';
 import { Television } from '../housing/Television';
@@ -73,6 +74,12 @@ import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
+
+/** Broad Street's carriageway, away from the crossings at the Martins Street junction: not to be walked onto */
+const NO_CROSSING = [
+  { minX: -MAIN_ROAD.halfRoad + 0.2, maxX: MAIN_ROAD.halfRoad - 0.2, minZ: MAIN_ROAD.zMin, maxZ: CROSS_STREET_Z - 9 },
+  { minX: -MAIN_ROAD.halfRoad + 0.2, maxX: MAIN_ROAD.halfRoad - 0.2, minZ: CROSS_STREET_Z + 9, maxZ: MAIN_ROAD.zMax },
+];
 
 export class Game {
   public scene: THREE.Scene;
@@ -832,6 +839,18 @@ export class Game {
     });
     DrivableVehicle.solids = () => this.solidsHere();
     this.cameraManager.blocked = (x, z) => this.solidsHere()?.at(x, z, 0.4) ?? false;
+    // Broad Street is crossed on foot at the junction's zebra crossings or over the footbridge, nowhere else
+    let toldAt = 0;
+    this.player.mayNotStep = (fromX, fromZ, toX, toZ) => {
+      if (this.player.isDriving || this.world.cityManager.currentCityId !== 'lagos' || this.world.interiorManager.isPlayerInside()) return false;
+      const barred = (x: number, z: number) => NO_CROSSING.some((r) => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ);
+      if (!barred(toX, toZ) || barred(fromX, fromZ)) return false;
+      if (performance.now() - toldAt > 4000) {
+        toldAt = performance.now();
+        showGameToast('🚦 Lagos drivers no dey slow! Use the pedestrian bridge, or the zebra crossing at the junction.', 'warning', 3600);
+      }
+      return true;
+    };
     DrivableVehicle.loadSettings();
     this.graphics = new GraphicsQuality({
       renderer: this.renderer,
@@ -1039,7 +1058,7 @@ export class Game {
     const city = this.world.cityManager.currentCityId;
     let ways = this.waysByCity.get(city);
     if (!ways) {
-      ways = new Wayfinder(city === 'lagos' ? new Solids([...this.standingIn(city), ...this.world.streetLamps(), ...this.parkedCars()]) : solids, zonesFor(city));
+      ways = new Wayfinder(city === 'lagos' ? new Solids([...this.standingIn(city), ...this.world.streetLamps(), ...this.parkedCars()]) : solids, zonesFor(city), city === 'lagos' ? NO_CROSSING : []);
       this.waysByCity.set(city, ways);
     }
     return ways;
@@ -1534,6 +1553,8 @@ export class Game {
       const outside = !this.world.interiorManager.isPlayerInside() && this.hud.currentNavMode !== 'map';
       StreetAmbience.get().update(0.5, {
         outside,
+        // Broad Street and its pavements, or wherever there is traffic near
+        onMainRoad: outside && ((this.world.cityManager.currentCityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3) || Bodies.carsNear(at.x, at.z, 25).length >= 6),
         driving: this.player.isDriving,
         people: outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0,
         cars: outside ? Bodies.carsNear(at.x, at.z, 30).length : 0,

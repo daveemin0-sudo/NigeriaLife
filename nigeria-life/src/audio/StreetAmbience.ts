@@ -7,28 +7,39 @@ import { SoundEngine } from './SoundEngine';
  * own speech, said in a Nigerian voice where the phone has one.
  */
 
-const CALLS = [
-  'Oshodi! Oshodi! Oshodi!',
-  'Ojuelegba, enter with your change!',
-  'Obalende! CMS! Enter quick quick!',
-  'Pure water! Buy your pure water!',
-  'Gala! Gala! Buy your Gala!',
-  'Oga, abeg shift small!',
-  'Driver, park well!',
-  'Hey! Stop there! Stop!',
-  'Wetin you dey look? Move now!',
-  'Ehen! Na so! Na so!',
-  'Agege bread! Hot agege bread!',
-  'Yaba! Yaba! One more chance!',
-  'No vex o, I dey come!',
-  'Mama Put dey open! Come chop!',
+/** Conductors calling their routes, all of them at once, the way they do at the bus stop */
+const CONDUCTORS = [
+  'Oshodi! Oshodi! Oshodi! Oshodi, Oshodi, enter with your change!',
+  'Obalende, CMS, Obalende, CMS! Wole, wole, wole! Shift, shift, shift!',
+  'Ojuelegba, Stadium, Costain, Iddo! Ojuelegba-o! One chance remain!',
+  'Yaba, Yaba, Yaba! Sabo, Yaba, Oyingbo! Enter, enter, we dey go!',
+  'Ikeja along, Ikeja along! Allen, Opebi, Ikeja along! Change o, change!',
+  'Lekki, Ajah, Lekki, Ajah! Lekki-Ajah, enter with your change o!',
+  'Mile two, Mile two, Mile two! Oya oya oya, we don full!',
+  'Berger, Berger, Berger! Ojota, Ketu, Mile twelve, Berger!',
 ];
 
-const EVENING_CALLS = ['Suya! Hot suya!', 'Last bus! Last bus to Ikorodu!', 'Light don come!'];
+/** Everyone else on a busy road */
+const STREET = [
+  'Pure water! Buy your pure water! Cold pure water!',
+  'Gala! Gala! Buy your Gala! Gala dey!',
+  'Oga, abeg shift small!',
+  'Driver, park well! Park well jor!',
+  'Hey! Stop there! Stop!',
+  'Wetin you dey look? Move now!',
+  'Agege bread! Hot agege bread, hot hot!',
+  'No vex o, I dey come!',
+  'Mama Put dey open! Come chop!',
+  'Okada! Okada! Where you dey go?',
+];
+
+const EVENING = ['Suya! Hot suya! Suya don ready!', 'Last bus! Last bus to Ikorodu! Ikorodu last bus!', 'Up NEPA! Light don come!'];
 
 export interface StreetHere {
   /** In the street (not indoors, not on the map) */
   outside: boolean;
+  /** On a main road or at a bus stop: where conductors and hawkers call */
+  onMainRoad: boolean;
   driving: boolean;
   /** How many people and vehicles are near */
   people: number;
@@ -118,7 +129,7 @@ export class StreetAmbience {
     const ctx = SoundEngine.getInstance().audio()!.ctx;
     this.time += delta;
     const night = here.hour < 6 || here.hour >= 22;
-    const busy = here.outside ? Math.min(1, here.people / 30) : 0;
+    const busy = here.outside ? Math.min(1, here.people / 30) * (here.onMainRoad ? 1 : 0.45) : 0;
     const roads = here.outside ? Math.min(1, here.cars / 12) : 0;
     // The crowd's murmur rises and falls, as a crowd does
     const swell = 0.75 + 0.25 * Math.sin(this.time * 0.7) * Math.sin(this.time * 0.23);
@@ -137,11 +148,15 @@ export class StreetAmbience {
     this.nextCall -= delta;
     if (this.nextCall <= 0) {
       this.nextCall = 9 + Math.random() * 14;
-      if (this.voices && busy > 0.2 && !night) this.call(here.hour >= 18 ? [...CALLS, ...EVENING_CALLS] : CALLS);
+      // Voices belong to the main road and the bus stops, not to a quiet street
+      if (this.voices && here.onMainRoad && busy > 0.15 && !night) {
+        const conductor = Math.random() < 0.55;
+        this.call(conductor ? CONDUCTORS : here.hour >= 18 ? [...STREET, ...EVENING] : STREET, conductor);
+      }
     }
   }
 
-  private call(lines: string[]): void {
+  private call(lines: string[], loud = false): void {
     const speech = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
     if (!speech || SoundEngine.getInstance().isMuted || speech.speaking) return;
     if (this.voice === undefined) {
@@ -151,9 +166,10 @@ export class StreetAmbience {
     }
     const line = new SpeechSynthesisUtterance(lines[Math.floor(Math.random() * lines.length)]);
     if (this.voice) line.voice = this.voice;
-    line.volume = 0.32;
-    line.rate = 1.05 + Math.random() * 0.2;
-    line.pitch = 0.8 + Math.random() * 0.5;
+    // A conductor shouts fast and high; a hawker sings it out
+    line.volume = loud ? 0.5 : 0.36;
+    line.rate = loud ? 1.35 + Math.random() * 0.2 : 1.12 + Math.random() * 0.15;
+    line.pitch = loud ? 1.15 + Math.random() * 0.35 : 0.85 + Math.random() * 0.45;
     speech.speak(line);
   }
 }

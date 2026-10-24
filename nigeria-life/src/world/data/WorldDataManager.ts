@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { LAGOS_MAP_DATA } from './LagosMapData';
 import { ABUJA_MAP_DATA } from './AbujaMapData';
 import { PORT_HARCOURT_MAP_DATA } from './PortHarcourtMapData';
+import { PROPERTY_PRICES } from '../../backend/RealPrices';
 import type { CityMapData, DistrictData, MapLandmark, MapProperty, MapBusiness } from './WorldDataTypes';
 
 export class WorldDataManager {
@@ -10,7 +11,17 @@ export class WorldDataManager {
   private currentCityId: string = 'lagos';
   private playerMapPosition: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
 
-  private constructor() {}
+  private constructor() {
+    // The map's price tags are the same as the market's (backend/RealPrices)
+    for (const city of [LAGOS_MAP_DATA, ABUJA_MAP_DATA, PORT_HARCOURT_MAP_DATA]) {
+      for (const prop of city.properties ?? []) {
+        const real = PROPERTY_PRICES[prop.id];
+        if (!real) continue;
+        prop.price = real.buy;
+        if ('rentPrice' in prop) (prop as { rentPrice?: number }).rentPrice = real.rent;
+      }
+    }
+  }
 
   public static getInstance(): WorldDataManager {
     if (!WorldDataManager.instance) {

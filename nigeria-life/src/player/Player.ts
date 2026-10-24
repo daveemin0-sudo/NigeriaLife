@@ -281,8 +281,16 @@ export class Player {
    * People and vehicles take up room: the player is moved out of anyone or anything they walk
    * into, round the side, and if that would put them in a wall they stay where they were.
    */
+  /** A step the city does not allow on foot (onto an expressway away from its crossings): set by the game */
+  public mayNotStep: ((fromX: number, fromZ: number, toX: number, toZ: number) => boolean) | null = null;
+
   private keepClearOfBodies(cameFrom: THREE.Vector3, solids: Solids): void {
     const p = this.mesh.position;
+    if (this.mayNotStep?.(cameFrom.x, cameFrom.z, p.x, p.z)) {
+      p.x = cameFrom.x;
+      p.z = cameFrom.z;
+      return;
+    }
     const radius = 0.3;
     for (let pass = 0; pass < 2; pass++) {
       let moved = false;
