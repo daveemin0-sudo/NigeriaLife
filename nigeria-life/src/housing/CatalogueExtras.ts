@@ -21,6 +21,7 @@ export const EXTRA_ITEMS: CatalogueItem[] = [
   { id: 'foam_mattress', name: 'Foam mattress', category: 'furniture', price: 45000, icon: '🛏️', description: 'A good foam on the floor. Where most people sleep in their first room.', modelType: 'foam_mattress', isNew: true },
   { id: 'plastic_set', name: 'Plastic table & 2 chairs', category: 'furniture', price: 22000, icon: '🪑', description: 'White plastic table and chairs. Eat, sit, receive visitors.', modelType: 'plastic_set', isNew: true },
   { id: 'plastic_set_red', name: 'Red plastic table & 2 chairs', category: 'furniture', price: 22000, icon: '🪑', description: 'The red ones from the party rental, now your own.', modelType: 'plastic_set_red', isNew: true },
+  { id: 'coffee_table', name: 'Coffee table, wood and glass', category: 'furniture', price: 95000, icon: '🪵', description: 'A low table for the middle of the parlour: drinks, the remote, small chops for visitors.', modelType: 'coffee_table', isNew: true },
   { id: 'nightstand_lamp', name: 'Bedside table & lamp', category: 'furniture', price: 38000, icon: '🛋️', description: 'Two drawers and a small lamp for reading at night.', modelType: 'nightstand', isNew: true },
 
   // Walls to split a room

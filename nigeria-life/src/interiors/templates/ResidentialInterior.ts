@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { profileKey } from '../../backend/Profile';
 import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
@@ -12,6 +13,62 @@ import type { NavGrid } from '../../interactions/NavGrid';
 import { HomeLife, HOME } from '../home/HomeLife';
 import type { HomeStandard } from '../../housing/HomeStandard';
 import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
+
+/** The uids of the four everyday pieces, and the cards that use them */
+const CORE_TV = 'home_tv';
+const CORE_CARDS: Record<string, string> = { home_bed: 'flat-bed', home_sofa: 'flat-tv', home_fridge: 'flat-fridge', home_drum: 'flat-drum' };
+const CORE_WORDS: Record<string, { name: string; category: string; description: string }> = {
+  'flat-tv': { name: 'Sofa & TV', category: 'Home Entertainment', description: 'Sit down and watch the Super Eagles. A little energy comes back while you relax.' },
+  'flat-bed': { name: 'Master Bed', category: 'Rest & Recovery', description: 'Lie down and sleep. Energy and health come back while you rest.' },
+  'flat-drum': { name: 'Water Drum & Bucket', category: 'Home Essentials', description: 'Cold borehole water and the red bucket. A quick bath wakes you up.' },
+  'flat-fridge': { name: 'Fridge', category: 'Kitchen', description: 'Eat something from your bag.' },
+};
+
+type Starter = { uid?: string; id: string; x: number; z: number; turns: number };
+const EVERY_HOME: Starter[] = [
+  { uid: 'home_fridge', id: 'double_door_fridge', x: -14.7, z: 10.6, turns: 1 },
+  { uid: 'home_drum', id: 'water_drum', x: 8.5, z: 0.5, turns: 3 },
+  { id: 'toilet_wc', x: 14, z: 1.5, turns: 3 },
+];
+/** What each kind of home came with, as the catalogue's own pieces where the built ones stood */
+const STARTERS: Record<HomeStandard, Starter[]> = {
+  basic: [
+    { uid: 'home_sofa', id: 'sofa2_brown', x: -7.6, z: 2.5, turns: 3 },
+    { uid: CORE_TV, id: 'tv_24', x: -15.2, z: 4, turns: 1 },
+    { uid: 'home_bed', id: 'double_bed_grey', x: 10.5, z: -6.5, turns: 0 },
+    { id: 'plastic_set', x: -8, z: 10, turns: 0 },
+    { id: 'lontor_fan', x: -11.5, z: 1.2, turns: 1 },
+    { id: 'kerosene_stove', x: -12.4, z: 11.4, turns: 1 },
+    ...EVERY_HOME,
+  ],
+  comfortable: [
+    { uid: 'home_sofa', id: 'sofa3_leather', x: -7.6, z: 2.5, turns: 3 },
+    { uid: CORE_TV, id: 'tv_43', x: -15.2, z: 4, turns: 1 },
+    { uid: 'home_bed', id: 'king_bed_purple', x: 10.5, z: -6.5, turns: 0 },
+    { id: 'double_bed_purple', x: -3, z: -7, turns: 0 },
+    { id: 'ankara_rug', x: -6, z: 5, turns: 0 },
+    { id: 'coffee_table', x: -6, z: 5, turns: 0 },
+    { id: 'dining_table_6', x: -8, z: 10, turns: 0 },
+    { id: 'majesty_palm', x: -0.5, z: 0.5, turns: 0 },
+    { id: 'bathtub', x: 9.5, z: 3, turns: 0 },
+    ...EVERY_HOME,
+  ],
+  luxury: [
+    { uid: 'home_sofa', id: 'sofa3_leather', x: -7.6, z: 2.5, turns: 3 },
+    { uid: CORE_TV, id: 'smart_tv_75', x: -15.4, z: 4, turns: 1 },
+    { id: 'emerald_sofa', x: -2, z: 6, turns: 2 },
+    { uid: 'home_bed', id: 'king_bed_purple', x: 10.5, z: -6.5, turns: 0 },
+    { id: 'double_bed_purple', x: -3, z: -7, turns: 0 },
+    { id: 'double_bed_blue', x: -12, z: -7, turns: 0 },
+    { id: 'ankara_rug', x: -6, z: 5, turns: 0 },
+    { id: 'coffee_table', x: -6, z: 5, turns: 0 },
+    { id: 'dining_table_6', x: -8, z: 10, turns: 0 },
+    { id: 'majesty_palm', x: -0.5, z: 0.5, turns: 0 },
+    { id: 'bathtub', x: 9.5, z: 3, turns: 0 },
+    { id: 'rain_shower', x: 13.5, z: 4.5, turns: 3 },
+    ...EVERY_HOME,
+  ],
+};
 
 export class ResidentialInterior {
   public group: THREE.Group;
@@ -48,6 +105,12 @@ export class ResidentialInterior {
   private fridgeGroup!: THREE.Group;
   private masterMattress!: THREE.Mesh;
   private carportCars = new THREE.Group();
+  /** The furniture the home was built with, hidden once it has been handed over as the player's own pieces */
+  private builtIns: THREE.Object3D[] = [];
+  private fixedSolids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
+  /** Set once the home's own furniture has become the player's, to move, put away or sell */
+  private handedOver = false;
+  private readonly handedOverKey = profileKey('nigeria_life_home_handed_over_v1');
   private room!: RoomForFurniture;
 
   /** This only stands in homes of these standards */
@@ -80,6 +143,39 @@ export class ResidentialInterior {
     this.parkCars();
   }
 
+  /**
+   * The first time the player comes home, what the home came with becomes theirs: the same pieces
+   * from the catalogue, standing where the built ones stood, to move, put away or sell. From then
+   * on the built pieces stay hidden and are not solid, whatever home the player moves to.
+   */
+  private handOver(standard: HomeStandard): void {
+    if (!this.handedOver) {
+      let done = false;
+      try {
+        done = localStorage.getItem(this.handedOverKey) === '1';
+      } catch {
+        // No storage: handed over again each time the page is loaded, and adopt skips what is there
+      }
+      if (!done) {
+        HouseDecorationSystem.getInstance().adopt(STARTERS[standard]);
+        try {
+          localStorage.setItem(this.handedOverKey, '1');
+        } catch {
+          // As above
+        }
+      }
+      this.handedOver = true;
+    }
+    for (const object of this.builtIns) object.visible = false;
+    for (const kit of this.kits) kit.object.visible = false;
+    for (const entry of this.kitSolids) {
+      if (entry.solid) this.life.unblock(entry.solid);
+      entry.solid = null;
+    }
+    for (const solid of this.fixedSolids) this.life.unblock(solid);
+    this.fixedSolids = [];
+  }
+
   /** Shows what a home of this standard came with, and makes it, and only it, solid. */
   public furnish(standard: HomeStandard): void {
     this.standard = standard;
@@ -92,9 +188,11 @@ export class ResidentialInterior {
         entry.solid = null;
       }
     }
+    this.handOver(standard);
     this.life.reblock();
     // The player's own furniture keeps its floor
     HouseDecorationSystem.getInstance().attach(this.room);
+    this.furnitureChanged();
     // A first home: the sofa is old cloth, the table plastic, the television small on a table
     const basic = standard === 'basic';
     this.leather.color.setHex(basic ? 0x6b4f35 : 0x18181b);
@@ -209,6 +307,11 @@ export class ResidentialInterior {
         const screen = item.mesh.getObjectByName(TV_SCREEN) as THREE.Mesh | undefined;
         if (screen) this.sets.set(item.uid, new Television(screen));
       }
+      const core = CORE_CARDS[item.uid];
+      if (core) {
+        this.followCore(core, item, origin);
+        continue;
+      }
       const id = `home_item_${item.uid}`;
       this.furnitureIds.push(id);
       this.interactiveList.push({
@@ -224,6 +327,73 @@ export class ResidentialInterior {
     for (const uid of [...this.sets.keys()]) {
       if (!standing.has(uid)) this.sets.delete(uid);
     }
+    // An everyday piece sold or put away takes its card with it
+    if (this.handedOver) {
+      for (const [uid, card] of Object.entries(CORE_CARDS)) {
+        if (standing.has(uid) && decor.placing?.moving?.uid !== uid) continue;
+        const at = this.interactiveList.findIndex((o) => o.id === card);
+        if (at >= 0) this.interactiveList.splice(at, 1);
+      }
+    }
+  }
+
+  /**
+   * One of the four everyday pieces (bed, sofa, fridge, water drum): its card keeps its name and
+   * what it does, stands where the piece now is, and the walk to use it goes there. Moving,
+   * putting away and selling it are on the card's second button.
+   */
+  private followCore(card: string, item: PlacedItem, origin: THREE.Vector3): void {
+    const decor = HouseDecorationSystem.getInstance();
+    const kind = decor.kind(item.modelType);
+    const turn = (item.turns * Math.PI) / 2;
+    const face = decor.facing(item.turns);
+    const size = decor.footprint(item.modelType, item.turns);
+    const onIt = (x: number, z: number) => new THREE.Vector3(item.x + x * Math.cos(turn) + z * Math.sin(turn), 0, item.z - x * Math.sin(turn) + z * Math.cos(turn));
+    const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.6;
+    const front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
+    let stand = front;
+    if (card === 'flat-bed' && kind.bed) {
+      HOME.bed.root.copy(onIt(kind.bed.x, kind.bed.z));
+      const sides = [onIt(kind.bed.side + 0.6, 0.3), onIt(-kind.bed.side - 0.6, 0.3)];
+      HOME.bed.side.copy(sides.find((point) => this.life.nav.isFree(origin.x + point.x, origin.z + point.z)) ?? sides[0]);
+      HOME.bed.top = kind.bed.top;
+      HOME.bed.facing = turn;
+      stand = HOME.bed.side;
+    } else if (card === 'flat-tv' && kind.seat) {
+      HOME.sofa.seat.copy(onIt(kind.seat.x, kind.seat.z));
+      HOME.sofa.front.copy(front);
+      HOME.sofa.facing = Math.atan2(face.x, face.z);
+    } else if (card === 'flat-fridge') {
+      HOME.fridge.position.set(item.x, 0, item.z);
+      HOME.fridge.front.copy(front);
+    } else if (card === 'flat-drum') {
+      HOME.drum.position.set(item.x, 0, item.z);
+      HOME.drum.front.copy(front);
+    }
+    const existing = this.interactiveList.find((o) => o.id === card);
+    const entry = existing ?? { id: card, name: '', category: '', description: '', mesh: item.mesh, interactionPoint: new THREE.Vector3() };
+    entry.mesh = item.mesh;
+    entry.interactionPoint.set(origin.x + stand.x, 0, origin.z + stand.z);
+    if (!existing) {
+      const words = CORE_WORDS[card];
+      Object.assign(entry, words);
+      this.interactiveList.push(entry);
+    }
+    PlaceActions.register(`${card}:move`, this.pieceChoices(item));
+  }
+
+  /** Move it, put it away, or sell it: for a piece whose card is for using it */
+  private pieceChoices(item: PlacedItem): PlaceAction {
+    const decor = HouseDecorationSystem.getInstance();
+    const name = decor.catalogueItem(item.id)?.name ?? 'Furniture';
+    return {
+      label: () => '🪑 Move, store or sell',
+      run: (host) => host.ask({ who: name, role: 'Your furniture', text: 'What do you want to do with it?', choices: [
+        { label: 'Move it', note: 'Free', pick: () => { decor.pickUp(item.uid); } },
+        { label: 'Put it in storage', note: 'Place it again later, free', pick: () => { if (decor.putAway(item.uid)) host.say(`${name} is in storage. Find it under Storage in the catalogue.`, 'success'); } },
+        { label: 'Sell it', note: `₦${decor.resaleValue(item).toLocaleString()} back`, pick: () => { const sold = decor.sell(item.uid); if (sold.ok) host.say(`${name} sold. ₦${sold.refund.toLocaleString()} back.`, 'info'); } },
+      ] }),
+    };
   }
 
   /** What can be done at a piece of the player's own furniture. */
@@ -550,6 +720,7 @@ export class ResidentialInterior {
     });
 
     // 4. Living Room:
+    const firstBuiltIn = this.group.children.length;
     // A. Circular Orange & Gold Heritage Rug (Screenshot 5)
     const rugOuter = new THREE.Mesh(
       new THREE.RingGeometry(1.6, 2.7, 32),
@@ -627,7 +798,7 @@ export class ResidentialInterior {
     this.group.add(this.tvScreen);
     this.television = new Television(this.tvScreen);
     // Sitting down to watch turns the set on; whoever is sitting can turn it to something else
-    this.life.onWatch = () => { if (!this.televisions().some((set) => set.on)) this.television.turnOn('football'); };
+    this.life.onWatch = () => { if (!this.televisions().some((set) => set.on)) (this.sets.get(CORE_TV) ?? this.television).turnOn('football'); };
     this.life.onTheTelevision = () => { const on = this.televisions().find((set) => set.on); return on ? `Watching: ${on.showing()}` : null; };
     this.life.channelChoices = () => {
       const set = this.watched();
@@ -840,18 +1011,18 @@ export class ResidentialInterior {
 
     // 10. Everything solid, so walking goes around it
     this.onlyBlock(-2, 6, 2.4, 0.9, 'luxury'); // green sofa
-    this.life.block(-6, 5, 1.2, 0.7); // coffee table
+    this.fixedSolids.push(this.life.block(-6, 5, 1.2, 0.7)); // coffee table
     this.onlyBlock(-8, 10, 2.05, 2.05, 'comfortable', 'luxury'); // dining table and chairs
     this.onlyBlock(-0.5, 0.5, 0.35, 0.35, 'comfortable', 'luxury'); // palm pot
-    this.life.block(10.5, -6.5, 2.4, 2.6); // master bed
+    this.fixedSolids.push(this.life.block(10.5, -6.5, 2.4, 2.6)); // master bed
     this.onlyBlock(-3, -7, 2.1, 2.3, 'comfortable', 'luxury'); // centre bed
     this.onlyBlock(-12, -7, 1.8, 2.2, 'luxury'); // guest bed
     this.onlyBlock(9.5, 3, 1.7, 0.8, 'comfortable', 'luxury'); // bathtub
     this.onlyBlock(13.5, 4.5, 1.1, 1.1, 'luxury'); // shower
-    this.life.block(14, 1.5, 0.4, 0.55); // toilet
-    this.life.block(HOME.drum.position.x, HOME.drum.position.z, 0.8, 0.8);
-    this.life.block(9.8, 0.6, 0.45, 0.45); // bucket
-    this.life.block(HOME.fridge.position.x, HOME.fridge.position.z, 0.5, 0.5);
+    this.fixedSolids.push(this.life.block(14, 1.5, 0.4, 0.55)); // toilet
+    this.fixedSolids.push(this.life.block(HOME.drum.position.x, HOME.drum.position.z, 0.8, 0.8));
+    this.fixedSolids.push(this.life.block(9.8, 0.6, 0.45, 0.45)); // bucket
+    this.fixedSolids.push(this.life.block(HOME.fridge.position.x, HOME.fridge.position.z, 0.5, 0.5));
 
     // A first home: plastic chairs where the dining set would be, a fan, and a kerosene stove by the fridge
     const plastic = buildFurniture('plastic_set')!;
@@ -872,6 +1043,9 @@ export class ResidentialInterior {
     this.group.add(stove);
     this.only(stove, 'basic');
     this.onlyBlock(-12.4, 11.4, 0.45, 0.45, 'basic');
+
+    // Everything built from the living room on is furniture, but for the carport and the player's own pieces
+    this.builtIns = this.group.children.slice(firstBuiltIn).filter((child) => child !== decorationSystem.placedItemsGroup && child.name !== 'carport' && child !== this.carportCars);
 
     // 11. Things to do, each registered where the player stands to use it
     const origin = this.group.position;
@@ -982,6 +1156,7 @@ export class ResidentialInterior {
     // The player's own vehicles are parked here when they come home (see parkCars)
     carportGroup.add(this.carportCars);
 
+    carportGroup.name = 'carport';
     this.group.add(carportGroup);
   }
 

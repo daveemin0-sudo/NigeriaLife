@@ -78,11 +78,14 @@ const place = (page, x, z, yaw, pitch) => page.evaluate(({ x, z, yaw, pitch }) =
 const materialSnapshot = (page, type) => page.evaluate((type) => {
   const group = window.game.world.interiorManager[type].group;
   const ids = [];
-  group.traverse((o) => { if (o.isMesh) ids.push((Array.isArray(o.material) ? o.material : [o.material]).map((m) => m.uuid).join('+')); });
+  // The player's own pieces are not the room's: what the home came with is handed over as such on the first visit
+  const own = window.game.modules.HouseDecorationSystem.getInstance().placedItemsGroup;
+  const mine = (o) => { for (let n = o; n; n = n.parent) if (n === own) return true; return false; };
+  group.traverse((o) => { if (o.isMesh && !mine(o)) ids.push((Array.isArray(o.material) ? o.material : [o.material]).map((m) => m.uuid).join('+')); });
   let walls = [];
   group.getObjectByName('interior_room_shell').traverse((o) => { if (o.name.startsWith('shell_wall_')) walls.push(+o.scale.y.toFixed(3)); });
   // What the home came with is shown or not by how well it is furnished (a cheap room has no big sofa): not counted here
-  const kits = new Set((window.game.world.interiorManager[type].kits ?? []).map((k) => k.object));
+  const kits = new Set([...(window.game.world.interiorManager[type].kits ?? []).map((k) => k.object), ...(window.game.world.interiorManager[type].builtIns ?? [])]);
   const inKit = (o) => { for (let n = o; n; n = n.parent) if (kits.has(n)) return true; return false; };
   return { ids: ids.join(','), count: ids.length, walls, hidden: (() => { let n = 0; group.traverse((o) => { if (o.isMesh && !o.visible && !inKit(o)) n++; }); return n; })() };
 }, type);
@@ -227,13 +230,13 @@ export async function run(browser, check) {
   await page.evaluate(() => window.game.world.interiorManager.residence.life.stop());
   await advance(page, 2);
   // Sitting down turned the television on, which changes its screen: off again, as the room was found
-  await page.evaluate(() => window.game.world.interiorManager.residence.television.turnOff());
+  await page.evaluate(() => window.game.world.interiorManager.residence.televisions().forEach((set) => set.turnOff()));
 
   // ------------------------------------------------------------------ Leaving puts everything back
   await leaveInterior(page);
   const homeAfter = await materialSnapshot(page, 'residence');
   check('on leaving, every wall is back to full height and every material is the one it started with',
-    homeAfter.ids === homeBefore.ids && homeAfter.walls.every((h) => h === 1) && homeAfter.hidden === homeBefore.hidden, { walls: homeAfter.walls, sameMaterials: homeAfter.ids === homeBefore.ids, hidden: homeAfter.hidden });
+    homeAfter.ids === homeBefore.ids && homeAfter.walls.every((h) => h === 1) && homeAfter.hidden === homeBefore.hidden, { walls: homeAfter.walls, sameMaterials: homeAfter.ids === homeBefore.ids, hidden: homeAfter.hidden, meshes: [homeBefore.count, homeAfter.count], firstDifferent: homeBefore.ids.split(',').findIndex((id, i) => id !== homeAfter.ids.split(',')[i]) });
   const street = await page.evaluate(() => {
     const g = window.game;
     return { buildings: g.world.buildings.group.visible, shadows: g.renderer.shadowMap.enabled, sun: g.world.sunLight.visible && g.world.sunLight.castShadow, mode: g.cameraManager.mode };

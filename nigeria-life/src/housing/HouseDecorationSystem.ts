@@ -958,6 +958,46 @@ export class HouseDecorationSystem {
     this.backToCatalogue(false);
   }
 
+  /**
+   * Takes in pieces that are already the player's, free: what a home came with, handed over so
+   * it can be moved, put away or sold like anything bought. A piece is left out if a solid piece
+   * of the player's own already stands where it would go, or one with its id is already placed.
+   */
+  public adopt(pieces: Array<{ uid?: string; id: string; x: number; z: number; turns: number }>): number {
+    let taken = 0;
+    const overlaps = (x: number, z: number, w: number, d: number) => this.placed.some((other) => {
+      if (!this.kind(other.modelType).solid) return false;
+      const o = this.footprint(other.modelType, other.turns);
+      return Math.abs(other.x - x) * 2 < o.width + w - 0.05 && Math.abs(other.z - z) * 2 < o.depth + d - 0.05;
+    });
+    for (const piece of pieces) {
+      const entry = this.catalogueItem(piece.id);
+      if (!entry) continue;
+      if (piece.uid && this.placed.some((item) => item.uid === piece.uid)) continue;
+      const size = this.footprint(entry.modelType, piece.turns);
+      if (this.kind(entry.modelType).solid && overlaps(piece.x, piece.z, size.width, size.depth)) continue;
+      const item: PlacedItem = {
+        uid: piece.uid ?? `${piece.id}_came_${taken.toString(36)}${Date.now().toString(36)}`,
+        id: piece.id,
+        modelType: entry.modelType,
+        x: piece.x,
+        z: piece.z,
+        turns: piece.turns,
+        mesh: this.createFurniture3DMesh(entry.modelType),
+      };
+      this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
+      this.placed.push(item);
+      this.placedItemsGroup.add(item.mesh);
+      if (this.room) this.solidify(item, true);
+      taken++;
+    }
+    if (taken) {
+      this.save();
+      this.onChanged?.();
+    }
+    return taken;
+  }
+
   /** Sells a piece on, for part of what it cost new. */
   public sell(uid: string): { ok: boolean; refund: number } {
     const index = this.placed.findIndex((item) => item.uid === uid);

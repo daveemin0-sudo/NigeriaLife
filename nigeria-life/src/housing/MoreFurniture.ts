@@ -203,7 +203,21 @@ export const BED_FINISHES: Array<{ id: string; name: string; cover: number; trim
 
 export const TV_SIZES = [24, 32, 43, 55, 65] as const;
 
+/** A low wooden table with a glass top, for the middle of the parlour */
+function coffeeTable(): THREE.Group {
+  const b = new Builder();
+  b.box(0x7c4a1e, 1.3, 0.06, 0.75, 0, 0.36, 0);
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.box(0x5b3714, 0.06, 0.36, 0.06, x * 0.58, 0, z * 0.32);
+  b.box(0x5b3714, 1.1, 0.03, 0.55, 0, 0.12, 0);
+  const group = b.build('coffee table');
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.34, 0.02, 0.79), new THREE.MeshStandardMaterial({ color: 0xbfe3ff, transparent: true, opacity: 0.35, roughness: 0.05 }));
+  glass.position.y = 0.43;
+  group.add(glass);
+  return group;
+}
+
 export const MORE_MAKERS: Record<string, () => THREE.Group> = {
+  coffee_table: coffeeTable,
   foam_mattress: foamMattress,
   plastic_set: () => plasticSet(0xf8fafc),
   plastic_set_red: () => plasticSet(0xdc2626),
@@ -230,6 +244,7 @@ export const MORE_MAKERS: Record<string, () => THREE.Group> = {
 };
 
 export const MORE_KINDS: Record<string, FurnitureKind> = {
+  coffee_table: { solid: true, use: 'none' },
   foam_mattress: { solid: true, use: 'bed', bed: { x: 0, z: 0.6, top: 0.25, side: 0.75 } },
   plastic_set: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },
   plastic_set_red: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },

@@ -9,8 +9,8 @@ import { showGameToast } from '../../ui/GameToast';
 /** Where things are in the apartment, relative to the room centre. */
 export const HOME = {
   room: { width: 32, length: 26 },
-  bed: { root: new THREE.Vector3(10.5, 0, -5.0), side: new THREE.Vector3(7.35, 0, -5.4), top: 1.15 },
-  sofa: { seat: new THREE.Vector3(-7.65, 0, 2.5), front: new THREE.Vector3(-9.15, 0, 2.5) },
+  bed: { root: new THREE.Vector3(10.5, 0, -5.0), side: new THREE.Vector3(7.35, 0, -5.4), top: 1.15, facing: 0 },
+  sofa: { seat: new THREE.Vector3(-7.65, 0, 2.5), front: new THREE.Vector3(-9.15, 0, 2.5), facing: -Math.PI / 2 },
   tv: new THREE.Vector3(-15.6, 0, 4),
   fridge: { position: new THREE.Vector3(-14.7, 0, 10.6), front: new THREE.Vector3(-13.35, 0, 10.6) },
   drum: { position: new THREE.Vector3(8.5, 0, 0.5), front: new THREE.Vector3(7.1, 0, 0.5) },
@@ -110,7 +110,7 @@ export class HomeLife {
 
   /** Walk to the bed, lie down and sleep. Energy and health come back while asleep. */
   public sleep(): boolean {
-    return this.sleepAt(HOME.bed.root, HOME.bed.side, 0, HOME.bed.top);
+    return this.sleepAt(HOME.bed.root, HOME.bed.side, HOME.bed.facing, HOME.bed.top);
   }
 
   /**
@@ -149,7 +149,7 @@ export class HomeLife {
   /** Walk to the sofa, sit and watch the match. Sitting there slowly restores a little energy. */
   public watchTv(): boolean {
     this.onWatch?.();
-    return this.sitAt(HOME.sofa.seat, HOME.sofa.front, -Math.PI / 2);
+    return this.sitAt(HOME.sofa.seat, HOME.sofa.front, HOME.sofa.facing);
   }
 
   /**

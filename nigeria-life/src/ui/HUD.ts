@@ -31,7 +31,7 @@ import { InteractionDirector } from '../interactions/InteractionDirector';
 import { CITY_NAME } from '../realestate/PlotCatalogue';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
-import { PlaceActions } from '../destinations/PlaceActions';
+import { PlaceActions, type PlaceHost } from '../destinations/PlaceActions';
 import { CASH_MACHINE } from '../world/kit/CashMachine';
 import { esc } from './kit/html';
 import { draw as drawStable } from './kit/StableView';
@@ -538,6 +538,12 @@ export class HUD {
 
     const bizBtn = document.getElementById('card-biz-btn') as HTMLButtonElement;
     bizBtn.addEventListener('click', () => {
+      const piece = this.currentActiveObject && PlaceActions.get(`${this.currentActiveObject.id}:move`);
+      if (piece && this.player) {
+        this.hideInteractionCard();
+        piece.run(this.placeHost());
+        return;
+      }
       if (this.currentActiveObject) {
         this.economyModal.open(this.currentActiveObject.id);
         this.hideInteractionCard();
@@ -1675,16 +1681,16 @@ export class HUD {
       bizBtn.style.display = 'none';
     } else if (obj.id === 'flat-tv') {
       btnEl.textContent = '📺 Sit down & watch the match';
-      bizBtn.style.display = 'none';
+      this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-bed') {
       btnEl.textContent = '🛏️ Lie down & sleep';
-      bizBtn.style.display = 'none';
+      this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-drum') {
       btnEl.textContent = '🚿 Take a bucket bath';
-      bizBtn.style.display = 'none';
+      this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-fridge') {
       btnEl.textContent = '🧊 Eat something from your bag';
-      bizBtn.style.display = 'none';
+      this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-sofa') {
       btnEl.textContent = '🛋️ Relax on Living Room Sofa (Energy +30%)';
       bizBtn.style.display = 'none';
@@ -2194,18 +2200,16 @@ export class HUD {
     }).ok;
   }
 
-  private handleCardAction(): void {
-    if (!this.currentActiveObject) return;
-    const id = this.currentActiveObject.id;
-    if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;
-    if (!this.actingOut && this.actOutInStreet(this.currentActiveObject)) return;
-    this.questManager.triggerEvent('interact_object', { objectId: id });
+  /** A piece of furniture whose card is for using it shows moving, storing and selling on the second button */
+  private pieceButton(id: string, bizBtn: HTMLButtonElement): void {
+    const piece = PlaceActions.get(`${id}:move`);
+    bizBtn.style.display = piece ? 'inline-block' : 'none';
+    if (piece) bizBtn.textContent = piece.label();
+  }
 
-    const ownAction = PlaceActions.get(id);
-    if (ownAction && this.player) {
-      // Acted out where it happens: the card goes and the player walks to it
-      this.hideInteractionCard();
-      ownAction.run({
+  /** What a place's own action is given to work with: the player, their money, the director, ways to speak and ask */
+  private placeHost(): PlaceHost {
+    return {
         actor: this.player.actor,
         backend: this.backend,
         director: InteractionDirector.get(),
@@ -2222,7 +2226,21 @@ export class HUD {
         enter: (buildingId, comeOutAt) => this.onEnterInterior?.(buildingId, comeOutAt),
         leave: (comeOutAt, facing) => this.onLeaveInteriorTo?.(comeOutAt, facing),
         cashMachine: () => this.atmModal.open(),
-      });
+      };
+  }
+
+  private handleCardAction(): void {
+    if (!this.currentActiveObject) return;
+    const id = this.currentActiveObject.id;
+    if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;
+    if (!this.actingOut && this.actOutInStreet(this.currentActiveObject)) return;
+    this.questManager.triggerEvent('interact_object', { objectId: id });
+
+    const ownAction = PlaceActions.get(id);
+    if (ownAction && this.player) {
+      // Acted out where it happens: the card goes and the player walks to it
+      this.hideInteractionCard();
+      ownAction.run(this.placeHost());
       return;
     }
 

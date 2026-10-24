@@ -55,6 +55,12 @@ export async function run(browser, check) {
   await enterInterior(page, 'residence');
   await wait(600);
   const start = await money(page);
+  // What the home came with is already the player's own pieces: everything below is counted on top of it
+  const came = (await decor(page)).placed;
+  const n0 = came.length;
+  const cards0 = await page.evaluate(() => window.game.world.interiorManager.getActiveInteractiveObjects().filter((o) => o.id.startsWith('home_item_')).length);
+  check('the furniture the home came with is the player’s own, as catalogue pieces: a sofa, a television, a bed, a fridge and the rest',
+    n0 >= 6 && ['home_sofa', 'home_tv', 'home_bed', 'home_fridge', 'home_drum'].every((uid) => came.some((item) => item.uid === uid && item.shown)), { came });
 
   // ------------------------------------------------------------------ What is sold is furniture
   const models = await page.evaluate(() => {
@@ -78,17 +84,17 @@ export async function run(browser, check) {
   let state = await decor(page);
   let shown = await bar(page);
   check('choosing the sofa takes no money: it appears in the room to be put down, with a bar that says what it will cost',
-    !!state.placing && state.placing.id === 'emerald_sofa' && state.placed.length === 0 && !!shown && /Place/.test(shown.button || '') && (await money(page)).total === start.total, { state, shown });
+    !!state.placing && state.placing.id === 'emerald_sofa' && state.placed.length === n0 && !!shown && /Place/.test(shown.button || '') && (await money(page)).total === start.total, { state, shown });
 
   // Not through a wall, and not on top of what is already there
   await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(15.6, 0));
   const inWall = await bar(page);
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(-6, 5));
+  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(-7.6, 2.5));
   const onTable = await bar(page);
   await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(0, 9.4));
   const inDoorway = await bar(page);
   check('it cannot be put through a wall, on top of the furniture already there, or across the way in',
-    !inWall.canPlace && /wall/.test(inWall.say) && !onTable.canPlace && /already standing/.test(onTable.say) && !inDoorway.canPlace && /way in/.test(inDoorway.say) && (await decor(page)).placed.length === 0, { inWall, onTable, inDoorway });
+    !inWall.canPlace && /wall/.test(inWall.say) && !onTable.canPlace && /already standing/.test(onTable.say) && !inDoorway.canPlace && /way in/.test(inDoorway.say) && (await decor(page)).placed.length === n0, { inWall, onTable, inDoorway });
 
   // A tap on the floor moves it there; the arrows nudge it; Turn turns it
   await page.evaluate(() => {
@@ -111,8 +117,8 @@ export async function run(browser, check) {
   await wait(300);
   state = await decor(page);
   let paid = start.total - (await money(page)).total;
-  const sofa = state.placed[0];
-  check('placing it puts it there and takes its price once (₦320,000)', state.placed.length === 1 && !state.placing && sofa.x === 3.25 && sofa.z === 5 && sofa.turns === 0 && paid === 320000 && (await bar(page)) === null, { state, paid });
+  const sofa = state.placed.find((item) => item.id === 'emerald_sofa');
+  check('placing it puts it there and takes its price once (₦320,000)', state.placed.length === n0 + 1 && !state.placing && sofa.x === 3.25 && sofa.z === 5 && sofa.turns === 0 && paid === 320000 && (await bar(page)) === null, { state, paid });
 
   // The television, facing the sofa from across the room
   await pick(page, 'tv_55');
@@ -128,7 +134,7 @@ export async function run(browser, check) {
   await pick(page, 'king_bed');
   await page.keyboard.press('Escape');
   await wait(200);
-  check('giving up part-way through putting a piece down buys nothing', (await decor(page)).placed.length === 2 && !(await decor(page)).placing && start.total - (await money(page)).total === paid, await decor(page));
+  check('giving up part-way through putting a piece down buys nothing', (await decor(page)).placed.length === n0 + 2 && !(await decor(page)).placing && start.total - (await money(page)).total === paid, await decor(page));
 
   // ------------------------------------------------------------------ The furniture does what it is for
   const tvLabel = await useFurniture(page, tv.uid);
@@ -284,7 +290,7 @@ export async function run(browser, check) {
       && rested > tired && upAgain === true && afterUp.doing === null && afterUp.legs === 'stand' && afterUp.free, { spot, bedItem, bedPrice, bedLabel, asleep, tired, rested, afterUp });
   // Sold again, so what follows is about the two pieces it has always been about
   const soldBed = bedItem ? await page.evaluate((uid) => window.game.modules.HouseDecorationSystem.getInstance().sell(uid), bedItem.uid) : null;
-  check('and it is sold again for half of what it cost', !!soldBed && soldBed.ok && soldBed.refund === Math.round(bedPrice / 2) && (await decor(page)).placed.length === 2, { soldBed, bedPrice });
+  check('and it is sold again for half of what it cost', !!soldBed && soldBed.ok && soldBed.refund === Math.round(bedPrice / 2) && (await decor(page)).placed.length === n0 + 2, { soldBed, bedPrice });
 
   // ------------------------------------------------------------------ Still there tomorrow
   const kept = await decor(page);
@@ -300,7 +306,7 @@ export async function run(browser, check) {
   const again = await page.evaluate(() => window.game.world.interiorManager.getActiveInteractiveObjects().filter((o) => o.id.startsWith('home_item_')).length);
   const same = (a, b) => a.length === b.length && a.every((item) => b.some((other) => other.uid === item.uid && other.x === item.x && other.z === item.z && other.turns === item.turns));
   check('after leaving, closing the game and coming back, the furniture is where it was put, the walls are the colour they were painted, and nothing was charged again',
-    !outside.inside && same(kept.placed, after.placed) && after.placed.length === 2 && afterWall === wallAfter && again === 2 && (await money(page)).total === purse.total, { kept: kept.placed, after: after.placed, afterWall });
+    !outside.inside && same(kept.placed, after.placed) && after.placed.length === n0 + 2 && afterWall === wallAfter && again === cards0 + 2 && (await money(page)).total === purse.total, { kept: kept.placed, after: after.placed, afterWall });
 
   check('no errors were logged at any of it', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();

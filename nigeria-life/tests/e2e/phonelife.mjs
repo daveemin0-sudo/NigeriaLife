@@ -53,18 +53,13 @@ export async function run(_browser, check) {
   await closeDialogs(page);
   const home = await page.evaluate(() => {
     const r = window.game.world.interiorManager.residence;
-    const shown = (o) => { let n = o; while (n) { if (!n.visible) return false; n = n.parent; } return true; };
-    return {
-      inside: window.game.world.interiorManager.currentInterior?.type,
-      standard: r.standard,
-      name: r.def.name,
-      tvWidth: +(r.tvScreen.scale.x * 6.2).toFixed(2),
-      kits: r.kits.map((k) => ({ on: k.on.join('/'), shown: shown(k.object) })),
-    };
+    const placed = window.game.modules.HouseDecorationSystem.getInstance().placed.map((item) => item.id);
+    return { inside: window.game.world.interiorManager.currentInterior?.type, standard: r.standard, name: r.def.name, placed };
   });
-  const luxuryShown = home.kits.filter((k) => !k.on.includes('basic') && k.shown).length;
-  const basicShown = home.kits.filter((k) => k.on === 'basic' && k.shown).length;
-  check('phonelife: a room rented for under ₦300,000 comes basic: a small TV, plastic chairs, a fan and a stove; no big sofa, extra beds or bathtub', home.inside === 'residence' && home.standard === 'basic' && home.tvWidth < 2 && luxuryShown === 0 && basicShown >= 4, { ...home, kits: undefined, luxuryShown, basicShown });
+  // What a cheap room came with is now the player's own pieces, from the catalogue
+  const basicPieces = ['tv_24', 'plastic_set', 'lontor_fan', 'kerosene_stove'].filter((id) => home.placed.includes(id));
+  const rich = ['emerald_sofa', 'smart_tv_75', 'double_bed_blue', 'bathtub', 'rain_shower', 'dining_table_6'].filter((id) => home.placed.includes(id));
+  check('phonelife: a room rented for under ₦300,000 comes basic: a small TV, plastic chairs, a fan and a stove; no big sofa, extra beds or bathtub', home.inside === 'residence' && home.standard === 'basic' && basicPieces.length === 4 && rich.length === 0, { ...home, basicPieces, rich });
 
   // The catalogue, from Decorate
   const decorate = await tap('#place-extra-decorate');
