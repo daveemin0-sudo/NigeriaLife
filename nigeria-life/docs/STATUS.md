@@ -203,6 +203,19 @@ The player's second list, built in the agreed order.
 
 Still to do from the list: an airport interior and more aircraft; Amala Shitta, Unilag, barracks, prison and a polling unit to go into; a bigger map with the expressway on it; jobs, companies with branches and staff, a supermarket to stock, building storeys; home ceilings, doors, a bigger carport; convoys.
 
+## 2026-10-24, evening: the third list (prices, places, fuel, the home, voices, music)
+
+| What | State | Where |
+| --- | --- | --- |
+| Real prices: flights ₦165k-185k, coaches ₦36k-42k, okada ₦800, keke and danfo ₦500, cab ₦4,500; Quilox gate ₦50k and a real bar up to Ace of Spades at ₦3.5m; buka, suya, gala and fabric at street prices | Verified (`club`, `buka`, `actions`, `flights`, `coaches`) | `travel/`, `interiors/club/ClubService.ts`, `destinations/DestinationRegistry.ts` |
+| The 17 places the phone and map named but which stood nowhere are built along the expressway, or go to the matching one | Verified (`expressway`) | `world/expressway/MorePlaces.ts` |
+| Filling stations (Broad Street and three on the expressway) with a pump sheet; fuel kept per vehicle; a jerry can when dry | Verified (`fuel`) | `world/Fuel.ts`, `ui/PumpSheet.ts` |
+| Everything the home came with is the player's own catalogue pieces, to move, store or sell; the bed, sofa and TV, fridge and drum keep their uses | Verified (`furnish`, `home`, `phonelife`, `view`) | `ResidentialInterior.handOver`, `HouseDecorationSystem.adopt` |
+| Voices: conductors deep men, hawkers men and women, Lagos names respelled for speech | Built (not measurable headless) | `audio/StreetAmbience.ts` |
+| The player's own songs first: car stereo button, taxi rides, the club | Verified (`rides`, `club`, `touch`) | `audio/MusicPlayer.ts`, `ui/DriveControls.ts` |
+
+Copyrighted songs (Asake and others) cannot be shipped in the game; the player adds the files they have, which play everywhere music does.
+
 ## Faults found on the way and put right
 
 - Every shaped car body was built inside out (its sides were turned by swapping two axes, which mirrors them), so from outside one saw the inside of the far side. It looked right while cars were empty; with seats and a driver in the cabin the doors looked see-through. Turning the body the right way also showed that its lower half is one solid with a top at window height, so a car to sit in has that top cut out.
