@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Builder } from '../world/kit/ArchKit';
+import { MORE_KINDS, MORE_MAKERS } from './MoreFurniture';
 
 /**
  * Furniture that reads as furniture, made with the building kit: a sofa has a seat, a back,
@@ -676,5 +677,8 @@ const MAKERS: Record<string, () => THREE.Group> = {
 
 /** A piece of furniture of this kind, or null if the kit has no design for it. */
 export function buildFurniture(modelType: string): THREE.Group | null {
-  return MAKERS[modelType]?.() ?? null;
+  return (MORE_MAKERS[modelType] ?? MAKERS[modelType])?.() ?? null;
 }
+
+// The pieces in more sizes and colours, and the ones that had borrowed another's shape
+Object.assign(FURNITURE, MORE_KINDS);

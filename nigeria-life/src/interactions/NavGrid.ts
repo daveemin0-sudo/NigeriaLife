@@ -56,6 +56,11 @@ export class NavGrid {
     return Math.max(0, Math.min(this.rows - 1, Math.floor((z + this.length / 2) / this.cell)));
   }
 
+  /** Every square open again, before what stands in the room is marked afresh. */
+  public clearAll(): void {
+    this.blocked.fill(0);
+  }
+
   public blockRect(centerX: number, centerZ: number, halfWidth: number, halfLength: number): void {
     const hw = halfWidth + this.clearance;
     const hl = halfLength + this.clearance;

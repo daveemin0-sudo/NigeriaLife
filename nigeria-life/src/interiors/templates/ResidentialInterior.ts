@@ -10,6 +10,8 @@ import { Builder } from '../../world/kit/ArchKit';
 import { PlaceActions, type PlaceAction } from '../../destinations/PlaceActions';
 import type { NavGrid } from '../../interactions/NavGrid';
 import { HomeLife, HOME } from '../home/HomeLife';
+import type { HomeStandard } from '../../housing/HomeStandard';
+import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
 
 export class ResidentialInterior {
   public group: THREE.Group;
@@ -31,6 +33,96 @@ export class ResidentialInterior {
   private floorMat!: THREE.MeshStandardMaterial;
   private furnitureIds: string[] = [];
   private animTime: number = 0;
+
+  /** How well the home came furnished: set from the home the player rents or owns, each time they come in */
+  public standard: HomeStandard = 'luxury';
+  public static standardNow: (() => HomeStandard) | null = null;
+  /** The player's own vehicles, as models, for the carport (set by the game) */
+  public static carsOwned: (() => THREE.Object3D[]) | null = null;
+  /** What the home came with, and in which homes */
+  private kits: Array<{ object: THREE.Object3D; on: readonly HomeStandard[] }> = [];
+  private kitSolids: Array<{ at: [number, number, number, number]; on: readonly HomeStandard[]; solid: { x: number; z: number; halfWidth: number; halfLength: number } | null }> = [];
+  private leather!: THREE.MeshStandardMaterial;
+  private coffeeTable!: THREE.Mesh;
+  private tvUnit!: THREE.Mesh;
+  private fridgeGroup!: THREE.Group;
+  private masterMattress!: THREE.Mesh;
+  private carportCars = new THREE.Group();
+  private room!: RoomForFurniture;
+
+  /** This only stands in homes of these standards */
+  private only(object: THREE.Object3D, ...on: HomeStandard[]): void {
+    this.kits.push({ object, on });
+    object.visible = on.includes(this.standard);
+  }
+
+  /** Floor taken up by something that only stands in homes of these standards */
+  private onlyBlock(x: number, z: number, halfWidth: number, halfLength: number, ...on: HomeStandard[]): void {
+    const entry = { at: [x, z, halfWidth, halfLength] as [number, number, number, number], on, solid: null as { x: number; z: number; halfWidth: number; halfLength: number } | null };
+    if (on.includes(this.standard)) entry.solid = this.life.block(x, z, halfWidth, halfLength);
+    this.kitSolids.push(entry);
+  }
+
+  /** The home the player is coming into: its name and where it is (set by the game) */
+  public static homeName: (() => { name: string; area: string } | null) | null = null;
+
+  /** The player is coming in: the home is furnished as what they rent or own, and called by its name */
+  public onPlayerArriving(): void {
+    const standard = ResidentialInterior.standardNow?.() ?? this.standard;
+    this.furnish(standard);
+    const home = ResidentialInterior.homeName?.();
+    this.def.name = home?.name ?? (standard === 'basic' ? 'Your room & parlour' : standard === 'comfortable' ? 'Your flat' : 'Your house');
+    if (home?.area) this.def.districtName = home.area;
+  }
+
+  /** In: their own vehicles stand in the carport */
+  public onPlayerEntered(): void {
+    this.parkCars();
+  }
+
+  /** Shows what a home of this standard came with, and makes it, and only it, solid. */
+  public furnish(standard: HomeStandard): void {
+    this.standard = standard;
+    for (const kit of this.kits) kit.object.visible = kit.on.includes(standard);
+    for (const entry of this.kitSolids) {
+      const wanted = entry.on.includes(standard);
+      if (wanted && !entry.solid) entry.solid = this.life.block(...entry.at);
+      if (!wanted && entry.solid) {
+        this.life.unblock(entry.solid);
+        entry.solid = null;
+      }
+    }
+    this.life.reblock();
+    // The player's own furniture keeps its floor
+    HouseDecorationSystem.getInstance().attach(this.room);
+    // A first home: the sofa is old cloth, the table plastic, the television small on a table
+    const basic = standard === 'basic';
+    this.leather.color.setHex(basic ? 0x6b4f35 : 0x18181b);
+    this.leather.roughness = basic ? 0.95 : 0.6;
+    (this.coffeeTable.material as THREE.MeshStandardMaterial).color.setHex(basic ? 0xf1f5f9 : 0xfef08a);
+    this.coffeeTable.scale.set(basic ? 0.6 : 1, basic ? 1.1 : 1, basic ? 0.7 : 1);
+    const width = basic ? 1.6 : standard === 'comfortable' ? 3.0 : 6.2;
+    const k = width / 6.2;
+    const y = basic ? 1.55 : standard === 'comfortable' ? 2.1 : 2.4;
+    this.tvScreen?.scale.set(k, k, 1);
+    this.tvScreen?.position.setY(y);
+    this.tvUnit.scale.set(1, (2.8 * k + 0.4) / 3.2, (6.2 * k + 0.3) / 6.5);
+    this.tvUnit.position.setY(y);
+    this.fridgeGroup.scale.set(basic ? 0.8 : 1, basic ? 0.55 : 1, basic ? 0.8 : 1);
+    (this.masterMattress.material as THREE.MeshStandardMaterial).color.setHex(basic ? 0x93c5fd : 0x7c3aed);
+  }
+
+  /** The carport has the player's own vehicles in it, up to two, and nothing if they have none */
+  private parkCars(): void {
+    this.carportCars.clear();
+    const cars = (ResidentialInterior.carsOwned?.() ?? []).slice(0, 2);
+    cars.forEach((car, i) => {
+      car.position.set(cars.length === 1 ? 0 : i === 0 ? -1.4 : 1.4, 0, 0);
+      car.rotation.set(0, 0, 0);
+      car.visible = true;
+      this.carportCars.add(car);
+    });
+  }
 
   constructor() {
     this.group = new THREE.Group();
@@ -351,6 +443,7 @@ export class ResidentialInterior {
           });
         }
         choices.push({ label: 'Move it', note: 'Free', pick: () => { decor.pickUp(item.uid); } });
+        choices.push({ label: 'Put it in storage', note: 'Place it again later, free', pick: () => { if (decor.putAway(item.uid)) host.say(`${decor.catalogueItem(item.id)?.name ?? 'It'} is in storage. Find it under Storage in the catalogue.`, 'success'); } });
         choices.push({
           label: 'Sell it',
           note: `₦${decor.resaleValue(item).toLocaleString()} back`,
@@ -465,6 +558,7 @@ export class ResidentialInterior {
     rugOuter.rotation.x = -Math.PI / 2;
     rugOuter.position.set(-6, 0.02, 5);
     this.group.add(rugOuter);
+    this.only(rugOuter, 'comfortable', 'luxury');
 
     const rugInner = new THREE.Mesh(
       new THREE.CircleGeometry(1.6, 32),
@@ -473,6 +567,7 @@ export class ResidentialInterior {
     rugInner.rotation.x = -Math.PI / 2;
     rugInner.position.set(-6, 0.022, 5);
     this.group.add(rugInner);
+    this.only(rugInner, 'comfortable', 'luxury');
 
     // B. Emerald Green 3-Seater Sofa
     // The same sofa the catalogue sells, built large: a seat, a back, arms and cushions
@@ -481,11 +576,12 @@ export class ResidentialInterior {
     sofa.rotation.y = Math.PI;
     sofa.position.set(-2, 0, 6);
     this.group.add(sofa);
+    this.only(sofa, 'luxury');
 
     // C. Black leather sofa facing the TV: a seat to sit on, with a back and arms
     const sofaBlack = new THREE.Group();
     sofaBlack.position.set(-7.5, 0, 2.5);
-    const leather = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.6 });
+    const leather = (this.leather = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.6 }));
     const sofaSeat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 3.4), leather);
     sofaSeat.position.set(-0.15, 0.25, 0);
     sofaBlack.add(sofaSeat);
@@ -507,6 +603,7 @@ export class ResidentialInterior {
     );
     coffeeTable.position.set(-6, 0.3, 5);
     this.group.add(coffeeTable);
+    this.coffeeTable = coffeeTable;
 
     // E. 75-inch Flat Screen TV & Entertainment Wall Console
     const tvUnit = new THREE.Mesh(
@@ -515,6 +612,12 @@ export class ResidentialInterior {
     );
     tvUnit.position.set(-15.8, 2.4, 4);
     this.group.add(tvUnit);
+    this.tvUnit = tvUnit;
+    // In a first home the set stands on a small table instead of hanging on the wall
+    const tvTable = new Builder().box(0x8b5a2b, 1.0, 0.08, 2.1, 0, 1.0, 0).box(0x6b4423, 0.08, 1.0, 0.08, -0.4, 0, -0.95).box(0x6b4423, 0.08, 1.0, 0.08, -0.4, 0, 0.95).box(0x6b4423, 0.08, 1.0, 0.08, 0.4, 0, -0.95).box(0x6b4423, 0.08, 1.0, 0.08, 0.4, 0, 0.95).build('tv table');
+    tvTable.position.set(-15.2, 0, 4);
+    this.group.add(tvTable);
+    this.only(tvTable, 'basic');
 
     const screenGeo = new THREE.PlaneGeometry(6.2, 2.8);
     const screenMat = new THREE.MeshBasicMaterial({ color: 0x15803d });
@@ -546,6 +649,7 @@ export class ResidentialInterior {
     );
     diningTable.position.set(-8, 1.1, 10);
     this.group.add(diningTable);
+    this.only(diningTable, 'comfortable', 'luxury');
 
     const tableLeg = new THREE.Mesh(
       new THREE.CylinderGeometry(0.12, 0.12, 1.1, 8),
@@ -553,6 +657,7 @@ export class ResidentialInterior {
     );
     tableLeg.position.set(-8, 0.55, 10);
     this.group.add(tableLeg);
+    this.only(tableLeg, 'comfortable', 'luxury');
 
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 2) {
       const chair = new THREE.Mesh(
@@ -561,6 +666,7 @@ export class ResidentialInterior {
       );
       chair.position.set(-8 + Math.cos(a) * 1.8, 0.35, 10 + Math.sin(a) * 1.8);
       this.group.add(chair);
+      this.only(chair, 'comfortable', 'luxury');
     }
 
     // G. Potted Indoor Majesty Palm Plant (Screenshot 5)
@@ -570,6 +676,7 @@ export class ResidentialInterior {
     );
     pot.position.set(-0.5, 0.35, 0.5);
     this.group.add(pot);
+    this.only(pot, 'comfortable', 'luxury');
 
     // 5. Bedrooms:
     // A. Master Bedroom (Right) - Purple Duvet King Bed (Screenshot 5)
@@ -586,6 +693,7 @@ export class ResidentialInterior {
     );
     masterMattress.position.set(10.5, 0.9, -6.5);
     this.group.add(masterMattress);
+    this.masterMattress = masterMattress;
 
     // B. Center Bedroom - Purple Bed (Screenshot 5)
     const centerBed = new THREE.Mesh(
@@ -594,6 +702,7 @@ export class ResidentialInterior {
     );
     centerBed.position.set(-3, 0.4, -7);
     this.group.add(centerBed);
+    this.only(centerBed, 'comfortable', 'luxury');
 
     const centerMattress = new THREE.Mesh(
       new THREE.BoxGeometry(3.8, 0.5, 4.2),
@@ -601,6 +710,7 @@ export class ResidentialInterior {
     );
     centerMattress.position.set(-3, 0.9, -7);
     this.group.add(centerMattress);
+    this.only(centerMattress, 'comfortable', 'luxury');
 
     // C. Guest Bedroom (Left) - Blue Bed (Screenshot 5)
     const guestBed = new THREE.Mesh(
@@ -609,6 +719,7 @@ export class ResidentialInterior {
     );
     guestBed.position.set(-12, 0.4, -7);
     this.group.add(guestBed);
+    this.only(guestBed, 'luxury');
 
     const guestMattress = new THREE.Mesh(
       new THREE.BoxGeometry(3.3, 0.5, 4.0),
@@ -616,6 +727,7 @@ export class ResidentialInterior {
     );
     guestMattress.position.set(-12, 0.9, -7);
     this.group.add(guestMattress);
+    this.only(guestMattress, 'luxury');
 
     // 6. Bathroom (Tiled with Bathtub, Glass Shower, WC, Blue Drum & Red Bucket!):
     // White Ceramic Bathtub
@@ -625,6 +737,7 @@ export class ResidentialInterior {
     );
     tub.position.set(9.5, 0.4, 3);
     this.group.add(tub);
+    this.only(tub, 'comfortable', 'luxury');
 
     // Glass Shower Booth
     const showerGlass = new THREE.Mesh(
@@ -633,6 +746,7 @@ export class ResidentialInterior {
     );
     showerGlass.position.set(13.5, 1.6, 4.5);
     this.group.add(showerGlass);
+    this.only(showerGlass, 'luxury');
 
     // Toilet WC
     const wc = new THREE.Mesh(
@@ -669,7 +783,7 @@ export class ResidentialInterior {
       this.floorMat.roughness = roughness;
     };
     decorationSystem.onChanged = () => this.furnitureChanged();
-    decorationSystem.attach({
+    this.room = {
       halfWidth: 16,
       halfLength: 13,
       solids: () => this.life.solids,
@@ -677,7 +791,8 @@ export class ResidentialInterior {
       block: (x, z, halfWidth, halfLength) => this.life.nav.blockRect(x, z, halfWidth, halfLength),
       unblock: (x, z, halfWidth, halfLength) => this.life.nav.clearRect(x, z, halfWidth, halfLength),
       keepClear: [{ x: 0, z: 8 }, { x: 0, z: 10.6 }],
-    });
+    };
+    decorationSystem.attach(this.room);
 
     // 9. Kitchen corner: fridge
     const fridge = new THREE.Group();
@@ -695,6 +810,7 @@ export class ResidentialInterior {
     fridgeHandle.position.set(0.53, 1.3, 0.3);
     fridge.add(fridgeHandle);
     this.group.add(fridge);
+    this.fridgeGroup = fridge;
 
     // Pillow at the head of the master bed
     const pillow = new THREE.Mesh(
@@ -705,30 +821,57 @@ export class ResidentialInterior {
     this.group.add(pillow);
 
     // Each bed has a headboard, pillows and a turned-down cover, so it reads as a bed and not a slab
-    const bedding = new Builder();
-    for (const [x, z, width, depth, cover] of [[10.5, -6.5, 4.8, 5.2, 0x6d28d9], [-3, -7, 4.2, 4.6, 0x6d28d9], [-12, -7, 3.6, 4.4, 0x1d4ed8]] as Array<[number, number, number, number, number]>) {
+    const beds: Array<[number, number, number, number, number, HomeStandard[]]> = [
+      [10.5, -6.5, 4.8, 5.2, 0x6d28d9, ['basic', 'comfortable', 'luxury']],
+      [-3, -7, 4.2, 4.6, 0x6d28d9, ['comfortable', 'luxury']],
+      [-12, -7, 3.6, 4.4, 0x1d4ed8, ['luxury']],
+    ];
+    for (const [x, z, width, depth, cover, on] of beds) {
+      const bedding = new Builder();
       const head = z - depth / 2;
       bedding.box(0x3f2a17, width + 0.2, 1.9, 0.22, x, 0, head + 0.05);
       for (const side of [-1, 1]) bedding.box(0xffffff, width * 0.36, 0.2, 0.8, x + side * width * 0.22, 1.15, head + 0.85);
       bedding.box(cover, width - 0.36, 0.09, depth * 0.5, x, 1.15, z + depth * 0.2).box(0xf8fafc, width - 0.36, 0.1, 0.42, x, 1.16, z - depth * 0.08);
       for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bedding.box(0x1c1917, 0.18, 0.12, 0.18, x + sx * (width / 2 - 0.2), -0.02, z + sz * (depth / 2 - 0.2));
+      const built = bedding.build('bedding');
+      this.group.add(built);
+      this.only(built, ...on);
     }
-    this.group.add(bedding.build('bedding'));
 
     // 10. Everything solid, so walking goes around it
-    this.life.block(-2, 6, 2.4, 0.9); // green sofa
+    this.onlyBlock(-2, 6, 2.4, 0.9, 'luxury'); // green sofa
     this.life.block(-6, 5, 1.2, 0.7); // coffee table
-    this.life.block(-8, 10, 2.05, 2.05); // dining table and chairs
-    this.life.block(-0.5, 0.5, 0.35, 0.35); // palm pot
+    this.onlyBlock(-8, 10, 2.05, 2.05, 'comfortable', 'luxury'); // dining table and chairs
+    this.onlyBlock(-0.5, 0.5, 0.35, 0.35, 'comfortable', 'luxury'); // palm pot
     this.life.block(10.5, -6.5, 2.4, 2.6); // master bed
-    this.life.block(-3, -7, 2.1, 2.3); // centre bed
-    this.life.block(-12, -7, 1.8, 2.2); // guest bed
-    this.life.block(9.5, 3, 1.7, 0.8); // bathtub
-    this.life.block(13.5, 4.5, 1.1, 1.1); // shower
+    this.onlyBlock(-3, -7, 2.1, 2.3, 'comfortable', 'luxury'); // centre bed
+    this.onlyBlock(-12, -7, 1.8, 2.2, 'luxury'); // guest bed
+    this.onlyBlock(9.5, 3, 1.7, 0.8, 'comfortable', 'luxury'); // bathtub
+    this.onlyBlock(13.5, 4.5, 1.1, 1.1, 'luxury'); // shower
     this.life.block(14, 1.5, 0.4, 0.55); // toilet
     this.life.block(HOME.drum.position.x, HOME.drum.position.z, 0.8, 0.8);
     this.life.block(9.8, 0.6, 0.45, 0.45); // bucket
     this.life.block(HOME.fridge.position.x, HOME.fridge.position.z, 0.5, 0.5);
+
+    // A first home: plastic chairs where the dining set would be, a fan, and a kerosene stove by the fridge
+    const plastic = buildFurniture('plastic_set')!;
+    plastic.scale.setScalar(1.5);
+    plastic.position.set(-8, 0, 10);
+    this.group.add(plastic);
+    this.only(plastic, 'basic');
+    this.onlyBlock(-8, 10.15, 0.75, 0.9, 'basic');
+    const fan = buildFurniture('standing_fan')!;
+    fan.scale.setScalar(1.5);
+    fan.position.set(-11.5, 0, 1.2);
+    this.group.add(fan);
+    this.only(fan, 'basic');
+    this.onlyBlock(-11.5, 1.2, 0.4, 0.4, 'basic');
+    const stove = buildFurniture('kerosene_stove')!;
+    stove.scale.setScalar(1.5);
+    stove.position.set(-12.4, 0, 11.4);
+    this.group.add(stove);
+    this.only(stove, 'basic');
+    this.onlyBlock(-12.4, 11.4, 0.45, 0.45, 'basic');
 
     // 11. Things to do, each registered where the player stands to use it
     const origin = this.group.position;
@@ -836,21 +979,8 @@ export class ResidentialInterior {
     }
 
     // Parked Cars under carport
-    // Car 1: Silver Sedan
-    const car1 = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, 1.1, 4.2),
-      new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.6 })
-    );
-    car1.position.set(-1.4, 0.55, 0);
-    carportGroup.add(car1);
-
-    // Car 2: Black Mercedes G-Wagon SUV (Screenshot 5)
-    const car2 = new THREE.Mesh(
-      new THREE.BoxGeometry(2.5, 1.5, 4.4),
-      new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.4, metalness: 0.4 })
-    );
-    car2.position.set(1.4, 0.75, 0);
-    carportGroup.add(car2);
+    // The player's own vehicles are parked here when they come home (see parkCars)
+    carportGroup.add(this.carportCars);
 
     this.group.add(carportGroup);
   }

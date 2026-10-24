@@ -164,6 +164,10 @@ export class GameCamera {
   /**
    * Rotate camera around the player horizontally (yaw) and vertically (pitch).
    */
+  /** Is there a wall at this point on the ground? (set by the game) The driving camera stays on this side of one */
+  public blocked: ((x: number, z: number) => boolean) | null = null;
+  private vehCamRoom = 11.2;
+
   public rotate(deltaYaw: number, deltaPitch: number = 0): void {
     if (this.mode === 'interior') {
       this.interiorYaw += deltaYaw;
@@ -373,6 +377,7 @@ export class GameCamera {
       if (!this.hasInitializedVehCam) {
         this.cameraVehYaw = vehRot;
         this.hasInitializedVehCam = true;
+        this.vehCamRoom = 11.2;
       } else {
         // Smoothly track vehicle heading to decouple visual camera rotation from high-frequency wheel inputs
         const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
@@ -385,8 +390,20 @@ export class GameCamera {
       const chaseDistance = 11.2 + speedNorm * 2.2;
       const chaseHeight = 4.4 + speedNorm * 0.8;
 
-      const behindX = vehPos.x - Math.sin(this.cameraVehYaw) * chaseDistance;
-      const behindZ = vehPos.z - Math.cos(this.cameraVehYaw) * chaseDistance;
+      // A wall between the car and the camera: the camera comes in closer (fast), and goes back out slowly
+      let room = chaseDistance;
+      if (this.blocked) {
+        for (let step = 1; step <= 12; step++) {
+          const d = (chaseDistance * step) / 12;
+          if (this.blocked(vehPos.x - Math.sin(this.cameraVehYaw) * d, vehPos.z - Math.cos(this.cameraVehYaw) * d)) {
+            room = Math.max(3.2, d - 1.2);
+            break;
+          }
+        }
+      }
+      this.vehCamRoom += (room - this.vehCamRoom) * Math.min(1, delta * (room < this.vehCamRoom ? 12 : 1.5));
+      const behindX = vehPos.x - Math.sin(this.cameraVehYaw) * this.vehCamRoom;
+      const behindZ = vehPos.z - Math.cos(this.cameraVehYaw) * this.vehCamRoom;
       const targetCameraPos = new THREE.Vector3(behindX, vehPos.y + chaseHeight, behindZ);
 
       const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);

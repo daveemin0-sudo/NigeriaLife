@@ -321,9 +321,23 @@ export class HomeLife {
   }
 
   /** Marks a piece of furniture as solid. Coordinates are relative to the room centre. */
-  public block(centerX: number, centerZ: number, halfWidth: number, halfLength: number): void {
+  public block(centerX: number, centerZ: number, halfWidth: number, halfLength: number): { x: number; z: number; halfWidth: number; halfLength: number } {
     this.nav.blockRect(centerX, centerZ, halfWidth, halfLength);
-    this.solids.push({ x: centerX, z: centerZ, halfWidth, halfLength });
+    const solid = { x: centerX, z: centerZ, halfWidth, halfLength };
+    this.solids.push(solid);
+    return solid;
+  }
+
+  /** Takes something the home came with off the floor map (it is not there in this home). */
+  public unblock(solid: { x: number; z: number; halfWidth: number; halfLength: number }): void {
+    const i = this.solids.indexOf(solid);
+    if (i >= 0) this.solids.splice(i, 1);
+  }
+
+  /** Marks the floor map afresh from everything the home stands with now. */
+  public reblock(): void {
+    this.nav.clearAll();
+    for (const s of this.solids) this.nav.blockRect(s.x, s.z, s.halfWidth, s.halfLength);
   }
 
   /** Tells the status line to draw itself again (the television was turned to something else). */

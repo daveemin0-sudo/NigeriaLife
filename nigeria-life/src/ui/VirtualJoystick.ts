@@ -51,6 +51,22 @@ export class VirtualJoystick {
 
     this.container.appendChild(this.joystickBase);
 
+    // Run: a chip on the stick's ring, as a thumb finds it without looking
+    const run = document.createElement('button');
+    run.className = 'v-run-chip';
+    run.id = 'v-btn-run';
+    run.type = 'button';
+    run.textContent = 'RUN';
+    run.setAttribute('aria-pressed', 'false');
+    run.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.activeKeys['shift'] = !this.activeKeys['shift'];
+      run.classList.toggle('active', this.activeKeys['shift']);
+      run.setAttribute('aria-pressed', String(this.activeKeys['shift']));
+      document.getElementById('v-btn-sprint')?.classList.toggle('active', this.activeKeys['shift']);
+    });
+    this.container.appendChild(run);
+
     // 2. Action Buttons Cluster
     this.actionsCluster = document.createElement('div');
     this.actionsCluster.className = 'v-actions-cluster';

@@ -61,6 +61,8 @@ export async function run(browser, check) {
   const straightAccelResult = await page.evaluate(async () => {
     const g = window.game;
     const veh = g.player.currentVehicle;
+    // Handling is measured on an empty road: other traffic and people are not in the way
+    veh.constructor.ignoreBodies = true;
     veh.mesh.position.set(-4.9, 0, 0);
     veh.mesh.rotation.y = 0;
     veh.currentSpeed = 0;

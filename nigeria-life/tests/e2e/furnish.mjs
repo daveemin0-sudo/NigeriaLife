@@ -24,6 +24,7 @@ const idle = (page, seconds = 30) => playUntil(page, () => (window.game.player.a
 async function pick(page, itemId) {
   await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().openCatalogueModal());
   await wait(300);
+  await page.evaluate(() => document.querySelector('#house-catalogue-modal [data-tab="all"]')?.click());
   await page.evaluate((id) => document.querySelector(`#house-catalogue-modal [data-item-id="${id}"]`)?.click(), itemId);
   await wait(300);
 }
@@ -114,14 +115,14 @@ export async function run(browser, check) {
   check('placing it puts it there and takes its price once (₦320,000)', state.placed.length === 1 && !state.placing && sofa.x === 3.25 && sofa.z === 5 && sofa.turns === 0 && paid === 320000 && (await bar(page)) === null, { state, paid });
 
   // The television, facing the sofa from across the room
-  await pick(page, 'smart_tv_75');
+  await pick(page, 'tv_55');
   await page.evaluate(() => { const d = window.game.modules.HouseDecorationSystem.getInstance(); d.moveTo(3.25, 9); d.turn(); d.turn(); });
   await pressSteady(page, '#furnish-bar-confirm');
   await wait(300);
   state = await decor(page);
-  const tv = state.placed.find((item) => item.id === 'smart_tv_75');
+  const tv = state.placed.find((item) => item.id === 'tv_55');
   paid = start.total - (await money(page)).total;
-  check('a television is bought and stood facing the sofa', !!tv && tv.turns === 2 && paid === 320000 + 450000, { tv, paid });
+  check('a television (55 inches, ₦520,000) is bought and stood facing the sofa', !!tv && tv.turns === 2 && paid === 320000 + 520000, { tv, paid });
 
   // Giving up part-way costs nothing
   await pick(page, 'king_bed');
@@ -233,6 +234,9 @@ export async function run(browser, check) {
   const beforePaint = await money(page);
   await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().openCatalogueModal());
   await wait(300);
+  // Walls and floors have a tab of their own
+  await page.evaluate(() => document.querySelector('#house-catalogue-modal [data-tab="design"]')?.click());
+  await wait(200);
   await page.evaluate(() => document.querySelector('#house-catalogue-modal [data-wall="sage"]')?.click());
   await wait(400);
   await page.evaluate(() => document.querySelector('#house-catalogue-modal [data-wall="sage"]')?.click());

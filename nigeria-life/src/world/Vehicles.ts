@@ -3,6 +3,7 @@ import { DrivableVehicle } from './DrivableVehicle';
 import type { InteractiveObject } from './World';
 import { SignageLibrary } from '../materials/SignageLibrary';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
+import { bodyOf, type CarBody } from './Bodies';
 
 export interface TrafficCar {
   group: THREE.Group;
@@ -154,8 +155,9 @@ export class Vehicles {
         friction: 1.9,
         hornText: '📢 BOOM-BOOM! HEAVY CONVOY MOVING!',
       },
-      new THREE.Vector3(8.5, 0, 24.0),
-      -Math.PI / 2
+      // Along the wall north of the footbridge, not across the pavement beside its stairs
+      new THREE.Vector3(12.4, 0, 33.0),
+      0
     );
 
     // 7. Porsche 911 GT3 Supercar parked outside Marina Luxury Showroom
@@ -190,7 +192,7 @@ export class Vehicles {
         friction: 2.1,
         hornText: '🚨 WEE-WOO! EMERGENCY PASSING!',
       },
-      new THREE.Vector3(12.0, 0, 14.0),
+      new THREE.Vector3(12.0, 0, 1.5),
       0
     );
 
@@ -242,10 +244,7 @@ export class Vehicles {
     this.group.add(oandoCar);
 
     // B. Black Executive Sedan parked in Eko Commercial Bank bay
-    const { group: bankCar } = this.createSedan(0x0f172a); // Deep Navy/Black
-    bankCar.position.set(9.6, 0, -25.0);
-    bankCar.rotation.y = Math.PI / 2;
-    this.group.add(bankCar);
+    // (The car that stood half inside the bank, across its pavement, is gone)
 
     // C. White Prado SUV parked in Everyday Supermarket bay
     const { group: marketSUV } = this.createSUV(0xf8fafc); // Crisp White
@@ -268,14 +267,15 @@ export class Vehicles {
 
     // E. 2 Dispatch Okadas parked side-by-side near Bet9ja
     const { group: okada1 } = this.createOkada(0xef4444); // Red courier box
-    okada1.position.set(9.5, 0, 14.5);
-    okada1.rotation.y = Math.PI / 2;
+    // Against the wall, out of the way of people walking and of the footbridge stairs
+    okada1.position.set(12.3, 0, 8);
+    okada1.rotation.y = 0;
     okada1.rotation.z = -0.12; // tilted on kickstand
     this.group.add(okada1);
 
     const { group: okada2 } = this.createOkada(0x10b981); // Emerald courier box
-    okada2.position.set(9.5, 0, 16.5);
-    okada2.rotation.y = Math.PI / 2;
+    okada2.position.set(13.1, 0, 8);
+    okada2.rotation.y = 0;
     okada2.rotation.z = -0.12;
     this.group.add(okada2);
 
@@ -285,7 +285,7 @@ export class Vehicles {
     aptSedan.rotation.y = -Math.PI / 2;
     this.group.add(aptSedan);
 
-    this.parkedVehicles = [oandoCar, bankCar, marketSUV, mechCar, okada1, okada2, aptSedan];
+    this.parkedVehicles = [oandoCar, marketSUV, mechCar, okada1, okada2, aptSedan];
   }
 
   // =========================================================================
@@ -936,5 +936,28 @@ export class Vehicles {
         }
       }
     }
+  }
+
+  private bodyPool: CarBody[] = [];
+
+  /**
+   * The vehicles standing in `city` within `range` of a point, as boxes on the ground (added to
+   * `out`): the parked ones and those that can be driven, except one with a driver in it.
+   */
+  public cars(x: number, z: number, range: number, out: CarBody[], city: string): void {
+    let used = 0;
+    const add = (object: THREE.Object3D) => {
+      const p = object.position;
+      if (Math.abs(p.x - x) > range || Math.abs(p.z - z) > range) return;
+      const body = this.bodyPool[used] ?? (this.bodyPool[used] = { x: 0, z: 0, yaw: 0, halfWidth: 0, halfLength: 0 });
+      used += 1;
+      out.push(bodyOf(object, body));
+      body.parked = true;
+    };
+    for (const v of this.drivableVehicles) {
+      if (v.city !== city || v.driver) continue;
+      add(v.mesh);
+    }
+    if (city === 'lagos') for (const car of this.parkedVehicles) add(car);
   }
 }

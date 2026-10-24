@@ -152,12 +152,15 @@ export async function run(browser, check) {
     v.mesh.position.set(2, 0, z);
     v.mesh.rotation.y = Math.PI / 2;
     g.enterVehicle(v);
+    // The wall is what is being tried: nobody parked or passing is in the way
+    v.constructor.ignoreBodies = true;
     return { id: v.config?.id ?? null, driving: g.player.isDriving };
   }, { z: midZ });
   await page.keyboard.down('w');
   for (let i = 0; i < 16; i++) await advance(page, 0.25);
   await page.keyboard.up('w');
   const crashed = await page.evaluate(() => { const g = window.game; const v = g.player.currentVehicle; return v ? { x: +v.mesh.position.x.toFixed(2), speed: +Math.abs(v.currentSpeed).toFixed(2) } : null; });
+  await page.evaluate(() => { window.game.world.vehicles.drivableVehicles[0].constructor.ignoreBodies = false; });
   await page.keyboard.press('f');
   await advance(page, 0.5);
   check('a vehicle driven at the bank stops against its wall', car.driving && !!crashed && crashed.x > 4 && crashed.x < bank.minX - 0.9 && crashed.speed < 0.5, { car, crashed, front: bank.minX });

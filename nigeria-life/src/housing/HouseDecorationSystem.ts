@@ -5,6 +5,9 @@ import { UIStateManager } from '../ui/UIStateManager';
 import { profileKey } from '../backend/Profile';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import { buildFurniture, FURNITURE, type FurnitureKind } from './FurnitureModels';
+import { EXTRA_ITEMS, PRICE_FIXES } from './CatalogueExtras';
+import { CatalogueSheet } from '../ui/CatalogueSheet';
+import { FurnitureThumbs } from '../ui/FurnitureThumbs';
 
 export interface CatalogueItem {
   id: string;
@@ -14,6 +17,8 @@ export interface CatalogueItem {
   icon: string;
   description: string;
   modelType: string;
+  /** Added lately: shown under New */
+  isNew?: boolean;
 }
 
 export const CATALOGUE_ITEMS: CatalogueItem[] = [
@@ -604,6 +609,9 @@ export const CATALOGUE_ITEMS: CatalogueItem[] = [
   },
 ];
 
+CATALOGUE_ITEMS.push(...EXTRA_ITEMS);
+for (const item of CATALOGUE_ITEMS) if (PRICE_FIXES[item.id]) item.price = PRICE_FIXES[item.id];
+
 /** A piece of furniture standing in the home. */
 export interface PlacedItem {
   uid: string;
@@ -624,6 +632,8 @@ export interface Placing {
   z: number;
   turns: number;
   moving: PlacedItem | null;
+  /** Taken out of storage: it was paid for when it was bought */
+  stored?: boolean;
 }
 
 /** What the home tells the furniture about itself. */
@@ -676,8 +686,10 @@ export class HouseDecorationSystem {
   public placedItemsGroup: THREE.Group;
   private storageKey = profileKey('nigeria_life_placed_furniture_v1');
   private lookKey = profileKey('nigeria_life_home_look_v1');
+  private storeKey = profileKey('nigeria_life_furniture_storage_v1');
+  /** Pieces the player owns that are put away, not standing in the home (catalogue ids) */
+  public stored: string[] = [];
   public isBuyMode: boolean = false;
-  private modalContainer: HTMLDivElement | null = null;
   public onFurniturePlaced?: (item: CatalogueItem) => void;
 
   /** Everything standing in the home that the player put there */
@@ -711,6 +723,12 @@ export class HouseDecorationSystem {
     this.backend.onPropertySoldToAgent = () => this.clearPlaced();
     this.placedItemsGroup = new THREE.Group();
     this.loadSavedFurniture();
+    try {
+      const stored = JSON.parse(localStorage.getItem(this.storeKey) || '[]');
+      if (Array.isArray(stored)) this.stored = stored.filter((id) => typeof id === 'string' && CATALOGUE_ITEMS.some((item) => item.id === id));
+    } catch {
+      // Nothing put away that can be read back
+    }
     try {
       const look = JSON.parse(localStorage.getItem(this.lookKey) || 'null');
       if (look && WALL_COLOURS.some((colour) => colour.id === look.wall)) this.wallColour = look.wall;
@@ -792,13 +810,14 @@ export class HouseDecorationSystem {
   // =========================================================================
 
   /** Starts putting a new piece down. Nothing is paid until it is placed. */
-  public beginPlacing(itemId: string): boolean {
+  public beginPlacing(itemId: string, options: { stored?: boolean } = {}): boolean {
     const item = this.catalogueItem(itemId);
     if (!item || !this.room) return false;
+    if (options.stored && !this.stored.includes(itemId)) return false;
     this.cancel();
     this.closeCatalogueModal();
     const at = this.startAt?.() ?? { x: 0, z: 4 };
-    this.placing = { item, x: this.snap(at.x), z: this.snap(at.z), turns: 0, moving: null };
+    this.placing = { item, x: this.snap(at.x), z: this.snap(at.z), turns: 0, moving: null, stored: !!options.stored };
     this.showGhost();
     return true;
   }
@@ -863,7 +882,7 @@ export class HouseDecorationSystem {
         if (overlaps(other.x, other.z, theirs.width / 2, theirs.depth / 2)) return 'Something is already standing there.';
       }
     }
-    if (!placing.moving) {
+    if (!placing.moving && !placing.stored) {
       const data = this.backend.getData();
       if (data.walletCash + data.bank.balance < placing.item.price) return `You need ₦${placing.item.price.toLocaleString()} for it.`;
     }
@@ -884,8 +903,14 @@ export class HouseDecorationSystem {
       item.turns = placing.turns;
       item.mesh.visible = true;
     } else {
-      // Wallet first, bank covers any shortfall
-      if (!this.backend.pay(placing.item.price, `Furnishing: ${placing.item.name}`)) {
+      if (placing.stored) {
+        // Out of storage: already the player's
+        const at = this.stored.indexOf(placing.item.id);
+        if (at < 0) return { ok: false, reason: 'It is no longer in storage.' };
+        this.stored.splice(at, 1);
+        this.saveStored();
+      } else if (!this.backend.pay(placing.item.price, `Furnishing: ${placing.item.name}`)) {
+        // Wallet first, bank covers any shortfall
         return { ok: false, reason: `You need ₦${placing.item.price.toLocaleString()} for it.` };
       }
       item = {
@@ -902,7 +927,7 @@ export class HouseDecorationSystem {
     }
     this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
     this.solidify(item, true);
-    const wasNew = !placing.moving;
+    const wasNew = !placing.moving && !placing.stored;
     this.placing = null;
     this.hideGhost();
     this.save();
@@ -911,7 +936,10 @@ export class HouseDecorationSystem {
     if (wasNew) {
       showGameToast(`${placing.item.name} is in place. ₦${placing.item.price.toLocaleString()} paid.`, 'success');
       this.onFurniturePlaced?.(placing.item);
+    } else if (placing.stored) {
+      showGameToast(`${placing.item.name} is out of storage and in place.`, 'success');
     }
+    this.backToCatalogue(true);
     return { ok: true };
   }
 
@@ -927,6 +955,7 @@ export class HouseDecorationSystem {
     this.hideGhost();
     if (placing.moving) this.onChanged?.();
     this.onPlacingChanged?.();
+    this.backToCatalogue(false);
   }
 
   /** Sells a piece on, for part of what it cost new. */
@@ -943,6 +972,30 @@ export class HouseDecorationSystem {
     this.save();
     this.onChanged?.();
     return { ok: true, refund };
+  }
+
+  /** Puts a piece away: out of the home, into storage, to be placed again later for nothing. */
+  public putAway(uid: string): boolean {
+    const index = this.placed.findIndex((item) => item.uid === uid);
+    if (index < 0) return false;
+    if (this.placing?.moving?.uid === uid) this.cancel();
+    const item = this.placed[index];
+    this.solidify(item, false);
+    item.mesh.removeFromParent();
+    this.placed.splice(index, 1);
+    this.stored.push(item.id);
+    this.saveStored();
+    this.save();
+    this.onChanged?.();
+    return true;
+  }
+
+  private saveStored(): void {
+    try {
+      localStorage.setItem(this.storeKey, JSON.stringify(this.stored));
+    } catch {
+      // Storage full or shut off: what is put away is remembered until the page is closed
+    }
   }
 
   public resaleValue(item: PlacedItem): number {
@@ -1114,130 +1167,60 @@ export class HouseDecorationSystem {
   // THE CATALOGUE
   // =========================================================================
 
+  private sheet: CatalogueSheet | null = null;
+  /** The piece being put down was chosen in the catalogue: it opens again once it is down */
+  private fromSheet = false;
+
+  private catalogue(): CatalogueSheet {
+    if (!this.sheet) {
+      this.sheet = new CatalogueSheet({
+        items: () => CATALOGUE_ITEMS,
+        kind: (modelType) => this.kind(modelType),
+        footprint: (modelType, turns) => this.footprint(modelType, turns),
+        money: () => {
+          const data = this.backend.getData();
+          return data.walletCash + data.bank.balance;
+        },
+        stored: () => this.stored,
+        begin: (id, stored) => {
+          const ok = this.beginPlacing(id, { stored });
+          if (ok) this.fromSheet = true;
+          return ok;
+        },
+        walls: () => WALL_COLOURS,
+        floors: () => FLOOR_STYLES,
+        wallNow: () => this.wallColour,
+        floorNow: () => this.floorStyle,
+        paintPrice: PAINT_PRICE,
+        floorPrice: FLOOR_PRICE,
+        paint: (id) => this.paintWalls(id),
+        fitFloor: (id) => this.paintFloor(id),
+        opened: () => UIStateManager.getInstance().pushModal('house-catalogue'),
+        closed: () => UIStateManager.getInstance().popModal('house-catalogue'),
+      });
+    }
+    return this.sheet;
+  }
+
+  /** Opens the catalogue: a sheet from the bottom of the screen with the home above it */
   public openCatalogueModal(): void {
-    if (!this.modalContainer) {
-      this.modalContainer = document.createElement('div');
-      this.modalContainer.id = 'house-catalogue-modal';
-      this.modalContainer.className = 'catalogue-modal-overlay';
-      document.body.appendChild(this.modalContainer);
-    }
-
-    const data = this.backend.getData();
-    this.modalContainer.innerHTML = `
-      <div class="catalogue-modal-card">
-        <div class="catalogue-header">
-          <div class="cat-title-wrap">
-            <span class="cat-icon">🏠</span>
-            <div>
-              <h3>Nigerian Home Decor & Appliance Catalogue</h3>
-              <p>Furnish and customize your Lagos residence with authentic appliances & luxury furniture.</p>
-            </div>
-          </div>
-          <button class="cat-close-btn" id="btn-close-catalogue">✕</button>
-        </div>
-
-        <div class="cat-balance-row">
-          <span>Available Bank / Cash: <strong>₦${(data.walletCash + data.bank.balance).toLocaleString()}</strong></span>
-          <span class="cat-tag-pill">You pay when it is placed</span>
-        </div>
-
-        <div class="cat-grid">
-          ${CATALOGUE_ITEMS.map((item) => {
-            const canAfford = (data.walletCash + data.bank.balance) >= item.price;
-            return `
-              <div class="cat-item-card">
-                <div class="cat-item-icon">${item.icon}</div>
-                <div class="cat-item-info">
-                  <h4>${item.name}</h4>
-                  <span class="cat-item-cat">${item.category.toUpperCase()}</span>
-                  <p class="cat-item-desc">${item.description}</p>
-                  <div class="cat-item-footer">
-                    <span class="cat-item-price">₦${item.price.toLocaleString()}</span>
-                    <button class="btn-buy-furniture" data-item-id="${item.id}" ${canAfford ? '' : 'disabled'}>
-                      ${canAfford ? 'Choose where it goes' : 'Not enough money'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-
-        <div class="cat-walls" id="cat-walls">
-          <h4>Paint the walls · ₦${PAINT_PRICE.toLocaleString()}</h4>
-          <div class="cat-wall-row">
-            ${WALL_COLOURS.map((colour) => `
-              <button class="cat-wall-swatch${colour.id === this.wallColour ? ' current' : ''}" data-wall="${colour.id}" title="${colour.name}" style="background:#${colour.hex.toString(16).padStart(6, '0')}">
-                <span>${colour.name}${colour.id === this.wallColour ? ' ✓' : ''}</span>
-              </button>`).join('')}
-          </div>
-        </div>
-
-        <div class="cat-floors" id="cat-floors" style="margin-top: 14px;">
-          <h4>Fit the flooring · ₦${FLOOR_PRICE.toLocaleString()}</h4>
-          <div class="cat-wall-row">
-            ${FLOOR_STYLES.map((style) => `
-              <button class="cat-wall-swatch${style.id === this.floorStyle ? ' current' : ''}" data-floor="${style.id}" title="${style.name}" style="background:#${style.hex.toString(16).padStart(6, '0')}">
-                <span>${style.name}${style.id === this.floorStyle ? ' ✓' : ''}</span>
-              </button>`).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-
-    this.modalContainer.style.display = 'flex';
-    UIStateManager.getInstance().pushModal('house-catalogue');
-
-    // Setup event listeners
-    const closeBtn = document.getElementById('btn-close-catalogue');
-    if (closeBtn) {
-      closeBtn.onclick = () => {
-        this.closeCatalogueModal();
-      };
-    }
-
-    const buyBtns = this.modalContainer.querySelectorAll('[data-item-id]');
-    buyBtns.forEach((btn) => {
-      (btn as HTMLElement).onclick = () => {
-        const itemId = (btn as HTMLElement).getAttribute('data-item-id')!;
-        this.beginPlacing(itemId);
-      };
-    });
-
-    this.modalContainer.querySelectorAll('[data-wall]').forEach((swatch) => {
-      (swatch as HTMLElement).onclick = () => {
-        const painted = this.paintWalls((swatch as HTMLElement).getAttribute('data-wall')!);
-        if (painted.ok) {
-          showGameToast(`The walls are painted. ₦${PAINT_PRICE.toLocaleString()} paid.`, 'success');
-          this.openCatalogueModal();
-        } else {
-          showGameToast(painted.reason ?? 'The walls could not be painted.', 'warning');
-        }
-      };
-    });
-
-    this.modalContainer.querySelectorAll('[data-floor]').forEach((swatch) => {
-      (swatch as HTMLElement).onclick = () => {
-        const fitted = this.paintFloor((swatch as HTMLElement).getAttribute('data-floor')!);
-        if (fitted.ok) {
-          showGameToast(`The floor is fitted. ₦${FLOOR_PRICE.toLocaleString()} paid.`, 'success');
-          this.openCatalogueModal();
-        } else {
-          showGameToast(fitted.reason ?? 'The floor could not be fitted.', 'warning');
-        }
-      };
-    });
+    FurnitureThumbs.build ??= (modelType) => this.createFurniture3DMesh(modelType);
+    this.catalogue().open();
   }
 
   public closeCatalogueModal(): void {
-    if (this.modalContainer) {
-      this.modalContainer.style.display = 'none';
-      UIStateManager.getInstance().popModal('house-catalogue');
-    }
+    this.sheet?.close();
   }
 
   public isCatalogueOpen(): boolean {
-    return Boolean(this.modalContainer && this.modalContainer.style.display === 'flex');
+    return !!this.sheet?.isOpen;
+  }
+
+  /** A piece chosen in the catalogue is down, or was given up: back to the catalogue (or on to the next picked) */
+  private backToCatalogue(placed: boolean): void {
+    if (!this.fromSheet) return;
+    this.fromSheet = false;
+    this.sheet?.placingEnded(placed);
   }
 
   public createFurniture3DMesh(modelType: string): THREE.Group {

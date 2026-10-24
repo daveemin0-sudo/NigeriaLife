@@ -55,6 +55,12 @@ import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type F
 import { CoachService, MOTOR_PARKS, OPERATOR, type CoachCity, type CoachTicket } from '../travel/Coaches';
 import { openAirportHall } from '../travel/AirportHall';
 import { FurnishBar } from '../ui/FurnishBar';
+import { Bodies, bodyOf, type CarBody } from '../world/Bodies';
+import { MusicSheet } from '../ui/MusicSheet';
+import { DriveControls } from '../ui/DriveControls';
+import { StreetAmbience } from '../audio/StreetAmbience';
+import { ResidentialInterior } from '../interiors/templates/ResidentialInterior';
+import { standardOf } from '../housing/HomeStandard';
 import { Television } from '../housing/Television';
 import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
@@ -144,6 +150,8 @@ export class Game {
 
     // 2. Camera Manager
     this.cameraManager = new GameCamera();
+    // The camera starts behind the player, looking the way they face
+    this.cameraManager.yaw = -Math.PI / 2 + Math.PI;
 
     // 3. Renderer (Phase 1: High-Fidelity Color & Tone Pipeline)
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -416,6 +424,12 @@ export class Game {
     // 9c. Camera Navigation Modes (Home Flat | Street Walk | Aerial World Map)
     this.hud.onNavigateMode = (mode: 'street' | 'home' | 'map') => {
       if (mode === 'home') {
+        // Already at home: the Home button opens the catalogue
+        if (this.world.interiorManager.currentInterior?.type === 'residence') {
+          UIStateManager.getInstance().setMode('interior');
+          HouseDecorationSystem.getInstance().openCatalogueModal();
+          return;
+        }
         if (!this.canGoHome()) return;
         this.world.worldMap.deactivate();
         this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
@@ -519,7 +533,25 @@ export class Game {
       },
       goTo: (obj) => this.input.approachAndInteract(obj),
       leave: () => this.hud.onExitInterior?.(),
+      // At home: furnish it from the catalogue
+      extras: (def) => (def.type === 'residence' ? [{ id: 'decorate', icon: '🛋️', label: 'Decorate', run: () => HouseDecorationSystem.getInstance().openCatalogueModal() }] : []),
     });
+
+    // The music player, opened by its round button or the sound button
+    const music = new MusicSheet();
+    this.hud.onOpenMusic = () => music.open();
+
+    // Driving with fingers: steering, pedals, horn and Get out, on touch screens
+    const drive = new DriveControls({
+      keys: this.input.keys,
+      speed: () => this.player.currentVehicle?.currentSpeed ?? 0,
+      fuel: () => this.player.currentVehicle?.fuel ?? 0,
+      name: () => this.player.currentVehicle?.name ?? '',
+      honk: () => this.hud.onHonkVehicle?.(),
+      getOut: () => this.hud.onExitVehicle?.(),
+      refuel: () => this.hud.onRefuelVehicle?.(),
+    });
+    UIStateManager.getInstance().onModeChange((mode) => drive.show(mode === 'driving'));
 
     // 10. Multiplayer & Street Chat. On a game server the player has an account there first: the
     // server holds their money from now on, and the city's players are reached through it
@@ -781,8 +813,25 @@ export class Game {
     this.player.solids = () => this.solidsHere();
     this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
-    this.player.getOtherPedestrians = () => this.world.npcs.getPedestrianPositions();
+    // People and vehicles take up room: nobody walks or drives through them
+    const onLagosStreet = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
+    const inTheStreet = () => !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
+    Bodies.add({
+      people: (x, z, range, out) => {
+        out.length = 0;
+        if (!onLagosStreet()) return;
+        this.world.cityPopulation.people(x, z, range, out);
+        for (const npc of this.world.npcs.getPedestrianPositions()) {
+          if (Math.abs(npc.x - x) <= range && Math.abs(npc.z - z) <= range) out.push({ x: npc.x, z: npc.z, r: 0.3 });
+        }
+      },
+      cars: (x, z, range, out) => {
+        if (onLagosStreet()) this.world.trafficSpawner.cars(x, z, range, out);
+        if (inTheStreet()) this.world.vehicles.cars(x, z, range, out, this.world.cityManager.currentCityId);
+      },
+    });
     DrivableVehicle.solids = () => this.solidsHere();
+    this.cameraManager.blocked = (x, z) => this.solidsHere()?.at(x, z, 0.4) ?? false;
     DrivableVehicle.loadSettings();
     this.graphics = new GraphicsQuality({
       renderer: this.renderer,
@@ -798,6 +847,7 @@ export class Game {
       stopAt: (x, z) => (this.world.cityManager.currentCityId === 'lagos' ? crowd.stopAt(x, z) : -1),
       board: (stop, doorX, doorZ, onBoard) => crowd.board(stop, doorX, doorZ, onBoard),
     };
+    DrivableVehicle.makeWay = (x, z, dirX, dirZ, range, halfWidth) => (this.world.cityManager.currentCityId === 'lagos' ? crowd.scatter(x, z, dirX, dirZ, range, halfWidth) : 0);
     const roadsByCity = new Map<string, ReturnType<typeof zonesFor>>();
     DrivableVehicle.roads = () => {
       const city = this.world.cityManager.currentCityId;
@@ -839,6 +889,17 @@ export class Game {
     });
     this.vehicleSync = new VehicleSync(this.world.vehicles, this.network, () => (this.player.isDriving ? this.player.currentVehicle : null));
     this.ownedVehicles.movingElsewhere = (vehicle) => this.vehicleSync.driverOf(vehicle) !== null;
+    // The home is furnished as what the player rents or owns, and their own vehicles stand in its carport
+    ResidentialInterior.standardNow = () => {
+      const data = BackendService.getInstance().getData();
+      return standardOf(data.properties, data.id, this.land.hasHome());
+    };
+    ResidentialInterior.carsOwned = () => this.ownedVehicles.myModels();
+    ResidentialInterior.homeName = () => {
+      const data = BackendService.getInstance().getData();
+      const home = data.properties.find((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business'].includes(String(p.type)));
+      return home ? { name: home.status === 'rented' ? `${home.name} (rented)` : home.name, area: home.location ?? '' } : null;
+    };
     void this.assetMarket.introduce(this.player.config.name);
 
     // On a world server: bring along the land and vehicles owned in this browser
@@ -966,6 +1027,7 @@ export class Game {
     return false;
   }
 
+  private ambienceClock: number | undefined;
   private solidsByCity = new Map<string, Solids>();
   private waysByCity = new Map<string, Wayfinder>();
   private builtOnPlots = '';
@@ -977,10 +1039,25 @@ export class Game {
     const city = this.world.cityManager.currentCityId;
     let ways = this.waysByCity.get(city);
     if (!ways) {
-      ways = new Wayfinder(solids, zonesFor(city));
+      ways = new Wayfinder(city === 'lagos' ? new Solids([...this.standingIn(city), ...this.world.streetLamps(), ...this.parkedCars()]) : solids, zonesFor(city));
       this.waysByCity.set(city, ways);
     }
     return ways;
+  }
+
+  /** Cars that are parked for good in Lagos, as rectangles on the ground: walks are planned round them */
+  private parkedCars(): Obstruction[] {
+    const cars: CarBody[] = [];
+    this.world.trafficSpawner.cars(0, 0, 1000, cars);
+    const parked = cars.filter((car) => car.parked).map((car) => ({ ...car }));
+    for (const group of this.world.vehicles.parkedVehicles) parked.push({ ...bodyOf(group, { x: 0, z: 0, yaw: 0, halfWidth: 0, halfLength: 0 }) });
+    return parked.map((car, index) => {
+      const c = Math.abs(Math.cos(car.yaw));
+      const s = Math.abs(Math.sin(car.yaw));
+      const hx = car.halfWidth * c + car.halfLength * s;
+      const hz = car.halfWidth * s + car.halfLength * c;
+      return { owner: `Parked car #${index}`, structure: false, height: 1.5, minX: car.x - hx, maxX: car.x + hx, minZ: car.z - hz, maxZ: car.z + hz };
+    });
   }
 
   /** The way on foot from where the player stands to a point in the city they are in. */
@@ -1030,7 +1107,7 @@ export class Game {
     const city = this.world.cityManager.currentCityId;
     let solids = this.solidsByCity.get(city);
     if (!solids) {
-      solids = new Solids(this.standingIn(city));
+      solids = new Solids(city === 'lagos' ? [...this.standingIn(city), ...this.world.streetLamps()] : this.standingIn(city));
       this.solidsByCity.set(city, solids);
     }
     return solids;
@@ -1450,6 +1527,26 @@ export class Game {
     this.roadRideExperience.update(delta);
 
     // Update World (Vehicles, Traffic, NPCs, Weather, Districts) with keys & player position
+    // The sound of the street around the player: crowd, traffic, horns and voices
+    if (this.ambienceClock === undefined || (this.ambienceClock += delta) > 0.5) {
+      this.ambienceClock = 0;
+      const at = this.player.position;
+      const outside = !this.world.interiorManager.isPlayerInside() && this.hud.currentNavMode !== 'map';
+      StreetAmbience.get().update(0.5, {
+        outside,
+        driving: this.player.isDriving,
+        people: outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0,
+        cars: outside ? Bodies.carsNear(at.x, at.z, 30).length : 0,
+        hour: this.world.skyEnvironment.currentHour,
+      });
+    }
+
+    // Walkers step round the player, or round the vehicle the player is driving
+    const avoid = this.world.cityPopulation.avoid;
+    avoid.length = 0;
+    const driven = this.player.isDriving ? this.player.currentVehicle : null;
+    if (driven) avoid.push({ x: driven.mesh.position.x, z: driven.mesh.position.z, r: 2.4 });
+    else if (!this.world.interiorManager.isPlayerInside()) avoid.push({ x: this.player.position.x, z: this.player.position.z, r: 0.35 });
     this.world.update(delta, this.input.keys, this.player.position, this.player);
     // After the world has moved the coach: its passenger is exactly where it is
     this.rideOutOfThePark();

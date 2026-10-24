@@ -353,6 +353,11 @@ export class World {
     return out;
   }
 
+  /** The street lamps: thin, so the plan leaves them out, but nobody walks through one */
+  public streetLamps(): Array<Obstruction & { pole: true }> {
+    return this.cityDensity.fabric.poles.map((pole, index) => ({ owner: `Street lamp #${index}`, structure: false, height: 6.4, pole: true as const, minX: pole.x - 0.08, maxX: pole.x + 0.08, minZ: pole.z - 0.08, maxZ: pole.z + 0.08 }));
+  }
+
   /** What the plan is checked against: the streets, what stands in the city, and the doors people must reach. */
   public planInput(extra: Obstruction[] = []): PlanInput {
     const doors: PlanInput['doors'] = this.buildings.placeDoors.map((door) => ({ name: `Door of ${door.buildingId}`, x: door.outside.x, z: door.outside.z }));

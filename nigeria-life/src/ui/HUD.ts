@@ -126,6 +126,8 @@ export class HUD {
   public onCycleCameraPreset?: () => string;
   public onOpenPhotoMode?: () => void;
   public onToggleShowcase?: () => void;
+  /** Opens the music player */
+  public onOpenMusic?: () => void;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
 
   constructor() {
@@ -754,15 +756,13 @@ export class HUD {
       this.onOpenPhotoMode?.();
     });
 
-    // Afrobeats Street Radio & Master Sound Toggles
+    // The music: the sound button and the music badge open the music player
     const toggleRadioFn = () => {
-      const active = SoundEngine.getInstance().toggleRadio();
-      const soundBtn = document.getElementById('hud-sound-toggle');
-      if (soundBtn) {
-        soundBtn.textContent = active ? '🎶' : '🔊';
-        soundBtn.style.color = active ? '#38bdf8' : '#fff';
+      if (this.onOpenMusic) {
+        this.onOpenMusic();
+        return;
       }
-      this.showNotification(active ? '📻 Afrobeats Radio: ON (112 BPM Groove)' : '📻 Afrobeats Radio: OFF');
+      SoundEngine.getInstance().toggleRadio();
     };
 
     document.getElementById('hud-sound-toggle')?.addEventListener('click', toggleRadioFn);
@@ -1306,7 +1306,12 @@ export class HUD {
       return;
     }
 
-    this.promptLabelEl.textContent = target.label;
+    // On a phone the prompt is the one action button: it says what it does with a picture too
+    const icon: Record<InteractionTarget['action'], string> = {
+      'enter-interior': '🏠', 'exit-interior': '🚪', 'enter-vehicle': '🚗', interact: '👆', inspect: '🔍', trade: '🛒', talk: '💬', use: '👆',
+    };
+    this.promptLabelEl.textContent = `${icon[target.action] ?? ''} ${target.label}`.trim();
+    this.proximityPromptEl.classList.toggle('is-exit', target.action === 'exit-interior');
     this.proximityPromptEl.style.display = 'flex';
   }
 

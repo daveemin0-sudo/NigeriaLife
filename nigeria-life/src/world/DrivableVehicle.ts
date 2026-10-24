@@ -9,6 +9,8 @@ import { showGameToast } from '../ui/GameToast';
 import { BackendService } from '../backend/BackendService';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import type { Zone } from './plan/CityPlan';
+import { Bodies, bodyOf, depthIntoCar, type CarBody } from './Bodies';
+import { buildCarBody, CAR_SPECS, type CarSpec } from './vehicles/CarBodyKit';
 import { ASSIST_HANDS_ON, assistYawRate, handlingOf, nextSpeed, roadUnder, turnWheel, wheelAngle, yawRate } from './VehicleHandling';
 
 export type VehicleType =
@@ -51,6 +53,10 @@ export class DrivableVehicle {
   public static roads: (() => readonly Zone[] | null) | null = null;
   /** The bus stops and the people waiting at them, for danfos and kekes: set once by the game */
   public static busStops: BusStops | null = null;
+  /** People in front of a vehicle step out of its way: returns how many moved (set by the game) */
+  public static makeWay: ((x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth: number) => number) | null = null;
+  /** Handling tests drive on a road with nobody else on it */
+  public static ignoreBodies = false;
   /** The stop where the people now aboard got on (-1: none yet) */
   private boardedAt: number = -1;
   private boardingNow: boolean = false;
@@ -140,8 +146,10 @@ export class DrivableVehicle {
     this.mesh.position.copy(initialPos);
     this.mesh.rotation.y = initialRotY;
 
-    // Build the high-detail stylized-realistic 3D vehicle model
-    if (this.type === 'danfo') {
+    // Build the 3D vehicle model: cars from the car-body kit, the rest by hand
+    if (CAR_SPECS[this.type]) {
+      this.buildFromKit();
+    } else if (this.type === 'danfo') {
       this.buildDanfo();
     } else if (this.type === 'keke') {
       this.buildKeke();
@@ -244,6 +252,22 @@ export class DrivableVehicle {
    * Features: Rubber tire with rounded bevel, circumferential tread ridges,
    * 5-spoke silver alloy rim, central hubcap, chrome lug nuts, and brake disc rotor/caliper.
    */
+  /** A car with a shaped body (see CarBodyKit) on four wheels that turn and steer */
+  private buildFromKit(): void {
+    const base = CAR_SPECS[this.type];
+    const spec: CarSpec = { ...base, paint: base.paint ?? 0x9ca3af };
+    this.mesh.add(buildCarBody(spec));
+    for (const [z, front] of [[spec.frontAxle, true], [spec.rearAxle, false]] as Array<[number, boolean]>) {
+      for (const side of [-1, 1]) {
+        const { holder, tire } = this.createRealisticWheel(spec.wheelRadius, spec.style === 'sports' ? 0.28 : 0.24, spec.wheelRadius * 0.64);
+        holder.position.set(side * (spec.width / 2 - 0.16), spec.wheelRadius, z);
+        this.mesh.add(holder);
+        this.wheels.push(tire);
+        if (front) this.steerWheels.push(holder as unknown as THREE.Mesh);
+      }
+    }
+  }
+
   private createRealisticWheel(radius: number, width: number, rimRadius: number): { holder: THREE.Group; tire: THREE.Mesh } {
     const holder = new THREE.Group();
 
@@ -1745,7 +1769,79 @@ export class DrivableVehicle {
     this.hornTimer = 1.2;
     this.hornDisplayGroup.visible = true;
     SoundEngine.getInstance().playVehicleHorn(this.type);
+    // Everyone in the road ahead hurries to the side
+    const yaw = this.mesh.rotation.y;
+    const me = bodyOf(this.mesh, this.myBody);
+    const moved = DrivableVehicle.makeWay?.(this.mesh.position.x, this.mesh.position.z, Math.sin(yaw), Math.cos(yaw), 18, me.halfWidth) ?? 0;
+    if (moved > 0 && this.driver) {
+      const lines = ['"Ehen, I don comot! Drive jeje o."', '"Oga driver, no jam me o!"', '"I dey pass, abeg no vex!"', '"Na wa for this horn sef!"', '"Easy, easy, road dey!"'];
+      showGameToast(`🚶 ${lines[Math.floor(Math.random() * lines.length)]}`, 'info', 2600);
+    }
     return this.config.hornText;
+  }
+
+  private readonly myBody: CarBody = { x: 0, z: 0, yaw: 0, halfWidth: 0, halfLength: 0 };
+  private bumpToastAt = 0;
+
+  /**
+   * How far this vehicle, if it stood at (x, z), would be into other vehicles and into people.
+   * Its body is taken as a row of circles from nose to tail.
+   */
+  private crowding(x: number, z: number): { cars: number; people: number } {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const range = me.halfLength + 8;
+    let cars = 0;
+    let people = 0;
+    const r = me.halfWidth;
+    const span = Math.max(0, me.halfLength - r);
+    const n = Math.max(2, Math.ceil((span * 2) / r) + 1);
+    const fx = Math.sin(me.yaw);
+    const fz = Math.cos(me.yaw);
+    for (const car of Bodies.carsNear(me.x, me.z, range)) {
+      for (let i = 0; i < n; i++) {
+        const t = -span + (2 * span * i) / (n - 1);
+        cars += depthIntoCar(me.x + fx * t, me.z + fz * t, r, car);
+      }
+    }
+    for (const person of Bodies.peopleNear(me.x, me.z, range)) people += depthIntoCar(person.x, person.z, person.r, me);
+    return { cars, people };
+  }
+
+  /**
+   * Moves the vehicle to (x, z) unless that would drive it further into another vehicle or into
+   * someone. A driver who is stopped by one is told how to get out of it.
+   */
+  private moveUnlessBlocked(x: number, z: number): boolean {
+    const pos = this.mesh.position;
+    if (DrivableVehicle.ignoreBodies) {
+      pos.x = x;
+      pos.z = z;
+      return true;
+    }
+    const now = this.crowding(pos.x, pos.z);
+    const next = this.crowding(x, z);
+    const intoCar = next.cars > now.cars + 1e-3;
+    const intoPerson = next.people > now.people + 1e-3;
+    if (!intoCar && !intoPerson) {
+      pos.x = x;
+      pos.z = z;
+      return true;
+    }
+    this.currentSpeed = 0;
+    if (this.driver && performance.now() - this.bumpToastAt > 3500) {
+      this.bumpToastAt = performance.now();
+      showGameToast(intoPerson ? '🚶 Person dey your front! Hoot your horn make dem shift.' : '🚗 Motor dey your front. Reverse small, then go round am.', 'warning', 3000);
+    }
+    return false;
+  }
+
+  /** People see a vehicle coming at them and step aside without being hooted at */
+  private warnAhead(): void {
+    if (!this.driver || Math.abs(this.currentSpeed) < 0.4 || !DrivableVehicle.makeWay) return;
+    const yaw = this.mesh.rotation.y;
+    const sign = Math.sign(this.currentSpeed);
+    const me = bodyOf(this.mesh, this.myBody);
+    DrivableVehicle.makeWay(this.mesh.position.x, this.mesh.position.z, Math.sin(yaw) * sign, Math.cos(yaw) * sign, me.halfLength + 3 + Math.abs(this.currentSpeed) * 0.5, me.halfWidth);
   }
 
   public update(delta: number, keys: Record<string, boolean>): void {
@@ -1936,12 +2032,12 @@ export class DrivableVehicle {
       this.currentSpeed *= along * Math.exp(-1.5 * delta);
       // Now travelling along the wall, not into it
       this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
-      if (slideX) pos.x += stepX;
-      else pos.z += stepZ;
+      if (slideX) this.moveUnlessBlocked(pos.x + stepX, pos.z);
+      else this.moveUnlessBlocked(pos.x, pos.z + stepZ);
       return;
     }
 
-    pos.x += stepX;
-    pos.z += stepZ;
+    this.warnAhead();
+    this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ);
   }
 }

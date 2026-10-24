@@ -7,7 +7,8 @@
    ============================================================================================= */
 
 :root {
-  --nl-font: 'Outfit', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --nl-font: 'Outfit Variable', 'Plus Jakarta Sans Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --nl-text-font: 'Plus Jakarta Sans Variable', 'Outfit Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --nl-r-sm: 10px;
   --nl-r-md: 14px;
   --nl-r-lg: 20px;

@@ -1,3 +1,5 @@
+import '@fontsource-variable/outfit/wght.css';
+import '@fontsource-variable/plus-jakarta-sans/wght.css';
 import './style.css';
 import './ui/kit/kit.css';
 import { Game } from './game/Game';

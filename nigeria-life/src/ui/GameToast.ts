@@ -104,7 +104,7 @@ export function showGameToast(
     color: #f8fafc;
     padding: 10px 22px;
     border-radius: 999px;
-    font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--nl-font);
     font-size: 13.5px;
     font-weight: 700;
     letter-spacing: 0.3px;

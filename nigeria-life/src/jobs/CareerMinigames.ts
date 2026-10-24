@@ -43,7 +43,7 @@ export class CareerMinigames {
     modal.style.cssText = `
       position: fixed; inset: 0; background: rgba(10, 15, 29, 0.88);
       backdrop-filter: blur(12px); z-index: 10000; display: flex;
-      align-items: center; justify-content: center; font-family: system-ui, sans-serif;
+      align-items: center; justify-content: center; font-family: var(--nl-font);
       color: #f8fafc;
     `;
 
@@ -209,7 +209,7 @@ export class CareerMinigames {
     modal.style.cssText = `
       position: fixed; inset: 0; background: rgba(15, 23, 42, 0.88);
       backdrop-filter: blur(12px); z-index: 10000; display: flex;
-      align-items: center; justify-content: center; font-family: system-ui, sans-serif;
+      align-items: center; justify-content: center; font-family: var(--nl-font);
       color: #f8fafc;
     `;
 
@@ -294,7 +294,7 @@ export class CareerMinigames {
     modal.style.cssText = `
       position: fixed; inset: 0; background: rgba(15, 23, 42, 0.88);
       backdrop-filter: blur(12px); z-index: 10000; display: flex;
-      align-items: center; justify-content: center; font-family: system-ui, sans-serif;
+      align-items: center; justify-content: center; font-family: var(--nl-font);
       color: #f8fafc;
     `;
 

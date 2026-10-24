@@ -18,8 +18,6 @@ export class SoundEngine {
   // Background generator & ambient loops
   private generatorOsc: OscillatorNode | null = null;
   private generatorGain: GainNode | null = null;
-  private radioPlaying: boolean = false;
-  private radioTimer: any = null;
 
   private constructor() {
     // Lazy initialize on first user interaction to satisfy browser autoplay policy
@@ -263,104 +261,53 @@ export class SoundEngine {
   // =========================================================================
   // 5. AFROBEATS STREET RADIO: Rhythmic Synthetic Log-Drum & Rhodes Chords
   // =========================================================================
-  public toggleRadio(): boolean {
-    this.radioPlaying = !this.radioPlaying;
-    if (this.radioPlaying) {
-      this.startAfrobeatsLoop();
-    } else {
-      this.stopAfrobeatsLoop();
+  /** The music player, which the old radio buttons start and stop (set by the music player itself) */
+  public static radio: { toggle(): boolean; isOn(): boolean } | null = null;
+
+  /** The audio context and the master volume, for whoever plays through the game's sound */
+  public audio(start = true): { ctx: AudioContext; master: GainNode } | null {
+    // Background sound waits for the player's first touch: browsers only allow sound after one
+    if (!start && !this.ctx) return null;
+    const ctx = this.ensureContext();
+    return ctx && this.masterGain ? { ctx, master: this.masterGain } : null;
+  }
+
+  /** A horn somewhere down the road: two short notes, muffled by distance */
+  public playDistantHorn(level = 0.25): void {
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain || this.isMuted) return;
+    const now = ctx.currentTime;
+    const pitch = 330 + Math.random() * 160;
+    const beeps = Math.random() < 0.5 ? 1 : 2;
+    const low = ctx.createBiquadFilter();
+    low.type = 'lowpass';
+    low.frequency.value = 1400;
+    low.connect(this.masterGain);
+    for (let b = 0; b < beeps; b++) {
+      const t = now + b * 0.24;
+      for (const f of [pitch, pitch * 1.26]) {
+        const o = ctx.createOscillator();
+        o.type = 'square';
+        o.frequency.value = f;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.05 * level, t + 0.02);
+        g.gain.setValueAtTime(0.05 * level, t + 0.16);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+        o.connect(g);
+        g.connect(low);
+        o.start(t);
+        o.stop(t + 0.22);
+      }
     }
-    return this.radioPlaying;
+  }
+
+  public toggleRadio(): boolean {
+    return SoundEngine.radio?.toggle() ?? false;
   }
 
   public isRadioActive(): boolean {
-    return this.radioPlaying;
-  }
-
-  private startAfrobeatsLoop(): void {
-    const ctx = this.ensureContext();
-    if (!ctx) return;
-
-    let step = 0;
-    // Classic 112 BPM Afrobeats tempo (535ms per beat, 134ms per 16th step)
-    const stepInterval = 134;
-
-    const chords = [
-      [329.63, 392.0, 493.88], // Em
-      [261.63, 329.63, 392.0], // C
-      [293.66, 369.99, 440.0], // D
-      [246.94, 311.13, 369.99], // Bm
-    ];
-
-    const playStep = () => {
-      if (!this.radioPlaying) return;
-      const now = ctx.currentTime;
-
-      // Amapiano / Afrobeats Log Drum Bass Kick on steps 0, 4, 7, 10, 12
-      const isLogDrumStep = [0, 4, 7, 10, 12].includes(step % 16);
-      if (isLogDrumStep && !this.isMuted && this.masterGain) {
-        const bassOsc = ctx.createOscillator();
-        const bassGain = ctx.createGain();
-        bassOsc.type = 'sine';
-        bassOsc.frequency.setValueAtTime(95, now);
-        bassOsc.frequency.exponentialRampToValueAtTime(38, now + 0.16);
-
-        bassGain.gain.setValueAtTime(0.24, now);
-        bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
-        bassOsc.connect(bassGain);
-        bassGain.connect(this.masterGain);
-        bassOsc.start(now);
-        bassOsc.stop(now + 0.22);
-      }
-
-      // Shaker / Hi-Hat pulse on every other step
-      if (step % 2 === 0 && !this.isMuted && this.masterGain) {
-        const shakerOsc = ctx.createOscillator();
-        const shakerGain = ctx.createGain();
-        shakerOsc.type = 'square';
-        shakerOsc.frequency.setValueAtTime(8000, now);
-
-        shakerGain.gain.setValueAtTime(0.025, now);
-        shakerGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
-
-        shakerOsc.connect(shakerGain);
-        shakerGain.connect(this.masterGain);
-        shakerOsc.start(now);
-        shakerOsc.stop(now + 0.05);
-      }
-
-      // Rhodes Chord Stab on beat 0 of every bar (16 steps)
-      if (step % 16 === 0 && !this.isMuted && this.masterGain) {
-        const chordIndex = Math.floor(step / 16) % chords.length;
-        const notes = chords[chordIndex];
-        notes.forEach((f) => {
-          const cOsc = ctx.createOscillator();
-          const cGain = ctx.createGain();
-          cOsc.type = 'sine';
-          cOsc.frequency.setValueAtTime(f, now);
-          cGain.gain.setValueAtTime(0.08, now);
-          cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
-
-          cOsc.connect(cGain);
-          cGain.connect(this.masterGain!);
-          cOsc.start(now);
-          cOsc.stop(now + 0.5);
-        });
-      }
-
-      step = (step + 1) % 64;
-      this.radioTimer = setTimeout(playStep, stepInterval);
-    };
-
-    playStep();
-  }
-
-  private stopAfrobeatsLoop(): void {
-    if (this.radioTimer) {
-      clearTimeout(this.radioTimer);
-      this.radioTimer = null;
-    }
+    return SoundEngine.radio?.isOn() ?? false;
   }
 
   // =========================================================================

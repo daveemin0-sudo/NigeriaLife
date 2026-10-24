@@ -83,6 +83,8 @@ export class CityFabric {
   public buildingCount = 0;
   /** The ground each generated building stands on, for the city plan */
   public footprints: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; height: number }> = [];
+  /** Street lamp posts the fabric put on its walkways: nobody walks through a lamp post */
+  public poles: Array<{ x: number; z: number }> = [];
   /** Roadside stalls the fabric put on its walkways */
   public stallBoxes: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [];
   /** Stretches of side street that could not be laid because something hand-built stood on their line */
@@ -296,7 +298,9 @@ export class CityFabric {
         const px = isX ? mid : edge;
         const pz = isX ? edge : mid;
         if (tick % 12 === (side === 0 ? 0 : 6)) {
-          this.addStreetLamp(px, pz, isX, -sign);
+          // On a narrow pavement the lamp stands at the kerb, leaving the pavement to the people
+          const kerb = st.fixed + sign * (st.halfRoad + 0.2);
+          this.addStreetLamp(narrow ? (isX ? mid : kerb) : px, narrow ? (isX ? kerb : mid) : pz, isX, -sign);
         } else if (tick % 4 === 1 && this.rand() < 0.5) {
           this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2, narrow);
         }
@@ -307,6 +311,7 @@ export class CityFabric {
   private addStreetLamp(x: number, z: number, alongX: boolean, towardRoad: number): void {
     const steel = new THREE.Color(0x6b7280);
     this.cylinders.push({ m: this.mat(x, 0, z, 0.16, 6.4, 0.16), c: steel });
+    this.poles.push({ x, z });
     const reach = 1.5;
     const ax = alongX ? x : x + (towardRoad * reach) / 2;
     const az = alongX ? z + (towardRoad * reach) / 2 : z;

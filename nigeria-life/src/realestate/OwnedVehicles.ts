@@ -50,6 +50,21 @@ export class OwnedVehicles {
 
   private instanceId = (vehicleId: string) => `veh-own-${vehicleId}`;
 
+  /** The player's own vehicles, cars first, as models to stand in the carport at home */
+  public myModels(): THREE.Object3D[] {
+    const state = Registry.get().peek();
+    const mine = Object.values(state.vehicles)
+      .filter((record) => this.garage.ownerOf(record.id) === MY_ID)
+      .map((record) => ({ record, model: vehicleModel(record.modelId) }))
+      .filter((entry) => !!entry.model)
+      .sort((a, b) => (b.model!.price ?? 0) - (a.model!.price ?? 0));
+    return mine.map(({ record, model }) => {
+      const vehicle = new DrivableVehicle({ id: `carport-${record.id}`, name: model!.name, type: model!.type, ...model!.drive }, new THREE.Vector3(), 0);
+      vehicle.mesh.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+      return vehicle.mesh;
+    });
+  }
+
   /** Is this drivable one of the player's own, and if so which? */
   public vehicleIdOf(vehicle: DrivableVehicle | null): string | null {
     if (!vehicle) return null;

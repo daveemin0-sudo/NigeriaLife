@@ -12,6 +12,7 @@ import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
 import { FOOTBRIDGE, FOOTBRIDGE_STAIR } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
+import { Bodies, outOfCar, outOfPerson, waysRoundCar } from '../world/Bodies';
 import type { Way } from '../world/plan/Wayfinder';
 import { BackendService } from '../backend/BackendService';
 import { Actor } from '../interactions/Actor';
@@ -53,7 +54,9 @@ export class Player {
 
   constructor() {
     this.mesh = new THREE.Group();
-    this.mesh.position.set(0, 0, 5); // Start on Broad Street
+    // Start on the east pavement of Broad Street, looking across the street: not in the road among the traffic
+    this.mesh.position.set(10, 0, -10);
+    this.mesh.rotation.y = -Math.PI / 2;
 
     // Load saved or default character configuration
     this.config = CharacterStorage.load();
@@ -200,6 +203,7 @@ export class Player {
       const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
       p.x = step.x;
       p.z = step.z;
+      this.keepClearOfBodies(cameFrom, solids);
       return;
     }
     const inLine = (x: number) => Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15;
@@ -218,21 +222,91 @@ export class Player {
       p.x = step.x;
       p.z = step.z;
     }
-    if (this.getOtherPedestrians) {
-      const peds = this.getOtherPedestrians();
-      for (let i = 0; i < peds.length; i++) {
-        const ped = peds[i];
-        const dx = p.x - ped.x;
-        const dz = p.z - ped.z;
-        if (Math.abs(dx) > 1.2 || Math.abs(dz) > 1.2) continue;
-        const dist = Math.hypot(dx, dz);
-        const minDist = 0.35 + (ped.radius || 0.35);
-        if (dist < minDist && dist > 1e-4) {
-          const push = minDist - dist;
-          p.x += (dx / dist) * push;
-          p.z += (dz / dist) * push;
+    if (solids) this.keepClearOfBodies(cameFrom, solids);
+  }
+
+  /**
+   * A parked car across the way: the walk goes round its corners, on whichever side is shorter
+   * and clear of walls, then on to where it was going.
+   */
+  private walkRoundParkedCars(): void {
+    const target = this.targetPosition;
+    // Already on the way round one: no second way round until that one is walked
+    if (!target || this.detourPoints.has(target)) return;
+    const p = this.mesh.position;
+    const solids = this.solids?.();
+    /** The whole way, corner to corner, clear of walls and anything that juts out */
+    const clear = (points: Array<{ x: number; z: number }>) => {
+      let from = { x: p.x, z: p.z };
+      for (const to of [...points, { x: target.x, z: target.z }]) {
+        const length = Math.hypot(to.x - from.x, to.z - from.z);
+        for (let d = 0.3; d < length; d += 0.3) {
+          const t = d / length;
+          if (solids?.at(from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t, 0.25)) return false;
+        }
+        from = to;
+      }
+      return true;
+    };
+    for (const car of Bodies.carsNear(p.x, p.z, 7)) {
+      if (!car.parked) continue;
+      // A point on the way that is right against this car is passed by: on to the one after it
+      const c = Math.cos(car.yaw);
+      const sn = Math.sin(car.yaw);
+      const against = (x: number, z: number) => Math.abs((x - car.x) * c - (z - car.z) * sn) < car.halfWidth + 0.5 && Math.abs((x - car.x) * sn + (z - car.z) * c) < car.halfLength + 0.5;
+      if (against(target.x, target.z) && this.way.length > 0) {
+        this.targetPosition = this.way.shift()!;
+        return;
+      }
+      const way = waysRoundCar(p.x, p.z, target.x, target.z, car, 0.6).find(clear);
+      if (!way) continue;
+      this.way.unshift(target.clone());
+      for (let i = way.length - 1; i >= 1; i--) {
+        const corner = new THREE.Vector3(way[i].x, target.y, way[i].z);
+        this.detourPoints.add(corner);
+        this.way.unshift(corner);
+      }
+      this.targetPosition = new THREE.Vector3(way[0].x, target.y, way[0].z);
+      this.detourPoints.add(this.targetPosition);
+      this.nearest = Infinity;
+      this.sinceNearer = 0;
+      return;
+    }
+  }
+
+  /** Corners of a way round a parked car that the walk is on */
+  private detourPoints = new WeakSet<THREE.Vector3>();
+
+  /**
+   * People and vehicles take up room: the player is moved out of anyone or anything they walk
+   * into, round the side, and if that would put them in a wall they stay where they were.
+   */
+  private keepClearOfBodies(cameFrom: THREE.Vector3, solids: Solids): void {
+    const p = this.mesh.position;
+    const radius = 0.3;
+    for (let pass = 0; pass < 2; pass++) {
+      let moved = false;
+      for (const car of Bodies.carsNear(p.x, p.z, 7)) {
+        const out = outOfCar(p.x, p.z, radius, car);
+        if (out) {
+          p.x = out.x;
+          p.z = out.z;
+          moved = true;
         }
       }
+      for (const person of Bodies.peopleNear(p.x, p.z, 1.5)) {
+        const out = outOfPerson(p.x, p.z, radius, person);
+        if (out) {
+          p.x = out.x;
+          p.z = out.z;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    if (solids.at(p.x, p.z, 0.3) && !solids.at(cameFrom.x, cameFrom.z, 0.3)) {
+      p.x = cameFrom.x;
+      p.z = cameFrom.z;
     }
   }
 
@@ -412,6 +486,7 @@ export class Player {
           this.roundIt.left -= delta;
           if (this.roundIt.left <= 0) this.roundIt = null;
         }
+        if (!this.onBridge) this.walkRoundParkedCars();
         let stepped = tryStep(this.roundIt?.turn ?? 0);
         if (!stepped && !this.onBridge) {
           // Something is in the way: step round it, to whichever side is open, as a person does
@@ -507,7 +582,6 @@ export class Player {
   /** Is the footbridge in the city the player is in? (It is in Lagos.) */
   public footbridge: (() => boolean) | null = null;
   /** Active pedestrian positions for collision avoidance */
-  public getOtherPedestrians: (() => Array<{ x: number; z: number; radius: number }>) | null = null;
   /** A walk by a found way: the points still to pass after the one being walked to, and where it all ends */
   private way: THREE.Vector3[] = [];
   public goal: THREE.Vector3 | null = null;

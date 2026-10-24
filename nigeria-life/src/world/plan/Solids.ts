@@ -1,5 +1,8 @@
 import type { Obstruction } from './CityPlan';
 
+/** What stands on the ground, and whether it is a street lamp (thin, but walked round) */
+type Standing = Obstruction & { pole?: boolean };
+
 /**
  * What cannot be walked or driven through in a city: the bodies of its buildings, walls and
  * fences, as rectangles on the ground. It is made from the same list the city plan is checked
@@ -22,6 +25,8 @@ const CELL = 8;
 /** Tall enough to be a solid physical obstacle (structures, stalls, bins, street lamps, poles) */
 const MIN_SOLID_HEIGHT = 0.65;
 const MIN_SOLID_SIZE = 0.20;
+/** A street lamp stops a person as if it were this wide */
+const POLE_HALF = 0.13;
 
 export class Solids {
   private readonly cells = new Map<string, Solid[]>();
@@ -29,7 +34,7 @@ export class Solids {
   /** Every one of them, for whoever needs to lay them out (the way-finder) */
   public readonly all: ReadonlyArray<Readonly<Solid>>;
 
-  constructor(obstructions: Obstruction[]) {
+  constructor(obstructions: Standing[]) {
     let count = 0;
     const all: Solid[] = [];
     this.all = all;
@@ -38,8 +43,14 @@ export class Solids {
       if (thing.height < MIN_SOLID_HEIGHT) continue;
       const width = thing.maxX - thing.minX;
       const depth = thing.maxZ - thing.minZ;
-      if (Math.max(width, depth) < MIN_SOLID_SIZE) continue;
-      const solid: Solid = { minX: thing.minX, maxX: thing.maxX, minZ: thing.minZ, maxZ: thing.maxZ };
+      let solid: Solid = { minX: thing.minX, maxX: thing.maxX, minZ: thing.minZ, maxZ: thing.maxZ };
+      if (Math.max(width, depth) < MIN_SOLID_SIZE) {
+        // Something thin is stepped past, except a street lamp: that is walked round
+        if (!thing.pole) continue;
+        const x = (thing.minX + thing.maxX) / 2;
+        const z = (thing.minZ + thing.maxZ) / 2;
+        solid = { minX: x - POLE_HALF, maxX: x + POLE_HALF, minZ: z - POLE_HALF, maxZ: z + POLE_HALF };
+      }
       count += 1;
       all.push(solid);
       for (let cx = Math.floor(solid.minX / CELL); cx <= Math.floor(solid.maxX / CELL); cx++) {

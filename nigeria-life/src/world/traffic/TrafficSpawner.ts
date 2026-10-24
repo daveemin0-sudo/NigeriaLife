@@ -4,6 +4,7 @@ import type { Vehicles } from '../Vehicles';
 import type { StreetSpot } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD, SIDE_STREETS } from '../density/StreetLayout';
 import { isAbroad } from '../StreetLife';
+import type { CarBody } from '../Bodies';
 
 type VehicleKind =
   | 'danfo' | 'keke' | 'okada' | 'sedan' | 'suv' | 'taxi' | 'police'
@@ -71,6 +72,7 @@ interface Car {
 interface Batch {
   spec: KindSpec;
   length: number;
+  width: number;
   bodyGeo: THREE.BufferGeometry;
   paintGeo: THREE.BufferGeometry | null;
   count: number;
@@ -86,6 +88,7 @@ interface ParkedCar {
   matrix: THREE.Matrix4;
   x: number;
   z: number;
+  yaw: number;
 }
 
 /** Vehicles further than this from the player are simulated but not drawn */
@@ -131,9 +134,10 @@ export class TrafficSpawner {
       const kind = this.pickKind((k) => k.parkable);
       this.batches[kind].count++;
       this.dummy.position.set(spot.x, 0, spot.z);
-      this.dummy.rotation.set(0, spot.yaw + (this.rand() - 0.5) * 0.08, 0);
+      const yaw = spot.yaw + (this.rand() - 0.5) * 0.08;
+      this.dummy.rotation.set(0, yaw, 0);
       this.dummy.updateMatrix();
-      this.parked.push({ kind, paint: this.randomPaint(), matrix: this.dummy.matrix.clone(), x: spot.x, z: spot.z });
+      this.parked.push({ kind, paint: this.randomPaint(), matrix: this.dummy.matrix.clone(), x: spot.x, z: spot.z, yaw });
     }
 
     this.createInstancedMeshes();
@@ -165,7 +169,7 @@ export class TrafficSpawner {
       const box = bodyGeo.boundingBox!.clone();
       if (paintGeo) box.union(paintGeo.boundingBox!);
 
-      this.batches.push({ spec, length: box.max.z - box.min.z, bodyGeo, paintGeo, count: 0, drawn: 0 });
+      this.batches.push({ spec, length: box.max.z - box.min.z, width: box.max.x - box.min.x, bodyGeo, paintGeo, count: 0, drawn: 0 });
     }
   }
 
@@ -562,5 +566,36 @@ export class TrafficSpawner {
         if (batch.paint.instanceColor) batch.paint.instanceColor.needsUpdate = true;
       }
     }
+  }
+
+  private bodyPool: CarBody[] = [];
+  private bodiesUsed = 0;
+
+  /** The vehicles within `range` of a point, moving or parked, as boxes on the ground (added to `out`) */
+  public cars(x: number, z: number, range: number, out: CarBody[]): void {
+    this.bodiesUsed = 0;
+    const add = (kind: number, cx: number, cz: number, yaw: number, parked: boolean) => {
+      if (Math.abs(cx - x) > range || Math.abs(cz - z) > range) return;
+      const batch = this.batches[kind];
+      if (!batch) return;
+      const body = this.bodyPool[this.bodiesUsed] ?? (this.bodyPool[this.bodiesUsed] = { x: 0, z: 0, yaw: 0, halfWidth: 0, halfLength: 0 });
+      this.bodiesUsed += 1;
+      body.x = cx;
+      body.z = cz;
+      body.yaw = yaw;
+      body.halfWidth = batch.width / 2;
+      body.halfLength = batch.length / 2;
+      body.parked = parked;
+      out.push(body);
+    };
+    for (const lane of this.lanes) {
+      const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      for (const car of lane.cars) {
+        if (car.place !== undefined && !isAbroad(car.place, this.abroad)) continue;
+        const along = car.u * lane.dir;
+        add(car.kind, lane.axis === 'z' ? lane.fixed : along, lane.axis === 'z' ? along : lane.fixed, yaw, false);
+      }
+    }
+    for (const car of this.parked) add(car.kind, car.x, car.z, car.yaw, true);
   }
 }

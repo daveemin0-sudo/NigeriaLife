@@ -37,6 +37,8 @@ interface InteriorTemplate {
   update: (delta: number, time: number) => void;
   /** Floor map for routing characters around the furniture */
   nav?: NavGrid;
+  /** Called as the player comes in, before the room is shown (to make it ready) */
+  onPlayerArriving?: () => void;
   /** Called once the player is inside, and when they have left */
   onPlayerEntered?: () => void;
   onPlayerLeft?: () => void;
@@ -239,6 +241,7 @@ export class InteriorManager {
     // 3. Update game location state
     this.locationMode = 'interior';
     this.currentInterior = target;
+    this.getActiveTemplate()?.onPlayerArriving?.();
     UIStateManager.getInstance().setMode('interior');
     console.log(`[Interior] entered: ${target.id}`);
 
@@ -720,7 +723,7 @@ export class InteriorManager {
         padding: 12px 24px;
         border-radius: 12px;
         color: #ffffff;
-        font-family: 'Inter', sans-serif;
+        font-family: var(--nl-text-font);
         text-align: center;
         z-index: 9999;
         pointer-events: none;

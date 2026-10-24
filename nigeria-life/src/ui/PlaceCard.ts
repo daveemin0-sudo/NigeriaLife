@@ -59,6 +59,8 @@ export interface PlaceCardHooks {
   /** Walk to an object and open it */
   goTo: (obj: InteractiveObject) => void;
   leave: () => void;
+  /** Buttons of the place's own, before its stations (at home: decorate) */
+  extras?: (def: InteriorDefinition) => Array<{ id: string; icon: string; label: string; run: () => void }>;
 }
 
 /**
@@ -147,6 +149,19 @@ export class PlaceCard {
 
     const chips = document.createElement('div');
     chips.className = 'place-chips';
+    for (const extra of this.hooks.extras?.(place.def) ?? []) {
+      const chip = document.createElement('button');
+      chip.className = 'place-chip place-chip-action';
+      chip.id = `place-extra-${extra.id}`;
+      const chipIconEl = document.createElement('span');
+      chipIconEl.className = 'place-chip-icon';
+      chipIconEl.textContent = extra.icon;
+      const chipLabel = document.createElement('span');
+      chipLabel.textContent = extra.label;
+      chip.append(chipIconEl, chipLabel);
+      chip.addEventListener('click', () => extra.run());
+      chips.appendChild(chip);
+    }
     for (const obj of [...stations, ...people]) {
       const { icon: chipIcon, label } = this.chipFor(obj);
       const chip = document.createElement('button');

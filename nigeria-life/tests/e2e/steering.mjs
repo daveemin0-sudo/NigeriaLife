@@ -30,6 +30,8 @@ export async function run(browser, check) {
       v.velocityDirection.set(Math.sin(setup.heading), Math.cos(setup.heading));
       const savedSolids = V.solids;
       if (setup.noSolids) V.solids = null;
+      // Handling is measured on an empty road: other traffic and people are not in the way
+      V.ignoreBodies = true;
       const out = [];
       let next = 0;
       const steps = Math.round(seconds / dt);
@@ -43,6 +45,7 @@ export async function run(browser, check) {
         v.update(dt, keysAt(t));
       }
       V.solids = savedSolids;
+      V.ignoreBodies = false;
       return out;
     };
     const V = veh.constructor;

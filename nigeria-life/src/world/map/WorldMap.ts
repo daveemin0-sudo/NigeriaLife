@@ -69,17 +69,41 @@ export class WorldMap {
   }
 
   private setupEventListeners(): void {
-    window.addEventListener('mousedown', (e) => {
+    // One finger (or the mouse) drags the map; two fingers pinch to zoom it
+    const fingers = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    const spread = () => {
+      const [a, b] = [...fingers.values()];
+      return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    };
+    window.addEventListener('pointerdown', (e) => {
       if (!this.isActive) return;
       if (!PointerScope.isGameView(e.target)) return;
-      this.isDragging = true;
-      this.previousMousePosition = { x: e.clientX, y: e.clientY };
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (fingers.size === 1) {
+        this.isDragging = true;
+        this.previousMousePosition = { x: e.clientX, y: e.clientY };
+      } else if (fingers.size === 2) {
+        pinch = spread();
+      }
     });
 
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('pointermove', (e) => {
       if (!this.isActive) return;
+      const finger = fingers.get(e.pointerId);
+      if (finger && fingers.size >= 2) {
+        finger.x = e.clientX;
+        finger.y = e.clientY;
+        const now = spread();
+        if (pinch > 0 && now > 0) {
+          this.zoomLevel = THREE.MathUtils.clamp(this.zoomLevel * (pinch / now), this.minZoom, this.maxZoom);
+          this.updateCameraTransform();
+        }
+        pinch = now;
+        return;
+      }
 
-      if (this.isDragging) {
+      if (this.isDragging && finger) {
         const deltaX = e.clientX - this.previousMousePosition.x;
         const deltaY = e.clientY - this.previousMousePosition.y;
 
@@ -96,13 +120,23 @@ export class WorldMap {
         this.updateCameraTransform();
       }
 
-      // Check hover for buildings, landmarks, properties and districts
-      this.handleHover(e);
+      // Check hover for buildings, landmarks, properties and districts (a mouse hovers; a finger does not)
+      if (e.pointerType === 'mouse') this.handleHover(e);
     });
 
-    window.addEventListener('mouseup', () => {
-      this.isDragging = false;
-    });
+    const lift = (e: PointerEvent) => {
+      fingers.delete(e.pointerId);
+      if (fingers.size < 2) pinch = 0;
+      if (fingers.size === 0) {
+        this.isDragging = false;
+      } else {
+        // One finger of a pinch is still down: it drags on from where it is
+        const [rest] = [...fingers.values()];
+        this.previousMousePosition = { x: rest.x, y: rest.y };
+      }
+    };
+    window.addEventListener('pointerup', lift);
+    window.addEventListener('pointercancel', lift);
 
     // Wheel zoom, only for wheel turns over the map itself (see PointerScope)
     PointerScope.onGameWheel((pixels) => {

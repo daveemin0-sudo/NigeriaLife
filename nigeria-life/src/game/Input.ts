@@ -126,39 +126,13 @@ export class InputManager {
     this.scene.add(this.hoverReticle);
 
     // Setup Event Listeners
-    window.addEventListener('pointermove', this.onPointerMove.bind(this));
-    window.addEventListener('pointerdown', this.onPointerDown.bind(this));
-    window.addEventListener('pointerup', this.onPointerUp.bind(this));
-
-    // Touch support for screen drag rotation
-    window.addEventListener('touchstart', (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        const t = e.touches[0];
-        if (PointerScope.isGameView(e.target) && !PointerScope.pressIgnored) {
-          this.isPointerDown = true;
-          this.hasDragged = false;
-          this.pointerDownPos.set(t.clientX, t.clientY);
-          this.lastMouseX = t.clientX;
-          this.lastMouseY = t.clientY;
-        }
-      }
-    }, { passive: true });
-
-    window.addEventListener('touchmove', (e: TouchEvent) => {
-      if (e.touches.length === 1 && this.isPointerDown && this.cameraManager) {
-        const t = e.touches[0];
-        const dist = Math.hypot(t.clientX - this.pointerDownPos.x, t.clientY - this.pointerDownPos.y);
-        if (dist > 5) {
-          this.hasDragged = true;
-          this.isRotatingCamera = true;
-          const deltaX = t.clientX - this.lastMouseX;
-          const deltaY = t.clientY - this.lastMouseY;
-          this.lastMouseX = t.clientX;
-          this.lastMouseY = t.clientY;
-          this.cameraManager.rotate(-deltaX * 0.006, -deltaY * 0.004);
-        }
-      }
-    }, { passive: true });
+    window.addEventListener('pointermove', (event) => this.onPointerMove(event));
+    window.addEventListener('pointerdown', (event) => this.onPointerDown(event));
+    window.addEventListener('pointerup', (event) => this.onPointerUp(event));
+    window.addEventListener('pointercancel', (event) => {
+      this.fingers.delete(event.pointerId);
+      if (this.fingers.size === 0) this.isRotatingCamera = false;
+    });
 
     window.addEventListener('touchend', (e: TouchEvent) => {
       const wasDragging = this.hasDragged;
@@ -258,9 +232,32 @@ export class InputManager {
     });
   }
 
-  private onPointerMove(event: MouseEvent): void {
+  private onPointerMove(event: PointerEvent): void {
     if (this.hud.currentNavMode === 'map') {
       this.hoverReticle.visible = false;
+      return;
+    }
+
+    if (event.pointerType === 'touch') {
+      const finger = this.fingers.get(event.pointerId);
+      if (!finger || !this.cameraManager) return;
+      if (this.fingers.size >= 2) {
+        finger.x = event.clientX;
+        finger.y = event.clientY;
+        const spread = this.spread();
+        // Fingers apart: nearer; together: further away
+        if (this.pinchSpread > 0) this.cameraManager.zoom((this.pinchSpread - spread) * 0.03);
+        this.pinchSpread = spread;
+        return;
+      }
+      const moved = Math.hypot(event.clientX - this.pointerDownPos.x, event.clientY - this.pointerDownPos.y);
+      if (moved > 8 || this.hasDragged) {
+        this.hasDragged = true;
+        this.isRotatingCamera = true;
+        this.cameraManager.rotate(-(event.clientX - finger.x) * 0.0065, -(event.clientY - finger.y) * 0.0045);
+        finger.x = event.clientX;
+        finger.y = event.clientY;
+      }
       return;
     }
 
@@ -350,12 +347,34 @@ export class InputManager {
     this.setCursor('default');
   }
 
-  private onPointerDown(event: MouseEvent): void {
+  /**
+   * Fingers on the 3D view, by pointer id. One finger dragged turns the camera; two pinched
+   * zoom it. A finger on the joystick is not on the view, so the other thumb can turn the
+   * camera while walking.
+   */
+  private fingers = new Map<number, { x: number; y: number }>();
+  private pinchSpread = 0;
+
+  private spread(): number {
+    const [a, b] = [...this.fingers.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  }
+
+  private onPointerDown(event: PointerEvent): void {
     this.tapHandled = false;
     if (this.hud.currentNavMode === 'map') return;
     if (!PointerScope.isGameView(event.target)) return;
     // This press closed a menu; it does nothing else
     if (PointerScope.pressIgnored) return;
+    if (event.pointerType === 'touch') {
+      this.fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (this.fingers.size >= 2) {
+        // A second finger: this is a pinch, never a tap
+        this.pinchSpread = this.spread();
+        this.hasDragged = true;
+        return;
+      }
+    }
 
     this.isPointerDown = true;
     this.hasDragged = false;
@@ -368,7 +387,18 @@ export class InputManager {
     }
   }
 
-  private onPointerUp(event: MouseEvent): void {
+  private onPointerUp(event: PointerEvent): void {
+    if (event.pointerType === 'touch') {
+      const tracked = this.fingers.delete(event.pointerId);
+      if (this.fingers.size > 0) {
+        // One finger of a pinch lifted: the other carries on turning from where it is now
+        const [rest] = [...this.fingers.values()];
+        this.pointerDownPos.set(rest.x, rest.y);
+        this.pinchSpread = 0;
+        return;
+      }
+      if (!tracked) return;
+    }
     const wasDragging = this.hasDragged || this.isRotatingCamera;
     this.isPointerDown = false;
     this.isRotatingCamera = false;

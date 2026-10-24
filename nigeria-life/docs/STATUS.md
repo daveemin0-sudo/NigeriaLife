@@ -162,6 +162,29 @@ One reusable way of building big places, proved on one neighbourhood, then repea
 4. ~~More in Abuja and Port Harcourt, built with the kit: their maps now show plainly how little stands there (five to seven places each). Houses, a hotel, a bank branch, a market, worship, the refinery.~~ **Completed & Verified**
 5. A server that runs the rules, if the game is to be public.
 
+## 2026-10-24: living in the city on a phone
+
+From the player's comparison with the reference game on a real Android phone.
+
+| What | State | Where |
+| --- | --- | --- |
+| People, traffic, parked cars and street lamps are solid on foot; a car is stopped by cars and people and told to reverse or go round | Verified (`bodies`) | `world/Bodies.ts`, `Player.keepClearOfBodies`, `DrivableVehicle.moveUnlessBlocked` |
+| Walkers step round the player; a horn sends people ahead to the side, with a line said | Verified (`bodies`) | `CityPopulation.sidestep`, `scatter` |
+| Walks are planned round parked cars and go round one met on the way | Verified (`ways`, `streets`) | `Game.parkedCars`, `Player.walkRoundParkedCars` |
+| The home is furnished as what is rented or owned: a cheap room gets a small TV, plastic chairs, a fan, a stove, one bed | Verified (`phonelife`) | `housing/HomeStandard.ts`, `ResidentialInterior.furnish` |
+| The carport shows the player's own vehicles (it showed two grey boxes) | Built, seen in screenshots | `OwnedVehicles.myModels`, `ResidentialInterior.parkCars` |
+| Catalogue as a phone sheet: New, Storage, All, sections, walls and floors; price filter, search, pick several; a 3D picture per piece; 150+ pieces incl. TVs 24 to 65 in, foam, plastic chairs, partition walls, sofas and beds in colours | Verified (`phonelife`, `furnish`) | `ui/CatalogueSheet.ts`, `ui/FurnitureThumbs.ts`, `housing/MoreFurniture.ts`, `housing/CatalogueExtras.ts` |
+| Storage: a piece is put away and placed again for nothing | Verified (`phonelife`) | `HouseDecorationSystem.putAway` |
+| Cars with shaped bodies (saloon, executive, EV, sports, SUV, off-roader) | Looks only (screenshots) | `world/vehicles/CarBodyKit.ts` |
+| Music player: 8 original songs (Afrobeats, Amapiano, Highlife, Afro-pop) made live, and the player's own songs kept in the browser | Verified (`phonelife`) | `audio/NaijaBeats.ts`, `audio/MusicPlayer.ts`, `ui/MusicSheet.ts` |
+| Street sound: crowd murmur, traffic, horns, voices calling | Built, not measurable headless | `audio/StreetAmbience.ts` |
+| Phone layout: one action button, RUN chip, no showcase/badges/four buttons; touch driving with steering, pedals, horn, Get out | Verified (`touch`, `phonelife`) | `style.css` phone blocks, `ui/DriveControls.ts` |
+| Camera: a second finger turns it while the stick is held; pinch zooms; the map drags and pinches | Map pinch verified (`phonelife`) | `Input` fingers, `WorldMap` pointer handling |
+| Fonts bundled (Outfit, Plus Jakarta Sans, OFL) | Built | `main.ts` |
+| New players start on the east pavement, not in the road | Verified (`phonelife`) | `Player` constructor |
+
+Not done: yachts and private jets to buy; the top bar's drop-down menu; traffic still drawn with the old box models; furniture is not solid to the player indoors beyond the floor map.
+
 ## Faults found on the way and put right
 
 - The street crowd was drawn with the detailed character model, over a million triangles for the people in view, which halved the frame rate on the target machine.

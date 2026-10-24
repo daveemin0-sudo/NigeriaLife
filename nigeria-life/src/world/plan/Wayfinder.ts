@@ -69,10 +69,14 @@ export class Wayfinder {
   private readonly heap: number[] = [];
   private search = 0;
 
+  /** What stands in the city: a straightened line is checked against it exactly, not only square by square */
+  private readonly solids: Solids;
+
   constructor(solids: Solids, zones: Zone[]) {
+    this.solids = solids;
     for (const solid of solids.all) {
       const isSmall = (solid.maxX - solid.minX < 0.9) && (solid.maxZ - solid.minZ < 0.9);
-      const standMargin = isSmall ? 0.35 : STAND;
+      const standMargin = isSmall ? 0.4 : STAND;
       const openMargin = isSmall ? 0.45 : OPEN;
       this.fill(this.walk, solid.minX - standMargin, solid.maxX + standMargin, solid.minZ - standMargin, solid.maxZ + standMargin, 0);
       this.fill(this.open, solid.minX - openMargin, solid.maxX + openMargin, solid.minZ - openMargin, solid.maxZ + openMargin, 0);
@@ -183,8 +187,12 @@ export class Wayfinder {
     let cost = 0;
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
-      const square = this.square(ax + (bx - ax) * t, az + (bz - az) * t);
+      const x = ax + (bx - ax) * t;
+      const z = az + (bz - az) * t;
+      const square = this.square(x, z);
       if (square < 0 || !this.open[square]) return Infinity;
+      // A square's middle can be clear of a post while the line across it grazes the post
+      if (s > 0 && s < steps && this.solids.at(x, z, 0.32)) return Infinity;
       cost += COST[this.kind[square]] * (s === 0 || s === steps ? each / 2 : each);
     }
     return cost;
