@@ -10,7 +10,7 @@ import type { GameCamera } from '../game/Camera';
 import type { HumanRig } from '../graphics/HumanMeshBuilder';
 import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
-import { FOOTBRIDGE, bridgeNear } from '../world/density/StreetLayout';
+import { bridgeNear } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
 import { Bodies, outOfCar, outOfPerson, waysRoundCar } from '../world/Bodies';
 import type { Way } from '../world/plan/Wayfinder';
@@ -174,8 +174,8 @@ export class Player {
   private onTheFootbridge(x: number, z: number): boolean {
     const fb = bridgeNear(z);
     if (this.footbridge && !this.footbridge()) return false;
-    const onDeck = Math.abs(x) <= FOOTBRIDGE.halfSpan && Math.abs(z - fb.z) <= FOOTBRIDGE.halfWidth;
-    const onStairs = Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15 && z >= fb.bottom - 0.4 && z <= fb.top;
+    const onDeck = Math.abs(x) <= fb.shape.halfSpan && Math.abs(z - fb.z) <= fb.shape.halfWidth;
+    const onStairs = Math.abs(Math.abs(x) - fb.shape.stairX) <= fb.shape.stairHalfWidth + 0.15 && z >= fb.bottom - 0.4 && z <= fb.top;
     return onDeck || onStairs;
   }
 
@@ -208,7 +208,7 @@ export class Player {
       this.keepClearOfBodies(cameFrom, solids);
       return;
     }
-    const inLine = (x: number) => Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15;
+    const inLine = (x: number) => Math.abs(Math.abs(x) - fb.shape.stairX) <= fb.shape.stairHalfWidth + 0.15;
     const inFlight = (x: number, z: number) => inLine(x) && z >= fb.bottom + 1.2 && z <= fb.top;
     const fromItsFoot = inLine(cameFrom.x) && cameFrom.z >= fb.bottom - 0.4 && cameFrom.z <= fb.top;
     // The foot of the stairs is the way on. Anywhere else, the flight is a block of concrete to walk round.
@@ -614,16 +614,16 @@ export class Player {
       this.onBridge = false;
       return 0;
     }
-    const onStairs = Math.abs(Math.abs(x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.15 && z >= fb.bottom && z <= fb.top;
+    const onStairs = Math.abs(Math.abs(x) - fb.shape.stairX) <= fb.shape.stairHalfWidth + 0.15 && z >= fb.bottom && z <= fb.top;
     if (onStairs) {
-      const height = ((z - fb.bottom) / (fb.top - fb.bottom)) * FOOTBRIDGE.top;
+      const height = ((z - fb.bottom) / (fb.top - fb.bottom)) * fb.shape.top;
       // Half-way up they are on the bridge; back near the bottom they are on the street again
-      if (height > FOOTBRIDGE.top * 0.5) this.onBridge = true;
+      if (height > fb.shape.top * 0.5) this.onBridge = true;
       else if (height < 0.9) this.onBridge = false;
       return height;
     }
-    const overDeck = Math.abs(x) <= FOOTBRIDGE.halfSpan && Math.abs(z - fb.z) <= FOOTBRIDGE.halfWidth;
-    if (overDeck && this.onBridge) return FOOTBRIDGE.top;
+    const overDeck = Math.abs(x) <= fb.shape.halfSpan && Math.abs(z - fb.z) <= fb.shape.halfWidth;
+    if (overDeck && this.onBridge) return fb.shape.top;
     if (!overDeck) this.onBridge = false;
 
     // National Stadium Surulere stands elevation (5 tiers rising from 0.8m to 4.0m)
@@ -684,22 +684,22 @@ export class Player {
     const fb = bridgeNear(this.mesh.position.z);
     if (!this.onBridge) return;
     const p = this.mesh.position;
-    const southRail = fb.z - FOOTBRIDGE.halfWidth + 0.2;
+    const southRail = fb.z - fb.shape.halfWidth + 0.2;
     if (p.z < southRail) {
       // South of the deck there are only the two flights of stairs
       const side = p.x < 0 ? -1 : 1;
-      const overFlight = Math.abs(Math.abs(p.x) - FOOTBRIDGE.stairX) <= FOOTBRIDGE.stairHalfWidth + 0.35;
+      const overFlight = Math.abs(Math.abs(p.x) - fb.shape.stairX) <= fb.shape.stairHalfWidth + 0.35;
       if (!overFlight) {
         // The rail along the deck holds
         p.z = southRail;
-        p.x = THREE.MathUtils.clamp(p.x, -FOOTBRIDGE.halfSpan + 0.2, FOOTBRIDGE.halfSpan - 0.2);
+        p.x = THREE.MathUtils.clamp(p.x, -fb.shape.halfSpan + 0.2, fb.shape.halfSpan - 0.2);
       } else if (p.z >= fb.bottom) {
         // On a flight: its handrails keep them on it
-        p.x = THREE.MathUtils.clamp(p.x, side * FOOTBRIDGE.stairX - FOOTBRIDGE.stairHalfWidth + 0.1, side * FOOTBRIDGE.stairX + FOOTBRIDGE.stairHalfWidth - 0.1);
+        p.x = THREE.MathUtils.clamp(p.x, side * fb.shape.stairX - fb.shape.stairHalfWidth + 0.1, side * fb.shape.stairX + fb.shape.stairHalfWidth - 0.1);
       }
       return;
     }
-    p.z = Math.min(p.z, fb.z + FOOTBRIDGE.halfWidth - 0.2);
-    p.x = THREE.MathUtils.clamp(p.x, -FOOTBRIDGE.halfSpan + 0.2, FOOTBRIDGE.halfSpan - 0.2);
+    p.z = Math.min(p.z, fb.z + fb.shape.halfWidth - 0.2);
+    p.x = THREE.MathUtils.clamp(p.x, -fb.shape.halfSpan + 0.2, fb.shape.halfSpan - 0.2);
   }
 }

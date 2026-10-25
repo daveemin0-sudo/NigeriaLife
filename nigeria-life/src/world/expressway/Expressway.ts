@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
 import type { Obstruction } from '../plan/CityPlan';
+import { EXPRESS_BRIDGE, EXPRESS_BRIDGES } from '../density/StreetLayout';
 import { EXPRESS, roadsideAt } from './layout';
 import { Roadside } from './Roadside';
 
@@ -169,7 +170,7 @@ export class Expressway {
       // The island's own buildings stand round the end of Broad Street: the frontage starts beyond them
       if (z1 > 165) this.buildFrontage(b, Math.max(z0, 165), z1);
       // A footbridge every 400 m over the whole road
-      for (let z = Math.ceil(z0 / 400) * 400; z < z1; z += 400) if (z > EXPRESS.from + 100 && Math.abs(z - EXPRESS.toll) > 60) this.footbridge(b, z);
+      for (const z of EXPRESS_BRIDGES) if (z >= z0 && z < z1) this.footbridge(b, z);
     }
     const built = b.build(`expressway ${z0}`);
     built.traverse((child) => {
@@ -249,16 +250,31 @@ export class Expressway {
 
   /** A footbridge right across the road, stairs going up on both pavements */
   private footbridge(b: Builder, z: number): void {
-    const H = EXPRESS.half;
-    const deck = 6.2;
-    b.box(0x2563eb, H * 2 + 6, 0.35, 2.6, 0, deck, z);
-    for (const side of [-1, 1]) b.box(0x93c5fd, H * 2 + 6, 1.1, 0.08, 0, deck + 0.35, z + side * 1.25);
+    const S = EXPRESS_BRIDGE;
+    const deck = S.top - 0.35;
+    const flightTop = z - S.halfWidth;
+    const rise = S.top / S.steps;
+    // The deck, its glass sides and handrails
+    b.box(0x2563eb, S.halfSpan * 2, 0.35, S.halfWidth * 2, 0, deck, z);
     for (const side of [-1, 1]) {
-      const x = side * (H + 2.2);
-      // A tower of stairs on each pavement
-      b.box(0x1e3a8a, 2.4, deck, 3, x, 0, z);
-      for (let s = 0; s < 8; s++) b.box(0x64748b, 2.2, 0.15, 0.6, x, s * 0.8, z - 1.8 - s * 0.55);
-      this.solid('Footbridge stairs', x - 1.2, x + 1.2, z - 6.2, z + 1.5, deck, false);
+      b.box(0x93c5fd, S.halfSpan * 2, 1.1, 0.08, 0, S.top, z + side * (S.halfWidth - 0.05));
+      b.box(0x1e3a8a, S.halfSpan * 2, 0.08, 0.12, 0, S.top + 1.1, z + side * (S.halfWidth - 0.05));
+    }
+    for (const side of [-1, 1]) {
+      const x = side * S.stairX;
+      // The pier the deck ends on, beyond the head of the stairs
+      b.box(0x1e3a8a, S.stairHalfWidth * 2 + 0.4, deck, 1.6, x, 0, z + 0.5);
+      // A flight of real steps up from the pavement, each a tread on a riser, with a rail each side
+      for (let s = 0; s < S.steps; s++) {
+        const zz = flightTop - (S.steps - s - 0.5) * S.run;
+        b.box(0x94a3b8, S.stairHalfWidth * 2, rise * (s + 1), S.run, x, 0, zz);
+        b.box(0xe2e8f0, S.stairHalfWidth * 2, 0.04, S.run, x, rise * (s + 1), zz);
+      }
+      const length = Math.hypot(S.steps * S.run, S.top);
+      const pitch = Math.atan2(S.top, S.steps * S.run);
+      for (const r of [-1, 1]) b.box(0x1e3a8a, 0.07, 0.07, length, x + r * (S.stairHalfWidth + 0.05), S.top / 2 + 0.9, flightTop - (S.steps * S.run) / 2, { pitch: -pitch });
+      // Walkers and cars go round the flight; the player climbs it from its foot
+      this.solid('Footbridge stairs', x - S.stairHalfWidth - 0.1, x + S.stairHalfWidth + 0.1, flightTop - S.steps * S.run, z + 1.3, deck, false);
     }
     // Its middle stands on the median
     b.box(0x1e3a8a, 0.6, deck, 0.6, 0, 0.16, z);

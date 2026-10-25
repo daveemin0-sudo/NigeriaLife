@@ -110,6 +110,35 @@ export async function run(browser, check) {
   });
   check('expressway: a taxi booked to Amala Shitta leaves the player at its door, with the buka there in front of them', rode.booked && rode.away < 3 && rode.shown, rode);
 
+  // A footbridge over the expressway is climbed from the foot of its stairs, crossed, and come down on the far side
+  const crossed = await page.evaluate(async () => {
+    const g = window.game;
+    const p = g.player;
+    const z = 800;
+    const S = { stairX: 13.2, foot: z - 1.3 - 12 * 0.7, top: z - 1.3 };
+    p.stopMoving();
+    p.onBridge = false;
+    p.mesh.position.set(-S.stairX, 0, S.foot - 1);
+    const go = async (x, zz, seconds) => {
+      p.setDestination(new p.position.constructor(x, 0, zz));
+      let highest = 0;
+      for (let i = 0; i < seconds * 10 && p.isMoving; i++) {
+        await g.advance(0.1);
+        highest = Math.max(highest, p.mesh.position.y);
+      }
+      return highest;
+    };
+    const up = await go(-S.stairX, z, 12);
+    const onDeck = { x: +p.position.x.toFixed(1), y: +p.mesh.position.y.toFixed(2), on: p.onBridge };
+    await go(S.stairX, z, 14);
+    const across = { x: +p.position.x.toFixed(1), y: +p.mesh.position.y.toFixed(2) };
+    await go(S.stairX, S.foot - 2, 14);
+    const down = { x: +p.position.x.toFixed(1), z: +p.position.z.toFixed(1), y: +p.mesh.position.y.toFixed(2), on: p.onBridge };
+    return { up, onDeck, across, down };
+  });
+  check('expressway: its footbridge is climbed from the stairs on the pavement, crossed over the traffic, and come down on the other side',
+    crossed.onDeck.y > 6 && crossed.onDeck.on && crossed.across.x > 10 && crossed.across.y > 6 && crossed.down.x > 10 && crossed.down.y < 0.5 && !crossed.down.on, crossed);
+
   check('expressway: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();
 }

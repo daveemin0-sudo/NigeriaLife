@@ -1,3 +1,4 @@
+import { EXPRESS } from '../expressway/layout';
 /**
  * StreetLayout
  * Single source of truth for the Lagos street grid around Broad Street.
@@ -26,14 +27,35 @@ export const FOOTBRIDGE = {
 /** Every footbridge over Broad Street, by where its deck crosses (all the same shape as FOOTBRIDGE) */
 export const FOOTBRIDGES: number[] = [FOOTBRIDGE.z, -33, -110, 116];
 
-/** The footbridge a point is at or nearest to: where its deck crosses, and where its stairs start and reach the deck */
-export function bridgeNear(z: number): { z: number; top: number; bottom: number } {
-  const run = FOOTBRIDGE.steps * FOOTBRIDGE.run;
-  let best = FOOTBRIDGES[0];
+export type BridgeShape = Omit<typeof FOOTBRIDGE, 'z'>;
+
+/**
+ * The expressway's footbridges: wider, higher, their stairs on the pavement beyond the kerb.
+ * They are climbed the same way: from the foot of the stairs, northward, up to the deck.
+ */
+export const EXPRESS_BRIDGE: BridgeShape = { halfSpan: EXPRESS.half + 3.5, halfWidth: 1.3, top: 6.55, stairX: EXPRESS.half + 2.2, stairHalfWidth: 1.0, steps: 12, run: 0.7 };
+export const EXPRESS_BRIDGES: number[] = (() => {
+  const out: number[] = [];
+  for (let z = 400; z < EXPRESS.to; z += 400) {
+    const water = z > EXPRESS.lagoonFrom - 20 && z < EXPRESS.lagoonTo + 20;
+    if (z > EXPRESS.from + 100 && Math.abs(z - EXPRESS.toll) > 60 && !water) out.push(z);
+  }
+  return out;
+})();
+
+const ALL_BRIDGES: Array<{ z: number; shape: BridgeShape }> = [
+  ...FOOTBRIDGES.map((z) => ({ z, shape: FOOTBRIDGE as BridgeShape })),
+  ...EXPRESS_BRIDGES.map((z) => ({ z, shape: EXPRESS_BRIDGE })),
+];
+
+/** The footbridge a point is at or nearest to: where its deck crosses, where its stairs start and reach the deck, and its shape */
+export function bridgeNear(z: number): { z: number; top: number; bottom: number; shape: BridgeShape } {
+  let best = ALL_BRIDGES[0];
   // Measured from the middle of bridge and stairs together
-  for (const b of FOOTBRIDGES) if (Math.abs(b - run / 2 - z) < Math.abs(best - run / 2 - z)) best = b;
-  const top = best - FOOTBRIDGE.halfWidth;
-  return { z: best, top, bottom: top - run };
+  const middle = (b: { z: number; shape: BridgeShape }) => b.z - (b.shape.steps * b.shape.run) / 2;
+  for (const b of ALL_BRIDGES) if (Math.abs(middle(b) - z) < Math.abs(middle(best) - z)) best = b;
+  const top = best.z - best.shape.halfWidth;
+  return { z: best.z, top, bottom: top - best.shape.steps * best.shape.run, shape: best.shape };
 }
 
 /** Where the stairs start at the pavement and where they reach the deck, along the road */

@@ -517,7 +517,8 @@ export class World {
       const group = city === 'abuja' ? this.cityManager.abujaCity?.group : this.cityManager.portHarcourtCity?.group;
       holder.visible = !!group?.visible;
     }
-    // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day
+    // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day (rooms keep their lights on)
+    this.skyEnvironment.indoors = this.interiorManager.isPlayerInside();
     this.skyEnvironment.update(delta, playerPos);
 
     // Keep live player coordinate synced in WorldDataManager

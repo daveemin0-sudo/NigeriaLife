@@ -535,7 +535,22 @@ export class SkyEnvironmentManager {
     // 5. Tone Mapping Exposure
     const baseExposure = THREE.MathUtils.lerp(k0.exposure, k1.exposure, t);
     this.renderer.toneMappingExposure = baseExposure;
+
+    // 6. Indoors the lights are on: whatever the hour, a room is lit bright and clear, so it can be
+    // seen by anyone, including players whose eyes are not strong
+    if (this.indoors) {
+      this.hemiLight.color.setHex(0xfffaf0);
+      this.hemiLight.groundColor.setHex(0xd6d3d1);
+      this.hemiLight.intensity = Math.max(this.hemiLight.intensity, 1.55);
+      this.sunLight.intensity = Math.max(this.sunLight.intensity, 0.9);
+      this.sunLight.color.setHex(0xfff4e0);
+      if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.density *= 0.12;
+      this.renderer.toneMappingExposure = Math.max(baseExposure, 1.08);
+    }
   }
+
+  /** The player is inside a building: lit as rooms are, not as the street is at that hour */
+  public indoors = false;
 
   public update(delta: number, playerPosition?: THREE.Vector3): void {
     // Delta clamping prevents burst jumps when tab is backgrounded
