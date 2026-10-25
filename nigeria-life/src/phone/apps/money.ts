@@ -7,6 +7,8 @@ import { SHARES, FEE_RATE, type Share } from '../services/Market';
 import { SoundEngine } from '../../audio/SoundEngine';
 import { Deeds } from '../../realestate/Deeds';
 import { AssetMarket } from '../../realestate/AssetMarket';
+import { Companies, AREAS, type RoleId } from '../../business/Companies';
+import { BackendService } from '../../backend/BackendService';
 
 // ============================================================================================
 // Bank
@@ -269,9 +271,11 @@ export const businessApp: PhoneApp = {
 
   render(host, route) {
     const data = host.backend.getData();
+    const companies = Companies.get();
     const earns = (id: string) => {
       const biz = data.businesses.find((b) => b.id === id)!;
-      return biz.baseIncomePerCycle + biz.upgrades.reduce((sum, u) => sum + (u.purchased ? u.bonusIncomePerCycle : 0), 0);
+      const own = biz.baseIncomePerCycle + biz.upgrades.reduce((sum, u) => sum + (u.purchased ? u.bonusIncomePerCycle : 0), 0);
+      return biz.owned ? Math.round(companies.perCycle(biz, own) * BackendService.revenueBoost()) : own;
     };
 
     if (route.startsWith('b:')) {
@@ -301,6 +305,58 @@ export const businessApp: PhoneApp = {
               ? `<button class="nl-btn nl-btn--block" id="business-listing" data-app="land" data-route="listing:${esc(listing.id)}">On the market at ${naira(listing.askingPrice)} · see offers</button>`
               : `<button class="nl-btn nl-btn--block" id="business-sell-player" data-app="land" data-route="ask:business:${esc(biz.id)}">Sell to another player</button>`) : ''}
           </div>
+          ${biz.owned ? (() => {
+            // The company: who works there, where it trades, and how each day closed
+            const staff = companies.staff(biz.id);
+            const outlets = companies.outlets(biz.id);
+            const reports = companies.reports(biz.id);
+            const open = companies.branches(biz.id);
+            return `
+            <div class="nl-section">Staff · ${naira(companies.wages(biz.id))} a day${companies.managed(biz.id) ? ' · managed' : ''}</div>
+            <div class="nl-list" id="company-staff">
+              ${staff.length === 0 ? empty('🧑‍💼', 'Nobody works here yet', 'Take people on below: each role at each outlet lifts the takings.') : staff.map((st) => {
+                const role = companies.roles(biz.id).find((r) => r.id === st.role);
+                return row({ icon: role?.icon ?? '🧑', title: esc(st.name), sub: `${esc(role?.title ?? st.role)} · since ${companies.dayName(st.since)} · ${naira(st.wage)} a day`, trailing: `<button class="nl-btn nl-btn--sm" data-act="dismiss" data-arg="${esc(biz.id)}|${esc(st.id)}">Let go</button>` });
+              }).join('')}
+            </div>
+            <div class="nl-section">Take someone on</div>
+            <div class="nl-list" id="company-roles">
+              ${companies.roles(biz.id).map((role) => {
+                const have = staff.filter((st) => st.role === role.id).length;
+                return row({
+                  icon: role.icon,
+                  title: esc(role.title),
+                  sub: `${naira(role.wage)} a day · ${role.id === 'manager' ? 'banks the takings each night, ' : ''}+${Math.round(role.lift * 100)}% takings · ${have} of ${outlets}`,
+                  trailing: `<button class="nl-btn nl-btn--sm" data-act="hire" data-arg="${esc(biz.id)}|${role.id}" ${have < outlets ? '' : 'disabled'}>Hire</button>`,
+                  tone: have < outlets ? 'default' : 'muted',
+                });
+              }).join('')}
+            </div>
+            <div class="nl-section">Outlets · ${outlets}</div>
+            <div class="nl-list" id="company-branches">
+              ${row({ icon: '🏠', title: 'The first shop', sub: 'Where it started' })}
+              ${open.map((b) => {
+                const area = AREAS.find((a) => a.id === b.area);
+                return row({ icon: '🏬', title: `${esc(area?.name ?? b.area)} branch`, sub: `Opened ${companies.dayName(b.opened)} · takes ${Math.round((area?.takes ?? 0) * 100)}% of the first shop · rent ${naira(Math.round((b.cost * 0.15) / 365))} a day` });
+              }).join('')}
+              ${AREAS.filter((a) => !open.some((b) => b.area === a.id)).map((a) => row({
+                icon: '📍',
+                title: `Open in ${esc(a.name)}`,
+                sub: `Takes ${Math.round(a.takes * 100)}% of the first shop · rent ${naira(Math.round((companies.branchCost(biz.id, a.id) * 0.15) / 365))} a day`,
+                trailing: `<button class="nl-btn nl-btn--sm" data-act="branch" data-arg="${esc(biz.id)}|${a.id}">${naira(companies.branchCost(biz.id, a.id))}</button>`,
+                tone: 'muted',
+              })).join('')}
+            </div>
+            <div class="nl-section">Daily reports</div>
+            <div class="nl-list" id="company-reports">
+              ${reports.length === 0 ? empty('📊', 'No day closed yet', 'At the end of each day the takings, wages, rent and tax are reported here.') : reports.map((r) => row({
+                icon: r.profit >= 0 ? '📈' : '📉',
+                title: `${companies.dayName(r.day)}: ${r.profit >= 0 ? 'profit' : 'loss'} ${naira(Math.abs(r.profit))}`,
+                sub: `Took ${naira(r.takings)} · wages ${naira(r.wages)}${r.rent ? ` · rent ${naira(r.rent)}` : ''} · tax ${r.tax ? naira(r.tax) : 'none (small company)'}${r.banked ? ` · ${naira(r.banked)} banked` : ''}${r.note ? ` · ${esc(r.note)}` : ''}`,
+                tone: r.note ? 'bad' : r.profit >= 0 ? 'good' : 'bad',
+              })).join('')}
+            </div>`;
+          })() : ''}
           ${biz.owned ? `
             <div class="nl-section">Upgrades</div>
             <div class="nl-list">
@@ -358,6 +414,27 @@ export const businessApp: PhoneApp = {
       const result = host.backend.buyBusiness(arg);
       if (result.success) SoundEngine.getInstance().playTransactionSuccess();
       host.say(result.message, result.success ? 'good' : 'bad');
+    } else if (action === 'hire') {
+      const [bizId, role] = arg.split('|');
+      const result = Companies.get().hire(bizId, role as RoleId);
+      host.say(result.ok && result.staffer ? `${result.staffer.name} starts today as your ${result.staffer.role}, on ${naira(result.staffer.wage)} a day.` : result.reason ?? '', result.ok ? 'good' : 'bad');
+      host.refresh();
+    } else if (action === 'dismiss') {
+      const [bizId, staffId] = arg.split('|');
+      const who = Companies.get().staff(bizId).find((st) => st.id === staffId);
+      if (!who || !(await host.confirm(`Let ${who.name} go, with a day's pay (${naira(who.wage)})?`, 'Let them go'))) return;
+      const result = Companies.get().dismiss(bizId, staffId);
+      host.say(result.ok ? `${who.name} has been let go, with a day's pay.` : result.reason ?? '', result.ok ? 'info' : 'bad');
+      host.refresh();
+    } else if (action === 'branch') {
+      const [bizId, areaId] = arg.split('|');
+      const area = AREAS.find((a) => a.id === areaId);
+      const cost = Companies.get().branchCost(bizId, areaId);
+      if (!area || !(await host.confirm(`Open a branch in ${area.name} for ${naira(cost)}?`, 'Open it'))) return;
+      const result = Companies.get().openBranch(bizId, areaId);
+      if (result.ok) SoundEngine.getInstance().playTransactionSuccess();
+      host.say(result.ok ? `Your branch in ${area.name} is open. Take on staff for it.` : result.reason ?? '', result.ok ? 'good' : 'bad');
+      host.refresh();
     } else if (action === 'upgrade') {
       const [bizId, upgradeId] = arg.split('|');
       const result = host.backend.upgradeBusiness(bizId, upgradeId);

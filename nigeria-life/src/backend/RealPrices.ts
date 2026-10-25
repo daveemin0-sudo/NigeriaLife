@@ -1,4 +1,4 @@
-import type { PlayerAccount } from './types';
+import { DEFAULT_BUSINESSES, type PlayerAccount } from './types';
 
 /**
  * What homes, offices and businesses cost, close to what they sell and let for in 2025, in
@@ -58,6 +58,13 @@ export const BUSINESS_PRICES: Record<string, number> = {
   biz_oando: 450_000_000,
 };
 
+/**
+ * What a business takes in one payout, as a share of its price: about 1.6% of the price in a
+ * game day before staff, wages, rent and tax, so a buka bought for ₦8m pays for itself in two
+ * months or so of game days. (It used to pay for itself in one.)
+ */
+export const TAKINGS_PER_PAYOUT = 0.0012;
+
 export function applyRealPrices(account: PlayerAccount): PlayerAccount {
   for (const p of account.properties ?? []) {
     const price = PROPERTY_PRICES[p.id];
@@ -68,11 +75,19 @@ export function applyRealPrices(account: PlayerAccount): PlayerAccount {
   }
   for (const b of account.businesses ?? []) {
     const price = BUSINESS_PRICES[b.id];
-    if (!price || b.purchasePrice === price) continue;
-    // What it takes in keeps its share of what it costs
-    const share = b.purchasePrice > 0 ? b.baseIncomePerCycle / b.purchasePrice : 0.05;
+    const original = DEFAULT_BUSINESSES.find((d) => d.id === b.id);
+    if (!price || !original) continue;
+    // What a going concern of that price takes, a payout every 45 seconds (13 or so a game day);
+    // its upgrades cost and add in the same proportion as they did on the old price tags
     b.purchasePrice = price;
-    b.baseIncomePerCycle = Math.round(price * share);
+    b.baseIncomePerCycle = Math.round(price * TAKINGS_PER_PAYOUT);
+    const scale = price / original.purchasePrice;
+    for (const u of b.upgrades ?? []) {
+      const was = original.upgrades.find((o) => o.id === u.id);
+      if (!was) continue;
+      u.cost = Math.round((was.cost * scale) / 1000) * 1000;
+      u.bonusIncomePerCycle = Math.round((b.baseIncomePerCycle * was.bonusIncomePerCycle) / original.baseIncomePerCycle);
+    }
   }
   return account;
 }

@@ -519,7 +519,7 @@ export async function run(browser, check) {
   const againCollect = await a.evaluate((id) => window.game.land.collect(id), P5);
   a1 = await money(a);
   check('a finished shop takes money each game day, less its upkeep; the owner collects it once',
-    due >= 195_000 && due <= 205_000 && got.ok && got.amount >= due && a1.bank - a0.bank === got.amount && (!againCollect.ok || againCollect.amount < 15_000), { due, got, againCollect });
+    due >= 195_000 && due <= 205_000 && got.ok && got.amount >= due && a1.bank - a0.bank === got.amount + (againCollect.ok ? againCollect.amount : 0) && (!againCollect.ok || againCollect.amount < 15_000), { due, got, againCollect });
   const notMine = await b.evaluate((id) => window.game.land.collect(id), P5);
   check('nobody but the owner can collect a building\'s takings', !notMine.ok, notMine);
 

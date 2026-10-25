@@ -1,6 +1,7 @@
 import { profileKey } from './Profile';
 import {
   type PlayerAccount,
+  type BusinessEnterprise,
   type PlayerStats,
   type PlayerSkills,
   type Item,
@@ -27,6 +28,10 @@ const REVENUE_CYCLE_MS = 45000;
 export class BackendService {
   /** What the law adds to every business's takings (a tax cut), set by the game */
   public static revenueBoost: () => number = () => 1;
+  /** What a business takes in one payout, given its own (staff and branches add to it; set by the game) */
+  public static takings: (biz: BusinessEnterprise, own: number) => number = (_biz, own) => own;
+  /** Told what each business took, as it comes in (for the day's report) */
+  public static onTakings: (bizId: string, amount: number) => void = () => {};
   private static instance: BackendService;
   private readonly STORAGE_KEY = profileKey('nigeria_life_account_data_v1');
   private readonly BACKUP_KEY = profileKey('nigeria_life_account_data_v1__backup');
@@ -237,7 +242,9 @@ export class BackendService {
             cycleEarnings += upg.bonusIncomePerCycle;
           }
         }
-        biz.pendingRevenue += Math.round(cycleEarnings * cycles * BackendService.revenueBoost());
+        const earned = Math.round(BackendService.takings(biz, cycleEarnings) * cycles * BackendService.revenueBoost());
+        biz.pendingRevenue += earned;
+        BackendService.onTakings(biz.id, earned);
         revenueGenerated = true;
       }
     }
@@ -1062,6 +1069,17 @@ export class BackendService {
       success: true,
       message: `Upgrade installed: ${upg.name}! +₦${upg.bonusIncomePerCycle.toLocaleString()} revenue per cycle.`,
     };
+  }
+
+  /** Takes up to `amount` out of a business's till (to pay its costs); returns what was there to take */
+  public takeFromTill(bizId: string, amount: number): number {
+    this.syncFromStorage();
+    const biz = this.data.businesses.find((b) => b.id === bizId && b.owned);
+    if (!biz || amount <= 0) return 0;
+    const taken = Math.min(biz.pendingRevenue, Math.round(amount));
+    biz.pendingRevenue -= taken;
+    this.saveData();
+    return taken;
   }
 
   public collectBusinessRevenue(bizId?: string): { totalCollected: number; message: string } {

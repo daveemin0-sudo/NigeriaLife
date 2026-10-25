@@ -151,6 +151,8 @@ export type TransactionType =
   | 'PROPERTY_PURCHASE'
   | 'RENT_PAYMENT'
   | 'BUSINESS_PURCHASE'
+  /** A company's wages, branch rent and tax */
+  | 'BUSINESS_EXPENSE'
   | 'SHOP_PURCHASE'
   | 'FOOD_PURCHASE'
   | 'MEDICAL_BILL'

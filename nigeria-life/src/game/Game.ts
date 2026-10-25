@@ -62,6 +62,8 @@ import { PumpSheet } from '../ui/PumpSheet';
 import { ProfileSheet } from '../ui/ProfileSheet';
 import { StateHouseSheet } from '../ui/StateHouseSheet';
 import { PlaceOpeners } from '../interiors/places/PlaceInterior';
+import { Companies } from '../business/Companies';
+import { CompanyStaff } from '../business/CompanyStaff';
 import { vehicleModel } from '../realestate/Garage';
 import { Politics, Policies } from '../politics/Politics';
 import { hawkerPrices } from '../world/StreetVendors';
@@ -715,7 +717,11 @@ export class Game {
       this.transitHUD.showRideHUD(ride);
     };
     PlaceOpeners.open = (what) => {
-      if (what.startsWith('app:')) this.hud.phoneModal.openApp(what.slice(4));
+      if (what.startsWith('app:')) {
+        // "app:business" or, to a screen inside it, "app:business:b:biz_mama_put"
+        const [app, ...route] = what.slice(4).split(':');
+        this.hud.phoneModal.openApp(app, route.length ? route.join(':') : undefined);
+      }
       else if (what === 'vote') this.stateHouse.open('polling');
       else if (what === 'house') this.stateHouse.open('house');
       else if (what === 'interstate') this.hud.interstateModal.open(this.world.cityManager.currentCityId);
@@ -740,7 +746,10 @@ export class Game {
     // 10c. Day & Saturday Rent Tick
     this.world.skyEnvironment.onNewDay = (day: number) => {
       BackendService.getInstance().processDailyRentTick(day);
+      // The close of yesterday, for every business: takings, wages, rent and tax
+      this.companies.closeDay(day - 1);
     };
+    this.connectCompanies();
 
     // 11. Clock for delta-timed updates
     this.clock = new THREE.Clock();
@@ -1243,6 +1252,33 @@ export class Game {
     });
   }
   public readonly politics = Politics.get();
+  public readonly companies = Companies.get();
+  public companyStaff: CompanyStaff | null = null;
+
+  /** The businesses the player owns, run as companies: staff and branches lift the takings, and each day closes with a report */
+  private connectCompanies(): void {
+    const companies = this.companies;
+    const sky = this.world.skyEnvironment;
+    companies.today = () => sky.day;
+    companies.dayName = (day) => new Date(2026, 9, 7 + day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    BackendService.takings = (biz, own) => companies.perCycle(biz, own);
+    BackendService.onTakings = (id, amount) => companies.took(id, amount);
+    companies.onReports = (reports) => {
+      reports.forEach(({ business, report }, i) => {
+        const line = `📊 ${business.name}, ${companies.dayName(report.day)}: took ₦${report.takings.toLocaleString()} · wages ₦${report.wages.toLocaleString()}${report.rent ? ` · rent ₦${report.rent.toLocaleString()}` : ''} · tax ₦${report.tax.toLocaleString()} · ${report.profit >= 0 ? 'profit' : 'loss'} ₦${Math.abs(report.profit).toLocaleString()}${report.banked ? ` · ₦${report.banked.toLocaleString()} banked by the manager` : ''}${report.note ? `. ${report.note}` : ''}`;
+        setTimeout(() => showGameToast(line, report.note ? 'warning' : 'info', 7000), i * 1500);
+      });
+    };
+    const lagos = this.world.cityManager;
+    this.companyStaff = new CompanyStaff({
+      find: (id) => this.world.interactiveObjects.find((o) => o.id === id),
+      add: (o) => lagos.addLagosInteractive(o),
+      remove: (o) => lagos.removeLagosInteractive(o),
+      hour: () => sky.currentHour,
+    });
+    this.scene.add(this.companyStaff.group);
+    lagos.addToLagos(this.companyStaff.group, []);
+  }
 
   /** The government the players elect: its laws in force for everyone, its house to visit, its polling unit */
   private connectGovernment(): void {
@@ -2006,6 +2042,7 @@ export class Game {
     if (driven) avoid.push({ x: driven.mesh.position.x, z: driven.mesh.position.z, r: 2.4 });
     else if (!this.world.interiorManager.isPlayerInside()) avoid.push({ x: this.player.position.x, z: this.player.position.z, r: 0.35 });
     this.world.update(delta, this.input.keys, this.player.position, this.player);
+    this.companyStaff?.update();
     // After the world has moved the coach: its passenger is exactly where it is
     this.rideOutOfThePark();
 
