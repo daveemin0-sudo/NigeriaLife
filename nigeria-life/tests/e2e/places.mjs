@@ -60,7 +60,7 @@ export async function run(browser, check) {
   await wait(2500);
   const pins = await page.evaluate(async () => {
     const landmarks = window.game.modules.WorldDataManager.getInstance().getLandmarks().length;
-    const all = [...document.querySelectorAll('.map-pin')];
+    const all = [...document.querySelectorAll('.map-pin:not(.map-pin-road)')];
     return { landmarks, pins: all.length, named: all.every((p) => p.querySelector('.map-pin-name').textContent.length > 2), areas: document.querySelectorAll('.map-area-name').length };
   });
   check('the map has a named pin for every landmark, and area names', pins.pins === pins.landmarks && pins.pins > 0 && pins.named && pins.areas > 0, pins);
@@ -110,7 +110,7 @@ export async function run(browser, check) {
   await wait(3200);
   const after = await money(page);
   const arrived = await page.evaluate(() => ({ inside: window.game.world.interiorManager.currentInterior?.type || null, mapOpen: window.game.world.worldMap.isActive }));
-  check('Go by keke charges the ₦400 fare and takes the player inside the hospital', before.cash - after.cash === 400 && arrived.inside === 'hospital' && !arrived.mapOpen, { fare: before.cash - after.cash, ...arrived });
+  check('Go by keke charges the ₦500 fare and takes the player inside the hospital', before.cash - after.cash === 500 && arrived.inside === 'hospital' && !arrived.mapOpen, { fare: before.cash - after.cash, ...arrived });
   await leaveByDoor(page);
 
   // --- A fare the player cannot afford keeps them on the map

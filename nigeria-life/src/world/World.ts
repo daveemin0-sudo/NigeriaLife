@@ -539,6 +539,8 @@ export class World {
       this.worldMap.update(delta);
       // Seen on the map too: the match goes on and the aircraft comes and goes
       if (this.worldMap.showingRealWorld) this.landmarks.update(delta, this.skyEnvironment.currentHour);
+      // And the expressway under the map, wherever it has been moved to
+      if (this.worldMap.showingRealWorld) this.expressway.update(this.worldMap.focusZ);
       return;
     }
 

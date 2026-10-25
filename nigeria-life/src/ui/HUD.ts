@@ -33,6 +33,7 @@ import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { PlaceActions, type PlaceHost } from '../destinations/PlaceActions';
 import { Ties } from '../social/Ties';
+import { RideService } from '../phone/services/RideService';
 import { CASH_MACHINE } from '../world/kit/CashMachine';
 import { esc } from './kit/html';
 import { draw as drawStable } from './kit/StableView';
@@ -98,6 +99,8 @@ export class HUD {
   public onOpenPump?: (stationId?: string) => void;
   /** Opens another player's card (by their id) */
   public onOpenProfile?: (playerId: string) => void;
+  /** A cab to a point in the city: the fare is taken and the ride is ridden */
+  public onRideTo?: (point: THREE.Vector3, name: string, fare: number) => void;
   public onEnterVehicle?: (vehicleId: string) => void;
   public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
   /** Out of the room to a given point outside, not back the way the player came in */
@@ -891,6 +894,44 @@ export class HUD {
       const way = this.wayTo?.(point.x, point.z);
       this.onWalkTo?.(point, then);
       this.showNotification(way ? `🚶 Walking to ${name}: ${Math.round(way.metres)} m.` : `🚶 Walking to ${name}.`);
+    };
+
+    // The places along the expressway: a pin each, and a cab there (too far to walk)
+    const ROAD_ICONS: Record<string, string> = {
+      'sankofa-motors': '🚗', 'redemption-cathedral': '⛪', 'central-mosque': '🕌', 'lagoon-beach': '🏖️', 'lagoon-marina': '🛥️', 'private-airfield': '🛩️',
+      'shopwell-mall': '🛍️', 'eko-grand-hotel': '🏨', 'police-command': '👮', 'efcc-office': '🏛️', 'ikeja-golf': '⛳', 'government-house': '🏛️',
+      'marina-towers': '🏢', 'freedom-park': '🎭', 'ivory-rooftop': '🍸', 'the-library': '📚', 'i-fitness': '🏋️', 'balogun-market': '🧺', 'amala-shitta': '🍲',
+      'viewing-centre': '⚽', 'polling-unit': '🗳️', 'afrika-shrine': '🎷', 'lekki-conservation': '🌳', 'dangote-refinery': '🛢️', 'radio-house': '📻',
+      'station-island': '⛽', 'station-bridge': '⛽', 'station-mainland': '⛽',
+    };
+    const ROAD_KIND: Record<string, 'transit' | 'food' | 'work' | 'civic' | 'other'> = {
+      'amala-shitta': 'food', 'balogun-market': 'food', 'viewing-centre': 'food', 'ivory-rooftop': 'food', 'the-library': 'food', 'shopwell-mall': 'food',
+      'marina-towers': 'work', 'dangote-refinery': 'work', 'radio-house': 'work', 'sankofa-motors': 'work',
+      'police-command': 'civic', 'efcc-office': 'civic', 'government-house': 'civic', 'polling-unit': 'civic', 'redemption-cathedral': 'civic', 'central-mosque': 'civic',
+      'station-island': 'transit', 'station-bridge': 'transit', 'station-mainland': 'transit', 'private-airfield': 'transit', 'lagoon-marina': 'transit',
+    };
+    this.worldMapUI.extraPins = () => {
+      if (this.mapCity !== 'lagos' || !this.world) return [];
+      return this.world.expressway.roadside.interactive.map((o) => {
+        const key = o.id.replace('roadside-', '');
+        return { id: o.id, name: o.name, icon: ROAD_ICONS[key] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: ROAD_KIND[key] ?? 'other' };
+      });
+    };
+    this.worldMapUI.onPickExtra = (id) => {
+      const place = this.world?.expressway.roadside.interactive.find((o) => o.id === id);
+      if (!place || inAnotherCity()) return;
+      const metres = Math.round(Math.hypot(place.interactionPoint.x - this.player.position.x, place.interactionPoint.z - this.player.position.z));
+      const fare = Math.round(4500 * RideService.fareFactor());
+      this.showDialogueModal({
+        speakerName: place.name,
+        speakerRole: `${place.category} · along the expressway`,
+        speakerAvatar: ROAD_ICONS[id.replace('roadside-', '')] ?? '📍',
+        dialogueText: `${place.description} About ${(metres / 1000).toFixed(1)} km from you.`,
+        choices: [
+          { id: 'cab', label: `🚕 Take a cab there`, badge: `₦${fare.toLocaleString()}`, onSelect: () => { backToTheStreet(); this.onRideTo?.(place.interactionPoint.clone(), place.name, fare); } },
+          { id: 'look', label: 'Just looking', onSelect: () => {} },
+        ],
+      });
     };
 
     this.worldMapUI.onTravelToDistrict = (district) => {

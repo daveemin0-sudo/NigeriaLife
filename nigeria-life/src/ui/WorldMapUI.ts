@@ -47,6 +47,9 @@ export class WorldMapUI {
 
   public onTravelToDistrict?: (district: DistrictData) => void;
   public onTravelToLandmark?: (landmark: MapLandmark) => void;
+  /** Places along the expressway, pinned where they stand */
+  public extraPins?: () => Array<{ id: string; name: string; icon: string; x: number; z: number; category: 'transit' | 'food' | 'work' | 'civic' | 'other' }>;
+  public onPickExtra?: (id: string) => void;
   /** Where the place a pin stands for really is in the city, when the map is the city itself. Null if it has no real counterpart. */
   public locate?: (landmark: MapLandmark, cityId?: string) => THREE.Vector3 | null;
   public onTravelToProperty?: (property: MapProperty) => void;
@@ -518,6 +521,27 @@ export class WorldMapUI {
         category,
         filtered,
       });
+    }
+    this.pinExtras();
+  }
+
+  private pinExtras(): void {
+    for (const p of this.extraPins?.() ?? []) {
+      const pin = document.createElement('button');
+      pin.className = 'map-pin map-pin-road';
+      pin.dataset.place = p.id;
+      pin.title = p.name;
+      const icon = document.createElement('span');
+      icon.className = 'map-pin-icon';
+      icon.textContent = p.icon;
+      const name = document.createElement('span');
+      name.className = 'map-pin-name';
+      name.textContent = p.name;
+      pin.append(icon, name);
+      pin.addEventListener('click', () => this.onPickExtra?.(p.id));
+      this.pinLayerEl.appendChild(pin);
+      const filtered = this.activeFilter !== 'all' && p.category !== this.activeFilter;
+      this.markers.push({ el: pin, position: new THREE.Vector3(p.x, 9, p.z), place: p.id, real: true, category: p.category, filtered });
     }
   }
 

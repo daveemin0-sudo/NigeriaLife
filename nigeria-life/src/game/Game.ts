@@ -695,6 +695,24 @@ export class Game {
     this.network.setOnPlayerCount((count) => this.hud.updateOnlineCount(count));
     this.connectProfiles();
     this.connectGovernment();
+    // A cab from the map to a place along the road: paid when the driver comes, ridden, and set down at the door
+    this.hud.onRideTo = (point, name, fare) => {
+      if (!BackendService.getInstance().pay(fare, `Cab to ${name}`, 'TRAVEL_COST')) {
+        showGameToast(`The cab is ₦${fare.toLocaleString()}. You do not have it.`, 'warning', 3600);
+        return;
+      }
+      const ride: RideDetails = { vehicleName: 'Lagos taxi', vehicleType: 'taxi', originName: 'Here', destinationName: name, durationSeconds: 10, trafficCondition: 'Go-slow', weatherCondition: 'Sunny', destinationCityId: 'lagos' };
+      this.onJourneyCompleted = () => {
+        this.player.stopMoving();
+        this.player.mesh.position.set(point.x, 0, point.z);
+        this.player.position.copy(this.player.mesh.position);
+        this.cameraManager.snapToPlayer(this.player, 'street');
+      };
+      this.world.setStreetModeVisibility(false);
+      this.player.mesh.visible = false;
+      this.roadRideExperience.startRide(ride);
+      this.transitHUD.showRideHUD(ride);
+    };
     PlaceOpeners.open = (what) => {
       if (what.startsWith('app:')) this.hud.phoneModal.openApp(what.slice(4));
       else if (what === 'vote') this.stateHouse.open('polling');

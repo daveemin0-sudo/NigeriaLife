@@ -1,7 +1,7 @@
 // The expressway: Broad Street carries on south for four kilometres, over the lagoon, to a
 // roundabout. A car can be driven its length; the toll is paid once passing the plaza; nobody
 // walks onto it; the places along it each have something to do; the traffic is out on it.
-import { open, newPlayer, closeDialogs, advance, wait } from './lib.mjs';
+import { open, newPlayer, closeDialogs, advance, wait, playUntil } from './lib.mjs';
 
 export async function run(browser, check) {
   const ctx = await newPlayer(browser);
@@ -138,6 +138,33 @@ export async function run(browser, check) {
   });
   check('expressway: its footbridge is climbed from the stairs on the pavement, crossed over the traffic, and come down on the other side',
     crossed.onDeck.y > 6 && crossed.onDeck.on && crossed.across.x > 10 && crossed.across.y > 6 && crossed.down.x > 10 && crossed.down.y < 0.5 && !crossed.down.on, crossed);
+
+  // On the map: a pin for every place along the road; the map goes up the road to them; a cab takes you there
+  await page.evaluate(() => { const g = window.game; g.player.stopMoving(); g.player.mesh.position.set(9, 0, 40); g.hud.backend.performGig(50000, 0, 'test: cab'); });
+  await page.click('#nav-btn-map');
+  await wait(2000);
+  const onMap = await page.evaluate(async () => {
+    const g = window.game;
+    const pins = [...document.querySelectorAll('.map-pin-road')].map((p) => p.dataset.place);
+    g.world.worldMap.focusOn?.(0, 3500);
+    g.world.worldMap.frame(-80, 80, 3440, 3560, 0);
+    for (let i = 0; i < 4; i++) await new Promise((r) => requestAnimationFrame(r));
+    const refinery = document.querySelector('.map-pin[data-place="roadside-dangote-refinery"]');
+    return { pins: pins.length, refineryShown: !!refinery && refinery.style.display !== 'none', focus: Math.round(g.world.worldMap.focusZ) };
+  });
+  await page.evaluate(() => document.querySelector('.map-pin[data-place="roadside-afrika-shrine"]')?.click());
+  await wait(400);
+  const offered = await page.evaluate(() => [...document.querySelectorAll('#game-dialogue-overlay button')].map((b) => b.textContent.trim()));
+  await page.evaluate(() => [...document.querySelectorAll('#game-dialogue-overlay button')].find((b) => /cab/i.test(b.textContent))?.click());
+  const arrived = await playUntil(page, () => {
+    const g = window.game;
+    if (g.roadRideExperience.isActive) { g.roadRideExperience.skipRide(); return null; }
+    const door = g.world.interactiveObjects.find((o) => o.id === 'roadside-afrika-shrine');
+    const away = Math.hypot(g.player.position.x - door.interactionPoint.x, g.player.position.z - door.interactionPoint.z);
+    return away < 2 ? { away: +away.toFixed(1), shown: g.player.mesh.visible } : null;
+  }, 30);
+  check('expressway: the map pins every place along the road, goes up the road to show them, and a cab from a pin sets the player down at its door',
+    onMap.pins >= 28 && onMap.refineryShown && offered.some((t) => /cab/i.test(t)) && !!arrived && arrived.shown, { onMap, offered, arrived });
 
   check('expressway: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();

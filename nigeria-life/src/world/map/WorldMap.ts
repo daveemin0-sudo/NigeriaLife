@@ -21,6 +21,14 @@ export class WorldMap {
   private zoomLevel: number = 1.0;
   private readonly minZoom = 0.55;
   private readonly maxZoom = 2.4;
+  /** How far the map may be moved: up the expressway too when it is the real city */
+  private bounds(): { minX: number; maxX: number; minZ: number; maxZ: number } {
+    return this.renderer.realWorld && this.renderer.currentCityId === 'lagos' ? { minX: -320, maxX: 320, minZ: -160, maxZ: 4200 } : { minX: -160, maxX: 160, minZ: -160, maxZ: 150 };
+  }
+  /** Where the map is looking, along the road (for drawing that stretch of the expressway) */
+  public get focusZ(): number {
+    return this.cameraTarget.z;
+  }
 
   // Raycasting for interactive map selection
   private raycaster: THREE.Raycaster = new THREE.Raycaster();
@@ -113,8 +121,9 @@ export class WorldMap {
         this.cameraTarget.z -= deltaY * panSpeed;
 
         // Clamp map bounds
-        this.cameraTarget.x = THREE.MathUtils.clamp(this.cameraTarget.x, -160, 160);
-        this.cameraTarget.z = THREE.MathUtils.clamp(this.cameraTarget.z, -160, 150);
+        const b = this.bounds();
+        this.cameraTarget.x = THREE.MathUtils.clamp(this.cameraTarget.x, b.minX, b.maxX);
+        this.cameraTarget.z = THREE.MathUtils.clamp(this.cameraTarget.z, b.minZ, b.maxZ);
 
         this.previousMousePosition = { x: e.clientX, y: e.clientY };
         this.updateCameraTransform();
@@ -387,7 +396,8 @@ export class WorldMap {
 
   /** Brings a spot to the middle of the map, close enough to see what stands there. */
   public focusOn(x: number, z: number): void {
-    this.cameraTarget.set(THREE.MathUtils.clamp(x, -160, 160), 0, THREE.MathUtils.clamp(z, -160, 150));
+    const b = this.bounds();
+    this.cameraTarget.set(THREE.MathUtils.clamp(x, b.minX, b.maxX), 0, THREE.MathUtils.clamp(z, b.minZ, b.maxZ));
     this.zoomLevel = Math.min(this.zoomLevel, 0.8);
     this.updateCameraTransform();
   }
@@ -406,7 +416,8 @@ export class WorldMap {
     this.zoomLevel = THREE.MathUtils.clamp(zoom, this.minZoom, this.maxZoom);
     // Looking a little to the right of it puts it in the free part of the screen on the left
     const shift = (coveredRight / 2) * 158 * this.mapCamera.aspect * this.zoomLevel;
-    this.cameraTarget.set(THREE.MathUtils.clamp((minX + maxX) / 2 + shift, -160, 160), 0, THREE.MathUtils.clamp((minZ + maxZ) / 2, -160, 150));
+    const b = this.bounds();
+    this.cameraTarget.set(THREE.MathUtils.clamp((minX + maxX) / 2 + shift, b.minX, b.maxX), 0, THREE.MathUtils.clamp((minZ + maxZ) / 2, b.minZ, b.maxZ));
     this.updateCameraTransform();
   }
 
