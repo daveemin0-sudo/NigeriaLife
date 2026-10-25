@@ -721,6 +721,15 @@ export class Game {
       else if (what === 'interstate') this.hud.interstateModal.open(this.world.cityManager.currentCityId);
       else if (what === 'bus-island') this.hud.onRideTo?.(new THREE.Vector3(9, 0, 40), 'Lagos Island (Broad Street)', Math.round(750 * RideService.fareFactor()));
       else if (what === 'repair') this.offerRepairs();
+      else if (what.startsWith('ride:')) {
+        // A cab to a place along the road (from the jobs list, say): out of any room first
+        const place = this.world.expressway.roadside.interactive.find((o) => o.id === what.slice(5));
+        if (!place) return;
+        const ride = () => this.hud.onRideTo?.(place.interactionPoint.clone(), place.name, Math.round(4500 * RideService.fareFactor()));
+        const rooms = this.world.interiorManager;
+        if (rooms.isPlayerInside()) void rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world).then(ride);
+        else ride();
+      }
     };
 
     // 10b. The phone: its apps act on this game through the hooks below

@@ -10,6 +10,9 @@ import { PlaceActions, type PlaceHost } from '../../destinations/PlaceActions';
 import type { ArmPose } from '../../interactions/Poses';
 import type { Item } from '../../backend/types';
 import type { BackendService } from '../../backend/BackendService';
+import { PLACE_WORK, type WorkSpec } from './PlaceJobs';
+import { createHandWork } from '../../jobs/HandWork';
+import { Employment } from '../../jobs/Employment';
 
 /**
  * A place along the expressway, gone into: its own room, laid out for what is done there, with
@@ -128,6 +131,7 @@ export class PlaceInterior {
     for (let x = -width / 2 + 4; x < width / 2 - 2; x += 7) for (let z = -length / 2 + 4; z < length / 2 - 2; z += 7) this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(x, height - 0.3, z), 0xfff7e6));
     const b = new Builder();
     this.spec.build(b, this.group);
+    for (const work of PLACE_WORK[this.spec.key] ?? []) work.build?.(b);
     this.group.add(b.build(`${this.spec.key} furniture`, { roughness: 0.7 }));
     if (this.spec.sign) {
       const board = signBoard([this.spec.sign.text, this.spec.sign.sub], Math.min(width - 4, 10), 1.6, this.spec.sign.bg, '#ffffff');
@@ -183,6 +187,63 @@ export class PlaceInterior {
       this.interactiveList.push({ mesh: marker, id, name: st.name, category: this.spec.name, description: st.text, interactionPoint: this.world(st.stand[0], st.stand[1]) });
       PlaceActions.register(id, { label: () => st.name, run: (host) => this.offer(st, host) });
     }
+    for (const work of PLACE_WORK[this.spec.key] ?? []) this.addWork(work);
+  }
+
+  /**
+   * A job here: the one in charge, who takes people on and keeps the book, and the place where
+   * a shift is started. The shift's tasks are acted out in turn; it is paid once, when the last
+   * is done, and not at all if the worker walks off.
+   */
+  private addWork(w: WorkSpec): void {
+    const jobs = Employment.get();
+    if (!jobs.employer(w.employer)) return;
+    const s = w.boss;
+    const key = this.spec.key;
+    const def: InteriorNPCDef = {
+      id: `${key}_boss_${w.employer}`, name: s.name, role: s.title, title: s.title, relativePosition: new THREE.Vector3(s.at[0], 0, s.at[1]), rotationY: s.facing,
+      outfitColor: s.outfit, gender: s.gender, hasChefHat: s.chef, hasPoliceCap: s.cap, hasTie: s.tie, dialogueGreeting: s.says, actions: [], light: true,
+    };
+    const npc = new InteriorNPCMesh(def);
+    this.npcs.push(npc);
+    this.group.add(npc.group);
+    const piece = w.piece ?? 'shift';
+    let host: PlaceHost | null = null;
+    const work = createHandWork({
+      employerId: w.employer,
+      name: w.shift,
+      words: { boss: s.name, theBoss: s.name, says: s.name, role: `${s.title}, ${this.spec.name}`, offer: w.offer, ready: w.ready, piece, done: 'done' },
+      rounds: w.tasks.map((t) => ({
+        stand: this.world(t.at[0], t.at[1]),
+        face: this.world(t.look[0], t.look[1]),
+        arms: t.arms,
+        legs: t.sit ? 'sit' as const : 'stand' as const,
+        seconds: t.seconds,
+        done: () => host?.say(t.says, 'info'),
+      })),
+      maxSeconds: 120,
+      ended: (paid, by) => {
+        if (!paid && work.setDown > 0) by.say(`You left the ${piece} half done. ${s.name} pays nothing for that.`, 'warning');
+      },
+    });
+    const hire = `work_${key}_hire_${w.employer}`;
+    this.interactiveList.push({ mesh: npc.group, id: hire, name: `${s.name} (${s.title})`, category: this.spec.name, description: s.says, interactionPoint: this.world(s.at[0] + Math.sin(s.facing) * 1.3, s.at[1] + Math.cos(s.facing) * 1.3) });
+    PlaceActions.register(hire, { label: () => work.bossLabel(), run: (by) => work.askBoss(by) });
+
+    const first = w.tasks[0];
+    const marker = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 1.2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    marker.position.set(first.look[0], 0.8, first.look[1]);
+    this.group.add(marker);
+    const shift = `work_${key}_shift_${w.employer}`;
+    const title = w.shift.charAt(0).toUpperCase() + w.shift.slice(1);
+    this.interactiveList.push({ mesh: marker, id: shift, name: `💼 ${title}`, category: `${jobs.employer(w.employer)!.name}: staff only`, description: jobs.employer(w.employer)!.task, interactionPoint: this.world(first.at[0], first.at[1]) });
+    PlaceActions.register(shift, {
+      label: () => (jobs.isEmployed(w.employer) ? `💼 Start: ${w.shift} · ₦${Math.round(work.rate() * Employment.payBoost()).toLocaleString()}` : `💼 ${title} (ask ${s.name} for work)`),
+      run: (by) => {
+        host = by;
+        work.start(by);
+      },
+    });
   }
 
   /** The station's choices; the one picked is acted out, and its money and goods change hands as it happens */

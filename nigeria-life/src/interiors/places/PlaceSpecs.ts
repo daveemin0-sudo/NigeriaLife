@@ -505,7 +505,7 @@ const IKEJA: PlaceSpec[] = [
     for (let i = 0; i < 3; i++) b.box([0xfef3c7, 0xe2e8f0, 0xfecaca][i], 2, 1.4, 0.1, -4 + i * 4, 2, -7.9);
   }, [{ name: 'Mrs Adeyemi', title: 'Estate agent', at: [-3, -5], facing: 0, outfit: 0x14532d, gender: 'female', says: 'Welcome to the GRA. Duplex, bungalow or flat?' }], [
     { id: 'agent', name: '🏡 Estate agent', at: [-3, -4], stand: [-3, -2.6], who: 'Mrs Adeyemi', role: 'Estate agent', text: 'Rent or buy?', choices: [{ label: 'See houses to rent and buy', note: 'Opens Houses', open: 'app:property' }] },
-  ], [], [18, 16]),
+  ], [{ at: [6, 1.5], facing: -Math.PI / 2, outfit: 0xf59e0b, gender: 'female' }], [18, 16]),
   venue('chop-express', 'Chop Express', 'Ikeja · fast food', 'Rice · Chicken · Meat pie · Ice cream', '#dc2626', 0xf8fafc, 0xfde68a, (b) => {
     counter(b, 0, -5, 8, 0xdc2626, 0xfacc15); screen(b, 0, -6.8, 6, 1.2, 2.6, 0xfacc15);
     for (const [x, z] of [[-4, 1], [0, 1], [4, 1], [-4, 4], [4, 4]]) table(b, x, z, 0xfacc15, 2, 0xdc2626);

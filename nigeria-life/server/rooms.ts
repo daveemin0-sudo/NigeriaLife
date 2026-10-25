@@ -261,7 +261,7 @@ export class Rooms {
         if (c.jumps.length === TELEPORT_ALERT_AFTER) alert(this.db, c.account.id, 'teleport', `${c.jumps.length} jumps in ten minutes, the last ${Math.round(Math.hypot(x - before.x, z - before.z))} m in ${seconds.toFixed(2)} s in ${city}`);
       }
     }
-    c.position = place ? { city, x: NaN, z: NaN, at: now } : { city, x, z, at: now };
+    c.position = place ? { city, x: NaN, z: NaN, place, at: now } : { city, x, z, at: now };
 
     if (city !== c.city) {
       this.leaveInstance(c);

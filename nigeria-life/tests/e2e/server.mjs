@@ -64,8 +64,8 @@ export async function run(browser, check) {
   const up = await serverUp();
   check('the world server starts and answers', up && up.ok && up.version === 0, up);
 
-  const A = await join(browser, 40_000_000);
-  const B = await join(browser, 40_000_000);
+  const A = await join(browser, 400_000_000);
+  const B = await join(browser, 400_000_000);
   const a = A.page;
   const b = B.page;
   try {
@@ -216,7 +216,7 @@ export async function run(browser, check) {
     const FREE = 'lag-kakawa-e3';
     const before = await c.evaluate(async ({ free, taken }) => {
       const g = window.game;
-      g.hud.backend.data.bank.balance = 40000000; g.hud.backend.saveData();
+      g.hud.backend.data.bank.balance = 400000000; g.hud.backend.saveData();
       await g.land.buyFromState(free);
       await g.land.buyFromState(taken);
       const r = g.land.plot(free).rect;

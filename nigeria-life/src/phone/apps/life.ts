@@ -1,7 +1,9 @@
 import type { PhoneApp } from '../PhoneApp';
 import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
-import { Employment, EMPLOYERS } from '../../jobs/Employment';
+import { Employment, EMPLOYERS, WORKSITES } from '../../jobs/Employment';
+import { WORKPLACE } from '../../interiors/places/PlaceJobs';
+import { PlaceOpeners } from '../../interiors/places/PlaceInterior';
 import { Deeds } from '../../realestate/Deeds';
 import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerLink';
 import { AssetMarket } from '../../realestate/AssetMarket';
@@ -135,16 +137,26 @@ export const jobsApp: PhoneApp = {
           ${Employment.get().jobs().map((job) => row({
             icon: '🧑‍🏭',
             title: `${esc(job.employer.name)} · ${esc(job.grade.title)}`,
-            sub: `${esc(job.employer.task)} · ${count(job.done, 'load')} done${job.next ? ` · ${esc(job.next.title)} at ${job.next.from}` : ' · top grade'}`,
+            sub: `${esc(job.employer.task)} · ${count(job.done, job.employer.id === 'apapa-port' ? 'lorry' : job.employer.id === 'eko-plaza-site' ? 'course' : 'shift')} done${job.next ? ` · ${esc(job.next.title)} at ${job.next.from}` : ' · top grade'}`,
             trailing: `<strong>${naira(job.grade.pay)}</strong>`,
           })).join('')}
-          ${EMPLOYERS.filter((employer) => !Employment.get().isEmployed(employer.id)).map((employer) => row({
-            icon: '📌',
-            title: `${esc(employer.name)} is taking hands on`,
-            sub: `${esc(employer.trade)} · ask at ${esc(employer.place)}`,
-            trailing: `<strong>${naira(employer.grades[0].pay)}</strong>`,
-            tone: 'muted',
-          })).join('')}
+          ${(() => {
+            // Those with a place to go and ask come first, with a way there
+            const open = EMPLOYERS.filter((employer) => !Employment.get().isEmployed(employer.id));
+            const there = (id: string) => (WORKPLACE[id] ? 2 : WORKSITES[id] ? 1 : 0);
+            return [...open].sort((a, b) => there(b.id) - there(a.id)).map((employer) => {
+              const how = there(employer.id);
+              return row({
+                icon: how ? '📌' : '🕓',
+                title: how ? `${esc(employer.name)} is taking hands on` : esc(employer.name),
+                sub: how ? `${esc(employer.trade)} · ask at ${esc(employer.place)}` : `${esc(employer.trade)} · not taking walk-ins yet`,
+                trailing: `<span class="nl-stack"><strong>${naira(employer.grades[0].pay)}</strong>${how === 2
+                  ? `<button class="nl-btn nl-btn--sm" data-act="work-go" data-arg="${esc(employer.id)}">🚕 Go</button>`
+                  : how === 1 ? `<button class="nl-btn nl-btn--sm" data-act="work-show" data-arg="${esc(employer.id)}">📍 Show</button>` : ''}</span>`,
+                tone: how ? 'default' : 'muted',
+              });
+            }).join('');
+          })()}
         </div>
 
         <div class="nl-section">9 Life Skills</div>
@@ -194,7 +206,18 @@ export const jobsApp: PhoneApp = {
   },
 
   act(host, action, el) {
-    if (action === 'start') {
+    if (action === 'work-go') {
+      const key = WORKPLACE[el.dataset.arg ?? ''];
+      if (!key) return;
+      host.close();
+      PlaceOpeners.open(`ride:roadside-${key}`);
+    } else if (action === 'work-show') {
+      const site = WORKSITES[el.dataset.arg ?? ''];
+      const employer = EMPLOYERS.find((e) => e.id === el.dataset.arg);
+      if (!site || !employer) return;
+      host.world.showPlace(site.x, site.z, employer.name);
+      host.close();
+    } else if (action === 'start') {
       const result = host.backend.startJobShift(el.dataset.arg ?? '');
       host.say(result.message, result.success ? 'good' : 'bad');
     } else if (action === 'claim') {

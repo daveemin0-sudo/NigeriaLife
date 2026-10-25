@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { Actor } from '../interactions/Actor';
+import type { ArmPose, LegPose } from '../interactions/Poses';
 import type { PlaceHost } from '../destinations/PlaceActions';
 import { Sequence, steps } from '../interactions/Sequence';
 import { Employment, type WorkResult } from './Employment';
@@ -39,18 +40,31 @@ export interface HandWorkWords {
   done: string;
 }
 
+/** One task in a piece of work done at a desk or counter: go there, face it, and do it */
+export interface WorkRound {
+  stand: THREE.Vector3;
+  face: number | THREE.Vector3;
+  arms: ArmPose;
+  legs?: LegPose;
+  seconds: number;
+  /** What was just done, said as it is finished */
+  done?(actor: Actor): void;
+}
+
 export interface HandWorkOptions {
   /** The employer's id in `Employment` */
   employerId: string;
   /** What the work is called while it is being done: "load the lorry" */
   name: string;
   words: HandWorkWords;
-  /** How many things are carried for one piece of work */
-  count: number;
+  /** How many things are carried for one piece of work (when the work is carrying) */
+  count?: number;
   /** Where to stand to lift the i-th thing, which way to face, and what lifting it does */
-  lift(index: number): { stand: THREE.Vector3; face: number | THREE.Vector3; take(actor: Actor): void };
+  lift?(index: number): { stand: THREE.Vector3; face: number | THREE.Vector3; take(actor: Actor): void };
   /** Where to stand to set it down, which way to face, and what setting it down does */
-  set(index: number): { stand: THREE.Vector3; face: number | THREE.Vector3; put(actor: Actor): void };
+  set?(index: number): { stand: THREE.Vector3; face: number | THREE.Vector3; put(actor: Actor): void };
+  /** Or the tasks that make up one piece of work, done in turn (at a till, a bedside, a desk) */
+  rounds?: WorkRound[];
   /** Why the work cannot start just now, in the words of whoever is in charge; null if it can */
   cannotStart?(): string | null;
   began?(): void;
@@ -114,9 +128,23 @@ export function createHandWork(options: HandWorkOptions): HandWork {
         return true;
       }));
     }
-    for (let i = 0; i < options.count; i++) {
-      const from = options.lift(i);
-      const to = options.set(i);
+    (options.rounds ?? []).forEach((round, i) => {
+      work.add(
+        steps.walk(actor, round.stand, { speed: 3.2 }),
+        steps.face(actor, round.face),
+        steps.animate(actor, { arms: round.arms, legs: round.legs ?? 'stand' }, round.seconds, [{
+          at: 0.95,
+          run: () => {
+            round.done?.(actor);
+            setDown = i + 1;
+          },
+        }]),
+        steps.animate(actor, { arms: 'rest', legs: 'stand' }, 0.05)
+      );
+    });
+    for (let i = 0; i < (options.rounds ? 0 : options.count ?? 0); i++) {
+      const from = options.lift!(i);
+      const to = options.set!(i);
       work.add(
         steps.walk(actor, from.stand, { speed: 3.6 }),
         steps.face(actor, from.face),

@@ -33,6 +33,8 @@ export interface Position {
   city: string;
   x: number;
   z: number;
+  /** The room the player is in, if they are inside a place */
+  place?: string;
   /** When the server last heard it, ms */
   at: number;
 }
@@ -180,6 +182,7 @@ export class Economy {
     const at = this.positionOf(accountId);
     if (!site) return 'That work is not run by the server yet.';
     if (!at || Date.now() - at.at > POSITION_FRESH_MS) return 'The server cannot see where you are. Check your connection.';
+    if (site.place) return at.city === site.city && at.place === site.place ? null : 'You are not at the workplace.';
     if (at.city !== site.city || Math.hypot(at.x - site.x, at.z - site.z) > site.radius) return 'You are not at the workplace.';
     return null;
   }
