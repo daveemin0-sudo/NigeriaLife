@@ -79,6 +79,8 @@ export interface PlaceSpec {
   /** People there already: standing or sitting, facing which way */
   regulars?: Array<{ at: [number, number]; facing: number; outfit: number; gender?: 'male' | 'female'; sit?: boolean }>;
   stations: StationSpec[];
+  /** Anything that changes as the game goes on (a supermarket's shelves), added once the room is built */
+  attach?(room: PlaceInterior): void;
 }
 
 const PEOPLE = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
@@ -118,6 +120,20 @@ export class PlaceInterior {
       npcs: [],
     };
     this.build();
+  }
+
+  /** A point in the room's own space, in the world */
+  public at(x: number, z: number): THREE.Vector3 {
+    return this.world(x, z);
+  }
+
+  /** Something in the room to go up to and use, with its own action */
+  public addCard(card: { id: string; name: string; description: string; at: [number, number]; stand: [number, number]; label: () => string; run: (host: PlaceHost) => void }): void {
+    const marker = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.6, 1.4), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    marker.position.set(card.at[0], 0.8, card.at[1]);
+    this.group.add(marker);
+    this.interactiveList.push({ mesh: marker, id: card.id, name: card.name, category: this.spec.name, description: card.description, interactionPoint: this.world(card.stand[0], card.stand[1]) });
+    PlaceActions.register(card.id, { label: card.label, run: card.run });
   }
 
   private world(x: number, z: number): THREE.Vector3 {
@@ -188,6 +204,7 @@ export class PlaceInterior {
       PlaceActions.register(id, { label: () => st.name, run: (host) => this.offer(st, host) });
     }
     for (const work of PLACE_WORK[this.spec.key] ?? []) this.addWork(work);
+    this.spec.attach?.(this);
   }
 
   /**

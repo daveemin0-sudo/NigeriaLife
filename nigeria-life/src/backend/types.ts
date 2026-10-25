@@ -526,6 +526,20 @@ export const DEFAULT_BUSINESSES: BusinessEnterprise[] = [
       },
     ],
   },
+  {
+    // Trades from its shelves: what it takes is what customers buy (business/Supermarket.ts)
+    id: 'biz_supermarket',
+    name: 'Naija Fresh Supermarket',
+    category: 'Supermarket · stock it and lay it out',
+    buildingId: 'roadside-naija-fresh',
+    icon: '🛒',
+    purchasePrice: 20000000,
+    baseIncomePerCycle: 60000,
+    owned: false,
+    pendingRevenue: 0,
+    level: 1,
+    upgrades: [],
+  },
 ];
 
 export const DEFAULT_PROPERTIES: RealEstateProperty[] = [

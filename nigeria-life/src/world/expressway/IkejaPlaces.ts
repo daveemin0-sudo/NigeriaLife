@@ -95,6 +95,17 @@ export function buildIkejaPlace(k: PlaceShape): Card | null {
       k.label('IKEJA GRA', 'Government Reserved Area · Estate office', '#14532d', 3.2, 18);
       return { name: 'Ikeja GRA', category: 'Estate', description: 'Leafy streets of big houses behind walls. The estate office has houses to rent and buy.' };
     }
+    case 'naija-fresh': {
+      // A neighbourhood supermarket: glass front, a green fascia, trolleys by the door, a delivery van at the side
+      b.box(0xf1f5f9, place.depth - 6, 7, along - 4, depthMid + s * 3, 0, place.z);
+      b.box(0x16a34a, 0.3, 1.6, along - 3, at(6) - s * 0.15, 5.6, place.z);
+      b.box(0x93c5fd, 0.1, 3.6, along - 12, at(6) - s * 0.06, 0.2, place.z);
+      for (let i = 0; i < 6; i++) b.box(0x9ca3af, 0.9, 1, 0.55, at(3), 0, place.z + 8 + i * 0.6);
+      b.box(0xf8fafc, 2.2, 2.4, 5.4, at(3), 0, z0 + 4).box(0x16a34a, 2.22, 0.5, 5.42, at(3), 1.3, z0 + 4);
+      k.obstruct(Math.min(at(6), at(place.depth)), Math.max(at(6), at(place.depth)), z0 + 2, z0 + along - 2, 7);
+      k.label('NAIJA FRESH SUPERMARKET', 'Groceries · Drinks · Household · Open 7 am to 10 pm', '#16a34a', 5.8, 22);
+      return { name: 'Naija Fresh Supermarket', category: 'Supermarket', description: 'A neighbourhood supermarket on Ikorodu Road. Shop, or buy the business and run it: order the stock, lay out the shelves, stack them.' };
+    }
     case 'chop-express': {
       b.box(0xdc2626, place.depth, 5, along, depthMid, 0, place.z).box(0xfacc15, place.depth + 0.4, 0.6, along + 0.4, depthMid, 5, place.z);
       b.box(0x93c5fd, 0.08, 2.6, along - 6, faceX - s * 0.05, 0.3, place.z);

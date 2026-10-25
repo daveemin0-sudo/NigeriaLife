@@ -2,7 +2,7 @@ import type { PhoneApp, PhoneHost } from '../PhoneApp';
 import { chips, count, empty, esc, meter, naira, row } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
 import { AssetMarket, SALE_FEE_RATE } from '../../realestate/AssetMarket';
-import { buildingType, demolitionCost, refundOnCancel } from '../../realestate/BuildingCatalogue';
+import { buildingType, demolitionCost, refundOnCancel, towerType, TOWER_MIN_FLOORS } from '../../realestate/BuildingCatalogue';
 import { Land, stageOf, STAGE_LABEL, STATUS_LABEL, type Plot, type PlotStatus } from '../../realestate/Land';
 import { MY_ID } from '../../realestate/Registry';
 import { CITY_NAME, STATE_NAME } from '../../realestate/PlotCatalogue';
@@ -285,6 +285,27 @@ function buildScreen(host: PhoneHost, plot: Plot) {
           });
         }).join('')}
       </div>
+      ${(() => {
+        // A tower, to as many floors as the zoning here allows
+        const allowed = plot.uses.includes('commercial') && plot.maxFloors >= TOWER_MIN_FLOORS;
+        if (!allowed) return `<div class="nl-note" id="build-tower-zoning">🏙️ Towers are not allowed here: this plot is zoned for ${count(plot.maxFloors, 'floor')}${plot.uses.includes('commercial') ? '' : ', homes only'}. They may go up on a few plots in the business districts.</div>`;
+        const floors = Math.min(plot.maxFloors, Math.max(TOWER_MIN_FLOORS, host.get(`land.tower.${plot.id}`, Math.min(10, plot.maxFloors))));
+        const tower = towerType(floors);
+        const short = funds < tower.cost;
+        const fits = plot.rect.maxX - plot.rect.minX >= tower.width + 2 && plot.rect.maxZ - plot.rect.minZ >= tower.depth + 2;
+        const blocked = !fits ? 'The plot is too small for a tower' : short ? `You need ${naira(tower.cost - funds)} more` : far ? 'Go to the plot to place it' : null;
+        const step = (by: number) => `<button class="nl-btn nl-btn--sm" data-act="tower-floors" data-arg="${esc(plot.id)}|${floors + by}" ${floors + by < TOWER_MIN_FLOORS || floors + by > plot.maxFloors ? 'disabled' : ''}>${by > 0 ? '+' : '−'}${Math.abs(by)}</button>`;
+        return `
+          <div class="nl-section">Tower · zoned for up to ${plot.maxFloors} floors</div>
+          <div class="nl-card" id="build-tower">
+            <div class="nl-card-title">🏙️ <span id="build-tower-floors">${floors}</span>-storey tower</div>
+            <div class="nl-card-line">${step(-5)} ${step(-1)} ${step(1)} ${step(5)}</div>
+            <div class="nl-card-line">${tower.width} m × ${tower.depth} m · ${Math.round(floors * tower.floorHeight)} m tall · ${tower.hours} game hours to build, floor by floor</div>
+            <div class="nl-card-line">Brings in ${naira(tower.incomePerDay)} a day in office rents, costs ${naira(tower.upkeepPerDay)} a day to run</div>
+            ${blocked ? `<div class="nl-card-line nl-bad">${esc(blocked)}</div>` : ''}
+            <button class="nl-btn nl-btn--primary nl-btn--block" data-act="place" data-arg="${esc(plot.id)}|${tower.id}" data-design="tower" ${blocked ? 'disabled' : ''}>Build it · ${naira(tower.cost)}</button>
+          </div>`;
+      })()}
       <div class="nl-hint">Choosing a design shows it on the plot before anything is paid. The cost is taken once, when you confirm where it stands.</div>
     `,
   };
@@ -630,6 +651,10 @@ export const landApp: PhoneApp = {
     } else if (action === 'release') {
       const result = await market().release(arg);
       done(result.ok, 'It is back on the market.', result.reason);
+    } else if (action === 'tower-floors') {
+      const [plotId, floors] = arg.split('|');
+      host.set(`land.tower.${plotId}`, Number(floors));
+      host.refresh();
     } else if (action === 'place') {
       const [plotId, typeId] = arg.split('|');
       host.close();

@@ -64,6 +64,7 @@ import { StateHouseSheet } from '../ui/StateHouseSheet';
 import { PlaceOpeners } from '../interiors/places/PlaceInterior';
 import { Companies } from '../business/Companies';
 import { CompanyStaff } from '../business/CompanyStaff';
+import { Supermarket, SUPERMARKET } from '../business/Supermarket';
 import { vehicleModel } from '../realestate/Garage';
 import { Politics, Policies } from '../politics/Politics';
 import { hawkerPrices } from '../world/StreetVendors';
@@ -1253,6 +1254,7 @@ export class Game {
   }
   public readonly politics = Politics.get();
   public readonly companies = Companies.get();
+  public readonly supermarket = Supermarket.get();
   public companyStaff: CompanyStaff | null = null;
 
   /** The businesses the player owns, run as companies: staff and branches lift the takings, and each day closes with a report */
@@ -1263,6 +1265,8 @@ export class Game {
     companies.dayName = (day) => new Date(2026, 9, 7 + day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
     BackendService.takings = (biz, own) => companies.perCycle(biz, own);
     BackendService.onTakings = (id, amount) => companies.took(id, amount);
+    // The supermarket takes what customers buy off its shelves, which its stackers keep filled
+    BackendService.sales = (biz, cycles) => (biz.id === SUPERMARKET ? Supermarket.get().trade(cycles, companies.lift(biz.id), companies.count(biz.id, 'stacker')) : null);
     companies.onReports = (reports) => {
       reports.forEach(({ business, report }, i) => {
         const line = `📊 ${business.name}, ${companies.dayName(report.day)}: took ₦${report.takings.toLocaleString()} · wages ₦${report.wages.toLocaleString()}${report.rent ? ` · rent ₦${report.rent.toLocaleString()}` : ''} · tax ₦${report.tax.toLocaleString()} · ${report.profit >= 0 ? 'profit' : 'loss'} ₦${Math.abs(report.profit).toLocaleString()}${report.banked ? ` · ₦${report.banked.toLocaleString()} banked by the manager` : ''}${report.note ? `. ${report.note}` : ''}`;

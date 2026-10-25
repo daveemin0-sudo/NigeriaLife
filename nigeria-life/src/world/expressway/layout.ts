@@ -65,6 +65,7 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'lasuth', side: 1, z: 5000, length: 70, depth: 50 },
   { id: 'ladipo-auto', side: -1, z: 5350, length: 70, depth: 40 },
   { id: 'ikeja-gra', side: 1, z: 5480, length: 60, depth: 40 },
+  { id: 'naija-fresh', side: -1, z: 5500, length: 40, depth: 28 },
   { id: 'chop-express', side: -1, z: 5700, length: 24, depth: 18 },
   { id: 'faith-arena', side: -1, z: 6060, length: 90, depth: 70 },
   { id: 'mmia-terminal', side: 1, z: 6300, length: 160, depth: 120 },

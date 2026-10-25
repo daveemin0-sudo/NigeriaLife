@@ -24,7 +24,7 @@ export async function run(browser, check) {
       lane: !g.solidsHere().at(-4.9, 600, 1.2),
     };
   });
-  check('expressway: it is built in pieces, with its 39 places along it (35 to visit, 4 filling stations), on to Ikeja, all of them in the world', layout.pieces > 30 && layout.places.length === 39 && layout.inWorld, layout);
+  check('expressway: it is built in pieces, with its 40 places along it (36 to visit, 4 filling stations), on to Ikeja, all of them in the world', layout.pieces > 30 && layout.places.length === 40 && layout.inWorld, layout);
   check('expressway: traffic is out on it, the barrier down the middle is solid and the lanes are clear', layout.carsOut > 50 && layout.barrier && layout.lane, layout);
 
   // Drive from Broad Street past the toll and over the bridge, on an empty road
@@ -164,7 +164,7 @@ export async function run(browser, check) {
     return away < 2 ? { away: +away.toFixed(1), shown: g.player.mesh.visible } : null;
   }, 30);
   check('expressway: the map pins every place along the road, goes up the road to show them, and a cab from a pin sets the player down at its door',
-    onMap.pins >= 39 && onMap.refineryShown && offered.some((t) => /cab/i.test(t)) && !!arrived && arrived.shown, { onMap, offered, arrived });
+    onMap.pins >= 40 && onMap.refineryShown && offered.some((t) => /cab/i.test(t)) && !!arrived && arrived.shown, { onMap, offered, arrived });
 
   check('expressway: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();

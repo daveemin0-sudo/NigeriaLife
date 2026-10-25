@@ -323,12 +323,13 @@ export const businessApp: PhoneApp = {
             <div class="nl-list" id="company-roles">
               ${companies.roles(biz.id).map((role) => {
                 const have = staff.filter((st) => st.role === role.id).length;
+                const slots = outlets * (role.perOutlet ?? 1);
                 return row({
                   icon: role.icon,
                   title: esc(role.title),
-                  sub: `${naira(role.wage)} a day · ${role.id === 'manager' ? 'banks the takings each night, ' : ''}+${Math.round(role.lift * 100)}% takings · ${have} of ${outlets}`,
-                  trailing: `<button class="nl-btn nl-btn--sm" data-act="hire" data-arg="${esc(biz.id)}|${role.id}" ${have < outlets ? '' : 'disabled'}>Hire</button>`,
-                  tone: have < outlets ? 'default' : 'muted',
+                  sub: `${naira(role.wage)} a day · ${role.id === 'manager' ? 'banks the takings each night, ' : ''}+${Math.round(role.lift * 100)}% takings · ${have} of ${slots}`,
+                  trailing: `<button class="nl-btn nl-btn--sm" data-act="hire" data-arg="${esc(biz.id)}|${role.id}" ${have < slots ? '' : 'disabled'}>Hire</button>`,
+                  tone: have < slots ? 'default' : 'muted',
                 });
               }).join('')}
             </div>
@@ -352,7 +353,7 @@ export const businessApp: PhoneApp = {
               ${reports.length === 0 ? empty('📊', 'No day closed yet', 'At the end of each day the takings, wages, rent and tax are reported here.') : reports.map((r) => row({
                 icon: r.profit >= 0 ? '📈' : '📉',
                 title: `${companies.dayName(r.day)}: ${r.profit >= 0 ? 'profit' : 'loss'} ${naira(Math.abs(r.profit))}`,
-                sub: `Took ${naira(r.takings)} · wages ${naira(r.wages)}${r.rent ? ` · rent ${naira(r.rent)}` : ''} · tax ${r.tax ? naira(r.tax) : 'none (small company)'}${r.banked ? ` · ${naira(r.banked)} banked` : ''}${r.note ? ` · ${esc(r.note)}` : ''}`,
+                sub: `Took ${naira(r.takings)} · wages ${naira(r.wages)}${r.rent ? ` · rent ${naira(r.rent)}` : ''}${r.stock ? ` · stock ${naira(r.stock)}` : ''} · tax ${r.tax ? naira(r.tax) : 'none (small company)'}${r.banked ? ` · ${naira(r.banked)} banked` : ''}${r.note ? ` · ${esc(r.note)}` : ''}`,
                 tone: r.note ? 'bad' : r.profit >= 0 ? 'good' : 'bad',
               })).join('')}
             </div>`;

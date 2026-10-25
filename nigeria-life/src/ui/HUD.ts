@@ -904,14 +904,14 @@ export class HUD {
       'viewing-centre': '⚽', 'polling-unit': '🗳️', 'afrika-shrine': '🎷', 'lekki-conservation': '🌳', 'dangote-refinery': '🛢️', 'radio-house': '📻',
       'station-island': '⛽', 'station-bridge': '⛽', 'station-mainland': '⛽', 'station-ikeja': '⛽',
       'computer-village': '📱', 'ikeja-city-mall': '🛍️', 'allen-lounge': '🍾', 'oshodi-interchange': '🚌', lasuth: '🏥', 'ladipo-auto': '🔧',
-      'ikeja-gra': '🏡', 'chop-express': '🍗', 'faith-arena': '⛪', 'mmia-terminal': '✈️',
+      'ikeja-gra': '🏡', 'naija-fresh': '🛒', 'chop-express': '🍗', 'faith-arena': '⛪', 'mmia-terminal': '✈️',
     };
     const ROAD_KIND: Record<string, 'transit' | 'food' | 'work' | 'civic' | 'other'> = {
       'amala-shitta': 'food', 'balogun-market': 'food', 'viewing-centre': 'food', 'ivory-rooftop': 'food', 'the-library': 'food', 'shopwell-mall': 'food',
       'marina-towers': 'work', 'dangote-refinery': 'work', 'radio-house': 'work', 'sankofa-motors': 'work',
       'police-command': 'civic', 'efcc-office': 'civic', 'government-house': 'civic', 'polling-unit': 'civic', 'redemption-cathedral': 'civic', 'central-mosque': 'civic',
       'station-island': 'transit', 'station-bridge': 'transit', 'station-mainland': 'transit', 'private-airfield': 'transit', 'lagoon-marina': 'transit',
-      'station-ikeja': 'transit', 'oshodi-interchange': 'transit', 'mmia-terminal': 'transit', 'chop-express': 'food', 'allen-lounge': 'food', 'ikeja-city-mall': 'food',
+      'station-ikeja': 'transit', 'oshodi-interchange': 'transit', 'mmia-terminal': 'transit', 'chop-express': 'food', 'naija-fresh': 'food', 'allen-lounge': 'food', 'ikeja-city-mall': 'food',
       'computer-village': 'work', 'ladipo-auto': 'work', lasuth: 'civic', 'faith-arena': 'civic',
     };
     this.worldMapUI.extraPins = () => {

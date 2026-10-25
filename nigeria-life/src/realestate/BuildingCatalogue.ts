@@ -12,7 +12,7 @@
 
 export type LandUse = 'residential' | 'commercial';
 
-export type BuildingLook = 'house' | 'block' | 'shopfront' | 'glass';
+export type BuildingLook = 'house' | 'block' | 'shopfront' | 'glass' | 'tower';
 
 export interface BuildingType {
   id: string;
@@ -75,7 +75,37 @@ export const BUILDING_TYPES: BuildingType[] = [
   },
 ];
 
-export const buildingType = (id: string): BuildingType | null => BUILDING_TYPES.find((type) => type.id === id) ?? null;
+/**
+ * A tower of offices, built to as many floors as the owner chooses and the plot's zoning allows
+ * (from six). Its id carries its height ("tower-24"), so everything that reads a design reads a
+ * tower the same way. Each floor costs, earns and keeps like the office block's floors on a
+ * bigger plate (12 m by 12 m); above ten floors every floor costs a little more (piling, lifts,
+ * wind), and every floor adds two game hours of work.
+ */
+export const TOWER_MIN_FLOORS = 6;
+const TOWER_FLOOR_COST = 345_000_000;
+const TOWER_FLOOR_INCOME = 4_450_000;
+const TOWER_FLOOR_UPKEEP = 1_070_000;
+
+export function towerType(floors: number): BuildingType {
+  const n = Math.max(TOWER_MIN_FLOORS, Math.round(floors));
+  const premium = 1 + 0.015 * Math.max(0, n - 10);
+  return {
+    id: `tower-${n}`, name: `${n}-storey tower`, icon: '🏙️', use: 'commercial', width: 12, depth: 12, floors: n, floorHeight: 3.6, look: 'tower', colour: 0x9cc3e6,
+    cost: Math.round((TOWER_FLOOR_COST * n * premium) / 1_000_000) * 1_000_000,
+    hours: 6 + 2 * n,
+    incomePerDay: TOWER_FLOOR_INCOME * n,
+    upkeepPerDay: TOWER_FLOOR_UPKEEP * n,
+    home: false,
+    blurb: `${n} floors of offices in glass, let to companies, with a lobby and a lift core.`,
+  };
+}
+
+export const buildingType = (id: string): BuildingType | null => {
+  const tower = /^tower-(\d+)$/.exec(id);
+  if (tower) return Number(tower[1]) >= TOWER_MIN_FLOORS && Number(tower[1]) <= 60 ? towerType(Number(tower[1])) : null;
+  return BUILDING_TYPES.find((type) => type.id === id) ?? null;
+};
 
 /** The ground a design covers when it is put down at a point, turned by quarter turns. */
 export function footprintAt(type: BuildingType, x: number, z: number, turns: number) {

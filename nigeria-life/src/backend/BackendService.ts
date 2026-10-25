@@ -30,6 +30,8 @@ export class BackendService {
   public static revenueBoost: () => number = () => 1;
   /** What a business takes in one payout, given its own (staff and branches add to it; set by the game) */
   public static takings: (biz: BusinessEnterprise, own: number) => number = (_biz, own) => own;
+  /** A business that trades from stock (a supermarket): what some payouts' trade took, or null to use its takings */
+  public static sales: (biz: BusinessEnterprise, cycles: number) => number | null = () => null;
   /** Told what each business took, as it comes in (for the day's report) */
   public static onTakings: (bizId: string, amount: number) => void = () => {};
   private static instance: BackendService;
@@ -242,7 +244,8 @@ export class BackendService {
             cycleEarnings += upg.bonusIncomePerCycle;
           }
         }
-        const earned = Math.round(BackendService.takings(biz, cycleEarnings) * cycles * BackendService.revenueBoost());
+        const sold = BackendService.sales(biz, cycles);
+        const earned = Math.round((sold ?? BackendService.takings(biz, cycleEarnings) * cycles) * BackendService.revenueBoost());
         biz.pendingRevenue += earned;
         BackendService.onTakings(biz.id, earned);
         revenueGenerated = true;

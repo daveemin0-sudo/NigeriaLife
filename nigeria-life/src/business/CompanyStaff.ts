@@ -15,6 +15,8 @@ import { Companies, ROLES, type Staffer } from './Companies';
 
 const PEOPLE = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
 /** Along the shop front, either side of the door */
+/** Businesses whose staff are drawn inside their own room */
+const INSIDE = new Set(['biz_supermarket']);
 const SLOTS = [-2.2, 2.2, -3.1, 3.1, -4, 4, -4.9, 4.9, -5.8, 5.8];
 
 interface Hooks {
@@ -57,6 +59,8 @@ export class CompanyStaff {
     this.placed = [];
     const used = new Map<string, number>();
     for (const biz of owned) {
+      // A business whose staff work inside it (the supermarket) is seen in there instead
+      if (INSIDE.has(biz.id)) continue;
       const building = biz.buildingId ? this.hooks.find(biz.buildingId) : undefined;
       if (!building) continue;
       // Which way the shop faces: from the middle of the building out to its door

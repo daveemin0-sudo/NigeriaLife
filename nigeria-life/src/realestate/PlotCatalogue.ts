@@ -40,15 +40,17 @@ const HOMES: LandUse[] = ['residential'];
 const TRADE: LandUse[] = ['commercial'];
 const MIXED: LandUse[] = ['residential', 'commercial'];
 
+// Zoning: towers may go up on a few plots, in the business districts (Lagos Island, Abuja's
+// central boulevard, Aba Road in Port Harcourt); everywhere else keeps to a few floors.
 export const LAGOS_PLOTS: PlotDef[] = [
   // Kakawa Street, east side: the Lekki end of the island
-  plot('lag-kakawa-e1', '12 Kakawa Street', 'Kakawa Street', 'west', 50.5, 66.5, 14, 30, MIXED, 6),
+  plot('lag-kakawa-e1', '12 Kakawa Street', 'Kakawa Street', 'west', 50.5, 66.5, 14, 30, MIXED, 40),
   plot('lag-kakawa-e2', '18 Kakawa Street', 'Kakawa Street', 'west', 50.5, 64.5, 34, 48, MIXED, 6),
-  plot('lag-kakawa-e3', '24 Kakawa Street', 'Kakawa Street', 'west', 50.5, 64.5, 52, 70, MIXED, 6),
+  plot('lag-kakawa-e3', '24 Kakawa Street', 'Kakawa Street', 'west', 50.5, 64.5, 52, 70, MIXED, 30),
   plot('lag-kakawa-e4', '5 Kakawa Street', 'Kakawa Street', 'west', 50.5, 64.5, -40, -24, MIXED, 5),
-  plot('lag-kakawa-e5', '1 Kakawa Street', 'Kakawa Street', 'west', 50.5, 66.5, -101, -86, TRADE, 6),
+  plot('lag-kakawa-e5', '1 Kakawa Street', 'Kakawa Street', 'west', 50.5, 66.5, -101, -86, TRADE, 40),
   // Kakawa Street, west side: backing on to the Broad Street blocks
-  plot('lag-kakawa-w1', '11 Kakawa Street', 'Kakawa Street', 'east', 22.5, 37.5, 14, 28, MIXED, 5),
+  plot('lag-kakawa-w1', '11 Kakawa Street', 'Kakawa Street', 'east', 22.5, 37.5, 14, 28, MIXED, 20),
   plot('lag-kakawa-w2', '7 Kakawa Street', 'Kakawa Street', 'east', 25.5, 37.5, -38, -26, HOMES, 3),
   plot('lag-kakawa-w3', '31 Kakawa Street', 'Kakawa Street', 'east', 26.5, 37.5, 50, 66, MIXED, 6),
   // Odunlami Street, the mainland side
@@ -56,11 +58,11 @@ export const LAGOS_PLOTS: PlotDef[] = [
   plot('lag-odunlami-w2', '15 Odunlami Street', 'Odunlami Street', 'east', -66.5, -52.5, -34, -20, HOMES, 3),
   plot('lag-odunlami-w3', '2 Odunlami Street', 'Odunlami Street', 'east', -66.5, -52.5, -112, -98, MIXED, 4),
   // Martins Street
-  plot('lag-martins-n1', '40 Martins Street', 'Martins Street', 'south', 60, 76, -84, -70, TRADE, 5),
+  plot('lag-martins-n1', '40 Martins Street', 'Martins Street', 'south', 60, 76, -84, -70, TRADE, 25),
   plot('lag-martins-s1', '63 Martins Street', 'Martins Street', 'north', 70, 84, -54, -42, HOMES, 2),
   plot('lag-martins-n2', '8 Martins Street', 'Martins Street', 'south', -100, -86, -82, -70, MIXED, 3),
   // Nnamdi Azikiwe Street, along the north of the island
-  plot('lag-azikiwe-s1', '20 Nnamdi Azikiwe Street', 'Nnamdi Azikiwe Street', 'north', 52, 68, -117, -103, TRADE, 5),
+  plot('lag-azikiwe-s1', '20 Nnamdi Azikiwe Street', 'Nnamdi Azikiwe Street', 'north', 52, 68, -117, -103, TRADE, 30),
   plot('lag-azikiwe-s2', '34 Nnamdi Azikiwe Street', 'Nnamdi Azikiwe Street', 'north', 72, 86, -117, -105, HOMES, 3),
   // Banana Island: large plots for low houses behind the estate gate
   plot('lag-banana-e1', '2 Banana Island Road', 'Banana Island Road', 'west', 119.5, 135.5, -42, -24, HOMES, 3),
@@ -71,16 +73,16 @@ export const LAGOS_PLOTS: PlotDef[] = [
 
 /** Abuja: plots along the capital boulevard, between the landmarks. */
 export const ABUJA_PLOTS: PlotDef[] = [
-  abuja('abj-boulevard-e1', '14 Shehu Shagari Way', 'Shehu Shagari Way', 'west', 14.5, 30.5, -62, -46, MIXED, 6),
+  abuja('abj-boulevard-e1', '14 Shehu Shagari Way', 'Shehu Shagari Way', 'west', 14.5, 30.5, -62, -46, MIXED, 20),
   abuja('abj-boulevard-e2', '40 Shehu Shagari Way', 'Shehu Shagari Way', 'west', 14.5, 30.5, 52, 68, MIXED, 5),
-  abuja('abj-boulevard-w1', '11 Shehu Shagari Way', 'Shehu Shagari Way', 'east', -30.5, -14.5, -62, -46, MIXED, 6),
+  abuja('abj-boulevard-w1', '11 Shehu Shagari Way', 'Shehu Shagari Way', 'east', -30.5, -14.5, -62, -46, MIXED, 20),
   abuja('abj-boulevard-w2', '37 Shehu Shagari Way', 'Shehu Shagari Way', 'east', -30.5, -14.5, 52, 68, HOMES, 3),
-  abuja('abj-boulevard-w3', '25 Shehu Shagari Way', 'Shehu Shagari Way', 'east', -30.5, -14.5, -6, 10, TRADE, 6),
+  abuja('abj-boulevard-w3', '25 Shehu Shagari Way', 'Shehu Shagari Way', 'east', -30.5, -14.5, -6, 10, TRADE, 20),
 ];
 
 /** Port Harcourt: plots along Aba Road. */
 export const PORT_HARCOURT_PLOTS: PlotDef[] = [
-  ph('phc-aba-e1', '22 Aba Road', 'Aba Road', 'west', 14, 28, -8, 8, MIXED, 5),
+  ph('phc-aba-e1', '22 Aba Road', 'Aba Road', 'west', 14, 28, -8, 8, MIXED, 15),
   ph('phc-aba-e2', '58 Aba Road', 'Aba Road', 'west', 14, 28, 62, 78, HOMES, 3),
   ph('phc-aba-w1', '17 Aba Road', 'Aba Road', 'east', -30, -14, -24, -8, MIXED, 4),
   ph('phc-aba-w2', '49 Aba Road', 'Aba Road', 'east', -30, -14, 44, 60, HOMES, 3),

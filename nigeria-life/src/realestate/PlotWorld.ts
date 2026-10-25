@@ -9,6 +9,7 @@ import { STATE_NAME, type PlotCity } from './PlotCatalogue';
 import { Registry, MY_ID } from './Registry';
 import { hoursDone, isFinished, isLet } from './WorldClock';
 import type { ConstructionStage, PlotBuilding } from './types';
+import { Builder } from '../world/kit/ArchKit';
 
 const EARTH = 0xa8855a;
 const CONCRETE = 0x9aa0a6;
@@ -78,6 +79,58 @@ function frontOf(plot: Plot): THREE.Vector3 {
  * One building at one stage of going up. The same function draws every design: what changes
  * between a bungalow and a hotel is only the numbers in the catalogue.
  */
+/**
+ * A tower, drawn as one merged mesh however tall it is: while the frame goes up, its slabs and
+ * columns floor by floor with a tower crane on top; then a glass shaft banded at every floor,
+ * mullions up each face, a double-height lobby, and plant and a mast on the roof.
+ */
+function raiseTower(type: BuildingType, cx: number, cz: number, w: number, d: number, stage: ConstructionStage, done: number, facing: { dx: number; dz: number }): THREE.Group {
+  const b = new Builder();
+  const fh = type.floorHeight;
+  b.box(0x9ca3af, w, 0.35, d, cx, 0, cz);
+  if (stage === 'foundation') {
+    // Piles being driven: a rig over the plot
+    for (let i = 0; i < 9; i++) b.cylinder(0x6b7280, 0.25, 1.2, cx - w / 3 + (i % 3) * (w / 3), 0.35, cz - d / 3 + Math.floor(i / 3) * (d / 3));
+    b.box(0xf59e0b, 0.5, 9, 0.5, cx + w / 2 - 1, 0.35, cz - d / 2 + 1);
+    return b.build(`${type.name} foundation`);
+  }
+  const framed = stage === 'structure';
+  const through = framed ? Math.min(1, Math.max(0, (done - 0.38) / 0.36)) : 1;
+  const floorsUp = Math.max(1, Math.ceil(through * type.floors));
+  const top = 0.35 + floorsUp * fh;
+  if (framed) {
+    for (let floor = 1; floor <= floorsUp; floor++) b.box(0xb8b8b0, w, 0.22, d, cx, 0.35 + floor * fh - 0.22, cz);
+    for (const sx of [-1, 0, 1]) for (const sz of [-1, 0, 1]) b.box(0xb8b8b0, 0.5, top - 0.35, 0.5, cx + sx * (w / 2 - 0.3), 0.35, cz + sz * (d / 2 - 0.3));
+    // The lift core in the middle, ahead of the floors
+    b.box(0x9ca3af, 3.2, Math.min(top + fh, 0.35 + type.floors * fh) - 0.35, 3.2, cx, 0.35, cz);
+    // The tower crane, its mast beside the frame and its jib over it
+    const craneTop = top + 8;
+    const mx = cx + w / 2 + 2;
+    b.box(0xfacc15, 1, craneTop, 1, mx, 0, cz).box(0xfacc15, 26, 0.8, 0.8, mx - 6, craneTop, cz).box(0x374151, 2, 1.6, 2, mx + 6, craneTop - 1.2, cz).box(0xfacc15, 1.4, 1.6, 1.4, mx, craneTop - 0.8, cz);
+    b.box(0x1f2937, 0.06, 6, 0.06, mx - 14, craneTop - 6, cz);
+    return b.build(`${type.name} frame`);
+  }
+  const finished = stage === 'finished';
+  const height = type.floors * fh;
+  // The glass shaft, banded at every floor
+  b.box(finished ? 0x1e3a5f : 0x6b7280, w - 0.2, height, d - 0.2, cx, 0.35, cz);
+  for (let floor = 1; floor < type.floors; floor++) b.box(finished ? 0xe5e7eb : 0x9ca3af, w + 0.04, 0.32, d + 0.04, cx, 0.35 + floor * fh - 0.16, cz);
+  for (let i = -2; i <= 2; i++) {
+    b.box(0xcbd5e1, 0.12, height, d + 0.08, cx + (i * w) / 5, 0.35, cz);
+    b.box(0xcbd5e1, w + 0.08, height, 0.12, cx, 0.35, cz + (i * d) / 5);
+  }
+  // A double-height lobby on the street side, and a canopy over its door
+  const fx = facing.dx * (w / 2);
+  const fz = facing.dz * (d / 2);
+  b.box(0x93c5fd, facing.dz ? w * 0.7 : 0.1, fh * 1.7, facing.dx ? d * 0.7 : 0.1, cx + fx * 1.01, 0.35, cz + fz * 1.01, { glow: finished });
+  b.box(0x1f2937, facing.dz ? 4 : 2, 0.2, facing.dx ? 4 : 2, cx + fx + facing.dx, 3.4, cz + fz + facing.dz);
+  // The roof: a parapet, plant rooms, and a mast with a light for aircraft
+  const roof = 0.35 + height;
+  b.box(0x334155, w, 1, d, cx, roof, cz).box(0x475569, w * 0.45, 2.6, d * 0.45, cx, roof + 1, cz);
+  b.cylinder(0xd1d5db, 0.15, 10, cx, roof + 3.6, cz).box(0xef4444, 0.5, 0.5, 0.5, cx, roof + 13.6, cz, { glow: true });
+  return b.build(type.name, { roughness: finished ? 0.3 : 0.85, metalness: finished ? 0.2 : 0.04 });
+}
+
 export function raise(type: BuildingType, building: Pick<PlotBuilding, 'x' | 'z' | 'turns'>, stage: ConstructionStage, facing: { dx: number; dz: number }, done = 1): THREE.Group {
   const group = new THREE.Group();
   const rect = footprintAt(type, building.x, building.z, building.turns);
@@ -111,6 +164,11 @@ export function raise(type: BuildingType, building: Pick<PlotBuilding, 'x' | 'z'
     group.add(sand);
     box(group, BLOCKWORK, 1.4, 0.8, 0.9, cx + w / 4, 0.45, cz + d / 5);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(group, 0xdc2626, 0.08, 0.7, 0.08, cx + (sx * w) / 2, 0.35, cz + (sz * d) / 2);
+    return group;
+  }
+
+  if (type.look === 'tower') {
+    group.add(raiseTower(type, cx, cz, w, d, stage, done, facing));
     return group;
   }
 

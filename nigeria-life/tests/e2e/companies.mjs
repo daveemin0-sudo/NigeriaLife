@@ -24,7 +24,7 @@ export async function run(browser, check) {
   // ------------------------------------------------------------------ Bought, at a real price, with real takings
   await page.evaluate((id) => window.game.hud.backend.buyBusiness(id), BIZ);
   let c = await company(page);
-  check('companies: Mama Put costs ₦8m and takes about 1.6% of that in a game day (₦9,600 a payout), not its whole price', c.price === 8_000_000 && c.base === 9600, { price: c.price, base: c.base });
+  check('companies: Mama Put costs ₦8m and takes about 4% of that in a game day (₦24,000 a payout), not its whole price', c.price === 8_000_000 && c.base === 24000, { price: c.price, base: c.base });
 
   // ------------------------------------------------------------------ Taking people on from the phone
   await page.evaluate((id) => window.game.hud.phoneModal.openApp('business', `b:${id}`), BIZ);
@@ -61,7 +61,7 @@ export async function run(browser, check) {
   await payout(page);
   c = await company(page);
   const boost = await page.evaluate(() => window.game.hud.backend.constructor.revenueBoost());
-  check('companies: a payout is the shop\'s own takings lifted by its staff (cook +18%, server +8%)', Math.abs(c.lift - 1.26) < 1e-9 && c.pending - p0 === Math.round(9600 * 1.26 * boost), { lift: c.lift, paid: c.pending - p0, expect: Math.round(9600 * 1.26 * boost) });
+  check('companies: a payout is the shop\'s own takings lifted by its staff (cook +18%, server +8%)', Math.abs(c.lift - 1.26) < 1e-9 && c.pending - p0 === Math.round(24000 * 1.26 * boost), { lift: c.lift, paid: c.pending - p0, expect: Math.round(24000 * 1.26 * boost) });
 
   // ------------------------------------------------------------------ A manager, and the close of the day
   await page.evaluate((id) => { window.game.companies.hire(id, 'manager'); const b = window.game.hud.backend; b.data.businesses.find((x) => x.id === id).pendingRevenue = 100000; b.data.lastRevenueAt = Date.now(); b.saveData(); }, BIZ);
@@ -94,7 +94,7 @@ export async function run(browser, check) {
   await closeDialogs(page);
   const own = await page.evaluate((id) => { const biz = window.game.hud.backend.getData().businesses.find((x) => x.id === id); return biz.baseIncomePerCycle + biz.upgrades.filter((u) => u.purchased).reduce((s, u) => s + u.bonusIncomePerCycle, 0); }, BIZ);
   const per = await page.evaluate(({ id, own }) => window.game.companies.perCycle(window.game.hud.backend.getData().businesses.find((x) => x.id === id), own), { id: BIZ, own });
-  check('companies: with the branch, a payout is the first shop plus 90% of it from Yaba, lifted by the staff', per === Math.round((own + 9600 * 0.9) * c.lift), { per, expect: Math.round((own + 9600 * 0.9) * c.lift) });
+  check('companies: with the branch, a payout is the first shop plus 90% of it from Yaba, lifted by the staff', per === Math.round((own + 24000 * 0.9) * c.lift), { per, expect: Math.round((own + 24000 * 0.9) * c.lift) });
 
   // ------------------------------------------------------------------ Letting someone go: a day's pay
   const server = c.staff.find((s) => s.role === 'server');

@@ -13,7 +13,7 @@ import type { BusinessEnterprise } from '../backend/types';
  * ₦100m a year, as the law has it), 30% of the profit above that.
  */
 
-export type RoleId = 'manager' | 'cashier' | 'cook' | 'server' | 'pharmacist' | 'barber' | 'mechanic' | 'driver' | 'conductor' | 'attendant' | 'technician' | 'security' | 'cleaner';
+export type RoleId = 'manager' | 'stacker' | 'cashier' | 'cook' | 'server' | 'pharmacist' | 'barber' | 'mechanic' | 'driver' | 'conductor' | 'attendant' | 'technician' | 'security' | 'cleaner';
 
 export interface Role {
   id: RoleId;
@@ -26,10 +26,13 @@ export interface Role {
   outfit: number;
   /** What they say when the owner stops by */
   says: string;
+  /** How many of them each outlet takes (one, unless said) */
+  perOutlet?: number;
 }
 
 export const ROLES: Record<RoleId, Role> = {
   manager: { id: 'manager', title: 'Manager', icon: '👔', wage: 15000, lift: 0.1, outfit: 0x0f172a, says: 'Oga, everything is in order. I will bank today\'s takings at close.' },
+  stacker: { id: 'stacker', title: 'Shelf stacker', icon: '📦', wage: 3500, lift: 0.04, outfit: 0x15803d, says: 'I dey fill the shelves from the back as they empty.', perOutlet: 3 },
   cashier: { id: 'cashier', title: 'Cashier', icon: '🧾', wage: 4000, lift: 0.1, outfit: 0x2563eb, says: 'The till is balanced, sir. No shortage.' },
   cook: { id: 'cook', title: 'Cook', icon: '👩‍🍳', wage: 5000, lift: 0.18, outfit: 0xf8fafc, says: 'The pot don ready! Customers dey come back for my stew.' },
   server: { id: 'server', title: 'Server', icon: '🍽️', wage: 3500, lift: 0.08, outfit: 0xdc2626, says: 'Table four wants more meat, sir.' },
@@ -55,6 +58,7 @@ const ROLE_SETS: Record<string, RoleId[]> = {
   biz_slot: ['technician', 'cashier', 'security', 'manager'],
   biz_barber: ['barber', 'cashier', 'cleaner', 'manager'],
   biz_mechanic: ['mechanic', 'cleaner', 'manager'],
+  biz_supermarket: ['stacker', 'cashier', 'security', 'cleaner', 'manager'],
 };
 const DEFAULT_ROLES: RoleId[] = ['cashier', 'attendant', 'security', 'cleaner', 'manager'];
 
@@ -105,6 +109,8 @@ export interface DayReport {
   takings: number;
   wages: number;
   rent: number;
+  /** Stock bought for the shelves that day (a supermarket) */
+  stock?: number;
   tax: number;
   profit: number;
   /** The takings went to the bank at close (a manager at every outlet) */
@@ -119,6 +125,8 @@ interface Book {
   takings: number;
   /** Wages, rent or tax that could not be paid, carried to the next close */
   owed: number;
+  /** Stock bought since the last close, already paid for */
+  stock?: number;
   reports: DayReport[];
   closed: number;
 }
@@ -213,15 +221,19 @@ export class Companies {
     return 1 + this.branches(bizId).length;
   }
 
-  /** How many in this role there is room for: one at each outlet */
+  /** How many in this role there is room for: one at each outlet (or as many as the role takes) */
   public room(bizId: string, role: RoleId): number {
-    return this.outlets(bizId) - this.staff(bizId).filter((s) => s.role === role).length;
+    return this.outlets(bizId) * (ROLES[role].perOutlet ?? 1) - this.count(bizId, role);
+  }
+
+  public count(bizId: string, role: RoleId): number {
+    return this.staff(bizId).filter((s) => s.role === role).length;
   }
 
   /** What the staff add to the takings: each role's lift, in full when every outlet has one */
   public lift(bizId: string): number {
     const outlets = this.outlets(bizId);
-    return 1 + this.roles(bizId).reduce((sum, role) => sum + role.lift * Math.min(1, this.staff(bizId).filter((s) => s.role === role.id).length / outlets), 0);
+    return 1 + this.roles(bizId).reduce((sum, role) => sum + role.lift * Math.min(1, this.count(bizId, role.id) / (outlets * (role.perOutlet ?? 1))), 0);
   }
 
   /** A manager at every outlet: the takings are banked at the close of the day */
@@ -243,6 +255,14 @@ export class Companies {
     return Math.round((first + branches) * this.lift(biz.id));
   }
 
+  /** Stock bought for the shelves: already paid, but a cost of the day's trade */
+  boughtStock(bizId: string, amount: number): void {
+    if (!this.business(bizId) || amount <= 0) return;
+    const book = this.book(bizId);
+    book.stock = (book.stock ?? 0) + amount;
+    this.save();
+  }
+
   /** Counted as it comes in, for the day's report */
   public took(bizId: string, amount: number): void {
     if (!this.business(bizId) || amount <= 0) return;
@@ -255,7 +275,7 @@ export class Companies {
     const biz = this.business(bizId);
     if (!biz) return { ok: false, reason: 'You do not own that business.' };
     if (!this.roles(bizId).some((r) => r.id === role)) return { ok: false, reason: `${biz.name} has no ${ROLES[role].title.toLowerCase()}s.` };
-    if (this.room(bizId, role) <= 0) return { ok: false, reason: `There is a ${ROLES[role].title.toLowerCase()} at every outlet already. Open a branch to take on more.` };
+    if (this.room(bizId, role) <= 0) return { ok: false, reason: `Every outlet has all the ${ROLES[role].title.toLowerCase()}s it can use. Open a branch to take on more.` };
     const book = this.book(bizId);
     const gender: 'male' | 'female' = Math.random() < 0.5 ? 'male' : 'female';
     const taken = new Set(book.staff.map((s) => s.name));
@@ -315,7 +335,8 @@ export class Companies {
       const takings = Math.round(book.takings);
       const wages = this.wages(biz.id);
       const rent = this.rent(biz.id);
-      const profit = takings - wages - rent;
+      const stock = Math.round(book.stock ?? 0);
+      const profit = takings - wages - rent - stock;
       const tax = takings * DAYS_A_YEAR > SMALL_COMPANY_TURNOVER ? Math.round(Math.max(0, profit) * TAX_RATE) : 0;
       let due = wages + rent + tax + book.owed;
       let note: string | undefined;
@@ -335,10 +356,11 @@ export class Companies {
       }
       let banked = 0;
       if (this.managed(biz.id)) banked = this.backend.collectBusinessRevenue(biz.id).totalCollected;
-      const report: DayReport = { day, takings, wages, rent, tax, profit: takings - wages - rent - tax, banked, note };
+      const report: DayReport = { day, takings, wages, rent, stock: stock || undefined, tax, profit: profit - tax, banked, note };
       book.reports.unshift(report);
       book.reports = book.reports.slice(0, 14);
       book.takings = 0;
+      book.stock = 0;
       out.push({ business: biz, report });
     }
     this.save();

@@ -56,14 +56,15 @@ export const BUSINESS_PRICES: Record<string, number> = {
   biz_bet_lounge: 40_000_000,
   biz_danfo_fleet: 60_000_000,
   biz_oando: 450_000_000,
+  biz_supermarket: 20_000_000,
 };
 
 /**
- * What a business takes in one payout, as a share of its price: about 1.6% of the price in a
- * game day before staff, wages, rent and tax, so a buka bought for ₦8m pays for itself in two
- * months or so of game days. (It used to pay for itself in one.)
+ * What a business takes in one payout, as a share of its price: about 4% of the price in a game
+ * day before staff, wages, rent and tax. A fully staffed ₦8m buka nets about ₦300k a game day
+ * after wages and tax, and pays for itself in about 25 game days (four hours or so of play).
  */
-export const TAKINGS_PER_PAYOUT = 0.0012;
+export const TAKINGS_PER_PAYOUT = 0.003;
 
 export function applyRealPrices(account: PlayerAccount): PlayerAccount {
   for (const p of account.properties ?? []) {

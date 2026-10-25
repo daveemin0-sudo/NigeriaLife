@@ -1,6 +1,7 @@
 import type { Builder } from '../../world/kit/ArchKit';
 import type { PlaceSpec, StationChoice } from './PlaceInterior';
 import type { Item } from '../../backend/types';
+import { SUPERMARKET_SPEC } from './SupermarketRoom';
 
 /**
  * The insides of the places along the expressway: each laid out for what is done there, with
@@ -550,4 +551,4 @@ const IKEJA: PlaceSpec[] = [
   ], [{ at: [-5, -4], facing: Math.PI, outfit: 0x2563eb }, { at: [9, 7.4], facing: Math.PI, outfit: 0x111827, sit: true }, { at: [2, 3], facing: 0.4, outfit: 0xdb2777, gender: 'female' }], [26, 24]),
 ];
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja')];
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja')];
