@@ -106,6 +106,35 @@ export async function run(browser, check) {
   const zoom = await page.evaluate(() => { const c = window.game.cameraManager; const before = c.interiorDistance; for (let i = 0; i < 40; i++) c.zoom(2); return { before: +before.toFixed(1), after: +c.interiorDistance.toFixed(1) }; });
   check('home: the view zooms out to well over twice the room\'s framing, carport and all', zoom.after >= zoom.before * 2.3, zoom);
 
+  // ------------------------------------------------------------------ A house built on the player's own land is a home of its own
+  const flatPieces = await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().placed.length);
+  await page.evaluate(() => { const g = window.game; return g.world.interiorManager.exitCurrentInterior(g.player, g.cameraManager, g.hud, g.world); });
+  await wait(1200);
+  await page.evaluate(async () => {
+    const g = window.game;
+    g.hud.backend.data.bank.balance += 200_000_000; g.hud.backend.saveData();
+    await g.land.buyFromState('lag-kakawa-w2');
+    const r = g.land.plot('lag-kakawa-w2').rect;
+    await g.land.startBuilding('lag-kakawa-w2', 'bungalow', (r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2, 0);
+    await g.registry.transact((s) => { s.buildings['lag-kakawa-w2'].startedAt -= 30 * 25_000; });
+  });
+  await page.evaluate(() => window.game.hud.phoneModal.openApp('land', 'plot:lag-kakawa-w2'));
+  await wait(500);
+  await page.evaluate(() => document.querySelector('#land-go-in')?.click());
+  await playUntil(page, () => (window.game.world.interiorManager.currentInterior?.type === 'residence' && !window.game.world.interiorManager.isTransitioning ? true : null), 20);
+  await advance(page, 0.5);
+  const built = await page.evaluate(() => ({ name: window.game.world.interiorManager.currentInterior?.name, pieces: window.game.modules.HouseDecorationSystem.getInstance().placed.length, home: window.game.modules.HouseDecorationSystem.getInstance().homeId }));
+  await page.evaluate(() => { const g = window.game; return g.world.interiorManager.exitCurrentInterior(g.player, g.cameraManager, g.hud, g.world); });
+  await wait(1200);
+  // The player rents a flat too: in through its compound gate is the flat, with its own furniture
+  await page.evaluate(() => { const b = window.game.hud.backend; const flat = b.data.properties.find((p) => p.type === 'apartment' || p.type === 'self-contained'); flat.ownerId = b.data.id; flat.status = 'rented'; b.saveData(); });
+  await page.evaluate(() => { const g = window.game; const d = g.world.buildings.placeDoors.find((x) => x.buildingId === 'villa-compound'); g.player.mesh.position.set(d.outside.x, 0, d.outside.z); g.hud.onEnterInterior('villa-compound'); });
+  await playUntil(page, () => (window.game.world.interiorManager.currentInterior?.type === 'residence' && !window.game.world.interiorManager.isTransitioning ? true : null), 30);
+  await advance(page, 0.5);
+  const back = await page.evaluate(() => ({ name: window.game.world.interiorManager.currentInterior?.name, pieces: window.game.modules.HouseDecorationSystem.getInstance().placed.length }));
+  check('home: the bungalow built on the player’s own plot is a home of its own: going inside it is that house, by its name, bare to furnish; the flat keeps its own furniture',
+    /bungalow at 7 Kakawa Street/i.test(built.name ?? '') && built.pieces === 0 && built.home === 'lag-kakawa-w2' && !/bungalow/i.test(back.name ?? '') && back.pieces === flatPieces && flatPieces > 0, { built, back, flatPieces });
+
   // ------------------------------------------------------------------ Kept
   await page.reload({ waitUntil: 'load' });
   await page.waitForFunction('window.game && window.game.world', { timeout: 120000 });

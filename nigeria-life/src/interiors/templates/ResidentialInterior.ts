@@ -155,9 +155,13 @@ export class ResidentialInterior {
 
   /** The home the player is coming into: its name and where it is (set by the game) */
   public static homeName: (() => { name: string; area: string } | null) | null = null;
+  /** Which of the player's homes it is: 'main' (the flat rented or bought) or a built house's plot (set by the game) */
+  public static homeId: (() => string) | null = null;
 
   /** The player is coming in: the home is furnished as what they rent or own, and called by its name */
   public onPlayerArriving(): void {
+    // Each home its own furniture: a house just built comes in bare, for the player to furnish
+    HouseDecorationSystem.getInstance().setHome(ResidentialInterior.homeId?.() ?? 'main');
     const standard = ResidentialInterior.standardNow?.() ?? this.standard;
     this.furnish(standard);
     const home = ResidentialInterior.homeName?.();
@@ -183,7 +187,8 @@ export class ResidentialInterior {
       } catch {
         // No storage: handed over again each time the page is loaded, and adopt skips what is there
       }
-      if (!done) {
+      // Only the first home came furnished; a house the player builds is theirs to furnish
+      if (!done && HouseDecorationSystem.getInstance().homeId === 'main') {
         HouseDecorationSystem.getInstance().adopt(STARTERS[standard]);
         try {
           localStorage.setItem(this.handedOverKey, '1');

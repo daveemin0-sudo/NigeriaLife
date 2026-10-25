@@ -91,7 +91,7 @@ function lettingCard(host: PhoneHost, plot: Plot, mine: boolean): string {
       <div class="nl-card nl-card--live" id="land-tenancy">
         <div class="nl-card-title">You rent this ${esc(type.name.toLowerCase())}</div>
         <div class="nl-card-line">${naira(tenancy.rentPerWeek)} a week. Paid up for ${daysLeft(tenancy.paidUntil).toFixed(1)} more game days.${tenancy.ending ? ' The owner has given notice: it ends then.' : ' The next week is paid from your account when this one is nearly up.'}</div>
-        ${type.home ? '<button class="nl-btn nl-btn--primary nl-btn--block" id="land-go-in" data-act="go-in">Go inside</button>' : ''}
+        ${type.home ? '<button class="nl-btn nl-btn--primary nl-btn--block" id="land-go-in" data-act="go-in" data-arg="${esc(plot.id)}">Go inside</button>' : ''}
         ${type.incomePerDay > 0 ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="land-collect" data-act="collect" data-arg="${esc(plot.id)}" ${takings > 0 ? '' : 'disabled'}>Collect ${naira(takings)}</button>` : ''}
         <div class="nl-split">
           ${tenancy.ending ? '' : `<button class="nl-btn nl-btn--sm" id="land-renew" data-act="pay-rent" data-arg="${esc(plot.id)}">Pay another week</button>`}
@@ -171,7 +171,7 @@ function plotScreen(host: PhoneHost, plot: Plot) {
           <div class="nl-card-title">${type.icon} ${esc(type.name)}</div>
           <div class="nl-card-line">${type.incomePerDay > 0 ? `Brings in ${naira(type.incomePerDay)} a day and costs ${naira(type.upkeepPerDay)} a day to keep.` : `Costs ${naira(type.upkeepPerDay)} a day to keep.`}${type.home && !tenanted ? ' You can live here.' : ''}</div>
           ${type.incomePerDay > 0 && !tenanted ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="land-collect" data-act="collect" data-arg="${esc(plot.id)}" ${takings > 0 ? '' : 'disabled'}>Collect ${naira(takings)}</button>` : ''}
-          ${type.home && !tenanted ? '<button class="nl-btn nl-btn--block" id="land-go-in" data-act="go-in">Go inside</button>' : ''}
+          ${type.home && !tenanted ? '<button class="nl-btn nl-btn--block" id="land-go-in" data-act="go-in" data-arg="${esc(plot.id)}">Go inside</button>' : ''}
           ${tenanted ? '' : `<button class="nl-btn nl-btn--danger nl-btn--sm" data-act="demolish" data-arg="${esc(plot.id)}">Pull it down · costs ${naira(demolitionCost(type))}</button>`}
         </div>
         ${lettingCard(host, plot, true)}`;
@@ -584,7 +584,7 @@ export const landApp: PhoneApp = {
 
     if (action === 'go-in') {
       host.close();
-      host.world.goHome();
+      host.world.goHome(arg || undefined);
     } else if (action === 'show') {
       const plot = land().plot(arg);
       if (!plot) return;

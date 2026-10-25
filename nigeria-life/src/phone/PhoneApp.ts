@@ -20,7 +20,8 @@ export interface PhoneWorld {
   /** Standing indoors, at the wheel or in the middle of a journey */
   where(): 'street' | 'inside' | 'driving' | 'transit';
   placeName(): string;
-  goHome(): void;
+  /** Into the player's home: the house on this plot if given, or their home as it stands */
+  goHome(plotId?: string): void;
   openMap(): void;
   openFlights(): void;
   openCamera(): void;

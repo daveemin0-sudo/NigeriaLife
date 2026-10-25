@@ -686,6 +686,8 @@ export class HouseDecorationSystem {
   public placedItemsGroup: THREE.Group;
   private storageKey = profileKey('nigeria_life_placed_furniture_v1');
   private lookKey = profileKey('nigeria_life_home_look_v1');
+  /** Which home the furniture is for: 'main' (the flat rented or bought), or a house built on a plot */
+  public homeId = 'main';
   private storeKey = profileKey('nigeria_life_furniture_storage_v1');
   /** Pieces the player owns that are put away, not standing in the home (catalogue ids) */
   public stored: string[] = [];
@@ -1183,6 +1185,44 @@ export class HouseDecorationSystem {
   }
 
   /** Clears placed furniture when ownership is relinquished */
+  /**
+   * The player is going into another of their homes: what stands in this one is kept for it, and
+   * that one's furniture and paint come out. A home never furnished before is bare. Returns true
+   * for a bare, new home.
+   */
+  public setHome(id: string): boolean {
+    if (id === this.homeId) return false;
+    this.save();
+    for (const item of this.placed) {
+      this.solidify(item, false);
+      item.mesh.removeFromParent();
+    }
+    this.placed.length = 0;
+    this.homeId = id;
+    const suffix = id === 'main' ? '' : `:${id}`;
+    this.storageKey = profileKey(`nigeria_life_placed_furniture_v1${suffix}`);
+    this.lookKey = profileKey(`nigeria_life_home_look_v1${suffix}`);
+    let fresh = false;
+    try {
+      fresh = localStorage.getItem(this.storageKey) === null;
+    } catch {
+      fresh = true;
+    }
+    this.loadSavedFurniture();
+    this.wallColour = 'ochre';
+    this.floorStyle = 'ceramic_white';
+    try {
+      const look = JSON.parse(localStorage.getItem(this.lookKey) || 'null');
+      if (look && WALL_COLOURS.some((colour) => colour.id === look.wall)) this.wallColour = look.wall;
+      if (look && FLOOR_STYLES.some((f) => f.id === look.floor)) this.floorStyle = look.floor;
+    } catch {
+      // As it came
+    }
+    if (fresh) this.save();
+    this.onChanged?.();
+    return fresh;
+  }
+
   public clearPlaced(): void {
     for (const item of this.placed) {
       this.solidify(item, false);

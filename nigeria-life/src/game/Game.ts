@@ -98,6 +98,7 @@ import { GraphicsQuality } from '../graphics/GraphicsQuality';
 import { OnlineAccount } from '../online/OnlineAccount';
 import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
+import { buildingType } from '../realestate/BuildingCatalogue';
 import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
@@ -564,6 +565,8 @@ export class Game {
     this.hud.onEnterInterior = (buildingId: string, comeOutAt?: THREE.Vector3) => {
       const target = this.world.interiorManager.getInteriorByBuildingId(buildingId);
       if (target?.type === 'residence' && !this.canGoHome()) return;
+      // In through the gate of the compound: the flat, not a house built elsewhere
+      if (target?.type === 'residence' && (buildingId === 'villa-compound' || buildingId === 'palm-view-flats')) this.homeNow = 'main';
       if (comeOutAt) {
         // In by one way and out by another: from the apron into the terminal, and out at the kerb
         void this.world.interiorManager.enterInterior(buildingId, this.player, this.cameraManager, this.hud, this.world, { returnTo: comeOutAt, returnYaw: 0 });
@@ -821,7 +824,11 @@ export class Game {
       cityName: () => cityNames[cityId()] ?? cityId(),
       where: () => this.whereabouts(),
       placeName,
-      goHome: () => document.getElementById('nav-btn-home')?.click(),
+      goHome: (plotId) => {
+        // A built house is a home of its own: that is the one gone into
+        if (plotId && this.land.livesIn(plotId)) this.homeNow = plotId;
+        document.getElementById('nav-btn-home')?.click();
+      },
       openMap: () => document.getElementById('nav-btn-map')?.click(),
       openFlights: () => this.hud.interstateModal.open(cityId()),
       openCamera: () => this.photoMode.open(),
@@ -1088,12 +1095,25 @@ export class Game {
     this.vehicleSync = new VehicleSync(this.world.vehicles, this.network, () => (this.player.isDriving ? this.player.currentVehicle : null));
     this.ownedVehicles.movingElsewhere = (vehicle) => this.vehicleSync.driverOf(vehicle) !== null;
     // The home is furnished as what the player rents or owns, and their own vehicles stand in its carport
+    ResidentialInterior.homeId = () => this.currentHome();
     ResidentialInterior.standardNow = () => {
       const data = BackendService.getInstance().getData();
-      return standardOf(data.properties, data.id, this.land.hasHome());
+      const plotId = this.currentHome();
+      if (plotId !== 'main') {
+        // A house the player built: as grand as the house
+        const type = buildingType(this.land.building(plotId)?.typeId ?? '');
+        return type?.id === 'duplex' ? 'luxury' : 'comfortable';
+      }
+      return standardOf(data.properties, data.id, false);
     };
     ResidentialInterior.carsOwned = () => this.ownedVehicles.myModels();
     ResidentialInterior.homeName = () => {
+      const plotId = this.currentHome();
+      if (plotId !== 'main') {
+        const plot = this.land.plot(plotId);
+        const type = buildingType(this.land.building(plotId)?.typeId ?? '');
+        return plot ? { name: `Your ${(type?.name ?? 'house').toLowerCase()} at ${plot.name}`, area: plot.neighbourhood } : null;
+      }
       const data = BackendService.getInstance().getData();
       const home = data.properties.find((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business'].includes(String(p.type)));
       return home ? { name: home.status === 'rented' ? `${home.name} (rented)` : home.name, area: home.location ?? '' } : null;
@@ -1210,6 +1230,19 @@ export class Game {
   }
 
   /** Home is somewhere the player owns or rents. Without one, says so and stays put. */
+  /** The home the player last chose to go into: 'main' (the flat rented or bought) or a built house's plot */
+  private homeNow: string | null = null;
+
+  /** The home they go into now: the one they chose if it is still theirs, else the flat, else a house they built */
+  private currentHome(): string {
+    const data = BackendService.getInstance().getData();
+    const hasFlat = data.properties.some((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business', 'warehouse', 'land'].includes(String(p.type)));
+    if (this.homeNow && this.homeNow !== 'main' && this.land.livesIn(this.homeNow)) return this.homeNow;
+    if (this.homeNow === 'main' && hasFlat) return 'main';
+    if (hasFlat) return 'main';
+    return this.land.homes()[0]?.id ?? 'main';
+  }
+
   private canGoHome(): boolean {
     if (BackendService.getInstance().hasHome()) return true;
     this.hud.currentNavMode = 'street';

@@ -167,14 +167,22 @@ export class Land {
 
   /** Does the player have somewhere of their own to live on land: a house they own and have not let, or one they rent? */
   public hasHome(): boolean {
+    return this.homes().length > 0;
+  }
+
+  /** Is this plot's finished house the player's to live in: theirs and not let, or let to them? */
+  public livesIn(plotId: string, state: RegistryState = this.registry.peek()): boolean {
+    const built = this.finishedOn(plotId, state);
+    if (!built || !built.type.home) return false;
+    const tenancy = state.tenancies[plotId];
+    if (isLet(tenancy)) return tenancy.tenantId === MY_ID;
+    return state.titles[titleKey(plotId)]?.ownerId === MY_ID;
+  }
+
+  /** The plots whose houses the player can live in */
+  public homes(): Plot[] {
     const state = this.registry.peek();
-    return this.all.some((entry) => {
-      const built = this.finishedOn(entry.id, state);
-      if (!built || !built.type.home) return false;
-      const tenancy = state.tenancies[entry.id];
-      if (isLet(tenancy)) return tenancy.tenantId === MY_ID;
-      return state.titles[titleKey(entry.id)]?.ownerId === MY_ID;
-    });
+    return this.all.filter((entry) => this.livesIn(entry.id, state));
   }
 
   /** The designs the rules for this plot allow. */
