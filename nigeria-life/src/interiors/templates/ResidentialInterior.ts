@@ -13,6 +13,30 @@ import type { NavGrid } from '../../interactions/NavGrid';
 import { HomeLife, HOME } from '../home/HomeLife';
 import type { HomeStandard } from '../../housing/HomeStandard';
 import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
+import { roomDoor, DOOR_STYLES, type DoorStyle } from '../../housing/MoreFurniture';
+import { InteractionDirector } from '../../interactions/InteractionDirector';
+
+/** A door in one of the home's own doorways */
+interface HomeDoor {
+  id: string;
+  name: string;
+  /** The middle of the doorway, in the home's own space */
+  x: number;
+  z: number;
+  /** Which way the wall runs: along x (0) or along z (a quarter turn) */
+  yaw: number;
+  /** Which side it swings to */
+  swing: 1 | -1;
+  holder: THREE.Group;
+  leaf: THREE.Object3D | null;
+  angle: number;
+  style: string;
+}
+/** How wide the home's own doorways are */
+const DOORWAY = 1.2;
+/** The carport: how many cars it takes, side by side, and how wide each bay is */
+const CARPORT_BAYS = 5;
+const CARPORT_BAY = 3.4;
 
 /** The uids of the four everyday pieces, and the cards that use them */
 const CORE_TV = 'home_tv';
@@ -112,6 +136,9 @@ export class ResidentialInterior {
   private handedOver = false;
   private readonly handedOverKey = profileKey('nigeria_life_home_handed_over_v1');
   private room!: RoomForFurniture;
+  /** The doors in the home's own doorways */
+  private doors: HomeDoor[] = [];
+  private readonly doorsKey = profileKey('nigeria_life_home_doors_v1');
 
   /** This only stands in homes of these standards */
   private only(object: THREE.Object3D, ...on: HomeStandard[]): void {
@@ -210,13 +237,14 @@ export class ResidentialInterior {
     (this.masterMattress.material as THREE.MeshStandardMaterial).color.setHex(basic ? 0x93c5fd : 0x7c3aed);
   }
 
-  /** The carport has the player's own vehicles in it, up to two, and nothing if they have none */
+  /** The carport has the player's own vehicles in it, one to a bay, up to five, and nothing if they have none */
   private parkCars(): void {
     this.carportCars.clear();
-    const cars = (ResidentialInterior.carsOwned?.() ?? []).slice(0, 2);
+    const cars = (ResidentialInterior.carsOwned?.() ?? []).slice(0, CARPORT_BAYS);
     cars.forEach((car, i) => {
-      car.position.set(cars.length === 1 ? 0 : i === 0 ? -1.4 : 1.4, 0, 0);
-      car.rotation.set(0, 0, 0);
+      // Side by side down the carport, nose to the house
+      car.position.set(0, 0, (i - (CARPORT_BAYS - 1) / 2) * CARPORT_BAY);
+      car.rotation.set(0, -Math.PI / 2, 0);
       car.visible = true;
       this.carportCars.add(car);
     });
@@ -243,7 +271,8 @@ export class ResidentialInterior {
       exitDoorOffset: new THREE.Vector3(0, 0, 11),
       cameraOffset: new THREE.Vector3(0, 16, 20),
       ambientLightColor: 0xffedd5,
-      ambientLightIntensity: 1.3,
+      // Bright at any hour: the POP lights and the cove strips do the rest
+      ambientLightIntensity: 1.55,
       rooms: [
         {
           id: 'residence_main',
@@ -417,6 +446,7 @@ export class ResidentialInterior {
         if (kind.use === 'drink') return '🧊 Refreshment, move it or sell it';
         if (kind.use === 'power') return '⚡ Generator / Inverter, move it or sell it';
         if (kind.use === 'clean') return '🧺 Laundry, move it or sell it';
+        if (kind.use === 'door') return '🚪 Move the door or sell it';
         if (item.modelType === 'split_ac') return '❄️ AC, move it or sell it';
         if (item.modelType === 'wall_clock') return '🕰️ Clock, move it or sell it';
         if (item.modelType === 'wall_art') return '🖼️ Artwork, move it or sell it';
@@ -679,32 +709,45 @@ export class ResidentialInterior {
     rightWall.position.set(16, wallH / 2, 0);
     shell.add(rightWall);
 
-    // Dividing Walls between Rooms (Living, Bedrooms, Bathroom).
-    // Kept low so every room stays visible from above.
-    const partitionH = 1.8;
-
-    // Each partition is built in pieces, leaving doorways to walk through
+    // Dividing walls between the rooms, as tall as the catalogue's partition walls, with a doorway
+    // into each room and a door in it: the living room, two bedrooms, and the bathroom side
+    const partitionH = 2.6;
     const partition = (centerX: number, centerZ: number, width: number, length: number) => {
       const wall = new THREE.Mesh(new THREE.BoxGeometry(width, partitionH, length), wallMat);
       wall.position.set(centerX, partitionH / 2, centerZ);
+      wall.name = 'home_partition';
       this.group.add(wall);
       this.life.block(centerX, centerZ, width / 2, length / 2);
     };
+    /** A wall along x from x0 to x1 at z, or along z from z0 to z1 at x, with a doorway centred at `door` */
+    const wallAlongX = (z: number, x0: number, x1: number, door?: number) => {
+      const cuts = door === undefined ? [[x0, x1]] : [[x0, door - DOORWAY / 2], [door + DOORWAY / 2, x1]];
+      for (const [a, b] of cuts) if (b - a > 0.05) partition((a + b) / 2, z, b - a, wallT);
+    };
+    const wallAlongZ = (x: number, z0: number, z1: number, door?: number) => {
+      const cuts = door === undefined ? [[z0, z1]] : [[z0, door - DOORWAY / 2], [door + DOORWAY / 2, z1]];
+      for (const [a, b] of cuts) if (b - a > 0.05) partition(x, (a + b) / 2, wallT, b - a);
+    };
+    // The living room to the first bedroom, and on to the bathroom side
+    wallAlongX(-1, -15.8, 6, -8.6);
+    // Between the two bedrooms, all the way
+    wallAlongZ(2, -12.8, -1);
+    // The master bedroom to the bathroom side
+    wallAlongX(-1, 6, 15.8, 10.6);
+    // The living room to the bathroom side
+    wallAlongZ(6, -1, 11.8, 0.8);
+    this.hangDoors([
+      { id: 'home_door_bedroom1', name: 'Bedroom door', x: -8.6, z: -1, yaw: 0, swing: 1 },
+      { id: 'home_door_bedroom2', name: 'Master bedroom door', x: 10.6, z: -1, yaw: 0, swing: 1 },
+      { id: 'home_door_bathroom', name: 'Bathroom door', x: 6, z: 0.8, yaw: Math.PI / 2, swing: -1 },
+    ]);
 
-    // Between the bedrooms and the living room, with a doorway into the bedrooms
-    partition(-12.75, -1, 6.5, wallT);
-    partition(-0.6, -1, 13.2, wallT);
-
-    // Between the two bedrooms, with a doorway at the living-room end
-    partition(2, -8.2, wallT, 9.6);
-
-    // Between the living room and the bathroom side, with a doorway beside the bedrooms
-    partition(6, 7.0, wallT, 10);
-
-    // 2. Ceiling & Ambient Lights
+    // 2. POP ceiling cornices with warm LED cove lights round every wall, and a light in every room
+    this.popCeiling(wallH);
     this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-6, 4.0, 4), 0xffedd5));
     this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(8, 4.0, -6), 0xffedd5));
     this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-5, 4.0, -6), 0xffedd5));
+    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(11, 4.0, 5), 0xfff7ed));
 
     // 3. Exit Door
     const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 12), Math.PI);
@@ -943,7 +986,7 @@ export class ResidentialInterior {
     this.group.add(bucket);
 
     // 7. Outdoor Covered Carport with Wooden Pergola & Parked Cars (Screenshot 5):
-    this.createOutdoorCarport(17.5, 0, 7.5);
+    this.createOutdoorCarport(20.6, 0, 0);
 
     // 8. Attach House Decoration System Placed Items Group
     const decorationSystem = HouseDecorationSystem.getInstance();
@@ -1121,36 +1164,149 @@ export class ResidentialInterior {
   /**
    * Outdoor Carport with wooden pergola beams and parked cars (Screenshot 5)
    */
+  /**
+   * POP ceilings: a white plaster cornice stepped out from the top of every outer wall, a gold
+   * line along it, warm LED strips in the cove that light the walls, and a downlight set in a
+   * round POP rose in each room.
+   */
+  private popCeiling(wallH: number): void {
+    const b = new Builder();
+    const top = wallH - 0.55;
+    const runs: Array<[number, number, number, number, number, number]> = [
+      // x, z, width, depth, and which way is into the room (x, z)
+      [0, -12.45, 31.2, 0.7, 0, 1],
+      [0, 12.45, 31.2, 0.7, 0, -1],
+      [-15.45, 0, 0.7, 25.2, 1, 0],
+      [15.45, 0, 0.7, 25.2, -1, 0],
+    ];
+    for (const [x, z, w, d, ix, iz] of runs) {
+      // Two steps of plaster, the lower one standing further out into the room
+      b.box(0xf8fafc, w, 0.3, d, x, top, z).box(0xf1f5f9, w, 0.18, d, x - ix * 0.12, top + 0.3, z - iz * 0.12);
+      b.box(0xd4af37, ix ? 0.04 : w, 0.04, iz ? 0.04 : d, x + ix * 0.36, top + 0.12, z + iz * 0.36);
+      b.box(0xffd59e, ix ? 0.06 : w - 1, 0.06, iz ? 0.06 : d - 1, x + ix * 0.4, top - 0.06, z + iz * 0.4, { glow: true });
+    }
+    // A downlight in each room, set in a round POP rose
+    for (const [x, z] of [[-6, 6], [-11, -7], [9, -7], [11, 5], [-12, 8]]) b.cylinder(0xf8fafc, 0.55, 0.08, x, wallH - 0.25, z, { sides: 20 }).cylinder(0xfff7d6, 0.28, 0.04, x, wallH - 0.3, z, { sides: 16, glow: true });
+    const pop = b.build('pop ceiling', { roughness: 0.6 });
+    pop.name = 'pop ceiling';
+    this.group.add(pop);
+  }
+
+  /** The doors in the home's own doorways, each in the style the player chose for it */
+  private hangDoors(spec: Array<Omit<HomeDoor, 'holder' | 'leaf' | 'angle' | 'style'>>): void {
+    let saved: Record<string, string> = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(this.doorsKey) || '{}') ?? {};
+    } catch {
+      // Every door as it came
+    }
+    const origin = this.group.position;
+    for (const d of spec) {
+      const holder = new THREE.Group();
+      holder.name = `home door ${d.id}`;
+      holder.position.set(d.x, 0, d.z);
+      holder.rotation.y = d.yaw;
+      this.group.add(holder);
+      const door: HomeDoor = { ...d, holder, leaf: null, angle: 0, style: DOOR_STYLES.some((st) => st.id === saved[d.id]) ? saved[d.id] : 'panel' };
+      this.fitDoor(door);
+      this.doors.push(door);
+      // Stand beside the doorway on the living-room side to change the door
+      const off = d.yaw === 0 ? new THREE.Vector3(1.1, 0, 0.9) : new THREE.Vector3(-0.9, 0, 1.1);
+      const stand = new THREE.Vector3(origin.x + d.x + off.x, 0, origin.z + d.z + off.z);
+      this.interactiveList.push({ mesh: holder, id: d.id, name: d.name, category: 'Your home', description: 'Opens as you come up to it and closes behind you.', interactionPoint: stand });
+      PlaceActions.register(d.id, {
+        label: () => `🚪 ${d.name}: ${DOOR_STYLES.find((st) => st.id === door.style)?.name ?? 'a door'} · change it`,
+        run: (host) => host.ask({
+          who: d.name,
+          role: 'Your home',
+          text: 'Change the door? The new one is fitted while you watch; the old one is taken away.',
+          choices: [
+            ...DOOR_STYLES.map((style) => ({
+              label: style.name,
+              note: style.id === door.style ? 'This one' : `₦${style.price.toLocaleString()}`,
+              pick: () => {
+                if (style.id === door.style) return;
+                host.director.perform({
+                  id: 'fit a door', actor: host.actor, point: stand, target: new THREE.Vector3(origin.x + d.x, 0, origin.z + d.z), animation: { arms: 'reach' }, seconds: 2.4, effectAt: 0.8, ifStuck: 'snap',
+                  effect: () => {
+                    if (!host.backend.pay(style.price, `${style.name} for the ${d.name.toLowerCase()}`, 'SHOP_PURCHASE')) {
+                      host.say(`A ${style.name.toLowerCase()} is ₦${style.price.toLocaleString()}. You do not have it.`, 'warning');
+                      return false;
+                    }
+                    this.setDoorStyle(door, style);
+                    host.say(`${style.name} fitted on the ${d.name.toLowerCase()}.`, 'success');
+                    return true;
+                  },
+                });
+              },
+            })),
+            { label: 'Leave it', pick: () => undefined },
+          ],
+        }),
+      });
+    }
+  }
+
+  private fitDoor(door: HomeDoor): void {
+    door.holder.clear();
+    const style = DOOR_STYLES.find((st) => st.id === door.style) ?? DOOR_STYLES[1];
+    const model = roomDoor(style, DOORWAY);
+    door.holder.add(model);
+    door.leaf = model.getObjectByName('door_leaf') ?? null;
+    if (door.leaf) door.leaf.rotation.y = door.angle;
+  }
+
+  private setDoorStyle(door: HomeDoor, style: DoorStyle): void {
+    door.style = style.id;
+    this.fitDoor(door);
+    try {
+      localStorage.setItem(this.doorsKey, JSON.stringify(Object.fromEntries(this.doors.map((d) => [d.id, d.style]))));
+    } catch {
+      // Kept for this visit
+    }
+  }
+
+  /** Doors swing open as the player comes within reach, and close again behind them */
+  private swingDoors(delta: number): void {
+    const player = InteractionDirector.get().player;
+    if (!player) return;
+    const origin = this.group.position;
+    const px = player.root.position.x - origin.x;
+    const pz = player.root.position.z - origin.z;
+    const ease = Math.min(1, delta * 6);
+    for (const door of this.doors) {
+      const near = Math.hypot(px - door.x, pz - door.z) < 1.9;
+      door.angle += ((near ? door.swing * 1.5 : 0) - door.angle) * ease;
+      if (door.leaf) door.leaf.rotation.y = door.angle;
+    }
+    // And the doors the player bought and stood between their own walls
+    for (const item of HouseDecorationSystem.getInstance().placed) {
+      if (!item.modelType.startsWith('room_door_')) continue;
+      const leaf = item.mesh.getObjectByName('door_leaf');
+      if (!leaf) continue;
+      const near = Math.hypot(px - item.x, pz - item.z) < 1.6;
+      leaf.rotation.y += ((near ? 1.5 : 0) - leaf.rotation.y) * ease;
+    }
+  }
+
   private createOutdoorCarport(x: number, y: number, z: number): void {
     const carportGroup = new THREE.Group();
     carportGroup.position.set(x, y, z);
 
-    // Concrete driveway slab
-    const slab = new THREE.Mesh(
-      new THREE.BoxGeometry(6.5, 0.2, 8.5),
-      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.7 })
-    );
-    slab.position.y = -0.1;
-    carportGroup.add(slab);
-
-    // Wooden Pergola Frame (Yellow/Ochre timber posts)
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.6 });
-
-    // 4 Corner Posts
-    for (const px of [-3.0, 3.0]) {
-      for (const pz of [-4.0, 4.0]) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.6, 0.25), woodMat);
-        post.position.set(px, 1.8, pz);
-        carportGroup.add(post);
-      }
-    }
-
-    // Top horizontal crossbeams
-    for (let rz = -3.8; rz <= 3.8; rz += 1.8) {
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.2, 0.25), woodMat);
-      beam.position.set(0, 3.6, rz);
-      carportGroup.add(beam);
-    }
+    // A carport for five cars side by side: an interlocked driveway, a bay marked out for each car,
+    // steel posts and a slatted roof over it all, a light over each bay, and a gate at the end
+    const length = CARPORT_BAYS * CARPORT_BAY + 0.6;
+    const b = new Builder();
+    b.box(0xb8b8b0, 7.4, 0.2, length, 0, -0.2, 0);
+    for (let i = 0; i <= CARPORT_BAYS; i++) b.box(0xf8fafc, 5.6, 0.02, 0.1, 0.4, 0.01, (i - CARPORT_BAYS / 2) * CARPORT_BAY);
+    for (const px of [-3.4, 3.4]) for (let i = 0; i <= CARPORT_BAYS; i++) b.box(0x334155, 0.2, 3.4, 0.2, px, 0, (i - CARPORT_BAYS / 2) * CARPORT_BAY);
+    for (let rz = -length / 2 + 0.3; rz <= length / 2; rz += 0.9) b.box(0xeab308, 7.2, 0.12, 0.35, 0, 3.4, rz);
+    b.box(0x334155, 0.25, 0.25, length, -3.4, 3.3, 0).box(0x334155, 0.25, 0.25, length, 3.4, 3.3, 0);
+    for (let i = 0; i < CARPORT_BAYS; i++) b.box(0xfff7d6, 0.6, 0.06, 0.6, 0, 3.32, (i - (CARPORT_BAYS - 1) / 2) * CARPORT_BAY, { glow: true });
+    // The sliding gate at the far end
+    b.box(0x111827, 0.12, 2.2, length * 0.6, 3.9, 0, 0);
+    for (let i = 0; i < 14; i++) b.box(0x374151, 0.14, 2.2, 0.06, 3.9, 0, -length * 0.3 + i * (length * 0.6) / 13);
+    carportGroup.add(b.build('carport frame', { roughness: 0.7 }));
 
     // Parked Cars under carport
     // The player's own vehicles are parked here when they come home (see parkCars)
@@ -1168,6 +1324,7 @@ export class ResidentialInterior {
     }
 
     this.life.update(delta);
+    this.swingDoors(delta);
 
     for (const head of this.fanHeads) {
       head.rotation.y = Math.sin(this.animTime * 1.5) * 0.7;

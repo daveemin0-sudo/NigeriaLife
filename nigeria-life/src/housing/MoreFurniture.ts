@@ -165,6 +165,58 @@ function partition(length: number): THREE.Group {
   return b.build('partition wall');
 }
 
+/** The doors a room can have: what the leaf is made of */
+export interface DoorStyle {
+  id: string;
+  name: string;
+  price: number;
+  leaf: number;
+  frame: number;
+  /** A pane of glass in it */
+  glass?: boolean;
+  /** Raised panels on the leaf */
+  panels?: boolean;
+  /** A steel door's bars and bolts */
+  steel?: boolean;
+  blurb: string;
+}
+
+export const DOOR_STYLES: DoorStyle[] = [
+  { id: 'flush', name: 'Flush door', price: 85_000, leaf: 0xe7d3b3, frame: 0x78350f, blurb: 'A plain painted flush door in a hardwood frame, with a lever handle and a key.' },
+  { id: 'panel', name: 'Mahogany panel door', price: 280_000, leaf: 0x6b2f12, frame: 0x4a1f0a, panels: true, blurb: 'Solid mahogany with four raised panels and brass handles.' },
+  { id: 'glass', name: 'Frosted glass door', price: 350_000, leaf: 0x111827, frame: 0x111827, glass: true, blurb: 'A black frame round frosted glass. Light through, privacy kept.' },
+  { id: 'steel', name: 'Steel security door', price: 450_000, leaf: 0x7f1d1d, frame: 0x3f3f46, steel: true, blurb: 'A Turkish steel door with three bolts. Nothing passes it.' },
+];
+
+/** The opening a door fills, in metres: as wide as a short partition wall and as tall as a full one */
+export const DOOR_WIDTH = 1.0;
+export const DOOR_HEIGHT = 2.6;
+
+/**
+ * A door in its frame, the same height as the partition walls so it stands between them. The leaf
+ * is its own object ("door_leaf"), hinged at one side, so it can be swung open.
+ */
+export function roomDoor(style: DoorStyle, width = DOOR_WIDTH): THREE.Group {
+  const b = new Builder();
+  const post = 0.08;
+  b.box(style.frame, post, DOOR_HEIGHT, 0.16, -width / 2 + post / 2, 0, 0).box(style.frame, post, DOOR_HEIGHT, 0.16, width / 2 - post / 2, 0, 0);
+  b.box(0xf1e4c8, width, DOOR_HEIGHT - 2.15, 0.12, 0, 2.15, 0).box(style.frame, width, 0.08, 0.16, 0, 2.07, 0);
+  const group = b.build(`${style.name} frame`);
+  const leafWidth = width - post * 2;
+  const leaf = new THREE.Group();
+  leaf.name = 'door_leaf';
+  leaf.position.set(-leafWidth / 2, 0, 0);
+  const l = new Builder();
+  l.box(style.leaf, leafWidth, 2.05, 0.05, leafWidth / 2, 0.02, 0);
+  if (style.panels) for (const [px, py] of [[0.25, 0.25], [0.65, 0.25], [0.25, 1.2], [0.65, 1.2]]) l.box(new THREE.Color(style.leaf).multiplyScalar(1.25).getHex(), leafWidth * 0.32, 0.75, 0.07, leafWidth * px + 0.03, py, 0);
+  if (style.glass) l.box(0xdbeafe, leafWidth * 0.7, 1.6, 0.06, leafWidth / 2, 0.25, 0);
+  if (style.steel) for (const y of [0.4, 1.0, 1.6]) l.box(0x18181b, leafWidth * 0.9, 0.08, 0.07, leafWidth / 2, y, 0);
+  l.box(0xd4af37, 0.12, 0.04, 0.12, leafWidth - 0.1, 1.0, 0);
+  leaf.add(l.build(`${style.name} leaf`));
+  group.add(leaf);
+  return group;
+}
+
 function soundbar(): THREE.Group {
   const b = new Builder();
   b.box(0x111827, 1.0, 0.1, 0.12, 0, 0.0, 0).box(0x374151, 0.96, 0.06, 0.005, 0, 0.02, 0.062);
@@ -230,6 +282,7 @@ export const MORE_MAKERS: Record<string, () => THREE.Group> = {
   single_bed: () => bedIn(1.0, 0x1d4ed8, 0x93c5fd, 0x78350f),
   partition_wall: () => partition(2),
   partition_wall_short: () => partition(1),
+  ...Object.fromEntries(DOOR_STYLES.map((style) => [`room_door_${style.id}`, () => roomDoor(style)])),
   hifi_soundbar: soundbar,
   ...Object.fromEntries(TV_SIZES.map((inches) => [`tv_${inches}`, () => sizedTelevision(inches)])),
   ...Object.fromEntries(SOFA_FINISHES.flatMap((f) => [
@@ -250,6 +303,7 @@ export const MORE_KINDS: Record<string, FurnitureKind> = {
   plastic_set_red: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },
   partition_wall: { solid: true, use: 'none' },
   partition_wall_short: { solid: true, use: 'none' },
+  ...Object.fromEntries(DOOR_STYLES.map((style) => [`room_door_${style.id}`, { solid: false, use: 'door' } as FurnitureKind])),
   potted_plant: { solid: true, use: 'none' },
   ...Object.fromEntries(TV_SIZES.map((inches) => [`tv_${inches}`, { solid: true, use: 'tv' } as FurnitureKind])),
   ...Object.fromEntries(SOFA_FINISHES.flatMap((f) => [

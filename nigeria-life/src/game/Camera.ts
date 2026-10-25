@@ -189,7 +189,8 @@ export class GameCamera {
   public zoom(deltaDistance: number): void {
     if (this.mode === 'interior') {
       const min = this.roomFrameDistance * 0.4;
-      const max = this.roomFrameDistance * 1.6;
+      // Far enough out to take in the whole place and what is outside it (a home's carport)
+      const max = this.roomFrameDistance * 2.4;
       this.interiorDistance = Math.max(min, Math.min(max, this.interiorDistance + deltaDistance * 3));
     } else {
       this.distance = Math.max(4.0, Math.min(22.0, this.distance + deltaDistance));

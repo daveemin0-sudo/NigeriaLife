@@ -1,5 +1,5 @@
 import type { CatalogueItem } from './HouseDecorationSystem';
-import { BED_FINISHES, SOFA_FINISHES } from './MoreFurniture';
+import { BED_FINISHES, SOFA_FINISHES, DOOR_STYLES } from './MoreFurniture';
 
 /**
  * Pieces for every pocket, so a first room can be furnished for little and a big house for a
@@ -27,6 +27,9 @@ export const EXTRA_ITEMS: CatalogueItem[] = [
   // Walls to split a room
   { id: 'partition_wall', name: 'Partition wall, 2 m', category: 'decor', price: 60000, icon: '🧱', description: 'A plastered wall to split a room. Place several end to end and turn them to make a new room.', modelType: 'partition_wall', isNew: true },
   { id: 'partition_wall_short', name: 'Partition wall, 1 m', category: 'decor', price: 35000, icon: '🧱', description: 'A short length of wall, for corners and doorways.', modelType: 'partition_wall_short', isNew: true },
+
+  // Doors, to stand between partition walls and make a room of its own; they open as you come up to them
+  ...DOOR_STYLES.map((style): CatalogueItem => ({ id: `room_door_${style.id}`, name: style.name, category: 'decor', price: style.price, icon: '🚪', description: `${style.blurb} Stands between partition walls; it swings open as you walk up and closes behind you.`, modelType: `room_door_${style.id}`, isNew: true })),
 
   // Sofas in every colour
   ...SOFA_FINISHES.flatMap((f): CatalogueItem[] => [

@@ -23,6 +23,8 @@ export type FurnitureUse =
   | 'fitness'
   | 'drink'
   | 'clean'
+  /** A door: walked through, its leaf swings open as someone comes up to it */
+  | 'door'
   | 'none';
 
 /** Where a piece is attached in a room: standing on the floor or mounted on a wall */
