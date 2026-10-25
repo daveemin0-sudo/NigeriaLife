@@ -61,6 +61,7 @@ import { FleetSheet } from '../ui/FleetSheet';
 import { PumpSheet } from '../ui/PumpSheet';
 import { ProfileSheet } from '../ui/ProfileSheet';
 import { StateHouseSheet } from '../ui/StateHouseSheet';
+import { PlaceOpeners } from '../interiors/places/PlaceInterior';
 import { Politics, Policies } from '../politics/Politics';
 import { hawkerPrices } from '../world/StreetVendors';
 import { petrolPolicy } from '../world/Fuel';
@@ -694,6 +695,11 @@ export class Game {
     this.network.setOnPlayerCount((count) => this.hud.updateOnlineCount(count));
     this.connectProfiles();
     this.connectGovernment();
+    PlaceOpeners.open = (what) => {
+      if (what.startsWith('app:')) this.hud.phoneModal.openApp(what.slice(4));
+      else if (what === 'vote') this.stateHouse.open('polling');
+      else if (what === 'house') this.stateHouse.open('house');
+    };
 
     // 10b. The phone: its apps act on this game through the hooks below
     this.connectPhone();

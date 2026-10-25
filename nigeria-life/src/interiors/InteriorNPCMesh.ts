@@ -105,6 +105,7 @@ export class InteriorNPCMesh {
       hasStethoscope: hasStethoscope || def.hasStethoscope,
       hasTie: hasTie || def.hasTie,
       hasBackpack,
+      lod: def.light ? 'street' : undefined,
     });
 
     this.group.add(this.humanRig.group);

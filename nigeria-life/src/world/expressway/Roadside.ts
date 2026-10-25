@@ -8,6 +8,7 @@ import { EXPRESS, ROADSIDE } from './layout';
 import { buildJet, buildYacht } from './FleetModels';
 import { buildMorePlace, moreMenu, DESTINATIONS_HERE, FORECOURT_DEPTH } from './MorePlaces';
 import { STATIONS } from '../Fuel';
+import { PLACE_SPECS } from '../../interiors/places/PlaceSpecs';
 import { DestinationRegistry } from '../../destinations/DestinationRegistry';
 import type { FleetKind } from '../../assets/Fleet';
 
@@ -337,6 +338,12 @@ export class Roadside {
     PlaceActions.register(id, this.actionFor(place.id, card.name));
   }
 
+  /** Where a place's door is on the pavement, where the player comes out */
+  private doorOf(placeId: string): THREE.Vector3 {
+    const place = ROADSIDE.find((p) => p.id === placeId)!;
+    return new THREE.Vector3(this.front(place).standX, 0, place.z);
+  }
+
   /** What can be done at each place */
   private actionFor(placeId: string, name: string) {
     const act = (host: PlaceHost, arms: 'reach' | 'greet' | 'wave', seconds: number, effect: () => void) =>
@@ -431,6 +438,17 @@ export class Roadside {
         ] });
       },
     };
+    const inside = PLACE_SPECS.some((spec) => spec.key === placeId);
+    if (inside && placeId.startsWith('station-')) {
+      return {
+        label: () => '⛽ The pump · 🛒 Mart',
+        run: (host: PlaceHost) => host.ask({ who: 'Attendant', role: name, text: 'Fuel, or something from the mart?', choices: [
+          { label: '⛽ The pump', note: 'Fill up', pick: () => this.hooks.openPump(placeId) },
+          { label: '🛒 Go into the mart', note: 'Water, snacks, engine oil', pick: () => host.enter(`roadside-${placeId}`, this.doorOf(placeId)) },
+        ] }),
+      };
+    }
+    if (inside) return { label: () => '🚪 Go inside', run: (host: PlaceHost) => host.enter(`roadside-${placeId}`, this.doorOf(placeId)) };
     const entry = menu[placeId] ?? moreMenu(placeId, { act, pay, openApp: (app) => this.hooks.openApp(app), openPump: (station) => this.hooks.openPump(station), openStateHouse: (mode) => this.hooks.openStateHouse(mode) }) ?? menu['government-house'];
     return { label: () => entry.label, run: (host: PlaceHost) => entry.run(host) };
   }

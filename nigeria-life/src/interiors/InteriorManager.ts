@@ -28,6 +28,9 @@ import type { HingedDoor } from '../interactions/Door';
 import type { NavGrid } from '../interactions/NavGrid';
 import type { StreetDoor } from '../world/Buildings';
 import { RoomCutaway } from './RoomCutaway';
+import { PlaceInterior } from './places/PlaceInterior';
+import { PLACE_SPECS } from './places/PlaceSpecs';
+import { EXPRESS, ROADSIDE } from '../world/expressway/layout';
 
 /** What an interior can optionally provide beyond its room and stations. */
 interface InteriorTemplate {
@@ -81,6 +84,8 @@ export class InteriorManager {
   public clock: () => number = () => 12;
   /** Every interior, in one list: adding a place means adding it here */
   private templates: InteriorTemplate[];
+  /** The insides of the places along the expressway */
+  public places: PlaceInterior[] = [];
 
   // Active state
   public locationMode: GameLocationMode = 'street';
@@ -120,9 +125,16 @@ export class InteriorManager {
     this.airport = new AirportInterior();
     this.shop = new ShopInterior();
     this.club = new ClubInterior();
+    // The places along the expressway, gone into: each its own room, out at its own door on the road
+    this.places = PLACE_SPECS.map((spec, i) => {
+      const place = ROADSIDE.find((p) => p.id === spec.key);
+      const out = place ? new THREE.Vector3(place.side * (EXPRESS.half + EXPRESS.walk - 1), 0, place.z) : new THREE.Vector3();
+      return new PlaceInterior(spec, new THREE.Vector3(-3000, 0, 1000 + i * 70), out);
+    });
     this.templates = [
       this.hospital, this.bank, this.restaurant, this.police,
       this.residence, this.unilag, this.airport, this.shop, this.club,
+      ...this.places,
     ];
 
     // All interiors are hidden by default until specifically entered
@@ -181,6 +193,9 @@ export class InteriorManager {
   public getInteriorByBuildingId(id: string): InteriorDefinition | null {
     const list = this.templates.map((template) => template.def);
 
+    // A door registered under its own id goes to its own room, before any looser match ("command" has "mma" in it)
+    const exact = list.find((item) => item.streetBuildingId === id || item.id === id);
+    if (exact) return exact;
     const cleanId = id.toLowerCase();
     const match = list.find((item) => 
       item.streetBuildingId === id ||
@@ -368,7 +383,8 @@ export class InteriorManager {
 
   private getActiveTemplate(): InteriorTemplate | null {
     if (!this.currentInterior) return null;
-    return this.templateFor(this.currentInterior.type);
+    // By the room itself: many places share a type (every place along the expressway is an 'office')
+    return this.templates.find((template) => template.def === this.currentInterior) ?? this.templateFor(this.currentInterior.type);
   }
 
   private templateFor(type: InteriorType): InteriorTemplate | null {
@@ -477,7 +493,7 @@ export class InteriorManager {
         return false;
       }
 
-      const template = this.templateFor(target.type);
+      const template = this.templates.find((t) => t.def === target) ?? this.templateFor(target.type);
       const inner = this.doorOf(template);
       const doorway = inner ? inner.position.clone().addScaledVector(inner.outward, -0.4) : undefined;
       const facingIn = inner ? Math.atan2(-inner.outward.x, -inner.outward.z) : undefined;

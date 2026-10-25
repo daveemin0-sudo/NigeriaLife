@@ -78,6 +78,8 @@ export interface InteriorNPCDef {
   hasPoliceCap?: boolean;
   hasChefHat?: boolean;
   hasTie?: boolean;
+  /** Drawn with the lighter street model (a crowded place full of people) */
+  light?: boolean;
   dialogueGreeting: string;
   actions: InteriorActivityAction[];
 }
