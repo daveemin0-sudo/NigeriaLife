@@ -216,6 +216,18 @@ Still to do from the list: an airport interior and more aircraft; Amala Shitta, 
 
 Copyrighted songs (Asake and others) cannot be shipped in the game; the player adds the files they have, which play everywhere music does.
 
+## 2026-10-25: players, government, and going inside
+
+| What | State | Where |
+| --- | --- | --- |
+| Player cards: chat, bae (at 40 closeness), family, hustle rating, credibility, level, CV from the game's own records, hiring another player (offer, accept, done, pay and rate) | Verified (`profiles`) | `social/`, `ui/ProfileSheet.ts`, server `rooms.ts` |
+| Lagos State House: weekly elections for Governor, Senator and President in the shared registry; nomination fees, rallies, votes at Polling Unit 001; the winner's policy is the law; cabinet; pay at Government House | Verified (`politics`) | `politics/Politics.ts`, `ui/StateHouseSheet.ts` |
+| Rooms lit bright at night; expressway footbridges climbable | Verified (`expressway`, `view`) | `SkyEnvironmentManager.indoors`, `StreetLayout.bridgeNear` |
+| Every place along the expressway can be gone into: its own room, staff and stations acted out; Balogun Market with nine stalls and goats; NIN and voter registration | Verified (`insides`) | `interiors/places/` |
+| The map reaches up the expressway with a pin for every place and a cab there | Verified (`expressway`) | `WorldMap.bounds`, `WorldMapUI.extraPins` |
+
+Not yet: the road ends at the Oworonshoki roundabout (about 4.1 km); more of Lagos can continue from there.
+
 ## Faults found on the way and put right
 
 - Every shaped car body was built inside out (its sides were turned by swapping two axes, which mirrors them), so from outside one saw the inside of the far side. It looked right while cars were empty; with seats and a driver in the cabin the doors looked see-through. Turning the body the right way also showed that its lower half is one solid with a top at window height, so a car to sit in has that top cut out.
