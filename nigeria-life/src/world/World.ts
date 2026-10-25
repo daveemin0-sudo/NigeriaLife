@@ -498,7 +498,11 @@ export class World {
 
     // North of the island's last buildings: the expressway, over the lagoon to the mainland
     if (pos.z > 165) {
-      const stretch = pos.z < EXPRESS.lagoonFrom ? 'Island approach' : pos.z < EXPRESS.lagoonTo ? 'Bridge over the lagoon' : pos.z > EXPRESS.ring.z - 150 ? 'Oworonshoki roundabout' : 'Mainland · Ikeja side';
+      if (pos.z > EXPRESS.ikeja) {
+        const part = pos.z > EXPRESS.ring.z - 150 ? 'Ikeja roundabout' : pos.z > 6150 ? 'Airport Road' : pos.z > 5250 ? 'Ladipo · GRA' : pos.z > 4750 ? 'Oshodi' : 'Allen · Computer Village';
+        return { name: 'Ikorodu Road, Ikeja', sub: part };
+      }
+      const stretch = pos.z < EXPRESS.lagoonFrom ? 'Island approach' : pos.z < EXPRESS.lagoonTo ? 'Bridge over the lagoon' : 'Mainland · Oworonshoki';
       return { name: 'Third Mainland Expressway', sub: stretch };
     }
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EXPRESS } from '../expressway/layout';
 import { WorldMapRenderer, type MapSelectionEvent } from './WorldMapRenderer';
 import { WorldDataManager } from '../data/WorldDataManager';
 import type { DistrictData } from '../data/WorldDataTypes';
@@ -23,7 +24,7 @@ export class WorldMap {
   private readonly maxZoom = 2.4;
   /** How far the map may be moved: up the expressway too when it is the real city */
   private bounds(): { minX: number; maxX: number; minZ: number; maxZ: number } {
-    return this.renderer.realWorld && this.renderer.currentCityId === 'lagos' ? { minX: -320, maxX: 320, minZ: -160, maxZ: 4200 } : { minX: -160, maxX: 160, minZ: -160, maxZ: 150 };
+    return this.renderer.realWorld && this.renderer.currentCityId === 'lagos' ? { minX: -320, maxX: 320, minZ: -160, maxZ: EXPRESS.ring.z + 60 } : { minX: -160, maxX: 160, minZ: -160, maxZ: 150 };
   }
   /** Where the map is looking, along the road (for drawing that stretch of the expressway) */
   public get focusZ(): number {

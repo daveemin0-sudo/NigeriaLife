@@ -224,6 +224,15 @@ export class Garage {
     });
   }
 
+  /** A vehicle overhauled at the mechanic: as good as new again. Only its owner can. */
+  public async repair(id: string): Promise<void> {
+    await this.registry.transact((state) => {
+      const record = state.vehicles[id];
+      if (!record || state.titles[assetKey({ kind: 'vehicle', id })]?.ownerId !== MY_ID) return;
+      record.condition = 100;
+    });
+  }
+
   /** Records what is in a vehicle's tank. Only its owner can. */
   public async setFuel(id: string, fuel: number): Promise<void> {
     await this.registry.transact((state) => {

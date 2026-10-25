@@ -226,7 +226,9 @@ Copyrighted songs (Asake and others) cannot be shipped in the game; the player a
 | Every place along the expressway can be gone into: its own room, staff and stations acted out; Balogun Market with nine stalls and goats; NIN and voter registration | Verified (`insides`) | `interiors/places/` |
 | The map reaches up the expressway with a pin for every place and a cab there | Verified (`expressway`) | `WorldMap.bounds`, `WorldMapUI.extraPins` |
 
-Not yet: the road ends at the Oworonshoki roundabout (about 4.1 km); more of Lagos can continue from there.
+| The road goes on past Oworonshoki as Ikorodu Road through Ikeja (to 7.1 km, roundabout at the end), with 11 more places to go into: Computer Village (phones, laptops, tablets, audio, watches, consoles, repairs), Ikeja City Mall, Allen Lounge, Oshodi Interchange (BRT to the island, interstate buses), LASUTH (doctor, pharmacy, ward), Ladipo (car repairs, tyres, batteries), Ikeja GRA estate office, Chop Express, Faith Arena, Murtala Muhammed International Airport (check-in, security, duty free, lounge; airliners on stands outside) and a fourth filling station | Verified (`expressway`, `insides`) | `world/expressway/IkejaPlaces.ts`, `interiors/places/PlaceSpecs.ts` |
+
+Next on this road: side streets off Ikorodu Road (Allen Avenue, Obafemi Awolowo Way) and more of the mainland.
 
 ## Faults found on the way and put right
 

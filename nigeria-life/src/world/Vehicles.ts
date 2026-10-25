@@ -82,8 +82,9 @@ export class Vehicles {
         friction: 2.8,
         hornText: '📢 PII-PII! KEKE DEY PASS!',
       },
-      new THREE.Vector3(9.2, 0, 4),
-      Math.PI / 2
+      // In the kerbside bay with the ambulance and the okadas, not across the pavement where people walk
+      new THREE.Vector3(12.4, 0, 12.5),
+      0
     );
 
     // 3. Drivable Luxury Black SUV parked in front of Victoria Compound

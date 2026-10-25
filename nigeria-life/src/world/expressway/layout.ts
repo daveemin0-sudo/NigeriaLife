@@ -3,9 +3,11 @@
  * and the traffic can know it without loading any of the drawing.
  */
 export const EXPRESS = {
-  /** Where Broad Street widens into the expressway, and where it ends at the roundabout */
+  /** Where Broad Street widens into the expressway, and where it ends at the roundabout (past Ikeja, on Ikorodu Road) */
   from: 120,
-  to: 4110,
+  to: 7110,
+  /** Where the mainland's Ikeja stretch begins: Ikorodu Road */
+  ikeja: 4110,
   /** Half the width of the carriageway (both directions), the median, the barrier, the pavement */
   half: 11,
   median: 0.7,
@@ -17,9 +19,9 @@ export const EXPRESS = {
   lagoonFrom: 1300,
   lagoonTo: 2600,
   pylon: 1950,
-  ring: { z: 4175, island: 16, road: 36 },
+  ring: { z: 7175, island: 16, road: 36 },
   /** Gaps in the barrier where a car may turn back */
-  uTurns: [700, 2900, 3500],
+  uTurns: [700, 2900, 3500, 4700, 5800, 6800],
 };
 
 
@@ -55,6 +57,18 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'station-island', side: -1, z: 900, length: 44, depth: 30 },
   { id: 'station-bridge', side: 1, z: 2650, length: 44, depth: 30 },
   { id: 'station-mainland', side: -1, z: 3330, length: 44, depth: 30 },
+  // Ikeja, on Ikorodu Road past the old end of the expressway
+  { id: 'computer-village', side: 1, z: 4320, length: 80, depth: 50 },
+  { id: 'ikeja-city-mall', side: -1, z: 4440, length: 80, depth: 50 },
+  { id: 'allen-lounge', side: 1, z: 4560, length: 30, depth: 24 },
+  { id: 'oshodi-interchange', side: -1, z: 4900, length: 90, depth: 50 },
+  { id: 'lasuth', side: 1, z: 5000, length: 70, depth: 50 },
+  { id: 'ladipo-auto', side: -1, z: 5350, length: 70, depth: 40 },
+  { id: 'ikeja-gra', side: 1, z: 5480, length: 60, depth: 40 },
+  { id: 'chop-express', side: -1, z: 5700, length: 24, depth: 18 },
+  { id: 'faith-arena', side: -1, z: 6060, length: 90, depth: 70 },
+  { id: 'mmia-terminal', side: 1, z: 6300, length: 160, depth: 120 },
+  { id: 'station-ikeja', side: -1, z: 6620, length: 44, depth: 30 },
 ];
 
 /** Is this stretch of frontage taken by one of the places? */

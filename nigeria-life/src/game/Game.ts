@@ -62,6 +62,7 @@ import { PumpSheet } from '../ui/PumpSheet';
 import { ProfileSheet } from '../ui/ProfileSheet';
 import { StateHouseSheet } from '../ui/StateHouseSheet';
 import { PlaceOpeners } from '../interiors/places/PlaceInterior';
+import { vehicleModel } from '../realestate/Garage';
 import { Politics, Policies } from '../politics/Politics';
 import { hawkerPrices } from '../world/StreetVendors';
 import { petrolPolicy } from '../world/Fuel';
@@ -717,6 +718,9 @@ export class Game {
       if (what.startsWith('app:')) this.hud.phoneModal.openApp(what.slice(4));
       else if (what === 'vote') this.stateHouse.open('polling');
       else if (what === 'house') this.stateHouse.open('house');
+      else if (what === 'interstate') this.hud.interstateModal.open(this.world.cityManager.currentCityId);
+      else if (what === 'bus-island') this.hud.onRideTo?.(new THREE.Vector3(9, 0, 40), 'Lagos Island (Broad Street)', Math.round(750 * RideService.fareFactor()));
+      else if (what === 'repair') this.offerRepairs();
     };
 
     // 10b. The phone: its apps act on this game through the hooks below
@@ -1197,6 +1201,38 @@ export class Game {
   public fleetSheet!: FleetSheet;
   public profileSheet!: ProfileSheet;
   public stateHouse!: StateHouseSheet;
+
+  /** At Ladipo: each of the player's vehicles, what it needs, and a full repair for the price of the work */
+  private offerRepairs(): void {
+    const garage = this.garage;
+    const mine = garage.mine().filter((r) => r.condition < 99);
+    if (!mine.length) {
+      showGameToast('🔧 "Your motors dey kampe. Nothing to fix." The mechanic waves you off.', 'info', 4000);
+      return;
+    }
+    this.hud.showDialogueModal({
+      speakerName: 'Oga Mechanic',
+      speakerRole: 'Ladipo Auto Market',
+      speakerAvatar: '🔧',
+      dialogueText: 'Which one we dey fix? I go do am like new.',
+      choices: mine.map((r) => {
+        const cost = Math.round((100 - r.condition) * 5000);
+        const name = vehicleModel(r.modelId)?.name ?? 'Vehicle';
+        return {
+          id: r.id,
+          label: `${name} · ${Math.round(r.condition)}% condition`,
+          badge: `₦${cost.toLocaleString()}`,
+          onSelect: () => {
+            if (!BackendService.getInstance().pay(cost, `Repair at Ladipo, ${name}`, 'SHOP_PURCHASE')) {
+              showGameToast(`The repair is ₦${cost.toLocaleString()}. You do not have it.`, 'warning', 3600);
+              return;
+            }
+            void garage.repair(r.id).then(() => showGameToast(`🔧 Your ${name} is like new: 100% condition.`, 'success', 4000));
+          },
+        };
+      }),
+    });
+  }
   public readonly politics = Politics.get();
 
   /** The government the players elect: its laws in force for everyone, its house to visit, its polling unit */

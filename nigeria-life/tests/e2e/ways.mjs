@@ -16,7 +16,9 @@ async function follow(page, x, z, seconds = 90) {
     const now = await page.evaluate(() => {
       const g = window.game;
       const p = g.player.position;
-      return { x: +p.x.toFixed(2), z: +p.z.toFixed(2), y: +p.y.toFixed(2), moving: g.player.isMoving, inside: g.solidsHere().at(p.x, p.z, 0), on: g.waysHere().groundAt(p.x, p.z) };
+      const near = [];
+      g.world.trafficSpawner.cars(p.x, p.z, 3.5, near);
+      return { x: +p.x.toFixed(2), z: +p.z.toFixed(2), y: +p.y.toFixed(2), moving: g.player.isMoving, inside: g.solidsHere().at(p.x, p.z, 0), on: g.waysHere().groundAt(p.x, p.z), cars: near.length };
     });
     trail.push(now);
     if (!now.moving) break;
@@ -72,7 +74,7 @@ export async function run(browser, check) {
   const toSeat = await follow(page, -60, 20);
   const seat = toSeat[toSeat.length - 1];
   check('sent from the east pavement to a spot inside the stadium, the player walks there by the gate, never inside a wall on the way',
-    Math.hypot(seat.x + 60, seat.z - 20) < 0.5 && toSeat.every((s) => !s.inside) && toSeat.some((s) => s.x < -42 && s.x > -54 && Math.abs(s.z - 5) < 4), { seat, steps: toSeat.length, inside: toSeat.filter((s) => s.inside).length });
+    Math.hypot(seat.x + 60, seat.z - 20) < 0.5 && toSeat.every((s) => !s.inside) && toSeat.some((s) => s.x < -42 && s.x > -54 && Math.abs(s.z - 5) < 4), { seat, steps: toSeat.length, inside: toSeat.filter((s) => s.inside).length, last: toSeat.slice(-4) });
 
   await put(page, 10, -100);
   const along = await follow(page, 10, 100);

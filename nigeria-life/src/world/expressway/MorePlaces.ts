@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Builder } from '../kit/ArchKit';
 import type { PlaceHost } from '../../destinations/PlaceActions';
+import { buildIkejaPlace } from './IkejaPlaces';
 
 /**
  * The places the phone and the map name that had nowhere to stand: each one built along the
@@ -257,7 +258,7 @@ export function buildMorePlace(k: PlaceShape): Card | null {
       return { name: 'New Afrika Shrine', category: 'Music venue', description: 'The home of Afrobeat: live bands, a hall that never sleeps on a Thursday, and the spirit of Fela.' };
     }
   }
-  return null;
+  return buildIkejaPlace(k);
 }
 
 /** What can be done at each of these places */

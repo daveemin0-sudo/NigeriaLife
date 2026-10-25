@@ -393,4 +393,161 @@ const mart = (key: string, name: string): PlaceSpec => venue(key, name, 'Filling
   ] },
 ], [], [12, 10]);
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland')];
+
+// --- Ikeja, on Ikorodu Road ----------------------------------------------------------------------
+
+const gadget = (id: string, name: string, icon: string, price: number) => buy(name, price, { id, name, icon, price, category: 'gadget', usable: false, description: `Bought at Computer Village. ${name}, sealed, with warranty.` }, `${name}: unboxed, checked, sealed again in front of you. Warranty card stamped.`, 'Sealed, with warranty');
+/** A glass counter of gadgets with its seller behind it */
+const glassCase = (b: Builder, x: number, z: number, goods: number) => {
+  b.box(0x1f2937, 3, 0.9, 1, x, 0, z).box(0xbfe3ff, 3, 0.25, 1, x, 0.9, z);
+  for (let i = 0; i < 5; i++) b.box(goods, 0.25, 0.05, 0.45, x - 1.1 + i * 0.55, 0.95, z);
+  b.box(0x0f172a, 3, 1.6, 0.3, x, 1.2, z - 1.4);
+};
+
+const IKEJA: PlaceSpec[] = [
+  venue('computer-village', 'Computer Village', 'Ikeja · Otigba', 'Phones · Laptops · Audio · Watches · Consoles · Repairs', '#1d4ed8', 0xd4d4d8, 0xbfdbfe, (b) => {
+    glassCase(b, -8, -6, 0x111827); glassCase(b, -2, -6, 0x94a3b8); glassCase(b, 4, -6, 0xf8fafc); glassCase(b, 10, -6, 0x27272a);
+    b.box(0x78350f, 2.4, 0.9, 1, -8, 0, 3).box(0x22d3ee, 0.6, 0.02, 0.4, -8, 0.92, 3, { glow: true });
+    for (let i = 0; i < 6; i++) b.box([0xdc2626, 0x2563eb, 0xfacc15][i % 3], 0.1, 0.9, 2.6, -13.8, 2.6, -8 + i * 3);
+  }, [
+    { name: 'Emeka Phones', title: 'Phone dealer', at: [-8, -7.2], facing: 0, outfit: 0x2563eb, gender: 'male', says: 'Customer! Original phones, UK-used and new. Come check.' },
+    { name: 'Tunde Laptops', title: 'Laptop dealer', at: [-2, -7.2], facing: 0, outfit: 0x111827, gender: 'male', says: 'Laptops for school, for work, for gaming.' },
+    { name: 'Chioma', title: 'Audio & watches', at: [4, -7.2], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Earbuds, headphones, smartwatches. All original.' },
+    { name: 'Gamer Joe', title: 'Consoles', at: [10, -7.2], facing: 0, outfit: 0x7c3aed, gender: 'male', says: 'PS5? FIFA? I get am.' },
+    { name: 'Engineer Sola', title: 'Phone repairer', at: [-8, 1.8], facing: 0, outfit: 0xf59e0b, gender: 'male', says: 'Broken screen? Water damage? I go fix am now now.' },
+  ], [
+    { id: 'phones', name: '📱 Phones', at: [-8, -6], stand: [-8, -4.7], who: 'Emeka Phones', role: 'Phone dealer', text: 'Which one you want?', choices: [
+      gadget('ph_starter', 'Starter Android phone', '📱', 115000), gadget('ph_mid', 'Mid-range phone', '📱', 340000), gadget('ph_camera', 'Camera flagship phone', '📱', 1450000), gadget('ph_promax', 'Pro Max flagship phone', '📱', 2650000), gadget('ph_fold', 'Foldable phone', '📱', 3100000),
+    ] },
+    { id: 'laptops', name: '💻 Laptops & tablets', at: [-2, -6], stand: [-2, -4.7], who: 'Tunde Laptops', role: 'Laptop dealer', text: 'For work or for school?', choices: [
+      gadget('lt_student', 'Student laptop', '💻', 480000), gadget('lt_pro', 'Pro laptop', '💻', 2800000), gadget('tb_tablet', 'Tablet', '📲', 450000),
+    ] },
+    { id: 'audio', name: '🎧 Audio & watches', at: [4, -6], stand: [4, -4.7], who: 'Chioma', role: 'Audio & watches', text: 'Earbuds or a watch?', choices: [
+      gadget('au_wired', 'Wired earpiece', '🎧', 4500), gadget('au_buds', 'Wireless earbuds', '🎧', 32000), gadget('au_anc', 'Noise-cancelling earbuds', '🎧', 290000), gadget('wt_band', 'Fitness band', '⌚', 32000), gadget('wt_smart', 'Smartwatch', '⌚', 210000),
+    ] },
+    { id: 'consoles', name: '🎮 Consoles', at: [10, -6], stand: [10, -4.7], who: 'Gamer Joe', role: 'Consoles', text: 'You wan play?', choices: [
+      gadget('cn_stick', 'Retro game stick', '🎮', 48000), gadget('cn_hand', 'Handheld console', '🎮', 520000), gadget('cn_next', 'Next-gen console', '🎮', 980000),
+    ] },
+    { id: 'repair', name: '🔧 Phone repairs', at: [-8, 3], stand: [-8, 4.3], who: 'Engineer Sola', role: 'Phone repairer', text: 'Wetin happen to your phone?', choices: [
+      { label: 'Replace my cracked screen', price: 35000, note: 'While you wait', arms: 'reach', seconds: 5, effect: () => {}, said: 'Twenty minutes, one tiny screwdriver, and your screen is like new.' },
+      buy('A power bank, 20,000 mAh', 25000, { id: 'powerbank', name: 'Power bank, 20,000 mAh', icon: '🔋', price: 25000, category: 'gadget', usable: false, description: 'For when NEPA takes light.' }, 'Charged and tested.'),
+    ] },
+  ], [{ at: [0, 0], facing: 2, outfit: 0x16a34a }, { at: [6, 1], facing: -1, outfit: 0xec4899, gender: 'female' }], [30, 20]),
+  venue('ikeja-city-mall', 'Ikeja City Mall', 'Ikeja · Alausa', 'Supermarket · Cinema · Food court', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
+    for (let i = 0; i < 5; i++) shelf(b, -10 + i * 3.4, -7, 2.8, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf8fafc]);
+    for (const x of [-8, -5, -2]) counter(b, x, -1, 1.6, 0xdc2626);
+    counter(b, 8, -2, 4, 0xf97316); for (const [x, z] of [[6, 3], [9, 3], [6, 6], [9, 6]]) table(b, x, z, 0xf8fafc, 2, 0xf97316);
+    screen(b, -6, 8.7, 5, 1.6, 2.4, 0x7c3aed);
+  }, [{ name: 'Cashier Bola', title: 'Cashier', at: [-5, -2], facing: Math.PI, outfit: 0xdc2626, gender: 'female', says: 'Next!' }, { name: 'Food court', title: 'Grill', at: [8, -3], facing: 0, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Chicken and chips?' }], [
+    { id: 'groceries', name: '🛒 Supermarket', at: [-3, -7], stand: [-3, -5.8], who: 'Supermarket', role: 'Ikeja City Mall', text: 'Fill your trolley.', choices: [
+      buy('A week of groceries', 45000, item('groceries_week', 'A week of groceries', '🛒', 45000, 'food', true, 30), 'Rice, bread, eggs, milk, noodles, drinks: the trolley is full.'),
+      { label: 'Shop the shelves', note: 'Opens Shopping', open: 'app:shopping' },
+    ] },
+    { id: 'food', name: '🍗 Food court', at: [8, -2], stand: [8, -0.7], who: 'Grill', role: 'Food court', text: 'What will it be?', choices: [{ label: 'Chicken and chips with a Coke', price: 6000, note: 'Hunger +45', sit: true, seconds: 5, effect: need({ hunger: 45 }), said: 'Hot chicken, crispy chips, cold Coke.' }] },
+    { id: 'cinema', name: '🎬 Cinema', at: [-6, 8.6], stand: [-6, 7.4], who: 'Box office', role: 'Cinema', text: 'Next show in ten minutes.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'The whole hall screamed at the twist.' }] },
+  ], [{ at: [6, 3.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-8, -4], facing: 0, outfit: 0xf59e0b, gender: 'female' }], [26, 20]),
+  venue('allen-lounge', 'Allen Lounge', 'Ikeja · Allen Avenue', 'Afrobeats · Shisha · Small chops', '#db2777', 0x1c1917, 0x111827, (b) => {
+    counter(b, 0, -6, 8, 0x111827, 0xdb2777); bottles(b, 0, -7.8, 8);
+    for (const [x, z] of [[-6, 2], [-2, 4], [2, 4], [6, 2]]) { b.box(0x7c3aed, 2.2, 0.45, 0.9, x, 0, z).box(0x7c3aed, 2.2, 0.55, 0.2, x, 0.45, z + 0.4); b.cylinder(0x111827, 0.4, 0.5, x, 0, z - 1.1, { sides: 12 }).cylinder(0x22d3ee, 0.08, 0.6, x + 0.2, 0.5, z - 1.1, { glow: true }); }
+    b.box(0x22d3ee, 6, 0.05, 4, 0, 0.01, -2, { glow: true });
+  }, [{ name: 'Barman Ike', title: 'Barman', at: [0, -7], facing: 0, outfit: 0x111827, gender: 'male', says: 'What are we drinking tonight?' }], [
+    { id: 'bar', name: '🍾 The bar', at: [0, -6], stand: [0, -4.7], who: 'Barman Ike', role: 'Allen Lounge', text: 'Bottle or cocktail?', choices: [
+      { label: 'A cocktail', price: 15000, note: 'Fun +20', effect: need({ fun: 20, social: 10 }), said: 'A cold cocktail and the bass in your chest.' },
+      { label: 'A bottle at a table', price: 250000, note: 'Social +35', sit: true, seconds: 5, effect: need({ social: 35, fun: 25 }), said: 'The sparklers came out to your table.' },
+    ] },
+    { id: 'shisha', name: '💨 Shisha & small chops', at: [-6, 2], stand: [-6, 1.5], who: 'Waitress', role: 'Allen Lounge', text: 'Flavour?', choices: [{ label: 'Shisha and a small chops platter', price: 27000, note: 'Fun +20, Hunger +30', sit: true, seconds: 6, effect: need({ fun: 20, hunger: 30, social: 10 }), said: 'Mint shisha, puff-puff, samosa and spring rolls.' }] },
+    { id: 'floor', name: '💃 The dance floor', at: [0, -2], stand: [0, -2], who: 'DJ', role: 'Allen Lounge', text: 'Oya shake body!', choices: [{ label: 'Dance', note: 'Fun +30', dance: true, seconds: 8, effect: need({ fun: 30, social: 10 }), said: 'The DJ played your song. You owned the floor.' }] },
+  ], [{ at: [-2, 4.4], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [1, -2], facing: 0.6, outfit: 0xfacc15 }], [20, 18]),
+  venue('oshodi-interchange', 'Oshodi Transport Interchange', 'Oshodi · terminal', 'BRT · Danfo · Interstate', '#1d4ed8', 0xd4d4d8, 0xe0f2fe, (b) => {
+    for (const x of [-6, 0, 6]) counter(b, x, -6, 3, 0x1d4ed8, 0xf8fafc);
+    screen(b, 0, -8.7, 10, 1.4, 3.2, 0xfacc15);
+    for (let r = 0; r < 3; r++) bench(b, -4 + r * 4, 3, 3, 0x9ca3af);
+    counter(b, 9, 5, 2.4, 0xf59e0b);
+  }, [
+    { name: 'Ticket clerk', title: 'BRT tickets', at: [-6, -7], facing: 0, outfit: 0x1d4ed8, gender: 'female', says: 'Cowry card or ticket?' },
+    { name: 'Interstate clerk', title: 'Interstate buses', at: [6, -7], facing: 0, outfit: 0x15803d, gender: 'male', says: 'Abuja, Port Harcourt, everywhere.' },
+    { name: 'Mama Puff', title: 'Snacks', at: [9, 4], facing: 0, outfit: 0xf59e0b, gender: 'female', says: 'Puff-puff, hot!' },
+  ], [
+    { id: 'brt', name: '🚌 BRT to the island', at: [-6, -6], stand: [-6, -4.7], who: 'Ticket clerk', role: 'BRT tickets', text: 'CMS, Obalende, TBS.', choices: [{ label: 'Take the BRT to Lagos Island', note: 'To Broad Street', open: 'bus-island' }] },
+    { id: 'interstate', name: '🚍 Interstate buses', at: [6, -6], stand: [6, -4.7], who: 'Interstate clerk', role: 'Interstate buses', text: 'Where you dey go?', choices: [{ label: 'Buses to Abuja and Port Harcourt', note: 'Tickets', open: 'interstate' }] },
+    { id: 'snacks', name: '🍩 Puff-puff', at: [9, 5], stand: [9, 6.3], who: 'Mama Puff', role: 'Snacks', text: 'How many?', choices: [buy('A nylon of puff-puff', 1000, item('puffpuff', 'Nylon of puff-puff', '🍩', 1000, 'food', true, 12), 'Ten hot puff-puff in a nylon.')] },
+  ], [{ at: [-4, 3.3], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 3.3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [1, -2], facing: 0, outfit: 0xf97316 }], [22, 18]),
+  venue('lasuth', 'LASUTH', 'Ikeja · teaching hospital', 'A&E 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
+    counter(b, -5, -6, 5, 0xf8fafc, 0x93c5fd); shelf(b, 6, -7, 4, [0xf8fafc, 0x22c55e, 0xdc2626]); counter(b, 6, -5, 4, 0x16a34a, 0xf8fafc);
+    for (let i = 0; i < 3; i++) b.box(0xf8fafc, 1.1, 0.6, 2.2, -6 + i * 3, 0, 4).box(0x93c5fd, 1, 0.15, 2, -6 + i * 3, 0.6, 4);
+  }, [
+    { name: 'Nurse Amaka', title: 'Nurse', at: [-5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
+    { name: 'Pharmacist Bayo', title: 'Pharmacist', at: [6, -6], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+  ], [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-5, -6], stand: [-5, -4.7], who: 'Nurse Amaka', role: 'LASUTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +30', sit: true, seconds: 5, effect: need({ health: 30 }), said: 'The doctor checked you well and wrote a prescription.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [6, -5], stand: [6, -3.7], who: 'Pharmacist Bayo', role: 'Pharmacy', text: 'What do you need?', choices: [
+      buy('Malaria treatment', 6500, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 6500, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
+      buy('Paracetamol', 1000, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1000, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
+    ] },
+    { id: 'ward', name: '🛏️ Admission', at: [-3, 4], stand: [-3, 2.4], who: 'Nurse Amaka', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 45000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
+  ], [{ at: [-6, 4], facing: 0, outfit: 0x60a5fa, sit: true }], [20, 18]),
+  venue('ladipo-auto', 'Ladipo Auto Market', 'Mushin · auto parts', 'Parts · Mechanics · Panel beaters', '#78350f', 0x57534e, 0xd6d3d1, (b) => {
+    b.box(0x7f1d1d, 2, 1.3, 4.4, -4, 0, -3).box(0x1e3a8a, 2, 1.3, 4.4, 2, 0, -3);
+    for (let i = 0; i < 12; i++) b.cylinder(0x111111, 0.4, 0.25, 7 + (i % 3) * 0.9, Math.floor(i / 3) * 0.25, 4);
+    shelf(b, -7, -7.5, 4, [0x52525b, 0xa16207, 0x111827]);
+  }, [
+    { name: 'Oga Mechanic', title: 'Mechanic', at: [-1, -3], facing: 0, outfit: 0x1e40af, gender: 'male', says: 'Bring your motor. I go fix am sharp sharp.' },
+    { name: 'Alhaji Parts', title: 'Parts seller', at: [-7, -6.5], facing: Math.PI, outfit: 0xf8fafc, gender: 'male', says: 'Original or tokunbo?' },
+  ], [
+    { id: 'mechanic', name: '🔧 The mechanic', at: [-1, -3], stand: [-1, -1.6], who: 'Oga Mechanic', role: 'Mechanic', text: 'Which motor?', choices: [{ label: 'Service and repair my vehicles', note: 'As good as new', open: 'repair' }] },
+    { id: 'parts', name: '⚙️ Spare parts', at: [-7, -7.5], stand: [-7, -6.2], who: 'Alhaji Parts', role: 'Parts seller', text: 'Wetin you need?', choices: [
+      buy('A new tyre', 85000, { id: 'tyre', name: 'New tyre', icon: '🛞', price: 85000, category: 'tool', usable: false, description: 'A new tyre for your car.' }, 'Rolled to your car.'),
+      buy('A car battery', 120000, { id: 'battery', name: 'Car battery', icon: '🔋', price: 120000, category: 'tool', usable: false, description: 'Starts first time, every time.' }, 'Tested on the spot.'),
+    ] },
+  ], [], [20, 18]),
+  venue('ikeja-gra', 'Ikeja GRA Estate Office', 'Ikeja GRA', 'Houses to rent and buy', '#14532d', 0xe7e5e4, 0xfef3c7, (b) => {
+    desk(b, -3, -4); desk(b, 3, -4); plant(b, -7, -6); plant(b, 7, -6);
+    for (let i = 0; i < 3; i++) b.box([0xfef3c7, 0xe2e8f0, 0xfecaca][i], 2, 1.4, 0.1, -4 + i * 4, 2, -7.9);
+  }, [{ name: 'Mrs Adeyemi', title: 'Estate agent', at: [-3, -5], facing: 0, outfit: 0x14532d, gender: 'female', says: 'Welcome to the GRA. Duplex, bungalow or flat?' }], [
+    { id: 'agent', name: '🏡 Estate agent', at: [-3, -4], stand: [-3, -2.6], who: 'Mrs Adeyemi', role: 'Estate agent', text: 'Rent or buy?', choices: [{ label: 'See houses to rent and buy', note: 'Opens Houses', open: 'app:property' }] },
+  ], [], [18, 16]),
+  venue('chop-express', 'Chop Express', 'Ikeja · fast food', 'Rice · Chicken · Meat pie · Ice cream', '#dc2626', 0xf8fafc, 0xfde68a, (b) => {
+    counter(b, 0, -5, 8, 0xdc2626, 0xfacc15); screen(b, 0, -6.8, 6, 1.2, 2.6, 0xfacc15);
+    for (const [x, z] of [[-4, 1], [0, 1], [4, 1], [-4, 4], [4, 4]]) table(b, x, z, 0xfacc15, 2, 0xdc2626);
+  }, [{ name: 'Server Kemi', title: 'Server', at: [0, -6], facing: 0, outfit: 0xdc2626, gender: 'female', says: 'Welcome to Chop Express! What can I get you?' }], [
+    { id: 'counter', name: '🍗 Order', at: [0, -5], stand: [0, -3.7], who: 'Server Kemi', role: 'Chop Express', text: 'Eat in or takeaway?', choices: [
+      { label: 'Jollof rice and chicken', price: 4800, note: 'Hunger +55', sit: true, seconds: 5, effect: need({ hunger: 55 }), said: 'Party jollof and a big chicken thigh.' },
+      buy('A meat pie', 1500, item('meatpie', 'Meat pie', '🥧', 1500, 'food', true, 12), 'Hot meat pie in a paper bag.'),
+      { label: 'Ice cream', price: 2500, note: 'Fun +8', effect: need({ fun: 8, hunger: 8 }), said: 'Vanilla with chocolate sauce.' },
+    ] },
+  ], [{ at: [-4, 1.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 4.95], facing: Math.PI, outfit: 0xec4899, sit: true, gender: 'female' }], [16, 14]),
+  venue('faith-arena', 'Faith Arena', 'Ikeja · church', 'Sunday 7, 9 & 11 am', '#1e3a8a', 0xe7e5e4, 0xdbeafe, (b) => {
+    pews(b, 8, -4, 9);
+    stage(b, 0, -10, 14, 4, 0x1e3a8a);
+    for (let i = 0; i < 8; i++) b.box(0xf8fafc, 0.5, 1.2, 0.5, -5 + i * 1.4, 0.7, -11);
+    screen(b, -9, -11.8, 5, 2.4, 3.4, 0x38bdf8); screen(b, 9, -11.8, 5, 2.4, 3.4, 0x38bdf8);
+    b.box(0xd4af37, 0.6, 0.5, 0.5, 9, 0, 9);
+  }, [{ name: 'Pastor Ade', title: 'Senior pastor', at: [0, -10], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'Welcome home! Somebody shout Hallelujah!' }, { name: 'Usher Tolu', title: 'Usher', at: [9, 8], facing: Math.PI, outfit: 0x1e3a8a, gender: 'female', says: 'Welcome, follow me.' }], [
+    { id: 'service', name: '⛪ The service', at: [-5.3, -4], stand: [-5.3, -3.5], who: 'Usher Tolu', role: 'Usher', text: 'Sit down, the choir is starting.', choices: [
+      { label: 'Sit through the service', note: 'Social +25, Fun +15', sit: true, arms: 'rest', seconds: 8, effect: need({ social: 25, fun: 15 }), said: 'A choir of hundreds. The roof nearly came off.' },
+      { label: 'Dance in praise', note: 'Fun +20', dance: true, seconds: 8, effect: need({ fun: 20, social: 10 }), said: 'The whole church danced.' },
+    ] },
+    { id: 'offering', name: '🙏 Offering', at: [9, 9], stand: [9, 7.7], who: 'Usher Tolu', role: 'Usher', text: 'Sow a seed.', choices: [{ label: 'Give an offering', price: 5000, note: 'Social +10', effect: need({ social: 10 }), said: 'The pastor blessed the offering.' }, { label: 'Pay your tithe', price: 100000, note: 'Social +25', effect: need({ social: 25 }), said: 'Recorded, with a receipt and a prayer.' }] },
+  ], [{ at: [5.3, -4], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [-5.3, -1.2], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [5.3, -1.2], facing: Math.PI, outfit: 0xf8fafc, sit: true }], [24, 26]),
+  venue('mmia-terminal', 'Murtala Muhammed International Airport', 'Ikeja · LOS', 'Departures · Arrivals', '#0b7a43', 0xf1f5f9, 0xe2e8f0, (b) => {
+    for (let i = 0; i < 4; i++) counter(b, -9 + i * 4, -7, 3, 0x0b7a43, 0xf8fafc);
+    screen(b, 0, -11.8, 12, 2, 3.6, 0xfacc15);
+    b.box(0x9ca3af, 0.8, 2.2, 0.3, 6, 0, 0).box(0x9ca3af, 0.8, 2.2, 0.3, 8, 0, 0).box(0x9ca3af, 2.8, 0.3, 0.3, 7, 2.2, 0);
+    shelf(b, -9, 6, 4, [0xd4af37, 0x7c3aed, 0xdc2626]); counter(b, -9, 4, 3, 0x7c3aed);
+    for (const [x, z] of [[6, 7], [9, 7]]) { b.box(0x1f2937, 2.2, 0.45, 0.9, x, 0, z).box(0x1f2937, 2.2, 0.6, 0.2, x, 0.45, z + 0.4); }
+  }, [
+    { name: 'Check-in agent', title: 'Check-in', at: [-9, -8], facing: 0, outfit: 0x0b7a43, gender: 'female', says: 'Passport and ticket, please.' },
+    { name: 'FAAN officer', title: 'Security', at: [7, -1.2], facing: 0, outfit: 0x0f172a, gender: 'male', cap: true, says: 'Belt, phone and keys in the tray.' },
+    { name: 'Duty free', title: 'Duty free', at: [-9, 3], facing: 0, outfit: 0x7c3aed, gender: 'female', says: 'Perfume? Chocolate?' },
+  ], [
+    { id: 'checkin', name: '🛫 Check-in & flights', at: [-9, -7], stand: [-9, -5.7], who: 'Check-in agent', role: 'Check-in', text: 'Where are you flying to?', choices: [{ label: 'Flights to Abuja and Port Harcourt', note: 'Tickets', open: 'interstate' }] },
+    { id: 'security', name: '🛃 Security', at: [7, 0], stand: [7, 1.4], who: 'FAAN officer', role: 'Security', text: 'Step through.', choices: [{ label: 'Go through security', note: 'Free', arms: 'rest', seconds: 3, effect: () => {}, said: 'Beep? No beep. You are clear.' }] },
+    { id: 'dutyfree', name: '🛍️ Duty free', at: [-9, 4], stand: [-9, 2.7], who: 'Duty free', role: 'Duty free', text: 'Tax free!', choices: [
+      buy('A bottle of perfume', 120000, { id: 'perfume', name: 'Bottle of perfume', icon: '🧴', price: 120000, category: 'luxury', usable: false, description: 'Duty free, from Murtala Muhammed.' }, 'Gift-wrapped.'),
+      buy('A box of chocolates', 8000, item('chocolates', 'Box of chocolates', '🍫', 8000, 'food', true, 10), 'For somebody special.'),
+    ] },
+    { id: 'lounge', name: '🛋️ Business lounge', at: [6, 7], stand: [6, 6.5], who: 'Lounge host', role: 'Lounge', text: 'Welcome to the lounge.', choices: [{ label: 'Relax in the lounge', price: 40000, note: 'Energy +40, Hunger +30', sit: true, seconds: 6, effect: need({ energy: 40, hunger: 30 }), said: 'Soft chair, cold drink, quiet. Your flight is on time.' }] },
+  ], [{ at: [-5, -4], facing: Math.PI, outfit: 0x2563eb }, { at: [9, 7.4], facing: Math.PI, outfit: 0x111827, sit: true }, { at: [2, 3], facing: 0.4, outfit: 0xdb2777, gender: 'female' }], [26, 24]),
+];
+
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja')];

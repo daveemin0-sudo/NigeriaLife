@@ -3,7 +3,7 @@
 // the bag; and the way out leads back to the door on the road.
 import { open, newPlayer, closeDialogs, advance, wait, playUntil, money } from './lib.mjs';
 
-const KEYS = ['balogun-market', 'amala-shitta', 'marina-towers', 'freedom-park', 'ivory-rooftop', 'the-library', 'i-fitness', 'lekki-conservation', 'dangote-refinery', 'radio-house', 'viewing-centre', 'polling-unit', 'afrika-shrine', 'redemption-cathedral', 'central-mosque', 'sankofa-motors', 'shopwell-mall', 'eko-grand-hotel', 'police-command', 'efcc-office', 'government-house'];
+const KEYS = ['balogun-market', 'amala-shitta', 'marina-towers', 'freedom-park', 'ivory-rooftop', 'the-library', 'i-fitness', 'lekki-conservation', 'dangote-refinery', 'radio-house', 'viewing-centre', 'polling-unit', 'afrika-shrine', 'redemption-cathedral', 'central-mosque', 'sankofa-motors', 'shopwell-mall', 'eko-grand-hotel', 'police-command', 'efcc-office', 'government-house', 'computer-village', 'ikeja-city-mall', 'allen-lounge', 'oshodi-interchange', 'lasuth', 'ladipo-auto', 'ikeja-gra', 'chop-express', 'faith-arena', 'mmia-terminal'];
 
 const enter = async (page, key) => {
   await page.evaluate((k) => {
@@ -105,9 +105,20 @@ export async function run(browser, check) {
   await leave(page);
   await wait(1200);
 
+  // ------------------------------------------------------------------ Computer Village, in Ikeja
+  await page.evaluate(() => { const be = window.game.hud.backend; be.data.walletCash += 400000; be.saveData(); });
+  await enter(page, 'computer-village');
+  const g0 = await money(page);
+  await use(page, 'place_computer-village_phones', 'Mid-range phone');
+  const g1 = await money(page);
+  const phone = await page.evaluate(() => window.game.hud.backend.getData().inventory.some((i) => i.id === 'ph_mid' && i.category === 'gadget'));
+  check('insides: at Computer Village in Ikeja a mid-range phone is bought (₦340,000, once) and is in the bag', g0.total - g1.total === 340000 && phone, { paid: g0.total - g1.total, phone });
+  await leave(page);
+  await wait(1200);
+
   // ------------------------------------------------------------------ Every other place has a room of its own with something to do
   const rooms = [];
-  for (const key of KEYS.filter((k) => !['balogun-market', 'amala-shitta', 'polling-unit'].includes(k))) {
+  for (const key of KEYS.filter((k) => !['balogun-market', 'amala-shitta', 'polling-unit', 'computer-village'].includes(k))) {
     const name = await enter(page, key);
     const things = await page.evaluate((k) => window.game.world.interiorManager.getActiveInteractiveObjects().filter((o) => o.id.startsWith(`place_${k}_`)).length, key);
     rooms.push({ key, name, things });
