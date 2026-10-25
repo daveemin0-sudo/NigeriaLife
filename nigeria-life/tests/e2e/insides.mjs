@@ -3,7 +3,7 @@
 // the bag; and the way out leads back to the door on the road.
 import { open, newPlayer, closeDialogs, advance, wait, playUntil, money } from './lib.mjs';
 
-const KEYS = ['balogun-market', 'amala-shitta', 'marina-towers', 'freedom-park', 'ivory-rooftop', 'the-library', 'i-fitness', 'lekki-conservation', 'dangote-refinery', 'radio-house', 'viewing-centre', 'polling-unit', 'afrika-shrine', 'redemption-cathedral', 'central-mosque', 'sankofa-motors', 'shopwell-mall', 'eko-grand-hotel', 'police-command', 'efcc-office', 'government-house', 'computer-village', 'ikeja-city-mall', 'allen-lounge', 'oshodi-interchange', 'lasuth', 'ladipo-auto', 'ikeja-gra', 'chop-express', 'faith-arena', 'mmia-terminal'];
+const KEYS = ['balogun-market', 'amala-shitta', 'marina-towers', 'freedom-park', 'ivory-rooftop', 'the-library', 'i-fitness', 'lekki-conservation', 'dangote-refinery', 'radio-house', 'viewing-centre', 'polling-unit', 'afrika-shrine', 'redemption-cathedral', 'central-mosque', 'sankofa-motors', 'shopwell-mall', 'eko-grand-hotel', 'police-command', 'efcc-office', 'government-house', 'computer-village', 'ikeja-city-mall', 'allen-lounge', 'oshodi-interchange', 'lasuth', 'ladipo-auto', 'ikeja-gra', 'chop-express', 'faith-arena', 'mmia-terminal', 'lagoon-beach', 'ikeja-golf', 'lagoon-marina', 'private-airfield'];
 
 const enter = async (page, key) => {
   await page.evaluate((k) => {
@@ -44,7 +44,7 @@ export async function run(browser, check) {
     return keys.map((k) => { const o = g.world.interactiveObjects.find((x) => x.id === `roadside-${k}`); g.hud.showInteractionCard(o); return document.getElementById('card-action-btn')?.textContent ?? ''; });
   }, KEYS);
   await page.evaluate(() => window.game.hud.hideInteractionCard());
-  check('insides: every place along the road offers to go inside', cards.every((c) => c.label) && labels.every((l) => /Go inside/.test(l)), { labels });
+  check('insides: every place along the road offers to go inside', cards.every((c) => c.label) && labels.every((l) => /Go inside|Go onto the beach|Into the clubhouse|Into the yacht club|Into the terminal/.test(l)), { labels });
 
   // ------------------------------------------------------------------ The market
   const inMarket = await enter(page, 'balogun-market');
@@ -116,9 +116,44 @@ export async function run(browser, check) {
   await leave(page);
   await wait(1200);
 
+  // ------------------------------------------------------------------ The outdoor places: the beach, golf, the marina, the airfield
+  await page.evaluate(() => { const be = window.game.hud.backend; be.data.walletCash += 200000; be.saveData(); });
+  const beach = await enter(page, 'lagoon-beach');
+  const o0 = await money(page);
+  await use(page, 'place_lagoon-beach_horse', 'Ride a horse');
+  const o1 = await money(page);
+  await leave(page);
+  await wait(1200);
+  await enter(page, 'ikeja-golf');
+  await use(page, 'place_ikeja-golf_course', 'Play nine holes');
+  const o2 = await money(page);
+  await leave(page);
+  await wait(1200);
+  const marina = await enter(page, 'lagoon-marina');
+  await page.evaluate(() => { const g = window.game; const o = g.world.interiorManager.getActiveInteractiveObjects().find((x) => x.id === 'place_lagoon-marina_harbour'); g.player.mesh.position.set(o.interactionPoint.x, 0, o.interactionPoint.z); g.hud.showInteractionCard(o); document.getElementById('card-action-btn')?.click(); });
+  await wait(300);
+  await page.evaluate(() => [...document.querySelectorAll('#game-dialogue-overlay button')].find((b) => b.textContent.includes('My yachts'))?.click());
+  await wait(400);
+  const desk = await page.evaluate(() => document.getElementById('game-dialogue-overlay')?.innerText ?? '');
+  await closeDialogs(page);
+  await leave(page);
+  await wait(1200);
+  const terminal = await enter(page, 'private-airfield');
+  await page.evaluate(() => { const g = window.game; const o = g.world.interiorManager.getActiveInteractiveObjects().find((x) => x.id === 'place_private-airfield_handling'); g.player.mesh.position.set(o.interactionPoint.x, 0, o.interactionPoint.z); g.hud.showInteractionCard(o); document.getElementById('card-action-btn')?.click(); });
+  await wait(300);
+  await page.evaluate(() => [...document.querySelectorAll('#game-dialogue-overlay button')].find((b) => b.textContent.includes('My jets'))?.click());
+  await wait(400);
+  const handler = await page.evaluate(() => document.getElementById('game-dialogue-overlay')?.innerText ?? '');
+  await closeDialogs(page);
+  await leave(page);
+  await wait(1200);
+  check('insides: the beach, the golf club, the marina and the airfield are gone into: a horse ride along the shore (₦5,000), nine holes (₦50,000), the harbour master with the player’s yachts, the ground handler with their jets',
+    beach === 'Elegushi Beach' && o0.total - o1.total === 5000 && o1.total - o2.total === 50000 && marina === 'Eko Marina Yacht Club' && /Harbour master/i.test(desk) && /yacht/i.test(desk) && terminal === 'Eko Executive Terminal' && /Ground handler/i.test(handler) && /jet/i.test(handler),
+    { beach, horse: o0.total - o1.total, golf: o1.total - o2.total, marina, desk: desk.slice(0, 120), terminal, handler: handler.slice(0, 120) });
+
   // ------------------------------------------------------------------ Every other place has a room of its own with something to do
   const rooms = [];
-  for (const key of KEYS.filter((k) => !['balogun-market', 'amala-shitta', 'polling-unit', 'computer-village'].includes(k))) {
+  for (const key of KEYS.filter((k) => !['balogun-market', 'amala-shitta', 'polling-unit', 'computer-village', 'lagoon-beach', 'ikeja-golf', 'lagoon-marina', 'private-airfield'].includes(k))) {
     const name = await enter(page, key);
     const things = await page.evaluate((k) => window.game.world.interiorManager.getActiveInteractiveObjects().filter((o) => o.id.startsWith(`place_${k}_`)).length, key);
     rooms.push({ key, name, things });

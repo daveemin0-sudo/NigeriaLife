@@ -717,7 +717,7 @@ export class Game {
       this.roadRideExperience.startRide(ride);
       this.transitHUD.showRideHUD(ride);
     };
-    PlaceOpeners.open = (what) => {
+    PlaceOpeners.open = (what, host) => {
       if (what.startsWith('app:')) {
         // "app:business" or, to a screen inside it, "app:business:b:biz_mama_put"
         const [app, ...route] = what.slice(4).split(':');
@@ -728,6 +728,8 @@ export class Game {
       else if (what === 'interstate') this.hud.interstateModal.open(this.world.cityManager.currentCityId);
       else if (what === 'bus-island') this.hud.onRideTo?.(new THREE.Vector3(9, 0, 40), 'Lagos Island (Broad Street)', Math.round(750 * RideService.fareFactor()));
       else if (what === 'repair') this.offerRepairs();
+      else if (what === 'yachts' && host) this.world.expressway.roadside.yachtDesk(host);
+      else if (what === 'jets' && host) this.world.expressway.roadside.jetDesk(host);
       else if (what.startsWith('ride:')) {
         // A cab to a place along the road (from the jobs list, say): out of any room first
         const place = this.world.expressway.roadside.interactive.find((o) => o.id === what.slice(5));
@@ -973,8 +975,9 @@ export class Game {
       openApp: (app) => this.hud.phoneModal.openApp(app),
       openFleet: (kind) => fleetSheet.open(kind),
       mine: (kind) => fleet.mine(kind).map((c) => ({ uid: c.uid, label: c.name })),
-      fly: (uid, city) => this.flyPrivate(uid, city),
-      cruise: (uid) => this.cruise(uid),
+      // From inside the yacht club or the terminal: out of the room first, then away
+      fly: (uid, city) => this.outThen(() => this.flyPrivate(uid, city)),
+      cruise: (uid) => this.outThen(() => this.cruise(uid)),
       openPump: (station) => this.hud.onOpenPump?.(station),
       openStateHouse: (mode) => this.stateHouse.open(mode),
     };
@@ -1256,6 +1259,13 @@ export class Game {
   public readonly companies = Companies.get();
   public readonly supermarket = Supermarket.get();
   public companyStaff: CompanyStaff | null = null;
+
+  /** Does something out in the street: if the player is in a room, they come out of it first */
+  private outThen(then: () => void): void {
+    const rooms = this.world.interiorManager;
+    if (rooms.isPlayerInside()) void rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world).then(then);
+    else then();
+  }
 
   /** The businesses the player owns, run as companies: staff and branches lift the takings, and each day closes with a report */
   private connectCompanies(): void {

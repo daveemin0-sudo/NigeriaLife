@@ -86,7 +86,7 @@ export interface PlaceSpec {
 const PEOPLE = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
 
 /** Opens something of the game's own (set by the game) */
-export const PlaceOpeners: { open: (what: string) => void } = { open: () => {} };
+export const PlaceOpeners: { open: (what: string, host?: PlaceHost) => void } = { open: () => {} };
 
 export class PlaceInterior {
   public group = new THREE.Group();
@@ -274,7 +274,7 @@ export class PlaceInterior {
         note: c.price ? `₦${c.price.toLocaleString()}${c.note ? ` · ${c.note}` : ''}` : c.note,
         pick: () => {
           if (c.open) {
-            PlaceOpeners.open(c.open);
+            PlaceOpeners.open(c.open, host);
             return;
           }
           const stand = this.world(st.stand[0], st.stand[1]);

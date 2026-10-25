@@ -551,4 +551,133 @@ const IKEJA: PlaceSpec[] = [
   ], [{ at: [-5, -4], facing: Math.PI, outfit: 0x2563eb }, { at: [9, 7.4], facing: Math.PI, outfit: 0x111827, sit: true }, { at: [2, 3], facing: 0.4, outfit: 0xdb2777, gender: 'female' }], [26, 24]),
 ];
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja')];
+
+// --- The outdoor places, gone into: the beach, the golf clubhouse, the yacht club, the jet terminal --
+
+/** A beach umbrella with a lounger under it */
+const umbrella = (b: Builder, x: number, z: number, colour: number) => {
+  b.cylinder(0x78350f, 0.05, 2.3, x, 0, z).cone(colour, 1.4, 0.8, x, 2.1, z, 10);
+  b.box(0xf8fafc, 0.7, 0.3, 1.8, x + 1.1, 0, z, { pitch: -0.12 });
+};
+const palm = (b: Builder, x: number, z: number) => {
+  b.cylinder(0x92400e, 0.22, 5.5, x, 0, z, { topRadius: 0.16 });
+  for (let f = 0; f < 6; f++) b.box(0x16a34a, 0.35, 0.08, 2.6, x + Math.sin(f) * 1, 5.5, z + Math.cos(f) * 1, { yaw: f, pitch: -0.4 });
+};
+
+const OUTDOOR: PlaceSpec[] = [
+  venue('lagoon-beach', 'Elegushi Beach', 'Lekki · beach', 'Beach bar · Cabanas · Horses · Beach party', '#0e7490', 0xe8d5a3, 0x7dd3fc, (b) => {
+    // The water at the back, the wash of the waves along it
+    b.box(0x0ea5e9, 30, 0.05, 6, 0, 0.01, -9.5);
+    for (let i = 0; i < 6; i++) b.box(0xf8fafc, 4, 0.03, 0.15, -12 + i * 5, 0.06, -6.6 + (i % 2) * 0.3);
+    for (let i = 0; i < 6; i++) umbrella(b, -10 + i * 4, -3, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf97316, 0xdb2777][i]);
+    // Cabanas: a curtained bed under a white roof
+    for (const x of [-9, -4]) b.box(0xf8fafc, 3, 0.1, 3, x, 2.6, 4).box(0xfef3c7, 2.4, 0.5, 2, x, 0, 4).box(0xf8fafc, 0.08, 2.6, 0.08, x - 1.4, 0, 2.6).box(0xf8fafc, 0.08, 2.6, 0.08, x + 1.4, 0, 2.6);
+    // The bar hut, the DJ's table and speakers, palms, and the horses
+    counter(b, 8, 4, 4, 0xb45309); b.cone(0xd6b46a, 3.6, 1.4, 8, 2.6, 3.5, 4);
+    b.box(0x111827, 2, 0.9, 0.8, -1, 0, -1).box(0x22d3ee, 1.8, 0.04, 0.6, -1, 0.91, -1, { glow: true }).box(0x111827, 0.8, 1.6, 0.8, -3, 0, -1).box(0x111827, 0.8, 1.6, 0.8, 1, 0, -1);
+    palm(b, -12.5, 8); palm(b, 12.5, -4); palm(b, 12, 8);
+    for (const [x, c] of [[-11, 0x78350f], [-9.5, 0xf5f5f4]] as Array<[number, number]>) b.box(c, 0.5, 0.8, 1.8, x, 1, 8).box(c, 0.3, 0.7, 0.5, x, 1.6, 8.9, { pitch: -0.5 }).box(0x44403c, 0.12, 1, 0.12, x - 0.15, 0, 7.4).box(0x44403c, 0.12, 1, 0.12, x + 0.15, 0, 8.6);
+  }, [
+    { name: 'Kunle', title: 'Beach bar', at: [8, 3], facing: 0, outfit: 0xf97316, gender: 'male', says: 'Coconut, Chapman, suya! Cold cold!' },
+    { name: 'DJ Spinz', title: 'DJ', at: [-1, -1.8], facing: 0, outfit: 0x7c3aed, gender: 'male', says: 'Beach party every evening! Amapiano till the sun goes down.' },
+    { name: 'Baba Horse', title: 'Horse rides', at: [-10.3, 6.4], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Ride along the water! Small money.' },
+  ], [
+    { id: 'bar', name: '🥥 The beach bar', at: [8, 4], stand: [8, 5.3], who: 'Kunle', role: 'Beach bar', text: 'Wetin you go take?', choices: [
+      buy('Fresh coconut water', 1500, item('coconut', 'Fresh coconut', '🥥', 1500, 'food', true, 10), 'Cold coconut water, straight from the nut.'),
+      { label: 'Suya and a cold drink', price: 4500, note: 'Hunger +35', sit: true, seconds: 4, effect: need({ hunger: 35, fun: 5 }), said: 'Hot suya with yaji, and a cold drink with it.' },
+      { label: 'A Chapman in the shade', price: 3000, note: 'Fun +10', effect: need({ fun: 10, hunger: 5 }), said: 'Chapman with cucumber, cold as ice.' },
+    ] },
+    { id: 'lounger', name: '🏖️ Loungers by the water', at: [-6, -3], stand: [-4.9, -1.8], who: 'Beach attendant', role: 'Elegushi Beach', text: 'Lounger or a cabana?', choices: [
+      { label: 'Lie on a lounger by the water', price: 3000, note: 'Fun +30, Energy +10', sit: true, seconds: 6, effect: need({ fun: 30, energy: 10 }), said: 'Breeze, waves, Afrobeats. You needed this.' },
+      { label: 'Rent a cabana for the day', price: 25000, note: 'Fun +35, Social +20', sit: true, seconds: 6, effect: need({ fun: 35, social: 20, energy: 15 }), said: 'Curtains, cushions, your own waiter. Big man things.' },
+    ] },
+    { id: 'horse', name: '🐎 Horse ride', at: [-10.3, 8], stand: [-8.8, 7], who: 'Baba Horse', role: 'Horse rides', text: 'Once along the water and back?', choices: [
+      { label: 'Ride a horse along the shore', price: 5000, note: 'Fun +30', arms: 'wave', seconds: 7, effect: need({ fun: 30 }), said: 'Trotting along the water, the wind in your face. Baba Horse held the rope.' },
+    ] },
+    { id: 'party', name: '🎶 The beach party', at: [-1, -1], stand: [-1, 0.6], who: 'DJ Spinz', role: 'DJ', text: 'Oya, enter the party!', choices: [
+      { label: 'Dance on the sand', note: 'Free · Fun +30, Social +15', dance: true, seconds: 8, effect: need({ fun: 30, social: 15 }), said: 'Shoes off, sand everywhere, the whole beach dancing.' },
+    ] },
+  ], [{ at: [-8.9, -3], facing: Math.PI, outfit: 0xdc2626, sit: true }, { at: [-0.9, -3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [2, 0.3], facing: 2.6, outfit: 0xfacc15 }, { at: [-4, 4.2], facing: Math.PI, outfit: 0x0ea5e9, sit: true, gender: 'female' }], [28, 22]),
+
+  venue('ikeja-golf', 'Ikeja Golf Club', 'Ikeja · golf', 'Clubhouse · Pro shop · Putting green · 9 holes', '#14532d', 0x92400e, 0xfef3c7, (b) => {
+    // The putting green with its flag, the bar, the pro shop's racks of clubs, the honours board
+    b.cylinder(0x4d7c0f, 3.6, 0.06, -5, 0, -2, { sides: 24 }).cylinder(0x111111, 0.12, 0.07, -4, 0, -1.4, { sides: 10 }).cylinder(0xf8fafc, 0.03, 1.6, -4, 0, -1.4).box(0xdc2626, 0.03, 0.35, 0.5, -4, 1.25, -1.15);
+    counter(b, 7, -6, 5, 0x78350f, 0xd4af37); bottles(b, 7, -7.8, 5);
+    for (let i = 0; i < 3; i++) { b.box(0x1f2937, 1.6, 1.2, 0.5, 6 + i * 1.8, 0, 5); for (let j = 0; j < 5; j++) b.cylinder(0xd1d5db, 0.025, 1.1, 5.5 + i * 1.8 + j * 0.25, 1.1, 5); }
+    b.box(0x78350f, 3.6, 2.2, 0.1, -6, 1.2, -8.9).box(0xd4af37, 3.2, 0.2, 0.12, -6, 2.9, -8.9);
+    for (const [x, z] of [[-7, 5], [-3, 5]]) table(b, x, z, 0xf8fafc, 4, 0x166534);
+  }, [
+    { name: 'Mr Oduya', title: 'Club secretary', at: [-6, -7.2], facing: 0, outfit: 0x14532d, gender: 'male', tie: true, says: 'Members and their guests. Green fee for visitors.' },
+    { name: 'Musa', title: 'Caddie', at: [-1, -3], facing: -1.2, outfit: 0xfacc15, gender: 'male', says: 'Oga, I sabi this course. Every hole.' },
+    { name: 'Barman Tayo', title: 'Clubhouse bar', at: [7, -7], facing: 0, outfit: 0x111827, gender: 'male', says: 'Chapman? Pepper soup?' },
+  ], [
+    { id: 'course', name: '⛳ Nine holes', at: [-6, -8], stand: [-6, -6.4], who: 'Mr Oduya', role: 'Club secretary', text: 'Guests pay a green fee. Musa will caddie for you.', choices: [
+      { label: 'Play nine holes with a caddie', price: 50000, note: 'Fun +40 · Fitness', arms: 'swing', seconds: 7, effect: (be) => { need({ fun: 40, energy: -15 })(be as never); (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('fitness', 1); }, said: 'Two birdies and one ball in the bush. Musa carried the bag and read every green.' },
+      { label: 'Become a member', price: 3500000, note: 'Social +30 · a year', arms: 'shake', seconds: 3, effect: need({ social: 30 }), item: { id: 'golf_membership', name: 'Ikeja Golf Club membership card', icon: '⛳', price: 3500000, category: 'document', usable: false, description: 'A member of the Ikeja Golf Club. Your name is on the board.' }, said: 'Welcome to the club. Your name goes on the members’ board.' },
+    ] },
+    { id: 'green', name: '🏌️ The putting green', at: [-5, -2], stand: [-6.6, -0.6], who: 'Musa', role: 'Caddie', text: 'Practise your putting, free for anybody.', choices: [
+      { label: 'Practise putting', note: 'Free · Fun +10', arms: 'swing', seconds: 5, effect: need({ fun: 10 }), said: 'Ten putts. Seven in the hole. Not bad at all.' },
+    ] },
+    { id: 'bar', name: '🍲 The clubhouse bar', at: [7, -6], stand: [7, -4.7], who: 'Barman Tayo', role: 'Clubhouse bar', text: 'After the round?', choices: [
+      { label: 'Pepper soup and a Chapman', price: 9000, note: 'Hunger +40, Social +15', sit: true, seconds: 5, effect: need({ hunger: 40, social: 15 }), said: 'Goat meat pepper soup, and the gist of the nineteenth hole.' },
+      { label: 'A drink with the members', price: 6000, note: 'Social +20', effect: need({ social: 20 }), said: 'A retired general told you about the 1985 club championship. Twice.' },
+    ] },
+    { id: 'shop', name: '🏷️ The pro shop', at: [7.8, 5], stand: [7.8, 3.7], who: 'Pro shop', role: 'Ikeja Golf Club', text: 'Clubs, balls, gloves.', choices: [
+      buy('A set of golf clubs and a bag', 450000, { id: 'golf_clubs', name: 'Golf clubs and bag', icon: '🏌️', price: 450000, category: 'luxury', usable: false, description: 'Irons, woods, a putter and a leather bag.' }, 'A full set in a leather bag, carried to your car.', 'Into your bag'),
+      buy('A box of golf balls', 15000, { id: 'golf_balls', name: 'Box of golf balls', icon: '⚪', price: 15000, category: 'luxury', usable: false, description: 'A dozen new balls.' }, 'A dozen new balls.', 'Into your bag'),
+    ] },
+  ], [{ at: [-7, 5.95], facing: Math.PI, outfit: 0xf8fafc, sit: true }, { at: [-3, 4.05], facing: 0, outfit: 0x1e3a8a, sit: true }], [24, 20]),
+
+  venue('lagoon-marina', 'Eko Marina Yacht Club', 'Lagoon · marina', 'Berths · Fuel · Chandlery · Bar on the deck', '#0e7490', 0xe2e8f0, 0xf8fafc, (b) => {
+    // Glass across the back, the lagoon beyond it
+    b.box(0x0ea5e9, 22, 2.6, 0.1, 0, 0.8, -8.9, { glow: true });
+    for (let i = 0; i < 6; i++) b.box(0xf8fafc, 0.06, 2.4, 0.05, -9 + i * 3.6, 1, -8.8);
+    counter(b, -6, -6, 4, 0x0e7490, 0xf8fafc);
+    shelf(b, 7, 6, 4, [0xf97316, 0xfacc15, 0x0ea5e9, 0xf8fafc]);
+    counter(b, 6, -6, 4, 0x78350f, 0xd4af37); bottles(b, 6, -7.8, 4);
+    // A model yacht in a glass case, and the deck tables
+    b.box(0x111827, 2, 0.9, 0.8, 0, 0, 0).box(0xf8fafc, 1.6, 0.3, 0.4, 0, 0.95, 0).cylinder(0xd1d5db, 0.02, 0.9, 0, 1.25, 0);
+    for (const [x, z] of [[3, 1.5], [6, 1.5]]) table(b, x, z, 0xf8fafc, 2, 0x0e7490);
+  }, [
+    { name: 'Captain Bassey', title: 'Harbour master', at: [-6, -7], facing: 0, outfit: 0xf8fafc, gender: 'male', cap: true, says: 'Welcome aboard. Your berth is ready.' },
+    { name: 'Ifeoma', title: 'Chandlery', at: [7, 5], facing: Math.PI, outfit: 0x0e7490, gender: 'female', says: 'Life jackets, ropes, caps, sunscreen.' },
+    { name: 'Barman Femi', title: 'Deck bar', at: [6, -7], facing: 0, outfit: 0x111827, gender: 'male', says: 'Something cold on the deck?' },
+  ], [
+    { id: 'harbour', name: '⚓ The harbour master', at: [-6, -6], stand: [-6, -4.7], who: 'Captain Bassey', role: 'Harbour master', text: 'Your yacht, or a ride on the water?', choices: [
+      { label: 'My yachts: take one out, or buy one', note: 'Berthed at the pier', open: 'yachts' },
+      { label: 'A speedboat ride round the lagoon', price: 40000, note: 'Fun +35', sit: true, seconds: 7, effect: need({ fun: 35, social: 10 }), said: 'Thirty knots under Third Mainland Bridge, spray in your face. The captain waved at every yacht.' },
+    ] },
+    { id: 'chandlery', name: '🧭 The chandlery', at: [7, 6], stand: [7, 4.7], who: 'Ifeoma', role: 'Chandlery', text: 'For the water?', choices: [
+      buy('A life jacket', 25000, { id: 'life_jacket', name: 'Life jacket', icon: '🦺', price: 25000, category: 'tool', usable: false, description: 'Orange, with a whistle. Wear it on the water.' }, 'An orange life jacket, your size.', 'Into your bag'),
+      buy('A captain’s cap', 15000, { id: 'captain_cap', name: 'Captain’s cap', icon: '🧢', price: 15000, category: 'luxury', usable: false, description: 'White, with gold braid.' }, 'White with gold braid. Captain!', 'Into your bag'),
+    ] },
+    { id: 'deck', name: '🍹 The deck bar', at: [6, -6], stand: [6, -4.7], who: 'Barman Femi', role: 'Deck bar', text: 'Cold one, with the view?', choices: [
+      { label: 'A cold drink on the deck', price: 8000, note: 'Fun +15, Social +10', sit: true, seconds: 5, effect: need({ fun: 15, social: 10 }), said: 'The sun going down over the lagoon, a cold drink in your hand.' },
+    ] },
+  ], [{ at: [3, 2.45], facing: Math.PI, outfit: 0xf8fafc, sit: true }, { at: [-2, -3], facing: 0.5, outfit: 0x1e3a8a }], [24, 20]),
+
+  venue('private-airfield', 'Eko Executive Terminal', 'Lagoon · private airfield', 'Private jets · Charter · Lounge', '#1e3a8a', 0xf1f5f9, 0x1e3a8a, (b) => {
+    // Glass onto the apron at the back, the handling desk, leather seats, a bar, the crew room door
+    b.box(0x7dd3fc, 22, 2.8, 0.1, 0, 0.6, -8.9, { glow: true });
+    counter(b, -6, -6, 4, 0x1e3a8a, 0xf8fafc);
+    for (const [x, z] of [[2, 1], [5, 1], [2, 4], [5, 4]]) b.box(0x3b2416, 1, 0.45, 1, x, 0, z).box(0x3b2416, 1, 0.55, 0.2, x, 0.45, z + 0.4);
+    counter(b, 7, -6, 3, 0x111827, 0xd4af37); bottles(b, 7, -7.8, 3);
+    b.box(0x78350f, 1.2, 2.2, 0.1, -9.8, 0, 6);
+  }, [
+    { name: 'Chidi', title: 'Ground handler', at: [-6, -7], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Your crew is ready when you are, sir.' },
+    { name: 'Lounge host', title: 'Lounge', at: [7, -7], facing: 0, outfit: 0x111827, gender: 'female', says: 'Champagne while you wait?' },
+  ], [
+    { id: 'handling', name: '🛩️ Ground handling', at: [-6, -6], stand: [-6, -4.7], who: 'Chidi', role: 'Ground handler', text: 'Your own jet, or a seat on a flight?', choices: [
+      { label: 'My jets: fly one, or buy one', note: 'On the stands outside', open: 'jets' },
+      { label: 'Book a flight or a charter', note: 'Abuja, Port Harcourt', open: 'interstate' },
+    ] },
+    { id: 'lounge', name: '🛋️ The lounge', at: [3.5, 2.5], stand: [3.5, 0.2], who: 'Lounge host', role: 'Lounge', text: 'Sit down, relax.', choices: [
+      { label: 'Relax in the lounge', price: 20000, note: 'Energy +30, Fun +10', sit: true, seconds: 6, effect: need({ energy: 30, fun: 10 }), said: 'Leather seats, cold AC, a jet taxiing past the glass.' },
+    ] },
+    { id: 'bar', name: '🥂 The bar', at: [7, -6], stand: [7, -4.7], who: 'Lounge host', role: 'Bar', text: 'Champagne?', choices: [
+      { label: 'A glass of champagne', price: 35000, note: 'Fun +15, Social +10', effect: need({ fun: 15, social: 10 }), said: 'Cold champagne. The big men in the lounge nodded at you.' },
+    ] },
+  ], [{ at: [5, 1.3], facing: Math.PI, outfit: 0x111827, sit: true }], [24, 20]),
+];
+
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja')];

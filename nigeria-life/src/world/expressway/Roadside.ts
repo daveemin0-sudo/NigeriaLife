@@ -344,6 +344,31 @@ export class Roadside {
     return new THREE.Vector3(this.front(place).standX, 0, place.z);
   }
 
+  /** The harbour master: take one of the player's yachts out, or buy one */
+  public yachtDesk(host: PlaceHost): void {
+    const mine = this.hooks.mine('yacht');
+    host.ask({ who: 'Harbour master', role: 'Eko Marina', text: mine.length ? 'Which one are we taking out today?' : 'You have no yacht berthed here yet.', choices: [
+      ...mine.map((y) => ({ label: `Take "${y.label}" out on the lagoon`, note: 'Fun +40, Social +25', pick: () => this.hooks.cruise(y.uid) })),
+      { label: mine.length ? 'Buy another, or repaint' : 'See yachts for sale', pick: () => this.hooks.openFleet('yacht') },
+    ] });
+  }
+
+  /** The ground handler: fly one of the player's jets, or buy one */
+  public jetDesk(host: PlaceHost): void {
+    const mine = this.hooks.mine('jet');
+    if (!mine.length) {
+      host.ask({ who: 'Ground handler', role: 'Eko Executive Airfield', text: 'You have no jet on a stand here yet.', choices: [{ label: 'See jets for sale', pick: () => this.hooks.openFleet('jet') }] });
+      return;
+    }
+    host.ask({ who: 'Ground handler', role: 'Eko Executive Airfield', text: 'Your crew is ready. Which jet are we flying?', choices: [
+      ...mine.map((j) => ({ label: `Fly "${j.label}"`, pick: () => host.ask({ who: 'Captain', role: j.label, text: 'Where to?', choices: [
+        { label: 'Abuja', note: 'Nnamdi Azikiwe Airport · fuel ₦2,500,000', pick: () => this.hooks.fly(j.uid, 'abuja') },
+        { label: 'Port Harcourt', note: 'Port Harcourt Airport · fuel ₦2,000,000', pick: () => this.hooks.fly(j.uid, 'port_harcourt') },
+      ] }) })),
+      { label: 'Buy another, or repaint', pick: () => this.hooks.openFleet('jet') },
+    ] });
+  }
+
   /** What can be done at each place */
   private actionFor(placeId: string, name: string) {
     const act = (host: PlaceHost, arms: 'reach' | 'greet' | 'wave', seconds: number, effect: () => void) =>
@@ -411,33 +436,8 @@ export class Roadside {
         run: () => this.hooks.openStateHouse('house'),
       },
     };
-    menu['lagoon-marina'] = {
-      label: '🛥️ My yachts',
-      run: (host) => {
-        const mine = this.hooks.mine('yacht');
-        host.ask({ who: 'Harbour master', role: 'Eko Marina', text: mine.length ? 'Which one are we taking out today?' : 'You have no yacht berthed here yet.', choices: [
-          ...mine.map((y) => ({ label: `Take "${y.label}" out on the lagoon`, note: 'Fun +40, Social +25', pick: () => this.hooks.cruise(y.uid) })),
-          { label: mine.length ? 'Buy another, or repaint' : 'See yachts for sale', pick: () => this.hooks.openFleet('yacht') },
-        ] });
-      },
-    };
-    menu['private-airfield'] = {
-      label: '✈️ My jets',
-      run: (host) => {
-        const mine = this.hooks.mine('jet');
-        if (!mine.length) {
-          host.ask({ who: 'Ground handler', role: 'Eko Executive Airfield', text: 'You have no jet on a stand here yet.', choices: [{ label: 'See jets for sale', pick: () => this.hooks.openFleet('jet') }] });
-          return;
-        }
-        host.ask({ who: 'Ground handler', role: 'Eko Executive Airfield', text: 'Your crew is ready. Which jet are we flying?', choices: [
-          ...mine.map((j) => ({ label: `Fly "${j.label}"`, pick: () => host.ask({ who: 'Captain', role: j.label, text: 'Where to?', choices: [
-            { label: 'Abuja', note: 'Nnamdi Azikiwe Airport · fuel ₦2,500,000', pick: () => this.hooks.fly(j.uid, 'abuja') },
-            { label: 'Port Harcourt', note: 'Port Harcourt Airport · fuel ₦2,000,000', pick: () => this.hooks.fly(j.uid, 'port_harcourt') },
-          ] }) })),
-          { label: 'Buy another, or repaint', pick: () => this.hooks.openFleet('jet') },
-        ] });
-      },
-    };
+    menu['lagoon-marina'] = { label: '🛥️ My yachts', run: (host) => this.yachtDesk(host) };
+    menu['private-airfield'] = { label: '✈️ My jets', run: (host) => this.jetDesk(host) };
     const inside = PLACE_SPECS.some((spec) => spec.key === placeId);
     if (inside && placeId.startsWith('station-')) {
       return {
@@ -448,7 +448,9 @@ export class Roadside {
         ] }),
       };
     }
-    if (inside) return { label: () => '🚪 Go inside', run: (host: PlaceHost) => host.enter(`roadside-${placeId}`, this.doorOf(placeId)) };
+    // The outdoor places are gone into as well: onto the beach, into the clubhouse, the yacht club, the terminal
+    const going: Record<string, string> = { 'lagoon-beach': '🏖️ Go onto the beach', 'ikeja-golf': '⛳ Into the clubhouse', 'lagoon-marina': '🛥️ Into the yacht club', 'private-airfield': '✈️ Into the terminal' };
+    if (inside) return { label: () => going[placeId] ?? '🚪 Go inside', run: (host: PlaceHost) => host.enter(`roadside-${placeId}`, this.doorOf(placeId)) };
     const entry = menu[placeId] ?? moreMenu(placeId, { act, pay, openApp: (app) => this.hooks.openApp(app), openPump: (station) => this.hooks.openPump(station), openStateHouse: (mode) => this.hooks.openStateHouse(mode) }) ?? menu['government-house'];
     return { label: () => entry.label, run: (host: PlaceHost) => entry.run(host) };
   }
