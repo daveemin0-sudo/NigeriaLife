@@ -264,7 +264,6 @@ export class InteriorManager {
 
     // 4. HIDE the entire outdoor street world
     world.setStreetModeVisibility(false);
-    world.apartment.group.visible = false;
 
     // 5. Isolate interior rendering: show ONLY target interior group
     this.group.visible = true;

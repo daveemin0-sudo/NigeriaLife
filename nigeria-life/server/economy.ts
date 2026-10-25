@@ -22,6 +22,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { EMPLOYERS, WORKSITES, type Employer, type Grade } from '../src/jobs/employers.ts';
+import { mostTaken } from '../src/backend/businessRates.ts';
 import { alert, transaction, type Store } from './store.ts';
 
 export interface Wallet {
@@ -69,6 +70,9 @@ export class Economy {
   /** Called after any change, so the game can be told its new balance at once */
   public onChange: (accountId: string, wallet: Wallet) => void = () => {};
   private alerted = new Map<string, number>();
+
+  /** The businesses an account owns, from the ownership registry (set by the game server) */
+  public businessesOf: (accountId: string) => string[] = () => [];
 
   constructor(db: Store, positionOf: (accountId: string) => Position | null) {
     this.db = db;
@@ -132,6 +136,12 @@ export class Economy {
     if (!Number.isFinite(cash) || !Number.isFinite(bank) || !idem) return { ok: false, reason: 'That could not be read.', wallet: this.wallet(accountId) };
     const memo = cleanMemo(raw.memo);
     const net = cash + bank;
+    // A business's takings: paid if the businesses the player owns could have taken that much
+    // since they were last paid (the registry says what they own; the price table what each takes)
+    if (net > 0 && /^BUSINESS_INCOME:/.test(memo)) {
+      const paid = this.payTakings(accountId, cash, bank, memo, idem);
+      if (paid) return paid;
+    }
     if (net > 0) {
       const already = this.earnedSince(accountId, Date.now() - TEN_MINUTES, true);
       if (already + net > UNVERIFIED_EARNING_LIMIT) {
@@ -144,6 +154,40 @@ export class Economy {
       }
     }
     return this.apply(accountId, 'client', cash, bank, memo, false, idem);
+  }
+
+  /**
+   * Business takings, checked against what the player owns: each business they own adds to a
+   * credit as time passes, at the most it could take (staffed, with every branch), up to a
+   * week's worth. Takings within the credit are paid at once and come off it. Takings held
+   * earlier for the admin are let through too, once the credit covers them.
+   */
+  private payTakings(accountId: string, cash: number, bank: number, memo: string, idem: string): Result | null {
+    const owned = this.businessesOf(accountId);
+    if (owned.length === 0) return null;
+    const now = Date.now();
+    const perMs = owned.reduce((sum, id) => sum + mostTaken(id, 1), 0);
+    const week = perMs * 7 * 24 * 3600_000;
+    const row = this.db.prepare('SELECT credit, at FROM business_clock WHERE account_id = ?').get(accountId) as { credit: number; at: number } | undefined;
+    // First seen with businesses: a week's worth, so what was earned before this check began is not lost
+    let credit = row ? Math.min(week, row.credit + perMs * (now - row.at)) : week;
+    const net = cash + bank;
+    if (net > credit) {
+      this.db.prepare('INSERT INTO business_clock (account_id, credit, at) VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET credit = excluded.credit, at = excluded.at').run(accountId, Math.round(credit), now);
+      return null;
+    }
+    const paid = this.apply(accountId, 'business', cash, bank, memo, true, idem);
+    if (!paid.ok) return paid;
+    credit -= net;
+    // Takings held before this check existed, released while the credit lasts
+    const waiting = this.db.prepare("SELECT id, amount FROM held WHERE account_id = ? AND status = 'waiting' AND memo LIKE '% BUSINESS_INCOME%' ORDER BY id").all(accountId) as Array<{ id: number; amount: number }>;
+    for (const h of waiting) {
+      if (h.amount > credit) break;
+      const released = this.decideHeld(h.id, true);
+      if (released.ok) credit -= h.amount;
+    }
+    this.db.prepare('INSERT INTO business_clock (account_id, credit, at) VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET credit = excluded.credit, at = excluded.at').run(accountId, Math.round(credit), now);
+    return { ...paid, wallet: this.wallet(accountId) };
   }
 
   /** A local save brought onto a new account, once, up to a limit. */

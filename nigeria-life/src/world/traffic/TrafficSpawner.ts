@@ -81,8 +81,9 @@ interface Car {
   dwell: number;
   /** Its place among the day's traffic: which of them are on the road when only a share are */
   place?: number;
-  /** How far it has pulled over toward the edge of the road, for a siren behind it */
+  /** How far it has pulled over, for a siren behind it, and which way (away from the siren's lane) */
   aside?: number;
+  asideDir?: number;
 }
 
 interface Batch {
@@ -556,7 +557,12 @@ export class TrafficSpawner {
           for (const siren of this.sirens) {
             if (siren.dir !== lane.dir || Math.abs(siren.x - lane.fixed) > 4.6) continue;
             const ahead = car.u - siren.z * lane.dir;
-            if (ahead > -4 && ahead < 80) yielding = true;
+            if (ahead > -4 && ahead < 80) {
+              yielding = true;
+              // Out of the siren's lane: the next lanes move further off, its own lane to the kerb
+              const off = lane.fixed - siren.x;
+              car.asideDir = Math.abs(off) > 1 ? Math.sign(off) : Math.sign(lane.fixed) || 1;
+            }
           }
         }
         if (yielding) target = Math.min(target, car.cruise * 0.3);
@@ -601,7 +607,7 @@ export class TrafficSpawner {
         if (!isAbroad(car.place, this.abroad)) continue;
         const along = car.u * lane.dir;
         // Pulled over toward the kerb, away from the middle of the road
-        const x = lane.axis === 'z' ? lane.fixed + Math.sign(lane.fixed) * (car.aside ?? 0) : along;
+        const x = lane.axis === 'z' ? lane.fixed + (car.asideDir ?? Math.sign(lane.fixed)) * (car.aside ?? 0) : along;
         const z = lane.axis === 'z' ? along : lane.fixed;
         this.dummy.position.set(x, 0, z);
         this.dummy.updateMatrix();
@@ -629,10 +635,10 @@ export class TrafficSpawner {
   /** The vehicles within `range` of a point, moving or parked, as boxes on the ground (added to `out`) */
   public cars(x: number, z: number, range: number, out: CarBody[]): void {
     this.bodiesUsed = 0;
-    const add = (kind: number, cx: number, cz: number, yaw: number, parked: boolean) => {
-      if (Math.abs(cx - x) > range || Math.abs(cz - z) > range) return;
+    const add = (kind: number, cx: number, cz: number, yaw: number, parked: boolean): CarBody | null => {
+      if (Math.abs(cx - x) > range || Math.abs(cz - z) > range) return null;
       const batch = this.batches[kind];
-      if (!batch) return;
+      if (!batch) return null;
       const body = this.bodyPool[this.bodiesUsed] ?? (this.bodyPool[this.bodiesUsed] = { x: 0, z: 0, yaw: 0, halfWidth: 0, halfLength: 0 });
       this.bodiesUsed += 1;
       body.x = cx;
@@ -641,14 +647,19 @@ export class TrafficSpawner {
       body.halfWidth = batch.width / 2;
       body.halfLength = batch.length / 2;
       body.parked = parked;
+      body.yielding = false;
       out.push(body);
+      return body;
     };
     for (const lane of this.lanes) {
       const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       for (const car of lane.cars) {
         if (car.place !== undefined && !isAbroad(car.place, this.abroad)) continue;
         const along = car.u * lane.dir;
-        add(car.kind, lane.axis === 'z' ? lane.fixed : along, lane.axis === 'z' ? along : lane.fixed, yaw, false);
+        // Where it is drawn, pulled over or not: its body is there too, never left behind in the lane
+        const aside = lane.axis === 'z' ? (car.asideDir ?? Math.sign(lane.fixed)) * (car.aside ?? 0) : 0;
+        const body = add(car.kind, lane.axis === 'z' ? lane.fixed + aside : along, lane.axis === 'z' ? along : lane.fixed, yaw, false);
+        if (body) body.yielding = (car.aside ?? 0) > 0.3;
       }
     }
     for (const car of this.parked) add(car.kind, car.x, car.z, car.yaw, true);

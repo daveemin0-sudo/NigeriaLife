@@ -85,6 +85,11 @@ CREATE TABLE IF NOT EXISTS blocks (
   blocked TEXT NOT NULL,
   PRIMARY KEY (account_id, blocked)
 );
+CREATE TABLE IF NOT EXISTS business_clock (
+  account_id TEXT PRIMARY KEY,
+  credit INTEGER NOT NULL,         -- what the player's businesses may still have taken, unpaid
+  at INTEGER NOT NULL              -- when that was last worked out
+);
 CREATE TABLE IF NOT EXISTS held (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at INTEGER NOT NULL,

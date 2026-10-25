@@ -6,7 +6,6 @@ import { NPCs } from './NPCs';
 import { Districts } from './Districts';
 import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
-import { ApartmentInterior } from './ApartmentInterior';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { AtmosphereManager } from './AtmosphereManager';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
@@ -66,7 +65,6 @@ export class World {
   public districts: Districts;
   /** The stadium, the port and the airport */
   public landmarks: Landmarks;
-  public apartment: ApartmentInterior;
   public interiorManager: InteriorManager;
   public weather: WeatherSystem;
   public atmosphere: AtmosphereManager;
@@ -157,9 +155,8 @@ export class World {
     this.expressway = new Expressway();
     this.scene.add(this.expressway.group);
 
-    // 7. Cutaway 3D Apartment Interior (Home Mode)
-    this.apartment = new ApartmentInterior();
-    this.scene.add(this.apartment.group);
+    // (The first build's apartment stood at the start of the expressway: it is gone. The home is
+    // the residence among the interiors, with its own cards.)
 
     // 8. 3-Tier Interior & Activity Destination Engine (Hospital, Bank, Buka, Police, Residence)
     this.interiorManager = InteriorManager.getInstance();
@@ -185,7 +182,6 @@ export class World {
       ...this.vehicles.interactiveList,
       ...this.districts.interactiveList,
       ...this.landmarks.interactiveList,
-      ...this.apartment.interactiveList,
       ...this.interiorManager.getAllInteractiveObjects(),
       // The places along the expressway
       ...this.expressway.roadside.interactive,
@@ -224,14 +220,13 @@ export class World {
       this.cityPopulation.group,
       this.districts.group,
       this.landmarks.group,
-      this.apartment.group,
       this.atmosphere.group,
       this.groundMesh,
       this.expressway.group,
     ]);
     // Rooms are behind doors in every city: they are not part of Lagos, and are not put away with it
     this.cityManager.rooms = this.interiorManager.group;
-    for (const life of [this.vehicles.group, this.trafficSpawner.group, this.npcs.group, this.cityPopulation.group, this.apartment.group, this.atmosphere.group]) this.cityManager.lagosLife.add(life);
+    for (const life of [this.vehicles.group, this.trafficSpawner.group, this.npcs.group, this.cityPopulation.group, this.atmosphere.group]) this.cityManager.lagosLife.add(life);
 
     // Layer separation: Tag street objects to STREET layer
     const streetObjects = [
@@ -245,7 +240,6 @@ export class World {
       this.cityPopulation.group,
       this.districts.group,
       this.landmarks.group,
-      this.apartment.group,
       this.atmosphere.group,
       this.groundMesh,
     ];
@@ -592,8 +586,6 @@ export class World {
     // The match at the stadium, the cranes at the port, the aircraft at the airport
     this.landmarks.update(delta, this.skyEnvironment.currentHour);
 
-    // Update apartment interior (standing fan rotation, TV glow, pet)
-    this.apartment.update(delta);
 
     // Update weather effects (rain particles, lighting, thunder)
     this.weather.update(delta, playerPos);

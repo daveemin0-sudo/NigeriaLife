@@ -61,6 +61,8 @@ export class DrivableVehicle {
   public static makeWay: ((x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth: number) => number) | null = null;
   /** Handling tests drive on a road with nobody else on it */
   public static ignoreBodies = false;
+  /** The driver has a convoy clearing the road (set by the game): cars pulling over for it never stop them */
+  public static clearsTraffic: () => boolean = () => false;
   /** The stop where the people now aboard got on (-1: none yet) */
   private boardedAt: number = -1;
   private boardingNow: boolean = false;
@@ -1801,7 +1803,9 @@ export class DrivableVehicle {
     const n = Math.max(2, Math.ceil((span * 2) / r) + 1);
     const fx = Math.sin(me.yaw);
     const fz = Math.cos(me.yaw);
+    const clearing = !!this.driver && DrivableVehicle.clearsTraffic();
     for (const car of Bodies.carsNear(me.x, me.z, range)) {
+      if (clearing && car.yielding) continue;
       for (let i = 0; i < n; i++) {
         const t = -span + (2 * span * i) / (n - 1);
         cars += depthIntoCar(me.x + fx * t, me.z + fz * t, r, car);

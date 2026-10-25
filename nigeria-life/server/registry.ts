@@ -45,6 +45,11 @@ export class Registry {
     }
   }
 
+  /** The registry document as it stands */
+  public get text(): string {
+    return this.registry.text;
+  }
+
   public get version(): number {
     return this.registry.version;
   }

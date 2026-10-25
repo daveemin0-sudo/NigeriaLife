@@ -163,6 +163,25 @@ export async function run(_browser, check) {
     const releasedAgain = await call('/admin/held', { held: sale.held, release: true }, null, ADMIN);
     const bayoAfter = (await call('/me', null, bayo.token)).wallet.cash;
     check('online: held money the admin releases is paid once', sale.held > 0 && released.ok && !releasedAgain.ok && bayoAfter - bayoBefore === 250000, { sale, bayoBefore, bayoAfter });
+
+    // Business takings: paid at once to someone who owns the business, as far as it could have
+    // taken; held for anybody who owns nothing; and takings held earlier let through with them
+    const chi = await call('/auth/guest', { name: 'Chi' });
+    const regId = `net:${'00000000-0000-4000-8000-'}${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
+    await call('/me/registry', { id: regId }, chi.token);
+    const heldBefore = await call('/money/report', { bank: 200000, memo: 'BUSINESS_INCOME: Lagos Enterprise Profit Payout', idem: idem() }, chi.token);
+    const lock = await call('/lock', { client: 'test' });
+    const doc = JSON.parse(lock.text || '{}');
+    doc.titles = { ...(doc.titles ?? {}), 'business:biz_pos_kiosk': { ownerId: regId } };
+    await call('/commit', { token: lock.token, text: JSON.stringify(doc) });
+    const chiBefore = (await call('/me', null, chi.token)).wallet;
+    const takings = await call('/money/report', { bank: 180000, memo: 'BUSINESS_INCOME: Lagos Enterprise Profit Payout', idem: idem() }, chi.token);
+    const chiAfter = (await call('/me', null, chi.token)).wallet;
+    const greedy = await call('/money/report', { bank: 5_000_000_000, memo: 'BUSINESS_INCOME: Lagos Enterprise Profit Payout', idem: idem() }, chi.token);
+    const nobody = await call('/money/report', { bank: 180000, memo: 'BUSINESS_INCOME: Lagos Enterprise Profit Payout', idem: idem() }, ada.token);
+    check('online: business takings are paid at once to the owner of a business, up to what it could have taken, and takings held before are let through with them; ₦5bn from a POS kiosk is held, and takings for someone who owns no business are held',
+      heldBefore.held > 0 && takings.ok && chiAfter.bank + chiAfter.cash - chiBefore.bank - chiBefore.cash === 380000 && !greedy.ok && greedy.held > 0 && !nobody.ok && nobody.held > 0,
+      { heldBefore: heldBefore.held, takings: takings.ok, gained: chiAfter.bank + chiAfter.cash - chiBefore.bank - chiBefore.cash, greedy: greedy.held, nobody: nobody.held });
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

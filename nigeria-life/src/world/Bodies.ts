@@ -22,6 +22,8 @@ export interface CarBody {
   halfLength: number;
   /** Standing still where it is (a parked car): someone on foot walks round it */
   parked?: boolean;
+  /** Pulling over for a siren (a convoy coming through) */
+  yielding?: boolean;
 }
 
 export interface BodySource {

@@ -12,11 +12,11 @@ const here = (page) => page.evaluate(() => {
 const put = (page, x, z) => page.evaluate(({ x, z }) => { const p = window.game.player; p.stopMoving(); p.onBridge = false; p.mesh.position.set(x, 0, z); }, { x, z });
 
 /** Sends the player walking to a point and follows them there, noting how high they were on the way. */
-async function walk(page, x, z, seconds = 40) {
+async function walk(page, x, z, seconds = 40, step = 0.25) {
   await page.evaluate(({ x, z }) => { const g = window.game; g.player.setDestination(new g.player.position.constructor(x, 0, z)); }, { x, z });
   const heights = [];
-  for (let t = 0; t < seconds; t += 0.25) {
-    await advance(page, 0.25);
+  for (let t = 0; t < seconds; t += step) {
+    await advance(page, step);
     const now = await here(page);
     heights.push(now);
     if (!now.moving) break;
@@ -65,7 +65,8 @@ export async function run(browser, check) {
 
   // ------------------------------------------------------------------ Up, over and down
   await put(page, -11.2, 13.4);
-  const up = await walk(page, -11.2, 27.6);
+  // Sampled finely: on a busy machine a quarter second can carry the player over most of the flight
+  const up = await walk(page, -11.2, 27.6, 40, 0.1);
   const top = up[up.length - 1];
   const climbing = up.filter((s) => s.z > 15 && s.z < 26);
   check('walking at the foot of the west stairs and on up them, the player climbs: higher at every step until they are on the deck above the road',
@@ -111,7 +112,7 @@ export async function run(browser, check) {
   // What it does is in the ways suite.
   await page.evaluate(() => { const p = window.game.player; window.__wayfinder = p.wayfinder; p.wayfinder = null; });
   const bank = await page.evaluate(() => {
-    const all = window.game.world.standingOnTheGround().filter((o) => /Eko Commercial Bank/.test(o.owner) && o.structure);
+    const all = window.game.world.standingOnTheGround().filter((o) => /Eko Commercial Bank/.test(o.owner) && o.structure && o.maxZ < 500);
     return { minX: Math.min(...all.map((o) => o.minX)), maxX: Math.max(...all.map((o) => o.maxX)), minZ: Math.min(...all.map((o) => o.minZ)), maxZ: Math.max(...all.map((o) => o.maxZ)), solids: window.game.solidsHere().count };
   });
   const midZ = (bank.minZ + bank.maxZ) / 2;

@@ -108,6 +108,8 @@ export function sideFront(id: string): { x: number; faceZ: number; standZ: numbe
 export function roadsideAt(side: number, z0: number, z1: number): (typeof ROADSIDE)[number] | null {
   const place = ROADSIDE.find((p) => p.side === side && z1 > p.z - p.length / 2 - 2 && z0 < p.z + p.length / 2 + 2);
   if (place) return place;
-  const road = SIDE_ROADS.find((r) => r.side === side && z1 > r.z - r.half - SIDE_WALK - 2 && z0 < r.z + r.half + SIDE_WALK + 2);
-  return road ? { id: road.id, side: road.side, z: road.z, length: (road.half + SIDE_WALK) * 2 + 2, depth: 0 } : null;
+  // The mouth of a side street, and the buildings down both sides of it (up to 28 m from its middle)
+  const reach = (r: (typeof SIDE_ROADS)[number]) => r.half + SIDE_WALK + 20;
+  const road = SIDE_ROADS.find((r) => r.side === side && z1 > r.z - reach(r) && z0 < r.z + reach(r));
+  return road ? { id: road.id, side: road.side, z: road.z, length: reach(road) * 2, depth: 0 } : null;
 }

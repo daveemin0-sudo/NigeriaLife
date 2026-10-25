@@ -110,9 +110,14 @@ export async function run(browser, check) {
 
   await use(page, 'flat-bed');
   await playUntil(page, () => (window.game.world.interiorManager.residence.life.status()?.activity === 'sleeping' ? true : null), 20);
-  const woke = await playUntil(page, () => (!window.game.player.actor.scripted && !window.game.player.actor.hold ? true : null), 30);
+  const rested = await playUntil(page, () => (/Fully rested · lying in/.test(document.getElementById('home-activity-status')?.innerText ?? '') ? true : null), 30);
+  await page.evaluate(() => window.game.advance(5));
+  const stillIn = await state(page);
+  await page.evaluate(() => [...document.querySelectorAll('#home-activity-status button')].find((b) => /Get up/.test(b.textContent))?.click());
+  const woke = await playUntil(page, () => (!window.game.player.actor.scripted && !window.game.player.actor.hold ? true : null), 10);
   s = await state(page);
-  check('sleeping on wakes the player by themselves once fully rested', woke && free(s) && s.energy > 99.5 && s.health > 99.5, { energy: s.energy, health: s.health });
+  check('sleeping on, the player is told when fully rested and stays in bed, lying in, till they choose to get up',
+    rested && stillIn.lying && stillIn.held && woke && free(s) && s.energy > 99.5 && s.health > 99.5, { rested, lyingIn: stillIn.lying, energy: s.energy, health: s.health });
 
   // ------------------------------------------------------------------ Sofa and TV
   await setStats(page, { energy: 40 });

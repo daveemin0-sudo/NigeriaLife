@@ -78,7 +78,8 @@ export class HomeLife {
         activity: 'sleeping',
         icon: '🛏️',
         title: 'Sleeping',
-        line: `Energy ${Math.round(stats.energy)}% · Health ${Math.round(stats.health)}%`,
+        // Rested, they lie in for as long as they like: getting up is theirs to choose
+        line: this.restedTold ? `Fully rested · lying in · Energy ${Math.round(stats.energy)}%` : `Energy ${Math.round(stats.energy)}% · Health ${Math.round(stats.health)}%`,
         stopLabel: 'Get up',
       };
     }
@@ -99,8 +100,12 @@ export class HomeLife {
     this.onChange?.();
   }
 
+  /** Told once that sleep has made them whole; they stay in bed till they get up */
+  private restedTold = false;
+
   private begin(activity: HomeActivity): void {
     this.activity = activity;
+    this.restedTold = false;
     this.elapsed = 0;
     this.gained = 0;
     this.changed();
@@ -296,12 +301,12 @@ export class HomeLife {
     if (this.activity === 'sleeping') {
       this.backend.rest(SLEEP.energyPerSecond * delta, SLEEP.healthPerSecond * delta, false);
       const rested = stats.energy >= 100 && stats.health >= 100;
-      if ((rested && this.elapsed > 3) || this.elapsed > SLEEP.longestSeconds) {
+      if (rested && this.elapsed > 3 && !this.restedTold) {
+        // Awake and rested, but in no hurry: they stay in bed till they choose to get up
+        this.restedTold = true;
         this.backend.rest(0, 0);
-        showGameToast('You woke up rested.', 'success', 2600);
-        this.elapsed = 0; // already announced; no second message from getting up
-        this.stop();
-        return;
+        showGameToast('You are fully rested. Stay in bed as long as you like, or get up when you are ready.', 'success', 4200);
+        this.changed();
       }
     } else if (this.gained < TV.mostEnergy) {
       const amount = Math.min(TV.energyPerSecond * delta, TV.mostEnergy - this.gained);

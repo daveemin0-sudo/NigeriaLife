@@ -1,4 +1,7 @@
 import { DEFAULT_BUSINESSES, type PlayerAccount } from './types';
+import { BUSINESS_PRICES, TAKINGS_PER_PAYOUT } from './businessRates';
+
+export { BUSINESS_PRICES, TAKINGS_PER_PAYOUT };
 
 /**
  * What homes, offices and businesses cost, close to what they sell and let for in 2025, in
@@ -44,27 +47,6 @@ export const PROPERTY_PRICES: Record<string, { buy: number; rent: number }> = {
   prop_woji_estate: { buy: 150_000_000, rent: 400_000 },
   prop_peter_odili_mansion: { buy: 1_500_000_000, rent: 4_500_000 },
 };
-
-/** Businesses for sale: what the going concern costs, and what it takes in a cycle, scaled to match */
-export const BUSINESS_PRICES: Record<string, number> = {
-  biz_pos_kiosk: 2_500_000,
-  biz_barber: 6_000_000,
-  biz_mama_put: 8_000_000,
-  biz_pharmacy: 25_000_000,
-  biz_mechanic: 18_000_000,
-  biz_slot: 30_000_000,
-  biz_bet_lounge: 40_000_000,
-  biz_danfo_fleet: 60_000_000,
-  biz_oando: 450_000_000,
-  biz_supermarket: 20_000_000,
-};
-
-/**
- * What a business takes in one payout, as a share of its price: about 4% of the price in a game
- * day before staff, wages, rent and tax. A fully staffed ₦8m buka nets about ₦300k a game day
- * after wages and tax, and pays for itself in about 25 game days (four hours or so of play).
- */
-export const TAKINGS_PER_PAYOUT = 0.003;
 
 export function applyRealPrices(account: PlayerAccount): PlayerAccount {
   for (const p of account.properties ?? []) {

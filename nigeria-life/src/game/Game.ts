@@ -1276,6 +1276,8 @@ export class Game {
     convoys.siren = (level) => SoundEngine.getInstance().playSiren(level);
     this.scene.add(convoys.group);
     this.world.cityManager.addToLagos(convoys.group, []);
+    // A hired convoy clears the road: nothing pulling over for it stops the player's car
+    DrivableVehicle.clearsTraffic = () => this.player.isDriving && convoys.escort.active(this.world.skyEnvironment.day);
   }
 
   private moveConvoys(delta: number): void {

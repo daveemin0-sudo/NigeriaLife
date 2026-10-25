@@ -45,6 +45,18 @@ const registry = new Registry(DATA_DIR, CORS);
 const server = http.createServer((req, res) => void route(req, res));
 const rooms = new Rooms(server, accounts, db);
 const economy = new Economy(db, (id) => rooms.positionOf(id));
+// What businesses an account owns, as the ownership registry says
+economy.businessesOf = (accountId) => {
+  const account = accounts.get(accountId);
+  const owner = account ? accounts.registryOf(account) : null;
+  if (!owner) return [];
+  try {
+    const titles = (JSON.parse(registry.text || '{}') as { titles?: Record<string, { ownerId?: string | null }> }).titles ?? {};
+    return Object.entries(titles).filter(([key, t]) => key.startsWith('business:') && t?.ownerId === owner).map(([key]) => key.slice('business:'.length));
+  } catch {
+    return [];
+  }
+};
 economy.onChange = (id, wallet) => rooms.tell(id, { type: 'wallet', wallet });
 
 /** The share of a sale's price the market keeps: as the game (src/realestate/AssetMarket.ts) */

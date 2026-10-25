@@ -105,6 +105,51 @@ export async function run(browser, check) {
   check('convoys: driving down the expressway, the convoy follows in line behind the player, sirens on for the traffic ahead',
     following.visible && following.cars.length === 5 && inOrder && following.sirens.some((s) => s.x === -4.9 && s.dir === 1), following);
 
+  // ------------------------------------------------------------------ Nothing stops a convoy
+  // Up behind a car in the player's own lane: it pulls over, its body goes with it, and the
+  // player's car drives on through; never "Motor dey your front"
+  const clear = await page.evaluate(async () => {
+    const g = window.game;
+    const v = g.player.currentVehicle;
+    const lane = g.world.trafficSpawner.lanes.find((l) => l.axis === 'z' && l.fixed === -4.9 && l.dir === 1);
+    const target = lane.cars.find((c) => c.u > 900 && c.u < 3000);
+    v.mesh.position.set(-4.9, 0, target.u - 30);
+    v.mesh.rotation.y = 0;
+    for (let i = 0; i < 20; i++) await g.advance(0.1);
+    const bodies = [];
+    g.world.trafficSpawner.cars(-4.9, target.u, 6, bodies);
+    const body = bodies.find((b) => Math.abs(b.z - target.u) < 0.5);
+    let stopped = 0;
+    for (let i = 0; i < 60; i++) {
+      const p = v.mesh.position;
+      if (!v.moveUnlessBlocked(p.x, p.z + 0.8)) stopped += 1;
+      await g.advance(0.03);
+    }
+    return { aside: +(target.aside ?? 0).toFixed(2), bodyX: body ? +body.x.toFixed(2) : null, yielding: !!body?.yielding, stopped, passed: v.mesh.position.z > target.u };
+  });
+  check('convoys: a car in the player’s lane pulls over, its body with it, and the convoy drives straight on: nothing stops it',
+    clear.aside > 1 && clear.bodyX !== null && clear.bodyX < -5.9 && clear.yielding && clear.stopped === 0, clear);
+
+  // Without a convoy, a car in the way still stops the player
+  const plain = await page.evaluate(async () => {
+    const g = window.game;
+    const day = g.world.skyEnvironment.day;
+    const saved = g.convoys.escort.until;
+    g.convoys.escort.until = day - 1;
+    const v = g.player.currentVehicle;
+    for (let i = 0; i < 30; i++) await g.advance(0.1);
+    // A car really on the road in the player's lane, its body where it is drawn
+    const bodies = [];
+    g.world.trafficSpawner.cars(-4.9, 3500, 3000, bodies);
+    const target = bodies.find((b) => Math.abs(b.x + 4.9) < 0.3 && !b.parked && b.z > 600);
+    v.mesh.position.set(-4.9, 0, target.z - 7);
+    let stopped = 0;
+    for (let i = 0; i < 10; i++) if (!v.moveUnlessBlocked(-4.9, v.mesh.position.z + 0.8)) stopped += 1;
+    g.convoys.escort.until = saved;
+    return { stopped };
+  });
+  check('convoys: without one, a car in the way still stops the player', plain.stopped > 0, plain);
+
   // ------------------------------------------------------------------ Kept
   await page.reload({ waitUntil: 'load' });
   await page.waitForFunction('window.game && window.game.convoys', { timeout: 120000 });
