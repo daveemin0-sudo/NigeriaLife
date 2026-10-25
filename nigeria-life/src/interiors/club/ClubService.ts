@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Balling, celebrate } from './Balling';
 import { NavGrid } from '../../interactions/NavGrid';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
 import { Sequence, steps } from '../../interactions/Sequence';
@@ -13,8 +14,8 @@ export const CLUB = {
   name: 'Quilox',
   room: { width: 20, length: 16, height: 4.6 },
   hours: PLACE_HOURS.club as OpeningHours,
-  // A big Lagos club at today's prices: the gate, and a bar where a bottle is a statement
-  gateFee: 50000,
+  // A big Lagos club where the big boys ball: VIP entry, and a bar where a bottle is a statement
+  gateFee: 500000,
   desk: { x: 5.2, z: 5.6, halfWidth: 1.3, halfLength: 0.45 },
   deskStand: new THREE.Vector3(5.2, 0, 6.8),
   cashier: new THREE.Vector3(5.2, 0, 4.6),
@@ -42,14 +43,22 @@ export interface Drink {
 }
 
 export const DRINKS: Drink[] = [
-  { id: 'water', name: 'Bottled water', price: 3000, energy: 4, cred: 0, colour: 0xbae6fd },
-  { id: 'malt', name: 'Cold malt', price: 5000, energy: 10, cred: 0, colour: 0x7c2d12 },
-  { id: 'beer', name: 'Heineken', price: 7000, energy: 8, cred: 1, colour: 0x15803d },
-  { id: 'chapman', name: 'Chapman', price: 12000, energy: 14, cred: 1, colour: 0xdc2626 },
-  { id: 'cocktail', name: 'House cocktail', price: 18000, energy: 12, cred: 2, colour: 0xf472b6 },
-  { id: 'henny', name: 'Hennessy VS, the bottle', price: 280000, energy: 8, cred: 8, table: true, colour: 0x92400e },
-  { id: 'bubbly', name: 'Moët bubbly with sparklers', price: 450000, energy: 8, cred: 12, table: true, colour: 0xfde68a },
-  { id: 'ace', name: "Ace of Spades with sparklers and the DJ's shout-out", price: 3500000, energy: 8, cred: 30, table: true, colour: 0xd4af37 },
+  { id: 'water', name: 'Bottled water', price: 15000, energy: 4, cred: 0, colour: 0xbae6fd },
+  { id: 'malt', name: 'Cold malt', price: 25000, energy: 10, cred: 0, colour: 0x7c2d12 },
+  { id: 'beer', name: 'Heineken', price: 35000, energy: 8, cred: 1, colour: 0x15803d },
+  { id: 'chapman', name: 'Chapman', price: 50000, energy: 14, cred: 1, colour: 0xdc2626 },
+  { id: 'cocktail', name: 'House cocktail', price: 120000, energy: 12, cred: 2, colour: 0xf472b6 },
+  { id: 'henny', name: 'Hennessy XO, the bottle', price: 4500000, energy: 8, cred: 8, table: true, colour: 0x92400e },
+  { id: 'bubbly', name: 'Moët Nectar Impérial with sparklers', price: 6000000, energy: 8, cred: 12, table: true, colour: 0xfde68a },
+  { id: 'ace', name: "Ace of Spades with sparklers and the DJ's shout-out", price: 25000000, energy: 8, cred: 30, table: true, colour: 0xd4af37 },
+  { id: 'dom', name: 'Dom Pérignon Luminous, the big bottle', price: 45000000, energy: 8, cred: 45, table: true, colour: 0x1f2937 },
+];
+
+/** Tables for the night: bottles, sparklers, and a place at the top of the club */
+export const TABLES: Array<{ id: string; name: string; price: number; bottles: number; cred: number; host?: boolean; blurb: string }> = [
+  { id: 'silver', name: 'Silver table', price: 25_000_000, bottles: 3, cred: 25, blurb: 'Three bottles of Moët, sparklers, a hostess.' },
+  { id: 'gold', name: 'Gold table', price: 75_000_000, bottles: 4, cred: 60, blurb: 'Two Ace of Spades, two Moët, shisha, the DJ calls your name.' },
+  { id: 'platinum', name: 'Platinum: host the club tonight', price: 200_000_000, bottles: 8, cred: 150, host: true, blurb: 'The whole lounge, Ace for the house, the DJ, the lights: tonight the club is yours.' },
 ];
 
 const DANCE_SECONDS = 9;
@@ -91,10 +100,17 @@ export class ClubService {
   private dancer: PlaceHost | null = null;
   private playerInside = false;
   private sentHome = false;
+  /** Notes in the air, corks flying: what the big spenders leave behind */
+  public readonly balling: Balling;
+  /** Bottles bought tonight that are still to be popped at the table */
+  public bottles = 0;
+  /** The player is hosting the club tonight */
+  public hosting = false;
 
   constructor(group: THREE.Group, origin: THREE.Vector3) {
     this.group = group;
     this.origin = origin.clone();
+    this.balling = new Balling(group);
     this.nav = new NavGrid(origin, CLUB.room.width, CLUB.room.length);
     this.nav.blockRect(CLUB.desk.x, CLUB.desk.z, CLUB.desk.halfWidth, CLUB.desk.halfLength);
     this.nav.blockRect(CLUB.booth.x, CLUB.booth.z, CLUB.booth.halfWidth, CLUB.booth.halfLength);
@@ -251,6 +267,7 @@ export class ClubService {
           player.carry(glass);
           if (drink.cred) this.backend.addStreetCred(drink.cred);
           if (drink.table) {
+            this.bottles += 1;
             this.night.table = this.tonight;
             this.save();
           }
@@ -307,7 +324,106 @@ export class ClubService {
   // --- The lounge -------------------------------------------------------------------------
 
   public loungeLabel(): string {
-    return this.hasTable ? '🛋️ Sit at your table' : '🔒 Lounge tables go with a bottle from the bar';
+    return this.hasTable ? `🍾 Your table${this.bottles ? ` · ${this.bottles} bottle${this.bottles === 1 ? '' : 's'} to pop` : ''} · spray money` : '👑 VIP tables: Silver, Gold, Platinum';
+  }
+
+  /** The lounge: a VIP table bought, or at the table the bottles popped and the money sprayed */
+  public loungeOffer(host: PlaceHost): void {
+    if (this.turnedAway(host)) return;
+    const naira = (n: number) => `₦${n.toLocaleString()}`;
+    if (!this.hasTable) {
+      host.ask({
+        who: 'VIP host', role: CLUB.name, text: 'The lounge is for tables. Which one tonight?',
+        choices: [
+          ...TABLES.map((t) => ({ label: t.name, note: `${naira(t.price)} · ${t.blurb}`, pick: () => this.buyTable(host, t) })),
+          { label: 'Not tonight', pick: () => undefined },
+        ],
+      });
+      return;
+    }
+    host.ask({
+      who: 'Your table', role: CLUB.name, text: this.hosting ? 'You are hosting the club tonight. The whole place is watching.' : 'The lounge is yours tonight.',
+      choices: [
+        { label: 'Sit at your table', pick: () => this.sitInLounge(host) },
+        ...(this.bottles > 0 ? [{ label: 'Pop a bottle', note: `${this.bottles} to pop`, pick: () => this.popBottle(host) }] : []),
+        ...[1_000_000, 5_000_000, 20_000_000].map((amount) => ({ label: `Spray ${naira(amount)}`, note: 'In ₦1,000 notes', pick: () => this.spray(host, amount) })),
+        ...TABLES.filter((t) => t.host && !this.hosting).map((t) => ({ label: t.name, note: naira(t.price), pick: () => this.buyTable(host, t) })),
+      ],
+    });
+  }
+
+  private buyTable(host: PlaceHost, table: (typeof TABLES)[number]): void {
+    host.director.perform({
+      id: `${table.name} at ${CLUB.name}`, actor: host.actor, point: this.world(CLUB.sofaStand), target: this.world(CLUB.sofaSeat), animation: { arms: 'shake' }, seconds: 1.6, effectAt: 0.7, ifStuck: 'snap',
+      effect: () => {
+        if (!this.backend.pay(table.price, `${table.name}, ${CLUB.name}`, 'FOOD_PURCHASE')) {
+          host.say(`The ${table.name} is ₦${table.price.toLocaleString()}. You do not have it.`, 'warning');
+          return false;
+        }
+        this.night.table = this.tonight;
+        this.save();
+        this.bottles += table.bottles;
+        this.backend.addStreetCred(Math.min(100, table.cred));
+        this.backend.modifyNeed('social', 40);
+        if (table.host) {
+          this.hosting = true;
+          celebrate('👑 YOU ARE HOSTING THE CLUB TONIGHT', `The whole of ${CLUB.name} is hailing you!`);
+          host.say('The DJ stops the music: "Ladies and gentlemen, tonight’s host is in the building!" The whole club hails you.', 'success');
+        } else {
+          celebrate(`🍾 ${table.name.toUpperCase()}`, 'The sparklers are coming to your table');
+          host.say(`${table.name}: ${table.bottles} bottles on their way with sparklers. The hostess shows you to the lounge.`, 'success');
+        }
+        return true;
+      },
+    });
+  }
+
+  /** At the table: the bottle raised, the cork flies, the foam and the sparklers go up */
+  public popBottle(host: PlaceHost): void {
+    if (this.bottles <= 0) {
+      host.say('No bottle left to pop. The bar has more.', 'info');
+      return;
+    }
+    const table = this.world(new THREE.Vector3(CLUB.sofaStand.x + 0.4, 0, CLUB.sofaStand.z));
+    host.director.perform({
+      id: 'pop a bottle', actor: host.actor, point: this.world(CLUB.sofaStand), target: table, animation: { arms: 'wave' }, seconds: 2.2, effectAt: 0.5, ifStuck: 'snap',
+      effect: () => {
+        this.bottles -= 1;
+        const local = new THREE.Vector3(CLUB.sofaStand.x + 0.6, 0.8, CLUB.sofaStand.z);
+        this.balling.pop(local, this.hosting ? 0xd4af37 : 0x14532d);
+        this.backend.modifyNeed('fun', 20);
+        this.backend.modifyNeed('social', 10);
+        host.say('POP! 🍾 The cork flies, the foam goes up and the sparklers light your table.', 'success');
+        return true;
+      },
+    });
+  }
+
+  /** Money sprayed: notes from the hands over the floor, and the club hailing the one spraying */
+  public spray(host: PlaceHost, amount: number): void {
+    if (this.turnedAway(host)) return;
+    const actor = host.actor;
+    host.director.perform({
+      id: `spray ₦${amount.toLocaleString()}`, actor, point: this.world(CLUB.floorSpot), target: this.world(new THREE.Vector3(CLUB.floor.x, 0, CLUB.floor.z)), animation: { arms: 'wave' }, seconds: 4.5, effectAt: 0.05, ifStuck: 'snap',
+      effect: () => {
+        if (!this.backend.pay(amount, `Sprayed money, ${CLUB.name}`, 'SHOP_PURCHASE')) {
+          host.say(`You do not have ₦${amount.toLocaleString()} to spray.`, 'warning');
+          return false;
+        }
+        const from = () => {
+          const p = actor.worldPosition();
+          return new THREE.Vector3(p.x - this.origin.x, 1.7, p.z - this.origin.z);
+        };
+        this.balling.spray(from, Math.min(6, 2 + amount / 5_000_000));
+        this.backend.addStreetCred(Math.min(60, Math.round(amount / 400_000)));
+        this.backend.modifyNeed('social', 30);
+        this.backend.modifyNeed('fun', 25);
+        if (amount >= 20_000_000) celebrate('🔥 THE WHOLE CLUB IS HAILING YOU', `₦${amount.toLocaleString()} in the air. The DJ calls your name!`);
+        else if (amount >= 5_000_000) celebrate('💸 BIG BOSS IN THE BUILDING', 'DJ: "Make some noise for the big boss!"');
+        host.say(amount >= 5_000_000 ? 'The notes are raining. The dancers are hailing you.' : 'Notes in the air. The dancers are picking them, hailing you.', 'success');
+        return true;
+      },
+    });
   }
 
   public sitInLounge(host: PlaceHost): void {
@@ -354,12 +470,14 @@ export class ClubService {
 
   public playerLeft(): void {
     this.playerInside = false;
+    this.hosting = false;
     this.dancing = 0;
     this.dancer = null;
     this.serving = false;
   }
 
   public update(delta: number): void {
+    this.balling.update(delta);
     // A dance that is seen through counts for something, a few times a night
     if (this.dancing > 0 && this.dancer) {
       this.dancing -= delta;

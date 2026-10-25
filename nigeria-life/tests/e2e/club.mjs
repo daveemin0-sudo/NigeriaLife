@@ -144,9 +144,9 @@ export async function run(browser, check) {
   await press(page);
   await idle(page);
   state = await club(page);
-  check('with ₦30,000 the ₦50,000 gate fee is refused and nothing is taken', /Pay the gate fee/.test(card.label || '') && !state.paid && (await money(page)).total === cash.total, { card, state });
+  check('with ₦30,000 the ₦500,000 gate fee is refused and nothing is taken', /Pay the gate fee/.test(card.label || '') && !state.paid && (await money(page)).total === cash.total, { card, state });
 
-  await page.evaluate(() => window.game.hud.backend.performGig(1500000, 0, 'test: paid'));
+  await page.evaluate(() => window.game.hud.backend.performGig(320_000_000, 0, 'test: balling money'));
   cash = await money(page);
   card = await cardFor(page, 'club_door_desk', true);
   await press(page);
@@ -157,8 +157,8 @@ export async function run(browser, check) {
   await press(page);
   await advance(page, 2);
   state = await club(page);
-  check('the gate fee is paid at the desk, ₦50,000 once: asking again takes nothing more',
-    state.paid && cash.total - after.total === 50000 && /in for the night/.test(card.label || '') && (await money(page)).total === after.total, { paid: cash.total - after.total, card, state });
+  check('the gate fee is paid at the desk, ₦500,000 once: asking again takes nothing more',
+    state.paid && cash.total - after.total === 500000 && /in for the night/.test(card.label || '') && (await money(page)).total === after.total, { paid: cash.total - after.total, card, state });
 
   // ------------------------------------------------------------------ The bar
   await page.evaluate(() => window.game.hud.backend.depleteEnergy(40));
@@ -181,8 +181,8 @@ export async function run(browser, check) {
   after = await money(page);
   const refreshed = await stats(page);
   const emptyHands = await page.evaluate(() => !window.game.player.actor.carried);
-  check('the bar lists what there is with prices; a Chapman is made by the barman, paid for once as he hands it over (₦12,000), drunk, and the glass is gone',
-    menu.length >= 3 && menu.some((m) => /Chapman/.test(m) && /12,000/.test(m)) && !!glass && cash.total - after.total === 12000 && Math.round(refreshed.energy - tired.energy) === 14 && emptyHands,
+  check('the bar lists what there is with prices; a Chapman is made by the barman, paid for once as he hands it over (₦50,000), drunk, and the glass is gone',
+    menu.length >= 3 && menu.some((m) => /Chapman/.test(m) && /50,000/.test(m)) && !!glass && cash.total - after.total === 50000 && Math.round(refreshed.energy - tired.energy) === 14 && emptyHands,
     { menu, glass, paid: cash.total - after.total, energy: refreshed.energy - tired.energy, emptyHands });
 
   // ------------------------------------------------------------------ The floor
@@ -212,22 +212,53 @@ export async function run(browser, check) {
   await press(page);
   await advance(page, 2);
   const kept = await page.evaluate(() => !window.game.player.actor.hold);
-  check('the lounge is for those with a bottle: without one the player is not seated', /bottle/.test(card.label || '') && kept, { card, kept });
+  check('the lounge is for those with a table: without one the VIP host offers tables, and the player is not seated', /VIP tables/.test(card.label || '') && kept, { card, kept });
+  await page.evaluate(() => document.getElementById('game-dialogue-overlay')?.remove());
 
   cash = await money(page);
   await cardFor(page, 'club_bar', true);
   await press(page);
   await wait(400);
-  await choose(page, 'bubbly');
+  await choose(page, 'Moët');
   await playUntil(page, () => (window.game.world.interiorManager.club.service.hasTable ? true : null), 30);
   await idle(page, 25);
   after = await money(page);
   card = await cardFor(page, 'club_lounge', true);
   await press(page);
+  await wait(300);
+  await choose(page, 'Sit at your table');
   const seated = await playUntil(page, () => { const a = window.game.player.actor; return a.hold && a.pose.legs === 'sit' ? true : null; }, 25);
-  check('a bottle (₦450,000, once) buys a table: the lounge then seats the player', cash.total - after.total === 450000 && /Sit at your table/.test(card.label || '') && !!seated, { paid: cash.total - after.total, card, seated });
+  check('a bottle of Moët (₦6,000,000, once) buys a table: the lounge then seats the player', cash.total - after.total === 6_000_000 && /Your table/.test(card.label || '') && !!seated, { paid: cash.total - after.total, card, seated });
   await page.evaluate(() => window.game.player.actor.hold?.release());
   await advance(page, 0.3);
+
+  // ------------------------------------------------------------------ Balling: pop the bottle, spray money, host the club
+  await cardFor(page, 'club_lounge', true);
+  await press(page);
+  await wait(300);
+  await choose(page, 'Pop a bottle');
+  await playUntil(page, () => (window.game.player.actor.sequence ? null : true), 20);
+  const popped = await page.evaluate(() => ({ bottles: window.game.world.interiorManager.club.service.bottles, told: /POP!/.test(document.body.innerText) }));
+  const s0 = await money(page);
+  await cardFor(page, 'club_lounge', true);
+  await press(page);
+  await wait(300);
+  await choose(page, 'Spray ₦5,000,000');
+  const raining = await playUntil(page, () => (window.game.world.interiorManager.club.service.balling.notes > 20 ? window.game.world.interiorManager.club.service.balling.notes : null), 20);
+  const hailed = await page.evaluate(() => /BIG BOSS IN THE BUILDING/.test(document.getElementById('club-celebrate')?.innerText ?? ''));
+  await playUntil(page, () => (window.game.player.actor.sequence ? null : true), 20);
+  const s1 = await money(page);
+  await cardFor(page, 'club_lounge', true);
+  await press(page);
+  await wait(300);
+  await choose(page, 'Platinum');
+  await playUntil(page, () => (window.game.world.interiorManager.club.service.hosting ? true : null), 20);
+  const host = await page.evaluate(() => /HOSTING THE CLUB TONIGHT/.test(document.getElementById('club-celebrate')?.innerText ?? ''));
+  const s2 = await money(page);
+  check('balling: a bottle is popped at the table, ₦5m is sprayed in notes that rain over the floor (the club hails the big boss), and ₦200m hosts the club tonight',
+    popped.bottles === 0 && popped.told && !!raining && hailed && s0.total - s1.total === 5_000_000 && host && s1.total - s2.total === 200_000_000,
+    { popped, raining, hailed, sprayed: s0.total - s1.total, host, platinum: s1.total - s2.total });
+  await advance(page, 1);
 
   // ------------------------------------------------------------------ Closing time, and the next night
   await setHour(page, 5.05);

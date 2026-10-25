@@ -80,7 +80,10 @@ export async function run(browser, check) {
   const ctx = await newPlayer(browser);
   const { page, log } = await open(ctx);
   await closeDialogs(page);
-  await page.evaluate(() => window.game.hud.backend.performGig(1500000, 0, 'test: travelling money'));
+  await page.evaluate(() => window.game.hud.backend.performGig(40_000_000, 0, 'test: travelling money'));
+  // Murtala Muhammed is in Ikeja, on Ikorodu Road: the test starts on the pavement near it
+  await page.evaluate(() => { const g = window.game; g.player.stopMoving(); g.player.mesh.position.set(-14, 0, 6320); });
+  await advance(page, 0.5);
   const start = await money(page);
 
   // ------------------------------------------------------------------ From the map into the terminal
@@ -110,8 +113,8 @@ export async function run(browser, check) {
   await wait(300);
   let held = await ticket(page);
   let paid = start.total - (await money(page)).total;
-  check('the desk lists the flights from Lagos with their fares, and a ticket for NL 204 to Abuja is bought for ₦185,000',
-    offered.some((o) => /NL 204 to Abuja/.test(o) && /185,000/.test(o)) && offered.some((o) => /NL 310 to Port Harcourt/.test(o) && /165,000/.test(o)) && held.active && held.flight === 'NL 204' && held.state === 'booked' && held.status === 'Scheduled' && paid === 185000,
+  check('the desk lists the flights from Lagos with their fares, and a ticket for NL 204 to Abuja is bought for ₦4,200,000',
+    offered.some((o) => /NL 204 to Abuja/.test(o) && /4,200,000/.test(o)) && offered.some((o) => /NL 310 to Port Harcourt/.test(o) && /3,600,000/.test(o)) && held.active && held.flight === 'NL 204' && held.state === 'booked' && held.status === 'Scheduled' && paid === 4_200_000,
     { offered, held, paid });
 
   // A second ticket cannot be bought while one is held, by any route
@@ -122,7 +125,7 @@ export async function run(browser, check) {
   await page.evaluate(() => window.game.hud.interstateModal.close());
   const direct = await page.evaluate(() => { const f = window.game.flights; return f.book(f.routesFrom('lagos')[0], 'lagos'); });
   check('while a ticket is held a second cannot be bought, at the desk or on the phone: the fare has been taken once',
-    !direct.ok && /already hold a ticket/.test(direct.reason) && (await ticket(page)).flight === 'NL 204' && start.total - (await money(page)).total === 185000, { direct });
+    !direct.ok && /already hold a ticket/.test(direct.reason) && (await ticket(page)).flight === 'NL 204' && start.total - (await money(page)).total === 4_200_000, { direct });
 
   // ------------------------------------------------------------------ In the right order
   await at(page, 'airport_security_gate');
@@ -178,7 +181,7 @@ export async function run(browser, check) {
   const abv = await airport(page, 'abuja');
   const things = await page.evaluate(() => window.game.world.interactiveObjects.map((o) => o.id));
   check('the player is in Abuja, at the foot of the steps of the aircraft that brought them, on the apron of Nnamdi Azikiwe Airport: the ticket is used and the fare was taken once',
-    here.city === 'abuja' && here.shown && !here.inside && !!abv && near(here, abv.steps, 1) && abv.atStand && held.state === 'arrived' && !held.active && start.total - (await money(page)).total === 185000 && things.includes('abuja-airport') && !things.includes('surulere-stadium'),
+    here.city === 'abuja' && here.shown && !here.inside && !!abv && near(here, abv.steps, 1) && abv.atStand && held.state === 'arrived' && !held.active && start.total - (await money(page)).total === 4_200_000 && things.includes('abuja-airport') && !things.includes('surulere-stadium'),
     { here, held, steps: abv?.steps, lagosAircraft: departed.state });
 
   await cardFor(page, 'abuja-airport-apron-door');
@@ -229,7 +232,7 @@ export async function run(browser, check) {
   await throughTheHall(page, 'Port Harcourt', 'airport_flight_ph');
   here = await where(page);
   check('the terminal in Abuja sells Abuja\'s flights (NL 205 to Lagos, NL 420 to Port Harcourt), and Gate 2 leads out to Abuja\'s apron',
-    /Go into the terminal/.test(frontDoor || '') && fromAbuja.some((o) => /NL 205 to Lagos/.test(o)) && fromAbuja.some((o) => /NL 420 to Port Harcourt/.test(o) && /175,000/.test(o)) && here.city === 'abuja' && near(here, abv.door, 2) && (await ticket(page)).state === 'cleared',
+    /Go into the terminal/.test(frontDoor || '') && fromAbuja.some((o) => /NL 205 to Lagos/.test(o)) && fromAbuja.some((o) => /NL 420 to Port Harcourt/.test(o) && /3,900,000/.test(o)) && here.city === 'abuja' && near(here, abv.door, 2) && (await ticket(page)).state === 'cleared',
     { frontDoor, fromAbuja, here });
 
   await untilOnStand(page, 'abuja');
@@ -238,8 +241,8 @@ export async function run(browser, check) {
   await wait(2000);
   here = await where(page);
   const phc = await airport(page, 'port_harcourt');
-  check('NL 420 lands in Port Harcourt: the player is on the apron of its airport, charged ₦175,000 once',
-    here.city === 'port_harcourt' && !!phc && near(here, phc.steps, 1) && (await fares(page)) - before === 175000 && (await ticket(page)).state === 'arrived', { here, charged: (await fares(page)) - before });
+  check('NL 420 lands in Port Harcourt: the player is on the apron of its airport, charged ₦3,900,000 once',
+    here.city === 'port_harcourt' && !!phc && near(here, phc.steps, 1) && (await fares(page)) - before === 3_900_000 && (await ticket(page)).state === 'arrived', { here, charged: (await fares(page)) - before });
 
   // ------------------------------------------------------------------ And back to Lagos
   before = await fares(page);
@@ -255,8 +258,8 @@ export async function run(browser, check) {
   here = await where(page);
   los = await airport(page, 'lagos');
   const home = await page.evaluate(() => ({ lagosShown: window.game.world.landmarks.group.visible, things: window.game.world.interactiveObjects.some((o) => o.id === 'surulere-stadium') }));
-  check('the return is flown from Port Harcourt\'s own airport (NL 311): the player lands back on the apron in Lagos, with Lagos round them again, charged ₦165,000 once',
-    /Port Harcourt Airport \(PHC\)/.test(phHall || '') && here.city === 'lagos' && near(here, los.steps, 1) && home.lagosShown && home.things && (await fares(page)) - before === 165000, { phHall, here, home, charged: (await fares(page)) - before });
+  check('the return is flown from Port Harcourt\'s own airport (NL 311): the player lands back on the apron in Lagos, with Lagos round them again, charged ₦3,600,000 once',
+    /Port Harcourt Airport \(PHC\)/.test(phHall || '') && here.city === 'lagos' && near(here, los.steps, 1) && home.lagosShown && home.things && (await fares(page)) - before === 3_600_000, { phHall, here, home, charged: (await fares(page)) - before });
 
   const ph = await page.evaluate(() => window.game.validateCity('port_harcourt').map((v) => `${v.rule}: ${v.what}`));
   const lagos = await page.evaluate(() => window.game.validateCity('lagos').map((v) => `${v.rule}: ${v.what}`));
@@ -275,7 +278,7 @@ export async function run(browser, check) {
   });
   const net = purse.total - (await money(page)).total;
   check('a ticket handed back before check-in returns four fifths of the fare; once checked in it cannot be handed back',
-    refund.sold.ok && refund.back.ok && refund.again.ok && !refund.late.ok && refund.state === 'checked-in' && net === 165000 - 132000 + 185000, { refund, net });
+    refund.sold.ok && refund.back.ok && refund.again.ok && !refund.late.ok && refund.state === 'checked-in' && net === 3_600_000 - Math.round(3_600_000 * 0.8) + 4_200_000, { refund, net });
 
   // A ticket is for its own airport
   const elsewhere = await page.evaluate(() => { const f = window.game.flights; return { checkIn: f.checkIn('abuja'), board: f.board('abuja') }; });

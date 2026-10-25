@@ -193,7 +193,7 @@ export async function run(browser, check) {
       highest = Math.max(highest, s.y);
       if (!s.visible) continue;
       // In the air it is only ever over the open ground to the west
-      if (s.y > 0.5 && s.box.maxX > -125) overCity += 1;
+      if (s.y > 0.5 && s.box.maxX > -125 + 27) overCity += 1; // moved 27 m east with the airport, to Ikeja
       for (const o of solid) {
         if (o.height <= s.y) continue;
         if (o.maxX > s.box.minX && o.minX < s.box.maxX && o.maxZ > s.box.minZ && o.minZ < s.box.maxZ) hits.push(`${s.state} at ${t}s: ${o.owner}`);

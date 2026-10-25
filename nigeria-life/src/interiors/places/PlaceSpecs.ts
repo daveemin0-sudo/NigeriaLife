@@ -545,7 +545,10 @@ const IKEJA: PlaceSpec[] = [
     { name: 'FAAN officer', title: 'Security', at: [7, -1.2], facing: 0, outfit: 0x0f172a, gender: 'male', cap: true, says: 'Belt, phone and keys in the tray.' },
     { name: 'Duty free', title: 'Duty free', at: [-9, 3], facing: 0, outfit: 0x7c3aed, gender: 'female', says: 'Perfume? Chocolate?' },
   ], [
-    { id: 'checkin', name: '🛫 Check-in & flights', at: [-9, -7], stand: [-9, -5.7], who: 'Check-in agent', role: 'Check-in', text: 'Where are you flying to?', choices: [{ label: 'Flights to Abuja and Port Harcourt', note: 'Tickets', open: 'interstate' }] },
+    { id: 'checkin', name: '🛫 Check-in & flights', at: [-9, -7], stand: [-9, -5.7], who: 'Check-in agent', role: 'Check-in', text: 'Where are you flying to?', choices: [
+      { label: 'Through to departures: check-in, security, your gate', note: 'With your ticket', open: 'airside' },
+      { label: 'Buy a ticket to Abuja or Port Harcourt', note: 'Tickets', open: 'interstate' },
+    ] },
     { id: 'security', name: '🛃 Security', at: [7, 0], stand: [7, 1.4], who: 'FAAN officer', role: 'Security', text: 'Step through.', choices: [{ label: 'Go through security', note: 'Free', arms: 'rest', seconds: 3, effect: () => {}, said: 'Beep? No beep. You are clear.' }] },
     { id: 'dutyfree', name: '🛍️ Duty free', at: [-9, 4], stand: [-9, 2.7], who: 'Duty free', role: 'Duty free', text: 'Tax free!', choices: [
       buy('A bottle of perfume', 120000, { id: 'perfume', name: 'Bottle of perfume', icon: '🧴', price: 120000, category: 'luxury', usable: false, description: 'Duty free, from Murtala Muhammed.' }, 'Gift-wrapped.'),

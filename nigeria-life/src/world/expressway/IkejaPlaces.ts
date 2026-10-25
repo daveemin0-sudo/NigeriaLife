@@ -123,19 +123,16 @@ export function buildIkejaPlace(k: PlaceShape): Card | null {
       return { name: 'Faith Arena', category: 'Church', description: 'A church the size of a stadium: a choir of hundreds, a band, and a pastor who preaches till the walls shake.' };
     }
     case 'mmia-terminal': {
-      // The terminal, its curved roof, the kerb canopy, the control tower, and an airliner on its stand
-      b.box(0xe5e7eb, 40, 14, along - 20, at(30), 0, place.z);
-      b.box(0x0ea5e9, 0.15, 10, along - 24, at(10) - s * 0.08, 0.5, place.z);
-      b.box(0x16a34a, 44, 1.2, along - 16, at(30), 14, place.z, { roll: s * 0.05 });
-      b.box(0xf8fafc, 7, 0.4, along - 30, at(5), 5, place.z);
-      for (let i = 0; i < 6; i++) b.cylinder(0x9ca3af, 0.25, 5, at(5), 0, z0 + 25 + i * 22);
-      b.cylinder(0xd6d3d1, 2.2, 32, at(80), 0, z0 + 15).cylinder(0x0f172a, 4, 4, at(80), 32, z0 + 15, { sides: 10 }).cone(0x9ca3af, 4.2, 2, at(80), 36, z0 + 15, 10);
-      b.box(0x52525b, 70, 0.04, along, at(85), 0.01, place.z);
-      airliner(b, at(85), place.z + 30, 0x0b7a43);
-      airliner(b, at(85), place.z - 35, 0x1d4ed8);
-      k.obstruct(Math.min(at(10), at(50)), Math.max(at(10), at(50)), z0 + 10, z0 + along - 10, 14);
-      k.label('MURTALA MUHAMMED INTERNATIONAL AIRPORT', 'Departures · Arrivals · LOS', '#0b7a43', 15.4, 34);
-      return { name: 'Murtala Muhammed International Airport', category: 'International airport', description: 'Lagos to the world: check in, security, duty free, the lounge and the gates, with airliners on their stands outside.' };
+      // The landside hall on the road, its glass front and kerb canopy; the airport itself (the
+      // terminal airside, the apron, the aircraft, the runway) stands behind it, reached by its own road
+      b.box(0xe5e7eb, 20, 12, 60, at(12), 0, place.z);
+      b.box(0x0ea5e9, 0.15, 8, 52, at(2) - s * 0.08, 0.5, place.z);
+      b.box(0x16a34a, 22, 1, 62, at(12), 12, place.z, { roll: s * 0.04 });
+      b.box(0xf8fafc, 6, 0.4, 50, at(-1), 4.8, place.z);
+      for (let i = 0; i < 5; i++) b.cylinder(0x9ca3af, 0.22, 4.8, at(-3), 0, place.z - 22 + i * 11);
+      k.obstruct(Math.min(at(2), at(22)), Math.max(at(2), at(22)), place.z - 30, place.z + 30, 12);
+      k.label('MURTALA MUHAMMED INTERNATIONAL AIRPORT', 'Departures · Arrivals · LOS', '#0b7a43', 13.6, 34);
+      return { name: 'Murtala Muhammed International Airport', category: 'International airport', description: 'The airport of Lagos: tickets, check-in, duty free and the lounge in the hall; through to security, the gates and the aircraft on the apron behind it.' };
     }
   }
   return null;

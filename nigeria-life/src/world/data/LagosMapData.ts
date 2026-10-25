@@ -299,7 +299,7 @@ export const LAGOS_LANDMARKS: MapLandmark[] = [
     name: 'Murtala Muhammed International Airport (LOS)',
     districtId: 'airport',
     type: 'airport',
-    position: new THREE.Vector3(-80, 0, -115),
+    position: new THREE.Vector3(-63, 0, 6255),
     icon: '✈️',
     title: 'Lagos Aviation Gateway',
     subtitle: 'Terminal 1 & Terminal 2 Flight Operations',

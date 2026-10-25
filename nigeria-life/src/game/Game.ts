@@ -735,6 +735,14 @@ export class Game {
       else if (what === 'interstate') this.hud.interstateModal.open(this.world.cityManager.currentCityId);
       else if (what === 'bus-island') this.hud.onRideTo?.(new THREE.Vector3(9, 0, 40), 'Lagos Island (Broad Street)', Math.round(750 * RideService.fareFactor()));
       else if (what === 'repair') this.offerRepairs();
+      else if (what === 'airside') {
+        // From the hall on the road through to the airport: the terminal, out at its kerb when done
+        const kerb = this.world.airportOf('lagos')?.kerb;
+        const go = () => this.world.interiorManager.enterInterior('mma-airport', this.player, this.cameraManager, this.hud, this.world, kerb ? { returnTo: kerb.clone(), returnYaw: 0 } : undefined);
+        const rooms = this.world.interiorManager;
+        if (rooms.isPlayerInside()) void rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world).then(() => void go());
+        else void go();
+      }
       else if (what === 'yachts' && host) this.world.expressway.roadside.yachtDesk(host);
       else if (what === 'escort:escort' || what === 'escort:convoy') this.hireEscort(what.slice(7) as EscortLevel, host);
       else if (what === 'jets' && host) this.world.expressway.roadside.jetDesk(host);

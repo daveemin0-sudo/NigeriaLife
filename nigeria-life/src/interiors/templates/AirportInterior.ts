@@ -31,7 +31,8 @@ export class AirportInterior {
       tier: 'tier3_simulated',
       districtName: 'Ikeja Aviation Corridor',
       streetBuildingId: 'mma-airport',
-      streetEntrance: new THREE.Vector3(-80, 0, -101.2),
+      // The kerb of Murtala Muhammed, in Ikeja (see Landmarks)
+      streetEntrance: new THREE.Vector3(-53, 0, 6268.8),
       streetExitRotation: 0,
       interiorOrigin: origin,
       playerSpawnOffset: new THREE.Vector3(0, 0, 10),
@@ -102,9 +103,9 @@ export class AirportInterior {
           actions: [
             {
               id: 'airport_fly_abuja_action',
-              label: '✈️ Board Flight to Abuja FCT (₦185,000)',
+              label: '✈️ Board Flight to Abuja FCT (₦4,200,000)',
               description: 'Board Wazobia Air express jet flight directly to Abuja.',
-              cost: 185000,
+              cost: 4_200_000,
               rewardCred: 25,
               dialogueResponse: '✈️ "Captain Ibrahim: Welcome aboard Flight WZ-7120 to Abuja FCT. Fasten your seatbelts for takeoff!"',
             },
@@ -119,9 +120,9 @@ export class AirportInterior {
           actions: [
             {
               id: 'airport_fly_ph_action',
-              label: '✈️ Board Flight to Port Harcourt (₦165,000)',
+              label: '✈️ Board Flight to Port Harcourt (₦3,600,000)',
               description: 'Board NigeriaLife Air flight directly to Port Harcourt Garden City.',
-              cost: 165000,
+              cost: 3_600_000,
               rewardCred: 25,
               dialogueResponse: '✈️ "Welcome aboard flight NL 310 to Port Harcourt. Preparing for runway departure!"',
             },

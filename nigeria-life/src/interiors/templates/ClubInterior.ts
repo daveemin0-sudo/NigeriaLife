@@ -306,7 +306,7 @@ export class ClubInterior {
       club_bar: atBar,
       interior_npc_npc_club_barman: atBar,
       club_dance_floor: { label: () => this.service.floorLabel(), run: (host) => this.service.dance(host) },
-      club_lounge: { label: () => this.service.loungeLabel(), run: (host) => this.service.sitInLounge(host) },
+      club_lounge: { label: () => this.service.loungeLabel(), run: (host) => this.service.loungeOffer(host) },
     });
 
     // --- The people ---------------------------------------------------------------------------

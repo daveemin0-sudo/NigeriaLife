@@ -68,7 +68,8 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'naija-fresh', side: -1, z: 5500, length: 40, depth: 28 },
   { id: 'chop-express', side: -1, z: 5700, length: 24, depth: 18 },
   { id: 'faith-arena', side: -1, z: 6060, length: 90, depth: 70 },
-  { id: 'mmia-terminal', side: 1, z: 6300, length: 160, depth: 120 },
+  // West of the road, with the airport itself behind it (its apron, aircraft and runway: see Landmarks)
+  { id: 'mmia-terminal', side: -1, z: 6262, length: 160, depth: 120 },
   { id: 'station-ikeja', side: -1, z: 6620, length: 44, depth: 30 },
 ];
 
