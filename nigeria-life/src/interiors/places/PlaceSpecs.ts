@@ -363,6 +363,10 @@ const SPECS: PlaceSpec[] = [
       { label: 'Report a crime', note: 'Free', arms: 'talk', seconds: 3, effect: () => {}, said: 'The sergeant writes it down: "We go look into am."' },
       buy('Police character certificate', 3500, { id: 'police_cert', name: 'Police character certificate', icon: '📜', price: 3500, category: 'document', usable: false, description: 'A clean police report, for jobs and visas.' }, 'Stamped and signed. A clean report.', 'For jobs and visas'),
     ] },
+    { id: 'escort', name: '🚨 Escorts & convoys', at: [4, -4], stand: [4, -2.6], who: 'Inspector Bello', role: 'Escort desk', text: 'For a big man moving round Lagos: we follow you, sirens on, and the road clears.', choices: [
+      { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
+      { label: 'A full convoy, three days', note: '₦3,600,000 · outriders, patrol van, two jeeps', open: 'escort:convoy' },
+    ] },
   ], [{ at: [-5, 4], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]),
   venue('efcc-office', 'EFCC Zonal Office', 'Ikoyi · government', 'Economic and Financial Crimes Commission', '#166534', 0xe5e7eb, 0xd6d3d1, (b) => {
     counter(b, 0, -5, 6, 0x166534); for (let i = 0; i < 3; i++) desk(b, -5 + i * 5, 2);
@@ -680,4 +684,116 @@ const OUTDOOR: PlaceSpec[] = [
   ], [{ at: [5, 1.3], facing: Math.PI, outfit: 0x111827, sit: true }], [24, 20]),
 ];
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja')];
+
+// --- The side streets off Ikorodu Road: Allen Avenue and Obafemi Awolowo Way --------------------
+
+/** A barber's chair: a black seat on a chrome post, a mirror on the wall in front */
+const barberChair = (b: Builder, x: number, z: number) => {
+  b.cylinder(0xd1d5db, 0.25, 0.4, x, 0, z).box(0x111827, 0.7, 0.2, 0.7, x, 0.45, z).box(0x111827, 0.7, 0.7, 0.15, x, 0.65, z + 0.3);
+  b.box(0xbfdbfe, 1, 1.2, 0.05, x, 1.1, z - 1.3).box(0x78350f, 1.2, 0.1, 0.4, x, 0.95, z - 1.15);
+};
+
+const SIDE: PlaceSpec[] = [
+  venue('allen-salon', 'Allen Hair & Barbing Salon', 'Allen Avenue · salon', 'Braids · Fades · Nails', '#db2777', 0xf5f5f4, 0xfbcfe8, (b) => {
+    for (const x of [-5, -2.5]) barberChair(b, x, -4);
+    for (const x of [2.5, 5]) barberChair(b, x, -4);
+    table(b, -4, 3, 0xf8fafc, 2, 0xdb2777);
+    bench(b, 3, 4.5, 4, 0x111827);
+  }, [
+    { name: 'Oga Kaka', title: 'Barber', at: [-3.7, -3.3], facing: 0, outfit: 0x111827, gender: 'male', says: 'Low cut? Punk? Skin fade? Sit down, I go do you well.' },
+    { name: 'Aunty Joy', title: 'Stylist', at: [3.7, -3.3], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Braids, wash and set, nails. Sit down, my dear.' },
+  ], [
+    { id: 'barber', name: '💈 The barber’s chair', at: [-2.5, -4], stand: [-2.5, -2.8], who: 'Oga Kaka', role: 'Barber', text: 'Which cut?', choices: [
+      { label: 'A low cut and a shave', price: 5000, note: 'Hygiene +15', sit: true, seconds: 6, effect: need({ hygiene: 15, social: 5 }), said: 'Clippers buzzing, a hot towel, a clean shave. You look fresh.' },
+      { label: 'A skin fade with a design', price: 8000, note: 'Hygiene +15, Social +10', sit: true, seconds: 7, effect: need({ hygiene: 15, social: 10 }), said: 'A sharp fade and a line cut into the side. Everybody will ask who cut it.' },
+    ] },
+    { id: 'braids', name: '💇 Braids & styling', at: [2.5, -4], stand: [2.5, -2.8], who: 'Aunty Joy', role: 'Stylist', text: 'What are we doing today?', choices: [
+      { label: 'Knotless braids', price: 35000, note: 'Social +20', sit: true, seconds: 9, effect: need({ social: 20, fun: 5 }), said: 'Three hours of gist and Nollywood on the TV, and long knotless braids.' },
+      { label: 'A wash and set', price: 12000, note: 'Hygiene +20', sit: true, seconds: 6, effect: need({ hygiene: 20, social: 5 }), said: 'Washed, conditioned, set and shining.' },
+    ] },
+    { id: 'nails', name: '💅 Nails', at: [-4, 3], stand: [-4, 4.2], who: 'Aunty Joy', role: 'Stylist', text: 'Manicure? Pedicure? Both?', choices: [
+      { label: 'A manicure and pedicure', price: 15000, note: 'Hygiene +15, Fun +10', sit: true, seconds: 6, effect: need({ hygiene: 15, fun: 10 }), said: 'Filed, polished, done. Gold on the tips.' },
+    ] },
+  ], [{ at: [5, -3.6], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [2, 4.4], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' }], [16, 14]),
+
+  venue('allen-suya', 'Mai Suya Spot', 'Allen Avenue · suya', 'Suya · Kilishi · Cold drinks', '#b45309', 0x57534e, 0xfed7aa, (b) => {
+    // The grill, its coals glowing, sticks of meat on it
+    b.box(0x111827, 3, 0.9, 1, 0, 0, -3.5).box(0xf97316, 2.8, 0.05, 0.8, 0, 0.9, -3.5, { glow: true });
+    for (let i = 0; i < 8; i++) b.box(0x7c2d12, 0.08, 0.06, 0.6, -1.2 + i * 0.34, 1, -3.5);
+    for (const [x, z] of [[-3, 2], [0, 2], [3, 2]]) table(b, x, z, 0xf8fafc, 2, 0xdc2626);
+  }, [{ name: 'Mai Suya', title: 'Suya man', at: [0, -4.4], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Hot suya! Plenty yaji, plenty onions!' }], [
+    { id: 'grill', name: '🍢 The grill', at: [0, -3.5], stand: [0, -2.2], who: 'Mai Suya', role: 'Suya man', text: 'How much suya?', choices: [
+      { label: 'Suya with onions and yaji', price: 2500, note: 'Hunger +25', sit: true, seconds: 4, effect: need({ hunger: 25, fun: 5 }), said: 'Wrapped in newspaper, hot, peppery. You ate it at the table under the lights.' },
+      buy('Suya and kilishi to take away', 6000, item('suya_pack', 'Suya and kilishi, wrapped', '🍢', 6000, 'food', true, 18), 'Wrapped in newspaper and foil, still smoking.'),
+      { label: 'A cold Chapman', price: 3000, note: 'Fun +8', effect: need({ fun: 8, hunger: 4 }), said: 'Cold Chapman in a tall glass.' },
+    ] },
+  ], [{ at: [-3, 2.95], facing: Math.PI, outfit: 0x16a34a, sit: true }, { at: [3, 1.05], facing: 0, outfit: 0xdb2777, sit: true, gender: 'female' }], [14, 12]),
+
+  venue('allen-bank', 'Eko Commercial Bank, Allen', 'Allen Avenue · bank', 'Allen Avenue branch · ATM', '#1e3a8a', 0xe5e7eb, 0xf8fafc, (b) => {
+    counter(b, 0, -5, 9, 0x1e3a8a, 0xf8fafc);
+    b.box(0xbfe3ff, 9, 1, 0.04, 0, 1.11, -5);
+    for (const x of [-7.5, -6.3]) b.box(0x334155, 0.9, 1.8, 0.5, x, 0, 6.6).box(0x38bdf8, 0.5, 0.4, 0.02, x, 1.2, 6.34, { glow: true });
+    desk(b, 6, 3);
+    for (let i = 0; i < 4; i++) b.box(0x1e3a8a, 0.5, 0.45, 0.5, -3 + i, 0, 2);
+  }, [
+    { name: 'Teller', title: 'Teller', at: [-2, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Next customer, please.' },
+    { name: 'Mr Ajayi', title: 'Account officer', at: [6, 2.2], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Accounts, loans, cards. How can I help?' },
+  ], [
+    { id: 'teller', name: '🏦 The teller', at: [-2, -5], stand: [-2, -3.7], who: 'Teller', role: 'Eko Commercial Bank', text: 'Paying in or taking out?', choices: [
+      { label: 'Pay ₦10,000 cash into my account', note: 'From your wallet', arms: 'reach', seconds: 2.5, effect: (be) => { be.depositToBank(10000); }, said: 'Counted, stamped, and the teller hands back your slip.' },
+      { label: 'See my account', note: 'Opens Bank', open: 'app:bank' },
+    ] },
+    { id: 'atm', name: '🏧 Cash machines', at: [-6.9, 6.6], stand: [-6.9, 5.3], who: 'ATM', role: 'Eko Commercial Bank', text: 'Insert your card.', choices: [{ label: 'Use the cash machine', note: 'Opens Bank', open: 'app:bank' }] },
+    { id: 'officer', name: '💼 Account officer', at: [6, 3], stand: [6, 4.4], who: 'Mr Ajayi', role: 'Account officer', text: 'A loan, a new card, or a business account?', choices: [{ label: 'Loans and accounts', note: 'Opens Bank', open: 'app:bank' }] },
+  ], [{ at: [-1, 2.05], facing: Math.PI, outfit: 0xf59e0b, sit: true }], [20, 16]),
+
+  venue('awolowo-fashion', 'Awolowo Way Fashion House', 'Obafemi Awolowo Way · fashion', 'Bespoke · Agbada · Kaftan · Ankara', '#7c3aed', 0xf5f5f4, 0xede9fe, (b) => {
+    // The cutting table with cloth on it, sewing machines, mannequins in finished pieces
+    b.box(0x78350f, 3.6, 0.9, 1.6, 0, 0, -3).box(0x7c3aed, 1.6, 0.05, 1, -0.6, 0.9, -3).box(0xfacc15, 1, 0.05, 0.8, 1, 0.9, -3);
+    for (const x of [-5, -3]) b.box(0x1f2937, 0.8, 0.75, 0.6, x, 0, -6).box(0x9ca3af, 0.3, 0.3, 0.4, x, 0.75, -6);
+    for (const [x, c] of [[4, 0x15803d], [5.4, 0xdc2626], [6.8, 0xf8fafc]] as Array<[number, number]>) b.cylinder(0x111827, 0.04, 1, x, 0, -5).box(c, 0.6, 1.1, 0.4, x, 1, -5).box(0xe7d3b3, 0.2, 0.25, 0.2, x, 2.1, -5);
+  }, [
+    { name: 'Mr Tunji', title: 'Tailor', at: [0, -4], facing: 0, outfit: 0x7c3aed, gender: 'male', says: 'Let me take your measurement. Agbada? Kaftan?' },
+    { name: 'Bimbo', title: 'Seamstress', at: [-4, -6.7], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Your owambe outfit, sharp sharp.' },
+  ], [
+    { id: 'tailor', name: '🧵 Get measured', at: [0, -3], stand: [0, -1.6], who: 'Mr Tunji', role: 'Tailor', text: 'Stand straight. What are we sewing?', choices: [
+      buy('A kaftan, sewn to measure', 45000, { id: 'kaftan', name: 'Kaftan, sewn to measure', icon: '👔', price: 45000, category: 'luxury', usable: false, description: 'A plain kaftan with fine embroidery at the neck.' }, 'Measured, cut and sewn. It fits like it was made for you, because it was.', 'Ready while you wait'),
+      buy('An agbada, embroidered', 120000, { id: 'agbada', name: 'Agbada, embroidered', icon: '🥻', price: 120000, category: 'luxury', usable: false, description: 'Three pieces, heavy embroidery. Chairman of the occasion.' }, 'Three pieces, gold embroidery. You will be the chairman of the occasion.', 'Ready while you wait'),
+      buy('An Ankara dress for owambe', 35000, { id: 'ankara_dress', name: 'Ankara dress', icon: '👗', price: 35000, category: 'luxury', usable: false, description: 'Bright Ankara, cut to your shape.' }, 'Bright Ankara with a peplum. Owambe ready!', 'Ready while you wait'),
+    ] },
+  ], [{ at: [3, 1], facing: -0.6, outfit: 0xf59e0b, gender: 'female' }], [18, 14]),
+
+  venue('awolowo-pharmacy', 'Awolowo Way Pharmacy', 'Obafemi Awolowo Way · pharmacy', 'Medicines · Checks · Advice', '#16a34a', 0xf1f5f9, 0xdcfce7, (b) => {
+    shelf(b, -3, -5.2, 5, [0xf8fafc, 0x22c55e, 0xdc2626, 0x2563eb]); counter(b, 0, -3, 5, 0x16a34a, 0xf8fafc);
+    b.box(0x1f2937, 0.5, 0.45, 0.5, 4, 0, 2).box(0xf8fafc, 0.4, 0.3, 0.3, 4.6, 0.8, 2);
+  }, [{ name: 'Pharmacist Nkechi', title: 'Pharmacist', at: [0, -4], facing: 0, outfit: 0xf8fafc, gender: 'female', says: 'What do you need? Any prescription?' }], [
+    { id: 'counter', name: '💊 The counter', at: [0, -3], stand: [0, -1.7], who: 'Pharmacist Nkechi', role: 'Pharmacist', text: 'Tell me how you feel.', choices: [
+      buy('Malaria treatment', 6500, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 6500, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
+      buy('Paracetamol', 1000, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1000, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
+      buy('Multivitamins, a month', 4500, { id: 'multivitamins', name: 'Multivitamins', icon: '💊', price: 4500, category: 'medicine', usable: true, description: 'One a day.' }, 'A month of multivitamins.'),
+    ] },
+    { id: 'check', name: '🩺 Blood pressure check', at: [4, 2], stand: [4, 3.3], who: 'Pharmacist Nkechi', role: 'Pharmacist', text: 'Sit down, roll up your sleeve.', choices: [
+      { label: 'Check my blood pressure', price: 2000, note: 'Health +5', sit: true, seconds: 4, effect: need({ health: 5 }), said: '120 over 80. Very good. Reduce the salt anyway.' },
+    ] },
+  ], [{ at: [-2, 1.5], facing: Math.PI, outfit: 0x2563eb }], [14, 12]),
+
+  venue('awolowo-school', 'Ikeja Computer School', 'Obafemi Awolowo Way · training', 'Coding · Design · Office skills', '#1d4ed8', 0xe5e7eb, 0xdbeafe, (b) => {
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 3; i++) desk(b, -4 + i * 4, -1 + r * 3.2);
+    b.box(0xf8fafc, 6, 2, 0.08, 0, 1, -7.4).box(0x111827, 6.2, 0.1, 0.1, 0, 3, -7.4);
+    counter(b, 6, 5.5, 3, 0x1d4ed8);
+  }, [
+    { name: 'Mr Okeke', title: 'Instructor', at: [0, -6.5], facing: 0, outfit: 0x1d4ed8, gender: 'male', says: 'Today: functions, loops, and your first website.' },
+    { name: 'Front desk', title: 'Admissions', at: [6, 4.5], facing: 0, outfit: 0x0f172a, gender: 'female', says: 'Courses start every Monday. Weekend classes too.' },
+  ], [
+    { id: 'class', name: '💻 A class', at: [0, -1], stand: [0, -0.25], who: 'Mr Okeke', role: 'Instructor', text: 'Which course?', choices: [
+      { label: 'A week of coding', price: 50000, note: 'Coding +2', sit: true, seconds: 8, effect: (be) => { (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('coding', 2); need({ energy: -15 })(be as never); }, said: 'Functions, loops, a page that works. The instructor nodded at your code.' },
+      { label: 'Graphic design class', price: 40000, note: 'Craft +2', sit: true, seconds: 8, effect: (be) => { (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('craft', 2); need({ energy: -10 })(be as never); }, said: 'A logo, a flyer, a poster for an owambe. Clients will pay for this.' },
+      { label: 'Office skills: spreadsheets and typing', price: 25000, note: 'Academics +1', sit: true, seconds: 7, effect: (be) => { (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('academics', 1); }, said: 'Formulas, tables, forty words a minute.' },
+    ] },
+    { id: 'admissions', name: '📝 Admissions', at: [6, 5.5], stand: [6, 6.8], who: 'Front desk', role: 'Admissions', text: 'A certificate when you finish.', choices: [
+      buy('A certificate of completion', 15000, { id: 'cert_computer', name: 'Ikeja Computer School certificate', icon: '📜', price: 15000, category: 'document', usable: false, description: 'Completed coursework. Employers like to see it.' }, 'Signed, sealed, framed.', 'For your CV'),
+    ] },
+  ], [{ at: [-4, -0.25], facing: Math.PI, outfit: 0xf97316, sit: true }, { at: [4, 2.95], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }], [20, 16]),
+];
+
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja')];

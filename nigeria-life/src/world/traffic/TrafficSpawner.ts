@@ -81,6 +81,8 @@ interface Car {
   dwell: number;
   /** Its place among the day's traffic: which of them are on the road when only a share are */
   place?: number;
+  /** How far it has pulled over toward the edge of the road, for a siren behind it */
+  aside?: number;
 }
 
 interface Batch {
@@ -509,6 +511,12 @@ export class TrafficSpawner {
   // =========================================================================
   // SIMULATION
   // =========================================================================
+  /**
+   * Sirens on the road this frame (a convoy): where each is and which way it is going. Cars
+   * ahead of one, in its lane or the next, pull over toward the edge of the road and slow down.
+   */
+  public sirens: Array<{ x: number; z: number; dir: 1 | -1 }> = [];
+
   public update(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
     this.signalTime += delta;
     this.updateLamps();
@@ -541,6 +549,18 @@ export class TrafficSpawner {
 
         const room = limit - car.u;
         let target = room <= 0 ? 0 : Math.min(car.cruise, Math.sqrt(2 * 4.5 * room));
+
+        // A siren coming up behind: over to the edge and slow, till it has gone past
+        let yielding = false;
+        if (lane.axis === 'z') {
+          for (const siren of this.sirens) {
+            if (siren.dir !== lane.dir || Math.abs(siren.x - lane.fixed) > 4.6) continue;
+            const ahead = car.u - siren.z * lane.dir;
+            if (ahead > -4 && ahead < 80) yielding = true;
+          }
+        }
+        if (yielding) target = Math.min(target, car.cruise * 0.3);
+        car.aside = THREE.MathUtils.clamp((car.aside ?? 0) + (yielding ? 2.4 : -1.6) * delta, 0, 2.3);
 
         if (car.dwell > 0) {
           car.dwell -= delta;
@@ -580,7 +600,8 @@ export class TrafficSpawner {
         car.place ??= this.places++;
         if (!isAbroad(car.place, this.abroad)) continue;
         const along = car.u * lane.dir;
-        const x = lane.axis === 'z' ? lane.fixed : along;
+        // Pulled over toward the kerb, away from the middle of the road
+        const x = lane.axis === 'z' ? lane.fixed + Math.sign(lane.fixed) * (car.aside ?? 0) : along;
         const z = lane.axis === 'z' ? along : lane.fixed;
         this.dummy.position.set(x, 0, z);
         this.dummy.updateMatrix();

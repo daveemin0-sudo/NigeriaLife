@@ -72,7 +72,42 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'station-ikeja', side: -1, z: 6620, length: 44, depth: 30 },
 ];
 
-/** Is this stretch of frontage taken by one of the places? */
+/** Side streets off Ikorodu Road: which side, where they leave it, how far they run, how wide the carriageway is */
+export const SIDE_ROADS: Array<{ id: string; name: string; side: -1 | 1; z: number; length: number; half: number }> = [
+  { id: 'allen-avenue', name: 'Allen Avenue', side: 1, z: 4620, length: 230, half: 5 },
+  { id: 'awolowo-way', name: 'Obafemi Awolowo Way', side: -1, z: 5650, length: 230, half: 5 },
+];
+/** The pavement either side of a side street */
+export const SIDE_WALK = 3;
+
+/** The places along the side streets: which street, which side of it (-1 toward the island), how far along it, how long and deep */
+export const SIDE_PLACES: Array<{ id: string; road: string; side: -1 | 1; at: number; length: number; depth: number }> = [
+  { id: 'allen-salon', road: 'allen-avenue', side: -1, at: 40, length: 16, depth: 14 },
+  { id: 'allen-suya', road: 'allen-avenue', side: 1, at: 70, length: 14, depth: 12 },
+  { id: 'allen-bank', road: 'allen-avenue', side: -1, at: 120, length: 22, depth: 16 },
+  { id: 'awolowo-fashion', road: 'awolowo-way', side: 1, at: 45, length: 18, depth: 14 },
+  { id: 'awolowo-pharmacy', road: 'awolowo-way', side: -1, at: 80, length: 14, depth: 12 },
+  { id: 'awolowo-school', road: 'awolowo-way', side: 1, at: 130, length: 22, depth: 16 },
+];
+
+/** Where a side-street place's front is: the x along the street, the z of its face, and where to stand on the pavement */
+export function sideFront(id: string): { x: number; faceZ: number; standZ: number; side: -1 | 1; road: (typeof SIDE_ROADS)[number] } | null {
+  const place = SIDE_PLACES.find((p) => p.id === id);
+  const road = place && SIDE_ROADS.find((r) => r.id === place.road);
+  if (!place || !road) return null;
+  return {
+    x: road.side * (EXPRESS.half + EXPRESS.walk + place.at),
+    faceZ: road.z + place.side * (road.half + SIDE_WALK + 0.5),
+    standZ: road.z + place.side * (road.half + SIDE_WALK - 1),
+    side: place.side,
+    road,
+  };
+}
+
+/** Is this stretch of frontage taken by one of the places, or by the mouth of a side street? */
 export function roadsideAt(side: number, z0: number, z1: number): (typeof ROADSIDE)[number] | null {
-  return ROADSIDE.find((p) => p.side === side && z1 > p.z - p.length / 2 - 2 && z0 < p.z + p.length / 2 + 2) ?? null;
+  const place = ROADSIDE.find((p) => p.side === side && z1 > p.z - p.length / 2 - 2 && z0 < p.z + p.length / 2 + 2);
+  if (place) return place;
+  const road = SIDE_ROADS.find((r) => r.side === side && z1 > r.z - r.half - SIDE_WALK - 2 && z0 < r.z + r.half + SIDE_WALK + 2);
+  return road ? { id: road.id, side: road.side, z: road.z, length: (road.half + SIDE_WALK) * 2 + 2, depth: 0 } : null;
 }

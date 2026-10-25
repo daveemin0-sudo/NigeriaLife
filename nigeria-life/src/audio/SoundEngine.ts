@@ -69,6 +69,26 @@ export class SoundEngine {
   // =========================================================================
   // 1. VEHICLE HORN: Authentic Nigerian Danfo / Okada Dual-Tone "Pim-Pim!"
   // =========================================================================
+  /** A convoy's siren: one rising and falling wail, as loud as the convoy is near (0 to 1) */
+  public playSiren(level = 0.5): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain || level <= 0.02) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(650, now);
+    osc.frequency.linearRampToValueAtTime(1150, now + 0.55);
+    osc.frequency.linearRampToValueAtTime(650, now + 1.1);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.16 * level, now + 0.08);
+    gain.gain.linearRampToValueAtTime(0.0001, now + 1.15);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 1.2);
+  }
+
   public playVehicleHorn(type: string = 'danfo'): void {
     const ctx = this.ensureContext();
     if (!ctx || this.isMuted || !this.masterGain) return;

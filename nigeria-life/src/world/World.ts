@@ -14,7 +14,7 @@ import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
 import { Expressway } from './expressway/Expressway';
-import { EXPRESS } from './expressway/layout';
+import { EXPRESS, SIDE_ROADS } from './expressway/layout';
 import { WorldMap } from './map/WorldMap';
 import { shareAbroad } from './StreetLife';
 import { RouteLine } from './map/RouteLine';
@@ -499,6 +499,9 @@ export class World {
     // North of the island's last buildings: the expressway, over the lagoon to the mainland
     if (pos.z > 165) {
       if (pos.z > EXPRESS.ikeja) {
+        // Off it, down a side street
+        const street = SIDE_ROADS.find((r) => Math.sign(pos.x) === r.side && Math.abs(pos.x) > EXPRESS.half + EXPRESS.walk && Math.abs(pos.z - r.z) < r.half + 22);
+        if (street) return { name: street.name, sub: 'Ikeja' };
         const part = pos.z > EXPRESS.ring.z - 150 ? 'Ikeja roundabout' : pos.z > 6150 ? 'Airport Road' : pos.z > 5250 ? 'Ladipo · GRA' : pos.z > 4750 ? 'Oshodi' : 'Allen · Computer Village';
         return { name: 'Ikorodu Road, Ikeja', sub: part };
       }

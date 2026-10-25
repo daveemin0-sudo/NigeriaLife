@@ -13,6 +13,7 @@ import type { BackendService } from '../../backend/BackendService';
 import { PLACE_WORK, type WorkSpec } from './PlaceJobs';
 import { createHandWork } from '../../jobs/HandWork';
 import { Employment } from '../../jobs/Employment';
+import { attachShows } from './LiveEvents';
 
 /**
  * A place along the expressway, gone into: its own room, laid out for what is done there, with
@@ -205,6 +206,7 @@ export class PlaceInterior {
     }
     for (const work of PLACE_WORK[this.spec.key] ?? []) this.addWork(work);
     this.spec.attach?.(this);
+    attachShows(this, this.spec.key);
   }
 
   /**
@@ -312,7 +314,11 @@ export class PlaceInterior {
     return true;
   }
 
+  /** Things in the room that move or change as the game goes on (a show on its stage), each frame */
+  public readonly ticks: Array<(delta: number) => void> = [];
+
   public update(delta: number, time: number): void {
     for (const npc of this.npcs) npc.update(delta, time);
+    for (const tick of this.ticks) tick(delta);
   }
 }

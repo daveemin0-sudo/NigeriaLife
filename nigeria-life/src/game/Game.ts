@@ -63,7 +63,11 @@ import { ProfileSheet } from '../ui/ProfileSheet';
 import { StateHouseSheet } from '../ui/StateHouseSheet';
 import { PlaceOpeners } from '../interiors/places/PlaceInterior';
 import { Companies } from '../business/Companies';
+import { EventClock, startedBetween } from '../interiors/places/LiveEvents';
+import { PLACE_SPECS } from '../interiors/places/PlaceSpecs';
 import { CompanyStaff } from '../business/CompanyStaff';
+import { Convoys, ESCORTS, type EscortLevel } from '../world/convoy/Convoys';
+import type { PlaceHost } from '../destinations/PlaceActions';
 import { Supermarket, SUPERMARKET } from '../business/Supermarket';
 import { vehicleModel } from '../realestate/Garage';
 import { Politics, Policies } from '../politics/Politics';
@@ -729,6 +733,7 @@ export class Game {
       else if (what === 'bus-island') this.hud.onRideTo?.(new THREE.Vector3(9, 0, 40), 'Lagos Island (Broad Street)', Math.round(750 * RideService.fareFactor()));
       else if (what === 'repair') this.offerRepairs();
       else if (what === 'yachts' && host) this.world.expressway.roadside.yachtDesk(host);
+      else if (what === 'escort:escort' || what === 'escort:convoy') this.hireEscort(what.slice(7) as EscortLevel, host);
       else if (what === 'jets' && host) this.world.expressway.roadside.jetDesk(host);
       else if (what.startsWith('ride:')) {
         // A cab to a place along the road (from the jobs list, say): out of any room first
@@ -753,6 +758,8 @@ export class Game {
       this.companies.closeDay(day - 1);
     };
     this.connectCompanies();
+    this.connectEvents();
+    this.connectConvoys();
 
     // 11. Clock for delta-timed updates
     this.clock = new THREE.Clock();
@@ -1259,6 +1266,68 @@ export class Game {
   public readonly companies = Companies.get();
   public readonly supermarket = Supermarket.get();
   public companyStaff: CompanyStaff | null = null;
+
+  /** The governor's convoy on its runs, and the player's own when they have hired one */
+  public convoys: Convoys | null = null;
+  private connectConvoys(): void {
+    const convoys = new Convoys();
+    this.convoys = convoys;
+    convoys.say = (text) => showGameToast(text, 'warning', 5000);
+    convoys.siren = (level) => SoundEngine.getInstance().playSiren(level);
+    this.scene.add(convoys.group);
+    this.world.cityManager.addToLagos(convoys.group, []);
+  }
+
+  private moveConvoys(delta: number): void {
+    const convoys = this.convoys;
+    if (!convoys) return;
+    const sky = this.world.skyEnvironment;
+    const vehicle = this.player.isDriving ? this.player.currentVehicle : null;
+    convoys.update(delta, {
+      hour: sky.currentHour,
+      day: sky.day,
+      player: this.player.position,
+      driving: vehicle ? { x: vehicle.mesh.position.x, z: vehicle.mesh.position.z, yaw: vehicle.mesh.rotation.y } : null,
+      inLagos: this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside(),
+    });
+    this.world.trafficSpawner.sirens = convoys.sirens;
+  }
+
+  /** A police escort or a full convoy, hired at the Police Command: paid once, for its days */
+  private hireEscort(level: EscortLevel, host?: PlaceHost): void {
+    const offer = ESCORTS[level];
+    const convoys = this.convoys;
+    if (!convoys) return;
+    const day = this.world.skyEnvironment.day;
+    if (convoys.escort.active(day) && convoys.escort.level === level) {
+      host?.say(`Your ${offer.name.toLowerCase().replace(/^a /, '')} is with you till the end of day ${convoys.escort.until + 1}.`, 'info');
+      return;
+    }
+    if (!BackendService.getInstance().pay(offer.price, `${offer.name}, Lagos State Police Command`, 'SHOP_PURCHASE')) {
+      host?.say(`That is ₦${offer.price.toLocaleString()}. You do not have it.`, 'warning');
+      return;
+    }
+    convoys.escort.set(level, day + offer.days - 1);
+    host?.say(`${offer.name} is yours for ${offer.days} days. They will follow you whenever you drive, sirens on.`, 'success');
+  }
+
+  /** The venues' timetable runs on the game's clock, and the player hears when a show comes on */
+  private eventsSeen: { day: number; hour: number } | null = null;
+  private connectEvents(): void {
+    const sky = this.world.skyEnvironment;
+    EventClock.now = () => ({ day: sky.day, hour: sky.currentHour });
+  }
+
+  private tellEvents(): void {
+    const now = EventClock.now();
+    const was = this.eventsSeen;
+    this.eventsSeen = now;
+    if (!was || this.world.cityManager.currentCityId !== 'lagos') return;
+    for (const event of startedBetween(was.day, was.hour, now.day, now.hour)) {
+      const venue = PLACE_SPECS.find((spec) => spec.key === event.venue)?.name ?? event.venue;
+      showGameToast(`🔴 LIVE now at ${venue}: ${event.title}. See What’s on in your phone.`, 'info', 6000);
+    }
+  }
 
   /** Does something out in the street: if the player is in a room, they come out of it first */
   private outThen(then: () => void): void {
@@ -2057,6 +2126,8 @@ export class Game {
     else if (!this.world.interiorManager.isPlayerInside()) avoid.push({ x: this.player.position.x, z: this.player.position.z, r: 0.35 });
     this.world.update(delta, this.input.keys, this.player.position, this.player);
     this.companyStaff?.update();
+    this.tellEvents();
+    this.moveConvoys(delta);
     // After the world has moved the coach: its passenger is exactly where it is
     this.rideOutOfThePark();
 

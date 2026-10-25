@@ -331,6 +331,11 @@ button.nl-row:disabled {
 .nl-tag--good {
   color: var(--nl-good);
 }
+/* Something happening right now: a show on at a venue */
+.nl-tag--live {
+  background: #dc2626;
+  color: #ffffff;
+}
 .nl-tag--muted {
   opacity: 0.8;
 }

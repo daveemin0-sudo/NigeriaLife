@@ -24,7 +24,7 @@ export async function run(browser, check) {
       lane: !g.solidsHere().at(-4.9, 600, 1.2),
     };
   });
-  check('expressway: it is built in pieces, with its 40 places along it (36 to visit, 4 filling stations), on to Ikeja, all of them in the world', layout.pieces > 30 && layout.places.length === 40 && layout.inWorld, layout);
+  check('expressway: it is built in pieces, with its 40 places along it (36 to visit, 4 filling stations) and 6 more on its side streets, on to Ikeja, all of them in the world', layout.pieces > 30 && layout.places.length === 46 && layout.inWorld, layout);
   check('expressway: traffic is out on it, the barrier down the middle is solid and the lanes are clear', layout.carsOut > 50 && layout.barrier && layout.lane, layout);
 
   // Drive from Broad Street past the toll and over the bridge, on an empty road
