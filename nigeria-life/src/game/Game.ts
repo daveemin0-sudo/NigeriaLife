@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GistWorld } from '../phone/apps/gist';
+import { GistTimes } from '../life/GistTimes';
 import * as AyoRules from '../games/Ayo';
 import * as WhotRules from '../games/Whot';
 import { gameSession } from '../phone/apps/games';
@@ -161,7 +163,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, InteractionDirector, Games: { Ayo: AyoRules, Whot: WhotRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, InteractionDirector, Games: { Ayo: AyoRules, Whot: WhotRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -1911,6 +1913,10 @@ export class Game {
     onGameEvent((type, data) => {
       if (type === 'arrive_city' && data?.city) Activity.emit({ kind: 'city', city: data.city });
     });
+    // The paper: its riddle pays, its gossip names the player
+    if (!quiet) GistTimes.get().hooks = { pay, tell: (text) => tell(text), name: () => be.getData().username || 'you' };
+    else GistTimes.get();
+    GistWorld.governor = () => this.politics.holder('governor')?.name ?? null;
     this.today = new TodayPanel();
     this.hud.onOpenToday = () => this.today.open('today');
     const badge = () => {
