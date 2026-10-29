@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Activity } from '../life/Activity';
 import { 
   type InteriorDefinition, 
   type InteriorType, 
@@ -258,6 +259,7 @@ export class InteriorManager {
     // 3. Update game location state
     this.locationMode = 'interior';
     this.currentInterior = target;
+    Activity.emit({ kind: 'visited', place: target.id, name: target.name });
     this.getActiveTemplate()?.onPlayerArriving?.();
     UIStateManager.getInstance().setMode('interior');
     console.log(`[Interior] entered: ${target.id}`);

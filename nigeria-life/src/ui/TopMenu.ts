@@ -3,6 +3,9 @@ import { esc, naira } from './kit/html';
 import { UIStateManager } from './UIStateManager';
 
 export interface TopMenuHooks {
+  /** The Today panel: hustles, ladder, album, season */
+  openToday?: () => void;
+  today?: () => string;
   clock(): string;
   city(): string;
   openQuests(): void;
@@ -89,7 +92,8 @@ export class TopMenu {
         ${need('social', '💬', 'Social', '#ec4899')}${need('hygiene', '🫧', 'Hygiene', '#14b8a6')}${need('bladder', '🚽', 'Bladder', '#8b5cf6')}${need('health', '❤️', 'Health', '#ef4444')}
       </div>
       ${row('wallet', '👛', naira(total), `Cash ${naira(data.walletCash)} · Bank ${naira(data.bank.balance)}`, '<b class="tm-plus">+</b>')}
-      ${row('quests', '🎯', "Today's missions", 'Goals, story and rewards')}
+      ${row('today', '🔥', "Today's hustle", this.hooks.today?.() ?? 'Three hustles, your streak, the ladder and the album')}
+      ${row('quests', '🎯', 'Story missions', 'The story across the three cities')}
       ${row('music', '🎵', 'Music', this.hooks.musicPlaying() ? 'Playing now' : 'Afrobeats, Amapiano and your own songs')}
       ${row('fleet', '✈️', 'Jets & yachts', 'Buy, paint your name on, fly and cruise')}
       ${row('state', '🏛️', 'Lagos State House', this.hooks.governor() ? `Governor @${this.hooks.governor()} · laws and the election` : 'The weekly election is on')}
@@ -113,6 +117,7 @@ export class TopMenu {
     if (act === 'close') return;
     if (act === 'wallet') this.hooks.cashMachine();
     else if (act === 'quests') this.hooks.openQuests();
+    else if (act === 'today') this.hooks.openToday?.();
     else if (act === 'music') this.hooks.openMusic();
     else if (act === 'fleet') this.hooks.openFleet();
     else if (act === 'state') this.hooks.openStateHouse();

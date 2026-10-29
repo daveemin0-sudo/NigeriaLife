@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Activity } from '../life/Activity';
 import { cleanProfile, type PublicProfile } from '../social/Profile';
 import { FEE_MAX, FEE_MIN, ROLES, Ties, type Offer, type OfferState } from '../social/Ties';
 import { Player } from '../player/Player';
@@ -299,6 +300,7 @@ export class NetworkManager {
   }
 
   public sendChatMessage(text: string): void {
+    Activity.emit({ kind: 'chat' });
     const msg: ChatMessage = {
       id: `msg_${Date.now()}`,
       senderId: this.localId,

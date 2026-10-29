@@ -1,4 +1,11 @@
 import * as THREE from 'three';
+import { onGameEvent } from './GameEvents';
+import { celebrate } from '../interiors/club/Balling';
+import { TodayPanel } from '../ui/TodayPanel';
+import { Album } from '../life/Album';
+import { Hustles } from '../life/Hustles';
+import { Ladder } from '../life/Ladder';
+import { Activity } from '../life/Activity';
 import { World } from '../world/World';
 import { Player } from '../player/Player';
 import { GameCamera } from './Camera';
@@ -151,13 +158,15 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, InteractionDirector };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
   public placeCard: PlaceCard;
 
   // In-Transit Simulations (In-Flight Airliner & First-Person Road Ride)
+  public today!: TodayPanel;
+  private lifeTimer = 0;
   public flightExperience: FlightExperience;
   /** Where the player is employed, and how much work they have done there */
   public jobs = Employment.get();
@@ -211,6 +220,8 @@ export class Game {
     );
 
     // 4. World & Environment
+    // Each account keeps its own hustles, ladder and album
+    Activity.player = () => BackendService.getInstance().getData().id || 'local';
     this.world = new World(this.scene, this.renderer);
     this.cameraManager.collisionObjects = [this.world.buildings.group, this.world.districts.group];
     this.world.viewCamera = this.cameraManager.camera;
@@ -411,6 +422,7 @@ export class Game {
     };
     this.flightExperience.onLive = (status, fraction) => this.transitHUD.setFlightLive(status, fraction);
     this.flightExperience.onServed = () => {
+      Activity.emit({ kind: 'acted', id: 'served on a flight' });
       const be = BackendService.getInstance();
       be.modifyNeed('hunger', 25);
       be.modifyNeed('fun', 5);
@@ -1019,8 +1031,12 @@ export class Game {
     fleet.onChange(showFleet);
     showFleet();
 
+    // Today: three hustles a day, the streak, the life ladder, the album and the season
+    this.setUpLife();
     // The drop-down under the top bar: time, needs, money, and a tap to everything else
     new TopMenu({
+      openToday: () => this.today.open('today'),
+      today: () => { const h = Hustles.get(); return `🔥 ${h.streak}-day streak · ${h.doneToday}/3 done · ${Ladder.get().current.area}`; },
       clock: () => document.getElementById('hud-clock-val')?.textContent ?? '',
       city: () => document.getElementById('hud-loc-name')?.textContent ?? 'Lagos',
       openQuests: () => this.hud.questModal.open(),
@@ -1854,6 +1870,55 @@ export class Game {
     }
   }
 
+  /** The daily hustle, the ladder and the album: what they pay, and how they tell the player */
+  private setUpLife(): void {
+    const be = BackendService.getInstance();
+    const pay = (amount: number, why: string) => {
+      if (amount <= 0) return;
+      be.processTransaction({ type: 'QUEST_REWARD', amount, description: why });
+      SoundEngine.getInstance().playTransactionSuccess();
+    };
+    const tell = (text: string, big?: { title: string; sub: string }) => {
+      showGameToast(text, 'success', 4200);
+      if (big) celebrate(big.title, big.sub);
+    };
+    // The browser tests that count money exactly run with these quiet (tests/e2e/lib.mjs)
+    const quiet = !!(window as unknown as { __lifeQuiet?: boolean }).__lifeQuiet;
+    if (!quiet) Hustles.get().hooks = { pay, tell, rung: () => Ladder.get().rung, pack: (n, why) => Album.get().addPacks(n, why) };
+    if (!quiet) Album.get().hooks = { pay, tell };
+    if (!quiet) Ladder.get().hooks = {
+      pay,
+      tell,
+      facts: () => {
+        const data = be.getData();
+        const owned = data.businesses.filter((b) => b.owned);
+        const plots = this.land.myPlots();
+        return {
+          worth: data.walletCash + data.bank.balance + owned.reduce((sum, b) => sum + (b.purchasePrice ?? 0), 0),
+          vehicles: this.garage.mine().length,
+          businesses: owned.length,
+          renting: data.properties.some((p) => p.status === 'rented' && p.ownerId === data.id) || this.land.homes().length > 0,
+          builtHomes: plots.filter((p) => !!this.land.building(p.id)).length,
+          plots: plots.length,
+          craft: Fleet.get().mine('jet').length + Fleet.get().mine('yacht').length,
+        };
+      },
+    };
+    onGameEvent((type, data) => {
+      if (type === 'arrive_city' && data?.city) Activity.emit({ kind: 'city', city: data.city });
+    });
+    this.today = new TodayPanel();
+    this.hud.onOpenToday = () => this.today.open('today');
+    const badge = () => {
+      const h = Hustles.get();
+      const sub = document.getElementById('badge-today-sub');
+      if (sub) sub.textContent = `🔥 ${h.streak} · ${h.doneToday}/3 done${Album.get().packs ? ` · 🃏 ${Album.get().packs}` : ''}`;
+    };
+    Hustles.get().subscribe(badge);
+    Album.get().subscribe(badge);
+    badge();
+  }
+
   /** Where the flight has got to, as its passenger's ticket records it. */
   private trackFlight(): void {
     if (!this.flightExperience.isActive || this.flights.status().state !== 'boarded') return;
@@ -2183,6 +2248,12 @@ export class Game {
     if (driven) avoid.push({ x: driven.mesh.position.x, z: driven.mesh.position.z, r: 2.4 });
     else if (!this.world.interiorManager.isPlayerInside()) avoid.push({ x: this.player.position.x, z: this.player.position.z, r: 0.35 });
     this.world.update(delta, this.input.keys, this.player.position, this.player);
+    this.world.agamas.update(delta, this.player.position);
+    this.lifeTimer -= delta;
+    if (this.lifeTimer <= 0) {
+      this.lifeTimer = 2;
+      Ladder.get().check();
+    }
     this.companyStaff?.update();
     this.tellEvents();
     this.moveConvoys(delta);

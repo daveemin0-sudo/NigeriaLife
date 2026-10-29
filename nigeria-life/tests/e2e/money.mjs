@@ -53,15 +53,16 @@ export async function run(browser, check) {
   check('a second visit repays the loan with interest (net -₦5,000) instead of paying out again', repaid.total - m0.total === -5000 && loanAfter === null, { net: repaid.total - m0.total, loanAfter });
   await leaveInterior(page);
 
-  // --- Daily gem hunt badge
+  // --- The Today badge: it opens the day's hustles; tapping it pays nothing (the old free gem is gone)
   m0 = await money(page);
   for (let i = 0; i < 3; i++) {
-    await page.evaluate(() => document.getElementById('badge-gem-hunt')?.click());
+    await page.evaluate(() => document.getElementById('badge-today')?.click());
     await wait(200);
-    await closeDialogs(page);
   }
+  const todayOpen = await page.evaluate(() => document.getElementById('today-panel')?.classList.contains('open'));
+  await page.evaluate(() => window.game.today.close());
   m1 = await money(page);
-  check('gem hunt pays once per day, not per click', m1.total - m0.total === 3000, { delta: m1.total - m0.total });
+  check('the Today badge opens the hustles of the day and pays nothing for a tap', todayOpen && m1.total === m0.total, { todayOpen, delta: m1.total - m0.total });
 
   // --- Hustles that used to pay for nothing now cost energy
   await setEnergy(10);

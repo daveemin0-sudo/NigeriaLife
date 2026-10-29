@@ -1,4 +1,5 @@
 import { profileKey } from './Profile';
+import { Activity } from '../life/Activity';
 import {
   type PlayerAccount,
   type BusinessEnterprise,
@@ -174,6 +175,7 @@ export class BackendService {
       // On a game server the server holds the money: tell it what was done here
       const cash = this.data.walletCash - cashBefore;
       const bank = this.data.bank.balance - bankBefore;
+      if (cash + bank !== 0) Activity.emit({ kind: 'money', type: req.type, amount: cash + bank, what: req.description });
       if (this.authority && !this.settling && (cash !== 0 || bank !== 0)) {
         const holding = this.heldReports[this.heldReports.length - 1];
         if (holding) holding.push([cash, bank, `${req.type}: ${req.description}`]);
@@ -372,8 +374,11 @@ export class BackendService {
     if (this.data.stats[need] === undefined) {
       this.data.stats[need] = 50;
     }
+    const before = this.data.stats[need] as number;
     this.data.stats[need] = Math.max(0, Math.min(100, Math.round(this.data.stats[need] + delta)));
     this.saveData();
+    const moved = (this.data.stats[need] as number) - before;
+    if (moved !== 0) Activity.emit({ kind: 'need', need, delta: moved });
   }
 
   /** Awards experience / levels to one of the 9 official skills (1-10 clamped) */
@@ -599,6 +604,7 @@ export class BackendService {
 
   /** Restore one of the 6 benchmark needs */
   public restoreNeed(need: 'fun' | 'social' | 'hygiene' | 'bladder' | 'hunger' | 'energy' | 'health', amount: number): void {
+    const before = (this.data.stats as unknown as Record<string, number>)[need] ?? 0;
     const stats = this.data.stats;
     if (need === 'fun') stats.fun = Math.min(100, (stats.fun ?? 100) + amount);
     else if (need === 'social') stats.social = Math.min(100, (stats.social ?? 100) + amount);
@@ -607,6 +613,8 @@ export class BackendService {
     else if (need === 'hunger') stats.hunger = Math.min(100, stats.hunger + amount);
     else if (need === 'energy') stats.energy = Math.min(100, stats.energy + amount);
     else if (need === 'health') stats.health = Math.min(100, stats.health + amount);
+    const after = (this.data.stats as unknown as Record<string, number>)[need] ?? 0;
+    if (after !== before) Activity.emit({ kind: 'need', need, delta: after - before });
     this.saveData();
     this.notifyListeners();
   }
@@ -626,11 +634,13 @@ export class BackendService {
         return { success: false, message: `Insufficient funds! ${foodName} costs ₦${price.toLocaleString()}.` };
       }
     }
+    const hungerBefore = this.data.stats.hunger;
     this.data.stats.hunger = Math.min(100, this.data.stats.hunger + hungerRestore);
     this.data.stats.energy = Math.min(100, this.data.stats.energy + energyRestore);
     this.data.stats.health = Math.min(100, this.data.stats.health + healthRestore);
     this.saveData();
     emitGameEvent('eat');
+    Activity.emit({ kind: 'need', need: 'hunger', delta: Math.max(15, this.data.stats.hunger - hungerBefore) });
     return {
       success: true,
       message: `Chowed down! Enjoyed ${foodName}. +${hungerRestore}% Hunger, +${energyRestore}% Energy!`

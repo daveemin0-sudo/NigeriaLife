@@ -1,0 +1,16 @@
+import { launch, open, closeDialogs, advance, wait, GAME_URL } from './lib.mjs';
+const out = process.argv[2];
+const browser = await launch();
+const ctx = await browser.createBrowserContext();
+const page = await ctx.newPage();
+await page.setViewport({ width: 412, height: 860, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+await page.goto(GAME_URL, { waitUntil: 'load' });
+await wait(6000);
+await page.screenshot({ path: `${out}/ph-0-start.png` });
+await page.waitForFunction('window.game && window.game.world', { timeout: 120000 }).catch(() => {});
+await wait(3000);
+await page.screenshot({ path: `${out}/ph-1-loaded.png` });
+await page.evaluate(() => [...document.querySelectorAll('#game-dialogue-overlay button, .modal button')].slice(0,1).forEach((b) => b.click()));
+await wait(1500);
+await page.screenshot({ path: `${out}/ph-2.png` });
+await browser.close();

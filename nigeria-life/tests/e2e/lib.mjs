@@ -49,6 +49,9 @@ export async function open(ctx, opts = {}) {
   const log = { errors: [] };
   page.on('pageerror', (e) => log.errors.push('PAGEERR ' + e.message.slice(0, 240)));
   page.on('console', (m) => { if (m.type() === 'error') log.errors.push('CONSOLE ' + m.text().slice(0, 240)); });
+  // The daily hustle, the ladder and the album pay rewards as things are done: suites that count
+  // money exactly run without them, unless they ask for them
+  if (!opts.life) await page.evaluateOnNewDocument(() => { window.__lifeQuiet = true; });
   if (opts.before) await page.evaluateOnNewDocument(opts.before);
   await page.goto(opts.url || GAME_URL, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction('window.game', { timeout: 120000 });

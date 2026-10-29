@@ -71,6 +71,8 @@ const LANDMARK_STREET_SPOTS: Record<string, string> = {
 };
 
 export class HUD {
+  /** Opens the Today panel (set by the game) */
+  public onOpenToday: (() => void) | null = null;
   private container: HTMLDivElement;
   private interactionCard: HTMLDivElement;
   private drivingHudEl!: HTMLDivElement;
@@ -189,11 +191,11 @@ export class HUD {
               <span class="badge-sub">+2 Mood Boost</span>
             </div>
           </div>
-          <div class="top-badge gem-badge" id="badge-gem-hunt" title="Daily Naira Gem Quest">
-            <span class="badge-icon">💎</span>
+          <div class="top-badge gem-badge" id="badge-today" title="Today's hustle, the life ladder and your album">
+            <span class="badge-icon">🔥</span>
             <div class="badge-text">
-              <span class="badge-title">Daily gem hunt</span>
-              <span class="badge-sub">87,691 found • Next: ₦3,000</span>
+              <span class="badge-title">Today's hustle</span>
+              <span class="badge-sub" id="badge-today-sub">Three hustles a day</span>
             </div>
           </div>
 
@@ -1191,29 +1193,8 @@ export class HUD {
       });
     });
 
-    document.getElementById('badge-gem-hunt')?.addEventListener('click', () => {
-      const reward = 3000;
-      const claim = this.backend.claimTimedPayout('daily_gem_hunt', reward, 'Daily Naira Gem Hunt', 24 * 60 * 60 * 1000);
-      if (!claim.success) {
-        const hours = Math.max(1, Math.ceil(claim.waitMs / 3600000));
-        this.showDialogueModal({
-          speakerName: 'Lagos City Secret',
-          speakerRole: 'Daily Naira Gem Hunt',
-          speakerAvatar: '💎',
-          dialogueText: `You already found today's gem. The next one appears in about ${hours} hour${hours === 1 ? '' : 's'}.`,
-        });
-        return;
-      }
-      this.backend.addStreetCred(10);
-      this.showDialogueModal({
-        speakerName: 'Lagos City Secret',
-        speakerRole: 'Daily Naira Gem Hunt',
-        speakerAvatar: '💎',
-        soundType: 'win',
-        dialogueText: `Daily Naira Gem Hunt completed! Discovered hidden Lagos Gem! +₦${reward.toLocaleString()} cash credited to your wallet!`,
-        rewards: { cash: reward, streetCred: 10 },
-      });
-    });
+    // Today's hustle: the streak, the three hustles, the ladder and the album
+    document.getElementById('badge-today')?.addEventListener('click', () => this.onOpenToday?.());
 
     // The places nearby: pressing one walks the player to it
     document.getElementById('radar-pills')?.addEventListener('click', (e) => {

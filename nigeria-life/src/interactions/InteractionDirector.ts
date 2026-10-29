@@ -1,4 +1,5 @@
 import type { Actor } from './Actor';
+import { Activity } from '../life/Activity';
 import type { Doorway } from './Door';
 import type { NavGrid } from './NavGrid';
 import type { PoseState } from './Poses';
@@ -110,6 +111,10 @@ export class InteractionDirector {
       posesAtStart.set(actor, { ...actor.pose });
     }
     sequence.onEnd((reason) => {
+      if (reason === 'done' && this.player && sequence.actors[0] === this.player) {
+        Activity.emit({ kind: 'acted', id: sequence.name });
+        if (/^(wave|greet|handshake|chat)$/.test(sequence.name)) Activity.emit({ kind: 'greet', how: sequence.name });
+      }
       for (const actor of sequence.actors) {
         if (actor.sequence !== sequence) continue;
         actor.sequence = null;
