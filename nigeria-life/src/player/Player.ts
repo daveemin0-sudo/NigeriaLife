@@ -149,6 +149,7 @@ export class Player {
   public setDestination(target: THREE.Vector3, onArrive?: () => void): void {
     this.nearest = Infinity;
     this.sinceNearer = 0;
+    this.blockedFor = 0;
     this.roundIt = null;
     this.way = [];
     this.goal = target.clone();
@@ -517,9 +518,23 @@ export class Player {
         } else {
           this.sinceNearer += delta;
         }
+        // Someone or a car crossing in front: wait a moment for the way to clear before giving up
+        if (!stepped && !this.onBridge) {
+          this.mesh.position.x = cameFrom.x;
+          this.mesh.position.z = cameFrom.z;
+          this.blockedFor += delta;
+          this.sinceNearer = 0;
+          if (this.blockedFor < 1.5) {
+            this.playAnimation('idle');
+            return;
+          }
+        } else if (stepped) {
+          this.blockedFor = 0;
+        }
         if (!stepped || this.sinceNearer > (this.onBridge ? 0.3 : 2.5)) {
           this.mesh.position.x = stepped ? this.mesh.position.x : cameFrom.x;
           this.mesh.position.z = stepped ? this.mesh.position.z : cameFrom.z;
+          this.blockedFor = 0;
           this.endWalk();
           return;
         }
@@ -599,6 +614,8 @@ export class Player {
   /** Walking to a clicked point: the nearest they have got to it, and how long since they got any nearer */
   private nearest = Infinity;
   private sinceNearer = 0;
+  /** How long the next step has been blocked by something in the way */
+  private blockedFor = 0;
   /** Stepping round something in the way: which way they turned, and for how much longer */
   private roundIt: { turn: number; left: number } | null = null;
 

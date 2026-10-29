@@ -1,4 +1,6 @@
 import type * as THREE from 'three';
+import { Activity } from '../life/Activity';
+import { ShiftSkill } from './ShiftSkill';
 import type { Actor } from '../interactions/Actor';
 import type { ArmPose, LegPose } from '../interactions/Poses';
 import type { PlaceHost } from '../destinations/PlaceActions';
@@ -81,6 +83,8 @@ export interface HandWork {
   readonly setDown: number;
   /** How many pieces of work have been paid for here since the game was opened */
   readonly paid: number;
+  /** The stars the last paid piece of work was rated */
+  readonly stars: number;
   /** What the rate is for the grade the worker is on (or would start on) */
   rate(): number;
   /** The terms, as the one in charge states them */
@@ -95,6 +99,11 @@ export interface HandWork {
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
+/** What a good tap does, in the words of the trade */
+const SKILL_WORD: Record<string, string> = {
+  fitness: 'Lift!', cooking: 'Serve!', coding: 'Type!', craft: 'Fix!', charisma: 'Sell!', music: 'On the beat!', driving: 'Steady!', academics: 'Focus!', hustle: 'Hustle!',
+};
+
 export function createHandWork(options: HandWorkOptions): HandWork {
   const jobs = Employment.get();
   const id = options.employerId;
@@ -104,6 +113,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
   let working = false;
   let setDown = 0;
   let paid = 0;
+  let lastStars = 0;
 
   const rate = () => (jobs.grade(id) ?? employer?.grades[0])?.pay ?? 0;
   const terms = () => (employer?.grades ?? []).map((grade) => `₦${grade.pay.toLocaleString()} a ${words.piece}${grade.from ? ` once you have done ${grade.from}` : ' to start'}`).join(', ');
@@ -113,6 +123,10 @@ export function createHandWork(options: HandWorkOptions): HandWork {
     working = true;
     setDown = 0;
     options.began?.();
+    // Skill on the job: a sweep for each part of the work, rated in stars at the end
+    const skill = ShiftSkill.get();
+    skill.begin(SKILL_WORD[employer?.skill ?? ''] ?? 'Tap in the green!', options.rounds?.length ?? options.count ?? 1);
+    let sweep: { end(): void } | null = null;
     const work = new Sequence(options.name, [actor]);
     work.maxSeconds = options.maxSeconds ?? 150;
     const online = OnlineAccount.get();
@@ -132,9 +146,12 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       work.add(
         steps.walk(actor, round.stand, { speed: 3.2 }),
         steps.face(actor, round.face),
+        steps.call('the sweep starts', () => { sweep = skill.round(); }),
         steps.animate(actor, { arms: round.arms, legs: round.legs ?? 'stand' }, round.seconds, [{
           at: 0.95,
           run: () => {
+            sweep?.end();
+            sweep = null;
             round.done?.(actor);
             setDown = i + 1;
           },
@@ -148,12 +165,14 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       work.add(
         steps.walk(actor, from.stand, { speed: 3.6 }),
         steps.face(actor, from.face),
-        steps.animate(actor, { arms: 'reach' }, 0.7, [{ at: 0.6, run: () => from.take(actor) }]),
+        steps.animate(actor, { arms: 'reach' }, 0.7, [{ at: 0.6, run: () => { from.take(actor); sweep = skill.round(); } }]),
         steps.walk(actor, to.stand, { speed: 3 }),
         steps.face(actor, to.face),
         steps.animate(actor, { arms: 'reach' }, 0.7, [{
           at: 0.6,
           run: () => {
+            sweep?.end();
+            sweep = null;
             to.put(actor);
             setDown = i + 1;
           },
@@ -167,6 +186,13 @@ export function createHandWork(options: HandWorkOptions): HandWork {
         return false;
       }
       paid += 1;
+      // The stars, and the tip they earn
+      const rated = skill.finish(result.pay ?? 0);
+      const stars = '★'.repeat(rated.stars) + '☆'.repeat(3 - rated.stars);
+      if (rated.tip > 0) host.backend.processTransaction({ type: 'BONUS', amount: rated.tip, description: `Tip for a ${rated.stars}-star ${words.piece}` });
+      if (rated.stars === 3) Activity.emit({ kind: 'acted', id: 'three-star shift' });
+      lastStars = rated.stars;
+      if (rated.tip > 0) setTimeout(() => host.say(`${stars} ${rated.stars === 3 ? 'Perfect work!' : 'Good work.'} ${capital(words.theBoss)} tips you ₦${rated.tip.toLocaleString()}.`, 'success'), 1800);
       host.say(result.promoted
         ? `${capital(words.theBoss)} pays you ₦${result.pay!.toLocaleString()} and makes you ${result.promoted.title.toLowerCase()}: ₦${result.promoted.pay.toLocaleString()} a ${words.piece} from now on.`
         : `${capital(words.theBoss)} pays you ₦${result.pay!.toLocaleString()} for the ${words.piece}. Energy -${effort}%.`, 'success');
@@ -182,6 +208,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       work.add(steps.call(`paid for the ${words.piece}`, () => announce(jobs.complete(id))));
     }
     work.onEnd((reason) => {
+      if (reason !== 'done') skill.finish(0);
       working = false;
       options.ended(reason === 'done', host);
     });
@@ -195,6 +222,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
     get working() { return working; },
     get setDown() { return setDown; },
     get paid() { return paid; },
+    get stars() { return lastStars; },
     rate,
     terms,
     bossLabel: () => {

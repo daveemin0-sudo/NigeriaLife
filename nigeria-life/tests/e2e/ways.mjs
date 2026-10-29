@@ -53,21 +53,23 @@ export async function run(browser, check) {
     const stadium = timed(10, 0, -60, 20);
     const quay = timed(10, 0, -60, 70);
     const across = timed(112, 0, -50, 48);
-    const airside = timed(-80, -70, -125, -110);
+    // The Lagos airport now stands in Ikeja: it is drawn round (-100, -125) and put down 27 east, 6,370 north
+    const AX = 27;
+    const AZ = 6370;
     const straight = Math.hypot(-60 - 10, 20 - 0);
     const end = (way) => way.points[way.points.length - 1];
     return {
       stadium: { metres: +stadium.way.metres.toFixed(1), straight: +straight.toFixed(1), reaches: stadium.way.reaches, brushes: brushes(10, 0, stadium.way), byTheGate: stadium.way.points.some((p) => p.x < -42 && p.x > -54 && Math.abs(p.z - 5) < 4), ms: +stadium.ms.toFixed(1) },
       quay: { reaches: quay.way.reaches, brushes: brushes(10, 0, quay.way), byTheGate: quay.way.points.some((p) => p.x < -42 && p.x > -50 && Math.abs(p.z - 48) < 4.5) },
       across: { reaches: across.way.reaches, brushes: brushes(112, 0, across.way), metres: +across.way.metres.toFixed(1), ms: +across.ms.toFixed(1) },
-      airside: { reaches: airside.way.reaches, end: end(airside.way), endsOutside: end(airside.way).z > -103, insideFence: solids.at(-125, -110, 0) },
+      airside: { fence: solids.at(-135 + AX, -90.4 + AZ, 0.3), street: solids.at(-135 + AX, -84 + AZ, 0), apron: solids.at(-125 + AX, -110 + AZ, 0) },
     };
   });
   check('the way from Broad Street to a seat inside the stadium goes round its wall and in at Gate A: it reaches, it is longer than the crow flies, and no step of it touches a wall',
     found.stadium.reaches && found.stadium.byTheGate && found.stadium.brushes === 0 && found.stadium.metres > found.stadium.straight + 3, found.stadium);
   check('the way to the quay goes in at the port gate, and the way from Banana Island to the port crosses the whole city without touching a wall, found in well under a quarter of a second',
     found.quay.reaches && found.quay.byTheGate && found.quay.brushes === 0 && found.across.reaches && found.across.brushes === 0 && found.across.ms < 250, { quay: found.quay, across: found.across });
-  check('a place behind the airport fence cannot be walked to: the way says so and ends outside the fence', !found.airside.reaches && found.airside.endsOutside, found.airside);
+  check('the airport in Ikeja is fenced off from the street: the fence is solid, the pavement in front of it is not', found.airside.fence && !found.airside.street, found.airside);
 
   // ------------------------------------------------------------------ Walking it
   await put(page, 10, 0);

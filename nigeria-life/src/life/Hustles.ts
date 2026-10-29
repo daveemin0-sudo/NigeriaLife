@@ -31,6 +31,7 @@ const TEMPLATES: Template[] = [
   { id: 'shift', kind: 'grind', icon: '🕘', title: 'Clock in: finish a work shift', goal: 1, counts: money(/JOB_SALARY/, 1, true) },
   { id: 'takings', kind: 'grind', icon: '🏪', title: 'Oga at the top: collect business takings', goal: 1, counts: money(/BUSINESS_INCOME|RENT_INCOME/, 1, true) },
   { id: 'two-shifts', kind: 'grind', icon: '⏱️', title: 'No dulling: finish two shifts', goal: 2, counts: money(/JOB_SALARY/, 1, true) },
+  { id: 'stars', kind: 'grind', icon: '⭐', title: 'Sharp hands: a three-star shift', goal: 1, counts: (e) => (e.kind === 'acted' && e.id === 'three-star shift' ? 1 : 0) },
   // Life
   { id: 'chop', kind: 'life', icon: '🍲', title: 'Chop life: eat a proper meal', goal: 1, counts: (e) => (e.kind === 'need' && e.need === 'hunger' && e.delta >= 15 ? 1 : 0) },
   { id: 'rest', kind: 'life', icon: '🛏️', title: 'Rest your head: sleep well', goal: 40, unit: 'energy', counts: (e) => (e.kind === 'need' && e.need === 'energy' && e.delta > 0 && e.delta < 20 ? e.delta : 0) },
