@@ -105,8 +105,8 @@ export function spoken(text: string): string {
   return out;
 }
 
-const MALE = /\b(male|man|abeo|david|mark|guy|george|james|daniel|fred|alex|tom|aaron|arthur|oliver|ryan|eric|thomas|christopher|roger|brian|matthew|justin|joey|rishi|ravi|liam|william|richard|sean|connor|mitchell|prabhat)\b/i;
-const FEMALE = /\b(female|woman|ezinne|zira|susan|hazel|samantha|karen|moira|tessa|victoria|fiona|kate|serena|aria|jenny|libby|sonia|natasha|catherine|clara|emily|heera|linda|leah|olivia|sarah|zoe|amy|anna|ava|allison|neerja)\b/i;
+export const MALE = /\b(male|man|abeo|david|mark|guy|george|james|daniel|fred|alex|tom|aaron|arthur|oliver|ryan|eric|thomas|christopher|roger|brian|matthew|justin|joey|rishi|ravi|liam|william|richard|sean|connor|mitchell|prabhat)\b/i;
+export const FEMALE = /\b(female|woman|ezinne|zira|susan|hazel|samantha|karen|moira|tessa|victoria|fiona|kate|serena|aria|jenny|libby|sonia|natasha|catherine|clara|emily|heera|linda|leah|olivia|sarah|zoe|amy|anna|ava|allison|neerja)\b/i;
 
 export interface StreetHere {
   /** In the street (not indoors, not on the map) */

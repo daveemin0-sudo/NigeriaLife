@@ -371,7 +371,9 @@ export class Game {
 
     // 9b-2. Full 3D Commercial In-Flight & First-Person Road Ride Simulation (Nigeria Life Standard)
     this.flightExperience = new FlightExperience();
-    this.scene.add(this.flightExperience.group);
+    // The flight is its own world, drawn instead of the city: the player sits in it as themselves
+    this.flightExperience.passengerLook = () => createHumanForConfig(this.player.config);
+    this.flightExperience.hour = () => this.world.skyEnvironment.currentHour;
 
     this.roadRideExperience = new RoadRideExperience();
     this.scene.add(this.roadRideExperience.group);
@@ -406,6 +408,13 @@ export class Game {
 
     this.flightExperience.onAnnouncement = (announcement) => {
       this.transitHUD.setAnnouncement(announcement);
+    };
+    this.flightExperience.onLive = (status, fraction) => this.transitHUD.setFlightLive(status, fraction);
+    this.flightExperience.onServed = () => {
+      const be = BackendService.getInstance();
+      be.modifyNeed('hunger', 25);
+      be.modifyNeed('fun', 5);
+      showGameToast('🥤 The trolley reaches your row: a cold zobo and a hot meat pie on your tray. Hunger +25', 'success', 4200);
     };
 
     this.flightExperience.onFlightCompleted = (flight) => {
@@ -1313,7 +1322,7 @@ export class Game {
   private connectConvoys(): void {
     const convoys = new Convoys();
     this.convoys = convoys;
-    convoys.say = (text) => showGameToast(text, 'warning', 5000);
+    convoys.say = (text) => { if (!this.travelling()) showGameToast(text, 'warning', 5000); };
     convoys.siren = (level) => SoundEngine.getInstance().playSiren(level);
     this.scene.add(convoys.group);
     this.world.cityManager.addToLagos(convoys.group, []);
@@ -1361,11 +1370,16 @@ export class Game {
     EventClock.now = () => ({ day: sky.day, hour: sky.currentHour });
   }
 
+  /** On a flight or a road ride: what is happening on the street is not told */
+  private travelling(): boolean {
+    return this.flightExperience.isActive || this.roadRideExperience.isActive;
+  }
+
   private tellEvents(): void {
     const now = EventClock.now();
     const was = this.eventsSeen;
     this.eventsSeen = now;
-    if (!was || this.world.cityManager.currentCityId !== 'lagos') return;
+    if (!was || this.world.cityManager.currentCityId !== 'lagos' || this.travelling()) return;
     for (const event of startedBetween(was.day, was.hour, now.day, now.hour)) {
       const venue = PLACE_SPECS.find((spec) => spec.key === event.venue)?.name ?? event.venue;
       showGameToast(`🔴 LIVE now at ${venue}: ${event.title}. See What’s on in your phone.`, 'info', 6000);
@@ -1753,7 +1767,7 @@ export class Game {
       destinationCode: to.code,
       originName: from.name,
       destinationName: to.name,
-      durationSeconds: 24,
+      durationSeconds: 120,
     };
     // The fare is paid and the passenger is aboard: if the game closes now, they still arrive
     this.saveArrivalInTransit(route.to);
@@ -1843,12 +1857,13 @@ export class Game {
   /** Where the flight has got to, as its passenger's ticket records it. */
   private trackFlight(): void {
     if (!this.flightExperience.isActive || this.flights.status().state !== 'boarded') return;
-    const { phase, elapsed, total } = this.flightExperience.progress();
-    let status: FlightStatus = 'In flight';
-    if (phase === 'boarding') status = elapsed < 2.5 ? 'Boarding closed' : 'Taxiing';
-    else if (phase === 'landing') status = 'Landing';
-    else if (elapsed < 11) status = 'Taking off';
-    else if (elapsed > total - 10) status = 'Approaching';
+    const { stage } = this.flightExperience.progress();
+    const status: FlightStatus = stage === 'gate' ? 'Boarding closed'
+      : stage === 'pushback' || stage === 'taxi' ? 'Taxiing'
+      : stage === 'takeoff' || stage === 'climb' ? 'Taking off'
+      : stage === 'cruise' ? 'In flight'
+      : stage === 'descent' ? 'Approaching'
+      : 'Landing';
     this.flights.setStatus(status);
   }
 
@@ -2241,7 +2256,7 @@ export class Game {
     if (this.hud.currentNavMode === 'map') {
       this.renderer.render(this.scene, this.world.worldMap.mapCamera);
     } else if (this.flightExperience.isActive) {
-      this.renderer.render(this.scene, this.flightExperience.flightCamera);
+      this.renderer.render(this.flightExperience.scene, this.flightExperience.flightCamera);
     } else if (this.roadRideExperience.isActive) {
       this.renderer.render(this.scene, this.roadRideExperience.rideCamera);
     } else {

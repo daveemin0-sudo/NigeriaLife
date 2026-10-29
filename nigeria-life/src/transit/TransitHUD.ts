@@ -1,3 +1,4 @@
+import { BackendService } from '../backend/BackendService';
 import type { FlightDetails, FlightCameraView, FlightPhase, RideDetails, RideCameraView } from './TransitTypes';
 import { showGameToast } from '../ui/GameToast';
 import { UIStateManager } from '../ui/UIStateManager';
@@ -143,15 +144,18 @@ export class TransitHUD {
 
     // In-flight snacks & refreshments
     document.getElementById('btn-eat-chops')?.addEventListener('click', () => {
-      showGameToast('🥟 You enjoyed warm meat pie and sweet puff-puff small chops! Energy +20', 'success');
+      BackendService.getInstance().modifyNeed('hunger', 15);
+      showGameToast('🥟 Warm meat pie and puff-puff from the crew. Hunger +15', 'success');
     });
 
     document.getElementById('btn-drink-zobo')?.addEventListener('click', () => {
-      showGameToast('🍷 Chilled Zobo with ginger and pineapple! Thirst quenched, Happiness +15', 'success');
+      BackendService.getInstance().modifyNeed('fun', 10);
+      showGameToast('🍷 Chilled zobo with ginger and pineapple. Fun +10', 'success');
     });
 
     document.getElementById('btn-lemon-wipe')?.addEventListener('click', () => {
-      showGameToast('🍋 Refreshing warm lemon towel: your hands and face feel clean and revived!', 'info');
+      BackendService.getInstance().modifyNeed('hygiene', 10);
+      showGameToast('🍋 A warm lemon towel: hands and face fresh again. Hygiene +10', 'info');
     });
 
     document.getElementById('btn-ride-back')?.addEventListener('click', () => {
@@ -198,6 +202,14 @@ export class TransitHUD {
       if (timeEl) timeEl.textContent = `Touching down · 4 min`;
       if (fillEl) fillEl.style.width = '95%';
     }
+  }
+
+  /** Where the flight has got to, under the route, and the bar along it */
+  public setFlightLive(status: string, fraction: number): void {
+    const timeEl = document.getElementById('f-hud-time');
+    const fillEl = document.getElementById('f-hud-progress-fill');
+    if (timeEl) timeEl.textContent = status;
+    if (fillEl) fillEl.style.width = `${Math.round(Math.max(0.03, Math.min(1, fraction)) * 100)}%`;
   }
 
   public setAnnouncement(announcement: string): void {

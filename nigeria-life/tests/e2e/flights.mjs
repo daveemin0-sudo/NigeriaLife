@@ -162,7 +162,7 @@ export async function run(browser, check) {
     onStand && /Board NL 204 to Abuja/.test(label || '') && climbed && held.state === 'boarded' && !here.shown && (await page.evaluate(() => window.game.flightExperience.isActive)), { onStand, label, climbed, held });
 
   const seen = [];
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 300; i++) {
     const status = (await ticket(page)).status;
     if (seen[seen.length - 1] !== status) seen.push(status);
     if (status === 'Arrived') break;
