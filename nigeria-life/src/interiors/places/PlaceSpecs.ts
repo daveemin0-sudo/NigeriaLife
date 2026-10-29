@@ -2,6 +2,7 @@ import type { Builder } from '../../world/kit/ArchKit';
 import type { PlaceSpec, StationChoice } from './PlaceInterior';
 import type { Item } from '../../backend/types';
 import { SUPERMARKET_SPEC } from './SupermarketRoom';
+import { buildKitCar } from '../../world/vehicles/KitCar';
 
 /**
  * The insides of the places along the expressway: each laid out for what is done there, with
@@ -385,6 +386,26 @@ const SPECS: PlaceSpec[] = [
     { id: 'house', name: '🏛️ Lagos State House', at: [0, -6], stand: [0, -4.6], who: 'Chief of Staff', role: 'Government House', text: 'Laws, the cabinet and the election.', choices: [{ label: 'Open the State House', note: 'Pay is collected here', open: 'house' }] },
   ]),
 ];
+
+// The showroom's cars: on the three turntables, turning slowly, and a row along the side wall
+{
+  const showroom = SPECS.find((spec) => spec.key === 'sankofa-motors')!;
+  showroom.attach = (room) => {
+    const turning: Array<{ group: { rotation: { y: number } }; speed: number }> = [];
+    for (const [id, paint, x, z, yaw, turn] of [
+      ['gwagon', 0x0a0a0a, -7, -3, 0.6, 0.25], ['urus', 0xeab308, 0, -3, -0.5, -0.2], ['range_rover', 0xf8fafc, 7, -3, 0.4, 0.22],
+      ['camry', 0x1e3a8a, -9.5, 4.5, Math.PI / 2, 0], ['cayenne', 0x9ca3af, 9.5, 4.5, -Math.PI / 2, 0],
+    ] as Array<[string, number, number, number, number, number]>) {
+      const car = buildKitCar(id, paint);
+      car.group.position.set(x, z === -3 ? 0.12 : 0, z);
+      car.group.rotation.y = yaw;
+      car.group.name = `showroom car ${id}`;
+      room.group.add(car.group);
+      if (turn) turning.push({ group: car.group, speed: turn });
+    }
+    room.ticks.push((delta) => { for (const t of turning) t.group.rotation.y += t.speed * delta; });
+  };
+}
 
 /** The mart at each filling station */
 const mart = (key: string, name: string): PlaceSpec => venue(key, name, 'Filling station · mart', 'Petrol · Shop · Air', '#15803d', 0xf1f5f9, 0xf8fafc, (b) => {

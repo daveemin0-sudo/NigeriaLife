@@ -10177,7 +10177,7 @@ body[data-ui-mode="world-map"] .top-menu-btn {
 }
 .tm-needs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px 12px;
   padding: 10px 12px;
   margin-bottom: 8px;

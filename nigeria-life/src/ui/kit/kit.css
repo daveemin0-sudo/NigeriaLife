@@ -8,6 +8,10 @@
 
 :root {
   --nl-font: 'Outfit Variable', 'Plus Jakarta Sans Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Headings, banners and big numbers */
+  --nl-font-display: 'Righteous', 'Outfit Variable', 'Segoe UI', sans-serif;
+  /* Players' names */
+  --nl-font-name: 'Dancing Script Variable', 'Segoe Script', cursive;
   --nl-text-font: 'Plus Jakarta Sans Variable', 'Outfit Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --nl-r-sm: 10px;
   --nl-r-md: 14px;
@@ -1609,4 +1613,25 @@ body.ui-modal-open .mobile-controls-active {
 .atm-dialog .atm-section-title,
 .atm-dialog .atm-sub {
   color: #6ee7b7;
+}
+
+/* Headings and names in fonts with some character */
+.nl-hero-title,
+.nl-card-title,
+.nl-section,
+.card-title,
+.dialogue-speaker-name,
+.quest-card-title-row h4,
+#location-name,
+.nlphone-app-title {
+  font-family: var(--nl-font-display);
+  letter-spacing: 0.3px;
+}
+.nl-player-name,
+.profile-name,
+.chat-name,
+.remote-name {
+  font-family: var(--nl-font-name);
+  font-weight: 700;
+  font-size: 1.12em;
 }

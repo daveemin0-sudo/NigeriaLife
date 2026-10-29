@@ -86,7 +86,7 @@ export class TopMenu {
       </div>
       <div class="tm-needs">
         ${need('hunger', '🍲', 'Hunger', '#f59e0b')}${need('energy', '⚡', 'Energy', '#3b82f6')}${need('fun', '🎉', 'Fun', '#eab308')}
-        ${need('social', '💬', 'Social', '#ec4899')}${need('hygiene', '🫧', 'Hygiene', '#14b8a6')}${need('health', '❤️', 'Health', '#ef4444')}
+        ${need('social', '💬', 'Social', '#ec4899')}${need('hygiene', '🫧', 'Hygiene', '#14b8a6')}${need('bladder', '🚽', 'Bladder', '#8b5cf6')}${need('health', '❤️', 'Health', '#ef4444')}
       </div>
       ${row('wallet', '👛', naira(total), `Cash ${naira(data.walletCash)} · Bank ${naira(data.bank.balance)}`, '<b class="tm-plus">+</b>')}
       ${row('quests', '🎯', "Today's missions", 'Goals, story and rewards')}

@@ -95,6 +95,8 @@ export class PlaceInterior {
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
   public readonly spec: PlaceSpec;
+  /** Where the toilet door went along the back wall, and whether a clear spot was found (for the tests) */
+  public restroomAt = { x: 0, clear: false };
 
   constructor(spec: PlaceSpec, origin: THREE.Vector3, comeOutAt: THREE.Vector3) {
     this.spec = spec;
@@ -159,6 +161,7 @@ export class PlaceInterior {
     const door = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, length / 2), Math.PI);
     this.group.add(door);
     this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.', interactionPoint: this.world(0, length / 2 - 1) });
+    this.addRestroom(b.footprints);
 
     // Those who work here
     this.spec.staff.forEach((s, i) => {
@@ -207,6 +210,72 @@ export class PlaceInterior {
     for (const work of PLACE_WORK[this.spec.key] ?? []) this.addWork(work);
     this.spec.attach?.(this);
     attachShows(this, this.spec.key);
+  }
+
+  /**
+   * The toilet: a door in the back wall, where the camera always sees it, put where nothing
+   * stands in front of it. The player goes through it, the flush is heard from behind it, and
+   * they come out again relieved and washed up.
+   */
+  private addRestroom(footprints: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; height: number }>): void {
+    const { width, length } = this.spec.room;
+    const z = -length / 2 + 0.24;
+    const points: Array<[number, number]> = [
+      ...this.spec.staff.map((st) => st.at),
+      ...this.spec.stations.flatMap((st) => [st.at, st.stand]),
+      ...(PLACE_WORK[this.spec.key] ?? []).flatMap((w) => [w.boss.at, ...w.tasks.map((t) => t.at)]),
+      ...(this.spec.regulars ?? []).map((r) => r.at),
+    ];
+    const clear = (x: number) => {
+      const box = { minX: x - 0.9, maxX: x + 0.9, minZ: -length / 2, maxZ: -length / 2 + 2.4 };
+      const hit = footprints.some((f) => f.height > 0.15 && f.maxX > box.minX && f.minX < box.maxX && f.maxZ > box.minZ && f.minZ < box.maxZ);
+      return !hit && !points.some(([px, pz]) => px > box.minX - 0.4 && px < box.maxX + 0.4 && pz < box.maxZ + 0.4);
+    };
+    const tries: number[] = [];
+    for (let step = 1.6; step < width / 2 - 1; step += 1.2) tries.push(width / 2 - step, -width / 2 + step);
+    const x = tries.find(clear) ?? width / 2 - 1.6;
+    this.restroomAt = { x, clear: tries.some(clear) };
+    const holder = new THREE.Group();
+    holder.name = 'restroom door';
+    holder.position.set(x - 0.45, 0, z);
+    holder.rotation.y = 0;
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.1, 0.06), new THREE.MeshStandardMaterial({ color: 0x8b5e34, roughness: 0.6 }));
+    leaf.name = 'door_leaf';
+    leaf.position.set(0.45, 1.05, 0);
+    const pivot = new THREE.Group();
+    pivot.add(leaf);
+    holder.add(pivot);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.05, 2.2, 0.04), new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.8 }));
+    frame.position.set(0.45, 1.1, -0.03);
+    holder.add(frame);
+    const sign = signBoard(['🚻 Toilet', 'Customers only'], 0.9, 0.36, '#1d4ed8', '#ffffff');
+    sign.position.set(0.45, 2.45, 0.06);
+    holder.add(sign);
+    this.group.add(holder);
+    this.addCard({
+      id: `toilet_${this.spec.key}`, name: 'Toilet', description: 'The toilet at the back.',
+      at: [x, z + 0.6], stand: [x, -length / 2 + 1.3],
+      label: () => '🚽 Use the toilet',
+      run: (host) => {
+        const actor = host.actor;
+        const result = host.director.perform([
+          {
+            id: 'into the toilet', actor, point: this.world(x, -length / 2 + 1.3), target: this.world(x, -length / 2), animation: { arms: 'reach' }, seconds: 0.7, effectAt: 0.6, ifStuck: 'snap',
+            effect: () => { pivot.rotation.y = -1.4; actor.root.visible = false; },
+          },
+          {
+            id: 'in the toilet', actor, animation: { arms: 'rest' }, seconds: 3.2, effectAt: 0.95,
+            effect: () => {
+              host.backend.relieveBladder();
+              host.backend.modifyNeed('hygiene', 3);
+              host.say('🚽 *Flush* You wash your hands and come out relieved.', 'success');
+            },
+          },
+        ], { locked: true });
+        result.sequence?.onEnd(() => { actor.root.visible = true; pivot.rotation.y = 0; });
+        if (!result.ok && result.reason) host.say(result.reason, 'info');
+      },
+    });
   }
 
   /**

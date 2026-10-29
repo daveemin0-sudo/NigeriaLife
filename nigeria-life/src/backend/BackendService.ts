@@ -492,11 +492,12 @@ export class BackendService {
 
   private vitalsAccumulator = 0;
   private lastStarveWarningTime = 0;
+  private lastBladderWarningTime = 0;
 
-  public updateVitals(delta: number, isSprinting: boolean, isDriving: boolean): { collapsed: boolean; stats: PlayerStats; starvedWarning: boolean } {
+  public updateVitals(delta: number, isSprinting: boolean, isDriving: boolean): { collapsed: boolean; stats: PlayerStats; starvedWarning: boolean; bladderWarning: boolean; bladderAccident: boolean } {
     this.vitalsAccumulator += delta;
     if (this.vitalsAccumulator < 1.0) {
-      return { collapsed: false, stats: this.data.stats, starvedWarning: false };
+      return { collapsed: false, stats: this.data.stats, starvedWarning: false, bladderWarning: false, bladderAccident: false };
     }
     const elapsed = this.vitalsAccumulator;
     this.vitalsAccumulator = 0;
@@ -525,6 +526,19 @@ export class BackendService {
 
     let starvedWarning = false;
     const now = Date.now();
+    // The toilet: a warning when it is pressing, and an accident if it is held to the end
+    let bladderWarning = false;
+    let bladderAccident = false;
+    if (this.data.stats.bladder <= 15 && this.data.stats.bladder > 0 && now - this.lastBladderWarningTime > 60000) {
+      this.lastBladderWarningTime = now;
+      bladderWarning = true;
+    }
+    if (this.data.stats.bladder <= 0) {
+      bladderAccident = true;
+      this.data.stats.bladder = 100;
+      this.data.stats.hygiene = Math.min(this.data.stats.hygiene, 10);
+      this.data.stats.social = Math.max(0, this.data.stats.social - 15);
+    }
     if (this.data.stats.hunger <= 15 && now - this.lastStarveWarningTime > 45000) {
       this.lastStarveWarningTime = now;
       starvedWarning = true;
@@ -548,7 +562,7 @@ export class BackendService {
     }
 
     this.notifyListeners();
-    return { collapsed, stats: this.data.stats, starvedWarning };
+    return { collapsed, stats: this.data.stats, starvedWarning, bladderWarning, bladderAccident };
   }
 
   /** Retrieve the player's 9 skill proficiencies (1 to 10) */

@@ -18,8 +18,10 @@
     "vite": "^8.3.0"
   },
   "dependencies": {
+    "@fontsource-variable/dancing-script": "5.2.5",
     "@fontsource-variable/outfit": "5.2.8",
     "@fontsource-variable/plus-jakarta-sans": "5.2.8",
+    "@fontsource/righteous": "5.2.5",
     "three": "^0.186.1",
     "ws": "8.22.0"
   }

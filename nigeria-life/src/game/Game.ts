@@ -2183,6 +2183,12 @@ export class Game {
     if (vitalsResult.starvedWarning) {
       showGameToast('⚠️ Hunger is low! Stop by Mama Put or order QuickChop before you faint.', 'warning');
     }
+    if (vitalsResult.bladderWarning) {
+      showGameToast('🚽 You need the toilet! There is one at home, and at most places you can go into.', 'warning');
+    }
+    if (vitalsResult.bladderAccident) {
+      showGameToast('😳 You could not hold it any longer. Hygiene ruined: go and wash.', 'error');
+    }
     if (vitalsResult.collapsed) {
       showGameToast('🚑 You collapsed from severe starvation! Rushed to local clinic (₦2,500 treatment fee).', 'error');
       this.player.mesh.position.set(0, 0, 0);

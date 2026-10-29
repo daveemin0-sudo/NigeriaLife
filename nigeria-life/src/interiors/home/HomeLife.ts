@@ -186,6 +186,31 @@ export class HomeLife {
     return this.director.run(sitDown);
   }
 
+  /**
+   * Walk to the toilet, sit, and get up again relieved: the bladder is emptied while seated,
+   * the flush is heard, and the player washes up on the way out.
+   */
+  public useToilet(seat: THREE.Vector3, front: THREE.Vector3, facing: number): boolean {
+    const player = this.director.player;
+    if (!player || this.director.interrupt(player) === 'locked') return false;
+    const use = new Sequence('use the toilet', [player]).add(
+      steps.walk(player, this.world(front), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, facing),
+      steps.slide(player, this.world(seat), 0.45),
+      steps.setPose(player, { legs: 'sit', arms: 'rest' }),
+      steps.wait(2.6),
+      steps.call('relieved', () => {
+        this.backend.relieveBladder();
+        this.backend.modifyNeed('hygiene', -4);
+        showGameToast('🚽 Relieved. *Flush*', 'success', 2200);
+      }),
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, this.world(front), 0.45),
+      steps.animate(player, { arms: 'reach' }, 0.9)
+    );
+    return this.director.run(use);
+  }
+
   /** Gets the player off the bed or sofa and back on their feet beside it. */
   private leaveFurniture(standAt: THREE.Vector3, instant = false): void {
     const player = this.director.player;

@@ -438,6 +438,7 @@ export class ResidentialInterior {
     return {
       label: () => {
         const set = this.sets.get(item.uid);
+        if (item.modelType === 'toilet_wc') return '🚽 Use the toilet, move it or sell it';
         if (kind.use === 'seat') return '🛋️ Sit down, move it or sell it';
         if (kind.use === 'bed') return '🛏️ Sleep in it, move it or sell it';
         if (kind.use === 'tv') return set?.on ? `📺 On: ${set.showing()}` : '📺 Turn it on, move it or sell it';
@@ -468,7 +469,8 @@ export class ResidentialInterior {
           const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.55;
           const seat = new THREE.Vector3(item.x + kind.seat.x * Math.cos(turn) + kind.seat.z * Math.sin(turn), 0, item.z - kind.seat.x * Math.sin(turn) + kind.seat.z * Math.cos(turn));
           const front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
-          choices.push({ label: 'Sit down', pick: () => { this.life.sitAt(seat, front, Math.atan2(face.x, face.z)); } });
+          if (item.modelType === 'toilet_wc') choices.push({ label: 'Use the toilet', note: 'Bladder back to 100', pick: () => { this.life.useToilet(seat, front, Math.atan2(face.x, face.z)); } });
+          else choices.push({ label: 'Sit down', pick: () => { this.life.sitAt(seat, front, Math.atan2(face.x, face.z)); } });
         }
         if (kind.use === 'bed' && kind.bed) {
           // Its foot points the way the piece faces; the sleeper gets in from whichever side has room to stand
@@ -490,9 +492,9 @@ export class ResidentialInterior {
         if (kind.use === 'cook') {
           choices.push({
             label: 'Cook Party Jollof & Fried Dodo',
-            note: 'Hunger -60, Cooking +1',
+            note: 'Hunger +60, Cooking +1',
             pick: () => {
-              (host as any).backend.modifyNeed('hunger', -60);
+              (host as any).backend.modifyNeed('hunger', 60);
               (host as any).backend.modifyNeed('energy', -10);
               (host as any).backend.addSkillExp('cooking', 1);
               host.say('You cooked a fragrant pot of smoky party Jollof with sweet fried plantain! Hunger replenished.', 'success');
@@ -503,7 +505,7 @@ export class ResidentialInterior {
             note: 'Energy +25',
             pick: () => {
               (host as any).backend.modifyNeed('energy', 25);
-              (host as any).backend.modifyNeed('hunger', -15);
+              (host as any).backend.modifyNeed('hunger', 15);
               host.say('Hot brew prepared! Energy +25.', 'success');
             },
           });

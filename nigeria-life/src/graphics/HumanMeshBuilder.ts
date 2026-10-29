@@ -1818,7 +1818,8 @@ export class HumanMeshBuilder {
     ctx.stroke();
 
     // Username text
-    ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
+    // Players' names in a flowing script
+    ctx.font = '700 25px "Dancing Script Variable", "Segoe Script", cursive';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
