@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import * as AyoRules from '../games/Ayo';
+import * as WhotRules from '../games/Whot';
+import { gameSession } from '../phone/apps/games';
 import { onGameEvent } from './GameEvents';
 import { celebrate } from '../interiors/club/Balling';
 import { TodayPanel } from '../ui/TodayPanel';
@@ -158,7 +161,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, InteractionDirector };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, InteractionDirector, Games: { Ayo: AyoRules, Whot: WhotRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -1882,8 +1885,9 @@ export class Game {
       showGameToast(text, 'success', 4200);
       if (big) celebrate(big.title, big.sub);
     };
-    // The browser tests that count money exactly run with these quiet (tests/e2e/lib.mjs)
-    const quiet = !!(window as unknown as { __lifeQuiet?: boolean }).__lifeQuiet;
+    // Under the browser tests these pay nothing, so suites that count money exactly stay exact;
+    // a suite that tests them turns them on (tests/e2e/lib.mjs `life: true`)
+    const quiet = navigator.webdriver && !(window as unknown as { __lifeOn?: boolean }).__lifeOn;
     if (!quiet) Hustles.get().hooks = { pay, tell, rung: () => Ladder.get().rung, pack: (n, why) => Album.get().addPacks(n, why) };
     if (!quiet) Album.get().hooks = { pay, tell };
     if (!quiet) Ladder.get().hooks = {
