@@ -197,6 +197,7 @@ export class InputManager {
             street: 'Street Normal',
             isometric: 'High Isometric',
             aerial: 'Aerial Overview',
+            eye: 'Inside view (eye level)',
           };
           this.hud.showNotification(`📷 Camera View: ${names[next] || next}`);
         }

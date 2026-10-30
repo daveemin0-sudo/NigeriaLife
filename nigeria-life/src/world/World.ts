@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Agamas } from '../life/Agamas';
+import { Lagoon } from './expressway/Lagoon';
 import { Roads } from './Roads';
 import { Buildings } from './Buildings';
 import { Vehicles } from './Vehicles';
@@ -79,6 +80,7 @@ export class World {
   public trafficSpawner: TrafficSpawner;
   public expressway!: Expressway;
   public agamas!: Agamas;
+  public lagoon!: Lagoon;
   public cityPopulation: CityPopulation;
   public worldMap: WorldMap;
   /** The way to a place picked on the map, drawn along the streets */
@@ -161,6 +163,9 @@ export class World {
     // Agamas doing push-ups on the walls along it, to be caught for the album
     this.agamas = new Agamas();
     this.expressway.group.add(this.agamas.group);
+    // The lagoon under the bridge: boats about, Makoko on its stilts, a canoe from the jetty
+    this.lagoon = new Lagoon();
+    this.expressway.group.add(this.lagoon.group);
 
     // (The first build's apartment stood at the start of the expressway: it is gone. The home is
     // the residence among the interiors, with its own cards.)
@@ -193,6 +198,7 @@ export class World {
       // The places along the expressway
       ...this.expressway.roadside.interactive,
       ...this.agamas.interactive,
+      ...this.lagoon.interactive,
     ];
 
     if (this.atmosphere.generatorMesh) {

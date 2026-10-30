@@ -665,6 +665,39 @@ export class InteriorManager {
   public updateCutaway(delta: number, camera: THREE.Camera, player: Player): void {
     if (!this.currentInterior) return;
     this.cutaway.update(delta, camera, player.position);
+    this.updateCeiling(camera);
+  }
+
+  /**
+   * Rooms are seen from above, so they have no ceiling. With the camera down inside the room
+   * (the inside view) a ceiling is put over it, at the height of its walls.
+   */
+  private updateCeiling(camera: THREE.Camera): void {
+    const template = this.getActiveTemplate();
+    const def = this.currentInterior;
+    if (!template || !def) return;
+    const shell = this.getActiveShell()?.userData.size as { width: number; length: number } | undefined;
+    const room = def.rooms[0];
+    const width = shell?.width ?? room.size.width;
+    const length = shell?.length ?? room.size.length;
+    const height = room.size.height ?? 3.2;
+    let ceiling = template.group.getObjectByName('inside view ceiling') as THREE.Mesh | undefined;
+    const o = def.interiorOrigin;
+    const inside = Math.abs(camera.position.x - o.x) < width / 2 && Math.abs(camera.position.z - o.z) < length / 2 && camera.position.y < height;
+    if (!inside) {
+      if (ceiling) ceiling.visible = false;
+      return;
+    }
+    if (!ceiling) {
+      ceiling = new THREE.Mesh(new THREE.PlaneGeometry(width, length), new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.9 }));
+      ceiling.name = 'inside view ceiling';
+      // Facing down into the room
+      ceiling.rotation.x = Math.PI / 2;
+      ceiling.position.set(0, height, 0);
+      ceiling.layers.set(RENDER_LAYERS.INTERIOR);
+      template.group.add(ceiling);
+    }
+    ceiling.visible = true;
   }
 
   /** Which way the player faces on coming back out to the street */

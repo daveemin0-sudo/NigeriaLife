@@ -209,6 +209,7 @@ export class Game {
 
     // 2. Camera Manager
     this.cameraManager = new GameCamera();
+    this.cameraManager.restoreInsideView();
     // The camera starts behind the player, looking the way they face
     this.cameraManager.yaw = -Math.PI / 2 + Math.PI;
 
@@ -2279,6 +2280,7 @@ export class Game {
     else if (!this.world.interiorManager.isPlayerInside()) avoid.push({ x: this.player.position.x, z: this.player.position.z, r: 0.35 });
     this.world.update(delta, this.input.keys, this.player.position, this.player);
     this.world.agamas.update(delta, this.player.position);
+    if (!this.world.interiorManager.isPlayerInside()) this.world.lagoon.update(delta, this.player.position);
     this.lifeTimer -= delta;
     if (this.lifeTimer <= 0) {
       this.lifeTimer = 2;

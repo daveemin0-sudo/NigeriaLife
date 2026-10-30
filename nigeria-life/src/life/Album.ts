@@ -45,6 +45,7 @@ export const CARDS: Card[] = [
   { id: 'oshodi', set: 'places', name: 'Oshodi Interchange', icon: '🚏', rarity: 'common', how: 'Go into Oshodi Interchange', earns: visited('oshodi-interchange') },
   { id: 'mosque', set: 'places', name: 'Lagos Central Mosque', icon: '🕌', rarity: 'common', how: 'Go into the Central Mosque', earns: visited('central-mosque') },
   { id: 'redeemed', set: 'places', name: 'Redemption Camp', icon: '⛪', rarity: 'common', how: 'Go into the Redemption cathedral', earns: visited('redemption-cathedral', 'faith-arena') },
+  { id: 'makoko', set: 'places', name: 'Makoko by Canoe', icon: '🛶', rarity: 'rare', how: 'Take the canoe from the jetty through Makoko', earns: acted(/^canoe ride to Makoko$/) },
   { id: 'beach', set: 'places', name: 'The Beach', icon: '🏖️', rarity: 'common', how: 'Go onto the beach', earns: visited('lagoon-beach') },
   { id: 'statehouse', set: 'places', name: 'Lagos State House', icon: '🏛️', rarity: 'rare', how: 'Go into Government House', earns: visited('government-house') },
   { id: 'refinery', set: 'places', name: 'Dangote Refinery', icon: '🛢️', rarity: 'rare', how: 'Go into the refinery', earns: visited('dangote-refinery') },

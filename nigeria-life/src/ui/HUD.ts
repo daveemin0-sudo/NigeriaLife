@@ -766,6 +766,7 @@ export class HUD {
           street: 'STREET',
           isometric: 'ISOMETRIC',
           aerial: 'AERIAL',
+          eye: 'INSIDE VIEW',
         };
         const lbl = document.getElementById('cam-preset-label');
         if (lbl) lbl.textContent = names[next] || next.toUpperCase();
