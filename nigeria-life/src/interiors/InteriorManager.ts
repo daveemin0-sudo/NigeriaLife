@@ -46,6 +46,8 @@ interface InteriorTemplate {
   /** Called once the player is inside, and when they have left */
   onPlayerEntered?: () => void;
   onPlayerLeft?: () => void;
+  /** Where its door leads, when not out to the road (a hotel room to its corridor) */
+  leadsTo?: (() => { id: string; spawnAt: THREE.Vector3; spawnYaw: number } | null) | null;
 }
 
 export interface EnterOptions {
@@ -582,6 +584,15 @@ export class InteriorManager {
         return;
       }
 
+      // Through a door that opens on another room of the same building: into that room
+      const next = template?.leadsTo?.();
+      if (next) {
+        inner.door.set(false);
+        this.usingDoor = false;
+        await this.enterInterior(next.id, player, cameraManager, hud, world, { returnTo: this.streetReturnPosition.clone(), returnYaw: this.streetReturnRotation, spawnAt: next.spawnAt, spawnYaw: next.spawnYaw });
+        return;
+      }
+
       const street = this.streetDoors.get(interior.type);
       if (!street) {
         await this.exitCurrentInterior(player, cameraManager, hud, world);
@@ -654,6 +665,11 @@ export class InteriorManager {
   public updateCutaway(delta: number, camera: THREE.Camera, player: Player): void {
     if (!this.currentInterior) return;
     this.cutaway.update(delta, camera, player.position);
+  }
+
+  /** Which way the player faces on coming back out to the street */
+  public getStreetReturnYaw(): number {
+    return this.streetReturnRotation;
   }
 
   /** Where the player returns to on the street when they leave the current interior. */

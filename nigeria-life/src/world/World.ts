@@ -39,6 +39,8 @@ export interface InteractiveObject {
   interactionPoint: THREE.Vector3;
   /** Walks about: a door or a desk the player is standing at takes the prompt before someone passing by */
   moving?: boolean;
+  /** A way out that does not lead to the street (a hotel room's door to its corridor): what its button says */
+  exitLabel?: string;
 }
 
 export interface InteractionTarget {

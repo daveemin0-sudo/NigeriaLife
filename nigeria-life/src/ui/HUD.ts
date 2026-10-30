@@ -105,6 +105,8 @@ export class HUD {
   public onRideTo?: (point: THREE.Vector3, name: string, fare: number) => void;
   public onEnterVehicle?: (vehicleId: string) => void;
   public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
+  /** Into another room of the building the player is in (up in a lift, through a room's door) */
+  public onRideInterior?: (id: string, spawnAt: THREE.Vector3, spawnYaw: number) => void;
   /** Out of the room to a given point outside, not back the way the player came in */
   public onLeaveInteriorTo?: (comeOutAt: THREE.Vector3, facing?: number) => void;
   public onExitInterior?: () => void;
@@ -1571,7 +1573,7 @@ export class HUD {
       btnEl.textContent = '👮 Enter Area Command Police Station [E]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'interior_exit_door') {
-      btnEl.textContent = '🚪 Exit to Street [E]';
+      btnEl.textContent = `${obj.exitLabel ?? '🚪 Exit to Street'} [E]`;
       bizBtn.style.display = 'none';
     } else if (obj.id === 'hosp_reception') {
       btnEl.textContent = '📋 Register & Check Vitals (₦500)';
@@ -2258,6 +2260,7 @@ export class HUD {
         enter: (buildingId, comeOutAt) => this.onEnterInterior?.(buildingId, comeOutAt),
         leave: (comeOutAt, facing) => this.onLeaveInteriorTo?.(comeOutAt, facing),
         cashMachine: () => this.atmModal.open(),
+        ride: (id, spawnAt, spawnYaw) => this.onRideInterior?.(id, spawnAt, spawnYaw),
       };
   }
 

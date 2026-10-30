@@ -458,6 +458,13 @@ export class BackendService {
 
   // === INVENTORY SYSTEM ===
 
+  /** Takes every one of an item out of the bag (a key card handed back) */
+  public removeItem(itemId: string): void {
+    const before = this.data.inventory.length;
+    this.data.inventory = this.data.inventory.filter((entry) => entry.id !== itemId);
+    if (this.data.inventory.length !== before) this.saveData();
+  }
+
   public addItem(item: Omit<Item, 'quantity'>, quantity: number = 1): void {
     const existing = this.data.inventory.find((i) => i.id === item.id);
     if (existing) {

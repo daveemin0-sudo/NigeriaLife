@@ -69,12 +69,14 @@ export const CARDS: Card[] = [
   { id: 'port', set: 'hustle', name: 'Apapa Port Loader', icon: '⚓', rarity: 'common', how: 'Work a shift at the port', earns: earnedFrom(/port|apapa/i) },
   { id: 'site', set: 'hustle', name: 'Site Labourer', icon: '🏗️', rarity: 'common', how: 'Work a shift on the building site', earns: earnedFrom(/site|block|plaza/i) },
   { id: 'takings', set: 'hustle', name: 'Business Alert', icon: '🏪', rarity: 'rare', how: 'Collect takings from your business', earns: (e) => e.kind === 'money' && e.type === 'BUSINESS_INCOME' && e.amount > 0 },
+  { id: 'sherlock', set: 'hustle', name: 'Naija Sherlock', icon: '🔎', rarity: 'epic', how: 'Solve a detective case', earns: (e) => e.kind === 'case' && e.id.startsWith('case-') },
   { id: 'landlord', set: 'hustle', name: 'Landlord', icon: '🔑', rarity: 'rare', how: 'Collect rent', earns: (e) => e.kind === 'money' && e.type === 'RENT_INCOME' && e.amount > 0 },
   // Big Man Moves
   { id: 'firstcar', set: 'bigman', name: 'First Motor', icon: '🚗', rarity: 'rare', how: 'Buy a vehicle', earns: (e) => e.kind === 'money' && e.type === 'ASSET_PURCHASE' && /car|vehicle|motor|okada|keke|corolla|camry|benz|g-?wagon/i.test(e.what) },
   { id: 'land', set: 'bigman', name: 'C of O', icon: '📜', rarity: 'rare', how: 'Buy a plot of land', earns: (e) => e.kind === 'money' && e.type === 'ASSET_PURCHASE' && /plot|land/i.test(e.what) },
   { id: 'build', set: 'bigman', name: 'My Own House', icon: '🏡', rarity: 'epic', how: 'Build on your own land', earns: (e) => e.kind === 'money' && e.type === 'CONSTRUCTION_COST' },
   { id: 'biz', set: 'bigman', name: 'CEO', icon: '👔', rarity: 'epic', how: 'Buy a business', earns: (e) => e.kind === 'money' && e.type === 'BUSINESS_PURCHASE' },
+  { id: 'suite', set: 'bigman', name: 'Room 20-Something', icon: '🛎️', rarity: 'rare', how: 'Check into the Eko Grand and open your room with the key card', earns: acted(/^open my hotel room$/) },
   { id: 'spray', set: 'bigman', name: 'Spraying Money', icon: '💵', rarity: 'rare', how: 'Spray money at the club', earns: acted(/^spray/) },
   { id: 'host', set: 'bigman', name: 'Host of the Night', icon: '👑', rarity: 'legend', how: 'Host the whole club (Platinum table)', earns: spentOn(/Platinum/i) },
   { id: 'jet', set: 'bigman', name: 'Private Jet', icon: '🛩️', rarity: 'legend', how: 'Buy a jet or a yacht', earns: spentOn(/jet|yacht/i) },
@@ -88,6 +90,8 @@ export const CARDS: Card[] = [
   { id: 'owambe', set: 'naija', name: 'Owambe Saturday', icon: '🥳', rarity: 'common', how: 'Card packs only' },
   { id: 'superEagles', set: 'naija', name: 'Super Eagles', icon: '🦅', rarity: 'epic', how: 'Card packs only' },
   { id: 'goldDanfo', set: 'naija', name: 'The Golden Danfo', icon: '🌟', rarity: 'legend', how: 'Card packs only' },
+  { id: 'offeringDance', set: 'naija', name: 'Offering Dance', icon: '💃🏾', rarity: 'rare', how: 'Dance your offering to the front at Faith Arena', earns: acted(/^offering dance$/) },
+  { id: 'saff', set: 'naija', name: 'In the Saff', icon: '🕌', rarity: 'rare', how: 'Pray in the row at the Central Mosque', earns: acted(/^pray in the row$/) },
   { id: 'agbero', set: 'naija', name: 'Agbero Wahala', icon: '😤', rarity: 'common', how: 'Card packs only' },
 ];
 

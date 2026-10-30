@@ -87,12 +87,7 @@ const STAGES: Record<string, Stage> = {
       for (const [x, z] of rows([2.6, 4, 5.4, 6.8], [0.6, 2], 0, false)) b.box(0xb45309, 0.5, 0.45, 0.5, x, 0, z).box(0xb45309, 0.5, 0.5, 0.08, x, 0.45, z + 0.22);
     },
   },
-  'faith-arena': {
-    performer: [0, -10.5, 0, 0.7],
-    crowd: rows([-7, -5.3, -3.6, 3.6, 5.3, 7], [-3.75, -2.35, -0.95], Math.PI, true),
-    seat: { at: [-5.3, 0.45], facing: Math.PI, sit: true },
-    sign: [0, 4.6, -12.4, 8],
-  },
+  // Faith Arena has a service of its own going on all day (Worship.ts): its timetable stays here
   'afrika-shrine': {
     performer: [0, -7.5, 0, 0.7],
     crowd: rows([-4, -2, 0, 2, 4], [-3.6, -1.8], Math.PI, false),

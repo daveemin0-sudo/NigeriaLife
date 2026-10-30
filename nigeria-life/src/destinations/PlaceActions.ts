@@ -27,6 +27,12 @@ export interface PlaceHost {
   leave(comeOutAt: THREE.Vector3, facing?: number): void;
   /** Puts the screen of the cash machine the player is standing at in front of them. */
   cashMachine(): void;
+  /**
+   * Takes the player into another room of the same building, at this spot and facing this way
+   * (up in the lift, through a hotel room's door). Leaving the building still comes out at the
+   * road where they went in.
+   */
+  ride(id: string, spawnAt: THREE.Vector3, spawnYaw: number): void;
 }
 
 /** What the button on a thing's card says, and what pressing it does. */

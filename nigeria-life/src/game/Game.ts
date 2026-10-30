@@ -1,4 +1,10 @@
 import * as THREE from 'three';
+import * as LudoRules from '../games/Ludo';
+import { Worship } from '../interiors/places/Worship';
+import { HotelStay, HotelState } from '../interiors/places/Hotel';
+import { Garden } from '../housing/Garden';
+import { Pets } from '../housing/Pets';
+import { Cases } from '../life/Cases';
 import { ShiftSkill } from '../jobs/ShiftSkill';
 import { GistWorld } from '../phone/apps/gist';
 import { GistTimes } from '../life/GistTimes';
@@ -164,7 +170,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, ShiftSkill, InteractionDirector, Games: { Ayo: AyoRules, Whot: WhotRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -601,6 +607,10 @@ export class Game {
       }
       this.world.interiorManager.enterThroughDoor(buildingId, this.player, this.cameraManager, this.hud, this.world);
     };
+    this.hud.onRideInterior = (id, spawnAt, spawnYaw) => {
+      const rooms = this.world.interiorManager;
+      void rooms.enterInterior(id, this.player, this.cameraManager, this.hud, this.world, { returnTo: rooms.getStreetReturnPosition().clone(), returnYaw: rooms.getStreetReturnYaw(), spawnAt, spawnYaw });
+    };
     this.hud.onLeaveInteriorTo = (comeOutAt, facing) => {
       void this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world, { emergeAt: comeOutAt, emergeYaw: facing ?? 0 });
     };
@@ -656,6 +666,10 @@ export class Game {
       leave: () => this.hud.onExitInterior?.(),
       // At home: furnish it from the catalogue
       extras: (def) => (def.type === 'residence' ? [{ id: 'decorate', icon: '🛋️', label: 'Decorate', run: () => HouseDecorationSystem.getInstance().openCatalogueModal() }] : []),
+    });
+    // From one room of a building into the next (the lift, a hotel room's door), the card follows
+    Activity.get().on((event) => {
+      if (event.kind === 'visited') window.setTimeout(() => { if (this.world.interiorManager.isPlayerInside()) this.placeCard.refresh(); }, 0);
     });
 
     // The music player, opened by its round button or the sound button
@@ -1344,7 +1358,7 @@ export class Game {
   private connectConvoys(): void {
     const convoys = new Convoys();
     this.convoys = convoys;
-    convoys.say = (text) => { if (!this.travelling()) showGameToast(text, 'warning', 5000); };
+    convoys.say = (text) => { if (!this.travelling() && !this.world.interiorManager.isPlayerInside()) showGameToast(text, 'warning', 5000); };
     convoys.siren = (level) => SoundEngine.getInstance().playSiren(level);
     this.scene.add(convoys.group);
     this.world.cityManager.addToLagos(convoys.group, []);
@@ -1918,7 +1932,12 @@ export class Game {
     if (!quiet) GistTimes.get().hooks = { pay, tell: (text) => tell(text), name: () => be.getData().username || 'you' };
     else GistTimes.get();
     GistWorld.governor = () => this.politics.holder('governor')?.name ?? null;
+    // Naija Detective: cases solved round the city
+    if (!quiet) Cases.get().hooks = { pay, tell, today: () => Hustles.today() };
+    else Cases.get().hooks = { pay: () => undefined, tell: () => undefined, today: () => Hustles.today() };
     this.today = new TodayPanel();
+    // A planter or a pet home sold: what grew there, or lived there, goes with it
+    HouseDecorationSystem.onSold = (uid) => { Garden.get().forget(uid); Pets.get().forget(uid); };
     this.hud.onOpenToday = () => this.today.open('today');
     const badge = () => {
       const h = Hustles.get();

@@ -528,7 +528,11 @@ export class InputManager {
    * Walk the player up to an object and open its card on arrival (or at once if already beside it).
    * Used by clicks in the 3D view and by on-screen shortcuts, so nothing needs the keyboard.
    */
+  /** What the player last tapped to go to: while they are in reach of it, its card is the one shown */
+  private chosen: InteractiveObject | null = null;
+
   public approachAndInteract(obj: InteractiveObject): void {
+    this.chosen = obj;
     const dist = this.player.position.distanceTo(obj.interactionPoint);
     const threshold = obj.id.startsWith('veh-') ? 3.5 : 2.8;
 
@@ -752,9 +756,9 @@ export class InputManager {
     if (id === 'interior_exit_door') {
       return {
         id: 'interior_exit_door',
-        name: 'Exit to Street',
+        name: obj.exitLabel ?? 'Exit to Street',
         category: obj.category,
-        label: 'Exit to Street',
+        label: obj.exitLabel ?? 'Exit to Street',
         action: 'exit-interior',
         distance: dist,
         interactionPoint: obj.interactionPoint,
@@ -915,6 +919,8 @@ export class InputManager {
     let nearestCandidate: InteractiveObject | null = null;
     let minDistance = Infinity;
     let bestRank = Infinity;
+    // Walked away from it, or it is gone from this place: the nearest thing has the prompt again
+    if (this.chosen && (!candidates.includes(this.chosen) || this.player.position.distanceTo(this.chosen.interactionPoint) > this.getInteractionRadius(this.chosen.id) + 0.5) && !this.player.isMoving && !this.player.actor.sequence) this.chosen = null;
 
     for (const obj of candidates) {
       const radius = this.getInteractionRadius(obj.id);
@@ -922,7 +928,8 @@ export class InputManager {
       // Some staffed stations share their exact standing spot with the attendant. The station
       // carries the action, so it wins the tie; attendants standing apart keep their own prompt.
       // Someone walking past does not take the prompt from the door or desk the player is standing at
-      const rank = obj.moving ? dist + 6 : obj.id.startsWith('interior_npc_') ? dist + 0.3 : dist;
+      // What the player chose to go to keeps the prompt over a door that happens to be nearer
+      const rank = obj === this.chosen ? -1 : obj.moving ? dist + 6 : obj.id.startsWith('interior_npc_') ? dist + 0.3 : dist;
       if (dist <= radius && rank < bestRank) {
         bestRank = rank;
         minDistance = dist;

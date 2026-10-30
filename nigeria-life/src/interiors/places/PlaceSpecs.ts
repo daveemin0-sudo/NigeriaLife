@@ -1,4 +1,5 @@
 import type { Builder } from '../../world/kit/ArchKit';
+import { HOTEL_SPECS } from './Hotel';
 import type { PlaceSpec, StationChoice } from './PlaceInterior';
 import type { Item } from '../../backend/types';
 import { SUPERMARKET_SPEC } from './SupermarketRoom';
@@ -317,17 +318,14 @@ const SPECS: PlaceSpec[] = [
     stage(b, 0, -8, 8, 3, 0x7f1d1d);
     b.box(0xfacc15, 0.3, 2.6, 0.3, 0, 0.7, -9).box(0xfacc15, 1.6, 0.3, 0.3, 0, 2.5, -9, { glow: true });
     b.box(0x78350f, 0.8, 1.1, 0.6, 0, 0.7, -7.2); b.box(0xd4af37, 0.6, 0.5, 0.5, 6, 0, 7);
-  }, [{ name: 'Pastor Daniel', title: 'Pastor', at: [0, -7.8], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'Welcome to the house of God!' }, { name: 'Sister Grace', title: 'Usher', at: [6, 6], facing: Math.PI, outfit: 0xf8fafc, gender: 'female', says: 'Welcome, sit anywhere.' }], [
-    { id: 'pew', name: '⛪ Join the service', at: [-4.3, -3], stand: [-4.3, -2.5], who: 'Sister Grace', role: 'Usher', text: 'Come and sit down.', choices: [{ label: 'Sit through the service', note: 'Social +20, Fun +10', sit: true, arms: 'rest', seconds: 8, effect: need({ social: 20, fun: 10 }), said: 'The choir lifted the roof. You feel light.' }] },
+  }, [], [
     { id: 'offering', name: '🙏 Offering box', at: [6, 7], stand: [6, 5.8], who: 'Sister Grace', role: 'Usher', text: 'Give what you can.', choices: [{ label: 'Give an offering', price: 2000, note: 'Social +8', effect: need({ social: 8 }), said: 'God bless you! Your offering is received.' }, { label: 'Give a big seed', price: 50000, note: 'Social +20', effect: need({ social: 20 }), said: 'The pastor prayed for you by name.' }] },
-  ], [{ at: [4.3, -3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [-4.3, -0.2], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 22]),
+  ], [], [20, 22]),
   venue('central-mosque', 'Lagos Central Mosque', 'Lagos Island · mosque', 'Jumat prayers Friday 1 pm', '#15803d', 0x065f46, 0xf8fafc, (b) => {
-    for (let r = 0; r < 4; r++) for (let i = 0; i < 7; i++) b.box([0x991b1b, 0x15803d, 0x1e3a8a][(i + r) % 3], 1, 0.03, 1.8, -6 + i * 2, 0.01, -5 + r * 2.4);
     b.box(0xd4af37, 1.6, 3, 0.3, 0, 0, -8.8); for (let i = 0; i < 5; i++) b.cylinder(0xcbd5e1, 0.05, 0.6, -8 + i * 0.6, 0.6, 7.5).box(0x9ca3af, 3.4, 0.6, 0.6, -6.8, 0, 7.8);
-  }, [{ name: 'Imam Abdullahi', title: 'Imam', at: [0, -8], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Assalamu alaikum. You are welcome.' }], [
-    { id: 'pray', name: '🕌 Pray', at: [0, -5], stand: [0, -5], who: 'Imam Abdullahi', role: 'Imam', text: 'Shoes off, and pray in peace.', choices: [{ label: 'Pray', note: 'Social +15, Fun +8', sit: true, arms: 'greet', seconds: 6, effect: need({ social: 15, fun: 8 }), said: 'You prayed in peace. The noise of the road is far away.' }] },
+  }, [], [
     { id: 'wudu', name: '🚰 Ablution taps', at: [-6.8, 7.8], stand: [-6.8, 6.6], who: 'Ablution', role: 'Lagos Central Mosque', text: 'Wash before you pray.', choices: [{ label: 'Wash', note: 'Hygiene +20', arms: 'reach', seconds: 3, effect: need({ hygiene: 20 }), said: 'Cool water on your hands, face and feet.' }] },
-  ], [{ at: [-4, -2.6], facing: Math.PI, outfit: 0xf8fafc, sit: true }, { at: [4, -2.6], facing: Math.PI, outfit: 0xe7e5e4, sit: true }]),
+  ], []),
   venue('sankofa-motors', 'Sankofa Motors', 'Mainland · car showroom', 'New & tokunbo', '#0f172a', 0xf8fafc, 0x0f172a, (b) => {
     for (const x of [-7, 0, 7]) b.cylinder(0xd4d4d8, 2.6, 0.12, x, 0, -3, { sides: 24 });
     desk(b, -6, 6); desk(b, 6, 6);
@@ -351,7 +349,6 @@ const SPECS: PlaceSpec[] = [
     for (const [x, z] of [[-6, 3], [-3, 3]]) table(b, x, z, 0xf8fafc, 4, 0xb45309);
     b.box(0x7c2d12, 2.4, 0.6, 2, 6, 0, -6).box(0xf8fafc, 2.2, 0.2, 1.8, 6, 0.6, -6);
   }, [{ name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0xb45309, gender: 'female', says: 'Welcome to Eko Grand. How can we help?' }], [
-    { id: 'reception', name: '🛎️ Reception', at: [-5, -6], stand: [-5, -4.6], who: 'Front desk', role: 'Eko Grand Hotel', text: 'A room for the night?', choices: [{ label: 'Check in for the night', price: 85000, note: 'Energy full', arms: 'reach', effect: (be) => { (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); need({ hygiene: 60 })(be as never); }, said: 'Cold AC, soft bed, hot shower. You slept like a king.' }] },
     { id: 'restaurant', name: '🍽️ Restaurant', at: [-6, 3], stand: [-6, 3.95], who: 'Waiter', role: 'Eko Grand Hotel', text: 'Lunch?', choices: [{ label: 'Seafood okra and pounded yam', price: 18000, note: 'Hunger +60', sit: true, seconds: 6, effect: need({ hunger: 60, fun: 10 }), said: 'Seafood okra, five-star style.' }] },
     { id: 'pool', name: '🏊 The pool', at: [6, 5], stand: [3.5, 5], who: 'Pool attendant', role: 'Eko Grand Hotel', text: 'Towel?', choices: [{ label: 'A swim', price: 10000, note: 'Fun +25, Hygiene +20', arms: 'swing', seconds: 6, effect: need({ fun: 25, hygiene: 20 }), said: 'Cool water, warm sun. You floated for an hour.' }] },
   ], [{ at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true }], [22, 20]),
@@ -545,16 +542,11 @@ const IKEJA: PlaceSpec[] = [
   venue('faith-arena', 'Faith Arena', 'Ikeja · church', 'Sunday 7, 9 & 11 am', '#1e3a8a', 0xe7e5e4, 0xdbeafe, (b) => {
     pews(b, 8, -4, 9);
     stage(b, 0, -10, 14, 4, 0x1e3a8a);
-    for (let i = 0; i < 8; i++) b.box(0xf8fafc, 0.5, 1.2, 0.5, -5 + i * 1.4, 0.7, -11);
     screen(b, -9, -11.8, 5, 2.4, 3.4, 0x38bdf8); screen(b, 9, -11.8, 5, 2.4, 3.4, 0x38bdf8);
-    b.box(0xd4af37, 0.6, 0.5, 0.5, 9, 0, 9);
-  }, [{ name: 'Pastor Ade', title: 'Senior pastor', at: [0, -10], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'Welcome home! Somebody shout Hallelujah!' }, { name: 'Usher Tolu', title: 'Usher', at: [9, 8], facing: Math.PI, outfit: 0x1e3a8a, gender: 'female', says: 'Welcome, follow me.' }], [
-    { id: 'service', name: '⛪ The service', at: [-5.3, -4], stand: [-5.3, -3.5], who: 'Usher Tolu', role: 'Usher', text: 'Sit down, the choir is starting.', choices: [
-      { label: 'Sit through the service', note: 'Social +25, Fun +15', sit: true, arms: 'rest', seconds: 8, effect: need({ social: 25, fun: 15 }), said: 'A choir of hundreds. The roof nearly came off.' },
-      { label: 'Dance in praise', note: 'Fun +20', dance: true, seconds: 8, effect: need({ fun: 20, social: 10 }), said: 'The whole church danced.' },
-    ] },
-    { id: 'offering', name: '🙏 Offering', at: [9, 9], stand: [9, 7.7], who: 'Usher Tolu', role: 'Usher', text: 'Sow a seed.', choices: [{ label: 'Give an offering', price: 5000, note: 'Social +10', effect: need({ social: 10 }), said: 'The pastor blessed the offering.' }, { label: 'Pay your tithe', price: 100000, note: 'Social +25', effect: need({ social: 25 }), said: 'Recorded, with a receipt and a prayer.' }] },
-  ], [{ at: [5.3, -4], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [-5.3, -1.2], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [5.3, -1.2], facing: Math.PI, outfit: 0xf8fafc, sit: true }], [24, 26]),
+    b.box(0x1e3a8a, 1.6, 0.9, 0.7, 9, 0, 9);
+  }, [], [
+    { id: 'tithe', name: '📒 Tithes desk', at: [9, 9], stand: [9, 7.7], who: 'Church office', role: 'Faith Arena', text: 'Tithes and pledges, with a receipt.', choices: [{ label: 'Pay your tithe', price: 100000, note: 'Social +25', effect: need({ social: 25 }), said: 'Recorded, with a receipt and a prayer.' }] },
+  ], [], [24, 26]),
   venue('mmia-terminal', 'Murtala Muhammed International Airport', 'Ikeja · LOS', 'Departures · Arrivals', '#0b7a43', 0xf1f5f9, 0xe2e8f0, (b) => {
     for (let i = 0; i < 4; i++) counter(b, -9 + i * 4, -7, 3, 0x0b7a43, 0xf8fafc);
     screen(b, 0, -11.8, 12, 2, 3.6, 0xfacc15);
@@ -820,4 +812,4 @@ const SIDE: PlaceSpec[] = [
   ], [{ at: [-4, -0.25], facing: Math.PI, outfit: 0xf97316, sit: true }, { at: [4, 2.95], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }], [20, 16]),
 ];
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja')];
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS];

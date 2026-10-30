@@ -109,6 +109,11 @@ export class PlaceCard {
     return { icon: '📍', label: obj.name };
   }
 
+  /** Draws the card again for the room the player is in now (after a lift or a door to the next room) */
+  public refresh(): void {
+    this.render();
+  }
+
   private render(): void {
     const place = this.hooks.getPlace();
     if (!place) {

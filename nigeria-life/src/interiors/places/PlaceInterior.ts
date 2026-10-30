@@ -14,6 +14,8 @@ import { PLACE_WORK, type WorkSpec } from './PlaceJobs';
 import { createHandWork } from '../../jobs/HandWork';
 import { Employment } from '../../jobs/Employment';
 import { attachShows } from './LiveEvents';
+import { attachWorship } from './Worship';
+import { attachHotel } from './Hotel';
 
 /**
  * A place along the expressway, gone into: its own room, laid out for what is done there, with
@@ -82,6 +84,8 @@ export interface PlaceSpec {
   stations: StationSpec[];
   /** Anything that changes as the game goes on (a supermarket's shelves), added once the room is built */
   attach?(room: PlaceInterior): void;
+  /** What the door in the front wall is called, when it does not lead out to the road (a hotel room's door) */
+  door?: { name: string; category: string; description: string };
 }
 
 const PEOPLE = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
@@ -97,6 +101,11 @@ export class PlaceInterior {
   public readonly spec: PlaceSpec;
   /** Where the toilet door went along the back wall, and whether a clear spot was found (for the tests) */
   public restroomAt = { x: 0, clear: false };
+  /**
+   * Where the door in the front wall leads, when it is not out to the road: a hotel room's door
+   * opens on the corridor, the corridor's stairs go down to the lobby. Set by the place itself.
+   */
+  public leadsTo: (() => { id: string; spawnAt: THREE.Vector3; spawnYaw: number } | null) | null = null;
 
   constructor(spec: PlaceSpec, origin: THREE.Vector3, comeOutAt: THREE.Vector3) {
     this.spec = spec;
@@ -160,7 +169,8 @@ export class PlaceInterior {
 
     const door = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, length / 2), Math.PI);
     this.group.add(door);
-    this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.', interactionPoint: this.world(0, length / 2 - 1) });
+    const way = this.spec.door ?? { name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.' };
+    this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: way.name, category: way.category, description: way.description, interactionPoint: this.world(0, length / 2 - 1), exitLabel: this.spec.door ? `🚪 ${this.spec.door.name}` : undefined });
     this.addRestroom(b.footprints);
 
     // Those who work here
@@ -210,6 +220,8 @@ export class PlaceInterior {
     for (const work of PLACE_WORK[this.spec.key] ?? []) this.addWork(work);
     this.spec.attach?.(this);
     attachShows(this, this.spec.key);
+    attachWorship(this, this.spec.key);
+    attachHotel(this, this.spec.key);
   }
 
   /**
