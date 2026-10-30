@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Sequence } from '../../interactions/Sequence';
 import type { InteriorDefinition, InteriorNPCDef } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
@@ -367,19 +368,61 @@ export class PlaceInterior {
             if (done.ok) host.emote('zanku', c.seconds ?? 8);
             return;
           }
-          host.director.perform({
+          // A meal is eaten where it is seen: the plate (and the bottle) in front of them as they eat
+          const meal = /Hunger \+/.test(c.note ?? '');
+          const done = host.director.perform({
             id: `${st.id} ${c.label}`,
             actor: host.actor,
             point: stand,
             target: look,
-            animation: { arms: c.arms ?? 'reach', legs: c.sit ? 'sit' : 'stand' },
+            animation: { arms: meal ? 'eat' : c.arms ?? 'reach', legs: c.sit ? 'sit' : 'stand' },
             seconds: c.seconds ?? 2,
             effectAt: c.sit ? 0.9 : 0.6,
             ifStuck: 'snap',
             effect: () => this.settle(c, host),
           });
+          if (meal && done.ok && done.sequence) this.serve(c, host, done.sequence);
         },
       })),
+    });
+  }
+
+  /**
+   * The plate a meal is eaten from, put down in front of the player the moment they start eating
+   * (on the table when sitting, in the hand when standing) and cleared when they are done.
+   */
+  private serve(c: StationChoice, host: PlaceHost, sequence: Sequence): void {
+    const label = c.label.toLowerCase();
+    const food = /jollof|rice|fried rice/.test(label) ? 0xea580c : /amala|ewedu|eba|pounded|semo/.test(label) ? 0x6b4f2a : /okra|soup|vegetable/.test(label) ? 0x4d7c0f
+      : /suya|asun|meat|chicken|goat|fish/.test(label) ? 0x7c2d12 : /shawarma|sandwich|bread/.test(label) ? 0xfde68a : /chips|plantain|dodo/.test(label) ? 0xfacc15 : 0xd97706;
+    const plate = new THREE.Group();
+    plate.name = 'served meal';
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.13, 0.03, 18), new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 }));
+    const heap = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: food, roughness: 0.8 }));
+    heap.scale.set(1.1, 0.6, 1.1);
+    heap.position.y = 0.015;
+    plate.add(dish, heap);
+    if (/drink|coke|chapman|malt|beer|juice|water|wine|champagne|zobo/.test(label)) {
+      const bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.24, 10), new THREE.MeshStandardMaterial({ color: /coke|malt/.test(label) ? 0x3f1d0b : 0x166534, roughness: 0.3 }));
+      bottle.position.set(0.22, 0.12, 0.05);
+      plate.add(bottle);
+    }
+    const actor = host.actor;
+    const here = new THREE.Vector3();
+    const watch = () => {
+      if (plate.parent || actor.sequence !== sequence || actor.pose.arms !== 'eat') return;
+      // In front of them: on the table at a seat, held up in front when standing
+      actor.worldPosition(here);
+      const ahead = c.sit ? 0.5 : 0.34;
+      plate.position.set(here.x - this.group.position.x + Math.sin(actor.yaw) * ahead, c.sit ? 0.78 : 1.02, here.z - this.group.position.z + Math.cos(actor.yaw) * ahead);
+      plate.rotation.y = actor.yaw;
+      this.group.add(plate);
+    };
+    this.ticks.push(watch);
+    sequence.onEnd(() => {
+      plate.removeFromParent();
+      const i = this.ticks.indexOf(watch);
+      if (i >= 0) this.ticks.splice(i, 1);
     });
   }
 

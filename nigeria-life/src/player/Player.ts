@@ -150,6 +150,7 @@ export class Player {
     this.nearest = Infinity;
     this.sinceNearer = 0;
     this.blockedFor = 0;
+    this.tries = 0;
     this.roundIt = null;
     this.way = [];
     this.goal = target.clone();
@@ -527,7 +528,9 @@ export class Player {
           this.mesh.position.z = cameFrom.z;
           this.blockedFor += delta;
           this.sinceNearer = 0;
-          if (this.blockedFor < 1.5) {
+          // Traffic going past: wait at the kerb for a gap, as anyone crossing does; anything else, a moment
+          const waitFor = Bodies.carsNear(cameFrom.x, cameFrom.z, 5).some((car) => !car.parked) ? 12 : 1.5;
+          if (this.blockedFor < waitFor) {
             this.playAnimation('idle');
             return;
           }
@@ -538,6 +541,17 @@ export class Player {
           this.mesh.position.x = stepped ? this.mesh.position.x : cameFrom.x;
           this.mesh.position.z = stepped ? this.mesh.position.z : cameFrom.z;
           this.blockedFor = 0;
+          // Held up by traffic going past or someone standing in the way: a moment, and on again.
+          // Against a wall, with nobody about, the walk ends as before.
+          const busy = Bodies.carsNear(cameFrom.x, cameFrom.z, 6).some((car) => !car.parked) || Bodies.peopleNear(cameFrom.x, cameFrom.z, 2.5).length > 0;
+          if (busy && !this.onBridge && this.tries < 3) {
+            this.tries += 1;
+            this.sinceNearer = 0;
+            this.nearest = Infinity;
+            this.roundIt = null;
+            this.playAnimation('idle');
+            return;
+          }
           this.endWalk();
           return;
         }
@@ -619,6 +633,8 @@ export class Player {
   private sinceNearer = 0;
   /** How long the next step has been blocked by something in the way */
   private blockedFor = 0;
+  /** Times this walk has stopped for traffic or people and gone on again */
+  private tries = 0;
   /** Stepping round something in the way: which way they turned, and for how much longer */
   private roundIt: { turn: number; left: number } | null = null;
 

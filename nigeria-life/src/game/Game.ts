@@ -591,7 +591,12 @@ export class Game {
     // A place pressed on the bar of nearby places is walked to, not jumped to
     this.hud.onWalkToPlace = (place) => this.input.approachAndInteract(place);
     // Going somewhere on foot from the map is a walk by the streets, not a jump
-    this.hud.onWalkTo = (point, then) => this.player.setDestination(new THREE.Vector3(point.x, 0, point.z), then);
+    this.hud.onWalkTo = (point, then) => {
+      // Waving back at someone, or anything else that can be broken off, gives way to the walk
+      const actor = this.player.actor;
+      if (actor.scripted && InteractionDirector.get().interrupt(actor) === 'locked') return;
+      this.player.setDestination(new THREE.Vector3(point.x, 0, point.z), then);
+    };
     this.hud.wayTo = (x, z) => this.wayTo(x, z);
 
     // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)

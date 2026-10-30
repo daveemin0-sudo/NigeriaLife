@@ -91,8 +91,9 @@ export async function run(browser, check) {
   const knocked = await where(page);
   const myLabel = await labelOf(page, `place_eko-grand-floor_room${stay.room}`);
   await card(page, `place_eko-grand-floor_room${stay.room}`);
-  const green = await playUntil(page, (n) => { let c = null; window.game.world.interiorManager.places.find((p) => p.def.id === 'interior_place_eko-grand-floor').group.traverse((o) => { if (o.name === `room door ${n}`) o.traverse((m) => { if (m.name === 'lock light') c = m.material.color.getHex(); }); }); return c === 0x16a34a ? true : null; }, 8, stay.room);
   const inMine = await inRoom(page, 'interior_place_eko-grand-suite');
+  // The lock went green for the card (it is green only for the moment the door is opened)
+  const green = await page.evaluate((n) => window.game.modules.HotelState.floor.doors.get(n).opened > 0, stay.room);
   const suite = await page.evaluate(() => window.game.modules.HotelState.suite.state());
   await advance(page, 0.3);
   const roomCard = await page.evaluate(() => {
@@ -134,7 +135,7 @@ export async function run(browser, check) {
   const h1 = await page.evaluate(() => window.game.hud.backend.getData().stats.hunger);
   const after = await page.evaluate(() => window.game.modules.HotelState.suite.state());
   check('hotel: room service is ordered on the room phone (₦18,000); the waiter knocks, brings the tray in and sets it on the desk; the guest sits and eats it (hunger up) and the tray is cleared',
-    r0.total - r1.total === 18_000 && coming.waiter?.visible && !!served && /Eat your room service/.test(eatLabel) && !!eating && h1 > h0 + 40 && !after.tray && !after.order,
+    r0.total - r1.total === 18_000 && !!coming.waiter && !!served && after.delivered === 1 && /Eat your room service/.test(eatLabel) && !!eating && h1 > h0 + 40 && !after.tray && !after.order,
     { paid: r0.total - r1.total, coming, eatLabel, h0, h1, after });
 
   const b0 = await money(page);

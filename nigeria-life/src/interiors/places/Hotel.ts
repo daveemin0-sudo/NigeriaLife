@@ -141,7 +141,9 @@ class SwingDoor {
     holder.add(frame, this.pivot, plate);
     parent.add(holder);
   }
-  public open(): void { this.target = -1.35; this.led.color.set(0x16a34a); }
+  /** How many times it has been unlocked and opened (for the tests: the green light is only on for a moment) */
+  public opened = 0;
+  public open(): void { this.target = -1.35; this.led.color.set(0x16a34a); this.opened += 1; }
   public close(): void { this.target = 0; this.led.color.set(0xdc2626); }
   public get isOpen(): boolean { return Math.abs(this.pivot.rotation.y - this.target) < 0.05 && this.target !== 0; }
   public tick(delta: number): void {
@@ -495,6 +497,8 @@ class Suite {
   private viewNight: boolean | null = null;
   public number = 0;
   private readonly sign: THREE.Group;
+  /** Room service brought up to the room (for the tests) */
+  private delivered = 0;
 
   constructor(room: PlaceInterior) {
     this.room = room;
@@ -678,6 +682,7 @@ class Suite {
       w.hold(0.9, () => {
         this.putTray(this.order!.dish.dish);
         this.order!.stage = 'served';
+        this.delivered += 1;
         w.say('Enjoy your meal!', 2.5);
         w.walk([[0, 3.6], [0, 5.4]], () => { w.root.visible = false; }, { speed: 1.5 });
       });
@@ -807,7 +812,7 @@ class Suite {
 
   /** For the tests */
   public state(): Record<string, unknown> {
-    return { number: this.number, sleeping: this.sleeping, order: this.order ? { stage: this.order.stage, dish: this.order.dish.label } : null, tray: !!this.tray?.parent, waiter: this.waiter ? { visible: this.waiter.root.visible, at: this.waiter.where().map((v) => +v.toFixed(2)), walking: this.waiter.walking } : null, tv: this.screen.visible };
+    return { number: this.number, delivered: this.delivered, sleeping: this.sleeping, order: this.order ? { stage: this.order.stage, dish: this.order.dish.label } : null, tray: !!this.tray?.parent, waiter: this.waiter ? { visible: this.waiter.root.visible, at: this.waiter.where().map((v) => +v.toFixed(2)), walking: this.waiter.walking } : null, tv: this.screen.visible };
   }
 }
 
