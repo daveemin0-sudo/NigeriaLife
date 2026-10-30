@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { kennel, catTree, perch, aquarium } from './Pets';
+import { planterBox, flowerPots } from './Garden';
 import { Builder } from '../world/kit/ArchKit';
 import { MORE_KINDS, MORE_MAKERS } from './MoreFurniture';
 
@@ -25,6 +27,10 @@ export type FurnitureUse =
   | 'clean'
   /** A door: walked through, its leaf swings open as someone comes up to it */
   | 'door'
+  /** A planter or pots: sown, watered and harvested */
+  | 'garden'
+  /** A pet's home: the pet is adopted, fed and played with there */
+  | 'pet'
   | 'none';
 
 /** Where a piece is attached in a room: standing on the floor or mounted on a wall */
@@ -77,6 +83,13 @@ export const FURNITURE: Record<string, FurnitureKind> = {
   rain_shower: { solid: true, use: 'bath' },
   jacuzzi_spa: { solid: true, use: 'bath' },
   toilet_wc: { solid: true, use: 'seat', seat: { x: 0, z: 0 } },
+  // The garden and the pets
+  planter_box: { solid: true, use: 'garden' },
+  flower_pots: { solid: true, use: 'garden' },
+  dog_kennel: { solid: true, use: 'pet' },
+  cat_tree: { solid: true, use: 'pet' },
+  parrot_perch: { solid: true, use: 'pet' },
+  aquarium: { solid: true, use: 'pet' },
   bathroom_vanity: { solid: true, use: 'bath' },
   towel_rack: { solid: false, use: 'none', mount: 'wall', elevation: 1.6 },
   washing_machine: { solid: true, use: 'clean' },
@@ -624,6 +637,12 @@ const MAKERS: Record<string, () => THREE.Group> = {
   rain_shower: bathtub,
   jacuzzi_spa: jacuzzi,
   toilet_wc: toiletWc,
+  planter_box: planterBox,
+  flower_pots: flowerPots,
+  dog_kennel: kennel,
+  cat_tree: catTree,
+  parrot_perch: perch,
+  aquarium,
   bathroom_vanity: () => executiveDesk(),
   towel_rack: splitAc,
   washing_machine: freezer,

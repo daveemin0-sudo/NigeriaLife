@@ -275,6 +275,60 @@ export const CATALOGUE_ITEMS: CatalogueItem[] = [
     modelType: 'jacuzzi_spa',
   },
   {
+    id: 'planter_box',
+    name: 'Raised Garden Planter',
+    category: 'decor',
+    price: 45000,
+    icon: '🪴',
+    description: 'A hardwood raised bed for three plants: sow ugwu, tomatoes, pepper, okra, plantain or flowers, water them and harvest.',
+    modelType: 'planter_box',
+  },
+  {
+    id: 'flower_pots',
+    name: 'Terracotta Flower Pots (set of three)',
+    category: 'decor',
+    price: 18000,
+    icon: '🌸',
+    description: 'Three clay pots for scent leaf, lemongrass or flowers: ixora, sunflowers, bougainvillea, roses.',
+    modelType: 'flower_pots',
+  },
+  {
+    id: 'dog_kennel',
+    name: 'Dog Kennel & Bowls',
+    category: 'decor',
+    price: 60000,
+    icon: '🐕',
+    description: 'A painted kennel with food and water bowls. Adopt a dog here; it will follow you round the house.',
+    modelType: 'dog_kennel',
+  },
+  {
+    id: 'cat_tree',
+    name: 'Cat Tree & Bed',
+    category: 'decor',
+    price: 38000,
+    icon: '🐈',
+    description: 'A three-level scratching tree with a bowl. Adopt a cat here.',
+    modelType: 'cat_tree',
+  },
+  {
+    id: 'parrot_perch',
+    name: 'Parrot Perch Stand',
+    category: 'decor',
+    price: 30000,
+    icon: '🦜',
+    description: 'A wooden perch for a talking African grey or a green parrot.',
+    modelType: 'parrot_perch',
+  },
+  {
+    id: 'aquarium',
+    name: 'Tropical Aquarium',
+    category: 'decor',
+    price: 150000,
+    icon: '🐠',
+    description: 'A lit 200-litre tank on a stand, with sand, plants and room for a shoal of tropical fish.',
+    modelType: 'aquarium',
+  },
+  {
     id: 'toilet_wc',
     name: 'Ceramic Dual-Flush Porcelain Toilet',
     category: 'appliances',
@@ -681,6 +735,8 @@ export const SELL_SHARE = 0.5;
 const GRID = 0.25;
 
 export class HouseDecorationSystem {
+  /** A piece was sold: whatever grew in it, or lived at it, goes with it */
+  public static onSold: ((uid: string) => void) | null = null;
   private static instance: HouseDecorationSystem;
   private backend: BackendService;
   public placedItemsGroup: THREE.Group;
@@ -1011,6 +1067,7 @@ export class HouseDecorationSystem {
     item.mesh.removeFromParent();
     this.placed.splice(index, 1);
     this.backend.processTransaction({ type: 'ITEM_SALE', amount: refund, description: `Sold: ${this.catalogueItem(item.id)?.name ?? 'furniture'}` });
+    HouseDecorationSystem.onSold?.(uid);
     this.save();
     this.onChanged?.();
     return { ok: true, refund };

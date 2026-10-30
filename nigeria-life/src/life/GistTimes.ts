@@ -110,6 +110,8 @@ export class GistTimes {
       this.note(`${who} touched down in ${e.city === 'abuja' ? 'Abuja' : e.city === 'port_harcourt' ? 'Port Harcourt' : e.city}. Business trip or enjoyment?`);
     } else if (e.kind === 'game' && e.won && e.stake >= 5_000) {
       this.note(`${who} won the pot at ${e.game === 'ayo' ? 'Ayo' : 'Whot'} for ${naira(e.stake * (e.game === 'ayo' ? 2 : 4))}. The streets are talking.`);
+    } else if (e.kind === 'case' && e.id.startsWith('case-')) {
+      this.note(`${who} cracked a case the police could not. Lagos has a new detective!`);
     } else if (e.kind === 'found' && e.what === 'agama') {
       const n = (this.save.diary.filter((d) => /agama/.test(d.text)).length);
       if (n < 3) this.note(`${who} has been chasing agama lizards along the expressway. Collector or madness? You decide.`);

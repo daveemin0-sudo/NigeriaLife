@@ -124,16 +124,17 @@ interface LightingKeyframe {
 }
 
 const LIGHTING_TIMELINE: LightingKeyframe[] = [
-  { hour: 0.0,  sunColor: 0x334d77, sunIntensity: 0.35, hemiSky: 0x182238, hemiGround: 0x0a1018, hemiIntensity: 0.25, fogColor: 0x0c1220, fogDensity: 0.0075, exposure: 0.88 },
-  { hour: 5.5,  sunColor: 0x445588, sunIntensity: 0.40, hemiSky: 0x222a44, hemiGround: 0x101420, hemiIntensity: 0.28, fogColor: 0x1a1e30, fogDensity: 0.0070, exposure: 0.90 },
+  // Night in Lagos is never black: moonlight, generators and street lamps keep it readable
+  { hour: 0.0,  sunColor: 0x6a80b8, sunIntensity: 0.75, hemiSky: 0x4a5d8c, hemiGround: 0x262c3a, hemiIntensity: 0.85, fogColor: 0x1b2436, fogDensity: 0.0055, exposure: 1.0 },
+  { hour: 5.5,  sunColor: 0x7088bb, sunIntensity: 0.80, hemiSky: 0x52618e, hemiGround: 0x2a2e3c, hemiIntensity: 0.90, fogColor: 0x232a3e, fogDensity: 0.0055, exposure: 1.0 },
   { hour: 6.2,  sunColor: 0xffaa66, sunIntensity: 1.20, hemiSky: 0xffb888, hemiGround: 0x554433, hemiIntensity: 0.48, fogColor: 0x996655, fogDensity: 0.0062, exposure: 0.96 },
   { hour: 7.5,  sunColor: 0xfff2d4, sunIntensity: 2.30, hemiSky: 0xcde4ff, hemiGround: 0x8a7a62, hemiIntensity: 0.65, fogColor: 0xe2d6c2, fogDensity: 0.0050, exposure: 1.05 },
   { hour: 12.5, sunColor: 0xfff0d0, sunIntensity: 2.60, hemiSky: 0xbfdcff, hemiGround: 0x8a7a62, hemiIntensity: 0.75, fogColor: 0xd9cdb4, fogDensity: 0.0055, exposure: 1.05 },
   { hour: 16.5, sunColor: 0xffe0b0, sunIntensity: 2.50, hemiSky: 0xc4dcff, hemiGround: 0x8a7a62, hemiIntensity: 0.70, fogColor: 0xdec8ab, fogDensity: 0.0056, exposure: 1.05 },
   { hour: 18.0, sunColor: 0xffa65c, sunIntensity: 2.30, hemiSky: 0xffbf8a, hemiGround: 0x775544, hemiIntensity: 0.55, fogColor: 0xe0b184, fogDensity: 0.0060, exposure: 1.02 },
-  { hour: 19.3, sunColor: 0xdd6644, sunIntensity: 0.95, hemiSky: 0x775588, hemiGround: 0x332233, hemiIntensity: 0.38, fogColor: 0x4a2a44, fogDensity: 0.0068, exposure: 0.94 },
-  { hour: 20.5, sunColor: 0x3b5284, sunIntensity: 0.45, hemiSky: 0x1e2a44, hemiGround: 0x0f1722, hemiIntensity: 0.30, fogColor: 0x101726, fogDensity: 0.0070, exposure: 0.90 },
-  { hour: 24.0, sunColor: 0x334d77, sunIntensity: 0.35, hemiSky: 0x182238, hemiGround: 0x0a1018, hemiIntensity: 0.25, fogColor: 0x0c1220, fogDensity: 0.0075, exposure: 0.88 },
+  { hour: 19.3, sunColor: 0xdd7755, sunIntensity: 1.10, hemiSky: 0x8a6a9e, hemiGround: 0x3c2c3c, hemiIntensity: 0.62, fogColor: 0x4a3248, fogDensity: 0.0060, exposure: 0.98 },
+  { hour: 20.5, sunColor: 0x6f86bf, sunIntensity: 0.80, hemiSky: 0x4d5f8e, hemiGround: 0x282e3c, hemiIntensity: 0.88, fogColor: 0x1d2638, fogDensity: 0.0056, exposure: 1.0 },
+  { hour: 24.0, sunColor: 0x6a80b8, sunIntensity: 0.75, hemiSky: 0x4a5d8c, hemiGround: 0x262c3a, hemiIntensity: 0.85, fogColor: 0x1b2436, fogDensity: 0.0055, exposure: 1.0 },
 ];
 
 export class SkyEnvironmentManager {

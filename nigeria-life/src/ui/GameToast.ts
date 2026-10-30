@@ -78,6 +78,19 @@ export function showGameToast(
     document.body.appendChild(toastContainer);
   }
 
+  // The same notice already showing is not shown twice; and no more than two at a time, the oldest going
+  for (const shown of Array.from(toastContainer.children) as HTMLElement[]) {
+    if (shown.textContent === message && shown.dataset.leaving !== '1') return;
+  }
+  const showing = (Array.from(toastContainer.children) as HTMLElement[]).filter((t) => t.dataset.leaving !== '1');
+  while (showing.length >= 2) {
+    const oldest = showing.shift()!;
+    oldest.dataset.leaving = '1';
+    oldest.style.opacity = '0';
+    setTimeout(() => oldest.remove(), 250);
+  }
+  const phone = window.innerWidth <= 700;
+
   const toast = document.createElement('div');
   const borderColor =
     type === 'success'
@@ -102,10 +115,10 @@ export function showGameToast(
     backdrop-filter: blur(14px);
     border: 1px solid ${borderColor};
     color: #f8fafc;
-    padding: 10px 22px;
-    border-radius: 999px;
+    padding: ${phone ? '8px 14px' : '10px 22px'};
+    border-radius: ${phone ? '16px' : '999px'};
     font-family: var(--nl-font);
-    font-size: 13.5px;
+    font-size: ${phone ? '12.5px' : '13.5px'};
     font-weight: 700;
     letter-spacing: 0.3px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), ${shadowGlow};
@@ -115,7 +128,7 @@ export function showGameToast(
     opacity: 0;
     transform: translateY(-12px) scale(0.95);
     transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-    max-width: 90vw;
+    max-width: ${phone ? '84vw' : '90vw'};
     text-align: center;
   `;
 
@@ -130,6 +143,7 @@ export function showGameToast(
 
   // Animate out and remove
   setTimeout(() => {
+    toast.dataset.leaving = '1';
     toast.style.opacity = '0';
     toast.style.transform = 'translateY(-12px) scale(0.92)';
     setTimeout(() => {

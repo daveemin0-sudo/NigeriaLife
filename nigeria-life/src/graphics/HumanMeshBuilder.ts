@@ -1798,38 +1798,50 @@ export class HumanMeshBuilder {
    * e.g. @GpOfGoodLife, @ka_y_la, @VICTOR0326
    */
   public static createUsernameTag(username: string): THREE.Sprite {
+    // Nobody to name (a passer-by, a seated figure): no tag to draw, nothing held in memory
+    if (!username) {
+      const blank = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, opacity: 0, depthTest: false }));
+      blank.visible = false;
+      return blank;
+    }
+    // Drawn large and shown at true colour (no tone mapping, no fog), so it reads on a phone
+    const W = 400;
+    const H = 100;
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 64;
+    canvas.width = W;
+    canvas.height = H;
     const ctx = canvas.getContext('2d')!;
-
-    // Clean rounded pill background
-    const bg = '#2563eb';
-    ctx.fillStyle = bg;
+    const text = username.startsWith('@') ? username : `@${username}`;
+    let size = 42;
+    ctx.font = `700 ${size}px "Dancing Script Variable", "Segoe Script", cursive`;
+    while (ctx.measureText(text).width > W - 70 && size > 24) {
+      size -= 2;
+      ctx.font = `700 ${size}px "Dancing Script Variable", "Segoe Script", cursive`;
+    }
+    const w = Math.min(W - 12, ctx.measureText(text).width + 50);
+    const x0 = (W - w) / 2;
+    ctx.fillStyle = 'rgba(12, 18, 32, 0.86)';
     ctx.beginPath();
-    ctx.roundRect(16, 12, 224, 40, 20);
+    ctx.roundRect(x0, 14, w, 72, 36);
     ctx.fill();
-
-    // Subtle border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.roundRect(16, 12, 224, 40, 20);
+    ctx.roundRect(x0 + 1.5, 15.5, w - 3, 69, 34);
     ctx.stroke();
-
-    // Username text
-    // Players' names in a flowing script
-    ctx.font = '700 25px "Dancing Script Variable", "Segoe Script", cursive';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(username.startsWith('@') ? username : `@${username}`, 128, 32);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 5;
+    ctx.fillText(text, W / 2, 51);
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
-    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, toneMapped: false, fog: false });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(1.4, 0.35, 1);
+    sprite.scale.set(1.5, 0.375, 1);
     return sprite;
   }
 }

@@ -3,6 +3,7 @@ import { esc, naira } from '../../ui/kit/html';
 import { newAyo, play as playAyo, botMove, legalMoves, type AyoState } from '../../games/Ayo';
 import { newWhot, playCard, goToMarket, botTurn, canPlay, top, SHAPES, SHAPE_ICON, type WhotState, type Shape } from '../../games/Whot';
 import { Activity } from '../../life/Activity';
+import { newLudo, roll as rollLudo, move as moveLudo, movable, botPick, cellOf, TRACK, SAFE, ENTRY, COLUMN, HOME, type LudoState, type Colour } from '../../games/Ludo';
 
 /**
  * Naija Games on the phone: Ayo against Mama Ronke, the board's best on the street, and Whot
@@ -17,17 +18,22 @@ interface Session {
   stake: number;
   ayo: AyoState | null;
   whot: WhotState | null;
+  ludo: LudoState | null;
   calling: string | null;
   busy: boolean;
+  /** The computers are taking their Ludo turns: Ludo's own, so a Whot table still playing does not hold it up */
+  ludoBusy: boolean;
+  /** The same for the Whot table */
+  whotBusy: boolean;
   paid: boolean;
 }
-export const gameSession: Session = { stake: 0, ayo: null, whot: null, calling: null, busy: false, paid: false };
+export const gameSession: Session = { stake: 0, ayo: null, whot: null, ludo: null, calling: null, busy: false, ludoBusy: false, whotBusy: false, paid: false };
 
 const RECORD_KEY = 'nl_games_record_v1';
-function record(): { ayo: [number, number]; whot: [number, number] } {
-  try { return { ayo: [0, 0], whot: [0, 0], ...JSON.parse(localStorage.getItem(`${RECORD_KEY}:${Activity.player()}`) ?? '{}') }; } catch { return { ayo: [0, 0], whot: [0, 0] }; }
+function record(): { ayo: [number, number]; whot: [number, number]; ludo: [number, number] } {
+  try { return { ayo: [0, 0], whot: [0, 0], ludo: [0, 0], ...JSON.parse(localStorage.getItem(`${RECORD_KEY}:${Activity.player()}`) ?? '{}') }; } catch { return { ayo: [0, 0], whot: [0, 0], ludo: [0, 0] }; }
 }
-function keepRecord(game: 'ayo' | 'whot', won: boolean): void {
+function keepRecord(game: 'ayo' | 'whot' | 'ludo', won: boolean): void {
   const r = record();
   r[game][won ? 0 : 1] += 1;
   try { localStorage.setItem(`${RECORD_KEY}:${Activity.player()}`, JSON.stringify(r)); } catch { /* blocked */ }
@@ -58,6 +64,12 @@ const CSS = `
 .gm-opp.turn b{color:#fde047}
 .gm-mid{display:flex;align-items:center;justify-content:center;gap:18px}
 .gm-shapes{display:flex;gap:8px;justify-content:center;margin-top:10px}
+.gm-ludo{display:grid;grid-template-columns:repeat(15,1fr);aspect-ratio:1;border-radius:14px;overflow:hidden;border:3px solid #1c1917;background:#fff}
+.gm-ludo .q{position:relative;border:0.5px solid rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;font-size:9px}
+.gm-ludo .tk{width:78%;height:78%;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5);padding:0;position:relative;font-size:8px;font-weight:900;color:#fff}
+.gm-ludo .tk.go{animation:gm-pulse .8s infinite;outline:2px solid #1c1917}
+@keyframes gm-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+.gm-die{width:58px;height:58px;border-radius:12px;background:#fff;color:#1c1917;font-size:34px;font-weight:900;display:grid;place-items:center;border:3px solid #1c1917;box-shadow:0 4px 0 #1c1917}
 .gm-shapes button{width:48px;height:48px;border-radius:12px;border:2px solid #7f1d1d;background:#fff8e7;color:#7f1d1d;font-size:22px;font-weight:900}
 `;
 let styled = false;
@@ -74,12 +86,12 @@ function stakeChips(): string {
   return `<div class="nl-chips" style="margin:6px 0 12px">${STAKES.map((s) => `<button class="nl-chip${s === gameSession.stake ? ' is-on' : ''}" data-act="stake" data-stake="${s}" aria-pressed="${s === gameSession.stake}">${s ? naira(s) : 'Free'}</button>`).join('')}</div>`;
 }
 
-function settle(host: PhoneHost, game: 'ayo' | 'whot', won: boolean, draw = false): void {
+function settle(host: PhoneHost, game: 'ayo' | 'whot' | 'ludo', won: boolean, draw = false): void {
   if (gameSession.paid) return;
   gameSession.paid = true;
   const players = game === 'ayo' ? 2 : WHOT_NAMES.length;
   const pot = gameSession.stake * players;
-  if (won && pot > 0) host.backend.processTransaction({ type: 'WINNINGS', amount: pot, description: `${game === 'ayo' ? 'Ayo' : 'Whot'}: you won the pot` });
+  if (won && pot > 0) host.backend.processTransaction({ type: 'WINNINGS', amount: pot, description: `${game === 'ayo' ? 'Ayo' : game === 'whot' ? 'Whot' : 'Ludo'}: you won the pot` });
   if (draw && gameSession.stake > 0) host.backend.processTransaction({ type: 'WINNINGS', amount: gameSession.stake, description: 'Ayo: a draw, your stake back' });
   keepRecord(game, won);
   Activity.emit({ kind: 'game', game, won, stake: gameSession.stake });
@@ -146,7 +158,7 @@ function cardHtml(c: { shape: Shape; n: number; id: string }, opts: { can?: bool
 
 function whotScreen(): string {
   const s = gameSession.whot!;
-  const mine = s.turn === 0 && s.winner === null && !gameSession.busy;
+  const mine = s.turn === 0 && s.winner === null && !gameSession.whotBusy;
   const t = top(s);
   return `${style()}
     <div class="gm-table">
@@ -166,16 +178,87 @@ function whotScreen(): string {
 function whotBots(host: PhoneHost): void {
   const s = gameSession.whot;
   if (!s || s.winner !== null || s.turn === 0) return;
-  gameSession.busy = true;
+  gameSession.whotBusy = true;
   setTimeout(() => {
     const now = gameSession.whot;
-    if (!now || now.winner !== null || now.turn === 0) { gameSession.busy = false; return; }
+    if (!now || now.winner !== null || now.turn === 0) { gameSession.whotBusy = false; return; }
     gameSession.whot = botTurn(now);
-    gameSession.busy = false;
+    gameSession.whotBusy = false;
     if (gameSession.whot.winner !== null) settle(host, 'whot', gameSession.whot.winner === 0);
     host.refresh();
     whotBots(host);
   }, 1000);
+}
+
+// --- Ludo ---------------------------------------------------------------------------------
+
+const LUDO_NAMES = ['You', 'Chinedu', 'Aisha', 'Baba Tunde'];
+const HUE: Record<Colour, [string, string]> = { red: ['#dc2626', '#fecaca'], green: ['#16a34a', '#bbf7d0'], yellow: ['#ca8a04', '#fef08a'], blue: ['#2563eb', '#bfdbfe'] };
+const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
+function ludoScreen(): string {
+  const s = gameSession.ludo!;
+  const mine = s.turn === 0 && s.winner === null && !gameSession.ludoBusy;
+  const can = mine ? movable(s) : [];
+  // What stands on each cell: the yards in the corners, the track, the columns, the centre
+  const bg = (r: number, c: number): string => {
+    if (r < 6 && c < 6) return HUE.red[1];
+    if (r < 6 && c > 8) return HUE.green[1];
+    if (r > 8 && c > 8) return HUE.yellow[1];
+    if (r > 8 && c < 6) return HUE.blue[1];
+    if (r >= 6 && r <= 8 && c >= 6 && c <= 8) return '#1c1917';
+    for (const col of ['red', 'green', 'yellow', 'blue'] as Colour[]) {
+      if (COLUMN[col].some(([a, b]) => a === r && b === c)) return HUE[col][0];
+      const [er, ec] = TRACK[ENTRY[col]];
+      if (er === r && ec === c) return HUE[col][0];
+    }
+    return '#ffffff';
+  };
+  const star = (r: number, c: number) => { const i = TRACK.findIndex(([a, b]) => a === r && b === c); return i >= 0 && SAFE.has(i) && !Object.values(ENTRY).includes(i); };
+  const yardSlot: Record<Colour, Array<[number, number]>> = {
+    red: [[1, 1], [1, 4], [4, 1], [4, 4]], green: [[1, 10], [1, 13], [4, 10], [4, 13]], yellow: [[10, 10], [10, 13], [13, 10], [13, 13]], blue: [[10, 1], [10, 4], [13, 1], [13, 4]],
+  };
+  const tokensAt = new Map<string, string[]>();
+  s.players.forEach((col, p) => s.tokens[p].forEach((place, k) => {
+    const cell = place === -1 ? yardSlot[col][k] : cellOf(col, place);
+    if (!cell) return;
+    const key = `${cell[0]},${cell[1]}`;
+    const go = p === 0 && can.includes(k);
+    const t = `<button class="tk${go ? ' go' : ''}" style="background:${HUE[col][0]}" ${go ? `data-act="ludo-token" data-token="${k}"` : 'disabled'} aria-label="${col} token ${k + 1}">${place === HOME ? '★' : ''}</button>`;
+    tokensAt.set(key, [...(tokensAt.get(key) ?? []), t]);
+  }));
+  let cells = '';
+  for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) {
+    const here = tokensAt.get(`${r},${c}`) ?? [];
+    cells += `<div class="q" style="background:${bg(r, c)}">${here.length ? here[here.length - 1] + (here.length > 1 ? `<span style="position:absolute;top:0;right:1px;font-weight:900">${here.length}</span>` : '') : star(r, c) ? '★' : ''}</div>`;
+  }
+  const status = s.winner !== null ? (s.winner === 0 ? '🎉 You win! All four home.' : `${s.names[s.winner]} wins.`) : s.said;
+  return `${style()}
+    <div class="gm-stores" style="margin-bottom:6px">${s.players.map((col, p) => `<span style="color:${HUE[col][0]}">${s.turn === p ? '▶ ' : ''}${esc(s.names[p])} ${s.tokens[p].filter((x) => x === HOME).length}/4</span>`).join('')}</div>
+    <div class="gm-ludo" id="ludo-board">${cells}</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+      <div class="gm-die" id="ludo-die">${s.die ? DIE[s.die] : '🎲'}</div>
+      ${mine && !s.rolled ? '<button class="nl-btn nl-btn--primary" data-act="ludo-roll" id="ludo-roll" style="flex:1">🎲 Roll</button>' : `<div class="gm-say" id="ludo-status" style="flex:1;margin:0">${esc(status)}</div>`}
+    </div>
+    ${mine && s.rolled ? '<div class="nl-hint">Tap a pulsing token to move it.</div>' : ''}
+    ${s.winner !== null ? '<button class="nl-btn nl-btn--primary nl-btn--block" data-act="ludo-new" style="margin-top:10px">Play again</button>' : ''}`;
+}
+
+function ludoBots(host: PhoneHost): void {
+  const s = gameSession.ludo;
+  if (!s || s.winner !== null || s.turn === 0) return;
+  gameSession.ludoBusy = true;
+  setTimeout(() => {
+    let now = gameSession.ludo;
+    if (!now || now.winner !== null || now.turn === 0) { gameSession.ludoBusy = false; host.refresh(); return; }
+    if (!now.rolled) now = rollLudo(now);
+    if (now.rolled && now.turn !== 0) now = moveLudo(now, botPick(now)) ?? now;
+    gameSession.ludo = now;
+    gameSession.ludoBusy = false;
+    if (now.winner !== null) settle(host, 'ludo', now.winner === 0);
+    host.refresh();
+    ludoBots(host);
+  }, 750);
 }
 
 export const gamesApp: PhoneApp = {
@@ -183,22 +266,24 @@ export const gamesApp: PhoneApp = {
   name: 'Naija Games',
   icon: '🎲',
   tint: ['#7f1d1d', '#f59e0b'],
-  purpose: 'Ayo and Whot, for fun or for money',
+  purpose: 'Ayo, Ludo and Whot, for fun or for money',
 
   render(_host, route) {
     if (route === 'ayo' && gameSession.ayo) return { title: 'Ayo', body: ayoScreen() };
     if (route === 'whot' && gameSession.whot) return { title: 'Whot', body: whotScreen() };
+    if (route === 'ludo' && gameSession.ludo) return { title: 'Ludo', body: ludoScreen() };
     const r = record();
     return {
       title: 'Naija Games',
       body: `${style()}
-        <div class="nl-hero nl-hero--amber"><div class="nl-hero-label">Your record</div><div class="nl-hero-value">${r.ayo[0] + r.whot[0]} wins</div><div class="nl-hero-sub">Ayo ${r.ayo[0]}–${r.ayo[1]} · Whot ${r.whot[0]}–${r.whot[1]}</div></div>
+        <div class="nl-hero nl-hero--amber"><div class="nl-hero-label">Your record</div><div class="nl-hero-value">${r.ayo[0] + r.whot[0] + r.ludo[0]} wins</div><div class="nl-hero-sub">Ayo ${r.ayo[0]}–${r.ayo[1]} · Whot ${r.whot[0]}–${r.whot[1]} · Ludo ${r.ludo[0]}–${r.ludo[1]}</div></div>
         <div class="nl-section">Stake</div>
         ${stakeChips()}
         <div class="nl-hint">The stake goes into the pot; the winner takes all of it.</div>
         <div class="nl-section">Play</div>
         <div class="nl-list">
           <button class="nl-row" data-act="ayo-new"><span class="nl-row-icon">🌰</span><span class="nl-row-text"><span class="nl-row-title">Ayo</span><span class="nl-row-sub">Against Mama Ronke, the best board on the street · pot ${naira(gameSession.stake * 2)}</span></span><span class="nl-row-trail">›</span></button>
+          <button class="nl-row" data-act="ludo-new"><span class="nl-row-icon">🎲</span><span class="nl-row-text"><span class="nl-row-title">Ludo</span><span class="nl-row-sub">Red, green, yellow and blue: you against three · pot ${naira(gameSession.stake * 4)}</span></span><span class="nl-row-trail">›</span></button>
           <button class="nl-row" data-act="whot-new"><span class="nl-row-icon">🃏</span><span class="nl-row-text"><span class="nl-row-title">Whot</span><span class="nl-row-sub">Four at the table: you, Chinedu, Aisha and Baba Tunde · pot ${naira(gameSession.stake * 4)}</span></span><span class="nl-row-trail">›</span></button>
         </div>`,
     };
@@ -228,12 +313,12 @@ export const gamesApp: PhoneApp = {
       if (!takeStake(host, 'Whot')) return;
       gameSession.whot = newWhot(WHOT_NAMES);
       gameSession.paid = false;
-      gameSession.busy = false;
+      gameSession.whotBusy = false;
       gameSession.calling = null;
       host.go('whot');
     } else if (action === 'whot-card') {
       const s = gameSession.whot;
-      if (!s || s.turn !== 0 || gameSession.busy) return;
+      if (!s || s.turn !== 0 || gameSession.whotBusy) return;
       const card = s.hands[0].find((c) => c.id === el.dataset.card);
       if (!card || !canPlay(s, card)) return;
       if (card.shape === 'whot' && s.hands[0].length > 1) {
@@ -252,9 +337,30 @@ export const gamesApp: PhoneApp = {
       gameSession.calling = null;
       host.refresh();
       whotBots(host);
+    } else if (action === 'ludo-new') {
+      if (!takeStake(host, 'Ludo')) return;
+      gameSession.ludo = newLudo(LUDO_NAMES);
+      gameSession.paid = false;
+      gameSession.ludoBusy = false;
+      host.go('ludo');
+    } else if (action === 'ludo-roll') {
+      const s = gameSession.ludo;
+      if (!s || s.turn !== 0 || s.rolled || gameSession.ludoBusy) return;
+      gameSession.ludo = rollLudo(s);
+      host.refresh();
+      ludoBots(host);
+    } else if (action === 'ludo-token') {
+      const s = gameSession.ludo;
+      if (!s || s.turn !== 0 || gameSession.ludoBusy) return;
+      const next = moveLudo(s, parseInt(el.dataset.token ?? '-1', 10));
+      if (!next) return;
+      gameSession.ludo = next;
+      if (next.winner !== null) settle(host, 'ludo', next.winner === 0);
+      host.refresh();
+      ludoBots(host);
     } else if (action === 'whot-market') {
       const s = gameSession.whot;
-      if (!s || s.turn !== 0 || gameSession.busy) return;
+      if (!s || s.turn !== 0 || gameSession.whotBusy) return;
       gameSession.whot = goToMarket(s);
       host.refresh();
       whotBots(host);

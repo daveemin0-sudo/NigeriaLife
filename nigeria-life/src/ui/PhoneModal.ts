@@ -12,6 +12,7 @@ import { garageApp } from '../phone/apps/garage';
 import { eventsApp } from '../phone/apps/events';
 import { gamesApp } from '../phone/apps/games';
 import { gistApp } from '../phone/apps/gist';
+import { casesApp } from '../phone/apps/cases';
 import { UIStateManager } from './UIStateManager';
 import { draw } from './kit/StableView';
 import { esc, naira, meter } from './kit/html';
@@ -21,7 +22,7 @@ const APPS: PhoneApp[] = [
   peopleApp, bankApp, jobsApp, rideApp,
   shoppingApp, propertyApp, landApp, garageApp,
   businessApp, investApp, healthApp, settingsApp,
-  eventsApp, gamesApp, gistApp,
+  eventsApp, gamesApp, gistApp, casesApp,
 ];
 
 /** Things the phone opens elsewhere in the game instead of showing itself. */

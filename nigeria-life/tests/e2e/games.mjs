@@ -5,7 +5,7 @@ import { open, newPlayer, closeDialogs, wait, money } from './lib.mjs';
 
 export async function run(browser, check) {
   const ctx = await newPlayer(browser);
-  const { page, log } = await open(ctx, { life: true });
+  const { page, log } = await open(ctx);
   await closeDialogs(page);
 
   // ------------------------------------------------------------------ Ayo's rules
@@ -63,10 +63,46 @@ export async function run(browser, check) {
     whot.size === 54 && whot.circles === 12 && whot.crosses === 9 && whot.stars === 7 && whot.whots === 5 && whot.pick2.picked === 3 && whot.pick2.turn === 2 && whot.susp === 2 && whot.hold === 0 && JSON.stringify(whot.market) === '[2,2,2,0]' && whot.called.called === 'star' && whot.called.turn === 1 && whot.wrong, whot);
   check('whot: four computers play a whole hand until one checks up, no card lost', whot.winner !== null && whot.turns < 2000 && whot.cards === 54, { winner: whot.winner, turns: whot.turns, cards: whot.cards });
 
+  // ------------------------------------------------------------------ Ludo's rules
+  const ludo = await page.evaluate(() => {
+    const L = window.game.modules.Games.Ludo;
+    const names = ['You', 'A', 'B', 'C'];
+    const s0 = L.newLudo(names);
+    const noSix = L.roll(s0, 4);
+    const six = L.roll(s0, 6);
+    const out = L.move(six, 0);
+    // A capture: red lands where green stands, off a safe square
+    const cap = { ...L.newLudo(names), turn: 0, tokens: [[3, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]] };
+    const red = L.ENTRY.red;
+    const target = (red + 5) % 52;
+    cap.tokens[1][0] = (target - L.ENTRY.green + 52) % 52;
+    const capped = L.move(L.roll(cap, 2), 0);
+    // A star is safe
+    const safe = { ...L.newLudo(names), tokens: [[6, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]] };
+    safe.tokens[1][0] = ((red + 8) - L.ENTRY.green + 52) % 52;
+    const safeMoved = L.move(L.roll(safe, 2), 0);
+    // Home needs the exact roll
+    const near = { ...L.newLudo(names), tokens: [[54, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]] };
+    const over = L.roll(near, 5);
+    // Four computers play it out
+    let g = L.newLudo(names);
+    let steps = 0;
+    while (g.winner === null && steps < 6000) { g = g.rolled ? L.move(g, L.botPick(g)) : L.roll(g); steps++; }
+    return {
+      track: L.TRACK.length, entries: [L.ENTRY.red, L.ENTRY.green, L.ENTRY.yellow, L.ENTRY.blue],
+      noSixPassed: noSix.turn === 1, sixMovable: L.movable(six), out: out.tokens[0][0], againAfterSix: out.turn === 0 && !out.rolled,
+      captured: capped.tokens[1][0], againAfterCapture: capped.turn === 0, safeKept: safeMoved.tokens[1][0] !== -1,
+      overPassed: over.turn === 1, winner: g.winner, steps, allHome: g.winner !== null && g.tokens[g.winner].every((t) => t === L.HOME),
+    };
+  });
+  check('ludo: a 52-square track with the four starts a quarter apart; a token needs a six to come out, and a six rolls again; landing on another colour sends it to the yard and rolls again, but not on a star; home needs the exact roll',
+    ludo.track === 52 && JSON.stringify(ludo.entries) === '[0,13,26,39]' && ludo.noSixPassed && JSON.stringify(ludo.sixMovable) === '[0,1,2,3]' && ludo.out === 0 && ludo.againAfterSix && ludo.captured === -1 && ludo.againAfterCapture && ludo.safeKept && ludo.overPassed, ludo);
+  check('ludo: four computers play a whole game until one brings all four tokens home', ludo.winner !== null && ludo.allHome && ludo.steps < 6000, { winner: ludo.winner, steps: ludo.steps });
+
   // ------------------------------------------------------------------ The app: a stake on Ayo, played by tapping, the pot won
   await page.evaluate(() => { const b = window.game.hud.backend; b.data.walletCash += 50_000; b.saveData(); window.game.hud.phoneModal.openApp('games'); });
   await wait(500);
-  const lobby = await page.evaluate(() => ({ rows: [...document.querySelectorAll('[data-act="ayo-new"],[data-act="whot-new"]')].length, chips: document.querySelectorAll('[data-act="stake"]').length }));
+  const lobby = await page.evaluate(() => ({ rows: [...document.querySelectorAll('[data-act="ayo-new"],[data-act="whot-new"],[data-act="ludo-new"]')].length, chips: document.querySelectorAll('[data-act="stake"]').length }));
   const m0 = await money(page);
   await page.evaluate(() => document.querySelector('[data-act="stake"][data-stake="1000"]')?.click());
   await wait(200);
@@ -87,8 +123,8 @@ export async function run(browser, check) {
   const won = await page.evaluate(() => ({ status: document.getElementById('ayo-status')?.textContent, again: !!document.querySelector('[data-act="ayo-new"]') }));
   const m2 = await money(page);
   const today = await page.evaluate(() => window.game.modules.Activity.get().totals.gamesWon);
-  check('games: the phone has Naija Games with Ayo, Whot and five stakes; ₦1,000 on Ayo goes into the pot and the board has 12 pits and 48 seeds',
-    lobby.rows === 2 && lobby.chips === 5 && m0.total - m1.total === 1000 && board.pits === 12 && board.seeds === 48, { lobby, staked: m0.total - m1.total, board });
+  check('games: the phone has Naija Games with Ayo, Ludo, Whot and five stakes; ₦1,000 on Ayo goes into the pot and the board has 12 pits and 48 seeds',
+    lobby.rows === 3 && lobby.chips === 5 && m0.total - m1.total === 1000 && board.pits === 12 && board.seeds === 48, { lobby, staked: m0.total - m1.total, board });
   check('games: a winning tap on the board wins the game and the ₦2,000 pot, and the win is counted', /You win/.test(won.status ?? '') && won.again && m2.total - m1.total === 2000 && today === 1, { won, pot: m2.total - m1.total, today });
 
   // ------------------------------------------------------------------ Whot at the table
@@ -108,6 +144,22 @@ export async function run(browser, check) {
   const moved = await page.evaluate(() => ({ turn: window.game.modules.Games.session.whot.turn, said: document.getElementById('whot-status')?.textContent }));
   check('games: Whot deals five cards to the player and seats three others; the player plays (or goes to market) and the others play in turn back to the player',
     table.hand === 5 && table.opps === 3 && (moved.said ?? '').length > 5, { table, moved });
+
+  // ------------------------------------------------------------------ Ludo at the table: rolled and played by tapping
+  await page.evaluate(() => { window.game.modules.Games.session.stake = 0; window.game.hud.phoneModal.openApp('games'); });
+  await wait(300);
+  await page.evaluate(() => document.querySelector('[data-act="ludo-new"]')?.click());
+  await wait(400);
+  const ludoBoard = await page.evaluate(() => ({ cells: document.querySelectorAll('#ludo-board .q').length, tokens: document.querySelectorAll('#ludo-board .tk').length, roll: !!document.getElementById('ludo-roll') }));
+  // A six, so a token can come out: the roll is set, the pulsing token tapped
+  await page.evaluate(() => { const S = window.game.modules.Games.session; S.ludo = window.game.modules.Games.Ludo.roll(S.ludo, 6); window.game.hud.phoneModal.openApp('games', 'ludo'); });
+  await wait(300);
+  const pulsing = await page.evaluate(() => document.querySelectorAll('#ludo-board .tk.go').length);
+  await page.evaluate(() => document.querySelector('#ludo-board .tk.go')?.click());
+  await wait(300);
+  const out = await page.evaluate(() => window.game.modules.Games.session.ludo.tokens[0]);
+  check('games: Ludo draws the 15 by 15 board with sixteen tokens in their yards and a Roll button; on a six the four tokens pulse and the one tapped comes out onto the start',
+    ludoBoard.cells === 225 && ludoBoard.tokens === 16 && ludoBoard.roll && pulsing === 4 && out.filter((t) => t === 0).length === 1, { ludoBoard, pulsing, out });
 
   check('games: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
   await page.evaluate(() => window.game.hud.phoneModal.close?.());

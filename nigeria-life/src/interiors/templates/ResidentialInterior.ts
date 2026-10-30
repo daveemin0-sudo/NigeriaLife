@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Activity } from '../../life/Activity';
+import { Pets, PET_KINDS, PET_FOOD_PRICE } from '../../housing/Pets';
+import { Garden, SEEDS } from '../../housing/Garden';
 import { profileKey } from '../../backend/Profile';
 import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
@@ -8,7 +11,7 @@ import { HouseDecorationSystem, type PlacedItem } from '../../housing/HouseDecor
 import { Television, CHANNELS } from '../../housing/Television';
 import { TV_SCREEN, buildFurniture } from '../../housing/FurnitureModels';
 import { Builder } from '../../world/kit/ArchKit';
-import { PlaceActions, type PlaceAction } from '../../destinations/PlaceActions';
+import { PlaceActions, type PlaceAction, type PlaceHost } from '../../destinations/PlaceActions';
 import type { NavGrid } from '../../interactions/NavGrid';
 import { HomeLife, HOME } from '../home/HomeLife';
 import type { HomeStandard } from '../../housing/HomeStandard';
@@ -159,6 +162,8 @@ export class ResidentialInterior {
   public static homeId: (() => string) | null = null;
 
   /** The player is coming in: the home is furnished as what they rent or own, and called by its name */
+  private gardenTimer = 0;
+
   public onPlayerArriving(): void {
     // Each home its own furniture: a house just built comes in bare, for the player to furnish
     HouseDecorationSystem.getInstance().setHome(ResidentialInterior.homeId?.() ?? 'main');
@@ -358,6 +363,9 @@ export class ResidentialInterior {
       });
       PlaceActions.register(id, this.furnitureAction(item));
     }
+    // The plants as they stand, and each pet at its home
+    this.refreshGarden();
+    this.refreshPets();
     for (const uid of [...this.sets.keys()]) {
       if (!standing.has(uid)) this.sets.delete(uid);
     }
@@ -430,6 +438,114 @@ export class ResidentialInterior {
     };
   }
 
+  /** Where to stand at a piece, and the piece itself, in the world */
+  private standAt(item: PlacedItem): { stand: THREE.Vector3; at: THREE.Vector3 } {
+    const decor = HouseDecorationSystem.getInstance();
+    const size = decor.footprint(item.modelType, item.turns);
+    const face = decor.facing(item.turns);
+    const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.7;
+    const o = this.group.position;
+    return { stand: new THREE.Vector3(o.x + item.x + face.x * reach, 0, o.z + item.z + face.z * reach), at: new THREE.Vector3(o.x + item.x, 0, o.z + item.z) };
+  }
+
+  /** The planter: sow a seed, water it once, harvest it into the bag; all done on the spot */
+  private gardenChoices(item: PlacedItem, host: PlaceHost, choices: Array<{ label: string; note?: string; pick: () => void }>): void {
+    const garden = Garden.get();
+    const v = garden.view(item.uid);
+    const { stand, at } = this.standAt(item);
+    const act = (id: string, arms: 'reach' | 'wave', seconds: number, effect: () => void) => host.director.perform({ id, actor: host.actor, point: stand, target: at, animation: { arms }, seconds, effectAt: 0.7, ifStuck: 'snap', effect: () => { effect(); this.refreshGarden(); } });
+    if (!v) {
+      const fits = item.modelType === 'flower_pots' ? SEEDS.filter((s) => s.kind === 'flower' || s.minutes <= 10) : SEEDS;
+      for (const seed of fits) {
+        choices.push({
+          label: `${seed.icon} Sow ${seed.name}`,
+          note: `₦${seed.price.toLocaleString()} · ready in ${seed.minutes >= 60 ? `${seed.minutes / 60} h` : `${seed.minutes} min`}`,
+          pick: () => {
+            if (!host.backend.pay(seed.price, `Seeds: ${seed.name}`, 'SHOP_PURCHASE')) { host.say(`Seeds are ₦${seed.price}. You do not have it.`, 'warning'); return; }
+            act('sow seeds', 'reach', 1.8, () => { garden.plant(item.uid, seed.id); host.say(`${seed.icon} Sown. Water it when the shoots are up.`, 'success'); });
+          },
+        });
+      }
+      return;
+    }
+    if (v.ready) {
+      choices.push({
+        label: `🧺 Harvest the ${v.seed.name.toLowerCase()}`,
+        note: v.seed.kind === 'flower' ? 'A bouquet for the bag' : `${v.seed.crop.qty} × ${v.seed.crop.name} for the bag`,
+        pick: () => act('harvest the garden', 'reach', 2.0, () => {
+          const s = garden.harvest(item.uid);
+          if (!s) return;
+          host.backend.addItem({ id: s.crop.id, name: s.crop.name, icon: s.crop.icon, category: 'food', description: s.kind === 'flower' ? 'Fresh from your own garden. Gift it, or sell it at the market.' : 'From your own garden: cook it or eat it.', price: s.crop.sell, usable: s.kind !== 'flower', energyRestore: s.crop.restore }, s.crop.qty);
+          host.backend.modifyNeed('fun', s.kind === 'flower' ? 15 : 8);
+          Activity.emit({ kind: 'acted', id: `harvest ${s.id}` });
+          host.say(`${s.crop.icon} ${s.crop.qty > 1 ? `${s.crop.qty} × ` : ''}${s.crop.name} into your bag. Home grown!`, 'success');
+        }),
+      });
+    } else if (v.thirsty) {
+      choices.push({ label: `💧 Water the ${v.seed.name.toLowerCase()}`, note: 'It will not grow on without water', pick: () => act('water the garden', 'wave', 1.6, () => { garden.water(item.uid); host.say('💧 Watered. It will grow on now.', 'success'); }) });
+    } else {
+      choices.push({ label: `${v.seed.icon} ${Math.round(v.progress * 100)}% grown`, note: `${v.minutesLeft} min to go`, pick: () => undefined });
+    }
+  }
+
+  /** A pet's home: adopt the pet, then feed it and play with it */
+  private petChoices(item: PlacedItem, host: PlaceHost, choices: Array<{ label: string; note?: string; pick: () => void }>): void {
+    const pets = Pets.get();
+    const kind = Pets.kindFor(item.modelType);
+    if (!kind) return;
+    const info = PET_KINDS[kind];
+    const pet = pets.at(item.uid);
+    const { stand, at } = this.standAt(item);
+    const act = (id: string, arms: 'reach' | 'wave', seconds: number, effect: () => void) => host.director.perform({ id, actor: host.actor, point: stand, target: at, animation: { arms }, seconds, effectAt: 0.6, ifStuck: 'snap', effect });
+    if (!pet) {
+      choices.push({
+        label: `${info.icon} Adopt a ${info.name.toLowerCase()}`,
+        note: pets.count >= 3 ? 'Three pets is enough for one house' : `₦${info.price.toLocaleString()}`,
+        pick: () => {
+          if (pets.count >= 3) { host.say('Three pets is enough for one house.', 'info'); return; }
+          if (!host.backend.pay(info.price, `Adopted: a ${info.name.toLowerCase()}`, 'SHOP_PURCHASE')) { host.say(`A ${info.name.toLowerCase()} is ₦${info.price.toLocaleString()}. You do not have it.`, 'warning'); return; }
+          act('adopt a pet', 'reach', 1.5, () => {
+            const name = pets.adopt(item.uid, kind);
+            this.refreshPets();
+            host.backend.modifyNeed('fun', 25);
+            host.backend.modifyNeed('social', 15);
+            Activity.emit({ kind: 'acted', id: `adopt a ${kind}` });
+            host.say(`${info.icon} Meet ${name}! ${info.sound}`, 'success');
+          });
+        },
+      });
+      return;
+    }
+    choices.push({
+      label: `🍖 Feed ${pet.name}`,
+      note: `₦${PET_FOOD_PRICE} · hunger ${pet.hunger}%`,
+      pick: () => {
+        if (!host.backend.pay(PET_FOOD_PRICE, `Pet food for ${pet.name}`, 'SHOP_PURCHASE')) { host.say('Pet food is ₦500.', 'warning'); return; }
+        act('feed the pet', 'reach', 1.4, () => { pets.feed(item.uid); host.backend.modifyNeed('fun', 5); host.say(`${info.icon} ${pet.name} eats every bit. ${info.sound}`, 'success'); });
+      },
+    });
+    choices.push({
+      label: `🎾 Play with ${pet.name}`,
+      note: 'Fun +20, social +10',
+      pick: () => act('play with the pet', 'wave', 2.2, () => { pets.play(item.uid); host.backend.modifyNeed('fun', 20); host.backend.modifyNeed('social', 10); Activity.emit({ kind: 'acted', id: 'play with a pet' }); host.say(`${info.icon} ${pet.name} is jumping for joy. ${info.sound}`, 'success'); }),
+    });
+  }
+
+  /** The plants in every planter, drawn as they stand now */
+  private refreshGarden(): void {
+    const decor = HouseDecorationSystem.getInstance();
+    for (const item of decor.placed) if (decor.kind(item.modelType).use === 'garden') Garden.get().dress(item.uid, item.mesh, item.modelType);
+  }
+
+  /** Each pet at its home */
+  private refreshPets(): void {
+    const decor = HouseDecorationSystem.getInstance();
+    for (const item of decor.placed) {
+      if (decor.kind(item.modelType).use !== 'pet') continue;
+      Pets.get().ensure(item.uid, item.mesh, this.group, new THREE.Vector3(item.x, 0, item.z));
+    }
+  }
+
   /** What can be done at a piece of the player's own furniture. */
   private furnitureAction(item: PlacedItem): PlaceAction {
     const decor = HouseDecorationSystem.getInstance();
@@ -453,6 +569,15 @@ export class ResidentialInterior {
         if (kind.use === 'power') return '⚡ Generator / Inverter, move it or sell it';
         if (kind.use === 'clean') return '🧺 Laundry, move it or sell it';
         if (kind.use === 'door') return '🚪 Move the door or sell it';
+        if (kind.use === 'garden') {
+          const v = Garden.get().view(item.uid);
+          return !v ? '🌱 Sow something, move it or sell it' : v.ready ? `🧺 Harvest the ${v.seed.name.toLowerCase()}` : v.thirsty ? `💧 Water the ${v.seed.name.toLowerCase()}` : `🌱 ${v.seed.icon} ${Math.round(v.progress * 100)}% grown · ${v.minutesLeft} min`;
+        }
+        if (kind.use === 'pet') {
+          const pet = Pets.get().at(item.uid);
+          const petKind = Pets.kindFor(item.modelType);
+          return pet ? `${PET_KINDS[pet.kind].icon} ${pet.name}: ${pet.mood}` : petKind ? `${PET_KINDS[petKind].icon} Adopt a ${PET_KINDS[petKind].name.toLowerCase()}` : '🐾 Pet home';
+        }
         if (item.modelType === 'split_ac') return '❄️ AC, move it or sell it';
         if (item.modelType === 'wall_clock') return '🕰️ Clock, move it or sell it';
         if (item.modelType === 'wall_art') return '🖼️ Artwork, move it or sell it';
@@ -489,6 +614,8 @@ export class ResidentialInterior {
           }
           if (set.on) choices.push({ label: 'Turn it off', pick: () => { set.turnOff(); this.life.refresh(); } });
         }
+        if (kind.use === 'garden') this.gardenChoices(item, host, choices);
+        if (kind.use === 'pet') this.petChoices(item, host, choices);
         if (kind.use === 'cook') {
           choices.push({
             label: 'Cook Party Jollof & Fried Dodo',
@@ -1332,6 +1459,15 @@ export class ResidentialInterior {
 
     this.life.update(delta);
     this.swingDoors(delta);
+    // The pets about the house; the plants checked now and then as they grow
+    const me = InteractionDirector.get().player?.worldPosition();
+    const o = this.group.position;
+    Pets.get().update(delta, me ? new THREE.Vector3(me.x - o.x, 0, me.z - o.z) : null, (x, z) => this.life.nav.isFree(o.x + x, o.z + z), this.animTime);
+    this.gardenTimer -= delta;
+    if (this.gardenTimer <= 0) {
+      this.gardenTimer = 5;
+      this.refreshGarden();
+    }
 
     for (const head of this.fanHeads) {
       head.rotation.y = Math.sin(this.animTime * 1.5) * 0.7;
