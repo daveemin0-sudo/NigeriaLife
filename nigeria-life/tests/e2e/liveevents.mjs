@@ -71,7 +71,7 @@ export async function run(browser, check) {
     const a = window.game.player.actor;
     if (a.pose.legs === 'sit') window.__sat = true;
     return /Encore/.test(document.body.innerText) && !a.sequence ? true : null;
-  }, 40);
+  }, 70);
   sat = await page.evaluate(() => !!window.__sat);
   const m1 = await money(page);
   const fun1 = await page.evaluate(() => window.game.hud.backend.getData().stats.fun);

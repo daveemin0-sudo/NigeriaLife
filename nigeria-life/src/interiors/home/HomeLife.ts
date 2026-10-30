@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { duvetOver } from '../../interactions/Duvet';
+import { Fridge } from '../../housing/Fridge';
 import { RENDER_LAYERS } from '../InteriorTypes';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
 import { NavGrid } from '../../interactions/NavGrid';
@@ -8,7 +10,7 @@ import { showGameToast } from '../../ui/GameToast';
 
 /** Where things are in the apartment, relative to the room centre. */
 export const HOME = {
-  room: { width: 32, length: 26 },
+  room: { width: 44, length: 36 },
   bed: { root: new THREE.Vector3(10.5, 0, -5.0), side: new THREE.Vector3(7.35, 0, -5.4), top: 1.15, facing: 0 },
   sofa: { seat: new THREE.Vector3(-7.65, 0, 2.5), front: new THREE.Vector3(-9.15, 0, 2.5), facing: -Math.PI / 2 },
   tv: new THREE.Vector3(-15.6, 0, 4),
@@ -58,6 +60,8 @@ export class HomeLife {
   public channelChoices: () => HomeStatus['choices'] = () => [];
   /** The player has sat down on the sofa to watch: the set comes on if it was off */
   public onWatch: (() => void) | null = null;
+  /** The duvet over the sleeper while they are in bed */
+  private duvet: THREE.Group | null = null;
   /** Everything the home came with that stands on the floor, as it was marked solid */
   public readonly solids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
 
@@ -144,6 +148,9 @@ export class HomeLife {
       player.hold = { release: (instant) => this.leaveFurniture(standAt, instant) };
       player.setScripted(true);
       player.pose = lying;
+      // Under the duvet, to the chest
+      this.duvet?.removeFromParent();
+      this.duvet = duvetOver(this.group, root, facing, top);
       this.begin('sleeping');
     });
     return this.director.run(lieDown);
@@ -215,6 +222,9 @@ export class HomeLife {
   private leaveFurniture(standAt: THREE.Vector3, instant = false): void {
     const player = this.director.player;
     const was = this.activity;
+    // The duvet thrown back
+    this.duvet?.removeFromParent();
+    this.duvet = null;
     this.activity = null;
     this.changed();
     if (!player) return;
@@ -245,12 +255,17 @@ export class HomeLife {
     return item ? { id: item.id, name: item.name } : null;
   }
 
-  /** Walk to the fridge, take out something from the bag and eat it. Uses up exactly one item. */
-  public eatFromFridge(): { ok: boolean; reason?: string } {
+  /**
+   * Walk to the fridge, take out this (from the fridge, or from the bag when no id is given), carry
+   * it to the sofa, sit down and eat it there, and get up. Uses up exactly one.
+   */
+  public eatFromFridge(itemId?: string): { ok: boolean; reason?: string } {
     const player = this.director.player;
     if (!player) return { ok: false };
-    const food = this.foodInBag();
-    if (!food) return { ok: false, reason: 'There is no food in your bag to eat. Buy some first.' };
+    const fridge = Fridge.get();
+    const wanted = itemId ? fridge.contents().find((i) => i.id === itemId) ?? null : null;
+    const food = wanted ? { id: wanted.id, name: wanted.name } : this.foodInBag();
+    if (!food) return { ok: false, reason: itemId ? 'That is not in the fridge any more.' : 'There is nothing to eat in the fridge or your bag. Order groceries, or buy food, and stock the fridge.' };
     if (this.director.interrupt(player) === 'locked') return { ok: false };
 
     const snack = new THREE.Mesh(
@@ -258,39 +273,41 @@ export class HomeLife {
       new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.7 })
     );
     snack.name = 'home_snack';
-    const dropSnack = () => {
+    let taken = false;
+    const seat = HOME.sofa.seat.clone();
+    const front = HOME.sofa.front.clone();
+    const facing = HOME.sofa.facing;
+    const eat = new Sequence('eat from the fridge', [player]).add(
+      steps.walk(player, this.world(HOME.fridge.front), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, this.world(HOME.fridge.position)),
+      steps.animate(player, { arms: 'reach' }, 0.9, [{ at: 0.55, run: () => {
+        // Out of the fridge (back in the hand), or out of the bag
+        if (itemId) taken = !!fridge.takeOut(itemId);
+        else taken = this.foodInBag()?.id === food.id;
+        if (!taken) return false;
+        player.carry(snack);
+      } }]),
+      // To the sofa to eat it sitting down
+      steps.walk(player, this.world(front), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, facing),
+      steps.slide(player, this.world(seat), 0.45),
+      steps.setPose(player, { legs: 'sit', arms: 'eat' }),
+      steps.wait(0.2),
+      steps.animate(player, { arms: 'eat' }, 3.4, [{ at: 0.6, run: () => {
+        const used = this.backend.useItem(food.id);
+        if (!used.success) return false;
+        if (player.carried === snack) player.letGo();
+        snack.removeFromParent();
+        showGameToast(`🍽️ You ate the ${food.name}.`, 'success', 2600);
+      } }]),
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, this.world(front), 0.45),
+    );
+    eat.onEnd(() => {
       if (player.carried === snack) player.letGo();
       snack.removeFromParent();
-    };
-
-    const result = this.director.perform([
-      {
-        id: 'open fridge',
-        actor: player,
-        point: this.world(HOME.fridge.front),
-        target: this.world(HOME.fridge.position),
-        nav: this.nav,
-        animation: { arms: 'reach' },
-        seconds: 0.9,
-        // The bag may have been emptied on the walk over
-        requires: () => (this.foodInBag()?.id === food.id ? null : 'That food is gone.'),
-        effect: () => player.carry(snack),
-      },
-      {
-        id: 'eat it',
-        actor: player,
-        animation: { arms: 'eat' },
-        seconds: 3.2,
-        effectAt: 0.7,
-        effect: () => {
-          const used = this.backend.useItem(food.id);
-          if (!used.success) return false;
-          showGameToast(`You ate the ${food.name}.`, 'success', 2600);
-        },
-      },
-    ]);
-    result.sequence?.onEnd(dropSnack);
-    return { ok: result.ok, reason: result.reason };
+    });
+    return { ok: this.director.run(eat) };
   }
 
   // --- Bath --------------------------------------------------------------------------------
@@ -310,7 +327,8 @@ export class HomeLife {
       effectAt: 0.75,
       effect: () => {
         this.backend.rest(30, 20);
-        showGameToast('Cold bucket bath. Fresh! Energy +30, Health +20.', 'success', 2800);
+        this.backend.takeShower();
+        showGameToast('🪣 Cold bucket bath. Clean and fresh! Hygiene full, Energy +30.', 'success', 2800);
       },
     }).ok;
   }

@@ -96,6 +96,22 @@ export async function run(browser, check) {
   check('getting about: the player taps in, rides the Red Line and gets off at Yaba, down on the road there; ₦500 for the keke and ₦750 for the train',
     onTrain && rodeIn && Math.abs(end.z - 3470) < 140 && end.y < 0.5 && m3.total - m4.total === 1250, { onTrain, rodeIn, end, paid: m3.total - m4.total });
 
+  // ------------------------------------------------------------------ Driving yourself: arrows on the road
+  const guide = await page.evaluate(async () => {
+    const g = window.game;
+    const d = g.modules.DestinationRegistry.getInstance().getAll().find((x) => /airport/i.test(x.name) && x.city === 'lagos');
+    const ok = g.driveTo(d.name, d.streetPosition);
+    for (let i = 0; i < 6; i++) await g.advance(0.1);
+    const pill = document.getElementById('route-guide');
+    return { ok, arrows: g.routeGuide.arrows.count, pill: !pill.hidden ? pill.textContent.replace(/\s+/g, ' ').trim() : null, at: d.streetPosition };
+  });
+  // Put down next to the place: the directions say so and stop
+  await page.evaluate((at) => { const g = window.game; g.player.mesh.position.set(at.x + 4, 0, at.z); g.player.position.copy(g.player.mesh.position); }, guide.at);
+  await play(page, 1);
+  const arrivedGuide = await page.evaluate(() => ({ active: window.game.routeGuide.active, told: /arrived at Murtala/i.test(document.body.innerText) }));
+  check('getting about: driving yourself, the way to the airport is drawn as arrows on the road with where to and how far, and on arriving it says so and stops',
+    guide.ok && guide.arrows >= 8 && /Murtala/.test(guide.pill ?? '') && /km to go/.test(guide.pill ?? '') && !arrivedGuide.active && arrivedGuide.told, { guide, arrivedGuide });
+
   check('getting about: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();
 }

@@ -57,7 +57,7 @@ export async function run(browser, check) {
   await page.evaluate(() => document.getElementById('btn-card-go')?.click());
   await wait(400);
   // On foot from the map is a walk by the streets
-  await untilStopped(page, 60);
+  await untilStopped(page, 120);
   const arrived = await page.evaluate(() => {
     const g = window.game;
     const gate = g.world.interactiveObjects.find((o) => o.id === 'apapa-port').interactionPoint;

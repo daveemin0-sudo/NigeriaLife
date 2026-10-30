@@ -78,7 +78,7 @@ export async function run(browser, check) {
     const o = r.position;
     g.player.stopMoving();
     // Across the parlour from the kennel
-    g.player.mesh.position.set(o.x + 2.6, 0, o.z + 3.4);
+    g.player.mesh.position.set(o.x - 5, 0, o.z + 6);
     const d = () => Math.hypot(g.player.position.x - (o.x + pet.position.x), g.player.position.z - (o.z + pet.position.z));
     const before = d();
     for (let i = 0; i < 60; i++) g.advance(0.1);

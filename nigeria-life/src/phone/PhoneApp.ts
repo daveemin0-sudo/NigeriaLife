@@ -42,6 +42,10 @@ export interface PhoneWorld {
   trainInfo(): { from: number; fromName: string; far: boolean; metres: number; stations: Array<{ name: string; fare: number; stops: number; nextMin: number }> } | null;
   /** Takes the Red Line to a station: by keke to the nearest station first when it is far. Returns why not, or null. */
   takeTrain(to: number): string | null;
+  /** Whether the player can drive themselves somewhere (they have a car, or are in one) */
+  canDrive(): boolean;
+  /** Directions on the road to a place, to drive there themselves. Returns why not, or null. */
+  driveTo(destinationId: string): string | null;
 }
 
 /** Everything an app is given to work with. */

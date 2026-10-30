@@ -129,11 +129,15 @@ export class GameCamera {
    * Point the interior camera at a room: it looks down into it from a front corner,
    * far enough back that most of the floor is in view on the current screen shape.
    */
-  public frameRoom(center: THREE.Vector3, width: number, length: number): void {
+  public frameRoom(center: THREE.Vector3, width: number, length: number, view?: { width: number; length: number }): void {
     this.roomCenter = center.clone();
     this.roomWidth = width;
     this.roomLength = length;
-    this.roomRadius = 0.5 * Math.hypot(width, length);
+    // A big home is not shown whole from far off: a part of it the size of `view`, following the player through it
+    const w = view ? Math.min(width, view.width) : width;
+    const l = view ? Math.min(length, view.length) : length;
+    this.bigRoom = w < width || l < length;
+    this.roomRadius = 0.5 * Math.hypot(w, l);
     this.roomFrameDistance = this.computeRoomFrameDistance();
     this.interiorDistance = this.roomFrameDistance;
     this.interiorYaw = INTERIOR_YAW;
@@ -147,6 +151,8 @@ export class GameCamera {
   }
 
   private eyeSnap = false;
+  /** The room is bigger than what is framed of it: the view follows the player closely */
+  private bigRoom = false;
 
   /** Moves the room view in on the player, or back out to the whole room. */
   public setCloseUp(on: boolean): void {
@@ -164,7 +170,7 @@ export class GameCamera {
   private interiorFocus(player: Player): THREE.Vector3 {
     const focus = new THREE.Vector3(player.position.x, 1.0, player.position.z);
     if (this.roomCenter) {
-      const follow = THREE.MathUtils.lerp(INTERIOR_FOLLOW, 0.95, this.closeUp);
+      const follow = THREE.MathUtils.lerp(this.bigRoom ? 0.9 : INTERIOR_FOLLOW, 0.95, this.closeUp);
       focus.set(
         THREE.MathUtils.lerp(this.roomCenter.x, player.position.x, follow),
         1.0,

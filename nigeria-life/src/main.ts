@@ -9,6 +9,8 @@ import './ui/kit/kit.css';
 import './ui/theme/luxe.css';
 import { Game } from './game/Game';
 import { startTheme } from './ui/theme/Theme';
+import { TitleScreen } from './ui/TitleScreen';
+import { BackendService } from './backend/BackendService';
 
 // Light or dark, as chosen last time, before anything is drawn
 startTheme();
@@ -32,6 +34,26 @@ void fontsReady.then(() => {
       splash.classList.add('is-gone');
       setTimeout(() => splash.remove(), 650);
     }));
+    // The title over the city, to carry on or begin a new life (not for the automated tests, unless asked for)
+    const w = window as any;
+    if (!navigator.webdriver || w.__titleOn) {
+      w.titleScreen = new TitleScreen({
+        summary: () => {
+          const data = BackendService.getInstance().getData();
+          const home = data.properties.find((p: any) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business', 'land', 'commercial'].includes(String(p.type)));
+          const label = game.world.skyEnvironment.getFormattedTimeString();
+          return {
+            name: game.player.config.name || data.username || 'You',
+            day: label.split(' • ')[0] ?? label,
+            money: `₦${(data.walletCash + data.bank.balance).toLocaleString()}`,
+            place: game.world.getDistrictAtPosition(game.player.position).name,
+            home: home ? home.name : null,
+          };
+        },
+        drift: (delta) => game.cameraManager.rotate(delta * 0.1),
+        frame: (on) => game.cameraManager.setPreset(on ? 'isometric' : 'street'),
+      });
+    }
   } catch (err: any) {
     console.error('[NIGERIA LIFE ERROR]', err);
     document.getElementById('nl-splash')?.classList.add('is-failed');

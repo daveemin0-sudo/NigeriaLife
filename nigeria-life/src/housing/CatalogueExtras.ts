@@ -22,6 +22,10 @@ export const EXTRA_ITEMS: CatalogueItem[] = [
   { id: 'plastic_set', name: 'Plastic table & 2 chairs', category: 'furniture', price: 22000, icon: '🪑', description: 'White plastic table and chairs. Eat, sit, receive visitors.', modelType: 'plastic_set', isNew: true },
   { id: 'plastic_set_red', name: 'Red plastic table & 2 chairs', category: 'furniture', price: 22000, icon: '🪑', description: 'The red ones from the party rental, now your own.', modelType: 'plastic_set_red', isNew: true },
   { id: 'coffee_table', name: 'Coffee table, wood and glass', category: 'furniture', price: 95000, icon: '🪵', description: 'A low table for the middle of the parlour: drinks, the remote, small chops for visitors.', modelType: 'coffee_table', isNew: true },
+  // Big beds for big houses
+  { id: 'hotel_king_bed', name: 'Hotel king bed', category: 'furniture', price: 650000, icon: '🛏️', description: 'The bed at the Eko Grand: crisp white linen, a burgundy runner, a dark wood headboard. Sleep like a guest every night.', modelType: 'hotel_king_bed', isNew: true },
+  { id: 'super_king_bed', name: 'Super king bed, padded headboard', category: 'furniture', price: 850000, icon: '🛏️', description: 'Two and a half metres wide, a tall buttoned cream headboard edged in gold, four pillows and cushions.', modelType: 'super_king_bed', isNew: true },
+  { id: 'presidential_bed', name: 'Presidential bed with foot bench', category: 'furniture', price: 2400000, icon: '👑', description: 'Nearly three metres of bed: a winged navy headboard trimmed in gold, a gold runner, and a padded bench at its foot.', modelType: 'presidential_bed', isNew: true },
   { id: 'nightstand_lamp', name: 'Bedside table & lamp', category: 'furniture', price: 38000, icon: '🛋️', description: 'Two drawers and a small lamp for reading at night.', modelType: 'nightstand', isNew: true },
 
   // Walls to split a room

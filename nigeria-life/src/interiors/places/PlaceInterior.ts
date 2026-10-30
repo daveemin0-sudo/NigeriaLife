@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Sequence } from '../../interactions/Sequence';
+import { Sequence, steps } from '../../interactions/Sequence';
 import type { InteriorDefinition, InteriorNPCDef } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
@@ -15,7 +15,7 @@ import { PLACE_WORK, type WorkSpec } from './PlaceJobs';
 import { createHandWork } from '../../jobs/HandWork';
 import { Employment } from '../../jobs/Employment';
 import { attachShows } from './LiveEvents';
-import { attachWorship } from './Worship';
+import { attachWorship, Figure } from './Worship';
 import { attachHotel } from './Hotel';
 
 /**
@@ -91,6 +91,19 @@ export interface PlaceSpec {
 
 const PEOPLE = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
 
+/** A chair put where something is done sitting and nothing was there to sit on: facing `yaw` */
+function chairAt(x: number, z: number, yaw: number): THREE.Object3D {
+  const b = new Builder();
+  for (const [lx, lz] of [[-0.2, -0.19], [0.2, -0.19], [-0.2, 0.19], [0.2, 0.19]]) b.box(0x1f2937, 0.045, 0.42, 0.045, lx, 0, lz);
+  b.box(0x374151, 0.5, 0.07, 0.48, 0, 0.42, 0).box(0x4b5563, 0.46, 0.04, 0.44, 0, 0.49, 0.01);
+  // The back, behind the sitter
+  b.box(0x374151, 0.5, 0.52, 0.06, 0, 0.5, -0.23).box(0x1f2937, 0.045, 0.5, 0.045, -0.22, 0.42, -0.24).box(0x1f2937, 0.045, 0.5, 0.045, 0.22, 0.42, -0.24);
+  const chair = b.build('a chair', { roughness: 0.6 });
+  chair.position.set(x, 0, z);
+  chair.rotation.y = yaw;
+  return chair;
+}
+
 /** Opens something of the game's own (set by the game) */
 export const PlaceOpeners: { open: (what: string, host?: PlaceHost) => void } = { open: () => {} };
 
@@ -162,6 +175,8 @@ export class PlaceInterior {
     this.spec.build(b, this.group);
     for (const work of PLACE_WORK[this.spec.key] ?? []) work.build?.(b);
     this.group.add(b.build(`${this.spec.key} furniture`, { roughness: 0.7 }));
+    // What was built (not the people, nor the cards put in later): where the seats are found
+    this.built = this.group.children.slice();
     if (this.spec.sign) {
       const board = signBoard([this.spec.sign.text, this.spec.sign.sub], Math.min(width - 4, 10), 1.6, this.spec.sign.bg, '#ffffff');
       board.position.set(0, height - 1.3, -length / 2 + 0.25);
@@ -173,6 +188,8 @@ export class PlaceInterior {
     const way = this.spec.door ?? { name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.' };
     this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: way.name, category: way.category, description: way.description, interactionPoint: this.world(0, length / 2 - 1), exitLabel: this.spec.door ? `🚪 ${this.spec.door.name}` : undefined });
     this.addRestroom(b.footprints);
+    // The tables: what was built at table height, small enough to sit round
+    this.tables = b.footprints.filter((f) => f.height >= 0.6 && f.height <= 0.92 && f.maxX - f.minX >= 0.8 && f.maxZ - f.minZ >= 0.6 && f.maxX - f.minX <= 4.2 && f.maxZ - f.minZ <= 4.2);
 
     // Those who work here
     this.spec.staff.forEach((s, i) => {
@@ -218,6 +235,8 @@ export class PlaceInterior {
       this.interactiveList.push({ mesh: marker, id, name: st.name, category: this.spec.name, description: st.text, interactionPoint: this.world(st.stand[0], st.stand[1]) });
       PlaceActions.register(id, { label: () => st.name, run: (host) => this.offer(st, host) });
     }
+    // Everything done sitting down has a seat: the chair itself, a bench beside it, or a chair put there
+    for (const st of this.spec.stations) if (st.choices.some((c) => c.sit && !(this.tables.length && /Hunger \+/.test(c.note ?? '')))) this.seatFor(st);
     for (const work of PLACE_WORK[this.spec.key] ?? []) this.addWork(work);
     this.spec.attach?.(this);
     attachShows(this, this.spec.key);
@@ -370,6 +389,12 @@ export class PlaceInterior {
           }
           // A meal is eaten where it is seen: the plate (and the bottle) in front of them as they eat
           const meal = /Hunger \+/.test(c.note ?? '');
+          // Sat down at a table, the food brought to them there, when the place has tables
+          if (meal && c.sit && this.sitDownMeal(st, c, host)) return;
+          if (c.sit) {
+            this.sitAndDo(st, c, host, meal);
+            return;
+          }
           const done = host.director.perform({
             id: `${st.id} ${c.label}`,
             actor: host.actor,
@@ -426,6 +451,301 @@ export class PlaceInterior {
     });
   }
 
+  /** What was built in the room, to find the seats in */
+  private built: THREE.Object3D[] = [];
+  private readonly ray = new THREE.Raycaster();
+  /** Each seated station's seat: where to sit, which way, and where to step in from */
+  public readonly seats = new Map<string, { seat: [number, number]; from: [number, number]; yaw: number; added: boolean }>();
+
+  /** How high the first thing under a point of the room is, looking down from above head height (0 for bare floor) */
+  public topAt(x: number, z: number, from = 2.4): number {
+    const o = this.group.position;
+    this.group.updateMatrixWorld(true);
+    this.ray.camera ??= new THREE.PerspectiveCamera();
+    this.ray.layers.enableAll();
+    this.ray.set(new THREE.Vector3(o.x + x, o.y + from, o.z + z), new THREE.Vector3(0, -1, 0));
+    this.ray.far = from;
+    for (const hit of this.ray.intersectObjects(this.built, true)) {
+      const m = (hit.object as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      const first = Array.isArray(m) ? m[0] : m;
+      if (!(hit.object as THREE.Mesh).isMesh || (first && first.transparent && first.opacity < 0.05)) continue;
+      return hit.point.y - o.y;
+    }
+    return 0;
+  }
+
+  private readonly seated = new Map<string, boolean>();
+  /** Is there a chair or a bench at this place by a table (looked once) */
+  private hasSeat(key: string, seat: [number, number]): boolean {
+    let known = this.seated.get(key);
+    if (known === undefined) {
+      const top = this.topAt(seat[0], seat[1]);
+      known = top >= 0.3 && top <= 0.7;
+      this.seated.set(key, known);
+    }
+    return known;
+  }
+
+  /** A surface to sit on at a point: above the knee, below a table, with floor in front for the feet (not a stage, not a bed's middle) */
+  private seatTop(x: number, z: number): boolean {
+    const top = this.topAt(x, z);
+    if (top < 0.3 || top > 0.7) return false;
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      if (this.topAt(x + Math.sin(a) * 0.6, z + Math.cos(a) * 0.6) < 0.25) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Where a seated station is sat: in the thing itself when it is a seat (a barber's chair, a
+   * lounger), else on a seat beside where one stands (a bench before the stage); facing away from
+   * its back when it has one, else toward what is watched or used. With nothing to sit on, a
+   * chair is put down there facing it. Worked out once, when the room is built.
+   */
+  private seatFor(st: StationSpec): { seat: [number, number]; from: [number, number]; yaw: number; added: boolean } {
+    const known = this.seats.get(st.id);
+    if (known) return known;
+    const [ax, az] = st.at;
+    const [sx, sz] = st.stand;
+    let seat: [number, number] | null = null;
+    let itself = false;
+    if (this.seatTop(ax, az)) {
+      seat = [ax, az];
+      itself = true;
+    } else {
+      let best = Infinity;
+      for (let dx = -1.2; dx <= 1.21; dx += 0.15) {
+        for (let dz = -1.2; dz <= 1.21; dz += 0.15) {
+          const d = Math.hypot(dx, dz);
+          if (d > 1.2 || d >= best) continue;
+          if (this.seatTop(sx + dx, sz + dz)) {
+            best = d;
+            seat = [sx + dx, sz + dz];
+          }
+        }
+      }
+    }
+    let yaw: number;
+    let back = false;
+    let added = false;
+    if (seat) {
+      // Its back: something chest-high right behind the seat
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const top = this.topAt(seat[0] + Math.sin(a) * 0.32, seat[1] + Math.cos(a) * 0.32);
+        if (top > 0.9 && top < 1.8) {
+          yaw = a + Math.PI;
+          back = true;
+          break;
+        }
+      }
+      yaw ??= itself ? Math.atan2(sx - ax, sz - az) : Math.atan2(ax - seat[0], az - seat[1]);
+    } else {
+      seat = [sx, sz];
+      yaw = Math.atan2(ax - sx, az - sz);
+      const chair = chairAt(sx, sz, yaw);
+      this.group.add(chair);
+      this.built.push(chair);
+      back = true;
+      added = true;
+    }
+    // Stepped into from the side nearer the way in when it has a back, else from in front
+    const across: [number, number] = [Math.cos(yaw!), -Math.sin(yaw!)];
+    const toStand = Math.sign((sx - seat[0]) * across[0] + (sz - seat[1]) * across[1]) || 1;
+    const from: [number, number] = back
+      ? [seat[0] + across[0] * 0.62 * toStand, seat[1] + across[1] * 0.62 * toStand]
+      : [seat[0] + Math.sin(yaw!) * 0.55, seat[1] + Math.cos(yaw!) * 0.55];
+    const found = { seat: [+seat[0].toFixed(2), +seat[1].toFixed(2)] as [number, number], from, yaw: yaw!, added };
+    this.seats.set(st.id, found);
+    return found;
+  }
+
+  /**
+   * Something done sitting (a haircut, a film, a show, a drink at the bar): stepped into the seat,
+   * sat there through it, paid for as it is done, and up again.
+   */
+  private sitAndDo(st: StationSpec, c: StationChoice, host: PlaceHost, meal: boolean): void {
+    const { seat, from, yaw } = this.seatFor(st);
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    const arms: ArmPose = meal ? 'eat' : c.arms && c.arms !== 'reach' ? c.arms : 'rest';
+    const sitting = new Sequence(`${st.id} ${c.label}`, [actor]).add(
+      steps.walk(actor, this.world(from[0], from[1]), { ifStuck: 'snap' }),
+      steps.face(actor, yaw),
+      steps.slide(actor, this.world(seat[0], seat[1]), 0.5),
+      steps.setPose(actor, { legs: 'sit', arms }),
+      steps.animate(actor, { legs: 'sit', arms }, c.seconds ?? 2, [{ at: 0.9, run: () => this.settle(c, host) }]),
+      steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
+      steps.slide(actor, this.world(from[0], from[1]), 0.5),
+    );
+    if (!host.director.run(sitting)) return;
+    if (meal) this.serve(c, host, sitting);
+  }
+
+  /** A free place at a table, nearest a point: where to sit, which way, where to come from, where the plate goes */
+  private freeSeat(near: [number, number]): { key: string; seat: [number, number]; behind: [number, number]; yaw: number; plate: [number, number]; height: number; server: [number, number] } | null {
+    const taken = [...(this.spec.regulars ?? []).map((r) => r.at), ...this.spec.staff.map((st) => st.at)];
+    let best: ReturnType<PlaceInterior['freeSeat']> = null;
+    let bestD = Infinity;
+    for (const t of this.tables) {
+      const w = t.maxX - t.minX;
+      const d = t.maxZ - t.minZ;
+      const along = w >= d;
+      const length = along ? w : d;
+      const count = Math.max(1, Math.floor(length / 0.9));
+      for (let i = 0; i < count; i++) {
+        const u = (along ? t.minX : t.minZ) + (i + 0.5) * (length / count);
+        for (const side of [-1, 1]) {
+          const edge = along ? (side < 0 ? t.minZ : t.maxZ) : side < 0 ? t.minX : t.maxX;
+          const seat: [number, number] = along ? [u, edge + side * 0.45] : [edge + side * 0.45, u];
+          const behind: [number, number] = along ? [u, edge + side * 1.15] : [edge + side * 1.15, u];
+          const plate: [number, number] = along ? [u, edge - side * 0.22] : [edge - side * 0.22, u];
+          // Facing the table: from the low side toward +, from the high side back
+          const yaw = along ? (side < 0 ? 0 : Math.PI) : side < 0 ? Math.PI / 2 : -Math.PI / 2;
+          // The server stands at the table beside them
+          const server: [number, number] = along ? [u + 0.75, edge + side * 0.75] : [edge + side * 0.75, u + 0.75];
+          const key = `${seat[0].toFixed(2)},${seat[1].toFixed(2)}`;
+          if (this.seatsInUse.has(key)) continue;
+          if (taken.some(([px, pz]) => Math.hypot(px - seat[0], pz - seat[1]) < 0.7)) continue;
+          // Only where a chair or a bench stands
+          if (!this.hasSeat(key, seat)) continue;
+          const dd = Math.hypot(seat[0] - near[0], seat[1] - near[1]);
+          if (dd < bestD) {
+            bestD = dd;
+            best = { key, seat, behind, yaw, plate, height: t.height, server };
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Ordered at the counter, paid there; then to a free table, sat down, and the food is carried
+   * out and put down in front of them; eaten sitting there; up again when it is finished.
+   */
+  private sitDownMeal(st: StationSpec, c: StationChoice, host: PlaceHost): boolean {
+    const spot = this.freeSeat(st.stand);
+    if (!spot) return false;
+    const actor = host.actor;
+    const order = host.director.perform({
+      id: `${st.id} order ${c.label}`,
+      actor,
+      point: this.world(st.stand[0], st.stand[1]),
+      target: this.world(st.at[0], st.at[1]),
+      animation: { arms: 'reach' },
+      seconds: 1.0,
+      effectAt: 0.6,
+      ifStuck: 'snap',
+      effect: () => {
+        // Ordered here, paid for once it is eaten
+        if (c.price && !host.backend.canPay(c.price)) {
+          host.say(`That is ₦${c.price.toLocaleString()}. You do not have enough.`, 'warning');
+          return false;
+        }
+        host.say(`${st.who}: Sit down, I am bringing it.`, 'info');
+        return true;
+      },
+    });
+    if (!order.ok || !order.sequence) return true;
+    order.sequence.onEnd((reason) => {
+      if (reason === 'done') this.toTable(c, host, spot);
+    });
+    return true;
+  }
+
+  private toTable(c: StationChoice, host: PlaceHost, spot: NonNullable<ReturnType<PlaceInterior['freeSeat']>>): void {
+    const actor = host.actor;
+    let served = false;
+    const plate = this.plateFor(c.label);
+    this.seatsInUse.add(spot.key);
+    const seat = this.world(spot.seat[0], spot.seat[1]);
+    const behind = this.world(spot.behind[0], spot.behind[1]);
+    const meal = new Sequence(`eat ${c.label}`, [actor]);
+    meal.maxSeconds = 150;
+    meal.add(
+      steps.walk(actor, behind, { ifStuck: 'snap' }),
+      steps.face(actor, seat),
+      steps.slide(actor, seat, 0.45),
+      steps.face(actor, spot.yaw),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.call('call for the food', () => this.bring(spot, plate, () => { served = true; })),
+      steps.until('the food comes', () => served, 45, 'continue'),
+      steps.animate(actor, { arms: 'eat' }, c.seconds ?? 5, [{ at: 0.15, run: () => {
+        c.effect?.(host.backend);
+        if (c.item) host.backend.addItem(c.item);
+        if (c.said) host.say(c.said, 'success');
+      } }, { at: 0.95, run: () => {
+        // The bill, when the plate is empty
+        if (c.price && !host.backend.pay(c.price, `${c.label}, ${this.spec.name}`, 'FOOD_PURCHASE')) host.say(`₦${c.price.toLocaleString()} for the ${c.label.toLowerCase()}, and you do not have it. They let it go this time.`, 'warning');
+      } }]),
+      steps.call('done', () => { plate.removeFromParent(); }),
+      steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
+      steps.slide(actor, behind, 0.45),
+    );
+    meal.onEnd(() => {
+      plate.removeFromParent();
+      this.seatsInUse.delete(spot.key);
+    });
+    host.director.run(meal);
+  }
+
+  /** The server carries the plate from the counter to the table, puts it down, and goes back */
+  private bring(spot: NonNullable<ReturnType<PlaceInterior['freeSeat']>>, plate: THREE.Group, done: () => void): void {
+    const staff = this.spec.staff[0];
+    const from: [number, number] = staff ? [staff.at[0] + Math.sin(staff.facing) * 1.2, staff.at[1] + Math.cos(staff.facing) * 1.2] : [0, -2];
+    if (!this.server) {
+      const female = (staff?.gender ?? 'female') === 'female';
+      this.server = new Figure(this.group, `${this.spec.key}-server`, 'Server', {
+        gender: female ? 'female' : 'male', username: '', outfitColor: staff?.outfit ?? 0x15803d,
+        outfit: female ? 'casual_blouse' : 'casual_tee', hairstyle: female ? 'braids' : 'short_crop',
+      }, from, 0);
+      const server = this.server;
+      this.ticks.push((delta) => server.tick(delta));
+    }
+    const server = this.server;
+    server.root.visible = true;
+    server.place(from[0], from[1]);
+    plate.position.set(0, 1.02, 0.36);
+    plate.rotation.set(0, 0, 0);
+    server.root.add(plate);
+    server.walk([spot.server], () => {
+      server.face(Math.atan2(spot.plate[0] - spot.server[0], spot.plate[1] - spot.server[1]));
+      server.pose('stand', 'reach');
+      server.hold(0.6, () => {
+        // Down on the table in front of the player
+        plate.removeFromParent();
+        plate.position.set(spot.plate[0], spot.height + 0.01, spot.plate[1]);
+        plate.rotation.y = spot.yaw;
+        this.group.add(plate);
+        done();
+        server.pose('stand', 'rest');
+        server.walk([from], () => { server.root.visible = false; });
+      });
+    }, { arms: 'carry', speed: 1.6 });
+  }
+
+  /** The plate of food (and the bottle with it) */
+  private plateFor(label: string): THREE.Group {
+    const l = label.toLowerCase();
+    const food = /jollof|rice|fried rice/.test(l) ? 0xea580c : /amala|ewedu|eba|pounded|semo/.test(l) ? 0x6b4f2a : /okra|soup|vegetable/.test(l) ? 0x4d7c0f
+      : /suya|asun|meat|chicken|goat|fish/.test(l) ? 0x7c2d12 : /shawarma|sandwich|bread/.test(l) ? 0xfde68a : /chips|plantain|dodo/.test(l) ? 0xfacc15 : 0xd97706;
+    const plate = new THREE.Group();
+    plate.name = 'served meal';
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.13, 0.03, 18), new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 }));
+    const heap = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: food, roughness: 0.8 }));
+    heap.scale.set(1.1, 0.6, 1.1);
+    heap.position.y = 0.015;
+    plate.add(dish, heap);
+    if (/drink|coke|chapman|malt|beer|juice|water|wine|champagne|zobo/.test(l)) {
+      const bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.24, 10), new THREE.MeshStandardMaterial({ color: /coke|malt/.test(l) ? 0x3f1d0b : 0x166534, roughness: 0.3 }));
+      bottle.position.set(0.22, 0.12, 0.05);
+      plate.add(bottle);
+    }
+    return plate;
+  }
+
   /** The moment it is done: paid for, the goods in the bag, what it does done */
   private settle(c: StationChoice, host: PlaceHost): boolean {
     if (c.price && !host.backend.pay(c.price, `${c.label}, ${this.spec.name}`, c.item?.category === 'food' ? 'FOOD_PURCHASE' : 'SHOP_PURCHASE')) {
@@ -440,6 +760,12 @@ export class PlaceInterior {
 
   /** Things in the room that move or change as the game goes on (a show on its stage), each frame */
   public readonly ticks: Array<(delta: number) => void> = [];
+  /** Tables to sit at and eat, as built */
+  private tables: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; height: number }> = [];
+  /** The one who carries a meal to the table: comes out when there is something to bring */
+  private server: Figure | null = null;
+  /** Seats taken by the player's own meals now, so two orders do not share a chair */
+  private seatsInUse = new Set<string>();
 
   public update(delta: number, time: number): void {
     for (const npc of this.npcs) npc.update(delta, time);

@@ -84,8 +84,10 @@ export async function run(browser, check) {
     director.update = (delta) => {
       update(delta);
       const a = g.player.actor;
+      // Where each walk set off from, to tell a step through something from a start inside it
+      if (a.sequence && a.sequence !== window.__seq) { window.__seq = a.sequence; window.__from = [+(g.player.position.x - 260).toFixed(2), +(g.player.position.z - 440).toFixed(2)]; }
       if (a.pose.legs === 'walk' && a.sequence && g.world.interiorManager.currentInterior?.type === 'residence' && !g.world.interiorManager.busy) {
-        if (!nav.isFree(g.player.position.x, g.player.position.z)) { window.__through++; (window.__where ??= []).push([+(g.player.position.x - 260).toFixed(2), +(g.player.position.z - 440).toFixed(2), a.sequence.name]); }
+        if (!nav.isFree(g.player.position.x, g.player.position.z)) { window.__through++; (window.__where ??= []).push([+(g.player.position.x - 260).toFixed(2), +(g.player.position.z - 440).toFixed(2), a.sequence.name, 'from', ...window.__from]); }
       }
     };
   });
@@ -142,35 +144,80 @@ export async function run(browser, check) {
   check('pressing a movement key stands the player up from the sofa', free(s) && !s.sitting && !s.statusShown, { free: free(s) });
 
   // ------------------------------------------------------------------ Fridge
+  // Opened, it shows what is in it; the food in the bag goes in; something is taken out and eaten sitting down
+  const inFridge = () => page.evaluate(() => window.game.modules.Fridge.get().count());
+  const fridgeChoices = () => page.evaluate(() => [...document.querySelectorAll('#dialogue-choices-row .dialogue-choice-btn')].map((b) => b.innerText.replace(/\s+/g, ' ').trim()));
+  const pickInFridge = (pattern) => page.evaluate((re) => {
+    const btn = [...document.querySelectorAll('#dialogue-choices-row .dialogue-choice-btn')].find((b) => new RegExp(re).test(b.innerText));
+    btn?.click();
+    return !!btn;
+  }, pattern);
   await setStats(page, { hunger: 30 });
   before = await state(page);
+  const fridgeBefore = await inFridge();
   await use(page, 'flat-fridge');
-  const eating = await playUntil(page, () => (window.game.player.actor.pose.arms === 'eat' && window.game.player.actor.carried ? true : null), 20);
-  const midBite = await state(page);
-  await playUntil(page, () => (!window.game.player.actor.scripted ? true : null), 10);
-  s = await state(page);
-  check('at the fridge the player takes food from their bag and eats it: one item used, hunger eased',
-    before.food > 0 && eating && s.food === before.food - 1 && s.hunger > before.hunger && free(s) && !(await page.evaluate(() => !!window.game.player.actor.carried)),
-    { foodBefore: before.food, foodAfter: s.food, hungerGain: +(s.hunger - before.hunger).toFixed(1), usedBeforeEating: before.food - midBite.food });
+  await wait(300);
+  const firstLook = await fridgeChoices();
+  const stocked = await pickInFridge('Put the food from your bag');
+  await wait(300);
+  const afterStock = { bag: (await state(page)).food, fridge: await inFridge() };
+  check('the fridge opens on what is in it, and the food in the bag goes into it',
+    before.food > 0 && firstLook.some((c) => /Put the food from your bag/.test(c)) && stocked && afterStock.bag === 0 && afterStock.fridge === fridgeBefore + before.food,
+    { foodBefore: before.food, firstLook, afterStock });
 
-  before = await state(page);
-  await page.evaluate(() => window.game.player.mesh.position.set(260, 0, 448));
   await use(page, 'flat-fridge');
+  await wait(300);
+  const menu = await fridgeChoices();
+  const picked = await page.evaluate(() => {
+    const btn = document.querySelector('#dialogue-choices-row .dialogue-choice-btn');
+    const name = btn?.innerText ?? '';
+    btn?.click();
+    return name.replace(/\s+/g, ' ').trim();
+  });
+  const eating = await playUntil(page, () => {
+    const a = window.game.player.actor;
+    return a.pose.arms === 'eat' && a.carried && a.pose.legs === 'sit' ? true : null;
+  }, 25);
+  await playUntil(page, () => (!window.game.player.actor.scripted ? true : null), 12);
+  s = await state(page);
+  const fridgeAfter = await inFridge();
+  check('something chosen from the fridge is taken out, carried to the sofa and eaten sitting down: one less in the fridge, hunger eased',
+    menu.length >= 3 && !!picked && !!eating && fridgeAfter === afterStock.fridge - 1 && s.food === 0 && s.hunger > before.hunger && free(s) && !(await page.evaluate(() => !!window.game.player.actor.carried)),
+    { menu, picked, eating, fridge: [afterStock.fridge, fridgeAfter], hungerGain: +(s.hunger - before.hunger).toFixed(1) });
+
+  // Changing their mind on the way: nothing is eaten
+  before = await state(page);
+  const fridgeMid = await inFridge();
+  await use(page, 'flat-fridge');
+  await wait(300);
+  await page.evaluate(() => document.querySelector('#dialogue-choices-row .dialogue-choice-btn')?.click());
   await playUntil(page, () => (window.game.player.actor.sequence ? true : null), 3);
-  await advance(page, 0.4);
+  await advance(page, 0.2);
   await page.keyboard.down('w');
   await advance(page, 0.3);
   await page.keyboard.up('w');
   await advance(page, 5);
   s = await state(page);
-  check('walking away before reaching the fridge uses nothing', free(s) && s.food === before.food, { foodBefore: before.food, foodAfter: s.food });
+  const kept = (await inFridge()) + s.food;
+  check('walking away before eating uses nothing: it is still in the fridge or in the hand', free(s) && kept === fridgeMid + before.food && s.hunger <= before.hunger + 0.5,
+    { before: fridgeMid + before.food, kept });
 
-  await page.evaluate(() => { const d = window.game.hud.backend.data; d.inventory = d.inventory.filter((i) => i.category !== 'food'); });
+  // Nothing in the fridge or the bag: it says so, and offers groceries
+  await page.evaluate(() => {
+    const d = window.game.hud.backend.data;
+    d.inventory = d.inventory.filter((i) => i.category !== 'food');
+    const f = window.game.modules.Fridge.get();
+    for (const item of f.contents()) for (let k = 0; k < item.quantity; k++) f.takeOut(item.id);
+    d.inventory = d.inventory.filter((i) => i.category !== 'food');
+  });
   await use(page, 'flat-fridge');
-  await advance(page, 1);
+  await wait(300);
+  const emptyLook = await page.evaluate(() => document.getElementById('game-dialogue-overlay')?.innerText ?? '');
+  const emptyChoices = await fridgeChoices();
+  await closeDialogs(page);
   s = await state(page);
-  const told = await page.evaluate(() => document.getElementById('game-toast-container')?.innerText ?? '');
-  check('with no food in the bag the fridge says so and nothing happens', free(s) && /no food/i.test(told), { told: told.slice(0, 80) });
+  check('an empty fridge says it is empty and offers to order groceries; nothing happens', free(s) && /empty/i.test(emptyLook) && emptyChoices.some((c) => /Order groceries/.test(c)) && !emptyChoices.some((c) => /×/.test(c)),
+    { emptyLook: emptyLook.slice(0, 120), emptyChoices });
 
   // ------------------------------------------------------------------ Bath
   await setStats(page, { energy: 30, health: 50 });

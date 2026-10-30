@@ -31,7 +31,7 @@ const use = async (page, id) => {
   return label;
 };
 const choose = async (page, text) => { await page.evaluate((t) => [...document.querySelectorAll('#game-dialogue-overlay button')].find((b) => b.textContent.includes(t))?.click(), text); await wait(300); };
-const idle = (page, seconds = 30) => playUntil(page, () => (window.game.player.actor.sequence ? null : true), seconds);
+const idle = (page, seconds = 60) => playUntil(page, () => (window.game.player.actor.sequence ? null : true), seconds);
 const state = (page) => page.evaluate(() => {
   const s = window.game.supermarket;
   return { bays: s.bays().map((b) => ({ ...b })), back: Object.fromEntries(['drinks', 'noodles'].map((k) => [k, s.inBack(k)])), owned: s.owned() };

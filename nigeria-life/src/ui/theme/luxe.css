@@ -1493,3 +1493,102 @@ body[data-ui-mode="transit"] #virtual-mobile-controls { display: none !important
 html body .map-context-card .transport-name { color: var(--lx-ink) !important; }
 html body .map-context-card .transport-fare { color: var(--lx-dim) !important; }
 html body .map-context-card .transport-fare.free { color: var(--lx-brand) !important; }
+
+/* =============================================================================================
+   THE TITLE SCREEN: the name over the living city, one card to carry on or begin again
+   ============================================================================================= */
+#title-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 56px) 16px calc(env(safe-area-inset-bottom, 0px) + 22px);
+  background: linear-gradient(180deg, rgba(7, 47, 31, 0.72) 0%, rgba(7, 47, 31, 0.08) 38%, rgba(7, 47, 31, 0) 55%, rgba(7, 30, 20, 0.55) 100%);
+  font-family: var(--nl-font);
+  transition: opacity 0.5s ease;
+  animation: tsIn 0.6s var(--lx-ease) both;
+}
+#title-screen.is-gone { opacity: 0; pointer-events: none; }
+@keyframes tsIn { from { opacity: 0; } to { opacity: 1; } }
+#title-screen .ts-top { text-align: center; color: #fff; }
+#title-screen .ts-mark {
+  width: 76px; height: 76px; margin: 0 auto 12px; border-radius: 24px; display: grid; place-items: center; position: relative;
+  background: linear-gradient(160deg, #fff, #eaf4ee); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3), inset 0 -2px 0 rgba(15, 26, 20, 0.08);
+  animation: tsRise 0.8s 0.05s var(--lx-ease) both;
+}
+#title-screen .ts-mark b { font: 800 30px/1 var(--nl-font); letter-spacing: -0.04em; color: #0e7a4e; }
+#title-screen .ts-mark i { position: absolute; right: 12px; top: 12px; width: 9px; height: 9px; border-radius: 50%; background: var(--lx-gold-grad); }
+#title-screen .ts-word { margin: 0; font: 800 40px/1.05 var(--nl-font); letter-spacing: -0.035em; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.35); animation: tsRise 0.8s 0.12s var(--lx-ease) both; }
+#title-screen .ts-word span { color: #f2cf6b; }
+#title-screen .ts-line { margin: 8px 0 0; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.82); animation: tsRise 0.8s 0.2s var(--lx-ease) both; }
+@keyframes tsRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+#title-screen .ts-card {
+  position: static !important;
+  width: min(400px, 100%) !important;
+  max-width: none !important;
+  padding: 16px !important;
+  border-radius: 26px !important;
+  transform: none !important;
+  animation: tsRise 0.8s 0.28s var(--lx-ease) both;
+}
+#title-screen .ts-who { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+#title-screen .ts-avatar { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--lx-brand-grad); color: #fff; font: 800 20px var(--nl-font); }
+#title-screen .ts-who-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#title-screen .ts-who-text strong { font-size: 17px; font-weight: 800; color: var(--lx-ink); }
+#title-screen .ts-who-text em { font-style: normal; font-size: 12.5px; font-weight: 600; color: var(--lx-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#title-screen .ts-money { font-weight: 800; font-size: 15px; color: var(--lx-ink); }
+#title-screen .ts-home { margin: 0 0 12px; padding: 9px 12px; border-radius: 14px; background: var(--lx-surface-2); color: var(--lx-ink-2); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#title-screen .ts-go { width: 100%; height: 52px; font-size: 16px; border-radius: 16px; }
+#title-screen .ts-new { width: 100%; margin-top: 8px; }
+#title-screen .ts-lives { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+#title-screen .ts-lives span { width: 100%; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--lx-dim); }
+#title-screen .ts-life { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--lx-line); background: var(--lx-card); color: var(--lx-ink); font: 700 12.5px var(--nl-font); cursor: pointer; }
+#title-screen .ts-ask strong { display: block; font-size: 18px; font-weight: 800; color: var(--lx-ink); margin-bottom: 6px; }
+#title-screen .ts-ask p { margin: 0 0 14px; font-size: 13.5px; line-height: 1.45; color: var(--lx-ink-2); }
+#title-screen .ts-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+#title-screen .ts-tip { margin: 10px 0 0; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.7); }
+/* While the title is up the game's own bars stand back */
+body.lx-title #hud-overlay,
+body.lx-title #virtual-mobile-controls,
+body.lx-title #music-fab,
+body.lx-title #view-fab,
+body.lx-title #street-chat-box,
+body.lx-title #hud-today-chip,
+body.lx-title #top-menu-btn,
+body.lx-title #game-toast-container { opacity: 0 !important; pointer-events: none !important; }
+/* The card stands at the foot of the screen, the city between it and the name */
+#title-screen .ts-card { margin-top: auto !important; }
+
+/* =============================================================================================
+   DIRECTIONS WHILE DRIVING: one emerald pill under the top bar, where to and how far
+   ============================================================================================= */
+.route-guide {
+  position: fixed;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 84px);
+  transform: translateX(-50%);
+  z-index: 5600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 8px 8px 8px 12px;
+  border-radius: 999px;
+  background: var(--lx-brand-grad);
+  color: #fff;
+  font-family: var(--nl-font);
+  box-shadow: 0 12px 28px rgba(9, 92, 58, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: rgIn 0.4s var(--lx-ease) both;
+}
+.route-guide[hidden] { display: none; }
+@keyframes rgIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.route-guide .rg-icon { font-size: 18px; }
+.route-guide .rg-text { display: flex; flex-direction: column; min-width: 0; }
+.route-guide .rg-text strong { font-size: 13.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route-guide .rg-text em { font-style: normal; font-size: 12px; font-weight: 600; opacity: 0.88; }
+.route-guide .rg-x { margin-left: 4px; width: 30px; height: 30px; flex: none; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.18); color: #fff; font-size: 13px; cursor: pointer; }
+body.ui-modal-open .route-guide, body[data-ui-mode="world-map"] .route-guide, body[data-ui-mode="interior"] .route-guide { display: none !important; }
+@media (min-width: 701px) { .route-guide { top: 70px; } }

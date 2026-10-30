@@ -28,7 +28,9 @@ export type TransportMode =
   | 'danfo'
   | 'brt'
   | 'taxi'
-  | 'car';
+  | 'car'
+  /** The player at the wheel of their own car, following arrows on the road */
+  | 'drive';
 
 export interface TransportOption {
   mode: TransportMode;

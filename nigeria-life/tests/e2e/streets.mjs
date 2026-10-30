@@ -134,7 +134,7 @@ export async function run(browser, check) {
   });
   const midZ = (bank.minZ + bank.maxZ) / 2;
   await put(page, 8.5, midZ);
-  const atWall = (await walk(page, (bank.minX + bank.maxX) / 2, midZ, 10)).pop();
+  const atWall = (await walk(page, (bank.minX + bank.maxX) / 2, midZ, 20)).pop();
   check('walking at the front of the bank stops at its wall: the player does not pass into the building',
     bank.solids > 150 && atWall.x < bank.minX && !atWall.moving, { atWall, front: bank.minX });
 

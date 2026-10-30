@@ -1,6 +1,6 @@
 // Getting around without the keyboard: the room view shows the whole room, every station has a
 // shortcut you can tap, and the map's pins lead to a sheet whose Go button takes you there.
-import { open, wait, money, newPlayer, enterInterior, leaveInterior, leaveByDoor, advance, untilStopped } from './lib.mjs';
+import { open, wait, money, newPlayer, enterInterior, leaveInterior, leaveByDoor, advance, untilStopped, playUntil } from './lib.mjs';
 
 const TYPES = ['hospital', 'bank', 'restaurant', 'police', 'residence', 'university', 'airport'];
 
@@ -107,7 +107,10 @@ export async function run(browser, check) {
   const before = await money(page);
   await page.click('.transport-tile[data-mode="keke"]');
   await page.click('#btn-card-go');
-  await wait(3200);
+  // The keke ride is played, then the player goes in at the door
+  await playUntil(page, () => (window.game.roadRideExperience?.isActive ? true : null), 10);
+  await playUntil(page, () => (!window.game.roadRideExperience?.isActive && window.game.world.interiorManager.currentInterior && !window.game.world.interiorManager.busy ? true : null), 40);
+  await wait(400);
   const after = await money(page);
   const arrived = await page.evaluate(() => ({ inside: window.game.world.interiorManager.currentInterior?.type || null, mapOpen: window.game.world.worldMap.isActive }));
   check('Go by keke charges the ₦500 fare and takes the player inside the hospital', before.cash - after.cash === 500 && arrived.inside === 'hospital' && !arrived.mapOpen, { fare: before.cash - after.cash, ...arrived });

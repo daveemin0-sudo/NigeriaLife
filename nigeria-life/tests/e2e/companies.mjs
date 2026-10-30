@@ -73,7 +73,7 @@ export async function run(browser, check) {
   const m1 = await money(page);
   const after = await company(page);
   const r = after.reports[0];
-  const toast = await page.evaluate(() => /📊 Mama Put Special Bukateria, /.test(document.body.innerText));
+  const toast = await page.evaluate(() => [...document.querySelectorAll('.game-toast')].some((t) => (t.dataset.message ?? '').startsWith('📊 Mama Put Special Bukateria, ')));
   check('companies: the day closes with a report (takings, wages ₦23,500, no tax for a small company); the wages come out of the till and the manager banks the rest',
     r && r.day === day && r.takings === took && r.wages === 23500 && r.tax === 0 && r.profit === took - 23500 && after.pending === 0 && r.banked === c.pending - 23500 && m1.total - m0.total === r.banked && toast,
     { r, pendingBefore: c.pending, bank: m1.total - m0.total, toast });

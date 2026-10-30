@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { duvetOver } from '../../interactions/Duvet';
 import { Builder, signBoard } from '../../world/kit/ArchKit';
 import { Sequence, steps } from '../../interactions/Sequence';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
@@ -241,7 +242,7 @@ export const HOTEL_SPECS: PlaceSpec[] = [
       for (const x of [bx - 1.6, bx + 1.6]) b.box(0x5b3a1e, 0.55, 0.55, 0.45, x, 0, -4.6).cylinder(0x1c1917, 0.03, 0.35, x, 0.55, -4.6, { sides: 6 }).cone(0xfde68a, 0.16, 0.22, x, 0.86, -4.6, 12, { glow: true });
       // The television on the right wall and the armchair in front of it
       b.box(0x0a0a0a, 0.06, 0.9, 1.6, 4.26, 1.2, 0.6).box(0x5b3a1e, 0.45, 0.5, 1.8, 4.0, 0, 0.6);
-      b.box(0x7f1d1d, 0.8, 0.42, 0.8, 2.35, 0, 0.6).box(0x7f1d1d, 0.18, 0.6, 0.8, 2.75, 0.42, 0.6).box(0x7f1d1d, 0.8, 0.25, 0.12, 2.35, 0.42, 0.25).box(0x7f1d1d, 0.8, 0.25, 0.12, 2.35, 0.42, 0.95);
+      b.box(0x7f1d1d, 0.8, 0.42, 0.8, 2.35, 0, 0.6).box(0x7f1d1d, 0.18, 0.6, 0.8, 1.95, 0.42, 0.6).box(0x7f1d1d, 0.8, 0.25, 0.12, 2.35, 0.42, 0.25).box(0x7f1d1d, 0.8, 0.25, 0.12, 2.35, 0.42, 0.95);
       // The desk with its chair and telephone on the left wall
       b.box(0x5b3a1e, 0.65, 0.75, 1.5, -4.1, 0, 0.6).box(0x111827, 0.45, 0.45, 0.45, -3.25, 0, 0.6).box(0x111827, 0.08, 0.5, 0.45, -3.0, 0.45, 0.6);
       b.box(0x1c1917, 0.22, 0.07, 0.16, -4.1, 0.75, 1.1).box(0xf8fafc, 0.2, 0.01, 0.14, -4.15, 0.75, 0.2);
@@ -250,6 +251,13 @@ export const HOTEL_SPECS: PlaceSpec[] = [
       b.box(0x5b3a1e, 0.6, 2.2, 1.4, -4.15, 0, -2.2).box(0x3f2a1d, 0.02, 2.0, 0.02, -3.84, 0.1, -2.2);
       b.box(0x9a3412, 3.2, 0.012, 2.2, 0.8, 0.006, -0.8);
       b.box(0x5b3a1e, 0.9, 0.45, 0.5, 3.6, 0, 3.6).box(0x1e3a8a, 0.75, 0.5, 0.4, 3.6, 0.45, 3.6);
+      // The bathroom: a tiled floor, a tiled half wall with a gap to walk in by, a glass shower and the toilet
+      b.box(0xdbe7ee, 2.1, 0.012, 2.4, 3.45, 0.006, -3.8);
+      b.box(0xe7eef2, 0.4, 1.1, 0.12, 2.6, 0, -2.6).box(0xe7eef2, 0.75, 1.1, 0.12, 4.12, 0, -2.6).box(0xe7eef2, 0.12, 1.1, 2.4, 2.4, 0, -3.8);
+      b.box(0xf8fafc, 1.1, 0.08, 1.1, 3.85, 0, -4.35).box(0xb8c2cc, 0.05, 2.0, 0.05, 4.32, 0.08, -4.82).box(0xb8c2cc, 0.26, 0.04, 0.26, 4.15, 2.05, -4.6);
+      b.box(0xbfe3f2, 0.04, 1.9, 1.1, 3.28, 0.08, -4.35);
+      b.box(0xf8fafc, 0.38, 0.4, 0.46, 2.9, 0, -4.45).box(0xffffff, 0.42, 0.05, 0.5, 2.9, 0.4, -4.47).box(0xf8fafc, 0.46, 0.42, 0.2, 2.9, 0.4, -4.78);
+      b.box(0xf8fafc, 0.5, 0.14, 0.4, 2.62, 0.75, -3.3).box(0xdbeafe, 0.03, 0.6, 0.46, 2.47, 1.1, -3.3);
     },
     staff: [],
     stations: [],
@@ -484,9 +492,52 @@ const MENU: Array<{ label: string; price: number; hunger: number; fun: number; d
 ];
 
 class Suite {
+  /** Under the shower: washed clean */
+  private shower(host: PlaceHost): void {
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    const at = (x: number, z: number) => new THREE.Vector3(this.room.group.position.x + x, 0, this.room.group.position.z + z);
+    const wash = new Sequence('hotel shower', [actor]).add(
+      steps.walk(actor, at(3.6, -3.25), { ifStuck: 'snap' }),
+      steps.face(actor, at(3.85, -4.35)),
+      steps.slide(actor, at(3.85, -4.3), 0.6),
+      steps.animate(actor, { arms: 'reach' }, 3.4, [{ at: 0.75, run: () => {
+        host.backend.takeShower();
+        host.backend.rest(20, 10);
+        host.say('🚿 A hot shower and a fresh towel. Hygiene full.', 'success');
+      } }]),
+      steps.slide(actor, at(3.6, -3.25), 0.6),
+    );
+    host.director.run(wash);
+  }
+
+  /** The toilet: sat on, flushed, hands washed */
+  private toilet(host: PlaceHost): void {
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    const at = (x: number, z: number) => new THREE.Vector3(this.room.group.position.x + x, 0, this.room.group.position.z + z);
+    const use = new Sequence('hotel toilet', [actor]).add(
+      steps.walk(actor, at(2.95, -3.45), { ifStuck: 'snap' }),
+      steps.face(actor, 0),
+      steps.slide(actor, at(2.9, -4.3), 0.45),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.wait(2.6),
+      steps.call('relieved', () => {
+        host.backend.relieveBladder();
+        showGameToast('🚽 Relieved. *Flush*', 'success', 2200);
+      }),
+      steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
+      steps.slide(actor, at(2.95, -3.45), 0.45),
+      steps.animate(actor, { arms: 'reach' }, 0.9),
+    );
+    host.director.run(use);
+  }
+
   private readonly room: PlaceInterior;
   private readonly hold: { release: (instant?: boolean) => void };
   private sleeping = false;
+  /** The duvet over the player while they sleep */
+  private duvet: THREE.Group | null = null;
   private slept = 0;
   private restedTold = false;
   private waiter: Figure | null = null;
@@ -523,6 +574,8 @@ class Suite {
     room.addCard({ id: `place_${HOTEL.suite}_phone`, name: '☎️ The room phone', description: 'Room service, charged to the room.', at: [-4.1, 1.1], stand: SUITE.desk.front, label: () => this.phoneLabel(), run: (host) => this.phone(host) });
     room.addCard({ id: `place_${HOTEL.suite}_minibar`, name: '🧊 Minibar', description: 'Cold drinks and snacks, at hotel prices.', at: SUITE.minibar.at, stand: SUITE.minibar.stand, label: () => '🧊 Minibar', run: (host) => this.minibar(host) });
     room.addCard({ id: `place_${HOTEL.suite}_tv`, name: '📺 Television', description: 'Sit in the armchair and watch.', at: [4.1, 0.6], stand: SUITE.armchair.front, label: () => '📺 Watch television', run: (host) => this.watch(host) });
+    room.addCard({ id: `place_${HOTEL.suite}_shower`, name: '🚿 The shower', description: 'Hot water, soft towels.', at: [3.85, -4.35], stand: [3.6, -3.25], label: () => '🚿 Take a shower', run: (host) => this.shower(host) });
+    room.addCard({ id: `place_${HOTEL.suite}_toilet`, name: '🚽 The toilet', description: 'Behind the half wall.', at: [2.9, -4.45], stand: [2.95, -3.45], label: () => '🚽 Use the toilet', run: (host) => this.toilet(host) });
     room.addCard({ id: `place_${HOTEL.suite}_window`, name: '🌇 The window', description: 'The view over Lagos.', at: SUITE.window.at, stand: SUITE.window.stand, label: () => '🌇 Look out over Lagos', run: (host) => this.look(host) });
     room.ticks.push((delta) => this.tick(delta));
     // Out of the door: back into the corridor, in front of the room
@@ -610,6 +663,8 @@ class Suite {
       this.sleeping = true;
       this.slept = 0;
       this.restedTold = false;
+      this.duvet?.removeFromParent();
+      this.duvet = duvetOver(this.room.group, { x: rx, z: rz }, 0, SUITE.bed.top, 0xf8fafc);
       host.say('🛏️ Cold AC, soft sheets. You drift off.', 'info');
     });
     host.director.run(lieDown);
@@ -618,6 +673,8 @@ class Suite {
   private getUp(instant?: boolean): void {
     const player = InteractionDirector.get().player;
     this.sleeping = false;
+    this.duvet?.removeFromParent();
+    this.duvet = null;
     if (!player) return;
     player.hold = null;
     if (instant) { player.setScripted(false); return; }

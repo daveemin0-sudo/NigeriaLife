@@ -78,12 +78,12 @@ export function showGameToast(
     document.body.appendChild(toastContainer);
   }
 
-  // The same notice already showing is not shown twice; and no more than two at a time, the oldest going
+  // The same notice already showing is not shown twice; and no more than three at a time, the oldest going
   for (const shown of Array.from(toastContainer.children) as HTMLElement[]) {
     if (shown.dataset.message === message && shown.dataset.leaving !== '1') return;
   }
   const showing = (Array.from(toastContainer.children) as HTMLElement[]).filter((t) => t.dataset.leaving !== '1');
-  while (showing.length >= 2) {
+  while (showing.length >= 3) {
     const oldest = showing.shift()!;
     oldest.dataset.leaving = '1';
     oldest.style.opacity = '0';

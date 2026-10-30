@@ -97,7 +97,8 @@ export async function run(browser, check) {
 
   // ------------------------------------------------------------------ Walking into a room
   const homeBefore = await materialSnapshot(page, 'residence');
-  await page.evaluate(() => { const be = window.game.hud.backend; be.rentProperty(be.getData().properties[0].id); });
+  // A three-bedroom flat: rooms with walls between them for the camera to see past
+  await page.evaluate(() => { const be = window.game.hud.backend; be.rentProperty(be.getData().properties[0].id); window.game.world.interiorManager.residence.constructor.briefNow = () => ({ kind: 'flat', bedrooms: 3, carport: false }); });
   await enterInterior(page, 'residence');
   await advance(page, 0.6);
   let s = await cutState(page);
@@ -161,42 +162,64 @@ export async function run(browser, check) {
   check('the camera itself glides the whole way, with no jumps', sweep.biggestCameraStep < 2.2, { biggestStepPerFrame: sweep.biggestCameraStep });
 
   // ------------------------------------------------------------------ A partition between the camera and the player
-  // Low camera to the east, the player just west of the wall between the two bedrooms
-  await place(page, 0.8, -8, 1.35, 0.52);
+  // Low camera to the east, the player just west of a wall between two bedrooms (found from the plan)
+  const wall = await page.evaluate(() => {
+    const plan = window.game.world.interiorManager.residence.plan;
+    const w = plan.walls.find((x) => x.axis === 'z' && x.to - x.from > 4 && x.doors.length === 0 && x.at > 0);
+    return { at: w.at, x: w.at - 0.7, z: (w.from + w.to) / 2 + 0.9, spawn: plan.spawn };
+  });
+  await place(page, wall.x, wall.z, 1.35, 0.52);
   await advance(page, 1.5);
   s = await cutState(page);
   inTheWay = await blockers(page);
-  const partition = await page.evaluate(() => {
-    const cut = window.game.world.interiorManager.cutaway;
+  const partition = await page.evaluate((at) => {
+    const g = window.game;
+    const T = g.modules.THREE;
+    const cut = g.world.interiorManager.cutaway;
     const faded = cut.pieces.filter((p) => p.fade < 0.6);
+    // Each faded piece is on the way from the camera to the player (with a little room either side)
+    const eye = g.cameraManager.camera.position.clone();
+    const body = g.player.position.clone().setY(1);
+    const line = new T.Ray(eye, body.clone().sub(eye).normalize());
+    const far = eye.distanceTo(body);
+    // (a window goes with the outside wall it is in, when that wall is cut away)
+    const offLine = faded.filter((p) => !/window/.test(p.root.name) && (() => {
+      const box = new T.Box3().setFromObject(p.root).expandByScalar(0.8);
+      const hit = line.intersectBox(box, new T.Vector3());
+      return !hit || hit.distanceTo(eye) > far + 0.5;
+    })());
     return {
+      offLine: offLine.map((p) => p.root.name || p.root.type),
       faded: faded.length,
-      // The one between the bedrooms: a thin wall running north-south at x = 2
-      isThePartition: faded.some((p) => Math.abs(p.root.position.x - 2) < 0.3 && p.root.geometry?.parameters?.depth > 5),
+      which: faded.map((p) => `${p.root.name || p.root.type}@${p.root.position.x.toFixed(1)},${p.root.position.z.toFixed(1)}`),
+      // The one between the bedrooms: a thin wall running north-south
+      isThePartition: faded.some((p) => Math.abs(p.root.position.x - at) < 0.3 && p.root.geometry?.parameters?.depth > 4),
       opacity: faded.length ? +(Array.isArray(faded[0].meshes[0].material) ? faded[0].meshes[0].material[0] : faded[0].meshes[0].material).opacity.toFixed(2) : null,
       total: cut.pieces.length,
     };
-  });
+  }, wall.at);
   check('standing behind a partition from where the camera is, the partition turns see-through and the player shows through it',
     inTheWay.length === 0 && partition.isThePartition && partition.opacity < 0.3, { partition, inTheWay });
-  check('only what is in the way fades: the rest of the room stays solid', partition.faded <= 2 && partition.total > 10, partition);
+  check('only what is in the way fades: the rest of the room stays solid', partition.offLine.length === 0 && partition.faded < partition.total / 4 && partition.total > 10, partition);
 
   // Walk out from behind it
-  await place(page, -6, 4);
+  await place(page, wall.spawn.x, wall.spawn.z);
   await advance(page, 2);
   s = await cutState(page);
-  const restored = await page.evaluate(() => {
+  const restored = await page.evaluate((at) => {
     const cut = window.game.world.interiorManager.cutaway;
-    return { stillSwapped: cut.pieces.filter((p) => p.swapped).length, faded: cut.pieces.filter((p) => p.fade < 1 && !p.wall).length };
-  });
-  check('walking out from behind it, the partition turns solid again with its own material back', restored.faded === 0 && restored.stillSwapped <= s.seeThrough.length + s.hidden.length, { ...restored, s });
+    // That partition: nothing is between it and the camera now
+    const piece = cut.pieces.find((p) => Math.abs(p.root.position.x - at) < 0.3 && p.root.geometry?.parameters?.depth > 4);
+    return { fade: piece ? +piece.fade.toFixed(2) : null, swapped: piece ? piece.swapped : null, stillSwapped: cut.pieces.filter((p) => p.swapped).length };
+  }, wall.at);
+  check('walking out from behind it, the partition turns solid again with its own material back', restored.fade === 1 && !restored.swapped && restored.stillSwapped <= s.seeThrough.length + s.hidden.length, { ...restored, s });
 
   // It eases: sample the opacity as the player steps back behind it
-  await place(page, 0.8, -8);
-  const easing = await page.evaluate(async () => {
+  await place(page, wall.x, wall.z);
+  const easing = await page.evaluate(async (at) => {
     const g = window.game;
     const cut = g.world.interiorManager.cutaway;
-    const piece = cut.pieces.find((p) => Math.abs(p.root.position.x - 2) < 0.3 && p.root.geometry?.parameters?.depth > 5);
+    const piece = cut.pieces.find((p) => Math.abs(p.root.position.x - at) < 0.3 && p.root.geometry?.parameters?.depth > 4);
     const values = [];
     for (let frame = 0; frame < 30; frame++) {
       await g.advance(1 / 30);
@@ -205,11 +228,11 @@ export async function run(browser, check) {
     let biggest = 0;
     for (let i = 1; i < values.length; i++) biggest = Math.max(biggest, Math.abs(values[i] - values[i - 1]));
     return { first: values[0], last: values[values.length - 1], biggestStep: +biggest.toFixed(3) };
-  });
+  }, wall.at);
   check('the fade is gradual, not a pop', easing.last <= 0.25 && easing.biggestStep < 0.35, easing);
 
   // ------------------------------------------------------------------ Sitting down: the camera moves in smoothly
-  await place(page, -9.2, 2.5, 0.62, 0.86);
+  await place(page, wall.spawn.x, wall.spawn.z, 0.62, 0.86);
   await advance(page, 1);
   const closeIn = await page.evaluate(async () => {
     const g = window.game;

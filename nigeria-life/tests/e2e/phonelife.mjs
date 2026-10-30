@@ -85,7 +85,7 @@ export async function run(_browser, check) {
   const placing = await page.evaluate(() => ({ placing: window.game.modules.HouseDecorationSystem.getInstance().placing?.item.id, sheet: getComputedStyle(document.getElementById('house-catalogue-modal')).display }));
   const confirm = await centre('#furnish-bar-confirm');
   // Somewhere clear in the living room
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(-2, 6));
+  await page.evaluate(() => { const d = window.game.modules.HouseDecorationSystem.getInstance(); for (const [x, z] of [[-2, 6], [-2, 2.2], [-1.5, -1.2], [0, -1.6], [1, 1.2], [-3, 3.5]]) { d.moveTo(x, z); const why = d.blocked(); if (!why || /need/.test(why)) break; } });
   await wait(300);
   await tap('#furnish-bar-confirm');
   await wait(600);
@@ -106,7 +106,7 @@ export async function run(_browser, check) {
   const money1 = await page.evaluate(() => { const d = window.game.hud.backend.getData(); return d.walletCash + d.bank.balance; });
   await tap('#house-catalogue-modal [data-item-id="tv_32"][data-stored]');
   await wait(400);
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(-2, 6));
+  await page.evaluate(() => { const d = window.game.modules.HouseDecorationSystem.getInstance(); for (const [x, z] of [[-2, 6], [-2, 2.2], [-1.5, -1.2], [0, -1.6], [1, 1.2], [-3, 3.5]]) { d.moveTo(x, z); const why = d.blocked(); if (!why || /need/.test(why)) break; } });
   await tap('#furnish-bar-confirm');
   await wait(500);
   const again = await page.evaluate(() => { const s = window.game.modules.HouseDecorationSystem.getInstance(); const d = window.game.hud.backend.getData(); return { placed: s.placed.map((p) => p.id), stored: [...s.stored], money: d.walletCash + d.bank.balance }; });

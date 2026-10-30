@@ -254,8 +254,34 @@ export class NavGrid {
     if (cells.length > 1) kept.push(cells[cells.length - 1]);
 
     const path = kept.slice(1).map(([c, r]) => new THREE.Vector3(this.origin.x + this.cellX(c), 0, this.origin.z + this.cellZ(r)));
+    // The way was found from the middle of the square the walker stands in: if the straight line
+    // from where they really stand to the first corner clips something, go by that middle first
+    const first = path[0];
+    if (first) {
+      const length = Math.hypot(first.x - from.x, first.z - from.z);
+      for (let d = 0.1; d < length; d += 0.1) {
+        const t = d / length;
+        if (!this.isFree(from.x + (first.x - from.x) * t, from.z + (first.z - from.z) * t)) {
+          path.unshift(new THREE.Vector3(this.origin.x + this.cellX(start[0]), 0, this.origin.z + this.cellZ(start[1])));
+          break;
+        }
+      }
+    }
     const end = new THREE.Vector3(to.x, 0, to.z);
     const last = path[path.length - 1];
+    if (!this.isFree(to.x, to.z)) {
+      // The point is in a piece of furniture: up to its edge, not into it
+      const near = (last ?? new THREE.Vector3(from.x, 0, from.z)).clone();
+      const length = near.distanceTo(end);
+      let edge: THREE.Vector3 | null = null;
+      for (let t = 0.05; t < length; t += 0.05) {
+        const p = near.clone().lerp(end, t / length);
+        if (!this.isFree(p.x, p.z)) break;
+        edge = p;
+      }
+      if (edge) path.push(edge);
+      return path;
+    }
     if (!last || last.distanceTo(end) > 0.02) {
       // If the goal cell is the last corner, swap it for the exact point
       if (last && this.isFree(to.x, to.z) && last.distanceTo(end) < this.cell) path[path.length - 1] = end;

@@ -15,6 +15,8 @@ import { buildKitCar } from '../../world/vehicles/KitCar';
 const counter = (b: Builder, x: number, z: number, w: number, colour = 0x7c4a1e, top = 0xe7e5e4, d = 0.9) => b.box(colour, w, 1.05, d, x, 0, z).box(top, w + 0.1, 0.06, d + 0.1, x, 1.05, z);
 const table = (b: Builder, x: number, z: number, top = 0x92400e, chairs = 4, chair = 0x1f2937) => {
   b.cylinder(0x3f3f46, 0.07, 0.72, x, 0, z).cylinder(top, 0.62, 0.05, x, 0.72, z, { sides: 18 });
+  // A table to sit at and be served: where the place's seated meals are eaten
+  b.footprints.push({ minX: x - 0.62, maxX: x + 0.62, minZ: z - 0.62, maxZ: z + 0.62, height: 0.77 });
   for (let i = 0; i < chairs; i++) {
     const a = (i / chairs) * Math.PI * 2;
     b.box(chair, 0.42, 0.45, 0.42, x + Math.sin(a) * 0.95, 0, z + Math.cos(a) * 0.95).box(chair, 0.42, 0.5, 0.06, x + Math.sin(a) * 1.15, 0.45, z + Math.cos(a) * 1.15, { yaw: a });
@@ -147,7 +149,7 @@ const buka = (key: string, name: string, district: string, sub: string): PlaceSp
   build: (b) => {
     counter(b, 0, -5, 8, 0x15803d);
     for (let i = 0; i < 4; i++) b.cylinder(0x52525b, 0.35, 0.45, -3 + i * 2, 1.1, -5.1, { sides: 12 }).cylinder([0x1c1917, 0xfacc15, 0x15803d, 0x7c2d12][i], 0.3, 0.05, -3 + i * 2, 1.55, -5.1);
-    for (const [x, z] of [[-4.5, 0], [0, 0], [4.5, 0], [-4.5, 3.5], [0, 3.5], [4.5, 3.5]]) { b.box(0x92400e, 2.2, 0.75, 0.9, x, 0, z); bench(b, x, z - 0.9, 2.2); bench(b, x, z + 0.9, 2.2); }
+    for (const [x, z] of [[-4.5, 0], [0, 0], [4.5, 0], [-4.5, 3.5], [0, 3.5], [4.5, 3.5]]) { b.box(0x92400e, 2.2, 0.75, 0.9, x, 0, z, { solid: true }); bench(b, x, z - 0.9, 2.2); bench(b, x, z + 0.9, 2.2); }
   },
   staff: [{ name: 'Iya Shitta', title: 'Owner', at: [0, -6], facing: 0, outfit: 0x15803d, gender: 'female', chef: true, says: 'Sit down! Amala dey hot, gbegiri dey sweet!' }],
   regulars: [{ at: [-4.5, -0.9], facing: 0, outfit: 0x2563eb, sit: true }, { at: [4.5, 0.9], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' }, { at: [0, 4.4], facing: Math.PI, outfit: 0x16a34a, sit: true }],
@@ -238,9 +240,15 @@ const SPECS: PlaceSpec[] = [
     for (let i = 0; i < 5; i++) b.box(0x111827, 0.9, 1.3, 2, -8 + i * 2.2, 0, -6).box(0xef4444, 0.92, 0.12, 2, -8 + i * 2.2, 1.3, -6);
     for (let i = 0; i < 4; i++) b.box(0x52525b, 1.6, 0.4, 0.6, 4 + (i % 2) * 2.5, 0, 0 + Math.floor(i / 2) * 2.5).cylinder(0x18181b, 0.25, 0.1, 3.4 + (i % 2) * 2.5, 0.6, Math.floor(i / 2) * 2.5, { pitch: Math.PI / 2 });
     b.box(0x1f2937, 0.4, 1.8, 6, 9.6, 0, 1); counter(b, -6, 6, 3, 0xea580c);
+    // The shower by the changing room: a tiled corner, a tray, the pipe and the head, a frosted screen
+    b.box(0xdbeafe, 0.08, 2.4, 1.8, 9.94, 0, -4.2).box(0xdbeafe, 1.5, 2.4, 0.08, 9.25, 0, -5.06);
+    b.box(0xe5e7eb, 1.4, 0.06, 1.6, 9.25, 0, -4.2);
+    b.cylinder(0x94a3b8, 0.03, 2.25, 9.84, 0, -4.2).box(0x94a3b8, 0.34, 0.04, 0.06, 9.7, 2.22, -4.2).cylinder(0xcbd5e1, 0.14, 0.04, 9.56, 2.16, -4.2);
+    b.box(0xe0f2fe, 1.5, 2.0, 0.05, 9.25, 0.1, -3.36);
   }, [{ name: 'Coach Tunde', title: 'Trainer', at: [0, -3], facing: 0, outfit: 0xea580c, gender: 'male', says: 'Oya, ten more! Pain is temporary!' }], [
-    { id: 'treadmill', name: '🏃 Treadmill', at: [-8, -6], stand: [-8, -6], who: 'Coach Tunde', role: 'Trainer', text: 'Day pass?', choices: [{ label: 'Run for half an hour (day pass)', price: 15000, note: 'Health +10, Fitness', arms: 'swing', seconds: 6, effect: (be) => { need({ health: 10, energy: -20 })(be as never); (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('fitness', 2); }, said: 'Five kilometres. Your legs are shaking. Fitness up.' }] },
-    { id: 'weights', name: '🏋️ Weights', at: [4, 0], stand: [4, 1.1], who: 'Coach Tunde', role: 'Trainer', text: 'Bench or squat?', choices: [{ label: 'Lift with the trainer', price: 15000, note: 'Health +10, Fitness', arms: 'carry', seconds: 6, effect: (be) => { need({ health: 10, energy: -20 })(be as never); (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('fitness', 2); }, said: 'The coach shouted till the last rep. Fitness up.' }] },
+    { id: 'treadmill', name: '🏃 Treadmill', at: [-8, -6], stand: [-8, -6], who: 'Coach Tunde', role: 'Trainer', text: 'Day pass?', choices: [{ label: 'Run for half an hour (day pass)', price: 15000, note: 'Health +10, Fitness', arms: 'swing', seconds: 6, effect: (be) => { need({ health: 10, energy: -20, hygiene: -20 })(be as never); (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('fitness', 2); }, said: 'Five kilometres. Your legs are shaking. Fitness up.' }] },
+    { id: 'weights', name: '🏋️ Weights', at: [4, 0], stand: [4, 1.1], who: 'Coach Tunde', role: 'Trainer', text: 'Bench or squat?', choices: [{ label: 'Lift with the trainer', price: 15000, note: 'Health +10, Fitness', arms: 'carry', seconds: 6, effect: (be) => { need({ health: 10, energy: -20, hygiene: -20 })(be as never); (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('fitness', 2); }, said: 'The coach shouted till the last rep. Fitness up.' }] },
+    { id: 'shower', name: '🚿 Shower', at: [9.85, -4.2], stand: [9.15, -4.2], who: 'Changing room', role: 'i-Fitness', text: 'Towels and soap at the desk. Hot water today.', choices: [{ label: 'Shower and change', note: 'Hygiene full', arms: 'reach', seconds: 5, effect: (be) => { (be as unknown as { takeShower(): void }).takeShower(); }, said: '🚿 Hot water, soap and a clean towel. Fresh again.' }] },
     { id: 'desk', name: '💳 Membership', at: [-6, 6], stand: [-6, 4.7], who: 'Front desk', role: 'i-Fitness', text: 'Monthly membership?', choices: [{ label: 'Monthly membership', price: 120000, note: 'Health +15', effect: need({ health: 15 }), said: 'Card on your phone. See you every morning by six.' }] },
   ], [{ at: [-5.8, -6], facing: Math.PI, outfit: 0x2563eb }, { at: [6.5, 2.5], facing: 0, outfit: 0xdb2777, gender: 'female' }]),
   venue('lekki-conservation', 'Lekki Conservation Centre', 'Lekki · nature park', 'Canopy walk · Nature trail', '#166534', 0x3f6212, 0x166534, (b) => {

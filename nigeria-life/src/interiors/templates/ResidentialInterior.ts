@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Fridge } from '../../housing/Fridge';
 import { Activity } from '../../life/Activity';
 import { Pets, PET_KINDS, PET_FOOD_PRICE } from '../../housing/Pets';
 import { Garden, SEEDS } from '../../housing/Garden';
@@ -17,7 +18,9 @@ import { HomeLife, HOME } from '../home/HomeLife';
 import type { HomeStandard } from '../../housing/HomeStandard';
 import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
 import { roomDoor, DOOR_STYLES, type DoorStyle } from '../../housing/MoreFurniture';
-import { InteractionDirector } from '../../interactions/InteractionDirector';
+import { InteractionDirector, type InteractionDef } from '../../interactions/InteractionDirector';
+import type { PoseState } from '../../interactions/Poses';
+import { Sequence, steps } from '../../interactions/Sequence';
 import { planFor, briefOf, roomAt, type HomeBrief, type HomePlan, type Fixture } from '../../housing/HomePlan';
 
 /** A door in one of the home's own doorways */
@@ -49,7 +52,7 @@ const CORE_WORDS: Record<string, { name: string; category: string; description: 
   'flat-tv': { name: 'Sofa & TV', category: 'Home Entertainment', description: 'Sit down and watch the Super Eagles. A little energy comes back while you relax.' },
   'flat-bed': { name: 'Master Bed', category: 'Rest & Recovery', description: 'Lie down and sleep. Energy and health come back while you rest.' },
   'flat-drum': { name: 'Water Drum & Bucket', category: 'Home Essentials', description: 'Cold borehole water and the red bucket. A quick bath wakes you up.' },
-  'flat-fridge': { name: 'Fridge', category: 'Kitchen', description: 'Eat something from your bag.' },
+  'flat-fridge': { name: 'Fridge', category: 'Kitchen', description: 'What you stocked it with: take something out, sit down and eat it.' },
 };
 
 type Starter = { uid?: string; id: string; x: number; z: number; turns: number };
@@ -136,6 +139,7 @@ export class ResidentialInterior {
   public onPlayerArriving(): void {
     // Each home its own furniture: a house just built comes in bare, for the player to furnish
     HouseDecorationSystem.getInstance().setHome(ResidentialInterior.homeId?.() ?? 'main');
+    Fridge.get().setHome(ResidentialInterior.homeId?.() ?? 'main');
     this.applyPlan(planFor(ResidentialInterior.briefNow?.() ?? briefOf(null)));
     const standard = ResidentialInterior.standardNow?.() ?? this.standard;
     this.furnish(standard);
@@ -410,6 +414,28 @@ export class ResidentialInterior {
   }
 
   /** Where to stand at a piece, and the piece itself, in the world */
+  /**
+   * A piece of furniture used the way a person uses it: walked up to, faced, worked at for a
+   * while, each part's effect landing as it is done. Walking off before then changes nothing.
+   */
+  private actOut(item: PlacedItem, host: PlaceHost, parts: Array<{ pose: Partial<PoseState>; seconds: number; effect?: () => void }>): void {
+    const { stand, at } = this.standAt(item);
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    host.director.perform(parts.map((part, i): InteractionDef => ({
+      id: `use the ${item.modelType.replace(/_/g, ' ')}${i ? ` ${i + 1}` : ''}`,
+      actor,
+      point: i === 0 ? stand : undefined,
+      target: at,
+      animation: part.pose,
+      seconds: part.seconds,
+      effectAt: 0.75,
+      nav: this.life.nav,
+      ifStuck: 'snap',
+      effect: part.effect,
+    })));
+  }
+
   private standAt(item: PlacedItem): { stand: THREE.Vector3; at: THREE.Vector3 } {
     const decor = HouseDecorationSystem.getInstance();
     const size = decor.footprint(item.modelType, item.turns);
@@ -538,7 +564,7 @@ export class ResidentialInterior {
         if (kind.use === 'fitness') return '🏋️ Workout, move it or sell it';
         if (kind.use === 'drink') return '🧊 Refreshment, move it or sell it';
         if (kind.use === 'power') return '⚡ Generator / Inverter, move it or sell it';
-        if (kind.use === 'clean') return '🧺 Laundry, move it or sell it';
+        if (kind.use === 'clean') return item.modelType === 'smart_mirror' ? '🪞 Mirror, move it or sell it' : '🧺 Laundry, move it or sell it';
         if (kind.use === 'door') return '🚪 Move the door or sell it';
         if (kind.use === 'garden') {
           const v = Garden.get().view(item.uid);
@@ -591,32 +617,51 @@ export class ResidentialInterior {
           choices.push({
             label: 'Cook Party Jollof & Fried Dodo',
             note: 'Hunger +60, Cooking +1',
-            pick: () => {
-              (host as any).backend.modifyNeed('hunger', 60);
-              (host as any).backend.modifyNeed('energy', -10);
-              (host as any).backend.addSkillExp('cooking', 1);
-              host.say('You cooked a fragrant pot of smoky party Jollof with sweet fried plantain! Hunger replenished.', 'success');
-            },
+            pick: () => this.actOut(item, host, [
+              { pose: { arms: 'reach' }, seconds: 4.5, effect: () => { host.say('🍳 The jollof is done and the dodo fried golden.', 'info'); } },
+              { pose: { arms: 'eat' }, seconds: 3, effect: () => {
+                (host as any).backend.modifyNeed('hunger', 60);
+                (host as any).backend.modifyNeed('energy', -10);
+                (host as any).backend.addSkillExp('cooking', 1);
+                host.say('You ate your smoky party jollof with sweet fried plantain. Hunger replenished, cooking +1.', 'success');
+              } },
+            ]),
           });
           choices.push({
             label: 'Boil Tea & Breakfast Coffee',
             note: 'Energy +25',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 2.5, effect: () => {
               (host as any).backend.modifyNeed('energy', 25);
               (host as any).backend.modifyNeed('hunger', 15);
               host.say('Hot brew prepared! Energy +25.', 'success');
-            },
+            } }]),
           });
         }
         if (kind.use === 'bath') {
+          // In a tub or a jacuzzi they get in and soak, sat down in the water; at a shower or a bucket they stand and wash
+          const soak = /bathtub|jacuzzi/.test(item.modelType);
+          const { stand, at } = this.standAt(item);
           choices.push({
-            label: 'Take Hot Soaking Bath / Jacuzzi Hydrojets',
-            note: 'Hygiene 100%, Energy +30',
+            label: soak ? (item.modelType.includes('jacuzzi') ? 'Get in the jacuzzi and soak' : 'Run a bath and soak') : item.modelType.includes('bucket') ? 'Bucket bath' : 'Take a shower',
+            note: soak ? 'Hygiene full, Energy +30, Fun +25' : 'Hygiene full, Energy +20',
             pick: () => {
-              (host as any).backend.modifyNeed('hygiene', 100);
-              (host as any).backend.modifyNeed('energy', 30);
-              (host as any).backend.modifyNeed('fun', 25);
-              host.say('Deep warm hydrotherapy soak! Hygiene 100% restored, body completely revitalized.', 'success');
+              const actor = host.actor;
+              if (host.director.interrupt(actor) === 'locked') return;
+              const wash = new Sequence(soak ? 'soak in the bath' : 'wash', [actor]).add(
+                steps.walk(actor, stand, { nav: this.life.nav, ifStuck: 'snap' }),
+                steps.face(actor, at),
+                steps.slide(actor, at, 0.6),
+                soak ? steps.setPose(actor, { legs: 'sit', arms: 'rest' }) : steps.setPose(actor, { legs: 'stand', arms: 'reach' }),
+                steps.animate(actor, soak ? { arms: 'rest' } : { arms: 'reach' }, soak ? 5.5 : 3.2, [{ at: 0.75, run: () => {
+                  host.backend.takeShower();
+                  host.backend.rest(soak ? 30 : 20, 10);
+                  if (soak) host.backend.modifyNeed('fun', 25);
+                  host.say(soak ? '🛁 A long warm soak. Clean, rested and happy: hygiene full.' : '🚿 Washed clean. Hygiene full, Energy +20.', 'success');
+                } }]),
+                steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
+                steps.slide(actor, stand, 0.6),
+              );
+              host.director.run(wash);
             },
           });
         }
@@ -624,101 +669,101 @@ export class ResidentialInterior {
           choices.push({
             label: 'Play PS5 Tournament',
             note: 'Fun +40, Energy -10',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'carry' }, seconds: 5, effect: () => {
               (host as any).backend.modifyNeed('fun', 40);
               (host as any).backend.modifyNeed('energy', -10);
               host.say('Intense gaming championship match with the squad! Fun +40.', 'success');
-            },
+            } }]),
           });
         }
         if (kind.use === 'work') {
           choices.push({
             label: 'Code Tech Startup MVP',
             note: 'Coding +1, Energy -15',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 5, effect: () => {
               (host as any).backend.addSkillExp('coding', 1);
               (host as any).backend.modifyNeed('energy', -15);
               host.say('Deployed 3 clean microservices to production! Coding skill +1.', 'success');
-            },
+            } }]),
           });
         }
         if (kind.use === 'music') {
           choices.push({
             label: 'Play Afrobeats Melodies',
             note: 'Music +1, Fun +30',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'drum' }, seconds: 4.5, effect: () => {
               (host as any).backend.addSkillExp('music', 1);
               (host as any).backend.modifyNeed('fun', 30);
               host.say('Playing soulful Afrobeats chords and bass grooves! Music +1, Fun +30.', 'success');
-            },
+            } }]),
           });
         }
         if (kind.use === 'snooker') {
           choices.push({
             label: 'Play a Game of Snooker',
             note: 'Fun +35, Hustle +1',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 5, effect: () => {
               (host as any).backend.modifyNeed('fun', 35);
               (host as any).backend.addSkillExp('hustle', 1);
               host.say('Pocketed the black ball with an exquisite spin shot! Fun +35, Hustle +1.', 'success');
-            },
+            } }]),
           });
         }
         if (kind.use === 'fitness') {
           choices.push({
             label: 'Cardio & Dumbbell Workout',
             note: 'Fitness +1, Energy -20',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { legs: 'walk', arms: 'swing' }, seconds: 5, effect: () => {
               (host as any).backend.addSkillExp('fitness', 1);
               (host as any).backend.modifyNeed('energy', -20);
               (host as any).backend.modifyNeed('hygiene', -15);
               host.say('Crushed 5km on the treadmill and dumbbell presses! Fitness skill +1.', 'success');
-            },
+            } }]),
           });
         }
         if (kind.use === 'drink') {
           choices.push({
             label: 'Pour Ice-Cold Chapman & Refreshment',
             note: 'Hunger -20, Fun +15',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'eat' }, seconds: 2.5, effect: () => {
               (host as any).backend.modifyNeed('hunger', -20);
               (host as any).backend.modifyNeed('fun', 15);
               host.say('Poured a chilled Chapman with cucumber and Angostura bitters! So refreshing.', 'success');
-            },
+            } }]),
           });
         }
         if (kind.use === 'power') {
           choices.push({
             label: 'Start Standby Generator / Inverter Power',
             note: 'NEPA Backup',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1.8, effect: () => {
               host.say('Engine hums smoothly with stable 230V sine-wave output. Full household power guaranteed!', 'success');
-            },
+            } }]),
           });
         }
-        if (kind.use === 'clean') {
+        if (kind.use === 'clean' && item.modelType !== 'smart_mirror') {
           choices.push({
             label: 'Run Automatic Wash & Dry Cycle',
             note: 'Hygiene +25',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 3, effect: () => {
               (host as any).backend.modifyNeed('hygiene', 25);
               host.say('Clothes washed, sanitized and smelling crisp! Hygiene +25.', 'success');
-            },
+            } }]),
           });
         }
         if (item.modelType === 'split_ac') {
           choices.push({
             label: 'Toggle AC Turbo Cooling',
             note: 'Refreshing chill',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1.2, effect: () => {
               host.say('The Panasonic Inverter Split AC blows an ice-cold mountain breeze across the room. Ahhh!', 'success');
-            },
+            } }]),
           });
         }
         if (item.modelType === 'wall_clock') {
           choices.push({
             label: 'Check the clock',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'rest' }, seconds: 1.2, effect: () => {
               const hour = host.hour();
               const h = Math.floor(hour);
               const m = Math.floor((hour - h) * 60);
@@ -726,25 +771,25 @@ export class ResidentialInterior {
               const displayH = h % 12 === 0 ? 12 : h % 12;
               const timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${ampm}`;
               host.say(`The brass wall clock ticks steadily. It is ${timeStr}.`, 'info');
-            },
+            } }]),
           });
         }
         if (item.modelType === 'wall_art') {
           choices.push({
             label: 'Admire artwork',
             note: '+1 Street Cred',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'rest' }, seconds: 2, effect: () => {
               host.say('You admire the intricate carvings of the Benin bronze heritage canvas.', 'info');
-            },
+            } }]),
           });
         }
-        if (item.modelType === 'wall_mirror') {
+        if (item.modelType === 'wall_mirror' || item.modelType === 'smart_mirror') {
           choices.push({
             label: 'Check reflection',
             note: 'Looking sharp',
-            pick: () => {
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'rest' }, seconds: 2, effect: () => {
               host.say('You check your reflection in the ornate gilded mirror. Looking confident and ready!', 'info');
-            },
+            } }]),
           });
         }
         choices.push({ label: 'Move it', note: 'Free', pick: () => { decor.pickUp(item.uid); } });
@@ -1302,6 +1347,8 @@ export class ResidentialInterior {
     const shell = new THREE.Group();
     shell.name = 'interior_room_shell';
     shell.userData.size = { width: W, length: L, height: wallH };
+    // A big home is framed a part at a time, the camera following the player through it
+    shell.userData.view = { width: 24, length: 20 };
     const floor = new THREE.Mesh(new THREE.BoxGeometry(W, 0.4, L), this.floorMat);
     floor.name = 'interior_floor_mesh';
     floor.position.set(0, -0.2, 0);
@@ -1320,7 +1367,7 @@ export class ResidentialInterior {
 
     // Each room's floor: tiles in the bathrooms and the kitchen, the player's own floor elsewhere
     for (const room of plan.rooms) {
-      if (room.kind !== 'ensuite' && room.kind !== 'toilet' && room.kind !== 'kitchen') continue;
+      if (room.kind !== 'ensuite' && room.kind !== 'bathroom' && room.kind !== 'kitchen') continue;
       const tiles = new THREE.Mesh(
         new THREE.PlaneGeometry(room.maxX - room.minX, room.maxZ - room.minZ),
         new THREE.MeshStandardMaterial({ color: room.kind === 'kitchen' ? 0xd9d4c7 : 0xd6e4ec, roughness: 0.3 })
@@ -1389,7 +1436,8 @@ export class ResidentialInterior {
       built.position.set(fixture.x, 0, fixture.z);
       built.rotation.y = Math.atan2(fixture.face.x, fixture.face.z);
       g.add(built);
-      if (fixture.kind !== 'sink') solid(fixture.x, fixture.z, fixture.width / 2, fixture.depth / 2);
+      // The sink is on the counter and the basin hangs on the wall: neither stands on the floor
+      if (fixture.kind !== 'sink' && fixture.kind !== 'basin') solid(fixture.x, fixture.z, fixture.width / 2, fixture.depth / 2);
     }
     this.cardsForFittings(plan);
 
@@ -1449,7 +1497,7 @@ export class ResidentialInterior {
       if (f.kind === 'wc') {
         const id = `home_toilet_${++toilets}`;
         const seat = new THREE.Vector3(f.x + f.face.x * 0.12, 0, f.z + f.face.z * 0.12);
-        this.interactiveList.push({ mesh, id, name: toilets === 1 && room?.kind === 'toilet' ? 'Guest toilet' : 'Toilet', category: 'Your home', description: `The toilet in the ${where}.`, interactionPoint: new THREE.Vector3(origin.x + front.x, 0, origin.z + front.z) });
+        this.interactiveList.push({ mesh, id, name: 'Toilet', category: 'Your home', description: `The toilet in the ${where}.`, interactionPoint: new THREE.Vector3(origin.x + front.x, 0, origin.z + front.z) });
         PlaceActions.register(id, { label: () => '🚽 Use the toilet', run: () => { this.life.useToilet(seat, front, facing); } });
         this.planCards.push(id);
       } else {
@@ -1463,8 +1511,8 @@ export class ResidentialInterior {
               nav: this.life.nav, animation: { arms: 'reach' }, seconds: 3.2, effectAt: 0.7, ifStuck: 'snap',
               effect: () => {
                 host.backend.rest(20, 10);
-                host.backend.modifyNeed('hygiene', 70);
-                host.say('🚿 A good shower. Fresh! Hygiene up, Energy +20.', 'success');
+                host.backend.takeShower();
+                host.say('🚿 A good shower. Clean and fresh! Hygiene full, Energy +20.', 'success');
                 return true;
               },
             });
@@ -1548,7 +1596,7 @@ export class ResidentialInterior {
     const plan = this.plan ?? planFor(briefOf(null));
     const s = plan.spots;
     const pieces: Starter[] = [
-      { uid: 'home_bed', id: standard === 'basic' ? 'double_bed_grey' : 'king_bed_purple', ...s.bed },
+      { uid: 'home_bed', id: standard === 'basic' ? 'double_bed_grey' : standard === 'comfortable' ? 'king_bed_purple' : 'super_king_bed', ...s.bed },
       { uid: 'home_sofa', id: standard === 'basic' ? 'sofa2_brown' : 'sofa3_leather', ...s.sofa },
       { uid: CORE_TV, id: standard === 'basic' ? 'tv_24' : standard === 'comfortable' ? 'tv_43' : 'smart_tv_75', ...s.tv },
       { uid: 'home_fridge', id: 'double_door_fridge', ...s.fridge },
@@ -1560,6 +1608,8 @@ export class ResidentialInterior {
     const covers = ['double_bed_purple', 'double_bed_blue', 'double_bed_green', 'double_bed_ankara', 'double_bed_red'];
     others.forEach((spot, i) => pieces.push({ id: covers[i % covers.length], ...spot }));
     if (s.dining && standard !== 'basic') pieces.push({ id: 'dining_table_6', ...s.dining });
+    // A bathtub in the bathroom of a well-off home
+    if (standard !== 'basic') pieces.push({ id: 'bathtub', ...s.bath });
     for (const extra of s.extras) {
       if (extra.what === 'chairs' || (extra.what === 'fan' && standard === 'basic')) pieces.push({ id: extra.what === 'chairs' ? 'plastic_set' : 'lontor_fan', x: extra.x, z: extra.z, turns: extra.turns });
       if (extra.what === 'plant' && standard !== 'basic') pieces.push({ id: 'majesty_palm', x: extra.x, z: extra.z, turns: extra.turns });

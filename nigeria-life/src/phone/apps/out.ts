@@ -11,7 +11,7 @@ import { SoundEngine } from '../../audio/SoundEngine';
 /** The tabs at the top of the Ride app: one place for every way of getting about */
 const GETTING_ABOUT = (on: 'rides' | 'train') => `
   <div class="nl-chips" id="ride-tabs" role="tablist">
-    <button class="nl-chip${on === 'rides' ? ' is-on' : ''}" role="tab" aria-selected="${on === 'rides'}" ${on === 'rides' ? '' : 'data-phone-back'} id="ride-tab-rides">🚕 Rides</button>
+    <button class="nl-chip${on === 'rides' ? ' is-on' : ''}" role="tab" aria-selected="${on === 'rides'}" ${on === 'rides' ? 'data-act="rides"' : 'data-phone-back'} id="ride-tab-rides">🚕 Rides</button>
     <button class="nl-chip${on === 'train' ? ' is-on' : ''}" role="tab" aria-selected="${on === 'train'}" ${on === 'train' ? '' : 'data-go="train"'} id="ride-tab-train">🚆 Train</button>
     <button class="nl-chip" role="tab" data-act="flights" id="ride-tab-flights">✈️ Flights</button>
   </div>`;
@@ -114,6 +114,7 @@ export const rideApp: PhoneApp = {
                   });
                 }).join('')}
           </div>
+          ${host.world.canDrive() ? row({ icon: '🧭', title: 'Drive yourself', sub: 'You at the wheel: arrows on the road show the way', trailing: '<strong>Free</strong>', attrs: `data-act="drive" data-arg="${esc(destination.id)}"`, tag: 'button' }) : ''}
           <div class="nl-hint">The fare is taken when the driver arrives and you get in. Cancelling before that costs nothing.</div>
         `,
       };
@@ -143,6 +144,12 @@ export const rideApp: PhoneApp = {
   },
 
   act(host, action, el) {
+    if (action === 'rides') return;
+    if (action === 'drive') {
+      const reason = host.world.driveTo(el.dataset.arg ?? '');
+      if (reason) host.say(reason, 'bad');
+      return;
+    }
     if (action === 'flights') {
       host.close();
       host.world.openFlights();

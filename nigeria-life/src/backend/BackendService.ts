@@ -304,6 +304,11 @@ export class BackendService {
   }
 
   /** Pay from the wallet first and take any shortfall from the bank account. */
+  /** Whether the wallet and the bank together have this much */
+  public canPay(amount: number): boolean {
+    return this.data.walletCash + this.data.bank.balance >= amount;
+  }
+
   public pay(amount: number, description: string, type: TransactionType = 'SHOP_PURCHASE'): boolean {
     return this.processTransaction({ type, amount, description, source: 'wallet', funding: 'split' }).success;
   }

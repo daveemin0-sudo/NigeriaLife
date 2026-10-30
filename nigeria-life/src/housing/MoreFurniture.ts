@@ -70,6 +70,35 @@ function bedIn(width: number, cover: number, trim: number, wood: number): THREE.
   return b.build('bed');
 }
 
+/**
+ * A grand bed: a plinth, a tall padded headboard (buttoned, or winged for the presidential), a
+ * deep mattress, four pillows and two cushions, a duvet with a runner across its foot, and a
+ * bench at the foot for the biggest.
+ */
+function grandBed(width: number, length: number, o: { head: number; headboard: number; frame: number; linen: number; runner: number; trim?: number; wings?: boolean; bench?: boolean }): THREE.Group {
+  const b = new Builder();
+  const half = length / 2;
+  b.box(o.frame, width + 0.16, 0.36, length + 0.1, 0, 0.04, 0);
+  // The headboard, padded, with rows of buttons
+  b.box(o.headboard, width + 0.3, o.head, 0.22, 0, 0, -half - 0.02);
+  for (let row = 0; row < 3; row++) for (let i = 0; i < Math.round(width / 0.32); i++) b.box(new THREE.Color(o.headboard).multiplyScalar(0.8).getHex(), 0.05, 0.05, 0.02, -width / 2 + 0.16 + i * 0.32, 0.72 + row * (o.head - 0.9) / 3, -half + 0.1);
+  if (o.wings) for (const side of [-1, 1]) b.box(o.headboard, 0.24, o.head * 0.9, 0.6, side * (width / 2 + 0.2), 0, -half + 0.22);
+  if (o.trim) b.box(o.trim, width + 0.34, 0.05, 0.24, 0, o.head - 0.02, -half - 0.02);
+  // Mattress, pillows, cushions
+  b.box(0xffffff, width - 0.06, 0.32, length - 0.12, 0, 0.4, 0.02);
+  const pw = (width - 0.3) / 2;
+  for (const x of [-pw / 2 - 0.05, pw / 2 + 0.05]) b.box(0xffffff, pw, 0.2, 0.5, x, 0.72, -half + 0.45).box(0xf8fafc, pw - 0.1, 0.18, 0.4, x, 0.8, -half + 0.78);
+  b.box(o.runner, 0.42, 0.16, 0.34, -0.25, 0.72, -half + 1.05).box(o.runner, 0.42, 0.16, 0.34, 0.25, 0.72, -half + 1.05);
+  // The duvet over the lower part, the runner across its foot
+  b.box(o.linen, width - 0.02, 0.08, length * 0.62, 0, 0.72, half - length * 0.31 - 0.04);
+  b.box(o.runner, width - 0.02, 0.09, 0.5, 0, 0.725, half - 0.55);
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.box(0x1c1917, 0.12, 0.06, 0.12, x * (width / 2 - 0.05), 0, z * (half - 0.05));
+  if (o.bench) {
+    b.box(o.frame, width * 0.7, 0.42, 0.5, 0, 0, half + 0.42).box(o.runner, width * 0.7 - 0.06, 0.1, 0.46, 0, 0.42, half + 0.42);
+  }
+  return b.build('grand bed');
+}
+
 function bunkBed(): THREE.Group {
   const b = new Builder();
   const wood = 0x92400e;
@@ -280,6 +309,9 @@ export const MORE_MAKERS: Record<string, () => THREE.Group> = {
   nightstand,
   bunk_bed: bunkBed,
   single_bed: () => bedIn(1.0, 0x1d4ed8, 0x93c5fd, 0x78350f),
+  hotel_king_bed: () => grandBed(2.3, 2.4, { head: 1.5, headboard: 0x3f2a1d, frame: 0x3f2a1d, linen: 0xf8fafc, runner: 0x7c2d12 }),
+  super_king_bed: () => grandBed(2.5, 2.4, { head: 1.6, headboard: 0xe7dcc6, frame: 0x5b3a1e, linen: 0xf5f0e6, runner: 0x1f2937, trim: 0xc9a227 }),
+  presidential_bed: () => grandBed(2.9, 2.6, { head: 2.1, headboard: 0x1e293b, frame: 0x111827, linen: 0xf8fafc, runner: 0x9a6b16, trim: 0xd4af37, wings: true, bench: true }),
   partition_wall: () => partition(2),
   partition_wall_short: () => partition(1),
   ...Object.fromEntries(DOOR_STYLES.map((style) => [`room_door_${style.id}`, () => roomDoor(style)])),
@@ -301,6 +333,9 @@ export const MORE_KINDS: Record<string, FurnitureKind> = {
   foam_mattress: { solid: true, use: 'bed', bed: { x: 0, z: 0.6, top: 0.25, side: 0.75 } },
   plastic_set: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },
   plastic_set_red: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },
+  hotel_king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.8, top: 0.74, side: 1.2 } },
+  super_king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.8, top: 0.74, side: 1.3 } },
+  presidential_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.85, top: 0.74, side: 1.55 } },
   partition_wall: { solid: true, use: 'none' },
   partition_wall_short: { solid: true, use: 'none' },
   ...Object.fromEntries(DOOR_STYLES.map((style) => [`room_door_${style.id}`, { solid: false, use: 'door' } as FurnitureKind])),

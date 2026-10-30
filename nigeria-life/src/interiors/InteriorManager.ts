@@ -291,12 +291,14 @@ export class InteriorManager {
     this.getActiveTemplate()?.onPlayerEntered?.();
 
     // 7. Activate dedicated interior camera and layer filter, framed on this room
-    const shellSize = this.getActiveShell()?.userData.size as { width: number; length: number } | undefined;
+    const shell = this.getActiveShell();
+    const shellSize = shell?.userData.size as { width: number; length: number } | undefined;
     const room = target.rooms[0];
     cameraManager.frameRoom(
       target.interiorOrigin,
       shellSize?.width ?? room.size.width,
-      shellSize?.length ?? room.size.length
+      shellSize?.length ?? room.size.length,
+      shell?.userData.view as { width: number; length: number } | undefined
     );
     cameraManager.setMode('interior');
     cameraManager.setLayerMode('interior');

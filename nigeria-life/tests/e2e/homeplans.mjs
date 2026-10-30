@@ -56,6 +56,9 @@ async function visit(page, brief) {
       key: plan.key,
       bedrooms: plan.rooms.filter((x) => x.kind === 'bedroom').length,
       ensuites: plan.rooms.filter((x) => x.kind === 'ensuite').length,
+      bathrooms: plan.rooms.filter((x) => x.kind === 'bathroom').length,
+      smallest: Math.min(...plan.rooms.filter((x) => x.kind === 'bedroom').map((x) => Math.min(x.maxX - x.minX, x.maxZ - x.minZ))),
+      bathSize: Math.min(...plan.rooms.filter((x) => x.kind === 'bathroom').map((x) => (x.maxX - x.minX) * (x.maxZ - x.minZ))),
       kitchens: plan.rooms.filter((x) => x.kind === 'kitchen').length,
       studio: plan.rooms.some((x) => x.kind === 'studio'),
       parlour: plan.rooms.some((x) => x.kind === 'parlour'),
@@ -77,20 +80,21 @@ export async function run(browser, check) {
   await closeDialogs(page);
 
   const self = await visit(page, { kind: 'self-contain', bedrooms: 1, carport: false });
-  check('homeplans: a self-contain is one room: its toilet and shower in a corner behind a door, a kitchen counter in another corner, no parlour, no carport',
-    self.studio && !self.parlour && self.bedrooms === 0 && self.ensuites === 1 && self.toilets === 1 && self.showers === 1 && self.counter && !self.carport && self.size[0] < 10 && self.unreachable.length === 0, self);
+  check('homeplans: a self-contain is one big room: its bathroom in a corner behind a door, a kitchen counter along a wall, no parlour, no carport',
+    self.studio && !self.parlour && self.bedrooms === 0 && self.bathrooms === 1 && self.toilets === 1 && self.showers === 1 && self.counter && !self.carport && self.size[0] >= 12 && self.bathSize >= 20 && self.unreachable.length === 0, self);
 
   const rp = await visit(page, { kind: 'room-parlour', bedrooms: 1, carport: false });
-  check('homeplans: a room and parlour has a parlour with the bedroom (its own toilet and shower) and the kitchen off it',
-    rp.parlour && rp.bedrooms === 1 && rp.ensuites === 1 && rp.kitchens === 1 && !rp.carport && rp.unreachable.length === 0 && rp.astray.length === 0, rp);
+  check('homeplans: a room and parlour has a big parlour with the bedroom, the bathroom and the kitchen off it',
+    rp.parlour && rp.bedrooms === 1 && rp.bathrooms === 1 && rp.kitchens === 1 && !rp.carport && rp.smallest >= 7 && rp.unreachable.length === 0 && rp.astray.length === 0, rp);
 
   const sizes = [];
   for (const n of [2, 3, 4, 5, 6]) {
     const flat = await visit(page, { kind: n >= 4 ? 'house' : 'flat', bedrooms: n, carport: n >= 4 });
     sizes.push({ n, ...flat });
   }
-  check('homeplans: two to six bedrooms have that many bedrooms, each with its own toilet and shower, a kitchen and a guest toilet',
-    sizes.every((h) => h.bedrooms === h.n && h.ensuites === h.n && h.kitchens === 1 && h.toilets === h.n + 1 && h.showers === h.n), sizes.map(({ n, bedrooms, ensuites, toilets, showers }) => ({ n, bedrooms, ensuites, toilets, showers })));
+  check('homeplans: two to six bedrooms have that many big bedrooms, a kitchen and a bathroom as big as the kitchen; from three, the master bedroom has its own bathroom',
+    sizes.every((h) => h.bedrooms === h.n && h.bathrooms === 1 && h.ensuites === (h.n >= 3 ? 1 : 0) && h.kitchens === 1 && h.toilets === 1 + h.ensuites && h.showers === 1 + h.ensuites && h.smallest >= 7 && h.bathSize >= 40),
+    sizes.map(({ n, bedrooms, bathrooms, ensuites, toilets, smallest, bathSize, size }) => ({ n, bedrooms, bathrooms, ensuites, toilets, smallest, bathSize, size })));
   check('homeplans: every room is reached from the front door by the parlour and the corridor, never through another room',
     sizes.every((h) => h.unreachable.length === 0 && h.astray.length === 0), sizes.map(({ n, unreachable, astray }) => ({ n, unreachable, astray })));
   check('homeplans: a carport only beside a house, not a flat', sizes.every((h) => h.carport === (h.n >= 4)) && !self.carport, sizes.map(({ n, carport }) => ({ n, carport })));

@@ -1,4 +1,5 @@
 import { BackendService } from '../../backend/BackendService';
+import { Fridge } from '../../housing/Fridge';
 import type { Item } from '../../backend/types';
 import { SHOP_SECTIONS } from '../../interiors/shop/ShopCatalog';
 import { SoundEngine } from '../../audio/SoundEngine';
@@ -72,6 +73,8 @@ const GROCERIES: Deliverable[] = SHOP_SECTIONS.flatMap((section) =>
  * same moment, once. If the money is not there then, the rider takes everything back.
  */
 export class DeliveryService {
+  /** Whether the player is at home, where food delivered goes into the fridge (set by the game) */
+  public static atHome: (() => boolean) | null = null;
   public order: Order | null = null;
   public basket: Record<Shop, Map<string, number>> = { food: new Map(), market: new Map() };
   public onChange: (() => void) | null = null;
@@ -188,12 +191,20 @@ export class DeliveryService {
       return;
     }
     let count = 0;
+    let chilled = 0;
+    // At home, food goes straight into the fridge; anything else into the bag
+    const home = DeliveryService.atHome?.() ?? false;
     for (const line of order.lines) {
-      this.backend.addItem(line.thing.item, line.quantity);
+      if (home && line.thing.item.category === 'food') {
+        Fridge.get().put(line.thing.item, line.quantity);
+        chilled += line.quantity;
+      } else this.backend.addItem(line.thing.item, line.quantity);
       count += line.quantity;
     }
     SoundEngine.getInstance().playTransactionSuccess();
-    showGameToast(`Your ${from} rider has arrived. Paid ₦${order.total.toLocaleString()}; ${count} item${count === 1 ? ' is' : 's are'} in your bag.`, 'success', 4600);
+    showGameToast(chilled
+      ? `Your ${from} rider has arrived. Paid ₦${order.total.toLocaleString()}; the food is in your fridge${count > chilled ? ', the rest in your bag' : ''}.`
+      : `Your ${from} rider has arrived. Paid ₦${order.total.toLocaleString()}; ${count} item${count === 1 ? ' is' : 's are'} in your bag.`, 'success', 4600);
     this.changed();
   }
 

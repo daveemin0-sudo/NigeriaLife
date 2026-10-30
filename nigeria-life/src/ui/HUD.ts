@@ -108,6 +108,8 @@ export class HUD {
   public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
   /** Plays a trip to a place in a vehicle, then `arrived`; false if it cannot be played (set by the game) */
   public onJourney?: (dest: DestinationDefinition, transport: TransportOption, arrived: () => void) => boolean;
+  /** Directions on the road to a place, for driving there yourself (set by the game); false if it cannot be done */
+  public onDriveTo?: (name: string, at: THREE.Vector3) => boolean;
   /** Into another room of the building the player is in (up in a lift, through a room's door) */
   public onRideInterior?: (id: string, spawnAt: THREE.Vector3, spawnYaw: number) => void;
   /** Out of the room to a given point outside, not back the way the player came in */
@@ -973,6 +975,16 @@ export class HUD {
       }
       // Your own car: there has to be one
       if (transport.mode === 'car' && !this.onJourney) return false;
+      // At the wheel themselves: the way is shown on the road
+      if (transport.mode === 'drive') {
+        if (!this.onDriveTo?.(dest.name, targetPos)) return false;
+        this.currentNavMode = 'street';
+        updateNavActive('');
+        this.worldMapUI.close();
+        UIStateManager.getInstance().setMode(this.player.isDriving ? 'driving' : 'street');
+        this.onNavigateMode?.('street');
+        return true;
+      }
 
       // 1. If transport requires fare, deduct cash from wallet
       if (transport.fare > 0) {
@@ -1730,7 +1742,7 @@ export class HUD {
       btnEl.textContent = '🚿 Take a bucket bath';
       this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-fridge') {
-      btnEl.textContent = '🧊 Eat something from your bag';
+      btnEl.textContent = '🧊 Open the fridge';
       this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-sofa') {
       btnEl.textContent = '🛋️ Relax on Living Room Sofa (Energy +30%)';

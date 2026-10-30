@@ -65,6 +65,8 @@ export class WorldMapUI {
   public onTravelWithTransport?: (dest: DestinationDefinition, transport: TransportOption, enterInside: boolean) => boolean;
   /** The player's own car as a way there, when they have one (free, their driver at the wheel) */
   public ownOption?: (dest: DestinationDefinition) => TransportOption | null;
+  /** Driving there themselves, with arrows on the road, when they have a car or are in one */
+  public driveOption?: (dest: DestinationDefinition) => TransportOption | null;
   public onPropertyUpdated?: (propertyId: string) => void;
   public onInterstateTravel?: (destCityId: string) => void;
   public onSelectDistrictFromChips?: (districtId: string) => void;
@@ -736,8 +738,9 @@ export class WorldMapUI {
       if (actions) {
         // The ways there: on foot first, then the player's own car with their driver, then what can be paid for
         const own = this.ownOption?.(canonicalDest) ?? null;
+        const drive = this.driveOption?.(canonicalDest) ?? null;
         const listed = canonicalDest.transportAvailability.filter((t) => t.mode !== 'car');
-        const options = [...listed.filter((t) => t.mode === 'walk'), ...(own ? [own] : []), ...listed.filter((t) => t.mode !== 'walk')];
+        const options = [...listed.filter((t) => t.mode === 'walk'), ...(drive ? [drive] : []), ...(own ? [own] : []), ...listed.filter((t) => t.mode !== 'walk')];
         actions.innerHTML = `
           <div class="sheet-label">What you can do here</div>
           <div class="sheet-chips">
@@ -771,7 +774,7 @@ export class WorldMapUI {
         const choose = (t: TransportOption) => {
           chosen = t;
           tiles.forEach((tile) => tile.classList.toggle('selected', tile.dataset.mode === t.mode));
-          goBtn.textContent = t.mode === 'walk' ? 'Walk there · Free' : t.mode === 'car' ? `Go in ${t.label.replace(/^Your /, 'your ')} · Free` : `Go by ${t.label} · ₦${t.fare.toLocaleString()}`;
+          goBtn.textContent = t.mode === 'walk' ? 'Walk there · Free' : t.mode === 'drive' ? 'Drive there · the way shown on the road' : t.mode === 'car' ? `Go in ${t.label.replace(/^Your /, 'your ')} · Free` : `Go by ${t.label} · ₦${t.fare.toLocaleString()}`;
         };
         tiles.forEach((tile) => {
           tile.addEventListener('click', () => {

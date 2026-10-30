@@ -71,10 +71,12 @@ export async function run(browser, check) {
   });
   if (stove) {
     await useCard(page, stove, 'Cook Party Jollof');
-    await advance(page, 1);
+    // Cooked at the stove a while, then eaten there
+    await playUntil(page, () => (window.game.player.actor.pose.arms === 'reach' ? true : null), 20);
+    await playUntil(page, () => (window.game.player.actor.sequence ? null : true), 30);
   }
   const fed = await stat(page, 'hunger');
-  check('needs: cooking Party Jollof at home fills the hunger bar up, not down', !!stove && fed >= 75, { stove, fed });
+  check('needs: cooking Party Jollof at home is done at the stove, eaten, and fills the hunger bar up, not down', !!stove && fed >= 75, { stove, fed });
   await page.evaluate(() => { const g = window.game; return g.world.interiorManager.exitCurrentInterior(g.player, g.cameraManager, g.hud, g.world); });
   await wait(1200);
 

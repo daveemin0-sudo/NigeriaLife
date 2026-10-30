@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { RouteGuide } from '../world/RouteGuide';
+import { Fridge } from '../housing/Fridge';
 import * as LudoRules from '../games/Ludo';
 import { Worship } from '../interiors/places/Worship';
 import { HotelStay, HotelState } from '../interiors/places/Hotel';
@@ -147,6 +149,8 @@ export class Game {
   public chatBox: ChatBox;
   public postProcessing: PostProcessingManager;
   public photoMode: PhotoModeModal;
+  /** Directions on the road when driving yourself somewhere */
+  public readonly routeGuide = new RouteGuide();
   /** The View button and its sheet: the ways to look, turning, a photo, a clean screen */
   public viewPicker!: ViewPicker;
   public bukaUI!: BukaOrderUI;
@@ -176,7 +180,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -669,11 +673,9 @@ export class Game {
       if (objectId === 'flat-bed') homeLife.sleep();
       else if (objectId === 'flat-tv') homeLife.watchTv();
       else if (objectId === 'flat-drum') homeLife.bathe();
-      else if (objectId === 'flat-fridge') {
-        const ate = homeLife.eatFromFridge();
-        if (!ate.ok && ate.reason) showGameToast(ate.reason, 'warning', 3600);
-      }
+      else if (objectId === 'flat-fridge') this.openFridge();
     };
+    DeliveryService.atHome = () => this.world.interiorManager.currentInterior?.type === 'residence';
 
     // 9f. On-screen shortcuts to everything inside the current building
     this.placeCard = new PlaceCard({
@@ -919,6 +921,13 @@ export class Game {
         if (!blocked) showGameToast('Your vehicle is at the kerb.', 'success', 3200);
         return blocked;
       },
+      canDrive: () => this.player.isDriving || !!this.ownedVehicles.ownCar(),
+      driveTo: (destinationId) => {
+        const d = DestinationRegistry.getInstance().getById(destinationId);
+        if (!d) return 'That place is not on the map.';
+        this.hud.phoneModal.close();
+        return this.driveTo(d.name, d.streetPosition) ? null : 'There is no way there by road from here.';
+      },
       trainInfo: () => {
         if (cityId() !== 'lagos') return null;
         const line = this.world.expressway.redLine;
@@ -1147,7 +1156,8 @@ export class Game {
     let toldAt = 0;
     this.player.mayNotStep = (fromX, fromZ, toX, toZ) => {
       if (this.player.isDriving || this.world.cityManager.currentCityId !== 'lagos' || this.world.interiorManager.isPlayerInside()) return false;
-      const barred = (x: number, z: number) => NO_CROSSING.some((r) => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ);
+      // Half a metre of grace at the edges: the way found along the crossing keeps to it within a cell
+      const barred = (x: number, z: number) => NO_CROSSING.some((r) => x > r.minX + 0.5 && x < r.maxX - 0.5 && z > r.minZ + 0.5 && z < r.maxZ - 0.5);
       if (!barred(toX, toZ) || barred(fromX, fromZ)) return false;
       if (performance.now() - toldAt > 4000) {
         toldAt = performance.now();
@@ -1229,6 +1239,13 @@ export class Game {
     RideService.ownCar = () => this.ownedVehicles.ownCar();
     this.hud.worldMapUI.ownOption = (dest) => RideService.ownOption(dest);
     this.hud.onJourney = (dest, transport, arrived) => this.rides.journey(dest, transport, arrived);
+    // Driving yourself: the way along the streets drawn on the road
+    this.scene.add(this.routeGuide.group);
+    this.routeGuide.onArrived = (name) => showGameToast(`🏁 You have arrived at ${name}.`, 'success', 4200);
+    this.hud.worldMapUI.driveOption = () => (this.player.isDriving || this.ownedVehicles.ownCar()
+      ? { mode: 'drive', label: 'Drive yourself', icon: '🧭', fare: 0, travelTimeSec: 60, description: 'You at the wheel; arrows on the road show the way' }
+      : null);
+    this.hud.onDriveTo = (name, at) => this.driveTo(name, at);
     // Out of a house of their own by its own front door, onto its own street
     this.world.interiorManager.homeFront = () => {
       const plotId = this.currentHome();
@@ -1371,6 +1388,59 @@ export class Game {
   private homeNow: string | null = null;
 
   /** The home they go into now: the one they chose if it is still theirs, else the flat, else a house they built */
+  /**
+   * Directions to drive yourself somewhere: from the car if the player is in it, else their own
+   * car is brought to the kerb and the arrows start from there. False if there is no way by road.
+   */
+  public driveTo(name: string, at: THREE.Vector3): boolean {
+    const roads = () => DrivableVehicle.roads?.() ?? null;
+    if (!this.player.isDriving) {
+      const car = this.ownedVehicles.ownCar();
+      if (!car) {
+        showGameToast('You need a car of your own to drive there. Buy one in the Garage app.', 'warning', 3600);
+        return false;
+      }
+      const blocked = this.ownedVehicles.bringRound(car.id);
+      this.ownedVehicles.sync();
+      if (blocked && !/driving it/.test(blocked)) {
+        showGameToast(blocked, 'warning', 3600);
+        return false;
+      }
+      showGameToast(`🚗 Your ${car.name} is at the kerb. Get in and follow the arrows on the road.`, 'success', 4200);
+    }
+    const from = this.player.isDriving && this.player.currentVehicle ? this.player.currentVehicle.mesh.position : this.player.position;
+    if (!this.routeGuide.start(roads, from, { x: at.x, z: at.z }, name)) {
+      showGameToast(`No way to ${name} by road from here.`, 'warning', 3200);
+      return false;
+    }
+    return true;
+  }
+
+  /** The fridge at home: what is in it to take out and eat, stocking it from the bag, ordering more */
+  private openFridge(): void {
+    const homeLife = this.world.interiorManager.residence.life;
+    const fridge = Fridge.get();
+    const inside = fridge.contents();
+    const bag = fridge.inBag();
+    const inBag = bag.reduce((n, i) => n + i.quantity, 0);
+    const eat = (id?: string) => {
+      const ate = homeLife.eatFromFridge(id);
+      if (!ate.ok && ate.reason) showGameToast(ate.reason, 'warning', 3600);
+    };
+    this.hud.showDialogueModal({
+      speakerName: 'Your fridge',
+      speakerRole: inside.length ? `${fridge.count()} thing${fridge.count() === 1 ? '' : 's'} inside` : 'Empty',
+      speakerAvatar: '🧊',
+      dialogueText: inside.length ? 'What will you eat? Take it out, sit down on the sofa and eat it.' : inBag ? 'Nothing in it yet. Put the food from your bag in, or order groceries: delivered here, they go straight in.' : 'Nothing in it yet. Order groceries on your phone: delivered here, they go straight into the fridge.',
+      choices: [
+        ...inside.map((item) => ({ id: `fridge-${item.id}`, label: `${item.icon} ${item.name}`, badge: `×${item.quantity}`, onSelect: () => eat(item.id) })),
+        ...(inBag ? [{ id: 'fridge-stock', label: '🧺 Put the food from your bag in the fridge', badge: `${inBag}`, onSelect: () => { const n = fridge.stockFromBag(); showGameToast(`🧊 ${n} thing${n === 1 ? '' : 's'} into the fridge.`, 'success', 2800); } }] : []),
+        { id: 'fridge-order', label: '🛒 Order groceries', onSelect: () => { this.hud.phoneModal.open(); this.hud.phoneModal.openApp('shopping'); } },
+        { id: 'fridge-close', label: 'Close the fridge', onSelect: () => undefined },
+      ],
+    });
+  }
+
   /** The flat or house the player lives in: one they own before one they rent, then the bigger, then the dearer */
   private mainHome() {
     const data = BackendService.getInstance().getData();
@@ -1793,6 +1863,12 @@ export class Game {
     const solids = this.solidsHere();
     if (!solids) return null;
     const city = this.world.cityManager.currentCityId;
+    // A car left standing somewhere new (one the player drove and parked) changes the ways round it
+    const standing = city === 'lagos' ? this.standingCars().map((car) => `${Math.round(car.x)},${Math.round(car.z)}`).join(';') : '';
+    if (standing !== this.carsStanding) {
+      this.carsStanding = standing;
+      this.waysByCity.delete('lagos');
+    }
     let ways = this.waysByCity.get(city);
     if (!ways) {
       ways = new Wayfinder(city === 'lagos' ? new Solids([...this.standingIn(city), ...this.world.streetLamps(), ...this.parkedCars()]) : solids, zonesFor(city), city === 'lagos' ? NO_CROSSING : []);
@@ -1801,12 +1877,22 @@ export class Game {
     return ways;
   }
 
+  private carsStanding = '';
+
+  /** The cars that can be driven, standing in Lagos with nobody at the wheel */
+  private standingCars(): CarBody[] {
+    return this.world.vehicles.drivableVehicles
+      .filter((v) => v.city === 'lagos' && !v.driver)
+      .map((v) => ({ ...bodyOf(v.mesh, { x: 0, z: 0, yaw: 0, halfWidth: 0, halfLength: 0 }) }));
+  }
+
   /** Cars that are parked for good in Lagos, as rectangles on the ground: walks are planned round them */
   private parkedCars(): Obstruction[] {
     const cars: CarBody[] = [];
     this.world.trafficSpawner.cars(0, 0, 1000, cars);
     const parked = cars.filter((car) => car.parked).map((car) => ({ ...car }));
     for (const group of this.world.vehicles.parkedVehicles) parked.push({ ...bodyOf(group, { x: 0, z: 0, yaw: 0, halfWidth: 0, halfLength: 0 }) });
+    parked.push(...this.standingCars());
     return parked.map((car, index) => {
       const c = Math.abs(Math.cos(car.yaw));
       const s = Math.abs(Math.sin(car.yaw));
@@ -2344,6 +2430,12 @@ export class Game {
     this.flightExperience.update(delta);
     this.trackFlight();
     this.roadRideExperience.update(delta);
+    // The arrows on the road for the stretch ahead (hidden indoors and on a ride)
+    if (this.routeGuide.active) {
+      const outside = !this.world.interiorManager.isPlayerInside() && this.whereabouts() !== 'transit';
+      this.routeGuide.group.visible = outside;
+      if (outside) this.routeGuide.update(delta, this.player.isDriving && this.player.currentVehicle ? this.player.currentVehicle.mesh.position : this.player.position);
+    }
 
     // Update World (Vehicles, Traffic, NPCs, Weather, Districts) with keys & player position
     // The sound of the street around the player: crowd, traffic, horns and voices

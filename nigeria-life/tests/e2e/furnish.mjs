@@ -206,19 +206,19 @@ export async function run(browser, check) {
   await choose(page, 'Move it');
   await wait(300);
   let moving = await decor(page);
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(-2, 3.5));
+  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(-4.5, 3.5));
   const before = await money(page);
   await pressSteady(page, '#furnish-bar-confirm');
   await wait(300);
   state = await decor(page);
   const moved = state.placed.find((item) => item.uid === sofa.uid);
-  check('a piece already owned is picked up and put somewhere else for nothing', moving.placing?.moving === true && /Put it here/.test((await bar(page))?.button ?? 'Put it here') && moved.x === -2 && moved.z === 3.5 && moved.shown && (await money(page)).total === before.total, { moving: moving.placing, moved });
+  check('a piece already owned is picked up and put somewhere else for nothing', moving.placing?.moving === true && /Put it here/.test((await bar(page))?.button ?? 'Put it here') && moved.x === -4.5 && moved.z === 3.5 && moved.shown && (await money(page)).total === before.total, { moving: moving.placing, moved });
 
   // Walking goes round furniture: where the sofa stands cannot be stood on, and where it stood can
   const floor = await page.evaluate(() => {
     const home = window.game.world.interiorManager.residence;
     const o = home.group.position;
-    return { underSofa: home.life.nav.isFree(o.x - 2, o.z + 3.5), whereItWas: home.life.nav.isFree(o.x - 1.75, o.z + 1.5) };
+    return { underSofa: home.life.nav.isFree(o.x - 4.5, o.z + 3.5), whereItWas: home.life.nav.isFree(o.x - 1.75, o.z + 1.5) };
   });
   check('people walk round it where it stands now, and across the floor where it used to stand', !floor.underSofa && floor.whereItWas, floor);
 
@@ -261,7 +261,7 @@ export async function run(browser, check) {
   // Somewhere in the living room with room for it
   const spot = await page.evaluate(() => {
     const d = window.game.modules.HouseDecorationSystem.getInstance();
-    for (const [x, z] of [[0.5, 1.8], [-3.2, 1.6], [0.5, 3], [-0.5, 1.6]]) {
+    for (const [x, z] of [[-5.5, 6.4], [-6, 1.8], [-2, 2.2], [-1.5, 3], [0.5, 1.8], [-3.2, 1.6]]) {
       d.moveTo(x, z);
       if (d.blocked() === null) return { x, z };
     }
