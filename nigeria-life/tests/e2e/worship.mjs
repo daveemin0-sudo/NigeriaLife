@@ -78,8 +78,15 @@ export async function run(browser, check) {
   check('worship: the screens say what part of the service it is', praise.screens.every((s) => s.length === 1 && s[0] === 'praise'), praise.screens);
 
   await skip(page, 'faith-arena', 'sermon');
-  await play(page, 8);
+  // The church's answers last a moment each: gather them while the sermon goes on
+  const answered = new Set();
+  for (let t = 0; t < 8; t += 0.5) {
+    await advance(page, 0.5);
+    await wait(15);
+    for (const w of (await state(page, 'faith-arena')).said) answered.add(w);
+  }
   const sermon = await state(page, 'faith-arena');
+  sermon.said = [...answered];
   const pastorBubble = await page.evaluate(() => { let t = null; window.game.world.interiorManager.places.find((pl) => pl.def.id === 'interior_place_faith-arena').group.traverse((o) => { if (o.isSprite && o.parent?.name === 'worship Pastor Ade') t = true; }); return t; });
   check('worship: at the sermon the church sits; the pastor walks to the front of the stage and preaches with the microphone, and people in the pews answer him',
     sermon.phase === 'sermon' && sermon.crowd.sit === 60 && Math.abs(sermon.pastor.at[1] + 8.7) < 0.3 && Math.abs(sermon.pastor.at[0]) <= 3.05 && (sermon.pastor.walking || sermon.pastor.pose.arms === 'preach') && sermon.said.length > 0,

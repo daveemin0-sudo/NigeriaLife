@@ -13,7 +13,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const LEASE_MS = 5000;
+/** How long one player may hold the registry while their change is made (a slow phone needs a while) */
+const LEASE_MS = 15000;
 const WAIT_MS = 15000;
 
 type Reply = (res: http.ServerResponse, status: number, body: unknown) => void;

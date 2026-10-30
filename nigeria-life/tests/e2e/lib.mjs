@@ -48,7 +48,10 @@ export async function open(ctx, opts = {}) {
   await page.setViewport({ width: opts.w || 1366, height: opts.h || 768 });
   const log = { errors: [] };
   page.on('pageerror', (e) => log.errors.push('PAGEERR ' + e.message.slice(0, 240)));
-  page.on('console', (m) => { if (m.type() === 'error') log.errors.push('CONSOLE ' + m.text().slice(0, 240)); });
+  // A request the server refused (409) says why, next to the console's error for it
+  page.on('response', async (r) => { if (r.status() === 409) { try { log.errors.push(`REFUSED ${r.url().slice(0, 120)}: ${(await r.text()).slice(0, 200)}`); } catch { /* gone */ } } });
+  // A resource that failed says which, so a refused request can be traced
+  page.on('console', (m) => { if (m.type() === 'error') log.errors.push('CONSOLE ' + m.text().slice(0, 240) + (m.location()?.url && /Failed to load resource/.test(m.text()) ? ` [${m.location().url.slice(0, 160)}]` : '')); });
   // The daily hustle, the ladder and the album pay nothing under a test browser unless a suite asks
   if (opts.life) await page.evaluateOnNewDocument(() => { window.__lifeOn = true; });
   // The game keeps Lagos time. Run at night, every shop on the street would be shut, so a

@@ -316,7 +316,7 @@ export class Registry {
   }
 
   /** The same, with the server holding the lock and the document. */
-  private async transactOnServer<T>(change: (state: RegistryState) => T): Promise<T> {
+  private async transactOnServer<T>(change: (state: RegistryState) => T, retried = false): Promise<T> {
     const link = this.link!;
     let granted: { token: string; text: string };
     try {
@@ -348,6 +348,8 @@ export class Registry {
     } catch (error) {
       // The server never took the change: put this player's account back as it was
       undo();
+      // A slow phone let the lock run out before its change arrived: once more, with a fresh lock
+      if (!retried && error instanceof RefusedByServer && error.status === 409 && /took too long/.test(error.message)) return this.transactOnServer(change, true);
       Registry.onRefused?.();
       if (error instanceof RefusedByServer && error.status === 409 && !/took too long/.test(error.message)) return { ok: false, reason: error.message } as T;
       return OFFLINE as T;

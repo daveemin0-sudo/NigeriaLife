@@ -625,6 +625,8 @@ export async function run(browser, check) {
 
   // Drive it: get in, go up the road, get out
   await a.evaluate((id) => { const g = window.game; const v = g.world.vehicles.drivableVehicles.find((x) => x.id === `veh-own-${id}`); g.enterVehicle(v); }, car.record.id);
+  // The keyboard only reaches the tab in front
+  await a.bringToFront();
   await a.keyboard.down('w');
   await advance(a, 4);
   await a.keyboard.up('w');

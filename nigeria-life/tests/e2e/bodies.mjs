@@ -99,7 +99,13 @@ export async function run(browser, check) {
     const g = window.game;
     const crowd = g.world.cityPopulation;
     const solids = g.solidsHere();
-    const i = crowd.agents.findIndex((a) => a.stop !== undefined && !a.away && a.mode === 'idle');
+    // Someone who is out at this hour (the rest are at home, not drawn and not in the way)
+    const near = [];
+    const i = crowd.agents.findIndex((a) => {
+      if (a.stop === undefined || a.away || a.mode !== 'idle') return false;
+      crowd.people(a.x, a.z, 0.6, near);
+      return near.some((b) => Math.hypot(b.x - (a.x + (a.ox ?? 0)), b.z - (a.z + (a.oz ?? 0))) < 0.01);
+    });
     if (i < 0) return null;
     const a = crowd.agents[i];
     for (const [dx, dz] of [[0, 3], [0, -3], [3, 0], [-3, 0]]) if (!solids.at(a.x + dx, a.z + dz, 0.5)) return { i, x: a.x, z: a.z, from: { x: a.x + dx, z: a.z + dz } };
@@ -119,12 +125,12 @@ export async function run(browser, check) {
     let nearest = Infinity;
     for (let i = 0; i < 25; i++) {
       await wait(100);
-      const d = await page.evaluate(() => {
+      const d = await page.evaluate((i) => {
         const g = window.game;
-        const out = [];
-        g.world.cityPopulation.people(g.player.position.x, g.player.position.z, 3, out);
-        return Math.min(9, ...out.map((p) => Math.hypot(p.x - g.player.position.x, p.z - g.player.position.z)));
-      });
+        // The one being walked into: someone else walking past brushing by is the next check's business
+        const a = g.world.cityPopulation.agents[i];
+        return Math.hypot(a.x + (a.ox ?? 0) - g.player.position.x, a.z + (a.oz ?? 0) - g.player.position.z);
+      }, queuer.i);
       nearest = Math.min(nearest, d);
     }
     check('bodies: walking into someone at the bus stop: the player never goes through them (stays 0.45 m or more from everyone)', nearest >= 0.45, { nearest: +nearest.toFixed(2) });

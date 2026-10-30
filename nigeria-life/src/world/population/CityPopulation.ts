@@ -595,6 +595,16 @@ export class CityPopulation {
     const step = 2.6 * delta;
     a.ox = ox + THREE.MathUtils.clamp(tx - ox, -step, step);
     a.oz = oz + THREE.MathUtils.clamp(tz - oz, -step, step);
+    // Leaning out of the way never swings them into the one they are making room for
+    for (const o of this.avoid) {
+      const bx = a.x + a.ox - o.x;
+      const bz = a.z + a.oz - o.z;
+      const d = Math.hypot(bx, bz);
+      const gap = o.r + 0.3;
+      if (d >= gap || d < 1e-3) continue;
+      a.ox += (bx / d) * (gap - d);
+      a.oz += (bz / d) * (gap - d);
+    }
     if (Math.abs(a.ox) < 1e-3 && Math.abs(a.oz) < 1e-3 && !(a.ft && a.ft > 0)) a.ox = a.oz = 0;
   }
 

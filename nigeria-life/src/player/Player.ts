@@ -470,8 +470,11 @@ export class Player {
 
       const arriveTolerance = 0.15;
       if (distance <= arriveTolerance) {
+        const from = this.mesh.position.clone();
         this.mesh.position.x = this.targetPosition.x;
         this.mesh.position.z = this.targetPosition.z;
+        // The last little step is a step like any other: not into someone standing on the spot
+        if (!this.onBridge) this.stayOnTheWay(from);
         this.endWalk();
       } else {
         // Rotate smoothly

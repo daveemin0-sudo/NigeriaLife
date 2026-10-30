@@ -249,7 +249,8 @@ export class Garage {
       const record = state.vehicles[id];
       if (!record || state.titles[assetKey({ kind: 'vehicle', id })]?.ownerId !== MY_ID) return;
       record.mileage = Math.round((record.mileage + kilometres) * 10) / 10;
-      record.condition = Math.max(20, Math.round((record.condition - kilometres * 0.2) * 10) / 10);
+      // To the hundredth, so a short trip still wears the car a little
+      record.condition = Math.max(20, Math.round((record.condition - kilometres * 0.2) * 100) / 100);
       if (parkedAt) record.parkedAt = { x: Math.round(parkedAt.x * 10) / 10, z: Math.round(parkedAt.z * 10) / 10, yaw: Math.round(parkedAt.yaw * 100) / 100, city: parkedAt.city ?? 'lagos' };
     });
   }
