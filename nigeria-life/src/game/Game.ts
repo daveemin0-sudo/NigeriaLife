@@ -57,7 +57,10 @@ import { carryToServer, type Carried } from '../realestate/Carry';
 import { VehicleSync } from '../multiplayer/VehicleSync';
 import { ServerLink } from '../realestate/ServerLink';
 import { OwnedVehicles } from '../realestate/OwnedVehicles';
-import { PlotWorld } from '../realestate/PlotWorld';
+import { PlotWorld, frontOf, towardStreet } from '../realestate/PlotWorld';
+import { briefOf, briefOfBuilding } from '../housing/HomePlan';
+import { STATIONS as RED_LINE, fareBetween } from '../world/expressway/RedLine';
+import type { DestinationDefinition, TransportOption } from '../destinations/DestinationTypes';
 import { AssetMarket } from '../realestate/AssetMarket';
 import { Registry } from '../realestate/Registry';
 import { zonesFor, grow, intersection, obstructionsUnder, validatePlan, type Rect, type Obstruction, type Violation } from '../world/plan/CityPlan';
@@ -916,6 +919,49 @@ export class Game {
         if (!blocked) showGameToast('Your vehicle is at the kerb.', 'success', 3200);
         return blocked;
       },
+      trainInfo: () => {
+        if (cityId() !== 'lagos') return null;
+        const line = this.world.expressway.redLine;
+        const near = line.nearest(this.player.mesh.position);
+        return {
+          from: near.index,
+          fromName: RED_LINE[near.index].name,
+          far: near.metres > 60,
+          metres: near.metres,
+          stations: RED_LINE.map((st, i) => ({ name: st.name, fare: fareBetween(near.index, i), stops: Math.abs(i - near.index), nextMin: i === near.index ? 0 : Math.max(1, Math.ceil(line.nextAt(near.index, i > near.index ? 1 : -1) / 60)) })),
+        };
+      },
+      takeTrain: (to) => {
+        if (cityId() !== 'lagos') return 'The Red Line is in Lagos.';
+        if (this.whereabouts() !== 'street') return 'Step outside first: the train leaves from the station on the street.';
+        const line = this.world.expressway.redLine;
+        const near = line.nearest(this.player.mesh.position);
+        if (to === near.index || !RED_LINE[to]) return `You are at ${RED_LINE[near.index].name} already.`;
+        const ride = () => this.hud.withPlaceHost((host) => line.take(host, near.index, to, near.side));
+        this.hud.phoneModal.close();
+        if (near.metres <= 60) {
+          ride();
+          return null;
+        }
+        // Far from the line: a keke to the nearest station's gate first, then the train from there
+        const fare = 500;
+        const station = RED_LINE[near.index].name;
+        if (!BackendService.getInstance().pay(fare, `Keke to ${station} station`, 'TRAVEL_COST')) return `A keke to ${station} station is ₦${fare.toLocaleString()}, and you do not have it.`;
+        const gate = line.gate(near.index, near.side);
+        const destination = { name: `${station} station`, streetPosition: gate } as unknown as DestinationDefinition;
+        const keke = { mode: 'keke', label: 'Keke to the station', icon: '🛺', fare, travelTimeSec: 60, description: '' } as TransportOption;
+        this.rides.journey(destination, keke, () => {
+          // Set down a few steps from the gate, facing it, then on to the train
+          this.player.stopMoving();
+          this.player.mesh.position.set(gate.x, 0, gate.z - 3);
+          this.player.position.copy(this.player.mesh.position);
+          this.player.mesh.rotation.y = 0;
+          this.cameraManager.snapToPlayer(this.player, 'street');
+          showGameToast(`🛺 At ${station} station. Tap your card at the gate.`, 'success', 3200);
+          ride();
+        });
+        return null;
+      },
     };
 
     this.rides.connect({
@@ -931,6 +977,7 @@ export class Game {
           trafficCondition: 'Go-slow',
           weatherCondition: 'Sunny',
           destinationCityId: cityId(),
+          car: vehicle.mode === 'car' ? RideService.ownCar() ?? undefined : undefined,
         };
         this.onJourneyCompleted = arrived;
         this.hud.phoneModal.close();
@@ -1178,6 +1225,19 @@ export class Game {
       return standardOf(data.properties, data.id, false);
     };
     ResidentialInterior.carsOwned = () => this.ownedVehicles.myModels();
+    // Your own car, your driver at the wheel: a ride that costs nothing
+    RideService.ownCar = () => this.ownedVehicles.ownCar();
+    this.hud.worldMapUI.ownOption = (dest) => RideService.ownOption(dest);
+    this.hud.onJourney = (dest, transport, arrived) => this.rides.journey(dest, transport, arrived);
+    // Out of a house of their own by its own front door, onto its own street
+    this.world.interiorManager.homeFront = () => {
+      const plotId = this.currentHome();
+      const plot = plotId === 'main' ? null : this.land.plot(plotId);
+      if (!plot || plot.city !== this.world.cityManager.currentCityId) return null;
+      const front = frontOf(plot);
+      const { dx, dz } = towardStreet(plot);
+      return { inside: front.clone().add(new THREE.Vector3(-dx * 0.4, 0, -dz * 0.4)), outside: front.clone().add(new THREE.Vector3(dx * 1.6, 0, dz * 1.6)) };
+    };
     ResidentialInterior.homeName = () => {
       const plotId = this.currentHome();
       if (plotId !== 'main') {
@@ -1185,10 +1245,16 @@ export class Game {
         const type = buildingType(this.land.building(plotId)?.typeId ?? '');
         return plot ? { name: `Your ${(type?.name ?? 'house').toLowerCase()} at ${plot.name}`, area: plot.neighbourhood } : null;
       }
-      const data = BackendService.getInstance().getData();
-      const home = data.properties.find((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business'].includes(String(p.type)));
+      const home = this.mainHome();
       return home ? { name: home.status === 'rented' ? `${home.name} (rented)` : home.name, area: home.location ?? '' } : null;
     };
+    // The plan of the home: a self-contain is one room, a five-bedroom has five bedrooms
+    ResidentialInterior.briefNow = () => {
+      const plotId = this.currentHome();
+      if (plotId !== 'main') return briefOfBuilding(this.land.building(plotId)?.typeId ?? '');
+      return briefOf(this.mainHome());
+    };
+    ResidentialInterior.onSettled = (message) => showGameToast(`📦 ${message}`, 'info', 7000);
     void this.assetMarket.introduce(this.player.config.name);
 
     // On a world server: bring along the land and vehicles owned in this browser
@@ -1305,6 +1371,14 @@ export class Game {
   private homeNow: string | null = null;
 
   /** The home they go into now: the one they chose if it is still theirs, else the flat, else a house they built */
+  /** The flat or house the player lives in: one they own before one they rent, then the bigger, then the dearer */
+  private mainHome() {
+    const data = BackendService.getInstance().getData();
+    const homes = data.properties.filter((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business', 'warehouse', 'land', 'commercial'].includes(String(p.type)));
+    homes.sort((a, b) => Number(b.status === 'owned') - Number(a.status === 'owned') || (b.bedrooms ?? 0) - (a.bedrooms ?? 0) || (b.purchasePrice ?? 0) - (a.purchasePrice ?? 0));
+    return homes[0] ?? null;
+  }
+
   private currentHome(): string {
     const data = BackendService.getInstance().getData();
     const hasFlat = data.properties.some((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business', 'warehouse', 'land'].includes(String(p.type)));

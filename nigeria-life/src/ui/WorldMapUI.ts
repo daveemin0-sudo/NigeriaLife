@@ -38,7 +38,7 @@ const CITY_LABEL: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', por
 
 /** How long a walk of so many metres takes at the pace the player walks */
 function walkingTime(metres: number): string {
-  const seconds = metres / 7.5;
+  const seconds = metres / 3.6;
   if (seconds < 55) return `${Math.max(5, Math.round(seconds / 5) * 5)} seconds`;
   const minutes = Math.round(seconds / 60);
   return `${minutes} minute${minutes === 1 ? '' : 's'}`;
@@ -63,6 +63,8 @@ export class WorldMapUI {
   public onTravelToProperty?: (property: MapProperty) => void;
   /** Returns false when the trip could not be paid for. `enterInside` continues through the door on arrival. */
   public onTravelWithTransport?: (dest: DestinationDefinition, transport: TransportOption, enterInside: boolean) => boolean;
+  /** The player's own car as a way there, when they have one (free, their driver at the wheel) */
+  public ownOption?: (dest: DestinationDefinition) => TransportOption | null;
   public onPropertyUpdated?: (propertyId: string) => void;
   public onInterstateTravel?: (destCityId: string) => void;
   public onSelectDistrictFromChips?: (districtId: string) => void;
@@ -732,8 +734,10 @@ export class WorldMapUI {
       if (desc) desc.textContent = canonicalDest.destinationDescription;
 
       if (actions) {
-        // Your own car is something you get into and drive: it is not a ride that can be called
-        const options = canonicalDest.transportAvailability.filter((t) => t.mode !== 'car');
+        // The ways there: on foot first, then the player's own car with their driver, then what can be paid for
+        const own = this.ownOption?.(canonicalDest) ?? null;
+        const listed = canonicalDest.transportAvailability.filter((t) => t.mode !== 'car');
+        const options = [...listed.filter((t) => t.mode === 'walk'), ...(own ? [own] : []), ...listed.filter((t) => t.mode !== 'walk')];
         actions.innerHTML = `
           <div class="sheet-label">What you can do here</div>
           <div class="sheet-chips">
@@ -767,7 +771,7 @@ export class WorldMapUI {
         const choose = (t: TransportOption) => {
           chosen = t;
           tiles.forEach((tile) => tile.classList.toggle('selected', tile.dataset.mode === t.mode));
-          goBtn.textContent = t.mode === 'walk' ? 'Walk there · Free' : `Go by ${t.label} · ₦${t.fare.toLocaleString()}`;
+          goBtn.textContent = t.mode === 'walk' ? 'Walk there · Free' : t.mode === 'car' ? `Go in ${t.label.replace(/^Your /, 'your ')} · Free` : `Go by ${t.label} · ₦${t.fare.toLocaleString()}`;
         };
         tiles.forEach((tile) => {
           tile.addEventListener('click', () => {

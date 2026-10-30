@@ -65,6 +65,20 @@ export class OwnedVehicles {
     });
   }
 
+  /** The player's dearest car (not an okada or a keke), for their driver to take them about in */
+  public ownCar(): { id: string; name: string; body: string; paint?: number } | null {
+    const state = Registry.get().peek();
+    const cars = Object.values(state.vehicles)
+      .filter((record) => this.garage.ownerOf(record.id) === MY_ID)
+      .map((record) => ({ record, model: vehicleModel(record.modelId) }))
+      .filter((entry) => !!entry.model && !['okada', 'keke', 'bike'].includes(String(entry.model.type)) && !!(entry.model.drive as { body?: string }).body)
+      .sort((a, b) => (b.model!.price ?? 0) - (a.model!.price ?? 0));
+    const best = cars[0];
+    if (!best) return null;
+    const drive = best.model!.drive as { body: string; paint?: number };
+    return { id: best.record.id, name: best.model!.name, body: drive.body, paint: drive.paint };
+  }
+
   /** Is this drivable one of the player's own, and if so which? */
   public vehicleIdOf(vehicle: DrivableVehicle | null): string | null {
     if (!vehicle) return null;

@@ -4,6 +4,7 @@ import { VendorUI } from './VendorUI';
 import { STREET_VENDORS } from '../world/StreetVendors';
 import { Player } from '../player/Player';
 import type { CityId } from '../cities/CityTypes';
+import type { DestinationDefinition, TransportOption } from '../destinations/DestinationTypes';
 import { CharacterCreatorModal } from './CharacterCreator';
 import { InventoryModal } from './InventoryModal';
 import { ATMModal } from './ATMModal';
@@ -105,6 +106,8 @@ export class HUD {
   public onRideTo?: (point: THREE.Vector3, name: string, fare: number) => void;
   public onEnterVehicle?: (vehicleId: string) => void;
   public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
+  /** Plays a trip to a place in a vehicle, then `arrived`; false if it cannot be played (set by the game) */
+  public onJourney?: (dest: DestinationDefinition, transport: TransportOption, arrived: () => void) => boolean;
   /** Into another room of the building the player is in (up in a lift, through a room's door) */
   public onRideInterior?: (id: string, spawnAt: THREE.Vector3, spawnYaw: number) => void;
   /** Out of the room to a given point outside, not back the way the player came in */
@@ -968,8 +971,8 @@ export class HUD {
         });
         return true;
       }
-      // Your own car is driven there, not summoned
-      if (transport.mode === 'car') return false;
+      // Your own car: there has to be one
+      if (transport.mode === 'car' && !this.onJourney) return false;
 
       // 1. If transport requires fare, deduct cash from wallet
       if (transport.fare > 0) {
@@ -997,21 +1000,24 @@ export class HUD {
       UIStateManager.getInstance().setMode('street');
       this.onNavigateMode?.('street');
 
-      // 3. Teleport player character right outside the destination entrance
-      this.player.mesh.position.copy(targetPos);
-      this.player.position.copy(targetPos);
-      this.player.mesh.rotation.y = 0;
-      this.player.stopMoving();
-
-      // 4. Update HUD location badge, then either walk straight in or wait at the door
-      this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
-      if (enterInside && dest.isEnterable) {
-        setTimeout(() => this.onEnterInterior?.(dest.interiorId), 50);
-      } else if (spot) {
-        this.showInteractionCard(spot);
-      } else {
-        this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}!${dest.isEnterable ? ' Press [E] to enter.' : ''}`);
-      }
+      // 3. Put down right outside the destination's entrance, then either walk straight in or wait at the door
+      const arrive = () => {
+        this.player.mesh.position.copy(targetPos);
+        this.player.position.copy(targetPos);
+        this.player.mesh.rotation.y = 0;
+        this.player.stopMoving();
+        this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
+        if (enterInside && dest.isEnterable) {
+          setTimeout(() => this.onEnterInterior?.(dest.interiorId), 50);
+        } else if (spot) {
+          this.showInteractionCard(spot);
+        } else {
+          this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}!${dest.isEnterable ? ' Press [E] to enter.' : ''}`);
+        }
+      };
+      // An okada, a keke, a cab or the player's own car is ridden there: the trip is played, then the arrival
+      if (['bike', 'keke', 'taxi', 'car'].includes(transport.mode) && this.onJourney?.(dest, transport, arrive)) return true;
+      arrive();
       return true;
     };
 
@@ -2243,6 +2249,11 @@ export class HUD {
   }
 
   /** What a place's own action is given to work with: the player, their money, the director, ways to speak and ask */
+  /** Does something with the helper a place's own actions are given (the train from its gate) */
+  public withPlaceHost(run: (host: PlaceHost) => void): void {
+    run(this.placeHost());
+  }
+
   private placeHost(): PlaceHost {
     return {
         actor: this.player.actor,

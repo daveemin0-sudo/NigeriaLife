@@ -8,6 +8,7 @@ const browser = await launch();
 async function shots(width, height, scale, mobile, name) {
   const ctx = await newPlayer(browser);
   const page = await ctx.newPage();
+  if (process.env.DARK) await page.evaluateOnNewDocument(() => localStorage.setItem('nl_theme_v1', 'dark'));
   await page.setViewport({ width, height, deviceScaleFactor: scale, isMobile: mobile, hasTouch: mobile });
   await page.goto(process.env.GAME_URL, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction('window.game', { timeout: 120000 });

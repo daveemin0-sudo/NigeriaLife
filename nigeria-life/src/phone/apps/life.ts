@@ -1,4 +1,5 @@
 import type { PhoneApp } from '../PhoneApp';
+import { theme, setTheme } from '../../ui/theme/Theme';
 import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
 import { Employment, EMPLOYERS, WORKSITES } from '../../jobs/Employment';
@@ -512,6 +513,16 @@ export const settingsApp: PhoneApp = {
     return {
       title: 'Settings',
       body: `
+        <div class="nl-section">Look</div>
+        <div class="nl-card" id="settings-look">
+          <div class="nl-card-title">Light or dark</div>
+          <div class="nl-card-line">The whole game: the bars, the cards, the map and this phone.</div>
+          <div class="lx-seg" role="radiogroup" style="--n:2;--i:${theme() === 'dark' ? 1 : 0};margin-top:8px">
+            <span class="lx-seg-thumb"></span>
+            <button type="button" role="radio" class="lx-seg-btn${theme() === 'light' ? ' is-on' : ''}" id="settings-theme-light" aria-checked="${theme() === 'light'}" data-act="theme-light">☀️ Light</button>
+            <button type="button" role="radio" class="lx-seg-btn${theme() === 'dark' ? ' is-on' : ''}" id="settings-theme-dark" aria-checked="${theme() === 'dark'}" data-act="theme-dark">🌙 Dark</button>
+          </div>
+        </div>
         <div class="nl-section">Sound</div>
         <div class="nl-list">
           ${row({ icon: '🔊', title: 'Game sound', sub: sound.isMuted ? 'Off' : 'On', trailing: toggle('settings-sound', !sound.isMuted, 'sound') })}
@@ -596,6 +607,11 @@ export const settingsApp: PhoneApp = {
   },
 
   async act(host, action) {
+    if (action === 'theme-light' || action === 'theme-dark') {
+      setTheme(action === 'theme-dark' ? 'dark' : 'light');
+      host.refresh();
+      return;
+    }
     const sound = SoundEngine.getInstance();
     if (action === 'sound') {
       sound.toggleMute();

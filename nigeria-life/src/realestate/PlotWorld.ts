@@ -57,7 +57,7 @@ function board(lines: string[], background: string, ink: string): THREE.Mesh {
 }
 
 /** Which way a plot's street is, as a step from the plot's centre. */
-function towardStreet(plot: Plot): { dx: number; dz: number } {
+export function towardStreet(plot: Plot): { dx: number; dz: number } {
   switch (plot.frontage) {
     case 'north': return { dx: 0, dz: -1 };
     case 'south': return { dx: 0, dz: 1 };
@@ -67,7 +67,7 @@ function towardStreet(plot: Plot): { dx: number; dz: number } {
 }
 
 /** The middle of the edge of a plot that is on its street. */
-function frontOf(plot: Plot): THREE.Vector3 {
+export function frontOf(plot: Plot): THREE.Vector3 {
   const { rect } = plot;
   const cx = (rect.minX + rect.maxX) / 2;
   const cz = (rect.minZ + rect.maxZ) / 2;

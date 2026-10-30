@@ -547,10 +547,12 @@ export class RoadRideExperience {
       this.vehicleGroup.add(this.street.group);
     }
     const kind = ride.vehicleType === 'bike' || ride.vehicleType === 'okada' ? 'okada' : ride.vehicleType === 'keke' ? 'keke' : ride.vehicleType === 'taxi' ? 'taxi' : 'car';
-    let vehicle = this.rides.get(kind);
+    // The player's own car is built as it is, in its own paint
+    const key = kind === 'car' && ride.car ? `own:${ride.car.body}:${ride.car.paint ?? ''}` : kind;
+    let vehicle = this.rides.get(key);
     if (!vehicle) {
-      vehicle = kind === 'okada' ? buildRideOkada() : kind === 'keke' ? buildRideKeke() : kind === 'taxi' ? buildRideCar('corolla_2008', undefined, true, 0) : buildRideCar('gwagon', 0x111214, false, 1);
-      this.rides.set(kind, vehicle);
+      vehicle = kind === 'okada' ? buildRideOkada() : kind === 'keke' ? buildRideKeke() : kind === 'taxi' ? buildRideCar('corolla_2008', undefined, true, 0) : ride.car ? buildRideCar(ride.car.body, ride.car.paint, false, 1) : buildRideCar('gwagon', 0x111214, false, 1);
+      this.rides.set(key, vehicle);
       this.vehicleGroup.add(vehicle.body);
     }
     for (const other of this.rides.values()) other.body.visible = other === vehicle;

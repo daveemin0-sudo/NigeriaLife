@@ -427,8 +427,10 @@ export class RedLine {
   public nextAt(station: number, heading: 1 | -1): number {
     const leg = LOOP.find((l) => l.station === station && l.heading === heading)!;
     let best = Infinity;
-    for (const t of this.trains) {
-      const now = (((this.clock + t.offset) % LOOP_SECONDS) + LOOP_SECONDS) % LOOP_SECONDS;
+    // The timetable is the same whether or not the trains have been drawn yet
+    const offsets = this.trains.length ? this.trains.map((t) => t.offset) : Array.from({ length: TRAINS }, (_, k) => (k * LOOP_SECONDS) / TRAINS);
+    for (const offset of offsets) {
+      const now = (((this.clock + offset) % LOOP_SECONDS) + LOOP_SECONDS) % LOOP_SECONDS;
       let wait = leg.t0 + 1.5 - now;
       if (wait < -(RUN.dwell - 5)) wait += LOOP_SECONDS;
       best = Math.min(best, Math.max(0, wait));
@@ -617,6 +619,30 @@ export class RedLine {
       actor.root.position.y = 0;
     });
     host.director.run(show);
+  }
+
+  /** Where the player stands at a station's gate, on one pavement or the other, to tap in */
+  public gate(index: number, side: -1 | 1): THREE.Vector3 {
+    const foot = stairFoot(STATIONS[index], side);
+    return new THREE.Vector3(foot.x, 0, foot.z - 1.6);
+  }
+
+  /** The station gate nearest a point, which pavement it is on, and how far it is */
+  public nearest(at: THREE.Vector3): { index: number; side: -1 | 1; metres: number } {
+    let best = { index: 0, side: -1 as -1 | 1, metres: Infinity };
+    STATIONS.forEach((_, index) => {
+      for (const side of [-1, 1] as const) {
+        const g = this.gate(index, side);
+        const metres = Math.hypot(g.x - at.x, g.z - at.z);
+        if (metres < best.metres) best = { index, side, metres };
+      }
+    });
+    return best;
+  }
+
+  /** The train from one station to another, from its gate: the same ride as tapping in there */
+  public take(host: PlaceHost, from: number, to: number, side: -1 | 1): void {
+    this.ride(host, from, to, side);
   }
 
   /** For the tests */

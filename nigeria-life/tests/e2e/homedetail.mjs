@@ -23,6 +23,8 @@ export async function run(browser, check) {
   await page.evaluate(async () => {
     const g = window.game;
     g.world.interiorManager.residence.constructor.standardNow = () => 'comfortable';
+    // A three-bedroom house: a parlour, a corridor, three bedrooms each with its bathroom, a carport
+    g.world.interiorManager.residence.constructor.briefNow = () => ({ kind: 'house', bedrooms: 3, carport: true });
     g.world.skyEnvironment.setHour(21);
     const b = g.hud.backend; b.data.bank.balance += 200_000_000; b.data.walletCash += 2_000_000; b.saveData();
     for (const id of ['okada', 'okada', 'okada']) await g.garage.buyNew(id);
@@ -44,27 +46,28 @@ export async function run(browser, check) {
     room.walls >= 6 && room.heights.length === 1 && room.heights[0] === 2.6 && closed.every((d) => d.shown && d.angle === 0) && room.pop && room.lights >= 4, { room, closed });
 
   // ------------------------------------------------------------------ A door opens as the player comes up, and closes behind them
-  await standAt(page, -8.6, 0.3);
+  const plan = await page.evaluate(() => { const p = window.game.world.interiorManager.residence.plan; const d = p.doors.find((x) => x.id === 'home_door_bedroom1'); return { door: { x: d.x, z: d.z }, spawn: p.spawn }; });
+  await standAt(page, plan.door.x, plan.door.z + 0.6);
   await advance(page, 1);
   const opened = (await doors(page))[0];
-  await standAt(page, -2, 5);
+  await standAt(page, plan.spawn.x, plan.spawn.z);
   await advance(page, 1.2);
   const shut = (await doors(page))[0];
   check('home: the bedroom door swings open as the player comes up to it, and closes again when they have gone', Math.abs(opened.angle) > 1.2 && Math.abs(shut.angle) < 0.15, { opened, shut });
 
   // ------------------------------------------------------------------ Through the doors: from the living room to the master bed
-  await standAt(page, -2, 6);
+  await standAt(page, plan.spawn.x, plan.spawn.z);
   await page.evaluate(() => { const g = window.game; const o = g.world.interactiveObjects.concat(g.world.interiorManager.getActiveInteractiveObjects()).find((x) => x.id === 'flat-bed'); g.hud.showInteractionCard(o); document.getElementById('card-action-btn')?.click(); });
   await wait(300);
   await page.evaluate(() => [...document.querySelectorAll('#game-dialogue-overlay button')].find((b) => /sleep|lie/i.test(b.textContent))?.click());
   let sawOpen = false;
   const lay = await playUntil(page, () => {
     const r = window.game.world.interiorManager.residence;
-    for (const id of ['home_door_bathroom', 'home_door_bedroom2']) { const l = r.group.getObjectByName(`home door ${id}`)?.getObjectByName('door_leaf'); if (l && Math.abs(l.rotation.y) > 1) window.__doorOpen = true; }
+    for (const id of ['home_door_bedroom1']) { const l = r.group.getObjectByName(`home door ${id}`)?.getObjectByName('door_leaf'); if (l && Math.abs(l.rotation.y) > 1) window.__doorOpen = true; }
     return window.game.player.actor.pose.legs === 'lie' ? true : null;
   }, 40);
   sawOpen = await page.evaluate(() => !!window.__doorOpen);
-  check('home: from the living room the player walks through the doors to the master bedroom and lies down on the bed, the doors opening on the way', !!lay && sawOpen, { lay, sawOpen });
+  check('home: from the parlour the player walks down the corridor and through the door to the master bedroom and lies down on the bed, the doors opening on the way', !!lay && sawOpen, { lay, sawOpen });
   await page.evaluate(() => window.game.player.actor.hold?.release(true));
   // Up from the bed and free again before doing anything else
   await playUntil(page, () => { const a = window.game.player.actor; return !a.sequence && !a.hold && !a.scripted ? true : null; }, 20);
@@ -90,9 +93,9 @@ export async function run(browser, check) {
     const r = window.game.world.interiorManager.residence;
     const port = r.group.getObjectByName('carport');
     const parked = r.carportCars.children.map((c) => +c.position.z.toFixed(1));
-    return { bays: !!port.getObjectByName('carport frame'), parked };
+    return { bays: !!port.getObjectByName('carport frame'), shown: port.visible, parked };
   });
-  check('home: the carport outside takes five cars side by side; the player\'s three are parked in three bays', carport.bays && carport.parked.length === 3 && new Set(carport.parked).size === 3, carport);
+  check('home: the carport outside takes five cars side by side; the player\'s three are parked in three bays', carport.bays && carport.shown && carport.parked.length === 3 && new Set(carport.parked).size === 3, carport);
 
   // ------------------------------------------------------------------ Doors in the catalogue
   const shop = await page.evaluate(() => {

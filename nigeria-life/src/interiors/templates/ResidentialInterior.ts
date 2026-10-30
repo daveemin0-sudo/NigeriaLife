@@ -18,6 +18,7 @@ import type { HomeStandard } from '../../housing/HomeStandard';
 import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
 import { roomDoor, DOOR_STYLES, type DoorStyle } from '../../housing/MoreFurniture';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
+import { planFor, briefOf, roomAt, type HomeBrief, type HomePlan, type Fixture } from '../../housing/HomePlan';
 
 /** A door in one of the home's own doorways */
 interface HomeDoor {
@@ -52,50 +53,6 @@ const CORE_WORDS: Record<string, { name: string; category: string; description: 
 };
 
 type Starter = { uid?: string; id: string; x: number; z: number; turns: number };
-const EVERY_HOME: Starter[] = [
-  { uid: 'home_fridge', id: 'double_door_fridge', x: -14.7, z: 10.6, turns: 1 },
-  { uid: 'home_drum', id: 'water_drum', x: 8.5, z: 0.5, turns: 3 },
-  { id: 'toilet_wc', x: 14, z: 1.5, turns: 3 },
-];
-/** What each kind of home came with, as the catalogue's own pieces where the built ones stood */
-const STARTERS: Record<HomeStandard, Starter[]> = {
-  basic: [
-    { uid: 'home_sofa', id: 'sofa2_brown', x: -7.6, z: 2.5, turns: 3 },
-    { uid: CORE_TV, id: 'tv_24', x: -15.2, z: 4, turns: 1 },
-    { uid: 'home_bed', id: 'double_bed_grey', x: 10.5, z: -6.5, turns: 0 },
-    { id: 'plastic_set', x: -8, z: 10, turns: 0 },
-    { id: 'lontor_fan', x: -11.5, z: 1.2, turns: 1 },
-    { id: 'kerosene_stove', x: -12.4, z: 11.4, turns: 1 },
-    ...EVERY_HOME,
-  ],
-  comfortable: [
-    { uid: 'home_sofa', id: 'sofa3_leather', x: -7.6, z: 2.5, turns: 3 },
-    { uid: CORE_TV, id: 'tv_43', x: -15.2, z: 4, turns: 1 },
-    { uid: 'home_bed', id: 'king_bed_purple', x: 10.5, z: -6.5, turns: 0 },
-    { id: 'double_bed_purple', x: -3, z: -7, turns: 0 },
-    { id: 'ankara_rug', x: -6, z: 5, turns: 0 },
-    { id: 'coffee_table', x: -6, z: 5, turns: 0 },
-    { id: 'dining_table_6', x: -8, z: 10, turns: 0 },
-    { id: 'majesty_palm', x: -0.5, z: 0.5, turns: 0 },
-    { id: 'bathtub', x: 9.5, z: 3, turns: 0 },
-    ...EVERY_HOME,
-  ],
-  luxury: [
-    { uid: 'home_sofa', id: 'sofa3_leather', x: -7.6, z: 2.5, turns: 3 },
-    { uid: CORE_TV, id: 'smart_tv_75', x: -15.4, z: 4, turns: 1 },
-    { id: 'emerald_sofa', x: -2, z: 6, turns: 2 },
-    { uid: 'home_bed', id: 'king_bed_purple', x: 10.5, z: -6.5, turns: 0 },
-    { id: 'double_bed_purple', x: -3, z: -7, turns: 0 },
-    { id: 'double_bed_blue', x: -12, z: -7, turns: 0 },
-    { id: 'ankara_rug', x: -6, z: 5, turns: 0 },
-    { id: 'coffee_table', x: -6, z: 5, turns: 0 },
-    { id: 'dining_table_6', x: -8, z: 10, turns: 0 },
-    { id: 'majesty_palm', x: -0.5, z: 0.5, turns: 0 },
-    { id: 'bathtub', x: 9.5, z: 3, turns: 0 },
-    { id: 'rain_shower', x: 13.5, z: 4.5, turns: 3 },
-    ...EVERY_HOME,
-  ],
-};
 
 export class ResidentialInterior {
   public group: THREE.Group;
@@ -141,6 +98,18 @@ export class ResidentialInterior {
   private room!: RoomForFurniture;
   /** The doors in the home's own doorways */
   private doors: HomeDoor[] = [];
+  /** What kind of home the player is coming into (set by the game): a self-contain, a room and parlour, so many bedrooms */
+  public static briefNow: (() => HomeBrief) | null = null;
+  /** The plan the home is built to now, and what was built for it */
+  public plan: HomePlan | null = null;
+  /** What was built for the plan, each its own piece of the room (so the camera can see past each one) */
+  private planParts: THREE.Object3D[] = [];
+  /** The cards of the fittings that are used (a toilet, a shower) */
+  private planCards: string[] = [];
+  private planSolids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
+  private exitDoor!: THREE.Group;
+  private exitCard!: InteractiveObject;
+  private carport!: THREE.Group;
   private readonly doorsKey = profileKey('nigeria_life_home_doors_v1');
 
   /** This only stands in homes of these standards */
@@ -167,8 +136,10 @@ export class ResidentialInterior {
   public onPlayerArriving(): void {
     // Each home its own furniture: a house just built comes in bare, for the player to furnish
     HouseDecorationSystem.getInstance().setHome(ResidentialInterior.homeId?.() ?? 'main');
+    this.applyPlan(planFor(ResidentialInterior.briefNow?.() ?? briefOf(null)));
     const standard = ResidentialInterior.standardNow?.() ?? this.standard;
     this.furnish(standard);
+    this.settleFurniture();
     const home = ResidentialInterior.homeName?.();
     this.def.name = home?.name ?? (standard === 'basic' ? 'Your room & parlour' : standard === 'comfortable' ? 'Your flat' : 'Your house');
     if (home?.area) this.def.districtName = home.area;
@@ -194,7 +165,7 @@ export class ResidentialInterior {
       }
       // Only the first home came furnished; a house the player builds is theirs to furnish
       if (!done && HouseDecorationSystem.getInstance().homeId === 'main') {
-        HouseDecorationSystem.getInstance().adopt(STARTERS[standard]);
+        HouseDecorationSystem.getInstance().adopt(this.startersFor(standard));
         try {
           localStorage.setItem(this.handedOverKey, '1');
         } catch {
@@ -792,109 +763,24 @@ export class ResidentialInterior {
   }
 
   private build3DInterior(): void {
-    // 1. Ceramic Tiled Floor with Grid Grout Lines
-    const floorGeo = new THREE.BoxGeometry(32, 0.4, 26);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9,
-      roughness: 0.25,
-    });
-    this.floorMat = floorMat;
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.name = 'interior_floor_mesh';
-    floor.position.set(0, -0.2, 0);
-    floor.receiveShadow = true;
-
-    // Warm Ochre / Mustard Yellow Walls (Screenshot 5)
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: 0xd97706, // Authentic Nigerian ochre wall paint
-      roughness: 0.7,
-    });
-    this.wallPaint = wallMat;
-    const wallH = 4.2;
-    const wallT = 0.4;
-
-    // Floor and outer walls form the room shell, so the camera can cut away whichever walls face it
-    const shell = new THREE.Group();
-    shell.name = 'interior_room_shell';
-    shell.userData.size = { width: 32, length: 26, height: wallH };
-    shell.add(floor);
-    this.group.add(shell);
-
-    // Back Wall
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(32, wallH, wallT), wallMat);
-    backWall.name = 'shell_wall_back';
-    backWall.position.set(0, wallH / 2, -13);
-    shell.add(backWall);
-
-    // Windows with Burglar-Proof Metal Bars along back wall (Screenshot 5)
-    for (const wx of [-10, 0, 10]) {
-      this.createBurglarProofWindow(wx, 2.4, -12.8);
-    }
-
-    // Left Wall
-    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 26), wallMat);
-    leftWall.name = 'shell_wall_left';
-    leftWall.position.set(-16, wallH / 2, 0);
-    shell.add(leftWall);
-
-    // Right Wall
-    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 26), wallMat);
-    rightWall.name = 'shell_wall_right';
-    rightWall.position.set(16, wallH / 2, 0);
-    shell.add(rightWall);
-
-    // Dividing walls between the rooms, as tall as the catalogue's partition walls, with a doorway
-    // into each room and a door in it: the living room, two bedrooms, and the bathroom side
-    const partitionH = 2.6;
-    const partition = (centerX: number, centerZ: number, width: number, length: number) => {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(width, partitionH, length), wallMat);
-      wall.position.set(centerX, partitionH / 2, centerZ);
-      wall.name = 'home_partition';
-      this.group.add(wall);
-      this.life.block(centerX, centerZ, width / 2, length / 2);
-    };
-    /** A wall along x from x0 to x1 at z, or along z from z0 to z1 at x, with a doorway centred at `door` */
-    const wallAlongX = (z: number, x0: number, x1: number, door?: number) => {
-      const cuts = door === undefined ? [[x0, x1]] : [[x0, door - DOORWAY / 2], [door + DOORWAY / 2, x1]];
-      for (const [a, b] of cuts) if (b - a > 0.05) partition((a + b) / 2, z, b - a, wallT);
-    };
-    const wallAlongZ = (x: number, z0: number, z1: number, door?: number) => {
-      const cuts = door === undefined ? [[z0, z1]] : [[z0, door - DOORWAY / 2], [door + DOORWAY / 2, z1]];
-      for (const [a, b] of cuts) if (b - a > 0.05) partition(x, (a + b) / 2, wallT, b - a);
-    };
-    // The living room to the first bedroom, and on to the bathroom side
-    wallAlongX(-1, -15.8, 6, -8.6);
-    // Between the two bedrooms, all the way
-    wallAlongZ(2, -12.8, -1);
-    // The master bedroom to the bathroom side
-    wallAlongX(-1, 6, 15.8, 10.6);
-    // The living room to the bathroom side
-    wallAlongZ(6, -1, 11.8, 0.8);
-    this.hangDoors([
-      { id: 'home_door_bedroom1', name: 'Bedroom door', x: -8.6, z: -1, yaw: 0, swing: 1 },
-      { id: 'home_door_bedroom2', name: 'Master bedroom door', x: 10.6, z: -1, yaw: 0, swing: 1 },
-      { id: 'home_door_bathroom', name: 'Bathroom door', x: 6, z: 0.8, yaw: Math.PI / 2, swing: -1 },
-    ]);
-
-    // 2. POP ceiling cornices with warm LED cove lights round every wall, and a light in every room
-    this.popCeiling(wallH);
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-6, 4.0, 4), 0xffedd5));
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(8, 4.0, -6), 0xffedd5));
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-5, 4.0, -6), 0xffedd5));
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(11, 4.0, 5), 0xfff7ed));
+    // The floor and the walls in the colours the player chose. The plan of the home (its rooms,
+    // walls, doors, bathroom and kitchen fittings) is built when the player comes in: applyPlan.
+    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.25 });
+    this.wallPaint = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.7 });
 
     // 3. Exit Door
     const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 12), Math.PI);
     this.group.add(exitDoor);
-
-    this.interactiveList.push({
+    this.exitDoor = exitDoor;
+    this.exitCard = {
       mesh: exitDoor,
       id: 'interior_exit_door',
-      name: 'Apartment Front Door',
+      name: 'Front door',
       category: 'Exit to Street',
-      description: 'Step outside through the compound gate back to the street.',
+      description: 'Step outside, back to the street.',
       interactionPoint: new THREE.Vector3(this.group.position.x, 0, this.group.position.z + 10.6),
-    });
+    };
+    this.interactiveList.push(this.exitCard);
 
     // 4. Living Room:
     const firstBuiltIn = this.group.children.length;
@@ -1266,64 +1152,8 @@ export class ResidentialInterior {
 
     // 12. And the player's own furniture, as it stands now
     this.furnitureChanged();
-  }
-
-  /**
-   * Builds burglar-proof metal window grills (Screenshot 5)
-   */
-  private createBurglarProofWindow(x: number, y: number, z: number): void {
-    const winGroup = new THREE.Group();
-    winGroup.position.set(x, y, z);
-
-    // White Window Frame
-    const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 2.2, 0.2),
-      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
-    );
-    winGroup.add(frame);
-
-    // Vertical Iron Burglar Proof Security Bars
-    for (let bx = -1.1; bx <= 1.1; bx += 0.32) {
-      const bar = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.02, 0.02, 2.1, 8),
-        new THREE.MeshStandardMaterial({ color: 0x18181b, metalness: 0.8, roughness: 0.3 })
-      );
-      bar.position.set(bx, 0, 0.12);
-      winGroup.add(bar);
-    }
-
-    this.group.add(winGroup);
-  }
-
-  /**
-   * Outdoor Carport with wooden pergola beams and parked cars (Screenshot 5)
-   */
-  /**
-   * POP ceilings: a white plaster cornice stepped out from the top of every outer wall, a gold
-   * line along it, warm LED strips in the cove that light the walls, and a downlight set in a
-   * round POP rose in each room.
-   */
-  private popCeiling(wallH: number): void {
-    const b = new Builder();
-    const top = wallH - 0.55;
-    const runs: Array<[number, number, number, number, number, number]> = [
-      // x, z, width, depth, and which way is into the room (x, z)
-      [0, -12.45, 31.2, 0.7, 0, 1],
-      [0, 12.45, 31.2, 0.7, 0, -1],
-      [-15.45, 0, 0.7, 25.2, 1, 0],
-      [15.45, 0, 0.7, 25.2, -1, 0],
-    ];
-    for (const [x, z, w, d, ix, iz] of runs) {
-      // Two steps of plaster, the lower one standing further out into the room
-      b.box(0xf8fafc, w, 0.3, d, x, top, z).box(0xf1f5f9, w, 0.18, d, x - ix * 0.12, top + 0.3, z - iz * 0.12);
-      b.box(0xd4af37, ix ? 0.04 : w, 0.04, iz ? 0.04 : d, x + ix * 0.36, top + 0.12, z + iz * 0.36);
-      b.box(0xffd59e, ix ? 0.06 : w - 1, 0.06, iz ? 0.06 : d - 1, x + ix * 0.4, top - 0.06, z + iz * 0.4, { glow: true });
-    }
-    // A downlight in each room, set in a round POP rose
-    for (const [x, z] of [[-6, 6], [-11, -7], [9, -7], [11, 5], [-12, 8]]) b.cylinder(0xf8fafc, 0.55, 0.08, x, wallH - 0.25, z, { sides: 20 }).cylinder(0xfff7d6, 0.28, 0.04, x, wallH - 0.3, z, { sides: 16, glow: true });
-    const pop = b.build('pop ceiling', { roughness: 0.6 });
-    pop.name = 'pop ceiling';
-    this.group.add(pop);
+    // Built to a plan until the player comes in and it is built to theirs
+    this.applyPlan(planFor(briefOf(null)));
   }
 
   /** The doors in the home's own doorways, each in the style the player chose for it */
@@ -1423,6 +1253,379 @@ export class ResidentialInterior {
     }
   }
 
+
+  // =========================================================================
+  // THE PLAN: rooms, walls, doors, fittings, as the kind of home it is
+  // =========================================================================
+
+  /** Builds the home to a plan: a self-contain is one room, a five-bedroom has five bedrooms */
+  private applyPlan(plan: HomePlan): void {
+    if (this.plan?.key === plan.key) return;
+    this.plan = plan;
+    // What was built for the last plan comes down
+    for (const part of this.planParts) {
+      this.group.remove(part);
+      part.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+      });
+    }
+    this.planParts = [];
+    for (const solid of this.planSolids) this.life.unblock(solid);
+    this.planSolids = [];
+    for (const door of this.doors) {
+      this.group.remove(door.holder);
+      PlaceActions.unregister(door.id);
+      const at = this.interactiveList.findIndex((o) => o.id === door.id);
+      if (at >= 0) this.interactiveList.splice(at, 1);
+    }
+    this.doors = [];
+    for (const id of this.planCards) {
+      PlaceActions.unregister(id);
+      const at = this.interactiveList.findIndex((o) => o.id === id);
+      if (at >= 0) this.interactiveList.splice(at, 1);
+    }
+    this.planCards = [];
+    const oldCeiling = this.group.getObjectByName('inside view ceiling');
+    if (oldCeiling) oldCeiling.removeFromParent();
+
+    const g = { add: (part: THREE.Object3D) => { this.group.add(part); this.planParts.push(part); } };
+    const W = plan.width;
+    const L = plan.length;
+    const hw = W / 2;
+    const hl = L / 2;
+    const wallH = 4.2;
+    const T = 0.4;
+    const solid = (x: number, z: number, halfWidth: number, halfLength: number) => this.planSolids.push(this.life.block(x, z, halfWidth, halfLength));
+
+    // Floor and the three outer walls the camera can cut away
+    const shell = new THREE.Group();
+    shell.name = 'interior_room_shell';
+    shell.userData.size = { width: W, length: L, height: wallH };
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(W, 0.4, L), this.floorMat);
+    floor.name = 'interior_floor_mesh';
+    floor.position.set(0, -0.2, 0);
+    floor.receiveShadow = true;
+    shell.add(floor);
+    const outer = (name: string, w: number, d: number, x: number, z: number) => {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), this.wallPaint);
+      wall.name = name;
+      wall.position.set(x, wallH / 2, z);
+      shell.add(wall);
+    };
+    outer('shell_wall_back', W, T, 0, -hl);
+    outer('shell_wall_left', T, L, -hw, 0);
+    outer('shell_wall_right', T, L, hw, 0);
+    g.add(shell);
+
+    // Each room's floor: tiles in the bathrooms and the kitchen, the player's own floor elsewhere
+    for (const room of plan.rooms) {
+      if (room.kind !== 'ensuite' && room.kind !== 'toilet' && room.kind !== 'kitchen') continue;
+      const tiles = new THREE.Mesh(
+        new THREE.PlaneGeometry(room.maxX - room.minX, room.maxZ - room.minZ),
+        new THREE.MeshStandardMaterial({ color: room.kind === 'kitchen' ? 0xd9d4c7 : 0xd6e4ec, roughness: 0.3 })
+      );
+      tiles.rotation.x = -Math.PI / 2;
+      tiles.position.set((room.minX + room.maxX) / 2, 0.012, (room.minZ + room.maxZ) / 2);
+      tiles.name = `floor ${room.id}`;
+      g.add(tiles);
+    }
+
+    // The inner walls, as tall as the catalogue's partitions, with doorways in them
+    const partitionH = 2.6;
+    const DOORWAY_W = DOORWAY;
+    for (const wall of plan.walls) {
+      const cuts: Array<[number, number]> = [];
+      let from = wall.from;
+      for (const door of [...wall.doors].sort((a, b) => a - b)) {
+        cuts.push([from, door - DOORWAY_W / 2]);
+        from = door + DOORWAY_W / 2;
+      }
+      cuts.push([from, wall.to]);
+      for (const [a, b] of cuts) {
+        if (b - a < 0.05) continue;
+        const mid = (a + b) / 2;
+        const len = b - a;
+        const piece = new THREE.Mesh(
+          wall.axis === 'x' ? new THREE.BoxGeometry(len, partitionH, T) : new THREE.BoxGeometry(T, partitionH, len),
+          this.wallPaint
+        );
+        piece.name = 'home_partition';
+        if (wall.axis === 'x') piece.position.set(mid, partitionH / 2, wall.at);
+        else piece.position.set(wall.at, partitionH / 2, mid);
+        g.add(piece);
+        if (wall.axis === 'x') solid(mid, wall.at, len / 2, T / 2);
+        else solid(wall.at, mid, T / 2, len / 2);
+      }
+    }
+
+    // The front: a low wall with the front door in it, and the step outside
+    const doorGap = 2.4;
+    for (const [a, b] of [[-hw, plan.entrance.x - doorGap / 2], [plan.entrance.x + doorGap / 2, hw]] as Array<[number, number]>) {
+      if (b - a < 0.05) continue;
+      const low = new THREE.Mesh(new THREE.BoxGeometry(b - a, 1.0, T), this.wallPaint);
+      low.name = 'home_front_wall';
+      low.position.set((a + b) / 2, 0.5, plan.frontZ);
+      g.add(low);
+      solid((a + b) / 2, plan.frontZ, (b - a) / 2, T / 2);
+      // Nobody walks along the step outside it either
+      solid((a + b) / 2, (plan.frontZ + hl) / 2, (b - a) / 2, (hl - plan.frontZ) / 2);
+    }
+    // Outside the walls is not floor
+    const navW = HOME.room.width / 2;
+    const navL = HOME.room.length / 2;
+    if (navW > hw) {
+      solid(-(navW + hw) / 2, 0, (navW - hw) / 2, navL);
+      solid((navW + hw) / 2, 0, (navW - hw) / 2, navL);
+    }
+    if (navL > hl) {
+      solid(0, -(navL + hl) / 2, hw, (navL - hl) / 2);
+      solid(0, (navL + hl) / 2, hw, (navL - hl) / 2);
+    }
+
+    // The fittings: toilets, showers, basins, the kitchen counter and sink
+    for (const fixture of plan.fixtures) {
+      const built = this.buildFixture(fixture);
+      built.position.set(fixture.x, 0, fixture.z);
+      built.rotation.y = Math.atan2(fixture.face.x, fixture.face.z);
+      g.add(built);
+      if (fixture.kind !== 'sink') solid(fixture.x, fixture.z, fixture.width / 2, fixture.depth / 2);
+    }
+    this.cardsForFittings(plan);
+
+    // Burglar-proof windows in the outer walls
+    for (const w of plan.windows) {
+      const win = this.burglarProofWindow();
+      if (w.wall === 'back') win.position.set(w.at, 2.4, -hl + 0.2);
+      else {
+        win.position.set(w.wall === 'left' ? -hw + 0.2 : hw - 0.2, 2.4, w.at);
+        win.rotation.y = Math.PI / 2;
+      }
+      g.add(win);
+    }
+
+    // The POP ceiling's cornice round the outer walls, and a light in each room
+    g.add(this.popCeilingFor(W, L, wallH, plan.lights));
+    plan.lights.slice(0, 4).forEach((light) => g.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(light.x, 4.0, light.z), 0xffedd5)));
+
+    // The doors in the doorways
+    this.hangDoors(plan.doors);
+
+    // The front door, and where the player comes in
+    this.exitDoor.position.set(plan.entrance.x, 0, plan.frontZ);
+    const origin = this.group.position;
+    this.exitCard.interactionPoint.set(origin.x + plan.entrance.x, 0, origin.z + plan.frontZ - 1.4);
+    this.def.playerSpawnOffset.set(plan.spawn.x, 0, plan.spawn.z);
+    this.def.exitDoorOffset?.set(plan.entrance.x, 0, plan.frontZ - 1.0);
+    this.def.rooms[0].size = { width: W, length: L, height: wallH };
+
+    // What the furniture is told about the home
+    this.room.halfWidth = hw;
+    this.room.halfLength = hl;
+    // The way in, and every doorway: furniture is never put down in a door's way
+    this.room.keepClear = [{ x: plan.entrance.x, z: plan.frontZ - 0.6 }, { x: plan.spawn.x, z: plan.spawn.z }, ...plan.doors.map((d) => ({ x: d.x, z: d.z }))];
+
+    // A carport only beside a house
+    this.carport.visible = plan.carport;
+    this.carport.position.set(hw + 4.6, 0, 0);
+
+    this.life.reblock();
+    HouseDecorationSystem.getInstance().attach(this.room);
+  }
+
+  /** Every toilet can be used and every shower stood under, each from where it is in its room */
+  private cardsForFittings(plan: HomePlan): void {
+    const origin = this.group.position;
+    let toilets = 0;
+    let showers = 0;
+    for (const f of plan.fixtures) {
+      if (f.kind !== 'wc' && f.kind !== 'shower') continue;
+      const room = roomAt(plan, f.x + f.face.x * 0.6, f.z + f.face.z * 0.6);
+      const where = room ? room.name.toLowerCase() : 'bathroom';
+      const facing = Math.atan2(f.face.x, f.face.z);
+      const centre = new THREE.Vector3(f.x, 0, f.z);
+      const front = new THREE.Vector3(f.x + f.face.x * 0.8, 0, f.z + f.face.z * 0.8);
+      const mesh = this.planParts.find((part) => part.position.x === f.x && part.position.z === f.z) ?? this.group;
+      if (f.kind === 'wc') {
+        const id = `home_toilet_${++toilets}`;
+        const seat = new THREE.Vector3(f.x + f.face.x * 0.12, 0, f.z + f.face.z * 0.12);
+        this.interactiveList.push({ mesh, id, name: toilets === 1 && room?.kind === 'toilet' ? 'Guest toilet' : 'Toilet', category: 'Your home', description: `The toilet in the ${where}.`, interactionPoint: new THREE.Vector3(origin.x + front.x, 0, origin.z + front.z) });
+        PlaceActions.register(id, { label: () => '🚽 Use the toilet', run: () => { this.life.useToilet(seat, front, facing); } });
+        this.planCards.push(id);
+      } else {
+        const id = `home_shower_${++showers}`;
+        this.interactiveList.push({ mesh, id, name: 'Shower', category: 'Your home', description: `The shower in the ${where}.`, interactionPoint: new THREE.Vector3(origin.x + front.x, 0, origin.z + front.z) });
+        PlaceActions.register(id, {
+          label: () => '🚿 Take a shower',
+          run: (host) => {
+            host.director.perform({
+              id: 'take a shower', actor: host.actor, point: new THREE.Vector3(origin.x + front.x, 0, origin.z + front.z), target: new THREE.Vector3(origin.x + centre.x, 0, origin.z + centre.z),
+              nav: this.life.nav, animation: { arms: 'reach' }, seconds: 3.2, effectAt: 0.7, ifStuck: 'snap',
+              effect: () => {
+                host.backend.rest(20, 10);
+                host.backend.modifyNeed('hygiene', 70);
+                host.say('🚿 A good shower. Fresh! Hygiene up, Energy +20.', 'success');
+                return true;
+              },
+            });
+          },
+        });
+        this.planCards.push(id);
+      }
+    }
+  }
+
+  /** A toilet, a shower, a basin or a kitchen counter, facing +z */
+  private buildFixture(f: Fixture): THREE.Object3D {
+    const b = new Builder();
+    const white = 0xf8fafc;
+    const chrome = 0xb8c2cc;
+    // Along its front, the way it faces, `w` wide and `d` deep
+    const w = f.face.x !== 0 ? f.depth : f.width;
+    const d = f.face.x !== 0 ? f.width : f.depth;
+    const group = new THREE.Group();
+    group.name = `fitting ${f.kind}`;
+    if (f.kind === 'wc') {
+      b.box(white, 0.38, 0.4, 0.46, 0, 0, 0.08).box(0xffffff, 0.42, 0.05, 0.5, 0, 0.4, 0.06).box(white, 0.46, 0.42, 0.2, 0, 0.4, -d / 2 + 0.1).box(chrome, 0.08, 0.03, 0.04, 0.14, 0.83, -d / 2 + 0.12);
+    } else if (f.kind === 'shower') {
+      b.box(white, w, 0.08, d, 0, 0, 0).box(chrome, 0.05, 2.1, 0.05, 0, 0.08, -d / 2 + 0.08).box(chrome, 0.28, 0.04, 0.28, 0, 2.1, -d / 2 + 0.26);
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(w, 2.0, 0.04), new THREE.MeshStandardMaterial({ color: 0xbfe3f2, transparent: true, opacity: 0.32, roughness: 0.05 }));
+      glass.position.set(0, 1.08, d / 2 - 0.02);
+      glass.scale.x = 0.55;
+      glass.position.x = w * 0.22;
+      group.add(glass);
+    } else if (f.kind === 'basin') {
+      b.cylinder(white, 0.09, 0.72, 0, 0, 0, { sides: 12 }).box(white, 0.5, 0.14, 0.4, 0, 0.72, 0).box(chrome, 0.04, 0.12, 0.04, 0, 0.86, -0.12);
+      b.box(0xdbeafe, 0.46, 0.6, 0.03, 0, 1.25, -d / 2 + 0.02);
+    } else if (f.kind === 'counter') {
+      b.box(0x8b5e3c, w, 0.86, d, 0, 0, 0).box(0x2d2a26, w + 0.04, 0.05, d + 0.04, 0, 0.86, 0);
+      // Cupboard doors along its front
+      const doors = Math.max(1, Math.round(w / 0.6));
+      for (let i = 0; i < doors; i++) b.box(0x6f4a2f, w / doors - 0.06, 0.7, 0.02, -w / 2 + (i + 0.5) * (w / doors), 0.08, d / 2);
+      // Wall cupboards above it
+      b.box(0x8b5e3c, w, 0.6, 0.34, 0, 1.6, -d / 2 + 0.17);
+    } else if (f.kind === 'sink') {
+      b.box(0xcbd5e1, 0.52, 0.05, 0.36, 0, 0.89, 0.02).box(chrome, 0.04, 0.26, 0.04, 0, 0.91, -0.16).box(chrome, 0.04, 0.04, 0.16, 0, 1.15, -0.1);
+    }
+    group.add(b.build(`fitting ${f.kind}`, { roughness: 0.35 }));
+    return group;
+  }
+
+  /** A window with burglar-proof bars, facing +z */
+  private burglarProofWindow(): THREE.Group {
+    const win = new THREE.Group();
+    win.name = 'window';
+    const b = new Builder().box(0xf8fafc, 2.4, 1.8, 0.16, 0, -0.9, 0).box(0x9cc9e0, 2.1, 1.5, 0.04, 0, -0.75, 0.04);
+    for (let bx = -0.95; bx <= 0.96; bx += 0.32) b.box(0x18181b, 0.04, 1.6, 0.04, bx, -0.8, 0.12);
+    win.add(b.build('window'));
+    return win;
+  }
+
+  /** The POP cornice round the outer walls, the LED strip in it, and a downlight in each room */
+  private popCeilingFor(W: number, L: number, wallH: number, lights: Array<{ x: number; z: number }>): THREE.Object3D {
+    const b = new Builder();
+    const top = wallH - 0.55;
+    const hw = W / 2;
+    const hl = L / 2;
+    const runs: Array<[number, number, number, number, number, number]> = [
+      [0, -hl + 0.55, W - 0.8, 0.7, 0, 1],
+      [-hw + 0.55, 0, 0.7, L - 0.8, 1, 0],
+      [hw - 0.55, 0, 0.7, L - 0.8, -1, 0],
+    ];
+    for (const [x, z, w, d, ix, iz] of runs) {
+      b.box(0xf8fafc, w, 0.3, d, x, top, z).box(0xf1f5f9, w, 0.18, d, x - ix * 0.12, top + 0.3, z - iz * 0.12);
+      b.box(0xd4af37, ix ? 0.04 : w, 0.04, iz ? 0.04 : d, x + ix * 0.36, top + 0.12, z + iz * 0.36);
+      b.box(0xffd59e, ix ? 0.06 : w - 1, 0.06, iz ? 0.06 : d - 1, x + ix * 0.4, top - 0.06, z + iz * 0.4, { glow: true });
+    }
+    for (const { x, z } of lights) b.cylinder(0xf8fafc, 0.5, 0.08, x, wallH - 0.25, z, { sides: 20 }).cylinder(0xfff7d6, 0.26, 0.04, x, wallH - 0.3, z, { sides: 16, glow: true });
+    const pop = b.build('pop ceiling', { roughness: 0.6 });
+    pop.name = 'pop ceiling';
+    return pop;
+  }
+
+  /** What a home of this plan and standard comes with, where the plan has room for it */
+  private startersFor(standard: HomeStandard): Starter[] {
+    const plan = this.plan ?? planFor(briefOf(null));
+    const s = plan.spots;
+    const pieces: Starter[] = [
+      { uid: 'home_bed', id: standard === 'basic' ? 'double_bed_grey' : 'king_bed_purple', ...s.bed },
+      { uid: 'home_sofa', id: standard === 'basic' ? 'sofa2_brown' : 'sofa3_leather', ...s.sofa },
+      { uid: CORE_TV, id: standard === 'basic' ? 'tv_24' : standard === 'comfortable' ? 'tv_43' : 'smart_tv_75', ...s.tv },
+      { uid: 'home_fridge', id: 'double_door_fridge', ...s.fridge },
+      { uid: 'home_drum', id: 'water_drum', ...s.drum },
+      { id: standard === 'basic' ? 'kerosene_stove' : 'gas_cooker', ...s.cooker },
+    ];
+    // The other bedrooms: a bed in each in a family home; in a first home, the first one only
+    const others = standard === 'basic' ? s.beds.slice(0, 1) : s.beds;
+    const covers = ['double_bed_purple', 'double_bed_blue', 'double_bed_green', 'double_bed_ankara', 'double_bed_red'];
+    others.forEach((spot, i) => pieces.push({ id: covers[i % covers.length], ...spot }));
+    if (s.dining && standard !== 'basic') pieces.push({ id: 'dining_table_6', ...s.dining });
+    for (const extra of s.extras) {
+      if (extra.what === 'chairs' || (extra.what === 'fan' && standard === 'basic')) pieces.push({ id: extra.what === 'chairs' ? 'plastic_set' : 'lontor_fan', x: extra.x, z: extra.z, turns: extra.turns });
+      if (extra.what === 'plant' && standard !== 'basic') pieces.push({ id: 'majesty_palm', x: extra.x, z: extra.z, turns: extra.turns });
+      if (extra.what === 'rug' && standard !== 'basic') {
+        pieces.push({ id: 'ankara_rug', x: extra.x, z: extra.z, turns: extra.turns });
+        pieces.push({ id: 'coffee_table', x: extra.x, z: extra.z, turns: 1 });
+      }
+    }
+    return pieces;
+  }
+
+  /**
+   * The furniture was laid out for another plan (the player has moved, or it is from before
+   * homes had plans): each piece that still fits stays, the everyday pieces go to their places
+   * in this home, and what fits nowhere goes into storage. Said once, on coming in.
+   */
+  private settleFurniture(): void {
+    const plan = this.plan;
+    if (!plan) return;
+    const decor = HouseDecorationSystem.getInstance();
+    const key = profileKey(`nigeria_life_home_plan_v1${decor.homeId === 'main' ? '' : `:${decor.homeId}`}`);
+    let laid: string | null = null;
+    try {
+      laid = localStorage.getItem(key);
+    } catch {
+      laid = null;
+    }
+    if (laid === plan.key) return;
+    const s = plan.spots;
+    const moves: Record<string, { x: number; z: number; turns: number }> = {
+      home_bed: s.bed,
+      home_sofa: s.sofa,
+      [CORE_TV]: s.tv,
+      home_fridge: s.fridge,
+      home_drum: s.drum,
+    };
+    // A piece hung on a wall needs one behind it: an outer wall or an inner one
+    const onWall = (x: number, z: number) => {
+      const hw = plan.width / 2;
+      const hl = plan.length / 2;
+      if (Math.abs(Math.abs(x) - hw) < 0.7 || Math.abs(z + hl) < 0.7) return true;
+      return plan.walls.some((w) => (w.axis === 'x' ? Math.abs(z - w.at) < 0.6 && x > w.from && x < w.to : Math.abs(x - w.at) < 0.6 && z > w.from && z < w.to));
+    };
+    const { stored } = decor.relay(moves, onWall);
+    try {
+      localStorage.setItem(key, plan.key);
+    } catch {
+      // Settled again next time
+    }
+    if (stored.length) {
+      const n = stored.length;
+      ResidentialInterior.onSettled?.(`Your things are in. ${n} piece${n === 1 ? '' : 's'} had no room here and went into storage: find ${n === 1 ? 'it' : 'them'} under Storage in the catalogue.`);
+    }
+    this.furnitureChanged();
+  }
+
+  /** Tells the player what happened to their furniture on moving in (set by the game) */
+  public static onSettled: ((message: string) => void) | null = null;
+
+  /** The room of the home a point is in, by its name: "Kitchen", "Master bedroom" */
+  public roomNameAt(x: number, z: number): string | null {
+    if (!this.plan) return null;
+    const o = this.group.position;
+    return roomAt(this.plan, x - o.x, z - o.z)?.name ?? null;
+  }
+
   private createOutdoorCarport(x: number, y: number, z: number): void {
     const carportGroup = new THREE.Group();
     carportGroup.position.set(x, y, z);
@@ -1448,6 +1651,7 @@ export class ResidentialInterior {
 
     carportGroup.name = 'carport';
     this.group.add(carportGroup);
+    this.carport = carportGroup;
   }
 
   public update(delta: number, _time: number): void {

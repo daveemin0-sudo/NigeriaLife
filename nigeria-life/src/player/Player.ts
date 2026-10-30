@@ -22,9 +22,13 @@ import { holdCarriedItem } from '../interactions/Poses';
 export class Player {
   public mesh: THREE.Group;
   public targetPosition: THREE.Vector3 | null = null;
-  public walkSpeed: number = 5.6;
-  public sprintSpeed: number = 9.8;
-  public speed: number = 5.6;
+  /** An unhurried Lagos walk on the street, and a run */
+  public walkSpeed: number = 3.6;
+  public sprintSpeed: number = 6.6;
+  /** Indoors it is slower again, so a doorway is easy to steer through */
+  public indoorWalkSpeed: number = 2.4;
+  public indoorRunSpeed: number = 3.6;
+  public speed: number = 3.6;
   private currentVelocity: THREE.Vector3 = new THREE.Vector3();
   public isMoving: boolean = false;
   public isSprinting: boolean = false;
@@ -69,7 +73,7 @@ export class Player {
       root: this.mesh,
       // The built-in body can be animated by hand; a loaded character model cannot (yet)
       getRig: () => (this.glbModel ? null : this.humanRig),
-      speed: 4.2,
+      speed: 3.4,
     });
     InteractionDirector.get().player = InteractionDirector.get().register(this.actor);
 
@@ -386,7 +390,10 @@ export class Player {
     const stats = backend.getData().stats;
     const isShift = keys && (keys['shift'] || keys['shiftleft'] || keys['shiftright']);
     this.isSprinting = !!isShift && stats.energy >= 5;
-    let currentBaseSpeed = this.isSprinting ? this.sprintSpeed : this.walkSpeed;
+    const indoors = this.cameraManager?.mode === 'interior';
+    let currentBaseSpeed = indoors ? (this.isSprinting ? this.indoorRunSpeed : this.indoorWalkSpeed) : this.isSprinting ? this.sprintSpeed : this.walkSpeed;
+    // Walks the game leads (to a bed, out of a door) keep the same pace
+    this.actor.speed = indoors ? this.indoorWalkSpeed : 3.4;
     if (stats.hunger <= 0) {
       currentBaseSpeed *= 0.72; // Starvation fatigue
     }

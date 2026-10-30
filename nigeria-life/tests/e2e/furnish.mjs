@@ -51,7 +51,7 @@ export async function run(browser, check) {
   const ctx = await newPlayer(browser);
   const { page, log } = await open(ctx);
   await closeDialogs(page);
-  await page.evaluate(() => { const be = window.game.hud.backend; be.rentProperty(be.getData().properties[0].id); be.performGig(1200000, 0, 'test: furnishing money'); window.game.world.skyEnvironment.setHour(15); });
+  await page.evaluate(() => { const g = window.game; g.world.interiorManager.residence.constructor.briefNow = () => ({ kind: 'house', bedrooms: 4, carport: true }); const be = window.game.hud.backend; be.rentProperty(be.getData().properties[0].id); be.performGig(1200000, 0, 'test: furnishing money'); window.game.world.skyEnvironment.setHour(15); });
   await enterInterior(page, 'residence');
   await wait(600);
   const start = await money(page);
@@ -87,11 +87,12 @@ export async function run(browser, check) {
     !!state.placing && state.placing.id === 'emerald_sofa' && state.placed.length === n0 && !!shown && /Place/.test(shown.button || '') && (await money(page)).total === start.total, { state, shown });
 
   // Not through a wall, and not on top of what is already there
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(15.6, 0));
+  const plan = await page.evaluate(() => { const r = window.game.world.interiorManager.residence; const sofa = window.game.modules.HouseDecorationSystem.getInstance().placed.find((i) => i.uid === 'home_sofa'); return { hw: r.plan.width / 2, spawn: r.plan.spawn, sofa: { x: sofa.x, z: sofa.z } }; });
+  await page.evaluate((x) => window.game.modules.HouseDecorationSystem.getInstance().moveTo(x, 0), plan.hw + 0.2);
   const inWall = await bar(page);
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(-7.6, 2.5));
+  await page.evaluate((s) => window.game.modules.HouseDecorationSystem.getInstance().moveTo(s.x, s.z), plan.sofa);
   const onTable = await bar(page);
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(0, 9.4));
+  await page.evaluate((s) => window.game.modules.HouseDecorationSystem.getInstance().moveTo(s.x, s.z), plan.spawn);
   const inDoorway = await bar(page);
   check('it cannot be put through a wall, on top of the furniture already there, or across the way in',
     !inWall.canPlace && /wall/.test(inWall.say) && !onTable.canPlace && /already standing/.test(onTable.say) && !inDoorway.canPlace && /way in/.test(inDoorway.say) && (await decor(page)).placed.length === n0, { inWall, onTable, inDoorway });
@@ -100,7 +101,7 @@ export async function run(browser, check) {
   await page.evaluate(() => {
     const g = window.game;
     const home = g.world.interiorManager.residence.group.position;
-    g.input.onFloorClick(new g.player.position.constructor(home.x + 3.1, 0, home.z + 4.9));
+    g.input.onFloorClick(new g.player.position.constructor(home.x - 1.9, 0, home.z + 1.4));
   });
   const tapped = (await decor(page)).placing;
   await pressSteady(page, '#furnish-bar [data-move="1,0"]');
@@ -108,7 +109,7 @@ export async function run(browser, check) {
   await wait(150);
   const nudged = (await decor(page)).placing;
   check('a tap on the floor moves it there (to the nearest quarter metre), the arrows nudge it and Turn turns it',
-    tapped.x === 3 && tapped.z === 5 && nudged.x === 3.25 && nudged.turns === 1 && !nudged.blocked, { tapped, nudged });
+    tapped.x === -2 && tapped.z === 1.5 && nudged.x === -1.75 && nudged.turns === 1 && !nudged.blocked, { tapped, nudged });
 
   await pressSteady(page, '#furnish-bar-turn');
   await pressSteady(page, '#furnish-bar-turn');
@@ -118,11 +119,11 @@ export async function run(browser, check) {
   state = await decor(page);
   let paid = start.total - (await money(page)).total;
   const sofa = state.placed.find((item) => item.id === 'emerald_sofa');
-  check('placing it puts it there and takes its price once (₦320,000)', state.placed.length === n0 + 1 && !state.placing && sofa.x === 3.25 && sofa.z === 5 && sofa.turns === 0 && paid === 320000 && (await bar(page)) === null, { state, paid });
+  check('placing it puts it there and takes its price once (₦320,000)', state.placed.length === n0 + 1 && !state.placing && sofa.x === -1.75 && sofa.z === 1.5 && sofa.turns === 0 && paid === 320000 && (await bar(page)) === null, { state, paid });
 
   // The television, facing the sofa from across the room
   await pick(page, 'tv_55');
-  await page.evaluate(() => { const d = window.game.modules.HouseDecorationSystem.getInstance(); d.moveTo(3.25, 9); d.turn(); d.turn(); });
+  await page.evaluate(() => { const d = window.game.modules.HouseDecorationSystem.getInstance(); d.moveTo(-1.75, 4.6); d.turn(); d.turn(); });
   await pressSteady(page, '#furnish-bar-confirm');
   await wait(300);
   state = await decor(page);
@@ -188,7 +189,7 @@ export async function run(browser, check) {
     chips: [...document.querySelectorAll('#home-activity-status .activity-choice')].map((b) => `${b.textContent}${b.classList.contains('current') ? '*' : ''}`),
   }));
   check('the sofa is sat on, where it was put, and the status line says what is being watched with the channels to turn to',
-    /Sit down/.test(sofaLabel || '') && !!seated && Math.abs(seated.x - 3.25) < 0.6 && Math.abs(seated.z - 5) < 0.6 && /Football/.test(watching.title || '') && watching.chips.some((c) => /Football\*/.test(c)) && watching.chips.some((c) => /^Off$/.test(c)),
+    /Sit down/.test(sofaLabel || '') && !!seated && Math.abs(seated.x + 1.75) < 0.6 && Math.abs(seated.z - 1.5) < 0.6 && /Football/.test(watching.title || '') && watching.chips.some((c) => /Football\*/.test(c)) && watching.chips.some((c) => /^Off$/.test(c)),
     { sofaLabel, seated, watching });
 
   await page.evaluate(() => [...document.querySelectorAll('#home-activity-status .activity-choice')].find((b) => /Music/.test(b.textContent))?.click());
@@ -205,24 +206,24 @@ export async function run(browser, check) {
   await choose(page, 'Move it');
   await wait(300);
   let moving = await decor(page);
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(11, 9));
+  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(-2, 3.5));
   const before = await money(page);
   await pressSteady(page, '#furnish-bar-confirm');
   await wait(300);
   state = await decor(page);
   const moved = state.placed.find((item) => item.uid === sofa.uid);
-  check('a piece already owned is picked up and put somewhere else for nothing', moving.placing?.moving === true && /Put it here/.test((await bar(page))?.button ?? 'Put it here') && moved.x === 11 && moved.z === 9 && moved.shown && (await money(page)).total === before.total, { moving: moving.placing, moved });
+  check('a piece already owned is picked up and put somewhere else for nothing', moving.placing?.moving === true && /Put it here/.test((await bar(page))?.button ?? 'Put it here') && moved.x === -2 && moved.z === 3.5 && moved.shown && (await money(page)).total === before.total, { moving: moving.placing, moved });
 
   // Walking goes round furniture: where the sofa stands cannot be stood on, and where it stood can
   const floor = await page.evaluate(() => {
     const home = window.game.world.interiorManager.residence;
     const o = home.group.position;
-    return { underSofa: home.life.nav.isFree(o.x + 11, o.z + 9), whereItWas: home.life.nav.isFree(o.x + 3.25, o.z + 5) };
+    return { underSofa: home.life.nav.isFree(o.x - 2, o.z + 3.5), whereItWas: home.life.nav.isFree(o.x - 1.75, o.z + 1.5) };
   });
   check('people walk round it where it stands now, and across the floor where it used to stand', !floor.underSofa && floor.whereItWas, floor);
 
   await pick(page, 'floor_lamp');
-  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(13, 11));
+  await page.evaluate(() => window.game.modules.HouseDecorationSystem.getInstance().moveTo(3.3, 1.0));
   await pressSteady(page, '#furnish-bar-confirm');
   await wait(300);
   const lamp = (await decor(page)).placed.find((item) => item.id === 'floor_lamp');
@@ -260,7 +261,7 @@ export async function run(browser, check) {
   // Somewhere in the living room with room for it
   const spot = await page.evaluate(() => {
     const d = window.game.modules.HouseDecorationSystem.getInstance();
-    for (const [x, z] of [[9, 6], [8, 4], [6, 7], [-2, 7], [1, 2], [10, 2]]) {
+    for (const [x, z] of [[0.5, 1.8], [-3.2, 1.6], [0.5, 3], [-0.5, 1.6]]) {
       d.moveTo(x, z);
       if (d.blocked() === null) return { x, z };
     }
@@ -299,6 +300,8 @@ export async function run(browser, check) {
   await wait(1200);
   const outside = await page.evaluate(() => ({ inside: window.game.world.interiorManager.isPlayerInside(), placing: !!window.game.modules.HouseDecorationSystem.getInstance().placing }));
   await reload(page);
+  // The same house as before the reload
+  await page.evaluate(() => { window.game.world.interiorManager.residence.constructor.briefNow = () => ({ kind: 'house', bedrooms: 4, carport: true }); });
   await enterInterior(page, 'residence');
   await wait(600);
   const after = await decor(page);

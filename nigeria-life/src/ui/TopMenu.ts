@@ -1,4 +1,5 @@
 import { BackendService } from '../backend/BackendService';
+import { theme, toggleTheme } from './theme/Theme';
 import { esc, naira } from './kit/html';
 import { UIStateManager } from './UIStateManager';
 
@@ -96,6 +97,7 @@ export class TopMenu {
       ${row('quests', '🎯', 'Story missions', 'The story across the three cities')}
       ${row('music', '🎵', 'Music', this.hooks.musicPlaying() ? 'Playing now' : 'Afrobeats, Amapiano and your own songs')}
       ${row('fleet', '✈️', 'Jets & yachts', 'Buy, paint your name on, fly and cruise')}
+      ${row('theme', theme() === 'dark' ? '🌙' : '☀️', theme() === 'dark' ? 'Dark look' : 'Light look', theme() === 'dark' ? 'Tap for the light look' : 'Tap for the dark look', `<b class="tm-switch${theme() === 'dark' ? ' is-on' : ''}"><i></i></b>`)}
       ${row('state', '🏛️', 'Lagos State House', this.hooks.governor() ? `Governor @${this.hooks.governor()} · laws and the election` : 'The weekly election is on')}
       <div class="tm-grid">
         <button class="tm-chip" data-act="app:garage">🚗<span>Cars</span></button>
@@ -113,6 +115,12 @@ export class TopMenu {
     const target = (event.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!target) return;
     const act = target.dataset.act!;
+    // The look changes in place: the menu stays open, showing the new one
+    if (act === 'theme') {
+      toggleTheme();
+      this.render();
+      return;
+    }
     this.close();
     if (act === 'close') return;
     if (act === 'wallet') this.hooks.cashMachine();

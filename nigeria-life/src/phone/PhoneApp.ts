@@ -38,6 +38,10 @@ export interface PhoneWorld {
   placeBuilding(plotId: string, typeId: string): void;
   /** Has one of the player's own vehicles brought to the kerb beside them. Returns why not, or null. */
   bringVehicle(vehicleId: string): string | null;
+  /** The Red Line from where the player is: the nearest station and the trains from it (null outside Lagos) */
+  trainInfo(): { from: number; fromName: string; far: boolean; metres: number; stations: Array<{ name: string; fare: number; stops: number; nextMin: number }> } | null;
+  /** Takes the Red Line to a station: by keke to the nearest station first when it is far. Returns why not, or null. */
+  takeTrain(to: number): string | null;
 }
 
 /** Everything an app is given to work with. */

@@ -6,6 +6,7 @@ const W = Number(process.env.W ?? 420), H = Number(process.env.H ?? 816);
 const browser = await launch();
 const ctx = await newPlayer(browser);
 const page = await ctx.newPage();
+if (process.env.DARK) await page.evaluateOnNewDocument(() => localStorage.setItem('nl_theme_v1', 'dark'));
 await page.setViewport({ width: W, height: H, deviceScaleFactor: 1, isMobile: W < 700, hasTouch: W < 700 });
 await page.goto(process.env.GAME_URL, { waitUntil: 'load', timeout: 120000 });
 await page.waitForFunction('window.game', { timeout: 120000 });

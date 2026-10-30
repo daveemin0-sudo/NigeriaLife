@@ -85,6 +85,8 @@ export class InteriorManager {
   public club: ClubInterior;
   /** The time on the game's clock, 0 to 24, for places that keep hours */
   public clock: () => number = () => 12;
+  /** Where the front of the home being lived in is, when it is a house of the player's own on their own land (set by the game); null for the flat behind the compound gate */
+  public homeFront: (() => { inside: THREE.Vector3; outside: THREE.Vector3 } | null) | null = null;
   /** Every interior, in one list: adding a place means adding it here */
   private templates: InteriorTemplate[];
   /** The insides of the places along the expressway */
@@ -251,9 +253,13 @@ export class InteriorManager {
     if (this.currentInterior) this.getActiveTemplate()?.onPlayerLeft?.();
     InteractionDirector.get().forceFree(player.actor);
 
-    // 1. Save street return position and rotation right outside the door
-    this.streetReturnPosition.copy(options.returnTo ?? player.position);
-    this.streetReturnRotation = options.returnYaw ?? player.mesh.rotation.y;
+    // 1. Save street return position and rotation right outside the door. Going from one room
+    // straight into another (the Home button pressed inside a hotel) leaves it as it was: where
+    // they stand now is inside, and coming out there would be into empty sky.
+    if (options.returnTo || !this.currentInterior) {
+      this.streetReturnPosition.copy(options.returnTo ?? player.position);
+      this.streetReturnRotation = options.returnYaw ?? player.mesh.rotation.y;
+    }
 
     // 2. Start cinematic fade to black
     await this.setFadeOverlay(1);
@@ -366,7 +372,7 @@ export class InteriorManager {
     // 7. Restore district name in HUD
     const district = world.getDistrictAtPosition(player.position);
     hud.updateLocation(district.name, district.sub);
-    this.showInteriorBanner('Lagos Street Mode', `Exited ${exitedName}. Returned to the street.`);
+    this.showInteriorBanner(district.name, `Out of ${exitedName}`);
 
     // 8. Fade back in
     options.onPlaced?.();
@@ -591,7 +597,24 @@ export class InteriorManager {
         return;
       }
 
+      // Came home by the Home button (or from another room), not through a door on the street:
+      // out at the front of their own house when it is one, else at the compound gate
+      const yawFrom = (a: THREE.Vector3, b: THREE.Vector3) => Math.atan2(b.x - a.x, b.z - a.z);
       const street = this.streetDoors.get(interior.type);
+      const cameIn = !!street && this.streetReturnPosition.distanceTo(street.outside) < 8;
+      const front = !cameIn && interior.type === 'residence' ? this.homeFront?.() ?? null : null;
+      if (front) {
+        const toPavement = new Sequence('step out of the house', [actor]).locked().add(steps.slide(actor, front.outside.clone(), 0.9, { legs: 'walk', arms: 'swing' }));
+        let walking = false;
+        await this.exitCurrentInterior(player, cameraManager, hud, world, {
+          emergeAt: front.inside,
+          emergeYaw: yawFrom(front.inside, front.outside),
+          onPlaced: () => { walking = director.run(toPavement); },
+        });
+        inner.door.set(false);
+        if (walking) await toPavement.finished;
+        return;
+      }
       if (!street) {
         await this.exitCurrentInterior(player, cameraManager, hud, world);
         inner.door.set(false);
@@ -600,14 +623,16 @@ export class InteriorManager {
 
       // Come out of the street door as the view fades in, and let it close behind
       street.door.set(true);
+      const stepTo = cameIn ? this.streetReturnPosition.clone() : street.outside.clone();
+      const stepYaw = cameIn ? this.streetReturnRotation : yawFrom(street.inside, street.outside);
       const stepOut = new Sequence('step out to street', [actor]).locked().add(
-        steps.slide(actor, this.streetReturnPosition.clone(), 0.9, { legs: 'walk', arms: 'swing' }),
+        steps.slide(actor, stepTo, 0.9, { legs: 'walk', arms: 'swing' }),
         steps.call('close door', () => street.door.close())
       );
       let steppingOut = false;
       await this.exitCurrentInterior(player, cameraManager, hud, world, {
         emergeAt: street.inside,
-        emergeYaw: this.streetReturnRotation,
+        emergeYaw: stepYaw,
         onPlaced: () => { steppingOut = director.run(stepOut); },
       });
       inner.door.set(false);

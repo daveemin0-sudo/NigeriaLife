@@ -1056,6 +1056,87 @@ export class HouseDecorationSystem {
     return taken;
   }
 
+  /**
+   * The home has a new plan (the player has moved): a piece that still fits where it stood stays
+   * there; the everyday pieces go where `moves` says the new home has room for them, or as near
+   * as they fit; a piece hung on a wall needs a wall behind it; what fits nowhere goes into
+   * storage, to be placed again for nothing.
+   */
+  public relay(moves: Record<string, { x: number; z: number; turns: number }>, onWall: (x: number, z: number) => boolean): { stored: string[] } {
+    const room = this.room;
+    if (!room) return { stored: [] };
+    if (this.placing) this.cancel();
+    for (const item of this.placed) this.solidify(item, false);
+    // The everyday pieces first, so they get their places
+    const order = [...this.placed].sort((a, b) => Number(!!moves[b.uid]) - Number(!!moves[a.uid]));
+    const kept: PlacedItem[] = [];
+    const stored: string[] = [];
+    for (const item of order) {
+      const want = moves[item.uid];
+      let spot: { x: number; z: number; turns: number } | null = null;
+      if (want) {
+        // Where it is meant to go, or the nearest place round it that is free
+        search: for (const r of [0, 0.25, 0.5, 0.75, 1, 1.4, 1.8]) {
+          for (const [dx, dz] of r === 0 ? [[0, 0]] : [[r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, r], [r, -r], [-r, -r]]) {
+            if (this.fitsAt(item.modelType, want.x + dx, want.z + dz, want.turns, kept)) {
+              spot = { x: want.x + dx, z: want.z + dz, turns: want.turns };
+              break search;
+            }
+          }
+        }
+      } else if (this.fitsAt(item.modelType, item.x, item.z, item.turns, kept) && (this.kind(item.modelType).mount !== 'wall' || onWall(item.x, item.z))) {
+        spot = { x: item.x, z: item.z, turns: item.turns };
+      }
+      if (spot) {
+        item.x = spot.x;
+        item.z = spot.z;
+        item.turns = spot.turns;
+        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
+        kept.push(item);
+        this.solidify(item, true);
+      } else {
+        item.mesh.removeFromParent();
+        stored.push(item.id);
+      }
+    }
+    this.placed.length = 0;
+    this.placed.push(...kept);
+    if (stored.length) {
+      this.stored.push(...stored);
+      this.saveStored();
+    }
+    this.save();
+    this.onChanged?.();
+    return { stored };
+  }
+
+  /** Whether a piece fits on the floor here: inside the walls, clear of the way in, and of everything solid */
+  private fitsAt(modelType: string, x: number, z: number, turns: number, others: readonly PlacedItem[]): boolean {
+    const room = this.room;
+    if (!room) return false;
+    const size = this.footprint(modelType, turns);
+    const minX = x - size.width / 2;
+    const maxX = x + size.width / 2;
+    const minZ = z - size.depth / 2;
+    const maxZ = z + size.depth / 2;
+    if (minX < -room.halfWidth + 0.2 || maxX > room.halfWidth - 0.2 || minZ < -room.halfLength + 0.2 || maxZ > room.halfLength - 0.2) return false;
+    for (const point of room.keepClear) {
+      if (point.x > minX - 0.9 && point.x < maxX + 0.9 && point.z > minZ - 0.9 && point.z < maxZ + 0.9) return false;
+    }
+    if (!this.kind(modelType).solid) return true;
+    const overlaps = (ox: number, oz: number, halfWidth: number, halfLength: number) =>
+      ox - halfWidth < maxX - 0.02 && ox + halfWidth > minX + 0.02 && oz - halfLength < maxZ - 0.02 && oz + halfLength > minZ + 0.02;
+    for (const solid of room.solids()) {
+      if (overlaps(solid.x, solid.z, solid.halfWidth, solid.halfLength)) return false;
+    }
+    for (const other of others) {
+      if (!this.kind(other.modelType).solid) continue;
+      const theirs = this.footprint(other.modelType, other.turns);
+      if (overlaps(other.x, other.z, theirs.width / 2, theirs.depth / 2)) return false;
+    }
+    return true;
+  }
+
   /** Sells a piece on, for part of what it cost new. */
   public sell(uid: string): { ok: boolean; refund: number } {
     const index = this.placed.findIndex((item) => item.uid === uid);

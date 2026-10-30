@@ -27,7 +27,7 @@ export async function run(browser, check) {
   const ctx = await newPlayer(browser);
   const { page, log } = await open(ctx);
   await closeDialogs(page);
-  await page.evaluate(() => { const g = window.game; g.world.interiorManager.residence.constructor.standardNow = () => 'comfortable'; const b = g.hud.backend; b.data.bank.balance += 500_000; b.saveData(); });
+  await page.evaluate(() => { const g = window.game; g.world.interiorManager.residence.constructor.standardNow = () => 'comfortable'; g.world.interiorManager.residence.constructor.briefNow = () => ({ kind: 'house', bedrooms: 4, carport: true }); const b = g.hud.backend; b.data.bank.balance += 500_000; b.saveData(); });
   await enterInterior(page, 'residence');
   await advance(page, 1);
   // A planter, a kennel and an aquarium put down in the living room
@@ -35,9 +35,9 @@ export async function run(browser, check) {
     const d = window.game.modules.HouseDecorationSystem.getInstance();
     const put = (id, spots) => { for (const [x, z] of spots) { const n = d.placed.length; if (d.adopt([{ id, x, z, turns: 0 }])) return d.placed[n].uid; } return null; };
     return {
-      planter: put('planter_box', [[-3, 8], [2, 8], [-6, 9], [4, 9], [0, 10]]),
-      kennel: put('dog_kennel', [[-10, 9], [6, 6], [-8, 6], [8, 9], [-2, 5]]),
-      tank: put('aquarium', [[-12, 4], [10, 4], [-4, 3], [3, 2], [12, 9]]),
+      planter: put('planter_box', [[-2, 2.5], [0, 2.5], [-3, 4], [1, 4]]),
+      kennel: put('dog_kennel', [[-0.5, 1.0], [1.5, 1.5], [-3.5, 3]]),
+      tank: put('aquarium', [[-0.5, 4.4], [3.3, 2.2], [-4, 1]]),
     };
   });
   await advance(page, 0.5);
@@ -77,7 +77,8 @@ export async function run(browser, check) {
     const pet = r.getObjectByName('pet Bingo');
     const o = r.position;
     g.player.stopMoving();
-    g.player.mesh.position.set(o.x + pet.position.x + 5, 0, o.z + pet.position.z - 1);
+    // Across the parlour from the kennel
+    g.player.mesh.position.set(o.x + 2.6, 0, o.z + 3.4);
     const d = () => Math.hypot(g.player.position.x - (o.x + pet.position.x), g.player.position.z - (o.z + pet.position.z));
     const before = d();
     for (let i = 0; i < 60; i++) g.advance(0.1);

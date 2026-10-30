@@ -12,6 +12,13 @@
 
 :root {
   --lx-surface: rgba(255, 255, 255, 0.94);
+  --lx-card: #ffffff;
+  --lx-page: #f7f9f8;
+  --lx-page-2: #f3f5f4;
+  --lx-glass-solid: rgba(255, 255, 255, 0.97);
+  --lx-gold-ink: #7a5410;
+  --lx-faint: #9aa59f;
+  --lx-scheme: light;
   --lx-surface-solid: #ffffff;
   --lx-surface-2: #f4f6f5;
   --lx-surface-3: #eaeeec;
@@ -94,7 +101,7 @@ html body .hud-quest-tracker .tracker-obj-item { color: var(--lx-ink-2) !importa
 html body .hud-quest-tracker .obj-dot { color: var(--lx-brand) !important; }
 html body .hud-quest-tracker .btn-tracker-toggle { background: var(--lx-surface-2) !important; color: var(--lx-ink) !important; border: 0 !important; }
 html body .hud-quest-tracker .tracker-reward,
-html body .hud-quest-tracker [class*="reward"] { background: var(--lx-gold-soft) !important; color: #7a5310 !important; border-color: rgba(195, 143, 34, 0.3) !important; }
+html body .hud-quest-tracker [class*="reward"] { background: var(--lx-gold-soft) !important; color: var(--lx-gold-ink) !important; border-color: rgba(195, 143, 34, 0.3) !important; }
 html body #hud-today-chip {
   color: var(--lx-ink) !important;
   font-weight: 800 !important;
@@ -244,7 +251,7 @@ html body .v-joystick-base {
   backdrop-filter: blur(6px);
 }
 html body .v-joystick-thumb {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   border: 3px solid var(--lx-brand-2) !important;
   box-shadow: 0 6px 16px rgba(12, 28, 20, 0.28) !important;
 }
@@ -293,7 +300,7 @@ html body .game-dialogue-card .choice-num { background: var(--lx-surface-2) !imp
 html body .game-dialogue-card .choice-label { color: var(--lx-ink) !important; font-weight: 700 !important; }
 html body .game-dialogue-card .choice-badge { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; border: 0 !important; font-weight: 800 !important; }
 html body .game-dialogue-card .dialogue-choices-hint { color: var(--lx-dim) !important; }
-html body .game-dialogue-card .dialogue-reward-pill { background: var(--lx-gold-soft) !important; color: #7a5310 !important; border: 1px solid rgba(195, 143, 34, 0.25) !important; }
+html body .game-dialogue-card .dialogue-reward-pill { background: var(--lx-gold-soft) !important; color: var(--lx-gold-ink) !important; border: 1px solid rgba(195, 143, 34, 0.25) !important; }
 html body .game-dialogue-card button[id="dialogue-confirm-btn"],
 html body .game-dialogue-card .dialogue-confirm-btn { background: var(--lx-brand-grad) !important; color: #fff !important; border: 0 !important; border-radius: var(--lx-r-btn) !important; }
 
@@ -321,7 +328,7 @@ html body .top-menu-btn.is-open span { transform: translateY(2px) rotate(-135deg
 
 /* --- The older notices: the same white card ---------------------------------------------------- */
 html body #hud-floating-toast {
-  background: rgba(255, 255, 255, 0.97) !important;
+  background: var(--lx-glass-solid) !important;
   border: 1px solid var(--lx-line) !important;
   color: var(--lx-ink) !important;
   box-shadow: 0 14px 34px rgba(12, 28, 20, 0.18), 0 1px 2px rgba(12, 28, 20, 0.08) !important;
@@ -329,7 +336,7 @@ html body #hud-floating-toast {
   letter-spacing: -0.005em !important;
 }
 html body #interior-transition-banner {
-  background: rgba(255, 255, 255, 0.97) !important;
+  background: var(--lx-glass-solid) !important;
   border: 1px solid var(--lx-line) !important;
   box-shadow: 0 18px 44px rgba(12, 28, 20, 0.2), 0 1px 2px rgba(12, 28, 20, 0.08) !important;
   border-radius: 20px !important;
@@ -485,7 +492,7 @@ html body .lx-pop {
   max-width: calc(100vw - 92px);
   padding: 14px 14px 14px;
   border-radius: var(--lx-r-card);
-  background: rgba(255, 255, 255, 0.97);
+  background: var(--lx-glass-solid);
   -webkit-backdrop-filter: var(--lx-glass);
   backdrop-filter: var(--lx-glass);
   border: 1px solid var(--lx-line);
@@ -533,7 +540,7 @@ html body .lx-pop.is-open { opacity: 1; transform: none; pointer-events: auto; }
   left: 4px;
   width: calc((100% - 8px) / var(--n));
   border-radius: 11px;
-  background: #fff;
+  background: var(--lx-card);
   box-shadow: 0 3px 10px rgba(12, 28, 20, 0.14), 0 1px 2px rgba(12, 28, 20, 0.08);
   transform: translateX(calc(var(--i) * 100%));
   transition: transform 0.36s var(--lx-ease);
@@ -637,10 +644,10 @@ html body .map-stat-pill.money-stat { background: var(--lx-surface-2) !important
 
 /* The search field: a soft grey well with a drawn glass */
 html body .map-search { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line); padding: 5px 12px !important; gap: 8px !important; }
-html body .map-search:focus-within { background: #fff !important; box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.16); border-color: rgba(14, 122, 78, 0.45); }
+html body .map-search:focus-within { background: var(--lx-card) !important; box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.16); border-color: rgba(14, 122, 78, 0.45); }
 html body .map-search-ico { display: grid; place-items: center; color: var(--lx-dim); }
 html body .map-search input { color: var(--lx-ink) !important; font-weight: 600 !important; font-size: 13.5px !important; }
-html body .map-search input::placeholder { color: #8a958f !important; }
+html body .map-search input::placeholder { color: var(--lx-faint) !important; }
 html body .map-search-results { border-radius: 18px !important; border: 1px solid var(--lx-line) !important; box-shadow: var(--lx-shadow-lg) !important; padding: 6px !important; }
 html body .map-search-hit { border-radius: 12px !important; grid-template-columns: 30px 1fr !important; column-gap: 10px !important; }
 html body .map-search-hit:hover,
@@ -652,7 +659,7 @@ html body .map-search-hit .hit-icon {
   display: grid;
   place-items: center;
   font-size: 16px !important;
-  background: #fff;
+  background: var(--lx-card);
   box-shadow: 0 0 0 1px var(--lx-line);
 }
 html body .map-search-hit .hit-name { color: var(--lx-ink) !important; }
@@ -729,7 +736,7 @@ html body .map-tt-sub { color: var(--lx-brand) !important; }
 
 /* The sheet for a place */
 html body .map-context-card {
-  background: rgba(255, 255, 255, 0.98) !important;
+  background: var(--lx-glass-solid) !important;
   border: 1px solid var(--lx-line) !important;
   box-shadow: var(--lx-shadow-lg) !important;
   border-radius: 26px !important;
@@ -743,7 +750,7 @@ html body .map-context-card .card-stats-grid { background: var(--lx-surface-2) !
 html body .map-context-card .sheet-label { color: var(--lx-dim) !important; letter-spacing: 0.06em !important; }
 html body .map-context-card .sheet-chip { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line) !important; color: var(--lx-ink) !important; }
 html body .map-context-card .transport-tile {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   border: 1.5px solid var(--lx-line) !important;
   box-shadow: 0 2px 6px rgba(12, 28, 20, 0.05);
   border-radius: 16px !important;
@@ -769,7 +776,7 @@ html body .map-context-card .sheet-link-btn { color: var(--lx-dim) !important; }
     position: sticky;
     bottom: -18px;
     z-index: 2;
-    box-shadow: 0 -10px 18px rgba(255, 255, 255, 0.9), 0 10px 22px rgba(14, 122, 78, 0.3) !important;
+    box-shadow: 0 -10px 18px var(--lx-glass-solid), 0 10px 22px rgba(14, 122, 78, 0.3) !important;
   }
   html body #btn-map-names {
     width: 46px !important;
@@ -808,7 +815,7 @@ html body .map-search input::-webkit-search-cancel-button { filter: grayscale(1)
 @media (max-width: 700px) {
   html body .map-search input { width: auto !important; flex: 1 1 auto; min-width: 0; }
   /* Glass here would make the row the frame of the Names button, and hide it */
-  html body .map-city-tabs { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: rgba(255, 255, 255, 0.97) !important; }
+  html body .map-city-tabs { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: var(--lx-glass-solid) !important; }
 }
 
 /* =============================================================================================
@@ -817,19 +824,19 @@ html body .map-search input::-webkit-search-cancel-button { filter: grayscale(1)
    emerald for what can be done. Money heroes are emerald, ink or gold, never a fourth colour.
    ============================================================================================= */
 html body #smartphone-wrapper .smartphone-device.nlphone:not(:has(.nlphone-home)) {
-  --nl-bg: #f3f5f4;
-  --nl-surface: #ffffff;
-  --nl-surface-2: #eef1ef;
-  --nl-line: rgba(15, 26, 20, 0.08);
-  --nl-text: #0f1a14;
-  --nl-dim: #66736c;
+  --nl-bg: var(--lx-page-2);
+  --nl-surface: var(--lx-card);
+  --nl-surface-2: var(--lx-surface-2);
+  --nl-line: var(--lx-line);
+  --nl-text: var(--lx-ink);
+  --nl-dim: var(--lx-dim);
   --nl-accent: #0e7a4e;
   --nl-accent-text: #ffffff;
   --nl-good: #0b8a55;
   --nl-warn: #b45309;
   --nl-bad: #d92d4b;
   --nl-focus: #0e7a4e;
-  color-scheme: light;
+  color-scheme: var(--lx-scheme);
   background: var(--nl-bg) !important;
 }
 html body .nlphone:not(:has(.nlphone-home)) .phone-status-bar { color: var(--nl-text) !important; }
@@ -841,7 +848,7 @@ html body .nlphone:not(:has(.nlphone-home)) .nlphone-back {
   width: 36px;
   height: 36px;
   font-size: 0;
-  background: #fff;
+  background: var(--lx-card);
   border: 1px solid var(--nl-line);
   box-shadow: 0 2px 6px rgba(12, 28, 20, 0.08);
   position: relative;
@@ -872,34 +879,34 @@ html body .nlphone:not(:has(.nlphone-home)) button.nl-row:hover:not(:disabled) {
 html body .nlphone:not(:has(.nlphone-home)) button.nl-row:active:not(:disabled) { transform: scale(0.99); }
 
 /* Buttons: emerald for the main one, white for the rest */
-html body .nlphone:not(:has(.nlphone-home)) .nl-btn { background: #fff; box-shadow: 0 1px 2px rgba(12, 28, 20, 0.06); font-weight: 800; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-btn { background: var(--lx-card); box-shadow: 0 1px 2px rgba(12, 28, 20, 0.06); font-weight: 800; }
 html body .nlphone:not(:has(.nlphone-home)) .nl-btn--primary {
   background: var(--lx-brand-grad);
   color: #fff;
   border-color: transparent;
   box-shadow: 0 8px 18px rgba(14, 122, 78, 0.26);
 }
-html body .nlphone:not(:has(.nlphone-home)) .nl-btn--danger { background: #fff; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-btn--danger { background: var(--lx-card); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-btn--glass { color: #fff; }
 html body .nlphone:not(:has(.nlphone-home)) .nl-btn:hover:not(:disabled) { filter: brightness(0.98); }
 
 /* Tabs and filters: the chosen one in ink, the way iOS does it, so emerald stays for actions */
-html body .nlphone:not(:has(.nlphone-home)) .nl-chip { background: #fff; color: var(--nl-dim); box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-chip { background: var(--lx-card); color: var(--nl-dim); box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-chip.is-on { background: var(--lx-ink); color: #fff; border-color: transparent; }
-html body .nlphone:not(:has(.nlphone-home)) .nl-field { background: #fff; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-field { background: var(--lx-card); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-field:focus { outline: none; border-color: rgba(14, 122, 78, 0.5); box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.14); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-tag { background: var(--nl-surface-2); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-tag--good { background: var(--lx-brand-soft); color: var(--lx-brand-deep); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-tag--live { background: var(--lx-red); color: #fff; }
-html body .nlphone:not(:has(.nlphone-home)) .nl-note { background: #fff; }
-html body .nlphone:not(:has(.nlphone-home)) .nl-note--warn { background: #fff8ec; color: #92400e; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-note { background: var(--lx-card); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-note--warn { background: #fff8ec; color: var(--lx-gold-ink); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-card--live { background: var(--lx-brand-soft); border-color: rgba(14, 122, 78, 0.35); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-stats span { background: var(--nl-surface-2); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-meter { background: var(--nl-surface-2); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-toggle { background: #d7ddd9; }
 html body .nlphone:not(:has(.nlphone-home)) .nl-toggle.is-on { background: var(--lx-brand); }
-html body .nlphone:not(:has(.nlphone-home)) .nl-bar { background: rgba(255, 255, 255, 0.96); border-top: 1px solid var(--nl-line); -webkit-backdrop-filter: var(--lx-glass); backdrop-filter: var(--lx-glass); }
-html body .nlphone:not(:has(.nlphone-home)) .nl-bubble--them { background: #fff; color: var(--nl-text); border: 1px solid var(--nl-line); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-bar { background: var(--lx-glass-solid); border-top: 1px solid var(--nl-line); -webkit-backdrop-filter: var(--lx-glass); backdrop-filter: var(--lx-glass); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-bubble--them { background: var(--lx-card); color: var(--nl-text); border: 1px solid var(--nl-line); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-bubble--me { background: var(--lx-brand-grad); color: #fff; }
 
 /* The big panel at the top of an app: emerald by default, then ink, then gold; the same depth */
@@ -930,10 +937,10 @@ html body .nlphone:not(:has(.nlphone-home)) .nl-hero::after {
 html body .nlphone .nl-hero-value { font-weight: 800; letter-spacing: -0.02em; }
 
 /* The handset's own bottom bar and the sheet that asks */
-html body .nlphone:not(:has(.nlphone-home)) .nlphone-nav { background: rgba(255, 255, 255, 0.92); border-top: 1px solid var(--nl-line); }
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-nav { background: var(--lx-glass-solid); border-top: 1px solid var(--nl-line); }
 html body .nlphone .nlphone-confirm { background: rgba(12, 28, 20, 0.42); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
-html body .nlphone:not(:has(.nlphone-home)) .nlphone-confirm-card { background: #fff; box-shadow: var(--lx-shadow-lg); border-radius: 24px; }
-html body .nlphone:not(:has(.nlphone-home)) .nlphone-notice { background: #fff; box-shadow: var(--lx-shadow); color: var(--nl-text); }
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-confirm-card { background: var(--lx-card); box-shadow: var(--lx-shadow-lg); border-radius: 24px; }
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-notice { background: var(--lx-card); box-shadow: var(--lx-shadow); color: var(--nl-text); }
 html body .nlphone:not(:has(.nlphone-home)) .nlphone-notice[data-tone="bad"] { color: #b4233b; }
 
 /* --- The home screen's tiles: one family, frosted white, each app's own picture on it -------- */
@@ -953,7 +960,7 @@ html body .nlphone:has(.nlphone-home) .nlphone-dock {
 
 /* --- The top menu: a white sheet under the chevron ------------------------------------------- */
 html body .top-menu {
-  background: rgba(255, 255, 255, 0.98) !important;
+  background: var(--lx-glass-solid) !important;
   color: var(--lx-ink) !important;
   border: 1px solid var(--lx-line);
   box-shadow: var(--lx-shadow-lg) !important;
@@ -971,10 +978,10 @@ html body .tm-row:last-of-type { border-bottom: 0 !important; }
 html body .tm-icon { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line); }
 html body .tm-text strong { color: var(--lx-ink); }
 html body .tm-text em { color: var(--lx-dim) !important; }
-html body .tm-trail { color: #a3aea8 !important; }
+html body .tm-trail { color: var(--lx-faint) !important; }
 html body .tm-plus { background: var(--lx-brand-grad) !important; box-shadow: 0 4px 10px rgba(14, 122, 78, 0.3); }
 html body .tm-chip {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   border: 1px solid var(--lx-line) !important;
   box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05), 0 4px 12px rgba(12, 28, 20, 0.05);
   transition: transform 0.15s var(--lx-ease), background 0.15s ease;
@@ -993,16 +1000,16 @@ html body .nlphone .nl-btn--glass {
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
-html body .nlphone .nl-hero .nl-btn--primary { background: #fff !important; color: var(--lx-brand-deep) !important; border-color: transparent !important; }
+html body .nlphone .nl-hero .nl-btn--primary { background: var(--lx-card) !important; color: var(--lx-brand-deep) !important; border-color: transparent !important; }
 html body .nlphone .nl-hero .nl-meter { background: rgba(255, 255, 255, 0.22) !important; }
-html body .nlphone .nl-hero .nl-meter > span { background: #fff !important; }
+html body .nlphone .nl-hero .nl-meter > span { background: var(--lx-card) !important; }
 
 /* =============================================================================================
    SHEETS FROM THE BOTTOM (music, catalogue, jets and yachts, a profile, the pump, State House):
    one white sheet with a grab bar, white cards on a soft page, the chosen thing in emerald.
    ============================================================================================= */
 html body .cat-sheet {
-  background: #f7f9f8 !important;
+  background: var(--lx-page) !important;
   color: var(--lx-ink) !important;
   box-shadow: 0 -18px 50px rgba(12, 28, 20, 0.22), 0 -1px 0 var(--lx-line) !important;
   border-radius: 28px 28px 0 0 !important;
@@ -1016,21 +1023,21 @@ html body .cat-h,
 html body .music-note,
 html body .music-text em { color: var(--lx-dim) !important; }
 html body .cat-round {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   color: var(--lx-ink) !important;
   border: 1px solid var(--lx-line) !important;
   box-shadow: 0 1px 3px rgba(12, 28, 20, 0.08);
 }
 html body .cat-search input,
 html body .cat-select select {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   color: var(--lx-ink) !important;
   border: 1px solid var(--lx-line) !important;
 }
 html body .cat-search input:focus { border-color: rgba(14, 122, 78, 0.5) !important; box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.14); }
 html body .cat-tab,
 html body .cat-pill {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   color: var(--lx-dim) !important;
   border: 1px solid var(--lx-line) !important;
   box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05);
@@ -1040,7 +1047,7 @@ html body .cat-tab.is-on,
 html body .cat-pill.is-on { background: var(--lx-ink) !important; color: #fff !important; border-color: transparent !important; }
 html body .cat-tab.is-on b { background: rgba(255, 255, 255, 0.2) !important; color: #fff; }
 html body .cat-card {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   border: 1.5px solid var(--lx-line) !important;
   box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04), 0 6px 14px rgba(12, 28, 20, 0.05);
   color: var(--lx-ink) !important;
@@ -1050,21 +1057,21 @@ html body .cat-card.is-short .cat-price { color: var(--lx-red) !important; }
 html body .cat-tiles { background: var(--lx-surface-2) !important; color: var(--lx-ink-2) !important; }
 html body .cat-stars { color: var(--lx-gold) !important; }
 html body .cat-picked { background: var(--lx-brand) !important; }
-html body .cat-img { background: radial-gradient(circle at 50% 60%, #ffffff, #eef1ef 75%) !important; }
+html body .cat-img { background: radial-gradient(circle at 50% 60%, var(--lx-card), var(--lx-surface-2) 75%) !important; }
 html body .cat-price { color: var(--lx-ink) !important; }
 html body .cat-need { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; }
-html body .cat-swatch { background: #fff !important; border-color: var(--lx-line) !important; color: var(--lx-ink-2) !important; }
+html body .cat-swatch { background: var(--lx-card) !important; border-color: var(--lx-line) !important; color: var(--lx-ink-2) !important; }
 html body .cat-swatch.is-on { border-color: var(--lx-brand) !important; }
-html body .cat-basket { background: rgba(255, 255, 255, 0.96) !important; border-top: 1px solid var(--lx-line) !important; color: var(--lx-ink); }
+html body .cat-basket { background: var(--lx-glass-solid) !important; border-top: 1px solid var(--lx-line) !important; color: var(--lx-ink); }
 html body .cat-go { background: var(--lx-brand-grad) !important; box-shadow: 0 8px 18px rgba(14, 122, 78, 0.26); }
-html body .cat-go:disabled { background: var(--lx-surface-3) !important; color: #9aa59f !important; box-shadow: none; }
+html body .cat-go:disabled { background: var(--lx-surface-3) !important; color: var(--lx-faint) !important; box-shadow: none; }
 
 /* Music: the song playing on an emerald card, the list in white rows */
 html body .music-now { background: var(--lx-brand-grad) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 14px 28px rgba(9, 92, 58, 0.22); }
 html body .music-label { color: #c9f2dd !important; }
 html body .music-row .music-pick,
 html body .music-pick {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   border: 1.5px solid var(--lx-line) !important;
   color: var(--lx-ink) !important;
   box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04);
@@ -1073,7 +1080,7 @@ html body .music-row.is-on .music-pick { border-color: var(--lx-brand) !importan
 html body .music-art { background: var(--lx-surface-2) !important; }
 html body .music-text strong { color: var(--lx-ink); }
 html body .eq b { background: var(--lx-brand) !important; }
-html body .music-add { border-color: rgba(14, 122, 78, 0.45) !important; color: var(--lx-brand) !important; background: #fff; }
+html body .music-add { border-color: rgba(14, 122, 78, 0.45) !important; color: var(--lx-brand) !important; background: var(--lx-card); }
 html body .music-volume input { accent-color: #fff; }
 
 /* =============================================================================================
@@ -1085,16 +1092,16 @@ html body .economy-dialog,
 html body .travel-dialog,
 html body .interstate-dialog,
 html body .quest-modal-dialog {
-  --nl-bg: #f7f9f8;
-  --nl-surface: #ffffff;
-  --nl-surface-2: #eef1ef;
-  --nl-line: rgba(15, 26, 20, 0.08);
-  --nl-text: #0f1a14;
-  --nl-dim: #66736c;
+  --nl-bg: var(--lx-page);
+  --nl-surface: var(--lx-card);
+  --nl-surface-2: var(--lx-surface-2);
+  --nl-line: var(--lx-line);
+  --nl-text: var(--lx-ink);
+  --nl-dim: var(--lx-dim);
   --nl-accent: #0e7a4e;
-  color-scheme: light;
+  color-scheme: var(--lx-scheme);
   color: var(--lx-ink) !important;
-  background: #f7f9f8 !important;
+  background: var(--lx-page) !important;
   border: 1px solid var(--lx-line) !important;
   border-radius: 28px !important;
   box-shadow: var(--lx-shadow-lg) !important;
@@ -1134,7 +1141,7 @@ html body .atm-dialog .dialog-close-btn,
 html body .travel-dialog .dialog-close-btn,
 html body .interstate-dialog .dialog-close-btn,
 html body .economy-dialog .modal-close-btn,
-html body .quest-modal-dialog .quest-modal-close-btn { background: #fff !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; box-shadow: 0 1px 3px rgba(12, 28, 20, 0.08); }
+html body .quest-modal-dialog .quest-modal-close-btn { background: var(--lx-card) !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; box-shadow: 0 1px 3px rgba(12, 28, 20, 0.08); }
 html body .inventory-dialog .fin-card,
 html body .inventory-dialog .inv-item-card,
 html body .economy-dialog .econ-metric-card,
@@ -1143,7 +1150,7 @@ html body .travel-dialog .dest-card,
 html body .interstate-dialog .route-card,
 html body .quest-modal-dialog .quest-card,
 html body .atm-dialog .atm-screen {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   border: 1px solid var(--lx-line) !important;
   border-radius: 18px !important;
   box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04), 0 6px 16px rgba(12, 28, 20, 0.05) !important;
@@ -1164,7 +1171,7 @@ html body .interstate-dialog .btn-book-route {
 html body .inventory-dialog .inv-btn-use,
 html body .atm-dialog .atm-btn { color: var(--lx-brand-deep) !important; background: var(--lx-brand-soft) !important; border: 1px solid rgba(14, 122, 78, 0.22) !important; }
 html body .economy-dialog .econ-tab-btn,
-html body .quest-modal-dialog .quest-tab-btn { background: #fff !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; }
+html body .quest-modal-dialog .quest-tab-btn { background: var(--lx-card) !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; }
 html body .economy-dialog .econ-tab-btn.active,
 html body .quest-modal-dialog .quest-tab-btn.active { background: var(--lx-ink) !important; color: #fff !important; border-color: transparent !important; }
 html body .inventory-dialog button:focus-visible,
@@ -1172,7 +1179,7 @@ html body .economy-dialog button:focus-visible,
 html body .interstate-dialog button:focus-visible,
 html body .quest-modal-dialog button:focus-visible { outline-color: var(--lx-brand) !important; }
 html body .atm-dialog .atm-header,
-html body .atm-dialog .atm-footer { background: #f7f9f8 !important; }
+html body .atm-dialog .atm-footer { background: var(--lx-page) !important; }
 html body .atm-dialog .atm-account-info,
 html body .atm-dialog .atm-tx-row,
 html body .travel-dialog .travel-origin-banner,
@@ -1198,8 +1205,8 @@ html body .economy-dialog .text-emerald, html body .economy-dialog .metric-val.t
 html body .economy-dialog .text-gold, html body .economy-dialog .metric-val.text-gold { color: var(--lx-gold) !important; }
 html body .economy-dialog .econ-financials-box, html body .economy-dialog .econ-info-box, html body .economy-dialog .econ-unowned-pitch, html body .economy-dialog .career-rank-hero, html body .economy-dialog .career-milestones > * { background: var(--lx-surface-2) !important; border-color: var(--lx-line) !important; color: var(--lx-ink-2) !important; }
 html body .economy-dialog .econ-icon-box { background: var(--lx-surface-2) !important; }
-html body .economy-dialog .econ-action-bar { background: rgba(255, 255, 255, 0.96) !important; border-color: var(--lx-line) !important; }
-html body .economy-dialog .btn-claim-all-econ:disabled { background: var(--lx-surface-3) !important; color: #9aa59f !important; box-shadow: none !important; }
+html body .economy-dialog .econ-action-bar { background: var(--lx-glass-solid) !important; border-color: var(--lx-line) !important; }
+html body .economy-dialog .btn-claim-all-econ:disabled { background: var(--lx-surface-3) !important; color: var(--lx-faint) !important; box-shadow: none !important; }
 html body .economy-dialog .econ-badge { background: var(--lx-surface-2) !important; color: var(--lx-ink-2) !important; border: 0 !important; }
 html body .economy-dialog .econ-badge.badge-owned { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; }
 html body .quest-modal-dialog .quest-city-tabs { background: transparent !important; border-bottom: 1px solid var(--lx-line) !important; }
@@ -1207,10 +1214,10 @@ html body .quest-modal-dialog .quest-card-objectives { background: var(--lx-surf
 html body .quest-modal-dialog .obj-header-title { color: var(--lx-dim) !important; }
 html body .quest-modal-dialog .quest-obj-row { color: var(--lx-ink-2) !important; }
 html body .quest-modal-dialog .quest-card-desc, html body .quest-modal-dialog .quest-card-info { color: var(--lx-ink-2) !important; }
-html body .quest-modal-dialog .quest-status-badge { background: var(--lx-gold-soft) !important; color: #8a5f10 !important; }
+html body .quest-modal-dialog .quest-status-badge { background: var(--lx-gold-soft) !important; color: var(--lx-gold-ink) !important; }
 html body .quest-modal-dialog .btn-tracking-active { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; border: 1px solid rgba(14, 122, 78, 0.25) !important; }
 html body .quest-modal-dialog .btn-track-quest { background: var(--lx-brand-grad) !important; color: #fff !important; border: 0 !important; }
-html body .quest-modal-dialog .quest-rewards-pill { background: var(--lx-gold-soft) !important; color: #7a5410 !important; border-color: rgba(195, 143, 34, 0.3) !important; }
+html body .quest-modal-dialog .quest-rewards-pill { background: var(--lx-gold-soft) !important; color: var(--lx-gold-ink) !important; border-color: rgba(195, 143, 34, 0.3) !important; }
 html body .quest-modal-dialog .quest-card-active { border-color: rgba(14, 122, 78, 0.45) !important; box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.1), 0 8px 20px rgba(12, 28, 20, 0.06) !important; }
 html body .interstate-dialog .route-stations, html body .interstate-dialog .station-row { color: var(--lx-ink-2) !important; }
 html body .interstate-dialog .route-operator, html body .interstate-dialog .origin-meta { color: var(--lx-ink) !important; }
@@ -1238,7 +1245,7 @@ html body .master-nav-item:hover .nav-icon { color: var(--lx-brand); }
 html body .photo-header-panel,
 html body .photo-controls-panel,
 html body .photo-unhide-hint {
-  background: rgba(255, 255, 255, 0.92) !important;
+  background: var(--lx-glass-solid) !important;
   -webkit-backdrop-filter: var(--lx-glass) !important;
   backdrop-filter: var(--lx-glass) !important;
   border: 1px solid var(--lx-line) !important;
@@ -1255,7 +1262,7 @@ html body .photo-hints { color: var(--lx-dim) !important; }
 html body .photo-icon-btn,
 html body .photo-filter-pill,
 html body .lens-btn {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   border: 1px solid var(--lx-line) !important;
   color: var(--lx-ink-2) !important;
   box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05);
@@ -1263,7 +1270,7 @@ html body .lens-btn {
 html body .photo-icon-btn.active,
 html body .lens-btn.active { background: var(--lx-brand-soft) !important; border-color: rgba(14, 122, 78, 0.35) !important; color: var(--lx-brand-deep) !important; }
 html body .photo-filter-pill.selected { background: var(--lx-ink) !important; border-color: transparent !important; color: #fff !important; box-shadow: 0 4px 10px rgba(12, 28, 20, 0.2) !important; }
-html body .photo-close-btn { background: #fff !important; border: 1px solid rgba(225, 29, 72, 0.25) !important; color: var(--lx-red) !important; }
+html body .photo-close-btn { background: var(--lx-card) !important; border: 1px solid rgba(225, 29, 72, 0.25) !important; color: var(--lx-red) !important; }
 html body .photo-sliders-row { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line) !important; }
 html body .photo-slider { background: #d7ddd9 !important; }
 html body .photo-slider::-webkit-slider-thumb { background: var(--lx-brand) !important; box-shadow: 0 0 0 4px rgba(14, 122, 78, 0.18) !important; }
@@ -1287,14 +1294,14 @@ html body .atm-dialog .atm-brand,
 html body .atm-dialog .atm-header h2,
 html body .atm-dialog .atm-header strong { color: var(--lx-ink) !important; }
 html body .atm-dialog .atm-transactions { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line) !important; }
-html body .atm-dialog .atm-tx-row { background: #fff !important; }
+html body .atm-dialog .atm-tx-row { background: var(--lx-card) !important; }
 html body .atm-dialog .tx-desc { color: var(--lx-ink-2) !important; }
 html body .atm-dialog .tx-time,
 html body .atm-dialog .balance-label,
 html body .atm-dialog .wallet-hint,
 html body .atm-dialog .info-row { color: var(--lx-dim) !important; }
 html body .atm-dialog .balance-amount { color: var(--lx-brand) !important; }
-html body .atm-dialog .atm-btn.deposit-btn { color: var(--lx-ink) !important; background: #fff !important; border-color: var(--lx-line) !important; }
+html body .atm-dialog .atm-btn.deposit-btn { color: var(--lx-ink) !important; background: var(--lx-card) !important; border-color: var(--lx-line) !important; }
 
 html body .travel-dialog .dest-meta h3,
 html body .travel-dialog .dest-meta h4,
@@ -1302,21 +1309,21 @@ html body .travel-dialog .dest-meta strong,
 html body .travel-dialog .dest-top h3,
 html body .travel-dialog .dest-top h4 { color: var(--lx-ink) !important; }
 html body .travel-dialog .dest-tagline { color: var(--lx-dim) !important; }
-html body .travel-dialog .dest-conductor-quote { color: #8a5f10 !important; }
+html body .travel-dialog .dest-conductor-quote { color: var(--lx-gold-ink) !important; }
 html body .travel-dialog .dest-perk { color: var(--lx-ink-2) !important; background: var(--lx-surface-2) !important; border-color: var(--lx-line) !important; }
-html body .travel-dialog .dest-fare { background: var(--lx-gold-soft) !important; color: #7a5410 !important; }
+html body .travel-dialog .dest-fare { background: var(--lx-gold-soft) !important; color: var(--lx-gold-ink) !important; }
 html body .travel-dialog .dest-icon { background: var(--lx-surface-2) !important; }
 
 /* The wardrobe: the same white dialog; the item worn has an emerald edge */
 html body #character-creator-modal .creator-dialog {
-  --nl-bg: #f7f9f8;
-  --nl-surface: #ffffff;
-  --nl-surface-2: #eef1ef;
-  --nl-line: rgba(15, 26, 20, 0.08);
-  --nl-text: #0f1a14;
-  --nl-dim: #66736c;
+  --nl-bg: var(--lx-page);
+  --nl-surface: var(--lx-card);
+  --nl-surface-2: var(--lx-surface-2);
+  --nl-line: var(--lx-line);
+  --nl-text: var(--lx-ink);
+  --nl-dim: var(--lx-dim);
   --nl-accent: #0e7a4e;
-  background: #f7f9f8 !important;
+  background: var(--lx-page) !important;
   color: var(--lx-ink) !important;
   border: 1px solid var(--lx-line) !important;
   border-radius: 28px !important;
@@ -1332,28 +1339,28 @@ html body #character-creator-modal p,
 html body #character-creator-modal .preset-desc,
 html body #character-creator-modal .destiny-subtitle { color: var(--lx-ink-2) !important; }
 html body #character-creator-modal .dialog-badge { color: var(--lx-brand-deep) !important; background: var(--lx-brand-soft) !important; border: 0 !important; }
-html body #character-creator-modal .dialog-close-btn { background: #fff !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; }
+html body #character-creator-modal .dialog-close-btn { background: var(--lx-card) !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; }
 html body #character-creator-modal .wardrobe-item-card,
 html body #character-creator-modal .creator-section,
 html body #character-creator-modal .preset-grid > *,
 html body #character-creator-modal .destiny-grid > * {
-  background: #fff !important;
+  background: var(--lx-card) !important;
   border: 1px solid var(--lx-line) !important;
   color: var(--lx-ink) !important;
   box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04), 0 6px 14px rgba(12, 28, 20, 0.05) !important;
 }
 html body #character-creator-modal .creator-section { box-shadow: none !important; background: transparent !important; border: 0 !important; }
 html body #character-creator-modal .pill-grid button,
-html body #character-creator-modal .pill-grid > * { background: #fff !important; color: var(--lx-ink-2) !important; border: 1px solid var(--lx-line) !important; }
+html body #character-creator-modal .pill-grid > * { background: var(--lx-card) !important; color: var(--lx-ink-2) !important; border: 1px solid var(--lx-line) !important; }
 html body #character-creator-modal .pill-grid .active,
 html body #character-creator-modal .pill-grid .selected { background: var(--lx-ink) !important; color: #fff !important; border-color: transparent !important; }
 html body #character-creator-modal .btn-save,
 html body #character-creator-modal .btn-buy-item,
 html body #character-creator-modal .btn-equip-item,
 html body #character-creator-modal .btn-spin-destiny { background: var(--lx-brand-grad) !important; color: #fff !important; border: 0 !important; box-shadow: 0 8px 18px rgba(14, 122, 78, 0.24) !important; }
-html body #character-creator-modal .btn-unequip-item { background: #fff !important; color: var(--lx-red) !important; border: 1px solid rgba(225, 29, 72, 0.3) !important; }
-html body #character-creator-modal .text-input { background: #fff !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
-html body #character-creator-modal .dialog-footer { background: rgba(255, 255, 255, 0.96) !important; border-top: 1px solid var(--lx-line) !important; }
+html body #character-creator-modal .btn-unequip-item { background: var(--lx-card) !important; color: var(--lx-red) !important; border: 1px solid rgba(225, 29, 72, 0.3) !important; }
+html body #character-creator-modal .text-input { background: var(--lx-card) !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
+html body #character-creator-modal .dialog-footer { background: var(--lx-glass-solid) !important; border-top: 1px solid var(--lx-line) !important; }
 
 html body .atm-dialog .atm-brand h3 { color: var(--lx-ink) !important; font-family: var(--nl-font) !important; font-weight: 800 !important; letter-spacing: 0.02em; }
 html body #character-creator-modal #tab-btn-wardrobe, html body #character-creator-modal #tab-btn-presets { box-shadow: inset 0 0 0 1px rgba(15, 26, 20, 0.08); }
@@ -1379,7 +1386,7 @@ html body #character-creator-modal #tab-btn-wardrobe, html body #character-creat
   html body .drive-name { font-weight: 800 !important; }
   html body .drive-fuel { color: var(--lx-ink-2) !important; }
   html body .drive-chip { background: var(--lx-brand-grad) !important; box-shadow: 0 6px 14px rgba(14, 122, 78, 0.3); font-weight: 800 !important; }
-  html body .drive-chip[data-music] { background: #fff !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
+  html body .drive-chip[data-music] { background: var(--lx-card) !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
   html body .drive-chip[data-music].is-on { background: var(--lx-brand-grad) !important; color: #fff !important; }
   html body .drive-speed b { color: var(--lx-ink); letter-spacing: -0.02em; }
   html body .drive-speed span { color: var(--lx-dim); opacity: 1 !important; }
@@ -1392,3 +1399,97 @@ html body #character-creator-modal #tab-btn-wardrobe, html body #character-creat
   html body .drive-gas { background: var(--lx-brand-grad) !important; }
   html body .drive-brake { background: linear-gradient(160deg, #ef4f6a 0%, #c81e45 60%, #9b1236 100%) !important; }
 }
+
+/* =============================================================================================
+   DARK: the same game at night-time colours, chosen in Settings or the top menu. Surfaces go
+   to a deep green-black glass, ink to near white; the emerald brightens so it still reads, and
+   gold stays gold.
+   ============================================================================================= */
+:root[data-theme="dark"] {
+  --lx-surface: rgba(20, 28, 24, 0.9);
+  --lx-surface-solid: #151d19;
+  --lx-surface-2: #1e2924;
+  --lx-surface-3: #29362f;
+  --lx-card: #18221d;
+  --lx-page: #0e1412;
+  --lx-page-2: #0b100e;
+  --lx-glass-solid: rgba(20, 28, 24, 0.97);
+  --lx-ink: #eef4f0;
+  --lx-ink-2: #c8d3cd;
+  --lx-dim: #94a49b;
+  --lx-faint: #66756d;
+  --lx-line: rgba(255, 255, 255, 0.09);
+  --lx-brand: #1db574;
+  --lx-brand-2: #34d391;
+  --lx-brand-deep: #93e8c1;
+  --lx-brand-soft: rgba(29, 181, 116, 0.16);
+  --lx-gold-soft: rgba(229, 184, 75, 0.15);
+  --lx-gold-ink: #f2cf6b;
+  --lx-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --lx-shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --lx-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --lx-scheme: dark;
+  color-scheme: dark;
+}
+/* What draws its own colours: the notices, the hustle chip's page, the wardrobe's tabs, the map's tags */
+:root[data-theme="dark"] .game-toast { background: rgba(24, 34, 29, 0.97) !important; color: var(--lx-ink) !important; border-color: var(--lx-line) !important; box-shadow: var(--lx-shadow-lg) !important; }
+:root[data-theme="dark"] .game-toast .game-toast-icon { background: var(--lx-brand-soft) !important; }
+:root[data-theme="dark"] #today-panel { background: var(--lx-page) !important; color: var(--lx-ink) !important; }
+:root[data-theme="dark"] #today-panel .tp-head h2,
+:root[data-theme="dark"] #today-panel .tp-title { color: var(--lx-ink) !important; }
+:root[data-theme="dark"] #today-panel .tp-x,
+:root[data-theme="dark"] #today-panel .tp-card,
+:root[data-theme="dark"] #today-panel .tp-rung,
+:root[data-theme="dark"] #today-panel .tp-tier,
+:root[data-theme="dark"] #today-panel .tp-btn.ghost { background: var(--lx-card) !important; border-color: var(--lx-line) !important; color: var(--lx-ink) !important; }
+:root[data-theme="dark"] #today-panel .tp-tabs,
+:root[data-theme="dark"] #today-panel .tp-ico,
+:root[data-theme="dark"] #today-panel .tp-bar,
+:root[data-theme="dark"] #today-panel .tp-rung .n { background: var(--lx-surface-2) !important; }
+:root[data-theme="dark"] #today-panel .tp-tab { color: var(--lx-dim) !important; }
+:root[data-theme="dark"] #today-panel .tp-tab.on { background: var(--lx-surface-3) !important; color: var(--lx-ink) !important; }
+:root[data-theme="dark"] #today-panel .tp-meta,
+:root[data-theme="dark"] #today-panel .tp-sec { color: var(--lx-dim) !important; }
+:root[data-theme="dark"] #today-panel .tp-card.done { background: linear-gradient(135deg, rgba(29, 181, 116, 0.2), var(--lx-card) 70%) !important; }
+:root[data-theme="dark"] #today-panel .tp-rung.got,
+:root[data-theme="dark"] #today-panel .tp-tier.got { background: linear-gradient(135deg, rgba(229, 184, 75, 0.18), var(--lx-card) 70%) !important; }
+:root[data-theme="dark"] #character-creator-modal [style*="background: #ffffff"] { background: var(--lx-card) !important; color: var(--lx-ink) !important; }
+:root[data-theme="dark"] #character-creator-modal [style*="color: #0f1a14"] { color: var(--lx-ink) !important; }
+:root[data-theme="dark"] #character-creator-modal [style*="color: #2f3a34"],
+:root[data-theme="dark"] #character-creator-modal [style*="color: #66736c"] { color: var(--lx-dim) !important; }
+:root[data-theme="dark"] #character-creator-modal [style*="background: #e6f4ec"] { background: var(--lx-brand-soft) !important; }
+:root[data-theme="dark"] .map-search-results { background: var(--lx-card) !important; }
+:root[data-theme="dark"] .map-pin-icon { background: var(--lx-card) !important; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), 0 0 0 2px var(--lx-card), 0 0 0 3px rgba(255, 255, 255, 0.08) !important; }
+:root[data-theme="dark"] .map-pin-name { background: var(--lx-glass-solid) !important; }
+:root[data-theme="dark"] .city-nav-tab.active { background: var(--lx-brand) !important; }
+:root[data-theme="dark"] .nl-chip.is-on,
+:root[data-theme="dark"] .cat-tab.is-on,
+:root[data-theme="dark"] .cat-pill.is-on,
+:root[data-theme="dark"] .photo-filter-pill.selected,
+:root[data-theme="dark"] .economy-dialog .econ-tab-btn.active,
+:root[data-theme="dark"] .quest-modal-dialog .quest-tab-btn.active { background: var(--lx-ink) !important; color: #0e1412 !important; }
+:root[data-theme="dark"] .lx-seg-thumb { background: var(--lx-surface-3); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4); }
+:root[data-theme="dark"] .vital-track,
+:root[data-theme="dark"] .tm-need i { background: rgba(255, 255, 255, 0.1) !important; }
+:root[data-theme="dark"] .interaction-card,
+:root[data-theme="dark"] .game-dialogue-card,
+:root[data-theme="dark"] .dialogue-modal-card { background: var(--lx-glass-solid) !important; color: var(--lx-ink) !important; }
+
+/* A switch in a menu row: off grey, on emerald */
+html body .tm-switch { display: inline-block; width: 42px; height: 24px; border-radius: 999px; background: var(--lx-surface-3); position: relative; transition: background 0.2s ease; }
+html body .tm-switch i { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform 0.25s var(--lx-ease); }
+html body .tm-switch.is-on { background: var(--lx-brand); }
+html body .tm-switch.is-on i { transform: translateX(18px); }
+
+/* The place card: names in ink, its picture on a soft disc (both looks) */
+html body .place-card .place-name { color: var(--lx-ink) !important; }
+html body .place-card .place-sub { color: var(--lx-dim) !important; }
+html body .place-card .place-icon { background: var(--lx-surface-2) !important; border-color: var(--lx-line) !important; }
+
+/* On a ride, the trip has the screen: no stick, no RUN */
+body[data-ui-mode="transit"] #virtual-mobile-controls { display: none !important; }
+
+/* The ways there on a place sheet: names in ink, fares in grey (both looks) */
+html body .map-context-card .transport-name { color: var(--lx-ink) !important; }
+html body .map-context-card .transport-fare { color: var(--lx-dim) !important; }
+html body .map-context-card .transport-fare.free { color: var(--lx-brand) !important; }

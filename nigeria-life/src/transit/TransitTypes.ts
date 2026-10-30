@@ -28,4 +28,6 @@ export interface RideDetails {
   trafficCondition: 'Clear' | 'Go-slow' | 'Heavy Traffic';
   weatherCondition: 'Sunny' | 'Overcast' | 'Evening';
   destinationCityId: CityId;
+  /** The player's own car: its body and paint, their driver at the wheel */
+  car?: { body: string; paint?: number; name?: string };
 }

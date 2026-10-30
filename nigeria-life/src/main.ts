@@ -8,6 +8,10 @@ import './ui/kit/kit.css';
 // The one look of the game: loaded last, it decides how every surface looks
 import './ui/theme/luxe.css';
 import { Game } from './game/Game';
+import { startTheme } from './ui/theme/Theme';
+
+// Light or dark, as chosen last time, before anything is drawn
+startTheme();
 
 // The names over people's heads are drawn in the script font: it is loaded first (a moment at most)
 const fontsReady = Promise.race([

@@ -42,6 +42,16 @@ const BOOKABLE = new Set(['keke', 'taxi', 'bike']);
 export class RideService {
   /** What the law does to fares (cheaper transport), set by the game */
   public static fareFactor: () => number = () => 1;
+  /** The player's own car, if they have one: their driver takes them in it, for nothing (set by the game) */
+  public static ownCar: () => { name: string; body: string; paint?: number } | null = () => null;
+
+  /** Your own car as a way of getting there: free, your driver at the wheel */
+  public static ownOption(destination: DestinationDefinition): TransportOption | null {
+    const car = RideService.ownCar();
+    if (!car) return null;
+    const taxi = destination.transportAvailability.find((option) => option.mode === 'taxi');
+    return { mode: 'car', label: `Your ${car.name}`, icon: '🚘', fare: 0, travelTimeSec: taxi?.travelTimeSec ?? 60, description: 'Your own car. Your driver brings it round and drives you. Free.' };
+  }
   public ride: ActiveRide | null = null;
   public onChange: (() => void) | null = null;
   private readonly backend = BackendService.getInstance();
@@ -58,7 +68,8 @@ export class RideService {
   }
 
   public vehiclesFor(destination: DestinationDefinition): TransportOption[] {
-    return destination.transportAvailability.filter((option) => BOOKABLE.has(option.mode));
+    const own = RideService.ownOption(destination);
+    return [...(own ? [own] : []), ...destination.transportAvailability.filter((option) => BOOKABLE.has(option.mode))];
   }
 
   public funds(): number {
@@ -82,14 +93,21 @@ export class RideService {
 
   public book(destinationId: string, mode: string): RideResult {
     const destination = DestinationRegistry.getInstance().getById(destinationId);
-    const vehicle = destination?.transportAvailability.find((option) => option.mode === mode);
-    if (!destination || !vehicle || !BOOKABLE.has(vehicle.mode)) return { ok: false, reason: 'That ride is not available.' };
+    const vehicle = !destination ? undefined : mode === 'car' ? RideService.ownOption(destination) ?? undefined : destination.transportAvailability.find((option) => option.mode === mode);
+    if (!destination || !vehicle || (vehicle.mode !== 'car' && !BOOKABLE.has(vehicle.mode))) return { ok: false, reason: 'That ride is not available.' };
     const blocked = this.cannotBook(vehicle);
     if (blocked) return { ok: false, reason: blocked };
 
     this.ride = { destination, vehicle, fare: Math.round(vehicle.fare * RideService.fareFactor()), stage: 'driver_coming', eta: PICKUP_SECONDS, paid: false };
     this.changed();
     return { ok: true };
+  }
+
+  /** Plays a trip there in this vehicle (the fare already settled), then `arrived` */
+  public journey(destination: DestinationDefinition, vehicle: TransportOption, arrived: () => void): boolean {
+    if (!this.world) return false;
+    this.world.startJourney(destination, vehicle, arrived);
+    return true;
   }
 
   /** Cancels a ride the driver has not reached yet. Nothing has been charged. */
@@ -121,7 +139,7 @@ export class RideService {
     }
 
     // The driver is here. Getting in is when the fare is paid: once, or not at all.
-    const paid = this.backend.pay(ride.fare, `${ride.vehicle.label} to ${ride.destination.name}`, 'TRAVEL_COST');
+    const paid = ride.fare <= 0 || this.backend.pay(ride.fare, `${ride.vehicle.label} to ${ride.destination.name}`, 'TRAVEL_COST');
     if (!paid) {
       this.ride = null;
       showGameToast(`You could not pay the ₦${ride.fare.toLocaleString()} fare, so the driver left. You were not charged.`, 'warning', 4200);

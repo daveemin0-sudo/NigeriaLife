@@ -12,6 +12,7 @@ export const PROPERTY_PRICES: Record<string, { buy: number; rent: number }> = {
   // Lagos mainland
   prop_mushin_room: { buy: 9_500_000, rent: 35_000 },
   prop_mainland_room: { buy: 18_000_000, rent: 55_000 },
+  prop_surulere_room_parlour: { buy: 28_000_000, rent: 90_000 },
   prop_mainland_apt: { buy: 75_000_000, rent: 250_000 },
   prop_mainland_shop: { buy: 45_000_000, rent: 150_000 },
   prop_yaba_student: { buy: 38_000_000, rent: 120_000 },

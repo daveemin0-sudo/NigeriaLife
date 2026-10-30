@@ -8,12 +8,54 @@ import { SoundEngine } from '../../audio/SoundEngine';
 // Ride
 // ============================================================================================
 
+/** The tabs at the top of the Ride app: one place for every way of getting about */
+const GETTING_ABOUT = (on: 'rides' | 'train') => `
+  <div class="nl-chips" id="ride-tabs" role="tablist">
+    <button class="nl-chip${on === 'rides' ? ' is-on' : ''}" role="tab" aria-selected="${on === 'rides'}" ${on === 'rides' ? '' : 'data-phone-back'} id="ride-tab-rides">🚕 Rides</button>
+    <button class="nl-chip${on === 'train' ? ' is-on' : ''}" role="tab" aria-selected="${on === 'train'}" ${on === 'train' ? '' : 'data-go="train"'} id="ride-tab-train">🚆 Train</button>
+    <button class="nl-chip" role="tab" data-act="flights" id="ride-tab-flights">✈️ Flights</button>
+  </div>`;
+
+/** The Red Line: from the nearest station, every station it goes to, the fare and the next train */
+function trainPage(host: Parameters<PhoneApp['render']>[0]) {
+  const info = host.world.trainInfo();
+  if (!info) {
+    return { title: 'Train', body: `${GETTING_ABOUT('train')}${empty('🚆', 'No trains here', 'The Red Line runs in Lagos, from Oyingbo to Agege. Fly or take a coach to Lagos to ride it.')}` };
+  }
+  const blocked = host.world.where() === 'inside' ? 'Step outside first: the train leaves from the station on the street.' : host.world.where() === 'driving' ? 'Park and get out first.' : host.world.where() === 'transit' ? 'You are already on a journey.' : null;
+  return {
+    title: 'Train',
+    body: `
+      ${GETTING_ABOUT('train')}
+      <div class="nl-hero" id="train-hero">
+        <span class="nl-hero-label">Red Line · Lagos Rail Mass Transit</span>
+        <span class="nl-hero-title">From ${esc(info.fromName)}</span>
+        <span class="nl-hero-sub">${info.far ? `The nearest station, ${(info.metres / 1000).toFixed(1)} km away: a keke takes you there first (₦500)` : 'You are at the station: tap your card at the gate'}</span>
+      </div>
+      ${blocked ? `<div class="nl-note nl-note--warn" id="train-blocked">${esc(blocked)}</div>` : ''}
+      <div class="nl-section">Where to?</div>
+      <div class="nl-list" id="train-stations">
+        ${info.stations.map((st, i) => (i === info.from ? '' : row({
+          icon: '🚆',
+          title: `To ${esc(st.name)}`,
+          sub: `${st.stops} stop${st.stops === 1 ? '' : 's'} · next train in ${st.nextMin} min`,
+          trailing: `<strong>${naira(st.fare)}</strong>`,
+          attrs: blocked ? 'disabled' : `data-act="train" data-arg="${i}" data-station="${esc(st.name)}"`,
+          tone: blocked ? 'muted' : 'default',
+          tag: 'button',
+        }))).join('')}
+      </div>
+      <div class="nl-hint">The fare is taken when you tap your card at the gate. Stand behind the yellow line; the train comes every few minutes.</div>
+    `,
+  };
+}
+
 export const rideApp: PhoneApp = {
   id: 'ride',
   name: 'Ride',
   icon: '🚕',
   tint: ['#a16207', '#facc15'],
-  purpose: 'Book a keke, an okada or a cab to anywhere in the city',
+  purpose: 'A keke, an okada, a cab or your own car; the Red Line train; flights',
 
   badge: (host) => (host.rides.ride ? 1 : 0),
   live: (host) => host.rides.ride?.stage === 'driver_coming',
@@ -41,6 +83,8 @@ export const rideApp: PhoneApp = {
       };
     }
 
+    if (route === 'train') return trainPage(host);
+
     if (route.startsWith('d:')) {
       const destination = DestinationRegistry.getInstance().getById(route.slice(2));
       if (!destination) return { title: 'Ride', body: empty('🗺️', 'Unknown place', 'Drivers do not know that place.') };
@@ -63,7 +107,7 @@ export const rideApp: PhoneApp = {
                     icon: vehicle.icon,
                     title: esc(vehicle.label),
                     sub: short ? `You need ${naira(vehicle.fare - rides.funds())} more` : esc(vehicle.description),
-                    trailing: `<strong>${naira(vehicle.fare)}</strong>`,
+                    trailing: `<strong>${vehicle.fare === 0 ? 'Free' : naira(vehicle.fare)}</strong>`,
                     attrs: blocked || short ? 'disabled' : `data-act="book" data-arg="${esc(destination.id)}|${vehicle.mode}" data-ride="${vehicle.mode}"`,
                     tone: blocked || short ? 'muted' : 'default',
                     tag: 'button',
@@ -81,6 +125,7 @@ export const rideApp: PhoneApp = {
     return {
       title: 'Ride',
       body: `
+        ${GETTING_ABOUT('rides')}
         <div class="nl-hero nl-hero--amber">
           <span class="nl-hero-label">You are in</span>
           <span class="nl-hero-title">${esc(host.world.placeName())}</span>
@@ -98,6 +143,17 @@ export const rideApp: PhoneApp = {
   },
 
   act(host, action, el) {
+    if (action === 'flights') {
+      host.close();
+      host.world.openFlights();
+      return;
+    }
+    if (action === 'train') {
+      const to = Number(el.dataset.arg);
+      const reason = host.world.takeTrain(to);
+      if (reason) host.say(reason, 'bad');
+      return;
+    }
     if (action === 'cancel') {
       const result = host.rides.cancel();
       host.say(result.ok ? 'Ride cancelled. You were not charged.' : result.reason ?? 'That ride cannot be cancelled.', result.ok ? 'info' : 'bad');
