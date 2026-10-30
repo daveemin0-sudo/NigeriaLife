@@ -1,4 +1,5 @@
 import { MusicPlayer } from '../audio/MusicPlayer';
+import { ICONS } from './ViewPicker';
 import { esc } from './kit/html';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
@@ -40,7 +41,7 @@ export class MusicSheet {
     this.fab.className = 'music-fab';
     this.fab.type = 'button';
     this.fab.setAttribute('aria-label', 'Music');
-    this.fab.textContent = '🎵';
+    this.fab.innerHTML = ICONS.music;
     this.fab.addEventListener('click', () => (this.isOpen ? this.close() : this.open()));
     document.body.appendChild(this.fab);
 

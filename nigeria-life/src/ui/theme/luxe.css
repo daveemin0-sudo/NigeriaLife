@@ -427,3 +427,968 @@ html body .nlphone:has(.nlphone-home) .nlphone-needs {
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
+
+/* --- Round side buttons: music, the view ------------------------------------------------------ */
+html body .lx-fab,
+html body .music-fab {
+  position: fixed;
+  right: 16px;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: var(--lx-surface) !important;
+  -webkit-backdrop-filter: var(--lx-glass);
+  backdrop-filter: var(--lx-glass);
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: var(--lx-shadow) !important;
+  color: var(--lx-ink) !important;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: var(--z-hud-active-interaction, 5000);
+  transition: transform 0.18s var(--lx-ease), background 0.18s ease, color 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+html body .music-fab { top: 140px; font-size: 0 !important; }
+html body .view-fab { top: 194px; }
+html body .lx-fab:active,
+html body .music-fab:active { transform: scale(0.92); }
+html body .lx-fab.is-active { background: var(--lx-brand-grad) !important; color: #fff !important; border-color: transparent !important; }
+html body .music-fab.is-playing { background: var(--lx-brand-grad) !important; color: #fff !important; border-color: transparent !important; }
+html body .music-fab svg { display: block; }
+@media (max-width: 700px) {
+  html body .lx-fab,
+  html body .music-fab { right: 12px; width: 44px; height: 44px; }
+  html body .music-fab { top: 204px; }
+  html body .view-fab { top: 256px; }
+}
+body.ui-modal-open .view-fab,
+body[data-ui-mode="world-map"] .view-fab,
+body[data-ui-mode="driving"] .view-fab,
+body[data-ui-mode="transit"] .view-fab,
+body.ui-modal-open .view-sheet,
+body[data-ui-mode="world-map"] .view-sheet { display: none !important; }
+
+/* The old camera pills and turn buttons live in the View sheet now */
+html body #btn-camera-view-toggle,
+html body #btn-photo-mode-toggle,
+html body #camera-rotate-widget { display: none !important; }
+
+/* --- A small sheet beside a button: the View sheet and any like it ---------------------------- */
+html body .lx-pop {
+  position: fixed;
+  right: 72px;
+  top: 140px;
+  width: 300px;
+  max-width: calc(100vw - 92px);
+  padding: 14px 14px 14px;
+  border-radius: var(--lx-r-card);
+  background: rgba(255, 255, 255, 0.97);
+  -webkit-backdrop-filter: var(--lx-glass);
+  backdrop-filter: var(--lx-glass);
+  border: 1px solid var(--lx-line);
+  box-shadow: var(--lx-shadow-lg);
+  color: var(--lx-ink);
+  font-family: var(--nl-font);
+  z-index: 6000;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(10px) scale(0.96);
+  transform-origin: top right;
+  transition: opacity 0.2s ease, transform 0.32s var(--lx-ease);
+}
+html body .lx-pop.is-open { opacity: 1; transform: none; pointer-events: auto; }
+@media (max-width: 700px) {
+  html body .lx-pop { right: 64px; top: 204px; width: 292px; }
+}
+
+.view-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px 2px; }
+.view-title { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
+.view-where {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--lx-brand-deep); background: var(--lx-brand-soft); padding: 3px 8px; border-radius: 999px;
+}
+.view-x {
+  margin-left: auto; width: 30px; height: 30px; border-radius: 999px; border: 0; display: grid; place-items: center;
+  background: var(--lx-surface-2); color: var(--lx-dim); cursor: pointer;
+}
+
+/* The segmented control: a grey track, a white thumb that slides to the chosen one */
+.lx-seg {
+  --i: 0;
+  --n: 4;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--lx-surface-3);
+}
+.lx-seg-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / var(--n));
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(12, 28, 20, 0.14), 0 1px 2px rgba(12, 28, 20, 0.08);
+  transform: translateX(calc(var(--i) * 100%));
+  transition: transform 0.36s var(--lx-ease);
+}
+.lx-seg-btn {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  padding: 9px 0;
+  font: 700 13.5px/1 var(--nl-font);
+  color: var(--lx-dim);
+  cursor: pointer;
+  transition: color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.lx-seg-btn.is-on { color: var(--lx-ink); font-weight: 800; }
+.view-line { margin: 9px 2px 12px; font-size: 12.5px; font-weight: 600; color: var(--lx-dim); min-height: 16px; }
+
+.view-turn { display: flex; justify-content: center; gap: 14px; margin-bottom: 12px; }
+.lx-round {
+  width: 46px; height: 46px; border-radius: 999px; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--lx-line); background: var(--lx-surface-2); color: var(--lx-ink);
+  transition: transform 0.16s var(--lx-ease), background 0.16s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.lx-round:active { transform: scale(0.9); background: var(--lx-brand-soft); color: var(--lx-brand-deep); }
+
+.view-acts { display: grid; grid-template-columns: 1fr 1.25fr; gap: 8px; }
+.lx-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 44px; padding: 0 14px; border-radius: var(--lx-r-btn); border: 0; cursor: pointer;
+  font: 800 13.5px/1 var(--nl-font); letter-spacing: -0.01em; white-space: nowrap;
+  transition: transform 0.16s var(--lx-ease), filter 0.16s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.lx-btn:active { transform: scale(0.96); }
+.lx-btn-brand { background: var(--lx-brand-grad); color: #fff; box-shadow: 0 8px 18px rgba(14, 122, 78, 0.28); }
+.lx-btn-soft { background: var(--lx-surface-2); color: var(--lx-ink); border: 1px solid var(--lx-line); }
+
+/* --- A clean screen: the city, and the one button that brings everything back ----------------- */
+body.lx-clean #hud-overlay,
+body.lx-clean #virtual-mobile-controls,
+body.lx-clean #music-fab,
+body.lx-clean #street-chat-box,
+body.lx-clean #hud-today-chip,
+body.lx-clean #top-menu-btn,
+body.lx-clean #game-toast-container {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease;
+}
+body.lx-clean .view-fab { top: calc(env(safe-area-inset-top, 0px) + 14px) !important; }
+
+/* --- The place badge: a small drawn flag (the flag emoji is two letters on some screens) ------ */
+html body .hud-location .flag {
+  font-size: 0 !important;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #008751 0 33.4%, #ffffff 33.4% 66.6%, #008751 66.6% 100%);
+  box-shadow: 0 0 0 1px rgba(15, 26, 20, 0.12);
+}
+
+/* =============================================================================================
+   THE MAP: the same white glass over the city seen from above; emerald for the way back and for
+   what is chosen; the sheet for a place in the same family as every other card.
+   ============================================================================================= */
+body[data-ui-mode="world-map"] #hud-today-chip,
+body[data-ui-mode="world-map"] #top-menu-btn { display: none !important; }
+
+html body .map-city-badge,
+html body .map-top-center,
+html body .map-city-tabs,
+html body .map-district-strip,
+html body .map-controls-hint,
+html body .map-hover-tooltip {
+  background: var(--lx-surface) !important;
+  -webkit-backdrop-filter: var(--lx-glass);
+  backdrop-filter: var(--lx-glass);
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: var(--lx-shadow) !important;
+  color: var(--lx-ink) !important;
+}
+html body .map-city-badge { border-radius: 999px !important; }
+html body .map-city-badge .flag {
+  font-size: 0 !important;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 15px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #008751 0 33.4%, #ffffff 33.4% 66.6%, #008751 66.6% 100%);
+  box-shadow: 0 0 0 1px rgba(15, 26, 20, 0.12);
+}
+html body .map-city-badge .city-name { color: var(--lx-ink) !important; font-size: 15px !important; font-weight: 800 !important; letter-spacing: -0.01em !important; }
+html body .map-city-badge .city-tagline { color: var(--lx-dim) !important; font-weight: 600; }
+
+html body .map-stat-pill { background: var(--lx-surface-2) !important; color: var(--lx-ink) !important; font-weight: 700 !important; }
+html body .map-stat-pill.money-stat { background: var(--lx-surface-2) !important; color: var(--lx-ink) !important; box-shadow: inset 0 0 0 1px var(--lx-line) !important; font-weight: 800 !important; }
+
+/* The search field: a soft grey well with a drawn glass */
+html body .map-search { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line); padding: 5px 12px !important; gap: 8px !important; }
+html body .map-search:focus-within { background: #fff !important; box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.16); border-color: rgba(14, 122, 78, 0.45); }
+html body .map-search-ico { display: grid; place-items: center; color: var(--lx-dim); }
+html body .map-search input { color: var(--lx-ink) !important; font-weight: 600 !important; font-size: 13.5px !important; }
+html body .map-search input::placeholder { color: #8a958f !important; }
+html body .map-search-results { border-radius: 18px !important; border: 1px solid var(--lx-line) !important; box-shadow: var(--lx-shadow-lg) !important; padding: 6px !important; }
+html body .map-search-hit { border-radius: 12px !important; grid-template-columns: 30px 1fr !important; column-gap: 10px !important; }
+html body .map-search-hit:hover,
+html body .map-search-hit:first-child { background: var(--lx-brand-soft) !important; }
+html body .map-search-hit .hit-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 16px !important;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--lx-line);
+}
+html body .map-search-hit .hit-name { color: var(--lx-ink) !important; }
+html body .map-search-hit .hit-where { color: var(--lx-dim) !important; }
+
+/* The way back: the one emerald button */
+html body .btn-map-close {
+  background: var(--lx-brand-grad) !important;
+  color: #fff !important;
+  border: 0 !important;
+  box-shadow: 0 10px 22px rgba(14, 122, 78, 0.32), 0 1px 2px rgba(12, 28, 20, 0.1) !important;
+  padding: 11px 18px 11px 13px !important;
+  gap: 6px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+}
+html body .btn-map-close:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+/* The cities and the filters: soft chips; the city on show in ink, a chosen filter emerald */
+html body .map-city-tabs { padding: 5px !important; gap: 4px !important; }
+html body .city-nav-tab,
+html body .map-filter-btn,
+html body .map-names-toggle {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--lx-dim) !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+}
+html body .city-nav-tab:hover,
+html body .map-filter-btn:hover,
+html body .map-names-toggle:hover { color: var(--lx-ink) !important; background: var(--lx-surface-2) !important; }
+html body .city-nav-tab.active { background: var(--lx-ink) !important; color: #fff !important; box-shadow: 0 4px 10px rgba(12, 28, 20, 0.2) !important; }
+html body .map-filter-btn.active { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; }
+html body .map-names-toggle.active { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; }
+html body .city-tab-divider { background: var(--lx-line) !important; }
+html body .tab-here {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  margin-left: 2px;
+  background: var(--lx-brand-2);
+  box-shadow: 0 0 0 3px rgba(20, 162, 102, 0.2);
+}
+html body .city-nav-tab.active .tab-here { background: #3fd99a; box-shadow: 0 0 0 3px rgba(63, 217, 154, 0.25); }
+.lx-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* The districts: one row of light chips */
+html body .map-district-strip { padding: 5px !important; gap: 4px !important; }
+html body .district-chip-btn {
+  background: var(--lx-surface-2) !important;
+  border: 1px solid var(--lx-line) !important;
+  color: var(--lx-ink-2) !important;
+  font-size: 12px !important;
+  padding: 6px 12px !important;
+}
+html body .district-chip-btn:hover { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; border-color: rgba(14, 122, 78, 0.3) !important; transform: none !important; }
+
+/* The hint: small and quiet */
+html body .map-controls-hint { color: var(--lx-dim) !important; font-weight: 700 !important; padding: 7px 14px !important; }
+
+/* Pins: white discs with a hairline; names in ink on white */
+html body .map-pin-icon { box-shadow: 0 6px 14px rgba(12, 28, 20, 0.26), 0 0 0 2px #fff, 0 0 0 3px rgba(15, 26, 20, 0.08) !important; }
+html body .map-pin-name { color: var(--lx-ink) !important; box-shadow: 0 4px 12px rgba(12, 28, 20, 0.2), 0 0 0 1px var(--lx-line) !important; letter-spacing: -0.01em; }
+html body .map-pin:hover .map-pin-icon { box-shadow: 0 8px 18px rgba(12, 28, 20, 0.3), 0 0 0 2px #fff, 0 0 0 4px var(--lx-brand-2) !important; }
+html body .map-area-name { color: rgba(255, 255, 255, 0.95) !important; text-shadow: 0 1px 3px rgba(12, 28, 20, 0.7), 0 0 12px rgba(12, 28, 20, 0.4) !important; }
+html body .map-tt-icon { background: var(--lx-brand-soft) !important; border: 0 !important; }
+html body .map-tt-title { color: var(--lx-ink) !important; }
+html body .map-tt-sub { color: var(--lx-brand) !important; }
+
+/* The sheet for a place */
+html body .map-context-card {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: var(--lx-shadow-lg) !important;
+  border-radius: 26px !important;
+}
+html body .map-context-card .card-close-x { background: var(--lx-surface-2) !important; color: var(--lx-dim) !important; }
+html body .map-context-card .card-chip { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; border: 0 !important; letter-spacing: 0.04em; }
+html body .map-context-card .card-zone { color: var(--lx-dim) !important; }
+html body .map-context-card .card-name { color: var(--lx-ink) !important; font-weight: 800 !important; letter-spacing: -0.02em; }
+html body .map-context-card .card-desc { color: var(--lx-ink-2) !important; }
+html body .map-context-card .card-stats-grid { background: var(--lx-surface-2) !important; }
+html body .map-context-card .sheet-label { color: var(--lx-dim) !important; letter-spacing: 0.06em !important; }
+html body .map-context-card .sheet-chip { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line) !important; color: var(--lx-ink) !important; }
+html body .map-context-card .transport-tile {
+  background: #fff !important;
+  border: 1.5px solid var(--lx-line) !important;
+  box-shadow: 0 2px 6px rgba(12, 28, 20, 0.05);
+  border-radius: 16px !important;
+}
+html body .map-context-card .transport-tile.selected {
+  background: var(--lx-brand-soft) !important;
+  border-color: var(--lx-brand) !important;
+  box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.12) !important;
+}
+html body .map-context-card .transport-fare.free { color: var(--lx-brand) !important; }
+html body .map-context-card .sheet-note { color: var(--lx-brand-deep) !important; }
+html body .map-context-card .sheet-go-btn,
+html body .map-context-card .btn-primary-action {
+  background: var(--lx-brand-grad) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 22px rgba(14, 122, 78, 0.3) !important;
+}
+html body .map-context-card .sheet-link-btn { color: var(--lx-dim) !important; }
+
+/* Phones: the go button stays in reach at the foot of the sheet; Names is a round side button */
+@media (max-width: 700px) {
+  html body .map-context-card .sheet-go-btn {
+    position: sticky;
+    bottom: -18px;
+    z-index: 2;
+    box-shadow: 0 -10px 18px rgba(255, 255, 255, 0.9), 0 10px 22px rgba(14, 122, 78, 0.3) !important;
+  }
+  html body #btn-map-names {
+    width: 46px !important;
+    height: 46px !important;
+    padding: 0 !important;
+    justify-content: center;
+    border-radius: 999px !important;
+    background: var(--lx-surface) !important;
+    -webkit-backdrop-filter: var(--lx-glass);
+    backdrop-filter: var(--lx-glass);
+    border: 1px solid var(--lx-line) !important;
+    box-shadow: var(--lx-shadow) !important;
+    color: var(--lx-dim) !important;
+    bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+    right: 12px !important;
+  }
+  html body #btn-map-names.active { color: var(--lx-brand) !important; }
+  html body #btn-map-names .names-lbl { display: none; }
+  html body #world-map-ui-root:has(.map-context-card[style*="display: block"]) #btn-map-names { display: none !important; }
+  html body .map-controls-hint {
+    bottom: calc(26px + env(safe-area-inset-bottom)) !important;
+    left: 12px !important;
+    transform: none !important;
+    max-width: calc(100vw - 100px);
+    font-size: 11.5px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html body .map-city-badge .city-name { font-size: 14px !important; }
+}
+
+/* The open-or-shut line: its dot says which; the words in ink */
+html body .map-context-card .card-sub { color: var(--lx-ink-2) !important; }
+html body .map-search input::-webkit-search-cancel-button { filter: grayscale(1) brightness(0.6); cursor: pointer; }
+@media (max-width: 700px) {
+  html body .map-search input { width: auto !important; flex: 1 1 auto; min-width: 0; }
+  /* Glass here would make the row the frame of the Names button, and hide it */
+  html body .map-city-tabs { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: rgba(255, 255, 255, 0.97) !important; }
+}
+
+/* =============================================================================================
+   THE PHONE'S APPS: white screens, the same family as everything else. The home screen keeps
+   its emerald wallpaper; an app opens onto a soft white page with white cards, ink text and
+   emerald for what can be done. Money heroes are emerald, ink or gold, never a fourth colour.
+   ============================================================================================= */
+html body #smartphone-wrapper .smartphone-device.nlphone:not(:has(.nlphone-home)) {
+  --nl-bg: #f3f5f4;
+  --nl-surface: #ffffff;
+  --nl-surface-2: #eef1ef;
+  --nl-line: rgba(15, 26, 20, 0.08);
+  --nl-text: #0f1a14;
+  --nl-dim: #66736c;
+  --nl-accent: #0e7a4e;
+  --nl-accent-text: #ffffff;
+  --nl-good: #0b8a55;
+  --nl-warn: #b45309;
+  --nl-bad: #d92d4b;
+  --nl-focus: #0e7a4e;
+  color-scheme: light;
+  background: var(--nl-bg) !important;
+}
+html body .nlphone:not(:has(.nlphone-home)) .phone-status-bar { color: var(--nl-text) !important; }
+html body .nlphone:not(:has(.nlphone-home)) .phone-island { background: #0b0f0d; }
+
+/* The app's own bar: a round back button and the app's name, large, in ink */
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-bar { padding: 2px 16px 10px; }
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-back {
+  width: 36px;
+  height: 36px;
+  font-size: 0;
+  background: #fff;
+  border: 1px solid var(--nl-line);
+  box-shadow: 0 2px 6px rgba(12, 28, 20, 0.08);
+  position: relative;
+}
+html body .nlphone .nlphone-back::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-left: 2.4px solid currentColor;
+  border-bottom: 2.4px solid currentColor;
+  border-radius: 1px;
+  transform: translate(-30%, -50%) rotate(45deg);
+}
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+
+/* Cards and rows: white on the soft page, a hairline and the faintest shadow */
+html body .nlphone:not(:has(.nlphone-home)) .nl-row,
+html body .nlphone:not(:has(.nlphone-home)) .nl-card {
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04), 0 4px 14px rgba(12, 28, 20, 0.04);
+}
+html body .nlphone:not(:has(.nlphone-home)) .nl-row { border-radius: 16px; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-card { border-radius: 20px; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-row-icon { background: var(--nl-surface-2); border-radius: 14px; }
+html body .nlphone:not(:has(.nlphone-home)) button.nl-row:hover:not(:disabled) { background: #fafbfa; }
+html body .nlphone:not(:has(.nlphone-home)) button.nl-row:active:not(:disabled) { transform: scale(0.99); }
+
+/* Buttons: emerald for the main one, white for the rest */
+html body .nlphone:not(:has(.nlphone-home)) .nl-btn { background: #fff; box-shadow: 0 1px 2px rgba(12, 28, 20, 0.06); font-weight: 800; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-btn--primary {
+  background: var(--lx-brand-grad);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 8px 18px rgba(14, 122, 78, 0.26);
+}
+html body .nlphone:not(:has(.nlphone-home)) .nl-btn--danger { background: #fff; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-btn--glass { color: #fff; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-btn:hover:not(:disabled) { filter: brightness(0.98); }
+
+/* Tabs and filters: the chosen one in ink, the way iOS does it, so emerald stays for actions */
+html body .nlphone:not(:has(.nlphone-home)) .nl-chip { background: #fff; color: var(--nl-dim); box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-chip.is-on { background: var(--lx-ink); color: #fff; border-color: transparent; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-field { background: #fff; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-field:focus { outline: none; border-color: rgba(14, 122, 78, 0.5); box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.14); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-tag { background: var(--nl-surface-2); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-tag--good { background: var(--lx-brand-soft); color: var(--lx-brand-deep); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-tag--live { background: var(--lx-red); color: #fff; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-note { background: #fff; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-note--warn { background: #fff8ec; color: #92400e; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-card--live { background: var(--lx-brand-soft); border-color: rgba(14, 122, 78, 0.35); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-stats span { background: var(--nl-surface-2); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-meter { background: var(--nl-surface-2); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-toggle { background: #d7ddd9; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-toggle.is-on { background: var(--lx-brand); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-bar { background: rgba(255, 255, 255, 0.96); border-top: 1px solid var(--nl-line); -webkit-backdrop-filter: var(--lx-glass); backdrop-filter: var(--lx-glass); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-bubble--them { background: #fff; color: var(--nl-text); border: 1px solid var(--nl-line); }
+html body .nlphone:not(:has(.nlphone-home)) .nl-bubble--me { background: var(--lx-brand-grad); color: #fff; }
+
+/* The big panel at the top of an app: emerald by default, then ink, then gold; the same depth */
+html body .nlphone .nl-hero {
+  border: 0 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 14px 28px rgba(9, 92, 58, 0.22) !important;
+  border-radius: 22px !important;
+  position: relative;
+  overflow: hidden;
+}
+html body .nlphone:not(:has(.nlphone-home)) .nl-hero { background: var(--lx-brand-grad) !important; }
+html body .nlphone .nl-hero--blue,
+html body .nlphone .nl-hero--indigo { background: linear-gradient(145deg, #25352d 0%, #0f1a14 100%) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 14px 28px rgba(12, 28, 20, 0.25) !important; }
+html body .nlphone .nl-hero--amber { background: linear-gradient(145deg, #d9a93a 0%, #a8761a 100%) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 14px 28px rgba(168, 118, 26, 0.28) !important; }
+html body .nlphone .nl-hero--green { background: var(--lx-brand-grad) !important; }
+/* A soft light across the top corner, as on a bank card */
+html body .nlphone:not(:has(.nlphone-home)) .nl-hero::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -60px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+html body .nlphone .nl-hero-value { font-weight: 800; letter-spacing: -0.02em; }
+
+/* The handset's own bottom bar and the sheet that asks */
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-nav { background: rgba(255, 255, 255, 0.92); border-top: 1px solid var(--nl-line); }
+html body .nlphone .nlphone-confirm { background: rgba(12, 28, 20, 0.42); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-confirm-card { background: #fff; box-shadow: var(--lx-shadow-lg); border-radius: 24px; }
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-notice { background: #fff; box-shadow: var(--lx-shadow); color: var(--nl-text); }
+html body .nlphone:not(:has(.nlphone-home)) .nlphone-notice[data-tone="bad"] { color: #b4233b; }
+
+/* --- The home screen's tiles: one family, frosted white, each app's own picture on it -------- */
+html body .nlphone:has(.nlphone-home) .nlphone-tile {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(240, 246, 242, 0.94)) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18), inset 0 -1px 0 rgba(15, 26, 20, 0.06) !important;
+  border: 0 !important;
+}
+html body .nlphone:has(.nlphone-home) .nlphone-app-name { color: #fff !important; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); font-weight: 700 !important; }
+html body .nlphone:has(.nlphone-home) .nlphone-badge { background: var(--lx-red) !important; box-shadow: 0 0 0 2px #0e7a4e !important; }
+html body .nlphone:has(.nlphone-home) .nlphone-dock {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+/* --- The top menu: a white sheet under the chevron ------------------------------------------- */
+html body .top-menu {
+  background: rgba(255, 255, 255, 0.98) !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line);
+  box-shadow: var(--lx-shadow-lg) !important;
+  border-radius: 26px !important;
+  -webkit-backdrop-filter: var(--lx-glass);
+  backdrop-filter: var(--lx-glass);
+}
+html body .tm-clock { color: var(--lx-ink); letter-spacing: -0.02em; }
+html body .tm-city { color: var(--lx-dim) !important; }
+html body .tm-needs { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line); }
+html body .tm-need i { background: #dde3df !important; }
+html body .tm-row { border-bottom: 1px solid var(--lx-line) !important; border-radius: 14px; transition: background 0.15s ease; }
+html body .tm-row:hover { background: var(--lx-surface-2); }
+html body .tm-row:last-of-type { border-bottom: 0 !important; }
+html body .tm-icon { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line); }
+html body .tm-text strong { color: var(--lx-ink); }
+html body .tm-text em { color: var(--lx-dim) !important; }
+html body .tm-trail { color: #a3aea8 !important; }
+html body .tm-plus { background: var(--lx-brand-grad) !important; box-shadow: 0 4px 10px rgba(14, 122, 78, 0.3); }
+html body .tm-chip {
+  background: #fff !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05), 0 4px 12px rgba(12, 28, 20, 0.05);
+  transition: transform 0.15s var(--lx-ease), background 0.15s ease;
+}
+html body .tm-chip:hover { background: var(--lx-brand-soft) !important; }
+html body .tm-chip:active { transform: scale(0.95); }
+html body .tm-chip span { color: var(--lx-ink-2) !important; }
+
+/* Buttons on a hero stay glass on it, white words on the colour */
+html body .nlphone .nl-hero .nl-btn,
+html body .nlphone .nl-btn--glass {
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+html body .nlphone .nl-hero .nl-btn--primary { background: #fff !important; color: var(--lx-brand-deep) !important; border-color: transparent !important; }
+html body .nlphone .nl-hero .nl-meter { background: rgba(255, 255, 255, 0.22) !important; }
+html body .nlphone .nl-hero .nl-meter > span { background: #fff !important; }
+
+/* =============================================================================================
+   SHEETS FROM THE BOTTOM (music, catalogue, jets and yachts, a profile, the pump, State House):
+   one white sheet with a grab bar, white cards on a soft page, the chosen thing in emerald.
+   ============================================================================================= */
+html body .cat-sheet {
+  background: #f7f9f8 !important;
+  color: var(--lx-ink) !important;
+  box-shadow: 0 -18px 50px rgba(12, 28, 20, 0.22), 0 -1px 0 var(--lx-line) !important;
+  border-radius: 28px 28px 0 0 !important;
+}
+html body .cat-grab { background: #d3dad6 !important; }
+html body .cat-title strong { color: var(--lx-ink); letter-spacing: -0.02em !important; }
+html body .cat-wallet,
+html body .cat-count,
+html body .cat-empty,
+html body .cat-h,
+html body .music-note,
+html body .music-text em { color: var(--lx-dim) !important; }
+html body .cat-round {
+  background: #fff !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: 0 1px 3px rgba(12, 28, 20, 0.08);
+}
+html body .cat-search input,
+html body .cat-select select {
+  background: #fff !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+}
+html body .cat-search input:focus { border-color: rgba(14, 122, 78, 0.5) !important; box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.14); }
+html body .cat-tab,
+html body .cat-pill {
+  background: #fff !important;
+  color: var(--lx-dim) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05);
+}
+html body .cat-tab b { background: var(--lx-surface-3) !important; color: var(--lx-ink-2); }
+html body .cat-tab.is-on,
+html body .cat-pill.is-on { background: var(--lx-ink) !important; color: #fff !important; border-color: transparent !important; }
+html body .cat-tab.is-on b { background: rgba(255, 255, 255, 0.2) !important; color: #fff; }
+html body .cat-card {
+  background: #fff !important;
+  border: 1.5px solid var(--lx-line) !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04), 0 6px 14px rgba(12, 28, 20, 0.05);
+  color: var(--lx-ink) !important;
+}
+html body .cat-card.is-picked { border-color: var(--lx-brand) !important; background: var(--lx-brand-soft) !important; box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.12) !important; }
+html body .cat-card.is-short .cat-price { color: var(--lx-red) !important; }
+html body .cat-tiles { background: var(--lx-surface-2) !important; color: var(--lx-ink-2) !important; }
+html body .cat-stars { color: var(--lx-gold) !important; }
+html body .cat-picked { background: var(--lx-brand) !important; }
+html body .cat-img { background: radial-gradient(circle at 50% 60%, #ffffff, #eef1ef 75%) !important; }
+html body .cat-price { color: var(--lx-ink) !important; }
+html body .cat-need { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; }
+html body .cat-swatch { background: #fff !important; border-color: var(--lx-line) !important; color: var(--lx-ink-2) !important; }
+html body .cat-swatch.is-on { border-color: var(--lx-brand) !important; }
+html body .cat-basket { background: rgba(255, 255, 255, 0.96) !important; border-top: 1px solid var(--lx-line) !important; color: var(--lx-ink); }
+html body .cat-go { background: var(--lx-brand-grad) !important; box-shadow: 0 8px 18px rgba(14, 122, 78, 0.26); }
+html body .cat-go:disabled { background: var(--lx-surface-3) !important; color: #9aa59f !important; box-shadow: none; }
+
+/* Music: the song playing on an emerald card, the list in white rows */
+html body .music-now { background: var(--lx-brand-grad) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 14px 28px rgba(9, 92, 58, 0.22); }
+html body .music-label { color: #c9f2dd !important; }
+html body .music-row .music-pick,
+html body .music-pick {
+  background: #fff !important;
+  border: 1.5px solid var(--lx-line) !important;
+  color: var(--lx-ink) !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04);
+}
+html body .music-row.is-on .music-pick { border-color: var(--lx-brand) !important; background: var(--lx-brand-soft) !important; }
+html body .music-art { background: var(--lx-surface-2) !important; }
+html body .music-text strong { color: var(--lx-ink); }
+html body .eq b { background: var(--lx-brand) !important; }
+html body .music-add { border-color: rgba(14, 122, 78, 0.45) !important; color: var(--lx-brand) !important; background: #fff; }
+html body .music-volume input { accent-color: #fff; }
+
+/* =============================================================================================
+   THE OLDER DIALOGS (bag, cash machine, businesses, city travel, flights, quests): the same white.
+   ============================================================================================= */
+html body .inventory-dialog,
+html body .atm-dialog,
+html body .economy-dialog,
+html body .travel-dialog,
+html body .interstate-dialog,
+html body .quest-modal-dialog {
+  --nl-bg: #f7f9f8;
+  --nl-surface: #ffffff;
+  --nl-surface-2: #eef1ef;
+  --nl-line: rgba(15, 26, 20, 0.08);
+  --nl-text: #0f1a14;
+  --nl-dim: #66736c;
+  --nl-accent: #0e7a4e;
+  color-scheme: light;
+  color: var(--lx-ink) !important;
+  background: #f7f9f8 !important;
+  border: 1px solid var(--lx-line) !important;
+  border-radius: 28px !important;
+  box-shadow: var(--lx-shadow-lg) !important;
+}
+html body #economy-modal.lagos-modal::before,
+html body #inventory-modal .modal-backdrop,
+html body #interstate-modal .modal-backdrop,
+html body .quest-modal-backdrop { background: rgba(12, 28, 20, 0.4) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+html body .economy-dialog .modal-tag,
+html body .inventory-dialog .dialog-badge,
+html body .travel-dialog .dialog-badge,
+html body .interstate-dialog .dialog-badge {
+  color: var(--lx-brand-deep) !important;
+  background: var(--lx-brand-soft) !important;
+  border: 0 !important;
+}
+html body .inventory-dialog h2,
+html body .economy-dialog h2,
+html body .travel-dialog h2,
+html body .interstate-dialog h2,
+html body .quest-modal-dialog h2,
+html body .quest-modal-dialog h3,
+html body .quest-modal-dialog h4,
+html body .inventory-dialog h3,
+html body .inventory-dialog h4,
+html body .economy-dialog h3,
+html body .economy-dialog h4,
+html body .interstate-dialog h3,
+html body .interstate-dialog h4 { color: var(--lx-ink) !important; font-family: var(--nl-font) !important; font-weight: 800 !important; letter-spacing: -0.02em !important; }
+html body .inventory-dialog p,
+html body .economy-dialog p,
+html body .travel-dialog p,
+html body .interstate-dialog p,
+html body .quest-modal-dialog p { color: var(--lx-ink-2) !important; }
+html body .inventory-dialog .dialog-close-btn,
+html body .atm-dialog .dialog-close-btn,
+html body .travel-dialog .dialog-close-btn,
+html body .interstate-dialog .dialog-close-btn,
+html body .economy-dialog .modal-close-btn,
+html body .quest-modal-dialog .quest-modal-close-btn { background: #fff !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; box-shadow: 0 1px 3px rgba(12, 28, 20, 0.08); }
+html body .inventory-dialog .fin-card,
+html body .inventory-dialog .inv-item-card,
+html body .economy-dialog .econ-metric-card,
+html body .economy-dialog .econ-item-card,
+html body .travel-dialog .dest-card,
+html body .interstate-dialog .route-card,
+html body .quest-modal-dialog .quest-card,
+html body .atm-dialog .atm-screen {
+  background: #fff !important;
+  border: 1px solid var(--lx-line) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04), 0 6px 16px rgba(12, 28, 20, 0.05) !important;
+  color: var(--lx-ink) !important;
+}
+html body .economy-dialog .econ-metrics-grid { background: transparent !important; }
+html body .inventory-dialog .btn-save,
+html body .atm-dialog .btn-save,
+html body .economy-dialog .btn-econ-buy,
+html body .economy-dialog .btn-claim-all-econ,
+html body .travel-dialog .btn-board-transit,
+html body .interstate-dialog .btn-book-route {
+  background: var(--lx-brand-grad) !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 18px rgba(14, 122, 78, 0.26) !important;
+}
+html body .inventory-dialog .inv-btn-use,
+html body .atm-dialog .atm-btn { color: var(--lx-brand-deep) !important; background: var(--lx-brand-soft) !important; border: 1px solid rgba(14, 122, 78, 0.22) !important; }
+html body .economy-dialog .econ-tab-btn,
+html body .quest-modal-dialog .quest-tab-btn { background: #fff !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; }
+html body .economy-dialog .econ-tab-btn.active,
+html body .quest-modal-dialog .quest-tab-btn.active { background: var(--lx-ink) !important; color: #fff !important; border-color: transparent !important; }
+html body .inventory-dialog button:focus-visible,
+html body .economy-dialog button:focus-visible,
+html body .interstate-dialog button:focus-visible,
+html body .quest-modal-dialog button:focus-visible { outline-color: var(--lx-brand) !important; }
+html body .atm-dialog .atm-header,
+html body .atm-dialog .atm-footer { background: #f7f9f8 !important; }
+html body .atm-dialog .atm-account-info,
+html body .atm-dialog .atm-tx-row,
+html body .travel-dialog .travel-origin-banner,
+html body .interstate-dialog .interstate-origin-banner,
+html body .interstate-dialog .route-stations { background: var(--lx-surface-2) !important; color: var(--lx-ink-2) !important; }
+html body .atm-dialog .atm-section-title,
+html body .atm-dialog .atm-sub { color: var(--lx-brand) !important; }
+
+/* Headings everywhere in the main face; the display face is kept for banners */
+html body .nl-hero-title,
+html body .nl-card-title,
+html body .quest-card-title-row h4,
+html body .nlphone-app-title { font-family: var(--nl-font) !important; font-weight: 800 !important; letter-spacing: -0.01em !important; }
+html body .nl-section { font-family: var(--nl-font) !important; font-weight: 800 !important; letter-spacing: 0.07em !important; }
+
+/* What was left light-on-light in the older dialogs */
+html body .inventory-dialog .inv-finances-bar { background: transparent !important; border-color: var(--lx-line) !important; }
+html body .inventory-dialog .fin-label, html body .inventory-dialog .inv-item-desc, html body .inventory-dialog .inv-item-qty { color: var(--lx-dim) !important; }
+html body .inventory-dialog .inv-item-name { color: var(--lx-ink) !important; }
+html body .economy-dialog .metric-title, html body .economy-dialog .metric-sub, html body .economy-dialog .econ-category { color: var(--lx-dim) !important; }
+html body .economy-dialog .metric-val, html body .economy-dialog h3, html body .economy-dialog strong { color: var(--lx-ink) !important; }
+html body .economy-dialog .text-emerald, html body .economy-dialog .metric-val.text-emerald { color: var(--lx-brand) !important; }
+html body .economy-dialog .text-gold, html body .economy-dialog .metric-val.text-gold { color: var(--lx-gold) !important; }
+html body .economy-dialog .econ-financials-box, html body .economy-dialog .econ-info-box, html body .economy-dialog .econ-unowned-pitch, html body .economy-dialog .career-rank-hero, html body .economy-dialog .career-milestones > * { background: var(--lx-surface-2) !important; border-color: var(--lx-line) !important; color: var(--lx-ink-2) !important; }
+html body .economy-dialog .econ-icon-box { background: var(--lx-surface-2) !important; }
+html body .economy-dialog .econ-action-bar { background: rgba(255, 255, 255, 0.96) !important; border-color: var(--lx-line) !important; }
+html body .economy-dialog .btn-claim-all-econ:disabled { background: var(--lx-surface-3) !important; color: #9aa59f !important; box-shadow: none !important; }
+html body .economy-dialog .econ-badge { background: var(--lx-surface-2) !important; color: var(--lx-ink-2) !important; border: 0 !important; }
+html body .economy-dialog .econ-badge.badge-owned { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; }
+html body .quest-modal-dialog .quest-city-tabs { background: transparent !important; border-bottom: 1px solid var(--lx-line) !important; }
+html body .quest-modal-dialog .quest-card-objectives { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line) !important; }
+html body .quest-modal-dialog .obj-header-title { color: var(--lx-dim) !important; }
+html body .quest-modal-dialog .quest-obj-row { color: var(--lx-ink-2) !important; }
+html body .quest-modal-dialog .quest-card-desc, html body .quest-modal-dialog .quest-card-info { color: var(--lx-ink-2) !important; }
+html body .quest-modal-dialog .quest-status-badge { background: var(--lx-gold-soft) !important; color: #8a5f10 !important; }
+html body .quest-modal-dialog .btn-tracking-active { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; border: 1px solid rgba(14, 122, 78, 0.25) !important; }
+html body .quest-modal-dialog .btn-track-quest { background: var(--lx-brand-grad) !important; color: #fff !important; border: 0 !important; }
+html body .quest-modal-dialog .quest-rewards-pill { background: var(--lx-gold-soft) !important; color: #7a5410 !important; border-color: rgba(195, 143, 34, 0.3) !important; }
+html body .quest-modal-dialog .quest-card-active { border-color: rgba(14, 122, 78, 0.45) !important; box-shadow: 0 0 0 3px rgba(14, 122, 78, 0.1), 0 8px 20px rgba(12, 28, 20, 0.06) !important; }
+html body .interstate-dialog .route-stations, html body .interstate-dialog .station-row { color: var(--lx-ink-2) !important; }
+html body .interstate-dialog .route-operator, html body .interstate-dialog .origin-meta { color: var(--lx-ink) !important; }
+html body .interstate-dialog .route-code { background: var(--lx-surface-2) !important; color: var(--lx-dim) !important; }
+html body .interstate-dialog .route-fare { color: var(--lx-brand) !important; }
+html body .interstate-dialog .origin-flag { font-size: 0 !important; width: 30px; height: 20px; border-radius: 5px; flex: none; background: linear-gradient(90deg, #008751 0 33.4%, #fff 33.4% 66.6%, #008751 66.6% 100%); box-shadow: 0 0 0 1px rgba(15, 26, 20, 0.12); }
+
+/* Wide screens: the quest card and the hustle badge are enough at the top left (music has its own button) */
+@media (min-width: 701px) {
+  html body #badge-super-eagles,
+  html body #badge-afrobeats { display: none !important; }
+}
+html body .inventory-dialog .fin-value { color: var(--lx-ink) !important; }
+html body .inventory-dialog .fin-value.cash-val { color: var(--lx-brand) !important; }
+
+/* The bottom bar: drawn icons in ink, emerald on the tab that is open */
+html body .master-nav-item .nav-icon { display: inline-grid; place-items: center; color: var(--lx-ink-2); font-size: 0 !important; filter: none !important; }
+html body .master-nav-item .nav-icon svg { display: block; }
+html body .master-nav-item.active .nav-icon,
+html body .master-nav-item:hover .nav-icon { color: var(--lx-brand); }
+
+/* =============================================================================================
+   PHOTO MODE: white glass over the shot, the chosen look in ink, the shutter emerald
+   ============================================================================================= */
+html body .photo-header-panel,
+html body .photo-controls-panel,
+html body .photo-unhide-hint {
+  background: rgba(255, 255, 255, 0.92) !important;
+  -webkit-backdrop-filter: var(--lx-glass) !important;
+  backdrop-filter: var(--lx-glass) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: var(--lx-shadow) !important;
+  color: var(--lx-ink) !important;
+}
+html body .photo-header-panel { border-radius: 22px !important; }
+html body .photo-controls-panel { border-radius: 26px !important; }
+html body .photo-logo-tag { color: var(--lx-brand) !important; text-shadow: none !important; font-size: 12px !important; }
+html body .photo-filter-sublabel { color: var(--lx-ink-2) !important; font-weight: 600; }
+html body .photo-row-label,
+html body .photo-group-label,
+html body .photo-hints { color: var(--lx-dim) !important; }
+html body .photo-icon-btn,
+html body .photo-filter-pill,
+html body .lens-btn {
+  background: #fff !important;
+  border: 1px solid var(--lx-line) !important;
+  color: var(--lx-ink-2) !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05);
+}
+html body .photo-icon-btn.active,
+html body .lens-btn.active { background: var(--lx-brand-soft) !important; border-color: rgba(14, 122, 78, 0.35) !important; color: var(--lx-brand-deep) !important; }
+html body .photo-filter-pill.selected { background: var(--lx-ink) !important; border-color: transparent !important; color: #fff !important; box-shadow: 0 4px 10px rgba(12, 28, 20, 0.2) !important; }
+html body .photo-close-btn { background: #fff !important; border: 1px solid rgba(225, 29, 72, 0.25) !important; color: var(--lx-red) !important; }
+html body .photo-sliders-row { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line) !important; }
+html body .photo-slider { background: #d7ddd9 !important; }
+html body .photo-slider::-webkit-slider-thumb { background: var(--lx-brand) !important; box-shadow: 0 0 0 4px rgba(14, 122, 78, 0.18) !important; }
+html body .photo-kbd-hint kbd,
+html body .photo-unhide-hint kbd { background: var(--lx-surface-2) !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
+html body .photo-shutter-btn {
+  background: var(--lx-brand-grad) !important;
+  border: 4px solid #fff !important;
+  box-shadow: 0 0 0 1px var(--lx-line), 0 10px 24px rgba(14, 122, 78, 0.35) !important;
+}
+html body .shutter-inner-ring { background: transparent !important; }
+@media (max-width: 700px) {
+  html body .photo-header-panel { top: 10px !important; left: 10px !important; right: 10px !important; padding: 10px 12px !important; gap: 8px; align-items: flex-start !important; }
+  html body .photo-filter-sublabel { font-size: 11.5px !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+}
+
+/* =============================================================================================
+   THE CASH MACHINE, CITY TRAVEL AND THE WARDROBE: the rest of the older dialogs
+   ============================================================================================= */
+html body .atm-dialog .atm-brand,
+html body .atm-dialog .atm-header h2,
+html body .atm-dialog .atm-header strong { color: var(--lx-ink) !important; }
+html body .atm-dialog .atm-transactions { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line) !important; }
+html body .atm-dialog .atm-tx-row { background: #fff !important; }
+html body .atm-dialog .tx-desc { color: var(--lx-ink-2) !important; }
+html body .atm-dialog .tx-time,
+html body .atm-dialog .balance-label,
+html body .atm-dialog .wallet-hint,
+html body .atm-dialog .info-row { color: var(--lx-dim) !important; }
+html body .atm-dialog .balance-amount { color: var(--lx-brand) !important; }
+html body .atm-dialog .atm-btn.deposit-btn { color: var(--lx-ink) !important; background: #fff !important; border-color: var(--lx-line) !important; }
+
+html body .travel-dialog .dest-meta h3,
+html body .travel-dialog .dest-meta h4,
+html body .travel-dialog .dest-meta strong,
+html body .travel-dialog .dest-top h3,
+html body .travel-dialog .dest-top h4 { color: var(--lx-ink) !important; }
+html body .travel-dialog .dest-tagline { color: var(--lx-dim) !important; }
+html body .travel-dialog .dest-conductor-quote { color: #8a5f10 !important; }
+html body .travel-dialog .dest-perk { color: var(--lx-ink-2) !important; background: var(--lx-surface-2) !important; border-color: var(--lx-line) !important; }
+html body .travel-dialog .dest-fare { background: var(--lx-gold-soft) !important; color: #7a5410 !important; }
+html body .travel-dialog .dest-icon { background: var(--lx-surface-2) !important; }
+
+/* The wardrobe: the same white dialog; the item worn has an emerald edge */
+html body #character-creator-modal .creator-dialog {
+  --nl-bg: #f7f9f8;
+  --nl-surface: #ffffff;
+  --nl-surface-2: #eef1ef;
+  --nl-line: rgba(15, 26, 20, 0.08);
+  --nl-text: #0f1a14;
+  --nl-dim: #66736c;
+  --nl-accent: #0e7a4e;
+  background: #f7f9f8 !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  border-radius: 28px !important;
+  box-shadow: var(--lx-shadow-lg) !important;
+}
+html body #character-creator-modal .modal-backdrop { background: rgba(12, 28, 20, 0.4) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+html body #character-creator-modal h2,
+html body #character-creator-modal h3,
+html body #character-creator-modal h4,
+html body #character-creator-modal .preset-name,
+html body #character-creator-modal .section-label { color: var(--lx-ink) !important; font-family: var(--nl-font) !important; }
+html body #character-creator-modal p,
+html body #character-creator-modal .preset-desc,
+html body #character-creator-modal .destiny-subtitle { color: var(--lx-ink-2) !important; }
+html body #character-creator-modal .dialog-badge { color: var(--lx-brand-deep) !important; background: var(--lx-brand-soft) !important; border: 0 !important; }
+html body #character-creator-modal .dialog-close-btn { background: #fff !important; color: var(--lx-dim) !important; border: 1px solid var(--lx-line) !important; }
+html body #character-creator-modal .wardrobe-item-card,
+html body #character-creator-modal .creator-section,
+html body #character-creator-modal .preset-grid > *,
+html body #character-creator-modal .destiny-grid > * {
+  background: #fff !important;
+  border: 1px solid var(--lx-line) !important;
+  color: var(--lx-ink) !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04), 0 6px 14px rgba(12, 28, 20, 0.05) !important;
+}
+html body #character-creator-modal .creator-section { box-shadow: none !important; background: transparent !important; border: 0 !important; }
+html body #character-creator-modal .pill-grid button,
+html body #character-creator-modal .pill-grid > * { background: #fff !important; color: var(--lx-ink-2) !important; border: 1px solid var(--lx-line) !important; }
+html body #character-creator-modal .pill-grid .active,
+html body #character-creator-modal .pill-grid .selected { background: var(--lx-ink) !important; color: #fff !important; border-color: transparent !important; }
+html body #character-creator-modal .btn-save,
+html body #character-creator-modal .btn-buy-item,
+html body #character-creator-modal .btn-equip-item,
+html body #character-creator-modal .btn-spin-destiny { background: var(--lx-brand-grad) !important; color: #fff !important; border: 0 !important; box-shadow: 0 8px 18px rgba(14, 122, 78, 0.24) !important; }
+html body #character-creator-modal .btn-unequip-item { background: #fff !important; color: var(--lx-red) !important; border: 1px solid rgba(225, 29, 72, 0.3) !important; }
+html body #character-creator-modal .text-input { background: #fff !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
+html body #character-creator-modal .dialog-footer { background: rgba(255, 255, 255, 0.96) !important; border-top: 1px solid var(--lx-line) !important; }
+
+html body .atm-dialog .atm-brand h3 { color: var(--lx-ink) !important; font-family: var(--nl-font) !important; font-weight: 800 !important; letter-spacing: 0.02em; }
+html body #character-creator-modal #tab-btn-wardrobe, html body #character-creator-modal #tab-btn-presets { box-shadow: inset 0 0 0 1px rgba(15, 26, 20, 0.08); }
+
+/* =============================================================================================
+   DRIVING ON A PHONE: white glass for what is read and pressed; the pedals keep their meaning,
+   emerald to go, a deep red to stop, in the same rounded family
+   ============================================================================================= */
+@media (max-width: 700px), (pointer: coarse) {
+  html body .drive-name,
+  html body .drive-fuel,
+  html body .drive-speed,
+  html body .drive-out,
+  html body .drive-horn,
+  html body .drive-steer {
+    background: var(--lx-surface) !important;
+    -webkit-backdrop-filter: var(--lx-glass);
+    backdrop-filter: var(--lx-glass);
+    border: 1px solid var(--lx-line) !important;
+    box-shadow: var(--lx-shadow) !important;
+    color: var(--lx-ink) !important;
+  }
+  html body .drive-name { font-weight: 800 !important; }
+  html body .drive-fuel { color: var(--lx-ink-2) !important; }
+  html body .drive-chip { background: var(--lx-brand-grad) !important; box-shadow: 0 6px 14px rgba(14, 122, 78, 0.3); font-weight: 800 !important; }
+  html body .drive-chip[data-music] { background: #fff !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
+  html body .drive-chip[data-music].is-on { background: var(--lx-brand-grad) !important; color: #fff !important; }
+  html body .drive-speed b { color: var(--lx-ink); letter-spacing: -0.02em; }
+  html body .drive-speed span { color: var(--lx-dim); opacity: 1 !important; }
+  html body .drive-steer { border-radius: 30px !important; }
+  html body .drive-arrow { background: var(--lx-surface-2) !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
+  html body .drive-arrow.is-down { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; border-color: rgba(14, 122, 78, 0.35) !important; }
+  html body .drive-steer-knob { background: radial-gradient(circle at 35% 35%, #ffffff, #dfe5e1) !important; border: 2px solid rgba(14, 122, 78, 0.55) !important; box-shadow: 0 2px 6px rgba(12, 28, 20, 0.2); }
+  html body .drive-horn { font-weight: 800 !important; color: var(--lx-ink) !important; }
+  html body .drive-pedal { border-radius: 22px !important; box-shadow: 0 12px 26px rgba(12, 28, 20, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important; }
+  html body .drive-gas { background: var(--lx-brand-grad) !important; }
+  html body .drive-brake { background: linear-gradient(160deg, #ef4f6a 0%, #c81e45 60%, #9b1236 100%) !important; }
+}

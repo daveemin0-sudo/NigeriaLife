@@ -156,20 +156,20 @@ export class CharacterCreatorModal {
           <div class="dialog-title-wrap">
             <span class="dialog-badge">NIGERIA LIFE • MODULAR WARDROBE STUDIO</span>
             <h2>👔 Wardrobe & Character Studio</h2>
-            <div style="display: flex; gap: 16px; margin-top: 6px; font-size: 13px; color: #94a3b8;">
-              <span>💵 Cash: <strong style="color: #00d26a;">₦${totalCash.toLocaleString()}</strong></span>
-              <span>🏦 Bank: <strong style="color: #38bdf8;">₦${totalBank.toLocaleString()}</strong></span>
+            <div style="display: flex; gap: 16px; margin-top: 6px; font-size: 13px; color: #66736c;">
+              <span>💵 Cash: <strong style="color: #0e7a4e;">₦${totalCash.toLocaleString()}</strong></span>
+              <span>🏦 Bank: <strong style="color: #0f1a14;">₦${totalBank.toLocaleString()}</strong></span>
             </div>
           </div>
           <button class="dialog-close-btn" id="creator-close-btn">&times;</button>
         </header>
 
         <!-- Studio Mode Tabs -->
-        <div style="display: flex; gap: 8px; padding: 12px 24px; background: #0c0d12; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
-          <button id="tab-btn-wardrobe" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'wardrobe' ? '#00d26a' : '#1e293b'}; color: ${this.activeTab === 'wardrobe' ? '#052e16' : '#94a3b8'};">
+        <div style="display: flex; gap: 8px; padding: 12px 24px; background: transparent; border-bottom: 1px solid rgba(15, 26, 20, 0.08);">
+          <button id="tab-btn-wardrobe" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'wardrobe' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'wardrobe' ? '#ffffff' : '#66736c'};">
             🛍️ Modular Wardrobe Market
           </button>
-          <button id="tab-btn-presets" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'presets' ? '#00d26a' : '#1e293b'}; color: ${this.activeTab === 'presets' ? '#052e16' : '#94a3b8'};">
+          <button id="tab-btn-presets" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'presets' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'presets' ? '#ffffff' : '#66736c'};">
             🌟 Origin Destiny & Face
           </button>
         </div>
@@ -193,7 +193,7 @@ export class CharacterCreatorModal {
                   (c) => `
                 <button class="wardrobe-filter-btn ${this.categoryFilter === c.id ? 'active' : ''}" 
                   data-cat="${c.id}" 
-                  style="padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid ${this.categoryFilter === c.id ? '#00d26a' : 'rgba(255,255,255,0.1)'}; background: ${this.categoryFilter === c.id ? 'rgba(0, 210, 106, 0.15)' : '#161922'}; color: ${this.categoryFilter === c.id ? '#00d26a' : '#cbd5e1'};">
+                  style="padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid ${this.categoryFilter === c.id ? '#0e7a4e' : 'rgba(15,26,20,0.1)'}; background: ${this.categoryFilter === c.id ? '#e6f4ec' : '#ffffff'}; color: ${this.categoryFilter === c.id ? '#0e7a4e' : '#2f3a34'};">
                   ${c.label}
                 </button>
               `
@@ -210,29 +210,29 @@ export class CharacterCreatorModal {
                   const colorHex = '#' + item.color.toString(16).padStart(6, '0');
 
                   return `
-                  <div class="wardrobe-item-card" style="display: flex; flex-direction: column; justify-content: space-between; background: #161922; border: 1px solid ${equipped ? '#00d26a' : 'rgba(255, 255, 255, 0.08)'}; border-radius: 12px; padding: 14px; transition: transform 0.18s, border-color 0.18s;">
+                  <div class="wardrobe-item-card" style="display: flex; flex-direction: column; justify-content: space-between; background: #ffffff; border: 1px solid ${equipped ? '#0e7a4e' : 'rgba(15, 26, 20, 0.08)'}; border-radius: 12px; padding: 14px; transition: transform 0.18s, border-color 0.18s;">
                     <div>
                       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                           <span style="font-size: 22px;">${item.icon}</span>
-                          <span style="width: 14px; height: 14px; border-radius: 50%; background-color: ${colorHex}; border: 1px solid rgba(255,255,255,0.3); display: inline-block;"></span>
-                          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">${item.category}</span>
+                          <span style="width: 14px; height: 14px; border-radius: 50%; background-color: ${colorHex}; border: 1px solid rgba(15,26,20,0.18); display: inline-block;"></span>
+                          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #66736c; letter-spacing: 0.5px;">${item.category}</span>
                         </div>
-                        ${equipped ? `<span style="font-size: 11px; font-weight: 800; color: #00d26a; background: rgba(0, 210, 106, 0.15); padding: 2px 8px; border-radius: 6px;">EQUIPPED</span>` : ''}
+                        ${equipped ? `<span style="font-size: 11px; font-weight: 800; color: #0e7a4e; background: #e6f4ec; padding: 2px 8px; border-radius: 6px;">EQUIPPED</span>` : ''}
                       </div>
 
-                      <h4 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin: 0 0 4px 0;">${item.name}</h4>
-                      <p style="font-size: 12px; color: #94a3b8; margin: 0 0 12px 0; line-height: 1.4;">${item.description}</p>
+                      <h4 style="font-size: 15px; font-weight: 700; color: #0f1a14; margin: 0 0 4px 0;">${item.name}</h4>
+                      <p style="font-size: 12px; color: #66736c; margin: 0 0 12px 0; line-height: 1.4;">${item.description}</p>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.06);">
-                      <span style="font-size: 13px; font-weight: 700; color: #f1f5f9;">₦${item.price.toLocaleString()}</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid rgba(15, 26, 20, 0.08);">
+                      <span style="font-size: 14px; font-weight: 800; color: #0f1a14;">₦${item.price.toLocaleString()}</span>
                       ${
                         equipped
                           ? `<button class="btn-unequip-item" data-cat="${item.category}" style="padding: 6px 12px; background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Unequip</button>`
                           : owned
-                            ? `<button class="btn-equip-item" data-item-id="${item.id}" style="padding: 6px 14px; background: #00d26a; color: #052e16; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">Equip</button>`
-                            : `<button class="btn-buy-item" data-item-id="${item.id}" style="padding: 6px 14px; background: #1e293b; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">Buy & Wear</button>`
+                            ? `<button class="btn-equip-item" data-item-id="${item.id}" style="padding: 6px 14px; background: #0e7a4e; color: #ffffff; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">Equip</button>`
+                            : `<button class="btn-buy-item" data-item-id="${item.id}" style="padding: 6px 14px; background: #ffffff; color: #0f1a14; border: 1px solid rgba(14, 122, 78, 0.35); border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer;">Buy & Wear</button>`
                       }
                     </div>
                   </div>
@@ -374,7 +374,7 @@ export class CharacterCreatorModal {
           }
         </div>
 
-        <footer class="dialog-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end;">
+        <footer class="dialog-footer" style="padding: 16px 24px; border-top: 1px solid rgba(15, 26, 20, 0.08); display: flex; justify-content: flex-end;">
           <button class="btn-save" id="creator-save-btn">✨ Confirm & Step Out into Lagos</button>
         </footer>
       </div>

@@ -335,19 +335,19 @@ export class HUD {
       <!-- Bottom Master Navigation Bar (Home | Buy | Map | Phone) -->
       <div class="bottom-master-nav">
         <button class="master-nav-item" id="nav-btn-home" title="Apartment Flat Interior">
-          <span class="nav-icon">🏠</span>
+          <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.6L12 3.8l8.5 6.8"/><path d="M5.8 9.2V19a1.2 1.2 0 0 0 1.2 1.2h3.6v-5.6h2.8v5.6H17a1.2 1.2 0 0 0 1.2-1.2V9.2"/></svg></span>
           <span class="nav-label">Home</span>
         </button>
         <button class="master-nav-item" id="nav-btn-buy" title="Real Estate, Cars & Businesses">
-          <span class="nav-icon">🛍️</span>
+          <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.2 8h13.6l-1 11.4a1.4 1.4 0 0 1-1.4 1.3H7.6a1.4 1.4 0 0 1-1.4-1.3z"/><path d="M8.8 10.5V7a3.2 3.2 0 0 1 6.4 0v3.5"/></svg></span>
           <span class="nav-label">Buy</span>
         </button>
         <button class="master-nav-item" id="nav-btn-map" title="Aerial City World Map">
-          <span class="nav-icon">🗺️</span>
+          <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5L3.8 6.6v13l5.2-2.1 6 2.1 5.2-2.1v-13L15 6.6z"/><path d="M9 4.5v13M15 6.6v13"/></svg></span>
           <span class="nav-label">Map</span>
         </button>
         <button class="master-nav-item" id="nav-btn-phone" title="Smartphone OS [Key P]">
-          <span class="nav-icon">📱</span>
+          <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2.6"/><path d="M10.6 18h2.8"/></svg></span>
           <span class="nav-label">Phone</span>
           <span class="nav-badge">8</span>
         </button>
@@ -366,7 +366,7 @@ export class HUD {
             <span>Afrobeats [2]</span>
           </button>
           <button class="emote-btn" id="emote-salute" title="Shortcut: Key 3">
-            <span>🫡</span>
+            <span>🎖️</span>
             <span>Salute [3]</span>
           </button>
         </div>
@@ -2400,7 +2400,7 @@ export class HUD {
               if (net) {
                 net.syncEmote('salute');
               }
-              showGameToast(`🫡 Saluted ${citizenName}! Respect acknowledged.`, 'info');
+              showGameToast(`🎖️ Saluted ${citizenName}! Respect acknowledged.`, 'info');
             },
           },
           {
@@ -2836,7 +2836,7 @@ export class HUD {
                 this.showDialogueModal({
                   speakerName: 'Inspector Danjuma',
                   speakerRole: 'Highway Joint Patrol Commander',
-                  speakerAvatar: '🫡',
+                  speakerAvatar: '🎖️',
                   soundType: 'win',
                   dialogueText: 'Inspector salutes! "Everything intact and certified! Your roadworthiness is clean. Respect to law-abiding citizens! Move on oga!"',
                   rewards: { streetCred: 20, energy: 15 },
@@ -4098,7 +4098,7 @@ export class HUD {
           },
           {
             id: 'lastma-salute-opt',
-            label: '🫡 Understood, Commander!',
+            label: '🎖️ Understood, Commander!',
             onSelect: () => {
               const ov = document.getElementById('game-dialogue-overlay');
               if (ov) ov.remove();

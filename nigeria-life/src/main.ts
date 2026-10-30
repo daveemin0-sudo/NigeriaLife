@@ -21,8 +21,16 @@ void fontsReady.then(() => {
     const game = new Game();
     (window as any).game = game;
     console.log('[NIGERIA LIFE] Game successfully initialized!');
+    // The city has drawn its first frames: the splash steps aside
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const splash = document.getElementById('nl-splash');
+      if (!splash) return;
+      splash.classList.add('is-gone');
+      setTimeout(() => splash.remove(), 650);
+    }));
   } catch (err: any) {
     console.error('[NIGERIA LIFE ERROR]', err);
+    document.getElementById('nl-splash')?.classList.add('is-failed');
     (window as any).__last_error = err?.message || String(err);
     (window as any).__last_error_stack = err?.stack || '';
   }

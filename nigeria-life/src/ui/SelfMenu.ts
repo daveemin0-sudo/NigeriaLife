@@ -114,7 +114,7 @@ export class SelfMenu {
             emote('greet', '🙏', 'Bow in greeting'),
             emote('zanku', '🔥', 'Zanku'),
             emote('groove', '🎶', 'Groove'),
-            emote('salute', '🫡', 'Salute'),
+            emote('salute', '🎖️', 'Salute'),
           ],
         },
         seated

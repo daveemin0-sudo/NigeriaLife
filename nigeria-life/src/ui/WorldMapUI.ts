@@ -9,6 +9,14 @@ import { UIStateManager } from './UIStateManager';
 import { openNow } from '../destinations/Hours';
 import { InteriorManager } from '../interiors/InteriorManager';
 
+const MAP_ICON = {
+  search: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="M20 20l-4.4-4.4"/></svg>',
+  back: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>',
+  names: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12.6V4.8a1.3 1.3 0 0 1 1.3-1.3h7.8l8 8a1.3 1.3 0 0 1 0 1.9l-6 6a1.3 1.3 0 0 1-1.9 0z"/><circle cx="8.2" cy="8.2" r="1.5" fill="currentColor" stroke="none"/></svg>',
+};
+/** Fingers or a mouse: the hint says what this screen is worked with */
+const TOUCH = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+
 /** A label drawn over the map at a fixed map position */
 interface MapMarker {
   el: HTMLElement;
@@ -89,8 +97,8 @@ export class WorldMapUI {
           <div class="map-city-badge">
             <span class="flag">🇳🇬</span>
             <div class="city-meta">
-              <span class="city-name" id="map-ui-city-name">LAGOS STATE</span>
-              <span class="city-tagline">Commercial Capital • 11 Districts</span>
+              <span class="city-name" id="map-ui-city-name">Lagos State</span>
+              <span class="city-tagline">Centre of Excellence · 11 districts</span>
             </div>
           </div>
         </div>
@@ -101,7 +109,7 @@ export class WorldMapUI {
             <span id="map-ui-time">Wed 7 • 1:18 PM</span>
           </div>
           <div class="map-search" id="map-search">
-            <span>🔎</span>
+            <span class="map-search-ico">${MAP_ICON.search}</span>
             <input id="map-search-input" type="search" placeholder="Find a place: bank, food, stadium" autocomplete="off" spellcheck="false" />
             <div class="map-search-results" id="map-search-results" style="display: none;"></div>
           </div>
@@ -111,20 +119,20 @@ export class WorldMapUI {
         </div>
 
         <div class="map-top-right">
-          <button class="btn-map-close" id="btn-map-back-street">
-            <span>🚶</span>
-            <span>Return to Street</span>
+          <button class="btn-map-close" id="btn-map-back-street" aria-label="Back to the street">
+            ${MAP_ICON.back}
+            <span>Back to street</span>
           </button>
         </div>
       </header>
 
       <!-- CITY NAVIGATION TABS (Lagos / Abuja / Port Harcourt) -->
       <nav class="map-city-tabs">
-        <button class="city-nav-tab active" data-city="lagos">🏖️ Lagos (Active)</button>
-        <button class="city-nav-tab" data-city="abuja">⛰️ Abuja FCT</button>
-        <button class="city-nav-tab" data-city="port_harcourt">🛢️ Port Harcourt</button>
+        <button class="city-nav-tab active" data-city="lagos">Lagos</button>
+        <button class="city-nav-tab" data-city="abuja">Abuja</button>
+        <button class="city-nav-tab" data-city="port_harcourt">Port Harcourt</button>
         <span class="city-tab-divider"></span>
-        <button class="map-names-toggle active" id="btn-map-names" title="Show or hide place names">🏷️ Names</button>
+        <button class="map-names-toggle active" id="btn-map-names" title="Show or hide place names" aria-label="Names">${MAP_ICON.names}<span class="names-lbl">Names</span></button>
         <span class="city-tab-divider"></span>
         <div class="map-filter-group" id="map-filter-group">
           <button class="map-filter-btn active" data-filter="all">All</button>
@@ -182,7 +190,7 @@ export class WorldMapUI {
 
       <!-- MAP CONTROLS HINT OVERLAY -->
       <div class="map-controls-hint">
-        <span>🖱️ Drag to pan • Scroll to zoom • Tap a pin to see what is there and how to get to it</span>
+        <span>${TOUCH ? 'Drag to move · pinch to zoom · tap a pin' : 'Drag to move · scroll to zoom · click a pin to see what is there'}</span>
       </div>
     `;
 
@@ -341,11 +349,12 @@ export class WorldMapUI {
 
   /** Shows which city's map is up, and which city the player is actually standing in. */
   public markCityTabs(viewing: string, playerCity: string): void {
-    const names: Record<string, string> = { lagos: '🏖️ Lagos', abuja: '⛰️ Abuja FCT', port_harcourt: '🛢️ Port Harcourt' };
+    const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
     this.container.querySelectorAll('.city-nav-tab').forEach((tab) => {
       const city = tab.getAttribute('data-city') ?? '';
       tab.classList.toggle('active', city === viewing);
-      tab.textContent = `${names[city] ?? city}${city === playerCity ? ' (you are here)' : ''}`;
+      // Where the player stands: a small emerald dot (its words are there for screen readers)
+      tab.innerHTML = `${names[city] ?? city}${city === playerCity ? '<span class="tab-here" title="You are here"><span class="lx-sr"> (you are here)</span></span>' : ''}`;
     });
   }
 
@@ -365,14 +374,14 @@ export class WorldMapUI {
     });
 
     if (cleanId.includes('abuja')) {
-      if (nameEl) nameEl.textContent = 'ABUJA FCT';
-      if (tagEl) tagEl.textContent = 'Centre of Unity • Federal Seat of Power';
+      if (nameEl) nameEl.textContent = 'Abuja FCT';
+      if (tagEl) tagEl.textContent = 'The Federal Capital';
     } else if (cleanId.includes('port') || cleanId.includes('ph') || cleanId.includes('harcourt')) {
-      if (nameEl) nameEl.textContent = 'PORT HARCOURT (GARDEN CITY)';
-      if (tagEl) tagEl.textContent = 'Treasure Base of the Nation • Oil & Gas Capital';
+      if (nameEl) nameEl.textContent = 'Port Harcourt';
+      if (tagEl) tagEl.textContent = 'The Garden City · Rivers State';
     } else {
-      if (nameEl) nameEl.textContent = 'LAGOS STATE';
-      if (tagEl) tagEl.textContent = 'Commercial Capital • 11 Districts';
+      if (nameEl) nameEl.textContent = 'Lagos State';
+      if (tagEl) tagEl.textContent = 'Centre of Excellence · 11 districts';
     }
 
     this.renderDistrictChips();

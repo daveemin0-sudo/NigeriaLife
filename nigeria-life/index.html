@@ -4,9 +4,56 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <!-- The phone's browser bar takes the game's emerald -->
+    <meta name="theme-color" content="#0b5e3b" />
     <title>Nigeria Life</title>
+    <style>
+      /* The first thing anyone sees: drawn before a byte of the game has arrived, gone when the city is up */
+      html, body { margin: 0; background: #0b5e3b; }
+      #nl-splash {
+        position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        background: radial-gradient(120% 90% at 50% 18%, #1fb877 0%, #0e7a4e 42%, #073f28 100%);
+        color: #fff; font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif; text-align: center; overflow: hidden;
+        transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      #nl-splash.is-gone { opacity: 0; transform: scale(1.04); pointer-events: none; }
+      #nl-splash .s-mark {
+        width: 88px; height: 88px; border-radius: 26px; display: grid; place-items: center; position: relative;
+        background: linear-gradient(160deg, #ffffff, #eaf4ee); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28), inset 0 -2px 0 rgba(15, 26, 20, 0.08);
+        animation: s-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      #nl-splash .s-mark b { font: 800 34px/1 'Segoe UI', Roboto, system-ui, sans-serif; letter-spacing: -0.04em; color: #0e7a4e; }
+      #nl-splash .s-mark i { position: absolute; right: 14px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, #f2cf6b, #c38f22); }
+      #nl-splash .s-word { margin-top: 6px; font-size: 34px; font-weight: 800; letter-spacing: -0.03em; animation: s-rise 0.7s 0.08s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      #nl-splash .s-word span { color: #f2cf6b; }
+      #nl-splash .s-line { font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.74); animation: s-rise 0.7s 0.16s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      #nl-splash .s-bar { margin-top: 18px; width: 168px; height: 5px; border-radius: 99px; background: rgba(255, 255, 255, 0.16); overflow: hidden; position: relative; }
+      #nl-splash .s-bar::after {
+        content: ''; position: absolute; top: 0; bottom: 0; width: 40%; border-radius: 99px;
+        background: linear-gradient(90deg, rgba(242, 207, 107, 0), #f2cf6b, rgba(242, 207, 107, 0)); animation: s-run 1.3s ease-in-out infinite;
+      }
+      #nl-splash .s-tip { position: absolute; left: 24px; right: 24px; bottom: calc(env(safe-area-inset-bottom, 0px) + 30px); font-size: 12.5px; font-weight: 600; color: rgba(255, 255, 255, 0.6); }
+      #nl-splash .s-city { position: absolute; left: 0; right: 0; bottom: 0; height: 30vh; opacity: 0.14; pointer-events: none; }
+      #nl-splash .s-fail { display: none; max-width: 300px; font-size: 13px; color: #ffe3e8; }
+      #nl-splash.is-failed .s-bar { display: none; }
+      #nl-splash.is-failed .s-fail { display: block; }
+      @keyframes s-run { from { left: -40%; } to { left: 100%; } }
+      @keyframes s-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) { #nl-splash *, #nl-splash *::after { animation: none !important; } }
+    </style>
   </head>
   <body>
+    <div id="nl-splash" role="status" aria-live="polite" aria-label="Nigeria Life is loading">
+      <svg class="s-city" viewBox="0 0 400 140" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <path fill="#fff" d="M0 140V96h18V70h14v26h10V58h22v38h8V40h16v-8h10v8h6v56h12V76h20v20h10V30l14-12 14 12v66h8V64h18v32h12V50h24v46h8V84h16v12h10V60h12V44h10v16h12v36h14V72h20v24h12V54h16v42h10V78h18v18h8v44z"/>
+      </svg>
+      <div class="s-mark"><b>NL</b><i></i></div>
+      <div class="s-word">Nigeria<span>Life</span></div>
+      <div class="s-line">Lagos is waking up…</div>
+      <div class="s-bar"></div>
+      <div class="s-fail" id="nl-splash-fail">The city could not start. Reload the page to try again.</div>
+      <div class="s-tip">Tip: tap anyone on the street to greet them. A good name opens doors.</div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

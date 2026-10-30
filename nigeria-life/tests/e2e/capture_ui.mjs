@@ -16,6 +16,20 @@ async function shots(width, height, scale, mobile, name) {
   await advance(page, 0.5);
   await wait(500);
   await page.screenshot({ path: `${out}/${tag}-${name}-street.png` });
+  // The View sheet, then a clean screen
+  await page.evaluate(() => document.getElementById('view-fab')?.click());
+  await wait(500);
+  await page.screenshot({ path: `${out}/${tag}-${name}-view.png` });
+  await page.evaluate(() => document.querySelector('#view-sheet [data-view="aerial"]')?.click());
+  await advance(page, 1);
+  await wait(500);
+  await page.screenshot({ path: `${out}/${tag}-${name}-view2.png` });
+  await page.evaluate(() => { document.querySelector('#view-sheet [data-view="street"]')?.click(); document.querySelector('#view-sheet [data-act="clean"]')?.click(); });
+  await advance(page, 0.5);
+  await wait(500);
+  await page.screenshot({ path: `${out}/${tag}-${name}-clean.png` });
+  await page.evaluate(() => document.getElementById('view-fab')?.click());
+  await wait(300);
   // A toast and someone's card
   await page.evaluate(() => {
     const g = window.game;

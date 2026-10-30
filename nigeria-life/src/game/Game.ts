@@ -33,6 +33,7 @@ import { createHumanForConfig } from '../player/HumanFromConfig';
 import { TransitHUD } from '../transit/TransitHUD';
 import type { FlightDetails, RideDetails } from '../transit/TransitTypes';
 import { PhotoModeModal } from '../ui/PhotoModeModal';
+import { ViewPicker, type ViewId } from '../ui/ViewPicker';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import { UIStateManager } from '../ui/UIStateManager';
@@ -143,6 +144,8 @@ export class Game {
   public chatBox: ChatBox;
   public postProcessing: PostProcessingManager;
   public photoMode: PhotoModeModal;
+  /** The View button and its sheet: the ways to look, turning, a photo, a clean screen */
+  public viewPicker!: ViewPicker;
   public bukaUI!: BukaOrderUI;
   public shopUI!: ShopUI;
   public vendorUI!: VendorUI;
@@ -265,6 +268,15 @@ export class Game {
     this.hud.phoneModal.onOpenPhotoMode = () => {
       this.photoMode.open();
     };
+
+    this.viewPicker = new ViewPicker({
+      preset: () => this.cameraManager.currentPreset as ViewId,
+      inside: () => this.cameraManager.mode === 'interior',
+      set: (view) => this.cameraManager.setPreset(view),
+      rotate: (deltaYaw) => this.cameraManager.rotate(deltaYaw),
+      reset: () => this.cameraManager.resetOrientation(),
+      photo: () => this.photoMode.open(),
+    });
 
     // 7. Input & Cursor Interaction
     this.input = new InputManager(
@@ -2249,6 +2261,7 @@ export class Game {
     const playerActor = this.player.actor;
     this.cameraManager.setCloseUp(playerActor.hold !== null || (playerActor.busy && playerActor.sequence?.closeUp === true));
     this.cameraManager.update(this.player, delta);
+    this.viewPicker.update();
     if (this.world.interiorManager.isPlayerInside()) {
       this.world.interiorManager.updateCutaway(delta, this.cameraManager.camera, this.player);
     }
