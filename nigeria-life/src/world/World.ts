@@ -199,6 +199,8 @@ export class World {
       ...this.expressway.roadside.interactive,
       ...this.agamas.interactive,
       ...this.lagoon.interactive,
+      // The Red Line's gates at the foot of each station's stairs
+      ...this.expressway.redLine.interactive,
     ];
 
     if (this.atmosphere.generatorMesh) {

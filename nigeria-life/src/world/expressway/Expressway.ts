@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RedLine } from './RedLine';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
 import type { Obstruction } from '../plan/CityPlan';
@@ -71,6 +72,8 @@ export class Expressway {
   public readonly roadside = new Roadside();
   /** The side streets off Ikorodu Road, with places of their own */
   public readonly sideStreets = new SideStreets();
+  /** The Red Line on its viaduct over the middle of the road, with its stations */
+  public readonly redLine = new RedLine();
 
   constructor() {
     this.group.name = 'Expressway';
@@ -78,6 +81,8 @@ export class Expressway {
     this.obstructions.push(...this.roadside.obstructions);
     this.group.add(this.sideStreets.group);
     this.obstructions.push(...this.sideStreets.obstructions);
+    this.group.add(this.redLine.group);
+    this.obstructions.push(...this.redLine.obstructions);
     // Their places are listed with the road's: on the map, a cab to each
     this.roadside.interactive.push(...this.sideStreets.interactive);
     for (let z = EXPRESS.from; z < EXPRESS.to; z += CHUNK) this.buildChunk(z, Math.min(EXPRESS.to, z + CHUNK));

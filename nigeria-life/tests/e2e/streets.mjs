@@ -24,6 +24,23 @@ async function walk(page, x, z, seconds = 40, step = 0.25) {
   return heights;
 }
 
+/** The same, stepped and sampled inside the page in one go: the real frames of a busy machine cannot carry the player past a sample */
+async function walkFinely(page, x, z, seconds = 40, step = 0.1) {
+  return page.evaluate(({ x, z, seconds, step }) => {
+    const g = window.game;
+    const p = g.player;
+    p.setDestination(new p.position.constructor(x, 0, z));
+    const heights = [];
+    for (let t = 0; t < seconds; t += step) {
+      g.advance(step);
+      const now = { x: +p.position.x.toFixed(2), y: +p.position.y.toFixed(2), z: +p.position.z.toFixed(2), up: p.onBridge, moving: p.isMoving };
+      heights.push(now);
+      if (!now.moving) break;
+    }
+    return heights;
+  }, { x, z, seconds, step });
+}
+
 export async function run(browser, check) {
   const ctx = await newPlayer(browser);
   const { page, log } = await open(ctx);
@@ -66,7 +83,7 @@ export async function run(browser, check) {
   // ------------------------------------------------------------------ Up, over and down
   await put(page, -11.2, 13.4);
   // Sampled finely: on a busy machine a quarter second can carry the player over most of the flight
-  const up = await walk(page, -11.2, 27.6, 40, 0.1);
+  const up = await walkFinely(page, -11.2, 27.6, 40, 0.1);
   const top = up[up.length - 1];
   const climbing = up.filter((s) => s.z > 15 && s.z < 26);
   check('walking at the foot of the west stairs and on up them, the player climbs: higher at every step until they are on the deck above the road',

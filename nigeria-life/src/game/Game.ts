@@ -2281,6 +2281,7 @@ export class Game {
     this.world.update(delta, this.input.keys, this.player.position, this.player);
     this.world.agamas.update(delta, this.player.position);
     if (!this.world.interiorManager.isPlayerInside()) this.world.lagoon.update(delta, this.player.position);
+    this.world.expressway.redLine.update(delta, this.player.position, !this.world.interiorManager.isPlayerInside() && this.world.cityManager.currentCityId === 'lagos');
     this.lifeTimer -= delta;
     if (this.lifeTimer <= 0) {
       this.lifeTimer = 2;
