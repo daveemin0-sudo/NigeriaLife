@@ -1,0 +1,429 @@
+/* =============================================================================================
+   Eko Luxe: the one look of NigeriaLife.
+
+   Every surface floating over the world is white glass with a hairline edge and a soft shadow;
+   text is ink, then grey for what is secondary; one brand colour, a deep Nigerian emerald, marks
+   what can be done (the main button, the + by the money, the active tab, a filled meter); gold
+   is kept for what is precious (a streak, money earned, a premium thing). Status colours (red,
+   amber) appear only inside a small badge or icon, never as a whole surface.
+
+   Loaded after every other stylesheet: it decides the look; the others decide the layout.
+   ============================================================================================= */
+
+:root {
+  --lx-surface: rgba(255, 255, 255, 0.94);
+  --lx-surface-solid: #ffffff;
+  --lx-surface-2: #f4f6f5;
+  --lx-surface-3: #eaeeec;
+  --lx-ink: #0f1a14;
+  --lx-ink-2: #2f3a34;
+  --lx-dim: #66736c;
+  --lx-line: rgba(15, 26, 20, 0.08);
+  --lx-brand: #0e7a4e;
+  --lx-brand-2: #14a266;
+  --lx-brand-deep: #095c3a;
+  --lx-brand-soft: #e6f4ec;
+  --lx-brand-grad: linear-gradient(135deg, #17ab6c 0%, #0e7a4e 55%, #095c3a 100%);
+  --lx-gold: #c38f22;
+  --lx-gold-2: #e5b84b;
+  --lx-gold-soft: #fbf2dd;
+  --lx-gold-grad: linear-gradient(135deg, #f2cf6b 0%, #c38f22 100%);
+  --lx-red: #e11d48;
+  --lx-amber: #d97706;
+  --lx-shadow: 0 10px 26px rgba(12, 28, 20, 0.14), 0 1px 2px rgba(12, 28, 20, 0.08);
+  --lx-shadow-sm: 0 4px 12px rgba(12, 28, 20, 0.12), 0 1px 2px rgba(12, 28, 20, 0.06);
+  --lx-shadow-lg: 0 24px 60px rgba(12, 28, 20, 0.22), 0 2px 6px rgba(12, 28, 20, 0.08);
+  --lx-glass: saturate(170%) blur(18px);
+  --lx-r-card: 22px;
+  --lx-r-btn: 14px;
+  --lx-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* --- One recipe for the floating surfaces --------------------------------------------------- */
+html body .hud-center-pill-bar,
+html body .hud-quest-tracker,
+html body #hud-today-chip,
+html body .hud-location,
+html body .top-menu-btn,
+html body #street-chat-box,
+html body .music-fab,
+html body .bottom-master-nav,
+html body .camera-rotate-widget,
+html body .online-pill,
+html body .interaction-card,
+html body .place-card {
+  background: var(--lx-surface) !important;
+  -webkit-backdrop-filter: var(--lx-glass);
+  backdrop-filter: var(--lx-glass);
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: var(--lx-shadow) !important;
+  color: var(--lx-ink) !important;
+}
+
+/* --- The top card: time, mood, needs and money ----------------------------------------------- */
+html body .hud-center-pill-bar { border-radius: 24px !important; }
+html body .hud-center-pill-bar .pill-item,
+html body .hud-center-pill-bar #hud-clock-val,
+html body .hud-center-pill-bar #hud-mood-val { color: var(--lx-ink) !important; font-weight: 700; letter-spacing: -0.01em; }
+html body .hud-center-pill-bar .mood-pill { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; border-radius: 999px; }
+html body #hud-vitals-bar {
+  background: var(--lx-surface-2) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: inset 0 1px 2px rgba(12, 28, 20, 0.05) !important;
+}
+html body #hud-vitals-bar .vital-track { background: var(--lx-surface-3) !important; border-radius: 999px; overflow: hidden; }
+html body #hud-vitals-bar .vital-val { color: var(--lx-dim) !important; font-weight: 700; }
+html body .vital-health .vital-fill { background: linear-gradient(90deg, #f43f5e, #e11d48) !important; }
+html body .vital-energy .vital-fill { background: linear-gradient(90deg, #34d399, #0e7a4e) !important; }
+html body .vital-hunger .vital-fill { background: linear-gradient(90deg, #fbbf24, #ea580c) !important; }
+html body .vital-fun .vital-fill,
+html body .vital-social .vital-fill { background: linear-gradient(90deg, #a78bfa, #7c3aed) !important; }
+html body #hud-money { color: var(--lx-ink) !important; font-weight: 800; letter-spacing: -0.02em; }
+html body #btn-quick-topup {
+  background: var(--lx-brand-grad) !important;
+  color: #fff !important;
+  border: 0 !important;
+  box-shadow: 0 4px 12px rgba(14, 122, 78, 0.4) !important;
+}
+
+/* --- Left: the story quest and today's hustle -------------------------------------------------- */
+html body .hud-quest-tracker .tracker-title,
+html body .hud-quest-tracker .tracker-arc { color: var(--lx-ink) !important; }
+html body .hud-quest-tracker .tracker-arc { color: var(--lx-brand) !important; font-weight: 800; letter-spacing: 0.04em; }
+html body .hud-quest-tracker .tracker-obj-item { color: var(--lx-ink-2) !important; }
+html body .hud-quest-tracker .obj-dot { color: var(--lx-brand) !important; }
+html body .hud-quest-tracker .btn-tracker-toggle { background: var(--lx-surface-2) !important; color: var(--lx-ink) !important; border: 0 !important; }
+html body .hud-quest-tracker .tracker-reward,
+html body .hud-quest-tracker [class*="reward"] { background: var(--lx-gold-soft) !important; color: #7a5310 !important; border-color: rgba(195, 143, 34, 0.3) !important; }
+html body #hud-today-chip {
+  color: var(--lx-ink) !important;
+  font-weight: 800 !important;
+  border-radius: 999px !important;
+  background-image: none !important;
+}
+
+/* --- Right: where they are, chat, music, the camera ------------------------------------------- */
+html body .hud-location .loc-name { color: var(--lx-ink) !important; font-weight: 800; }
+html body .hud-location .loc-sub { color: var(--lx-dim) !important; }
+html body .hud-location .flag { filter: none; }
+html body #street-chat-box .chat-header,
+html body #street-chat-box .chat-title { background: transparent !important; color: var(--lx-ink) !important; }
+html body #street-chat-box .chat-dot { background: var(--lx-brand-2) !important; box-shadow: 0 0 0 3px rgba(20, 162, 102, 0.18) !important; }
+html body #street-chat-box .chat-minimize-btn { background: var(--lx-surface-2) !important; color: var(--lx-ink) !important; border: 0 !important; }
+html body #street-chat-box .chat-msg,
+html body #street-chat-box .msg-text { color: var(--lx-ink-2) !important; }
+html body #street-chat-box .chat-input { background: var(--lx-surface-2) !important; color: var(--lx-ink) !important; border: 1px solid var(--lx-line) !important; }
+html body #street-chat-box .chat-send-btn { background: var(--lx-brand-grad) !important; color: #fff !important; border: 0 !important; }
+html body .music-fab { color: var(--lx-ink) !important; }
+html body .cam-rot-btn {
+  background: var(--lx-surface-2) !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: none !important;
+}
+html body .cam-rot-btn:hover { background: var(--lx-brand-soft) !important; border-color: rgba(14, 122, 78, 0.35) !important; }
+html body .online-pill,
+html body .online-pill .stat-val { color: var(--lx-ink) !important; }
+
+/* The menu button under the top card: white, and out of the way when a window is open */
+html body .top-menu-btn { color: var(--lx-ink) !important; }
+html body .top-menu-btn.is-open { background: var(--lx-brand-grad) !important; color: #fff !important; }
+html body.ui-modal-open .top-menu-btn,
+html body:has(#smartphone-wrapper.phone-open) .top-menu-btn { opacity: 0; pointer-events: none; }
+
+/* A developer's tool, not a player's: F9 still opens it */
+html body #hud-quality-showcase-btn { display: none !important; }
+
+/* --- The tabs along the bottom ------------------------------------------------------------------ */
+html body .bottom-master-nav { border-radius: 999px !important; padding: 5px !important; gap: 2px !important; }
+html body .master-nav-item {
+  position: relative;
+  color: var(--lx-ink-2) !important;
+  border-radius: 999px !important;
+  transition: background 0.18s var(--lx-ease), color 0.18s var(--lx-ease);
+}
+html body .master-nav-item .nav-label { color: var(--lx-ink-2) !important; font-weight: 700; letter-spacing: -0.01em; }
+html body .master-nav-item:hover { background: var(--lx-surface-2) !important; }
+html body .master-nav-item.active { background: var(--lx-brand-soft) !important; }
+html body .master-nav-item.active .nav-label { color: var(--lx-brand-deep) !important; }
+html body .master-nav-item .nav-badge {
+  position: absolute !important;
+  top: 1px !important;
+  left: calc(50% + 6px) !important;
+  right: auto !important;
+  min-width: 17px !important;
+  height: 17px !important;
+  padding: 0 4px !important;
+  border-radius: 999px !important;
+  background: var(--lx-red) !important;
+  color: #fff !important;
+  border: 2px solid #fff !important;
+  font: 800 10px/13px var(--nl-font) !important;
+  box-shadow: 0 2px 6px rgba(225, 29, 72, 0.35) !important;
+}
+
+/* --- What can be done here: the prompt, and the card ----------------------------------------- */
+html body #hud-proximity-prompt {
+  background: var(--lx-brand-grad) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 30px rgba(9, 92, 58, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+}
+html body #hud-proximity-prompt .prompt-key-badge {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border-radius: 9px !important;
+}
+html body .interaction-card { border-radius: var(--lx-r-card) !important; }
+html body .interaction-card .card-tag {
+  background: var(--lx-brand-soft) !important;
+  color: var(--lx-brand-deep) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em;
+}
+html body .interaction-card .card-title { color: var(--lx-ink) !important; font-weight: 800 !important; letter-spacing: -0.02em; }
+html body .interaction-card .card-desc { color: var(--lx-dim) !important; }
+html body .interaction-card .card-close {
+  background: var(--lx-surface-2) !important;
+  color: var(--lx-ink) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+}
+html body .interaction-card #card-biz-meta { background: var(--lx-surface-2) !important; border: 1px solid var(--lx-line) !important; color: var(--lx-ink-2) !important; }
+html body .interaction-card #card-biz-meta span,
+html body .interaction-card #card-biz-meta strong { color: var(--lx-ink-2) !important; }
+html body .interaction-card .btn-primary,
+html body .place-card .btn-primary {
+  background: var(--lx-brand-grad) !important;
+  color: #fff !important;
+  border: 0 !important;
+  border-radius: var(--lx-r-btn) !important;
+  box-shadow: 0 8px 20px rgba(9, 92, 58, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  font-weight: 800 !important;
+}
+html body .interaction-card .btn-secondary,
+html body .interaction-card .card-social-btn {
+  background: var(--lx-surface-solid) !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  border-radius: var(--lx-r-btn) !important;
+  box-shadow: var(--lx-shadow-sm) !important;
+}
+html body .interaction-card .card-social-label { color: var(--lx-dim) !important; }
+
+/* The card of a place the player is in */
+html body .place-card { border-radius: var(--lx-r-card) !important; }
+html body .place-chip {
+  background: var(--lx-surface-solid) !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.06) !important;
+  font-weight: 700 !important;
+}
+html body .place-chip:hover { background: var(--lx-brand-soft) !important; border-color: rgba(14, 122, 78, 0.3) !important; }
+html body .place-chip-person { background: var(--lx-gold-soft) !important; border-color: rgba(195, 143, 34, 0.25) !important; }
+html body .place-leave-btn {
+  background: var(--lx-surface-2) !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+}
+
+/* --- Thumb controls ---------------------------------------------------------------------------- */
+html body .v-joystick-base {
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.16)) !important;
+  border: 2px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow: 0 8px 24px rgba(12, 28, 20, 0.2), inset 0 0 0 1px rgba(12, 28, 20, 0.06) !important;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+html body .v-joystick-thumb {
+  background: #fff !important;
+  border: 3px solid var(--lx-brand-2) !important;
+  box-shadow: 0 6px 16px rgba(12, 28, 20, 0.28) !important;
+}
+html body #v-btn-run {
+  background: var(--lx-surface) !important;
+  color: var(--lx-brand-deep) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: var(--lx-shadow) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em;
+}
+html body #v-btn-run[aria-pressed="true"] { background: var(--lx-brand-grad) !important; color: #fff !important; }
+
+/* --- A conversation or a choice: the dialogue sheet ------------------------------------------- */
+html body .game-dialogue-overlay { background: rgba(8, 20, 14, 0.32) !important; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+html body .game-dialogue-card {
+  background: var(--lx-surface-solid) !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  border-radius: 26px !important;
+  box-shadow: var(--lx-shadow-lg) !important;
+}
+html body .game-dialogue-card .dialogue-avatar-box {
+  background: var(--lx-brand-soft) !important;
+  border: 0 !important;
+  box-shadow: inset 0 0 0 1px rgba(14, 122, 78, 0.15) !important;
+}
+html body .game-dialogue-card .dialogue-speaker-name { color: var(--lx-ink) !important; font-weight: 800 !important; letter-spacing: -0.02em; }
+html body .game-dialogue-card .dialogue-speaker-role { color: var(--lx-brand) !important; font-weight: 800 !important; }
+html body .game-dialogue-card .dialogue-speech-box {
+  background: var(--lx-surface-2) !important;
+  color: var(--lx-ink-2) !important;
+  border-left: 3px solid var(--lx-brand) !important;
+  border-radius: 14px !important;
+}
+html body .game-dialogue-card .dialogue-choice-btn {
+  background: var(--lx-surface-solid) !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 1px 2px rgba(12, 28, 20, 0.05) !important;
+}
+html body .game-dialogue-card .dialogue-choice-btn:hover,
+html body .game-dialogue-card .dialogue-choice-btn:focus-visible { background: var(--lx-brand-soft) !important; border-color: rgba(14, 122, 78, 0.35) !important; }
+html body .game-dialogue-card .choice-num { background: var(--lx-surface-2) !important; color: var(--lx-dim) !important; border: 0 !important; border-radius: 8px !important; }
+html body .game-dialogue-card .choice-label { color: var(--lx-ink) !important; font-weight: 700 !important; }
+html body .game-dialogue-card .choice-badge { background: var(--lx-brand-soft) !important; color: var(--lx-brand-deep) !important; border: 0 !important; font-weight: 800 !important; }
+html body .game-dialogue-card .dialogue-choices-hint { color: var(--lx-dim) !important; }
+html body .game-dialogue-card .dialogue-reward-pill { background: var(--lx-gold-soft) !important; color: #7a5310 !important; border: 1px solid rgba(195, 143, 34, 0.25) !important; }
+html body .game-dialogue-card button[id="dialogue-confirm-btn"],
+html body .game-dialogue-card .dialogue-confirm-btn { background: var(--lx-brand-grad) !important; color: #fff !important; border: 0 !important; border-radius: var(--lx-r-btn) !important; }
+
+/* --- Phones: the bottom tabs are icons and a label under each, the badge on the icon ----------- */
+@media (max-width: 700px) {
+  html body .bottom-master-nav { padding: 4px 6px !important; }
+  html body .master-nav-item { padding: 6px 12px !important; }
+  /* Keys mean nothing on a touch screen */
+  html body .game-dialogue-card .choice-num,
+  html body .game-dialogue-card .dialogue-choices-hint,
+  html body #hud-proximity-prompt .prompt-key-badge { display: none !important; }
+}
+@media (hover: none) {
+  html body .game-dialogue-card .choice-num,
+  html body .game-dialogue-card .dialogue-choices-hint,
+  html body #hud-proximity-prompt .prompt-key-badge { display: none !important; }
+}
+
+/* --- The tab's badge sits on its icon, clear of the word ---------------------------------------- */
+html body .master-nav-item .nav-badge { top: -3px !important; left: 26px !important; }
+
+/* --- The menu button: a drawn chevron, not a letter ------------------------------------------- */
+html body .top-menu-btn span { font-size: 0 !important; width: 10px; height: 10px; transform: translateY(-3px) rotate(45deg) !important; border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor; border-radius: 1px; }
+html body .top-menu-btn.is-open span { transform: translateY(2px) rotate(-135deg) !important; }
+
+/* --- The older notices: the same white card ---------------------------------------------------- */
+html body #hud-floating-toast {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border: 1px solid var(--lx-line) !important;
+  color: var(--lx-ink) !important;
+  box-shadow: 0 14px 34px rgba(12, 28, 20, 0.18), 0 1px 2px rgba(12, 28, 20, 0.08) !important;
+  border-radius: 18px !important;
+  letter-spacing: -0.005em !important;
+}
+html body #interior-transition-banner {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: 0 18px 44px rgba(12, 28, 20, 0.2), 0 1px 2px rgba(12, 28, 20, 0.08) !important;
+  border-radius: 20px !important;
+  color: var(--lx-ink) !important;
+  padding: 12px 22px !important;
+}
+html body #interior-transition-banner > div:first-child { color: var(--lx-ink) !important; letter-spacing: -0.02em !important; font-family: var(--nl-font) !important; }
+html body #interior-transition-banner > div:last-child { color: var(--lx-brand) !important; font-weight: 700 !important; }
+@media (max-width: 700px) {
+  html body #interior-transition-banner,
+  html body #hud-floating-toast { top: 156px !important; max-width: calc(100vw - 32px); }
+}
+
+/* --- The phone: a gold edge, and on the home screen an emerald Lagos wallpaper ------------------ */
+html body #smartphone-wrapper .smartphone-device.nlphone {
+  border: 4px solid #141a17 !important;
+  box-shadow: 0 0 0 1.5px #c9a24c, 0 0 0 3px rgba(201, 162, 76, 0.25), 0 30px 70px rgba(0, 0, 0, 0.6) !important;
+}
+html body .nlphone:has(.nlphone-home) .phone-screen,
+html body .nlphone:has(.nlphone-home) {
+  background-color: #0a3b29 !important;
+}
+html body .nlphone:has(.nlphone-home) {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 120' preserveAspectRatio='none'><path fill='%23062a1d' fill-opacity='0.9' d='M0 120V86h14V70h10v16h8V54h16v32h6V62h12v24h10V40h6l4-10 4 10h6v46h8V66h14v20h6V50h18v36h8V72h10v14h12V58h8V44h14v42h6V68h12v18h10V34h16v52h8V64h10v22h14V76h8V52h18v34h10V70h12v16h12V58h10v28h12V74h8v12h12v34z'/></svg>"),
+    radial-gradient(120% 70% at 20% 0%, rgba(38, 196, 128, 0.55) 0%, rgba(38, 196, 128, 0) 60%),
+    radial-gradient(90% 60% at 100% 30%, rgba(201, 162, 76, 0.22) 0%, rgba(201, 162, 76, 0) 60%),
+    linear-gradient(180deg, #0f5a3c 0%, #0b432d 55%, #072a1d 100%) !important;
+  background-repeat: no-repeat !important;
+  background-size: 100% 22%, 100% 100%, 100% 100%, 100% 100% !important;
+  background-position: bottom center, center, center, center !important;
+}
+html body .nlphone:has(.nlphone-home) .phone-screen,
+html body .nlphone:has(.nlphone-home) .nlphone-nav,
+html body .nlphone:has(.nlphone-home) .phone-status-bar { background: transparent !important; }
+html body .nlphone:has(.nlphone-home) .nlphone-nav { border-top-color: rgba(255, 255, 255, 0.08) !important; }
+html body .nlphone:has(.nlphone-home) .nlphone-clock-time { letter-spacing: -0.03em; text-shadow: 0 2px 18px rgba(0, 0, 0, 0.25); }
+
+/* --- Names and headings in the main face, bold: the display face is for banners only --------- */
+html body .interaction-card .card-title,
+html body .game-dialogue-card .dialogue-speaker-name,
+html body .place-card .place-card-title,
+html body .place-card h3 { font-family: var(--nl-font) !important; font-weight: 800 !important; }
+
+/* While a card is open, its own button is the way to act: the floating prompt steps aside */
+html body:has(.interaction-card:not([style*="display: none"])) #hud-proximity-prompt { opacity: 0 !important; pointer-events: none !important; }
+
+/* --- Top-right pills on wide screens: camera view, photo, who is online ----------------------- */
+html body .btn-camera-view-toggle {
+  background: var(--lx-surface) !important;
+  -webkit-backdrop-filter: var(--lx-glass);
+  backdrop-filter: var(--lx-glass);
+  border: 1px solid var(--lx-line) !important;
+  color: var(--lx-ink) !important;
+  box-shadow: var(--lx-shadow-sm) !important;
+  font-weight: 800 !important;
+}
+html body #hud-btn-cloud-sync { color: var(--lx-brand-deep) !important; }
+html body #hud-btn-cloud-sync .cloud-dot-live { filter: hue-rotate(0deg) saturate(1.2); }
+
+/* --- Moves bar --------------------------------------------------------------------------------- */
+html body .emote-bar {
+  background: var(--lx-surface) !important;
+  -webkit-backdrop-filter: var(--lx-glass);
+  backdrop-filter: var(--lx-glass);
+  border: 1px solid var(--lx-line) !important;
+  box-shadow: var(--lx-shadow) !important;
+}
+html body .emote-bar-title { color: var(--lx-dim) !important; font-weight: 800 !important; }
+html body .emote-btn {
+  background: var(--lx-surface-2) !important;
+  color: var(--lx-ink) !important;
+  border: 1px solid var(--lx-line) !important;
+  font-weight: 700 !important;
+}
+html body .emote-btn:hover { background: var(--lx-brand-soft) !important; border-color: rgba(14, 122, 78, 0.3) !important; }
+
+/* The menu chevron sits under the top bar on wide screens, not on top of the needs */
+@media (min-width: 701px) {
+  html body .top-menu-btn { top: 62px !important; }
+}
+
+/* --- The phone's home: glass cards on the wallpaper, gold for the money ----------------------- */
+html body .nlphone:has(.nlphone-home) .nlphone-wallet {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 14px 30px rgba(0, 0, 0, 0.25) !important;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+html body .nlphone:has(.nlphone-home) .nlphone-wallet .nl-hero-label { color: #f2cf6b !important; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px !important; font-weight: 800 !important; }
+html body .nlphone:has(.nlphone-home) .nlphone-needs {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}

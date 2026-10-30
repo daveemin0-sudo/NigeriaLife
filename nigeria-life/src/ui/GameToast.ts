@@ -65,7 +65,7 @@ export function showGameToast(
     toastContainer.id = 'game-toast-container';
     toastContainer.style.cssText = `
       position: fixed;
-      top: 82px;
+      top: ${window.innerWidth <= 700 ? 150 : 104}px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
@@ -80,7 +80,7 @@ export function showGameToast(
 
   // The same notice already showing is not shown twice; and no more than two at a time, the oldest going
   for (const shown of Array.from(toastContainer.children) as HTMLElement[]) {
-    if (shown.textContent === message && shown.dataset.leaving !== '1') return;
+    if (shown.dataset.message === message && shown.dataset.leaving !== '1') return;
   }
   const showing = (Array.from(toastContainer.children) as HTMLElement[]).filter((t) => t.dataset.leaving !== '1');
   while (showing.length >= 2) {
@@ -91,48 +91,58 @@ export function showGameToast(
   }
   const phone = window.innerWidth <= 700;
 
+  // Eko Luxe: a white card, the notice's own emoji (or a mark for its kind) in a tinted circle
+  const tint =
+    type === 'success' ? ['#e6f4ec', '#0e7a4e'] : type === 'error' ? ['#ffe4e8', '#e11d48'] : type === 'warning' ? ['#fdf1d8', '#b45309'] : ['#e6f4ec', '#0e7a4e'];
+  const lead = message.match(/^\s*(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)\s*/u);
+  const icon = lead ? lead[1] : type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '!' : 'i';
+  const text = lead ? message.slice(lead[0].length) : message;
+
   const toast = document.createElement('div');
-  const borderColor =
-    type === 'success'
-      ? 'rgba(34, 197, 94, 0.7)'
-      : type === 'error'
-      ? 'rgba(239, 68, 68, 0.7)'
-      : type === 'warning'
-      ? 'rgba(245, 158, 11, 0.7)'
-      : 'rgba(56, 189, 248, 0.7)';
-
-  const shadowGlow =
-    type === 'success'
-      ? '0 0 24px rgba(34, 197, 94, 0.35)'
-      : type === 'error'
-      ? '0 0 24px rgba(239, 68, 68, 0.35)'
-      : type === 'warning'
-      ? '0 0 24px rgba(245, 158, 11, 0.35)'
-      : '0 0 24px rgba(56, 189, 248, 0.35)';
-
+  toast.dataset.message = message;
+  toast.className = `game-toast game-toast-${type}`;
   toast.style.cssText = `
-    background: rgba(15, 23, 42, 0.94);
-    backdrop-filter: blur(14px);
-    border: 1px solid ${borderColor};
-    color: #f8fafc;
-    padding: ${phone ? '8px 14px' : '10px 22px'};
-    border-radius: ${phone ? '16px' : '999px'};
+    background: rgba(255, 255, 255, 0.97);
+    -webkit-backdrop-filter: saturate(170%) blur(18px);
+    backdrop-filter: saturate(170%) blur(18px);
+    border: 1px solid rgba(15, 26, 20, 0.08);
+    color: #0f1a14;
+    padding: ${phone ? '8px 14px 8px 8px' : '9px 18px 9px 9px'};
+    border-radius: ${phone ? '18px' : '20px'};
     font-family: var(--nl-font);
     font-size: ${phone ? '12.5px' : '13.5px'};
     font-weight: 700;
-    letter-spacing: 0.3px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), ${shadowGlow};
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+    box-shadow: 0 14px 34px rgba(12, 28, 20, 0.18), 0 1px 2px rgba(12, 28, 20, 0.08);
     display: inline-flex;
     align-items: center;
     gap: 10px;
     opacity: 0;
-    transform: translateY(-12px) scale(0.95);
-    transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-    max-width: ${phone ? '84vw' : '90vw'};
-    text-align: center;
+    transform: translateY(-12px) scale(0.96);
+    transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: ${phone ? '90vw' : 'min(90vw, 520px)'};
+    text-align: left;
   `;
-
-  toast.textContent = message;
+  const badge = document.createElement('span');
+  badge.className = 'game-toast-icon';
+  badge.textContent = icon;
+  badge.style.cssText = `
+    flex: 0 0 auto;
+    width: ${phone ? '28px' : '32px'};
+    height: ${phone ? '28px' : '32px'};
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: ${tint[0]};
+    color: ${tint[1]};
+    font-size: ${lead ? (phone ? '15px' : '17px') : '14px'};
+    font-weight: 900;
+  `;
+  const words = document.createElement('span');
+  words.className = 'game-toast-text';
+  words.textContent = text;
+  toast.append(badge, words);
   toastContainer.appendChild(toast);
 
   // Animate in

@@ -1820,28 +1820,33 @@ export class HumanMeshBuilder {
     }
     const w = Math.min(W - 12, ctx.measureText(text).width + 50);
     const x0 = (W - w) / 2;
-    ctx.fillStyle = 'rgba(12, 18, 32, 0.86)';
+    // Eko Luxe: a white pill with a soft shadow and a thin emerald ring, the name in ink
+    ctx.shadowColor = 'rgba(12, 28, 20, 0.35)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     ctx.beginPath();
-    ctx.roundRect(x0, 14, w, 72, 36);
+    ctx.roundRect(x0, 14, w, 68, 34);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
-    ctx.lineWidth = 3;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = 'rgba(14, 122, 78, 0.45)';
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.roundRect(x0 + 1.5, 15.5, w - 3, 69, 34);
+    ctx.roundRect(x0 + 1.25, 15.25, w - 2.5, 65.5, 33);
     ctx.stroke();
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#0f1a14';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-    ctx.shadowBlur = 5;
-    ctx.fillText(text, W / 2, 51);
+    ctx.fillText(text, W / 2, 49);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, toneMapped: false, fog: false });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(1.5, 0.375, 1);
+    sprite.scale.set(1.2, 0.3, 1);
     return sprite;
   }
 }

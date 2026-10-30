@@ -5,6 +5,8 @@ import '@fontsource/righteous/400.css';
 import '@fontsource-variable/dancing-script/wght.css';
 import './style.css';
 import './ui/kit/kit.css';
+// The one look of the game: loaded last, it decides how every surface looks
+import './ui/theme/luxe.css';
 import { Game } from './game/Game';
 
 // The names over people's heads are drawn in the script font: it is loaded first (a moment at most)

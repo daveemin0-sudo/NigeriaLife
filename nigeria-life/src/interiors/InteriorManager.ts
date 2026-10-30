@@ -301,10 +301,8 @@ export class InteriorManager {
 
     // 8. Update HUD location badge and banner
     hud.updateLocation(target.name, `Interior • ${target.districtName}`);
-    this.showInteriorBanner(
-      target.name,
-      `Entered ${target.name}. Explore rooms, talk to staff, and interact with stations.`
-    );
+    // The place's own name and where it is, not a generic line
+    this.showInteriorBanner(target.name, target.districtName || 'Lagos');
 
     // 9. Fade back in
     options.onPlaced?.();
