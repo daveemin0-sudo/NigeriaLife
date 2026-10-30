@@ -199,8 +199,15 @@ export async function run(browser, check) {
   const lagosAirport = await page.evaluate(() => {
     const g = window.game;
     const machine = g.world.interactiveObjects.find((o) => o.id.startsWith('atm-airport'));
-    const way = machine ? g.waysHere().route(-80, -80, machine.interactionPoint.x, machine.interactionPoint.z) : null;
-    return { id: machine?.id ?? null, reaches: way?.reaches ?? false, plan: g.validateCity('lagos').length, door: g.world.interactiveObjects.find((o) => o.id === 'dest_lagos_airport') ? true : false };
+    // The airport is at Ikeja, up the expressway, past the end of the street plan's walking map: the
+    // machine is checked from its own kerb, a short walk with nothing solid in the way
+    const kerb = g.world.airportOf('lagos').kerb;
+    const S = g.solidsHere();
+    const ip = machine?.interactionPoint;
+    let blocked = 0;
+    if (ip) for (let i = 1; i < 40; i++) { const t = i / 40; if (S.at(kerb.x + (ip.x - kerb.x) * t, kerb.z + (ip.z - kerb.z) * t, 0.3)) blocked += 1; }
+    const metres = ip ? Math.hypot(ip.x - kerb.x, ip.z - kerb.z) : Infinity;
+    return { id: machine?.id ?? null, reaches: !!ip && metres < 15 && blocked === 0 && !S.at(ip.x, ip.z, 0.3), metres: +metres.toFixed(1), plan: g.validateCity('lagos').length, door: g.world.interactiveObjects.find((o) => o.id === 'dest_lagos_airport') ? true : false };
   });
   const abuja = await page.evaluate(() => {
     const g = window.game;

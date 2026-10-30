@@ -87,13 +87,22 @@ export async function run(_browser, check) {
   await wait(500);
   const chips = await page.evaluate(() => [...document.querySelectorAll('.place-chip, .place-leave-btn')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.right <= innerWidth; }).map((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { text: el.textContent.trim().replace(/\s+/g, ' '), x: r.left + r.width / 2, y: r.top + r.height / 2, reachable: top === el || el.contains(top) }; }));
   check('touch: inside, every button on the place card that is on screen can be tapped (nothing on top of it)', chips.length >= 3 && chips.every((x) => x.reachable), chips.map((x) => `${x.text}: ${x.reachable}`));
-  const bed = chips.find((x) => /Bed/.test(x.text));
-  const bedPoint = await page.evaluate(() => { const o = window.game.world.interiorManager.getActiveInteractiveObjects().find((x) => /bed/i.test(x.id) && !/sofa/i.test(x.id)); return o ? { x: o.interactionPoint.x, z: o.interactionPoint.z } : null; });
+  // The bed's own chip (not the bedroom door's), scrolled into view along the row if the phone is too narrow for all of them
+  const bed = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('.place-chip')].find((c) => /Bed$/.test(c.textContent.trim()) && !/door/i.test(c.textContent));
+    if (!el) return null;
+    el.scrollIntoView({ inline: 'center', block: 'nearest' });
+    const r = el.getBoundingClientRect();
+    return { text: el.textContent.trim(), x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await wait(300);
+  const bedPoint = await page.evaluate(() => { const o = window.game.world.interiorManager.getActiveInteractiveObjects().find((x) => /bed/i.test(x.id) && !/sofa|door/i.test(x.id)); return o ? { x: o.interactionPoint.x, z: o.interactionPoint.z } : null; });
   await page.touchscreen.tap(bed.x, bed.y);
   await wait(6000);
   const atBed = await pos();
   const sleep = await page.evaluate(() => { const b = [...document.querySelectorAll('#interaction-card button')].find((x) => /sleep/i.test(x.textContent) && x.getBoundingClientRect().width > 0); if (!b) return null; const r = b.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { x: r.left + r.width / 2, y: r.top + r.height / 2, reachable: top === b || b.contains(top) }; });
-  check('touch: after using the joystick, one tap on Bed walks all the way to the bed and its card offers sleep, which can be tapped', bedPoint && dist(atBed, bedPoint) < 2.5 && sleep?.reachable, { fromBed: bedPoint ? +dist(atBed, bedPoint).toFixed(2) : null, sleep });
+  const cardSays = await page.evaluate(() => { const c = document.getElementById('interaction-card'); return c ? { shown: getComputedStyle(c).display !== 'none' && !c.hidden, text: c.innerText.replace(/\s+/g, ' ').slice(0, 160) } : null; });
+  check('touch: after using the joystick, one tap on Bed walks all the way to the bed and its card offers sleep, which can be tapped', bedPoint && dist(atBed, bedPoint) < 2.5 && sleep?.reachable, { fromBed: bedPoint ? +dist(atBed, bedPoint).toFixed(2) : null, sleep, cardSays });
   if (sleep) {
     const energy0 = await page.evaluate(() => window.game.hud.backend.getData().stats.energy);
     await page.touchscreen.tap(sleep.x, sleep.y);

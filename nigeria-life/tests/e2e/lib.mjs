@@ -51,6 +51,23 @@ export async function open(ctx, opts = {}) {
   page.on('console', (m) => { if (m.type() === 'error') log.errors.push('CONSOLE ' + m.text().slice(0, 240)); });
   // The daily hustle, the ladder and the album pay nothing under a test browser unless a suite asks
   if (opts.life) await page.evaluateOnNewDocument(() => { window.__lifeOn = true; });
+  // The game keeps Lagos time. Run at night, every shop on the street would be shut, so a
+  // run between 9 pm and 9 am starts at noon instead. Only the first load: after a reload the
+  // game's own saved clock is what is being tested. By day the real clock is left alone.
+  // `realClock: true` keeps it at any hour.
+  if (!opts.realClock) await page.evaluateOnNewDocument(() => {
+    try {
+      if (sessionStorage.getItem('__noonPinned')) return;
+      sessionStorage.setItem('__noonPinned', '1');
+    } catch { /* no storage: pin anyway */ }
+    const t = setInterval(() => {
+      const sky = window.game?.world?.skyEnvironment;
+      if (!sky) return;
+      clearInterval(t);
+      const h = sky.lagosHourNow();
+      if (h < 9 || h >= 21) sky.setHour(12);
+    }, 10);
+  });
   if (opts.before) await page.evaluateOnNewDocument(opts.before);
   await page.goto(opts.url || GAME_URL, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction('window.game', { timeout: 120000 });

@@ -131,14 +131,13 @@ export async function run(browser, check) {
   const gate = (await walk(page, -56, 5, 12)).pop();
   check('the wall of the stadium keeps people out, and Gate A lets them in', stand.x > -46.6 && Math.abs(gate.x + 56) < 0.3 && Math.abs(gate.z - 5) < 0.3, { stand, gate });
 
-  await put(page, -125, -86);
-  const airside = (await walk(page, -125, -110, 12)).pop();
+  // (The airport has moved up to Ikeja: its fence is checked in the ways suite)
   await put(page, -40, 70);
   const quay = (await walk(page, -52, 70, 12)).pop();
   await put(page, -40, 48);
   const portGate = (await walk(page, -52, 48, 12)).pop();
-  check('the fences of the airport and the port keep people off the apron and the quay, and the gate of the port is open',
-    airside.z > -90.5 && quay.x > -45 && Math.abs(portGate.x + 52) < 0.3, { airside, quay, portGate });
+  check('the fence of the port keeps people off the quay, and the gate of the port is open',
+    quay.x > -45 && Math.abs(portGate.x + 52) < 0.3, { quay, portGate });
 
   // Someone set down inside a building is not trapped in it
   await put(page, (bank.minX + bank.maxX) / 2, midZ);
