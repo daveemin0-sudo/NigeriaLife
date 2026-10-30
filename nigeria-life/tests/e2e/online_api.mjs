@@ -68,6 +68,19 @@ export async function run(_browser, check) {
     const overdraw = await call('/money/report', { cash: -10_000_000, memo: 'too dear', idem: idem() }, ada.token);
     check('online: a billion naira from the game is not paid but held for checking, nothing goes below zero, and the wallet is unchanged', !tooMuch.ok && tooMuch.held > 0 && tooMuch.wallet.cash === 53000 && !overdraw.ok && overdraw.wallet.cash === 53000, { tooMuch, overdraw });
 
+    // A loan is debt, not earnings: paid even after a good ten minutes, one at a time, within the limit
+    const chidi = await call('/auth/guest', { name: 'Chidi' });
+    await call('/money/report', { cash: 50000, memo: 'Street gig', idem: idem() }, chidi.token);
+    const loan = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, chidi.token);
+    const second = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, chidi.token);
+    const repaid = await call('/money/report', { cash: -55000, memo: 'LOAN_REPAYMENT: Loan repayment to Eko Commercial Bank', idem: idem() }, chidi.token);
+    const again2 = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, chidi.token);
+    const closed = await call('/money/report', { cash: -50000, memo: 'LOAN_REPAYMENT: Loan repayment', idem: idem() }, chidi.token);
+    const huge = await call('/money/report', { cash: 900_000_000, memo: 'LOAN_DISBURSEMENT: devtools', idem: idem() }, chidi.token);
+    check('online: a ₦50,000 bank loan is paid at once even after ₦50,000 earned in ten minutes; a second one while the first is open is refused; repaid, another can be taken; nobody borrows ₦900m',
+      loan.ok && loan.wallet.cash === 25000 + 50000 + 50000 && !second.ok && repaid.ok && again2.ok && closed.ok && !huge.ok && !huge.held,
+      { loan: loan.wallet, second: second.reason, repaid: repaid.ok, again: again2.ok, huge: huge.reason });
+
     // A job shift, checked by the server
     const a = await connect(ada.token);
     const b = await connect(bayo.token);
@@ -154,7 +167,7 @@ export async function run(_browser, check) {
     const stats = await call('/admin/stats', null, null, ADMIN);
     const ledger = await call(`/admin/ledger?id=${ada.account.id}`, null, null, ADMIN);
     const alerts = stats.economy?.alerts?.map((x) => x.kind) ?? [];
-    check('online: the admin API needs the key, counts verified accounts apart, and shows each ledger row with whether the server checked it', refusedAdmin.status === 403 && stats.accounts.verified === 1 && stats.accounts.all === 2 && ledger.ledger.some((l) => l.kind === 'shift' && l.verified === 1) && ledger.ledger.some((l) => l.kind === 'client' && l.verified === 0), { verified: stats.accounts, kinds: ledger.ledger.map((l) => l.kind) });
+    check('online: the admin API needs the key, counts verified accounts apart, and shows each ledger row with whether the server checked it', refusedAdmin.status === 403 && stats.accounts.verified === 1 && stats.accounts.all === 3 && ledger.ledger.some((l) => l.kind === 'shift' && l.verified === 1) && ledger.ledger.some((l) => l.kind === 'client' && l.verified === 0), { verified: stats.accounts, kinds: ledger.ledger.map((l) => l.kind) });
     check('online: the held billion and the too-fast shift were raised as alerts', alerts.includes('earning-held') && alerts.includes('shift-too-fast'), alerts);
     // An honest big sale held the same way is paid once when the admin releases it
     const sale = await call('/money/report', { cash: 250000, memo: 'Sold a plot', idem: idem() }, bayo.token);

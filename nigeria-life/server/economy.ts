@@ -44,6 +44,8 @@ type Result<T = object> = ({ ok: true; wallet: Wallet } & T) | { ok: false; reas
 
 /** Earnings the game may report without the server checking them, in any ten minutes */
 export const UNVERIFIED_EARNING_LIMIT = 60_000;
+/** The most a player may borrow at once. A loan is debt, not earnings: one at a time, up to this */
+export const LOAN_LIMIT = 5_000_000;
 /** Earnings of any kind in ten minutes above which an alert is raised */
 export const FAST_MONEY_ALERT = 300_000;
 /** A position older than this is not taken as where the player is */
@@ -111,9 +113,17 @@ export class Economy {
 
   private earnedSince(accountId: string, since: number, onlyUnverified: boolean): number {
     const r = this.db
-      .prepare(`SELECT COALESCE(SUM(cash_delta + bank_delta), 0) AS earned FROM ledger WHERE account_id = ? AND at >= ? AND cash_delta + bank_delta > 0 AND kind NOT IN ('start', 'import') ${onlyUnverified ? 'AND verified = 0' : ''}`)
+      .prepare(`SELECT COALESCE(SUM(cash_delta + bank_delta), 0) AS earned FROM ledger WHERE account_id = ? AND at >= ? AND cash_delta + bank_delta > 0 AND kind NOT IN ('start', 'import', 'loan') ${onlyUnverified ? 'AND verified = 0' : ''}`)
       .get(accountId, since) as { earned: number };
     return r.earned;
+  }
+
+  /** Has this account borrowed more times than it has repaid? */
+  private loanOpen(accountId: string): boolean {
+    const r = this.db
+      .prepare("SELECT SUM(CASE WHEN cash_delta + bank_delta > 0 THEN 1 ELSE 0 END) AS taken, SUM(CASE WHEN cash_delta + bank_delta < 0 THEN 1 ELSE 0 END) AS repaid FROM ledger WHERE account_id = ? AND kind = 'loan'")
+      .get(accountId) as { taken: number | null; repaid: number | null };
+    return (r.taken ?? 0) > (r.repaid ?? 0);
   }
 
   private watchForFastMoney(accountId: string): void {
@@ -136,6 +146,17 @@ export class Economy {
     if (!Number.isFinite(cash) || !Number.isFinite(bank) || !idem) return { ok: false, reason: 'That could not be read.', wallet: this.wallet(accountId) };
     const memo = cleanMemo(raw.memo);
     const net = cash + bank;
+    // A loan from a lender: paid when the player has none open and it is within the limit; it is
+    // debt to be repaid, not earnings, so the earnings limit does not apply to it. Repayments close it.
+    if (/^LOAN_DISBURSEMENT:/.test(memo) && net > 0) {
+      if (this.loanOpen(accountId)) return { ok: false, reason: 'Clear the loan you have before borrowing again.', wallet: this.wallet(accountId) };
+      if (net > LOAN_LIMIT) {
+        alert(this.db, accountId, 'loan-too-big', `asked to borrow ₦${net.toLocaleString()}`);
+        return { ok: false, reason: `No lender gives more than ₦${LOAN_LIMIT.toLocaleString()} at once.`, wallet: this.wallet(accountId) };
+      }
+      return this.apply(accountId, 'loan', cash, bank, memo, true, idem);
+    }
+    if (/^LOAN_REPAYMENT:/.test(memo) && net < 0) return this.apply(accountId, 'loan', cash, bank, memo, true, idem);
     // A business's takings: paid if the businesses the player owns could have taken that much
     // since they were last paid (the registry says what they own; the price table what each takes)
     if (net > 0 && /^BUSINESS_INCOME:/.test(memo)) {
