@@ -284,6 +284,20 @@ export async function run(_browser, check) {
       !sprayBeforeBook.ok && buyLace.ok && buyLace.paid === 15000 && bookFreedom.ok && bookFreedom.paid === 35000 && !bookDuplicate.ok && owambeSnap.ok && owambeSnap.activeParty?.venueKey === 'freedom-park' && sprayFreedom.ok && sprayFreedom.paid === 15000 && sprayFreedom.fameEarned === 30 && funmiBeforeOwambe.bank - sprayFreedom.wallet.bank === 65000 && !sprayAgain.ok && sprayFreedom.snapshot.history.length === 1,
       { sprayBeforeBook: sprayBeforeBook.reason, buyLace, bookFreedom, bookDuplicate: bookDuplicate.reason, owambeSnap, sprayFreedom, sprayAgain: sprayAgain.reason });
 
+    // Studio app: enforces Music Fame requirements, books Studio B (₦25,000), records Eko Sunrise (+₦45,500 advance), and performs the Freedom Park headline show (+₦50,000) once
+    const lockedStudio = await call('/studio/book', { trackId: 'lekki-log-drum' }, funmi.token);
+    const recordBeforeBook = await call('/studio/record', { trackId: 'lagos-sunrise', stars: 3 }, funmi.token);
+    const funmiBeforeStudio = (await call('/me', null, funmi.token)).wallet;
+    const bookStudio = await call('/studio/book', { trackId: 'lagos-sunrise' }, funmi.token);
+    const bookStudioDup = await call('/studio/book', { trackId: 'lagos-sunrise' }, funmi.token);
+    const recordStudio = await call('/studio/record', { trackId: 'lagos-sunrise', stars: 3 }, funmi.token);
+    const concertStudio = await call('/studio/concert', { trackId: 'lagos-sunrise', stars: 3 }, funmi.token);
+    const concertAgain = await call('/studio/concert', { trackId: 'lagos-sunrise', stars: 3 }, funmi.token);
+    // Net change: -25,000 booking + 45,500 advance + 50,000 concert = +70,500
+    check('online: Studio enforces Music Fame, books Studio B (₦25,000), masters Eko Sunrise (+₦45,500), and settles the Freedom Park headline concert (+₦50,000) once for 50 Music Fame',
+      !lockedStudio.ok && !recordBeforeBook.ok && bookStudio.ok && bookStudio.paid === 25000 && !bookStudioDup.ok && recordStudio.ok && recordStudio.fame === 25 && concertStudio.ok && concertStudio.paid === 50000 && concertStudio.fame === 50 && !concertAgain.ok && (concertStudio.wallet.cash + concertStudio.wallet.bank) - (funmiBeforeStudio.cash + funmiBeforeStudio.bank) === 70500,
+      { lockedStudio: lockedStudio.reason, recordBeforeBook: recordBeforeBook.reason, bookStudio, bookStudioDup: bookStudioDup.reason, recordStudio, concertStudio, concertAgain: concertAgain.reason });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);
