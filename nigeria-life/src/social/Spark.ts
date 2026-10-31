@@ -321,8 +321,6 @@ const DATE_VENUE_SPOTS: Record<string, DateVenueSpot> = {
   },
 };
 
-const STORAGE_KEY = 'nigeria_life_spark_v1';
-
 export class Spark {
   private static instance: Spark | null = null;
   public static get(): Spark {
@@ -338,12 +336,16 @@ export class Spark {
     completedDates: [],
     cursor: 0,
   };
-  private loaded = false;
+  private loadedFor = '';
   private replyIndex = new Map<string, number>();
 
   private constructor() {
     this.load();
     this.registerMessageHooks();
+  }
+
+  private key(): string {
+    return `nl_spark_v1:${Activity.player()}`;
   }
 
   private registerMessageHooks(): void {
@@ -380,25 +382,33 @@ export class Spark {
   }
 
   private load(): void {
-    if (this.loaded) return;
-    this.loaded = true;
+    if (OnlineAccount.get() !== null) return;
+    const k = this.key();
+    if (this.loadedFor === k) return;
+    this.loadedFor = k;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      const raw = localStorage.getItem(k);
+      if (!raw) {
+        this.data = { matches: [], passed: [], activeDate: null, completedDates: [], cursor: 0 };
+        return;
+      }
       const parsed = JSON.parse(raw) as Partial<SparkSaveData>;
-      if (Array.isArray(parsed.matches)) this.data.matches = parsed.matches;
-      if (Array.isArray(parsed.passed)) this.data.passed = parsed.passed;
-      if (parsed.activeDate !== undefined) this.data.activeDate = parsed.activeDate;
-      if (Array.isArray(parsed.completedDates)) this.data.completedDates = parsed.completedDates;
-      if (typeof parsed.cursor === 'number') this.data.cursor = parsed.cursor;
+      this.data = {
+        matches: Array.isArray(parsed.matches) ? parsed.matches : [],
+        passed: Array.isArray(parsed.passed) ? parsed.passed : [],
+        activeDate: parsed.activeDate ?? null,
+        completedDates: Array.isArray(parsed.completedDates) ? parsed.completedDates : [],
+        cursor: typeof parsed.cursor === 'number' ? parsed.cursor : 0,
+      };
     } catch {
-      // ignore malformed storage
+      this.data = { matches: [], passed: [], activeDate: null, completedDates: [], cursor: 0 };
     }
   }
 
   private save(): void {
+    if (OnlineAccount.get() !== null) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+      localStorage.setItem(this.key(), JSON.stringify(this.data));
     } catch {
       // ignore storage errors
     }
@@ -491,7 +501,7 @@ export class Spark {
 
     const now = Date.now();
     const online = OnlineAccount.get();
-    if (online?.connected) {
+    if (online) {
       const res = (await online.request('/spark/like', { profileId, now })) as {
         ok: boolean;
         reason?: string;
@@ -551,7 +561,7 @@ export class Spark {
 
     const now = Date.now();
     const online = OnlineAccount.get();
-    if (online?.connected) {
+    if (online) {
       const res = (await online.request('/spark/schedule-date', { profileId, now })) as {
         ok: boolean;
         reason?: string;
@@ -622,7 +632,7 @@ export class Spark {
     const now = Date.now();
     const online = OnlineAccount.get();
 
-    if (online?.connected) {
+    if (online) {
       const res = (await online.request('/spark/complete-date', { profileId, venueKey, now })) as {
         ok: boolean;
         reason?: string;
@@ -700,7 +710,7 @@ export class Spark {
   public async syncFromServer(): Promise<void> {
     this.load();
     const online = OnlineAccount.get();
-    if (!online?.connected) return;
+    if (!online) return;
     const res = (await online.request('/spark')) as {
       ok?: boolean;
       matches?: SparkMatchState[];

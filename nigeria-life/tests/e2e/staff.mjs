@@ -2,9 +2,18 @@
 // paid every day from the bank. Each one is seen in the home (Figure) and does their job:
 // the cook puts a meal in the fridge (Fridge), the cleaner raises hygiene, and the driver ties
 // into the "Your car" ride (RideService).
-import { open, newPlayer, closeDialogs, wait, enterInterior, advance, money } from './lib.mjs';
+import { open, newPlayer, closeDialogs, wait, enterInterior, advance, playUntil, money, pressSteady } from './lib.mjs';
 
 const ARTIFACT_DIR = 'C:/Users/User/.gemini/antigravity/brain/b9c44c55-f7bc-420a-8af0-4637d105c126';
+
+const tap = async (page, selector) => {
+  await page.evaluate(() => {
+    const notice = document.getElementById('phone-notice');
+    if (notice) notice.hidden = true;
+  });
+  await pressSteady(page, selector);
+  await wait(300);
+};
 
 export async function run(browser, check) {
   const ctx = await newPlayer(browser);
@@ -55,10 +64,7 @@ export async function run(browser, check) {
   // 2. Hire all four roles from the Staff app and verify bank payment + immediate duties
   const beforeHireMoney = await money(page);
   for (const role of ['cook', 'cleaner', 'driver', 'gateman']) {
-    await page.evaluate((r) => {
-      document.querySelector(`#phone-screen-content [data-act="hire"][data-role="${r}"]`)?.click();
-    }, role);
-    await wait(350);
+    await tap(page, `#phone-screen-content [data-act="hire"][data-role="${role}"]`);
   }
   await page.screenshot({ path: `${ARTIFACT_DIR}/staff-2-hired.png` });
 
@@ -155,29 +161,29 @@ export async function run(browser, check) {
     inHome,
   );
 
-  // 5. Speak to the cook and cleaner in the home to trigger their jobs in person
+  // 5. Speak to the cook and cleaner in the home via their interactive cards to run their 3D Sequences
   const beforeCookSpeak = await page.evaluate(() => ({
     fridge: window.game.modules.Fridge.get().count(),
     hygiene: window.game.hud.backend.getData().stats.hygiene,
   }));
 
-  await page.evaluate(() => {
-    const g = window.game;
-    g.hud.withPlaceHost((host) => g.modules.HomeStaff.get()['liveFigures'].get('cook') && g.world.interiorManager.residence.interactiveList.find((o) => o.id === 'staff_home_cook'));
-    // Trigger the registered PlaceAction for the cook and cleaner
-    const res = g.world.interiorManager.residence;
-    const cookCard = res.interactiveList.find((o) => o.id === 'staff_home_cook');
-    if (cookCard) {
-      g.player.mesh.position.copy(cookCard.interactionPoint);
-      g.player.position.copy(cookCard.interactionPoint);
-    }
-    g.hud.withPlaceHost((host) => {
-      g.modules.HomeStaff.get().stockMealInFridge();
-      g.modules.HomeStaff.get().performCleaning(25);
-      void host;
-    });
-  });
-  await advance(page, 1.5);
+  for (const cardId of ['staff_home_cook', 'staff_home_cleaner']) {
+    await page.evaluate((id) => {
+      const g = window.game;
+      const res = g.world.interiorManager.residence;
+      const card = res.interactiveList.find((o) => o.id === id);
+      g.player.stopMoving();
+      g.player.mesh.position.set(card.interactionPoint.x, 0, card.interactionPoint.z);
+      g.hud.showInteractionCard(card);
+      document.getElementById('card-action-btn')?.click();
+    }, cardId);
+    await playUntil(
+      page,
+      () => (window.game.player.actor.sequence ? null : true),
+      25,
+    );
+    await advance(page, 0.3);
+  }
 
   const afterHomeJobs = await page.evaluate(() => ({
     fridge: window.game.modules.Fridge.get().count(),

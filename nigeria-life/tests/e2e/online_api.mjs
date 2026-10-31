@@ -242,30 +242,34 @@ export async function run(_browser, check) {
     const funmiBeforeShoot = (await call('/me', null, funmi.token)).wallet;
     const shootRes = await call('/nollywood/shoot', { filmId: 'blood-on-the-lagoon', stars: 3 }, funmi.token);
     const shootAgain = await call('/nollywood/shoot', { filmId: 'blood-on-the-lagoon', stars: 3 }, funmi.token);
+    const nwGet = await call('/nollywood', null, funmi.token);
+    const nwCollect = await call('/nollywood/collect', {}, funmi.token);
     check('online: Nollywood enforces Fame requirements, casts on audition, pays the 3-star shoot wrap fee (₦45,000 + ₦13,500 bonus) once on the server, and records filmography and Fame',
-      !lockedAudition.ok && !shootWithoutRole.ok && castRes.ok && castRes.active?.filmId === 'blood-on-the-lagoon' && shootRes.ok && shootRes.fame === 25 && shootRes.wallet.cash + shootRes.wallet.bank - (funmiBeforeShoot.cash + funmiBeforeShoot.bank) === 58500 && !shootAgain.ok && shootRes.filmography?.length === 1,
-      { lockedAudition: lockedAudition.reason, shootWithoutRole: shootWithoutRole.reason, castRes, shootRes, shootAgain: shootAgain.reason });
+      !lockedAudition.ok && !shootWithoutRole.ok && castRes.ok && castRes.active?.filmId === 'blood-on-the-lagoon' && shootRes.ok && shootRes.fame === 25 && shootRes.wallet.cash + shootRes.wallet.bank - (funmiBeforeShoot.cash + funmiBeforeShoot.bank) === 58500 && !shootAgain.ok && shootRes.filmography?.length === 1 && nwGet.ok && nwCollect.ok && nwCollect.fame === 25,
+      { lockedAudition: lockedAudition.reason, shootWithoutRole: shootWithoutRole.reason, castRes, shootRes, shootAgain: shootAgain.reason, nwGet, nwCollect });
 
     // Home staff: hiring deducts first day's wage from the bank, daily pay-day deducts from bank once per day, and dismiss removes the role
     const funmiBeforeStaff = (await call('/me', null, funmi.token)).wallet;
     const hireCook = await call('/staff/hire', { role: 'cook', day: 1, now: Date.now() }, funmi.token);
+    const staffSnap = await call('/staff', null, funmi.token);
     const hireCookAgain = await call('/staff/hire', { role: 'cook', day: 1, now: Date.now() }, funmi.token);
     const payDay2 = await call('/staff/pay-day', { day: 2 }, funmi.token);
     const dismissCook = await call('/staff/dismiss', { role: 'cook' }, funmi.token);
     check('online: Home Staff hires a cook for ₦4,500/day from the bank, refuses duplicate hire, deducts ₦4,500 from the bank on day 2, and dismisses cleanly',
-      hireCook.ok && hireCook.paid === 4500 && funmiBeforeStaff.bank - hireCook.wallet.bank === 4500 && !hireCookAgain.ok && payDay2.ok && payDay2.paid === 4500 && hireCook.wallet.bank - payDay2.wallet.bank === 4500 && dismissCook.ok && dismissCook.snapshot.hired.length === 0,
-      { hireCook, hireCookAgain: hireCookAgain.reason, payDay2, dismissCook });
+      hireCook.ok && hireCook.paid === 4500 && staffSnap.ok && staffSnap.hired.length === 1 && funmiBeforeStaff.bank - hireCook.wallet.bank === 4500 && !hireCookAgain.ok && payDay2.ok && payDay2.paid === 4500 && hireCook.wallet.bank - payDay2.wallet.bank === 4500 && dismissCook.ok && dismissCook.snapshot.hired.length === 0,
+      { hireCook, staffSnap, hireCookAgain: hireCookAgain.reason, payDay2, dismissCook });
 
     // Spark dating app: scheduling before matching is refused, liking matches, scheduling sets a waiting date at the venue, and completing the date deducts the bill once and raises closeness
     const dateBeforeMatch = await call('/spark/schedule-date', { profileId: 'zainab' }, funmi.token);
     const likeZainab = await call('/spark/like', { profileId: 'zainab', now: Date.now() }, funmi.token);
     const scheduleZainab = await call('/spark/schedule-date', { profileId: 'zainab', now: Date.now() }, funmi.token);
+    const sparkSnap = await call('/spark', null, funmi.token);
     const funmiBeforeDate = (await call('/me', null, funmi.token)).wallet;
     const completeZainab = await call('/spark/complete-date', { profileId: 'zainab', venueKey: 'the-library', now: Date.now() }, funmi.token);
     const completeZainabAgain = await call('/spark/complete-date', { profileId: 'zainab', venueKey: 'the-library', now: Date.now() }, funmi.token);
     check('online: Spark refuses date before matching, matches with Zainab Bello, schedules a date at The Library (₦45,000), deducts the bill once on completion, and raises closeness to 60',
-      !dateBeforeMatch.ok && likeZainab.ok && scheduleZainab.ok && scheduleZainab.date?.venueKey === 'the-library' && completeZainab.ok && completeZainab.paid === 45000 && funmiBeforeDate.bank - completeZainab.wallet.bank === 45000 && completeZainab.closeness === 60 && !completeZainabAgain.ok && completeZainab.snapshot.completedDates.length === 1,
-      { dateBeforeMatch: dateBeforeMatch.reason, likeZainab, scheduleZainab, completeZainab, completeZainabAgain: completeZainabAgain.reason });
+      !dateBeforeMatch.ok && likeZainab.ok && scheduleZainab.ok && sparkSnap.ok && sparkSnap.activeDate?.venueKey === 'the-library' && completeZainab.ok && completeZainab.paid === 45000 && funmiBeforeDate.bank - completeZainab.wallet.bank === 45000 && completeZainab.closeness === 60 && !completeZainabAgain.ok && completeZainab.snapshot.completedDates.length === 1,
+      { dateBeforeMatch: dateBeforeMatch.reason, likeZainab, scheduleZainab, sparkSnap, completeZainab, completeZainabAgain: completeZainabAgain.reason });
 
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });

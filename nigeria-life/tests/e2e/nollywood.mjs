@@ -163,12 +163,9 @@ export async function run(browser, check) {
     page,
     () => {
       const s = window.game.modules.ShiftSkill.get();
-      if (s.showing && !window.__tappedRound) {
-        window.__tappedRound = true;
+      if (s.showing && s.tapped === null) {
         s.tapPerfect();
         window.__shootSweeps = (window.__shootSweeps || 0) + 1;
-      } else if (!s.showing) {
-        window.__tappedRound = false;
       }
       return window.game.player.actor.sequence ? null : true;
     },

@@ -283,6 +283,7 @@ export class Nollywood {
   }
 
   private load(): void {
+    if (OnlineAccount.get() !== null) return;
     const k = this.key();
     if (this.loadedFor === k) return;
     this.loadedFor = k;
@@ -304,6 +305,7 @@ export class Nollywood {
   }
 
   private save(): void {
+    if (OnlineAccount.get() !== null) return;
     try {
       localStorage.setItem(this.key(), JSON.stringify(this.data));
     } catch {

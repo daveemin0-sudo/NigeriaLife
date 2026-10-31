@@ -18,7 +18,7 @@ const style = (): void => {
   const el = document.createElement('style');
   el.id = 'nl-staff-style';
   el.textContent = `
-    .st-root { padding: 4px 2px 18px; display: flex; flex-direction: column; gap: 10px; color: var(--lx-ink, #0f172a); font-family: var(--lx-font, system-ui); }
+    .st-root { padding: 4px 2px 68px; display: flex; flex-direction: column; gap: 10px; color: var(--lx-ink, #0f172a); font-family: var(--lx-font, system-ui); }
     .st-hero {
       padding: 12px 14px; border-radius: 16px;
       background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #0b7a43 100%);

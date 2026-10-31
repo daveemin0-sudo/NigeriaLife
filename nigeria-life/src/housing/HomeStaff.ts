@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { BackendService } from '../backend/BackendService';
 import type { Item } from '../backend/types';
-import { profileKey } from '../backend/Profile';
 import { PlaceActions, type PlaceHost } from '../destinations/PlaceActions';
 import { PlaceOpeners } from '../interiors/places/PlaceInterior';
 import { Figure } from '../interiors/places/Worship';
@@ -202,7 +201,7 @@ export class HomeStaff {
   }
 
   private storageKey(): string {
-    return profileKey(`nl_home_staff_v1:${Activity.player()}`);
+    return `nl_home_staff_v1:${Activity.player()}`;
   }
 
   private realDayNow(): number {
@@ -210,6 +209,9 @@ export class HomeStaff {
   }
 
   private load(): HomeStaffSave {
+    if (OnlineAccount.get() !== null) {
+      return { hired: {}, lastPaidDay: 1, lastRealDay: this.realDayNow() };
+    }
     try {
       const raw = localStorage.getItem(this.storageKey());
       if (raw) {
@@ -227,10 +229,12 @@ export class HomeStaff {
   }
 
   private save(): void {
-    try {
-      localStorage.setItem(this.storageKey(), JSON.stringify(this.state));
-    } catch {
-      /* ignore */
+    if (OnlineAccount.get() === null) {
+      try {
+        localStorage.setItem(this.storageKey(), JSON.stringify(this.state));
+      } catch {
+        /* ignore */
+      }
     }
     for (const cb of this.listeners) cb();
   }
@@ -263,7 +267,7 @@ export class HomeStaff {
 
   public async syncFromServer(): Promise<void> {
     const online = OnlineAccount.get();
-    if (!online?.connected) return;
+    if (!online) return;
     const res = (await online.request('/staff')) as {
       ok?: boolean;
       hired?: Array<{ role: StaffRoleId; hiredAt: number; paidDay: number }>;
@@ -309,25 +313,16 @@ export class HomeStaff {
     const day = Math.max(1, HomeStaff.currentDay());
     const now = HomeStaff.now();
     const online = OnlineAccount.get();
-    if (online?.connected) {
+    if (online) {
       const srv = (await online.request('/staff/hire', { role, day, now })) as {
         ok?: boolean;
         reason?: string;
         wallet?: { cash: number; bank: number };
       } | null;
-      if (srv && srv.ok === false) {
-        return { ok: false, message: srv.reason ?? `Could not hire ${spec.name}.` };
+      if (!srv?.ok) {
+        return { ok: false, message: srv?.reason ?? `Could not hire ${spec.name}.` };
       }
-      if (srv?.wallet) backend.applyServerWallet(srv.wallet);
-      else {
-        backend.processTransaction({
-          type: 'RENT_PAYMENT',
-          amount: spec.dailyWage,
-          description: `Home Staff Wage: ${spec.name} (${spec.title})`,
-          source: 'bank',
-          funding: 'strict',
-        });
-      }
+      if (srv.wallet) backend.applyServerWallet(srv.wallet);
     } else {
       const paid = backend.processTransaction({
         type: 'RENT_PAYMENT',
@@ -384,7 +379,7 @@ export class HomeStaff {
       return { ok: false, message: 'That staff member is not currently hired.' };
     }
     const online = OnlineAccount.get();
-    if (online?.connected) {
+    if (online) {
       await online.request('/staff/dismiss', { role });
     }
     delete this.state.hired[role];
@@ -453,7 +448,7 @@ export class HomeStaff {
     const unpaidRoles: StaffRoleId[] = [];
 
     const online = OnlineAccount.get();
-    if (online?.connected) {
+    if (online) {
       const srv = (await online.request('/staff/pay-day', { day: targetDay })) as {
         ok?: boolean;
         paid?: number;
@@ -473,9 +468,7 @@ export class HomeStaff {
           delete this.state.hired[r];
         }
       }
-    }
-
-    if (paidRoles.length === 0 && unpaidRoles.length === 0) {
+    } else {
       for (const { spec, entry } of list) {
         const daysDue = Math.max(1, targetDay - entry.paidDay);
         const due = spec.dailyWage * daysDue;
