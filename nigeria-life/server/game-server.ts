@@ -20,6 +20,7 @@ import { Accounts, consoleMailer, type Account } from './accounts.ts';
 import { Economy } from './economy.ts';
 import { Hustle } from './hustle.ts';
 import { League } from './league.ts';
+import { Ads } from './ads.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -49,6 +50,7 @@ const rooms = new Rooms(server, accounts, db);
 const economy = new Economy(db, (id) => rooms.positionOf(id));
 const hustle = new Hustle(db, economy);
 const league = new League(db, economy);
+const ads = new Ads(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -183,7 +185,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -251,6 +253,13 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
     if (req.method === 'GET' && url.pathname === '/bets/mine') return reply(res, 200, { ok: true, now: Date.now(), bets: league.mine(account.id), seeds: league.seeds(), wallet: economy.wallet(account.id) });
     if (req.method === 'POST' && url.pathname === '/bets/place') {
       const done = league.place(account, await readBody(req));
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Eko Ads: billboards on the expressway rented by players, seen by everyone
+    if (req.method === 'GET' && url.pathname === '/ads') return reply(res, 200, { ok: true, ads: ads.active(account.id) });
+    if (req.method === 'POST' && (url.pathname === '/ads/rent' || url.pathname === '/ads/remove')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/ads/rent' ? ads.rent(account, body) : ads.remove(account, body);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
     }
     return player(req, res, url, account);

@@ -1,3 +1,4 @@
+import { Adverts } from '../../business/Adverts';
 import type { PhoneApp, PhoneHost } from '../PhoneApp';
 import { esc, naira, row, empty, chips, count } from '../../ui/kit/html';
 import { CREDIT_TYPES } from '../../backend/TransactionService';
@@ -275,7 +276,7 @@ export const businessApp: PhoneApp = {
     const earns = (id: string) => {
       const biz = data.businesses.find((b) => b.id === id)!;
       const own = biz.baseIncomePerCycle + biz.upgrades.reduce((sum, u) => sum + (u.purchased ? u.bonusIncomePerCycle : 0), 0);
-      return biz.owned ? Math.round(companies.perCycle(biz, own) * BackendService.revenueBoost()) : own;
+      return biz.owned ? Math.round(companies.perCycle(biz, own) * Adverts.get().lift(biz.id) * BackendService.revenueBoost()) : own;
     };
 
     if (route.startsWith('b:')) {

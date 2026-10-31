@@ -124,6 +124,7 @@ import { ResidentialInterior } from '../interiors/templates/ResidentialInterior'
 import { standardOf } from '../housing/HomeStandard';
 import { Television } from '../housing/Television';
 import { Bets } from '../sport/Bets';
+import { Adverts } from '../business/Adverts';
 import * as LeagueRules from '../sport/League';
 const leagueFixture = LeagueRules.fixture;
 import { Employment } from '../jobs/Employment';
@@ -244,7 +245,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -1247,6 +1248,8 @@ export class Game {
     // Bets placed earlier are paid at full time even before the phone is opened
     Bets.tell = (text) => showGameToast(text, 'success', 5200);
     Bets.get();
+    // Billboards rented on Eko Ads go up on the expressway's boards
+    Adverts.get();
 
     // Buildings and walls are solid to someone on foot and to a vehicle being driven
     this.player.solids = () => this.solidsHere();
@@ -1770,7 +1773,8 @@ export class Game {
     const sky = this.world.skyEnvironment;
     companies.today = () => sky.day;
     companies.dayName = (day) => new Date(2026, 9, 7 + day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-    BackendService.takings = (biz, own) => companies.perCycle(biz, own);
+    // Staff and branches lift a business's takings, and so do its adverts on the expressway
+    BackendService.takings = (biz, own) => companies.perCycle(biz, own) * Adverts.get().lift(biz.id);
     BackendService.onTakings = (id, amount) => companies.took(id, amount);
     // The supermarket takes what customers buy off its shelves, which its stackers keep filled
     BackendService.sales = (biz, cycles) => (biz.id === SUPERMARKET ? Supermarket.get().trade(cycles, companies.lift(biz.id), companies.count(biz.id, 'stacker')) : null);

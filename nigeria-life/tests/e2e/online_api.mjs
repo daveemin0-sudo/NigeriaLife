@@ -207,6 +207,16 @@ export async function run(_browser, check) {
       league.ok && (slot in league.seeds) && !((slot + 1) in league.seeds) && placedBet.ok && placedBet.wallet.bank === 150000 - 20000 && placedBet.bet.price > 1 && !lateBet.ok && myBets.bets.length === 1 && myBets.bets[0].status === 'open',
       { seeds: Object.keys(league.seeds ?? {}), placedBet, lateBet: lateBet.reason, mine: myBets.bets });
 
+    // Eko Ads: a board rented by one player is charged on the server, seen by everyone, and cannot be taken by another
+    const tunde = await call('/auth/guest', { name: 'Tunde' });
+    const rentA = await call('/ads/rent', { board: 'board-2370-b', days: 1, headline: 'Tunde Tailors', line: 'Agbada in 3 days', colour: '#0b7a43' }, tunde.token);
+    const rentB = await call('/ads/rent', { board: 'board-2370-b', days: 1, headline: 'Funmi Foods', line: '', colour: '#0b7a43' }, funmi.token);
+    const seen = await call('/ads', null, funmi.token);
+    const bogus = await call('/ads/rent', { board: 'board-x', days: 1, headline: 'Hi there' }, funmi.token);
+    check('online: a billboard rented on Eko Ads is charged on the server (₦90,000 a day for a back face on the expressway), everyone sees it, and another player cannot take it',
+      rentA.ok && rentA.wallet.bank === 150000 - 90000 && !rentB.ok && /Tunde/.test(rentB.reason) && seen.ads.some((a) => a.board === 'board-2370-b' && a.headline === 'Tunde Tailors' && !a.mine) && !bogus.ok,
+      { rentA: rentA.wallet, rentB: rentB.reason, seen: seen.ads, bogus: bogus.reason });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

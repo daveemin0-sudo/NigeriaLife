@@ -7,6 +7,7 @@ import { EXPRESS_BRIDGE, EXPRESS_BRIDGES } from '../density/StreetLayout';
 import { EXPRESS, roadsideAt } from './layout';
 import { SideStreets } from './SideStreets';
 import { Roadside } from './Roadside';
+import { Billboards } from './Billboards';
 
 /**
  * The expressway out of Lagos Island. Broad Street carries straight on south and becomes it:
@@ -265,6 +266,9 @@ export class Expressway {
       // Each face to its side of the road, a little toward the traffic coming
       board.rotation.y = (face < 0 ? -Math.PI / 2 : Math.PI / 2) + face * side * 0.18;
       this.add(chunkZ, board);
+      // Rentable on Eko Ads: the face turned to the road is "a", the one behind it "b"
+      const letter = face === -side ? 'a' : 'b';
+      Billboards.register({ id: `board-${Math.round(z)}-${letter}`, x: x + face * 0.52, z, face: letter, mesh: board, base: tex, house: ad[0] });
     }
   }
 
