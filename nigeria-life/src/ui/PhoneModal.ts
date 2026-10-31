@@ -22,6 +22,8 @@ import { nollywoodApp } from '../phone/apps/nollywood';
 import { staffApp } from '../phone/apps/staff';
 import { sparkApp } from '../phone/apps/spark';
 import { owambeApp } from '../phone/apps/owambe';
+import { studioApp } from '../phone/apps/studio';
+import { marriageApp } from '../phone/apps/marriage';
 import { UIStateManager } from './UIStateManager';
 import { draw } from './kit/StableView';
 import { esc, naira, meter } from './kit/html';
@@ -33,7 +35,8 @@ const APPS: PhoneApp[] = [
   businessApp, investApp, healthApp, settingsApp,
   eventsApp, gamesApp, gistApp, casesApp,
   oddsApp, adsApp, richApp, yarnApp, nollywoodApp,
-  staffApp, sparkApp, owambeApp,
+  staffApp, sparkApp, owambeApp, studioApp,
+  marriageApp,
 ];
 
 /** Things the phone opens elsewhere in the game instead of showing itself. */

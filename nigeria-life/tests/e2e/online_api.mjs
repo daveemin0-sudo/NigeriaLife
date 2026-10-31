@@ -298,6 +298,20 @@ export async function run(_browser, check) {
       !lockedStudio.ok && !recordBeforeBook.ok && bookStudio.ok && bookStudio.paid === 25000 && !bookStudioDup.ok && recordStudio.ok && recordStudio.fame === 25 && concertStudio.ok && concertStudio.paid === 50000 && concertStudio.fame === 50 && !concertAgain.ok && (concertStudio.wallet.cash + concertStudio.wallet.bank) - (funmiBeforeStudio.cash + funmiBeforeStudio.bank) === 70500,
       { lockedStudio: lockedStudio.reason, recordBeforeBook: recordBeforeBook.reason, bookStudio, bookStudioDup: bookStudioDup.reason, recordStudio, concertStudio, concertAgain: concertAgain.reason });
 
+    // Marriage app: buys Silver Ring (₦35,000), fails proposal if closeness < 60, proposes with 60% closeness, and marries with dowry (₦75,000)
+    const proposeLowCloseness = await call('/marriage/propose', { spouseId: 'zainab', ringId: 'silver', closeness: 40 }, funmi.token);
+    const funmiBeforeMarriage = (await call('/me', null, funmi.token)).wallet;
+    const buySilverRing = await call('/marriage/ring', { ringId: 'silver' }, funmi.token);
+    const proposeValid = await call('/marriage/propose', { spouseId: 'zainab', ringId: 'silver', closeness: 65 }, funmi.token);
+    const proposeAgain = await call('/marriage/propose', { spouseId: 'zainab', ringId: 'silver', closeness: 65 }, funmi.token);
+    const marryValid = await call('/marriage/marry', { dowryAmount: 75000 }, funmi.token);
+    const marryAgain = await call('/marriage/marry', { dowryAmount: 75000 }, funmi.token);
+    const marriageSnap = await call('/marriage', null, funmi.token);
+    // Net cost: -35,000 ring - 75,000 dowry = -110,000
+    check('online: Marriage buys Silver Ring (₦35,000), checks 60% closeness on proposal, and holds traditional wedding ceremony with dowry (₦75,000)',
+      !proposeLowCloseness.ok && buySilverRing.ok && buySilverRing.paid === 35000 && proposeValid.ok && proposeValid.marriage?.status === 'engaged' && !proposeAgain.ok && marryValid.ok && marryValid.marriage?.status === 'married' && marryValid.dowryPaid === 75000 && !marryAgain.ok && marriageSnap.ok && marriageSnap.marriage?.status === 'married' && (funmiBeforeMarriage.cash + funmiBeforeMarriage.bank) - (marryValid.wallet.cash + marryValid.wallet.bank) === 110000,
+      { proposeLowCloseness: proposeLowCloseness.reason, buySilverRing, proposeValid, proposeAgain: proposeAgain.reason, marryValid, marryAgain: marryAgain.reason, marriageSnap });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

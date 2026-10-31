@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Fridge } from '../../housing/Fridge';
 import { HomeStaff } from '../../housing/HomeStaff';
+import { Marriage } from '../../social/Marriage';
 import { Activity } from '../../life/Activity';
 import { Pets, PET_KINDS, PET_FOOD_PRICE } from '../../housing/Pets';
 import { Garden, SEEDS } from '../../housing/Garden';
@@ -22,6 +23,7 @@ import { roomDoor, DOOR_STYLES, type DoorStyle } from '../../housing/MoreFurnitu
 import { InteractionDirector, type InteractionDef } from '../../interactions/InteractionDirector';
 import type { PoseState } from '../../interactions/Poses';
 import { Sequence, steps } from '../../interactions/Sequence';
+import { showGameToast } from '../../ui/GameToast';
 import { planFor, briefOf, roomAt, type HomeBrief, type HomePlan, type Fixture } from '../../housing/HomePlan';
 
 /** A door in one of the home's own doorways */
@@ -149,6 +151,7 @@ export class ResidentialInterior {
     this.def.name = home?.name ?? (standard === 'basic' ? 'Your room & parlour' : standard === 'comfortable' ? 'Your flat' : 'Your house');
     if (home?.area) this.def.districtName = home.area;
     HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
+    Marriage.get().syncHome(this.group, this.plan, this.interactiveList);
   }
 
   /** In: their own vehicles stand in the carport */
@@ -400,6 +403,50 @@ export class ResidentialInterior {
       this.interactiveList.push(entry);
     }
     PlaceActions.register(`${card}:move`, this.pieceChoices(item));
+    PlaceActions.register('home_spouse', {
+      label: () => {
+        const m = Marriage.get().currentMarriage();
+        return m ? `❤️ Gist with ${m.spouseName}` : '❤️ Gist with your spouse';
+      },
+      run: (host) => {
+        const m = Marriage.get().currentMarriage();
+        if (!m) return;
+        host.ask({
+          who: m.spouseName,
+          role: 'Your Spouse',
+          text: `Welcome home, my love! How was Lagos traffic today? I made sure the house is warm and there is fresh food in the fridge for you.`,
+          choices: [
+            {
+              label: '🤗 Embrace & Gist (+25 Social, +20 Fun)',
+              note: 'Free',
+              pick: () => {
+                host.director.perform({
+                  id: 'gist with spouse',
+                  actor: host.actor,
+                  point: new THREE.Vector3(0.8, 0, 0.2),
+                  target: new THREE.Vector3(0.8, 0, -1.2),
+                  animation: { arms: 'wave' },
+                  seconds: 2.0,
+                  effectAt: 0.8,
+                  effect: () => {
+                    host.backend.modifyNeed('social', 25);
+                    host.backend.modifyNeed('fun', 20);
+                    showGameToast(`❤️ You shared a sweet hug and gist with ${m.spouseName}.`, 'success', 3600);
+                  },
+                });
+              },
+            },
+            {
+              label: '🍲 Ask what is in the fridge',
+              note: 'Check fridge',
+              pick: () => {
+                showGameToast(`🍲 ${m.spouseName}: "I put hot pepper soup and jollof in the fridge for you, dear!"`, 'info', 4000);
+              },
+            },
+          ],
+        });
+      },
+    });
   }
 
   /** Move it, put it away, or sell it: for a piece whose card is for using it */

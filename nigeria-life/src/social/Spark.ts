@@ -446,6 +446,16 @@ export class Spark {
     return this.data.matches.some((m) => m.profileId === profileId);
   }
 
+  public setClosenessForTests(profileId: SparkProfileId, closeness: number): void {
+    this.load();
+    const match = this.data.matches.find((m) => m.profileId === profileId);
+    if (match) {
+      match.closeness = closeness;
+      this.save();
+      this.changed();
+    }
+  }
+
   public activeDate(): (SparkActiveDate & { profile: SparkProfile }) | null {
     this.load();
     const active = this.data.activeDate;
