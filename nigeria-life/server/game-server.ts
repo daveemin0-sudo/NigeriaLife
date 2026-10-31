@@ -23,6 +23,7 @@ import { League } from './league.ts';
 import { Ads } from './ads.ts';
 import { Feed } from './feed.ts';
 import { ServerNollywood } from './nollywood.ts';
+import { ServerStaff } from './staff.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -55,6 +56,7 @@ const league = new League(db, economy);
 const ads = new Ads(db, economy);
 const feed = new Feed(db);
 const nollywood = new ServerNollywood(db, economy);
+const staff = new ServerStaff(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -189,7 +191,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -290,6 +292,17 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
         : url.pathname === '/nollywood/shoot'
           ? nollywood.completeShoot(account.id, String(body.filmId ?? ''), Number(body.stars ?? 1))
           : nollywood.stateFor(account.id);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Home staff: cook, cleaner, driver and gateman hired for the home and paid every day from the bank
+    if (req.method === 'GET' && url.pathname === '/staff') return reply(res, 200, staff.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/staff/hire' || url.pathname === '/staff/dismiss' || url.pathname === '/staff/pay-day')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/staff/hire'
+        ? staff.hire(account.id, body)
+        : url.pathname === '/staff/dismiss'
+          ? staff.dismiss(account.id, body)
+          : staff.payDay(account.id, body);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
     }
     return player(req, res, url, account);

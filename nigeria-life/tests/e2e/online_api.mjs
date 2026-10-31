@@ -246,6 +246,16 @@ export async function run(_browser, check) {
       !lockedAudition.ok && !shootWithoutRole.ok && castRes.ok && castRes.active?.filmId === 'blood-on-the-lagoon' && shootRes.ok && shootRes.fame === 25 && shootRes.wallet.cash + shootRes.wallet.bank - (funmiBeforeShoot.cash + funmiBeforeShoot.bank) === 58500 && !shootAgain.ok && shootRes.filmography?.length === 1,
       { lockedAudition: lockedAudition.reason, shootWithoutRole: shootWithoutRole.reason, castRes, shootRes, shootAgain: shootAgain.reason });
 
+    // Home staff: hiring deducts first day's wage from the bank, daily pay-day deducts from bank once per day, and dismiss removes the role
+    const funmiBeforeStaff = (await call('/me', null, funmi.token)).wallet;
+    const hireCook = await call('/staff/hire', { role: 'cook', day: 1, now: Date.now() }, funmi.token);
+    const hireCookAgain = await call('/staff/hire', { role: 'cook', day: 1, now: Date.now() }, funmi.token);
+    const payDay2 = await call('/staff/pay-day', { day: 2 }, funmi.token);
+    const dismissCook = await call('/staff/dismiss', { role: 'cook' }, funmi.token);
+    check('online: Home Staff hires a cook for ₦4,500/day from the bank, refuses duplicate hire, deducts ₦4,500 from the bank on day 2, and dismisses cleanly',
+      hireCook.ok && hireCook.paid === 4500 && funmiBeforeStaff.bank - hireCook.wallet.bank === 4500 && !hireCookAgain.ok && payDay2.ok && payDay2.paid === 4500 && hireCook.wallet.bank - payDay2.wallet.bank === 4500 && dismissCook.ok && dismissCook.snapshot.hired.length === 0,
+      { hireCook, hireCookAgain: hireCookAgain.reason, payDay2, dismissCook });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

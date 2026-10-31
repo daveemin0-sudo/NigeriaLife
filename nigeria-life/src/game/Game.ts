@@ -15,6 +15,7 @@ import { Garden } from '../housing/Garden';
 import { Pets } from '../housing/Pets';
 import { Cases } from '../life/Cases';
 import { Nollywood } from '../film/Nollywood';
+import { HomeStaff } from '../housing/HomeStaff';
 import { ShiftSkill } from '../jobs/ShiftSkill';
 import { GistWorld } from '../phone/apps/gist';
 import { GistTimes } from '../life/GistTimes';
@@ -247,7 +248,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -917,10 +918,13 @@ export class Game {
     this.connectLand();
 
     // 10c. Day & Saturday Rent Tick
+    HomeStaff.currentDay = () => this.world.skyEnvironment.day;
     this.world.skyEnvironment.onNewDay = (day: number) => {
       BackendService.getInstance().processDailyRentTick(day);
       // The close of yesterday, for every business: takings, wages, rent and tax
       this.companies.closeDay(day - 1);
+      // Home staff paid every day from the bank
+      void HomeStaff.get().onNewDay(day);
     };
     this.connectCompanies();
     this.connectEvents();
@@ -1408,7 +1412,8 @@ export class Game {
     };
     ResidentialInterior.carsOwned = () => this.ownedVehicles.myModels();
     // Your own car, your driver at the wheel: a ride that costs nothing
-    RideService.ownCar = () => this.ownedVehicles.ownCar();
+    RideService.ownCar = () => this.ownedVehicles.ownCar() ?? (HomeStaff.get().isHired('driver') ? { name: 'Camry (Sunday)', body: 'camry', paint: 0x0f172a } : null);
+    RideService.driverName = () => (HomeStaff.get().isHired('driver') ? 'Sunday Okafor' : null);
     this.hud.worldMapUI.ownOption = (dest) => RideService.ownOption(dest);
     this.hud.onJourney = (dest, transport, arrived) => this.rides.journey(dest, transport, arrived);
     // Driving yourself: the way along the streets drawn on the road
@@ -2608,6 +2613,7 @@ export class Game {
     this.deliveries.update(delta);
     this.messages.update(delta);
     Nollywood.get().tick(delta);
+    HomeStaff.get().tick(delta);
 
     // Update Camera Follow (moved in closer while the player is seated)
     const playerActor = this.player.actor;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Fridge } from '../../housing/Fridge';
+import { HomeStaff } from '../../housing/HomeStaff';
 import { Activity } from '../../life/Activity';
 import { Pets, PET_KINDS, PET_FOOD_PRICE } from '../../housing/Pets';
 import { Garden, SEEDS } from '../../housing/Garden';
@@ -147,6 +148,7 @@ export class ResidentialInterior {
     const home = ResidentialInterior.homeName?.();
     this.def.name = home?.name ?? (standard === 'basic' ? 'Your room & parlour' : standard === 'comfortable' ? 'Your flat' : 'Your house');
     if (home?.area) this.def.districtName = home.area;
+    HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
   }
 
   /** In: their own vehicles stand in the carport */
@@ -341,6 +343,7 @@ export class ResidentialInterior {
     // The plants as they stand, and each pet at its home
     this.refreshGarden();
     this.refreshPets();
+    HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
     for (const uid of [...this.sets.keys()]) {
       if (!standing.has(uid)) this.sets.delete(uid);
     }
@@ -1715,6 +1718,7 @@ export class ResidentialInterior {
 
     this.life.update(delta);
     this.swingDoors(delta);
+    HomeStaff.get().tick(delta, true);
     // The pets about the house; the plants checked now and then as they grow
     const me = InteractionDirector.get().player?.worldPosition();
     const o = this.group.position;

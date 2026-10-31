@@ -44,13 +44,25 @@ export class RideService {
   public static fareFactor: () => number = () => 1;
   /** The player's own car, if they have one: their driver takes them in it, for nothing (set by the game) */
   public static ownCar: () => { name: string; body: string; paint?: number } | null = () => null;
+  /** The name of the hired home driver, if the player has hired one (set by HomeStaff) */
+  public static driverName: () => string | null = () => null;
 
   /** Your own car as a way of getting there: free, your driver at the wheel */
   public static ownOption(destination: DestinationDefinition): TransportOption | null {
     const car = RideService.ownCar();
     if (!car) return null;
     const taxi = destination.transportAvailability.find((option) => option.mode === 'taxi');
-    return { mode: 'car', label: `Your ${car.name}`, icon: '🚘', fare: 0, travelTimeSec: taxi?.travelTimeSec ?? 60, description: 'Your own car. Your driver brings it round and drives you. Free.' };
+    const driver = RideService.driverName();
+    return {
+      mode: 'car',
+      label: `Your ${car.name}`,
+      icon: '🚘',
+      fare: 0,
+      travelTimeSec: taxi?.travelTimeSec ?? 60,
+      description: driver
+        ? `Your own car. ${driver}, your home driver, brings it round and drives you. Free.`
+        : 'Your own car. Your driver brings it round and drives you. Free.',
+    };
   }
   public ride: ActiveRide | null = null;
   public onChange: (() => void) | null = null;
