@@ -2,7 +2,7 @@ import type { PhoneApp, PhoneHost } from '../PhoneApp';
 import { chips, count, empty, esc, meter, naira, row } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
 import { AssetMarket, SALE_FEE_RATE } from '../../realestate/AssetMarket';
-import { Garage, VEHICLE_MODELS, guidePrice, vehicleModel, serviceCost } from '../../realestate/Garage';
+import { Garage, VEHICLE_MODELS, guidePrice, vehicleModel, serviceCost, upgradeCost, RESPRAYS } from '../../realestate/Garage';
 import { MY_ID } from '../../realestate/Registry';
 import type { VehicleRecord } from '../../realestate/types';
 
@@ -40,6 +40,18 @@ function carScreen(host: PhoneHost, record: VehicleRecord) {
         ${record.condition >= 99 ? '' : `<button class="nl-btn nl-btn--primary nl-btn--block" id="garage-service-btn" data-act="service" data-arg="${esc(record.id)}">Full service · ${naira(serviceCost(model, record.condition))}</button>
         <button class="nl-btn nl-btn--block" id="garage-mechanic-btn" data-act="mechanic">Drive it to Ladipo yourself (the arrows show the way)</button>`}
       </div>
+      ${(() => {
+        const u = record.upgrades ?? {};
+        const stage = u.engine ?? 0;
+        return `<div class="nl-card" id="garage-upgrades">
+          <div class="nl-card-title">⚙️ Upgrades at Ladipo Auto</div>
+          <div class="nl-card-line">Engine: ${stage ? `stage ${stage} tune` : 'as it came'} · Tyres: ${u.tyres ? 'performance' : 'standard'}</div>
+          ${stage < 3 ? `<button class="nl-btn nl-btn--block" id="garage-tune-btn" data-act="upgrade" data-arg="${esc(record.id)}|engine|${stage + 1}">Engine tune, stage ${stage + 1}: faster, more pull · ${naira(upgradeCost(model, 'engine', stage + 1))}</button>` : '<div class="nl-hint">Fully tuned: stage 3.</div>'}
+          ${u.tyres ? '' : `<button class="nl-btn nl-btn--block" id="garage-tyres-btn" data-act="upgrade" data-arg="${esc(record.id)}|tyres|1">Performance tyres: grip and sharper turning · ${naira(upgradeCost(model, 'tyres'))}</button>`}
+          <div class="nl-card-line">Respray · ${naira(upgradeCost(model, 'paint'))}</div>
+          <div class="nl-row-chips" id="garage-paints">${RESPRAYS.map((p) => `<button type="button" class="nl-chip${u.paint === p.paint ? ' is-on' : ''}" data-act="upgrade" data-arg="${esc(record.id)}|paint|${p.paint}" title="${esc(p.name)}"><i style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#${p.paint.toString(16).padStart(6, '0')};box-shadow:0 0 0 1px rgba(0,0,0,.2);vertical-align:-2px"></i> ${esc(p.name)}</button>`).join('')}</div>
+        </div>`;
+      })()}
       ${listing ? `
         <div class="nl-card" id="garage-listing">
           <div class="nl-card-title">On the market at ${naira(listing.askingPrice)}</div>
@@ -179,6 +191,11 @@ export const garageApp: PhoneApp = {
       const blocked = await host.world.serviceVehicle(arg);
       if (blocked) return host.say(blocked, 'bad');
       host.say('Serviced: like new again, 100%.', 'good');
+      host.refresh();
+    } else if (action === 'upgrade') {
+      const [id, kind, value] = arg.split('|');
+      const blocked = await host.world.upgradeVehicle(id, kind as 'engine' | 'tyres' | 'paint', Number(value));
+      if (blocked) return host.say(blocked, 'bad');
       host.refresh();
     } else if (action === 'mechanic') {
       const blocked = host.world.driveToMechanic();

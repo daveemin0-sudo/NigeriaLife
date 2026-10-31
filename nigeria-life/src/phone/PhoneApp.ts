@@ -44,6 +44,8 @@ export interface PhoneWorld {
   takeTrain(to: number): string | null;
   /** Book a full service for one of the player's vehicles: collected, repaired to 100%, brought back. Why not, or null. */
   serviceVehicle(vehicleId: string): Promise<string | null>;
+  /** Work on a car at Ladipo: an engine stage, performance tyres, or a respray (a colour). Why not, or null. */
+  upgradeVehicle(vehicleId: string, kind: 'engine' | 'tyres' | 'paint', value: number): Promise<string | null>;
   /** Arrows on the road to the mechanics at Ladipo Auto Market. Why not, or null. */
   driveToMechanic(): string | null;
   /** Whether the player can drive themselves somewhere (they have a car, or are in one) */

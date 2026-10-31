@@ -155,6 +155,8 @@ export interface VehicleRecord {
   parkedAt?: { x: number; z: number; yaw: number; city?: string };
   /** What is in its tank, 0 to 100 (none recorded: 85, as a new one comes) */
   fuel?: number;
+  /** Work done on it at Ladipo: an engine tune (stage 0 to 3), performance tyres, a new colour */
+  upgrades?: { engine?: number; tyres?: boolean; paint?: number };
 }
 
 export interface PlayerCard {

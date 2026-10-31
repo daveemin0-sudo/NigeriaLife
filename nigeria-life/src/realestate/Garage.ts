@@ -11,6 +11,41 @@ import { assetKey, type Listing, type Outcome, type RegistryState, type VehicleR
  *
  * Prices follow what each costs in Nigeria in 2025, new or clean foreign-used, in naira.
  */
+/** The colours a car can be resprayed at Ladipo */
+export const RESPRAYS: Array<{ name: string; paint: number }> = [
+  { name: 'Midnight black', paint: 0x0b0b0f }, { name: 'Pearl white', paint: 0xf4f4f0 }, { name: 'Silver', paint: 0xa8adb4 },
+  { name: 'Royal blue', paint: 0x1e3a8a }, { name: 'Ferrari red', paint: 0xb91c1c }, { name: 'Emerald', paint: 0x047857 },
+  { name: 'Gold', paint: 0xb88a2e }, { name: 'Matte grey', paint: 0x4b5563 },
+];
+
+/** What a piece of work on a car costs: by what the car is worth, never less than a floor */
+export function upgradeCost(model: { price: number }, kind: 'engine' | 'tyres' | 'paint', stage = 1): number {
+  const round = (n: number) => Math.round(n / 5_000) * 5_000;
+  if (kind === 'engine') return round(Math.max(150_000 * stage, model.price * 0.035 * stage));
+  if (kind === 'tyres') return round(Math.max(90_000, model.price * 0.015));
+  return round(Math.max(120_000, model.price * 0.02));
+}
+
+/** How a car drives and looks with the work done on it: a tune adds speed and pull, tyres grip and turn in */
+export function tunedDrive<T extends { maxSpeed: number; acceleration: number; turnSpeed: number; friction: number; paint?: number }>(drive: T, record: { upgrades?: { engine?: number; tyres?: boolean; paint?: number } }): T {
+  const u = record.upgrades ?? {};
+  const e = Math.max(0, Math.min(3, u.engine ?? 0));
+  return {
+    ...drive,
+    maxSpeed: drive.maxSpeed * (1 + 0.07 * e),
+    acceleration: drive.acceleration * (1 + 0.12 * e),
+    turnSpeed: drive.turnSpeed * (u.tyres ? 1.1 : 1),
+    friction: drive.friction * (u.tyres ? 0.97 : 1),
+    paint: u.paint ?? drive.paint,
+  };
+}
+
+/** The work on a car as one string, to tell when a car on the street needs building again */
+export function tuneKey(record: { upgrades?: { engine?: number; tyres?: boolean; paint?: number } }): string {
+  const u = record.upgrades ?? {};
+  return `${u.engine ?? 0}|${u.tyres ? 1 : 0}|${u.paint ?? ''}`;
+}
+
 /** A full service and repair back to 100%: parts and labour scale with the wear and the car's price (a Corolla is not a Lamborghini) */
 export function serviceCost(model: { price: number }, condition: number): number {
   const wear = Math.max(0, 100 - condition) / 100;
@@ -236,6 +271,15 @@ export class Garage {
       const record = state.vehicles[id];
       if (!record || state.titles[assetKey({ kind: 'vehicle', id })]?.ownerId !== MY_ID) return;
       record.condition = 100;
+    });
+  }
+
+  /** Work done at Ladipo, recorded on the car. Only its owner can. */
+  public async upgrade(id: string, change: { engine?: number; tyres?: boolean; paint?: number }): Promise<void> {
+    await this.registry.transact((state) => {
+      const record = state.vehicles[id];
+      if (!record || state.titles[assetKey({ kind: 'vehicle', id })]?.ownerId !== MY_ID) return;
+      record.upgrades = { ...(record.upgrades ?? {}), ...change };
     });
   }
 

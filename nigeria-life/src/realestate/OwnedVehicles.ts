@@ -3,7 +3,7 @@ import { DrivableVehicle } from '../world/DrivableVehicle';
 import type { World, InteractiveObject } from '../world/World';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import { AssetMarket } from './AssetMarket';
-import { Garage, vehicleModel } from './Garage';
+import { Garage, vehicleModel, tunedDrive, tuneKey } from './Garage';
 import { Registry, MY_ID } from './Registry';
 import type { VehicleRecord } from './types';
 import { CITY_NAME, type PlotCity } from './PlotCatalogue';
@@ -38,7 +38,7 @@ export class OwnedVehicles {
   private readonly garage = Garage.get();
   private readonly world: World;
   private readonly hooks: DriverHooks;
-  private readonly spawned = new Map<string, { vehicle: DrivableVehicle; card: InteractiveObject; last: THREE.Vector3; metres: number; ownerId: string; at: string }>();
+  private readonly spawned = new Map<string, { vehicle: DrivableVehicle; card: InteractiveObject; last: THREE.Vector3; metres: number; ownerId: string; at: string; tune: string }>();
   private readonly market = AssetMarket.get();
 
   constructor(world: World, hooks: DriverHooks) {
@@ -59,7 +59,7 @@ export class OwnedVehicles {
       .filter((entry) => !!entry.model)
       .sort((a, b) => (b.model!.price ?? 0) - (a.model!.price ?? 0));
     return mine.map(({ record, model }) => {
-      const vehicle = new DrivableVehicle({ id: `carport-${record.id}`, name: model!.name, type: model!.type, ...model!.drive }, new THREE.Vector3(), 0);
+      const vehicle = new DrivableVehicle({ id: `carport-${record.id}`, name: model!.name, type: model!.type, ...tunedDrive(model!.drive, record) }, new THREE.Vector3(), 0);
       vehicle.mesh.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
       return vehicle.mesh;
     });
@@ -115,7 +115,9 @@ export class OwnedVehicles {
       const where = record?.parkedAt ? placeKey(record.parkedAt) : '';
       // Gone, changed hands, or parked somewhere else by its owner: take it away, and put it back below if it is still about
       const away = this.movingElsewhere(entry.vehicle);
-      if (!veh || owner !== entry.ownerId || (owner !== MY_ID && !driving && !away && (!record || where !== entry.at))) {
+      // Work done on it (a tune, tyres, a respray): built again as it now is, if nobody is at the wheel
+      const retuned = !!veh && !driving && tuneKey(veh) !== entry.tune;
+      if (!veh || retuned || owner !== entry.ownerId || (owner !== MY_ID && !driving && !away && (!record || where !== entry.at))) {
         this.world.removeVehicle(entry.vehicle, entry.card);
         this.spawned.delete(id);
       }
@@ -130,7 +132,7 @@ export class OwnedVehicles {
     if (!model) return;
     const ownerId = this.garage.ownerOf(record.id) ?? '';
     const mine = ownerId === MY_ID;
-    const vehicle = new DrivableVehicle({ id: this.instanceId(record.id), name: `${model.name} · ${record.plate}`, type: model.type, ...model.drive }, new THREE.Vector3(x, 0, z), yaw);
+    const vehicle = new DrivableVehicle({ id: this.instanceId(record.id), name: `${model.name} · ${record.plate}`, type: model.type, ...tunedDrive(model.drive, record) }, new THREE.Vector3(x, 0, z), yaw);
     vehicle.city = record.parkedAt?.city ?? 'lagos';
     vehicle.fuel = record.fuel ?? 85;
     vehicle.mesh.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
@@ -145,7 +147,7 @@ export class OwnedVehicles {
       interactionPoint: new THREE.Vector3(x + 1.8, 0, z),
     };
     this.world.addVehicle(vehicle, card, vehicle.city);
-    this.spawned.set(record.id, { vehicle, card, last: vehicle.mesh.position.clone(), metres: 0, ownerId, at: placeKey(record.parkedAt ?? { x, z, yaw }) });
+    this.spawned.set(record.id, { vehicle, card, last: vehicle.mesh.position.clone(), metres: 0, ownerId, at: placeKey(record.parkedAt ?? { x, z, yaw }), tune: tuneKey(record) });
   }
 
   /**

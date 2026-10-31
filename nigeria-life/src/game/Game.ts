@@ -100,7 +100,7 @@ import { CompanyStaff } from '../business/CompanyStaff';
 import { Convoys, ESCORTS, type EscortLevel } from '../world/convoy/Convoys';
 import type { PlaceHost } from '../destinations/PlaceActions';
 import { Supermarket, SUPERMARKET } from '../business/Supermarket';
-import { vehicleModel, serviceCost } from '../realestate/Garage';
+import { vehicleModel, serviceCost, upgradeCost } from '../realestate/Garage';
 import { Politics, Policies } from '../politics/Politics';
 import { hawkerPrices } from '../world/StreetVendors';
 import { petrolPolicy } from '../world/Fuel';
@@ -1014,6 +1014,22 @@ export class Game {
         await this.garage.repair(vehicleId);
         this.ownedVehicles.sync();
         showGameToast(`🔧 Ladipo Auto collected your ${model.name}, serviced it and brought it back: 100% condition.`, 'success', 4600);
+        return null;
+      },
+      upgradeVehicle: async (vehicleId, kind, value) => {
+        const record = this.garage.record(vehicleId);
+        const model = record ? vehicleModel(record.modelId) : null;
+        if (!record || !model) return 'That vehicle is not in your garage.';
+        const now = record.upgrades ?? {};
+        if (kind === 'engine' && value !== (now.engine ?? 0) + 1) return 'Each stage of the tune comes after the one before.';
+        if (kind === 'tyres' && now.tyres) return 'It already has performance tyres.';
+        if (kind === 'paint' && now.paint === value) return 'It is already that colour.';
+        const cost = upgradeCost(model, kind, kind === 'engine' ? value : 1);
+        const what = kind === 'engine' ? `engine tune, stage ${value}` : kind === 'tyres' ? 'performance tyres' : 'a respray';
+        if (!BackendService.getInstance().pay(cost, `Ladipo Auto: ${what}, ${model.name}`, 'SHOP_PURCHASE')) return `That is ₦${cost.toLocaleString()}. You do not have it.`;
+        await this.garage.upgrade(vehicleId, kind === 'engine' ? { engine: value } : kind === 'tyres' ? { tyres: true } : { paint: value });
+        this.ownedVehicles.sync();
+        showGameToast(kind === 'engine' ? `⚙️ Stage ${value} tune on your ${model.name}: faster, quicker off the line.` : kind === 'tyres' ? `🛞 Performance tyres on your ${model.name}: it grips and turns in sharper.` : `🎨 Your ${model.name} is resprayed. Fresh!`, 'success', 4400);
         return null;
       },
       driveToMechanic: () => {
