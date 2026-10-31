@@ -1,3 +1,4 @@
+import { startUpdates } from './app/Updates';
 import '@fontsource-variable/outfit/wght.css';
 import { StreetAmbience } from './audio/StreetAmbience';
 import '@fontsource-variable/plus-jakarta-sans/wght.css';
@@ -35,6 +36,8 @@ void fontsReady.then(() => {
       splash.classList.add('is-gone');
       setTimeout(() => splash.remove(), 650);
     }));
+    // On the web: kept on the phone, and told when a new version is out
+    startUpdates();
     // The speech engine is woken at the first tap (Continue on the title), not mid-street
     window.addEventListener('pointerdown', () => StreetAmbience.get().warm(), { once: true, capture: true });
     // The title over the city, to carry on or begin a new life (not for the automated tests, unless asked for)

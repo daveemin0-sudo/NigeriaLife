@@ -1,0 +1,48 @@
+# Publishes Nigeria Life to GitHub Pages on every push, so it opens on any phone, anywhere:
+# https://daveemin0-sudo.github.io/NigeriaLife/
+name: Publish the game
+on:
+  push:
+    branches: [stabilise-core, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nigeria-life
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nigeria-life/package-lock.json
+      - run: npm ci
+      - name: Build for the web
+        run: npx vite build --base=/NigeriaLife/
+        env:
+          VITE_BUILD_ID: ${{ github.sha }}
+      - name: Version note and fallback page
+        run: |
+          echo "{\"build\":\"${{ github.sha }}\"}" > dist/version.json
+          cp dist/index.html dist/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: nigeria-life/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
