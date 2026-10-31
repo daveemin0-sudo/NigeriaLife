@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { Accounts, consoleMailer, type Account } from './accounts.ts';
 import { Economy } from './economy.ts';
 import { Hustle } from './hustle.ts';
+import { League } from './league.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -47,6 +48,9 @@ const server = http.createServer((req, res) => void route(req, res));
 const rooms = new Rooms(server, accounts, db);
 const economy = new Economy(db, (id) => rooms.positionOf(id));
 const hustle = new Hustle(db, economy);
+const league = new League(db, economy);
+// Bets on matches that are over are paid every half minute, whether or not their players are looking
+setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
 economy.businessesOf = (accountId) => {
   const account = accounts.get(accountId);
@@ -179,7 +183,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -241,6 +245,13 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
         const done = action === 'post' ? hustle.post(account, body) : action === 'take' ? hustle.take(account, body.id) : action === 'done' ? hustle.release(account, body.id) : action === 'cancel' ? hustle.cancel(account, body.id) : action === 'quit' ? hustle.quit(account, body.id) : { ok: false as const, reason: 'Unknown.' };
         return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
       }
+    }
+    // The league: the seeds of matches that have kicked off, and bets on the ones to come
+    if (req.method === 'GET' && url.pathname === '/league') return reply(res, 200, { ok: true, now: Date.now(), seeds: league.seeds() });
+    if (req.method === 'GET' && url.pathname === '/bets/mine') return reply(res, 200, { ok: true, now: Date.now(), bets: league.mine(account.id), seeds: league.seeds(), wallet: economy.wallet(account.id) });
+    if (req.method === 'POST' && url.pathname === '/bets/place') {
+      const done = league.place(account, await readBody(req));
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
     }
     return player(req, res, url, account);
   } catch {

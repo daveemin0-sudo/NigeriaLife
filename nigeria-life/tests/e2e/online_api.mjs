@@ -195,6 +195,18 @@ export async function run(_browser, check) {
     check('online: business takings are paid at once to the owner of a business, up to what it could have taken, and takings held before are let through with them; ₦5bn from a POS kiosk is held, and takings for someone who owns no business are held',
       heldBefore.held > 0 && takings.ok && chiAfter.bank + chiAfter.cash - chiBefore.bank - chiBefore.cash === 380000 && !greedy.ok && greedy.held > 0 && !nobody.ok && nobody.held > 0,
       { heldBefore: heldBefore.held, takings: takings.ok, gained: chiAfter.bank + chiAfter.cash - chiBefore.bank - chiBefore.cash, greedy: greedy.held, nobody: nobody.held });
+    // Naija Odds: a bet's stake is held by the server; seeds only for matches that have kicked off;
+    // a bet on the match already playing is refused. (Settling at full time is in the League's own test.)
+    const funmi = await call('/auth/guest', { name: 'Funmi' });
+    const league = await call('/league', null, funmi.token);
+    const slot = Math.floor(Date.now() / 300_000);
+    const placedBet = await call('/bets/place', { slot: slot + 1, pick: 'X', stake: 20000 }, funmi.token);
+    const lateBet = await call('/bets/place', { slot, pick: '1', stake: 1000 }, funmi.token);
+    const myBets = await call('/bets/mine', null, funmi.token);
+    check('online: a bet on the next match holds its stake on the server; a bet on the match already playing is refused; the seed of the next match is not out before kick-off',
+      league.ok && (slot in league.seeds) && !((slot + 1) in league.seeds) && placedBet.ok && placedBet.wallet.bank === 150000 - 20000 && placedBet.bet.price > 1 && !lateBet.ok && myBets.bets.length === 1 && myBets.bets[0].status === 'open',
+      { seeds: Object.keys(league.seeds ?? {}), placedBet, lateBet: lateBet.reason, mine: myBets.bets });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

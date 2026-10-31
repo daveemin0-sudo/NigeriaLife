@@ -1,22 +1,15 @@
 import * as THREE from 'three';
-import { MatchSim } from '../../world/landmarks/MatchSim';
+import { Bets } from '../../sport/Bets';
+import { fixture } from '../../sport/League';
 import { SoundEngine } from '../../audio/SoundEngine';
 import type { PlaceInterior } from './PlaceInterior';
 import { Figure } from './Worship';
 
 /**
- * Oga Sunday's: the big screen always has football on it, a match really being played out with
- * the score in the corner; the room hears it, the hum of the fans, the roar when one goes in, a
+ * Oga Sunday's: the big screen always has football on it, the Eko Premier League match being
+ * played now (the one the betting app follows, so a bet is watched here), the score in the corner; the room hears it, the hum of the fans, the roar when one goes in, a
  * commentator calling it; and the fans in the front row are on their feet for every goal.
  */
-
-const FIXTURES: Array<[string, string]> = [
-  ['Super Eagles', 'Black Stars'],
-  ['Lagos Lions', 'Abuja Hawks'],
-  ['Eko United', 'Rivers Stars'],
-  ['Kano Pillars', 'Enyimba'],
-  ['Super Eagles', 'Bafana Bafana'],
-];
 
 const CALLS = {
   play: ['Lovely ball forward!', 'He beats one man, he beats two!', 'Pressure now on the defence.', 'Corner kick.', 'What a tackle!', 'They are pressing high.', 'Free kick on the edge of the box!', 'He shoots... wide!', 'Brilliant save by the keeper!'],
@@ -24,8 +17,6 @@ const CALLS = {
 };
 
 export function attachViewing(room: PlaceInterior): void {
-  let fixture = 0;
-  let match = new MatchSim(36, 24, FIXTURES[0], 11);
   // The screen: in front of the one built into the wall
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -95,32 +86,58 @@ export function attachViewing(room: PlaceInterior): void {
   let goals = 0;
   let nextCall = 6;
   let cheer = 0;
+  let slot = -1;
   room.ticks.push((delta) => {
-    match.update(delta);
-    if (match.fullTime) {
-      fixture = (fixture + 1) % FIXTURES.length;
-      match = new MatchSim(36, 24, FIXTURES[fixture], 11 + fixture * 7);
-      goals = 0;
+    const now = Bets.get().now();
+    const live = now.match;
+    // A new match: the goal count starts again
+    if (now.fixture.slot !== slot) {
+      slot = now.fixture.slot;
+      goals = live ? live.sim.goals : 0;
     }
     // The picture, eight times a second
     drawn += delta;
     if (drawn > 0.12) {
       drawn = 0;
-      match.drawBroadcast(ctx, canvas.width, canvas.height);
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      ctx.fillRect(10, 10, 300, 34);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '800 20px system-ui, sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      ctx.fillText(`${match.teams[0]} ${match.score[0]} - ${match.score[1]} ${match.teams[1]}`, 20, 27);
-      ctx.fillStyle = '#dc2626';
-      ctx.fillRect(canvas.width - 86, 12, 74, 28);
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.fillText(`LIVE ${match.minute}'`, canvas.width - 49, 27);
+      if (live && now.phase === 'live') {
+        const match = live.sim;
+        match.drawBroadcast(ctx, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.fillRect(10, 10, 300, 34);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '800 20px system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${match.teams[0]} ${match.score[0]} - ${match.score[1]} ${match.teams[1]}`, 20, 27, 284);
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(canvas.width - 86, 12, 74, 28);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(`LIVE ${match.minute}'`, canvas.width - 49, 27);
+      } else {
+        // Between matches: the last score and the next kick-off
+        const next = fixture(now.fixture.slot + 1);
+        const wait = Math.max(0, Math.ceil((next.kickoff - Date.now()) / 1000));
+        ctx.fillStyle = '#0b3d24';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '800 22px system-ui, sans-serif';
+        ctx.fillText('EKO PREMIER LEAGUE', canvas.width / 2, 46);
+        ctx.font = '700 20px system-ui, sans-serif';
+        if (live) ctx.fillText(`FULL TIME  ${now.fixture.home.name} ${live.sim.score[0]} - ${live.sim.score[1]} ${now.fixture.away.name}`, canvas.width / 2, 110, canvas.width - 30);
+        ctx.fillStyle = '#fde68a';
+        ctx.font = '800 26px system-ui, sans-serif';
+        ctx.fillText(`NEXT: ${next.home.name} v ${next.away.name}`, canvas.width / 2, 170, canvas.width - 30);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '700 18px system-ui, sans-serif';
+        ctx.fillText(`Kick-off in ${Math.floor(wait / 60)}:${String(wait % 60).padStart(2, '0')} · bets on Naija Odds`, canvas.width / 2, 220);
+      }
       texture.needsUpdate = true;
     }
+    const match = live?.sim;
+    if (!match) return;
     // A goal: the roar, the call, the fans up
     if (match.goals !== goals) {
       goals = match.goals;
@@ -133,7 +150,7 @@ export function attachViewing(room: PlaceInterior): void {
       if (cheer <= 0) for (const fan of fans) fan.pose('sit');
     }
     nextCall -= delta;
-    if (nextCall <= 0) {
+    if (nextCall <= 0 && now.phase === 'live') {
       nextCall = 9 + Math.random() * 9;
       say(CALLS.play[Math.floor(Math.random() * CALLS.play.length)], false);
     }

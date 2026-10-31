@@ -4,7 +4,7 @@ import type { MatchSim } from '../world/landmarks/MatchSim';
 export type Channel = 'football' | 'news' | 'music';
 
 export const CHANNELS: Array<{ id: Channel; name: string; icon: string }> = [
-  { id: 'football', name: 'Football, live from the National Stadium', icon: '⚽' },
+  { id: 'football', name: 'Football: the National Stadium, or the Eko Premier League', icon: '⚽' },
   { id: 'news', name: 'NigeriaLife News', icon: '📰' },
   { id: 'music', name: 'Afrobeats countdown', icon: '🎵' },
 ];
@@ -27,6 +27,8 @@ export class Television {
   /** The match on the football channel, and whether one is being played now */
   public static match: MatchSim | null = null;
   public static matchOn: () => boolean = () => true;
+  /** When the stadium has nothing on: the league match being played now (set by the game) */
+  public static league: () => { match: MatchSim | null; line: string } = () => ({ match: null, line: '' });
   /** The time on the game's clock, for the news */
   public static clock: () => { day: number; hour: number } = () => ({ day: 1, hour: 12 });
 
@@ -90,8 +92,10 @@ export class Television {
   }
 
   private football(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-    const match = Television.match;
-    if (!match || !Television.matchOn()) {
+    const stadium = Television.match && Television.matchOn() ? Television.match : null;
+    const league = stadium ? null : Television.league();
+    const match = stadium ?? league?.match ?? null;
+    if (!match) {
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, 0, width, height);
       ctx.fillStyle = '#f8fafc';
@@ -101,7 +105,7 @@ export class Television {
       ctx.fillText('No match on now', width / 2, height / 2 - 14);
       ctx.fillStyle = '#94a3b8';
       ctx.font = '600 15px system-ui, sans-serif';
-      ctx.fillText('Kick-off at 9:00 at the National Stadium', width / 2, height / 2 + 14);
+      ctx.fillText(league?.line || 'Kick-off at 9:00 at the National Stadium', width / 2, height / 2 + 14, width - 16);
       return;
     }
     match.drawBroadcast(ctx, width, height);

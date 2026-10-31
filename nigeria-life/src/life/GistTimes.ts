@@ -108,7 +108,9 @@ export class GistTimes {
       this.note(`${who} has packed out and moved up to ${Ladder.get().current.area}. From grass to grace!`);
     } else if (e.kind === 'city' && e.city !== 'lagos') {
       this.note(`${who} touched down in ${e.city === 'abuja' ? 'Abuja' : e.city === 'port_harcourt' ? 'Port Harcourt' : e.city}. Business trip or enjoyment?`);
-    } else if (e.kind === 'game' && e.won && e.stake >= 5_000) {
+    } else if (e.kind === 'game' && e.won && e.game === 'bet' && e.stake >= 50_000) {
+      this.note(`${who} called it at the football and the bookie paid out. Big stake, bigger smile.`);
+    } else if (e.kind === 'game' && e.won && e.game !== 'bet' && e.stake >= 5_000) {
       this.note(`${who} won the pot at ${e.game === 'ayo' ? 'Ayo' : 'Whot'} for ${naira(e.stake * (e.game === 'ayo' ? 2 : 4))}. The streets are talking.`);
     } else if (e.kind === 'case' && e.id.startsWith('case-')) {
       this.note(`${who} cracked a case the police could not. Lagos has a new detective!`);

@@ -30,10 +30,12 @@ const FORMATION: Array<[number, number, boolean?]> = [
 
 /** Game minutes in a match, and how many real seconds one takes to play out */
 const MATCH_MINUTES = 90;
-const MATCH_SECONDS = 240;
+export const MATCH_SECONDS = 240;
 const BREAK_SECONDS = 20;
 /** How often a shot on target is kept out */
 const SAVED = 0.84;
+/** The fixed step a match is played in when it has to come out the same every time (a league match) */
+export const MATCH_STEP = 0.1;
 
 export class MatchSim {
   public readonly halfLength: number;
@@ -55,12 +57,16 @@ export class MatchSim {
   private holder: MatchPlayer | null = null;
   private holdFor = 0;
   private seed: number;
+  /** How good each side is (1 is ordinary): a better side's shots beat the keeper more often */
+  private readonly strength: [number, number];
+  private fixedSteps = 0;
 
-  constructor(length = 36, width = 24, teams: [string, string] = ['Eko United', 'Rivers Stars'], seed = 7) {
+  constructor(length = 36, width = 24, teams: [string, string] = ['Eko United', 'Rivers Stars'], seed = 7, strength: [number, number] = [1, 1]) {
     this.halfLength = length / 2;
     this.halfWidth = width / 2;
     this.teams = teams;
     this.seed = seed;
+    this.strength = strength;
     for (const team of [0, 1] as const) {
       const side = team === 0 ? 1 : -1;
       for (const [fx, fz, keeper] of FORMATION) {
@@ -86,6 +92,26 @@ export class MatchSim {
     this.ball = { x: 0, z: 0, vx: 0, vz: 0, height: 0 };
     this.holder = this.players.find((player) => player.team === team && !player.keeper && Math.abs(player.homeZ) < 0.1 && Math.abs(player.homeX) < this.halfLength * 0.2) ?? null;
     this.holdFor = 1.2;
+  }
+
+  /** How often a shot on target from this side is kept out: the plain rate between equals */
+  private saveRate(shooting: 0 | 1): number {
+    const [a, b] = this.strength;
+    if (a === b) return SAVED;
+    const ratio = shooting === 0 ? a / b : b / a;
+    return Math.max(0.6, Math.min(0.95, 1 - (1 - SAVED) * ratio));
+  }
+
+  /** Plays on in fixed steps to this many seconds after kick-off, so the same seed always gives the same match. */
+  public playTo(seconds: number): void {
+    const whole = Math.round(MATCH_SECONDS / MATCH_STEP);
+    const target = Math.min(whole, Math.floor(seconds / MATCH_STEP + 1e-9));
+    while (this.fixedSteps < target) {
+      this.update(MATCH_STEP);
+      this.fixedSteps += 1;
+    }
+    // Counted in whole steps, so the final whistle is not missed by a rounding of the clock
+    if (this.fixedSteps >= whole) this.clock = Math.max(this.clock, MATCH_SECONDS);
   }
 
   /** The minute on the scoreboard clock. */
@@ -156,7 +182,7 @@ export class MatchSim {
       const defending: 0 | 1 = this.ball.x > 0 ? 1 : 0;
       const keeper = this.players.find((player) => player.keeper && player.team === defending)!;
       // Most shots on target are saved: the keeper gathers the ball and plays on
-      if (Math.abs(this.ball.z) < 3.4 && this.random() < SAVED) {
+      if (Math.abs(this.ball.z) < 3.4 && this.random() < this.saveRate(defending === 1 ? 0 : 1)) {
         this.saves += 1;
         this.ball.x = Math.sign(this.ball.x) * (this.halfLength - 0.6);
         keeper.z = this.ball.z;

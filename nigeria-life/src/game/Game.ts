@@ -123,6 +123,9 @@ import { isRushHour } from '../world/StreetLife';
 import { ResidentialInterior } from '../interiors/templates/ResidentialInterior';
 import { standardOf } from '../housing/HomeStandard';
 import { Television } from '../housing/Television';
+import { Bets } from '../sport/Bets';
+import * as LeagueRules from '../sport/League';
+const leagueFixture = LeagueRules.fixture;
 import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
@@ -241,7 +244,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -1233,6 +1236,17 @@ export class Game {
     Television.match = this.world.landmarks.stadium.match;
     Television.matchOn = () => this.world.landmarks.stadium.status?.().open === true;
     Television.clock = () => ({ day: this.world.skyEnvironment.day, hour: this.world.skyEnvironment.currentHour });
+    // Otherwise the football channel has the league match on, the same one the betting app follows
+    Television.league = () => {
+      const now = Bets.get().now();
+      if (now.match && now.phase === 'live') return { match: now.match.sim, line: '' };
+      const next = leagueFixture(now.fixture.slot + 1);
+      const wait = Math.max(0, Math.ceil((next.kickoff - Date.now()) / 1000));
+      return { match: null, line: `League: ${next.home.name} v ${next.away.name} in ${Math.floor(wait / 60)}:${String(wait % 60).padStart(2, '0')}` };
+    };
+    // Bets placed earlier are paid at full time even before the phone is opened
+    Bets.tell = (text) => showGameToast(text, 'success', 5200);
+    Bets.get();
 
     // Buildings and walls are solid to someone on foot and to a vehicle being driven
     this.player.solids = () => this.solidsHere();
