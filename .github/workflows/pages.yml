@@ -30,6 +30,8 @@ jobs:
         run: npx vite build --base=/NigeriaLife/
         env:
           VITE_BUILD_ID: ${{ github.sha }}
+          # The world server on Render: accounts, money, rooms, chat, other players
+          VITE_DEFAULT_SERVER: https://nigerialife-server.onrender.com
       - name: Version note and fallback page
         run: |
           echo "{\"build\":\"${{ github.sha }}\"}" > dist/version.json
