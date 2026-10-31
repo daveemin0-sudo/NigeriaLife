@@ -58,6 +58,65 @@ export class WorldMapUI {
   /** Places along the expressway, pinned where they stand */
   public extraPins?: () => Array<{ id: string; name: string; icon: string; x: number; z: number; category: 'transit' | 'food' | 'work' | 'civic' | 'other' }>;
   public onPickExtra?: (id: string) => void;
+  /** Brings a point of the map into the middle (set by the HUD) */
+  public onFocusPoint?: (x: number, z: number) => void;
+  /** Glides the map along the road to a point (set by the HUD) */
+  public onRailTo?: (z: number) => void;
+  private railEl: HTMLDivElement | null = null;
+  private railReach = { minZ: -160, maxZ: 7235 };
+
+  /**
+   * Down the side of Lagos's map: the road from Broad Street to Agege as a line with its stops,
+   * tapped to glide there, or dragged along to run up and down the whole of it. Shown for the
+   * real Lagos only; `z` is where the map is looking, `me` where the player is.
+   */
+  public updateRail(show: boolean, z: number, me: number | null, reach: { minZ: number; maxZ: number }): void {
+    if (!this.railEl) {
+      const rail = document.createElement('div');
+      rail.id = 'map-rail';
+      rail.className = 'map-rail';
+      const stops: Array<[string, number]> = [['Broad Street', 0], ['Victoria Island', 560], ['Third Mainland', 1950], ['Mainland', 3300], ['Ikeja', 4400], ['Oshodi', 4950], ['Airport', 6262], ['Agege', 6900]];
+      rail.innerHTML = `<div class="map-rail-track"><div class="map-rail-view" id="map-rail-view"></div><div class="map-rail-me" id="map-rail-me" title="You"></div></div>${stops.map(([name, at]) => `<button type="button" class="map-rail-stop" data-z="${at}"><span class="map-rail-dot"></span><span class="map-rail-name">${name}</span></button>`).join('')}`;
+      this.container.appendChild(rail);
+      this.railEl = rail;
+      const track = rail.querySelector('.map-rail-track') as HTMLElement;
+      const zAt = (clientY: number) => {
+        const box = track.getBoundingClientRect();
+        const t = Math.min(1, Math.max(0, (clientY - box.top) / box.height));
+        return this.railReach.minZ + t * (this.railReach.maxZ - this.railReach.minZ);
+      };
+      rail.querySelectorAll<HTMLElement>('.map-rail-stop').forEach((stop) => stop.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.onRailTo?.(Number(stop.dataset.z));
+      }));
+      // Dragged along: the whole road under one thumb
+      let scrubbing = false;
+      rail.addEventListener('pointerdown', (e) => {
+        if ((e.target as HTMLElement).closest('.map-rail-stop')) return;
+        scrubbing = true;
+        rail.setPointerCapture(e.pointerId);
+        this.onRailTo?.(zAt(e.clientY));
+        e.stopPropagation();
+      });
+      rail.addEventListener('pointermove', (e) => { if (scrubbing) this.onRailTo?.(zAt(e.clientY)); });
+      const stop = () => { scrubbing = false; };
+      rail.addEventListener('pointerup', stop);
+      rail.addEventListener('pointercancel', stop);
+    }
+    this.railEl.style.display = show ? '' : 'none';
+    if (!show) return;
+    this.railReach = reach;
+    const span = reach.maxZ - reach.minZ;
+    // The stops along the track where they are on the road
+    this.railEl.querySelectorAll<HTMLElement>('.map-rail-stop').forEach((stop) => {
+      stop.style.top = `${((Number(stop.dataset.z) - reach.minZ) / span) * 100}%`;
+    });
+    const view = this.railEl.querySelector('#map-rail-view') as HTMLElement;
+    view.style.top = `${((z - reach.minZ) / span) * 100}%`;
+    const mine = this.railEl.querySelector('#map-rail-me') as HTMLElement;
+    mine.style.display = me === null ? 'none' : '';
+    if (me !== null) mine.style.top = `${((me - reach.minZ) / span) * 100}%`;
+  }
   /** Where the place a pin stands for really is in the city, when the map is the city itself. Null if it has no real counterpart. */
   public locate?: (landmark: MapLandmark, cityId?: string) => THREE.Vector3 | null;
   public onTravelToProperty?: (property: MapProperty) => void;
@@ -297,7 +356,13 @@ export class WorldMapUI {
         hits.push({ id: lm.id, name: dest?.name ?? lm.name, icon: lm.icon || dest?.mapIcon || '📍', where, city, here, rank: score + (here ? 0 : 10) });
       }
     }
-    return hits.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).slice(0, 8);
+    // And the places along the roads, pinned on Lagos's map
+    for (const p of this.extraPins?.() ?? []) {
+      const score = rank(p.name, [p.category, registry.getById(p.id)?.category ?? '', registry.getById(p.id)?.districtName ?? '']);
+      if (score < 0 || hits.some((h) => h.name === p.name)) continue;
+      hits.push({ id: p.id, name: p.name, icon: p.icon, where: registry.getById(p.id)?.districtName ?? 'Along the road', city: 'lagos', here: viewing === 'lagos', rank: score + (viewing === 'lagos' ? 0 : 10) });
+    }
+    return hits.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).slice(0, 10);
   }
 
   private showSearchResults(text: string): void {
@@ -333,6 +398,12 @@ export class WorldMapUI {
       row.append(icon, name, where);
       row.addEventListener('click', () => {
         list.style.display = 'none';
+        const extra = this.extraPins?.().find((p) => p.id === hit.id);
+        if (extra) {
+          this.onFocusPoint?.(extra.x, extra.z);
+          this.onPickExtra?.(extra.id);
+          return;
+        }
         this.goToPlace(hit.id, hit.city);
       });
       list.appendChild(row);

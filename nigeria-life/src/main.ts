@@ -1,4 +1,5 @@
 import '@fontsource-variable/outfit/wght.css';
+import { StreetAmbience } from './audio/StreetAmbience';
 import '@fontsource-variable/plus-jakarta-sans/wght.css';
 // Righteous for headings and banners; a flowing script for players' names
 import '@fontsource/righteous/400.css';
@@ -34,6 +35,8 @@ void fontsReady.then(() => {
       splash.classList.add('is-gone');
       setTimeout(() => splash.remove(), 650);
     }));
+    // The speech engine is woken at the first tap (Continue on the title), not mid-street
+    window.addEventListener('pointerdown', () => StreetAmbience.get().warm(), { once: true, capture: true });
     // The title over the city, to carry on or begin a new life (not for the automated tests, unless asked for)
     const w = window as any;
     if (!navigator.webdriver || w.__titleOn) {

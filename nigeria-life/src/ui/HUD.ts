@@ -931,18 +931,50 @@ export class HUD {
         return { id: o.id, name: o.name, icon: ROAD_ICONS[key] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: ROAD_KIND[key] ?? 'other' };
       });
     };
+    // Every place along the roads is on the record too: found by name in the map's search and the phone's Ride list
+    const ROAD_CATEGORY: Record<string, DestinationDefinition['category']> = { food: 'Restaurant', transit: 'Transit', civic: 'Civic', work: 'Civic', other: 'Culture' };
+    const registerRoadside = () => {
+      const registry = DestinationRegistry.getInstance();
+      const taxi = registry.getDefaultTransportOptions().filter((t) => t.mode === 'taxi' || t.mode === 'bike');
+      for (const o of this.world?.expressway.roadside.interactive ?? []) {
+        if (registry.getById(o.id) || registry.getAllForCity('lagos').some((d) => d.name === o.name)) continue;
+        const key = o.id.replace('roadside-', '');
+        const at = o.interactionPoint.clone();
+        const category: DestinationDefinition['category'] = /hotel/.test(key) ? 'Hotel' : /cathedral|mosque|church|arena/.test(key) ? 'Church' : /beach/.test(key) ? 'Beach' : /bank/.test(key) ? 'Bank' : /terminal|airfield/.test(key) ? 'Airport' : /lasuth|pharmacy/.test(key) ? 'Healthcare' : /mall|mart|fresh|market|village/.test(key) ? 'Market' : ROAD_CATEGORY[ROAD_KIND[key] ?? 'other'];
+        registry.register({
+          id: o.id, aliases: [key], name: o.name, category, city: 'lagos', district: 'expressway', districtName: o.category,
+          mapPosition: at.clone(), mapVisualType: 'roadside', mapIcon: ROAD_ICONS[key] ?? '📍', exteriorType: 'roadside',
+          streetPosition: at.clone(), entrance: { position: at.clone(), promptLabel: o.name, triggerRadius: 3 }, interiorId: '',
+          transportAvailability: [{ mode: 'walk', label: 'Walk on Foot', icon: '🚶', fare: 0, travelTimeSec: 60, description: 'A long walk along the road.' }, ...taxi],
+          npcPopulation: [], activities: [], services: [o.category], destinationDescription: o.description, shortDescription: o.description, isEnterable: false,
+        });
+      }
+    };
+    registerRoadside();
+    this.worldMapUI.onFocusPoint = (x, z) => this.world?.worldMap.focusOn(x, z);
+    this.worldMapUI.onRailTo = (z) => this.world?.worldMap.glideTo(z);
     this.worldMapUI.onPickExtra = (id) => {
       const place = this.world?.expressway.roadside.interactive.find((o) => o.id === id);
       if (!place || inAnotherCity()) return;
       const metres = Math.round(Math.hypot(place.interactionPoint.x - this.player.position.x, place.interactionPoint.z - this.player.position.z));
       const fare = Math.round(4500 * RideService.fareFactor());
+      const dest = DestinationRegistry.getInstance().getById(id);
+      const drive = dest ? this.worldMapUI.driveOption?.(dest) : null;
       this.showDialogueModal({
         speakerName: place.name,
-        speakerRole: `${place.category} · along the expressway`,
+        speakerRole: `${place.category} · along the road`,
         speakerAvatar: ROAD_ICONS[id.replace('roadside-', '')] ?? '📍',
         dialogueText: `${place.description} About ${(metres / 1000).toFixed(1)} km from you.`,
         choices: [
+          ...(drive ? [{ id: 'drive', label: '🧭 Drive yourself: arrows on the road', badge: 'Free', onSelect: () => {
+            backToTheStreet();
+            if (!this.onDriveTo?.(place.name, place.interactionPoint.clone())) return;
+            this.worldMapUI.close();
+            UIStateManager.getInstance().setMode(this.player.isDriving ? 'driving' : 'street');
+            this.onNavigateMode?.('street');
+          } }] : []),
           { id: 'cab', label: `🚕 Take a cab there`, badge: `₦${fare.toLocaleString()}`, onSelect: () => { backToTheStreet(); this.onRideTo?.(place.interactionPoint.clone(), place.name, fare); } },
+          ...(metres < 1500 ? [{ id: 'walk', label: '🚶 Walk there', badge: 'Free', onSelect: () => walkFromMap(place.interactionPoint.clone(), place.name) }] : []),
           { id: 'look', label: 'Just looking', onSelect: () => {} },
         ],
       });

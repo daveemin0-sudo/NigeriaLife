@@ -11,6 +11,12 @@ import { assetKey, type Listing, type Outcome, type RegistryState, type VehicleR
  *
  * Prices follow what each costs in Nigeria in 2025, new or clean foreign-used, in naira.
  */
+/** A full service and repair back to 100%: parts and labour scale with the wear and the car's price (a Corolla is not a Lamborghini) */
+export function serviceCost(model: { price: number }, condition: number): number {
+  const wear = Math.max(0, 100 - condition) / 100;
+  return Math.max(25_000, Math.round((model.price * 0.06 * wear + 15_000) / 5_000) * 5_000);
+}
+
 export interface VehicleModel {
   id: string;
   name: string;

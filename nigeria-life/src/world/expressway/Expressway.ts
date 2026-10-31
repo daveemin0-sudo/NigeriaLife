@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RedLine } from './RedLine';
+import { RedLine, VIADUCT } from './RedLine';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
 import type { Obstruction } from '../plan/CityPlan';
@@ -59,7 +59,30 @@ const BILLBOARDS: Array<[string, string, string]> = [
   ['OWAMBE HALL', 'Weddings · Birthdays · Burials', '#7c3aed'],
   ['SANKOFA MOTORS', 'New & tokunbo · Victoria Island', '#0f172a'],
   ['LAGOS eTAG', 'Pass the toll without stopping', '#0d9488'],
+  ['EKO RIDES', 'Drive with us · earn every trip', '#059669'],
+  ['ZOBO QUEEN', 'Cold zobo · ginger · no sugar wahala', '#9d174d'],
+  ['SUPER EAGLES', 'Watch every match · Oga Sunday\'s', '#15803d'],
+  ['BANANA ISLAND', 'Live where Lagos dreams · plots selling', '#b45309'],
+  ['QUILOX', 'Friday night · Victoria Island', '#111827'],
+  ['MAMA PUT', 'Food wey sweet pass your mama own', '#ea580c'],
+  ['VOTE: LAGOS FIRST', 'Your PVC is your power', '#1e3a8a'],
+  ['NOLLYWOOD NIGHTS', 'New film this Friday · Ikeja City Mall', '#6d28d9'],
 ];
+
+const CAR_PAINT = [0xf8fafc, 0x111827, 0x9ca3af, 0x1d4ed8, 0xb91c1c, 0xfacc15, 0x065f46, 0x78350f, 0xe5e7eb];
+
+/** One texture per advert, however many boards carry it */
+const ADS = new Map<string, THREE.Texture>();
+
+/** A parked car on the shoulder: body, cabin, glass and wheels, nose along +z */
+function parkedCar(b: Builder, x: number, z: number, colour: number, flip: boolean): void {
+  const y = flip ? Math.PI : 0;
+  b.box(colour, 1.8, 0.62, 4.3, x, 0.3, z, { yaw: y });
+  b.box(colour, 1.62, 0.56, 2.3, x, 0.92, z - (flip ? -0.25 : 0.25), { yaw: y });
+  b.box(0x1e293b, 1.66, 0.42, 2.0, x, 0.99, z - (flip ? -0.25 : 0.25), { yaw: y });
+  for (const wz of [-1.35, 1.35]) for (const wx of [-0.86, 0.86]) b.cylinder(0x111827, 0.34, 0.24, x + wx, 0.34, z + wz, { roll: Math.PI / 2, sides: 10 });
+  b.box(0xfef3c7, 1.2, 0.12, 0.05, x, 0.62, z + (flip ? -2.16 : 2.16), { glow: true });
+}
 
 export class Expressway {
   public readonly group = new THREE.Group();
@@ -171,7 +194,7 @@ export class Expressway {
     }
     // Lamps down the median, every 40 m, an arm over each carriageway
     for (let z = z0 + 20; z < z1; z += 40) {
-      if ((gap && Math.abs(z - gap) < 14) || z < 140) continue;
+      if ((gap && Math.abs(z - gap) < 14) || z < 140 || (z > VIADUCT.from && z < VIADUCT.to)) continue;
       b.cylinder(0x6b7280, 0.14, 10, 0, 0.16, z);
       for (const side of [-1, 1]) {
         b.box(0x6b7280, 3.2, 0.14, 0.14, side * 1.6, 9.9, z);
@@ -191,17 +214,11 @@ export class Expressway {
       if (mesh.isMesh) mesh.receiveShadow = true;
     });
     this.add(z0, built);
-    // A billboard now and then
-    if (!water && Math.floor(z0 / 100) % 4 === 1) {
-      const [title, line, bg] = BILLBOARDS[Math.floor(z0 / 400) % BILLBOARDS.length];
-      const side = Math.floor(z0 / 400) % 2 ? 1 : -1;
-      const board = sign(title, line, 12, 5, bg);
-      board.position.set(side * (H + EXPRESS.walk + 3), 10, mid);
-      // Its face to the road
-      board.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
-      const posts = new Builder().box(0x374151, 0.4, 7.5, 0.4, side * (H + EXPRESS.walk + 3), 0, mid - 4).box(0x374151, 0.4, 7.5, 0.4, side * (H + EXPRESS.walk + 3), 0, mid + 4).build('billboard posts');
-      this.add(z0, board);
-      this.add(z0, posts);
+    // Billboards every 200 m, a side each time, big, lit and turned to the traffic coming
+    if (!water && Math.floor(z0 / 100) % 2 === 1) {
+      const n = Math.floor(z0 / 200);
+      const side = n % 2 ? 1 : -1;
+      this.billboard(z0, side, mid, BILLBOARDS[n % BILLBOARDS.length], BILLBOARDS[(n + 5) % BILLBOARDS.length]);
     }
     // Direction signs
     if (z0 === 300 || z0 === 2800) {
@@ -212,6 +229,42 @@ export class Expressway {
       board.rotation.y = Math.PI;
       this.add(z0, board);
       this.add(z0, new Builder().box(0x6b7280, 0.3, 7.6, 0.3, -H - 0.2, 0, z0 + 10).box(0x6b7280, H + 0.6, 0.3, 0.3, -H / 2, 7.6, z0 + 10).build('sign gantry'));
+    }
+  }
+
+  /**
+   * A Lagos unipole: a thick steel pole by the road, a catwalk, a big board angled to the traffic
+   * on each face, an advert on each, lamps over them so they read at night.
+   */
+  private billboard(chunkZ: number, side: number, z: number, front: [string, string, string], back: [string, string, string]): void {
+    // On the outer edge of the pavement, clear of the shopfronts behind it
+    const x = side * (EXPRESS.half + EXPRESS.walk - 0.8);
+    const W = 16;
+    const Hb = 6.4;
+    const y = 13;
+    const b = new Builder();
+    b.cylinder(0x4b5563, 0.55, y - Hb / 2, x, 0, z, { sides: 14 }).cylinder(0x374151, 1.1, 0.4, x, 0, z, { sides: 14 });
+    // The frame and the catwalk under the boards
+    b.box(0x1f2937, 2.2, 0.25, W + 0.6, x, y - Hb / 2 - 0.35, z);
+    b.box(0x111827, 1.0, Hb + 0.4, W + 0.4, x, y - Hb / 2 - 0.2, z);
+    for (let k = -W / 2 + 1; k <= W / 2 - 1; k += 3.5) {
+      b.box(0x6b7280, 0.12, 0.6, 0.12, x - side * 1.2, y + Hb / 2 + 0.2, z + k).box(0xfff7d6, 0.5, 0.18, 0.5, x - side * 1.5, y + Hb / 2 + 0.7, z + k, { glow: true });
+    }
+    this.add(chunkZ, b.build('billboard'));
+    this.solid('Billboard pole', x - 0.6, x + 0.6, z - 0.6, z + 0.6, y, false, true);
+    for (const [ad, face] of [[front, -side], [back, side]] as Array<[[string, string, string], number]>) {
+      const key = ad.join('|');
+      let tex = ADS.get(key);
+      if (!tex) {
+        tex = (sign(ad[0], ad[1], W, Hb, ad[2]).material as THREE.MeshBasicMaterial).map!;
+        ADS.set(key, tex);
+      }
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(W, Hb), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+      board.name = `billboard: ${ad[0]}`;
+      board.position.set(x + face * 0.52, y, z);
+      // Each face to its side of the road, a little toward the traffic coming
+      board.rotation.y = (face < 0 ? -Math.PI / 2 : Math.PI / 2) + face * side * 0.18;
+      this.add(chunkZ, board);
     }
   }
 
@@ -247,6 +300,11 @@ export class Expressway {
             const lit = this.rand() < 0.3;
             b.box(lit ? 0xfde68a : 0x1e293b, 0.05, 1.3, 1.3, faceX, f * 3.2 + 1.1, z + w, { glow: lit });
           }
+        }
+        // A car parked on the shoulder in front of the shop, now and then
+        if (!tall && this.rand() < 0.3 && !EXPRESS_BRIDGES.some((bz) => Math.abs(bz - cz) < 14)) {
+          parkedCar(b, side * (EXPRESS.half - 0.75), cz, CAR_PAINT[Math.floor(this.rand() * CAR_PAINT.length)], side > 0);
+          this.solid('Parked car', side * (EXPRESS.half - 0.75) - 0.95, side * (EXPRESS.half - 0.75) + 0.95, cz - 2.2, cz + 2.2, 1.4);
         }
         if (!tall) {
           // A shop sign over the ground floor, and a roof

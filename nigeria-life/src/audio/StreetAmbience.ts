@@ -136,6 +136,27 @@ export class StreetAmbience {
   private voiceSet: { man: SpeechSynthesisVoice | null; woman: SpeechSynthesisVoice | null; any: SpeechSynthesisVoice | null } | null = null;
   /** Voices in the street (a setting) */
   public voices = true;
+  /** A street voice of ours is speaking */
+  private calling = false;
+  private warmed = false;
+
+  /**
+   * Wakes the speech engine with a silent word at the first tap, so the first conductor's call on
+   * Broad Street does not stall the game while the engine starts.
+   */
+  public warm(): void {
+    if (this.warmed || typeof window === 'undefined' || !window.speechSynthesis) return;
+    this.warmed = true;
+    try {
+      const all = window.speechSynthesis.getVoices();
+      if (all.length) this.voiceSet = this.pickVoices(all);
+      const hush = new SpeechSynthesisUtterance(' ');
+      hush.volume = 0;
+      window.speechSynthesis.speak(hush);
+    } catch {
+      // No speech here: the street is heard without voices
+    }
+  }
 
   private constructor() {
     try {
@@ -210,6 +231,11 @@ export class StreetAmbience {
     this.crowd!.gain.setTargetAtTime((night ? 0.03 : 0.11) * busy * swell * (here.driving ? 0.6 : 1), ctx.currentTime, 0.4);
     this.crowdFilter!.frequency.setTargetAtTime(560 + 220 * Math.sin(this.time * 1.3), ctx.currentTime, 0.3);
     this.traffic!.gain.setTargetAtTime(0.12 * roads * (here.driving ? 1.2 : 1), ctx.currentTime, 0.5);
+    // Indoors, or off the main road: a voice from the street stops there and then
+    if (!here.outside || !here.onMainRoad) {
+      if (this.calling && typeof window !== 'undefined') window.speechSynthesis?.cancel();
+      this.calling = false;
+    }
     if (!here.outside) return;
 
     // A horn somewhere in the traffic
@@ -232,7 +258,9 @@ export class StreetAmbience {
 
   /** A man's voice and a woman's, Nigerian English first, from what this browser has */
   private pickVoices(all: SpeechSynthesisVoice[]): { man: SpeechSynthesisVoice | null; woman: SpeechSynthesisVoice | null; any: SpeechSynthesisVoice | null } {
-    const english = all.filter((v) => /^en/i.test(v.lang));
+    // Voices on the device first: one fetched over the network can hold the game up as it starts
+    const local = all.filter((v) => v.localService);
+    const english = (local.some((v) => /^en/i.test(v.lang)) ? local : all).filter((v) => /^en/i.test(v.lang));
     const nigerian = english.filter((v) => /en[-_]NG/i.test(v.lang) || /nigeria/i.test(v.name));
     const pick = (test: RegExp) => nigerian.find((v) => test.test(v.name)) ?? english.find((v) => test.test(v.name) && /GB|NG|ZA|KE|GH/i.test(v.lang)) ?? english.find((v) => test.test(v.name)) ?? null;
     return { man: pick(MALE), woman: pick(FEMALE), any: nigerian[0] ?? english[0] ?? null };
@@ -268,6 +296,8 @@ export class StreetAmbience {
       line.rate = 1.08 + Math.random() * 0.15;
       line.pitch = fitted ? 0.82 + Math.random() * 0.15 : 0.6 + Math.random() * 0.12;
     }
+    this.calling = true;
+    line.onend = () => { this.calling = false; };
     speech.speak(line);
   }
 }

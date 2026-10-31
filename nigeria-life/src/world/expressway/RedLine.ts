@@ -54,6 +54,8 @@ const RUN = { top: 22, accel: 1.1, dwell: 16 };
 const TRAINS = 6;
 const LINE_FROM = STATIONS[0].z - 160;
 const LINE_TO = STATIONS[STATIONS.length - 1].z + 160;
+/** Where the viaduct runs over the road: no lamp posts up through it (its own lights hang under the deck) */
+export const VIADUCT = { from: LINE_FROM - 10, to: LINE_TO + 10 };
 const FARE_BASE = 500;
 const FARE_PER_STOP = 250;
 const DRAW = 900;
@@ -221,6 +223,13 @@ export class RedLine {
         this.solid('Red Line column', -0.6, 0.6, z - 0.6, z + 0.6, DECK);
       }
       for (let z = z0 + 15; z < z1; z += 60) for (const sx of [-4.4, 4.4]) b.box(0xfde68a, 0.2, 0.25, 0.4, sx, DECK + 0.9, z, { glow: true });
+      // The road's lights, under the deck: a bracket out from each column's cap over each carriageway, the lamp facing down
+      for (let z = Math.ceil(z0 / 30) * 30 + 15; z < z1; z += 30) {
+        for (const side of [-1, 1]) {
+          b.box(0x6b7280, 2.4, 0.12, 0.14, side * 5.2, DECK - 1.25, z);
+          b.box(0xfff3c4, 0.8, 0.14, 0.42, side * 6.2, DECK - 1.38, z, { glow: true });
+        }
+      }
       this.segment(mid).add(b.build(`Red Line viaduct ${z0}`, { roughness: 0.8 }));
     }
   }

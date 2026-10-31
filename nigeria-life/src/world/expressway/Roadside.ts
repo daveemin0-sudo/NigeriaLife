@@ -51,7 +51,12 @@ function signBoard(text: string, sub: string, width: number, height: number, bg:
   ctx.fillStyle = fg;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `800 ${Math.round(canvas.height * (sub ? 0.4 : 0.55))}px Outfit Variable, Arial, sans-serif`;
+  // The name as big and bold as the board allows, with a dark edge so it reads against any light
+  ctx.font = `900 ${Math.round(canvas.height * (sub ? 0.46 : 0.6))}px Outfit Variable, Arial Black, Arial, sans-serif`;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(3, canvas.height * 0.04);
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.strokeText(text, canvas.width / 2, canvas.height * (sub ? 0.38 : 0.52), canvas.width - 24);
   ctx.fillText(text, canvas.width / 2, canvas.height * (sub ? 0.38 : 0.52), canvas.width - 24);
   if (sub) {
     ctx.font = `600 ${Math.round(canvas.height * 0.22)}px Outfit Variable, Arial, sans-serif`;

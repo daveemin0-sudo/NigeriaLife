@@ -18,6 +18,10 @@ export class WorldMap {
 
   // Pan & Zoom controls
   private isDragging: boolean = false;
+  /** A drag carries on a little when the finger lets go (map units a second), and a glide to a stretch of the road */
+  private fling = { x: 0, z: 0 };
+  private glide: { x: number; z: number } | null = null;
+  private lastMove = 0;
   private previousMousePosition = { x: 0, y: 0 };
   private zoomLevel: number = 1.0;
   private readonly minZoom = 0.55;
@@ -88,6 +92,8 @@ export class WorldMap {
     window.addEventListener('pointerdown', (e) => {
       if (!this.isActive) return;
       if (!PointerScope.isGameView(e.target)) return;
+      this.fling.x = this.fling.z = 0;
+      this.lastMove = performance.now();
       fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (fingers.size === 1) {
         this.isDragging = true;
@@ -120,6 +126,13 @@ export class WorldMap {
         const panSpeed = 0.42 * this.zoomLevel;
         this.cameraTarget.x -= deltaX * panSpeed;
         this.cameraTarget.z -= deltaY * panSpeed;
+        // How fast the finger was going, for the carry-on when it lets go
+        const now = performance.now();
+        const dt = Math.max(8, now - this.lastMove) / 1000;
+        this.lastMove = now;
+        this.fling.x = this.fling.x * 0.5 + ((-deltaX * panSpeed) / dt) * 0.5;
+        this.fling.z = this.fling.z * 0.5 + ((-deltaY * panSpeed) / dt) * 0.5;
+        this.glide = null;
 
         // Clamp map bounds
         const b = this.bounds();
@@ -139,6 +152,8 @@ export class WorldMap {
       if (fingers.size < 2) pinch = 0;
       if (fingers.size === 0) {
         this.isDragging = false;
+        // A finger held still before letting go does not fling
+        if (performance.now() - this.lastMove > 90) this.fling.x = this.fling.z = 0;
       } else {
         // One finger of a pinch is still down: it drags on from where it is
         const [rest] = [...fingers.values()];
@@ -396,6 +411,19 @@ export class WorldMap {
   }
 
   /** Brings a spot to the middle of the map, close enough to see what stands there. */
+  /** Glides the map along to a point (the stops down the side of Lagos's map) */
+  public glideTo(z: number, x = 0): void {
+    const b = this.bounds();
+    this.glide = { x: THREE.MathUtils.clamp(x, b.minX, b.maxX), z: THREE.MathUtils.clamp(z, b.minZ, b.maxZ) };
+    this.fling.x = this.fling.z = 0;
+  }
+
+  /** How far the map may be moved along, for the stops down its side */
+  public get reach(): { minZ: number; maxZ: number } {
+    const b = this.bounds();
+    return { minZ: b.minZ, maxZ: b.maxZ };
+  }
+
   public focusOn(x: number, z: number): void {
     const b = this.bounds();
     this.cameraTarget.set(THREE.MathUtils.clamp(x, b.minX, b.maxX), 0, THREE.MathUtils.clamp(z, b.minZ, b.maxZ));
@@ -472,6 +500,25 @@ export class WorldMap {
 
   public update(delta: number): void {
     if (!this.isActive) return;
+    // Carrying on after a flick, slowing; or gliding to a stop chosen down the side
+    if (!this.isDragging && (this.glide || Math.abs(this.fling.x) + Math.abs(this.fling.z) > 1)) {
+      const b = this.bounds();
+      if (this.glide) {
+        const k = 1 - Math.exp(-delta * 4.5);
+        this.cameraTarget.x += (this.glide.x - this.cameraTarget.x) * k;
+        this.cameraTarget.z += (this.glide.z - this.cameraTarget.z) * k;
+        if (Math.abs(this.glide.z - this.cameraTarget.z) < 1 && Math.abs(this.glide.x - this.cameraTarget.x) < 1) this.glide = null;
+      } else {
+        this.cameraTarget.x += this.fling.x * delta;
+        this.cameraTarget.z += this.fling.z * delta;
+        const slow = Math.exp(-delta * 3.2);
+        this.fling.x *= slow;
+        this.fling.z *= slow;
+      }
+      this.cameraTarget.x = THREE.MathUtils.clamp(this.cameraTarget.x, b.minX, b.maxX);
+      this.cameraTarget.z = THREE.MathUtils.clamp(this.cameraTarget.z, b.minZ, b.maxZ);
+      this.updateCameraTransform();
+    }
     this.renderer.update(delta);
   }
 }

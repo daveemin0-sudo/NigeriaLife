@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HumanMeshBuilder } from '../graphics/HumanMeshBuilder';
 import { Figure } from '../interiors/places/Worship';
 import { BUS_STOPS } from '../world/population/CityPopulation';
 import { RideHail } from '../jobs/RideHail';
@@ -97,7 +98,7 @@ import { CompanyStaff } from '../business/CompanyStaff';
 import { Convoys, ESCORTS, type EscortLevel } from '../world/convoy/Convoys';
 import type { PlaceHost } from '../destinations/PlaceActions';
 import { Supermarket, SUPERMARKET } from '../business/Supermarket';
-import { vehicleModel } from '../realestate/Garage';
+import { vehicleModel, serviceCost } from '../realestate/Garage';
 import { Politics, Policies } from '../politics/Politics';
 import { hawkerPrices } from '../world/StreetVendors';
 import { petrolPolicy } from '../world/Fuel';
@@ -131,6 +132,9 @@ import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
+
+/** Where people live: no hawkers or conductors calling (Banana Island's estate off Martins Street) */
+const QUIET_ESTATES = [{ minX: 100, maxX: 260, minZ: -70, maxZ: 60 }];
 
 /** Broad Street's carriageway, away from the crossings at the Martins Street junction: not to be walked onto */
 const NO_CROSSING = [
@@ -234,7 +238,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -975,6 +979,24 @@ export class Game {
         if (!blocked) showGameToast('Your vehicle is at the kerb.', 'success', 3200);
         return blocked;
       },
+      serviceVehicle: async (vehicleId) => {
+        const record = this.garage.record(vehicleId);
+        const model = record ? vehicleModel(record.modelId) : null;
+        if (!record || !model) return 'That vehicle is not in your garage.';
+        if (record.condition >= 99) return 'It is already in perfect shape.';
+        const cost = serviceCost(model, record.condition);
+        if (!BackendService.getInstance().pay(cost, `Full service, ${model.name} (Ladipo Auto)`, 'SHOP_PURCHASE')) return `The service is ₦${cost.toLocaleString()}. You do not have it.`;
+        await this.garage.repair(vehicleId);
+        this.ownedVehicles.sync();
+        showGameToast(`🔧 Ladipo Auto collected your ${model.name}, serviced it and brought it back: 100% condition.`, 'success', 4600);
+        return null;
+      },
+      driveToMechanic: () => {
+        const ladipo = this.world.expressway.roadside.interactive.find((o) => o.id === 'roadside-ladipo-auto');
+        if (!ladipo) return 'Ladipo Auto Market is not on this map.';
+        this.hud.phoneModal.close();
+        return this.driveTo('Ladipo Auto Market (the mechanics)', ladipo.interactionPoint.clone()) ? null : 'There is no way there by road from here.';
+      },
       canDrive: () => this.player.isDriving || !!this.ownedVehicles.ownCar(),
       rideHail: () => ({ can: cityId() === 'lagos' && (this.player.isDriving || !!this.ownedVehicles.ownCar()), online: this.rideHail.online, line: this.rideHail.status() }),
       rideHailToggle: () => {
@@ -1571,8 +1593,10 @@ export class Game {
       speakerAvatar: '🔧',
       dialogueText: 'Which one we dey fix? I go do am like new.',
       choices: mine.map((r) => {
-        const cost = Math.round((100 - r.condition) * 5000);
-        const name = vehicleModel(r.modelId)?.name ?? 'Vehicle';
+        // At the market itself, a little under the collected service
+        const model = vehicleModel(r.modelId);
+        const cost = model ? Math.round((serviceCost(model, r.condition) * 0.85) / 5000) * 5000 : Math.round((100 - r.condition) * 5000);
+        const name = model?.name ?? 'Vehicle';
         return {
           id: r.id,
           label: `${name} · ${Math.round(r.condition)}% condition`,
@@ -2530,8 +2554,10 @@ export class Game {
       const outside = !this.world.interiorManager.isPlayerInside() && this.hud.currentNavMode !== 'map';
       StreetAmbience.get().update(0.5, {
         outside,
-        // Broad Street and its pavements, or wherever there is traffic near
-        onMainRoad: outside && ((this.world.cityManager.currentCityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3) || Bodies.carsNear(at.x, at.z, 25).length >= 6),
+        // Broad Street and its pavements, or moving traffic on a main road: never an estate (Banana Island, the GRA)
+        onMainRoad: outside && !QUIET_ESTATES.some((r) => at.x > r.minX && at.x < r.maxX && at.z > r.minZ && at.z < r.maxZ)
+          && ((this.world.cityManager.currentCityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3 && at.z > MAIN_ROAD.zMin - 15 && at.z < MAIN_ROAD.zMax + 15)
+            || Bodies.carsNear(at.x, at.z, 25).filter((car) => !car.parked).length >= 6),
         driving: this.player.isDriving,
         people: outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0,
         cars: outside ? Bodies.carsNear(at.x, at.z, 30).length : 0,
@@ -2617,6 +2643,9 @@ export class Game {
     // Keep the map's place pins over their buildings
     if (this.hud.currentNavMode === 'map') {
       this.hud.worldMapUI.updatePins(this.world.worldMap.mapCamera);
+      const map = this.world.worldMap;
+      const lagosMap = map.showingRealWorld && map.renderer.currentCityId === 'lagos';
+      this.hud.worldMapUI.updateRail(lagosMap, map.view.z, lagosMap && this.world.cityManager.currentCityId === 'lagos' ? this.player.position.z : null, map.reach);
     }
 
     this.lastStepDelta = delta;

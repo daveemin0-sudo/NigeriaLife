@@ -875,7 +875,7 @@ html body .nlphone:not(:has(.nlphone-home)) .nl-card {
 html body .nlphone:not(:has(.nlphone-home)) .nl-row { border-radius: 16px; }
 html body .nlphone:not(:has(.nlphone-home)) .nl-card { border-radius: 20px; }
 html body .nlphone:not(:has(.nlphone-home)) .nl-row-icon { background: var(--nl-surface-2); border-radius: 14px; }
-html body .nlphone:not(:has(.nlphone-home)) button.nl-row:hover:not(:disabled) { background: #fafbfa; }
+html body .nlphone:not(:has(.nlphone-home)) button.nl-row:hover:not(:disabled) { background: var(--lx-surface-2); }
 html body .nlphone:not(:has(.nlphone-home)) button.nl-row:active:not(:disabled) { transform: scale(0.99); }
 
 /* Buttons: emerald for the main one, white for the rest */
@@ -1592,3 +1592,22 @@ body.lx-title #game-toast-container { opacity: 0 !important; pointer-events: non
 .route-guide .rg-x { margin-left: 4px; width: 30px; height: 30px; flex: none; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.18); color: #fff; font-size: 13px; cursor: pointer; }
 body.ui-modal-open .route-guide, body[data-ui-mode="world-map"] .route-guide, body[data-ui-mode="interior"] .route-guide { display: none !important; }
 @media (min-width: 701px) { .route-guide { top: 70px; } }
+
+/* Dark mode: nothing turns white under the finger or the pointer; a row lifts a shade and its words stay readable */
+:root[data-theme="dark"] :is(button.nl-row, .nl-menu-item, .tm-row, .master-nav-item, .city-nav-tab, .map-filter-btn, .map-names-toggle, .top-badge, .radar-pill, .phone-close-floating-pill, .nepa-choice-pill, .house-buy-mode-btn, .nlphone-dock-btn, .nlphone-nav-btn):hover:not(:disabled) { background: var(--lx-surface-3) !important; color: var(--lx-ink) !important; }
+:root[data-theme="dark"] :is(.place-chip, .map-search-hit, .district-chip-btn, .tm-chip, .emote-btn, .cam-rot-btn):hover { background: rgba(29, 181, 116, 0.22) !important; color: var(--lx-ink) !important; }
+:root[data-theme="dark"] .game-dialogue-card .dialogue-choice-btn:hover { background: var(--lx-surface-3) !important; color: var(--lx-ink) !important; }
+:root[data-theme="dark"] .game-dialogue-card .dialogue-choice-btn:hover * { color: inherit; }
+:root[data-theme="dark"] :is(button.nl-row, .dialogue-choice-btn, .nl-menu-item, .tm-row):hover :is(.nl-row-title, .choice-label, .nl-row-sub) { color: var(--lx-ink) !important; }
+
+/* The road down the side of Lagos's map: tap a stop to glide there, or run a thumb along it */
+html body .map-rail { position: fixed; left: 10px; top: 150px; bottom: 150px; width: 128px; z-index: 6; pointer-events: auto; touch-action: none; }
+html body .map-rail-track { position: absolute; left: 12px; top: 0; bottom: 0; width: 6px; border-radius: 99px; background: linear-gradient(180deg, #0e7a4e, #1db574 45%, #e5b84b); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85), var(--lx-shadow-sm); }
+html body .map-rail-view { position: absolute; left: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #fff; border: 3px solid var(--lx-brand, #0e7a4e); box-shadow: var(--lx-shadow-sm); transition: top 0.08s linear; }
+html body .map-rail-me { position: absolute; left: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #2563eb; box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(37, 99, 235, 0.3); }
+html body .map-rail-stop { position: absolute; left: 0; transform: translateY(-50%); display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px 0; cursor: pointer; font: 700 11.5px/1 var(--nl-font, system-ui); color: var(--lx-ink, #0f1a14); }
+html body .map-rail-dot { width: 30px; display: flex; justify-content: center; }
+html body .map-rail-dot::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #0e7a4e; }
+html body .map-rail-name { background: var(--lx-glass-solid, rgba(255, 255, 255, 0.95)); padding: 4px 8px; border-radius: 99px; box-shadow: var(--lx-shadow-sm); white-space: nowrap; }
+html body .map-rail-stop:hover .map-rail-name { background: var(--lx-brand-soft); }
+@media (max-width: 700px) { html body .map-rail { top: 190px; bottom: 170px; width: 112px; } html body .map-rail-stop { font-size: 10.5px; } }

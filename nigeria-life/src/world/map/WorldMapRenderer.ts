@@ -654,11 +654,28 @@ export class WorldMapRenderer {
   /** Under and beyond the real city: water out to the horizon. */
   private buildSeaRoundTheCity(): void {
     // Lagos stands in the lagoon; Abuja on the savanna; Port Harcourt among the creeks and mangrove
-    const round = this.currentCityId === 'abuja' ? 0x5c7a32 : this.currentCityId === 'port_harcourt' ? 0x2f6b4a : 0x0b6aa0;
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshBasicMaterial({ color: round }));
+    const lagos = this.currentCityId === 'lagos';
+    const round = this.currentCityId === 'abuja' ? 0x5c7a32 : this.currentCityId === 'port_harcourt' ? 0x2f6b4a : 0x0d8fd8;
+    // Lagos: under the whole length of the road, from the ocean south of the island to the end past Agege
+    const sea = new THREE.Mesh(lagos ? new THREE.PlaneGeometry(3200, 9200) : new THREE.PlaneGeometry(1600, 1600), new THREE.MeshBasicMaterial({ color: round }));
     sea.rotation.x = -Math.PI / 2;
-    sea.position.y = -0.4;
+    sea.position.set(0, -0.4, lagos ? 3500 : 0);
     this.cityContentGroup.add(sea);
+    if (!lagos) return;
+    // The open sea is deeper blue than the lagoon
+    const ocean = new THREE.Mesh(new THREE.PlaneGeometry(3200, 1300), new THREE.MeshBasicMaterial({ color: 0x0757a8 }));
+    ocean.rotation.x = -Math.PI / 2;
+    ocean.position.set(0, -0.35, -850);
+    this.cityContentGroup.add(ocean);
+    // Names on the water and the land, big enough to read from high up
+    this.addWaterLabel('ATLANTIC OCEAN', 0, 0.5, -420, 360, 90, '#e0f2fe');
+    this.addWaterLabel('LAGOS HARBOUR', -330, 0.5, -60, 190, 48, '#e0f2fe');
+    this.addWaterLabel('LAGOS LAGOON', 320, 0.5, 1950, 300, 75, '#e0f2fe');
+    this.addWaterLabel('LAGOS LAGOON', -320, 0.5, 1650, 300, 75, '#e0f2fe');
+    this.addWaterLabel('THIRD MAINLAND BRIDGE', -150, 0.5, 2250, 230, 40, '#fef9c3');
+    for (const [name, z] of [['LAGOS ISLAND', 120], ['VICTORIA ISLAND', 640], ['IKOYI', 1050], ['YABA · MAINLAND', 3350], ['MUSHIN', 4150], ['IKEJA', 4500], ['OSHODI', 4950], ['AIRPORT', 6260], ['AGEGE', 6800]] as Array<[string, number]>) {
+      this.addWaterLabel(name, 175, 0.5, z, 170, 34, '#fefce8');
+    }
   }
 
   private buildLagosRoadsAndBridges(): void {

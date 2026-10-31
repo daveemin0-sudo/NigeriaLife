@@ -2,7 +2,7 @@ import type { PhoneApp, PhoneHost } from '../PhoneApp';
 import { chips, count, empty, esc, meter, naira, row } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
 import { AssetMarket, SALE_FEE_RATE } from '../../realestate/AssetMarket';
-import { Garage, VEHICLE_MODELS, guidePrice, vehicleModel } from '../../realestate/Garage';
+import { Garage, VEHICLE_MODELS, guidePrice, vehicleModel, serviceCost } from '../../realestate/Garage';
 import { MY_ID } from '../../realestate/Registry';
 import type { VehicleRecord } from '../../realestate/types';
 
@@ -34,6 +34,12 @@ function carScreen(host: PhoneHost, record: VehicleRecord) {
     actions = `
       <button class="nl-btn nl-btn--primary nl-btn--block" id="garage-bring" data-act="bring" data-arg="${esc(record.id)}" ${where === 'street' ? '' : 'disabled'}>Have it brought to me</button>
       ${where === 'street' ? '' : '<div class="nl-hint">It can be brought to you when you are standing on the street.</div>'}
+      <div class="nl-card${record.condition < 60 ? ' nl-card--live' : ''}" id="garage-service">
+        <div class="nl-card-title">🔧 Service and repair</div>
+        <div class="nl-card-line">${record.condition >= 99 ? 'In perfect shape. Nothing to fix.' : `Engine, brakes, tyres, body and paint, back to 100%. Ladipo Auto collects it and brings it back.`}</div>
+        ${record.condition >= 99 ? '' : `<button class="nl-btn nl-btn--primary nl-btn--block" id="garage-service-btn" data-act="service" data-arg="${esc(record.id)}">Full service · ${naira(serviceCost(model, record.condition))}</button>
+        <button class="nl-btn nl-btn--block" id="garage-mechanic-btn" data-act="mechanic">Drive it to Ladipo yourself (the arrows show the way)</button>`}
+      </div>
       ${listing ? `
         <div class="nl-card" id="garage-listing">
           <div class="nl-card-title">On the market at ${naira(listing.askingPrice)}</div>
@@ -169,6 +175,14 @@ export const garageApp: PhoneApp = {
       const result = await garage().buyNew(model.id);
       if (result.ok) host.set('garage.tab', 'mine');
       done(result.ok, `The ${model.name} is yours. Have it brought to you from its page.`, result.reason);
+    } else if (action === 'service') {
+      const blocked = await host.world.serviceVehicle(arg);
+      if (blocked) return host.say(blocked, 'bad');
+      host.say('Serviced: like new again, 100%.', 'good');
+      host.refresh();
+    } else if (action === 'mechanic') {
+      const blocked = host.world.driveToMechanic();
+      if (blocked) return host.say(blocked, 'bad');
     } else if (action === 'bring') {
       const blocked = host.world.bringVehicle(arg);
       if (blocked) return host.say(blocked, 'bad');
