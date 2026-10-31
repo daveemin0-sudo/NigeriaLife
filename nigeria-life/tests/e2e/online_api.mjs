@@ -217,6 +217,12 @@ export async function run(_browser, check) {
       rentA.ok && rentA.wallet.bank === 150000 - 90000 && !rentB.ok && /Tunde/.test(rentB.reason) && seen.ads.some((a) => a.board === 'board-2370-b' && a.headline === 'Tunde Tailors' && !a.mine) && !bogus.ok,
       { rentA: rentA.wallet, rentB: rentB.reason, seen: seen.ads, bogus: bogus.reason });
 
+    // The players' rich list: richest first, and where this player stands
+    const rich = await call('/richlist', null, tunde.token);
+    check('online: the rich list ranks players by cash and bank, richest first, and says where this player stands',
+      rich.ok && rich.list.length >= 3 && rich.list.every((p, i) => i === 0 || rich.list[i - 1].worth >= p.worth) && rich.rank >= 1 && rich.count >= rich.list.length && rich.list.some((p) => p.me) === (rich.rank <= rich.list.length),
+      { top: rich.list?.slice(0, 3), rank: rich.rank, count: rich.count });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

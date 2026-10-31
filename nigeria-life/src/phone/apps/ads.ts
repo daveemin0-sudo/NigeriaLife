@@ -22,9 +22,9 @@ const CSS = `
 .ea-swatch.is-on{border-color:var(--lx-ink,#0f172a);transform:scale(1.08)}
 .ea-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--lx-surface-solid,#fff);border:1px solid var(--lx-line,rgba(0,0,0,.06));border-radius:16px;padding:10px 12px;margin:7px 0;box-shadow:var(--lx-shadow-sm,0 4px 12px rgba(0,0,0,.06));cursor:pointer;color:var(--lx-ink,#0f172a)}
 .ea-chip{width:46px;height:30px;border-radius:7px;flex:0 0 auto;display:grid;place-items:center;font:900 8.5px/1.05 var(--lx-font,system-ui);color:#fff;text-transform:uppercase;padding:2px;overflow:hidden;box-shadow:inset 0 0 0 2px #1f2937;text-align:center}
-.ea-text{flex:1;min-width:0}
-.ea-title{font:800 13px/1.25 var(--lx-font,system-ui)}
-.ea-sub{font:600 11.5px/1.35 var(--lx-font,system-ui);color:var(--lx-dim,#64748b)}
+.ea-text{flex:1;min-width:0;display:block}
+.ea-title{display:block;font:800 13px/1.25 var(--lx-font,system-ui)}
+.ea-sub{display:block;font:600 11.5px/1.35 var(--lx-font,system-ui);color:var(--lx-dim,#64748b)}
 .ea-price{text-align:right;font:900 13px/1.2 var(--lx-font,system-ui);white-space:nowrap}
 .ea-price small{display:block;font:700 10px/1.2 var(--lx-font,system-ui);color:var(--lx-dim,#64748b)}
 .ea-tag{display:inline-block;font:800 10px/1 var(--lx-font,system-ui);padding:4px 7px;border-radius:999px;background:var(--lx-surface-2,#f1f5f9);color:var(--lx-dim,#475569);margin-top:3px}
@@ -70,7 +70,7 @@ function boardRow(b: BoardState): string {
 function detail(host: PhoneHost, id: string): string {
   const ads = Adverts.get();
   const b = ads.boards().find((s) => s.face.id === id);
-  if (!b) return empty('🪧', 'That board is not on the road', 'Go back and pick another.');
+  if (!b) return empty('📢', 'That board is not on the road', 'Go back and pick another.');
   const me = host.backend.getData().username || '';
   const r = b.rental;
   if (r && !r.mine) {
@@ -107,7 +107,7 @@ export const adsApp: PhoneApp = {
   id: 'ads',
   aliases: ['myads', 'billboards'],
   name: 'Eko Ads',
-  icon: '🪧',
+  icon: '📢',
   tint: ['#7c2d12', '#f59e0b'],
   purpose: 'Rent a billboard on the expressway and put your advert up for all Lagos to see',
   badge: () => 0,
@@ -124,7 +124,7 @@ export const adsApp: PhoneApp = {
         <span class="nl-hero-title">Eko Ads</span>
         <span class="nl-hero-sub">${ads.online ? 'Every player on the road sees your board.' : 'Your words, ten metres wide, on Lagos’s busiest road.'}</span>
       </div>
-      ${chips('ads.tab', tab, [['boards', '🪧 Boards'], ['mine', `📣 My adverts${ads.mine().length ? ` (${ads.mine().length})` : ''}`]])}`;
+      ${chips('ads.tab', tab, [['boards', '📢 Boards'], ['mine', `📣 My adverts${ads.mine().length ? ` (${ads.mine().length})` : ''}`]])}`;
     if (tab === 'mine') {
       const mine = ads.boards().filter((b) => b.rental?.mine);
       return {
@@ -142,7 +142,7 @@ export const adsApp: PhoneApp = {
           ${group('The expressway and the bridge', boards.filter((b) => b.face.z >= 1000 && b.face.z < 4110))}
           ${group('Ikorodu Road, Ikeja', boards.filter((b) => b.face.z >= 4110))}
         </div>
-        ${boards.length ? '' : empty('🪧', 'No boards here', 'The billboards are on the expressway in Lagos.')}`,
+        ${boards.length ? '' : empty('📢', 'No boards here', 'The billboards are on the expressway in Lagos.')}`,
     };
   },
 
@@ -159,7 +159,7 @@ export const adsApp: PhoneApp = {
         business: String(host.get('ads.business', '')) || null,
       });
       if (why) return host.say(why, 'bad');
-      host.say('Your advert is up on the road. 🪧', 'good');
+      host.say('Your advert is up on the road. 📢', 'good');
       return;
     }
     if (action === 'remove') {

@@ -125,6 +125,7 @@ import { standardOf } from '../housing/HomeStandard';
 import { Television } from '../housing/Television';
 import { Bets } from '../sport/Bets';
 import { Adverts } from '../business/Adverts';
+import { RichList } from '../life/RichList';
 import * as LeagueRules from '../sport/League';
 const leagueFixture = LeagueRules.fixture;
 import { Employment } from '../jobs/Employment';
@@ -245,7 +246,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -2260,6 +2261,18 @@ export class Game {
     // Under the browser tests these pay nothing, so suites that count money exactly stay exact;
     // a suite that tests them turns them on (tests/e2e/lib.mjs `life: true`)
     const quiet = navigator.webdriver && !(window as unknown as { __lifeOn?: boolean }).__lifeOn;
+    // The Rich List counts everything the player owns, at what it cost
+    RichList.worth = () => {
+      const data = be.getData();
+      return {
+        money: data.walletCash + data.bank.balance,
+        businesses: data.businesses.filter((b) => b.owned).reduce((sum, b) => sum + (b.purchasePrice ?? 0), 0),
+        land: this.land.myPlots().reduce((sum, p) => sum + (p.statePrice ?? 0), 0),
+        vehicles: this.garage.mine().reduce((sum, v) => sum + (vehicleModel(v.modelId)?.price ?? 0), 0),
+        homes: data.properties.filter((p) => p.status === 'owned' || p.status === 'purchased').reduce((sum, p) => sum + (p.purchasePrice ?? 0), 0),
+        investments: Object.values(data.investments ?? {}).reduce((sum, i) => sum + (i.spent ?? 0), 0),
+      };
+    };
     if (!quiet) Hustles.get().hooks = { pay, tell, rung: () => Ladder.get().rung, pack: (n, why) => Album.get().addPacks(n, why) };
     if (!quiet) Album.get().hooks = { pay, tell };
     if (!quiet) Ladder.get().hooks = {

@@ -185,7 +185,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -254,6 +254,14 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
     if (req.method === 'POST' && url.pathname === '/bets/place') {
       const done = league.place(account, await readBody(req));
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // The players' rich list: the twenty with the most cash and bank, and where this player stands
+    if (req.method === 'GET' && url.pathname === '/richlist') {
+      const top = db.prepare('SELECT a.id AS id, a.name AS name, w.cash + w.bank AS worth FROM wallets w JOIN accounts a ON a.id = w.account_id WHERE a.banned = 0 ORDER BY worth DESC LIMIT 20').all() as Array<{ id: string; name: string; worth: number }>;
+      const mine = economy.wallet(account.id);
+      const above = (db.prepare('SELECT COUNT(*) AS n FROM wallets w JOIN accounts a ON a.id = w.account_id WHERE a.banned = 0 AND w.cash + w.bank > ?').get(mine.cash + mine.bank) as { n: number }).n;
+      const count = (db.prepare('SELECT COUNT(*) AS n FROM wallets').get() as { n: number }).n;
+      return reply(res, 200, { ok: true, list: top.map((p) => ({ name: p.name, worth: p.worth, me: p.id === account.id })), rank: above + 1, count });
     }
     // Eko Ads: billboards on the expressway rented by players, seen by everyone
     if (req.method === 'GET' && url.pathname === '/ads') return reply(res, 200, { ok: true, ads: ads.active(account.id) });
