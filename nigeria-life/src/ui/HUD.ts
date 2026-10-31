@@ -1298,7 +1298,9 @@ export class HUD {
 
     // Keyboard Hotkeys
     window.addEventListener('keydown', (e) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      // Letters typed into any field (a one-line box, a post, a list) are words, not hotkeys
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return;
 
       if (e.key.toLowerCase() === 'c') {
         this.creatorModal.toggle();

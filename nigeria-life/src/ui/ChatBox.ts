@@ -65,7 +65,8 @@ export class ChatBox {
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const isFocused = document.activeElement === this.inputEl;
-        if (!isFocused && (document.activeElement as HTMLElement)?.tagName !== 'INPUT') {
+        const tag = (document.activeElement as HTMLElement)?.tagName;
+        if (!isFocused && tag !== 'INPUT' && tag !== 'TEXTAREA') {
           e.preventDefault();
           this.setOpen(true);
           this.inputEl.focus();

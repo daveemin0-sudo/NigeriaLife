@@ -223,6 +223,18 @@ export async function run(_browser, check) {
       rich.ok && rich.list.length >= 3 && rich.list.every((p, i) => i === 0 || rich.list[i - 1].worth >= p.worth) && rich.rank >= 1 && rich.count >= rich.list.length && rich.list.some((p) => p.me) === (rich.rank <= rich.list.length),
       { top: rich.list?.slice(0, 3), rank: rich.rank, count: rich.count });
 
+    // Yarn: one feed for every player; filtered, one post every 20 seconds, a like counted once
+    const said = await call('/feed/post', { text: 'Who dey Oga Sunday’s for the match?' }, tunde.token);
+    const yarnTooSoon = await call('/feed/post', { text: 'And again' }, tunde.token);
+    const likeOnce = await call('/feed/like', { id: said.post?.id }, funmi.token);
+    const seenFeed = await call('/feed', null, funmi.token);
+    const post = seenFeed.posts?.find((p) => p.id === said.post?.id);
+    await call('/feed/like', { id: said.post?.id }, funmi.token);
+    const unliked = (await call('/feed', null, funmi.token)).posts?.find((p) => p.id === said.post?.id);
+    check('online: a Yarn post is read by every player, a second one inside 20 seconds is refused, and a like counts once and can be taken back',
+      said.ok && !yarnTooSoon.ok && likeOnce.ok && post && post.by === 'Tunde' && post.likes === 1 && post.liked && !post.mine && unliked.likes === 0 && !unliked.liked,
+      { said: said.ok, tooSoon: yarnTooSoon.reason, post, unliked });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);
