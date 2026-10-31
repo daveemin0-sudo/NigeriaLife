@@ -24,6 +24,7 @@ import { Ads } from './ads.ts';
 import { Feed } from './feed.ts';
 import { ServerNollywood } from './nollywood.ts';
 import { ServerStaff } from './staff.ts';
+import { ServerSpark } from './spark.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -57,6 +58,7 @@ const ads = new Ads(db, economy);
 const feed = new Feed(db);
 const nollywood = new ServerNollywood(db, economy);
 const staff = new ServerStaff(db, economy);
+const spark = new ServerSpark(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -191,7 +193,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -303,6 +305,17 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
         : url.pathname === '/staff/dismiss'
           ? staff.dismiss(account.id, body)
           : staff.payDay(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Spark dating app: matching with made-up profiles and arranging dates at restaurants and lounges
+    if (req.method === 'GET' && url.pathname === '/spark') return reply(res, 200, spark.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/spark/like' || url.pathname === '/spark/schedule-date' || url.pathname === '/spark/complete-date')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/spark/like'
+        ? spark.like(account.id, body)
+        : url.pathname === '/spark/schedule-date'
+          ? spark.scheduleDate(account.id, body)
+          : spark.completeDate(account.id, body);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
     }
     return player(req, res, url, account);

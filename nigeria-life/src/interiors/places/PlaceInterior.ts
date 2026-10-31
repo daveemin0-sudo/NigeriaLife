@@ -20,6 +20,7 @@ import { attachHotel } from './Hotel';
 import { attachViewing } from './ViewingCentre';
 import { attachTravellers } from './Travellers';
 import { attachNollywood } from '../../film/Nollywood';
+import { attachSparkDate } from '../../social/Spark';
 
 /**
  * A place along the expressway, gone into: its own room, laid out for what is done there, with
@@ -248,6 +249,7 @@ export class PlaceInterior {
     if (this.spec.key === 'viewing-centre') attachViewing(this);
     if (this.spec.key === 'mmia-terminal') attachTravellers(this);
     attachNollywood(this, this.spec.key);
+    attachSparkDate(this, this.spec.key);
   }
 
   /**

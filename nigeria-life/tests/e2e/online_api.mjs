@@ -256,6 +256,17 @@ export async function run(_browser, check) {
       hireCook.ok && hireCook.paid === 4500 && funmiBeforeStaff.bank - hireCook.wallet.bank === 4500 && !hireCookAgain.ok && payDay2.ok && payDay2.paid === 4500 && hireCook.wallet.bank - payDay2.wallet.bank === 4500 && dismissCook.ok && dismissCook.snapshot.hired.length === 0,
       { hireCook, hireCookAgain: hireCookAgain.reason, payDay2, dismissCook });
 
+    // Spark dating app: scheduling before matching is refused, liking matches, scheduling sets a waiting date at the venue, and completing the date deducts the bill once and raises closeness
+    const dateBeforeMatch = await call('/spark/schedule-date', { profileId: 'zainab' }, funmi.token);
+    const likeZainab = await call('/spark/like', { profileId: 'zainab', now: Date.now() }, funmi.token);
+    const scheduleZainab = await call('/spark/schedule-date', { profileId: 'zainab', now: Date.now() }, funmi.token);
+    const funmiBeforeDate = (await call('/me', null, funmi.token)).wallet;
+    const completeZainab = await call('/spark/complete-date', { profileId: 'zainab', venueKey: 'the-library', now: Date.now() }, funmi.token);
+    const completeZainabAgain = await call('/spark/complete-date', { profileId: 'zainab', venueKey: 'the-library', now: Date.now() }, funmi.token);
+    check('online: Spark refuses date before matching, matches with Zainab Bello, schedules a date at The Library (₦45,000), deducts the bill once on completion, and raises closeness to 60',
+      !dateBeforeMatch.ok && likeZainab.ok && scheduleZainab.ok && scheduleZainab.date?.venueKey === 'the-library' && completeZainab.ok && completeZainab.paid === 45000 && funmiBeforeDate.bank - completeZainab.wallet.bank === 45000 && completeZainab.closeness === 60 && !completeZainabAgain.ok && completeZainab.snapshot.completedDates.length === 1,
+      { dateBeforeMatch: dateBeforeMatch.reason, likeZainab, scheduleZainab, completeZainab, completeZainabAgain: completeZainabAgain.reason });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

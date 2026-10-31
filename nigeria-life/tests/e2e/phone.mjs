@@ -71,7 +71,7 @@ export async function run(browser, check) {
     };
   });
   check('the phone opens on a home screen with the time, the money really held, and a named tile for each app',
-    home.open && home.apps.length === 23 && home.apps.includes('staff') && home.apps.includes('nollywood') && home.apps.includes('yarn') && home.apps.includes('odds') && home.apps.includes('ads') && home.apps.includes('rich') && home.apps.includes('hustle') && home.apps.includes('events') && home.apps.includes('games') && home.apps.includes('gist') && home.apps.includes('cases') && home.named && home.smallest >= 44 && /150,000/.test(home.wallet) && /25,000/.test(home.wallet) && home.clock.length > 3, home);
+    home.open && home.apps.length === 24 && home.apps.includes('spark') && home.apps.includes('staff') && home.apps.includes('nollywood') && home.apps.includes('yarn') && home.apps.includes('odds') && home.apps.includes('ads') && home.apps.includes('rich') && home.apps.includes('hustle') && home.apps.includes('events') && home.apps.includes('games') && home.apps.includes('gist') && home.apps.includes('cases') && home.named && home.smallest >= 44 && /150,000/.test(home.wallet) && /25,000/.test(home.wallet) && home.clock.length > 3, home);
 
   // Every tile opens a screen of its own, and nothing on any screen is a button that does nothing
   const visited = [];

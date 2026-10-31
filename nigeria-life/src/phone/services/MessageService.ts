@@ -51,6 +51,11 @@ const REPLY_SECONDS = 2.5;
  * accounts yet for them to be stored against.
  */
 export class MessageService {
+  /** Extra contacts from apps like Spark (only once matched). */
+  public static extraContacts: (() => Array<{ id: string; name: string; note: string; standing: Standing }>) | null = null;
+  /** Custom reply generator for contacts such as Spark matches. */
+  public static customReply: ((id: string, text: string) => string | null) | null = null;
+
   public onChange: (() => void) | null = null;
   private readonly backend = BackendService.getInstance();
   private readonly director = InteractionDirector.get();
@@ -101,11 +106,28 @@ export class MessageService {
       });
     }
 
+    const seen = new Set<string>();
+    const extras = MessageService.extraContacts?.() ?? [];
+    for (const extra of extras) {
+      seen.add(extra.id);
+      const thread = this.backend.thread(extra.id);
+      list.push({
+        id: extra.id,
+        name: extra.name,
+        kind: 'person',
+        note: extra.note,
+        standing: extra.standing,
+        unread: thread.unread,
+        last: thread.messages[thread.messages.length - 1] ?? null,
+      });
+    }
+
     const data = this.backend.getData();
     const known = Object.entries(data.relationships ?? {})
       .filter(([, level]) => level > 0)
       .sort((a, b) => b[1] - a[1]);
     for (const [actorId] of known) {
+      if (seen.has(actorId)) continue;
       const actor = this.director.actorFor(actorId);
       if (!actor) continue;
       const standing = standingWith(actor);
@@ -168,8 +190,10 @@ export class MessageService {
     }
 
     this.backend.addMessage(id, { from: 'me', text: body, at: this.clock() }, false);
+    const custom = MessageService.customReply?.(id, body) ?? null;
     const lines = REPLIES[contact.standing as Standing];
-    this.pending.push({ id, text: lines[Math.floor(Math.random() * lines.length)], in: REPLY_SECONDS });
+    const replyText = custom ?? lines[Math.floor(Math.random() * lines.length)];
+    this.pending.push({ id, text: replyText, in: custom ? 1.2 : REPLY_SECONDS });
     this.changed();
     return null;
   }
