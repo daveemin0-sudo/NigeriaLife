@@ -11,13 +11,13 @@
  * development mailer prints the link in the server's log, and with NL_DEV=1 also returns it to
  * the game so tests can follow it. Phone OTP and Google sign-in need outside accounts: not built.
  */
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { alert, transaction, type Store } from './store.ts';
 
 export interface Account {
   id: string;
   name: string;
-  kind: 'guest' | 'email';
+  kind: 'guest' | 'email' | 'password';
   email: string | null;
   verified: boolean;
   banned: boolean;
@@ -73,10 +73,32 @@ export function cleanName(raw: unknown): string | null {
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 
+/** A username: what a player signs in with and is called by, 3 to 16 letters, digits, _ or . */
+export function cleanUsername(raw: unknown): string | null {
+  const name = String(raw ?? '').trim().replace(/^@/, '');
+  return /^[A-Za-z0-9_.]{3,16}$/.test(name) ? name : null;
+}
+
+/** A password kept only as a salted scrypt hash */
+function hashPassword(password: string): string {
+  const salt = randomBytes(16);
+  return `scrypt$${salt.toString('hex')}$${scryptSync(password, salt, 64).toString('hex')}`;
+}
+
+function passwordMatches(password: string, stored: string | null): boolean {
+  const [scheme, saltHex, keyHex] = String(stored ?? '').split('$');
+  if (scheme !== 'scrypt' || !saltHex || !keyHex) return false;
+  const want = Buffer.from(keyHex, 'hex');
+  const got = scryptSync(password, Buffer.from(saltHex, 'hex'), want.length);
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
 export class Accounts {
   private guestsByAddress: RateLimit;
   private linksByAddress = new RateLimit(5, 60 * 60_000);
   private linksByEmail = new RateLimit(3, 60 * 60_000);
+  private signInsByAddress = new RateLimit(20, 15 * 60_000);
+  private signUpsByAddress = new RateLimit(10, 60 * 60_000);
 
   private db: Store;
   private mailer: Mailer;
@@ -93,7 +115,7 @@ export class Accounts {
 
   private row(id: string): Account | null {
     const r = this.db.prepare('SELECT id, name, kind, email, verified, banned, muted_until FROM accounts WHERE id = ?').get(id) as
-      | { id: string; name: string; kind: 'guest' | 'email'; email: string | null; verified: number; banned: number; muted_until: number }
+      | { id: string; name: string; kind: 'guest' | 'email' | 'password'; email: string | null; verified: number; banned: number; muted_until: number }
       | undefined;
     return r ? { id: r.id, name: r.name, kind: r.kind, email: r.email, verified: !!r.verified, banned: !!r.banned, mutedUntil: r.muted_until } : null;
   }
@@ -126,6 +148,49 @@ export class Accounts {
       return this.openSession(id);
     });
     return { ok: true, token, account: this.row(id)! };
+  }
+
+  /**
+   * Registers a username and password. From a guest (signed in on this device), the guest keeps
+   * everything and becomes that player; otherwise a new player starts with the starting money.
+   */
+  public register(rawUsername: unknown, rawPassword: unknown, guest: Account | null, address: string): { ok: true; token: string; account: Account; upgraded: boolean } | { ok: false; reason: string } {
+    const username = cleanUsername(rawUsername);
+    const password = String(rawPassword ?? '');
+    if (!username) return { ok: false, reason: 'A username is 3 to 16 letters or numbers (_ and . allowed, no spaces).' };
+    if (password.length < 6) return { ok: false, reason: 'The password needs at least 6 characters.' };
+    if (!this.signUpsByAddress.allow(address)) return { ok: false, reason: 'Too many new accounts from this connection. Try again in an hour.' };
+    const taken = this.db.prepare('SELECT 1 FROM accounts WHERE username = ?').get(username.toLowerCase());
+    if (taken) return { ok: false, reason: `@${username} is taken. Choose another username.` };
+    const hashed = hashPassword(password);
+    return transaction(this.db, () => {
+      let accountId: string;
+      let upgraded = false;
+      const guestHasName = guest ? (this.db.prepare('SELECT username FROM accounts WHERE id = ?').get(guest.id) as { username: string | null } | undefined)?.username : null;
+      if (guest && guest.kind === 'guest' && !guestHasName) {
+        accountId = guest.id;
+        upgraded = true;
+        this.db.prepare("UPDATE accounts SET kind = 'password', username = ?, password_hash = ?, name = ?, verified = 1 WHERE id = ?").run(username.toLowerCase(), hashed, username, accountId);
+      } else {
+        accountId = `acc_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+        this.db.prepare("INSERT INTO accounts (id, name, kind, verified, created_at, created_ip, username, password_hash) VALUES (?, ?, 'password', 1, ?, ?, ?, ?)").run(accountId, username, Date.now(), address, username.toLowerCase(), hashed);
+        this.db.prepare('INSERT INTO wallets (account_id, cash, bank) VALUES (?, ?, ?)').run(accountId, STARTING_CASH, STARTING_BANK);
+        this.db
+          .prepare("INSERT INTO ledger (account_id, at, kind, cash_delta, bank_delta, cash_after, bank_after, verified, memo) VALUES (?, ?, 'start', ?, ?, ?, ?, 1, 'Starting money')")
+          .run(accountId, Date.now(), STARTING_CASH, STARTING_BANK, STARTING_CASH, STARTING_BANK);
+      }
+      return { ok: true as const, token: this.openSession(accountId), account: this.row(accountId)!, upgraded };
+    });
+  }
+
+  /** Signs in with a username and password, on any device */
+  public login(rawUsername: unknown, rawPassword: unknown, address: string): { ok: true; token: string; account: Account } | { ok: false; reason: string } {
+    if (!this.signInsByAddress.allow(address)) return { ok: false, reason: 'Too many tries. Wait a few minutes and try again.' };
+    const username = cleanUsername(rawUsername);
+    const r = username ? (this.db.prepare('SELECT id, password_hash, banned FROM accounts WHERE username = ?').get(username.toLowerCase()) as { id: string; password_hash: string | null; banned: number } | undefined) : undefined;
+    if (!r || !passwordMatches(String(rawPassword ?? ''), r.password_hash)) return { ok: false, reason: 'That username and password do not match.' };
+    if (r.banned) return { ok: false, reason: 'This account has been suspended.' };
+    return { ok: true, token: this.openSession(r.id), account: this.row(r.id)! };
   }
 
   /** The account a session token belongs to, or null. */

@@ -117,6 +117,10 @@ export function openStore(dataDir: string): Store {
   // Columns added after the first release of the schema
   const columns = (db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>).map((c) => c.name);
   if (!columns.includes('registry_id')) db.exec('ALTER TABLE accounts ADD COLUMN registry_id TEXT');
+  // Registered players: a username to sign in with anywhere, and the password's hash (never the password)
+  if (!columns.includes('username')) db.exec('ALTER TABLE accounts ADD COLUMN username TEXT');
+  if (!columns.includes('password_hash')) db.exec('ALTER TABLE accounts ADD COLUMN password_hash TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_username ON accounts (username)');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_registry ON accounts(registry_id) WHERE registry_id IS NOT NULL');
   return db;
 }

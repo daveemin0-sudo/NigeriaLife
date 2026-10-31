@@ -1,3 +1,4 @@
+import { SignInScreen } from '../ui/SignInScreen';
 import * as THREE from 'three';
 import { LookPreview } from '../ui/LookPreview';
 import { HumanMeshBuilder } from '../graphics/HumanMeshBuilder';
@@ -781,6 +782,29 @@ export class Game {
       backend.authority = { report: (cash, bank, memo) => online.report(cash, bank, memo) };
       online.on('wallet', (wallet) => backend.applyServerWallet(wallet));
       online.on('notice', (text) => showGameToast(String(text), 'warning', 5200));
+      // A first visit, or a guest still: register a name of your own, or sign in from another phone
+      void online.ready.then((ok) => {
+        if (!ok || online.account?.kind !== 'guest') return;
+        if (navigator.webdriver && !(window as unknown as { __signInOn?: boolean }).__signInOn) return;
+        new SignInScreen({
+          register: (u, p) => online.register(u, p),
+          login: (u, p) => online.login(u, p),
+          done: (typed, gender, isNew) => {
+            const name = online.account?.name ?? typed;
+            const cfg = this.player.config;
+            if (gender && gender !== cfg.gender) {
+              cfg.gender = gender;
+              cfg.hair = undefined;
+              cfg.beard = 'none';
+            }
+            cfg.name = name;
+            this.player.applyCustomization(cfg);
+            backend.updateUsername(name);
+            showGameToast(isNew ? `🎉 Welcome to Lagos, @${name}! Make your look your own.` : `👋 Welcome back, @${name}.`, 'success', 5200);
+            if (isNew) this.hud.creatorModal.open('look');
+          },
+        }).open();
+      });
       ServerLink.authorization = () => online.authorization;
       // Every 20 s, how the game is running on this device (frame rate, screen, quality, whether
       // the player could move), so the game team can see what a real phone does. Nothing personal.

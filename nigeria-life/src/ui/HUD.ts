@@ -81,7 +81,7 @@ export class HUD {
   public proximityPromptEl: HTMLDivElement | null = null;
   public promptLabelEl: HTMLSpanElement | null = null;
   public currentInteractionTarget: InteractionTarget | null = null;
-  private creatorModal!: CharacterCreatorModal;
+  public creatorModal!: CharacterCreatorModal;
   private inventoryModal!: InventoryModal;
   private atmModal!: ATMModal;
   public phoneModal!: PhoneModal;

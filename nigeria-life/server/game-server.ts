@@ -198,6 +198,18 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       if (body.save && typeof body.save === 'object') economy.importSave(made.account.id, body.save as Record<string, unknown>);
       return reply(res, 200, { ok: true, token: made.token, account: made.account, wallet: economy.wallet(made.account.id) });
     }
+    if (req.method === 'POST' && url.pathname === '/auth/register') {
+      const body = await readBody(req);
+      const result = accounts.register(body.username, body.password, accounts.authenticate(tokenOf(req)), addressOf(req));
+      if (!result.ok) return reply(res, 400, result);
+      return reply(res, 200, { ...result, wallet: economy.wallet(result.account.id) });
+    }
+    if (req.method === 'POST' && url.pathname === '/auth/login') {
+      const body = await readBody(req);
+      const result = accounts.login(body.username, body.password, addressOf(req));
+      if (!result.ok) return reply(res, 400, result);
+      return reply(res, 200, { ...result, wallet: economy.wallet(result.account.id) });
+    }
     if (req.method === 'POST' && url.pathname === '/auth/email') {
       const body = await readBody(req);
       const result = accounts.startEmail(body.email, accounts.authenticate(tokenOf(req)), addressOf(req));

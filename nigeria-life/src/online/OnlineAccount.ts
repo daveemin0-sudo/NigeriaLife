@@ -23,7 +23,7 @@ export interface WalletView {
 export interface AccountView {
   id: string;
   name: string;
-  kind: 'guest' | 'email';
+  kind: 'guest' | 'email' | 'password';
   email: string | null;
   verified: boolean;
 }
@@ -312,6 +312,41 @@ export class OnlineAccount {
   }
 
   // --- Keeping progress -----------------------------------------------------------------------
+
+  /**
+   * A username and password for this player: a guest on this phone keeps everything they have and
+   * takes the name; signing in on another phone brings the same player there.
+   */
+  public async register(username: string, password: string): Promise<{ ok: boolean; reason?: string }> {
+    const done = await this.request('/auth/register', { username, password });
+    if (!done.ok) return { ok: false, reason: done.reason ?? 'Could not register. Try again.' };
+    await this.switchTo(done);
+    return { ok: true };
+  }
+
+  public async login(username: string, password: string): Promise<{ ok: boolean; reason?: string }> {
+    const done = await this.request('/auth/login', { username, password });
+    if (!done.ok) return { ok: false, reason: done.reason ?? 'Could not sign in. Try again.' };
+    await this.switchTo(done);
+    return { ok: true };
+  }
+
+  /** Now this account: its session kept, its money shown, the city reached with it */
+  private async switchTo(done: { token: string; account: AccountView; wallet?: WalletView }): Promise<void> {
+    this.keep(done.token, done.account);
+    if (done.wallet) this.setWallet(done.wallet);
+    await this.bindRegistry();
+    const old = this.socket;
+    this.socket = null;
+    this.connected = false;
+    try {
+      old?.close();
+    } catch {
+      // Already closed
+    }
+    this.connect();
+    this.emit('account', done.account);
+  }
 
   public askForSignInLink(email: string): Promise<{ ok: boolean; reason?: string; devLink?: string }> {
     return this.request('/auth/email', { email });
