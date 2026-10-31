@@ -122,6 +122,7 @@ export class MusicPlayer {
 
   /** Plays a track (by id), or carries on with the current one, or starts the first */
   public async play(id?: string): Promise<boolean> {
+    this.remember(true);
     const out = this.output();
     if (!out) return false;
     const track = (id && this.tracks().find((t) => t.id === id)) || this.current || this.preferred();
@@ -165,7 +166,41 @@ export class MusicPlayer {
   public pause(): void {
     this.stopSound();
     this.playing = false;
+    this.remember(false);
     this.changed();
+  }
+
+  /** Whether music starts by itself when the game opens: yes, until the player turns it off */
+  private remember(on: boolean): void {
+    try {
+      localStorage.setItem('nl_music_autoplay', on ? '1' : '0');
+    } catch {
+      // Not kept
+    }
+  }
+
+  /**
+   * The game's sound from the moment it opens: at the player's first tap (browsers allow sound
+   * only after one), the music starts, unless they turned it off last time.
+   */
+  public startWithTheGame(): void {
+    let wanted = true;
+    try {
+      wanted = localStorage.getItem('nl_music_autoplay') !== '0';
+    } catch {
+      // Played
+    }
+    if (!wanted || this.playing) return;
+    window.addEventListener('pointerdown', () => {
+      if (!this.playing) void this.play();
+    }, { once: true, capture: true });
+  }
+
+  /** Out of sight: an own song (an audio element) stops with the rest, and starts again on return */
+  public hold(away: boolean): void {
+    if (!this.element || !this.playing) return;
+    if (away) this.element.pause();
+    else void this.element.play().catch(() => undefined);
   }
 
   /** Starts or stops the music. Returns whether it is playing now. */

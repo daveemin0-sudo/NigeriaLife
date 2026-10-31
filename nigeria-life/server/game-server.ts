@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Accounts, consoleMailer, type Account } from './accounts.ts';
 import { Economy } from './economy.ts';
+import { Hustle } from './hustle.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -45,6 +46,7 @@ const registry = new Registry(DATA_DIR, CORS);
 const server = http.createServer((req, res) => void route(req, res));
 const rooms = new Rooms(server, accounts, db);
 const economy = new Economy(db, (id) => rooms.positionOf(id));
+const hustle = new Hustle(db, economy);
 // What businesses an account owns, as the ownership registry says
 economy.businessesOf = (accountId) => {
   const account = accounts.get(accountId);
@@ -177,7 +179,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -229,6 +231,16 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
     if (!account) return reply(res, 401, { ok: false, reason: 'Sign in again.' });
     if (url.pathname.startsWith('/money/') && !moneyRate.allow(account.id)) {
       return reply(res, 429, { ok: false, reason: 'Too many requests. Slow down.', wallet: economy.wallet(account.id) });
+    }
+    // Hustle: players hiring players, the fee held by the game until the job is done
+    if (url.pathname.startsWith('/hustle/')) {
+      if (req.method === 'GET' && url.pathname === '/hustle/board') return reply(res, 200, { ok: true, posts: hustle.board(), mine: hustle.mine(account.id), me: account.id });
+      if (req.method === 'POST') {
+        const body = await readBody(req);
+        const action = url.pathname.slice('/hustle/'.length);
+        const done = action === 'post' ? hustle.post(account, body) : action === 'take' ? hustle.take(account, body.id) : action === 'done' ? hustle.release(account, body.id) : action === 'cancel' ? hustle.cancel(account, body.id) : action === 'quit' ? hustle.quit(account, body.id) : { ok: false as const, reason: 'Unknown.' };
+        return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+      }
     }
     return player(req, res, url, account);
   } catch {

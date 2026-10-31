@@ -322,6 +322,21 @@ export class SoundEngine {
     }
   }
 
+  /** The game is out of sight (Chrome closed, another app): every sound stops where it is */
+  public suspendAll(): void {
+    if (this.ctx && this.ctx.state === 'running') void this.ctx.suspend();
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {
+      // No speech here
+    }
+  }
+
+  /** Back in sight: the sound carries on */
+  public resumeAll(): void {
+    if (this.ctx && this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
   public toggleRadio(): boolean {
     return SoundEngine.radio?.toggle() ?? false;
   }

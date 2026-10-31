@@ -368,6 +368,16 @@ export class Economy {
     return { ok: true };
   }
 
+  /** A fee taken from a player's bank and held for something (a Hustle job) until it is paid out */
+  public holdFee(accountId: string, amount: number, memo: string, idem: string): Result {
+    return this.apply(accountId, 'held', 0, -Math.trunc(amount), cleanMemo(memo), true, idem);
+  }
+
+  /** A held fee paid into a player's bank: the worker's pay, or a refund */
+  public payFee(accountId: string, amount: number, memo: string, idem: string): Result {
+    return this.apply(accountId, 'paid', 0, Math.trunc(amount), cleanMemo(memo), true, idem);
+  }
+
   public grant(accountId: string, amount: number, memo: string): Result {
     return this.apply(accountId, 'grant', Math.trunc(amount), 0, cleanMemo(memo || 'From the game team'), true, `grant:${randomUUID()}`);
   }

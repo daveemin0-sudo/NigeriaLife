@@ -1,3 +1,4 @@
+import { MusicPlayer } from '../audio/MusicPlayer';
 import { SignInScreen } from '../ui/SignInScreen';
 import * as THREE from 'three';
 import { LookPreview } from '../ui/LookPreview';
@@ -929,8 +930,21 @@ export class Game {
     this.restoreWorldState();
     window.addEventListener('pagehide', () => this.saveWorldState());
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') this.saveWorldState();
+      // Out of sight (Chrome closed, another app on top): saved, and every sound held until the player is back
+      const away = document.visibilityState === 'hidden';
+      if (away) {
+        this.saveWorldState();
+        SoundEngine.getInstance().suspendAll();
+      } else {
+        SoundEngine.getInstance().resumeAll();
+        // No jump in the game's clock for the time away
+        this.clock.getDelta();
+      }
+      MusicPlayer.get().hold(away);
     });
+    window.addEventListener('pagehide', () => SoundEngine.getInstance().suspendAll());
+    // The game's music from the first tap (not in the automated tests)
+    if (!navigator.webdriver) MusicPlayer.get().startWithTheGame();
 
     const loadNotice = BackendService.getInstance().loadNotice;
     if (loadNotice) {

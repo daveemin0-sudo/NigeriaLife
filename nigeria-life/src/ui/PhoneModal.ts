@@ -1,3 +1,4 @@
+import { hustleApp } from '../phone/apps/hustle';
 import { BackendService } from '../backend/BackendService';
 import type { PhoneApp, PhoneHost, PhoneWorld } from '../phone/PhoneApp';
 import type { RideService } from '../phone/services/RideService';
@@ -19,7 +20,7 @@ import { esc, naira, meter } from './kit/html';
 
 /** The apps on the phone, in the order they sit on the home screen. Every one of them does something real. */
 const APPS: PhoneApp[] = [
-  peopleApp, bankApp, jobsApp, rideApp,
+  peopleApp, bankApp, jobsApp, hustleApp, rideApp,
   shoppingApp, propertyApp, landApp, garageApp,
   businessApp, investApp, healthApp, settingsApp,
   eventsApp, gamesApp, gistApp, casesApp,
