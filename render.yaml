@@ -1,0 +1,26 @@
+# Nigeria Life's world server on Render (accounts, money, rooms, chat, other players).
+# In Render: New + > Blueprint > this repository. Starter plan with a 1 GB disk, so nothing
+# the server keeps is lost when it restarts; Frankfurt is the region nearest Lagos.
+services:
+  - type: web
+    name: nigerialife-server
+    runtime: node
+    rootDir: nigeria-life
+    plan: starter
+    region: frankfurt
+    branch: stabilise-core
+    autoDeploy: true
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/game-server.ts
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NL_DATA
+        value: /var/data
+      - key: NL_ADMIN_KEY
+        generateValue: true
+    disk:
+      name: nigerialife-data
+      mountPath: /var/data
+      sizeGB: 1

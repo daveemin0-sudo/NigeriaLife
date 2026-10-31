@@ -29,7 +29,9 @@ function readAddress(): { url: string | null; key: string } {
         if (key !== null) localStorage.setItem(ROOM_KEY, key);
       }
     }
-    const url = localStorage.getItem(ADDRESS_KEY);
+    const off = asked === '' || asked === 'off';
+    const builtIn = String((import.meta.env as unknown as Record<string, string | undefined>).VITE_DEFAULT_SERVER ?? '');
+    const url = localStorage.getItem(ADDRESS_KEY) ?? (off ? null : builtIn || null);
     return { url: url && /^https?:\/\//.test(url) ? url : null, key: localStorage.getItem(ROOM_KEY) ?? '' };
   } catch {
     return { url: null, key: '' };

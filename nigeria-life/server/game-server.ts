@@ -30,7 +30,7 @@ const STATIC_DIR = path.resolve(process.env.NL_STATIC || path.join(here, '..', '
 const ROOM_KEY = process.env.NL_KEY || '';
 const ADMIN_KEY = process.env.NL_ADMIN_KEY || '';
 const DEV = process.env.NL_DEV === '1';
-const PUBLIC_URL = (process.env.NL_PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/+$/, '');
+const PUBLIC_URL = (process.env.NL_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/+$/, '');
 const MAX_BODY = 4 * 1024 * 1024;
 
 const CORS = {
