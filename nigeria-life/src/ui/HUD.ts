@@ -1,3 +1,4 @@
+import { Classes } from '../life/Classes';
 import * as THREE from 'three';
 import type { InteractiveObject, InteractionTarget, World } from '../world/World';
 import { VendorUI } from './VendorUI';
@@ -2619,6 +2620,12 @@ export class HUD {
       }
       return;
     } else if (id === 'unilag_lecture_podium') {
+      // A real class: a course chosen, a lesson sat through at a desk, a question at the end
+      const hall = this.world?.interiorManager.unilag.group;
+      if (hall && this.player) {
+        Classes.choose(this.placeHost(), hall);
+        return;
+      }
       this.backend.addStreetCred(15);
       this.backend.restoreEnergy(10);
       this.showDialogueModal({

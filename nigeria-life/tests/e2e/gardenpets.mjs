@@ -58,11 +58,12 @@ export async function run(browser, check) {
   await page.evaluate(() => { const G = window.game.modules.Garden; const t0 = Date.now(); G.now = () => t0 + 3 * 3600_000; });
   const ripe = await cardOf(page, uids.planter);
   await choose(page, uids.planter, 'Harvest');
-  const bag = await page.evaluate(() => window.game.hud.backend.getData().inventory.find((i) => i.id === 'garden_ugwu')?.quantity ?? 0);
+  // Picked into the fridge
+  const bag = await page.evaluate(() => window.game.modules.Fridge.get().contents().find((i) => i.id === 'garden_ugwu')?.quantity ?? 0);
   const empty = await cardOf(page, uids.planter);
   check('garden: six garden and pet pieces are in the catalogue; a planter is sown with ugwu for ₦300 and its shoots show',
     catalogue.every(Boolean) && /Sow something/.test(label0) && sown && m0.total - m1.total === 300 && sprouts, { catalogue, label0, paid: m0.total - m1.total, sprouts });
-  check('garden: the shoots want water and wait for it however long it takes; watered, the ugwu grows ripe, is harvested into the bag (3 bunches) and the planter is empty again',
+  check('garden: the shoots want water and wait for it however long it takes; watered, the ugwu grows ripe, is harvested into the fridge (3 bunches) and the planter is empty again',
     /Water the ugwu/.test(thirsty) && /Water the ugwu/.test(stillThirsty) && /Harvest the ugwu/.test(ripe) && bag === 3 && /Sow something/.test(empty), { thirsty, stillThirsty, ripe, bag, empty });
 
   // ------------------------------------------------------------------ A dog

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { buildPerson, type HeadShape, type Beard, type Build, type Hat } from './people/PersonBuilder';
+import type { Pattern } from './people/Fabrics';
 
 export type Gender = 'male' | 'female';
 
@@ -14,7 +16,9 @@ export type Hairstyle =
   | 'gele'
   | 'pilot_cap'
   | 'police_cap'
-  | 'chef_toque';
+  | 'chef_toque'
+  // The styles of the look editor
+  | 'low_cut' | 'waves' | 'buzz' | 'bald' | 'high_top' | 'twists' | 'dreads' | 'cornrows' | 'box_braids' | 'bun' | 'long_wig' | 'bantu_knots' | 'cap' | 'beret';
 
 export type Outfit = 
   | 'engineer_vest' 
@@ -32,7 +36,9 @@ export type Outfit =
   | 'chef_attire'
   | 'mechanic_overalls'
   | 'traffic_warden'
-  | 'agbada';
+  | 'agbada'
+  // Clothes of the wardrobe, cut as garments
+  | 'tshirt' | 'polo_shirt' | 'hoodie' | 'button_shirt' | 'jersey' | 'ankara_shirt' | 'suit' | 'ankara_gown' | 'buba_iro' | 'bodycon' | 'jumpsuit' | 'kaftan';
 
 export interface HumanConfig {
   gender: Gender;
@@ -57,6 +63,20 @@ export interface HumanConfig {
   hasGoldChain?: boolean;
   hasCoralBeads?: boolean;
   lod?: 'detailed' | 'street';
+  /** The look editor's choices */
+  headShape?: HeadShape;
+  beard?: Beard;
+  build?: Build;
+  /** The hair under a hat, and the hat (the old `hairstyle` may still name a hat) */
+  hair?: Hairstyle;
+  hat?: Hat;
+  hatColor?: number;
+  /** The cloth of the top: plain, ankara, aso-oke, lace, denim, check, stripes */
+  pattern?: Pattern;
+  accentColor?: number;
+  eyeColor?: number;
+  lipColor?: number;
+  noseWidth?: number;
 }
 
 export interface HumanRig {
@@ -250,7 +270,11 @@ function getOrCreateAgbadaBibTexture(colorHex: number): THREE.Texture {
  * realistic footwear with soles, and authentic Nigerian cultural attire.
  */
 export class HumanMeshBuilder {
+  /** The old builder, kept to compare against (off: everyone is built by the person builder) */
+  public static classic = false;
+
   public static createHuman(config: HumanConfig): HumanRig {
+    if (!HumanMeshBuilder.classic) return buildPerson(config, (name) => HumanMeshBuilder.createUsernameTag(name));
     const group = new THREE.Group();
     const materials: THREE.Material[] = [];
 

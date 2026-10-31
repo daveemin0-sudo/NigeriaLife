@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LookPreview } from '../ui/LookPreview';
 import { HumanMeshBuilder } from '../graphics/HumanMeshBuilder';
 import { Figure } from '../interiors/places/Worship';
 import { BUS_STOPS } from '../world/population/CityPopulation';
@@ -134,7 +135,7 @@ import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
 const AUTOSAVE_SECONDS = 5;
 
 /** Where people live: no hawkers or conductors calling (Banana Island's estate off Martins Street) */
-const QUIET_ESTATES = [{ minX: 100, maxX: 260, minZ: -70, maxZ: 60 }];
+const QUIET_ESTATES = [{ minX: 100, maxX: 330, minZ: -160, maxZ: 160 }];
 
 /** Broad Street's carriageway, away from the crossings at the Martins Street junction: not to be walked onto */
 const NO_CROSSING = [
@@ -1346,6 +1347,8 @@ export class Game {
     this.hud.onDriveTo = (name, at) => this.driveTo(name, at);
     this.routeGuide.onCancelled = () => this.rideHail.guideCancelled();
     this.scene.add(this.rideHailGroup);
+    // The look editor's studio pictures are taken with the game's renderer
+    LookPreview.renderer = this.renderer;
     // Out of a house of their own by its own front door, onto its own street
     this.world.interiorManager.homeFront = () => {
       const plotId = this.currentHome();

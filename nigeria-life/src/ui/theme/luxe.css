@@ -1611,3 +1611,15 @@ html body .map-rail-dot::before { content: ''; width: 10px; height: 10px; border
 html body .map-rail-name { background: var(--lx-glass-solid, rgba(255, 255, 255, 0.95)); padding: 4px 8px; border-radius: 99px; box-shadow: var(--lx-shadow-sm); white-space: nowrap; }
 html body .map-rail-stop:hover .map-rail-name { background: var(--lx-brand-soft); }
 @media (max-width: 700px) { html body .map-rail { top: 190px; bottom: 170px; width: 112px; } html body .map-rail-stop { font-size: 10.5px; } }
+
+/* The look editor: studio pictures, then the choices as chips */
+html body .look-studio { display: grid; gap: 14px; }
+html body .look-photos { display: grid; grid-template-columns: 1.1fr 1fr; gap: 10px; }
+html body .look-photos img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 16px; background: #eef2ef; box-shadow: var(--lx-shadow-sm); }
+html body .look-title { font: 800 12px/1 var(--nl-font, system-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--lx-dim, #66736c); margin-bottom: 8px; }
+html body .look-row { display: flex; flex-wrap: wrap; gap: 8px; }
+html body .look-opt { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 99px; border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.1)); background: var(--lx-card, #fff); color: var(--lx-ink, #0f1a14); font: 700 12.5px/1 var(--nl-font, system-ui); cursor: pointer; }
+html body .look-opt svg { flex: 0 0 auto; }
+html body .look-opt.is-on { background: var(--lx-brand, #0e7a4e); border-color: var(--lx-brand, #0e7a4e); color: #fff; }
+html body .look-dot { width: 18px; height: 18px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(0, 0, 0, 0.15); }
+html body .look-hint { font: 600 12px/1.4 var(--nl-font, system-ui); color: var(--lx-dim, #66736c); }

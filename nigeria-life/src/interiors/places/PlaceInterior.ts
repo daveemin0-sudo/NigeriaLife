@@ -17,6 +17,8 @@ import { Employment } from '../../jobs/Employment';
 import { attachShows } from './LiveEvents';
 import { attachWorship, Figure } from './Worship';
 import { attachHotel } from './Hotel';
+import { attachViewing } from './ViewingCentre';
+import { attachTravellers } from './Travellers';
 
 /**
  * A place along the expressway, gone into: its own room, laid out for what is done there, with
@@ -242,6 +244,8 @@ export class PlaceInterior {
     attachShows(this, this.spec.key);
     attachWorship(this, this.spec.key);
     attachHotel(this, this.spec.key);
+    if (this.spec.key === 'viewing-centre') attachViewing(this);
+    if (this.spec.key === 'mmia-terminal') attachTravellers(this);
   }
 
   /**

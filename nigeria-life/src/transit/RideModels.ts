@@ -539,7 +539,7 @@ export function buildRideOkada(): RideVehicle {
     driver, passenger, hideInside: [passenger],
     views: {
       // Over the rider's shoulder, from the back of the seat
-      inside: view([-0.48, 1.98, -0.9], [0.08, 1.0, 8], 72),
+      inside: view([-0.48, 1.88, -0.9], [0.08, 1.0, 8], 72),
       chase: view([0, 2.6, -5.4], [0, 0.95, 4], 58),
       side: view([4.6, 1.3, 0.05], [0, 0.95, 0], 50),
     },

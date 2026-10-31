@@ -30,6 +30,22 @@ export interface ModularClothingItem {
 }
 
 export const WARDROBE_CATALOGUE: ModularClothingItem[] = [
+  // === 0. CLOTHES OF LAGOS TODAY, CUT FROM REAL CLOTH ===
+  { id: 'top_white_tee', name: 'Plain White T-Shirt', category: 'top', price: 6500, color: 0xf8fafc, styleKey: 'tshirt', description: 'Heavy cotton crew-neck tee. Goes with everything.', icon: '👕', gender: 'unisex' },
+  { id: 'top_black_tee', name: 'Black Oversized T-Shirt', category: 'top', price: 7500, color: 0x111827, styleKey: 'tshirt', description: 'Thick black cotton, a relaxed cut.', icon: '👕', gender: 'unisex' },
+  { id: 'top_polo_navy', name: 'Navy Polo Shirt', category: 'top', price: 11000, color: 0x1e3a8a, styleKey: 'polo_shirt', description: 'Pique cotton polo with a two-button placket and a collar.', icon: '👕', gender: 'unisex' },
+  { id: 'top_check_shirt', name: 'Blue Check Shirt', category: 'top', price: 14500, color: 0x1d4ed8, styleKey: 'button_shirt', description: 'Long-sleeved cotton shirt in a crisp check, buttoned down the front.', icon: '👔', gender: 'unisex' },
+  { id: 'top_ankara_shirt', name: 'Ankara Print Shirt', category: 'top', price: 16000, color: 0xea580c, secondaryColor: 0x0e7490, styleKey: 'ankara_shirt', description: 'Short-sleeved wax-print shirt, bold rings of colour.', icon: '👔', gender: 'unisex' },
+  { id: 'top_hoodie_grey', name: 'Grey Pullover Hoodie', category: 'top', price: 19500, color: 0x6b7280, styleKey: 'hoodie', description: 'Fleece-lined knit hoodie with its hood down.', icon: '🧥', gender: 'unisex' },
+  { id: 'top_eagles_jersey', name: 'Super Eagles Home Jersey', category: 'top', price: 22000, color: 0x15803d, secondaryColor: 0xf8fafc, styleKey: 'jersey', description: 'The green-and-white home kit, worn with white shorts.', icon: '⚽', gender: 'unisex' },
+  { id: 'top_navy_suit', name: 'Navy Two-Piece Suit', category: 'top', price: 95000, color: 0x1e293b, styleKey: 'suit', description: 'Tailored wool suit, white shirt and tie.', icon: '🤵', gender: 'unisex' },
+  { id: 'top_kaftan_white', name: 'White Senator Kaftan', category: 'top', price: 28000, color: 0xf5f5f4, secondaryColor: 0xe5b84b, styleKey: 'kaftan', description: 'Knee-length kaftan with an embroidered gold placket and band collar.', icon: '👘', gender: 'male' },
+  { id: 'top_kaftan_wine', name: 'Wine Senator Kaftan', category: 'top', price: 28000, color: 0x7f1d1d, secondaryColor: 0xe5b84b, styleKey: 'kaftan', description: 'Deep wine kaftan for owambe Saturdays.', icon: '👘', gender: 'male' },
+  { id: 'top_agbada_royal', name: 'Royal Blue Aso-Oke Agbada', category: 'top', price: 120000, color: 0x1e3a8a, secondaryColor: 0xe5b84b, styleKey: 'agbada', description: 'Hand-woven aso-oke agbada over a kaftan, gold embroidery at the neck.', icon: '👘', gender: 'male' },
+  { id: 'top_ankara_gown', name: 'Ankara Maxi Gown', category: 'top', price: 38000, color: 0xdb2777, secondaryColor: 0xfacc15, styleKey: 'ankara_gown', description: 'Floor-length wax-print gown with short sleeves.', icon: '👗', gender: 'female' },
+  { id: 'top_lace_buba', name: 'Lace Buba & Iro', category: 'top', price: 65000, color: 0x7c3aed, secondaryColor: 0xe5b84b, styleKey: 'buba_iro', description: 'Lace blouse over an aso-oke wrapper: the owambe classic.', icon: '👘', gender: 'female' },
+  { id: 'top_red_bodycon', name: 'Red Bodycon Dress', category: 'top', price: 26000, color: 0xb91c1c, styleKey: 'bodycon', description: 'A fitted knee-length dress, sleeveless.', icon: '👗', gender: 'female' },
+  { id: 'top_denim_jumpsuit', name: 'Denim Jumpsuit', category: 'top', price: 31000, color: 0x1e3a8a, styleKey: 'jumpsuit', description: 'One piece, sleeveless, belted.', icon: '👖', gender: 'female' },
   // === 1. TOPS & SHIRTS ===
   {
     id: 'top_agbada_emerald',
@@ -477,6 +493,12 @@ export interface CharacterConfig {
   bagId?: string;
   accessoryId?: string;
   ownedClothingIds?: string[];
+  /** The look editor: the head's shape, the hair (worn under any hat), its colour, a beard, the build */
+  headShape?: 'round' | 'oval' | 'long' | 'square' | 'heart' | 'diamond';
+  hair?: string;
+  hairColor?: string;
+  beard?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'full' | 'chinstrap';
+  build?: 'slim' | 'average' | 'broad';
 }
 
 export const DEFAULT_CHARACTER_CONFIG: CharacterConfig = {

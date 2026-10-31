@@ -18,11 +18,13 @@ export function createHumanForConfig(config: CharacterConfig): HumanRig {
   let outfit: Outfit = isFemale ? 'blue_dress' : 'agbada';
   let outfitColor = isFemale ? 0x2563eb : 0x008751;
 
+  let topSecond: number | undefined;
   if (config.topId) {
     const topItem = WARDROBE_CATALOGUE.find((i) => i.id === config.topId);
     if (topItem) {
       outfit = topItem.styleKey as Outfit;
       outfitColor = topItem.color;
+      topSecond = topItem.secondaryColor;
     }
   } else {
     const rawAttire = (config.attire as string || '').toLowerCase().replace(/[\s_-]+/g, '');
@@ -127,6 +129,17 @@ export function createHumanForConfig(config: CharacterConfig): HumanRig {
   if (config.accessoryId === 'acc_cuban_chain') hasGoldChain = true;
   if (config.accessoryId === 'acc_coral_beads') hasCoralBeads = true;
 
+  // What is worn on the head: a hat over the hair, or a hairstyle (the wardrobe's names for them)
+  const HEADWEAR: Record<string, { hat?: 'fila' | 'gele' | 'hardhat' | 'cap'; hair?: Hairstyle }> = {
+    fila_cream: { hat: 'fila' }, fila: { hat: 'fila' }, igbo_red_cap: { hat: 'fila' }, gele: { hat: 'gele' }, hardhat: { hat: 'hardhat' },
+    afro_hair: { hair: 'afro' }, afro: { hair: 'afro' }, braids: { hair: 'box_braids' }, bob_wig: { hair: 'bob_wig' },
+  };
+  const worn = HEADWEAR[hairstyle] ?? (hairstyle === 'fade' ? {} : { hair: hairstyle });
+  const hairChosen = (config.hair as Hairstyle | undefined) ?? worn.hair ?? (isFemale ? 'box_braids' : 'low_cut');
+  const hatColour = worn.hat ? parseInt(hairColor.slice(1), 16) : undefined;
+  hairstyle = worn.hat ?? hairChosen;
+  hairColor = config.hairColor ?? '#0b0908';
+
   return HumanMeshBuilder.createHuman({
     gender: config.gender || 'male',
     username: config.name || 'Bayo',
@@ -139,7 +152,14 @@ export function createHumanForConfig(config: CharacterConfig): HumanRig {
     bagStyle,
     bagColor,
     hairstyle,
+    hair: hairChosen,
     hairColor,
+    hatColor: hatColour,
+    headShape: config.headShape,
+    beard: config.gender === 'male' ? config.beard : 'none',
+    build: config.build,
+    secondaryColor: topSecond,
+    accentColor: topSecond,
     hasShades,
     hasGoldChain,
     hasCoralBeads,

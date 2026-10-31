@@ -468,14 +468,16 @@ export class ResidentialInterior {
     if (v.ready) {
       choices.push({
         label: `🧺 Harvest the ${v.seed.name.toLowerCase()}`,
-        note: v.seed.kind === 'flower' ? 'A bouquet for the bag' : `${v.seed.crop.qty} × ${v.seed.crop.name} for the bag`,
+        note: v.seed.kind === 'flower' ? 'A bouquet, kept fresh in the fridge' : `${v.seed.crop.qty} × ${v.seed.crop.name} into the fridge`,
         pick: () => act('harvest the garden', 'reach', 2.0, () => {
           const s = garden.harvest(item.uid);
           if (!s) return;
-          host.backend.addItem({ id: s.crop.id, name: s.crop.name, icon: s.crop.icon, category: 'food', description: s.kind === 'flower' ? 'Fresh from your own garden. Gift it, or sell it at the market.' : 'From your own garden: cook it or eat it.', price: s.crop.sell, usable: s.kind !== 'flower', energyRestore: s.crop.restore }, s.crop.qty);
+          // Picked and kept cold in the fridge: eaten from there, or a bouquet taken out to give
+          const crop = { id: s.crop.id, name: s.crop.name, icon: s.crop.icon, category: 'food' as const, description: s.kind === 'flower' ? 'Fresh from your own garden. Gift it, or sell it at the market.' : 'From your own garden: cook it or eat it.', price: s.crop.sell, usable: s.kind !== 'flower', energyRestore: s.crop.restore };
+          Fridge.get().put(crop, s.crop.qty);
           host.backend.modifyNeed('fun', s.kind === 'flower' ? 15 : 8);
           Activity.emit({ kind: 'acted', id: `harvest ${s.id}` });
-          host.say(`${s.crop.icon} ${s.crop.qty > 1 ? `${s.crop.qty} × ` : ''}${s.crop.name} into your bag. Home grown!`, 'success');
+          host.say(`${s.crop.icon} ${s.crop.qty > 1 ? `${s.crop.qty} × ` : ''}${s.crop.name} picked and put in your fridge. Home grown!`, 'success');
         }),
       });
     } else if (v.thirsty) {

@@ -1,3 +1,4 @@
+import { LookPreview } from './LookPreview';
 import {
   ATTIRE_PRESETS,
   SKIN_TONES,
@@ -19,7 +20,7 @@ export class CharacterCreatorModal {
   private player: Player;
   private backend: BackendService;
   public isOpen: boolean = false;
-  private activeTab: 'wardrobe' | 'presets' = 'wardrobe';
+  private activeTab: 'look' | 'wardrobe' | 'presets' = 'look';
   private categoryFilter: 'all' | ClothingCategory = 'all';
 
   constructor(player: Player) {
@@ -35,7 +36,7 @@ export class CharacterCreatorModal {
     this.setupEvents();
   }
 
-  public open(tab: 'wardrobe' | 'presets' = 'wardrobe'): void {
+  public open(tab: 'look' | 'wardrobe' | 'presets' = 'look'): void {
     this.isOpen = true;
     this.activeTab = tab;
     this.container.style.display = 'flex';
@@ -136,6 +137,53 @@ export class CharacterCreatorModal {
     showGameToast(`🛍️ Purchased & Equipped ${item.name} for ₦${item.price.toLocaleString()}!`, 'success', 4000);
   }
 
+  /** The studio pictures of the look as it is now */
+  private showPreview(): void {
+    const shot = LookPreview.shoot(this.player.config);
+    if (!shot) return;
+    const full = document.getElementById('look-full') as HTMLImageElement | null;
+    const face = document.getElementById('look-face') as HTMLImageElement | null;
+    if (full) full.src = shot.full;
+    if (face) face.src = shot.face;
+  }
+
+  /** The face and the hair: head shapes, hairstyles and colours, beards, the build, the skin */
+  private lookPanel(): string {
+    const cfg = this.player.config;
+    const female = cfg.gender === 'female';
+    const opt = (key: string, value: string, label: string, on: boolean, art = '') =>
+      `<button type="button" class="look-opt${on ? ' is-on' : ''}" data-key="${key}" data-value="${value}">${art}<span>${label}</span></button>`;
+    const heads: Array<[string, string, string]> = [
+      ['round', 'Round', 'M20 6c8 0 13 6 13 14s-5 15-13 15S7 28 7 20 12 6 20 6z'],
+      ['oval', 'Oval', 'M20 4c7 0 11 7 11 15s-4 17-11 17S9 27 9 19 13 4 20 4z'],
+      ['long', 'Long', 'M20 3c6 0 10 6 10 15s-3 19-10 19-10-10-10-19S14 3 20 3z'],
+      ['square', 'Square', 'M10 8c3-3 17-3 20 0 2 4 2 18-1 23-4 4-14 4-18 0-3-5-3-19-1-23z'],
+      ['heart', 'Heart', 'M8 9c4-5 20-5 24 0 1 9-4 21-12 26C12 30 7 18 8 9z'],
+      ['diamond', 'Diamond', 'M20 3c4 4 11 9 11 15s-6 14-11 18C15 32 9 24 9 18S16 7 20 3z'],
+    ];
+    const headArt = (d: string) => `<svg viewBox="0 0 40 40" width="34" height="34"><path d="${d}" fill="#d8b49a" stroke="#6b4430" stroke-width="2"/></svg>`;
+    const hairs: Array<[string, string]> = female
+      ? [['box_braids', 'Box braids'], ['cornrows', 'Cornrows'], ['bun', 'Bun'], ['ponytail', 'Ponytail'], ['afro', 'Afro'], ['twists', 'Twists'], ['bantu_knots', 'Bantu knots'], ['bob_wig', 'Bob wig'], ['long_wig', 'Long wig'], ['dreads', 'Locs'], ['low_cut', 'Low cut']]
+      : [['low_cut', 'Low cut'], ['waves', '360 waves'], ['fade', 'Fade'], ['buzz', 'Buzz'], ['afro', 'Afro'], ['high_top', 'High-top'], ['twists', 'Twists'], ['dreads', 'Locs'], ['cornrows', 'Cornrows'], ['bald', 'Bald']];
+    const colours: Array<[string, string]> = [['#0b0908', 'Black'], ['#2b1b12', 'Dark brown'], ['#5a2e1b', 'Auburn'], ['#b07a3b', 'Honey blonde'], ['#5c1a2b', 'Burgundy'], ['#8a8a8a', 'Grey']];
+    const beards: Array<[string, string]> = [['none', 'Clean'], ['stubble', 'Stubble'], ['moustache', 'Moustache'], ['goatee', 'Goatee'], ['full', 'Full beard'], ['chinstrap', 'Chinstrap']];
+    const builds: Array<[string, string]> = [['slim', 'Slim'], ['average', 'Average'], ['broad', 'Broad']];
+    const skins: Array<[string, string]> = [['#3b2416', 'Deep'], ['#4a2c1d', 'Dark'], ['#5c3722', 'Rich'], ['#6b4430', 'Brown'], ['#7a4b33', 'Warm'], ['#8d5a3b', 'Caramel'], ['#a36d4a', 'Honey'], ['#c08a63', 'Light']];
+    const currentHair = cfg.hair ?? (female ? 'box_braids' : 'low_cut');
+    return `
+      <div class="look-studio">
+        <div class="look-photos"><img id="look-full" alt="You, full length" /><img id="look-face" alt="Your face" /></div>
+        <div class="look-section"><div class="look-title">You are</div><div class="look-row">${opt('gender', 'male', 'Man', !female)}${opt('gender', 'female', 'Woman', female)}</div></div>
+        <div class="look-section"><div class="look-title">Head shape</div><div class="look-row">${heads.map(([v, l, d]) => opt('headShape', v, l, (cfg.headShape ?? (female ? 'oval' : 'round')) === v, headArt(d))).join('')}</div></div>
+        <div class="look-section"><div class="look-title">Skin</div><div class="look-row">${skins.map(([v, l]) => opt('skinTone', v, l, cfg.skinTone === v, `<i class="look-dot" style="background:${v}"></i>`)).join('')}</div></div>
+        <div class="look-section"><div class="look-title">Hairstyle</div><div class="look-row">${hairs.map(([v, l]) => opt('hair', v, l, currentHair === v)).join('')}</div></div>
+        <div class="look-section"><div class="look-title">Hair colour</div><div class="look-row">${colours.map(([v, l]) => opt('hairColor', v, l, (cfg.hairColor ?? '#0b0908') === v, `<i class="look-dot" style="background:${v}"></i>`)).join('')}</div></div>
+        ${female ? '' : `<div class="look-section"><div class="look-title">Beard</div><div class="look-row">${beards.map(([v, l]) => opt('beard', v, l, (cfg.beard ?? 'none') === v)).join('')}</div></div>`}
+        <div class="look-section"><div class="look-title">Build</div><div class="look-row">${builds.map(([v, l]) => opt('build', v, l, (cfg.build ?? 'average') === v)).join('')}</div></div>
+        <div class="look-hint">Hats from the wardrobe (a fila, a gele) are worn over your hair.</div>
+      </div>`;
+  }
+
   private render(): void {
     const cfg = this.player.config;
     const accountData = this.backend.getData();
@@ -166,6 +214,9 @@ export class CharacterCreatorModal {
 
         <!-- Studio Mode Tabs -->
         <div style="display: flex; gap: 8px; padding: 12px 24px; background: transparent; border-bottom: 1px solid rgba(15, 26, 20, 0.08);">
+          <button id="tab-btn-look" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'look' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'look' ? '#ffffff' : '#66736c'};">
+            💇 Look
+          </button>
           <button id="tab-btn-wardrobe" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'wardrobe' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'wardrobe' ? '#ffffff' : '#66736c'};">
             🛍️ Modular Wardrobe Market
           </button>
@@ -176,7 +227,7 @@ export class CharacterCreatorModal {
 
         <div class="dialog-body" style="padding: 20px 24px; max-height: 65vh; overflow-y: auto;">
           ${
-            this.activeTab === 'wardrobe'
+            this.activeTab === 'look' ? this.lookPanel() : this.activeTab === 'wardrobe'
               ? `
             <!-- Wardrobe Category Filters -->
             <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px;">
@@ -392,6 +443,30 @@ export class CharacterCreatorModal {
     if (saveBtn) saveBtn.onclick = () => this.close();
 
     // Tab buttons
+    const tabLook = document.getElementById('tab-btn-look');
+    if (tabLook) {
+      tabLook.onclick = () => {
+        this.activeTab = 'look';
+        this.render();
+        this.setupEvents();
+      };
+    }
+    // The look's choices: each changes the person at once, shown in the studio picture
+    this.container.querySelectorAll<HTMLElement>('.look-opt').forEach((btn) => {
+      btn.onclick = () => {
+        const cfg = this.player.config as unknown as Record<string, unknown>;
+        const key = btn.dataset.key!;
+        cfg[key] = btn.dataset.value;
+        if (key === 'gender') {
+          cfg.hair = undefined;
+          cfg.beard = 'none';
+        }
+        this.player.applyCustomization(this.player.config);
+        this.render();
+        this.setupEvents();
+      };
+    });
+    if (this.activeTab === 'look') requestAnimationFrame(() => this.showPreview());
     const tabWardrobe = document.getElementById('tab-btn-wardrobe');
     if (tabWardrobe) {
       tabWardrobe.onclick = () => {

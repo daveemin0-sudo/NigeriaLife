@@ -673,6 +673,7 @@ export class WorldMapRenderer {
     this.addWaterLabel('LAGOS LAGOON', 320, 0.5, 1950, 300, 75, '#e0f2fe');
     this.addWaterLabel('LAGOS LAGOON', -320, 0.5, 1650, 300, 75, '#e0f2fe');
     this.addWaterLabel('THIRD MAINLAND BRIDGE', -150, 0.5, 2250, 230, 40, '#fef9c3');
+    this.addWaterLabel('BANANA ISLAND', 240, 8, -40, 150, 34, '#fefce8');
     for (const [name, z] of [['LAGOS ISLAND', 120], ['VICTORIA ISLAND', 640], ['IKOYI', 1050], ['YABA · MAINLAND', 3350], ['MUSHIN', 4150], ['IKEJA', 4500], ['OSHODI', 4950], ['AIRPORT', 6260], ['AGEGE', 6800]] as Array<[string, number]>) {
       this.addWaterLabel(name, 175, 0.5, z, 170, 34, '#fefce8');
     }

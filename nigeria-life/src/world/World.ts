@@ -1,3 +1,4 @@
+import { BananaEstate } from './BananaEstate';
 import * as THREE from 'three';
 import { Agamas } from '../life/Agamas';
 import { Lagoon } from './expressway/Lagoon';
@@ -78,6 +79,7 @@ export class World {
   // Visual Scale, Density, and Population extensions
   public cityDensity: CityDensityManager;
   public trafficSpawner: TrafficSpawner;
+  public estate!: BananaEstate;
   public expressway!: Expressway;
   public agamas!: Agamas;
   public lagoon!: Lagoon;
@@ -163,6 +165,9 @@ export class World {
     // Agamas doing push-ups on the walls along it, to be caught for the album
     this.agamas = new Agamas();
     this.expressway.group.add(this.agamas.group);
+    // Banana Island's estate: closes of villas, each with its owner at home or away
+    this.estate = new BananaEstate();
+    this.expressway.group.add(this.estate.group);
     // The lagoon under the bridge: boats about, Makoko on its stilts, a canoe from the jetty
     this.lagoon = new Lagoon();
     this.expressway.group.add(this.lagoon.group);
@@ -197,6 +202,7 @@ export class World {
       ...this.interiorManager.getAllInteractiveObjects(),
       // The places along the expressway
       ...this.expressway.roadside.interactive,
+      ...this.estate.interactive,
       ...this.agamas.interactive,
       ...this.lagoon.interactive,
       // The Red Line's gates at the foot of each station's stairs
@@ -371,6 +377,7 @@ export class World {
     // The stadium, the port and the airport say for themselves what they put on the ground
     out.push(...this.landmarks.obstructions());
     out.push(...this.expressway.obstructions);
+    out.push(...this.estate.obstructions);
     for (const source of this.builtByPlayers) out.push(...source());
     return out;
   }
