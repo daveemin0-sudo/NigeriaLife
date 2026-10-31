@@ -312,6 +312,18 @@ export async function run(_browser, check) {
       !proposeLowCloseness.ok && buySilverRing.ok && buySilverRing.paid === 35000 && proposeValid.ok && proposeValid.marriage?.status === 'engaged' && !proposeAgain.ok && marryValid.ok && marryValid.marriage?.status === 'married' && marryValid.dowryPaid === 75000 && !marryAgain.ok && marriageSnap.ok && marriageSnap.marriage?.status === 'married' && (funmiBeforeMarriage.cash + funmiBeforeMarriage.bank) - (marryValid.wallet.cash + marryValid.wallet.bank) === 110000,
       { proposeLowCloseness: proposeLowCloseness.reason, buySilverRing, proposeValid, proposeAgain: proposeAgain.reason, marryValid, marryAgain: marryAgain.reason, marriageSnap });
 
+    // Chieftaincy app: checks Fame requirements, confers Otunba title with investiture offering (₦250,000), awards title regalia, sets active title, and refuses duplicate title
+    const chief = await call('/auth/guest', { name: 'ObaCandidate', save: { cash: 300000, bank: 800000 } });
+    const conferLowFame = await call('/chieftaincy/confer', { titleId: 'otunba', fame: 10 }, chief.token);
+    const chiefBefore = (await call('/me', null, chief.token)).wallet;
+    const conferOtunba = await call('/chieftaincy/confer', { titleId: 'otunba', fame: 30 }, chief.token);
+    const conferDup = await call('/chieftaincy/confer', { titleId: 'otunba', fame: 30 }, chief.token);
+    const chiefSnap = await call('/chieftaincy', null, chief.token);
+    const setActive = await call('/chieftaincy/active', { titleId: 'otunba' }, chief.token);
+    check('online: Chieftaincy checks Fame requirements, confers Otunba of Lagos (₦250,000), refuses duplicate investiture, and tracks active royal title on the server',
+      !conferLowFame.ok && conferOtunba.ok && conferOtunba.paid === 250000 && !conferDup.ok && chiefSnap.ok && chiefSnap.titles.length === 1 && chiefSnap.activeTitle === 'otunba' && setActive.ok && (chiefBefore.cash + chiefBefore.bank) - (conferOtunba.wallet.cash + conferOtunba.wallet.bank) === 250000,
+      { conferLowFame: conferLowFame.reason, conferOtunba, conferDup: conferDup.reason, chiefSnap, setActive });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

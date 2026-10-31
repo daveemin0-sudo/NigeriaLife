@@ -23,6 +23,7 @@ import { attachNollywood } from '../../film/Nollywood';
 import { attachSparkDate } from '../../social/Spark';
 import { attachOwambe } from '../../social/Owambe';
 import { attachStudio } from '../../music/Studio';
+import { attachPalaceCourt } from '../../social/Chieftaincy';
 
 /**
  * A place along the expressway, gone into: its own room, laid out for what is done there, with
@@ -254,6 +255,7 @@ export class PlaceInterior {
     attachSparkDate(this, this.spec.key);
     attachOwambe(this);
     attachStudio(this, this.spec.key);
+    attachPalaceCourt(this, this.spec.key);
   }
 
   /**

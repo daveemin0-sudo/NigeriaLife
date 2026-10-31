@@ -28,6 +28,7 @@ import { ServerSpark } from './spark.ts';
 import { ServerOwambe } from './owambe.ts';
 import { ServerStudio } from './studio.ts';
 import { ServerMarriage } from './marriage.ts';
+import { ServerChieftaincy } from './chieftaincy.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -65,6 +66,7 @@ const spark = new ServerSpark(db, economy);
 const owambe = new ServerOwambe(db, economy);
 const studio = new ServerStudio(db, economy);
 const marriage = new ServerMarriage(db, economy);
+const chieftaincy = new ServerChieftaincy(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -199,7 +201,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -357,6 +359,15 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
         : url.pathname === '/marriage/propose'
           ? marriage.propose(account.id, body)
           : marriage.marry(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Chieftaincy & High Society Titles: royal investitures and active titles
+    if (req.method === 'GET' && url.pathname === '/chieftaincy') return reply(res, 200, chieftaincy.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/chieftaincy/confer' || url.pathname === '/chieftaincy/active')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/chieftaincy/confer'
+        ? chieftaincy.confer(account.id, body)
+        : chieftaincy.setActiveTitle(account.id, body);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
     }
     return player(req, res, url, account);
