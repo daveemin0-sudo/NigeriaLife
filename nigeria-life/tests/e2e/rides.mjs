@@ -86,9 +86,12 @@ export async function run(browser, check) {
         ray.setFromCamera(new THREE.Vector2(p.x, p.y), cam);
         const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
         const hits = ray.intersectObjects(r.group.children, true).filter((h) => shown(h.object) && !(h.object.material?.transparent));
-        let first = hits[0]?.object ?? null;
-        let ours = false;
-        while (first) { if (first === v.body) { ours = true; break; } first = first.parent; }
+        // Nothing that is not the vehicle (or the people in it) between the camera and the vehicle
+        // (an open keke may be seen through: what is behind it is not in front of it)
+        const entry = ray.ray.intersectBox(box, new THREE.Vector3());
+        const reach = entry ? entry.distanceTo(cam.position) : Infinity;
+        const isOurs = (o) => { for (; o; o = o.parent) if (o === v.body || o === v.passenger || o === v.driver?.root) return true; return false; };
+        const ours = !!entry && !hits.some((h) => h.distance < reach - 0.05 && !isOurs(h.object));
         g.renderer.render(g.scene, cam);
         return { inside, onScreen: Math.abs(p.x) < 1 && Math.abs(p.y) < 1 && p.z < 1, ours, passengerShown: v.passenger.visible, calls: g.renderer.info.render.calls };
       });

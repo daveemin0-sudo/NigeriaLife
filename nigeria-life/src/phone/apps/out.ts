@@ -133,6 +133,16 @@ export const rideApp: PhoneApp = {
           <span class="nl-hero-sub">${esc(host.world.cityName())} · where to?</span>
         </div>
         ${blocked ? `<div class="nl-note nl-note--warn" id="ride-blocked">${esc(blocked)}</div>` : ''}
+        ${(() => {
+          const hail = host.world.rideHail();
+          if (!hail.can && !hail.online) return '';
+          return `<div class="nl-card${hail.online ? ' nl-card--live' : ''}" id="ride-hail">
+            <div class="nl-card-title">🚗 Drive for Eko Rides</div>
+            <div class="nl-card-line">Take people from the bus stops to where they are going, in your car. Paid per trip.</div>
+            <div class="nl-card-line" id="ride-hail-status"><strong>${esc(hail.line)}</strong></div>
+            <button class="nl-btn ${hail.online ? 'nl-btn--danger' : 'nl-btn--primary'} nl-btn--block" id="ride-hail-btn" data-act="hail">${hail.online ? 'Go offline' : 'Go online and take passengers'}</button>
+          </div>`;
+        })()}
         <input class="nl-field nl-field--search" id="ride-search" type="search" placeholder="Search places" value="${esc(host.get('ride.search', ''))}" data-bind="ride.search" />
         <div class="nl-list" id="ride-places">
           ${places.length === 0
@@ -145,6 +155,11 @@ export const rideApp: PhoneApp = {
 
   act(host, action, el) {
     if (action === 'rides') return;
+    if (action === 'hail') {
+      const reason = host.world.rideHailToggle();
+      if (reason) host.say(reason, 'bad');
+      return;
+    }
     if (action === 'drive') {
       const reason = host.world.driveTo(el.dataset.arg ?? '');
       if (reason) host.say(reason, 'bad');

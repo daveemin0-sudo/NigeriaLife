@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Figure } from '../interiors/places/Worship';
+import { BUS_STOPS } from '../world/population/CityPopulation';
+import { RideHail } from '../jobs/RideHail';
 import { RouteGuide } from '../world/RouteGuide';
 import { Fridge } from '../housing/Fridge';
 import * as LudoRules from '../games/Ludo';
@@ -151,6 +154,57 @@ export class Game {
   public photoMode: PhotoModeModal;
   /** Directions on the road when driving yourself somewhere */
   public readonly routeGuide = new RouteGuide();
+  /** Going online with Eko Rides once the player is in the car brought round for it */
+  private rideHailWhenIn = false;
+  /** The passenger who gets out at the end of a ride, walking off; and what they stand in */
+  public riderOut: Figure | null = null;
+  private readonly rideHailGroup = new THREE.Group();
+  /** Driving for Eko Rides: people picked up at the bus stops and taken where they are going */
+  public readonly rideHail = new RideHail({
+    car: () => {
+      const v = this.player.isDriving ? this.player.currentVehicle : null;
+      if (!v || this.world.cityManager.currentCityId !== 'lagos' || this.world.interiorManager.isPlayerInside()) return null;
+      return { x: v.mesh.position.x, z: v.mesh.position.z, speed: v.currentSpeed, yaw: v.mesh.rotation.y };
+    },
+    stops: () => {
+      const places = DestinationRegistry.getInstance().getAllForCity('lagos');
+      return BUS_STOPS.map((stop, index) => {
+        const x = stop.side * (MAIN_ROAD.halfRoad - 1.8);
+        const near = places.reduce<{ name: string; d: number } | null>((best, p) => {
+          const d = Math.hypot(p.streetPosition.x - x, p.streetPosition.z - stop.z);
+          return !best || d < best.d ? { name: p.name, d } : best;
+        }, null);
+        return { index, x, z: stop.z, name: near && near.d < 60 ? `the bus stop by ${near.name}` : 'the Broad Street bus stop' };
+      });
+    },
+    waiting: (stop) => this.world.cityPopulation.waitingAt(stop),
+    atStop: (x, z) => this.world.cityPopulation.stopAt(x, z),
+    board: (stop, doorX, doorZ, onBoard) => this.world.cityPopulation.board(stop, doorX, doorZ, onBoard),
+    places: () => DestinationRegistry.getInstance().getAllForCity('lagos').filter((d) => d.city === 'lagos').map((d) => ({ name: d.name, x: d.streetPosition.x, z: d.streetPosition.z })),
+    guide: (to, name, arrived) => {
+      const v = this.player.currentVehicle;
+      const from = v ? v.mesh.position : this.player.position;
+      return this.routeGuide.start(() => DrivableVehicle.roads?.() ?? null, from, to, name, () => arrived());
+    },
+    stopGuide: () => this.routeGuide.stop(),
+    pay: (amount, what) => { BackendService.getInstance().performGig(amount, 0, what); },
+    say: (text, kind) => showGameToast(text, kind, 4600),
+    alight: (x, z, yaw) => {
+      // Out on the right, the kerb side, and off along the pavement
+      const rx = -Math.cos(yaw);
+      const rz = Math.sin(yaw);
+      if (!this.riderOut) {
+        this.riderOut = new Figure(this.rideHailGroup, 'eko-rides-passenger', 'Passenger', { gender: 'female', username: '', outfitColor: 0x2563eb, outfit: 'casual_blouse', hairstyle: 'braids' }, [x, z], yaw);
+      }
+      const rider = this.riderOut;
+      rider.root.visible = true;
+      rider.place(x + rx * 1.2, z + rz * 1.2, Math.atan2(rx, rz));
+      rider.walk([[x + rx * 3.2, z + rz * 3.2], [x + rx * 3.4 + Math.sin(yaw) * 4, z + rz * 3.4 + Math.cos(yaw) * 4]], () => {
+        rider.say('Thank you o!', 2);
+        rider.hold(2.2, () => { rider.root.visible = false; });
+      });
+    },
+  });
   /** The View button and its sheet: the ways to look, turning, a photo, a clean screen */
   public viewPicker!: ViewPicker;
   public bukaUI!: BukaOrderUI;
@@ -922,6 +976,28 @@ export class Game {
         return blocked;
       },
       canDrive: () => this.player.isDriving || !!this.ownedVehicles.ownCar(),
+      rideHail: () => ({ can: cityId() === 'lagos' && (this.player.isDriving || !!this.ownedVehicles.ownCar()), online: this.rideHail.online, line: this.rideHail.status() }),
+      rideHailToggle: () => {
+        if (this.rideHail.online) {
+          this.rideHail.goOffline();
+          return null;
+        }
+        if (!this.player.isDriving) {
+          // Their own car to the kerb first, to get into
+          const car = this.ownedVehicles.ownCar();
+          if (!car) return 'You need a car to drive for Eko Rides. Buy one in the Garage app.';
+          const blocked = this.ownedVehicles.bringRound(car.id);
+          this.ownedVehicles.sync();
+          if (blocked && !/driving it/.test(blocked)) return blocked;
+          this.hud.phoneModal.close();
+          this.rideHailWhenIn = true;
+          showGameToast(`🚗 Your ${car.name} is at the kerb. Get in and you go online with Eko Rides.`, 'success', 4200);
+          return null;
+        }
+        const reason = this.rideHail.goOnline();
+        if (!reason) this.hud.phoneModal.close();
+        return reason;
+      },
       driveTo: (destinationId) => {
         const d = DestinationRegistry.getInstance().getById(destinationId);
         if (!d) return 'That place is not on the map.';
@@ -1156,8 +1232,8 @@ export class Game {
     let toldAt = 0;
     this.player.mayNotStep = (fromX, fromZ, toX, toZ) => {
       if (this.player.isDriving || this.world.cityManager.currentCityId !== 'lagos' || this.world.interiorManager.isPlayerInside()) return false;
-      // Half a metre of grace at the edges: the way found along the crossing keeps to it within a cell
-      const barred = (x: number, z: number) => NO_CROSSING.some((r) => x > r.minX + 0.5 && x < r.maxX - 0.5 && z > r.minZ + 0.5 && z < r.maxZ - 0.5);
+      // Half a metre of grace at the ends of the crossing, along the road: the way found across it keeps to it within a cell
+      const barred = (x: number, z: number) => NO_CROSSING.some((r) => x > r.minX && x < r.maxX && z > r.minZ + 0.5 && z < r.maxZ - 0.5);
       if (!barred(toX, toZ) || barred(fromX, fromZ)) return false;
       if (performance.now() - toldAt > 4000) {
         toldAt = performance.now();
@@ -1246,6 +1322,8 @@ export class Game {
       ? { mode: 'drive', label: 'Drive yourself', icon: '🧭', fare: 0, travelTimeSec: 60, description: 'You at the wheel; arrows on the road show the way' }
       : null);
     this.hud.onDriveTo = (name, at) => this.driveTo(name, at);
+    this.routeGuide.onCancelled = () => this.rideHail.guideCancelled();
+    this.scene.add(this.rideHailGroup);
     // Out of a house of their own by its own front door, onto its own street
     this.world.interiorManager.homeFront = () => {
       const plotId = this.currentHome();
@@ -2430,6 +2508,13 @@ export class Game {
     this.flightExperience.update(delta);
     this.trackFlight();
     this.roadRideExperience.update(delta);
+    // Eko Rides: online once they are in the car they asked for; then requests, pickups, drop-offs
+    if (this.rideHailWhenIn && this.player.isDriving) {
+      this.rideHailWhenIn = false;
+      this.rideHail.goOnline();
+    }
+    this.rideHail.update(delta);
+    this.riderOut?.tick(delta);
     // The arrows on the road for the stretch ahead (hidden indoors and on a ride)
     if (this.routeGuide.active) {
       const outside = !this.world.interiorManager.isPlayerInside() && this.whereabouts() !== 'transit';

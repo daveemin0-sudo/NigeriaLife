@@ -46,6 +46,10 @@ export interface PhoneWorld {
   canDrive(): boolean;
   /** Directions on the road to a place, to drive there themselves. Returns why not, or null. */
   driveTo(destinationId: string): string | null;
+  /** Driving for Eko Rides: whether the player could (has a car or is in one), is online, and how it is going */
+  rideHail(): { can: boolean; online: boolean; line: string };
+  /** Online or offline with Eko Rides. Returns why not, or null. */
+  rideHailToggle(): string | null;
 }
 
 /** Everything an app is given to work with. */

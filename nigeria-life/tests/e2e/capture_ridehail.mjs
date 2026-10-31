@@ -1,0 +1,41 @@
+// Eko Rides on a phone screen: the request with arrows to the stop, the pickup, the drop-off (scratch capture)
+import { launch, newPlayer, wait, playUntil, advance } from './lib.mjs';
+const out = process.argv[2];
+const browser = await launch();
+const ctx = await newPlayer(browser);
+const page = await ctx.newPage();
+await page.setViewport({ width: 420, height: 816, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+await page.goto(process.env.GAME_URL, { waitUntil: 'load', timeout: 120000 });
+await page.waitForFunction('window.game', { timeout: 120000 });
+await wait(8000);
+await page.evaluate(() => {
+  document.getElementById('dialogue-confirm-btn')?.click();
+  const g = window.game;
+  g.world.skyEnvironment.setHour(12);
+  const car = g.world.vehicles.drivableVehicles.find((v) => v.type === 'sedan' && v.city === 'lagos' && !v.driver);
+  g.player.mesh.position.copy(car.mesh.position);
+  g.enterVehicle(car);
+  window.__park = (x, z, yaw = 0) => { const v = g.player.currentVehicle; v.mesh.position.set(x, 0, z); v.mesh.rotation.y = yaw; v.currentSpeed = 0; };
+});
+const shot = async (name) => { await wait(400); await page.screenshot({ path: `${out}/hail-${name}.png` }); };
+await page.evaluate(() => { window.game.hud.phoneModal.open(); window.game.hud.phoneModal.openApp('ride'); });
+await wait(600);
+await shot('app');
+await page.evaluate(() => document.getElementById('ride-hail-btn')?.click());
+const req = await playUntil(page, () => (window.game.rideHail.where === 'pickup' ? window.game.rideHail.current.stop : null), 20);
+// A little way short of the stop, to see the arrows to it
+await page.evaluate((stop) => window.__park(stop.x, stop.z - 40 * Math.sign(stop.x || 1) * -1, stop.x < 0 ? Math.PI : 0), req);
+await advance(page, 0.5);
+await shot('request');
+await page.evaluate((stop) => window.__park(stop.x, stop.z, stop.x < 0 ? Math.PI : 0), req);
+await playUntil(page, () => (window.game.rideHail.where === 'boarding' ? true : null), 10);
+await advance(page, 1.5);
+await shot('boarding');
+await playUntil(page, () => (window.game.rideHail.where === 'riding' ? true : null), 30);
+await advance(page, 0.5);
+await shot('riding');
+await page.evaluate(() => { const t = window.game.rideHail.current; window.__park(t.to.x, t.to.z); });
+await playUntil(page, () => (window.game.rideHail.trips === 1 ? true : null), 10);
+await advance(page, 1.2);
+await shot('dropoff');
+await browser.close();

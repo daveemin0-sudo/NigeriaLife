@@ -106,12 +106,16 @@ export class RouteGuide {
   private readonly spot = new THREE.Vector3();
   private path: THREE.Vector3[] = [];
   private target: { x: number; z: number; name: string } | null = null;
+  /** For this trip only: told on arrival instead of `onArrived` */
+  private arrived: ((name: string) => void) | null = null;
   private roads: (() => readonly Zone[] | null) | null = null;
   private clock = 0;
   private rethink = 0;
   private readonly bar: HTMLDivElement;
   /** Told when the place is reached */
   public onArrived: ((name: string) => void) | null = null;
+  /** Told when the player closes the directions with ✕ */
+  public onCancelled: (() => void) | null = null;
 
   constructor() {
     // A chevron laid flat on the road, pointing along +z
@@ -140,7 +144,10 @@ export class RouteGuide {
     this.bar.className = 'route-guide';
     this.bar.hidden = true;
     this.bar.innerHTML = '<span class="rg-icon">🧭</span><span class="rg-text"><strong id="route-guide-name"></strong><em id="route-guide-left"></em></span><button type="button" class="rg-x" aria-label="Stop the directions">✕</button>';
-    this.bar.querySelector('.rg-x')!.addEventListener('click', () => this.stop());
+    this.bar.querySelector('.rg-x')!.addEventListener('click', () => {
+      this.stop();
+      this.onCancelled?.();
+    });
     document.body.appendChild(this.bar);
   }
 
@@ -153,7 +160,7 @@ export class RouteGuide {
   }
 
   /** Directions from here to there along the streets. False if there is no way by road. */
-  public start(roads: () => readonly Zone[] | null, from: { x: number; z: number }, to: { x: number; z: number }, name: string): boolean {
+  public start(roads: () => readonly Zone[] | null, from: { x: number; z: number }, to: { x: number; z: number }, name: string, arrived?: (name: string) => void): boolean {
     const list = roads();
     const path = list ? driveRoute(list, from, to) : null;
     if (!path) return false;
@@ -161,6 +168,7 @@ export class RouteGuide {
     this.roads = roads;
     this.path = path;
     this.target = { ...to, name };
+    this.arrived = arrived ?? null;
     this.group.visible = true;
     this.bar.hidden = false;
     (this.bar.querySelector('#route-guide-name') as HTMLElement).textContent = name;
@@ -169,6 +177,7 @@ export class RouteGuide {
 
   public stop(): void {
     this.target = null;
+    this.arrived = null;
     this.path = [];
     this.arrows.count = 0;
     this.group.visible = false;
@@ -182,8 +191,9 @@ export class RouteGuide {
     const target = this.target;
     if (Math.hypot(at.x - target.x, at.z - target.z) < ARRIVE) {
       const name = target.name;
+      const told = this.arrived ?? this.onArrived;
       this.stop();
-      this.onArrived?.(name);
+      told?.(name);
       return;
     }
     // Drop the corners already passed: the nearest point of the way, and on from there
