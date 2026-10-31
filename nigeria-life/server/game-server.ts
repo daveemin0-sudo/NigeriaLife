@@ -22,6 +22,7 @@ import { Hustle } from './hustle.ts';
 import { League } from './league.ts';
 import { Ads } from './ads.ts';
 import { Feed } from './feed.ts';
+import { ServerNollywood } from './nollywood.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -53,6 +54,7 @@ const hustle = new Hustle(db, economy);
 const league = new League(db, economy);
 const ads = new Ads(db, economy);
 const feed = new Feed(db);
+const nollywood = new ServerNollywood(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -187,7 +189,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -277,6 +279,17 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
     if (req.method === 'POST' && (url.pathname === '/ads/rent' || url.pathname === '/ads/remove')) {
       const body = await readBody(req);
       const done = url.pathname === '/ads/rent' ? ads.rent(account, body) : ads.remove(account, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Nollywood: casting calls, auditions, location shoots and box-office takings
+    if (req.method === 'GET' && url.pathname === '/nollywood') return reply(res, 200, nollywood.stateFor(account.id));
+    if (req.method === 'POST' && (url.pathname === '/nollywood/audition' || url.pathname === '/nollywood/shoot' || url.pathname === '/nollywood/collect')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/nollywood/audition'
+        ? nollywood.audition(account.id, String(body.filmId ?? ''), Number(body.stars ?? 1))
+        : url.pathname === '/nollywood/shoot'
+          ? nollywood.completeShoot(account.id, String(body.filmId ?? ''), Number(body.stars ?? 1))
+          : nollywood.stateFor(account.id);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
     }
     return player(req, res, url, account);

@@ -235,6 +235,17 @@ export async function run(_browser, check) {
       said.ok && !yarnTooSoon.ok && likeOnce.ok && post && post.by === 'Tunde' && post.likes === 1 && post.liked && !post.mine && unliked.likes === 0 && !unliked.liked,
       { said: said.ok, tooSoon: yarnTooSoon.reason, post, unliked });
 
+    // Nollywood: auditioning casts the player, shooting without an audition is refused, and completing the shoot pays wrap fee + raises Fame on the server
+    const lockedAudition = await call('/nollywood/audition', { filmId: 'island-heist', stars: 3 }, funmi.token);
+    const shootWithoutRole = await call('/nollywood/shoot', { filmId: 'blood-on-the-lagoon', stars: 3 }, funmi.token);
+    const castRes = await call('/nollywood/audition', { filmId: 'blood-on-the-lagoon', stars: 3 }, funmi.token);
+    const funmiBeforeShoot = (await call('/me', null, funmi.token)).wallet;
+    const shootRes = await call('/nollywood/shoot', { filmId: 'blood-on-the-lagoon', stars: 3 }, funmi.token);
+    const shootAgain = await call('/nollywood/shoot', { filmId: 'blood-on-the-lagoon', stars: 3 }, funmi.token);
+    check('online: Nollywood enforces Fame requirements, casts on audition, pays the 3-star shoot wrap fee (₦45,000 + ₦13,500 bonus) once on the server, and records filmography and Fame',
+      !lockedAudition.ok && !shootWithoutRole.ok && castRes.ok && castRes.active?.filmId === 'blood-on-the-lagoon' && shootRes.ok && shootRes.fame === 25 && shootRes.wallet.cash + shootRes.wallet.bank - (funmiBeforeShoot.cash + funmiBeforeShoot.bank) === 58500 && !shootAgain.ok && shootRes.filmography?.length === 1,
+      { lockedAudition: lockedAudition.reason, shootWithoutRole: shootWithoutRole.reason, castRes, shootRes, shootAgain: shootAgain.reason });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

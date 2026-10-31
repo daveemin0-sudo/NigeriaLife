@@ -18,6 +18,7 @@ import { oddsApp } from '../phone/apps/odds';
 import { adsApp } from '../phone/apps/ads';
 import { richApp } from '../phone/apps/rich';
 import { yarnApp } from '../phone/apps/yarn';
+import { nollywoodApp } from '../phone/apps/nollywood';
 import { UIStateManager } from './UIStateManager';
 import { draw } from './kit/StableView';
 import { esc, naira, meter } from './kit/html';
@@ -28,7 +29,7 @@ const APPS: PhoneApp[] = [
   shoppingApp, propertyApp, landApp, garageApp,
   businessApp, investApp, healthApp, settingsApp,
   eventsApp, gamesApp, gistApp, casesApp,
-  oddsApp, adsApp, richApp, yarnApp,
+  oddsApp, adsApp, richApp, yarnApp, nollywoodApp,
 ];
 
 /** Things the phone opens elsewhere in the game instead of showing itself. */
