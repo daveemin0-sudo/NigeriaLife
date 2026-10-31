@@ -25,6 +25,7 @@ import { Feed } from './feed.ts';
 import { ServerNollywood } from './nollywood.ts';
 import { ServerStaff } from './staff.ts';
 import { ServerSpark } from './spark.ts';
+import { ServerOwambe } from './owambe.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -59,6 +60,7 @@ const feed = new Feed(db);
 const nollywood = new ServerNollywood(db, economy);
 const staff = new ServerStaff(db, economy);
 const spark = new ServerSpark(db, economy);
+const owambe = new ServerOwambe(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -193,7 +195,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -316,6 +318,17 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
         : url.pathname === '/spark/schedule-date'
           ? spark.scheduleDate(account.id, body)
           : spark.completeDate(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Owambe app: Saturday parties, Aso-Ebi fabric, and spraying Naira at venues
+    if (req.method === 'GET' && url.pathname === '/owambe') return reply(res, 200, owambe.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/owambe/aso-ebi' || url.pathname === '/owambe/book' || url.pathname === '/owambe/spray')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/owambe/aso-ebi'
+        ? owambe.buyAsoEbi(account.id, body)
+        : url.pathname === '/owambe/book'
+          ? owambe.bookParty(account.id, body)
+          : owambe.spray(account.id, body);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
     }
     return player(req, res, url, account);

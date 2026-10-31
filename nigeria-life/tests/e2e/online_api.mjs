@@ -271,6 +271,19 @@ export async function run(_browser, check) {
       !dateBeforeMatch.ok && likeZainab.ok && scheduleZainab.ok && sparkSnap.ok && sparkSnap.activeDate?.venueKey === 'the-library' && completeZainab.ok && completeZainab.paid === 45000 && funmiBeforeDate.bank - completeZainab.wallet.bank === 45000 && completeZainab.closeness === 60 && !completeZainabAgain.ok && completeZainab.snapshot.completedDates.length === 1,
       { dateBeforeMatch: dateBeforeMatch.reason, likeZainab, scheduleZainab, sparkSnap, completeZainab, completeZainabAgain: completeZainabAgain.reason });
 
+    // Owambe app: buying Aso-Ebi, booking Freedom Park (₦35,000), refusing duplicate booking, and spraying Naira (₦15,000) once for +30 Fame
+    const sprayBeforeBook = await call('/owambe/spray', { venueKey: 'freedom-park', stars: 3 }, funmi.token);
+    const funmiBeforeOwambe = (await call('/me', null, funmi.token)).wallet;
+    const buyLace = await call('/owambe/aso-ebi', { asoEbiId: 'gold-lace', now: Date.now() }, funmi.token);
+    const bookFreedom = await call('/owambe/book', { tierId: 'island-birthday', now: Date.now() }, funmi.token);
+    const bookDuplicate = await call('/owambe/book', { tierId: 'shrine-chieftaincy', now: Date.now() }, funmi.token);
+    const owambeSnap = await call('/owambe', null, funmi.token);
+    const sprayFreedom = await call('/owambe/spray', { venueKey: 'freedom-park', stars: 3, now: Date.now() }, funmi.token);
+    const sprayAgain = await call('/owambe/spray', { venueKey: 'freedom-park', stars: 3, now: Date.now() }, funmi.token);
+    check('online: Owambe buys Royal Gold Lace (₦15,000), books Freedom Park (₦35,000), refuses duplicate booking, sprays ₦15,000 once on the floor, and awards +30 Owambe Fame',
+      !sprayBeforeBook.ok && buyLace.ok && buyLace.paid === 15000 && bookFreedom.ok && bookFreedom.paid === 35000 && !bookDuplicate.ok && owambeSnap.ok && owambeSnap.activeParty?.venueKey === 'freedom-park' && sprayFreedom.ok && sprayFreedom.paid === 15000 && sprayFreedom.fameEarned === 30 && funmiBeforeOwambe.bank - sprayFreedom.wallet.bank === 65000 && !sprayAgain.ok && sprayFreedom.snapshot.history.length === 1,
+      { sprayBeforeBook: sprayBeforeBook.reason, buyLace, bookFreedom, bookDuplicate: bookDuplicate.reason, owambeSnap, sprayFreedom, sprayAgain: sprayAgain.reason });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);

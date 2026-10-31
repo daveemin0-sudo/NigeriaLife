@@ -21,6 +21,7 @@ import { yarnApp } from '../phone/apps/yarn';
 import { nollywoodApp } from '../phone/apps/nollywood';
 import { staffApp } from '../phone/apps/staff';
 import { sparkApp } from '../phone/apps/spark';
+import { owambeApp } from '../phone/apps/owambe';
 import { UIStateManager } from './UIStateManager';
 import { draw } from './kit/StableView';
 import { esc, naira, meter } from './kit/html';
@@ -32,7 +33,7 @@ const APPS: PhoneApp[] = [
   businessApp, investApp, healthApp, settingsApp,
   eventsApp, gamesApp, gistApp, casesApp,
   oddsApp, adsApp, richApp, yarnApp, nollywoodApp,
-  staffApp, sparkApp,
+  staffApp, sparkApp, owambeApp,
 ];
 
 /** Things the phone opens elsewhere in the game instead of showing itself. */
