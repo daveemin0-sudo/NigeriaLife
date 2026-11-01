@@ -8,6 +8,9 @@ import { PlaceOpeners, type PlaceInterior } from '../interiors/places/PlaceInter
 import type { PlaceHost } from '../destinations/PlaceActions';
 import { showGameToast } from '../ui/GameToast';
 import { Activity } from '../life/Activity';
+import { Garage, newPlate } from '../realestate/Garage';
+import { Registry, MY_ID } from '../realestate/Registry';
+import { assetKey } from '../realestate/types';
 
 /**
  * Luxury Car Showroom & Tuning Garage ("Eko Motors"):
@@ -260,6 +263,7 @@ export class Motors {
             vehicles: parsed.vehicles.filter((v: any) => v && v.modelId in LUXURY_CARS),
             activeVehicleId: typeof parsed.activeVehicleId === 'string' ? parsed.activeVehicleId : null,
           };
+          this.syncToGarage();
         }
       }
     } catch {
@@ -314,6 +318,100 @@ export class Motors {
     return this.data.vehicles.find((v) => v.vehicleId === vehicleId) ?? null;
   }
 
+  public syncVehicleToGarage(vehicleId: string, modelId: string, pricePaid: number): void {
+    const registry = Registry.get();
+    const spec = LUXURY_CARS[modelId];
+    if (!spec) return;
+    const now = Date.now();
+    registry.transact((state) => {
+      if (!state.vehicles[vehicleId]) {
+        state.vehicles[vehicleId] = {
+          id: vehicleId,
+          modelId: spec.id,
+          condition: 100,
+          mileage: 0,
+          fuel: 100,
+          plate: newPlate(state.serial),
+          boughtNewAt: now,
+          upgrades: {
+            engine: 0,
+            tyres: false,
+            paint: spec.defaultPaint,
+          },
+        };
+      }
+      const titleKey = assetKey({ kind: 'vehicle', id: vehicleId });
+      if (!state.titles[titleKey]) {
+        const saleId = Registry.nextId(state, 'sale');
+        state.titles[titleKey] = {
+          ownerId: MY_ID,
+          history: [{ at: now, from: null, to: MY_ID, price: pricePaid, saleId }],
+        };
+        state.sales.push({
+          id: saleId,
+          asset: { kind: 'vehicle', id: vehicleId },
+          sellerId: null,
+          buyerId: MY_ID,
+          price: pricePaid,
+          fee: 0,
+          at: now,
+        });
+      }
+    });
+  }
+
+  public syncToGarage(): void {
+    const registry = Registry.get();
+    const peek = registry.peek();
+    for (const v of this.data.vehicles) {
+      if (!peek.vehicles[v.vehicleId]) {
+        const spec = LUXURY_CARS[v.modelId];
+        if (!spec) continue;
+        const now = v.boughtAt || Date.now();
+        registry.transact((state) => {
+          if (state.vehicles[v.vehicleId]) return;
+          const wrapOpt = v.wrap ? TUNING_OPTIONS[v.wrap] : null;
+          const turboOpt = v.turbo ? TUNING_OPTIONS[v.turbo] : null;
+          const rimsOpt = v.rims ? TUNING_OPTIONS[v.rims] : null;
+          const paint = wrapOpt?.colorHex ?? spec.defaultPaint;
+          const engine = turboOpt?.id === 'tune_stage2' ? 2 : turboOpt ? 1 : 0;
+          const tyres = Boolean(rimsOpt);
+          state.vehicles[v.vehicleId] = {
+            id: v.vehicleId,
+            modelId: spec.id,
+            condition: 100,
+            mileage: 0,
+            fuel: 100,
+            plate: newPlate(state.serial),
+            boughtNewAt: now,
+            upgrades: {
+              engine,
+              tyres,
+              paint,
+            },
+          };
+          const titleKey = assetKey({ kind: 'vehicle', id: v.vehicleId });
+          if (!state.titles[titleKey]) {
+            const saleId = Registry.nextId(state, 'sale');
+            state.titles[titleKey] = {
+              ownerId: MY_ID,
+              history: [{ at: now, from: null, to: MY_ID, price: v.pricePaid || spec.price, saleId }],
+            };
+            state.sales.push({
+              id: saleId,
+              asset: { kind: 'vehicle', id: v.vehicleId },
+              sellerId: null,
+              buyerId: MY_ID,
+              price: v.pricePaid || spec.price,
+              fee: 0,
+              at: now,
+            });
+          }
+        });
+      }
+    }
+  }
+
   public async syncOnline(): Promise<void> {
     const online = OnlineAccount.get();
     if (!online) return;
@@ -333,6 +431,7 @@ export class Motors {
           rims: v.rims ?? null,
           hasVipSiren: Boolean(v.hasVipSiren),
         }));
+        this.syncToGarage();
         this.changed();
       }
     } catch {
@@ -347,6 +446,7 @@ export class Motors {
 
     const online = OnlineAccount.get();
     const backend = BackendService.getInstance();
+    let vehicleId = '';
 
     if (online) {
       const res = (await online.request('/motors/buy', { modelId, now: Date.now() })) as {
@@ -358,16 +458,17 @@ export class Motors {
       };
       if (!res.ok) return { ok: false, message: res.reason ?? 'Purchase failed.' };
       if (res.wallet) backend.applyServerWallet(res.wallet);
+      vehicleId = res.vehicle?.vehicleId ?? `eko_car_${modelId}_${Math.random().toString(36).slice(2, 8)}`;
       if (res.snapshot) {
         this.data.vehicles = res.snapshot.vehicles;
-        this.data.activeVehicleId = res.vehicle?.vehicleId ?? this.data.vehicles[0]?.vehicleId ?? null;
+        this.data.activeVehicleId = vehicleId;
       }
     } else {
       if (!backend.canPay(spec.price)) {
         return { ok: false, message: `You need ₦${spec.price.toLocaleString()} to purchase the ${spec.name}.` };
       }
       backend.pay(spec.price, `Eko Motors Purchase: ${spec.name}`);
-      const vehicleId = `eko_car_${modelId}_${Math.random().toString(36).slice(2, 8)}`;
+      vehicleId = `eko_car_${modelId}_${Math.random().toString(36).slice(2, 8)}`;
       const rec: MotorsVehicleRecord = {
         vehicleId,
         modelId,
@@ -383,6 +484,10 @@ export class Motors {
       this.save();
     }
 
+    // Register into the canonical Registry & Garage so it is fully drivable,
+    // appears in the Garage app, home carport, and street spawning!
+    this.syncVehicleToGarage(vehicleId, modelId, spec.price);
+
     // Add luxury car key document to inventory
     backend.addItem({
       id: `key_${modelId}`,
@@ -396,7 +501,7 @@ export class Motors {
 
     backend.modifyNeed('fun', 40);
     Activity.emit({ kind: 'acted', id: `bought_car_${modelId}` });
-    showGameToast(`🏎️ Congratulations! You now own the ${spec.name}. Registered in your fleet.`, 'success', 6000);
+    showGameToast(`🏎️ Congratulations! You now own the ${spec.name}. Registered in your fleet and Garage.`, 'success', 6000);
     this.changed();
     return { ok: true, message: `Purchased ${spec.name}!`, vehicle: this.activeVehicle() ?? undefined };
   }
@@ -434,6 +539,16 @@ export class Motors {
       else if (option.category === 'rims') car.rims = optionId;
       else if (option.category === 'siren') car.hasVipSiren = true;
       this.save();
+    }
+
+    // Apply performance and visual upgrades directly to the real Garage vehicle
+    if (option.category === 'wrap' && option.colorHex !== undefined) {
+      void Garage.get().upgrade(vehicleId, { paint: option.colorHex });
+    } else if (option.category === 'turbo') {
+      const stage = optionId === 'tune_stage2' ? 2 : 1;
+      void Garage.get().upgrade(vehicleId, { engine: stage });
+    } else if (option.category === 'rims') {
+      void Garage.get().upgrade(vehicleId, { tyres: true });
     }
 
     backend.modifyNeed('fun', 25);

@@ -79,21 +79,26 @@ export async function run(browser, check) {
   const boughtState = await page.evaluate(() => {
     const m = window.game.modules.Motors.get();
     const d = window.game.hud.backend.getData();
+    const g = window.game.garage;
     const active = m.activeVehicle();
+    const inGarage = g.mine().find((v) => v.id === active?.vehicleId);
     return {
       ownedCount: m.owned().length,
       modelId: active?.modelId,
       totalFunds: d.bank.balance + d.walletCash,
       hasKeyInBag: d.inventory.some((i) => i.id === 'key_land_cruiser'),
+      inGarage: !!inGarage,
+      plate: inGarage?.plate,
     };
   });
 
   check(
-    'motors: buys Land Cruiser 300 VXR for ₦75,000,000, adds car key to inventory, and registers car in fleet',
+    'motors: buys Land Cruiser 300 VXR for ₦75,000,000, adds car key to inventory, and registers car in fleet and garage',
     boughtState.ownedCount === 1 &&
       boughtState.modelId === 'land_cruiser' &&
       fundsBefore - boughtState.totalFunds === 75000000 &&
-      boughtState.hasKeyInBag,
+      boughtState.hasKeyInBag &&
+      boughtState.inGarage,
     boughtState,
   );
 
@@ -145,11 +150,63 @@ export async function run(browser, check) {
     tunedState,
   );
 
+  // 4. Switch to My Fleet tab, summon car to street kerb, and drive it
+  await tap(page, 'button[data-set="mt.tab"][data-value="fleet"]');
+  await wait(300);
+  const fleetInfo = await page.evaluate(() => {
+    const card = document.querySelector('#phone-screen-content [data-fleet-card]');
+    const bringBtn = card?.querySelector('button[data-act="bring-car"]');
+    return {
+      hasFleetCard: !!card,
+      hasBringBtn: !!bringBtn,
+      cardText: card?.textContent ?? '',
+    };
+  });
+  check(
+    'motors: My Fleet lists the tuned luxury vehicle with license plate, top speed, power, and delivery button',
+    fleetInfo.hasFleetCard && fleetInfo.hasBringBtn && /Plate: LAG-/.test(fleetInfo.cardText),
+    fleetInfo,
+  );
+
+  await tap(page, 'button[data-act="bring-car"]');
+  await wait(450);
+
+  const driveTest = await page.evaluate(async () => {
+    const g = window.game;
+    const m = g.modules.Motors.get();
+    const active = m.activeVehicle();
+    if (!active) return { ok: false, reason: 'No active vehicle' };
+    const vehId = active.vehicleId;
+    const v = g.world.vehicles.drivableVehicles.find((x) => x.id === `veh-own-${vehId}`);
+    if (!v) return { ok: false, reason: 'Vehicle not spawned at kerb' };
+    const initialPos = v.mesh.position.clone();
+    g.enterVehicle(v);
+    g.input.keys['w'] = true;
+    await g.advance(2.0);
+    g.input.keys['w'] = false;
+    await g.advance(0.5);
+    const moved = Math.hypot(v.mesh.position.x - initialPos.x, v.mesh.position.z - initialPos.z);
+    g.exitVehicle();
+    return {
+      ok: true,
+      spawned: true,
+      driving: true,
+      moved: +moved.toFixed(1),
+      paint: v.config.paint,
+    };
+  });
+
+  check(
+    'motors: vehicle is brought round to kerb beside player on street, enters drivable state, moves with engine throttle, and has custom wrap paint',
+    driveTest.ok && driveTest.spawned && driveTest.driving && driveTest.moved > 1.0,
+    driveTest,
+  );
+
   // Close phone
   await page.evaluate(() => window.game.hud.phoneModal.close());
   await wait(250);
 
-  // 4. Enter Sankofa Motors showroom interior and verify 3D turntable & master dealer figure
+  // 5. Enter Sankofa Motors showroom interior and verify 3D turntable & master dealer figure
   await enterInterior(page, 'interior_place_sankofa-motors');
   await advance(page, 1.0);
   await snap(page, 'motors-4-drive');

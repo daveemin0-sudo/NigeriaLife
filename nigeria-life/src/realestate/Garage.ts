@@ -160,6 +160,10 @@ export const VEHICLE_MODELS: VehicleModel[] = [
     drive: { maxSpeed: 38, reverseSpeed: 12, acceleration: 28, braking: 26, turnSpeed: 2.8, friction: 1.8, hornText: '📢 HONK-HONK!', body: 'cullinan', paint: 0x1f2937 },
   },
   {
+    id: 'land_cruiser', name: 'Toyota Land Cruiser 300 VXR', icon: '🚙', type: 'suv', price: 75_000_000, blurb: 'V6 Twin-Turbo flagship SUV. High ground clearance, bulletproof presence.',
+    drive: { maxSpeed: 34, reverseSpeed: 10, acceleration: 24, braking: 22, turnSpeed: 2.5, friction: 1.9, hornText: '📢 POM-POM!', body: 'suv', paint: 0x2b3340 },
+  },
+  {
     id: 'huracan', name: 'Lamborghini Huracán', icon: '🏎️', type: 'sports_car', price: 720_000_000, blurb: 'Sharp wedge, V10 scream. Everyone at the junction turns round.',
     drive: { maxSpeed: 46, reverseSpeed: 14, acceleration: 38, braking: 32, turnSpeed: 3.8, friction: 1.6, hornText: '📢 BEEP-BEEP!', body: 'huracan', paint: 0x84cc16 },
   },
@@ -178,7 +182,7 @@ export const vehicleModel = (id: string): VehicleModel | null => VEHICLE_MODELS.
 const fail = (reason: string): Outcome => ({ ok: false, reason });
 const naira = (amount: number) => `₦${Math.round(amount).toLocaleString()}`;
 
-function newPlate(serial: number): string {
+export function newPlate(serial: number): string {
   const letters = 'ABCDEFGHJKLMNPRSTUVWXYZ';
   const pick = (seed: number) => letters[seed % letters.length];
   return `LAG-${String(100 + ((serial * 37) % 900))}-${pick(serial * 7)}${pick(serial * 13 + 5)}`;

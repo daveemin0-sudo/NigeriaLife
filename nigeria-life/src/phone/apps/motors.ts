@@ -1,4 +1,5 @@
 import { BackendService } from '../../backend/BackendService';
+import { Garage } from '../../realestate/Garage';
 import {
   Motors,
   LUXURY_CARS,
@@ -128,27 +129,37 @@ export const motorsApp: PhoneApp = {
             const turboName = rec.turbo ? TUNING_OPTIONS[rec.turbo]?.name : 'Stock Turbo';
             const extraHp = (rec.turbo ? TUNING_OPTIONS[rec.turbo]?.bonusHp ?? 0 : 0);
             const totalHp = model.horsepower + extraHp;
+            const garageRec = Garage.get().record(rec.vehicleId);
+            const plate = garageRec?.plate ?? 'LAG-VIP';
 
             return `
               <div class="nl-card" data-fleet-card="${esc(rec.vehicleId)}">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
                   <div>
                     <div class="nl-card-title">${esc(model.icon)} ${esc(model.name)}</div>
-                    <div class="nl-card-line" style="margin-top:2px;">${esc(wrapName)} · ${esc(turboName)} · <strong>${totalHp} HP</strong></div>
+                    <div class="nl-card-line" style="margin-top:2px;">Plate: <strong>${esc(plate)}</strong> · ${esc(wrapName)} · ${esc(turboName)} · <strong>${totalHp} HP</strong></div>
                   </div>
                   ${isSelected ? `<span class="nl-tag nl-tag--good">✓ Active Beast</span>` : ''}
                 </div>
-                <div class="nl-stats">
+                <div class="nl-stats" style="margin-top:6px;">
                   <span><strong>${model.topSpeedKmh + (rec.turbo ? TUNING_OPTIONS[rec.turbo]?.bonusSpeed ?? 0 : 0)} km/h</strong>Top Speed</span>
                   <span><strong>${rec.hasVipSiren ? 'Active' : 'Standard'}</strong>VIP Siren</span>
                   <span><strong>${totalHp} HP</strong>Total Power</span>
                 </div>
-                <div style="margin-top:6px;">
-                  ${
-                    isSelected
-                      ? `<button class="nl-btn nl-btn--block" disabled>Selected Active Vehicle</button>`
-                      : `<button class="nl-btn nl-btn--primary nl-btn--block" data-act="select-car" data-car="${esc(rec.vehicleId)}">Select for Tuning &amp; Driving</button>`
-                  }
+                <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+                  <button class="nl-btn nl-btn--primary nl-btn--block" data-act="bring-car" data-car="${esc(rec.vehicleId)}">
+                    🚗 Have it brought to me (Drive now)
+                  </button>
+                  <div style="display:flex; gap:6px;">
+                    <button class="nl-btn" style="flex:1;" data-act="open-garage" data-car="${esc(rec.vehicleId)}">
+                      🔧 View in Garage
+                    </button>
+                    ${
+                      isSelected
+                        ? `<button class="nl-btn" style="flex:1;" disabled>✓ Selected</button>`
+                        : `<button class="nl-btn" style="flex:1;" data-act="select-car" data-car="${esc(rec.vehicleId)}">Select for Tuning</button>`
+                    }
+                  </div>
                 </div>
               </div>
             `;
@@ -184,7 +195,12 @@ export const motorsApp: PhoneApp = {
     if (action === 'buy-car') {
       const modelId = el.dataset.model ?? '';
       const res = await motors.buy(modelId);
-      host.say(res.message, res.ok ? 'good' : 'bad');
+      if (res.ok) {
+        host.say(`${res.message} Added to your Garage fleet.`, 'good');
+        host.set('mt.tab', 'fleet');
+      } else {
+        host.say(res.message, 'bad');
+      }
       host.refresh();
       return;
     }
@@ -201,6 +217,22 @@ export const motorsApp: PhoneApp = {
       motors.setActiveVehicle(carId);
       host.say('Selected vehicle for tuning and driving.', 'good');
       host.refresh();
+      return;
+    }
+    if (action === 'bring-car') {
+      const carId = el.dataset.car ?? '';
+      const blocked = host.world.bringVehicle(carId);
+      if (blocked) {
+        host.say(blocked, 'bad');
+        return;
+      }
+      host.close();
+      return;
+    }
+    if (action === 'open-garage') {
+      const carId = el.dataset.car ?? '';
+      host.openApp('garage', `car:${carId}`);
+      return;
     }
   },
 };
