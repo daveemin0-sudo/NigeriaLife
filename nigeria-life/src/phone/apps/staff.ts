@@ -10,108 +10,40 @@ import type { PhoneApp } from '../PhoneApp';
  */
 
 let syncedAt = 0;
-let styled = false;
-
-const style = (): void => {
-  if (styled || typeof document === 'undefined') return;
-  styled = true;
-  const el = document.createElement('style');
-  el.id = 'nl-staff-style';
-  el.textContent = `
-    .st-root { padding: 4px 2px 68px; display: flex; flex-direction: column; gap: 10px; color: var(--lx-ink, #0f172a); font-family: var(--lx-font, system-ui); }
-    .st-hero {
-      padding: 12px 14px; border-radius: 16px;
-      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #0b7a43 100%);
-      color: #fff; box-shadow: var(--lx-shadow-sm, 0 4px 12px rgba(0,0,0,.08));
-    }
-    .st-hero-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-    .st-hero-tag { font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #86efac; }
-    .st-hero-badge { font-size: 11px; font-weight: 900; color: #fef08a; background: rgba(0,0,0,.28); padding: 2px 8px; border-radius: 999px; }
-    .st-hero h3 { margin: 4px 0 2px; font-size: 16px; font-weight: 900; letter-spacing: -.02em; }
-    .st-hero p { margin: 0; font-size: 11px; color: rgba(255,255,255,.86); line-height: 1.35; }
-    .st-stats {
-      margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.16);
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px;
-    }
-    .st-stats div b { display: block; font-size: 13px; font-weight: 900; color: #fde68a; font-variant-numeric: tabular-nums; }
-    .st-card {
-      padding: 12px; border-radius: 14px;
-      background: var(--lx-surface-solid, #fff); border: 1px solid var(--lx-line, rgba(0,0,0,.08));
-      box-shadow: var(--lx-shadow-sm, 0 4px 12px rgba(0,0,0,.08));
-      display: flex; flex-direction: column; gap: 6px; color: var(--lx-ink, #0f172a);
-    }
-    .st-card.hired { border-color: #16a34a; }
-    .st-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .st-person { display: flex; align-items: center; gap: 8px; }
-    .st-icon {
-      width: 34px; height: 34px; border-radius: 10px;
-      display: grid; place-items: center; font-size: 18px;
-      background: var(--lx-surface-2, #f1f5f9); flex-shrink: 0;
-    }
-    .st-name { font-size: 13px; font-weight: 900; color: var(--lx-ink, #0f172a); }
-    .st-role { font-size: 11px; font-weight: 700; color: var(--lx-dim, #64748b); }
-    .st-wage {
-      padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 900;
-      background: #fef3c7; color: #92400e; white-space: nowrap; font-variant-numeric: tabular-nums;
-    }
-    .st-wage.on { background: #dcfce7; color: #166534; }
-    .st-duty { font-size: 11px; font-weight: 800; color: var(--lx-brand, #0b7a43); }
-    .st-desc { font-size: 11px; color: var(--lx-dim, #64748b); line-height: 1.35; }
-    .st-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-    .st-btn {
-      flex: 1; padding: 8px 10px; border-radius: 10px; border: 0;
-      background: var(--lx-brand, #0b7a43); color: #fff;
-      font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer;
-    }
-    .st-btn:disabled { opacity: .45; cursor: not-allowed; }
-    .st-btn-sec {
-      padding: 8px 10px; border-radius: 10px;
-      border: 1px solid var(--lx-line, rgba(0,0,0,.14));
-      background: var(--lx-surface-2, #f1f5f9); color: var(--lx-ink, #0f172a);
-      font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer;
-    }
-    .st-btn-danger {
-      padding: 8px 10px; border-radius: 10px;
-      border: 1px solid #fecaca; background: #fef2f2; color: #991b1b;
-      font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer;
-    }
-  `;
-  document.head.appendChild(el);
-};
 
 function renderStaffCard(spec: StaffRoleSpec, hired: boolean, bankBalance: number): string {
   const canAfford = bankBalance >= spec.dailyWage;
   let dutyBtn = '';
   if (hired) {
     if (spec.id === 'cook') {
-      dutyBtn = `<button class="st-btn" data-act="cook-now" data-role="cook">🍲 Cook Meal into Fridge</button>`;
+      dutyBtn = `<button class="nl-btn nl-btn--primary nl-btn--block" data-act="cook-now" data-role="cook">🍲 Cook Meal into Fridge</button>`;
     } else if (spec.id === 'cleaner') {
-      dutyBtn = `<button class="st-btn" data-act="clean-now" data-role="cleaner">🧹 Tidy Home (+30% Hygiene)</button>`;
+      dutyBtn = `<button class="nl-btn nl-btn--primary nl-btn--block" data-act="clean-now" data-role="cleaner">🧹 Tidy Home (+30% Hygiene)</button>`;
     } else if (spec.id === 'driver') {
-      dutyBtn = `<button class="st-btn" data-act="call-driver" data-role="driver">🚘 Call Sunday (Your Car)</button>`;
+      dutyBtn = `<button class="nl-btn nl-btn--primary nl-btn--block" data-act="call-driver" data-role="driver">🚘 Call Sunday (Your Car)</button>`;
     } else {
-      dutyBtn = `<button class="st-btn" data-act="check-gate" data-role="gateman">🛡️ Compound Check (+15% Social)</button>`;
+      dutyBtn = `<button class="nl-btn nl-btn--primary nl-btn--block" data-act="check-gate" data-role="gateman">🛡️ Compound Check (+15% Social)</button>`;
     }
   }
   return `
-    <div class="st-card ${hired ? 'hired' : ''}" data-staff-card="${esc(spec.id)}">
-      <div class="st-card-top">
-        <div class="st-person">
-          <div class="st-icon">${spec.icon}</div>
+    <div class="nl-card ${hired ? 'nl-card--live' : ''}" data-staff-card="${esc(spec.id)}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="font-size:26px; width:40px; height:40px; border-radius:10px; background:var(--nl-surface-2); display:grid; place-items:center;">${spec.icon}</div>
           <div>
-            <div class="st-name">${esc(spec.name)}</div>
-            <div class="st-role">${esc(spec.title)}</div>
+            <div class="nl-card-title">${esc(spec.name)}</div>
+            <div class="nl-card-line" style="margin-top:1px;"><span class="nl-tag">${esc(spec.title)}</span></div>
           </div>
         </div>
-        <span class="st-wage ${hired ? 'on' : ''}">${hired ? `Active · ${naira(spec.dailyWage)}/day` : `${naira(spec.dailyWage)}/day`}</span>
+        <span class="nl-tag ${hired ? 'nl-tag--good' : 'nl-tag--warn'}">${hired ? `Active · ${naira(spec.dailyWage)}/day` : `${naira(spec.dailyWage)}/day`}</span>
       </div>
-      <div class="st-duty">${esc(spec.duty)}</div>
-      <div class="st-desc">${esc(spec.summary)}</div>
-      <div class="st-actions">
+      <div class="nl-card-line" style="font-weight:700; color:var(--nl-accent); margin-top:4px;">${esc(spec.duty)}</div>
+      <div class="nl-card-line">${esc(spec.summary)}</div>
+      <div style="margin-top:6px;">
         ${
           hired
-            ? `${dutyBtn}<button class="st-btn-danger" data-act="dismiss" data-role="${esc(spec.id)}">Let go</button>`
-            : `<button class="st-btn" data-act="hire" data-role="${esc(spec.id)}" ${canAfford ? '' : 'disabled'}>${
+            ? `${dutyBtn}<button class="nl-btn nl-btn--danger nl-btn--block" style="margin-top:4px;" data-act="dismiss" data-role="${esc(spec.id)}">Let go</button>`
+            : `<button class="nl-btn nl-btn--primary nl-btn--block" data-act="hire" data-role="${esc(spec.id)}" ${canAfford ? '' : 'disabled'}>${
                 canAfford ? `Hire ${esc(spec.name)} (${naira(spec.dailyWage)}/day from bank)` : `Need ${naira(spec.dailyWage)} in bank`
               }</button>`
         }
@@ -128,7 +60,6 @@ export const staffApp: PhoneApp = {
   purpose: 'Cook, cleaner, driver and gateman for your home',
   badge: () => HomeStaff.get().hiredList().length,
   render(host) {
-    style();
     const staff = HomeStaff.get();
     if (Date.now() - syncedAt > 8_000) {
       syncedAt = Date.now();
@@ -147,24 +78,21 @@ export const staffApp: PhoneApp = {
     return {
       title: 'Staff',
       body: `
-        <div class="st-root">
-          <div class="st-hero">
-            <div class="st-hero-top">
-              <span class="st-hero-tag">Lagos Home Staff</span>
-              <span class="st-hero-badge">${hired.length}/4 Hired</span>
-            </div>
-            <h3>Domestic Staff & Chauffeur</h3>
-            <p>Hire a cook, cleaner, personal driver, or gateman for your home. Paid every day from your bank account.</p>
-            <div class="st-stats">
-              <div>Daily Bank Pay<b>${naira(dailyTotal)}</b></div>
-              <div>Bank Balance<b>${naira(bank)}</b></div>
-              <div>Fridge Meals<b>${fridgeCount}</b></div>
-            </div>
+        <div class="nl-hero nl-hero--green">
+          <span class="nl-hero-label">Lagos Home Staff · Domestic Estate</span>
+          <span class="nl-hero-value">${hired.length}/4 Staff Hired</span>
+          <span class="nl-hero-sub">Daily Payroll: <strong>${naira(dailyTotal)}/day</strong> · Bank: <strong>${naira(bank)}</strong> · Fridge: <strong>${fridgeCount} Meals</strong></span>
+          <div class="nl-hero-actions">
+            <button class="nl-btn nl-btn--glass" data-set="staff-tab" data-value="all">📋 All Staff (${STAFF_ROLES.length})</button>
+            <button class="nl-btn nl-btn--glass" data-set="staff-tab" data-value="working">👥 Working (${hired.length})</button>
           </div>
-          ${chips('staff-tab', tab, [
-            ['all', `All Staff (${STAFF_ROLES.length})`],
-            ['working', `Working Now (${hired.length})`],
-          ])}
+        </div>
+        <div class="nl-section">Domestic Personnel</div>
+        ${chips('staff-tab', tab, [
+          ['all', `All Staff (${STAFF_ROLES.length})`],
+          ['working', `Working Now (${hired.length})`],
+        ])}
+        <div class="nl-list" style="margin-top:8px;">
           ${
             listToShow.length === 0
               ? empty('🧹', 'No home staff hired yet', 'Hire Mama Chidinma, Sisi Blessing, Sunday Okafor, or Musa Danjuma from the All Staff tab.')

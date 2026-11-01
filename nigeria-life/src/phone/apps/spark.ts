@@ -120,15 +120,17 @@ export const sparkApp: PhoneApp = {
 
     const activeBanner = activeDate
       ? `
-        <div class="sp-banner" id="spark-active-date">
-          <div>
-            <div style="font-size:10px;font-weight:800;color:#be123c;text-transform:uppercase;letter-spacing:.04em;">💘 Date Waiting Now</div>
-            <div style="font-size:13px;font-weight:800;margin-top:1px;">${esc(activeDate.name)} at ${esc(activeDate.venueName)}</div>
-            <div style="font-size:11px;color:var(--lx-muted,#64748b);">Standing inside ${esc(activeDate.venueName)} · ${naira(activeDate.bill)}</div>
+        <div class="nl-card nl-card--live sp-banner" id="spark-active-date">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div>
+              <div style="font-size:10px; font-weight:800; color:#be123c; text-transform:uppercase; letter-spacing:.04em;">💘 Date Waiting Now</div>
+              <div class="nl-card-title" style="margin-top:2px;">${esc(activeDate.name)} at ${esc(activeDate.venueName)}</div>
+              <div class="nl-card-line">Standing inside ${esc(activeDate.venueName)} · ${naira(activeDate.bill)}</div>
+            </div>
+            <button class="nl-btn nl-btn--primary nl-btn--sm" data-act="go-venue" data-venue="${esc(activeDate.venueKey)}" style="white-space:nowrap;">
+              🚕 Go to Venue
+            </button>
           </div>
-          <button class="sp-btn primary" data-act="go-venue" data-venue="${esc(activeDate.venueKey)}" style="padding:7px 10px;font-size:11px;white-space:nowrap;">
-            🚕 Go to Venue
-          </button>
         </div>
       `
       : '';
@@ -144,48 +146,52 @@ export const sparkApp: PhoneApp = {
         const on = p.id === profile.id;
         const m = spark.isMatched(p.id);
         return `
-          <button type="button" class="sp-pill ${on ? 'on' : ''}" data-act="select-profile" data-profile="${esc(p.id)}">
+          <button type="button" class="nl-chip ${on ? 'is-on' : ''} sp-pill" data-act="select-profile" data-profile="${esc(p.id)}">
             ${esc(p.name.split(' ')[0])}${m ? ' 💘' : ''}
           </button>
         `;
       }).join('');
 
       const interestTags = profile.interests
-        .map((tag) => `<span class="sp-tag">${esc(tag)}</span>`)
+        .map((tag) => `<span class="nl-tag">${esc(tag)}</span>`)
         .join('');
 
       content = `
-        <div class="sp-pills">${selectorPills}</div>
-        <div class="sp-card" data-spark-profile="${esc(profile.id)}">
-          <div class="sp-person">
+        <div class="nl-chips" style="padding:2px 0 6px;">${selectorPills}</div>
+        <div class="nl-card" data-spark-profile="${esc(profile.id)}">
+          <div style="display:flex; align-items:center; gap:12px;">
             ${renderAvatar(profile)}
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
-                <div class="sp-name">${esc(profile.name)}, ${profile.age}</div>
-                <span class="sp-tag" style="${isMatched ? 'background:#ffe4e6;color:#be123c;' : ''}">
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                <div class="nl-card-title">${esc(profile.name)}, ${profile.age}</div>
+                <span class="nl-tag ${isMatched ? 'nl-tag--good' : ''}">
                   ${isMatched ? `Matched · ${matchState?.closeness ?? 35}%` : esc(profile.area)}
                 </span>
               </div>
-              <div class="sp-sub">${esc(profile.title)} · ${esc(profile.area)}</div>
+              <div class="nl-card-line" style="margin-top:2px;">${esc(profile.title)} · <span class="nl-tag">${esc(profile.area)}</span></div>
             </div>
           </div>
-          <div class="sp-bio">"${esc(profile.bio)}"</div>
-          <div class="sp-tags">${interestTags}</div>
-          <div class="sp-venue">
-            <div class="sp-venue-label">🍷 Favourite Date Spot</div>
-            <div class="sp-venue-name">${esc(profile.venueName)} (${esc(profile.venueArea)}) · ${naira(profile.dateBill)}</div>
-            <div class="sp-venue-dish">${esc(profile.dateDish)}</div>
+          <div class="nl-note" style="border-left:3px solid #be123c; margin:6px 0; font-style:italic; color:var(--nl-text);">"${esc(profile.bio)}"</div>
+          <div class="nl-tags" style="margin:2px 0;">${interestTags}</div>
+          <div class="nl-card" style="margin:4px 0; background:var(--nl-surface-2); border-color:var(--nl-line);">
+            <div style="font-size:10px; font-weight:800; color:#be123c; text-transform:uppercase; letter-spacing:.04em;">🍷 Favourite Date Spot</div>
+            <div class="nl-card-title" style="font-size:13px; margin-top:1px;">${esc(profile.venueName)} (${esc(profile.venueArea)}) · ${naira(profile.dateBill)}</div>
+            <div class="nl-card-line" style="margin-top:2px;">${esc(profile.dateDish)}</div>
           </div>
-          <div class="sp-actions">
+          <div style="margin-top:6px;">
             ${
               isMatched
                 ? `
-                  <button type="button" class="sp-btn" data-act="open-chat" data-profile="${esc(profile.id)}">💬 Open Chat</button>
-                  <button type="button" class="sp-btn primary" data-act="schedule-date" data-profile="${esc(profile.id)}">🍷 Date at ${esc(profile.venueName)}</button>
+                  <div class="nl-split">
+                    <button type="button" class="nl-btn" data-act="open-chat" data-profile="${esc(profile.id)}">💬 Open Chat</button>
+                    <button type="button" class="nl-btn nl-btn--primary" data-act="schedule-date" data-profile="${esc(profile.id)}">🍷 Date at ${esc(profile.venueName)}</button>
+                  </div>
                 `
                 : `
-                  <button type="button" class="sp-btn" data-act="pass-profile" data-profile="${esc(profile.id)}">✕ Next Profile</button>
-                  <button type="button" class="sp-btn primary" data-act="like-profile" data-profile="${esc(profile.id)}">💘 Like & Match</button>
+                  <div class="nl-split">
+                    <button type="button" class="nl-btn" data-act="pass-profile" data-profile="${esc(profile.id)}">✕ Next</button>
+                    <button type="button" class="nl-btn nl-btn--primary" data-act="like-profile" data-profile="${esc(profile.id)}">💘 Like &amp; Match</button>
+                  </div>
                 `
             }
           </div>
@@ -210,7 +216,7 @@ export const sparkApp: PhoneApp = {
             const c = host.messages.contact(m.profile.contactId);
             const unread = c?.unread ?? 0;
             return `
-              <button type="button" class="sp-pill ${on ? 'on' : ''}" data-act="select-chat" data-profile="${esc(m.profileId)}">
+              <button type="button" class="nl-chip ${on ? 'is-on' : ''} sp-pill" data-act="select-chat" data-profile="${esc(m.profileId)}">
                 ${esc(m.profile.name.split(' ')[0])}${unread > 0 ? ` (${unread})` : ''}
               </button>
             `;
@@ -219,7 +225,7 @@ export const sparkApp: PhoneApp = {
 
         const messagesHtml =
           thread.length === 0
-            ? `<div style="font-size:12px;color:var(--lx-muted,#64748b);padding:8px;">Write a message to ${esc(p.name)}!</div>`
+            ? `<div style="font-size:12px; color:var(--nl-dim); padding:8px;">Write a message to ${esc(p.name)}!</div>`
             : thread
                 .slice(-3)
                 .map(
@@ -235,29 +241,29 @@ export const sparkApp: PhoneApp = {
         const draftKey = `spark.draft.${p.id}`;
 
         content = `
-          <div class="sp-pills">${matchPills}</div>
-          <div class="sp-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <div class="nl-chips" style="padding:2px 0 6px;">${matchPills}</div>
+          <div class="nl-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
               <div>
-                <div class="sp-name" style="font-size:13.5px;">${esc(p.name)} · <span style="color:#be123c;">${activeMatch.closeness}% Closeness</span></div>
-                <div class="sp-sub">Spot: ${esc(p.venueName)} (${naira(p.dateBill)})</div>
+                <div class="nl-card-title">${esc(p.name)} · <span class="nl-tag nl-tag--good">${activeMatch.closeness}% Closeness</span></div>
+                <div class="nl-card-line" style="margin-top:2px;">Spot: ${esc(p.venueName)} (${naira(p.dateBill)})</div>
               </div>
-              <button type="button" class="sp-btn primary" data-act="schedule-date" data-profile="${esc(p.id)}" style="padding:6px 10px;font-size:11px;">
+              <button type="button" class="nl-btn nl-btn--primary nl-btn--sm" data-act="schedule-date" data-profile="${esc(p.id)}">
                 🍷 Book Date
               </button>
             </div>
-            <div class="sp-thread" id="spark-msg-thread">
+            <div class="sp-thread" id="spark-msg-thread" style="margin-top:8px;">
               ${messagesHtml}
             </div>
-            <div class="sp-pills">
-              <button type="button" class="sp-pill" data-act="quick-msg" data-contact="${esc(p.contactId)}" data-text="Hey ${esc(p.name.split(' ')[0])}! How is ${esc(p.area)} treating you today?">
+            <div class="nl-chips" style="padding:6px 0;">
+              <button type="button" class="nl-chip" data-act="quick-msg" data-contact="${esc(p.contactId)}" data-text="Hey ${esc(p.name.split(' ')[0])}! How is ${esc(p.area)} treating you today?">
                 👋 Ask about ${esc(p.area)}
               </button>
-              <button type="button" class="sp-pill" data-act="quick-msg" data-contact="${esc(p.contactId)}" data-text="Let us meet at ${esc(p.venueName)} for dinner tonight!">
+              <button type="button" class="nl-chip" data-act="quick-msg" data-contact="${esc(p.contactId)}" data-text="Let us meet at ${esc(p.venueName)} for dinner tonight!">
                 🍷 Suggest ${esc(p.venueName)}
               </button>
             </div>
-            <form class="nl-chat-form" data-form="send-chat" data-arg="${esc(p.contactId)}" data-draft="${esc(draftKey)}">
+            <form class="nl-chat-form" data-form="send-chat" data-arg="${esc(p.contactId)}" data-draft="${esc(draftKey)}" style="display:flex; gap:6px; margin-top:4px;">
               <input class="nl-field" id="spark-chat-input" type="text" maxlength="200" autocomplete="off" placeholder="Message ${esc(p.name.split(' ')[0])}…" value="${esc(host.get(draftKey, ''))}" data-bind="${esc(draftKey)}" />
               <button class="nl-btn nl-btn--primary" id="spark-chat-send" type="submit" aria-label="Send">➤</button>
             </form>
@@ -273,16 +279,16 @@ export const sparkApp: PhoneApp = {
                 const p = m.profile;
                 const isWaiting = activeDate?.profileId === p.id;
                 return `
-                  <div class="sp-card" data-spark-date-card="${esc(p.id)}">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <div class="nl-card" data-spark-date-card="${esc(p.id)}">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                       <div>
-                        <div class="sp-name" style="font-size:13.5px;">${esc(p.name)} <span style="font-size:11px;color:#be123c;">(${m.closeness}% · ${m.datesCount} date${m.datesCount === 1 ? '' : 's'})</span></div>
-                        <div class="sp-sub">📍 ${esc(p.venueName)} (${esc(p.venueArea)}) · ${naira(p.dateBill)}</div>
+                        <div class="nl-card-title">${esc(p.name)} <span class="nl-tag nl-tag--good">${m.closeness}% · ${m.datesCount} date${m.datesCount === 1 ? '' : 's'}</span></div>
+                        <div class="nl-card-line" style="margin-top:2px;">📍 ${esc(p.venueName)} (${esc(p.venueArea)}) · ${naira(p.dateBill)}</div>
                       </div>
                       ${
                         isWaiting
-                          ? `<button type="button" class="sp-btn primary" data-act="go-venue" data-venue="${esc(p.venueKey)}" style="padding:7px 10px;font-size:11px;">🚕 Go Meet</button>`
-                          : `<button type="button" class="sp-btn primary" data-act="schedule-date" data-profile="${esc(p.id)}" style="padding:7px 10px;font-size:11px;">🍷 Plan Date</button>`
+                          ? `<button type="button" class="nl-btn nl-btn--primary nl-btn--sm" data-act="go-venue" data-venue="${esc(p.venueKey)}">🚕 Go Meet</button>`
+                          : `<button type="button" class="nl-btn nl-btn--primary nl-btn--sm" data-act="schedule-date" data-profile="${esc(p.id)}">🍷 Plan Date</button>`
                       }
                     </div>
                   </div>
@@ -296,35 +302,35 @@ export const sparkApp: PhoneApp = {
               .slice(0, 4)
               .map(
                 (d: SparkActiveDate) => `
-                <div class="sp-card" style="padding:9px 12px;font-size:12px;">
-                  <div>❤️ <b>${esc(d.name)}</b> at <b>${esc(d.venueName)}</b> · Paid ${naira(d.bill)}</div>
+                <div class="nl-card" style="padding:10px 14px;">
+                  <div class="nl-card-line">❤️ <strong>${esc(d.name)}</strong> at <strong>${esc(d.venueName)}</strong> · Paid ${naira(d.bill)}</div>
                 </div>
               `,
               )
               .join('')
           : '';
 
-      content = `${matchCards}${historyHtml}`;
+      content = `<div class="nl-list">${matchCards}${historyHtml}</div>`;
     }
 
     return {
       title: 'Spark',
       body: `
-        <div class="sp-root">
-          <div class="sp-hero">
-            <div class="sp-hero-top">
-              <span class="sp-hero-tag">Lagos Dating</span>
-              <span class="sp-hero-badge">${matches.length} Match${matches.length === 1 ? '' : 'es'}</span>
-            </div>
-            <h3>Spark Lagos</h3>
-            <p>Match with people across Lagos, chat on Messages, and meet them at real restaurants & lounges.</p>
+        <div class="nl-hero" style="background: linear-gradient(135deg, #881337 0%, #be123c 55%, #db2777 100%); padding: 12px 14px; margin-bottom: 6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="nl-hero-label" style="text-transform:uppercase; font-size:10px; letter-spacing:0.06em;">Spark Lagos</span>
+            <span class="nl-tag" style="background:rgba(255,255,255,0.2); color:#fff; font-weight:800;">${matches.length} Match${matches.length === 1 ? '' : 'es'}</span>
           </div>
-          ${activeBanner}
-          ${chips('spark-tab', tab, [
-            ['discover', `Discover (${SPARK_PROFILES.length})`],
-            ['chat', `Chat (${matches.length})`],
-            ['dates', `Dates (${(activeDate ? 1 : 0) + completedDates.length})`],
-          ])}
+          <span class="nl-hero-title" style="margin-top:2px; font-size:17px;">Spark Lagos</span>
+          <span class="nl-hero-sub" style="font-size:11.5px;">Match with people across Lagos, chat on Messages, and meet at real restaurants &amp; lounges.</span>
+        </div>
+        ${activeBanner}
+        ${chips('spark-tab', tab, [
+          ['discover', `Discover (${SPARK_PROFILES.length})`],
+          ['chat', `Chat (${matches.length})`],
+          ['dates', `Dates (${(activeDate ? 1 : 0) + completedDates.length})`],
+        ])}
+        <div style="margin-top:6px;">
           ${content}
         </div>
       `,

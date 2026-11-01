@@ -18,34 +18,6 @@ const style = (): void => {
   const el = document.createElement('style');
   el.id = 'nl-nollywood-style';
   el.textContent = `
-    .nw-root { padding: 4px 2px 18px; display: flex; flex-direction: column; gap: 10px; color: var(--lx-ink, #0f172a); font-family: var(--lx-font, system-ui); }
-    .nw-hero {
-      padding: 12px 14px; border-radius: 16px;
-      background: linear-gradient(135deg, #451a03 0%, #7c2d12 55%, #b45309 100%);
-      color: #fff; box-shadow: var(--lx-shadow-sm, 0 4px 12px rgba(0,0,0,.08));
-    }
-    .nw-hero-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-    .nw-hero-tag { font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #fde68a; }
-    .nw-hero-fame { font-size: 12px; font-weight: 900; color: #fef08a; background: rgba(0,0,0,0.28); padding: 2px 8px; border-radius: 999px; }
-    .nw-hero h3 { margin: 4px 0 2px; font-size: 16px; font-weight: 900; letter-spacing: -.02em; }
-    .nw-hero p { margin: 0; font-size: 11px; color: rgba(255,255,255,.86); line-height: 1.35; }
-    .nw-stats {
-      margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.16);
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px;
-    }
-    .nw-stats div b { display: block; font-size: 13px; font-weight: 900; color: #fef08a; font-variant-numeric: tabular-nums; }
-    .nw-stage {
-      padding: 12px 14px; border-radius: 14px;
-      background: #0f172a; color: #f8fafc;
-      border: 1.5px solid #f59e0b; box-shadow: var(--lx-shadow-sm, 0 4px 12px rgba(0,0,0,.08));
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .nw-stage-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: .06em; }
-    .nw-line {
-      margin: 2px 0; padding: 10px 12px; border-radius: 10px;
-      background: rgba(255,255,255,.07); font-size: 13px; font-weight: 800; line-height: 1.35; color: #fff;
-      font-style: italic;
-    }
     .nw-bar {
       position: relative; height: 18px; border-radius: 999px;
       background: rgba(255,255,255,.12); overflow: hidden; border: 1px solid rgba(255,255,255,.22);
@@ -61,62 +33,6 @@ const style = (): void => {
     .nw-take-pill.good { background: #166534; color: #dcfce7; }
     .nw-take-pill.ok { background: #854d0e; color: #fef9c3; }
     .nw-take-pill.miss { background: #7f1d1d; color: #fee2e2; }
-    .nw-stage-actions { display: flex; gap: 8px; }
-    .nw-deliver {
-      flex: 1; padding: 9px 12px; border-radius: 10px; border: 0;
-      background: #f59e0b; color: #0f172a; font-family: inherit; font-size: 12px; font-weight: 900; cursor: pointer;
-    }
-    .nw-cancel {
-      padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25);
-      background: transparent; color: #cbd5e1; font-family: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
-    }
-    .nw-callsheet {
-      padding: 12px; border-radius: 14px;
-      background: var(--lx-surface-solid, #fff); border: 1.5px solid #d97706;
-      display: flex; flex-direction: column; gap: 6px; color: var(--lx-ink, #0f172a);
-    }
-    .nw-callsheet-tag { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; color: #b45309; }
-    .nw-callsheet-title { font-size: 14px; font-weight: 900; color: var(--lx-ink, #0f172a); }
-    .nw-callsheet-sub { font-size: 11px; color: var(--lx-dim, #64748b); line-height: 1.35; }
-    .nw-cab {
-      align-self: flex-start; margin-top: 2px; padding: 7px 12px; border-radius: 10px; border: 0;
-      background: var(--lx-brand, #0b7a43); color: #fff; font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer;
-    }
-    .nw-card {
-      padding: 12px; border-radius: 14px;
-      background: var(--lx-surface-solid, #fff); border: 1px solid var(--lx-line, rgba(0,0,0,.08));
-      box-shadow: var(--lx-shadow-sm, 0 4px 12px rgba(0,0,0,.08));
-      display: flex; flex-direction: column; gap: 6px; color: var(--lx-ink, #0f172a);
-    }
-    .nw-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .nw-title { font-size: 14px; font-weight: 900; letter-spacing: -.01em; color: var(--lx-ink, #0f172a); }
-    .nw-genre {
-      padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800;
-      background: var(--lx-surface-2, #f1f5f9); color: var(--lx-dim, #64748b); white-space: nowrap;
-    }
-    .nw-meta { font-size: 11px; font-weight: 700; color: var(--lx-dim, #64748b); }
-    .nw-syn { font-size: 11.5px; color: var(--lx-ink, #0f172a); line-height: 1.35; }
-    .nw-terms {
-      display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px;
-      font-size: 11px; font-weight: 800; color: var(--lx-ink, #0f172a);
-    }
-    .nw-terms span { background: var(--lx-surface-2, #f1f5f9); padding: 3px 8px; border-radius: 8px; color: var(--lx-ink, #0f172a); }
-    .nw-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 2px; }
-    .nw-btn {
-      padding: 7px 12px; border-radius: 10px; border: 0;
-      background: var(--lx-brand, #0b7a43); color: #fff; font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer;
-    }
-    .nw-btn:disabled { opacity: 0.45; cursor: default; }
-    .nw-stars { color: #d97706; font-weight: 900; letter-spacing: 1px; }
-    .nw-royalty {
-      padding: 8px 10px; border-radius: 10px; background: var(--lx-surface-2, #f1f5f9);
-      display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; color: var(--lx-ink, #0f172a);
-    }
-    .nw-collect {
-      align-self: stretch; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--lx-line, rgba(0,0,0,.12));
-      background: var(--lx-surface-solid, #fff); color: var(--lx-ink, #0f172a); font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer;
-    }
-    .nw-list { display: flex; flex-direction: column; gap: 10px; }
   `;
   document.head.appendChild(el);
 };
@@ -134,49 +50,57 @@ const renderCall = (c: CastingCall, fame: number, activeFilmId: string | null): 
         ? 'Finish active shoot'
         : '🎬 Audition (3 takes)';
 
-  return `<article class="nw-card" data-casting="${esc(c.id)}">
-    <div class="nw-card-top">
-      <div>
-        <div class="nw-title">${esc(c.title)}</div>
-        <div class="nw-meta">${esc(c.studio)} · Dir. ${esc(c.director)}</div>
+  return `
+    <div class="nl-card" data-casting="${esc(c.id)}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div>
+          <div class="nl-card-title">🎬 ${esc(c.title)}</div>
+          <div class="nl-card-line" style="margin-top:2px;">${esc(c.studio)} · Dir. <strong>${esc(c.director)}</strong></div>
+        </div>
+        <span class="nl-tag nl-tag--warn">${esc(c.genre)}</span>
       </div>
-      <span class="nw-genre">${esc(c.genre)}</span>
+      <div class="nl-card-line" style="margin-top:4px; font-style:italic;">"${esc(c.synopsis)}"</div>
+      <div class="nl-stats" style="margin-top:6px;">
+        <span><strong>${esc(c.role)}</strong>Role</span>
+        <span><strong>${esc(c.venueName)}</strong>Location Set</span>
+        <span><strong>${naira(c.shootPay)}</strong>Wrap Pay</span>
+        <span><strong>${naira(c.dailyRoyalty)}/d</strong>Royalties (${RELEASE_DAYS}d)</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px;">
+        <span class="nl-tag ${locked ? 'nl-tag--muted' : 'nl-tag--good'}">
+          ${c.minFame > 0 ? `⭐ Min. ${c.minFame} Fame` : '⭐ Open casting call'}
+        </span>
+        <button type="button" class="nl-btn ${canAudition ? 'nl-btn--primary' : ''}" style="min-width:140px;" data-act="audition" data-id="${esc(c.id)}" ${canAudition ? '' : 'disabled'}>
+          ${esc(label)}
+        </button>
+      </div>
     </div>
-    <div class="nw-syn">${esc(c.synopsis)}</div>
-    <div class="nw-terms">
-      <span>🎭 Role: ${esc(c.role)}</span>
-      <span>📍 Set: ${esc(c.venueName)}</span>
-      <span>🎬 Wrap: ${naira(c.shootPay)}</span>
-      <span>📈 Royalties: ${naira(c.dailyRoyalty)}/day × ${RELEASE_DAYS}d</span>
-      <span>⭐ +${c.fameGain} Fame</span>
-    </div>
-    <div class="nw-foot">
-      <span class="nw-meta">${c.minFame > 0 ? `Min. Fame: ${c.minFame}` : 'Open casting call'}</span>
-      <button type="button" class="nw-btn" ${canAudition ? `data-act="audition" data-id="${esc(c.id)}"` : 'disabled'}>${esc(label)}</button>
-    </div>
-  </article>`;
+  `;
 };
 
 const renderFilm = (f: ReleasedFilm): string => {
   const stars = '★'.repeat(f.stars) + '☆'.repeat(3 - f.stars);
   const runDone = f.daysPaid >= f.totalDays;
-  return `<article class="nw-card" data-film="${esc(f.filmId)}">
-    <div class="nw-card-top">
-      <div>
-        <div class="nw-title">${esc(f.title)} <span class="nw-stars">${stars}</span></div>
-        <div class="nw-meta">As ${esc(f.role)} · ${esc(f.studio)} · Shot at ${esc(f.venueName)}</div>
+  return `
+    <div class="nl-card" data-film="${esc(f.filmId)}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div>
+          <div class="nl-card-title">🎬 ${esc(f.title)} <span style="color:#d97706; font-weight:900;">${stars}</span></div>
+          <div class="nl-card-line" style="margin-top:2px;">As <strong>${esc(f.role)}</strong> · ${esc(f.studio)} · Shot at <strong>${esc(f.venueName)}</strong></div>
+        </div>
+        <span class="nl-tag nl-tag--good">+${f.fameEarned} Fame</span>
       </div>
-      <span class="nw-genre">+${f.fameEarned} Fame</span>
+      <div class="nl-stats" style="margin-top:6px;">
+        <span><strong>${naira(f.shootPay + f.tip)}</strong>Wrap Pay${f.tip > 0 ? ` (+${naira(f.tip)})` : ''}</span>
+        <span><strong>${naira(f.dailyTaking)}/day</strong>Royalty Rate</span>
+        <span><strong>${naira(f.totalTakings)}</strong>Total Takings</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; padding:6px 10px; background:var(--nl-surface-2); border-radius:var(--nl-r-sm); font-size:11.5px; font-weight:700;">
+        <span>Box-office run: Day ${f.daysPaid} of ${f.totalDays}${runDone ? ' (Complete)' : ' (In cinemas)'}</span>
+        <strong style="color:var(--nl-warn);">${naira(f.totalTakings)}</strong>
+      </div>
     </div>
-    <div class="nw-terms">
-      <span>🎬 Wrap pay: ${naira(f.shootPay + f.tip)}${f.tip > 0 ? ` (incl. ${naira(f.tip)} bonus)` : ''}</span>
-      <span>🎟️ Royalty rate: ${naira(f.dailyTaking)}/day</span>
-    </div>
-    <div class="nw-royalty">
-      <span>Box-office run: Day ${f.daysPaid} of ${f.totalDays}${runDone ? ' (Complete)' : ' (In cinemas)'}</span>
-      <b>Takings: ${naira(f.totalTakings)}</b>
-    </div>
-  </article>`;
+  `;
 };
 
 export const nollywoodApp: PhoneApp = {
@@ -208,18 +132,20 @@ export const nollywoodApp: PhoneApp = {
     const totalRoyalties = films.reduce((sum, f) => sum + f.totalTakings, 0);
 
     const stageHtml = audition
-      ? `<section class="nw-stage" id="nw-audition-stage">
-          <div class="nw-stage-head">
-            <span>🎬 Audition · ${esc(audition.title)} (${esc(audition.role)})</span>
-            <span>Take ${audition.takeIndex + 1} of 3</span>
+      ? `<div class="nl-card" id="nw-audition-stage" style="border:1.5px solid var(--nl-warn); background:#0f172a; color:#f8fafc;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:800; color:#fbbf24; text-transform:uppercase; letter-spacing:.06em;">🎬 Audition · ${esc(audition.title)} (${esc(audition.role)})</span>
+            <span class="nl-tag nl-tag--warn">Take ${audition.takeIndex + 1} of 3</span>
           </div>
-          <div class="nw-line">"${esc(audition.lines[audition.takeIndex])}"</div>
+          <div class="nw-line" style="margin:6px 0; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,.08); font-size:13px; font-weight:800; line-height:1.35; color:#fff; font-style:italic; border-left:3px solid #f59e0b;">
+            "${esc(audition.lines[audition.takeIndex])}"
+          </div>
           <div class="nw-bar" id="nw-audition-bar">
             <div class="nw-ok"></div>
             <div class="nw-sweet"></div>
             <div class="nw-pin" style="left:${Math.round(audition.pinAt * 100)}%"></div>
           </div>
-          <div class="nw-takes">
+          <div class="nw-takes" style="margin-top:6px;">
             ${[0, 1, 2]
               .map((i) => {
                 const hit = audition.hits[i];
@@ -229,25 +155,28 @@ export const nollywoodApp: PhoneApp = {
               })
               .join('')}
           </div>
-          <div class="nw-stage-actions">
-            <button type="button" class="nw-deliver" data-act="deliver">🎬 Deliver line now</button>
-            <button type="button" class="nw-cancel" data-act="cancel-audition">Cancel</button>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button type="button" class="nl-btn nl-btn--primary" style="flex:1;" data-act="deliver">🎬 Deliver line now</button>
+            <button type="button" class="nl-btn" data-act="cancel-audition">Cancel</button>
           </div>
-        </section>`
+        </div>`
       : '';
 
     const activeHtml = active
-      ? `<section class="nw-callsheet" id="nw-active-role">
-          <div class="nw-callsheet-tag">📋 Call Sheet · On Location</div>
-          <div class="nw-callsheet-title">${esc(active.title)} — ${esc(active.role)} (${'★'.repeat(active.auditionStars)}${'☆'.repeat(3 - active.auditionStars)})</div>
-          <div class="nw-callsheet-sub">Director ${esc(active.director)} (${esc(active.studio)}) is waiting on set at <b>${esc(active.venueName)}</b>. Wrap pay: <b>${naira(active.shootPay)}</b> + 5 days of box-office takings.</div>
-          <button type="button" class="nw-cab" data-act="cab" data-venue="${esc(active.venueKey)}">🚕 Take a cab to ${esc(active.venueName)}</button>
-        </section>`
+      ? `<div class="nl-card nl-card--live" id="nw-active-role" style="border-left:3px solid var(--nl-warn);">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="nl-tag nl-tag--warn">📋 Call Sheet · On Location</span>
+            <span style="font-size:12px; font-weight:800; color:#d97706;">${'★'.repeat(active.auditionStars)}${'☆'.repeat(3 - active.auditionStars)}</span>
+          </div>
+          <div class="nl-card-title" style="margin-top:4px;">${esc(active.title)} — Role: ${esc(active.role)}</div>
+          <div class="nl-card-line" style="margin-top:2px;">Director <strong>${esc(active.director)}</strong> (${esc(active.studio)}) is waiting on set at <strong>${esc(active.venueName)}</strong>. Wrap pay: <strong>${naira(active.shootPay)}</strong> + 5 days of box-office takings.</div>
+          <button type="button" class="nl-btn nl-btn--primary nl-btn--block" style="margin-top:8px;" data-act="cab" data-venue="${esc(active.venueKey)}">🚕 Take a cab to ${esc(active.venueName)}</button>
+        </div>`
       : '';
 
     const bodyHtml =
       tab === 'films'
-        ? `<button type="button" class="nw-collect" data-act="collect">🎬 Check box-office takings</button>` +
+        ? `<button type="button" class="nl-btn nl-btn--primary nl-btn--block" style="margin-bottom:8px;" data-act="collect">🎬 Check box-office takings</button>` +
           (films.length > 0
             ? films.map(renderFilm).join('')
             : empty('🎞️', 'No films released yet', 'Audition for a casting call and shoot your scene at the venue to release your first Nollywood film.'))
@@ -258,18 +187,15 @@ export const nollywoodApp: PhoneApp = {
 
     return {
       title: 'Nollywood',
-      body: `<div class="nw-root">
-        <div class="nw-hero">
-          <div class="nw-hero-top">
-            <span class="nw-hero-tag">Lagos Film Guild</span>
-            <span class="nw-hero-fame" id="nw-fame-badge">⭐ ${fame} Fame · ${esc(fameTitle)}</span>
-          </div>
-          <h3>Nollywood Casting & Box Office</h3>
-          <p>Audition in a three-take scene test, shoot on location at a real Lagos venue, and collect daily box-office takings after release.</p>
-          <div class="nw-stats">
-            <div>Films shot<b id="nw-stat-films">${films.length}</b></div>
-            <div>Fame<b id="nw-stat-fame">${fame}</b></div>
-            <div>Royalties<b id="nw-stat-royalties">${naira(totalRoyalties)}</b></div>
+      body: `
+        <div class="nl-hero nl-hero--amber">
+          <span class="nl-hero-label">Lagos Film Guild · Nollywood</span>
+          <span class="nl-hero-value" id="nw-fame-badge">⭐ ${fame} Fame</span>
+          <span class="nl-hero-sub">Rank: <strong>${esc(fameTitle)}</strong> · Royalties: <strong>${naira(totalRoyalties)}</strong></span>
+          <div class="nl-stats" style="margin-top:8px;">
+            <span><strong id="nw-stat-films">${films.length}</strong>Films Shot</span>
+            <span><strong id="nw-stat-fame">${fame}</strong>Actor Fame</span>
+            <span><strong id="nw-stat-royalties">${naira(totalRoyalties)}</strong>Total Box Office</span>
           </div>
         </div>
         ${stageHtml}
@@ -278,8 +204,10 @@ export const nollywoodApp: PhoneApp = {
           ['casting', `🎬 Casting Calls (${nw.calls().length})`],
           ['films', `🎞️ Filmography (${films.length})`],
         ])}
-        <div class="nw-list">${bodyHtml}</div>
-      </div>`,
+        <div class="nl-list" style="margin-top:8px;">
+          ${bodyHtml}
+        </div>
+      `,
     };
   },
 

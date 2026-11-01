@@ -15,82 +15,6 @@ import type { PhoneApp } from '../PhoneApp';
  */
 
 let syncedAt = 0;
-let styled = false;
-
-const style = (): void => {
-  if (styled || typeof document === 'undefined') return;
-  styled = true;
-  const el = document.createElement('style');
-  el.id = 'nl-studio-style';
-  el.textContent = `
-    .ms-root { padding: 4px 2px 68px; display: flex; flex-direction: column; gap: 10px; color: var(--lx-ink, #0f172a); font-family: var(--lx-font, system-ui); }
-    .ms-hero {
-      padding: 12px 14px; border-radius: 16px;
-      background: linear-gradient(135deg, #3b0764 0%, #6d28d9 55%, #9333ea 100%);
-      color: #fff; box-shadow: var(--lx-shadow-sm, 0 4px 12px rgba(0,0,0,.1));
-    }
-    .ms-hero-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-    .ms-hero-tag { font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #fde047; }
-    .ms-hero-badge { font-size: 11px; font-weight: 900; color: #fef08a; background: rgba(0,0,0,.32); padding: 2px 8px; border-radius: 999px; }
-    .ms-hero h3 { margin: 4px 0 2px; font-size: 16px; font-weight: 900; letter-spacing: -.02em; }
-    .ms-hero p { margin: 0; font-size: 11px; color: rgba(255,255,255,.88); line-height: 1.35; }
-    .ms-stats {
-      margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.18);
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px;
-    }
-    .ms-stats div b { display: block; font-size: 13px; font-weight: 900; color: #fde68a; font-variant-numeric: tabular-nums; }
-    .ms-active {
-      padding: 12px; border-radius: 14px;
-      background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
-      border: 1px solid #a855f7; color: #4c1d95;
-      display: flex; flex-direction: column; gap: 5px;
-    }
-    .ms-active-title { font-size: 13px; font-weight: 900; color: #4c1d95; }
-    .ms-active-sub { font-size: 11px; font-weight: 700; color: #5b21b6; line-height: 1.35; }
-    .ms-card {
-      padding: 12px; border-radius: 14px;
-      background: var(--lx-surface-solid, #fff); border: 1px solid var(--lx-line, rgba(0,0,0,.08));
-      box-shadow: var(--lx-shadow-sm, 0 4px 12px rgba(0,0,0,.08));
-      display: flex; flex-direction: column; gap: 6px; color: var(--lx-ink, #0f172a);
-    }
-    .ms-card.booked { border-color: #9333ea; }
-    .ms-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .ms-name { font-size: 13px; font-weight: 900; color: var(--lx-ink, #0f172a); }
-    .ms-sub { font-size: 11px; font-weight: 700; color: var(--lx-dim, #64748b); }
-    .ms-pill {
-      padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 900;
-      background: #f3e8ff; color: #6b21a8; white-space: nowrap; font-variant-numeric: tabular-nums;
-    }
-    .ms-pill.gold { background: #fef3c7; color: #92400e; }
-    .ms-pill.green { background: #dcfce7; color: #166534; }
-    .ms-meta { font-size: 11px; font-weight: 800; color: #6d28d9; }
-    .ms-desc { font-size: 11px; color: var(--lx-dim, #64748b); line-height: 1.35; }
-    .ms-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-    .ms-btn {
-      flex: 1; padding: 8px 10px; border-radius: 10px; border: 0;
-      background: linear-gradient(135deg, #6d28d9, #9333ea); color: #fff;
-      font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer;
-    }
-    .ms-btn:disabled { opacity: .45; cursor: not-allowed; }
-    .ms-chart-row {
-      padding: 10px 12px; border-radius: 12px;
-      background: var(--lx-surface-solid, #fff); border: 1px solid var(--lx-line, rgba(0,0,0,.08));
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    }
-    .ms-chart-row.me {
-      background: linear-gradient(135deg, #faf5ff, #f3e8ff);
-      border-color: #a855f7;
-    }
-    .ms-rank {
-      width: 26px; height: 26px; border-radius: 8px;
-      background: #f1f5f9; color: #334155;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 900; flex-shrink: 0;
-    }
-    .ms-rank.top3 { background: #fef3c7; color: #92400e; }
-  `;
-  document.head.appendChild(el);
-};
 
 function artistRankTitle(fame: number): string {
   if (fame >= 90) return 'Global Afrobeats Giant';
@@ -118,23 +42,22 @@ function renderTrackCard(
   else if (!canAfford) btnLabel = `Need ${naira(spec.studioFee)}`;
 
   return `
-    <div class="ms-card ${isBooked ? 'booked' : ''}" data-studio-card="${esc(spec.id)}">
-      <div class="ms-card-top">
+    <div class="nl-card ${isBooked ? 'nl-card--live' : ''}" data-studio-card="${esc(spec.id)}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div>
-          <div class="ms-name">🎵 ${esc(spec.title)}</div>
-          <div class="ms-sub">${esc(spec.genre)} · 🎛️ Prod. ${esc(spec.producer)} (${esc(spec.label)})</div>
+          <div class="nl-card-title">🎵 ${esc(spec.title)}</div>
+          <div class="nl-card-line" style="margin-top:2px;">${esc(spec.genre)} · <span class="nl-tag">Prod. ${esc(spec.producer)} (${esc(spec.label)})</span></div>
         </div>
-        <span class="ms-pill">+${spec.fameGain} Fame</span>
+        <span class="nl-tag nl-tag--good">+${spec.fameGain} Fame</span>
       </div>
-      <div class="ms-desc">${esc(spec.synopsis)}</div>
-      <div class="ms-meta">
-        Master Advance: <b>${naira(spec.advancePay)}</b> · Royalties: <b>${naira(spec.dailyRoyalty)}/day</b> (5d)
+      <div class="nl-card-line" style="margin-top:4px;">${esc(spec.synopsis)}</div>
+      <div class="nl-stats">
+        <span><strong>${naira(spec.advancePay)}</strong>Advance Pay</span>
+        <span><strong>${naira(spec.dailyRoyalty)}/day</strong>Royalties (5d)</span>
+        <span><strong>${esc(spec.concertVenueName)}</strong>Headline Stage</span>
       </div>
-      <div class="ms-sub">
-        🎤 Headline Show: <b>${esc(spec.concertVenueName)}</b> (+${naira(spec.concertFee)})
-      </div>
-      <div class="ms-actions">
-        <button class="ms-btn" data-act="book-studio" data-track="${esc(spec.id)}" ${disabled ? 'disabled' : ''}>
+      <div style="margin-top:6px;">
+        <button class="nl-btn ${isBooked ? '' : 'nl-btn--primary'} nl-btn--block" data-act="book-studio" data-track="${esc(spec.id)}" ${disabled ? 'disabled' : ''}>
           ${esc(btnLabel)}
         </button>
       </div>
@@ -144,17 +67,21 @@ function renderTrackCard(
 
 function renderChartRow(entry: ChartEntry): string {
   return `
-    <div class="ms-chart-row ${entry.isPlayer ? 'me' : ''}" data-chart-rank="${entry.rank}">
-      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-        <div class="ms-rank ${entry.rank <= 3 ? 'top3' : ''}">#${entry.rank}</div>
-        <div style="min-width:0;">
-          <div class="ms-name">
-            ${esc(entry.title)} ${entry.isPlayer ? '<span class="ms-pill green">YOU</span>' : ''}
+    <div class="nl-card ${entry.isPlayer ? 'nl-card--live' : ''}" style="margin:4px 0; padding:10px 12px;" data-chart-rank="${entry.rank}">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+          <div style="width:28px; height:28px; border-radius:8px; background:${entry.rank <= 3 ? '#fef3c7' : 'var(--nl-surface-2)'}; color:${entry.rank <= 3 ? '#92400e' : 'var(--nl-text)'}; display:grid; place-items:center; font-weight:900; font-size:12px; flex-shrink:0;">
+            #${entry.rank}
           </div>
-          <div class="ms-sub">${esc(entry.artist)} · ${esc(entry.genre)}</div>
+          <div style="min-width:0;">
+            <div class="nl-card-title" style="font-size:13.5px;">
+              ${esc(entry.title)} ${entry.isPlayer ? '<span class="nl-tag nl-tag--good">YOU</span>' : ''}
+            </div>
+            <div class="nl-card-line" style="margin-top:1px;">${esc(entry.artist)} · ${esc(entry.genre)}</div>
+          </div>
         </div>
+        <span class="nl-tag nl-tag--warn" style="font-weight:800;">${entry.streams.toLocaleString()} streams</span>
       </div>
-      <span class="ms-pill gold">${entry.streams.toLocaleString()} streams</span>
     </div>
   `;
 }
@@ -162,22 +89,23 @@ function renderChartRow(entry: ChartEntry): string {
 function renderCatalogCard(song: ReleasedSong): string {
   const starStr = '★'.repeat(song.stars) + '☆'.repeat(3 - song.stars);
   return `
-    <div class="ms-card" data-catalog-song="${esc(song.trackId)}">
-      <div class="ms-card-top">
+    <div class="nl-card" data-catalog-song="${esc(song.trackId)}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div>
-          <div class="ms-name">💿 ${esc(song.title)} ${starStr}</div>
-          <div class="ms-sub">${esc(song.genre)} · Prod. ${esc(song.producer)} · ${esc(song.label)}</div>
+          <div class="nl-card-title">💿 ${esc(song.title)} <span style="color:#eab308;">${starStr}</span></div>
+          <div class="nl-card-line" style="margin-top:2px;">${esc(song.genre)} · Prod. ${esc(song.producer)} · ${esc(song.label)}</div>
         </div>
-        <span class="ms-pill gold">${song.streams.toLocaleString()} streams</span>
+        <span class="nl-tag nl-tag--warn">${song.streams.toLocaleString()} streams</span>
       </div>
-      <div class="ms-meta">
-        Advance: ${naira(song.advancePay + song.bonus)} · Royalties: ${naira(song.totalRoyalties)} (${song.daysPaid}/${song.totalDays} days)
+      <div class="nl-stats" style="margin-top:6px;">
+        <span><strong>${naira(song.advancePay + song.bonus)}</strong>Advance Earned</span>
+        <span><strong>${naira(song.totalRoyalties)}</strong>Royalties (${song.daysPaid}/${song.totalDays}d)</span>
       </div>
-      <div class="ms-sub">
+      <div class="nl-card-line" style="margin-top:4px;">
         ${
           song.concertDone
-            ? `✓ Headline show performed at <b>${esc(song.concertVenueName)}</b>`
-            : `🎤 Headline Show Ready at <b>${esc(song.concertVenueName)}</b> (+${naira(song.concertFee)}) — visit the stage inside ${esc(song.concertVenueName)}!`
+            ? `✓ Headline show performed at <strong>${esc(song.concertVenueName)}</strong>`
+            : `🎤 Headline Show Ready at <strong>${esc(song.concertVenueName)}</strong> (+${naira(song.concertFee)}) — visit the stage inside ${esc(song.concertVenueName)}!`
         }
       </div>
     </div>
@@ -192,7 +120,6 @@ export const studioApp: PhoneApp = {
   purpose: 'Afrobeats studio, Lagos Top 10 & live shows',
   badge: () => (Studio.get().activeSession() ? 1 : 0),
   render(host) {
-    style();
     const studio = Studio.get();
     if (Date.now() - syncedAt > 8_000) {
       syncedAt = Date.now();
@@ -208,11 +135,13 @@ export const studioApp: PhoneApp = {
 
     const activeBanner = active
       ? `
-        <div class="ms-active" id="studio-active-session">
-          <div class="ms-active-title">🎙️ Booked at Studio B: ${esc(active.title)}</div>
-          <div class="ms-active-sub">
-            📍 Waiting inside <b>Naija Radio House</b> (Ikeja) with producer <b>${esc(active.producer)}</b>.<br/>
-            Step into the 3D Studio B Vocal Booth to record 3 takes and earn <b>${naira(active.advancePay)}</b> master advance!
+        <div class="nl-card nl-card--live ms-active" id="studio-active-session">
+          <div class="nl-card-title">🎙️ Booked at Studio B: ${esc(active.title)}</div>
+          <div class="nl-card-line">
+            📍 Waiting inside <strong>Naija Radio House</strong> (Ikeja) with producer <strong>${esc(active.producer)}</strong>.
+          </div>
+          <div class="nl-card-line" style="margin-top:2px;">
+            Step into the 3D Studio B Vocal Booth to record 3 takes and earn <strong>${naira(active.advancePay)}</strong> master advance!
           </div>
         </div>
       `
@@ -225,10 +154,7 @@ export const studioApp: PhoneApp = {
         .map((t) => renderTrackCard(t, active, fame, totalFunds))
         .join('');
     } else if (tab === 'chart') {
-      content = studio
-        .topTenChart()
-        .map((c) => renderChartRow(c))
-        .join('');
+      content = `<div class="nl-list">${studio.topTenChart().map((c) => renderChartRow(c)).join('')}</div>`;
     } else {
       content =
         discography.length === 0
@@ -238,36 +164,35 @@ export const studioApp: PhoneApp = {
               'Book Studio B on the Beats tab and record at Naija Radio House to drop your first Afrobeats single!',
             )
           : `
-            <button class="ms-btn" data-act="collect-royalties" style="margin-bottom:4px;">
+            <button class="nl-btn nl-btn--primary nl-btn--block" data-act="collect-royalties" style="margin-bottom:8px;">
               💰 Check &amp; Settle Streaming Royalties
             </button>
-            ${discography.map((s) => renderCatalogCard(s)).join('')}
+            <div class="nl-list">
+              ${discography.map((s) => renderCatalogCard(s)).join('')}
+            </div>
           `;
     }
 
     return {
       title: 'Studio',
       body: `
-        <div class="ms-root">
-          <div class="ms-hero">
-            <div class="ms-hero-top">
-              <span class="ms-hero-tag">Lagos Afrobeats Record Label</span>
-              <span class="ms-hero-badge">${esc(artistRankTitle(fame))}</span>
-            </div>
-            <h3>Kalakuta Sound Lab &amp; Charts</h3>
-            <p>Record hits in Studio B at Naija Radio House, climb the Lagos Top 10, and headline live venue stages.</p>
-            <div class="ms-stats">
-              <div>Music Fame<b>${fame}</b></div>
-              <div>Streams<b>${studio.totalStreams().toLocaleString()}</b></div>
-              <div>Royalties<b>${naira(studio.totalRoyaltiesEarned())}</b></div>
-            </div>
+        <div class="nl-hero nl-hero--indigo">
+          <span class="nl-hero-label">Lagos Afrobeats Record Label</span>
+          <span class="nl-hero-value" style="font-size:22px;">${esc(artistRankTitle(fame))}</span>
+          <span class="nl-hero-sub">Fame: <strong>${fame}</strong> · Streams: <strong>${studio.totalStreams().toLocaleString()}</strong> · Royalties: <strong>${naira(studio.totalRoyaltiesEarned())}</strong></span>
+          <div class="nl-hero-actions">
+            <button class="nl-btn nl-btn--glass" data-set="ms.tab" data-value="beats">🎙️ Studio B</button>
+            <button class="nl-btn nl-btn--glass" data-set="ms.tab" data-value="chart">📈 Top 10 Chart</button>
           </div>
-          ${activeBanner}
-          ${chips('ms.tab', tab, [
-            ['beats', `Beats & Booth (${studio.tracks().length})`],
-            ['chart', 'Lagos Top 10'],
-            ['catalog', `Catalog & Tour (${discography.length})`],
-          ])}
+        </div>
+        ${activeBanner}
+        <div class="nl-section">Music Operations</div>
+        ${chips('ms.tab', tab, [
+          ['beats', `Beats & Booth (${studio.tracks().length})`],
+          ['chart', 'Lagos Top 10'],
+          ['catalog', `Catalog & Tour (${discography.length})`],
+        ])}
+        <div class="nl-list" style="margin-top:8px;">
           ${content}
         </div>
       `,
