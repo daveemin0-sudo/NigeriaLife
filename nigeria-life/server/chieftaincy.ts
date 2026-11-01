@@ -164,10 +164,7 @@ export class ServerChieftaincy {
     }
 
     const now = typeof raw.now === 'number' && Number.isFinite(raw.now) ? Math.trunc(raw.now) : Date.now();
-    let paid = this.economy.holdFee(userId, spec.offeringPrice, `Chieftaincy Investiture: ${spec.name}`, `title:${userId}:${titleId}`);
-    if (!paid.ok) {
-      paid = this.economy.debitCash(userId, spec.offeringPrice, `Chieftaincy Investiture: ${spec.name}`, `title_cash:${userId}:${titleId}`);
-    }
+    const paid = this.economy.holdFee(userId, spec.offeringPrice, `Chieftaincy Investiture: ${spec.name}`, `title:${userId}:${titleId}`);
     if (!paid.ok) {
       return { ok: false, reason: `You need ₦${spec.offeringPrice.toLocaleString()} for the palace investiture offering.` };
     }

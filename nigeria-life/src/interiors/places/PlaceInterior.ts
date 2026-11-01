@@ -24,6 +24,7 @@ import { attachSparkDate } from '../../social/Spark';
 import { attachOwambe } from '../../social/Owambe';
 import { attachStudio } from '../../music/Studio';
 import { attachPalaceCourt } from '../../social/Chieftaincy';
+import { attachEkoMotors } from '../../vehicles/Motors';
 
 /**
  * A place along the expressway, gone into: its own room, laid out for what is done there, with
@@ -256,6 +257,7 @@ export class PlaceInterior {
     attachOwambe(this);
     attachStudio(this, this.spec.key);
     attachPalaceCourt(this, this.spec.key);
+    attachEkoMotors(this, this.spec.key);
   }
 
   /**

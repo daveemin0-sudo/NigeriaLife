@@ -29,6 +29,7 @@ import { ServerOwambe } from './owambe.ts';
 import { ServerStudio } from './studio.ts';
 import { ServerMarriage } from './marriage.ts';
 import { ServerChieftaincy } from './chieftaincy.ts';
+import { ServerMotors } from './motors.ts';
 import { Registry } from './registry.ts';
 import { Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
@@ -67,6 +68,7 @@ const owambe = new ServerOwambe(db, economy);
 const studio = new ServerStudio(db, economy);
 const marriage = new ServerMarriage(db, economy);
 const chieftaincy = new ServerChieftaincy(db, economy);
+const motors = new ServerMotors(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -201,7 +203,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -370,8 +372,18 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
         : chieftaincy.setActiveTitle(account.id, body);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
     }
+    // Eko Motors & Luxury Tuning Garage: purchases, custom wraps, turbo remaps, rims, and VIP sirens
+    if (req.method === 'GET' && url.pathname === '/motors') return reply(res, 200, motors.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/motors/buy' || url.pathname === '/motors/tune')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/motors/buy'
+        ? motors.buy(account.id, body)
+        : motors.tune(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
     return player(req, res, url, account);
-  } catch {
+  } catch (err) {
+    console.error('[API Error]', url.pathname, err);
     reply(res, 400, { ok: false, reason: 'That request could not be read.' });
   }
 }

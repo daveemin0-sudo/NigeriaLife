@@ -324,6 +324,23 @@ export async function run(_browser, check) {
       !conferLowFame.ok && conferOtunba.ok && conferOtunba.paid === 250000 && !conferDup.ok && chiefSnap.ok && chiefSnap.titles.length === 1 && chiefSnap.activeTitle === 'otunba' && setActive.ok && (chiefBefore.cash + chiefBefore.bank) - (conferOtunba.wallet.cash + conferOtunba.wallet.bank) === 250000,
       { conferLowFame: conferLowFame.reason, conferOtunba, conferDup: conferDup.reason, chiefSnap, setActive });
 
+    // Eko Motors & Luxury Tuning Garage: buying Toyota Land Cruiser 300 VXR (₦75,000,000), tuning Twin-Turbo Stage 2 (₦15,000,000), Emerald wrap (₦8,500,000), and VIP Convoy Siren (₦12,000,000)
+    const tycoon = await call('/auth/guest', { name: 'EkoTycoon' });
+    const deposit = await call('/money/report', { bank: 150000000, memo: 'Oil Block Royalty Liquidation', idem: idem() }, tycoon.token);
+    await call('/admin/held', { held: deposit.held, release: true }, null, ADMIN);
+    const tycoonBefore = (await call('/me', null, tycoon.token)).wallet;
+    const buyLandCruiser = await call('/motors/buy', { modelId: 'land_cruiser', now: Date.now() }, tycoon.token);
+    const motorsSnap = await call('/motors', null, tycoon.token);
+    const carId = buyLandCruiser.vehicle?.vehicleId;
+    const tuneTurbo = await call('/motors/tune', { vehicleId: carId, optionId: 'tune_stage2' }, tycoon.token);
+    const tuneWrap = await call('/motors/tune', { vehicleId: carId, optionId: 'wrap_emerald' }, tycoon.token);
+    const tuneSiren = await call('/motors/tune', { vehicleId: carId, optionId: 'mod_siren' }, tycoon.token);
+    const tycoonAfter = (await call('/me', null, tycoon.token)).wallet;
+    // Net spent: 75,000,000 + 15,000,000 + 8,500,000 + 12,000,000 = 110,500,000
+    check('online: Eko Motors purchases Land Cruiser 300 (₦75,000,000), installs Stage 2 Twin-Turbo (₦15,000,000), Emerald wrap (₦8,500,000), and VIP Convoy Siren (₦12,000,000) on the server',
+      buyLandCruiser.ok && buyLandCruiser.paid === 75000000 && motorsSnap.ok && motorsSnap.vehicles.length === 1 && tuneTurbo.ok && tuneWrap.ok && tuneSiren.ok && (tycoonBefore.cash + tycoonBefore.bank) - (tycoonAfter.cash + tycoonAfter.bank) === 110500000,
+      { buyLandCruiser, motorsSnap, tuneTurbo, tuneWrap, tuneSiren, tycoonBefore, tycoonAfter });
+
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });
     await wait(300);
