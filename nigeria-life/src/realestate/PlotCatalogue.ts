@@ -55,7 +55,7 @@ export const LAGOS_PLOTS: PlotDef[] = [
   plot('lag-kakawa-w3', '31 Kakawa Street', 'Kakawa Street', 'east', 26.5, 37.5, 50, 66, MIXED, 6),
   // Odunlami Street, the mainland side
   plot('lag-odunlami-w1', '9 Odunlami Street', 'Odunlami Street', 'east', -66.5, -52.5, -52, -38, MIXED, 4),
-  plot('lag-odunlami-w2', '15 Odunlami Street', 'Odunlami Street', 'east', -66.5, -52.5, -34, -20, HOMES, 3),
+  plot('lag-odunlami-w2', '15 Odunlami Street', 'Odunlami Street', 'east', -80.5, -52.5, -34, -10, HOMES, 3),
   plot('lag-odunlami-w3', '2 Odunlami Street', 'Odunlami Street', 'east', -66.5, -52.5, -112, -98, MIXED, 4),
   // Martins Street
   plot('lag-martins-n1', '40 Martins Street', 'Martins Street', 'south', 60, 76, -84, -70, TRADE, 25),
@@ -67,8 +67,8 @@ export const LAGOS_PLOTS: PlotDef[] = [
   // Banana Island: large plots for low houses behind the estate gate
   plot('lag-banana-e1', '2 Banana Island Road', 'Banana Island Road', 'west', 119.5, 154.5, -44, -20, HOMES, 3),
   plot('lag-banana-e2', '6 Banana Island Road', 'Banana Island Road', 'west', 119.5, 154.5, -18, 6, HOMES, 3),
-  plot('lag-banana-w1', '1 Banana Island Road', 'Banana Island Road', 'east', 74.5, 104.5, -48, -20, HOMES, 3),
-  plot('lag-banana-w2', '9 Banana Island Road', 'Banana Island Road', 'east', 74.5, 104.5, -12, 16, MIXED, 3),
+  plot('lag-banana-w1', '1 Banana Island Road', 'Banana Island Road', 'east', 84.5, 104.5, -47, -25, HOMES, 3),
+  plot('lag-banana-w2', '9 Banana Island Road', 'Banana Island Road', 'east', 84.5, 104.5, -10, 12, MIXED, 3),
 ];
 
 /** Abuja: plots along the capital boulevard, between the landmarks. */

@@ -126,7 +126,7 @@ export class CityFabric {
    */
   constructor(obstacles: THREE.Object3D[], plots: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [], reserved: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
     this.scanObstacles(obstacles);
-    for (const plot of plots) this.mark(plot.minX - 0.5, plot.maxX + 0.5, plot.minZ - 0.5, plot.maxZ + 0.5, NO_BUILD);
+    for (const plot of plots) this.mark(plot.minX - 3.2, plot.maxX + 3.2, plot.minZ - 3.2, plot.maxZ + 3.2, NO_BUILD);
     for (const zone of reserved) this.mark(zone.minX, zone.maxX, zone.minZ, zone.maxZ, NO_BUILD);
     this.mark(-MAIN_CORRIDOR_HALF, MAIN_CORRIDOR_HALF, MAIN_ROAD.zMin - 2, MAIN_ROAD.zMax + 2, ROAD);
 

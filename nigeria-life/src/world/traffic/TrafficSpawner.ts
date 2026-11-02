@@ -112,10 +112,10 @@ interface ParkedCar {
 const DRAW_DISTANCE = 150;
 
 // Signal cycle (seconds)
-const MAIN_GREEN = 17;
-const CROSS_GREEN = 9;
+const MAIN_GREEN = 45;
+const CROSS_GREEN = 6;
 const AMBER = 2;
-const ALL_RED = 1.6;
+const ALL_RED = 1.0;
 
 /**
  * TrafficSpawner
@@ -273,9 +273,9 @@ export class TrafficSpawner {
     const stopBefore = cross.halfRoad + 5.2;
 
     // Broad Street: 3 full lanes each way (6 lanes total) running from town to expressway
-    for (const x of [-8.0, -4.9, -1.8, 1.8, 4.9, 8.0]) {
+    for (const x of [-5.0, -1.8, 1.8, 5.0]) {
       const dir: 1 | -1 = x < 0 ? 1 : -1;
-      const outer = Math.abs(x) > 4.5;
+      const outer = Math.abs(x) > 3.0;
       this.lanes.push({
         axis: 'z',
         fixed: x,
@@ -284,6 +284,21 @@ export class TrafficSpawner {
         uMax: dir > 0 ? EXPRESS.to - 20 : MAIN_ROAD.zMax + 6,
         stops: [{ u: dir * CROSS_STREET_Z - stopBefore, group: 'main' }],
         busStops: outer ? (dir > 0 ? [-20, 60] : [-40, 90]) : [],
+        cars: [],
+      });
+    }
+
+    // Expressway outer 3rd lanes (±8.0m) on the 6-lane carriageway
+    for (const x of [-EXPRESS.lanes[2], EXPRESS.lanes[2]]) {
+      const dir: 1 | -1 = x < 0 ? 1 : -1;
+      this.lanes.push({
+        axis: 'z',
+        fixed: x,
+        dir,
+        uMin: dir > 0 ? EXPRESS.from + 20 : -(EXPRESS.to - 20),
+        uMax: dir > 0 ? EXPRESS.to - 20 : -(EXPRESS.from + 20),
+        stops: [],
+        busStops: [],
         cars: [],
       });
     }
@@ -456,7 +471,8 @@ export class TrafficSpawner {
   }
 
   /** State of a signal group at the current point in the cycle */
-  private signalState(group: SignalGroup): 'go' | 'amber' | 'stop' {
+  private signalState(group: SignalGroup, playerPos?: THREE.Vector3): 'go' | 'amber' | 'stop' {
+    if (playerPos && Math.abs(playerPos.x) < 8.0 && Math.abs(playerPos.z - CROSS_STREET_Z) < 85) return group === 'main' ? 'go' : 'stop';
     const cycle = MAIN_GREEN + CROSS_GREEN + 2 * (AMBER + ALL_RED);
     let t = this.signalTime % cycle;
 
@@ -471,9 +487,9 @@ export class TrafficSpawner {
     return 'stop';
   }
 
-  private updateLamps(): void {
+  private updateLamps(playerPos?: THREE.Vector3): void {
     for (const group of ['main', 'cross'] as const) {
-      const state = this.signalState(group);
+      const state = this.signalState(group, playerPos);
       const lamps = this.signalLamps[group];
       lamps.red.color.setHex(state === 'stop' ? 0xff2a2a : 0x3f0d0d);
       lamps.amber.color.setHex(state === 'amber' ? 0xffb020 : 0x3f2a05);
@@ -505,12 +521,12 @@ export class TrafficSpawner {
 
   public update(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
     this.signalTime += delta;
-    this.updateLamps();
+    this.updateLamps(playerPos);
     for (const batch of this.batches) batch.drawn = 0;
 
     const open: Record<SignalGroup, boolean> = {
-      main: this.signalState('main') === 'go',
-      cross: this.signalState('cross') === 'go',
+      main: this.signalState('main', playerPos) === 'go',
+      cross: this.signalState('cross', playerPos) === 'go',
     };
 
     for (const lane of this.lanes) {
@@ -528,7 +544,8 @@ export class TrafficSpawner {
         let limit = leaderRear - 1.8 - car.length / 2;
         if (car.u + car.length / 2 <= playerU) limit = Math.min(limit, playerU - 2.6 - car.length / 2);
         for (const stop of lane.stops) {
-          if (!open[stop.group] && car.u + car.length / 2 <= stop.u + 0.6) {
+          const crossing = car.v > 4.5 && (car.u + car.length / 2 > stop.u - 4.5);
+          if (!open[stop.group] && !crossing && car.u + car.length / 2 <= stop.u + 0.6) {
             limit = Math.min(limit, stop.u - car.length / 2);
           }
         }
@@ -557,7 +574,8 @@ export class TrafficSpawner {
           target = 0;
         }
 
-        car.v += THREE.MathUtils.clamp(target - car.v, -11 * delta, 3.2 * delta);
+        const accelRate = target > car.v && car.v < 5 ? 5.2 : 3.2;
+        car.v += THREE.MathUtils.clamp(target - car.v, -11 * delta, accelRate * delta);
         if (car.v < 0.02 && target === 0) car.v = 0;
 
         const before = car.u;

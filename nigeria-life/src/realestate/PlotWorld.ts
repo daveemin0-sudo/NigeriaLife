@@ -108,14 +108,17 @@ function effectiveHouseBuilding(plot: Plot, type: BuildingType, building: Pick<P
   const houseSpanAlongI = alongX ? (fp.maxZ - fp.minZ) : (fp.maxX - fp.minX);
   const localV = (x: number, z: number) => (x - front.x) * I.x + (z - front.z) * I.z;
   const hv0 = Math.min(localV(fp.minX, fp.minZ), localV(fp.maxX, fp.maxZ));
-  if (hv0 < 8.5 && D >= houseSpanAlongI + 11) {
-    const targetHv0 = Math.min(D - houseSpanAlongI - 2.0, 10.0);
-    const shiftV = targetHv0 - hv0;
-    return {
-      ...building,
-      x: building.x + I.x * shiftV,
-      z: building.z + I.z * shiftV,
-    };
+  const minDepth = houseSpanAlongI + 6.0;
+  if (hv0 < 8.5 && D >= minDepth) {
+    const targetHv0 = Math.min(D - houseSpanAlongI - 1.5, 10.0);
+    if (targetHv0 > hv0) {
+      const shiftV = targetHv0 - hv0;
+      return {
+        ...building,
+        x: building.x + I.x * shiftV,
+        z: building.z + I.z * shiftV,
+      };
+    }
   }
   return building;
 }

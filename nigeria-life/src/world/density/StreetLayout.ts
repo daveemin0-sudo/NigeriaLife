@@ -25,7 +25,7 @@ export const FOOTBRIDGE = {
   run: 0.85,
 };
 /** Every footbridge over Broad Street, by where its deck crosses (all the same shape as FOOTBRIDGE) */
-export const FOOTBRIDGES: number[] = [FOOTBRIDGE.z, -22, -110, 116];
+export const FOOTBRIDGES: number[] = [FOOTBRIDGE.z, -33, -110, 116];
 
 export type BridgeShape = Omit<typeof FOOTBRIDGE, 'z'>;
 
@@ -93,7 +93,7 @@ export const MAIN_CORRIDOR_HALF = MAIN_ROAD.halfRoad + MAIN_ROAD.walk;
 export const CROSS_STREET_Z = -62;
 
 export const SIDE_STREETS: SideStreet[] = [
-  { id: 'cross', name: 'Martins Street', axis: 'x', fixed: CROSS_STREET_Z, from: -116, to: 116, halfRoad: 6.0, walk: 2.4, traffic: true },
+  { id: 'cross', name: 'Martins Street', axis: 'x', fixed: CROSS_STREET_Z, from: -116, to: 116, halfRoad: 4.5, walk: 2.5, traffic: true },
   { id: 'north_cap', name: 'Nnamdi Azikiwe Street', axis: 'x', fixed: -124, from: -52, to: 116, halfRoad: 4.2, walk: 2.2, traffic: false },
   { id: 'back_west', name: 'Odunlami Street', axis: 'z', fixed: -46, from: -120, to: -8, halfRoad: 3.8, walk: 2, traffic: false },
   { id: 'back_east', name: 'Kakawa Street', axis: 'z', fixed: 44, from: -120, to: 94, halfRoad: 3.8, walk: 2, traffic: false },
