@@ -2149,6 +2149,19 @@ export class Game {
    * traffic drives there (Nigeria drives on the right). Null if no road is within 40 m.
    */
   public kerbNear(x: number, z: number): { x: number; z: number; yaw: number } | null {
+    // If the player is in or near their compound, deliver directly into their private compound parking bay
+    const plotId = this.currentHome();
+    if (plotId && plotId !== 'main') {
+      const comp = this.plotWorld.compounds.get(plotId);
+      if (comp && comp.drawing.parkingBays?.length) {
+        const dist = Math.hypot(x - comp.drawing.centre.x, z - comp.drawing.centre.z);
+        if (dist <= 40) {
+          const freeBay = comp.drawing.parkingBays.find((bay) => !this.world.vehicles.drivableVehicles.some((v) => Math.hypot(v.mesh.position.x - bay.x, v.mesh.position.z - bay.z) < 2.0)) ?? comp.drawing.parkingBays[0];
+          return { x: freeBay.x, z: freeBay.z, yaw: freeBay.yaw };
+        }
+      }
+    }
+
     const roads = DrivableVehicle.roads?.() ?? [];
     const solids = this.solidsHere();
     const inset = 1.6;
@@ -2157,7 +2170,7 @@ export class Game {
       if (road.kind !== 'carriageway') continue;
       const clampTo = (v: number, lo: number, hi: number) => Math.min(hi - 3, Math.max(lo + 3, v));
       // Along the road as near the player as it goes, then try a few steps either way for a clear spot
-      for (const shift of [0, 4, -4, 8, -8]) {
+      for (const shift of [0, 5, -5, 10, -10, 15, -15, 20, -20]) {
         let spot: { x: number; z: number; yaw: number };
         if (road.axis === 'z') {
           const east = x >= (road.minX + road.maxX) / 2;
@@ -2167,6 +2180,8 @@ export class Game {
           spot = { x: clampTo(x + shift, road.minX, road.maxX), z: south ? road.maxZ - inset : road.minZ + inset, yaw: south ? Math.PI / 2 : -Math.PI / 2 };
         }
         if (solids?.at(spot.x, spot.z, 1.2)) continue;
+        const carAtSpot = this.world.vehicles.drivableVehicles.some((v) => Math.hypot(v.mesh.position.x - spot.x, v.mesh.position.z - spot.z) < 4.2);
+        if (carAtSpot) continue;
         const d = Math.hypot(spot.x - x, spot.z - z);
         if (d <= 40 && (!best || d < best.d)) best = { ...spot, d };
         break;

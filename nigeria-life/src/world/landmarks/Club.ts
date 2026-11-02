@@ -65,7 +65,8 @@ export function createClub(options: ClubOptions): Landmark {
   for (const [x, z] of [[-0.3, -2.3], [-0.3, 2.3], [5.5, -2.3], [5.5, 2.3]]) b.cylinder(0x94a3b8, 0.08, 2.5, x, HEIGHT, z);
   b.box(0x3b1d0e, 3.6, 1.05, 0.8, 3, HEIGHT, -1.6).box(0xfde68a, 3.2, 0.3, 0.1, 3, HEIGHT + 1.05, -1.9, { glow: true });
 
-  // A rope to queue along, on gold posts
+  // A rope to queue along, on gold posts, with a plush VIP Red Carpet into the door
+  b.ground(0x881337, 3.2, 1.8, front - 1.6, 0.026, 0);
   for (const side of [-1, 1]) {
     for (const x of [front - 1.2, front - 2.8]) {
       b.cylinder(0xd4af37, 0.05, 0.95, x, 0, side * 1.5, { solid: true }).cylinder(0xd4af37, 0.09, 0.05, x, 0.95, side * 1.5);

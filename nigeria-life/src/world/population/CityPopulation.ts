@@ -328,7 +328,7 @@ export class CityPopulation {
       const side = g % 2 === 0 ? -1 : 1;
       const cx = side * (MAIN_ROAD.halfRoad + MAIN_ROAD.walk - 0.9);
       const cz = MAIN_ROAD.zMin + 12 + this.rand() * (MAIN_ROAD.zMax - MAIN_ROAD.zMin - 24);
-      if (isInJunctionGap(cz)) continue;
+      if (isInJunctionGap(cz) || (cx > 8.0 && cz > 98 && cz < 108) || (cx > 8.0 && cz > -28 && cz < -18) || (cx < -8.0 && cz > -62 && cz < -50) || (cx < -8.0 && cz > -8 && cz < 2)) continue;
       const people = 2 + Math.floor(this.rand() * 3);
       for (let i = 0; i < people; i++) {
         const angle = (i / people) * Math.PI * 2 + this.rand() * 0.6;
@@ -565,6 +565,12 @@ export class CityPopulation {
       tx = a.fx ?? 0;
       tz = a.fz ?? 0;
     } else {
+      if (a.axis === 'z') {
+        if (a.x > 9.0 && a.z > 97 && a.z < 109) tx -= 2.2; // Quilox VIP Red Carpet
+        else if (a.x > 9.5 && a.z > -27 && a.z < -19) tx -= 1.8; // Eko Commercial Bank
+        else if (a.x < -9.5 && a.z > -8 && a.z < 0) tx += 1.8; // Everyday Supermarket
+        else if (a.x < -9.5 && a.z > -60 && a.z < -52) tx += 1.8; // Chop Life Buka
+      }
       // Everyone steps round the player, those walking to a bus door too
       for (const o of this.avoid) {
         const room = o.r + 0.75;

@@ -46,6 +46,8 @@ export interface CompoundDrawing {
   post: { x: number; z: number; yaw: number };
   /** Walls, pillars, the gatehouse: always solid */
   fixed: Obstruction[];
+  /** Dedicated parking bays inside the compound for the owner's fleet */
+  parkingBays: Array<{ x: number; z: number; yaw: number }>;
 }
 
 const WALL = 0xf1e7d3;
@@ -136,7 +138,7 @@ export function drawCompound(o: CompoundOptions): CompoundDrawing {
   const t = 0.24; // wall thickness
   // The front fence is set back from the street edge to leave room for the flowers, and clear of the house
   const vf = Math.min(1.35, Math.max(0.6, hv0 - 1.1));
-  const G = 4.4; // the gateway: a car with room to spare
+  const G = W >= 18 ? 5.6 : 4.4; // wider grand estate sliding gate for luxury compounds
   const P = 0.62; // gate pillars
   const p = 0.44; // fence pillars
   const wick = 1.1; // the pedestrian door
@@ -278,12 +280,74 @@ export function drawCompound(o: CompoundOptions): CompoundDrawing {
   wallRun(uR, vf, uR, vBack);
   wallRun(uL, vBack, uR, vBack);
 
-  // --- The drive: pavers from the street edge to the front door, with lights along it ----------------
+  // --- The drive & multi-car motor court: pavers from street edge into compound bays ---
   const pavers: Array<{ u0: number; u1: number; v0: number; v1: number }> = [];
   const driveEnd = Math.max(vf + 1, hv0);
+  const courtDepth = hv0 - vf;
   pavers.push({ u0: gL + 0.1, u1: gR - 0.1, v0: 0.02, v1: driveEnd });
-  // A forecourt before the door, joining the drive to it if the gate is not straight in front
-  pavers.push({ u0: Math.min(gL + 0.1, hu0 + 0.4), u1: Math.max(gR - 0.1, hu1 - 0.4), v0: Math.max(vf + 0.5, driveEnd - 2.6), v1: driveEnd });
+
+  // 5 dedicated parking bays in the compound for the player's luxury fleet
+  const parkingBays: Array<{ x: number; z: number; yaw: number }> = [];
+  if (courtDepth >= 5.5) {
+    // Expansive paved motor court covering the front yard apron
+    pavers.push({
+      u0: Math.max(uL + 0.6, gL - 7.5),
+      u1: Math.min(uR - 0.6, gR + 7.5),
+      v0: vf + 0.2,
+      v1: driveEnd,
+    });
+
+    // Compute up to 5 marked parking bay spots
+    for (let i = 0; i < 3; i++) {
+      const u = gL - 1.4 - i * 2.8;
+      if (u >= uL + 1.6) {
+        const pSpot = at(u, vf + 3.8);
+        parkingBays.push({ x: pSpot.x, z: pSpot.z, yaw: Math.atan2(dx, dz) });
+      }
+    }
+    for (let i = 0; i < 2; i++) {
+      const u = gR + P + 1.8 + i * 2.8;
+      if (u <= uR - 1.6) {
+        const pSpot = at(u, vf + 3.8);
+        parkingBays.push({ x: pSpot.x, z: pSpot.z, yaw: Math.atan2(dx, dz) });
+      }
+    }
+    while (parkingBays.length < 5 && courtDepth >= 7.5) {
+      const idx = parkingBays.length;
+      const u = gL + 1.0 + (idx % 2) * 2.8;
+      const v = vf + 4.0 + Math.floor(idx / 2) * 3.4;
+      if (v < hv0 - 1.0) {
+        const pSpot = at(u, v);
+        parkingBays.push({ x: pSpot.x, z: pSpot.z, yaw: Math.atan2(dx, dz) });
+      } else {
+        break;
+      }
+    }
+
+    // Modern Cantilever Carport Canopy over bays on the left wing
+    if (gL - uL >= 4.5) {
+      const cpU0 = uL + 1.2;
+      const cpU1 = cpU0 + 5.6;
+      const cpV0 = vf + 1.5;
+      const cpV1 = cpV0 + 5.2;
+      const cpMidU = (cpU0 + cpU1) / 2;
+      const cpMidV = (cpV0 + cpV1) / 2;
+      box(b, 0x1f2937, 0.14, 3.4, 0.14, cpU0 + 0.2, 0, cpV0 + 0.2);
+      box(b, 0x1f2937, 0.14, 3.4, 0.14, cpU1 - 0.2, 0, cpV0 + 0.2);
+      box(b, 0x1f2937, 0.14, 3.1, 0.14, cpU0 + 0.2, 0, cpV1 - 0.2);
+      box(b, 0x1f2937, 0.14, 3.1, 0.14, cpU1 - 0.2, 0, cpV1 - 0.2);
+      box(b, 0x374151, 5.8, 0.14, 0.12, cpMidU, 3.4, cpV0 + 0.2);
+      box(b, 0x374151, 5.8, 0.14, 0.12, cpMidU, 3.1, cpV1 - 0.2);
+      box(b, 0x374151, 0.12, 0.14, 5.4, cpU0 + 0.2, 3.25, cpMidV);
+      box(b, 0x374151, 0.12, 0.14, 5.4, cpU1 - 0.2, 3.25, cpMidV);
+      box(b, 0x111827, 6.0, 0.05, 5.6, cpMidU, 3.35, cpMidV);
+      box(b, 0x0284c7, 5.8, 0.02, 5.4, cpMidU, 3.32, cpMidV, { glow: true });
+    }
+  } else {
+    pavers.push({ u0: Math.min(gL + 0.1, hu0 + 0.4), u1: Math.max(gR - 0.1, hu1 - 0.4), v0: Math.max(vf + 0.5, driveEnd - 2.6), v1: driveEnd });
+    const defSpot = at(ug, vf + 2.5);
+    parkingBays.push({ x: defSpot.x, z: defSpot.z, yaw: Math.atan2(dx, dz) });
+  }
   if (wicket) pavers.push({ u0: wkL + 0.05, u1: wkR - 0.05, v0: 0.02, v1: Math.max(vf + 0.5, driveEnd - 2.6) });
   for (const k of [0.15, 0.85]) {
     const u = gL + 0.1 + (G - 0.2) * k;
@@ -484,6 +548,7 @@ export function drawCompound(o: CompoundOptions): CompoundDrawing {
     outside: new THREE.Vector3(outside.x, 0, outside.z),
     post,
     fixed,
+    parkingBays,
   };
 }
 

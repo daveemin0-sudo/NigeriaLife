@@ -131,6 +131,28 @@ export class CityFabric {
     this.mark(-MAIN_CORRIDOR_HALF, MAIN_CORRIDOR_HALF, MAIN_ROAD.zMin - 2, MAIN_ROAD.zMax + 2, ROAD);
 
     for (let i = 0; i < SIDE_STREETS.length; i++) this.layStreet(SIDE_STREETS[i], i);
+    // Keep corridors ahead of all street ends and dead-ends clear so roads and walkways never terminate into building walls
+    for (const st of SIDE_STREETS) {
+      const r = st.halfRoad + st.walk;
+      if (st.id === 'banana') {
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.to, st.to + 16, NO_BUILD);
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.from - 10, st.from, NO_BUILD);
+      } else if (st.id === 'back_west') {
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.to, st.to + 14, NO_BUILD);
+      } else if (st.id === 'back_east') {
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.to, st.to + 14, NO_BUILD);
+      } else if (st.id === 'north_cap') {
+        this.mark(st.from - 14, st.from, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+        this.mark(st.to, st.to + 14, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+      } else if (st.id === 'cross') {
+        this.mark(st.from - 14, st.from, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+        this.mark(st.to, st.to + 14, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+      } else if (st.id === 'stadium' || st.id === 'wharf') {
+        this.mark(st.from - 12, st.from, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+      } else if (st.id === 'airport') {
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.from - 12, st.from, NO_BUILD);
+      }
+    }
     this.paintJunction();
 
     this.plotStreetFrontages();

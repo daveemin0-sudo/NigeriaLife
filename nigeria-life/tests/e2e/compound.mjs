@@ -26,7 +26,7 @@ export async function run(browser, check) {
     // Buy plot and start building a duplex residence on Banana Island
     const plotId = 'lag-banana-e1';
     const buy = await g.land.buyFromState(plotId);
-    const build = await g.land.startBuilding(plotId, 'duplex', 127.5, -33, 1);
+    const build = await g.land.startBuilding(plotId, 'duplex', 137, -32, 1);
 
     // Fast-forward building hours to 100% finished
     await g.registry.transact((state) => {
@@ -66,6 +66,7 @@ export async function run(browser, check) {
       hasCentre: !!comp.drawing.centre,
       hasPost: !!comp.drawing.post,
       fixedCount: comp.drawing.fixed.length,
+      parkingBaysCount: comp.drawing.parkingBays?.length ?? 0,
       children,
       isOpen: comp.open,
       progress: comp.progress,
@@ -79,6 +80,7 @@ export async function run(browser, check) {
       compoundDetails.hasCentre &&
       compoundDetails.hasPost &&
       compoundDetails.fixedCount >= 3 &&
+      compoundDetails.parkingBaysCount >= 3 &&
       compoundDetails.isOpen === false &&
       compoundDetails.progress === 0,
     compoundDetails,

@@ -65,10 +65,10 @@ export const LAGOS_PLOTS: PlotDef[] = [
   plot('lag-azikiwe-s1', '20 Nnamdi Azikiwe Street', 'Nnamdi Azikiwe Street', 'north', 52, 68, -117, -103, TRADE, 30),
   plot('lag-azikiwe-s2', '34 Nnamdi Azikiwe Street', 'Nnamdi Azikiwe Street', 'north', 72, 86, -117, -105, HOMES, 3),
   // Banana Island: large plots for low houses behind the estate gate
-  plot('lag-banana-e1', '2 Banana Island Road', 'Banana Island Road', 'west', 119.5, 135.5, -42, -24, HOMES, 3),
-  plot('lag-banana-e2', '6 Banana Island Road', 'Banana Island Road', 'west', 119.5, 135.5, -18, 0, HOMES, 3),
-  plot('lag-banana-w1', '1 Banana Island Road', 'Banana Island Road', 'east', 88.5, 104.5, -47, -29, HOMES, 3),
-  plot('lag-banana-w2', '9 Banana Island Road', 'Banana Island Road', 'east', 90.5, 104.5, -6, 10, MIXED, 3),
+  plot('lag-banana-e1', '2 Banana Island Road', 'Banana Island Road', 'west', 119.5, 154.5, -44, -20, HOMES, 3),
+  plot('lag-banana-e2', '6 Banana Island Road', 'Banana Island Road', 'west', 119.5, 154.5, -18, 6, HOMES, 3),
+  plot('lag-banana-w1', '1 Banana Island Road', 'Banana Island Road', 'east', 84.5, 104.5, -47, -25, HOMES, 3),
+  plot('lag-banana-w2', '9 Banana Island Road', 'Banana Island Road', 'east', 84.5, 104.5, -10, 12, MIXED, 3),
 ];
 
 /** Abuja: plots along the capital boulevard, between the landmarks. */

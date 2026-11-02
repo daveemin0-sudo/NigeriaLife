@@ -94,6 +94,32 @@ export function frontOf(plot: Plot): THREE.Vector3 {
  * columns floor by floor with a tower crane on top; then a glass shaft banded at every floor,
  * mullions up each face, a double-height lobby, and plant and a mast on the roof.
  */
+
+function effectiveHouseBuilding(plot: Plot, type: BuildingType, building: Pick<PlotBuilding, 'x' | 'z' | 'turns' | 'typeId' | 'startedAt' | 'hoursNeeded' | 'builderId'>): Pick<PlotBuilding, 'x' | 'z' | 'turns' | 'typeId' | 'startedAt' | 'hoursNeeded' | 'builderId'> {
+  if (type.look !== 'house' && !type.home && type.id !== 'duplex' && type.id !== 'bungalow') {
+    return building;
+  }
+  const facing = towardStreet(plot);
+  const alongX = facing.dz !== 0;
+  const I = { x: -facing.dx, z: -facing.dz };
+  const D = alongX ? plot.rect.maxZ - plot.rect.minZ : plot.rect.maxX - plot.rect.minX;
+  const front = frontOf(plot);
+  const fp = footprintAt(type, building.x, building.z, building.turns);
+  const houseSpanAlongI = alongX ? (fp.maxZ - fp.minZ) : (fp.maxX - fp.minX);
+  const localV = (x: number, z: number) => (x - front.x) * I.x + (z - front.z) * I.z;
+  const hv0 = Math.min(localV(fp.minX, fp.minZ), localV(fp.maxX, fp.maxZ));
+  if (hv0 < 8.5 && D >= houseSpanAlongI + 11) {
+    const targetHv0 = Math.min(D - houseSpanAlongI - 2.0, 10.0);
+    const shiftV = targetHv0 - hv0;
+    return {
+      ...building,
+      x: building.x + I.x * shiftV,
+      z: building.z + I.z * shiftV,
+    };
+  }
+  return building;
+}
+
 function raiseTower(type: BuildingType, cx: number, cz: number, w: number, d: number, stage: ConstructionStage, done: number, facing: { dx: number; dz: number }): THREE.Group {
   const b = new Builder();
   const fh = type.floorHeight;
@@ -423,7 +449,8 @@ export class PlotWorld {
     if (building) {
       const type = buildingType(building.typeId);
       if (type) {
-        root.add(raise(type, building, stageOf(building), { dx, dz }, hoursDone(building) / building.hoursNeeded));
+        const effBuilding = effectiveHouseBuilding(plot, type, building);
+        root.add(raise(type, effBuilding, stageOf(building), { dx, dz }, hoursDone(building) / building.hoursNeeded));
         // Residential houses get an authentic gated compound with electric fence, sliding gate, driveway & flowers
         if (type.look === 'house' || type.home || type.id === 'duplex' || type.id === 'bungalow') {
           const comp = drawCompound({
@@ -432,7 +459,7 @@ export class PlotWorld {
             rect: plot.rect,
             front: frontOf(plot),
             facing: towardStreet(plot),
-            house: footprintAt(type, building.x, building.z, building.turns),
+            house: footprintAt(type, effBuilding.x, effBuilding.z, effBuilding.turns),
             seed: plot.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0),
           });
           root.add(comp.group);
@@ -517,7 +544,8 @@ export class PlotWorld {
       const building = this.land.building(plot.id);
       const type = building ? buildingType(building.typeId) : null;
       if (!building || !type) continue;
-      out.push({ owner: `${type.name} at ${plot.name}`, structure: true, height: type.floors * type.floorHeight, ...footprintAt(type, building.x, building.z, building.turns) });
+      const effBuilding = effectiveHouseBuilding(plot, type, building);
+      out.push({ owner: `${type.name} at ${plot.name}`, structure: true, height: type.floors * type.floorHeight, ...footprintAt(type, effBuilding.x, effBuilding.z, effBuilding.turns) });
       const comp = this.compounds.get(plot.id);
       if (comp) {
         out.push(...comp.drawing.fixed);
