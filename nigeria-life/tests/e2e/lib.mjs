@@ -23,12 +23,16 @@ function findChrome() {
 }
 
 export async function launch() {
+  // Windows can use the real Direct3D GPU. Linux and macOS cloud agents have no
+  // D3D11 device; Chrome's SwiftShader backend is what creates a WebGL context there.
+  const glArgs = process.platform === 'win32'
+    ? ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist']
+    : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
   return puppeteer.launch({
     executablePath: findChrome(),
     headless: 'new',
     args: [
-      // Real GPU rendering, so WebGL behaves as it does for a player
-      '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist',
+      ...glArgs,
       '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
       '--disable-backgrounding-occluded-windows',
     ],
