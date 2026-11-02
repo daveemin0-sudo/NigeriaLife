@@ -10,6 +10,16 @@ import { Registry, MY_ID } from './Registry';
 import { hoursDone, isFinished, isLet } from './WorldClock';
 import type { ConstructionStage, PlotBuilding } from './types';
 import { Builder } from '../world/kit/ArchKit';
+import { drawCompound, type CompoundDrawing } from './Compound';
+
+export interface ActiveCompound {
+  plotId: string;
+  drawing: CompoundDrawing;
+  open: boolean;
+  progress: number;
+  targetProgress: number;
+  plot: Plot;
+}
 
 const EARTH = 0xa8855a;
 const CONCRETE = 0x9aa0a6;
@@ -266,6 +276,8 @@ export class PlotWorld {
   public readonly group = new THREE.Group();
   /** Every plot's card, whatever city it is in */
   public readonly interactiveList: InteractiveObject[] = [];
+  public readonly compounds = new Map<string, ActiveCompound>();
+  public onGateChanged?: (plotId: string, open: boolean) => void;
   private readonly cityGroups = new Map<PlotCity, THREE.Group>();
   private readonly cityCards = new Map<PlotCity, InteractiveObject[]>();
   private readonly land = Land.get();
@@ -410,9 +422,92 @@ export class PlotWorld {
 
     if (building) {
       const type = buildingType(building.typeId);
-      if (type) root.add(raise(type, building, stageOf(building), { dx, dz }, hoursDone(building) / building.hoursNeeded));
+      if (type) {
+        root.add(raise(type, building, stageOf(building), { dx, dz }, hoursDone(building) / building.hoursNeeded));
+        // Residential houses get an authentic gated compound with electric fence, sliding gate, driveway & flowers
+        if (type.look === 'house' || type.home || type.id === 'duplex' || type.id === 'bungalow') {
+          const comp = drawCompound({
+            plotName: plot.name,
+            subtitle: `${plot.neighbourhood} · ${plot.city.toUpperCase()}`,
+            rect: plot.rect,
+            front: frontOf(plot),
+            facing: towardStreet(plot),
+            house: footprintAt(type, building.x, building.z, building.turns),
+            seed: plot.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0),
+          });
+          root.add(comp.group);
+          this.compounds.set(plot.id, {
+            plotId: plot.id,
+            drawing: comp,
+            open: false,
+            progress: 0,
+            targetProgress: 0,
+            plot,
+          });
+          const gateCard: InteractiveObject = {
+            mesh: comp.leaf,
+            id: `gate_${plot.id}`,
+            name: `Gate · ${plot.name}`,
+            category: 'Residence Gate',
+            description: `The grand sliding security gate of ${plot.name}. Walk up or click to open/close.`,
+            interactionPoint: new THREE.Vector3(comp.centre.x + dx * 1.5, 0, comp.centre.z + dz * 1.5),
+          };
+          this.interactiveList.push(gateCard);
+          this.cityCards.get(plot.city)?.push(gateCard);
+        }
+      }
     }
     root.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
+  }
+
+  public tick(delta: number): void {
+    for (const comp of this.compounds.values()) {
+      if (comp.progress !== comp.targetProgress) {
+        const dir = Math.sign(comp.targetProgress - comp.progress);
+        comp.progress = Math.max(0, Math.min(1, comp.progress + dir * (delta * 0.9)));
+        comp.drawing.leaf.position.copy(comp.drawing.leafShut).addScaledVector(comp.drawing.leafSlide, comp.progress);
+        if ((dir > 0 && comp.progress >= 1) || (dir < 0 && comp.progress <= 0)) {
+          comp.progress = comp.targetProgress;
+          this.onGateChanged?.(comp.plotId, comp.open);
+        }
+      }
+    }
+  }
+
+  public toggleGate(plotId: string): boolean {
+    const comp = this.compounds.get(plotId);
+    if (!comp) return false;
+    comp.open = !comp.open;
+    comp.targetProgress = comp.open ? 1 : 0;
+    this.onGateChanged?.(plotId, comp.open);
+    return comp.open;
+  }
+
+  public openGate(plotId: string): void {
+    const comp = this.compounds.get(plotId);
+    if (!comp || comp.open) return;
+    comp.open = true;
+    comp.targetProgress = 1;
+    this.onGateChanged?.(plotId, true);
+  }
+
+  public closeGate(plotId: string): void {
+    const comp = this.compounds.get(plotId);
+    if (!comp || !comp.open) return;
+    comp.open = false;
+    comp.targetProgress = 0;
+    this.onGateChanged?.(plotId, false);
+  }
+
+  public nearestGate(x: number, z: number, maxDist = 22): { plotId: string; comp: ActiveCompound; dist: number } | null {
+    let best: { plotId: string; comp: ActiveCompound; dist: number } | null = null;
+    for (const [plotId, comp] of this.compounds) {
+      const dist = Math.hypot(comp.drawing.centre.x - x, comp.drawing.centre.z - z);
+      if (dist <= maxDist && (!best || dist < best.dist)) {
+        best = { plotId, comp, dist };
+      }
+    }
+    return best;
   }
 
   /** What stands on the plots, for the city plan: every building, finished or not, is a building. */
@@ -423,6 +518,14 @@ export class PlotWorld {
       const type = building ? buildingType(building.typeId) : null;
       if (!building || !type) continue;
       out.push({ owner: `${type.name} at ${plot.name}`, structure: true, height: type.floors * type.floorHeight, ...footprintAt(type, building.x, building.z, building.turns) });
+      const comp = this.compounds.get(plot.id);
+      if (comp) {
+        out.push(...comp.drawing.fixed);
+        // Only solid while gate is shut or mostly shut (< 0.7 open)
+        if (comp.progress < 0.7) {
+          out.push(comp.drawing.leafSolid);
+        }
+      }
     }
     return out;
   }

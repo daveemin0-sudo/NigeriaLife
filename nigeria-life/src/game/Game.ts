@@ -22,6 +22,7 @@ import { Studio } from '../music/Studio';
 import { Marriage } from '../social/Marriage';
 import { Chieftaincy } from '../social/Chieftaincy';
 import { Motors } from '../vehicles/Motors';
+import { CAR_SPECS, buildCarBody } from '../world/vehicles/CarBodyKit';
 import { ShiftSkill } from '../jobs/ShiftSkill';
 import { GistWorld } from '../phone/apps/gist';
 import { GistTimes } from '../life/GistTimes';
@@ -254,7 +255,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -383,7 +384,40 @@ export class Game {
     this.hud.onHonkVehicle = () => {
       if (this.player.isDriving && this.player.currentVehicle) {
         this.player.currentVehicle.honk();
+        const near = this.plotWorld.nearestGate(this.player.position.x, this.player.position.z, 25);
+        if (near && !near.comp.open && HomeStaff.get().isHired('gateman')) {
+          this.plotWorld.toggleGate(near.plotId);
+          showGameToast('📢 🛡️ Musa Danjuma hears your horn: "Twale Oga! Gate is open!"', 'success', 3500);
+        }
       }
+    };
+
+    this.hud.onGateAction = (plotId) => {
+      let targetId = plotId;
+      if (!targetId) {
+        const near = this.plotWorld.nearestGate(this.player.position.x, this.player.position.z, 25);
+        if (near) targetId = near.plotId;
+      }
+      if (targetId) {
+        const opened = this.plotWorld.toggleGate(targetId);
+        showGameToast(`🚪 Compound gate ${opened ? 'opening' : 'closing'}...`, 'info', 2500);
+        if (opened && HomeStaff.get().isHired('gateman')) {
+          showGameToast('🛡️ Musa Danjuma salutes: "Twale Oga! Gate is open!"', 'success', 3500);
+        }
+      }
+    };
+
+    this.input.onToggleGate = () => {
+      const near = this.plotWorld.nearestGate(this.player.position.x, this.player.position.z, 25);
+      if (near) {
+        const opened = this.plotWorld.toggleGate(near.plotId);
+        showGameToast(`🚪 ${near.comp.plot.name} gate ${opened ? 'opening' : 'closing'}...`, 'info', 2500);
+        if (opened && HomeStaff.get().isHired('gateman')) {
+          showGameToast('🛡️ Musa Danjuma salutes: "Twale Oga! Gate is open!"', 'success', 3500);
+        }
+        return true;
+      }
+      return false;
     };
 
     this.input.onToggleVehicle = () => {
@@ -1231,6 +1265,10 @@ export class Game {
     };
     this.plotWorld.showCity(this.world.cityManager.currentCityId);
     this.world.builtByPlayers.push(() => this.plotWorld.obstructions('lagos'));
+    this.plotWorld.onGateChanged = () => {
+      this.solidsByCity.clear();
+      this.waysByCity.clear();
+    };
     BackendService.getInstance().addHomeCheck(() => this.land.hasHome());
 
     this.buildBar = new BuildBar(this.plotWorld);
@@ -2625,6 +2663,13 @@ export class Game {
     HomeStaff.get().tick(delta);
     Studio.get().tick(delta);
     Marriage.get().tick(delta);
+    this.plotWorld.tick(delta);
+    if (this.player.isDriving) {
+      const near = this.plotWorld.nearestGate(this.player.position.x, this.player.position.z, 25);
+      this.hud.updateGateButton(!!near, near?.comp.open);
+    } else {
+      this.hud.updateGateButton(false);
+    }
 
     // Update Camera Follow (moved in closer while the player is seated)
     const playerActor = this.player.actor;

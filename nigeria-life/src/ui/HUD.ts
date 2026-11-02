@@ -122,6 +122,8 @@ export class HUD {
   public onVendorAction?: (objectId: string) => void;
   /** A plot of land's board was used: open what is known about that plot */
   public onPlotAction?: (plotId: string) => void;
+  /** Compound gate toggled */
+  public onGateAction?: (plotId?: string) => void;
   /** A nearby place was pressed on the bar: walk there */
   public onWalkToPlace?: (place: InteractiveObject) => void;
   /** Walk to a point in the city by the streets; `then` runs on getting there */
@@ -442,6 +444,7 @@ export class HUD {
         <div class="driving-actions-bar">
           <button class="btn-hud-refuel" id="btn-drive-refuel" title="Refuel Fuel Tank [Key R]" style="background: #059669; color: #fff; border: 0; padding: 6px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 11px;">⛽ Refuel [R]</button>
           <button class="btn-hud-horn" id="btn-drive-horn" title="Honk Horn [Key H]">📢 Honk [H]</button>
+          <button class="btn-hud-gate" id="btn-drive-gate" title="Open / Close Compound Gate [Key G / O]" style="display: none; background: #0284c7; color: #fff; border: 0; padding: 6px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 11px;">🚪 Open Gate [G]</button>
           <button class="btn-hud-exit-veh" id="btn-drive-exit" title="Exit Vehicle [Key F]">🚪 Exit [F]</button>
         </div>
         <div id="driving-hawker-pill" style="display: none; align-items: center; justify-content: space-between; gap: 8px; background: rgba(20, 83, 45, 0.95); border: 1px solid #4ade80; border-radius: 8px; padding: 4px 10px; margin-top: 6px; font-size: 11px;">
@@ -472,6 +475,9 @@ export class HUD {
     });
     document.getElementById('btn-traffic-gala')?.addEventListener('click', () => {
       LagosStreetLifeSystem.getInstance().buyFromWindowHawker('gala');
+    });
+    document.getElementById('btn-drive-gate')?.addEventListener('click', () => {
+      this.onGateAction?.();
     });
 
     this.proximityPromptEl?.addEventListener('click', () => {
@@ -1887,6 +1893,10 @@ export class HUD {
       btnEl.textContent = '📋 Inspect this plot';
       bizBtn.style.display = 'none';
     }
+    if (obj.id.startsWith('gate_')) {
+      btnEl.textContent = '🚪 Open / Close Compound Gate';
+      bizBtn.style.display = 'none';
+    }
 
     // Anyone the interaction system can direct can be waved at, greeted, spoken to; another player can be waved at and greeted
     const person = InteractionDirector.get().actorFor(obj.id);
@@ -1927,6 +1937,18 @@ export class HUD {
     if (this.drivingHudEl) {
       this.drivingHudEl.style.display = 'none';
     }
+  }
+
+  public updateGateButton(visible: boolean, open?: boolean, label?: string): void {
+    const btn = document.getElementById('btn-drive-gate') as HTMLButtonElement | null;
+    if (!btn) return;
+    if (!visible) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = 'inline-block';
+    btn.textContent = label ?? (open ? '🚪 Close Gate [G]' : '🚪 Open Gate [G]');
+    btn.style.background = open ? '#d97706' : '#059669';
   }
 
   public updateDrivingHUD(
@@ -2390,6 +2412,11 @@ export class HUD {
     if (id.startsWith('plot_')) {
       this.hideInteractionCard();
       this.onPlotAction?.(id.slice(5));
+      return;
+    }
+    if (id.startsWith('gate_')) {
+      this.hideInteractionCard();
+      this.onGateAction?.(id.slice(5));
       return;
     }
 

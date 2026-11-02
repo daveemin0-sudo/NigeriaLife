@@ -52,6 +52,7 @@ export interface CarSpec {
   spare?: boolean;
   /** Bulging wheel arches */
   flares?: boolean;
+  brand?: 'rolls_royce' | 'mercedes' | 'bmw' | 'lamborghini' | 'bugatti' | 'porsche' | 'toyota' | 'range_rover' | 'lexus';
 }
 
 const BEVEL = 0.07;
@@ -187,6 +188,9 @@ export interface CarMaterials {
   lamp: THREE.MeshStandardMaterial;
   tail: THREE.MeshStandardMaterial;
   plate: THREE.MeshStandardMaterial;
+  gold: THREE.MeshStandardMaterial;
+  blue: THREE.MeshStandardMaterial;
+  red: THREE.MeshStandardMaterial;
 }
 
 export function carMaterials(paint: number): CarMaterials {
@@ -198,6 +202,9 @@ export function carMaterials(paint: number): CarMaterials {
     lamp: new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xf1f5f9, emissiveIntensity: 1.3, roughness: 0.2 }),
     tail: new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0xb91c1c, emissiveIntensity: 1.1, roughness: 0.3 }),
     plate: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.25 }),
+    blue: new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 }),
+    red: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.3 }),
   };
 }
 
@@ -267,6 +274,119 @@ export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.
       for (let i = 0; i < (s.style === 'boxy' ? 3 : 4); i++) car.add(box(m.trim, grilleW - 0.06, 0.018, 0.02, 0, lampY - 0.12 + i * 0.05, front - 0.01 + (s.style === 'boxy' ? 0.05 : 0)));
     }
   }
+
+  // --- Authentic Brand Identity, Mascots & Visual Badges ---
+  const brand = s.brand;
+  if (brand === 'rolls_royce') {
+    // 1. The Spirit of Ecstasy Mascot (Flying Lady) on the nose
+    const mascotGroup = new THREE.Group();
+    mascotGroup.name = 'spirit_of_ecstasy';
+    mascotGroup.add(box(m.chrome, 0.06, 0.02, 0.06, 0, s.noseTop + 0.01, front - 0.02));
+    const torso = box(m.chrome, 0.025, 0.08, 0.02, 0, s.noseTop + 0.05, front - 0.01);
+    torso.rotation.x = -0.35;
+    mascotGroup.add(torso);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), m.chrome);
+    head.position.set(0, s.noseTop + 0.09, front);
+    mascotGroup.add(head);
+    for (const side of [-1, 1]) {
+      const wingMesh = box(m.chrome, 0.015, 0.06, 0.05, side * 0.028, s.noseTop + 0.065, front - 0.03);
+      wingMesh.rotation.z = side * 0.45;
+      wingMesh.rotation.x = 0.55;
+      mascotGroup.add(wingMesh);
+    }
+    car.add(mascotGroup);
+
+    // 2. High-precision Waterfall Pantheon Grille
+    const pVanW = 0.76;
+    const pVanH = 0.42;
+    const pVanZ = front + 0.015;
+    car.add(box(m.chrome, pVanW + 0.08, pVanH + 0.08, 0.04, 0, lampY - 0.04, pVanZ));
+    car.add(box(m.trim, pVanW, pVanH, 0.05, 0, lampY - 0.04, pVanZ + 0.01));
+    const vaneCount = 14;
+    for (let i = 0; i < vaneCount; i++) {
+      const vx = -pVanW / 2 + ((i + 0.5) * pVanW) / vaneCount;
+      car.add(box(m.chrome, 0.018, pVanH - 0.03, 0.025, vx, lampY - 0.04, pVanZ + 0.025));
+    }
+    // Dual-R Monogram badge plate
+    car.add(box(m.chrome, 0.1, 0.06, 0.02, 0, lampY + pVanH / 2 - 0.02, pVanZ + 0.03));
+    car.add(box(m.trim, 0.08, 0.04, 0.025, 0, lampY + pVanH / 2 - 0.02, pVanZ + 0.032));
+    car.add(box(m.chrome, 0.03, 0.02, 0.028, -0.018, lampY + pVanH / 2 - 0.02, pVanZ + 0.034));
+    car.add(box(m.chrome, 0.03, 0.02, 0.028, 0.018, lampY + pVanH / 2 - 0.02, pVanZ + 0.034));
+  } else if (brand === 'mercedes') {
+    // Mercedes Three-Pointed Star on Grille
+    const starY = lampY - (s.style === 'boxy' ? 0.02 : 0.05);
+    const starZ = front + (s.style === 'boxy' ? 0.04 : -0.02);
+    const starRing = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.016, 8, 24), m.chrome);
+    starRing.position.set(0, starY, starZ + 0.03);
+    car.add(starRing);
+    for (let p = 0; p < 3; p++) {
+      const angle = (p * 2 * Math.PI) / 3 - Math.PI / 2;
+      const arm = box(m.chrome, 0.018, 0.09, 0.012, Math.cos(angle) * 0.045, starY + Math.sin(angle) * 0.045, starZ + 0.032);
+      arm.rotation.z = angle - Math.PI / 2;
+      car.add(arm);
+    }
+    car.add(box(m.chrome, 0.03, 0.03, 0.02, 0, starY, starZ + 0.035));
+
+    if (s.spare) {
+      const spareZ = back - 0.32;
+      const spareStarRing = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.018, 8, 24), m.chrome);
+      spareStarRing.position.set(0, s.wheelRadius + 0.28, spareZ);
+      spareStarRing.rotation.y = Math.PI;
+      car.add(spareStarRing);
+      for (let p = 0; p < 3; p++) {
+        const angle = (p * 2 * Math.PI) / 3 - Math.PI / 2;
+        const arm = box(m.chrome, 0.02, 0.11, 0.014, Math.cos(angle) * 0.055, s.wheelRadius + 0.28 + Math.sin(angle) * 0.055, spareZ - 0.01);
+        arm.rotation.z = angle - Math.PI / 2;
+        car.add(arm);
+      }
+    }
+  } else if (brand === 'bmw') {
+    // BMW Twin-Kidney Grille
+    const kidneyW = 0.34;
+    const kidneyH = 0.24;
+    for (const side of [-1, 1]) {
+      const kx = side * (kidneyW / 2 + 0.025);
+      car.add(box(m.chrome, kidneyW, kidneyH, 0.04, kx, lampY - 0.05, front - 0.02));
+      car.add(box(m.trim, kidneyW - 0.04, kidneyH - 0.04, 0.045, kx, lampY - 0.05, front - 0.015));
+      for (let v = 0; v < 4; v++) {
+        car.add(box(m.chrome, 0.015, kidneyH - 0.05, 0.02, kx - (kidneyW / 2 - 0.06) + v * 0.07, lampY - 0.05, front - 0.01));
+      }
+    }
+    // BMW Roundel Emblem on bonnet
+    const roundelZ = front - 0.12;
+    const roundelY = s.noseTop + 0.02;
+    const rRing = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.015, 16), m.chrome);
+    rRing.position.set(0, roundelY, roundelZ);
+    car.add(rRing);
+    car.add(box(m.blue, 0.04, 0.018, 0.04, -0.02, roundelY + 0.005, roundelZ - 0.02));
+    car.add(box(m.blue, 0.04, 0.018, 0.04, 0.02, roundelY + 0.005, roundelZ + 0.02));
+    car.add(box(m.plate, 0.04, 0.018, 0.04, 0.02, roundelY + 0.005, roundelZ - 0.02));
+    car.add(box(m.plate, 0.04, 0.018, 0.04, -0.02, roundelY + 0.005, roundelZ + 0.02));
+  } else if (brand === 'lamborghini') {
+    // Golden Bull Shield on nose
+    const shieldZ = front - 0.06;
+    const shieldY = s.noseTop - 0.02;
+    car.add(box(m.gold, 0.09, 0.07, 0.02, 0, shieldY, shieldZ));
+    car.add(box(m.trim, 0.07, 0.05, 0.025, 0, shieldY, shieldZ + 0.005));
+    car.add(box(m.gold, 0.035, 0.02, 0.03, 0, shieldY, shieldZ + 0.01));
+    car.add(box(m.trim, s.width * 0.88, 0.04, 0.18, 0, s.clearance + 0.04, front + 0.02));
+  } else if (brand === 'bugatti') {
+    // Horseshoe Arch with red Bugatti badge
+    const hMesh = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.04, 8, 24, Math.PI), m.chrome);
+    hMesh.position.set(0, lampY - 0.04, front);
+    car.add(hMesh);
+    car.add(box(m.chrome, 0.04, 0.28, 0.04, -0.24, lampY - 0.18, front));
+    car.add(box(m.chrome, 0.04, 0.28, 0.04, 0.24, lampY - 0.18, front));
+    car.add(box(m.red, 0.12, 0.06, 0.025, 0, lampY, front + 0.02));
+    car.add(box(m.chrome, 0.08, 0.02, 0.03, 0, lampY, front + 0.025));
+  } else if (brand === 'range_rover') {
+    car.add(box(m.chrome, 0.8, 0.025, 0.015, 0, s.noseTop + 0.01, front - 0.06));
+    car.add(box(m.paint, 0.08, 0.04, 0.02, 0.28, lampY - 0.05, front + 0.01));
+  } else if (brand === 'toyota') {
+    const tRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.015, 8, 20), m.chrome);
+    tRing.position.set(0, lampY - 0.06, front);
+    car.add(tRing);
+  }
   // Lower intake and number plates
   car.add(box(m.trim, s.width * 0.55, 0.1, 0.05, 0, s.clearance + 0.12, front - 0.02));
   car.add(box(m.plate, 0.44, 0.11, 0.02, 0, s.clearance + 0.26, front + 0.015));
@@ -327,6 +447,7 @@ export const CAR_SPECS: Record<string, Omit<CarSpec, 'paint'> & { paint?: number
     tumblehome: 0.16, roundness: 0.7, grille: 'chrome', lamps: 'slim', paint: 0x9ca3af,
   },
   luxury_sedan: {
+    brand: 'mercedes',
     style: 'sedan', length: 5.3, width: 1.95, clearance: 0.2, belt: 1.02, roof: 1.5, noseTop: 0.88, tailTop: 1.02,
     screenFoot: 1.12, screenTop: 0.3, backTop: -1.15, backFoot: -1.72, frontAxle: 1.6, rearAxle: -1.55, wheelRadius: 0.36,
     tumblehome: 0.15, roundness: 0.6, grille: 'chrome', lamps: 'slim', tailBar: true, paint: 0x23272e,
@@ -347,6 +468,7 @@ export const CAR_SPECS: Record<string, Omit<CarSpec, 'paint'> & { paint?: number
     tumblehome: 0.1, roundness: 0.45, grille: 'chrome', lamps: 'square', spare: true, flares: true, paint: 0x2b3340,
   },
   gwagon: {
+    brand: 'mercedes',
     style: 'boxy', length: 4.7, width: 1.95, clearance: 0.32, belt: 1.25, roof: 1.98, noseTop: 1.12, tailTop: 1.3,
     screenFoot: 1.0, screenTop: 0.78, backTop: -2.25, backFoot: -2.3, frontAxle: 1.45, rearAxle: -1.4, wheelRadius: 0.4,
     tumblehome: 0.04, roundness: 0.12, grille: 'black', lamps: 'round', spare: true, flares: true, paint: 0x2a2b2f,
@@ -361,21 +483,21 @@ Object.assign(CAR_SPECS, {
   // Saloons
   corolla_2008: { ...S.sedan, length: 4.55, roof: 1.5, belt: 1.0, roundness: 0.55, tumblehome: 0.12, lamps: 'square', paint: 0xb91c1c },
   corolla_2020: { ...S.sedan, length: 4.63, roof: 1.44, noseTop: 0.78, roundness: 0.8, lamps: 'slim', grille: 'black', paint: 0xf8fafc },
-  camry: { ...S.sedan, length: 4.88, width: 1.84, roof: 1.45, screenFoot: 1.0, backFoot: -1.6, frontAxle: 1.45, rearAxle: -1.38, roundness: 0.7, paint: 0x1e3a8a },
+  camry: { ...S.sedan, brand: 'toyota', length: 4.88, width: 1.84, roof: 1.45, screenFoot: 1.0, backFoot: -1.6, frontAxle: 1.45, rearAxle: -1.38, roundness: 0.7, paint: 0x1e3a8a },
   accord: { ...S.sedan, length: 4.9, width: 1.86, roof: 1.43, screenTop: 0.1, backTop: -0.75, backFoot: -1.7, roundness: 0.85, grille: 'black', paint: 0x6b7280 },
   // Executive and fastback
   panamera: { ...S.electric_car, length: 5.05, roof: 1.4, grille: 'mesh', lamps: 'slim', tailBar: true, paint: 0x334155 },
-  bmw_7: { ...S.luxury_sedan, length: 5.25, grille: 'chrome', lamps: 'slim', paint: 0x0f172a },
+  bmw_7: { ...S.luxury_sedan, brand: 'bmw', length: 5.25, grille: 'chrome', lamps: 'slim', paint: 0x0f172a },
   // SUVs
   lexus_rx: { ...S.suv, length: 4.9, roof: 1.72, belt: 1.12, backTop: -1.85, backFoot: -2.2, tumblehome: 0.14, roundness: 0.7, spare: false, flares: false, lamps: 'slim', grille: 'mesh', paint: 0xe5e7eb },
   highlander: { ...S.suv, length: 4.95, roof: 1.76, spare: false, flares: false, roundness: 0.6, lamps: 'slim', paint: 0x78350f },
-  range_rover: { ...S.suv, length: 5.0, width: 2.0, roof: 1.87, belt: 1.2, tumblehome: 0.06, roundness: 0.35, spare: false, flares: false, lamps: 'slim', grille: 'black', blackRoof: true, paint: 0x14532d },
+  range_rover: { ...S.suv, brand: 'range_rover', length: 5.0, width: 2.0, roof: 1.87, belt: 1.2, tumblehome: 0.06, roundness: 0.35, spare: false, flares: false, lamps: 'slim', grille: 'black', blackRoof: true, paint: 0x14532d },
   cayenne: { ...S.suv, length: 4.93, width: 1.98, roof: 1.7, belt: 1.1, backTop: -1.7, backFoot: -2.25, tumblehome: 0.16, roundness: 0.85, spare: false, flares: false, lamps: 'slim', grille: 'mesh', paint: 0x9ca3af },
-  urus: { ...S.suv, length: 5.11, width: 2.02, clearance: 0.24, roof: 1.64, belt: 1.05, noseTop: 0.9, screenFoot: 1.15, screenTop: 0.15, backTop: -1.4, backFoot: -2.3, tumblehome: 0.2, roundness: 0.9, spare: false, flares: false, lamps: 'slim', grille: 'mesh', paint: 0xeab308 },
-  cullinan: { ...S.gwagon, length: 5.34, width: 2.0, roof: 1.84, belt: 1.25, screenFoot: 1.15, screenTop: 0.7, backTop: -2.45, backFoot: -2.55, frontAxle: 1.7, rearAxle: -1.6, roundness: 0.25, spare: false, flares: false, grille: 'chrome', lamps: 'square', paint: 0x1f2937 },
+  urus: { ...S.suv, brand: 'lamborghini', length: 5.11, width: 2.02, clearance: 0.24, roof: 1.64, belt: 1.05, noseTop: 0.9, screenFoot: 1.15, screenTop: 0.15, backTop: -1.4, backFoot: -2.3, tumblehome: 0.2, roundness: 0.9, spare: false, flares: false, lamps: 'slim', grille: 'mesh', paint: 0xeab308 },
+  cullinan: { ...S.gwagon, brand: 'rolls_royce', length: 5.34, width: 2.0, roof: 1.84, belt: 1.25, screenFoot: 1.15, screenTop: 0.7, backTop: -2.45, backFoot: -2.55, frontAxle: 1.7, rearAxle: -1.6, roundness: 0.25, spare: false, flares: false, grille: 'chrome', lamps: 'square', paint: 0x1f2937 },
   // Sports and super cars
-  porsche_911: { ...S.sports_car, wing: false, length: 4.52, roof: 1.3, roundness: 1, paint: 0xf8fafc },
-  huracan: { ...S.sports_car, wing: false, length: 4.52, width: 1.93, roof: 1.16, belt: 0.74, noseTop: 0.55, tailTop: 0.82, screenFoot: 1.0, screenTop: -0.05, backTop: -0.75, backFoot: -1.85, roundness: 0.45, tumblehome: 0.26, lamps: 'slim', grille: 'mesh', paint: 0x84cc16 },
-  aventador: { ...S.sports_car, wing: true, length: 4.8, width: 2.03, roof: 1.14, belt: 0.72, noseTop: 0.52, tailTop: 0.85, screenFoot: 1.15, screenTop: 0.05, backTop: -0.8, backFoot: -2.0, frontAxle: 1.45, rearAxle: -1.3, roundness: 0.35, tumblehome: 0.28, lamps: 'slim', grille: 'mesh', paint: 0xf97316 },
-  chiron: { ...S.sports_car, wing: false, length: 4.54, width: 2.04, roof: 1.21, belt: 0.78, noseTop: 0.6, tailTop: 0.9, screenFoot: 0.95, screenTop: 0.0, backTop: -0.7, backFoot: -1.8, roundness: 1, tumblehome: 0.24, lamps: 'slim', grille: 'chrome', tailBar: true, blackRoof: true, paint: 0x1d4ed8 },
+  porsche_911: { ...S.sports_car, brand: 'porsche', wing: false, length: 4.52, roof: 1.3, roundness: 1, paint: 0xf8fafc },
+  huracan: { ...S.sports_car, brand: 'lamborghini', wing: false, length: 4.52, width: 1.93, roof: 1.16, belt: 0.74, noseTop: 0.55, tailTop: 0.82, screenFoot: 1.0, screenTop: -0.05, backTop: -0.75, backFoot: -1.85, roundness: 0.45, tumblehome: 0.26, lamps: 'slim', grille: 'mesh', paint: 0x84cc16 },
+  aventador: { ...S.sports_car, brand: 'lamborghini', wing: true, length: 4.8, width: 2.03, roof: 1.14, belt: 0.72, noseTop: 0.52, tailTop: 0.85, screenFoot: 1.15, screenTop: 0.05, backTop: -0.8, backFoot: -2.0, frontAxle: 1.45, rearAxle: -1.3, roundness: 0.35, tumblehome: 0.28, lamps: 'slim', grille: 'mesh', paint: 0xf97316 },
+  chiron: { ...S.sports_car, brand: 'bugatti', wing: false, length: 4.54, width: 2.04, roof: 1.21, belt: 0.78, noseTop: 0.6, tailTop: 0.9, screenFoot: 0.95, screenTop: 0.0, backTop: -0.7, backFoot: -1.8, roundness: 1, tumblehome: 0.24, lamps: 'slim', grille: 'chrome', tailBar: true, blackRoof: true, paint: 0x1d4ed8 },
 } as Record<string, Omit<CarSpec, 'paint'> & { paint?: number }>);

@@ -55,6 +55,7 @@ export class InputManager {
   public onBuyFromWindow?: (item: 'water' | 'gala') => void;
   public onRefuelVehicle?: () => void;
   public onToggleShowcase?: () => void;
+  public onToggleGate?: () => boolean;
   /** A click landed on open ground. Return true to use it instead of walking there. */
   public onGroundClick?: (point: THREE.Vector3) => boolean;
   /** A click landed on the floor of a room. Return true to use it instead of walking there. */
@@ -183,9 +184,13 @@ export class InputManager {
         this.onToggleVehicle?.();
       } else if (k === 'h') {
         this.onHonkVehicle?.();
-      } else if (k === 'j' || k === 'g') {
+      } else if (k === 'g' || k === 'o') {
+        if (!this.onToggleGate?.()) {
+          this.onBuyFromWindow?.('gala');
+        }
+      } else if (k === 'j') {
         // On the key going down, so a quick tap between two frames is not lost
-        this.onBuyFromWindow?.(k === 'j' ? 'water' : 'gala');
+        this.onBuyFromWindow?.('water');
       } else if (k === 'r') {
         this.onRefuelVehicle?.();
       } else if (k === 'v') {
@@ -773,6 +778,19 @@ export class InputManager {
         name: obj.name,
         category: obj.category,
         label: `📋 Inspect the plot at ${obj.name}`,
+        action: 'interact',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'station',
+      };
+    }
+    if (id.startsWith('gate_')) {
+      return {
+        id: obj.id,
+        name: obj.name,
+        category: obj.category,
+        label: `🚪 Open / Close Gate (${obj.name})`,
         action: 'interact',
         distance: dist,
         interactionPoint: obj.interactionPoint,
