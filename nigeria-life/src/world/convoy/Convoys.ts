@@ -155,6 +155,7 @@ class Escort {
   public cars: ConvoyCar[] = [];
   public level: EscortLevel | null = null;
   public until = -1;
+  public expiresAt = 0;
   private trail: Array<{ x: number; z: number }> = [];
   private readonly key = profileKey('nigeria_life_escort_v1');
 
@@ -162,28 +163,51 @@ class Escort {
     this.group.name = 'my convoy';
     this.group.visible = false;
     try {
-      const saved = JSON.parse(localStorage.getItem(this.key) || 'null') as { level: EscortLevel; until: number } | null;
-      if (saved && ESCORTS[saved.level]) this.set(saved.level, saved.until);
+      const saved = JSON.parse(localStorage.getItem(this.key) || 'null') as { level: EscortLevel; until: number; expiresAt?: number } | null;
+      if (saved && ESCORTS[saved.level]) this.set(saved.level, saved.until, saved.expiresAt);
     } catch {
       // None hired
     }
   }
 
-  public set(level: EscortLevel | null, until: number): void {
+  public set(level: EscortLevel | null, until: number, expiresAt?: number): void {
     for (const car of this.cars) this.group.remove(car.group);
     this.level = level;
     this.until = until;
+    this.expiresAt = expiresAt || (level ? Date.now() + (ESCORTS[level]?.days || 3) * 86_400_000 : 0);
     this.cars = level ? ESCORTS[level].vehicles.map((k) => convoyCar(k)) : [];
     for (const car of this.cars) this.group.add(car.group);
     try {
-      localStorage.setItem(this.key, JSON.stringify(level ? { level, until } : null));
+      localStorage.setItem(this.key, JSON.stringify(level ? { level, until, expiresAt: this.expiresAt } : null));
     } catch {
       // Kept for this visit
     }
   }
 
+  public cancel(): void {
+    for (const car of this.cars) this.group.remove(car.group);
+    this.level = null;
+    this.until = -1;
+    this.expiresAt = 0;
+    this.cars = [];
+    this.group.visible = false;
+    this.trail = [];
+    try {
+      localStorage.removeItem(this.key);
+    } catch {}
+  }
+
   public active(day: number): boolean {
-    return !!this.level && day <= this.until;
+    if (!this.level) return false;
+    if (this.expiresAt && Date.now() >= this.expiresAt) {
+      this.cancel();
+      return false;
+    }
+    if (day > this.until) {
+      this.cancel();
+      return false;
+    }
+    return true;
   }
 
   /** Follows the driven vehicle; returns the siren's pose (at the player) while it is with them */

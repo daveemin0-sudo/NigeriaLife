@@ -343,9 +343,16 @@ export class SkyEnvironmentManager {
     return minutesOfDay / 60;
   }
 
-  /** Sets the clock to the time now in Lagos */
+  /** Sets the clock to the time now in Lagos and syncs elapsed calendar days since epoch */
   public syncRealTime(): void {
-    this.currentHour = this.lagosHourNow();
+    const now = new Date();
+    // Start date: Wednesday 7 Oct 2026 (Game Day 0)
+    const startDate = new Date(2026, 9, 7, 0, 0, 0);
+    const diffMs = now.getTime() - startDate.getTime();
+    if (diffMs >= 0) {
+      this.day = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    }
+    this.currentHour = this.lagosHourNow(now);
 
     const period = this.getTimePeriodForHour(this.currentHour);
     if (period !== this.currentPeriod) {

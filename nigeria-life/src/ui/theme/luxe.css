@@ -1643,3 +1643,112 @@ html body .nl-signin-error { min-height: 18px; color: #dc2626; font: 600 13px/1.
 html body .nl-signin-go { border: 0; border-radius: 16px; padding: 15px; background: linear-gradient(135deg, #1db574, #0e7a4e); color: #fff; font: 800 15px var(--nl-font, system-ui); cursor: pointer; box-shadow: 0 10px 24px rgba(14, 122, 78, 0.35); }
 html body .nl-signin-go:disabled { opacity: 0.7; }
 html body .nl-signin-later { border: 0; background: none; color: var(--lx-dim, #66736c); font: 700 13px var(--nl-font, system-ui); padding: 6px; cursor: pointer; }
+
+/* =============================================================================================
+   MOBILE RESPONSIVENESS: Samsung Galaxy A16 / Android One UI 9 (~384px - 412px screen width)
+   Prevents HUD overlap between top status pill, quest card, proximity prompt & bottom nav
+   ============================================================================================= */
+@media (max-width: 540px) {
+  html body .hud-center-pill-bar {
+    left: 8px !important;
+    right: 8px !important;
+    top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+    transform: none !important;
+    max-width: calc(100vw - 16px) !important;
+    padding: 4px 8px !important;
+    gap: 4px 6px !important;
+    border-radius: 16px !important;
+    font-size: 11px !important;
+    box-sizing: border-box !important;
+  }
+  html body .hud-center-pill-bar #hud-clock-val {
+    font-size: 10.5px !important;
+  }
+  html body .hud-center-pill-bar #pill-mood {
+    display: none !important;
+  }
+  html body .hud-center-pill-bar .hud-vitals-bar {
+    gap: 4px !important;
+  }
+  html body .hud-center-pill-bar .vital-track {
+    width: 22px !important;
+  }
+  html body .hud-center-pill-bar .vital-val {
+    display: none !important;
+  }
+  html body .hud-center-pill-bar .pill-item {
+    font-size: 10.5px !important;
+    padding: 2px 4px !important;
+  }
+
+  /* Keep top-right location badge below or compact */
+  html body .hud-top-right-group {
+    top: calc(56px + env(safe-area-inset-top, 0px)) !important;
+    right: 8px !important;
+    gap: 4px !important;
+  }
+  html body .hud-location {
+    max-width: 140px !important;
+    padding: 4px 8px !important;
+  }
+  html body .hud-location .loc-name {
+    font-size: 11px !important;
+  }
+  html body .hud-location .loc-sub {
+    font-size: 9.5px !important;
+  }
+
+  /* Compact Quest & Hustle card to single compact pill on mobile */
+  html body .hud-quest-tracker {
+    top: calc(56px + env(safe-area-inset-top, 0px)) !important;
+    left: 8px !important;
+    max-width: min(180px, 48vw) !important;
+    padding: 4px 8px !important;
+    border-radius: 999px !important;
+  }
+  html body .hud-quest-tracker .tracker-body,
+  html body .hud-quest-tracker .tracker-arc,
+  html body .hud-quest-tracker .btn-tracker-toggle {
+    display: none !important;
+  }
+  html body .hud-quest-tracker .tracker-title {
+    font-size: 11px !important;
+  }
+  html body #hud-today-chip {
+    top: calc(88px + env(safe-area-inset-top, 0px)) !important;
+    left: 8px !important;
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* Bottom Controls: Never collide with master nav */
+  html body .street-radar-bar,
+  html body .emote-bar {
+    display: none !important;
+  }
+  html body #hud-proximity-prompt {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    max-width: calc(100vw - 20px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+    box-sizing: border-box !important;
+  }
+  html body .bottom-master-nav {
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    max-width: calc(100vw - 16px) !important;
+    padding: 3px 6px !important;
+  }
+  html body .master-nav-item {
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+  }
+  html body .master-nav-item .nav-label {
+    font-size: 9.5px !important;
+  }
+  html body #street-chat-toggle {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 8px !important;
+  }
+}

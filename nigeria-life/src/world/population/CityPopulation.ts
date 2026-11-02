@@ -566,14 +566,14 @@ export class CityPopulation {
       tz = a.fz ?? 0;
     } else {
       if (a.axis === 'z') {
-        if (a.x > 9.0 && a.z > 97 && a.z < 109) tx -= 2.2; // Quilox VIP Red Carpet
-        else if (a.x > 9.5 && a.z > -27 && a.z < -19) tx -= 1.8; // Eko Commercial Bank
-        else if (a.x < -9.5 && a.z > -8 && a.z < 0) tx += 1.8; // Everyday Supermarket
-        else if (a.x < -9.5 && a.z > -60 && a.z < -52) tx += 1.8; // Chop Life Buka
+        if (a.x > 9.0 && a.z > 97 && a.z < 109) tx -= 0.8; // Quilox VIP Red Carpet
+        else if (a.x > 9.5 && a.z > -27 && a.z < -19) tx -= 0.75; // Eko Commercial Bank
+        else if (a.x < -9.5 && a.z > -8 && a.z < 0) tx += 0.75; // Everyday Supermarket
+        else if (a.x < -9.5 && a.z > -60 && a.z < -52) tx += 0.75; // Chop Life Buka
       }
       // Everyone steps round the player, those walking to a bus door too
       for (const o of this.avoid) {
-        const room = o.r + 0.75;
+        const room = o.r + 0.22;
         if (a.mode === 'walk' && !a.boarding) {
           const ahead = (a.axis === 'z' ? o.z - a.z : o.x - a.x) * a.dir;
           if (ahead < -0.8 - o.r || ahead > 2.4 + o.r) continue;

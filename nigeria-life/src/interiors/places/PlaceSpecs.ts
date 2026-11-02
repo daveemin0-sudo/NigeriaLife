@@ -372,6 +372,7 @@ const SPECS: PlaceSpec[] = [
     { id: 'escort', name: '🚨 Escorts & convoys', at: [4, -4], stand: [4, -2.6], who: 'Inspector Bello', role: 'Escort desk', text: 'For a big man moving round Lagos: we follow you, sirens on, and the road clears.', choices: [
       { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
       { label: 'A full convoy, three days', note: '₦3,600,000 · outriders, patrol van, two jeeps', open: 'escort:convoy' },
+      { label: 'Dismiss / Cancel escort', note: 'Stand down active escort team', open: 'escort:cancel' },
     ] },
   ], [{ at: [-5, 4], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]),
   venue('efcc-office', 'EFCC Zonal Office', 'Ikoyi · government', 'Economic and Financial Crimes Commission', '#166534', 0xe5e7eb, 0xd6d3d1, (b) => {

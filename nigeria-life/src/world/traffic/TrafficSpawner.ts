@@ -272,15 +272,14 @@ export class TrafficSpawner {
     const cross = SIDE_STREETS.find((s) => s.traffic)!;
     const stopBefore = cross.halfRoad + 5.2;
 
-    // Broad Street: Nigeria drives on the right, so the +Z flow uses the -X lanes
-    for (const x of [-4.9, -1.8, 1.8, 4.9]) {
+    // Broad Street: 3 full lanes each way (6 lanes total) running from town to expressway
+    for (const x of [-8.0, -4.9, -1.8, 1.8, 4.9, 8.0]) {
       const dir: 1 | -1 = x < 0 ? 1 : -1;
-      const outer = Math.abs(x) > 3;
+      const outer = Math.abs(x) > 4.5;
       this.lanes.push({
         axis: 'z',
         fixed: x,
         dir,
-        // On down the expressway to its far end (going south), or from there (coming north)
         uMin: dir > 0 ? -(MAIN_ROAD.zMax + 6) : -(EXPRESS.to - 20),
         uMax: dir > 0 ? EXPRESS.to - 20 : MAIN_ROAD.zMax + 6,
         stops: [{ u: dir * CROSS_STREET_Z - stopBefore, group: 'main' }],
@@ -289,26 +288,12 @@ export class TrafficSpawner {
       });
     }
 
-    // The expressway's third, outer lane each way
-    for (const x of [-EXPRESS.lanes[2], EXPRESS.lanes[2]]) {
-      const dir: 1 | -1 = x < 0 ? 1 : -1;
-      this.lanes.push({
-        axis: 'z',
-        fixed: x,
-        dir,
-        uMin: dir > 0 ? EXPRESS.from + 40 : -(EXPRESS.to - 20),
-        uMax: dir > 0 ? EXPRESS.to - 20 : -(EXPRESS.from + 40),
-        stops: [],
-        busStops: [],
-        cars: [],
-      });
-    }
-
-    // Martins Street: one lane each way
-    for (const dir of [1, -1] as const) {
+    // Martins Street: 2 lanes each way
+    for (const offset of [-3.6, -1.2, 1.2, 3.6]) {
+      const dir: 1 | -1 = offset < 0 ? 1 : -1;
       this.lanes.push({
         axis: 'x',
-        fixed: cross.fixed + dir * 2.2,
+        fixed: cross.fixed + offset,
         dir,
         uMin: cross.from - 4,
         uMax: cross.to + 4,
@@ -559,9 +544,8 @@ export class TrafficSpawner {
             const ahead = car.u - siren.z * lane.dir;
             if (ahead > -4 && ahead < 80) {
               yielding = true;
-              // Out of the siren's lane: the next lanes move further off, its own lane to the kerb
-              const off = lane.fixed - siren.x;
-              car.asideDir = Math.abs(off) > 1 ? Math.sign(off) : Math.sign(lane.fixed) || 1;
+              // Consistently yield toward the outer kerb/shoulder, never swerving into the median or oncoming lanes
+              car.asideDir = Math.sign(lane.fixed) || 1;
             }
           }
         }

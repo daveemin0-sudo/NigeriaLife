@@ -941,6 +941,10 @@ export class Game {
       }
       else if (what === 'yachts' && host) this.world.expressway.roadside.yachtDesk(host);
       else if (what === 'escort:escort' || what === 'escort:convoy') this.hireEscort(what.slice(7) as EscortLevel, host);
+      else if (what === 'escort:cancel') {
+        this.convoys?.escort.cancel();
+        host?.say('🚨 Police escort team dismissed and stood down.', 'info');
+      }
       else if (what === 'jets' && host) this.world.expressway.roadside.jetDesk(host);
       else if (what.startsWith('ride:')) {
         // A cab to a place along the road (from the jobs list, say): out of any room first

@@ -33,6 +33,8 @@ interface Stay {
   from: number;
   until: number;
   paid: number;
+  /** Real-world expiry timestamp in ms (12:00 PM on checkout date) */
+  expiresAt?: number;
 }
 
 const naira = (n: number) => `₦${n.toLocaleString()}`;
@@ -48,15 +50,12 @@ export class HotelStay {
   /** The game's clock (the tests set it) */
   public now: () => { day: number; hour: number } = () => EventClock.now();
   private stay: Stay | null = null;
-  private loadedFor = '';
 
   private key(): string {
     return `nl_hotel_v1:${Activity.player()}`;
   }
 
   private load(): void {
-    if (this.loadedFor === this.key()) return;
-    this.loadedFor = this.key();
     try { this.stay = JSON.parse(localStorage.getItem(this.key()) ?? 'null'); } catch { this.stay = null; }
   }
 
@@ -69,8 +68,12 @@ export class HotelStay {
     this.load();
     const s = this.stay;
     if (!s) return null;
+    // Real-time timestamp check (if lapsed past checkout noon)
+    if (s.expiresAt && Date.now() >= s.expiresAt) return null;
     const { day, hour } = this.now();
     if (day > s.until || (day === s.until && hour >= 12)) return null;
+    // Legacy stays booked when sky.day was 0 in late October/November
+    if (s.until < 20 && day >= 20) return null;
     return s;
   }
 
@@ -84,8 +87,12 @@ export class HotelStay {
     const { day, hour } = this.now();
     // Checked in before 6 in the morning, last night counts as the first
     const from = hour < 6 ? day - 1 : day;
+    const until = from + nights;
     const room = ROOMS[(day * 5 + nights + Math.floor(hour)) % ROOMS.length];
-    this.stay = { room, from, until: from + nights, paid };
+    const co = new Date();
+    co.setDate(co.getDate() + nights);
+    co.setHours(12, 0, 0, 0);
+    this.stay = { room, from, until, paid, expiresAt: co.getTime() };
     this.save();
     return this.stay;
   }
@@ -95,6 +102,10 @@ export class HotelStay {
     if (!s) return null;
     s.until += nights;
     s.paid += paid;
+    const co = new Date(s.expiresAt || Date.now());
+    co.setDate(co.getDate() + nights);
+    co.setHours(12, 0, 0, 0);
+    s.expiresAt = co.getTime();
     this.save();
     return s;
   }

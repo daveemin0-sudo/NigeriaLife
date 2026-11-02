@@ -319,11 +319,14 @@ export class CityFabric {
         const edge = st.fixed + sign * (st.halfRoad + st.walk - (narrow ? 0.32 : 0.55));
         const px = isX ? mid : edge;
         const pz = isX ? edge : mid;
-        if (tick % 12 === (side === 0 ? 0 : 6)) {
-          // On a narrow pavement the lamp stands at the kerb, leaving the pavement to the people
-          const kerb = st.fixed + sign * (st.halfRoad + 0.2);
-          this.addStreetLamp(narrow ? (isX ? mid : kerb) : px, narrow ? (isX ? kerb : mid) : pz, isX, -sign);
-        } else if (tick % 4 === 1 && this.rand() < 0.5) {
+        // Never spawn streetlamps or stalls in junction throats or overlapping other streets
+        const lampX = narrow ? (isX ? mid : st.fixed + sign * (st.halfRoad + 0.2)) : px;
+        const lampZ = narrow ? (isX ? st.fixed + sign * (st.halfRoad + 0.2) : mid) : pz;
+        const inJunction = s <= st.from + 5 || s >= st.to - 5 || this.inOtherRoad(lampX, lampZ, st) || this.inMainCorridor(lampX, lampZ);
+
+        if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction) {
+          this.addStreetLamp(lampX, lampZ, isX, -sign);
+        } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st)) {
           this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2, narrow);
         }
       }
