@@ -434,17 +434,18 @@ export class SkyEnvironmentManager {
   }
 
   public updateClockHUD(): void {
-    // Called every frame: the page is only touched when the minute, the mode or the part of the day changes
+    // Called every frame: the page is only touched when the minute, the mode or the part of the day changes.
+    // The sky is built before the HUD, so the label is not remembered until the clock is actually on the page.
+    const clockEl = document.getElementById('hud-clock-val');
+    if (!clockEl) return;
     const key = `${this.clockMode}|${this.currentPeriod}|${this.day}|${Math.floor(this.currentHour * 60)}`;
-    if (key === this.lastClockKey) return;
-    // Not remembered until the HUD is on the page, so the first label is not lost
-    if (document.getElementById('hud-clock-val')) this.lastClockKey = key;
-
     const label = this.getFormattedTimeString();
-    if (label !== this.lastClockLabel) {
+    if (key === this.lastClockKey && clockEl.textContent === label) return;
+    this.lastClockKey = key;
+
+    if (clockEl.textContent !== label) {
       this.lastClockLabel = label;
-      const clockEl = document.getElementById('hud-clock-val');
-      if (clockEl) clockEl.textContent = label;
+      clockEl.textContent = label;
       const mapClockEl = document.getElementById('map-ui-time');
       if (mapClockEl) mapClockEl.textContent = label;
     }

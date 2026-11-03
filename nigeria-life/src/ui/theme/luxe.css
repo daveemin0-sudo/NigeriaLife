@@ -1550,6 +1550,20 @@ html body .map-context-card .transport-fare.free { color: var(--lx-brand) !impor
 #title-screen .ts-ask p { margin: 0 0 14px; font-size: 13.5px; line-height: 1.45; color: var(--lx-ink-2); }
 #title-screen .ts-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
 #title-screen .ts-tip { margin: 10px 0 0; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.7); }
+/* A first visit: the gate and the street, without the quest card, the place list, the moves or the chat.
+   Clock, money, the place name and the bottom bar stay. The one prompt still shows when they are close. */
+body.lx-arrive #hud-quest-tracker,
+body.lx-arrive #badge-today,
+body.lx-arrive #street-radar-bar,
+body.lx-arrive .hud-footer,
+body.lx-arrive #street-chat-box,
+body.lx-arrive #hud-quality-showcase-btn,
+body.lx-arrive #btn-photo-mode-toggle,
+body.lx-arrive #btn-camera-view-toggle,
+body.lx-arrive #music-fab,
+body.lx-arrive #view-fab,
+body.lx-arrive #hud-sound-toggle { display: none !important; }
+
 /* While the title is up the game's own bars stand back */
 body.lx-title #hud-overlay,
 body.lx-title #virtual-mobile-controls,

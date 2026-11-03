@@ -177,6 +177,8 @@ export class Game {
   public readonly routeGuide = new RouteGuide();
   /** Going online with Eko Rides once the player is in the car brought round for it */
   private rideHailWhenIn = false;
+  /** A new arrival stands by the compound gate. The street chrome stays hidden until they walk out. */
+  private gateStart: { x: number; z: number } | null = null;
   /** The passenger who gets out at the end of a ride, walking off; and what they stand in */
   public riderOut: Figure | null = null;
   private readonly rideHailGroup = new THREE.Group();
@@ -983,8 +985,10 @@ export class Game {
     // 12. Window Resizing
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
-    // 12b. Resume where the player left off, then keep that position saved
+    // 12b. Resume where the player left off, then keep that position saved.
+    // A first visit has no saved spot: they start on the pavement by their own gate, not in the crowd.
     this.restoreWorldState();
+    if (!BackendService.getInstance().getData().worldState) this.arriveAtTheGate();
     window.addEventListener('pagehide', () => this.saveWorldState());
     document.addEventListener('visibilitychange', () => {
       // Out of sight (Chrome closed, another app on top): saved, and every sound held until the player is back
@@ -2466,6 +2470,45 @@ export class Game {
     });
   }
 
+  /**
+   * A first visit. Stand on the west pavement, a few steps north of the compound gate,
+   * looking south toward the street. The quest card, nearby places, moves and chat stay
+   * hidden until the player walks out. One prompt still appears when they reach the gate.
+   */
+  private arriveAtTheGate(): void {
+    const door = this.world.buildings.placeDoors.find((d) => d.buildingId === 'villa-compound');
+    if (!door) return;
+    const x = door.outside.x;
+    // North of the gate, on the same pavement, past the barbershop door so nothing is already in reach
+    let z = door.outside.z + 4;
+    const spots = this.world.interactiveObjects;
+    for (let step = 4; step <= 28; step += 1) {
+      const tryZ = door.outside.z + step;
+      const clear = spots.every((o) => Math.hypot(o.interactionPoint.x - x, o.interactionPoint.z - tryZ) > 7.5);
+      if (clear) {
+        z = tryZ;
+        break;
+      }
+    }
+    this.player.stopMoving();
+    this.player.mesh.position.set(x, 0, z);
+    this.player.mesh.rotation.y = Math.PI;
+    this.cameraManager.snapToPlayer(this.player, 'street');
+    this.gateStart = { x, z };
+    document.body.classList.add('lx-arrive');
+    showGameToast('Your gate is ahead. Walk out onto the street.', 'info', 4200);
+  }
+
+  /** The quiet arrival is over once they have walked out, or gone inside. */
+  private settleArrival(): void {
+    if (!this.gateStart) return;
+    const walked = Math.hypot(this.player.position.x - this.gateStart.x, this.player.position.z - this.gateStart.z);
+    if (walked > 8 || this.world.interiorManager.isPlayerInside()) {
+      document.body.classList.remove('lx-arrive');
+      this.gateStart = null;
+    }
+  }
+
   /** Records the player's city, street position and the time of day in the saved game. */
   private saveWorldState(): void {
     // Mid-journey or while boarding/pulling out, the destination was already saved when the ticket was bought
@@ -2778,6 +2821,8 @@ export class Game {
       showGameToast('🚑 You collapsed from severe starvation! Rushed to local clinic (₦2,500 treatment fee).', 'error');
       this.player.mesh.position.set(0, 0, 0);
     }
+
+    this.settleArrival();
 
     // Dynamic District Location Tracker in HUD (only when outdoors in street mode)
     if (!this.world.interiorManager.isPlayerInside() && !this.flightExperience.isActive && !this.roadRideExperience.isActive) {
