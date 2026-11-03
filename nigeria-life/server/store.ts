@@ -120,6 +120,8 @@ export function openStore(dataDir: string): Store {
   // Registered players: a username to sign in with anywhere, and the password's hash (never the password)
   if (!columns.includes('username')) db.exec('ALTER TABLE accounts ADD COLUMN username TEXT');
   if (!columns.includes('password_hash')) db.exec('ALTER TABLE accounts ADD COLUMN password_hash TEXT');
+  // The face, hair, clothes and build, so a sign-in on another phone looks the same
+  if (!columns.includes('look_json')) db.exec('ALTER TABLE accounts ADD COLUMN look_json TEXT');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_username ON accounts (username)');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_registry ON accounts(registry_id) WHERE registry_id IS NOT NULL');
   return db;

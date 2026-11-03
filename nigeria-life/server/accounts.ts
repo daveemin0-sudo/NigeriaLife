@@ -299,4 +299,98 @@ export class Accounts {
   public mute(id: string, minutes: number): void {
     this.db.prepare('UPDATE accounts SET muted_until = ? WHERE id = ?').run(Date.now() + minutes * 60_000, id);
   }
+
+  /** The look saved for this account, or null when they have not chosen one yet. */
+  public getLook(id: string): SavedLook | null {
+    const r = this.db.prepare('SELECT look_json FROM accounts WHERE id = ?').get(id) as { look_json: string | null } | undefined;
+    if (!r?.look_json) return null;
+    try {
+      return cleanLook(JSON.parse(r.look_json));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Keeps a look on the account. Only the fields a character is made of are stored. */
+  public saveLook(account: Account, raw: unknown): { ok: true; look: SavedLook } | { ok: false; reason: string } {
+    const look = cleanLook(raw && typeof raw === 'object' && 'look' in (raw as object) ? (raw as { look: unknown }).look : raw);
+    if (!look) return { ok: false, reason: 'That look could not be saved.' };
+    this.db.prepare('UPDATE accounts SET look_json = ? WHERE id = ?').run(JSON.stringify(look), account.id);
+    return { ok: true, look };
+  }
+}
+
+/** What follows a player from phone to phone: the face, the hair, the clothes, the build. Not the name. */
+export interface SavedLook {
+  gender?: 'male' | 'female';
+  skinTone?: string;
+  attire?: string;
+  headwear?: string;
+  hasShades?: boolean;
+  hasGoldChain?: boolean;
+  hasCoralBeads?: boolean;
+  trousersColor?: string;
+  topId?: string;
+  bottomId?: string;
+  shoesId?: string;
+  headwearId?: string;
+  bagId?: string;
+  accessoryId?: string;
+  ownedClothingIds?: string[];
+  headShape?: 'round' | 'oval' | 'long' | 'square' | 'heart' | 'diamond';
+  hair?: string;
+  hairColor?: string;
+  beard?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'full' | 'chinstrap';
+  build?: 'slim' | 'average' | 'broad';
+}
+
+const HEX = /^#[0-9a-fA-F]{3,8}$/;
+const SLOT = /^[\w-]{1,40}$/;
+const oneOf = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
+  allowed.includes(value as T) ? (value as T) : undefined;
+const text = (value: unknown): string | undefined => {
+  const s = String(value ?? '').trim();
+  return SLOT.test(s) ? s : undefined;
+};
+const colour = (value: unknown): string | undefined => (HEX.test(String(value ?? '')) ? String(value) : undefined);
+const flag = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined);
+
+/** Drops anything that is not part of a character, including a name and any markup. */
+export function cleanLook(raw: unknown): SavedLook | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const src = raw as Record<string, unknown>;
+  const look: SavedLook = {};
+  const gender = oneOf(src.gender, ['male', 'female'] as const);
+  if (gender) look.gender = gender;
+  const skin = colour(src.skinTone);
+  if (skin) look.skinTone = skin;
+  const attire = text(src.attire);
+  if (attire) look.attire = attire;
+  const headwear = text(src.headwear);
+  if (headwear) look.headwear = headwear;
+  const shades = flag(src.hasShades);
+  if (shades !== undefined) look.hasShades = shades;
+  const chain = flag(src.hasGoldChain);
+  if (chain !== undefined) look.hasGoldChain = chain;
+  const beads = flag(src.hasCoralBeads);
+  if (beads !== undefined) look.hasCoralBeads = beads;
+  const trousers = colour(src.trousersColor);
+  if (trousers) look.trousersColor = trousers;
+  for (const key of ['topId', 'bottomId', 'shoesId', 'headwearId', 'bagId', 'accessoryId', 'hair'] as const) {
+    const value = text(src[key]);
+    if (value) look[key] = value;
+  }
+  const hairColor = colour(src.hairColor);
+  if (hairColor) look.hairColor = hairColor;
+  const head = oneOf(src.headShape, ['round', 'oval', 'long', 'square', 'heart', 'diamond'] as const);
+  if (head) look.headShape = head;
+  const beard = oneOf(src.beard, ['none', 'stubble', 'moustache', 'goatee', 'full', 'chinstrap'] as const);
+  if (beard) look.beard = beard;
+  const build = oneOf(src.build, ['slim', 'average', 'broad'] as const);
+  if (build) look.build = build;
+  if (Array.isArray(src.ownedClothingIds)) {
+    const ids = src.ownedClothingIds.map(text).filter((id): id is string => !!id).slice(0, 80);
+    if (ids.length) look.ownedClothingIds = ids;
+  }
+  return Object.keys(look).length ? look : null;
 }

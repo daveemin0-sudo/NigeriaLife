@@ -393,7 +393,11 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
   const done = (result: { ok: boolean }) => reply(res, result.ok ? 200 : 409, result);
   switch (`${req.method} ${url.pathname}`) {
     case 'GET /me':
-      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id) });
+      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), look: accounts.getLook(account.id) });
+    case 'POST /me/look': {
+      const saved = accounts.saveLook(account, body);
+      return reply(res, saved.ok ? 200 : 400, saved);
+    }
     case 'POST /me/device': {
       const keep = ['fps', 'quality', 'pixelRatio', 'deviceRatio', 'screen', 'touch', 'triangles', 'drawCalls', 'mode', 'walked', 'joystickTouches', 'agent'];
       const report: Record<string, unknown> = { at: Date.now(), name: account.name };

@@ -346,6 +346,16 @@ export async function run(_browser, check) {
     await wait(300);
     check('online: a player muted from the admin page cannot chat', b.got.some((m) => m.type === 'refused' && /muted/.test(m.reason)));
 
+    const lookGuest = await call('/auth/guest', { name: 'LookGuest' });
+    const registered = await call('/auth/register', { username: 'AdaLook', password: 'secret12' }, lookGuest.token);
+    const savedLook = await call('/me/look', { look: { gender: 'female', hair: 'box_braids', headShape: 'heart', skinTone: '#311d11', beard: 'none', build: 'slim', name: 'NotAda', junk: '<script>' } }, registered.token);
+    const signedBack = await call('/auth/login', { username: 'adalook', password: 'secret12' });
+    const brought = await call('/me', null, signedBack.token);
+    check('online: a look saved on the account comes back on the next sign-in, and a name or markup sent with it is dropped',
+      savedLook.ok && savedLook.look.gender === 'female' && savedLook.look.hair === 'box_braids' && savedLook.look.headShape === 'heart' && savedLook.look.junk === undefined && savedLook.look.name === undefined
+        && brought.ok && brought.look.hair === 'box_braids' && brought.look.skinTone === '#311d11' && brought.account.name === 'AdaLook',
+      { savedLook, brought: brought.look, name: brought.account?.name });
+
     a.ws.close();
     b.ws.close();
   } finally {
