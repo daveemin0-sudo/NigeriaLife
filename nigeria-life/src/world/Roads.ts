@@ -150,6 +150,9 @@ export class Roads {
       // Night downward sodium / warm LED street light pool
       const lampLight = new THREE.PointLight(0xffedd5, 0, 16, 1.8);
       lampLight.position.set(-poleSide * 1.55, 6.1, 0);
+      // Stays in the scene all day at zero intensity. Hiding it at dawn and showing it at
+      // dusk changes the light count and recompiles every material in the street.
+      lampLight.visible = true;
       this.streetPointLights.push(lampLight);
       lampGroup.add(lampLight);
 
@@ -182,8 +185,6 @@ export class Roads {
       } else {
         light.intensity = 0.0;
       }
-      // A switched-off lamp must not stay in the shader's light loop all day
-      light.visible = light.intensity > 0;
     }
 
     // Roadside umbrella stalls pack down when evening arrives and set back up before dawn

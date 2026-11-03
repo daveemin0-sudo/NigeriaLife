@@ -211,6 +211,27 @@ export class SkyEnvironmentManager {
     } else {
       this.applyMode(this.currentPeriod);
     }
+    // The other parts of the day are built now, during load. The first time the clock
+    // reaches evening otherwise spends seconds making a reflection map on the gameplay thread.
+    this.warmReflections();
+  }
+
+  /** One reflection map per part of the day, made once, so a later hour change only swaps a texture. */
+  private warmReflections(): void {
+    for (const period of Object.keys(MODES) as TimePeriod[]) {
+      if (this.envByPeriod.has(period)) continue;
+      const m = MODES[period];
+      const sky = this.makeSkyTexture(m.top, m.mid, m.hor, m.glow);
+      let env: THREE.Texture | null = null;
+      try {
+        env = this.pmrem.fromEquirectangular(sky).texture;
+      } catch {
+        env = null;
+      }
+      sky.dispose();
+      this.envByPeriod.set(period, env);
+    }
+    this.scene.environment = this.envByPeriod.get(this.currentPeriod) ?? null;
   }
 
   private makeSkyTexture(top: string, mid: string, hor: string, glow: string): THREE.CanvasTexture {
