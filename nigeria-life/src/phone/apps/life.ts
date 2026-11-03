@@ -219,9 +219,32 @@ export const jobsApp: PhoneApp = {
       host.world.showPlace(site.x, site.z, employer.name);
       host.close();
     } else if (action === 'start') {
-      const result = host.backend.startJobShift(el.dataset.arg ?? '');
-      host.say(result.message, result.success ? 'good' : 'bad');
+      const id = el.dataset.arg ?? '';
+      const result = host.backend.startJobShift(id);
+      if (!result.success) { host.say(result.message, 'bad'); return; }
+      const online = OnlineAccount.get();
+      if (!online) { host.say(result.message, 'good'); return; }
+      void online.startGig(`career:${id}`).then((started) => {
+        host.say(started.ok ? result.message : (started.reason ?? 'The server did not start the shift.'), started.ok ? 'good' : 'bad');
+      });
     } else if (action === 'claim') {
+      const online = OnlineAccount.get();
+      if (online) {
+        const shiftInfo = host.backend.getActiveJobShift();
+        if (!shiftInfo) { host.say('No active job shift.', 'bad'); return; }
+        if (!shiftInfo.isReady) { host.say(`Shift still ongoing! ${shiftInfo.remainingSecs}s remaining.`, 'bad'); return; }
+        const shift = online.rememberedGig(`career:${shiftInfo.job.id}`);
+        if (!shift) { host.say('The server has no record of this shift.', 'bad'); return; }
+        void online.finishGig(shift).then((finished) => {
+          if (!finished.ok) { host.say(finished.reason ?? 'Not paid.', 'bad'); return; }
+          online.forgetGig(`career:${shiftInfo.job.id}`);
+          const noted = host.backend.noteServerJobShift(finished.pay ?? shiftInfo.job.salary);
+          if (noted.success) SoundEngine.getInstance().playTransactionSuccess();
+          host.say(noted.message, noted.success ? 'good' : 'bad');
+          host.refresh();
+        });
+        return;
+      }
       const result = host.backend.completeJobShift();
       if (result.success) SoundEngine.getInstance().playTransactionSuccess();
       host.say(result.message, result.success ? 'good' : 'bad');
@@ -244,6 +267,36 @@ export const jobsApp: PhoneApp = {
       if (!gig) return;
       const done = host.get(`gig.${gig.id}`, 0);
       if (Number(el.dataset.gigStep) !== done) return;
+      const online = OnlineAccount.get();
+      if (online) {
+        void (async () => {
+          if (done === 0) {
+            const started = await online.startGig(`life:${gig.id}`);
+            if (!started.ok) { host.say(started.reason ?? 'That work could not be started.', 'bad'); return; }
+          }
+          if (done < 2) {
+            host.set(`gig.${gig.id}`, done + 1);
+            host.refresh();
+            return;
+          }
+          const shift = online.rememberedGig(`life:${gig.id}`);
+          if (!shift) { host.say('The server has no record of this work.', 'bad'); return; }
+          if (host.backend.getData().stats.energy < gig.energy) {
+            host.say(`You are too exhausted for this work (need ${gig.energy}% Energy). Eat or rest first.`, 'bad');
+            return;
+          }
+          const finished = await online.finishGig(shift);
+          if (!finished.ok) { host.say(finished.reason ?? 'Not paid.', 'bad'); return; }
+          online.forgetGig(`life:${gig.id}`);
+          host.set(`gig.${gig.id}`, 0);
+          host.backend.modifyNeed('energy', -gig.energy);
+          host.backend.addStreetCred(gig.cred);
+          SoundEngine.getInstance().playTransactionSuccess();
+          host.back();
+          host.say(`${gig.name} done. Earned ₦${(finished.pay ?? 0).toLocaleString()} cash. Energy -${gig.energy}%`, 'good');
+        })();
+        return;
+      }
       if (done < 2) {
         host.set(`gig.${gig.id}`, done + 1);
         host.refresh();

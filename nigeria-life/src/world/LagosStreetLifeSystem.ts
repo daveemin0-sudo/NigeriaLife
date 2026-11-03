@@ -1,5 +1,6 @@
 import { SoundEngine } from '../audio/SoundEngine';
 import { BackendService } from '../backend/BackendService';
+import { settleGig } from '../online/checkedEarn';
 import { showGameToast } from '../ui/GameToast';
 import type { Roads } from './Roads';
 import type { Districts } from './Districts';
@@ -148,10 +149,18 @@ export class LagosStreetLifeSystem {
     const backend = BackendService.getInstance();
 
     if (!this.isNepaOn) {
-      this.isGeneratorRunning = true;
-      backend.addCash(2500, 'Generator Starting Assistance');
-      backend.addStreetCred(12);
-      showGameToast('⚡ Vrr-chug-chug! You started the Tiger generator! Bet9ja & Mama Put rewarded you ₦2,500 + 12 Cred!', 'success', 4500);
+      void (async () => {
+        const paid = await settleGig('street:generator', 0);
+        if (paid && !paid.ok) {
+          showGameToast(paid.clockedIn ? '⚡ The cord is set. Pull it again in a moment, once it will catch.' : paid.reason, paid.clockedIn ? 'info' : 'warning', 3500);
+          return;
+        }
+        this.isGeneratorRunning = true;
+        if (paid === null) backend.addCash(2500, 'Generator Starting Assistance');
+        backend.addStreetCred(12);
+        const amount = paid && paid.ok ? paid.pay : 2500;
+        showGameToast(`⚡ Vrr-chug-chug! You started the Tiger generator! Bet9ja & Mama Put rewarded you ₦${amount.toLocaleString()} + 12 Cred!`, 'success', 4500);
+      })();
       return true;
     } else {
       showGameToast('🔌 NEPA light is currently ON. Tiger TG950 generator is safely on standby.', 'info', 3000);

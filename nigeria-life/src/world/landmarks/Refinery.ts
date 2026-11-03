@@ -3,6 +3,7 @@ import { Builder, signBoard } from '../kit/ArchKit';
 import { clickBox, type Landmark, type LandmarkAction, type LandmarkHost } from './Landmark';
 import { RENDER_LAYERS } from '../../interiors/InteriorTypes';
 import { CareerMinigames } from '../../jobs/CareerMinigames';
+import { settleGig } from '../../online/checkedEarn';
 
 export interface RefineryLandmark extends Landmark {
   flareFlame: THREE.Mesh;
@@ -181,8 +182,11 @@ export function createRefinery(config: RefineryConfig = {}): RefineryLandmark {
             label: '🛠️ Complete Industrial Safety & Pipeline Shift',
             note: '+₦12,000 · -25% Energy · +25 Cred',
             pick: () => {
-              const gig = host.backend.performGig(12000, 25, 'Trans-Amadi Petrochemical Shift');
-              if (gig.success) {
+              void (async () => {
+                const paid = await settleGig('hud:transamadi', 25);
+                const ok = paid ? paid.ok : host.backend.performGig(12000, 25, 'Trans-Amadi Petrochemical Shift').success;
+                const reason = paid && !paid.ok ? paid.reason : 'You are too exhausted for this work (need 25% Energy). Eat or rest first.';
+                if (!ok) { host.say(reason, 'warning'); return; }
                 host.backend.addStreetCred(25);
                 host.backend.addItem({
                   id: `trans_amadi_pass_${Date.now()}`,
@@ -193,10 +197,9 @@ export function createRefinery(config: RefineryConfig = {}): RefineryLandmark {
                   price: 8000,
                   usable: false,
                 });
-                host.say('Shift completed! Earned ₦12,000 cash, +25 Cred, and HSE Safety Pass!', 'success');
-              } else {
-                host.say(gig.message, 'warning');
-              }
+                const amount = paid && paid.ok ? paid.pay : 12000;
+                host.say(`Shift completed! Earned ₦${amount.toLocaleString()} cash, +25 Cred, and HSE Safety Pass!`, 'success');
+              })();
             },
           },
           {

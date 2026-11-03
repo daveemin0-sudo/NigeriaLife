@@ -180,19 +180,19 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       );
     }
     // Paid when the last thing is down, and only then
-    const announce = (result: WorkResult): boolean => {
+    const announce = (result: WorkResult, rated?: { stars: number; tip: number }, fromServer = false): boolean => {
       if (!result.ok) {
         host.say(result.reason ?? `${capital(words.theBoss)} will not pay for that.`, 'warning');
         return false;
       }
       paid += 1;
-      // The stars, and the tip they earn
-      const rated = skill.finish(result.pay ?? 0);
-      const stars = '★'.repeat(rated.stars) + '☆'.repeat(3 - rated.stars);
-      if (rated.tip > 0) host.backend.processTransaction({ type: 'BONUS', amount: rated.tip, description: `Tip for a ${rated.stars}-star ${words.piece}` });
-      if (rated.stars === 3) Activity.emit({ kind: 'acted', id: 'three-star shift' });
-      lastStars = rated.stars;
-      if (rated.tip > 0) setTimeout(() => host.say(`${stars} ${rated.stars === 3 ? 'Perfect work!' : 'Good work.'} ${capital(words.theBoss)} tips you ₦${rated.tip.toLocaleString()}.`, 'success'), 1800);
+      // The stars, and the tip they earn. Online, the server already added the tip to the wage.
+      const score = rated ?? skill.finish(result.pay ?? 0);
+      const stars = '★'.repeat(score.stars) + '☆'.repeat(3 - score.stars);
+      if (!fromServer && score.tip > 0) host.backend.processTransaction({ type: 'BONUS', amount: score.tip, description: `Tip for a ${score.stars}-star ${words.piece}` });
+      if (score.stars === 3) Activity.emit({ kind: 'acted', id: 'three-star shift' });
+      lastStars = score.stars;
+      if (score.tip > 0) setTimeout(() => host.say(`${stars} ${score.stars === 3 ? 'Perfect work!' : 'Good work.'} ${capital(words.theBoss)} tips you ₦${score.tip.toLocaleString()}.`, 'success'), 1800);
       host.say(result.promoted
         ? `${capital(words.theBoss)} pays you ₦${result.pay!.toLocaleString()} and makes you ${result.promoted.title.toLowerCase()}: ₦${result.promoted.pay.toLocaleString()} a ${words.piece} from now on.`
         : `${capital(words.theBoss)} pays you ₦${result.pay!.toLocaleString()} for the ${words.piece}. Energy -${effort}%.`, 'success');
@@ -200,9 +200,11 @@ export function createHandWork(options: HandWorkOptions): HandWork {
     };
     if (online) {
       work.add(steps.settle(`paid for the ${words.piece}`, async () => {
-        const finished = await online.finishWork(shift ?? '');
+        const rated = skill.finish(rate());
+        const finished = await online.finishWork(shift ?? '', rated.stars);
         if (!finished.ok) return announce({ ok: false, reason: finished.reason });
-        return announce(jobs.settledByServer(id, finished.pay ?? rate(), finished.done ?? 0));
+        const tip = finished.tip ?? 0;
+        return announce(jobs.settledByServer(id, finished.pay ?? rate(), finished.done ?? 0), { stars: rated.stars, tip }, true);
       }));
     } else {
       work.add(steps.call(`paid for the ${words.piece}`, () => announce(jobs.complete(id))));

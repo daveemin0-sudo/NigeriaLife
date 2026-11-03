@@ -424,7 +424,23 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
     case 'POST /work/start':
       return done(economy.startShift(account.id, String(body.employer ?? '')));
     case 'POST /work/finish':
-      return done(economy.finishShift(account.id, body.shift, body.idem));
+      return done(economy.finishShift(account.id, body.shift, body.idem, body.stars));
+    case 'POST /work/gig/start':
+      return done(economy.startGig(account.id, String(body.gig ?? '')));
+    case 'POST /work/gig/finish':
+      return done(economy.finishGig(account.id, body.shift, body.idem));
+    case 'POST /money/takings':
+      return done(economy.collectTakings(account.id, String(body.plot ?? ''), body.idem, accounts.registryOf(account), registry.text));
+    case 'POST /money/quest':
+      return done(economy.claimOnce(account.id, 'quest', String(body.quest ?? '')));
+    case 'POST /money/album':
+      return done(economy.claimOnce(account.id, 'album', String(body.set ?? '')));
+    case 'POST /money/case':
+      return done(economy.claimOnce(account.id, 'case', String(body.id ?? '')));
+    case 'POST /money/agama':
+      return done(economy.claimOnce(account.id, 'agama', String(body.id ?? '')));
+    case 'POST /money/naibet':
+      return done(economy.playNaibet(account.id, body.idem));
     case 'GET /work': {
       const employer = url.searchParams.get('employer') ?? '';
       return reply(res, 200, { ok: true, job: economy.job(account.id, employer) });

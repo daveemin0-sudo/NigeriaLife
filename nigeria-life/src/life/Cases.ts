@@ -4,6 +4,7 @@ import { Ladder } from './Ladder';
 import { HumanMeshBuilder, type HumanConfig } from '../graphics/HumanMeshBuilder';
 import { InteriorManager } from '../interiors/InteriorManager';
 import { PlaceActions } from '../destinations/PlaceActions';
+import { claimCatalogue } from '../online/checkedEarn';
 import type { PlaceInterior } from '../interiors/places/PlaceInterior';
 
 /**
@@ -186,8 +187,11 @@ export class Cases {
       this.save.solved.push(c.id);
       this.save.active = null;
       const pay = this.reward(c);
-      this.hooks?.pay(pay, `Case solved: ${c.title}`);
-      this.hooks?.tell(`🔎 Case solved: ${c.title}! +₦${pay.toLocaleString()}`, { title: '🔎 CASE SOLVED', sub: `${c.title} · ₦${pay.toLocaleString()}` });
+      void claimCatalogue('/money/case', { id: c.id }).then((paid) => {
+        const amount = paid && paid.ok ? (paid.pay || pay) : pay;
+        if (paid === null) this.hooks?.pay(pay, `Case solved: ${c.title}`);
+        this.hooks?.tell(`🔎 Case solved: ${c.title}! +₦${amount.toLocaleString()}`, { title: '🔎 CASE SOLVED', sub: `${c.title} · ₦${amount.toLocaleString()}` });
+      });
       Activity.emit({ kind: 'case', id: c.id });
       this.changed();
       return true;

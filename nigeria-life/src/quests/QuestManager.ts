@@ -4,6 +4,7 @@ import { showGameToast } from '../ui/GameToast';
 import { onGameEvent, type GameEventType, type GameEventData } from '../game/GameEvents';
 import type { StoryQuest, QuestCity, QuestStatus } from './QuestTypes';
 import { profileKey } from '../backend/Profile';
+import { claimCatalogue } from '../online/checkedEarn';
 
 const QUEST_STATUSES: readonly QuestStatus[] = ['locked', 'available', 'active', 'completed'];
 
@@ -422,7 +423,10 @@ export class QuestManager {
     // Pay rewards through backend
     const backend = BackendService.getInstance();
     if (quest.rewards.cash > 0) {
-      backend.addCash(quest.rewards.cash, `Quest reward: ${quest.title}`, 'QUEST_REWARD');
+      void claimCatalogue('/money/quest', { quest: quest.id }).then((paid) => {
+        if (paid === null) backend.addCash(quest.rewards.cash, `Quest reward: ${quest.title}`, 'QUEST_REWARD');
+        else if (!paid.ok && paid.reason) showGameToast(paid.reason, 'warning');
+      });
     }
     if (quest.rewards.streetCred > 0) {
       backend.addStreetCred(quest.rewards.streetCred);

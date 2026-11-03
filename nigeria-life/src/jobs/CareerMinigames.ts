@@ -1,4 +1,5 @@
 import { showGameToast } from '../ui/GameToast';
+import { OnlineAccount } from '../online/OnlineAccount';
 import { Employment } from './Employment';
 
 /**
@@ -10,6 +11,39 @@ import { Employment } from './Employment';
 export class CareerMinigames {
   private static instance: CareerMinigames | null = null;
   private activeModal: HTMLElement | null = null;
+  /** A shift the server started when the minigame opened, paid when the player finishes it. */
+  private shifts = new Map<string, string>();
+
+  /** Online, the clock starts as the minigame opens, while the player is at the workplace. */
+  private clockIn(id: string): void {
+    const online = OnlineAccount.get();
+    if (!online) return;
+    const jobs = Employment.get();
+    if (!jobs.isEmployed(id)) jobs.apply(id);
+    void online.startWork(id).then((started) => {
+      if (started.ok && started.shift) this.shifts.set(id, started.shift);
+      else if (!started.ok) showGameToast(started.reason ?? 'The shift could not be started.', 'warning');
+    });
+  }
+
+  /** Offline pays locally. Online, the server names the wage and will not pay a shift it did not time. */
+  private async payEmployer(id: string): Promise<{ ok: boolean; pay?: number; reason?: string }> {
+    const jobs = Employment.get();
+    const online = OnlineAccount.get();
+    if (!online) {
+      const res = jobs.complete(id);
+      return res.ok ? { ok: true, pay: res.pay } : { ok: false, reason: res.reason };
+    }
+    const shift = this.shifts.get(id);
+    if (!shift) return { ok: false, reason: 'The server has not started this shift. Stand at the workplace and open the work again.' };
+    const finished = await online.finishWork(shift);
+    if (!finished.ok) return { ok: false, reason: finished.reason };
+    this.shifts.delete(id);
+    if (!jobs.isEmployed(id)) jobs.apply(id);
+    const settled = jobs.settledByServer(id, finished.pay ?? 0, finished.done ?? 1);
+    if (!settled.ok) return { ok: false, reason: settled.reason };
+    return { ok: true, pay: finished.pay };
+  }
 
   public static get(): CareerMinigames {
     if (!CareerMinigames.instance) {
@@ -30,6 +64,7 @@ export class CareerMinigames {
   // =========================================================================
   public openRefineryMinigame(onComplete?: (success: boolean) => void): void {
     this.closeActiveModal();
+    this.clockIn('ph-refinery');
 
     let pressure = 110; // Target: 145 - 155
     let temp = 330;     // Target: 390 - 410
@@ -152,12 +187,12 @@ export class CareerMinigames {
       const tOk = temp >= targetTempMin && temp <= targetTempMax;
 
       if (pOk && tOk) {
-        const jobs = Employment.get();
-        const res = jobs.complete('ph-refinery');
-        const payout = res.pay ?? 18000;
-        showGameToast(`🎉 Excellent calibration! 33,000L PMS loaded into gantry tanker. Earned ₦${payout.toLocaleString()} & +35 XP!`, 'success');
-        this.closeActiveModal();
-        onComplete?.(true);
+        void this.payEmployer('ph-refinery').then((res) => {
+          if (!res.ok) { showGameToast(res.reason ?? 'Not paid.', 'warning'); return; }
+          showGameToast(`🎉 Excellent calibration! 33,000L PMS loaded into gantry tanker. Earned ₦${(res.pay ?? 0).toLocaleString()} & +35 XP!`, 'success');
+          this.closeActiveModal();
+          onComplete?.(true);
+        });
       } else {
         showGameToast('⚠️ Valves are out of calibration threshold! Tune gauges into the green zone before committing.', 'warning');
       }
@@ -174,6 +209,7 @@ export class CareerMinigames {
   // =========================================================================
   public openLastmaMinigame(onComplete?: (success: boolean) => void): void {
     this.closeActiveModal();
+    this.clockIn('lastma-warden');
 
     let clearedIncidents = 0;
     const totalRequired = 3;
@@ -265,12 +301,12 @@ export class CareerMinigames {
           renderCard();
         } else {
           // Finished shift
-          const jobs = Employment.get();
-          const res = jobs.complete('lastma-warden');
-          const payout = res.pay ?? 14000;
-          showGameToast(`👮‍♂️ Shift Completed! Traffic gridlock cleared. Earned ₦${payout.toLocaleString()} & +25 LASTMA Cred!`, 'success');
-          this.closeActiveModal();
-          onComplete?.(true);
+          void this.payEmployer('lastma-warden').then((res) => {
+            if (!res.ok) { showGameToast(res.reason ?? 'Not paid.', 'warning'); return; }
+            showGameToast(`👮‍♂️ Shift Completed! Traffic gridlock cleared. Earned ₦${(res.pay ?? 0).toLocaleString()} & +25 LASTMA Cred!`, 'success');
+            this.closeActiveModal();
+            onComplete?.(true);
+          });
         }
       };
 
@@ -288,6 +324,7 @@ export class CareerMinigames {
   // =========================================================================
   public openTechHubMinigame(onComplete?: (success: boolean) => void): void {
     this.closeActiveModal();
+    this.clockIn('cchub-yaba');
 
     const modal = document.createElement('div');
     modal.className = 'career-minigame-overlay';
@@ -352,12 +389,12 @@ export class CareerMinigames {
       btn.addEventListener('click', (e) => {
         const isCorrect = (e.currentTarget as HTMLElement).dataset.correct === 'true';
         if (isCorrect) {
-          const jobs = Employment.get();
-          const res = jobs.complete('cchub-yaba');
-          const payout = res.pay ?? 26000;
-          showGameToast(`🚀 PR Merged & Deployed! All CI/CD tests green. Earned ₦${payout.toLocaleString()} & +40 Tech XP!`, 'success');
-          this.closeActiveModal();
-          onComplete?.(true);
+          void this.payEmployer('cchub-yaba').then((res) => {
+            if (!res.ok) { showGameToast(res.reason ?? 'Not paid.', 'warning'); return; }
+            showGameToast(`🚀 PR Merged & Deployed! All CI/CD tests green. Earned ₦${(res.pay ?? 0).toLocaleString()} & +40 Tech XP!`, 'success');
+            this.closeActiveModal();
+            onComplete?.(true);
+          });
         } else {
           showGameToast('❌ Build Failed! That patch causes double-spending in production. Try again.', 'error');
         }

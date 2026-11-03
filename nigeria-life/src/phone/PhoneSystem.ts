@@ -163,9 +163,35 @@ export class PhoneSystem {
     return PhoneSystem.instance;
   }
 
-  public workJob(jobId: string): { success: boolean; message: string; pay?: number } {
+  public async workJob(jobId: string): Promise<{ success: boolean; message: string; pay?: number }> {
     const job = this.jobs.find((j) => j.id === jobId);
     if (!job) return { success: false, message: 'Job not found' };
+
+    const { OnlineAccount } = await import('../online/OnlineAccount');
+    const online = OnlineAccount.get();
+    if (online) {
+      const data = this.backend.getData();
+      if (data.stats.energy < job.energyCost) {
+        return { success: false, message: `❌ You do not have enough energy! (Need ${job.energyCost}%). Eat at Mama Put to recharge.` };
+      }
+      const gigId = `phone:${job.id}`;
+      const open = online.rememberedGig(gigId);
+      if (!open) {
+        const started = await online.startGig(gigId);
+        if (!started.ok) return { success: false, message: started.reason ?? 'That shift could not be started.' };
+        return { success: false, message: `Clocked in at ${job.company}. Collect the pay when the ${job.durationSeconds}s shift is done.` };
+      }
+      const finished = await online.finishGig(open);
+      if (!finished.ok) return { success: false, message: finished.reason ?? 'Not paid.' };
+      online.forgetGig(gigId);
+      this.backend.modifyNeed('energy', -job.energyCost);
+      this.backend.addStreetCred(8);
+      const careerResult = this.backend.addJobExperience(25);
+      const pay = finished.pay ?? job.pay;
+      let msg = `🎉 Shift Completed! You earned ₦${pay.toLocaleString()} cash from ${job.company}!`;
+      if (careerResult.leveledUp) msg += ` 🏆 PROMOTED! Your new title is "${careerResult.newTitle}"!`;
+      return { success: true, message: msg, pay };
+    }
 
     const data = this.backend.getData();
     const multiplier = data.career?.bonusMultiplier || 1.0;

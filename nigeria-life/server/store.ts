@@ -105,6 +105,20 @@ CREATE TABLE IF NOT EXISTS alerts (
   kind TEXT NOT NULL,
   detail TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS building_clock (
+  account_id TEXT NOT NULL,
+  plot_id TEXT NOT NULL,
+  type_id TEXT NOT NULL,
+  started_at INTEGER NOT NULL,     -- first time the server saw this building; a later edit cannot move it earlier
+  paid_until INTEGER NOT NULL,     -- takings are paid up to this moment
+  PRIMARY KEY (account_id, plot_id)
+);
+CREATE TABLE IF NOT EXISTS once_paid (
+  account_id TEXT NOT NULL,
+  kind TEXT NOT NULL,              -- 'quest' | 'album' | 'case' | 'agama'
+  item TEXT NOT NULL,
+  PRIMARY KEY (account_id, kind, item)
+);
 `;
 
 export type Store = DatabaseSync;

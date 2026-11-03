@@ -11,6 +11,7 @@ import { createCashMachine } from '../world/kit/CashMachine';
 import { ABUJA_BUILDINGS } from './Townscapes';
 import type { Obstruction } from '../world/plan/CityPlan';
 import { PlaceActions } from '../destinations/PlaceActions';
+import { settleGig } from '../online/checkedEarn';
 import { emitGameEvent } from '../game/GameEvents';
 
 export class AbujaCity implements CityInstance {
@@ -115,13 +116,25 @@ export class AbujaCity implements CityInstance {
               label: '💼 Complete Ministerial Policy Drafting Sprint',
               note: '+₦14,000 · -30% Energy · +35 Cred',
               pick: () => {
-                const gig = host.backend.performGig(14000, 30, 'Federal Secretariat Policy Sprint');
-                if (gig.success) {
-                  host.backend.addStreetCred(35);
-                  host.say('Ministerial policy memo finalized and submitted! Earned ₦14,000 cash and +35 Cred!', 'success');
-                } else {
-                  host.say(gig.message, 'warning');
-                }
+                void (async () => {
+                  const paid = await settleGig('hud:secretariat', 30);
+                  if (paid === null) {
+                    const gig = host.backend.performGig(14000, 30, 'Federal Secretariat Policy Sprint');
+                    if (gig.success) {
+                      host.backend.addStreetCred(35);
+                      host.say('Ministerial policy memo finalized and submitted! Earned ₦14,000 cash and +35 Cred!', 'success');
+                    } else {
+                      host.say(gig.message, 'warning');
+                    }
+                    return;
+                  }
+                  if (paid.ok) {
+                    host.backend.addStreetCred(35);
+                    host.say(`Ministerial policy memo finalized and submitted! Earned ₦${paid.pay.toLocaleString()} cash and +35 Cred!`, 'success');
+                  } else {
+                    host.say(paid.reason, 'warning');
+                  }
+                })();
               },
             },
             {
