@@ -1,4 +1,5 @@
 import { Activity, type ActivityEvent } from './Activity';
+import { claimCatalogue } from '../online/checkedEarn';
 
 /**
  * The Naija Album: cards in sets, each earned the first time the thing on it is done (going
@@ -177,8 +178,11 @@ export class Album {
     if (!cards.every((c) => this.save.owned[c.id])) return;
     this.save.setsPaid.push(set);
     const s = SETS.find((x) => x.id === set)!;
-    this.hooks?.pay(s.reward, `Album set complete: ${s.name}`);
-    this.hooks?.tell(`${s.icon} Set complete: ${s.name}! ₦${s.reward.toLocaleString()}`, { title: `${s.icon} SET COMPLETE`, sub: `${s.name} · ₦${s.reward.toLocaleString()}` });
+    void claimCatalogue('/money/album', { set: s.id }).then((paid) => {
+      const amount = paid && paid.ok ? (paid.pay ?? s.reward) : s.reward;
+      if (paid === null) this.hooks?.pay(s.reward, `Album set complete: ${s.name}`);
+      this.hooks?.tell(`${s.icon} Set complete: ${s.name}! ₦${amount.toLocaleString()}`, { title: `${s.icon} SET COMPLETE`, sub: `${s.name} · ₦${amount.toLocaleString()}` });
+    });
   }
 
   /** Packs won and waiting to be opened */
@@ -230,8 +234,11 @@ export class Album {
     this.save.agamas.push(id);
     const n = this.save.agamas.length;
     const prize = n === AGAMAS ? 500_000 : n % 10 === 0 ? 50_000 : 2_000;
-    this.hooks?.pay(prize, `Agama caught (${n}/${AGAMAS})`);
-    this.hooks?.tell(n % 10 === 0 ? `🦎 ${n} agamas caught! ₦${prize.toLocaleString()}` : `🦎 Agama caught! ${n}/${AGAMAS}. +₦${prize.toLocaleString()}`, n % 10 === 0 ? { title: `🦎 ${n} AGAMAS`, sub: `₦${prize.toLocaleString()} for the catch` } : undefined);
+    void claimCatalogue('/money/agama', { id }).then((paid) => {
+      const amount = paid && paid.ok ? (paid.pay || prize) : prize;
+      if (paid === null) this.hooks?.pay(prize, `Agama caught (${n}/${AGAMAS})`);
+      this.hooks?.tell(n % 10 === 0 ? `🦎 ${n} agamas caught! ₦${amount.toLocaleString()}` : `🦎 Agama caught! ${n}/${AGAMAS}. +₦${amount.toLocaleString()}`, n % 10 === 0 ? { title: `🦎 ${n} AGAMAS`, sub: `₦${amount.toLocaleString()} for the catch` } : undefined);
+    });
     Activity.emit({ kind: 'found', what: 'agama', id });
     this.changed();
     return true;

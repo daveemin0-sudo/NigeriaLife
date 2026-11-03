@@ -2,6 +2,7 @@
 // ledger, limits on money the game reports, a job shift checked and paid by the server,
 // players seeing only who is near, filtered and blockable chat, and the admin page's API.
 // Starts its own server on a spare port with an empty database.
+import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -70,15 +71,15 @@ export async function run(_browser, check) {
 
     // A loan is debt, not earnings: paid even after a good ten minutes, one at a time, within the limit
     const chidi = await call('/auth/guest', { name: 'Chidi' });
-    await call('/money/report', { cash: 50000, memo: 'Street gig', idem: idem() }, chidi.token);
+    await call('/money/report', { cash: 20000, memo: 'Street gig', idem: idem() }, chidi.token);
     const loan = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, chidi.token);
     const second = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, chidi.token);
     const repaid = await call('/money/report', { cash: -55000, memo: 'LOAN_REPAYMENT: Loan repayment to Eko Commercial Bank', idem: idem() }, chidi.token);
     const again2 = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, chidi.token);
     const closed = await call('/money/report', { cash: -50000, memo: 'LOAN_REPAYMENT: Loan repayment', idem: idem() }, chidi.token);
     const huge = await call('/money/report', { cash: 900_000_000, memo: 'LOAN_DISBURSEMENT: devtools', idem: idem() }, chidi.token);
-    check('online: a ₦50,000 bank loan is paid at once even after ₦50,000 earned in ten minutes; a second one while the first is open is refused; repaid, another can be taken; nobody borrows ₦900m',
-      loan.ok && loan.wallet.cash === 25000 + 50000 + 50000 && !second.ok && repaid.ok && again2.ok && closed.ok && !huge.ok && !huge.held,
+    check('online: a ₦50,000 bank loan is paid at once even after ₦20,000 earned in ten minutes; a second one while the first is open is refused; repaid, another can be taken; nobody borrows ₦900m',
+      loan.ok && loan.wallet.cash === 25000 + 20000 + 50000 && !second.ok && repaid.ok && again2.ok && closed.ok && !huge.ok && !huge.held,
       { loan: loan.wallet, second: second.reason, repaid: repaid.ok, again: again2.ok, huge: huge.reason });
 
     // A job shift, checked by the server
@@ -340,6 +341,124 @@ export async function run(_browser, check) {
     check('online: Eko Motors purchases Land Cruiser 300 (₦75,000,000), installs Stage 2 Twin-Turbo (₦15,000,000), Emerald wrap (₦8,500,000), and VIP Convoy Siren (₦12,000,000) on the server',
       buyLandCruiser.ok && buyLandCruiser.paid === 75000000 && motorsSnap.ok && motorsSnap.vehicles.length === 1 && tuneTurbo.ok && tuneWrap.ok && tuneSiren.ok && (tycoonBefore.cash + tycoonBefore.bank) - (tycoonAfter.cash + tycoonAfter.bank) === 110500000,
       { buyLandCruiser, motorsSnap, tuneTurbo, tuneWrap, tuneSiren, tycoonBefore, tycoonAfter });
+
+    // The allowance, now that the large earners are checked by the server. ₦48,000 still
+    // clears; the next ₦1,000 in the same ten minutes is held.
+    const bola = await call('/auth/guest', { name: 'Bola' });
+    const within = await call('/money/report', { cash: 48_000, memo: 'Fares and a remittance', idem: idem() }, bola.token);
+    const pastIt = await call('/money/report', { cash: 1000, memo: 'One more fare', idem: idem() }, bola.token);
+    check('online: unverified earnings clear up to ₦48,000 in ten minutes, and the next ₦1,000 is held', within.ok && within.wallet.cash === 25_000 + 48_000 && !pastIt.ok && pastIt.held > 0, { within: within.wallet, pastIt });
+
+    // A guest stood on a spot from the first packet, and kept there, so the server believes them.
+    const onSpot = async (name, x, z, city = 'lagos') => {
+      const guest = await call('/auth/guest', { name });
+      const sock = await connect(guest.token);
+      await wait(200);
+      const beat = setInterval(() => sock.send(stand(x, z, city)), 400);
+      sock.send(stand(x, z, city));
+      await wait(300);
+      return { guest, sock, stop: () => { clearInterval(beat); sock.ws.close(); } };
+    };
+
+    // 1. Plot takings. A shop nets ₦200,000 a game day. Two days on the plot, paid by the server into the bank.
+    const sade = await call('/auth/guest', { name: 'Sade' });
+    const sadeReg = `net:${randomUUID()}`;
+    await call('/me/registry', { id: sadeReg }, sade.token);
+    const HOUR = 25_000;
+    const DAY = 24 * HOUR;
+    const lock2 = await call('/lock', { client: 'takings' });
+    const doc2 = JSON.parse(lock2.text || '{}');
+    doc2.titles = { ...(doc2.titles ?? {}), 'plot:lag-kakawa-e1': { ownerId: sadeReg, history: [] }, 'plot:lag-kakawa-e2': { ownerId: sadeReg, history: [] } };
+    doc2.buildings = {
+      ...(doc2.buildings ?? {}),
+      'lag-kakawa-e1': { plotId: 'lag-kakawa-e1', typeId: 'shop', x: 58, z: 22, turns: 0, builderId: sadeReg, cost: 8_000_000, hoursNeeded: 6, startedAt: Date.now() - 2 * DAY - 6 * HOUR - 5_000 },
+      'lag-kakawa-e2': { plotId: 'lag-kakawa-e2', typeId: 'shop', x: 57, z: 41, turns: 0, builderId: sadeReg, cost: 8_000_000, hoursNeeded: 6, startedAt: Date.now() },
+    };
+    await call('/commit', { token: lock2.token, text: JSON.stringify(doc2) });
+    const owner = await connect(sade.token);
+    await wait(200);
+    const keep = setInterval(() => owner.send(stand(58.5, 22)), 400);
+    owner.send(stand(58.5, 22));
+    await wait(300);
+    const bankBefore = (await call('/me', null, sade.token)).wallet.bank;
+    const takeKey = idem();
+    const took = await call('/money/takings', { plot: 'lag-kakawa-e1', idem: takeKey, amount: 999_999_999 }, sade.token);
+    const tookAgain = await call('/money/takings', { plot: 'lag-kakawa-e1', idem: takeKey, amount: 999_999_999 }, sade.token);
+    const tooSoonTake = await call('/money/takings', { plot: 'lag-kakawa-e1', idem: idem() }, sade.token);
+    const bankAfter = (await call('/me', null, sade.token)).wallet.bank;
+    check('online: shop takings are the server\'s figure for the days it stood (about ₦400,000), paid once into the bank, and a named amount is ignored',
+      took.ok && took.pay >= 400_000 && took.pay <= 410_000 && took.pay % 100 === 0 && bankAfter - bankBefore === took.pay && tookAgain.ok && tookAgain.replay && !tooSoonTake.ok && /nothing has come in/i.test(tooSoonTake.reason),
+      { took, tookAgain, tooSoonTake, bankBefore, bankAfter });
+    clearInterval(keep);
+    owner.send(stand(70, 22));
+    await wait(300);
+    const offPlot = await call('/money/takings', { plot: 'lag-kakawa-e1', idem: idem() }, sade.token);
+    owner.send(stand(57.5, 41));
+    await wait(300);
+    const unfinished = await call('/money/takings', { plot: 'lag-kakawa-e2', idem: idem() }, sade.token);
+    owner.ws.close();
+    const stranger = await onSpot('Kunle', 58.5, 22);
+    await call('/me/registry', { id: `net:${randomUUID()}` }, stranger.guest.token);
+    const notYours = await call('/money/takings', { plot: 'lag-kakawa-e1', idem: idem() }, stranger.guest.token);
+    stranger.stop();
+    check('online: takings are refused off the plot, on a building that is not finished, and to someone who does not own it',
+      !offPlot.ok && /not on that plot/.test(offPlot.reason) && !unfinished.ok && /not finished/.test(unfinished.reason) && !notYours.ok && /not your building/.test(notYours.reason),
+      { offPlot, unfinished, notYours });
+
+    // A worksite shift: hired, standing there, too fast refused, then the grade's pay and not a number the client sent.
+    const gradeShift = async (name, employer, x, z, city, seconds) => {
+      const there = await onSpot(name, x, z, city);
+      const hired = await call('/work/hire', { employer }, there.guest.token);
+      const started = await call('/work/start', { employer }, there.guest.token);
+      const tooFast = await call('/work/finish', { shift: started.shift, idem: idem(), amount: 9_999_999 }, there.guest.token);
+      await wait(seconds);
+      there.sock.send(stand(x, z, city));
+      await wait(200);
+      const before = (await call('/me', null, there.guest.token)).wallet.cash;
+      const paid = await call('/work/finish', { shift: started.shift, idem: idem(), amount: 9_999_999 }, there.guest.token);
+      there.stop();
+      return { hired, started, tooFast, paid, gained: (paid.wallet?.cash ?? 0) - before };
+    };
+    // 3, 4, 5. The three minigames, entry grade.
+    const cchub = await gradeShift('Wale', 'cchub-yaba', -10, -25, 'lagos', 6_800);
+    const away = await onSpot('Tobi', 80, 80);
+    await call('/work/hire', { employer: 'cchub-yaba' }, away.guest.token);
+    const notAtHub = await call('/work/start', { employer: 'cchub-yaba' }, away.guest.token);
+    away.stop();
+    const refinery = await gradeShift('Ife', 'ph-refinery', 55, -10, 'port_harcourt', 6_800);
+    const lastma = await gradeShift('Seun', 'lastma-warden', 0, 1.5, 'lagos', 6_800);
+    check('online: CcHUB, the refinery and LASTMA pay the entry grade once the server has timed the shift, and not from across town',
+      cchub.hired.ok && cchub.started.ok && !cchub.tooFast.ok && /faster/.test(cchub.tooFast.reason) && cchub.paid.pay === 16_000 && cchub.gained === 16_000
+      && !notAtHub.ok && /not at the workplace/.test(notAtHub.reason)
+      && refinery.paid.pay === 12_000 && refinery.gained === 12_000 && !refinery.tooFast.ok
+      && lastma.paid.pay === 8_500 && lastma.gained === 8_500 && !lastma.tooFast.ok,
+      { cchub, notAtHub, refinery, lastma });
+
+    // 2. The generator cord: on the spot, too fast refused, then ₦2,500. A pull from anywhere is refused.
+    const gen = await onSpot('Ngozi', 8.5, 24);
+    const genStart = await call('/work/gig/start', { gig: 'street:generator' }, gen.guest.token);
+    const genFast = await call('/work/gig/finish', { shift: genStart.shift, idem: idem(), amount: 9_999_999 }, gen.guest.token);
+    await wait(4_800);
+    gen.sock.send(stand(8.5, 24));
+    await wait(200);
+    const genBefore = (await call('/me', null, gen.guest.token)).wallet.cash;
+    const genPaid = await call('/work/gig/finish', { shift: genStart.shift, idem: idem(), amount: 9_999_999 }, gen.guest.token);
+    gen.stop();
+    const genAway = await call('/work/gig/start', { gig: 'street:generator' }, bola.token);
+    check('online: the generator pays ₦2,500 after a few seconds beside it, and a pull from nowhere is refused',
+      genStart.ok && !genFast.ok && /faster/.test(genFast.reason) && genPaid.pay === 2_500 && genPaid.wallet.cash - genBefore === 2_500 && !genAway.ok,
+      { genStart, genFast, genPaid, genAway });
+
+    // The next tier, same gig clock: the code sprint the phone used to pay at once.
+    const kode = await call('/auth/guest', { name: 'Kode' });
+    const codeStart = await call('/work/gig/start', { gig: 'life:code' }, kode.token);
+    const codeFast = await call('/work/gig/finish', { shift: codeStart.shift, idem: idem(), amount: 9_999_999 }, kode.token);
+    await wait(8_600);
+    const codeBefore = (await call('/me', null, kode.token)).wallet.cash;
+    const codePaid = await call('/work/gig/finish', { shift: codeStart.shift, idem: idem(), amount: 9_999_999 }, kode.token);
+    check('online: the code sprint pays the server\'s ₦25,000 after its own clock, not a figure the game sends',
+      codeStart.ok && !codeFast.ok && /faster/.test(codeFast.reason) && codePaid.pay === 25_000 && codePaid.wallet.cash - codeBefore === 25_000,
+      { codeStart, codeFast, codePaid });
 
     await call('/admin/mute', { id: bayo.account.id, minutes: 5 }, null, ADMIN);
     b.send({ type: 'chat', message: { text: 'can you hear me', id: 'm1' } });

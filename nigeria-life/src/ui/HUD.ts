@@ -26,6 +26,7 @@ import type { StoryQuest } from '../quests/QuestTypes';
 import { CloudSyncService } from '../backend/CloudSyncService';
 import { NetworkManager } from '../multiplayer/NetworkManager';
 import { OnlineAccount } from '../online/OnlineAccount';
+import { settleGig } from '../online/checkedEarn';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
 import { emitGameEvent } from '../game/GameEvents';
@@ -2344,6 +2345,35 @@ export class HUD {
       };
   }
 
+  /**
+   * A one-off gig. Offline, the browser pays `offlinePay`. Online, the server clocks the player
+   * in and pays its own figure on the next call, and this browser does not name an amount.
+   */
+  private paidGig(gigId: string, energy: number, cred: number, offlinePay: number, title: string, speaker: string, avatar: string, line: string): void {
+    void (async () => {
+      const paid = await settleGig(gigId, energy);
+      const give = (amount: number) => {
+        this.backend.addStreetCred(cred);
+        this.showDialogueModal({
+          speakerName: speaker,
+          speakerRole: title,
+          speakerAvatar: avatar,
+          soundType: 'cash',
+          dialogueText: `${line} Earned ₦${amount.toLocaleString()} cash. Energy -${energy}%.`,
+          rewards: { cash: amount, streetCred: cred },
+        });
+      };
+      if (paid === null) {
+        const gig = this.backend.performGig(offlinePay, energy, title);
+        if (gig.success) give(offlinePay);
+        else this.showDialogueModal({ speakerName: speaker, speakerRole: title, speakerAvatar: '⚠️', dialogueText: gig.message });
+        return;
+      }
+      if (paid.ok) give(paid.pay);
+      else this.showDialogueModal({ speakerName: speaker, speakerRole: title, speakerAvatar: '⚠️', dialogueText: paid.reason });
+    })();
+  }
+
   private handleCardAction(): void {
     if (!this.currentActiveObject) return;
     const id = this.currentActiveObject.id;
@@ -3350,25 +3380,7 @@ export class HUD {
       });
       return;
     } else if (id === 'flat-workstation') {
-      const gig = this.backend.performGig(12000, 25, 'Remote Tech Sprint');
-      if (gig.success) {
-        this.backend.addStreetCred(20);
-        this.showDialogueModal({
-          speakerName: 'Senior Engineering Manager',
-          speakerRole: 'Remote Tech Sprint',
-          speakerAvatar: '💻',
-          soundType: 'cash',
-          dialogueText: 'Pull request approved and merged! ₦12,000 remote salary credited to your wallet! Energy -25%, Street Cred +20!',
-          rewards: { cash: 12000, streetCred: 20 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Senior Engineering Manager',
-          speakerRole: 'Remote Tech Sprint',
-          speakerAvatar: '⚠️',
-          dialogueText: gig.message,
-        });
-      }
+      void this.paidGig('hud:remote', 25, 20, 12000, 'Remote Tech Sprint', 'Senior Engineering Manager', '💻', 'Pull request approved and merged!');
       return;
     } else if (id.startsWith('interior_npc_')) {
       this.showDialogueModal({
@@ -3380,6 +3392,46 @@ export class HUD {
       });
       return;
     } else if (id === 'bet-shop') {
+      const online = OnlineAccount.get();
+      if (online) {
+        void (async () => {
+          const idem = `nb:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+          const result = await online.request('/money/naibet', { idem });
+          if (!result.ok) {
+            this.showDialogueModal({ speakerName: 'NaijaBet Cashier', speakerRole: 'Ticket Payout Terminal', speakerAvatar: '⚠️', dialogueText: result.reason ?? 'The cashier could not take that ticket.' });
+            return;
+          }
+          if (result.won) {
+            this.backend.addStreetCred(10);
+            this.showDialogueModal({
+              speakerName: 'NaijaBet Cashier',
+              speakerRole: 'Ticket Payout Terminal',
+              speakerAvatar: '🎉',
+              soundType: 'win',
+              dialogueText: `BOOM! Your 5-game accumulator came through! Won ₦${(result.pay ?? 0).toLocaleString()} cash! Oya celebration!`,
+              rewards: { cash: result.pay ?? 0, streetCred: 10 },
+            });
+          } else {
+            this.backend.addItem({
+              id: `ticket_${Date.now()}`,
+              name: 'Weekend Match Slip',
+              category: 'document',
+              icon: '🎫',
+              description: 'Arsenal vs Chelsea accumulator ticket. Fingers crossed!',
+              price: 1000,
+              usable: false,
+            });
+            this.showDialogueModal({
+              speakerName: 'Segun (Odds Guru)',
+              speakerRole: 'NaijaBet Regular',
+              speakerAvatar: '⚽',
+              soundType: 'general',
+              dialogueText: 'Ticket placed! Added to your bag. May your odds favor you this weekend!',
+            });
+          }
+        })();
+        return;
+      }
       const success = this.backend.spendCash(1000, 'NaijaBet 5-Game Ticket');
       if (success) {
         // 6% of ₦15,000 on a ₦1,000 ticket: the house keeps an edge, so betting is not an income
@@ -3670,25 +3722,7 @@ export class HUD {
             onSelect: () => {
               const ov = document.getElementById('game-dialogue-overlay');
               if (ov) ov.remove();
-              const gig = this.backend.performGig(15000, 30, 'CcHub Hackathon Sprint');
-              if (gig.success) {
-                this.backend.addStreetCred(25);
-                this.showDialogueModal({
-                  speakerName: 'CcHub Incubator Lead',
-                  speakerRole: '6th Floor Innovation Hub • Yaba',
-                  speakerAvatar: '💻',
-                  soundType: 'tech',
-                  dialogueText: 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash and +25 Street Cred! Energy -30%',
-                  rewards: { cash: 15000, streetCred: 25 },
-                });
-              } else {
-                this.showDialogueModal({
-                  speakerName: 'CcHub Incubator Lead',
-                  speakerRole: '6th Floor Innovation Hub • Yaba',
-                  speakerAvatar: '⚠️',
-                  dialogueText: gig.message,
-                });
-              }
+              void this.paidGig('hud:hackathon', 30, 25, 15000, 'CcHub Hackathon Sprint', 'CcHub Incubator Lead', '💻', 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way.');
             },
           },
         ],
@@ -3698,25 +3732,7 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
       return;
     } else if (id === 'ajah-estate') {
-      const gig = this.backend.performGig(8500, 25, 'Ajah Site Labour');
-      if (gig.success) {
-        this.backend.addStreetCred(10);
-        this.showDialogueModal({
-          speakerName: 'Site Foreman Sunday',
-          speakerRole: 'Ajah Construction Project',
-          speakerAvatar: '👷',
-          soundType: 'cash',
-          dialogueText: 'AJAH SITE LABOUR COMPLETED! Mixed mortar, hoisted hollow blocks, and finished framing! Earned ₦8,500 cash on the spot! Energy -25%',
-          rewards: { cash: 8500, streetCred: 10 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Site Foreman Sunday',
-          speakerRole: 'Ajah Construction Project',
-          speakerAvatar: '⚠️',
-          dialogueText: gig.message,
-        });
-      }
+      void this.paidGig('hud:ajah', 25, 10, 8500, 'Ajah Site Labour', 'Site Foreman Sunday', '👷', 'AJAH SITE LABOUR COMPLETED! Mixed mortar, hoisted hollow blocks, and finished framing.');
     } else if (id === 'balogun-market') {
       const success = this.backend.spendCash(6000, 'Wholesale Ankara Bundle');
       if (success) {
@@ -4042,26 +4058,7 @@ export class HUD {
         });
       }
     } else if (id === 'construction-site') {
-      const wage = 6500;
-      const energyDepleted = this.backend.performGig(wage, 25, 'Construction Site Day Shift').success;
-      if (energyDepleted) {
-        this.backend.addStreetCred(10);
-        this.showDialogueModal({
-          speakerName: 'Site Supervisor Sunday',
-          speakerRole: 'Commercial High-Rise Site',
-          speakerAvatar: '👷',
-          soundType: 'cash',
-          dialogueText: `Tough day shift completed! Carried sandcrete blocks and mixed concrete. +₦${wage.toLocaleString()} cash paid into your pocket! Energy -25%`,
-          rewards: { cash: wage, streetCred: 10 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Site Safety Officer',
-          speakerRole: 'Construction Site Gate',
-          speakerAvatar: '⚠️',
-          dialogueText: 'You are too exhausted! (Need at least 25% Energy). Eat at Mama Put or sleep in your apartment first.',
-        });
-      }
+      void this.paidGig('hud:construction', 25, 10, 6500, 'Construction Site Day Shift', 'Site Supervisor Sunday', '👷', 'Tough day shift completed! Carried sandcrete blocks and mixed concrete.');
     } else if (id === 'palm-view-flats') {
       this.hideInteractionCard();
       this.economyModal.open('palm-view-flats');
@@ -4127,26 +4124,7 @@ export class HUD {
         });
       }
     } else if (id === 'npc-mechanic') {
-      const gigWage = 4000;
-      const energyDepleted = this.backend.performGig(gigWage, 15, 'Auto Workshop Gig').success;
-      if (energyDepleted) {
-        this.backend.addStreetCred(10);
-        this.showDialogueModal({
-          speakerName: 'Master Tayo',
-          speakerRole: "God's Grace Auto Works",
-          speakerAvatar: '🛠️',
-          soundType: 'cash',
-          dialogueText: `Good job boy! You helped align the alternator belt and brake pads. Take ₦${gigWage.toLocaleString()} cash for your pocket! Energy -15%`,
-          rewards: { cash: gigWage, streetCred: 10 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Master Tayo',
-          speakerRole: 'Mechanic Pit',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Too exhausted for manual workshop labor! Rest first.',
-        });
-      }
+      void this.paidGig('hud:workshop', 15, 10, 4000, 'Auto Workshop Gig', 'Master Tayo', '🛠️', 'Good job boy! You helped align the alternator belt and brake pads.');
     } else if (id === 'npc-warden') {
       this.backend.addStreetCred(10);
       this.player?.playEmote('salute', 3.0);

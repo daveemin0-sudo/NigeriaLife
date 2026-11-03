@@ -654,6 +654,10 @@ export const EMPLOYERS: Employer[] = [
 export const WORKSITES: Record<string, { city: string; x: number; z: number; radius: number; minSeconds: number; place?: string }> = {
   'apapa-port': { city: 'lagos', x: -73, z: 55.5, radius: 25, minSeconds: 12 },
   'eko-plaza-site': { city: 'lagos', x: 16.2, z: 64.5, radius: 25, minSeconds: 12 },
+  // Minigames that used to report their own pay. Same rule as the port: be there, take the time, the server names the wage.
+  'cchub-yaba': { city: 'lagos', x: -10, z: -25, radius: 30, minSeconds: 6 },
+  'ph-refinery': { city: 'port_harcourt', x: 55, z: -10, radius: 40, minSeconds: 6 },
+  'lastma-warden': { city: 'lagos', x: 0, z: 1.5, radius: 30, minSeconds: 6 },
   // Work done inside a place along the expressway: the player must be in that room
   'first-bank-marina': { city: 'lagos', x: 0, z: 0, radius: 0, minSeconds: 6, place: 'interior_place_marina-towers' },
   'new-afrika-shrine': { city: 'lagos', x: 0, z: 0, radius: 0, minSeconds: 6, place: 'interior_place_afrika-shrine' },

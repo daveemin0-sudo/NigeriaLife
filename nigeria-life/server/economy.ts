@@ -23,6 +23,7 @@
 import { randomUUID } from 'node:crypto';
 import { EMPLOYERS, WORKSITES, type Employer, type Grade } from '../src/jobs/employers.ts';
 import { mostTaken } from '../src/backend/businessRates.ts';
+import { AGAMA_CAP, ALBUM_CASH, CASE_CASH, GIGS, QUEST_CASH, agamaPay, plotOf, quoteTakings, tipFor } from './earn.ts';
 import { alert, transaction, type Store } from './store.ts';
 
 export interface Wallet {
@@ -42,8 +43,12 @@ export interface Position {
 
 type Result<T = object> = ({ ok: true; wallet: Wallet } & T) | { ok: false; reason: string; wallet?: Wallet; held?: number };
 
-/** Earnings the game may report without the server checking them, in any ten minutes */
-export const UNVERIFIED_EARNING_LIMIT = 60_000;
+/**
+ * Earnings the game may report without the server checking them, in any ten minutes.
+ * What is still on that path (a diaspora pickup, a spell of fares, an Eko Rides trip) needs
+ * about ₦45,000. ₦48,000 clears that and leaves a fare or two. See server/earn.ts.
+ */
+export const UNVERIFIED_EARNING_LIMIT = 48_000;
 /** The most a player may borrow at once. A loan is debt, not earnings: one at a time, up to this */
 export const LOAN_LIMIT = 5_000_000;
 /** Earnings of any kind in ten minutes above which an alert is raised */
@@ -146,6 +151,10 @@ export class Economy {
     if (!Number.isFinite(cash) || !Number.isFinite(bank) || !idem) return { ok: false, reason: 'That could not be read.', wallet: this.wallet(accountId) };
     const memo = cleanMemo(raw.memo);
     const net = cash + bank;
+    // A repeat of a request already in the ledger changes nothing, even when a fresh one would be held.
+    if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
+      return { ok: true, wallet: this.wallet(accountId), replay: true };
+    }
     // A loan from a lender: paid when the player has none open and it is within the limit; it is
     // debt to be repaid, not earnings, so the earnings limit does not apply to it. Repayments close it.
     if (/^LOAN_DISBURSEMENT:/.test(memo) && net > 0) {
@@ -241,15 +250,19 @@ export class Economy {
     return { ok: true, done: this.job(accountId, employerId)!.done };
   }
 
-  /** Why the player is not at the workplace now, or null if they are. */
-  private notThere(accountId: string, employerId: string): string | null {
-    const site = WORKSITES[employerId];
+  /** Why the player is not standing in this spot, or null if they are. */
+  private awayFrom(accountId: string, site: { city: string; x: number; z: number; radius: number; place?: string } | null, where: string): string | null {
     const at = this.positionOf(accountId);
     if (!site) return 'That work is not run by the server yet.';
     if (!at || Date.now() - at.at > POSITION_FRESH_MS) return 'The server cannot see where you are. Check your connection.';
-    if (site.place) return at.city === site.city && at.place === site.place ? null : 'You are not at the workplace.';
-    if (at.city !== site.city || Math.hypot(at.x - site.x, at.z - site.z) > site.radius) return 'You are not at the workplace.';
+    if (site.place) return at.city === site.city && at.place === site.place ? null : where;
+    if (at.city !== site.city || Math.hypot(at.x - site.x, at.z - site.z) > site.radius) return where;
     return null;
+  }
+
+  /** Why the player is not at the workplace now, or null if they are. */
+  private notThere(accountId: string, employerId: string): string | null {
+    return this.awayFrom(accountId, WORKSITES[employerId] ?? null, 'You are not at the workplace.');
   }
 
   public startShift(accountId: string, employerId: string): { ok: true; shift: string } | { ok: false; reason: string } {
@@ -263,7 +276,7 @@ export class Economy {
     return { ok: true, shift };
   }
 
-  public finishShift(accountId: string, shiftId: unknown, idemRaw: unknown): Result<{ pay?: number; promoted?: Grade; done?: number; replay?: boolean }> {
+  public finishShift(accountId: string, shiftId: unknown, idemRaw: unknown, starsRaw?: unknown): Result<{ pay?: number; tip?: number; promoted?: Grade; done?: number; replay?: boolean }> {
     const idem = cleanIdem(idemRaw);
     if (!idem) return { ok: false, reason: 'That could not be read.' };
     if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
@@ -286,12 +299,15 @@ export class Economy {
 
     const job = this.job(accountId, shift.employer)!;
     const pay = job.grade.pay;
+    // Stars are optional. Left out, the wage is the whole pay, so an existing shift test is unchanged.
+    const stars = starsRaw === 2 || starsRaw === 3 ? starsRaw : 0;
+    const tip = tipFor(pay, stars);
     this.db.prepare('UPDATE shifts SET finished_at = ? WHERE id = ?').run(Date.now(), shift.id);
-    const paid = this.apply(accountId, 'shift', pay, 0, `${job.grade.title}, ${employer.name}`, true, idem);
+    const paid = this.apply(accountId, 'shift', pay + tip, 0, `${job.grade.title}, ${employer.name}`, true, idem);
     if (!paid.ok) return paid;
     this.db.prepare('UPDATE jobs SET done = done + 1 WHERE account_id = ? AND employer = ?').run(accountId, shift.employer);
     const now = gradeFor(employer, job.done + 1);
-    return { ok: true, wallet: paid.wallet, pay, done: job.done + 1, promoted: now !== job.grade ? now : undefined };
+    return { ok: true, wallet: paid.wallet, pay, tip, done: job.done + 1, promoted: now !== job.grade ? now : undefined };
   }
 
   // --- Between players and from the admin -------------------------------------------------------
@@ -384,6 +400,134 @@ export class Economy {
 
   public ledger(accountId: string, limit = 50): unknown[] {
     return this.db.prepare('SELECT at, kind, cash_delta, bank_delta, cash_after, bank_after, verified, memo FROM ledger WHERE account_id = ? ORDER BY id DESC LIMIT ?').all(accountId, limit);
+  }
+
+  // --- Gigs, takings, and one-off catalogue pays -----------------------------------------------
+
+  public startGig(accountId: string, gigId: string): { ok: true; shift: string } | { ok: false; reason: string } {
+    const gig = GIGS[gigId];
+    if (!gig) return { ok: false, reason: 'That work is not run by the server yet.' };
+    if (gig.site) {
+      const away = this.awayFrom(accountId, gig.site, 'You are not at the workplace.');
+      if (away) return { ok: false, reason: away };
+    }
+    this.db.prepare('UPDATE shifts SET finished_at = -1 WHERE account_id = ? AND finished_at IS NULL').run(accountId);
+    const shift = randomUUID();
+    this.db.prepare('INSERT INTO shifts (id, account_id, employer, started_at) VALUES (?, ?, ?, ?)').run(shift, accountId, `gig:${gigId}`, Date.now());
+    return { ok: true, shift };
+  }
+
+  public finishGig(accountId: string, shiftId: unknown, idemRaw: unknown): Result<{ pay?: number; replay?: boolean }> {
+    const idem = cleanIdem(idemRaw);
+    if (!idem) return { ok: false, reason: 'That could not be read.' };
+    if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
+      return { ok: true, wallet: this.wallet(accountId), replay: true };
+    }
+    const shift = this.db.prepare('SELECT id, employer, started_at, finished_at FROM shifts WHERE id = ? AND account_id = ?').get(String(shiftId ?? ''), accountId) as
+      | { id: string; employer: string; started_at: number; finished_at: number | null }
+      | undefined;
+    if (!shift || shift.finished_at !== null || !shift.employer.startsWith('gig:')) return { ok: false, reason: 'That work was not started, or is already paid.' };
+    const gig = GIGS[shift.employer.slice(4)];
+    if (!gig) return { ok: false, reason: 'That work is not run by the server yet.' };
+    const took = Date.now() - shift.started_at;
+    if (took > SHIFT_EXPIRES_MS) return { ok: false, reason: 'That work took too long and was given up.' };
+    if (took < gig.minSeconds * 1000) {
+      alert(this.db, accountId, 'shift-too-fast', `${shift.employer} finished in ${(took / 1000).toFixed(1)} s (least ${gig.minSeconds} s)`);
+      return { ok: false, reason: 'That was done faster than anyone could.' };
+    }
+    if (gig.site) {
+      const away = this.awayFrom(accountId, gig.site, 'You are not at the workplace.');
+      if (away) return { ok: false, reason: away };
+    }
+    this.db.prepare('UPDATE shifts SET finished_at = ? WHERE id = ?').run(Date.now(), shift.id);
+    const paid = this.apply(accountId, 'gig', gig.pay, 0, gig.memo, true, idem);
+    if (!paid.ok) return paid;
+    return { ok: true, wallet: paid.wallet, pay: gig.pay };
+  }
+
+  /**
+   * A building's takings. The registry says what stands there and who runs it; the catalogue
+   * says what that earns; the server's clock says how long it has been since it was paid.
+   * Any amount in the request is ignored.
+   */
+  public collectTakings(accountId: string, plotId: string, idemRaw: unknown, registryId: string | null, registryText: string): Result<{ pay?: number; replay?: boolean }> {
+    const idem = cleanIdem(idemRaw);
+    if (!idem) return { ok: false, reason: 'That could not be read.', wallet: this.wallet(accountId) };
+    if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
+      return { ok: true, wallet: this.wallet(accountId), replay: true };
+    }
+    const plot = plotOf(plotId);
+    if (!plot) return { ok: false, reason: 'There is no such plot.', wallet: this.wallet(accountId) };
+    const at = this.positionOf(accountId);
+    if (!at || Date.now() - at.at > POSITION_FRESH_MS) return { ok: false, reason: 'The server cannot see where you are. Check your connection.', wallet: this.wallet(accountId) };
+    if (at.city !== plot.city || at.x < plot.rect.minX || at.x > plot.rect.maxX || at.z < plot.rect.minZ || at.z > plot.rect.maxZ) {
+      return { ok: false, reason: 'You are not on that plot.', wallet: this.wallet(accountId) };
+    }
+    if (!registryId) return { ok: false, reason: 'Your name is not on the register yet.', wallet: this.wallet(accountId) };
+    let doc: { titles?: Record<string, { ownerId?: string | null }>; buildings?: Record<string, { typeId?: unknown; startedAt?: unknown }>; tenancies?: Record<string, { tenantId?: string; paidUntil?: number }> } = {};
+    try {
+      doc = JSON.parse(registryText || '{}');
+    } catch {
+      doc = {};
+    }
+    const building = doc.buildings?.[plotId];
+    if (!building || typeof building.typeId !== 'string') return { ok: false, reason: 'There is no finished building there.', wallet: this.wallet(accountId) };
+    const tenancy = doc.tenancies?.[plotId];
+    const letOut = !!tenancy?.tenantId && (tenancy.paidUntil ?? 0) > Date.now();
+    const occupier = letOut ? tenancy!.tenantId : doc.titles?.[`plot:${plotId}`]?.ownerId;
+    if (occupier !== registryId) {
+      return { ok: false, reason: letOut ? "It is let: the takings are the tenant's." : 'That is not your building.', wallet: this.wallet(accountId) };
+    }
+    const recorded = this.db.prepare('SELECT type_id, started_at, paid_until FROM building_clock WHERE account_id = ? AND plot_id = ?').get(accountId, plotId) as
+      | { type_id: string; started_at: number; paid_until: number }
+      | undefined;
+    const quote = quoteTakings(plotId, building.typeId, Number(building.startedAt), recorded ? { typeId: recorded.type_id, startedAt: recorded.started_at, paidUntil: recorded.paid_until } : null, Date.now());
+    const remember = (clock: { typeId: string; startedAt: number; paidUntil: number }) => {
+      this.db.prepare('INSERT INTO building_clock (account_id, plot_id, type_id, started_at, paid_until) VALUES (?, ?, ?, ?, ?) ON CONFLICT(account_id, plot_id) DO UPDATE SET type_id = excluded.type_id, started_at = excluded.started_at, paid_until = excluded.paid_until').run(accountId, plotId, clock.typeId, clock.startedAt, clock.paidUntil);
+    };
+    if (!quote.ok) {
+      if (quote.clock) remember(quote.clock);
+      return { ok: false, reason: quote.reason, wallet: this.wallet(accountId) };
+    }
+    const paid = this.apply(accountId, 'takings', 0, quote.pay, quote.memo, true, idem);
+    if (!paid.ok || ('replay' in paid && paid.replay)) return paid;
+    remember(quote.clock);
+    return { ok: true, wallet: paid.wallet, pay: quote.pay };
+  }
+
+  /** A catalogue payout, once per item: quests, album sets, cases, agamas. The amount is the server's. */
+  public claimOnce(accountId: string, kind: 'quest' | 'album' | 'case' | 'agama', item: string): Result<{ pay?: number; replay?: boolean }> {
+    const table = kind === 'quest' ? QUEST_CASH : kind === 'album' ? ALBUM_CASH : kind === 'case' ? CASE_CASH : null;
+    let pay = table ? table[item] : 0;
+    if (kind === 'agama') {
+      if (!/^agama-[a-z0-9-]{1,48}$/.test(item)) return { ok: false, reason: 'There is no such lizard.', wallet: this.wallet(accountId) };
+      const caught = (this.db.prepare("SELECT COUNT(*) AS n FROM once_paid WHERE account_id = ? AND kind = 'agama'").get(accountId) as { n: number }).n;
+      if (caught >= AGAMA_CAP) return { ok: false, reason: 'You have caught them all.', wallet: this.wallet(accountId) };
+      pay = agamaPay(caught + 1);
+    }
+    if (!pay) return { ok: false, reason: 'There is nothing to pay for that.', wallet: this.wallet(accountId) };
+    const idem = `once:${kind}:${item}`;
+    if (this.db.prepare('SELECT 1 FROM once_paid WHERE account_id = ? AND kind = ? AND item = ?').get(accountId, kind, item)) {
+      return { ok: true, wallet: this.wallet(accountId), replay: true, pay: 0 };
+    }
+    const memo = kind === 'quest' ? `Quest reward: ${item}` : kind === 'album' ? `Album set complete: ${item}` : kind === 'case' ? `Case solved: ${item}` : `Agama caught (${item})`;
+    const paid = this.apply(accountId, kind, pay, 0, memo, true, idem);
+    if (!paid.ok || ('replay' in paid && paid.replay)) return paid;
+    this.db.prepare('INSERT INTO once_paid (account_id, kind, item) VALUES (?, ?, ?)').run(accountId, kind, item);
+    return { ok: true, wallet: paid.wallet, pay };
+  }
+
+  /** A NaijaBet ticket: ₦1,000 from the pocket, and a 6% chance the server draws of ₦15,000 back. */
+  public playNaibet(accountId: string, idemRaw: unknown): Result<{ won?: boolean; pay?: number; replay?: boolean }> {
+    const idem = cleanIdem(idemRaw);
+    if (!idem) return { ok: false, reason: 'That could not be read.', wallet: this.wallet(accountId) };
+    if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
+      return { ok: true, wallet: this.wallet(accountId), replay: true };
+    }
+    const won = Math.random() < 0.06;
+    const paid = this.apply(accountId, 'naibet', won ? 14_000 : -1_000, 0, won ? 'NaijaBet Accumulator Win' : 'NaijaBet 5-Game Ticket', true, idem);
+    if (!paid.ok) return paid;
+    return { ok: true, wallet: paid.wallet, won, pay: won ? 15_000 : 0 };
   }
 
   public totals(): { money: number; lastHour: { earned: number; spent: number }; alerts: unknown[] } {

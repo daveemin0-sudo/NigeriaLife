@@ -295,8 +295,30 @@ export class OnlineAccount {
     return { ...started, done: hired.done };
   }
 
-  public finishWork(shift: string): Promise<{ ok: boolean; pay?: number; done?: number; reason?: string; replay?: boolean }> {
-    return this.request('/work/finish', { shift, idem: this.idem('w') });
+  public finishWork(shift: string, stars?: number): Promise<{ ok: boolean; pay?: number; tip?: number; done?: number; reason?: string; replay?: boolean }> {
+    return this.request('/work/finish', { shift, idem: this.idem('w'), ...(stars === 2 || stars === 3 ? { stars } : {}) });
+  }
+
+  /** A gig shift the server has started and not yet paid, kept for the second call. */
+  private gigShifts = new Map<string, string>();
+
+  public rememberedGig(gig: string): string | null {
+    return this.gigShifts.get(gig) ?? null;
+  }
+
+  public forgetGig(gig: string): void {
+    this.gigShifts.delete(gig);
+  }
+
+  public async startGig(gig: string): Promise<{ ok: boolean; shift?: string; reason?: string }> {
+    await this.ready;
+    const started = await this.request('/work/gig/start', { gig });
+    if (started.ok && started.shift) this.gigShifts.set(gig, started.shift);
+    return started;
+  }
+
+  public finishGig(shift: string): Promise<{ ok: boolean; pay?: number; reason?: string; replay?: boolean }> {
+    return this.request('/work/gig/finish', { shift, idem: this.idem('g') });
   }
 
   // --- Safety ---------------------------------------------------------------------------------

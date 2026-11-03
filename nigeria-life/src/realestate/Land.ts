@@ -295,6 +295,19 @@ export class Land {
 
   /** Pays a building's takings into the bank account of whoever is running it. */
   public async collect(plotId: string): Promise<Outcome & { amount?: number }> {
+    const online = OnlineAccount.get();
+    if (online) {
+      // The server names the amount from the catalogue and its own clock. This only stamps the
+      // building so the panel stops showing the same takings as still due.
+      const idem = `tk:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 10)}`;
+      const result = await online.request('/money/takings', { plot: plotId, idem });
+      if (!result.ok) return fail(result.reason ?? 'The money could not be paid in.');
+      return this.registry.transact((state): Outcome & { amount?: number } => {
+        const built = this.finishedOn(plotId, state);
+        if (built) built.building.collectedAt = worldNow();
+        return { ok: true, amount: result.pay ?? 0 };
+      });
+    }
     return this.registry.transact((state): Outcome & { amount?: number } => {
       const built = this.finishedOn(plotId, state);
       if (!built) return fail('There is no finished building there.');

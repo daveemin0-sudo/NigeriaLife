@@ -1381,6 +1381,33 @@ export class BackendService {
     };
   }
 
+  /**
+   * A career shift the server has already paid, at its own rate. Experience is recorded here.
+   * The money is not: the server's wallet is what the player has.
+   */
+  public noteServerJobShift(pay: number): { success: boolean; reward: number; message: string } {
+    const shiftInfo = this.getActiveJobShift();
+    if (!shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
+    const { job } = shiftInfo;
+    this.addJobExperience(25);
+    this.addStreetCred(10);
+    const skillMap: Record<string, keyof PlayerSkills> = {
+      job_shop_assistant: 'hustle',
+      job_mechanic: 'craft',
+      job_danfo_driver: 'driving',
+      job_food_seller: 'cooking',
+      job_office_worker: 'academics',
+      job_software_dev: 'coding',
+      job_construction: 'fitness',
+      job_security: 'fitness',
+    };
+    this.addSkillXp(skillMap[job.id] || 'hustle', 1);
+    this.data.activeJobShift = null;
+    this.saveData();
+    emitGameEvent('work_shift');
+    return { success: true, reward: pay, message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket and gained XP!` };
+  }
+
   // === CAREER PROGRESSION ===
 
   public addJobExperience(xpGained: number): { leveledUp: boolean; newTitle: string } {

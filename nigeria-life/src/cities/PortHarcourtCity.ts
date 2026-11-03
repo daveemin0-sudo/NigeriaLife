@@ -9,6 +9,7 @@ import { createCashMachine } from '../world/kit/CashMachine';
 import { PORT_HARCOURT_BUILDINGS } from './Townscapes';
 import type { Obstruction } from '../world/plan/CityPlan';
 import { PlaceActions } from '../destinations/PlaceActions';
+import { settleGig } from '../online/checkedEarn';
 import { WorldMapPrefabs } from '../world/map/WorldMapPrefabs';
 
 export class PortHarcourtCity implements CityInstance {
@@ -181,22 +182,27 @@ export class PortHarcourtCity implements CityInstance {
               label: '🛠️ Complete Industrial Safety & Pipeline Shift',
               note: '+₦12,000 · -25% Energy · +25 Cred',
               pick: () => {
-                const gig = host.backend.performGig(12000, 25, 'Trans-Amadi Petrochemical Shift');
-                if (gig.success) {
-                  host.backend.addStreetCred(25);
-                  host.backend.addItem({
-                    id: `trans_amadi_pass_${Date.now()}`,
-                    name: 'Trans-Amadi Industrial Safety Card',
-                    category: 'document',
-                    icon: '🪪',
-                    description: 'Certified HSE Level 3 safety induction card for Port Harcourt industrial complexes.',
-                    price: 8000,
-                    usable: false,
-                  });
-                  host.say('Shift completed! Earned ₦12,000 cash, +25 Cred, and HSE Safety Pass!', 'success');
-                } else {
-                  host.say(gig.message, 'warning');
-                }
+                void (async () => {
+                  const paid = await settleGig('hud:transamadi', 25);
+                  const gig = paid ? null : host.backend.performGig(12000, 25, 'Trans-Amadi Petrochemical Shift');
+                  const ok = paid ? paid.ok : !!gig?.success;
+                  if (ok) {
+                    host.backend.addStreetCred(25);
+                    host.backend.addItem({
+                      id: `trans_amadi_pass_${Date.now()}`,
+                      name: 'Trans-Amadi Industrial Safety Card',
+                      category: 'document',
+                      icon: '🪪',
+                      description: 'Certified HSE Level 3 safety induction card for Port Harcourt industrial complexes.',
+                      price: 8000,
+                      usable: false,
+                    });
+                    const amount = paid && paid.ok ? paid.pay : 12000;
+                    host.say(`Shift completed! Earned ₦${amount.toLocaleString()} cash, +25 Cred, and HSE Safety Pass!`, 'success');
+                  } else {
+                    host.say((paid && !paid.ok ? paid.reason : gig?.message) ?? 'Not paid.', 'warning');
+                  }
+                })();
               },
             },
             {
