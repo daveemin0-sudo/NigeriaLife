@@ -8008,3 +8008,51 @@ body[data-ui-mode="interior"] .hud-proximity-prompt {
   }
 }
 
+/* Join queue. Covers the street until the game server admits this player. */
+#server-queue-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(ellipse at center, rgba(0, 90, 48, 0.28), rgba(4, 14, 10, 0.88));
+  pointer-events: auto;
+}
+
+#server-queue-screen[hidden] {
+  display: none !important;
+}
+
+.server-queue-card {
+  width: min(560px, 100%);
+  padding: 36px 32px;
+  border-radius: 18px;
+  text-align: center;
+  color: #f4fff8;
+  background: linear-gradient(180deg, #123524 0%, #07140e 100%);
+  border: 1px solid rgba(0, 210, 106, 0.5);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.server-queue-kicker {
+  margin-bottom: 12px;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f5c542;
+}
+
+.server-queue-title {
+  font-size: clamp(26px, 4vw, 36px);
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.server-queue-sub {
+  margin-top: 14px;
+  font-size: 16px;
+  color: #c9e6d4;
+}
+

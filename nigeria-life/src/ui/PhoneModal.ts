@@ -1161,8 +1161,10 @@ export class PhoneModal {
 
     // Claim Active Job Shift Salary
     document.getElementById('btn-claim-shift-salary')?.addEventListener('click', () => {
+      const shiftJobId = this.backend.getActiveJobShift()?.job.id;
       const res = this.backend.completeJobShift();
       if (res.success) {
+        if (shiftJobId) NetworkManager.getInstance()?.reportShift('complete', shiftJobId);
         SoundEngine.getInstance().playTransactionSuccess();
         showGameToast(`🎉 ${res.message}`, 'success', 4500);
         this.render();
@@ -1179,6 +1181,7 @@ export class PhoneModal {
         if (!jobId) return;
         const res = this.backend.startJobShift(jobId);
         if (res.success) {
+          NetworkManager.getInstance()?.reportShift('start', jobId);
           showGameToast(res.message, 'success');
           this.startShiftTicker();
           this.render();
