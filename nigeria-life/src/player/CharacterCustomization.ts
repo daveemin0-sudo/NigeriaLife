@@ -611,6 +611,10 @@ export const HEADWEAR_OPTIONS: { id: HeadwearType; name: string }[] = [
 
 export class CharacterStorage {
   private static STORAGE_KEY = profileKey('nigeria_life_character_v2');
+  /** Set by the game once an account exists, so a changed look is kept on that account too. */
+  public static onSave: ((config: CharacterConfig) => void) | null = null;
+  /** While a look just loaded from the account is being put on, do not write it straight back. */
+  public static hold = false;
 
   public static load(): CharacterConfig {
     try {
@@ -630,5 +634,6 @@ export class CharacterStorage {
     } catch {
       // Ignore storage errors
     }
+    if (!this.hold) this.onSave?.(config);
   }
 }

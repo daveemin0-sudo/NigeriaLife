@@ -331,6 +331,17 @@ export class OnlineAccount {
     return { ok: true };
   }
 
+  /** The face, hair and clothes kept on this account, or null until one has been chosen. */
+  public async loadLook(): Promise<Record<string, unknown> | null> {
+    const me = await this.request('/me');
+    return me?.ok && me.look && typeof me.look === 'object' ? me.look : null;
+  }
+
+  /** Puts the current look on the account, so the next phone that signs in wears it. */
+  public saveLook(look: unknown): Promise<{ ok: boolean; reason?: string }> {
+    return this.request('/me/look', { look });
+  }
+
   /** Now this account: its session kept, its money shown, the city reached with it */
   private async switchTo(done: { token: string; account: AccountView; wallet?: WalletView }): Promise<void> {
     this.keep(done.token, done.account);

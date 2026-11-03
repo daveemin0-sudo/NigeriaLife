@@ -38,6 +38,7 @@ import { Ladder } from '../life/Ladder';
 import { Activity } from '../life/Activity';
 import { World } from '../world/World';
 import { Player } from '../player/Player';
+import { CharacterStorage } from '../player/CharacterCustomization';
 import { GameCamera } from './Camera';
 import { InputManager } from './Input';
 import { PointerScope } from './PointerScope';
@@ -831,16 +832,42 @@ export class Game {
       backend.authority = { report: (cash, bank, memo) => online.report(cash, bank, memo) };
       online.on('wallet', (wallet) => backend.applyServerWallet(wallet));
       online.on('notice', (text) => showGameToast(String(text), 'warning', 5200));
+      // A changed look is kept on the account, so the next phone that signs in wears it
+      CharacterStorage.onSave = (config) => {
+        if (online.account) void online.saveLook(config);
+      };
+      const wearSavedLook = async (): Promise<boolean> => {
+        const saved = await online.loadLook();
+        if (!saved) return false;
+        const name = online.account?.name ?? this.player.config.name;
+        CharacterStorage.hold = true;
+        try {
+          this.player.applyCustomization({ ...this.player.config, ...saved, name });
+        } finally {
+          CharacterStorage.hold = false;
+        }
+        return true;
+      };
       // A first visit, or a guest still: register a name of your own, or sign in from another phone
-      void online.ready.then((ok) => {
-        if (!ok || online.account?.kind !== 'guest') return;
+      void online.ready.then(async (ok) => {
+        if (!ok) return;
+        if (online.account?.kind !== 'guest') {
+          const worn = await wearSavedLook();
+          if (!worn) void online.saveLook(this.player.config);
+          return;
+        }
         if (navigator.webdriver && !(window as unknown as { __signInOn?: boolean }).__signInOn) return;
         new SignInScreen({
           register: (u, p) => online.register(u, p),
           login: (u, p) => online.login(u, p),
-          done: (typed, gender, isNew) => {
+          done: async (typed, gender, isNew) => {
             const name = online.account?.name ?? typed;
             const cfg = this.player.config;
+            if (!isNew && (await wearSavedLook())) {
+              backend.updateUsername(name);
+              showGameToast(`👋 Welcome back, @${name}.`, 'success', 5200);
+              return;
+            }
             if (gender && gender !== cfg.gender) {
               cfg.gender = gender;
               cfg.hair = undefined;
