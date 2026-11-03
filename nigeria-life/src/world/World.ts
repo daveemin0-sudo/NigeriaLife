@@ -159,6 +159,12 @@ export class World {
     // 6d. Instanced street crowd (walkers, bus-stop queues, stall traders)
     this.cityPopulation = new CityPopulation(this.cityDensity.fabric.walkRuns, this.cityDensity.fabric.stallSpots);
     this.scene.add(this.cityPopulation.group);
+    // Shoppers on Broad Street: the doors they can actually walk into
+    const shopDoors = ['mama-put', 'barber-shop', 'supermarket', 'victory-phones']
+      .map((id) => this.buildings.interactiveList.find((o) => o.id === id))
+      .filter((o): o is NonNullable<typeof o> => !!o)
+      .map((o) => ({ x: o.interactionPoint.x, z: o.interactionPoint.z }));
+    this.cityPopulation.giveErrands(shopDoors);
 
     // Broad Street carries on south as the expressway, over the lagoon to the mainland
     this.expressway = new Expressway();

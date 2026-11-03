@@ -57,6 +57,14 @@ interface Agent {
   fx?: number;
   fz?: number;
   ft?: number;
+  /** A shop or buka on their side of Broad Street. They walk in, stay a while, and come back out. */
+  errand?: { doorX: number; doorZ: number; homeX: number; phase: 'pace' | 'approach' | 'in' | 'out'; left: number; cool: number };
+  /** While set, they are crossing to this sidewalk x at the junction */
+  crossing?: number;
+  /** Seconds before they will cross again */
+  crossCool?: number;
+  /** This walker crosses at the junction instead of staying on one pavement */
+  willCross?: boolean;
 }
 
 /** Where people wait for a danfo: on the kerb of Broad Street, west side for southbound, east for northbound */
@@ -343,6 +351,30 @@ export class CityPopulation {
     }
   }
 
+  /**
+   * Some Broad Street walkers have a place to go: the barbershop, Mama Put, the supermarket,
+   * the phone shop. They peel off the pavement at that door, spend a few seconds inside
+   * (not drawn), and come back out onto the same pavement. A few others cross at the junction.
+   */
+  public giveErrands(doors: Array<{ x: number; z: number }>): void {
+    const walkers = this.agents.filter((a) => a.mode === 'walk' && a.onMainWalk && a.axis === 'z' && a.stop === undefined);
+    const used = new Set<Agent>();
+    for (const door of doors) {
+      const side = Math.sign(door.x) || 1;
+      const near = walkers.filter((a) => !used.has(a) && Math.sign(a.x) === side && door.z > a.min + 4 && door.z < a.max - 4);
+      for (let n = 0; n < 4 && near.length; n++) {
+        const a = near.splice(Math.floor(this.rand() * near.length), 1)[0];
+        used.add(a);
+        a.errand = { doorX: door.x, doorZ: door.z, homeX: a.x, phase: 'pace', left: 0, cool: this.rand() * 8 };
+      }
+    }
+    let i = 0;
+    for (const a of walkers) {
+      if (a.errand) continue;
+      if (i++ % 8 === 0) a.willCross = true;
+    }
+  }
+
   /** A trader behind every umbrella stall, and a customer haggling at most of them */
   private spawnStallTraders(stalls: StreetSpot[]): void {
     for (const stall of stalls) {
@@ -395,6 +427,85 @@ export class CityPopulation {
     let out = 0;
     for (let i = 0; i < this.agents.length; i++) if (isAbroad(i, this.abroad)) out += 1;
     return out;
+  }
+
+  /** Step toward a point on the pavement. Returns true once they are there. */
+  private stepToward(a: Agent, x: number, z: number, delta: number): boolean {
+    const dx = x - a.x;
+    const dz = z - a.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.22) {
+      a.x = x;
+      a.z = z;
+      return true;
+    }
+    const step = Math.min(d, Math.max(0.4, a.speed) * delta);
+    a.x += (dx / d) * step;
+    a.z += (dz / d) * step;
+    a.yaw = Math.atan2(dx, dz);
+    a.phase += delta * (Math.max(0.4, a.speed) / 1.35);
+    return false;
+  }
+
+  /**
+   * A Broad Street walker: along the pavement, across at the junction, or into a shop and back out.
+   * True when they are inside and should not be drawn.
+   */
+  private advanceWalker(a: Agent, delta: number): boolean {
+    const e = a.errand;
+    if (e?.phase === 'in') {
+      e.left -= delta;
+      if (e.left > 0) return true;
+      e.phase = 'out';
+      a.x = e.doorX;
+      a.z = e.doorZ;
+    }
+    if (e?.phase === 'out') {
+      if (this.stepToward(a, e.homeX, e.doorZ, delta)) {
+        e.phase = 'pace';
+        e.cool = 35 + this.rand() * 20;
+      }
+      return false;
+    }
+    if (e?.phase === 'approach') {
+      if (this.stepToward(a, e.doorX, e.doorZ, delta)) {
+        e.phase = 'in';
+        e.left = 8 + this.rand() * 14;
+        return true;
+      }
+      return false;
+    }
+    if (a.crossing !== undefined) {
+      if (this.stepToward(a, a.crossing, a.z, delta)) {
+        a.crossing = undefined;
+        a.crossCool = 45;
+      }
+      return false;
+    }
+
+    a.phase += delta * (a.speed / 1.35);
+    let along = (a.axis === 'x' ? a.x : a.z) + a.dir * a.speed * delta;
+    if (along > a.max) {
+      a.dir = -1;
+      along = a.max;
+    } else if (along < a.min) {
+      a.dir = 1;
+      along = a.min;
+    }
+    if (a.axis === 'x') a.x = along;
+    else a.z = along;
+    a.yaw = a.axis === 'z' ? (a.dir > 0 ? 0 : Math.PI) : a.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+
+    if (e && e.phase === 'pace' && a.axis === 'z') {
+      e.cool = Math.max(0, e.cool - delta);
+      if (e.cool === 0 && Math.abs(a.z - e.doorZ) < 1.15 && Math.sign(a.x) === Math.sign(e.doorX || 1)) {
+        e.phase = 'approach';
+      }
+    } else if (a.willCross && a.axis === 'z' && !e) {
+      a.crossCool = Math.max(0, (a.crossCool ?? 0) - delta);
+      if (a.crossCool === 0 && isInJunctionGap(a.z)) a.crossing = -a.x;
+    }
+    return false;
   }
 
   // =========================================================================
@@ -452,14 +563,7 @@ export class CityPopulation {
         rax = stride * 0.5;
         bob = Math.abs(stride) * 0.035;
       } else if (a.mode === 'walk') {
-        a.phase += delta * (a.speed / 1.35);
-        const along = (a.axis === 'x' ? a.x : a.z) + a.dir * a.speed * delta;
-        if (along > a.max) a.dir = -1;
-        else if (along < a.min) a.dir = 1;
-        if (a.axis === 'x') a.x = along;
-        else a.z = along;
-        a.yaw = a.axis === 'z' ? (a.dir > 0 ? 0 : Math.PI) : a.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-
+        if (this.advanceWalker(a, delta)) continue;
         const stride = Math.sin(a.phase * 8);
         llx = stride * 0.6;
         rlx = -stride * 0.6;
