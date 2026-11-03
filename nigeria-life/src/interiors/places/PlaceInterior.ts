@@ -45,6 +45,8 @@ export interface StationChoice {
   dance?: boolean;
   /** What it does to the player: needs, skills */
   effect?: (backend: BackendService) => void;
+  /** A haircut: the style, and a beard where the character can wear one. Applied once the cut is paid for. */
+  look?: { hair?: string; beard?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'full' | 'chinstrap' };
   /** What goes into the bag */
   item?: Omit<Item, 'quantity'>;
   /** Something the game opens instead (the State House, the jobs app) */
@@ -87,6 +89,10 @@ export interface PlaceSpec {
   build(b: Builder, room: THREE.Group): void;
   /** The sign on the back wall */
   sign?: { text: string; sub: string; bg: string };
+  /** The street building this room is the inside of, when it is not a roadside plot */
+  streetId?: string;
+  /** Where on the street the player comes back out, when the building is not on the expressway */
+  comeOut?: [number, number, number];
   staff: StaffSpec[];
   /** People there already: standing or sitting, facing which way */
   regulars?: Array<{ at: [number, number]; facing: number; outfit: number; gender?: 'male' | 'female'; sit?: boolean }>;
@@ -115,6 +121,9 @@ function chairAt(x: number, z: number, yaw: number): THREE.Object3D {
 /** Opens something of the game's own (set by the game) */
 export const PlaceOpeners: { open: (what: string, host?: PlaceHost) => void } = { open: () => {} };
 
+/** Puts a finished haircut on the player (set by the game, so the body is rebuilt and saved) */
+export const PlaceLook: { apply: (look: NonNullable<StationChoice['look']>) => void } = { apply: () => {} };
+
 export class PlaceInterior {
   public group = new THREE.Group();
   public interactiveList: InteractiveObject[] = [];
@@ -140,7 +149,7 @@ export class PlaceInterior {
       type: 'office',
       tier: 'tier3_simulated',
       districtName: spec.district,
-      streetBuildingId: `roadside-${spec.key}`,
+      streetBuildingId: spec.streetId ?? `roadside-${spec.key}`,
       streetEntrance: comeOutAt.clone(),
       streetExitRotation: 0,
       interiorOrigin: origin,
@@ -396,6 +405,14 @@ export class PlaceInterior {
             PlaceOpeners.open(c.open, host);
             return;
           }
+          if (c.look && c.price && !host.backend.canPay(c.price)) {
+            host.say(`That is ₦${c.price.toLocaleString()}. You do not have enough.`, 'warning');
+            return;
+          }
+          if (c.look && this.npcs.some((n) => n.actor.name === 'Master Kazeem' && n.actor.sequence)) {
+            host.say('Master Kazeem is with a customer. Have a seat and wait.', 'info');
+            return;
+          }
           const stand = this.world(st.stand[0], st.stand[1]);
           const look = this.world(st.at[0], st.at[1]);
           if (c.dance) {
@@ -597,6 +614,35 @@ export class PlaceInterior {
     );
     if (!host.director.run(sitting)) return;
     if (meal) this.serve(c, host, sitting);
+    if (c.look) this.attendHaircut(st, host, c.seconds ?? 5);
+  }
+
+  /** The barber walks to the chair, works with the clippers, and goes back to where he was standing */
+  private attendHaircut(st: StationSpec, host: PlaceHost, seconds: number): void {
+    const barber = this.npcs.find((n) => n.actor.name === 'Master Kazeem');
+    if (!barber || barber.actor.sequence) return;
+    const { seat } = this.seatFor(st);
+    const beside = this.world(seat[0] + 0.9, seat[1] + 0.15);
+    const customer = this.world(seat[0], seat[1]);
+    const home = barber.actor.worldPosition(new THREE.Vector3());
+    const homeYaw = barber.actor.homeYaw;
+    const clippers = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.09, 0.18),
+      new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.55, roughness: 0.35 })
+    );
+    const actor = barber.actor;
+    const cut = new Sequence('the barber cuts', [actor]);
+    cut.add(
+      steps.walk(actor, beside, { ifStuck: 'snap', speed: 1.8 }),
+      steps.face(actor, customer),
+      steps.call('clippers out', () => actor.carry(clippers)),
+      steps.animate(actor, { arms: 'reach' }, Math.max(2.5, seconds - 0.4)),
+      steps.call('clippers down', () => { actor.letGo(); clippers.removeFromParent(); }),
+      steps.walk(actor, home, { ifStuck: 'snap', speed: 1.6 }),
+      steps.face(actor, homeYaw),
+    );
+    cut.onEnd(() => { actor.letGo(); clippers.removeFromParent(); });
+    host.director.run(cut);
   }
 
   /** A free place at a table, nearest a point: where to sit, which way, where to come from, where the plate goes */
@@ -770,6 +816,7 @@ export class PlaceInterior {
     }
     if (c.item) host.backend.addItem(c.item);
     c.effect?.(host.backend);
+    if (c.look) PlaceLook.apply(c.look);
     if (c.said) host.say(c.said, 'success');
     return true;
   }

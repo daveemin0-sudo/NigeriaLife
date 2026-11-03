@@ -643,7 +643,7 @@ export class InputManager {
     if (dest) {
       return dest.entrance.triggerRadius || 6.5;
     }
-    if (['lagos-hospital', 'hospital', 'lagos-bank', 'bank', 'mama-put', 'buka', 'police-station', 'police', 'villa-compound', 'palm-view-flats', 'unilag-campus', 'mma-airport'].includes(id)) {
+    if (['lagos-hospital', 'hospital', 'lagos-bank', 'bank', 'mama-put', 'buka', 'police-station', 'police', 'villa-compound', 'palm-view-flats', 'unilag-campus', 'mma-airport', 'barber-shop'].includes(id)) {
       return 6.5;
     }
     if (id === 'interior_exit_door') return 3.5;
@@ -753,6 +753,20 @@ export class InputManager {
         label: 'Enter Palm View Residence',
         action: 'enter-interior',
         interiorId: 'residence',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
+    if (id === 'barber-shop') {
+      return {
+        id: 'barber-shop',
+        name: 'Lagos Executive Barbershop',
+        category: obj.category,
+        label: 'Enter Lagos Barbers',
+        action: 'enter-interior',
+        interiorId: 'barber-shop',
         distance: dist,
         interactionPoint: obj.interactionPoint,
         interactiveObject: obj,

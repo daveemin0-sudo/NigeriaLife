@@ -135,7 +135,9 @@ export class InteriorManager {
       const place = ROADSIDE.find((p) => p.id === spec.key);
       // Along the expressway, or on a side street off it
       const side = sideFront(spec.key);
-      const out = place ? new THREE.Vector3(place.side * (EXPRESS.half + EXPRESS.walk - 1), 0, place.z) : side ? new THREE.Vector3(side.x, 0, side.standZ) : new THREE.Vector3();
+      const out = spec.comeOut
+        ? new THREE.Vector3(spec.comeOut[0], spec.comeOut[1], spec.comeOut[2])
+        : place ? new THREE.Vector3(place.side * (EXPRESS.half + EXPRESS.walk - 1), 0, place.z) : side ? new THREE.Vector3(side.x, 0, side.standZ) : new THREE.Vector3();
       return new PlaceInterior(spec, new THREE.Vector3(-3000, 0, 1000 + i * 70), out);
     });
     this.templates = [

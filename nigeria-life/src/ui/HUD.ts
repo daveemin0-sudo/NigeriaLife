@@ -1809,9 +1809,8 @@ export class HUD {
       bizBtn.textContent = '💼 Slot Tech Enterprise [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'barber-shop') {
-      btnEl.textContent = '💈 Executive Fade & Beard Grooming (₦2,500)';
-      bizBtn.textContent = '💼 Barbershop Enterprise [E]';
-      bizBtn.style.display = 'inline-block';
+      btnEl.textContent = '💈 Go inside Lagos Barbers';
+      bizBtn.style.display = 'none';
     } else if (obj.id === 'fuel-station') {
       btnEl.textContent = '⛽ The pump';
       bizBtn.textContent = '💼 NaijaPetro Forecourt Franchise [E]';
@@ -2264,7 +2263,7 @@ export class HUD {
   }
 
   /** Things in the street whose button takes the player somewhere (through a door, into a vehicle) and so has a way of its own of being walked to */
-  private static readonly GOES_SOMEWHERE = /^(mama-put|lagos-bank|lagos-hospital|dest_|unilag-campus|mma-airport|police-station|supermarket|villa-compound|palm-view-flats|veh-|danfo-stop)/;
+  private static readonly GOES_SOMEWHERE = /^(mama-put|lagos-bank|lagos-hospital|dest_|unilag-campus|mma-airport|police-station|supermarket|villa-compound|palm-view-flats|barber-shop|veh-|danfo-stop)/;
 
   /**
    * In the street, a thing is walked up to and used with a word or a hand before anything
@@ -4009,27 +4008,8 @@ export class HUD {
         });
       }
     } else if (id === 'barber-shop') {
-      const success = this.backend.spendCash(2500, 'Executive Fade & Beard Grooming');
-      if (success) {
-        this.backend.restoreEnergy(40);
-        this.backend.addStreetCred(25);
-        this.player?.playEmote('groove', 4.0);
-        this.showDialogueModal({
-          speakerName: 'Master Kazeem',
-          speakerRole: 'Fresh Cut Barbershop',
-          speakerAvatar: '💈',
-          soundType: 'cheer',
-          dialogueText: 'Fresh Cut Barbershop: Sharp executive fade with peppermint beard oil! You look clean! Street Cred +25!',
-          rewards: { energy: 40, streetCred: 25 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Barbershop Reception',
-          speakerRole: 'Fresh Cut Barbershop',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦2,500 cash for the haircut!',
-        });
-      }
+      this.hideInteractionCard();
+      this.onEnterInterior?.('barber-shop');
     } else if (id === 'fuel-station') {
       this.onOpenPump?.('fuel-station');
     } else if (id === 'mechanic') {

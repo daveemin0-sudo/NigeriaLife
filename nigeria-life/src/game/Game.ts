@@ -102,7 +102,7 @@ import { FleetSheet } from '../ui/FleetSheet';
 import { PumpSheet } from '../ui/PumpSheet';
 import { ProfileSheet } from '../ui/ProfileSheet';
 import { StateHouseSheet } from '../ui/StateHouseSheet';
-import { PlaceOpeners } from '../interiors/places/PlaceInterior';
+import { PlaceLook, PlaceOpeners } from '../interiors/places/PlaceInterior';
 import { Companies } from '../business/Companies';
 import { EventClock, startedBetween } from '../interiors/places/LiveEvents';
 import { PLACE_SPECS } from '../interiors/places/PlaceSpecs';
@@ -921,6 +921,16 @@ export class Game {
       this.player.mesh.visible = false;
       this.roadRideExperience.startRide(ride);
       this.transitHUD.showRideHUD(ride);
+    };
+    PlaceLook.apply = (look) => {
+      const cfg = { ...this.player.config };
+      if (look.hair) {
+        cfg.hair = look.hair;
+        cfg.headwear = 'none';
+        cfg.headwearId = undefined;
+      }
+      if (look.beard && cfg.gender !== 'female') cfg.beard = look.beard;
+      this.player.applyCustomization(cfg);
     };
     PlaceOpeners.open = (what, host) => {
       if (what.startsWith('app:')) {

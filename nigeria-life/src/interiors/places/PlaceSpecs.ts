@@ -821,4 +821,53 @@ const SIDE: PlaceSpec[] = [
   ], [{ at: [-4, -0.25], facing: Math.PI, outfit: 0xf97316, sit: true }, { at: [4, 2.95], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }], [20, 16]),
 ];
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS];
+/** Lagos Barbers on Broad Street: chairs, mirrors, a waiting bench, and Master Kazeem with the clippers */
+const cut = (label: string, price: number, hair: string, said: string, beard?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'full' | 'chinstrap'): StationChoice => ({
+  label, price, note: 'The cut stays on you', sit: true, seconds: 6, arms: 'rest',
+  look: { hair, beard },
+  effect: need({ hygiene: 12, social: 4 }),
+  said,
+});
+
+const LAGOS_BARBERS: PlaceSpec = {
+  key: 'lagos-barbers',
+  streetId: 'barber-shop',
+  comeOut: [-10, 0, 37.3],
+  name: 'Lagos Executive Barbershop',
+  district: 'Lagos Island · Broad Street',
+  room: { width: 14, length: 12, height: 3.6, floor: 0xd6d3d1, wall: 0xf5f0e6 },
+  sign: { text: 'LAGOS BARBERS', sub: 'Low cut · Fade · Afro · Waves', bg: '#b91c1c' },
+  build: (b) => {
+    // Three chairs along the mirror wall, a waiting bench by the door, the clipper counter
+    for (const x of [-4.2, -1.4, 1.4]) barberChair(b, x, -3.6);
+    b.box(0x111827, 8.2, 0.08, 0.12, -1.4, 1.55, -4.7);
+    bench(b, -2.2, 3.6, 4.2, 0x78350f);
+    b.box(0x7f1d1d, 2.4, 1.05, 0.7, 4.6, 0, 0.4).box(0xe7e5e4, 2.6, 0.06, 0.85, 4.6, 1.05, 0.4);
+    // Clippers, a tin of oil, and a striped pole by the counter
+    for (const x of [3.9, 4.5, 5.1]) b.box(0x111827, 0.08, 0.06, 0.22, x, 1.12, 0.35);
+    b.cylinder(0xfacc15, 0.08, 0.12, 5.5, 1.12, 0.55, { sides: 10 });
+    b.cylinder(0xef4444, 0.1, 1.6, 6.2, 0, 3.2).cylinder(0xf8fafc, 0.1, 0.4, 6.2, 0.5, 3.2).cylinder(0x1d4ed8, 0.1, 0.4, 6.2, 1.1, 3.2);
+    shelf(b, -6.2, 0.2, 2.2, [0xef4444, 0xfacc15, 0x1d4ed8, 0x111827], Math.PI / 2);
+    b.box(0x0a0a0a, 1.6, 0.9, 0.08, 4.6, 2.2, -4.6).box(0x22c55e, 1.4, 0.7, 0.02, 4.6, 2.2, -4.55, { glow: true });
+  },
+  staff: [
+    { name: 'Master Kazeem', title: 'Barber', at: [3.2, -0.6], facing: Math.PI, outfit: 0x111827, gender: 'male', says: 'Which cut? Sit down, I go do you well.' },
+  ],
+  regulars: [{ at: [-3.2, 3.6], facing: Math.PI, outfit: 0x1d4ed8, sit: true }],
+  stations: [
+    { id: 'wait', name: '🪑 The waiting bench', at: [-1.2, 3.6], stand: [-1.2, 2.4], who: 'Master Kazeem', role: 'Barber', text: 'Have a seat. I go soon call you.', choices: [
+      { label: 'Wait for the chair', note: 'No charge', sit: true, seconds: 3, said: 'You wait. The clippers buzz on the customer ahead of you. Then he nods you over.' },
+    ] },
+    { id: 'chair', name: '💈 The barber’s chair', at: [-1.4, -3.6], stand: [-1.4, -2.1], who: 'Master Kazeem', role: 'Barber', text: 'Which cut? The price is on it. You pay when I finish.', choices: [
+      cut('A low cut', 1500, 'low_cut', 'Clippers over the crown, a clean edge. You stand up with a low cut.', 'none'),
+      cut('A skin fade', 2000, 'buzz', 'Taken down to the skin at the sides, a shadow on top. Fresh.', 'stubble'),
+      cut('A low fade', 2500, 'fade', 'Full on top, faded low. He dusts your neck with the brush.', 'none'),
+      cut('A high fade', 3000, 'high_top', 'High on the sides, a block on top. Sharp.', 'goatee'),
+      cut('An afro', 2000, 'afro', 'He picks it out. A full afro.', 'none'),
+      cut('Waves', 3500, 'waves', 'Brush, durag off, the waves catch the light.', 'moustache'),
+      cut('A low cut and a full beard', 2500, 'low_cut', 'The beard is lined, the hair is low. You look like you have somewhere to be.', 'full'),
+    ] },
+  ],
+};
+
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS];
