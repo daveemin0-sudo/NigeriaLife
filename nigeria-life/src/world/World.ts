@@ -17,6 +17,7 @@ import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
 import { Expressway } from './expressway/Expressway';
 import { EXPRESS, SIDE_ROADS } from './expressway/layout';
+import { MAIN_CORRIDOR_HALF, MAIN_ROAD } from './density/StreetLayout';
 import { WorldMap } from './map/WorldMap';
 import { shareAbroad } from './StreetLife';
 import { RouteLine } from './map/RouteLine';
@@ -529,6 +530,12 @@ export class World {
     // Lagos districts, asked of Lagos by name
     const district = this.dataManager.districtIn('lagos', pos);
     if (district) {
+      // Broad Street is Lagos Island. The barbers, the compound and Balogun sit on it,
+      // so the corner does not borrow Victoria Island's name from a box drawn too far north.
+      const onBroad = district.id === 'lagos_island'
+        && Math.abs(pos.x) <= MAIN_CORRIDOR_HALF + 2
+        && pos.z >= MAIN_ROAD.zMin && pos.z <= MAIN_ROAD.zMax;
+      if (onBroad) return { name: 'Lagos Island', sub: 'Broad Street' };
       return { name: district.name, sub: district.subtitle };
     }
 
