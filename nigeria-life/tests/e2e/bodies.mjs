@@ -219,13 +219,11 @@ export async function run(browser, check) {
     const lateral = () => Math.abs((a.z + (a.oz ?? 0)) - a.z);
     const before = lateral();
     v.honk();
-    return { i, before, heading };
+    const crowdNow = g.world.cityPopulation;
+    for (let n = 0; n < 45; n++) crowdNow.update(1 / 30, g.player.position);
+    return { i, before, heading, moved: +Math.hypot(a.ox ?? 0, a.oz ?? 0).toFixed(2), told: /comot|jam me|dey pass|horn sef|road dey/.test(document.body.innerText) };
   });
-  await wait(1500);
-  const afterHorn = await page.evaluate((h) => {
-    const a = window.game.world.cityPopulation.agents[h.i];
-    return { moved: +Math.hypot(a.ox ?? 0, a.oz ?? 0).toFixed(2), told: /comot|jam me|dey pass|horn sef|road dey/.test(document.body.innerText) };
-  }, horn);
+  const afterHorn = horn;
   check('bodies: a horn sends the person in front of the car to the side, and they say so', afterHorn.moved > 0.8 && afterHorn.told, afterHorn);
 
   check('bodies: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));

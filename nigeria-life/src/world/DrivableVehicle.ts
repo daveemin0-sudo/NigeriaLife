@@ -1817,9 +1817,10 @@ export class DrivableVehicle {
 
   /**
    * Moves the vehicle to (x, z) unless that would drive it further into another vehicle or into
-   * someone. A driver who is stopped by one is told how to get out of it.
+   * someone. A person, or a car hit square, stops it. A car clipped at an angle is slid along,
+   * so a brush does not kill the speed and throw the next correction into a weave.
    */
-  private moveUnlessBlocked(x: number, z: number): boolean {
+  private moveUnlessBlocked(x: number, z: number, delta = 1 / 60): boolean {
     const pos = this.mesh.position;
     if (DrivableVehicle.ignoreBodies) {
       pos.x = x;
@@ -1834,6 +1835,23 @@ export class DrivableVehicle {
       pos.x = x;
       pos.z = z;
       return true;
+    }
+    if (!intoPerson) {
+      const dx = x - pos.x;
+      const dz = z - pos.z;
+      const tryX = this.crowding(pos.x + dx, pos.z);
+      const tryZ = this.crowding(pos.x, pos.z + dz);
+      const xOk = tryX.cars <= now.cars + 1e-3 && tryX.people <= now.people + 1e-3;
+      const zOk = tryZ.cars <= now.cars + 1e-3 && tryZ.people <= now.people + 1e-3;
+      const length = Math.hypot(dx, dz);
+      const slideX = xOk && (!zOk || Math.abs(dx) >= Math.abs(dz));
+      const along = length > 0 ? Math.abs((slideX ? dx : dz)) / length : 0;
+      if ((xOk || zOk) && along >= 0.45) {
+        this.currentSpeed *= Math.exp(-3 * (1 - along) * delta);
+        if (slideX) pos.x += dx;
+        else pos.z += dz;
+        return true;
+      }
     }
     this.currentSpeed = 0;
     if (this.driver && performance.now() - this.bumpToastAt > 3500) {
@@ -2040,12 +2058,12 @@ export class DrivableVehicle {
       this.currentSpeed *= along * Math.exp(-1.5 * delta);
       // Now travelling along the wall, not into it
       this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
-      if (slideX) this.moveUnlessBlocked(pos.x + stepX, pos.z);
-      else this.moveUnlessBlocked(pos.x, pos.z + stepZ);
+      if (slideX) this.moveUnlessBlocked(pos.x + stepX, pos.z, delta);
+      else this.moveUnlessBlocked(pos.x, pos.z + stepZ, delta);
       return;
     }
 
     this.warnAhead();
-    this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ);
+    this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta);
   }
 }

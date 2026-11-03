@@ -212,7 +212,40 @@ export async function run(browser, check) {
   );
 
   // ---------------------------------------------------------------------------------------
-  // 7. Real keys through the running game
+  // 7. Clipping another car on the angle keeps the car moving; driving straight into one still stops
+  // ---------------------------------------------------------------------------------------
+  const glance = await page.evaluate(() => {
+    const g = window.game;
+    const v = g.player.currentVehicle;
+    const ts = g.world.trafficSpawner;
+    const out = [];
+    ts.cars(0, 0, 500, out);
+    const parked = new Set(ts.parked.map((p) => `${p.x.toFixed(2)},${p.z.toFixed(2)}`));
+    const car = out.find((c) => parked.has(`${c.x.toFixed(2)},${c.z.toFixed(2)}`) && Math.abs(c.yaw) < 0.4);
+    if (!car) return { ok: false };
+    const heading = car.yaw + 0.55;
+    const back = car.halfLength + 5;
+    v.mesh.position.set(car.x - Math.sin(heading) * back - Math.cos(heading) * 1.4, 0, car.z - Math.cos(heading) * back + Math.sin(heading) * 1.4);
+    v.mesh.rotation.y = heading;
+    v.currentSpeed = 8;
+    v.steerInput = 0;
+    v.velocityDirection.set(Math.sin(heading), Math.cos(heading));
+    const V = v.constructor;
+    const saved = V.roads;
+    V.roads = null;
+    for (let i = 0; i < 90; i++) v.update(1 / 60, {});
+    V.roads = saved;
+    const travelled = Math.hypot(v.mesh.position.x - (car.x - Math.sin(heading) * back), v.mesh.position.z - (car.z - Math.cos(heading) * back));
+    return { ok: true, speed: +v.currentSpeed.toFixed(2), travelled: +travelled.toFixed(2) };
+  });
+  check(
+    'steering: clipping a parked car at an angle keeps the car moving instead of stopping dead',
+    glance.ok && glance.speed > 2 && glance.travelled > 6,
+    glance
+  );
+
+  // ---------------------------------------------------------------------------------------
+  // 8. Real keys through the running game
   // ---------------------------------------------------------------------------------------
   await page.evaluate((LANE) => {
     const v = window.game.player.currentVehicle;
