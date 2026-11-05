@@ -5,6 +5,7 @@
 //   NL_ADMIN_KEY=...                     turns on the admin page at /admin (off without a key)
 //   NL_KEY=...                           a room key every request must carry (private servers)
 //   NL_PUBLIC_URL=https://...            the address sign-in links point to
+//   NL_MAX_PLAYERS=300                   players this process admits before the next waits in line
 //   NL_DEV=1                             sign-in links are also returned to the game (tests)
 //
 // What it does: accounts (guest, then email sign-in to keep progress), the money (every online
@@ -31,7 +32,7 @@ import { ServerMarriage } from './marriage.ts';
 import { ServerChieftaincy } from './chieftaincy.ts';
 import { ServerMotors } from './motors.ts';
 import { Registry } from './registry.ts';
-import { Rooms } from './rooms.ts';
+import { DEFAULT_MAX_PLAYERS, Rooms } from './rooms.ts';
 import { RateLimit } from './accounts.ts';
 import { openStore } from './store.ts';
 
@@ -55,7 +56,7 @@ const db = openStore(DATA_DIR);
 const accounts = new Accounts(db, consoleMailer, PUBLIC_URL, DEV, Number(process.env.NL_GUESTS_PER_HOUR || (DEV ? 1000 : 10)));
 const registry = new Registry(DATA_DIR, CORS);
 const server = http.createServer((req, res) => void route(req, res));
-const rooms = new Rooms(server, accounts, db);
+const rooms = new Rooms(server, accounts, db, Number(process.env.NL_MAX_PLAYERS) || DEFAULT_MAX_PLAYERS);
 const economy = new Economy(db, (id) => rooms.positionOf(id));
 const hustle = new Hustle(db, economy);
 const league = new League(db, economy);
@@ -213,7 +214,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
     }
     if (req.method === 'GET' && url.pathname === '/health') {
       const counts = accounts.counts();
-      return reply(res, 200, { ok: true, name: 'Nigeria Life game server', version: registry.version, players: rooms.online().players + registry.listening, online: rooms.online().players, accounts: counts.all, verified: counts.verified });
+      return reply(res, 200, { ok: true, name: 'Nigeria Life game server', version: registry.version, players: rooms.online().players + registry.listening, online: rooms.online().players, queued: rooms.online().queued, accounts: counts.all, verified: counts.verified });
     }
     if (await registry.handle(req, res, url, reply, readBody)) return;
 
@@ -466,6 +467,13 @@ async function admin(req: http.IncomingMessage, res: http.ServerResponse, url: U
   switch (`${req.method} ${url.pathname}`) {
     case 'GET /admin/stats':
       return reply(res, 200, { ok: true, online: rooms.online(), accounts: accounts.counts(), economy: economy.totals() });
+    case 'GET /admin/metrics': {
+      const mem = process.memoryUsage();
+      return reply(res, 200, { ok: true, rooms: rooms.metrics(), memoryMb: { rss: Math.round(mem.rss / 1048576), heap: Math.round(mem.heapUsed / 1048576) }, cpu: process.cpuUsage(), uptimeS: Math.round(process.uptime()) });
+    }
+    case 'POST /admin/metrics/reset':
+      rooms.resetMetrics();
+      return reply(res, 200, { ok: true, cpu: process.cpuUsage() });
     case 'GET /admin/devices':
       return reply(res, 200, { ok: true, devices: Array.from(devices, ([id, d]) => ({ id, ...d }) as Record<string, unknown>).filter((d) => Date.now() - Number(d.at) < 10 * 60_000) });
     case 'GET /admin/reports':

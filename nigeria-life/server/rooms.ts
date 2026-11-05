@@ -17,6 +17,11 @@
  *   tie, offer, offer_update   to the one asked, unless they blocked the sender
  *   p2p_transfer   refused: money between players goes through the economy (POST /money/send)
  * The server adds `wallet` (the player's balance after any change) and `welcome`.
+ *
+ * One process takes at most `maxPlayers` (NL_MAX_PLAYERS; measured in docs/LOADTEST.md). The
+ * next player is held in a line and sent `{ type: 'queued', position, ahead }` until a place
+ * opens; they are then admitted with the usual `welcome` without doing anything. Someone who is
+ * already in (a second tab, a reconnect) never waits.
  */
 import type http from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -29,6 +34,9 @@ import { alert } from './store.ts';
 export const INSTANCE_SIZE = 200;
 const INTEREST = 120;
 const NEAR_CHAT = 40;
+/** Players further than this are sent at most every FAR_EVERY_MS: they are small on screen */
+const NEAR_FULL_RATE = 40;
+const FAR_EVERY_MS = 300;
 const TICK_MS = 100;
 /** Chat: at most this many messages in this many ms from one player */
 const CHAT_BURST = 3;
@@ -38,6 +46,36 @@ const TELEPORT_SPEED = 90;
 const DISTRUST_MS = 10_000;
 /** Jumps in ten minutes before one is raised as an alert */
 const TELEPORT_ALERT_AFTER = 5;
+/** Players one process admits before the next waits in line, unless NL_MAX_PLAYERS says otherwise */
+export const DEFAULT_MAX_PLAYERS = 300;
+/** A socket this far behind on sending is skipped for a tick of positions rather than buffering more */
+const SLOW_SOCKET_BYTES = 512 * 1024;
+/** Tick times kept for the metrics */
+const TICK_SAMPLES = 600;
+
+/** How the process is coping, for the admin page and the load test */
+export interface RoomMetrics {
+  players: number;
+  queued: number;
+  maxPlayers: number;
+  instances: number;
+  tick: { avgMs: number; p95Ms: number; maxMs: number; budgetMs: number };
+  messagesIn: number;
+  messagesOut: number;
+  bytesOut: number;
+  /** What actually went over the wire to the players connected now, after compression */
+  wireBytesOut: number;
+  /** Position batches skipped because a socket was too far behind */
+  dropped: number;
+  admittedFromQueue: number;
+}
+
+interface Waiting {
+  ws: WebSocket;
+  account: Account;
+  since: number;
+  lean: boolean;
+}
 
 interface NetState {
   id: string;
@@ -59,6 +97,18 @@ interface Client {
   changed: number;
   /** Who this player can see, and when each was last sent to them */
   seen: Map<string, number>;
+  /** When this player's look (config) last changed */
+  lookChanged: number;
+  lookText: string;
+  /** For each player in sight, the look change this player was last sent */
+  lookSeen: Map<string, number>;
+  /** For each player in sight, when they were last sent to this player */
+  sentAt: Map<string, number>;
+  /** This player's state as packets, written once per change, not once per viewer */
+  fullPacket: string;
+  leanPacket: string;
+  /** The game said it understands a state without the look when the look has not changed */
+  lean: boolean;
   chats: number[];
   distrustUntil: number;
   jumps: number[];
@@ -72,11 +122,28 @@ export class Rooms {
   private accounts: Accounts;
   private db: Store;
   private timer: NodeJS.Timeout;
+  private readonly maxPlayers: number;
+  private queue: Waiting[] = [];
+  private tickTimes: number[] = [];
+  private wireAtReset = 0;
+  private wireBytes(): number {
+    let total = 0;
+    for (const c of this.clients.values()) total += (c.ws as unknown as { _socket?: { bytesWritten?: number } })._socket?.bytesWritten ?? 0;
+    return total;
+  }
+  private counts = { messagesIn: 0, messagesOut: 0, bytesOut: 0, dropped: 0, admittedFromQueue: 0 };
 
-  constructor(server: http.Server, accounts: Accounts, db: Store) {
+  constructor(server: http.Server, accounts: Accounts, db: Store, maxPlayers = DEFAULT_MAX_PLAYERS) {
     this.accounts = accounts;
     this.db = db;
-    this.wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+    this.maxPlayers = Math.max(1, Math.floor(maxPlayers));
+    // Compression: positions repeat the same keys, so they shrink well. Off with NL_DEFLATE=0.
+    const deflate = process.env.NL_DEFLATE !== '0';
+    this.wss = new WebSocketServer({
+      noServer: true,
+      maxPayload: 64 * 1024,
+      perMessageDeflate: deflate ? { threshold: 256, zlibDeflateOptions: { level: 1 }, serverNoContextTakeover: false, clientNoContextTakeover: true } : false,
+    });
     server.on('upgrade', (req, socket, head) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (url.pathname !== '/play') return socket.destroy();
@@ -85,7 +152,8 @@ export class Rooms {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         return socket.destroy();
       }
-      this.wss.handleUpgrade(req, socket, head, (ws) => this.join(ws, account));
+      const lean = url.searchParams.get('proto') === '2';
+      this.wss.handleUpgrade(req, socket, head, (ws) => this.admitOrQueue(ws, account, lean));
     });
     this.timer = setInterval(() => this.tick(), TICK_MS);
   }
@@ -93,6 +161,8 @@ export class Rooms {
   public close(): void {
     clearInterval(this.timer);
     for (const c of this.clients.values()) c.ws.close();
+    for (const w of this.queue) w.ws.close();
+    this.queue = [];
     this.wss.close();
   }
 
@@ -103,10 +173,82 @@ export class Rooms {
     return c.position;
   }
 
-  public online(): { players: number; byInstance: Record<string, number> } {
+  public online(): { players: number; queued: number; byInstance: Record<string, number> } {
     const byInstance: Record<string, number> = {};
     for (const [key, members] of this.instances) if (members.size) byInstance[key] = members.size;
-    return { players: this.clients.size, byInstance };
+    return { players: this.clients.size, queued: this.queue.length, byInstance };
+  }
+
+  public metrics(): RoomMetrics {
+    const times = [...this.tickTimes].sort((a, b) => a - b);
+    const avg = times.length ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+    const p95 = times.length ? times[Math.min(times.length - 1, Math.floor(times.length * 0.95))] : 0;
+    const round = (n: number) => Math.round(n * 100) / 100;
+    return {
+      players: this.clients.size,
+      queued: this.queue.length,
+      maxPlayers: this.maxPlayers,
+      instances: Array.from(this.instances.values()).filter((m) => m.size > 0).length,
+      tick: { avgMs: round(avg), p95Ms: round(p95), maxMs: round(times.at(-1) ?? 0), budgetMs: TICK_MS },
+      ...this.counts,
+      wireBytesOut: this.wireBytes() - this.wireAtReset,
+    };
+  }
+
+  /** Clears the tick samples and counters, so a load-test step measures only itself. */
+  public resetMetrics(): void {
+    this.wireAtReset = this.wireBytes();
+    this.tickTimes = [];
+    this.counts = { messagesIn: 0, messagesOut: 0, bytesOut: 0, dropped: 0, admittedFromQueue: 0 };
+  }
+
+  // --- The line to get in -----------------------------------------------------------------------
+
+  private admitOrQueue(ws: WebSocket, account: Account, lean = false): void {
+    // Already playing (another tab, a reconnect) or room to spare, and nobody waiting ahead
+    if (this.clients.has(account.id) || (this.clients.size < this.maxPlayers && this.queue.length === 0)) {
+      return this.join(ws, account, lean);
+    }
+    // The same account waiting twice keeps only its newest socket, at the old place in line
+    const existing = this.queue.find((w) => w.account.id === account.id);
+    if (existing) {
+      existing.ws.close(4001, 'Signed in somewhere else');
+      existing.ws = ws;
+      existing.lean = lean;
+    } else {
+      this.queue.push({ ws, account, since: Date.now(), lean });
+    }
+    const waiting = this.queue.find((w) => w.ws === ws)!;
+    ws.on('close', () => {
+      const i = this.queue.indexOf(waiting);
+      if (i >= 0 && waiting.ws === ws) {
+        this.queue.splice(i, 1);
+        this.tellQueue(i);
+      }
+    });
+    this.tellQueue(this.queue.indexOf(waiting));
+  }
+
+  /** Tells everyone from this place in line on their new position. */
+  private tellQueue(from = 0): void {
+    for (let i = Math.max(0, from); i < this.queue.length; i++) {
+      const w = this.queue[i];
+      if (w.ws.readyState === w.ws.OPEN) w.ws.send(JSON.stringify({ type: 'queued', position: i + 1, ahead: i, online: this.clients.size }));
+    }
+  }
+
+  /** Lets in whoever is next while there is room. */
+  private admitNext(): void {
+    let admitted = false;
+    while (this.queue.length && this.clients.size < this.maxPlayers) {
+      const next = this.queue.shift()!;
+      if (next.ws.readyState !== next.ws.OPEN) continue;
+      next.ws.removeAllListeners('close');
+      this.counts.admittedFromQueue++;
+      this.join(next.ws, next.account, next.lean);
+      admitted = true;
+    }
+    if (admitted) this.tellQueue();
   }
 
   /** Sends one player a message (their new balance, say). */
@@ -141,7 +283,7 @@ export class Rooms {
     return Array.from(this.instances.get(instance) ?? [], (id) => this.clients.get(id)).filter((c): c is Client => !!c);
   }
 
-  private join(ws: WebSocket, account: Account): void {
+  private join(ws: WebSocket, account: Account, lean = false): void {
     // One connection per account: a second one replaces the first
     const old = this.clients.get(account.id);
     if (old) {
@@ -149,11 +291,12 @@ export class Rooms {
       old.ws.close(4001, 'Signed in somewhere else');
     }
     const city = 'lagos';
-    const client: Client = { ws, account, city, instance: this.place(account.id, city), state: null, stateText: '', changed: 0, seen: new Map(), chats: [], distrustUntil: 0, jumps: [], position: null };
+    const client: Client = { ws, account, city, instance: this.place(account.id, city), state: null, stateText: '', changed: 0, seen: new Map(), lookChanged: 0, lookText: '', lookSeen: new Map(), sentAt: new Map(), fullPacket: '', leanPacket: '', lean, chats: [], distrustUntil: 0, jumps: [], position: null };
     this.clients.set(account.id, client);
     this.send(client, { type: 'welcome', id: account.id, name: account.name, verified: account.verified, instance: client.instance });
 
     ws.on('message', (raw) => {
+      this.counts.messagesIn++;
       let packet: Record<string, unknown>;
       try {
         packet = JSON.parse(String(raw));
@@ -166,11 +309,19 @@ export class Rooms {
       if (this.clients.get(account.id) !== client) return;
       this.leaveInstance(client);
       this.clients.delete(account.id);
+      this.admitNext();
     });
   }
 
   private send(c: Client, message: unknown): void {
-    if (c.ws.readyState === c.ws.OPEN) c.ws.send(JSON.stringify(message));
+    this.sendText(c, JSON.stringify(message));
+  }
+
+  private sendText(c: Client, text: string): void {
+    if (c.ws.readyState !== c.ws.OPEN) return;
+    this.counts.messagesOut++;
+    this.counts.bytesOut += text.length;
+    c.ws.send(text);
   }
 
   private blocked(by: string, sender: string): boolean {
@@ -277,6 +428,17 @@ export class Rooms {
       c.state = state;
       c.stateText = text;
       c.changed = now;
+      const lookText = JSON.stringify((player as { config?: unknown }).config ?? null);
+      if (lookText !== c.lookText) {
+        c.lookText = lookText;
+        c.lookChanged = now;
+      }
+      c.fullPacket = `{"type":"state","player":${text}}`;
+      // Without the look, the name (the game keeps the last one) and with positions to the centimetre
+      const { config: _look, name: _name, ...motion } = state as NetState;
+      const cm = (n: unknown) => (typeof n === 'number' ? Math.round(n * 100) / 100 : n);
+      const lean = { ...motion, position: { x: cm(state.position.x), y: cm(state.position.y), z: cm(state.position.z) }, rotationY: cm(motion.rotationY) };
+      c.leanPacket = `{"type":"state","player":${JSON.stringify(lean)}}`;
     }
   }
 
@@ -321,29 +483,54 @@ export class Rooms {
 
   /** Ten times a second: each player is sent the players in sight whose state changed. */
   private tick(): void {
+    const started = performance.now();
+    try {
+      this.sendPositions();
+    } finally {
+      this.tickTimes.push(performance.now() - started);
+      if (this.tickTimes.length > TICK_SAMPLES) this.tickTimes.splice(0, this.tickTimes.length - TICK_SAMPLES);
+    }
+  }
+
+  private sendPositions(): void {
+    const now = Date.now();
     for (const [key, members] of this.instances) {
       if (members.size === 0) continue;
       const list = this.membersOf(key);
       for (const viewer of list) {
         if (!viewer.state) continue;
-        const packets: unknown[] = [];
+        // A phone on a bad line: let its socket drain instead of piling more positions on it.
+        // What it misses is sent next tick, because `seen` is only updated when a batch goes out.
+        if (viewer.ws.bufferedAmount > SLOW_SOCKET_BYTES) {
+          this.counts.dropped++;
+          continue;
+        }
+        const packets: string[] = [];
         for (const other of list) {
           if (other === viewer || !other.state) continue;
-          const inSight =
-            (other.state.place ?? '') === (viewer.state.place ?? '') &&
-            Math.hypot(other.state.position.x - viewer.state.position.x, other.state.position.z - viewer.state.position.z) <= INTEREST;
+          const distance = Math.hypot(other.state.position.x - viewer.state.position.x, other.state.position.z - viewer.state.position.z);
+          const inSight = (other.state.place ?? '') === (viewer.state.place ?? '') && distance <= INTEREST;
           const sent = viewer.seen.get(other.account.id);
           if (inSight) {
-            if (sent === undefined || other.changed > sent) {
-              packets.push({ type: 'state', player: other.state });
+            // Far players are sent less often; what is skipped goes out on a later tick
+            const tooSoon = sent !== undefined && distance > NEAR_FULL_RATE && now - (viewer.sentAt.get(other.account.id) ?? 0) < FAR_EVERY_MS;
+            if ((sent === undefined || other.changed > sent) && !tooSoon) {
+              viewer.sentAt.set(other.account.id, now);
+              // The look goes to someone seeing this player for the first time or after it changed;
+              // otherwise a game that understands it is sent only where they are and what they are doing
+              const needsLook = !viewer.lean || sent === undefined || other.lookChanged > (viewer.lookSeen.get(other.account.id) ?? -1);
+              packets.push(needsLook ? other.fullPacket : other.leanPacket);
+              if (needsLook) viewer.lookSeen.set(other.account.id, other.lookChanged);
               viewer.seen.set(other.account.id, other.changed);
             }
           } else if (sent !== undefined) {
             viewer.seen.delete(other.account.id);
-            packets.push({ type: 'leave', id: other.account.id });
+            viewer.lookSeen.delete(other.account.id);
+            viewer.sentAt.delete(other.account.id);
+            packets.push(`{"type":"leave","id":${JSON.stringify(other.account.id)}}`);
           }
         }
-        if (packets.length) this.send(viewer, { type: 'batch', packets });
+        if (packets.length) this.sendText(viewer, `{"type":"batch","packets":[${packets.join(',')}]}`);
       }
     }
   }

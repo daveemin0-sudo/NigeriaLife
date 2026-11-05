@@ -11,6 +11,7 @@ import type { EmoteType } from '../player/CharacterCustomization';
 import { InteriorManager } from '../interiors/InteriorManager';
 import { ServerLink } from '../realestate/ServerLink';
 import { OnlineAccount } from '../online/OnlineAccount';
+import { ServerQueueScreen } from '../ui/ServerQueueScreen';
 
 /** How games reach each other: a channel between tabs of one browser, or the world server between devices. */
 interface Wire {
@@ -60,6 +61,8 @@ export class NetworkManager {
   /** The city the player is in, for the server's rooms: set by the game */
   public static city: () => string = () => 'lagos';
   private online: OnlineAccount | null;
+  /** Shown while the server is full and this player is waiting in line */
+  private queueScreen: ServerQueueScreen | null = null;
 
   constructor(scene: THREE.Scene, localPlayer: Player) {
     NetworkManager.instance = this;
@@ -67,6 +70,8 @@ export class NetworkManager {
     this.localPlayer = localPlayer;
     const link = ServerLink.get();
     this.online = OnlineAccount.get();
+    // The game server sends positions ten times a second, so sending them more often only costs data
+    if (this.online) this.broadcastInterval = 100;
     // On a server, a game's id is the one the server knows it by, so the server can say when it has gone
     this.localId = this.online?.id ?? (link ? `net_${link.clientId.slice(0, 8)}` : `naija_${Math.random().toString(36).substring(2, 8)}`);
 
@@ -75,7 +80,12 @@ export class NetworkManager {
     this.channel.onmessage = (event) => this.handleMessage(event as MessageEvent);
     if (this.online) {
       // The server says who this player is, and announces money other players send
+      this.online.on('queued', (message) => {
+        this.queueScreen ??= new ServerQueueScreen();
+        this.queueScreen.show(Number(message.position) || 1);
+      });
       this.online.on('welcome', (message) => {
+        this.queueScreen?.hide();
         this.localId = message.id;
         this.broadcastJoin();
       });
@@ -142,6 +152,8 @@ export class NetworkManager {
       if (state.id === this.localId) return;
 
       if (!this.remotePlayers.has(state.id)) {
+        // Someone new is only drawn once their look has arrived
+        if (!state.config) return;
         // Spawn new player in Lagos world
         const newRemote = new RemotePlayer(state);
         this.remotePlayers.set(state.id, newRemote);

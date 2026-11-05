@@ -30,7 +30,7 @@ Do not rebuild this on Colyseus. Rooms and interest management are already on `w
 | 1.4 | Database | **Partial** | Node's built-in SQLite in `server/store.ts`. Postgres and Redis are not set up. One process does not need Redis. |
 | 1.5 | Server-authoritative economy | **Partial** | `server/economy.ts`: ledger, idempotency, nothing below zero, held windfalls, local import capped. Server-checked: worksite shifts (including CcHUB, the refinery and LASTMA), gigs (the generator, phone and life work, career shifts), plot takings, quest, album and case payouts, and the NaijaBet draw. Also player transfers, registry sales and rent, staff, owambe, marriage, motors, chieftaincy, film and the bookmaker. What the game still reports is capped at ₦48,000 in ten minutes. |
 | 1.6 | Chat: city / proximity / DM, filter, report, mute, block, slow mode, moderation | **Done** | `server/rooms.ts`, `server/chatFilter.ts`, admin mute and ban. The word list still needs native-speaker review. |
-| 1.7 | Reliability | **Partial** | `/health`, clean shutdown, the game reconnects. No process supervisor, no join queue, no public status page, no bot load test. |
+| 1.7 | Reliability | **Partial** | `/health` (now with `queued`), clean shutdown, the game reconnects. Load test of the real server (`npm run loadtest`, `docs/LOADTEST.md`): about 300 players per core, 120 on Render Starter. Join queue past `NL_MAX_PLAYERS` (`server/rooms.ts`, `src/ui/ServerQueueScreen.ts`, `queue` suite). pm2 config for a VPS (`ecosystem.config.cjs`). Positions sent once per look change and compressed: ~7 KB/s per player in a crowd, down from ~300. Still missing: a public status page, and more than one process (needs Postgres). |
 | 1.8 | Admin panel | **Done** | `/admin` on the game server when `NL_ADMIN_KEY` is set: counts, held money, ledger, mute, ban, grant. There is no separate `admin/` app. |
 
 Playing on a home network: `npm run build`, then `npm run server`, then open `http://<that computer>:8787/` on each phone.
@@ -105,7 +105,7 @@ These cost money or need an account with another company. They do not block the 
 
 Phase 1 runs. The next work is the holes in it, then the Phase 2 rows that are still missing, each with a `SAVE_SCHEMA_VERSION` bump and a migration before the feature.
 
-1. A bot load test of one process, then a supervisor and a "server busy" queue. Do not add cities or cosmetics before that limit is known.
+1. ~~A bot load test of one process, then a supervisor and a "server busy" queue.~~ Done 5 November: see `docs/LOADTEST.md`. Open from that work: in the two-browser `online` suite, the lorry loaded at the port is not paid in the game (the server suite pays it), and `/ads` answers 401 before sign-in. Both fail the same way without these changes.
 2. Move the next client-reported earners onto the server (fares, Eko Rides, the ladder), so the ₦48,000 allowance can shrink again.
 3. Phase 2, in this order: traits (new save fields), weekly Lapo instalments and a real eviction, PAYE and VAT, NEPA that actually switches appliances off, hours on the venues that never shut, then a player arrest with a record.
 4. Do not rebuild multiplayer, the clock, the six need bars, the employer table, elections, marriage, owambe, Yarn, or the billboard rental. Extend those.

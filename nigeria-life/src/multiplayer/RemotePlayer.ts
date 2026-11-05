@@ -136,14 +136,16 @@ export class RemotePlayer {
     this.targetRotationY = state.rotationY;
     this.isMoving = state.isMoving;
     this.currentEmote = state.currentEmote;
-    this.name = state.name;
+    // A state without a name keeps the one already known
+    if (state.name) this.name = state.name;
     // Someone inside a building is not on the street to be seen, and someone driving is inside their vehicle
     this.mesh.visible = !state.place && !state.driving;
     this.place = state.place ?? null;
     this.driving = !!state.driving;
     this.seated = state.pose?.legs === 'sit';
     this.pose = state.pose ? { legs: state.pose.legs, arms: state.pose.arms, height: state.pose.height } : null;
-    this.rebuildBody(state.config);
+    // The server leaves the look out when it has not changed since it was last sent
+    if (state.config) this.rebuildBody(state.config);
 
     if (state.chatBubble && Date.now() - state.chatBubble.timestamp < 5000) {
       this.showSpeechBubble(state.chatBubble.text);

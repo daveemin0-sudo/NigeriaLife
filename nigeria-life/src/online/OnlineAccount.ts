@@ -205,7 +205,8 @@ export class OnlineAccount {
 
   private connect(): void {
     if (!this.token || this.closedForGood) return;
-    const url = `${this.base.replace(/^http/, 'ws')}/play?token=${encodeURIComponent(this.token)}`;
+    // proto=2: this game understands a player's state without their look when it has not changed
+    const url = `${this.base.replace(/^http/, 'ws')}/play?token=${encodeURIComponent(this.token)}&proto=2`;
     let socket: WebSocket;
     try {
       socket = new WebSocket(url);
@@ -229,7 +230,7 @@ export class OnlineAccount {
         for (const packet of message.packets ?? []) this.emit('packet', packet);
       } else if (message.type === 'wallet') {
         this.setWallet(message.wallet);
-      } else if (message.type === 'welcome' || message.type === 'refused' || message.type === 'transfer') {
+      } else if (message.type === 'welcome' || message.type === 'refused' || message.type === 'transfer' || message.type === 'queued') {
         if (message.type === 'welcome' && this.account) this.account = { ...this.account, id: message.id, name: message.name, verified: message.verified };
         this.emit(message.type, message);
       } else {

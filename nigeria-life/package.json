@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:e2e": "node tests/e2e/run.mjs",
-    "server": "node server/game-server.ts"
+    "server": "node server/game-server.ts",
+    "loadtest": "node server/loadtest.ts",
+    "supervise": "npx pm2 start ecosystem.config.cjs"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",

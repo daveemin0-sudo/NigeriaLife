@@ -20,6 +20,10 @@ services:
         value: /var/data
       - key: NL_ADMIN_KEY
         generateValue: true
+      # Starter is half a CPU core and 512 MB: about 120 players before the next waits in line
+      # (nigeria-life/docs/LOADTEST.md). Raise it with the plan, after another load test.
+      - key: NL_MAX_PLAYERS
+        value: "120"
     disk:
       name: nigerialife-data
       mountPath: /var/data
