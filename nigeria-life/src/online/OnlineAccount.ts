@@ -289,8 +289,9 @@ export class OnlineAccount {
    * Tells the server about money the game moved itself, in order. The server answers with the
    * balance as it holds it, which the game then shows (see BackendService.applyServerWallet).
    */
-  public report(cash: number, bank: number, memo: string): void {
-    const idem = this.idem('r');
+  public report(cash: number, bank: number, memo: string, known?: string): void {
+    // A payment that could be made twice (a week's rent on two devices) comes with its own name
+    const idem = known ? `${known}:${this.id ?? 'x'}`.slice(0, 80) : this.idem('r');
     this.reports = this.reports.then(async () => {
       await this.ready;
       const result = await this.request('/money/report', { cash, bank, memo, idem });

@@ -20,7 +20,6 @@ import { TransactionService, type ProcessTransactionRequest, type TransactionRes
 import { createFreshAccount, parseSavedAccount } from './SaveSchema';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { emitGameEvent } from '../game/GameEvents';
-import { showGameToast } from '../ui/GameToast';
 
 type ListenerCallback = (data: PlayerAccount) => void;
 
@@ -162,8 +161,9 @@ export class BackendService {
     }
   }
 
-  public processTransaction(req: ProcessTransactionRequest): TransactionResult {
-    this.syncFromStorage();
+  public processTransaction(req: ProcessTransactionRequest, fresh = true): TransactionResult {
+    // Inside `edit` the account is not reloaded halfway (fresh = false)
+    if (fresh) this.syncFromStorage();
     // A trait can make food, fares and fuel cheaper (src/life/Traits.ts)
     if (req.type === 'FOOD_PURCHASE' || req.type === 'TRAVEL_COST') {
       const amount = tradePrice(this.data.trait, req.type === 'FOOD_PURCHASE' ? 'food' : 'transport', req.amount);
@@ -184,8 +184,8 @@ export class BackendService {
       if (cash + bank !== 0) Activity.emit({ kind: 'money', type: req.type, amount: cash + bank, what: req.description });
       if (this.authority && !this.settling && (cash !== 0 || bank !== 0)) {
         const holding = this.heldReports[this.heldReports.length - 1];
-        if (holding) holding.push([cash, bank, `${req.type}: ${req.description}`]);
-        else this.authority.report(cash, bank, `${req.type}: ${req.description}`);
+        if (holding) holding.push([cash, bank, `${req.type}: ${req.description}`, req.idem]);
+        else this.authority.report(cash, bank, `${req.type}: ${req.description}`, req.idem);
       }
     }
     return res;
@@ -195,10 +195,25 @@ export class BackendService {
    * The game server, when the game is playing on one: it is told about every money movement
    * made here, and its answer is the balance (`applyServerWallet`). Null in this browser only.
    */
-  public authority: { report(cash: number, bank: number, memo: string): void } | null = null;
+  public authority: { report(cash: number, bank: number, memo: string, idem?: string): void } | null = null;
   private settling = false;
   /** Reports waiting for a registry change to be kept (see checkpoint) */
-  private heldReports: Array<Array<[number, number, string]>> = [];
+  private heldReports: Array<Array<[number, number, string, string | undefined]>> = [];
+
+  /** The game day now (the sky's), once the world is up: leases and loans are scheduled from it (src/life/Dues.ts) */
+  public dayNow: (() => number) | null = null;
+
+  /**
+   * Changes the saved account in place and saves it, for modules that keep their state in the
+   * account (src/life/Dues.ts). Another tab's newer save is taken first, once: `pay` moves money
+   * on the same copy, so a check made at the start still holds when the money moves.
+   */
+  public edit<T>(change: (data: PlayerAccount, pay: (req: ProcessTransactionRequest) => TransactionResult) => T): T {
+    this.syncFromStorage();
+    const out = change(this.data, (req) => this.processTransaction(req, false));
+    this.saveData();
+    return out;
+  }
 
   /** Money the server itself has already paid or taken (a job shift): shown here, not reported back. */
   public settledByServer<T>(work: () => T): T {
@@ -450,7 +465,9 @@ export class BackendService {
     if (!res.success) {
       return { success: false, message: res.message };
     }
-    this.data.activeLoan = { lender, amount: Math.round(repayTotal), weeklyRepayment: Math.round(repayTotal / 8) };
+    // Repaid weekly over eight weeks, the first a week from today (src/life/Dues.ts)
+    const today = this.dayNow?.();
+    this.data.activeLoan = { lender, amount: Math.round(repayTotal), weeklyRepayment: Math.round(repayTotal / 8), ...(today !== undefined ? { nextDueDay: today + 7 } : {}) };
     this.saveData();
     return {
       success: true,
@@ -458,7 +475,7 @@ export class BackendService {
     };
   }
 
-  /** Pay off the whole outstanding loan from the wallet and bank. */
+  /** Pay off the whole outstanding loan from the wallet and bank. A loan with no week missed counts in the player's favour. */
   public repayLoan(): { success: boolean; message: string } {
     this.syncFromStorage();
     const loan = this.data.activeLoan;
@@ -478,7 +495,9 @@ export class BackendService {
         message: `You owe ₦${loan.amount.toLocaleString()} to ${loan.lender} and cannot cover it yet.`,
       };
     }
+    const clean = !loan.everMissed;
     this.data.activeLoan = undefined;
+    this.data.credit = { cleanLoans: (this.data.credit?.cleanLoans ?? 0) + (clean ? 1 : 0), missed: this.data.credit?.missed ?? 0 };
     this.saveData();
     return { success: true, message: `Loan of ₦${loan.amount.toLocaleString()} to ${loan.lender} fully repaid.` };
   }
@@ -709,7 +728,7 @@ export class BackendService {
     const copy = JSON.stringify(this.data);
     // Money moved while a registry change is being made is only told to the game server once
     // that change is kept: if it is undone, the server never hears of it
-    const held: Array<[number, number, string]> = [];
+    const held: Array<[number, number, string, string | undefined]> = [];
     this.heldReports.push(held);
     let open = true;
     const close = (): boolean => {
@@ -726,7 +745,7 @@ export class BackendService {
     };
     return Object.assign(undo, {
       keep: () => {
-        if (close()) for (const [cash, bank, memo] of held) this.authority?.report(cash, bank, memo);
+        if (close()) for (const [cash, bank, memo, idem] of held) this.authority?.report(cash, bank, memo, idem);
       },
     });
   }
@@ -1000,14 +1019,15 @@ export class BackendService {
     return { success: true, message: `${prop.name} sold. ₦${value.toLocaleString()} paid into your bank account.` };
   }
 
-  /** Gives up a lease. Nothing is refunded. */
-  public endLease(propId: string): { success: boolean; message: string } {
-    this.syncFromStorage();
+  /** Gives up a lease. Nothing is refunded. (Inside `edit`, fresh = false.) */
+  public endLease(propId: string, fresh = true): { success: boolean; message: string } {
+    if (fresh) this.syncFromStorage();
     const prop = this.data.properties.find((entry) => entry.id === propId);
     if (!prop || prop.status !== 'rented') return { success: false, message: 'You are not renting that property.' };
     prop.status = 'available';
     prop.ownerId = '';
     if (this.data.activeHousingId === prop.id) this.data.activeHousingId = undefined;
+    if (this.data.leases) delete this.data.leases[prop.id];
     this.removeKeyFor(prop.id);
     WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
     this.saveData();
@@ -1211,6 +1231,13 @@ export class BackendService {
     prop.ownerId = this.data.id;
     if (rentMode) {
       this.data.activeHousingId = prop.id;
+      // What was paid covers the first four weeks; then rent is due every Saturday (src/life/Dues.ts)
+      const today = this.dayNow?.();
+      const leases = (this.data.leases ??= {});
+      if (today !== undefined) leases[prop.id] = { paidUntil: today + 28, arrears: 0 };
+      else delete leases[prop.id];
+    } else if (this.data.leases) {
+      delete this.data.leases[prop.id];
     }
 
     // Sync WorldDataManager so World Map & Street Mode reflect ownership immediately
@@ -1257,51 +1284,6 @@ export class BackendService {
       success: true,
       message: 'AC on blast, standby generator humming! Recharged 100% Energy & 100% Hunger.',
     };
-  }
-
-  /**
-   * Process weekly Saturday rent tick for any leased properties.
-   */
-  public processDailyRentTick(day: number): void {
-    const date = new Date(2026, 9, 7 + day);
-    // Saturday is day 6 of the week (0 = Sunday, 6 = Saturday)
-    if (date.getDay() !== 6) return;
-
-    const rentedProperties = this.data.properties.filter(
-      (p) => p.status === 'rented' && (p.ownerId === this.data.id || p.id === this.data.activeHousingId)
-    );
-
-    if (rentedProperties.length === 0) return;
-
-    for (const prop of rentedProperties) {
-      const weeklyDue = prop.weeklyRent ?? Math.max(100, Math.round(prop.rentalPriceMonthly / 4));
-      const totalFunds = this.data.bank.balance + this.data.walletCash;
-
-      if (totalFunds < weeklyDue) {
-        showGameToast(
-          `⚠️ Rent Overdue! ₦${weeklyDue.toLocaleString()} owed for ${prop.name}. Fund your bank or wallet to avoid eviction.`,
-          'warning',
-          5000
-        );
-        continue;
-      }
-
-      const tx = this.processTransaction({
-        type: 'RENT_PAYMENT',
-        amount: weeklyDue,
-        description: `Saturday Weekly Rent: ${prop.name}`,
-        source: this.data.bank.balance >= weeklyDue ? 'bank' : 'wallet',
-      });
-
-      if (tx.success) {
-        showGameToast(
-          `🏠 Saturday Rent Paid: ₦${weeklyDue.toLocaleString()} debited for ${prop.name}.`,
-          'info',
-          4000
-        );
-      }
-    }
-    this.saveData();
   }
 
   // === JOB SYSTEM ===
@@ -1572,10 +1554,13 @@ export class BackendService {
       this.data.stats.energy = 90;
       this.data.stats.hunger = 50;
       this.data.stats.streetCred = 80;
+      // Collected every week by the credit officer, the first a week from today (src/life/Dues.ts)
+      const today = this.dayNow?.();
       this.data.activeLoan = {
         lender: 'Lapo Microfinance Bank',
         amount: 50000,
         weeklyRepayment: 7500,
+        ...(today !== undefined ? { nextDueDay: today + 7 } : {}),
       };
 
       this.addItem({

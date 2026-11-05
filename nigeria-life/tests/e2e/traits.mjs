@@ -111,7 +111,7 @@ export async function run(browser, check) {
   });
   await reload(page);
   const migrated = await data(page);
-  check('traits: a save from before traits (version 2) loads at version 3 with no trait, so the player can pick one', !!old && migrated.schemaVersion === 3 && migrated.trait === undefined, { schemaVersion: migrated.schemaVersion, trait: migrated.trait });
+  check('traits: a save from before traits (version 2) loads at the current version with no trait, so the player can pick one', !!old && migrated.schemaVersion >= 3 && migrated.trait === undefined, { schemaVersion: migrated.schemaVersion, trait: migrated.trait });
   await advance(page, 1);
   check('traits: no errors in the game', log.errors.filter((e) => !/Failed to load resource|ERR_CONNECTION|favicon/.test(e)).length === 0, log.errors.slice(0, 5));
   await ctx.close();

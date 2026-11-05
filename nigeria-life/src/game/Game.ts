@@ -16,6 +16,8 @@ import { Pets } from '../housing/Pets';
 import { Cases } from '../life/Cases';
 import { Nollywood } from '../film/Nollywood';
 import { HomeStaff } from '../housing/HomeStaff';
+import { Dues, dayLabel, type DueEvent } from '../life/Dues';
+import { QuitNotice } from '../housing/QuitNotice';
 import { Spark } from '../social/Spark';
 import { Owambe } from '../social/Owambe';
 import { Studio } from '../music/Studio';
@@ -257,7 +259,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -830,7 +832,7 @@ export class Game {
     const start = backend.getData();
     const online = OnlineAccount.start({ name: start.username, save: { cash: start.walletCash, bank: start.bank.balance } });
     if (online) {
-      backend.authority = { report: (cash, bank, memo) => online.report(cash, bank, memo) };
+      backend.authority = { report: (cash, bank, memo, idem) => online.report(cash, bank, memo, idem) };
       // The trait belongs to the account: the server's wins, and one picked here is kept there
       backend.onTraitChosen = (id) => void online.request('/me/trait', { trait: id }).then((r) => r.trait && backend.adoptTrait(r.trait));
       void online.ready.then(async (ok) => {
@@ -985,7 +987,8 @@ export class Game {
     // 10c. Day & Saturday Rent Tick
     HomeStaff.currentDay = () => this.world.skyEnvironment.day;
     this.world.skyEnvironment.onNewDay = (day: number) => {
-      BackendService.getInstance().processDailyRentTick(day);
+      // Saturday rent and the week's loan instalment (src/life/Dues.ts)
+      Dues.get().settleTo(day);
       // The close of yesterday, for every business: takings, wages, rent and tax
       this.companies.closeDay(day - 1);
       // Home staff paid every day from the bank
@@ -1007,6 +1010,7 @@ export class Game {
     // A first visit has no saved spot: they start on the pavement by their own gate, not in the crowd.
     this.restoreWorldState();
     if (!BackendService.getInstance().getData().worldState) this.arriveAtTheGate();
+    this.connectDues();
     window.addEventListener('pagehide', () => this.saveWorldState());
     document.addEventListener('visibilitychange', () => {
       // Out of sight (Chrome closed, another app on top): saved, and every sound held until the player is back
@@ -1521,7 +1525,16 @@ export class Game {
         return plot ? { name: `Your ${(type?.name ?? 'house').toLowerCase()} at ${plot.name}`, area: plot.neighbourhood } : null;
       }
       const home = this.mainHome();
+      this.homeShown = home?.id ?? null;
       return home ? { name: home.status === 'rented' ? `${home.name} (rented)` : home.name, area: home.location ?? '' } : null;
+    };
+    // A rented home the landlord has served a quit notice on has it pinned inside the front door
+    ResidentialInterior.noticeNow = () => {
+      if (this.currentHome() !== 'main') return null;
+      const home = this.mainHome();
+      if (!home || home.status !== 'rented') return null;
+      const lease = Dues.get().leaseOf(home.id);
+      return lease && lease.deadline !== null ? lease : null;
     };
     // The plan of the home: a self-contain is one room, a five-bedroom has five bedrooms
     ResidentialInterior.briefNow = () => {
@@ -1699,6 +1712,56 @@ export class Game {
     });
   }
 
+  /** The property the home was last laid out as, when the player went in */
+  private homeShown: string | null = null;
+
+  /**
+   * Rent and loan instalments, settled on the calendar (src/life/Dues.ts): days gone by while the
+   * game was shut are settled now (on a game server, once its balance is in), then each midnight.
+   */
+  private connectDues(): void {
+    const dues = Dues.get();
+    const backend = BackendService.getInstance();
+    dues.today = () => this.world.skyEnvironment.day;
+    backend.dayNow = dues.today;
+    dues.onSettled = (events) => this.showDues(events);
+    // Put out while at home: out through the front door
+    dues.onEvicted = (propId) => {
+      const rooms = this.world.interiorManager;
+      if (rooms.currentInterior?.type === 'residence' && this.currentHome() === 'main' && this.homeShown === propId) {
+        void rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+      }
+    };
+    MessageService.addContacts(() => dues.contacts().map((c) => ({ ...c, standing: 'acquaintance' as const })));
+    MessageService.addReplies((id) => dues.replyTo(id));
+    const online = OnlineAccount.get();
+    if (online) void online.ready.then(() => dues.settleTo());
+    else dues.settleTo();
+  }
+
+  /** What the week's dues did: a line on the screen, and the landlord at the door if the player was put out */
+  private showDues(events: DueEvent[]): void {
+    const naira = (n: number) => `₦${Math.round(n).toLocaleString()}`;
+    const evicted = events.find((e) => e.kind === 'evicted');
+    if (evicted) {
+      this.hud.showDialogueModal({
+        speakerName: 'Alhaji Lateef',
+        speakerRole: `Landlord, ${evicted.name}`,
+        speakerAvatar: '🔒',
+        dialogueText: `You were given a week and the rent never came. The locks on ${evicted.name} have been changed and I have your key. The caution fee covers the ${naira(evicted.owed)} you owed. Find another place.`,
+      });
+    }
+    const lines = events.flatMap((e) => {
+      if (e.kind === 'rent-paid') return [`🏠 Rent ${naira(e.amount)} paid for ${e.name}`];
+      if (e.kind === 'rent-missed') return [`📜 Rent not paid on ${e.name}: quit notice, pay ${naira(e.owed)} before ${dayLabel(e.deadline)}`];
+      if (e.kind === 'instalment-paid') return [`📄 ${e.lender} took this week's ${naira(e.amount)} (${naira(e.left)} left)`];
+      if (e.kind === 'instalment-missed') return [`⚠️ ${e.lender} instalment missed${e.fee ? `, late fee ${naira(e.fee)}` : ''}`];
+      if (e.kind === 'loan-cleared') return [`✅ Loan from ${e.lender} cleared`];
+      return [];
+    });
+    if (lines.length) showGameToast(lines.slice(-3).join(' · '), events.some((e) => e.kind === 'rent-missed' || e.kind === 'instalment-missed') ? 'warning' : 'info', 7000);
+  }
+
   /** The flat or house the player lives in: one they own before one they rent, then the bigger, then the dearer */
   private mainHome() {
     const data = BackendService.getInstance().getData();
@@ -1722,6 +1785,16 @@ export class Game {
     document.getElementById('nav-btn-home')?.classList.remove('active');
     if (UIStateManager.getInstance().isMode('house')) {
       UIStateManager.getInstance().setMode(this.world.interiorManager.isPlayerInside() ? 'interior' : 'street');
+    }
+    const evicted = Dues.get().recentlyEvicted();
+    if (evicted) {
+      this.hud.showDialogueModal({
+        speakerName: 'Alhaji Lateef',
+        speakerRole: `Landlord, ${evicted.name}`,
+        speakerAvatar: '🔒',
+        dialogueText: `The locks on ${evicted.name} were changed on ${dayLabel(evicted.day)}, when the rent was still not paid. Your key no longer opens it. Find another place in Houses on your phone.`,
+      });
+      return false;
     }
     this.hud.showDialogueModal({
       speakerName: 'No home yet',

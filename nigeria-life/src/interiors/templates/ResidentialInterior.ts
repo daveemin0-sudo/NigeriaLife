@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Fridge } from '../../housing/Fridge';
 import { HomeStaff } from '../../housing/HomeStaff';
 import { Marriage } from '../../social/Marriage';
+import { QuitNotice } from '../../housing/QuitNotice';
+import type { LeaseView } from '../../life/Dues';
 import { Activity } from '../../life/Activity';
 import { Pets, PET_KINDS, PET_FOOD_PRICE } from '../../housing/Pets';
 import { Garden, SEEDS } from '../../housing/Garden';
@@ -135,6 +137,8 @@ export class ResidentialInterior {
   public static homeName: (() => { name: string; area: string } | null) | null = null;
   /** Which of the player's homes it is: 'main' (the flat rented or bought) or a built house's plot (set by the game) */
   public static homeId: (() => string) | null = null;
+  /** The lease of the rented home shown, when the landlord has served a quit notice on it */
+  public static noticeNow: (() => LeaseView | null) | null = null;
 
   /** The player is coming in: the home is furnished as what they rent or own, and called by its name */
   private gardenTimer = 0;
@@ -152,6 +156,7 @@ export class ResidentialInterior {
     if (home?.area) this.def.districtName = home.area;
     HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
     Marriage.get().syncHome(this.group, this.plan, this.interactiveList);
+    if (this.plan) QuitNotice.sync(this.group, this.plan, this.interactiveList, this.exitDoor, () => ResidentialInterior.noticeNow?.() ?? null);
   }
 
   /** In: their own vehicles stand in the carport */

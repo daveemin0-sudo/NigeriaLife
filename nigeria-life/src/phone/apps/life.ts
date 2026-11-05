@@ -14,6 +14,7 @@ import { DrivableVehicle } from '../../world/DrivableVehicle';
 import { LagosStreetLifeSystem } from '../../world/LagosStreetLifeSystem';
 import { OnlineAccount } from '../../online/OnlineAccount';
 import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
+import { Dues, dayLabel } from '../../life/Dues';
 
 // ============================================================================================
 // Jobs
@@ -369,6 +370,7 @@ export const propertyApp: PhoneApp = {
       // Another player may own it outright, in which case only they can sell it
       const takenBy = owned ? null : Deeds.get().takenBy('property', prop.id);
       const listing = Deeds.get().listingFor('property', prop.id);
+      const lease = rented ? Dues.get().leaseOf(prop.id) : null;
       return {
         title: owned ? 'Your property' : rented ? 'Your lease' : 'For sale or rent',
         body: `
@@ -383,6 +385,15 @@ export const propertyApp: PhoneApp = {
               <span><strong>${owned ? 'Owned' : rented ? 'Leased' : takenBy ? 'Owned' : 'Available'}</strong>status</span>
             </div>
           </div>
+          ${lease ? `
+            <div class="nl-card ${lease.deadline !== null ? 'nl-card--warn' : ''}" id="property-rent">
+              <div class="nl-card-title">${lease.deadline !== null ? '📜 Quit notice' : 'Rent'}</div>
+              <div class="nl-card-line">${naira(lease.weekly)} every Saturday, from your bank and then your cash.</div>
+              <div class="nl-card-line" id="property-rent-next">Next rent on <strong>${esc(dayLabel(lease.nextDue))}</strong>.</div>
+              ${lease.deadline !== null ? `
+                <div class="nl-card-line" id="property-rent-owed">You owe <strong>${naira(lease.arrears)}</strong>. Pay it, with the next rent, before <strong>${esc(dayLabel(lease.deadline))}</strong> or the locks will be changed.</div>
+                <button class="nl-btn nl-btn--primary nl-btn--block" id="property-pay-rent" data-act="pay-rent" data-arg="${esc(prop.id)}" ${funds >= lease.arrears ? '' : 'disabled'}>Pay the landlord · ${naira(lease.arrears)}</button>` : ''}
+            </div>` : ''}
           ${owned || rented ? `
             <button class="nl-btn nl-btn--primary nl-btn--block" id="property-go-home" data-act="home">Go home</button>
             <button class="nl-btn nl-btn--block" data-act="decor">Furniture catalogue</button>
@@ -450,8 +461,12 @@ export const propertyApp: PhoneApp = {
     } else if (action === 'decor') {
       host.close();
       HouseDecorationSystem.getInstance().openCatalogueModal();
+    } else if (action === 'pay-rent' && prop) {
+      const result = Dues.get().payRentOwed(id);
+      if (result.ok) SoundEngine.getInstance().playTransactionSuccess();
+      host.say(result.message, result.ok ? 'good' : 'bad');
     } else if (action === 'rent' && prop) {
-      if (!(await host.confirm(`Lease ${prop.name} for ${naira(prop.rentalPriceMonthly)}?`, 'Lease it'))) return;
+      if (!(await host.confirm(`Lease ${prop.name} for ${naira(prop.rentalPriceMonthly)}? That pays the first four weeks; then ${naira(prop.weeklyRent ?? Math.max(100, Math.round(prop.rentalPriceMonthly / 4)))} is due every Saturday.`, 'Lease it'))) return;
       const result = host.backend.rentProperty(id);
       if (result.success) SoundEngine.getInstance().playTransactionSuccess();
       host.say(result.message, result.success ? 'good' : 'bad');

@@ -98,7 +98,7 @@ export async function run(browser, check) {
     if (saved && saved.world && Math.abs(saved.world.x - 31) < 0.5) break;
     await wait(500);
   }
-  check('the autosave writes a versioned save holding the world state', saved && saved.version === 3 && saved.world && Math.abs(saved.world.x - 31) < 0.5 && Math.abs(saved.world.z + 22) < 0.5, saved);
+  check('the autosave writes a versioned save holding the world state', saved && saved.version === 4 && saved.world && Math.abs(saved.world.x - 31) < 0.5 && Math.abs(saved.world.z + 22) < 0.5, saved);
   await reload(page);
   const after = await page.evaluate(() => { const g = window.game; const d = g.hud.backend.getData(); return { x: g.player.position.x, z: g.player.position.z, rot: g.player.mesh.rotation.y, hour: g.world.skyEnvironment.currentHour, hunger: d.stats.hunger, energy: d.stats.energy }; });
   check('reload restores position and facing', Math.abs(after.x - 31) < 1 && Math.abs(after.z + 22) < 1 && Math.abs(after.rot - 1.25) < 0.1, after);

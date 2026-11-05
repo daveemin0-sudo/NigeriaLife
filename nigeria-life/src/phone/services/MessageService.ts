@@ -55,6 +55,26 @@ export class MessageService {
   public static extraContacts: (() => Array<{ id: string; name: string; note: string; standing: Standing }>) | null = null;
   /** Custom reply generator for contacts such as Spark matches. */
   public static customReply: ((id: string, text: string) => string | null) | null = null;
+  private static contactSources: Array<() => Array<{ id: string; name: string; note: string; standing: Standing }>> = [];
+  private static replySources: Array<(id: string, text: string) => string | null> = [];
+
+  /** More people who write to the player (the landlord, a lender), alongside any others */
+  public static addContacts(source: () => Array<{ id: string; name: string; note: string; standing: Standing }>): void {
+    MessageService.contactSources.push(source);
+  }
+
+  /** What those people answer when written to; null leaves it to the others */
+  public static addReplies(source: (id: string, text: string) => string | null): void {
+    MessageService.replySources.push(source);
+  }
+
+  private static replyFrom(id: string, text: string): string | null {
+    for (const source of MessageService.replySources) {
+      const reply = source(id, text);
+      if (reply !== null) return reply;
+    }
+    return MessageService.customReply?.(id, text) ?? null;
+  }
 
   public onChange: (() => void) | null = null;
   private readonly backend = BackendService.getInstance();
@@ -107,7 +127,7 @@ export class MessageService {
     }
 
     const seen = new Set<string>();
-    const extras = MessageService.extraContacts?.() ?? [];
+    const extras = [...(MessageService.extraContacts?.() ?? []), ...MessageService.contactSources.flatMap((source) => source())];
     for (const extra of extras) {
       seen.add(extra.id);
       const thread = this.backend.thread(extra.id);
@@ -190,7 +210,7 @@ export class MessageService {
     }
 
     this.backend.addMessage(id, { from: 'me', text: body, at: this.clock() }, false);
-    const custom = MessageService.customReply?.(id, body) ?? null;
+    const custom = MessageService.replyFrom(id, body);
     const lines = REPLIES[contact.standing as Standing];
     const replyText = custom ?? lines[Math.floor(Math.random() * lines.length)];
     this.pending.push({ id, text: replyText, in: custom ? 1.2 : REPLY_SECONDS });

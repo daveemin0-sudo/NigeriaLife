@@ -123,12 +123,17 @@ export class Economy {
     return r.earned;
   }
 
-  /** Has this account borrowed more times than it has repaid? */
+  /**
+   * Is a loan open: was the last loan row money lent, not the payment that cleared it? Weekly
+   * instalments are kind 'loan_part' and do not close a loan; only the last payment does. (A Lapo
+   * loan the player starts with was never lent through the server, so counting rows would let its
+   * clearing payment close the next loan too.)
+   */
   private loanOpen(accountId: string): boolean {
-    const r = this.db
-      .prepare("SELECT SUM(CASE WHEN cash_delta + bank_delta > 0 THEN 1 ELSE 0 END) AS taken, SUM(CASE WHEN cash_delta + bank_delta < 0 THEN 1 ELSE 0 END) AS repaid FROM ledger WHERE account_id = ? AND kind = 'loan'")
-      .get(accountId) as { taken: number | null; repaid: number | null };
-    return (r.taken ?? 0) > (r.repaid ?? 0);
+    const last = this.db
+      .prepare("SELECT cash_delta + bank_delta AS net FROM ledger WHERE account_id = ? AND kind = 'loan' ORDER BY id DESC LIMIT 1")
+      .get(accountId) as { net: number } | undefined;
+    return !!last && last.net > 0;
   }
 
   private watchForFastMoney(accountId: string): void {
@@ -166,6 +171,7 @@ export class Economy {
       return this.apply(accountId, 'loan', cash, bank, memo, true, idem);
     }
     if (/^LOAN_REPAYMENT:/.test(memo) && net < 0) return this.apply(accountId, 'loan', cash, bank, memo, true, idem);
+    if (/^LOAN_INSTALMENT:/.test(memo) && net < 0) return this.apply(accountId, 'loan_part', cash, bank, memo, true, idem);
     // A business's takings: paid if the businesses the player owns could have taken that much
     // since they were last paid (the registry says what they own; the price table what each takes)
     if (net > 0 && /^BUSINESS_INCOME:/.test(memo)) {

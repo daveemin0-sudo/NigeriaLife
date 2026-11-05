@@ -13,6 +13,11 @@ export interface ProcessTransactionRequest {
    * - 'split': the first pocket pays what it can, the other pays the rest
    */
   funding?: 'fallback' | 'strict' | 'split';
+  /**
+   * What the game server knows this payment by, when the same payment could be made twice (a
+   * week's rent on two devices): the server takes it once. Letters, digits, `_`, `:` and `-`.
+   */
+  idem?: string;
 }
 
 export interface TransactionResult {
@@ -76,7 +81,7 @@ export class TransactionService {
 
     if (CREDIT_TYPES.has(type)) {
       const pocket = source === 'bank' || type === 'BUSINESS_INCOME' ? 'bank' : 'wallet';
-      const record = this.createRecord(data, type, amount, description, pocket);
+      const record = this.createRecord(data, type, amount, description, pocket, req.idem);
       this.apply(data, record);
       return {
         success: true,
@@ -108,7 +113,7 @@ export class TransactionService {
     const records: TransactionRecord[] = [];
     for (const [pocket, part] of [[first, fromFirst], [other, fromOther]] as const) {
       if (part <= 0) continue;
-      const record = this.createRecord(data, type, part, description, pocket);
+      const record = this.createRecord(data, type, part, description, pocket, req.idem);
       this.apply(data, record);
       records.push(record);
     }
@@ -155,10 +160,13 @@ export class TransactionService {
     type: TransactionType,
     amount: number,
     description: string,
-    pocket: 'wallet' | 'bank'
+    pocket: 'wallet' | 'bank',
+    idem?: string
   ): TransactionRecord {
     return {
-      id: `tx_${Date.now()}_${Math.floor(Math.random() * 1000000)}`,
+      // A payment with a name of its own (a week's rent) has the same id in every tab that makes it,
+      // so a tab that sees another's copy knows it for the same payment and does not carry it over
+      id: idem ? `tx_${idem}_${pocket}` : `tx_${Date.now()}_${Math.floor(Math.random() * 1000000)}`,
       playerId: data.id,
       type,
       amount,

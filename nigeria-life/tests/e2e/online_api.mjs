@@ -82,6 +82,21 @@ export async function run(_browser, check) {
       loan.ok && loan.wallet.cash === 25000 + 20000 + 50000 && !second.ok && repaid.ok && again2.ok && closed.ok && !huge.ok && !huge.held,
       { loan: loan.wallet, second: second.reason, repaid: repaid.ok, again: again2.ok, huge: huge.reason });
 
+    // Weekly instalments: each is taken once however many devices send it, and the loan stays
+    // open until the payment that clears it (a Lapo loan the player starts with was never lent here)
+    const emeka = await call('/auth/guest', { name: 'Emeka' });
+    const lapoCleared = await call('/money/report', { cash: -5000, memo: 'LOAN_REPAYMENT: Last instalment, loan cleared: Lapo Microfinance Bank', idem: idem() }, emeka.token);
+    const lent = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, emeka.token);
+    const week = 'due:loan:Eko-Commercial-Bank:40:test';
+    const part = await call('/money/report', { cash: -6875, memo: 'LOAN_INSTALMENT: Weekly instalment: Eko Commercial Bank', idem: week }, emeka.token);
+    const partAgain = await call('/money/report', { cash: -6875, memo: 'LOAN_INSTALMENT: Weekly instalment: Eko Commercial Bank', idem: week }, emeka.token);
+    const whileOpen = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, emeka.token);
+    const last = await call('/money/report', { cash: -48125, memo: 'LOAN_REPAYMENT: Last instalment, loan cleared: Eko Commercial Bank', idem: idem() }, emeka.token);
+    const next = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, emeka.token);
+    check('online: a weekly instalment sent twice is taken once; the loan stays open after it and after an old Lapo loan was cleared, and closes with the last payment',
+      lapoCleared.ok && lent.ok && part.ok && partAgain.ok && partAgain.wallet.cash === 25000 - 5000 + 50000 - 6875 && !whileOpen.ok && last.ok && next.ok,
+      { lapoCleared: lapoCleared.ok, lent: lent.ok, part: part.wallet, partAgain: partAgain.wallet, whileOpen: whileOpen.reason, last: last.ok, next: next.ok });
+
     // A job shift, checked by the server
     const a = await connect(ada.token);
     const b = await connect(bayo.token);
@@ -168,7 +183,7 @@ export async function run(_browser, check) {
     const stats = await call('/admin/stats', null, null, ADMIN);
     const ledger = await call(`/admin/ledger?id=${ada.account.id}`, null, null, ADMIN);
     const alerts = stats.economy?.alerts?.map((x) => x.kind) ?? [];
-    check('online: the admin API needs the key, counts verified accounts apart, and shows each ledger row with whether the server checked it', refusedAdmin.status === 403 && stats.accounts.verified === 1 && stats.accounts.all === 3 && ledger.ledger.some((l) => l.kind === 'shift' && l.verified === 1) && ledger.ledger.some((l) => l.kind === 'client' && l.verified === 0), { verified: stats.accounts, kinds: ledger.ledger.map((l) => l.kind) });
+    check('online: the admin API needs the key, counts verified accounts apart, and shows each ledger row with whether the server checked it', refusedAdmin.status === 403 && stats.accounts.verified === 1 && stats.accounts.all === 4 && ledger.ledger.some((l) => l.kind === 'shift' && l.verified === 1) && ledger.ledger.some((l) => l.kind === 'client' && l.verified === 0), { verified: stats.accounts, kinds: ledger.ledger.map((l) => l.kind) });
     check('online: the held billion and the too-fast shift were raised as alerts', alerts.includes('earning-held') && alerts.includes('shift-too-fast'), alerts);
     // An honest big sale held the same way is paid once when the admin releases it
     const sale = await call('/money/report', { cash: 250000, memo: 'Sold a plot', idem: idem() }, bayo.token);

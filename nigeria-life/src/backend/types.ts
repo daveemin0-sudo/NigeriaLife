@@ -167,6 +167,8 @@ export type TransactionType =
   | 'CONSTRUCTION_REFUND'
   | 'TRANSFER_OUT'
   | 'LOAN_REPAYMENT'
+  /** One weekly instalment of a loan that is not the last (the last is LOAN_REPAYMENT) */
+  | 'LOAN_INSTALMENT'
   // Moves between the player's own bank account and wallet
   | 'ATM_WITHDRAWAL'
   | 'ATM_DEPOSIT';
@@ -212,7 +214,7 @@ export interface CareerProfile {
 export type OriginDestiny = 'nepo' | 'lapo' | 'tech_bro';
 
 /** Bump when the saved shape changes, and add a step to migrateAccount() in SaveSchema.ts */
-export const SAVE_SCHEMA_VERSION = 3;
+export const SAVE_SCHEMA_VERSION = 4;
 
 export type SavedCityId = 'lagos' | 'abuja' | 'port_harcourt';
 
@@ -227,6 +229,15 @@ export interface SavedWorldState {
   weather?: string; // Active weather condition
   clockMode?: 'SIMULATED_TIME' | 'REAL_TIME'; // World clock simulation mode
   inTransit?: boolean; // Saved mid-journey: the trip is paid for, so a reload completes the arrival
+}
+
+export interface LeaseState {
+  /** Rent is paid up to (not including) this game day */
+  paidUntil: number;
+  /** Rent owed and not paid */
+  arrears: number;
+  /** The game day a quit notice was served; the player is put out a week later if still owing */
+  noticeDay?: number;
 }
 
 export interface PhoneMessage {
@@ -267,7 +278,23 @@ export interface PlayerAccount {
     lender: string;
     amount: number; // Outstanding balance still owed
     weeklyRepayment: number;
+    /** The game day the next weekly instalment is taken (src/life/Dues.ts); set at the first settle */
+    nextDueDay?: number;
+    /** Instalments missed in a row */
+    missed?: number;
+    /** Late fees added to this loan so far */
+    lateFees?: number;
+    /** A week was missed at some point on this loan */
+    everMissed?: boolean;
   };
+  /** The last game day rent and loan instalments were settled up to (src/life/Dues.ts) */
+  duesDay?: number;
+  /** Each lease, by property id: rent paid up to which game day, rent owed, the day a quit notice was served */
+  leases?: Record<string, LeaseState>;
+  /** The last home the player was put out of for unpaid rent */
+  evicted?: { propId: string; name: string; day: number };
+  /** What lenders know of the player: loans repaid without a missed week, and weeks missed in all */
+  credit?: { cleanLoans: number; missed: number };
   /** Timed payouts already collected: claim key -> when it was last collected (ms since epoch) */
   claims: Record<string, number>;
   /** How well each person knows the player, 0 (stranger) to 100, by the person's id */

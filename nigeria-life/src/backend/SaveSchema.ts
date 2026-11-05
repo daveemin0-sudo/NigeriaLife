@@ -147,6 +147,19 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     }
   }
 
+  // Leases: rent paid up to a day, rent owed, and a quit notice (src/life/Dues.ts)
+  const leases: NonNullable<PlayerAccount['leases']> = {};
+  if (isRecord(saved.leases)) {
+    for (const [propId, lease] of Object.entries(saved.leases)) {
+      if (!isRecord(lease) || !Number.isFinite(lease.paidUntil)) continue;
+      leases[propId] = {
+        paidUntil: Math.floor(lease.paidUntil),
+        arrears: Number.isFinite(lease.arrears) ? Math.max(0, Math.round(lease.arrears)) : 0,
+        ...(Number.isFinite(lease.noticeDay) ? { noticeDay: Math.floor(lease.noticeDay) } : {}),
+      };
+    }
+  }
+
   let worldState: SavedWorldState | undefined;
   if (isRecord(world) && SAVED_CITIES.has(world.cityId) && Number.isFinite(world.x) && Number.isFinite(world.z)) {
     worldState = {
@@ -260,8 +273,20 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
             lender: loan.lender,
             amount: Math.round(loan.amount),
             weeklyRepayment: Number.isFinite(loan.weeklyRepayment) ? loan.weeklyRepayment : 0,
+            ...(Number.isFinite(loan.nextDueDay) ? { nextDueDay: Math.floor(loan.nextDueDay) } : {}),
+            ...(Number.isFinite(loan.missed) ? { missed: Math.max(0, Math.floor(loan.missed)) } : {}),
+            ...(Number.isFinite(loan.lateFees) ? { lateFees: Math.max(0, Math.round(loan.lateFees)) } : {}),
+            ...(loan.everMissed === true ? { everMissed: true } : {}),
           }
         : undefined,
+    ...(Number.isFinite(saved.duesDay) ? { duesDay: Math.floor(saved.duesDay) } : {}),
+    ...(Object.keys(leases).length ? { leases } : {}),
+    ...(isRecord(saved.evicted) && typeof saved.evicted.propId === 'string' && Number.isFinite(saved.evicted.day)
+      ? { evicted: { propId: saved.evicted.propId, name: typeof saved.evicted.name === 'string' ? saved.evicted.name : 'your home', day: Math.floor(saved.evicted.day) } }
+      : {}),
+    ...(isRecord(saved.credit)
+      ? { credit: { cleanLoans: Math.max(0, Math.floor(Number(saved.credit.cleanLoans) || 0)), missed: Math.max(0, Math.floor(Number(saved.credit.missed) || 0)) } }
+      : {}),
     claims,
     relationships,
     investments,
@@ -291,7 +316,9 @@ export function parseSavedAccount(json: string): LoadedAccount | null {
 
   // Version 1 -> 2 only added fields (claims, lastRevenueAt, worldState), which sanitizeAccount
   // fills with defaults. Version 2 -> 3 added `trait` and `skillCarry`: a save from before has no
-  // trait, and the player is asked once to pick one. A future shape change converts `parsed`
+  // trait, and the player is asked once to pick one. Version 3 -> 4 added weekly dues (`duesDay`,
+  // `leases`, the loan's schedule, `credit`, `evicted`): a save from before has none, and the
+  // first settle starts the schedules from that day, so nothing is charged for weeks gone by. A future shape change converts `parsed`
   // here, one step per version.
 
   const repaired: string[] = [];

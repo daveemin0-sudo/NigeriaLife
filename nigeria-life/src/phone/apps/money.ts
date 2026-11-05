@@ -10,6 +10,7 @@ import { Deeds } from '../../realestate/Deeds';
 import { AssetMarket } from '../../realestate/AssetMarket';
 import { Companies, AREAS, type RoleId } from '../../business/Companies';
 import { BackendService } from '../../backend/BackendService';
+import { Dues, dayLabel } from '../../life/Dues';
 
 // ============================================================================================
 // Bank
@@ -75,7 +76,7 @@ export const bankApp: PhoneApp = {
     const history = [...data.transactionHistory].reverse()
       .filter((tx) => filter === 'all' || direction(tx) === filter)
       .filter((tx) => !search || tx.description.toLowerCase().includes(search));
-    const loan = data.activeLoan;
+    const loan = Dues.get().loan();
 
     return {
       title: 'Bank',
@@ -91,10 +92,15 @@ export const bankApp: PhoneApp = {
         </div>
         <div class="nl-hint">Cash goes in and out at any cash machine. The branch is on Broad Street.</div>
         ${loan ? `
-          <div class="nl-card nl-card--warn">
+          <div class="nl-card nl-card--warn" id="bank-loan">
             <div class="nl-card-title">Loan from ${esc(loan.lender)}</div>
-            <div class="nl-card-line">You owe ${naira(loan.amount)}</div>
-            <button class="nl-btn nl-btn--sm" data-act="repay">Repay ${naira(loan.amount)}</button>
+            <div class="nl-card-line">You owe <strong id="bank-loan-owed">${naira(loan.owed)}</strong></div>
+            <div class="nl-card-line" id="bank-loan-next">${naira(loan.instalment)} is taken every week${loan.nextDue !== null ? `, next on <strong>${esc(dayLabel(loan.nextDue))}</strong>` : ''}, from your bank and then your cash.</div>
+            ${loan.missed ? `<div class="nl-card-line" id="bank-loan-missed">⚠️ ${count(loan.missed, 'week')} missed in a row${loan.lateFees ? `; ${naira(loan.lateFees)} in late fees added` : ''}.</div>` : ''}
+            <div class="nl-hero-actions">
+              ${loan.instalment < loan.owed ? `<button class="nl-btn nl-btn--sm nl-btn--primary" id="bank-pay-week" data-act="instalment">Pay this week · ${naira(loan.instalment)}</button>` : ''}
+              <button class="nl-btn nl-btn--sm" id="bank-repay-all" data-act="repay">Pay it all · ${naira(loan.owed)}</button>
+            </div>
           </div>` : ''}
         <div class="nl-section">Transactions</div>
         ${chips('bank.filter', filter, [['all', 'All'], ['in', 'Money in'], ['out', 'Money out']])}
@@ -112,6 +118,12 @@ export const bankApp: PhoneApp = {
     if (action === 'repay') {
       const result = host.backend.repayLoan();
       host.say(result.message, result.success ? 'good' : 'bad');
+      return;
+    }
+    if (action === 'instalment') {
+      const result = Dues.get().payInstalmentNow();
+      if (result.ok) SoundEngine.getInstance().playTransactionSuccess();
+      host.say(result.message, result.ok ? 'good' : 'bad');
       return;
     }
     if (action === 'send') {

@@ -42,6 +42,7 @@ import { esc } from './kit/html';
 import { draw as drawStable } from './kit/StableView';
 import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
 import { CareerMinigames } from '../jobs/CareerMinigames';
+import { Dues } from '../life/Dues';
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
@@ -2914,14 +2915,19 @@ export class HUD {
           rewards: repaid.success ? { streetCred: 30 } : undefined,
         });
       } else {
-        const borrowed = this.backend.takeLoan('Eko Commercial Bank', 50000, 55000);
+        // The bank lends more to someone who has cleared a loan without missing a week (src/life/Dues.ts)
+        const offer = Dues.get().bankOffer();
+        const borrowed = this.backend.takeLoan('Eko Commercial Bank', offer.principal, offer.repay);
+        const weekly = Math.round(offer.repay / 8);
         this.showDialogueModal({
           speakerName: 'Manager Bankole',
           speakerRole: 'Branch Manager • Eko Commercial Bank',
-          speakerAvatar: '💼',
-          soundType: 'cash',
-          dialogueText: `Lagos SME Business Loan approved! ${borrowed.message} Return to this desk to repay it.`,
-          rewards: { cash: 50000 },
+          speakerAvatar: borrowed.success ? '💼' : '⚠️',
+          soundType: borrowed.success ? 'cash' : undefined,
+          dialogueText: borrowed.success
+            ? `Lagos SME Business Loan approved! ${borrowed.message} ₦${weekly.toLocaleString()} comes out of your account every week for eight weeks; a week missed costs a late fee. Pay off the rest at this desk or in the Bank app whenever you like.`
+            : borrowed.message,
+          rewards: borrowed.success ? { cash: offer.principal } : undefined,
         });
       }
       return;
