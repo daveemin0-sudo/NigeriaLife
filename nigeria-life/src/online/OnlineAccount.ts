@@ -50,6 +50,8 @@ export class OnlineAccount {
   private reports: Promise<unknown> = Promise.resolve();
   private counter = 0;
   private closedForGood = false;
+  /** True until the first sign-in has finished, one way or the other */
+  private signingIn = true;
 
   /** Starts the account if the game has a server; null when playing in this browser only. */
   public static start(options: { name: string; save: WalletView }): OnlineAccount | null {
@@ -67,7 +69,11 @@ export class OnlineAccount {
     this.token = this.read(TOKEN_KEY());
     const known = this.read(ACCOUNT_KEY());
     if (known) this.account = { id: known, name: options.name, kind: 'guest', email: null, verified: false };
-    this.ready = this.signIn(options);
+    this.ready = this.signIn(options)
+      .catch(() => false)
+      .finally(() => {
+        this.signingIn = false;
+      });
   }
 
   /** The id other players know this player by, if signed in (or signed in before on this device). */
@@ -105,8 +111,19 @@ export class OnlineAccount {
     for (const handler of this.handlers.get(type) ?? []) handler(message);
   }
 
-  /** A request to the server as this player. */
+  /**
+   * A request to the server as this player. Asked before the game has signed in, it waits for
+   * the sign-in, so it never reaches the server without a session (the server would answer 401).
+   * Without a session at all, only the sign-in routes are sent.
+   */
   public async request(path: string, body?: unknown): Promise<any> {
+    if (this.signingIn) await this.ready;
+    if (!this.token && !path.startsWith('/auth/')) return { ok: false, status: 401, reason: 'Not signed in to the game server.' };
+    return this.post(path, body);
+  }
+
+  /** Sends at once, signed in or not (the sign-in itself uses this) */
+  private async post(path: string, body?: unknown): Promise<any> {
     try {
       const response = await fetch(`${this.base}${path}`, {
         method: body === undefined ? 'GET' : 'POST',
@@ -136,7 +153,7 @@ export class OnlineAccount {
         params.delete('signin');
         const rest = params.toString();
         window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
-        const done = await this.request('/auth/finish', { token: link });
+        const done = await this.post('/auth/finish', { token: link });
         if (done.ok) {
           this.keep(done.token, done.account);
           this.emit('signed-in', { upgraded: done.upgraded, account: done.account });
@@ -149,7 +166,7 @@ export class OnlineAccount {
     }
 
     if (this.token) {
-      const me = await this.request('/me');
+      const me = await this.post('/me');
       if (me.ok) {
         this.account = me.account;
         if (!(await this.bindRegistry())) return false;
@@ -160,7 +177,7 @@ export class OnlineAccount {
       // The server no longer knows this sign-in: start again as a guest
       this.token = null;
     }
-    const made = await this.request('/auth/guest', { name: options.name, save: options.save });
+    const made = await this.post('/auth/guest', { name: options.name, save: options.save });
     if (!made.ok) {
       this.emit('notice', made.reason);
       return false;
@@ -183,7 +200,7 @@ export class OnlineAccount {
    */
   private async bindRegistry(): Promise<boolean> {
     if (!NETWORK_PLAYER_ID) return true;
-    const bound = await this.request('/me/registry', { id: NETWORK_PLAYER_ID });
+    const bound = await this.post('/me/registry', { id: NETWORK_PLAYER_ID });
     if (bound.ok && bound.id && bound.id !== NETWORK_PLAYER_ID) {
       try {
         localStorage.setItem(profileKey('nigeria_life_network_player_id'), bound.id);

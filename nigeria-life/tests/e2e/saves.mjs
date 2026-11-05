@@ -105,18 +105,28 @@ export async function run(browser, check) {
   check('reload restores the time of day', Math.abs(after.hour - 20.5) < 0.6, { hour: after.hour });
   check('reload restores drained vitals', after.hunger < 62 && after.hunger > 60 && after.energy < 47.1 && after.energy > 45.5, { hunger: after.hunger, energy: after.energy });
 
-  // The calendar: midnight starts a new day, and the day survives a reload
-  const dayOne = await page.evaluate(() => document.getElementById('hud-clock-val').textContent);
+  // The calendar follows the real date in Lagos (day 0 is Wed 7 Oct 2026): midnight starts a new
+  // day, and the day survives a reload
+  const calendar = await page.evaluate(() => {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', weekday: 'short', day: 'numeric' }).formatToParts(new Date());
+    const label = (day) => { const d = new Date(2026, 9, 7 + day); return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.getDate()}`; };
+    const day = window.game.world.skyEnvironment.day;
+    return { day, today: `${parts.find((p) => p.type === 'weekday').value} ${parts.find((p) => p.type === 'day').value}`, shown: document.getElementById('hud-clock-val').textContent, next: label(day + 1) };
+  });
   await page.evaluate(() => window.game.world.skyEnvironment.setHour(23.995));
-  let clock = { day: 0, label: '' };
-  for (let i = 0; i < 40 && clock.day < 1; i++) {
+  let clock = { day: calendar.day, label: '' };
+  for (let i = 0; i < 40 && clock.day <= calendar.day; i++) {
     await wait(300);
     clock = await page.evaluate(() => ({ day: window.game.world.skyEnvironment.day, label: document.getElementById('hud-clock-val').textContent }));
   }
-  check('a new game starts on Wed 7, and midnight moves the clock on to Thu 8', dayOne.startsWith('Wed 7') && clock.day === 1 && clock.label.startsWith('Thu 8'), { dayOne, ...clock });
+  check(
+    "the clock shows today's date in Lagos, and midnight moves it on one day",
+    calendar.shown.startsWith(calendar.today) && clock.day === calendar.day + 1 && clock.label.startsWith(calendar.next),
+    { ...calendar, after: clock }
+  );
   await reload(page);
   const kept = await page.evaluate(() => ({ day: window.game.world.skyEnvironment.day, label: document.getElementById('hud-clock-val').textContent }));
-  check('reload keeps the day', kept.day === 1 && kept.label.startsWith('Thu 8'), kept);
+  check('reload keeps the day', kept.day === calendar.day + 1 && kept.label.startsWith(calendar.next), { ...kept, expected: calendar.next });
 
   await page.evaluate(() => { window.game.player.mesh.position.set(-12, 0, 40); });
   await enterInterior(page, 'hospital');
