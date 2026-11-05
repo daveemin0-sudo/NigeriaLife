@@ -105,7 +105,7 @@ These cost money or need an account with another company. They do not block the 
 
 Phase 1 runs. The next work is the holes in it, then the Phase 2 rows that are still missing, each with a `SAVE_SCHEMA_VERSION` bump and a migration before the feature.
 
-1. ~~A bot load test of one process, then a supervisor and a "server busy" queue.~~ Done 5 November: see `docs/LOADTEST.md`. Open from that work: in the two-browser `online` suite, the lorry loaded at the port is not paid in the game (the server suite pays it), and `/ads` answers 401 before sign-in. Both fail the same way without these changes.
+1. ~~A bot load test of one process, then a supervisor and a "server busy" queue.~~ Done 5 November: see `docs/LOADTEST.md`. Open from that work: in the two-browser `online` suite, the lorry loaded at the port is not paid in the game (the server suite pays it), and `/ads` answers 401 before sign-in. Both fail the same way without these changes. The `saves` suite also fails 3 checks the same way without these changes: it expects the old spawn point and a game that starts on Wed 7 Oct, but the clock now follows real Lagos time.
 2. Move the next client-reported earners onto the server (fares, Eko Rides, the ladder), so the ₦48,000 allowance can shrink again.
 3. Phase 2, in this order: ~~traits~~ (done 5 November), weekly Lapo instalments and a real eviction, PAYE and VAT, NEPA that actually switches appliances off, hours on the venues that never shut, then a player arrest with a record.
 4. Do not rebuild multiplayer, the clock, the six need bars, the employer table, elections, marriage, owambe, Yarn, or the billboard rental. Extend those.
