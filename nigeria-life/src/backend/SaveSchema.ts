@@ -1,3 +1,4 @@
+import { isTraitId } from '../life/Traits';
 import { applyRealPrices } from './RealPrices';
 import {
   type PlayerAccount,
@@ -170,6 +171,10 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     phoneNumber: str(saved.phoneNumber, base.phoneNumber, 'phoneNumber'),
     originDestiny: ['nepo', 'lapo', 'tech_bro'].includes(saved.originDestiny) ? saved.originDestiny : undefined,
     destinyTitle: typeof saved.destinyTitle === 'string' ? saved.destinyTitle : undefined,
+    trait: isTraitId(saved.trait) ? saved.trait : undefined,
+    skillCarry: isRecord(saved.skillCarry)
+      ? Object.fromEntries(Object.entries(saved.skillCarry).filter(([, v]) => typeof v === 'number' && v > 0 && v < 1))
+      : undefined,
     walletCash: Math.round(num(saved.walletCash, base.walletCash, 'walletCash', 0)),
     bank: {
       accountNumber: str(bank.accountNumber, base.bank.accountNumber, 'bank.accountNumber'),
@@ -285,7 +290,9 @@ export function parseSavedAccount(json: string): LoadedAccount | null {
   const savedVersion = typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : 1;
 
   // Version 1 -> 2 only added fields (claims, lastRevenueAt, worldState), which sanitizeAccount
-  // fills with defaults. A future shape change converts `parsed` here, one step per version.
+  // fills with defaults. Version 2 -> 3 added `trait` and `skillCarry`: a save from before has no
+  // trait, and the player is asked once to pick one. A future shape change converts `parsed`
+  // here, one step per version.
 
   const repaired: string[] = [];
   const account = sanitizeAccount(parsed, repaired);

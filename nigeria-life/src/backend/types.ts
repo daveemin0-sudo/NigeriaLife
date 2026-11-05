@@ -1,3 +1,4 @@
+import type { TraitId } from '../life/Traits.ts';
 export interface Item {
   id: string;
   name: string;
@@ -211,7 +212,7 @@ export interface CareerProfile {
 export type OriginDestiny = 'nepo' | 'lapo' | 'tech_bro';
 
 /** Bump when the saved shape changes, and add a step to migrateAccount() in SaveSchema.ts */
-export const SAVE_SCHEMA_VERSION = 2;
+export const SAVE_SCHEMA_VERSION = 3;
 
 export type SavedCityId = 'lagos' | 'abuja' | 'port_harcourt';
 
@@ -247,6 +248,10 @@ export interface PlayerAccount {
   phoneNumber: string;
   originDestiny?: OriginDestiny;
   destinyTitle?: string;
+  /** The character's trait (src/life/Traits.ts), picked once; absent until picked */
+  trait?: TraitId;
+  /** Parts of skill points a trait added that have not yet made a whole point, by skill */
+  skillCarry?: Record<string, number>;
   walletCash: number;   // Physical cash in pocket (Naira ₦)
   bank: BankAccount;
   stats: PlayerStats;

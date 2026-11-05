@@ -10427,3 +10427,64 @@ body[data-ui-mode="world-map"] .top-menu-btn {
   color: #c9e6d4;
 }
 
+
+/* Traits in the Character Studio: picked once */
+.trait-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.trait-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  border-radius: 12px;
+  border: 2px solid rgba(15, 26, 20, 0.1);
+  background: #ffffff;
+  color: #0f1a14;
+  cursor: pointer;
+  font: inherit;
+  min-height: 44px;
+}
+.trait-card.active {
+  border-color: #0e7a4e;
+  background: #e6f4ec;
+}
+.trait-card.locked {
+  opacity: 0.45;
+  cursor: default;
+}
+.trait-icon {
+  font-size: 22px;
+}
+.trait-name {
+  font-size: 14px;
+  font-weight: 800;
+}
+.trait-blurb {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #4b5751;
+}
+.trait-confirm {
+  margin: 0 0 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #0e7a4e;
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+@media (max-width: 420px) {
+  .trait-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

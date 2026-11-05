@@ -831,6 +831,14 @@ export class Game {
     const online = OnlineAccount.start({ name: start.username, save: { cash: start.walletCash, bank: start.bank.balance } });
     if (online) {
       backend.authority = { report: (cash, bank, memo) => online.report(cash, bank, memo) };
+      // The trait belongs to the account: the server's wins, and one picked here is kept there
+      backend.onTraitChosen = (id) => void online.request('/me/trait', { trait: id }).then((r) => r.trait && backend.adoptTrait(r.trait));
+      void online.ready.then(async (ok) => {
+        if (!ok) return;
+        const me = await online.request('/me');
+        if (me.trait) backend.adoptTrait(me.trait);
+        else if (me.ok && backend.getTrait()) backend.onTraitChosen?.(backend.getTrait()!);
+      });
       online.on('wallet', (wallet) => backend.applyServerWallet(wallet));
       online.on('notice', (text) => showGameToast(String(text), 'warning', 5200));
       // A first visit, or a guest still: register a name of your own, or sign in from another phone
@@ -1020,6 +1028,10 @@ export class Game {
     const loadNotice = BackendService.getInstance().loadNotice;
     if (loadNotice) {
       showGameToast(loadNotice, 'warning', 9000);
+    }
+    // A character from before traits, or one who has not picked yet: say where to pick one
+    if (!BackendService.getInstance().getTrait() && !navigator.webdriver) {
+      setTimeout(() => showGameToast('🧬 New: pick your trait in the Character Studio (Origin, Traits & Face). It changes your needs, skills and some prices, for good.', 'info', 8000), 6000);
     }
 
     // 12c. Character & Vehicle Quality Studio Showcase (Milestone A Acceptance Gate)

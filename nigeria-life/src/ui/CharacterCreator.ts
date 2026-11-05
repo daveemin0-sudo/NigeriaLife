@@ -1,3 +1,4 @@
+import { TRAITS, isTraitId, traitById, type TraitId } from '../life/Traits';
 import { LookPreview } from './LookPreview';
 import {
   ATTIRE_PRESETS,
@@ -184,6 +185,38 @@ export class CharacterCreatorModal {
       </div>`;
   }
 
+  /** The trait being looked at before it is confirmed */
+  private pendingTrait: TraitId | null = null;
+
+  /** Draws the studio again where the player had scrolled to */
+  private renderKeepingScroll(): void {
+    const top = this.container.querySelector('.dialog-body')?.scrollTop ?? 0;
+    this.render();
+    this.setupEvents();
+    const body = this.container.querySelector('.dialog-body');
+    if (body) body.scrollTop = top;
+  }
+
+  private traitPanel(): string {
+    const mine = this.backend.getTrait();
+    const shown = mine ?? this.pendingTrait;
+    const picked = traitById(shown);
+    return `
+            <div class="creator-section trait-section">
+              <label class="section-label">🧬 Trait ${mine ? '(yours for good)' : '(pick one, for good)'}</label>
+              <p class="destiny-subtitle">${mine ? 'Your trait is set. It changes how fast your needs drain, how fast some skills grow, or what some things cost.' : 'One trait per character. It cannot be changed after you confirm it.'}</p>
+              ${!mine && picked ? `<button type="button" class="trait-confirm" id="btn-confirm-trait">Be ${picked.name} for good</button>` : ''}
+              <div class="trait-grid">
+                ${TRAITS.map((t) => `
+                  <button type="button" class="trait-card ${shown === t.id ? 'active' : ''} ${mine && mine !== t.id ? 'locked' : ''}" data-trait="${t.id}" ${mine ? 'aria-disabled="true"' : ''}>
+                    <span class="trait-icon">${t.icon}</span>
+                    <span class="trait-name">${t.name}</span>
+                    <span class="trait-blurb">${t.blurb}</span>
+                  </button>`).join('')}
+              </div>
+            </div>`;
+  }
+
   private render(): void {
     const cfg = this.player.config;
     const accountData = this.backend.getData();
@@ -221,7 +254,7 @@ export class CharacterCreatorModal {
             🛍️ Modular Wardrobe Market
           </button>
           <button id="tab-btn-presets" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'presets' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'presets' ? '#ffffff' : '#66736c'};">
-            🌟 Origin Destiny & Face
+            🌟 Origin, Traits & Face
           </button>
         </div>
 
@@ -347,6 +380,9 @@ export class CharacterCreatorModal {
                 </div>
               </div>
             </div>
+
+            <!-- Section 0b: Trait, picked once -->
+            ${this.traitPanel()}
 
             <!-- Section 1: Character Name -->
             <div class="creator-section">
@@ -548,6 +584,30 @@ export class CharacterCreatorModal {
           }
         };
       });
+
+      this.container.querySelectorAll<HTMLButtonElement>('.trait-card').forEach((card) => {
+        card.onclick = () => {
+          const id = card.dataset.trait;
+          if (!isTraitId(id)) return;
+          if (this.backend.getTrait()) {
+            showGameToast('🔒 A trait cannot be changed once picked.', 'warning', 3500);
+            return;
+          }
+          // Permanent, so the first tap only selects and a second tap on the button confirms
+          this.pendingTrait = id;
+          this.renderKeepingScroll();
+        };
+      });
+      const confirmTrait = this.container.querySelector<HTMLButtonElement>('#btn-confirm-trait');
+      if (confirmTrait) {
+        confirmTrait.onclick = () => {
+          if (!this.pendingTrait) return;
+          const res = this.backend.chooseTrait(this.pendingTrait);
+          this.pendingTrait = null;
+          showGameToast(res.applied ? `🧬 ${res.message}` : `🔒 ${res.message}`, res.applied ? 'success' : 'warning', 5000);
+          this.renderKeepingScroll();
+        };
+      }
 
       const spinBtn = document.getElementById('btn-spin-destiny');
       if (spinBtn) {

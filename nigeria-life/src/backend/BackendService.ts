@@ -1,3 +1,4 @@
+import { isTraitId, needRate, skillRate, tradePrice, traitById, type TraitId } from '../life/Traits';
 import { profileKey } from './Profile';
 import { Activity } from '../life/Activity';
 import {
@@ -163,6 +164,11 @@ export class BackendService {
 
   public processTransaction(req: ProcessTransactionRequest): TransactionResult {
     this.syncFromStorage();
+    // A trait can make food, fares and fuel cheaper (src/life/Traits.ts)
+    if (req.type === 'FOOD_PURCHASE' || req.type === 'TRAVEL_COST') {
+      const amount = tradePrice(this.data.trait, req.type === 'FOOD_PURCHASE' ? 'food' : 'transport', req.amount);
+      if (amount !== req.amount) req = { ...req, amount };
+    }
     const cashBefore = this.data.walletCash;
     const bankBefore = this.data.bank.balance;
     const res = this.txService.process(this.data, req);
@@ -386,6 +392,22 @@ export class BackendService {
     if (moved !== 0) Activity.emit({ kind: 'need', need, delta: moved });
   }
 
+  /**
+   * Skill points after the trait: a trait that speeds this skill adds part of a point each time,
+   * and the parts add up to whole points. Losses are never changed.
+   */
+  private withTrait(skill: string, points: number): number {
+    const rate = points > 0 ? skillRate(this.data.trait, skill) : 1;
+    if (rate === 1) return points;
+    const carry = this.data.skillCarry ?? (this.data.skillCarry = {});
+    const total = points * rate + (carry[skill] ?? 0);
+    const whole = Math.floor(total);
+    const left = total - whole;
+    if (left > 0.0001) carry[skill] = left;
+    else delete carry[skill];
+    return whole;
+  }
+
   /** Awards experience / levels to one of the 9 official skills (1-10 clamped) */
   public addSkillExp(skill: string, levels: number = 1): void {
     this.syncFromStorage();
@@ -403,7 +425,7 @@ export class BackendService {
       };
     }
     const current = (this.data.skills as any)[skill] ?? 1;
-    (this.data.skills as any)[skill] = Math.max(1, Math.min(10, current + levels));
+    (this.data.skills as any)[skill] = Math.max(1, Math.min(10, current + this.withTrait(skill, levels)));
     this.saveData();
     emitGameEvent('skill_leveled' as any);
   }
@@ -519,15 +541,16 @@ export class BackendService {
     const elapsed = this.vitalsAccumulator;
     this.vitalsAccumulator = 0;
 
-    // Base hunger drain: ~1 point every 30 seconds
+    // Base hunger drain: ~1 point every 30 seconds. The other needs drain in proportion to it.
     const hungerDrain = (isSprinting ? 0.07 : isDriving ? 0.02 : 0.035) * elapsed;
-    this.data.stats.hunger = Math.max(0, this.data.stats.hunger - hungerDrain);
+    const trait = this.data.trait;
+    this.data.stats.hunger = Math.max(0, this.data.stats.hunger - hungerDrain * needRate(trait, 'hunger'));
 
     // Energy drain
     if (isSprinting) {
-      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.35 * elapsed);
+      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.35 * elapsed * needRate(trait, 'energy'));
     } else if (!isDriving) {
-      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.02 * elapsed);
+      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.02 * elapsed * needRate(trait, 'energy'));
     }
 
     // Benchmark 6-needs decay (proportional to benchmark rates: hunger 5.5, energy 4.0, fun 4.5, social 3.0, hygiene 3.5, bladder 7.0 /hr)
@@ -536,10 +559,10 @@ export class BackendService {
     if (this.data.stats.hygiene === undefined) this.data.stats.hygiene = 100;
     if (this.data.stats.bladder === undefined) this.data.stats.bladder = 100;
 
-    this.data.stats.fun = Math.max(0, this.data.stats.fun - hungerDrain * 0.82);
-    this.data.stats.social = Math.max(0, this.data.stats.social - hungerDrain * 0.55);
-    this.data.stats.hygiene = Math.max(0, this.data.stats.hygiene - hungerDrain * (isSprinting ? 1.2 : 0.64));
-    this.data.stats.bladder = Math.max(0, this.data.stats.bladder - hungerDrain * 1.27);
+    this.data.stats.fun = Math.max(0, this.data.stats.fun - hungerDrain * 0.82 * needRate(trait, 'fun'));
+    this.data.stats.social = Math.max(0, this.data.stats.social - hungerDrain * 0.55 * needRate(trait, 'social'));
+    this.data.stats.hygiene = Math.max(0, this.data.stats.hygiene - hungerDrain * (isSprinting ? 1.2 : 0.64) * needRate(trait, 'hygiene'));
+    this.data.stats.bladder = Math.max(0, this.data.stats.bladder - hungerDrain * 1.27 * needRate(trait, 'bladder'));
 
     let starvedWarning = false;
     const now = Date.now();
@@ -604,6 +627,7 @@ export class BackendService {
   public addSkillXp(skill: keyof PlayerSkills, points: number = 1): { skill: keyof PlayerSkills; level: number; leveledUp: boolean } {
     const skills = this.getSkills();
     const current = skills[skill] ?? 1;
+    points = this.withTrait(skill, points);
     const next = Math.min(10, Math.max(1, current + points));
     const leveledUp = next > current;
     skills[skill] = next;
@@ -1432,6 +1456,40 @@ export class BackendService {
     this.saveData();
     return { leveledUp, newTitle: this.data.career.title };
   }
+
+  // === TRAITS (src/life/Traits.ts) ===
+
+  public getTrait(): TraitId | null {
+    return this.data.trait ?? null;
+  }
+
+  /** Picks the character's trait. Like the origin, once picked it cannot be changed. */
+  public chooseTrait(id: TraitId): { applied: boolean; message: string } {
+    this.syncFromStorage();
+    const trait = traitById(id);
+    if (!trait) return { applied: false, message: 'That is not a trait.' };
+    if (this.data.trait) {
+      const mine = traitById(this.data.trait);
+      return { applied: false, message: `You are already ${mine?.name ?? 'set in your ways'}. A trait cannot be changed once picked.` };
+    }
+    this.data.trait = trait.id;
+    this.saveData();
+    this.notifyListeners();
+    this.onTraitChosen?.(trait.id);
+    return { applied: true, message: `${trait.icon} ${trait.name}: ${trait.blurb}` };
+  }
+
+  /** Takes on the trait the game server holds for this account (another device picked it first). */
+  public adoptTrait(id: unknown): void {
+    if (!isTraitId(id) || this.data.trait === id) return;
+    this.data.trait = id;
+    this.data.skillCarry = {};
+    this.saveData();
+    this.notifyListeners();
+  }
+
+  /** Set by the online account, to tell the server when a trait is picked */
+  public onTraitChosen?: (id: TraitId) => void;
 
   // === VIRAL ORIGIN DESTINY (Nepo vs. Lapo vs. Tech Bro) ===
 

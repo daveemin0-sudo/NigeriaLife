@@ -113,6 +113,11 @@ CREATE TABLE IF NOT EXISTS building_clock (
   paid_until INTEGER NOT NULL,     -- takings are paid up to this moment
   PRIMARY KEY (account_id, plot_id)
 );
+CREATE TABLE IF NOT EXISTS traits (
+  account_id TEXT PRIMARY KEY REFERENCES accounts(id),
+  trait TEXT NOT NULL,             -- src/life/Traits.ts; picked once, never changed
+  chosen_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS once_paid (
   account_id TEXT NOT NULL,
   kind TEXT NOT NULL,              -- 'quest' | 'album' | 'case' | 'agama'

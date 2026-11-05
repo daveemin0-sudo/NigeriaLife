@@ -33,6 +33,7 @@ import { ServerChieftaincy } from './chieftaincy.ts';
 import { ServerMotors } from './motors.ts';
 import { Registry } from './registry.ts';
 import { DEFAULT_MAX_PLAYERS, Rooms } from './rooms.ts';
+import { isTraitId } from '../src/life/Traits.ts';
 import { RateLimit } from './accounts.ts';
 import { openStore } from './store.ts';
 
@@ -85,6 +86,12 @@ economy.businessesOf = (accountId) => {
   }
 };
 economy.onChange = (id, wallet) => rooms.tell(id, { type: 'wallet', wallet });
+
+/** The trait this account picked, if any */
+function traitOf(accountId: string): string | null {
+  const row = db.prepare('SELECT trait FROM traits WHERE account_id = ?').get(accountId) as { trait: string } | undefined;
+  return row?.trait ?? null;
+}
 
 /** The share of a sale's price the market keeps: as the game (src/realestate/AssetMarket.ts) */
 const SALE_FEE_RATE = 0.02;
@@ -394,7 +401,16 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
   const done = (result: { ok: boolean }) => reply(res, result.ok ? 200 : 409, result);
   switch (`${req.method} ${url.pathname}`) {
     case 'GET /me':
-      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id) });
+      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id) });
+    case 'POST /me/trait': {
+      // Picked once for the account, on whichever device picks first; a different one later is refused
+      const trait = String(body.trait ?? '');
+      if (!isTraitId(trait)) return reply(res, 400, { ok: false, reason: 'That is not a trait.' });
+      const held = traitOf(account.id);
+      if (held) return reply(res, held === trait ? 200 : 409, held === trait ? { ok: true, trait } : { ok: false, reason: 'Your trait was already picked.', trait: held });
+      db.prepare('INSERT INTO traits (account_id, trait, chosen_at) VALUES (?, ?, ?)').run(account.id, trait, Date.now());
+      return reply(res, 200, { ok: true, trait });
+    }
     case 'POST /me/device': {
       const keep = ['fps', 'quality', 'pixelRatio', 'deviceRatio', 'screen', 'touch', 'triangles', 'drawCalls', 'mode', 'walked', 'joystickTouches', 'agent'];
       const report: Record<string, unknown> = { at: Date.now(), name: account.name };
