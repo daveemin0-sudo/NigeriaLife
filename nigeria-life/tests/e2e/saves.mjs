@@ -1,6 +1,6 @@
 // The saved game: damaged saves are repaired, the player resumes where they were,
 // and two tabs of the same browser cannot overwrite each other.
-import { open, reload, wait, money, quest, newPlayer, enterInterior } from './lib.mjs';
+import { open, reload, wait, money, quest, newPlayer, enterInterior, boardHeldFlight } from './lib.mjs';
 
 const SAVE_KEY = 'nigeria_life_account_data_v1';
 // Writes a save before the game boots, once (so a later reload keeps what the game saved)
@@ -27,13 +27,16 @@ export async function run(browser, check) {
     const biz = d.businesses.find((x) => x.id === 'biz_mama_put');
     return {
       username: d.username, cash: d.walletCash, bank: d.bank.balance, cred: d.stats.streetCred, gala: d.inventory.find((i) => i.id === 'gala_snack')?.quantity,
-      items: d.inventory.length, biz: { owned: biz.owned, pending: biz.pendingRevenue, level: biz.level, cook: biz.upgrades.find((u) => u.id === 'upg_cook').purchased },
+      items: d.inventory.length, biz: { owned: biz.owned, pending: biz.pendingRevenue, perCycle: biz.baseIncomePerCycle + biz.upgrades.filter((u) => u.purchased).reduce((a, u) => a + u.bonusIncomePerCycle, 0), level: biz.level, cook: biz.upgrades.find((u) => u.id === 'upg_cook').purchased },
       room: d.properties.find((p) => p.id === 'prop_mainland_room').status, rank: d.career.rankLevel, destiny: d.originDestiny, housing: d.activeHousingId, notice: be.loadNotice,
     };
   });
+  // A business keeps earning by the real clock from the moment the game is open (one payout every 45 s),
+  // so on a slow machine whole payouts may have been added to what was saved: that is the game working
+  const earnedSince = (pending, saved, perCycle) => pending >= saved && (pending - saved) % perCycle === 0;
   check('an existing save from before versioning loads unchanged, with no warning',
     old.username === 'Ada' && old.cash === 4321 && old.bank === 98765 && old.cred === 33 && old.gala === 5 && old.items === 1
-      && old.biz.owned && old.biz.pending === 24000 && old.biz.level === 2 && old.biz.cook === true
+      && old.biz.owned && earnedSince(old.biz.pending, 24000, old.biz.perCycle) && old.biz.level === 2 && old.biz.cook === true
       && old.room === 'rented' && old.rank === 2 && old.destiny === 'tech_bro' && old.housing === 'prop_mainland_room' && old.notice === null,
     old);
   await ctx.close();
@@ -61,8 +64,9 @@ export async function run(browser, check) {
     numbersOk && r.inventoryIsList && r.stats.health >= 0 && r.stats.health < 1 && r.stats.streetCred === 100 && r.cash === 25000 && r.bank === 150000,
     { cash: r.cash, bank: r.bank, stats: r.stats, version: r.version });
   check('the HUD shows no NaN/undefined', r.hudHasNaN === false);
-  check('valid parts of a damaged save are kept (business still owned, price taken from code)',
-    r.biz.owned === true && r.biz.pendingRevenue === 0 && r.biz.purchasePrice === 180000,
+  const rPerCycle = r.biz.baseIncomePerCycle + r.biz.upgrades.filter((u) => u.purchased).reduce((a, u) => a + u.bonusIncomePerCycle, 0);
+  check('valid parts of a damaged save are kept (business still owned, its broken takings reset to nothing, price taken from code)',
+    r.biz.owned === true && earnedSince(r.biz.pendingRevenue, 0, rPerCycle) && r.biz.purchasePrice === 8_000_000,
     { owned: r.biz.owned, pendingRevenue: r.biz.pendingRevenue, purchasePrice: r.biz.purchasePrice });
   check('the player is told, and the original save is backed up', !!r.notice && r.backup, { notice: r.notice });
   check('damaged save: no console errors', log.errors.length === 0, log.errors.slice(0, 5));
@@ -94,12 +98,35 @@ export async function run(browser, check) {
     if (saved && saved.world && Math.abs(saved.world.x - 31) < 0.5) break;
     await wait(500);
   }
-  check('the autosave writes a versioned save holding the world state', saved && saved.version === 2 && saved.world && Math.abs(saved.world.x - 31) < 0.5 && Math.abs(saved.world.z + 22) < 0.5, saved);
+  check('the autosave writes a versioned save holding the world state', saved && saved.version === 4 && saved.world && Math.abs(saved.world.x - 31) < 0.5 && Math.abs(saved.world.z + 22) < 0.5, saved);
   await reload(page);
   const after = await page.evaluate(() => { const g = window.game; const d = g.hud.backend.getData(); return { x: g.player.position.x, z: g.player.position.z, rot: g.player.mesh.rotation.y, hour: g.world.skyEnvironment.currentHour, hunger: d.stats.hunger, energy: d.stats.energy }; });
   check('reload restores position and facing', Math.abs(after.x - 31) < 1 && Math.abs(after.z + 22) < 1 && Math.abs(after.rot - 1.25) < 0.1, after);
   check('reload restores the time of day', Math.abs(after.hour - 20.5) < 0.6, { hour: after.hour });
   check('reload restores drained vitals', after.hunger < 62 && after.hunger > 60 && after.energy < 47.1 && after.energy > 45.5, { hunger: after.hunger, energy: after.energy });
+
+  // The calendar follows the real date in Lagos (day 0 is Wed 7 Oct 2026): midnight starts a new
+  // day, and the day survives a reload
+  const calendar = await page.evaluate(() => {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', weekday: 'short', day: 'numeric' }).formatToParts(new Date());
+    const label = (day) => { const d = new Date(2026, 9, 7 + day); return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.getDate()}`; };
+    const day = window.game.world.skyEnvironment.day;
+    return { day, today: `${parts.find((p) => p.type === 'weekday').value} ${parts.find((p) => p.type === 'day').value}`, shown: document.getElementById('hud-clock-val').textContent, next: label(day + 1) };
+  });
+  await page.evaluate(() => window.game.world.skyEnvironment.setHour(23.995));
+  let clock = { day: calendar.day, label: '' };
+  for (let i = 0; i < 40 && clock.day <= calendar.day; i++) {
+    await wait(300);
+    clock = await page.evaluate(() => ({ day: window.game.world.skyEnvironment.day, label: document.getElementById('hud-clock-val').textContent }));
+  }
+  check(
+    "the clock shows today's date in Lagos, and midnight moves it on one day",
+    calendar.shown.startsWith(calendar.today) && clock.day === calendar.day + 1 && clock.label.startsWith(calendar.next),
+    { ...calendar, after: clock }
+  );
+  await reload(page);
+  const kept = await page.evaluate(() => ({ day: window.game.world.skyEnvironment.day, label: document.getElementById('hud-clock-val').textContent }));
+  check('reload keeps the day', kept.day === calendar.day + 1 && kept.label.startsWith(calendar.next), { ...kept, expected: calendar.next });
 
   await page.evaluate(() => { window.game.player.mesh.position.set(-12, 0, 40); });
   await enterInterior(page, 'hospital');
@@ -108,16 +135,29 @@ export async function run(browser, check) {
   const out = await page.evaluate(() => { const g = window.game; return { x: g.player.position.x, z: g.player.position.z, inside: g.world.interiorManager.isPlayerInside() }; });
   check('saved while indoors: reload puts the player on the street outside', !out.inside && Math.abs(out.x + 12) < 1 && Math.abs(out.z - 40) < 1, out);
 
-  const beforeFlight = await money(page);
+  // What has been paid for travel, from the ledger: a quest pays out on arrival, so the purse alone does not show the fare
+  const fares = () => page.evaluate(() => window.game.hud.backend.getData().transactionHistory.filter((t) => t.type === 'TRAVEL_COST').reduce((sum, t) => sum + t.amount, 0));
+  // Fares are in millions now (Lagos to Port Harcourt is ₦3,600,000): the player is given the money for it
+  await page.evaluate(() => window.game.hud.backend.performGig(10_000_000, 0, 'test: travelling money'));
+  const beforeFlight = await fares();
   await page.evaluate(() => window.game.hud.interstateModal.open('lagos'));
   await wait(500);
+  // The sheet sells the ticket; the flight is then boarded at the airport
   await page.evaluate(() => document.querySelector('[data-dest-id="port_harcourt"]').click());
+  await wait(600);
+  await boardHeldFlight(page);
   await wait(1500);
   const inFlight = await page.evaluate(() => window.game.flightExperience.isActive);
   await reload(page);
-  const landed = await page.evaluate(() => window.game.world.cityManager.currentCityId);
-  const afterFlight = await money(page);
-  check('reload mid-flight: the paid journey is not lost, the player resumes in Port Harcourt', inFlight && landed === 'port_harcourt' && beforeFlight.total - afterFlight.total > 0, { inFlight, landed, fare: beforeFlight.total - afterFlight.total });
+  const landed = await page.evaluate(() => {
+    const g = window.game;
+    const airport = g.world.airportOf('port_harcourt');
+    return { city: g.world.cityManager.currentCityId, ticket: g.flights.status(), fromSteps: airport ? Math.hypot(g.player.position.x - airport.apron.steps.x, g.player.position.z - airport.apron.steps.z) : null };
+  });
+  const afterFlight = await fares();
+  check('reload mid-flight: the paid journey is not lost, the player resumes in Port Harcourt at the foot of the aircraft steps, the ticket used, the fare taken once',
+    inFlight && landed.city === 'port_harcourt' && landed.ticket.state === 'arrived' && !landed.ticket.active && landed.fromSteps < 1 && afterFlight - beforeFlight === 3_600_000,
+    { inFlight, landed, fare: afterFlight - beforeFlight });
   check('that arrival still counts for the Port Harcourt quest', (await quest(page, 'quest_ph_1')).obj.obj_p1_arrive === true);
   check('persistence: no console errors', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();
@@ -153,13 +193,14 @@ export async function run(browser, check) {
   check('a tab-to-tab transfer neither creates nor destroys money', sent.success && afterTransfer[0] === start + 1000 && afterTransfer[1] === start + 1000, { expected: start + 1000, afterTransfer });
 
   // An owned business must pay one cycle once, not once per open tab
-  await A.evaluate(() => { const be = window.game.hud.backend; be.data.bank.balance += 500000; be.buyBusiness('biz_mama_put'); });
+  await A.evaluate(() => { const be = window.game.hud.backend; be.data.bank.balance += 50_000_000; be.buyBusiness('biz_mama_put'); });
   await wait(600);
   await A.evaluate(() => { const be = window.game.hud.backend; be.data.lastRevenueAt = Date.now() - 46000; be.saveData(); });
   await wait(6500);
   const pending = (p) => p.evaluate(() => window.game.hud.backend.getData().businesses.find((x) => x.id === 'biz_mama_put').pendingRevenue);
   const revenue = [await pending(A), await pending(B)];
-  check('one business cycle is paid once across two tabs', revenue[0] === 12000 && revenue[1] === 12000, { revenue, onePayout: 12000 });
+  const onePayout = await A.evaluate(() => window.game.hud.backend.getData().businesses.find((x) => x.id === 'biz_mama_put').baseIncomePerCycle);
+  check('one business cycle is paid once across two tabs', revenue[0] === onePayout && revenue[1] === onePayout, { revenue, onePayout });
 
   const { page: C } = await open(ctx);
   check('a newly opened tab loads the state both tabs agree on', (await money(C)).total === (await money(A)).total);

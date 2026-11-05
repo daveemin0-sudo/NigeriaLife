@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { OpeningHours } from './Hours';
 
 export type DestinationCategory =
   | 'Healthcare'
@@ -15,7 +16,10 @@ export type DestinationCategory =
   | 'Refinery'
   | 'Hotel'
   | 'Supermarket'
-  | 'Residential';
+  | 'Residential'
+  | 'Transit'
+  | 'Civic'
+  | 'Culture';
 
 export type TransportMode =
   | 'walk'
@@ -24,7 +28,9 @@ export type TransportMode =
   | 'danfo'
   | 'brt'
   | 'taxi'
-  | 'car';
+  | 'car'
+  /** The player at the wheel of their own car, following arrows on the road */
+  | 'drive';
 
 export interface TransportOption {
   mode: TransportMode;
@@ -90,6 +96,9 @@ export interface DestinationDefinition {
   npcPopulation: DestinationNPCSpec[];
   activities: DestinationActivity[];
   services: string[];
+  /** When it is open. Left out, it never shuts. */
+  hours?: OpeningHours;
+  /** The same, in words: written from `hours` when the place is registered, never typed in */
   openingHours: string;
   destinationDescription: string;
   shortDescription: string;

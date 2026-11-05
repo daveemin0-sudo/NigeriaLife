@@ -18,8 +18,6 @@ export class SoundEngine {
   // Background generator & ambient loops
   private generatorOsc: OscillatorNode | null = null;
   private generatorGain: GainNode | null = null;
-  private radioPlaying: boolean = false;
-  private radioTimer: any = null;
 
   private constructor() {
     // Lazy initialize on first user interaction to satisfy browser autoplay policy
@@ -71,16 +69,82 @@ export class SoundEngine {
   // =========================================================================
   // 1. VEHICLE HORN: Authentic Nigerian Danfo / Okada Dual-Tone "Pim-Pim!"
   // =========================================================================
-  public playVehicleHorn(type: 'danfo' | 'okada' | 'suv' | 'keke' = 'danfo'): void {
+  /** A convoy's siren: one rising and falling wail, as loud as the convoy is near (0 to 1) */
+  public playSiren(level = 0.5): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain || level <= 0.02) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(650, now);
+    osc.frequency.linearRampToValueAtTime(1150, now + 0.55);
+    osc.frequency.linearRampToValueAtTime(650, now + 1.1);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.16 * level, now + 0.08);
+    gain.gain.linearRampToValueAtTime(0.0001, now + 1.15);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 1.2);
+  }
+
+  public playVehicleHorn(type: string = 'danfo'): void {
     const ctx = this.ensureContext();
     if (!ctx || this.isMuted || !this.masterGain) return;
 
     const now = ctx.currentTime;
+    if (type === 'ambulance') {
+      // Emergency two-tone siren yelp (high-low alternating warble)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(960, now);
+      osc.frequency.linearRampToValueAtTime(740, now + 0.18);
+      osc.frequency.linearRampToValueAtTime(960, now + 0.36);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now);
+      osc.stop(now + 0.38);
+      return;
+    }
+
+    if (type === 'electric_car') {
+      // Modern smooth acoustic pedestrian warning chime
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.16); // A5
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(now);
+      osc.stop(now + 0.22);
+      return;
+    }
+
     const duration = type === 'okada' || type === 'keke' ? 0.15 : 0.22;
 
     // Dual-tone harmonic horn frequencies
-    const freq1 = type === 'okada' ? 620 : type === 'keke' ? 680 : type === 'suv' ? 380 : 440;
-    const freq2 = type === 'okada' ? 780 : type === 'keke' ? 850 : type === 'suv' ? 475 : 554; // Musical major third interval
+    let freq1 = 440;
+    let freq2 = 554;
+    if (type === 'okada') {
+      freq1 = 620; freq2 = 780;
+    } else if (type === 'keke') {
+      freq1 = 680; freq2 = 850;
+    } else if (type === 'suv' || type === 'gwagon') {
+      freq1 = 340; freq2 = 425; // Deep booming truck horn
+    } else if (type === 'luxury_sedan') {
+      freq1 = 370; freq2 = 466; // Refined European executive dual-tone
+    } else if (type === 'sports_car') {
+      freq1 = 510; freq2 = 640; // High-pitched aggressive sports horn
+    } else if (type === 'sedan') {
+      freq1 = 415; freq2 = 520;
+    }
 
     [freq1, freq2].forEach((freq) => {
       const osc = ctx.createOscillator();
@@ -217,104 +281,68 @@ export class SoundEngine {
   // =========================================================================
   // 5. AFROBEATS STREET RADIO: Rhythmic Synthetic Log-Drum & Rhodes Chords
   // =========================================================================
-  public toggleRadio(): boolean {
-    this.radioPlaying = !this.radioPlaying;
-    if (this.radioPlaying) {
-      this.startAfrobeatsLoop();
-    } else {
-      this.stopAfrobeatsLoop();
+  /** The music player, which the old radio buttons start and stop (set by the music player itself) */
+  public static radio: { toggle(): boolean; isOn(): boolean } | null = null;
+
+  /** The audio context and the master volume, for whoever plays through the game's sound */
+  public audio(start = true): { ctx: AudioContext; master: GainNode } | null {
+    // Background sound waits for the player's first touch: browsers only allow sound after one
+    if (!start && !this.ctx) return null;
+    const ctx = this.ensureContext();
+    return ctx && this.masterGain ? { ctx, master: this.masterGain } : null;
+  }
+
+  /** A horn somewhere down the road: two short notes, muffled by distance */
+  public playDistantHorn(level = 0.25): void {
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain || this.isMuted) return;
+    const now = ctx.currentTime;
+    const pitch = 330 + Math.random() * 160;
+    const beeps = Math.random() < 0.5 ? 1 : 2;
+    const low = ctx.createBiquadFilter();
+    low.type = 'lowpass';
+    low.frequency.value = 1400;
+    low.connect(this.masterGain);
+    for (let b = 0; b < beeps; b++) {
+      const t = now + b * 0.24;
+      for (const f of [pitch, pitch * 1.26]) {
+        const o = ctx.createOscillator();
+        o.type = 'square';
+        o.frequency.value = f;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.05 * level, t + 0.02);
+        g.gain.setValueAtTime(0.05 * level, t + 0.16);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+        o.connect(g);
+        g.connect(low);
+        o.start(t);
+        o.stop(t + 0.22);
+      }
     }
-    return this.radioPlaying;
+  }
+
+  /** The game is out of sight (Chrome closed, another app): every sound stops where it is */
+  public suspendAll(): void {
+    if (this.ctx && this.ctx.state === 'running') void this.ctx.suspend();
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {
+      // No speech here
+    }
+  }
+
+  /** Back in sight: the sound carries on */
+  public resumeAll(): void {
+    if (this.ctx && this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
+  public toggleRadio(): boolean {
+    return SoundEngine.radio?.toggle() ?? false;
   }
 
   public isRadioActive(): boolean {
-    return this.radioPlaying;
-  }
-
-  private startAfrobeatsLoop(): void {
-    const ctx = this.ensureContext();
-    if (!ctx) return;
-
-    let step = 0;
-    // Classic 112 BPM Afrobeats tempo (535ms per beat, 134ms per 16th step)
-    const stepInterval = 134;
-
-    const chords = [
-      [329.63, 392.0, 493.88], // Em
-      [261.63, 329.63, 392.0], // C
-      [293.66, 369.99, 440.0], // D
-      [246.94, 311.13, 369.99], // Bm
-    ];
-
-    const playStep = () => {
-      if (!this.radioPlaying) return;
-      const now = ctx.currentTime;
-
-      // Amapiano / Afrobeats Log Drum Bass Kick on steps 0, 4, 7, 10, 12
-      const isLogDrumStep = [0, 4, 7, 10, 12].includes(step % 16);
-      if (isLogDrumStep && !this.isMuted && this.masterGain) {
-        const bassOsc = ctx.createOscillator();
-        const bassGain = ctx.createGain();
-        bassOsc.type = 'sine';
-        bassOsc.frequency.setValueAtTime(95, now);
-        bassOsc.frequency.exponentialRampToValueAtTime(38, now + 0.16);
-
-        bassGain.gain.setValueAtTime(0.24, now);
-        bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
-        bassOsc.connect(bassGain);
-        bassGain.connect(this.masterGain);
-        bassOsc.start(now);
-        bassOsc.stop(now + 0.22);
-      }
-
-      // Shaker / Hi-Hat pulse on every other step
-      if (step % 2 === 0 && !this.isMuted && this.masterGain) {
-        const shakerOsc = ctx.createOscillator();
-        const shakerGain = ctx.createGain();
-        shakerOsc.type = 'square';
-        shakerOsc.frequency.setValueAtTime(8000, now);
-
-        shakerGain.gain.setValueAtTime(0.025, now);
-        shakerGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
-
-        shakerOsc.connect(shakerGain);
-        shakerGain.connect(this.masterGain);
-        shakerOsc.start(now);
-        shakerOsc.stop(now + 0.05);
-      }
-
-      // Rhodes Chord Stab on beat 0 of every bar (16 steps)
-      if (step % 16 === 0 && !this.isMuted && this.masterGain) {
-        const chordIndex = Math.floor(step / 16) % chords.length;
-        const notes = chords[chordIndex];
-        notes.forEach((f) => {
-          const cOsc = ctx.createOscillator();
-          const cGain = ctx.createGain();
-          cOsc.type = 'sine';
-          cOsc.frequency.setValueAtTime(f, now);
-          cGain.gain.setValueAtTime(0.08, now);
-          cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
-
-          cOsc.connect(cGain);
-          cGain.connect(this.masterGain!);
-          cOsc.start(now);
-          cOsc.stop(now + 0.5);
-        });
-      }
-
-      step = (step + 1) % 64;
-      this.radioTimer = setTimeout(playStep, stepInterval);
-    };
-
-    playStep();
-  }
-
-  private stopAfrobeatsLoop(): void {
-    if (this.radioTimer) {
-      clearTimeout(this.radioTimer);
-      this.radioTimer = null;
-    }
+    return SoundEngine.radio?.isOn() ?? false;
   }
 
   // =========================================================================
@@ -352,5 +380,145 @@ export class SoundEngine {
       const vol = Math.max(0, Math.min(0.08, 0.08 * (1 - distanceToGen / 24)));
       this.generatorGain.gain.setValueAtTime(vol, ctx.currentTime);
     }
+  }
+
+  // =========================================================================
+  // 7. DANFO CONDUCTOR ROOF / BODY SLAP ("Piam-Piam! Carry go!")
+  // =========================================================================
+  public playConductorSlap(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain) return;
+    const now = ctx.currentTime;
+    [0, 0.12].forEach((offset) => {
+      const t = now + offset;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(140, t);
+      osc.frequency.exponentialRampToValueAtTime(45, t + 0.08);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(420, t);
+
+      gain.gain.setValueAtTime(0.35, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain!);
+
+      osc.start(t);
+      osc.stop(t + 0.1);
+    });
+  }
+
+  // =========================================================================
+  // 8. NEPA BLACKOUT TRANSFORMER TRIP ("Kpa-Bzzt!")
+  // =========================================================================
+  public playTransformerTrip(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain) return;
+    const now = ctx.currentTime;
+
+    // Explosive low punch ("Kpa!")
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(110, now);
+    osc.frequency.exponentialRampToValueAtTime(28, now + 0.22);
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.26);
+
+    // High electrical fizzle arc ("Bzzt!")
+    const spark = ctx.createOscillator();
+    const sparkGain = ctx.createGain();
+    spark.type = 'square';
+    spark.frequency.setValueAtTime(1200, now + 0.04);
+    spark.frequency.linearRampToValueAtTime(300, now + 0.18);
+    sparkGain.gain.setValueAtTime(0.18, now + 0.04);
+    sparkGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    spark.connect(sparkGain);
+    sparkGain.connect(this.masterGain);
+    spark.start(now + 0.04);
+    spark.stop(now + 0.22);
+  }
+
+  // =========================================================================
+  // 9. UP NEPA POWER RESTORATION SURGE ("Bzzzt-Ting!")
+  // =========================================================================
+  public playNepaRestored(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain) return;
+    const now = ctx.currentTime;
+
+    // Rising power hum
+    const hum = ctx.createOscillator();
+    const humGain = ctx.createGain();
+    hum.type = 'sine';
+    hum.frequency.setValueAtTime(50, now);
+    hum.frequency.exponentialRampToValueAtTime(100, now + 0.35);
+    humGain.gain.setValueAtTime(0.02, now);
+    humGain.gain.linearRampToValueAtTime(0.25, now + 0.3);
+    humGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    hum.connect(humGain);
+    humGain.connect(this.masterGain);
+    hum.start(now);
+    hum.stop(now + 0.46);
+
+    // Relay contactor snap ("Clack!")
+    const snap = ctx.createOscillator();
+    const snapGain = ctx.createGain();
+    snap.type = 'triangle';
+    snap.frequency.setValueAtTime(800, now + 0.32);
+    snap.frequency.exponentialRampToValueAtTime(80, now + 0.38);
+    snapGain.gain.setValueAtTime(0.3, now + 0.32);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.39);
+    snap.connect(snapGain);
+    snapGain.connect(this.masterGain);
+    snap.start(now + 0.32);
+    snap.stop(now + 0.4);
+  }
+
+  // =========================================================================
+  // 10. RECOIL PULL STARTER & GENERATOR CRANK
+  // =========================================================================
+  public playGeneratorPull(): void {
+    const ctx = this.ensureContext();
+    if (!ctx || this.isMuted || !this.masterGain) return;
+    const now = ctx.currentTime;
+
+    // Pull friction whoosh
+    const pull = ctx.createOscillator();
+    const pullGain = ctx.createGain();
+    pull.type = 'sawtooth';
+    pull.frequency.setValueAtTime(220, now);
+    pull.frequency.exponentialRampToValueAtTime(480, now + 0.15);
+    pullGain.gain.setValueAtTime(0.2, now);
+    pullGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    pull.connect(pullGain);
+    pullGain.connect(this.masterGain);
+    pull.start(now);
+    pull.stop(now + 0.2);
+
+    // 2-stroke sputter catches
+    [0.18, 0.28, 0.36, 0.43, 0.49].forEach((tOff, i) => {
+      const t = now + tOff;
+      const chug = ctx.createOscillator();
+      const chugGain = ctx.createGain();
+      chug.type = 'sawtooth';
+      chug.frequency.setValueAtTime(65 + i * 4, t);
+      chugGain.gain.setValueAtTime(0.22, t);
+      chugGain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      chug.connect(chugGain);
+      chugGain.connect(this.masterGain!);
+      chug.start(t);
+      chug.stop(t + 0.07);
+    });
   }
 }

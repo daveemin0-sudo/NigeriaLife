@@ -1,0 +1,129 @@
+/**
+ * What can be built on a plot.
+ *
+ * One table drives everything about a design: how much ground it needs, how tall it is, what
+ * it costs, how long it takes, what kind of land it is allowed on, what it earns and what it
+ * costs to keep. The construction system, the preview, the finished building in the world and
+ * the money all read this table; there is no separate code per building.
+ *
+ * Every figure is an in-game price in the game's own economy, where a shift of work pays a
+ * few thousand naira. None of them is a real construction cost.
+ */
+
+export type LandUse = 'residential' | 'commercial';
+
+export type BuildingLook = 'house' | 'block' | 'shopfront' | 'glass' | 'tower';
+
+export interface BuildingType {
+  id: string;
+  name: string;
+  icon: string;
+  use: LandUse;
+  /** Footprint in metres, before any turning */
+  width: number;
+  depth: number;
+  floors: number;
+  floorHeight: number;
+  look: BuildingLook;
+  /** Wall colour of the finished building */
+  colour: number;
+  /** What it costs to build, paid once when work starts */
+  cost: number;
+  /** Game hours of work from an empty plot to a finished building */
+  hours: number;
+  /** What it brings in for each game day it stands finished: rent from tenants, or takings */
+  incomePerDay: number;
+  /** What it costs to keep for each game day */
+  upkeepPerDay: number;
+  /** A finished one of these is somewhere the owner can live */
+  home: boolean;
+  blurb: string;
+}
+
+export const BUILDING_TYPES: BuildingType[] = [
+  {
+    id: 'bungalow', name: 'Bungalow', icon: '🏠', use: 'residential', width: 8, depth: 9, floors: 1, floorHeight: 3.2, look: 'house', colour: 0xf3e2b3,
+    cost: 45_000_000, hours: 8, incomePerDay: 0, upkeepPerDay: 6_000, home: true, blurb: 'Three rooms on one floor with a pitched roof. Yours to live in.',
+  },
+  {
+    id: 'duplex', name: 'Duplex', icon: '🏡', use: 'residential', width: 8, depth: 10, floors: 2, floorHeight: 3.2, look: 'house', colour: 0xf1f1ec,
+    cost: 150_000_000, hours: 14, incomePerDay: 0, upkeepPerDay: 15_000, home: true, blurb: 'Two storeys with a balcony. Yours to live in.',
+  },
+  {
+    id: 'apartments', name: 'Apartment block', icon: '🏢', use: 'residential', width: 10, depth: 12, floors: 4, floorHeight: 3.1, look: 'block', colour: 0xe9c46a,
+    cost: 450_000_000, hours: 26, incomePerDay: 5_400_000, upkeepPerDay: 1_157_000, home: true, blurb: 'Eight flats let to tenants, with one kept for you.',
+  },
+  {
+    id: 'shop', name: 'Shop', icon: '🏪', use: 'commercial', width: 6, depth: 7, floors: 1, floorHeight: 3.6, look: 'shopfront', colour: 0xfde68a,
+    cost: 8_000_000, hours: 6, incomePerDay: 240_000, upkeepPerDay: 40_000, home: false, blurb: 'A single lock-up shop with a roller shutter and a signboard.',
+  },
+  {
+    id: 'restaurant', name: 'Restaurant', icon: '🍽️', use: 'commercial', width: 8, depth: 9, floors: 1, floorHeight: 3.8, look: 'shopfront', colour: 0xf0d9c0,
+    cost: 60_000_000, hours: 9, incomePerDay: 1_569_000, upkeepPerDay: 369_000, home: false, blurb: 'A dining room and a kitchen behind it, with an awning over the door.',
+  },
+  {
+    id: 'supermarket', name: 'Supermarket', icon: '🛒', use: 'commercial', width: 12, depth: 10, floors: 1, floorHeight: 4.6, look: 'shopfront', colour: 0xe2e8f0,
+    cost: 250_000_000, hours: 14, incomePerDay: 6_000_000, upkeepPerDay: 1_500_000, home: false, blurb: 'One tall floor of shelves behind a wide glass front.',
+  },
+  {
+    id: 'office', name: 'Office block', icon: '🏬', use: 'commercial', width: 10, depth: 10, floors: 5, floorHeight: 3.5, look: 'glass', colour: 0x7fb2e0,
+    cost: 1_200_000_000, hours: 30, incomePerDay: 15_429_000, upkeepPerDay: 3_714_000, home: false, blurb: 'Five floors of offices let to companies, or a headquarters for your own.',
+  },
+  {
+    id: 'hotel', name: 'Hotel', icon: '🏨', use: 'commercial', width: 12, depth: 12, floors: 6, floorHeight: 3.3, look: 'block', colour: 0xb7d3c6,
+    cost: 3_000_000_000, hours: 40, incomePerDay: 41_250_000, upkeepPerDay: 11_250_000, home: false, blurb: 'Forty rooms, a lobby and a porch for cars to pull up under.',
+  },
+];
+
+/**
+ * A tower of offices, built to as many floors as the owner chooses and the plot's zoning allows
+ * (from six). Its id carries its height ("tower-24"), so everything that reads a design reads a
+ * tower the same way. Each floor costs, earns and keeps like the office block's floors on a
+ * bigger plate (12 m by 12 m); above ten floors every floor costs a little more (piling, lifts,
+ * wind), and every floor adds two game hours of work.
+ */
+export const TOWER_MIN_FLOORS = 6;
+const TOWER_FLOOR_COST = 345_000_000;
+const TOWER_FLOOR_INCOME = 4_450_000;
+const TOWER_FLOOR_UPKEEP = 1_070_000;
+
+export function towerType(floors: number): BuildingType {
+  const n = Math.max(TOWER_MIN_FLOORS, Math.round(floors));
+  const premium = 1 + 0.015 * Math.max(0, n - 10);
+  return {
+    id: `tower-${n}`, name: `${n}-storey tower`, icon: '🏙️', use: 'commercial', width: 12, depth: 12, floors: n, floorHeight: 3.6, look: 'tower', colour: 0x9cc3e6,
+    cost: Math.round((TOWER_FLOOR_COST * n * premium) / 1_000_000) * 1_000_000,
+    hours: 6 + 2 * n,
+    incomePerDay: TOWER_FLOOR_INCOME * n,
+    upkeepPerDay: TOWER_FLOOR_UPKEEP * n,
+    home: false,
+    blurb: `${n} floors of offices in glass, let to companies, with a lobby and a lift core.`,
+  };
+}
+
+export const buildingType = (id: string): BuildingType | null => {
+  const tower = /^tower-(\d+)$/.exec(id);
+  if (tower) return Number(tower[1]) >= TOWER_MIN_FLOORS && Number(tower[1]) <= 60 ? towerType(Number(tower[1])) : null;
+  return BUILDING_TYPES.find((type) => type.id === id) ?? null;
+};
+
+/** The ground a design covers when it is put down at a point, turned by quarter turns. */
+export function footprintAt(type: BuildingType, x: number, z: number, turns: number) {
+  const sideways = Math.abs(turns) % 2 === 1;
+  const width = sideways ? type.depth : type.width;
+  const depth = sideways ? type.width : type.depth;
+  return { minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 };
+}
+
+/** What comes back if work is stopped part-way: half of the money for the work not yet done. */
+export function refundOnCancel(type: BuildingType, hoursDone: number): number {
+  const completedHours = Math.floor(hoursDone);
+  const left = Math.max(0, 1 - completedHours / type.hours);
+  return Math.round((type.cost * left * 0.5) / 1000) * 1000;
+}
+
+/** Pulling down a finished building costs a tenth of what it cost to put up. */
+export const demolitionCost = (type: BuildingType) => Math.round((type.cost * 0.1) / 1000) * 1000;
+
+/** The most takings a building holds for its owner before it stops piling up: a week. */
+export const MAX_DAYS_HELD = 7;

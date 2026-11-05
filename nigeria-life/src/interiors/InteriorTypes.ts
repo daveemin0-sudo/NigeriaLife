@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { OpeningHours } from '../destinations/Hours';
 
 export type GameLocationMode = 'street' | 'interior' | 'world-map';
 
@@ -23,7 +24,8 @@ export type InteriorType =
   | 'shop' 
   | 'office'
   | 'university'
-  | 'airport';
+  | 'airport'
+  | 'club';
 
 export interface InteriorActivityAction {
   id: string;
@@ -68,12 +70,16 @@ export interface InteriorNPCDef {
   relativePosition: THREE.Vector3;
   rotationY: number;
   outfitColor: number;
+  /** Stated outright where the name and role do not make it plain */
+  gender?: 'male' | 'female';
   hairColor?: number;
   skinColor?: number;
   hasStethoscope?: boolean;
   hasPoliceCap?: boolean;
   hasChefHat?: boolean;
   hasTie?: boolean;
+  /** Drawn with the lighter street model (a crowded place full of people) */
+  light?: boolean;
   dialogueGreeting: string;
   actions: InteriorActivityAction[];
 }
@@ -104,6 +110,8 @@ export interface InteriorDefinition {
   cameraOffset: THREE.Vector3;    // Camera viewing angle inside
   ambientLightColor: number;
   ambientLightIntensity: number;
+  /** When it can be gone into. Left out, it never shuts. */
+  hours?: OpeningHours;
   rooms: InteriorRoomDef[];
   stations: InteriorStationDef[];
   npcs: InteriorNPCDef[];

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { LAGOS_MAP_DATA } from './LagosMapData';
 import { ABUJA_MAP_DATA } from './AbujaMapData';
 import { PORT_HARCOURT_MAP_DATA } from './PortHarcourtMapData';
+import { PROPERTY_PRICES } from '../../backend/RealPrices';
 import type { CityMapData, DistrictData, MapLandmark, MapProperty, MapBusiness } from './WorldDataTypes';
 
 export class WorldDataManager {
@@ -10,7 +11,17 @@ export class WorldDataManager {
   private currentCityId: string = 'lagos';
   private playerMapPosition: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
 
-  private constructor() {}
+  private constructor() {
+    // The map's price tags are the same as the market's (backend/RealPrices)
+    for (const city of [LAGOS_MAP_DATA, ABUJA_MAP_DATA, PORT_HARCOURT_MAP_DATA]) {
+      for (const prop of city.properties ?? []) {
+        const real = PROPERTY_PRICES[prop.id];
+        if (!real) continue;
+        prop.price = real.buy;
+        if ('rentPrice' in prop) (prop as { rentPrice?: number }).rentPrice = real.rent;
+      }
+    }
+  }
 
   public static getInstance(): WorldDataManager {
     if (!WorldDataManager.instance) {
@@ -70,8 +81,34 @@ export class WorldDataManager {
     return closest;
   }
 
+  /**
+   * The district of a named city that holds this point (or the nearest to it). The map's own
+   * city can differ from the player's (another city's map can be up), so a lookup about where
+   * the player stands names the city it means.
+   */
+  public districtIn(cityId: string, pos: THREE.Vector3): DistrictData | undefined {
+    const data = cityId === 'abuja' ? ABUJA_MAP_DATA : cityId === 'port_harcourt' ? PORT_HARCOURT_MAP_DATA : cityId === 'lagos' ? LAGOS_MAP_DATA : null;
+    if (!data) return undefined;
+    const inside = data.districts.find((d) => pos.x >= d.bounds.minX && pos.x <= d.bounds.maxX && pos.z >= d.bounds.minZ && pos.z <= d.bounds.maxZ);
+    if (inside) return inside;
+    let closest: DistrictData | undefined;
+    let minDist = Infinity;
+    for (const district of data.districts) {
+      const d = district.center.distanceTo(pos);
+      if (d < minDist) { minDist = d; closest = district; }
+    }
+    return closest;
+  }
+
   public getLandmarks(): MapLandmark[] {
     return this.currentCity.landmarks;
+  }
+
+  /** The places on the map of any city, whichever map is up */
+  public landmarksOf(cityId: string): MapLandmark[] {
+    if (cityId === 'abuja') return ABUJA_MAP_DATA.landmarks;
+    if (cityId === 'port_harcourt') return PORT_HARCOURT_MAP_DATA.landmarks;
+    return LAGOS_MAP_DATA.landmarks;
   }
 
   public getLandmarkById(id: string): MapLandmark | undefined {

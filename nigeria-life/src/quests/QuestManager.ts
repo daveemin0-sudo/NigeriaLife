@@ -3,12 +3,14 @@ import { SoundEngine } from '../audio/SoundEngine';
 import { showGameToast } from '../ui/GameToast';
 import { onGameEvent, type GameEventType, type GameEventData } from '../game/GameEvents';
 import type { StoryQuest, QuestCity, QuestStatus } from './QuestTypes';
+import { profileKey } from '../backend/Profile';
+import { claimCatalogue } from '../online/checkedEarn';
 
 const QUEST_STATUSES: readonly QuestStatus[] = ['locked', 'available', 'active', 'completed'];
 
 export class QuestManager {
   private static instance: QuestManager;
-  private readonly STORAGE_KEY = 'nigeria_life_story_quests_v2';
+  private readonly STORAGE_KEY = profileKey('nigeria_life_story_quests_v2');
   private quests: StoryQuest[] = [];
   private activeQuestId: string | null = null;
   private listeners: ((activeQuest: StoryQuest | null, allQuests: StoryQuest[]) => void)[] = [];
@@ -146,7 +148,7 @@ export class QuestManager {
         giverAvatar: '🏛️',
         status: 'available',
         objectives: [
-          { id: 'obj_a1_arrive', description: 'Travel to Abuja via Wazobia Air flight or road ride', isCompleted: false },
+          { id: 'obj_a1_arrive', description: 'Travel to Abuja by NigeriaLife Air or by coach', isCompleted: false },
           { id: 'obj_a1_cab', description: 'Ride an Abuja Federal Green Cab or stroll Shehu Shagari Way', isCompleted: false },
         ],
         rewards: {
@@ -421,7 +423,10 @@ export class QuestManager {
     // Pay rewards through backend
     const backend = BackendService.getInstance();
     if (quest.rewards.cash > 0) {
-      backend.addCash(quest.rewards.cash, `Quest reward: ${quest.title}`, 'QUEST_REWARD');
+      void claimCatalogue('/money/quest', { quest: quest.id }).then((paid) => {
+        if (paid === null) backend.addCash(quest.rewards.cash, `Quest reward: ${quest.title}`, 'QUEST_REWARD');
+        else if (!paid.ok && paid.reason) showGameToast(paid.reason, 'warning');
+      });
     }
     if (quest.rewards.streetCred > 0) {
       backend.addStreetCred(quest.rewards.streetCred);
@@ -517,6 +522,8 @@ export class QuestManager {
         this.completeObjective('obj_a2_tender');
       } else if (objId === 'aso-rock-lookout') {
         this.completeObjective('obj_a3_lookout');
+      } else if (objId === 'abuja-cab') {
+        this.completeObjective('obj_a1_cab');
       } else if (objId === 'nepa-generator' || objId === 'mechanic') {
         this.completeObjective('obj_p2_repair');
       }

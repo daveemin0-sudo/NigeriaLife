@@ -1,0 +1,189 @@
+import type { InteractiveObject } from '../world/World';
+import type { InteriorDefinition, InteriorType } from '../interiors/InteriorTypes';
+import { UIStateManager } from './UIStateManager';
+
+const PLACE_ICONS: Record<InteriorType, string> = {
+  hospital: '🏥',
+  bank: '🏦',
+  restaurant: '🍲',
+  police: '🚓',
+  residence: '🏠',
+  shop: '🛍️',
+  office: '🏢',
+  university: '🎓',
+  airport: '✈️',
+  club: '🎶',
+};
+
+/** Short names for the shortcut chips. Anything not listed falls back to the object's own name. */
+const SPOT_CHIPS: Record<string, { icon: string; label: string }> = {
+  hosp_reception: { icon: '📋', label: 'Reception' },
+  hosp_doctor_desk: { icon: '🩺', label: 'Doctor' },
+  hosp_ward_bed: { icon: '🛏️', label: 'Ward bed' },
+  hosp_pharmacy: { icon: '💊', label: 'Pharmacy' },
+  bank_atm_station: { icon: '🏧', label: 'ATM' },
+  bank_teller_station: { icon: '💱', label: 'Teller' },
+  bank_manager_desk: { icon: '💼', label: 'Loans desk' },
+  buka_food_counter: { icon: '🍲', label: 'Food counter' },
+  buka_table_vip: { icon: '🪑', label: 'Free table' },
+  police_front_desk: { icon: '📝', label: 'Front desk' },
+  police_holding_cell: { icon: '⚖️', label: 'Holding cell' },
+  unilag_lecture_podium: { icon: '🎓', label: 'Lecture hall' },
+  unilag_library_desk: { icon: '📚', label: 'Library' },
+  unilag_admin_portal: { icon: '🗂️', label: 'Registration' },
+  unilag_quad_gist: { icon: '💬', label: 'Student quad' },
+  airport_security_gate: { icon: '🛡️', label: 'Security' },
+  airport_checkin_desk: { icon: '🎫', label: 'Tickets & check-in' },
+  airport_flight_abuja: { icon: '🛫', label: 'Gate 1' },
+  airport_flight_ph: { icon: '🛫', label: 'Gate 2' },
+  airport_vip_lounge: { icon: '🥂', label: 'VIP lounge' },
+  airport_baggage_carousel: { icon: '🧳', label: 'Baggage claim' },
+  'flat-tv': { icon: '📺', label: 'Sofa & TV' },
+  'flat-fridge': { icon: '🧊', label: 'Fridge' },
+  'flat-bed': { icon: '🛏️', label: 'Bed' },
+  'flat-drum': { icon: '🚿', label: 'Water drum' },
+  shop_shelf_drinks: { icon: '🥤', label: 'Cold drinks' },
+  shop_shelf_food: { icon: '🍞', label: 'Food shelf' },
+  shop_shelf_snacks: { icon: '🍪', label: 'Snacks' },
+  shop_shelf_household: { icon: '🔦', label: 'Household' },
+  shop_checkout: { icon: '🧾', label: 'Till' },
+  club_door_desk: { icon: '🎟️', label: 'Door desk' },
+  club_bar: { icon: '🍹', label: 'Bar' },
+  club_dance_floor: { icon: '🕺', label: 'Dance floor' },
+  club_lounge: { icon: '🛋️', label: 'Lounge' },
+};
+
+export interface PlaceCardHooks {
+  /** The interior the player is in, and what can be used there */
+  getPlace: () => { def: InteriorDefinition; objects: InteractiveObject[] } | null;
+  /** Walk to an object and open it */
+  goTo: (obj: InteractiveObject) => void;
+  leave: () => void;
+  /** Buttons of the place's own, before its stations (at home: decorate) */
+  extras?: (def: InteriorDefinition) => Array<{ id: string; icon: string; label: string; run: () => void }>;
+}
+
+/**
+ * The bar shown while inside a building: where you are, a shortcut to every station and
+ * person in the room, and the way out. One tap walks the player there, no keyboard needed.
+ */
+export class PlaceCard {
+  private el: HTMLDivElement;
+  private hooks: PlaceCardHooks;
+
+  constructor(hooks: PlaceCardHooks) {
+    this.hooks = hooks;
+    this.el = document.createElement('div');
+    this.el.id = 'place-card';
+    this.el.className = 'place-card';
+    this.el.style.display = 'none';
+    document.body.appendChild(this.el);
+
+    // How far up the screen the card reaches, so on a phone the stick, the buttons and the chat
+    // can sit above it instead of on top of its buttons (style.css, --place-card-clear)
+    const publish = () => {
+      const shown = this.el.style.display !== 'none';
+      const top = shown ? window.innerHeight - this.el.getBoundingClientRect().top : 0;
+      document.documentElement.style.setProperty('--place-card-clear', `${Math.ceil(top) + 10}px`);
+    };
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(publish).observe(this.el);
+    window.addEventListener('resize', publish);
+
+    UIStateManager.getInstance().onModeChange((mode) => {
+      if (mode === 'interior') {
+        this.render();
+      } else {
+        this.el.style.display = 'none';
+      }
+    });
+  }
+
+  private chipFor(obj: InteractiveObject): { icon: string; label: string } {
+    const known = SPOT_CHIPS[obj.id];
+    if (known) return known;
+    if (obj.id.startsWith('interior_npc_')) {
+      // "Nurse Chidinma (Senior Triage Nurse)" -> "Nurse Chidinma"
+      const short = obj.name.split('(')[0].trim().split(/\s+/).slice(0, 2).join(' ');
+      return { icon: '💬', label: short };
+    }
+    return { icon: '📍', label: obj.name };
+  }
+
+  /** Draws the card again for the room the player is in now (after a lift or a door to the next room) */
+  public refresh(): void {
+    this.render();
+  }
+
+  private render(): void {
+    const place = this.hooks.getPlace();
+    if (!place) {
+      this.el.style.display = 'none';
+      return;
+    }
+
+    const spots = place.objects.filter((o) => o.id !== 'interior_exit_door');
+    const stations = spots.filter((o) => !o.id.startsWith('interior_npc_'));
+    const people = spots.filter((o) => o.id.startsWith('interior_npc_'));
+
+    this.el.innerHTML = '';
+
+    const head = document.createElement('div');
+    head.className = 'place-card-head';
+
+    const icon = document.createElement('span');
+    icon.className = 'place-icon';
+    icon.textContent = PLACE_ICONS[place.def.type] ?? '📍';
+
+    const titles = document.createElement('div');
+    titles.className = 'place-titles';
+    const name = document.createElement('span');
+    name.className = 'place-name';
+    name.textContent = place.def.name;
+    const sub = document.createElement('span');
+    sub.className = 'place-sub';
+    sub.textContent = `${place.def.districtName} · ${stations.length} thing${stations.length === 1 ? '' : 's'} to do · ${people.length} ${people.length === 1 ? 'person' : 'people'} here`;
+    titles.append(name, sub);
+
+    const leave = document.createElement('button');
+    leave.className = 'place-leave-btn';
+    leave.id = 'place-leave-btn';
+    leave.textContent = '🚪 Leave';
+    leave.addEventListener('click', () => this.hooks.leave());
+
+    head.append(icon, titles, leave);
+
+    const chips = document.createElement('div');
+    chips.className = 'place-chips';
+    for (const extra of this.hooks.extras?.(place.def) ?? []) {
+      const chip = document.createElement('button');
+      chip.className = 'place-chip place-chip-action';
+      chip.id = `place-extra-${extra.id}`;
+      const chipIconEl = document.createElement('span');
+      chipIconEl.className = 'place-chip-icon';
+      chipIconEl.textContent = extra.icon;
+      const chipLabel = document.createElement('span');
+      chipLabel.textContent = extra.label;
+      chip.append(chipIconEl, chipLabel);
+      chip.addEventListener('click', () => extra.run());
+      chips.appendChild(chip);
+    }
+    for (const obj of [...stations, ...people]) {
+      const { icon: chipIcon, label } = this.chipFor(obj);
+      const chip = document.createElement('button');
+      chip.className = obj.id.startsWith('interior_npc_') ? 'place-chip place-chip-person' : 'place-chip';
+      chip.dataset.spot = obj.id;
+      chip.title = obj.name;
+      const chipIconEl = document.createElement('span');
+      chipIconEl.className = 'place-chip-icon';
+      chipIconEl.textContent = chipIcon;
+      const chipLabel = document.createElement('span');
+      chipLabel.textContent = label;
+      chip.append(chipIconEl, chipLabel);
+      chip.addEventListener('click', () => this.hooks.goTo(obj));
+      chips.appendChild(chip);
+    }
+
+    this.el.append(head, chips);
+    this.el.style.display = 'flex';
+  }
+}

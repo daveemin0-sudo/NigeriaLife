@@ -1,10 +1,36 @@
 import * as THREE from 'three';
+import { Activity } from '../life/Activity';
+import { cleanProfile, type PublicProfile } from '../social/Profile';
+import { FEE_MAX, FEE_MIN, ROLES, Ties, type Offer, type OfferState } from '../social/Ties';
 import { Player } from '../player/Player';
 import { RemotePlayer } from './RemotePlayer';
-import type { NetPacket, PlayerNetState, ChatMessage } from './types';
+import type { NetPacket, PlayerNetState, ChatMessage, TieKind } from './types';
 import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import type { EmoteType } from '../player/CharacterCustomization';
+import { InteriorManager } from '../interiors/InteriorManager';
+import { ServerLink } from '../realestate/ServerLink';
+import { OnlineAccount } from '../online/OnlineAccount';
+import { ServerQueueScreen } from '../ui/ServerQueueScreen';
+
+/** How games reach each other: a channel between tabs of one browser, or the world server between devices. */
+interface Wire {
+  postMessage(packet: NetPacket): void;
+  onmessage: ((event: { data: NetPacket }) => void) | null;
+}
+
+function openWire(link: ServerLink | null, online: OnlineAccount | null): Wire {
+  // On a game server: one WebSocket, the server choosing who sees what
+  if (online) {
+    const wire: Wire = { postMessage: (packet) => online.send(packet), onmessage: null };
+    online.on('packet', (packet) => wire.onmessage?.({ data: packet as NetPacket }));
+    return wire;
+  }
+  if (!link) return new BroadcastChannel('nigeria_life_broad_st_v1') as unknown as Wire;
+  const wire: Wire = { postMessage: (packet) => link.relay(packet), onmessage: null };
+  link.on('net', (packet) => wire.onmessage?.({ data: packet as NetPacket }));
+  return wire;
+}
 
 export class NetworkManager {
   private static instance: NetworkManager | null = null;
@@ -12,21 +38,68 @@ export class NetworkManager {
   public remotePlayers: Map<string, RemotePlayer> = new Map();
   private scene: THREE.Scene;
   private localPlayer: Player;
-  private channel: BroadcastChannel;
+  private channel: Wire;
   private lastBroadcast: number = 0;
   private broadcastInterval: number = 50; // ~20 Hz
   private onChatMessageCallback?: (msg: ChatMessage) => void;
   private onPlayerCountCallback?: (count: number) => void;
+  private onDirectMessageCallback?: (fromId: string, fromName: string, text: string) => void;
+  private onVehicleCallback?: (playerId: string, vehicle: { id: string; x: number; z: number; yaw: number }) => void;
+  private onPlayerLeftCallback?: (playerId: string) => void;
+  /** What this player shows of themselves (set by the game) */
+  public static profile: () => PublicProfile | null = () => null;
+  /** A family or bae request, or the answer to one */
+  public onTie: ((fromId: string, fromName: string, kind: TieKind) => void) | null = null;
+  /** A job offered to this player */
+  public onOffer: ((offer: Offer) => void) | null = null;
+  /** A step in a job between this player and another */
+  public onOfferUpdate: ((id: string, fromId: string, state: OfferState, rating?: number) => void) | null = null;
+  private profileClock = 0;
+  /** Transfers already paid in, so the same one arriving twice is only counted once */
+  private receivedTransfers = new Set<string>();
+
+  /** The city the player is in, for the server's rooms: set by the game */
+  public static city: () => string = () => 'lagos';
+  private online: OnlineAccount | null;
+  /** Shown while the server is full and this player is waiting in line */
+  private queueScreen: ServerQueueScreen | null = null;
 
   constructor(scene: THREE.Scene, localPlayer: Player) {
     NetworkManager.instance = this;
     this.scene = scene;
     this.localPlayer = localPlayer;
-    this.localId = `naija_${Math.random().toString(36).substring(2, 8)}`;
+    const link = ServerLink.get();
+    this.online = OnlineAccount.get();
+    // The game server sends positions ten times a second, so sending them more often only costs data
+    if (this.online) this.broadcastInterval = 100;
+    // On a server, a game's id is the one the server knows it by, so the server can say when it has gone
+    this.localId = this.online?.id ?? (link ? `net_${link.clientId.slice(0, 8)}` : `naija_${Math.random().toString(36).substring(2, 8)}`);
 
-    // Cross-tab real-time communication channel
-    this.channel = new BroadcastChannel('nigeria_life_broad_st_v1');
-    this.channel.onmessage = this.handleMessage.bind(this);
+    // Between tabs of this browser, through the game server's rooms, or the old relay to other devices
+    this.channel = openWire(link, this.online);
+    this.channel.onmessage = (event) => this.handleMessage(event as MessageEvent);
+    if (this.online) {
+      // The server says who this player is, and announces money other players send
+      this.online.on('queued', (message) => {
+        this.queueScreen ??= new ServerQueueScreen();
+        this.queueScreen.show(Number(message.position) || 1);
+      });
+      this.online.on('welcome', (message) => {
+        this.queueScreen?.hide();
+        this.localId = message.id;
+        this.broadcastJoin();
+      });
+      this.online.on('transfer', (message) => {
+        showGameToast(`+₦${Number(message.amount).toLocaleString()} from @${message.fromName}${message.memo ? ` (${message.memo})` : ''}`, 'success');
+      });
+    } else if (link) {
+      // A game that closed without saying goodbye
+      link.on('gone', (data) => this.handleMessage({ data: { type: 'leave', id: `net_${String((data as { client?: string }).client ?? '').slice(0, 8)}` } } as MessageEvent));
+      // Joined, or back in touch: say who is here
+      link.on('link', (connected) => {
+        if (connected) this.broadcastJoin();
+      });
+    }
 
     // Announce presence
     this.broadcastJoin();
@@ -37,12 +110,32 @@ export class NetworkManager {
     });
   }
 
+  /** Players this one has blocked: whatever still arrives from them is not shown */
+  private blocked = new Set<string>();
+
+  public blockLocally(id: string): void {
+    this.blocked.add(id);
+  }
+
   public static getInstance(): NetworkManager | null {
     return NetworkManager.instance;
   }
 
   public setOnChatMessage(cb: (msg: ChatMessage) => void): void {
     this.onChatMessageCallback = cb;
+  }
+
+  public setOnDirectMessage(cb: (fromId: string, fromName: string, text: string) => void): void {
+    this.onDirectMessageCallback = cb;
+  }
+
+  /** Told where a vehicle is each time the player driving it says so. */
+  public setOnVehicle(cb: (playerId: string, vehicle: { id: string; x: number; z: number; yaw: number }) => void): void {
+    this.onVehicleCallback = cb;
+  }
+
+  public setOnPlayerLeft(cb: (playerId: string) => void): void {
+    this.onPlayerLeftCallback = cb;
   }
 
   public setOnPlayerCount(cb: (count: number) => void): void {
@@ -59,6 +152,8 @@ export class NetworkManager {
       if (state.id === this.localId) return;
 
       if (!this.remotePlayers.has(state.id)) {
+        // Someone new is only drawn once their look has arrived
+        if (!state.config) return;
         // Spawn new player in Lagos world
         const newRemote = new RemotePlayer(state);
         this.remotePlayers.set(state.id, newRemote);
@@ -72,21 +167,29 @@ export class NetworkManager {
         if (packet.type === 'join') {
           this.broadcastState();
         }
+        // And who we are
+        this.broadcastProfile();
       } else {
         const remote = this.remotePlayers.get(state.id)!;
         remote.applyState(state);
+      }
+      const driving = state.driving;
+      if (driving && typeof driving.id === 'string' && Number.isFinite(driving.x) && Number.isFinite(driving.z) && Number.isFinite(driving.yaw)) {
+        this.onVehicleCallback?.(state.id, driving);
       }
     } else if (packet.type === 'leave') {
       if (this.remotePlayers.has(packet.id)) {
         const remote = this.remotePlayers.get(packet.id)!;
         this.scene.remove(remote.mesh);
         this.remotePlayers.delete(packet.id);
+        this.onPlayerLeftCallback?.(packet.id);
 
         if (this.onPlayerCountCallback) {
           this.onPlayerCountCallback(this.remotePlayers.size + 1);
         }
       }
     } else if (packet.type === 'chat') {
+      if (this.blocked.has(packet.message.senderId)) return;
       if (this.remotePlayers.has(packet.message.senderId)) {
         const remote = this.remotePlayers.get(packet.message.senderId)!;
         remote.showSpeechBubble(packet.message.text);
@@ -94,13 +197,24 @@ export class NetworkManager {
       if (this.onChatMessageCallback) {
         this.onChatMessageCallback(packet.message);
       }
+    } else if (packet.type === 'dm') {
+      // A private message is for one player: everyone else ignores it
+      if (packet.toId === this.localId) {
+        Ties.get().grow(packet.fromId, String(packet.fromName).slice(0, 32), 2);
+        this.onDirectMessageCallback?.(packet.fromId, packet.fromName, String(packet.text).slice(0, 240));
+        showGameToast(`💬 @${packet.fromName}: ${String(packet.text).slice(0, 60)}`, 'info', 3600);
+      }
     } else if (packet.type === 'p2p_transfer') {
-      if (packet.transfer.recipientId === this.localId) {
-        const received = BackendService.getInstance().addCash(
-          packet.transfer.amount,
-          `Transfer from @${packet.transfer.senderName}`,
-          'TRANSFER_IN'
-        );
+      // On a game server money only moves through the server
+      if (this.online) return;
+      if (packet.transfer.recipientId === this.localId && !this.receivedTransfers.has(packet.transfer.id)) {
+        this.receivedTransfers.add(packet.transfer.id);
+        const received = BackendService.getInstance().processTransaction({
+          type: 'TRANSFER_IN',
+          amount: packet.transfer.amount,
+          description: `Transfer from @${packet.transfer.senderName}`,
+          source: packet.transfer.into === 'bank' ? 'bank' : 'wallet',
+        }).success;
         if (received) {
           showGameToast(
             `+₦${packet.transfer.amount.toLocaleString()} from @${packet.transfer.senderName} (${packet.transfer.memo || 'Direct Transfer'})`,
@@ -108,6 +222,32 @@ export class NetworkManager {
           );
         }
       }
+    } else if (packet.type === 'social') {
+      if (packet.toId === this.localId) {
+        const text = packet.kind === 'wave' ? '👋 How far!' : '🙏 Good day!';
+        this.remotePlayers.get(packet.fromId)?.showSpeechBubble(text);
+        showGameToast(`@${packet.fromName} ${packet.kind === 'wave' ? 'waved at you' : 'greeted you'}.`, 'info', 3200);
+        Ties.get().grow(packet.fromId, String(packet.fromName).slice(0, 32), 2);
+      }
+    } else if (packet.type === 'profile') {
+      const remote = this.remotePlayers.get(packet.playerId);
+      if (remote) remote.profile = cleanProfile(packet.profile);
+    } else if (packet.type === 'tie') {
+      if (packet.toId === this.localId && !this.blocked.has(packet.fromId)) this.onTie?.(packet.fromId, String(packet.fromName).slice(0, 32), packet.kind);
+    } else if (packet.type === 'offer') {
+      const o = packet.offer;
+      if (o && o.workerId === this.localId && !this.blocked.has(o.employerId)) {
+        const fee = Math.round(Number(o.fee));
+        const budget = Math.round(Number(o.budget) || 0);
+        if (!Number.isFinite(fee) || fee < FEE_MIN || fee > FEE_MAX) return;
+        this.onOffer?.({
+          id: String(o.id).slice(0, 60), employerId: o.employerId, employerName: String(o.employerName).slice(0, 32), workerId: this.localId, workerName: this.localPlayer.config.name,
+          role: ROLES.some((r) => r.id === o.role) ? o.role : 'hustle', details: String(o.details ?? '').slice(0, 140), fee, budget: Math.max(0, Math.min(FEE_MAX, budget)),
+          when: ['now', '1h', '3h', '6h', 'tomorrow'].includes(o.when) ? o.when : 'now', at: Date.now(), state: 'offered',
+        });
+      }
+    } else if (packet.type === 'offer_update') {
+      if (packet.toId === this.localId) this.onOfferUpdate?.(String(packet.id), packet.fromId, packet.state, typeof packet.rating === 'number' ? packet.rating : undefined);
     } else if (packet.type === 'emote_sync') {
       if (this.remotePlayers.has(packet.playerId)) {
         const remote = this.remotePlayers.get(packet.playerId)!;
@@ -118,6 +258,7 @@ export class NetworkManager {
 
   public getLocalNetState(): PlayerNetState {
     const data = BackendService.getInstance().getData();
+    const actor = this.localPlayer.actor;
     return {
       id: this.localId,
       name: this.localPlayer.config.name,
@@ -130,6 +271,18 @@ export class NetworkManager {
       isMoving: this.localPlayer.isMoving,
       currentEmote: this.localPlayer.currentEmote,
       config: this.localPlayer.config,
+      city: NetworkManager.city(),
+      place: InteriorManager.getInstance().currentInterior?.id,
+      driving: this.localPlayer.isDriving && this.localPlayer.currentVehicle
+        ? {
+            id: this.localPlayer.currentVehicle.id,
+            x: Number(this.localPlayer.currentVehicle.mesh.position.x.toFixed(2)),
+            z: Number(this.localPlayer.currentVehicle.mesh.position.z.toFixed(2)),
+            yaw: Number(this.localPlayer.currentVehicle.mesh.rotation.y.toFixed(3)),
+          }
+        : undefined,
+      // While a scripted action runs, others see the same pose
+      pose: actor.scripted ? { legs: actor.pose.legs, arms: actor.pose.arms, height: actor.pose.height } : undefined,
       streetCred: data.stats.streetCred,
     };
   }
@@ -159,6 +312,7 @@ export class NetworkManager {
   }
 
   public sendChatMessage(text: string): void {
+    Activity.emit({ kind: 'chat' });
     const msg: ChatMessage = {
       id: `msg_${Date.now()}`,
       senderId: this.localId,
@@ -178,11 +332,67 @@ export class NetworkManager {
     }
   }
 
+  public sendDirectMessage(toId: string, text: string): void {
+    const packet: NetPacket = { type: 'dm', fromId: this.localId, fromName: this.localPlayer.config.name, toId, text: text.slice(0, 240) };
+    this.channel.postMessage(packet);
+  }
+
+  /**
+   * Sends money to another player who is online. The money leaves the sender's bank account
+   * or their cash, whichever they chose, and arrives in the matching pocket on the other side.
+   * Each transfer carries its own id, so it can only ever be paid in once.
+   */
+  public sendTransfer(recipientId: string, amount: number, memo: string, from: 'bank' | 'wallet'): { success: boolean; message: string } {
+    const recipient = this.remotePlayers.get(recipientId);
+    if (!recipient) return { success: false, message: 'That player is not online, so no money was sent.' };
+    if (recipientId === this.localId) return { success: false, message: 'You cannot send money to yourself.' };
+    if (!Number.isInteger(amount) || amount <= 0) return { success: false, message: 'Enter a whole amount to send.' };
+
+    // On a game server the server moves it, once, from one account to the other
+    if (this.online) {
+      void this.online.sendMoney(recipientId, amount, from, memo).then((result) => {
+        showGameToast(result.ok ? `Sent ₦${amount.toLocaleString()} to @${recipient.name}.` : result.reason ?? 'The money was not sent.', result.ok ? 'success' : 'warning');
+      });
+      return { success: true, message: `Sending ₦${amount.toLocaleString()} to @${recipient.name}…` };
+    }
+
+    const backend = BackendService.getInstance();
+    const paid = backend.processTransaction({
+      type: 'TRANSFER_OUT',
+      amount,
+      description: `Transfer to @${recipient.name}`,
+      source: from,
+      funding: 'strict',
+    });
+    if (!paid.success) {
+      const data = backend.getData();
+      const have = from === 'bank' ? data.bank.balance : data.walletCash;
+      return { success: false, message: `You have ₦${have.toLocaleString()} ${from === 'bank' ? 'in the bank' : 'in cash'}, which is not enough to send ₦${amount.toLocaleString()}.` };
+    }
+
+    const packet: NetPacket = {
+      type: 'p2p_transfer',
+      transfer: {
+        id: `wire_${this.localId}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+        senderId: this.localId,
+        senderName: this.localPlayer.config.name,
+        recipientId,
+        amount,
+        memo,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        into: from,
+      },
+    };
+    this.channel.postMessage(packet);
+    return { success: true, message: `Sent ₦${amount.toLocaleString()} to @${recipient.name}.` };
+  }
+
   public sendP2PTransfer(recipientId: string, amount: number, memo: string = 'EkoPay Instant Wire'): { success: boolean; message: string } {
     // Nobody is listening for a player who is not here, so the money would simply vanish
     if (!this.remotePlayers.has(recipientId)) {
       return { success: false, message: `@${recipientId} is not online. No money was sent.` };
     }
+    if (this.online) return this.sendTransfer(recipientId, amount, memo, 'wallet');
 
     const backend = BackendService.getInstance();
     const success = backend.spendCash(amount, `P2P Transfer to @${recipientId}`, 'TRANSFER_OUT');
@@ -193,7 +403,7 @@ export class NetworkManager {
     const packet: NetPacket = {
       type: 'p2p_transfer',
       transfer: {
-        id: `wire_${Date.now()}`,
+        id: `wire_${this.localId}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
         senderId: this.localId,
         senderName: this.localPlayer.config.name,
         recipientId,
@@ -206,6 +416,36 @@ export class NetworkManager {
     this.channel.postMessage(packet);
     showGameToast(`₦${amount.toLocaleString()} transferred to @${recipientId}.`, 'success');
     return { success: true, message: `Transferred ₦${amount.toLocaleString()} successfully!` };
+  }
+
+  /** Tells another player that this one waved at or greeted them. Everyone nearby sees the gesture itself. */
+  public sendSocial(toId: string, kind: 'wave' | 'greet'): void {
+    const packet: NetPacket = {
+      type: 'social',
+      fromId: this.localId,
+      fromName: this.localPlayer.config.name,
+      toId,
+      kind,
+    };
+    this.channel.postMessage(packet);
+  }
+
+  /** Tells everyone who this player is: their card and CV */
+  public broadcastProfile(): void {
+    const profile = NetworkManager.profile();
+    if (profile) this.channel.postMessage({ type: 'profile', playerId: this.localId, profile });
+  }
+
+  public sendTie(toId: string, kind: TieKind): void {
+    this.channel.postMessage({ type: 'tie', fromId: this.localId, fromName: this.localPlayer.config.name, toId, kind });
+  }
+
+  public sendOffer(offer: Offer): void {
+    this.channel.postMessage({ type: 'offer', offer });
+  }
+
+  public sendOfferUpdate(toId: string, id: string, state: OfferState, rating?: number): void {
+    this.channel.postMessage({ type: 'offer_update', id, fromId: this.localId, toId, state, rating });
   }
 
   public syncEmote(emote: EmoteType): void {
@@ -242,7 +482,7 @@ export class NetworkManager {
     this.remotePlayers.forEach((rp, id) => {
       list.push({
         id,
-        name: (rp as any).name || `@${id.substring(0, 8)}`,
+        name: rp.name || `@${id.substring(0, 8)}`,
         avatar: '👤',
         streetCred: 35,
         isLocal: false,
@@ -260,6 +500,12 @@ export class NetworkManager {
     if (now - this.lastBroadcast > this.broadcastInterval) {
       this.broadcastState();
       this.lastBroadcast = now;
+    }
+    // Who this player is, now and then: a newer job or rating shows on their card
+    this.profileClock -= delta;
+    if (this.profileClock <= 0) {
+      this.profileClock = 15;
+      this.broadcastProfile();
     }
 
     // 2. Update remote players interpolation and walk cycles

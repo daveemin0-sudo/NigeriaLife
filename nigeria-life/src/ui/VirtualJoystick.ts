@@ -11,6 +11,8 @@
  */
 
 export class VirtualJoystick {
+  /** How many times the stick has been touched (for the device report to the game server) */
+  public touches = 0;
   private container: HTMLDivElement;
   private joystickBase: HTMLDivElement;
   private joystickThumb: HTMLDivElement;
@@ -48,6 +50,22 @@ export class VirtualJoystick {
     this.joystickBase.appendChild(this.joystickThumb);
 
     this.container.appendChild(this.joystickBase);
+
+    // Run: a chip on the stick's ring, as a thumb finds it without looking
+    const run = document.createElement('button');
+    run.className = 'v-run-chip';
+    run.id = 'v-btn-run';
+    run.type = 'button';
+    run.textContent = 'RUN';
+    run.setAttribute('aria-pressed', 'false');
+    run.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.activeKeys['shift'] = !this.activeKeys['shift'];
+      run.classList.toggle('active', this.activeKeys['shift']);
+      run.setAttribute('aria-pressed', String(this.activeKeys['shift']));
+      document.getElementById('v-btn-sprint')?.classList.toggle('active', this.activeKeys['shift']);
+    });
+    this.container.appendChild(run);
 
     // 2. Action Buttons Cluster
     this.actionsCluster = document.createElement('div');
@@ -110,6 +128,7 @@ export class VirtualJoystick {
         if (this.activeTouchId === null && e.changedTouches.length > 0) {
           const t = e.changedTouches[0];
           this.activeTouchId = t.identifier;
+          this.touches += 1;
           const rect = this.joystickBase.getBoundingClientRect();
           this.baseCenter = {
             x: rect.left + rect.width / 2,

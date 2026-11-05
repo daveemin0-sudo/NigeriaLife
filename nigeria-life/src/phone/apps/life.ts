@@ -1,0 +1,768 @@
+import type { PhoneApp } from '../PhoneApp';
+import { theme, setTheme } from '../../ui/theme/Theme';
+import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
+import { SoundEngine } from '../../audio/SoundEngine';
+import { Employment, EMPLOYERS, WORKSITES } from '../../jobs/Employment';
+import { WORKPLACE } from '../../interiors/places/PlaceJobs';
+import { PlaceOpeners } from '../../interiors/places/PlaceInterior';
+import { Deeds } from '../../realestate/Deeds';
+import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerLink';
+import { AssetMarket } from '../../realestate/AssetMarket';
+import { CloudSyncService } from '../../backend/CloudSyncService';
+import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
+import { DrivableVehicle } from '../../world/DrivableVehicle';
+import { LagosStreetLifeSystem } from '../../world/LagosStreetLifeSystem';
+import { OnlineAccount } from '../../online/OnlineAccount';
+import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
+import { Dues, dayLabel } from '../../life/Dues';
+
+// ============================================================================================
+// Jobs
+// ============================================================================================
+
+interface Gig {
+  id: string;
+  name: string;
+  icon: string;
+  pay: number;
+  energy: number;
+  cred: number;
+  steps: [string, string, string];
+}
+
+interface SkillMeta {
+  key: keyof PlayerSkills;
+  name: string;
+  icon: string;
+  desc: string;
+  activity: string;
+}
+
+const SKILL_METAS: SkillMeta[] = [
+  { key: 'coding', name: 'Coding', icon: '💻', desc: 'Software engineering, algorithms & fintech APIs', activity: 'CcHUB Innovation Lab' },
+  { key: 'charisma', name: 'Charisma', icon: '🗣️', desc: 'Negotiation, public speaking & VIP networking', activity: 'High Society Events' },
+  { key: 'music', name: 'Music', icon: '🎵', desc: 'Afrobeats rhythm, sound mixing & live brass', activity: 'New Afrika Shrine' },
+  { key: 'hustle', name: 'Hustle', icon: '💼', desc: 'Street commerce, bargaining & container trade', activity: 'Balogun Wholesale Market' },
+  { key: 'fitness', name: 'Fitness', icon: '🏋️', desc: 'Athletic endurance, strength & agility', activity: 'i-Fitness Gym Lekki' },
+  { key: 'cooking', name: 'Cooking', icon: '🍲', desc: 'Traditional Nigerian cuisine, buka recipes & spices', activity: 'Amala Shitta Surulere' },
+  { key: 'craft', name: 'Craft', icon: '🛠️', desc: 'Mechanical repair, masonry & styling arts', activity: 'Artisan Workshop' },
+  { key: 'driving', name: 'Driving', icon: '🚗', desc: 'Commercial navigation, route mastery & piloting', activity: 'Broad St Transit Terminal' },
+  { key: 'academics', name: 'Academics', icon: '📚', desc: 'University research, analytics & medicine', activity: 'UNILAG Campus Akoka' },
+];
+
+/** Short pieces of work done step by step. Each costs energy and pays once, when the last step is done. */
+const GIGS: Gig[] = [
+  { id: 'danfo', name: 'Danfo conductor run', icon: '🚌', pay: 12500, energy: 20, cred: 25, steps: ['Call the passengers', 'Give the right change', 'Drop everyone at the last stop'] },
+  { id: 'code', name: 'Code sprint at the hub', icon: '💻', pay: 25000, energy: 30, cred: 35, steps: ['Fix the payment bug', 'Speed up the slow page', 'Ship it'] },
+  { id: 'gen', name: 'Generator repair', icon: '🔌', pay: 20000, energy: 25, cred: 30, steps: ['Check the fuel', 'Open the choke', 'Pull the cord'] },
+];
+
+const RANKS = [
+  { level: 1, at: 0 },
+  { level: 2, at: 100 },
+  { level: 3, at: 300 },
+];
+
+export const jobsApp: PhoneApp = {
+  id: 'jobs',
+  name: 'Jobs',
+  icon: '💼',
+  tint: ['#3730a3', '#6366f1'],
+  purpose: 'Shifts you can work, the one you are on, and how your career is going',
+
+  badge(host) {
+    return host.backend.getActiveJobShift()?.isReady ? 1 : 0;
+  },
+
+  live(host) {
+    const shift = host.backend.getActiveJobShift();
+    return !!shift && !shift.isReady;
+  },
+
+  render(host, route) {
+    const data = host.backend.getData();
+    const career = data.career;
+
+    if (route.startsWith('gig:')) {
+      const gig = GIGS.find((entry) => entry.id === route.slice(4));
+      if (!gig) return { title: 'Jobs', body: empty('🧰', 'No such work', 'That piece of work is not on offer.') };
+      const done = host.get(`gig.${gig.id}`, 0);
+      return {
+        title: gig.name,
+        body: `
+          <div class="nl-card">
+            <div class="nl-card-title">${gig.icon} ${esc(gig.name)}</div>
+            <div class="nl-card-line">Pays ${naira(gig.pay)} cash when all three steps are done. Uses ${gig.energy}% energy (you have ${Math.round(data.stats.energy)}%).</div>
+          </div>
+          <div class="nl-list">
+            ${gig.steps.map((step, index) => row({
+              icon: index < done ? '✅' : `${index + 1}`,
+              title: esc(step),
+              sub: index < done ? 'Done' : index === done ? 'Do this now' : 'After the step before',
+              tone: index > done ? 'muted' : 'default',
+              attrs: index === done ? `data-act="gig-step" data-arg="${gig.id}" data-gig-step="${index}"` : 'disabled',
+              tag: 'button',
+            })).join('')}
+          </div>
+        `,
+      };
+    }
+
+    const shift = host.backend.getActiveJobShift();
+    const next = RANKS.find((rank) => rank.level === career.rankLevel + 1);
+    const from = RANKS.find((rank) => rank.level === career.rankLevel)?.at ?? 0;
+
+    return {
+      title: 'Jobs',
+      body: `
+        <div class="nl-hero nl-hero--indigo">
+          <span class="nl-hero-label">Rank ${career.rankLevel}</span>
+          <span class="nl-hero-title">${esc(career.title)}</span>
+          <span class="nl-hero-sub">${career.xp} XP · ${count(career.completedGigs, 'job')} done · paid ×${(career.bonusMultiplier || 1).toFixed(2)}</span>
+          ${next
+            ? `${meter(((career.xp - from) / (next.at - from)) * 100, 'good')}<span class="nl-hero-sub">${next.at - career.xp} XP to rank ${next.level}</span>`
+            : '<span class="nl-hero-sub">Top rank reached</span>'}
+        </div>
+
+        ${shift ? `
+          <div class="nl-card nl-card--live" id="jobs-active-shift">
+            <div class="nl-card-title">${shift.job.icon} ${esc(shift.job.title)}</div>
+            <div class="nl-card-line">${esc(shift.job.workplace)}</div>
+            ${meter(shift.progress * 100, shift.isReady ? 'good' : 'plain')}
+            ${shift.isReady
+              ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="btn-claim-shift-salary" data-act="claim">Collect ${naira(Math.round(shift.job.salary * (career.bonusMultiplier || 1)))}</button>`
+              : `<div class="nl-card-line" id="jobs-shift-time">${shift.remainingSecs}s left on this shift</div>`}
+          </div>` : ''}
+
+        <div class="nl-section">Where you work</div>
+        <div class="nl-list" id="jobs-employment">
+          ${Employment.get().jobs().map((job) => row({
+            icon: '🧑‍🏭',
+            title: `${esc(job.employer.name)} · ${esc(job.grade.title)}`,
+            sub: `${esc(job.employer.task)} · ${count(job.done, job.employer.id === 'apapa-port' ? 'lorry' : job.employer.id === 'eko-plaza-site' ? 'course' : 'shift')} done${job.next ? ` · ${esc(job.next.title)} at ${job.next.from}` : ' · top grade'}`,
+            trailing: `<strong>${naira(job.grade.pay)}</strong>`,
+          })).join('')}
+          ${(() => {
+            // Those with a place to go and ask come first, with a way there
+            const open = EMPLOYERS.filter((employer) => !Employment.get().isEmployed(employer.id));
+            const there = (id: string) => (WORKPLACE[id] ? 2 : WORKSITES[id] ? 1 : 0);
+            return [...open].sort((a, b) => there(b.id) - there(a.id)).map((employer) => {
+              const how = there(employer.id);
+              return row({
+                icon: how ? '📌' : '🕓',
+                title: how ? `${esc(employer.name)} is taking hands on` : esc(employer.name),
+                sub: how ? `${esc(employer.trade)} · ask at ${esc(employer.place)}` : `${esc(employer.trade)} · not taking walk-ins yet`,
+                trailing: `<span class="nl-stack"><strong>${naira(employer.grades[0].pay)}</strong>${how === 2
+                  ? `<button class="nl-btn nl-btn--sm" data-act="work-go" data-arg="${esc(employer.id)}">🚕 Go</button>`
+                  : how === 1 ? `<button class="nl-btn nl-btn--sm" data-act="work-show" data-arg="${esc(employer.id)}">📍 Show</button>` : ''}</span>`,
+                tone: how ? 'default' : 'muted',
+              });
+            }).join('');
+          })()}
+        </div>
+
+        <div class="nl-section">9 Life Skills</div>
+        <div class="nl-list" id="jobs-skills">
+          ${(() => {
+            const skills = host.backend.getSkills();
+            return SKILL_METAS.map((m) => {
+              const lvl = skills[m.key] ?? 1;
+              const maxed = lvl >= 10;
+              return row({
+                icon: m.icon,
+                title: `${m.name} · Level ${lvl}/10`,
+                sub: `${esc(m.desc)} · ${esc(m.activity)}`,
+                trailing: maxed
+                  ? '<span class="nl-tag nl-tag--good">Mastered</span>'
+                  : `<button class="nl-btn nl-btn--sm" data-act="train-skill" data-arg="${m.key}">Train (-15⚡)</button>`,
+              });
+            }).join('');
+          })()}
+        </div>
+
+        <div class="nl-section">Shifts</div>
+        <div class="nl-list" id="jobs-list">
+          ${host.backend.getJobs().map((job) => {
+            const locked = job.requiredLevel > career.rankLevel;
+            const mine = shift?.job.id === job.id;
+            const can = !shift && !locked;
+            return row({
+              icon: job.icon,
+              title: esc(job.title),
+              sub: `${esc(job.workplace)} · ${job.shiftDuration}s shift${locked ? ` · needs rank ${job.requiredLevel}` : ''}`,
+              trailing: `<span class="nl-stack"><strong>${naira(job.salary)}</strong>${
+                mine ? '<span class="nl-tag">On it</span>'
+                : locked ? '<span class="nl-tag nl-tag--muted">🔒 Rank ' + job.requiredLevel + '</span>'
+                : `<button class="nl-btn nl-btn--sm" data-start-job="${esc(job.id)}" data-act="start" data-arg="${esc(job.id)}" ${can ? '' : 'disabled'}>Take shift</button>`}</span>`,
+              tone: locked ? 'muted' : 'default',
+            });
+          }).join('')}
+        </div>
+
+        <div class="nl-section">Quick work</div>
+        <div class="nl-list">
+          ${GIGS.map((gig) => row({ icon: gig.icon, title: esc(gig.name), sub: `Three steps · uses ${gig.energy}% energy`, trailing: `<strong>${naira(gig.pay)}</strong>`, attrs: `data-go="gig:${gig.id}"` })).join('')}
+        </div>
+      `,
+    };
+  },
+
+  act(host, action, el) {
+    if (action === 'work-go') {
+      const key = WORKPLACE[el.dataset.arg ?? ''];
+      if (!key) return;
+      host.close();
+      PlaceOpeners.open(`ride:roadside-${key}`);
+    } else if (action === 'work-show') {
+      const site = WORKSITES[el.dataset.arg ?? ''];
+      const employer = EMPLOYERS.find((e) => e.id === el.dataset.arg);
+      if (!site || !employer) return;
+      host.world.showPlace(site.x, site.z, employer.name);
+      host.close();
+    } else if (action === 'start') {
+      const id = el.dataset.arg ?? '';
+      const result = host.backend.startJobShift(id);
+      if (!result.success) { host.say(result.message, 'bad'); return; }
+      const online = OnlineAccount.get();
+      if (!online) { host.say(result.message, 'good'); return; }
+      void online.startGig(`career:${id}`).then((started) => {
+        host.say(started.ok ? result.message : (started.reason ?? 'The server did not start the shift.'), started.ok ? 'good' : 'bad');
+      });
+    } else if (action === 'claim') {
+      const online = OnlineAccount.get();
+      if (online) {
+        const shiftInfo = host.backend.getActiveJobShift();
+        if (!shiftInfo) { host.say('No active job shift.', 'bad'); return; }
+        if (!shiftInfo.isReady) { host.say(`Shift still ongoing! ${shiftInfo.remainingSecs}s remaining.`, 'bad'); return; }
+        const shift = online.rememberedGig(`career:${shiftInfo.job.id}`);
+        if (!shift) { host.say('The server has no record of this shift.', 'bad'); return; }
+        void online.finishGig(shift).then((finished) => {
+          if (!finished.ok) { host.say(finished.reason ?? 'Not paid.', 'bad'); return; }
+          online.forgetGig(`career:${shiftInfo.job.id}`);
+          const noted = host.backend.noteServerJobShift(finished.pay ?? shiftInfo.job.salary);
+          if (noted.success) SoundEngine.getInstance().playTransactionSuccess();
+          host.say(noted.message, noted.success ? 'good' : 'bad');
+          host.refresh();
+        });
+        return;
+      }
+      const result = host.backend.completeJobShift();
+      if (result.success) SoundEngine.getInstance().playTransactionSuccess();
+      host.say(result.message, result.success ? 'good' : 'bad');
+    } else if (action === 'train-skill') {
+      const skillKey = (el.dataset.arg || '') as keyof PlayerSkills;
+      const data = host.backend.getData();
+      if (data.stats.energy < 15) {
+        host.say('You are too exhausted to train! Eat food or rest first (needs 15% energy).', 'bad');
+        return;
+      }
+      data.stats.energy = Math.max(0, data.stats.energy - 15);
+      const res = host.backend.addSkillXp(skillKey, 1);
+      SoundEngine.getInstance().playTransactionSuccess();
+      const meta = SKILL_METAS.find((s) => s.key === skillKey);
+      const name = meta ? meta.name : skillKey;
+      host.say(`Trained ${name}! Level is now ${res.level}/10. (-15% Energy)`, 'good');
+      host.refresh();
+    } else if (action === 'gig-step') {
+      const gig = GIGS.find((entry) => entry.id === el.dataset.arg);
+      if (!gig) return;
+      const done = host.get(`gig.${gig.id}`, 0);
+      if (Number(el.dataset.gigStep) !== done) return;
+      const online = OnlineAccount.get();
+      if (online) {
+        void (async () => {
+          if (done === 0) {
+            const started = await online.startGig(`life:${gig.id}`);
+            if (!started.ok) { host.say(started.reason ?? 'That work could not be started.', 'bad'); return; }
+          }
+          if (done < 2) {
+            host.set(`gig.${gig.id}`, done + 1);
+            host.refresh();
+            return;
+          }
+          const shift = online.rememberedGig(`life:${gig.id}`);
+          if (!shift) { host.say('The server has no record of this work.', 'bad'); return; }
+          if (host.backend.getData().stats.energy < gig.energy) {
+            host.say(`You are too exhausted for this work (need ${gig.energy}% Energy). Eat or rest first.`, 'bad');
+            return;
+          }
+          const finished = await online.finishGig(shift);
+          if (!finished.ok) { host.say(finished.reason ?? 'Not paid.', 'bad'); return; }
+          online.forgetGig(`life:${gig.id}`);
+          host.set(`gig.${gig.id}`, 0);
+          host.backend.modifyNeed('energy', -gig.energy);
+          host.backend.addStreetCred(gig.cred);
+          SoundEngine.getInstance().playTransactionSuccess();
+          host.back();
+          host.say(`${gig.name} done. Earned ₦${(finished.pay ?? 0).toLocaleString()} cash. Energy -${gig.energy}%`, 'good');
+        })();
+        return;
+      }
+      if (done < 2) {
+        host.set(`gig.${gig.id}`, done + 1);
+        host.refresh();
+        return;
+      }
+      // Last step: this is when it pays, once
+      host.set(`gig.${gig.id}`, 0);
+      const result = host.backend.performGig(gig.pay, gig.energy, gig.name);
+      if (result.success) {
+        host.backend.addStreetCred(gig.cred);
+        SoundEngine.getInstance().playTransactionSuccess();
+      }
+      host.back();
+      host.say(result.success ? `${gig.name} done. ${result.message}` : result.message, result.success ? 'good' : 'bad');
+    }
+  },
+};
+
+// ============================================================================================
+// Property
+// ============================================================================================
+
+const isMine = (prop: RealEstateProperty) => prop.status === 'owned' || prop.status === 'rented' || prop.status === 'purchased';
+/** Who the player is on the game server, and how a guest keeps their progress */
+function accountSection(host: { get(key: string, fallback: string): string }): string {
+  const online = OnlineAccount.get();
+  if (!online) return '';
+  const account = online.account;
+  const devLink = host.get('settings.devLink', '');
+  const status = !account ? 'Signing in…' : account.verified ? `${esc(account.name)}, kept on ${esc(account.email ?? 'your email')}` : `${esc(account.name)}, playing as a guest`;
+  return `
+        <div class="nl-section">Your account</div>
+        <div class="nl-list">
+          ${row({ icon: account?.verified ? '✅' : '👤', title: online.connected ? 'Online' : 'Connecting…', sub: status })}
+        </div>
+        ${account && !account.verified ? `
+        <div class="nl-hint">A guest's progress lives on this server under this device. Add an email address to keep it for good and to play it on another phone.</div>
+        <label class="nl-label" for="settings-email">Email address</label>
+        <input class="nl-field" id="settings-email" type="email" autocomplete="email" placeholder="you@example.com" value="${esc(host.get('settings.email', ''))}" data-bind="settings.email" />
+        <button class="nl-btn nl-btn--block" id="settings-email-send" data-act="account-email">Send me a sign-in link</button>
+        ${devLink ? `<div class="nl-hint" id="settings-dev-link">Sign-in link: <a href="${esc(devLink)}">${esc(devLink)}</a></div>` : ''}` : ''}`;
+}
+
+/** What each graphics level gives up, in the player's terms */
+const GRAPHICS_NOTES: Record<string, string> = {
+  high: 'everything drawn in full',
+  balanced: 'sharp on ordinary screens, distant people simpler',
+  low: 'softer picture, no sun shadows, fewer people far off',
+};
+const CITY_NAMES: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+
+export const propertyApp: PhoneApp = {
+  id: 'property',
+  aliases: ['houses'],
+  name: 'Property',
+  icon: '🔑',
+  tint: ['#065f46', '#10b981'],
+  purpose: 'Homes to rent or buy, and the ones that are yours',
+
+  render(host, route) {
+    const data = host.backend.getData();
+    const funds = data.bank.balance + data.walletCash;
+
+    if (route.startsWith('p:')) {
+      const prop = data.properties.find((entry) => entry.id === route.slice(2));
+      if (!prop) return { title: 'Property', body: empty('🏚️', 'Not listed', 'That property is not on the market.') };
+      const owned = prop.status === 'owned' || prop.status === 'purchased';
+      const rented = prop.status === 'rented';
+      const features = prop.perks?.length ? prop.perks : prop.features;
+      // Another player may own it outright, in which case only they can sell it
+      const takenBy = owned ? null : Deeds.get().takenBy('property', prop.id);
+      const listing = Deeds.get().listingFor('property', prop.id);
+      const lease = rented ? Dues.get().leaseOf(prop.id) : null;
+      return {
+        title: owned ? 'Your property' : rented ? 'Your lease' : 'For sale or rent',
+        body: `
+          <div class="nl-card">
+            <div class="nl-card-title">${prop.icon} ${esc(prop.name)}</div>
+            <div class="nl-card-line">📍 ${esc(prop.location || prop.districtId)} · ${esc(CITY_NAMES[prop.cityId] ?? prop.cityId)} · ${prop.bedrooms} bedroom${prop.bedrooms === 1 ? '' : 's'}</div>
+            <div class="nl-card-line">${esc(prop.description)}</div>
+            <div class="nl-tags">${features.slice(0, 6).map((f) => `<span class="nl-tag">${esc(f)}</span>`).join('')}</div>
+            <div class="nl-stats">
+              <span><strong>${naira(prop.purchasePrice)}</strong>to buy</span>
+              ${prop.rentalPriceMonthly > 0 ? `<span><strong>${naira(prop.rentalPriceMonthly)}</strong>to lease</span>` : ''}
+              <span><strong>${owned ? 'Owned' : rented ? 'Leased' : takenBy ? 'Owned' : 'Available'}</strong>status</span>
+            </div>
+          </div>
+          ${lease ? `
+            <div class="nl-card ${lease.deadline !== null ? 'nl-card--warn' : ''}" id="property-rent">
+              <div class="nl-card-title">${lease.deadline !== null ? '📜 Quit notice' : 'Rent'}</div>
+              <div class="nl-card-line">${naira(lease.weekly)} every Saturday, from your bank and then your cash.</div>
+              <div class="nl-card-line" id="property-rent-next">Next rent on <strong>${esc(dayLabel(lease.nextDue))}</strong>.</div>
+              ${lease.deadline !== null ? `
+                <div class="nl-card-line" id="property-rent-owed">You owe <strong>${naira(lease.arrears)}</strong>. Pay it, with the next rent, before <strong>${esc(dayLabel(lease.deadline))}</strong> or the locks will be changed.</div>
+                <button class="nl-btn nl-btn--primary nl-btn--block" id="property-pay-rent" data-act="pay-rent" data-arg="${esc(prop.id)}" ${funds >= lease.arrears ? '' : 'disabled'}>Pay the landlord · ${naira(lease.arrears)}</button>` : ''}
+            </div>` : ''}
+          ${owned || rented ? `
+            <button class="nl-btn nl-btn--primary nl-btn--block" id="property-go-home" data-act="home">Go home</button>
+            <button class="nl-btn nl-btn--block" data-act="decor">Furniture catalogue</button>
+            ${owned
+              ? `${listing
+                  ? `<button class="nl-btn nl-btn--block" id="property-listing" data-app="land" data-route="listing:${esc(listing.id)}">On the market at ${naira(listing.askingPrice)} · see offers</button>`
+                  : `<button class="nl-btn nl-btn--block" id="property-sell-player" data-app="land" data-route="ask:property:${esc(prop.id)}">Sell to another player</button>`}
+                 <button class="nl-btn nl-btn--danger nl-btn--block" data-act="sell" data-arg="${esc(prop.id)}" ${listing ? 'disabled' : ''}>Sell to an agent now for ${naira(Math.round(prop.purchasePrice * 0.8))}</button>`
+              : `<button class="nl-btn nl-btn--danger nl-btn--block" data-act="leave" data-arg="${esc(prop.id)}">Move out</button>
+                 <button class="nl-btn nl-btn--block" data-act="buy" data-arg="${esc(prop.id)}" ${funds >= prop.purchasePrice ? '' : 'disabled'}>Buy it outright · ${naira(prop.purchasePrice)}</button>`}
+          ` : takenBy ? `
+            <div class="nl-note" id="property-taken">${esc(AssetMarket.get().nameOf(takenBy))} owns this home. It can only be bought from them.</div>
+            ${listing && listing.status === 'active' ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="property-their-listing" data-app="land" data-route="listing:${esc(listing.id)}">They are asking ${naira(listing.askingPrice)} · make an offer</button>` : ''}
+          ` : `
+            ${prop.rentalPriceMonthly > 0 ? `<button class="nl-btn nl-btn--primary nl-btn--block" data-phone-rent-prop="${esc(prop.id)}" data-act="rent" data-arg="${esc(prop.id)}" ${funds >= prop.rentalPriceMonthly ? '' : 'disabled'}>Lease · ${naira(prop.rentalPriceMonthly)}</button>` : ''}
+            <button class="nl-btn nl-btn--block" data-phone-buy-prop="${esc(prop.id)}" data-act="buy" data-arg="${esc(prop.id)}" ${funds >= prop.purchasePrice ? '' : 'disabled'}>Buy · ${naira(prop.purchasePrice)}</button>
+            <div class="nl-hint">You have ${naira(funds)} between your bank account and your cash.${funds < (prop.rentalPriceMonthly || prop.purchasePrice) ? ' That is not enough for this one yet.' : ''}</div>
+          `}
+        `,
+      };
+    }
+
+    const filter = host.get<string>('property.filter', 'all');
+    const search = host.get('property.search', '').toLowerCase();
+    const list = data.properties
+      .filter((prop) => (filter === 'all' ? true : filter === 'mine' ? isMine(prop) : prop.cityId === filter))
+      .filter((prop) => !search || `${prop.name} ${prop.location ?? ''} ${prop.districtId}`.toLowerCase().includes(search))
+      .sort((a, b) => Number(isMine(b)) - Number(isMine(a)) || a.purchasePrice - b.purchasePrice);
+    const mine = data.properties.filter(isMine);
+
+    return {
+      title: 'Property',
+      body: `
+        <div class="nl-hero nl-hero--green">
+          <span class="nl-hero-label">Your home</span>
+          <span class="nl-hero-title">${mine.length ? esc(mine[0].name) : 'No home yet'}</span>
+          <span class="nl-hero-sub">${mine.length ? `${count(mine.length, 'property', 'properties')} in your name` : 'Lease or buy one below to have a bed, a sofa and a fridge of your own'}</span>
+          ${mine.length ? '<div class="nl-hero-actions"><button class="nl-btn nl-btn--glass" data-act="home">Go home</button></div>' : ''}
+        </div>
+        ${chips('property.filter', filter, [['all', 'All'], ['mine', 'Mine'], ['lagos', 'Lagos'], ['abuja', 'Abuja'], ['port_harcourt', 'Port Harcourt']])}
+        <input class="nl-field nl-field--search" id="property-search" type="search" placeholder="Search by name or area" value="${esc(host.get('property.search', ''))}" data-bind="property.search" />
+        <div class="nl-list" id="property-list">
+          ${list.length === 0
+            ? empty('🏘️', 'Nothing matches', filter === 'mine' ? 'You do not own or lease anything yet.' : 'Try another city or a different search.')
+            : list.map((prop) => row({
+                icon: prop.icon,
+                title: esc(prop.name),
+                sub: `${esc(prop.location || prop.districtId)} · ${esc(CITY_NAMES[prop.cityId] ?? prop.cityId)}`,
+                trailing: isMine(prop)
+                  ? `<span class="nl-tag nl-tag--good">${prop.status === 'rented' ? 'Leased' : 'Owned'}</span>`
+                  : `<span class="nl-stack"><strong>${naira(prop.purchasePrice)}</strong>${prop.rentalPriceMonthly > 0 ? `<span class="nl-row-sub">lease ${naira(prop.rentalPriceMonthly)}</span>` : ''}</span>`,
+                attrs: `data-go="p:${esc(prop.id)}" data-property="${esc(prop.id)}"`,
+              })).join('')}
+        </div>
+      `,
+    };
+  },
+
+  async act(host, action, el) {
+    const id = el.dataset.arg ?? '';
+    const prop = host.backend.getData().properties.find((entry) => entry.id === id);
+    if (action === 'home') {
+      host.close();
+      host.world.goHome();
+    } else if (action === 'decor') {
+      host.close();
+      HouseDecorationSystem.getInstance().openCatalogueModal();
+    } else if (action === 'pay-rent' && prop) {
+      const result = Dues.get().payRentOwed(id);
+      if (result.ok) SoundEngine.getInstance().playTransactionSuccess();
+      host.say(result.message, result.ok ? 'good' : 'bad');
+    } else if (action === 'rent' && prop) {
+      if (!(await host.confirm(`Lease ${prop.name} for ${naira(prop.rentalPriceMonthly)}? That pays the first four weeks; then ${naira(prop.weeklyRent ?? Math.max(100, Math.round(prop.rentalPriceMonthly / 4)))} is due every Saturday.`, 'Lease it'))) return;
+      const result = host.backend.rentProperty(id);
+      if (result.success) SoundEngine.getInstance().playTransactionSuccess();
+      host.say(result.message, result.success ? 'good' : 'bad');
+    } else if (action === 'buy' && prop) {
+      if (!(await host.confirm(`Buy ${prop.name} for ${naira(prop.purchasePrice)}?`, 'Buy it'))) return;
+      const result = host.backend.buyProperty(id);
+      if (result.success) SoundEngine.getInstance().playTransactionSuccess();
+      host.say(result.message, result.success ? 'good' : 'bad');
+    } else if (action === 'sell' && prop) {
+      if (!(await host.confirm(`Sell ${prop.name} for ${naira(Math.round(prop.purchasePrice * 0.8))}? You will no longer be able to go in.`, 'Sell it'))) return;
+      const result = host.backend.sellProperty(id);
+      host.say(result.message, result.success ? 'good' : 'bad');
+    } else if (action === 'leave' && prop) {
+      if (!(await host.confirm(`Move out of ${prop.name}? What you paid for the lease is not refunded.`, 'Move out'))) return;
+      const result = host.backend.endLease(id);
+      host.say(result.message, result.success ? 'good' : 'bad');
+    }
+  },
+};
+
+// ============================================================================================
+// Health and emergencies
+// ============================================================================================
+
+const tone = (value: number) => (value < 25 ? 'bad' : value < 50 ? 'warn' : 'good');
+
+export const healthApp: PhoneApp = {
+  id: 'health',
+  aliases: ['help'],
+  name: 'Health',
+  icon: '🩺',
+  tint: ['#9f1239', '#f43f5e'],
+  purpose: 'How you are doing, and help when you are not',
+
+  badge(host) {
+    const stats = host.backend.getData().stats;
+    return stats.health < 30 || stats.hunger < 15 ? 1 : 0;
+  },
+
+  render(host) {
+    const data = host.backend.getData();
+    const stats = data.stats;
+    const hasHome = host.backend.hasHome();
+    const serious = stats.health < 40 || stats.hunger <= 0;
+    const need = (icon: string, name: string, value: number, advice: string) => `
+      <div class="nl-need">
+        <span class="nl-need-top"><span>${icon} ${name}</span><strong>${Math.round(value)}%</strong></span>
+        ${meter(value, tone(value))}
+        <span class="nl-row-sub">${advice}</span>
+      </div>`;
+    return {
+      title: 'Health',
+      body: `
+        <div class="nl-card" id="health-needs">
+          ${need('❤️', 'Health', stats.health, stats.health < 40 ? 'Low. See a doctor, or call an ambulance below.' : stats.hunger < 50 || stats.energy < 40 ? 'Comes back slowly once you have eaten and rested.' : 'You are well.')}
+          ${need('🍲', 'Hunger', stats.hunger, stats.hunger < 25 ? 'You need to eat. Order something, or sit down at Mama Put.' : 'You have eaten enough for now.')}
+          ${need('⚡', 'Energy', stats.energy, stats.energy < 25 ? (hasHome ? 'You are worn out. Go home and sleep.' : 'You are worn out. Eat something, or rent a place to sleep.') : 'You have energy to work.')}
+        </div>
+        <div class="nl-section">What helps</div>
+        <div class="nl-list">
+          ${row({ icon: '🛵', title: 'Order food', sub: 'Brought to wherever you are', attrs: 'data-app="shopping" data-route="food"' })}
+          ${hasHome
+            ? row({ icon: '🛏️', title: 'Go home and sleep', sub: 'Energy and health come back while you sleep', attrs: 'data-act="home"' })
+            : row({ icon: '🔑', title: 'Find a place to sleep', sub: 'You have no home yet', attrs: 'data-app="property"' })}
+          ${row({ icon: '🏥', title: 'Ride to the hospital', sub: 'St. Nicholas General, Lagos Island', attrs: 'data-app="ride" data-route="d:dest_lagos_hospital"' })}
+        </div>
+        <div class="nl-section">Emergency</div>
+        <div class="nl-card nl-card--warn">
+          <div class="nl-card-title">🚑 Ambulance</div>
+          <div class="nl-card-line">${serious
+            ? 'Takes you straight to the hospital and treats you on arrival. The bill is ₦3,500, on credit if you cannot pay.'
+            : 'For when your health is below 40% or you are starving. You are well enough to get there yourself.'}</div>
+          <button class="nl-btn nl-btn--danger nl-btn--block" id="health-ambulance" data-act="ambulance" ${serious ? '' : 'disabled'}>Call an ambulance</button>
+        </div>
+        <div class="nl-list">
+          ${row({ icon: '👮', title: 'Ride to the police station', sub: 'Area Command, Lagos Island. Reports are made at the front desk.', attrs: 'data-app="ride" data-route="d:dest_lagos_police"' })}
+        </div>
+      `,
+    };
+  },
+
+  act(host, action) {
+    if (action === 'home') {
+      host.close();
+      host.world.goHome();
+    } else if (action === 'ambulance') {
+      const stats = host.backend.getData().stats;
+      if (stats.health >= 40 && stats.hunger > 0) return host.say('You are well enough to get there yourself.', 'info');
+      if (!host.world.ambulance()) return host.say('The ambulance cannot reach you where you are right now.', 'bad');
+      host.close();
+    }
+  },
+};
+
+// ============================================================================================
+// Settings
+// ============================================================================================
+
+const toggle = (id: string, on: boolean, action: string) =>
+  `<button class="nl-toggle${on ? ' is-on' : ''}" id="${id}" role="switch" aria-checked="${on}" data-act="${action}"><span></span></button>`;
+
+export const settingsApp: PhoneApp = {
+  id: 'settings',
+  name: 'Settings',
+  icon: '⚙️',
+  tint: ['#334155', '#64748b'],
+  purpose: 'Sound, your look, and a copy of your saved game',
+
+  render(host) {
+    const sound = SoundEngine.getInstance();
+    const data = host.backend.getData();
+    return {
+      title: 'Settings',
+      body: `
+        <div class="nl-section">Look</div>
+        <div class="nl-card" id="settings-look">
+          <div class="nl-card-title">Light or dark</div>
+          <div class="nl-card-line">The whole game: the bars, the cards, the map and this phone.</div>
+          <div class="lx-seg" role="radiogroup" style="--n:2;--i:${theme() === 'dark' ? 1 : 0};margin-top:8px">
+            <span class="lx-seg-thumb"></span>
+            <button type="button" role="radio" class="lx-seg-btn${theme() === 'light' ? ' is-on' : ''}" id="settings-theme-light" aria-checked="${theme() === 'light'}" data-act="theme-light">☀️ Light</button>
+            <button type="button" role="radio" class="lx-seg-btn${theme() === 'dark' ? ' is-on' : ''}" id="settings-theme-dark" aria-checked="${theme() === 'dark'}" data-act="theme-dark">🌙 Dark</button>
+          </div>
+        </div>
+        <div class="nl-section">Sound</div>
+        <div class="nl-list">
+          ${row({ icon: '🔊', title: 'Game sound', sub: sound.isMuted ? 'Off' : 'On', trailing: toggle('settings-sound', !sound.isMuted, 'sound') })}
+          ${row({ icon: '📻', title: 'Street radio', sub: sound.isRadioActive() ? 'Playing' : 'Off', trailing: toggle('settings-radio', sound.isRadioActive(), 'radio') })}
+        </div>
+        <div class="nl-section">You</div>
+        <div class="nl-list">
+          ${row({ icon: '🧑', title: esc(data.username), sub: esc(data.destinyTitle || data.career.title), trailing: '<span class="nl-tag">Profile</span>' })}
+          ${row({ icon: '👕', title: 'Change your look', sub: 'Clothes, hair and skin tone', attrs: 'data-act="wardrobe"' })}
+        </div>
+        <div class="nl-section">Playing with others</div>
+        ${SERVER_URL ? `
+          <div class="nl-card" id="settings-server">
+            <div class="nl-card-title">${ServerLink.get()?.connected ? '🟢 Connected' : '🟠 Trying to reach'} the world server</div>
+            <div class="nl-card-line">${esc(SERVER_URL)}</div>
+            <div class="nl-card-line">Land, buildings, vehicles and the market are shared with everyone on this server. Your money and your saved game stay on this device.</div>
+            <button class="nl-btn nl-btn--danger nl-btn--sm" data-act="server-off">Leave the server and play on this device only</button>
+          </div>` : `
+          <div class="nl-hint">Land and the market are shared by the players in this browser. To share them with other devices, run the world server (npm run server) and enter its address.</div>
+          <label class="nl-label" for="settings-server-url">World server address</label>
+          <input class="nl-field" id="settings-server-url" type="text" inputmode="url" autocomplete="off" placeholder="http://192.168.1.20:8787" value="${esc(host.get('settings.server', ''))}" data-bind="settings.server" />
+          <button class="nl-btn nl-btn--block" id="settings-server-join" data-act="server-on">Connect</button>`}
+        ${accountSection(host)}
+        <div class="nl-section">Graphics</div>
+        <div class="nl-list">
+          ${row({
+            icon: '🖥️',
+            title: 'Graphics quality',
+            sub: `${(window as any).game?.graphics?.label ?? 'High'}: ${GRAPHICS_NOTES[(window as any).game?.graphics?.level ?? 'high']}`,
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-graphics">Change</button>',
+          })}
+        </div>
+        <div class="nl-section">Driving & Vehicle Handling</div>
+        <div class="nl-list">
+          ${row({
+            icon: '🚗',
+            title: 'Steering sensitivity',
+            sub: DrivableVehicle.steeringSensitivity <= 0.75 ? 'Forgiving (70%)' : DrivableVehicle.steeringSensitivity >= 1.25 ? 'High (130%)' : 'Standard (100%)',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-steer-sens">Change</button>',
+          })}
+          ${row({
+            icon: '🛣️',
+            title: 'Lane centering assistance',
+            sub: DrivableVehicle.laneAssistStrength === 0 ? 'Off (0%)' : DrivableVehicle.laneAssistStrength >= 1.0 ? 'Strong (100%)' : 'Balanced (85%)',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-lane-assist">Change</button>',
+          })}
+          ${row({
+            icon: '🎥',
+            title: 'Driving chase camera',
+            sub: DrivableVehicle.cameraSmoothing <= 0.7 ? 'Direct / Crisp' : DrivableVehicle.cameraSmoothing >= 1.2 ? 'Smooth Follow' : 'Balanced',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-cam-smooth">Change</button>',
+          })}
+        </div>
+        <div class="nl-section">World Clock & Time Model</div>
+        <div class="nl-list">
+          ${row({
+            icon: '⏰',
+            title: 'Authoritative world clock',
+            sub: (window as any).game?.world.skyEnvironment.clockMode === 'REAL_TIME' ? 'Real Time (WAT Africa/Lagos)' : 'Simulated Accelerated Time',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-clock-mode">Switch</button>',
+          })}
+        </div>
+        <div class="nl-section">Lagos Street Life & Power</div>
+        <div class="nl-list">
+          ${row({
+            icon: '⚡',
+            title: 'Lagos power grid (NEPA)',
+            sub: LagosStreetLifeSystem.getInstance().isNepaOn ? 'Grid is ON ("UP NEPA!")' : 'Blackout! Generators Running',
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-nepa-power">Toggle</button>',
+          })}
+        </div>
+        <div class="nl-section">Saved game</div>
+        <div class="nl-hint">The game saves itself on this device every few seconds. A copy as text lets you move it to another browser.</div>
+        <div class="nl-list">
+          ${row({ icon: '📋', title: 'Copy my saved game', sub: 'Puts it on the clipboard as text', attrs: 'data-act="export"' })}
+        </div>
+        <label class="nl-label" for="settings-import">Restore from a copy</label>
+        <input class="nl-field" id="settings-import" type="text" placeholder="Paste a saved game here" value="${esc(host.get('settings.import', ''))}" data-bind="settings.import" />
+        <button class="nl-btn nl-btn--block" data-act="import">Restore</button>
+      `,
+    };
+  },
+
+  async act(host, action) {
+    if (action === 'theme-light' || action === 'theme-dark') {
+      setTheme(action === 'theme-dark' ? 'dark' : 'light');
+      host.refresh();
+      return;
+    }
+    const sound = SoundEngine.getInstance();
+    if (action === 'sound') {
+      sound.toggleMute();
+      host.refresh();
+    } else if (action === 'radio') {
+      sound.toggleRadio();
+      host.refresh();
+    } else if (action === 'account-email') {
+      const online = OnlineAccount.get();
+      const email = host.get('settings.email', '').trim();
+      if (!online) return;
+      const result = await online.askForSignInLink(email);
+      if (!result.ok) return host.say(result.reason ?? 'The link could not be sent.', 'bad');
+      host.set('settings.devLink', result.devLink ?? '');
+      host.say(result.devLink ? 'No email service is set up on this server: the link is shown below.' : `A sign-in link is on its way to ${email}. Open it within 15 minutes.`, 'good');
+      host.refresh();
+    } else if (action === 'toggle-graphics') {
+      const graphics = (window as any).game?.graphics;
+      if (graphics) graphics.choose(graphics.next());
+      host.refresh();
+    } else if (action === 'toggle-steer-sens') {
+      DrivableVehicle.steeringSensitivity =
+        DrivableVehicle.steeringSensitivity >= 1.25 ? 0.70 :
+        DrivableVehicle.steeringSensitivity <= 0.75 ? 1.0 : 1.30;
+      DrivableVehicle.saveSettings();
+      host.refresh();
+    } else if (action === 'toggle-lane-assist') {
+      DrivableVehicle.laneAssistStrength =
+        DrivableVehicle.laneAssistStrength === 0 ? 0.85 :
+        DrivableVehicle.laneAssistStrength >= 1.0 ? 0.0 : 1.0;
+      DrivableVehicle.saveSettings();
+      host.refresh();
+    } else if (action === 'toggle-cam-smooth') {
+      DrivableVehicle.cameraSmoothing =
+        DrivableVehicle.cameraSmoothing >= 1.2 ? 0.6 :
+        DrivableVehicle.cameraSmoothing <= 0.7 ? 1.0 : 1.3;
+      DrivableVehicle.saveSettings();
+      host.refresh();
+    } else if (action === 'toggle-clock-mode') {
+      const sky = (window as any).game?.world.skyEnvironment;
+      if (sky) {
+        const nextMode = sky.clockMode === 'REAL_TIME' ? 'SIMULATED_TIME' : 'REAL_TIME';
+        sky.setClockMode(nextMode);
+        host.refresh();
+      }
+    } else if (action === 'toggle-nepa-power') {
+      const sky = (window as any).game?.world.skyEnvironment;
+      LagosStreetLifeSystem.getInstance().toggleNepaPower(sky?.currentPeriod || 'night');
+      host.refresh();
+    } else if (action === 'server-on') {
+      const url = host.get('settings.server', '').trim();
+      if (!/^https?:\/\/[^\s]+$/.test(url)) return host.say('Enter the address the server printed, such as http://192.168.1.20:8787.', 'bad');
+      try {
+        const response = await fetch(`${url.replace(/\/+$/, '')}/health`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(String(response.status));
+      } catch {
+        return host.say('Nothing answered at that address. Check that the server is running and that this device can reach it.', 'bad');
+      }
+      if (!(await host.confirm('Connect to this world server? The game will restart. Land and vehicles you own in this browser come with you, except any plot that already has an owner there.', 'Connect'))) return;
+      rememberServer(url);
+      window.location.reload();
+    } else if (action === 'server-off') {
+      if (!(await host.confirm('Leave the world server? The game will restart and use the land registry in this browser.', 'Leave'))) return;
+      rememberServer(null);
+      window.location.reload();
+    } else if (action === 'wardrobe') {
+      host.close();
+      host.world.openWardrobe();
+    } else if (action === 'export') {
+      const text = CloudSyncService.getInstance().exportBackupString();
+      try {
+        await navigator.clipboard.writeText(text);
+        host.say('Your saved game is on the clipboard.', 'good');
+      } catch {
+        host.say('The browser would not let the game use the clipboard.', 'bad');
+      }
+    } else if (action === 'import') {
+      const text = host.get('settings.import', '').trim();
+      if (!text) return host.say('Paste a saved game first.', 'bad');
+      if (!(await host.confirm('Replace the game you are playing now with the pasted one?', 'Replace it'))) return;
+      const result = CloudSyncService.getInstance().importBackupString(text);
+      if (result.success) host.set('settings.import', '');
+      host.say(result.message, result.success ? 'good' : 'bad');
+    }
+  },
+};

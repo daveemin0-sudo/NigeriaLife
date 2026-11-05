@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+---
+
+This is Nigeria Life: a browser 3D life sim of Nigeria (TypeScript + Vite + Three.js) in nigeria-life/.
+
+Goal: beat Lagos Life. The full plan is in nigeria-life/docs/MASTER-PLAN.md. Read it before big tasks.
+
+Rules:
+- Take inspiration from Lagos Life's mechanics only. Never copy its code, art, text or branding.
+- Follow docs/ART-BIBLE.md for visuals.
+- Keep `npx tsc --noEmit` passing after every change.
+- Never break existing features. Keep public APIs stable when refactoring.
+- When the save shape changes, bump SAVE_SCHEMA_VERSION in src/backend/types.ts and add a migration in SaveSchema.ts.
+- Money must never be changed directly by UI code. Always go through BackendService/TransactionService.
+- Do one task at a time, then summarise what changed and which files.

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Activity } from '../life/Activity';
 import { 
   type InteriorDefinition, 
   type InteriorType, 
@@ -12,11 +13,61 @@ import { PoliceInterior } from './templates/PoliceInterior';
 import { ResidentialInterior } from './templates/ResidentialInterior';
 import { UNILAGInterior } from './templates/UNILAGInterior';
 import { AirportInterior } from './templates/AirportInterior';
+import { ShopInterior } from './templates/ShopInterior';
+import { ClubInterior } from './templates/ClubInterior';
+import { isOpen, closedNotice, type OpeningHours } from '../destinations/Hours';
+import { showGameToast } from '../ui/GameToast';
 import type { InteractiveObject, World } from '../world/World';
 import type { Player } from '../player/Player';
 import type { GameCamera } from '../game/Camera';
 import type { HUD } from '../ui/HUD';
 import { UIStateManager } from '../ui/UIStateManager';
+import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { InteractionDirector } from '../interactions/InteractionDirector';
+import { Sequence, steps } from '../interactions/Sequence';
+import type { HingedDoor } from '../interactions/Door';
+import type { NavGrid } from '../interactions/NavGrid';
+import type { StreetDoor } from '../world/Buildings';
+import { RoomCutaway } from './RoomCutaway';
+import { PlaceInterior } from './places/PlaceInterior';
+import { PLACE_SPECS } from './places/PlaceSpecs';
+import { EXPRESS, ROADSIDE, sideFront } from '../world/expressway/layout';
+
+/** What an interior can optionally provide beyond its room and stations. */
+interface InteriorTemplate {
+  group: THREE.Group;
+  def: InteriorDefinition;
+  interactiveList: InteractiveObject[];
+  update: (delta: number, time: number) => void;
+  /** Floor map for routing characters around the furniture */
+  nav?: NavGrid;
+  /** Called as the player comes in, before the room is shown (to make it ready) */
+  onPlayerArriving?: () => void;
+  /** Called once the player is inside, and when they have left */
+  onPlayerEntered?: () => void;
+  onPlayerLeft?: () => void;
+  /** Where its door leads, when not out to the road (a hotel room to its corridor) */
+  leadsTo?: (() => { id: string; spawnAt: THREE.Vector3; spawnYaw: number } | null) | null;
+}
+
+export interface EnterOptions {
+  /** Where on the street the player returns to on leaving (default: where they stood on entering) */
+  returnTo?: THREE.Vector3;
+  returnYaw?: number;
+  /** Where inside the player first appears (default: the interior's spawn point) */
+  spawnAt?: THREE.Vector3;
+  spawnYaw?: number;
+  /** Runs once the player is standing inside, before the view fades back in */
+  onPlaced?: () => void;
+}
+
+export interface ExitOptions {
+  /** Where on the street the player first appears (default: the saved return position) */
+  emergeAt?: THREE.Vector3;
+  emergeYaw?: number;
+  /** Runs once the player is standing on the street, before the view fades back in */
+  onPlaced?: () => void;
+}
 
 export class InteriorManager {
   private static instance: InteriorManager | null = null;
@@ -30,6 +81,16 @@ export class InteriorManager {
   public residence: ResidentialInterior;
   public unilag: UNILAGInterior;
   public airport: AirportInterior;
+  public shop: ShopInterior;
+  public club: ClubInterior;
+  /** The time on the game's clock, 0 to 24, for places that keep hours */
+  public clock: () => number = () => 12;
+  /** Where the front of the home being lived in is, when it is a house of the player's own on their own land (set by the game); null for the flat behind the compound gate */
+  public homeFront: (() => { inside: THREE.Vector3; outside: THREE.Vector3 } | null) | null = null;
+  /** Every interior, in one list: adding a place means adding it here */
+  private templates: InteriorTemplate[];
+  /** The insides of the places along the expressway */
+  public places: PlaceInterior[] = [];
 
   // Active state
   public locationMode: GameLocationMode = 'street';
@@ -38,6 +99,14 @@ export class InteriorManager {
   private streetReturnRotation: number = 0;
   private isTransitioning: boolean = false;
   private animTime: number = 0;
+  /** Street doors that lead into an interior, by interior type */
+  private streetDoors = new Map<InteriorType, StreetDoor>();
+  /** True from the moment the player commits to a doorway until they are through it */
+  private usingDoor: boolean = false;
+  /** Keeps the player in view indoors: lowers outer walls and fades whatever else is in the way */
+  public readonly cutaway = new RoomCutaway();
+  /** The last clear floor the player stood on indoors, to put them back when they walk into furniture */
+  private lastClearSpot: THREE.Vector3 | null = null;
 
   public static getInstance(): InteriorManager {
     if (!InteriorManager.instance) {
@@ -59,77 +128,62 @@ export class InteriorManager {
     this.residence = new ResidentialInterior();
     this.unilag = new UNILAGInterior();
     this.airport = new AirportInterior();
+    this.shop = new ShopInterior();
+    this.club = new ClubInterior();
+    // The places along the expressway, gone into: each its own room, out at its own door on the road
+    this.places = PLACE_SPECS.map((spec, i) => {
+      const place = ROADSIDE.find((p) => p.id === spec.key);
+      // Along the expressway, or on a side street off it
+      const side = sideFront(spec.key);
+      const out = spec.comeOut
+        ? new THREE.Vector3(spec.comeOut[0], spec.comeOut[1], spec.comeOut[2])
+        : place ? new THREE.Vector3(place.side * (EXPRESS.half + EXPRESS.walk - 1), 0, place.z) : side ? new THREE.Vector3(side.x, 0, side.standZ) : new THREE.Vector3();
+      return new PlaceInterior(spec, new THREE.Vector3(-3000, 0, 1000 + i * 70), out);
+    });
+    this.templates = [
+      this.hospital, this.bank, this.restaurant, this.police,
+      this.residence, this.unilag, this.airport, this.shop, this.club,
+      ...this.places,
+    ];
 
     // All interiors are hidden by default until specifically entered
-    this.hospital.group.visible = false;
-    this.bank.group.visible = false;
-    this.restaurant.group.visible = false;
-    this.police.group.visible = false;
-    this.residence.group.visible = false;
-    this.unilag.group.visible = false;
-    this.airport.group.visible = false;
+    for (const template of this.templates) {
+      template.group.visible = false;
+      this.group.add(template.group);
+    }
 
-    this.group.add(this.hospital.group);
-    this.group.add(this.bank.group);
-    this.group.add(this.restaurant.group);
-    this.group.add(this.police.group);
-    this.group.add(this.residence.group);
-    this.group.add(this.unilag.group);
-    this.group.add(this.airport.group);
+    // Each room stands on its own plot of ground, which is all the camera sees around it
+    for (const child of this.group.children) {
+      child.add(this.createGroundPlot());
+    }
 
     // Tag entire interior group with INTERIOR layer
     this.group.traverse((child) => {
       child.layers.set(RENDER_LAYERS.INTERIOR);
     });
+    // Hidden while on street; enabled dynamically when entering an interior
+    this.group.visible = false;
   }
 
   /**
    * Get all interactive objects across all active interiors.
    */
   public getAllInteractiveObjects(): InteractiveObject[] {
-    return [
-      ...this.hospital.interactiveList,
-      ...this.bank.interactiveList,
-      ...this.restaurant.interactiveList,
-      ...this.police.interactiveList,
-      ...this.residence.interactiveList,
-      ...this.unilag.interactiveList,
-      ...this.airport.interactiveList,
-    ];
+    return this.templates.flatMap((template) => template.interactiveList);
   }
 
   /**
    * Get interactive objects for only the currently active interior.
    */
   public getActiveInteractiveObjects(): InteractiveObject[] {
-    if (!this.currentInterior) return [];
-    switch (this.currentInterior.type) {
-      case 'hospital': return this.hospital.interactiveList;
-      case 'bank': return this.bank.interactiveList;
-      case 'restaurant': return this.restaurant.interactiveList;
-      case 'police': return this.police.interactiveList;
-      case 'residence': return this.residence.interactiveList;
-      case 'university': return this.unilag.interactiveList;
-      case 'airport': return this.airport.interactiveList;
-      default: return [];
-    }
+    return this.getActiveTemplate()?.interactiveList ?? [];
   }
 
   /**
    * Get the active interior Three.js Group.
    */
   public getActiveInteriorGroup(): THREE.Group | null {
-    if (!this.currentInterior) return null;
-    switch (this.currentInterior.type) {
-      case 'hospital': return this.hospital.group;
-      case 'bank': return this.bank.group;
-      case 'restaurant': return this.restaurant.group;
-      case 'police': return this.police.group;
-      case 'residence': return this.residence.group;
-      case 'university': return this.unilag.group;
-      case 'airport': return this.airport.group;
-      default: return null;
-    }
+    return this.getActiveTemplate()?.group ?? null;
   }
 
   /**
@@ -146,16 +200,11 @@ export class InteriorManager {
    * Find interior definition matching a street building ID or interior ID.
    */
   public getInteriorByBuildingId(id: string): InteriorDefinition | null {
-    const list = [
-      this.hospital.def,
-      this.bank.def,
-      this.restaurant.def,
-      this.police.def,
-      this.residence.def,
-      this.unilag.def,
-      this.airport.def,
-    ];
+    const list = this.templates.map((template) => template.def);
 
+    // A door registered under its own id goes to its own room, before any looser match ("command" has "mma" in it)
+    const exact = list.find((item) => item.streetBuildingId === id || item.id === id);
+    if (exact) return exact;
     const cleanId = id.toLowerCase();
     const match = list.find((item) => 
       item.streetBuildingId === id ||
@@ -171,6 +220,7 @@ export class InteriorManager {
       (id === 'mama-put' && item.type === 'restaurant') ||
       (id === 'mama_put_buka' && item.type === 'restaurant') ||
       (id === 'chop-life' && item.type === 'restaurant') ||
+      ((id === 'supermarket' || id === 'everyday_supermarket' || id === 'dest_lagos_supermarket') && item.type === 'shop') ||
       (id === 'police' && item.type === 'police') ||
       (id === 'police-station' && item.type === 'police') ||
       (id === 'residence' && item.type === 'residence') ||
@@ -191,17 +241,27 @@ export class InteriorManager {
     player: Player,
     cameraManager: GameCamera,
     hud: HUD,
-    world: World
+    world: World,
+    options: EnterOptions = {}
   ): Promise<boolean> {
     if (this.isTransitioning) return false;
     const target = this.getInteriorByBuildingId(typeOrId);
     if (!target) return false;
+    if (this.turnedAway(target)) return false;
 
     this.isTransitioning = true;
 
-    // 1. Save street return position and rotation right outside the door
-    this.streetReturnPosition.copy(player.position);
-    this.streetReturnRotation = player.mesh.rotation.y;
+    // Whatever the player was in the middle of ends here
+    if (this.currentInterior) this.getActiveTemplate()?.onPlayerLeft?.();
+    InteractionDirector.get().forceFree(player.actor);
+
+    // 1. Save street return position and rotation right outside the door. Going from one room
+    // straight into another (the Home button pressed inside a hotel) leaves it as it was: where
+    // they stand now is inside, and coming out there would be into empty sky.
+    if (options.returnTo || !this.currentInterior) {
+      this.streetReturnPosition.copy(options.returnTo ?? player.position);
+      this.streetReturnRotation = options.returnYaw ?? player.mesh.rotation.y;
+    }
 
     // 2. Start cinematic fade to black
     await this.setFadeOverlay(1);
@@ -209,42 +269,53 @@ export class InteriorManager {
     // 3. Update game location state
     this.locationMode = 'interior';
     this.currentInterior = target;
+    Activity.emit({ kind: 'visited', place: target.id, name: target.name });
+    this.getActiveTemplate()?.onPlayerArriving?.();
     UIStateManager.getInstance().setMode('interior');
     console.log(`[Interior] entered: ${target.id}`);
 
     // 4. HIDE the entire outdoor street world
     world.setStreetModeVisibility(false);
-    world.apartment.group.visible = false;
 
     // 5. Isolate interior rendering: show ONLY target interior group
-    this.hospital.group.visible = target.type === 'hospital';
-    this.bank.group.visible = target.type === 'bank';
-    this.restaurant.group.visible = target.type === 'restaurant';
-    this.police.group.visible = target.type === 'police';
-    this.residence.group.visible = target.type === 'residence';
-    this.unilag.group.visible = target.type === 'university';
-    this.airport.group.visible = target.type === 'airport';
+    this.group.visible = true;
+    for (const template of this.templates) {
+      template.group.visible = template.def === target;
+    }
 
     // 6. Teleport player character mesh into interior coordinates
-    const spawnPos = target.interiorOrigin.clone().add(target.playerSpawnOffset);
+    const spawnPos = options.spawnAt ?? target.interiorOrigin.clone().add(target.playerSpawnOffset);
     player.mesh.position.copy(spawnPos);
     player.position.copy(spawnPos);
-    player.mesh.rotation.y = 0; // Face forward into the room
+    player.mesh.rotation.y = options.spawnYaw ?? 0; // Face forward into the room
     player.stopMoving();
+    this.lastClearSpot = null;
+    this.getActiveTemplate()?.onPlayerEntered?.();
 
-    // 7. Activate dedicated interior camera and layer filter
+    // 7. Activate dedicated interior camera and layer filter, framed on this room
+    const shell = this.getActiveShell();
+    const shellSize = shell?.userData.size as { width: number; length: number } | undefined;
+    const room = target.rooms[0];
+    cameraManager.frameRoom(
+      target.interiorOrigin,
+      shellSize?.width ?? room.size.width,
+      shellSize?.length ?? room.size.length,
+      shell?.userData.view as { width: number; length: number } | undefined
+    );
     cameraManager.setMode('interior');
     cameraManager.setLayerMode('interior');
     cameraManager.snapToPlayer(player, 'interior');
+    const activeGroup = this.getActiveInteriorGroup();
+    if (activeGroup) this.cutaway.attach(activeGroup, target.interiorOrigin);
+    this.cutaway.update(0, cameraManager.camera, player.position, true);
 
     // 8. Update HUD location badge and banner
     hud.updateLocation(target.name, `Interior • ${target.districtName}`);
-    this.showInteriorBanner(
-      target.name,
-      `Entered ${target.name}. Explore rooms, talk to staff, and interact with stations.`
-    );
+    // The place's own name and where it is, not a generic line
+    this.showInteriorBanner(target.name, target.districtName || 'Lagos');
 
     // 9. Fade back in
+    options.onPlaced?.();
     await this.setFadeOverlay(0);
     this.isTransitioning = false;
 
@@ -258,10 +329,16 @@ export class InteriorManager {
     player: Player,
     cameraManager: GameCamera,
     hud: HUD,
-    world: World
+    world: World,
+    options: ExitOptions = {}
   ): Promise<void> {
     if (this.isTransitioning || !this.currentInterior) return;
     this.isTransitioning = true;
+
+    // Leaving ends whatever the player was doing inside (a meal, a seat, an order)
+    this.getActiveTemplate()?.onPlayerLeft?.();
+    InteractionDirector.get().forceFree(player.actor);
+    this.getActiveDoor()?.set(false);
 
     const exitedName = this.currentInterior.name;
     const exitedId = this.currentInterior.id;
@@ -270,22 +347,20 @@ export class InteriorManager {
     // 1. Start cinematic fade to black
     await this.setFadeOverlay(1);
 
-    // 2. Hide all interior groups
-    this.hospital.group.visible = false;
-    this.bank.group.visible = false;
-    this.restaurant.group.visible = false;
-    this.police.group.visible = false;
-    this.residence.group.visible = false;
-    this.unilag.group.visible = false;
-    this.airport.group.visible = false;
+    // 2. Hide all interior groups, with every wall and fitting back as it was
+    this.cutaway.detach();
+    for (const template of this.templates) {
+      template.group.visible = false;
+    }
+    this.group.visible = false;
 
     // 3. RESTORE outdoor street world visibility
     world.setStreetModeVisibility(true);
 
     // 4. Return player character to exact outside entry coordinate and rotation
-    player.mesh.position.copy(this.streetReturnPosition);
-    player.position.copy(this.streetReturnPosition);
-    player.mesh.rotation.y = this.streetReturnRotation;
+    player.mesh.position.copy(options.emergeAt ?? this.streetReturnPosition);
+    player.position.copy(player.mesh.position);
+    player.mesh.rotation.y = options.emergeYaw ?? this.streetReturnRotation;
     player.stopMoving();
 
     // 5. Restore street camera and layers
@@ -301,15 +376,360 @@ export class InteriorManager {
     // 7. Restore district name in HUD
     const district = world.getDistrictAtPosition(player.position);
     hud.updateLocation(district.name, district.sub);
-    this.showInteriorBanner('Lagos Street Mode', `Exited ${exitedName}. Returned to the street.`);
+    this.showInteriorBanner(district.name, `Out of ${exitedName}`);
 
     // 8. Fade back in
+    options.onPlaced?.();
     await this.setFadeOverlay(0);
     this.isTransitioning = false;
   }
 
+  // =========================================================================
+  // DOORS: the same walk-in / walk-out for every place that has one
+  // =========================================================================
+
+  /** What a building is called, by the id a player inside it is said to be in */
+  public nameOfPlace(id: string): string | null {
+    const t = this.templates.find((x) => x.def.id === id || x.def.streetBuildingId === id || x.def.type === id);
+    return t?.def.name ?? null;
+  }
+
+  private getActiveTemplate(): InteriorTemplate | null {
+    if (!this.currentInterior) return null;
+    // By the room itself: many places share a type (every place along the expressway is an 'office')
+    return this.templates.find((template) => template.def === this.currentInterior) ?? this.templateFor(this.currentInterior.type);
+  }
+
+  private templateFor(type: InteriorType): InteriorTemplate | null {
+    return this.templates.find((template) => template.def.type === type) ?? null;
+  }
+
+  /** Floor map of the current room, if it has one, for walking around the furniture. */
+  public getActiveNav(): NavGrid | null {
+    return this.getActiveTemplate()?.nav ?? null;
+  }
+
+  private doorOf(template: InteriorTemplate | null): { door: HingedDoor; position: THREE.Vector3; outward: THREE.Vector3 } | null {
+    const doorGroup = template?.group.getObjectByName('interior_exit_door');
+    const door = doorGroup?.userData.door as HingedDoor | undefined;
+    if (!template || !doorGroup || !door) return null;
+    const yaw = doorGroup.rotation.y;
+    return {
+      door,
+      position: template.def.interiorOrigin.clone().add(doorGroup.position).setY(0),
+      // The door faces the room, so "out" is behind it
+      outward: new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)),
+    };
+  }
+
+  private getActiveDoor(): HingedDoor | null {
+    return this.doorOf(this.getActiveTemplate())?.door ?? null;
+  }
+
+  /** Links a door on the street to the interior behind it. */
+  /** A place that keeps hours cannot be gone into outside them, whichever way the player comes. Says so, and returns true. */
+  private turnedAway(target: InteriorDefinition): boolean {
+    const hours = this.hoursOf(target);
+    if (!hours || isOpen(hours, this.clock())) return false;
+    showGameToast(closedNotice(target.name, hours), 'info', 3600);
+    return true;
+  }
+
+  /** When a room can be gone into: what the record of places says for the place it is the inside of. */
+  private hoursOf(target: InteriorDefinition): OpeningHours | undefined {
+    return DestinationRegistry.getInstance().getAll().find((place) => place.interiorId === target.type)?.hours ?? target.hours;
+  }
+
+  /** Is this place open now? (Places that keep no hours always are.) */
+  public isOpenNow(typeOrId: InteriorType | string): boolean {
+    const target = this.getInteriorByBuildingId(typeOrId);
+    const hours = target ? this.hoursOf(target) : undefined;
+    return !hours || isOpen(hours, this.clock());
+  }
+
+  public registerStreetDoor(streetDoor: StreetDoor): void {
+    const target = this.getInteriorByBuildingId(streetDoor.buildingId);
+    if (!target) return;
+    this.streetDoors.set(target.type, streetDoor);
+    // The door is the one place this building is entered from: the interior's street entrance
+    // and the map's arrival point both follow it
+    target.streetEntrance.copy(streetDoor.outside);
+    const destination = DestinationRegistry.getInstance().getById(streetDoor.buildingId);
+    if (destination) {
+      destination.streetPosition.copy(streetDoor.outside);
+      destination.entrance.position.copy(streetDoor.outside);
+    }
+  }
+
+  /**
+   * Enter a place the way a person does: walk up to its door, open it, and walk through.
+   * Places whose street building has no modelled door yet fall back to the plain transition.
+   */
+  public async enterThroughDoor(
+    typeOrId: InteriorType | string,
+    player: Player,
+    cameraManager: GameCamera,
+    hud: HUD,
+    world: World
+  ): Promise<boolean> {
+    if (this.isTransitioning || this.usingDoor) return false;
+    const target = this.getInteriorByBuildingId(typeOrId);
+    if (!target) return false;
+    if (this.turnedAway(target)) return false;
+
+    const street = this.streetDoors.get(target.type);
+    if (!street || this.isPlayerInside() || player.isDriving) {
+      return this.enterInterior(typeOrId, player, cameraManager, hud, world);
+    }
+
+    const director = InteractionDirector.get();
+    const actor = player.actor;
+    if (director.interrupt(actor) === 'locked') return false;
+    this.usingDoor = true;
+
+    try {
+      // Arriving from across town (a map trip) starts on the pavement in front of the door
+      if (player.position.distanceTo(street.outside) > 30) {
+        player.mesh.position.set(street.outside.x, 0, street.outside.z);
+      }
+      player.stopMoving();
+
+      const walkIn = new Sequence('enter by street door', [actor]).locked().add(
+        steps.walk(actor, street.outside, { ifStuck: 'snap' }),
+        steps.face(actor, street.inside),
+        steps.animate(actor, { arms: 'reach' }, 0.5, [{ at: 0.45, run: () => street.door.open() }]),
+        steps.until('door open', () => street.door.isOpen, 2, 'continue'),
+        steps.slide(actor, street.inside, 0.9, { legs: 'walk', arms: 'swing' })
+      );
+      if (!director.run(walkIn) || (await walkIn.finished) !== 'done') {
+        street.door.close();
+        return false;
+      }
+
+      const template = this.templates.find((t) => t.def === target) ?? this.templateFor(target.type);
+      const inner = this.doorOf(template);
+      const doorway = inner ? inner.position.clone().addScaledVector(inner.outward, -0.4) : undefined;
+      const facingIn = inner ? Math.atan2(-inner.outward.x, -inner.outward.z) : undefined;
+      inner?.door.set(true);
+
+      // Step into the room as the view fades in, and let the door close behind
+      const spawn = target.interiorOrigin.clone().add(target.playerSpawnOffset);
+      const stepIn = new Sequence('step inside', [actor]).locked().add(
+        steps.slide(actor, spawn, 0.9, { legs: 'walk', arms: 'swing' }),
+        steps.call('close door', () => inner?.door.close())
+      );
+      let steppingIn = false;
+
+      const entered = await this.enterInterior(typeOrId, player, cameraManager, hud, world, {
+        returnTo: street.outside,
+        returnYaw: Math.atan2(street.outside.x - street.inside.x, street.outside.z - street.inside.z),
+        spawnAt: doorway,
+        spawnYaw: facingIn,
+        onPlaced: () => { steppingIn = director.run(stepIn); },
+      });
+      street.door.set(false);
+      if (!entered) {
+        inner?.door.set(false);
+        player.mesh.position.set(street.outside.x, 0, street.outside.z);
+        return false;
+      }
+      if (steppingIn) await stepIn.finished;
+      inner?.door.close();
+      return true;
+    } finally {
+      this.usingDoor = false;
+    }
+  }
+
+  /**
+   * Leave the current place through its door: walk to it, open it, walk out, and come out
+   * of the same door on the street that the player went in by.
+   */
+  public async leaveThroughDoor(
+    player: Player,
+    cameraManager: GameCamera,
+    hud: HUD,
+    world: World
+  ): Promise<void> {
+    if (this.isTransitioning || this.usingDoor || !this.currentInterior) return;
+    const interior = this.currentInterior;
+    const template = this.getActiveTemplate();
+    const inner = this.doorOf(template);
+    const director = InteractionDirector.get();
+    const actor = player.actor;
+
+    if (!inner) {
+      await this.exitCurrentInterior(player, cameraManager, hud, world);
+      return;
+    }
+
+    // Finish getting up from a seat (or whatever was going on) before heading for the door
+    if (director.interrupt(actor) === 'locked') {
+      await actor.sequence?.finished;
+      if (this.currentInterior !== interior || this.isTransitioning || this.usingDoor) return;
+    }
+    player.stopMoving();
+
+    // The walk across the room can be abandoned; the doorway itself cannot
+    const insideSpot = inner.position.clone().addScaledVector(inner.outward, -1.3);
+    const approach = new Sequence('walk to exit door', [actor]).add(
+      steps.walk(actor, insideSpot, { nav: template?.nav, ifStuck: 'snap' })
+    );
+    if (!director.run(approach) || (await approach.finished) !== 'done') return;
+    if (this.currentInterior !== interior || this.isTransitioning || this.usingDoor) return;
+
+    this.usingDoor = true;
+    try {
+      const outsideSpot = inner.position.clone().addScaledVector(inner.outward, 1.1);
+      const walkOut = new Sequence('leave by door', [actor]).locked().add(
+        steps.face(actor, outsideSpot),
+        steps.animate(actor, { arms: 'reach' }, 0.5, [{ at: 0.45, run: () => inner.door.open() }]),
+        steps.until('door open', () => inner.door.isOpen, 2, 'continue'),
+        steps.slide(actor, outsideSpot, 0.9, { legs: 'walk', arms: 'swing' })
+      );
+      if (!director.run(walkOut) || (await walkOut.finished) !== 'done') {
+        inner.door.close();
+        return;
+      }
+
+      // Through a door that opens on another room of the same building: into that room
+      const next = template?.leadsTo?.();
+      if (next) {
+        inner.door.set(false);
+        this.usingDoor = false;
+        await this.enterInterior(next.id, player, cameraManager, hud, world, { returnTo: this.streetReturnPosition.clone(), returnYaw: this.streetReturnRotation, spawnAt: next.spawnAt, spawnYaw: next.spawnYaw });
+        return;
+      }
+
+      // Came home by the Home button (or from another room), not through a door on the street:
+      // out at the front of their own house when it is one, else at the compound gate
+      const yawFrom = (a: THREE.Vector3, b: THREE.Vector3) => Math.atan2(b.x - a.x, b.z - a.z);
+      const street = this.streetDoors.get(interior.type);
+      const cameIn = !!street && this.streetReturnPosition.distanceTo(street.outside) < 8;
+      const front = !cameIn && interior.type === 'residence' ? this.homeFront?.() ?? null : null;
+      if (front) {
+        const toPavement = new Sequence('step out of the house', [actor]).locked().add(steps.slide(actor, front.outside.clone(), 0.9, { legs: 'walk', arms: 'swing' }));
+        let walking = false;
+        await this.exitCurrentInterior(player, cameraManager, hud, world, {
+          emergeAt: front.inside,
+          emergeYaw: yawFrom(front.inside, front.outside),
+          onPlaced: () => { walking = director.run(toPavement); },
+        });
+        inner.door.set(false);
+        if (walking) await toPavement.finished;
+        return;
+      }
+      if (!street) {
+        await this.exitCurrentInterior(player, cameraManager, hud, world);
+        inner.door.set(false);
+        return;
+      }
+
+      // Come out of the street door as the view fades in, and let it close behind
+      street.door.set(true);
+      const stepTo = cameIn ? this.streetReturnPosition.clone() : street.outside.clone();
+      const stepYaw = cameIn ? this.streetReturnRotation : yawFrom(street.inside, street.outside);
+      const stepOut = new Sequence('step out to street', [actor]).locked().add(
+        steps.slide(actor, stepTo, 0.9, { legs: 'walk', arms: 'swing' }),
+        steps.call('close door', () => street.door.close())
+      );
+      let steppingOut = false;
+      await this.exitCurrentInterior(player, cameraManager, hud, world, {
+        emergeAt: street.inside,
+        emergeYaw: stepYaw,
+        onPlaced: () => { steppingOut = director.run(stepOut); },
+      });
+      inner.door.set(false);
+      if (steppingOut) await stepOut.finished;
+      street.door.close();
+    } finally {
+      this.usingDoor = false;
+    }
+  }
+
+  /** Part-way through a door or a fade: wait for it before starting another transition. */
+  public get busy(): boolean {
+    return this.isTransitioning || this.usingDoor;
+  }
+
   public isPlayerInside(): boolean {
     return this.locationMode === 'interior' && this.currentInterior !== null;
+  }
+
+  private createGroundPlot(): THREE.Group {
+    const plot = new THREE.Group();
+    plot.name = 'interior_ground_plot';
+
+    // Wide enough to fill the view at the lowest camera angle
+    const lawn = new THREE.Mesh(
+      new THREE.CircleGeometry(220, 48),
+      new THREE.MeshBasicMaterial({ color: 0xa9c4a1 })
+    );
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.position.y = -0.45;
+    plot.add(lawn);
+
+    // A paved apron so the building does not look like it floats on the grass
+    const apron = new THREE.Mesh(
+      new THREE.CircleGeometry(30, 48),
+      new THREE.MeshBasicMaterial({ color: 0xc9d6c2 })
+    );
+    apron.rotation.x = -Math.PI / 2;
+    apron.position.y = -0.43;
+    plot.add(apron);
+
+    return plot;
+  }
+
+  private getActiveShell(): THREE.Object3D | null {
+    return this.getActiveInteriorGroup()?.getObjectByName('interior_room_shell') ?? null;
+  }
+
+  /**
+   * Keeps the view into the room clear however the player turns the camera: outer walls on
+   * the camera's side are lowered, and anything tall between the camera and the player fades.
+   */
+  public updateCutaway(delta: number, camera: THREE.Camera, player: Player): void {
+    if (!this.currentInterior) return;
+    this.cutaway.update(delta, camera, player.position);
+    this.updateCeiling(camera);
+  }
+
+  /**
+   * Rooms are seen from above, so they have no ceiling. With the camera down inside the room
+   * (the inside view) a ceiling is put over it, at the height of its walls.
+   */
+  private updateCeiling(camera: THREE.Camera): void {
+    const template = this.getActiveTemplate();
+    const def = this.currentInterior;
+    if (!template || !def) return;
+    const shell = this.getActiveShell()?.userData.size as { width: number; length: number } | undefined;
+    const room = def.rooms[0];
+    const width = shell?.width ?? room.size.width;
+    const length = shell?.length ?? room.size.length;
+    const height = room.size.height ?? 3.2;
+    let ceiling = template.group.getObjectByName('inside view ceiling') as THREE.Mesh | undefined;
+    const o = def.interiorOrigin;
+    const inside = Math.abs(camera.position.x - o.x) < width / 2 && Math.abs(camera.position.z - o.z) < length / 2 && camera.position.y < height;
+    if (!inside) {
+      if (ceiling) ceiling.visible = false;
+      return;
+    }
+    if (!ceiling) {
+      ceiling = new THREE.Mesh(new THREE.PlaneGeometry(width, length), new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.9 }));
+      ceiling.name = 'inside view ceiling';
+      // Facing down into the room
+      ceiling.rotation.x = Math.PI / 2;
+      ceiling.position.set(0, height, 0);
+      ceiling.layers.set(RENDER_LAYERS.INTERIOR);
+      template.group.add(ceiling);
+    }
+    ceiling.visible = true;
+  }
+
+  /** Which way the player faces on coming back out to the street */
+  public getStreetReturnYaw(): number {
+    return this.streetReturnRotation;
   }
 
   /** Where the player returns to on the street when they leave the current interior. */
@@ -323,32 +743,10 @@ export class InteriorManager {
     this.animTime += delta;
 
     // Only update animations and NPCs of the active interior
-    switch (this.currentInterior.type) {
-      case 'hospital':
-        this.hospital.update(delta, this.animTime);
-        break;
-      case 'bank':
-        this.bank.update(delta, this.animTime);
-        break;
-      case 'restaurant':
-        this.restaurant.update(delta, this.animTime);
-        break;
-      case 'police':
-        this.police.update(delta, this.animTime);
-        break;
-      case 'residence':
-        this.residence.update(delta, this.animTime);
-        break;
-      case 'university':
-        this.unilag.update(delta, this.animTime);
-        break;
-      case 'airport':
-        this.airport.update(delta, this.animTime);
-        break;
-    }
+    this.getActiveTemplate()?.update(delta, this.animTime);
 
-    // Keep player inside interior room boundaries
-    if (player && this.currentInterior.rooms.length > 0) {
+    // Keep player inside interior room boundaries (not while a doorway sequence walks them out)
+    if (player && !this.usingDoor && this.currentInterior.rooms.length > 0) {
       const origin = this.currentInterior.interiorOrigin;
       const room = this.currentInterior.rooms[0];
       const halfW = room.size.width / 2 - 0.8;
@@ -362,6 +760,39 @@ export class InteriorManager {
       player.mesh.position.z = THREE.MathUtils.clamp(player.mesh.position.z, minZ, maxZ);
       player.position.copy(player.mesh.position);
     }
+
+    if (player && !this.usingDoor) this.keepOffFurniture(player);
+  }
+
+  /**
+   * Walking about freely in a room with a floor map, the player cannot pass through its
+   * furniture: a step into something solid slides along it, or is not taken.
+   * Scripted actions (sitting on a chair, lying on a bed) go where they need to.
+   */
+  private keepOffFurniture(player: Player): void {
+    const nav = this.getActiveNav();
+    if (!nav) return;
+    const spot = player.mesh.position;
+    if (player.actor.scripted || nav.isFree(spot.x, spot.z)) {
+      if (nav.isFree(spot.x, spot.z)) (this.lastClearSpot ??= new THREE.Vector3()).set(spot.x, 0, spot.z);
+      return;
+    }
+    const last = this.lastClearSpot;
+    if (!last || Math.hypot(spot.x - last.x, spot.z - last.z) > 1.5) {
+      // Put down somewhere solid (stood up from a seat, or moved here by something else): step to the nearest floor
+      const clear = nav.closestFree(spot);
+      spot.x = clear.x;
+      spot.z = clear.z;
+    } else if (nav.isFree(spot.x, last.z)) {
+      spot.z = last.z;
+    } else if (nav.isFree(last.x, spot.z)) {
+      spot.x = last.x;
+    } else {
+      spot.x = last.x;
+      spot.z = last.z;
+    }
+    if (nav.isFree(spot.x, spot.z)) (this.lastClearSpot ??= new THREE.Vector3()).set(spot.x, 0, spot.z);
+    player.position.copy(spot);
   }
 
   private setFadeOverlay(opacity: number): Promise<void> {
@@ -393,7 +824,7 @@ export class InteriorManager {
         padding: 12px 24px;
         border-radius: 12px;
         color: #ffffff;
-        font-family: 'Inter', sans-serif;
+        font-family: var(--nl-text-font);
         text-align: center;
         z-index: 9999;
         pointer-events: none;

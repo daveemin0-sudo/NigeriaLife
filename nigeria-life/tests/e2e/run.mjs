@@ -2,10 +2,10 @@
 //
 //   npm run dev            (in one terminal)
 //   npm run test:e2e       (all suites)
-//   npm run test:e2e money (one suite: interiors | quests | money | saves)
+//   npm run test:e2e money (one suite: input | scroll | view | interiors | places | buka | shop | social | actions | home | quests | money | saves)
 import { launch, reporter, GAME_URL } from './lib.mjs';
 
-const SUITES = ['interiors', 'quests', 'money', 'saves'];
+const SUITES = ['input', 'scroll', 'phone', 'self', 'plan', 'streets', 'ways', 'cities', 'hours', 'landmarks', 'club', 'flights', 'coaches', 'furnish', 'jobs', 'land', 'server', 'view', 'interiors', 'places', 'buka', 'shop', 'social', 'actions', 'home', 'quests', 'money', 'saves', 'driving_weather', 'steering', 'danfo', 'sky', 'graphics', 'vehicles', 'online_api', 'online', 'touch', 'bodies', 'phonelife', 'expressway', 'fleet', 'rides', 'fuel', 'profiles', 'politics', 'insides', 'workplaces', 'companies', 'supermarket', 'towers', 'homedetail', 'liveevents', 'convoys', 'sidestreets', 'needs', 'flightsim', 'today', 'games', 'gist', 'shiftskill', 'cases', 'gardenpets', 'worship', 'hotel', 'insideview', 'lagoon', 'redline', 'eating', 'homeplans', 'getabout', 'seats', 'ridehail', 'odds', 'ads', 'rich', 'yarn', 'nollywood', 'staff', 'spark', 'owambe', 'studio', 'marriage', 'titles', 'motors', 'compound', 'queue', 'traits', 'dues'];
 const wanted = process.argv.slice(2);
 const unknown = wanted.filter((name) => !SUITES.includes(name));
 if (unknown.length) {
@@ -21,17 +21,19 @@ try {
 }
 
 const { check, summary } = reporter();
-const browser = await launch();
-
 for (const name of wanted.length ? wanted : SUITES) {
   console.log(`\n--- ${name} ---`);
+  const browser = await launch();
   try {
     const suite = await import(`./${name}.mjs`);
     await suite.run(browser, check);
   } catch (e) {
     check(`${name}: ran to completion`, false, String((e && e.stack) || e).slice(0, 600));
+  } finally {
+    try {
+      await browser.close();
+    } catch {}
   }
 }
 
-await browser.close();
 process.exit(summary() ? 1 : 0);

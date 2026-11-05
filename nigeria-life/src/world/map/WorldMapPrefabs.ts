@@ -218,69 +218,163 @@ export class WorldMapPrefabs {
   public static createAirport(scale = 1.0): THREE.Group {
     const group = new THREE.Group();
 
-    // Terminal Building
-    const termMat = this.getMaterial('airport_term', 0x0284c7, 0.2, 0.7);
-    const term = new THREE.Mesh(new THREE.BoxGeometry(8.0 * scale, 1.6 * scale, 3.2 * scale), termMat);
-    term.position.y = 0.8 * scale;
+    // Terminal Building - Modern Glass Concourse with Curved Canopy Roof
+    const termMat = this.getMaterial('airport_term', 0x0284c7, 0.15, 0.85);
+    const term = new THREE.Mesh(new THREE.BoxGeometry(8.4 * scale, 1.8 * scale, 3.6 * scale), termMat);
+    term.position.set(-1.0 * scale, 0.9 * scale, 0);
     term.castShadow = true;
     group.add(term);
 
-    // Control Tower
-    const towerMat = this.getMaterial('airport_tower', 0xf1f5f9, 0.4);
-    const towerMast = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * scale, 0.7 * scale, 4.5 * scale, 12), towerMat);
-    towerMast.position.set(-3.2 * scale, 2.25 * scale, -1.8 * scale);
+    // Terminal Roof Canopy in Emerald Green
+    const roofMat = this.getMaterial('airport_roof', 0x0b7a43, 0.5);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(8.8 * scale, 0.25 * scale, 4.0 * scale), roofMat);
+    roof.position.set(-1.0 * scale, 1.9 * scale, 0);
+    group.add(roof);
+
+    // Articulated Telescopic Jet Bridge
+    const bridgeMat = this.getMaterial('jet_bridge_mat', 0xf1f5f9, 0.6);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.6 * scale, 0.6 * scale, 2.6 * scale), bridgeMat);
+    bridge.position.set(1.4 * scale, 1.2 * scale, 1.5 * scale);
+    bridge.rotation.y = -0.35;
+    group.add(bridge);
+
+    // Control Tower - Iconic MMA Tower with Observation Cab
+    const towerMat = this.getMaterial('airport_tower', 0xf8fafc, 0.4);
+    const towerMast = new THREE.Mesh(new THREE.CylinderGeometry(0.55 * scale, 0.75 * scale, 5.2 * scale, 14), towerMat);
+    towerMast.position.set(-4.0 * scale, 2.6 * scale, -2.0 * scale);
     group.add(towerMast);
 
     const cabMat = this.getMaterial('tower_cab', 0x38bdf8, 0.1, 0.9);
-    const towerCab = new THREE.Mesh(new THREE.CylinderGeometry(0.9 * scale, 0.7 * scale, 0.7 * scale, 12), cabMat);
-    towerCab.position.set(-3.2 * scale, 4.7 * scale, -1.8 * scale);
+    const towerCab = new THREE.Mesh(new THREE.CylinderGeometry(1.05 * scale, 0.8 * scale, 0.85 * scale, 12), cabMat);
+    towerCab.position.set(-4.0 * scale, 5.5 * scale, -2.0 * scale);
     group.add(towerCab);
+
+    // Tower Red Beacon
+    const beaconMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+    const beacon = new THREE.Mesh(new THREE.BoxGeometry(0.18 * scale, 0.3 * scale, 0.18 * scale), beaconMat);
+    beacon.position.set(-4.0 * scale, 6.1 * scale, -2.0 * scale);
+    group.add(beacon);
+
+    // Apron Concrete Tarmac
+    const apronMat = this.getMaterial('apron_concrete', 0x94a3b8, 0.8);
+    const apron = new THREE.Mesh(new THREE.BoxGeometry(6.0 * scale, 0.03 * scale, 6.0 * scale), apronMat);
+    apron.position.set(2.0 * scale, 0.015 * scale, 0.5 * scale);
+    group.add(apron);
 
     // Runway Strip
     const runwayMat = this.getMaterial('runway_asphalt', 0x1e293b, 0.9);
-    const runway = new THREE.Mesh(new THREE.BoxGeometry(1.6 * scale, 0.05 * scale, 16.0 * scale), runwayMat);
-    runway.position.set(4.0 * scale, 0.02 * scale, 0);
+    const runway = new THREE.Mesh(new THREE.BoxGeometry(2.0 * scale, 0.05 * scale, 18.0 * scale), runwayMat);
+    runway.position.set(6.2 * scale, 0.02 * scale, 0);
     group.add(runway);
 
-    // Runway white center dashed markings
+    // Runway Piano Keys (Threshold Markings)
     const lineMat = this.getMaterial('runway_line', 0xffffff, 0.5);
-    for (let rz = -7.0 * scale; rz <= 7.0 * scale; rz += 2.0 * scale) {
+    for (const endZ of [-8.0 * scale, 8.0 * scale]) {
+      for (let rx = -0.7 * scale; rx <= 0.7 * scale; rx += 0.35 * scale) {
+        const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.15 * scale, 1.2 * scale), lineMat);
+        bar.rotation.x = -Math.PI / 2;
+        bar.position.set(6.2 * scale + rx, 0.06 * scale, endZ);
+        group.add(bar);
+      }
+    }
+
+    // Runway Center Dashes
+    for (let rz = -6.0 * scale; rz <= 6.0 * scale; rz += 2.0 * scale) {
       const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.2 * scale, 1.2 * scale), lineMat);
       dash.rotation.x = -Math.PI / 2;
-      dash.position.set(4.0 * scale, 0.06 * scale, rz);
+      dash.position.set(6.2 * scale, 0.06 * scale, rz);
       group.add(dash);
     }
 
-    // Mini Airplane parked on tarmac
-    const plane = this.createMiniAirplane(0x1d4ed8, scale);
-    plane.position.set(1.5 * scale, 0.2 * scale, -1.0 * scale);
-    plane.rotation.y = -Math.PI / 3;
+    // Yellow Apron Lead-in Line
+    const taxiMat = this.getMaterial('taxi_line_mat', 0xfacc15, 0.5);
+    const leadIn = new THREE.Mesh(new THREE.PlaneGeometry(0.12 * scale, 3.6 * scale), taxiMat);
+    leadIn.rotation.x = -Math.PI / 2;
+    leadIn.position.set(2.6 * scale, 0.04 * scale, 0.8 * scale);
+    group.add(leadIn);
+
+    // Mini Airliner parked on tarmac in Nigeria Life Air livery
+    const plane = this.createMiniAirplane(0x0b7a43, scale);
+    plane.position.set(2.4 * scale, 0.22 * scale, 0.2 * scale);
+    plane.rotation.y = -Math.PI / 2.6;
     group.add(plane);
 
     return group;
   }
 
-  // Mini Airplane
-  public static createMiniAirplane(airlineColor = 0x1d4ed8, scale = 1.0): THREE.Group {
+  // Stylized Mini Passenger Airliner (Nigeria Life Air Livery)
+  public static createMiniAirplane(airlineColor = 0x0b7a43, scale = 1.0): THREE.Group {
     const group = new THREE.Group();
 
-    // Fuselage
-    const fuseMat = this.getMaterial('plane_body', 0xffffff, 0.3);
-    const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * scale, 0.22 * scale, 2.2 * scale, 10), fuseMat);
+    // Fuselage Tube
+    const fuseMat = this.getMaterial('plane_body', 0xf8fafc, 0.35);
+    const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.26 * scale, 0.22 * scale, 2.6 * scale, 12), fuseMat);
     fuse.rotation.x = Math.PI / 2;
-    fuse.position.y = 0.35 * scale;
+    fuse.position.y = 0.38 * scale;
     group.add(fuse);
 
-    // Wings
-    const wingMat = this.getMaterial(`plane_wing_${airlineColor.toString(16)}`, airlineColor, 0.4);
-    const wings = new THREE.Mesh(new THREE.BoxGeometry(2.4 * scale, 0.04 * scale, 0.6 * scale), wingMat);
-    wings.position.set(0, 0.35 * scale, 0.2 * scale);
+    // Aerodynamic Nose Radome
+    const radomeMat = this.getMaterial('plane_radome', 0x334155, 0.5);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.22 * scale, 0.5 * scale, 10), radomeMat);
+    nose.rotation.x = -Math.PI / 2;
+    nose.position.set(0, 0.38 * scale, 1.55 * scale);
+    group.add(nose);
+
+    // Cockpit Windscreen Glass
+    const glassMat = this.getMaterial('plane_glass', 0x0f172a, 0.1);
+    const windscreen = new THREE.Mesh(new THREE.BoxGeometry(0.3 * scale, 0.12 * scale, 0.32 * scale), glassMat);
+    windscreen.position.set(0, 0.52 * scale, 1.1 * scale);
+    group.add(windscreen);
+
+    // Green Cheatline Band along fuselage
+    const greenMat = this.getMaterial(`plane_green_${airlineColor.toString(16)}`, airlineColor, 0.4);
+    const cheatline = new THREE.Mesh(new THREE.BoxGeometry(0.54 * scale, 0.08 * scale, 1.8 * scale), greenMat);
+    cheatline.position.set(0, 0.34 * scale, 0.1 * scale);
+    group.add(cheatline);
+
+    // Swept Wings with Aerodynamic Dihedral
+    const wingMat = this.getMaterial('plane_wing_gray', 0xe2e8f0, 0.45);
+    const wings = new THREE.Mesh(new THREE.BoxGeometry(2.8 * scale, 0.05 * scale, 0.7 * scale), wingMat);
+    wings.position.set(0, 0.36 * scale, 0.15 * scale);
     group.add(wings);
 
-    // Tail fin
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.04 * scale, 0.5 * scale, 0.4 * scale), wingMat);
-    tail.position.set(0, 0.65 * scale, -0.9 * scale);
-    group.add(tail);
+    // Winglet Sharklets in Emerald Green
+    for (const wx of [-1.4 * scale, 1.4 * scale]) {
+      const winglet = new THREE.Mesh(new THREE.BoxGeometry(0.04 * scale, 0.22 * scale, 0.2 * scale), greenMat);
+      winglet.position.set(wx, 0.45 * scale, 0.15 * scale);
+      group.add(winglet);
+    }
+
+    // Twin Underwing Turbofan Jet Engines
+    const engineMat = this.getMaterial('engine_cowl', 0xf8fafc, 0.4);
+    const intakeMat = this.getMaterial('engine_intake', 0x1f2937, 0.2);
+    for (const ex of [-0.65 * scale, 0.65 * scale]) {
+      const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * scale, 0.11 * scale, 0.55 * scale, 8), engineMat);
+      eng.rotation.x = Math.PI / 2;
+      eng.position.set(ex, 0.22 * scale, 0.2 * scale);
+      group.add(eng);
+
+      const intake = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * scale, 0.09 * scale, 0.08 * scale, 8), intakeMat);
+      intake.rotation.x = Math.PI / 2;
+      intake.position.set(ex, 0.22 * scale, 0.48 * scale);
+      group.add(intake);
+    }
+
+    // Swept Tail Fin with Gold Sun Disc
+    const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.05 * scale, 0.65 * scale, 0.55 * scale), greenMat);
+    tailFin.position.set(0, 0.75 * scale, -1.05 * scale);
+    group.add(tailFin);
+
+    const goldMat = this.getMaterial('plane_gold_sun', 0xf2b705, 0.3);
+    const sun = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * scale, 0.12 * scale, 0.06 * scale, 8), goldMat);
+    sun.rotation.z = Math.PI / 2;
+    sun.position.set(0, 0.82 * scale, -1.05 * scale);
+    group.add(sun);
+
+    // Horizontal Tailplanes
+    const hTail = new THREE.Mesh(new THREE.BoxGeometry(1.0 * scale, 0.04 * scale, 0.35 * scale), wingMat);
+    hTail.position.set(0, 0.48 * scale, -1.15 * scale);
+    group.add(hTail);
 
     return group;
   }

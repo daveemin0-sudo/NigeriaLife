@@ -8,17 +8,14 @@ const OBSTACLE = 1; // hand-built buildings, districts, props
 const NO_BUILD = 2; // paved district ground, reserved forecourts
 const ROAD = 4; // asphalt + sidewalks
 const LOT = 8; // generated building lots
-const ANY = OBSTACLE | NO_BUILD | ROAD | LOT;
+const OVERHEAD = 16; // canopies, roofs and decks with clear room underneath: no building goes under one, but a street can
+const ANY = OBSTACLE | NO_BUILD | ROAD | LOT | OVERHEAD;
 
 const WORLD_HALF = 160;
 const GRID = WORLD_HALF * 2;
 const LOT_GAP = 0.9;
 
 /** Open ground kept clear of generated buildings (airport apron, stadium forecourt) */
-const RESERVED: Array<[number, number, number, number]> = [
-  [-114, -60, -136, -96],
-  [-78, -38, -6, 22],
-];
 
 export interface WalkRun {
   axis: 'x' | 'z';
@@ -84,6 +81,14 @@ export class CityFabric {
   public parkingSpots: StreetSpot[] = [];
   public stallSpots: StreetSpot[] = [];
   public buildingCount = 0;
+  /** The ground each generated building stands on, for the city plan */
+  public footprints: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; height: number }> = [];
+  /** Street lamp posts the fabric put on its walkways: nobody walks through a lamp post */
+  public poles: Array<{ x: number; z: number }> = [];
+  /** Roadside stalls the fabric put on its walkways */
+  public stallBoxes: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [];
+  /** Stretches of side street that could not be laid because something hand-built stood on their line */
+  public roadGaps: Array<{ street: string; axis: 'x' | 'z'; fixed: number; from: number; to: number }> = [];
 
   private occ = new Uint8Array(GRID * GRID);
   private rand = seededRandom(20261008);
@@ -99,6 +104,9 @@ export class CityFabric {
   private umbrellas: Inst[] = [];
   private signs: Array<Inst & { atlas: number }> = [];
 
+  public facadeMats?: Record<FacadeKind, THREE.MeshStandardMaterial>;
+  public umbrellaMesh?: THREE.InstancedMesh | null;
+
   private archetypes: Archetype[] = [
     { kind: 'tenement', floors: 2, bays: 4, floorHeight: 3.2, items: [] },
     { kind: 'tenement', floors: 3, bays: 4, floorHeight: 3.2, items: [] },
@@ -111,12 +119,40 @@ export class CityFabric {
     { kind: 'tower', floors: 18, bays: 6, floorHeight: 3.6, items: [] },
   ];
 
-  constructor(obstacles: THREE.Object3D[]) {
+  /**
+   * @param obstacles hand-built parts of the city to build around
+   * @param plots parcels of land that belong to the land registry: nothing is generated on them
+   * @param reserved ground taken by the great places (stadium, port, airport), kept clear the same way
+   */
+  constructor(obstacles: THREE.Object3D[], plots: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [], reserved: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
     this.scanObstacles(obstacles);
-    for (const [minX, maxX, minZ, maxZ] of RESERVED) this.mark(minX, maxX, minZ, maxZ, NO_BUILD);
+    for (const plot of plots) this.mark(plot.minX - 3.2, plot.maxX + 3.2, plot.minZ - 3.2, plot.maxZ + 3.2, NO_BUILD);
+    for (const zone of reserved) this.mark(zone.minX, zone.maxX, zone.minZ, zone.maxZ, NO_BUILD);
     this.mark(-MAIN_CORRIDOR_HALF, MAIN_CORRIDOR_HALF, MAIN_ROAD.zMin - 2, MAIN_ROAD.zMax + 2, ROAD);
 
     for (let i = 0; i < SIDE_STREETS.length; i++) this.layStreet(SIDE_STREETS[i], i);
+    // Keep corridors ahead of all street ends and dead-ends clear so roads and walkways never terminate into building walls
+    for (const st of SIDE_STREETS) {
+      const r = st.halfRoad + st.walk;
+      if (st.id === 'banana') {
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.to, st.to + 16, NO_BUILD);
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.from - 10, st.from, NO_BUILD);
+      } else if (st.id === 'back_west') {
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.to, st.to + 14, NO_BUILD);
+      } else if (st.id === 'back_east') {
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.to, st.to + 14, NO_BUILD);
+      } else if (st.id === 'north_cap') {
+        this.mark(st.from - 14, st.from, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+        this.mark(st.to, st.to + 14, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+      } else if (st.id === 'cross') {
+        this.mark(st.from - 14, st.from, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+        this.mark(st.to, st.to + 14, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+      } else if (st.id === 'stadium' || st.id === 'wharf') {
+        this.mark(st.from - 12, st.from, st.fixed - r - 2, st.fixed + r + 2, NO_BUILD);
+      } else if (st.id === 'airport') {
+        this.mark(st.fixed - r - 2, st.fixed + r + 2, st.from - 12, st.from, NO_BUILD);
+      }
+    }
     this.paintJunction();
 
     this.plotStreetFrontages();
@@ -171,7 +207,8 @@ export class CityFabric {
         if (box.max.y < 0.45) {
           if (sx * sz >= 16 && sx < 200 && sz < 260) this.mark(box.min.x, box.max.x, box.min.z, box.max.z, NO_BUILD);
         } else if (sx < 120 && sz < 120) {
-          this.mark(box.min.x - 0.5, box.max.x + 0.5, box.min.z - 0.5, box.max.z + 0.5, OBSTACLE);
+          // Something whose underside is above a lorry's roof does not stand in a street's way
+          this.mark(box.min.x - 0.5, box.max.x + 0.5, box.min.z - 0.5, box.max.z + 0.5, box.min.y >= 3.4 ? OVERHEAD : OBSTACLE);
         }
       });
     }
@@ -214,6 +251,11 @@ export class CityFabric {
       const blocked = !inMain && this.hit(rMinX, rMaxX, rMinZ, rMaxZ, OBSTACLE);
       if (blocked) {
         runs[0] = runs[1] = null;
+        // The line of the street stays reserved even where it could not be laid: nothing is built on it
+        this.mark(isX ? s : st.fixed - st.halfRoad - st.walk, isX ? s + STEP : st.fixed + st.halfRoad + st.walk, isX ? st.fixed - st.halfRoad - st.walk : s, isX ? st.fixed + st.halfRoad + st.walk : s + STEP, ROAD);
+        const last = this.roadGaps[this.roadGaps.length - 1];
+        if (last && last.street === st.name && last.to === s) last.to = s + STEP;
+        else this.roadGaps.push({ street: st.name, axis: st.axis, fixed: st.fixed, from: s, to: s + STEP });
         continue;
       }
 
@@ -272,13 +314,20 @@ export class CityFabric {
 
         // Roadside umbrella stalls & street lamps along the building edge of the sidewalk
         const tick = Math.round(s / STEP);
-        const edge = st.fixed + sign * (st.halfRoad + st.walk - 0.55);
+        // On a narrow pavement stalls stand hard against the buildings
+        const narrow = st.walk < 2.4;
+        const edge = st.fixed + sign * (st.halfRoad + st.walk - (narrow ? 0.32 : 0.55));
         const px = isX ? mid : edge;
         const pz = isX ? edge : mid;
-        if (tick % 12 === (side === 0 ? 0 : 6)) {
-          this.addStreetLamp(px, pz, isX, -sign);
-        } else if (tick % 4 === 1 && this.rand() < 0.5) {
-          this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2);
+        // Never spawn streetlamps or stalls in junction throats or overlapping other streets
+        const lampX = narrow ? (isX ? mid : st.fixed + sign * (st.halfRoad + 0.2)) : px;
+        const lampZ = narrow ? (isX ? st.fixed + sign * (st.halfRoad + 0.2) : mid) : pz;
+        const inJunction = s <= st.from + 5 || s >= st.to - 5 || this.inOtherRoad(lampX, lampZ, st) || this.inMainCorridor(lampX, lampZ);
+
+        if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction) {
+          this.addStreetLamp(lampX, lampZ, isX, -sign);
+        } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st)) {
+          this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2, narrow);
         }
       }
     }
@@ -287,6 +336,7 @@ export class CityFabric {
   private addStreetLamp(x: number, z: number, alongX: boolean, towardRoad: number): void {
     const steel = new THREE.Color(0x6b7280);
     this.cylinders.push({ m: this.mat(x, 0, z, 0.16, 6.4, 0.16), c: steel });
+    this.poles.push({ x, z });
     const reach = 1.5;
     const ax = alongX ? x : x + (towardRoad * reach) / 2;
     const az = alongX ? z + (towardRoad * reach) / 2 : z;
@@ -296,7 +346,9 @@ export class CityFabric {
     this.boxes.push({ m: this.mat(hx, 6.16, hz, 0.42, 0.14, 0.42), c: new THREE.Color(0xfff3c4) });
   }
 
-  private addUmbrellaStall(x: number, z: number, yaw: number): void {
+  /** A stall on a narrow pavement is a shallower table, so people can still get past it. */
+  private addUmbrellaStall(x: number, z: number, yaw: number, narrow = false): void {
+    const deep = narrow ? 0.6 : 0.8;
     const canopy = [0xdc2626, 0x16a34a, 0xfacc15, 0x2563eb, 0xf97316, 0xffffff, 0xdb2777];
     this.cylinders.push({ m: this.mat(x, 0, z, 0.07, 2.3, 0.07), c: new THREE.Color(0x4b5563) });
     this.umbrellas.push({
@@ -304,10 +356,14 @@ export class CityFabric {
       c: new THREE.Color(this.pick(canopy)),
     });
     // Wooden table stacked with goods
-    this.boxes.push({ m: this.mat(x, 0.28, z, 1.3, 0.7, 0.8, yaw), c: new THREE.Color(0x8b5a2b) });
+    this.boxes.push({ m: this.mat(x, 0.28, z, 1.3, 0.7, deep, yaw), c: new THREE.Color(0x8b5a2b) });
     const goods = [0xf59e0b, 0xef4444, 0x22c55e, 0xfde047, 0xf8fafc];
-    this.boxes.push({ m: this.mat(x, 0.98, z, 1.05, 0.22, 0.6, yaw), c: new THREE.Color(this.pick(goods)) });
+    this.boxes.push({ m: this.mat(x, 0.98, z, 1.05, 0.22, deep - 0.2, yaw), c: new THREE.Color(this.pick(goods)) });
     this.stallSpots.push({ x, z, yaw });
+    // The table, whichever way it is turned
+    const alongX = Math.abs(Math.cos(yaw)) > 0.5;
+    const half = deep / 2;
+    this.stallBoxes.push({ minX: x - (alongX ? 0.65 : half), maxX: x + (alongX ? 0.65 : half), minZ: z - (alongX ? half : 0.65), maxZ: z + (alongX ? half : 0.65) });
   }
 
   /** Zebra crossings on all four arms of the Broad Street / Martins Street junction */
@@ -444,6 +500,7 @@ export class CityFabric {
     };
     const wall = new THREE.Color(this.pick(palettes[arch.kind])).multiplyScalar(0.84 + this.rand() * 0.16);
     arch.items.push({ m: this.mat(cx, 0, cz, w, h, d), c: wall });
+    this.footprints.push({ minX, maxX, minZ, maxZ, height: h });
 
     // Paved yard under and around the building so no lawn shows between plots
     const ground = [0x9a9186, 0xa08468, 0x8f8a80, 0xa39a8c];
@@ -612,13 +669,37 @@ export class CityFabric {
       commercial: this.createFacadeTexture('commercial'),
       tower: this.createFacadeTexture('tower'),
     };
-    const facadeMats: Record<FacadeKind, THREE.MeshStandardMaterial> = {
-      tenement: new THREE.MeshStandardMaterial({ map: facadeMaps.tenement, roughness: 0.9 }),
-      commercial: new THREE.MeshStandardMaterial({ map: facadeMaps.commercial, roughness: 0.75 }),
-      tower: new THREE.MeshStandardMaterial({ map: facadeMaps.tower, roughness: 0.22, metalness: 0.55 }),
+    const facadeEmissiveMaps: Record<FacadeKind, THREE.CanvasTexture> = {
+      tenement: this.createFacadeEmissiveTexture('tenement'),
+      commercial: this.createFacadeEmissiveTexture('commercial'),
+      tower: this.createFacadeEmissiveTexture('tower'),
+    };
+    this.facadeMats = {
+      tenement: new THREE.MeshStandardMaterial({
+        map: facadeMaps.tenement,
+        emissiveMap: facadeEmissiveMaps.tenement,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.0,
+        roughness: 0.9,
+      }),
+      commercial: new THREE.MeshStandardMaterial({
+        map: facadeMaps.commercial,
+        emissiveMap: facadeEmissiveMaps.commercial,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.0,
+        roughness: 0.75,
+      }),
+      tower: new THREE.MeshStandardMaterial({
+        map: facadeMaps.tower,
+        emissiveMap: facadeEmissiveMaps.tower,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.0,
+        roughness: 0.22,
+        metalness: 0.55,
+      }),
     };
     for (const arch of this.archetypes) {
-      this.instanced(this.createBodyGeometry(arch.bays, arch.floors), facadeMats[arch.kind], arch.items, true, true);
+      this.instanced(this.createBodyGeometry(arch.bays, arch.floors), this.facadeMats[arch.kind], arch.items, true, true);
     }
 
     // --- Roofs, trim and street furniture ---
@@ -626,7 +707,7 @@ export class CityFabric {
     this.instanced(unitBox, trimMat, this.boxes, false, true);
     this.instanced(unitCylinder, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), this.cylinders, false, false);
     this.instanced(unitHip, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }), this.hipRoofs, true, false);
-    this.instanced(
+    this.umbrellaMesh = this.instanced(
       unitUmbrella,
       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide, flatShading: true }),
       this.umbrellas,
@@ -637,78 +718,47 @@ export class CityFabric {
     this.commitSigns();
   }
 
-  /** Box with facade UVs tiled per bay / per floor; roof and base sample a plain wall texel */
+  /**
+   * Box with facade UVs tiled per bay / per floor; roof and base sample a plain wall texel.
+   * The facade texture holds two bays by two floors, each a little different, so neighbouring
+   * windows on a building are not all the same.
+   */
   private createBodyGeometry(bays: number, floors: number): THREE.BufferGeometry {
     const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
     const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
     // BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z (4 vertices each)
     for (let i = 0; i < uv.count; i++) {
       const face = Math.floor(i / 4);
-      if (face === 2 || face === 3) uv.setXY(i, 0.04, 0.5);
-      else uv.setXY(i, uv.getX(i) * bays, uv.getY(i) * floors);
+      if (face === 2 || face === 3) uv.setXY(i, 0.02, 0.805);
+      else uv.setXY(i, (uv.getX(i) * bays) / 2, (uv.getY(i) * floors) / 2);
     }
     uv.needsUpdate = true;
     return geo;
   }
 
-  /** One bay × one floor tile. Walls are near-white so the per-instance colour tints them. */
+  /**
+   * Two bays by two floors, each cell a little different. Walls are near-white so the
+   * per-instance colour tints them.
+   */
   private createFacadeTexture(kind: FacadeKind): THREE.CanvasTexture {
-    const S = 128;
+    const C = 128; // one bay by one floor
+    const S = C * 2;
     const canvas = document.createElement('canvas');
     canvas.width = S;
     canvas.height = S;
     const ctx = canvas.getContext('2d')!;
     const rand = seededRandom(kind.length * 977);
 
-    if (kind === 'tenement') {
-      ctx.fillStyle = '#f2ede2';
-      ctx.fillRect(0, 0, S, S);
-      // Weathering streaks
-      for (let i = 0; i < 26; i++) {
-        ctx.fillStyle = `rgba(90, 70, 50, ${0.03 + rand() * 0.05})`;
-        ctx.fillRect(rand() * S, rand() * S, 2 + rand() * 5, 10 + rand() * 40);
-      }
-      // Floor slab band
-      ctx.fillStyle = '#cfc8ba';
-      ctx.fillRect(0, S - 9, S, 9);
-      // Louvred window with frame
-      ctx.fillStyle = '#e4dccb';
-      ctx.fillRect(30, 26, 68, 70);
-      ctx.fillStyle = '#27323d';
-      ctx.fillRect(35, 31, 58, 60);
-      ctx.fillStyle = 'rgba(160, 190, 205, 0.55)';
-      for (let y = 34; y < 90; y += 7) ctx.fillRect(36, y, 56, 3);
-      ctx.fillStyle = '#e4dccb';
-      ctx.fillRect(62, 31, 4, 60);
-    } else if (kind === 'commercial') {
-      ctx.fillStyle = '#f3f3f0';
-      ctx.fillRect(0, 0, S, S);
-      ctx.fillStyle = '#d4d4cf';
-      ctx.fillRect(0, S - 16, S, 16);
-      // Ribbon glazing
-      ctx.fillStyle = '#2f4a63';
-      ctx.fillRect(8, 28, 112, 62);
-      const sheen = ctx.createLinearGradient(0, 28, 0, 90);
-      sheen.addColorStop(0, 'rgba(170, 205, 230, 0.55)');
-      sheen.addColorStop(1, 'rgba(40, 70, 100, 0.1)');
-      ctx.fillStyle = sheen;
-      ctx.fillRect(8, 28, 112, 62);
-      ctx.fillStyle = '#e8e8e4';
-      ctx.fillRect(62, 28, 4, 62);
-      ctx.fillRect(8, 57, 112, 3);
-    } else {
-      // Curtain-wall glass
-      const glass = ctx.createLinearGradient(0, 0, 0, S);
-      glass.addColorStop(0, '#e8f2fa');
-      glass.addColorStop(1, '#b4c8d8');
-      ctx.fillStyle = glass;
-      ctx.fillRect(0, 0, S, S);
-      ctx.fillStyle = 'rgba(60, 80, 100, 0.55)';
-      ctx.fillRect(0, S - 20, S, 20);
-      ctx.fillStyle = '#6b7785';
-      ctx.fillRect(0, 0, 4, S);
-      ctx.fillRect(S / 2 - 2, 0, 4, S);
-      ctx.fillRect(0, 0, S, 4);
+    for (let cell = 0; cell < 4; cell++) {
+      ctx.save();
+      ctx.translate((cell % 2) * C, Math.floor(cell / 2) * C);
+      ctx.beginPath();
+      ctx.rect(0, 0, C, C);
+      ctx.clip();
+      if (kind === 'tenement') this.drawTenementCell(ctx, C, cell, rand);
+      else if (kind === 'commercial') this.drawCommercialCell(ctx, C, cell, rand);
+      else this.drawTowerCell(ctx, C, cell, rand);
+      ctx.restore();
     }
 
     const tex = new THREE.CanvasTexture(canvas);
@@ -717,6 +767,239 @@ export class CityFabric {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
     return tex;
+  }
+
+  /** A flat in a walk-up block: a louvred window behind burglar bars, or the door onto a balcony. */
+  private drawTenementCell(ctx: CanvasRenderingContext2D, C: number, cell: number, rand: () => number): void {
+    ctx.fillStyle = '#f2ede2';
+    ctx.fillRect(0, 0, C, C);
+    // Rain streaks down the plaster, heaviest under the slab above
+    for (let i = 0; i < 22; i++) {
+      ctx.fillStyle = `rgba(90, 70, 50, ${0.03 + rand() * 0.06})`;
+      ctx.fillRect(rand() * C, rand() * C * 0.5, 2 + rand() * 4, 14 + rand() * 46);
+    }
+    // Painted lower band and the floor slab
+    ctx.fillStyle = 'rgba(70, 55, 40, 0.13)';
+    ctx.fillRect(0, C - 40, C, 31);
+    ctx.fillStyle = '#cfc8ba';
+    ctx.fillRect(0, C - 9, C, 9);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+    ctx.fillRect(0, C - 10, C, 2);
+
+    if (cell === 2) {
+      // The door onto the balcony, with washing on a line across it
+      ctx.fillStyle = '#e4dccb';
+      ctx.fillRect(40, 24, 48, 95);
+      ctx.fillStyle = '#2b3640';
+      ctx.fillRect(45, 29, 38, 90);
+      ctx.fillStyle = 'rgba(160, 190, 205, 0.4)';
+      ctx.fillRect(47, 32, 34, 34);
+      ctx.strokeStyle = 'rgba(40, 40, 40, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(4, 62);
+      ctx.lineTo(124, 66);
+      ctx.stroke();
+      const cloths = ['#c2413a', '#f1f1ec', '#3b6fb5', '#d8b23a'];
+      cloths.forEach((color, i) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(8 + i * 9 + (i > 1 ? 66 : 0), 63 + i * 0.4, 8, 16 + (i % 2) * 6);
+      });
+      return;
+    }
+
+    // Concrete hood, frame, dark opening, glass louvres
+    ctx.fillStyle = '#d9d2c2';
+    ctx.fillRect(24, 19, 80, 6);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    ctx.fillRect(26, 25, 76, 3);
+    ctx.fillStyle = '#e4dccb';
+    ctx.fillRect(30, 26, 68, 70);
+    ctx.fillStyle = '#27323d';
+    ctx.fillRect(35, 31, 58, 60);
+    ctx.fillStyle = 'rgba(160, 190, 205, 0.55)';
+    for (let y = 34; y < 90; y += 7) ctx.fillRect(36, y, 56, 3);
+    if (cell === 1) {
+      // A curtain drawn half across
+      ctx.fillStyle = 'rgba(196, 120, 90, 0.75)';
+      ctx.fillRect(36, 32, 24, 58);
+    }
+    ctx.fillStyle = '#e4dccb';
+    ctx.fillRect(62, 31, 4, 60);
+    // Burglar bars
+    ctx.fillStyle = 'rgba(25, 30, 36, 0.85)';
+    for (let x = 41; x < 92; x += 9) ctx.fillRect(x, 31, 1.5, 60);
+    ctx.fillRect(35, 60, 58, 1.5);
+    // Sill
+    ctx.fillStyle = '#d9d2c2';
+    ctx.fillRect(27, 96, 74, 5);
+
+    if (cell === 0) {
+      // A split-unit compressor on brackets, and the stain under its drain
+      ctx.fillStyle = '#dfe2e6';
+      ctx.fillRect(96, 100, 28, 17);
+      ctx.fillStyle = '#6b7280';
+      ctx.fillRect(100, 103, 14, 11);
+      ctx.fillStyle = 'rgba(60, 70, 60, 0.28)';
+      ctx.fillRect(108, 117, 3, 2);
+    } else if (cell === 3) {
+      // A dish bolted beside the window
+      ctx.fillStyle = '#c9ced4';
+      ctx.beginPath();
+      ctx.ellipse(13, 44, 9, 7, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#6b7280';
+      ctx.fillRect(12, 44, 2, 12);
+    }
+  }
+
+  /** An office floor: a ribbon of glazing, with blinds, sun-fins or a plant-room grille. */
+  private drawCommercialCell(ctx: CanvasRenderingContext2D, C: number, cell: number, rand: () => number): void {
+    ctx.fillStyle = '#f3f3f0';
+    ctx.fillRect(0, 0, C, C);
+    for (let i = 0; i < 10; i++) {
+      ctx.fillStyle = `rgba(80, 80, 70, ${0.02 + rand() * 0.04})`;
+      ctx.fillRect(rand() * C, 0, 2 + rand() * 4, 10 + rand() * 20);
+    }
+    // Spandrel and slab edge
+    ctx.fillStyle = '#d4d4cf';
+    ctx.fillRect(0, C - 16, C, 16);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+    ctx.fillRect(0, C - 17, C, 2);
+    // Ribbon glazing
+    ctx.fillStyle = '#2f4a63';
+    ctx.fillRect(8, 28, 112, 62);
+    const sheen = ctx.createLinearGradient(0, 28, 0, 90);
+    sheen.addColorStop(0, 'rgba(170, 205, 230, 0.55)');
+    sheen.addColorStop(1, 'rgba(40, 70, 100, 0.1)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(8, 28, 112, 62);
+    if (cell === 1) {
+      // Blinds part of the way down
+      ctx.fillStyle = 'rgba(232, 230, 220, 0.82)';
+      ctx.fillRect(8, 28, 54, 26 + rand() * 14);
+      ctx.fillRect(66, 28, 54, 12 + rand() * 20);
+    } else if (cell === 3) {
+      // A lit office late in the day
+      ctx.fillStyle = 'rgba(250, 220, 150, 0.35)';
+      ctx.fillRect(66, 28, 54, 62);
+    }
+    ctx.fillStyle = '#e8e8e4';
+    ctx.fillRect(62, 28, 4, 62);
+    ctx.fillRect(8, 57, 112, 3);
+    if (cell === 2) {
+      // Vertical sun-fins across the glass
+      ctx.fillStyle = 'rgba(236, 236, 230, 0.95)';
+      for (let x = 14; x < 120; x += 15) ctx.fillRect(x, 24, 4, 70);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      for (let x = 18; x < 124; x += 15) ctx.fillRect(x, 24, 2, 70);
+    }
+    if (cell === 0) {
+      // A louvred panel where the air handling sits
+      ctx.fillStyle = '#b9bcc0';
+      ctx.fillRect(86, 96, 30, 12);
+      ctx.fillStyle = '#7b8088';
+      for (let y = 98; y < 107; y += 3) ctx.fillRect(88, y, 26, 1);
+    }
+  }
+
+  /** A tower's curtain wall: panes that each catch the sky a little differently. */
+  private drawTowerCell(ctx: CanvasRenderingContext2D, C: number, cell: number, rand: () => number): void {
+    const glass = ctx.createLinearGradient(0, 0, 0, C);
+    glass.addColorStop(0, '#e8f2fa');
+    glass.addColorStop(1, '#b4c8d8');
+    ctx.fillStyle = glass;
+    ctx.fillRect(0, 0, C, C);
+    // Each pane a shade of its own
+    for (const x of [4, C / 2 + 2]) {
+      ctx.fillStyle = `rgba(${40 + rand() * 60}, ${80 + rand() * 50}, ${120 + rand() * 60}, ${0.1 + rand() * 0.22})`;
+      ctx.fillRect(x, 4, C / 2 - 6, C - 24);
+    }
+    if (cell === 1 || cell === 2) {
+      // Clouds caught in the glass
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.beginPath();
+      ctx.ellipse(30 + cell * 20, 40 + cell * 8, 30, 10, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Spandrel panel, mullions and transom
+    ctx.fillStyle = 'rgba(60, 80, 100, 0.55)';
+    ctx.fillRect(0, C - 20, C, 20);
+    ctx.fillStyle = '#6b7785';
+    ctx.fillRect(0, 0, 4, C);
+    ctx.fillRect(C / 2 - 2, 0, 4, C);
+    ctx.fillRect(0, 0, C, 4);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fillRect(4, 4, 1.5, C - 24);
+    ctx.fillRect(C / 2 + 2, 4, 1.5, C - 24);
+  }
+
+  /**
+   * Generates night emissive maps for building facades: walls remain black (#000000),
+   * while windows shine with warm domestic and office lights.
+   */
+  private createFacadeEmissiveTexture(kind: FacadeKind): THREE.CanvasTexture {
+    const C = 128;
+    const S = C * 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, S, S);
+
+    for (let cell = 0; cell < 4; cell++) {
+      ctx.save();
+      ctx.translate((cell % 2) * C, Math.floor(cell / 2) * C);
+      if (kind === 'tenement') {
+        if (cell === 2) {
+          // Door onto balcony - subtle interior hallway glow
+          ctx.fillStyle = '#ffba52';
+          ctx.fillRect(47, 32, 34, 34);
+        } else {
+          // Warm domestic golden light through louvred window panes
+          ctx.fillStyle = cell === 0 ? '#ffba52' : '#f59e0b';
+          ctx.fillRect(35, 31, 58, 60);
+          if (cell === 1) {
+            // Drawn curtain creates dark section
+            ctx.fillStyle = '#1c0f05';
+            ctx.fillRect(36, 32, 24, 58);
+          }
+        }
+      } else if (kind === 'commercial') {
+        // Office ribbon windows glowing with bright warm fluorescent/lamp light
+        ctx.fillStyle = cell === 0 ? '#fffae0' : cell === 1 ? '#fef08a' : '#ffe4a0';
+        ctx.fillRect(8, 28, 112, 62);
+      } else {
+        // Modern glass tower curtain wall panes glowing with corporate lights
+        ctx.fillStyle = cell === 0 ? '#7dd3fc' : cell === 1 ? '#bae6fd' : cell === 2 ? '#ffedd5' : '#e0f2fe';
+        for (const x of [4, C / 2 + 2]) {
+          ctx.fillRect(x, 4, C / 2 - 6, C - 24);
+        }
+      }
+      ctx.restore();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  public setNightLighting(period: string): void {
+    const isNight = period === 'night';
+    const isGolden = period === 'golden_hour';
+    const intensity = isNight ? 1.0 : isGolden ? 0.35 : 0.0;
+    if (this.facadeMats) {
+      for (const mat of Object.values(this.facadeMats)) {
+        mat.emissiveIntensity = intensity;
+      }
+    }
+    if (this.umbrellaMesh) {
+      this.umbrellaMesh.visible = !isNight;
+    }
   }
 
   /** All shop signboards share one atlas texture; each instance picks its cell in the shader */

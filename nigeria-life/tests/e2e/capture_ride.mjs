@@ -1,0 +1,46 @@
+// The Ride app as the way to get about: rides with the player's own car, the Red Line, the map's tiles (scratch capture)
+import { launch, newPlayer, wait, advance, playUntil } from './lib.mjs';
+const out = process.argv[2];
+const tag = process.argv[3] ?? 'ride';
+const browser = await launch();
+const ctx = await newPlayer(browser);
+const page = await ctx.newPage();
+if (process.env.DARK) await page.evaluateOnNewDocument(() => localStorage.setItem('nl_theme_v1', 'dark'));
+await page.setViewport({ width: 420, height: 816, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+await page.goto(process.env.GAME_URL, { waitUntil: 'load', timeout: 120000 });
+await page.waitForFunction('window.game', { timeout: 120000 });
+await wait(8000);
+await page.evaluate(async () => { document.getElementById('dialogue-confirm-btn')?.click(); const g = window.game; g.world.skyEnvironment.setHour(11); const b = g.hud.backend; b.data.bank.balance += 200_000_000; b.saveData(); await g.garage.buyNew('lexus_rx'); });
+await wait(800);
+const own = await page.evaluate(() => window.game.ownedVehicles.ownCar());
+console.log('own car', JSON.stringify(own));
+const clip = async (name) => { const r = await page.evaluate(() => { const e = document.querySelector('.nlphone').getBoundingClientRect(); return { x: e.left, y: e.top, width: e.width, height: e.height }; }); await page.screenshot({ path: `${out}/${tag}-${name}.png`, clip: r }); };
+await page.evaluate(() => window.game.hud.phoneModal.open());
+await wait(500);
+await page.evaluate(() => window.game.hud.phoneModal.openApp('ride'));
+await wait(600);
+await clip('rides');
+const first = await page.evaluate(() => document.querySelector('#ride-places [data-place]')?.dataset.place);
+await page.evaluate((id) => window.game.hud.phoneModal.openApp('ride', `d:${id}`), first);
+await wait(600);
+await clip('choose');
+await page.evaluate(() => window.game.hud.phoneModal.openApp('ride'));
+await wait(400);
+await page.evaluate(() => document.getElementById('ride-tab-train')?.click());
+await wait(600);
+await clip('train');
+await page.evaluate(() => window.game.hud.phoneModal.close());
+// The map card with the own car tile
+await page.evaluate(() => document.getElementById('nav-btn-map')?.click());
+await advance(page, 1.5);
+await page.evaluate(() => { const pins = [...document.querySelectorAll('#map-pin-layer .map-pin')]; const seen = pins.filter((p) => { const r = p.getBoundingClientRect(); return r.width && r.top > 160 && r.top < innerHeight - 200; }); (seen[1] ?? pins[0])?.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+await wait(900);
+await page.screenshot({ path: `${out}/${tag}-mapcard.png` });
+// Go in your own car: the ride is played
+await page.evaluate(() => { const t = document.querySelector('.transport-tile[data-mode="car"]'); t?.click(); document.getElementById('btn-card-go')?.click(); });
+await wait(1500);
+await advance(page, 2);
+await page.screenshot({ path: `${out}/${tag}-owncar-ride.png` });
+const riding = await page.evaluate(() => ({ active: window.game.roadRideExperience?.isActive, car: window.game.roadRideExperience?.currentRide?.car }));
+console.log('riding', JSON.stringify(riding));
+await browser.close();

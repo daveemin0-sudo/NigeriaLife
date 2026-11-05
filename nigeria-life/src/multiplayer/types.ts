@@ -1,4 +1,6 @@
 import type { CharacterConfig, EmoteType } from '../player/CharacterCustomization';
+import type { ArmPose, LegPose } from '../interactions/Poses';
+import type { Offer, OfferState } from '../social/Ties';
 
 export interface PlayerNetState {
   id: string;
@@ -8,6 +10,14 @@ export interface PlayerNetState {
   isMoving: boolean;
   currentEmote: EmoteType;
   config: CharacterConfig;
+  /** The city they are in (the game server puts players in a room per city) */
+  city?: string;
+  /** The building they are inside, if any. Their position is then a place in that room, not on the street. */
+  place?: string;
+  /** The vehicle they are at the wheel of, and where it is. They are inside it, so their own body is not shown. */
+  driving?: { id: string; x: number; z: number; yaw: number };
+  /** What the body is doing in a scripted action (waving, shaking hands, sitting); absent when walking about freely */
+  pose?: { legs: LegPose; arms: ArmPose; height?: number };
   streetCred?: number;
   chatBubble?: {
     text: string;
@@ -31,6 +41,8 @@ export interface P2PTransferMessage {
   amount: number;
   memo: string;
   timestamp: string;
+  /** Which of the receiver's pockets it lands in: a bank transfer goes to their bank account */
+  into?: 'wallet' | 'bank';
 }
 
 export type NetPacket =
@@ -39,4 +51,15 @@ export type NetPacket =
   | { type: 'chat'; message: ChatMessage }
   | { type: 'p2p_transfer'; transfer: P2PTransferMessage }
   | { type: 'emote_sync'; playerId: string; emote: EmoteType }
-  | { type: 'leave'; id: string };
+  | { type: 'social'; fromId: string; fromName: string; toId: string; kind: 'wave' | 'greet' }
+  | { type: 'dm'; fromId: string; fromName: string; toId: string; text: string }
+  | { type: 'leave'; id: string }
+  /** What a player shows of themselves: their card and CV (see social/Profile) */
+  | { type: 'profile'; playerId: string; profile: unknown }
+  /** Family and bae: asked, and the answer */
+  | { type: 'tie'; fromId: string; fromName: string; toId: string; kind: TieKind }
+  /** A job offered to another player, and each step it takes after */
+  | { type: 'offer'; offer: Offer }
+  | { type: 'offer_update'; id: string; fromId: string; toId: string; state: OfferState; rating?: number };
+
+export type TieKind = 'family_ask' | 'family_yes' | 'family_no' | 'bae_ask' | 'bae_yes' | 'bae_no';

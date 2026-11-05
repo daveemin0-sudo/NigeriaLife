@@ -1,0 +1,535 @@
+// The Nigeria Life game server.
+//
+//   npm run server                       port 8787, data in server/data, serves the built game from dist/
+//   PORT=9000 NL_DATA=/srv/nl node server/game-server.ts
+//   NL_ADMIN_KEY=...                     turns on the admin page at /admin (off without a key)
+//   NL_KEY=...                           a room key every request must carry (private servers)
+//   NL_PUBLIC_URL=https://...            the address sign-in links point to
+//   NL_MAX_PLAYERS=300                   players this process admits before the next waits in line
+//   NL_DEV=1                             sign-in links are also returned to the game (tests)
+//
+// What it does: accounts (guest, then email sign-in to keep progress), the money (every online
+// player's wallet and an append-only ledger; job shifts checked and paid here), players in the
+// city over WebSocket in rooms per city with interest management, moderated chat, the shared
+// ownership registry, and an admin page. Node 22.5+ runs this TypeScript directly; the only
+// package it needs is `ws`. See docs/ROADMAP.md for what is still checked by the game instead.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Accounts, consoleMailer, type Account } from './accounts.ts';
+import { Economy } from './economy.ts';
+import { Hustle } from './hustle.ts';
+import { League } from './league.ts';
+import { Ads } from './ads.ts';
+import { Feed } from './feed.ts';
+import { ServerNollywood } from './nollywood.ts';
+import { ServerStaff } from './staff.ts';
+import { ServerSpark } from './spark.ts';
+import { ServerOwambe } from './owambe.ts';
+import { ServerStudio } from './studio.ts';
+import { ServerMarriage } from './marriage.ts';
+import { ServerChieftaincy } from './chieftaincy.ts';
+import { ServerMotors } from './motors.ts';
+import { Registry } from './registry.ts';
+import { DEFAULT_MAX_PLAYERS, Rooms } from './rooms.ts';
+import { isTraitId } from '../src/life/Traits.ts';
+import { RateLimit } from './accounts.ts';
+import { openStore } from './store.ts';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const PORT = Number(process.env.PORT || 8787);
+const DATA_DIR = path.resolve(process.env.NL_DATA || path.join(here, 'data'));
+const STATIC_DIR = path.resolve(process.env.NL_STATIC || path.join(here, '..', 'dist'));
+const ROOM_KEY = process.env.NL_KEY || '';
+const ADMIN_KEY = process.env.NL_ADMIN_KEY || '';
+const DEV = process.env.NL_DEV === '1';
+const PUBLIC_URL = (process.env.NL_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/+$/, '');
+const MAX_BODY = 4 * 1024 * 1024;
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'content-type, authorization, x-nl-key, x-nl-admin',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+};
+
+const db = openStore(DATA_DIR);
+const accounts = new Accounts(db, consoleMailer, PUBLIC_URL, DEV, Number(process.env.NL_GUESTS_PER_HOUR || (DEV ? 1000 : 10)));
+const registry = new Registry(DATA_DIR, CORS);
+const server = http.createServer((req, res) => void route(req, res));
+const rooms = new Rooms(server, accounts, db, Number(process.env.NL_MAX_PLAYERS) || DEFAULT_MAX_PLAYERS);
+const economy = new Economy(db, (id) => rooms.positionOf(id));
+const hustle = new Hustle(db, economy);
+const league = new League(db, economy);
+const ads = new Ads(db, economy);
+const feed = new Feed(db);
+const nollywood = new ServerNollywood(db, economy);
+const staff = new ServerStaff(db, economy);
+const spark = new ServerSpark(db, economy);
+const owambe = new ServerOwambe(db, economy);
+const studio = new ServerStudio(db, economy);
+const marriage = new ServerMarriage(db, economy);
+const chieftaincy = new ServerChieftaincy(db, economy);
+const motors = new ServerMotors(db, economy);
+// Bets on matches that are over are paid every half minute, whether or not their players are looking
+setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
+// What businesses an account owns, as the ownership registry says
+economy.businessesOf = (accountId) => {
+  const account = accounts.get(accountId);
+  const owner = account ? accounts.registryOf(account) : null;
+  if (!owner) return [];
+  try {
+    const titles = (JSON.parse(registry.text || '{}') as { titles?: Record<string, { ownerId?: string | null }> }).titles ?? {};
+    return Object.entries(titles).filter(([key, t]) => key.startsWith('business:') && t?.ownerId === owner).map(([key]) => key.slice('business:'.length));
+  } catch {
+    return [];
+  }
+};
+economy.onChange = (id, wallet) => rooms.tell(id, { type: 'wallet', wallet });
+
+/** The trait this account picked, if any */
+function traitOf(accountId: string): string | null {
+  const row = db.prepare('SELECT trait FROM traits WHERE account_id = ?').get(accountId) as { trait: string } | undefined;
+  return row?.trait ?? null;
+}
+
+/** The share of a sale's price the market keeps: as the game (src/realestate/AssetMarket.ts) */
+const SALE_FEE_RATE = 0.02;
+
+/**
+ * A registry change that writes new payouts (a sale completed, rent paid) moves real money: the
+ * server takes it from the player who sent the change and pays whoever is owed, then marks the
+ * payouts paid in the document it keeps, so nobody's game claims them again.
+ */
+registry.onCommit = (beforeText, afterText, req) => {
+  type Doc = { payouts?: Record<string, { id: string; toId: string; amount: number; reason: string; saleId?: string; claimedAt?: number; settledBy?: string }>; sales?: Array<{ id: string; buyerId: string; sellerId: string; price: number }> };
+  let before: Doc;
+  let after: Doc;
+  try {
+    before = beforeText ? JSON.parse(beforeText) : {};
+    after = JSON.parse(afterText);
+  } catch {
+    return { reason: 'That change could not be read.' };
+  }
+  const fresh = Object.values(after.payouts ?? {}).filter((p) => !before.payouts?.[p.id]);
+  if (fresh.length === 0) return { text: afterText };
+  const sender = accounts.authenticate(tokenOf(req));
+  const senderId = sender ? accounts.registryOf(sender) : null;
+  if (!sender || !senderId) return { reason: 'Sign in to buy, sell or pay rent.' };
+  const moves = [];
+  for (const payout of fresh) {
+    const payee = accounts.byRegistry(String(payout.toId));
+    if (!payee) return { reason: 'The one being paid has no account on this server.' };
+    const amount = Math.trunc(Number(payout.amount));
+    let pay = amount;
+    if (payout.saleId) {
+      const sale = after.sales?.find((s) => s.id === payout.saleId);
+      if (!sale || sale.buyerId !== senderId || sale.sellerId !== payout.toId) return { reason: 'That sale is not the sender\'s to complete.' };
+      pay = Math.trunc(Number(sale.price));
+      if (amount !== pay - Math.round(pay * SALE_FEE_RATE)) return { reason: 'The amount paid for that sale is not right.' };
+    }
+    moves.push({ payer: sender.id, payee: payee.id, pay, receive: amount, memo: String(payout.reason ?? 'Payment').slice(0, 120), key: `payout:${payout.id}` });
+  }
+  const settled = economy.settlePayouts(moves);
+  if (!settled.ok) return { reason: settled.reason };
+  for (const payout of fresh) {
+    after.payouts![payout.id].claimedAt = Date.now();
+    after.payouts![payout.id].settledBy = 'server';
+  }
+  return { text: JSON.stringify(after) };
+};
+/** How the game runs on each player's device, as it last said (kept in memory only, for the admin page) */
+const devices = new Map<string, Record<string, unknown>>();
+
+/** Money requests from one account: plenty for play, too few to hammer the server */
+const moneyRate = new RateLimit(120, 60_000);
+
+function reply(res: http.ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(body));
+}
+
+function readBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX_BODY) {
+        reject(new Error('too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      try {
+        const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
+        resolve(body && typeof body === 'object' ? body : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+const addressOf = (req: http.IncomingMessage) => String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '').split(',')[0].trim();
+const tokenOf = (req: http.IncomingMessage) => String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '') || null;
+
+/** The built game, with this server set as its server before any of its code runs. */
+function serveStatic(res: http.ServerResponse, pathname: string): boolean {
+  if (!fs.existsSync(STATIC_DIR)) return false;
+  const safe = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
+  let file = path.resolve(STATIC_DIR, `.${path.sep}${safe}`);
+  if (file !== STATIC_DIR && !file.startsWith(STATIC_DIR + path.sep)) return false;
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(STATIC_DIR, 'index.html');
+  if (!fs.existsSync(file)) return false;
+  const types: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
+  const type = types[path.extname(file)] ?? 'application/octet-stream';
+  let body: Buffer | string = fs.readFileSync(file);
+  if (path.basename(file) === 'index.html') {
+    body = body.toString('utf8').replace('<head>', `<head><script>try{localStorage.setItem('nigeria_life_world_server', location.origin)}catch(e){}</script>`);
+  }
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': path.basename(file) === 'index.html' ? 'no-store' : 'public, max-age=31536000, immutable' });
+  res.end(body);
+  return true;
+}
+
+async function route(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, CORS);
+    res.end();
+    return;
+  }
+  try {
+    // The admin page is a static page that asks for the admin key itself
+    if (req.method === 'GET' && url.pathname === '/admin') {
+      if (!ADMIN_KEY) return reply(res, 404, { ok: false, reason: 'The admin page is off on this server.' });
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
+      res.end(fs.readFileSync(path.join(here, 'admin.html')));
+      return;
+    }
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors)(\/|$)/.test(url.pathname);
+    if (!api) {
+      if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
+      return reply(res, 404, { ok: false, reason: 'Not found.' });
+    }
+    if (ROOM_KEY && req.headers['x-nl-key'] !== ROOM_KEY && url.searchParams.get('key') !== ROOM_KEY) {
+      return reply(res, 401, { ok: false, reason: 'This server needs its room key.' });
+    }
+    if (req.method === 'GET' && url.pathname === '/health') {
+      const counts = accounts.counts();
+      return reply(res, 200, { ok: true, name: 'Nigeria Life game server', version: registry.version, players: rooms.online().players + registry.listening, online: rooms.online().players, queued: rooms.online().queued, accounts: counts.all, verified: counts.verified });
+    }
+    if (await registry.handle(req, res, url, reply, readBody)) return;
+
+    if (req.method === 'POST' && url.pathname === '/auth/guest') {
+      const body = await readBody(req);
+      const made = accounts.createGuest(body.name, addressOf(req));
+      if (!made.ok) return reply(res, 429, made);
+      if (body.save && typeof body.save === 'object') economy.importSave(made.account.id, body.save as Record<string, unknown>);
+      return reply(res, 200, { ok: true, token: made.token, account: made.account, wallet: economy.wallet(made.account.id) });
+    }
+    if (req.method === 'POST' && url.pathname === '/auth/register') {
+      const body = await readBody(req);
+      const result = accounts.register(body.username, body.password, accounts.authenticate(tokenOf(req)), addressOf(req));
+      if (!result.ok) return reply(res, 400, result);
+      return reply(res, 200, { ...result, wallet: economy.wallet(result.account.id) });
+    }
+    if (req.method === 'POST' && url.pathname === '/auth/login') {
+      const body = await readBody(req);
+      const result = accounts.login(body.username, body.password, addressOf(req));
+      if (!result.ok) return reply(res, 400, result);
+      return reply(res, 200, { ...result, wallet: economy.wallet(result.account.id) });
+    }
+    if (req.method === 'POST' && url.pathname === '/auth/email') {
+      const body = await readBody(req);
+      const result = accounts.startEmail(body.email, accounts.authenticate(tokenOf(req)), addressOf(req));
+      return reply(res, result.ok ? 200 : 400, result);
+    }
+    if (req.method === 'POST' && url.pathname === '/auth/finish') {
+      const body = await readBody(req);
+      const result = accounts.finishEmail(body.token);
+      if (!result.ok) return reply(res, 400, result);
+      return reply(res, 200, { ...result, wallet: economy.wallet(result.account.id) });
+    }
+
+    if (url.pathname.startsWith('/admin/')) return admin(req, res, url);
+
+    // Everything below is for a signed-in player
+    const account = accounts.authenticate(tokenOf(req));
+    if (!account) return reply(res, 401, { ok: false, reason: 'Sign in again.' });
+    if (url.pathname.startsWith('/money/') && !moneyRate.allow(account.id)) {
+      return reply(res, 429, { ok: false, reason: 'Too many requests. Slow down.', wallet: economy.wallet(account.id) });
+    }
+    // Hustle: players hiring players, the fee held by the game until the job is done
+    if (url.pathname.startsWith('/hustle/')) {
+      if (req.method === 'GET' && url.pathname === '/hustle/board') return reply(res, 200, { ok: true, posts: hustle.board(), mine: hustle.mine(account.id), me: account.id });
+      if (req.method === 'POST') {
+        const body = await readBody(req);
+        const action = url.pathname.slice('/hustle/'.length);
+        const done = action === 'post' ? hustle.post(account, body) : action === 'take' ? hustle.take(account, body.id) : action === 'done' ? hustle.release(account, body.id) : action === 'cancel' ? hustle.cancel(account, body.id) : action === 'quit' ? hustle.quit(account, body.id) : { ok: false as const, reason: 'Unknown.' };
+        return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+      }
+    }
+    // The league: the seeds of matches that have kicked off, and bets on the ones to come
+    if (req.method === 'GET' && url.pathname === '/league') return reply(res, 200, { ok: true, now: Date.now(), seeds: league.seeds() });
+    if (req.method === 'GET' && url.pathname === '/bets/mine') return reply(res, 200, { ok: true, now: Date.now(), bets: league.mine(account.id), seeds: league.seeds(), wallet: economy.wallet(account.id) });
+    if (req.method === 'POST' && url.pathname === '/bets/place') {
+      const done = league.place(account, await readBody(req));
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // The players' rich list: the twenty with the most cash and bank, and where this player stands
+    if (req.method === 'GET' && url.pathname === '/richlist') {
+      const top = db.prepare('SELECT a.id AS id, a.name AS name, w.cash + w.bank AS worth FROM wallets w JOIN accounts a ON a.id = w.account_id WHERE a.banned = 0 ORDER BY worth DESC LIMIT 20').all() as Array<{ id: string; name: string; worth: number }>;
+      const mine = economy.wallet(account.id);
+      const above = (db.prepare('SELECT COUNT(*) AS n FROM wallets w JOIN accounts a ON a.id = w.account_id WHERE a.banned = 0 AND w.cash + w.bank > ?').get(mine.cash + mine.bank) as { n: number }).n;
+      const count = (db.prepare('SELECT COUNT(*) AS n FROM wallets').get() as { n: number }).n;
+      return reply(res, 200, { ok: true, list: top.map((p) => ({ name: p.name, worth: p.worth, me: p.id === account.id })), rank: above + 1, count });
+    }
+    // Yarn: what Lagos is saying, posts every player reads and likes
+    if (req.method === 'GET' && url.pathname === '/feed') return reply(res, 200, { ok: true, posts: feed.latest(account.id) });
+    if (req.method === 'POST' && (url.pathname === '/feed/post' || url.pathname === '/feed/like' || url.pathname === '/feed/remove')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/feed/post' ? feed.post(account, body) : url.pathname === '/feed/like' ? feed.like(account, body) : feed.remove(account, body);
+      return reply(res, done.ok ? 200 : 400, done);
+    }
+    // Eko Ads: billboards on the expressway rented by players, seen by everyone
+    if (req.method === 'GET' && url.pathname === '/ads') return reply(res, 200, { ok: true, ads: ads.active(account.id) });
+    if (req.method === 'POST' && (url.pathname === '/ads/rent' || url.pathname === '/ads/remove')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/ads/rent' ? ads.rent(account, body) : ads.remove(account, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Nollywood: casting calls, auditions, location shoots and box-office takings
+    if (req.method === 'GET' && url.pathname === '/nollywood') return reply(res, 200, nollywood.stateFor(account.id));
+    if (req.method === 'POST' && (url.pathname === '/nollywood/audition' || url.pathname === '/nollywood/shoot' || url.pathname === '/nollywood/collect')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/nollywood/audition'
+        ? nollywood.audition(account.id, String(body.filmId ?? ''), Number(body.stars ?? 1))
+        : url.pathname === '/nollywood/shoot'
+          ? nollywood.completeShoot(account.id, String(body.filmId ?? ''), Number(body.stars ?? 1))
+          : nollywood.stateFor(account.id);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Home staff: cook, cleaner, driver and gateman hired for the home and paid every day from the bank
+    if (req.method === 'GET' && url.pathname === '/staff') return reply(res, 200, staff.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/staff/hire' || url.pathname === '/staff/dismiss' || url.pathname === '/staff/pay-day')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/staff/hire'
+        ? staff.hire(account.id, body)
+        : url.pathname === '/staff/dismiss'
+          ? staff.dismiss(account.id, body)
+          : staff.payDay(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Spark dating app: matching with made-up profiles and arranging dates at restaurants and lounges
+    if (req.method === 'GET' && url.pathname === '/spark') return reply(res, 200, spark.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/spark/like' || url.pathname === '/spark/schedule-date' || url.pathname === '/spark/complete-date')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/spark/like'
+        ? spark.like(account.id, body)
+        : url.pathname === '/spark/schedule-date'
+          ? spark.scheduleDate(account.id, body)
+          : spark.completeDate(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Owambe app: Saturday parties, Aso-Ebi fabric, and spraying Naira at venues
+    if (req.method === 'GET' && url.pathname === '/owambe') return reply(res, 200, owambe.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/owambe/aso-ebi' || url.pathname === '/owambe/book' || url.pathname === '/owambe/spray')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/owambe/aso-ebi'
+        ? owambe.buyAsoEbi(account.id, body)
+        : url.pathname === '/owambe/book'
+          ? owambe.bookParty(account.id, body)
+          : owambe.spray(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Studio app: Afrobeats recording sessions, streaming royalties, and live headline shows
+    if (req.method === 'GET' && url.pathname === '/studio') return reply(res, 200, studio.stateFor(account.id));
+    if (req.method === 'POST' && (url.pathname === '/studio/book' || url.pathname === '/studio/record' || url.pathname === '/studio/collect' || url.pathname === '/studio/concert')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/studio/book'
+        ? studio.bookSession(account.id, body)
+        : url.pathname === '/studio/record'
+          ? studio.completeRecording(account.id, body)
+          : url.pathname === '/studio/concert'
+            ? studio.performConcert(account.id, body)
+            : studio.stateFor(account.id);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Marriage: rings, proposals, traditional dowry weddings, and living together
+    if (req.method === 'GET' && url.pathname === '/marriage') return reply(res, 200, marriage.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/marriage/ring' || url.pathname === '/marriage/propose' || url.pathname === '/marriage/marry')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/marriage/ring'
+        ? marriage.buyRing(account.id, body)
+        : url.pathname === '/marriage/propose'
+          ? marriage.propose(account.id, body)
+          : marriage.marry(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Chieftaincy & High Society Titles: royal investitures and active titles
+    if (req.method === 'GET' && url.pathname === '/chieftaincy') return reply(res, 200, chieftaincy.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/chieftaincy/confer' || url.pathname === '/chieftaincy/active')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/chieftaincy/confer'
+        ? chieftaincy.confer(account.id, body)
+        : chieftaincy.setActiveTitle(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Eko Motors & Luxury Tuning Garage: purchases, custom wraps, turbo remaps, rims, and VIP sirens
+    if (req.method === 'GET' && url.pathname === '/motors') return reply(res, 200, motors.snapshot(account.id));
+    if (req.method === 'POST' && (url.pathname === '/motors/buy' || url.pathname === '/motors/tune')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/motors/buy'
+        ? motors.buy(account.id, body)
+        : motors.tune(account.id, body);
+      return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    return player(req, res, url, account);
+  } catch (err) {
+    console.error('[API Error]', url.pathname, err);
+    reply(res, 400, { ok: false, reason: 'That request could not be read.' });
+  }
+}
+
+async function player(req: http.IncomingMessage, res: http.ServerResponse, url: URL, account: Account): Promise<void> {
+  const body = req.method === 'POST' ? await readBody(req) : {};
+  const done = (result: { ok: boolean }) => reply(res, result.ok ? 200 : 409, result);
+  switch (`${req.method} ${url.pathname}`) {
+    case 'GET /me':
+      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id) });
+    case 'POST /me/trait': {
+      // Picked once for the account, on whichever device picks first; a different one later is refused
+      const trait = String(body.trait ?? '');
+      if (!isTraitId(trait)) return reply(res, 400, { ok: false, reason: 'That is not a trait.' });
+      const held = traitOf(account.id);
+      if (held) return reply(res, held === trait ? 200 : 409, held === trait ? { ok: true, trait } : { ok: false, reason: 'Your trait was already picked.', trait: held });
+      db.prepare('INSERT INTO traits (account_id, trait, chosen_at) VALUES (?, ?, ?)').run(account.id, trait, Date.now());
+      return reply(res, 200, { ok: true, trait });
+    }
+    case 'POST /me/device': {
+      const keep = ['fps', 'quality', 'pixelRatio', 'deviceRatio', 'screen', 'touch', 'triangles', 'drawCalls', 'mode', 'walked', 'joystickTouches', 'agent'];
+      const report: Record<string, unknown> = { at: Date.now(), name: account.name };
+      for (const key of keep) if (key in body) report[key] = typeof body[key] === 'string' ? String(body[key]).slice(0, 160) : body[key];
+      devices.set(account.id, report);
+      console.log(`[device] ${account.name} ${report.screen} x${report.deviceRatio} ${report.fps} fps, ${report.quality} (pixels x${report.pixelRatio}), ${report.triangles} triangles, ${report.mode}, walked ${report.walked} m, stick touched ${report.joystickTouches}`);
+      return reply(res, 200, { ok: true });
+    }
+    case 'POST /me/registry': {
+      const bound = accounts.bindRegistry(account, body.id);
+      return reply(res, bound.ok ? 200 : 409, bound);
+    }
+    case 'POST /me/name': {
+      const renamed = accounts.rename(account, body.name);
+      return renamed ? reply(res, 200, { ok: true, account: renamed }) : reply(res, 400, { ok: false, reason: 'A name is 2 to 20 letters or numbers.' });
+    }
+    case 'POST /money/report':
+      return done(economy.report(account.id, body));
+    case 'POST /money/send': {
+      const result = economy.transfer(account.id, String(body.to ?? ''), body);
+      if (result.ok) rooms.tell(String(body.to ?? ''), { type: 'transfer', fromId: account.id, fromName: account.name, amount: Math.trunc(Number(body.amount)), memo: String(body.memo ?? '').slice(0, 120) });
+      return done(result);
+    }
+    case 'GET /money/ledger':
+      return reply(res, 200, { ok: true, wallet: economy.wallet(account.id), ledger: economy.ledger(account.id) });
+    case 'POST /work/hire':
+      return done(economy.hire(account.id, String(body.employer ?? '')));
+    case 'POST /work/start':
+      return done(economy.startShift(account.id, String(body.employer ?? '')));
+    case 'POST /work/finish':
+      return done(economy.finishShift(account.id, body.shift, body.idem, body.stars));
+    case 'POST /work/gig/start':
+      return done(economy.startGig(account.id, String(body.gig ?? '')));
+    case 'POST /work/gig/finish':
+      return done(economy.finishGig(account.id, body.shift, body.idem));
+    case 'POST /money/takings':
+      return done(economy.collectTakings(account.id, String(body.plot ?? ''), body.idem, accounts.registryOf(account), registry.text));
+    case 'POST /money/quest':
+      return done(economy.claimOnce(account.id, 'quest', String(body.quest ?? '')));
+    case 'POST /money/album':
+      return done(economy.claimOnce(account.id, 'album', String(body.set ?? '')));
+    case 'POST /money/case':
+      return done(economy.claimOnce(account.id, 'case', String(body.id ?? '')));
+    case 'POST /money/agama':
+      return done(economy.claimOnce(account.id, 'agama', String(body.id ?? '')));
+    case 'POST /money/naibet':
+      return done(economy.playNaibet(account.id, body.idem));
+    case 'GET /work': {
+      const employer = url.searchParams.get('employer') ?? '';
+      return reply(res, 200, { ok: true, job: economy.job(account.id, employer) });
+    }
+    case 'POST /social/block':
+      db.prepare('INSERT OR IGNORE INTO blocks (account_id, blocked) VALUES (?, ?)').run(account.id, String(body.id ?? ''));
+      return reply(res, 200, { ok: true });
+    case 'POST /social/unblock':
+      db.prepare('DELETE FROM blocks WHERE account_id = ? AND blocked = ?').run(account.id, String(body.id ?? ''));
+      return reply(res, 200, { ok: true });
+    case 'POST /social/report':
+      db.prepare('INSERT INTO reports (at, reporter, reported, reason, context) VALUES (?, ?, ?, ?, ?)').run(Date.now(), account.id, String(body.id ?? '').slice(0, 40), String(body.reason ?? '').slice(0, 300), String(body.context ?? '').slice(0, 1000));
+      return reply(res, 200, { ok: true });
+    default:
+      return reply(res, 404, { ok: false, reason: 'Not found.' });
+  }
+}
+
+async function admin(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+  if (!ADMIN_KEY || req.headers['x-nl-admin'] !== ADMIN_KEY) return reply(res, 403, { ok: false, reason: 'Not allowed.' });
+  const body = req.method === 'POST' ? await readBody(req) : {};
+  const id = String(body.id ?? url.searchParams.get('id') ?? '');
+  switch (`${req.method} ${url.pathname}`) {
+    case 'GET /admin/stats':
+      return reply(res, 200, { ok: true, online: rooms.online(), accounts: accounts.counts(), economy: economy.totals() });
+    case 'GET /admin/metrics': {
+      const mem = process.memoryUsage();
+      return reply(res, 200, { ok: true, rooms: rooms.metrics(), memoryMb: { rss: Math.round(mem.rss / 1048576), heap: Math.round(mem.heapUsed / 1048576) }, cpu: process.cpuUsage(), uptimeS: Math.round(process.uptime()) });
+    }
+    case 'POST /admin/metrics/reset':
+      rooms.resetMetrics();
+      return reply(res, 200, { ok: true, cpu: process.cpuUsage() });
+    case 'GET /admin/devices':
+      return reply(res, 200, { ok: true, devices: Array.from(devices, ([id, d]) => ({ id, ...d }) as Record<string, unknown>).filter((d) => Date.now() - Number(d.at) < 10 * 60_000) });
+    case 'GET /admin/reports':
+      return reply(res, 200, { ok: true, reports: db.prepare('SELECT * FROM reports ORDER BY id DESC LIMIT 100').all() });
+    case 'GET /admin/ledger':
+      return reply(res, 200, { ok: true, account: accounts.get(id), wallet: economy.wallet(id), ledger: economy.ledger(id, 200) });
+    case 'POST /admin/ban':
+      accounts.setBanned(id, body.banned !== false);
+      if (body.banned !== false) rooms.kick(id);
+      return reply(res, 200, { ok: true });
+    case 'POST /admin/mute':
+      accounts.mute(id, Math.max(0, Math.min(60 * 24 * 30, Number(body.minutes) || 60)));
+      return reply(res, 200, { ok: true });
+    case 'GET /admin/held':
+      return reply(res, 200, { ok: true, held: economy.heldList() });
+    case 'POST /admin/held': {
+      const result = economy.decideHeld(Number(body.held), body.release !== false);
+      return reply(res, result.ok ? 200 : 409, result);
+    }
+    case 'POST /admin/grant': {
+      const result = economy.grant(id, Number(body.amount) || 0, String(body.memo ?? ''));
+      return reply(res, result.ok ? 200 : 409, result);
+    }
+    default:
+      return reply(res, 404, { ok: false, reason: 'Not found.' });
+  }
+}
+
+server.listen(PORT, () => {
+  const counts = accounts.counts();
+  console.log(`Nigeria Life game server on port ${PORT}. Data: ${DATA_DIR}. Accounts: ${counts.all} (${counts.verified} verified).${ADMIN_KEY ? ' Admin page: /admin.' : ''}${DEV ? ' Development mode.' : ''}`);
+});
+
+function stop(): void {
+  rooms.close();
+  server.close(() => {
+    db.close();
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(0), 3000).unref();
+}
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);

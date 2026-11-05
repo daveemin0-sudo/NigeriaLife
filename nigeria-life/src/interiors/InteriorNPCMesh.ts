@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { InteriorNPCDef } from './InteriorTypes';
-import { HumanMeshBuilder, type HumanRig, type Gender } from '../graphics/HumanMeshBuilder';
+import { HumanMeshBuilder, type HumanRig, type Gender, type Outfit, type Hairstyle } from '../graphics/HumanMeshBuilder';
+import { Actor } from '../interactions/Actor';
+import { InteractionDirector } from '../interactions/InteractionDirector';
 
 /**
  * InteriorNPCMesh
@@ -12,6 +14,8 @@ export class InteriorNPCMesh {
   public group: THREE.Group;
   public def: InteriorNPCDef;
   public humanRig: HumanRig;
+  /** Lets scripted interactions (serving, waving back) direct this character */
+  public actor: Actor;
   private animOffset: number = Math.random() * Math.PI * 2;
 
   constructor(def: InteriorNPCDef) {
@@ -24,7 +28,7 @@ export class InteriorNPCMesh {
     // Determine gender based on role and name
     const lowerRole = (def.role || '').toLowerCase();
     const lowerName = (def.name || '').toLowerCase();
-    const isFemale =
+    const isFemale = def.gender ? def.gender === 'female' :
       lowerRole.includes('nurse') ||
       lowerName.includes('chidinma') ||
       lowerName.includes('kemi') ||
@@ -43,8 +47,8 @@ export class InteriorNPCMesh {
       : isFemale ? '#5c3722' : '#4a2c1d';
 
     // Map role to authentic occupation outfit
-    let outfit: any = 'casual_tee';
-    let hairstyle: any = isFemale ? 'bob_wig' : 'fade';
+    let outfit: Outfit = 'casual_tee';
+    let hairstyle: Hairstyle = isFemale ? 'bob_wig' : 'fade';
     let hasStethoscope = false;
     let hasTie = false;
     let hasBackpack = false;
@@ -101,6 +105,7 @@ export class InteriorNPCMesh {
       hasStethoscope: hasStethoscope || def.hasStethoscope,
       hasTie: hasTie || def.hasTie,
       hasBackpack,
+      lod: def.light ? 'street' : undefined,
     });
 
     this.group.add(this.humanRig.group);
@@ -133,6 +138,11 @@ export class InteriorNPCMesh {
     sprite.scale.set(1.8, 0.45, 1);
     sprite.position.y = isFemale ? 2.3 : 2.4;
     this.group.add(sprite);
+
+    this.actor = InteractionDirector.get().register(
+      new Actor({ id: `npc:${def.id}`, name: def.name, root: this.group, getRig: () => this.humanRig }),
+      `interior_npc_${def.id}`
+    );
   }
 
   private getRoleIcon(role: string): string {
@@ -153,6 +163,7 @@ export class InteriorNPCMesh {
   }
 
   public update(_delta: number, time: number): void {
+    if (this.actor.scripted) return;
     // Natural idle breathing & postural sway animation
     this.humanRig.updateAnimation(time + this.animOffset, false);
   }

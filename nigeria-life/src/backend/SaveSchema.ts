@@ -1,3 +1,5 @@
+import { isTraitId } from '../life/Traits';
+import { applyRealPrices } from './RealPrices';
 import {
   type PlayerAccount,
   type Item,
@@ -30,7 +32,7 @@ type Raw = Record<string, any>;
 const isRecord = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 export function createFreshAccount(): PlayerAccount {
-  return structuredClone(INITIAL_PLAYER_DATA);
+  return applyRealPrices(structuredClone(INITIAL_PLAYER_DATA));
 }
 
 /**
@@ -66,6 +68,7 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
 
   const bank = isRecord(saved.bank) ? saved.bank : {};
   const stats = isRecord(saved.stats) ? saved.stats : {};
+  const skills = isRecord(saved.skills) ? saved.skills : {};
   const career = isRecord(saved.career) ? saved.career : {};
 
   const bankRows = list(bank.transactions, 'bank.transactions');
@@ -116,6 +119,47 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     }
   }
 
+  const relationships: Record<string, number> = {};
+  if (isRecord(saved.relationships)) {
+    for (const [who, level] of Object.entries(saved.relationships)) {
+      if (typeof level === 'number' && Number.isFinite(level)) relationships[who] = Math.min(100, Math.max(0, level));
+    }
+  }
+
+  const investments: PlayerAccount['investments'] = {};
+  if (isRecord(saved.investments)) {
+    for (const [ticker, held] of Object.entries(saved.investments)) {
+      if (isRecord(held) && Number.isFinite(held.units) && held.units > 0 && Number.isFinite(held.spent)) {
+        investments[ticker] = { units: Math.floor(held.units), spent: Math.max(0, Math.round(held.spent)) };
+      }
+    }
+  }
+
+  const threads: PlayerAccount['threads'] = {};
+  if (isRecord(saved.threads)) {
+    for (const [who, thread] of Object.entries(saved.threads)) {
+      if (!isRecord(thread) || !Array.isArray(thread.messages)) continue;
+      const messages = thread.messages
+        .filter((m: unknown) => isRecord(m) && (m.from === 'me' || m.from === 'them') && typeof m.text === 'string')
+        .slice(-40)
+        .map((m: Raw) => ({ from: m.from, text: String(m.text).slice(0, 240), at: typeof m.at === 'string' ? m.at : '' }));
+      threads[who] = { messages, unread: Number.isFinite(thread.unread) ? Math.max(0, Math.floor(thread.unread)) : 0 };
+    }
+  }
+
+  // Leases: rent paid up to a day, rent owed, and a quit notice (src/life/Dues.ts)
+  const leases: NonNullable<PlayerAccount['leases']> = {};
+  if (isRecord(saved.leases)) {
+    for (const [propId, lease] of Object.entries(saved.leases)) {
+      if (!isRecord(lease) || !Number.isFinite(lease.paidUntil)) continue;
+      leases[propId] = {
+        paidUntil: Math.floor(lease.paidUntil),
+        arrears: Number.isFinite(lease.arrears) ? Math.max(0, Math.round(lease.arrears)) : 0,
+        ...(Number.isFinite(lease.noticeDay) ? { noticeDay: Math.floor(lease.noticeDay) } : {}),
+      };
+    }
+  }
+
   let worldState: SavedWorldState | undefined;
   if (isRecord(world) && SAVED_CITIES.has(world.cityId) && Number.isFinite(world.x) && Number.isFinite(world.z)) {
     worldState = {
@@ -124,6 +168,9 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       z: Math.min(400, Math.max(-400, world.z)),
       rotationY: Number.isFinite(world.rotationY) ? world.rotationY : 0,
       hour: num(world.hour, 13.3, 'worldState.hour', 0, 24),
+      day: Math.floor(num(world.day, 0, 'worldState.day', 0)),
+      ...(typeof world.weather === 'string' ? { weather: world.weather } : {}),
+      ...(world.clockMode === 'REAL_TIME' || world.clockMode === 'SIMULATED_TIME' ? { clockMode: world.clockMode } : {}),
       ...(world.inTransit === true ? { inTransit: true } : {}),
     };
   } else if (world !== undefined && world !== null) {
@@ -137,6 +184,10 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     phoneNumber: str(saved.phoneNumber, base.phoneNumber, 'phoneNumber'),
     originDestiny: ['nepo', 'lapo', 'tech_bro'].includes(saved.originDestiny) ? saved.originDestiny : undefined,
     destinyTitle: typeof saved.destinyTitle === 'string' ? saved.destinyTitle : undefined,
+    trait: isTraitId(saved.trait) ? saved.trait : undefined,
+    skillCarry: isRecord(saved.skillCarry)
+      ? Object.fromEntries(Object.entries(saved.skillCarry).filter(([, v]) => typeof v === 'number' && v > 0 && v < 1))
+      : undefined,
     walletCash: Math.round(num(saved.walletCash, base.walletCash, 'walletCash', 0)),
     bank: {
       accountNumber: str(bank.accountNumber, base.bank.accountNumber, 'bank.accountNumber'),
@@ -159,7 +210,22 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       health: num(stats.health, 100, 'stats.health', 0, 100),
       energy: num(stats.energy, base.stats.energy, 'stats.energy', 0, 100),
       hunger: num(stats.hunger, base.stats.hunger, 'stats.hunger', 0, 100),
+      fun: num(stats.fun, base.stats.fun ?? 70, 'stats.fun', 0, 100),
+      social: num(stats.social, base.stats.social ?? 60, 'stats.social', 0, 100),
+      hygiene: num(stats.hygiene, base.stats.hygiene ?? 75, 'stats.hygiene', 0, 100),
+      bladder: num(stats.bladder, base.stats.bladder ?? 70, 'stats.bladder', 0, 100),
       streetCred: num(stats.streetCred, base.stats.streetCred, 'stats.streetCred', 0, 100),
+    },
+    skills: {
+      coding: num(skills.coding, base.skills?.coding ?? 1, 'skills.coding', 1, 10),
+      charisma: num(skills.charisma, base.skills?.charisma ?? 1, 'skills.charisma', 1, 10),
+      music: num(skills.music, base.skills?.music ?? 1, 'skills.music', 1, 10),
+      hustle: num(skills.hustle, base.skills?.hustle ?? 1, 'skills.hustle', 1, 10),
+      fitness: num(skills.fitness, base.skills?.fitness ?? 1, 'skills.fitness', 1, 10),
+      cooking: num(skills.cooking, base.skills?.cooking ?? 1, 'skills.cooking', 1, 10),
+      craft: num(skills.craft, base.skills?.craft ?? 1, 'skills.craft', 1, 10),
+      driving: num(skills.driving, base.skills?.driving ?? 1, 'skills.driving', 1, 10),
+      academics: num(skills.academics, base.skills?.academics ?? 1, 'skills.academics', 1, 10),
     },
     inventory,
     businesses: DEFAULT_BUSINESSES.map((def) => {
@@ -207,9 +273,25 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
             lender: loan.lender,
             amount: Math.round(loan.amount),
             weeklyRepayment: Number.isFinite(loan.weeklyRepayment) ? loan.weeklyRepayment : 0,
+            ...(Number.isFinite(loan.nextDueDay) ? { nextDueDay: Math.floor(loan.nextDueDay) } : {}),
+            ...(Number.isFinite(loan.missed) ? { missed: Math.max(0, Math.floor(loan.missed)) } : {}),
+            ...(Number.isFinite(loan.lateFees) ? { lateFees: Math.max(0, Math.round(loan.lateFees)) } : {}),
+            ...(loan.everMissed === true ? { everMissed: true } : {}),
           }
         : undefined,
+    ...(Number.isFinite(saved.duesDay) ? { duesDay: Math.floor(saved.duesDay) } : {}),
+    ...(Object.keys(leases).length ? { leases } : {}),
+    ...(isRecord(saved.evicted) && typeof saved.evicted.propId === 'string' && Number.isFinite(saved.evicted.day)
+      ? { evicted: { propId: saved.evicted.propId, name: typeof saved.evicted.name === 'string' ? saved.evicted.name : 'your home', day: Math.floor(saved.evicted.day) } }
+      : {}),
+    ...(isRecord(saved.credit)
+      ? { credit: { cleanLoans: Math.max(0, Math.floor(Number(saved.credit.cleanLoans) || 0)), missed: Math.max(0, Math.floor(Number(saved.credit.missed) || 0)) } }
+      : {}),
     claims,
+    relationships,
+    investments,
+    threads,
+    ...(Array.isArray(saved.releasedDeeds) ? { releasedDeeds: saved.releasedDeeds.filter((entry: unknown) => typeof entry === 'string').slice(0, 50) } : {}),
     lastRevenueAt: Number.isFinite(saved.lastRevenueAt) ? saved.lastRevenueAt : undefined,
     worldState,
     createdAt: str(saved.createdAt, base.createdAt, 'createdAt'),
@@ -233,9 +315,13 @@ export function parseSavedAccount(json: string): LoadedAccount | null {
   const savedVersion = typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : 1;
 
   // Version 1 -> 2 only added fields (claims, lastRevenueAt, worldState), which sanitizeAccount
-  // fills with defaults. A future shape change converts `parsed` here, one step per version.
+  // fills with defaults. Version 2 -> 3 added `trait` and `skillCarry`: a save from before has no
+  // trait, and the player is asked once to pick one. Version 3 -> 4 added weekly dues (`duesDay`,
+  // `leases`, the loan's schedule, `credit`, `evicted`): a save from before has none, and the
+  // first settle starts the schedules from that day, so nothing is charged for weeks gone by. A future shape change converts `parsed`
+  // here, one step per version.
 
   const repaired: string[] = [];
   const account = sanitizeAccount(parsed, repaired);
-  return { account, repaired, savedVersion };
+  return { account: applyRealPrices(account), repaired, savedVersion };
 }

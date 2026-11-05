@@ -1,4 +1,7 @@
+import { BananaEstate } from './BananaEstate';
 import * as THREE from 'three';
+import { Agamas } from '../life/Agamas';
+import { Lagoon } from './expressway/Lagoon';
 import { Roads } from './Roads';
 import { Buildings } from './Buildings';
 import { Vehicles } from './Vehicles';
@@ -6,16 +9,29 @@ import { NPCs } from './NPCs';
 import { Districts } from './Districts';
 import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
-import { ApartmentInterior } from './ApartmentInterior';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { AtmosphereManager } from './AtmosphereManager';
+import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
 import { CityPopulation } from './population/CityPopulation';
+import { Expressway } from './expressway/Expressway';
+import { EXPRESS, SIDE_ROADS } from './expressway/layout';
+import { MAIN_CORRIDOR_HALF, MAIN_ROAD } from './density/StreetLayout';
 import { WorldMap } from './map/WorldMap';
+import { shareAbroad } from './StreetLife';
+import { RouteLine } from './map/RouteLine';
+import type { WayPoint } from './plan/Wayfinder';
 import { WorldDataManager } from './data/WorldDataManager';
 import { InteriorManager } from '../interiors/InteriorManager';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
+import { Landmarks } from './landmarks/Landmarks';
+import type { AirportLandmark } from './landmarks/Airport';
+import type { MotorParkLandmark } from './landmarks/MotorPark';
+import { lagosZones, obstructionsUnder, obstructionsOf, validatePlan, type Obstruction, type PlanInput, type Violation } from './plan/CityPlan';
+import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { LAGOS_PLOTS } from '../realestate/PlotCatalogue';
+import type { DrivableVehicle } from './DrivableVehicle';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -24,6 +40,10 @@ export interface InteractiveObject {
   category: string;
   description: string;
   interactionPoint: THREE.Vector3;
+  /** Walks about: a door or a desk the player is standing at takes the prompt before someone passing by */
+  moving?: boolean;
+  /** A way out that does not lead to the street (a hotel room's door to its corridor): what its button says */
+  exitLabel?: string;
 }
 
 export interface InteractionTarget {
@@ -49,7 +69,8 @@ export class World {
   public vehicles: Vehicles;
   public npcs: NPCs;
   public districts: Districts;
-  public apartment: ApartmentInterior;
+  /** The stadium, the port and the airport */
+  public landmarks: Landmarks;
   public interiorManager: InteriorManager;
   public weather: WeatherSystem;
   public atmosphere: AtmosphereManager;
@@ -59,8 +80,14 @@ export class World {
   // Visual Scale, Density, and Population extensions
   public cityDensity: CityDensityManager;
   public trafficSpawner: TrafficSpawner;
+  public estate!: BananaEstate;
+  public expressway!: Expressway;
+  public agamas!: Agamas;
+  public lagoon!: Lagoon;
   public cityPopulation: CityPopulation;
   public worldMap: WorldMap;
+  /** The way to a place picked on the map, drawn along the streets */
+  public routeLine = new RouteLine();
   public dataManager: WorldDataManager;
 
   /** Gameplay camera, used to cull the instanced crowd and traffic to what is on screen */
@@ -87,6 +114,7 @@ export class World {
     this.weather = new WeatherSystem(this.scene);
     this.weather.registerLights(this.sunLight, this.hemiLight);
     this.weather.registerAtmosphere(this.atmosphere);
+    this.weather.registerSkyEnvironment(this.skyEnvironment);
 
     // 2. Roads Network & Street Furniture
     this.roads = new Roads();
@@ -95,6 +123,8 @@ export class World {
     this.roads.setNightLighting(this.skyEnvironment.currentPeriod);
     this.skyEnvironment.onPeriodChange = (period) => {
       this.roads.setNightLighting(period);
+      this.districts.setNightLighting(period);
+      this.cityDensity.setNightLighting(period);
     };
 
     // 3. Lagos Architectural Buildings
@@ -111,11 +141,15 @@ export class World {
 
     // 6. Lagos Expansion Multi-Districts (VI, Computer Village, Lekki Bridge)
     this.districts = new Districts();
+    this.districts.setNightLighting(this.skyEnvironment.currentPeriod);
     this.scene.add(this.districts.group);
 
     // 6b. Dense Lagos Island city fabric: side streets, instanced tenements, plazas and towers.
     // Built after the hand-made buildings and districts so it can fill in around them.
-    this.cityDensity = new CityDensityManager([this.buildings.group, this.districts.group]);
+    this.landmarks = new Landmarks();
+    this.scene.add(this.landmarks.group);
+    this.cityDensity = new CityDensityManager([this.buildings.group, this.districts.group], LAGOS_PLOTS.map((plot) => plot.rect), this.landmarks.zones());
+    this.cityDensity.setNightLighting(this.skyEnvironment.currentPeriod);
     this.scene.add(this.cityDensity.group);
 
     // 6c. Instanced go-slow traffic on Broad Street & Martins Street, parked cars on back streets
@@ -125,17 +159,45 @@ export class World {
     // 6d. Instanced street crowd (walkers, bus-stop queues, stall traders)
     this.cityPopulation = new CityPopulation(this.cityDensity.fabric.walkRuns, this.cityDensity.fabric.stallSpots);
     this.scene.add(this.cityPopulation.group);
+    // Shoppers on Broad Street: the doors they can actually walk into
+    const shopDoors = ['mama-put', 'barber-shop', 'supermarket', 'victory-phones']
+      .map((id) => this.buildings.interactiveList.find((o) => o.id === id))
+      .filter((o): o is NonNullable<typeof o> => !!o)
+      .map((o) => ({ x: o.interactionPoint.x, z: o.interactionPoint.z }));
+    this.cityPopulation.giveErrands(shopDoors);
 
-    // 7. Cutaway 3D Apartment Interior (Home Mode)
-    this.apartment = new ApartmentInterior();
-    this.scene.add(this.apartment.group);
+    // Broad Street carries on south as the expressway, over the lagoon to the mainland
+    this.expressway = new Expressway();
+    this.scene.add(this.expressway.group);
+    // Agamas doing push-ups on the walls along it, to be caught for the album
+    this.agamas = new Agamas();
+    this.expressway.group.add(this.agamas.group);
+    // Banana Island's estate: closes of villas, each with its owner at home or away
+    this.estate = new BananaEstate();
+    this.expressway.group.add(this.estate.group);
+    // The lagoon under the bridge: boats about, Makoko on its stilts, a canoe from the jetty
+    this.lagoon = new Lagoon();
+    this.expressway.group.add(this.lagoon.group);
+
+    // (The first build's apartment stood at the start of the expressway: it is gone. The home is
+    // the residence among the interiors, with its own cards.)
 
     // 8. 3-Tier Interior & Activity Destination Engine (Hospital, Bank, Buka, Police, Residence)
     this.interiorManager = InteriorManager.getInstance();
     this.scene.add(this.interiorManager.group);
+    for (const streetDoor of [...this.buildings.placeDoors, ...this.landmarks.streetDoors()]) {
+      this.interiorManager.registerStreetDoor(streetDoor);
+    }
+    // Places that keep hours are shut outside them
+    this.interiorManager.clock = () => this.skyEnvironment.currentHour;
 
     // 9. Dedicated Isometric World Map Presentation Layer
     this.worldMap = new WorldMap(this.scene);
+    this.scene.add(this.routeLine.group);
+    // The map of Lagos is Lagos: its real streets, seen from above
+    // The map of every city is that city, seen from above
+    this.worldMap.useRealWorld = () => true;
+    this.worldMap.onRealWorld = (on, cityId) => this.showCityUnderMap(on, cityId);
 
     // Combine all clickable interactive objects across starter zone, districts, apartment, and simulated interiors
     this.interactiveObjects = [
@@ -143,9 +205,35 @@ export class World {
       ...this.npcs.interactiveList,
       ...this.vehicles.interactiveList,
       ...this.districts.interactiveList,
-      ...this.apartment.interactiveList,
+      ...this.landmarks.interactiveList,
       ...this.interiorManager.getAllInteractiveObjects(),
+      // The places along the expressway
+      ...this.expressway.roadside.interactive,
+      ...this.estate.interactive,
+      ...this.agamas.interactive,
+      ...this.lagoon.interactive,
+      // The Red Line's gates at the foot of each station's stairs
+      ...this.expressway.redLine.interactive,
     ];
+
+    if (this.atmosphere.generatorMesh) {
+      this.interactiveObjects.push({
+        mesh: this.atmosphere.generatorMesh,
+        id: 'prop-tiger-generator',
+        name: 'Tiger TG950 ("I Pass My Neighbor")',
+        category: 'Power Equipment',
+        description: 'Classic Tiger 2-stroke generator outside Bet9ja. Pull the recoil starter cord when NEPA takes light to power the shops.',
+        interactionPoint: new THREE.Vector3(8.5, 0.28, 24.0),
+      });
+    }
+
+    // Register living street system
+    LagosStreetLifeSystem.getInstance().registerSystems(
+      this.roads,
+      this.districts,
+      this.cityDensity,
+      this.atmosphere
+    );
 
     // 10. Multi-City Nigerian Architecture Manager (Lagos, Abuja FCT, etc.)
     this.cityManager = new CityManager(this.scene);
@@ -160,14 +248,18 @@ export class World {
       this.npcs.group,
       this.cityPopulation.group,
       this.districts.group,
-      this.apartment.group,
-      this.interiorManager.group,
+      this.landmarks.group,
       this.atmosphere.group,
       this.groundMesh,
+      this.expressway.group,
     ]);
+    // Rooms are behind doors in every city: they are not part of Lagos, and are not put away with it
+    this.cityManager.rooms = this.interiorManager.group;
+    for (const life of [this.vehicles.group, this.trafficSpawner.group, this.npcs.group, this.cityPopulation.group, this.atmosphere.group]) this.cityManager.lagosLife.add(life);
 
     // Layer separation: Tag street objects to STREET layer
     const streetObjects = [
+      this.expressway.group,
       this.roads.group,
       this.buildings.group,
       this.cityDensity.group,
@@ -176,7 +268,7 @@ export class World {
       this.npcs.group,
       this.cityPopulation.group,
       this.districts.group,
-      this.apartment.group,
+      this.landmarks.group,
       this.atmosphere.group,
       this.groundMesh,
     ];
@@ -186,6 +278,142 @@ export class World {
 
     // Tag Interior objects to INTERIOR layer
     this.interiorManager.group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+  }
+
+  // =========================================================================
+  // THE CITY PLAN
+  // =========================================================================
+
+  /** The motor park of a city, once that city has been put up. */
+  public motorParkOf(city: string): MotorParkLandmark | null {
+    this.cityManager.ensure(city);
+    if (city === 'lagos') return this.landmarks.motorPark;
+    if (city === 'abuja') return this.cityManager.abujaCity?.motorPark ?? null;
+    if (city === 'port_harcourt') return this.cityManager.portHarcourtCity?.motorPark ?? null;
+    return null;
+  }
+
+  /** The airport of a city, once that city has been put up. */
+  public airportOf(city: string): AirportLandmark | null {
+    this.cityManager.ensure(city);
+    if (city === 'lagos') return this.landmarks.airport;
+    if (city === 'abuja') return this.cityManager.abujaCity?.airport ?? null;
+    if (city === 'port_harcourt') return this.cityManager.portHarcourtCity?.airport ?? null;
+    return null;
+  }
+
+  /** A vehicle joins the city: it can be seen, walked up to and driven. */
+  /** A vehicle standing in a city: drawn with that city and clickable there. */
+  public addVehicle(vehicle: DrivableVehicle, card: InteractiveObject, city: string = 'lagos'): void {
+    vehicle.city = city;
+    if (city === 'lagos') {
+      this.vehicles.addDrivable(vehicle);
+      this.cityManager.addLagosInteractive(card);
+      return;
+    }
+    this.cityManager.ensure(city);
+    this.vehicles.addDrivable(vehicle, this.vehiclesIn(city));
+    this.cityManager.thingsIn(city).push(card);
+  }
+
+  /**
+   * Where the vehicles parked in a city other than Lagos are drawn: beside that city's own group,
+   * not inside it, so they are not taken for buildings when the city's solids are worked out.
+   * Shown whenever the city is (see the start of update).
+   */
+  private vehicleHolders = new Map<string, THREE.Group>();
+  private vehiclesIn(city: string): THREE.Group {
+    let holder = this.vehicleHolders.get(city);
+    if (!holder) {
+      holder = new THREE.Group();
+      holder.name = `vehicles in ${city}`;
+      this.scene.add(holder);
+      this.vehicleHolders.set(city, holder);
+    }
+    return holder;
+  }
+
+  public removeVehicle(vehicle: DrivableVehicle, card: InteractiveObject): void {
+    this.vehicles.removeDrivable(vehicle);
+    for (const city of ['lagos', 'abuja', 'port_harcourt']) {
+      const list = this.cityManager.thingsIn(city);
+      const at = list.indexOf(card);
+      if (at >= 0) list.splice(at, 1);
+    }
+  }
+
+  /** Other things that stand in the city and answer to the plan: what players have built on their land. */
+  public builtByPlayers: Array<() => Obstruction[]> = [];
+
+  /** Everything standing on the ground in Lagos: landmarks, generated streets, stalls, street furniture and players' buildings. */
+  public standingOnTheGround(): Obstruction[] {
+    const named = (list: InteractiveObject[], fallback: string) => (child: THREE.Object3D, index: number) => {
+      let found: string | null = null;
+      for (const item of list) {
+        let node: THREE.Object3D | null = item.mesh;
+        while (node && node !== child) node = node.parent;
+        if (node === child) {
+          found = item.name;
+          break;
+        }
+      }
+      return found ?? (child.name || `${fallback} #${index} near (${Math.round(child.position.x)}, ${Math.round(child.position.z)})`);
+    };
+
+    const out: Obstruction[] = [];
+    out.push(...obstructionsUnder(this.buildings.group, 'Building', named(this.buildings.interactiveList, 'Building')));
+    // A district is a group of buildings: each of its children is one thing
+    this.districts.group.children.forEach((district, d) => {
+      out.push(...obstructionsUnder(district, `District ${d}`, (child, index) => {
+        const viaList = named(this.districts.interactiveList, '')(child, index);
+        return viaList.startsWith(' #') ? `${district.name || `District ${d}`} part ${index} near (${Math.round(district.position.x + child.position.x)}, ${Math.round(district.position.z + child.position.z)})` : viaList;
+      }));
+    });
+    // Street furniture placed by hand: booths, generator cages, bins, signs, the footbridge
+    this.cityDensity.group.updateWorldMatrix(true, true);
+    out.push(...obstructionsOf(this.cityDensity.group.children.filter((child) => child !== this.cityDensity.fabric.group), 'Street furniture'));
+    out.push(...obstructionsUnder(this.roads.group, 'Road furniture'));
+
+    // The generated streets know their own footprints
+    this.cityDensity.fabric.footprints.forEach((lot, index) => {
+      out.push({ owner: `Generated building #${index}`, structure: true, height: lot.height, minX: lot.minX, maxX: lot.maxX, minZ: lot.minZ, maxZ: lot.maxZ });
+    });
+    this.cityDensity.fabric.stallBoxes.forEach((stall, index) => {
+      out.push({ owner: `Roadside stall #${index}`, structure: false, height: 1.1, ...stall });
+    });
+    // The stadium, the port and the airport say for themselves what they put on the ground
+    out.push(...this.landmarks.obstructions());
+    out.push(...this.expressway.obstructions);
+    out.push(...this.estate.obstructions);
+    for (const source of this.builtByPlayers) out.push(...source());
+    return out;
+  }
+
+  /** The street lamps: thin, so the plan leaves them out, but nobody walks through one */
+  public streetLamps(): Array<Obstruction & { pole: true }> {
+    return this.cityDensity.fabric.poles.map((pole, index) => ({ owner: `Street lamp #${index}`, structure: false, height: 6.4, pole: true as const, minX: pole.x - 0.08, maxX: pole.x + 0.08, minZ: pole.z - 0.08, maxZ: pole.z + 0.08 }));
+  }
+
+  /** What the plan is checked against: the streets, what stands in the city, and the doors people must reach. */
+  public planInput(extra: Obstruction[] = []): PlanInput {
+    const doors: PlanInput['doors'] = this.buildings.placeDoors.map((door) => ({ name: `Door of ${door.buildingId}`, x: door.outside.x, z: door.outside.z }));
+    for (const destination of DestinationRegistry.getInstance().getAll()) {
+      if (destination.city !== 'lagos') continue;
+      doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
+    }
+    doors.push(...this.landmarks.doors());
+    return {
+      zones: lagosZones(),
+      obstructions: [...this.standingOnTheGround(), ...extra],
+      doors,
+      start: { x: 10, z: 0 },
+      roadGaps: this.cityDensity.fabric.roadGaps,
+    };
+  }
+
+  /** Checks the whole of Lagos against the city plan. An empty list is a clean bill. */
+  public validateCityPlan(extra: Obstruction[] = []): Violation[] {
+    return validatePlan(this.planInput(extra));
   }
 
   private createGround(): void {
@@ -237,23 +465,27 @@ export class World {
     return new THREE.MeshStandardMaterial({ map, roughness: 0.97, metalness: 0 });
   }
 
+  /**
+   * Brings what stands still in Lagos into view for the map (ground, roads, buildings,
+   * landmarks), or puts it away again. People and traffic stay out of it.
+   */
+  public showCityUnderMap(on: boolean, cityId: string = this.cityManager.currentCityId): void {
+    this.cityManager.show(on ? cityId : null, false);
+    this.routeLine.group.visible = on && this.routeLine.points.length > 0;
+  }
+
+  /** Draws the way to a place on the map of the real city (its first point is where it starts), or takes it away. */
+  public showRoute(points: WayPoint[] | null): void {
+    this.routeLine.set(points);
+    this.routeLine.group.visible = this.routeLine.points.length > 0 && this.worldMap.showingRealWorld;
+  }
+
+  /**
+   * Shows the street of the city the player is in, or puts every street away (indoors, on a
+   * journey, behind the map). It used to show Lagos whatever city the player was in.
+   */
   public setStreetModeVisibility(visible: boolean): void {
-    const lagosGroups = [
-      this.roads.group,
-      this.buildings.group,
-      this.cityDensity.group,
-      this.vehicles.group,
-      this.trafficSpawner.group,
-      this.npcs.group,
-      this.cityPopulation.group,
-      this.districts.group,
-      this.apartment.group,
-      this.atmosphere.group,
-      this.groundMesh,
-    ];
-    for (const g of lagosGroups) {
-      g.visible = visible;
-    }
+    this.cityManager.show(visible ? this.cityManager.currentCityId : null, true);
   }
 
   public getDistrictAtPosition(pos: THREE.Vector3): { name: string; sub: string } {
@@ -278,14 +510,38 @@ export class World {
       return { name: 'Abuja FCT', sub: 'Shehu Shagari Way • Three Arms Zone' };
     }
 
-    // Player Apartment Flat (Home Interior)
-    if (pos.z > 165) {
-      return { name: 'Lekki Luxury Flat', sub: 'Apartment Interior • Banana Island View' };
+    // Port Harcourt: its own districts, never Lagos's (the loaded map data may be another city's)
+    const city = this.cityManager.currentCityId;
+    if (city === 'port_harcourt') {
+      const district = this.dataManager.districtIn('port_harcourt', pos);
+      return { name: 'Port Harcourt', sub: district ? `${district.name} • Aba Road` : 'Aba Road' };
+    }
+    if (city !== 'lagos') {
+      return { name: city.charAt(0).toUpperCase() + city.slice(1), sub: 'City centre' };
     }
 
-    // Dynamically retrieve from unified WorldDataManager
-    const district = this.dataManager.getDistrictAt(pos);
+    // North of the island's last buildings: the expressway, over the lagoon to the mainland
+    if (pos.z > 165) {
+      if (pos.z > EXPRESS.ikeja) {
+        // Off it, down a side street
+        const street = SIDE_ROADS.find((r) => Math.sign(pos.x) === r.side && Math.abs(pos.x) > EXPRESS.half + EXPRESS.walk && Math.abs(pos.z - r.z) < r.half + 22);
+        if (street) return { name: street.name, sub: 'Ikeja' };
+        const part = pos.z > EXPRESS.ring.z - 150 ? 'Ikeja roundabout' : pos.z > 6150 ? 'Airport Road' : pos.z > 5250 ? 'Ladipo · GRA' : pos.z > 4750 ? 'Oshodi' : 'Allen · Computer Village';
+        return { name: 'Ikorodu Road, Ikeja', sub: part };
+      }
+      const stretch = pos.z < EXPRESS.lagoonFrom ? 'Island approach' : pos.z < EXPRESS.lagoonTo ? 'Bridge over the lagoon' : 'Mainland · Oworonshoki';
+      return { name: 'Third Mainland Expressway', sub: stretch };
+    }
+
+    // Lagos districts, asked of Lagos by name
+    const district = this.dataManager.districtIn('lagos', pos);
     if (district) {
+      // Broad Street is Lagos Island. The barbers, the compound and Balogun sit on it,
+      // so the corner does not borrow Victoria Island's name from a box drawn too far north.
+      const onBroad = district.id === 'lagos_island'
+        && Math.abs(pos.x) <= MAIN_CORRIDOR_HALF + 2
+        && pos.z >= MAIN_ROAD.zMin && pos.z <= MAIN_ROAD.zMax;
+      if (onBroad) return { name: 'Lagos Island', sub: 'Broad Street' };
       return { name: district.name, sub: district.subtitle };
     }
 
@@ -293,7 +549,13 @@ export class World {
   }
 
   public update(delta: number, keys: Record<string, boolean> = {}, playerPos?: THREE.Vector3, player?: any): void {
-    // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day
+    // Vehicles parked in another city are drawn exactly when that city is
+    for (const [city, holder] of this.vehicleHolders) {
+      const group = city === 'abuja' ? this.cityManager.abujaCity?.group : this.cityManager.portHarcourtCity?.group;
+      holder.visible = !!group?.visible;
+    }
+    // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day (rooms keep their lights on)
+    this.skyEnvironment.indoors = this.interiorManager.isPlayerInside();
     this.skyEnvironment.update(delta, playerPos);
 
     // Keep live player coordinate synced in WorldDataManager
@@ -304,23 +566,31 @@ export class World {
     // If player is inside an interior, only update the active interior simulation
     if (this.interiorManager.isPlayerInside()) {
       this.interiorManager.update(delta, player);
+      // The city carries on while the player is indoors: the match on the television is the one at the stadium
+      this.landmarks.update(delta, this.skyEnvironment.currentHour);
       return;
     }
 
     // If World Map mode is currently active, update dedicated WorldMap presentations
     if (this.worldMap.isActive) {
       this.worldMap.update(delta);
+      // Seen on the map too: the match goes on and the aircraft comes and goes
+      if (this.worldMap.showingRealWorld) this.landmarks.update(delta, this.skyEnvironment.currentHour);
+      // And the expressway under the map, wherever it has been moved to
+      if (this.worldMap.showingRealWorld) this.expressway.update(this.worldMap.focusZ);
       return;
     }
 
     if (this.cityManager.currentCityId === 'abuja') {
       this.cityManager.update(delta);
+      // The vehicles parked in Abuja are driven here like anywhere else
+      this.vehicles.updateDrivables(delta, keys, playerPos, 'abuja');
       this.weather.update(delta, playerPos);
       return;
     }
 
-    // Update vehicle movements & drivable controls
-    this.vehicles.update(delta, keys);
+    // Update vehicle movements & drivable controls with distance culling
+    this.vehicles.update(delta, keys, playerPos, this.cityManager.currentCityId);
 
     let frustum: THREE.Frustum | undefined;
     if (this.viewCamera) {
@@ -328,8 +598,14 @@ export class World {
       frustum = this.viewFrustum.setFromProjectionMatrix(this.viewMatrix);
     }
 
+    // The street is as busy as the hour: full by day, thin in the evening, nearly empty in the small hours
+    const abroad = shareAbroad(this.skyEnvironment.currentHour);
+    this.trafficSpawner.abroad = abroad;
+    this.cityPopulation.abroad = abroad;
+
     // Update instanced go-slow traffic
     this.trafficSpawner.update(delta, playerPos, frustum);
+    if (playerPos) this.expressway.update(playerPos.z);
 
     // Update ambient NPC walking & animations
     this.npcs.update(delta, playerPos);
@@ -343,14 +619,18 @@ export class World {
     // Update expanded districts (ocean waves, smoke particles)
     this.districts.update(delta);
 
-    // Update apartment interior (standing fan rotation, TV glow, pet)
-    this.apartment.update(delta);
+    // The match at the stadium, the cranes at the port, the aircraft at the airport
+    this.landmarks.update(delta, this.skyEnvironment.currentHour);
+
 
     // Update weather effects (rain particles, lighting, thunder)
     this.weather.update(delta, playerPos);
 
     // Update atmosphere effects (Harmattan dust, smoke, puddles)
     this.atmosphere.update(delta, playerPos);
+
+    // Update living street life (NEPA blackout cycles & street triggers)
+    LagosStreetLifeSystem.getInstance().update(delta, this.skyEnvironment.currentPeriod);
 
     // Animate and fade out street property beacon
     if (this.propertyBeacon && this.propertyBeaconTimer > 0) {

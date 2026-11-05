@@ -7,15 +7,24 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test:e2e": "node tests/e2e/run.mjs"
+    "test:e2e": "node tests/e2e/run.mjs",
+    "server": "node server/game-server.ts",
+    "loadtest": "node server/loadtest.ts",
+    "supervise": "npx pm2 start ecosystem.config.cjs"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",
+    "@types/ws": "8.18.2",
     "puppeteer-core": "^25.13.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   },
   "dependencies": {
-    "three": "^0.186.1"
+    "@fontsource-variable/dancing-script": "5.2.5",
+    "@fontsource-variable/outfit": "5.2.8",
+    "@fontsource-variable/plus-jakarta-sans": "5.2.8",
+    "@fontsource/righteous": "5.2.5",
+    "three": "^0.186.1",
+    "ws": "8.22.0"
   }
 }

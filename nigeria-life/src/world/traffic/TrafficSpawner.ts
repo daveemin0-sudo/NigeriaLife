@@ -3,6 +3,10 @@ import { bakeToGeometry, seededRandom } from '../../graphics/MeshBaker';
 import type { Vehicles } from '../Vehicles';
 import type { StreetSpot } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD, SIDE_STREETS } from '../density/StreetLayout';
+import { isAbroad } from '../StreetLife';
+import { EXPRESS } from '../expressway/layout';
+import type { CarBody } from '../Bodies';
+import { buildKitCar } from '../vehicles/KitCar';
 
 type VehicleKind =
   | 'danfo' | 'keke' | 'okada' | 'sedan' | 'suv' | 'taxi' | 'police'
@@ -18,15 +22,27 @@ interface KindSpec {
   /** Pulls over at bus stops to load passengers */
   stopsForPassengers: boolean;
   parkable: boolean;
+  /** A shaped car from the body kit (see CarBodyKit), for the cars people really drive in Lagos */
+  body?: string;
 }
 
 const KINDS: KindSpec[] = [
   { kind: 'danfo', weight: 20, cruise: 11.5, tinted: false, stopsForPassengers: true, parkable: false },
   { kind: 'keke', weight: 14, cruise: 8.5, tinted: false, stopsForPassengers: true, parkable: true },
   { kind: 'okada', weight: 12, cruise: 13.5, tinted: false, stopsForPassengers: false, parkable: true },
-  { kind: 'sedan', weight: 18, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
-  { kind: 'suv', weight: 11, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
-  { kind: 'taxi', weight: 8, cruise: 11.5, tinted: false, stopsForPassengers: false, parkable: true },
+  // Saloons: Corollas old and new, Camrys, Accords
+  { kind: 'sedan', body: 'corolla_2008', weight: 6, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'camry', weight: 4, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'corolla_2020', weight: 3, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'accord', weight: 3, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'sedan', weight: 2, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
+  // Jeeps: Lexus, Highlander, the odd Range Rover and G-Wagon
+  { kind: 'suv', body: 'lexus_rx', weight: 4, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'highlander', weight: 3, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'suv', weight: 2, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'range_rover', weight: 1, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'gwagon', weight: 1, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'taxi', body: 'corolla_2008', weight: 8, cruise: 11.5, tinted: false, stopsForPassengers: false, parkable: true },
   { kind: 'pickup', weight: 5, cruise: 11.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'delivery_van', weight: 4, cruise: 11, tinted: false, stopsForPassengers: false, parkable: true },
   { kind: 'brt', weight: 3, cruise: 10, tinted: false, stopsForPassengers: true, parkable: false },
@@ -63,11 +79,17 @@ interface Car {
   cruise: number;
   length: number;
   dwell: number;
+  /** Its place among the day's traffic: which of them are on the road when only a share are */
+  place?: number;
+  /** How far it has pulled over, for a siren behind it, and which way (away from the siren's lane) */
+  aside?: number;
+  asideDir?: number;
 }
 
 interface Batch {
   spec: KindSpec;
   length: number;
+  width: number;
   bodyGeo: THREE.BufferGeometry;
   paintGeo: THREE.BufferGeometry | null;
   count: number;
@@ -83,16 +105,17 @@ interface ParkedCar {
   matrix: THREE.Matrix4;
   x: number;
   z: number;
+  yaw: number;
 }
 
 /** Vehicles further than this from the player are simulated but not drawn */
 const DRAW_DISTANCE = 150;
 
 // Signal cycle (seconds)
-const MAIN_GREEN = 17;
-const CROSS_GREEN = 9;
+const MAIN_GREEN = 45;
+const CROSS_GREEN = 6;
 const AMBER = 2;
-const ALL_RED = 1.6;
+const ALL_RED = 1.0;
 
 /**
  * TrafficSpawner
@@ -103,6 +126,9 @@ const ALL_RED = 1.6;
 export class TrafficSpawner {
   public group: THREE.Group;
   public vehicleCount = 0;
+  /** The share of the day's moving traffic that is on the road at this hour. Parked vehicles stay parked. */
+  public abroad = 1;
+  private places = 0;
 
   private rand = seededRandom(7741);
   private batches: Batch[] = [];
@@ -125,9 +151,10 @@ export class TrafficSpawner {
       const kind = this.pickKind((k) => k.parkable);
       this.batches[kind].count++;
       this.dummy.position.set(spot.x, 0, spot.z);
-      this.dummy.rotation.set(0, spot.yaw + (this.rand() - 0.5) * 0.08, 0);
+      const yaw = spot.yaw + (this.rand() - 0.5) * 0.08;
+      this.dummy.rotation.set(0, yaw, 0);
       this.dummy.updateMatrix();
-      this.parked.push({ kind, paint: this.randomPaint(), matrix: this.dummy.matrix.clone(), x: spot.x, z: spot.z });
+      this.parked.push({ kind, paint: this.randomPaint(), matrix: this.dummy.matrix.clone(), x: spot.x, z: spot.z, yaw });
     }
 
     this.createInstancedMeshes();
@@ -148,9 +175,11 @@ export class TrafficSpawner {
     const white = new THREE.Color(0xffffff);
 
     for (const spec of KINDS) {
-      const proto = fromGarage.has(spec.kind)
-        ? vehicles.buildTrafficVehicle(spec.kind, spec.tinted ? PAINT_KEY : undefined).group
-        : this.buildHeavyVehicle(spec.kind);
+      const proto = spec.body
+        ? buildKitCar(spec.body, spec.tinted ? PAINT_KEY : undefined, { taxi: spec.kind === 'taxi', light: true }).group
+        : fromGarage.has(spec.kind)
+          ? vehicles.buildTrafficVehicle(spec.kind, spec.tinted ? PAINT_KEY : undefined).group
+          : this.buildHeavyVehicle(spec.kind);
 
       const bodyGeo = bakeToGeometry(proto, { filter: (_m, mat) => !(spec.tinted && isPaint(mat)) });
       const paintGeo = spec.tinted ? bakeToGeometry(proto, { filter: (_m, mat) => (isPaint(mat) ? white : false) }) : null;
@@ -159,7 +188,7 @@ export class TrafficSpawner {
       const box = bodyGeo.boundingBox!.clone();
       if (paintGeo) box.union(paintGeo.boundingBox!);
 
-      this.batches.push({ spec, length: box.max.z - box.min.z, bodyGeo, paintGeo, count: 0, drawn: 0 });
+      this.batches.push({ spec, length: box.max.z - box.min.z, width: box.max.x - box.min.x, bodyGeo, paintGeo, count: 0, drawn: 0 });
     }
   }
 
@@ -243,27 +272,43 @@ export class TrafficSpawner {
     const cross = SIDE_STREETS.find((s) => s.traffic)!;
     const stopBefore = cross.halfRoad + 5.2;
 
-    // Broad Street: Nigeria drives on the right, so the +Z flow uses the -X lanes
-    for (const x of [-4.9, -1.8, 1.8, 4.9]) {
+    // Broad Street: 3 full lanes each way (6 lanes total) running from town to expressway
+    for (const x of [-5.0, -1.8, 1.8, 5.0]) {
       const dir: 1 | -1 = x < 0 ? 1 : -1;
-      const outer = Math.abs(x) > 3;
+      const outer = Math.abs(x) > 3.0;
       this.lanes.push({
         axis: 'z',
         fixed: x,
         dir,
-        uMin: -(MAIN_ROAD.zMax + 6),
-        uMax: MAIN_ROAD.zMax + 6,
+        uMin: dir > 0 ? -(MAIN_ROAD.zMax + 6) : -(EXPRESS.to - 20),
+        uMax: dir > 0 ? EXPRESS.to - 20 : MAIN_ROAD.zMax + 6,
         stops: [{ u: dir * CROSS_STREET_Z - stopBefore, group: 'main' }],
         busStops: outer ? (dir > 0 ? [-20, 60] : [-40, 90]) : [],
         cars: [],
       });
     }
 
-    // Martins Street: one lane each way
-    for (const dir of [1, -1] as const) {
+    // Expressway outer 3rd lanes (±8.0m) on the 6-lane carriageway
+    for (const x of [-EXPRESS.lanes[2], EXPRESS.lanes[2]]) {
+      const dir: 1 | -1 = x < 0 ? 1 : -1;
+      this.lanes.push({
+        axis: 'z',
+        fixed: x,
+        dir,
+        uMin: dir > 0 ? EXPRESS.from + 20 : -(EXPRESS.to - 20),
+        uMax: dir > 0 ? EXPRESS.to - 20 : -(EXPRESS.from + 20),
+        stops: [],
+        busStops: [],
+        cars: [],
+      });
+    }
+
+    // Martins Street: 2 lanes each way
+    for (const offset of [-3.6, -1.2, 1.2, 3.6]) {
+      const dir: 1 | -1 = offset < 0 ? 1 : -1;
       this.lanes.push({
         axis: 'x',
-        fixed: cross.fixed + dir * 2.2,
+        fixed: cross.fixed + offset,
         dir,
         uMin: cross.from - 4,
         uMax: cross.to + 4,
@@ -317,7 +362,9 @@ export class TrafficSpawner {
           length: batch.length,
           dwell: 0,
         });
-        u -= batch.length / 2 + 3.5 + this.rand() * (isMain ? 13 : 19);
+        // Out on the expressway the cars are further apart, until rush hour fills it
+        const out = isMain && Math.abs(u * lane.dir) > MAIN_ROAD.zMax + 20;
+        u -= batch.length / 2 + 3.5 + this.rand() * (isMain ? 13 : 19) * (out ? 2.2 : 1);
       }
     }
   }
@@ -424,7 +471,8 @@ export class TrafficSpawner {
   }
 
   /** State of a signal group at the current point in the cycle */
-  private signalState(group: SignalGroup): 'go' | 'amber' | 'stop' {
+  private signalState(group: SignalGroup, playerPos?: THREE.Vector3): 'go' | 'amber' | 'stop' {
+    if (playerPos && Math.abs(playerPos.x) < 8.0 && Math.abs(playerPos.z - CROSS_STREET_Z) < 85) return group === 'main' ? 'go' : 'stop';
     const cycle = MAIN_GREEN + CROSS_GREEN + 2 * (AMBER + ALL_RED);
     let t = this.signalTime % cycle;
 
@@ -439,9 +487,9 @@ export class TrafficSpawner {
     return 'stop';
   }
 
-  private updateLamps(): void {
+  private updateLamps(playerPos?: THREE.Vector3): void {
     for (const group of ['main', 'cross'] as const) {
-      const state = this.signalState(group);
+      const state = this.signalState(group, playerPos);
       const lamps = this.signalLamps[group];
       lamps.red.color.setHex(state === 'stop' ? 0xff2a2a : 0x3f0d0d);
       lamps.amber.color.setHex(state === 'amber' ? 0xffb020 : 0x3f2a05);
@@ -449,17 +497,36 @@ export class TrafficSpawner {
     }
   }
 
+  /** How many vehicles are moving on the roads now, and how many there are by day. */
+  public get moving(): { now: number; byDay: number } {
+    let now = 0;
+    let byDay = 0;
+    for (const lane of this.lanes) {
+      for (const car of lane.cars) {
+        byDay += 1;
+        if (car.place === undefined || isAbroad(car.place, this.abroad)) now += 1;
+      }
+    }
+    return { now, byDay };
+  }
+
   // =========================================================================
   // SIMULATION
   // =========================================================================
+  /**
+   * Sirens on the road this frame (a convoy): where each is and which way it is going. Cars
+   * ahead of one, in its lane or the next, pull over toward the edge of the road and slow down.
+   */
+  public sirens: Array<{ x: number; z: number; dir: 1 | -1 }> = [];
+
   public update(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
     this.signalTime += delta;
-    this.updateLamps();
+    this.updateLamps(playerPos);
     for (const batch of this.batches) batch.drawn = 0;
 
     const open: Record<SignalGroup, boolean> = {
-      main: this.signalState('main') === 'go',
-      cross: this.signalState('cross') === 'go',
+      main: this.signalState('main', playerPos) === 'go',
+      cross: this.signalState('cross', playerPos) === 'go',
     };
 
     for (const lane of this.lanes) {
@@ -477,7 +544,8 @@ export class TrafficSpawner {
         let limit = leaderRear - 1.8 - car.length / 2;
         if (car.u + car.length / 2 <= playerU) limit = Math.min(limit, playerU - 2.6 - car.length / 2);
         for (const stop of lane.stops) {
-          if (!open[stop.group] && car.u + car.length / 2 <= stop.u + 0.6) {
+          const crossing = car.v > 4.5 && (car.u + car.length / 2 > stop.u - 4.5);
+          if (!open[stop.group] && !crossing && car.u + car.length / 2 <= stop.u + 0.6) {
             limit = Math.min(limit, stop.u - car.length / 2);
           }
         }
@@ -485,12 +553,29 @@ export class TrafficSpawner {
         const room = limit - car.u;
         let target = room <= 0 ? 0 : Math.min(car.cruise, Math.sqrt(2 * 4.5 * room));
 
+        // A siren coming up behind: over to the edge and slow, till it has gone past
+        let yielding = false;
+        if (lane.axis === 'z') {
+          for (const siren of this.sirens) {
+            if (siren.dir !== lane.dir || Math.abs(siren.x - lane.fixed) > 4.6) continue;
+            const ahead = car.u - siren.z * lane.dir;
+            if (ahead > -4 && ahead < 80) {
+              yielding = true;
+              // Consistently yield toward the outer kerb/shoulder, never swerving into the median or oncoming lanes
+              car.asideDir = Math.sign(lane.fixed) || 1;
+            }
+          }
+        }
+        if (yielding) target = Math.min(target, car.cruise * 0.3);
+        car.aside = THREE.MathUtils.clamp((car.aside ?? 0) + (yielding ? 2.4 : -1.6) * delta, 0, 2.3);
+
         if (car.dwell > 0) {
           car.dwell -= delta;
           target = 0;
         }
 
-        car.v += THREE.MathUtils.clamp(target - car.v, -11 * delta, 3.2 * delta);
+        const accelRate = target > car.v && car.v < 5 ? 5.2 : 3.2;
+        car.v += THREE.MathUtils.clamp(target - car.v, -11 * delta, accelRate * delta);
         if (car.v < 0.02 && target === 0) car.v = 0;
 
         const before = car.u;
@@ -519,8 +604,12 @@ export class TrafficSpawner {
       const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       this.dummy.rotation.set(0, yaw, 0);
       for (const car of lane.cars) {
+        // Off the road at this hour: it keeps its place in the lane, and is not seen
+        car.place ??= this.places++;
+        if (!isAbroad(car.place, this.abroad)) continue;
         const along = car.u * lane.dir;
-        const x = lane.axis === 'z' ? lane.fixed : along;
+        // Pulled over toward the kerb, away from the middle of the road
+        const x = lane.axis === 'z' ? lane.fixed + (car.asideDir ?? Math.sign(lane.fixed)) * (car.aside ?? 0) : along;
         const z = lane.axis === 'z' ? along : lane.fixed;
         this.dummy.position.set(x, 0, z);
         this.dummy.updateMatrix();
@@ -540,5 +629,41 @@ export class TrafficSpawner {
         if (batch.paint.instanceColor) batch.paint.instanceColor.needsUpdate = true;
       }
     }
+  }
+
+  private bodyPool: CarBody[] = [];
+  private bodiesUsed = 0;
+
+  /** The vehicles within `range` of a point, moving or parked, as boxes on the ground (added to `out`) */
+  public cars(x: number, z: number, range: number, out: CarBody[]): void {
+    this.bodiesUsed = 0;
+    const add = (kind: number, cx: number, cz: number, yaw: number, parked: boolean): CarBody | null => {
+      if (Math.abs(cx - x) > range || Math.abs(cz - z) > range) return null;
+      const batch = this.batches[kind];
+      if (!batch) return null;
+      const body = this.bodyPool[this.bodiesUsed] ?? (this.bodyPool[this.bodiesUsed] = { x: 0, z: 0, yaw: 0, halfWidth: 0, halfLength: 0 });
+      this.bodiesUsed += 1;
+      body.x = cx;
+      body.z = cz;
+      body.yaw = yaw;
+      body.halfWidth = batch.width / 2;
+      body.halfLength = batch.length / 2;
+      body.parked = parked;
+      body.yielding = false;
+      out.push(body);
+      return body;
+    };
+    for (const lane of this.lanes) {
+      const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      for (const car of lane.cars) {
+        if (car.place !== undefined && !isAbroad(car.place, this.abroad)) continue;
+        const along = car.u * lane.dir;
+        // Where it is drawn, pulled over or not: its body is there too, never left behind in the lane
+        const aside = lane.axis === 'z' ? (car.asideDir ?? Math.sign(lane.fixed)) * (car.aside ?? 0) : 0;
+        const body = add(car.kind, lane.axis === 'z' ? lane.fixed + aside : along, lane.axis === 'z' ? along : lane.fixed, yaw, false);
+        if (body) body.yielding = (car.aside ?? 0) > 0.3;
+      }
+    }
+    for (const car of this.parked) add(car.kind, car.x, car.z, car.yaw, true);
   }
 }

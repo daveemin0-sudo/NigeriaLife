@@ -23,7 +23,7 @@ export class PoliceInterior {
       tier: 'tier3_simulated',
       districtName: 'Lagos Central Command Zone',
       streetBuildingId: 'police-station',
-      streetEntrance: new THREE.Vector3(-18, 0, 65), // Door outside in district
+      streetEntrance: new THREE.Vector3(-15.4, 0, 65), // Door outside in district
       streetExitRotation: 0,
       interiorOrigin: origin,
       playerSpawnOffset: new THREE.Vector3(0, 0, 9),

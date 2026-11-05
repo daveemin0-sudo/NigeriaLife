@@ -1,11 +1,26 @@
 import * as THREE from 'three';
+import { ABUJA_AVENUE } from '../world/plan/CityPlan';
 import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
+import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
+import { createMotorPark, type MotorParkLandmark } from '../world/landmarks/MotorPark';
+import { buildTownscape } from '../world/kit/Townscape';
+import { Builder } from '../world/kit/ArchKit';
+import { clickBox } from '../world/landmarks/Landmark';
+import { createCashMachine } from '../world/kit/CashMachine';
+import { ABUJA_BUILDINGS } from './Townscapes';
+import type { Obstruction } from '../world/plan/CityPlan';
+import { PlaceActions } from '../destinations/PlaceActions';
+import { settleGig } from '../online/checkedEarn';
+import { emitGameEvent } from '../game/GameEvents';
 
 export class AbujaCity implements CityInstance {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public groundMesh: THREE.Mesh;
+  public airport: AirportLandmark;
+  public motorPark: MotorParkLandmark;
+  public standing: Obstruction[] = [];
 
   private flagMeshes: THREE.Mesh[] = [];
   private animTime: number = 0;
@@ -42,8 +57,243 @@ export class AbujaCity implements CityInstance {
     // 7. Abuja Green & White Cabs
     this.buildAbujaGreenCabs();
 
-    // 8. Inter-State Travel Terminal to Lagos
-    this.buildAbujaTransitHub();
+    // 8. Utako Motor Park, east of the boulevard: where the coaches to Lagos and Port Harcourt leave from
+    this.motorPark = createMotorPark({ id: 'utako-park', city: 'abuja', x: 15, z: 35, faces: 'west', apron: 2, ticketsId: 'abuja-interstate-hub' });
+    this.group.add(this.motorPark.group);
+    this.interactiveList.push(...this.motorPark.interactive);
+    PlaceActions.registerAll(this.motorPark.actions);
+
+    // The ordinary buildings of the city: offices, shops, flats, houses, a hotel, along the boulevard and behind it
+    const town = buildTownscape('Abuja townscape', ABUJA_BUILDINGS);
+    this.group.add(town.group);
+    this.standing = town.obstructions;
+    // A cash machine in the wall of the bank on the boulevard
+    const machine = createCashMachine({ id: 'savanna-bank-abuja', name: 'Savanna Bank', x: 16.9, z: -8.6, facing: -Math.PI / 2 });
+    this.group.add(machine.group);
+    this.interactiveList.push(machine.interactive);
+
+    // 9. Nnamdi Azikiwe Airport, south-west of the centre: the same airport as Lagos's, set down here,
+    // with a road of its own round to Shehu Shagari Way
+    this.airport = createAirport({ ids: ['abuja-airport'], city: 'abuja', z: 71, ownDoor: true, approach: { alongZ: -80, toX: -13 } });
+    this.group.add(this.airport.group);
+    this.interactiveList.push(...this.airport.interactive);
+    PlaceActions.registerAll(this.airport.actions);
+
+    this.registerCityActions();
+  }
+
+  private registerCityActions(): void {
+    PlaceActions.register('abuja-secretariat', {
+      label: () => '📜 Federal Government Procurement & Contracts',
+      run: (host) => {
+        host.ask({
+          who: 'Alhaji Shehu',
+          role: 'Bureau of Public Procurement (BPP) Director',
+          text: 'Federal Secretariat Complex, Three Arms Zone. Official headquarters for civil service administration, federal contractor documentation, and ministerial affairs.',
+          choices: [
+            {
+              label: '📜 Register Official Federal Contractor Certificate',
+              note: '₦5,000 Fee · +50 Capital Cred',
+              pick: () => {
+                if (host.backend.spendCash(5000, 'Federal Government Tender Form')) {
+                  host.backend.addStreetCred(50);
+                  host.backend.addItem({
+                    id: `fgn_cert_${Date.now()}`,
+                    name: 'Official Federal Contractor Certificate',
+                    category: 'document',
+                    icon: '📜',
+                    description: 'Registered Bureau of Public Procurement (BPP) Federal Contractor Certificate #FGN-2026.',
+                    price: 15000,
+                    usable: false,
+                  });
+                  host.say('Federal Contractor registration submitted! Verified BPP Certificate issued to bag. Capital Street Cred +50!', 'success');
+                } else {
+                  host.say('Procurement Registry: "Need ₦5,000 cash for the federal procurement registration documentation!"', 'warning');
+                }
+              },
+            },
+            {
+              label: '💼 Complete Ministerial Policy Drafting Sprint',
+              note: '+₦14,000 · -30% Energy · +35 Cred',
+              pick: () => {
+                void (async () => {
+                  const paid = await settleGig('hud:secretariat', 30);
+                  if (paid === null) {
+                    const gig = host.backend.performGig(14000, 30, 'Federal Secretariat Policy Sprint');
+                    if (gig.success) {
+                      host.backend.addStreetCred(35);
+                      host.say('Ministerial policy memo finalized and submitted! Earned ₦14,000 cash and +35 Cred!', 'success');
+                    } else {
+                      host.say(gig.message, 'warning');
+                    }
+                    return;
+                  }
+                  if (paid.ok) {
+                    host.backend.addStreetCred(35);
+                    host.say(`Ministerial policy memo finalized and submitted! Earned ₦${paid.pay.toLocaleString()} cash and +35 Cred!`, 'success');
+                  } else {
+                    host.say(paid.reason, 'warning');
+                  }
+                })();
+              },
+            },
+            {
+              label: '🏛️ Federal Civil Service Administrative Briefing',
+              note: '+25 Knowledge · Free Guidance',
+              pick: () => {
+                host.backend.addStreetCred(15);
+                host.say('Alhaji Shehu: "Public accountability is the foundation of federal administration. Always keep tender proposals compliant with the Public Procurement Act!"', 'info');
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    PlaceActions.register('aso-rock-lookout', {
+      label: () => '⛰️ Admire Geological Monolith & Presidential Lookout',
+      run: (host) => {
+        host.ask({
+          who: 'Protocol Officer Bello',
+          role: 'Lookout Custodian',
+          text: 'You stand at the foot of the magnificent 400-meter Aso Rock inselberg, gazing out over the Three Arms Zone, Supreme Court, and National Assembly.',
+          choices: [
+            {
+              label: '⛰️ Buy Commemorative Aso Rock Presidential Plaque',
+              note: '₦1,500 · +30 Energy · +20 Cred',
+              pick: () => {
+                if (host.backend.spendCash(1500, 'Aso Rock Souvenir Plaque')) {
+                  host.backend.restoreEnergy(30);
+                  host.backend.addStreetCred(20);
+                  host.backend.addItem({
+                    id: `aso_rock_plaque_${Date.now()}`,
+                    name: 'Aso Rock Presidential Plaque',
+                    category: 'document',
+                    icon: '⛰️',
+                    description: 'Official commemorative stone souvenir plaque of the Aso Rock Monolith & Three Arms Zone.',
+                    price: 3500,
+                    usable: false,
+                  });
+                  host.say('Stood at the pinnacle of power! Aso Rock Presidential Plaque added to bag. Capital Cred +20!', 'success');
+                } else {
+                  host.say('Souvenir Stand: "Need ₦1,500 cash for the commemorative souvenir plaque!"', 'warning');
+                }
+              },
+            },
+            {
+              label: '🔭 Panoramic Valley Sightseeing',
+              note: '+40 Energy · +10 Cred',
+              pick: () => {
+                host.backend.restoreEnergy(40);
+                host.backend.addStreetCred(10);
+                host.say('Lookout panorama enjoyed! Breathtaking view of the Presidential Valley. Energy restored!', 'success');
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    PlaceActions.register('abuja-mosque', {
+      label: () => '🕌 Tour National Mosque Architecture',
+      run: (host) => {
+        host.ask({
+          who: 'Ustaz Ahmed',
+          role: 'National Mosque Hospitality',
+          text: 'Assalamu Alaikum! Welcome to the Abuja National Mosque with its four soaring 120-foot minarets and gleaming golden dome.',
+          choices: [
+            {
+              label: '🧃 Hospitality Welcome: Chilled Spiced Zobo & Dates',
+              note: '₦500 · +60 Energy · +15 Cred',
+              pick: () => {
+                if (host.backend.spendCash(500, 'Mosque Visit & Chilled Zobo')) {
+                  host.backend.restoreEnergy(60);
+                  host.backend.addStreetCred(15);
+                  host.backend.addItem({
+                    id: `abuja_zobo_${Date.now()}`,
+                    name: 'Abuja Spiced Zobo Drink',
+                    category: 'food',
+                    icon: '🧃',
+                    description: 'Chilled hibiscus tea with ginger, clove, and pineapple.',
+                    price: 500,
+                    usable: true,
+                    energyRestore: 35,
+                  });
+                  host.say('Visited the National Mosque! Chilled spiced Zobo drink acquired, energy refreshed, Street Cred +15!', 'success');
+                } else {
+                  host.say('Visitor Welcome Stall: "Need ₦500 for the visitor pack & zobo!"', 'warning');
+                }
+              },
+            },
+            {
+              label: '🏛️ Architectural Heritage Guided Tour',
+              note: '+30 Knowledge · +15 Cred',
+              pick: () => {
+                host.backend.addStreetCred(15);
+                host.say('Admired the intricate Islamic geometric calligraphy and central gilded dome! Knowledge +30!', 'info');
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    PlaceActions.register('abuja-christian-centre', {
+      label: () => '⛪ Visit National Christian Centre Sanctuary',
+      run: (host) => {
+        host.ask({
+          who: 'Sanctuary Host',
+          role: 'National Christian Centre',
+          text: 'Welcome to the National Christian Centre (Ecumenical Centre), cathedral of national unity designed with soaring neo-gothic granite arches.',
+          choices: [
+            {
+              label: '📖 Ecumenical Offering & National Unity Medallion',
+              note: '₦500 Offering · +60 Energy · +15 Cred',
+              pick: () => {
+                if (host.backend.spendCash(500, 'Ecumenical Fellowship Offering')) {
+                  host.backend.restoreEnergy(60);
+                  host.backend.addStreetCred(15);
+                  host.backend.addItem({
+                    id: `unity_hymnal_${Date.now()}`,
+                    name: 'National Unity Hymnal & Medallion',
+                    category: 'document',
+                    icon: '📖',
+                    description: 'Commemorative unity hymnal from the National Christian Centre.',
+                    price: 1000,
+                    usable: false,
+                  });
+                  host.say('Admired the neo-gothic spire and pipe organ! Blessed with peace and Street Cred +15!', 'success');
+                } else {
+                  host.say('Sanctuary Desk: "Need ₦500 cash offering!"', 'warning');
+                }
+              },
+            },
+            {
+              label: '🎵 Pipe Organ Recital & Architectural Tour',
+              note: '+30 Knowledge · +15 Cred',
+              pick: () => {
+                host.backend.addStreetCred(15);
+                host.say('Listened to the majestic pipe organ beneath the grand vaulted nave! Knowledge +30!', 'info');
+              },
+            },
+          ],
+        });
+      },
+    });
+
+    PlaceActions.register('abuja-cab', {
+      label: () => '🚕 Board Federal Green Cab to Maitama (₦800)',
+      run: (host) => {
+        if (host.backend.spendCash(800, 'Federal Green Cab Fare', 'TRAVEL_COST')) {
+          emitGameEvent('drive', { city: 'abuja' });
+          host.backend.addStreetCred(5);
+          host.actor.root.position.z -= 30;
+          host.say('Malam Garba: "Oga drop here by Maitama Junction! Safe movement!" Dropped off smoothly!', 'success');
+        } else {
+          host.say('Green Cab Driver: "Need ₦800 cash for green cab express fare!"', 'warning');
+        }
+      },
+    });
   }
 
   // =========================================================================
@@ -52,14 +302,16 @@ export class AbujaCity implements CityInstance {
   private buildCapitalBoulevard(): void {
     const roadGroup = new THREE.Group();
 
-    // Dual carriage asphalt lanes
-    const roadWidth = 20;
-    const roadLen = 260;
+    // Dual carriage asphalt lanes, from the south of the city to the lookout at the foot of Aso Rock.
+    // The same figures the city plan holds the avenue to.
+    const roadWidth = ABUJA_AVENUE.halfRoad * 2;
+    const roadLen = ABUJA_AVENUE.to - ABUJA_AVENUE.from;
+    const roadMid = (ABUJA_AVENUE.from + ABUJA_AVENUE.to) / 2;
     const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLen);
     const roadMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8 });
     const road = new THREE.Mesh(roadGeo, roadMat);
     road.rotation.x = -Math.PI / 2;
-    road.position.y = 0.01;
+    road.position.set(0, 0.01, roadMid);
     road.receiveShadow = true;
     roadGroup.add(road);
 
@@ -67,12 +319,21 @@ export class AbujaCity implements CityInstance {
     const medianGeo = new THREE.BoxGeometry(2.2, 0.35, roadLen);
     const medianMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.9 });
     const median = new THREE.Mesh(medianGeo, medianMat);
-    median.position.set(0, 0.18, 0);
+    median.position.set(0, 0.18, roadMid);
     roadGroup.add(median);
+
+    // A paved walkway down each side
+    const walkMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.9 });
+    for (const side of [-1, 1]) {
+      const walk = new THREE.Mesh(new THREE.BoxGeometry(ABUJA_AVENUE.walk, 0.26, roadLen), walkMat);
+      walk.position.set(side * (ABUJA_AVENUE.halfRoad + ABUJA_AVENUE.walk / 2), 0.13, roadMid);
+      walk.receiveShadow = true;
+      roadGroup.add(walk);
+    }
 
     // White lane dividers
     for (let laneX of [-5.5, 5.5]) {
-      for (let z = -roadLen / 2 + 5; z < roadLen / 2 - 5; z += 8) {
+      for (let z = ABUJA_AVENUE.from + 5; z < ABUJA_AVENUE.to - 5; z += 8) {
         const lineGeo = new THREE.PlaneGeometry(0.25, 4.0);
         const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const line = new THREE.Mesh(lineGeo, lineMat);
@@ -84,7 +345,7 @@ export class AbujaCity implements CityInstance {
 
     // Modern Capital Streetlamps with double arched arms
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7 });
-    for (let z = -100; z <= 100; z += 30) {
+    for (let z = -70; z <= 110; z += 30) {
       const poleGeo = new THREE.CylinderGeometry(0.18, 0.22, 10, 12);
       const pole = new THREE.Mesh(poleGeo, poleMat);
       pole.position.set(0, 5, z);
@@ -164,63 +425,56 @@ export class AbujaCity implements CityInstance {
   // 3. ABUJA NATIONAL MOSQUE (Central Golden Dome & 4 Minarets)
   // =========================================================================
   private buildNationalMosque(): void {
-    const mosqueGroup = new THREE.Group();
-    mosqueGroup.position.set(-28, 0, -25);
+    const b = new Builder().around(0, 0);
 
     // Main prayer hall cube
-    const hallGeo = new THREE.BoxGeometry(18, 12, 18);
-    const hallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.25 });
-    const hall = new THREE.Mesh(hallGeo, hallMat);
-    hall.position.y = 6;
-    hall.castShadow = true;
-    mosqueGroup.add(hall);
+    b.box(0xf8fafc, 18, 12, 18, 0, 0, 0, { solid: true });
 
-    // Gleaming central gilded gold dome
-    const domeGeo = new THREE.SphereGeometry(7, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-    const goldMat = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      metalness: 0.85,
-      roughness: 0.15,
-    });
-    const dome = new THREE.Mesh(domeGeo, goldMat);
-    dome.position.y = 12;
-    mosqueGroup.add(dome);
+    // Colonnade porticos on east and south
+    b.box(0xe2e8f0, 19, 0.4, 3, 0, 0, 10);
+    for (const cx of [-7, -3.5, 0, 3.5, 7]) {
+      b.cylinder(0xf8fafc, 0.35, 6, cx, 0.4, 10);
+    }
+    b.box(0xe2e8f0, 19, 0.5, 3, 0, 6.4, 10);
 
-    // Crescent finial on dome apex
-    const finialGeo = new THREE.CylinderGeometry(0.12, 0.12, 3.2, 8);
-    const finial = new THREE.Mesh(finialGeo, goldMat);
-    finial.position.y = 19.8;
-    mosqueGroup.add(finial);
+    // Gilded central gold dome with crescent finial
+    b.cylinder(0xfacc15, 6.5, 2.5, 0, 12, 0);
+    b.cylinder(0xfacc15, 5.5, 2.5, 0, 14.5, 0);
+    b.cylinder(0xfacc15, 4.0, 2.0, 0, 17, 0);
+    b.cylinder(0xfacc15, 2.0, 1.5, 0, 19, 0);
+    b.cylinder(0xfacc15, 0.15, 3.5, 0, 20.5, 0);
 
-    // 4 Soaring Minarets (42 meters high)
+    // 4 Soaring Minarets (38 meters high) with balconies and conical spires
     const minaretOffsets = [
       { x: -11, z: -11 },
       { x: 11, z: -11 },
       { x: -11, z: 11 },
       { x: 11, z: 11 },
     ];
-
-    for (let off of minaretOffsets) {
-      const minaretTower = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.8, 1.1, 38, 16),
-        hallMat
-      );
-      minaretTower.position.set(off.x, 19, off.z);
-      mosqueGroup.add(minaretTower);
-
-      // Gold conical cap
-      const cap = new THREE.Mesh(
-        new THREE.ConeGeometry(1.2, 4.5, 16),
-        goldMat
-      );
-      cap.position.set(off.x, 40, off.z);
-      mosqueGroup.add(cap);
+    for (const off of minaretOffsets) {
+      b.cylinder(0xf8fafc, 1.1, 38, off.x, 0, off.z, { topRadius: 0.8, solid: true });
+      b.cylinder(0xfacc15, 1.4, 0.5, off.x, 24, off.z);
+      b.cylinder(0xfacc15, 1.3, 0.5, off.x, 34, off.z);
+      b.cylinder(0xfacc15, 1.2, 4.5, off.x, 38, off.z, { topRadius: 0.1 });
     }
+
+    // Arched portal door and glowing windows
+    b.box(0x1e293b, 3.2, 5.0, 0.2, 0, 0, 9.1);
+    b.box(0xfacc15, 2.8, 0.3, 0.3, 0, 5.1, 9.1);
+    b.windows(0x38bdf8, 4, 2, 14, 2.5, 7, 0, 9.05, 0, { glow: true });
+    b.windows(0x38bdf8, 4, 2, 14, 2.5, 7, 0, -9.05, Math.PI, { glow: true });
+
+    const mosqueGroup = b.build('Abuja National Mosque');
+    mosqueGroup.position.set(-28, 0, -25);
+
+    const click = clickBox(22, 14, 22);
+    click.position.set(0, 0, 0);
+    mosqueGroup.add(click);
 
     this.group.add(mosqueGroup);
 
     this.interactiveList.push({
-      mesh: mosqueGroup,
+      mesh: click,
       id: 'abuja-mosque',
       name: 'Abuja National Mosque',
       category: 'National Architectural Landmark',
@@ -233,37 +487,42 @@ export class AbujaCity implements CityInstance {
   // 4. NATIONAL CHRISTIAN CENTRE (Ecumenical Centre)
   // =========================================================================
   private buildChristianCentre(): void {
-    const centreGroup = new THREE.Group();
+    const b = new Builder().around(0, 0);
+
+    // Cathedral Nave
+    b.box(0x94a3b8, 16, 14, 22, 0, 0, 0, { solid: true });
+
+    // Granite flying buttresses
+    for (const bz of [-8, -4, 0, 4, 8]) {
+      b.box(0x475569, 1.2, 12, 1.0, -8.6, 0, bz);
+      b.box(0x475569, 1.2, 12, 1.0, 8.6, 0, bz);
+    }
+
+    // Neo-Gothic Central Spire (32m high) with Cross
+    b.box(0x334155, 6, 8, 6, 0, 14, 0);
+    b.cylinder(0x1e293b, 3.2, 20, 0, 22, 0, { topRadius: 0.2 });
+    b.box(0xfacc15, 0.2, 3.5, 0.2, 0, 42, 0);
+    b.box(0xfacc15, 2.0, 0.2, 0.2, 0, 43.5, 0);
+
+    // Stained glass rose window and clerestory
+    b.box(0x38bdf8, 0.1, 5.5, 5.5, -8.05, 11, 0, { glow: true });
+    b.windows(0x60a5fa, 4, 3, 18, 2.5, 9, 8.05, 0, Math.PI / 2, { glow: true });
+    b.windows(0x60a5fa, 4, 3, 18, 2.5, 9, -8.05, 0, -Math.PI / 2, { glow: true });
+
+    // Arched portal door
+    b.box(0x1e293b, 3.0, 4.5, 0.2, -8.1, 0, 0);
+
+    const centreGroup = b.build('National Christian Centre');
     centreGroup.position.set(28, 0, -25);
 
-    // Main nave basilica block
-    const naveGeo = new THREE.BoxGeometry(16, 14, 22);
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 });
-    const nave = new THREE.Mesh(naveGeo, stoneMat);
-    nave.position.y = 7;
-    nave.castShadow = true;
-    centreGroup.add(nave);
-
-    // Neo-Gothic Central Spire
-    const spireGeo = new THREE.ConeGeometry(4.5, 26, 4);
-    const spireMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.3 });
-    const spire = new THREE.Mesh(spireGeo, spireMat);
-    spire.position.y = 27;
-    spire.rotation.y = Math.PI / 4;
-    centreGroup.add(spire);
-
-    // Stained glass rose window
-    const windowGeo = new THREE.CircleGeometry(3.2, 24);
-    const windowMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const roseWindow = new THREE.Mesh(windowGeo, windowMat);
-    roseWindow.position.set(-8.05, 11, 0);
-    roseWindow.rotation.y = -Math.PI / 2;
-    centreGroup.add(roseWindow);
+    const click = clickBox(20, 16, 24);
+    click.position.set(0, 0, 0);
+    centreGroup.add(click);
 
     this.group.add(centreGroup);
 
     this.interactiveList.push({
-      mesh: centreGroup,
+      mesh: click,
       id: 'abuja-christian-centre',
       name: 'National Christian Centre (Ecumenical Centre)',
       category: 'National Architectural Landmark',
@@ -378,37 +637,6 @@ export class AbujaCity implements CityInstance {
     });
   }
 
-  // =========================================================================
-  // 7. ABUJA INTERSTATE TRANSIT TERMINAL (Airport & Coach to Lagos)
-  // =========================================================================
-  private buildAbujaTransitHub(): void {
-    const hubGroup = new THREE.Group();
-    hubGroup.position.set(28, 0, 36);
-
-    const terminalGeo = new THREE.BoxGeometry(16, 5, 12);
-    const terminalMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 });
-    const terminal = new THREE.Mesh(terminalGeo, terminalMat);
-    terminal.position.y = 2.5;
-    hubGroup.add(terminal);
-
-    // Flight & Bus indicator canopy
-    const canopyGeo = new THREE.BoxGeometry(16.4, 0.6, 12.4);
-    const canopy = new THREE.Mesh(canopyGeo, new THREE.MeshBasicMaterial({ color: 0x0284c7 }));
-    canopy.position.y = 5.2;
-    hubGroup.add(canopy);
-
-    this.group.add(hubGroup);
-
-    this.interactiveList.push({
-      mesh: hubGroup,
-      id: 'abuja-interstate-hub',
-      name: 'Nnamdi Azikiwe Airport & Utako Transit Lounge',
-      category: 'Inter-State Travel',
-      description: 'Direct flight connections and luxury interstate express buses to Lagos Island and Nigerian states.',
-      interactionPoint: new THREE.Vector3(18, 0, 36),
-    });
-  }
-
   public update(delta: number): void {
     this.animTime += delta;
 
@@ -416,6 +644,8 @@ export class AbujaCity implements CityInstance {
     for (let flag of this.flagMeshes) {
       flag.rotation.y = Math.sin(this.animTime * 4.5) * 0.15;
     }
+    this.airport.update?.(delta, 12);
+    this.motorPark.update?.(delta, 12);
   }
 
   public dispose(): void {

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { HingedDoor } from '../interactions/Door';
+import { InteractionDirector } from '../interactions/InteractionDirector';
 
 export class InteriorPrefabs {
   // Shared materials for efficient draw calls
@@ -9,6 +11,37 @@ export class InteriorPrefabs {
   private static matBlueFabric = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.7 });
   private static matRedFabric = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.7 });
   private static matGlass = new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.45, roughness: 0.1 });
+
+  private static tileImage: HTMLCanvasElement | null = null;
+
+  /** Floor tiles with grout lines, tinted by the floor's own colour. One tile is 1.5 m square. */
+  private static tileTexture(width: number, length: number): THREE.CanvasTexture {
+    if (!this.tileImage) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 128, 128);
+      // A faint sheen across each tile, and the grout between them
+      const sheen = ctx.createLinearGradient(0, 0, 128, 128);
+      sheen.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      sheen.addColorStop(1, 'rgba(0, 0, 0, 0.05)');
+      ctx.fillStyle = sheen;
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = 'rgba(40, 40, 50, 0.2)';
+      ctx.fillRect(0, 0, 128, 3);
+      ctx.fillRect(0, 0, 3, 128);
+      this.tileImage = canvas;
+    }
+    const texture = new THREE.CanvasTexture(this.tileImage);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(width / 1.5, length / 1.5);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    return texture;
+  }
 
   /**
    * Build a modular room with floor, cutaway low front walls (for isometric camera clarity),
@@ -22,10 +55,12 @@ export class InteriorPrefabs {
     wallColor: number = 0x334155
   ): THREE.Group {
     const room = new THREE.Group();
+    room.name = 'interior_room_shell';
+    room.userData.size = { width, length, height };
 
     // Floor
     const floorGeo = new THREE.BoxGeometry(width, 0.4, length);
-    const floorMat = new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.3 });
+    const floorMat = new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.3, map: this.tileTexture(width, length) });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.name = 'interior_floor_mesh';
     floor.position.set(0, -0.2, 0);
@@ -38,21 +73,49 @@ export class InteriorPrefabs {
 
     // Back wall (Z = -length / 2)
     const backWall = new THREE.Mesh(new THREE.BoxGeometry(width, height, wallThick), wallMat);
+    backWall.name = 'shell_wall_back';
     backWall.position.set(0, height / 2, -length / 2);
     backWall.receiveShadow = true;
     room.add(backWall);
 
     // Left wall (X = -width / 2)
     const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, height, length), wallMat);
+    leftWall.name = 'shell_wall_left';
     leftWall.position.set(-width / 2, height / 2, 0);
     leftWall.receiveShadow = true;
     room.add(leftWall);
 
     // Right wall (X = width / 2)
     const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, height, length), wallMat);
+    rightWall.name = 'shell_wall_right';
     rightWall.position.set(width / 2, height / 2, 0);
     rightWall.receiveShadow = true;
     room.add(rightWall);
+
+    // A painted lower band with a rail above it runs round the three tall walls. Each piece is
+    // part of its wall, so it comes down with the wall when the camera looks over it.
+    const bandColor = new THREE.Color(wallColor).multiplyScalar(0.7);
+    const bandMat = new THREE.MeshStandardMaterial({ color: bandColor, roughness: 0.75 });
+    const railMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(wallColor).lerp(new THREE.Color(0xffffff), 0.55), roughness: 0.6 });
+    const bandH = 1.1;
+    const inner = wallThick / 2 + 0.015;
+    const dress = (wall: THREE.Mesh, span: number, alongX: boolean, inward: number) => {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(alongX ? span : 0.03, bandH, alongX ? 0.03 : span), bandMat);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(alongX ? span : 0.06, 0.08, alongX ? 0.06 : span), railMat);
+      band.position.y = -height / 2 + bandH / 2;
+      rail.position.y = -height / 2 + bandH + 0.04;
+      if (alongX) {
+        band.position.z = inward * inner;
+        rail.position.z = inward * (inner + 0.015);
+      } else {
+        band.position.x = inward * inner;
+        rail.position.x = inward * (inner + 0.015);
+      }
+      wall.add(band, rail);
+    };
+    dress(backWall, width - wallThick, true, 1);
+    dress(leftWall, length - wallThick, false, 1);
+    dress(rightWall, length - wallThick, false, -1);
 
     // Front Low Cutaway Wall (Z = length / 2, height = 1.0) with door opening
     const halfFrontW = (width - 3.2) / 2;
@@ -83,17 +146,23 @@ export class InteriorPrefabs {
     doorGroup.position.copy(pos);
     doorGroup.rotation.y = rotY;
 
-    // Door frame
-    const frameGeo = new THREE.BoxGeometry(2.4, 3.2, 0.2);
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
-    const frame = new THREE.Mesh(frameGeo, frameMat);
-    frame.position.y = 1.6;
-    doorGroup.add(frame);
+    doorGroup.name = 'interior_exit_door';
 
-    // Glass double doors
-    const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.9, 0.05), this.matGlass);
-    doorGlass.position.y = 1.5;
-    doorGroup.add(doorGlass);
+    // Door frame: two posts and a lintel around an opening the player can walk through
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.45, 3.2, 0.2), frameMat);
+      post.position.set(side * 0.975, 1.6, 0);
+      doorGroup.add(post);
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 0.2), frameMat);
+    lintel.position.y = 3.05;
+    doorGroup.add(lintel);
+
+    // Glass door on a hinge; it swings outward, away from the room
+    const door = new HingedDoor({ width: 1.5, height: 2.9, material: this.matGlass, swing: 1.75, thickness: 0.05 });
+    doorGroup.add(door.group);
+    doorGroup.userData.door = InteractionDirector.get().addDoor(door);
 
     // Glowing Green "EXIT TO STREET" Sign
     const signGeo = new THREE.BoxGeometry(1.6, 0.5, 0.15);

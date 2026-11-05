@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
-import { bakeToGeometry, seededRandom } from '../../graphics/MeshBaker';
+import { bakeToGeometry, seededRandom, simplifyByClustering } from '../../graphics/MeshBaker';
 import type { StreetSpot, WalkRun } from '../density/CityFabric';
 import { MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
+import { isAbroad } from '../StreetLife';
+import type { PersonBody } from '../Bodies';
 
 type Mode = 'walk' | 'idle' | 'talk';
 
@@ -18,6 +20,12 @@ interface Variant {
   drawn: number;
   body?: THREE.InstancedMesh;
   limbs: THREE.InstancedMesh[];
+  /** The same person simplified, for beyond NEAR_DISTANCE */
+  farBodyGeo: THREE.BufferGeometry;
+  farLimbGeos: THREE.BufferGeometry[];
+  drawnFar: number;
+  farBody?: THREE.InstancedMesh;
+  farLimbs: THREE.InstancedMesh[];
 }
 
 interface Agent {
@@ -36,13 +44,49 @@ interface Agent {
   max: number;
   /** Walks Broad Street's sidewalk, which drops to road level at junctions */
   onMainWalk: boolean;
+  /** The bus stop this person is queueing at, if any (index into BUS_STOPS) */
+  stop?: number;
+  /** Walking to a bus door: where it is, and what happens when they step in */
+  boarding?: { x: number; z: number; done: () => boolean };
+  /** Seconds until someone who has ridden off comes back to the queue (0 or absent: here) */
+  away?: number;
+  /** How far they have stepped aside from where they would be, to let someone pass */
+  ox?: number;
+  oz?: number;
+  /** A step aside they must keep for a while (out of a hooting car's way): where to, and for how long */
+  fx?: number;
+  fz?: number;
+  ft?: number;
+  /** A shop or buka on their side of Broad Street. They walk in, stay a while, and come back out. */
+  errand?: { doorX: number; doorZ: number; homeX: number; phase: 'pace' | 'approach' | 'in' | 'out'; left: number; cool: number };
+  /** While set, they are crossing to this sidewalk x at the junction */
+  crossing?: number;
+  /** Seconds before they will cross again */
+  crossCool?: number;
+  /** This walker crosses at the junction instead of staying on one pavement */
+  willCross?: boolean;
 }
+
+/** Where people wait for a danfo: on the kerb of Broad Street, west side for southbound, east for northbound */
+export const BUS_STOPS: ReadonlyArray<{ z: number; side: -1 | 1 }> = [
+  { z: -20, side: -1 },
+  { z: 60, side: -1 },
+  { z: 40, side: 1 },
+  { z: -90, side: 1 },
+];
+/** How long a rider is gone before someone takes their place at the back of the queue, seconds */
+const RIDER_AWAY = 120;
+const BOARDING_SPEED = 1.7;
 
 const SKIN_TONES = ['#3b2416', '#4a2c1d', '#5c3722', '#6b4226', '#7a4a2b', '#8d5a3b'];
 const TROUSERS = [0x1e293b, 0x1f2937, 0x334155, 0x57534e, 0x1e3a8a, 0x292524];
 
 /** Pedestrians further than this from the player are simulated but not drawn */
 const DRAW_DISTANCE = 90;
+/** Nearer than this a pedestrian is drawn in full; further away, simplified (no one can see the fingers at 20 m) */
+const NEAR_DISTANCE = 22;
+/** Size of the cubes the far model's vertices are gathered into, metres */
+const FAR_CELL = 0.045;
 
 /**
  * CityPopulation
@@ -53,6 +97,14 @@ const DRAW_DISTANCE = 90;
 export class CityPopulation {
   public group: THREE.Group;
   public count = 0;
+  /** The share of them who are out at this hour: the rest are at home, and not drawn */
+  public abroad = 1;
+  /** How far away pedestrians are drawn at all, and drawn in full (the graphics setting changes these) */
+  public drawDistance = DRAW_DISTANCE;
+  public nearDistance = NEAR_DISTANCE;
+  /** Who the walkers step round this frame: the player, or the vehicle the player is driving */
+  public avoid: Array<{ x: number; z: number; r: number }> = [];
+  private bodyPool: PersonBody[] = [];
 
   private rand = seededRandom(90210);
   private variants: Variant[] = [];
@@ -68,6 +120,8 @@ export class CityPopulation {
   private scl = new THREE.Vector3();
   private euler = new THREE.Euler();
   private sphere = new THREE.Sphere(new THREE.Vector3(), 1.9);
+  private limbX = [0, 0, 0, 0];
+  private limbZ = [0, 0, 0, 0];
   private static readonly UP = new THREE.Vector3(0, 1, 0);
 
   constructor(walkRuns: WalkRun[] = [], stallSpots: StreetSpot[] = []) {
@@ -93,11 +147,13 @@ export class CityPopulation {
   }
 
   private bakeVariants(): void {
+    // The street model, as the other walkers use: the detailed one (jointed fingers, sculpted face) cost
+    // about 14,000 triangles a pedestrian, over a million for the crowd in view, which no one can see at street distance
     const looks: HumanConfig[] = [];
     const male = (cfg: Partial<HumanConfig>) =>
-      looks.push({ gender: 'male', username: '', skinTone: this.pick(SKIN_TONES), trousersColor: this.pick(TROUSERS), ...cfg });
+      looks.push({ gender: 'male', username: '', lod: 'street', skinTone: this.pick(SKIN_TONES), trousersColor: this.pick(TROUSERS), ...cfg });
     const female = (cfg: Partial<HumanConfig>) =>
-      looks.push({ gender: 'female', username: '', skinTone: this.pick(SKIN_TONES), ...cfg });
+      looks.push({ gender: 'female', username: '', lod: 'street', skinTone: this.pick(SKIN_TONES), ...cfg });
 
     // Everyday Lagos men
     for (const color of [0x10b981, 0xdc2626, 0xf8fafc, 0xfacc15, 0x38bdf8]) {
@@ -141,6 +197,10 @@ export class CityPopulation {
       this.variants.push({
         bodyGeo,
         limbGeos: limbGeos as THREE.BufferGeometry[],
+        farBodyGeo: simplifyByClustering(bodyGeo, FAR_CELL),
+        farLimbGeos: (limbGeos as THREE.BufferGeometry[]).map((geo) => simplifyByClustering(geo, FAR_CELL)),
+        drawnFar: 0,
+        farLimbs: [],
         pivots: limbs.map((limb) => limb.position.clone()),
         footY: rig.leftLeg.position.y + legGeo.boundingBox!.min.y,
         count: 0,
@@ -218,23 +278,56 @@ export class CityPopulation {
 
   /** Commuters queueing at the kerb for danfo and BRT */
   private spawnBusStopQueues(): void {
-    const stops = [
-      { z: -20, side: -1 },
-      { z: 60, side: -1 },
-      { z: 40, side: 1 },
-      { z: -90, side: 1 },
-    ];
-    for (const stop of stops) {
+    BUS_STOPS.forEach((stop, index) => {
       const queue = 6 + Math.floor(this.rand() * 4);
       for (let i = 0; i < queue; i++) {
         this.addAgent({
+          stop: index,
           mode: this.rand() < 0.3 ? 'talk' : 'idle',
           x: stop.side * (MAIN_ROAD.halfRoad + 0.9 + this.rand() * 0.8),
           z: stop.z - i * 0.85 * stop.side + (this.rand() - 0.5) * 0.3,
           yaw: stop.side < 0 ? Math.PI / 2 : -Math.PI / 2,
         });
       }
+    });
+  }
+
+  // =========================================================================
+  // RIDERS
+  // =========================================================================
+  /** The bus stop a vehicle at (x, z) is pulled up at, or -1: in the kerb lane, alongside the queue. */
+  public stopAt(x: number, z: number): number {
+    return BUS_STOPS.findIndex((stop) => Math.sign(x) === stop.side && Math.abs(x) > 3 && Math.abs(z - stop.z) < 9);
+  }
+
+  /** How many are waiting at a stop now. */
+  public waitingAt(stop: number): number {
+    let n = 0;
+    for (let i = 0; i < this.agents.length; i++) {
+      const a = this.agents[i];
+      if (a.stop === stop && !a.away && !a.boarding && isAbroad(i, this.abroad)) n++;
     }
+    return n;
+  }
+
+  /**
+   * The one at the front of the queue at `stop` walks along the kerb to a door at (doorX, doorZ)
+   * and steps in; `onBoard` runs at that moment and says whether the vehicle was still there to
+   * get into (if not, they stay at the stop). False if nobody is waiting.
+   */
+  public board(stop: number, doorX: number, doorZ: number, onBoard: () => boolean): boolean {
+    let front: Agent | null = null;
+    for (let i = 0; i < this.agents.length; i++) {
+      const a = this.agents[i];
+      if (a.stop !== stop || a.away || a.boarding || !isAbroad(i, this.abroad)) continue;
+      // The front of the queue is the end nearest the stop sign
+      if (!front || Math.abs(a.z - BUS_STOPS[stop].z) < Math.abs(front.z - BUS_STOPS[stop].z)) front = a;
+    }
+    if (!front) return false;
+    const kerbX = BUS_STOPS[stop].side * (MAIN_ROAD.halfRoad + 0.25);
+    front.boarding = { x: Math.abs(doorX) > Math.abs(kerbX) ? doorX : kerbX, z: doorZ, done: onBoard };
+    front.mode = 'walk';
+    return true;
   }
 
   /** Small knots of people gisting outside the shopfronts */
@@ -243,7 +336,7 @@ export class CityPopulation {
       const side = g % 2 === 0 ? -1 : 1;
       const cx = side * (MAIN_ROAD.halfRoad + MAIN_ROAD.walk - 0.9);
       const cz = MAIN_ROAD.zMin + 12 + this.rand() * (MAIN_ROAD.zMax - MAIN_ROAD.zMin - 24);
-      if (isInJunctionGap(cz)) continue;
+      if (isInJunctionGap(cz) || (cx > 8.0 && cz > 98 && cz < 108) || (cx > 8.0 && cz > -28 && cz < -18) || (cx < -8.0 && cz > -62 && cz < -50) || (cx < -8.0 && cz > -8 && cz < 2)) continue;
       const people = 2 + Math.floor(this.rand() * 3);
       for (let i = 0; i < people; i++) {
         const angle = (i / people) * Math.PI * 2 + this.rand() * 0.6;
@@ -255,6 +348,30 @@ export class CityPopulation {
           yaw: angle + Math.PI, // face the middle of the circle
         });
       }
+    }
+  }
+
+  /**
+   * Some Broad Street walkers have a place to go: the barbershop, Mama Put, the supermarket,
+   * the phone shop. They peel off the pavement at that door, spend a few seconds inside
+   * (not drawn), and come back out onto the same pavement. A few others cross at the junction.
+   */
+  public giveErrands(doors: Array<{ x: number; z: number }>): void {
+    const walkers = this.agents.filter((a) => a.mode === 'walk' && a.onMainWalk && a.axis === 'z' && a.stop === undefined);
+    const used = new Set<Agent>();
+    for (const door of doors) {
+      const side = Math.sign(door.x) || 1;
+      const near = walkers.filter((a) => !used.has(a) && Math.sign(a.x) === side && door.z > a.min + 4 && door.z < a.max - 4);
+      for (let n = 0; n < 4 && near.length; n++) {
+        const a = near.splice(Math.floor(this.rand() * near.length), 1)[0];
+        used.add(a);
+        a.errand = { doorX: door.x, doorZ: door.z, homeX: a.x, phase: 'pace', left: 0, cool: this.rand() * 8 };
+      }
+    }
+    let i = 0;
+    for (const a of walkers) {
+      if (a.errand) continue;
+      if (i++ % 8 === 0) a.willCross = true;
     }
   }
 
@@ -285,6 +402,16 @@ export class CityPopulation {
         this.group.add(mesh);
         return mesh;
       });
+
+      variant.farBody = new THREE.InstancedMesh(variant.farBodyGeo, material, variant.count);
+      variant.farBody.frustumCulled = false;
+      this.group.add(variant.farBody);
+      variant.farLimbs = variant.farLimbGeos.map((geo) => {
+        const mesh = new THREE.InstancedMesh(geo, material, variant.count);
+        mesh.frustumCulled = false;
+        this.group.add(mesh);
+        return mesh;
+      });
     }
 
     // One shared contact-shadow blob under every pedestrian
@@ -295,12 +422,101 @@ export class CityPopulation {
     this.group.add(this.shadows);
   }
 
+  /** How many of them are out now. */
+  public get outNow(): number {
+    let out = 0;
+    for (let i = 0; i < this.agents.length; i++) if (isAbroad(i, this.abroad)) out += 1;
+    return out;
+  }
+
+  /** Step toward a point on the pavement. Returns true once they are there. */
+  private stepToward(a: Agent, x: number, z: number, delta: number): boolean {
+    const dx = x - a.x;
+    const dz = z - a.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.22) {
+      a.x = x;
+      a.z = z;
+      return true;
+    }
+    const step = Math.min(d, Math.max(0.4, a.speed) * delta);
+    a.x += (dx / d) * step;
+    a.z += (dz / d) * step;
+    a.yaw = Math.atan2(dx, dz);
+    a.phase += delta * (Math.max(0.4, a.speed) / 1.35);
+    return false;
+  }
+
+  /**
+   * A Broad Street walker: along the pavement, across at the junction, or into a shop and back out.
+   * True when they are inside and should not be drawn.
+   */
+  private advanceWalker(a: Agent, delta: number): boolean {
+    const e = a.errand;
+    if (e?.phase === 'in') {
+      e.left -= delta;
+      if (e.left > 0) return true;
+      e.phase = 'out';
+      a.x = e.doorX;
+      a.z = e.doorZ;
+    }
+    if (e?.phase === 'out') {
+      if (this.stepToward(a, e.homeX, e.doorZ, delta)) {
+        e.phase = 'pace';
+        e.cool = 35 + this.rand() * 20;
+      }
+      return false;
+    }
+    if (e?.phase === 'approach') {
+      if (this.stepToward(a, e.doorX, e.doorZ, delta)) {
+        e.phase = 'in';
+        e.left = 8 + this.rand() * 14;
+        return true;
+      }
+      return false;
+    }
+    if (a.crossing !== undefined) {
+      if (this.stepToward(a, a.crossing, a.z, delta)) {
+        a.crossing = undefined;
+        a.crossCool = 45;
+      }
+      return false;
+    }
+
+    a.phase += delta * (a.speed / 1.35);
+    let along = (a.axis === 'x' ? a.x : a.z) + a.dir * a.speed * delta;
+    if (along > a.max) {
+      a.dir = -1;
+      along = a.max;
+    } else if (along < a.min) {
+      a.dir = 1;
+      along = a.min;
+    }
+    if (a.axis === 'x') a.x = along;
+    else a.z = along;
+    a.yaw = a.axis === 'z' ? (a.dir > 0 ? 0 : Math.PI) : a.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+
+    if (e && e.phase === 'pace' && a.axis === 'z') {
+      e.cool = Math.max(0, e.cool - delta);
+      if (e.cool === 0 && Math.abs(a.z - e.doorZ) < 1.15 && Math.sign(a.x) === Math.sign(e.doorX || 1)) {
+        e.phase = 'approach';
+      }
+    } else if (a.willCross && a.axis === 'z' && !e) {
+      a.crossCool = Math.max(0, (a.crossCool ?? 0) - delta);
+      if (a.crossCool === 0 && isInJunctionGap(a.z)) a.crossing = -a.x;
+    }
+    return false;
+  }
+
   // =========================================================================
   // SIMULATION
   // =========================================================================
   public update(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
     const { base, limb, out, pos, quat, scl, euler, sphere } = this;
-    for (const variant of this.variants) variant.drawn = 0;
+    for (const variant of this.variants) {
+      variant.drawn = 0;
+      variant.drawnFar = 0;
+    }
     let shadowCount = 0;
 
     for (let i = 0; i < this.agents.length; i++) {
@@ -311,15 +527,43 @@ export class CityPopulation {
       // Limb rotations: [leftArm, rightArm, leftLeg, rightLeg] as (x, z) pairs
       let lax = 0, laz = 0, rax = 0, raz = 0, llx = 0, rlx = 0, bob = 0;
 
-      if (a.mode === 'walk') {
-        a.phase += delta * (a.speed / 1.35);
-        const along = (a.axis === 'x' ? a.x : a.z) + a.dir * a.speed * delta;
-        if (along > a.max) a.dir = -1;
-        else if (along < a.min) a.dir = 1;
-        if (a.axis === 'x') a.x = along;
-        else a.z = along;
-        a.yaw = a.axis === 'z' ? (a.dir > 0 ? 0 : Math.PI) : a.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      if (a.away) {
+        a.away = Math.max(0, a.away - delta);
+        if (a.away > 0) continue;
+        // Someone else turns up at the back of the queue
+        const stop = BUS_STOPS[a.stop ?? 0];
+        a.mode = 'idle';
+        a.x = stop.side * (MAIN_ROAD.halfRoad + 0.9 + this.rand() * 0.8);
+        a.z = stop.z - (5 + this.rand() * 3) * 0.85 * stop.side;
+        a.yaw = stop.side < 0 ? Math.PI / 2 : -Math.PI / 2;
+      }
 
+      if (a.boarding) {
+        const dx = a.boarding.x - a.x;
+        const dz = a.boarding.z - a.z;
+        const d = Math.hypot(dx, dz);
+        const step = BOARDING_SPEED * delta;
+        if (d <= step) {
+          const done = a.boarding.done;
+          a.boarding = undefined;
+          a.mode = 'idle';
+          if (done()) {
+            a.away = RIDER_AWAY;
+            continue;
+          }
+        }
+        a.x += (dx / d) * step;
+        a.z += (dz / d) * step;
+        a.yaw = Math.atan2(dx, dz);
+        a.phase += delta * (BOARDING_SPEED / 1.35);
+        const stride = Math.sin(a.phase * 8);
+        llx = stride * 0.6;
+        rlx = -stride * 0.6;
+        lax = -stride * 0.5;
+        rax = stride * 0.5;
+        bob = Math.abs(stride) * 0.035;
+      } else if (a.mode === 'walk') {
+        if (this.advanceWalker(a, delta)) continue;
         const stride = Math.sin(a.phase * 8);
         llx = stride * 0.6;
         rlx = -stride * 0.6;
@@ -338,55 +582,190 @@ export class CityPopulation {
         rax = -lax;
       }
 
+      // Those who are at home at this hour are not in the street
+      if (!isAbroad(i, this.abroad)) continue;
+      this.sidestep(a, delta);
+      const ax = a.x + (a.ox ?? 0);
+      const az = a.z + (a.oz ?? 0);
       // Everyone keeps walking, but only pedestrians the camera can see are drawn
+      let far = false;
       if (playerPos) {
-        const dx = a.x - playerPos.x;
-        const dz = a.z - playerPos.z;
-        if (dx * dx + dz * dz > DRAW_DISTANCE * DRAW_DISTANCE) continue;
+        const dx = ax - playerPos.x;
+        const dz = az - playerPos.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > this.drawDistance * this.drawDistance) continue;
+        far = d2 > this.nearDistance * this.nearDistance;
       }
       if (frustum) {
-        sphere.center.set(a.x, 1, a.z);
+        sphere.center.set(ax, 1, az);
         if (!frustum.intersectsSphere(sphere)) continue;
       }
-      const slot = variant.drawn++;
+      const slot = far ? variant.drawnFar++ : variant.drawn++;
+      const bodyMesh = far ? variant.farBody! : variant.body;
+      const limbMeshes = far ? variant.farLimbs : variant.limbs;
 
       // Broad Street's sidewalk drops to road level where a side street cuts through
       const ground = a.onMainWalk && isInJunctionGap(a.z) ? 0.02 : MAIN_ROAD.sidewalkTop;
 
-      pos.set(a.x, ground - variant.footY * a.scale + bob, a.z);
+      pos.set(ax, ground - variant.footY * a.scale + bob, az);
       quat.setFromAxisAngle(CityPopulation.UP, a.yaw);
       scl.setScalar(a.scale);
       base.compose(pos, quat, scl);
-      variant.body.setMatrixAt(slot, base);
+      bodyMesh.setMatrixAt(slot, base);
 
-      const rx = [lax, rax, llx, rlx];
-      const rz = [laz, raz, 0, 0];
+      const rx = this.limbX;
+      const rz = this.limbZ;
+      rx[0] = lax;
+      rx[1] = rax;
+      rx[2] = llx;
+      rx[3] = rlx;
+      rz[0] = laz;
+      rz[1] = raz;
       for (let l = 0; l < 4; l++) {
         limb.makeRotationFromEuler(euler.set(rx[l], 0, rz[l]));
         limb.setPosition(variant.pivots[l]);
         out.multiplyMatrices(base, limb);
-        variant.limbs[l].setMatrixAt(slot, out);
+        limbMeshes[l].setMatrixAt(slot, out);
       }
 
       if (this.shadows) {
         base.makeScale(a.scale, 1, a.scale);
-        base.setPosition(a.x, ground + 0.015, a.z);
+        base.setPosition(ax, ground + 0.015, az);
         this.shadows.setMatrixAt(shadowCount++, base);
       }
     }
 
+    // A mesh with nobody in it this frame is hidden, so it costs no draw call
+    const settle = (mesh: THREE.InstancedMesh, count: number) => {
+      mesh.count = count;
+      mesh.visible = count > 0;
+      if (count > 0) mesh.instanceMatrix.needsUpdate = true;
+    };
     for (const variant of this.variants) {
       if (!variant.body) continue;
-      variant.body.count = variant.drawn;
-      variant.body.instanceMatrix.needsUpdate = true;
-      for (const mesh of variant.limbs) {
-        mesh.count = variant.drawn;
-        mesh.instanceMatrix.needsUpdate = true;
-      }
+      settle(variant.body, variant.drawn);
+      for (const mesh of variant.limbs) settle(mesh, variant.drawn);
+      settle(variant.farBody!, variant.drawnFar);
+      for (const mesh of variant.farLimbs) settle(mesh, variant.drawnFar);
     }
     if (this.shadows) {
       this.shadows.count = shadowCount;
       this.shadows.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  // =========================================================================
+  // MAKING ROOM
+  // =========================================================================
+  /**
+   * A walker who would bump into the player steps to the side and back again once past; someone
+   * standing about leans out of the way. A step aside ordered by a horn is kept for a while.
+   */
+  private sidestep(a: Agent, delta: number): void {
+    let tx = 0;
+    let tz = 0;
+    if (a.ft && a.ft > 0) {
+      a.ft -= delta;
+      tx = a.fx ?? 0;
+      tz = a.fz ?? 0;
+    } else {
+      if (a.axis === 'z') {
+        if (a.x > 9.0 && a.z > 97 && a.z < 109) tx -= 0.8; // Quilox VIP Red Carpet
+        else if (a.x > 9.5 && a.z > -27 && a.z < -19) tx -= 0.75; // Eko Commercial Bank
+        else if (a.x < -9.5 && a.z > -8 && a.z < 0) tx += 0.75; // Everyday Supermarket
+        else if (a.x < -9.5 && a.z > -60 && a.z < -52) tx += 0.75; // Chop Life Buka
+      }
+      // Everyone steps round the player, those walking to a bus door too
+      for (const o of this.avoid) {
+        const room = o.r + 0.22;
+        if (a.mode === 'walk' && !a.boarding) {
+          const ahead = (a.axis === 'z' ? o.z - a.z : o.x - a.x) * a.dir;
+          if (ahead < -0.8 - o.r || ahead > 2.4 + o.r) continue;
+          const lateral = a.axis === 'z' ? a.x - o.x : a.z - o.z;
+          if (Math.abs(lateral) >= room) continue;
+          const sign = Math.abs(lateral) > 0.05 ? Math.sign(lateral) : a.variant % 2 ? 1 : -1;
+          const need = sign * room - lateral;
+          if (a.axis === 'z') tx += need;
+          else tz += need;
+        } else {
+          const dx = a.x - o.x;
+          const dz = a.z - o.z;
+          if (Math.abs(dx) > room || Math.abs(dz) > room) continue;
+          const d = Math.hypot(dx, dz);
+          if (d >= room) continue;
+          const k = d > 1e-3 ? (room - d) / d : 1;
+          tx += d > 1e-3 ? dx * k : room;
+          tz += dz * k;
+        }
+      }
+    }
+    const ox = a.ox ?? 0;
+    const oz = a.oz ?? 0;
+    if (tx === 0 && tz === 0 && ox === 0 && oz === 0) return;
+    const step = 2.6 * delta;
+    a.ox = ox + THREE.MathUtils.clamp(tx - ox, -step, step);
+    a.oz = oz + THREE.MathUtils.clamp(tz - oz, -step, step);
+    // Leaning out of the way never swings them into the one they are making room for
+    for (const o of this.avoid) {
+      const bx = a.x + a.ox - o.x;
+      const bz = a.z + a.oz - o.z;
+      const d = Math.hypot(bx, bz);
+      const gap = o.r + 0.3;
+      if (d >= gap || d < 1e-3) continue;
+      a.ox += (bx / d) * (gap - d);
+      a.oz += (bz / d) * (gap - d);
+    }
+    if (Math.abs(a.ox) < 1e-3 && Math.abs(a.oz) < 1e-3 && !(a.ft && a.ft > 0)) a.ox = a.oz = 0;
+  }
+
+  /**
+   * A horn: everyone standing in front of (x, z), in the direction (dirX, dirZ), within `range`
+   * metres and in the vehicle's path, hurries to the side. Returns how many moved.
+   */
+  public scatter(x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth = 1.4): number {
+    const len = Math.hypot(dirX, dirZ) || 1;
+    const fx = dirX / len;
+    const fz = dirZ / len;
+    // To the right of the direction of travel
+    const px = fz;
+    const pz = -fx;
+    const clear = halfWidth + 1.1;
+    let moved = 0;
+    for (let i = 0; i < this.agents.length; i++) {
+      const a = this.agents[i];
+      if (a.away || a.boarding || !isAbroad(i, this.abroad)) continue;
+      const rx = a.x + (a.ox ?? 0) - x;
+      const rz = a.z + (a.oz ?? 0) - z;
+      const ahead = rx * fx + rz * fz;
+      if (ahead < 0 || ahead > range) continue;
+      const lateral = rx * px + rz * pz;
+      if (Math.abs(lateral) >= clear) continue;
+      const side = Math.abs(lateral) > 0.05 ? Math.sign(lateral) : i % 2 ? 1 : -1;
+      const shift = side * clear - lateral;
+      a.fx = (a.ox ?? 0) + px * shift;
+      a.fz = (a.oz ?? 0) + pz * shift;
+      a.ft = 5;
+      moved += 1;
+    }
+    return moved;
+  }
+
+  /** The people within `range` of a point, as circles on the ground, for whoever must not walk or drive through them */
+  public people(x: number, z: number, range: number, out: PersonBody[]): void {
+    out.length = 0;
+    let used = 0;
+    for (let i = 0; i < this.agents.length; i++) {
+      const a = this.agents[i];
+      if (a.away || !isAbroad(i, this.abroad)) continue;
+      const ax = a.x + (a.ox ?? 0);
+      const az = a.z + (a.oz ?? 0);
+      if (Math.abs(ax - x) > range || Math.abs(az - z) > range) continue;
+      const body = this.bodyPool[used] ?? (this.bodyPool[used] = { x: 0, z: 0, r: 0 });
+      used += 1;
+      body.x = ax;
+      body.z = az;
+      body.r = 0.28 * a.scale;
+      out.push(body);
     }
   }
 }

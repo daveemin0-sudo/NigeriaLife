@@ -1,12 +1,19 @@
+import { isTraitId, needRate, skillRate, tradePrice, traitById, type TraitId } from '../life/Traits';
+import { profileKey } from './Profile';
+import { Activity } from '../life/Activity';
 import {
   type PlayerAccount,
+  type BusinessEnterprise,
   type PlayerStats,
+  type PlayerSkills,
   type Item,
   type OriginDestiny,
   type JobListing,
   type TransactionRecord,
   type TransactionType,
   type SavedWorldState,
+  type PhoneMessage,
+  type PhoneThread,
   DEFAULT_JOBS,
 } from './types';
 import { TransactionService, type ProcessTransactionRequest, type TransactionResult } from './TransactionService';
@@ -20,9 +27,17 @@ type ListenerCallback = (data: PlayerAccount) => void;
 const REVENUE_CYCLE_MS = 45000;
 
 export class BackendService {
+  /** What the law adds to every business's takings (a tax cut), set by the game */
+  public static revenueBoost: () => number = () => 1;
+  /** What a business takes in one payout, given its own (staff and branches add to it; set by the game) */
+  public static takings: (biz: BusinessEnterprise, own: number) => number = (_biz, own) => own;
+  /** A business that trades from stock (a supermarket): what some payouts' trade took, or null to use its takings */
+  public static sales: (biz: BusinessEnterprise, cycles: number) => number | null = () => null;
+  /** Told what each business took, as it comes in (for the day's report) */
+  public static onTakings: (bizId: string, amount: number) => void = () => {};
   private static instance: BackendService;
-  private readonly STORAGE_KEY = 'nigeria_life_account_data_v1';
-  private readonly BACKUP_KEY = 'nigeria_life_account_data_v1__backup';
+  private readonly STORAGE_KEY = profileKey('nigeria_life_account_data_v1');
+  private readonly BACKUP_KEY = profileKey('nigeria_life_account_data_v1__backup');
   private data: PlayerAccount;
   /** The exact save text this tab last wrote or loaded. If storage holds anything else, another tab has saved. */
   private lastSavedText: string | null = null;
@@ -146,8 +161,16 @@ export class BackendService {
     }
   }
 
-  public processTransaction(req: ProcessTransactionRequest): TransactionResult {
-    this.syncFromStorage();
+  public processTransaction(req: ProcessTransactionRequest, fresh = true): TransactionResult {
+    // Inside `edit` the account is not reloaded halfway (fresh = false)
+    if (fresh) this.syncFromStorage();
+    // A trait can make food, fares and fuel cheaper (src/life/Traits.ts)
+    if (req.type === 'FOOD_PURCHASE' || req.type === 'TRAVEL_COST') {
+      const amount = tradePrice(this.data.trait, req.type === 'FOOD_PURCHASE' ? 'food' : 'transport', req.amount);
+      if (amount !== req.amount) req = { ...req, amount };
+    }
+    const cashBefore = this.data.walletCash;
+    const bankBefore = this.data.bank.balance;
     const res = this.txService.process(this.data, req);
     if (res.success) {
       const at = Date.now();
@@ -155,8 +178,60 @@ export class BackendService {
         this.recentTransactions.push({ record, at });
       }
       this.saveData();
+      // On a game server the server holds the money: tell it what was done here
+      const cash = this.data.walletCash - cashBefore;
+      const bank = this.data.bank.balance - bankBefore;
+      if (cash + bank !== 0) Activity.emit({ kind: 'money', type: req.type, amount: cash + bank, what: req.description });
+      if (this.authority && !this.settling && (cash !== 0 || bank !== 0)) {
+        const holding = this.heldReports[this.heldReports.length - 1];
+        if (holding) holding.push([cash, bank, `${req.type}: ${req.description}`, req.idem]);
+        else this.authority.report(cash, bank, `${req.type}: ${req.description}`, req.idem);
+      }
     }
     return res;
+  }
+
+  /**
+   * The game server, when the game is playing on one: it is told about every money movement
+   * made here, and its answer is the balance (`applyServerWallet`). Null in this browser only.
+   */
+  public authority: { report(cash: number, bank: number, memo: string, idem?: string): void } | null = null;
+  private settling = false;
+  /** Reports waiting for a registry change to be kept (see checkpoint) */
+  private heldReports: Array<Array<[number, number, string, string | undefined]>> = [];
+
+  /** The game day now (the sky's), once the world is up: leases and loans are scheduled from it (src/life/Dues.ts) */
+  public dayNow: (() => number) | null = null;
+
+  /**
+   * Changes the saved account in place and saves it, for modules that keep their state in the
+   * account (src/life/Dues.ts). Another tab's newer save is taken first, once: `pay` moves money
+   * on the same copy, so a check made at the start still holds when the money moves.
+   */
+  public edit<T>(change: (data: PlayerAccount, pay: (req: ProcessTransactionRequest) => TransactionResult) => T): T {
+    this.syncFromStorage();
+    const out = change(this.data, (req) => this.processTransaction(req, false));
+    this.saveData();
+    return out;
+  }
+
+  /** Money the server itself has already paid or taken (a job shift): shown here, not reported back. */
+  public settledByServer<T>(work: () => T): T {
+    this.settling = true;
+    try {
+      return work();
+    } finally {
+      this.settling = false;
+    }
+  }
+
+  /** The balance as the server holds it: what the player has, whatever this browser thought. */
+  public applyServerWallet(wallet: { cash: number; bank: number }): void {
+    this.syncFromStorage();
+    if (this.data.walletCash === wallet.cash && this.data.bank.balance === wallet.bank) return;
+    this.data.walletCash = wallet.cash;
+    this.data.bank.balance = wallet.bank;
+    this.saveData();
   }
 
   public getTransactionHistory(): TransactionRecord[] {
@@ -192,7 +267,10 @@ export class BackendService {
             cycleEarnings += upg.bonusIncomePerCycle;
           }
         }
-        biz.pendingRevenue += cycleEarnings * cycles;
+        const sold = BackendService.sales(biz, cycles);
+        const earned = Math.round((sold ?? BackendService.takings(biz, cycleEarnings) * cycles) * BackendService.revenueBoost());
+        biz.pendingRevenue += earned;
+        BackendService.onTakings(biz.id, earned);
         revenueGenerated = true;
       }
     }
@@ -234,6 +312,8 @@ export class BackendService {
   }
 
   public getData(): PlayerAccount {
+    this.syncFromStorage();
+    this.accrueBusinessRevenue();
     return { ...this.data };
   }
 
@@ -245,6 +325,11 @@ export class BackendService {
   }
 
   /** Pay from the wallet first and take any shortfall from the bank account. */
+  /** Whether the wallet and the bank together have this much */
+  public canPay(amount: number): boolean {
+    return this.data.walletCash + this.data.bank.balance >= amount;
+  }
+
   public pay(amount: number, description: string, type: TransactionType = 'SHOP_PURCHASE'): boolean {
     return this.processTransaction({ type, amount, description, source: 'wallet', funding: 'split' }).success;
   }
@@ -306,6 +391,60 @@ export class BackendService {
     return { success: true, message: `Earned ₦${pay.toLocaleString()} cash. Energy -${energyCost}%` };
   }
 
+  /** Modifies a specific need (0-100 clamped) and notifies UI/audio listeners */
+  public modifyNeed(
+    need: 'energy' | 'hunger' | 'fun' | 'social' | 'hygiene' | 'bladder' | 'health',
+    delta: number
+  ): void {
+    this.syncFromStorage();
+    if (this.data.stats[need] === undefined) {
+      this.data.stats[need] = 50;
+    }
+    const before = this.data.stats[need] as number;
+    this.data.stats[need] = Math.max(0, Math.min(100, Math.round(this.data.stats[need] + delta)));
+    this.saveData();
+    const moved = (this.data.stats[need] as number) - before;
+    if (moved !== 0) Activity.emit({ kind: 'need', need, delta: moved });
+  }
+
+  /**
+   * Skill points after the trait: a trait that speeds this skill adds part of a point each time,
+   * and the parts add up to whole points. Losses are never changed.
+   */
+  private withTrait(skill: string, points: number): number {
+    const rate = points > 0 ? skillRate(this.data.trait, skill) : 1;
+    if (rate === 1) return points;
+    const carry = this.data.skillCarry ?? (this.data.skillCarry = {});
+    const total = points * rate + (carry[skill] ?? 0);
+    const whole = Math.floor(total);
+    const left = total - whole;
+    if (left > 0.0001) carry[skill] = left;
+    else delete carry[skill];
+    return whole;
+  }
+
+  /** Awards experience / levels to one of the 9 official skills (1-10 clamped) */
+  public addSkillExp(skill: string, levels: number = 1): void {
+    this.syncFromStorage();
+    if (!this.data.skills) {
+      this.data.skills = {
+        coding: 1,
+        charisma: 1,
+        music: 1,
+        hustle: 1,
+        fitness: 1,
+        cooking: 1,
+        craft: 1,
+        driving: 1,
+        academics: 1,
+      };
+    }
+    const current = (this.data.skills as any)[skill] ?? 1;
+    (this.data.skills as any)[skill] = Math.max(1, Math.min(10, current + this.withTrait(skill, levels)));
+    this.saveData();
+    emitGameEvent('skill_leveled' as any);
+  }
+
   // === LOANS ===
 
   /** Borrow from a lender. Only one loan can be open at a time, and it is repaid with interest. */
@@ -326,7 +465,9 @@ export class BackendService {
     if (!res.success) {
       return { success: false, message: res.message };
     }
-    this.data.activeLoan = { lender, amount: Math.round(repayTotal), weeklyRepayment: Math.round(repayTotal / 8) };
+    // Repaid weekly over eight weeks, the first a week from today (src/life/Dues.ts)
+    const today = this.dayNow?.();
+    this.data.activeLoan = { lender, amount: Math.round(repayTotal), weeklyRepayment: Math.round(repayTotal / 8), ...(today !== undefined ? { nextDueDay: today + 7 } : {}) };
     this.saveData();
     return {
       success: true,
@@ -334,7 +475,7 @@ export class BackendService {
     };
   }
 
-  /** Pay off the whole outstanding loan from the wallet and bank. */
+  /** Pay off the whole outstanding loan from the wallet and bank. A loan with no week missed counts in the player's favour. */
   public repayLoan(): { success: boolean; message: string } {
     this.syncFromStorage();
     const loan = this.data.activeLoan;
@@ -354,12 +495,21 @@ export class BackendService {
         message: `You owe ₦${loan.amount.toLocaleString()} to ${loan.lender} and cannot cover it yet.`,
       };
     }
+    const clean = !loan.everMissed;
     this.data.activeLoan = undefined;
+    this.data.credit = { cleanLoans: (this.data.credit?.cleanLoans ?? 0) + (clean ? 1 : 0), missed: this.data.credit?.missed ?? 0 };
     this.saveData();
     return { success: true, message: `Loan of ₦${loan.amount.toLocaleString()} to ${loan.lender} fully repaid.` };
   }
 
   // === INVENTORY SYSTEM ===
+
+  /** Takes every one of an item out of the bag (a key card handed back) */
+  public removeItem(itemId: string): void {
+    const before = this.data.inventory.length;
+    this.data.inventory = this.data.inventory.filter((entry) => entry.id !== itemId);
+    if (this.data.inventory.length !== before) this.saveData();
+  }
 
   public addItem(item: Omit<Item, 'quantity'>, quantity: number = 1): void {
     const existing = this.data.inventory.find((i) => i.id === item.id);
@@ -400,28 +550,54 @@ export class BackendService {
 
   private vitalsAccumulator = 0;
   private lastStarveWarningTime = 0;
+  private lastBladderWarningTime = 0;
 
-  public updateVitals(delta: number, isSprinting: boolean, isDriving: boolean): { collapsed: boolean; stats: PlayerStats; starvedWarning: boolean } {
+  public updateVitals(delta: number, isSprinting: boolean, isDriving: boolean): { collapsed: boolean; stats: PlayerStats; starvedWarning: boolean; bladderWarning: boolean; bladderAccident: boolean } {
     this.vitalsAccumulator += delta;
     if (this.vitalsAccumulator < 1.0) {
-      return { collapsed: false, stats: this.data.stats, starvedWarning: false };
+      return { collapsed: false, stats: this.data.stats, starvedWarning: false, bladderWarning: false, bladderAccident: false };
     }
     const elapsed = this.vitalsAccumulator;
     this.vitalsAccumulator = 0;
 
-    // Base hunger drain: ~1 point every 30 seconds
+    // Base hunger drain: ~1 point every 30 seconds. The other needs drain in proportion to it.
     const hungerDrain = (isSprinting ? 0.07 : isDriving ? 0.02 : 0.035) * elapsed;
-    this.data.stats.hunger = Math.max(0, this.data.stats.hunger - hungerDrain);
+    const trait = this.data.trait;
+    this.data.stats.hunger = Math.max(0, this.data.stats.hunger - hungerDrain * needRate(trait, 'hunger'));
 
     // Energy drain
     if (isSprinting) {
-      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.35 * elapsed);
+      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.35 * elapsed * needRate(trait, 'energy'));
     } else if (!isDriving) {
-      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.02 * elapsed);
+      this.data.stats.energy = Math.max(0, this.data.stats.energy - 0.02 * elapsed * needRate(trait, 'energy'));
     }
+
+    // Benchmark 6-needs decay (proportional to benchmark rates: hunger 5.5, energy 4.0, fun 4.5, social 3.0, hygiene 3.5, bladder 7.0 /hr)
+    if (this.data.stats.fun === undefined) this.data.stats.fun = 100;
+    if (this.data.stats.social === undefined) this.data.stats.social = 100;
+    if (this.data.stats.hygiene === undefined) this.data.stats.hygiene = 100;
+    if (this.data.stats.bladder === undefined) this.data.stats.bladder = 100;
+
+    this.data.stats.fun = Math.max(0, this.data.stats.fun - hungerDrain * 0.82 * needRate(trait, 'fun'));
+    this.data.stats.social = Math.max(0, this.data.stats.social - hungerDrain * 0.55 * needRate(trait, 'social'));
+    this.data.stats.hygiene = Math.max(0, this.data.stats.hygiene - hungerDrain * (isSprinting ? 1.2 : 0.64) * needRate(trait, 'hygiene'));
+    this.data.stats.bladder = Math.max(0, this.data.stats.bladder - hungerDrain * 1.27 * needRate(trait, 'bladder'));
 
     let starvedWarning = false;
     const now = Date.now();
+    // The toilet: a warning when it is pressing, and an accident if it is held to the end
+    let bladderWarning = false;
+    let bladderAccident = false;
+    if (this.data.stats.bladder <= 15 && this.data.stats.bladder > 0 && now - this.lastBladderWarningTime > 60000) {
+      this.lastBladderWarningTime = now;
+      bladderWarning = true;
+    }
+    if (this.data.stats.bladder <= 0) {
+      bladderAccident = true;
+      this.data.stats.bladder = 100;
+      this.data.stats.hygiene = Math.min(this.data.stats.hygiene, 10);
+      this.data.stats.social = Math.max(0, this.data.stats.social - 15);
+    }
     if (this.data.stats.hunger <= 15 && now - this.lastStarveWarningTime > 45000) {
       this.lastStarveWarningTime = now;
       starvedWarning = true;
@@ -445,7 +621,65 @@ export class BackendService {
     }
 
     this.notifyListeners();
-    return { collapsed, stats: this.data.stats, starvedWarning };
+    return { collapsed, stats: this.data.stats, starvedWarning, bladderWarning, bladderAccident };
+  }
+
+  /** Retrieve the player's 9 skill proficiencies (1 to 10) */
+  public getSkills(): PlayerSkills {
+    if (!this.data.skills) {
+      this.data.skills = {
+        coding: 1,
+        charisma: 1,
+        music: 1,
+        hustle: 1,
+        fitness: 1,
+        cooking: 1,
+        craft: 1,
+        driving: 1,
+        academics: 1,
+      };
+    }
+    return this.data.skills;
+  }
+
+  /** Award skill experience/levels (capped at 10) */
+  public addSkillXp(skill: keyof PlayerSkills, points: number = 1): { skill: keyof PlayerSkills; level: number; leveledUp: boolean } {
+    const skills = this.getSkills();
+    const current = skills[skill] ?? 1;
+    points = this.withTrait(skill, points);
+    const next = Math.min(10, Math.max(1, current + points));
+    const leveledUp = next > current;
+    skills[skill] = next;
+    this.saveData();
+    if (leveledUp) {
+      emitGameEvent('skill_train', { objectId: skill });
+    }
+    return { skill, level: next, leveledUp };
+  }
+
+  /** Restore one of the 6 benchmark needs */
+  public restoreNeed(need: 'fun' | 'social' | 'hygiene' | 'bladder' | 'hunger' | 'energy' | 'health', amount: number): void {
+    const before = (this.data.stats as unknown as Record<string, number>)[need] ?? 0;
+    const stats = this.data.stats;
+    if (need === 'fun') stats.fun = Math.min(100, (stats.fun ?? 100) + amount);
+    else if (need === 'social') stats.social = Math.min(100, (stats.social ?? 100) + amount);
+    else if (need === 'hygiene') stats.hygiene = Math.min(100, (stats.hygiene ?? 100) + amount);
+    else if (need === 'bladder') stats.bladder = Math.min(100, (stats.bladder ?? 100) + amount);
+    else if (need === 'hunger') stats.hunger = Math.min(100, stats.hunger + amount);
+    else if (need === 'energy') stats.energy = Math.min(100, stats.energy + amount);
+    else if (need === 'health') stats.health = Math.min(100, stats.health + amount);
+    const after = (this.data.stats as unknown as Record<string, number>)[need] ?? 0;
+    if (after !== before) Activity.emit({ kind: 'need', need, delta: after - before });
+    this.saveData();
+    this.notifyListeners();
+  }
+
+  public relieveBladder(): void {
+    this.restoreNeed('bladder', 100);
+  }
+
+  public takeShower(): void {
+    this.restoreNeed('hygiene', 100);
   }
 
   public consumeFood(foodName: string, hungerRestore: number, energyRestore: number, healthRestore: number = 10, price?: number): { success: boolean; message: string } {
@@ -455,15 +689,203 @@ export class BackendService {
         return { success: false, message: `Insufficient funds! ${foodName} costs ₦${price.toLocaleString()}.` };
       }
     }
+    const hungerBefore = this.data.stats.hunger;
     this.data.stats.hunger = Math.min(100, this.data.stats.hunger + hungerRestore);
     this.data.stats.energy = Math.min(100, this.data.stats.energy + energyRestore);
     this.data.stats.health = Math.min(100, this.data.stats.health + healthRestore);
     this.saveData();
     emitGameEvent('eat');
+    Activity.emit({ kind: 'need', need: 'hunger', delta: Math.max(15, this.data.stats.hunger - hungerBefore) });
     return {
       success: true,
       message: `Chowed down! Enjoyed ${foodName}. +${hungerRestore}% Hunger, +${energyRestore}% Energy!`
     };
+  }
+
+  /** One mouthful of a meal that has already been paid for. */
+  public eatBite(hunger: number, energy: number, health: number): void {
+    const stats = this.data.stats;
+    stats.hunger = Math.min(100, stats.hunger + Math.max(0, hunger));
+    stats.energy = Math.min(100, stats.energy + Math.max(0, energy));
+    stats.health = Math.min(100, stats.health + Math.max(0, health));
+    this.saveData();
+  }
+
+  /** Rest that restores energy and health only (sleep, a sit-down, a bath). `save` can wait when called every frame. */
+  public rest(energy: number, health: number, save: boolean = true): void {
+    const stats = this.data.stats;
+    stats.energy = Math.min(100, stats.energy + Math.max(0, energy));
+    stats.health = Math.min(100, stats.health + Math.max(0, health));
+    if (save) this.saveData();
+  }
+
+  /**
+   * Remembers the account as it is now and returns a way to put it back. Used around a change
+   * that takes money and then has to be recorded somewhere else: if the record cannot be
+   * made, the money is put back.
+   */
+  public checkpoint(): (() => void) & { keep: () => void } {
+    const copy = JSON.stringify(this.data);
+    // Money moved while a registry change is being made is only told to the game server once
+    // that change is kept: if it is undone, the server never hears of it
+    const held: Array<[number, number, string, string | undefined]> = [];
+    this.heldReports.push(held);
+    let open = true;
+    const close = (): boolean => {
+      if (!open) return false;
+      open = false;
+      const at = this.heldReports.indexOf(held);
+      if (at >= 0) this.heldReports.splice(at, 1);
+      return true;
+    };
+    const undo = () => {
+      close();
+      this.data = JSON.parse(copy) as PlayerAccount;
+      this.saveData();
+    };
+    return Object.assign(undo, {
+      keep: () => {
+        if (close()) for (const [cash, bank, memo, idem] of held) this.authority?.report(cash, bank, memo, idem);
+      },
+    });
+  }
+
+  // === HOMES AND BUSINESSES OWNED OUTRIGHT ===
+  // Who owns one is recorded in the registry all players share. These are the points where
+  // this saved game and that record meet.
+
+  private deedGate: ((kind: 'property' | 'business', id: string) => string | null) | null = null;
+  private deedChanged: (() => void) | null = null;
+
+  public propertyFittingsProvider?: (id: string) => string[];
+  public onPropertyFittingsGranted?: (id: string, fittings: string[]) => void;
+  public onPropertySoldToAgent?: (id: string) => void;
+
+  /** `gate` says why something cannot be bought on the open market; `changed` is told when what this game holds changes. */
+  public setDeedHooks(gate: (kind: 'property' | 'business', id: string) => string | null, changed: () => void): void {
+    this.deedGate = gate;
+    this.deedChanged = changed;
+  }
+
+  public notifyDeedChanged(): void {
+    this.deedChanged?.();
+  }
+
+  /** Everything this saved game says the player owns outright. */
+  public deedsHeld(): Array<{ kind: 'property' | 'business'; id: string }> {
+    this.syncFromStorage();
+    return [
+      ...this.data.properties.filter((p) => p.status === 'owned' && p.ownerId === this.data.id).map((p) => ({ kind: 'property' as const, id: p.id })),
+      ...this.data.businesses.filter((b) => b.owned).map((b) => ({ kind: 'business' as const, id: b.id })),
+    ];
+  }
+
+  public deedPrice(kind: 'property' | 'business', id: string): number {
+    return (kind === 'property' ? this.data.properties.find((p) => p.id === id)?.purchasePrice : this.data.businesses.find((b) => b.id === id)?.purchasePrice) ?? 0;
+  }
+
+  /**
+   * Was this sold back to the open market, with the title still to be given up? Answers once.
+   * It is kept in the saved game, so closing the game between the sale and the registry
+   * catching up cannot hand the property back for free.
+   */
+  public deedJustReleased(kind: 'property' | 'business', id: string): boolean {
+    const list = this.data.releasedDeeds ?? [];
+    const at = list.indexOf(`${kind}:${id}`);
+    if (at < 0) return false;
+    list.splice(at, 1);
+    this.data.releasedDeeds = list;
+    this.saveData();
+    return true;
+  }
+
+  /** The upgrades installed in a business this game holds, by id, in a fixed order. */
+  public businessFittings(id: string): string[] {
+    const biz = this.data.businesses.find((b) => b.id === id);
+    return biz ? biz.upgrades.filter((u) => u.purchased).map((u) => u.id).sort() : [];
+  }
+
+  /** The furniture and decoration fittings placed in an owned property. */
+  public propertyFittings(id: string): string[] {
+    return this.propertyFittingsProvider ? this.propertyFittingsProvider(id) : [];
+  }
+
+  /**
+   * Bought from another player: it is this player's now. Nothing is charged here; the sale
+   * took the money. A business arrives with the upgrades its last owner installed; a home
+   * arrives with the furniture and styling fitted by its previous owner.
+   */
+  public grantDeed(kind: 'property' | 'business', id: string, fittings: string[] = []): void {
+    this.syncFromStorage();
+    if (kind === 'property') {
+      const prop = this.data.properties.find((p) => p.id === id);
+      if (!prop || (prop.status === 'owned' && prop.ownerId === this.data.id)) return;
+      prop.status = 'owned';
+      prop.ownerId = this.data.id;
+      WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+      this.addItem({ id: `key_${prop.id}`, name: `${prop.name} Smart Keycard`, category: 'key', icon: '🔑', description: `Official master key and electronic access fob for ${prop.name}.`, price: 5000, usable: true });
+      this.onPropertyFittingsGranted?.(id, fittings);
+    } else {
+      const biz = this.data.businesses.find((b) => b.id === id);
+      if (!biz || biz.owned) return;
+      biz.owned = true;
+      biz.pendingRevenue = 0;
+      let installed = 0;
+      for (const upgrade of biz.upgrades) {
+        upgrade.purchased = fittings.includes(upgrade.id);
+        if (upgrade.purchased) installed++;
+      }
+      biz.level = 1 + installed;
+    }
+    this.saveData();
+  }
+
+  /**
+   * It is no longer this player's: sold to another player (`refund` false), or it turned out
+   * another player had bought it first (`refund` true, and what was paid comes back).
+   */
+  public surrenderDeed(kind: 'property' | 'business', id: string, refund: boolean): void {
+    this.syncFromStorage();
+    let price = 0;
+    let name = '';
+    if (kind === 'property') {
+      const prop = this.data.properties.find((p) => p.id === id);
+      if (!prop || prop.status !== 'owned') return;
+      prop.status = 'available';
+      prop.ownerId = '';
+      if (this.data.activeHousingId === prop.id) this.data.activeHousingId = undefined;
+      this.removeKeyFor(prop.id);
+      WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+      price = prop.purchasePrice;
+      name = prop.name;
+      this.onPropertySoldToAgent?.(id);
+    } else {
+      const biz = this.data.businesses.find((b) => b.id === id);
+      if (!biz || !biz.owned) return;
+      // What it had taken and not paid over goes with the seller
+      if (biz.pendingRevenue > 0) this.processTransaction({ type: 'BUSINESS_INCOME', amount: biz.pendingRevenue, description: `Final takings: ${biz.name}`, source: 'bank' });
+      biz.owned = false;
+      biz.pendingRevenue = 0;
+      // Its upgrades went with it
+      for (const upgrade of biz.upgrades) upgrade.purchased = false;
+      biz.level = 1;
+      price = biz.purchasePrice;
+      name = biz.name;
+    }
+    if (refund && price > 0) this.processTransaction({ type: 'PURCHASE_REFUND', amount: price, description: `Refund: ${name} was already sold`, source: 'bank' });
+    this.saveData();
+  }
+
+  /** Other places a player may have a home that this account does not hold itself: a house on their own land */
+  private homeChecks: Array<() => boolean> = [];
+
+  public addHomeCheck(check: () => boolean): void {
+    this.homeChecks.push(check);
+  }
+
+  /** Does the player own or rent somewhere to live? */
+  public hasHome(): boolean {
+    return this.data.properties.some((p) => (p.status === 'owned' || p.status === 'rented') && p.ownerId === this.data.id) || this.homeChecks.some((check) => check());
   }
 
   public restAtHome(): { success: boolean; message: string } {
@@ -475,6 +897,14 @@ export class BackendService {
       success: true,
       message: 'Restful sleep in your apartment! Energy & Health restored to 100%.'
     };
+  }
+
+  /** What a hospital does for someone brought in by ambulance: out of danger, fed, but not fully well. */
+  public treatEmergency(): void {
+    this.data.stats.health = Math.max(this.data.stats.health, 70);
+    this.data.stats.hunger = Math.max(this.data.stats.hunger, 35);
+    this.data.stats.energy = Math.max(this.data.stats.energy, 30);
+    this.saveData();
   }
 
   public restoreEnergy(amount: number = 100): void {
@@ -498,6 +928,156 @@ export class BackendService {
     return true;
   }
 
+  // === INVESTMENTS ===
+
+  /**
+   * Buys or sells units of a share at the price given (the market works the price out from
+   * the game's clock). Buying takes the money from the bank account; selling pays into it.
+   * Whole units only, never more than is held, never for money that is not there.
+   */
+  public tradeInvestment(
+    ticker: string,
+    units: number,
+    total: number,
+    side: 'buy' | 'sell',
+    label: string
+  ): { success: boolean; message: string } {
+    this.syncFromStorage();
+    if (!Number.isInteger(units) || units <= 0 || !Number.isFinite(total) || total <= 0) {
+      return { success: false, message: 'Enter a whole number of units.' };
+    }
+    const amount = Math.round(total);
+    const holdings = (this.data.investments ??= {});
+    const held = holdings[ticker] ?? { units: 0, spent: 0 };
+
+    if (side === 'buy') {
+      const paid = this.processTransaction({ type: 'INVESTMENT_PURCHASE', amount, description: `Bought ${units} ${label}`, source: 'bank', funding: 'strict' });
+      if (!paid.success) {
+        return { success: false, message: `That costs ₦${amount.toLocaleString()} and your bank account has ₦${this.data.bank.balance.toLocaleString()}.` };
+      }
+      holdings[ticker] = { units: held.units + units, spent: held.spent + amount };
+      this.saveData();
+      return { success: true, message: `Bought ${units} ${label} for ₦${amount.toLocaleString()}.` };
+    }
+
+    if (units > held.units) {
+      return { success: false, message: `You hold ${held.units} ${label}, so you cannot sell ${units}.` };
+    }
+    const costOfSold = Math.round((held.spent * units) / held.units);
+    const left = held.units - units;
+    if (left === 0) delete holdings[ticker];
+    else holdings[ticker] = { units: left, spent: held.spent - costOfSold };
+    this.processTransaction({ type: 'INVESTMENT_SALE', amount, description: `Sold ${units} ${label}`, source: 'bank' });
+    this.saveData();
+    const gain = amount - costOfSold;
+    return {
+      success: true,
+      message: `Sold ${units} ${label} for ₦${amount.toLocaleString()} (${gain >= 0 ? 'gain' : 'loss'} of ₦${Math.abs(gain).toLocaleString()}).`,
+    };
+  }
+
+  // === SELLING THINGS ===
+
+  /** Things that can be sold on: not keys, cards or papers. */
+  public resaleValue(item: Item): number {
+    if (item.category === 'key' || item.category === 'document' || item.id === 'atm_card') return 0;
+    return Math.floor(item.price * 0.4);
+  }
+
+  /** Sells one of something from the bag for 40% of what it costs new. */
+  public sellItem(itemId: string): { success: boolean; message: string } {
+    this.syncFromStorage();
+    const index = this.data.inventory.findIndex((entry) => entry.id === itemId);
+    const item = index === -1 ? null : this.data.inventory[index];
+    if (!item || item.quantity <= 0) return { success: false, message: 'That is not in your bag.' };
+    const value = this.resaleValue(item);
+    if (value <= 0) return { success: false, message: `${item.name} cannot be sold.` };
+
+    item.quantity -= 1;
+    if (item.quantity <= 0) this.data.inventory.splice(index, 1);
+    this.processTransaction({ type: 'ITEM_SALE', amount: value, description: `Sold ${item.name}`, source: 'wallet' });
+    this.saveData();
+    return { success: true, message: `Sold ${item.name} for ₦${value.toLocaleString()}.` };
+  }
+
+  /** Sells a property the player owns back to the market for 80% of its price. */
+  public sellProperty(propId: string): { success: boolean; message: string } {
+    this.syncFromStorage();
+    const prop = this.data.properties.find((entry) => entry.id === propId);
+    if (!prop || prop.status !== 'owned') return { success: false, message: 'You can only sell a property you own.' };
+    const value = Math.round(prop.purchasePrice * 0.8);
+    prop.status = 'available';
+    prop.ownerId = '';
+    if (this.data.activeHousingId === prop.id) this.data.activeHousingId = undefined;
+    this.removeKeyFor(prop.id);
+    WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+    this.processTransaction({ type: 'PROPERTY_SALE', amount: value, description: `Sold ${prop.name}`, source: 'bank' });
+    this.data.releasedDeeds = [...(this.data.releasedDeeds ?? []), `property:${prop.id}`];
+    this.onPropertySoldToAgent?.(propId);
+    this.saveData();
+    this.deedChanged?.();
+    return { success: true, message: `${prop.name} sold. ₦${value.toLocaleString()} paid into your bank account.` };
+  }
+
+  /** Gives up a lease. Nothing is refunded. (Inside `edit`, fresh = false.) */
+  public endLease(propId: string, fresh = true): { success: boolean; message: string } {
+    if (fresh) this.syncFromStorage();
+    const prop = this.data.properties.find((entry) => entry.id === propId);
+    if (!prop || prop.status !== 'rented') return { success: false, message: 'You are not renting that property.' };
+    prop.status = 'available';
+    prop.ownerId = '';
+    if (this.data.activeHousingId === prop.id) this.data.activeHousingId = undefined;
+    if (this.data.leases) delete this.data.leases[prop.id];
+    this.removeKeyFor(prop.id);
+    WorldDataManager.getInstance().updatePropertyStatus(prop.id, prop.status, prop.ownerId);
+    this.saveData();
+    return { success: true, message: `You have moved out of ${prop.name}.` };
+  }
+
+  private removeKeyFor(propId: string): void {
+    this.data.inventory = this.data.inventory.filter((entry) => entry.id !== `key_${propId}`);
+  }
+
+  // === MESSAGES ===
+
+  public thread(personId: string): PhoneThread {
+    return (this.data.threads ??= {})[personId] ?? { messages: [], unread: 0 };
+  }
+
+  public addMessage(personId: string, message: PhoneMessage, unread: boolean): void {
+    const threads = (this.data.threads ??= {});
+    const thread = (threads[personId] ??= { messages: [], unread: 0 });
+    thread.messages.push({ ...message, text: message.text.slice(0, 240) });
+    if (thread.messages.length > 40) thread.messages.splice(0, thread.messages.length - 40);
+    if (unread) thread.unread += 1;
+    this.saveData();
+  }
+
+  public markThreadRead(personId: string): void {
+    const thread = this.data.threads?.[personId];
+    if (!thread || thread.unread === 0) return;
+    thread.unread = 0;
+    this.saveData();
+  }
+
+  public unreadMessages(): number {
+    return Object.values(this.data.threads ?? {}).reduce((sum, thread) => sum + thread.unread, 0);
+  }
+
+  // === PEOPLE ===
+
+  /** How well this person knows the player: 0 is a stranger, 100 an old friend. */
+  public familiarity(personId: string): number {
+    return (this.data.relationships ??= {})[personId] ?? 0;
+  }
+
+  public addFamiliarity(personId: string, amount: number): number {
+    const level = Math.min(100, Math.max(0, this.familiarity(personId) + amount));
+    this.data.relationships[personId] = level;
+    this.saveData();
+    return level;
+  }
+
   public addStreetCred(amount: number): void {
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + amount);
     this.saveData();
@@ -514,6 +1094,8 @@ export class BackendService {
     const biz = this.data.businesses.find((b) => b.id === bizId);
     if (!biz) return { success: false, message: 'Business enterprise not found' };
     if (biz.owned) return { success: false, message: 'You already own this enterprise!' };
+    const taken = this.deedGate?.('business', bizId);
+    if (taken) return { success: false, message: taken };
 
     // Check bank or cash
     const paid = this.processTransaction({
@@ -533,6 +1115,7 @@ export class BackendService {
     biz.pendingRevenue = 0;
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + 25);
     this.saveData();
+    this.deedChanged?.();
     return {
       success: true,
       message: `Congratulations! You now own ${biz.name}! Passive income has started.`,
@@ -564,10 +1147,22 @@ export class BackendService {
     biz.level += 1;
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + 10);
     this.saveData();
+    this.deedChanged?.();
     return {
       success: true,
       message: `Upgrade installed: ${upg.name}! +₦${upg.bonusIncomePerCycle.toLocaleString()} revenue per cycle.`,
     };
+  }
+
+  /** Takes up to `amount` out of a business's till (to pay its costs); returns what was there to take */
+  public takeFromTill(bizId: string, amount: number): number {
+    this.syncFromStorage();
+    const biz = this.data.businesses.find((b) => b.id === bizId && b.owned);
+    if (!biz || amount <= 0) return 0;
+    const taken = Math.min(biz.pendingRevenue, Math.round(amount));
+    biz.pendingRevenue -= taken;
+    this.saveData();
+    return taken;
   }
 
   public collectBusinessRevenue(bizId?: string): { totalCollected: number; message: string } {
@@ -613,6 +1208,9 @@ export class BackendService {
     if (prop.status === 'owned') {
       return { success: false, message: 'You already own this property!' };
     }
+    // A home another player owns outright is theirs to sell, not the market's
+    const taken = rentMode ? null : this.deedGate?.('property', propId);
+    if (taken) return { success: false, message: taken };
 
     const price = rentMode ? prop.rentalPriceMonthly : prop.purchasePrice;
     const txType = rentMode ? 'RENT_PAYMENT' : 'PROPERTY_PURCHASE';
@@ -633,6 +1231,13 @@ export class BackendService {
     prop.ownerId = this.data.id;
     if (rentMode) {
       this.data.activeHousingId = prop.id;
+      // What was paid covers the first four weeks; then rent is due every Saturday (src/life/Dues.ts)
+      const today = this.dayNow?.();
+      const leases = (this.data.leases ??= {});
+      if (today !== undefined) leases[prop.id] = { paidUntil: today + 28, arrears: 0 };
+      else delete leases[prop.id];
+    } else if (this.data.leases) {
+      delete this.data.leases[prop.id];
     }
 
     // Sync WorldDataManager so World Map & Street Mode reflect ownership immediately
@@ -651,6 +1256,7 @@ export class BackendService {
 
     this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + (rentMode ? 25 : 50));
     this.saveData();
+    if (!rentMode) this.deedChanged?.();
 
     return {
       success: true,
@@ -702,6 +1308,10 @@ export class BackendService {
       }
     }
 
+    if (job.requiredLevel > this.data.career.rankLevel) {
+      return { success: false, message: `${job.title} needs career rank ${job.requiredLevel}. You are rank ${this.data.career.rankLevel}: finish more shifts to move up.` };
+    }
+
     if (this.data.stats.energy < 15) {
       return { success: false, message: 'You are too exhausted! Eat some food or rest to regain energy.' };
     }
@@ -743,24 +1353,65 @@ export class BackendService {
     }
 
     const { job } = shiftInfo;
+    // A higher career rank is paid more for the same shift
+    const pay = Math.round(job.salary * (this.data.career.bonusMultiplier || 1));
     const txRes = this.processTransaction({
       type: 'JOB_SALARY',
-      amount: job.salary,
+      amount: pay,
       description: `Completed Shift: ${job.title}`,
       source: 'wallet',
     });
 
     this.addJobExperience(25);
     this.addStreetCred(10);
+    const skillMap: Record<string, keyof PlayerSkills> = {
+      job_shop_assistant: 'hustle',
+      job_mechanic: 'craft',
+      job_danfo_driver: 'driving',
+      job_food_seller: 'cooking',
+      job_office_worker: 'academics',
+      job_software_dev: 'coding',
+      job_construction: 'fitness',
+      job_security: 'fitness',
+    };
+    const trained = skillMap[job.id] || 'hustle';
+    this.addSkillXp(trained, 1);
     this.data.activeJobShift = null;
     this.saveData();
     emitGameEvent('work_shift');
 
     return {
       success: true,
-      reward: job.salary,
-      message: `Shift completed! Earned ₦${job.salary.toLocaleString()} cash in your pocket (${txRes.message}) and gained XP!`,
+      reward: pay,
+      message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket (${txRes.message}) and gained XP!`,
     };
+  }
+
+  /**
+   * A career shift the server has already paid, at its own rate. Experience is recorded here.
+   * The money is not: the server's wallet is what the player has.
+   */
+  public noteServerJobShift(pay: number): { success: boolean; reward: number; message: string } {
+    const shiftInfo = this.getActiveJobShift();
+    if (!shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
+    const { job } = shiftInfo;
+    this.addJobExperience(25);
+    this.addStreetCred(10);
+    const skillMap: Record<string, keyof PlayerSkills> = {
+      job_shop_assistant: 'hustle',
+      job_mechanic: 'craft',
+      job_danfo_driver: 'driving',
+      job_food_seller: 'cooking',
+      job_office_worker: 'academics',
+      job_software_dev: 'coding',
+      job_construction: 'fitness',
+      job_security: 'fitness',
+    };
+    this.addSkillXp(skillMap[job.id] || 'hustle', 1);
+    this.data.activeJobShift = null;
+    this.saveData();
+    emitGameEvent('work_shift');
+    return { success: true, reward: pay, message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket and gained XP!` };
   }
 
   // === CAREER PROGRESSION ===
@@ -787,6 +1438,40 @@ export class BackendService {
     this.saveData();
     return { leveledUp, newTitle: this.data.career.title };
   }
+
+  // === TRAITS (src/life/Traits.ts) ===
+
+  public getTrait(): TraitId | null {
+    return this.data.trait ?? null;
+  }
+
+  /** Picks the character's trait. Like the origin, once picked it cannot be changed. */
+  public chooseTrait(id: TraitId): { applied: boolean; message: string } {
+    this.syncFromStorage();
+    const trait = traitById(id);
+    if (!trait) return { applied: false, message: 'That is not a trait.' };
+    if (this.data.trait) {
+      const mine = traitById(this.data.trait);
+      return { applied: false, message: `You are already ${mine?.name ?? 'set in your ways'}. A trait cannot be changed once picked.` };
+    }
+    this.data.trait = trait.id;
+    this.saveData();
+    this.notifyListeners();
+    this.onTraitChosen?.(trait.id);
+    return { applied: true, message: `${trait.icon} ${trait.name}: ${trait.blurb}` };
+  }
+
+  /** Takes on the trait the game server holds for this account (another device picked it first). */
+  public adoptTrait(id: unknown): void {
+    if (!isTraitId(id) || this.data.trait === id) return;
+    this.data.trait = id;
+    this.data.skillCarry = {};
+    this.saveData();
+    this.notifyListeners();
+  }
+
+  /** Set by the online account, to tell the server when a trait is picked */
+  public onTraitChosen?: (id: TraitId) => void;
 
   // === VIRAL ORIGIN DESTINY (Nepo vs. Lapo vs. Tech Bro) ===
 
@@ -869,10 +1554,13 @@ export class BackendService {
       this.data.stats.energy = 90;
       this.data.stats.hunger = 50;
       this.data.stats.streetCred = 80;
+      // Collected every week by the credit officer, the first a week from today (src/life/Dues.ts)
+      const today = this.dayNow?.();
       this.data.activeLoan = {
         lender: 'Lapo Microfinance Bank',
         amount: 50000,
         weeklyRepayment: 7500,
+        ...(today !== undefined ? { nextDueDay: today + 7 } : {}),
       };
 
       this.addItem({

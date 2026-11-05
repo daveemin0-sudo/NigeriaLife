@@ -1,27 +1,256 @@
 import * as THREE from 'three';
+import { Fridge } from '../../housing/Fridge';
+import { HomeStaff } from '../../housing/HomeStaff';
+import { Marriage } from '../../social/Marriage';
+import { QuitNotice } from '../../housing/QuitNotice';
+import type { LeaseView } from '../../life/Dues';
+import { Activity } from '../../life/Activity';
+import { Pets, PET_KINDS, PET_FOOD_PRICE } from '../../housing/Pets';
+import { Garden, SEEDS } from '../../housing/Garden';
+import { profileKey } from '../../backend/Profile';
 import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
-import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
+import { HouseDecorationSystem, type PlacedItem } from '../../housing/HouseDecorationSystem';
+import { Television, CHANNELS } from '../../housing/Television';
+import { TV_SCREEN, buildFurniture } from '../../housing/FurnitureModels';
+import { Builder } from '../../world/kit/ArchKit';
+import { PlaceActions, type PlaceAction, type PlaceHost } from '../../destinations/PlaceActions';
+import type { NavGrid } from '../../interactions/NavGrid';
+import { HomeLife, HOME } from '../home/HomeLife';
+import type { HomeStandard } from '../../housing/HomeStandard';
+import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
+import { roomDoor, DOOR_STYLES, type DoorStyle } from '../../housing/MoreFurniture';
+import { InteractionDirector, type InteractionDef } from '../../interactions/InteractionDirector';
+import type { PoseState } from '../../interactions/Poses';
+import { Sequence, steps } from '../../interactions/Sequence';
+import { showGameToast } from '../../ui/GameToast';
+import { planFor, briefOf, roomAt, type HomeBrief, type HomePlan, type Fixture } from '../../housing/HomePlan';
+
+/** A door in one of the home's own doorways */
+interface HomeDoor {
+  id: string;
+  name: string;
+  /** The middle of the doorway, in the home's own space */
+  x: number;
+  z: number;
+  /** Which way the wall runs: along x (0) or along z (a quarter turn) */
+  yaw: number;
+  /** Which side it swings to */
+  swing: 1 | -1;
+  holder: THREE.Group;
+  leaf: THREE.Object3D | null;
+  angle: number;
+  style: string;
+}
+/** How wide the home's own doorways are */
+const DOORWAY = 1.2;
+/** The carport: how many cars it takes, side by side, and how wide each bay is */
+const CARPORT_BAYS = 5;
+const CARPORT_BAY = 3.4;
+
+/** The uids of the four everyday pieces, and the cards that use them */
+const CORE_TV = 'home_tv';
+const CORE_CARDS: Record<string, string> = { home_bed: 'flat-bed', home_sofa: 'flat-tv', home_fridge: 'flat-fridge', home_drum: 'flat-drum' };
+const CORE_WORDS: Record<string, { name: string; category: string; description: string }> = {
+  'flat-tv': { name: 'Sofa & TV', category: 'Home Entertainment', description: 'Sit down and watch the Super Eagles. A little energy comes back while you relax.' },
+  'flat-bed': { name: 'Master Bed', category: 'Rest & Recovery', description: 'Lie down and sleep. Energy and health come back while you rest.' },
+  'flat-drum': { name: 'Water Drum & Bucket', category: 'Home Essentials', description: 'Cold borehole water and the red bucket. A quick bath wakes you up.' },
+  'flat-fridge': { name: 'Fridge', category: 'Kitchen', description: 'What you stocked it with: take something out, sit down and eat it.' },
+};
+
+type Starter = { uid?: string; id: string; x: number; z: number; turns: number };
 
 export class ResidentialInterior {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
+  /** Daily life in the apartment: bed, sofa and TV, fridge, bath */
+  public life: HomeLife;
 
   // Animated elements
   private fanBlades: THREE.Mesh[] = [];
   private fanHeads: THREE.Group[] = [];
   private tvScreen: THREE.Mesh | null = null;
+  /** The set on the living-room wall */
+  public television!: Television;
+  /** Sets the player has bought, by the piece of furniture each is */
+  public readonly sets = new Map<string, Television>();
+  private wallPaint!: THREE.MeshStandardMaterial;
+  private floorMat!: THREE.MeshStandardMaterial;
+  private furnitureIds: string[] = [];
   private animTime: number = 0;
+
+  /** How well the home came furnished: set from the home the player rents or owns, each time they come in */
+  public standard: HomeStandard = 'luxury';
+  public static standardNow: (() => HomeStandard) | null = null;
+  /** The player's own vehicles, as models, for the carport (set by the game) */
+  public static carsOwned: (() => THREE.Object3D[]) | null = null;
+  /** What the home came with, and in which homes */
+  private kits: Array<{ object: THREE.Object3D; on: readonly HomeStandard[] }> = [];
+  private kitSolids: Array<{ at: [number, number, number, number]; on: readonly HomeStandard[]; solid: { x: number; z: number; halfWidth: number; halfLength: number } | null }> = [];
+  private leather!: THREE.MeshStandardMaterial;
+  private coffeeTable!: THREE.Mesh;
+  private tvUnit!: THREE.Mesh;
+  private fridgeGroup!: THREE.Group;
+  private masterMattress!: THREE.Mesh;
+  private carportCars = new THREE.Group();
+  /** The furniture the home was built with, hidden once it has been handed over as the player's own pieces */
+  private builtIns: THREE.Object3D[] = [];
+  private fixedSolids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
+  /** Set once the home's own furniture has become the player's, to move, put away or sell */
+  private handedOver = false;
+  private readonly handedOverKey = profileKey('nigeria_life_home_handed_over_v1');
+  private room!: RoomForFurniture;
+  /** The doors in the home's own doorways */
+  private doors: HomeDoor[] = [];
+  /** What kind of home the player is coming into (set by the game): a self-contain, a room and parlour, so many bedrooms */
+  public static briefNow: (() => HomeBrief) | null = null;
+  /** The plan the home is built to now, and what was built for it */
+  public plan: HomePlan | null = null;
+  /** What was built for the plan, each its own piece of the room (so the camera can see past each one) */
+  private planParts: THREE.Object3D[] = [];
+  /** The cards of the fittings that are used (a toilet, a shower) */
+  private planCards: string[] = [];
+  private planSolids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
+  private exitDoor!: THREE.Group;
+  private exitCard!: InteractiveObject;
+  private carport!: THREE.Group;
+  private readonly doorsKey = profileKey('nigeria_life_home_doors_v1');
+
+  /** This only stands in homes of these standards */
+  private only(object: THREE.Object3D, ...on: HomeStandard[]): void {
+    this.kits.push({ object, on });
+    object.visible = on.includes(this.standard);
+  }
+
+  /** Floor taken up by something that only stands in homes of these standards */
+  private onlyBlock(x: number, z: number, halfWidth: number, halfLength: number, ...on: HomeStandard[]): void {
+    const entry = { at: [x, z, halfWidth, halfLength] as [number, number, number, number], on, solid: null as { x: number; z: number; halfWidth: number; halfLength: number } | null };
+    if (on.includes(this.standard)) entry.solid = this.life.block(x, z, halfWidth, halfLength);
+    this.kitSolids.push(entry);
+  }
+
+  /** The home the player is coming into: its name and where it is (set by the game) */
+  public static homeName: (() => { name: string; area: string } | null) | null = null;
+  /** Which of the player's homes it is: 'main' (the flat rented or bought) or a built house's plot (set by the game) */
+  public static homeId: (() => string) | null = null;
+  /** The lease of the rented home shown, when the landlord has served a quit notice on it */
+  public static noticeNow: (() => LeaseView | null) | null = null;
+
+  /** The player is coming in: the home is furnished as what they rent or own, and called by its name */
+  private gardenTimer = 0;
+
+  public onPlayerArriving(): void {
+    // Each home its own furniture: a house just built comes in bare, for the player to furnish
+    HouseDecorationSystem.getInstance().setHome(ResidentialInterior.homeId?.() ?? 'main');
+    Fridge.get().setHome(ResidentialInterior.homeId?.() ?? 'main');
+    this.applyPlan(planFor(ResidentialInterior.briefNow?.() ?? briefOf(null)));
+    const standard = ResidentialInterior.standardNow?.() ?? this.standard;
+    this.furnish(standard);
+    this.settleFurniture();
+    const home = ResidentialInterior.homeName?.();
+    this.def.name = home?.name ?? (standard === 'basic' ? 'Your room & parlour' : standard === 'comfortable' ? 'Your flat' : 'Your house');
+    if (home?.area) this.def.districtName = home.area;
+    HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
+    Marriage.get().syncHome(this.group, this.plan, this.interactiveList);
+    if (this.plan) QuitNotice.sync(this.group, this.plan, this.interactiveList, this.exitDoor, () => ResidentialInterior.noticeNow?.() ?? null);
+  }
+
+  /** In: their own vehicles stand in the carport */
+  public onPlayerEntered(): void {
+    this.parkCars();
+  }
+
+  /**
+   * The first time the player comes home, what the home came with becomes theirs: the same pieces
+   * from the catalogue, standing where the built ones stood, to move, put away or sell. From then
+   * on the built pieces stay hidden and are not solid, whatever home the player moves to.
+   */
+  private handOver(standard: HomeStandard): void {
+    if (!this.handedOver) {
+      let done = false;
+      try {
+        done = localStorage.getItem(this.handedOverKey) === '1';
+      } catch {
+        // No storage: handed over again each time the page is loaded, and adopt skips what is there
+      }
+      // Only the first home came furnished; a house the player builds is theirs to furnish
+      if (!done && HouseDecorationSystem.getInstance().homeId === 'main') {
+        HouseDecorationSystem.getInstance().adopt(this.startersFor(standard));
+        try {
+          localStorage.setItem(this.handedOverKey, '1');
+        } catch {
+          // As above
+        }
+      }
+      this.handedOver = true;
+    }
+    for (const object of this.builtIns) object.visible = false;
+    for (const kit of this.kits) kit.object.visible = false;
+    for (const entry of this.kitSolids) {
+      if (entry.solid) this.life.unblock(entry.solid);
+      entry.solid = null;
+    }
+    for (const solid of this.fixedSolids) this.life.unblock(solid);
+    this.fixedSolids = [];
+  }
+
+  /** Shows what a home of this standard came with, and makes it, and only it, solid. */
+  public furnish(standard: HomeStandard): void {
+    this.standard = standard;
+    for (const kit of this.kits) kit.object.visible = kit.on.includes(standard);
+    for (const entry of this.kitSolids) {
+      const wanted = entry.on.includes(standard);
+      if (wanted && !entry.solid) entry.solid = this.life.block(...entry.at);
+      if (!wanted && entry.solid) {
+        this.life.unblock(entry.solid);
+        entry.solid = null;
+      }
+    }
+    this.handOver(standard);
+    this.life.reblock();
+    // The player's own furniture keeps its floor
+    HouseDecorationSystem.getInstance().attach(this.room);
+    this.furnitureChanged();
+    // A first home: the sofa is old cloth, the table plastic, the television small on a table
+    const basic = standard === 'basic';
+    this.leather.color.setHex(basic ? 0x6b4f35 : 0x18181b);
+    this.leather.roughness = basic ? 0.95 : 0.6;
+    (this.coffeeTable.material as THREE.MeshStandardMaterial).color.setHex(basic ? 0xf1f5f9 : 0xfef08a);
+    this.coffeeTable.scale.set(basic ? 0.6 : 1, basic ? 1.1 : 1, basic ? 0.7 : 1);
+    const width = basic ? 1.6 : standard === 'comfortable' ? 3.0 : 6.2;
+    const k = width / 6.2;
+    const y = basic ? 1.55 : standard === 'comfortable' ? 2.1 : 2.4;
+    this.tvScreen?.scale.set(k, k, 1);
+    this.tvScreen?.position.setY(y);
+    this.tvUnit.scale.set(1, (2.8 * k + 0.4) / 3.2, (6.2 * k + 0.3) / 6.5);
+    this.tvUnit.position.setY(y);
+    this.fridgeGroup.scale.set(basic ? 0.8 : 1, basic ? 0.55 : 1, basic ? 0.8 : 1);
+    (this.masterMattress.material as THREE.MeshStandardMaterial).color.setHex(basic ? 0x93c5fd : 0x7c3aed);
+  }
+
+  /** The carport has the player's own vehicles in it, one to a bay, up to five, and nothing if they have none */
+  private parkCars(): void {
+    this.carportCars.clear();
+    const cars = (ResidentialInterior.carsOwned?.() ?? []).slice(0, CARPORT_BAYS);
+    cars.forEach((car, i) => {
+      // Side by side down the carport, nose to the house
+      car.position.set(0, 0, (i - (CARPORT_BAYS - 1) / 2) * CARPORT_BAY);
+      car.rotation.set(0, -Math.PI / 2, 0);
+      car.visible = true;
+      this.carportCars.add(car);
+    });
+  }
 
   constructor() {
     this.group = new THREE.Group();
     // Isolated coordinate area for residential interior
     const origin = new THREE.Vector3(260, 0, 440);
     this.group.position.copy(origin);
+    this.life = new HomeLife(this.group, origin);
 
     this.def = {
       id: 'interior_residence',
@@ -37,7 +266,8 @@ export class ResidentialInterior {
       exitDoorOffset: new THREE.Vector3(0, 0, 11),
       cameraOffset: new THREE.Vector3(0, 16, 20),
       ambientLightColor: 0xffedd5,
-      ambientLightIntensity: 1.3,
+      // Bright at any hour: the POP lights and the cove strips do the rest
+      ambientLightIntensity: 1.55,
       rooms: [
         {
           id: 'residence_main',
@@ -48,158 +278,614 @@ export class ResidentialInterior {
           wallColor: 0xd97706, // Warm Ochre / Mustard Yellow (Screenshot 5)
         },
       ],
-      stations: [
-        {
-          id: 'flat-tv',
-          name: '75-Inch Smart TV & Soundbar',
-          category: 'Home Entertainment',
-          description: 'Live Super Eagles vs Rivals match streaming in 4K. Tap to cheer & dance!',
-          relativePosition: new THREE.Vector3(-10, 0, 3),
-          actions: [
-            {
-              id: 'watch_super_eagles',
-              label: '📺 Watch Super Eagles AFCON Match (Cheer & Dance)',
-              description: 'Watch live football broadcast with stadium roar.',
-              rewardEnergy: 30,
-              rewardCred: 5,
-              dialogueResponse: '⚽ GOOOAAAL! Super Eagles score a screamer! You dance with joy! Energy boosted +30%!',
-            },
-          ],
-        },
-        {
-          id: 'flat-bed',
-          name: 'King-Size Royal Master Bed',
-          category: 'Rest & Recovery',
-          description: 'Memory foam mattress with air conditioning blowing. Restores 100% full energy!',
-          relativePosition: new THREE.Vector3(7.5, 0, -5.5),
-          actions: [
-            {
-              id: 'sleep_luxury_bed',
-              label: '🛏️ Sleep on Luxury Bed (100% Full Energy Recharge)',
-              description: 'Fall into deep restorative sleep under luxury duvet.',
-              rewardEnergy: 100,
-              rewardHealth: 100,
-              dialogueResponse: '💤 You rest peacefully with the AC blowing. 100% Full Energy and Health restored!',
-            },
-          ],
-        },
-        {
-          id: 'flat-drum',
-          name: 'Nigerian Blue Plastic Water Drum & Red Bucket',
-          category: 'Home Essentials',
-          description: 'The undefeated symbol of Nigerian domestic resilience! Filled with chilled borehole water.',
-          relativePosition: new THREE.Vector3(8.5, 0, 5.5),
-          actions: [
-            {
-              id: 'fetch_water_bath',
-              label: '🪣 Fetch Chilled Water & Bath with Red Bowl (Hygiene +100%)',
-              description: 'Fetch chilled water with the red plastic bucket and take a refreshing bath.',
-              rewardEnergy: 40,
-              rewardHealth: 40,
-              dialogueResponse: '💧 Refreshing bath taken with the red bowl! Cool chilled borehole water clears your head. Energy +40%!',
-            },
-          ],
-        },
-        {
-          id: 'flat-workstation',
-          name: 'Remote Tech Workstation',
-          category: 'Remote Work',
-          description: 'Ergonomic dual-monitor setup with high-speed fiber internet for remote freelancing gigs.',
-          relativePosition: new THREE.Vector3(-6.5, 0, -5.5),
-          actions: [
-            {
-              id: 'work_remote_sprint',
-              label: '💻 Complete Remote Tech Engineering Sprint (+₦12,000 Cash)',
-              description: 'Ship code review and backend API endpoint for international client.',
-              rewardCash: 12000,
-              rewardCred: 20,
-              dialogueResponse: '💻 Pull request approved and merged into production! ₦12,000 remote salary credited to your wallet! Street Cred +20!',
-            },
-          ],
-        },
-      ],
+      // What can be done here is registered in build3DInterior and acted out by HomeLife
+      stations: [],
       npcs: [],
     };
 
     this.build3DInterior();
   }
 
-  private build3DInterior(): void {
-    // 1. Ceramic Tiled Floor with Grid Grout Lines
-    const floorGeo = new THREE.BoxGeometry(32, 0.4, 26);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9,
-      roughness: 0.25,
-    });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.position.set(0, -0.2, 0);
-    floor.receiveShadow = true;
-    this.group.add(floor);
+  /** Floor map used to walk around the furniture and through the doorways. */
+  public get nav(): NavGrid {
+    return this.life.nav;
+  }
 
-    // Warm Ochre / Mustard Yellow Walls (Screenshot 5)
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: 0xd97706, // Authentic Nigerian ochre wall paint
-      roughness: 0.7,
-    });
-    const wallH = 4.2;
-    const wallT = 0.4;
+  public onPlayerLeft(): void {
+    this.life.playerLeft();
+    // A piece half put down is not left standing in the air
+    HouseDecorationSystem.getInstance().cancel();
+  }
 
-    // Outer boundary walls (cutaway height so camera sees inside clearly)
-    // Back Wall
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(32, wallH, wallT), wallMat);
-    backWall.position.set(0, wallH / 2, -13);
-    this.group.add(backWall);
+  /** Every television in the home, the one on the wall first. */
+  public televisions(): Television[] {
+    return [this.television, ...this.sets.values()];
+  }
 
-    // Windows with Burglar-Proof Metal Bars along back wall (Screenshot 5)
-    for (const wx of [-10, 0, 10]) {
-      this.createBurglarProofWindow(wx, 2.4, -12.8);
+  /** The set someone sitting down is watching: one that is on, or the one on the wall. */
+  private watched(): Television {
+    return this.televisions().find((set) => set.on) ?? this.television;
+  }
+
+  /**
+   * The furniture the player has put in the home has changed: each piece is something to walk
+   * up to (sit on it, turn it on, move it, sell it), and what was sold is forgotten.
+   */
+  private furnitureChanged(): void {
+    const decor = HouseDecorationSystem.getInstance();
+    const origin = this.group.position;
+    for (const id of this.furnitureIds) PlaceActions.unregister(id);
+    this.furnitureIds = [];
+    for (let i = this.interactiveList.length - 1; i >= 0; i--) {
+      if (this.interactiveList[i].id.startsWith('home_item_')) this.interactiveList.splice(i, 1);
     }
+    const standing = new Set<string>();
+    for (const item of decor.placed) {
+      standing.add(item.uid);
+      if (decor.placing?.moving === item) continue;
+      const entry = decor.catalogueItem(item.id);
+      const size = decor.footprint(item.modelType, item.turns);
+      const face = decor.facing(item.turns);
+      const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.8;
+      if (decor.kind(item.modelType).use === 'tv' && !this.sets.has(item.uid)) {
+        const screen = item.mesh.getObjectByName(TV_SCREEN) as THREE.Mesh | undefined;
+        if (screen) this.sets.set(item.uid, new Television(screen));
+      }
+      const core = CORE_CARDS[item.uid];
+      if (core) {
+        this.followCore(core, item, origin);
+        continue;
+      }
+      const id = `home_item_${item.uid}`;
+      this.furnitureIds.push(id);
+      this.interactiveList.push({
+        mesh: item.mesh,
+        id,
+        name: entry?.name ?? 'Furniture',
+        category: 'Your furniture',
+        description: entry?.description ?? 'Yours, to move or sell.',
+        interactionPoint: new THREE.Vector3(origin.x + item.x + face.x * reach, 0, origin.z + item.z + face.z * reach),
+      });
+      PlaceActions.register(id, this.furnitureAction(item));
+    }
+    // The plants as they stand, and each pet at its home
+    this.refreshGarden();
+    this.refreshPets();
+    HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
+    for (const uid of [...this.sets.keys()]) {
+      if (!standing.has(uid)) this.sets.delete(uid);
+    }
+    // An everyday piece sold or put away takes its card with it
+    if (this.handedOver) {
+      for (const [uid, card] of Object.entries(CORE_CARDS)) {
+        if (standing.has(uid) && decor.placing?.moving?.uid !== uid) continue;
+        const at = this.interactiveList.findIndex((o) => o.id === card);
+        if (at >= 0) this.interactiveList.splice(at, 1);
+      }
+    }
+  }
 
-    // Left Wall
-    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 26), wallMat);
-    leftWall.position.set(-16, wallH / 2, 0);
-    this.group.add(leftWall);
+  /**
+   * One of the four everyday pieces (bed, sofa, fridge, water drum): its card keeps its name and
+   * what it does, stands where the piece now is, and the walk to use it goes there. Moving,
+   * putting away and selling it are on the card's second button.
+   */
+  private followCore(card: string, item: PlacedItem, origin: THREE.Vector3): void {
+    const decor = HouseDecorationSystem.getInstance();
+    const kind = decor.kind(item.modelType);
+    const turn = (item.turns * Math.PI) / 2;
+    const face = decor.facing(item.turns);
+    const size = decor.footprint(item.modelType, item.turns);
+    const onIt = (x: number, z: number) => new THREE.Vector3(item.x + x * Math.cos(turn) + z * Math.sin(turn), 0, item.z - x * Math.sin(turn) + z * Math.cos(turn));
+    const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.6;
+    const front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
+    let stand = front;
+    if (card === 'flat-bed' && kind.bed) {
+      HOME.bed.root.copy(onIt(kind.bed.x, kind.bed.z));
+      const sides = [onIt(kind.bed.side + 0.6, 0.3), onIt(-kind.bed.side - 0.6, 0.3)];
+      HOME.bed.side.copy(sides.find((point) => this.life.nav.isFree(origin.x + point.x, origin.z + point.z)) ?? sides[0]);
+      HOME.bed.top = kind.bed.top;
+      HOME.bed.facing = turn;
+      stand = HOME.bed.side;
+    } else if (card === 'flat-tv' && kind.seat) {
+      HOME.sofa.seat.copy(onIt(kind.seat.x, kind.seat.z));
+      HOME.sofa.front.copy(front);
+      HOME.sofa.facing = Math.atan2(face.x, face.z);
+    } else if (card === 'flat-fridge') {
+      HOME.fridge.position.set(item.x, 0, item.z);
+      HOME.fridge.front.copy(front);
+    } else if (card === 'flat-drum') {
+      HOME.drum.position.set(item.x, 0, item.z);
+      HOME.drum.front.copy(front);
+    }
+    const existing = this.interactiveList.find((o) => o.id === card);
+    const entry = existing ?? { id: card, name: '', category: '', description: '', mesh: item.mesh, interactionPoint: new THREE.Vector3() };
+    entry.mesh = item.mesh;
+    entry.interactionPoint.set(origin.x + stand.x, 0, origin.z + stand.z);
+    if (!existing) {
+      const words = CORE_WORDS[card];
+      Object.assign(entry, words);
+      this.interactiveList.push(entry);
+    }
+    PlaceActions.register(`${card}:move`, this.pieceChoices(item));
+    PlaceActions.register('home_spouse', {
+      label: () => {
+        const m = Marriage.get().currentMarriage();
+        return m ? `❤️ Gist with ${m.spouseName}` : '❤️ Gist with your spouse';
+      },
+      run: (host) => {
+        const m = Marriage.get().currentMarriage();
+        if (!m) return;
+        host.ask({
+          who: m.spouseName,
+          role: 'Your Spouse',
+          text: `Welcome home, my love! How was Lagos traffic today? I made sure the house is warm and there is fresh food in the fridge for you.`,
+          choices: [
+            {
+              label: '🤗 Embrace & Gist (+25 Social, +20 Fun)',
+              note: 'Free',
+              pick: () => {
+                host.director.perform({
+                  id: 'gist with spouse',
+                  actor: host.actor,
+                  point: new THREE.Vector3(0.8, 0, 0.2),
+                  target: new THREE.Vector3(0.8, 0, -1.2),
+                  animation: { arms: 'wave' },
+                  seconds: 2.0,
+                  effectAt: 0.8,
+                  effect: () => {
+                    host.backend.modifyNeed('social', 25);
+                    host.backend.modifyNeed('fun', 20);
+                    showGameToast(`❤️ You shared a sweet hug and gist with ${m.spouseName}.`, 'success', 3600);
+                  },
+                });
+              },
+            },
+            {
+              label: '🍲 Ask what is in the fridge',
+              note: 'Check fridge',
+              pick: () => {
+                showGameToast(`🍲 ${m.spouseName}: "I put hot pepper soup and jollof in the fridge for you, dear!"`, 'info', 4000);
+              },
+            },
+          ],
+        });
+      },
+    });
+  }
 
-    // Right Wall
-    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 26), wallMat);
-    rightWall.position.set(16, wallH / 2, 0);
-    this.group.add(rightWall);
+  /** Move it, put it away, or sell it: for a piece whose card is for using it */
+  private pieceChoices(item: PlacedItem): PlaceAction {
+    const decor = HouseDecorationSystem.getInstance();
+    const name = decor.catalogueItem(item.id)?.name ?? 'Furniture';
+    return {
+      label: () => '🪑 Move, store or sell',
+      run: (host) => host.ask({ who: name, role: 'Your furniture', text: 'What do you want to do with it?', choices: [
+        { label: 'Move it', note: 'Free', pick: () => { decor.pickUp(item.uid); } },
+        { label: 'Put it in storage', note: 'Place it again later, free', pick: () => { if (decor.putAway(item.uid)) host.say(`${name} is in storage. Find it under Storage in the catalogue.`, 'success'); } },
+        { label: 'Sell it', note: `₦${decor.resaleValue(item).toLocaleString()} back`, pick: () => { const sold = decor.sell(item.uid); if (sold.ok) host.say(`${name} sold. ₦${sold.refund.toLocaleString()} back.`, 'info'); } },
+      ] }),
+    };
+  }
 
-    // Dividing Walls between Rooms (Living, Bedrooms, Bathroom)
-    // Horizontal divider separating Bedrooms from Living Room
-    const divH = new THREE.Mesh(new THREE.BoxGeometry(22, wallH, wallT), wallMat);
-    divH.position.set(-5, wallH / 2, -1);
-    this.group.add(divH);
+  /** Where to stand at a piece, and the piece itself, in the world */
+  /**
+   * A piece of furniture used the way a person uses it: walked up to, faced, worked at for a
+   * while, each part's effect landing as it is done. Walking off before then changes nothing.
+   */
+  private actOut(item: PlacedItem, host: PlaceHost, parts: Array<{ pose: Partial<PoseState>; seconds: number; effect?: () => void }>): void {
+    const { stand, at } = this.standAt(item);
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    host.director.perform(parts.map((part, i): InteractionDef => ({
+      id: `use the ${item.modelType.replace(/_/g, ' ')}${i ? ` ${i + 1}` : ''}`,
+      actor,
+      point: i === 0 ? stand : undefined,
+      target: at,
+      animation: part.pose,
+      seconds: part.seconds,
+      effectAt: 0.75,
+      nav: this.life.nav,
+      ifStuck: 'snap',
+      effect: part.effect,
+    })));
+  }
 
-    // Vertical divider separating Master Bedroom from Center Bedroom
-    const divV1 = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 12), wallMat);
-    divV1.position.set(2, wallH / 2, -7);
-    this.group.add(divV1);
+  private standAt(item: PlacedItem): { stand: THREE.Vector3; at: THREE.Vector3 } {
+    const decor = HouseDecorationSystem.getInstance();
+    const size = decor.footprint(item.modelType, item.turns);
+    const face = decor.facing(item.turns);
+    const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.7;
+    const o = this.group.position;
+    return { stand: new THREE.Vector3(o.x + item.x + face.x * reach, 0, o.z + item.z + face.z * reach), at: new THREE.Vector3(o.x + item.x, 0, o.z + item.z) };
+  }
 
-    // Vertical divider separating Bathroom
-    const divV2 = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 13), wallMat);
-    divV2.position.set(6, wallH / 2, 5.5);
-    this.group.add(divV2);
+  /** The planter: sow a seed, water it once, harvest it into the bag; all done on the spot */
+  private gardenChoices(item: PlacedItem, host: PlaceHost, choices: Array<{ label: string; note?: string; pick: () => void }>): void {
+    const garden = Garden.get();
+    const v = garden.view(item.uid);
+    const { stand, at } = this.standAt(item);
+    const act = (id: string, arms: 'reach' | 'wave', seconds: number, effect: () => void) => host.director.perform({ id, actor: host.actor, point: stand, target: at, animation: { arms }, seconds, effectAt: 0.7, ifStuck: 'snap', effect: () => { effect(); this.refreshGarden(); } });
+    if (!v) {
+      const fits = item.modelType === 'flower_pots' ? SEEDS.filter((s) => s.kind === 'flower' || s.minutes <= 10) : SEEDS;
+      for (const seed of fits) {
+        choices.push({
+          label: `${seed.icon} Sow ${seed.name}`,
+          note: `₦${seed.price.toLocaleString()} · ready in ${seed.minutes >= 60 ? `${seed.minutes / 60} h` : `${seed.minutes} min`}`,
+          pick: () => {
+            if (!host.backend.pay(seed.price, `Seeds: ${seed.name}`, 'SHOP_PURCHASE')) { host.say(`Seeds are ₦${seed.price}. You do not have it.`, 'warning'); return; }
+            act('sow seeds', 'reach', 1.8, () => { garden.plant(item.uid, seed.id); host.say(`${seed.icon} Sown. Water it when the shoots are up.`, 'success'); });
+          },
+        });
+      }
+      return;
+    }
+    if (v.ready) {
+      choices.push({
+        label: `🧺 Harvest the ${v.seed.name.toLowerCase()}`,
+        note: v.seed.kind === 'flower' ? 'A bouquet, kept fresh in the fridge' : `${v.seed.crop.qty} × ${v.seed.crop.name} into the fridge`,
+        pick: () => act('harvest the garden', 'reach', 2.0, () => {
+          const s = garden.harvest(item.uid);
+          if (!s) return;
+          // Picked and kept cold in the fridge: eaten from there, or a bouquet taken out to give
+          const crop = { id: s.crop.id, name: s.crop.name, icon: s.crop.icon, category: 'food' as const, description: s.kind === 'flower' ? 'Fresh from your own garden. Gift it, or sell it at the market.' : 'From your own garden: cook it or eat it.', price: s.crop.sell, usable: s.kind !== 'flower', energyRestore: s.crop.restore };
+          Fridge.get().put(crop, s.crop.qty);
+          host.backend.modifyNeed('fun', s.kind === 'flower' ? 15 : 8);
+          Activity.emit({ kind: 'acted', id: `harvest ${s.id}` });
+          host.say(`${s.crop.icon} ${s.crop.qty > 1 ? `${s.crop.qty} × ` : ''}${s.crop.name} picked and put in your fridge. Home grown!`, 'success');
+        }),
+      });
+    } else if (v.thirsty) {
+      choices.push({ label: `💧 Water the ${v.seed.name.toLowerCase()}`, note: 'It will not grow on without water', pick: () => act('water the garden', 'wave', 1.6, () => { garden.water(item.uid); host.say('💧 Watered. It will grow on now.', 'success'); }) });
+    } else {
+      choices.push({ label: `${v.seed.icon} ${Math.round(v.progress * 100)}% grown`, note: `${v.minutesLeft} min to go`, pick: () => undefined });
+    }
+  }
 
-    // 2. Ceiling & Ambient Lights
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-6, 4.0, 4), 0xffedd5));
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(8, 4.0, -6), 0xffedd5));
-    this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(-5, 4.0, -6), 0xffedd5));
+  /** A pet's home: adopt the pet, then feed it and play with it */
+  private petChoices(item: PlacedItem, host: PlaceHost, choices: Array<{ label: string; note?: string; pick: () => void }>): void {
+    const pets = Pets.get();
+    const kind = Pets.kindFor(item.modelType);
+    if (!kind) return;
+    const info = PET_KINDS[kind];
+    const pet = pets.at(item.uid);
+    const { stand, at } = this.standAt(item);
+    const act = (id: string, arms: 'reach' | 'wave', seconds: number, effect: () => void) => host.director.perform({ id, actor: host.actor, point: stand, target: at, animation: { arms }, seconds, effectAt: 0.6, ifStuck: 'snap', effect });
+    if (!pet) {
+      choices.push({
+        label: `${info.icon} Adopt a ${info.name.toLowerCase()}`,
+        note: pets.count >= 3 ? 'Three pets is enough for one house' : `₦${info.price.toLocaleString()}`,
+        pick: () => {
+          if (pets.count >= 3) { host.say('Three pets is enough for one house.', 'info'); return; }
+          if (!host.backend.pay(info.price, `Adopted: a ${info.name.toLowerCase()}`, 'SHOP_PURCHASE')) { host.say(`A ${info.name.toLowerCase()} is ₦${info.price.toLocaleString()}. You do not have it.`, 'warning'); return; }
+          act('adopt a pet', 'reach', 1.5, () => {
+            const name = pets.adopt(item.uid, kind);
+            this.refreshPets();
+            host.backend.modifyNeed('fun', 25);
+            host.backend.modifyNeed('social', 15);
+            Activity.emit({ kind: 'acted', id: `adopt a ${kind}` });
+            host.say(`${info.icon} Meet ${name}! ${info.sound}`, 'success');
+          });
+        },
+      });
+      return;
+    }
+    choices.push({
+      label: `🍖 Feed ${pet.name}`,
+      note: `₦${PET_FOOD_PRICE} · hunger ${pet.hunger}%`,
+      pick: () => {
+        if (!host.backend.pay(PET_FOOD_PRICE, `Pet food for ${pet.name}`, 'SHOP_PURCHASE')) { host.say('Pet food is ₦500.', 'warning'); return; }
+        act('feed the pet', 'reach', 1.4, () => { pets.feed(item.uid); host.backend.modifyNeed('fun', 5); host.say(`${info.icon} ${pet.name} eats every bit. ${info.sound}`, 'success'); });
+      },
+    });
+    choices.push({
+      label: `🎾 Play with ${pet.name}`,
+      note: 'Fun +20, social +10',
+      pick: () => act('play with the pet', 'wave', 2.2, () => { pets.play(item.uid); host.backend.modifyNeed('fun', 20); host.backend.modifyNeed('social', 10); Activity.emit({ kind: 'acted', id: 'play with a pet' }); host.say(`${info.icon} ${pet.name} is jumping for joy. ${info.sound}`, 'success'); }),
+    });
+  }
+
+  /** The plants in every planter, drawn as they stand now */
+  private refreshGarden(): void {
+    const decor = HouseDecorationSystem.getInstance();
+    for (const item of decor.placed) if (decor.kind(item.modelType).use === 'garden') Garden.get().dress(item.uid, item.mesh, item.modelType);
+  }
+
+  /** Each pet at its home */
+  private refreshPets(): void {
+    const decor = HouseDecorationSystem.getInstance();
+    for (const item of decor.placed) {
+      if (decor.kind(item.modelType).use !== 'pet') continue;
+      Pets.get().ensure(item.uid, item.mesh, this.group, new THREE.Vector3(item.x, 0, item.z));
+    }
+  }
+
+  /** What can be done at a piece of the player's own furniture. */
+  private furnitureAction(item: PlacedItem): PlaceAction {
+    const decor = HouseDecorationSystem.getInstance();
+    const kind = decor.kind(item.modelType);
+    const name = decor.catalogueItem(item.id)?.name ?? 'Furniture';
+    return {
+      label: () => {
+        const set = this.sets.get(item.uid);
+        if (item.modelType === 'toilet_wc') return '🚽 Use the toilet, move it or sell it';
+        if (kind.use === 'seat') return '🛋️ Sit down, move it or sell it';
+        if (kind.use === 'bed') return '🛏️ Sleep in it, move it or sell it';
+        if (kind.use === 'tv') return set?.on ? `📺 On: ${set.showing()}` : '📺 Turn it on, move it or sell it';
+        if (kind.use === 'cook') return '🍳 Cook food, move it or sell it';
+        if (kind.use === 'bath') return '🛁 Bath & Spa, move it or sell it';
+        if (kind.use === 'game') return '🎮 Play PS5, move it or sell it';
+        if (kind.use === 'work') return '💻 Workstation, move it or sell it';
+        if (kind.use === 'music') return '🎹 Play music, move it or sell it';
+        if (kind.use === 'snooker') return '🎱 Play snooker, move it or sell it';
+        if (kind.use === 'fitness') return '🏋️ Workout, move it or sell it';
+        if (kind.use === 'drink') return '🧊 Refreshment, move it or sell it';
+        if (kind.use === 'power') return '⚡ Generator / Inverter, move it or sell it';
+        if (kind.use === 'clean') return item.modelType === 'smart_mirror' ? '🪞 Mirror, move it or sell it' : '🧺 Laundry, move it or sell it';
+        if (kind.use === 'door') return '🚪 Move the door or sell it';
+        if (kind.use === 'garden') {
+          const v = Garden.get().view(item.uid);
+          return !v ? '🌱 Sow something, move it or sell it' : v.ready ? `🧺 Harvest the ${v.seed.name.toLowerCase()}` : v.thirsty ? `💧 Water the ${v.seed.name.toLowerCase()}` : `🌱 ${v.seed.icon} ${Math.round(v.progress * 100)}% grown · ${v.minutesLeft} min`;
+        }
+        if (kind.use === 'pet') {
+          const pet = Pets.get().at(item.uid);
+          const petKind = Pets.kindFor(item.modelType);
+          return pet ? `${PET_KINDS[pet.kind].icon} ${pet.name}: ${pet.mood}` : petKind ? `${PET_KINDS[petKind].icon} Adopt a ${PET_KINDS[petKind].name.toLowerCase()}` : '🐾 Pet home';
+        }
+        if (item.modelType === 'split_ac') return '❄️ AC, move it or sell it';
+        if (item.modelType === 'wall_clock') return '🕰️ Clock, move it or sell it';
+        if (item.modelType === 'wall_art') return '🖼️ Artwork, move it or sell it';
+        if (item.modelType === 'wall_mirror') return '🪞 Mirror, move it or sell it';
+        return '🪑 Move it or sell it';
+      },
+      run: (host) => {
+        const set = this.sets.get(item.uid);
+        const choices: Array<{ label: string; note?: string; pick: () => void }> = [];
+        if (kind.use === 'seat' && kind.seat) {
+          const turn = (item.turns * Math.PI) / 2;
+          const face = decor.facing(item.turns);
+          const size = decor.footprint(item.modelType, item.turns);
+          const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.55;
+          const seat = new THREE.Vector3(item.x + kind.seat.x * Math.cos(turn) + kind.seat.z * Math.sin(turn), 0, item.z - kind.seat.x * Math.sin(turn) + kind.seat.z * Math.cos(turn));
+          const front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
+          if (item.modelType === 'toilet_wc') choices.push({ label: 'Use the toilet', note: 'Bladder back to 100', pick: () => { this.life.useToilet(seat, front, Math.atan2(face.x, face.z)); } });
+          else choices.push({ label: 'Sit down', pick: () => { this.life.sitAt(seat, front, Math.atan2(face.x, face.z)); } });
+        }
+        if (kind.use === 'bed' && kind.bed) {
+          // Its foot points the way the piece faces; the sleeper gets in from whichever side has room to stand
+          const turn = (item.turns * Math.PI) / 2;
+          const onIt = (x: number, z: number) => new THREE.Vector3(item.x + x * Math.cos(turn) + z * Math.sin(turn), 0, item.z - x * Math.sin(turn) + z * Math.cos(turn));
+          const feet = onIt(kind.bed.x, kind.bed.z);
+          const origin = this.group.position;
+          const sides = [onIt(kind.bed.side + 0.6, 0.3), onIt(-kind.bed.side - 0.6, 0.3)];
+          const side = sides.find((point) => this.life.nav.isFree(origin.x + point.x, origin.z + point.z)) ?? sides[0];
+          const top = kind.bed.top;
+          choices.push({ label: 'Lie down and sleep', pick: () => { this.life.sleepAt(feet, side, turn, top); } });
+        }
+        if (kind.use === 'tv' && set) {
+          for (const channel of CHANNELS) {
+            choices.push({ label: `${channel.icon} ${channel.name}`, note: set.on && set.channel === channel.id ? 'On now' : undefined, pick: () => { set.turnOn(channel.id); this.life.refresh(); } });
+          }
+          if (set.on) choices.push({ label: 'Turn it off', pick: () => { set.turnOff(); this.life.refresh(); } });
+        }
+        if (kind.use === 'garden') this.gardenChoices(item, host, choices);
+        if (kind.use === 'pet') this.petChoices(item, host, choices);
+        if (kind.use === 'cook') {
+          choices.push({
+            label: 'Cook Party Jollof & Fried Dodo',
+            note: 'Hunger +60, Cooking +1',
+            pick: () => this.actOut(item, host, [
+              { pose: { arms: 'reach' }, seconds: 4.5, effect: () => { host.say('🍳 The jollof is done and the dodo fried golden.', 'info'); } },
+              { pose: { arms: 'eat' }, seconds: 3, effect: () => {
+                (host as any).backend.modifyNeed('hunger', 60);
+                (host as any).backend.modifyNeed('energy', -10);
+                (host as any).backend.addSkillExp('cooking', 1);
+                host.say('You ate your smoky party jollof with sweet fried plantain. Hunger replenished, cooking +1.', 'success');
+              } },
+            ]),
+          });
+          choices.push({
+            label: 'Boil Tea & Breakfast Coffee',
+            note: 'Energy +25',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 2.5, effect: () => {
+              (host as any).backend.modifyNeed('energy', 25);
+              (host as any).backend.modifyNeed('hunger', 15);
+              host.say('Hot brew prepared! Energy +25.', 'success');
+            } }]),
+          });
+        }
+        if (kind.use === 'bath') {
+          // In a tub or a jacuzzi they get in and soak, sat down in the water; at a shower or a bucket they stand and wash
+          const soak = /bathtub|jacuzzi/.test(item.modelType);
+          const { stand, at } = this.standAt(item);
+          choices.push({
+            label: soak ? (item.modelType.includes('jacuzzi') ? 'Get in the jacuzzi and soak' : 'Run a bath and soak') : item.modelType.includes('bucket') ? 'Bucket bath' : 'Take a shower',
+            note: soak ? 'Hygiene full, Energy +30, Fun +25' : 'Hygiene full, Energy +20',
+            pick: () => {
+              const actor = host.actor;
+              if (host.director.interrupt(actor) === 'locked') return;
+              const wash = new Sequence(soak ? 'soak in the bath' : 'wash', [actor]).add(
+                steps.walk(actor, stand, { nav: this.life.nav, ifStuck: 'snap' }),
+                steps.face(actor, at),
+                steps.slide(actor, at, 0.6),
+                soak ? steps.setPose(actor, { legs: 'sit', arms: 'rest' }) : steps.setPose(actor, { legs: 'stand', arms: 'reach' }),
+                steps.animate(actor, soak ? { arms: 'rest' } : { arms: 'reach' }, soak ? 5.5 : 3.2, [{ at: 0.75, run: () => {
+                  host.backend.takeShower();
+                  host.backend.rest(soak ? 30 : 20, 10);
+                  if (soak) host.backend.modifyNeed('fun', 25);
+                  host.say(soak ? '🛁 A long warm soak. Clean, rested and happy: hygiene full.' : '🚿 Washed clean. Hygiene full, Energy +20.', 'success');
+                } }]),
+                steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
+                steps.slide(actor, stand, 0.6),
+              );
+              host.director.run(wash);
+            },
+          });
+        }
+        if (kind.use === 'game') {
+          choices.push({
+            label: 'Play PS5 Tournament',
+            note: 'Fun +40, Energy -10',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'carry' }, seconds: 5, effect: () => {
+              (host as any).backend.modifyNeed('fun', 40);
+              (host as any).backend.modifyNeed('energy', -10);
+              host.say('Intense gaming championship match with the squad! Fun +40.', 'success');
+            } }]),
+          });
+        }
+        if (kind.use === 'work') {
+          choices.push({
+            label: 'Code Tech Startup MVP',
+            note: 'Coding +1, Energy -15',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 5, effect: () => {
+              (host as any).backend.addSkillExp('coding', 1);
+              (host as any).backend.modifyNeed('energy', -15);
+              host.say('Deployed 3 clean microservices to production! Coding skill +1.', 'success');
+            } }]),
+          });
+        }
+        if (kind.use === 'music') {
+          choices.push({
+            label: 'Play Afrobeats Melodies',
+            note: 'Music +1, Fun +30',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'drum' }, seconds: 4.5, effect: () => {
+              (host as any).backend.addSkillExp('music', 1);
+              (host as any).backend.modifyNeed('fun', 30);
+              host.say('Playing soulful Afrobeats chords and bass grooves! Music +1, Fun +30.', 'success');
+            } }]),
+          });
+        }
+        if (kind.use === 'snooker') {
+          choices.push({
+            label: 'Play a Game of Snooker',
+            note: 'Fun +35, Hustle +1',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 5, effect: () => {
+              (host as any).backend.modifyNeed('fun', 35);
+              (host as any).backend.addSkillExp('hustle', 1);
+              host.say('Pocketed the black ball with an exquisite spin shot! Fun +35, Hustle +1.', 'success');
+            } }]),
+          });
+        }
+        if (kind.use === 'fitness') {
+          choices.push({
+            label: 'Cardio & Dumbbell Workout',
+            note: 'Fitness +1, Energy -20',
+            pick: () => this.actOut(item, host, [{ pose: { legs: 'walk', arms: 'swing' }, seconds: 5, effect: () => {
+              (host as any).backend.addSkillExp('fitness', 1);
+              (host as any).backend.modifyNeed('energy', -20);
+              (host as any).backend.modifyNeed('hygiene', -15);
+              host.say('Crushed 5km on the treadmill and dumbbell presses! Fitness skill +1.', 'success');
+            } }]),
+          });
+        }
+        if (kind.use === 'drink') {
+          choices.push({
+            label: 'Pour Ice-Cold Chapman & Refreshment',
+            note: 'Hunger -20, Fun +15',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'eat' }, seconds: 2.5, effect: () => {
+              (host as any).backend.modifyNeed('hunger', -20);
+              (host as any).backend.modifyNeed('fun', 15);
+              host.say('Poured a chilled Chapman with cucumber and Angostura bitters! So refreshing.', 'success');
+            } }]),
+          });
+        }
+        if (kind.use === 'power') {
+          choices.push({
+            label: 'Start Standby Generator / Inverter Power',
+            note: 'NEPA Backup',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1.8, effect: () => {
+              host.say('Engine hums smoothly with stable 230V sine-wave output. Full household power guaranteed!', 'success');
+            } }]),
+          });
+        }
+        if (kind.use === 'clean' && item.modelType !== 'smart_mirror') {
+          choices.push({
+            label: 'Run Automatic Wash & Dry Cycle',
+            note: 'Hygiene +25',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 3, effect: () => {
+              (host as any).backend.modifyNeed('hygiene', 25);
+              host.say('Clothes washed, sanitized and smelling crisp! Hygiene +25.', 'success');
+            } }]),
+          });
+        }
+        if (item.modelType === 'split_ac') {
+          choices.push({
+            label: 'Toggle AC Turbo Cooling',
+            note: 'Refreshing chill',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1.2, effect: () => {
+              host.say('The Panasonic Inverter Split AC blows an ice-cold mountain breeze across the room. Ahhh!', 'success');
+            } }]),
+          });
+        }
+        if (item.modelType === 'wall_clock') {
+          choices.push({
+            label: 'Check the clock',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'rest' }, seconds: 1.2, effect: () => {
+              const hour = host.hour();
+              const h = Math.floor(hour);
+              const m = Math.floor((hour - h) * 60);
+              const ampm = h >= 12 ? 'PM' : 'AM';
+              const displayH = h % 12 === 0 ? 12 : h % 12;
+              const timeStr = `${displayH}:${m.toString().padStart(2, '0')} ${ampm}`;
+              host.say(`The brass wall clock ticks steadily. It is ${timeStr}.`, 'info');
+            } }]),
+          });
+        }
+        if (item.modelType === 'wall_art') {
+          choices.push({
+            label: 'Admire artwork',
+            note: '+1 Street Cred',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'rest' }, seconds: 2, effect: () => {
+              host.say('You admire the intricate carvings of the Benin bronze heritage canvas.', 'info');
+            } }]),
+          });
+        }
+        if (item.modelType === 'wall_mirror' || item.modelType === 'smart_mirror') {
+          choices.push({
+            label: 'Check reflection',
+            note: 'Looking sharp',
+            pick: () => this.actOut(item, host, [{ pose: { arms: 'rest' }, seconds: 2, effect: () => {
+              host.say('You check your reflection in the ornate gilded mirror. Looking confident and ready!', 'info');
+            } }]),
+          });
+        }
+        choices.push({ label: 'Move it', note: 'Free', pick: () => { decor.pickUp(item.uid); } });
+        choices.push({ label: 'Put it in storage', note: 'Place it again later, free', pick: () => { if (decor.putAway(item.uid)) host.say(`${decor.catalogueItem(item.id)?.name ?? 'It'} is in storage. Find it under Storage in the catalogue.`, 'success'); } });
+        choices.push({
+          label: 'Sell it',
+          note: `₦${decor.resaleValue(item).toLocaleString()} back`,
+          pick: () => {
+            const sold = decor.sell(item.uid);
+            if (sold.ok) host.say(`${name} sold. ₦${sold.refund.toLocaleString()} back.`, 'info');
+          },
+        });
+        host.ask({ who: name, role: 'Your furniture', text: 'What do you want to do with it?', choices });
+      },
+    };
+  }
+
+  private build3DInterior(): void {
+    // The floor and the walls in the colours the player chose. The plan of the home (its rooms,
+    // walls, doors, bathroom and kitchen fittings) is built when the player comes in: applyPlan.
+    this.floorMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.25 });
+    this.wallPaint = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.7 });
 
     // 3. Exit Door
     const exitDoor = InteriorPrefabs.createExitDoor(new THREE.Vector3(0, 0, 12), Math.PI);
     this.group.add(exitDoor);
-
-    this.interactiveList.push({
+    this.exitDoor = exitDoor;
+    this.exitCard = {
       mesh: exitDoor,
       id: 'interior_exit_door',
-      name: 'Apartment Front Door',
+      name: 'Front door',
       category: 'Exit to Street',
-      description: 'Step outside through the compound gate back to the street.',
-      interactionPoint: new THREE.Vector3(this.group.position.x, 0, this.group.position.z + 10),
-    });
+      description: 'Step outside, back to the street.',
+      interactionPoint: new THREE.Vector3(this.group.position.x, 0, this.group.position.z + 10.6),
+    };
+    this.interactiveList.push(this.exitCard);
 
     // 4. Living Room:
+    const firstBuiltIn = this.group.children.length;
     // A. Circular Orange & Gold Heritage Rug (Screenshot 5)
     const rugOuter = new THREE.Mesh(
       new THREE.RingGeometry(1.6, 2.7, 32),
@@ -208,6 +894,7 @@ export class ResidentialInterior {
     rugOuter.rotation.x = -Math.PI / 2;
     rugOuter.position.set(-6, 0.02, 5);
     this.group.add(rugOuter);
+    this.only(rugOuter, 'comfortable', 'luxury');
 
     const rugInner = new THREE.Mesh(
       new THREE.CircleGeometry(1.6, 32),
@@ -216,22 +903,34 @@ export class ResidentialInterior {
     rugInner.rotation.x = -Math.PI / 2;
     rugInner.position.set(-6, 0.022, 5);
     this.group.add(rugInner);
+    this.only(rugInner, 'comfortable', 'luxury');
 
     // B. Emerald Green 3-Seater Sofa
-    const sofa = new THREE.Mesh(
-      new THREE.BoxGeometry(4.8, 1.2, 1.8),
-      new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.7 })
-    );
-    sofa.position.set(-2, 0.6, 6);
+    // The same sofa the catalogue sells, built large: a seat, a back, arms and cushions
+    const sofa = buildFurniture('sofa_emerald')!;
+    sofa.scale.set(1.75, 1.25, 1.75);
+    sofa.rotation.y = Math.PI;
+    sofa.position.set(-2, 0, 6);
     this.group.add(sofa);
+    this.only(sofa, 'luxury');
 
-    // C. Black Leather 2-Seater Sofa (Screenshot 5)
-    const sofaBlack = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 1.2, 3.4),
-      new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.6 })
-    );
-    sofaBlack.position.set(-7.5, 0.6, 2.5);
+    // C. Black leather sofa facing the TV: a seat to sit on, with a back and arms
+    const sofaBlack = new THREE.Group();
+    sofaBlack.position.set(-7.5, 0, 2.5);
+    const leather = (this.leather = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.6 }));
+    const sofaSeat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 3.4), leather);
+    sofaSeat.position.set(-0.15, 0.25, 0);
+    sofaBlack.add(sofaSeat);
+    const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.15, 3.4), leather);
+    sofaBack.position.set(0.7, 0.575, 0);
+    sofaBlack.add(sofaBack);
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.78, 0.3), leather);
+      arm.position.set(-0.15, 0.39, side * 1.55);
+      sofaBlack.add(arm);
+    }
     this.group.add(sofaBlack);
+    this.life.block(-7.5, 2.5, 0.9, 1.7);
 
     // D. Wooden Coffee Table in Living Room
     const coffeeTable = new THREE.Mesh(
@@ -240,6 +939,7 @@ export class ResidentialInterior {
     );
     coffeeTable.position.set(-6, 0.3, 5);
     this.group.add(coffeeTable);
+    this.coffeeTable = coffeeTable;
 
     // E. 75-inch Flat Screen TV & Entertainment Wall Console
     const tvUnit = new THREE.Mesh(
@@ -248,6 +948,12 @@ export class ResidentialInterior {
     );
     tvUnit.position.set(-15.8, 2.4, 4);
     this.group.add(tvUnit);
+    this.tvUnit = tvUnit;
+    // In a first home the set stands on a small table instead of hanging on the wall
+    const tvTable = new Builder().box(0x8b5a2b, 1.0, 0.08, 2.1, 0, 1.0, 0).box(0x6b4423, 0.08, 1.0, 0.08, -0.4, 0, -0.95).box(0x6b4423, 0.08, 1.0, 0.08, -0.4, 0, 0.95).box(0x6b4423, 0.08, 1.0, 0.08, 0.4, 0, -0.95).box(0x6b4423, 0.08, 1.0, 0.08, 0.4, 0, 0.95).build('tv table');
+    tvTable.position.set(-15.2, 0, 4);
+    this.group.add(tvTable);
+    this.only(tvTable, 'basic');
 
     const screenGeo = new THREE.PlaneGeometry(6.2, 2.8);
     const screenMat = new THREE.MeshBasicMaterial({ color: 0x15803d });
@@ -255,6 +961,22 @@ export class ResidentialInterior {
     this.tvScreen.rotation.y = Math.PI / 2;
     this.tvScreen.position.set(-15.65, 2.4, 4);
     this.group.add(this.tvScreen);
+    this.television = new Television(this.tvScreen);
+    // Sitting down to watch turns the set on; whoever is sitting can turn it to something else
+    this.life.onWatch = () => { if (!this.televisions().some((set) => set.on)) (this.sets.get(CORE_TV) ?? this.television).turnOn('football'); };
+    this.life.onTheTelevision = () => { const on = this.televisions().find((set) => set.on); return on ? `Watching: ${on.showing()}` : null; };
+    this.life.channelChoices = () => {
+      const set = this.watched();
+      return [
+        ...CHANNELS.map((channel) => ({
+          id: channel.id,
+          label: `${channel.icon} ${channel.id === 'football' ? 'Football' : channel.id === 'news' ? 'News' : 'Music'}`,
+          current: set.on && set.channel === channel.id,
+          pick: () => { set.turnOn(channel.id); this.life.refresh(); },
+        })),
+        { id: 'off', label: 'Off', current: !set.on, pick: () => { set.turnOff(); this.life.refresh(); } },
+      ];
+    };
 
     // F. Round Wooden Dining Table with 4 Chairs (Screenshot 5)
     const diningTable = new THREE.Mesh(
@@ -263,6 +985,7 @@ export class ResidentialInterior {
     );
     diningTable.position.set(-8, 1.1, 10);
     this.group.add(diningTable);
+    this.only(diningTable, 'comfortable', 'luxury');
 
     const tableLeg = new THREE.Mesh(
       new THREE.CylinderGeometry(0.12, 0.12, 1.1, 8),
@@ -270,6 +993,7 @@ export class ResidentialInterior {
     );
     tableLeg.position.set(-8, 0.55, 10);
     this.group.add(tableLeg);
+    this.only(tableLeg, 'comfortable', 'luxury');
 
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 2) {
       const chair = new THREE.Mesh(
@@ -278,6 +1002,7 @@ export class ResidentialInterior {
       );
       chair.position.set(-8 + Math.cos(a) * 1.8, 0.35, 10 + Math.sin(a) * 1.8);
       this.group.add(chair);
+      this.only(chair, 'comfortable', 'luxury');
     }
 
     // G. Potted Indoor Majesty Palm Plant (Screenshot 5)
@@ -287,6 +1012,7 @@ export class ResidentialInterior {
     );
     pot.position.set(-0.5, 0.35, 0.5);
     this.group.add(pot);
+    this.only(pot, 'comfortable', 'luxury');
 
     // 5. Bedrooms:
     // A. Master Bedroom (Right) - Purple Duvet King Bed (Screenshot 5)
@@ -303,6 +1029,7 @@ export class ResidentialInterior {
     );
     masterMattress.position.set(10.5, 0.9, -6.5);
     this.group.add(masterMattress);
+    this.masterMattress = masterMattress;
 
     // B. Center Bedroom - Purple Bed (Screenshot 5)
     const centerBed = new THREE.Mesh(
@@ -311,6 +1038,7 @@ export class ResidentialInterior {
     );
     centerBed.position.set(-3, 0.4, -7);
     this.group.add(centerBed);
+    this.only(centerBed, 'comfortable', 'luxury');
 
     const centerMattress = new THREE.Mesh(
       new THREE.BoxGeometry(3.8, 0.5, 4.2),
@@ -318,6 +1046,7 @@ export class ResidentialInterior {
     );
     centerMattress.position.set(-3, 0.9, -7);
     this.group.add(centerMattress);
+    this.only(centerMattress, 'comfortable', 'luxury');
 
     // C. Guest Bedroom (Left) - Blue Bed (Screenshot 5)
     const guestBed = new THREE.Mesh(
@@ -326,6 +1055,7 @@ export class ResidentialInterior {
     );
     guestBed.position.set(-12, 0.4, -7);
     this.group.add(guestBed);
+    this.only(guestBed, 'luxury');
 
     const guestMattress = new THREE.Mesh(
       new THREE.BoxGeometry(3.3, 0.5, 4.0),
@@ -333,6 +1063,7 @@ export class ResidentialInterior {
     );
     guestMattress.position.set(-12, 0.9, -7);
     this.group.add(guestMattress);
+    this.only(guestMattress, 'luxury');
 
     // 6. Bathroom (Tiled with Bathtub, Glass Shower, WC, Blue Drum & Red Bucket!):
     // White Ceramic Bathtub
@@ -342,6 +1073,7 @@ export class ResidentialInterior {
     );
     tub.position.set(9.5, 0.4, 3);
     this.group.add(tub);
+    this.only(tub, 'comfortable', 'luxury');
 
     // Glass Shower Booth
     const showerGlass = new THREE.Mesh(
@@ -350,6 +1082,7 @@ export class ResidentialInterior {
     );
     showerGlass.position.set(13.5, 1.6, 4.5);
     this.group.add(showerGlass);
+    this.only(showerGlass, 'luxury');
 
     // Toilet WC
     const wc = new THREE.Mesh(
@@ -375,120 +1108,657 @@ export class ResidentialInterior {
     this.group.add(bucket);
 
     // 7. Outdoor Covered Carport with Wooden Pergola & Parked Cars (Screenshot 5):
-    this.createOutdoorCarport(17.5, 0, 7.5);
+    this.createOutdoorCarport(20.6, 0, 0);
 
     // 8. Attach House Decoration System Placed Items Group
     const decorationSystem = HouseDecorationSystem.getInstance();
     this.group.add(decorationSystem.placedItemsGroup);
+    decorationSystem.onPaint = (hex) => this.wallPaint.color.setHex(hex);
+    decorationSystem.onFloor = (hex, roughness) => {
+      this.floorMat.color.setHex(hex);
+      this.floorMat.roughness = roughness;
+    };
+    decorationSystem.onChanged = () => this.furnitureChanged();
+    this.room = {
+      halfWidth: 16,
+      halfLength: 13,
+      solids: () => this.life.solids,
+      // The furniture's own floor is marked directly: it is not part of what the home came with
+      block: (x, z, halfWidth, halfLength) => this.life.nav.blockRect(x, z, halfWidth, halfLength),
+      unblock: (x, z, halfWidth, halfLength) => this.life.nav.clearRect(x, z, halfWidth, halfLength),
+      keepClear: [{ x: 0, z: 8 }, { x: 0, z: 10.6 }],
+    };
+    decorationSystem.attach(this.room);
 
-    // Register stations into interactive list
+    // 9. Kitchen corner: fridge
+    const fridge = new THREE.Group();
+    fridge.position.copy(HOME.fridge.position);
+    const fridgeBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.0, 2.1, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.5, roughness: 0.3 })
+    );
+    fridgeBody.position.y = 1.05;
+    fridge.add(fridgeBody);
+    const fridgeHandle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.9, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.3 })
+    );
+    fridgeHandle.position.set(0.53, 1.3, 0.3);
+    fridge.add(fridgeHandle);
+    this.group.add(fridge);
+    this.fridgeGroup = fridge;
+
+    // Pillow at the head of the master bed
+    const pillow = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 0.22, 0.9),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.8 })
+    );
+    pillow.position.set(10.5, 1.26, -8.2);
+    this.group.add(pillow);
+
+    // Each bed has a headboard, pillows and a turned-down cover, so it reads as a bed and not a slab
+    const beds: Array<[number, number, number, number, number, HomeStandard[]]> = [
+      [10.5, -6.5, 4.8, 5.2, 0x6d28d9, ['basic', 'comfortable', 'luxury']],
+      [-3, -7, 4.2, 4.6, 0x6d28d9, ['comfortable', 'luxury']],
+      [-12, -7, 3.6, 4.4, 0x1d4ed8, ['luxury']],
+    ];
+    for (const [x, z, width, depth, cover, on] of beds) {
+      const bedding = new Builder();
+      const head = z - depth / 2;
+      bedding.box(0x3f2a17, width + 0.2, 1.9, 0.22, x, 0, head + 0.05);
+      for (const side of [-1, 1]) bedding.box(0xffffff, width * 0.36, 0.2, 0.8, x + side * width * 0.22, 1.15, head + 0.85);
+      bedding.box(cover, width - 0.36, 0.09, depth * 0.5, x, 1.15, z + depth * 0.2).box(0xf8fafc, width - 0.36, 0.1, 0.42, x, 1.16, z - depth * 0.08);
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bedding.box(0x1c1917, 0.18, 0.12, 0.18, x + sx * (width / 2 - 0.2), -0.02, z + sz * (depth / 2 - 0.2));
+      const built = bedding.build('bedding');
+      this.group.add(built);
+      this.only(built, ...on);
+    }
+
+    // 10. Everything solid, so walking goes around it
+    this.onlyBlock(-2, 6, 2.4, 0.9, 'luxury'); // green sofa
+    this.fixedSolids.push(this.life.block(-6, 5, 1.2, 0.7)); // coffee table
+    this.onlyBlock(-8, 10, 2.05, 2.05, 'comfortable', 'luxury'); // dining table and chairs
+    this.onlyBlock(-0.5, 0.5, 0.35, 0.35, 'comfortable', 'luxury'); // palm pot
+    this.fixedSolids.push(this.life.block(10.5, -6.5, 2.4, 2.6)); // master bed
+    this.onlyBlock(-3, -7, 2.1, 2.3, 'comfortable', 'luxury'); // centre bed
+    this.onlyBlock(-12, -7, 1.8, 2.2, 'luxury'); // guest bed
+    this.onlyBlock(9.5, 3, 1.7, 0.8, 'comfortable', 'luxury'); // bathtub
+    this.onlyBlock(13.5, 4.5, 1.1, 1.1, 'luxury'); // shower
+    this.fixedSolids.push(this.life.block(14, 1.5, 0.4, 0.55)); // toilet
+    this.fixedSolids.push(this.life.block(HOME.drum.position.x, HOME.drum.position.z, 0.8, 0.8));
+    this.fixedSolids.push(this.life.block(9.8, 0.6, 0.45, 0.45)); // bucket
+    this.fixedSolids.push(this.life.block(HOME.fridge.position.x, HOME.fridge.position.z, 0.5, 0.5));
+
+    // A first home: plastic chairs where the dining set would be, a fan, and a kerosene stove by the fridge
+    const plastic = buildFurniture('plastic_set')!;
+    plastic.scale.setScalar(1.5);
+    plastic.position.set(-8, 0, 10);
+    this.group.add(plastic);
+    this.only(plastic, 'basic');
+    this.onlyBlock(-8, 10.15, 0.75, 0.9, 'basic');
+    const fan = buildFurniture('standing_fan')!;
+    fan.scale.setScalar(1.5);
+    fan.position.set(-11.5, 0, 1.2);
+    this.group.add(fan);
+    this.only(fan, 'basic');
+    this.onlyBlock(-11.5, 1.2, 0.4, 0.4, 'basic');
+    const stove = buildFurniture('kerosene_stove')!;
+    stove.scale.setScalar(1.5);
+    stove.position.set(-12.4, 0, 11.4);
+    this.group.add(stove);
+    this.only(stove, 'basic');
+    this.onlyBlock(-12.4, 11.4, 0.45, 0.45, 'basic');
+
+    // Everything built from the living room on is furniture, but for the carport and the player's own pieces
+    this.builtIns = this.group.children.slice(firstBuiltIn).filter((child) => child !== decorationSystem.placedItemsGroup && child.name !== 'carport' && child !== this.carportCars);
+
+    // 11. Things to do, each registered where the player stands to use it
+    const origin = this.group.position;
+    const at = (local: THREE.Vector3) => new THREE.Vector3(origin.x + local.x, 0, origin.z + local.z);
+
     this.interactiveList.push({
-      mesh: tvUnit,
+      mesh: sofaBlack,
       id: 'flat-tv',
-      name: '75-Inch Smart TV & Soundbar',
+      name: 'Sofa & TV',
       category: 'Home Entertainment',
-      description: 'Live Super Eagles AFCON stream in 4K with pulsating soundbar.',
-      interactionPoint: new THREE.Vector3(this.group.position.x - 14, 0, this.group.position.z + 4),
+      description: 'Sit down and watch the Super Eagles. A little energy comes back while you relax.',
+      interactionPoint: at(HOME.sofa.front),
     });
 
     this.interactiveList.push({
       mesh: masterBed,
       id: 'flat-bed',
-      name: 'King-Size Royal Master Bed',
+      name: 'Master Bed',
       category: 'Rest & Recovery',
-      description: 'Recharge 100% full energy under cool AC breeze.',
-      interactionPoint: new THREE.Vector3(this.group.position.x + 9, 0, this.group.position.z - 6),
+      description: 'Lie down and sleep. Energy and health come back while you rest.',
+      interactionPoint: at(HOME.bed.side),
     });
 
     this.interactiveList.push({
       mesh: drum,
       id: 'flat-drum',
-      name: 'Nigerian Blue Plastic Water Drum & Red Bucket',
+      name: 'Water Drum & Bucket',
       category: 'Home Essentials',
-      description: 'Borehole chilled water ready with the red bucket.',
-      interactionPoint: new THREE.Vector3(this.group.position.x + 8.5, 0, this.group.position.z + 1.5),
+      description: 'Cold borehole water and the red bucket. A quick bath wakes you up.',
+      interactionPoint: at(HOME.drum.front),
     });
+
+    this.interactiveList.push({
+      mesh: fridge,
+      id: 'flat-fridge',
+      name: 'Fridge',
+      category: 'Kitchen',
+      description: 'Eat something from your bag.',
+      interactionPoint: at(HOME.fridge.front),
+    });
+
+    // 12. And the player's own furniture, as it stands now
+    this.furnitureChanged();
+    // Built to a plan until the player comes in and it is built to theirs
+    this.applyPlan(planFor(briefOf(null)));
   }
 
-  /**
-   * Builds burglar-proof metal window grills (Screenshot 5)
-   */
-  private createBurglarProofWindow(x: number, y: number, z: number): void {
-    const winGroup = new THREE.Group();
-    winGroup.position.set(x, y, z);
+  /** The doors in the home's own doorways, each in the style the player chose for it */
+  private hangDoors(spec: Array<Omit<HomeDoor, 'holder' | 'leaf' | 'angle' | 'style'>>): void {
+    let saved: Record<string, string> = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(this.doorsKey) || '{}') ?? {};
+    } catch {
+      // Every door as it came
+    }
+    const origin = this.group.position;
+    for (const d of spec) {
+      const holder = new THREE.Group();
+      holder.name = `home door ${d.id}`;
+      holder.position.set(d.x, 0, d.z);
+      holder.rotation.y = d.yaw;
+      this.group.add(holder);
+      const door: HomeDoor = { ...d, holder, leaf: null, angle: 0, style: DOOR_STYLES.some((st) => st.id === saved[d.id]) ? saved[d.id] : 'panel' };
+      this.fitDoor(door);
+      this.doors.push(door);
+      // Stand beside the doorway on the living-room side to change the door
+      const off = d.yaw === 0 ? new THREE.Vector3(1.1, 0, 0.9) : new THREE.Vector3(-0.9, 0, 1.1);
+      const stand = new THREE.Vector3(origin.x + d.x + off.x, 0, origin.z + d.z + off.z);
+      this.interactiveList.push({ mesh: holder, id: d.id, name: d.name, category: 'Your home', description: 'Opens as you come up to it and closes behind you.', interactionPoint: stand });
+      PlaceActions.register(d.id, {
+        label: () => `🚪 ${d.name}: ${DOOR_STYLES.find((st) => st.id === door.style)?.name ?? 'a door'} · change it`,
+        run: (host) => host.ask({
+          who: d.name,
+          role: 'Your home',
+          text: 'Change the door? The new one is fitted while you watch; the old one is taken away.',
+          choices: [
+            ...DOOR_STYLES.map((style) => ({
+              label: style.name,
+              note: style.id === door.style ? 'This one' : `₦${style.price.toLocaleString()}`,
+              pick: () => {
+                if (style.id === door.style) return;
+                host.director.perform({
+                  id: 'fit a door', actor: host.actor, point: stand, target: new THREE.Vector3(origin.x + d.x, 0, origin.z + d.z), animation: { arms: 'reach' }, seconds: 2.4, effectAt: 0.8, ifStuck: 'snap',
+                  effect: () => {
+                    if (!host.backend.pay(style.price, `${style.name} for the ${d.name.toLowerCase()}`, 'SHOP_PURCHASE')) {
+                      host.say(`A ${style.name.toLowerCase()} is ₦${style.price.toLocaleString()}. You do not have it.`, 'warning');
+                      return false;
+                    }
+                    this.setDoorStyle(door, style);
+                    host.say(`${style.name} fitted on the ${d.name.toLowerCase()}.`, 'success');
+                    return true;
+                  },
+                });
+              },
+            })),
+            { label: 'Leave it', pick: () => undefined },
+          ],
+        }),
+      });
+    }
+  }
 
-    // White Window Frame
-    const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 2.2, 0.2),
-      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
-    );
-    winGroup.add(frame);
+  private fitDoor(door: HomeDoor): void {
+    door.holder.clear();
+    const style = DOOR_STYLES.find((st) => st.id === door.style) ?? DOOR_STYLES[1];
+    const model = roomDoor(style, DOORWAY);
+    door.holder.add(model);
+    door.leaf = model.getObjectByName('door_leaf') ?? null;
+    if (door.leaf) door.leaf.rotation.y = door.angle;
+  }
 
-    // Vertical Iron Burglar Proof Security Bars
-    for (let bx = -1.1; bx <= 1.1; bx += 0.32) {
-      const bar = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.02, 0.02, 2.1, 8),
-        new THREE.MeshStandardMaterial({ color: 0x18181b, metalness: 0.8, roughness: 0.3 })
+  private setDoorStyle(door: HomeDoor, style: DoorStyle): void {
+    door.style = style.id;
+    this.fitDoor(door);
+    try {
+      localStorage.setItem(this.doorsKey, JSON.stringify(Object.fromEntries(this.doors.map((d) => [d.id, d.style]))));
+    } catch {
+      // Kept for this visit
+    }
+  }
+
+  /** Doors swing open as the player comes within reach, and close again behind them */
+  private swingDoors(delta: number): void {
+    const player = InteractionDirector.get().player;
+    if (!player) return;
+    const origin = this.group.position;
+    const px = player.root.position.x - origin.x;
+    const pz = player.root.position.z - origin.z;
+    const ease = Math.min(1, delta * 6);
+    for (const door of this.doors) {
+      const near = Math.hypot(px - door.x, pz - door.z) < 1.9;
+      door.angle += ((near ? door.swing * 1.5 : 0) - door.angle) * ease;
+      if (door.leaf) door.leaf.rotation.y = door.angle;
+    }
+    // And the doors the player bought and stood between their own walls
+    for (const item of HouseDecorationSystem.getInstance().placed) {
+      if (!item.modelType.startsWith('room_door_')) continue;
+      const leaf = item.mesh.getObjectByName('door_leaf');
+      if (!leaf) continue;
+      const near = Math.hypot(px - item.x, pz - item.z) < 1.6;
+      leaf.rotation.y += ((near ? 1.5 : 0) - leaf.rotation.y) * ease;
+    }
+  }
+
+
+  // =========================================================================
+  // THE PLAN: rooms, walls, doors, fittings, as the kind of home it is
+  // =========================================================================
+
+  /** Builds the home to a plan: a self-contain is one room, a five-bedroom has five bedrooms */
+  private applyPlan(plan: HomePlan): void {
+    if (this.plan?.key === plan.key) return;
+    this.plan = plan;
+    // What was built for the last plan comes down
+    for (const part of this.planParts) {
+      this.group.remove(part);
+      part.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+      });
+    }
+    this.planParts = [];
+    for (const solid of this.planSolids) this.life.unblock(solid);
+    this.planSolids = [];
+    for (const door of this.doors) {
+      this.group.remove(door.holder);
+      PlaceActions.unregister(door.id);
+      const at = this.interactiveList.findIndex((o) => o.id === door.id);
+      if (at >= 0) this.interactiveList.splice(at, 1);
+    }
+    this.doors = [];
+    for (const id of this.planCards) {
+      PlaceActions.unregister(id);
+      const at = this.interactiveList.findIndex((o) => o.id === id);
+      if (at >= 0) this.interactiveList.splice(at, 1);
+    }
+    this.planCards = [];
+    const oldCeiling = this.group.getObjectByName('inside view ceiling');
+    if (oldCeiling) oldCeiling.removeFromParent();
+
+    const g = { add: (part: THREE.Object3D) => { this.group.add(part); this.planParts.push(part); } };
+    const W = plan.width;
+    const L = plan.length;
+    const hw = W / 2;
+    const hl = L / 2;
+    const wallH = 4.2;
+    const T = 0.4;
+    const solid = (x: number, z: number, halfWidth: number, halfLength: number) => this.planSolids.push(this.life.block(x, z, halfWidth, halfLength));
+
+    // Floor and the three outer walls the camera can cut away
+    const shell = new THREE.Group();
+    shell.name = 'interior_room_shell';
+    shell.userData.size = { width: W, length: L, height: wallH };
+    // A big home is framed a part at a time, the camera following the player through it
+    shell.userData.view = { width: 24, length: 20 };
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(W, 0.4, L), this.floorMat);
+    floor.name = 'interior_floor_mesh';
+    floor.position.set(0, -0.2, 0);
+    floor.receiveShadow = true;
+    shell.add(floor);
+    const outer = (name: string, w: number, d: number, x: number, z: number) => {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), this.wallPaint);
+      wall.name = name;
+      wall.position.set(x, wallH / 2, z);
+      shell.add(wall);
+    };
+    outer('shell_wall_back', W, T, 0, -hl);
+    outer('shell_wall_left', T, L, -hw, 0);
+    outer('shell_wall_right', T, L, hw, 0);
+    g.add(shell);
+
+    // Each room's floor: tiles in the bathrooms and the kitchen, the player's own floor elsewhere
+    for (const room of plan.rooms) {
+      if (room.kind !== 'ensuite' && room.kind !== 'bathroom' && room.kind !== 'kitchen') continue;
+      const tiles = new THREE.Mesh(
+        new THREE.PlaneGeometry(room.maxX - room.minX, room.maxZ - room.minZ),
+        new THREE.MeshStandardMaterial({ color: room.kind === 'kitchen' ? 0xd9d4c7 : 0xd6e4ec, roughness: 0.3 })
       );
-      bar.position.set(bx, 0, 0.12);
-      winGroup.add(bar);
+      tiles.rotation.x = -Math.PI / 2;
+      tiles.position.set((room.minX + room.maxX) / 2, 0.012, (room.minZ + room.maxZ) / 2);
+      tiles.name = `floor ${room.id}`;
+      g.add(tiles);
     }
 
-    this.group.add(winGroup);
+    // The inner walls, as tall as the catalogue's partitions, with doorways in them
+    const partitionH = 2.6;
+    const DOORWAY_W = DOORWAY;
+    for (const wall of plan.walls) {
+      const cuts: Array<[number, number]> = [];
+      let from = wall.from;
+      for (const door of [...wall.doors].sort((a, b) => a - b)) {
+        cuts.push([from, door - DOORWAY_W / 2]);
+        from = door + DOORWAY_W / 2;
+      }
+      cuts.push([from, wall.to]);
+      for (const [a, b] of cuts) {
+        if (b - a < 0.05) continue;
+        const mid = (a + b) / 2;
+        const len = b - a;
+        const piece = new THREE.Mesh(
+          wall.axis === 'x' ? new THREE.BoxGeometry(len, partitionH, T) : new THREE.BoxGeometry(T, partitionH, len),
+          this.wallPaint
+        );
+        piece.name = 'home_partition';
+        if (wall.axis === 'x') piece.position.set(mid, partitionH / 2, wall.at);
+        else piece.position.set(wall.at, partitionH / 2, mid);
+        g.add(piece);
+        if (wall.axis === 'x') solid(mid, wall.at, len / 2, T / 2);
+        else solid(wall.at, mid, T / 2, len / 2);
+      }
+    }
+
+    // The front: a low wall with the front door in it, and the step outside
+    const doorGap = 2.4;
+    for (const [a, b] of [[-hw, plan.entrance.x - doorGap / 2], [plan.entrance.x + doorGap / 2, hw]] as Array<[number, number]>) {
+      if (b - a < 0.05) continue;
+      const low = new THREE.Mesh(new THREE.BoxGeometry(b - a, 1.0, T), this.wallPaint);
+      low.name = 'home_front_wall';
+      low.position.set((a + b) / 2, 0.5, plan.frontZ);
+      g.add(low);
+      solid((a + b) / 2, plan.frontZ, (b - a) / 2, T / 2);
+      // Nobody walks along the step outside it either
+      solid((a + b) / 2, (plan.frontZ + hl) / 2, (b - a) / 2, (hl - plan.frontZ) / 2);
+    }
+    // Outside the walls is not floor
+    const navW = HOME.room.width / 2;
+    const navL = HOME.room.length / 2;
+    if (navW > hw) {
+      solid(-(navW + hw) / 2, 0, (navW - hw) / 2, navL);
+      solid((navW + hw) / 2, 0, (navW - hw) / 2, navL);
+    }
+    if (navL > hl) {
+      solid(0, -(navL + hl) / 2, hw, (navL - hl) / 2);
+      solid(0, (navL + hl) / 2, hw, (navL - hl) / 2);
+    }
+
+    // The fittings: toilets, showers, basins, the kitchen counter and sink
+    for (const fixture of plan.fixtures) {
+      const built = this.buildFixture(fixture);
+      built.position.set(fixture.x, 0, fixture.z);
+      built.rotation.y = Math.atan2(fixture.face.x, fixture.face.z);
+      g.add(built);
+      // The sink is on the counter and the basin hangs on the wall: neither stands on the floor
+      if (fixture.kind !== 'sink' && fixture.kind !== 'basin') solid(fixture.x, fixture.z, fixture.width / 2, fixture.depth / 2);
+    }
+    this.cardsForFittings(plan);
+
+    // Burglar-proof windows in the outer walls
+    for (const w of plan.windows) {
+      const win = this.burglarProofWindow();
+      if (w.wall === 'back') win.position.set(w.at, 2.4, -hl + 0.2);
+      else {
+        win.position.set(w.wall === 'left' ? -hw + 0.2 : hw - 0.2, 2.4, w.at);
+        win.rotation.y = Math.PI / 2;
+      }
+      g.add(win);
+    }
+
+    // The POP ceiling's cornice round the outer walls, and a light in each room
+    g.add(this.popCeilingFor(W, L, wallH, plan.lights));
+    plan.lights.slice(0, 4).forEach((light) => g.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(light.x, 4.0, light.z), 0xffedd5)));
+
+    // The doors in the doorways
+    this.hangDoors(plan.doors);
+
+    // The front door, and where the player comes in
+    this.exitDoor.position.set(plan.entrance.x, 0, plan.frontZ);
+    const origin = this.group.position;
+    this.exitCard.interactionPoint.set(origin.x + plan.entrance.x, 0, origin.z + plan.frontZ - 1.4);
+    this.def.playerSpawnOffset.set(plan.spawn.x, 0, plan.spawn.z);
+    this.def.exitDoorOffset?.set(plan.entrance.x, 0, plan.frontZ - 1.0);
+    this.def.rooms[0].size = { width: W, length: L, height: wallH };
+
+    // What the furniture is told about the home
+    this.room.halfWidth = hw;
+    this.room.halfLength = hl;
+    // The way in, and every doorway: furniture is never put down in a door's way
+    this.room.keepClear = [{ x: plan.entrance.x, z: plan.frontZ - 0.6 }, { x: plan.spawn.x, z: plan.spawn.z }, ...plan.doors.map((d) => ({ x: d.x, z: d.z }))];
+
+    // A carport only beside a house
+    this.carport.visible = plan.carport;
+    this.carport.position.set(hw + 4.6, 0, 0);
+
+    this.life.reblock();
+    HouseDecorationSystem.getInstance().attach(this.room);
+  }
+
+  /** Every toilet can be used and every shower stood under, each from where it is in its room */
+  private cardsForFittings(plan: HomePlan): void {
+    const origin = this.group.position;
+    let toilets = 0;
+    let showers = 0;
+    for (const f of plan.fixtures) {
+      if (f.kind !== 'wc' && f.kind !== 'shower') continue;
+      const room = roomAt(plan, f.x + f.face.x * 0.6, f.z + f.face.z * 0.6);
+      const where = room ? room.name.toLowerCase() : 'bathroom';
+      const facing = Math.atan2(f.face.x, f.face.z);
+      const centre = new THREE.Vector3(f.x, 0, f.z);
+      const front = new THREE.Vector3(f.x + f.face.x * 0.8, 0, f.z + f.face.z * 0.8);
+      const mesh = this.planParts.find((part) => part.position.x === f.x && part.position.z === f.z) ?? this.group;
+      if (f.kind === 'wc') {
+        const id = `home_toilet_${++toilets}`;
+        const seat = new THREE.Vector3(f.x + f.face.x * 0.12, 0, f.z + f.face.z * 0.12);
+        this.interactiveList.push({ mesh, id, name: 'Toilet', category: 'Your home', description: `The toilet in the ${where}.`, interactionPoint: new THREE.Vector3(origin.x + front.x, 0, origin.z + front.z) });
+        PlaceActions.register(id, { label: () => '🚽 Use the toilet', run: () => { this.life.useToilet(seat, front, facing); } });
+        this.planCards.push(id);
+      } else {
+        const id = `home_shower_${++showers}`;
+        this.interactiveList.push({ mesh, id, name: 'Shower', category: 'Your home', description: `The shower in the ${where}.`, interactionPoint: new THREE.Vector3(origin.x + front.x, 0, origin.z + front.z) });
+        PlaceActions.register(id, {
+          label: () => '🚿 Take a shower',
+          run: (host) => {
+            host.director.perform({
+              id: 'take a shower', actor: host.actor, point: new THREE.Vector3(origin.x + front.x, 0, origin.z + front.z), target: new THREE.Vector3(origin.x + centre.x, 0, origin.z + centre.z),
+              nav: this.life.nav, animation: { arms: 'reach' }, seconds: 3.2, effectAt: 0.7, ifStuck: 'snap',
+              effect: () => {
+                host.backend.rest(20, 10);
+                host.backend.takeShower();
+                host.say('🚿 A good shower. Clean and fresh! Hygiene full, Energy +20.', 'success');
+                return true;
+              },
+            });
+          },
+        });
+        this.planCards.push(id);
+      }
+    }
+  }
+
+  /** A toilet, a shower, a basin or a kitchen counter, facing +z */
+  private buildFixture(f: Fixture): THREE.Object3D {
+    const b = new Builder();
+    const white = 0xf8fafc;
+    const chrome = 0xb8c2cc;
+    // Along its front, the way it faces, `w` wide and `d` deep
+    const w = f.face.x !== 0 ? f.depth : f.width;
+    const d = f.face.x !== 0 ? f.width : f.depth;
+    const group = new THREE.Group();
+    group.name = `fitting ${f.kind}`;
+    if (f.kind === 'wc') {
+      b.box(white, 0.38, 0.4, 0.46, 0, 0, 0.08).box(0xffffff, 0.42, 0.05, 0.5, 0, 0.4, 0.06).box(white, 0.46, 0.42, 0.2, 0, 0.4, -d / 2 + 0.1).box(chrome, 0.08, 0.03, 0.04, 0.14, 0.83, -d / 2 + 0.12);
+    } else if (f.kind === 'shower') {
+      b.box(white, w, 0.08, d, 0, 0, 0).box(chrome, 0.05, 2.1, 0.05, 0, 0.08, -d / 2 + 0.08).box(chrome, 0.28, 0.04, 0.28, 0, 2.1, -d / 2 + 0.26);
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(w, 2.0, 0.04), new THREE.MeshStandardMaterial({ color: 0xbfe3f2, transparent: true, opacity: 0.32, roughness: 0.05 }));
+      glass.position.set(0, 1.08, d / 2 - 0.02);
+      glass.scale.x = 0.55;
+      glass.position.x = w * 0.22;
+      group.add(glass);
+    } else if (f.kind === 'basin') {
+      b.cylinder(white, 0.09, 0.72, 0, 0, 0, { sides: 12 }).box(white, 0.5, 0.14, 0.4, 0, 0.72, 0).box(chrome, 0.04, 0.12, 0.04, 0, 0.86, -0.12);
+      b.box(0xdbeafe, 0.46, 0.6, 0.03, 0, 1.25, -d / 2 + 0.02);
+    } else if (f.kind === 'counter') {
+      b.box(0x8b5e3c, w, 0.86, d, 0, 0, 0).box(0x2d2a26, w + 0.04, 0.05, d + 0.04, 0, 0.86, 0);
+      // Cupboard doors along its front
+      const doors = Math.max(1, Math.round(w / 0.6));
+      for (let i = 0; i < doors; i++) b.box(0x6f4a2f, w / doors - 0.06, 0.7, 0.02, -w / 2 + (i + 0.5) * (w / doors), 0.08, d / 2);
+      // Wall cupboards above it
+      b.box(0x8b5e3c, w, 0.6, 0.34, 0, 1.6, -d / 2 + 0.17);
+    } else if (f.kind === 'sink') {
+      b.box(0xcbd5e1, 0.52, 0.05, 0.36, 0, 0.89, 0.02).box(chrome, 0.04, 0.26, 0.04, 0, 0.91, -0.16).box(chrome, 0.04, 0.04, 0.16, 0, 1.15, -0.1);
+    }
+    group.add(b.build(`fitting ${f.kind}`, { roughness: 0.35 }));
+    return group;
+  }
+
+  /** A window with burglar-proof bars, facing +z */
+  private burglarProofWindow(): THREE.Group {
+    const win = new THREE.Group();
+    win.name = 'window';
+    const b = new Builder().box(0xf8fafc, 2.4, 1.8, 0.16, 0, -0.9, 0).box(0x9cc9e0, 2.1, 1.5, 0.04, 0, -0.75, 0.04);
+    for (let bx = -0.95; bx <= 0.96; bx += 0.32) b.box(0x18181b, 0.04, 1.6, 0.04, bx, -0.8, 0.12);
+    win.add(b.build('window'));
+    return win;
+  }
+
+  /** The POP cornice round the outer walls, the LED strip in it, and a downlight in each room */
+  private popCeilingFor(W: number, L: number, wallH: number, lights: Array<{ x: number; z: number }>): THREE.Object3D {
+    const b = new Builder();
+    const top = wallH - 0.55;
+    const hw = W / 2;
+    const hl = L / 2;
+    const runs: Array<[number, number, number, number, number, number]> = [
+      [0, -hl + 0.55, W - 0.8, 0.7, 0, 1],
+      [-hw + 0.55, 0, 0.7, L - 0.8, 1, 0],
+      [hw - 0.55, 0, 0.7, L - 0.8, -1, 0],
+    ];
+    for (const [x, z, w, d, ix, iz] of runs) {
+      b.box(0xf8fafc, w, 0.3, d, x, top, z).box(0xf1f5f9, w, 0.18, d, x - ix * 0.12, top + 0.3, z - iz * 0.12);
+      b.box(0xd4af37, ix ? 0.04 : w, 0.04, iz ? 0.04 : d, x + ix * 0.36, top + 0.12, z + iz * 0.36);
+      b.box(0xffd59e, ix ? 0.06 : w - 1, 0.06, iz ? 0.06 : d - 1, x + ix * 0.4, top - 0.06, z + iz * 0.4, { glow: true });
+    }
+    for (const { x, z } of lights) b.cylinder(0xf8fafc, 0.5, 0.08, x, wallH - 0.25, z, { sides: 20 }).cylinder(0xfff7d6, 0.26, 0.04, x, wallH - 0.3, z, { sides: 16, glow: true });
+    const pop = b.build('pop ceiling', { roughness: 0.6 });
+    pop.name = 'pop ceiling';
+    return pop;
+  }
+
+  /** What a home of this plan and standard comes with, where the plan has room for it */
+  private startersFor(standard: HomeStandard): Starter[] {
+    const plan = this.plan ?? planFor(briefOf(null));
+    const s = plan.spots;
+    const pieces: Starter[] = [
+      { uid: 'home_bed', id: standard === 'basic' ? 'double_bed_grey' : standard === 'comfortable' ? 'king_bed_purple' : 'super_king_bed', ...s.bed },
+      { uid: 'home_sofa', id: standard === 'basic' ? 'sofa2_brown' : 'sofa3_leather', ...s.sofa },
+      { uid: CORE_TV, id: standard === 'basic' ? 'tv_24' : standard === 'comfortable' ? 'tv_43' : 'smart_tv_75', ...s.tv },
+      { uid: 'home_fridge', id: 'double_door_fridge', ...s.fridge },
+      { uid: 'home_drum', id: 'water_drum', ...s.drum },
+      { id: standard === 'basic' ? 'kerosene_stove' : 'gas_cooker', ...s.cooker },
+    ];
+    // The other bedrooms: a bed in each in a family home; in a first home, the first one only
+    const others = standard === 'basic' ? s.beds.slice(0, 1) : s.beds;
+    const covers = ['double_bed_purple', 'double_bed_blue', 'double_bed_green', 'double_bed_ankara', 'double_bed_red'];
+    others.forEach((spot, i) => pieces.push({ id: covers[i % covers.length], ...spot }));
+    if (s.dining && standard !== 'basic') pieces.push({ id: 'dining_table_6', ...s.dining });
+    // A bathtub in the bathroom of a well-off home
+    if (standard !== 'basic') pieces.push({ id: 'bathtub', ...s.bath });
+    for (const extra of s.extras) {
+      if (extra.what === 'chairs' || (extra.what === 'fan' && standard === 'basic')) pieces.push({ id: extra.what === 'chairs' ? 'plastic_set' : 'lontor_fan', x: extra.x, z: extra.z, turns: extra.turns });
+      if (extra.what === 'plant' && standard !== 'basic') pieces.push({ id: 'majesty_palm', x: extra.x, z: extra.z, turns: extra.turns });
+      if (extra.what === 'rug' && standard !== 'basic') {
+        pieces.push({ id: 'ankara_rug', x: extra.x, z: extra.z, turns: extra.turns });
+        pieces.push({ id: 'coffee_table', x: extra.x, z: extra.z, turns: 1 });
+      }
+    }
+    return pieces;
   }
 
   /**
-   * Outdoor Carport with wooden pergola beams and parked cars (Screenshot 5)
+   * The furniture was laid out for another plan (the player has moved, or it is from before
+   * homes had plans): each piece that still fits stays, the everyday pieces go to their places
+   * in this home, and what fits nowhere goes into storage. Said once, on coming in.
    */
+  private settleFurniture(): void {
+    const plan = this.plan;
+    if (!plan) return;
+    const decor = HouseDecorationSystem.getInstance();
+    const key = profileKey(`nigeria_life_home_plan_v1${decor.homeId === 'main' ? '' : `:${decor.homeId}`}`);
+    let laid: string | null = null;
+    try {
+      laid = localStorage.getItem(key);
+    } catch {
+      laid = null;
+    }
+    if (laid === plan.key) return;
+    const s = plan.spots;
+    const moves: Record<string, { x: number; z: number; turns: number }> = {
+      home_bed: s.bed,
+      home_sofa: s.sofa,
+      [CORE_TV]: s.tv,
+      home_fridge: s.fridge,
+      home_drum: s.drum,
+    };
+    // A piece hung on a wall needs one behind it: an outer wall or an inner one
+    const onWall = (x: number, z: number) => {
+      const hw = plan.width / 2;
+      const hl = plan.length / 2;
+      if (Math.abs(Math.abs(x) - hw) < 0.7 || Math.abs(z + hl) < 0.7) return true;
+      return plan.walls.some((w) => (w.axis === 'x' ? Math.abs(z - w.at) < 0.6 && x > w.from && x < w.to : Math.abs(x - w.at) < 0.6 && z > w.from && z < w.to));
+    };
+    const { stored } = decor.relay(moves, onWall);
+    try {
+      localStorage.setItem(key, plan.key);
+    } catch {
+      // Settled again next time
+    }
+    if (stored.length) {
+      const n = stored.length;
+      ResidentialInterior.onSettled?.(`Your things are in. ${n} piece${n === 1 ? '' : 's'} had no room here and went into storage: find ${n === 1 ? 'it' : 'them'} under Storage in the catalogue.`);
+    }
+    this.furnitureChanged();
+  }
+
+  /** Tells the player what happened to their furniture on moving in (set by the game) */
+  public static onSettled: ((message: string) => void) | null = null;
+
+  /** The room of the home a point is in, by its name: "Kitchen", "Master bedroom" */
+  public roomNameAt(x: number, z: number): string | null {
+    if (!this.plan) return null;
+    const o = this.group.position;
+    return roomAt(this.plan, x - o.x, z - o.z)?.name ?? null;
+  }
+
   private createOutdoorCarport(x: number, y: number, z: number): void {
     const carportGroup = new THREE.Group();
     carportGroup.position.set(x, y, z);
 
-    // Concrete driveway slab
-    const slab = new THREE.Mesh(
-      new THREE.BoxGeometry(6.5, 0.2, 8.5),
-      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.7 })
-    );
-    slab.position.y = -0.1;
-    carportGroup.add(slab);
-
-    // Wooden Pergola Frame (Yellow/Ochre timber posts)
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.6 });
-
-    // 4 Corner Posts
-    for (const px of [-3.0, 3.0]) {
-      for (const pz of [-4.0, 4.0]) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.6, 0.25), woodMat);
-        post.position.set(px, 1.8, pz);
-        carportGroup.add(post);
-      }
-    }
-
-    // Top horizontal crossbeams
-    for (let rz = -3.8; rz <= 3.8; rz += 1.8) {
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.2, 0.25), woodMat);
-      beam.position.set(0, 3.6, rz);
-      carportGroup.add(beam);
-    }
+    // A carport for five cars side by side: an interlocked driveway, a bay marked out for each car,
+    // steel posts and a slatted roof over it all, a light over each bay, and a gate at the end
+    const length = CARPORT_BAYS * CARPORT_BAY + 0.6;
+    const b = new Builder();
+    b.box(0xb8b8b0, 7.4, 0.2, length, 0, -0.2, 0);
+    for (let i = 0; i <= CARPORT_BAYS; i++) b.box(0xf8fafc, 5.6, 0.02, 0.1, 0.4, 0.01, (i - CARPORT_BAYS / 2) * CARPORT_BAY);
+    for (const px of [-3.4, 3.4]) for (let i = 0; i <= CARPORT_BAYS; i++) b.box(0x334155, 0.2, 3.4, 0.2, px, 0, (i - CARPORT_BAYS / 2) * CARPORT_BAY);
+    for (let rz = -length / 2 + 0.3; rz <= length / 2; rz += 0.9) b.box(0xeab308, 7.2, 0.12, 0.35, 0, 3.4, rz);
+    b.box(0x334155, 0.25, 0.25, length, -3.4, 3.3, 0).box(0x334155, 0.25, 0.25, length, 3.4, 3.3, 0);
+    for (let i = 0; i < CARPORT_BAYS; i++) b.box(0xfff7d6, 0.6, 0.06, 0.6, 0, 3.32, (i - (CARPORT_BAYS - 1) / 2) * CARPORT_BAY, { glow: true });
+    // The sliding gate at the far end
+    b.box(0x111827, 0.12, 2.2, length * 0.6, 3.9, 0, 0);
+    for (let i = 0; i < 14; i++) b.box(0x374151, 0.14, 2.2, 0.06, 3.9, 0, -length * 0.3 + i * (length * 0.6) / 13);
+    carportGroup.add(b.build('carport frame', { roughness: 0.7 }));
 
     // Parked Cars under carport
-    // Car 1: Silver Sedan
-    const car1 = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, 1.1, 4.2),
-      new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.6 })
-    );
-    car1.position.set(-1.4, 0.55, 0);
-    carportGroup.add(car1);
+    // The player's own vehicles are parked here when they come home (see parkCars)
+    carportGroup.add(this.carportCars);
 
-    // Car 2: Black Mercedes G-Wagon SUV (Screenshot 5)
-    const car2 = new THREE.Mesh(
-      new THREE.BoxGeometry(2.5, 1.5, 4.4),
-      new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.4, metalness: 0.4 })
-    );
-    car2.position.set(1.4, 0.75, 0);
-    carportGroup.add(car2);
-
+    carportGroup.name = 'carport';
     this.group.add(carportGroup);
+    this.carport = carportGroup;
   }
 
   public update(delta: number, _time: number): void {
@@ -498,13 +1768,23 @@ export class ResidentialInterior {
       blade.rotation.z += delta * 24;
     }
 
+    this.life.update(delta);
+    this.swingDoors(delta);
+    HomeStaff.get().tick(delta, true);
+    // The pets about the house; the plants checked now and then as they grow
+    const me = InteractionDirector.get().player?.worldPosition();
+    const o = this.group.position;
+    Pets.get().update(delta, me ? new THREE.Vector3(me.x - o.x, 0, me.z - o.z) : null, (x, z) => this.life.nav.isFree(o.x + x, o.z + z), this.animTime);
+    this.gardenTimer -= delta;
+    if (this.gardenTimer <= 0) {
+      this.gardenTimer = 5;
+      this.refreshGarden();
+    }
+
     for (const head of this.fanHeads) {
       head.rotation.y = Math.sin(this.animTime * 1.5) * 0.7;
     }
 
-    if (this.tvScreen) {
-      const g = 0.5 + Math.sin(this.animTime * 6) * 0.15;
-      (this.tvScreen.material as THREE.MeshBasicMaterial).color.setRGB(0.1, g, 0.2);
-    }
+    for (const set of this.televisions()) set.update(delta);
   }
 }

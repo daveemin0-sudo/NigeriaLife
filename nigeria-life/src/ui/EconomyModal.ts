@@ -3,6 +3,7 @@ import type { PlayerAccount } from '../backend/types';
 import type { World } from '../world/World';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
+import { draw, forget } from './kit/StableView';
 
 export class EconomyModal {
   private container: HTMLDivElement;
@@ -35,6 +36,7 @@ export class EconomyModal {
       this.activeTab = 'businesses';
     }
     this.container.style.display = 'flex';
+    forget(this.container);
     this.render(this.backend.getData());
     UIStateManager.getInstance().pushModal('economy');
 
@@ -88,7 +90,7 @@ export class EconomyModal {
       0
     );
 
-    this.container.innerHTML = `
+    const html = `
       <div class="modal-dialog economy-dialog">
         <!-- Modal Header -->
         <div class="modal-header">
@@ -149,7 +151,7 @@ export class EconomyModal {
       </div>
     `;
 
-    this.attachEvents();
+    draw(this.container, html, { drawn: () => this.attachEvents() });
   }
 
   private renderActiveTab(data: PlayerAccount): string {
@@ -343,6 +345,8 @@ export class EconomyModal {
     this.container.querySelectorAll('[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.activeTab = (btn as HTMLElement).getAttribute('data-tab') as any;
+        // Another tab is another screen: it starts at the top
+        forget(this.container);
         this.render(this.backend.getData());
       });
     });

@@ -1,21 +1,23 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
-import { isInJunctionGap, splitAroundJunctions } from './density/StreetLayout';
+import { isInJunctionGap, splitAroundJunctions, FOOTBRIDGE, FOOTBRIDGES, bridgeNear } from './density/StreetLayout';
 
 export class Roads {
   public group: THREE.Group;
   public roadLength: number = 240;
   public roadWidth: number = 14;
   public asphaltMat!: THREE.MeshStandardMaterial;
-
+  public streetBulbMaterials: THREE.MeshStandardMaterial[] = [];
+  public streetPointLights: THREE.PointLight[] = [];
+  private roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
   constructor() {
     this.group = new THREE.Group();
     this.buildRoadNetwork();
     this.buildStreetLights();
     this.buildPowerPoles();
     this.buildGuttersAndStreetProps();
-    this.buildPedestrianOverheadBridge();
+    for (const z of FOOTBRIDGES) this.buildPedestrianOverheadBridge(z);
   }
 
   private buildRoadNetwork(): void {
@@ -90,9 +92,6 @@ export class Roads {
     mesh.receiveShadow = true;
     this.group.add(mesh);
   }
-
-  public streetBulbMaterials: THREE.MeshStandardMaterial[] = [];
-  public streetPointLights: THREE.PointLight[] = [];
 
   private buildStreetLights(): void {
     // Street lamps on alternating sides every 24 meters
@@ -185,6 +184,25 @@ export class Roads {
       }
       // A switched-off lamp must not stay in the shader's light loop all day
       light.visible = light.intensity > 0;
+    }
+
+    // Roadside umbrella stalls pack down when evening arrives and set back up before dawn
+    for (const stall of this.roadsideStalls) {
+      if (isNight) {
+        stall.canopy.position.y = 1.35;
+        stall.canopy.scale.set(0.18, 0.85, 0.18);
+        stall.rim.visible = false;
+        stall.cooler.visible = false;
+        stall.lid.visible = false;
+        stall.stool.position.set(0, 0.28, 0.2);
+      } else {
+        stall.canopy.position.y = 2.6;
+        stall.canopy.scale.set(1, 1, 1);
+        stall.rim.visible = true;
+        stall.cooler.visible = true;
+        stall.lid.visible = true;
+        stall.stool.position.set(0.1, 0.28, -0.65);
+      }
     }
   }
 
@@ -363,10 +381,13 @@ export class Roads {
     for (const bz of bumpZPositions) {
       const bumpGeo = new THREE.CylinderGeometry(0.65, 0.65, this.roadWidth - 0.4, 16, 1, false, 0, Math.PI);
       const bump = new THREE.Mesh(bumpGeo, bumpMat);
+      // Lying across the road, round side up
       bump.rotation.z = Math.PI / 2;
-      bump.rotation.y = Math.PI / 2;
       bump.position.set(0, 0.08, bz);
+      bump.scale.set(0.42, 1, 1.4);
       bump.receiveShadow = true;
+      // Part of the road surface: traffic drives over it
+      bump.userData.surface = true;
       this.group.add(bump);
 
       // Yellow chevron warning stripes on speed bump
@@ -460,6 +481,7 @@ export class Roads {
       stallGroup.add(stool);
 
       this.group.add(stallGroup);
+      this.roadsideStalls.push({ canopy, rim, cooler, lid, stool });
     });
   }
 
@@ -468,19 +490,18 @@ export class Roads {
    * Spanning across all 4 highway lanes with concrete stairs, blue safety canopy,
    * and dual highway advertising & LASTMA warning billboards.
    */
-  private buildPedestrianOverheadBridge(): void {
+  private buildPedestrianOverheadBridge(bridgeZ: number = FOOTBRIDGE.z): void {
     const bridgeGroup = new THREE.Group();
-    const bridgeZ = 28.0;
     bridgeGroup.position.set(0, 0, bridgeZ);
 
     const signs = SignageLibrary.getInstance();
     const concMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.85 });
     const blueSteelMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.4, roughness: 0.5 });
     const deckY = 5.4; // 5.4m overhead vehicle clearance
-    const totalSpan = 21.0; // Across both sidewalks (x: -10.5 to +10.5)
+    const totalSpan = 24.0; // Across both pavements (x: -12 to +12)
 
-    // 1. Heavy Concrete Support Pillars (at curb edges)
-    for (const px of [-7.2, 7.2]) {
+    // 1. Heavy Concrete Support Pillars, on the pavement just inside the kerb, clear of the carriageway
+    for (const px of [-7.95, 7.95]) {
       const colGeo = new THREE.BoxGeometry(1.0, deckY, 1.0);
       const col = new THREE.Mesh(colGeo, concMat);
       col.position.set(px, deckY / 2, 0);
@@ -489,7 +510,7 @@ export class Roads {
       bridgeGroup.add(col);
 
       // Yellow & black hazard base footing
-      const baseGeo = new THREE.BoxGeometry(1.3, 0.9, 1.3);
+      const baseGeo = new THREE.BoxGeometry(1.0, 0.9, 1.0);
       const base = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 }));
       base.position.set(px, 0.45, 0);
       base.castShadow = true;
@@ -539,7 +560,9 @@ export class Roads {
       roughness: 0.3,
     });
     for (const bz of [-1.55, 1.55]) {
-      const railGeo = new THREE.BoxGeometry(totalSpan, 1.3, 0.05);
+      // The south rail stops short at each end, where the stairs come up on to the deck
+      const railSpan = bz < 0 ? (FOOTBRIDGE.stairX - FOOTBRIDGE.stairHalfWidth) * 2 : totalSpan;
+      const railGeo = new THREE.BoxGeometry(railSpan, 1.3, 0.05);
       const rail = new THREE.Mesh(railGeo, railMat);
       rail.position.set(0, deckY + 0.85, bz);
       bridgeGroup.add(rail);
@@ -547,20 +570,25 @@ export class Roads {
 
     // 4. Concrete Staircases on West & East Sidewalks
     // Descends southward from bridge deck towards sidewalk level
-    const numSteps = 14;
-    const stepRise = (deckY - 0.28) / numSteps;
-    const stepRun = 0.85;
+    // Each flight climbs northward from the pavement and arrives at the south edge of the deck
+    const numSteps = FOOTBRIDGE.steps;
+    const stepRise = FOOTBRIDGE.top / numSteps;
+    const stepRun = FOOTBRIDGE.run;
+    const flightTop = bridgeNear(bridgeZ).top - bridgeZ;
 
-    for (const sx of [-10.5, 10.5]) {
+    // Against the building line, leaving two metres of pavement between the stair and the pillar
+    for (const sx of [-FOOTBRIDGE.stairX, FOOTBRIDGE.stairX]) {
       const stairGroup = new THREE.Group();
       stairGroup.position.set(sx, 0, 0);
 
       for (let s = 0; s < numSteps; s++) {
-        const stepH = (s + 1) * stepRise;
-        const stepZ = -(s * stepRun) - 1.6;
-        const stepGeo = new THREE.BoxGeometry(2.4, stepRise + 0.02, stepRun);
+        // The top step is level with the deck and against it; each one south of it is a step lower.
+        // Every step stands on the ground, so the flight is a solid block and not a row of floating treads.
+        const stepH = (numSteps - s) * stepRise;
+        const stepZ = flightTop - (s + 0.5) * stepRun;
+        const stepGeo = new THREE.BoxGeometry(FOOTBRIDGE.stairHalfWidth * 2, stepH, stepRun);
         const step = new THREE.Mesh(stepGeo, concMat);
-        step.position.set(0, stepH - stepRise / 2, stepZ);
+        step.position.set(0, stepH / 2, stepZ);
         step.castShadow = true;
         step.receiveShadow = true;
         stairGroup.add(step);
@@ -571,8 +599,9 @@ export class Roads {
       const railAngle = Math.atan2(deckY, numSteps * stepRun);
       const stairRailGeo = new THREE.BoxGeometry(0.08, 0.08, railLen);
       const stairRail = new THREE.Mesh(stairRailGeo, blueSteelMat);
-      stairRail.rotation.x = railAngle;
-      stairRail.position.set(sx > 0 ? -1.15 : 1.15, deckY / 2 + 0.9, -((numSteps * stepRun) / 2) - 1.6);
+      // Rising with the stairs: low at the pavement end, high at the deck
+      stairRail.rotation.x = -railAngle;
+      stairRail.position.set(sx > 0 ? -0.7 : 0.7, FOOTBRIDGE.top / 2 + 0.9, flightTop - (numSteps * stepRun) / 2);
       stairGroup.add(stairRail);
 
       bridgeGroup.add(stairGroup);

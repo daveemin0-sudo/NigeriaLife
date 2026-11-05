@@ -1,0 +1,404 @@
+import * as THREE from 'three';
+import { duvetOver } from '../../interactions/Duvet';
+import { Fridge } from '../../housing/Fridge';
+import { RENDER_LAYERS } from '../InteriorTypes';
+import { InteractionDirector } from '../../interactions/InteractionDirector';
+import { NavGrid } from '../../interactions/NavGrid';
+import { Sequence, steps } from '../../interactions/Sequence';
+import { BackendService } from '../../backend/BackendService';
+import { showGameToast } from '../../ui/GameToast';
+
+/** Where things are in the apartment, relative to the room centre. */
+export const HOME = {
+  room: { width: 44, length: 36 },
+  bed: { root: new THREE.Vector3(10.5, 0, -5.0), side: new THREE.Vector3(7.35, 0, -5.4), top: 1.15, facing: 0 },
+  sofa: { seat: new THREE.Vector3(-7.65, 0, 2.5), front: new THREE.Vector3(-9.15, 0, 2.5), facing: -Math.PI / 2 },
+  tv: new THREE.Vector3(-15.6, 0, 4),
+  fridge: { position: new THREE.Vector3(-14.7, 0, 10.6), front: new THREE.Vector3(-13.35, 0, 10.6) },
+  drum: { position: new THREE.Vector3(8.5, 0, 0.5), front: new THREE.Vector3(7.1, 0, 0.5) },
+};
+
+export type HomeActivity = 'sleeping' | 'watching_tv';
+
+/** What is on, for the line under "Watching": null when no television is on. */
+export type OnTheTelevision = () => string | null;
+
+/** What the on-screen status line needs to know about the activity in progress. */
+export interface HomeStatus {
+  activity: HomeActivity;
+  icon: string;
+  title: string;
+  line: string;
+  stopLabel: string;
+  /** While sitting: what the television can be turned to */
+  choices?: Array<{ id: string; label: string; current?: boolean; pick: () => void }>;
+}
+
+const SLEEP = { energyPerSecond: 9, healthPerSecond: 5, longestSeconds: 14 };
+const TV = { energyPerSecond: 2, mostEnergy: 30 };
+
+/**
+ * Daily life at home: sleeping in the bed, watching TV from the sofa, eating from the fridge
+ * and bathing at the drum. Each is acted out with the shared interaction steps, and what it
+ * gives the player arrives while it is happening, not all at once on a click.
+ */
+export class HomeLife {
+  public readonly nav: NavGrid;
+  /** Called whenever the current activity starts, progresses or ends */
+  public onChange: (() => void) | null = null;
+
+  private readonly group: THREE.Group;
+  private readonly origin: THREE.Vector3;
+  private readonly director = InteractionDirector.get();
+  private readonly backend = BackendService.getInstance();
+  private activity: HomeActivity | null = null;
+  private elapsed = 0;
+  private gained = 0;
+  /** Says what the nearest television that is on is showing */
+  public onTheTelevision: OnTheTelevision = () => null;
+  /** What the television can be turned to, for whoever is sitting in front of it */
+  public channelChoices: () => HomeStatus['choices'] = () => [];
+  /** The player has sat down on the sofa to watch: the set comes on if it was off */
+  public onWatch: (() => void) | null = null;
+  /** The duvet over the sleeper while they are in bed */
+  private duvet: THREE.Group | null = null;
+  /** Everything the home came with that stands on the floor, as it was marked solid */
+  public readonly solids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
+
+  constructor(group: THREE.Group, origin: THREE.Vector3) {
+    this.group = group;
+    this.origin = origin.clone();
+    this.nav = new NavGrid(origin, HOME.room.width, HOME.room.length);
+  }
+
+  private world(local: THREE.Vector3): THREE.Vector3 {
+    return new THREE.Vector3(this.origin.x + local.x, 0, this.origin.z + local.z);
+  }
+
+  public status(): HomeStatus | null {
+    const stats = this.backend.getData().stats;
+    if (this.activity === 'sleeping') {
+      return {
+        activity: 'sleeping',
+        icon: '🛏️',
+        title: 'Sleeping',
+        // Rested, they lie in for as long as they like: getting up is theirs to choose
+        line: this.restedTold ? `Fully rested · lying in · Energy ${Math.round(stats.energy)}%` : `Energy ${Math.round(stats.energy)}% · Health ${Math.round(stats.health)}%`,
+        stopLabel: 'Get up',
+      };
+    }
+    if (this.activity === 'watching_tv') {
+      return {
+        activity: 'watching_tv',
+        icon: this.onTheTelevision() ? '📺' : '🛋️',
+        title: this.onTheTelevision() ?? 'Sitting down',
+        line: this.gained >= TV.mostEnergy ? 'Fully relaxed' : `Relaxing · Energy ${Math.round(stats.energy)}%`,
+        stopLabel: 'Stand up',
+        choices: this.channelChoices(),
+      };
+    }
+    return null;
+  }
+
+  private changed(): void {
+    this.onChange?.();
+  }
+
+  /** Told once that sleep has made them whole; they stay in bed till they get up */
+  private restedTold = false;
+
+  private begin(activity: HomeActivity): void {
+    this.activity = activity;
+    this.restedTold = false;
+    this.elapsed = 0;
+    this.gained = 0;
+    this.changed();
+  }
+
+  // --- Bed ---------------------------------------------------------------------------------
+
+  /** Walk to the bed, lie down and sleep. Energy and health come back while asleep. */
+  public sleep(): boolean {
+    return this.sleepAt(HOME.bed.root, HOME.bed.side, HOME.bed.facing, HOME.bed.top);
+  }
+
+  /**
+   * Walk to a bed, lie down on it and sleep: the bed the home came with, or one the player
+   * has bought and put down. `root` (where the sleeper's feet are) and `side` (where they
+   * stand to get in) are measured from the middle of the home; `facing` is the way the foot
+   * of the bed points; `top` is how high the mattress is.
+   */
+  public sleepAt(root: THREE.Vector3, side: THREE.Vector3, facing: number, top: number): boolean {
+    const player = this.director.player;
+    if (!player || this.director.interrupt(player) === 'locked') return false;
+    const lying = { legs: 'lie' as const, arms: 'rest' as const, height: top };
+    const standAt = side.clone();
+
+    const lieDown = new Sequence('lie down', [player]).add(
+      steps.walk(player, this.world(standAt), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, this.world(root)),
+      steps.slide(player, this.world(root), 0.5),
+      steps.face(player, facing),
+      steps.setPose(player, lying),
+      steps.wait(0.5)
+    );
+    lieDown.onEnd((reason) => {
+      if (reason !== 'done') return;
+      player.yaw = facing;
+      player.hold = { release: (instant) => this.leaveFurniture(standAt, instant) };
+      player.setScripted(true);
+      player.pose = lying;
+      // Under the duvet, to the chest
+      this.duvet?.removeFromParent();
+      this.duvet = duvetOver(this.group, root, facing, top);
+      this.begin('sleeping');
+    });
+    return this.director.run(lieDown);
+  }
+
+  // --- Sofa and TV -------------------------------------------------------------------------
+
+  /** Walk to the sofa, sit and watch the match. Sitting there slowly restores a little energy. */
+  public watchTv(): boolean {
+    this.onWatch?.();
+    return this.sitAt(HOME.sofa.seat, HOME.sofa.front, HOME.sofa.facing);
+  }
+
+  /**
+   * Walk to a seat and sit on it: the sofa the home came with, or one the player has bought
+   * and put down. `seat` and `front` are measured from the middle of the home; `facing` is
+   * the way the sitter looks.
+   */
+  public sitAt(seat: THREE.Vector3, front: THREE.Vector3, facing: number): boolean {
+    const player = this.director.player;
+    if (!player || this.director.interrupt(player) === 'locked') return false;
+    const facingTv = facing;
+    const standAt = front.clone();
+
+    const sitDown = new Sequence('sit on sofa', [player]).add(
+      steps.walk(player, this.world(standAt), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, facingTv),
+      steps.slide(player, this.world(seat), 0.45),
+      steps.setPose(player, { legs: 'sit', arms: 'rest' }),
+      steps.wait(0.3)
+    );
+    sitDown.onEnd((reason) => {
+      if (reason !== 'done') return;
+      player.yaw = facingTv;
+      player.hold = { release: (instant) => this.leaveFurniture(standAt, instant) };
+      player.setScripted(true);
+      player.pose = { legs: 'sit', arms: 'rest' };
+      this.begin('watching_tv');
+    });
+    return this.director.run(sitDown);
+  }
+
+  /**
+   * Walk to the toilet, sit, and get up again relieved: the bladder is emptied while seated,
+   * the flush is heard, and the player washes up on the way out.
+   */
+  public useToilet(seat: THREE.Vector3, front: THREE.Vector3, facing: number): boolean {
+    const player = this.director.player;
+    if (!player || this.director.interrupt(player) === 'locked') return false;
+    const use = new Sequence('use the toilet', [player]).add(
+      steps.walk(player, this.world(front), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, facing),
+      steps.slide(player, this.world(seat), 0.45),
+      steps.setPose(player, { legs: 'sit', arms: 'rest' }),
+      steps.wait(2.6),
+      steps.call('relieved', () => {
+        this.backend.relieveBladder();
+        this.backend.modifyNeed('hygiene', -4);
+        showGameToast('🚽 Relieved. *Flush*', 'success', 2200);
+      }),
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, this.world(front), 0.45),
+      steps.animate(player, { arms: 'reach' }, 0.9)
+    );
+    return this.director.run(use);
+  }
+
+  /** Gets the player off the bed or sofa and back on their feet beside it. */
+  private leaveFurniture(standAt: THREE.Vector3, instant = false): void {
+    const player = this.director.player;
+    const was = this.activity;
+    // The duvet thrown back
+    this.duvet?.removeFromParent();
+    this.duvet = null;
+    this.activity = null;
+    this.changed();
+    if (!player) return;
+    player.hold = null;
+    if (instant) {
+      player.setScripted(false);
+      return;
+    }
+    if (was === 'sleeping' && this.elapsed > 1) showGameToast('You got up. What you rested, you keep.', 'info', 2600);
+    const rise = new Sequence('get up', [player]).locked().add(
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, this.world(standAt), 0.5)
+    );
+    if (!this.director.run(rise)) player.setScripted(false);
+  }
+
+  /** Ends whatever the player is doing on the bed or sofa (the on-screen button). */
+  public stop(): void {
+    const player = this.director.player;
+    if (player?.hold && this.activity) player.hold.release();
+  }
+
+  // --- Fridge ------------------------------------------------------------------------------
+
+  /** The first thing in the bag that can be eaten. */
+  private foodInBag(): { id: string; name: string } | null {
+    const item = this.backend.getData().inventory.find((entry) => entry.category === 'food' && entry.usable && entry.quantity > 0);
+    return item ? { id: item.id, name: item.name } : null;
+  }
+
+  /**
+   * Walk to the fridge, take out this (from the fridge, or from the bag when no id is given), carry
+   * it to the sofa, sit down and eat it there, and get up. Uses up exactly one.
+   */
+  public eatFromFridge(itemId?: string): { ok: boolean; reason?: string } {
+    const player = this.director.player;
+    if (!player) return { ok: false };
+    const fridge = Fridge.get();
+    const wanted = itemId ? fridge.contents().find((i) => i.id === itemId) ?? null : null;
+    const food = wanted ? { id: wanted.id, name: wanted.name } : this.foodInBag();
+    if (!food) return { ok: false, reason: itemId ? 'That is not in the fridge any more.' : 'There is nothing to eat in the fridge or your bag. Order groceries, or buy food, and stock the fridge.' };
+    if (this.director.interrupt(player) === 'locked') return { ok: false };
+
+    const snack = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.12, 0.16),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.7 })
+    );
+    snack.name = 'home_snack';
+    let taken = false;
+    const seat = HOME.sofa.seat.clone();
+    const front = HOME.sofa.front.clone();
+    const facing = HOME.sofa.facing;
+    const eat = new Sequence('eat from the fridge', [player]).add(
+      steps.walk(player, this.world(HOME.fridge.front), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, this.world(HOME.fridge.position)),
+      steps.animate(player, { arms: 'reach' }, 0.9, [{ at: 0.55, run: () => {
+        // Out of the fridge (back in the hand), or out of the bag
+        if (itemId) taken = !!fridge.takeOut(itemId);
+        else taken = this.foodInBag()?.id === food.id;
+        if (!taken) return false;
+        player.carry(snack);
+      } }]),
+      // To the sofa to eat it sitting down
+      steps.walk(player, this.world(front), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, facing),
+      steps.slide(player, this.world(seat), 0.45),
+      steps.setPose(player, { legs: 'sit', arms: 'eat' }),
+      steps.wait(0.2),
+      steps.animate(player, { arms: 'eat' }, 3.4, [{ at: 0.6, run: () => {
+        const used = this.backend.useItem(food.id);
+        if (!used.success) return false;
+        if (player.carried === snack) player.letGo();
+        snack.removeFromParent();
+        showGameToast(`🍽️ You ate the ${food.name}.`, 'success', 2600);
+      } }]),
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, this.world(front), 0.45),
+    );
+    eat.onEnd(() => {
+      if (player.carried === snack) player.letGo();
+      snack.removeFromParent();
+    });
+    return { ok: this.director.run(eat) };
+  }
+
+  // --- Bath --------------------------------------------------------------------------------
+
+  /** Walk to the water drum and take a bucket bath. */
+  public bathe(): boolean {
+    const player = this.director.player;
+    if (!player || this.director.interrupt(player) === 'locked') return false;
+    return this.director.perform({
+      id: 'bucket bath',
+      actor: player,
+      point: this.world(HOME.drum.front),
+      target: this.world(HOME.drum.position),
+      nav: this.nav,
+      animation: { arms: 'reach' },
+      seconds: 2.4,
+      effectAt: 0.75,
+      effect: () => {
+        this.backend.rest(30, 20);
+        this.backend.takeShower();
+        showGameToast('🪣 Cold bucket bath. Clean and fresh! Hygiene full, Energy +30.', 'success', 2800);
+      },
+    }).ok;
+  }
+
+  // --- Each frame --------------------------------------------------------------------------
+
+  public update(delta: number): void {
+    if (!this.activity) return;
+    const before = Math.floor(this.elapsed);
+    this.elapsed += delta;
+    const stats = this.backend.getData().stats;
+
+    if (this.activity === 'sleeping') {
+      this.backend.rest(SLEEP.energyPerSecond * delta, SLEEP.healthPerSecond * delta, false);
+      const rested = stats.energy >= 100 && stats.health >= 100;
+      if (rested && this.elapsed > 3 && !this.restedTold) {
+        // Awake and rested, but in no hurry: they stay in bed till they choose to get up
+        this.restedTold = true;
+        this.backend.rest(0, 0);
+        showGameToast('You are fully rested. Stay in bed as long as you like, or get up when you are ready.', 'success', 4200);
+        this.changed();
+      }
+    } else if (this.gained < TV.mostEnergy) {
+      const amount = Math.min(TV.energyPerSecond * delta, TV.mostEnergy - this.gained);
+      this.gained += amount;
+      this.backend.rest(amount, 0, false);
+    }
+    // Refresh the status line once a second, not every frame
+    if (Math.floor(this.elapsed) !== before) this.changed();
+  }
+
+  /** The player has left the apartment: nothing keeps running in an empty room. */
+  public playerLeft(): void {
+    if (this.activity) this.backend.rest(0, 0);
+    this.activity = null;
+    this.group.getObjectByName('home_snack')?.removeFromParent();
+    this.changed();
+  }
+
+  /** Marks a piece of furniture as solid. Coordinates are relative to the room centre. */
+  public block(centerX: number, centerZ: number, halfWidth: number, halfLength: number): { x: number; z: number; halfWidth: number; halfLength: number } {
+    this.nav.blockRect(centerX, centerZ, halfWidth, halfLength);
+    const solid = { x: centerX, z: centerZ, halfWidth, halfLength };
+    this.solids.push(solid);
+    return solid;
+  }
+
+  /** Takes something the home came with off the floor map (it is not there in this home). */
+  public unblock(solid: { x: number; z: number; halfWidth: number; halfLength: number }): void {
+    const i = this.solids.indexOf(solid);
+    if (i >= 0) this.solids.splice(i, 1);
+  }
+
+  /** Marks the floor map afresh from everything the home stands with now. */
+  public reblock(): void {
+    this.nav.clearAll();
+    for (const s of this.solids) this.nav.blockRect(s.x, s.z, s.halfWidth, s.halfLength);
+  }
+
+  /** Tells the status line to draw itself again (the television was turned to something else). */
+  public refresh(): void {
+    this.changed();
+  }
+
+  /** What the player is doing on the furniture, if anything. */
+  public get doing(): HomeActivity | null {
+    return this.activity;
+  }
+
+  public toInteriorLayer(object: THREE.Object3D): void {
+    object.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+  }
+}

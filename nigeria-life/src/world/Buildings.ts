@@ -1,14 +1,30 @@
 import * as THREE from 'three';
+import { HingedDoor, SlidingGate, type Doorway } from '../interactions/Door';
+import { InteractionDirector } from '../interactions/InteractionDirector';
 import type { InteractiveObject } from './World';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
+import { dressBuilding } from './FacadeKit';
+import { createCashMachine } from './kit/CashMachine';
+
+/** A door on the street that leads into a building's interior. */
+export interface StreetDoor {
+  buildingId: string;
+  door: Doorway;
+  /** Where to stand on the pavement in front of it */
+  outside: THREE.Vector3;
+  /** A point just through the doorway */
+  inside: THREE.Vector3;
+}
 
 export class Buildings {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
+  /** Street doors the player can walk through, keyed by the building they belong to */
+  public placeDoors: StreetDoor[] = [];
   public compoundGateMesh: THREE.Mesh | null = null;
   public isGateOpen: boolean = false;
-  private gateTargetZ: number = 0;
+  private compoundGate: SlidingGate | null = null;
   private matLib: MaterialLibrary;
   private signLib: SignageLibrary;
 
@@ -76,6 +92,30 @@ export class Buildings {
   // =========================================================================
   // HELPER: Louvered Slatted Window with Concrete Lintel and Sill
   // =========================================================================
+  /** A painted name board: a place's name, readable from the street. */
+  private static createNameBoardTexture(name: string, tagline: string): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 832;
+    canvas.height = 200;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(0, 0, 832, 200);
+    ctx.strokeStyle = '#15803d';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(7, 7, 818, 186);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#7f1d1d';
+    ctx.font = '900 92px Inter, system-ui, sans-serif';
+    ctx.fillText(name, 416, 108, 780);
+    ctx.fillStyle = '#15803d';
+    ctx.font = '700 40px Inter, system-ui, sans-serif';
+    ctx.fillText(tagline, 416, 164, 780);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
+  }
+
   private createWindow(w: number, h: number): THREE.Group {
     const winGroup = new THREE.Group();
 
@@ -214,7 +254,15 @@ export class Buildings {
       bankGroup.add(panel);
     }
 
+    // A portico, side windows, a proper parapet and what sits on a bank's roof
+    dressBuilding(bankGroup, { style: 'bank', facing: -Math.PI / 2, floors: 2, accent: 0xbe123c, frontBays: 0, openGround: true, doorAt: 1.0 });
+
     this.group.add(bankGroup);
+
+    // The machines in the wall of the gallery work at any hour, when the branch is shut too
+    const machine = createCashMachine({ id: 'broad-street', name: 'Eko Commercial Bank', x: 10.24, z: -14.5, facing: -Math.PI / 2, fasciaOnly: true });
+    this.group.add(machine.group);
+    this.interactiveList.push(machine.interactive);
 
     this.interactiveList.push({
       mesh: bankGroup,
@@ -366,15 +414,68 @@ export class Buildings {
     table.receiveShadow = true;
     bukaGroup.add(table);
 
+    // Front door, between the veranda posts, with the name over it
+    const doorZ = 1.9;
+    const doorway = new THREE.Group();
+    doorway.position.set(4.17, 0, doorZ); // on the pavement, in front of the plinth
+    doorway.rotation.y = Math.PI / 2; // faces Broad Street
+    bukaGroup.add(doorway);
+
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x3f1d0b, roughness: 0.8 });
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.5, 0.2), frameMat);
+      post.position.set(side * 0.68, 1.25, 0.06);
+      doorway.add(post);
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.16, 0.2), frameMat);
+    lintel.position.set(0, 2.5, 0.06);
+    doorway.add(lintel);
+
+    // What shows through the open door: the dim room beyond
+    const recess = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.2, 2.42),
+      new THREE.MeshBasicMaterial({ color: 0x1c0f07 })
+    );
+    recess.position.set(0, 1.21, 0.03);
+    doorway.add(recess);
+
+    const bukaDoor = new HingedDoor({
+      width: 1.2,
+      height: 2.4,
+      material: new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.55 }),
+      swing: -1.9,
+    });
+    bukaDoor.group.position.z = 0.1;
+    doorway.add(bukaDoor.group);
+    InteractionDirector.get().addDoor(bukaDoor);
+
+    const nameBoard = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.1, 0.5),
+      new THREE.MeshBasicMaterial({ map: Buildings.createNameBoardTexture('MAMA PUT BUKA', 'Hot food · Come in') })
+    );
+    nameBoard.position.set(0, 2.86, 0.09); // just over the door, under the awning
+    doorway.add(nameBoard);
+
+    // Two-tone paint, barred side windows, a bench and the day's menu on the wall
+    dressBuilding(bukaGroup, { style: 'eatery', facing: Math.PI / 2, floors: 1, accent: 0x7c2d12, frontBays: 0, flatRoof: false, doorAt: -doorZ });
+
     this.group.add(bukaGroup);
+
+    const doorWorld = new THREE.Vector3(bukaGroup.position.x + 4.17, 0, bukaGroup.position.z + doorZ);
+    this.placeDoors.push({
+      buildingId: 'mama-put',
+      door: bukaDoor,
+      outside: new THREE.Vector3(doorWorld.x + 2.4, 0, doorWorld.z),
+      inside: new THREE.Vector3(doorWorld.x - 1.5, 0, doorWorld.z),
+    });
 
     this.interactiveList.push({
       mesh: bukaGroup,
       id: 'mama-put',
-      name: 'Mama Put - Special Bukateria',
+      name: 'Mama Put Buka',
       category: 'Food & Health',
-      description: 'Hot smoky Party Jollof, spicy Asun, and Pounded Yam. Eat to restore 100% energy!',
-      interactionPoint: new THREE.Vector3(-9.5, 0, -10),
+      description: 'Jollof, fried rice, amala, eba and suya, served at your table. Walk in through the green door.',
+      interactionPoint: new THREE.Vector3(doorWorld.x + 2.4, 0, doorWorld.z),
     });
   }
 
@@ -482,6 +583,7 @@ export class Buildings {
     genGroup.add(exhaust);
 
     betGroup.add(genGroup);
+    dressBuilding(betGroup, { style: 'shop', facing: -Math.PI / 2, accent: 0xdc2626, frontBays: 0, openGround: true });
     this.group.add(betGroup);
 
     this.interactiveList.push({
@@ -519,7 +621,9 @@ export class Buildings {
     // Black rolling iron security gate with spearhead finials
     const gateGeo = new THREE.BoxGeometry(0.3, 2.6, 5);
     this.compoundGateMesh = new THREE.Mesh(gateGeo, this.matLib.ironRailingMaterial);
-    this.compoundGateMesh.position.set(8.1, 1.3, 0);
+    // Towards the far end of the wall, clear of the pedestrian bridge stairs on the pavement
+    const gateZ = 6.4;
+    this.compoundGateMesh.position.set(8.1, 1.3, gateZ);
     this.compoundGateMesh.castShadow = true;
     this.compoundGateMesh.receiveShadow = true;
 
@@ -536,6 +640,25 @@ export class Buildings {
       this.compoundGateMesh.add(finial);
     }
     compoundGroup.add(this.compoundGateMesh);
+
+    // What shows when the gate rolls aside: the shaded driveway into the compound
+    const gateway = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.6, 2.5),
+      new THREE.MeshBasicMaterial({ color: 0x1f2937 })
+    );
+    gateway.rotation.y = Math.PI / 2;
+    gateway.position.set(8.02, 1.25, gateZ);
+    compoundGroup.add(gateway);
+
+    // The gate is this home's street door: it rolls open and the player walks in through it
+    this.compoundGate = InteractionDirector.get().addDoor(new SlidingGate(this.compoundGateMesh, -4.6));
+    const gateWorld = new THREE.Vector3(compoundGroup.position.x + 8.1, 0, compoundGroup.position.z + gateZ);
+    this.placeDoors.push({
+      buildingId: 'villa-compound',
+      door: this.compoundGate,
+      outside: new THREE.Vector3(gateWorld.x + 2.4, 0, gateWorld.z),
+      inside: new THREE.Vector3(gateWorld.x - 1.8, 0, gateWorld.z),
+    });
 
     // Modern 2-storey Lagos duplex behind the wall
     const houseGeo = new THREE.BoxGeometry(11, 7.5, 11);
@@ -652,6 +775,8 @@ export class Buildings {
     towerGroup.add(pvcPipe);
 
     compoundGroup.add(towerGroup);
+    // The duplex behind the wall: a porch, barred windows all round, a painted lower band
+    dressBuilding(compoundGroup, { style: 'house', facing: Math.PI / 2, floors: 2, accent: 0xb45309, frontBays: 0, flatRoof: false });
     this.group.add(compoundGroup);
 
     this.interactiveList.push({
@@ -660,7 +785,7 @@ export class Buildings {
       name: 'Victoria Residence Estate',
       category: 'Real Estate & Living',
       description: 'Luxury 4-bedroom duplex with 24/7 borehole water & standby soundproof diesel gen.',
-      interactionPoint: new THREE.Vector3(-10.0, 0, 24),
+      interactionPoint: new THREE.Vector3(-9.5, 0, 30.4), // on the pavement in front of the gate
     });
   }
 
@@ -815,6 +940,7 @@ export class Buildings {
     const ac = this.createACUnit(-4.15, 2.8, 2.6, -Math.PI / 2);
     salonGroup.add(ac);
 
+    dressBuilding(salonGroup, { style: 'shop', facing: -Math.PI / 2, accent: 0xdb2777, frontBays: 0, openGround: true });
     this.group.add(salonGroup);
 
     this.interactiveList.push({
@@ -980,6 +1106,7 @@ export class Buildings {
     const ac = this.createACUnit(-4.4, 2.8, -2.8, -Math.PI / 2);
     textilesGroup.add(ac);
 
+    dressBuilding(textilesGroup, { style: 'shop', facing: -Math.PI / 2, accent: 0x7c3aed, frontBays: 0, openGround: true });
     this.group.add(textilesGroup);
 
     this.interactiveList.push({
@@ -1084,6 +1211,7 @@ export class Buildings {
     // Windows & AC
     pharmGroup.add(this.createWindow(1.8, 1.2));
     pharmGroup.add(this.createACUnit(4.35, 5.2, -2.5, -Math.PI / 2));
+    dressBuilding(pharmGroup, { style: 'shop', facing: Math.PI / 2, floors: 2, accent: 0x059669, frontBays: 2 });
     this.group.add(pharmGroup);
 
     this.interactiveList.push({
@@ -1121,27 +1249,74 @@ export class Buildings {
 
     martGroup.add(this.createACUnit(-4.6, 5.8, 2.5, Math.PI / 2));
 
-    // Supreme Court Pharmacy Fascia Board
-    const pharmSignGeo = new THREE.PlaneGeometry(8.5, 1.8);
-    const pharmSign = new THREE.Mesh(pharmSignGeo, this.signLib.supremeCourtPharmacyMaterial);
-    pharmSign.position.set(-4.62, 4.2, 0);
-    pharmSign.rotation.y = -Math.PI / 2;
-    martGroup.add(pharmSign);
+    // Name board over the entrance
+    const martSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(7.4, 1.78),
+      new THREE.MeshBasicMaterial({ map: Buildings.createNameBoardTexture('EVERYDAY', 'Supermarket · Cold drinks · Open daily') })
+    );
+    martSign.position.set(-4.76, 4.2, 0);
+    martSign.rotation.y = -Math.PI / 2;
+    martGroup.add(martSign);
+
+    // Front door in the glass shopfront, facing Broad Street
+    const martDoorway = new THREE.Group();
+    martDoorway.position.set(-4.72, 0, 0);
+    martDoorway.rotation.y = -Math.PI / 2;
+    martGroup.add(martDoorway);
+
+    const martFrameMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.5 });
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.6, 0.2), martFrameMat);
+      post.position.set(side * 0.78, 1.3, 0.06);
+      martDoorway.add(post);
+    }
+    const martLintel = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.16, 0.2), martFrameMat);
+    martLintel.position.set(0, 2.6, 0.06);
+    martDoorway.add(martLintel);
+
+    // What shows through the open door: the bright shop floor beyond
+    const martRecess = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.4, 2.52),
+      new THREE.MeshBasicMaterial({ color: 0xe2e8f0 })
+    );
+    martRecess.position.set(0, 1.26, 0.03);
+    martDoorway.add(martRecess);
+
+    const martDoor = new HingedDoor({
+      width: 1.4,
+      height: 2.5,
+      material: new THREE.MeshStandardMaterial({ color: 0x93c5fd, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.8 }),
+      swing: -1.9,
+      thickness: 0.05,
+    });
+    martDoor.group.position.z = 0.1;
+    martDoorway.add(martDoor.group);
+    InteractionDirector.get().addDoor(martDoor);
+
+    dressBuilding(martGroup, { style: 'shop', facing: -Math.PI / 2, floors: 2, accent: 0x2563eb, frontBays: 0, openGround: true });
 
     this.group.add(martGroup);
 
+    const martDoorWorld = new THREE.Vector3(martGroup.position.x - 4.72, 0, martGroup.position.z);
+    this.placeDoors.push({
+      buildingId: 'supermarket',
+      door: martDoor,
+      outside: new THREE.Vector3(martDoorWorld.x - 2.4, 0, martDoorWorld.z),
+      inside: new THREE.Vector3(martDoorWorld.x + 1.5, 0, martDoorWorld.z),
+    });
+
     this.interactiveList.push({
       mesh: martGroup,
-      id: 'pharmacy',
-      name: 'Supreme Court Pharmacy',
-      category: 'Health & Pharmacy',
-      description: 'Prescription medicines, vitamin C, first aid, malaria drugs, and energy supplements.',
-      interactionPoint: new THREE.Vector3(10, 0, -45),
+      id: 'supermarket',
+      name: 'Everyday Supermarket',
+      category: 'Shopping',
+      description: 'Cold drinks, bread, noodles, snacks and things for the house. Take a basket and pay at the till.',
+      interactionPoint: new THREE.Vector3(martDoorWorld.x - 2.4, 0, martDoorWorld.z),
     });
 
     // C. Victory Phones & Laptops Hub (South-East: x = 18, z = 35)
     const slotGroup = new THREE.Group();
-    slotGroup.position.set(18, 0, 35);
+    slotGroup.position.set(18, 0, 36.2);
 
     const slotGeo = new THREE.BoxGeometry(8.5, 6.5, 8.5);
     const slotBuilding = new THREE.Mesh(slotGeo, this.matLib.wallPlasterTeal);
@@ -1164,6 +1339,7 @@ export class Buildings {
     slotGroup.add(slotGlass);
 
     slotGroup.add(this.createACUnit(-4.35, 5.2, -1.8, Math.PI / 2));
+    dressBuilding(slotGroup, { style: 'shop', facing: -Math.PI / 2, floors: 2, accent: 0x0d9488, frontBays: 0, openGround: true });
     this.group.add(slotGroup);
 
     this.interactiveList.push({
@@ -1172,12 +1348,12 @@ export class Buildings {
       name: 'Victory Phones & Laptops',
       category: 'Tech & Electronics',
       description: 'Original iPhones, MacBooks, screen replacement, fast chargers, power banks, and AirPods.',
-      interactionPoint: new THREE.Vector3(10, 0, 35),
+      interactionPoint: new THREE.Vector3(10, 0, 36.2),
     });
 
     // D. Lagos Barbershop & Grooming Lounge (South-West: x = -18, z = 35)
     const barbGroup = new THREE.Group();
-    barbGroup.position.set(-18, 0, 35);
+    barbGroup.position.set(-18, 0, 37.3);
 
     const barbGeo = new THREE.BoxGeometry(8.0, 5.5, 7.5);
     const barbBuilding = new THREE.Mesh(barbGeo, this.matLib.wallPlasterOchre);
@@ -1200,6 +1376,7 @@ export class Buildings {
     bPole.position.set(4.2, 2.8, 2.8);
     barbGroup.add(bPole);
 
+    dressBuilding(barbGroup, { style: 'shop', facing: Math.PI / 2, floors: 2, accent: 0xb91c1c, frontBays: 2, frontTop: 2.9 });
     this.group.add(barbGroup);
 
     this.interactiveList.push({
@@ -1208,7 +1385,7 @@ export class Buildings {
       name: 'Lagos Executive Barbershop',
       category: 'Grooming & Style',
       description: 'Clean fade, waves, beard dye treatment, and hot towel wash.',
-      interactionPoint: new THREE.Vector3(-10, 0, 35),
+      interactionPoint: new THREE.Vector3(-10, 0, 37.3),
     });
   }
 
@@ -1217,9 +1394,11 @@ export class Buildings {
   // =========================================================================
   private buildApartmentBlocks(): void {
     const aptConfigs = [
-      { x: -19, z: -85, floors: 3, color: 0xf0e4cc, name: 'Palm View Flats' },
-      { x: 19, z: -85, floors: 4, color: 0xd9b99a, name: 'Heritage Heights' },
-      { x: 19, z: 65, floors: 3, color: 0xe6c9a0, name: 'Tejuosho Mansions' },
+      // Each on a stretch of Broad Street frontage of its own, clear of the landmarks either side
+      { x: -19, z: -100, floors: 3, color: 0xf0e4cc, name: 'Palm View Flats' },
+      { x: 19, z: -74.5, floors: 4, color: 0xd9b99a, name: 'Heritage Heights' },
+      // Set back off Wharf Road, which runs to the port gate where this block used to stand
+      { x: -35.5, z: 36, floors: 3, color: 0xe6c9a0, name: 'Tejuosho Mansions' },
     ];
 
     aptConfigs.forEach((cfg) => {
@@ -1242,40 +1421,16 @@ export class Buildings {
       bMesh.receiveShadow = true;
       aptGroup.add(bMesh);
 
-      // Windows and Balconies on each floor
+      // A balcony with railings and a door on every upper floor, barred windows with hoods,
+      // a stair core behind pierced blocks, and a parapet roof with its tank and dish
       const facingRoad = cfg.x < 0 ? 1 : -1;
-      const frontX = (facingRoad * W) / 2 + facingRoad * 0.05;
-
-      for (let f = 1; f <= cfg.floors; f++) {
-        const floorY = 2.0 + f * 3.0;
-
-        // Front Balcony Railing
-        const railGeo = new THREE.BoxGeometry(0.1, 0.9, 7.5);
-        const rail = new THREE.Mesh(railGeo, this.matLib.ironRailingMaterial);
-        rail.position.set(frontX, floorY + 0.45, 0);
-        rail.castShadow = true;
-        aptGroup.add(rail);
-
-        // Louvered Windows
-        for (const oz of [-2.8, 2.8]) {
-          const win = this.createWindow(1.6, 1.2);
-          win.position.set(frontX, floorY + 0.8, oz);
-          win.rotation.y = facingRoad > 0 ? -Math.PI / 2 : Math.PI / 2;
-          aptGroup.add(win);
-        }
-
-        // Outdoor AC unit
-        aptGroup.add(this.createACUnit(frontX, floorY + 1.2, 0, facingRoad > 0 ? -Math.PI / 2 : Math.PI / 2));
-      }
-
-      // Rooftop Black GeePee Polyethylene Water Tanks
-      for (const rx of [-2.5, 2.5]) {
-        const tankGeo = new THREE.CylinderGeometry(0.85, 0.85, 1.8, 16);
-        const tank = new THREE.Mesh(tankGeo, this.matLib.waterTankBlackMaterial);
-        tank.position.set(rx, H + 0.9, -1.5);
-        tank.castShadow = true;
-        aptGroup.add(tank);
-      }
+      dressBuilding(aptGroup, {
+        style: 'flats',
+        facing: (facingRoad * Math.PI) / 2,
+        floors: cfg.floors + 1,
+        accent: new THREE.Color(cfg.color).multiplyScalar(0.62).getHex(),
+        frontBays: 4,
+      });
 
       this.group.add(aptGroup);
     });
@@ -1286,7 +1441,7 @@ export class Buildings {
   // =========================================================================
   private buildFillingStation(): void {
     const stationGroup = new THREE.Group();
-    stationGroup.position.set(-21, 0, 75);
+    stationGroup.position.set(-21, 0, 78.2);
 
     // Forecourt concrete pad
     const padGeo = new THREE.BoxGeometry(16, 0.18, 18);
@@ -1363,7 +1518,7 @@ export class Buildings {
       name: 'NaijaPetro Filling Station & Mart',
       category: 'Fuel & Automotive',
       description: 'Refuel your Danfo/Keke, purchase engine oil, or grab cold bottled water.',
-      interactionPoint: new THREE.Vector3(-11, 0, 75),
+      interactionPoint: new THREE.Vector3(-11, 0, 78.2),
     });
   }
 
@@ -1372,7 +1527,7 @@ export class Buildings {
   // =========================================================================
   private buildMechanicWorkshop(): void {
     const mechGroup = new THREE.Group();
-    mechGroup.position.set(-19, 0, 105);
+    mechGroup.position.set(-19, 0, 109);
 
     // Open corrugated roof shed
     const roofGeo = new THREE.BoxGeometry(10, 0.15, 12);
@@ -1421,7 +1576,7 @@ export class Buildings {
       name: "God's Grace Auto Works",
       category: 'Repairs & Upgrades',
       description: 'Tune vehicle speed, change tires, repair broken down engine.',
-      interactionPoint: new THREE.Vector3(-10, 0, 105),
+      interactionPoint: new THREE.Vector3(-10, 0, 109),
     });
   }
 
@@ -1431,7 +1586,7 @@ export class Buildings {
   private buildConstructionSite(): void {
     const conGroup = new THREE.Group();
     // Positioned along the main commercial strip at x = 19, z = 54
-    conGroup.position.set(19, 0, 54);
+    conGroup.position.set(19, 0, 54.8);
 
     const conMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.95 });
     const rebarMat = new THREE.MeshStandardMaterial({ color: 0xb45309, metalness: 0.6, roughness: 0.7 });
@@ -1583,7 +1738,7 @@ export class Buildings {
       name: 'Eko Mega Plaza Development Site',
       category: 'Work & Labor',
       description: 'Active 4-storey commercial development approved by LASPPPA. Casual day-labor available.',
-      interactionPoint: new THREE.Vector3(10, 0, 54),
+      interactionPoint: new THREE.Vector3(10, 0, 54.8),
     });
   }
 
@@ -1761,17 +1916,12 @@ export class Buildings {
 
   public toggleCompoundGate(open?: boolean): boolean {
     this.isGateOpen = open !== undefined ? open : !this.isGateOpen;
-    this.gateTargetZ = this.isGateOpen ? 4.6 : 0;
+    if (this.isGateOpen) this.compoundGate?.open();
+    else this.compoundGate?.close();
     return this.isGateOpen;
   }
 
-  public update(delta: number): void {
-    if (this.compoundGateMesh) {
-      this.compoundGateMesh.position.z = THREE.MathUtils.lerp(
-        this.compoundGateMesh.position.z,
-        this.gateTargetZ,
-        Math.min(1, delta * 3.5)
-      );
-    }
+  public update(_delta: number): void {
+    // The compound gate is moved by the interaction system with every other door
   }
 }

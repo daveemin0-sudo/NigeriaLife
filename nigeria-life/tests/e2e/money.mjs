@@ -53,15 +53,16 @@ export async function run(browser, check) {
   check('a second visit repays the loan with interest (net -₦5,000) instead of paying out again', repaid.total - m0.total === -5000 && loanAfter === null, { net: repaid.total - m0.total, loanAfter });
   await leaveInterior(page);
 
-  // --- Daily gem hunt badge
+  // --- The Today badge: it opens the day's hustles; tapping it pays nothing (the old free gem is gone)
   m0 = await money(page);
   for (let i = 0; i < 3; i++) {
-    await page.evaluate(() => document.getElementById('badge-gem-hunt')?.click());
+    await page.evaluate(() => document.getElementById('badge-today')?.click());
     await wait(200);
-    await closeDialogs(page);
   }
+  const todayOpen = await page.evaluate(() => document.getElementById('today-panel')?.classList.contains('open'));
+  await page.evaluate(() => window.game.today.close());
   m1 = await money(page);
-  check('gem hunt pays once per day, not per click', m1.total - m0.total === 3000, { delta: m1.total - m0.total });
+  check('the Today badge opens the hustles of the day and pays nothing for a tap', todayOpen && m1.total === m0.total, { todayOpen, delta: m1.total - m0.total });
 
   // --- Hustles that used to pay for nothing now cost energy
   await setEnergy(10);
@@ -86,17 +87,18 @@ export async function run(browser, check) {
 
   // --- Furniture with a short wallet: wallet + bank must drop by exactly the price
   const item = await page.evaluate(async () => {
-    const mod = await import('/src/housing/HouseDecorationSystem.ts');
+    const mod = window.game.modules;
     const be = window.game.hud.backend;
     be.depositToBank(be.getData().walletCash - 20000); // leave ₦20,000 in the wallet
     const pick = mod.CATALOGUE_ITEMS.find((i) => i.price > 20000);
     return { id: pick.id, price: pick.price };
   });
   m0 = await money(page);
-  await page.evaluate(async (id) => { const mod = await import('/src/housing/HouseDecorationSystem.ts'); mod.HouseDecorationSystem.getInstance().purchaseAndPlace(id); }, item.id);
+  // Chosen, put down on a clear patch of floor, and paid for there
+  const placedIt = await page.evaluate((id) => { const d = window.game.modules.HouseDecorationSystem.getInstance(); d.beginPlacing(id); for (const [x, z] of [[3, 5], [-2, 2.2], [-1.5, -1.2], [0, -1.6], [1, 1.2], [-3, 3.5], [2, 2.5]]) { d.moveTo(x, z); const why = d.blocked(); if (!why || /need/.test(why)) break; } return d.confirm(); }, item.id);
   await wait(300);
   m1 = await money(page);
-  check(`furniture (₦${item.price.toLocaleString()}) bought with a short wallet charges the full price`, m0.total - m1.total === item.price && m1.cash >= 0 && m1.bank >= 0, { charged: m0.total - m1.total, wallet: m1.cash, bank: m1.bank });
+  check(`furniture (₦${item.price.toLocaleString()}) bought with a short wallet charges the full price`, placedIt.ok && m0.total - m1.total === item.price && m1.cash >= 0 && m1.bank >= 0, { charged: m0.total - m1.total, wallet: m1.cash, bank: m1.bank });
 
   // --- Transfer to someone who is not there
   m0 = await money(page);

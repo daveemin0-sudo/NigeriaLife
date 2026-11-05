@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import puppeteer from 'puppeteer-core';
 
-export const GAME_URL = process.env.GAME_URL || 'http://localhost:5174/';
+export const GAME_URL = process.env.GAME_URL || 'http://localhost:5173/';
 export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function findChrome() {
@@ -28,7 +28,11 @@ export async function launch() {
     headless: 'new',
     args: [
       // Real GPU rendering, so WebGL behaves as it does for a player
-      '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist',
+      ...(process.platform === 'win32'
+        ? ['--use-angle=d3d11', '--enable-gpu']
+        // No GPU on Linux servers and CI: software WebGL, and no sandbox when running as root
+        : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox']),
+      '--ignore-gpu-blocklist',
       '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
       '--disable-backgrounding-occluded-windows',
     ],
@@ -38,18 +42,59 @@ export async function launch() {
 /** A private browser context: a brand new player with an empty save. */
 export const newPlayer = (browser) => browser.createBrowserContext();
 
-/** Opens the game and waits until it is running. `before` is script text run before the page loads. */
+/** Opens the game and waits until it is running. `before` is script text run before the page loads; `url` overrides GAME_URL. */
 export async function open(ctx, opts = {}) {
   const page = await ctx.newPage();
   await page.setViewport({ width: opts.w || 1366, height: opts.h || 768 });
   const log = { errors: [] };
   page.on('pageerror', (e) => log.errors.push('PAGEERR ' + e.message.slice(0, 240)));
-  page.on('console', (m) => { if (m.type() === 'error') log.errors.push('CONSOLE ' + m.text().slice(0, 240)); });
+  // A request the server refused (409) says why, next to the console's error for it
+  page.on('response', async (r) => { if (r.status() === 409) { try { log.errors.push(`REFUSED ${r.url().slice(0, 120)}: ${(await r.text()).slice(0, 200)}`); } catch { /* gone */ } } });
+  // A resource that failed says which, so a refused request can be traced
+  page.on('console', (m) => { if (m.type() === 'error') log.errors.push('CONSOLE ' + m.text().slice(0, 240) + (m.location()?.url && /Failed to load resource/.test(m.text()) ? ` [${m.location().url.slice(0, 160)}]` : '')); });
+  // The daily hustle, the ladder and the album pay nothing under a test browser unless a suite asks
+  if (opts.life) await page.evaluateOnNewDocument(() => { window.__lifeOn = true; });
+  // The game keeps Lagos time. Run at night, every shop on the street would be shut, so a
+  // run between 9 pm and 9 am starts at noon instead. Only the first load: after a reload the
+  // game's own saved clock is what is being tested. By day the real clock is left alone.
+  // `realClock: true` keeps it at any hour.
+  if (!opts.realClock) await page.evaluateOnNewDocument(() => {
+    try {
+      if (sessionStorage.getItem('__noonPinned')) return;
+      sessionStorage.setItem('__noonPinned', '1');
+    } catch { /* no storage: pin anyway */ }
+    const t = setInterval(() => {
+      const sky = window.game?.world?.skyEnvironment;
+      if (!sky) return;
+      clearInterval(t);
+      const h = sky.lagosHourNow();
+      if (h < 9 || h >= 21) sky.setHour(12);
+    }, 10);
+  });
   if (opts.before) await page.evaluateOnNewDocument(opts.before);
-  await page.goto(GAME_URL, { waitUntil: 'load', timeout: 120000 });
+  await page.goto(opts.url || GAME_URL, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction('window.game', { timeout: 120000 });
   await wait(opts.settle ?? 3000);
   return { page, log };
+}
+
+/** Runs the game forward by this many seconds of game time, without waiting for it to be drawn. */
+export const advance = (page, seconds) => page.evaluate((s) => window.game.advance(s), seconds);
+
+/**
+ * Plays the game forward until `test` (a function run in the page) returns something truthy,
+ * and returns that value. Returns null if it has not happened after `seconds` of game time.
+ */
+export async function playUntil(page, test, seconds = 30, arg) {
+  const deadline = Date.now() + 120000;
+  for (let played = 0; played <= seconds && Date.now() < deadline; played += 0.25) {
+    const value = await page.evaluate(test, arg);
+    if (value) return value;
+    await advance(page, 0.25);
+    // Fades and other timers run on the real clock
+    await wait(40);
+  }
+  return null;
 }
 
 export async function reload(page, settle = 2500) {
@@ -69,13 +114,89 @@ export const quest = (page, id) => page.evaluate((qid) => {
 }, id);
 
 export async function enterInterior(page, type) {
-  await page.evaluate((t) => { const g = window.game; return g.world.interiorManager.enterInterior(t, g.player, g.cameraManager, g.hud, g.world); }, type);
+  await page.evaluate((t) => {
+    const g = window.game;
+    // The suites that use this are about what happens inside a place, not about when it is open (the
+    // hours suite is about that). If it is shut at this hour and open at noon, the visit is made at noon.
+    const sky = g.world.skyEnvironment;
+    if (!g.world.interiorManager.isOpenNow(t)) {
+      const was = sky.currentHour;
+      sky.setHour(12);
+      if (!g.world.interiorManager.isOpenNow(t)) sky.setHour(was);
+    }
+    return g.world.interiorManager.enterInterior(t, g.player, g.cameraManager, g.hud, g.world);
+  }, type);
   await wait(900);
 }
 
 export async function leaveInterior(page) {
   await page.evaluate(() => { const g = window.game; return g.world.interiorManager.exitCurrentInterior(g.player, g.cameraManager, g.hud, g.world); });
   await wait(900);
+}
+
+/** Leaves the current building the way a player does: the Leave button, then the walk out of the door. */
+export async function leaveByDoor(page) {
+  await page.click('#place-leave-btn');
+  return playUntil(page, () => {
+    const g = window.game;
+    return !g.world.interiorManager.isPlayerInside() && !g.world.interiorManager.busy && !g.player.actor.sequence ? true : null;
+  }, 30);
+}
+
+/**
+ * Where to press something, once it has stopped moving and nothing is lying over it. A panel
+ * that slides in (the phone coming out of the pocket) is not where it will be until it stops,
+ * and a press aimed at it mid-slide lands on whatever is behind. Null if it is not there.
+ */
+export async function steadyPoint(page, selector) {
+  return page.evaluate(async (sel) => {
+    let last = null;
+    for (let i = 0; i < 60; i++) {
+      const el = document.querySelector(sel);
+      if (el) {
+        el.scrollIntoView({ block: 'center' });
+        const box = el.getBoundingClientRect();
+        const point = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        const top = document.elementFromPoint(point.x, point.y);
+        const still = last && Math.abs(last.x - point.x) < 0.5 && Math.abs(last.y - point.y) < 0.5;
+        if (still && top && (top === el || el.contains(top))) return point;
+        last = point;
+      }
+      await new Promise((done) => setTimeout(done, 50));
+    }
+    return last;
+  }, selector);
+}
+
+/** Presses something with the mouse where it has come to rest. Throws if it is not on the page. */
+export async function pressSteady(page, selector, options = {}) {
+  const at = await steadyPoint(page, selector);
+  if (!at) throw new Error(`Nothing on the page matches ${selector}`);
+  await page.mouse.click(at.x, at.y, options);
+}
+
+/**
+ * Takes a ticket-holder through the airport and on to the aircraft by the flight service's
+ * own steps (check in, security, board), without walking the terminal. For suites that need
+ * a player to have flown; the walk itself is what the flights suite tests.
+ */
+/** Plays on until the player, sent walking somewhere, has stopped. Returns where they are (null if still walking). */
+export async function untilStopped(page, seconds = 90) {
+  await advance(page, 0.25);
+  return playUntil(page, () => {
+    const p = window.game.player;
+    return p.isMoving ? null : { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2) };
+  }, seconds);
+}
+
+export function boardHeldFlight(page) {
+  return page.evaluate(() => {
+    const g = window.game;
+    const city = g.world.cityManager.currentCityId;
+    g.flights.checkIn(city);
+    g.flights.clearSecurity(city);
+    return g.flights.board(city);
+  });
 }
 
 export async function closeDialogs(page) {
@@ -99,7 +220,7 @@ export async function useStation(page, id, inside = true) {
     g.hud.hideInteractionCard();
     g.player.stopMoving();
     g.player.mesh.position.set(o.interactionPoint.x, 0, o.interactionPoint.z);
-    await new Promise((r) => setTimeout(r, 250));
+    await window.game.advance(0.1); // a frame of game logic, so the prompt reflects the new position
     return g.hud.currentInteractionTarget?.id || 'no-prompt';
   }, { id, inside });
   if (prompt !== id) return { ok: false, prompt };
@@ -111,6 +232,8 @@ export async function useStation(page, id, inside = true) {
     if (btn && obj) { btn.click(); return obj.id; }
     return null;
   });
+  // Desks, counters and machines are used with a visible action; what they do lands part-way through it
+  await advance(page, 2.6);
   await wait(350);
   return { ok: true, card };
 }

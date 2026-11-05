@@ -2,6 +2,7 @@ import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
+import { draw, forget } from './kit/StableView';
 import { emitGameEvent } from '../game/GameEvents';
 
 export interface TravelDestination {
@@ -26,7 +27,7 @@ export const LAGOS_DESTINATIONS: TravelDestination[] = [
     id: 'dest_lekki',
     name: 'Lekki Phase 1 & Admiralty Way',
     tagline: 'Island Luxury, Palm Beach Clubs & Art Lounges',
-    fare: 800,
+    fare: 3000,
     icon: '🏝️',
     travelTimeSeconds: 3,
     perkDescription: 'Recharges 40% Energy with ocean breeze & beach club music.',
@@ -42,7 +43,7 @@ export const LAGOS_DESTINATIONS: TravelDestination[] = [
     id: 'dest_oshodi',
     name: 'Oshodi Interchange & Computer Village',
     tagline: 'Bustling Commercial Mega-Market & Gadgets Hub',
-    fare: 500,
+    fare: 2000,
     icon: '💻',
     travelTimeSeconds: 3,
     perkDescription: 'Adds +25 Hustle Experience XP from street trade negotiations.',
@@ -58,7 +59,7 @@ export const LAGOS_DESTINATIONS: TravelDestination[] = [
     id: 'dest_vi',
     name: 'Victoria Island & Eko Atlantic City',
     tagline: 'Skyscrapers, Corporate HQ & Coastal City Boulevard',
-    fare: 1200,
+    fare: 4500,
     icon: '🏙️',
     travelTimeSeconds: 4,
     perkDescription: 'Boosts +20 Street Cred and prestige reputation.',
@@ -74,7 +75,7 @@ export const LAGOS_DESTINATIONS: TravelDestination[] = [
     id: 'dest_ikeja',
     name: 'Ikeja Along & Allen Avenue Night Market',
     tagline: 'Mainland Capital City, Spicy Street Suya & Nightlife',
-    fare: 700,
+    fare: 2500,
     icon: '🥩',
     travelTimeSeconds: 3,
     perkDescription: 'Restores 60% Hunger with piping hot roadside Suya & onions.',
@@ -122,6 +123,7 @@ export class TravelModal {
     if (this.isTraveling) return;
     this.isOpen = true;
     this.container.style.display = 'flex';
+    forget(this.container);
     this.render(this.backend.getData());
     UIStateManager.getInstance().pushModal('travel');
   }
@@ -141,7 +143,7 @@ export class TravelModal {
   private render(data: PlayerAccount): void {
     if (!this.isOpen) return;
 
-    this.container.innerHTML = `
+    const html = `
       <div class="modal-backdrop"></div>
       <div class="travel-dialog">
         <header class="dialog-header">
@@ -204,7 +206,7 @@ export class TravelModal {
       </div>
     `;
 
-    this.setupEvents();
+    draw(this.container, html, { drawn: () => this.setupEvents() });
   }
 
   private setupEvents(): void {

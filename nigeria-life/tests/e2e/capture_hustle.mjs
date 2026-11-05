@@ -1,0 +1,46 @@
+// Hustle between two players: A posts a job with a fee, B takes it, A says it is done, B is paid (scratch capture)
+import { launch, wait } from './lib.mjs';
+const out = process.argv[2];
+const server = process.env.WORLD_SERVER;
+const browser = await launch();
+const phone = async () => {
+  const ctx = await browser.createBrowserContext();
+  const page = await ctx.newPage();
+  await page.setViewport({ width: 400, height: 820, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await page.goto(`${process.env.GAME_URL}?server=${encodeURIComponent(server)}`, { waitUntil: 'load', timeout: 120000 });
+  await page.waitForFunction('window.game && window.game.modules.OnlineAccount.get()?.connected', { timeout: 120000 });
+  return page;
+};
+const money = (page) => page.evaluate(() => window.game.modules.OnlineAccount.get().wallet);
+const openHustle = async (page, tab) => {
+  await page.evaluate((t) => { const g = window.game; g.hud.phoneModal.open(); g.hud.phoneModal.openApp('hustle'); document.querySelector(`[data-set="hustle.tab"][data-value="${t}"]`)?.click(); }, tab);
+  await wait(1500);
+};
+const a = await phone();
+const b = await phone();
+const a0 = await money(a);
+const b0 = await money(b);
+await openHustle(a, 'post');
+await a.type('#hustle-title', 'Decorate my new flat in Yaba');
+await a.type('#hustle-fee', '100000');
+await a.evaluate(() => document.getElementById('hustle-post-btn').click());
+await wait(1500);
+const a1 = await money(a);
+await openHustle(b, 'board');
+await wait(1200);
+await b.screenshot({ path: `${out}/hustle-board.png` });
+const took = await b.evaluate(() => { const btn = [...document.querySelectorAll('[data-act="take"]')].find((x) => x.closest('.nl-card')?.innerText.includes('Decorate my new flat')); btn?.click(); return !!btn; });
+await wait(1500);
+await openHustle(a, 'mine');
+await a.evaluate(() => new Promise((r) => setTimeout(r, 9000)));
+await a.evaluate(() => document.querySelector('[data-set="hustle.tab"][data-value="board"]')?.click());
+await wait(400);
+await a.evaluate(() => document.querySelector('[data-set="hustle.tab"][data-value="mine"]')?.click());
+await wait(1500);
+await a.screenshot({ path: `${out}/hustle-mine.png` });
+const paid = await a.evaluate(() => { const btn = document.querySelector('[data-act="done"]'); btn?.click(); return !!btn; });
+await wait(2000);
+const b1 = await money(b);
+const a2 = await money(a);
+console.log(JSON.stringify({ a0, a1, a2, b0, b1, took, paid }));
+await browser.close();

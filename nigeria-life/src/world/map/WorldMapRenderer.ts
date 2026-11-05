@@ -15,11 +15,20 @@ export class WorldMapRenderer {
   private propertyGroup: THREE.Group;
   private dataManager: WorldDataManager;
 
-  private currentCityId: 'lagos' | 'abuja' | 'port_harcourt' = 'lagos';
+  public currentCityId: 'lagos' | 'abuja' | 'port_harcourt' = 'lagos';
+  /**
+   * The map is the city itself seen from above, not a model of it: the real streets and
+   * buildings are shown under the map camera and this draws only what a map adds to them
+   * (the sea round the city, district outlines, pins). Lagos only, so far.
+   */
+  public realWorld = false;
+  private mapLights: { sun: THREE.DirectionalLight; fill: THREE.DirectionalLight; ambient: THREE.AmbientLight } | null = null;
 
   // Animated elements
   private waterMeshes: THREE.Mesh[] = [];
   private playerPin!: THREE.Group;
+  /** Whether the player is in the city whose map this is: the "you are here" pin is only shown in the city they are in */
+  public playerIsHere = true;
   private miniTraffic: Array<{ mesh: THREE.Group; path: THREE.LineCurve3; t: number; speed: number }> = [];
   private animTime: number = 0;
 
@@ -53,6 +62,7 @@ export class WorldMapRenderer {
 
     const mapAmbient = new THREE.AmbientLight(0xffffff, 1.7);
     this.group.add(mapAmbient);
+    this.mapLights = { sun: mapSun, fill: mapFill, ambient: mapAmbient };
 
     // Initial load defaults to current city in WorldDataManager
     const initialCity = this.dataManager.getCurrentCityId();
@@ -62,7 +72,8 @@ export class WorldMapRenderer {
   // =========================================================================
   // DYNAMIC CITY LOADER (Supports Lagos, Abuja FCT, and Port Harcourt)
   // =========================================================================
-  public loadCity(cityId: string): void {
+  public loadCity(cityId: string, realWorld: boolean = false): void {
+    this.realWorld = realWorld;
     const cleanId = cityId.toLowerCase().replace(/[\s-]/g, '_');
     if (cleanId.includes('abuja')) {
       this.currentCityId = 'abuja';
@@ -84,7 +95,10 @@ export class WorldMapRenderer {
     this.waterMeshes = [];
 
     // Build city-specific geography, infrastructure & landmarks
-    if (this.currentCityId === 'abuja') {
+    if (this.realWorld) {
+      // The city itself is what is looked at: only what lies round it is drawn here
+      this.buildSeaRoundTheCity();
+    } else if (this.currentCityId === 'abuja') {
       this.buildAbujaGeography();
       this.buildAbujaRoads();
       this.buildAbujaLandmarks();
@@ -102,6 +116,13 @@ export class WorldMapRenderer {
       this.buildLagosLandmarks();
       this.buildLagosProceduralBlocks();
       this.buildLagosTraffic();
+    }
+
+    // The real city is lit by its own sun; the model needs lights of its own
+    if (this.mapLights) {
+      this.mapLights.sun.intensity = this.realWorld ? 0 : 2.6;
+      this.mapLights.fill.intensity = this.realWorld ? 0.3 : 1.3;
+      this.mapLights.ambient.intensity = this.realWorld ? 0.55 : 1.7;
     }
 
     // Shared: build district territories, property markers, and player pin
@@ -271,11 +292,6 @@ export class WorldMapRenderer {
       } else {
         lmGroup.add(WorldMapPrefabs.createGlassTower(12, 0x10b981, 0.85));
       }
-
-      // Circular Pin Marker Badge
-      const badge = this.createLandmarkBadgeSprite(lm.icon, lm.name);
-      badge.position.y = 8.5;
-      lmGroup.add(badge);
 
       // Generous Hitbox for raycasting click & hover
       const hit = new THREE.Mesh(
@@ -483,11 +499,6 @@ export class WorldMapRenderer {
         lmGroup.add(WorldMapPrefabs.createGlassTower(11, 0x0284c7, 0.8));
       }
 
-      // Circular Pin Marker Badge
-      const badge = this.createLandmarkBadgeSprite(lm.icon, lm.name);
-      badge.position.y = 8.5;
-      lmGroup.add(badge);
-
       // Hitbox for raycasting click & hover
       const hit = new THREE.Mesh(
         new THREE.BoxGeometry(9.0, 12.0, 9.0),
@@ -640,6 +651,34 @@ export class WorldMapRenderer {
     this.addWaterLabel('LEKKI ESTATE', 85, 0.6, 25, 30, 8, '#14532d');
   }
 
+  /** Under and beyond the real city: water out to the horizon. */
+  private buildSeaRoundTheCity(): void {
+    // Lagos stands in the lagoon; Abuja on the savanna; Port Harcourt among the creeks and mangrove
+    const lagos = this.currentCityId === 'lagos';
+    const round = this.currentCityId === 'abuja' ? 0x5c7a32 : this.currentCityId === 'port_harcourt' ? 0x2f6b4a : 0x0d8fd8;
+    // Lagos: under the whole length of the road, from the ocean south of the island to the end past Agege
+    const sea = new THREE.Mesh(lagos ? new THREE.PlaneGeometry(3200, 9200) : new THREE.PlaneGeometry(1600, 1600), new THREE.MeshBasicMaterial({ color: round }));
+    sea.rotation.x = -Math.PI / 2;
+    sea.position.set(0, -0.4, lagos ? 3500 : 0);
+    this.cityContentGroup.add(sea);
+    if (!lagos) return;
+    // The open sea is deeper blue than the lagoon
+    const ocean = new THREE.Mesh(new THREE.PlaneGeometry(3200, 1300), new THREE.MeshBasicMaterial({ color: 0x0757a8 }));
+    ocean.rotation.x = -Math.PI / 2;
+    ocean.position.set(0, -0.35, -850);
+    this.cityContentGroup.add(ocean);
+    // Names on the water and the land, big enough to read from high up
+    this.addWaterLabel('ATLANTIC OCEAN', 0, 0.5, -420, 360, 90, '#e0f2fe');
+    this.addWaterLabel('LAGOS HARBOUR', -330, 0.5, -60, 190, 48, '#e0f2fe');
+    this.addWaterLabel('LAGOS LAGOON', 320, 0.5, 1950, 300, 75, '#e0f2fe');
+    this.addWaterLabel('LAGOS LAGOON', -320, 0.5, 1650, 300, 75, '#e0f2fe');
+    this.addWaterLabel('THIRD MAINLAND BRIDGE', -150, 0.5, 2250, 230, 40, '#fef9c3');
+    this.addWaterLabel('BANANA ISLAND', 240, 8, -40, 150, 34, '#fefce8');
+    for (const [name, z] of [['LAGOS ISLAND', 120], ['VICTORIA ISLAND', 640], ['IKOYI', 1050], ['YABA · MAINLAND', 3350], ['MUSHIN', 4150], ['IKEJA', 4500], ['OSHODI', 4950], ['AIRPORT', 6260], ['AGEGE', 6800]] as Array<[string, number]>) {
+      this.addWaterLabel(name, 175, 0.5, z, 170, 34, '#fefce8');
+    }
+  }
+
   private buildLagosRoadsAndBridges(): void {
     const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
 
@@ -713,12 +752,6 @@ export class WorldMapRenderer {
       } else {
         lmGroup.add(WorldMapPrefabs.createGlassTower(14, 0x059669, 0.8));
       }
-
-      // Marker badge
-      const badge = this.createLandmarkBadgeSprite(lm.icon, lm.name);
-      badge.position.y = 8.5;
-      lmGroup.add(badge);
-
       // Hitbox
       const hit = new THREE.Mesh(
         new THREE.BoxGeometry(8.0, 11.0, 8.0),
@@ -777,10 +810,16 @@ export class WorldMapRenderer {
     const districts = this.dataManager.getDistricts();
 
     for (const d of districts) {
-      const w = d.bounds.maxX - d.bounds.minX;
-      const h = d.bounds.maxZ - d.bounds.minZ;
-      const cx = (d.bounds.minX + d.bounds.maxX) / 2;
-      const cz = (d.bounds.minZ + d.bounds.maxZ) / 2;
+      // Over the real city a district stops where the land does
+      const edge = this.realWorld ? 159 : Infinity;
+      const minX = Math.max(-edge, d.bounds.minX);
+      const maxX = Math.min(edge, d.bounds.maxX);
+      const minZ = Math.max(-edge, d.bounds.minZ);
+      const maxZ = Math.min(edge, d.bounds.maxZ);
+      const w = maxX - minX;
+      const h = maxZ - minZ;
+      const cx = (minX + maxX) / 2;
+      const cz = (minZ + maxZ) / 2;
 
       let padColor = 0x22c55e;
       if (d.id.includes('airport')) padColor = 0x1e293b;
@@ -790,17 +829,28 @@ export class WorldMapRenderer {
       else if (d.zone === 'Diplomatic') padColor = 0x059669;
       else if (d.zone === 'Peninsula' || d.zone === 'Garden') padColor = 0x15803d;
 
-      // Base District Land Pad
-      const padGeo = new THREE.BoxGeometry(w, 0.45, h);
-      const padMat = new THREE.MeshStandardMaterial({
-        color: padColor,
-        roughness: 0.75,
-        metalness: 0.05,
-      });
-      const pad = new THREE.Mesh(padGeo, padMat);
-      pad.position.set(cx, 0.22, cz);
-      pad.receiveShadow = true;
-      this.cityContentGroup.add(pad);
+      if (this.realWorld) {
+        // Over the real ground a district is a wash of colour, not a slab
+        const wash = new THREE.Mesh(
+          new THREE.PlaneGeometry(w, h),
+          new THREE.MeshBasicMaterial({ color: padColor, transparent: true, opacity: 0.13, depthWrite: false })
+        );
+        wash.rotation.x = -Math.PI / 2;
+        wash.position.set(cx, 0.36, cz);
+        this.cityContentGroup.add(wash);
+      } else {
+        // Base District Land Pad
+        const padGeo = new THREE.BoxGeometry(w, 0.45, h);
+        const padMat = new THREE.MeshStandardMaterial({
+          color: padColor,
+          roughness: 0.75,
+          metalness: 0.05,
+        });
+        const pad = new THREE.Mesh(padGeo, padMat);
+        pad.position.set(cx, 0.22, cz);
+        pad.receiveShadow = true;
+        this.cityContentGroup.add(pad);
+      }
 
       // District Border Outline
       const borderGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, 0.48, h));
@@ -840,11 +890,6 @@ export class WorldMapRenderer {
       });
 
       this.districtHighlightMeshes.set(d.id, hlMesh);
-
-      // 3D District Floating Label Banner
-      const labelSprite = this.createDistrictLabelSprite(d.name, d.subtitle, d.color);
-      labelSprite.position.set(cx, 10.5, cz);
-      this.cityContentGroup.add(labelSprite);
     }
   }
 
@@ -1087,95 +1132,6 @@ export class WorldMapRenderer {
     this.cityContentGroup.add(mesh);
   }
 
-  private createDistrictLabelSprite(name: string, subtitle: string, colorHex: number): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 160;
-    const ctx = canvas.getContext('2d')!;
-
-    const hexStr = `#${colorHex.toString(16).padStart(6, '0')}`;
-
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetY = 6;
-
-    this.drawRoundedRect(ctx, 16, 16, 480, 128, 24);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    ctx.fill();
-
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = hexStr;
-    ctx.stroke();
-
-    this.drawRoundedRect(ctx, 24, 24, 12, 112, 6);
-    ctx.fillStyle = hexStr;
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 36px "Segoe UI", system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(name.toUpperCase(), 54, 72);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '22px "Segoe UI", system-ui, sans-serif';
-    ctx.fillText(subtitle, 54, 110);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(16, 5.0, 1);
-    return sprite;
-  }
-
-  private createLandmarkBadgeSprite(icon: string, name: string): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 140;
-    const ctx = canvas.getContext('2d')!;
-
-    // 1. Draw circular white badge pin
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 5;
-
-    ctx.beginPath();
-    ctx.arc(128, 52, 44, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#0284c7';
-    ctx.stroke();
-
-    ctx.font = '46px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(icon || '📍', 128, 54);
-
-    // 2. Name pill below circle
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-    ctx.shadowBlur = 8;
-    this.drawRoundedRect(ctx, 16, 102, 224, 32, 10);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
-    ctx.fill();
-
-    ctx.shadowColor = 'transparent';
-    ctx.font = 'bold 16px "Segoe UI", sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.fillText(name.length > 20 ? name.slice(0, 18) + '...' : name, 128, 123);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(8.5, 4.6, 1);
-    return sprite;
-  }
-
   private createPropertyBadgeSprite(prop: MapProperty): THREE.Sprite {
     const canvas = document.createElement('canvas');
     canvas.width = 160;
@@ -1279,6 +1235,7 @@ export class WorldMapRenderer {
 
     // Live update player location pin
     if (this.playerPin) {
+      this.playerPin.visible = this.playerIsHere;
       const playerPos = this.dataManager.getPlayerPosition();
       this.playerPin.position.set(playerPos.x, 0, playerPos.z);
       this.playerPin.position.y = Math.sin(this.animTime * 3.5) * 0.25;

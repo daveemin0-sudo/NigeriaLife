@@ -4,8 +4,12 @@ import { World, type InteractiveObject, type InteractionTarget } from '../world/
 import { HUD } from '../ui/HUD';
 import type { GameCamera } from './Camera';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { InteriorManager } from '../interiors/InteriorManager';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { NetworkManager } from '../multiplayer/NetworkManager';
+import { InteractionDirector } from '../interactions/InteractionDirector';
+import { Sequence, steps } from '../interactions/Sequence';
+import { PointerScope } from './PointerScope';
 
 export class InputManager {
   private camera: THREE.Camera;
@@ -25,6 +29,11 @@ export class InputManager {
 
   private raycaster: THREE.Raycaster;
   private mouseCoords: THREE.Vector2;
+  /** A tap arrives twice, as a mouse-style release and as a touch one; the first to act on it sets this */
+  private tapHandled = false;
+  private selfFeet = new THREE.Vector3();
+  private selfHead = new THREE.Vector3();
+  private selfNearest = new THREE.Vector3();
 
   // Visual Click Target Marker (Ripple ring on ground)
   private targetMarker: THREE.Mesh;
@@ -38,8 +47,21 @@ export class InputManager {
 
   public keys: Record<string, boolean> = {};
   public virtualJoystick: VirtualJoystick;
+  /** Keys the joystick is holding down now, so they are let go of when it is released */
+  private joystickHeld = new Set<string>();
   public onToggleVehicle?: () => void;
   public onHonkVehicle?: () => void;
+  /** J or G pressed while driving: buy from the hawker at the window, if one is there */
+  public onBuyFromWindow?: (item: 'water' | 'gala') => void;
+  public onRefuelVehicle?: () => void;
+  public onToggleShowcase?: () => void;
+  public onToggleGate?: () => boolean;
+  /** A click landed on open ground. Return true to use it instead of walking there. */
+  public onGroundClick?: (point: THREE.Vector3) => boolean;
+  /** A click landed on the floor of a room. Return true to use it instead of walking there. */
+  public onFloorClick?: (point: THREE.Vector3) => boolean;
+  /** The player clicked their own character, at this point on the screen */
+  public onSelfClicked?: (screen: { x: number; y: number }) => void;
 
   constructor(
     camera: THREE.Camera,
@@ -105,46 +127,21 @@ export class InputManager {
     this.scene.add(this.hoverReticle);
 
     // Setup Event Listeners
-    window.addEventListener('pointermove', this.onPointerMove.bind(this));
-    window.addEventListener('pointerdown', this.onPointerDown.bind(this));
-    window.addEventListener('pointerup', this.onPointerUp.bind(this));
-
-    // Touch support for screen drag rotation
-    window.addEventListener('touchstart', (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        const t = e.touches[0];
-        const targetEl = e.target as HTMLElement;
-        if (targetEl.closest('canvas')) {
-          this.isPointerDown = true;
-          this.hasDragged = false;
-          this.pointerDownPos.set(t.clientX, t.clientY);
-          this.lastMouseX = t.clientX;
-          this.lastMouseY = t.clientY;
-        }
-      }
-    }, { passive: true });
-
-    window.addEventListener('touchmove', (e: TouchEvent) => {
-      if (e.touches.length === 1 && this.isPointerDown && this.cameraManager) {
-        const t = e.touches[0];
-        const dist = Math.hypot(t.clientX - this.pointerDownPos.x, t.clientY - this.pointerDownPos.y);
-        if (dist > 5) {
-          this.hasDragged = true;
-          this.isRotatingCamera = true;
-          const deltaX = t.clientX - this.lastMouseX;
-          const deltaY = t.clientY - this.lastMouseY;
-          this.lastMouseX = t.clientX;
-          this.lastMouseY = t.clientY;
-          this.cameraManager.rotate(-deltaX * 0.006, -deltaY * 0.004);
-        }
-      }
-    }, { passive: true });
+    window.addEventListener('pointermove', (event) => this.onPointerMove(event));
+    window.addEventListener('pointerdown', (event) => this.onPointerDown(event));
+    window.addEventListener('pointerup', (event) => this.onPointerUp(event));
+    window.addEventListener('pointercancel', (event) => {
+      this.fingers.delete(event.pointerId);
+      if (this.fingers.size === 0) this.isRotatingCamera = false;
+    });
 
     window.addEventListener('touchend', (e: TouchEvent) => {
       const wasDragging = this.hasDragged;
       this.isPointerDown = false;
       this.isRotatingCamera = false;
-      if (!wasDragging && e.changedTouches.length > 0) {
+      // The mouse-style release that comes with a tap has already dealt with it
+      if (this.tapHandled || PointerScope.pressIgnored) return;
+      if (!wasDragging && e.changedTouches.length > 0 && PointerScope.isGameView(e.target)) {
         const t = e.changedTouches[0];
         this.handleCanvasClick(t.clientX, t.clientY);
       }
@@ -152,19 +149,17 @@ export class InputManager {
 
     // Prevent context menu on right click so player can freely rotate camera
     window.addEventListener('contextmenu', (e) => {
-      const targetEl = e.target as HTMLElement;
-      if (targetEl.closest('canvas')) {
+      if (PointerScope.isGameView(e.target)) {
         e.preventDefault();
       }
     });
 
-    // Mouse Wheel Zoom
-    window.addEventListener('wheel', (e: WheelEvent) => {
-      if (this.hud.currentNavMode === 'map') return;
-      if (this.cameraManager) {
-        this.cameraManager.zoom(e.deltaY * 0.005);
-      }
-    }, { passive: true });
+    // Mouse wheel zoom, only for wheel turns over the 3D view (see PointerScope)
+    PointerScope.onGameWheel((pixels) => {
+      if (this.hud.currentNavMode === 'map' || !this.cameraManager) return false;
+      this.cameraManager.zoom(pixels * 0.005);
+      return true;
+    });
 
     // Keyboard driving controls
     window.addEventListener('keydown', (e) => {
@@ -173,6 +168,13 @@ export class InputManager {
 
       const k = e.key.toLowerCase();
       this.keys[k] = true;
+      this.keys[e.code] = true;
+
+      if (e.key === 'F9') {
+        e.preventDefault();
+        this.onToggleShowcase?.();
+        return;
+      }
 
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
         this.pendingInteraction = null;
@@ -182,6 +184,15 @@ export class InputManager {
         this.onToggleVehicle?.();
       } else if (k === 'h') {
         this.onHonkVehicle?.();
+      } else if (k === 'g' || k === 'o') {
+        if (!this.onToggleGate?.()) {
+          this.onBuyFromWindow?.('gala');
+        }
+      } else if (k === 'j') {
+        // On the key going down, so a quick tap between two frames is not lost
+        this.onBuyFromWindow?.('water');
+      } else if (k === 'r') {
+        this.onRefuelVehicle?.();
       } else if (k === 'v') {
         // Toggle camera preset (Third-Person -> Street -> Isometric -> Aerial)
         if (this.cameraManager) {
@@ -191,11 +202,14 @@ export class InputManager {
             street: 'Street Normal',
             isometric: 'High Isometric',
             aerial: 'Aerial Overview',
+            eye: 'Inside view (eye level)',
           };
           this.hud.showNotification(`📷 Camera View: ${names[next] || next}`);
         }
       } else if (k === 'e') {
-        if (this.hud.currentInteractionTarget) {
+        if (e.defaultPrevented) {
+          // The HUD's own E handler already acted on this key press
+        } else if (this.hud.currentInteractionTarget) {
           e.preventDefault();
           this.hud.executeCurrentInteraction();
         } else if (this.hud.currentActiveObject) {
@@ -213,12 +227,43 @@ export class InputManager {
     window.addEventListener('keyup', (e) => {
       const k = e.key.toLowerCase();
       this.keys[k] = false;
+      this.keys[e.code] = false;
+    });
+
+    // Prevent stuck keys when browser window/tab loses focus
+    window.addEventListener('blur', () => {
+      for (const k of Object.keys(this.keys)) {
+        this.keys[k] = false;
+      }
     });
   }
 
-  private onPointerMove(event: MouseEvent): void {
+  private onPointerMove(event: PointerEvent): void {
     if (this.hud.currentNavMode === 'map') {
       this.hoverReticle.visible = false;
+      return;
+    }
+
+    if (event.pointerType === 'touch') {
+      const finger = this.fingers.get(event.pointerId);
+      if (!finger || !this.cameraManager) return;
+      if (this.fingers.size >= 2) {
+        finger.x = event.clientX;
+        finger.y = event.clientY;
+        const spread = this.spread();
+        // Fingers apart: nearer; together: further away
+        if (this.pinchSpread > 0) this.cameraManager.zoom((this.pinchSpread - spread) * 0.03);
+        this.pinchSpread = spread;
+        return;
+      }
+      const moved = Math.hypot(event.clientX - this.pointerDownPos.x, event.clientY - this.pointerDownPos.y);
+      if (moved > 8 || this.hasDragged) {
+        this.hasDragged = true;
+        this.isRotatingCamera = true;
+        this.cameraManager.rotate(-(event.clientX - finger.x) * 0.0065, -(event.clientY - finger.y) * 0.0045);
+        finger.x = event.clientX;
+        finger.y = event.clientY;
+      }
       return;
     }
 
@@ -255,6 +300,13 @@ export class InputManager {
     const activeObjects = isInside
       ? this.world.interiorManager.getActiveInteractiveObjects()
       : this.world.interactiveObjects;
+
+    if (this.onSelfClicked && this.pointerOnSelf(activeObjects, event.clientX, event.clientY)) {
+      this.hoveredObject = null;
+      this.hoverReticle.visible = false;
+      this.setCursor('interact');
+      return;
+    }
 
     // Check walkable terrain / interior floor
     const floorMesh = isInside
@@ -301,10 +353,34 @@ export class InputManager {
     this.setCursor('default');
   }
 
-  private onPointerDown(event: MouseEvent): void {
+  /**
+   * Fingers on the 3D view, by pointer id. One finger dragged turns the camera; two pinched
+   * zoom it. A finger on the joystick is not on the view, so the other thumb can turn the
+   * camera while walking.
+   */
+  private fingers = new Map<number, { x: number; y: number }>();
+  private pinchSpread = 0;
+
+  private spread(): number {
+    const [a, b] = [...this.fingers.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  }
+
+  private onPointerDown(event: PointerEvent): void {
+    this.tapHandled = false;
     if (this.hud.currentNavMode === 'map') return;
-    const targetEl = event.target as HTMLElement;
-    if (!targetEl.closest('canvas')) return;
+    if (!PointerScope.isGameView(event.target)) return;
+    // This press closed a menu; it does nothing else
+    if (PointerScope.pressIgnored) return;
+    if (event.pointerType === 'touch') {
+      this.fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (this.fingers.size >= 2) {
+        // A second finger: this is a pinch, never a tap
+        this.pinchSpread = this.spread();
+        this.hasDragged = true;
+        return;
+      }
+    }
 
     this.isPointerDown = true;
     this.hasDragged = false;
@@ -317,14 +393,25 @@ export class InputManager {
     }
   }
 
-  private onPointerUp(event: MouseEvent): void {
+  private onPointerUp(event: PointerEvent): void {
+    if (event.pointerType === 'touch') {
+      const tracked = this.fingers.delete(event.pointerId);
+      if (this.fingers.size > 0) {
+        // One finger of a pinch lifted: the other carries on turning from where it is now
+        const [rest] = [...this.fingers.values()];
+        this.pointerDownPos.set(rest.x, rest.y);
+        this.pinchSpread = 0;
+        return;
+      }
+      if (!tracked) return;
+    }
     const wasDragging = this.hasDragged || this.isRotatingCamera;
     this.isPointerDown = false;
     this.isRotatingCamera = false;
 
     if (this.hud.currentNavMode === 'map') return;
-    const targetEl = event.target as HTMLElement;
-    if (!targetEl.closest('canvas')) return;
+    if (!PointerScope.isGameView(event.target)) return;
+    if (PointerScope.pressIgnored) return;
 
     // If the user dragged to rotate the view, do not trigger walk or interaction!
     if (wasDragging) {
@@ -335,10 +422,46 @@ export class InputManager {
     if (event.button !== 0) return;
     if (this.player.isDriving) return;
 
+    this.tapHandled = true;
     this.handleCanvasClick(event.clientX, event.clientY);
   }
 
+  /**
+   * Is the pointer on the player's own character? Judged on the screen: inside the shape the
+   * body takes up from head to feet, a little wider than it is so a finger can find it, unless
+   * someone or something to interact with is in front. The name above the head does not count,
+   * and nor does the ground just past the body: that is where a player taps to walk forward.
+   * (It used to be anything the line of sight passed within 0.42 m of, which on a phone took in
+   * the street straight ahead of the character.) Expects the raycaster to be aimed already.
+   */
+  private pointerOnSelf(activeObjects: InteractiveObject[], clientX: number, clientY: number): boolean {
+    if (!this.player.mesh.visible || this.player.isDriving) return false;
+    const feet = this.selfFeet.copy(this.player.mesh.position);
+    feet.y += 0.05;
+    const head = this.selfHead.copy(this.player.mesh.position);
+    head.y += this.player.actor.pose?.legs === 'lie' ? 0.5 : this.player.actor.hold ? 1.35 : 1.8;
+    const toScreen = (v: THREE.Vector3) => {
+      const p = v.clone().project(this.camera);
+      return { x: ((p.x + 1) / 2) * window.innerWidth, y: ((1 - p.y) / 2) * window.innerHeight };
+    };
+    const top = toScreen(head);
+    const bottom = toScreen(feet);
+    const tall = Math.hypot(top.x - bottom.x, top.y - bottom.y);
+    // How far along the body (0 at the feet, 1 at the head) the pointer is, and how far to the side
+    const along = ((clientX - bottom.x) * (top.x - bottom.x) + (clientY - bottom.y) * (top.y - bottom.y)) / Math.max(1, tall * tall);
+    const side = Math.abs((clientX - bottom.x) * (top.y - bottom.y) - (clientY - bottom.y) * (top.x - bottom.x)) / Math.max(1, tall);
+    const slack = 6 / Math.max(1, tall);
+    if (along < -slack || along > 1 + slack || side > Math.max(14, tall * 0.2)) return false;
+    this.raycaster.ray.closestPointToPoint(head.clone().lerp(feet, 0.5), this.selfNearest);
+
+    const reach = this.raycaster.ray.origin.distanceTo(this.selfNearest);
+    const inFront = this.raycaster.intersectObjects(activeObjects.map((obj) => obj.mesh), true)[0];
+    return !inFront || inFront.distance > reach - 0.3 || this.findInteractiveParent(inFront.object) === null;
+  }
+
   private handleCanvasClick(clientX: number, clientY: number): void {
+    const actor = this.player.actor;
+
     this.mouseCoords.x = (clientX / window.innerWidth) * 2 - 1;
     this.mouseCoords.y = -(clientY / window.innerHeight) * 2 + 1;
 
@@ -349,6 +472,16 @@ export class InputManager {
     const activeObjects = isInside
       ? this.world.interiorManager.getActiveInteractiveObjects()
       : this.world.interactiveObjects;
+
+    // 0. The player's own character: their menu, whatever they are in the middle of
+    if (this.onSelfClicked && this.pointerOnSelf(activeObjects, clientX, clientY)) {
+      this.pendingInteraction = null;
+      this.onSelfClicked({ x: clientX, y: clientY });
+      return;
+    }
+
+    // Walking through a doorway cannot be interrupted
+    if (actor.sequence && !actor.sequence.interruptible) return;
 
     // 1. Raycast walkable terrain / interior floor FIRST
     const floorMesh = isInside
@@ -372,24 +505,12 @@ export class InputManager {
       if (isDirectInteractiveClick) {
         const hitObj = this.findInteractiveParent(closestBuildingHit.object);
         if (hitObj) {
-          const dist = this.player.position.distanceTo(hitObj.interactionPoint);
-          const threshold = hitObj.id.startsWith('veh-') ? 3.5 : 2.8;
-
-          if (dist <= threshold) {
-            // Already within close proximity: face object and open immediately
-            const lookDir = new THREE.Vector3().subVectors(hitObj.interactionPoint, this.player.position);
-            if (lookDir.lengthSq() > 0.01) {
-              this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
-            }
-            this.pendingInteraction = null;
+          if (actor.hold) {
+            // Seated: look at who or what was clicked without getting up (to wave across the room, say)
             this.hud.showInteractionCard(hitObj);
-          } else {
-            // Player is at a distance: approach the object first, then interact on arrival
-            this.player.setDestination(hitObj.interactionPoint);
-            this.spawnClickMarker(hitObj.interactionPoint, 0xfacc15); // Golden approach target
-            this.pendingInteraction = hitObj;
-            this.hud.hideInteractionCard();
+            return;
           }
+          this.approachAndInteract(hitObj);
           return;
         }
       }
@@ -398,11 +519,76 @@ export class InputManager {
     // 3. Click on ground / interior floor -> walk directly there!
     if (floorHits.length > 0) {
       const clickPoint = floorHits[0].point;
+      if (!isInside && this.onGroundClick?.(clickPoint)) return;
+      if (isInside && this.onFloorClick?.(clickPoint)) return;
       this.pendingInteraction = null;
-      this.player.setDestination(clickPoint);
+      // A click on a table or bed means "go over there", not "walk into it"
+      const nav = isInside ? this.world.interiorManager.getActiveNav() : null;
+      this.walkPlayerTo(nav ? nav.closestFree(clickPoint) : clickPoint);
       this.spawnClickMarker(clickPoint, 0x00ff88); // Emerald target
       this.hud.hideInteractionCard();
     }
+  }
+
+  /**
+   * Walk the player up to an object and open its card on arrival (or at once if already beside it).
+   * Used by clicks in the 3D view and by on-screen shortcuts, so nothing needs the keyboard.
+   */
+  /** What the player last tapped to go to: while they are in reach of it, its card is the one shown */
+  private chosen: InteractiveObject | null = null;
+
+  public approachAndInteract(obj: InteractiveObject): void {
+    this.chosen = obj;
+    const dist = this.player.position.distanceTo(obj.interactionPoint);
+    const threshold = obj.id.startsWith('veh-') ? 3.5 : 2.8;
+
+    if (dist <= threshold) {
+      // Already within close proximity: face object and open immediately
+      const lookDir = new THREE.Vector3().subVectors(obj.interactionPoint, this.player.position);
+      if (lookDir.lengthSq() > 0.01) {
+        this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+      }
+      this.pendingInteraction = null;
+      this.hud.showInteractionCard(obj);
+    } else {
+      // Player is at a distance: approach the object first, then interact on arrival
+      this.spawnClickMarker(obj.interactionPoint, 0xfacc15); // Golden approach target
+      this.hud.hideInteractionCard();
+      const routed = this.walkPlayerTo(obj.interactionPoint, () => {
+        const lookDir = new THREE.Vector3().subVectors(obj.interactionPoint, this.player.position);
+        if (lookDir.lengthSq() > 0.01) this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+        this.hud.showInteractionCard(obj);
+      });
+      this.pendingInteraction = routed ? null : obj;
+    }
+  }
+
+  /**
+   * Sends the player to a point. In a room with a floor map they walk around the furniture
+   * (and `onArrive` runs when they get there); elsewhere they walk straight, as before.
+   * Returns true if the routed walk was used.
+   */
+  private walkPlayerTo(point: THREE.Vector3, onArrive?: () => void, retried = false): boolean {
+    const interiors = this.world.interiorManager;
+    const nav = interiors.isPlayerInside() ? interiors.getActiveNav() : null;
+    const actor = this.player.actor;
+    if (!nav) {
+      if (actor.scripted && InteractionDirector.get().interrupt(actor) === 'locked') return false;
+      this.player.setDestination(point);
+      return false;
+    }
+    if (InteractionDirector.get().interrupt(actor) === 'locked') {
+      // Getting up from a chair comes first; set off as soon as that is done
+      const current = actor.sequence;
+      if (current && !retried) current.finished.then(() => this.walkPlayerTo(point, onArrive, true));
+      return true;
+    }
+    const walk = new Sequence('walk', [actor]).add(steps.walk(actor, point, { nav, speed: 5.5 }));
+    walk.onEnd((reason) => {
+      if (reason === 'done') onArrive?.();
+    });
+    InteractionDirector.get().run(walk);
+    return true;
   }
 
   private setCursor(state: 'default' | 'walk' | 'interact'): void {
@@ -457,7 +643,7 @@ export class InputManager {
     if (dest) {
       return dest.entrance.triggerRadius || 6.5;
     }
-    if (['lagos-hospital', 'hospital', 'lagos-bank', 'bank', 'mama-put', 'buka', 'police-station', 'police', 'villa-compound', 'palm-view-flats', 'unilag-campus', 'mma-airport'].includes(id)) {
+    if (['lagos-hospital', 'hospital', 'lagos-bank', 'bank', 'mama-put', 'buka', 'police-station', 'police', 'villa-compound', 'palm-view-flats', 'unilag-campus', 'mma-airport', 'barber-shop'].includes(id)) {
       return 6.5;
     }
     if (id === 'interior_exit_door') return 3.5;
@@ -473,11 +659,13 @@ export class InputManager {
     // 1. Canonical Destination Registry Match (Single source of truth)
     const dest = DestinationRegistry.getInstance().getById(id);
     if (dest && dest.isEnterable) {
+      // A place that keeps hours says so at its door when it is shut
+      const shut = !InteriorManager.getInstance().isOpenNow(dest.interiorId);
       return {
         id: dest.id,
         name: dest.name,
         category: dest.category,
-        label: dest.entrance.promptLabel,
+        label: shut ? `🔒 ${dest.name} is closed (${dest.openingHours})` : dest.entrance.promptLabel,
         action: 'enter-interior',
         interiorId: dest.interiorId,
         distance: dist,
@@ -571,17 +759,57 @@ export class InputManager {
         type: 'building',
       };
     }
+    if (id === 'barber-shop') {
+      return {
+        id: 'barber-shop',
+        name: 'Lagos Executive Barbershop',
+        category: obj.category,
+        label: 'Enter Lagos Barbers',
+        action: 'enter-interior',
+        interiorId: 'barber-shop',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'building',
+      };
+    }
     if (id === 'interior_exit_door') {
       return {
         id: 'interior_exit_door',
-        name: 'Exit to Street',
+        name: obj.exitLabel ?? 'Exit to Street',
         category: obj.category,
-        label: 'Exit to Street',
+        label: obj.exitLabel ?? 'Exit to Street',
         action: 'exit-interior',
         distance: dist,
         interactionPoint: obj.interactionPoint,
         interactiveObject: obj,
         type: 'door',
+      };
+    }
+    if (id.startsWith('plot_')) {
+      return {
+        id: obj.id,
+        name: obj.name,
+        category: obj.category,
+        label: `📋 Inspect the plot at ${obj.name}`,
+        action: 'interact',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'station',
+      };
+    }
+    if (id.startsWith('gate_')) {
+      return {
+        id: obj.id,
+        name: obj.name,
+        category: obj.category,
+        label: `🚪 Open / Close Gate (${obj.name})`,
+        action: 'interact',
+        distance: dist,
+        interactionPoint: obj.interactionPoint,
+        interactiveObject: obj,
+        type: 'station',
       };
     }
     if (id.startsWith('veh-')) {
@@ -635,6 +863,11 @@ export class InputManager {
       bank_manager_desk: '💼 Apply for Lagos SME Loan',
       buka_food_counter: '🍲 Order Firewood Party Jollof',
       buka_table_vip: '🍽️ Sit Down & Chop Life',
+      shop_shelf_drinks: '🥤 Look in the drinks fridge',
+      shop_shelf_food: '🍞 Look along the food shelf',
+      shop_shelf_snacks: '🍪 Look along the snacks shelf',
+      shop_shelf_household: '🔦 Look along the household shelf',
+      shop_checkout: '🧾 Pay at the till',
       police_front_desk: '📝 File Citizen Incident Report',
       police_holding_cell: '⚖️ Pay Citizen Bail Bond',
       unilag_lecture_podium: '🎓 Attend Faculty Lecture',
@@ -646,6 +879,7 @@ export class InputManager {
       airport_flight_abuja: '✈️ Board Flight to Abuja FCT',
       airport_flight_ph: '✈️ Board Flight to Port Harcourt',
       airport_vip_lounge: '🥂 Relax in Executive VIP Lounge',
+      airport_baggage_carousel: '🧳 Claim Checked Luggage',
       'flat-workstation': '💻 Complete Remote Tech Sprint',
     };
 
@@ -672,6 +906,13 @@ export class InputManager {
       return;
     }
 
+    // No prompt while walking through a doorway or sitting at a table
+    const actor = this.player.actor;
+    if ((actor.sequence && !actor.sequence.interruptible) || actor.hold) {
+      if (this.hud.currentInteractionTarget) this.hud.setProximityTarget(null);
+      return;
+    }
+
     const isInside = this.world.interiorManager.isPlayerInside();
     let candidates: InteractiveObject[] = [];
 
@@ -686,6 +927,7 @@ export class InputManager {
           !o.id.startsWith('hosp_') &&
           !o.id.startsWith('bank_') &&
           !o.id.startsWith('buka_') &&
+          !o.id.startsWith('shop_') &&
           !o.id.startsWith('police_') &&
           !o.id.startsWith('unilag_') &&
           !o.id.startsWith('airport_')
@@ -698,7 +940,7 @@ export class InputManager {
           candidates.push({
             mesh: rp.mesh,
             id: `remote_player_${rId}`,
-            name: (rp as any).name || `@${rId.substring(0, 8)}`,
+            name: rp.name || `@${rId.substring(0, 8)}`,
             category: 'Online Citizen',
             description: `Live Lagos Citizen strolling Broad Street. Emote: ${rp.currentEmote}. Press [E] to interact!`,
             interactionPoint: rp.mesh.position.clone(),
@@ -710,13 +952,17 @@ export class InputManager {
     let nearestCandidate: InteractiveObject | null = null;
     let minDistance = Infinity;
     let bestRank = Infinity;
+    // Walked away from it, or it is gone from this place: the nearest thing has the prompt again
+    if (this.chosen && (!candidates.includes(this.chosen) || this.player.position.distanceTo(this.chosen.interactionPoint) > this.getInteractionRadius(this.chosen.id) + 0.5) && !this.player.isMoving && !this.player.actor.sequence) this.chosen = null;
 
     for (const obj of candidates) {
       const radius = this.getInteractionRadius(obj.id);
       const dist = this.player.position.distanceTo(obj.interactionPoint);
       // Some staffed stations share their exact standing spot with the attendant. The station
       // carries the action, so it wins the tie; attendants standing apart keep their own prompt.
-      const rank = obj.id.startsWith('interior_npc_') ? dist + 0.3 : dist;
+      // Someone walking past does not take the prompt from the door or desk the player is standing at
+      // What the player chose to go to keeps the prompt over a door that happens to be nearer
+      const rank = obj === this.chosen ? -1 : obj.moving ? dist + 6 : obj.id.startsWith('interior_npc_') ? dist + 0.3 : dist;
       if (dist <= radius && rank < bestRank) {
         bestRank = rank;
         minDistance = dist;
@@ -744,10 +990,29 @@ export class InputManager {
   }
 
   public update(delta: number): void {
-    // Merge Virtual Joystick active keys
-    if (this.virtualJoystick && this.virtualJoystick.isVisible) {
-      for (const [k, v] of Object.entries(this.virtualJoystick.activeKeys)) {
-        if (v) this.keys[k] = true;
+    // The joystick holds keys down while it is pushed, and lets go of exactly those when it is
+    // released. (It used to only ever press them: once pushed forward the player walked on for
+    // good, forward and back cancelled each other, and a tap on the ground or a station was
+    // undone at once by the "held" key.)
+    if (this.virtualJoystick) {
+      const joystick = this.virtualJoystick.isVisible ? this.virtualJoystick.activeKeys : {};
+      for (const k of ['w', 'a', 's', 'd', 'shift']) {
+        const pushed = !!(joystick as Record<string, boolean>)[k];
+        if (pushed) {
+          this.keys[k] = true;
+          this.joystickHeld.add(k);
+        } else if (this.joystickHeld.has(k)) {
+          this.keys[k] = false;
+          this.joystickHeld.delete(k);
+        }
+      }
+    }
+
+    // Pushing a movement key or the joystick breaks out of a scripted action that allows it
+    if (this.player.actor.scripted) {
+      const k = this.keys;
+      if (k['w'] || k['a'] || k['s'] || k['d'] || k['arrowup'] || k['arrowdown'] || k['arrowleft'] || k['arrowright']) {
+        InteractionDirector.get().interrupt(this.player.actor);
       }
     }
 
@@ -775,7 +1040,7 @@ export class InputManager {
     }
 
     // Auto-dismiss interaction card if player moves far away
-    if (this.hud.currentActiveObject && !this.pendingInteraction) {
+    if (this.hud.currentActiveObject && !this.pendingInteraction && !this.player.actor.hold) {
       const activeDist = this.player.position.distanceTo(this.hud.currentActiveObject.interactionPoint);
       if (activeDist > 6.0) {
         this.hud.hideInteractionCard();
@@ -827,7 +1092,7 @@ export class InputManager {
           list.push({
             mesh: rp.mesh,
             id: `remote_player_${rId}`,
-            name: (rp as any).name || `@${rId.substring(0, 8)}`,
+            name: rp.name || `@${rId.substring(0, 8)}`,
             category: 'Online Citizen',
             description: `Live Lagos Citizen strolling Broad Street. Emote: ${rp.currentEmote}. Press [E] to interact!`,
             interactionPoint: rp.mesh.position.clone(),

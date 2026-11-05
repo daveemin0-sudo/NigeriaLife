@@ -209,6 +209,8 @@ export class UIStateManager {
 
   public setCardOpen(isOpen: boolean): void {
     this.isCardOpen = isOpen;
+    // On a phone the on-screen stick and buttons step aside while a card is being read (style.css)
+    document.body.classList.toggle('ui-card-open', isOpen);
     this.applyLayoutRules();
   }
 

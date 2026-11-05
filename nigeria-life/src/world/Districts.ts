@@ -14,8 +14,25 @@ export class Districts {
   // Generator smoke
   private smokeParticles: THREE.Mesh[] = [];
 
-  // Airport radar scanner animation
-  private airportRadarMesh?: THREE.Mesh;
+  // Market stalls
+  private marketStallUmbrellas: THREE.Mesh[] = [];
+  private marketFabricRolls: THREE.Mesh[] = [];
+
+  public setNightLighting(period: string): void {
+    const isNight = period === 'night';
+    for (const umbrella of this.marketStallUmbrellas) {
+      if (isNight) {
+        umbrella.position.y = 1.6;
+        umbrella.scale.set(0.18, 0.85, 0.18);
+      } else {
+        umbrella.position.y = 3.2;
+        umbrella.scale.set(1, 1, 1);
+      }
+    }
+    for (const fabric of this.marketFabricRolls) {
+      fabric.visible = !isNight;
+    }
+  }
 
   constructor() {
     this.group = new THREE.Group();
@@ -38,11 +55,7 @@ export class Districts {
     // 5b. Build University of Lagos (UNILAG) Akoka Campus & Senate Gates
     this.buildUnilagCampus();
 
-    // 6. Build Surulere Sports Hub & Teslim Balogun Stadium (West)
-    this.buildSurulereStadium();
-
-    // 7. Build Murtala Muhammed Airport Terminal & Flight Deck (North-West)
-    this.buildAirportTerminal();
+    // 6, 7. The stadium and the airport are landmarks of their own now: see world/landmarks
 
     // 8. Build Ajah Peninsula Developing Residential Estate (Far East)
     this.buildAjahDevelopingEstate();
@@ -53,6 +66,9 @@ export class Districts {
     // 10. Build General Hospital & Police Station Destinations
     this.buildGeneralHospital();
     this.buildPoliceStation();
+
+    // 10b. The gate of Banana Island
+    this.buildBananaIslandGate();
 
     // 11. District Connecting Roads & Billboards
     this.buildDistrictRoadsAndBillboards();
@@ -129,29 +145,9 @@ export class Districts {
       interactionPoint: new THREE.Vector3(-14, 0, 95),
     });
 
-    // Eko Beachside Lounge & Nightclub
+    // The palms along the front of the nightclub, which is a landmark of its own (world/landmarks/Club)
     const loungeGroup = new THREE.Group();
     loungeGroup.position.set(24, 0, 8);
-
-    const loungeGeo = new THREE.BoxGeometry(14, 6.5, 12);
-    const loungeMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.3 });
-    const lounge = new THREE.Mesh(loungeGeo, loungeMat);
-    lounge.position.y = 3.25;
-    loungeGroup.add(lounge);
-
-    // Neon Rooftop Bar Canopy (Magenta & Violet Glow)
-    const roofBarGeo = new THREE.BoxGeometry(14.4, 0.5, 12.4);
-    const roofBarMat = new THREE.MeshStandardMaterial({ color: 0xa855f7 });
-    const roofBar = new THREE.Mesh(roofBarGeo, roofBarMat);
-    roofBar.position.y = 6.6;
-    loungeGroup.add(roofBar);
-
-    // Neon signage
-    const signGeo = new THREE.BoxGeometry(10, 1.2, 0.3);
-    const signMat = new THREE.MeshBasicMaterial({ color: 0xec4899 });
-    const sign = new THREE.Mesh(signGeo, signMat);
-    sign.position.set(0, 5.2, -6.2);
-    loungeGroup.add(sign);
 
     // Beach palm trees lining the ocean promenade
     for (let pz of [-10, 0, 10, 20]) {
@@ -172,15 +168,6 @@ export class Districts {
     }
 
     viGroup.add(loungeGroup);
-
-    this.interactiveList.push({
-      mesh: loungeGroup,
-      id: 'quilox-club',
-      name: 'Quilox VIP Nightclub & Waterfront Lounge',
-      category: 'Ultra-Luxury Nightlife',
-      description: 'World-famous Victoria Island VIP club. Dom Pérignon champagne with sparklers, celebrity tables, and Afrobeats anthems.',
-      interactionPoint: new THREE.Vector3(14, 0, 103),
-    });
 
     this.group.add(viGroup);
   }
@@ -354,7 +341,8 @@ export class Districts {
   // =========================================================================
   private buildLekkiPhaseOne(): void {
     const lekkiGroup = new THREE.Group();
-    lekkiGroup.position.set(65, 0, 0);
+    // The bridge lands on the east side of Kakawa Street, not across it
+    lekkiGroup.position.set(68.6, 0, 0);
 
     // Lekki-Ikoyi Link Bridge Iconic Suspension Pylon
     const pylonGroup = new THREE.Group();
@@ -419,7 +407,7 @@ export class Districts {
       name: 'Lekki-Ikoyi Cable-Stayed Link Bridge & Toll Plaza',
       category: 'Infrastructure Landmark',
       description: 'Iconic suspension bridge connecting Ikoyi to Admiralty Way, Lekki Phase 1. Scenic coastal expressway.',
-      interactionPoint: new THREE.Vector3(45, 0, 0),
+      interactionPoint: new THREE.Vector3(48.6, 0, 0),
     });
 
     // Nike Art Gallery & Luxury Studio (Admiralty Way)
@@ -454,7 +442,7 @@ export class Districts {
       name: 'Nike Art & Contemporary African Studio',
       category: 'Arts & Culture',
       description: 'Legendary 5-story cultural gallery showcasing handmade Adire batiks, beadwork, and bronze masterpieces.',
-      interactionPoint: new THREE.Vector3(72, 0, -8),
+      interactionPoint: new THREE.Vector3(75.6, 0, -8),
     });
 
     this.group.add(lekkiGroup);
@@ -465,7 +453,8 @@ export class Districts {
   // =========================================================================
   private buildYabaTechStrip(): void {
     const yabaGroup = new THREE.Group();
-    yabaGroup.position.set(-15, 0, -25);
+    // Its front wall on the building line, clear of the pavement and of the university gate beside it
+    yabaGroup.position.set(-21.5, 0, -23.8);
 
     // Modern 3-story CcHub Glass Incubator
     const hubGroup = new THREE.Group();
@@ -534,7 +523,7 @@ export class Districts {
       name: 'Co-Creation Hub (CcHub) & Tech Incubator',
       category: 'Yaba Tech Corridor',
       description: 'The Silicon Valley of West Africa. Silicon Valley venture funds, hackathons, and high-paying remote tech engineering sprints.',
-      interactionPoint: new THREE.Vector3(-15, 0, -20),
+      interactionPoint: new THREE.Vector3(-12.5, 0, -23.8),
     });
 
     this.group.add(yabaGroup);
@@ -555,7 +544,8 @@ export class Districts {
       metalness: 0.25,
     });
     const senate = new THREE.Mesh(senateGeo, senateMat);
-    senate.position.set(0, 11, -14);
+    // Behind the gate, between the pavement buildings and Odunlami Street
+    senate.position.set(-17, 11, -8);
     senate.castShadow = true;
     campusGroup.add(senate);
 
@@ -564,7 +554,7 @@ export class Districts {
       new THREE.BoxGeometry(16.5, 1.2, 10.5),
       new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 })
     );
-    cap.position.set(0, 22.6, -14);
+    cap.position.set(-17, 22.6, -8);
     campusGroup.add(cap);
 
     // 2. Iconic Arched Campus Entrance Gate
@@ -612,7 +602,8 @@ export class Districts {
       new THREE.BoxGeometry(2.4, 3.0, 2.4),
       new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 })
     );
-    booth.position.set(4.2, 1.5, 2.2);
+    // Inside the gate, off the public pavement
+    booth.position.set(-4.2, 1.5, 2.2);
     gateGroup.add(booth);
 
     // Security Boom Barrier
@@ -620,7 +611,7 @@ export class Districts {
       new THREE.BoxGeometry(7.0, 0.15, 0.15),
       new THREE.MeshBasicMaterial({ color: 0xef4444 })
     );
-    barrier.position.set(0, 1.0, 1.2);
+    barrier.position.set(-2.2, 1.0, 1.2);
     gateGroup.add(barrier);
 
     // Campus Boulevard Palm Trees
@@ -662,157 +653,6 @@ export class Districts {
       description: 'Premier Nigerian federal research university. Enter for faculty lectures, library research, course registration, and campus life.',
       interactionPoint: new THREE.Vector3(-15, 0, -30),
     });
-  }
-
-  // =========================================================================
-  // 6. SURULERE SPORTS HUB & TESLIM BALOGUN STADIUM (West: X -55, Z +10)
-  // =========================================================================
-  private buildSurulereStadium(): void {
-    const surulereGroup = new THREE.Group();
-    surulereGroup.position.set(-55, 0, 10);
-
-    // Stadium Grandstand Canopy
-    const standGroup = new THREE.Group();
-
-    const bowlGeo = new THREE.BoxGeometry(24, 7, 16);
-    const bowlMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4 });
-    const bowl = new THREE.Mesh(bowlGeo, bowlMat);
-    bowl.position.y = 3.5;
-    standGroup.add(bowl);
-
-    // Green and white Nigerian sports canopy
-    const canopyGeo = new THREE.BoxGeometry(25, 0.6, 17);
-    const canopyMat = new THREE.MeshStandardMaterial({ color: 0x15803d });
-    const canopy = new THREE.Mesh(canopyGeo, canopyMat);
-    canopy.position.y = 7.3;
-    standGroup.add(canopy);
-
-    // Stadium floodlight pylon towers (4 corners)
-    for (const [fx, fz] of [[-13, -9], [13, -9], [-13, 9], [13, 9]]) {
-      const pylon = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.28, 16, 8),
-        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7 })
-      );
-      pylon.position.set(fx, 8, fz);
-      standGroup.add(pylon);
-
-      const lightGrid = new THREE.Mesh(
-        new THREE.BoxGeometry(1.6, 1.2, 0.4),
-        new THREE.MeshBasicMaterial({ color: 0xfef08a })
-      );
-      lightGrid.position.set(fx, 16, fz);
-      standGroup.add(lightGrid);
-    }
-
-    // Red Tartan Running Track Curve
-    const trackGeo = new THREE.PlaneGeometry(28, 6);
-    const trackMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.8 });
-    const track = new THREE.Mesh(trackGeo, trackMat);
-    track.rotation.x = -Math.PI / 2;
-    track.position.set(0, 0.02, 11);
-    standGroup.add(track);
-
-    surulereGroup.add(standGroup);
-
-    this.interactiveList.push({
-      mesh: standGroup,
-      id: 'surulere-stadium',
-      name: 'Teslim Balogun Stadium & Sports Arena',
-      category: 'Surulere Sports Hub',
-      description: 'Iconic sports arena celebrating Lagos sporting legends, AFCON qualifiers, tartan track workouts, and athletics training.',
-      interactionPoint: new THREE.Vector3(-55, 0, 15),
-    });
-
-    this.group.add(surulereGroup);
-  }
-
-  // =========================================================================
-  // 7. MURTALA MUHAMMED AIRPORT TERMINAL (North-West: X -80, Z -110)
-  // =========================================================================
-  private buildAirportTerminal(): void {
-    const airportGroup = new THREE.Group();
-    airportGroup.position.set(-80, 0, -110);
-
-    const terminalGroup = new THREE.Group();
-
-    // Curved Modern Departure Terminal
-    const termGeo = new THREE.BoxGeometry(22, 6.5, 14);
-    const termMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      roughness: 0.2,
-      metalness: 0.7,
-    });
-    const term = new THREE.Mesh(termGeo, termMat);
-    term.position.y = 3.25;
-    terminalGroup.add(term);
-
-    // Blue glass atrium curtain wall
-    const glassGeo = new THREE.BoxGeometry(22.2, 4.5, 2.0);
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: 0x0284c7,
-      roughness: 0.1,
-      metalness: 0.9,
-    });
-    const glass = new THREE.Mesh(glassGeo, glassMat);
-    glass.position.set(0, 3.5, 6.5);
-    terminalGroup.add(glass);
-
-    // Control Tower with Rotating Radar
-    const towerPole = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.2, 1.8, 14, 12),
-      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
-    );
-    towerPole.position.set(-14, 7, 0);
-    terminalGroup.add(towerPole);
-
-    const towerCab = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.4, 1.8, 2.5, 12),
-      new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.1, metalness: 0.8 })
-    );
-    towerCab.position.set(-14, 15, 0);
-    terminalGroup.add(towerCab);
-
-    // Radar dish
-    const radarGeo = new THREE.BoxGeometry(3.2, 0.4, 0.2);
-    const radarMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
-    this.airportRadarMesh = new THREE.Mesh(radarGeo, radarMat);
-    this.airportRadarMesh.position.set(-14, 16.6, 0);
-    terminalGroup.add(this.airportRadarMesh);
-
-    // High-contrast Airport Departures Signboard
-    const airportSign = this.createNamedSignMesh(
-      'MURTALA MUHAMMED INTL AIRPORT (LOS)',
-      'MMA2 DEPARTURES TERMINAL • DOMESTIC & INTERNATIONAL FLIGHTS',
-      '#0f172a',
-      '#ffffff',
-      18.0,
-      1.4
-    );
-    airportSign.position.set(0, 6.2, 7.6);
-    terminalGroup.add(airportSign);
-
-    airportGroup.add(terminalGroup);
-
-    // Register canonical destination and aliases
-    this.interactiveList.push({
-      mesh: terminalGroup,
-      id: 'dest_lagos_airport',
-      name: 'Murtala Muhammed International Airport (LOS)',
-      category: 'Aviation & Airport',
-      description: 'Nigeria’s premier aviation hub. Check in for flights, pass security screening, and fly to Abuja and Port Harcourt.',
-      interactionPoint: new THREE.Vector3(-80, 0, -105),
-    });
-
-    this.interactiveList.push({
-      mesh: terminalGroup,
-      id: 'mma-airport',
-      name: 'Murtala Muhammed International Airport (LOS)',
-      category: 'Aviation & Airport',
-      description: 'Nigeria’s premier aviation hub. Check in for flights, pass security screening, and fly to Abuja and Port Harcourt.',
-      interactionPoint: new THREE.Vector3(-80, 0, -105),
-    });
-
-    this.group.add(airportGroup);
   }
 
   // =========================================================================
@@ -894,13 +734,14 @@ export class Districts {
     const towerGeo = new THREE.BoxGeometry(6, 18, 6);
     const towerMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.8 });
     const tower = new THREE.Mesh(towerGeo, towerMat);
-    tower.position.set(-10, 9, 0);
+    // Behind the market stalls, well back from Broad Street
+    tower.position.set(13, 9, 0);
     marketGroup.add(tower);
 
     const steepleGeo = new THREE.ConeGeometry(3.5, 6, 4);
     const steepleMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.5 });
     const steeple = new THREE.Mesh(steepleGeo, steepleMat);
-    steeple.position.set(-10, 21, 0);
+    steeple.position.set(13, 21, 0);
     steeple.rotation.y = Math.PI / 4;
     marketGroup.add(steeple);
 
@@ -916,6 +757,7 @@ export class Districts {
       );
       umbrella.position.set(px, 3.2, pz);
       marketGroup.add(umbrella);
+      this.marketStallUmbrellas.push(umbrella);
 
       const stallTable = new THREE.Mesh(
         new THREE.BoxGeometry(2.2, 1.2, 1.6),
@@ -931,6 +773,7 @@ export class Districts {
       );
       fabric.position.set(px, 1.45, pz);
       marketGroup.add(fabric);
+      this.marketFabricRolls.push(fabric);
     }
 
     marinaGroup.add(marketGroup);
@@ -1008,7 +851,7 @@ export class Districts {
       name: 'St. Nicholas Lagos General Hospital',
       category: 'Healthcare & Emergency',
       description: 'Lagos Island premier medical centre. Enter for doctor consultation, treatments, medical checkups, and pharmacy.',
-      interactionPoint: new THREE.Vector3(12, 0, 75),
+      interactionPoint: new THREE.Vector3(8.8, 0, 75),
     });
 
     this.interactiveList.push({
@@ -1017,7 +860,7 @@ export class Districts {
       name: 'St. Nicholas Lagos General Hospital',
       category: 'Healthcare & Emergency',
       description: 'Lagos Island premier medical centre. Enter for doctor consultation, treatments, medical checkups, and pharmacy.',
-      interactionPoint: new THREE.Vector3(12, 0, 75),
+      interactionPoint: new THREE.Vector3(8.8, 0, 75),
     });
   }
 
@@ -1076,13 +919,38 @@ export class Districts {
       name: 'Lagos State Area Command Police Station',
       category: 'Law Enforcement & Security',
       description: 'Lagos Command Headquarters. Enter for desk sergeant reports, bail bonds, citizen clearances, and holding cell.',
-      interactionPoint: new THREE.Vector3(-18, 0, 65),
+      interactionPoint: new THREE.Vector3(-15.4, 0, 65),
     });
   }
 
   // =========================================================================
   // 12. CONNECTING ROADS & NAIJA LED BILLBOARDS
   // =========================================================================
+  /** The gate of Banana Island: two piers either side of the estate road and a beam over it, high enough for a lorry. */
+  private buildBananaIslandGate(): void {
+    const gate = new THREE.Group();
+    gate.name = 'Banana Island Gate';
+    gate.position.set(112, 0, -50);
+    const stone = new THREE.MeshStandardMaterial({ color: 0xe7e0cf, roughness: 0.8 });
+    for (const side of [-1, 1]) {
+      const pier = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6.4, 1.2), stone);
+      pier.position.set(side * 7.4, 3.2, 0);
+      pier.castShadow = true;
+      gate.add(pier);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), new THREE.MeshStandardMaterial({ color: 0xfff3c4, emissive: 0xffe08a, emissiveIntensity: 0.6 }));
+      lamp.position.set(side * 7.4, 6.9, 0);
+      gate.add(lamp);
+    }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(16, 1.3, 0.9), new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.6 }));
+    beam.position.set(0, 5.9, 0);
+    gate.add(beam);
+    const sign = this.createNamedSignMesh('BANANA ISLAND', 'PRIVATE ESTATE', '#14532d', '#fef9c3', 10, 1.1);
+    sign.position.set(0, 5.9, -0.47);
+    sign.rotation.y = Math.PI;
+    gate.add(sign);
+    this.group.add(gate);
+  }
+
   private buildDistrictRoadsAndBillboards(): void {
     // East-West Arterial Road to Lekki (X: 10 to 80, Z: 0)
     const lekkiRoadGeo = new THREE.PlaneGeometry(80, 12);
@@ -1093,7 +961,7 @@ export class Districts {
     this.group.add(lekkiRoad);
 
     // Giant Lagos LED Digital Billboards
-    this.createBillboard(new THREE.Vector3(12, 0, 50), 0, 'WAZOBIA AIR', 'Fly Eko to the World', 0x1e3a8a);
+    this.createBillboard(new THREE.Vector3(12, 0, 50), 0, 'NIGERIALIFE AIR', 'Lagos · Abuja · Port Harcourt', 0x1e3a8a);
     this.createBillboard(new THREE.Vector3(-12, 0, -50), Math.PI, 'GIANT CEMENT', 'Building the Giant of Africa', 0xb91c1c);
     this.createBillboard(new THREE.Vector3(38, 0, 12), -Math.PI / 2, 'NAIJACOM 5G', 'Everywhere You Hustle', 0xfacc15);
   }
@@ -1192,11 +1060,6 @@ export class Districts {
       if (sp.position.y > 3.8) {
         sp.position.y = 2.2;
       }
-    }
-
-    // Airport radar scanner rotation
-    if (this.airportRadarMesh) {
-      this.airportRadarMesh.rotation.y += delta * 2.5;
     }
   }
 }

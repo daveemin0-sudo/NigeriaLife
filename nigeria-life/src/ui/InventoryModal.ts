@@ -2,6 +2,7 @@ import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
+import { draw, forget } from './kit/StableView';
 
 export class InventoryModal {
   private container: HTMLDivElement;
@@ -23,6 +24,7 @@ export class InventoryModal {
   public open(): void {
     this.isOpen = true;
     this.container.style.display = 'flex';
+    forget(this.container);
     this.render(this.backend.getData());
     UIStateManager.getInstance().pushModal('inventory');
   }
@@ -45,7 +47,8 @@ export class InventoryModal {
   }
 
   private render(data: PlayerAccount): void {
-    this.container.innerHTML = `
+    // Redrawn whenever the game state changes; `draw` keeps the list where it was scrolled to
+    const html = `
       <div class="modal-backdrop"></div>
       <div class="creator-dialog inventory-dialog">
         <header class="dialog-header">
@@ -111,7 +114,7 @@ export class InventoryModal {
       </div>
     `;
 
-    this.setupEvents();
+    draw(this.container, html, { drawn: () => this.setupEvents() });
   }
 
   private setupEvents(): void {

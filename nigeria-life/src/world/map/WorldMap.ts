@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { EXPRESS } from '../expressway/layout';
 import { WorldMapRenderer, type MapSelectionEvent } from './WorldMapRenderer';
 import { WorldDataManager } from '../data/WorldDataManager';
 import type { DistrictData } from '../data/WorldDataTypes';
+import { PointerScope } from '../../game/PointerScope';
+import { RENDER_LAYERS } from '../../interiors/InteriorTypes';
 
 export class WorldMap {
   public scene: THREE.Scene;
@@ -15,15 +18,34 @@ export class WorldMap {
 
   // Pan & Zoom controls
   private isDragging: boolean = false;
+  /** A drag carries on a little when the finger lets go (map units a second), and a glide to a stretch of the road */
+  private fling = { x: 0, z: 0 };
+  private glide: { x: number; z: number } | null = null;
+  private lastMove = 0;
   private previousMousePosition = { x: 0, y: 0 };
   private zoomLevel: number = 1.0;
   private readonly minZoom = 0.55;
   private readonly maxZoom = 2.4;
+  /** How far the map may be moved: up the expressway too when it is the real city */
+  private bounds(): { minX: number; maxX: number; minZ: number; maxZ: number } {
+    return this.renderer.realWorld && this.renderer.currentCityId === 'lagos' ? { minX: -320, maxX: 320, minZ: -160, maxZ: EXPRESS.ring.z + 60 } : { minX: -160, maxX: 160, minZ: -160, maxZ: 150 };
+  }
+  /** Where the map is looking, along the road (for drawing that stretch of the expressway) */
+  public get focusZ(): number {
+    return this.cameraTarget.z;
+  }
 
   // Raycasting for interactive map selection
   private raycaster: THREE.Raycaster = new THREE.Raycaster();
   private mouseVec: THREE.Vector2 = new THREE.Vector2();
   public hoveredDistrictId: string | null = null;
+
+  /** Can this city's map be the city itself, seen from above? (Its real streets must be standing.) */
+  public useRealWorld?: (cityId: string) => boolean;
+  /** Told to bring the real city into view under the map, or to put it away again */
+  public onRealWorld?: (on: boolean, cityId: string) => void;
+  /** Where the place a pin/landmark stands really is in the city */
+  public locate?: (landmark: any, cityId?: string) => THREE.Vector3 | null;
 
   // Callbacks
   public onSelectItem?: (event: MapSelectionEvent) => void;
@@ -46,6 +68,8 @@ export class WorldMap {
       1,
       1000
     );
+    // The real city is on the street layer, and the map looks at it
+    this.mapCamera.layers.enable(RENDER_LAYERS.STREET);
     this.updateCameraTransform();
 
     this.setupEventListeners();
@@ -58,17 +82,43 @@ export class WorldMap {
   }
 
   private setupEventListeners(): void {
-    window.addEventListener('mousedown', (e) => {
+    // One finger (or the mouse) drags the map; two fingers pinch to zoom it
+    const fingers = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    const spread = () => {
+      const [a, b] = [...fingers.values()];
+      return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    };
+    window.addEventListener('pointerdown', (e) => {
       if (!this.isActive) return;
-      if ((e.target as HTMLElement).tagName !== 'CANVAS') return;
-      this.isDragging = true;
-      this.previousMousePosition = { x: e.clientX, y: e.clientY };
+      if (!PointerScope.isGameView(e.target)) return;
+      this.fling.x = this.fling.z = 0;
+      this.lastMove = performance.now();
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (fingers.size === 1) {
+        this.isDragging = true;
+        this.previousMousePosition = { x: e.clientX, y: e.clientY };
+      } else if (fingers.size === 2) {
+        pinch = spread();
+      }
     });
 
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('pointermove', (e) => {
       if (!this.isActive) return;
+      const finger = fingers.get(e.pointerId);
+      if (finger && fingers.size >= 2) {
+        finger.x = e.clientX;
+        finger.y = e.clientY;
+        const now = spread();
+        if (pinch > 0 && now > 0) {
+          this.zoomLevel = THREE.MathUtils.clamp(this.zoomLevel * (pinch / now), this.minZoom, this.maxZoom);
+          this.updateCameraTransform();
+        }
+        pinch = now;
+        return;
+      }
 
-      if (this.isDragging) {
+      if (this.isDragging && finger) {
         const deltaX = e.clientX - this.previousMousePosition.x;
         const deltaY = e.clientY - this.previousMousePosition.y;
 
@@ -76,39 +126,58 @@ export class WorldMap {
         const panSpeed = 0.42 * this.zoomLevel;
         this.cameraTarget.x -= deltaX * panSpeed;
         this.cameraTarget.z -= deltaY * panSpeed;
+        // How fast the finger was going, for the carry-on when it lets go
+        const now = performance.now();
+        const dt = Math.max(8, now - this.lastMove) / 1000;
+        this.lastMove = now;
+        this.fling.x = this.fling.x * 0.5 + ((-deltaX * panSpeed) / dt) * 0.5;
+        this.fling.z = this.fling.z * 0.5 + ((-deltaY * panSpeed) / dt) * 0.5;
+        this.glide = null;
 
         // Clamp map bounds
-        this.cameraTarget.x = THREE.MathUtils.clamp(this.cameraTarget.x, -120, 160);
-        this.cameraTarget.z = THREE.MathUtils.clamp(this.cameraTarget.z, -140, 150);
+        const b = this.bounds();
+        this.cameraTarget.x = THREE.MathUtils.clamp(this.cameraTarget.x, b.minX, b.maxX);
+        this.cameraTarget.z = THREE.MathUtils.clamp(this.cameraTarget.z, b.minZ, b.maxZ);
 
         this.previousMousePosition = { x: e.clientX, y: e.clientY };
         this.updateCameraTransform();
       }
 
-      // Check hover for buildings, landmarks, properties and districts
-      this.handleHover(e);
+      // Check hover for buildings, landmarks, properties and districts (a mouse hovers; a finger does not)
+      if (e.pointerType === 'mouse') this.handleHover(e);
     });
 
-    window.addEventListener('mouseup', () => {
-      this.isDragging = false;
-    });
+    const lift = (e: PointerEvent) => {
+      fingers.delete(e.pointerId);
+      if (fingers.size < 2) pinch = 0;
+      if (fingers.size === 0) {
+        this.isDragging = false;
+        // A finger held still before letting go does not fling
+        if (performance.now() - this.lastMove > 90) this.fling.x = this.fling.z = 0;
+      } else {
+        // One finger of a pinch is still down: it drags on from where it is
+        const [rest] = [...fingers.values()];
+        this.previousMousePosition = { x: rest.x, y: rest.y };
+      }
+    };
+    window.addEventListener('pointerup', lift);
+    window.addEventListener('pointercancel', lift);
 
-    window.addEventListener('wheel', (e) => {
-      if (!this.isActive) return;
-      if ((e.target as HTMLElement).tagName !== 'CANVAS') return;
-
-      const zoomDelta = e.deltaY * 0.001;
+    // Wheel zoom, only for wheel turns over the map itself (see PointerScope)
+    PointerScope.onGameWheel((pixels) => {
+      if (!this.isActive) return false;
       this.zoomLevel = THREE.MathUtils.clamp(
-        this.zoomLevel + zoomDelta,
+        this.zoomLevel + pixels * 0.001,
         this.minZoom,
         this.maxZoom
       );
       this.updateCameraTransform();
+      return true;
     });
 
     window.addEventListener('click', (e) => {
       if (!this.isActive) return;
-      if ((e.target as HTMLElement).tagName !== 'CANVAS') return;
+      if (!PointerScope.isGameView(e.target)) return;
       this.handleClick(e);
     });
   }
@@ -144,6 +213,63 @@ export class WorldMap {
 
         if (found && found.type === 'district') {
           const dist = found.data as DistrictData;
+          this.onHoverItem?.(null, { x: e.clientX, y: e.clientY });
+          if (this.hoveredDistrictId !== dist.id) {
+            this.hoveredDistrictId = dist.id;
+            this.renderer.highlightDistrict(dist.id);
+            this.onHoverDistrict?.(dist);
+            document.body.style.cursor = 'pointer';
+          }
+          return;
+        }
+      }
+    }
+
+    // 3. 3D GROUND / TERRAIN RAYCAST FALLBACK (Direct 3D hover on real townscape buildings & landmarks)
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const groundHit = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(groundPlane, groundHit)) {
+      const data = WorldDataManager.getInstance();
+      // Check nearest landmark within 24m
+      let nearestLm: any = null;
+      let minLmDist = 24;
+      for (const lm of data.getLandmarks()) {
+        const pos = this.locate?.(lm) ?? lm.position;
+        const d = Math.hypot(pos.x - groundHit.x, pos.z - groundHit.z);
+        if (d < minLmDist) {
+          minLmDist = d;
+          nearestLm = lm;
+        }
+      }
+      if (nearestLm) {
+        this.onHoverItem?.({ type: 'landmark', data: nearestLm }, { x: e.clientX, y: e.clientY });
+        document.body.style.cursor = 'pointer';
+        return;
+      }
+
+      // Check nearest property within 20m
+      let nearestProp: any = null;
+      let minPropDist = 20;
+      for (const prop of data.getProperties()) {
+        const pos = prop.streetPosition || prop.position;
+        const d = Math.hypot(pos.x - groundHit.x, pos.z - groundHit.z);
+        if (d < minPropDist) {
+          minPropDist = d;
+          nearestProp = prop;
+        }
+      }
+      if (nearestProp) {
+        this.onHoverItem?.({ type: 'property', data: nearestProp }, { x: e.clientX, y: e.clientY });
+        document.body.style.cursor = 'pointer';
+        return;
+      }
+
+      // Check district bounds
+      for (const dist of data.getDistricts()) {
+        if (
+          groundHit.x >= dist.bounds.minX && groundHit.x <= dist.bounds.maxX &&
+          groundHit.z >= dist.bounds.minZ && groundHit.z <= dist.bounds.maxZ
+        ) {
           this.onHoverItem?.(null, { x: e.clientX, y: e.clientY });
           if (this.hoveredDistrictId !== dist.id) {
             this.hoveredDistrictId = dist.id;
@@ -210,6 +336,68 @@ export class WorldMap {
         }
       }
     }
+
+    // 3. 3D GROUND / TERRAIN RAYCAST FALLBACK (Direct 3D click on real townscape buildings & landmarks)
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const groundHit = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(groundPlane, groundHit)) {
+      const data = WorldDataManager.getInstance();
+      // Nearest landmark within 24m
+      let nearestLm: any = null;
+      let minLmDist = 24;
+      for (const lm of data.getLandmarks()) {
+        const pos = this.locate?.(lm) ?? lm.position;
+        const d = Math.hypot(pos.x - groundHit.x, pos.z - groundHit.z);
+        if (d < minLmDist) {
+          minLmDist = d;
+          nearestLm = lm;
+        }
+      }
+      if (nearestLm) {
+        this.onSelectItem?.({
+          type: 'landmark',
+          item: nearestLm,
+          screenPosition: { x: e.clientX, y: e.clientY },
+        });
+        return;
+      }
+
+      // Nearest property within 20m
+      let nearestProp: any = null;
+      let minPropDist = 20;
+      for (const prop of data.getProperties()) {
+        const pos = prop.streetPosition || prop.position;
+        const d = Math.hypot(pos.x - groundHit.x, pos.z - groundHit.z);
+        if (d < minPropDist) {
+          minPropDist = d;
+          nearestProp = prop;
+        }
+      }
+      if (nearestProp) {
+        this.onSelectItem?.({
+          type: 'property',
+          item: nearestProp,
+          screenPosition: { x: e.clientX, y: e.clientY },
+        });
+        return;
+      }
+
+      // District bounds fallback
+      for (const dist of data.getDistricts()) {
+        if (
+          groundHit.x >= dist.bounds.minX && groundHit.x <= dist.bounds.maxX &&
+          groundHit.z >= dist.bounds.minZ && groundHit.z <= dist.bounds.maxZ
+        ) {
+          this.onSelectItem?.({
+            type: 'district',
+            item: dist,
+            screenPosition: { x: e.clientX, y: e.clientY },
+          });
+          this.focusOnDistrict(dist.id);
+          return;
+        }
+      }
+    }
   }
 
   public focusOnDistrict(districtId: string): void {
@@ -222,17 +410,72 @@ export class WorldMap {
     }
   }
 
+  /** Brings a spot to the middle of the map, close enough to see what stands there. */
+  /** Glides the map along to a point (the stops down the side of Lagos's map) */
+  public glideTo(z: number, x = 0): void {
+    const b = this.bounds();
+    this.glide = { x: THREE.MathUtils.clamp(x, b.minX, b.maxX), z: THREE.MathUtils.clamp(z, b.minZ, b.maxZ) };
+    this.fling.x = this.fling.z = 0;
+  }
+
+  /** How far the map may be moved along, for the stops down its side */
+  public get reach(): { minZ: number; maxZ: number } {
+    const b = this.bounds();
+    return { minZ: b.minZ, maxZ: b.maxZ };
+  }
+
+  public focusOn(x: number, z: number): void {
+    const b = this.bounds();
+    this.cameraTarget.set(THREE.MathUtils.clamp(x, b.minX, b.maxX), 0, THREE.MathUtils.clamp(z, b.minZ, b.maxZ));
+    this.zoomLevel = Math.min(this.zoomLevel, 0.8);
+    this.updateCameraTransform();
+  }
+
+  /**
+   * Brings a stretch of the city into view, all of it: a way from one place to another, say.
+   * `coveredRight` is how much of the right of the screen something else is standing over
+   * (the card of a place), so what is framed sits in the part that is left.
+   */
+  public frame(minX: number, maxX: number, minZ: number, maxZ: number, coveredRight = 0): void {
+    const free = 1 - coveredRight;
+    // At zoom 1 the camera takes in about this much ground across and from front to back
+    const across = 158 * this.mapCamera.aspect * free;
+    const deep = 200;
+    const zoom = Math.max((maxX - minX + 30) / across, (maxZ - minZ + 40) / deep);
+    this.zoomLevel = THREE.MathUtils.clamp(zoom, this.minZoom, this.maxZoom);
+    // Looking a little to the right of it puts it in the free part of the screen on the left
+    const shift = (coveredRight / 2) * 158 * this.mapCamera.aspect * this.zoomLevel;
+    const b = this.bounds();
+    this.cameraTarget.set(THREE.MathUtils.clamp((minX + maxX) / 2 + shift, b.minX, b.maxX), 0, THREE.MathUtils.clamp((minZ + maxZ) / 2, b.minZ, b.maxZ));
+    this.updateCameraTransform();
+  }
+
+  /** Where the map is looking, and how closely */
+  public get view(): { x: number; z: number; zoom: number } {
+    return { x: this.cameraTarget.x, z: this.cameraTarget.z, zoom: this.zoomLevel };
+  }
+
   public switchCity(cityId: string): void {
     WorldDataManager.getInstance().switchCity(cityId);
-    this.renderer.loadCity(cityId);
+    const real = this.useRealWorld?.(cityId) ?? false;
+    this.renderer.loadCity(cityId, real);
+    this.onRealWorld?.(this.isActive && real, cityId);
     this.cameraTarget.set(0, 0, 0);
     this.zoomLevel = 1.05;
     this.updateCameraTransform();
   }
 
+  /** True while the map on show is the real city. */
+  public get showingRealWorld(): boolean {
+    return this.isActive && this.renderer.realWorld;
+  }
+
   public activate(): void {
     this.isActive = true;
     this.renderer.group.visible = true;
+    const real = this.useRealWorld?.(this.renderer.currentCityId) ?? false;
+    if (real !== this.renderer.realWorld) this.renderer.loadCity(this.renderer.currentCityId, real);
+    this.onRealWorld?.(real, this.renderer.currentCityId);
 
     // Center camera on player's current location or city center
     const playerPos = WorldDataManager.getInstance().getPlayerPosition();
@@ -244,6 +487,7 @@ export class WorldMap {
   public deactivate(): void {
     this.isActive = false;
     this.renderer.group.visible = false;
+    this.onRealWorld?.(false, this.renderer.currentCityId);
     this.renderer.highlightDistrict(null);
     document.body.style.cursor = 'default';
   }
@@ -256,6 +500,25 @@ export class WorldMap {
 
   public update(delta: number): void {
     if (!this.isActive) return;
+    // Carrying on after a flick, slowing; or gliding to a stop chosen down the side
+    if (!this.isDragging && (this.glide || Math.abs(this.fling.x) + Math.abs(this.fling.z) > 1)) {
+      const b = this.bounds();
+      if (this.glide) {
+        const k = 1 - Math.exp(-delta * 4.5);
+        this.cameraTarget.x += (this.glide.x - this.cameraTarget.x) * k;
+        this.cameraTarget.z += (this.glide.z - this.cameraTarget.z) * k;
+        if (Math.abs(this.glide.z - this.cameraTarget.z) < 1 && Math.abs(this.glide.x - this.cameraTarget.x) < 1) this.glide = null;
+      } else {
+        this.cameraTarget.x += this.fling.x * delta;
+        this.cameraTarget.z += this.fling.z * delta;
+        const slow = Math.exp(-delta * 3.2);
+        this.fling.x *= slow;
+        this.fling.z *= slow;
+      }
+      this.cameraTarget.x = THREE.MathUtils.clamp(this.cameraTarget.x, b.minX, b.maxX);
+      this.cameraTarget.z = THREE.MathUtils.clamp(this.cameraTarget.z, b.minZ, b.maxZ);
+      this.updateCameraTransform();
+    }
     this.renderer.update(delta);
   }
 }

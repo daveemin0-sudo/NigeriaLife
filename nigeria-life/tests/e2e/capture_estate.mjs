@@ -1,0 +1,34 @@
+// Banana Island's estate seen on the map, and a gate's card (scratch capture)
+import { launch, newPlayer, wait, advance } from './lib.mjs';
+const out = process.argv[2];
+const browser = await launch();
+const ctx = await newPlayer(browser);
+const page = await ctx.newPage();
+await page.setViewport({ width: 420, height: 816, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+await page.goto(process.env.GAME_URL, { waitUntil: 'load', timeout: 120000 });
+await page.waitForFunction('window.game', { timeout: 120000 });
+await wait(8000);
+await page.evaluate(() => { document.getElementById('dialogue-confirm-btn')?.click(); window.game.world.skyEnvironment.setHour(15); });
+await page.click('#nav-btn-map');
+await wait(1500);
+await page.evaluate(() => window.game.world.worldMap.focusOn(235, -10));
+await advance(page, 1.5);
+await wait(500);
+await page.screenshot({ path: `${out}/estate-map.png` });
+await page.evaluate(() => { const g = window.game; g.hud.worldMapUI.close?.(); });
+await wait(800);
+const card = await page.evaluate(() => {
+  const g = window.game;
+  const o = g.world.interactiveObjects.find((x) => x.id === 'estate-house-3');
+  if (!o) return 'none';
+  g.player.stopMoving();
+  g.player.mesh.position.copy(o.interactionPoint);
+  g.player.mesh.rotation.y = 0;
+  g.hud.showInteractionCard(o);
+  return document.getElementById('card-action-btn')?.textContent ?? 'no button';
+});
+await advance(page, 1);
+await wait(400);
+await page.screenshot({ path: `${out}/estate-gate.png` });
+console.log('card', card);
+await browser.close();

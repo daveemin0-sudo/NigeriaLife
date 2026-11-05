@@ -3,7 +3,10 @@ import type { PlayerAccount } from '../backend/types';
 import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
 import type { CityId, CityTravelRoute } from '../cities/CityTypes';
 import { showGameToast } from './GameToast';
+import { FlightService } from '../travel/Flights';
+import { CoachService, MOTOR_PARKS } from '../travel/Coaches';
 import { UIStateManager } from './UIStateManager';
+import { draw, forget } from './kit/StableView';
 
 export class InterStateModal {
   private container: HTMLDivElement;
@@ -46,6 +49,7 @@ export class InterStateModal {
     if (originCityId) this.currentOriginCityId = originCityId;
     this.isOpen = true;
     this.container.style.display = 'flex';
+    forget(this.container);
     this.render(this.backend.getData());
     UIStateManager.getInstance().pushModal('interstate');
   }
@@ -68,7 +72,7 @@ export class InterStateModal {
     const origin = NIGERIA_CITIES_REGISTRY[this.currentOriginCityId];
     const routes = origin.routes;
 
-    this.container.innerHTML = `
+    const html = `
       <div class="modal-backdrop"></div>
       <div class="interstate-dialog">
         <header class="dialog-header">
@@ -123,7 +127,7 @@ export class InterStateModal {
                 </div>
 
                 <button class="btn-book-route" data-dest-id="${route.destinationId}" data-fare="${route.fare}">
-                  ${isFlight ? '✈️ Book Flight Ticket' : '🚌 Board Luxury Coach'} (₦${route.fare.toLocaleString()})
+                  ${isFlight ? '✈️ Book Flight Ticket' : '🚌 Buy Coach Ticket'} (₦${route.fare.toLocaleString()})
                 </button>
               </div>
             `;
@@ -144,7 +148,7 @@ export class InterStateModal {
       </div>
     `;
 
-    this.setupEvents(routes);
+    draw(this.container, html, { drawn: () => this.setupEvents(routes) });
   }
 
   private setupEvents(routes: CityTravelRoute[]): void {
@@ -158,7 +162,8 @@ export class InterStateModal {
       btn.addEventListener('click', () => {
         const destId = (btn as HTMLElement).getAttribute('data-dest-id') as CityId;
         const fare = parseInt((btn as HTMLElement).getAttribute('data-fare') || '0', 10);
-        const route = routes.find((r) => r.destinationId === destId);
+        // A city is reached by air and by road: the button pressed says which, by its fare
+        const route = routes.find((r) => r.destinationId === destId && r.fare === fare) ?? routes.find((r) => r.destinationId === destId);
         if (route) {
           this.executeInterStateTravel(route, fare);
         }
@@ -167,6 +172,36 @@ export class InterStateModal {
   }
 
   private executeInterStateTravel(route: CityTravelRoute, fare: number): void {
+    // A flight is bought here and flown from the airport: check in, security, the gate, the aircraft
+    if (route.mode === 'flight') {
+      const flights = FlightService.get();
+      const leg = flights.routesFrom(this.currentOriginCityId).find((one) => one.to === route.destinationId);
+      if (!leg) return;
+      const sold = flights.book(leg, this.currentOriginCityId);
+      if (!sold.ok) {
+        showGameToast(sold.reason ?? 'The ticket could not be sold.', 'warning', 4200);
+        return;
+      }
+      this.close();
+      showGameToast(`Ticket bought: ${flights.describe(leg)}, ₦${leg.fare.toLocaleString()}. Go to the airport to check in and board.`, 'success', 5200);
+      return;
+    }
+
+    // A coach ticket is bought here too, and the coach is boarded at the motor park
+    if (route.mode === 'luxury_coach') {
+      const coaches = CoachService.get();
+      const leg = coaches.routesFrom(this.currentOriginCityId).find((one) => one.to === route.destinationId);
+      if (!leg) return;
+      const sold = coaches.buy(leg, this.currentOriginCityId);
+      if (!sold.ok) {
+        showGameToast(sold.reason ?? 'The ticket could not be sold.', 'warning', 4200);
+        return;
+      }
+      this.close();
+      showGameToast(`Ticket bought: ${coaches.describe(leg)}, ₦${leg.fare.toLocaleString()}. Go to ${MOTOR_PARKS[leg.from].name} and show it to the conductor at the coach.`, 'success', 5600);
+      return;
+    }
+
     // Pay fare: wallet first, bank covers any shortfall
     if (!this.backend.pay(fare, `${route.airlineOrOperator} Interstate Ticket`, 'TRAVEL_COST')) {
       showGameToast(`❌ Insufficient funds! You need ₦${fare.toLocaleString()} to book this interstate ticket.`, 'error');
@@ -206,11 +241,9 @@ export class InterStateModal {
 
     if (screen && plane && headline && subtext && fill) {
       screen.style.display = 'flex';
-      plane.textContent = route.mode === 'flight' ? '✈️💨' : '🚌💨';
+      plane.textContent = '🚌💨';
       headline.textContent = `${route.airlineOrOperator} En Route to ${route.destinationId.toUpperCase()}...`;
-      subtext.textContent = route.mode === 'flight'
-        ? '"Cabin crew prepare cabin for landing. Welcome to the Federal Capital Territory."'
-        : '"Cruising on the Federal Express highway with AC & Afrobeats radio."';
+      subtext.textContent = '"Cruising on the Federal Express highway with AC & Afrobeats radio."';
       fill.style.width = '0%';
 
       setTimeout(() => {

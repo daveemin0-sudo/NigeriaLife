@@ -1,6 +1,11 @@
+import { Classes } from '../life/Classes';
+import * as THREE from 'three';
 import type { InteractiveObject, InteractionTarget, World } from '../world/World';
+import { VendorUI } from './VendorUI';
+import { STREET_VENDORS } from '../world/StreetVendors';
 import { Player } from '../player/Player';
 import type { CityId } from '../cities/CityTypes';
+import type { DestinationDefinition, TransportOption } from '../destinations/DestinationTypes';
 import { CharacterCreatorModal } from './CharacterCreator';
 import { InventoryModal } from './InventoryModal';
 import { ATMModal } from './ATMModal';
@@ -12,7 +17,7 @@ import { WorldMapUI } from './WorldMapUI';
 import { BackendService } from '../backend/BackendService';
 import type { PlayerAccount } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
-import type { MapBusiness } from '../world/data/WorldDataTypes';
+import type { MapBusiness, MapLandmark } from '../world/data/WorldDataTypes';
 import { HouseDecorationSystem } from '../housing/HouseDecorationSystem';
 import { SoundEngine } from '../audio/SoundEngine';
 import { QuestManager } from '../quests/QuestManager';
@@ -20,18 +25,65 @@ import { QuestModal } from './QuestModal';
 import type { StoryQuest } from '../quests/QuestTypes';
 import { CloudSyncService } from '../backend/CloudSyncService';
 import { NetworkManager } from '../multiplayer/NetworkManager';
+import { OnlineAccount } from '../online/OnlineAccount';
+import { settleGig } from '../online/checkedEarn';
 import { showGameToast } from './GameToast';
 import { UIStateManager } from './UIStateManager';
 import { emitGameEvent } from '../game/GameEvents';
+import { InteractionDirector } from '../interactions/InteractionDirector';
+import { CITY_NAME } from '../realestate/PlotCatalogue';
+import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
+import { DestinationRegistry } from '../destinations/DestinationRegistry';
+import { PlaceActions, type PlaceHost } from '../destinations/PlaceActions';
+import { Ties } from '../social/Ties';
+import { RideService } from '../phone/services/RideService';
+import { CASH_MACHINE } from '../world/kit/CashMachine';
+import { esc } from './kit/html';
+import { draw as drawStable } from './kit/StableView';
+import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
+import { CareerMinigames } from '../jobs/CareerMinigames';
+import { Dues } from '../life/Dues';
+
+/** Map landmarks that have no interior, matched to the street object where their activity happens */
+const LANDMARK_STREET_SPOTS: Record<string, string> = {
+  // Abuja
+  aso_rock: 'aso-rock-lookout',
+  national_mosque: 'abuja-mosque',
+  ecumenical_centre: 'abuja-christian-centre',
+  federal_secretariat: 'abuja-secretariat',
+  utako_motor_park: 'abuja-interstate-hub',
+  abuja_cab_rank: 'abuja-cab',
+  abuja_airport: 'abuja-airport',
+  savanna_bank_abuja: 'atm-savanna-bank-abuja',
+  // Port Harcourt
+  ph_refinery_hub: 'ph-refinery-complex',
+  ph_airport_omagwa: 'ph-airport',
+  bole_king_ph: 'ph-bole-king',
+  uniport_campus: 'ph-uniport',
+  waterlines_motor_park: 'ph-transit-hub',
+  delta_bank_ph: 'atm-delta-bank-ph',
+  // Lagos
+  jibowu_motor_park: 'jibowu-park-tickets',
+  quilox_vi: 'quilox-club',
+  national_stadium: 'surulere-stadium',
+  apapa_port: 'apapa-port',
+  nike_art_gallery: 'nike-art-gallery',
+  computer_village: 'cv-plaza',
+  cchub_yaba: 'yaba-cchub',
+  lekki_bridge: 'lekki-bridge',
+  eko_atlantic_tower: 'vi-tower',
+};
 
 export class HUD {
+  /** Opens the Today panel (set by the game) */
+  public onOpenToday: (() => void) | null = null;
   private container: HTMLDivElement;
   private interactionCard: HTMLDivElement;
   private drivingHudEl!: HTMLDivElement;
   public proximityPromptEl: HTMLDivElement | null = null;
   public promptLabelEl: HTMLSpanElement | null = null;
   public currentInteractionTarget: InteractionTarget | null = null;
-  private creatorModal!: CharacterCreatorModal;
+  public creatorModal!: CharacterCreatorModal;
   private inventoryModal!: InventoryModal;
   private atmModal!: ATMModal;
   public phoneModal!: PhoneModal;
@@ -48,22 +100,68 @@ export class HUD {
 
   public onExitVehicle?: () => void;
   public onHonkVehicle?: () => void;
+  public onRefuelVehicle?: () => void;
+  /** Opens the pump at a filling station (or the nearest one's directions) */
+  public onOpenPump?: (stationId?: string) => void;
+  /** Opens another player's card (by their id) */
+  public onOpenProfile?: (playerId: string) => void;
+  /** A cab to a point in the city: the fare is taken and the ride is ridden */
+  public onRideTo?: (point: THREE.Vector3, name: string, fare: number) => void;
   public onEnterVehicle?: (vehicleId: string) => void;
-  public onEnterInterior?: (buildingId: string) => void;
+  public onEnterInterior?: (buildingId: string, comeOutAt?: THREE.Vector3) => void;
+  /** Plays a trip to a place in a vehicle, then `arrived`; false if it cannot be played (set by the game) */
+  public onJourney?: (dest: DestinationDefinition, transport: TransportOption, arrived: () => void) => boolean;
+  /** Directions on the road to a place, for driving there yourself (set by the game); false if it cannot be done */
+  public onDriveTo?: (name: string, at: THREE.Vector3) => boolean;
+  /** Into another room of the building the player is in (up in a lift, through a room's door) */
+  public onRideInterior?: (id: string, spawnAt: THREE.Vector3, spawnYaw: number) => void;
+  /** Out of the room to a given point outside, not back the way the player came in */
+  public onLeaveInteriorTo?: (comeOutAt: THREE.Vector3, facing?: number) => void;
   public onExitInterior?: () => void;
+  /** Opens the buka's menu; a table number seats the player at that table */
+  public onOpenBukaMenu?: (preferTable?: number) => void;
+  public onShopAction?: (objectId: string) => void;
+  public onVendorAction?: (objectId: string) => void;
+  /** A plot of land's board was used: open what is known about that plot */
+  public onPlotAction?: (plotId: string) => void;
+  /** Compound gate toggled */
+  public onGateAction?: (plotId?: string) => void;
+  /** A nearby place was pressed on the bar: walk there */
+  public onWalkToPlace?: (place: InteractiveObject) => void;
+  /** Walk to a point in the city by the streets; `then` runs on getting there */
+  public onWalkTo?: (point: THREE.Vector3, then?: () => void) => void;
+  /** The way on foot from where the player stands to a point in the city they are in */
+  public wayTo?: (x: number, z: number) => { points: Array<{ x: number; z: number }>; metres: number } | null;
+  /** Something wants the street camera somewhere in particular: a seat with a view, say */
+  public onLookFrom?: (yaw: number, pitch: number, distance: number) => void;
+  /** Stations inside buildings that are used by walking up and doing something with the hands or talking */
+  private static readonly ACTED_OUT = /^(hosp_|police_|unilag_|airport_|bank_)/;
+  private actingOut = false;
+  /** Sitting down with someone: can it be done, and do it */
+  public canSitWith?: (objectId: string) => boolean;
+  public onSitWith?: (objectId: string) => void;
+  /** Starts something at home: the id of the bed, sofa, fridge or drum that was used */
+  public onHomeActivity?: (objectId: string) => void;
   public onNavigateMode?: (mode: 'street' | 'home' | 'map') => void;
-  public onRadarNavigate?: (destId: string) => void;
   public onRotateCamera?: (deltaYaw: number) => void;
   public onResetCamera?: () => void;
   public onCycleCameraPreset?: () => string;
   public onOpenPhotoMode?: () => void;
+  public onToggleShowcase?: () => void;
+  /** Opens the music player */
+  public onOpenMusic?: () => void;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
 
   constructor() {
     this.backend = BackendService.getInstance();
     this.inventoryModal = new InventoryModal();
     this.atmModal = new ATMModal();
-    this.inventoryModal.onOpenATM = () => this.atmModal.open();
+    this.inventoryModal.onOpenATM = () => this.goToCashMachine();
+    // At the bank's own machine, the player is seen taking the cash or feeding it in
+    this.atmModal.onCashMoved = () => {
+      if (this.world?.interiorManager.currentInterior?.type !== 'bank' || !this.player) return;
+      InteractionDirector.get().perform({ id: 'atm cash', actor: this.player.actor, animation: { arms: 'reach' }, seconds: 0.9 });
+    };
     this.phoneModal = new PhoneModal();
     this.phoneModal.onFastTravel = (pos, name) => {
       this.currentNavMode = 'street';
@@ -105,11 +203,11 @@ export class HUD {
               <span class="badge-sub">+2 Mood Boost</span>
             </div>
           </div>
-          <div class="top-badge gem-badge" id="badge-gem-hunt" title="Daily Naira Gem Quest">
-            <span class="badge-icon">💎</span>
+          <div class="top-badge gem-badge" id="badge-today" title="Today's hustle, the life ladder and your album">
+            <span class="badge-icon">🔥</span>
             <div class="badge-text">
-              <span class="badge-title">Daily gem hunt</span>
-              <span class="badge-sub">87,691 found • Next: ₦3,000</span>
+              <span class="badge-title">Today's hustle</span>
+              <span class="badge-sub" id="badge-today-sub">Three hustles a day</span>
             </div>
           </div>
 
@@ -139,7 +237,7 @@ export class HUD {
 
         <!-- Center Floating Pill Bar -->
         <div class="hud-center-pill-bar">
-          <div class="pill-item time-pill" id="hud-time-pill" title="Click to cycle Time of Day (Midday / Sunset / Night / Morning)" style="cursor: pointer;">
+          <div class="pill-item time-pill" id="hud-time-pill" title="World Clock • Click to toggle Real-Time (WAT) / Simulated time presets" style="cursor: pointer;">
             <span id="hud-weather-icon">☀️</span>
             <span id="hud-clock-val">Wed 7 • 1:18 PM</span>
           </div>
@@ -174,14 +272,20 @@ export class HUD {
             <span>17.6m • <strong style="color: #4ade80;">🟢 85k online</strong></span>
           </div>
           <div class="pill-item perf-pill" id="hud-perf-pill" style="display: none; font-size: 11px; background: rgba(0,0,0,0.65); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;">
-            <span id="perf-fps">60 FPS</span> • <span id="perf-ms">16ms</span> • <span id="perf-draws">40 draws</span>
+            <span id="perf-fps">60 FPS</span> • <span id="perf-ms">16ms</span> • <span id="perf-draws">40 draws</span> • <span id="perf-speed">0m/s [IDLE]</span>
           </div>
           <button class="sound-toggle-btn" id="hud-sound-toggle" title="Toggle Afrobeats Radio">🔊</button>
           <div class="pill-item money-pill-large" id="pill-money-wrap">
             <span id="hud-money">₦25,000</span>
-            <button class="btn-quick-deposit" id="btn-quick-topup" title="Withdraw / Deposit at Bank ATM">+</button>
+            <button class="btn-quick-deposit" id="btn-quick-topup" title="Go to the nearest cash machine to take cash out or pay it in">+</button>
           </div>
         </div>
+
+        <!-- Studio Showcase Floating Trigger [F9] -->
+        <button class="quality-showcase-floating-btn" id="hud-quality-showcase-btn" title="Realistic Character & Vehicle Studio Showcase [F9]" style="position: fixed; bottom: 84px; right: 20px; z-index: 999; cursor: pointer; background: linear-gradient(135deg, #0284c7, #0369a1); border: 1px solid #38bdf8; color: #ffffff; font-weight: 700; border-radius: 999px; padding: 6px 14px; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.5);">
+          <span>✨</span>
+          <span>Showcase [F9]</span>
+        </button>
 
         <!-- Top Right Mini District Indicator & Camera View Switcher -->
         <div class="hud-top-right-group">
@@ -211,15 +315,9 @@ export class HUD {
       <div class="street-radar-bar" id="street-radar-bar">
         <div class="radar-header-pill">
           <span>📍</span>
-          <span id="radar-loc-title">Herbert Macaulay Way • Tejuosho Junction</span>
+          <span id="radar-loc-title">Nearby</span>
         </div>
-        <div class="radar-pills-row">
-          <button class="radar-pill" data-dest="dest_cchub">💡 CcHub - 410m</button>
-          <button class="radar-pill" data-dest="dest_quilox">🍾 Quilox VIP - 350m</button>
-          <button class="radar-pill" data-dest="dest_amala">🍲 Amala Shitta - 220m</button>
-          <button class="radar-pill" data-dest="dest_lekki">🌉 Lekki Bridge - 850m</button>
-          <button class="radar-pill" data-dest="dest_ikeja">🔌 Computer Village - 600m</button>
-        </div>
+        <div class="radar-pills-row" id="radar-pills"></div>
       </div>
 
       <!-- Aerial Map City Switcher Bar (Appears when Map is active) -->
@@ -247,19 +345,19 @@ export class HUD {
       <!-- Bottom Master Navigation Bar (Home | Buy | Map | Phone) -->
       <div class="bottom-master-nav">
         <button class="master-nav-item" id="nav-btn-home" title="Apartment Flat Interior">
-          <span class="nav-icon">🏠</span>
+          <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.6L12 3.8l8.5 6.8"/><path d="M5.8 9.2V19a1.2 1.2 0 0 0 1.2 1.2h3.6v-5.6h2.8v5.6H17a1.2 1.2 0 0 0 1.2-1.2V9.2"/></svg></span>
           <span class="nav-label">Home</span>
         </button>
         <button class="master-nav-item" id="nav-btn-buy" title="Real Estate, Cars & Businesses">
-          <span class="nav-icon">🛍️</span>
+          <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.2 8h13.6l-1 11.4a1.4 1.4 0 0 1-1.4 1.3H7.6a1.4 1.4 0 0 1-1.4-1.3z"/><path d="M8.8 10.5V7a3.2 3.2 0 0 1 6.4 0v3.5"/></svg></span>
           <span class="nav-label">Buy</span>
         </button>
         <button class="master-nav-item" id="nav-btn-map" title="Aerial City World Map">
-          <span class="nav-icon">🗺️</span>
+          <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5L3.8 6.6v13l5.2-2.1 6 2.1 5.2-2.1v-13L15 6.6z"/><path d="M9 4.5v13M15 6.6v13"/></svg></span>
           <span class="nav-label">Map</span>
         </button>
         <button class="master-nav-item" id="nav-btn-phone" title="Smartphone OS [Key P]">
-          <span class="nav-icon">📱</span>
+          <span class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2.6"/><path d="M10.6 18h2.8"/></svg></span>
           <span class="nav-label">Phone</span>
           <span class="nav-badge">8</span>
         </button>
@@ -278,7 +376,7 @@ export class HUD {
             <span>Afrobeats [2]</span>
           </button>
           <button class="emote-btn" id="emote-salute" title="Shortcut: Key 3">
-            <span>🫡</span>
+            <span>🎖️</span>
             <span>Salute [3]</span>
           </button>
         </div>
@@ -319,6 +417,16 @@ export class HUD {
           <button class="btn-primary" id="card-action-btn">Enter / Order</button>
           <button class="btn-secondary" id="card-biz-btn" style="display: none;">💼 View Business [E]</button>
         </div>
+        <div class="card-social" id="card-social" style="display: none;">
+          <span class="card-social-label" id="card-social-label">Stranger</span>
+          <button class="card-social-btn" id="card-wave-btn" style="display: none;">👋 Wave</button>
+          <button class="card-social-btn" id="card-greet-btn" style="display: none;">🙏 Greet</button>
+          <button class="card-social-btn" id="card-shake-btn" style="display: none;">🤝 Shake hands</button>
+          <button class="card-social-btn" id="card-chat-btn" style="display: none;">💬 Chat</button>
+          <button class="card-social-btn" id="card-sit-btn" style="display: none;">🪑 Sit together</button>
+          <button class="card-social-btn" id="card-block-btn" style="display: none;">🚫 Block</button>
+          <button class="card-social-btn" id="card-report-btn" style="display: none;">⚑ Report</button>
+        </div>
       </div>
 
       <!-- Driving HUD Widget (Speedometer & Controls) -->
@@ -330,10 +438,23 @@ export class HUD {
         <div class="driving-meta-box">
           <h4 id="driving-veh-name">Danfo Minibus</h4>
           <span class="driving-hint">WASD / Arrows to Drive • SPACE Handbrake</span>
+          <div class="driving-stats-strip" style="display: flex; gap: 10px; margin-top: 4px; font-size: 11px;">
+            <span id="driving-fuel-pill" style="color: #4ade80; font-weight: 700;">⛽ <span id="driving-fuel-val">85%</span></span>
+            <span id="driving-transit-pill" style="color: #facc15; font-weight: 700; display: none;">👥 <span id="driving-passengers-val">0/8</span> • <span id="driving-fares-val">₦0</span></span>
+          </div>
         </div>
         <div class="driving-actions-bar">
+          <button class="btn-hud-refuel" id="btn-drive-refuel" title="Refuel Fuel Tank [Key R]" style="background: #059669; color: #fff; border: 0; padding: 6px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 11px;">⛽ Refuel [R]</button>
           <button class="btn-hud-horn" id="btn-drive-horn" title="Honk Horn [Key H]">📢 Honk [H]</button>
+          <button class="btn-hud-gate" id="btn-drive-gate" title="Open / Close Compound Gate [Key G / O]" style="display: none; background: #0284c7; color: #fff; border: 0; padding: 6px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 11px;">🚪 Open Gate [G]</button>
           <button class="btn-hud-exit-veh" id="btn-drive-exit" title="Exit Vehicle [Key F]">🚪 Exit [F]</button>
+        </div>
+        <div id="driving-hawker-pill" style="display: none; align-items: center; justify-content: space-between; gap: 8px; background: rgba(20, 83, 45, 0.95); border: 1px solid #4ade80; border-radius: 8px; padding: 4px 10px; margin-top: 6px; font-size: 11px;">
+          <span style="color: #fef08a; font-weight: 700;">🥤 Chidi at Window:</span>
+          <div style="display: flex; gap: 6px;">
+            <button id="btn-traffic-water" style="background: #0284c7; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">💧 Water [J] ₦100</button>
+            <button id="btn-traffic-gala" style="background: #b91c1c; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">🌭 Gala [G] ₦250</button>
+          </div>
         </div>
       </div>
 
@@ -351,6 +472,16 @@ export class HUD {
     this.proximityPromptEl = document.getElementById('hud-proximity-prompt') as HTMLDivElement;
     this.promptLabelEl = document.getElementById('hud-prompt-label') as HTMLSpanElement;
 
+    document.getElementById('btn-traffic-water')?.addEventListener('click', () => {
+      LagosStreetLifeSystem.getInstance().buyFromWindowHawker('water');
+    });
+    document.getElementById('btn-traffic-gala')?.addEventListener('click', () => {
+      LagosStreetLifeSystem.getInstance().buyFromWindowHawker('gala');
+    });
+    document.getElementById('btn-drive-gate')?.addEventListener('click', () => {
+      this.onGateAction?.();
+    });
+
     this.proximityPromptEl?.addEventListener('click', () => {
       this.executeCurrentInteraction();
     });
@@ -361,8 +492,85 @@ export class HUD {
     const actionBtn = document.getElementById('card-action-btn') as HTMLButtonElement;
     actionBtn.addEventListener('click', () => this.handleCardAction());
 
+    // Wave, greet, shake hands or chat with whoever this card is about; they answer in kind
+    const social = (buttonId: string, kind: 'wave' | 'greet' | 'handshake' | 'chat') => {
+      document.getElementById(buttonId)?.addEventListener('click', () => {
+        const obj = this.currentActiveObject;
+        this.hideInteractionCard();
+        if (!obj) return;
+        const me = this.player.actor;
+        const person = InteractionDirector.get().actorFor(obj.id);
+
+        if (!person) {
+          // Another player online: the gesture is made here and they are told about it
+          if (!obj.id.startsWith('remote_player_') || (kind !== 'wave' && kind !== 'greet')) return;
+          const made = gestureToward(kind, me, obj.mesh.position.clone());
+          if (made.ok) {
+            NetworkManager.getInstance()?.sendSocial(obj.id.replace('remote_player_', ''), kind);
+            Ties.get().grow(obj.id.replace('remote_player_', ''), obj.name, 4);
+          }
+          else this.showNotification('Finish what you are doing first.');
+          return;
+        }
+
+        const interiors = this.world?.interiorManager;
+        const inside = interiors?.isPlayerInside() ?? false;
+        const options = { nav: inside ? interiors?.getActiveNav() ?? null : null, standAt: inside ? obj.interactionPoint : undefined };
+        const result = kind === 'wave' ? waveAt(me, person)
+          : kind === 'greet' ? greet(me, person)
+          : kind === 'handshake' ? shakeHands(me, person, options)
+          : chatWith(me, person, options);
+        if (!result.ok) {
+          this.showNotification(result.reason && result.reason !== 'busy' ? result.reason : 'Finish what you are doing first.');
+        }
+      });
+    };
+    social('card-wave-btn', 'wave');
+    social('card-greet-btn', 'greet');
+    social('card-shake-btn', 'handshake');
+    social('card-chat-btn', 'chat');
+
+    // Another player online: stop hearing from them, or tell the game team about them
+    const safety = (buttonId: string, run: (online: OnlineAccount, id: string, name: string) => Promise<string>) => {
+      document.getElementById(buttonId)?.addEventListener('click', async () => {
+        const obj = this.currentActiveObject;
+        const online = OnlineAccount.get();
+        this.hideInteractionCard();
+        if (!obj || !online || !obj.id.startsWith('remote_player_')) return;
+        this.showNotification(await run(online, obj.id.replace('remote_player_', ''), obj.name));
+      });
+    };
+    safety('card-block-btn', async (online, id, name) => {
+      const done = await online.block(id);
+      if (!done.ok) return 'That did not go through. Try again.';
+      NetworkManager.getInstance()?.blockLocally(id);
+      return `You will not hear from ${name} again.`;
+    });
+    safety('card-report-btn', async (online, id, name) => {
+      // What they said lately goes with the report, so the game team can see it
+      const said = [...document.querySelectorAll('.chat-msg')]
+        .map((el) => el.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+        .filter((line) => line.startsWith(`${name}:`))
+        .slice(-10)
+        .join(' / ');
+      const done = await online.reportPlayer(id, 'Reported from their card', said);
+      return done.ok ? `${name} has been reported. The game team will look at it.` : 'The report did not go through. Try again.';
+    });
+
+    document.getElementById('card-sit-btn')?.addEventListener('click', () => {
+      const obj = this.currentActiveObject;
+      this.hideInteractionCard();
+      if (obj) this.onSitWith?.(obj.id);
+    });
+
     const bizBtn = document.getElementById('card-biz-btn') as HTMLButtonElement;
     bizBtn.addEventListener('click', () => {
+      const piece = this.currentActiveObject && PlaceActions.get(`${this.currentActiveObject.id}:move`);
+      if (piece && this.player) {
+        this.hideInteractionCard();
+        piece.run(this.placeHost());
+        return;
+      }
       if (this.currentActiveObject) {
         this.economyModal.open(this.currentActiveObject.id);
         this.hideInteractionCard();
@@ -500,7 +708,7 @@ export class HUD {
     });
 
     document.getElementById('open-atm-btn')?.addEventListener('click', () => {
-      this.atmModal.open();
+      this.goToCashMachine();
     });
 
     document.getElementById('open-phone-btn')?.addEventListener('click', () => {
@@ -521,7 +729,7 @@ export class HUD {
 
     document.getElementById('hud-weather-btn')?.addEventListener('click', () => {
       if (this.world) {
-        const newW = this.world.weather.toggleWeather();
+        const newW = this.world.weather.cycleWeather();
         this.updateWeatherButton(newW);
       }
     });
@@ -532,6 +740,10 @@ export class HUD {
 
     document.getElementById('btn-drive-horn')?.addEventListener('click', () => {
       this.onHonkVehicle?.();
+    });
+
+    document.getElementById('btn-drive-refuel')?.addEventListener('click', () => {
+      this.onRefuelVehicle?.();
     });
 
     // Emote buttons
@@ -568,6 +780,7 @@ export class HUD {
           street: 'STREET',
           isometric: 'ISOMETRIC',
           aerial: 'AERIAL',
+          eye: 'INSIDE VIEW',
         };
         const lbl = document.getElementById('cam-preset-label');
         if (lbl) lbl.textContent = names[next] || next.toUpperCase();
@@ -579,15 +792,13 @@ export class HUD {
       this.onOpenPhotoMode?.();
     });
 
-    // Afrobeats Street Radio & Master Sound Toggles
+    // The music: the sound button and the music badge open the music player
     const toggleRadioFn = () => {
-      const active = SoundEngine.getInstance().toggleRadio();
-      const soundBtn = document.getElementById('hud-sound-toggle');
-      if (soundBtn) {
-        soundBtn.textContent = active ? '🎶' : '🔊';
-        soundBtn.style.color = active ? '#38bdf8' : '#fff';
+      if (this.onOpenMusic) {
+        this.onOpenMusic();
+        return;
       }
-      this.showNotification(active ? '📻 Afrobeats Radio: ON (112 BPM Groove)' : '📻 Afrobeats Radio: OFF');
+      SoundEngine.getInstance().toggleRadio();
     };
 
     document.getElementById('hud-sound-toggle')?.addEventListener('click', toggleRadioFn);
@@ -608,6 +819,10 @@ export class HUD {
         e.preventDefault();
         togglePerfFn();
       }
+    });
+
+    document.getElementById('hud-quality-showcase-btn')?.addEventListener('click', () => {
+      this.onToggleShowcase?.();
     });
 
     // Bottom Master Navigation Bar (Home, Buy, Map, Phone)
@@ -636,6 +851,9 @@ export class HUD {
     navMapBtn?.addEventListener('click', () => {
       this.currentNavMode = 'map';
       updateNavActive('nav-btn-map');
+      // The map always opens on the city the player is standing in
+      const here = this.world?.cityManager.currentCityId;
+      if (here) this.viewCityOnMap(here, true);
       this.worldMapUI.open();
       this.onNavigateMode?.('map');
     });
@@ -674,16 +892,141 @@ export class HUD {
       this.onNavigateMode?.('street');
     };
 
-    this.worldMapUI.onTravelToDistrict = (district) => {
+    const backToTheStreet = () => {
       this.currentNavMode = 'street';
       updateNavActive('');
       this.worldMapUI.close();
       UIStateManager.getInstance().setMode('street');
-      this.player.mesh.position.copy(district.streetSpawnPoint);
       this.onNavigateMode?.('street');
     };
+    // Nothing on the map of another city can be gone to from here: that is a flight or a coach
+    const inAnotherCity = (): boolean => {
+      const here = this.world?.cityManager.currentCityId;
+      if (!here || here === this.mapCity) return false;
+      const names: Record<string, string> = CITY_NAME;
+      showGameToast(`That is in ${names[this.mapCity] ?? this.mapCity}. You are in ${names[here] ?? here}: book a flight or a coach to go there.`, 'warning', 3800);
+      return true;
+    };
+    /** Sets off on foot from the map: the map is put away and the player walks there by the streets. */
+    const walkFromMap = (point: THREE.Vector3, name: string, then?: () => void) => {
+      backToTheStreet();
+      const way = this.wayTo?.(point.x, point.z);
+      this.onWalkTo?.(point, then);
+      this.showNotification(way ? `🚶 Walking to ${name}: ${Math.round(way.metres)} m.` : `🚶 Walking to ${name}.`);
+    };
 
-    this.worldMapUI.onTravelWithTransport = (dest, transport) => {
+    // The places along the expressway: a pin each, and a cab there (too far to walk)
+    const ROAD_ICONS: Record<string, string> = {
+      'sankofa-motors': '🚗', 'redemption-cathedral': '⛪', 'central-mosque': '🕌', 'lagoon-beach': '🏖️', 'lagoon-marina': '🛥️', 'private-airfield': '🛩️',
+      'shopwell-mall': '🛍️', 'eko-grand-hotel': '🏨', 'police-command': '👮', 'efcc-office': '🏛️', 'ikeja-golf': '⛳', 'government-house': '🏛️',
+      'marina-towers': '🏢', 'freedom-park': '🎭', 'ivory-rooftop': '🍸', 'the-library': '📚', 'i-fitness': '🏋️', 'balogun-market': '🧺', 'amala-shitta': '🍲',
+      'viewing-centre': '⚽', 'polling-unit': '🗳️', 'afrika-shrine': '🎷', 'lekki-conservation': '🌳', 'dangote-refinery': '🛢️', 'radio-house': '📻',
+      'station-island': '⛽', 'station-bridge': '⛽', 'station-mainland': '⛽', 'station-ikeja': '⛽',
+      'computer-village': '📱', 'ikeja-city-mall': '🛍️', 'allen-lounge': '🍾', 'oshodi-interchange': '🚌', lasuth: '🏥', 'ladipo-auto': '🔧',
+      'ikeja-gra': '🏡', 'naija-fresh': '🛒', 'chop-express': '🍗', 'allen-salon': '💈', 'allen-suya': '🍢', 'allen-bank': '🏦', 'awolowo-fashion': '🧵', 'awolowo-pharmacy': '💊', 'awolowo-school': '💻', 'faith-arena': '⛪', 'mmia-terminal': '✈️',
+    };
+    const ROAD_KIND: Record<string, 'transit' | 'food' | 'work' | 'civic' | 'other'> = {
+      'amala-shitta': 'food', 'balogun-market': 'food', 'viewing-centre': 'food', 'ivory-rooftop': 'food', 'the-library': 'food', 'shopwell-mall': 'food',
+      'marina-towers': 'work', 'dangote-refinery': 'work', 'radio-house': 'work', 'sankofa-motors': 'work',
+      'police-command': 'civic', 'efcc-office': 'civic', 'government-house': 'civic', 'polling-unit': 'civic', 'redemption-cathedral': 'civic', 'central-mosque': 'civic',
+      'station-island': 'transit', 'station-bridge': 'transit', 'station-mainland': 'transit', 'private-airfield': 'transit', 'lagoon-marina': 'transit',
+      'station-ikeja': 'transit', 'oshodi-interchange': 'transit', 'mmia-terminal': 'transit', 'chop-express': 'food', 'naija-fresh': 'food', 'allen-suya': 'food', 'allen-salon': 'work', 'allen-bank': 'civic', 'awolowo-fashion': 'work', 'awolowo-pharmacy': 'civic', 'awolowo-school': 'work', 'allen-lounge': 'food', 'ikeja-city-mall': 'food',
+      'computer-village': 'work', 'ladipo-auto': 'work', lasuth: 'civic', 'faith-arena': 'civic',
+    };
+    this.worldMapUI.extraPins = () => {
+      if (this.mapCity !== 'lagos' || !this.world) return [];
+      return this.world.expressway.roadside.interactive.map((o) => {
+        const key = o.id.replace('roadside-', '');
+        return { id: o.id, name: o.name, icon: ROAD_ICONS[key] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: ROAD_KIND[key] ?? 'other' };
+      });
+    };
+    // Every place along the roads is on the record too: found by name in the map's search and the phone's Ride list
+    const ROAD_CATEGORY: Record<string, DestinationDefinition['category']> = { food: 'Restaurant', transit: 'Transit', civic: 'Civic', work: 'Civic', other: 'Culture' };
+    const registerRoadside = () => {
+      const registry = DestinationRegistry.getInstance();
+      const taxi = registry.getDefaultTransportOptions().filter((t) => t.mode === 'taxi' || t.mode === 'bike');
+      for (const o of this.world?.expressway.roadside.interactive ?? []) {
+        if (registry.getById(o.id) || registry.getAllForCity('lagos').some((d) => d.name === o.name)) continue;
+        const key = o.id.replace('roadside-', '');
+        const at = o.interactionPoint.clone();
+        const category: DestinationDefinition['category'] = /hotel/.test(key) ? 'Hotel' : /cathedral|mosque|church|arena/.test(key) ? 'Church' : /beach/.test(key) ? 'Beach' : /bank/.test(key) ? 'Bank' : /terminal|airfield/.test(key) ? 'Airport' : /lasuth|pharmacy/.test(key) ? 'Healthcare' : /mall|mart|fresh|market|village/.test(key) ? 'Market' : ROAD_CATEGORY[ROAD_KIND[key] ?? 'other'];
+        registry.register({
+          id: o.id, aliases: [key], name: o.name, category, city: 'lagos', district: 'expressway', districtName: o.category,
+          mapPosition: at.clone(), mapVisualType: 'roadside', mapIcon: ROAD_ICONS[key] ?? '📍', exteriorType: 'roadside',
+          streetPosition: at.clone(), entrance: { position: at.clone(), promptLabel: o.name, triggerRadius: 3 }, interiorId: '',
+          transportAvailability: [{ mode: 'walk', label: 'Walk on Foot', icon: '🚶', fare: 0, travelTimeSec: 60, description: 'A long walk along the road.' }, ...taxi],
+          npcPopulation: [], activities: [], services: [o.category], destinationDescription: o.description, shortDescription: o.description, isEnterable: false,
+        });
+      }
+    };
+    registerRoadside();
+    this.worldMapUI.onFocusPoint = (x, z) => this.world?.worldMap.focusOn(x, z);
+    this.worldMapUI.onRailTo = (z) => this.world?.worldMap.glideTo(z);
+    this.worldMapUI.onPickExtra = (id) => {
+      const place = this.world?.expressway.roadside.interactive.find((o) => o.id === id);
+      if (!place || inAnotherCity()) return;
+      const metres = Math.round(Math.hypot(place.interactionPoint.x - this.player.position.x, place.interactionPoint.z - this.player.position.z));
+      const fare = Math.round(4500 * RideService.fareFactor());
+      const dest = DestinationRegistry.getInstance().getById(id);
+      const drive = dest ? this.worldMapUI.driveOption?.(dest) : null;
+      this.showDialogueModal({
+        speakerName: place.name,
+        speakerRole: `${place.category} · along the road`,
+        speakerAvatar: ROAD_ICONS[id.replace('roadside-', '')] ?? '📍',
+        dialogueText: `${place.description} About ${(metres / 1000).toFixed(1)} km from you.`,
+        choices: [
+          ...(drive ? [{ id: 'drive', label: '🧭 Drive yourself: arrows on the road', badge: 'Free', onSelect: () => {
+            backToTheStreet();
+            if (!this.onDriveTo?.(place.name, place.interactionPoint.clone())) return;
+            this.worldMapUI.close();
+            UIStateManager.getInstance().setMode(this.player.isDriving ? 'driving' : 'street');
+            this.onNavigateMode?.('street');
+          } }] : []),
+          { id: 'cab', label: `🚕 Take a cab there`, badge: `₦${fare.toLocaleString()}`, onSelect: () => { backToTheStreet(); this.onRideTo?.(place.interactionPoint.clone(), place.name, fare); } },
+          ...(metres < 1500 ? [{ id: 'walk', label: '🚶 Walk there', badge: 'Free', onSelect: () => walkFromMap(place.interactionPoint.clone(), place.name) }] : []),
+          { id: 'look', label: 'Just looking', onSelect: () => {} },
+        ],
+      });
+    };
+
+    this.worldMapUI.onTravelToDistrict = (district) => {
+      if (inAnotherCity()) return;
+      walkFromMap(district.streetSpawnPoint, district.name);
+    };
+
+    this.worldMapUI.onTravelWithTransport = (dest, transport, enterInside) => {
+      if (inAnotherCity()) return false;
+      const spotId = LANDMARK_STREET_SPOTS[dest.id] ?? dest.aliases?.map((a) => LANDMARK_STREET_SPOTS[a]).find(Boolean);
+      const spot = spotId ? this.world?.interactiveObjects.find((o) => o.id === spotId) : null;
+      const targetPos = (!dest.isEnterable && spot) ? spot.interactionPoint : dest.streetPosition;
+
+      // On foot is on foot: the player walks there, and goes in at the door if that was asked for
+      if (transport.mode === 'walk') {
+        walkFromMap(targetPos, dest.name, () => {
+          this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
+          if (enterInside && dest.isEnterable) {
+            this.onEnterInterior?.(dest.interiorId);
+          } else if (spot) {
+            this.showInteractionCard(spot);
+          } else {
+            this.showNotification(`🚶 You are at ${dest.name}.${dest.isEnterable ? ' Press [E] to go in.' : ''}`);
+          }
+        });
+        return true;
+      }
+      // Your own car: there has to be one
+      if (transport.mode === 'car' && !this.onJourney) return false;
+      // At the wheel themselves: the way is shown on the road
+      if (transport.mode === 'drive') {
+        if (!this.onDriveTo?.(dest.name, targetPos)) return false;
+        this.currentNavMode = 'street';
+        updateNavActive('');
+        this.worldMapUI.close();
+        UIStateManager.getInstance().setMode(this.player.isDriving ? 'driving' : 'street');
+        this.onNavigateMode?.('street');
+        return true;
+      }
+
       // 1. If transport requires fare, deduct cash from wallet
       if (transport.fare > 0) {
         const success = this.backend.spendCash(
@@ -698,7 +1041,7 @@ export class HUD {
             speakerAvatar: '⚠️',
             dialogueText: `Insufficient cash (₦${transport.fare.toLocaleString()}) for ${transport.label}! You can walk on foot for free.`,
           });
-          return;
+          return false;
         }
         emitGameEvent('drive', { city: this.world?.cityManager.currentCityId });
       }
@@ -710,15 +1053,68 @@ export class HUD {
       UIStateManager.getInstance().setMode('street');
       this.onNavigateMode?.('street');
 
-      // 3. Teleport player character right outside the destination entrance
-      this.player.mesh.position.copy(dest.streetPosition);
-      this.player.position.copy(dest.streetPosition);
-      this.player.mesh.rotation.y = 0;
-      this.player.stopMoving();
+      // 3. Put down right outside the destination's entrance, then either walk straight in or wait at the door
+      const arrive = () => {
+        this.player.mesh.position.copy(targetPos);
+        this.player.position.copy(targetPos);
+        this.player.mesh.rotation.y = 0;
+        this.player.stopMoving();
+        this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
+        if (enterInside && dest.isEnterable) {
+          setTimeout(() => this.onEnterInterior?.(dest.interiorId), 50);
+        } else if (spot) {
+          this.showInteractionCard(spot);
+        } else {
+          this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}!${dest.isEnterable ? ' Press [E] to enter.' : ''}`);
+        }
+      };
+      // An okada, a keke, a cab or the player's own car is ridden there: the trip is played, then the arrival
+      if (['bike', 'keke', 'taxi', 'car'].includes(transport.mode) && this.onJourney?.(dest, transport, arrive)) return true;
+      arrive();
+      return true;
+    };
 
-      // 4. Update HUD location badge and show notification
-      this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
-      this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}! Press [E] to enter.`);
+    // Places with no interior of their own: arrive at the spot on the street where their activity is
+    this.worldMapUI.onTravelToLandmark = (lm) => {
+      if (inAnotherCity()) return;
+      const spot = this.world?.interactiveObjects.find((o) => o.id === LANDMARK_STREET_SPOTS[lm.id]);
+      const district = WorldDataManager.getInstance().getDistrictById(lm.districtId);
+      if (!spot && !district) return;
+      const arriveAt = spot ? spot.interactionPoint : district!.streetSpawnPoint;
+      walkFromMap(arriveAt, lm.name, () => {
+        if (spot) this.showInteractionCard(spot);
+        else this.showNotification(`📍 You are in ${district!.name}, near ${lm.name}.`);
+      });
+    };
+
+    // The card of a place on the map: how far it is on foot, with the way drawn along the streets
+    const doorOf = (lm: MapLandmark): THREE.Vector3 | null => {
+      const destination = DestinationRegistry.getInstance().getById(lm.id);
+      if (destination) return destination.streetPosition;
+      const spot = this.world?.interactiveObjects.find((o) => o.id === LANDMARK_STREET_SPOTS[lm.id]);
+      return spot?.interactionPoint ?? WorldDataManager.getInstance().getDistrictById(lm.districtId)?.streetSpawnPoint ?? null;
+    };
+    this.worldMapUI.standing = () => ({ here: this.world?.cityManager.currentCityId ?? this.mapCity, viewing: this.mapCity });
+    this.worldMapUI.wayTo = (lm) => {
+      const door = doorOf(lm);
+      const way = door ? this.wayTo?.(door.x, door.z) ?? null : null;
+      const line = way ? [{ x: this.player.position.x, z: this.player.position.z }, ...way.points] : null;
+      this.world?.showRoute(line);
+      // The whole way in view, clear of the card that stands at the side of a wide screen
+      if (line && this.world?.worldMap.showingRealWorld) {
+        const xs = line.map((point) => point.x);
+        const zs = line.map((point) => point.z);
+        this.world.worldMap.frame(Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), window.innerWidth >= 1000 ? 430 / window.innerWidth : 0);
+      }
+      return way ? { metres: way.metres } : null;
+    };
+    this.worldMapUI.onCardClosed = () => this.world?.showRoute(null);
+    this.worldMapUI.onFocus = (lm) => {
+      // Where there is a way to it, the way is what is brought into view (see wayTo); otherwise the place itself
+      const here = this.world?.cityManager.currentCityId === this.mapCity;
+      if (here && this.world?.worldMap.showingRealWorld && doorOf(lm)) return;
+      const at = this.worldMapUI.locate?.(lm) ?? lm.position;
+      this.world?.worldMap.focusOn(at.x, at.z);
     };
 
     this.worldMapUI.onInterstateTravel = (destCityId) => {
@@ -729,24 +1125,29 @@ export class HUD {
       this.world?.worldMap.focusOnDistrict(districtId);
     };
 
-    this.worldMapUI.onSwitchCityTab = (cityId) => {
-      if (this.world) {
-        this.world.worldMap.switchCity(cityId);
-        this.worldMapUI.updateCityHeader(cityId);
-        this.world.cityManager.switchCity(cityId as any, this.player, (newObjs) => {
-          if (this.world) this.world.interactiveObjects = newObjs;
-        });
-      }
+    this.worldMapUI.onSwitchCityTab = (cityId) => this.viewCityOnMap(cityId);
+    // On the map of the real city, a pin stands over the real place: the door a ride would drop you at
+    this.worldMapUI.locate = (lm, cityId = this.mapCity) => {
+      if (!this.world) return null;
+      const spot = LANDMARK_STREET_SPOTS[lm.id];
+      if (cityId !== 'lagos') return this.world.cityManager.thingsIn(cityId).find((o) => o.id === spot)?.interactionPoint ?? null;
+      const destination = DestinationRegistry.getInstance().getById(lm.id);
+      // A place the size of a stadium is pinned in its middle; anything else at its door
+      const middle = this.world.landmarks.middleOf([lm.id, spot, destination?.id, ...(destination?.aliases ?? [])]);
+      if (middle) return middle;
+      if (destination) return destination.streetPosition;
+      return this.world.cityManager.thingsIn('lagos').find((o) => o.id === spot)?.interactionPoint ?? null;
+    };
+    // Put away, the map goes back to the city the player is in
+    this.worldMapUI.onClosed = () => {
+      const here = this.world?.cityManager.currentCityId;
+      if (here && this.mapCity !== here) this.viewCityOnMap(here, true);
     };
 
     this.worldMapUI.onTravelToProperty = (prop) => {
-      this.currentNavMode = 'street';
-      updateNavActive('');
-      this.worldMapUI.close();
-      UIStateManager.getInstance().setMode('street');
-      this.player.mesh.position.set(prop.streetPosition.x, prop.streetPosition.y, prop.streetPosition.z);
+      if (inAnotherCity()) return;
       this.world?.highlightStreetProperty(prop.streetPosition, prop.name);
-      this.onNavigateMode?.('street');
+      walkFromMap(prop.streetPosition, prop.name);
     };
 
     this.worldMapUI.onPropertyUpdated = () => {
@@ -770,6 +1171,8 @@ export class HUD {
     };
 
     if (this.world) {
+      this.world.worldMap.locate = (lm) => this.worldMapUI.locate?.(lm) ?? null;
+
       this.world.worldMap.onHoverItem = (item, screenPos) => {
         this.worldMapUI.showHoverTooltip(item, screenPos);
       };
@@ -809,11 +1212,7 @@ export class HUD {
         const target = e.currentTarget as HTMLElement;
         target.classList.add('active');
         const city = target.getAttribute('data-city') as CityId;
-        if (city && this.world) {
-          this.world.cityManager.switchCity(city, this.player, (newObjs) => {
-            if (this.world) this.world.interactiveObjects = newObjs;
-          });
-        }
+        if (city) this.viewCityOnMap(city);
       });
     });
 
@@ -831,7 +1230,8 @@ export class HUD {
       const body = document.getElementById('tracker-body');
       const btn = document.getElementById('btn-tracker-toggle');
       if (body) {
-        const isCollapsed = body.style.display === 'none';
+        // As it is on screen now: on a small screen it starts closed without anyone having closed it
+        const isCollapsed = getComputedStyle(body).display === 'none';
         body.style.display = isCollapsed ? 'block' : 'none';
         if (btn) btn.textContent = isCollapsed ? '▾' : '▸';
       }
@@ -855,44 +1255,19 @@ export class HUD {
       });
     });
 
-    document.getElementById('badge-gem-hunt')?.addEventListener('click', () => {
-      const reward = 3000;
-      const claim = this.backend.claimTimedPayout('daily_gem_hunt', reward, 'Daily Naira Gem Hunt', 24 * 60 * 60 * 1000);
-      if (!claim.success) {
-        const hours = Math.max(1, Math.ceil(claim.waitMs / 3600000));
-        this.showDialogueModal({
-          speakerName: 'Lagos City Secret',
-          speakerRole: 'Daily Naira Gem Hunt',
-          speakerAvatar: '💎',
-          dialogueText: `You already found today's gem. The next one appears in about ${hours} hour${hours === 1 ? '' : 's'}.`,
-        });
-        return;
-      }
-      this.backend.addStreetCred(10);
-      this.showDialogueModal({
-        speakerName: 'Lagos City Secret',
-        speakerRole: 'Daily Naira Gem Hunt',
-        speakerAvatar: '💎',
-        soundType: 'win',
-        dialogueText: `Daily Naira Gem Hunt completed! Discovered hidden Lagos Gem! +₦${reward.toLocaleString()} cash credited to your wallet!`,
-        rewards: { cash: reward, streetCred: 10 },
-      });
-    });
+    // Today's hustle: the streak, the three hustles, the ladder and the album
+    document.getElementById('badge-today')?.addEventListener('click', () => this.onOpenToday?.());
 
-    // Radar pills navigation
-    document.querySelectorAll('.radar-pill').forEach((pill) => {
-      pill.addEventListener('click', (e) => {
-        const target = e.currentTarget as HTMLElement;
-        const dest = target.getAttribute('data-dest');
-        if (dest) {
-          this.onRadarNavigate?.(dest);
-        }
-      });
+    // The places nearby: pressing one walks the player to it
+    document.getElementById('radar-pills')?.addEventListener('click', (e) => {
+      const pill = (e.target as HTMLElement).closest('.radar-pill');
+      const place = this.world?.interactiveObjects.find((o) => o.id === pill?.getAttribute('data-place'));
+      if (place) this.onWalkToPlace?.(place);
     });
 
     // Quick ATM topup button
     document.getElementById('btn-quick-topup')?.addEventListener('click', () => {
-      this.atmModal.open();
+      this.goToCashMachine();
     });
 
     // Sound toggle button
@@ -905,9 +1280,12 @@ export class HUD {
       }
     });
 
-    // Time-of-day click cycle (Midday -> Golden Hour -> Night -> Morning)
+    // Time-of-day & Clock Mode click cycle (Real-Time WAT <-> Simulated Morning / Midday / Golden Hour / Night)
     document.getElementById('hud-time-pill')?.addEventListener('click', () => {
-      this.world?.skyEnvironment.cycleTimeOfDay();
+      const res = this.world?.skyEnvironment.cycleWorldClock();
+      if (res) {
+        showGameToast(`⏱️ ${res.label}`, 'info', 3000);
+      }
     });
 
     // Camera Orbit Controls Buttons
@@ -928,14 +1306,16 @@ export class HUD {
 
     // Keyboard Hotkeys
     window.addEventListener('keydown', (e) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      // Letters typed into any field (a one-line box, a post, a list) are words, not hotkeys
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return;
 
       if (e.key.toLowerCase() === 'c') {
         this.creatorModal.toggle();
       } else if (e.key.toLowerCase() === 'i') {
         this.inventoryModal.toggle();
       } else if (e.key.toLowerCase() === 'b') {
-        this.atmModal.open();
+        this.goToCashMachine();
       } else if (e.key.toLowerCase() === 'p') {
         this.phoneModal.toggle();
       } else if (e.key.toLowerCase() === 'e') {
@@ -974,6 +1354,53 @@ export class HUD {
     });
   }
 
+  /** Opens the bag, the wardrobe and the other screens the HUD owns, for anything that needs to (the phone, the player's own menu). */
+  public openInventory(): void {
+    this.inventoryModal.open();
+  }
+
+  public openWardrobe(): void {
+    if (!this.creatorModal.isOpen) this.creatorModal.toggle();
+  }
+
+  public openAtm(): void {
+    this.atmModal.open();
+  }
+
+  /**
+   * Cash is taken out and paid in at a cash machine, not wherever the player happens to be.
+   * Standing at one, its screen comes up. Anywhere else, the player is told where the
+   * nearest is and sets off for it.
+   */
+  public goToCashMachine(): void {
+    if (!this.world || !this.player) return;
+    if (this.player.isDriving) {
+      showGameToast('Get out of the vehicle first: a cash machine is used on foot.', 'info', 3200);
+      return;
+    }
+    const interiors = this.world.interiorManager;
+    const inside = interiors.isPlayerInside();
+    const from = this.player.position;
+    // Indoors, the only machine is the one in the banking hall; in the street, the ones in walls
+    const machines = inside
+      ? this.world.interactiveObjects.filter((o) => o.id === 'bank_atm_station' && interiors.currentInterior?.type === 'bank')
+      : this.world.interactiveObjects.filter((o) => o.id.startsWith(CASH_MACHINE));
+    if (machines.length === 0) {
+      showGameToast(inside ? 'There is no cash machine in here. There are machines in the street, and in the banking hall.' : 'There is no cash machine in this part of town.', 'info', 3600);
+      return;
+    }
+    const far = (o: InteractiveObject) => Math.hypot(o.interactionPoint.x - from.x, o.interactionPoint.z - from.z);
+    const nearest = machines.reduce((best, one) => (far(one) < far(best) ? one : best));
+    if (far(nearest) <= 2.8) {
+      if (inside) this.showInteractionCard(nearest);
+      else this.atmModal.open();
+      return;
+    }
+    const way = inside ? null : this.wayTo?.(nearest.interactionPoint.x, nearest.interactionPoint.z);
+    showGameToast(`The nearest ${nearest.name.charAt(0).toLowerCase()}${nearest.name.slice(1)} is ${Math.round(way?.metres ?? far(nearest))} m away. Walking there.`, 'info', 3600);
+    this.onWalkToPlace?.(nearest);
+  }
+
   public setProximityTarget(target: InteractionTarget | null): void {
     this.currentInteractionTarget = target;
     if (!this.proximityPromptEl || !this.promptLabelEl) return;
@@ -983,7 +1410,12 @@ export class HUD {
       return;
     }
 
-    this.promptLabelEl.textContent = target.label;
+    // On a phone the prompt is the one action button: it says what it does with a picture too
+    const icon: Record<InteractionTarget['action'], string> = {
+      'enter-interior': '🏠', 'exit-interior': '🚪', 'enter-vehicle': '🚗', interact: '👆', inspect: '🔍', trade: '🛒', talk: '💬', use: '👆',
+    };
+    this.promptLabelEl.textContent = `${icon[target.action] ?? ''} ${target.label}`.trim();
+    this.proximityPromptEl.classList.toggle('is-exit', target.action === 'exit-interior');
     this.proximityPromptEl.style.display = 'flex';
   }
 
@@ -1017,11 +1449,29 @@ export class HUD {
     if (subEl && subEl.textContent !== sub) subEl.textContent = sub;
   }
 
-  public updateWeatherButton(type: 'sunny' | 'rainy'): void {
+  public updateWeatherButton(type: string): void {
     const iconEl = document.getElementById('hud-weather-icon');
     const labelEl = document.getElementById('hud-weather-label');
-    if (iconEl) iconEl.textContent = type === 'sunny' ? '☀️' : '🌧️';
-    if (labelEl) labelEl.textContent = type === 'sunny' ? 'Sunny' : 'Rainy';
+    const icons: Record<string, string> = {
+      sunny: '☀️',
+      clear: '☀️',
+      partly_cloudy: '⛅',
+      overcast: '☁️',
+      rainy: '🌧️',
+      thunderstorm: '⛈️',
+      harmattan: '🌫️',
+    };
+    const labels: Record<string, string> = {
+      sunny: 'Sunny',
+      clear: 'Clear',
+      partly_cloudy: 'Partly Cloudy',
+      overcast: 'Overcast',
+      rainy: 'Rainy',
+      thunderstorm: 'Thunderstorm',
+      harmattan: 'Harmattan',
+    };
+    if (iconEl) iconEl.textContent = icons[type] || '☀️';
+    if (labelEl) labelEl.textContent = labels[type] || type;
   }
 
   public onQuestUpdate(quest: StoryQuest | null): void {
@@ -1072,6 +1522,52 @@ export class HUD {
     }
   }
 
+  /**
+   * Fills the bar of nearby places from where the player is standing: the nearest real places
+   * in the city they are in, with how far each is. Called about once a second.
+   */
+  public refreshNearby(x: number, z: number): void {
+    const row = document.getElementById('radar-pills');
+    const title = document.getElementById('radar-loc-title');
+    if (!row || !this.world) return;
+    const short = (name: string) => name.split(/[&(,·]/)[0].trim();
+    const seen = new Set<string>();
+    const people = new Set(this.world.npcs.interactiveList);
+    const near = this.world.interactiveObjects
+      // Places, not people, vehicles, plots of land or the airside of an airport
+      .filter((o) => !o.moving && !people.has(o) && !/^(npc-|veh-|plot_|remote_player_|interior_)/.test(o.id) && !o.category.includes('·') && o.mesh.visible)
+      .map((o) => ({ o, name: short(o.name), metres: Math.hypot(o.interactionPoint.x - x, o.interactionPoint.z - z) }))
+      .sort((a, b) => a.metres - b.metres)
+      .filter((place) => (seen.has(place.name) ? false : !!seen.add(place.name)))
+      .slice(0, 5);
+    const city = (CITY_NAME as Record<string, string>)[this.world.cityManager.currentCityId] ?? '';
+    if (title) title.textContent = near.length ? `${city} · near ${near[0].name}` : city;
+    // To the nearest five metres, so the bar is not redrawn at every step
+    drawStable(row, near.map((place) => `<button class="radar-pill" data-place="${esc(place.o.id)}">${esc(place.name)} · ${Math.max(5, Math.round(place.metres / 5) * 5)} m</button>`).join(''));
+  }
+
+  /** Which city the map is showing, which need not be the one the player is in */
+  private mapCity = 'lagos';
+
+  /**
+   * Puts another city's map up. Looking at a map is free and moves nobody: the player stays in
+   * the city they are in, and gets to another one by paying for a flight or a coach.
+   */
+  private viewCityOnMap(cityId: string, quietly = false): void {
+    if (!this.world) return;
+    const here = this.world.cityManager.currentCityId;
+    if (this.mapCity !== cityId) this.world.worldMap.switchCity(cityId);
+    this.mapCity = cityId;
+    this.world.worldMap.renderer.playerIsHere = cityId === here;
+    this.worldMapUI.updateCityHeader(cityId);
+    this.worldMapUI.markCityTabs(cityId, here);
+    document.querySelectorAll('.city-tab').forEach((tab) => tab.classList.toggle('active', tab.getAttribute('data-city') === cityId));
+    if (!quietly && cityId !== here) {
+      const names: Record<string, string> = CITY_NAME;
+      showGameToast(`This is the map of ${names[cityId] ?? cityId}. You are in ${names[here] ?? here}: book a flight or a coach to go there.`, 'info', 3800);
+    }
+  }
+
   public showInteractionCard(obj: InteractiveObject): void {
     this.currentActiveObject = obj;
     const categoryEl = document.getElementById('card-category')!;
@@ -1113,7 +1609,12 @@ export class HUD {
       bizMeta.style.display = 'none';
     }
 
-    if (obj.id === 'mama-put') {
+    const ownAction = PlaceActions.get(obj.id);
+    if (ownAction) {
+      // The place says for itself what can be done here (a ticket booth, a loading bay, a bar)
+      btnEl.textContent = ownAction.label();
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'mama-put') {
       btnEl.textContent = '🍲 Enter Buka & Mama Put [E]';
       bizBtn.textContent = '💼 Business Office';
       bizBtn.style.display = 'inline-block';
@@ -1134,7 +1635,7 @@ export class HUD {
       btnEl.textContent = '👮 Enter Area Command Police Station [E]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'interior_exit_door') {
-      btnEl.textContent = '🚪 Exit to Street [E]';
+      btnEl.textContent = `${obj.exitLabel ?? '🚪 Exit to Street'} [E]`;
       bizBtn.style.display = 'none';
     } else if (obj.id === 'hosp_reception') {
       btnEl.textContent = '📋 Register & Check Vitals (₦500)';
@@ -1173,7 +1674,10 @@ export class HUD {
       btnEl.textContent = '✈️ Board Flight LOS-PHC to Port Harcourt (₦32,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_vip_lounge') {
-      btnEl.textContent = '🥂 EagleWings Executive VIP Lounge Access (₦5,000)';
+      btnEl.textContent = '🥂 NigeriaLife Air Executive VIP Lounge Access (₦5,000)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'airport_baggage_carousel') {
+      btnEl.textContent = '🧳 Claim Checked Travel Luggage';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'bank_atm_station') {
       btnEl.textContent = '🏧 Withdraw ₦10,000 Cash';
@@ -1184,11 +1688,23 @@ export class HUD {
     } else if (obj.id === 'bank_manager_desk') {
       btnEl.textContent = '💼 Apply for Lagos SME Loan (+₦50,000)';
       bizBtn.style.display = 'none';
-    } else if (obj.id === 'buka_food_counter') {
-      btnEl.textContent = '🍲 Order Firewood Party Jollof (₦1,800)';
+    } else if (obj.id === 'buka_food_counter' || obj.id === 'interior_npc_npc_mama_nkechi') {
+      btnEl.textContent = '📋 See the menu';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'buka_table_vip') {
-      btnEl.textContent = '🍽️ Sit Down & Chop Life (₦2,500)';
+      btnEl.textContent = '🪑 Sit here & order';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'interior_npc_npc_waiter_segun') {
+      btnEl.textContent = '📋 Ask Segun for the menu';
+      bizBtn.style.display = 'none';
+    } else if (obj.id.startsWith('shop_shelf_')) {
+      btnEl.textContent = '🛒 See what is on this shelf';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'shop_checkout' || obj.id === 'interior_npc_npc_shop_cashier') {
+      btnEl.textContent = '🧾 Basket & pay';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'supermarket') {
+      btnEl.textContent = '🛒 Enter Everyday Supermarket [E]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'police_front_desk') {
       btnEl.textContent = '📝 Area Command Desk & Clearance Services [E]';
@@ -1260,14 +1776,17 @@ export class HUD {
       btnEl.textContent = '✈️ Book Flight / Luxury Coach to Lagos [M]';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'flat-tv') {
-      btnEl.textContent = '📺 Watch Super Eagles AFCON Match (Live Broadcast)';
-      bizBtn.style.display = 'none';
+      btnEl.textContent = '📺 Sit down & watch the match';
+      this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-bed') {
-      btnEl.textContent = '🛏️ Sleep on Luxury Bed (100% Full Energy Recharge)';
-      bizBtn.style.display = 'none';
+      btnEl.textContent = '🛏️ Lie down & sleep';
+      this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-drum') {
-      btnEl.textContent = '🪣 Fetch Chilled Water & Bath with Red Bowl (Hygiene +100%)';
-      bizBtn.style.display = 'none';
+      btnEl.textContent = '🚿 Take a bucket bath';
+      this.pieceButton(obj.id, bizBtn);
+    } else if (obj.id === 'flat-fridge') {
+      btnEl.textContent = '🧊 Open the fridge';
+      this.pieceButton(obj.id, bizBtn);
     } else if (obj.id === 'flat-sofa') {
       btnEl.textContent = '🛋️ Relax on Living Room Sofa (Energy +30%)';
       bizBtn.style.display = 'none';
@@ -1287,19 +1806,15 @@ export class HUD {
       btnEl.textContent = '💊 Buy Medicine & First Aid (₦1,500)';
       bizBtn.textContent = '💼 Pharmacy Enterprise [E]';
       bizBtn.style.display = 'inline-block';
-    } else if (obj.id === 'supermarket') {
-      btnEl.textContent = '🛒 Buy Noodles Carton & Tinned Milk (₦4,500)';
-      bizBtn.style.display = 'none';
     } else if (obj.id === 'slot-gadgets') {
       btnEl.textContent = '📱 Buy 20,000mAh Power Bank & Charger (₦8,500)';
       bizBtn.textContent = '💼 Slot Tech Enterprise [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'barber-shop') {
-      btnEl.textContent = '💈 Executive Fade & Beard Grooming (₦2,500)';
-      bizBtn.textContent = '💼 Barbershop Enterprise [E]';
-      bizBtn.style.display = 'inline-block';
+      btnEl.textContent = '💈 Go inside Lagos Barbers';
+      bizBtn.style.display = 'none';
     } else if (obj.id === 'fuel-station') {
-      btnEl.textContent = '⛽ Buy 10L Petrol Keg & Cold Drink (₦8,500)';
+      btnEl.textContent = '⛽ The pump';
       bizBtn.textContent = '💼 NaijaPetro Forecourt Franchise [E]';
       bizBtn.style.display = 'inline-block';
     } else if (obj.id === 'mechanic') {
@@ -1338,9 +1853,6 @@ export class HUD {
       btnEl.textContent = '💻 Join Tech Hackathon & Remote Sprint (+₦15,000)';
       bizBtn.textContent = '🚀 Co-Creation Tech Incubator [E]';
       bizBtn.style.display = 'inline-block';
-    } else if (obj.id === 'surulere-stadium') {
-      btnEl.textContent = '🏃 Athletic Track Workout & Football Training (₦1,000)';
-      bizBtn.style.display = 'none';
     } else if (obj.id === 'mma-airport') {
       btnEl.textContent = '✈️ Book Interstate Flight to Abuja / Port Harcourt [M]';
       bizBtn.style.display = 'none';
@@ -1360,12 +1872,54 @@ export class HUD {
     } else if (obj.id === 'flat-pet') {
       btnEl.textContent = '🐶 Pet Bingo the Dog (+15 Mood, +5 Cred)';
       bizBtn.style.display = 'none';
+    } else if (obj.id === 'prop-tiger-generator') {
+      btnEl.textContent = '⚡ Pull Recoil Starter (Start Generator / Power Shops)';
+      bizBtn.style.display = 'none';
+    } else if (obj.id === 'npc-agbero') {
+      btnEl.textContent = '🧢 Settle Loading Dues (₦200) / Greet Chairman';
+      bizBtn.style.display = 'none';
     } else if (obj.id.startsWith('remote_player_')) {
-      btnEl.textContent = '🤝 Citizen Interaction & EkoPay [E]';
+      btnEl.textContent = '👤 See their card · chat, hire, CV';
       bizBtn.style.display = 'none';
     } else {
       btnEl.textContent = 'Enter / Inspect';
       bizBtn.style.display = 'none';
+    }
+
+    if (VendorUI.sells(obj.id)) {
+      btnEl.textContent = `🛍️ See what ${STREET_VENDORS[obj.id].name} is selling`;
+      bizBtn.style.display = 'none';
+    }
+    if (obj.id.startsWith('plot_')) {
+      btnEl.textContent = '📋 Inspect this plot';
+      bizBtn.style.display = 'none';
+    }
+    if (obj.id.startsWith('gate_')) {
+      btnEl.textContent = '🚪 Open / Close Compound Gate';
+      bizBtn.style.display = 'none';
+    }
+
+    // Anyone the interaction system can direct can be waved at, greeted, spoken to; another player can be waved at and greeted
+    const person = InteractionDirector.get().actorFor(obj.id);
+    const otherPlayer = obj.id.startsWith('remote_player_');
+    const show = (buttonId: string, on: boolean) => {
+      const button = document.getElementById(buttonId);
+      if (button) button.style.display = on ? 'inline-block' : 'none';
+    };
+    show('card-wave-btn', !!person || otherPlayer);
+    show('card-greet-btn', !!person || otherPlayer);
+    show('card-shake-btn', !!person && cannotShakeHands(this.player.actor, person, { nav: this.world?.interiorManager.isPlayerInside() ? this.world.interiorManager.getActiveNav() : null }) === null);
+    show('card-chat-btn', !!person);
+    show('card-sit-btn', this.canSitWith?.(obj.id) ?? false);
+    show('card-block-btn', otherPlayer && !!OnlineAccount.get());
+    show('card-report-btn', otherPlayer && !!OnlineAccount.get());
+    const socialRow = document.getElementById('card-social');
+    if (socialRow) socialRow.style.display = person || otherPlayer ? 'flex' : 'none';
+    const standingLabel = document.getElementById('card-social-label');
+    if (standingLabel) {
+      const standing = person ? standingWith(person) : 'stranger';
+      standingLabel.textContent = otherPlayer ? 'Player' : standing === 'friend' ? 'Friend' : standing === 'acquaintance' ? 'Knows you' : 'Stranger';
+      standingLabel.dataset.standing = standing;
     }
 
     this.interactionCard.style.display = 'block';
@@ -1386,11 +1940,53 @@ export class HUD {
     }
   }
 
-  public updateDrivingHUD(speedMps: number): void {
+  public updateGateButton(visible: boolean, open?: boolean, label?: string): void {
+    const btn = document.getElementById('btn-drive-gate') as HTMLButtonElement | null;
+    if (!btn) return;
+    if (!visible) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = 'inline-block';
+    btn.textContent = label ?? (open ? '🚪 Close Gate [G]' : '🚪 Open Gate [G]');
+    btn.style.background = open ? '#d97706' : '#059669';
+  }
+
+  public updateDrivingHUD(
+    speedMps: number,
+    fuel?: number,
+    passengers?: number,
+    maxPassengers?: number,
+    fares?: number,
+    isCommercial?: boolean
+  ): void {
     const speedValEl = document.getElementById('speedo-val');
     if (speedValEl) {
       const kmh = Math.round(Math.abs(speedMps) * 3.6);
       speedValEl.textContent = kmh.toString();
+    }
+    if (fuel !== undefined) {
+      const fuelValEl = document.getElementById('driving-fuel-val');
+      if (fuelValEl) {
+        fuelValEl.textContent = `${Math.round(fuel)}%`;
+        fuelValEl.style.color = fuel < 20 ? '#ef4444' : fuel < 45 ? '#facc15' : '#4ade80';
+      }
+    }
+    const transitPill = document.getElementById('driving-transit-pill');
+    if (transitPill) {
+      if (isCommercial) {
+        transitPill.style.display = 'inline-block';
+        const passValEl = document.getElementById('driving-passengers-val');
+        if (passValEl) passValEl.textContent = `${passengers ?? 0}/${maxPassengers ?? 8}`;
+        const faresValEl = document.getElementById('driving-fares-val');
+        if (faresValEl) faresValEl.textContent = `₦${(fares ?? 0).toLocaleString()}`;
+      } else {
+        transitPill.style.display = 'none';
+      }
+    }
+    const hawkerPill = document.getElementById('driving-hawker-pill');
+    if (hawkerPill) {
+      hawkerPill.style.display = LagosStreetLifeSystem.getInstance().isHawkerAtWindow ? 'flex' : 'none';
     }
   }
 
@@ -1628,11 +2224,237 @@ export class HUD {
     UIStateManager.getInstance().setCardOpen(false);
   }
 
+  /**
+   * Things done at a desk, a machine or a counter are seen to be done: the player walks up,
+   * faces it and uses it, and what it does happens part-way through. Returns true if that
+   * has been started (or cannot be, because the player is half-way through a door).
+   */
+  private actOut(obj: InteractiveObject): boolean {
+    const interiors = this.world?.interiorManager;
+    if (!interiors?.isPlayerInside() || !this.player) return false;
+    const actor = this.player.actor;
+    const director = InteractionDirector.get();
+    if (director.interrupt(actor) === 'locked') return true;
+
+    const target = obj.mesh.getWorldPosition(new THREE.Vector3());
+    const facing = Math.hypot(target.x - obj.interactionPoint.x, target.z - obj.interactionPoint.z) > 0.4 ? target : undefined;
+    const withHands = /atm|bed|cell|gate|podium|portal/.test(obj.id);
+    this.hideInteractionCard();
+    return director.perform({
+      id: `use ${obj.id}`,
+      actor,
+      point: obj.interactionPoint,
+      target: facing,
+      nav: interiors.getActiveNav(),
+      ifStuck: 'snap',
+      speed: 5,
+      animation: { arms: withHands ? 'reach' : 'talk' },
+      seconds: withHands ? 0.9 : 1.2,
+      effectAt: 0.6,
+      effect: () => {
+        this.currentActiveObject = obj;
+        this.actingOut = true;
+        try {
+          this.handleCardAction();
+        } finally {
+          this.actingOut = false;
+          if (this.interactionCard.style.display === 'none') this.currentActiveObject = null;
+        }
+      },
+    }).ok;
+  }
+
+  /** Things in the street whose button takes the player somewhere (through a door, into a vehicle) and so has a way of its own of being walked to */
+  private static readonly GOES_SOMEWHERE = /^(mama-put|lagos-bank|lagos-hospital|dest_|unilag-campus|mma-airport|police-station|supermarket|villa-compound|palm-view-flats|barber-shop|veh-|danfo-stop)/;
+
+  /**
+   * In the street, a thing is walked up to and used with a word or a hand before anything
+   * comes of it: the barber is spoken to before the haircut is paid for, the pump is reached
+   * for before the petrol is. What it does then is whatever its card always did, and lands
+   * part-way through the gesture. Returns true if the action has been taken in hand.
+   */
+  private actOutInStreet(obj: InteractiveObject): boolean {
+    if (!this.world || !this.player) return false;
+    if (this.world.interiorManager.isPlayerInside() || this.player.isDriving) return false;
+    const id = obj.id;
+    // Places that say for themselves what is done there, people selling hand to hand, plots and other players have their own ways
+    if (PlaceActions.get(id) || VendorUI.sells(id) || id.startsWith('plot_') || id.startsWith('remote_player_') || HUD.GOES_SOMEWHERE.test(id)) return false;
+    const actor = this.player.actor;
+    const director = InteractionDirector.get();
+    if (director.interrupt(actor) === 'locked') return true;
+
+    const target = obj.mesh.getWorldPosition(new THREE.Vector3());
+    const facing = Math.hypot(target.x - obj.interactionPoint.x, target.z - obj.interactionPoint.z) > 0.4 ? target : undefined;
+    // Someone is spoken to; a thing is reached for
+    const spokenTo = id.startsWith('npc-') || obj.moving === true;
+    this.hideInteractionCard();
+    return director.perform({
+      id: `use ${id}`,
+      actor,
+      point: obj.interactionPoint,
+      target: facing,
+      ifStuck: 'snap',
+      speed: 5,
+      animation: { arms: spokenTo ? 'talk' : 'reach' },
+      seconds: 1.2,
+      effectAt: 0.6,
+      effect: () => {
+        this.currentActiveObject = obj;
+        this.actingOut = true;
+        try {
+          this.handleCardAction();
+        } finally {
+          this.actingOut = false;
+          if (this.interactionCard.style.display === 'none') this.currentActiveObject = null;
+        }
+      },
+    }).ok;
+  }
+
+  /** A piece of furniture whose card is for using it shows moving, storing and selling on the second button */
+  private pieceButton(id: string, bizBtn: HTMLButtonElement): void {
+    const piece = PlaceActions.get(`${id}:move`);
+    bizBtn.style.display = piece ? 'inline-block' : 'none';
+    if (piece) bizBtn.textContent = piece.label();
+  }
+
+  /** What a place's own action is given to work with: the player, their money, the director, ways to speak and ask */
+  /** Does something with the helper a place's own actions are given (the train from its gate) */
+  public withPlaceHost(run: (host: PlaceHost) => void): void {
+    run(this.placeHost());
+  }
+
+  private placeHost(): PlaceHost {
+    return {
+        actor: this.player.actor,
+        backend: this.backend,
+        director: InteractionDirector.get(),
+        say: (text, kind = 'info') => showGameToast(text, kind, 3600),
+        look: (yaw, pitch, distance) => this.onLookFrom?.(yaw, pitch, distance),
+        hour: () => this.world?.skyEnvironment.currentHour ?? 12,
+        ask: (question) => this.showDialogueModal({
+          speakerName: question.who,
+          speakerRole: question.role,
+          dialogueText: question.text,
+          choices: question.choices.map((choice, index) => ({ id: `choice_${index}`, label: choice.label, badge: choice.note, onSelect: choice.pick })),
+        }),
+        emote: (name, seconds) => this.player.playEmote(name, seconds),
+        enter: (buildingId, comeOutAt) => this.onEnterInterior?.(buildingId, comeOutAt),
+        leave: (comeOutAt, facing) => this.onLeaveInteriorTo?.(comeOutAt, facing),
+        cashMachine: () => this.atmModal.open(),
+        ride: (id, spawnAt, spawnYaw) => this.onRideInterior?.(id, spawnAt, spawnYaw),
+      };
+  }
+
+  /**
+   * A one-off gig. Offline, the browser pays `offlinePay`. Online, the server clocks the player
+   * in and pays its own figure on the next call, and this browser does not name an amount.
+   */
+  private paidGig(gigId: string, energy: number, cred: number, offlinePay: number, title: string, speaker: string, avatar: string, line: string): void {
+    void (async () => {
+      const paid = await settleGig(gigId, energy);
+      const give = (amount: number) => {
+        this.backend.addStreetCred(cred);
+        this.showDialogueModal({
+          speakerName: speaker,
+          speakerRole: title,
+          speakerAvatar: avatar,
+          soundType: 'cash',
+          dialogueText: `${line} Earned ₦${amount.toLocaleString()} cash. Energy -${energy}%.`,
+          rewards: { cash: amount, streetCred: cred },
+        });
+      };
+      if (paid === null) {
+        const gig = this.backend.performGig(offlinePay, energy, title);
+        if (gig.success) give(offlinePay);
+        else this.showDialogueModal({ speakerName: speaker, speakerRole: title, speakerAvatar: '⚠️', dialogueText: gig.message });
+        return;
+      }
+      if (paid.ok) give(paid.pay);
+      else this.showDialogueModal({ speakerName: speaker, speakerRole: title, speakerAvatar: '⚠️', dialogueText: paid.reason });
+    })();
+  }
+
   private handleCardAction(): void {
     if (!this.currentActiveObject) return;
     const id = this.currentActiveObject.id;
+    if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;
+    if (!this.actingOut && this.actOutInStreet(this.currentActiveObject)) return;
     this.questManager.triggerEvent('interact_object', { objectId: id });
 
+    const ownAction = PlaceActions.get(id);
+    if (ownAction && this.player) {
+      // Acted out where it happens: the card goes and the player walks to it
+      this.hideInteractionCard();
+      ownAction.run(this.placeHost());
+      return;
+    }
+
+    if (VendorUI.sells(id)) {
+      // Bought hand to hand in the street; the list only starts it
+      this.hideInteractionCard();
+      this.onVendorAction?.(id);
+      return;
+    }
+
+    if (id === 'prop-tiger-generator') {
+      this.hideInteractionCard();
+      LagosStreetLifeSystem.getInstance().pullGeneratorCord();
+      return;
+    }
+
+    if (id === 'npc-agbero') {
+      this.hideInteractionCard();
+      this.showDialogueModal({
+        speakerName: 'Alaye (Terminus Chairman)',
+        speakerRole: 'Street Authority & Transport Union',
+        speakerAvatar: '🧢',
+        soundType: 'general',
+        dialogueText: '"Driver! Weekend loading levy ₦200! Settle the boys or park your motor one side! Chairman dey loyal to who dey loyal!"',
+        choices: [
+          {
+            id: 'settle_levy',
+            label: 'Settle Chairman Loading Dues (₦200)',
+            badge: '-₦200 • +5 Cred',
+            onSelect: () => LagosStreetLifeSystem.getInstance().handleAgberoToll('settle'),
+          },
+          {
+            id: 'evade_checkpoint',
+            label: 'Zoom Past with Aggressive Horn [F]',
+            badge: 'Speed Run',
+            onSelect: () => LagosStreetLifeSystem.getInstance().handleAgberoToll('evade'),
+          },
+          {
+            id: 'street_gist',
+            label: 'Greet Chairman with Respect ("Chairman, your boys dey greet!")',
+            badge: '+1 Cred',
+            onSelect: () => {
+              SoundEngine.getInstance().playConductorSlap();
+              this.backend.addStreetCred(1);
+              showGameToast('Alaye: "Ah, my brother! You get sense well well! Safe movement!"', 'success', 3500);
+            },
+          },
+        ],
+      });
+      return;
+    }
+
+    if (id.startsWith('plot_')) {
+      this.hideInteractionCard();
+      this.onPlotAction?.(id.slice(5));
+      return;
+    }
+    if (id.startsWith('gate_')) {
+      this.hideInteractionCard();
+      this.onGateAction?.(id.slice(5));
+      return;
+    }
+
+    if (id.startsWith('remote_player_') && this.onOpenProfile) {
+      this.hideInteractionCard();
+      this.onOpenProfile(id.replace('remote_player_', ''));
+      return;
+    }
     if (id.startsWith('remote_player_')) {
       this.hideInteractionCard();
       const rawId = id.replace('remote_player_', '');
@@ -1693,7 +2515,7 @@ export class HUD {
               if (net) {
                 net.syncEmote('salute');
               }
-              showGameToast(`🫡 Saluted ${citizenName}! Respect acknowledged.`, 'info');
+              showGameToast(`🎖️ Saluted ${citizenName}! Respect acknowledged.`, 'info');
             },
           },
           {
@@ -1736,6 +2558,15 @@ export class HUD {
       this.hideInteractionCard();
       this.onEnterInterior?.('police');
       return;
+    } else if (id === 'supermarket') {
+      this.hideInteractionCard();
+      this.onEnterInterior?.('shop');
+      return;
+    } else if (id.startsWith('shop_shelf_') || id === 'shop_checkout' || id === 'interior_npc_npc_shop_cashier') {
+      // Shopping is acted out in the shop: basket, shelves, till. The sheet only asks for it.
+      this.hideInteractionCard();
+      this.onShopAction?.(id);
+      return;
     } else if (id === 'villa-compound' || id === 'palm-view-flats') {
       this.hideInteractionCard();
       this.onEnterInterior?.('residence');
@@ -1744,28 +2575,10 @@ export class HUD {
       this.hideInteractionCard();
       this.onExitInterior?.();
       return;
-    } else if (id === 'flat-bed') {
-      this.backend.restAtHome();
-      this.showDialogueModal({
-        speakerName: 'Home Sweet Home',
-        speakerRole: 'Bedroom Sanctum',
-        speakerAvatar: '🛏️',
-        soundType: 'general',
-        dialogueText: 'You lie down on the soft orthopedic mattress with cool AC breeze humming. 100% Health and Energy restored! Fatigue eliminated!',
-        rewards: { health: 100, energy: 100, streetCred: 5 },
-      });
-      return;
-    } else if (id === 'flat-drum') {
-      this.backend.restoreHealth(20);
-      this.backend.restoreEnergy(30);
-      this.showDialogueModal({
-        speakerName: 'Nigerian Domestic Resilience',
-        speakerRole: 'Chilled Borehole Water',
-        speakerAvatar: '🚿',
-        soundType: 'medical',
-        dialogueText: 'You scoop freezing chilled water with the red bucket and bath! The refreshed sensation jolts you with crisp vitality. +30% Energy & +20% Health!',
-        rewards: { health: 20, energy: 30 },
-      });
+    } else if (id === 'flat-bed' || id === 'flat-tv' || id === 'flat-drum' || id === 'flat-fridge') {
+      // Acted out in the room: lie down, sit, reach into the fridge, bathe
+      this.hideInteractionCard();
+      this.onHomeActivity?.(id);
       return;
     } else if (id === 'flat-pet') {
       this.backend.addStreetCred(5);
@@ -1866,6 +2679,12 @@ export class HUD {
       }
       return;
     } else if (id === 'unilag_lecture_podium') {
+      // A real class: a course chosen, a lesson sat through at a desk, a question at the end
+      const hall = this.world?.interiorManager.unilag.group;
+      if (hall && this.player) {
+        Classes.choose(this.placeHost(), hall);
+        return;
+      }
       this.backend.addStreetCred(15);
       this.backend.restoreEnergy(10);
       this.showDialogueModal({
@@ -2000,8 +2819,8 @@ export class HUD {
         this.backend.addStreetCred(50);
         this.backend.restoreEnergy(100);
         this.showDialogueModal({
-          speakerName: 'EagleWings Flight Crew',
-          speakerRole: 'Gate 2 • Flight EW-712 to Port Harcourt',
+          speakerName: 'NigeriaLife Air Flight Crew',
+          speakerRole: 'Gate 2 • Flight NL 310 to Port Harcourt',
           speakerAvatar: '✈️',
           soundType: 'aviation',
           dialogueText: 'Direct flight to Port Harcourt International Airport (Omagwa) completed! Welcome to the Garden City!',
@@ -2009,7 +2828,7 @@ export class HUD {
         });
       } else {
         this.showDialogueModal({
-          speakerName: 'EagleWings Ticketing',
+          speakerName: 'NigeriaLife Air Ticketing',
           speakerRole: 'Gate 2 Departures',
           speakerAvatar: '⚠️',
           dialogueText: 'Need ₦32,000 cash for flight ticket to Port Harcourt!',
@@ -2023,7 +2842,7 @@ export class HUD {
         this.backend.restoreEnergy(100);
         this.backend.addStreetCred(25);
         this.showDialogueModal({
-          speakerName: 'EagleWings VIP Host',
+          speakerName: 'NigeriaLife Air VIP Host',
           speakerRole: 'MMA2 Concourse Lounge',
           speakerAvatar: '🥂',
           soundType: 'win',
@@ -2038,6 +2857,18 @@ export class HUD {
           dialogueText: 'Need ₦5,000 cash for VIP lounge access!',
         });
       }
+      return;
+    } else if (id === 'airport_baggage_carousel') {
+      this.backend.restoreEnergy(20);
+      this.backend.addStreetCred(10);
+      this.showDialogueModal({
+        speakerName: 'Baggage Services Officer',
+        speakerRole: 'Arrivals Luggage Reclaim • Carousel 1',
+        speakerAvatar: '🧳',
+        soundType: 'aviation',
+        dialogueText: 'Luggage collected from Carousel 1! Personal bags verified and cleared. Curbside doors to the street are right ahead.',
+        rewards: { streetCred: 10, energy: 20 },
+      });
       return;
     } else if (id === 'bank_atm_station') {
       // The branch ATM is the player's own account: it moves their money, it does not create any
@@ -2084,73 +2915,30 @@ export class HUD {
           rewards: repaid.success ? { streetCred: 30 } : undefined,
         });
       } else {
-        const borrowed = this.backend.takeLoan('Eko Commercial Bank', 50000, 55000);
+        // The bank lends more to someone who has cleared a loan without missing a week (src/life/Dues.ts)
+        const offer = Dues.get().bankOffer();
+        const borrowed = this.backend.takeLoan('Eko Commercial Bank', offer.principal, offer.repay);
+        const weekly = Math.round(offer.repay / 8);
         this.showDialogueModal({
           speakerName: 'Manager Bankole',
           speakerRole: 'Branch Manager • Eko Commercial Bank',
-          speakerAvatar: '💼',
-          soundType: 'cash',
-          dialogueText: `Lagos SME Business Loan approved! ${borrowed.message} Return to this desk to repay it.`,
-          rewards: { cash: 50000 },
+          speakerAvatar: borrowed.success ? '💼' : '⚠️',
+          soundType: borrowed.success ? 'cash' : undefined,
+          dialogueText: borrowed.success
+            ? `Lagos SME Business Loan approved! ${borrowed.message} ₦${weekly.toLocaleString()} comes out of your account every week for eight weeks; a week missed costs a late fee. Pay off the rest at this desk or in the Bank app whenever you like.`
+            : borrowed.message,
+          rewards: borrowed.success ? { cash: offer.principal } : undefined,
         });
       }
       return;
-    } else if (id === 'buka_food_counter') {
-      const success = this.backend.spendCash(1800, 'Firewood Party Jollof & Chicken', 'FOOD_PURCHASE');
-      if (success) {
-        emitGameEvent('eat');
-        this.backend.restoreEnergy(100);
-        this.backend.restoreHealth(30);
-        this.backend.addItem({
-          id: `takeaway_jollof_${Date.now()}`,
-          name: 'Takeaway Firewood Jollof Pack',
-          category: 'food',
-          icon: '🍲',
-          description: 'Insulated foil takeaway pack with spicy firewood party jollof and chicken.',
-          price: 1800,
-          usable: true,
-          energyRestore: 60,
-        });
-        this.showDialogueModal({
-          speakerName: 'Mama Nkechi',
-          speakerRole: 'Chop Life Buka Lead Chef',
-          speakerAvatar: '🍲',
-          soundType: 'cheer',
-          dialogueText: 'Oya chop life! Smoky firewood Jollof dished fresh for you! Energy restored to 100%, and extra takeaway packed in your bag!',
-          rewards: { energy: 100, health: 30, item: { name: 'Takeaway Firewood Jollof Pack', icon: '🍲' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Chop Life Counter',
-          speakerRole: 'Mama Put Cashier',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦1,800 cash for firewood party jollof & chicken!',
-        });
-      }
+    } else if (id === 'buka_food_counter' || id === 'interior_npc_npc_mama_nkechi' || id === 'interior_npc_npc_waiter_segun') {
+      // Ordering is acted out in the room: seat, cook, waiter, plate. The menu only starts it.
+      this.hideInteractionCard();
+      this.onOpenBukaMenu?.();
       return;
     } else if (id === 'buka_table_vip') {
-      const success = this.backend.spendCash(2500, 'VIP Chapman & Pepper Soup Platter', 'FOOD_PURCHASE');
-      if (success) {
-        emitGameEvent('eat');
-        this.backend.restoreEnergy(100);
-        this.backend.restoreHealth(50);
-        this.backend.addStreetCred(20);
-        this.showDialogueModal({
-          speakerName: 'Waiter Segun',
-          speakerRole: 'VIP Table Service',
-          speakerAvatar: '🍹',
-          soundType: 'cheer',
-          dialogueText: 'Chilled Chapman and catfish pepper soup served! Total relaxation achieved! Energy 100%, Street Cred +20!',
-          rewards: { energy: 100, health: 50, streetCred: 20 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'VIP Lounge',
-          speakerRole: 'Table Reservation',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦2,500 cash for VIP table & pepper soup!',
-        });
-      }
+      this.hideInteractionCard();
+      this.onOpenBukaMenu?.(0);
       return;
     } else if (id === 'street-checkpoint') {
       this.hideInteractionCard();
@@ -2174,7 +2962,7 @@ export class HUD {
                 this.showDialogueModal({
                   speakerName: 'Inspector Danjuma',
                   speakerRole: 'Highway Joint Patrol Commander',
-                  speakerAvatar: '🫡',
+                  speakerAvatar: '🎖️',
                   soundType: 'win',
                   dialogueText: 'Inspector salutes! "Everything intact and certified! Your roadworthiness is clean. Respect to law-abiding citizens! Move on oga!"',
                   rewards: { streetCred: 20, energy: 15 },
@@ -2598,25 +3386,7 @@ export class HUD {
       });
       return;
     } else if (id === 'flat-workstation') {
-      const gig = this.backend.performGig(12000, 25, 'Remote Tech Sprint');
-      if (gig.success) {
-        this.backend.addStreetCred(20);
-        this.showDialogueModal({
-          speakerName: 'Senior Engineering Manager',
-          speakerRole: 'Remote Tech Sprint',
-          speakerAvatar: '💻',
-          soundType: 'cash',
-          dialogueText: 'Pull request approved and merged! ₦12,000 remote salary credited to your wallet! Energy -25%, Street Cred +20!',
-          rewards: { cash: 12000, streetCred: 20 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Senior Engineering Manager',
-          speakerRole: 'Remote Tech Sprint',
-          speakerAvatar: '⚠️',
-          dialogueText: gig.message,
-        });
-      }
+      void this.paidGig('hud:remote', 25, 20, 12000, 'Remote Tech Sprint', 'Senior Engineering Manager', '💻', 'Pull request approved and merged!');
       return;
     } else if (id.startsWith('interior_npc_')) {
       this.showDialogueModal({
@@ -2628,6 +3398,46 @@ export class HUD {
       });
       return;
     } else if (id === 'bet-shop') {
+      const online = OnlineAccount.get();
+      if (online) {
+        void (async () => {
+          const idem = `nb:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+          const result = await online.request('/money/naibet', { idem });
+          if (!result.ok) {
+            this.showDialogueModal({ speakerName: 'NaijaBet Cashier', speakerRole: 'Ticket Payout Terminal', speakerAvatar: '⚠️', dialogueText: result.reason ?? 'The cashier could not take that ticket.' });
+            return;
+          }
+          if (result.won) {
+            this.backend.addStreetCred(10);
+            this.showDialogueModal({
+              speakerName: 'NaijaBet Cashier',
+              speakerRole: 'Ticket Payout Terminal',
+              speakerAvatar: '🎉',
+              soundType: 'win',
+              dialogueText: `BOOM! Your 5-game accumulator came through! Won ₦${(result.pay ?? 0).toLocaleString()} cash! Oya celebration!`,
+              rewards: { cash: result.pay ?? 0, streetCred: 10 },
+            });
+          } else {
+            this.backend.addItem({
+              id: `ticket_${Date.now()}`,
+              name: 'Weekend Match Slip',
+              category: 'document',
+              icon: '🎫',
+              description: 'Arsenal vs Chelsea accumulator ticket. Fingers crossed!',
+              price: 1000,
+              usable: false,
+            });
+            this.showDialogueModal({
+              speakerName: 'Segun (Odds Guru)',
+              speakerRole: 'NaijaBet Regular',
+              speakerAvatar: '⚽',
+              soundType: 'general',
+              dialogueText: 'Ticket placed! Added to your bag. May your odds favor you this weekend!',
+            });
+          }
+        })();
+        return;
+      }
       const success = this.backend.spendCash(1000, 'NaijaBet 5-Game Ticket');
       if (success) {
         // 6% of ₦15,000 on a ₦1,000 ticket: the house keeps an edge, so betting is not an income
@@ -2669,37 +3479,6 @@ export class HUD {
           speakerRole: 'Booking Cashier',
           speakerAvatar: '⚠️',
           dialogueText: 'Not enough cash! ₦1,000 needed to book your accumulator slip.',
-        });
-      }
-    } else if (id === 'npc-hawker') {
-      const success = this.backend.spendCash(200, 'Cold Water & Gala', 'FOOD_PURCHASE');
-      if (success) {
-        emitGameEvent('eat');
-        this.backend.restoreEnergy(25);
-        this.backend.addItem({
-          id: 'water_sachet',
-          name: 'Chilled Pure Water Sachet',
-          category: 'food',
-          icon: '💧',
-          description: 'Chilled sachet water to quench Lagos afternoon heat.',
-          price: 100,
-          usable: true,
-          energyRestore: 15,
-        });
-        this.showDialogueModal({
-          speakerName: 'Chidi Hawker',
-          speakerRole: 'Traffic Vendor',
-          speakerAvatar: '🥤',
-          soundType: 'cheer',
-          dialogueText: 'Chilled pure water and hot Gala handed over! Energy boosted and thirst quenched.',
-          rewards: { energy: 25, item: { name: 'Chilled Pure Water Sachet', icon: '💧' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Chidi Hawker',
-          speakerRole: 'Traffic Vendor',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦200 cash for pure water and Gala sausage roll!',
         });
       }
     } else if (id.startsWith('veh-')) {
@@ -2927,80 +3706,39 @@ export class HUD {
         });
       }
     } else if (id === 'yaba-cchub') {
-      const gig = this.backend.performGig(15000, 30, 'CcHub Hackathon Sprint');
-      if (gig.success) {
-        this.backend.addStreetCred(25);
-        this.backend.addItem({
-          id: `github_token_${Date.now()}`,
-          name: 'CcHub High-Yield Smart Contract',
-          category: 'document',
-          icon: '💻',
-          description: 'Deployed web3 micro-service for a Silicon Valley fintech client.',
-          price: 25000,
-          usable: false,
-        });
-        this.showDialogueModal({
-          speakerName: 'CcHub Incubator Lead',
-          speakerRole: '6th Floor Innovation Hub • Yaba',
-          speakerAvatar: '💻',
-          soundType: 'tech',
-          dialogueText: 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way. Earned ₦15,000 cash, +25 Street Cred, and deployed your code! Energy -30%',
-          rewards: { cash: 15000, streetCred: 25, item: { name: 'CcHub High-Yield Smart Contract', icon: '💻', category: 'document' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'CcHub Incubator Lead',
-          speakerRole: '6th Floor Innovation Hub • Yaba',
-          speakerAvatar: '⚠️',
-          dialogueText: gig.message,
-        });
-      }
-    } else if (id === 'surulere-stadium') {
-      const success = this.backend.spendCash(1000, 'Teslim Balogun Stadium Pass');
-      if (success) {
-        this.backend.restoreEnergy(50);
-        this.backend.addStreetCred(15);
-        this.player?.playEmote('groove', 4.0);
-        this.showDialogueModal({
-          speakerName: 'Coach Bassey',
-          speakerRole: 'Teslim Balogun Athletic Track',
-          speakerAvatar: '🏃',
-          soundType: 'cheer',
-          dialogueText: 'SURULERE ATHLETIC WORKOUT! Ran intensive laps around the Teslim Balogun tartan track! Energy boosted +50, Street Cred +15!',
-          rewards: { energy: 50, streetCred: 15 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Stadium Turnstile',
-          speakerRole: 'Teslim Balogun Gate',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦1,000 cash for stadium athletic track pass!',
-        });
-      }
+      this.showDialogueModal({
+        speakerName: 'CcHub Incubator Lead',
+        speakerRole: '6th Floor Innovation Hub • Yaba',
+        speakerAvatar: '💻',
+        soundType: 'tech',
+        dialogueText: 'Welcome to CcHub Yaba! Ready to build high-throughput fintech APIs or ship a production sprint?',
+        choices: [
+          {
+            id: 'cchub-sprint-minigame',
+            label: '💻 Launch FinTech Code Sprint Minigame (+₦26,000)',
+            onSelect: () => {
+              const ov = document.getElementById('game-dialogue-overlay');
+              if (ov) ov.remove();
+              CareerMinigames.get().openTechHubMinigame();
+            },
+          },
+          {
+            id: 'cchub-instant-hackathon',
+            label: '⚡ Fast Hackathon Shift (₦15,000)',
+            onSelect: () => {
+              const ov = document.getElementById('game-dialogue-overlay');
+              if (ov) ov.remove();
+              void this.paidGig('hud:hackathon', 30, 25, 15000, 'CcHub Hackathon Sprint', 'CcHub Incubator Lead', '💻', 'CCHUB HACKATHON DELIVERED! You pulled an all-night code sprint at Herbert Macaulay Way.');
+            },
+          },
+        ],
+      });
     } else if (id === 'mma-airport') {
       this.hideInteractionCard();
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
       return;
     } else if (id === 'ajah-estate') {
-      const gig = this.backend.performGig(8500, 25, 'Ajah Site Labour');
-      if (gig.success) {
-        this.backend.addStreetCred(10);
-        this.showDialogueModal({
-          speakerName: 'Site Foreman Sunday',
-          speakerRole: 'Ajah Construction Project',
-          speakerAvatar: '👷',
-          soundType: 'cash',
-          dialogueText: 'AJAH SITE LABOUR COMPLETED! Mixed mortar, hoisted hollow blocks, and finished framing! Earned ₦8,500 cash on the spot! Energy -25%',
-          rewards: { cash: 8500, streetCred: 10 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Site Foreman Sunday',
-          speakerRole: 'Ajah Construction Project',
-          speakerAvatar: '⚠️',
-          dialogueText: gig.message,
-        });
-      }
+      void this.paidGig('hud:ajah', 25, 10, 8500, 'Ajah Site Labour', 'Site Foreman Sunday', '👷', 'AJAH SITE LABOUR COMPLETED! Mixed mortar, hoisted hollow blocks, and finished framing.');
     } else if (id === 'balogun-market') {
       const success = this.backend.spendCash(6000, 'Wholesale Ankara Bundle');
       if (success) {
@@ -3262,36 +4000,6 @@ export class HUD {
           dialogueText: 'Need ₦1,500 cash for pharmacy medications!',
         });
       }
-    } else if (id === 'supermarket') {
-      const success = this.backend.spendCash(4500, 'Everyday Supermarket Groceries');
-      if (success) {
-        this.backend.restoreEnergy(80);
-        this.backend.addItem({
-          id: `indomie_pack_${Date.now()}`,
-          name: 'Carton of Indomie & Peak Milk',
-          category: 'food',
-          icon: '🍜',
-          description: 'Noodles, golden butter bread, and peak milk from the supermarket.',
-          price: 4500,
-          usable: true,
-          energyRestore: 80,
-        });
-        this.showDialogueModal({
-          speakerName: 'Cashier Bolanle',
-          speakerRole: 'Everyday Supermarket',
-          speakerAvatar: '🛒',
-          soundType: 'cash',
-          dialogueText: 'Everyday Supermarket: Groceries checked out! Added Indomie Super Pack & Milk to your bag!',
-          rewards: { energy: 80, item: { name: 'Carton of Indomie & Peak Milk', icon: '🍜', category: 'food' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Supermarket POS',
-          speakerRole: 'Everyday Supermarket',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦4,500 cash for supermarket groceries!',
-        });
-      }
     } else if (id === 'slot-gadgets') {
       const success = this.backend.spendCash(8500, 'Slot 20,000mAh Power Bank & Charger');
       if (success) {
@@ -3322,57 +4030,10 @@ export class HUD {
         });
       }
     } else if (id === 'barber-shop') {
-      const success = this.backend.spendCash(2500, 'Executive Fade & Beard Grooming');
-      if (success) {
-        this.backend.restoreEnergy(40);
-        this.backend.addStreetCred(25);
-        this.player?.playEmote('groove', 4.0);
-        this.showDialogueModal({
-          speakerName: 'Master Kazeem',
-          speakerRole: 'Fresh Cut Barbershop',
-          speakerAvatar: '💈',
-          soundType: 'cheer',
-          dialogueText: 'Fresh Cut Barbershop: Sharp executive fade with peppermint beard oil! You look clean! Street Cred +25!',
-          rewards: { energy: 40, streetCred: 25 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Barbershop Reception',
-          speakerRole: 'Fresh Cut Barbershop',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦2,500 cash for the haircut!',
-        });
-      }
+      this.hideInteractionCard();
+      this.onEnterInterior?.('barber-shop');
     } else if (id === 'fuel-station') {
-      const success = this.backend.spendCash(8500, '10L Petrol Fuel Keg');
-      if (success) {
-        this.backend.addStreetCred(10);
-        this.backend.addItem({
-          id: `fuel_keg_${Date.now()}`,
-          name: '10L Premium Petrol (Fuel Keg)',
-          category: 'tool',
-          icon: '⛽',
-          description: 'Yellow jerrycan filled with 10 litres of premium fuel for your generator or car.',
-          price: 8500,
-          usable: true,
-          energyRestore: 0,
-        });
-        this.showDialogueModal({
-          speakerName: 'NaijaPetro Pump Attendant',
-          speakerRole: 'NaijaPetro Energy Station',
-          speakerAvatar: '⛽',
-          soundType: 'cash',
-          dialogueText: 'NaijaPetro Energy: 10 Litres of petrol fueled! Ready for your car or home generator!',
-          rewards: { streetCred: 10, item: { name: '10L Premium Petrol (Fuel Keg)', icon: '⛽', category: 'tool' } },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Fuel Attendant',
-          speakerRole: 'NaijaPetro Filling Station',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦8,500 cash for 10L fuel!',
-        });
-      }
+      this.onOpenPump?.('fuel-station');
     } else if (id === 'mechanic') {
       const success = this.backend.spendCash(6000, 'Vehicle Tune Up & Oil Change');
       if (success) {
@@ -3403,26 +4064,7 @@ export class HUD {
         });
       }
     } else if (id === 'construction-site') {
-      const wage = 6500;
-      const energyDepleted = this.backend.performGig(wage, 25, 'Construction Site Day Shift').success;
-      if (energyDepleted) {
-        this.backend.addStreetCred(10);
-        this.showDialogueModal({
-          speakerName: 'Site Supervisor Sunday',
-          speakerRole: 'Commercial High-Rise Site',
-          speakerAvatar: '👷',
-          soundType: 'cash',
-          dialogueText: `Tough day shift completed! Carried sandcrete blocks and mixed concrete. +₦${wage.toLocaleString()} cash paid into your pocket! Energy -25%`,
-          rewards: { cash: wage, streetCred: 10 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Site Safety Officer',
-          speakerRole: 'Construction Site Gate',
-          speakerAvatar: '⚠️',
-          dialogueText: 'You are too exhausted! (Need at least 25% Energy). Eat at Mama Put or sleep in your apartment first.',
-        });
-      }
+      void this.paidGig('hud:construction', 25, 10, 6500, 'Construction Site Day Shift', 'Site Supervisor Sunday', '👷', 'Tough day shift completed! Carried sandcrete blocks and mixed concrete.');
     } else if (id === 'palm-view-flats') {
       this.hideInteractionCard();
       this.economyModal.open('palm-view-flats');
@@ -3488,26 +4130,7 @@ export class HUD {
         });
       }
     } else if (id === 'npc-mechanic') {
-      const gigWage = 4000;
-      const energyDepleted = this.backend.performGig(gigWage, 15, 'Auto Workshop Gig').success;
-      if (energyDepleted) {
-        this.backend.addStreetCred(10);
-        this.showDialogueModal({
-          speakerName: 'Master Tayo',
-          speakerRole: "God's Grace Auto Works",
-          speakerAvatar: '🛠️',
-          soundType: 'cash',
-          dialogueText: `Good job boy! You helped align the alternator belt and brake pads. Take ₦${gigWage.toLocaleString()} cash for your pocket! Energy -15%`,
-          rewards: { cash: gigWage, streetCred: 10 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Master Tayo',
-          speakerRole: 'Mechanic Pit',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Too exhausted for manual workshop labor! Rest first.',
-        });
-      }
+      void this.paidGig('hud:workshop', 15, 10, 4000, 'Auto Workshop Gig', 'Master Tayo', '🛠️', 'Good job boy! You helped align the alternator belt and brake pads.');
     } else if (id === 'npc-warden') {
       this.backend.addStreetCred(10);
       this.player?.playEmote('salute', 3.0);
@@ -3518,6 +4141,25 @@ export class HUD {
         soundType: 'general',
         dialogueText: 'Always obey traffic signals and cross at zebra lines! Broad Street traffic flows smoothly when citizens stay sharp! Street Cred +10!',
         rewards: { streetCred: 10 },
+        choices: [
+          {
+            id: 'lastma-minigame-opt',
+            label: '🚦 Take Traffic Control Shift (LASTMA Minigame)',
+            onSelect: () => {
+              const ov = document.getElementById('game-dialogue-overlay');
+              if (ov) ov.remove();
+              CareerMinigames.get().openLastmaMinigame();
+            },
+          },
+          {
+            id: 'lastma-salute-opt',
+            label: '🎖️ Understood, Commander!',
+            onSelect: () => {
+              const ov = document.getElementById('game-dialogue-overlay');
+              if (ov) ov.remove();
+            },
+          },
+        ],
       });
     } else if (id === 'npc-chief') {
       this.backend.addStreetCred(25);
