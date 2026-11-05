@@ -144,7 +144,7 @@ export class Economy {
    * What the game did with money in the browser, for actions not yet run by the server.
    * `cash` and `bank` are the changes it made (negative for spending).
    */
-  public report(accountId: string, raw: { cash?: unknown; bank?: unknown; memo?: unknown; idem?: unknown }): Result {
+  public report(accountId: string, raw: { cash?: unknown; bank?: unknown; memo?: unknown; idem?: unknown }): Result<{ replay?: boolean }> {
     const cash = whole(raw.cash ?? 0);
     const bank = whole(raw.bank ?? 0);
     const idem = cleanIdem(raw.idem);
@@ -389,6 +389,14 @@ export class Economy {
     return this.apply(accountId, 'held', 0, -Math.trunc(amount), cleanMemo(memo), true, idem);
   }
 
+  /**
+   * Money a player spends from their cash on something the server sells (a ring, aso-ebi, a
+   * studio session). Used when the bank cannot cover it. Fails rather than going below zero.
+   */
+  public debitCash(accountId: string, amount: number, memo: string, idem: string): Result {
+    return this.apply(accountId, 'spent', -Math.abs(Math.trunc(amount)), 0, cleanMemo(memo), true, idem);
+  }
+
   /** A held fee paid into a player's bank: the worker's pay, or a refund */
   public payFee(accountId: string, amount: number, memo: string, idem: string): Result {
     return this.apply(accountId, 'paid', 0, Math.trunc(amount), cleanMemo(memo), true, idem);
@@ -539,3 +547,6 @@ export class Economy {
     return { money, lastHour: hour, alerts };
   }
 }
+
+/** The name other server modules import the economy by */
+export type ServerEconomy = Economy;

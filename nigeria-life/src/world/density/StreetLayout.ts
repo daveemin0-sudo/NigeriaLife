@@ -1,4 +1,4 @@
-import { EXPRESS } from '../expressway/layout';
+import { EXPRESS } from '../expressway/layout.ts';
 /**
  * StreetLayout
  * Single source of truth for the Lagos street grid around Broad Street.

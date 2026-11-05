@@ -1,5 +1,5 @@
-import type { Rect } from '../world/plan/CityPlan';
-import type { LandUse } from './BuildingCatalogue';
+import type { Rect } from '../world/plan/CityPlan.ts';
+import type { LandUse } from './BuildingCatalogue.ts';
 
 /**
  * The parcels of land that can be owned, in every city.

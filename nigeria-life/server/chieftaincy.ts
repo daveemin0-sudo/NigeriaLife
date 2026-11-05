@@ -2,7 +2,7 @@
 // verifies Fame requirements, charges investiture offerings, grants royal titles,
 // and manages daily royal tributes.
 import type { DatabaseSync } from 'node:sqlite';
-import type { ServerEconomy } from './economy';
+import type { ServerEconomy } from './economy.ts';
 
 export type TitleId = 'otunba' | 'aare' | 'omoba' | 'gbobaniyi';
 

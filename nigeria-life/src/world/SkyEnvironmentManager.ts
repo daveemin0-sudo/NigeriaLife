@@ -154,7 +154,6 @@ export class SkyEnvironmentManager {
   public onPeriodChange?: (period: TimePeriod) => void;
 
   public currentPeriod: TimePeriod = 'morning';
-  private lastClockLabel: string = '';
   private lastClockKey: string = '';
   /** The sky itself, coloured from the clock every frame */
   public readonly dome = new SkyDome();
@@ -444,7 +443,6 @@ export class SkyEnvironmentManager {
     this.lastClockKey = key;
 
     if (clockEl.textContent !== label) {
-      this.lastClockLabel = label;
       clockEl.textContent = label;
       const mapClockEl = document.getElementById('map-ui-time');
       if (mapClockEl) mapClockEl.textContent = label;

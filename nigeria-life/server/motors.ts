@@ -2,7 +2,7 @@
 // handles luxury vehicle purchases, custom pearlescent wraps, performance tuning,
 // forged alloy rims, and VIP executive clearance siren packages.
 import type { DatabaseSync } from 'node:sqlite';
-import type { ServerEconomy } from './economy';
+import type { ServerEconomy } from './economy.ts';
 
 export interface ServerLuxuryCarSpec {
   id: string;
@@ -270,7 +270,7 @@ export class ServerMotors {
     if (res.ok && res.wallet) {
       return { ok: true, wallet: res.wallet };
     }
-    return { ok: false, reason: res.reason ?? 'Payment failed.' };
+    return { ok: false, reason: ('reason' in res && res.reason) || 'Payment failed.' };
   }
 
   public buy(

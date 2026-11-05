@@ -1,4 +1,4 @@
-import type { PlotBuilding, Tenancy } from './types';
+import type { PlotBuilding, Tenancy } from './types.ts';
 
 /**
  * The clock that building work, rents and takings run on.

@@ -1,6 +1,6 @@
-import { EXPRESS } from '../expressway/layout';
+import { EXPRESS } from '../expressway/layout.ts';
 import * as THREE from 'three';
-import { MAIN_ROAD, SIDE_STREETS, MAIN_JUNCTION_GAPS, splitAroundJunctions, type SideStreet } from '../density/StreetLayout';
+import { MAIN_ROAD, SIDE_STREETS, MAIN_JUNCTION_GAPS, splitAroundJunctions, type SideStreet } from '../density/StreetLayout.ts';
 
 /**
  * The city plan: what each piece of ground in Lagos is for.
