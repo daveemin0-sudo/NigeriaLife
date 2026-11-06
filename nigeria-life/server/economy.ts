@@ -23,7 +23,7 @@
 import { randomUUID } from 'node:crypto';
 import { EMPLOYERS, WORKSITES, type Employer, type Grade } from '../src/jobs/employers.ts';
 import { mostTaken } from '../src/backend/businessRates.ts';
-import { AGAMA_CAP, ALBUM_CASH, CASE_CASH, GIGS, QUEST_CASH, agamaPay, plotOf, quoteTakings, tipFor } from './earn.ts';
+import { AGAMA_CAP, ALBUM_CASH, CASE_CASH, GIGS, LADDER_CASH, LADDER_PROOF, QUEST_CASH, agamaPay, plotOf, quoteTakings, tipFor } from './earn.ts';
 import { alert, transaction, type Store } from './store.ts';
 import { lagosDate, lagosMonth, lagosMonthStart, monthRelief, taxOffice, workPayslip, MAX_SLIPS, type Payslip } from '../src/life/Tax.ts';
 import { ROAD_FACTOR, rideFare } from '../src/jobs/RideHail.ts';
@@ -682,9 +682,23 @@ export class Economy {
   }
 
   /** A catalogue payout, once per item: quests, album sets, cases, agamas. The amount is the server's. */
-  public claimOnce(accountId: string, kind: 'quest' | 'album' | 'case' | 'agama', item: string): Result<{ pay?: number; replay?: boolean }> {
-    const table = kind === 'quest' ? QUEST_CASH : kind === 'album' ? ALBUM_CASH : kind === 'case' ? CASE_CASH : null;
+  public claimOnce(accountId: string, kind: 'quest' | 'album' | 'case' | 'agama' | 'ladder', item: string): Result<{ pay?: number; replay?: boolean }> {
+    const table = kind === 'quest' ? QUEST_CASH : kind === 'album' ? ALBUM_CASH : kind === 'case' ? CASE_CASH : kind === 'ladder' ? LADDER_CASH : null;
     let pay = table ? table[item] : 0;
+    // A rung of the life ladder: the one below it first, and real earnings the server checked itself
+    if (kind === 'ladder' && pay) {
+      const n = Number(item);
+      if (n > 1 && !this.db.prepare("SELECT 1 FROM once_paid WHERE account_id = ? AND kind = 'ladder' AND item = ?").get(accountId, String(n - 1))) {
+        return { ok: false, reason: 'Move up the rung below first.', wallet: this.wallet(accountId) };
+      }
+      const earned = (this.db
+        .prepare("SELECT COALESCE(SUM(cash_delta + bank_delta), 0) AS e FROM ledger WHERE account_id = ? AND verified = 1 AND cash_delta + bank_delta > 0 AND kind IN ('shift', 'gig', 'ride', 'fare', 'takings', 'business', 'trade-sell', 'registry-in', 'released')")
+        .get(accountId) as { e: number }).e;
+      if (earned < pay * LADDER_PROOF) {
+        alert(this.db, accountId, 'ladder-early', `rung ${n} (₦${pay.toLocaleString()}) after ₦${earned.toLocaleString()} checked earnings`);
+        return { ok: false, reason: `The ladder's reward is paid once the server has seen you earn ₦${(pay * LADDER_PROOF).toLocaleString()} from work, trade and your own takings (₦${earned.toLocaleString()} so far).`, wallet: this.wallet(accountId) };
+      }
+    }
     if (kind === 'agama') {
       if (!/^agama-[a-z0-9-]{1,48}$/.test(item)) return { ok: false, reason: 'There is no such lizard.', wallet: this.wallet(accountId) };
       const caught = (this.db.prepare("SELECT COUNT(*) AS n FROM once_paid WHERE account_id = ? AND kind = 'agama'").get(accountId) as { n: number }).n;
@@ -696,7 +710,7 @@ export class Economy {
     if (this.db.prepare('SELECT 1 FROM once_paid WHERE account_id = ? AND kind = ? AND item = ?').get(accountId, kind, item)) {
       return { ok: true, wallet: this.wallet(accountId), replay: true, pay: 0 };
     }
-    const memo = kind === 'quest' ? `Quest reward: ${item}` : kind === 'album' ? `Album set complete: ${item}` : kind === 'case' ? `Case solved: ${item}` : `Agama caught (${item})`;
+    const memo = kind === 'quest' ? `Quest reward: ${item}` : kind === 'album' ? `Album set complete: ${item}` : kind === 'case' ? `Case solved: ${item}` : kind === 'ladder' ? `Moved up the ladder to rung ${item}` : `Agama caught (${item})`;
     const paid = this.apply(accountId, kind, pay, 0, memo, true, idem);
     if (!paid.ok || ('replay' in paid && paid.replay)) return paid;
     this.db.prepare('INSERT INTO once_paid (account_id, kind, item) VALUES (?, ?, ?)').run(accountId, kind, item);

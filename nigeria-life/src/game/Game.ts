@@ -46,7 +46,7 @@ import { celebrate } from '../interiors/club/Balling';
 import { TodayPanel } from '../ui/TodayPanel';
 import { Album } from '../life/Album';
 import { Hustles } from '../life/Hustles';
-import { Ladder } from '../life/Ladder';
+import { Ladder, RUNGS } from '../life/Ladder';
 import { Activity } from '../life/Activity';
 import { World } from '../world/World';
 import { Player } from '../player/Player';
@@ -1349,7 +1349,9 @@ export class Game {
       const area = Grid.homeArea(home.districtId, home.location ?? '');
       // An estate that makes its own power says so on its particulars
       const own = Grid.bandOf(area, home.cityId) === 'own' || /zero power cuts|24\/7 microgrid|24\/7 .*power|full solar array/i.test((home.features ?? []).join(' '));
-      return { area, city: home.cityId, own };
+      // A rented room or self-contain: the compound's landlord runs a generator in the evening
+      const compound = home.status === 'rented' && ['room', 'self_contain', 'selfcon', 'studio'].includes(String(home.type));
+      return { area, city: home.cityId, own, compound };
     };
     // A business without a generator or solar loses half of what it would take while its area has no light
     BackendService.powerShare = (biz, hours) => {
@@ -1403,7 +1405,7 @@ export class Game {
     let blackout = false;
     if (inside) {
       const supply = HomePower.get().supply();
-      icon = supply.source === 'none' ? '🕯️' : supply.source === 'inverter' ? '🔋' : supply.source === 'tiger' || supply.source === 'mikano' ? '⛽' : '💡';
+      icon = supply.source === 'none' ? '🕯️' : supply.source === 'inverter' ? '🔋' : supply.source === 'tiger' || supply.source === 'mikano' || supply.source === 'compound' ? '⛽' : '💡';
       title = HomePower.get().describe();
       blackout = supply.source === 'none';
     } else {
@@ -2801,8 +2803,22 @@ export class Game {
     };
     if (!quiet) Hustles.get().hooks = { pay, tell, rung: () => Ladder.get().rung, pack: (n, why) => Album.get().addPacks(n, why) };
     if (!quiet) Album.get().hooks = { pay, tell };
+    // Online a rung's reward is the server's: paid once, in order, to someone it has seen earn
+    const ladderPay = (amount: number, why: string) => {
+      const online = OnlineAccount.get();
+      const rung = RUNGS.find((r) => why.endsWith(r.area));
+      if (!online || !rung) return pay(amount, why);
+      void online.request('/money/ladder', { rung: rung.n }).then((paid) => {
+        if (paid?.wallet) be.applyServerWallet(paid.wallet);
+        if (!paid?.ok) return showGameToast(paid?.reason ?? 'The ladder reward did not go through.', 'info', 6000);
+        if (paid.replay) return;
+        be.settledByServer(() => be.processTransaction({ type: 'QUEST_REWARD', amount: paid.pay, description: why }));
+        if (paid.wallet) be.applyServerWallet(paid.wallet);
+        SoundEngine.getInstance().playTransactionSuccess();
+      });
+    };
     if (!quiet) Ladder.get().hooks = {
-      pay,
+      pay: ladderPay,
       tell,
       facts: () => {
         const data = be.getData();

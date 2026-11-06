@@ -70,7 +70,10 @@ interface HomeState {
   at: number;
 }
 
-export type Source = 'nepa' | 'own' | 'inverter' | 'mikano' | 'tiger' | 'none';
+export type Source = 'nepa' | 'own' | 'inverter' | 'mikano' | 'tiger' | 'compound' | 'none';
+
+/** The landlord's compound generator, run for the tenants of rooms and self-contains in a cut, these evening hours */
+export const COMPOUND_GEN = { from: 19, to: 23 };
 
 export interface Supply {
   /** NEPA has light in the area now */
@@ -88,6 +91,8 @@ export interface Where {
   city: string;
   /** An estate with its own power plant */
   own: boolean;
+  /** A rented room or self-contain in a compound whose landlord runs a generator in the evening */
+  compound?: boolean;
 }
 
 export class HomePower {
@@ -231,6 +236,8 @@ export class HomePower {
     if (inverters.some((uid) => (home.batteries[uid] ?? 0) > 0)) return { grid, source: 'inverter', heavy: true, any: true };
     const running = this.runningGen(gens, home);
     if (running) return { grid, source: running.spec.auto ? 'mikano' : 'tiger', heavy: running.spec.heavy, any: true };
+    // In a compound the landlord runs a generator in the evening for the tenants: lights, a fan, the TV
+    if (where?.compound && hour >= COMPOUND_GEN.from && hour < COMPOUND_GEN.to) return { grid, source: 'compound', heavy: false, any: true };
     return { grid, source: 'none', heavy: false, any: false };
   }
 
@@ -241,6 +248,7 @@ export class HomePower {
     const supply = this.supply();
     if (need === 'heavy' ? supply.heavy : supply.any) return null;
     if (supply.source === 'tiger') return `The Tiger generator is too small for the ${name}. It runs the lights, a fan, the TV and the PS5, not an AC, a freezer or a washing machine.`;
+    if (supply.source === 'compound') return `The compound generator is for lights, fans and TVs, not the ${name}. NEPA, or a generator or inverter of your own, would run it.`;
     return this.noLight();
   }
 
@@ -277,6 +285,7 @@ export class HomePower {
     if (supply.source === 'inverter') return `The inverter is running the house (battery ${Math.round(this.battery() ?? 0)}%).`;
     if (supply.source === 'mikano') return 'The Mikano changed over and is running the house.';
     if (supply.source === 'tiger') return 'The Tiger is running the lights, the fan and the TV.';
+    if (supply.source === 'compound') return 'The landlord\'s compound generator is on (7 to 11 pm): lights, the fan and the TV.';
     if (supply.source === 'none') return 'Nothing that needs power works.';
     return '';
   }

@@ -102,6 +102,13 @@ export const QUEST_CASH: Record<string, number> = {
   quest_ph_3: 200_000,
 };
 
+/** The life ladder's rewards, once a rung, in order (src/life/Ladder.ts RUNGS) */
+export const LADDER_CASH: Record<string, number> = {
+  '1': 25_000, '2': 75_000, '3': 200_000, '4': 500_000, '5': 1_200_000, '6': 3_000_000, '7': 8_000_000, '8': 25_000_000, '9': 100_000_000,
+};
+/** A rung is paid only to someone the server has seen earn this many times its reward, from work, trade and their own takings */
+export const LADDER_PROOF = 2;
+
 /** Album set completion, once each. */
 export const ALBUM_CASH: Record<string, number> = {
   places: 150_000,

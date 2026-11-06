@@ -618,6 +618,21 @@ export async function run(_browser, check) {
         && sold.ok && sold.each === ankara.sell.abuja && sold.profit > 0 && sold.cargo.length === 0,
       { notAtShed, tooHeavy, bought, sellTooSoon, sold, ankara });
 
+    // The life ladder's rewards: once a rung, in order, to someone the server has seen earn twice the reward
+    const climber = await call('/auth/guest', { name: 'Climber' });
+    const skipped = await call('/money/ladder', { rung: 2 }, climber.token);
+    const tooEarly = await call('/money/ladder', { rung: 1 }, climber.token);
+    const worked = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    worked.exec('PRAGMA busy_timeout = 2000');
+    worked.prepare("INSERT INTO ledger (account_id, at, kind, cash_delta, bank_delta, cash_after, bank_after, verified, memo, idem) VALUES (?, ?, 'shift', 60000, 0, 85000, 150000, 1, 'Seeded shift', 'seed-ladder')").run(climber.account.id, Date.now());
+    worked.prepare('UPDATE wallets SET cash = 85000 WHERE account_id = ?').run(climber.account.id);
+    worked.close();
+    const rung1 = await call('/money/ladder', { rung: 1 }, climber.token);
+    const rung1Again = await call('/money/ladder', { rung: 1 }, climber.token);
+    check('online: the server pays each ladder rung: not before the rung below, not before it has seen twice the reward earned from work, then ₦25,000 once',
+      !skipped.ok && /rung below first/.test(skipped.reason) && !tooEarly.ok && /₦50,000/.test(tooEarly.reason) && rung1.ok && rung1.pay === 25_000 && rung1.wallet.cash === 85_000 + 25_000 && rung1Again.ok && rung1Again.replay,
+      { skipped, tooEarly, rung1, rung1Again });
+
     // The next tier, same gig clock: the code sprint the phone used to pay at once.
     const kode = await call('/auth/guest', { name: 'Kode' });
     const codeStart = await call('/work/gig/start', { gig: 'life:code' }, kode.token);

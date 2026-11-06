@@ -19,8 +19,10 @@ const supply = (page) => page.evaluate(() => window.game.modules.HomePower.get()
 const findCut = (page, area, day, len) =>
   page.evaluate(([a, d, n]) => {
     const plan = window.game.modules.Grid.dayPlan(a, d, 'lagos');
+    // Outside 7 to 11 pm, when a compound's landlord runs the generator for the tenants
+    const evening = (h) => h >= 19 && h < 23;
     for (let h = 0; h + n <= 23; h++) {
-      if (plan.slice(h, h + n).every((lit) => !lit)) {
+      if (plan.slice(h, h + n).every((lit, i) => !lit && !evening(h + i))) {
         let back = h + n;
         while (back < 24 && !plan[back]) back++;
         return { start: h, back: back < 24 ? back : null };
@@ -229,9 +231,10 @@ export async function run(browser, check) {
   // At night, in a cut: lit by the inverter, then with nothing left
   const nightCut = await findCut(page, 'mushin', day2 + 1, 2);
   // An hour of the evening in a cut, if there is one, else the cut's own hour
+  // A dark hour of the night in a cut, after the compound generator has gone off at eleven
   const eveningCut = await page.evaluate((d) => {
     const plan = window.game.modules.Grid.dayPlan('mushin', d, 'lagos');
-    for (let h = 22; h >= 19; h--) if (!plan[h]) return h;
+    for (const h of [23, 0, 1, 2, 3, 4, 5]) if (!plan[h]) return h;
     return null;
   }, day2 + 1);
   const darkHour = eveningCut ?? nightCut.start;
@@ -245,6 +248,27 @@ export async function run(browser, check) {
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/nepa_cut.png` });
   check('nepa: in a cut the room is darker than with power, and still clearly seen by the lantern (never too dark)',
     withoutAny < withBattery * 0.85 && withoutAny > 60, { darkHour, withBattery: Math.round(withBattery), withoutAny: Math.round(withoutAny) });
+
+  // ------------------------------------------------------------------ The compound generator, 7 to 11 pm
+  const compound = await page.evaluate(async (d) => {
+    const g = window.game;
+    const P = g.modules.HomePower.get();
+    const plan = g.modules.Grid.dayPlan('mushin', d, 'lagos');
+    const h = [19, 20, 21, 22].find((x) => !plan[x]);
+    if (h === undefined) return { none: true };
+    const sky = g.world.skyEnvironment;
+    sky.setDay(d);
+    sky.setHour(h + 0.3);
+    // Nothing of the player's own running: battery flat, generators off
+    const home = P.homes[P.homeId()];
+    for (const k of Object.keys(home.batteries)) home.batteries[k] = 0;
+    for (const k of Object.keys(home.gens)) home.gens[k].on = false;
+    P.tick();
+    return { h, s: P.supply(), tv: P.whyNot('tv_75', 'TV'), ac: P.whyNot('split_ac', 'AC'), said: P.describe() };
+  }, day2 + 2);
+  check('nepa: in a rented room in a cut between 7 and 11 pm the compound generator the landlord runs lights and the TV, not the AC',
+    compound.none || (compound.s.source === 'compound' && compound.tv === null && /compound generator is for lights/.test(compound.ac ?? '') && /compound generator is on/.test(compound.said)),
+    compound);
 
   // ------------------------------------------------------------------ The Houses app, a business, reload
   await page.evaluate(() => { window.game.hud.phoneModal.open(); window.game.hud.phoneModal.openApp('property', 'p:prop_mushin_room'); });

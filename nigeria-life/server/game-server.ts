@@ -489,6 +489,8 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
       return done(economy.claimOnce(account.id, 'case', String(body.id ?? '')));
     case 'POST /money/agama':
       return done(economy.claimOnce(account.id, 'agama', String(body.id ?? '')));
+    case 'POST /money/ladder':
+      return done(economy.claimOnce(account.id, 'ladder', String(body.rung ?? '')));
     case 'POST /money/naibet':
       return done(economy.playNaibet(account.id, body.idem));
     case 'GET /work': {
