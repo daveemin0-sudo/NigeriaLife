@@ -361,9 +361,9 @@ export async function run(_browser, check) {
     // The allowance, now that the large earners are checked by the server. ₦48,000 still
     // clears; the next ₦1,000 in the same ten minutes is held.
     const bola = await call('/auth/guest', { name: 'Bola' });
-    const within = await call('/money/report', { cash: 48_000, memo: 'Fares and a remittance', idem: idem() }, bola.token);
+    const within = await call('/money/report', { cash: 40_000, memo: 'Fares and a remittance', idem: idem() }, bola.token);
     const pastIt = await call('/money/report', { cash: 1000, memo: 'One more fare', idem: idem() }, bola.token);
-    check('online: unverified earnings clear up to ₦48,000 in ten minutes, and the next ₦1,000 is held', within.ok && within.wallet.cash === 25_000 + 48_000 && !pastIt.ok && pastIt.held > 0, { within: within.wallet, pastIt });
+    check('online: unverified earnings clear up to ₦40,000 in ten minutes, and the next ₦1,000 is held', within.ok && within.wallet.cash === 25_000 + 40_000 && !pastIt.ok && pastIt.held > 0, { within: within.wallet, pastIt });
 
     // A guest stood on a spot from the first packet, and kept there, so the server believes them.
     const onSpot = async (name, x, z, city = 'lagos') => {
@@ -499,6 +499,56 @@ export async function run(_browser, check) {
     check('online: a career shift comes with a payslip from its employer; the generator gig is paid whole with none',
       clerkPaid.ok && clerkPaid.pay === 4_500 && clerkPaid.slip?.employer === 'Balogun Wholesale Market' && clerkPaid.slip.paye === 0 && clerkPaid.wallet.cash === 25_000 + 4_500 && genPaid.ok && genPaid.slip === undefined,
       { clerkPaid, gen: genPaid.slip });
+
+    // The police: the server keeps the cell and the record; anyone can stand bail; vetting employers read the record
+    const jailed = await onSpot('Dapo', 0, 1.5);
+    const charged = await call('/police/arrest', { offence: 'ran-checkpoint' }, jailed.guest.token);
+    const mine = await call('/police', null, jailed.guest.token);
+    const funke = await call('/auth/guest', { name: 'Funke' });
+    const heldList = await call('/police/held', null, funke.token);
+    const funkeBefore = (await call('/me', null, funke.token)).wallet;
+    const bailKey = idem();
+    const bailed = await call('/police/bail', { for: jailed.guest.account.id, idem: bailKey }, funke.token);
+    const bailedAgain = await call('/police/bail', { for: jailed.guest.account.id, idem: bailKey }, funke.token);
+    await wait(300);
+    const freed = await call('/police', null, jailed.guest.token);
+    const toldOut = jailed.sock.got.some((m) => m.type === 'bailed' && m.by === 'Funke');
+    const vetted = await call('/work/hire', { employer: 'lastma-warden' }, jailed.guest.token);
+    const port = await call('/work/hire', { employer: 'apapa-port' }, jailed.guest.token);
+    const madeUp = await call('/police/arrest', { offence: 'jaywalking' }, jailed.guest.token);
+    jailed.stop();
+    check('online: the server keeps the cell and the record: running a checkpoint is 10 minutes and ₦50,000; anyone online sees who is held and pays it once from their bank, the prisoner is told and let out; LASTMA (which vets) will not hire someone with a record, the port will; a made-up charge is refused',
+      charged.ok && charged.custody.bail === 50_000 && charged.custody.until - charged.custody.since === 600_000 && !!mine.custody && mine.record.length === 1
+      && heldList.held.some((h) => h.id === jailed.guest.account.id && h.bail === 50_000 && h.name === 'Dapo')
+      && bailed.ok && bailed.wallet.bank === funkeBefore.bank - 50_000 && !bailedAgain.ok && bailedAgain.wallet.bank === bailed.wallet.bank
+      && freed.custody === null && freed.record.length === 1 && toldOut && !vetted.ok && /records/.test(vetted.reason ?? '') && port.ok && !madeUp.ok,
+      { charged, mine, heldList, bailed, bailedAgain, freed, toldOut, vetted, port, madeUp });
+
+    // Eko Rides is the server's: it sees the car at the stop and at the drop-off, times the drive, and pays its own fare
+    const kola = await call('/auth/guest', { name: 'Kola' });
+    const car = await connect(kola.token);
+    await wait(200);
+    car.send(stand(0, 1.5));
+    await wait(300);
+    const rideAway = await call('/work/ride/start', { from: { x: 0, z: 80 }, to: { x: 0, z: 280 } }, kola.token);
+    const rideStart = await call('/work/ride/start', { from: { x: 0, z: 1.5 }, to: { x: 0, z: 201.5 } }, kola.token);
+    const rideFast = await call('/work/ride/finish', { ride: rideStart.ride, idem: idem() }, kola.token);
+    // 200 m up the road in twelve seconds, as a car in traffic
+    for (let i = 1; i <= 30; i++) {
+      car.send(stand(0, 1.5 + (200 * i) / 30));
+      await wait(400);
+    }
+    car.send(stand(0, 201.5));
+    await wait(200);
+    const kolaBefore = (await call('/me', null, kola.token)).wallet.cash;
+    const rideKey = idem();
+    const ridePaid = await call('/work/ride/finish', { ride: rideStart.ride, idem: rideKey, pay: 9_999_999 }, kola.token);
+    const rideAgain = await call('/work/ride/finish', { ride: rideStart.ride, idem: rideKey }, kola.token);
+    car.ws.close();
+    check('online: the server runs each Eko Rides trip: not started away from the stop, not paid if done faster than a car could, then the fare for 250 m by road (₦650) paid once whatever the game asks',
+      !rideAway.ok && /cannot see your car at the stop/.test(rideAway.reason) && rideStart.ok && rideStart.metres === 250 && !rideFast.ok && /faster than any car/.test(rideFast.reason)
+      && ridePaid.ok && ridePaid.pay === 650 && ridePaid.wallet.cash - kolaBefore === 650 && rideAgain.ok && rideAgain.replay,
+      { rideAway, rideStart, rideFast, ridePaid, rideAgain });
 
     // The next tier, same gig clock: the code sprint the phone used to pay at once.
     const kode = await call('/auth/guest', { name: 'Kode' });

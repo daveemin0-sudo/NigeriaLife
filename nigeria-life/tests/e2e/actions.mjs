@@ -1,6 +1,6 @@
 // The same walk-up, face, do-it, effect-part-way pattern, used for more than restaurants:
 // a street seller handing something over, a cash machine, a bank desk, a car door.
-import { open, wait, newPlayer, enterInterior, leaveInterior, advance, playUntil, closeDialogs, useStation } from './lib.mjs';
+import { makeOpen, open, wait, newPlayer, enterInterior, leaveInterior, advance, playUntil, closeDialogs, useStation } from './lib.mjs';
 
 const state = (page) => page.evaluate(() => {
   const g = window.game;
@@ -243,10 +243,11 @@ export async function run(browser, check) {
     pump.pressed.cash === pump.start.cash && !!pump.gesture && pumpOpen && pump.start.cash === pump.done.cash, { gesture: pump.gesture, pumpOpen, paid: pump.start.cash - pump.done.cash });
 
   // A door is still a door: its card walks the player through it, with no gesture of this kind
+  await page.evaluate(() => window.game.world.skyEnvironment.setHour(11));
+  await makeOpen(page, 'bank');
   await page.evaluate(() => {
     const g = window.game;
     const o = g.world.interactiveObjects.find((x) => x.id === 'lagos-bank');
-    g.world.skyEnvironment.setHour(11);
     g.player.stopMoving();
     g.player.mesh.position.set(o.interactionPoint.x, 0, o.interactionPoint.z);
     g.hud.showInteractionCard(o);

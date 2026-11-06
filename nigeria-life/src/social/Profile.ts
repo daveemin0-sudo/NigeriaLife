@@ -1,6 +1,8 @@
 import { BackendService } from '../backend/BackendService';
 import { Employment } from '../jobs/Employment';
 import { Ties } from './Ties';
+import { Police } from '../life/Police';
+import { OFFENCES } from '../life/Offences';
 
 /**
  * What other players see of this one: a card and a CV, built from the game's own records and
@@ -54,10 +56,10 @@ export function myProfile(myId: string, look?: { skin?: string; outfit?: number 
     .map((item) => item.name)
     .filter((name, i, all) => all.indexOf(name) === i)
     .slice(0, 6);
-  const record = data.transactionHistory
-    .filter((t) => /bail|fine|police|efcc|court/i.test(t.description) && t.type !== 'TRANSFER_IN')
-    .map((t) => `${t.description} · ${new Date(t.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`)
-    .slice(0, 6);
+  // The police's own record (src/life/Police.ts), entries that have not lapsed
+  const record = Police.get().record()
+    .map((r) => `${OFFENCES[r.offence]?.name ?? r.offence} · ${new Date(r.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`)
+    .slice(-6);
   return {
     v: 1,
     name: data.username,

@@ -112,7 +112,8 @@ export function getLagosBenchmarkDestinations(defaultTransports: TransportOption
         triggerRadius: 6.5,
       },
       interiorId: '',
-      hours: PLACE_HOURS.club,
+      // Its nights are Thursday to Sunday, from six till the small hours
+      hours: { opens: 18, closes: 4, days: [4, 5, 6, 0] },
       shortDescription: 'Legendary home of Afrobeat rhythms, Fela Kuti heritage, live brass section, and late-night vibes.',
       destinationDescription:
         'Cultural epicentre founded by the Kuti dynasty. Celebrated worldwide for energetic live Afrobeat concerts, spicy suya grills, and open-air political debate.',

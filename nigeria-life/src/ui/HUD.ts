@@ -123,6 +123,10 @@ export class HUD {
   public onShopAction?: (objectId: string) => void;
   public onVendorAction?: (objectId: string) => void;
   /** A plot of land's board was used: open what is known about that plot */
+  /** The cell's card, when the player is the one in it: shown by the game, true if it did (src/life/Police.ts) */
+  public onCellCard: (() => boolean) | null = null;
+  /** Stopped at a checkpoint with no papers: the game arrests the player, true if it did */
+  public onNoPapers: (() => boolean) | null = null;
   public onPlotAction?: (plotId: string) => void;
   /** Compound gate toggled */
   public onGateAction?: (plotId?: string) => void;
@@ -2969,6 +2973,8 @@ export class HUD {
                   rewards: { streetCred: 20, energy: 15 },
                 });
               } else {
+                // No papers and nobody who knows you: taken to Area Command (src/life/Police.ts)
+                if (this.onNoPapers?.()) return;
                 this.backend.addStreetCred(5);
                 this.showDialogueModal({
                   speakerName: 'Inspector Danjuma',
@@ -3131,6 +3137,8 @@ export class HUD {
       return;
     } else if (id === 'police_holding_cell') {
       this.hideInteractionCard();
+      // The player's own cell, when they are in it (src/life/Police.ts)
+      if (this.onCellCard?.()) return;
       this.showDialogueModal({
         speakerName: 'Detention Cell Block & Detainee Kazeem',
         speakerRole: 'Area Command Holding Cell Block',

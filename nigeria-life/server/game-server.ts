@@ -31,6 +31,7 @@ import { ServerStudio } from './studio.ts';
 import { ServerMarriage } from './marriage.ts';
 import { ServerChieftaincy } from './chieftaincy.ts';
 import { ServerMotors } from './motors.ts';
+import { ServerPolice } from './police.ts';
 import { Registry } from './registry.ts';
 import { DEFAULT_MAX_PLAYERS, Rooms } from './rooms.ts';
 import { isTraitId } from '../src/life/Traits.ts';
@@ -71,6 +72,12 @@ const studio = new ServerStudio(db, economy);
 const marriage = new ServerMarriage(db, economy);
 const chieftaincy = new ServerChieftaincy(db, economy);
 const motors = new ServerMotors(db, economy);
+// The police: cells, bail (by anyone), bribes, and a record the vetting employers read
+const police = new ServerPolice(db, economy);
+police.nameOf = (id) => accounts.get(id)?.name ?? 'someone';
+police.isOnline = (id) => rooms.isOnline(id);
+police.tell = (id, message) => rooms.tell(id, message);
+economy.hireRefusal = (id, employer) => police.refuses(id, employer.trade);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -211,7 +218,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors|police)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -313,6 +320,14 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
           ? nollywood.completeShoot(account.id, String(body.filmId ?? ''), Number(body.stars ?? 1))
           : nollywood.stateFor(account.id);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // The police: in a cell until a time, bail paid by the player or anyone else, a record that lapses
+    if (req.method === 'GET' && url.pathname === '/police') return reply(res, 200, police.state(account.id));
+    if (req.method === 'GET' && url.pathname === '/police/held') return reply(res, 200, police.held(account.id));
+    if (req.method === 'POST' && (url.pathname === '/police/arrest' || url.pathname === '/police/bail' || url.pathname === '/police/bribe')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/police/arrest' ? police.arrest(account.id, body) : url.pathname === '/police/bail' ? police.bail(account.id, body) : police.bribe(account.id, body);
+      return reply(res, done.ok ? 200 : 409, { ...done, wallet: economy.wallet(account.id) });
     }
     // Home staff: cook, cleaner, driver and gateman hired for the home and paid every day from the bank
     if (req.method === 'GET' && url.pathname === '/staff') return reply(res, 200, staff.snapshot(account.id));
@@ -448,6 +463,10 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
       return done(economy.startGig(account.id, String(body.gig ?? '')));
     case 'POST /work/gig/finish':
       return done(economy.finishGig(account.id, body.shift, body.idem));
+    case 'POST /work/ride/start':
+      return done(economy.startRide(account.id, body));
+    case 'POST /work/ride/finish':
+      return done(economy.finishRide(account.id, body.ride, body.idem));
     case 'POST /money/takings':
       return done(economy.collectTakings(account.id, String(body.plot ?? ''), body.idem, accounts.registryOf(account), registry.text));
     case 'POST /money/quest':

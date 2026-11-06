@@ -170,6 +170,8 @@ export type TransactionType =
   | 'LOAN_REPAYMENT'
   /** One weekly instalment of a loan that is not the last (the last is LOAN_REPAYMENT) */
   | 'LOAN_INSTALMENT'
+  /** Bail, a fine, or an envelope for an officer (src/life/Police.ts) */
+  | 'FINE_PAYMENT'
   // Moves between the player's own bank account and wallet
   | 'ATM_WITHDRAWAL'
   | 'ATM_DEPOSIT';

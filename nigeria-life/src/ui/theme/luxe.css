@@ -877,6 +877,8 @@ html body .nlphone:not(:has(.nlphone-home)) .nl-tax-bands .nl-row { box-shadow: 
 /* NEPA light where the player is, beside the clock: a bulb, or a candle in a cut */
 html body .hud-light-icon { margin-left: 3px; font-size: 0.95em; line-height: 1; }
 html body .hud-light-icon[data-light='off'] { filter: drop-shadow(0 0 3px rgba(255, 170, 60, 0.75)); }
+/* In a police cell: what is left and the bail, across the top, until the player is let out */
+html body .custody-banner { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 60; max-width: calc(100vw - 32px); padding: 8px 16px; border-radius: 999px; background: rgba(15, 23, 42, 0.92); color: #f8fafc; font: 700 13px/1.3 var(--lx-font, system-ui, sans-serif); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); border: 1px solid rgba(248, 250, 252, 0.18); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 html body .nlphone:not(:has(.nlphone-home)) .nl-card { border-radius: 20px; }
 html body .nlphone:not(:has(.nlphone-home)) .nl-row-icon { background: var(--nl-surface-2); border-radius: 14px; }
 html body .nlphone:not(:has(.nlphone-home)) button.nl-row:hover:not(:disabled) { background: var(--lx-surface-2); }

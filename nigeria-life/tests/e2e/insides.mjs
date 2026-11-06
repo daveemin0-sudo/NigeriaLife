@@ -1,11 +1,12 @@
 // The places along the expressway are gone into: each has its own room with people working in
 // it and stations where the player does what is done there, acted out, paid once, the goods in
 // the bag; and the way out leads back to the door on the road.
-import { open, newPlayer, closeDialogs, advance, wait, playUntil, money } from './lib.mjs';
+import { makeOpen, open, newPlayer, closeDialogs, advance, wait, playUntil, money } from './lib.mjs';
 
 const KEYS = ['balogun-market', 'amala-shitta', 'marina-towers', 'freedom-park', 'ivory-rooftop', 'the-library', 'i-fitness', 'lekki-conservation', 'dangote-refinery', 'radio-house', 'viewing-centre', 'polling-unit', 'afrika-shrine', 'redemption-cathedral', 'central-mosque', 'sankofa-motors', 'shopwell-mall', 'eko-grand-hotel', 'police-command', 'efcc-office', 'government-house', 'computer-village', 'ikeja-city-mall', 'allen-lounge', 'oshodi-interchange', 'lasuth', 'ladipo-auto', 'ikeja-gra', 'chop-express', 'faith-arena', 'mmia-terminal', 'lagoon-beach', 'ikeja-golf', 'lagoon-marina', 'private-airfield'];
 
 const enter = async (page, key) => {
+  await makeOpen(page, key);
   await page.evaluate((k) => {
     const g = window.game;
     const card = g.world.interactiveObjects.find((o) => o.id === `roadside-${k}`);

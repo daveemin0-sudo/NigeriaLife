@@ -40,6 +40,8 @@ export async function run(browser, check) {
   const ctx = await newPlayer(browser);
   const { page, log } = await open(ctx);
   await closeDialogs(page);
+  // A Wednesday, so the bank keeps its weekday hours whatever day the suite is run on
+  const wednesday = await page.evaluate(() => { const sky = window.game.world.skyEnvironment; let d = sky.day; while (new Date(2026, 9, 7 + d).getDay() !== 3) d++; sky.setDay(d); return d; });
 
   // ------------------------------------------------------------------ One record
   const record = await page.evaluate(() => {
@@ -53,8 +55,8 @@ export async function run(browser, check) {
       clubItself: club.hours,
     };
   });
-  check('each place that keeps hours has them on its record, and what its card says is written from them: the bank 8 am to 4 pm, the nightclub 8 pm to 5 am; the hospital and the police never shut',
-    record.bank.hours.opens === 8 && record.bank.hours.closes === 16 && record.bank.words === '8 am to 4 pm' && record.club.words === '8 pm to 5 am' && record.university.words === '7 am to 9 pm'
+  check('each place that keeps hours has them on its record, and what its card says is written from them: the bank 8 am to 4 pm, Monday to Friday, the nightclub 8 pm to 5 am; the hospital and the police never shut',
+    record.bank.hours.opens === 8 && record.bank.hours.closes === 16 && record.bank.words === '8 am to 4 pm, Monday to Friday' && record.club.words === '8 pm to 5 am' && record.university.words === '7 am to 9 pm'
       && record.supermarket.words === '7 am to 10 pm' && record.buka.words === '9 am to 11 pm' && record.stadium.words === '9 am to 11 pm'
       && record.hospital.hours === null && record.hospital.words === 'Open all day' && record.police.hours === null
       && record.clubItself.opens === record.club.hours.opens && record.clubItself.closes === record.club.hours.closes, record);
@@ -91,9 +93,9 @@ export async function run(browser, check) {
   await setHour(page, 20);
   const nightPrompt = await atDoor(page, 'lagos-bank');
   const bankAtNight = await tryToEnter(page, 'lagos-bank', 'bank');
-  const told = await said(page, 'is closed\\. It opens at 8 am');
-  check('at eight in the evening the bank is shut: the door says "closed (8 am to 4 pm)", and neither the door nor any other way in lets the player through',
-    /closed \(8 am to 4 pm\)/.test(nightPrompt ?? '') && !bankAtNight.byDoor && !bankAtNight.straightIn && told, { nightPrompt, bankAtNight, told });
+  const told = await said(page, 'is closed\\. It opens tomorrow at 8 am');
+  check('at eight in the evening the bank is shut: the door says "closed (8 am to 4 pm, Monday to Friday)", and neither the door nor any other way in lets the player through',
+    /closed \(8 am to 4 pm, Monday to Friday\)/.test(nightPrompt ?? '') && !bankAtNight.byDoor && !bankAtNight.straightIn && told, { nightPrompt, bankAtNight, told });
 
   // ------------------------------------------------------------------ The others, each by its own hours
   const others = {};
@@ -141,6 +143,62 @@ export async function run(browser, check) {
   await wait(600);
   check('on the map at three in the morning the bank reads "Closed now, opens at 8 am" and the hospital "Open all day"; at ten the bank reads "Open now, until 4 pm" (the card used to show a green light at every hour)',
     /Closed now, opens at 8 am/.test(bankCard.text) && bankCard.shut && /Open all day/.test(hospitalCard.text) && !hospitalCard.shut && /Open now, until 4 pm/.test(bankCardByDay.text) && !bankCardByDay.shut, { bankCard, hospitalCard, bankCardByDay });
+
+  // ------------------------------------------------------------------ Days of the week, and every place keeps hours
+  const mapCard = async (id) => {
+    await page.click('#nav-btn-map');
+    await wait(1500);
+    await page.evaluate((d) => window.game.hud.worldMapUI.goToPlace(d, 'lagos'), id);
+    await wait(500);
+    const card = await page.evaluate(() => ({ text: document.getElementById('map-card-sub').textContent, shut: document.getElementById('map-card-sub').classList.contains('shut') }));
+    await page.click('#btn-map-back-street');
+    await wait(500);
+    return card;
+  };
+  const at = (page2, day, hour) => page2.evaluate(([d, h]) => { const sky = window.game.world.skyEnvironment; sky.setDay(d); sky.setHour(h); }, [day, hour]);
+  // Saturday and Sunday of that week, at noon
+  await at(page, wednesday + 3, 12);
+  const saturday = { open: await page.evaluate(() => window.game.world.interiorManager.isOpenNow('bank')), card: await mapCard('dest_lagos_bank') };
+  await at(page, wednesday + 4, 12);
+  const sunday = { open: await page.evaluate(() => window.game.world.interiorManager.isOpenNow('bank')), card: await mapCard('dest_lagos_bank') };
+  await page.evaluate(() => { const g = window.game; g.world.interiorManager.enterInterior('bank', g.player, g.cameraManager, g.hud, g.world); });
+  await wait(500);
+  const sundayDoor = { straightIn: (await inside(page)) === 'bank' };
+  const sundayTold = await said(page, 'is closed\\. It opens tomorrow at 8 am');
+  check('the bank keeps weekdays: shut all Saturday ("Closed today, opens on Monday at 8 am") and all Sunday ("opens tomorrow at 8 am"), and nobody is let in at Sunday noon',
+    !saturday.open && /Closed today, opens on Monday at 8 am/.test(saturday.card.text) && saturday.card.shut && !sunday.open && /Closed today, opens tomorrow at 8 am/.test(sunday.card.text) && !sundayDoor.straightIn && sundayTold,
+    { saturday, sunday, sundayDoor, sundayTold });
+
+  const kept = await page.evaluate(() => {
+    const all = window.game.modules.DestinationRegistry.getInstance().getAll();
+    const words = (name) => all.find((d) => d.name.startsWith(name))?.openingHours ?? null;
+    return {
+      withHours: all.filter((d) => d.openingHours !== 'Open all day').length,
+      allDay: all.filter((d) => d.openingHours === 'Open all day').map((d) => d.category),
+      balogun: window.game.modules.DestinationRegistry.getInstance().getById('dest_lagos_balogun_market')?.openingHours ?? null,
+      shrine: words('New Afrika Shrine'),
+      ministry: words('Federal Ministry of Finance'),
+      airport: words('Murtala Muhammed'),
+      police: words('Lagos Area Command Police'),
+      jetty: words('Bonny Island Marine'),
+    };
+  });
+  check('every kind of place now keeps its own hours (over 25 of them), and only places that never shut are open all day: Balogun every day but Sunday, the Shrine Thursday to Sunday nights, a ministry weekdays, the jetty by daylight, the airport and the police always',
+    kept.withHours >= 25 && kept.allDay.every((c) => ['Airport', 'Hotel', 'Seaport', 'Refinery', 'Church', 'Residential', 'Healthcare', 'Civic', 'Culture', 'Transit', 'medicine', 'document'].includes(c))
+      && kept.balogun === '8 am to 6 pm, every day but Sunday' && kept.shrine === '6 pm to 4 am, Thursday to Sunday' && / Monday to Friday$/.test(kept.ministry ?? '')
+      && kept.jetty === '6 am to 6 pm' && kept.airport === 'Open all day' && kept.police === 'Open all day',
+    kept);
+
+  const shrine = await page.evaluate((wed) => {
+    const all = window.game.modules.DestinationRegistry.getInstance().getAll();
+    const hours = all.find((d) => d.name.startsWith('New Afrika Shrine')).hours;
+    const H = window.game.modules.Hours;
+    // Wednesday night at 11 pm and Thursday night at 11 pm; Monday 2 am (Sunday night) and Thursday 2 am (Wednesday night)
+    return { wed23: H.isOpen(hours, 23, 3), thu23: H.isOpen(hours, 23, 4), mon2: H.isOpen(hours, 2, 1), thu2: H.isOpen(hours, 2, 4) };
+  }, wednesday);
+  check('the small hours belong to the night before: the Shrine is open at 2 am on Monday (Sunday night) and shut at 2 am on Thursday (Wednesday night); shut on Wednesday night, open on Thursday night',
+    !shrine.wed23 && shrine.thu23 && shrine.mon2 && !shrine.thu2, shrine);
+  await at(page, wednesday + 7, 12);
 
   // ------------------------------------------------------------------ Cash at any hour, but at a machine
   await setHour(page, 3);

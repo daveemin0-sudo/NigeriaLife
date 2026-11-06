@@ -17,7 +17,12 @@ import { Cases } from '../life/Cases';
 import { Nollywood } from '../film/Nollywood';
 import { HomeStaff } from '../housing/HomeStaff';
 import { HomePower } from '../housing/HomePower';
+import { Police } from '../life/Police';
+import { BRIBE, OFFENCES, type Custody } from '../life/Offences';
+import { InteriorManager } from '../interiors/InteriorManager';
 import * as Grid from '../life/Grid';
+import * as HoursRules from '../destinations/Hours';
+import { calendar as hoursCalendar } from '../destinations/Hours';
 import { Dues, dayLabel, type DueEvent } from '../life/Dues';
 import * as Tax from '../life/Tax';
 import { QuitNotice } from '../housing/QuitNotice';
@@ -215,7 +220,37 @@ export class Game {
       return this.routeGuide.start(() => DrivableVehicle.roads?.() ?? null, from, to, name, () => arrived());
     },
     stopGuide: () => this.routeGuide.stop(),
-    pay: (amount, what) => { BackendService.getInstance().performGig(amount, 0, what); },
+    // On a game server the trip is the server's: started where the passenger got in, paid by it at the drop-off
+    began: (from, to) => {
+      const online = OnlineAccount.get();
+      if (!online) return;
+      this.rideOnServer = null;
+      void online.request('/work/ride/start', { from, to }).then((started) => {
+        this.rideOnServer = started?.ok ? String(started.ride) : null;
+        if (!started?.ok) showGameToast(`Eko Rides: ${started?.reason ?? 'the server did not start this trip'}`, 'warning', 4500);
+      });
+    },
+    pay: (amount, what) => {
+      const online = OnlineAccount.get();
+      if (!online) {
+        BackendService.getInstance().performGig(amount, 0, what);
+        return;
+      }
+      const ride = this.rideOnServer;
+      this.rideOnServer = null;
+      if (!ride) return;
+      void online.request('/work/ride/finish', { ride, idem: `ride:${ride}` }).then((paid) => {
+        if (paid?.wallet) BackendService.getInstance().applyServerWallet(paid.wallet);
+        if (!paid?.ok) {
+          showGameToast(`Eko Rides did not pay: ${paid?.reason ?? 'the server did not answer'}`, 'warning', 5000);
+          return;
+        }
+        // On the statement, as the server paid it (not reported back)
+        const backend = BackendService.getInstance();
+        backend.settledByServer(() => backend.processTransaction({ type: 'JOB_SALARY', amount: paid.pay, description: what, source: 'wallet' }));
+        if (paid.wallet) backend.applyServerWallet(paid.wallet);
+      });
+    },
     say: (text, kind) => showGameToast(text, kind, 4600),
     alight: (x, z, yaw) => {
       // Out on the right, the kerb side, and off along the pavement
@@ -262,7 +297,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -1015,6 +1050,7 @@ export class Game {
     if (!BackendService.getInstance().getData().worldState) this.arriveAtTheGate();
     this.connectDues();
     this.connectPower();
+    this.connectPolice();
     window.addEventListener('pagehide', () => this.saveWorldState());
     document.addEventListener('visibilitychange', () => {
       // Out of sight (Chrome closed, another app on top): saved, and every sound held until the player is back
@@ -1276,6 +1312,8 @@ export class Game {
    */
   private connectPower(): void {
     const sky = this.world.skyEnvironment;
+    // Opening days follow the game's calendar (src/destinations/Hours.ts)
+    hoursCalendar.weekday = () => new Date(2026, 9, 7 + sky.day).getDay();
     const power = HomePower.get();
     power.clock = () => ({ day: sky.day, hour: sky.currentHour });
     power.homeId = () => this.currentHome();
@@ -1348,6 +1386,154 @@ export class Game {
     if (el.textContent !== icon) el.textContent = icon;
     if (el.title !== title) el.title = title;
     el.dataset.light = icon === '🕯️' ? 'off' : 'on';
+  }
+
+  /**
+   * The police (src/life/Police.ts): stopped at the checkpoint with no papers, or caught after
+   * speeding through it, the player is driven to the Area Command and locked in its cell for real
+   * minutes. The cell's card offers bail, an envelope, or waiting; anyone online can pay the bail
+   * from their Bank. The record it leaves keeps the vetting employers' doors shut.
+   */
+  private connectPolice(): void {
+    const police = Police.get();
+    const rooms = this.world.interiorManager;
+    InteriorManager.holdIn = () => {
+      const held = police.custody();
+      if (!held || rooms.currentInterior?.type !== 'police') return null;
+      return `🔒 The cell is locked: ${this.timeLeft(held)} left, or bail of ₦${held.bail.toLocaleString()} (the cell's card).`;
+    };
+    Employment.refusal = (employer) => police.refuses(employer.trade);
+    police.onArrested = (custody, offence) => void this.takeToCell(custody, offence, false);
+    police.onReleased = (why, by) => this.letOut(why, by);
+    police.subscribe(() => this.showCustody());
+    this.hud.onNoPapers = () => {
+      void police.arrest('no-papers');
+      return true;
+    };
+    this.hud.onCellCard = () => {
+      const held = police.custody();
+      if (!held) return false;
+      this.hud.showDialogueModal({
+        speakerName: 'Sgt. Danladi',
+        speakerRole: 'Desk sergeant, Area Command',
+        speakerAvatar: '🔒',
+        dialogueText: `"${OFFENCES[held.offence]?.name ?? 'You know what you did'}. You will sit here ${this.timeLeft(held)} more, unless your bail of ₦${held.bail.toLocaleString()} is paid. Anyone can pay it for you."`,
+        choices: [
+          {
+            id: 'cell_pay_bail',
+            label: `Pay my bail · ₦${held.bail.toLocaleString()}`,
+            badge: 'Bank, then cash',
+            onSelect: () => {
+              void police.payBail().then((paid) => { if (!paid.ok) showGameToast(paid.message, 'warning', 4500); });
+            },
+          },
+          {
+            id: 'cell_bribe',
+            label: `Push ₦${BRIBE.toLocaleString()} through the bars`,
+            badge: 'He may take it, or charge you',
+            onSelect: () => {
+              void police.bribe().then((tried) => showGameToast(tried.message, tried.ok && tried.taken ? 'success' : 'warning', 6000));
+            },
+          },
+          { id: 'cell_wait', label: 'Sit and wait it out', badge: this.timeLeft(held), onSelect: () => undefined },
+        ],
+      });
+      return true;
+    };
+    const online = OnlineAccount.get();
+    const backInCell = () => {
+      const held = police.custody();
+      if (held) void this.takeToCell(held, held.offence, true);
+    };
+    if (online) void online.ready.then(() => police.sync()).then(backInCell);
+    else backInCell();
+  }
+
+  private timeLeft(held: Custody): string {
+    const s = Math.max(0, Math.ceil((held.until - Date.now()) / 1000));
+    return s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`;
+  }
+
+  /** Into the van and the cell. Back after a reload, the player is simply in the cell again. */
+  private async takeToCell(custody: Custody, offence: string, back: boolean): Promise<void> {
+    const rooms = this.world.interiorManager;
+    if (!back) {
+      this.hud.showDialogueModal({
+        speakerName: 'Inspector Danjuma',
+        speakerRole: 'Area Command joint patrol',
+        speakerAvatar: '🚔',
+        soundType: 'general',
+        dialogueText: `"You are under arrest for ${(OFFENCES[offence]?.name ?? 'an offence').toLowerCase()}. Into the van." ${this.timeLeft(custody)} in the cell at Area Command, or bail of ₦${custody.bail.toLocaleString()}.`,
+      });
+    }
+    if (this.player.isDriving) this.exitVehicle();
+    if (rooms.currentInterior?.type !== 'police') {
+      if (rooms.currentInterior) await rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+      await rooms.enterInterior('police', this.player, this.cameraManager, this.hud, this.world);
+    }
+    const origin = rooms.currentInterior?.interiorOrigin;
+    if (rooms.currentInterior?.type === 'police' && origin) {
+      this.player.stopMoving();
+      this.player.mesh.position.set(origin.x + 6, 0, origin.z - 5.4);
+    }
+    this.showCustody();
+  }
+
+  private letOut(why: 'served' | 'bail' | 'bribe' | 'bailed', by?: string): void {
+    const rooms = this.world.interiorManager;
+    const said = why === 'served'
+      ? 'Time served. The sergeant unlocks the cell: "You are free to go. Stay out of trouble."'
+      : why === 'bail'
+        ? 'Bail paid. The sergeant unlocks the cell and hands back your things.'
+        : why === 'bribe'
+          ? 'The officer pockets the envelope and leaves the cell door open.'
+          : `${by ?? 'Someone'} paid your bail. The cell door opens.`;
+    showGameToast(`🔓 ${said}`, 'success', 6000);
+    const origin = rooms.currentInterior?.interiorOrigin;
+    if (rooms.currentInterior?.type === 'police' && origin) {
+      this.player.stopMoving();
+      this.player.mesh.position.set(origin.x, 0, origin.z + 5.5);
+    }
+    this.showCustody();
+  }
+
+  /** The strip across the top while the player is in the cell: time left and bail */
+  private showCustody(): void {
+    const held = Police.get().custody();
+    let el = document.getElementById('custody-banner');
+    if (!held) {
+      el?.remove();
+      return;
+    }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'custody-banner';
+      el.className = 'custody-banner';
+      el.setAttribute('role', 'status');
+      document.body.appendChild(el);
+    }
+    const text = `🚔 In the cell at Area Command · ${this.timeLeft(held)} left · bail ₦${held.bail.toLocaleString()}`;
+    if (el.textContent !== text) el.textContent = text;
+  }
+
+  /** Driving fast through the checkpoint: half the time a patrol van comes after the player */
+  private checkpointPassAt = 0;
+  /** The Eko Rides trip the server has started, to be paid at the drop-off */
+  private rideOnServer: string | null = null;
+  private watchCheckpoint(): void {
+    if (!this.player.isDriving || Police.get().custody() || this.world.cityManager.currentCityId !== 'lagos') return;
+    const point = this.world.interactiveObjects.find((o) => o.id === 'street-checkpoint')?.interactionPoint;
+    if (!point) return;
+    const p = this.player.position;
+    if (Math.hypot(p.x - point.x, p.z - point.z) > 15) return;
+    if (Math.abs(this.player.currentVehicle?.currentSpeed ?? 0) < 6 || Date.now() - this.checkpointPassAt < 120_000) return;
+    this.checkpointPassAt = Date.now();
+    if (Math.random() < 0.5) {
+      showGameToast('🚨 You ran the checkpoint. A patrol van pulls out behind you, siren going...', 'warning', 3500);
+      setTimeout(() => void Police.get().arrest('ran-checkpoint'), 2500);
+    } else {
+      showGameToast('💨 You sped through the checkpoint. Nobody came after you, this time.', 'info', 3500);
+    }
   }
 
   /** Land plots, what stands on them, and the market they are traded in. */
@@ -2981,6 +3167,10 @@ export class Game {
       // The home's light: fuel burned, batteries charged, and the house told when it changes
       HomePower.get().tick();
       this.showLight();
+      // The cell: time served lets the player out; speeding past the checkpoint may bring a patrol van
+      Police.get().tick();
+      this.showCustody();
+      this.watchCheckpoint();
     }
     this.companyStaff?.update();
     this.tellEvents();

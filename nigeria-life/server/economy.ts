@@ -26,6 +26,7 @@ import { mostTaken } from '../src/backend/businessRates.ts';
 import { AGAMA_CAP, ALBUM_CASH, CASE_CASH, GIGS, QUEST_CASH, agamaPay, plotOf, quoteTakings, tipFor } from './earn.ts';
 import { alert, transaction, type Store } from './store.ts';
 import { lagosDate, lagosMonth, lagosMonthStart, monthRelief, taxOffice, workPayslip, MAX_SLIPS, type Payslip } from '../src/life/Tax.ts';
+import { ROAD_FACTOR, rideFare } from '../src/jobs/RideHail.ts';
 
 export interface Wallet {
   cash: number;
@@ -46,10 +47,10 @@ type Result<T = object> = ({ ok: true; wallet: Wallet } & T) | { ok: false; reas
 
 /**
  * Earnings the game may report without the server checking them, in any ten minutes.
- * What is still on that path (a diaspora pickup, a spell of fares, an Eko Rides trip) needs
- * about ₦45,000. ₦48,000 clears that and leaves a fare or two. See server/earn.ts.
+ * What is still on that path (a diaspora pickup and a spell of fares; Eko Rides trips are the
+ * server's now) needs about ₦37,000. ₦40,000 clears that and leaves a fare or two. See server/earn.ts.
  */
-export const UNVERIFIED_EARNING_LIMIT = 48_000;
+export const UNVERIFIED_EARNING_LIMIT = 40_000;
 /** The most a player may borrow at once. A loan is debt, not earnings: one at a time, up to this */
 export const LOAN_LIMIT = 5_000_000;
 /** Earnings of any kind in ten minutes above which an alert is raised */
@@ -61,6 +62,15 @@ const SHIFT_EXPIRES_MS = 10 * 60_000;
 /** The most a local save may bring onto a new account, once */
 export const IMPORT_LIMIT = 2_000_000;
 const TEN_MINUTES = 10 * 60_000;
+/** An Eko Rides trip: picked up within this of the stop, dropped within this of where they asked for */
+const RIDE_PICKUP_M = 25;
+const RIDE_DROP_M = 35;
+/** The shortest and longest trips paid, by road */
+const RIDE_MIN_M = 250;
+const RIDE_MAX_M = 9_000;
+/** No car in Lagos traffic averages more than this, door to door (m/s, about 80 km/h) */
+const RIDE_TOP_SPEED = 22;
+const RIDE_EXPIRES_MS = 30 * 60_000;
 
 const whole = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? Math.trunc(n) : NaN);
 const cleanMemo = (memo: unknown) => String(memo ?? '').slice(0, 120);
@@ -81,6 +91,8 @@ export class Economy {
 
   /** The businesses an account owns, from the ownership registry (set by the game server) */
   public businessesOf: (accountId: string) => string[] = () => [];
+  /** Why an employer will not take this player on (their police record), or null (set by the game server) */
+  public hireRefusal: (accountId: string, employer: Employer) => string | null = () => null;
 
   constructor(db: Store, positionOf: (accountId: string) => Position | null) {
     this.db = db;
@@ -252,7 +264,13 @@ export class Economy {
   }
 
   public hire(accountId: string, employerId: string): { ok: true; done: number } | { ok: false; reason: string } {
-    if (!EMPLOYERS.some((e) => e.id === employerId) || !WORKSITES[employerId]) return { ok: false, reason: 'That work is not run by the server yet.' };
+    const employer = EMPLOYERS.find((e) => e.id === employerId);
+    if (!employer || !WORKSITES[employerId]) return { ok: false, reason: 'That work is not run by the server yet.' };
+    // Someone already on the books stays on them; a new hand is vetted
+    if (!this.job(accountId, employerId)) {
+      const refused = this.hireRefusal(accountId, employer);
+      if (refused) return { ok: false, reason: refused };
+    }
     this.db.prepare('INSERT OR IGNORE INTO jobs (account_id, employer, done, since) VALUES (?, ?, 0, ?)').run(accountId, employerId, Date.now());
     return { ok: true, done: this.job(accountId, employerId)!.done };
   }
@@ -394,6 +412,18 @@ export class Economy {
     return { ok: true };
   }
 
+  /**
+   * Money a player pays for something the server deals with itself (bail, a bribe): from their
+   * bank and then their cash, once by its key, and never below zero.
+   */
+  public charge(accountId: string, amount: number, kind: string, memo: string, idem: string): Result<{ replay?: boolean }> {
+    const due = Math.max(0, Math.trunc(amount));
+    if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) return { ok: true, wallet: this.wallet(accountId), replay: true };
+    const w = this.wallet(accountId);
+    const fromBank = Math.min(w.bank, due);
+    return this.apply(accountId, kind, -(due - fromBank), -fromBank, cleanMemo(memo), true, idem);
+  }
+
   /** A fee taken from a player's bank and held for something (a Hustle job) until it is paid out */
   public holdFee(accountId: string, amount: number, memo: string, idem: string): Result {
     return this.apply(accountId, 'held', 0, -Math.trunc(amount), cleanMemo(memo), true, idem);
@@ -464,6 +494,58 @@ export class Economy {
     if (!paid.ok) return paid;
     if (slip) this.keepPayslip(accountId, slip, idem);
     return { ok: true, wallet: paid.wallet, pay: gig.pay, ...(slip ? { slip } : {}) };
+  }
+
+  // --- Eko Rides (src/jobs/RideHail.ts) -------------------------------------------------------
+
+  /**
+   * A passenger got in at a stop, going somewhere: the server sees the car at the stop and keeps
+   * where the trip goes. Only one trip, shift or gig at a time.
+   */
+  public startRide(accountId: string, raw: { from?: unknown; to?: unknown }): { ok: true; ride: string; metres: number } | { ok: false; reason: string } {
+    const point = (v: unknown) => {
+      const p = v as { x?: unknown; z?: unknown } | null;
+      return p && Number.isFinite(p.x) && Number.isFinite(p.z) ? { x: Math.round(Number(p.x) * 10) / 10, z: Math.round(Number(p.z) * 10) / 10 } : null;
+    };
+    const from = point(raw.from);
+    const to = point(raw.to);
+    if (!from || !to) return { ok: false, reason: 'That could not be read.' };
+    const away = this.awayFrom(accountId, { city: 'lagos', x: from.x, z: from.z, radius: RIDE_PICKUP_M }, 'The server cannot see your car at the stop.');
+    if (away) return { ok: false, reason: away };
+    const metres = Math.round(Math.hypot(to.x - from.x, to.z - from.z) * ROAD_FACTOR);
+    if (metres < RIDE_MIN_M) return { ok: false, reason: 'That is round the corner: walk it.' };
+    if (metres > RIDE_MAX_M) return { ok: false, reason: 'Eko Rides does not take trips that long.' };
+    this.db.prepare('UPDATE shifts SET finished_at = -1 WHERE account_id = ? AND finished_at IS NULL').run(accountId);
+    const ride = randomUUID();
+    this.db.prepare('INSERT INTO shifts (id, account_id, employer, started_at) VALUES (?, ?, ?, ?)').run(ride, accountId, `ride:${from.x},${from.z}>${to.x},${to.z}`, Date.now());
+    return { ok: true, ride, metres };
+  }
+
+  /** The car stopped where the passenger asked for, in a time a car could do it: the fare by the distance, paid once */
+  public finishRide(accountId: string, rideId: unknown, idemRaw: unknown): Result<{ pay?: number; replay?: boolean }> {
+    const idem = cleanIdem(idemRaw);
+    if (!idem) return { ok: false, reason: 'That could not be read.', wallet: this.wallet(accountId) };
+    if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) return { ok: true, wallet: this.wallet(accountId), replay: true };
+    const row = this.db.prepare('SELECT id, employer, started_at, finished_at FROM shifts WHERE id = ? AND account_id = ?').get(String(rideId ?? ''), accountId) as
+      | { id: string; employer: string; started_at: number; finished_at: number | null }
+      | undefined;
+    const trip = row?.employer.match(/^ride:(-?[\d.]+),(-?[\d.]+)>(-?[\d.]+),(-?[\d.]+)$/);
+    if (!row || row.finished_at !== null || !trip) return { ok: false, reason: 'That trip was not started, or is already paid.', wallet: this.wallet(accountId) };
+    const [fx, fz, tx, tz] = trip.slice(1).map(Number);
+    const metres = Math.round(Math.hypot(tx - fx, tz - fz) * ROAD_FACTOR);
+    const took = Date.now() - row.started_at;
+    if (took > RIDE_EXPIRES_MS) return { ok: false, reason: 'That trip took too long and was given up.', wallet: this.wallet(accountId) };
+    if (took < (metres / RIDE_TOP_SPEED) * 1000) {
+      alert(this.db, accountId, 'ride-too-fast', `${metres} m in ${(took / 1000).toFixed(1)} s`);
+      return { ok: false, reason: 'That was faster than any car in Lagos.', wallet: this.wallet(accountId) };
+    }
+    const away = this.awayFrom(accountId, { city: 'lagos', x: tx, z: tz, radius: RIDE_DROP_M }, 'You are not where the passenger asked to go.');
+    if (away) return { ok: false, reason: away, wallet: this.wallet(accountId) };
+    const pay = rideFare(metres);
+    this.db.prepare('UPDATE shifts SET finished_at = ? WHERE id = ?').run(Date.now(), row.id);
+    const paid = this.apply(accountId, 'ride', pay, 0, `Eko Rides trip, ${(metres / 1000).toFixed(1)} km`, true, idem);
+    if (!paid.ok) return paid;
+    return { ok: true, wallet: paid.wallet, pay };
   }
 
   // --- PAYE (src/life/Tax.ts) ----------------------------------------------------------------

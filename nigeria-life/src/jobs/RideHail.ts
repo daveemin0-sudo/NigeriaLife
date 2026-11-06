@@ -26,6 +26,9 @@ export interface RideHailHooks {
   /** Directions on the road; false if there is no way there by road */
   guide(to: { x: number; z: number }, name: string, arrived: () => void): boolean;
   stopGuide(): void;
+  /** A passenger is in at this stop, going there: on a game server the trip is started there (src/game/Game.ts) */
+  began?(from: { x: number; z: number }, to: { x: number; z: number }): void;
+  /** The trip is done: offline the fare is paid here; online the server checks the trip and pays its own fare */
   pay(amount: number, what: string): void;
   say(text: string, kind: 'info' | 'success' | 'warning'): void;
   /** The passenger gets out of the car standing here (heading `yaw`), on the kerb side, and walks off */
@@ -49,6 +52,13 @@ interface Trip {
 const NAMES = ['Ada', 'Tunde', 'Ngozi', 'Emeka', 'Funmi', 'Bayo', 'Chioma', 'Segun', 'Aisha', 'Kelechi', 'Yemi', 'Ifeoma', 'Musa', 'Bisi', 'Dayo', 'Zainab'];
 /** What the driver keeps of a fare, after the app's cut */
 const DRIVER_SHARE = 0.8;
+/** The road is about a quarter longer than the straight line */
+export const ROAD_FACTOR = 1.25;
+
+/** The driver's fare for a trip of this many metres by road: ₦700 flag-fall and 55 kobo a metre, less the app's cut. The server pays by this too. */
+export function rideFare(metres: number): number {
+  return Math.round(((700 + metres * 0.55) * DRIVER_SHARE) / 50) * 50;
+}
 
 export class RideHail {
   private stage: Stage = 'off';
@@ -209,8 +219,8 @@ export class RideHail {
     const long = within(600, 6000);
     const far = long.length ? long : within(250, 6000);
     const to = (far.length ? far : places)[Math.floor(rand() * (far.length || places.length))];
-    const metres = Math.round(Math.hypot(to.x - stop.x, to.z - stop.z) * 1.25);
-    const fare = Math.round(((700 + metres * 0.55) * DRIVER_SHARE) / 50) * 50;
+    const metres = Math.round(Math.hypot(to.x - stop.x, to.z - stop.z) * ROAD_FACTOR);
+    const fare = rideFare(metres);
     const who = NAMES[Math.floor(rand() * NAMES.length)];
     const trip: Trip = { stop, who, to, metres, fare, near: false, told: false };
     if (!this.hooks.guide({ x: stop.x, z: stop.z }, `Pick up ${who} · ${stop.name}`, () => undefined)) {
@@ -225,6 +235,7 @@ export class RideHail {
   private inside(trip: Trip): void {
     this.stage = 'riding';
     trip.near = false;
+    this.hooks.began?.({ x: trip.stop.x, z: trip.stop.z }, { x: trip.to.x, z: trip.to.z });
     this.hooks.say(`${trip.who} gets in: "${trip.to.name}, abeg. Thank you!"`, 'info');
     const guided = this.hooks.guide({ x: trip.to.x, z: trip.to.z }, `${trip.who} to ${trip.to.name}`, () => {
       trip.near = true;
@@ -239,7 +250,7 @@ export class RideHail {
     this.hooks.pay(trip.fare, `Eko Rides: ${trip.who} to ${trip.to.name}`);
     this.trips += 1;
     this.earned += trip.fare;
-    this.hooks.say(`${trip.who} gets out: "Thank you, driver!" ★★★★★ · ₦${trip.fare.toLocaleString()} paid to you.`, 'success');
+    this.hooks.say(`${trip.who} gets out: "Thank you, driver!" ★★★★★ · ₦${trip.fare.toLocaleString()} for the trip.`, 'success');
     this.trip = null;
     this.stage = 'finding';
     this.timer = 8 + (this.hooks.random ?? Math.random)() * 6;

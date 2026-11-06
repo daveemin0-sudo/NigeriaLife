@@ -13,6 +13,7 @@ import { BackendService } from '../../backend/BackendService';
 import { Dues, dayLabel } from '../../life/Dues';
 import { monthBands, monthLabel, monthRelief, RENT_RELIEF_CAP, VAT_RATE, type Payslip, type TaxBook } from '../../life/Tax';
 import { OnlineAccount } from '../../online/OnlineAccount';
+import { Police } from '../../life/Police';
 
 // ============================================================================================
 // Bank
@@ -109,6 +110,7 @@ export const bankApp: PhoneApp = {
               <button class="nl-btn nl-btn--sm" id="bank-repay-all" data-act="repay">Pay it all · ${naira(loan.owed)}</button>
             </div>
           </div>` : ''}
+        ${heldCard(host)}
         <div class="nl-section">Transactions</div>
         ${chips('bank.filter', filter, [['all', 'All'], ['in', 'Money in'], ['out', 'Money out']])}
         <input class="nl-field nl-field--search" id="bank-search" type="search" placeholder="Search transactions" value="${esc(host.get('bank.search', ''))}" data-bind="bank.search" />
@@ -121,10 +123,19 @@ export const bankApp: PhoneApp = {
     };
   },
 
-  act(host, action) {
+  async act(host, action, el) {
     if (action === 'repay') {
       const result = host.backend.repayLoan();
       host.say(result.message, result.success ? 'good' : 'bad');
+      return;
+    }
+    if (action === 'bail-for') {
+      const id = el.dataset.arg ?? '';
+      const paid = await Police.get().bailFor(id);
+      if (paid.ok) SoundEngine.getInstance().playTransactionSuccess();
+      host.set('police.asked', 0);
+      host.say(paid.message, paid.ok ? 'good' : 'bad');
+      host.refresh();
       return;
     }
     if (action === 'instalment') {
@@ -155,6 +166,37 @@ export const bankApp: PhoneApp = {
 // ============================================================================================
 
 const pct = (rate: number) => `${Math.round(rate * 100)}%`;
+
+/**
+ * Players in a police cell right now (online): anyone can stand bail for them, from this bank.
+ * Asked of the server when the Bank opens, then every half minute.
+ */
+function heldCard(host: PhoneHost): string {
+  if (!OnlineAccount.get()) return '';
+  if (Date.now() - host.get<number>('police.asked', 0) > 30_000) {
+    host.set('police.asked', Date.now());
+    void Police.get().others().then((held) => {
+      host.set('police.held', held);
+      if (held.length) host.refresh();
+    });
+  }
+  const held = host.get<Array<{ id: string; name: string; bail: number; offence: string }>>('police.held', []);
+  if (!held.length) return '';
+  return `
+    <div class="nl-card nl-card--warn" id="bank-held">
+      <div class="nl-card-title">🚔 In a cell at Area Command</div>
+      <div class="nl-card-line">Anyone can stand bail. It comes from your bank, then your cash.</div>
+      <div class="nl-list">
+        ${held.slice(0, 5).map((h) => row({
+          icon: '👤',
+          title: esc(h.name),
+          sub: esc(h.offence),
+          trailing: `<button class="nl-btn nl-btn--sm nl-btn--primary" data-act="bail-for" data-arg="${esc(h.id)}">Bail · ${naira(h.bail)}</button>`,
+          tag: 'div',
+        })).join('')}
+      </div>
+    </div>`;
+}
 
 function bandName(band: { from: number; upTo: number }): string {
   if (band.from === 0) return `First ${naira(band.upTo)}`;

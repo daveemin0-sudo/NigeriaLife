@@ -113,17 +113,36 @@ export const quest = (page, id) => page.evaluate((qid) => {
   return { status: q.status, obj: Object.fromEntries(q.objectives.map((o) => [o.id, o.isCompleted])) };
 }, id);
 
+/**
+ * Moves the game clock to a time this place is open, if it is shut now: noon, then nine at night
+ * (a club, a shrine), then those hours on the days after (a bank on a Sunday). The suites that use
+ * it are about what happens inside a place, not about when it is open (the hours suite is about
+ * that). Returns whether it is open.
+ */
+export function makeOpen(page, typeOrKey) {
+  return page.evaluate((t) => {
+    const g = window.game;
+    const sky = g.world.skyEnvironment;
+    const im = g.world.interiorManager;
+    if (im.isOpenNow(t)) return true;
+    const was = { hour: sky.currentHour, day: sky.day };
+    for (let ahead = 0; ahead <= 7; ahead++) {
+      if (ahead) sky.setDay(was.day + ahead);
+      for (const hour of [12, 21, 10, 18]) {
+        sky.setHour(hour);
+        if (im.isOpenNow(t)) return true;
+      }
+    }
+    sky.setDay(was.day);
+    sky.setHour(was.hour);
+    return false;
+  }, typeOrKey);
+}
+
 export async function enterInterior(page, type) {
+  await makeOpen(page, type);
   await page.evaluate((t) => {
     const g = window.game;
-    // The suites that use this are about what happens inside a place, not about when it is open (the
-    // hours suite is about that). If it is shut at this hour and open at noon, the visit is made at noon.
-    const sky = g.world.skyEnvironment;
-    if (!g.world.interiorManager.isOpenNow(t)) {
-      const was = sky.currentHour;
-      sky.setHour(12);
-      if (!g.world.interiorManager.isOpenNow(t)) sky.setHour(was);
-    }
     return g.world.interiorManager.enterInterior(t, g.player, g.cameraManager, g.hud, g.world);
   }, type);
   await wait(900);

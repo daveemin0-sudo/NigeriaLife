@@ -3,7 +3,7 @@ import type {
   DestinationDefinition, 
   TransportOption 
 } from './DestinationTypes';
-import { PLACE_HOURS, describeHours } from './Hours';
+import { PLACE_HOURS, daysFor, describeHours, hoursFor } from './Hours';
 import { getLagosBenchmarkDestinations } from './data/LagosBenchmarkPlaces';
 import { getAbujaBenchmarkDestinations } from './data/AbujaBenchmarkPlaces';
 import { getPortHarcourtBenchmarkDestinations } from './data/PortHarcourtBenchmarkPlaces';
@@ -1202,9 +1202,17 @@ export class DestinationRegistry {
     }
   }
 
-  /** A place goes on the record. What its card says about its hours is written from the hours themselves. */
+  /**
+   * A place goes on the record. One that keeps no hours of its own is given hours for what it is
+   * (a market shuts on Sunday, an office at four; a hospital never). What its card says about its
+   * hours is written from the hours themselves.
+   */
   public register(place: Omit<DestinationDefinition, 'openingHours'>): void {
-    const dest: DestinationDefinition = { ...place, openingHours: describeHours(place.hours) };
+    const given = place.hours ?? hoursFor(place.name, place.category);
+    // Hours set without days keep the days a place of that kind keeps
+    const days = given && !given.days ? daysFor(place.name, place.category) : undefined;
+    const hours = given && days ? { ...given, days } : given;
+    const dest: DestinationDefinition = { ...place, hours, openingHours: describeHours(hours) };
     this.destinations.set(dest.id, dest);
     this.aliasMap.set(dest.id, dest.id);
     for (const alias of dest.aliases) {

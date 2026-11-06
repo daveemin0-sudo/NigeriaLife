@@ -251,6 +251,11 @@ export class Rooms {
     if (admitted) this.tellQueue();
   }
 
+  /** Is this player connected now? */
+  public isOnline(accountId: string): boolean {
+    return this.clients.has(accountId);
+  }
+
   /** Sends one player a message (their new balance, say). */
   public tell(accountId: string, message: unknown): void {
     const c = this.clients.get(accountId);

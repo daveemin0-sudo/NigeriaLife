@@ -71,6 +71,8 @@ export interface ExitOptions {
 
 export class InteriorManager {
   private static instance: InteriorManager | null = null;
+  /** Why the player may not leave the room they are in (a locked cell), or null (set by the game) */
+  public static holdIn: (() => string | null) | null = null;
   public group: THREE.Group;
 
   // Interior Template Instances
@@ -247,6 +249,12 @@ export class InteriorManager {
     if (this.isTransitioning) return false;
     const target = this.getInteriorByBuildingId(typeOrId);
     if (!target) return false;
+    // Held in a cell: nowhere else until let out
+    const held = this.currentInterior && this.currentInterior.type !== target.type ? InteriorManager.holdIn?.() : null;
+    if (held) {
+      showGameToast(held, 'warning', 4000);
+      return false;
+    }
     if (this.turnedAway(target)) return false;
 
     this.isTransitioning = true;
@@ -333,6 +341,11 @@ export class InteriorManager {
     options: ExitOptions = {}
   ): Promise<void> {
     if (this.isTransitioning || !this.currentInterior) return;
+    const held = InteriorManager.holdIn?.();
+    if (held) {
+      showGameToast(held, 'warning', 4000);
+      return;
+    }
     this.isTransitioning = true;
 
     // Leaving ends whatever the player was doing inside (a meal, a seat, an order)
@@ -431,7 +444,7 @@ export class InteriorManager {
   private turnedAway(target: InteriorDefinition): boolean {
     const hours = this.hoursOf(target);
     if (!hours || isOpen(hours, this.clock())) return false;
-    showGameToast(closedNotice(target.name, hours), 'info', 3600);
+    showGameToast(closedNotice(target.name, hours, this.clock()), 'info', 3600);
     return true;
   }
 

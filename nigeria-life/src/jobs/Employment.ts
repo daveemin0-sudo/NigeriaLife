@@ -52,6 +52,8 @@ export class Employment {
   private records: { [employerId: string]: Service } = {};
   /** What the law adds to every shift's pay (a minimum wage raise), set by the game */
   public static payBoost: () => number = () => 1;
+  /** Why this employer will not take the player on (a police record, for those who vet), or null; set by the game */
+  public static refusal: (employer: Employer) => string | null = () => null;
   private history: PastJob[] = [];
   private listeners: Array<() => void> = [];
   /** The day on the game's calendar, for the date someone was taken on */
@@ -153,6 +155,8 @@ export class Employment {
     const employer = this.employer(id);
     if (!employer) return { ok: false, reason: 'Nobody is hiring there.' };
     if (this.isEmployed(id)) return { ok: false, reason: `You already work at ${employer.name}.` };
+    const refused = Employment.refusal(employer);
+    if (refused) return { ok: false, reason: `${employer.name} will not take you on. ${refused}` };
     this.records[id] = { since: this.today(), done: 0 };
     this.changed();
     return { ok: true };
