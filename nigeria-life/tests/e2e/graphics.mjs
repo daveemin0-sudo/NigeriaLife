@@ -14,6 +14,8 @@ const state = (page) =>
       chosen: g.graphics.chosen,
       pixelRatio: g.renderer.getPixelRatio(),
       shadows: g.renderer.shadowMap.enabled && g.world.skyEnvironment.sunLight.castShadow,
+      shadowSize: g.world.skyEnvironment.sunLight.shadow.mapSize.x,
+      everyFrame: g.renderer.shadowMap.autoUpdate,
       crowd: [g.world.cityPopulation.drawDistance, g.world.cityPopulation.nearDistance],
       stored: localStorage.getItem('nigerialife.graphics'),
     };
@@ -81,7 +83,8 @@ export async function run(browser, check) {
   );
   await press(page, 'toggle-graphics');
   const low = await state(page);
-  check('graphics: pressed again it moves to Low: a softer picture (0.75), no sun shadows, fewer people far off', low.level === 'low' && low.pixelRatio === 0.75 && !low.shadows /* 0.75 on this 1x test screen; 1 on a phone */ && low.crowd[0] === 50, low);
+  // The shadow is kept on Low (turning it off rebuilds every shader, a freeze), small and redrawn once a second
+  check('graphics: pressed again it moves to Low: a softer picture (0.75), a small sun shadow redrawn once a second, fewer people far off', low.level === 'low' && low.pixelRatio === 0.75 && low.shadows && low.shadowSize === 512 && !low.everyFrame /* 0.75 on this 1x test screen; 1 on a phone */ && low.crowd[0] === 50, low);
 
   await page.evaluate(() => window.game.hud.phoneModal.close?.());
   await page.keyboard.press('Escape');
@@ -105,7 +108,7 @@ export async function run(browser, check) {
   // Kept on this device
   await reload(page);
   const after = await state(page);
-  check('graphics: after a reload it is still Low, as the player chose', after.level === 'low' && after.chosen && !after.shadows, after);
+  check('graphics: after a reload it is still Low, as the player chose', after.level === 'low' && after.chosen && after.shadowSize === 512 && !after.everyFrame, after);
 
   // Driving options on the same screen are kept too
   await closeDialogs(page);

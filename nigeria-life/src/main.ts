@@ -29,13 +29,15 @@ void fontsReady.then(() => {
     const game = new Game();
     (window as any).game = game;
     console.log('[NIGERIA LIFE] Game successfully initialized!');
-    // The city has drawn its first frames: the splash steps aside
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    // Every shader the city needs is compiled while the splash is still up (in parallel where the
+    // browser can), so walking up Broad Street does not stop to build them; then the splash steps aside
+    const lift = () => requestAnimationFrame(() => requestAnimationFrame(() => {
       const splash = document.getElementById('nl-splash');
       if (!splash) return;
       splash.classList.add('is-gone');
       setTimeout(() => splash.remove(), 650);
     }));
+    void game.warmShaders(12_000).finally(lift);
     // On the web: kept on the phone, and told when a new version is out
     startUpdates();
     // The speech engine is woken at the first tap (Continue on the title), not mid-street

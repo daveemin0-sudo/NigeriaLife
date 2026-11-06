@@ -9,7 +9,43 @@ export class Roads {
   public roadWidth: number = 14;
   public asphaltMat!: THREE.MeshStandardMaterial;
   public streetBulbMaterials: THREE.MeshStandardMaterial[] = [];
-  public streetPointLights: THREE.PointLight[] = [];
+  /** The pool of light each lamp throws on the road at night. A soft glow drawn on the ground, not a
+   *  light: every light in the street is worked out in the shader of every material, so seven lamp
+   *  lights made every street shader bigger and slower to build (the hang on first reaching a street) */
+  public streetGlowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffdcaa,
+    map: Roads.glowTexture(),
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: true,
+  });
+  private streetGlows: THREE.Mesh[] = [];
+
+  /** A round soft spot, bright in the middle and gone at the edge */
+  private static glowTexture(): THREE.Texture | null {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 64;
+    const g = canvas.getContext('2d');
+    if (!g) return null;
+    const spot = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    spot.addColorStop(0, 'rgba(255,255,255,1)');
+    spot.addColorStop(0.45, 'rgba(255,255,255,0.55)');
+    spot.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = spot;
+    g.fillRect(0, 0, 64, 64);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /** How bright the pools of lamp light are (0 by day, and in a NEPA cut) */
+  public setLampGlow(level: number): void {
+    this.streetGlowMaterial.opacity = level;
+    for (const glow of this.streetGlows) glow.visible = level > 0;
+  }
   private roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
   constructor() {
     this.group = new THREE.Group();
@@ -93,6 +129,8 @@ export class Roads {
     this.group.add(mesh);
   }
 
+  private static glowDisc = new THREE.CircleGeometry(6.5, 24);
+
   private buildStreetLights(): void {
     // Street lamps on alternating sides every 24 meters
     const lampX = 7.5;
@@ -147,11 +185,14 @@ export class Roads {
       bulb.position.set(-poleSide * 1.55, 6.28, 0);
       lampGroup.add(bulb);
 
-      // Night downward sodium / warm LED street light pool
-      const lampLight = new THREE.PointLight(0xffedd5, 0, 16, 1.8);
-      lampLight.position.set(-poleSide * 1.55, 6.1, 0);
-      this.streetPointLights.push(lampLight);
-      lampGroup.add(lampLight);
+      // Night downward sodium / warm LED street light pool, on the road under the lamp
+      const glow = new THREE.Mesh(Roads.glowDisc, this.streetGlowMaterial);
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.set(-poleSide * 1.55, 0.04, 0);
+      glow.renderOrder = 1;
+      glow.visible = false;
+      this.streetGlows.push(glow);
+      lampGroup.add(glow);
 
       this.group.add(lampGroup);
     }
@@ -174,17 +215,7 @@ export class Roads {
       }
     }
 
-    for (const light of this.streetPointLights) {
-      if (isNight) {
-        light.intensity = 1.8;
-      } else if (isGolden) {
-        light.intensity = 0.7;
-      } else {
-        light.intensity = 0.0;
-      }
-      // A switched-off lamp must not stay in the shader's light loop all day
-      light.visible = light.intensity > 0;
-    }
+    this.setLampGlow(isNight ? 0.5 : isGolden ? 0.2 : 0);
 
     // Roadside umbrella stalls pack down when evening arrives and set back up before dawn
     for (const stall of this.roadsideStalls) {

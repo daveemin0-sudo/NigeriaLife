@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RedLine, VIADUCT } from './RedLine';
+import { RedLine, STATIONS, VIADUCT } from './RedLine';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
 import type { Obstruction } from '../plan/CityPlan';
@@ -75,7 +75,13 @@ const CAR_PAINT = [0xf8fafc, 0x111827, 0x9ca3af, 0x1d4ed8, 0xb91c1c, 0xfacc15, 0
 /** One texture per advert, however many boards carry it */
 const ADS = new Map<string, THREE.Texture>();
 
-/** A parked car on the shoulder: body, cabin, glass and wheels, nose along +z */
+/**
+ * A lay-by: the pavement cut back so a car can pull right off the road, as at a Lagos bus bay,
+ * tapered at both ends; a bench under a shade at the back of it. Half its length, and how deep it is cut.
+ */
+export const LAYBY = { half: 6, core: 3, depth: 2.6 };
+
+/** A parked car in a lay-by: body, cabin, glass and wheels, nose along +z */
 function parkedCar(b: Builder, x: number, z: number, colour: number, flip: boolean): void {
   const y = flip ? Math.PI : 0;
   b.box(colour, 1.8, 0.62, 4.3, x, 0.3, z, { yaw: y });
@@ -163,11 +169,12 @@ export class Expressway {
         b.box(0x9ca3af, H * 2, 1, 2.4, 0, -2.4, z);
       }
     } else {
+      // The island's own buildings stand round the end of Broad Street: the frontage starts beyond them.
+      // Where a car stops in front of a shop it pulls into a lay-by, never onto the road
+      const bays = z1 > 165 ? this.laybys(this.buildFrontage(b, Math.max(z0, 165), z1), z0, z1) : [];
       // Pavements, kerbs and the land behind
-      for (const side of [-1, 1]) {
-        b.box(0xbcb3a3, EXPRESS.walk, 0.2, len, side * (H + EXPRESS.walk / 2), 0, mid);
-        b.box(0xe5e7eb, 0.25, 0.22, len, side * (H + 0.12), 0, mid);
-      }
+      for (const side of [-1, 1]) this.pavement(b, side, z0, z1, bays.filter((bay) => bay.side === side));
+      for (const bay of bays) this.layby(b, bay);
       b.box(0x8b7d62, 520, 0.02, len, 0, -0.06, mid);
     }
     b.box(0x2b2f36, H * 2, 0.02, len, 0, 0.0, mid);
@@ -204,8 +211,6 @@ export class Expressway {
       this.solid('Expressway lamp', -0.14, 0.14, z - 0.14, z + 0.14, 10, false, true);
     }
     if (!water) {
-      // The island's own buildings stand round the end of Broad Street: the frontage starts beyond them
-      if (z1 > 165) this.buildFrontage(b, Math.max(z0, 165), z1);
       // A footbridge every 400 m over the whole road
       for (const z of EXPRESS_BRIDGES) if (z >= z0 && z < z1) this.footbridge(b, z);
     }
@@ -272,8 +277,9 @@ export class Expressway {
     }
   }
 
-  /** Shops, offices and houses along one stretch, both sides, facing the road */
-  private buildFrontage(b: Builder, z0: number, z1: number): void {
+  /** Shops, offices and houses along one stretch, both sides, facing the road; and where a car stands in front of one */
+  private buildFrontage(b: Builder, z0: number, z1: number): Array<{ side: number; z: number; colour: number }> {
+    const bays: Array<{ side: number; z: number; colour: number }> = [];
     const front = EXPRESS.half + EXPRESS.walk;
     for (const side of [-1, 1]) {
       let z = z0 + this.rand() * 3;
@@ -305,10 +311,9 @@ export class Expressway {
             b.box(lit ? 0xfde68a : 0x1e293b, 0.05, 1.3, 1.3, faceX, f * 3.2 + 1.1, z + w, { glow: lit });
           }
         }
-        // A car parked on the shoulder in front of the shop, now and then
+        // A car parked in front of the shop, now and then (in a lay-by: see laybys)
         if (!tall && this.rand() < 0.3 && !EXPRESS_BRIDGES.some((bz) => Math.abs(bz - cz) < 14)) {
-          parkedCar(b, side * (EXPRESS.half - 0.75), cz, CAR_PAINT[Math.floor(this.rand() * CAR_PAINT.length)], side > 0);
-          this.solid('Parked car', side * (EXPRESS.half - 0.75) - 0.95, side * (EXPRESS.half - 0.75) + 0.95, cz - 2.2, cz + 2.2, 1.4);
+          bays.push({ side, z: cz, colour: CAR_PAINT[Math.floor(this.rand() * CAR_PAINT.length)] });
         }
         if (!tall) {
           // A shop sign over the ground floor, and a roof
@@ -321,6 +326,79 @@ export class Expressway {
         z += width + 1 + this.rand() * 4;
       }
     }
+    return bays;
+  }
+
+  /**
+   * The lay-bys that fit: inside this stretch, clear of footbridge stairs, Red Line stations and
+   * billboard poles, and not running into each other.
+   */
+  private laybys(wanted: Array<{ side: number; z: number; colour: number }>, z0: number, z1: number): Array<{ side: number; z: number; colour: number }> {
+    const board = Math.floor(z0 / 100) % 2 === 1 ? { side: Math.floor(z0 / 200) % 2 ? 1 : -1, z: (z0 + z1) / 2 } : null;
+    const kept: Array<{ side: number; z: number; colour: number }> = [];
+    for (const bay of wanted) {
+      if (bay.z - LAYBY.half < z0 || bay.z + LAYBY.half > z1) continue;
+      if (EXPRESS_BRIDGES.some((bz) => Math.abs(bz - bay.z) < 19)) continue;
+      if (STATIONS.some((st) => Math.abs(st.z - bay.z) < 85)) continue;
+      if (board && board.side === bay.side && Math.abs(board.z - bay.z) < 9) continue;
+      if (kept.some((k) => k.side === bay.side && Math.abs(k.z - bay.z) < LAYBY.half * 2 + 2)) continue;
+      kept.push(bay);
+    }
+    return kept;
+  }
+
+  /** One side's pavement and kerb from z0 to z1, cut back at each lay-by (tapered in three steps at its ends) */
+  private pavement(b: Builder, side: number, z0: number, z1: number, bays: Array<{ z: number }>): void {
+    const H = EXPRESS.half;
+    const W = EXPRESS.walk;
+    // How deep the pavement is cut along each stretch: [from, to, cut]
+    const cuts: Array<[number, number, number]> = [];
+    const step = (LAYBY.half - LAYBY.core) / 3;
+    for (const bay of [...bays].sort((p, q) => p.z - q.z)) {
+      for (let k = 2; k >= 0; k--) cuts.push([bay.z - LAYBY.core - (k + 1) * step, bay.z - LAYBY.core - k * step, (LAYBY.depth * (3 - k)) / 4]);
+      cuts.push([bay.z - LAYBY.core, bay.z + LAYBY.core, LAYBY.depth]);
+      for (let k = 0; k < 3; k++) cuts.push([bay.z + LAYBY.core + k * step, bay.z + LAYBY.core + (k + 1) * step, (LAYBY.depth * (3 - k)) / 4]);
+    }
+    const strip = (a: number, c: number, cut: number) => {
+      if (c - a < 0.01) return;
+      const m = (a + c) / 2;
+      b.box(0xbcb3a3, W - cut, 0.2, c - a, side * (H + cut + (W - cut) / 2), 0, m);
+      b.box(0xe5e7eb, 0.25, 0.22, c - a, side * (H + cut + 0.12), 0, m);
+      // The floor of the bay: at the level of the road, and its colour
+      if (cut > 0) b.box(0x2b2f36, cut, 0.02, c - a, side * (H + cut / 2), 0, m);
+    };
+    let from = z0;
+    for (const [a, c, cut] of cuts) {
+      strip(from, a, 0);
+      strip(a, c, cut);
+      from = c;
+    }
+    strip(from, z1, 0);
+  }
+
+  /** A car standing in a lay-by, and a bench under a shade on the pavement behind it */
+  private layby(b: Builder, bay: { side: number; z: number; colour: number }): void {
+    const H = EXPRESS.half;
+    const W = EXPRESS.walk;
+    const s = bay.side;
+    const carX = s * (H + LAYBY.depth / 2 + 0.05);
+    parkedCar(b, carX, bay.z, bay.colour, s > 0);
+    this.solid('Parked car', carX - 0.95, carX + 0.95, bay.z - 2.2, bay.z + 2.2, 1.4);
+    // The bay marked out: a broken white line where it leaves the road, a yellow L for the lay-by in it
+    for (let dz = -LAYBY.half + 0.5; dz < LAYBY.half - 0.5; dz += 1.6) b.box(0xf8fafc, 0.12, 0.01, 0.8, s * (H - 0.35), 0.022, bay.z + dz);
+    // The shade: two posts at the back of the pavement, a roof leaning out over the bench
+    const back = s * (H + W - 0.25);
+    const roofX = s * (H + LAYBY.depth + (W - LAYBY.depth) / 2 + 0.1);
+    for (const dz of [-1.5, 1.5]) {
+      b.cylinder(0x6b7280, 0.06, 2.6, back, 0.2, bay.z + dz, { sides: 8 });
+      this.solid('Lay-by shade post', back - 0.06, back + 0.06, bay.z + dz - 0.06, bay.z + dz + 0.06, 2.6, false, true);
+    }
+    b.box(0x0f766e, W - LAYBY.depth + 0.5, 0.08, 3.6, roofX, 2.8, bay.z);
+    b.box(0xf8fafc, 0.06, 0.25, 3.6, s * (H + LAYBY.depth - 0.15), 2.62, bay.z);
+    // The bench: a wooden seat on two legs, a back rail, facing the road
+    const seatX = s * (H + LAYBY.depth + 0.55);
+    b.box(0x92400e, 0.42, 0.06, 2.4, seatX, 0.62, bay.z).box(0x92400e, 0.06, 0.32, 2.4, seatX + s * 0.22, 0.72, bay.z);
+    for (const dz of [-1.0, 1.0]) b.box(0x374151, 0.36, 0.42, 0.06, seatX, 0.2, bay.z + dz);
   }
 
   /** A footbridge right across the road, stairs going up on both pavements */

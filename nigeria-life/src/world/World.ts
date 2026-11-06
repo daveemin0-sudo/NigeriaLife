@@ -1,3 +1,4 @@
+import { outlineOf } from './Bodies';
 import { BananaEstate } from './BananaEstate';
 import * as THREE from 'three';
 import { Agamas } from '../life/Agamas';
@@ -603,7 +604,11 @@ export class World {
     this.trafficSpawner.abroad = abroad;
     this.cityPopulation.abroad = abroad;
 
-    // Update instanced go-slow traffic
+    // Update instanced go-slow traffic: drivers keep clear of the player, as big as they are on the road
+    const driven = player?.isDriving ? player.currentVehicle : null;
+    const size = driven ? outlineOf(driven.mesh) : null;
+    this.trafficSpawner.playerHalfWidth = size ? size.w / 2 : 0.35;
+    this.trafficSpawner.playerHalfLength = size ? size.l / 2 : 1.4;
     this.trafficSpawner.update(delta, playerPos, frustum);
     if (playerPos) this.expressway.update(playerPos.z);
 

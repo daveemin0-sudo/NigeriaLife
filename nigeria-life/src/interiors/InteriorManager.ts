@@ -71,6 +71,10 @@ export interface ExitOptions {
 
 export class InteriorManager {
   private static instance: InteriorManager | null = null;
+  /** Compiles a room's shaders before it is shown, behind the door's fade (set by the game) */
+  public static warm: ((group: THREE.Object3D) => Promise<void>) | null = null;
+  /** Rooms whose shaders have been compiled */
+  private warmed = new Set<string>();
   /** Why the player may not leave the room they are in (a locked cell), or null (set by the game) */
   public static holdIn: (() => string | null) | null = null;
   public group: THREE.Group;
@@ -274,7 +278,9 @@ export class InteriorManager {
     // 2. Start cinematic fade to black
     await this.setFadeOverlay(1);
 
-    // 3. Update game location state
+    // 3. Update game location state. A roadside place is built the first time it is gone into (behind the fade)
+    const lazy = this.templates.find((t) => t.def.id === target.id) as { ensureBuilt?: () => boolean; group: THREE.Group } | undefined;
+    if (lazy?.ensureBuilt?.()) lazy.group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
     this.locationMode = 'interior';
     this.currentInterior = target;
     Activity.emit({ kind: 'visited', place: target.id, name: target.name });
@@ -289,6 +295,12 @@ export class InteriorManager {
     this.group.visible = true;
     for (const template of this.templates) {
       template.group.visible = template.def === target;
+    }
+    // The first time in, the room's shaders are compiled while the screen is still black
+    if (!this.warmed.has(target.id) && InteriorManager.warm) {
+      this.warmed.add(target.id);
+      const shown = this.getActiveInteriorGroup();
+      if (shown) await InteriorManager.warm(shown);
     }
 
     // 6. Teleport player character mesh into interior coordinates

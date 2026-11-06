@@ -84,6 +84,10 @@ interface Car {
   /** How far it has pulled over, for a siren behind it, and which way (away from the siren's lane) */
   aside?: number;
   asideDir?: number;
+  /** Seconds left of hurrying on, or moving over, after a horn behind it */
+  hooted?: number;
+  /** Too near the stop line to stop when the light last changed: it goes on over the junction */
+  committed?: boolean;
 }
 
 interface Batch {
@@ -112,10 +116,13 @@ interface ParkedCar {
 const DRAW_DISTANCE = 150;
 
 // Signal cycle (seconds)
-const MAIN_GREEN = 45;
-const CROSS_GREEN = 6;
-const AMBER = 2;
-const ALL_RED = 1.0;
+/** Martins Street's lane centres, out from its middle on each side (half the road is 4.5 m) */
+export const MARTINS_LANES = [1.15, 3.35];
+
+const MAIN_GREEN = 30;
+const CROSS_GREEN = 14;
+const AMBER = 3;
+const ALL_RED = 1.5;
 
 /**
  * TrafficSpawner
@@ -128,6 +135,9 @@ export class TrafficSpawner {
   public vehicleCount = 0;
   /** The share of the day's moving traffic that is on the road at this hour. Parked vehicles stay parked. */
   public abroad = 1;
+  /** The player's size on the road: on foot, or the vehicle they are driving (set by the world each frame) */
+  public playerHalfWidth = 0.35;
+  public playerHalfLength = 1.4;
   private places = 0;
 
   private rand = seededRandom(7741);
@@ -150,9 +160,9 @@ export class TrafficSpawner {
     for (const spot of parkingSpots) {
       const kind = this.pickKind((k) => k.parkable);
       this.batches[kind].count++;
-      this.dummy.position.set(spot.x, 0, spot.z);
+      this.dummy.position.set(spot.x, spot.lift ?? 0, spot.z);
       const yaw = spot.yaw + (this.rand() - 0.5) * 0.08;
-      this.dummy.rotation.set(0, yaw, 0);
+      this.dummy.rotation.set(0, yaw, spot.roll ?? 0);
       this.dummy.updateMatrix();
       this.parked.push({ kind, paint: this.randomPaint(), matrix: this.dummy.matrix.clone(), x: spot.x, z: spot.z, yaw });
     }
@@ -303,9 +313,11 @@ export class TrafficSpawner {
       });
     }
 
-    // Martins Street: 2 lanes each way
-    for (const offset of [-3.6, -1.2, 1.2, 3.6]) {
-      const dir: 1 | -1 = offset < 0 ? 1 : -1;
+    // Martins Street: 2 lanes each way, on the right as everywhere in Nigeria (going +x, the right
+    // of the road is +z; the signal posts stand on that side of each approach). The kerb lane is far
+    // enough in that the widest vehicle on it (a danfo, 2.2 m) stays on the road, off the pavement
+    for (const offset of MARTINS_LANES.flatMap((o) => [-o, o])) {
+      const dir: 1 | -1 = offset > 0 ? 1 : -1;
       this.lanes.push({
         axis: 'x',
         fixed: cross.fixed + offset,
@@ -435,7 +447,7 @@ export class TrafficSpawner {
     const cross = SIDE_STREETS.find((s) => s.traffic)!;
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.6 });
     const hoodMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 });
-    const lampGeo = new THREE.SphereGeometry(0.17, 10, 8);
+    const lampGeo = new THREE.SphereGeometry(0.21, 12, 8);
 
     // yaw points the lamp face at the approaching traffic
     const posts: Array<{ x: number; z: number; yaw: number; group: SignalGroup }> = [
@@ -471,8 +483,7 @@ export class TrafficSpawner {
   }
 
   /** State of a signal group at the current point in the cycle */
-  private signalState(group: SignalGroup, playerPos?: THREE.Vector3): 'go' | 'amber' | 'stop' {
-    if (playerPos && Math.abs(playerPos.x) < 8.0 && Math.abs(playerPos.z - CROSS_STREET_Z) < 85) return group === 'main' ? 'go' : 'stop';
+  public signalState(group: SignalGroup): 'go' | 'amber' | 'stop' {
     const cycle = MAIN_GREEN + CROSS_GREEN + 2 * (AMBER + ALL_RED);
     let t = this.signalTime % cycle;
 
@@ -487,9 +498,9 @@ export class TrafficSpawner {
     return 'stop';
   }
 
-  private updateLamps(playerPos?: THREE.Vector3): void {
+  private updateLamps(): void {
     for (const group of ['main', 'cross'] as const) {
-      const state = this.signalState(group, playerPos);
+      const state = this.signalState(group);
       const lamps = this.signalLamps[group];
       lamps.red.color.setHex(state === 'stop' ? 0xff2a2a : 0x3f0d0d);
       lamps.amber.color.setHex(state === 'amber' ? 0xffb020 : 0x3f2a05);
@@ -521,12 +532,12 @@ export class TrafficSpawner {
 
   public update(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
     this.signalTime += delta;
-    this.updateLamps(playerPos);
+    this.updateLamps();
     for (const batch of this.batches) batch.drawn = 0;
 
     const open: Record<SignalGroup, boolean> = {
-      main: this.signalState('main', playerPos) === 'go',
-      cross: this.signalState('cross', playerPos) === 'go',
+      main: this.signalState('main') === 'go',
+      cross: this.signalState('cross') === 'go',
     };
 
     for (const lane of this.lanes) {
@@ -536,16 +547,19 @@ export class TrafficSpawner {
       let playerU = Infinity;
       if (playerPos) {
         const across = lane.axis === 'z' ? playerPos.x : playerPos.z;
-        if (Math.abs(across - lane.fixed) < 1.4) playerU = (lane.axis === 'z' ? playerPos.z : playerPos.x) * lane.dir;
+        if (Math.abs(across - lane.fixed) < this.playerHalfWidth + 1.05) playerU = (lane.axis === 'z' ? playerPos.z : playerPos.x) * lane.dir;
       }
 
       for (const car of lane.cars) {
         // Furthest point this car may reach: behind its leader, the player, or a red stop line
         let limit = leaderRear - 1.8 - car.length / 2;
-        if (car.u + car.length / 2 <= playerU) limit = Math.min(limit, playerU - 2.6 - car.length / 2);
+        if (car.u + car.length / 2 <= playerU) limit = Math.min(limit, playerU - this.playerHalfLength - 1.2 - car.length / 2);
         for (const stop of lane.stops) {
-          const crossing = car.v > 4.5 && (car.u + car.length / 2 > stop.u - 4.5);
-          if (!open[stop.group] && !crossing && car.u + car.length / 2 <= stop.u + 0.6) {
+          const front = car.u + car.length / 2;
+          // While it is green, a car too close to pull up if the light changed now is let through
+          // when it does (it could not stop in time); every other car stops at red, and at amber
+          if (open[stop.group]) car.committed = front > stop.u - (car.v * car.v) / (2 * 6) - 0.5;
+          if (!open[stop.group] && !car.committed && front <= stop.u + 0.6) {
             limit = Math.min(limit, stop.u - car.length / 2);
           }
         }
@@ -567,14 +581,23 @@ export class TrafficSpawner {
           }
         }
         if (yielding) target = Math.min(target, car.cruise * 0.3);
-        car.aside = THREE.MathUtils.clamp((car.aside ?? 0) + (yielding ? 2.4 : -1.6) * delta, 0, 2.3);
+        // Hooted at from behind: on with it if the road ahead is free, and over toward the kerb to let them by
+        let hooted = false;
+        if ((car.hooted ?? 0) > 0) {
+          car.hooted! -= delta;
+          hooted = true;
+          if (room > 25 && car.dwell <= 0) target = Math.max(target, Math.min(car.cruise * 1.7, Math.sqrt(2 * 4.5 * room)));
+          car.asideDir = Math.sign(lane.fixed) || 1;
+        }
+        const over = this.batches[car.kind].width < 1.3 ? 1.6 : 1.2;
+        car.aside = THREE.MathUtils.clamp((car.aside ?? 0) + (yielding || hooted ? 2.4 : -1.6) * delta, 0, yielding ? 2.3 : hooted ? over : 2.3);
 
         if (car.dwell > 0) {
           car.dwell -= delta;
           target = 0;
         }
 
-        const accelRate = target > car.v && car.v < 5 ? 5.2 : 3.2;
+        const accelRate = target > car.v && (car.v < 5 || hooted) ? 5.2 : 3.2;
         car.v += THREE.MathUtils.clamp(target - car.v, -11 * delta, accelRate * delta);
         if (car.v < 0.02 && target === 0) car.v = 0;
 
@@ -598,6 +621,7 @@ export class TrafficSpawner {
         lane.cars.shift();
         lead.u = Math.min(lane.uMin, tail.u - tail.length / 2 - lead.length / 2 - 5 - this.rand() * 10);
         lead.v = lead.cruise * 0.7;
+        lead.committed = false;
         lane.cars.push(lead);
       }
 
@@ -629,6 +653,35 @@ export class TrafficSpawner {
         if (batch.paint.instanceColor) batch.paint.instanceColor.needsUpdate = true;
       }
     }
+  }
+
+  /**
+   * A horn at (x, z), facing (dirX, dirZ): the vehicles ahead of it in its lane, or half in it,
+   * within `range`, hurry on where the road in front of them is free and edge over toward the kerb
+   * to let it pass. Returns how many heard it.
+   */
+  public hoot(x: number, z: number, dirX: number, dirZ: number, range = 30, halfWidth = 1): number {
+    let heard = 0;
+    for (const lane of this.lanes) {
+      // Only traffic going the same way
+      const laneX = lane.axis === 'x' ? lane.dir : 0;
+      const laneZ = lane.axis === 'z' ? lane.dir : 0;
+      if (laneX * dirX + laneZ * dirZ < 0.7) continue;
+      for (const car of lane.cars) {
+        if (car.place !== undefined && !isAbroad(car.place, this.abroad)) continue;
+        const along = car.u * lane.dir;
+        const aside = lane.axis === 'z' ? (car.asideDir ?? Math.sign(lane.fixed)) * (car.aside ?? 0) : 0;
+        const cx = lane.axis === 'z' ? lane.fixed + aside : along;
+        const cz = lane.axis === 'z' ? along : lane.fixed;
+        const ahead = (cx - x) * dirX + (cz - z) * dirZ;
+        const across = Math.abs((cx - x) * dirZ - (cz - z) * dirX);
+        if (ahead <= 0 || ahead > range + car.length / 2) continue;
+        if (across > halfWidth + this.batches[car.kind].width / 2 + 0.4) continue;
+        car.hooted = 4;
+        heard += 1;
+      }
+    }
+    return heard;
   }
 
   private bodyPool: CarBody[] = [];

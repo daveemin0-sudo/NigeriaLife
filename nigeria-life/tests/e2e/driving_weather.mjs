@@ -63,7 +63,7 @@ export async function run(browser, check) {
     const veh = g.player.currentVehicle;
     // Handling is measured on an empty road: other traffic and people are not in the way
     veh.constructor.ignoreBodies = true;
-    veh.mesh.position.set(-4.9, 0, 0);
+    veh.mesh.position.set(-5.0, 0, 0);
     veh.mesh.rotation.y = 0;
     veh.currentSpeed = 0;
     veh.steerInput = 0;
@@ -84,7 +84,7 @@ export async function run(browser, check) {
     }
     g.input.keys['arrowup'] = false;
 
-    // Check lateral drift: x should remain centered around -4.9 without oscillating
+    // Check lateral drift: x should remain centered around -5.0, the lane the traffic drives in, without oscillating
     const xPositions = samples.map((s) => s.x);
     const minX = Math.min(...xPositions);
     const maxX = Math.max(...xPositions);

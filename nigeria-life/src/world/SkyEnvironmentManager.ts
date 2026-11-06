@@ -169,6 +169,8 @@ export class SkyEnvironmentManager {
   // Weather influence multipliers
   public weatherSunMultiplier: number = 1.0;
   public weatherHemiMultiplier: number = 1.0;
+  /** A lightning flash: added to the sky's light outdoors, for a moment (set by the weather) */
+  public flash = 0;
   public weatherFogDensityMultiplier: number = 1.0;
   public weatherFogColorMultiplier: THREE.Color = new THREE.Color(1, 1, 1);
 
@@ -524,7 +526,7 @@ export class SkyEnvironmentManager {
     this.hemiLight.groundColor.copy(this.tempColorA).lerp(this.tempColorB, t);
 
     const baseHemiInt = THREE.MathUtils.lerp(k0.hemiIntensity, k1.hemiIntensity, t);
-    this.hemiLight.intensity = baseHemiInt * this.weatherHemiMultiplier;
+    this.hemiLight.intensity = baseHemiInt * this.weatherHemiMultiplier + (this.indoors ? 0 : this.flash);
 
     // 4. Atmospheric Fog
     if (this.scene.fog && this.scene.fog instanceof THREE.FogExp2) {

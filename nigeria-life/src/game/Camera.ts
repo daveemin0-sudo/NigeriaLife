@@ -78,6 +78,9 @@ export class GameCamera {
   private mapCamPos: THREE.Vector3 = new THREE.Vector3(0, 120, 50);
   private mapLookAt: THREE.Vector3 = new THREE.Vector3(0, 0, 10);
 
+  /** Where the driving camera sits, and looks, from the car (smoothed) */
+  private vehCamOffset = new THREE.Vector3();
+  private vehLookOffset = new THREE.Vector3();
   // Vehicle driving chase camera heading filter
   private cameraVehYaw: number = 0;
   private hasInitializedVehCam: boolean = false;
@@ -448,6 +451,9 @@ export class GameCamera {
         this.cameraVehYaw = vehRot;
         this.hasInitializedVehCam = true;
         this.vehCamRoom = 11.2;
+        // From wherever the camera was, relative to the car
+        this.vehCamOffset.copy(this.camera.position).sub(vehPos);
+        this.vehLookOffset.copy(this.currentLookAt).sub(vehPos);
       } else {
         // Smoothly track vehicle heading to decouple visual camera rotation from high-frequency wheel inputs
         const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
@@ -478,16 +484,15 @@ export class GameCamera {
 
       const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
       const vehLerp = Math.min(delta * (6.5 / smoothMultiplier), 1);
-      this.camera.position.lerp(targetCameraPos, vehLerp);
+      // The camera rides with the car: where it sits round the car is smoothed, not where it is in
+      // the world, so a fast car never pulls away from it and swings across the view in a bend
+      this.vehCamOffset.lerp(targetCameraPos.sub(vehPos), vehLerp);
+      this.camera.position.copy(vehPos).add(this.vehCamOffset);
 
       // Look ahead of vehicle along travel direction to provide natural driving perspective
-      const lookAhead = Math.min(Math.max(vehSpeed * 0.16, 1.6), 5.5);
-      const targetLookAt = new THREE.Vector3(
-        vehPos.x + Math.sin(this.cameraVehYaw) * lookAhead,
-        vehPos.y + 1.5,
-        vehPos.z + Math.cos(this.cameraVehYaw) * lookAhead
-      );
-      this.currentLookAt.lerp(targetLookAt, vehLerp);
+      const lookAhead = Math.min(Math.max(vehSpeed * 0.16, 1.6), 7);
+      this.vehLookOffset.lerp(new THREE.Vector3(Math.sin(this.cameraVehYaw) * lookAhead, 1.5, Math.cos(this.cameraVehYaw) * lookAhead), vehLerp);
+      this.currentLookAt.copy(vehPos).add(this.vehLookOffset);
       this.camera.lookAt(this.currentLookAt);
       return;
     } else {

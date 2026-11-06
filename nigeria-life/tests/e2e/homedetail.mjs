@@ -117,6 +117,8 @@ export async function run(browser, check) {
     const g = window.game;
     g.hud.backend.data.bank.balance += 200_000_000; g.hud.backend.saveData();
     await g.land.buyFromState('lag-kakawa-w2');
+    // The omo-onile are settled first (their levy is its own suite)
+    g.land.reportLevy('lag-kakawa-w2', () => 0);
     const r = g.land.plot('lag-kakawa-w2').rect;
     await g.land.startBuilding('lag-kakawa-w2', 'bungalow', (r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2, 0);
     await g.registry.transact((s) => { s.buildings['lag-kakawa-w2'].startedAt -= 30 * 25_000; });

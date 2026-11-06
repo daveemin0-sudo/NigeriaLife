@@ -352,6 +352,9 @@ export class Game {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Checking each shader for errors on first use waits for it to finish compiling (on Windows,
+    // through ANGLE, that stalls the game). Only while developing.
+    this.renderer.debug.checkShaderErrors = !!import.meta.env.DEV;
     document.body.appendChild(this.renderer.domElement);
     PointerScope.init(this.renderer.domElement);
 
@@ -1053,6 +1056,7 @@ export class Game {
     this.connectDues();
     this.connectPower();
     this.connectPolice();
+    InteriorManager.warm = (group) => this.warmShaders(6_000, group);
     this.connectLandLife();
     // Trade between cities: the desk knows where the player stands; a shed's card opens the Trade app
     const desk = TradeDesk.get();
@@ -1311,6 +1315,72 @@ export class Game {
     };
 
     this.hud.phoneModal.connect({ world, rides: this.rides, deliveries: this.deliveries, messages: this.messages, market: this.market });
+  }
+
+  /**
+   * Compiles every shader the visible world needs before play starts, off the main thread where
+   * the browser has parallel shader compiling. Without it each material is compiled the first
+   * time it comes into view, and on a modest laptop that froze the game for seconds on Broad
+   * Street. Gives up waiting after `ms` (the rest compile as they come into view).
+   */
+  public async warmShaders(ms: number, root: THREE.Object3D = this.scene): Promise<void> {
+    const renderer = this.renderer;
+    const camera = this.cameraManager.camera;
+    const t0 = performance.now();
+    const parallel = !!renderer.getContext().getExtension('KHR_parallel_shader_compile');
+    // The sky's fog and reflections are part of every shader: they are put in place first, or every
+    // shader is compiled again the moment the sky first applies its part of the day
+    const sky = this.world.skyEnvironment;
+    const seen = new Set<string>();
+    this.warming = true;
+    try {
+      if (!this.scene.environment || !this.scene.fog) sky.applyMode(sky.getTimePeriodForHour(sky.currentHour));
+      // One stand-in for every material under `root`, shown or not (three.js compiles only what is
+      // shown, so a street that switches on as the player nears it was compiled when it appeared),
+      // compiled with the lights the world has now
+      const warmer = new THREE.Scene();
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        const sprite = (o as THREE.Sprite).isSprite;
+        if (!mesh.isMesh && !(o as THREE.Points).isPoints && !(o as THREE.Line).isLine && !sprite) return;
+        if ((o as THREE.SkinnedMesh).isSkinnedMesh) return;
+        const instanced = (o as THREE.InstancedMesh).isInstancedMesh;
+        const coloured = instanced && !!(o as THREE.InstancedMesh).instanceColor;
+        for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+          if (!material) continue;
+          const key = `${material.uuid}|${o.receiveShadow}|${instanced}|${coloured}|${o.type}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          let copy: THREE.Object3D;
+          if (sprite) copy = new THREE.Sprite(material as THREE.SpriteMaterial);
+          else if (instanced) {
+            const many = new THREE.InstancedMesh(mesh.geometry, material, 1);
+            if (coloured) many.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3);
+            copy = many;
+          } else copy = new (o.constructor as new (g: THREE.BufferGeometry, m: THREE.Material) => THREE.Object3D)(mesh.geometry, material);
+          copy.receiveShadow = o.receiveShadow;
+          copy.castShadow = o.castShadow;
+          copy.frustumCulled = false;
+          warmer.add(copy);
+        }
+      });
+      await Promise.race([renderer.compileAsync(warmer, camera, this.scene), new Promise((done) => setTimeout(done, ms))]);
+      // The shadow map's own depth shaders are made by drawing it once: done here, into a 1-pixel target
+      if (root === this.scene && renderer.shadowMap.enabled) {
+        const target = new THREE.WebGLRenderTarget(1, 1);
+        const was = renderer.getRenderTarget();
+        renderer.setRenderTarget(target);
+        renderer.shadowMap.needsUpdate = true;
+        renderer.render(this.scene, camera);
+        renderer.setRenderTarget(was);
+        target.dispose();
+      }
+    } catch (error) {
+      console.warn('[shaders] could not be compiled ahead', error);
+    } finally {
+      this.warming = false;
+    }
+    console.log(`[shaders] ${renderer.info.programs?.length ?? 0} programs ready, ${seen.size} materials warmed in ${Math.round(performance.now() - t0)} ms (parallel: ${parallel})`);
   }
 
   /** The district a point of a city is in, or the nearest one */
@@ -1793,6 +1863,7 @@ export class Game {
       board: (stop, doorX, doorZ, onBoard) => crowd.board(stop, doorX, doorZ, onBoard),
     };
     DrivableVehicle.makeWay = (x, z, dirX, dirZ, range, halfWidth) => (this.world.cityManager.currentCityId === 'lagos' ? crowd.scatter(x, z, dirX, dirZ, range, halfWidth) : 0);
+    DrivableVehicle.hootTraffic = (x, z, dirX, dirZ, range, halfWidth) => (this.world.cityManager.currentCityId === 'lagos' ? this.world.trafficSpawner.hoot(x, z, dirX, dirZ, range, halfWidth) : 0);
     const roadsByCity = new Map<string, ReturnType<typeof zonesFor>>();
     DrivableVehicle.roads = () => {
       const city = this.world.cityManager.currentCityId;
@@ -3131,8 +3202,13 @@ export class Game {
     } else {
       this.step(clampedDelta);
     }
-    this.render();
+    // Not drawn while the shaders are compiling in the background: drawing would wait for each one
+    if (!this.warming) this.render();
   };
+
+  /** Shaders are compiling before play (warmShaders): nothing is drawn meanwhile */
+  /** Nothing is drawn while shaders are being compiled ahead */
+  private warming = false;
 
   /**
    * Runs the game forward by some seconds of game time without drawing every frame.

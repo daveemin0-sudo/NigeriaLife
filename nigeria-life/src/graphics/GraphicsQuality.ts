@@ -14,16 +14,19 @@ interface Level {
   pixelRatio: (deviceRatio: number) => number;
   shadows: boolean;
   shadowMapSize: number;
+  /** Seconds between redraws of the shadow map; 0 is every frame */
+  shadowEvery: number;
   /** Pedestrians drawn at all within this, in full within crowdNear, metres */
   crowdDraw: number;
   crowdNear: number;
 }
 
 export const QUALITY_LEVELS: Record<Quality, Level> = {
-  high: { label: 'High', pixelRatio: (d) => Math.min(d, 2), shadows: true, shadowMapSize: 1536, crowdDraw: 90, crowdNear: 22 },
-  balanced: { label: 'Balanced', pixelRatio: (d) => Math.min(d, 1.5), shadows: true, shadowMapSize: 1024, crowdDraw: 70, crowdNear: 14 },
-  // On a phone's dense screen fewer than one pixel per point is a blur; on an ordinary monitor 0.75 is the saving that counts
-  low: { label: 'Low', pixelRatio: (d) => (d >= 1.5 ? 1 : 0.75), shadows: false, shadowMapSize: 512, crowdDraw: 50, crowdNear: 8 },
+  high: { label: 'High', pixelRatio: (d) => Math.min(d, 2), shadows: true, shadowMapSize: 1536, shadowEvery: 0, crowdDraw: 90, crowdNear: 22 },
+  balanced: { label: 'Balanced', pixelRatio: (d) => Math.min(d, 1.5), shadows: true, shadowMapSize: 1024, shadowEvery: 0, crowdDraw: 70, crowdNear: 14 },
+  // On a phone's dense screen fewer than one pixel per point is a blur; on an ordinary monitor 0.75 is the saving that counts.
+  // The shadow stays (turning it off rebuilds every shader, a freeze of seconds) but is redrawn once a second, not every frame.
+  low: { label: 'Low', pixelRatio: (d) => (d >= 1.5 ? 1 : 0.75), shadows: true, shadowMapSize: 512, shadowEvery: 1, crowdDraw: 50, crowdNear: 8 },
 };
 
 const ORDER: Quality[] = ['high', 'balanced', 'low'];
@@ -50,6 +53,7 @@ export class GraphicsQuality {
   /** True once the player has picked a level: the game then never changes it by itself */
   public chosen = false;
   private played = 0;
+  private sinceShadow = 0;
   private frames = 0;
   private sampled = 0;
   private targets: QualityTargets;
@@ -113,6 +117,8 @@ export class GraphicsQuality {
       sun.shadow.map = null;
     }
 
+    renderer.shadowMap.autoUpdate = l.shadowEvery === 0;
+    renderer.shadowMap.needsUpdate = true;
     crowd.drawDistance = l.crowdDraw;
     crowd.nearDistance = l.crowdNear;
 
@@ -130,6 +136,15 @@ export class GraphicsQuality {
    * draw the same thing every time.
    */
   public watch(realSeconds: number): void {
+    // A shadow redrawn now and then, on a level that does not redraw it every frame
+    const every = QUALITY_LEVELS[this.level].shadowEvery;
+    if (every > 0) {
+      this.sinceShadow += realSeconds;
+      if (this.sinceShadow >= every) {
+        this.sinceShadow = 0;
+        this.targets.renderer.shadowMap.needsUpdate = true;
+      }
+    }
     if (this.chosen || this.level === 'low' || navigator.webdriver) return;
     this.played += realSeconds;
     if (this.played < WARM_UP_SECONDS) return;

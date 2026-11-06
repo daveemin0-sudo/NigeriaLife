@@ -162,7 +162,15 @@ export class PlaceInterior {
       stations: [],
       npcs: [],
     };
+  }
+
+  private isBuilt = false;
+  /** Builds the room and its people the first time it is needed (InteriorManager, on the way in) */
+  public ensureBuilt(): boolean {
+    if (this.isBuilt) return false;
+    this.isBuilt = true;
     this.build();
+    return true;
   }
 
   /** A point in the room's own space, in the world */
@@ -184,6 +192,7 @@ export class PlaceInterior {
   }
 
   private build(): void {
+    const before = new Set(this.group.children);
     const { width, length, height, floor, wall } = this.spec.room;
     this.group.add(InteriorPrefabs.createRoom(width, length, height, floor, wall));
     // Lights across the ceiling, so the room is bright at any hour
@@ -192,8 +201,8 @@ export class PlaceInterior {
     this.spec.build(b, this.group);
     for (const work of PLACE_WORK[this.spec.key] ?? []) work.build?.(b);
     this.group.add(b.build(`${this.spec.key} furniture`, { roughness: 0.7 }));
-    // What was built (not the people, nor the cards put in later): where the seats are found
-    this.built = this.group.children.slice();
+    // What was built (not the people, nor the cards put in before or after): where the seats are found
+    this.built = this.group.children.filter((child) => !before.has(child));
     if (this.spec.sign) {
       const board = signBoard([this.spec.sign.text, this.spec.sign.sub], Math.min(width - 4, 10), 1.6, this.spec.sign.bg, '#ffffff');
       board.position.set(0, height - 1.3, -length / 2 + 0.25);

@@ -94,9 +94,7 @@ export class LagosStreetLifeSystem {
 
     // 2. Shut off streetlights
     if (this.roadsRef) {
-      for (const light of this.roadsRef.streetPointLights) {
-        light.intensity = 0;
-      }
+      this.roadsRef.setLampGlow(0);
       for (const mat of this.roadsRef.streetBulbMaterials) {
         mat.emissiveIntensity = 0.02;
       }

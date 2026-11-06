@@ -92,6 +92,11 @@ export const MAIN_CORRIDOR_HALF = MAIN_ROAD.halfRoad + MAIN_ROAD.walk;
 
 export const CROSS_STREET_Z = -62;
 
+/** How far in from the kerb line a car parked on a quiet street has its middle: half up on the kerb, as in Lagos */
+export const PARK_IN = 0.5;
+/** On a quiet street with cars parked both sides, the line a driven car keeps to: this far right of the middle */
+export const quietLane = (halfRoad: number) => Math.max(0.6, halfRoad - PARK_IN - 1.0 - 0.35 - 1.0);
+
 export const SIDE_STREETS: SideStreet[] = [
   { id: 'cross', name: 'Martins Street', axis: 'x', fixed: CROSS_STREET_Z, from: -116, to: 116, halfRoad: 4.5, walk: 2.5, traffic: true },
   { id: 'north_cap', name: 'Nnamdi Azikiwe Street', axis: 'x', fixed: -124, from: -52, to: 116, halfRoad: 4.2, walk: 2.2, traffic: false },

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../../materials/MaterialLibrary';
 import { seededRandom } from '../../graphics/MeshBaker';
-import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, type SideStreet } from './StreetLayout';
+import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, type SideStreet } from './StreetLayout';
 
 // Occupancy bit flags
 const OBSTACLE = 1; // hand-built buildings, districts, props
@@ -29,6 +29,9 @@ export interface StreetSpot {
   x: number;
   z: number;
   yaw: number;
+  /** A car stood half up on the kerb: raised by this much, and tilted by this much about its length */
+  lift?: number;
+  roll?: number;
 }
 
 interface Inst {
@@ -302,13 +305,18 @@ export class CityFabric {
           run.to = s + STEP;
         }
 
-        // Kerbside parking on the quiet streets
+        // Kerbside parking on the quiet streets: half up on the kerb, as in Lagos, so the road stays open to drive
         if (!st.traffic && Math.round(s / STEP) % 3 === 0 && this.rand() < 0.62 && !this.inOtherRoad(cx, cz, st)) {
-          const parkLateral = st.fixed + sign * (st.halfRoad - 1.2);
+          const parkLateral = st.fixed + sign * (st.halfRoad - PARK_IN);
+          const yaw = isX ? (sign > 0 ? Math.PI / 2 : -Math.PI / 2) : sign > 0 ? Math.PI : 0;
+          // Tilted up on the kerb side: which way that is in the car's own frame
+          const kerbSide = isX ? sign * -Math.sin(yaw) : sign * Math.cos(yaw);
           this.parkingSpots.push({
             x: isX ? mid : parkLateral,
             z: isX ? parkLateral : mid,
-            yaw: isX ? (sign > 0 ? Math.PI / 2 : -Math.PI / 2) : sign > 0 ? Math.PI : 0,
+            yaw,
+            lift: MAIN_ROAD.sidewalkTop / 2,
+            roll: Math.sign(kerbSide) * Math.atan2(MAIN_ROAD.sidewalkTop, 1.72),
           });
         }
 

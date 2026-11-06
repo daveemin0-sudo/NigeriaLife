@@ -62,6 +62,8 @@ export class DrivableVehicle {
   public static payFare: ((stop: number, type: string, fare: number, what: string) => void) | null = null;
   /** People in front of a vehicle step out of its way: returns how many moved (set by the game) */
   public static makeWay: ((x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth: number) => number) | null = null;
+  /** Vehicles ahead hear the horn: they hurry on where the road is free and move over (set by the game) */
+  public static hootTraffic: ((x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth: number) => number) | null = null;
   /** Handling tests drive on a road with nobody else on it */
   public static ignoreBodies = false;
   /** The driver has a convoy clearing the road (set by the game): cars pulling over for it never stop them */
@@ -1775,9 +1777,15 @@ export class DrivableVehicle {
     const yaw = this.mesh.rotation.y;
     const me = bodyOf(this.mesh, this.myBody);
     const moved = DrivableVehicle.makeWay?.(this.mesh.position.x, this.mesh.position.z, Math.sin(yaw), Math.cos(yaw), 18, me.halfWidth) ?? 0;
+    // The car or okada in front hears it too, further off the faster the player is going
+    const reach = 24 + Math.max(0, this.currentSpeed) * 1.2;
+    const heard = this.driver ? (DrivableVehicle.hootTraffic?.(me.x, me.z, Math.sin(yaw), Math.cos(yaw), reach, me.halfWidth) ?? 0) : 0;
     if (moved > 0 && this.driver) {
       const lines = ['"Ehen, I don comot! Drive jeje o."', '"Oga driver, no jam me o!"', '"I dey pass, abeg no vex!"', '"Na wa for this horn sef!"', '"Easy, easy, road dey!"'];
       showGameToast(`🚶 ${lines[Math.floor(Math.random() * lines.length)]}`, 'info', 2600);
+    } else if (heard > 0) {
+      const lines = ['"Oya pass, oga!"', '"I don hear, I don hear!"', '"Na so you dey rush?"', '"Make I shift for you."'];
+      showGameToast(`🚗 ${lines[Math.floor(Math.random() * lines.length)]} The one in front moves over.`, 'info', 2200);
     }
     return this.config.hornText;
   }
@@ -1833,6 +1841,22 @@ export class DrivableVehicle {
       return true;
     }
     if (!intoPerson) {
+      // Brushed at an angle: pushed clear along the other car's side and on, a little slowed.
+      // Only a blow taken square (into its back, its front or its middle) stops the car
+      const push = this.pushClear(x, z);
+      if (push && push.square < 0.75) {
+        const nx = x + push.x;
+        const nz = z + push.z;
+        const after = this.crowding(nx, nz);
+        const solids = DrivableVehicle.solids?.();
+        const walled = solids ? this.solidPoints(solids, nx, nz) > this.solidPoints(solids, pos.x, pos.z) : false;
+        if (after.cars <= now.cars + 1e-3 && after.people <= now.people + 1e-3 && !walled) {
+          this.currentSpeed *= Math.exp(-4 * push.square * delta);
+          pos.x = nx;
+          pos.z = nz;
+          return true;
+        }
+      }
       const dx = x - pos.x;
       const dz = z - pos.z;
       const tryX = this.crowding(pos.x + dx, pos.z);
@@ -1849,12 +1873,108 @@ export class DrivableVehicle {
         return true;
       }
     }
+    const was = this.currentSpeed;
     this.currentSpeed = 0;
-    if (this.driver && performance.now() - this.bumpToastAt > 3500) {
+    // Said only for a real knock (not creeping against it), and where the other one really is
+    if (this.driver && Math.abs(was) > 1.5 && performance.now() - this.bumpToastAt > 3500) {
       this.bumpToastAt = performance.now();
-      showGameToast(intoPerson ? '🚶 Person dey your front! Hoot your horn make dem shift.' : '🚗 Motor dey your front. Reverse small, then go round am.', 'warning', 3000);
+      const where = intoPerson ? 'front' : this.whereIsCar(x, z, Math.sign(was));
+      showGameToast(
+        intoPerson
+          ? '🚶 Person dey your front! Hoot your horn make dem shift.'
+          : where === 'front'
+            ? '🚗 Motor dey your front. Hoot, or go round am.'
+            : where === 'back'
+              ? '🚗 Motor dey your back. Go forward small.'
+              : '🚗 You don touch the motor beside you. Steer away small.',
+        'warning',
+        3000
+      );
     }
     return false;
+  }
+
+  /**
+   * Standing at (x, z), how far it must be pushed to be clear of every car it would overlap: out
+   * through the nearer of each car's sides or ends. `square` is how directly the push is against
+   * the way it is going (0 a brush along a side, 1 head on). Null if it overlaps nothing.
+   */
+  private pushClear(x: number, z: number): { x: number; z: number; square: number } | null {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const r = me.halfWidth;
+    const span = Math.max(0, me.halfLength - r);
+    const n = Math.max(2, Math.ceil((span * 2) / r) + 1);
+    const fx = Math.sin(me.yaw);
+    const fz = Math.cos(me.yaw);
+    const clearing = !!this.driver && DrivableVehicle.clearsTraffic();
+    let px = 0;
+    let pz = 0;
+    let any = false;
+    for (const car of Bodies.carsNear(me.x, me.z, me.halfLength + 8)) {
+      if (clearing && car.yielding) continue;
+      const c = Math.cos(car.yaw);
+      const s = Math.sin(car.yaw);
+      // The deepest of this body's circles in that car, and the way out for it
+      let best = 0;
+      let bx = 0;
+      let bz = 0;
+      for (let i = 0; i < n; i++) {
+        const t = -span + (2 * span * i) / (n - 1);
+        const dx = me.x + fx * t - car.x;
+        const dz = me.z + fz * t - car.z;
+        const across = dx * c - dz * s;
+        const along = dx * s + dz * c;
+        const overSide = car.halfWidth + r - Math.abs(across);
+        const overAlong = car.halfLength + r - Math.abs(along);
+        if (overSide <= 0 || overAlong <= 0) continue;
+        const depth = Math.min(overSide, overAlong);
+        if (depth <= best) continue;
+        best = depth;
+        if (overSide < overAlong) {
+          bx = Math.sign(across || 1) * overSide * c;
+          bz = Math.sign(across || 1) * overSide * -s;
+        } else {
+          bx = Math.sign(along || 1) * overAlong * s;
+          bz = Math.sign(along || 1) * overAlong * c;
+        }
+      }
+      if (best > 0) {
+        any = true;
+        px += bx;
+        pz += bz;
+      }
+    }
+    if (!any) return null;
+    const length = Math.hypot(px, pz);
+    if (length < 1e-6) return null;
+    const moving = Math.sign(this.currentSpeed) || 1;
+    const square = Math.max(0, -((px / length) * fx + (pz / length) * fz) * moving);
+    // A little past clear, so the next step does not start touching
+    const extra = (length + 0.01) / length;
+    return { x: px * extra, z: pz * extra, square };
+  }
+
+  /** Where the vehicle this one would run into at (x, z) is: ahead of it, behind it, or beside it */
+  private whereIsCar(x: number, z: number, moving: number): 'front' | 'back' | 'side' {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const fx = Math.sin(me.yaw);
+    const fz = Math.cos(me.yaw);
+    let best: CarBody | null = null;
+    let deepest = 0;
+    for (const car of Bodies.carsNear(me.x, me.z, me.halfLength + 8)) {
+      const depth = depthIntoCar(me.x + fx * me.halfLength * 0.6 * moving, me.z + fz * me.halfLength * 0.6 * moving, me.halfWidth, car) + depthIntoCar(me.x, me.z, me.halfWidth, car);
+      if (depth > deepest) {
+        deepest = depth;
+        best = car;
+      }
+    }
+    if (!best) return 'side';
+    const dx = best.x - me.x;
+    const dz = best.z - me.z;
+    const ahead = dx * fx + dz * fz;
+    const across = Math.abs(dx * fz - dz * fx);
+    if (Math.abs(ahead) < across) return 'side';
+    return ahead > 0 ? 'front' : 'back';
   }
 
   /** People see a vehicle coming at them and step aside without being hooted at */
@@ -2036,32 +2156,58 @@ export class DrivableVehicle {
     this.velocityDirection.y = THREE.MathUtils.lerp(this.velocityDirection.y, forwardZ, gripFactor);
     this.velocityDirection.normalize();
 
-    const pos = this.mesh.position;
-    const stepX = this.velocityDirection.x * moveDist;
-    const stepZ = this.velocityDirection.y * moveDist;
-
-    // Buildings and walls: only the part of the speed along the wall survives the blow, so a car
-    // driven straight at a wall stops and one that strikes it at a glancing angle slides along it
-    const solids = DrivableVehicle.solids?.();
-    if (solids && solids.at(pos.x + stepX, pos.z + stepZ, 1.2)) {
-      const alongX = !solids.at(pos.x + stepX, pos.z, 1.2);
-      const alongZ = !solids.at(pos.x, pos.z + stepZ, 1.2);
-      const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
-      const length = Math.hypot(stepX, stepZ);
-      const along = length > 0 ? Math.abs(slideX ? stepX : stepZ) / length : 0;
-      if ((!slideX && !alongZ) || along < 0.2) {
-        this.currentSpeed = 0;
-        return;
-      }
-      this.currentSpeed *= along * Math.exp(-1.5 * delta);
-      // Now travelling along the wall, not into it
-      this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
-      if (slideX) this.moveUnlessBlocked(pos.x + stepX, pos.z, delta);
-      else this.moveUnlessBlocked(pos.x, pos.z + stepZ, delta);
-      return;
-    }
-
+    if (moveDist === 0) return;
     this.warnAhead();
-    this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta);
+    // A fast car goes in short steps, each checked, so it can never jump through a wall in one frame
+    const steps = Math.min(24, Math.max(1, Math.ceil(Math.abs(moveDist) / 0.5)));
+    let slowed = false;
+    for (let i = 0; i < steps; i++) {
+      const length = (this.currentSpeed * delta) / steps;
+      if (length === 0) break;
+      const stepX = this.velocityDirection.x * length;
+      const stepZ = this.velocityDirection.y * length;
+      const moved = this.stepThroughWorld(stepX, stepZ, delta, slowed);
+      if (moved === 'stopped') break;
+      if (moved === 'slid') slowed = true;
+    }
+  }
+
+  /** How many of the body's three points (nose, middle, tail) are in something solid if it stood at (x, z) */
+  private solidPoints(solids: Solids, x: number, z: number): number {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const r = Math.min(1.1, me.halfWidth * 0.92);
+    const reach = Math.max(0, me.halfLength - r);
+    const fx = Math.sin(me.yaw) * reach;
+    const fz = Math.cos(me.yaw) * reach;
+    return (solids.at(me.x + fx, me.z + fz, r) ? 1 : 0) + (solids.at(me.x, me.z, r) ? 1 : 0) + (solids.at(me.x - fx, me.z - fz, r) ? 1 : 0);
+  }
+
+  /**
+   * One short step. Buildings and walls: only the part of the speed along the wall survives the
+   * blow, so a car driven straight at a wall stops and one that strikes it at a glancing angle
+   * slides along it. Its nose and tail are checked, not only its middle, so no part goes in.
+   */
+  private stepThroughWorld(stepX: number, stepZ: number, delta: number, slowedAlready: boolean): 'moved' | 'slid' | 'stopped' {
+    const pos = this.mesh.position;
+    const solids = DrivableVehicle.solids?.();
+    if (!solids) return this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta) ? 'moved' : 'stopped';
+    const now = this.solidPoints(solids, pos.x, pos.z);
+    const next = this.solidPoints(solids, pos.x + stepX, pos.z + stepZ);
+    // Clear, or already caught on something and not going further in: free to drive out
+    if (next === 0 || (now > 0 && next <= now)) return this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta) ? 'moved' : 'stopped';
+    const alongX = this.solidPoints(solids, pos.x + stepX, pos.z) <= now;
+    const alongZ = this.solidPoints(solids, pos.x, pos.z + stepZ) <= now;
+    const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
+    const length = Math.hypot(stepX, stepZ);
+    const along = length > 0 ? Math.abs(slideX ? stepX : stepZ) / length : 0;
+    if ((!slideX && !alongZ) || along < 0.2) {
+      this.currentSpeed = 0;
+      return 'stopped';
+    }
+    if (!slowedAlready) this.currentSpeed *= along * Math.exp(-1.5 * delta);
+    // Now travelling along the wall, not into it
+    this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
+    const ok = slideX ? this.moveUnlessBlocked(pos.x + stepX, pos.z, delta) : this.moveUnlessBlocked(pos.x, pos.z + stepZ, delta);
+    return ok ? 'slid' : 'stopped';
   }
 }

@@ -151,7 +151,7 @@ export async function run(browser, check) {
   });
   check('steering: at 4 m/s on full lock the car turns in a car-like circle (radius 3.5 to 7 m)', turning.slowRadius > 3.5 && turning.slowRadius < 7, turning);
   check('steering: at 0.3 m/s it cannot spin on the spot (under 0.15 rad/s)', Math.abs(turning.crawlRate) < 0.15, turning);
-  check('steering: at 28 m/s on full lock the turn is held by the tyres (sideways acceleration at most 8.5 m/s²)', turning.fastLateral > 3 && turning.fastLateral <= 8.6, turning);
+  check('steering: at 28 m/s on full lock the turn is held by the tyres (sideways acceleration at most 13 m/s², the grip a driving game gives a saloon)', turning.fastLateral > 3 && turning.fastLateral <= 13.1, turning);
   check('steering: reversing with left lock swings the car the other way, like a car', turning.reverseRate < -0.1, turning);
 
   // ---------------------------------------------------------------------------------------
@@ -170,8 +170,9 @@ export async function run(browser, check) {
   if (ready.cross) {
     const mid = (ready.cross.minZ + ready.cross.maxZ) / 2;
     const half = (ready.cross.maxZ - ready.cross.minZ) / 2;
-    // Going east (+x, heading pi/2) the driver's right is +z: one lane each way, between the centre line and the kerb
-    const target = mid + 0.35 + (half - 0.35 - 0.6) / 2;
+    // Going east (+x, heading pi/2) the driver's right is +z: the traffic's inner lane, 1.15 m out
+    const target = mid + 1.15;
+    void half;
     const side = await page.evaluate(
       (z0) => window.__drive({ x: 14, z: z0, heading: Math.PI / 2 + 0.05, speed: 10, holdSpeed: 10, noSolids: true }, 6, 1 / 60, () => ({})),
       target - 0.8

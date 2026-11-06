@@ -1,6 +1,6 @@
 import { EXPRESS } from '../expressway/layout.ts';
 import * as THREE from 'three';
-import { MAIN_ROAD, SIDE_STREETS, MAIN_JUNCTION_GAPS, splitAroundJunctions, type SideStreet } from '../density/StreetLayout.ts';
+import { MAIN_ROAD, SIDE_STREETS, MAIN_JUNCTION_GAPS, splitAroundJunctions, quietLane, type SideStreet } from '../density/StreetLayout.ts';
 
 /**
  * The city plan: what each piece of ground in Lagos is for.
@@ -37,6 +37,8 @@ export interface Zone extends Rect {
   axis: 'x' | 'z';
   /** How wide a way through must stay clear along its whole length */
   clear: number;
+  /** A carriageway's lane centres, metres out from its middle on each side, where the traffic drives */
+  lanes?: readonly number[];
 }
 
 /** Something standing on the ground that a person or a car cannot pass through. */
@@ -115,6 +117,8 @@ function zonesForSideStreet(st: SideStreet): Zone[] {
   const zones: Zone[] = [
     {
       id: `${st.id}:road`, kind: 'carriageway', street: st.name, axis: st.axis, clear: Math.min(CLEAR_LANE, st.halfRoad * 2 - 0.5),
+      // Where a driven car keeps to: the traffic's lanes, or a line clear of the cars parked half on the kerb
+      lanes: st.traffic ? [1.15, 3.35] : [quietLane(st.halfRoad)],
       ...streetRect(st.axis, st.fixed, st.from, st.to, -st.halfRoad, st.halfRoad),
     },
   ];
@@ -133,9 +137,9 @@ function zonesForSideStreet(st: SideStreet): Zone[] {
 /** The streets of Lagos Island as zones. Read from the one street layout everything else uses. */
 export function lagosZones(): Zone[] {
   const zones: Zone[] = [
-    { id: 'broad:road', kind: 'carriageway', street: 'Broad Street', axis: 'z', clear: CLEAR_LANE * 2, minX: -MAIN_ROAD.halfRoad, maxX: MAIN_ROAD.halfRoad, minZ: MAIN_ROAD.zMin, maxZ: MAIN_ROAD.zMax },
+    { id: 'broad:road', kind: 'carriageway', street: 'Broad Street', axis: 'z', clear: CLEAR_LANE * 2, lanes: [1.8, 5.0], minX: -MAIN_ROAD.halfRoad, maxX: MAIN_ROAD.halfRoad, minZ: MAIN_ROAD.zMin, maxZ: MAIN_ROAD.zMax },
     // Broad Street carries on south as the expressway: three lanes each way either side of the barrier
-    { id: 'express:road', kind: 'carriageway', street: 'Third Mainland Expressway', axis: 'z', clear: CLEAR_LANE * 2, minX: -EXPRESS.half, maxX: EXPRESS.half, minZ: MAIN_ROAD.zMax, maxZ: EXPRESS.to + 10 },
+    { id: 'express:road', kind: 'carriageway', street: 'Third Mainland Expressway', axis: 'z', clear: CLEAR_LANE * 2, lanes: EXPRESS.lanes, minX: -EXPRESS.half, maxX: EXPRESS.half, minZ: MAIN_ROAD.zMax, maxZ: EXPRESS.to + 10 },
   ];
   // Broad Street's pavements stop for the junction and start again on the far side
   let part = 0;

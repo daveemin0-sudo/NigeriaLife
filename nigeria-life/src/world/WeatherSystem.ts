@@ -132,7 +132,9 @@ export class WeatherSystem {
   private rainVelocity: Float32Array = new Float32Array(this.rainCount);
 
   // Lightning system (delta-time phase machine, zero setTimeout)
-  private lightningLight!: THREE.PointLight;
+  /** How bright the lightning is this moment, added to the sky's light (a flash of the whole sky,
+   *  not a light of its own: one more light makes every shader in the street bigger) */
+  private lightning = 0;
   private lightningTimer: number = 0;
   private thunderPhase: number = 0; // 0: idle, 1: strike 1, 2: gap, 3: strike 2, 4: dissipation
   private phaseTimer: number = 0;
@@ -151,7 +153,6 @@ export class WeatherSystem {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.createRainSystem();
-    this.createLightningLight();
   }
 
   public registerLights(sun: THREE.DirectionalLight, hemi: THREE.HemisphereLight): void {
@@ -196,12 +197,6 @@ export class WeatherSystem {
     this.rainParticles = new THREE.Points(this.rainGeometry, this.rainMaterial);
     this.rainParticles.visible = false;
     this.scene.add(this.rainParticles);
-  }
-
-  private createLightningLight(): void {
-    this.lightningLight = new THREE.PointLight(0xdbeafe, 0, 180, 1.2);
-    this.lightningLight.position.set(0, 50, 0);
-    this.scene.add(this.lightningLight);
   }
 
   public getWeatherLabel(): string {
@@ -398,12 +393,6 @@ export class WeatherSystem {
         if (Math.random() < (this.currentWeather === 'thunderstorm' ? 0.65 : 0.25)) {
           this.thunderPhase = 1;
           this.phaseTimer = 0;
-          const center = playerPos || new THREE.Vector3(0, 0, 0);
-          this.lightningLight.position.set(
-            center.x + (Math.random() - 0.5) * 120,
-            60 + Math.random() * 20,
-            center.z + (Math.random() - 0.5) * 120
-          );
         }
         this.lightningTimer = 0;
       }
@@ -412,35 +401,36 @@ export class WeatherSystem {
         this.phaseTimer += safeDelta;
         if (this.thunderPhase === 1) {
           // Primary strike flash
-          this.lightningLight.intensity = 5.5 + Math.random() * 2.5;
+          this.lightning = 1.6 + Math.random() * 0.8;
           if (this.phaseTimer >= 0.09) {
             this.thunderPhase = 2;
             this.phaseTimer = 0;
           }
         } else if (this.thunderPhase === 2) {
           // Dark lull
-          this.lightningLight.intensity = 0;
+          this.lightning = 0;
           if (this.phaseTimer >= 0.06) {
             this.thunderPhase = 3;
             this.phaseTimer = 0;
           }
         } else if (this.thunderPhase === 3) {
           // Secondary after-flash
-          this.lightningLight.intensity = 3.2;
+          this.lightning = 1.0;
           if (this.phaseTimer >= 0.08) {
             this.thunderPhase = 4;
             this.phaseTimer = 0;
           }
         } else if (this.thunderPhase === 4) {
           // Final dissipation
-          this.lightningLight.intensity = 0;
+          this.lightning = 0;
           this.thunderPhase = 0;
           this.phaseTimer = 0;
         }
       }
     } else {
-      this.lightningLight.intensity = 0;
+      this.lightning = 0;
       this.thunderPhase = 0;
     }
+    if (this.skyEnvironment) this.skyEnvironment.flash = this.lightning;
   }
 }
