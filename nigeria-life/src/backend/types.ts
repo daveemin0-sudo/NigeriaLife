@@ -172,6 +172,9 @@ export type TransactionType =
   | 'LOAN_INSTALMENT'
   /** Bail, a fine, or an envelope for an officer (src/life/Police.ts) */
   | 'FINE_PAYMENT'
+  /** Goods bought at a motor park's goods shed, and sold at another (src/travel/Trade.ts) */
+  | 'TRADE_PURCHASE'
+  | 'TRADE_SALE'
   // Moves between the player's own bank account and wallet
   | 'ATM_WITHDRAWAL'
   | 'ATM_DEPOSIT';

@@ -96,8 +96,9 @@ export async function run(browser, check) {
     const rows = Object.fromEntries(['lagos', 'abuja', 'port_harcourt'].map((city) => [city, g.coaches.routesFrom(city).map((r) => `${r.coach} ${r.to} ${r.fare}`)]));
     return { meshes, triangles: Math.round(triangles), reach, throughTheGate: !!fenced && fenced.points.some((pt) => Math.abs(pt.x - p.doors[0].x) < 4.5 && Math.abs(pt.z - p.doors[0].z) < 3), plan: g.validateCity('lagos').map((v) => `${v.rule}: ${v.what}`), generatedInIt: g.world.standingOnTheGround().filter((o) => /^Generated building/.test(o.owner) && o.maxX > p.zone.minX && o.minX < p.zone.maxX && o.maxZ > p.zone.minZ && o.minZ < p.zone.maxZ).length, registry, rows };
   });
-  check('Jibowu Motor Park stands on Martins Street: a yard of over a thousand triangles in a handful of meshes, with a ticket window and a coach to board, both reached on foot through its gate, and Lagos still passes its plan with nothing generated on its ground',
-    lagos.name === 'Jibowu Motor Park' && built.triangles > 1000 && built.meshes <= 10 && built.reach.every(Boolean) && built.throughTheGate && built.plan.length === 0 && built.generatedInIt === 0 && lagos.coachInBay && lagos.coach.shown, { lagos: { name: lagos.name, things: lagos.things }, built });
+  // (Eleven meshes: the yard's few, and a click box each for the ticket window, the coach and the goods shed)
+  check('Jibowu Motor Park stands on Martins Street: a yard of over a thousand triangles in a handful of meshes, with a ticket window, a goods shed and a coach to board, all reached on foot through its gate, and Lagos still passes its plan with nothing generated on its ground',
+    lagos.name === 'Jibowu Motor Park' && built.triangles > 1000 && built.meshes <= 11 && built.reach.every(Boolean) && built.throughTheGate && built.plan.length === 0 && built.generatedInIt === 0 && lagos.coachInBay && lagos.coach.shown, { lagos: { name: lagos.name, things: lagos.things }, built });
   check('there is a coach each way on every road between the three cities, from one timetable',
     built.rows.lagos.length === 2 && built.rows.abuja.length === 2 && built.rows.port_harcourt.length === 2 && built.rows.lagos.includes('SR 12 abuja 42000') && built.rows.port_harcourt.includes('SR 42 abuja 36000'), built.rows);
 

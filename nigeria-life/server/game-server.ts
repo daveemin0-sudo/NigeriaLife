@@ -32,6 +32,7 @@ import { ServerMarriage } from './marriage.ts';
 import { ServerChieftaincy } from './chieftaincy.ts';
 import { ServerMotors } from './motors.ts';
 import { ServerPolice } from './police.ts';
+import { ServerTrade } from './trade.ts';
 import { Registry } from './registry.ts';
 import { DEFAULT_MAX_PLAYERS, Rooms } from './rooms.ts';
 import { isTraitId } from '../src/life/Traits.ts';
@@ -78,6 +79,8 @@ police.nameOf = (id) => accounts.get(id)?.name ?? 'someone';
 police.isOnline = (id) => rooms.isOnline(id);
 police.tell = (id, message) => rooms.tell(id, message);
 economy.hireRefusal = (id, employer) => police.refuses(id, employer.trade);
+// Trade between cities: cargo held here, bought and sold at the motor parks' goods sheds
+const trade = new ServerTrade(db, economy, (id) => rooms.positionOf(id));
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -218,7 +221,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors|police)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors|police|trade)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -320,6 +323,13 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
           ? nollywood.completeShoot(account.id, String(body.filmId ?? ''), Number(body.stars ?? 1))
           : nollywood.stateFor(account.id);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Trade between cities: what the player carries, today's prices, and buying and selling at a shed
+    if (req.method === 'GET' && url.pathname === '/trade') return reply(res, 200, trade.state(account.id));
+    if (req.method === 'POST' && (url.pathname === '/trade/buy' || url.pathname === '/trade/sell')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/trade/buy' ? trade.buy(account.id, body) : trade.sell(account.id, body);
+      return reply(res, done.ok ? 200 : 409, { ...done, wallet: economy.wallet(account.id) });
     }
     // The police: in a cell until a time, bail paid by the player or anyone else, a record that lapses
     if (req.method === 'GET' && url.pathname === '/police') return reply(res, 200, police.state(account.id));

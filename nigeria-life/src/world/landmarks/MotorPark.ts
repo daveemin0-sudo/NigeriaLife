@@ -90,6 +90,9 @@ export interface MotorParkLandmark extends Landmark {
   sendOff(gone: () => void): void;
 }
 
+/** What the goods shed's card opens: the Trade app (set by the game; src/travel/TradeDesk.ts) */
+export const motorParkTrade = { open: (): void => {} };
+
 export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
   const coaches = CoachService.get();
   const city = options.city;
@@ -179,6 +182,17 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
   // Posts for the board that stands over the back fence
   for (const u of [-5.6, 5.6]) box(0x94a3b8, 0.2, 4.2, 0.2, u, 0, DEPTH - 0.35);
 
+  // --- The goods shed, between the ticket office and the coaches: traders buy and sell what goes
+  // between the cities in the coaches' boots (src/travel/Trade.ts). A roof on posts, and the goods.
+  box(0x9a3412, 4.2, 0.16, 3.4, -11, 2.75, 11);
+  for (const u of [-12.9, -9.1]) for (const v of [9.5, 12.5]) post(0x57534e, 0.07, 2.75, u, v);
+  box(0xd6c7a1, 0.6, 0.55, 0.9, -12.2, 0, 10.2);
+  box(0xd6c7a1, 0.6, 0.55, 0.9, -12.2, 0.55, 10.2);
+  box(0xb45309, 0.55, 0.5, 0.8, -12.3, 0, 11.4);
+  box(0x1d4ed8, 0.5, 0.45, 0.7, -12.2, 0, 12.4);
+  box(0xdb2777, 0.5, 0.45, 0.7, -12.2, 0.45, 12.4);
+  b.cylinder(0xea580c, 0.24, 0.62, X(-10.6, 12.2), 0, Z(-10.6, 12.2));
+
   const group = b.build(options.id);
   group.position.set(site.x, 0, site.z);
 
@@ -212,6 +226,14 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
   };
   park(BAY_V);
   group.add(coach);
+
+  const shedPoint = at(-8.4, 11);
+  const shedTarget = at(-11, 11);
+  const goodsId = `${options.id}-goods`;
+  const goodsBox = clickBox(3.4, 3, 3.6);
+  goodsBox.position.copy(local(-11, 1.5, 11));
+  goodsBox.userData.surface = true;
+  group.add(goodsBox);
 
   // --- What can be done here --------------------------------------------------------------
   const windowPoint = at(-6.4, 4.2);
@@ -251,6 +273,14 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
     obstructions: b.obstructions(name, site.x, site.z),
     interactive: [
       {
+        mesh: goodsBox,
+        id: goodsId,
+        name: `${name}, goods shed`,
+        category: 'Trade between cities',
+        description: 'Traders buy and sell what goes between Lagos, Abuja and Port Harcourt in the coaches\' boots: crayfish and palm oil from the creeks, yams and beans from the north, Ankara and phone accessories from Lagos.',
+        interactionPoint: shedPoint,
+      },
+      {
         mesh: windowBox,
         id: ticketsId,
         name: `${name}, ticket window`,
@@ -268,6 +298,12 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
       },
     ],
     actions: {
+      [goodsId]: {
+        label: () => '📦 Goods shed: buy and sell',
+        run: (host) => {
+          host.director.perform({ id: 'talk to the traders', actor: host.actor, point: shedPoint, target: shedTarget, speed: 4, animation: { arms: 'talk' }, seconds: 1, effectAt: 0.6, effect: () => motorParkTrade.open() });
+        },
+      },
       [ticketsId]: {
         label: () => {
           const held = coaches.ticket;

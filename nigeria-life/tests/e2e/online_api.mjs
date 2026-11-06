@@ -588,6 +588,36 @@ export async function run(_browser, check) {
     check('online: a shift the game says was worked starving or worn out is docked a fifth by the server (CcHUB ₦16,000 becomes ₦12,800)',
       tired.paid.ok && tired.paid.pay === 12_800 && tired.paid.docked === true && tired.gained === 12_800, tired);
 
+    // Trade between cities: bought at the Lagos shed, carried, sold in Abuja once it could have got there
+    const trader = await call('/auth/guest', { name: 'Iya Basira' });
+    const van = await connect(trader.token);
+    await wait(200);
+    van.send(stand(0, 0));
+    await wait(300);
+    const notAtShed = await call('/trade/buy', { good: 'ankara', qty: 1, idem: idem() }, trader.token);
+    van.send(stand(92.5, -69.6));
+    await wait(11_000); // a jump across town is not believed for a while
+    van.send(stand(92.5, -69.6));
+    await wait(300);
+    const tooHeavy = await call('/trade/buy', { good: 'beans', qty: 3, idem: idem() }, trader.token);
+    const bought = await call('/trade/buy', { good: 'ankara', qty: 2, idem: idem(), price: 1 }, trader.token);
+    const lagosState = await call('/trade', null, trader.token);
+    van.send(stand(15, 35, 'abuja'));
+    await wait(300);
+    const sellTooSoon = await call('/trade/sell', { good: 'ankara', qty: 2, idem: idem() }, trader.token);
+    const shipped = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    shipped.exec('PRAGMA busy_timeout = 2000');
+    shipped.prepare('UPDATE cargo SET at = at - 300000 WHERE account_id = ?').run(trader.account.id);
+    shipped.close();
+    const sold = await call('/trade/sell', { good: 'ankara', qty: 2, idem: idem() }, trader.token);
+    van.ws.close();
+    const ankara = lagosState.prices?.find((p) => p.good === 'ankara');
+    check('online: the server runs trade: nothing away from a shed, no more than 120 kg, Ankara bought at the Lagos shed at its price (whatever the game says), not sold in Abuja before it could get there, then sold there for more',
+      !notAtShed.ok && /goods shed/.test(notAtShed.reason) && !tooHeavy.ok && /120 kg/.test(tooHeavy.reason) && bought.ok && bought.each === ankara.buy.lagos && bought.total === ankara.buy.lagos * 2
+        && lagosState.cargo.some((c) => c.good === 'ankara' && c.qty === 2 && c.city === 'lagos') && !sellTooSoon.ok && /could not have got here yet/.test(sellTooSoon.reason)
+        && sold.ok && sold.each === ankara.sell.abuja && sold.profit > 0 && sold.cargo.length === 0,
+      { notAtShed, tooHeavy, bought, sellTooSoon, sold, ankara });
+
     // The next tier, same gig clock: the code sprint the phone used to pay at once.
     const kode = await call('/auth/guest', { name: 'Kode' });
     const codeStart = await call('/work/gig/start', { gig: 'life:code' }, kode.token);

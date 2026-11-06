@@ -430,6 +430,11 @@ export class Economy {
     return this.apply(accountId, kind, -(due - fromBank), -fromBank, cleanMemo(memo), true, idem);
   }
 
+  /** Money the server itself pays a player for something it has checked (goods sold at a shed): into their cash, once by its key */
+  public credit(accountId: string, amount: number, kind: string, memo: string, idem: string): Result<{ replay?: boolean }> {
+    return this.apply(accountId, kind, Math.max(0, Math.trunc(amount)), 0, cleanMemo(memo), true, idem);
+  }
+
   /** A fee taken from a player's bank and held for something (a Hustle job) until it is paid out */
   public holdFee(accountId: string, amount: number, memo: string, idem: string): Result {
     return this.apply(accountId, 'held', 0, -Math.trunc(amount), cleanMemo(memo), true, idem);

@@ -17,6 +17,8 @@ import { Cases } from '../life/Cases';
 import { Nollywood } from '../film/Nollywood';
 import { HomeStaff } from '../housing/HomeStaff';
 import { HomePower } from '../housing/HomePower';
+import { TradeDesk } from '../travel/TradeDesk';
+import { motorParkTrade } from '../world/landmarks/MotorPark';
 import { Police } from '../life/Police';
 import { BRIBE, OFFENCES, type Custody } from '../life/Offences';
 import { InteriorManager } from '../interiors/InteriorManager';
@@ -297,7 +299,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -1052,6 +1054,14 @@ export class Game {
     this.connectPower();
     this.connectPolice();
     this.connectLandLife();
+    // Trade between cities: the desk knows where the player stands; a shed's card opens the Trade app
+    const desk = TradeDesk.get();
+    desk.where = () => (this.world.interiorManager.isPlayerInside() ? null : { city: this.world.cityManager.currentCityId, x: this.player.position.x, z: this.player.position.z });
+    desk.today = () => this.world.skyEnvironment.day;
+    motorParkTrade.open = () => {
+      this.hud.phoneModal.open();
+      this.hud.phoneModal.openApp('trade');
+    };
     // Back after time away: what it took off the needs, in one line
     BackendService.getInstance().onAway = (changed) => {
       const words: Record<string, string> = { hunger: 'hungrier', energy: 'more tired', fun: 'more bored', social: 'lonelier', hygiene: 'less fresh', bladder: 'in need of the toilet' };
