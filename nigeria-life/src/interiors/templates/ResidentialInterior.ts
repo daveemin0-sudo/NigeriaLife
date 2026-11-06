@@ -1,3 +1,5 @@
+import { fineBasin, fineCounter, fineSink, fineToilet } from '../../housing/FineFurniture';
+import { floorSurface, lightPool, repeated, smallTiles } from '../../graphics/Surfaces';
 import * as THREE from 'three';
 import { Fridge } from '../../housing/Fridge';
 import { HomeStaff } from '../../housing/HomeStaff';
@@ -82,6 +84,20 @@ export class ResidentialInterior {
   public readonly sets = new Map<string, Television>();
   private wallPaint!: THREE.MeshStandardMaterial;
   private floorMat!: THREE.MeshStandardMaterial;
+  /** The floor's finish (FLOOR_STYLES), drawn as its own texture: marble with veins, parquet, terrazzo */
+  private floorStyle = 'ceramic_white';
+  /** How big the floor is now, metres (the plan sets it), so the tiles are the right size */
+  private floorSize = { w: 32, l: 26 };
+
+  /** The floor in its finish: the texture carries the colour, repeated so a tile is a tile's size */
+  private dressFloor(): void {
+    const surface = floorSurface(this.floorStyle);
+    const old = this.floorMat.map;
+    this.floorMat.map = repeated(surface.map, this.floorSize.w / surface.metres, this.floorSize.l / surface.metres);
+    this.floorMat.color.setHex(0xffffff);
+    this.floorMat.needsUpdate = !old !== !this.floorMat.map;
+    if (old && old !== this.floorMat.map) old.dispose();
+  }
   private furnitureIds: string[] = [];
   private animTime: number = 0;
 
@@ -1237,9 +1253,10 @@ export class ResidentialInterior {
     const decorationSystem = HouseDecorationSystem.getInstance();
     this.group.add(decorationSystem.placedItemsGroup);
     decorationSystem.onPaint = (hex) => this.wallPaint.color.setHex(hex);
-    decorationSystem.onFloor = (hex, roughness) => {
-      this.floorMat.color.setHex(hex);
+    decorationSystem.onFloor = (_hex, roughness, style) => {
+      this.floorStyle = style;
       this.floorMat.roughness = roughness;
+      this.dressFloor();
     };
     decorationSystem.onChanged = () => this.furnitureChanged();
     this.room = {
@@ -1534,6 +1551,8 @@ export class ResidentialInterior {
     floor.position.set(0, -0.2, 0);
     floor.receiveShadow = true;
     shell.add(floor);
+    this.floorSize = { w: W, l: L };
+    this.dressFloor();
     const outer = (name: string, w: number, d: number, x: number, z: number) => {
       const wall = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), this.wallPaint);
       wall.name = name;
@@ -1548,9 +1567,12 @@ export class ResidentialInterior {
     // Each room's floor: tiles in the bathrooms and the kitchen, the player's own floor elsewhere
     for (const room of plan.rooms) {
       if (room.kind !== 'ensuite' && room.kind !== 'bathroom' && room.kind !== 'kitchen') continue;
+      // Small square tiles, 30 cm, grouted: beige in the kitchen, pale blue-grey in a bathroom
+      const tw = room.maxX - room.minX;
+      const td = room.maxZ - room.minZ;
       const tiles = new THREE.Mesh(
-        new THREE.PlaneGeometry(room.maxX - room.minX, room.maxZ - room.minZ),
-        new THREE.MeshStandardMaterial({ color: room.kind === 'kitchen' ? 0xd9d4c7 : 0xd6e4ec, roughness: 0.3 })
+        new THREE.PlaneGeometry(tw, td),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25, map: repeated(smallTiles(room.kind === 'kitchen' ? '#e2dccd' : '#dfe8ee'), tw / 1.2, td / 1.2) })
       );
       tiles.rotation.x = -Math.PI / 2;
       tiles.position.set((room.minX + room.maxX) / 2, 0.012, (room.minZ + room.maxZ) / 2);
@@ -1585,6 +1607,9 @@ export class ResidentialInterior {
         else solid(wall.at, mid, T / 2, len / 2);
       }
     }
+
+    // A white skirting board along the foot of every wall, and the warm pools of the downlights on the high walls
+    g.add(this.finishWalls(plan, W, L, T));
 
     // The front: a low wall with the front door in it, and the step outside
     const doorGap = 2.4;
@@ -1713,9 +1738,12 @@ export class ResidentialInterior {
     const d = f.face.x !== 0 ? f.width : f.depth;
     const group = new THREE.Group();
     group.name = `fitting ${f.kind}`;
-    if (f.kind === 'wc') {
-      b.box(white, 0.38, 0.4, 0.46, 0, 0, 0.08).box(0xffffff, 0.42, 0.05, 0.5, 0, 0.4, 0.06).box(white, 0.46, 0.42, 0.2, 0, 0.4, -d / 2 + 0.1).box(chrome, 0.08, 0.03, 0.04, 0.14, 0.83, -d / 2 + 0.12);
-    } else if (f.kind === 'shower') {
+    // The toilet, the basin, the kitchen run and its sink: the fine pieces (curved porcelain, stone, shaker doors)
+    if (f.kind === 'wc' || f.kind === 'basin' || f.kind === 'counter' || f.kind === 'sink') {
+      group.add(f.kind === 'wc' ? fineToilet() : f.kind === 'basin' ? fineBasin(-d / 2 + 0.02) : f.kind === 'counter' ? fineCounter(w, d) : fineSink());
+      return group;
+    }
+    if (f.kind === 'shower') {
       b.box(white, w, 0.08, d, 0, 0, 0).box(chrome, 0.05, 2.1, 0.05, 0, 0.08, -d / 2 + 0.08).box(chrome, 0.28, 0.04, 0.28, 0, 2.1, -d / 2 + 0.26);
       const glass = new THREE.Mesh(new THREE.BoxGeometry(w, 2.0, 0.04), new THREE.MeshStandardMaterial({ color: 0xbfe3f2, transparent: true, opacity: 0.32, roughness: 0.05 }));
       glass.position.set(0, 1.08, d / 2 - 0.02);
@@ -1736,6 +1764,71 @@ export class ResidentialInterior {
       b.box(0xcbd5e1, 0.52, 0.05, 0.36, 0, 0.89, 0.02).box(chrome, 0.04, 0.26, 0.04, 0, 0.91, -0.16).box(chrome, 0.04, 0.04, 0.16, 0, 1.15, -0.1);
     }
     group.add(b.build(`fitting ${f.kind}`, { roughness: 0.35 }));
+    return group;
+  }
+
+  /**
+   * The finish on the walls: a white skirting board along the foot of the outer walls and of each
+   * partition (both faces, broken at the doorways), and on the high outer walls the soft cones of
+   * light the downlights throw down them, warm and evenly spaced, as in a well-built Lagos home.
+   */
+  private finishWalls(plan: HomePlan, W: number, L: number, T: number): THREE.Object3D {
+    const group = new THREE.Group();
+    group.name = 'wall finish';
+    const b = new Builder();
+    const white = 0xf8fafc;
+    const SK = { h: 0.12, d: 0.025 };
+    const hw = W / 2;
+    const hl = L / 2;
+    const inner = T / 2;
+    // The outer walls' inside faces
+    b.box(white, W - T, SK.h, SK.d, 0, 0, -hl + inner + SK.d / 2);
+    b.box(white, SK.d, SK.h, L - T, -hw + inner + SK.d / 2, 0, 0);
+    b.box(white, SK.d, SK.h, L - T, hw - inner - SK.d / 2, 0, 0);
+    // Both faces of each partition, broken where its doorways are
+    for (const wall of plan.walls) {
+      const cuts: Array<[number, number]> = [];
+      let from = wall.from;
+      for (const door of [...wall.doors].sort((a, c) => a - c)) {
+        cuts.push([from, door - DOORWAY / 2]);
+        from = door + DOORWAY / 2;
+      }
+      cuts.push([from, wall.to]);
+      for (const [a, c] of cuts) {
+        if (c - a < 0.1) continue;
+        const mid = (a + c) / 2;
+        const len = c - a;
+        for (const side of [-1, 1]) {
+          if (wall.axis === 'x') b.box(white, len, SK.h, SK.d, mid, 0, wall.at + side * (inner + SK.d / 2));
+          else b.box(white, SK.d, SK.h, len, wall.at + side * (inner + SK.d / 2), 0, mid);
+        }
+      }
+    }
+    group.add(b.build('skirting', { roughness: 0.4 }));
+    // The downlights' light on the walls: a cone of warm light under each, every 2.6 m
+    const pool = lightPool();
+    if (pool) {
+      const material = new THREE.MeshBasicMaterial({ map: pool, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.95, toneMapped: false, fog: false });
+      const geometry = new THREE.PlaneGeometry(1.7, 2.8);
+      const top = 3.95;
+      const put = (x: number, z: number, yaw: number) => {
+        const cone = new THREE.Mesh(geometry, material);
+        cone.position.set(x, top - 1.3, z);
+        cone.rotation.y = yaw;
+        cone.renderOrder = 2;
+        group.add(cone);
+        // The fitting itself, a bright disc under the ceiling line
+        const lamp = new THREE.Mesh(new THREE.CircleGeometry(0.12, 16), new THREE.MeshBasicMaterial({ color: 0xfff7e0, toneMapped: false }));
+        lamp.position.set(x, top + 0.02, z);
+        lamp.rotation.y = yaw;
+        group.add(lamp);
+      };
+      for (let x = -hw + 1.6; x <= hw - 1.6; x += 2.6) put(x, -hl + inner + 0.03, 0);
+      for (let z = -hl + 1.6; z <= hl - 2.4; z += 2.6) {
+        put(-hw + inner + 0.03, z, Math.PI / 2);
+        put(hw - inner - 0.03, z, -Math.PI / 2);
+      }
+    }
     return group;
   }
 
@@ -1765,7 +1858,8 @@ export class ResidentialInterior {
       b.box(0xd4af37, ix ? 0.04 : w, 0.04, iz ? 0.04 : d, x + ix * 0.36, top + 0.12, z + iz * 0.36);
       b.box(0xffd59e, ix ? 0.06 : w - 1, 0.06, iz ? 0.06 : d - 1, x + ix * 0.4, top - 0.06, z + iz * 0.4, { glow: true });
     }
-    for (const { x, z } of lights) b.cylinder(0xf8fafc, 0.5, 0.08, x, wallH - 0.25, z, { sides: 20 }).cylinder(0xfff7d6, 0.26, 0.04, x, wallH - 0.3, z, { sides: 16, glow: true });
+    // A slim recessed downlight in each room: a small trim ring and its warm lens (seen from above, not a plate)
+    for (const { x, z } of lights) b.cylinder(0xe7e5e4, 0.16, 0.03, x, wallH - 0.22, z, { sides: 20 }).cylinder(0xfff1c8, 0.11, 0.02, x, wallH - 0.24, z, { sides: 16, glow: true });
     const pop = b.build('pop ceiling', { roughness: 0.6 });
     pop.name = 'pop ceiling';
     return pop;

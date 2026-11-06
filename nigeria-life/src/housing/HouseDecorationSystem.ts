@@ -765,7 +765,8 @@ export class HouseDecorationSystem {
   /** Told to paint the walls */
   public onPaint: ((hex: number) => void) | null = null;
   /** Told to fit the floor */
-  public onFloor: ((hex: number, roughness: number) => void) | null = null;
+  /** The floor's finish changed: its colour, its shine, and which finish it is (FLOOR_STYLES) */
+  public onFloor: ((hex: number, roughness: number, style: string) => void) | null = null;
   /** Where a new piece first appears: in front of the player */
   public startAt: (() => { x: number; z: number }) | null = null;
 
@@ -813,7 +814,7 @@ export class HouseDecorationSystem {
     for (const item of this.placed) this.solidify(item, true);
     this.onPaint?.(this.wallHex());
     const fi = this.floorInfo();
-    this.onFloor?.(fi.hex, fi.roughness);
+    this.onFloor?.(fi.hex, fi.roughness, this.floorStyle);
   }
 
   public wallHex(): number {
@@ -1258,7 +1259,7 @@ export class HouseDecorationSystem {
     } catch {
       // Storage shut off: the flooring holds until the page is closed
     }
-    this.onFloor?.(style.hex, style.roughness);
+    this.onFloor?.(style.hex, style.roughness, style.id);
     this.backend.notifyDeedChanged();
     return { ok: true };
   }
@@ -1291,7 +1292,7 @@ export class HouseDecorationSystem {
           if (parsed.floor && FLOOR_STYLES.some((f) => f.id === parsed.floor)) {
             this.floorStyle = parsed.floor;
             const fi = this.floorInfo();
-            this.onFloor?.(fi.hex, fi.roughness);
+            this.onFloor?.(fi.hex, fi.roughness, this.floorStyle);
           }
           try {
             localStorage.setItem(this.lookKey, JSON.stringify({ wall: this.wallColour, floor: this.floorStyle }));
@@ -1376,7 +1377,7 @@ export class HouseDecorationSystem {
     }
     this.onPaint?.(this.wallHex());
     const fi = this.floorInfo();
-    this.onFloor?.(fi.hex, fi.roughness);
+    this.onFloor?.(fi.hex, fi.roughness, this.floorStyle);
     this.save();
     this.onChanged?.();
   }
