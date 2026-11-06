@@ -305,7 +305,7 @@ export class CityPopulation {
     for (const run of runs) {
       const length = run.to - run.from;
       if (length < 10) continue;
-      const walkers = Math.round(length / 9);
+      const walkers = Math.round(length / (run.every ?? 9));
       for (let i = 0; i < walkers; i++) {
         this.addWalker(run.axis, run.fixed + (this.rand() - 0.5) * 1.0, run.from + 1, run.to - 1, false);
       }

@@ -870,4 +870,163 @@ const LAGOS_BARBERS: PlaceSpec = {
   ],
 };
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS];
+
+// --- Abuja: the places along its avenues, each out at its own door on the street (src/cities/AbujaDistricts.ts) ---
+const abuja = (spec: PlaceSpec, out: [number, number]): PlaceSpec => ({ ...spec, streetId: `roadside-${spec.key}`, comeOut: [out[0], 0, out[1]] });
+const ABUJA_SPECS: PlaceSpec[] = [
+  abuja(venue('national-assembly', 'National Assembly', 'Three Arms Zone · the legislature', 'Senate · House of Representatives · Public gallery', '#14532d', 0xe7e5e4, 0xf8fafc, (b) => {
+    // The chamber: rows of green benches facing the presiding officer's seat, the mace on its table
+    for (let r = 0; r < 3; r++) for (let i = -3; i <= 3; i++) b.box(0x166534, 1.6, 0.5 + r * 0.25, 0.7, i * 2, 0, 1 + r * 1.6, { yaw: i * 0.06 });
+    b.box(0x78350f, 4, 1.1, 1.4, 0, 0, -6).box(0xd4af37, 4.2, 0.08, 1.5, 0, 1.1, -6);
+    b.box(0x78350f, 2.6, 1.5, 1.2, 0, 0, -8).box(0x166534, 1.2, 1.4, 0.2, 0, 1.5, -8.6);
+    b.cylinder(0xd4af37, 0.08, 1.6, 0, 1.18, -6, { sides: 8 }).dome(0xd4af37, 0.18, 0, 2.7, -6);
+    for (let f = 0; f < 3; f++) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.9, 1.8, 0.05, -0.9 + f * 0.9, 3.2, -8.9);
+    for (const x of [-8, 8]) b.cylinder(0xf8fafc, 0.4, 5, x, 0, -2);
+  }, [
+    { name: 'Sergeant-at-Arms', title: 'Sergeant-at-Arms', at: [-3, -6], facing: 0, outfit: 0x111827, gender: 'male', cap: true, says: 'The gallery is upstairs. No phones while the Senate sits.' },
+    { name: 'Clerk Hauwa', title: 'Clerk of the Senate', at: [3, -7], facing: 0, outfit: 0x14532d, gender: 'female', says: 'The order paper for today: the budget, then a motion on the roads.' },
+  ], [
+    { id: 'gallery', name: '🏛️ Watch the Senate sit', at: [0, 4], stand: [0, 5.4], who: 'Sergeant-at-Arms', role: 'Public gallery', text: 'Sit quietly. They are on the budget.', choices: [{ label: 'Watch from the gallery', note: 'Fun +15, Social +5', sit: true, seconds: 8, effect: need({ fun: 15, social: 5 }), said: 'Point of order! The Senate President banged the gavel and the budget went to second reading.' }] },
+    { id: 'rep', name: '🤝 See your representative', at: [3, -7], stand: [3, -5.6], who: 'Clerk Hauwa', role: 'National Assembly', text: 'Your member has five minutes after plenary.', choices: [{ label: 'Tell them what your street needs', note: 'Social +15', arms: 'wave', seconds: 4, effect: need({ social: 15 }), said: 'The honourable member wrote it down and promised a borehole. We will see.' }] },
+  ], [{ at: [-2, 1], facing: Math.PI, outfit: 0x1e3a8a, sit: true }, { at: [2, 2.6], facing: Math.PI, outfit: 0x7f1d1d, sit: true }], [22, 20]), [342, -15]),
+
+  abuja(venue('transcorp-hilton', 'Transcorp Hilton Abuja', 'Maitama · hotel', '★★★★★ · Lobby bar · Buffet · Pool', '#0c4a6e', 0xf5f5f4, 0xe7e5e4, (b) => {
+    counter(b, -5, -6, 7, 0x0c4a6e, 0xf8fafc);
+    b.cylinder(0xfacc15, 0.1, 1.4, 0, 3.6, 0).dome(0xfde68a, 1, 0, 3.2, 0, { glow: true });
+    bottles(b, 6.5, -8.6, 4);
+    counter(b, 6.5, -6.5, 4, 0x1c1917, 0xd4af37);
+    for (const [x, z] of [[-6, 3], [-3, 3], [-6, 6]]) table(b, x, z, 0xf8fafc, 4, 0x0c4a6e);
+    b.box(0x0284c7, 7, 0.1, 4, 6, 0.01, 5.5, { glow: true });
+  }, [
+    { name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0x0c4a6e, gender: 'female', says: 'Welcome to Transcorp Hilton. Checking in?' },
+    { name: 'Barman Ifeanyi', title: 'Lobby bar', at: [6.5, -7.5], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'Chapman, or something stronger?' },
+  ], [
+    { id: 'buffet', name: '🍽️ The buffet', at: [-6, 3], stand: [-6, 3.95], who: 'Waiter', role: 'Transcorp Hilton', text: 'The buffet is open.', choices: [{ label: 'The lunch buffet', price: 32000, note: 'Hunger +70, Fun +10', sit: true, seconds: 7, effect: need({ hunger: 70, fun: 10 }), said: 'Jollof, asun, pepper soup and three desserts. You went back twice.' }] },
+    { id: 'bar', name: '🍹 The lobby bar', at: [6.5, -6.5], stand: [6.5, -5.1], who: 'Barman Ifeanyi', role: 'Lobby bar', text: 'What will it be?', choices: [{ label: 'A Chapman by the window', price: 7000, note: 'Fun +15, Social +10', sit: true, seconds: 5, effect: need({ fun: 15, social: 10 }), said: 'Half of Abuja is doing deals at the next table.' }] },
+    { id: 'pool', name: '🏊 The pool', at: [6, 5.5], stand: [3, 5.5], who: 'Pool attendant', role: 'Transcorp Hilton', text: 'Towel and a lounger?', choices: [{ label: 'A swim', price: 18000, note: 'Fun +25, Hygiene +20', arms: 'swing', seconds: 6, effect: need({ fun: 25, hygiene: 20 }), said: 'Clear water, the Maitama hills behind it.' }] },
+  ], [{ at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true }, { at: [7.5, -5], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' }], [24, 20]), [280, 157]),
+
+  abuja(venue('cbn-abuja', 'Central Bank of Nigeria', 'Central Business District · the apex bank', 'Visitors centre · Currency museum', '#0f172a', 0xd6d3d1, 0xe7e5e4, (b) => {
+    counter(b, 0, -6, 6, 0x0f172a, 0xd4af37);
+    // Glass cases of notes and coins down each side, and the vault door at the back
+    for (const x of [-7, 7]) for (const z of [-3, 1, 5]) b.box(0x334155, 1.6, 0.9, 1, x, 0, z).box(0x86efac, 1.4, 0.5, 0.8, x, 0.9, z, { glow: true });
+    b.cylinder(0x9ca3af, 2.2, 0.4, 0, 2.6, -8.7, { sides: 24 }).cylinder(0x6b7280, 0.6, 0.5, 0, 2.6, -8.4, { sides: 12 });
+  }, [{ name: 'Guide Chinedu', title: 'Visitors centre', at: [0, -7], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Welcome. This is how the Naira is made and kept.' }], [
+    { id: 'museum', name: '💵 The currency museum', at: [-7, 1], stand: [-5.6, 1], who: 'Guide Chinedu', role: 'Currency museum', text: 'From the pound to the Naira, every note we have printed.', choices: [{ label: 'Take the tour', note: 'Fun +12', arms: 'rest', seconds: 6, effect: need({ fun: 12 }), said: 'The first Naira notes of 1973, the old 20 kobo, and why the 1,000 note changed.' }] },
+    { id: 'coins', name: '🪙 The gift counter', at: [0, -6], stand: [0, -4.6], who: 'Guide Chinedu', role: 'Gift counter', text: 'Mint sets and commemorative coins.', choices: [buy('A commemorative coin set', 15000, { id: 'cbn_coins', name: 'CBN commemorative coins', icon: '🪙', price: 15000, category: 'luxury', usable: false, description: 'A mint set in a case.' }, 'A mint set in a velvet case.')] },
+  ], [{ at: [5, 1], facing: -Math.PI / 2, outfit: 0x2563eb }], [20, 18]), [196, 189]),
+
+  abuja(venue('millennium-tower', 'Millennium Tower', 'Central Business District · observation deck', 'Observation deck · Café · 102 m up', '#0f766e', 0xe5e7eb, 0xccfbf1, (b) => {
+    // The deck: glass all round, telescopes at the rail, the café counter
+    for (const x of [-9.6, 9.6]) b.box(0x99f6e4, 0.1, 3.4, 16, x, 0.6, 0, { glow: true });
+    b.box(0x99f6e4, 18, 3.4, 0.1, 0, 0.6, -8.6, { glow: true });
+    for (const [x, z] of [[-8, -6], [-8, 2], [8, -6], [8, 2]]) b.cylinder(0x334155, 0.08, 1.1, x, 0, z).box(0x0f172a, 0.25, 0.25, 0.7, x, 1.1, z, { yaw: x > 0 ? Math.PI / 2 : -Math.PI / 2 });
+    counter(b, 0, -6.5, 5, 0x0f766e, 0xf8fafc);
+    for (const [x, z] of [[-3, 3], [3, 3]]) table(b, x, z, 0xf8fafc, 3, 0x0f766e);
+  }, [{ name: 'Lift attendant', title: 'Observation deck', at: [0, -7.5], facing: 0, outfit: 0x0f766e, gender: 'female', says: 'Welcome to the top of Abuja.' }], [
+    { id: 'deck', name: '🔭 The view', at: [-8, -6], stand: [-7, -6], who: 'Lift attendant', role: 'Observation deck', text: 'On a clear day you see past Aso Rock to the hills.', choices: [{ label: 'Look out over the city', price: 6000, note: 'Fun +30', arms: 'rest', seconds: 6, effect: need({ fun: 30 }), said: 'The green dome, Eagle Square, the avenues to the horizon, and Aso Rock over all of it.' }] },
+    { id: 'cafe', name: '☕ The café', at: [0, -6.5], stand: [0, -5.1], who: 'Lift attendant', role: 'Café', text: 'Something while you look?', choices: [{ label: 'Small chops and a latte', price: 7500, note: 'Hunger +25, Fun +10', sit: true, seconds: 5, effect: need({ hunger: 25, fun: 10 }), said: 'Puff-puff and samosa a hundred metres up.' }] },
+  ], [{ at: [8, -1], facing: Math.PI / 2, outfit: 0xec4899, gender: 'female' }], [20, 18]), [225, 412]),
+
+  abuja(venue('wuse-market', 'Wuse Market', 'Wuse · market', 'Foodstuff · Fabric · Phones · Everything', '#14532d', 0x8b8378, 0xd6c7a1, (b) => {
+    for (let i = 0; i < 4; i++) {
+      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
+      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0xdc2626, 0xf59e0b, 0x65a30d, 0xfef3c7][i]);
+    }
+    for (let i = 0; i < 5; i++) sack(b, -7 + i * 1.2, 4, [0xf5f5f4, 0xfde68a][i % 2]);
+    for (let i = 0; i < 3; i++) b.box([0x7c3aed, 0x0891b2, 0xdb2777][i], 1.6, 2.2, 0.1, 5 + i * 1.8, 0.4, 5);
+  }, [
+    { name: 'Mama Ngozi', title: 'Foodstuff', at: [-7, -6.2], facing: 0, outfit: 0xf59e0b, gender: 'female', says: 'Customer, come and buy. Fresh pepper, fresh tomato!' },
+    { name: 'Alhaji Sani', title: 'Fabric', at: [7, 3.5], facing: Math.PI, outfit: 0x0f766e, gender: 'male', cap: true, says: 'Original Holland wax. I will give you good price.' },
+  ], [
+    { id: 'foodstuff', name: '🍅 Foodstuff', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Ngozi', role: 'Wuse Market', text: 'Rice, beans, pepper, oil: what are you cooking?', choices: [
+      buy('A paint bucket of rice', 9500, { id: 'rice_bucket', name: 'Rice (paint bucket)', icon: '🍚', price: 9500, category: 'food', usable: true, description: 'Enough rice for the week.' }, 'She shook the bucket to settle it and added a handful for you.'),
+      buy('Pepper and tomatoes', 3500, { id: 'pepper_mix', name: 'Pepper and tomatoes', icon: '🌶️', price: 3500, category: 'food', usable: true, description: 'For stew.' }, 'Fresh tatashe, rodo and tomatoes in a black nylon.'),
+    ] },
+    { id: 'fabric', name: '🧵 Fabric', at: [7, 5], stand: [7, 3.6], who: 'Alhaji Sani', role: 'Fabric stalls', text: 'Six yards, for an outfit?', choices: [buy('Six yards of Holland wax', 28000, { id: 'ankara_6', name: 'Holland wax, six yards', icon: '🧵', price: 28000, category: 'luxury', usable: false, description: 'Take it to a tailor.' }, 'He folded it neatly: real Holland, you will remember me.')] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [24, 20]), [-175, 186]),
+
+  abuja(venue('jabi-lake-mall', 'Jabi Lake Mall', 'Jabi · mall', 'Shoprite · Food court · Cinema · Lake view', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
+    for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0xdc2626, 0xfacc15, 0x2563eb, 0x16a34a, 0xf8fafc]);
+    for (const x of [-6, -3]) counter(b, x, 0, 1.6, 0xdc2626);
+    counter(b, 7, -3, 4, 0xf59e0b);
+    for (const [x, z] of [[5, 2], [8, 2], [5, 5.5], [8, 5.5]]) table(b, x, z, 0xf8fafc, 2, 0xdc2626);
+    screen(b, -5, 8.7, 4, 1.4, 2.4, 0x7c3aed);
+    b.box(0x7dd3fc, 8, 3, 0.1, 6, 0.8, 9.4, { glow: true });
+  }, [
+    { name: 'Cashier Zainab', title: 'Cashier', at: [-6, -1], facing: Math.PI, outfit: 0xdc2626, gender: 'female', says: 'Next customer, please.' },
+    { name: 'Chef Musa', title: 'Food court', at: [7, -4], facing: 0, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Suya wrap or chicken and chips?' },
+  ], [
+    { id: 'shelves', name: '🛒 Shoprite', at: [-3, -6], stand: [-3, -4.8], who: 'Shoprite', role: 'Jabi Lake Mall', text: 'Groceries, drinks and home things.', choices: [{ label: 'Shop', note: 'Opens Shopping', open: 'app:shopping' }] },
+    { id: 'food', name: '🍗 Food court', at: [7, -3], stand: [7, -1.7], who: 'Chef Musa', role: 'Food court', text: 'What will you have?', choices: [{ label: 'Chicken and chips with a Coke', price: 6500, note: 'Hunger +45', sit: true, seconds: 5, effect: need({ hunger: 45 }), said: 'Crispy, hot, and the lake out of the window.' }] },
+    { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'The new Nollywood picture is at 6.', choices: [{ label: 'A ticket and popcorn', price: 7500, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'The whole hall clapped at the end.' }] },
+  ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-3, -3], facing: 0, outfit: 0xec4899, gender: 'female' }], [24, 20]), [-475, 416]),
+
+  abuja(venue('national-hospital-abuja', 'National Hospital Abuja', 'Garki · hospital', 'Emergency 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
+    counter(b, -5, -6, 5, 0xf8fafc, 0x93c5fd);
+    shelf(b, 6, -7, 4, [0xf8fafc, 0x22c55e, 0xdc2626]);
+    counter(b, 6, -5, 4, 0x16a34a, 0xf8fafc);
+    for (let i = 0; i < 3; i++) b.box(0xf8fafc, 1.1, 0.6, 2.2, -6 + i * 3, 0, 4).box(0x93c5fd, 1, 0.15, 2, -6 + i * 3, 0.6, 4);
+  }, [
+    { name: 'Nurse Aisha', title: 'Nurse', at: [-5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your folder, please. The doctor will see you now.' },
+    { name: 'Pharmacist Emeka', title: 'Pharmacist', at: [6, -6], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+  ], [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-5, -6], stand: [-5, -4.7], who: 'Nurse Aisha', role: 'National Hospital', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 18000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant listened, checked everything and wrote it all down.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [6, -5], stand: [6, -3.7], who: 'Pharmacist Emeka', role: 'Pharmacy', text: 'What do you need?', choices: [
+      buy('Malaria treatment', 7000, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 7000, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
+      buy('Paracetamol', 1200, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1200, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
+    ] },
+    { id: 'ward', name: '🛏️ Admission', at: [-3, 4], stand: [-3, 2.4], who: 'Nurse Aisha', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 55000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
+  ], [{ at: [-6, 4], facing: 0, outfit: 0x60a5fa, sit: true }], [20, 18]), [-290, 443]),
+];
+
+
+// --- Port Harcourt: the places along its roads, out at their own doors (src/cities/PortHarcourtDistricts.ts) ---
+const PH_SPECS: PlaceSpec[] = [
+  abuja(venue('mile-one-market', 'Mile 1 Market', 'Diobu · market', 'Periwinkle · Crayfish · Plantain · Fabric', '#14532d', 0x8b8378, 0xc8b48a, (b) => {
+    for (let i = 0; i < 4; i++) {
+      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
+      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0x78350f, 0xdc2626, 0x65a30d, 0xfacc15][i]);
+    }
+    for (let i = 0; i < 6; i++) b.cylinder([0x1f2937, 0x57534e][i % 2], 0.4, 0.35, -7 + i * 1.3, 0, 4, { sides: 14 }).dome(0x44403c, 0.36, -7 + i * 1.3, 0.35, 4);
+    for (let i = 0; i < 3; i++) b.box([0xf59e0b, 0x0891b2, 0x7c3aed][i], 1.6, 2.2, 0.1, 5 + i * 1.8, 0.4, 5);
+  }, [
+    { name: 'Mama Ibiere', title: 'Seafood', at: [-7, -6.2], facing: 0, outfit: 0x0891b2, gender: 'female', says: 'Fresh periwinkle, fresh crayfish! Come and price.' },
+    { name: 'Mr Ebi', title: 'Fabric', at: [7, 3.5], facing: Math.PI, outfit: 0x7c2d12, gender: 'male', says: 'George wrapper, Akwete, real Holland. Which one?' },
+  ], [
+    { id: 'seafood', name: '🦐 Seafood', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Ibiere', role: 'Mile 1 Market', text: 'For native soup or for pepper soup?', choices: [
+      buy('Periwinkle and crayfish', 6500, { id: 'periwinkle', name: 'Periwinkle and crayfish', icon: '🦐', price: 6500, category: 'food', usable: true, description: 'For native soup.' }, 'She packed it in a black nylon and added two extra crayfish.'),
+      buy('A bunch of plantain', 4000, { id: 'plantain', name: 'Plantain (bunch)', icon: '🍌', price: 4000, category: 'food', usable: true, description: 'Ripe enough for dodo tomorrow.' }, 'Ripe in two days. Dodo time.'),
+    ] },
+    { id: 'fabric', name: '🧵 George and wrappers', at: [7, 5], stand: [7, 3.6], who: 'Mr Ebi', role: 'Fabric stalls', text: 'For an occasion?', choices: [buy('A George wrapper', 35000, { id: 'george_wrapper', name: 'George wrapper', icon: '🧵', price: 35000, category: 'luxury', usable: false, description: 'For the next owambe.' }, 'He spread it out: real George, the colours will not fade.')] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Mile 1 Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x16a34a }], [24, 20]), [-211, 189]),
+
+  abuja(venue('ph-mall', 'Port Harcourt Mall', 'Old GRA · mall', 'Shoprite · Food court · Cinema', '#0c4a6e', 0xf1f5f9, 0xf8fafc, (b) => {
+    for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0x0c4a6e, 0xfacc15, 0xdc2626, 0x16a34a, 0xf8fafc]);
+    for (const x of [-6, -3]) counter(b, x, 0, 1.6, 0x0c4a6e);
+    counter(b, 7, -3, 4, 0xf59e0b);
+    for (const [x, z] of [[5, 2], [8, 2], [5, 5.5], [8, 5.5]]) table(b, x, z, 0xf8fafc, 2, 0x0c4a6e);
+    screen(b, -5, 8.7, 4, 1.4, 2.4, 0x7c3aed);
+  }, [
+    { name: 'Cashier Boma', title: 'Cashier', at: [-6, -1], facing: Math.PI, outfit: 0x0c4a6e, gender: 'female', says: 'Next customer, please.' },
+    { name: 'Chef Tari', title: 'Food court', at: [7, -4], facing: 0, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Bole and fish, or chicken and chips?' },
+  ], [
+    { id: 'shelves', name: '🛒 Shoprite', at: [-3, -6], stand: [-3, -4.8], who: 'Shoprite', role: 'Port Harcourt Mall', text: 'Groceries, drinks and home things.', choices: [{ label: 'Shop', note: 'Opens Shopping', open: 'app:shopping' }] },
+    { id: 'food', name: '🐟 Food court', at: [7, -3], stand: [7, -1.7], who: 'Chef Tari', role: 'Food court', text: 'What will you have?', choices: [{ label: 'Bole and roasted fish', price: 5500, note: 'Hunger +45', sit: true, seconds: 5, effect: need({ hunger: 45 }), said: 'Roasted plantain, catfish and the pepper sauce. Port Harcourt on a plate.' }] },
+    { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'The new picture is at 7.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'Packed hall, loud laughs.' }] },
+  ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }], [24, 20]), [-180, 389]),
+
+  abuja(venue('rivers-govt-house', 'Rivers State Government House', 'Rumuola · the Brick House', 'Office of the Governor', '#7c2d12', 0xe7e5e4, 0xf5efe6, (b) => {
+    counter(b, 0, -6, 6, 0x7c2d12, 0xd4af37);
+    for (let f = 0; f < 3; f++) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.8, 1.6, 0.05, -0.8 + f * 0.8, 3, -8.8);
+    for (const x of [-7, 7]) b.cylinder(0xf8fafc, 0.4, 5, x, 0, -4);
+    for (let i = 0; i < 6; i++) b.box(0x7c2d12, 0.5, 0.45, 0.5, -3 + i * 1.2, 0, 3);
+  }, [{ name: 'Chief of Staff', title: 'Chief of Staff', at: [0, -7], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'His Excellency is in Exco. Can I help you?' }], [
+    { id: 'petition', name: '📜 Leave a petition', at: [0, -6], stand: [0, -4.6], who: 'Chief of Staff', role: 'Government House', text: 'Write it down. It will get to his desk.', choices: [{ label: 'About the roads in your area', note: 'Social +10', arms: 'reach', seconds: 3, effect: need({ social: 10 }), said: 'Stamped, signed, filed. "We will look into it."' }] },
+    { id: 'house', name: '🏛️ The State House', at: [3, 3], stand: [3, 4.4], who: 'Chief of Staff', role: 'Government House', text: 'Laws, the cabinet and the election.', choices: [{ label: 'Open the State House', note: 'Pay is collected here', open: 'house' }] },
+  ]), [-370, -190]),
+];
+
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS];

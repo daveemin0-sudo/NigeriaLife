@@ -12,6 +12,17 @@ import { PlaceActions } from '../destinations/PlaceActions';
 import { settleGig } from '../online/checkedEarn';
 import { WorldMapPrefabs } from '../world/map/WorldMapPrefabs';
 import { CityLife } from './CityLife';
+import { buildGrid, type GridStyle } from './CityGrid';
+import { PH_CREEK, PH_ROADS } from '../world/plan/GridRoads';
+import { PH_KEEP_OUT, buildPhLandmarks, phBuildings } from './PortHarcourtDistricts';
+import { avenueTrees, cullTiles, placeDoors, tiledTown, type CityTile } from './CityExtras';
+import type { AbujaPlace as CityPlace } from './AbujaDistricts';
+
+/** Port Harcourt's roads: worn asphalt, a yellow line down the middle, kerbs painted black and yellow, open drains */
+const PH_STYLE: GridStyle = {
+  asphalt: 0x2a2c30, line: 0xe5e7eb, centre: 0xfacc15, medianTop: 0x3f6212, kerb: 0x111827, kerbStripe: 0xfacc15,
+  pavement: 0xa8a29e, top: 0.3, lamp: 'single', drain: true,
+};
 
 export class PortHarcourtCity implements CityInstance {
   public group: THREE.Group;
@@ -25,26 +36,30 @@ export class PortHarcourtCity implements CityInstance {
   public life: CityLife;
 
   private animTime: number = 0;
+  /** The places Port Harcourt is known for, with their doors on the street */
+  public places: CityPlace[] = [];
+  private tiles: CityTile[] = [];
+  private sinceTiles = 1;
 
   constructor() {
     this.group = new THREE.Group();
 
     // 1. Niger Delta Tropical Ground
-    const groundGeo = new THREE.PlaneGeometry(320, 320);
+    const groundGeo = new THREE.PlaneGeometry(1140, 880);
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x166534, // Lush Niger Delta greenery
       roughness: 0.85,
     });
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
     this.groundMesh.rotation.x = -Math.PI / 2;
+    // The whole city: Ikwerre Road in the west to Trans-Amadi in the east
+    this.groundMesh.position.set(-10, 0, 140);
     this.groundMesh.receiveShadow = true;
     this.group.add(this.groundMesh);
 
-    // 2. Aba Road Primary Commercial Street
-    this.buildAbaRoad();
-
-    // 3. Port Harcourt Creek Canal with Mangroves
-    this.buildCreekCanal();
+    // 2. The roads: Aba Road and Ikwerre Road, Trans-Amadi beyond the creek, three roads across over its bridges
+    const roads = buildGrid('Port Harcourt roads', PH_ROADS, PH_STYLE);
+    this.group.add(roads.group);
 
     // 4. Trans-Amadi Petrochemical Refinery built with the building kit
     this.refinery = createRefinery({ id: 'ph-refinery-complex', x: 37, z: -46 });
@@ -71,8 +86,37 @@ export class PortHarcourtCity implements CityInstance {
     // The ordinary buildings of the city: offices, shops, flats, houses, a hotel, along Aba Road and behind it
     const town = buildTownscape('Port Harcourt townscape', PORT_HARCOURT_BUILDINGS);
     this.group.add(town.group);
-    // The creek is water: nobody walks or drives on it
-    this.standing = [...town.obstructions, ...this.refinery.obstructions, { owner: 'The creek', structure: false, height: 2, minX: 51, maxX: 79, minZ: -140, maxZ: 140 }];
+    // The creek (drawn with the landmarks, the whole length of the city) is water: nobody walks or drives on it but over the bridges
+    this.standing = [...town.obstructions, ...this.refinery.obstructions, ...roads.obstructions];
+    // The districts along the roads, a square of the city at a time; the places it is known for
+    const blocks = tiledTown('Port Harcourt', phBuildings());
+    for (const t of blocks.tiles) this.group.add(t.group);
+    this.tiles = blocks.tiles;
+    this.standing.push(...blocks.obstructions);
+    const marks = buildPhLandmarks();
+    this.group.add(marks.group);
+    this.standing.push(...marks.obstructions);
+    this.places = marks.places;
+    placeDoors(this.group, this.interactiveList, this.places, 'ph', {
+      'pleasure-park': { label: '🎡 Pleasure Park', who: 'Pleasure Park', role: 'Rumuokoro', text: 'The big wheel is turning. What will it be?', choices: [
+        { label: '🎡 A ride on the big wheel', note: 'Fun +25', price: 2000, arms: 'rest', seconds: 7, needs: { fun: 25 }, said: 'Round and up: the whole Garden City, the creek and the flares at Trans-Amadi.' },
+        { label: '🧺 A picnic on the lawn', note: 'Fun +15, Social +10', price: 4500, arms: 'reach', seconds: 6, needs: { fun: 15, social: 10, hunger: 20 }, said: 'Suya, chapman and a breeze. Sunday done well.' },
+      ] },
+      waterfront: { label: '⛵ The waterfront', who: 'Boatman Tamuno', role: 'Port Harcourt Waterfront', text: 'Boat to the islands, or fish fresh off the jetty?', choices: [
+        { label: '⛵ A boat round the creek', note: 'Fun +25', price: 5000, arms: 'rest', seconds: 7, needs: { fun: 25 }, said: 'Past the mangroves and the fishing canoes, the city behind you.' },
+        { label: '🐟 Roasted fish on the jetty', note: 'Hunger +40', price: 3500, arms: 'reach', seconds: 5, needs: { hunger: 40 }, said: 'Catfish off the grill with pepper sauce. Hot.' },
+      ] },
+    });
+    // Palms down the roads, and along both banks of the creek
+    const banks: Array<{ x: number; z: number; s: number }> = [];
+    for (let z = PH_CREEK.from + 8; z < PH_CREEK.to - 8; z += 20) {
+      const bridge = PH_ROADS.some((r) => r.axis === 'x' && Math.abs(z - r.fixed) < r.halfRoad + r.walk + 6);
+      const jetty = z > 222 && z < 358;
+      if (bridge) continue;
+      banks.push({ x: PH_CREEK.minX - 3, z, s: 1.1 });
+      if (!jetty) banks.push({ x: PH_CREEK.maxX + 3, z: z + 10, s: 1 });
+    }
+    this.group.add(avenueTrees(PH_ROADS, blocks.footprints, PH_KEEP_OUT.slice(1), 'palm', 26, banks, 'Port Harcourt palms'));
     // A cash machine in the wall of the bank on Aba Road
     const machine = createCashMachine({ id: 'delta-bank-ph', name: 'Delta Bank', x: 16.9, z: -22.4, facing: -Math.PI / 2 });
     this.group.add(machine.group);
@@ -271,83 +315,6 @@ export class PortHarcourtCity implements CityInstance {
   }
 
   // =========================================================================
-  // 1. ABA ROAD CORRIDOR
-  // =========================================================================
-  private buildAbaRoad(): void {
-    const roadWidth = 18;
-    const roadLen = 260;
-    const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLen);
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
-    const road = new THREE.Mesh(roadGeo, roadMat);
-    road.rotation.x = -Math.PI / 2;
-    road.position.y = 0.05;
-    road.receiveShadow = true;
-    this.group.add(road);
-
-    // Yellow Dashed Centerlines
-    const stripeGeo = new THREE.PlaneGeometry(0.3, 3.0);
-    const stripeMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-    for (let z = -120; z <= 120; z += 6) {
-      const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-      stripe.rotation.x = -Math.PI / 2;
-      stripe.position.set(0, 0.06, z);
-      this.group.add(stripe);
-    }
-
-    // Concrete Sidewalks
-    const walkGeo = new THREE.BoxGeometry(3.5, 0.3, roadLen);
-    const walkMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 });
-
-    const walkL = new THREE.Mesh(walkGeo, walkMat);
-    walkL.position.set(-10.75, 0.15, 0);
-    walkL.receiveShadow = true;
-    this.group.add(walkL);
-
-    const walkR = new THREE.Mesh(walkGeo, walkMat);
-    walkR.position.set(10.75, 0.15, 0);
-    walkR.receiveShadow = true;
-    this.group.add(walkR);
-
-    // Street Lamps along curb
-    for (let z = -100; z <= 100; z += 25) {
-      const poleGeo = new THREE.CylinderGeometry(0.08, 0.1, 5.5, 8);
-      const poleMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.5 });
-      const lampL = new THREE.Mesh(poleGeo, poleMat);
-      lampL.position.set(-11.5, 2.75, z);
-      this.group.add(lampL);
-
-      const lampR = new THREE.Mesh(poleGeo, poleMat);
-      lampR.position.set(11.5, 2.75, z);
-      this.group.add(lampR);
-    }
-  }
-
-  // =========================================================================
-  // 2. PORT HARCOURT CREEK CANAL
-  // =========================================================================
-  private buildCreekCanal(): void {
-    const canalGeo = new THREE.PlaneGeometry(28, 280);
-    const canalMat = new THREE.MeshStandardMaterial({
-      color: 0x0284c7, // Tropical delta sparkling blue
-      roughness: 0.1,
-      metalness: 0.3,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const canal = new THREE.Mesh(canalGeo, canalMat);
-    canal.rotation.x = -Math.PI / 2;
-    canal.position.set(65, 0.02, 0);
-    this.group.add(canal);
-
-    // Mangrove Palms along banks
-    for (let z = -120; z <= 120; z += 22) {
-      const palm = WorldMapPrefabs.createTree(true, 1.2);
-      palm.position.set(48, 0.1, z);
-      this.group.add(palm);
-    }
-  }
-
-  // =========================================================================
   // 4. PORT HARCOURT BOLE KING & ROASTED FISH STALL
   // =========================================================================
   private buildBoleKingSpot(): void {
@@ -411,7 +378,13 @@ export class PortHarcourtCity implements CityInstance {
   }
 
   // Update Animation
-  public update(delta: number): void {
+  public update(delta: number, viewer?: { x: number; z: number }): void {
+    // Beyond the view's far end the city's squares are left out altogether
+    this.sinceTiles += delta;
+    if (viewer && this.sinceTiles > 0.4) {
+      this.sinceTiles = 0;
+      cullTiles(this.tiles, viewer);
+    }
     this.animTime += delta;
     this.refinery.update?.(delta, 12);
     this.airport.update?.(delta, 12);

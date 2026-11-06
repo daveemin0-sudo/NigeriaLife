@@ -33,6 +33,8 @@ import { lagosZones, obstructionsUnder, obstructionsOf, validatePlan, type Obstr
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { LAGOS_PLOTS } from '../realestate/PlotCatalogue';
 import type { DrivableVehicle } from './DrivableVehicle';
+import { abujaWhere } from '../cities/AbujaDistricts';
+import { phWhere } from '../cities/PortHarcourtDistricts';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -500,25 +502,12 @@ export class World {
       };
     }
 
-    if (this.cityManager.currentCityId === 'abuja') {
-      if (pos.z < -60) {
-        return { name: 'Abuja FCT', sub: 'Aso Rock Monolith & Presidential Lookout' };
-      }
-      if (pos.x < -15) {
-        return { name: 'Abuja FCT', sub: 'National Mosque & Diplomatic Zone' };
-      }
-      if (pos.x > 15) {
-        return { name: 'Abuja FCT', sub: 'National Christian Centre & Central Area' };
-      }
-      return { name: 'Abuja FCT', sub: 'Shehu Shagari Way • Three Arms Zone' };
-    }
+    // Abuja: the avenue or street the player is on, and the district round it
+    if (this.cityManager.currentCityId === 'abuja') return abujaWhere(pos.x, pos.z);
 
     // Port Harcourt: its own districts, never Lagos's (the loaded map data may be another city's)
     const city = this.cityManager.currentCityId;
-    if (city === 'port_harcourt') {
-      const district = this.dataManager.districtIn('port_harcourt', pos);
-      return { name: 'Port Harcourt', sub: district ? `${district.name} • Aba Road` : 'Aba Road' };
-    }
+    if (city === 'port_harcourt') return phWhere(pos.x, pos.z);
     if (city !== 'lagos') {
       return { name: city.charAt(0).toUpperCase() + city.slice(1), sub: 'City centre' };
     }
@@ -587,7 +576,7 @@ export class World {
     // Abuja and Port Harcourt: their own streets' traffic and people; Lagos's systems wait
     const city = this.cityManager.currentCityId;
     if (city !== 'lagos') {
-      this.cityManager.update(delta);
+      this.cityManager.update(delta, playerPos);
       // The vehicles parked here are driven here like anywhere else
       this.vehicles.updateDrivables(delta, keys, playerPos, city);
       const life = this.cityManager.lifeHere();
@@ -661,7 +650,7 @@ export class World {
     }
 
     // Update city manager
-    this.cityManager.update(delta);
+    this.cityManager.update(delta, playerPos);
 
     // Update 3D simulated interiors (fans, smoke, NPCs)
     this.interiorManager.update(delta);

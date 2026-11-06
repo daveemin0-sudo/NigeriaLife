@@ -22,7 +22,14 @@ export async function run(browser, check) {
       for (let i = 0; i < 20; i++) await g.advance(0.1);
       const t = here.traffic;
       const lanes = t.lanes;
-      const wrong = lanes.filter((l) => Math.sign(l.fixed) !== -l.dir).length;
+      // Each lane on the right of its own road: going +z the right is -x; going +x it is +z
+      const roads = g.modules.zonesFor(g.world.cityManager.currentCityId).filter((z) => z.kind === 'carriageway');
+      const wrong = lanes.filter((l) => {
+        const road = roads.find((z) => z.axis === l.axis && (l.axis === 'z' ? l.fixed > z.minX && l.fixed < z.maxX : l.fixed > z.minZ && l.fixed < z.maxZ));
+        if (!road) return true;
+        const middle = l.axis === 'z' ? (road.minX + road.maxX) / 2 : (road.minZ + road.maxZ) / 2;
+        return l.axis === 'z' ? Math.sign(l.fixed - middle) !== -l.dir : Math.sign(l.fixed - middle) !== l.dir;
+      }).length;
       const moving = t.moving;
       // What is drawn near the player, whichever way the camera faces (the frame itself is looked at by hand)
       t.update(0, g.player.position);
@@ -53,7 +60,7 @@ export async function run(browser, check) {
     });
     const name = city === 'abuja' ? 'Abuja' : 'Port Harcourt';
     check(`citylife: ${name} has traffic on its avenue, every lane on the right-hand side, and people on its pavements, drawn near the player`,
-      life.built && life.lanes === 4 && life.wrong === 0 && life.moving.now > 10 && life.vehiclesDrawn > 4 && life.peopleDrawn > 10 && life.visible, life);
+      life.built && life.lanes >= 4 && life.wrong === 0 && life.moving.now > 10 && life.vehiclesDrawn > 4 && life.peopleDrawn > 10 && life.visible, life);
     check(`citylife: ${name}'s traffic is its own (${city === 'abuja' ? 'no okadas or kekes in the centre' : 'kekes, no okadas'}), and its vehicles and people are solid to the player`,
       !life.kinds.includes('okada') && (city === 'abuja' ? !life.kinds.includes('keke') && !life.kinds.includes('danfo') : life.kinds.includes('keke')) && life.felt > 0 && life.peopleNear > 0, life);
 
@@ -69,7 +76,9 @@ export async function run(browser, check) {
       if (red === null) return { red: false };
       t.signalTime = red + 0.1;
       const waiting = [];
+      // The avenue's lanes (the cross roads have their green while it waits)
       for (const lane of t.lanes) {
+        if (lane.stops[0]?.group !== 'main') continue;
         const stop = lane.stops[0].u;
         for (const car of lane.cars) if (car.u + car.length / 2 <= stop + 0.1 && !car.committed) waiting.push({ car, stop });
       }

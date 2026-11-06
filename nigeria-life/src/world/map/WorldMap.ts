@@ -28,7 +28,12 @@ export class WorldMap {
   private readonly maxZoom = 2.4;
   /** How far the map may be moved: up the expressway too when it is the real city */
   private bounds(): { minX: number; maxX: number; minZ: number; maxZ: number } {
-    return this.renderer.realWorld && this.renderer.currentCityId === 'lagos' ? { minX: -320, maxX: 320, minZ: -160, maxZ: EXPRESS.ring.z + 60 } : { minX: -160, maxX: 160, minZ: -160, maxZ: 150 };
+    if (this.renderer.realWorld && this.renderer.currentCityId === 'lagos') return { minX: -320, maxX: 320, minZ: -160, maxZ: EXPRESS.ring.z + 60 };
+    // Abuja's grid of avenues, from Aso Rock to Constitution Avenue
+    if (this.renderer.currentCityId === 'abuja') return { minX: -580, maxX: 580, minZ: -240, maxZ: 780 };
+    // Port Harcourt, from Ikwerre Road to Trans-Amadi
+    if (this.renderer.currentCityId === 'port_harcourt') return { minX: -560, maxX: 540, minZ: -280, maxZ: 560 };
+    return { minX: -160, maxX: 160, minZ: -160, maxZ: 150 };
   }
   /** Where the map is looking, along the road (for drawing that stretch of the expressway) */
   public get focusZ(): number {

@@ -23,6 +23,8 @@ export interface WalkRun {
   fixed: number;
   from: number;
   to: number;
+  /** One walker every so many metres (9, as Lagos's side streets, unless it says) */
+  every?: number;
 }
 
 export interface StreetSpot {

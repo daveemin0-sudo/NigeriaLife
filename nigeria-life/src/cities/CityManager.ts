@@ -220,11 +220,11 @@ export class CityManager {
     return null;
   }
 
-  public update(delta: number): void {
+  public update(delta: number, viewer?: { x: number; z: number }): void {
     if (this.currentCityId === 'abuja' && this.abujaCity) {
-      this.abujaCity.update(delta);
+      this.abujaCity.update(delta, viewer);
     } else if (this.currentCityId === 'port_harcourt' && this.portHarcourtCity) {
-      this.portHarcourtCity.update(delta);
+      this.portHarcourtCity.update(delta, viewer);
     }
   }
 }

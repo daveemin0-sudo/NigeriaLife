@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { TrafficSpawner, type TrafficPlan } from '../world/traffic/TrafficSpawner';
 import { CityPopulation, type CrowdPlan } from '../world/population/CityPopulation';
 import { ABUJA_AVENUE, PORT_HARCOURT_AVENUE } from '../world/plan/CityPlan';
+import { ABUJA_ROADS, PH_ROADS, gridTraffic, gridWalkRuns, type GridRoad } from '../world/plan/GridRoads';
 import { shareAbroad } from '../world/StreetLife';
 import type { CarBody, PersonBody } from '../world/Bodies';
 
@@ -30,6 +31,10 @@ interface CityStreets {
   /** Where people must not stand gisting: the motor park's gate, the cash machine, the airport road */
   keepClear: (x: number, z: number) => boolean;
   seed: number;
+  /** A city of many roads: all of them, the avenue among them */
+  roads?: readonly GridRoad[];
+  /** On the other roads' pavements, a walker every so many metres */
+  walkEvery?: number;
 }
 
 const STREETS: Record<'abuja' | 'port_harcourt', CityStreets> = {
@@ -45,6 +50,8 @@ const STREETS: Record<'abuja' | 'port_harcourt', CityStreets> = {
     groups: 6,
     keepClear: (x, z) => Math.abs(z - 15.5) < 3 || (x > 0 && Math.abs(z - 35) < 10) || (x > 0 && Math.abs(z + 8.6) < 2.5) || (x < 0 && z < -72),
     seed: 5150,
+    roads: ABUJA_ROADS,
+    walkEvery: 40,
   },
   // Aba Road: busier and rougher, kekes everywhere (okadas are banned in the city), tankers and
   // lorries for the oil and the port
@@ -58,12 +65,28 @@ const STREETS: Record<'abuja' | 'port_harcourt', CityStreets> = {
     groups: 10,
     keepClear: (x, z) => Math.abs(z - 15.5) < 3 || (x > 0 && Math.abs(z - 38) < 10) || (x > 0 && Math.abs(z + 22.4) < 2.5) || (x < 0 && z < -70 && z > -86),
     seed: 6270,
+    roads: PH_ROADS,
+    walkEvery: 26,
   },
 };
 
 /** The traffic of an avenue: two lanes each way on the right, heavy vehicles and kekes in the kerb lane, lights at the crossing */
 function trafficPlan(streets: CityStreets): TrafficPlan {
   const { avenue, crossing } = streets;
+  if (streets.roads) {
+    // Every road of the grid, stopping at every junction; the avenue at the zebra by the market as well
+    const spine = streets.roads[0];
+    const grid = gridTraffic(streets.roads, { stops: (road, dir) => (road === spine ? [dir * crossing - 3.5] : []) });
+    const post = avenue.halfRoad + 0.6;
+    return {
+      lanes: grid.lanes,
+      signals: [...grid.signals, { x: -post, z: crossing - 4.5, yaw: Math.PI, group: 'main' }, { x: post, z: crossing + 4.5, yaw: 0, group: 'main' }],
+      mix: streets.mix,
+      // North-south and east-west take turns at every junction; the zebra goes with the cross roads
+      cycle: { mainGreen: 26, crossGreen: 20 },
+      seed: streets.seed,
+    };
+  }
   const lanes: TrafficPlan['lanes'] = [];
   const [inner, outer] = avenue.lanes;
   for (const x of [-outer, -inner, inner, outer]) {
@@ -126,7 +149,10 @@ export class CityLife {
     this.group.name = `${city} street life`;
     this.group.userData.streetLife = true;
     this.traffic = new TrafficSpawner(null, [], trafficPlan(streets));
-    this.crowd = new CityPopulation([], [], crowdPlan(streets));
+    // The avenue's pavements have their own stream of walkers; the other roads', a walker every so often
+    const spine = streets.roads?.[0];
+    const runs = streets.roads ? gridWalkRuns(streets.roads, streets.walkEvery ?? 18).filter((run) => !(spine && run.axis === spine.axis && Math.abs(run.fixed - spine.fixed) < spine.halfRoad + spine.walk + 1 && run.to <= streets.avenue.to + 2)) : [];
+    this.crowd = new CityPopulation(runs, [], crowdPlan(streets));
     this.group.add(this.traffic.group, this.crowd.group, CityLife.zebra(streets));
   }
 

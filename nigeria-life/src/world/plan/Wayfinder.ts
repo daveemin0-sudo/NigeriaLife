@@ -29,10 +29,17 @@ export interface Way {
   reaches: boolean;
 }
 
-const CELL = 0.5;
-/** The ground of a city runs this far each way from its middle */
-const HALF = 160;
-const N = (HALF * 2) / CELL;
+/** Lagos's ground: 160 m each way from its middle, in half-metre squares */
+const LAGOS_GROUND = { minX: -160, maxX: 160, minZ: -160, maxZ: 160, cell: 0.5 };
+
+/** The ground a way is found over, and how fine the squares are */
+export interface WayGround {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  cell: number;
+}
 
 /** How far the middle of a square must be from anything solid for a person to stand in it */
 const STAND = 0.62;
@@ -55,25 +62,46 @@ const UP_TO = 3.5;
 const DIAGONAL = Math.SQRT2;
 
 export class Wayfinder {
-  private readonly walk = new Uint8Array(N * N).fill(1);
-  private readonly open = new Uint8Array(N * N).fill(1);
-  private readonly kind = new Uint8Array(N * N);
+  /** Where the squares start, how big they are, and how many there are across and down */
+  private readonly x0: number;
+  private readonly z0: number;
+  private readonly cell: number;
+  private readonly nx: number;
+  private readonly nz: number;
+  private readonly walk: Uint8Array;
+  private readonly open: Uint8Array;
+  private readonly kind: Uint8Array;
   /** Which stretch of connected ground a square is part of: 0 if it cannot be stood in */
-  private readonly part = new Int32Array(N * N);
+  private readonly part: Int32Array;
 
   // Scratch for the search, kept between searches
-  private readonly reached = new Float32Array(N * N);
-  private readonly score = new Float32Array(N * N);
-  private readonly cameFrom = new Int32Array(N * N);
-  private readonly seen = new Uint32Array(N * N);
+  private readonly reached: Float32Array;
+  private readonly score: Float32Array;
+  private readonly cameFrom: Int32Array;
+  private readonly seen: Uint32Array;
   private readonly heap: number[] = [];
   private search = 0;
 
   /** What stands in the city: a straightened line is checked against it exactly, not only square by square */
   private readonly solids: Solids;
 
-  constructor(solids: Solids, zones: Zone[], closed: ReadonlyArray<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
+  /** `ground`: the city's extent and square size (a whole planned city takes metre squares; Lagos's middle half-metre ones) */
+  constructor(solids: Solids, zones: Zone[], closed: ReadonlyArray<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [], ground: WayGround = LAGOS_GROUND) {
     this.solids = solids;
+    this.cell = ground.cell;
+    this.x0 = ground.minX;
+    this.z0 = ground.minZ;
+    this.nx = Math.ceil((ground.maxX - ground.minX) / ground.cell);
+    this.nz = Math.ceil((ground.maxZ - ground.minZ) / ground.cell);
+    const n = this.nx * this.nz;
+    this.walk = new Uint8Array(n).fill(1);
+    this.open = new Uint8Array(n).fill(1);
+    this.kind = new Uint8Array(n);
+    this.part = new Int32Array(n);
+    this.reached = new Float32Array(n);
+    this.score = new Float32Array(n);
+    this.cameFrom = new Int32Array(n);
+    this.seen = new Uint32Array(n);
     for (const solid of solids.all) {
       const isSmall = (solid.maxX - solid.minX < 0.9) && (solid.maxZ - solid.minZ < 0.9);
       const standMargin = isSmall ? 0.4 : STAND;
@@ -94,18 +122,22 @@ export class Wayfinder {
 
   /** Sets every square whose middle is inside a rectangle. */
   private fill(grid: Uint8Array, minX: number, maxX: number, minZ: number, maxZ: number, value: number): void {
-    const i0 = Math.max(0, Math.ceil((minX + HALF) / CELL - 0.5));
-    const i1 = Math.min(N - 1, Math.floor((maxX + HALF) / CELL - 0.5));
-    const j0 = Math.max(0, Math.ceil((minZ + HALF) / CELL - 0.5));
-    const j1 = Math.min(N - 1, Math.floor((maxZ + HALF) / CELL - 0.5));
-    for (let j = j0; j <= j1; j++) grid.fill(value, j * N + i0, j * N + i1 + 1);
+    const { x0, z0, cell, nx, nz } = this;
+    const i0 = Math.max(0, Math.ceil((minX - x0) / cell - 0.5));
+    const i1 = Math.min(nx - 1, Math.floor((maxX - x0) / cell - 0.5));
+    const j0 = Math.max(0, Math.ceil((minZ - z0) / cell - 0.5));
+    const j1 = Math.min(nz - 1, Math.floor((maxZ - z0) / cell - 0.5));
+    if (i1 < i0) return;
+    for (let j = j0; j <= j1; j++) grid.fill(value, j * nx + i0, j * nx + i1 + 1);
   }
 
   /** Marks out each stretch of ground that can be walked from end to end. */
   private findParts(): void {
-    const stack = new Int32Array(N * N);
+    const { nx, nz } = this;
+    const total = nx * nz;
+    const stack = new Int32Array(total);
     let label = 0;
-    for (let start = 0; start < N * N; start++) {
+    for (let start = 0; start < total; start++) {
       if (!this.walk[start] || this.part[start]) continue;
       label += 1;
       let top = 0;
@@ -113,24 +145,24 @@ export class Wayfinder {
       this.part[start] = label;
       while (top > 0) {
         const at = stack[--top];
-        const i = at % N;
+        const i = at % nx;
         if (i > 0 && this.walk[at - 1] && !this.part[at - 1]) { this.part[at - 1] = label; stack[top++] = at - 1; }
-        if (i < N - 1 && this.walk[at + 1] && !this.part[at + 1]) { this.part[at + 1] = label; stack[top++] = at + 1; }
-        if (at >= N && this.walk[at - N] && !this.part[at - N]) { this.part[at - N] = label; stack[top++] = at - N; }
-        if (at < N * (N - 1) && this.walk[at + N] && !this.part[at + N]) { this.part[at + N] = label; stack[top++] = at + N; }
+        if (i < nx - 1 && this.walk[at + 1] && !this.part[at + 1]) { this.part[at + 1] = label; stack[top++] = at + 1; }
+        if (at >= nx && this.walk[at - nx] && !this.part[at - nx]) { this.part[at - nx] = label; stack[top++] = at - nx; }
+        if (at < total - nx && this.walk[at + nx] && !this.part[at + nx]) { this.part[at + nx] = label; stack[top++] = at + nx; }
       }
     }
   }
 
   private square(x: number, z: number): number {
-    const i = Math.floor((x + HALF) / CELL);
-    const j = Math.floor((z + HALF) / CELL);
-    if (i < 0 || j < 0 || i >= N || j >= N) return -1;
-    return j * N + i;
+    const i = Math.floor((x - this.x0) / this.cell);
+    const j = Math.floor((z - this.z0) / this.cell);
+    if (i < 0 || j < 0 || i >= this.nx || j >= this.nz) return -1;
+    return j * this.nx + i;
   }
 
   private middle(square: number): WayPoint {
-    return { x: -HALF + ((square % N) + 0.5) * CELL, z: -HALF + (Math.floor(square / N) + 0.5) * CELL };
+    return { x: this.x0 + ((square % this.nx) + 0.5) * this.cell, z: this.z0 + (Math.floor(square / this.nx) + 0.5) * this.cell };
   }
 
   private price(square: number): number {
@@ -155,18 +187,19 @@ export class Wayfinder {
    * to it, leaning toward whoever is coming. `stretch` 0 takes any ground that can be stood on.
    */
   private nearestIn(stretch: number, x: number, z: number, comingFromX: number, comingFromZ: number, reach: number[]): number {
+    const { x0, z0, cell, nx, nz } = this;
     for (const metres of reach) {
-      const span = Math.ceil(metres / CELL);
-      const ci = Math.floor((x + HALF) / CELL);
-      const cj = Math.floor((z + HALF) / CELL);
+      const span = Math.ceil(metres / cell);
+      const ci = Math.floor((x - x0) / cell);
+      const cj = Math.floor((z - z0) / cell);
       let best = -1;
       let bestScore = Infinity;
-      for (let j = Math.max(0, cj - span); j <= Math.min(N - 1, cj + span); j++) {
-        for (let i = Math.max(0, ci - span); i <= Math.min(N - 1, ci + span); i++) {
-          const square = j * N + i;
+      for (let j = Math.max(0, cj - span); j <= Math.min(nz - 1, cj + span); j++) {
+        for (let i = Math.max(0, ci - span); i <= Math.min(nx - 1, ci + span); i++) {
+          const square = j * nx + i;
           if (!this.walk[square] || (stretch !== 0 && this.part[square] !== stretch)) continue;
-          const mx = -HALF + (i + 0.5) * CELL;
-          const mz = -HALF + (j + 0.5) * CELL;
+          const mx = x0 + (i + 0.5) * cell;
+          const mz = z0 + (j + 0.5) * cell;
           const away = Math.hypot(mx - x, mz - z);
           if (away > metres) continue;
           const score = away + 0.3 * Math.hypot(mx - comingFromX, mz - comingFromZ);
@@ -259,16 +292,16 @@ export class Wayfinder {
 
   /** The cheapest chain of squares from one to another: A* over the eight neighbours, never cutting a corner. */
   private cheapest(start: number, end: number): number[] | null {
-    const { walk, reached, score, cameFrom, seen, heap } = this;
+    const { walk, reached, score, cameFrom, seen, heap, nx, nz, cell } = this;
     this.search += 2;
     const opened = this.search;
     const closed = this.search + 1;
-    const ei = end % N;
-    const ej = Math.floor(end / N);
+    const ei = end % nx;
+    const ej = Math.floor(end / nx);
     const guess = (square: number) => {
-      const di = Math.abs((square % N) - ei);
-      const dj = Math.abs(Math.floor(square / N) - ej);
-      return (Math.max(di, dj) + (DIAGONAL - 1) * Math.min(di, dj)) * CELL * 1.0005;
+      const di = Math.abs((square % nx) - ei);
+      const dj = Math.abs(Math.floor(square / nx) - ej);
+      return (Math.max(di, dj) + (DIAGONAL - 1) * Math.min(di, dj)) * cell * 1.0005;
     };
 
     heap.length = 0;
@@ -317,16 +350,16 @@ export class Wayfinder {
         return chain.reverse();
       }
       seen[at] = closed;
-      const i = at % N;
-      const j = Math.floor(at / N);
+      const i = at % nx;
+      const j = Math.floor(at / nx);
       const here = this.price(at);
       const west = i > 0 && walk[at - 1] === 1;
-      const east = i < N - 1 && walk[at + 1] === 1;
-      const north = j > 0 && walk[at - N] === 1;
-      const south = j < N - 1 && walk[at + N] === 1;
+      const east = i < nx - 1 && walk[at + 1] === 1;
+      const north = j > 0 && walk[at - nx] === 1;
+      const south = j < nz - 1 && walk[at + nx] === 1;
       const visit = (to: number, length: number) => {
         if (seen[to] === closed) return;
-        const cost = reached[at] + length * CELL * (here + this.price(to)) * 0.5;
+        const cost = reached[at] + length * cell * (here + this.price(to)) * 0.5;
         if (seen[to] === opened && cost >= reached[to]) return;
         seen[to] = opened;
         reached[to] = cost;
@@ -336,12 +369,12 @@ export class Wayfinder {
       };
       if (west) visit(at - 1, 1);
       if (east) visit(at + 1, 1);
-      if (north) visit(at - N, 1);
-      if (south) visit(at + N, 1);
-      if (west && north && walk[at - N - 1]) visit(at - N - 1, DIAGONAL);
-      if (east && north && walk[at - N + 1]) visit(at - N + 1, DIAGONAL);
-      if (west && south && walk[at + N - 1]) visit(at + N - 1, DIAGONAL);
-      if (east && south && walk[at + N + 1]) visit(at + N + 1, DIAGONAL);
+      if (north) visit(at - nx, 1);
+      if (south) visit(at + nx, 1);
+      if (west && north && walk[at - nx - 1]) visit(at - nx - 1, DIAGONAL);
+      if (east && north && walk[at - nx + 1]) visit(at - nx + 1, DIAGONAL);
+      if (west && south && walk[at + nx - 1]) visit(at + nx - 1, DIAGONAL);
+      if (east && south && walk[at + nx + 1]) visit(at + nx + 1, DIAGONAL);
     }
     return null;
   }

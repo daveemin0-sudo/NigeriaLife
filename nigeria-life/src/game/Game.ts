@@ -2826,7 +2826,10 @@ export class Game {
     }
     let ways = this.waysByCity.get(city);
     if (!ways) {
-      ways = new Wayfinder(city === 'lagos' ? new Solids([...this.standingIn(city), ...this.world.streetLamps(), ...this.parkedCars()]) : solids, zonesFor(city), city === 'lagos' ? NO_CROSSING : []);
+      // Abuja and Port Harcourt are whole planned cities: their ground in metre squares, the other cities' maps let go
+      const ground = city === 'abuja' ? { minX: -580, maxX: 580, minZ: -280, maxZ: 800, cell: 1 } : city === 'port_harcourt' ? { minX: -570, maxX: 560, minZ: -290, maxZ: 570, cell: 1 } : undefined;
+      if (ground) for (const other of [...this.waysByCity.keys()]) if (other !== 'lagos') this.waysByCity.delete(other);
+      ways = new Wayfinder(city === 'lagos' ? new Solids([...this.standingIn(city), ...this.world.streetLamps(), ...this.parkedCars()]) : solids, zonesFor(city), city === 'lagos' ? NO_CROSSING : [], ground);
       this.waysByCity.set(city, ways);
     }
     return ways;
