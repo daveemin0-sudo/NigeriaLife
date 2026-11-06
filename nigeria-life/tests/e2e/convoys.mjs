@@ -134,7 +134,8 @@ export async function run(browser, check) {
   const plain = await page.evaluate(async () => {
     const g = window.game;
     const day = g.world.skyEnvironment.day;
-    const saved = g.convoys.escort.until;
+    // Run out for the moment (the game then lets it go), and hired back the same afterwards
+    const saved = { level: g.convoys.escort.level, until: g.convoys.escort.until, expiresAt: g.convoys.escort.expiresAt };
     g.convoys.escort.until = day - 1;
     const v = g.player.currentVehicle;
     for (let i = 0; i < 30; i++) await g.advance(0.1);
@@ -145,7 +146,7 @@ export async function run(browser, check) {
     v.mesh.position.set(-5.0, 0, target.z - 7);
     let stopped = 0;
     for (let i = 0; i < 10; i++) if (!v.moveUnlessBlocked(-5.0, v.mesh.position.z + 0.8)) stopped += 1;
-    g.convoys.escort.until = saved;
+    g.convoys.escort.set(saved.level, saved.until, saved.expiresAt);
     return { stopped };
   });
   check('convoys: without one, a car in the way still stops the player', plain.stopped > 0, plain);

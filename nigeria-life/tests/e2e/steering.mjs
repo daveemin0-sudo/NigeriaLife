@@ -224,9 +224,12 @@ export async function run(browser, check) {
     const parked = new Set(ts.parked.map((p) => `${p.x.toFixed(2)},${p.z.toFixed(2)}`));
     const car = out.find((c) => parked.has(`${c.x.toFixed(2)},${c.z.toFixed(2)}`) && Math.abs(c.yaw) < 0.4);
     if (!car) return { ok: false };
-    const heading = car.yaw + 0.55;
+    // Come up on it from the road side (cars stand half up on the kerb: the other side is the pavement and the buildings)
+    const solids = g.solidsHere();
+    const side = [1, -1].find((k) => !solids.at(car.x + Math.cos(car.yaw) * 2.2 * k, car.z - Math.sin(car.yaw) * 2.2 * k, 0.9)) ?? 1;
+    const heading = car.yaw - 0.55 * side;
     const back = car.halfLength + 5;
-    v.mesh.position.set(car.x - Math.sin(heading) * back - Math.cos(heading) * 1.4, 0, car.z - Math.cos(heading) * back + Math.sin(heading) * 1.4);
+    v.mesh.position.set(car.x - Math.sin(heading) * back + Math.cos(heading) * 1.4 * side, 0, car.z - Math.cos(heading) * back - Math.sin(heading) * 1.4 * side);
     v.mesh.rotation.y = heading;
     v.currentSpeed = 8;
     v.steerInput = 0;

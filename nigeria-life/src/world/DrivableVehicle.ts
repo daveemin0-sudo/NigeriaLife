@@ -1851,7 +1851,7 @@ export class DrivableVehicle {
         const solids = DrivableVehicle.solids?.();
         const walled = solids ? this.solidPoints(solids, nx, nz) > this.solidPoints(solids, pos.x, pos.z) : false;
         if (after.cars <= now.cars + 1e-3 && after.people <= now.people + 1e-3 && !walled) {
-          this.currentSpeed *= Math.exp(-4 * push.square * delta);
+          this.currentSpeed *= Math.exp(-push.square * delta);
           pos.x = nx;
           pos.z = nz;
           return true;
@@ -1907,6 +1907,7 @@ export class DrivableVehicle {
     const fx = Math.sin(me.yaw);
     const fz = Math.cos(me.yaw);
     const clearing = !!this.driver && DrivableVehicle.clearsTraffic();
+    const moving = Math.sign(this.currentSpeed) || 1;
     let px = 0;
     let pz = 0;
     let any = false;
@@ -1914,6 +1915,8 @@ export class DrivableVehicle {
       if (clearing && car.yielding) continue;
       const c = Math.cos(car.yaw);
       const s = Math.sin(car.yaw);
+      // Going mostly along that car (past it, not into its end): it is a scrape down its side
+      const alongIt = Math.abs((fx * s + fz * c) * moving) >= 0.5;
       // The deepest of this body's circles in that car, and the way out for it
       let best = 0;
       let bx = 0;
@@ -1930,7 +1933,9 @@ export class DrivableVehicle {
         const depth = Math.min(overSide, overAlong);
         if (depth <= best) continue;
         best = depth;
-        if (overSide < overAlong) {
+        // Out through its side when that is the shorter way, or when it is a scrape down its side
+        // that has only just begun (a shallow overlap); squarely behind it, out the way it came
+        if (overSide < overAlong || (alongIt && overSide <= 0.6)) {
           bx = Math.sign(across || 1) * overSide * c;
           bz = Math.sign(across || 1) * overSide * -s;
         } else {
@@ -1947,7 +1952,6 @@ export class DrivableVehicle {
     if (!any) return null;
     const length = Math.hypot(px, pz);
     if (length < 1e-6) return null;
-    const moving = Math.sign(this.currentSpeed) || 1;
     const square = Math.max(0, -((px / length) * fx + (pz / length) * fz) * moving);
     // A little past clear, so the next step does not start touching
     const extra = (length + 0.01) / length;
