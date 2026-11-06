@@ -20,7 +20,12 @@ export interface HomeBrief {
   bedrooms: number;
   /** Only a house has a carport: not a room, not a flat */
   carport: boolean;
+  /** A duplex has two floors, the bedrooms upstairs; everything else is on one */
+  storeys?: 1 | 2;
 }
+
+/** Floor to floor in a two-storey home: eighteen steps of 20 cm */
+export const STOREY_H = 3.6;
 
 export interface Rect {
   minX: number;
@@ -74,6 +79,39 @@ export interface Spot {
   x: number;
   z: number;
   turns: number;
+  /** Which floor it is on: 0 the ground floor (the default), 1 upstairs */
+  storey?: number;
+}
+
+/** The floor upstairs in a two-storey home: its own rooms, walls, doors and fittings */
+export interface Storey {
+  rooms: PlanRoom[];
+  walls: PlanWall[];
+  doors: PlanDoor[];
+  fixtures: Fixture[];
+  windows: Array<{ wall: 'back' | 'left' | 'right'; at: number }>;
+  lights: Array<{ x: number; z: number }>;
+}
+
+/**
+ * The stairs of a two-storey home: one straight flight against the back wall of the stair hall,
+ * rising along x from its foot at `x0` to its top at `x1`, in the strip `minZ` to `maxZ`. Upstairs
+ * the floor is open over the flight, with a rail round the opening but at its top.
+ */
+export interface Stairs {
+  x0: number;
+  x1: number;
+  minZ: number;
+  maxZ: number;
+  /** The hall the flight stands in: the same width on both floors */
+  slotMinX: number;
+  slotMaxX: number;
+  risers: number;
+  /** Where the player stands at the foot to go up, and where they step off at the top */
+  foot: { x: number; z: number };
+  top: { x: number; z: number };
+  /** A step clear of the top, on the landing */
+  landing: { x: number; z: number };
 }
 
 export interface HomePlan {
@@ -114,6 +152,11 @@ export interface HomePlan {
     extras: Array<Spot & { what: 'fan' | 'plant' | 'rug' | 'chairs' }>;
   };
   carport: boolean;
+  /** 1, or 2 for a duplex */
+  storeys: 1 | 2;
+  /** The floor upstairs, in a two-storey home */
+  upper: Storey | null;
+  stairs: Stairs | null;
 }
 
 const T = 0.4;
@@ -137,15 +180,18 @@ export function briefOf(home: { type?: string; bedrooms?: number; name?: string 
   if (type === 'room' || type === 'self-contained' || /self[- ]?contain|studio/i.test(name)) return { kind: 'self-contain', bedrooms: 1, carport: false };
   const house = type === 'house' || type === 'duplex' || /\b(mansion|villa|palace|duplex|terrace|bungalow|detached)\b/i.test(name);
   if (bedrooms === 1) return { kind: house ? 'house' : 'room-parlour', bedrooms: 1, carport: house };
-  return { kind: house ? 'house' : 'flat', bedrooms, carport: house };
+  // A duplex, a mansion, a villa: the living rooms downstairs and the bedrooms up the stairs
+  const twoFloors = house && bedrooms >= 3 && !/bungalow/i.test(name) && (type === 'duplex' || /\b(duplex|mansion|villa|palace)\b/i.test(name));
+  return { kind: house ? 'house' : 'flat', bedrooms, carport: house, ...(twoFloors ? { storeys: 2 as const } : {}) };
 }
 
 /** A house the player built on their own land */
 export function briefOfBuilding(typeId: string): HomeBrief {
-  return { kind: 'house', bedrooms: typeId === 'duplex' ? 4 : 3, carport: true };
+  return typeId === 'duplex' ? { kind: 'house', bedrooms: 4, carport: true, storeys: 2 } : { kind: 'house', bedrooms: 3, carport: true };
 }
 
 export function planFor(brief: HomeBrief): HomePlan {
+  if (brief.storeys === 2 && brief.kind === 'house' && brief.bedrooms >= 3) return duplex(brief);
   if (brief.kind === 'self-contain') return selfContain(brief);
   if (brief.bedrooms <= 1) return roomAndParlour(brief);
   return withCorridor(brief);
@@ -219,7 +265,7 @@ function lightsOf(rooms: PlanRoom[]): Array<{ x: number; z: number }> {
 }
 
 function keyOf(brief: HomeBrief): string {
-  return `${brief.kind}:${brief.bedrooms}:${brief.carport ? 'c' : '-'}:v3`;
+  return `${brief.kind}:${brief.bedrooms}:${brief.carport ? 'c' : '-'}${brief.storeys === 2 ? ':2s' : ''}:v3`;
 }
 
 // --- A self-contain: one big room -------------------------------------------------------------
@@ -268,6 +314,9 @@ function selfContain(brief: HomeBrief): HomePlan {
       extras: [{ what: 'chairs', x: -3.8, z: frontZ - 1.2, turns: 0 }, { what: 'fan', x: hw - 0.8, z: frontZ - 0.8, turns: 2 }, { what: 'rug', x: -4.4, z: 1.4, turns: 0 }],
     },
     carport: brief.carport,
+    storeys: 1,
+    upper: null,
+    stairs: null,
   };
 }
 
@@ -327,6 +376,9 @@ function roomAndParlour(brief: HomeBrief): HomePlan {
       extras: [{ what: 'rug', x: -hw + 2.2, z: sofaZ, turns: 0 }, { what: 'fan', x: -hw + 0.8, z: frontZ - 0.8, turns: 2 }, { what: 'plant', x: hw - 0.8, z: split + 0.8, turns: 0 }],
     },
     carport: brief.carport,
+    storeys: 1,
+    upper: null,
+    stairs: null,
   };
 }
 
@@ -476,14 +528,228 @@ function withCorridor(brief: HomeBrief): HomePlan {
       ],
     },
     carport: brief.carport,
+    storeys: 1,
+    upper: null,
+    stairs: null,
   };
 }
 
-/** The room a point is in, or null if it is in a wall or outside */
-export function roomAt(plan: HomePlan, x: number, z: number): PlanRoom | null {
+// --- A duplex: the living rooms downstairs, the bedrooms up the stairs ---------------------------
+
+interface DSlot {
+  kind: 'stairs' | 'landing' | 'kitchen' | 'bathroom' | 'bedroom' | 'parlour' | 'lounge' | 'study';
+  width: number;
+  master?: boolean;
+}
+
+const STAIR_HALL = 7.0;
+const RISERS = 18;
+const GOING = 0.25;
+
+/**
+ * Two floors on the same footprint, each a row of rooms behind a corridor and a row in front.
+ * Downstairs: the stair hall (the flight up its back wall), the kitchen and the guest toilet
+ * behind; the parlour across the front, and a guest room from four bedrooms. Upstairs: the
+ * landing over the stair hall, the master bedroom with its own bathroom behind; the other
+ * bedrooms and the bathroom in front, a family lounge where there is width to spare.
+ */
+function duplex(brief: HomeBrief): HomePlan {
+  const n = Math.max(3, Math.min(6, brief.bedrooms));
+  const guestDown = n >= 4;
+  const sum = (slots: DSlot[]) => slots.reduce((s, x) => s + x.width, 0);
+  const gBack: DSlot[] = [{ kind: 'stairs', width: STAIR_HALL }, { kind: 'kitchen', width: KITCHEN_W }, { kind: 'bathroom', width: BATH_W }];
+  const gFront: DSlot[] = [{ kind: 'parlour', width: PARLOUR_MIN }, ...(guestDown ? [{ kind: 'bedroom' as const, width: BEDROOM_W }] : [])];
+  const uBack: DSlot[] = [{ kind: 'landing', width: STAIR_HALL }, { kind: 'bedroom', width: BEDROOM_W, master: true }];
+  const uFrontBeds: DSlot[] = [];
+  for (let others = n - (guestDown ? 1 : 0) - 1; others > 0; others--) {
+    if (sum(uFrontBeds) + BATH_W <= sum(uBack)) uFrontBeds.push({ kind: 'bedroom', width: BEDROOM_W });
+    else uBack.push({ kind: 'bedroom', width: BEDROOM_W });
+  }
+  const uFront: DSlot[] = [...uFrontBeds, { kind: 'bathroom', width: BATH_W }];
+  const width = Math.max(sum(gBack), sum(gFront), sum(uBack), sum(uFront));
+  // The width to spare: a study downstairs when there is room for one (else a bigger kitchen),
+  // a bigger parlour, bigger bedrooms upstairs, or a family lounge over the parlour
+  const spread = (slots: DSlot[], spare: number): void => {
+    const takers = slots.filter((x) => x.kind === 'bedroom');
+    for (const t of takers) t.width += spare / takers.length;
+  };
+  const backSpare = width - sum(gBack);
+  if (backSpare >= 6) gBack.push({ kind: 'study', width: backSpare });
+  else gBack[1].width += backSpare;
+  gFront[0].width += width - sum(gFront);
+  spread(uBack, width - sum(uBack));
+  const frontSpare = width - sum(uFront);
+  if (frontSpare >= 6 || (!uFrontBeds.length && frontSpare > 0.01)) uFront.unshift({ kind: 'lounge', width: frontSpare });
+  else spread(uFront, frontSpare);
+
+  const hw = width / 2;
+  const depth = BACK_D + CORRIDOR + FRONT_D;
+  const length = depth + STEP;
+  const back = -length / 2;
+  const corridorBack = back + BACK_D;
+  const corridorFront = corridorBack + CORRIDOR;
+  const frontZ = back + depth;
+  const ground = begin();
+  const upper = begin();
+  ground.rooms.push({ id: 'corridor', kind: 'corridor', name: 'Corridor', minX: -hw, maxX: hw, minZ: corridorBack, maxZ: corridorFront });
+  upper.rooms.push({ id: 'corridor_up', kind: 'corridor', name: 'Upstairs corridor', minX: -hw, maxX: hw, minZ: corridorBack, maxZ: corridorFront });
+
+  const upBeds: Spot[] = [];
+  let master: Spot | null = null;
+  let guest: Spot | null = null;
+  let bathSpot: Spot = { x: 0, z: 0, turns: 0, storey: 1 };
+  let parlour: Rect = { minX: -hw, maxX: hw, minZ: corridorFront, maxZ: frontZ };
+  let kitchen: Rect = { minX: 0, maxX: 0, minZ: back, maxZ: corridorBack };
+  let bedNo = 1;
+
+  const row = (p: Builder, slots: DSlot[], where: 'back' | 'front', storey: 0 | 1): void => {
+    const minZ = where === 'back' ? back : corridorFront;
+    const maxZ = where === 'back' ? corridorBack : frontZ;
+    const doorZ = where === 'back' ? corridorBack : corridorFront;
+    const swing: 1 | -1 = where === 'back' ? 1 : -1;
+    const doors: number[] = [];
+    let openTo = -hw;
+    let x = -hw;
+    slots.forEach((slot, i) => {
+      const box: Rect = { minX: x, maxX: x + slot.width, minZ, maxZ };
+      x = box.maxX;
+      if (i > 0) p.walls.push({ axis: 'z', at: box.minX, from: minZ, to: maxZ, doors: [] });
+      const door = (id: string, name: string, at: number) => {
+        doors.push(at);
+        p.doors.push({ id: `home_door_${id}`, name: `${name} door`, x: at, z: doorZ, yaw: 0, swing });
+      };
+      // The rooms open on the corridor (no wall between): the stair hall, the landing, the parlour, the lounge
+      const open = (id: string, kind: RoomKind, name: string) => {
+        p.rooms.push({ id, kind, name, ...box });
+        if (i === 0) openTo = box.maxX;
+      };
+      if (slot.kind === 'stairs') open('stairhall', 'corridor', 'Stair hall');
+      else if (slot.kind === 'landing') open('landing', 'corridor', 'Landing');
+      else if (slot.kind === 'parlour') {
+        parlour = box;
+        open('parlour', 'parlour', 'Parlour');
+      } else if (slot.kind === 'lounge') open('lounge', 'parlour', 'Family lounge');
+      else if (slot.kind === 'study') {
+        p.rooms.push({ id: 'study', kind: 'parlour', name: 'Study', ...box });
+        door('study', 'Study', (box.minX + box.maxX) / 2);
+      } else if (slot.kind === 'kitchen') {
+        kitchen = box;
+        p.rooms.push({ id: 'kitchen', kind: 'kitchen', name: 'Kitchen', ...box });
+        door('kitchen', 'Kitchen', box.minX + 1.3);
+        // A counter and sink along the back wall, the cooker at its end, the fridge on the end wall
+        counter(p, 'x', back, 1, box.minX + HALF_T + 0.2, box.maxX - HALF_T - 1.6);
+      } else if (slot.kind === 'bathroom') {
+        const id = storey === 0 ? 'bathroom' : 'bathroom2';
+        p.rooms.push({ id, kind: 'bathroom', name: storey === 0 ? 'Guest toilet' : 'Bathroom', ...box });
+        door(id, storey === 0 ? 'Guest toilet' : 'Bathroom', (box.minX + box.maxX) / 2);
+        const spot = fitBathroom(p, box, where === 'back' ? 'maxZ' : 'minZ');
+        if (storey === 1) bathSpot = { ...spot, storey: 1 };
+      } else if (storey === 0) {
+        // The guest room, downstairs at the front
+        const id = `bedroom${n}`;
+        p.rooms.push({ id, kind: 'bedroom', name: 'Guest room', ...box });
+        door(id, 'Guest room', box.minX + 1.3);
+        guest = where === 'front' ? { x: (box.minX + box.maxX) / 2, z: frontZ - HALF_T - 1.2, turns: 2, storey: 0 } : { x: (box.minX + box.maxX) / 2, z: back + HALF_T + 1.2, turns: 0, storey: 0 };
+      } else if (slot.master) {
+        p.rooms.push({ id: 'bedroom1', kind: 'bedroom', name: 'Master bedroom', ...box });
+        door('bedroom1', 'Master bedroom', box.minX + 1.3);
+        // Its own bathroom, in its front corner by the corridor, the door on the bedroom
+        const en: Rect = { minX: box.maxX - ENSUITE, maxX: box.maxX, minZ: corridorBack - ENSUITE, maxZ: corridorBack };
+        p.rooms.push({ id: 'ensuite1', kind: 'ensuite', name: 'Master bathroom', ...en });
+        const enDoor = en.minZ + 1.3;
+        p.walls.push({ axis: 'z', at: en.minX, from: en.minZ, to: en.maxZ, doors: [enDoor] });
+        p.walls.push({ axis: 'x', at: en.minZ, from: en.minX, to: en.maxX, doors: [] });
+        p.doors.push({ id: 'home_door_ensuite1', name: 'Master bathroom door', x: en.minX, z: enDoor, yaw: Math.PI / 2, swing: 1 });
+        fitBathroom(p, en, 'minX');
+        master = { x: box.minX + HALF_T + 2.4, z: back + HALF_T + 1.2, turns: 0, storey: 1 };
+      } else {
+        bedNo += 1;
+        const id = `bedroom${bedNo}`;
+        p.rooms.push({ id, kind: 'bedroom', name: `Bedroom ${bedNo}`, ...box });
+        door(id, `Bedroom ${bedNo}`, box.minX + 1.3);
+        upBeds.push(where === 'front' ? { x: (box.minX + box.maxX) / 2, z: frontZ - HALF_T - 1.2, turns: 2, storey: 1 } : { x: (box.minX + box.maxX) / 2, z: back + HALF_T + 1.2, turns: 0, storey: 1 });
+      }
+    });
+    // The corridor's wall along this row, but where a room is open on it
+    if (openTo < hw - 0.05) p.walls.push({ axis: 'x', at: doorZ, from: openTo, to: hw, doors });
+  };
+  row(ground, gBack, 'back', 0);
+  row(ground, gFront, 'front', 0);
+  row(upper, uBack, 'back', 1);
+  row(upper, uFront, 'front', 1);
+
+  // The flight: eighteen risers up the stair hall's back wall, its foot by the side wall. A
+  // landing at each end wide enough to stand on: rooms keep people 0.8 m off their outer walls
+  const slotMinX = -hw;
+  const slotMaxX = -hw + STAIR_HALL;
+  const x0 = slotMinX + HALF_T + 1.1;
+  const x1 = x0 + (RISERS - 1) * GOING;
+  const sMinZ = back + HALF_T;
+  const sMaxZ = sMinZ + 1.3;
+  const mid = (sMinZ + sMaxZ) / 2;
+  const stairs: Stairs = {
+    x0, x1, minZ: sMinZ, maxZ: sMaxZ, slotMinX, slotMaxX, risers: RISERS,
+    foot: { x: x0 - 0.45, z: mid },
+    top: { x: x1 + 0.6, z: mid },
+    landing: { x: x1 + 0.6, z: sMaxZ + 1.5 },
+  };
+
+  const sofaZ = corridorFront + 3.0;
+  const entrance = { x: parlour.maxX - 2.4, z: frontZ };
+  const centre = (r: PlanRoom) => ({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });
+  const lightsWith = (rooms: PlanRoom[], hall: string) => {
+    const lit = lightsOf(rooms);
+    const h = rooms.find((r) => r.id === hall);
+    if (h) lit.splice(1, 0, centre(h));
+    return lit;
+  };
+  const backWindows = (rooms: PlanRoom[]) => rooms.filter((r) => r.minZ === back && r.kind !== 'ensuite' && r.kind !== 'corridor').map((r) => ({ wall: 'back' as const, at: r.kind === 'bedroom' ? (r.minX + r.maxX) / 2 : r.minX + 1.6 }));
+  const sideWindows = [{ wall: 'left' as const, at: (corridorFront + frontZ) / 2 }, { wall: 'right' as const, at: (corridorFront + frontZ) / 2 }, { wall: 'right' as const, at: back + BACK_D / 2 }];
+  const beds = [...upBeds, ...(guest ? [guest] : [])];
+  return {
+    key: keyOf(brief),
+    brief,
+    width,
+    length,
+    frontZ,
+    ...ground,
+    entrance,
+    spawn: { x: entrance.x, z: frontZ - 2.2 },
+    windows: [...backWindows(ground.rooms), ...sideWindows, { wall: 'left', at: back + BACK_D / 2 + 1.2 }],
+    lights: lightsWith(ground.rooms, 'stairhall'),
+    spots: {
+      bed: master ?? { x: 0, z: back + 1.6, turns: 0, storey: 1 },
+      beds,
+      sofa: { x: -hw + 3.8, z: sofaZ, turns: 3 },
+      tv: { x: -hw + HALF_T + 0.3, z: sofaZ, turns: 1 },
+      fridge: { x: kitchen.maxX - HALF_T - 0.46, z: back + HALF_T + 2.0, turns: 3 },
+      drum: { x: kitchen.maxX - HALF_T - 0.65, z: corridorBack - HALF_T - 0.8, turns: 3 },
+      cooker: { x: kitchen.maxX - HALF_T - 0.8, z: back + HALF_T + 0.42, turns: 0 },
+      bath: bathSpot,
+      dining: { x: parlour.maxX - 4.6, z: frontZ - 2.4, turns: 0 },
+      extras: [
+        { what: 'rug', x: -hw + 2.2, z: sofaZ, turns: 0 },
+        { what: 'plant', x: -hw + 0.8, z: frontZ - 0.8, turns: 0 },
+        { what: 'fan', x: -hw + 0.7, z: corridorFront + 0.9, turns: 1 },
+        { what: 'plant', x: slotMaxX - 0.8, z: corridorBack - 0.8, turns: 0, storey: 1 },
+      ],
+    },
+    carport: brief.carport,
+    storeys: 2,
+    upper: {
+      ...upper,
+      windows: [...backWindows(upper.rooms), ...sideWindows, { wall: 'left', at: back + BACK_D / 2 + 1.2 }],
+      lights: lightsWith(upper.rooms, 'landing'),
+    },
+    stairs,
+  };
+}
+
+/** The room a point is in, or null if it is in a wall or outside; upstairs in a duplex when `storey` is 1 */
+export function roomAt(plan: HomePlan, x: number, z: number, storey = 0): PlanRoom | null {
   // A bathroom sits inside its bedroom: the smaller room is the one meant
   let best: PlanRoom | null = null;
-  for (const room of plan.rooms) {
+  for (const room of storey === 1 && plan.upper ? plan.upper.rooms : plan.rooms) {
     if (x > room.minX + HALF_T && x < room.maxX - HALF_T && z > room.minZ + HALF_T && z < room.maxZ - HALF_T) {
       if (!best || (room.maxX - room.minX) * (room.maxZ - room.minZ) < (best.maxX - best.minX) * (best.maxZ - best.minZ)) best = room;
     }

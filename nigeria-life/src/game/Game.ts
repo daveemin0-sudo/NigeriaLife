@@ -108,6 +108,9 @@ import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type F
 import { CoachService, MOTOR_PARKS, OPERATOR, type CoachCity, type CoachTicket } from '../travel/Coaches';
 import { openAirportHall } from '../travel/AirportHall';
 import { FurnishBar } from '../ui/FurnishBar';
+import { StoreyButton } from '../ui/StoreyButton';
+import { Racing } from '../racing/Racing';
+import * as RaceRules from '../racing/RaceRules';
 import { Bodies, bodyOf, type CarBody } from '../world/Bodies';
 import { MusicSheet } from '../ui/MusicSheet';
 import { FleetSheet } from '../ui/FleetSheet';
@@ -306,7 +309,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -319,6 +322,8 @@ export class Game {
   /** Where the player is employed, and how much work they have done there */
   public jobs = Employment.get();
   public furnishBar!: FurnishBar;
+  /** In a two-storey home: the way up or down */
+  public storeyButton!: StoreyButton;
   /** Tickets and where each has got to */
   public flights = FlightService.get();
   public coaches = CoachService.get();
@@ -1793,6 +1798,16 @@ export class Game {
     const decor = HouseDecorationSystem.getInstance();
     const home = this.world.interiorManager.residence;
     this.furnishBar = new FurnishBar();
+    // A two-storey home: the floor button, and the walk up or down the stairs it asks for
+    this.storeyButton = new StoreyButton();
+    this.storeyButton.onGo = (storey) => {
+      if (!home.goStorey(storey)) this.hud.showNotification('Finish what you are doing first.');
+    };
+    ResidentialInterior.onStorey = (storey, storeys) => {
+      this.storeyButton.show(storey, storeys);
+      // The bar of things to do: what is on this floor
+      this.placeCard?.refreshIfShown();
+    };
     decor.startAt = () => {
       const facing = this.player.mesh.rotation.y;
       return { x: this.player.position.x - home.group.position.x + Math.sin(facing) * 1.8, z: this.player.position.z - home.group.position.z + Math.cos(facing) * 1.8 };
@@ -1995,6 +2010,19 @@ export class Game {
     // Driving yourself: the way along the streets drawn on the road
     this.scene.add(this.routeGuide.group);
     this.routeGuide.onArrived = (name) => showGameToast(`🏁 You have arrived at ${name}.`, 'success', 4200);
+    // Street racing on the long roads (the Racing app): raced in the player's own car
+    Racing.get().hooks = {
+      scene: this.scene,
+      car: () => {
+        const v = this.player.isDriving ? this.player.currentVehicle : null;
+        if (!v || !this.ownedVehicles.vehicleIdOf(v)) return null;
+        return { x: v.mesh.position.x, z: v.mesh.position.z, yaw: v.mesh.rotation.y, speed: v.currentSpeed, name: v.name };
+      },
+      driveTo: (name, x, z) => this.driveTo(name, new THREE.Vector3(x, 0, z)),
+      stopGuide: () => this.routeGuide.stop(),
+      city: () => this.world.cityManager.currentCityId,
+      away: () => this.whereabouts() === 'inside' || this.whereabouts() === 'transit',
+    };
     this.hud.worldMapUI.driveOption = () => (this.player.isDriving || this.ownedVehicles.ownCar()
       ? { mode: 'drive', label: 'Drive yourself', icon: '🧭', fare: 0, travelTimeSec: 60, description: 'You at the wheel; arrows on the road show the way' }
       : null);
@@ -2138,8 +2166,9 @@ export class Game {
         const vehicle = nearbyVehicle();
         if (vehicle) this.walkToVehicleAndGetIn(vehicle);
       },
-      sleep: () => interiors.residence.life.sleep(),
-      sitOnSofa: () => interiors.residence.life.watchTv(),
+      // In a duplex the bed is upstairs and the sofa down: up or down the stairs first
+      sleep: () => interiors.residence.onFloorOf('flat-bed', () => interiors.residence.life.sleep()),
+      sitOnSofa: () => interiors.residence.onFloorOf('flat-tv', () => interiors.residence.life.watchTv()),
       sitAtTable: () => this.bukaUI.open(),
     });
     this.input.onSelfClicked = (screen) => {
@@ -3463,6 +3492,8 @@ export class Game {
     }
     this.rideHail.update(delta);
     this.riderOut?.tick(delta);
+    // A street race: the lights, the gates, the racers
+    Racing.get().update(delta);
     // The arrows on the road for the stretch ahead (hidden indoors and on a ride)
     if (this.routeGuide.active) {
       const outside = !this.world.interiorManager.isPlayerInside() && this.whereabouts() !== 'transit';
@@ -3552,7 +3583,7 @@ export class Game {
       const v = this.player.currentVehicle;
       // The minimap round the car, the way ahead on it when the arrows are showing it
       const car = this.player.currentVehicle;
-      if (car) this.miniMap.update(car.mesh.position.x, car.mesh.position.z, car.mesh.rotation.y, DrivableVehicle.roads?.() ?? [], this.routeGuide.way);
+      if (car) this.miniMap.update(car.mesh.position.x, car.mesh.position.z, car.mesh.rotation.y, DrivableVehicle.roads?.() ?? [], Racing.get().lineAhead() ?? this.routeGuide.way);
       this.hud.updateDrivingHUD(
         v.currentSpeed,
         v.fuel,

@@ -32,6 +32,7 @@ import { RoomCutaway } from './RoomCutaway';
 import { PlaceInterior } from './places/PlaceInterior';
 import { PLACE_SPECS } from './places/PlaceSpecs';
 import { EXPRESS, ROADSIDE, sideFront } from '../world/expressway/layout';
+import { STOREY_H } from '../housing/HomePlan';
 
 /** What an interior can optionally provide beyond its room and stations. */
 interface InteriorTemplate {
@@ -48,6 +49,9 @@ interface InteriorTemplate {
   onPlayerLeft?: () => void;
   /** Where its door leads, when not out to the road (a hotel room to its corridor) */
   leadsTo?: (() => { id: string; spawnAt: THREE.Vector3; spawnYaw: number } | null) | null;
+  /** In a two-storey home: the floor the player is on, and the floor they walk on there */
+  storey?: number;
+  activeFloor?: () => THREE.Mesh | null;
 }
 
 export interface EnterOptions {
@@ -186,7 +190,12 @@ export class InteriorManager {
    * Get interactive objects for only the currently active interior.
    */
   public getActiveInteractiveObjects(): InteractiveObject[] {
-    return this.getActiveTemplate()?.interactiveList ?? [];
+    const template = this.getActiveTemplate();
+    if (!template) return [];
+    // In a two-storey home only what is on the player's floor can be reached
+    if (template.storey === undefined) return template.interactiveList;
+    const floor = template.storey;
+    return template.interactiveList.filter((o) => (o.storey ?? 0) === floor);
   }
 
   /**
@@ -200,6 +209,8 @@ export class InteriorManager {
    * Retrieve the active floor mesh for input raycasting.
    */
   public getActiveFloorMesh(): THREE.Mesh | null {
+    const own = this.getActiveTemplate()?.activeFloor?.();
+    if (own) return own;
     const activeGroup = this.getActiveInteriorGroup();
     if (!activeGroup) return null;
     const floor = activeGroup.getObjectByName('interior_floor_mesh');
@@ -747,6 +758,8 @@ export class InteriorManager {
     const height = room.size.height ?? 3.2;
     let ceiling = template.group.getObjectByName('inside view ceiling') as THREE.Mesh | undefined;
     const o = def.interiorOrigin;
+    // Upstairs in a two-storey home the ceiling is a storey higher in the house, which is lowered by as much
+    const base = (template.storey ?? 0) * STOREY_H;
     const inside = Math.abs(camera.position.x - o.x) < width / 2 && Math.abs(camera.position.z - o.z) < length / 2 && camera.position.y < height;
     if (!inside) {
       if (ceiling) ceiling.visible = false;
@@ -761,6 +774,7 @@ export class InteriorManager {
       ceiling.layers.set(RENDER_LAYERS.INTERIOR);
       template.group.add(ceiling);
     }
+    ceiling.position.y = height + base;
     ceiling.visible = true;
   }
 

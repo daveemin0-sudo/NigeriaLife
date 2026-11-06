@@ -82,8 +82,16 @@ export class RoomCutaway {
 
     const box = new THREE.Box3();
     const center = new THREE.Vector3();
+    // The floor upstairs in a two-storey home: its walls and furniture faded one by one, like those downstairs
+    const roots: THREE.Object3D[] = [];
     for (const root of room.children) {
-      if (root === shell || root.name === 'interior_ground_plot' || root.name.startsWith('interior_npc_')) continue;
+      if (root.name === 'interior_upper_storey') roots.push(...root.children);
+      else roots.push(root);
+    }
+    for (const root of roots) {
+      if (root === shell || root.name === 'interior_ground_plot' || root.name.startsWith('interior_npc_') || root.name.startsWith('upper_wall_')) continue;
+      // Measured from its own floor
+      const base = root.parent && root.parent !== room ? root.parent.position.y : 0;
       const meshes: THREE.Mesh[] = [];
       root.traverse((child) => {
         const mesh = child as THREE.Mesh;
@@ -91,14 +99,14 @@ export class RoomCutaway {
       });
       if (meshes.length === 0) continue;
       box.setFromObject(root);
-      if (box.isEmpty() || box.max.y - origin.y < MIN_BLOCKER_HEIGHT) continue;
+      if (box.isEmpty() || box.max.y - origin.y - base < MIN_BLOCKER_HEIGHT) continue;
 
       box.getCenter(center);
       const piece: Piece = {
         root, meshes, fade: 1, target: 1, linger: 0, swapped: false,
         solid: new Map(), clear: new Map(),
         wall: this.wallBeside(center.x - origin.x, center.z - origin.z),
-        mounted: box.min.y - origin.y > 0.9,
+        mounted: box.min.y - origin.y - base > 0.9,
       };
       this.pieces.push(piece);
       for (const mesh of meshes) {
@@ -107,6 +115,12 @@ export class RoomCutaway {
       }
     }
     this.sinceCheck = CHECK_EVERY;
+  }
+
+  /** Shown, and everything it is in shown too */
+  private shown(object: THREE.Object3D): boolean {
+    for (let o: THREE.Object3D | null = object; o && o !== this.room; o = o.parent) if (!o.visible) return false;
+    return true;
   }
 
   /** The outer wall this spot is hard up against, if any. */
@@ -169,7 +183,8 @@ export class RoomCutaway {
         this.raycaster.layers.enableAll();
         for (const hit of this.raycaster.intersectObjects(this.targets, false)) {
           const piece = this.owner.get(hit.object);
-          if (piece && piece.root.visible) {
+          // Not what is not shown: the floor upstairs while the player is downstairs, furniture put away
+          if (piece && piece.root.visible && this.shown(hit.object)) {
             piece.target = SEE_THROUGH;
             piece.linger = LINGER;
           }

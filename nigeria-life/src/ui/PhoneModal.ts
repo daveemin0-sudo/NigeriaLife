@@ -20,6 +20,7 @@ import { adsApp } from '../phone/apps/ads';
 import { richApp } from '../phone/apps/rich';
 import { yarnApp } from '../phone/apps/yarn';
 import { ideasApp } from '../phone/apps/ideas';
+import { racingApp } from '../phone/apps/racing';
 import { nollywoodApp } from '../phone/apps/nollywood';
 import { staffApp } from '../phone/apps/staff';
 import { sparkApp } from '../phone/apps/spark';
@@ -40,7 +41,7 @@ const APPS: PhoneApp[] = [
   eventsApp, gamesApp, gistApp, casesApp,
   oddsApp, adsApp, richApp, yarnApp, ideasApp, nollywoodApp,
   staffApp, sparkApp, owambeApp, studioApp,
-  marriageApp, titlesApp, motorsApp, tradeApp,
+  marriageApp, titlesApp, motorsApp, tradeApp, racingApp,
 ];
 
 /** Things the phone opens elsewhere in the game instead of showing itself. */

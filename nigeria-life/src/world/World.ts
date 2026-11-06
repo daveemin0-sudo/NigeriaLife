@@ -45,6 +45,8 @@ export interface InteractiveObject {
   moving?: boolean;
   /** A way out that does not lead to the street (a hotel room's door to its corridor): what its button says */
   exitLabel?: string;
+  /** In a two-storey home, the floor it is on (0 the ground floor): only reached from that floor */
+  storey?: number;
 }
 
 export interface InteractionTarget {

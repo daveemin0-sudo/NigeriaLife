@@ -114,6 +114,11 @@ export class PlaceCard {
     this.render();
   }
 
+  /** Draws it again only if it is up (the player went up or down the stairs at home) */
+  public refreshIfShown(): void {
+    if (this.el.style.display !== 'none') this.render();
+  }
+
   private render(): void {
     const place = this.hooks.getPlace();
     if (!place) {

@@ -24,6 +24,7 @@ import { League } from './league.ts';
 import { Ads } from './ads.ts';
 import { Feed } from './feed.ts';
 import { Ideas } from './ideas.ts';
+import { ServerRaces } from './races.ts';
 import { ServerNollywood } from './nollywood.ts';
 import { ServerStaff } from './staff.ts';
 import { ServerSpark } from './spark.ts';
@@ -83,6 +84,8 @@ police.tell = (id, message) => rooms.tell(id, message);
 economy.hireRefusal = (id, employer) => police.refuses(id, employer.trade);
 // Trade between cities: cargo held here, bought and sold at the motor parks' goods sheds
 const trade = new ServerTrade(db, economy, (id) => rooms.positionOf(id));
+// Street races: stakes held here, the racers' times worked out here, the fastest on the board
+const races = new ServerRaces(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -223,7 +226,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors|police|trade|ideas)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors|police|trade|ideas|races)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -313,6 +316,16 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
     if (req.method === 'POST' && (url.pathname === '/ideas/post' || url.pathname === '/ideas/vote')) {
       const body = await readBody(req);
       const done = url.pathname === '/ideas/post' ? ideas.post(account, body) : ideas.vote(account, body);
+      return reply(res, done.ok ? 200 : 400, done);
+    }
+    // Street races: the board for a course, entering a race, and the finish
+    if (req.method === 'GET' && url.pathname === '/races/board') {
+      const done = races.board(account.id, url.searchParams.get('course') ?? '');
+      return reply(res, done.ok ? 200 : 400, done);
+    }
+    if (req.method === 'POST' && (url.pathname === '/races/enter' || url.pathname === '/races/finish')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/races/enter' ? races.enter(account, body) : races.finish(account, body);
       return reply(res, done.ok ? 200 : 400, done);
     }
     // Eko Ads: billboards on the expressway rented by players, seen by everyone
