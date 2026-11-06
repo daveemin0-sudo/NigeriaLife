@@ -8,7 +8,7 @@ import { EXPRESS } from '../expressway/layout';
 import type { CarBody } from '../Bodies';
 import { buildKitCar } from '../vehicles/KitCar';
 
-type VehicleKind =
+export type VehicleKind =
   | 'danfo' | 'keke' | 'okada' | 'sedan' | 'suv' | 'taxi' | 'police'
   | 'brt' | 'tanker' | 'truck' | 'delivery_van' | 'pickup';
 
@@ -55,7 +55,7 @@ const PAINTS = [0xf8fafc, 0xe5e7eb, 0x9ca3af, 0x18181b, 0x111827, 0x7f1d1d, 0x1e
 /** Sentinel paint colour used to find the tintable body panels of a prototype */
 const PAINT_KEY = 0xfe01fd;
 
-type SignalGroup = 'main' | 'cross';
+export type SignalGroup = 'main' | 'cross';
 type LampSet = { red: THREE.MeshBasicMaterial; amber: THREE.MeshBasicMaterial; green: THREE.MeshBasicMaterial };
 
 interface Lane {
@@ -67,8 +67,29 @@ interface Lane {
   uMax: number;
   stops: Array<{ u: number; group: SignalGroup }>;
   busStops: number[];
+  /** Lorries, tankers and buses may use it; kekes may use it */
+  heavy: boolean;
+  keke: boolean;
+  /** Most open road left between one vehicle and the next when the lane is filled, metres */
+  gap: number;
+  /** Where along it the traffic is thinner (out on the open road), if anywhere */
+  far?: (u: number) => boolean;
   /** Ordered leader first */
   cars: Car[];
+}
+
+/**
+ * A city's moving traffic: its lanes, the posts of its lights, how its mix differs from Lagos's,
+ * and how long its lights stay green. Lagos's own (Broad Street, the expressway, Martins Street) is
+ * the default.
+ */
+export interface TrafficPlan {
+  lanes: Array<Omit<Lane, 'cars'>>;
+  signals: Array<{ x: number; z: number; yaw: number; group: SignalGroup }>;
+  /** How much of each kind there is, against Lagos's mix: 0 for none (okadas in central Abuja) */
+  mix?: Partial<Record<VehicleKind, number>>;
+  cycle?: { mainGreen: number; crossGreen: number };
+  seed?: number;
 }
 
 interface Car {
@@ -119,8 +140,6 @@ const DRAW_DISTANCE = 150;
 /** Martins Street's lane centres, out from its middle on each side (half the road is 4.5 m) */
 export const MARTINS_LANES = [1.15, 3.35];
 
-const MAIN_GREEN = 30;
-const CROSS_GREEN = 14;
 const AMBER = 3;
 const ALL_RED = 1.5;
 
@@ -142,6 +161,13 @@ export class TrafficSpawner {
 
   private rand = seededRandom(7741);
   private batches: Batch[] = [];
+  private plan: TrafficPlan | null;
+  private mainGreen = 30;
+  private crossGreen = 14;
+  /** Every vehicle's baked shape, made once (by Lagos's traffic, the first) and shared by every city's */
+  private static shapes: Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo'>> | null = null;
+  private static bodyMat: THREE.MeshStandardMaterial | null = null;
+  private static paintMat: THREE.MeshStandardMaterial | null = null;
   private lanes: Lane[] = [];
   private parked: ParkedCar[] = [];
   private sphere = new THREE.Sphere(new THREE.Vector3(), 6.5);
@@ -149,12 +175,19 @@ export class TrafficSpawner {
   private signalLamps: Record<SignalGroup, LampSet>;
   private dummy = new THREE.Object3D();
 
-  constructor(vehicles: Vehicles, parkingSpots: StreetSpot[] = []) {
+  constructor(vehicles: Vehicles | null, parkingSpots: StreetSpot[] = [], plan?: TrafficPlan) {
     this.group = new THREE.Group();
+    this.plan = plan ?? null;
+    if (plan?.seed) this.rand = seededRandom(plan.seed);
+    if (plan?.cycle) {
+      this.mainGreen = plan.cycle.mainGreen;
+      this.crossGreen = plan.cycle.crossGreen;
+    }
     this.signalLamps = { main: this.createLampSet(), cross: this.createLampSet() };
 
     this.bakePrototypes(vehicles);
-    this.createLanes();
+    if (plan) this.lanes = plan.lanes.map((lane) => ({ ...lane, stops: lane.stops.map((s) => ({ ...s })), cars: [] }));
+    else this.createLanes();
 
     this.populateLanes();
     for (const spot of parkingSpots) {
@@ -175,7 +208,16 @@ export class TrafficSpawner {
   // =========================================================================
   // PROTOTYPES → BAKED INSTANCED GEOMETRY
   // =========================================================================
-  private bakePrototypes(vehicles: Vehicles): void {
+  private bakePrototypes(vehicles: Vehicles | null): void {
+    if (!TrafficSpawner.shapes) {
+      if (!vehicles) throw new Error('TrafficSpawner: the first traffic (Lagos) bakes the vehicles and needs the garage to');
+      TrafficSpawner.shapes = this.bake(vehicles);
+    }
+    this.batches = TrafficSpawner.shapes.map((shape) => ({ ...shape, count: 0, drawn: 0 }));
+  }
+
+  private bake(vehicles: Vehicles): Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo'>> {
+    const out: Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo'>> = [];
     const fromGarage = new Set<VehicleKind>(['danfo', 'keke', 'okada', 'sedan', 'suv', 'taxi', 'police']);
     const paintKey = new THREE.Color(PAINT_KEY);
     const isPaint = (material: THREE.Material) => {
@@ -198,8 +240,9 @@ export class TrafficSpawner {
       const box = bodyGeo.boundingBox!.clone();
       if (paintGeo) box.union(paintGeo.boundingBox!);
 
-      this.batches.push({ spec, length: box.max.z - box.min.z, width: box.max.x - box.min.x, bodyGeo, paintGeo, count: 0, drawn: 0 });
+      out.push({ spec, length: box.max.z - box.min.z, width: box.max.x - box.min.x, bodyGeo, paintGeo });
     }
+    return out;
   }
 
   /** Large commercial vehicles that the drivable garage does not model */
@@ -294,6 +337,11 @@ export class TrafficSpawner {
         uMax: dir > 0 ? EXPRESS.to - 20 : MAIN_ROAD.zMax + 6,
         stops: [{ u: dir * CROSS_STREET_Z - stopBefore, group: 'main' }],
         busStops: outer ? (dir > 0 ? [-20, 60] : [-40, 90]) : [],
+        heavy: outer,
+        keke: outer,
+        gap: 13,
+        // Out on the expressway the cars are further apart, until rush hour fills it
+        far: (u) => Math.abs(u * dir) > MAIN_ROAD.zMax + 20,
         cars: [],
       });
     }
@@ -309,6 +357,10 @@ export class TrafficSpawner {
         uMax: dir > 0 ? EXPRESS.to - 20 : -(EXPRESS.from + 20),
         stops: [],
         busStops: [],
+        heavy: true,
+        keke: true,
+        gap: 13,
+        far: (u) => Math.abs(u * dir) > MAIN_ROAD.zMax + 20,
         cars: [],
       });
     }
@@ -326,21 +378,29 @@ export class TrafficSpawner {
         uMax: cross.to + 4,
         stops: [{ u: -(MAIN_CORRIDOR_HALF + 1.2), group: 'cross' }],
         busStops: [],
+        heavy: false,
+        keke: true,
+        gap: 19,
         cars: [],
       });
     }
   }
 
+  /** How common a kind is here: Lagos's share, times this city's mix */
+  private weightOf(spec: KindSpec): number {
+    return spec.weight * (this.plan?.mix?.[spec.kind] ?? 1);
+  }
+
   private pickKind(allow: (spec: KindSpec) => boolean = () => true): number {
     let total = 0;
-    for (const b of this.batches) if (allow(b.spec)) total += b.spec.weight;
+    for (const b of this.batches) if (allow(b.spec)) total += this.weightOf(b.spec);
     let roll = this.rand() * total;
     for (let i = 0; i < this.batches.length; i++) {
-      if (!allow(this.batches[i].spec)) continue;
-      roll -= this.batches[i].spec.weight;
+      if (!allow(this.batches[i].spec) || this.weightOf(this.batches[i].spec) <= 0) continue;
+      roll -= this.weightOf(this.batches[i].spec);
       if (roll <= 0) return i;
     }
-    return 0;
+    return this.batches.findIndex((b) => allow(b.spec) && this.weightOf(b.spec) > 0);
   }
 
   private randomPaint(): THREE.Color {
@@ -350,16 +410,14 @@ export class TrafficSpawner {
   /** Fills every lane at Lagos density */
   private populateLanes(): void {
     for (const lane of this.lanes) {
-      const isMain = lane.axis === 'z';
-      const outer = isMain && Math.abs(lane.fixed) > 3;
       let u = lane.uMax - this.rand() * 6;
 
       while (u > lane.uMin) {
         // Heavy vehicles keep to the kerbside lane; okadas and saloons take the fast lane
         const kind = this.pickKind((k) => {
           const heavy = k.kind === 'brt' || k.kind === 'tanker' || k.kind === 'truck';
-          if (!isMain) return !heavy;
-          if (heavy || k.kind === 'keke') return outer;
+          if (heavy) return lane.heavy;
+          if (k.kind === 'keke') return lane.keke;
           return true;
         });
         const batch = this.batches[kind];
@@ -374,16 +432,15 @@ export class TrafficSpawner {
           length: batch.length,
           dwell: 0,
         });
-        // Out on the expressway the cars are further apart, until rush hour fills it
-        const out = isMain && Math.abs(u * lane.dir) > MAIN_ROAD.zMax + 20;
-        u -= batch.length / 2 + 3.5 + this.rand() * (isMain ? 13 : 19) * (out ? 2.2 : 1);
+        u -= batch.length / 2 + 3.5 + this.rand() * lane.gap * (lane.far?.(u) ? 2.2 : 1);
       }
     }
   }
 
   private createInstancedMeshes(): void {
-    const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.15 });
-    const paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35 });
+    // One body and one paint material for every city's traffic: the same shaders, built once
+    const bodyMat = (TrafficSpawner.bodyMat ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.15 }));
+    const paintMat = (TrafficSpawner.paintMat ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35 }));
 
     for (const batch of this.batches) {
       if (batch.count === 0) continue;
@@ -450,7 +507,7 @@ export class TrafficSpawner {
     const lampGeo = new THREE.SphereGeometry(0.21, 12, 8);
 
     // yaw points the lamp face at the approaching traffic
-    const posts: Array<{ x: number; z: number; yaw: number; group: SignalGroup }> = [
+    const posts: Array<{ x: number; z: number; yaw: number; group: SignalGroup }> = this.plan ? this.plan.signals : [
       { x: -7.7, z: CROSS_STREET_Z - cross.halfRoad - 4.4, yaw: Math.PI, group: 'main' },
       { x: 7.7, z: CROSS_STREET_Z + cross.halfRoad + 4.4, yaw: 0, group: 'main' },
       { x: -(MAIN_CORRIDOR_HALF + 0.6), z: CROSS_STREET_Z + cross.halfRoad + 0.6, yaw: -Math.PI / 2, group: 'cross' },
@@ -484,16 +541,16 @@ export class TrafficSpawner {
 
   /** State of a signal group at the current point in the cycle */
   public signalState(group: SignalGroup): 'go' | 'amber' | 'stop' {
-    const cycle = MAIN_GREEN + CROSS_GREEN + 2 * (AMBER + ALL_RED);
+    const cycle = this.mainGreen + this.crossGreen + 2 * (AMBER + ALL_RED);
     let t = this.signalTime % cycle;
 
-    if (t < MAIN_GREEN) return group === 'main' ? 'go' : 'stop';
-    t -= MAIN_GREEN;
+    if (t < this.mainGreen) return group === 'main' ? 'go' : 'stop';
+    t -= this.mainGreen;
     if (t < AMBER) return group === 'main' ? 'amber' : 'stop';
     t -= AMBER + ALL_RED;
     if (t < 0) return 'stop';
-    if (t < CROSS_GREEN) return group === 'cross' ? 'go' : 'stop';
-    t -= CROSS_GREEN;
+    if (t < this.crossGreen) return group === 'cross' ? 'go' : 'stop';
+    t -= this.crossGreen;
     if (t < AMBER) return group === 'cross' ? 'amber' : 'stop';
     return 'stop';
   }

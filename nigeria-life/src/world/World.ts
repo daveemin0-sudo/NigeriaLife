@@ -582,22 +582,28 @@ export class World {
       return;
     }
 
-    if (this.cityManager.currentCityId === 'abuja') {
+    // Abuja and Port Harcourt: their own streets' traffic and people; Lagos's systems wait
+    const city = this.cityManager.currentCityId;
+    if (city !== 'lagos') {
       this.cityManager.update(delta);
-      // The vehicles parked in Abuja are driven here like anywhere else
-      this.vehicles.updateDrivables(delta, keys, playerPos, 'abuja');
+      // The vehicles parked here are driven here like anywhere else
+      this.vehicles.updateDrivables(delta, keys, playerPos, city);
+      const life = this.cityManager.lifeHere();
+      if (life) {
+        const driven = player?.isDriving ? player.currentVehicle : null;
+        const size = driven ? outlineOf(driven.mesh) : null;
+        life.update(delta, playerPos, this.frustumNow(), this.skyEnvironment.currentHour, { halfWidth: size ? size.w / 2 : 0.35, halfLength: size ? size.l / 2 : 1.4 }, this.cityPopulation.avoid);
+      }
       this.weather.update(delta, playerPos);
+      // NEPA's plan for the area the player is in
+      LagosStreetLifeSystem.getInstance().update(delta, this.skyEnvironment.currentPeriod);
       return;
     }
 
     // Update vehicle movements & drivable controls with distance culling
     this.vehicles.update(delta, keys, playerPos, this.cityManager.currentCityId);
 
-    let frustum: THREE.Frustum | undefined;
-    if (this.viewCamera) {
-      this.viewMatrix.multiplyMatrices(this.viewCamera.projectionMatrix, this.viewCamera.matrixWorldInverse);
-      frustum = this.viewFrustum.setFromProjectionMatrix(this.viewMatrix);
-    }
+    const frustum = this.frustumNow();
 
     // The street is as busy as the hour: full by day, thin in the evening, nearly empty in the small hours
     const abroad = shareAbroad(this.skyEnvironment.currentHour);
@@ -657,6 +663,13 @@ export class World {
 
     // Update 3D simulated interiors (fans, smoke, NPCs)
     this.interiorManager.update(delta);
+  }
+
+  /** What the camera sees this frame, for drawing only what is in view */
+  private frustumNow(): THREE.Frustum | undefined {
+    if (!this.viewCamera) return undefined;
+    this.viewMatrix.multiplyMatrices(this.viewCamera.projectionMatrix, this.viewCamera.matrixWorldInverse);
+    return this.viewFrustum.setFromProjectionMatrix(this.viewMatrix);
   }
 
   // Temporary Street Highlight Beacon for Property Navigation

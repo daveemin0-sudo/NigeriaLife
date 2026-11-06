@@ -159,22 +159,24 @@ export function lagosZones(): Zone[] {
 export const JUNCTION_GAPS = MAIN_JUNCTION_GAPS;
 
 /** One straight avenue with a pavement either side: the shape of Abuja's and Port Harcourt's main roads. */
-function avenue(id: string, street: string, halfRoad: number, walk: number, from: number, to: number): Zone[] {
+function avenue(id: string, street: string, halfRoad: number, walk: number, from: number, to: number, lanes: readonly number[]): Zone[] {
   return [
-    { id: `${id}:road`, kind: 'carriageway', street, axis: 'z', clear: CLEAR_LANE * 2, minX: -halfRoad, maxX: halfRoad, minZ: from, maxZ: to },
+    { id: `${id}:road`, kind: 'carriageway', street, axis: 'z', clear: CLEAR_LANE * 2, lanes, minX: -halfRoad, maxX: halfRoad, minZ: from, maxZ: to },
     { id: `${id}:walk:west`, kind: 'walkway', street, axis: 'z', clear: CLEAR_WALKWAY, minX: -halfRoad - walk, maxX: -halfRoad, minZ: from, maxZ: to },
     { id: `${id}:walk:east`, kind: 'walkway', street, axis: 'z', clear: CLEAR_WALKWAY, minX: halfRoad, maxX: halfRoad + walk, minZ: from, maxZ: to },
   ];
 }
 
 /** Shehu Shagari Way runs from the south of Abuja up to the lookout at the foot of Aso Rock, and stops there. */
-export const ABUJA_AVENUE = { halfRoad: 10, walk: 3, from: -88, to: 130 };
-export const PORT_HARCOURT_AVENUE = { halfRoad: 9, walk: 3.5, from: -130, to: 130 };
+// `lanes`: the lane centres each side of the middle, where the traffic drives (Abuja's either side of a
+// grass median and a line at 5.5 m; Aba Road's either side of its yellow centre line)
+export const ABUJA_AVENUE = { halfRoad: 10, walk: 3, from: -88, to: 130, lanes: [3.3, 7.75] as readonly number[] };
+export const PORT_HARCOURT_AVENUE = { halfRoad: 9, walk: 3.5, from: -130, to: 130, lanes: [2.25, 6.6] as readonly number[] };
 
 /** The streets of a city, as zones. */
 export function zonesFor(city: string): Zone[] {
-  if (city === 'abuja') return avenue('shagari', 'Shehu Shagari Way', ABUJA_AVENUE.halfRoad, ABUJA_AVENUE.walk, ABUJA_AVENUE.from, ABUJA_AVENUE.to);
-  if (city === 'port_harcourt') return avenue('aba', 'Aba Road', PORT_HARCOURT_AVENUE.halfRoad, PORT_HARCOURT_AVENUE.walk, PORT_HARCOURT_AVENUE.from, PORT_HARCOURT_AVENUE.to);
+  if (city === 'abuja') return avenue('shagari', 'Shehu Shagari Way', ABUJA_AVENUE.halfRoad, ABUJA_AVENUE.walk, ABUJA_AVENUE.from, ABUJA_AVENUE.to, ABUJA_AVENUE.lanes);
+  if (city === 'port_harcourt') return avenue('aba', 'Aba Road', PORT_HARCOURT_AVENUE.halfRoad, PORT_HARCOURT_AVENUE.walk, PORT_HARCOURT_AVENUE.from, PORT_HARCOURT_AVENUE.to, PORT_HARCOURT_AVENUE.lanes);
   return lagosZones();
 }
 
@@ -219,6 +221,8 @@ export function obstructionsUnder(root: THREE.Object3D, label: string, owner?: (
 export function obstructionsOf(things: THREE.Object3D[], label: string, owner?: (child: THREE.Object3D, index: number) => string): Obstruction[] {
   const out: Obstruction[] = [];
   things.forEach((child, index) => {
+    // A city's traffic and people: they move, and are bodies to step round, not things standing on the ground
+    if (child.userData.streetLife) return;
     const name = owner ? owner(child, index) : child.name || `${label} #${index} near (${Math.round(child.position.x)}, ${Math.round(child.position.z)})`;
     child.traverse((obj) => {
       const mesh = obj as THREE.Mesh;

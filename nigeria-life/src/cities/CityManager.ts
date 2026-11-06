@@ -3,6 +3,7 @@ import type { CityId } from './CityTypes';
 import { NIGERIA_CITIES_REGISTRY } from './CityRegistry';
 import { AbujaCity } from './AbujaCity';
 import { PortHarcourtCity } from './PortHarcourtCity';
+import type { CityLife } from './CityLife';
 import type { Player } from '../player/Player';
 import type { InteractiveObject } from '../world/World';
 
@@ -210,6 +211,13 @@ export class CityManager {
   private isIndoors(object: THREE.Object3D): boolean {
     for (let at: THREE.Object3D | null = object; at; at = at.parent) if (at === this.rooms) return true;
     return false;
+  }
+
+  /** The traffic and people of the city on show, if it is Abuja or Port Harcourt (Lagos's are the world's own) */
+  public lifeHere(): CityLife | null {
+    if (this.currentCityId === 'abuja') return this.abujaCity?.life ?? null;
+    if (this.currentCityId === 'port_harcourt') return this.portHarcourtCity?.life ?? null;
+    return null;
   }
 
   public update(delta: number): void {

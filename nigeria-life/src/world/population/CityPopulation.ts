@@ -85,6 +85,34 @@ const NEAR_DISTANCE = 22;
 const FAR_CELL = 0.045;
 
 /**
+ * Where a city's crowd walks: its avenue (along z, either side of x = 0), how many walk it and
+ * stand gisting by the shops, whether it has Lagos's bus-stop queues, where its pavement opens
+ * for a road across, and where a knot of people must not stand. Lagos's (Broad Street) is the default.
+ */
+export interface CrowdPlan {
+  avenue: { halfRoad: number; walk: number; from: number; to: number; top: number };
+  walkers: number;
+  groups: number;
+  busStops: boolean;
+  gap: (z: number) => boolean;
+  keepClear: (x: number, z: number) => boolean;
+  seed?: number;
+}
+
+const LAGOS_CROWD: CrowdPlan = {
+  avenue: { halfRoad: MAIN_ROAD.halfRoad, walk: MAIN_ROAD.walk, from: MAIN_ROAD.zMin, to: MAIN_ROAD.zMax, top: MAIN_ROAD.sidewalkTop },
+  walkers: 190,
+  groups: 14,
+  busStops: true,
+  gap: isInJunctionGap,
+  // The footbridge stairs and the doorways on Broad Street
+  keepClear: (cx, cz) => isInJunctionGap(cz) || (cx > 8.0 && cz > 98 && cz < 108) || (cx > 8.0 && cz > -28 && cz < -18) || (cx < -8.0 && cz > -62 && cz < -50) || (cx < -8.0 && cz > -8 && cz < 2),
+};
+
+/** The shapes of the crowd's looks, baked once (by Lagos's crowd, the first) and shared by every city's */
+type Shape = Pick<Variant, 'bodyGeo' | 'limbGeos' | 'farBodyGeo' | 'farLimbGeos' | 'pivots' | 'footY'>;
+
+/**
  * CityPopulation
  * The Lagos street crowd. Every pedestrian uses the Character 2.0 human rig, but each
  * distinct look is baked once and drawn with InstancedMesh (body + 4 animated limbs),
@@ -104,6 +132,10 @@ export class CityPopulation {
 
   private rand = seededRandom(90210);
   private variants: Variant[] = [];
+  private plan: CrowdPlan;
+  private static shapes: Shape[] | null = null;
+  private static material: THREE.MeshStandardMaterial | null = null;
+  private static blobMaterial: THREE.MeshBasicMaterial | null = null;
   private agents: Agent[] = [];
   private shadows?: THREE.InstancedMesh;
 
@@ -120,13 +152,20 @@ export class CityPopulation {
   private limbZ = [0, 0, 0, 0];
   private static readonly UP = new THREE.Vector3(0, 1, 0);
 
-  constructor(walkRuns: WalkRun[] = [], stallSpots: StreetSpot[] = []) {
+  constructor(walkRuns: WalkRun[] = [], stallSpots: StreetSpot[] = [], plan: CrowdPlan = LAGOS_CROWD) {
     this.group = new THREE.Group();
+    this.plan = plan;
+    if (plan.seed) this.rand = seededRandom(plan.seed);
 
-    this.bakeVariants();
+    if (CityPopulation.shapes) {
+      this.variants = CityPopulation.shapes.map((shape) => ({ ...shape, count: 0, drawn: 0, limbs: [], drawnFar: 0, farLimbs: [] }));
+    } else {
+      this.bakeVariants();
+      CityPopulation.shapes = this.variants.map(({ bodyGeo, limbGeos, farBodyGeo, farLimbGeos, pivots, footY }) => ({ bodyGeo, limbGeos, farBodyGeo, farLimbGeos, pivots, footY }));
+    }
     this.spawnMainStreetWalkers();
     this.spawnSideStreetWalkers(walkRuns);
-    this.spawnBusStopQueues();
+    if (plan.busStops) this.spawnBusStopQueues();
     this.spawnChatGroups();
     this.spawnStallTraders(stallSpots);
 
@@ -249,14 +288,15 @@ export class CityPopulation {
     });
   }
 
-  /** Broad Street: a steady two-way stream on both sidewalks */
+  /** The avenue (Broad Street in Lagos): a steady two-way stream on both pavements */
   private spawnMainStreetWalkers(): void {
-    const inner = MAIN_ROAD.halfRoad + 1.2;
-    const outer = MAIN_ROAD.halfRoad + MAIN_ROAD.walk - 1.3;
-    for (let i = 0; i < 190; i++) {
+    const road = this.plan.avenue;
+    const inner = road.halfRoad + Math.min(1.2, road.walk * 0.3);
+    const outer = road.halfRoad + road.walk - Math.min(1.3, road.walk * 0.3);
+    for (let i = 0; i < this.plan.walkers; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const x = side * (inner + this.rand() * (outer - inner));
-      this.addWalker('z', x, MAIN_ROAD.zMin + 2, MAIN_ROAD.zMax - 2, true);
+      this.addWalker('z', x, road.from + 2, road.to - 2, true);
     }
   }
 
@@ -328,11 +368,12 @@ export class CityPopulation {
 
   /** Small knots of people gisting outside the shopfronts */
   private spawnChatGroups(): void {
-    for (let g = 0; g < 14; g++) {
+    const road = this.plan.avenue;
+    for (let g = 0; g < this.plan.groups; g++) {
       const side = g % 2 === 0 ? -1 : 1;
-      const cx = side * (MAIN_ROAD.halfRoad + MAIN_ROAD.walk - 0.9);
-      const cz = MAIN_ROAD.zMin + 12 + this.rand() * (MAIN_ROAD.zMax - MAIN_ROAD.zMin - 24);
-      if (isInJunctionGap(cz) || (cx > 8.0 && cz > 98 && cz < 108) || (cx > 8.0 && cz > -28 && cz < -18) || (cx < -8.0 && cz > -62 && cz < -50) || (cx < -8.0 && cz > -8 && cz < 2)) continue;
+      const cx = side * (road.halfRoad + road.walk - 0.9);
+      const cz = road.from + 12 + this.rand() * (road.to - road.from - 24);
+      if (this.plan.keepClear(cx, cz)) continue;
       const people = 2 + Math.floor(this.rand() * 3);
       for (let i = 0; i < people; i++) {
         const angle = (i / people) * Math.PI * 2 + this.rand() * 0.6;
@@ -384,7 +425,7 @@ export class CityPopulation {
   }
 
   private createInstancedMeshes(): void {
-    const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, metalness: 0.03 });
+    const material = (CityPopulation.material ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, metalness: 0.03 }));
 
     for (const variant of this.variants) {
       if (variant.count === 0) continue;
@@ -412,7 +453,7 @@ export class CityPopulation {
 
     // One shared contact-shadow blob under every pedestrian
     const blobGeo = new THREE.CircleGeometry(0.5, 12).rotateX(-Math.PI / 2);
-    const blobMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false });
+    const blobMat = (CityPopulation.blobMaterial ??= new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
     this.shadows = new THREE.InstancedMesh(blobGeo, blobMat, Math.max(1, this.agents.length));
     this.shadows.frustumCulled = false;
     this.group.add(this.shadows);
@@ -499,7 +540,7 @@ export class CityPopulation {
       }
     } else if (a.willCross && a.axis === 'z' && !e) {
       a.crossCool = Math.max(0, (a.crossCool ?? 0) - delta);
-      if (a.crossCool === 0 && isInJunctionGap(a.z)) a.crossing = -a.x;
+      if (a.crossCool === 0 && this.plan.gap(a.z)) a.crossing = -a.x;
     }
     return false;
   }
@@ -601,7 +642,7 @@ export class CityPopulation {
       const limbMeshes = far ? variant.farLimbs : variant.limbs;
 
       // Broad Street's sidewalk drops to road level where a side street cuts through
-      const ground = a.onMainWalk && isInJunctionGap(a.z) ? 0.02 : MAIN_ROAD.sidewalkTop;
+      const ground = a.onMainWalk && this.plan.gap(a.z) ? 0.02 : this.plan.avenue.top;
 
       pos.set(ax, ground - variant.footY * a.scale + bob, az);
       quat.setFromAxisAngle(CityPopulation.UP, a.yaw);

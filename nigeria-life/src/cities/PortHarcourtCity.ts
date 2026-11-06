@@ -11,6 +11,7 @@ import type { Obstruction } from '../world/plan/CityPlan';
 import { PlaceActions } from '../destinations/PlaceActions';
 import { settleGig } from '../online/checkedEarn';
 import { WorldMapPrefabs } from '../world/map/WorldMapPrefabs';
+import { CityLife } from './CityLife';
 
 export class PortHarcourtCity implements CityInstance {
   public group: THREE.Group;
@@ -20,6 +21,8 @@ export class PortHarcourtCity implements CityInstance {
   public motorPark: MotorParkLandmark;
   public refinery: RefineryLandmark;
   public standing: Obstruction[] = [];
+  /** Traffic on Aba Road and people on its pavements */
+  public life: CityLife;
 
   private animTime: number = 0;
 
@@ -80,6 +83,10 @@ export class PortHarcourtCity implements CityInstance {
     this.group.add(this.airport.group);
     this.interactiveList.push(...this.airport.interactive);
     PlaceActions.registerAll(this.airport.actions);
+
+    // The road's traffic and the people on its pavements
+    this.life = new CityLife('port_harcourt');
+    this.group.add(this.life.group);
 
     this.registerCityActions();
   }

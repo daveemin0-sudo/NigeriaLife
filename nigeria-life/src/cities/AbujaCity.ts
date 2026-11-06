@@ -13,6 +13,7 @@ import type { Obstruction } from '../world/plan/CityPlan';
 import { PlaceActions } from '../destinations/PlaceActions';
 import { settleGig } from '../online/checkedEarn';
 import { emitGameEvent } from '../game/GameEvents';
+import { CityLife } from './CityLife';
 
 export class AbujaCity implements CityInstance {
   public group: THREE.Group;
@@ -21,6 +22,8 @@ export class AbujaCity implements CityInstance {
   public airport: AirportLandmark;
   public motorPark: MotorParkLandmark;
   public standing: Obstruction[] = [];
+  /** Traffic on Shehu Shagari Way and people on its pavements */
+  public life: CityLife;
 
   private flagMeshes: THREE.Mesh[] = [];
   private animTime: number = 0;
@@ -78,6 +81,10 @@ export class AbujaCity implements CityInstance {
     this.group.add(this.airport.group);
     this.interactiveList.push(...this.airport.interactive);
     PlaceActions.registerAll(this.airport.actions);
+
+    // The avenue's traffic and the people on its pavements
+    this.life = new CityLife('abuja');
+    this.group.add(this.life.group);
 
     this.registerCityActions();
   }

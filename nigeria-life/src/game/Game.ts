@@ -1773,7 +1773,11 @@ export class Game {
     Bodies.add({
       people: (x, z, range, out) => {
         out.length = 0;
-        if (!onLagosStreet()) return;
+        // In Abuja and Port Harcourt, their own people on their own pavements
+        if (!onLagosStreet()) {
+          if (inTheStreet()) this.world.cityManager.lifeHere()?.people(x, z, range, out);
+          return;
+        }
         this.world.cityPopulation.people(x, z, range, out);
         for (const npc of this.world.npcs.getPedestrianPositions()) {
           if (Math.abs(npc.x - x) <= range && Math.abs(npc.z - z) <= range) out.push({ x: npc.x, z: npc.z, r: 0.3 });
@@ -1781,6 +1785,7 @@ export class Game {
       },
       cars: (x, z, range, out) => {
         if (onLagosStreet()) this.world.trafficSpawner.cars(x, z, range, out);
+        else if (inTheStreet()) this.world.cityManager.lifeHere()?.cars(x, z, range, out);
         if (inTheStreet()) this.world.vehicles.cars(x, z, range, out, this.world.cityManager.currentCityId);
       },
     });
@@ -1863,7 +1868,8 @@ export class Game {
       board: (stop, doorX, doorZ, onBoard) => crowd.board(stop, doorX, doorZ, onBoard),
     };
     DrivableVehicle.makeWay = (x, z, dirX, dirZ, range, halfWidth) => (this.world.cityManager.currentCityId === 'lagos' ? crowd.scatter(x, z, dirX, dirZ, range, halfWidth) : 0);
-    DrivableVehicle.hootTraffic = (x, z, dirX, dirZ, range, halfWidth) => (this.world.cityManager.currentCityId === 'lagos' ? this.world.trafficSpawner.hoot(x, z, dirX, dirZ, range, halfWidth) : 0);
+    DrivableVehicle.hootTraffic = (x, z, dirX, dirZ, range, halfWidth) =>
+      (this.world.cityManager.currentCityId === 'lagos' ? this.world.trafficSpawner : this.world.cityManager.lifeHere()?.traffic)?.hoot(x, z, dirX, dirZ, range, halfWidth) ?? 0;
     const roadsByCity = new Map<string, ReturnType<typeof zonesFor>>();
     DrivableVehicle.roads = () => {
       const city = this.world.cityManager.currentCityId;
