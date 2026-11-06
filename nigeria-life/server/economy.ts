@@ -305,7 +305,7 @@ export class Economy {
     return { ok: true, shift };
   }
 
-  public finishShift(accountId: string, shiftId: unknown, idemRaw: unknown, starsRaw?: unknown): Result<{ pay?: number; tip?: number; slip?: Payslip; promoted?: Grade; done?: number; replay?: boolean }> {
+  public finishShift(accountId: string, shiftId: unknown, idemRaw: unknown, starsRaw?: unknown, poorRaw?: unknown): Result<{ pay?: number; tip?: number; slip?: Payslip; docked?: boolean; promoted?: Grade; done?: number; replay?: boolean }> {
     const idem = cleanIdem(idemRaw);
     if (!idem) return { ok: false, reason: 'That could not be read.' };
     if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
@@ -327,7 +327,9 @@ export class Economy {
     if (away) return { ok: false, reason: away };
 
     const job = this.job(accountId, shift.employer)!;
-    const pay = job.grade.pay;
+    // Work done starving, worn out or unwashed (the game says so; it can only cost the player) is docked a fifth
+    const docked = poorRaw === true;
+    const pay = docked ? Math.round((job.grade.pay * 0.8) / 50) * 50 : job.grade.pay;
     // Stars are optional. Left out, the wage is the whole pay, so an existing shift test is unchanged.
     const stars = starsRaw === 2 || starsRaw === 3 ? starsRaw : 0;
     const tip = tipFor(pay, stars);
@@ -339,7 +341,7 @@ export class Economy {
     this.keepPayslip(accountId, slip, idem);
     this.db.prepare('UPDATE jobs SET done = done + 1 WHERE account_id = ? AND employer = ?').run(accountId, shift.employer);
     const now = gradeFor(employer, job.done + 1);
-    return { ok: true, wallet: paid.wallet, pay, tip, slip, done: job.done + 1, promoted: now !== job.grade ? now : undefined };
+    return { ok: true, wallet: paid.wallet, pay, tip, slip, ...(docked ? { docked } : {}), done: job.done + 1, promoted: now !== job.grade ? now : undefined };
   }
 
   // --- Between players and from the admin -------------------------------------------------------

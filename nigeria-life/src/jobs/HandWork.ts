@@ -201,15 +201,18 @@ export function createHandWork(options: HandWorkOptions): HandWork {
         : `${capital(words.theBoss)} pays you ${wage} for the ${words.piece}. Energy -${effort}%.`, 'success');
       const note = result.slip ? payeNote(result.slip) : null;
       if (note) setTimeout(() => host.say(note, 'info'), score.tip > 0 ? 3600 : 1800);
+      if (result.docked) setTimeout(() => host.say(`${result.docked}: ${words.theBoss} docked a fifth of the pay. Eat, rest and wash before the next ${words.piece}.`, 'warning'), 1200);
       return true;
     };
     if (online) {
       work.add(steps.settle(`paid for the ${words.piece}`, async () => {
         const rated = skill.finish(rate());
-        const finished = await online.finishWork(shift ?? '', rated.stars);
+        // Starving, worn out or unwashed: the server docks a fifth (the game can only own up to it)
+        const poor = host.backend.poorShape();
+        const finished = await online.finishWork(shift ?? '', rated.stars, !!poor);
         if (!finished.ok) return announce({ ok: false, reason: finished.reason });
         const tip = finished.tip ?? 0;
-        return announce(jobs.settledByServer(id, finished.pay ?? rate(), finished.done ?? 0, finished.slip), { stars: rated.stars, tip }, true);
+        return announce(jobs.settledByServer(id, finished.pay ?? rate(), finished.done ?? 0, finished.slip, finished.docked ? poor ?? 'You worked in poor shape' : undefined), { stars: rated.stars, tip }, true);
       }));
     } else {
       work.add(steps.call(`paid for the ${words.piece}`, () => announce(jobs.complete(id))));

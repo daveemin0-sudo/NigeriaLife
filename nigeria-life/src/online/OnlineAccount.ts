@@ -316,8 +316,8 @@ export class OnlineAccount {
   }
 
   /** Paid by the server: `pay` is the wage before tax, `slip` the payslip with the PAYE it took */
-  public finishWork(shift: string, stars?: number): Promise<{ ok: boolean; pay?: number; tip?: number; done?: number; slip?: Payslip; reason?: string; replay?: boolean }> {
-    return this.request('/work/finish', { shift, idem: this.idem('w'), ...(stars === 2 || stars === 3 ? { stars } : {}) });
+  public finishWork(shift: string, stars?: number, poor?: boolean): Promise<{ ok: boolean; pay?: number; tip?: number; done?: number; slip?: Payslip; docked?: boolean; reason?: string; replay?: boolean }> {
+    return this.request('/work/finish', { shift, idem: this.idem('w'), ...(stars === 2 || stars === 3 ? { stars } : {}), ...(poor ? { poor: true } : {}) });
   }
 
   /** A gig shift the server has started and not yet paid, kept for the second call. */

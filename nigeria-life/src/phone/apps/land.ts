@@ -11,6 +11,27 @@ import { SETBACK } from '../../world/plan/CityPlan';
 import type { AssetRef, Listing, Negotiation } from '../../realestate/types';
 
 const land = () => Land.get();
+
+/** What it is worth today and how fast land rises here; for the owner, how far it has come since they bought it */
+function valueRow(plot: Plot, paid: number | null): string {
+  const now = plot.statePrice;
+  const rise = `land here rises about ${Math.round(plot.growth * 100)}% a year`;
+  const since = paid && paid > 0 ? ` · ${now >= paid ? '+' : ''}${Math.round(((now - paid) / paid) * 100)}% on the ${naira(paid)} you paid` : '';
+  return row({ icon: '📈', title: 'Land value', sub: `About ${naira(now)} today · ${rise}${since}`, attrs: 'id="land-value"', tag: 'div' });
+}
+
+/** Where omo-onile come to the site: what they will ask before the first block, or that it is settled */
+function omoOnileRow(plot: Plot, mine: boolean): string {
+  const levy = land().levyFor(plot.id);
+  if (!levy) return '';
+  return row({
+    icon: '🪧',
+    title: 'Omo-onile',
+    sub: `${mine ? 'Before you build' : 'Whoever builds here'}, the ${esc(levy.family)} family will ask a foundation levy (from ${naira(levy.amount)}, a share of the building's cost)${levy.doubled ? ', twice over since the report' : ''}.`,
+    attrs: 'id="land-omo-onile"',
+    tag: 'div',
+  });
+}
 const market = () => AssetMarket.get();
 
 const USE_LABEL: Record<string, string> = { residential: 'Homes', commercial: 'Business' };
@@ -214,7 +235,7 @@ function plotScreen(host: PhoneHost, plot: Plot) {
   return {
     title: plot.name,
     body: `
-      <div class="nl-hero nl-hero--green">
+      <div class="nl-hero nl-hero--green" id="land-hero">
         <span class="nl-hero-label">${esc(plot.neighbourhood)}, ${CITY_NAME[plot.city]} · ${esc(plot.street)}</span>
         <span class="nl-hero-title">${Math.round(plot.area)} m²</span>
         <span class="nl-hero-sub">${width} m × ${depth} m · ${mine ? 'Your land' : STATUS_LABEL[status]}</span>
@@ -224,6 +245,8 @@ function plotScreen(host: PhoneHost, plot: Plot) {
         ${row({ icon: '🏗️', title: 'What may be built', sub: `${plot.uses.map((use) => USE_LABEL[use]).join(' and ')} · up to ${count(plot.maxFloors, 'floor')}` })}
         ${row({ icon: '📏', title: 'Rules', sub: `Buildings stand at least ${SETBACK} m inside the boundary and never on the road or the pavement.` })}
         ${row({ icon: '💰', title: status === 'available' ? 'State price' : listing ? 'Asking price' : 'Price', sub: status === 'available' ? `${naira(plot.statePrice)} · an in-game price` : listing ? `${naira(listing.askingPrice)} · offers are negotiated` : 'Not for sale' })}
+        ${valueRow(plot, mine ? (title?.history.filter((h) => h.to === owner).at(-1)?.price ?? null) : null)}
+        ${omoOnileRow(plot, mine)}
       </div>
       ${actions}
       <button class="nl-btn nl-btn--block" data-act="show" data-arg="${esc(plot.id)}">Show me where it is</button>

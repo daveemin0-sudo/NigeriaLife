@@ -316,6 +316,8 @@ export interface PlayerAccount {
   releasedDeeds?: string[];
   /** When business revenue was last accrued (ms since epoch) */
   lastRevenueAt?: number;
+  /** When the game was last open on this account (ms): needs run down gently for the time away */
+  lastActiveAt?: number;
   worldState?: SavedWorldState;
   createdAt: string;
 }

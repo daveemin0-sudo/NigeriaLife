@@ -435,6 +435,18 @@ export async function run(_browser, check) {
       there.stop();
       return { hired, started, tooFast, paid, gained: (paid.wallet?.cash ?? 0) - before };
     };
+    const gradeShiftPoor = async (name, employer, x, z, city, seconds) => {
+      const there = await onSpot(name, x, z, city);
+      await call('/work/hire', { employer }, there.guest.token);
+      const started = await call('/work/start', { employer }, there.guest.token);
+      await wait(seconds);
+      there.sock.send(stand(x, z, city));
+      await wait(200);
+      const before = (await call('/me', null, there.guest.token)).wallet.cash;
+      const paid = await call('/work/finish', { shift: started.shift, idem: idem(), poor: true }, there.guest.token);
+      there.stop();
+      return { paid, gained: (paid.wallet?.cash ?? 0) - before };
+    };
     // 3, 4, 5. The three minigames, entry grade.
     const cchub = await gradeShift('Wale', 'cchub-yaba', -10, -25, 'lagos', 6_800);
     const away = await onSpot('Tobi', 80, 80);
@@ -570,6 +582,11 @@ export async function run(_browser, check) {
       !wrongStop.ok && /not pulled up at that stop/.test(wrongStop.reason) && fares.slice(0, 3).every((f) => f.ok && f.pay === 250) && !fares[3].ok && /Nobody else is waiting/.test(fares[3].reason)
         && tooQuick[0].ok && tooQuick[0].pay === 350 && !tooQuick[1].ok && /One passenger at a time/.test(tooQuick[1].reason) && busCash === 25_000 + 750 + 350,
       { wrongStop, fares, tooQuick, busCash });
+
+    // Work done in poor shape (the game owns up to it): the server docks a fifth
+    const tired = await gradeShiftPoor('Yinka', 'cchub-yaba', -10, -25, 'lagos', 6_800);
+    check('online: a shift the game says was worked starving or worn out is docked a fifth by the server (CcHUB ₦16,000 becomes ₦12,800)',
+      tired.paid.ok && tired.paid.pay === 12_800 && tired.paid.docked === true && tired.gained === 12_800, tired);
 
     // The next tier, same gig clock: the code sprint the phone used to pay at once.
     const kode = await call('/auth/guest', { name: 'Kode' });

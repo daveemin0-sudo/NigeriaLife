@@ -24,6 +24,10 @@ import { emitGameEvent } from '../game/GameEvents';
 
 type ListenerCallback = (data: PlayerAccount) => void;
 
+/** How fast each need runs down while the game is shut, a point an hour, and the least time away leaves it at */
+const AWAY_PER_HOUR = { hunger: 5.5, energy: 4, fun: 4.5, social: 3, hygiene: 3.5, bladder: 7 } as const;
+const AWAY_FLOOR = 25;
+
 /** Businesses pay out once per cycle while the game is open */
 const REVENUE_CYCLE_MS = 45000;
 
@@ -206,6 +210,21 @@ export class BackendService {
   private settling = false;
   /** Reports waiting for a registry change to be kept (see checkpoint) */
   private heldReports: Array<Array<[number, number, string, string | undefined]>> = [];
+
+  /** Told what time away took off the needs, when the game opens (set by the game) */
+  public onAway: ((changed: Partial<Record<'hunger' | 'energy' | 'fun' | 'social' | 'hygiene' | 'bladder', number>>) => void) | null = null;
+
+  /**
+   * Why a piece of work is done badly now: starving, worn out or filthy. The employer docks a
+   * fifth of the pay for it (on the game server too). Null when the player is fit to work.
+   */
+  public poorShape(): string | null {
+    const s = this.data.stats;
+    if (s.hunger < 15) return 'You worked hungry';
+    if (s.energy < 15) return 'You worked exhausted';
+    if ((s.hygiene ?? 100) < 10) return 'You came to work unwashed';
+    return null;
+  }
 
   /** The game day now (the sky's), once the world is up: leases and loans are scheduled from it (src/life/Dues.ts) */
   public dayNow: (() => number) | null = null;
@@ -398,6 +417,8 @@ export class BackendService {
 
   private saveData(): void {
     try {
+      // While the game is open the clock of time away is held at now (see settleTimeAway)
+      if (this.awaySettled) this.data.lastActiveAt = Date.now();
       const text = JSON.stringify(this.data);
       localStorage.setItem(this.STORAGE_KEY, text);
       this.lastSavedText = text;
@@ -666,6 +687,40 @@ export class BackendService {
   }
 
   private vitalsAccumulator = 0;
+  /** Time away has been taken off the needs this visit (once, at the first tick of the needs) */
+  private awaySettled = false;
+
+  /**
+   * Needs run down while the game is shut, gently (a Lagos day's rates by the hour, not the
+   * game's own fast ones), and never below a floor from time away alone: nobody comes back to
+   * a character who starved while they were at work. Returns what changed, for a line on the screen.
+   */
+  public settleTimeAway(now = Date.now()): Partial<Record<'hunger' | 'energy' | 'fun' | 'social' | 'hygiene' | 'bladder', number>> {
+    if (this.awaySettled) return {};
+    this.awaySettled = true;
+    const since = this.data.lastActiveAt;
+    this.data.lastActiveAt = now;
+    if (!Number.isFinite(since) || (since as number) >= now) {
+      this.saveData();
+      return {};
+    }
+    const hours = Math.min(72, (now - (since as number)) / 3_600_000);
+    if (hours < 0.25) {
+      this.saveData();
+      return {};
+    }
+    const trait = this.data.trait;
+    const changed: Partial<Record<'hunger' | 'energy' | 'fun' | 'social' | 'hygiene' | 'bladder', number>> = {};
+    for (const need of ['hunger', 'energy', 'fun', 'social', 'hygiene', 'bladder'] as const) {
+      const was = this.data.stats[need] ?? 100;
+      const fall = AWAY_PER_HOUR[need] * hours * needRate(trait, need);
+      const left = Math.max(Math.min(was, AWAY_FLOOR), was - fall);
+      if (left < was - 0.5) changed[need] = Math.round(was - left);
+      this.data.stats[need] = Math.round(left);
+    }
+    this.saveData();
+    return changed;
+  }
   private lastStarveWarningTime = 0;
   private lastBladderWarningTime = 0;
 
@@ -676,6 +731,10 @@ export class BackendService {
     }
     const elapsed = this.vitalsAccumulator;
     this.vitalsAccumulator = 0;
+    if (!this.awaySettled) {
+      const away = this.settleTimeAway();
+      if (Object.keys(away).length) this.onAway?.(away);
+    }
 
     // Base hunger drain: ~1 point every 30 seconds. The other needs drain in proportion to it.
     const hungerDrain = (isSprinting ? 0.07 : isDriving ? 0.02 : 0.035) * elapsed;

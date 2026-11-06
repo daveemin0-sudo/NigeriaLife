@@ -146,6 +146,40 @@ export const COMMERCIAL_PREMIUM = 1.15;
 
 export const plotArea = (def: PlotDef) => (def.rect.maxX - def.rect.minX) * (def.rect.maxZ - def.rect.minZ);
 
+/**
+ * How fast land rises in each neighbourhood, a share a year: fastest where the city is still
+ * spreading (the Lekki to Ajah axis, Gwarinpa, the airport roads), slowest where it is long
+ * built up and already dear. In-game estimates, not valuations.
+ */
+export const LAND_GROWTH_PER_YEAR: Record<string, number> = {
+  banana_island: 0.08, eko_atlantic: 0.12, victoria_island: 0.08, lagos_island: 0.07, lekki: 0.18, ikeja: 0.12,
+  airport: 0.1, yaba: 0.14, surulere: 0.12, port_apapa: 0.06, mainland: 0.15, ajah: 0.22,
+  maitama: 0.07, asokoro: 0.07, cbd_abuja: 0.06, wuse: 0.09, garki: 0.08, jabi: 0.1, gwarinpa: 0.16, airport_abuja: 0.18,
+  old_gra: 0.08, d_line: 0.1, trans_amadi: 0.09, township: 0.06, choba_uniport: 0.15, airport_ph: 0.18,
+};
+export const DEFAULT_LAND_GROWTH = 0.1;
+
+/** What land bought for `base` on day 0 of the game's calendar is worth on `day` (to the nearest ₦50,000) */
+export function priceOnDay(base: number, districtId: string, day: number): number {
+  const rate = LAND_GROWTH_PER_YEAR[districtId] ?? DEFAULT_LAND_GROWTH;
+  return Math.round((base * Math.pow(1 + rate, Math.max(0, day) / 365)) / 50_000) * 50_000;
+}
+
+/**
+ * Omo-onile: in these neighbourhoods a family who say the land was theirs come to the site
+ * before the first block is laid and ask a "foundation levy", this share of what the building
+ * costs. Where land is long titled and policed (the islands' estates, the diplomatic quarters)
+ * nobody comes.
+ */
+export const OMO_ONILE_SHARE: Record<string, number> = {
+  mainland: 0.04, ajah: 0.05, lekki: 0.03, surulere: 0.03, yaba: 0.02, ikeja: 0.02, port_apapa: 0.03, lagos_island: 0.015,
+  gwarinpa: 0.02, airport_abuja: 0.03, jabi: 0.01,
+  d_line: 0.02, trans_amadi: 0.02, township: 0.02, choba_uniport: 0.03, airport_ph: 0.03,
+};
+/** The least a family asks, and the most (a tower's share would be far beyond what is ever paid) */
+export const OMO_ONILE_FLOOR = 50_000;
+export const OMO_ONILE_CAP = 25_000_000;
+
 /** The state's price for a plot nobody has bought yet. */
 export function statePrice(def: PlotDef, districtId: string): number {
   const perSqm = LAND_PRICE_PER_SQM[districtId] ?? DEFAULT_LAND_PRICE_PER_SQM;

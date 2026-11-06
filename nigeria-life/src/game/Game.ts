@@ -297,7 +297,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -1051,6 +1051,13 @@ export class Game {
     this.connectDues();
     this.connectPower();
     this.connectPolice();
+    this.connectLandLife();
+    // Back after time away: what it took off the needs, in one line
+    BackendService.getInstance().onAway = (changed) => {
+      const words: Record<string, string> = { hunger: 'hungrier', energy: 'more tired', fun: 'more bored', social: 'lonelier', hygiene: 'less fresh', bladder: 'in need of the toilet' };
+      const said = Object.entries(changed).filter(([, n]) => (n ?? 0) >= 3).map(([need, n]) => `${words[need]} (-${n})`);
+      if (said.length) showGameToast(`While you were away you got ${said.join(', ')}. Time away never takes a need below a quarter.`, 'info', 7000);
+    };
     window.addEventListener('pagehide', () => this.saveWorldState());
     document.addEventListener('visibilitychange', () => {
       // Out of sight (Chrome closed, another app on top): saved, and every sound held until the player is back
@@ -1550,6 +1557,52 @@ export class Game {
     } else {
       showGameToast('💨 You sped through the checkpoint. Nobody came after you, this time.', 'info', 3500);
     }
+  }
+
+  /**
+   * Land that rises in value with the calendar, and omo-onile: in the neighbourhoods they work, a
+   * family comes to the site before the first block and asks a foundation levy. Pay it, or report
+   * them to the state's task force on land grabbers (they are run off, or come back asking double).
+   */
+  private connectLandLife(): void {
+    Land.today = () => this.world.skyEnvironment.day;
+    BuildBar.onLevy = (plot, cost, levy, again) => {
+      this.hud.showDialogueModal({
+        speakerName: `Chief of the ${levy.family} family`,
+        speakerRole: `Omo-onile, ${plot.neighbourhood}`,
+        speakerAvatar: '🪧',
+        soundType: 'general',
+        dialogueText: `Three men in agbada walk onto ${plot.name}: "This land is the ${levy.family} family's. Before you lay one block here, the foundation levy: ₦${levy.amount.toLocaleString()}.${levy.doubled ? ' You sent the task force after us. It is double now.' : ''}"`,
+        choices: [
+          {
+            id: 'levy_pay',
+            label: `Pay the levy · ₦${levy.amount.toLocaleString()}`,
+            badge: 'Bank, then cash',
+            onSelect: () => {
+              const paid = this.land.payLevy(plot.id, cost);
+              if (!paid.ok) return showGameToast(paid.reason ?? 'Not paid.', 'warning', 4500);
+              showGameToast(`The ${levy.family} family take the money and go. Nobody will trouble this site again.`, 'success', 4500);
+              again();
+            },
+          },
+          {
+            id: 'levy_report',
+            label: 'Report them to the task force',
+            badge: 'Lagos State Properties Protection Law',
+            onSelect: () => {
+              const told = this.land.reportLevy(plot.id, Math.random, cost);
+              if (told.chased) {
+                showGameToast('The task force come with a van. The family are run off the site and you can build in peace.', 'success', 5500);
+                again();
+              } else {
+                showGameToast(`The family come back the next morning, more of them: the levy is ₦${(told.levy?.amount ?? levy.amount * 2).toLocaleString()} now.`, 'warning', 5500);
+              }
+            },
+          },
+          { id: 'levy_leave', label: 'Not now', onSelect: () => undefined },
+        ],
+      });
+    };
   }
 
   /** Land plots, what stands on them, and the market they are traded in. */

@@ -39,6 +39,8 @@ export async function run(browser, check) {
   const ctx = await newPlayer(browser);
   const { page, log } = await open(ctx);
   await closeDialogs(page);
+  // Not about omo-onile (the omoonile suite is): every plot's family is settled before anything is built
+  await page.evaluate(() => { for (const p of window.game.land.plots()) window.game.land.reportLevy(p.id, () => 0); });
   await page.evaluate(async ({ tall, low }) => {
     const g = window.game;
     g.hud.backend.data.bank.balance += 30_000_000_000; g.hud.backend.saveData();

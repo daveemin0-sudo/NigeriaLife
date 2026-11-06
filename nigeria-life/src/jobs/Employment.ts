@@ -29,9 +29,14 @@ export interface WorkResult {
   pay?: number;
   /** What the employer took as PAYE, and the payslip (src/life/Tax.ts) */
   slip?: Payslip;
+  /** Why a fifth of the pay was docked (the player was starving, worn out or unwashed) */
+  docked?: string;
   /** The grade just reached, if this piece of work earned one */
   promoted?: Grade;
 }
+
+/** The share of a shift's pay docked for working in poor shape (the server docks the same) */
+export const POOR_SHAPE_CUT = 0.2;
 
 const STORE = 'nigeria_life_employment_v1';
 /** Jobs left, kept for the CV */
@@ -197,7 +202,7 @@ export class Employment {
    * A piece of work the game server has checked and paid (it holds the money and the count of
    * work done): the record here catches up and the work's energy is spent. Nothing is paid here.
    */
-  public settledByServer(id: string, pay: number, done: number, slip?: Payslip): WorkResult {
+  public settledByServer(id: string, pay: number, done: number, slip?: Payslip, docked?: string): WorkResult {
     const employer = this.employer(id);
     const record = this.records[id];
     const grade = this.grade(id);
@@ -210,7 +215,7 @@ export class Employment {
     const now = this.grade(id)!;
     this.changed();
     emitGameEvent('work_shift');
-    return { ok: true, pay, slip, promoted: now !== grade ? now : undefined };
+    return { ok: true, pay, slip, docked, promoted: now !== grade ? now : undefined };
   }
 
   public complete(id: string): WorkResult {
@@ -218,7 +223,10 @@ export class Employment {
     const record = this.records[id];
     const grade = this.grade(id);
     if (!employer || !record || !grade) return { ok: false, reason: 'You do not work there.' };
-    const pay = Math.round(grade.pay * Employment.payBoost());
+    // Done badly (starving, worn out, unwashed), a fifth is docked
+    const poor = this.backend.poorShape();
+    const full = grade.pay * Employment.payBoost();
+    const pay = poor ? Math.round((full * (1 - POOR_SHAPE_CUT)) / 50) * 50 : Math.round(full);
     // A wage: the employer takes PAYE before paying it, and gives a payslip
     const paid = this.backend.payWage(pay, employer.energy, employer.name, grade.title, WORKSITES[id]?.city ?? 'lagos');
     if (!paid.success) return { ok: false, reason: paid.message };
@@ -229,6 +237,6 @@ export class Employment {
     record.done += 1;
     const now = this.grade(id)!;
     this.changed();
-    return { ok: true, pay, slip: paid.slip, promoted: now !== grade ? now : undefined };
+    return { ok: true, pay, slip: paid.slip, docked: poor ?? undefined, promoted: now !== grade ? now : undefined };
   }
 }

@@ -33,7 +33,8 @@ export async function run(browser, check) {
   });
   // A business keeps earning by the real clock from the moment the game is open (one payout every 45 s),
   // so on a slow machine whole payouts may have been added to what was saved: that is the game working
-  const earnedSince = (pending, saved, perCycle) => pending >= saved && (pending - saved) % perCycle === 0;
+  // (A payout in an hour its area has no NEPA light, and no generator, is half: src/life/Grid.ts)
+  const earnedSince = (pending, saved, perCycle) => pending >= saved && (pending - saved) % (perCycle / 2) === 0;
   check('an existing save from before versioning loads unchanged, with no warning',
     old.username === 'Ada' && old.cash === 4321 && old.bank === 98765 && old.cred === 33 && old.gala === 5 && old.items === 1
       && old.biz.owned && earnedSince(old.biz.pending, 24000, old.biz.perCycle) && old.biz.level === 2 && old.biz.cook === true
@@ -200,7 +201,8 @@ export async function run(browser, check) {
   const pending = (p) => p.evaluate(() => window.game.hud.backend.getData().businesses.find((x) => x.id === 'biz_mama_put').pendingRevenue);
   const revenue = [await pending(A), await pending(B)];
   const onePayout = await A.evaluate(() => window.game.hud.backend.getData().businesses.find((x) => x.id === 'biz_mama_put').baseIncomePerCycle);
-  check('one business cycle is paid once across two tabs', revenue[0] === onePayout && revenue[1] === onePayout, { revenue, onePayout });
+  // One payout, the same in both tabs: whole, or half if its area has no light this hour
+  check('one business cycle is paid once across two tabs', revenue[0] === revenue[1] && (revenue[0] === onePayout || revenue[0] === onePayout / 2), { revenue, onePayout });
 
   const { page: C } = await open(ctx);
   check('a newly opened tab loads the state both tabs agree on', (await money(C)).total === (await money(A)).total);
