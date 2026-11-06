@@ -2276,11 +2276,13 @@ export class Game {
     // Staff and branches lift a business's takings, and so do its adverts on the expressway
     BackendService.takings = (biz, own) => companies.perCycle(biz, own) * Adverts.get().lift(biz.id);
     BackendService.onTakings = (id, amount) => companies.took(id, amount);
+    // A day's luck for each business; a test browser leaves it out unless the test turns it on
+    Companies.luckOn = () => !navigator.webdriver || !!(window as unknown as { __luckOn?: boolean }).__luckOn;
     // The supermarket takes what customers buy off its shelves, which its stackers keep filled
     BackendService.sales = (biz, cycles) => (biz.id === SUPERMARKET ? Supermarket.get().trade(cycles, companies.lift(biz.id), companies.count(biz.id, 'stacker')) : null);
     companies.onReports = (reports) => {
       reports.forEach(({ business, report }, i) => {
-        const line = `📊 ${business.name}, ${companies.dayName(report.day)}: took ₦${report.takings.toLocaleString()} · wages ₦${report.wages.toLocaleString()}${report.rent ? ` · rent ₦${report.rent.toLocaleString()}` : ''} · tax ₦${report.tax.toLocaleString()} · ${report.profit >= 0 ? 'profit' : 'loss'} ₦${Math.abs(report.profit).toLocaleString()}${report.banked ? ` · ₦${report.banked.toLocaleString()} banked by the manager` : ''}${report.note ? `. ${report.note}` : ''}`;
+        const line = `📊 ${business.name}, ${companies.dayName(report.day)}: took ₦${report.takings.toLocaleString()} · wages ₦${report.wages.toLocaleString()}${report.rent ? ` · rent ₦${report.rent.toLocaleString()}` : ''} · tax ₦${report.tax.toLocaleString()} · ${report.profit >= 0 ? 'profit' : 'loss'} ₦${Math.abs(report.profit).toLocaleString()}${report.banked ? ` · ₦${report.banked.toLocaleString()} banked by the manager` : ''}${report.event ? `. ${report.event}` : ''}${report.note ? `. ${report.note}` : ''}`;
         setTimeout(() => showGameToast(line, report.note ? 'warning' : 'info', 7000), i * 1500);
       });
     };
