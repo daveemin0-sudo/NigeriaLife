@@ -1,4 +1,5 @@
 import { isTraitId } from '../life/Traits';
+import { MAX_SLIPS, type Payslip, type TaxBook } from '../life/Tax';
 import { applyRealPrices } from './RealPrices';
 import {
   type PlayerAccount,
@@ -30,6 +31,43 @@ const SAVED_CITIES: ReadonlySet<string> = new Set(['lagos', 'abuja', 'port_harco
 
 type Raw = Record<string, any>;
 const isRecord = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The tax book: whole naira, never below zero, the latest payslips only */
+function sanitizeTax(saved: Raw): TaxBook {
+  const money = (v: unknown) => (Number.isFinite(v) ? Math.max(0, Math.round(v as number)) : 0);
+  const text = (v: unknown, fallback = '') => (typeof v === 'string' ? v.slice(0, 80) : fallback);
+  const month = String(saved.month);
+  const slips: Payslip[] = Array.isArray(saved.slips)
+    ? saved.slips
+        .filter((s: unknown): s is Raw => isRecord(s) && Number.isFinite(s.gross) && Number.isFinite(s.net))
+        .slice(-MAX_SLIPS)
+        .map((s: Raw) => ({
+          month: /^\d{4}-\d{2}$/.test(String(s.month)) ? String(s.month) : month,
+          date: text(s.date),
+          employer: text(s.employer, 'Employer'),
+          title: text(s.title, 'Wage'),
+          gross: money(s.gross),
+          relief: money(s.relief),
+          paye: money(s.paye),
+          net: money(s.net),
+          monthGross: money(s.monthGross),
+          monthPaye: money(s.monthPaye),
+          rate: Number.isFinite(s.rate) ? Math.min(1, Math.max(0, s.rate)) : 0,
+          office: text(s.office),
+        }))
+    : [];
+  return {
+    month,
+    gross: money(saved.gross),
+    paye: money(saved.paye),
+    rent: money(saved.rent),
+    year: /^\d{4}$/.test(String(saved.year)) ? String(saved.year) : month.slice(0, 4),
+    yearGross: money(saved.yearGross),
+    yearPaye: money(saved.yearPaye),
+    yearVat: money(saved.yearVat),
+    slips,
+  };
+}
 
 export function createFreshAccount(): PlayerAccount {
   return applyRealPrices(structuredClone(INITIAL_PLAYER_DATA));
@@ -105,6 +143,8 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
           timestamp: typeof t.timestamp === 'string' ? t.timestamp : '',
           description: typeof t.description === 'string' ? t.description : '',
           source: t.source === 'bank' ? 'bank' : 'wallet',
+          ...(Number.isFinite(t.vat) && t.vat > 0 ? { vat: Math.round(t.vat) } : {}),
+          ...(Number.isFinite(t.paye) && t.paye > 0 ? { paye: Math.round(t.paye) } : {}),
         }))
     : base.transactionHistory;
 
@@ -287,6 +327,7 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     ...(isRecord(saved.credit)
       ? { credit: { cleanLoans: Math.max(0, Math.floor(Number(saved.credit.cleanLoans) || 0)), missed: Math.max(0, Math.floor(Number(saved.credit.missed) || 0)) } }
       : {}),
+    ...(isRecord(saved.tax) && /^\d{4}-\d{2}$/.test(String(saved.tax.month)) ? { tax: sanitizeTax(saved.tax) } : {}),
     claims,
     relationships,
     investments,

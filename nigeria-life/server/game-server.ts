@@ -436,6 +436,8 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
     }
     case 'GET /money/ledger':
       return reply(res, 200, { ok: true, wallet: economy.wallet(account.id), ledger: economy.ledger(account.id) });
+    case 'GET /me/tax':
+      return reply(res, 200, { ok: true, ...economy.taxOf(account.id) });
     case 'POST /work/hire':
       return done(economy.hire(account.id, String(body.employer ?? '')));
     case 'POST /work/start':

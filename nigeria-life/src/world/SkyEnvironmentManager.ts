@@ -545,19 +545,24 @@ export class SkyEnvironmentManager {
 
     // 6. Indoors the lights are on: whatever the hour, a room is lit bright and clear, so it can be
     // seen by anyone, including players whose eyes are not strong
+    // In a home with no power (NEPA gone and nothing to fall back on) it is the lantern's warm
+    // light, dimmer but still clear; by day the windows let more in.
     if (this.indoors) {
-      this.hemiLight.color.setHex(0xfffaf0);
-      this.hemiLight.groundColor.setHex(0xd6d3d1);
-      this.hemiLight.intensity = Math.max(this.hemiLight.intensity, 1.55);
-      this.sunLight.intensity = Math.max(this.sunLight.intensity, 0.9);
-      this.sunLight.color.setHex(0xfff4e0);
+      const cut = this.indoorBlackout;
+      this.hemiLight.color.setHex(cut ? 0xffe2bd : 0xfffaf0);
+      this.hemiLight.groundColor.setHex(cut ? 0xb8a58c : 0xd6d3d1);
+      this.hemiLight.intensity = Math.max(this.hemiLight.intensity, cut ? 0.95 : 1.55);
+      this.sunLight.intensity = Math.max(this.sunLight.intensity, cut ? 0.45 : 0.9);
+      this.sunLight.color.setHex(cut ? 0xffd9a8 : 0xfff4e0);
       if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.density *= 0.12;
-      this.renderer.toneMappingExposure = Math.max(baseExposure, 1.08);
+      this.renderer.toneMappingExposure = Math.max(baseExposure, cut ? 0.9 : 1.08);
     }
   }
 
   /** The player is inside a building: lit as rooms are, not as the street is at that hour */
   public indoors = false;
+  /** The player is in their home and it has no power (src/housing/HomePower.ts): lit dimmer and warmer */
+  public indoorBlackout = false;
 
   public update(delta: number, playerPosition?: THREE.Vector3): void {
     // Delta clamping prevents burst jumps when tab is backgrounded

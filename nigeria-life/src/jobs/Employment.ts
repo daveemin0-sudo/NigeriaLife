@@ -1,6 +1,7 @@
 import { BackendService } from '../backend/BackendService';
 import { profileKey } from '../backend/Profile';
 import { emitGameEvent } from '../game/GameEvents';
+import type { Payslip } from '../life/Tax';
 
 /**
  * Being employed somewhere: taken on at a real workplace, doing its work there, paid for each
@@ -12,7 +13,7 @@ import { emitGameEvent } from '../game/GameEvents';
 
 export { EMPLOYERS, WORKSITES } from './employers';
 export type { Grade, Employer } from './employers';
-import { EMPLOYERS, type Grade, type Employer } from './employers';
+import { EMPLOYERS, WORKSITES, type Grade, type Employer } from './employers';
 
 
 interface Service {
@@ -24,7 +25,10 @@ interface Service {
 export interface WorkResult {
   ok: boolean;
   reason?: string;
+  /** The wage before tax */
   pay?: number;
+  /** What the employer took as PAYE, and the payslip (src/life/Tax.ts) */
+  slip?: Payslip;
   /** The grade just reached, if this piece of work earned one */
   promoted?: Grade;
 }
@@ -189,7 +193,7 @@ export class Employment {
    * A piece of work the game server has checked and paid (it holds the money and the count of
    * work done): the record here catches up and the work's energy is spent. Nothing is paid here.
    */
-  public settledByServer(id: string, pay: number, done: number): WorkResult {
+  public settledByServer(id: string, pay: number, done: number, slip?: Payslip): WorkResult {
     const employer = this.employer(id);
     const record = this.records[id];
     const grade = this.grade(id);
@@ -198,10 +202,11 @@ export class Employment {
     this.backend.addJobExperience(employer.xp);
     if (employer.skill) this.backend.addSkillXp(employer.skill, 1);
     record.done = Math.max(record.done + 1, done);
+    this.backend.noteServerPayslip(slip);
     const now = this.grade(id)!;
     this.changed();
     emitGameEvent('work_shift');
-    return { ok: true, pay, promoted: now !== grade ? now : undefined };
+    return { ok: true, pay, slip, promoted: now !== grade ? now : undefined };
   }
 
   public complete(id: string): WorkResult {
@@ -210,7 +215,8 @@ export class Employment {
     const grade = this.grade(id);
     if (!employer || !record || !grade) return { ok: false, reason: 'You do not work there.' };
     const pay = Math.round(grade.pay * Employment.payBoost());
-    const paid = this.backend.performGig(pay, employer.energy, `${grade.title}, ${employer.name}`);
+    // A wage: the employer takes PAYE before paying it, and gives a payslip
+    const paid = this.backend.payWage(pay, employer.energy, employer.name, grade.title, WORKSITES[id]?.city ?? 'lagos');
     if (!paid.success) return { ok: false, reason: paid.message };
     this.backend.addJobExperience(employer.xp);
     if (employer.skill) {
@@ -219,6 +225,6 @@ export class Employment {
     record.done += 1;
     const now = this.grade(id)!;
     this.changed();
-    return { ok: true, pay, promoted: now !== grade ? now : undefined };
+    return { ok: true, pay, slip: paid.slip, promoted: now !== grade ? now : undefined };
   }
 }

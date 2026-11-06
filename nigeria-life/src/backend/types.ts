@@ -1,4 +1,5 @@
 import type { TraitId } from '../life/Traits.ts';
+import type { TaxBook } from '../life/Tax.ts';
 export interface Item {
   id: string;
   name: string;
@@ -181,6 +182,10 @@ export interface TransactionRecord {
   timestamp: string;
   description: string;
   source: 'wallet' | 'bank';
+  /** The VAT inside the price, on a purchase that carries it */
+  vat?: number;
+  /** PAYE the employer took before paying this wage */
+  paye?: number;
 }
 
 export interface JobListing {
@@ -295,6 +300,8 @@ export interface PlayerAccount {
   evicted?: { propId: string; name: string; day: number };
   /** What lenders know of the player: loans repaid without a missed week, and weeks missed in all */
   credit?: { cleanLoans: number; missed: number };
+  /** PAYE taken from wages this month and year, VAT in what was bought, and the latest payslips (src/life/Tax.ts) */
+  tax?: TaxBook;
   /** Timed payouts already collected: claim key -> when it was last collected (ms since epoch) */
   claims: Record<string, number>;
   /** How well each person knows the player, 0 (stranger) to 100, by the person's id */

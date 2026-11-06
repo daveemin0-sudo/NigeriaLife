@@ -27,6 +27,8 @@ import type { PoseState } from '../../interactions/Poses';
 import { Sequence, steps } from '../../interactions/Sequence';
 import { showGameToast } from '../../ui/GameToast';
 import { planFor, briefOf, roomAt, type HomeBrief, type HomePlan, type Fixture } from '../../housing/HomePlan';
+import { HomePower } from '../../housing/HomePower';
+import { SoundEngine } from '../../audio/SoundEngine';
 
 /** A door in one of the home's own doorways */
 interface HomeDoor {
@@ -157,6 +159,7 @@ export class ResidentialInterior {
     HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
     Marriage.get().syncHome(this.group, this.plan, this.interactiveList);
     if (this.plan) QuitNotice.sync(this.group, this.plan, this.interactiveList, this.exitDoor, () => ResidentialInterior.noticeNow?.() ?? null);
+    this.applyPower();
   }
 
   /** In: their own vehicles stand in the carport */
@@ -284,6 +287,118 @@ export class ResidentialInterior {
     };
 
     this.build3DInterior();
+    HomePower.get().subscribe(() => this.applyPower());
+  }
+
+  // --- Light at home (src/housing/HomePower.ts) -------------------------------------------------
+
+  private lamp: THREE.Group | null = null;
+
+  /**
+   * With power, the ceiling lights are on. Without it they go out, every television goes off, and
+   * the rechargeable lantern by the door is lit: dim and warm, never dark.
+   */
+  public applyPower(): void {
+    const supply = HomePower.get().supply();
+    const lit = supply.any;
+    this.group.traverse((o) => {
+      if (o.name !== 'ceiling_light') return;
+      for (const child of o.children) {
+        if (child instanceof THREE.PointLight) {
+          child.userData.full ??= child.intensity;
+          child.intensity = lit ? child.userData.full : 0;
+        } else if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshBasicMaterial) {
+          child.userData.lit ??= child.material.color.getHex();
+          child.material.color.setHex(lit ? child.userData.lit : 0x475569);
+        }
+      }
+    });
+    if (!lit) for (const set of this.televisions()) if (set.on) set.turnOff();
+    if (!this.lamp) {
+      const lamp = new THREE.Group();
+      lamp.name = 'rechargeable_lamp';
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.34, 12), new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.6 }));
+      body.position.y = 0.17;
+      const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.16, 12), new THREE.MeshBasicMaterial({ color: 0xffd08a }));
+      glow.position.y = 0.42;
+      // The light itself stays in the scene at nothing (taking a light away recompiles every material)
+      const light = new THREE.PointLight(0xffb45c, 0, 16, 1.4);
+      light.name = 'rechargeable_lamp_light';
+      light.position.y = 1.4;
+      lamp.add(body, glow, light);
+      this.group.add(lamp);
+      this.lamp = lamp;
+    }
+    if (this.plan) this.lamp.position.set(this.plan.entrance.x + 1.2, 0, this.plan.frontZ - 1.6);
+    for (const child of this.lamp.children) {
+      if (child instanceof THREE.PointLight) child.intensity = lit ? 0 : 2.2;
+      else child.visible = !lit;
+    }
+    this.lamp.userData.on = !lit;
+  }
+
+  private powerLabel(item: PlacedItem): string {
+    const power = HomePower.get();
+    if (item.modelType === 'solar_inverter') {
+      const battery = power.battery();
+      const supply = power.supply();
+      return `🔋 Inverter: battery ${Math.round(battery ?? 0)}%${supply.source === 'inverter' ? ', running the house' : supply.grid ? ', charging from NEPA' : ''}`;
+    }
+    const gen = power.generator(item.uid);
+    if (!gen) return '⚡ Generator, move it or sell it';
+    const state = gen.running ? 'running' : gen.spec.auto ? (gen.on ? 'on automatic' : 'switched off') : 'off';
+    return `⚡ ${gen.spec.name}: ${gen.litres.toFixed(1)} of ${gen.spec.tank} L, ${state}`;
+  }
+
+  private powerChoices(item: PlacedItem, host: PlaceHost, choices: Array<{ label: string; note?: string; pick: () => void }>): void {
+    const power = HomePower.get();
+    if (item.modelType === 'solar_inverter') {
+      choices.push({
+        label: 'Check the battery',
+        note: 'Charges from NEPA and the sun',
+        pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1.2, effect: () => {
+          const battery = Math.round(power.battery() ?? 0);
+          host.say(`The inverter display reads ${battery}%. ${power.describe()}`, 'info');
+        } }]),
+      });
+      return;
+    }
+    const gen = power.generator(item.uid);
+    if (!gen) return;
+    const quote = power.fillQuote(item.uid);
+    if (gen.spec.auto) {
+      choices.push(gen.on
+        ? { label: 'Switch it off', note: 'It will not start by itself', pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1, effect: () => { host.say(power.stop(item.uid).message, 'info'); } }]) }
+        : { label: 'Put it on automatic', note: 'Starts itself when NEPA goes', pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1, effect: () => { const r = power.start(item.uid); host.say(r.message, r.ok ? 'success' : 'warning'); } }]) });
+    } else if (gen.on) {
+      choices.push({ label: 'Switch it off', pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1, effect: () => { host.say(power.stop(item.uid).message, 'info'); } }]) });
+    } else {
+      choices.push({
+        label: 'Pull the cord and start it',
+        note: `${gen.litres.toFixed(1)} L in the tank`,
+        pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1.6, effect: () => {
+          SoundEngine.getInstance().playGeneratorPull();
+          const started = power.start(item.uid);
+          host.say(started.message, started.ok ? 'success' : 'warning');
+          // A Tiger at night: the whole compound hears it
+          const hour = host.hour();
+          if (started.ok && (hour >= 22 || hour < 6)) {
+            host.backend.modifyNeed('social', -5);
+            setTimeout(() => host.say('A neighbour shouts across: "Abeg, off that gen! People dey sleep!" Social -5.', 'info'), 1800);
+          }
+        } }]),
+      });
+    }
+    if (quote && quote.litres >= 0.1) {
+      choices.push({
+        label: `Send for ${gen.spec.fuel} to fill it`,
+        note: `${quote.litres} L, ₦${quote.cost.toLocaleString()} with the errand`,
+        pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 2.4, effect: () => {
+          const filled = power.fill(item.uid);
+          host.say(filled.message, filled.ok ? 'success' : 'warning');
+        } }]),
+      });
+    }
   }
 
   /** Floor map used to walk around the furniture and through the doorways. */
@@ -620,7 +735,7 @@ export class ResidentialInterior {
         if (kind.use === 'snooker') return '🎱 Play snooker, move it or sell it';
         if (kind.use === 'fitness') return '🏋️ Workout, move it or sell it';
         if (kind.use === 'drink') return '🧊 Refreshment, move it or sell it';
-        if (kind.use === 'power') return '⚡ Generator / Inverter, move it or sell it';
+        if (kind.use === 'power') return this.powerLabel(item);
         if (kind.use === 'clean') return item.modelType === 'smart_mirror' ? '🪞 Mirror, move it or sell it' : '🧺 Laundry, move it or sell it';
         if (kind.use === 'door') return '🚪 Move the door or sell it';
         if (kind.use === 'garden') {
@@ -789,15 +904,7 @@ export class ResidentialInterior {
             } }]),
           });
         }
-        if (kind.use === 'power') {
-          choices.push({
-            label: 'Start Standby Generator / Inverter Power',
-            note: 'NEPA Backup',
-            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 1.8, effect: () => {
-              host.say('Engine hums smoothly with stable 230V sine-wave output. Full household power guaranteed!', 'success');
-            } }]),
-          });
-        }
+        if (kind.use === 'power') this.powerChoices(item, host, choices);
         if (kind.use === 'clean' && item.modelType !== 'smart_mirror') {
           choices.push({
             label: 'Run Automatic Wash & Dry Cycle',
@@ -848,6 +955,14 @@ export class ResidentialInterior {
               host.say('You check your reflection in the ornate gilded mirror. Looking confident and ready!', 'info');
             } }]),
           });
+        }
+        // Without light, what needs it does not work: the choices say why (src/housing/HomePower.ts)
+        const dark = HomePower.get().whyNot(item.modelType, name);
+        if (dark) {
+          for (let i = 0; i < choices.length; i++) {
+            const label = choices[i].label;
+            choices[i] = { label, note: '🕯️ No light', pick: () => host.say(dark, 'warning') };
+          }
         }
         choices.push({ label: 'Move it', note: 'Free', pick: () => { decor.pickUp(item.uid); } });
         choices.push({ label: 'Put it in storage', note: 'Place it again later, free', pick: () => { if (decor.putAway(item.uid)) host.say(`${decor.catalogueItem(item.id)?.name ?? 'It'} is in storage. Find it under Storage in the catalogue.`, 'success'); } });
@@ -963,7 +1078,15 @@ export class ResidentialInterior {
     this.group.add(this.tvScreen);
     this.television = new Television(this.tvScreen);
     // Sitting down to watch turns the set on; whoever is sitting can turn it to something else
-    this.life.onWatch = () => { if (!this.televisions().some((set) => set.on)) (this.sets.get(CORE_TV) ?? this.television).turnOn('football'); };
+    // Sat down to watch: the TV comes on, if there is light to run it (src/housing/HomePower.ts)
+    this.life.onWatch = () => {
+      const dark = HomePower.get().whyNot('tv_75', 'TV');
+      if (dark) {
+        showGameToast(`📺 ${dark}`, 'warning', 4500);
+        return;
+      }
+      if (!this.televisions().some((set) => set.on)) (this.sets.get(CORE_TV) ?? this.television).turnOn('football');
+    };
     this.life.onTheTelevision = () => { const on = this.televisions().find((set) => set.on); return on ? `Watching: ${on.showing()}` : null; };
     this.life.channelChoices = () => {
       const set = this.watched();

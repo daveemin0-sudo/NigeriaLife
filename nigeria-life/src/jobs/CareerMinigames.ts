@@ -1,6 +1,7 @@
 import { showGameToast } from '../ui/GameToast';
+import { payeNote, takeHome } from '../life/Tax';
 import { OnlineAccount } from '../online/OnlineAccount';
-import { Employment } from './Employment';
+import { Employment, type WorkResult } from './Employment';
 
 /**
  * Interactive Nigerian Career Minigames (Milestone B)
@@ -27,12 +28,18 @@ export class CareerMinigames {
   }
 
   /** Offline pays locally. Online, the server names the wage and will not pay a shift it did not time. */
-  private async payEmployer(id: string): Promise<{ ok: boolean; pay?: number; reason?: string }> {
+  /** Paid for the work: `pay` is what reached the pocket, in words, after any PAYE */
+  private async payEmployer(id: string): Promise<{ ok: boolean; pay?: string; reason?: string }> {
     const jobs = Employment.get();
     const online = OnlineAccount.get();
+    const words = (res: WorkResult) => {
+      const note = res.slip ? payeNote(res.slip) : null;
+      if (note) setTimeout(() => showGameToast(note, 'info'), 2200);
+      return res.slip ? takeHome(res.slip) : `₦${(res.pay ?? 0).toLocaleString()}`;
+    };
     if (!online) {
       const res = jobs.complete(id);
-      return res.ok ? { ok: true, pay: res.pay } : { ok: false, reason: res.reason };
+      return res.ok ? { ok: true, pay: words(res) } : { ok: false, reason: res.reason };
     }
     const shift = this.shifts.get(id);
     if (!shift) return { ok: false, reason: 'The server has not started this shift. Stand at the workplace and open the work again.' };
@@ -40,9 +47,9 @@ export class CareerMinigames {
     if (!finished.ok) return { ok: false, reason: finished.reason };
     this.shifts.delete(id);
     if (!jobs.isEmployed(id)) jobs.apply(id);
-    const settled = jobs.settledByServer(id, finished.pay ?? 0, finished.done ?? 1);
+    const settled = jobs.settledByServer(id, finished.pay ?? 0, finished.done ?? 1, finished.slip);
     if (!settled.ok) return { ok: false, reason: settled.reason };
-    return { ok: true, pay: finished.pay };
+    return { ok: true, pay: words(settled) };
   }
 
   public static get(): CareerMinigames {
@@ -189,7 +196,7 @@ export class CareerMinigames {
       if (pOk && tOk) {
         void this.payEmployer('ph-refinery').then((res) => {
           if (!res.ok) { showGameToast(res.reason ?? 'Not paid.', 'warning'); return; }
-          showGameToast(`🎉 Excellent calibration! 33,000L PMS loaded into gantry tanker. Earned ₦${(res.pay ?? 0).toLocaleString()} & +35 XP!`, 'success');
+          showGameToast(`🎉 Excellent calibration! 33,000L PMS loaded into gantry tanker. Earned ${res.pay} & +35 XP!`, 'success');
           this.closeActiveModal();
           onComplete?.(true);
         });
@@ -303,7 +310,7 @@ export class CareerMinigames {
           // Finished shift
           void this.payEmployer('lastma-warden').then((res) => {
             if (!res.ok) { showGameToast(res.reason ?? 'Not paid.', 'warning'); return; }
-            showGameToast(`👮‍♂️ Shift Completed! Traffic gridlock cleared. Earned ₦${(res.pay ?? 0).toLocaleString()} & +25 LASTMA Cred!`, 'success');
+            showGameToast(`👮‍♂️ Shift Completed! Traffic gridlock cleared. Earned ${res.pay} & +25 LASTMA Cred!`, 'success');
             this.closeActiveModal();
             onComplete?.(true);
           });
@@ -391,7 +398,7 @@ export class CareerMinigames {
         if (isCorrect) {
           void this.payEmployer('cchub-yaba').then((res) => {
             if (!res.ok) { showGameToast(res.reason ?? 'Not paid.', 'warning'); return; }
-            showGameToast(`🚀 PR Merged & Deployed! All CI/CD tests green. Earned ₦${(res.pay ?? 0).toLocaleString()} & +40 Tech XP!`, 'success');
+            showGameToast(`🚀 PR Merged & Deployed! All CI/CD tests green. Earned ${res.pay} & +40 Tech XP!`, 'success');
             this.closeActiveModal();
             onComplete?.(true);
           });

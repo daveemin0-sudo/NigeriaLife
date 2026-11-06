@@ -1,6 +1,7 @@
 import { isTraitId, needRate, skillRate, tradePrice, traitById, type TraitId } from '../life/Traits';
 import { profileKey } from './Profile';
 import { Activity } from '../life/Activity';
+import { isHomeRent, labelOfDay, lagosMonth, monthOfDay, payeNote, rollBook, takeHome, taxOffice, vatIn, workPayslip, MAX_SLIPS, type Payslip, type TaxBook } from '../life/Tax';
 import {
   type PlayerAccount,
   type BusinessEnterprise,
@@ -16,7 +17,7 @@ import {
   type PhoneThread,
   DEFAULT_JOBS,
 } from './types';
-import { TransactionService, type ProcessTransactionRequest, type TransactionResult } from './TransactionService';
+import { TransactionService, CREDIT_TYPES, type ProcessTransactionRequest, type TransactionResult } from './TransactionService';
 import { createFreshAccount, parseSavedAccount } from './SaveSchema';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { emitGameEvent } from '../game/GameEvents';
@@ -35,6 +36,11 @@ export class BackendService {
   public static sales: (biz: BusinessEnterprise, cycles: number) => number | null = () => null;
   /** Told what each business took, as it comes in (for the day's report) */
   public static onTakings: (bizId: string, amount: number) => void = () => {};
+  /**
+   * The share of its takings a business keeps for the hours just gone, given NEPA's light where
+   * it stands and the backup it has bought (set by the game; src/life/Grid.ts)
+   */
+  public static powerShare: (biz: BusinessEnterprise, hours: number) => number = () => 1;
   private static instance: BackendService;
   private readonly STORAGE_KEY = profileKey('nigeria_life_account_data_v1');
   private readonly BACKUP_KEY = profileKey('nigeria_life_account_data_v1__backup');
@@ -177,6 +183,7 @@ export class BackendService {
       for (const record of res.records) {
         this.recentTransactions.push({ record, at });
       }
+      this.noteTax(req, res.records);
       this.saveData();
       // On a game server the server holds the money: tell it what was done here
       const cash = this.data.walletCash - cashBefore;
@@ -202,6 +209,115 @@ export class BackendService {
 
   /** The game day now (the sky's), once the world is up: leases and loans are scheduled from it (src/life/Dues.ts) */
   public dayNow: (() => number) | null = null;
+
+  // --- Tax (src/life/Tax.ts) -------------------------------------------------------------------
+
+  /** The Lagos month now: the game's calendar once the world is up, else the clock's */
+  public monthNow(): string {
+    const day = this.dayNow?.();
+    return Number.isFinite(day) ? monthOfDay(day as number) : lagosMonth(Date.now());
+  }
+
+  /** The tax book, moved on to this month (a new month's figures start from nothing) */
+  private taxBook(): TaxBook {
+    this.data.tax = rollBook(this.data.tax, this.monthNow());
+    return this.data.tax;
+  }
+
+  /** This month's and year's tax and the latest payslips, to show */
+  public tax(): TaxBook {
+    this.syncFromStorage();
+    const book = this.taxBook();
+    return { ...book, slips: [...book.slips] };
+  }
+
+  /** A purchase's VAT is written on its receipt and added to the year's; home rent counts toward relief */
+  private noteTax(req: ProcessTransactionRequest, records: TransactionRecord[]): void {
+    if (CREDIT_TYPES.has(req.type)) return;
+    let vat = 0;
+    for (const record of records) {
+      const part = vatIn(req.type, req.description, record.amount);
+      if (part > 0) {
+        record.vat = part;
+        vat += part;
+      }
+    }
+    const homeRent = req.type === 'RENT_PAYMENT' && isHomeRent(req.description);
+    if (vat === 0 && !homeRent) return;
+    const book = this.taxBook();
+    book.yearVat += vat;
+    if (homeRent) book.rent += records.reduce((sum, r) => sum + r.amount, 0);
+  }
+
+  private keepSlip(book: TaxBook, slip: Payslip): void {
+    book.slips.push(slip);
+    if (book.slips.length > MAX_SLIPS) book.slips.splice(0, book.slips.length - MAX_SLIPS);
+  }
+
+  /**
+   * A wage from an employer, paid here (not on a game server): PAYE is worked out on the
+   * month's wages so far and taken before the money reaches the pocket; the payslip is kept.
+   */
+  private takeWage(gross: number, employer: string, title: string, city: string, description: string): { success: boolean; message: string; slip?: Payslip } {
+    const book = this.taxBook();
+    const slip: Payslip = { ...workPayslip(gross, book), month: book.month, date: labelOfDay(this.dayNow?.() ?? 0), employer, title, office: taxOffice(city) };
+    const res = this.processTransaction({ type: 'JOB_SALARY', amount: slip.net, description, source: 'wallet' }, false);
+    if (!res.success) return { success: false, message: res.message };
+    if (slip.paye > 0 && res.records[0]) res.records[0].paye = slip.paye;
+    const now = this.taxBook();
+    now.gross = slip.monthGross;
+    now.paye = slip.monthPaye;
+    now.yearGross += slip.gross;
+    now.yearPaye += slip.paye;
+    this.keepSlip(now, slip);
+    return { success: true, message: res.message, slip };
+  }
+
+  /** A wage, an employer's, for a piece of work that takes energy (src/jobs/Employment.ts) */
+  public payWage(gross: number, energyCost: number, employer: string, title: string, city: string): { success: boolean; message: string; slip?: Payslip } {
+    this.syncFromStorage();
+    if (this.data.stats.energy < energyCost) {
+      return { success: false, message: `You are too exhausted for this work (need ${energyCost}% Energy). Eat or rest first.` };
+    }
+    const paid = this.takeWage(gross, employer, title, city, `${title}, ${employer}`);
+    if (!paid.success) return paid;
+    this.data.stats.energy = Math.max(0, this.data.stats.energy - energyCost);
+    this.saveData();
+    emitGameEvent('work_shift');
+    return paid;
+  }
+
+  /** A payslip from the game server, which paid the wage: kept here with its month's figures (the server's) */
+  public noteServerPayslip(slip: Payslip | undefined): void {
+    if (!slip || !Number.isFinite(slip.gross)) return;
+    this.syncFromStorage();
+    const book = rollBook(this.data.tax, slip.month);
+    book.gross = slip.monthGross;
+    book.paye = slip.monthPaye;
+    book.yearGross += slip.gross;
+    book.yearPaye += slip.paye;
+    this.keepSlip(book, slip);
+    this.data.tax = book;
+    // The wage's line in the history says what was taken
+    const line = this.data.transactionHistory.find((t) => t.type === 'JOB_SALARY');
+    if (line && slip.paye > 0 && !line.paye) line.paye = slip.paye;
+    this.saveData();
+  }
+
+  /** The server's own account of the player's tax (it holds the payslips); VAT stays this device's count */
+  public applyServerTax(server: { month: string; gross: number; paye: number; rent: number; yearGross: number; yearPaye: number; slips: Payslip[] }): void {
+    if (!server || !/^\d{4}-\d{2}$/.test(server.month)) return;
+    this.syncFromStorage();
+    const book = rollBook(this.data.tax, server.month);
+    book.gross = server.gross;
+    book.paye = server.paye;
+    book.rent = Math.max(book.rent, server.rent);
+    book.yearGross = server.yearGross;
+    book.yearPaye = server.yearPaye;
+    book.slips = server.slips.slice(-MAX_SLIPS);
+    this.data.tax = book;
+    this.saveData();
+  }
 
   /**
    * Changes the saved account in place and saves it, for modules that keep their state in the
@@ -268,7 +384,8 @@ export class BackendService {
           }
         }
         const sold = BackendService.sales(biz, cycles);
-        const earned = Math.round((sold ?? BackendService.takings(biz, cycleEarnings) * cycles) * BackendService.revenueBoost());
+        const hours = Math.min(48, (cycles * REVENUE_CYCLE_MS) / 3_600_000);
+        const earned = Math.round((sold ?? BackendService.takings(biz, cycleEarnings) * cycles) * BackendService.revenueBoost() * BackendService.powerShare(biz, hours));
         biz.pendingRevenue += earned;
         BackendService.onTakings(biz.id, earned);
         revenueGenerated = true;
@@ -1346,6 +1463,7 @@ export class BackendService {
   }
 
   public completeJobShift(): { success: boolean; reward: number; message: string } {
+    this.syncFromStorage();
     const shiftInfo = this.getActiveJobShift();
     if (!shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
     if (!shiftInfo.isReady) {
@@ -1353,14 +1471,11 @@ export class BackendService {
     }
 
     const { job } = shiftInfo;
-    // A higher career rank is paid more for the same shift
+    // A higher career rank is paid more for the same shift; the employer takes PAYE before paying it
     const pay = Math.round(job.salary * (this.data.career.bonusMultiplier || 1));
-    const txRes = this.processTransaction({
-      type: 'JOB_SALARY',
-      amount: pay,
-      description: `Completed Shift: ${job.title}`,
-      source: 'wallet',
-    });
+    const wage = this.takeWage(pay, job.workplace, job.title, 'lagos', `Completed Shift: ${job.title}`);
+    if (!wage.success || !wage.slip) return { success: false, reward: 0, message: wage.message };
+    const slip = wage.slip;
 
     this.addJobExperience(25);
     this.addStreetCred(10);
@@ -1380,18 +1495,19 @@ export class BackendService {
     this.saveData();
     emitGameEvent('work_shift');
 
+    const note = payeNote(slip);
     return {
       success: true,
-      reward: pay,
-      message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket (${txRes.message}) and gained XP!`,
+      reward: slip.net,
+      message: `Shift completed! ${job.workplace} paid ${takeHome(slip)} into your pocket and you gained XP.${note ? ` ${note}` : ''}`,
     };
   }
 
   /**
-   * A career shift the server has already paid, at its own rate. Experience is recorded here.
-   * The money is not: the server's wallet is what the player has.
+   * A career shift the server has already paid, at its own rate and after PAYE. Experience is
+   * recorded here, and the payslip. The money is not: the server's wallet is what the player has.
    */
-  public noteServerJobShift(pay: number): { success: boolean; reward: number; message: string } {
+  public noteServerJobShift(pay: number, slip?: Payslip): { success: boolean; reward: number; message: string } {
     const shiftInfo = this.getActiveJobShift();
     if (!shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
     const { job } = shiftInfo;
@@ -1411,7 +1527,10 @@ export class BackendService {
     this.data.activeJobShift = null;
     this.saveData();
     emitGameEvent('work_shift');
-    return { success: true, reward: pay, message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket and gained XP!` };
+    if (!slip) return { success: true, reward: pay, message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket and gained XP!` };
+    this.noteServerPayslip(slip);
+    const note = payeNote(slip);
+    return { success: true, reward: slip.net, message: `Shift completed! ${slip.employer} paid ${takeHome(slip)} into your pocket and you gained XP.${note ? ` ${note}` : ''}` };
   }
 
   // === CAREER PROGRESSION ===

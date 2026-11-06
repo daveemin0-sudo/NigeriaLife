@@ -1,4 +1,5 @@
 import { SERVER_URL, NETWORK_PLAYER_ID } from '../realestate/ServerLink';
+import type { Payslip } from '../life/Tax';
 import { profileKey } from '../backend/Profile';
 
 /**
@@ -314,7 +315,8 @@ export class OnlineAccount {
     return { ...started, done: hired.done };
   }
 
-  public finishWork(shift: string, stars?: number): Promise<{ ok: boolean; pay?: number; tip?: number; done?: number; reason?: string; replay?: boolean }> {
+  /** Paid by the server: `pay` is the wage before tax, `slip` the payslip with the PAYE it took */
+  public finishWork(shift: string, stars?: number): Promise<{ ok: boolean; pay?: number; tip?: number; done?: number; slip?: Payslip; reason?: string; replay?: boolean }> {
     return this.request('/work/finish', { shift, idem: this.idem('w'), ...(stars === 2 || stars === 3 ? { stars } : {}) });
   }
 
@@ -336,8 +338,14 @@ export class OnlineAccount {
     return started;
   }
 
-  public finishGig(shift: string): Promise<{ ok: boolean; pay?: number; reason?: string; replay?: boolean }> {
+  /** A career shift is a wage and comes with a payslip; any other gig is cash in hand */
+  public finishGig(shift: string): Promise<{ ok: boolean; pay?: number; slip?: Payslip; reason?: string; replay?: boolean }> {
     return this.request('/work/gig/finish', { shift, idem: this.idem('g') });
+  }
+
+  /** This month's and year's PAYE and the payslips, as the server holds them */
+  public tax(): Promise<{ ok: boolean; month?: string; gross?: number; paye?: number; rent?: number; relief?: number; yearGross?: number; yearPaye?: number; slips?: Payslip[] }> {
+    return this.request('/me/tax');
   }
 
   // --- Safety ---------------------------------------------------------------------------------

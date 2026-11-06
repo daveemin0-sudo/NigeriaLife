@@ -873,6 +873,10 @@ html body .nlphone:not(:has(.nlphone-home)) .nl-card {
   box-shadow: 0 1px 2px rgba(12, 28, 20, 0.04), 0 4px 14px rgba(12, 28, 20, 0.04);
 }
 html body .nlphone:not(:has(.nlphone-home)) .nl-row { border-radius: 16px; }
+html body .nlphone:not(:has(.nlphone-home)) .nl-tax-bands .nl-row { box-shadow: none; border-radius: 12px; }
+/* NEPA light where the player is, beside the clock: a bulb, or a candle in a cut */
+html body .hud-light-icon { margin-left: 3px; font-size: 0.95em; line-height: 1; }
+html body .hud-light-icon[data-light='off'] { filter: drop-shadow(0 0 3px rgba(255, 170, 60, 0.75)); }
 html body .nlphone:not(:has(.nlphone-home)) .nl-card { border-radius: 20px; }
 html body .nlphone:not(:has(.nlphone-home)) .nl-row-icon { background: var(--nl-surface-2); border-radius: 14px; }
 html body .nlphone:not(:has(.nlphone-home)) button.nl-row:hover:not(:disabled) { background: var(--lx-surface-2); }

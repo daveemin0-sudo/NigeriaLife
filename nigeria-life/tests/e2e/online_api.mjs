@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
+import { DatabaseSync } from 'node:sqlite';
 import { wait } from './lib.mjs';
 
 const PORT = 8803;
@@ -463,6 +464,41 @@ export async function run(_browser, check) {
     check('online: the generator pays ₦2,500 after a few seconds beside it, and a pull from nowhere is refused',
       genStart.ok && !genFast.ok && /faster/.test(genFast.reason) && genPaid.pay === 2_500 && genPaid.wallet.cash - genBefore === 2_500 && !genAway.ok,
       { genStart, genFast, genPaid, genAway });
+
+    // PAYE, taken by the server. Earlier this month the player was paid ₦300,000 in wages, with
+    // ₦36,500 PAYE on them (put straight into the server's payslips); a CcHUB shift now is taxed at 18%.
+    const lagosMonth = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+    const taxed = await onSpot('Taiwo', -10, -25);
+    const seeded = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    seeded.exec('PRAGMA busy_timeout = 2000');
+    seeded
+      .prepare("INSERT INTO payslips (account_id, at, month, employer, title, office, gross, relief, paye, net, month_gross, month_paye, rate, idem) VALUES (?, ?, ?, 'Earlier employer', 'Earlier work', 'Lagos State Internal Revenue Service', 300000, 0, 36500, 263500, 300000, 36500, 0.18, 'seed')")
+      .run(taxed.guest.account.id, Date.now() - 60_000, lagosMonth);
+    seeded.close();
+    await call('/work/hire', { employer: 'cchub-yaba' }, taxed.guest.token);
+    const taxStart = await call('/work/start', { employer: 'cchub-yaba' }, taxed.guest.token);
+    // A career shift is a wage too (a payslip, no PAYE yet on a first ₦4,500); the generator is cash in hand
+    const clerk = await call('/auth/guest', { name: 'Clerk' });
+    const clerkStart = await call('/work/gig/start', { gig: 'career:job_shop_assistant' }, clerk.token);
+    await wait(10_300);
+    taxed.sock.send(stand(-10, -25));
+    await wait(200);
+    const taxBefore = (await call('/me', null, taxed.guest.token)).wallet.cash;
+    const taxPaid = await call('/work/finish', { shift: taxStart.shift, idem: idem() }, taxed.guest.token);
+    const clerkPaid = await call('/work/gig/finish', { shift: clerkStart.shift, idem: idem() }, clerk.token);
+    // Home rent paid this month earns relief (a fifth, at most ₦41,667); a staff wage does not
+    await call('/money/report', { bank: -100000, memo: 'RENT_PAYMENT: Saturday rent: Room in Mushin', idem: idem() }, taxed.guest.token);
+    await call('/money/report', { bank: -5000, memo: 'RENT_PAYMENT: Home Staff Wage: Cook (Cook)', idem: idem() }, taxed.guest.token);
+    const taxBook = await call('/me/tax', null, taxed.guest.token);
+    taxed.stop();
+    check('online: PAYE is the server\'s: ₦16,000 at CcHUB after ₦300,000 this month is taxed at 18% (₦2,880), ₦13,120 is paid, the payslip says so, and the tax page has the month, the year, rent relief and both payslips',
+      taxPaid.ok && taxPaid.pay === 16_000 && taxPaid.slip?.paye === 2_880 && taxPaid.slip.net === 13_120 && taxPaid.wallet.cash - taxBefore === 13_120 && taxPaid.slip.rate === 0.18 && /Lagos State/.test(taxPaid.slip.office)
+      && taxBook.ok && taxBook.month === lagosMonth && taxBook.gross === 316_000 && taxBook.paye === 39_380 && taxBook.rent === 100_000 && taxBook.relief === 20_000 && taxBook.yearPaye === 39_380
+      && taxBook.slips.length === 2 && taxBook.slips[1].paye === 2_880 && taxBook.slips[1].monthGross === 316_000,
+      { taxPaid, taxBook });
+    check('online: a career shift comes with a payslip from its employer; the generator gig is paid whole with none',
+      clerkPaid.ok && clerkPaid.pay === 4_500 && clerkPaid.slip?.employer === 'Balogun Wholesale Market' && clerkPaid.slip.paye === 0 && clerkPaid.wallet.cash === 25_000 + 4_500 && genPaid.ok && genPaid.slip === undefined,
+      { clerkPaid, gen: genPaid.slip });
 
     // The next tier, same gig clock: the code sprint the phone used to pay at once.
     const kode = await call('/auth/guest', { name: 'Kode' });

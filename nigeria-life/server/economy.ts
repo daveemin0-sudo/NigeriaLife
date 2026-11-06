@@ -25,6 +25,7 @@ import { EMPLOYERS, WORKSITES, type Employer, type Grade } from '../src/jobs/emp
 import { mostTaken } from '../src/backend/businessRates.ts';
 import { AGAMA_CAP, ALBUM_CASH, CASE_CASH, GIGS, QUEST_CASH, agamaPay, plotOf, quoteTakings, tipFor } from './earn.ts';
 import { alert, transaction, type Store } from './store.ts';
+import { lagosDate, lagosMonth, lagosMonthStart, monthRelief, taxOffice, workPayslip, MAX_SLIPS, type Payslip } from '../src/life/Tax.ts';
 
 export interface Wallet {
   cash: number;
@@ -282,7 +283,7 @@ export class Economy {
     return { ok: true, shift };
   }
 
-  public finishShift(accountId: string, shiftId: unknown, idemRaw: unknown, starsRaw?: unknown): Result<{ pay?: number; tip?: number; promoted?: Grade; done?: number; replay?: boolean }> {
+  public finishShift(accountId: string, shiftId: unknown, idemRaw: unknown, starsRaw?: unknown): Result<{ pay?: number; tip?: number; slip?: Payslip; promoted?: Grade; done?: number; replay?: boolean }> {
     const idem = cleanIdem(idemRaw);
     if (!idem) return { ok: false, reason: 'That could not be read.' };
     if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
@@ -308,12 +309,15 @@ export class Economy {
     // Stars are optional. Left out, the wage is the whole pay, so an existing shift test is unchanged.
     const stars = starsRaw === 2 || starsRaw === 3 ? starsRaw : 0;
     const tip = tipFor(pay, stars);
+    // The employer takes PAYE from the wage before paying it; a tip is the player's, untaxed
+    const slip = this.payslip(accountId, pay, employer.name, job.grade.title, site.city);
     this.db.prepare('UPDATE shifts SET finished_at = ? WHERE id = ?').run(Date.now(), shift.id);
-    const paid = this.apply(accountId, 'shift', pay + tip, 0, `${job.grade.title}, ${employer.name}`, true, idem);
+    const paid = this.apply(accountId, 'shift', slip.net + tip, 0, `${job.grade.title}, ${employer.name}${slip.paye ? ` (PAYE ₦${slip.paye.toLocaleString()})` : ''}`, true, idem);
     if (!paid.ok) return paid;
+    this.keepPayslip(accountId, slip, idem);
     this.db.prepare('UPDATE jobs SET done = done + 1 WHERE account_id = ? AND employer = ?').run(accountId, shift.employer);
     const now = gradeFor(employer, job.done + 1);
-    return { ok: true, wallet: paid.wallet, pay, tip, done: job.done + 1, promoted: now !== job.grade ? now : undefined };
+    return { ok: true, wallet: paid.wallet, pay, tip, slip, done: job.done + 1, promoted: now !== job.grade ? now : undefined };
   }
 
   // --- Between players and from the admin -------------------------------------------------------
@@ -431,7 +435,7 @@ export class Economy {
     return { ok: true, shift };
   }
 
-  public finishGig(accountId: string, shiftId: unknown, idemRaw: unknown): Result<{ pay?: number; replay?: boolean }> {
+  public finishGig(accountId: string, shiftId: unknown, idemRaw: unknown): Result<{ pay?: number; slip?: Payslip; replay?: boolean }> {
     const idem = cleanIdem(idemRaw);
     if (!idem) return { ok: false, reason: 'That could not be read.' };
     if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
@@ -454,9 +458,52 @@ export class Economy {
       if (away) return { ok: false, reason: away };
     }
     this.db.prepare('UPDATE shifts SET finished_at = ? WHERE id = ?').run(Date.now(), shift.id);
-    const paid = this.apply(accountId, 'gig', gig.pay, 0, gig.memo, true, idem);
+    // A career shift is a wage: PAYE comes off it and there is a payslip. A gig is cash in hand.
+    const slip = gig.employer ? this.payslip(accountId, gig.pay, gig.employer, gig.memo, gig.site?.city ?? 'lagos') : null;
+    const paid = this.apply(accountId, 'gig', slip ? slip.net : gig.pay, 0, slip?.paye ? `${gig.memo} (PAYE ₦${slip.paye.toLocaleString()})` : gig.memo, true, idem);
     if (!paid.ok) return paid;
-    return { ok: true, wallet: paid.wallet, pay: gig.pay };
+    if (slip) this.keepPayslip(accountId, slip, idem);
+    return { ok: true, wallet: paid.wallet, pay: gig.pay, ...(slip ? { slip } : {}) };
+  }
+
+  // --- PAYE (src/life/Tax.ts) ----------------------------------------------------------------
+
+  /** This month's wages and PAYE so far, and the home rent paid this month (from the ledger) */
+  private monthSoFar(accountId: string, month: string): { gross: number; paye: number; rent: number } {
+    const wages = this.db.prepare('SELECT COALESCE(SUM(gross), 0) AS gross, COALESCE(SUM(paye), 0) AS paye FROM payslips WHERE account_id = ? AND month = ?').get(accountId, month) as { gross: number; paye: number };
+    // Home rent the game reported (a lease's first month, Saturday rent, arrears): what left the wallet
+    const rent = this.db
+      .prepare("SELECT COALESCE(-SUM(cash_delta + bank_delta), 0) AS rent FROM ledger WHERE account_id = ? AND at >= ? AND cash_delta + bank_delta < 0 AND (memo LIKE 'RENT_PAYMENT: Saturday rent:%' OR memo LIKE 'RENT_PAYMENT: Rent and arrears:%' OR memo LIKE 'RENT_PAYMENT: Rent owed:%' OR memo LIKE 'RENT_PAYMENT: Monthly Rent:%')")
+      .get(accountId, lagosMonthStart(month)) as { rent: number };
+    return { gross: wages.gross, paye: wages.paye, rent: rent.rent };
+  }
+
+  /** The payslip for a wage of `gross` paid now: PAYE on the month's wages so far, less what was taken */
+  private payslip(accountId: string, gross: number, employer: string, title: string, city: string): Payslip {
+    const now = Date.now();
+    const month = lagosMonth(now);
+    return { ...workPayslip(gross, this.monthSoFar(accountId, month)), month, date: lagosDate(now), employer, title, office: taxOffice(city) };
+  }
+
+  private keepPayslip(accountId: string, slip: Payslip, idem: string): void {
+    this.db
+      .prepare('INSERT INTO payslips (account_id, at, month, employer, title, office, gross, relief, paye, net, month_gross, month_paye, rate, idem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(accountId, Date.now(), slip.month, slip.employer, slip.title, slip.office, slip.gross, slip.relief, slip.paye, slip.net, slip.monthGross, slip.monthPaye, slip.rate, idem);
+  }
+
+  /** The player's PAYE: this month, this year, and the latest payslips (newest last) */
+  public taxOf(accountId: string): { month: string; gross: number; paye: number; rent: number; relief: number; yearGross: number; yearPaye: number; slips: Payslip[] } {
+    const month = lagosMonth(Date.now());
+    const so = this.monthSoFar(accountId, month);
+    const year = this.db.prepare('SELECT COALESCE(SUM(gross), 0) AS gross, COALESCE(SUM(paye), 0) AS paye FROM payslips WHERE account_id = ? AND month LIKE ?').get(accountId, `${month.slice(0, 4)}-%`) as { gross: number; paye: number };
+    const rows = this.db
+      .prepare('SELECT at, month, employer, title, office, gross, relief, paye, net, month_gross, month_paye, rate FROM payslips WHERE account_id = ? ORDER BY id DESC LIMIT ?')
+      .all(accountId, MAX_SLIPS) as Array<{ at: number; month: string; employer: string; title: string; office: string; gross: number; relief: number; paye: number; net: number; month_gross: number; month_paye: number; rate: number }>;
+    const slips: Payslip[] = rows.reverse().map((r) => ({
+      month: r.month, date: lagosDate(r.at), employer: r.employer, title: r.title, office: r.office,
+      gross: r.gross, relief: r.relief, paye: r.paye, net: r.net, monthGross: r.month_gross, monthPaye: r.month_paye, rate: r.rate,
+    }));
+    return { month, gross: so.gross, paye: so.paye, rent: so.rent, relief: monthRelief(so.rent), yearGross: year.gross, yearPaye: year.paye, slips };
   }
 
   /**

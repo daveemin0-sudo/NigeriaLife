@@ -58,6 +58,7 @@ const shift = async (page, key, employer) => {
   const pay = await rate(page, employer);
   const before = await money(page);
   const n0 = await done(page, employer);
+  const slips0 = await page.evaluate(() => window.game.hud.backend.tax().slips.length);
   const label = await use(page, `work_${key}_shift_${employer}`);
   const poses = new Set();
   const finished = await playUntil(page, () => {
@@ -68,7 +69,9 @@ const shift = async (page, key, employer) => {
   }, 80);
   for (const p of await page.evaluate(() => { const p = [...(window.__poses ?? [])]; window.__poses = new Set(); return p; })) poses.add(p);
   await advance(page, 0.3);
-  return { label, finished: !!finished, paid: (await money(page)).total - before.total, pay, done: (await done(page, employer)) - n0, poses: [...poses] };
+  // The wage comes with a payslip; once the month's wages pass the tax-free part, PAYE comes off it (src/life/Tax.ts)
+  const slip = await page.evaluate((n) => { const all = window.game.hud.backend.tax().slips; return all.length > n ? all[all.length - 1] : null; }, slips0);
+  return { label, finished: !!finished, paid: (await money(page)).total - before.total, pay, paye: slip?.paye ?? 0, done: (await done(page, employer)) - n0, poses: [...poses] };
 };
 
 export async function run(browser, check) {
@@ -118,7 +121,7 @@ export async function run(browser, check) {
 
   const first = await shift(page, 'marina-towers', 'first-bank-marina');
   check('workplaces: a teller\'s shift is acted out at the window (slip, counting machine, posting, receipt) and paid once, at the grade\'s rate, when it is done',
-    first.finished && first.paid === first.pay && first.done === 1 && first.poses.includes('carry') && first.poses.includes('greet'), first);
+    first.finished && first.paid === first.pay - first.paye && first.done === 1 && first.poses.includes('carry') && first.poses.includes('greet'), first);
 
   // Walking off half way: the shift is given up and pays nothing
   await page.evaluate(() => window.game.hud.backend.restoreEnergy(100));
@@ -138,12 +141,12 @@ export async function run(browser, check) {
       if (key === 'marina-towers') continue;
       const h = await hire(page, key, employer);
       const s = await shift(page, key, employer);
-      rows.push({ key, employer, name, employed: h.employed, finished: s.finished, paid: s.paid, pay: s.pay, done: s.done });
+      rows.push({ key, employer, name, employed: h.employed, finished: s.finished, paid: s.paid, pay: s.pay, paye: s.paye, done: s.done });
     }
     await leave(page);
   }
-  const bad = rows.filter((r) => !r.name || !r.employed || !r.finished || r.paid !== r.pay || r.done !== 1);
-  check(`workplaces: in all ${rows.length} other workplaces the player is taken on and works a whole shift, every task reached and acted out, paid once at the rate`, rows.length === 15 && bad.length === 0, bad.length ? bad : rows.map((r) => `${r.employer} ₦${r.paid}`));
+  const bad = rows.filter((r) => !r.name || !r.employed || !r.finished || r.paid !== r.pay - r.paye || r.done !== 1);
+  check(`workplaces: in all ${rows.length} other workplaces the player is taken on and works a whole shift, every task reached and acted out, paid once at the rate (less PAYE once the month's wages pass the free part)`, rows.length === 15 && bad.length === 0, bad.length ? bad : rows.map((r) => `${r.employer} ₦${r.paid}`));
 
   // ------------------------------------------------------------------ On the phone
   await page.evaluate(() => window.game.hud.phoneModal.openApp('jobs'));

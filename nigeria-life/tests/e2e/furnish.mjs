@@ -52,6 +52,8 @@ export async function run(browser, check) {
   const { page, log } = await open(ctx);
   await closeDialogs(page);
   await page.evaluate(() => { const g = window.game; g.world.interiorManager.residence.constructor.briefNow = () => ({ kind: 'house', bedrooms: 4, carport: true }); const be = window.game.hud.backend; be.rentProperty(be.getData().properties[0].id); be.performGig(1200000, 0, 'test: furnishing money'); window.game.world.skyEnvironment.setHour(15); });
+  // This suite is about furnishing, not NEPA (the nepa suite is): the home has its own power, so a TV goes on at any hour
+  await page.evaluate(() => { window.game.modules.HomePower.get().where = () => ({ area: 'eko_atlantic', city: 'lagos', own: true }); });
   await enterInterior(page, 'residence');
   await wait(600);
   const start = await money(page);

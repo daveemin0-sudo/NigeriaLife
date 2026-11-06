@@ -1,6 +1,6 @@
 import { Adverts } from '../../business/Adverts';
 import type { PhoneApp, PhoneHost } from '../PhoneApp';
-import { esc, naira, row, empty, chips, count } from '../../ui/kit/html';
+import { esc, naira, row, empty, chips, count, meter } from '../../ui/kit/html';
 import { CREDIT_TYPES } from '../../backend/TransactionService';
 import type { TransactionRecord } from '../../backend/types';
 import { NetworkManager } from '../../multiplayer/NetworkManager';
@@ -11,6 +11,8 @@ import { AssetMarket } from '../../realestate/AssetMarket';
 import { Companies, AREAS, type RoleId } from '../../business/Companies';
 import { BackendService } from '../../backend/BackendService';
 import { Dues, dayLabel } from '../../life/Dues';
+import { monthBands, monthLabel, monthRelief, RENT_RELIEF_CAP, VAT_RATE, type Payslip, type TaxBook } from '../../life/Tax';
+import { OnlineAccount } from '../../online/OnlineAccount';
 
 // ============================================================================================
 // Bank
@@ -22,10 +24,11 @@ const direction = (tx: TransactionRecord): 'in' | 'out' | 'move' =>
 
 function transactionRow(tx: TransactionRecord): string {
   const way = direction(tx);
+  const tax = tx.paye ? ` · <span class="nl-tax-note">PAYE ${naira(tx.paye)} taken</span>` : tx.vat ? ` · <span class="nl-tax-note">incl. VAT ${naira(tx.vat)}</span>` : '';
   return row({
     icon: way === 'in' ? '↙' : way === 'out' ? '↗' : '⇄',
     title: esc(tx.description),
-    sub: `${esc(tx.timestamp)} · ${tx.source === 'bank' ? 'Bank account' : 'Cash'}`,
+    sub: `${esc(tx.timestamp)} · ${tx.source === 'bank' ? 'Bank account' : 'Cash'}${tax}`,
     trailing: `<span class="nl-amount nl-amount--${way}">${way === 'in' ? '+' : way === 'out' ? '−' : ''}${naira(tx.amount)}</span>`,
   });
 }
@@ -39,6 +42,8 @@ export const bankApp: PhoneApp = {
 
   render(host, route) {
     const data = host.backend.getData();
+
+    if (route === 'tax') return taxScreen(host);
 
     if (route === 'send') {
       const others = (NetworkManager.getInstance()?.getOnlinePlayersList() ?? []).filter((p) => !p.isLocal);
@@ -73,7 +78,8 @@ export const bankApp: PhoneApp = {
 
     const filter = host.get<string>('bank.filter', 'all');
     const search = host.get('bank.search', '').toLowerCase();
-    const history = [...data.transactionHistory].reverse()
+    // Newest first, as the account keeps them
+    const history = data.transactionHistory
       .filter((tx) => filter === 'all' || direction(tx) === filter)
       .filter((tx) => !search || tx.description.toLowerCase().includes(search));
     const loan = Dues.get().loan();
@@ -87,6 +93,7 @@ export const bankApp: PhoneApp = {
           <span class="nl-hero-sub">Acct ${esc(data.bank.accountNumber)} · Cash on you ${naira(data.walletCash)}</span>
           <div class="nl-hero-actions">
             <button class="nl-btn nl-btn--glass" data-go="send">↗ Send</button>
+            <button class="nl-btn nl-btn--glass" id="bank-tax" data-go="tax">🧾 Tax</button>
             <button class="nl-btn nl-btn--glass" data-app="invest">📈 Invest</button>
           </div>
         </div>
@@ -142,6 +149,114 @@ export const bankApp: PhoneApp = {
     }
   },
 };
+
+// ============================================================================================
+// Tax: PAYE on payslips, and VAT on what was bought (src/life/Tax.ts)
+// ============================================================================================
+
+const pct = (rate: number) => `${Math.round(rate * 100)}%`;
+
+function bandName(band: { from: number; upTo: number }): string {
+  if (band.from === 0) return `First ${naira(band.upTo)}`;
+  if (band.upTo === Infinity) return `Above ${naira(band.from)}`;
+  return `${naira(band.from)} to ${naira(band.upTo)}`;
+}
+
+function slipRow(slip: Payslip): string {
+  return row({
+    icon: '🧾',
+    title: `${esc(slip.title)} · ${esc(slip.employer)}`,
+    sub: `${esc(slip.date)} · ${naira(slip.gross)} gross · ${slip.paye ? `PAYE ${naira(slip.paye)} at ${pct(slip.rate)}` : 'no PAYE'}${slip.relief ? ` · relief ${naira(slip.relief)}` : ''}`,
+    trailing: `<span class="nl-amount nl-amount--in">+${naira(slip.net)}</span>`,
+    attrs: 'data-slip="1"',
+    tag: 'div',
+  });
+}
+
+/** Online, the server holds the payslips: asked for them once when the screen opens, then every half minute */
+function askServer(host: PhoneHost): void {
+  const online = OnlineAccount.get();
+  if (!online || Date.now() - host.get<number>('tax.asked', 0) < 30_000) return;
+  host.set('tax.asked', Date.now());
+  void online.tax().then((server) => {
+    if (!server.ok || !server.month) return;
+    host.backend.applyServerTax(server as Parameters<typeof host.backend.applyServerTax>[0]);
+    host.refresh();
+  }).catch(() => undefined);
+}
+
+function taxScreen(host: PhoneHost): { title: string; body: string } {
+  askServer(host);
+  const book: TaxBook = host.backend.tax();
+  const relief = monthRelief(book.rent);
+  const taxable = Math.max(0, book.gross - relief);
+  const bands = monthBands();
+  const at = Math.max(0, bands.findIndex((b) => taxable < b.upTo));
+  const band = bands[at];
+  const next = bands[at + 1];
+  const through = band.upTo === Infinity ? 100 : ((taxable - band.from) / (band.upTo - band.from)) * 100;
+  const freeLeft = Math.max(0, bands[0].upTo - taxable);
+  const where = taxable < bands[0].upTo
+    ? `<strong id="tax-free-left">${naira(freeLeft)}</strong> more in wages this month is tax-free. After that, PAYE starts at 15%.`
+    : next
+      ? `Your next naira of wages is taxed at <strong id="tax-rate">${pct(band.rate)}</strong>. ${naira(band.upTo - taxable)} more and it is ${pct(next.rate)}.`
+      : `Your next naira of wages is taxed at <strong id="tax-rate">${pct(band.rate)}</strong>, the top rate.`;
+  const slips = [...book.slips].reverse();
+  const month = monthLabel(book.month);
+  return {
+    title: 'Tax',
+    body: `
+      <div class="nl-hero" id="tax-hero">
+        <span class="nl-hero-label">PAYE in ${esc(month)}</span>
+        <span class="nl-hero-value" id="tax-month-paye">${naira(book.paye)}</span>
+        <span class="nl-hero-sub" id="tax-month-sub">on ${naira(book.gross)} of wages · you took home ${naira(book.gross - book.paye)}</span>
+      </div>
+      <div class="nl-card" id="tax-band">
+        <div class="nl-card-title">Where you are this month</div>
+        <div class="nl-card-line">${where}</div>
+        ${meter(through, at === 0 ? 'good' : 'plain')}
+        <div class="nl-list nl-tax-bands" id="tax-bands">
+          ${bands.map((b, i) => row({
+            icon: i < at ? '✓' : i === at ? '●' : '○',
+            title: bandName(b),
+            sub: i === at ? '<span class="nl-tag nl-tag--good">You are here</span>' : undefined,
+            trailing: `<strong>${pct(b.rate)}</strong>`,
+            tone: i === at ? 'default' : 'muted',
+            attrs: `data-band="${i}"${i === at ? ' aria-current="true"' : ''}`,
+            tag: 'div',
+          })).join('')}
+        </div>
+        <div class="nl-card-line">The year's bands, a twelfth a month: the first ₦800,000 of a year free, then 15%, 18%, 21%, 23% and 25% (Nigeria Tax Act 2025).</div>
+      </div>
+      <div class="nl-card" id="tax-relief">
+        <div class="nl-card-title">Rent relief</div>
+        <div class="nl-card-line">${book.rent > 0
+          ? `You paid <strong>${naira(book.rent)}</strong> in home rent this month, so <strong id="tax-relief-amount">${naira(relief)}</strong> of your wages is not taxed.`
+          : 'Pay rent on a home and a fifth of it comes off your taxed wages.'} At most ${naira(Math.round(RENT_RELIEF_CAP / 12))} a month (${naira(RENT_RELIEF_CAP)} a year).</div>
+      </div>
+      <div class="nl-card" id="tax-year">
+        <div class="nl-card-title">${esc(book.year)} so far</div>
+        <div class="nl-stats">
+          <span><strong>${naira(book.yearGross)}</strong>wages</span>
+          <span><strong id="tax-year-paye">${naira(book.yearPaye)}</strong>PAYE</span>
+          <span><strong id="tax-year-vat">${naira(book.yearVat)}</strong>VAT in prices</span>
+        </div>
+      </div>
+      <div class="nl-section">Payslips</div>
+      <div class="nl-list" id="tax-slips">
+        ${slips.length === 0
+          ? empty('🧾', 'No payslips yet', 'Work for an employer (the port, a site, CcHUB, a career shift) and each wage comes with a payslip. Gigs and tips are cash in hand: no payslip, no PAYE.')
+          : slips.map(slipRow).join('')}
+      </div>
+      ${slips[0] ? `<div class="nl-hint">PAYE goes to the ${esc(slips[0].office)}.</div>` : ''}
+      <div class="nl-section">VAT</div>
+      <div class="nl-card" id="tax-vat">
+        <div class="nl-card-line">VAT is <strong>${(VAT_RATE * 100).toFixed(1)}%</strong> and, as in any Nigerian shop, it is already in the price: nothing costs more. Each receipt in your Bank says how much of it was VAT.</div>
+        <div class="nl-card-line"><strong>No VAT on:</strong> basic food from a buka, mama put or market, medicine, books, home rent, land and houses, fares and fuel.</div>
+      </div>
+    `,
+  };
+}
 
 // ============================================================================================
 // Invest

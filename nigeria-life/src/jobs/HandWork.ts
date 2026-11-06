@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { payeNote, takeHome } from '../life/Tax';
 import { Activity } from '../life/Activity';
 import { ShiftSkill } from './ShiftSkill';
 import type { Actor } from '../interactions/Actor';
@@ -193,9 +194,13 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       if (score.stars === 3) Activity.emit({ kind: 'acted', id: 'three-star shift' });
       lastStars = score.stars;
       if (score.tip > 0) setTimeout(() => host.say(`${stars} ${score.stars === 3 ? 'Perfect work!' : 'Good work.'} ${capital(words.theBoss)} tips you ₦${score.tip.toLocaleString()}.`, 'success'), 1800);
+      // The wage as it reaches the hand: after PAYE, which the payslip shows
+      const wage = result.slip ? takeHome(result.slip) : `₦${result.pay!.toLocaleString()}`;
       host.say(result.promoted
-        ? `${capital(words.theBoss)} pays you ₦${result.pay!.toLocaleString()} and makes you ${result.promoted.title.toLowerCase()}: ₦${result.promoted.pay.toLocaleString()} a ${words.piece} from now on.`
-        : `${capital(words.theBoss)} pays you ₦${result.pay!.toLocaleString()} for the ${words.piece}. Energy -${effort}%.`, 'success');
+        ? `${capital(words.theBoss)} pays you ${wage} and makes you ${result.promoted.title.toLowerCase()}: ₦${result.promoted.pay.toLocaleString()} a ${words.piece} from now on.`
+        : `${capital(words.theBoss)} pays you ${wage} for the ${words.piece}. Energy -${effort}%.`, 'success');
+      const note = result.slip ? payeNote(result.slip) : null;
+      if (note) setTimeout(() => host.say(note, 'info'), score.tip > 0 ? 3600 : 1800);
       return true;
     };
     if (online) {
@@ -204,7 +209,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
         const finished = await online.finishWork(shift ?? '', rated.stars);
         if (!finished.ok) return announce({ ok: false, reason: finished.reason });
         const tip = finished.tip ?? 0;
-        return announce(jobs.settledByServer(id, finished.pay ?? rate(), finished.done ?? 0), { stars: rated.stars, tip }, true);
+        return announce(jobs.settledByServer(id, finished.pay ?? rate(), finished.done ?? 0, finished.slip), { stars: rated.stars, tip }, true);
       }));
     } else {
       work.add(steps.call(`paid for the ${words.piece}`, () => announce(jobs.complete(id))));

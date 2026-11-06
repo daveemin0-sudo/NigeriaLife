@@ -315,6 +315,35 @@ button.nl-row:disabled {
 .nl-amount--move {
   color: var(--nl-dim);
 }
+/* What a receipt says about tax: the PAYE taken from a wage, the VAT inside a price */
+.nl-tax-note {
+  color: var(--nl-text);
+  font-weight: 700;
+}
+/* The month's PAYE bands, as a short ladder inside a card: one line each, the current one lit */
+.nl-tax-bands {
+  gap: 2px;
+}
+.nl-tax-bands .nl-row {
+  min-height: 34px;
+  padding: 4px 8px;
+  gap: 10px;
+  background: transparent;
+  border-color: transparent;
+}
+.nl-tax-bands .nl-row-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.nl-tax-bands .nl-row-title {
+  font-size: 13px;
+}
+.nl-tax-bands .nl-row[aria-current='true'] {
+  background: color-mix(in srgb, var(--nl-good) 12%, transparent);
+  border-color: color-mix(in srgb, var(--nl-good) 35%, transparent);
+}
 .nl-check {
   color: var(--nl-good);
   font-weight: 800;

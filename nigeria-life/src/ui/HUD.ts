@@ -240,6 +240,7 @@ export class HUD {
           <div class="pill-item time-pill" id="hud-time-pill" title="World Clock • Click to toggle Real-Time (WAT) / Simulated time presets" style="cursor: pointer;">
             <span id="hud-weather-icon">☀️</span>
             <span id="hud-clock-val">Wed 7 • 1:18 PM</span>
+            <span id="hud-light-icon" class="hud-light-icon" data-light="on" title="NEPA light where you are">💡</span>
           </div>
           <div class="pill-item mood-pill" id="pill-mood" title="Current Character Mood">
             <span id="hud-mood-icon">😄</span>

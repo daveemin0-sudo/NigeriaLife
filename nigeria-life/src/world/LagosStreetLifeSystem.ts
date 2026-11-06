@@ -26,8 +26,16 @@ export class LagosStreetLifeSystem {
 
   // NEPA & Generator Grid State
   public isNepaOn: boolean = true;
-  private blackoutTimer: number = 240; // Next automatic event in seconds
   public isGeneratorRunning: boolean = false;
+  /**
+   * The area the player is standing in and whether NEPA gives it light now, by its plan
+   * (src/life/Grid.ts); null inside a building (set by the game). The street follows it.
+   */
+  public lightHere: (() => { area: string; name: string; light: boolean } | null) | null = null;
+  private lightCheck = 0;
+  private areaNow = '';
+  /** Light switched by hand (the settings), held for a while before the plan takes over again */
+  private heldUntil = 0;
   private roadsRef: Roads | null = null;
   private districtsRef: Districts | null = null;
   private densityRef: CityDensityManager | null = null;
@@ -76,12 +84,13 @@ export class LagosStreetLifeSystem {
   // =========================================================================
   // 1. NEPA GRID BLACKOUT & GENERATOR ENGINE ("UP NEPA!")
   // =========================================================================
-  public triggerNepaBlackout(): void {
+  /** `walkedInto`: the player came into an area already without light, so nothing trips and nobody shouts */
+  public triggerNepaBlackout(walkedInto?: string): void {
     if (!this.isNepaOn) return;
     this.isNepaOn = false;
 
     // 1. Audio: Explosive transformer trip
-    SoundEngine.getInstance().playTransformerTrip();
+    if (!walkedInto) SoundEngine.getInstance().playTransformerTrip();
 
     // 2. Shut off streetlights
     if (this.roadsRef) {
@@ -98,7 +107,8 @@ export class LagosStreetLifeSystem {
       this.densityRef.setNightLighting('morning'); // Shuts down window emissives
     }
 
-    showGameToast('⚡ NEPA has struck! "Ahhhh! NEPA na bastard! Who off light?!"', 'warning', 4500);
+    if (walkedInto) showGameToast(`🕯️ No NEPA light in ${walkedInto} right now. Generators are humming.`, 'info', 3500);
+    else showGameToast(`⚡ NEPA has struck${this.areaNow ? ` in ${this.areaName}` : ''}! "Ahhhh! NEPA na bastard! Who off light?!"`, 'warning', 4500);
 
     // 4. After 2.5 seconds, private shop generators cough and kick in
     setTimeout(() => {
@@ -110,13 +120,13 @@ export class LagosStreetLifeSystem {
     }, 2400);
   }
 
-  public restoreNepaPower(period: string = 'night'): void {
+  public restoreNepaPower(period: string = 'night', walkedInto?: string): void {
     if (this.isNepaOn) return;
     this.isNepaOn = true;
     this.isGeneratorRunning = false;
 
     // 1. Audio: Power grid surge & contactor snap
-    SoundEngine.getInstance().playNepaRestored();
+    if (!walkedInto) SoundEngine.getInstance().playNepaRestored();
 
     // 2. Restore streetlights
     if (this.roadsRef) {
@@ -131,10 +141,14 @@ export class LagosStreetLifeSystem {
       this.districtsRef.setNightLighting(period);
     }
 
-    showGameToast('🎉 UP NEPAAAA! Light don come back! The whole street is rejoicing!', 'success', 5000);
+    if (!walkedInto) showGameToast(`🎉 UP NEPAAAA! Light don come back${this.areaNow ? ` in ${this.areaName}` : ''}! The whole street is rejoicing!`, 'success', 5000);
   }
 
+  private areaName = '';
+
+  /** From the settings: switched by hand, and held so for ten minutes */
   public toggleNepaPower(period: string = 'night'): boolean {
+    this.heldUntil = Date.now() + 10 * 60_000;
     if (this.isNepaOn) {
       this.triggerNepaBlackout();
     } else {
@@ -286,15 +300,17 @@ export class LagosStreetLifeSystem {
   // MAIN UPDATE LOOP
   // =========================================================================
   public update(delta: number, currentPeriod: string): void {
-    // Random NEPA power fluctuation cycle (~every 6 minutes)
-    this.blackoutTimer -= delta;
-    if (this.blackoutTimer <= 0) {
-      this.blackoutTimer = 280 + Math.random() * 180;
-      if (this.isNepaOn && (currentPeriod === 'night' || Math.random() < 0.45)) {
-        this.triggerNepaBlackout();
-      } else if (!this.isNepaOn) {
-        this.restoreNepaPower(currentPeriod);
-      }
-    }
+    // NEPA's plan for the area the player is in, looked at every two seconds
+    this.lightCheck -= delta;
+    if (this.lightCheck > 0 || Date.now() < this.heldUntil) return;
+    this.lightCheck = 2;
+    const here = this.lightHere?.();
+    if (!here) return;
+    // Arriving in an area (or starting the game in one) is not the moment its light changed
+    const walked = here.area !== this.areaNow;
+    this.areaNow = here.area;
+    this.areaName = here.name;
+    if (here.light && !this.isNepaOn) this.restoreNepaPower(currentPeriod, walked ? here.name : undefined);
+    else if (!here.light && this.isNepaOn) this.triggerNepaBlackout(walked ? here.name : undefined);
   }
 }

@@ -1,4 +1,5 @@
 import type { PhoneApp } from '../PhoneApp';
+import { areaName, bandOf, hasLight, homeArea, hourWords, hoursOfLight, nextChange, BAND_HOURS, type Band } from '../../life/Grid';
 import { theme, setTheme } from '../../ui/theme/Theme';
 import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
@@ -239,7 +240,7 @@ export const jobsApp: PhoneApp = {
         void online.finishGig(shift).then((finished) => {
           if (!finished.ok) { host.say(finished.reason ?? 'Not paid.', 'bad'); return; }
           online.forgetGig(`career:${shiftInfo.job.id}`);
-          const noted = host.backend.noteServerJobShift(finished.pay ?? shiftInfo.job.salary);
+          const noted = host.backend.noteServerJobShift(finished.pay ?? shiftInfo.job.salary, finished.slip);
           if (noted.success) SoundEngine.getInstance().playTransactionSuccess();
           host.say(noted.message, noted.success ? 'good' : 'bad');
           host.refresh();
@@ -371,6 +372,12 @@ export const propertyApp: PhoneApp = {
       const takenBy = owned ? null : Deeds.get().takenBy('property', prop.id);
       const listing = Deeds.get().listingFor('property', prop.id);
       const lease = rented ? Dues.get().leaseOf(prop.id) : null;
+      // Its light: the area's band, and NEPA now (src/life/Grid.ts)
+      const sky = (window as any).game?.world.skyEnvironment;
+      const area = homeArea(prop.districtId, prop.location ?? '');
+      const ownPower = bandOf(area, prop.cityId) === 'own' || /zero power cuts|24\/7 microgrid|24\/7 .*power|full solar array/i.test(prop.features.join(' '));
+      const lightNow = ownPower || !sky || hasLight(area, sky.day, sky.currentHour, prop.cityId);
+      const change = !ownPower && sky ? nextChange(area, sky.day, sky.currentHour, prop.cityId) : null;
       return {
         title: owned ? 'Your property' : rented ? 'Your lease' : 'For sale or rent',
         body: `
@@ -384,6 +391,13 @@ export const propertyApp: PhoneApp = {
               ${prop.rentalPriceMonthly > 0 ? `<span><strong>${naira(prop.rentalPriceMonthly)}</strong>to lease</span>` : ''}
               <span><strong>${owned ? 'Owned' : rented ? 'Leased' : takenBy ? 'Owned' : 'Available'}</strong>status</span>
             </div>
+          </div>
+          <div class="nl-card" id="property-power">
+            <div class="nl-card-title">${lightNow ? '💡' : '🕯️'} Light</div>
+            <div class="nl-card-line">${ownPower
+              ? 'The estate makes its own power: light day and night, whatever NEPA does.'
+              : `${esc(areaName(area))} is <strong>Band ${esc(String(bandOf(area, prop.cityId)))}</strong>: at least ${BAND_HOURS[bandOf(area, prop.cityId) as Band]} hours of NEPA light a day, ${sky ? `${hoursOfLight(area, sky.day, prop.cityId)} today` : ''}.`}</div>
+            ${ownPower ? '' : `<div class="nl-card-line" id="property-power-now">${lightNow ? 'NEPA has light there now' : '<strong>No NEPA light there now</strong>'}${change ? `${lightNow ? ' until' : '; back'} about ${hourWords(change.hour)}` : ''}. A generator or an inverter from the furniture catalogue keeps a home going through a cut.</div>`}
           </div>
           ${lease ? `
             <div class="nl-card ${lease.deadline !== null ? 'nl-card--warn' : ''}" id="property-rent">
@@ -658,7 +672,7 @@ export const settingsApp: PhoneApp = {
           ${row({
             icon: '⚡',
             title: 'Lagos power grid (NEPA)',
-            sub: LagosStreetLifeSystem.getInstance().isNepaOn ? 'Grid is ON ("UP NEPA!")' : 'Blackout! Generators Running',
+            sub: `${LagosStreetLifeSystem.getInstance().isNepaOn ? 'Light here now' : 'No light here now'}, by this area's band. Switching it holds for ten minutes.`,
             trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-nepa-power">Toggle</button>',
           })}
         </div>

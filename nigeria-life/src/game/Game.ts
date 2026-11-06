@@ -16,7 +16,10 @@ import { Pets } from '../housing/Pets';
 import { Cases } from '../life/Cases';
 import { Nollywood } from '../film/Nollywood';
 import { HomeStaff } from '../housing/HomeStaff';
+import { HomePower } from '../housing/HomePower';
+import * as Grid from '../life/Grid';
 import { Dues, dayLabel, type DueEvent } from '../life/Dues';
+import * as Tax from '../life/Tax';
 import { QuitNotice } from '../housing/QuitNotice';
 import { Spark } from '../social/Spark';
 import { Owambe } from '../social/Owambe';
@@ -259,7 +262,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -1011,6 +1014,7 @@ export class Game {
     this.restoreWorldState();
     if (!BackendService.getInstance().getData().worldState) this.arriveAtTheGate();
     this.connectDues();
+    this.connectPower();
     window.addEventListener('pagehide', () => this.saveWorldState());
     document.addEventListener('visibilitychange', () => {
       // Out of sight (Chrome closed, another app on top): saved, and every sound held until the player is back
@@ -1256,18 +1260,102 @@ export class Game {
     this.hud.phoneModal.connect({ world, rides: this.rides, deliveries: this.deliveries, messages: this.messages, market: this.market });
   }
 
+  /** The district a point of a city is in, or the nearest one */
+  private districtAt(city: string, x: number, z: number): { id: string; name: string } {
+    const districts: Record<string, typeof LAGOS_DISTRICTS> = { lagos: LAGOS_DISTRICTS, abuja: ABUJA_DISTRICTS, port_harcourt: PH_DISTRICTS };
+    const list = districts[city] ?? LAGOS_DISTRICTS;
+    const inside = list.find((d) => x >= d.bounds.minX && x <= d.bounds.maxX && z >= d.bounds.minZ && z <= d.bounds.maxZ);
+    const district = inside ?? [...list].sort((a, b) => Math.hypot(a.center.x - x, a.center.z - z) - Math.hypot(b.center.x - x, b.center.z - z))[0];
+    return { id: district.id, name: district.name };
+  }
+
+  /**
+   * NEPA (src/life/Grid.ts): every area has light by its band's plan. The street the player is on
+   * follows its area's; the home runs on NEPA, or the inverter or generator in it, or nothing
+   * (src/housing/HomePower.ts); the clock pill shows which.
+   */
+  private connectPower(): void {
+    const sky = this.world.skyEnvironment;
+    const power = HomePower.get();
+    power.clock = () => ({ day: sky.day, hour: sky.currentHour });
+    power.homeId = () => this.currentHome();
+    // The room and the clock pill change the moment the home's power does
+    power.subscribe(() => this.showLight());
+    power.where = () => {
+      const id = this.currentHome();
+      if (id !== 'main') {
+        const plot = this.land.plot(id);
+        if (!plot) return null;
+        const area = this.districtAt(plot.city, (plot.rect.minX + plot.rect.maxX) / 2, (plot.rect.minZ + plot.rect.maxZ) / 2).id;
+        return { area, city: plot.city, own: Grid.bandOf(area, plot.city) === 'own' };
+      }
+      const home = this.mainHome();
+      if (!home) return null;
+      const area = Grid.homeArea(home.districtId, home.location ?? '');
+      // An estate that makes its own power says so on its particulars
+      const own = Grid.bandOf(area, home.cityId) === 'own' || /zero power cuts|24\/7 microgrid|24\/7 .*power|full solar array/i.test((home.features ?? []).join(' '));
+      return { area, city: home.cityId, own };
+    };
+    // A business without a generator or solar loses half of what it would take while its area has no light
+    BackendService.powerShare = (biz, hours) => {
+      if (biz.upgrades.some((u) => u.purchased && /^upg_(solar|gen|coldchain)$/.test(u.id))) return 1;
+      const city = biz.cityId ?? 'lagos';
+      const at = biz.districtId ? null : this.world.interactiveObjects.find((o) => o.id === biz.buildingId)?.interactionPoint;
+      const area = biz.districtId ?? (at ? this.districtAt(city, at.x, at.z).id : null);
+      if (!area) return 1;
+      const now = sky.day * 24 + sky.currentHour;
+      const steps = Math.max(1, Math.ceil(hours));
+      let lit = 0;
+      for (let i = 0; i < steps; i++) {
+        const t = now - (i * Math.max(hours, 1e-6)) / steps;
+        const day = Math.floor(t / 24);
+        if (Grid.hasLight(area, day, t - day * 24, city)) lit += 1;
+      }
+      return 0.5 + 0.5 * (lit / steps);
+    };
+    LagosStreetLifeSystem.getInstance().lightHere = () => {
+      if (this.world.interiorManager.isPlayerInside()) return null;
+      const city = this.world.cityManager.currentCityId;
+      const p = this.player.position;
+      const district = this.districtAt(city, p.x, p.z);
+      return { area: district.id, name: Grid.areaName(district.id), light: Grid.hasLight(district.id, sky.day, sky.currentHour, city) };
+    };
+  }
+
+  /** The clock pill's light: NEPA where the player is, or what the home is running on */
+  private showLight(): void {
+    const el = document.getElementById('hud-light-icon');
+    if (!el) return;
+    const inside = this.world.interiorManager.currentInterior?.type === 'residence';
+    let icon = '💡';
+    let title = '';
+    let blackout = false;
+    if (inside) {
+      const supply = HomePower.get().supply();
+      icon = supply.source === 'none' ? '🕯️' : supply.source === 'inverter' ? '🔋' : supply.source === 'tiger' || supply.source === 'mikano' ? '⛽' : '💡';
+      title = HomePower.get().describe();
+      blackout = supply.source === 'none';
+    } else {
+      const here = LagosStreetLifeSystem.getInstance().lightHere?.();
+      if (here) {
+        icon = here.light ? '💡' : '🕯️';
+        const city = this.world.cityManager.currentCityId;
+        const next = Grid.nextChange(here.area, this.world.skyEnvironment.day, this.world.skyEnvironment.currentHour, city);
+        title = `${here.name}: ${Grid.bandWords(here.area, city)}. ${here.light ? 'NEPA has light' : 'No NEPA light'}${next ? ` until about ${Grid.hourWords(next.hour)}` : ''}.`;
+      }
+    }
+    this.world.skyEnvironment.indoorBlackout = blackout;
+    if (el.textContent !== icon) el.textContent = icon;
+    if (el.title !== title) el.title = title;
+    el.dataset.light = icon === '🕯️' ? 'off' : 'on';
+  }
+
   /** Land plots, what stands on them, and the market they are traded in. */
   private connectLand(): void {
-    const districts: Record<string, typeof LAGOS_DISTRICTS> = { lagos: LAGOS_DISTRICTS, abuja: ABUJA_DISTRICTS, port_harcourt: PH_DISTRICTS };
     const zones = new Map<string, ReturnType<typeof zonesFor>>();
     const near = new Map<string, Rect[]>();
     this.land.connect({
-      districtAt: (city, x, z) => {
-        const list = districts[city] ?? LAGOS_DISTRICTS;
-        const inside = list.find((d) => x >= d.bounds.minX && x <= d.bounds.maxX && z >= d.bounds.minZ && z <= d.bounds.maxZ);
-        const district = inside ?? [...list].sort((a, b) => Math.hypot(a.center.x - x, a.center.z - z) - Math.hypot(b.center.x - x, b.center.z - z))[0];
-        return { id: district.id, name: district.name };
-      },
+      districtAt: (city, x, z) => this.districtAt(city, x, z),
       zones: (city) => {
         if (!zones.has(city)) zones.set(city, zonesFor(city));
         return zones.get(city)!;
@@ -2890,6 +2978,9 @@ export class Game {
     if (this.lifeTimer <= 0) {
       this.lifeTimer = 2;
       Ladder.get().check();
+      // The home's light: fuel burned, batteries charged, and the house told when it changes
+      HomePower.get().tick();
+      this.showLight();
     }
     this.companyStaff?.update();
     this.tellEvents();

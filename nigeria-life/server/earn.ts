@@ -49,6 +49,8 @@ export interface GigSite {
 
 export interface GigDef {
   pay: number;
+  /** Set for a career shift: a wage from this employer, with a payslip and PAYE. Other gigs are cash in hand. */
+  employer?: string;
   /** Seconds the server counts from the start before it will pay */
   minSeconds: number;
   memo: string;
@@ -69,14 +71,14 @@ export const GIGS: Record<string, GigDef> = {
   'phone:job_conductor': { pay: 4_500, minSeconds: 3, memo: 'Danfo Bus Conductor Shift' },
   'phone:job_food': { pay: 3_800, minSeconds: 3, memo: 'Express Jollof Delivery' },
   // Career shifts. Base salary only: a career bonus the browser adds is not paid online.
-  'career:job_shop_assistant': { pay: 4_500, minSeconds: 10, memo: 'Trade Shop Assistant' },
-  'career:job_mechanic': { pay: 6_000, minSeconds: 12, memo: 'Auto Mechanic Apprentice' },
-  'career:job_danfo_driver': { pay: 8_000, minSeconds: 15, memo: 'Danfo Commercial Driver' },
-  'career:job_food_seller': { pay: 5_000, minSeconds: 10, memo: 'Buka Kitchen Cook Assistant' },
-  'career:job_office_worker': { pay: 12_000, minSeconds: 18, memo: 'Corporate Office Clerk' },
-  'career:job_software_dev': { pay: 25_000, minSeconds: 20, memo: 'Junior Software Engineer' },
-  'career:job_construction': { pay: 8_500, minSeconds: 14, memo: 'Site Framing Artisan' },
-  'career:job_security': { pay: 6_500, minSeconds: 12, memo: 'Estate Security Officer' },
+  'career:job_shop_assistant': { pay: 4_500, minSeconds: 10, memo: 'Trade Shop Assistant', employer: 'Balogun Wholesale Market' },
+  'career:job_mechanic': { pay: 6_000, minSeconds: 12, memo: 'Auto Mechanic Apprentice', employer: "God's Grace Auto Repair" },
+  'career:job_danfo_driver': { pay: 8_000, minSeconds: 15, memo: 'Danfo Commercial Driver', employer: 'Broad Street Danfo Terminus' },
+  'career:job_food_seller': { pay: 5_000, minSeconds: 10, memo: 'Buka Kitchen Cook Assistant', employer: 'Mama Put Special Bukateria' },
+  'career:job_office_worker': { pay: 12_000, minSeconds: 18, memo: 'Corporate Office Clerk', employer: 'Eko Commercial Bank Tower' },
+  'career:job_software_dev': { pay: 25_000, minSeconds: 20, memo: 'Junior Software Engineer', employer: 'Co-Creation Hub (CcHub)' },
+  'career:job_construction': { pay: 8_500, minSeconds: 14, memo: 'Site Framing Artisan', employer: 'Crown Luxury Estate Site' },
+  'career:job_security': { pay: 6_500, minSeconds: 12, memo: 'Estate Security Officer', employer: 'Victoria Residence Estate Gate' },
   // HUD and city gigs, at the place the button is.
   'hud:remote': { pay: 12_000, minSeconds: 6, memo: 'Remote Tech Sprint' },
   'hud:hackathon': { pay: 15_000, minSeconds: 6, memo: 'CcHub Hackathon Sprint', site: { city: 'lagos', x: -10, z: -25, radius: 30 } },
