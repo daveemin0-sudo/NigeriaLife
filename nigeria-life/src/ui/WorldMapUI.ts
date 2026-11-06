@@ -926,7 +926,7 @@ export class WorldMapUI {
 
       actions.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-          ${isResidential ? `
+          ${isResidential && (isOwned || isRented) ? `
             <button class="btn-primary-action" id="btn-card-prop-enter" style="background: linear-gradient(135deg, #10b981, #059669); font-weight: 800;">
               🚪 Enter Residence Inside
             </button>
@@ -946,9 +946,10 @@ export class WorldMapUI {
       `;
 
       if (isResidential) {
+        // This home, by name: its own rooms, furniture and address, and home from now on
         document.getElementById('btn-card-prop-enter')?.addEventListener('click', () => {
           this.close();
-          this.onEnterInterior?.('residence');
+          this.onEnterInterior?.(`residence:${p.id}`);
         });
       }
 

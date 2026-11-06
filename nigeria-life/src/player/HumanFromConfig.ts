@@ -1,3 +1,4 @@
+import type { Uniform } from '../jobs/Uniforms';
 import {
   type CharacterConfig,
   ATTIRE_PRESETS,
@@ -11,7 +12,8 @@ import { HumanMeshBuilder, type HumanRig, type Outfit, type Hairstyle } from '..
  * and the complete modular wardrobe system (independently selectable tops, bottoms,
  * shoes, headwear, bags, and accessories).
  */
-export function createHumanForConfig(config: CharacterConfig): HumanRig {
+/** `uniform`: work clothes worn over the chosen look for a shift (the look itself is not changed) */
+export function createHumanForConfig(config: CharacterConfig, uniform?: Uniform | null): HumanRig {
   const isFemale = config.gender === 'female';
 
   // 1. Resolve Modular Top / Outfit
@@ -140,6 +142,12 @@ export function createHumanForConfig(config: CharacterConfig): HumanRig {
   hairstyle = worn.hat ?? hairChosen;
   hairColor = config.hairColor ?? '#0b0908';
 
+  if (uniform) {
+    outfit = uniform.outfit;
+    outfitColor = uniform.colour;
+    if (uniform.trousers !== undefined) trousersHex = uniform.trousers;
+    topSecond = undefined;
+  }
   return HumanMeshBuilder.createHuman({
     gender: config.gender || 'male',
     username: config.name || 'Bayo',
@@ -151,10 +159,10 @@ export function createHumanForConfig(config: CharacterConfig): HumanRig {
     shoeStyle,
     bagStyle,
     bagColor,
-    hairstyle,
+    hairstyle: uniform?.hat ?? hairstyle,
     hair: hairChosen,
     hairColor,
-    hatColor: hatColour,
+    hatColor: uniform?.hat ? uniform.hatColour : hatColour,
     headShape: config.headShape,
     beard: config.gender === 'male' ? config.beard : 'none',
     build: config.build,

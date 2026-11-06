@@ -1,3 +1,4 @@
+import type { Uniform } from '../jobs/Uniforms';
 import * as THREE from 'three';
 import {
   type CharacterConfig,
@@ -100,7 +101,7 @@ export class Player {
     }
 
     // 1. Procedural Anatomical Model (Zero-latency instant render)
-    this.humanRig = createHumanForConfig(this.config);
+    this.humanRig = createHumanForConfig(this.config, this.uniform);
 
     this.mesh.add(this.humanRig.group);
 
@@ -333,6 +334,16 @@ export class Player {
     this.targetPosition = null;
     this.isMoving = false;
     this.currentEmote = 'idle';
+  }
+
+  /** Work clothes worn over the chosen look while on a shift (null: their own clothes) */
+  public uniform: Uniform | null = null;
+
+  /** Into the work clothes for a shift, or back into their own */
+  public wearUniform(uniform: Uniform | null): void {
+    if (this.uniform === uniform) return;
+    this.uniform = uniform;
+    this.buildHumanMesh();
   }
 
   public applyCustomization(newConfig: CharacterConfig): void {

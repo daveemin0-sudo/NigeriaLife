@@ -51,7 +51,8 @@ export async function open(ctx, opts = {}) {
   // A request the server refused (409) says why, next to the console's error for it
   page.on('response', async (r) => { if (r.status() === 409) { try { log.errors.push(`REFUSED ${r.url().slice(0, 120)}: ${(await r.text()).slice(0, 200)}`); } catch { /* gone */ } } });
   // A resource that failed says which, so a refused request can be traced
-  page.on('console', (m) => { if (m.type() === 'error') log.errors.push('CONSOLE ' + m.text().slice(0, 240) + (m.location()?.url && /Failed to load resource/.test(m.text()) ? ` [${m.location().url.slice(0, 160)}]` : '')); });
+  // The test machine's own sound card giving out under many browsers at once is not the game's error
+  page.on('console', (m) => { if (m.type() === 'error' && !/AudioContext encountered an error from the audio device/.test(m.text())) log.errors.push('CONSOLE ' + m.text().slice(0, 240) + (m.location()?.url && /Failed to load resource/.test(m.text()) ? ` [${m.location().url.slice(0, 160)}]` : '')); });
   // The daily hustle, the ladder and the album pay nothing under a test browser unless a suite asks
   if (opts.life) await page.evaluateOnNewDocument(() => { window.__lifeOn = true; });
   // The game keeps Lagos time. Run at night, every shop on the street would be shut, so a

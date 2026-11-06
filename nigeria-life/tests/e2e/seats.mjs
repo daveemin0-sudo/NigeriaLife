@@ -11,6 +11,8 @@ export async function run(browser, check) {
   const all = await page.evaluate(() => {
     const g = window.game;
     const out = [];
+    // A room is built the first time it is entered: built here, all of them, to look at every seat
+    for (const place of g.world.interiorManager.places) place.ensureBuilt?.();
     for (const place of g.world.interiorManager.places) {
       for (const [id, s] of place.seats) out.push({ place: place.spec.key, id, top: +place.topAt(s.seat[0], s.seat[1]).toFixed(2), yaw: +s.yaw.toFixed(2) });
       for (const st of place.spec.stations) {

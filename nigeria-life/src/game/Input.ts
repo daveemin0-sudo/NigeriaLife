@@ -197,6 +197,10 @@ export class InputManager {
         this.onBuyFromWindow?.('water');
       } else if (k === 'r') {
         this.onRefuelVehicle?.();
+      } else if (k === 'v' && this.player.isDriving && this.cameraManager) {
+        // At the wheel: behind the car, or over its bonnet
+        const view = this.cameraManager.toggleDriveView();
+        this.hud.showNotification(view === 'bonnet' ? '📷 Bonnet view: the road as the driver sees it' : '📷 Chase view: behind the car');
       } else if (k === 'v') {
         // Toggle camera preset (Third-Person -> Street -> Isometric -> Aerial)
         if (this.cameraManager) {

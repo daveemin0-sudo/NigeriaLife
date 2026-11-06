@@ -25,6 +25,24 @@ import { OnlineAccount } from '../online/OnlineAccount';
  * own record of their grade. The game then shows what the server paid.
  */
 
+/**
+ * A shift: the work done back to back, in the trade's clothes, until it is done. The worker does not
+ * leave the place until then (the game asks `Shifts.current` before letting anyone out), unless they
+ * tell the one in charge they are ending it. Each piece is paid as it is finished, as before.
+ */
+export const Shifts = {
+  current: null as null | { employer: string; boss: string; place: string; done: number; total: number; earned: number },
+  /** Into the work clothes for a trade, or (null) back out of them (set by the game) */
+  dress: null as null | ((trade: string | null) => void),
+  /** Sent from the phone to work for this employer: taken straight to whoever is in charge on arrival */
+  arriving: null as string | null,
+  /** How many rounds make a shift, if not SHIFT_PIECES (a test that looks at one round sets 1) */
+  pieces: null as number | null,
+};
+
+/** How many rounds of work make a shift */
+export const SHIFT_PIECES = 4;
+
 export interface HandWorkWords {
   /** Who is in charge, as their card names them: "Foreman Sunday" */
   boss: string;
@@ -75,6 +93,8 @@ export interface HandWorkOptions {
   ended(paid: boolean, host: PlaceHost): void;
   /** How long it may take before it is given up as abandoned */
   maxSeconds?: number;
+  /** How many rounds make a shift here (SHIFT_PIECES if not said); 0 for work done a piece at a time */
+  shiftPieces?: number;
 }
 
 export interface HandWork {
@@ -96,6 +116,10 @@ export interface HandWork {
   askBoss(host: PlaceHost): void;
   /** Starting a piece of work, if the worker may */
   start(host: PlaceHost): void;
+  /** On a shift here now */
+  readonly onShift: boolean;
+  /** Starting a shift: the rounds done back to back in work clothes (taken on first if need be) */
+  startShift(host: PlaceHost): void;
 }
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -115,6 +139,20 @@ export function createHandWork(options: HandWorkOptions): HandWork {
   let setDown = 0;
   let paid = 0;
   let lastStars = 0;
+  /** The shift being worked here, and whether the piece just finished was paid, and for how much */
+  let shift: { done: number; total: number; earned: number } | null = null;
+  let piecePaid = 0;
+  const piecesNow = () => options.shiftPieces ?? Shifts.pieces ?? SHIFT_PIECES;
+  const naira = (n: number) => `₦${Math.round(n).toLocaleString()}`;
+
+  const endShift = (host: PlaceHost, line?: string, tone: 'success' | 'info' | 'warning' = 'success') => {
+    if (!shift) return;
+    const s = shift;
+    shift = null;
+    Shifts.current = null;
+    Shifts.dress?.(null);
+    host.say(line ?? `🦺 Shift over at ${employer?.name ?? 'work'}: ${s.done} round${s.done === 1 ? '' : 's'} done, ${naira(s.earned)} earned. Back into your own clothes.`, tone);
+  };
 
   const rate = () => (jobs.grade(id) ?? employer?.grades[0])?.pay ?? 0;
   const terms = () => (employer?.grades ?? []).map((grade) => `₦${grade.pay.toLocaleString()} a ${words.piece}${grade.from ? ` once you have done ${grade.from}` : ' to start'}`).join(', ');
@@ -131,7 +169,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
     const work = new Sequence(options.name, [actor]);
     work.maxSeconds = options.maxSeconds ?? 150;
     const online = OnlineAccount.get();
-    let shift: string | null = null;
+    let serverShift: string | null = null;
     if (online) {
       work.add(steps.settle(`${words.theBoss} notes the start`, async () => {
         const started = await online.startWork(id);
@@ -139,7 +177,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
           host.say(started.reason ?? `${capital(words.theBoss)} cannot start you just now.`, 'warning');
           return false;
         }
-        shift = started.shift;
+        serverShift = started.shift;
         return true;
       }));
     }
@@ -187,6 +225,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
         return false;
       }
       paid += 1;
+      piecePaid = result.pay ?? 0;
       // The stars, and the tip they earn. Online, the server already added the tip to the wage.
       const score = rated ?? skill.finish(result.pay ?? 0);
       const stars = '★'.repeat(score.stars) + '☆'.repeat(3 - score.stars);
@@ -209,7 +248,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
         const rated = skill.finish(rate());
         // Starving, worn out or unwashed: the server docks a fifth (the game can only own up to it)
         const poor = host.backend.poorShape();
-        const finished = await online.finishWork(shift ?? '', rated.stars, !!poor);
+        const finished = await online.finishWork(serverShift ?? '', rated.stars, !!poor);
         if (!finished.ok) return announce({ ok: false, reason: finished.reason });
         const tip = finished.tip ?? 0;
         return announce(jobs.settledByServer(id, finished.pay ?? rate(), finished.done ?? 0, finished.slip, finished.docked ? poor ?? 'You worked in poor shape' : undefined), { stars: rated.stars, tip }, true);
@@ -217,18 +256,69 @@ export function createHandWork(options: HandWorkOptions): HandWork {
     } else {
       work.add(steps.call(`paid for the ${words.piece}`, () => announce(jobs.complete(id))));
     }
+    piecePaid = 0;
     work.onEnd((reason) => {
       if (reason !== 'done') skill.finish(0);
       working = false;
       options.ended(reason === 'done', host);
+      if (!shift) return;
+      // On a shift: the next piece straight after, till the shift is done (or the worker is spent)
+      const wasPaid = reason === 'done' && piecePaid > 0;
+      if (!wasPaid) {
+        endShift(host, `🦺 You walked off in the middle of a round: the shift is over (${shift.done} of ${shift.total} rounds done, ${naira(shift.earned)} earned).`, 'warning');
+        return;
+      }
+      shift.done += 1;
+      shift.earned += piecePaid;
+      if (Shifts.current) Object.assign(Shifts.current, { done: shift.done, earned: shift.earned });
+      if (shift.done >= shift.total) {
+        endShift(host);
+        return;
+      }
+      const tired = jobs.cannotWork(id);
+      if (tired) {
+        endShift(host, `${tired} ${capital(words.theBoss)} sends you off early: ${shift.done} of ${shift.total} done, ${naira(shift.earned)} earned.`, 'warning');
+        return;
+      }
+      host.say(`🦺 ${shift.done} of ${shift.total} rounds done. Next round...`, 'info');
+      setTimeout(() => {
+        if (shift && !working) doTheWork(host);
+      }, 1600);
     });
     if (!host.director.run(work)) {
       working = false;
       options.ended(false, host);
+      if (shift) endShift(host, 'The shift could not start just now.', 'info');
     }
   };
 
-  return {
+  /** Taken on (if not already) and the shift begun, once the one in charge has been spoken to */
+  const beginShift = (host: PlaceHost) => {
+    if (working || shift) return;
+    if (!jobs.isEmployed(id)) return;
+    const notNow = options.cannotStart?.() ?? null;
+    if (notNow) {
+      host.say(notNow, 'info');
+      return;
+    }
+    const tooTired = jobs.cannotWork(id);
+    if (tooTired) {
+      host.say(tooTired, 'warning');
+      return;
+    }
+    if (host.director.interrupt(host.actor) === 'locked') return;
+    if (piecesNow() <= 0) {
+      doTheWork(host);
+      return;
+    }
+    shift = { done: 0, total: piecesNow(), earned: 0 };
+    Shifts.current = { employer: id, boss: words.boss, place: employer?.place ?? employer?.name ?? '', done: 0, total: piecesNow(), earned: 0 };
+    Shifts.dress?.(employer?.trade ?? null);
+    host.say(`🦺 On shift at ${employer?.name ?? 'work'}, in work clothes: ${piecesNow()} rounds of work back to back, ${naira(rate())} each. You stay till it is done, or tell ${words.theBoss} you are ending it.`, 'info');
+    doTheWork(host);
+  };
+
+  const api: HandWork = {
     get working() { return working; },
     get setDown() { return setDown; },
     get paid() { return paid; },
@@ -241,19 +331,20 @@ export function createHandWork(options: HandWorkOptions): HandWork {
     },
     askBoss: (host) => {
       const name = employer?.name ?? 'here';
+      const shiftWords = piecesNow() > 0 ? `A shift is ${piecesNow()} rounds of work back to back, in work clothes; you stay till it is done.` : '';
       if (!jobs.isEmployed(id)) {
+        const take = (thenWork: boolean) => {
+          const taken = jobs.apply(id);
+          host.say(taken.ok ? `You are taken on at ${name} as a ${(jobs.grade(id)?.title ?? 'hand').toLowerCase()}. ${words.ready}` : taken.reason ?? '', taken.ok ? 'success' : 'warning');
+          if (taken.ok && thenWork) setTimeout(() => beginShift(host), 900);
+        };
         host.ask({
           who: words.boss,
           role: words.role,
-          text: `${words.offer}: ${terms()}. Each ${words.piece} takes ${effort}% of your strength. Do you want the work?`,
+          text: `${words.offer}: ${terms()}. Each ${words.piece} takes ${effort}% of your strength. ${shiftWords} Do you want the work?`,
           choices: [
-            {
-              label: 'Take the job',
-              pick: () => {
-                const taken = jobs.apply(id);
-                host.say(taken.ok ? `You are taken on at ${name} as a ${(jobs.grade(id)?.title ?? 'hand').toLowerCase()}. ${words.ready}` : taken.reason ?? '', taken.ok ? 'success' : 'warning');
-              },
-            },
+            ...(piecesNow() > 0 ? [{ label: 'Take the job and start a shift now', note: `${piecesNow()} × ${naira(rate())}`, pick: () => take(true) }] : []),
+            { label: 'Take the job', pick: () => take(false) },
             { label: 'Not today', pick: () => undefined },
           ],
         });
@@ -261,11 +352,25 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       }
       const grade = jobs.grade(id)!;
       const next = jobs.nextGrade(id);
+      if (shift) {
+        const s = shift;
+        host.ask({
+          who: words.boss,
+          role: words.role,
+          text: `You are on shift: ${s.done} of ${s.total} done, ${naira(s.earned)} so far. Finish it and you can go.`,
+          choices: [
+            { label: 'Carry on with the shift', pick: () => { if (shift && !working) doTheWork(host); } },
+            { label: 'End the shift now', note: 'What is done is paid; nothing more', pick: () => endShift(host, `🦺 You end the shift early: ${s.done} of ${s.total} done, ${naira(s.earned)} earned.`, 'info') },
+          ],
+        });
+        return;
+      }
       host.ask({
         who: words.boss,
         role: words.role,
-        text: `${grade.title}, ${jobs.done(id)} ${words.done}, ₦${grade.pay.toLocaleString()} a ${words.piece}. ${next ? `${next.from - jobs.done(id)} more and you are ${next.title.toLowerCase()} on ₦${next.pay.toLocaleString()}.` : 'You are at the top of my book.'}`,
+        text: `${grade.title}, ${jobs.done(id)} ${words.done}, ₦${grade.pay.toLocaleString()} a ${words.piece}. ${next ? `${next.from - jobs.done(id)} more and you are ${next.title.toLowerCase()} on ₦${next.pay.toLocaleString()}.` : 'You are at the top of my book.'} ${shiftWords}`,
         choices: [
+          ...(piecesNow() > 0 ? [{ label: 'Start a shift', note: `${piecesNow()} × ${naira(rate())}`, pick: () => beginShift(host) }] : []),
           { label: 'Carry on', pick: () => undefined },
           {
             label: 'Leave the job',
@@ -278,10 +383,22 @@ export function createHandWork(options: HandWorkOptions): HandWork {
         ],
       });
     },
+    get onShift() { return shift !== null; },
+    startShift: (host) => {
+      if (working || shift) return;
+      // Not taken on yet: the one in charge offers the job (and the shift) there and then
+      if (!jobs.isEmployed(id)) {
+        host.say(`${words.says}: "You want to work here? Ask me for work first."`, 'info');
+        setTimeout(() => api.askBoss(host), 700);
+        return;
+      }
+      beginShift(host);
+    },
     start: (host) => {
       if (working) return;
       if (!jobs.isEmployed(id)) {
-        host.say(`${words.says}: "I do not know you. Ask me for work first."`, 'info');
+        host.say(`${words.says}: "You want to work here? Ask me for work first."`, 'info');
+        setTimeout(() => api.askBoss(host), 700);
         return;
       }
       const notNow = options.cannotStart?.() ?? null;
@@ -298,4 +415,5 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       doTheWork(host);
     },
   };
+  return api;
 }

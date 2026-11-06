@@ -305,8 +305,9 @@ export class CityFabric {
           run.to = s + STEP;
         }
 
-        // Kerbside parking on the quiet streets: half up on the kerb, as in Lagos, so the road stays open to drive
-        if (!st.traffic && Math.round(s / STEP) % 3 === 0 && this.rand() < 0.62 && !this.inOtherRoad(cx, cz, st)) {
+        // Kerbside parking on the quiet streets: half up on the kerb, as in Lagos, and on one side of the
+        // street only, so the road stays open to drive (the other side is kept for gates and the way through)
+        if (!st.traffic && Math.round(s / STEP) % 3 === 0 && this.rand() < 0.62 && !this.inOtherRoad(cx, cz, st) && sign > 0) {
           const parkLateral = st.fixed + sign * (st.halfRoad - PARK_IN);
           const yaw = isX ? (sign > 0 ? Math.PI / 2 : -Math.PI / 2) : sign > 0 ? Math.PI : 0;
           // Tilted up on the kerb side: which way that is in the car's own frame

@@ -222,7 +222,8 @@ export async function run(browser, check) {
     const out = [];
     ts.cars(0, 0, 500, out);
     const parked = new Set(ts.parked.map((p) => `${p.x.toFixed(2)},${p.z.toFixed(2)}`));
-    const car = out.find((c) => parked.has(`${c.x.toFixed(2)},${c.z.toFixed(2)}`) && Math.abs(c.yaw) < 0.4);
+    // A car parked along a north-south street, facing either way along it
+    const car = out.find((c) => parked.has(`${c.x.toFixed(2)},${c.z.toFixed(2)}`) && Math.abs(Math.sin(c.yaw)) < 0.4);
     if (!car) return { ok: false };
     // Come up on it from the road side (cars stand half up on the kerb: the other side is the pavement and the buildings)
     const solids = g.solidsHere();

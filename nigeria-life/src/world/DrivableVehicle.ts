@@ -14,6 +14,9 @@ import { Bodies, bodyOf, depthIntoCar, type CarBody } from './Bodies';
 import { buildCarBody, CAR_SPECS, type CarSpec } from './vehicles/CarBodyKit';
 import { ASSIST_HANDS_ON, assistYawRate, handlingOf, nextSpeed, roadUnder, turnWheel, wheelAngle, yawRate } from './VehicleHandling';
 
+/** Below this speed (m/s, about 11 km/h) a car may be driven over the kerb, off the road */
+const KERB_SPEED = 3;
+
 export type VehicleType =
   | 'danfo'
   | 'keke'
@@ -56,6 +59,13 @@ export class DrivableVehicle {
   public static solids: (() => Solids | null) | null = null;
   /** The streets of the city the game is in, for the road assist: set once by the game */
   public static roads: (() => readonly Zone[] | null) | null = null;
+  /**
+   * Is this point on a road (a carriageway) a vehicle drives along? Set by the game. At speed the
+   * kerb is a barrier: a car scrapes along it and cannot mount the pavement into a building or a
+   * field. Below KERB_SPEED it can be driven over on purpose: into a forecourt, a driveway, a lay-by.
+   */
+  public static onRoad: ((x: number, z: number) => boolean) | null = null;
+  private kerbToastAt = 0;
   /** The bus stops and the people waiting at them, for danfos and kekes: set once by the game */
   public static busStops: BusStops | null = null;
   /** Pays a boarding passenger's fare through the game server, when there is one (set by the game) */
@@ -1851,7 +1861,7 @@ export class DrivableVehicle {
         const solids = DrivableVehicle.solids?.();
         const walled = solids ? this.solidPoints(solids, nx, nz) > this.solidPoints(solids, pos.x, pos.z) : false;
         if (after.cars <= now.cars + 1e-3 && after.people <= now.people + 1e-3 && !walled) {
-          this.currentSpeed *= Math.exp(-push.square * delta);
+          this.currentSpeed *= Math.exp(-0.6 * push.square * delta);
           pos.x = nx;
           pos.z = nz;
           return true;
@@ -1943,6 +1953,9 @@ export class DrivableVehicle {
           bz = Math.sign(along || 1) * overAlong * c;
         }
       }
+      // A touch being made is pushed clear; cars already deep in each other (one set down on another,
+      // or run into from behind) are not shoved apart in a jump: they move apart as they drive
+      if (best > 0.6) return null;
       if (best > 0) {
         any = true;
         px += bx;
@@ -1953,9 +1966,9 @@ export class DrivableVehicle {
     const length = Math.hypot(px, pz);
     if (length < 1e-6) return null;
     const square = Math.max(0, -((px / length) * fx + (pz / length) * fz) * moving);
-    // A little past clear, so the next step does not start touching
-    const extra = (length + 0.01) / length;
-    return { x: px * extra, z: pz * extra, square };
+    // A little past clear, so the next step does not start touching; never more than a hand's width at once
+    const step = Math.min(length + 0.01, 0.2);
+    return { x: (px / length) * step, z: (pz / length) * step, square };
   }
 
   /** Where the vehicle this one would run into at (x, z) is: ahead of it, behind it, or beside it */
@@ -2176,6 +2189,15 @@ export class DrivableVehicle {
     }
   }
 
+  /** Are the middle and both ends of the car on the road, if it stood at (x, z)? */
+  private onTheRoad(road: (x: number, z: number) => boolean, x: number, z: number): boolean {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const reach = Math.max(0, me.halfLength - 0.35);
+    const fx = Math.sin(me.yaw) * reach;
+    const fz = Math.cos(me.yaw) * reach;
+    return road(me.x, me.z) && road(me.x + fx, me.z + fz) && road(me.x - fx, me.z - fz);
+  }
+
   /** How many of the body's three points (nose, middle, tail) are in something solid if it stood at (x, z) */
   private solidPoints(solids: Solids, x: number, z: number): number {
     const me = bodyOf(this.mesh, this.myBody, x, z);
@@ -2193,6 +2215,28 @@ export class DrivableVehicle {
    */
   private stepThroughWorld(stepX: number, stepZ: number, delta: number, slowedAlready: boolean): 'moved' | 'slid' | 'stopped' {
     const pos = this.mesh.position;
+    // The kerb at speed: from the road, the car does not leave it; it slides along the kerb instead
+    const road = DrivableVehicle.onRoad;
+    if (road && this.driver && Math.abs(this.currentSpeed) > KERB_SPEED && this.onTheRoad(road, pos.x, pos.z) && !this.onTheRoad(road, pos.x + stepX, pos.z + stepZ)) {
+      const alongX = this.onTheRoad(road, pos.x + stepX, pos.z);
+      const alongZ = this.onTheRoad(road, pos.x, pos.z + stepZ);
+      const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
+      const length = Math.hypot(stepX, stepZ);
+      const along = length > 0 ? Math.abs(slideX ? stepX : stepZ) / length : 0;
+      if ((!slideX && !alongZ) || along < 0.25) {
+        // Straight at the kerb: it stops the car, and says how to turn off the road
+        this.currentSpeed = 0;
+        if (performance.now() - this.kerbToastAt > 6000) {
+          this.kerbToastAt = performance.now();
+          showGameToast('🚧 The kerb. Slow right down (under 10 km/h) to turn off the road into a driveway, a forecourt or a lay-by.', 'info', 3600);
+        }
+        return 'stopped';
+      }
+      if (!slowedAlready) this.currentSpeed *= Math.pow(along, 0.5) * Math.exp(-0.8 * delta);
+      this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
+      const ok = slideX ? this.moveUnlessBlocked(pos.x + stepX, pos.z, delta) : this.moveUnlessBlocked(pos.x, pos.z + stepZ, delta);
+      return ok ? 'slid' : 'stopped';
+    }
     const solids = DrivableVehicle.solids?.();
     if (!solids) return this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta) ? 'moved' : 'stopped';
     const now = this.solidPoints(solids, pos.x, pos.z);

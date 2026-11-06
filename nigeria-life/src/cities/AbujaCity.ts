@@ -374,8 +374,15 @@ export class AbujaCity implements CityInstance {
   // 2. ASO ROCK MONOLITH (North Geological Monolith: Z -110 to -160)
   // =========================================================================
   private buildAsoRock(): void {
+    // Behind the city, on its own ground: its foot comes no nearer than about 150 m north of the
+    // avenue's middle, clear of the buildings at the avenue's north end and of the road itself
     const rockGroup = new THREE.Group();
-    rockGroup.position.set(0, 0, -125);
+    rockGroup.position.set(0, 0, -205);
+    const apron = new THREE.Mesh(new THREE.PlaneGeometry(420, 170), new THREE.MeshStandardMaterial({ color: 0x5a7d2a, roughness: 0.95 }));
+    apron.rotation.x = -Math.PI / 2;
+    apron.position.set(0, -0.02, 0);
+    apron.receiveShadow = true;
+    rockGroup.add(apron);
 
     // Majestic Granite Main Massif
     const rockGeo = new THREE.DodecahedronGeometry(36, 2);
@@ -385,35 +392,36 @@ export class AbujaCity implements CityInstance {
       flatShading: true,
     });
     const mainRock = new THREE.Mesh(rockGeo, rockMat);
-    mainRock.scale.set(3.2, 1.4, 1.6);
+    mainRock.scale.set(3.0, 1.5, 1.15);
     mainRock.position.y = 20;
     mainRock.castShadow = true;
     rockGroup.add(mainRock);
 
     // Second geological peak
     const peak2 = new THREE.Mesh(rockGeo, rockMat);
-    peak2.scale.set(2.2, 1.2, 1.4);
-    peak2.position.set(45, 16, 8);
+    peak2.scale.set(2.0, 1.2, 1.0);
+    peak2.position.set(50, 16, 6);
     rockGroup.add(peak2);
 
     // Third geological peak
     const peak3 = new THREE.Mesh(rockGeo, rockMat);
-    peak3.scale.set(2.4, 1.1, 1.3);
-    peak3.position.set(-45, 14, 5);
+    peak3.scale.set(2.1, 1.1, 1.0);
+    peak3.position.set(-50, 14, 4);
     rockGroup.add(peak3);
 
     // Aso Rock Lookout Platform in foreground
     const platformGeo = new THREE.BoxGeometry(16, 1.2, 8);
     const platformMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
     const platform = new THREE.Mesh(platformGeo, platformMat);
-    platform.position.set(0, 0.6, 32);
+    // The lookout at the end of the avenue, looking up at the rock
+    platform.position.set(0, 0.6, 112);
     rockGroup.add(platform);
 
     // Plaque & flagpole
     const plaqueGeo = new THREE.BoxGeometry(4, 1.8, 0.3);
     const plaqueMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
     const plaque = new THREE.Mesh(plaqueGeo, plaqueMat);
-    plaque.position.set(0, 1.8, 32);
+    plaque.position.set(0, 1.8, 112);
     rockGroup.add(plaque);
 
     this.group.add(rockGroup);

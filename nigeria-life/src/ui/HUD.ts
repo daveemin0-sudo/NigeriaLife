@@ -439,10 +439,11 @@ export class HUD {
         <div class="speedo-box">
           <span class="speedo-val" id="speedo-val">0</span>
           <span class="speedo-unit">KM/H</span>
+          <span class="speedo-area" id="speedo-area"></span>
         </div>
         <div class="driving-meta-box">
           <h4 id="driving-veh-name">Danfo Minibus</h4>
-          <span class="driving-hint">WASD / Arrows to Drive • SPACE Handbrake</span>
+          <span class="driving-hint">WASD / Arrows to drive • SPACE handbrake • V bonnet or chase view</span>
           <div class="driving-stats-strip" style="display: flex; gap: 10px; margin-top: 4px; font-size: 11px;">
             <span id="driving-fuel-pill" style="color: #4ade80; font-weight: 700;">⛽ <span id="driving-fuel-val">85%</span></span>
             <span id="driving-transit-pill" style="color: #facc15; font-weight: 700; display: none;">👥 <span id="driving-passengers-val">0/8</span> • <span id="driving-fares-val">₦0</span></span>
@@ -1957,6 +1958,8 @@ export class HUD {
     btn.style.background = open ? '#d97706' : '#059669';
   }
 
+  private areaShownAt = 0;
+
   public updateDrivingHUD(
     speedMps: number,
     fuel?: number,
@@ -1969,6 +1972,13 @@ export class HUD {
     if (speedValEl) {
       const kmh = Math.round(Math.abs(speedMps) * 3.6);
       speedValEl.textContent = kmh.toString();
+    }
+    // Where the car is, under the speed: the area's name, looked up twice a second
+    const now = performance.now();
+    if (now - this.areaShownAt > 500 && this.world && this.player) {
+      this.areaShownAt = now;
+      const area = document.getElementById('speedo-area');
+      if (area) area.textContent = this.world.getDistrictAtPosition(this.player.position).name;
     }
     if (fuel !== undefined) {
       const fuelValEl = document.getElementById('driving-fuel-val');
@@ -2378,6 +2388,15 @@ export class HUD {
       if (paid.ok) give(paid.pay);
       else this.showDialogueModal({ speakerName: speaker, speakerRole: title, speakerAvatar: '⚠️', dialogueText: paid.reason });
     })();
+  }
+
+  /** Uses a place's own card by its id, as a click on it would (false if there is no such card) */
+  public runPlaceAction(id: string): boolean {
+    const action = PlaceActions.get(id);
+    if (!action || !this.player) return false;
+    this.hideInteractionCard();
+    action.run(this.placeHost());
+    return true;
   }
 
   private handleCardAction(): void {

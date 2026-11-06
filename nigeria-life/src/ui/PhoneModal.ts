@@ -19,6 +19,7 @@ import { tradeApp } from '../phone/apps/trade';
 import { adsApp } from '../phone/apps/ads';
 import { richApp } from '../phone/apps/rich';
 import { yarnApp } from '../phone/apps/yarn';
+import { ideasApp } from '../phone/apps/ideas';
 import { nollywoodApp } from '../phone/apps/nollywood';
 import { staffApp } from '../phone/apps/staff';
 import { sparkApp } from '../phone/apps/spark';
@@ -37,7 +38,7 @@ const APPS: PhoneApp[] = [
   shoppingApp, propertyApp, landApp, garageApp,
   businessApp, investApp, healthApp, settingsApp,
   eventsApp, gamesApp, gistApp, casesApp,
-  oddsApp, adsApp, richApp, yarnApp, nollywoodApp,
+  oddsApp, adsApp, richApp, yarnApp, ideasApp, nollywoodApp,
   staffApp, sparkApp, owambeApp, studioApp,
   marriageApp, titlesApp, motorsApp, tradeApp,
 ];

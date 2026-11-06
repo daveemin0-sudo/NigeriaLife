@@ -23,6 +23,7 @@ import { Hustle } from './hustle.ts';
 import { League } from './league.ts';
 import { Ads } from './ads.ts';
 import { Feed } from './feed.ts';
+import { Ideas } from './ideas.ts';
 import { ServerNollywood } from './nollywood.ts';
 import { ServerStaff } from './staff.ts';
 import { ServerSpark } from './spark.ts';
@@ -65,6 +66,7 @@ const hustle = new Hustle(db, economy);
 const league = new League(db, economy);
 const ads = new Ads(db, economy);
 const feed = new Feed(db);
+const ideas = new Ideas(db);
 const nollywood = new ServerNollywood(db, economy);
 const staff = new ServerStaff(db, economy);
 const spark = new ServerSpark(db, economy);
@@ -221,7 +223,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors|police|trade)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors|police|trade|ideas)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -304,6 +306,13 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
     if (req.method === 'POST' && (url.pathname === '/feed/post' || url.pathname === '/feed/like' || url.pathname === '/feed/remove')) {
       const body = await readBody(req);
       const done = url.pathname === '/feed/post' ? feed.post(account, body) : url.pathname === '/feed/like' ? feed.like(account, body) : feed.remove(account, body);
+      return reply(res, done.ok ? 200 : 400, done);
+    }
+    // Ideas: what players want next, voted on, marked by the makers
+    if (req.method === 'GET' && url.pathname === '/ideas') return reply(res, 200, { ok: true, ideas: ideas.list(account.id, url.searchParams.get('order') === 'new' ? 'new' : 'top') });
+    if (req.method === 'POST' && (url.pathname === '/ideas/post' || url.pathname === '/ideas/vote')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/ideas/post' ? ideas.post(account, body) : ideas.vote(account, body);
       return reply(res, done.ok ? 200 : 400, done);
     }
     // Eko Ads: billboards on the expressway rented by players, seen by everyone
@@ -527,6 +536,12 @@ async function admin(req: http.IncomingMessage, res: http.ServerResponse, url: U
       return reply(res, 200, { ok: true, cpu: process.cpuUsage() });
     case 'GET /admin/devices':
       return reply(res, 200, { ok: true, devices: Array.from(devices, ([id, d]) => ({ id, ...d }) as Record<string, unknown>).filter((d) => Date.now() - Number(d.at) < 10 * 60_000) });
+    case 'GET /admin/ideas':
+      return reply(res, 200, { ok: true, ideas: ideas.forAdmin() });
+    case 'POST /admin/ideas': {
+      const done = ideas.mark(body);
+      return reply(res, done.ok ? 200 : 400, done);
+    }
     case 'GET /admin/reports':
       return reply(res, 200, { ok: true, reports: db.prepare('SELECT * FROM reports ORDER BY id DESC LIMIT 100').all() });
     case 'GET /admin/ledger':

@@ -13,6 +13,8 @@ export interface DriveHooks {
   name(): string;
   /** The car stereo: starts or stops the music; says whether it is on */
   music(): boolean;
+  /** Behind the car, or over its bonnet */
+  view(): void;
   musicOn(): boolean;
 }
 
@@ -28,7 +30,7 @@ export class DriveControls {
     this.el.id = 'drive-controls';
     this.el.className = 'drive-controls';
     this.el.innerHTML = `
-      <div class="drive-top"><span class="drive-name" data-name></span><span class="drive-fuel" data-fuel></span><button class="drive-chip" data-music aria-label="Car stereo">🎵</button><button class="drive-chip" data-refuel>⛽ Refuel</button></div>
+      <div class="drive-top"><span class="drive-name" data-name></span><span class="drive-fuel" data-fuel></span><button class="drive-chip" data-music aria-label="Car stereo">🎵</button><button class="drive-chip" data-view aria-label="Camera view">👁 View</button><button class="drive-chip" data-refuel>⛽ Refuel</button></div>
       <div class="drive-steer" aria-label="Steering">
         <button class="drive-arrow" data-key="a" aria-label="Steer left">◀</button>
         <span class="drive-steer-knob" aria-hidden="true"></span>
@@ -78,6 +80,7 @@ export class DriveControls {
       if ('horn' in target.dataset) this.hooks.honk();
       else if ('out' in target.dataset) this.hooks.getOut();
       else if ('refuel' in target.dataset) this.hooks.refuel();
+      else if ('view' in target.dataset) this.hooks.view();
       else if ('music' in target.dataset) {
         const on = this.hooks.music();
         target.classList.toggle('is-on', on);

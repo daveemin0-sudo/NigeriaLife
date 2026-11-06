@@ -3248,6 +3248,18 @@ body[data-ui-mode="transit"] #street-chat-box {
   text-shadow: 0 0 10px rgba(250, 204, 21, 0.6);
 }
 
+/* The area the car is in, under its speed */
+.speedo-area {
+  display: block;
+  margin-top: 2px;
+  font: 700 11px/1.1 var(--nl-font, sans-serif);
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .speedo-unit {
   font-size: 9px;
   font-weight: 800;
@@ -10487,4 +10499,38 @@ body[data-ui-mode="world-map"] .top-menu-btn {
   .trait-grid {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+/* The round map in the corner while driving */
+.nl-minimap {
+  display: none;
+  position: fixed;
+  top: 112px;
+  right: 16px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(15, 23, 42, 0.12);
+  background: #e9e4d6;
+  z-index: 40;
+  pointer-events: none;
+}
+.nl-minimap.is-on { display: block; }
+.nl-minimap canvas { width: 100%; height: 100%; display: block; }
+.nl-minimap-north {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0f172a;
+  color: #fff;
+  font: 800 10px/18px var(--nl-font, sans-serif);
+  text-align: center;
+}
+@media (max-width: 700px) {
+  .nl-minimap { width: 112px; height: 112px; top: 96px; right: 10px; }
 }

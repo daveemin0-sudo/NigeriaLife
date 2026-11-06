@@ -75,8 +75,12 @@ export class InteriorManager {
   public static warm: ((group: THREE.Object3D) => Promise<void>) | null = null;
   /** Rooms whose shaders have been compiled */
   private warmed = new Set<string>();
+  /** Rooms built on demand whose parts have been put on the rooms' render layer */
+  private layered = new Set<string>();
   /** Why the player may not leave the room they are in (a locked cell), or null (set by the game) */
   public static holdIn: (() => string | null) | null = null;
+  /** In a room, the fade gone: whatever was waiting for the player to arrive there goes ahead (set by the game) */
+  public static entered: ((interiorId: string) => void) | null = null;
   public group: THREE.Group;
 
   // Interior Template Instances
@@ -280,7 +284,14 @@ export class InteriorManager {
 
     // 3. Update game location state. A roadside place is built the first time it is gone into (behind the fade)
     const lazy = this.templates.find((t) => t.def.id === target.id) as { ensureBuilt?: () => boolean; group: THREE.Group } | undefined;
-    if (lazy?.ensureBuilt?.()) lazy.group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+    // Built now if it never was; drawn with the rooms either way (built early, it may not be yet)
+    if (lazy?.ensureBuilt) {
+      const fresh = lazy.ensureBuilt();
+      if (fresh || !this.layered.has(target.id)) {
+        lazy.group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+        this.layered.add(target.id);
+      }
+    }
     this.locationMode = 'interior';
     this.currentInterior = target;
     Activity.emit({ kind: 'visited', place: target.id, name: target.name });
@@ -338,6 +349,7 @@ export class InteriorManager {
     options.onPlaced?.();
     await this.setFadeOverlay(0);
     this.isTransitioning = false;
+    InteriorManager.entered?.(target.id);
 
     return true;
   }

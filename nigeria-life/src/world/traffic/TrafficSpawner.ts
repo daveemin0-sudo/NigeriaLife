@@ -131,6 +131,8 @@ interface ParkedCar {
   x: number;
   z: number;
   yaw: number;
+  /** Not parked here after all: it would stand across a gate, a driveway or a door */
+  cleared?: boolean;
 }
 
 /** Vehicles further than this from the player are simulated but not drawn */
@@ -698,7 +700,7 @@ export class TrafficSpawner {
       }
     }
 
-    for (const car of this.parked) this.draw(car.kind, car.matrix, car.paint, car.x, car.z, playerPos, frustum);
+    for (const car of this.parked) if (!car.cleared) this.draw(car.kind, car.matrix, car.paint, car.x, car.z, playerPos, frustum);
 
     for (const batch of this.batches) {
       if (!batch.body) continue;
@@ -774,6 +776,27 @@ export class TrafficSpawner {
         if (body) body.yielding = (car.aside ?? 0) > 0.3;
       }
     }
-    for (const car of this.parked) add(car.kind, car.x, car.z, car.yaw, true);
+    for (const car of this.parked) if (!car.cleared) add(car.kind, car.x, car.z, car.yaw, true);
+  }
+
+  /**
+   * Nobody parks across a way in: a parked car with a gate, a driveway or a door in front of it
+   * (within `reach` metres of either end of it, and near enough the kerb) is not parked there.
+   * Returns how many were moved off.
+   */
+  public clearParkingAt(points: ReadonlyArray<{ x: number; z: number }>, reach = 4): number {
+    let cleared = 0;
+    for (const car of this.parked) {
+      const half = this.batches[car.kind].length / 2;
+      const c = Math.cos(car.yaw);
+      const s = Math.sin(car.yaw);
+      car.cleared = points.some((p) => {
+        const dx = p.x - car.x;
+        const dz = p.z - car.z;
+        return Math.abs(dx * s + dz * c) < half + reach && Math.abs(dx * c - dz * s) < 7;
+      });
+      if (car.cleared) cleared += 1;
+    }
+    return cleared;
   }
 }

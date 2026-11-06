@@ -78,6 +78,38 @@ export class GameCamera {
   private mapCamPos: THREE.Vector3 = new THREE.Vector3(0, 120, 50);
   private mapLookAt: THREE.Vector3 = new THREE.Vector3(0, 0, 10);
 
+  /** Driving: behind the car (chase), or over its bonnet looking down the road */
+  public driveView: 'chase' | 'bonnet' = (() => {
+    try {
+      return localStorage.getItem('nl_drive_view_v1') === 'bonnet' ? 'bonnet' : 'chase';
+    } catch {
+      return 'chase';
+    }
+  })();
+  private carHeights = new WeakMap<THREE.Object3D, number>();
+
+  /** Chase view to bonnet view and back; kept for the next drive */
+  public toggleDriveView(): 'chase' | 'bonnet' {
+    this.driveView = this.driveView === 'chase' ? 'bonnet' : 'chase';
+    try {
+      localStorage.setItem('nl_drive_view_v1', this.driveView);
+    } catch {
+      // Kept for this visit
+    }
+    return this.driveView;
+  }
+
+  /** How tall a car is, measured once */
+  private carHeight(car: THREE.Object3D): number {
+    let h = this.carHeights.get(car);
+    if (h === undefined) {
+      const box = new THREE.Box3().setFromObject(car);
+      h = Math.min(2.6, Math.max(0.9, box.max.y - car.position.y));
+      this.carHeights.set(car, h);
+    }
+    return h;
+  }
+
   /** Where the driving camera sits, and looks, from the car (smoothed) */
   private vehCamOffset = new THREE.Vector3();
   private vehLookOffset = new THREE.Vector3();
@@ -459,6 +491,21 @@ export class GameCamera {
         const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
         const angleDiff = THREE.MathUtils.euclideanModulo(vehRot - this.cameraVehYaw + Math.PI, Math.PI * 2) - Math.PI;
         this.cameraVehYaw += angleDiff * Math.min(delta * (4.6 / smoothMultiplier), 1.0);
+      }
+
+      // Over the bonnet: the driver's view down the road, the front of the car at the bottom of it
+      if (this.driveView === 'bonnet') {
+        const yaw = vehRot;
+        const h = this.carHeight(player.currentVehicle.mesh);
+        // Just over the roof at the middle of the car, so the bonnet runs out ahead at the bottom of the view
+        const eye = new THREE.Vector3(Math.sin(yaw) * -0.1, h * 1.08 + 0.05, Math.cos(yaw) * -0.1);
+        this.vehCamOffset.lerp(eye, Math.min(1, delta * 12));
+        this.camera.position.copy(vehPos).add(this.vehCamOffset);
+        const ahead = new THREE.Vector3(Math.sin(this.cameraVehYaw) * 26, h * 0.25, Math.cos(this.cameraVehYaw) * 26);
+        this.vehLookOffset.lerp(ahead, Math.min(1, delta * 10));
+        this.currentLookAt.copy(vehPos).add(this.vehLookOffset);
+        this.camera.lookAt(this.currentLookAt);
+        return;
       }
 
       // Dynamic distance and height: pull back slightly at top speed

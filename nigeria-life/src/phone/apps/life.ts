@@ -5,6 +5,7 @@ import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
 import { Employment, EMPLOYERS, WORKSITES } from '../../jobs/Employment';
 import { WORKPLACE } from '../../interiors/places/PlaceJobs';
+import { Shifts } from '../../jobs/HandWork';
 import { PlaceOpeners } from '../../interiors/places/PlaceInterior';
 import { Deeds } from '../../realestate/Deeds';
 import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerLink';
@@ -141,7 +142,8 @@ export const jobsApp: PhoneApp = {
             icon: '🧑‍🏭',
             title: `${esc(job.employer.name)} · ${esc(job.grade.title)}`,
             sub: `${esc(job.employer.task)} · ${count(job.done, job.employer.id === 'apapa-port' ? 'lorry' : job.employer.id === 'eko-plaza-site' ? 'course' : 'shift')} done${job.next ? ` · ${esc(job.next.title)} at ${job.next.from}` : ' · top grade'}`,
-            trailing: `<strong>${naira(job.grade.pay)}</strong>`,
+            // A workplace to ride to: there, straight to the one in charge and into a shift
+            trailing: `<span class="nl-stack"><strong>${naira(job.grade.pay)}</strong>${WORKPLACE[job.employer.id] ? `<button class="nl-btn nl-btn--sm" data-act="work-go" data-arg="${esc(job.employer.id)}">🚕 Go to work</button>` : ''}</span>`,
           })).join('')}
           ${(() => {
             // Those with a place to go and ask come first, with a way there
@@ -212,6 +214,8 @@ export const jobsApp: PhoneApp = {
     if (action === 'work-go') {
       const key = WORKPLACE[el.dataset.arg ?? ''];
       if (!key) return;
+      // On arrival, straight to whoever is in charge there: they take the player on and start the shift
+      Shifts.arriving = el.dataset.arg ?? null;
       host.close();
       PlaceOpeners.open(`ride:roadside-${key}`);
     } else if (action === 'work-show') {
@@ -409,7 +413,7 @@ export const propertyApp: PhoneApp = {
                 <button class="nl-btn nl-btn--primary nl-btn--block" id="property-pay-rent" data-act="pay-rent" data-arg="${esc(prop.id)}" ${funds >= lease.arrears ? '' : 'disabled'}>Pay the landlord · ${naira(lease.arrears)}</button>` : ''}
             </div>` : ''}
           ${owned || rented ? `
-            <button class="nl-btn nl-btn--primary nl-btn--block" id="property-go-home" data-act="home">Go home</button>
+            <button class="nl-btn nl-btn--primary nl-btn--block" id="property-go-home" data-act="home" data-arg="${esc(prop.id)}">Go home here</button>
             <button class="nl-btn nl-btn--block" data-act="decor">Furniture catalogue</button>
             ${owned
               ? `${listing
@@ -471,7 +475,8 @@ export const propertyApp: PhoneApp = {
     const prop = host.backend.getData().properties.find((entry) => entry.id === id);
     if (action === 'home') {
       host.close();
-      host.world.goHome();
+      // From a home's own page: that home; from the top of the list: the home last gone into
+      host.world.goHome(id || undefined);
     } else if (action === 'decor') {
       host.close();
       HouseDecorationSystem.getInstance().openCatalogueModal();

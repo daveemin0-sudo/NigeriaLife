@@ -278,6 +278,8 @@ export const HOTEL_SPECS: PlaceSpec[] = [
 // --- The three parts, alive ---------------------------------------------------------------------
 
 const rooms = new Map<string, PlaceInterior>();
+/** The room number of a guest on their way into a room not built yet */
+let arriving: number | null = null;
 /** For the tests: the moving parts and what they are doing */
 export const HotelState: { lobby?: Lobby; floor?: Floor; suite?: Suite } = {};
 
@@ -467,7 +469,9 @@ class Floor {
       door.close();
       if (reason !== 'done') return;
       const suite = rooms.get(HOTEL.suite);
-      HotelState.suite?.arrive(number);
+      // The room is built the first time it is entered: its number goes up as soon as it is
+      if (HotelState.suite) HotelState.suite.arrive(number);
+      else arriving = number;
       if (suite) host.ride(suite.def.id, suite.at(SUITE.door[0], SUITE.door[1]), Math.PI);
     });
     host.director.run(open);
@@ -884,11 +888,26 @@ class Suite {
   }
 }
 
+/**
+ * The hotel's three rooms, known from the start: a room is built only the first time it is entered,
+ * and the lift must be able to take the player up to a floor nobody has been to yet (it is built on
+ * the way in). Without this the lift opened, closed, and went nowhere.
+ */
+export function knowHotelRoom(room: PlaceInterior, key: string): void {
+  if (key === HOTEL.lobby || key === HOTEL.floor || key === HOTEL.suite) rooms.set(key, room);
+}
+
 /** Gives each part of the hotel what it needs, as it is built */
 export function attachHotel(room: PlaceInterior, key: string): void {
   if (key !== HOTEL.lobby && key !== HOTEL.floor && key !== HOTEL.suite) return;
   rooms.set(key, room);
   if (key === HOTEL.lobby) HotelState.lobby = new Lobby(room);
   else if (key === HOTEL.floor) HotelState.floor = new Floor(room);
-  else HotelState.suite = new Suite(room);
+  else {
+    HotelState.suite = new Suite(room);
+    if (arriving !== null) {
+      HotelState.suite.arrive(arriving);
+      arriving = null;
+    }
+  }
 }

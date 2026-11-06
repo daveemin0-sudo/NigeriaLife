@@ -50,8 +50,14 @@ export async function run(browser, check) {
     document.getElementById('card-action-btn')?.click();
   }, KEY);
   await playUntil(page, () => (window.game.world.interiorManager.currentInterior && !window.game.world.interiorManager.isTransitioning ? true : null), 20);
+  // A round at a time here: the skill bar is about each round (ownhomes works a whole shift)
+  await page.evaluate(() => { window.game.modules.Shifts.pieces = 1; });
   await use(page, `work_${KEY}_hire_${EMPLOYER}`);
-  await page.evaluate(() => [...document.querySelectorAll('#game-dialogue-overlay button')].find((b) => b.textContent.includes('Take the job'))?.click());
+  await playUntil(page, () => ([...document.querySelectorAll('#game-dialogue-overlay button')].some((b) => /Take the job/.test(b.textContent)) ? true : null), 10);
+  await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll('#game-dialogue-overlay button')];
+    (buttons.find((b) => /Take the job/.test(b.textContent) && !/start a shift/i.test(b.textContent)) ?? buttons.find((b) => b.textContent.includes('Take the job')))?.click();
+  });
   await wait(300);
 
   const perfect = await shift(page, true);

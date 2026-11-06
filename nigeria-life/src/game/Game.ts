@@ -128,6 +128,11 @@ import { hawkerPrices } from '../world/StreetVendors';
 import { petrolPolicy } from '../world/Fuel';
 import { RideService } from '../phone/services/RideService';
 import { myProfile } from '../social/Profile';
+import { profileKey } from '../backend/Profile';
+import { MiniMap } from '../ui/MiniMap';
+import { Shifts } from '../jobs/HandWork';
+import { uniformFor } from '../jobs/Uniforms';
+import { WORKPLACE } from '../interiors/places/PlaceJobs';
 import { BAE_AT, ROLES, Ties } from '../social/Ties';
 import type { RemotePlayer } from '../multiplayer/RemotePlayer';
 import { FORECOURT, STATIONS, jerryCanShare, nearestStation, stationNear, type Station } from '../world/Fuel';
@@ -187,6 +192,8 @@ export class Game {
   public photoMode: PhotoModeModal;
   /** Directions on the road when driving yourself somewhere */
   public readonly routeGuide = new RouteGuide();
+  /** The round map in the corner while driving */
+  private readonly miniMap = new MiniMap();
   /** Going online with Eko Rides once the player is in the car brought round for it */
   private rideHailWhenIn = false;
   /** A new arrival stands by the compound gate. The street chrome stays hidden until they walk out. */
@@ -299,7 +306,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -779,8 +786,26 @@ export class Game {
     this.hud.onEnterInterior = (buildingId: string, comeOutAt?: THREE.Vector3) => {
       const target = this.world.interiorManager.getInteriorByBuildingId(buildingId);
       if (target?.type === 'residence' && !this.canGoHome()) return;
-      // In through the gate of the compound: the flat, not a house built elsewhere
-      if (target?.type === 'residence' && (buildingId === 'villa-compound' || buildingId === 'palm-view-flats')) this.homeNow = 'main';
+      // "Enter" on a home's card on the map names the home: that one is gone into, and is home from now on
+      if (buildingId.startsWith('residence:')) {
+        const propId = buildingId.slice('residence:'.length);
+        const prop = this.myHomes().find((p) => p.id === propId);
+        if (!prop || !this.canGoHome()) return;
+        this.setHomeNow(this.homeKey(prop.id));
+        // Straight in, as the Home button goes (not a walk across town to some other door)
+        this.world.worldMap.deactivate();
+        void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
+        return;
+      }
+      // In through the gate of the compound: that compound's home if it is the player's, else a home of theirs that is not a built house
+      if (target?.type === 'residence' && (buildingId === 'villa-compound' || buildingId === 'palm-view-flats')) {
+        const doorHome = this.myHomes().find((p) => p.buildingId === buildingId);
+        if (doorHome) this.setHomeNow(this.homeKey(doorHome.id));
+        else if (this.isPlotHome(this.currentHome())) {
+          const best = this.mainHome();
+          if (best) this.setHomeNow(this.homeKey(best.id));
+        }
+      }
       if (comeOutAt) {
         // In by one way and out by another: from the apron into the terminal, and out at the kerb
         void this.world.interiorManager.enterInterior(buildingId, this.player, this.cameraManager, this.hud, this.world, { returnTo: comeOutAt, returnYaw: 0 });
@@ -866,8 +891,15 @@ export class Game {
       refuel: () => this.hud.onRefuelVehicle?.(),
       music: () => SoundEngine.getInstance().toggleRadio(),
       musicOn: () => SoundEngine.getInstance().isRadioActive(),
+      view: () => {
+        const view = this.cameraManager.toggleDriveView();
+        showGameToast(view === 'bonnet' ? '📷 Bonnet view' : '📷 Chase view', 'info', 1600);
+      },
     });
-    UIStateManager.getInstance().onModeChange((mode) => drive.show(mode === 'driving'));
+    UIStateManager.getInstance().onModeChange((mode) => {
+      drive.show(mode === 'driving');
+      this.miniMap.show(mode === 'driving');
+    });
 
     // 10. Multiplayer & Street Chat. On a game server the player has an account there first: the
     // server holds their money from now on, and the city's players are reached through it
@@ -1141,9 +1173,10 @@ export class Game {
       cityName: () => cityNames[cityId()] ?? cityId(),
       where: () => this.whereabouts(),
       placeName,
-      goHome: (plotId) => {
-        // A built house is a home of its own: that is the one gone into
-        if (plotId && this.land.livesIn(plotId)) this.homeNow = plotId;
+      goHome: (homeId) => {
+        // A built house is a home of its own, and so is every flat or house rented or bought: that is the one gone into
+        if (homeId && this.land.livesIn(homeId)) this.setHomeNow(homeId);
+        else if (homeId && this.myHomes().some((p) => p.id === homeId)) this.setHomeNow(this.homeKey(homeId));
         document.getElementById('nav-btn-home')?.click();
       },
       openMap: () => document.getElementById('nav-btn-map')?.click(),
@@ -1408,13 +1441,13 @@ export class Game {
     power.subscribe(() => this.showLight());
     power.where = () => {
       const id = this.currentHome();
-      if (id !== 'main') {
+      if (this.isPlotHome(id)) {
         const plot = this.land.plot(id);
         if (!plot) return null;
         const area = this.districtAt(plot.city, (plot.rect.minX + plot.rect.maxX) / 2, (plot.rect.minZ + plot.rect.maxZ) / 2).id;
         return { area, city: plot.city, own: Grid.bandOf(area, plot.city) === 'own' };
       }
-      const home = this.mainHome();
+      const home = this.homeProperty();
       if (!home) return null;
       const area = Grid.homeArea(home.districtId, home.location ?? '');
       // An estate that makes its own power says so on its particulars
@@ -1504,8 +1537,22 @@ export class Game {
     const rooms = this.world.interiorManager;
     InteriorManager.holdIn = () => {
       const held = police.custody();
-      if (!held || rooms.currentInterior?.type !== 'police') return null;
-      return `🔒 The cell is locked: ${this.timeLeft(held)} left, or bail of ₦${held.bail.toLocaleString()} (the cell's card).`;
+      if (held && rooms.currentInterior?.type === 'police') return `🔒 The cell is locked: ${this.timeLeft(held)} left, or bail of ₦${held.bail.toLocaleString()} (the cell's card).`;
+      // On a shift: nobody walks out till it is done, unless they tell the one in charge
+      const shift = Shifts.current;
+      if (shift && rooms.isPlayerInside()) return `🦺 You are on shift (${shift.done} of ${shift.total} done). Finish it, or tell ${shift.boss} you are ending it.`;
+      return null;
+    };
+    // The work clothes go on for a shift and come off when it ends
+    Shifts.dress = (trade) => this.player.wearUniform(trade ? uniformFor(trade) : null);
+    // Sent from the phone to work somewhere: on arrival, straight to whoever is in charge there
+    InteriorManager.entered = (interiorId) => {
+      const want = Shifts.arriving;
+      if (!want) return;
+      const key = WORKPLACE[want];
+      if (!key || interiorId !== `interior_place_${key}`) return;
+      Shifts.arriving = null;
+      setTimeout(() => this.hud.runPlaceAction(`work_${key}_hire_${want}`), 700);
     };
     Employment.refusal = (employer) => police.refuses(employer.trade);
     police.onArrested = (custody, offence) => void this.takeToCell(custody, offence, false);
@@ -1712,6 +1759,13 @@ export class Game {
 
     this.plotWorld = new PlotWorld();
     this.scene.add(this.plotWorld.group);
+    // No car is parked across a way in: the front of every plot (its gate and driveway, built on or
+    // not), and every door and gate in the street (an estate home's, a shop's, a building's)
+    const waysIn = [
+      ...this.land.plots('lagos').map((plot) => frontOf(plot)),
+      ...this.world.interactiveObjects.filter((o) => o.interactionPoint).map((o) => o.interactionPoint),
+    ];
+    this.world.trafficSpawner.clearParkingAt(waysIn);
     // Lagos plots come and go with the rest of Lagos; the other cities' plots are shown when the player is there
     const lagos = this.plotWorld.of('lagos');
     if (lagos.group) this.world.cityManager.addToLagos(lagos.group, lagos.cards);
@@ -1877,6 +1931,13 @@ export class Game {
       if (!roads) roadsByCity.set(city, (roads = zonesFor(city)));
       return roads;
     };
+    // The road a car keeps to at speed: any carriageway of the city (they overlap at junctions)
+    DrivableVehicle.onRoad = (x, z) => {
+      const roads = DrivableVehicle.roads?.();
+      if (!roads) return true;
+      for (const zone of roads) if (zone.kind === 'carriageway' && x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) return true;
+      return false;
+    };
     // What players build on their plots is solid too: when that changes, the list is made again
     this.registry.subscribe((state) => {
       const built = Object.keys(state.buildings).sort().join(',');
@@ -1916,12 +1977,14 @@ export class Game {
     ResidentialInterior.standardNow = () => {
       const data = BackendService.getInstance().getData();
       const plotId = this.currentHome();
-      if (plotId !== 'main') {
+      if (this.isPlotHome(plotId)) {
         // A house the player built: as grand as the house
         const type = buildingType(this.land.building(plotId)?.typeId ?? '');
         return type?.id === 'duplex' ? 'luxury' : 'comfortable';
       }
-      return standardOf(data.properties, data.id, false);
+      // As grand as this home, not the grandest the player has
+      const home = this.homeProperty();
+      return standardOf(home ? [home] : data.properties, data.id, false);
     };
     ResidentialInterior.carsOwned = () => this.ownedVehicles.myModels();
     // Your own car, your driver at the wheel: a ride that costs nothing
@@ -1943,27 +2006,41 @@ export class Game {
     // Out of a house of their own by its own front door, onto its own street
     this.world.interiorManager.homeFront = () => {
       const plotId = this.currentHome();
-      const plot = plotId === 'main' ? null : this.land.plot(plotId);
-      if (!plot || plot.city !== this.world.cityManager.currentCityId) return null;
+      const plot = this.isPlotHome(plotId) ? this.land.plot(plotId) : null;
+      // A flat or house rented or bought: out at its own place on the street, where that is open ground
+      if (!plot) {
+        const home = this.homeProperty();
+        if (!home || home.cityId !== this.world.cityManager.currentCityId) return null;
+        const solids = this.solidsIn(home.cityId);
+        const at = new THREE.Vector3(home.streetPosition.x, 0, home.streetPosition.z);
+        if (solids?.at(at.x, at.z, 0.4)) return null;
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const out = at.clone().add(new THREE.Vector3(Math.sin(a) * 1.6, 0, Math.cos(a) * 1.6));
+          if (!solids?.at(out.x, out.z, 0.4)) return { inside: at, outside: out };
+        }
+        return null;
+      }
+      if (plot.city !== this.world.cityManager.currentCityId) return null;
       const front = frontOf(plot);
       const { dx, dz } = towardStreet(plot);
       return { inside: front.clone().add(new THREE.Vector3(-dx * 0.4, 0, -dz * 0.4)), outside: front.clone().add(new THREE.Vector3(dx * 1.6, 0, dz * 1.6)) };
     };
     ResidentialInterior.homeName = () => {
       const plotId = this.currentHome();
-      if (plotId !== 'main') {
+      if (this.isPlotHome(plotId)) {
         const plot = this.land.plot(plotId);
         const type = buildingType(this.land.building(plotId)?.typeId ?? '');
         return plot ? { name: `Your ${(type?.name ?? 'house').toLowerCase()} at ${plot.name}`, area: plot.neighbourhood } : null;
       }
-      const home = this.mainHome();
+      const home = this.homeProperty();
       this.homeShown = home?.id ?? null;
       return home ? { name: home.status === 'rented' ? `${home.name} (rented)` : home.name, area: home.location ?? '' } : null;
     };
     // A rented home the landlord has served a quit notice on has it pinned inside the front door
     ResidentialInterior.noticeNow = () => {
-      if (this.currentHome() !== 'main') return null;
-      const home = this.mainHome();
+      if (this.isPlotHome(this.currentHome())) return null;
+      const home = this.homeProperty();
       if (!home || home.status !== 'rented') return null;
       const lease = Dues.get().leaseOf(home.id);
       return lease && lease.deadline !== null ? lease : null;
@@ -1971,8 +2048,8 @@ export class Game {
     // The plan of the home: a self-contain is one room, a five-bedroom has five bedrooms
     ResidentialInterior.briefNow = () => {
       const plotId = this.currentHome();
-      if (plotId !== 'main') return briefOfBuilding(this.land.building(plotId)?.typeId ?? '');
-      return briefOf(this.mainHome());
+      if (this.isPlotHome(plotId)) return briefOfBuilding(this.land.building(plotId)?.typeId ?? '');
+      return briefOf(this.homeProperty());
     };
     ResidentialInterior.onSettled = (message) => showGameToast(`📦 ${message}`, 'info', 7000);
     void this.assetMarket.introduce(this.player.config.name);
@@ -2144,8 +2221,6 @@ export class Game {
     });
   }
 
-  /** The property the home was last laid out as, when the player went in */
-  private homeShown: string | null = null;
 
   /**
    * Rent and loan instalments, settled on the calendar (src/life/Dues.ts): days gone by while the
@@ -2160,7 +2235,8 @@ export class Game {
     // Put out while at home: out through the front door
     dues.onEvicted = (propId) => {
       const rooms = this.world.interiorManager;
-      if (rooms.currentInterior?.type === 'residence' && this.currentHome() === 'main' && this.homeShown === propId) {
+      // The flat they are standing in (it is no longer theirs by now, so it is the one they went into)
+      if (rooms.currentInterior?.type === 'residence' && this.homeShown === propId) {
         void rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
       }
     };
@@ -2202,12 +2278,94 @@ export class Game {
     return homes[0] ?? null;
   }
 
-  private currentHome(): string {
+  /** The flat or house the home was laid out as when the player went in (a rented or bought one) */
+  private homeShown: string | null = null;
+
+  /** The flats and houses the player rents or owns, each a home of its own */
+  private myHomes() {
     const data = BackendService.getInstance().getData();
-    const hasFlat = data.properties.some((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business', 'warehouse', 'land'].includes(String(p.type)));
-    if (this.homeNow && this.homeNow !== 'main' && this.land.livesIn(this.homeNow)) return this.homeNow;
-    if (this.homeNow === 'main' && hasFlat) return 'main';
-    if (hasFlat) return 'main';
+    return data.properties.filter((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business', 'warehouse', 'land', 'commercial'].includes(String(p.type)));
+  }
+
+  /**
+   * The home that keeps the old single home's things (its furniture, its fridge, its plan). Before
+   * every property was a home of its own there was one, 'main', laid out as the best of them: that
+   * property keeps the name 'main', so what was furnished there is still there. Chosen once and kept.
+   */
+  private legacyMain: string | null | undefined = undefined;
+  private legacyMainHome(): string | null {
+    if (this.legacyMain !== undefined) return this.legacyMain;
+    const key = profileKey('nl_home_main_v1');
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved !== null) return (this.legacyMain = saved || null);
+    } catch {
+      // No storage: worked out again each visit
+    }
+    const best = this.mainHome();
+    // Nothing yet: the first home the player has will be it
+    if (!best) return null;
+    this.legacyMain = best.id;
+    try {
+      localStorage.setItem(key, best.id);
+    } catch {
+      // As above
+    }
+    return this.legacyMain;
+  }
+
+  /** The id a property's home goes by: its furniture, fridge and plan are kept under it */
+  private homeKey(propId: string): string {
+    return propId === this.legacyMainHome() ? 'main' : `prop:${propId}`;
+  }
+
+  /** A house the player built on their land (its plot's id), as opposed to a flat or house rented or bought */
+  private isPlotHome(id: string): boolean {
+    return id !== 'main' && !id.startsWith('prop:');
+  }
+
+  /** The flat or house the player is at home in now, if it is one rented or bought (not a built house) */
+  private homeProperty() {
+    const id = this.currentHome();
+    if (this.isPlotHome(id)) return null;
+    const propId = id === 'main' ? this.legacyMainHome() : id.slice('prop:'.length);
+    return this.myHomes().find((p) => p.id === propId) ?? null;
+  }
+
+  /** The home gone into is home from now on: the Home button goes back to it, after a reload too */
+  private setHomeNow(id: string): void {
+    this.homeNow = id;
+    try {
+      localStorage.setItem(profileKey('nl_home_now_v1'), id);
+    } catch {
+      // Kept for this visit
+    }
+  }
+
+  private currentHome(): string {
+    if (this.homeNow === null) {
+      try {
+        this.homeNow = localStorage.getItem(profileKey('nl_home_now_v1'));
+      } catch {
+        this.homeNow = null;
+      }
+    }
+    const homes = this.myHomes();
+    const held = this.homeNow;
+    // The one last gone into, while it is still theirs
+    if (held) {
+      if (this.isPlotHome(held)) {
+        if (this.land.livesIn(held)) return held;
+      } else {
+        const propId = held === 'main' ? this.legacyMainHome() : held.slice('prop:'.length);
+        if (homes.some((p) => p.id === propId)) return held;
+      }
+    }
+    // Else the old home if it is still theirs, else the best they have, else a house they built
+    const legacy = this.legacyMainHome();
+    if (legacy && homes.some((p) => p.id === legacy)) return 'main';
+    const best = this.mainHome();
+    if (best) return this.homeKey(best.id);
     return this.land.homes()[0]?.id ?? 'main';
   }
 
@@ -2688,7 +2846,7 @@ export class Game {
   public kerbNear(x: number, z: number): { x: number; z: number; yaw: number } | null {
     // If the player is in or near their compound, deliver directly into their private compound parking bay
     const plotId = this.currentHome();
-    if (plotId && plotId !== 'main') {
+    if (plotId && this.isPlotHome(plotId)) {
       const comp = this.plotWorld.compounds.get(plotId);
       if (comp && comp.drawing.parkingBays?.length) {
         const dist = Math.hypot(x - comp.drawing.centre.x, z - comp.drawing.centre.z);
@@ -2729,7 +2887,11 @@ export class Game {
 
   public solidsHere(): Solids | null {
     if (this.world.interiorManager.isPlayerInside() || this.world.interiorManager.busy) return null;
-    const city = this.world.cityManager.currentCityId;
+    return this.solidsIn(this.world.cityManager.currentCityId);
+  }
+
+  /** What is solid in a city's streets, whether or not the player is out in them */
+  private solidsIn(city: string): Solids | null {
     let solids = this.solidsByCity.get(city);
     if (!solids) {
       solids = new Solids(city === 'lagos' ? [...this.standingIn(city), ...this.world.streetLamps()] : this.standingIn(city));
@@ -3388,6 +3550,9 @@ export class Game {
     // Update Driving HUD Speedometer & Vehicle Simulation Metrics
     if (this.player.isDriving && this.player.currentVehicle) {
       const v = this.player.currentVehicle;
+      // The minimap round the car, the way ahead on it when the arrows are showing it
+      const car = this.player.currentVehicle;
+      if (car) this.miniMap.update(car.mesh.position.x, car.mesh.position.z, car.mesh.rotation.y, DrivableVehicle.roads?.() ?? [], this.routeGuide.way);
       this.hud.updateDrivingHUD(
         v.currentSpeed,
         v.fuel,

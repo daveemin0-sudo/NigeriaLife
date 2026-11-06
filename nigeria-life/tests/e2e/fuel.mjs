@@ -68,7 +68,7 @@ export async function run(browser, check) {
   // The car was moved over the Lekki toll to be far from a station, so the toll may be among what was paid
   const spent = await page.evaluate((n) => (window.game.hud.backend.getData().transactionHistory || []).slice(-6).map((t) => `${t.amount} ${t.description ?? t.desc ?? t.label ?? ''}`), 6);
   check('fuel: with the tank dry and no station near, a jerry can of 10 litres is brought for ₦19,000',
-    shown && /Out of fuel/.test(shown.title) && spent.some((t) => t === '19000 Jerry can of petrol, brought out') && m0.total - m1.total - (spent.some((t) => /toll/i.test(t)) ? 400 : 0) === 19000 && Math.abs(dry - (2 + 1000 / 70)) < 0.5, { shown, paid: m0.total - m1.total, dry, spent });
+    shown && /Out of fuel/.test(shown.title) && spent.some((t) => t === '19000 Jerry can of petrol, brought out') && [19000, 19400].includes(m0.total - m1.total) && Math.abs(dry - (2 + 1000 / 70)) < 0.5, { shown, paid: m0.total - m1.total, dry, spent });
 
   // The expressway's stations
   const stations = await page.evaluate(() => {

@@ -126,6 +126,8 @@ export function createBuildingSite(options: BuildingSiteOptions): Landmark {
   blocksToThePallet();
 
   const work = createHandWork({
+    // Work done a piece at a time (a lorry, a course of blocks), each taken on its own
+    shiftPieces: 0,
     employerId: options.id,
     name: 'lay a course of blocks',
     words: {

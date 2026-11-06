@@ -12,11 +12,11 @@ import type { ArmPose } from '../../interactions/Poses';
 import type { Item } from '../../backend/types';
 import type { BackendService } from '../../backend/BackendService';
 import { PLACE_WORK, type WorkSpec } from './PlaceJobs';
-import { createHandWork } from '../../jobs/HandWork';
+import { createHandWork, Shifts, SHIFT_PIECES } from '../../jobs/HandWork';
 import { Employment } from '../../jobs/Employment';
 import { attachShows } from './LiveEvents';
 import { attachWorship, Figure } from './Worship';
-import { attachHotel } from './Hotel';
+import { attachHotel, knowHotelRoom } from './Hotel';
 import { attachViewing } from './ViewingCentre';
 import { attachTravellers } from './Travellers';
 import { attachNollywood } from '../../film/Nollywood';
@@ -142,6 +142,7 @@ export class PlaceInterior {
     this.spec = spec;
     this.group.position.copy(origin);
     this.group.name = `place ${spec.key}`;
+    knowHotelRoom(this, spec.key);
     const { width, length, height } = spec.room;
     this.def = {
       id: `interior_place_${spec.key}`,
@@ -361,7 +362,8 @@ export class PlaceInterior {
     const npc = new InteriorNPCMesh(def);
     this.npcs.push(npc);
     this.group.add(npc.group);
-    const piece = w.piece ?? 'shift';
+    // A shift is a few rounds of this work; each round is paid as it is done
+    const piece = w.piece ?? 'round';
     let host: PlaceHost | null = null;
     const work = createHandWork({
       employerId: w.employer,
@@ -381,8 +383,23 @@ export class PlaceInterior {
       },
     });
     const hire = `work_${key}_hire_${w.employer}`;
-    this.interactiveList.push({ mesh: npc.group, id: hire, name: `${s.name} (${s.title})`, category: this.spec.name, description: s.says, interactionPoint: this.world(s.at[0] + Math.sin(s.facing) * 1.3, s.at[1] + Math.cos(s.facing) * 1.3) });
-    PlaceActions.register(hire, { label: () => work.bossLabel(), run: (by) => work.askBoss(by) });
+    const before = this.world(s.at[0] + Math.sin(s.facing) * 1.3, s.at[1] + Math.cos(s.facing) * 1.3);
+    this.interactiveList.push({ mesh: npc.group, id: hire, name: `${s.name} (${s.title})`, category: this.spec.name, description: s.says, interactionPoint: before });
+    PlaceActions.register(hire, {
+      label: () => (work.onShift ? `🦺 ${s.name}: you are on shift` : work.bossLabel()),
+      // Up to them first, face to face, then the talk
+      run: (by) => {
+        host = by;
+        const went = by.director.perform({
+          id: `to ${s.name}`, actor: by.actor, point: before, target: this.world(s.at[0], s.at[1]), animation: { arms: 'talk' }, seconds: 0.7, effectAt: 0.2,
+          effect: () => {
+            work.askBoss(by);
+            return true;
+          },
+        });
+        if (!went.ok) work.askBoss(by);
+      },
+    });
 
     const first = w.tasks[0];
     const marker = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 1.2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
@@ -392,10 +409,10 @@ export class PlaceInterior {
     const title = w.shift.charAt(0).toUpperCase() + w.shift.slice(1);
     this.interactiveList.push({ mesh: marker, id: shift, name: `💼 ${title}`, category: `${jobs.employer(w.employer)!.name}: staff only`, description: jobs.employer(w.employer)!.task, interactionPoint: this.world(first.at[0], first.at[1]) });
     PlaceActions.register(shift, {
-      label: () => (jobs.isEmployed(w.employer) ? `💼 Start: ${w.shift} · ₦${Math.round(work.rate() * Employment.payBoost()).toLocaleString()}` : `💼 ${title} (ask ${s.name} for work)`),
+      label: () => (work.onShift ? `🦺 On shift: ${Shifts.current?.done ?? 0} of ${Shifts.current?.total ?? SHIFT_PIECES} done` : jobs.isEmployed(w.employer) ? `💼 Start a shift: ${w.shift} · ₦${Math.round(work.rate() * Employment.payBoost()).toLocaleString()} each` : `💼 ${title} (ask ${s.name} for work)`),
       run: (by) => {
         host = by;
-        work.start(by);
+        work.startShift(by);
       },
     });
   }
