@@ -30,10 +30,10 @@
  *  12. Agama catches. ₦2,000, ₦50,000 on every tenth, ₦500,000 for the last of forty. Once each.
  *
  * Still reported by the game, and what a busy ten minutes of those needs:
- *   diaspora remittance ₦25,000 (once a day) and transit fares about ₦12,000: together about
- *   ₦37,000. Eko Rides trips moved to the server (startRide / finishRide in economy.ts). A new player's hustle, a gist riddle and a small
+ *   diaspora remittance ₦25,000 (once a day). Transit fares (payFare) and Eko Rides trips
+ *   (startRide / finishRide) moved to the server, in economy.ts. A new player's hustle, a gist riddle and a small
  *   phone-game pot fit in the same window when they are not all stacked on that. The allowance
- *   is ₦40,000. Larger one-offs (a plot sale, a high ladder rung, politics pay) stay on the
+ *   is ₦30,000. Larger one-offs (a plot sale, a high ladder rung, politics pay) stay on the
  *   held queue, as they already did above ₦60,000.
  */
 import { buildingType, MAX_DAYS_HELD } from '../src/realestate/BuildingCatalogue.ts';

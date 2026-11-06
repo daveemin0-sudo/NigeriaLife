@@ -242,7 +242,7 @@ export async function run(browser, check) {
   await page.evaluate(() => { const P = window.game.modules.HomePower.get(); P.homes[P.homeId()].batteries.nepa_inverter = 0; P.tick(); });
   await wait(300);
   const withoutAny = await brightness(page);
-  await page.screenshot({ path: `${process.env.SHOTS ?? '.'}/nepa_cut.png` }).catch(() => undefined);
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/nepa_cut.png` });
   check('nepa: in a cut the room is darker than with power, and still clearly seen by the lantern (never too dark)',
     withoutAny < withBattery * 0.85 && withoutAny > 60, { darkHour, withBattery: Math.round(withBattery), withoutAny: Math.round(withoutAny) });
 

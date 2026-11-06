@@ -361,9 +361,9 @@ export async function run(_browser, check) {
     // The allowance, now that the large earners are checked by the server. ₦48,000 still
     // clears; the next ₦1,000 in the same ten minutes is held.
     const bola = await call('/auth/guest', { name: 'Bola' });
-    const within = await call('/money/report', { cash: 40_000, memo: 'Fares and a remittance', idem: idem() }, bola.token);
+    const within = await call('/money/report', { cash: 30_000, memo: 'A remittance and a pot', idem: idem() }, bola.token);
     const pastIt = await call('/money/report', { cash: 1000, memo: 'One more fare', idem: idem() }, bola.token);
-    check('online: unverified earnings clear up to ₦40,000 in ten minutes, and the next ₦1,000 is held', within.ok && within.wallet.cash === 25_000 + 40_000 && !pastIt.ok && pastIt.held > 0, { within: within.wallet, pastIt });
+    check('online: unverified earnings clear up to ₦30,000 in ten minutes, and the next ₦1,000 is held', within.ok && within.wallet.cash === 25_000 + 30_000 && !pastIt.ok && pastIt.held > 0, { within: within.wallet, pastIt });
 
     // A guest stood on a spot from the first packet, and kept there, so the server believes them.
     const onSpot = async (name, x, z, city = 'lagos') => {
@@ -549,6 +549,27 @@ export async function run(_browser, check) {
       !rideAway.ok && /cannot see your car at the stop/.test(rideAway.reason) && rideStart.ok && rideStart.metres === 250 && !rideFast.ok && /faster than any car/.test(rideFast.reason)
       && ridePaid.ok && ridePaid.pay === 650 && ridePaid.wallet.cash - kolaBefore === 650 && rideAgain.ok && rideAgain.replay,
       { rideAway, rideStart, rideFast, ridePaid, rideAgain });
+
+    // Fares are the server's: paid only pulled up at a stop, one passenger at a time, no more than the seats from one stop
+    const conductor = await call('/auth/guest', { name: 'Sule' });
+    const bus = await connect(conductor.token);
+    await wait(200);
+    bus.send(stand(-5.2, -20));
+    await wait(300);
+    const fare = (s, v = 'keke') => call('/work/fare', { stop: s, vehicle: v, idem: idem(), amount: 9_999 }, conductor.token);
+    const wrongStop = await fare(1);
+    const fares = [];
+    for (let i = 0; i < 4; i++) {
+      fares.push(await fare(0));
+      await wait(1_300);
+    }
+    const tooQuick = [await fare(0, 'danfo'), await fare(0, 'danfo')];
+    bus.ws.close();
+    const busCash = (await call('/me', null, conductor.token)).wallet.cash;
+    check('online: a fare is the server\'s: not at another stop, ₦250 a keke passenger at the stop it is pulled up at, three (its seats) and then nobody else is waiting, one passenger at a time',
+      !wrongStop.ok && /not pulled up at that stop/.test(wrongStop.reason) && fares.slice(0, 3).every((f) => f.ok && f.pay === 250) && !fares[3].ok && /Nobody else is waiting/.test(fares[3].reason)
+        && tooQuick[0].ok && tooQuick[0].pay === 350 && !tooQuick[1].ok && /One passenger at a time/.test(tooQuick[1].reason) && busCash === 25_000 + 750 + 350,
+      { wrongStop, fares, tooQuick, busCash });
 
     // The next tier, same gig clock: the code sprint the phone used to pay at once.
     const kode = await call('/auth/guest', { name: 'Kode' });

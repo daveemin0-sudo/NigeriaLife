@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fareOf, seatsOf } from '../transit/Fares';
 import type { Player } from '../player/Player';
 import type { Solids } from './plan/Solids';
 import { SignageLibrary } from '../materials/SignageLibrary';
@@ -57,6 +58,8 @@ export class DrivableVehicle {
   public static roads: (() => readonly Zone[] | null) | null = null;
   /** The bus stops and the people waiting at them, for danfos and kekes: set once by the game */
   public static busStops: BusStops | null = null;
+  /** Pays a boarding passenger's fare through the game server, when there is one (set by the game) */
+  public static payFare: ((stop: number, type: string, fare: number, what: string) => void) | null = null;
   /** People in front of a vehicle step out of its way: returns how many moved (set by the game) */
   public static makeWay: ((x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth: number) => number) | null = null;
   /** Handling tests drive on a road with nobody else on it */
@@ -137,16 +140,9 @@ export class DrivableVehicle {
     this.config = config;
 
     this.isCommercialTransit = this.type === 'danfo' || this.type === 'keke';
-    this.maxPassengers =
-      this.type === 'danfo' ? 8 :
-      this.type === 'keke' ? 3 :
-      this.type === 'suv' || this.type === 'gwagon' ? 5 :
-      this.type === 'sedan' || this.type === 'luxury_sedan' || this.type === 'electric_car' ? 4 :
-      this.type === 'ambulance' ? 2 : 1;
-    this.fareRate =
-      this.type === 'danfo' ? 350 :
-      this.type === 'keke' ? 250 :
-      this.type === 'ambulance' ? 1200 : 500;
+    // Seats and fare from the one table the game server pays by (src/transit/Fares.ts)
+    this.maxPassengers = seatsOf(this.type);
+    this.fareRate = fareOf(this.type);
 
     this.mesh = new THREE.Group();
     this.mesh.position.copy(initialPos);
@@ -1995,7 +1991,9 @@ export class DrivableVehicle {
       this.passengers += 1;
       this.totalFaresCollected += this.fareRate;
       SoundEngine.getInstance().playTransactionSuccess();
-      BackendService.getInstance().addCash(this.fareRate, `Transit Fare: ${this.name}`);
+      // On a game server the fare is the server's: it sees the vehicle at the stop and pays it
+      if (DrivableVehicle.payFare) DrivableVehicle.payFare(stop, this.type, this.fareRate, `Transit Fare: ${this.name}`);
+      else BackendService.getInstance().addCash(this.fareRate, `Transit Fare: ${this.name}`);
       if (this.type === 'danfo') {
         LagosStreetLifeSystem.getInstance().triggerConductorShout();
       } else {

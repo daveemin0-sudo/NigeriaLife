@@ -463,6 +463,8 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
       return done(economy.startGig(account.id, String(body.gig ?? '')));
     case 'POST /work/gig/finish':
       return done(economy.finishGig(account.id, body.shift, body.idem));
+    case 'POST /work/fare':
+      return done(economy.payFare(account.id, body));
     case 'POST /work/ride/start':
       return done(economy.startRide(account.id, body));
     case 'POST /work/ride/finish':

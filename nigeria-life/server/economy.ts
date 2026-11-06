@@ -27,6 +27,7 @@ import { AGAMA_CAP, ALBUM_CASH, CASE_CASH, GIGS, QUEST_CASH, agamaPay, plotOf, q
 import { alert, transaction, type Store } from './store.ts';
 import { lagosDate, lagosMonth, lagosMonthStart, monthRelief, taxOffice, workPayslip, MAX_SLIPS, type Payslip } from '../src/life/Tax.ts';
 import { ROAD_FACTOR, rideFare } from '../src/jobs/RideHail.ts';
+import { FARE_VEHICLES, QUEUE_REFILL_MS, fareOf, seatsOf, stopAt } from '../src/transit/Fares.ts';
 
 export interface Wallet {
   cash: number;
@@ -47,10 +48,10 @@ type Result<T = object> = ({ ok: true; wallet: Wallet } & T) | { ok: false; reas
 
 /**
  * Earnings the game may report without the server checking them, in any ten minutes.
- * What is still on that path (a diaspora pickup and a spell of fares; Eko Rides trips are the
- * server's now) needs about ₦37,000. ₦40,000 clears that and leaves a fare or two. See server/earn.ts.
+ * What is still on that path is mostly a diaspora pickup (₦25,000, once a day); fares and Eko
+ * Rides trips are the server's now. ₦30,000 clears it and leaves room for a phone-game pot. See server/earn.ts.
  */
-export const UNVERIFIED_EARNING_LIMIT = 40_000;
+export const UNVERIFIED_EARNING_LIMIT = 30_000;
 /** The most a player may borrow at once. A loan is debt, not earnings: one at a time, up to this */
 export const LOAN_LIMIT = 5_000_000;
 /** Earnings of any kind in ten minutes above which an alert is raised */
@@ -71,6 +72,9 @@ const RIDE_MAX_M = 9_000;
 /** No car in Lagos traffic averages more than this, door to door (m/s, about 80 km/h) */
 const RIDE_TOP_SPEED = 22;
 const RIDE_EXPIRES_MS = 30 * 60_000;
+/** Passengers take a moment each to get in; and no driver fills more than this in ten minutes */
+const FARE_EVERY_MS = 1_200;
+const FARES_IN_TEN_MINUTES = 15_000;
 
 const whole = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? Math.trunc(n) : NaN);
 const cleanMemo = (memo: unknown) => String(memo ?? '').slice(0, 120);
@@ -546,6 +550,38 @@ export class Economy {
     const paid = this.apply(accountId, 'ride', pay, 0, `Eko Rides trip, ${(metres / 1000).toFixed(1)} km`, true, idem);
     if (!paid.ok) return paid;
     return { ok: true, wallet: paid.wallet, pay };
+  }
+
+  // --- Fares (src/transit/Fares.ts) -----------------------------------------------------------
+
+  /**
+   * A passenger got in at a Broad Street stop and paid: the server sees the vehicle pulled up at
+   * that stop, lets a passenger in only every second or so, no more from one stop than the
+   * vehicle seats before its queue fills again, and no more than ₦15,000 in ten minutes.
+   */
+  public payFare(accountId: string, raw: { stop?: unknown; vehicle?: unknown; idem?: unknown }): Result<{ pay?: number; replay?: boolean }> {
+    const idem = cleanIdem(raw.idem);
+    const stop = Number(raw.stop);
+    const vehicle = String(raw.vehicle ?? '');
+    if (!idem || !Number.isInteger(stop) || !FARE_VEHICLES.includes(vehicle)) return { ok: false, reason: 'That could not be read.', wallet: this.wallet(accountId) };
+    if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) return { ok: true, wallet: this.wallet(accountId), replay: true };
+    const at = this.positionOf(accountId);
+    if (!at || Date.now() - at.at > POSITION_FRESH_MS || at.city !== 'lagos' || at.place) return { ok: false, reason: 'The server cannot see your vehicle. Check your connection.', wallet: this.wallet(accountId) };
+    if (stopAt(at.x, at.z) !== stop) return { ok: false, reason: 'You are not pulled up at that stop.', wallet: this.wallet(accountId) };
+    const now = Date.now();
+    const last = this.db.prepare("SELECT MAX(at) AS at FROM ledger WHERE account_id = ? AND kind = 'fare'").get(accountId) as { at: number | null };
+    if (last.at && now - last.at < FARE_EVERY_MS) return { ok: false, reason: 'One passenger at a time.', wallet: this.wallet(accountId) };
+    const fromStop = this.db.prepare("SELECT COUNT(*) AS n FROM ledger WHERE account_id = ? AND kind = 'fare' AND memo LIKE ? AND at >= ?").get(accountId, `Fare at stop ${stop} %`, now - QUEUE_REFILL_MS) as { n: number };
+    if (fromStop.n >= seatsOf(vehicle)) return { ok: false, reason: 'Nobody else is waiting at this stop yet.', wallet: this.wallet(accountId) };
+    const fare = fareOf(vehicle);
+    const inTen = this.db.prepare("SELECT COALESCE(SUM(cash_delta), 0) AS sum FROM ledger WHERE account_id = ? AND kind = 'fare' AND at >= ?").get(accountId, now - TEN_MINUTES) as { sum: number };
+    if (inTen.sum + fare > FARES_IN_TEN_MINUTES) {
+      alert(this.db, accountId, 'fares-capped', `₦${inTen.sum.toLocaleString()} in fares in ten minutes`);
+      return { ok: false, reason: 'That is all the passengers for now.', wallet: this.wallet(accountId) };
+    }
+    const paid = this.apply(accountId, 'fare', fare, 0, `Fare at stop ${stop} (${vehicle})`, true, idem);
+    if (!paid.ok) return paid;
+    return { ok: true, wallet: paid.wallet, pay: fare };
   }
 
   // --- PAYE (src/life/Tax.ts) ----------------------------------------------------------------

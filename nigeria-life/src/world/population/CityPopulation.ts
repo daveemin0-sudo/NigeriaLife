@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BUS_STOPS, stopAt } from '../../transit/Fares';
 import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
 import { bakeToGeometry, seededRandom, simplifyByClustering } from '../../graphics/MeshBaker';
 import type { StreetSpot, WalkRun } from '../density/CityFabric';
@@ -67,13 +68,8 @@ interface Agent {
   willCross?: boolean;
 }
 
-/** Where people wait for a danfo: on the kerb of Broad Street, west side for southbound, east for northbound */
-export const BUS_STOPS: ReadonlyArray<{ z: number; side: -1 | 1 }> = [
-  { z: -20, side: -1 },
-  { z: 60, side: -1 },
-  { z: 40, side: 1 },
-  { z: -90, side: 1 },
-];
+// Where people wait for a danfo (src/transit/Fares.ts, shared with the game server)
+export { BUS_STOPS };
 /** How long a rider is gone before someone takes their place at the back of the queue, seconds */
 const RIDER_AWAY = 120;
 const BOARDING_SPEED = 1.7;
@@ -297,7 +293,7 @@ export class CityPopulation {
   // =========================================================================
   /** The bus stop a vehicle at (x, z) is pulled up at, or -1: in the kerb lane, alongside the queue. */
   public stopAt(x: number, z: number): number {
-    return BUS_STOPS.findIndex((stop) => Math.sign(x) === stop.side && Math.abs(x) > 3 && Math.abs(z - stop.z) < 9);
+    return stopAt(x, z);
   }
 
   /** How many are waiting at a stop now. */

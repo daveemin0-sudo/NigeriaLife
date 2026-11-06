@@ -1351,6 +1351,22 @@ export class Game {
       }
       return 0.5 + 0.5 * (lit / steps);
     };
+    // A passenger's fare, online, is paid by the server for the stop the vehicle stands at
+    const online = OnlineAccount.get();
+    if (online) {
+      DrivableVehicle.payFare = (stop, type, _fare, what) => {
+        void online.request('/work/fare', { stop, vehicle: type, idem: `fare:${online.id ?? 'x'}:${Date.now()}` }).then((paid) => {
+          const backend = BackendService.getInstance();
+          if (!paid?.ok) {
+            if (paid?.wallet) backend.applyServerWallet(paid.wallet);
+            showGameToast(`The fare did not go through: ${paid?.reason ?? 'the server did not answer'}`, 'warning', 3500);
+            return;
+          }
+          backend.settledByServer(() => backend.processTransaction({ type: 'JOB_SALARY', amount: paid.pay, description: what, source: 'wallet' }));
+          if (paid.wallet) backend.applyServerWallet(paid.wallet);
+        });
+      };
+    }
     LagosStreetLifeSystem.getInstance().lightHere = () => {
       if (this.world.interiorManager.isPlayerInside()) return null;
       const city = this.world.cityManager.currentCityId;
