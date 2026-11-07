@@ -9,6 +9,8 @@ import './style.css';
 import './ui/kit/kit.css';
 // The one look of the game: loaded last, it decides how every surface looks
 import './ui/theme/luxe.css';
+// Phones: after everything else, so the phone layout is what a phone shows
+import './ui/theme/phone.css';
 import { Game } from './game/Game';
 import { startTheme } from './ui/theme/Theme';
 import { TitleScreen } from './ui/TitleScreen';

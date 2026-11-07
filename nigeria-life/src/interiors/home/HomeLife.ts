@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { duvetOver } from '../../interactions/Duvet';
+import { bedDuvetNear, duvetOver } from '../../interactions/Duvet';
 import { Fridge } from '../../housing/Fridge';
 import { RENDER_LAYERS } from '../InteriorTypes';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
@@ -62,6 +62,8 @@ export class HomeLife {
   public onWatch: (() => void) | null = null;
   /** The duvet over the sleeper while they are in bed */
   private duvet: THREE.Group | null = null;
+  /** The bed's own duvet, folded away while it is pulled over the sleeper */
+  private bedCloth: THREE.Mesh | null = null;
   /** Everything the home came with that stands on the floor, as it was marked solid */
   public readonly solids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
 
@@ -148,9 +150,12 @@ export class HomeLife {
       player.hold = { release: (instant) => this.leaveFurniture(standAt, instant) };
       player.setScripted(true);
       player.pose = lying;
-      // Under the duvet, to the chest
+      // Under the bed's own duvet, pulled up to the chest
       this.duvet?.removeFromParent();
-      this.duvet = duvetOver(this.group, root, facing, top);
+      if (this.bedCloth) this.bedCloth.visible = true;
+      this.bedCloth = bedDuvetNear(this.group, root);
+      this.duvet = duvetOver(this.group, root, facing, top, this.bedCloth);
+      if (this.bedCloth) this.bedCloth.visible = false;
       this.begin('sleeping');
     });
     return this.director.run(lieDown);
@@ -222,9 +227,11 @@ export class HomeLife {
   private leaveFurniture(standAt: THREE.Vector3, instant = false): void {
     const player = this.director.player;
     const was = this.activity;
-    // The duvet thrown back
+    // The duvet thrown back, onto the bed again
     this.duvet?.removeFromParent();
     this.duvet = null;
+    if (this.bedCloth) this.bedCloth.visible = true;
+    this.bedCloth = null;
     this.activity = null;
     this.changed();
     if (!player) return;

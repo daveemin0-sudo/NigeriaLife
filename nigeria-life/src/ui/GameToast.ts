@@ -66,8 +66,10 @@ export function showGameToast(
     toastContainer.style.cssText = `
       position: fixed;
       top: ${window.innerWidth <= 700 ? 150 : 104}px;
-      left: 50%;
-      transform: translateX(-50%);
+      /* Across the screen with a gutter, the toasts centred in it: at left 50% a toast only had half
+         the screen to wrap in, and on a phone came out as a tall narrow board */
+      left: 8px;
+      right: 8px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -121,7 +123,8 @@ export function showGameToast(
     opacity: 0;
     transform: translateY(-12px) scale(0.96);
     transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
-    max-width: ${phone ? '90vw' : 'min(90vw, 520px)'};
+    max-width: ${phone ? '100%' : 'min(100%, 520px)'};
+    box-sizing: border-box;
     text-align: left;
   `;
   const badge = document.createElement('span');

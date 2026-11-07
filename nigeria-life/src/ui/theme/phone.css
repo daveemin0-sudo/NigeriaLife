@@ -1,0 +1,940 @@
+/* =============================================================================================
+   PHONES. Loaded after every other sheet, so what is set here is what a phone shows.
+
+   A phone screen is narrow, and a phone set to a larger text size zooms the page, so the screen
+   can be as little as about 320 px across. Every surface here is laid out for that: slim, one
+   line where it can be, nothing past the edge, nothing on top of anything else.
+
+   Upright, from the top:  the top card (time, money, needs) · one row: the quest on the left,
+   the nearby chevron in the middle, the place on the right · the streak on the left, chat on the
+   right · music and view, small and round, down the right · toasts and what the player is busy
+   with, in the middle, clear of that column.  From the bottom: the bar of five buttons · the
+   room's card in a room · the stick and RUN on the left, the action button on the right.
+   ============================================================================================= */
+
+/* ------------------------------------------------------------- Hide the buttons (any screen) */
+#nl-show-ui {
+  display: none;
+}
+
+body.nl-hud-hidden #nl-show-ui {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  right: calc(env(safe-area-inset-right, 0px) + 10px);
+  z-index: 2147482000;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #14532d;
+  font: 700 12.5px/1 var(--nl-font, system-ui, sans-serif);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+
+body.nl-hud-hidden .hud-header,
+body.nl-hud-hidden .hud-top-right-group,
+body.nl-hud-hidden .hud-center-pill-bar,
+body.nl-hud-hidden #hud-quest-tracker,
+body.nl-hud-hidden .hud-top-left-badges,
+body.nl-hud-hidden #street-radar-bar,
+body.nl-hud-hidden #map-city-switcher,
+body.nl-hud-hidden #house-decor-bar,
+body.nl-hud-hidden .bottom-master-nav,
+body.nl-hud-hidden .hud-footer,
+body.nl-hud-hidden #camera-rotate-widget,
+body.nl-hud-hidden #hud-proximity-prompt,
+body.nl-hud-hidden #place-card,
+body.nl-hud-hidden #music-fab,
+body.nl-hud-hidden #view-fab,
+body.nl-hud-hidden #street-chat-box,
+body.nl-hud-hidden #top-menu-btn,
+body.nl-hud-hidden #hud-today-chip,
+body.nl-hud-hidden #nl-minimap,
+body.nl-hud-hidden #nl-storey,
+body.nl-hud-hidden #driving-hud,
+body.nl-hud-hidden #virtual-mobile-controls .v-actions-cluster,
+body.nl-hud-hidden #v-btn-run {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------- The room's card, folded */
+.place-card.is-folded .place-chips {
+  display: none !important;
+}
+
+.place-card.is-folded .place-titles {
+  cursor: pointer;
+}
+
+.place-fold-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--lx-line, rgba(20, 83, 45, 0.18));
+  background: var(--lx-surface-2, rgba(255, 255, 255, 0.7));
+  color: var(--lx-ink, #14532d);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ============================================================================================
+   PHONE, held either way
+   ============================================================================================ */
+@media (max-width: 700px), (max-height: 500px) {
+  html body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* --- The top row: the place name and the quest, one line each ----------------------------- */
+  html body .hud-top-right-group .hud-cloud-pill,
+  html body .hud-top-right-group .btn-camera-view-toggle,
+  html body .hud-center-pill-bar .online-pill,
+  html body .hud-center-pill-bar .perf-pill,
+  html body #hud-quality-showcase-btn,
+  html body .hud-top-left-badges .top-badge {
+    display: none !important;
+  }
+  html body .hud-header > .hud-top-right-group {
+    gap: 4px !important;
+    right: 8px !important;
+  }
+  html body .hud-top-right-group .hud-location {
+    padding: 4px 10px 4px 6px !important;
+    gap: 6px !important;
+    max-width: 42vw !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    border-radius: 999px !important;
+  }
+  html body .hud-top-right-group .hud-location .loc-details {
+    min-width: 0 !important;
+  }
+  html body .hud-top-right-group .hud-location .loc-name {
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  html body .hud-top-right-group .hud-location .loc-sub {
+    display: none !important;
+  }
+  html body #hud-quest-tracker {
+    max-width: 38vw !important;
+    padding: 4px 10px !important;
+    border-radius: 999px !important;
+    min-height: 0 !important;
+  }
+  html body #hud-quest-tracker .tracker-body,
+  html body #hud-quest-tracker .tracker-arc,
+  html body #hud-quest-tracker .btn-tracker-toggle {
+    display: none !important;
+  }
+  html body #hud-quest-tracker .tracker-title {
+    font-size: 11.5px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  html body #hud-today-chip {
+    left: 8px !important;
+    padding: 4px 9px !important;
+    font-size: 11px !important;
+    min-height: 0 !important;
+  }
+
+  /* --- Chat, music and view: small and round, down the right --------------------------------- */
+  html body #street-chat-box.minimized,
+  html body #street-chat-box.minimized.chat-mobile-adapted {
+    left: auto !important;
+    right: 8px !important;
+    bottom: auto !important;
+    width: auto !important;
+    max-width: 40vw !important;
+    min-width: 0 !important;
+    border-radius: 999px !important;
+  }
+  html body #street-chat-box.minimized .chat-header {
+    padding: 5px 10px !important;
+    min-height: 0 !important;
+    gap: 6px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    flex-wrap: nowrap !important;
+  }
+  html body #street-chat-box.minimized .chat-header * {
+    white-space: nowrap !important;
+  }
+  html body #music-fab,
+  html body #view-fab {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    right: 8px !important;
+    left: auto !important;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18) !important;
+  }
+  html body #music-fab svg,
+  html body #view-fab svg {
+    width: 19px !important;
+    height: 19px !important;
+  }
+
+  /* --- Toasts: a slim line (two at most), centred, clear of the round buttons ---------------- */
+  html body #game-toast-container {
+    left: 8px !important;
+    right: 56px !important;
+    transform: none !important;
+    gap: 6px !important;
+  }
+  html body .game-toast {
+    max-width: 100% !important;
+    padding: 6px 12px 6px 6px !important;
+    border-radius: 14px !important;
+    gap: 8px !important;
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16) !important;
+  }
+  html body .game-toast .game-toast-icon {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 12px !important;
+  }
+  html body .game-toast .game-toast-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* --- What the player is busy with (sleeping, eating): a slim bar under the chips ----------- */
+  html body .buka-order-status {
+    top: calc(env(safe-area-inset-top, 0px) + 150px) !important;
+    bottom: auto !important;
+    left: 8px !important;
+    right: 56px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 5px 6px 5px 10px !important;
+    gap: 8px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16) !important;
+  }
+  html body .buka-order-status .buka-status-icon {
+    font-size: 16px !important;
+    width: auto !important;
+    height: auto !important;
+  }
+  html body .buka-order-status .buka-status-name {
+    font-size: 12.5px !important;
+  }
+  html body .buka-order-status .buka-status-line {
+    font-size: 11px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  html body .buka-order-status .buka-status-btn {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    min-height: 0 !important;
+  }
+
+  /* --- The bar of buttons along the bottom: five that always fit, the icon over its name ----- */
+  html body .bottom-master-nav {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 4px !important;
+    gap: 2px !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+    border-radius: 18px !important;
+  }
+  html body .bottom-master-nav .master-nav-item {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    padding: 5px 2px !important;
+    border-radius: 14px !important;
+  }
+  html body .bottom-master-nav .nav-icon,
+  html body .bottom-master-nav .nav-icon svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  html body .bottom-master-nav .nav-label {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+
+  /* --- The stick and RUN, a little smaller ------------------------------------------------------ */
+  html body .v-joystick-base {
+    width: 96px !important;
+    height: 96px !important;
+    left: 14px !important;
+  }
+  html body .v-run-chip {
+    left: 96px !important;
+    min-width: 42px !important;
+    height: 42px !important;
+  }
+
+  /* --- The action button: on the right, one line, never over the stick ------------------------ */
+  html body .hud-proximity-prompt,
+  html body[data-ui-mode="interior"] .hud-proximity-prompt {
+    left: auto !important;
+    right: 8px !important;
+    transform: none !important;
+    max-width: calc(100vw - 170px) !important;
+    padding: 9px 14px !important;
+    gap: 6px !important;
+    font-size: 13px !important;
+    border-radius: 999px !important;
+  }
+  html body .hud-proximity-prompt .prompt-key-badge {
+    display: none !important;
+  }
+  html body .hud-proximity-prompt .prompt-label {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* --- The room's own card: a slim bar, its chips in one row that scrolls sideways ------------ */
+  html body .place-card {
+    left: 8px !important;
+    right: 8px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 6px 8px !important;
+    gap: 6px !important;
+    border-radius: 16px !important;
+    max-height: 34vh !important;
+    box-sizing: border-box !important;
+  }
+  html body .place-card .place-icon {
+    font-size: 16px !important;
+    width: 28px !important;
+    height: 28px !important;
+    flex: 0 0 auto !important;
+  }
+  html body .place-card .place-titles {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+  html body .place-card .place-name {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  html body .place-card .place-sub {
+    font-size: 10.5px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  html body .place-card .place-leave-btn {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    flex: 0 0 auto !important;
+  }
+  html body .place-card .place-chips {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px !important;
+  }
+  html body .place-card .place-chips::-webkit-scrollbar {
+    display: none;
+  }
+  html body .place-card .place-chip {
+    flex: 0 0 auto !important;
+    padding: 6px 10px !important;
+    font-size: 11.5px !important;
+  }
+
+  /* The moves bar is in the phone's menu: on the screen it only covered the street */
+  html body .hud-footer {
+    display: none !important;
+  }
+
+  /* --- Driving: the minimap takes the top right, so the place name is under the speed --------- */
+  html body[data-ui-mode="driving"] .hud-top-right-group,
+  html body:has(#nl-minimap.is-on) .hud-top-right-group,
+  html body[data-ui-mode="driving"] .hud-top-left-badges,
+  html body[data-ui-mode="driving"] #hud-quest-tracker,
+  html body[data-ui-mode="driving"] #hud-today-chip,
+  html body[data-ui-mode="driving"] #street-radar-bar {
+    display: none !important;
+  }
+
+  html body #nl-minimap.nl-minimap {
+    width: 104px !important;
+    height: 104px !important;
+    /* Its N stands just outside the circle: room for it inside the screen */
+    right: 20px !important;
+  }
+  /* Tags in the phone's apps shrink with the row instead of poking out of it */
+  html body #smartphone-wrapper .nl-tag {
+    flex-shrink: 1 !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  html body #smartphone-wrapper .nl-card-head,
+  html body #smartphone-wrapper .nl-row {
+    min-width: 0 !important;
+  }
+  html body .drive-controls .drive-top {
+    left: 8px !important;
+    right: 124px !important;
+    max-width: none !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+  html body .drive-controls .drive-top > * {
+    padding: 5px 9px !important;
+    font-size: 11px !important;
+    min-height: 0 !important;
+  }
+  /* The speed above the steering, clear of the horn and the pedals */
+  html body .drive-controls .drive-speed {
+    left: 14px !important;
+    right: auto !important;
+    transform: none !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 122px) !important;
+  }
+  html body .btn-map-close {
+    padding: 7px 12px !important;
+    font-size: 12px !important;
+    gap: 4px !important;
+  }
+  html body .drive-controls .drive-name {
+    max-width: 40vw !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* --- Every window (quests, flights, bag, cash machine, businesses, travel) ------------------ */
+  /* Across the screen with a small gutter, the header one or two lines, nothing past the edge */
+  html body .quest-modal-open,
+  html body .lagos-modal,
+  html body #interstate-modal,
+  html body #inventory-modal,
+  html body #atm-modal,
+  html body #travel-modal {
+    padding: 6px !important;
+    box-sizing: border-box !important;
+  }
+  html body .inventory-dialog,
+  html body .atm-dialog,
+  html body .economy-dialog,
+  html body .travel-dialog,
+  html body .interstate-dialog,
+  html body .quest-modal-dialog,
+  html body .wardrobe-dialog {
+    width: calc(100vw - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+    min-width: 0 !important;
+    max-height: calc(100dvh - 12px) !important;
+    border-radius: 18px !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25) !important;
+  }
+  html body .inventory-dialog *,
+  html body .atm-dialog *,
+  html body .economy-dialog *,
+  html body .travel-dialog *,
+  html body .interstate-dialog *,
+  html body .quest-modal-dialog *,
+  html body .wardrobe-dialog * {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
+  }
+  /* Grids of cards (flights, city travel): one card across a phone; buttons keep their words */
+  html body .interstate-routes-grid,
+  html body .destinations-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  html body .quest-modal-dialog button,
+  html body .interstate-dialog button,
+  html body .travel-dialog button {
+    flex-shrink: 0 !important;
+  }
+  html body .quest-modal-dialog [class*="footer"],
+  html body .quest-modal-dialog [class*="actions"],
+  html body .quest-modal-dialog [class*="reward"] {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  /* The money in the bag's three boxes: a size that fits a third of a phone */
+  html body .inventory-dialog .fin-value {
+    font-size: 14px !important;
+    white-space: nowrap !important;
+  }
+  html body .inventory-dialog .fin-label {
+    font-size: 9.5px !important;
+  }
+  html body .inventory-dialog .inv-finances-bar {
+    gap: 6px !important;
+  }
+  html body .inventory-dialog img,
+  html body .wardrobe-dialog canvas {
+    height: auto;
+  }
+  /* Headers: the title on one or two lines, the line under it short, the badge one small line */
+  html body .dialog-header,
+  html body .quest-modal-header,
+  html body .economy-dialog .modal-header {
+    padding: 12px 12px 8px 14px !important;
+    gap: 8px !important;
+    align-items: flex-start !important;
+  }
+  html body .dialog-header h2,
+  html body .quest-modal-header h2,
+  html body .economy-dialog .modal-header h2,
+  html body .dialog-title-wrap h2 {
+    font-size: 17px !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    letter-spacing: -0.01em !important;
+  }
+  html body .dialog-header p,
+  html body .quest-modal-header p,
+  html body .economy-dialog .modal-header p,
+  html body .dialog-title-wrap p {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    margin: 2px 0 0 !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  html body .dialog-badge,
+  html body .economy-dialog .modal-tag {
+    display: inline-block !important;
+    font-size: 9.5px !important;
+    letter-spacing: 0.04em !important;
+    padding: 3px 8px !important;
+    margin-bottom: 4px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+  html body .dialog-close-btn,
+  html body .quest-modal-close-btn,
+  html body .economy-dialog .modal-close-btn {
+    width: 32px !important;
+    height: 32px !important;
+    flex: 0 0 32px !important;
+    font-size: 16px !important;
+  }
+  html body .dialog-body,
+  html body .quest-modal-body,
+  html body .economy-dialog .econ-tab-content,
+  html body .economy-dialog .econ-metrics-grid {
+    padding: 10px 12px !important;
+  }
+  html body .dialog-footer {
+    padding: 8px 12px 12px !important;
+  }
+  /* Tabs: a row of slim pills that scrolls sideways, never circles, never wrapped */
+  html body .quest-city-tabs,
+  html body .economy-dialog .econ-tab-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    padding: 4px 12px 8px !important;
+    scrollbar-width: none;
+  }
+  html body .quest-city-tabs::-webkit-scrollbar,
+  html body .economy-dialog .econ-tab-bar::-webkit-scrollbar {
+    display: none;
+  }
+  html body .quest-tab-btn,
+  html body .economy-dialog .econ-tab-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: auto !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    border-radius: 999px !important;
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 4px !important;
+    max-width: none !important;
+  }
+  html body .quest-tab-btn br {
+    display: none;
+  }
+  /* Cards inside: less padding, a smaller corner, the title a size a phone wants */
+  html body .inventory-dialog [class*="card"],
+  html body .atm-dialog [class*="card"],
+  html body .economy-dialog [class*="card"],
+  html body .travel-dialog [class*="card"],
+  html body .interstate-dialog [class*="card"],
+  html body .quest-modal-dialog [class*="card"]:not(.quest-cards-list) {
+    padding: 10px 12px !important;
+    border-radius: 14px !important;
+  }
+  html body .inventory-dialog h3,
+  html body .atm-dialog h3,
+  html body .economy-dialog h3,
+  html body .travel-dialog h3,
+  html body .interstate-dialog h3,
+  html body .quest-modal-dialog h3 {
+    font-size: 14.5px !important;
+    line-height: 1.25 !important;
+  }
+  html body .inventory-dialog h4,
+  html body .atm-dialog h4,
+  html body .economy-dialog h4,
+  html body .travel-dialog h4,
+  html body .interstate-dialog h4,
+  html body .quest-modal-dialog h4 {
+    font-size: 13px !important;
+  }
+  html body .inventory-dialog button,
+  html body .atm-dialog button,
+  html body .economy-dialog button,
+  html body .travel-dialog button,
+  html body .interstate-dialog button,
+  html body .quest-modal-dialog button {
+    white-space: normal !important;
+    font-size: 12.5px !important;
+  }
+
+  /* --- A talk with someone (the dialogue card) -------------------------------------------------- */
+  html body #game-dialogue-overlay > * {
+    max-width: calc(100vw - 12px) !important;
+    box-sizing: border-box !important;
+  }
+
+  /* --- The phone in the game: the whole screen of a real phone, no frame round it -------------- */
+  html body #smartphone-wrapper {
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+  }
+  html body #smartphone-wrapper .smartphone-device,
+  html body #smartphone-wrapper .smartphone-device.nlphone {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    border-width: 0 !important;
+    box-shadow: none !important;
+  }
+  html body #smartphone-wrapper .phone-close-floating-pill {
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    right: 8px !important;
+    left: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    z-index: 20 !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+  html body #smartphone-wrapper .smartphone-device h1 {
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+  }
+
+  /* --- The map: the map first; the search is its icon until tapped ----------------------------- */
+  html body .map-top-bar {
+    left: 8px !important;
+    right: 8px !important;
+    gap: 6px !important;
+  }
+  html body .map-top-center .map-stat-pill {
+    display: none !important;
+  }
+  html body .map-top-center {
+    flex: 0 0 auto !important;
+    order: 0 !important;
+    background: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  html body .map-search {
+    background: var(--lx-card, rgba(255, 255, 255, 0.94)) !important;
+    border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.1)) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14) !important;
+  }
+  html body .map-search {
+    flex: 0 0 auto !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    overflow: hidden !important;
+    transition: width 0.2s ease;
+  }
+  html body .map-search .map-search-ico {
+    width: 38px !important;
+    height: 38px !important;
+    display: grid !important;
+    place-items: center !important;
+    cursor: pointer;
+    flex: 0 0 38px !important;
+    margin: 0 !important;
+  }
+  html body .map-search input {
+    display: none !important;
+  }
+  /* Open, the search takes a row of its own in the top bar */
+  html body .map-top-center:has(.map-search.is-open) {
+    flex: 1 1 100% !important;
+    order: 5 !important;
+  }
+  html body .map-search.is-open {
+    width: 100% !important;
+    overflow: visible !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  html body .map-search.is-open input {
+    display: block !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    font-size: 14px !important;
+  }
+  html body .map-search .map-search-results {
+    max-width: calc(100vw - 16px) !important;
+  }
+  html body .map-city-tabs {
+    transform: none !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    scrollbar-width: none;
+    left: 8px !important;
+    right: 8px !important;
+    max-width: none !important;
+  }
+  html body .map-city-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  html body .map-city-tabs > * {
+    flex: 0 0 auto !important;
+  }
+  html body .map-city-tabs .city-nav-tab,
+  html body .map-city-tabs .map-filter-btn,
+  html body .map-city-tabs .map-names-toggle {
+    padding: 5px 10px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+  /* The districts: only with the search open */
+  html body .map-district-strip {
+    display: none !important;
+  }
+  html body:has(.map-search.is-open) .map-district-strip {
+    display: flex !important;
+  }
+}
+
+/* --- On the map the stops run down the left: a toast goes low, under them, over the hint line --- */
+@media (max-width: 700px), (max-height: 500px) {
+  html body[data-ui-mode="world-map"] #game-toast-container {
+    top: auto !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 64px) !important;
+    left: 8px !important;
+    right: 8px !important;
+  }
+}
+
+/* --- Phone held upright: the rows under the top card ------------------------------------------ */
+@media (max-width: 700px) and (orientation: portrait) {
+  html body .hud-header > .hud-top-right-group {
+    top: calc(env(safe-area-inset-top, 0px) + 80px) !important;
+  }
+  html body .hud-top-left-badges,
+  html body #hud-quest-tracker {
+    top: calc(env(safe-area-inset-top, 0px) + 80px) !important;
+    left: 8px !important;
+  }
+  /* Under the menu chevron: the row under the top card is the chevron's */
+  html body .drive-controls .drive-top {
+    top: calc(env(safe-area-inset-top, 0px) + 128px) !important;
+  }
+  html body #nl-minimap.nl-minimap {
+    top: calc(env(safe-area-inset-top, 0px) + 80px) !important;
+  }
+  html body #hud-today-chip {
+    top: calc(env(safe-area-inset-top, 0px) + 114px) !important;
+  }
+  html body #street-chat-box.minimized,
+  html body #street-chat-box.minimized.chat-mobile-adapted {
+    top: calc(env(safe-area-inset-top, 0px) + 112px) !important;
+  }
+  html body #music-fab {
+    top: calc(env(safe-area-inset-top, 0px) + 152px) !important;
+    bottom: auto !important;
+  }
+  html body #view-fab {
+    top: calc(env(safe-area-inset-top, 0px) + 198px) !important;
+    bottom: auto !important;
+  }
+  html body #game-toast-container {
+    top: calc(env(safe-area-inset-top, 0px) + 194px) !important;
+  }
+}
+
+/* --- Phone on its side: the top bar keeps one line, the rest under it ------------------------- */
+@media (max-height: 500px) and (orientation: landscape) {
+  html body .hud-top-left-badges,
+  html body #hud-quest-tracker {
+    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 10px) !important;
+  }
+  html body #hud-quest-tracker {
+    max-width: min(240px, 30vw) !important;
+  }
+  html body .drive-controls .drive-top {
+    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+  }
+  html body #nl-minimap.nl-minimap {
+    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    width: 92px !important;
+    height: 92px !important;
+  }
+  html body #hud-today-chip {
+    top: calc(env(safe-area-inset-top, 0px) + 86px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 10px) !important;
+  }
+  html body .hud-header > .hud-top-right-group {
+    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 10px) !important;
+  }
+  html body .hud-center-pill-bar {
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    max-width: calc(100vw - 24px) !important;
+    gap: 6px !important;
+    padding: 4px 10px !important;
+  }
+  html body .hud-center-pill-bar .mood-pill,
+  html body .hud-center-pill-bar .vital-val {
+    display: none !important;
+  }
+  html body .hud-center-pill-bar .vital-track {
+    width: 26px !important;
+  }
+  html body .bottom-master-nav {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: min(460px, calc(100vw - 340px)) !important;
+  }
+  html body .place-card {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: min(560px, calc(100vw - 280px)) !important;
+    max-height: 40vh !important;
+  }
+  html body #street-chat-box.minimized,
+  html body #street-chat-box.minimized.chat-mobile-adapted {
+    top: calc(env(safe-area-inset-top, 0px) + 92px) !important;
+  }
+  html body #music-fab,
+  html body #view-fab {
+    left: calc(env(safe-area-inset-left, 0px) + 10px) !important;
+    right: auto !important;
+    bottom: auto !important;
+  }
+  html body #music-fab {
+    top: calc(env(safe-area-inset-top, 0px) + 118px) !important;
+  }
+  html body #view-fab {
+    top: calc(env(safe-area-inset-top, 0px) + 164px) !important;
+  }
+  /* The action button beside the bar of buttons, bottom right */
+  html body .hud-proximity-prompt,
+  html body[data-ui-mode="interior"] .hud-proximity-prompt {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+    max-width: calc((100vw - min(460px, 100vw - 340px)) / 2 - 18px) !important;
+  }
+  /* A card someone or something opens: on the right, under the top bar, scrolling inside */
+  html body .interaction-card,
+  html body .interaction-card.card-dock-center-right {
+    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    bottom: 60px !important;
+    right: 8px !important;
+    left: auto !important;
+    transform: none !important;
+    width: min(320px, 42vw) !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+  }
+  html body .lx-pop.view-sheet {
+    max-height: calc(100dvh - 130px) !important;
+    overflow-y: auto !important;
+  }
+  html body #game-toast-container {
+    top: calc(env(safe-area-inset-top, 0px) + 132px) !important;
+    left: 30vw !important;
+    right: 30vw !important;
+  }
+  html body .buka-order-status {
+    top: calc(env(safe-area-inset-top, 0px) + 92px) !important;
+    left: 30vw !important;
+    right: 30vw !important;
+  }
+  html body .inventory-dialog,
+  html body .atm-dialog,
+  html body .economy-dialog,
+  html body .travel-dialog,
+  html body .interstate-dialog,
+  html body .quest-modal-dialog,
+  html body .wardrobe-dialog {
+    width: min(680px, calc(100vw - 12px)) !important;
+  }
+}

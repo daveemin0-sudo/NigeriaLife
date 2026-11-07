@@ -62,6 +62,9 @@ export async function run(_browser, check) {
   check('phonelife: a room rented for under ₦300,000 comes basic: a small TV, plastic chairs, a fan and a stove; no big sofa, extra beds or bathtub', home.inside === 'residence' && home.standard === 'basic' && basicPieces.length === 4 && rich.length === 0, { ...home, basicPieces, rich });
 
   // The catalogue, from Decorate
+  // On a phone the room's card starts folded: one tap opens it
+  if (await page.evaluate(() => document.getElementById('place-card')?.classList.contains('is-folded'))) await tap('#place-fold-btn');
+  await wait(300);
   const decorate = await tap('#place-extra-decorate');
   await wait(1200);
   const sheet = await page.evaluate(() => {

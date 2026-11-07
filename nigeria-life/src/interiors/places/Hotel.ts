@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { duvetOver } from '../../interactions/Duvet';
+import { bedDuvetNear, duvetOver } from '../../interactions/Duvet';
 import { Builder, signBoard } from '../../world/kit/ArchKit';
 import { Sequence, steps } from '../../interactions/Sequence';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
@@ -679,7 +679,7 @@ class Suite {
       this.slept = 0;
       this.restedTold = false;
       this.duvet?.removeFromParent();
-      this.duvet = duvetOver(this.room.group, { x: rx, z: rz }, 0, SUITE.bed.top, 0xf8fafc);
+      this.duvet = duvetOver(this.room.group, { x: rx, z: rz }, 0, SUITE.bed.top, bedDuvetNear(this.room.group, { x: rx, z: rz }) ?? 0xf1ece2);
       host.say('🛏️ Cold AC, soft sheets. You drift off.', 'info');
     });
     host.director.run(lieDown);

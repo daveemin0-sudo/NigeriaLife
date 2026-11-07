@@ -284,8 +284,25 @@ export class WorldMapUI {
       this.onCardClosed?.();
     });
 
-    // Finding a place by name, or by what is done there
+    // Finding a place by name, or by what is done there. On a phone the search is its icon until
+    // tapped (the map is left to be seen); it closes again when left empty or a place is chosen
     const search = document.getElementById('map-search-input') as HTMLInputElement | null;
+    const searchBox = document.getElementById('map-search');
+    searchBox?.querySelector('.map-search-ico')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !searchBox.classList.contains('is-open');
+      searchBox.classList.toggle('is-open', open);
+      if (open) search?.focus();
+      else search?.blur();
+    });
+    search?.addEventListener('blur', () => {
+      window.setTimeout(() => {
+        if (search.value.trim() === '' && document.activeElement !== search) searchBox?.classList.remove('is-open');
+      }, 250);
+    });
+    document.getElementById('map-search-results')?.addEventListener('click', () => {
+      window.setTimeout(() => searchBox?.classList.remove('is-open'), 50);
+    });
     search?.addEventListener('input', () => this.showSearchResults(search.value));
     search?.addEventListener('focus', () => this.showSearchResults(search.value));
     search?.addEventListener('keydown', (e) => {

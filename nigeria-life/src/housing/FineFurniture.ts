@@ -169,26 +169,89 @@ export function fineToilet(): THREE.Group {
   return b.build('toilet_wc', { roughness: 0.18 });
 }
 
-/** A standing fan: a weighted base, a stem, the motor, three blades behind a round cage */
+/**
+ * A standing fan as they are sold in Lagos: a round weighted base with its three speed buttons, a
+ * tube and a rod up from it, a rounded motor, three wide blades you can half see through on a hub
+ * with its badge, behind a light grille (a rim, two rings and fine spokes, front and back) that
+ * shows the blades through it instead of hiding them behind a cage of wire.
+ */
 export function fineFan(colour = 0x0284c7): THREE.Group {
   const b = new Builder();
-  b.shape(colour, turned([[0.3, 0], [0.31, 0.02], [0.28, 0.05], [0.08, 0.07], [0.001, 0.07]], 28), 0, 0, 0);
-  b.shape(0x1f2937, new THREE.CylinderGeometry(0.02, 0.025, 1.3, 10), 0, 0.72, 0);
-  b.shape(0x1f2937, soft(0.14, 0.14, 0.2, 0.06), 0, 1.42, -0.06);
-  // A new blade each time: the kit moves a part in place, so one shape cannot be put down twice
+  const body = 0xeef0f2;
+  const steel = 0xc7ccd3;
+  // The base and its speed buttons
+  b.shape(body, turned([[0.24, 0], [0.25, 0.015], [0.235, 0.04], [0.07, 0.065], [0.001, 0.065]], 32), 0, 0, 0);
+  [0x16a34a, 0xf59e0b, 0xdc2626].forEach((hex, k) => b.shape(hex, soft(0.034, 0.014, 0.026, 0.006), -0.05 + k * 0.05, 0.05, 0.14));
+  // The tube, its collar and the rod
+  b.shape(body, new THREE.CylinderGeometry(0.026, 0.032, 0.72, 16), 0, 0.42, 0);
+  b.shape(steel, new THREE.CylinderGeometry(0.034, 0.034, 0.045, 16), 0, 0.79, 0);
+  b.shape(steel, new THREE.CylinderGeometry(0.016, 0.016, 0.56, 12), 0, 1.08, 0);
+  // The motor: round, its back rounded off, facing the room (+z); the knob on top that sets it turning
+  b.shape(body, new THREE.CylinderGeometry(0.088, 0.078, 0.15, 28).rotateX(Math.PI / 2), 0, 1.4, -0.07);
+  b.shape(body, new THREE.SphereGeometry(0.078, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(-Math.PI / 2), 0, 1.4, -0.145);
+  b.shape(steel, new THREE.CylinderGeometry(0.012, 0.012, 0.05, 10), 0, 1.5, -0.09);
+  const fan = b.build('standing_fan', { roughness: 0.45 });
+
+  const head = new THREE.Group();
+  head.name = 'fan head';
+  head.position.set(0, 1.4, 0);
+  fan.add(head);
+  // Three wide blades on a hub, a little see-through like the real plastic ones
+  const blade = new THREE.Shape();
+  blade.moveTo(0.035, -0.02);
+  blade.bezierCurveTo(0.1, -0.075, 0.25, -0.07, 0.255, 0.0);
+  blade.bezierCurveTo(0.255, 0.07, 0.12, 0.085, 0.035, 0.02);
+  blade.closePath();
+  const bladeMaterial = new THREE.MeshStandardMaterial({ color: colour, roughness: 0.25, metalness: 0, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false });
+  const blades = new THREE.Group();
+  blades.name = 'fan blades';
+  blades.position.z = 0.04;
   for (let k = 0; k < 3; k++) {
-    const a = (k * Math.PI * 2) / 3;
-    b.shape(colour, soft(0.22, 0.012, 0.1, 0.005), Math.cos(a) * 0.13, 1.45 + Math.sin(a) * 0.13, 0.06, { pitch: Math.PI / 2, roll: a });
+    const one = new THREE.Mesh(new THREE.ShapeGeometry(blade, 10), bladeMaterial);
+    one.rotation.z = (k * Math.PI * 2) / 3;
+    // Pitched, so each catches the air
+    one.rotation.x = 0.22;
+    blades.add(one);
   }
-  for (const z of [0.02, 0.1]) {
-    const cage = new THREE.TorusGeometry(0.29, 0.006, 6, 40);
-    b.shape(0x94a3b8, cage, 0, 1.45, z);
+  const hubMaterial = new THREE.MeshStandardMaterial({ color: body, roughness: 0.4 });
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.035, 24).rotateX(Math.PI / 2), hubMaterial);
+  hub.position.z = 0.05;
+  const badge = new THREE.Mesh(new THREE.CircleGeometry(0.03, 24), new THREE.MeshStandardMaterial({ color: colour, roughness: 0.3, metalness: 0.2 }));
+  badge.position.z = 0.069;
+  blades.add(hub, badge);
+  head.add(blades);
+  // The grille: a rim, two rings and fine spokes, front and back, and the faint sheen of the mesh between
+  const wire = new THREE.MeshStandardMaterial({ color: steel, roughness: 0.35, metalness: 0.6 });
+  const sheen = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false });
+  for (const [z, bulge] of [[0.1, 0.025], [-0.02, -0.015]] as const) {
+    const grille = new THREE.Group();
+    grille.position.z = z;
+    grille.add(new THREE.Mesh(new THREE.TorusGeometry(0.285, 0.009, 8, 64), wire));
+    for (const r of [0.1, 0.19]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.0035, 6, 48), wire);
+      ring.position.z = bulge * (1 - r / 0.285);
+      grille.add(ring);
+    }
+    for (let k = 0; k < 20; k++) {
+      const a = (k * Math.PI * 2) / 20;
+      const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.235, 4), wire);
+      spoke.position.set(Math.cos(a) * 0.165, Math.sin(a) * 0.165, bulge * 0.45);
+      spoke.rotation.z = a - Math.PI / 2;
+      grille.add(spoke);
+    }
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.28, 48), sheen);
+    disc.position.z = bulge * 0.5;
+    grille.add(disc);
+    head.add(grille);
   }
-  for (let k = 0; k < 12; k++) {
-    const a = (k * Math.PI * 2) / 12;
-    b.shape(0x94a3b8, new THREE.CylinderGeometry(0.004, 0.004, 0.29, 4), Math.cos(a) * 0.145, 1.45 + Math.sin(a) * 0.145, 0.11, { roll: a + Math.PI / 2 });
-  }
-  return b.build('standing_fan', { roughness: 0.45 });
+  // The badge in the middle of the front grille
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.012, 24).rotateX(Math.PI / 2), hubMaterial);
+  cap.position.z = 0.125;
+  head.add(cap);
+  fan.traverse((child) => {
+    if (child instanceof THREE.Mesh) child.castShadow = true;
+  });
+  return fan;
 }
 
 /** A floor lamp: a turned base, a slim stem, a pleated cloth shade glowing warm */
