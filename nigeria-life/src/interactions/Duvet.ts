@@ -42,7 +42,7 @@ export function duvetOver(parent: THREE.Object3D, feet: { x: number; z: number }
     : new THREE.MeshStandardMaterial({ color: typeof cut === 'number' ? cut : 0x9f1d2c, roughness: 0.9, side: THREE.DoubleSide });
   const sheet = new THREE.MeshStandardMaterial({ color: 0xf8f6f0, roughness: 0.85 });
   // As wide as the bed's own duvet lies (it hangs `drop` down each side)
-  const drop = 0.3;
+  const drop = 0.34;
   let width = 1.3;
   if (like) {
     like.geometry.computeBoundingBox();
@@ -53,13 +53,13 @@ export function duvetOver(parent: THREE.Object3D, feet: { x: number; z: number }
   // Laid along the bed, local +z toward the foot: raised over the body, plumped, its sides draped down
   const body = new THREE.Mesh(duvet(width, length, drop, { folds: 5, puff: 0.09, seed: 7 }), cloth);
   // High enough over the body that the toes, pointing up, stay under it
-  body.position.set(0, 0.2, 0.05);
+  body.position.set(0, 0.32, 0.05);
   body.castShadow = true;
   body.receiveShadow = true;
   // The sheet turned down over its head edge, a soft roll across the chest
   const fold = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, Math.max(0.4, width - 0.12), 4, 12), sheet);
   fold.rotation.z = Math.PI / 2;
-  fold.position.set(0, 0.27, 0.05 - length / 2 + 0.04);
+  fold.position.set(0, 0.36, 0.05 - length / 2 + 0.04);
   cover.add(body, fold);
   // From the feet back up to the chest: the head is the other way from the foot of the bed
   // Its foot end a hand past the feet
