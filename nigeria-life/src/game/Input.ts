@@ -22,10 +22,6 @@ export class InputManager {
   // Camera Orbit Drag State
   private isRotatingCamera: boolean = false;
   private isPointerDown: boolean = false;
-  /** The mouse button held down (0 left, 1 middle, 2 right) */
-  private downButton = 0;
-  /** When the body was last sent after the pointer (a held left button in a room) */
-  private followedAt = 0;
   private hasDragged: boolean = false;
   private pointerDownPos = new THREE.Vector2();
   private lastMouseX: number = 0;
@@ -275,19 +271,8 @@ export class InputManager {
       return;
     }
 
-    // In a room the mouse is the body's, not the view's: the left button held down and moved
-    // walks the player after the pointer. The view turns with the right (or middle) button held,
-    // with Q and R, or from the view picker
-    if (this.isPointerDown && this.downButton === 0 && this.world.interiorManager.isPlayerInside() && !this.player.isDriving) {
-      const dist = Math.hypot(event.clientX - this.pointerDownPos.x, event.clientY - this.pointerDownPos.y);
-      if (dist > 4) {
-        this.hasDragged = true;
-        this.followPointer(event.clientX, event.clientY);
-        return;
-      }
-    }
-
-    // Camera rotation orbit drag (with left-drag, right-drag, or middle-drag)
+    // A drag with any button (on a touchpad, tap twice and drag) turns the view, in a room as in the
+    // street. The body walks with the arrow keys or WASD, or to a spot clicked; a drag never moves it
     if (this.isPointerDown && this.cameraManager) {
       const dist = Math.hypot(event.clientX - this.pointerDownPos.x, event.clientY - this.pointerDownPos.y);
       if (dist > 4) {
@@ -404,8 +389,6 @@ export class InputManager {
 
     this.isPointerDown = true;
     this.hasDragged = false;
-    this.downButton = event.pointerType === 'touch' ? 0 : event.button;
-    this.followedAt = 0;
     this.pointerDownPos.set(event.clientX, event.clientY);
     this.lastMouseX = event.clientX;
     this.lastMouseY = event.clientY;
@@ -624,33 +607,6 @@ export class InputManager {
       'default';
   }
 
-  /**
-   * The left button held down in a room: the player walks to the floor under the pointer, and on
-   * after it as it moves (sent a few times a second, round the furniture). Seated, they stand first.
-   */
-  private followPointer(clientX: number, clientY: number): void {
-    const now = performance.now();
-    if (now - this.followedAt < 180) return;
-    const floor = this.world.interiorManager.getActiveFloorMesh();
-    if (!floor) return;
-    this.mouseCoords.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
-    this.raycaster.setFromCamera(this.mouseCoords, this.camera);
-    this.raycaster.layers.enableAll();
-    const hit = this.raycaster.intersectObject(floor, false)[0];
-    if (!hit) return;
-    // Getting up from a chair is not cut short by the next move of the mouse
-    const current = this.player.actor.sequence;
-    if (current && current.name !== 'walk' && !current.interruptible) return;
-    this.followedAt = now;
-    this.pendingInteraction = null;
-    this.hud.hideInteractionCard();
-    const nav = this.world.interiorManager.getActiveNav();
-    this.walkPlayerTo(nav ? nav.closestFree(hit.point) : hit.point);
-    this.hoverReticle.position.copy(hit.point);
-    this.hoverReticle.position.y = 0.04;
-    this.hoverReticle.visible = true;
-    this.setCursor('walk');
-  }
 
   private findInteractiveParent(obj: THREE.Object3D): InteractiveObject | null {
     // Ground, terrain, interior floor and room root should NEVER be matched as interactive!

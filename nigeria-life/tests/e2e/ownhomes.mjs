@@ -117,6 +117,47 @@ export async function run(browser, check) {
   check('work: the whole shift is worked piece after piece, each one paid; at the end the player is back in their own clothes and free to go',
     !!over && over.uniform === null && after > before && !(await page.evaluate(() => window.game.world.interiorManager.constructor.holdIn?.())), { over, paid: after - before });
 
+  // ------------------------------------------------------------------ Two houses built on the player's own land
+  // Each "Go inside" on a plot's page opens that house, under its own address: never the last home gone into
+  const built = await page.evaluate(async () => {
+    const g = window.game;
+    const b = g.hud.backend;
+    b.data.bank.balance = 5_000_000_000;
+    b.saveData();
+    const plots = g.land.plots('lagos');
+    const two = [plots.find((p) => /Odunlami/.test(p.name)), plots.find((p) => /Banana Island Road/.test(p.name))];
+    for (const p of two) {
+      await g.land.buyFromState(p.id);
+      g.land.payLevy(p.id, 50_000_000);
+      await g.land.startBuilding(p.id, 'duplex', (p.rect.minX + p.rect.maxX) / 2, (p.rect.minZ + p.rect.maxZ) / 2, 1);
+    }
+    await g.registry.transact((state) => { for (const p of two) if (state.buildings[p.id]) state.buildings[p.id].startedAt = Date.now() - 360000000; return { ok: true }; });
+    g.plotWorld.refresh();
+    return two.map((p) => ({ id: p.id, name: p.name, lives: g.land.livesIn(p.id) }));
+  });
+  const goIn = async (plotId, leave = true) => {
+    await page.evaluate((id) => window.game.hud.phoneModal.openApp('land', `plot:${id}`), plotId);
+    await wait(600);
+    const arg = await page.evaluate(() => { const btn = document.getElementById('land-go-in'); btn?.click(); return btn?.dataset.arg ?? null; });
+    await wait(400);
+    await playUntil(page, () => (window.game.world.interiorManager.currentInterior?.type === 'residence' && !window.game.world.interiorManager.busy ? true : null), 25);
+    await wait(600);
+    const card = await page.evaluate(() => document.querySelector('#place-card .place-name')?.textContent ?? null);
+    if (leave) {
+      await page.evaluate(() => { const g = window.game; return g.world.interiorManager.exitCurrentInterior(g.player, g.cameraManager, g.hud, g.world); });
+      await playUntil(page, () => (!window.game.world.interiorManager.currentInterior && !window.game.world.interiorManager.busy ? true : null), 20);
+    }
+    return { arg, card };
+  };
+  const [oduHouse, banHouse] = built;
+  const firstIn = await goIn(oduHouse.id);
+  const secondIn = await goIn(banHouse.id, false);
+  // From inside the Banana Island house straight to the Odunlami one: out of the one, into the other
+  const thirdIn = await goIn(oduHouse.id);
+  check('homes: two houses built on the player’s land; "Go inside" on each plot’s page opens that house under its own address, also straight from inside the other',
+    built.every((h) => h.lives) && firstIn.arg === oduHouse.id && firstIn.card?.includes(oduHouse.name) && secondIn.card?.includes(banHouse.name) && thirdIn.card?.includes(oduHouse.name),
+    { built, firstIn, secondIn, thirdIn });
+
   check('homes: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
   await ctx.close();
 }

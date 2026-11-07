@@ -402,7 +402,7 @@ export async function run(browser, check) {
   const kiosk = await page.evaluate(() => window.game.hud.backend.getData().businesses.find((b) => b.id === 'biz_pos_kiosk'));
   check('buying a business takes its price once and it is owned', m0.total - m1.total === kiosk.purchasePrice && kiosk.owned, { paid: m0.total - m1.total, price: kiosk.purchasePrice, owned: kiosk.owned });
 
-  await page.evaluate(() => { const b = window.game.hud.backend; b.data.businesses.find((x) => x.id === 'biz_pos_kiosk').pendingRevenue = 7300; b.saveData(); b.notifyListeners?.(); });
+  await page.evaluate(() => { const b = window.game.hud.backend; b.data.businesses.find((x) => x.id === 'biz_pos_kiosk').pendingRevenue = 7300; b.data.lastRevenueAt = Date.now(); b.saveData(); b.notifyListeners?.(); });
   await openApp(page, 'business');
   m0 = await money(page);
   const pendingShown = await text(page, '#business-pending');

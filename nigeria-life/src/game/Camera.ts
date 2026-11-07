@@ -524,7 +524,7 @@ export class GameCamera {
           }
         }
       }
-      this.vehCamRoom += (room - this.vehCamRoom) * Math.min(1, delta * (room < this.vehCamRoom ? 12 : 1.5));
+      this.vehCamRoom += (room - this.vehCamRoom) * Math.min(1, delta * (room < this.vehCamRoom ? 6 : 1.2));
       const behindX = vehPos.x - Math.sin(this.cameraVehYaw) * this.vehCamRoom;
       const behindZ = vehPos.z - Math.cos(this.cameraVehYaw) * this.vehCamRoom;
       const targetCameraPos = new THREE.Vector3(behindX, vehPos.y + chaseHeight, behindZ);

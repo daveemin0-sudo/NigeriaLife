@@ -2,7 +2,7 @@
 // cars parked by the expressway stand in lay-bys off the road, a horn makes the car in front
 // hurry on or move over, the road assist keeps to the lanes the traffic drives in, a supercar
 // at full speed cannot go into or through a building, it holds a bend like a driving game's
-// car, the chase camera keeps up with it, and in a room the mouse moves the body, not the view.
+// car, the chase camera keeps up with it, and in a room a drag moves the view while the arrow keys walk the body.
 //
 // The vehicle and the traffic are stepped directly inside page.evaluate, so the game loop does
 // not run in between and the numbers are exact; the last checks use the real mouse.
@@ -227,7 +227,7 @@ export async function run(browser, check) {
   check('roads: at 55 m/s the chase camera stays right behind the car (within 15 m), instead of falling back and swinging',
     far < 15, { furthest: +far.toFixed(1) });
 
-  // ------------------------------------------------------------------ In a room the mouse moves the body; the view turns with the right button
+  // ------------------------------------------------------------------ In a room a drag moves the view of the house; the arrow keys walk the body
   await page.evaluate(() => {
     const g = window.game;
     g.exitVehicle?.();
@@ -253,14 +253,27 @@ export async function run(browser, check) {
   await page.mouse.up({ button: 'left' });
   const afterLeft = await page.evaluate(() => { const g = window.game; return { yaw: g.cameraManager.interiorYaw, x: g.player.position.x, z: g.player.position.z }; });
   const walked = Math.hypot(afterLeft.x - before.x, afterLeft.z - before.z);
-  check('roads: in the home, dragging with the left mouse button walks the body after the pointer and leaves the view of the house where it was',
-    Math.abs(afterLeft.yaw - before.yaw) < 1e-6 && walked > 0.5, { yawTurned: +(afterLeft.yaw - before.yaw).toFixed(4), walked: +walked.toFixed(2) });
+  check('roads: in the home, a drag with the left button (a touchpad drag) turns the view of the house and leaves the body where it stood',
+    Math.abs(afterLeft.yaw - before.yaw) > 0.1 && walked < 0.3, { yawTurned: +(afterLeft.yaw - before.yaw).toFixed(4), walked: +walked.toFixed(2) });
+  // A click on a spot on the floor walks the body there; so do the arrow keys
+  await page.mouse.click(cx + 90, cy + 70);
+  await wait(1200);
+  const afterClick = await page.evaluate(() => ({ x: window.game.player.position.x, z: window.game.player.position.z }));
+  await page.keyboard.down('ArrowUp');
+  await wait(1200);
+  await page.keyboard.up('ArrowUp');
+  await wait(200);
+  const afterKeys = await page.evaluate(() => ({ x: window.game.player.position.x, z: window.game.player.position.z }));
+  check('roads: in the home, a click on a spot walks the body there, and the arrow keys walk it too',
+    Math.hypot(afterClick.x - afterLeft.x, afterClick.z - afterLeft.z) > 0.5 && Math.hypot(afterKeys.x - afterClick.x, afterKeys.z - afterClick.z) > 0.5,
+    { clicked: +Math.hypot(afterClick.x - afterLeft.x, afterClick.z - afterLeft.z).toFixed(2), keyed: +Math.hypot(afterKeys.x - afterClick.x, afterKeys.z - afterClick.z).toFixed(2) });
   await page.mouse.move(cx, cy);
   await page.mouse.down({ button: 'right' });
   for (let i = 1; i <= 10; i++) await page.mouse.move(cx + i * 15, cy);
   await page.mouse.up({ button: 'right' });
+  const beforeRight = afterLeft.yaw;
   const afterRight = await page.evaluate(() => window.game.cameraManager.interiorYaw);
-  check('roads: in the home, the view still turns with the right mouse button held and moved', Math.abs(afterRight - afterLeft.yaw) > 0.1, { turned: +(afterRight - afterLeft.yaw).toFixed(3) });
+  check('roads: in the home, the view also turns with the right mouse button held and moved', Math.abs(afterRight - beforeRight) > 0.1, { turned: +(afterRight - beforeRight).toFixed(3) });
 
   check('roads: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
 }

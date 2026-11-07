@@ -81,6 +81,7 @@ Playing on a home network: `npm run build`, then `npm run server`, then open `ht
 | 4.4 | Data saver: slower ticks, no voice, smaller snapshots | **Missing** | |
 | 4.5 | Split `HUD.ts` | **Missing** | 4,296 lines in `src/ui/HUD.ts`. |
 | 4.6 | Play economy, chat and jobs from the map with no 3D | **Partial** | The map opens for viewing (`WorldMap.ts`). It is not a play mode. |
+| 4.7 | The phone screen: nothing on top of anything, and the room left to be seen | **Done (7 Nov)**, `touch` and `phone` suites | Held upright, the place name sits under the top card on the right, level with the quest; the streak under the quest. On its side the top bar keeps one line and the quest folds to one line. The cloud and camera buttons and the moves bar are off phones. A Hide button in the bottom bar clears the screen down to the stick (and the pedals while driving), with a Show pill to bring it all back, remembered on the phone (`src/ui/CleanView.ts`). The room's card starts folded on a phone (its name, ▴ to open, Leave) and its chips scroll in one row. Only buildings and walls bring the chase camera in, not lamp posts or kiosks, so it no longer pumps in and out along a street. |
 
 ## Phase 5: money from the outside
 

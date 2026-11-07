@@ -85,7 +85,14 @@ export async function run(_browser, check) {
   await wait(400);
   await page.touchscreen.touchEnd();
   await wait(500);
-  const chips = await page.evaluate(() => [...document.querySelectorAll('.place-chip, .place-leave-btn')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.right <= innerWidth; }).map((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { text: el.textContent.trim().replace(/\s+/g, ' '), x: r.left + r.width / 2, y: r.top + r.height / 2, reachable: top === el || el.contains(top) }; }));
+  // On a phone the room's card starts folded (its name, the button to open it, and Leave), so the room can be seen; one tap opens it
+  const folded = await page.evaluate(() => document.getElementById('place-card')?.classList.contains('is-folded') ?? null);
+  const foldAt = await page.evaluate(() => { const r = document.getElementById('place-fold-btn')?.getBoundingClientRect(); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null; });
+  if (foldAt) await page.touchscreen.tap(foldAt.x, foldAt.y);
+  await wait(400);
+  const opened = await page.evaluate(() => document.getElementById('place-card')?.classList.contains('is-folded') === false);
+  check('touch: inside, the room card starts folded on a phone and one tap on its button opens it', folded === true && opened, { folded, opened, foldAt });
+  const chips = await page.evaluate(() => [...document.querySelectorAll('.place-chip, .place-leave-btn, .place-fold-btn')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.right <= innerWidth; }).map((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { text: el.textContent.trim().replace(/\s+/g, ' '), x: r.left + r.width / 2, y: r.top + r.height / 2, reachable: top === el || el.contains(top) }; }));
   check('touch: inside, every button on the place card that is on screen can be tapped (nothing on top of it)', chips.length >= 3 && chips.every((x) => x.reachable), chips.map((x) => `${x.text}: ${x.reachable}`));
   // The bed's own chip (not the bedroom door's), scrolled into view along the row if the phone is too narrow for all of them
   const bed = await page.evaluate(() => {

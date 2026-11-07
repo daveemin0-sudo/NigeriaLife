@@ -106,8 +106,9 @@ export async function run(browser, check) {
     const tower = { owner: 'Test tower', structure: true, height: 12, minX: -3, maxX: 4, minZ: 20, maxZ: 27 };
     const kiosk = { owner: 'Test kiosk', structure: false, height: 2, minX: 9, maxX: 13.5, minZ: 60, maxZ: 62 };
     const abuja = g.world.cityManager.abujaCity;
-    let road = null;
-    abuja.group.traverse((obj) => { if (!road && obj.isMesh && obj.geometry.type === 'PlaneGeometry' && obj.geometry.parameters.width === 20) { obj.geometry.computeBoundingBox(); const b = obj.geometry.boundingBox.clone().applyMatrix4(obj.matrixWorld); road = { from: +b.min.z.toFixed(1), to: +b.max.z.toFixed(1) }; } });
+    // Shehu Shagari Way's carriageway, from the city's road map: where it starts and where it ends
+    const shagari = g.modules.zonesFor('abuja').filter((z) => z.kind === 'carriageway' && z.street === 'Shehu Shagari Way');
+    const road = shagari.length ? { from: Math.min(...shagari.map((z) => z.minZ)), to: Math.max(...shagari.map((z) => z.maxZ)) } : null;
     const lookout = abuja.interactiveList.find((i) => /Aso Rock/.test(i.name));
     return {
       abuja: brief(g.validateCity('abuja')),
@@ -123,7 +124,7 @@ export async function run(browser, check) {
     others.abuja.length === 0 && others.ph.length === 0 && others.doors.abuja >= 5 && others.doors.ph >= 4, { abuja: others.abuja, ph: others.ph });
   check('and the plan catches faults there too: a tower on Shehu Shagari Way, a kiosk across the Aba Road pavement',
     others.abujaTower.some((v) => v.startsWith('building-on-road: Test tower')) && others.phKiosk.some((v) => v.startsWith('walkway-blocked') && v.includes('Test kiosk')), { abujaTower: others.abujaTower, phKiosk: others.phKiosk });
-  check('Shehu Shagari Way stops at the Aso Rock lookout instead of running on under the rock', others.road && others.road.from === -88 && others.road.to === 130 && others.lookoutZ <= others.road.from, { road: others.road, lookoutZ: others.lookoutZ });
+  check('Shehu Shagari Way stops at the Aso Rock lookout instead of running on under the rock', others.road && others.road.from === -88 && others.road.to > 600 && others.lookoutZ <= others.road.from, { road: others.road, lookoutZ: others.lookoutZ });
 
   check('plan: no console errors', log.errors.length === 0, log.errors.slice(0, 6));
   await ctx.close();

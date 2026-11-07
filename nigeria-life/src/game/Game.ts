@@ -68,6 +68,7 @@ import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import { UIStateManager } from '../ui/UIStateManager';
 import { PlaceCard } from '../ui/PlaceCard';
+import { setupCleanView } from '../ui/CleanView';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 import { BukaOrderUI } from '../ui/BukaOrderUI';
 import { ShopUI } from '../ui/ShopUI';
@@ -391,6 +392,7 @@ export class Game {
 
     // 6. UI / HUD
     this.hud = new HUD();
+    setupCleanView();
     this.hud.init(this.player, this.world);
     this.hud.onRotateCamera = (deltaYaw: number) => {
       this.cameraManager.rotate(deltaYaw);
@@ -1182,6 +1184,17 @@ export class Game {
         // A built house is a home of its own, and so is every flat or house rented or bought: that is the one gone into
         if (homeId && this.land.livesIn(homeId)) this.setHomeNow(homeId);
         else if (homeId && this.myHomes().some((p) => p.id === homeId)) this.setHomeNow(this.homeKey(homeId));
+        else if (homeId) {
+          // Never some other house in its place: that one is not a home to go into (yet)
+          showGameToast('That house is not ready to live in yet.', 'info', 3600);
+          return;
+        }
+        // Inside another home: out of it first, then into the one chosen (Home there opens the catalogue)
+        const rooms = this.world.interiorManager;
+        if (rooms.currentInterior?.type === 'residence') {
+          void Promise.resolve(rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world)).then(() => document.getElementById('nav-btn-home')?.click());
+          return;
+        }
         document.getElementById('nav-btn-home')?.click();
       },
       openMap: () => document.getElementById('nav-btn-map')?.click(),
@@ -1907,7 +1920,8 @@ export class Game {
       const model = fleetModel(id)!;
       return model.kind === 'jet' ? buildJet(model.length, fleetColour(colour), 'NAIJA ONE') : buildYacht(model.length, fleetColour(colour), 'NAIJA ONE');
     };
-    this.cameraManager.blocked = (x, z) => this.solidsHere()?.at(x, z, 0.4) ?? false;
+    // Only buildings and walls bring the chase camera in: passing a lamp post or a kiosk does not make it jump
+    this.cameraManager.blocked = (x, z) => this.solidsHere()?.wallAt(x, z, 0.4) ?? false;
     // Broad Street is crossed on foot at the junction's zebra crossings or over the footbridge, nowhere else
     let toldAt = 0;
     this.player.mayNotStep = (fromX, fromZ, toX, toZ) => {

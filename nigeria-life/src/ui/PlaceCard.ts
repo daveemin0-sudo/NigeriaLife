@@ -109,6 +109,15 @@ export class PlaceCard {
     return { icon: '📍', label: obj.name };
   }
 
+  /** Folded away: as the player last left it, or on a phone, folded to begin with */
+  public static folded(): boolean {
+    try {
+      const kept = localStorage.getItem('nl_place_folded_v1');
+      if (kept !== null) return kept === '1';
+    } catch { /* no storage */ }
+    return typeof matchMedia === 'function' && matchMedia('(max-width: 700px), (max-height: 500px)').matches;
+  }
+
   /** Draws the card again for the room the player is in now (after a lift or a door to the next room) */
   public refresh(): void {
     this.render();
@@ -155,7 +164,26 @@ export class PlaceCard {
     leave.textContent = '🚪 Leave';
     leave.addEventListener('click', () => this.hooks.leave());
 
-    head.append(icon, titles, leave);
+    // Folded, it is only the place's name and the way out: the room can be seen. On a phone it starts folded
+    const fold = document.createElement('button');
+    fold.className = 'place-fold-btn';
+    fold.id = 'place-fold-btn';
+    const folded = PlaceCard.folded();
+    this.el.classList.toggle('is-folded', folded);
+    fold.textContent = folded ? '▴' : '▾';
+    fold.setAttribute('aria-label', folded ? 'Show what there is to do here' : 'Fold this card away');
+    fold.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const now = !this.el.classList.contains('is-folded');
+      try { localStorage.setItem('nl_place_folded_v1', now ? '1' : '0'); } catch { /* kept for now */ }
+      this.render();
+    });
+    titles.addEventListener('click', () => {
+      if (!this.el.classList.contains('is-folded')) return;
+      try { localStorage.setItem('nl_place_folded_v1', '0'); } catch { /* kept for now */ }
+      this.render();
+    });
+    head.append(icon, titles, fold, leave);
 
     const chips = document.createElement('div');
     chips.className = 'place-chips';
