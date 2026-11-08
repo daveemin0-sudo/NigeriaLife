@@ -22,6 +22,8 @@ export class RoadRideExperience {
   private vehicleGroup: THREE.Group = new THREE.Group();
   /** The Lagos road it goes down, and the traffic on it; built the first time it is needed */
   private street: RideStreet | null = null;
+  /** Each city's road, kept once built */
+  private readonly streets = new Map<string, RideStreet>();
   private readonly rides = new Map<string, RideVehicle>();
   private ride: RideVehicle | null = null;
   /** The player's own figure, to sit them in the vehicle; given by the game */
@@ -542,8 +544,15 @@ export class RoadRideExperience {
 
   /** The vehicle for this ride, its driver at the wheel and the player sat in it, on the road */
   private boardVehicle(ride: RideDetails): void {
+    // The road of the city the ride is in, built the first time a ride is taken there
+    const city = String(ride.destinationCityId ?? 'lagos');
+    if (this.street && this.street.city !== city) {
+      this.vehicleGroup.remove(this.street.group);
+      this.street = null;
+    }
     if (!this.street) {
-      this.street = new RideStreet();
+      this.street = this.streets.get(city) ?? new RideStreet(city);
+      this.streets.set(city, this.street);
       this.vehicleGroup.add(this.street.group);
     }
     const kind = ride.vehicleType === 'bike' || ride.vehicleType === 'okada' ? 'okada' : ride.vehicleType === 'keke' ? 'keke' : ride.vehicleType === 'taxi' ? 'taxi' : 'car';

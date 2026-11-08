@@ -44,6 +44,10 @@ export class InterStateModal {
     });
   }
 
+  /** The player's own jets, and how one is flown (set by the game) */
+  public static ownJets: (() => Array<{ uid: string; name: string }>) | null = null;
+  public static flyJet: ((uid: string, to: CityId) => void) | null = null;
+
   public open(originCityId?: CityId): void {
     if (this.isTraveling) return;
     if (originCityId) this.currentOriginCityId = originCityId;
@@ -92,6 +96,14 @@ export class InterStateModal {
             <p>${origin.tagline} • Pocket: <strong>₦${data.walletCash.toLocaleString()}</strong> • Bank: <strong>₦${data.bank.balance.toLocaleString()}</strong></p>
           </div>
         </div>
+
+        ${(() => {
+          // The player's own jets: flown from this terminal to any other city
+          const jets = InterStateModal.ownJets?.() ?? [];
+          const others = (['lagos', 'abuja', 'port_harcourt'] as const).filter((c) => c !== this.currentOriginCityId);
+          const label: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+          return jets.length ? `<div class="route-card flight-card" id="interstate-own-jets"><h3>🛩️ Your private jet</h3>${jets.map((j) => `<p><strong>${j.name}</strong> · your crew is ready</p><div style="display:flex;flex-wrap:wrap;gap:8px">${others.map((c) => `<button class="btn-book-route btn-own-jet" data-jet="${j.uid}" data-to="${c}">✈️ Fly to ${label[c]} · fuel ₦${(c === 'abuja' || this.currentOriginCityId === 'abuja' ? 2_500_000 : 2_000_000).toLocaleString()}</button>`).join('')}</div>`).join('')}</div>` : '';
+        })()}
 
         <!-- Available Interstate Routes -->
         <div class="interstate-routes-grid">
@@ -158,7 +170,15 @@ export class InterStateModal {
     const backdrop = this.container.querySelector('.modal-backdrop');
     if (backdrop) (backdrop as HTMLElement).onclick = () => this.close();
 
-    this.container.querySelectorAll('.btn-book-route').forEach((btn) => {
+    this.container.querySelectorAll('.btn-own-jet').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopImmediatePropagation();
+        const el = btn as HTMLElement;
+        this.close();
+        InterStateModal.flyJet?.(el.dataset.jet ?? '', (el.dataset.to ?? 'lagos') as CityId);
+      });
+    });
+    this.container.querySelectorAll('.btn-book-route:not(.btn-own-jet)').forEach((btn) => {
       btn.addEventListener('click', () => {
         const destId = (btn as HTMLElement).getAttribute('data-dest-id') as CityId;
         const fare = parseInt((btn as HTMLElement).getAttribute('data-fare') || '0', 10);

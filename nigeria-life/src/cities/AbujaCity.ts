@@ -16,7 +16,7 @@ import { CityLife } from './CityLife';
 import { buildGrid, type GridStyle } from './CityGrid';
 import { ABUJA_ROADS } from '../world/plan/GridRoads';
 import { ABUJA_KEEP_OUT, abujaBuildings, buildLandmarks, type AbujaPlace } from './AbujaDistricts';
-import { avenueTrees, cullTiles, placeDoors, tiledTown, type CityTile } from './CityExtras';
+import { avenueTrees, cullTiles, placeDoors, tiledTown, townDoors, type CityTile } from './CityExtras';
 
 /** Abuja's roads: white kerbs and lines, planted medians, twin lamps down the middle */
 const ABUJA_STYLE: GridStyle = {
@@ -89,7 +89,10 @@ export class AbujaCity implements CityInstance {
     this.standing = [...town.obstructions, ...roads.obstructions];
     // The districts along the avenues, drawn a square of the city at a time, so what is beyond the view is left out
     const { districts } = abujaBuildings();
-    const blocks = tiledTown('Abuja', districts.flatMap((d) => d.buildings));
+    const streetBuildings = districts.flatMap((d) => d.buildings);
+    const blocks = tiledTown('Abuja', streetBuildings);
+    // Every shop, office, hotel, bank and market along the avenues has its door
+    townDoors(this.group, this.interactiveList, streetBuildings, 'abuja');
     for (const t of blocks.tiles) this.group.add(t.group);
     this.tiles = blocks.tiles;
     this.standing.push(...blocks.obstructions);

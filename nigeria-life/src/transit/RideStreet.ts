@@ -142,7 +142,11 @@ export class RideStreet {
   /** Keeps the next lane clear beside the ride, so a camera at the roadside sees it whole */
   public keepClear = false;
 
-  constructor() {
+  /** The city the road is in: Lagos's go-slow and danfos, Abuja's clean avenues of offices, Port Harcourt's kekes */
+  public readonly city: string;
+
+  constructor(city = 'lagos') {
+    this.city = city;
     this.group.name = 'ride street';
     this.group.add(this.across);
     this.across.add(this.scenery, this.trafficGroup);
@@ -237,7 +241,8 @@ export class RideStreet {
     // The median: kerbs painted yellow and black, grass, lamps with an arm over each side, flowers
     b.box(0x5b8a3a, MEDIAN_B - MEDIAN_A - 0.2, 0.22, TILE, (MEDIAN_A + MEDIAN_B) / 2, 0, 0);
     for (let z = -half; z < half; z += 1) {
-      const hex = Math.floor(z) % 2 ? 0xfacc15 : 0x111827;
+      // Abuja paints its kerbs black and white
+      const hex = Math.floor(z) % 2 ? (this.city === 'abuja' ? 0xf8fafc : 0xfacc15) : 0x111827;
       b.box(hex, 0.12, 0.24, 1, MEDIAN_A, 0, z + 0.5).box(hex, 0.12, 0.24, 1, MEDIAN_B, 0, z + 0.5);
     }
     const mid = (MEDIAN_A + MEDIAN_B) / 2;
@@ -260,9 +265,9 @@ export class RideStreet {
       b.box(0xb8a48c, WALK - 0.22, 0.18, TILE, kerb + side * (0.22 + (WALK - 0.22) / 2), 0, 0);
       b.box(0x3b3f45, 0.7, 0.05, TILE, walkIn + side * 0.35, -0.04, 0);
       for (let z = -half + 4; z < half; z += 7 + Math.floor(r() * 9)) b.box(0x9ca3af, 0.9, 0.08, 1.8, walkIn + side * 0.35, 0.12, z);
-      // Power poles and their wires
+      // Power poles and their wires (Abuja's cables run underground)
       const poleX = kerb + side * 0.7;
-      for (let z = -half + 6; z < half; z += 32) {
+      for (let z = -half + 6; z < half && this.city !== 'abuja'; z += 32) {
         b.box(0x9ca3af, 0.24, 9.5, 0.24, poleX, 0.18, z);
         b.box(0x6b7280, 1.6, 0.1, 0.1, poleX, 8.9, z);
         b.box(0x374151, 0.22, 0.4, 0.22, poleX + side * 0.4, 8.4, z);
@@ -273,7 +278,9 @@ export class RideStreet {
       const front = walkIn + side * 0.9;
       while (z < half - 6) {
         const width = Math.min(half - z, 7 + r() * 10);
-        const kind = r();
+        // Abuja: offices and blocks of flats along the avenue, a few shops, no hawkers
+        const roll = r();
+        const kind = this.city === 'abuja' ? (roll < 0.08 ? 0.2 : roll < 0.45 ? 0.6 : 0.85) : roll;
         const cz = z + width / 2;
         if (side < 0 && Math.abs(cz - 30) < 14) {
           // A filling station on our side: a canopy on columns over the pumps, the kiosk behind
@@ -472,18 +479,21 @@ export class RideStreet {
       this.trafficGroup.add(mesh);
       this.traffic.push({ mesh, x, z, length: shape.length, speed: oncoming ? 7 + r() * 7 : 0, oncoming, temper: 0.85 + r() * 0.35 });
     };
+    // How many of each by the kerb: Lagos's danfos, kekes and okadas; Abuja only cars (no danfos, and
+    // no okadas or kekes in the city centre); Port Harcourt few danfos and many kekes
+    const mix = this.city === 'abuja' ? { danfo: 0, keke: 0, okada: 0 } : this.city === 'port_harcourt' ? { danfo: 0.1, keke: 0.4, okada: 0.5 } : { danfo: 0.3, keke: 0.5, okada: 0.62 };
     // Our side: danfos, kekes and okadas mostly by the kerb, cars in both lanes
     for (let i = 0; i < 7; i++) {
       const z = -55 + i * 32 + r() * 8;
       const pick = r();
-      add(pick < 0.3 ? danfoGeo : pick < 0.5 ? keke : pick < 0.62 ? okada : pool[Math.floor(r() * pool.length)], LANES.kerb, z, false);
+      add(pick < mix.danfo ? danfoGeo : pick < mix.keke ? keke : pick < mix.okada ? okada : pool[Math.floor(r() * pool.length)], LANES.kerb, z, false);
       add(pool[Math.floor(r() * pool.length)], LANES.inner, z + 14 + r() * 6, false);
     }
     // Coming the other way
     for (let i = 0; i < 7; i++) {
       const z = -80 + i * 46 + r() * 10;
       const pick = r();
-      add(pick < 0.25 ? danfoGeo : pick < 0.4 ? okada : pool[Math.floor(r() * pool.length)], LANES.oncomingKerb, z, true);
+      add(pick < mix.danfo * 0.8 ? danfoGeo : pick < mix.danfo * 0.8 + (mix.okada - mix.keke) * 1.2 ? okada : pool[Math.floor(r() * pool.length)], LANES.oncomingKerb, z, true);
       add(pool[Math.floor(r() * pool.length)], LANES.oncomingInner, z + 20, true);
     }
   }

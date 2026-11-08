@@ -6,6 +6,7 @@ import { footprintOf } from './BlockFiller';
 import { clickBox } from '../world/landmarks/Landmark';
 import { PlaceActions, type PlaceHost } from '../destinations/PlaceActions';
 import type { InteractiveObject } from '../world/World';
+import { townRoomKey, type TownRoomKind } from '../interiors/places/PlaceSpecs';
 import { plantTrees, type AbujaPlace as CityPlace } from './AbujaDistricts';
 
 /**
@@ -56,6 +57,40 @@ export interface OpenGround {
   role: string;
   text: string;
   choices: Array<{ label: string; note: string; price?: number; arms: 'wave' | 'reach' | 'rest'; seconds: number; needs: Record<string, number>; said: string }>;
+}
+
+const TOWN_ROOM: Partial<Record<TownBuilding['kind'], TownRoomKind>> = { shops: 'shops', office: 'office', hotel: 'hotel', bank: 'bank', market: 'market' };
+const TOWN_WORDS: Record<TownRoomKind, { name: string; category: string; label: string }> = {
+  shops: { name: 'Supermarket', category: 'Shop', label: '🛒 Into the shop' },
+  office: { name: 'Office block', category: 'Office', label: '🏢 Into the office block' },
+  hotel: { name: 'Hotel', category: 'Hotel', label: '🏨 Into the lobby' },
+  bank: { name: 'Bank branch', category: 'Bank', label: '🏦 Into the bank' },
+  market: { name: 'Market', category: 'Market', label: '🛍️ Into the market' },
+};
+
+/**
+ * A door on the front of every shop, office, hotel, bank and market along a city's streets (the
+ * homes stay private): walked up to, it goes into that kind of room and back out at this door.
+ */
+export function townDoors(group: THREE.Group, list: InteractiveObject[], buildings: readonly TownBuilding[], cityId: string): number {
+  let n = 0;
+  for (const b of buildings) {
+    const kind = TOWN_ROOM[b.kind];
+    if (!kind) continue;
+    const r = footprintOf(b);
+    // The middle of its street front, and where to stand outside it
+    const front = b.faces === 'north' ? { x: b.x, z: r.minZ, dx: 0, dz: -1 } : b.faces === 'south' ? { x: b.x, z: r.maxZ, dx: 0, dz: 1 } : b.faces === 'west' ? { x: r.minX, z: b.z, dx: -1, dz: 0 } : { x: r.maxX, z: b.z, dx: 1, dz: 0 };
+    const stand = new THREE.Vector3(front.x + front.dx * 1.6, 0, front.z + front.dz * 1.6);
+    const id = `door-${cityId}-${n++}`;
+    const mesh = clickBox(3, 3, 3);
+    mesh.position.set(front.x + front.dx * 0.6, 1.5, front.z + front.dz * 0.6);
+    group.add(mesh);
+    const words = TOWN_WORDS[kind];
+    const room = `roadside-${townRoomKey(cityId, kind)}`;
+    list.push({ mesh, id, name: b.name ?? words.name, category: words.category, description: `${b.name ?? words.name} on this street.`, interactionPoint: stand.clone() });
+    PlaceActions.register(id, { label: () => words.label, run: (host) => host.enter(room, stand) });
+  }
+  return n;
 }
 
 /**

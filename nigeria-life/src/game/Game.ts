@@ -142,6 +142,7 @@ import type { RemotePlayer } from '../multiplayer/RemotePlayer';
 import { FORECOURT, STATIONS, jerryCanShare, nearestStation, stationNear, type Station } from '../world/Fuel';
 import { TopMenu } from '../ui/TopMenu';
 import { Fleet, fleetColour, fleetModel } from '../assets/Fleet';
+import { InterStateModal } from '../ui/InterStateModal';
 import { buildJet, buildYacht } from '../world/expressway/FleetModels';
 import { AIRFIELD, MARINA } from '../world/expressway/Roadside';
 import { FurnitureThumbs } from '../ui/FurnitureThumbs';
@@ -863,6 +864,9 @@ export class Game {
       else if (objectId === 'flat-drum') homeLife.bathe();
       else if (objectId === 'flat-fridge') this.openFridge();
     };
+    ResidentialInterior.openFridge = () => this.openFridge();
+    InterStateModal.ownJets = () => Fleet.get().mine('jet').map((j) => ({ uid: j.uid, name: j.name }));
+    InterStateModal.flyJet = (uid, to) => this.flyJetFrom(uid, to);
     DeliveryService.atHome = () => this.world.interiorManager.currentInterior?.type === 'residence';
 
     // 9f. On-screen shortcuts to everything inside the current building
@@ -1349,7 +1353,10 @@ export class Game {
       },
       arriveAt: (destination) => {
         this.player.stopMoving();
-        this.player.mesh.position.set(destination.streetPosition.x, 0, destination.streetPosition.z);
+        // Set down at the place's own door when it has one near its spot on the street (an Abuja
+        // landmark's spot can be out on the avenue), else at that spot
+        const door = this.doorOf(destination.name, destination.streetPosition);
+        this.player.mesh.position.set(door?.x ?? destination.streetPosition.x, 0, door?.z ?? destination.streetPosition.z);
         this.cameraManager.snapToPlayer(this.player, 'street');
         showGameToast(`You have arrived at ${destination.name}.`, 'success', 3600);
       },
@@ -2017,7 +2024,8 @@ export class Game {
     };
     ResidentialInterior.carsOwned = () => this.ownedVehicles.myModels();
     // Your own car, your driver at the wheel: a ride that costs nothing
-    RideService.ownCar = () => this.ownedVehicles.ownCar() ?? (HomeStaff.get().isHired('driver') ? { name: 'Camry (Sunday)', body: 'camry', paint: 0x0f172a } : null);
+    // Your own car where it is parked; your driver's Camry in Lagos, where he lives
+    RideService.ownCar = () => this.ownedVehicles.ownCar() ?? (HomeStaff.get().isHired('driver') && this.world.cityManager.currentCityId === 'lagos' ? { name: 'Camry (Sunday)', body: 'camry', paint: 0x0f172a } : null);
     RideService.driverName = () => (HomeStaff.get().isHired('driver') ? 'Sunday Okafor' : null);
     this.hud.worldMapUI.ownOption = (dest) => RideService.ownOption(dest);
     this.hud.onJourney = (dest, transport, arrived) => this.rides.journey(dest, transport, arrived);
@@ -2360,6 +2368,27 @@ export class Game {
   /** The id a property's home goes by: its furniture, fridge and plan are kept under it */
   private homeKey(propId: string): string {
     return propId === this.legacyMainHome() ? 'main' : `prop:${propId}`;
+  }
+
+  /** Where to stand at the door of the place named, if one with that name is within 400 m of `near` */
+  private doorOf(name: string, near: { x: number; z: number }): THREE.Vector3 | null {
+    const wanted = name.toLowerCase();
+    const words = wanted.replace(/\([^)]*\)/g, ' ').split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !['international', 'street', 'road'].includes(w));
+    let best: THREE.Vector3 | null = null;
+    let bestDistance = 400;
+    for (const o of this.world.interactiveObjects) {
+      const at = o.interactionPoint;
+      const own = (o.name ?? '').toLowerCase();
+      if (!at || !own) continue;
+      const same = own === wanted || (words.length > 0 && words.filter((w) => own.includes(w)).length >= Math.min(2, words.length));
+      if (!same) continue;
+      const distance = Math.hypot(at.x - near.x, at.z - near.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = at;
+      }
+    }
+    return best;
   }
 
   /** A house the player built on their land (its plot's id), as opposed to a flat or house rented or bought */
@@ -2713,6 +2742,44 @@ export class Game {
       this.cameraManager.pitch = ride.view.pitch;
       ride.end();
     }
+  }
+
+  /**
+   * The player's own jet from wherever they are: from Lagos the take-off over the airfield; from
+   * Abuja or Port Harcourt the crew brings her in, and the player lands at the other city's apron
+   * (in Lagos beside the jet's own stand).
+   */
+  private flyJetFrom(uid: string, to: CityId): void {
+    const here = this.world.cityManager.currentCityId;
+    const owned = Fleet.get().mine('jet').find((c) => c.uid === uid);
+    if (!owned || to === here || this.ride) return;
+    if (here === 'lagos') {
+      this.flyPrivate(uid, to);
+      return;
+    }
+    const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+    const fuel = to === 'abuja' || here === 'abuja' ? 2_500_000 : 2_000_000;
+    const paid = BackendService.getInstance().processTransaction({ type: 'TRAVEL_COST', amount: fuel, description: `Fuel and crew, "${owned.name}" to ${names[to] ?? to}` });
+    if (!paid.success) {
+      showGameToast(`Fuel and crew come to ₦${fuel.toLocaleString()}. You do not have it.`, 'warning', 4000);
+      return;
+    }
+    if (this.world.interiorManager.isPlayerInside()) void this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+    showGameToast(`✈️ Your crew has "${owned.name}" on the apron. Wheels up for ${names[to] ?? to}.`, 'info', 3600);
+    window.setTimeout(() => {
+      this.arriveInCity(to);
+      const craft = to === 'lagos' ? this.world.expressway.roadside.craft.get(uid) : null;
+      const home = craft?.userData.home as THREE.Vector3 | undefined;
+      if (home) {
+        this.player.stopMoving();
+        this.player.mesh.position.set(home.x + 8, 0, home.z);
+        this.player.position.copy(this.player.mesh.position);
+        this.cameraManager.snapToPlayer(this.player, 'street');
+      } else {
+        this.standOnApron(to);
+      }
+      showGameToast(`🛬 "${owned.name}" has landed you in ${names[to] ?? to}.`, 'success', 5000);
+    }, 1800);
   }
 
   /** Flies the player in their own jet: taxi, take-off over the airfield, and on landing they are at the destination's apron */

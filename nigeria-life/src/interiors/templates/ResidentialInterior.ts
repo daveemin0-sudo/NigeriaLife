@@ -764,7 +764,7 @@ export class ResidentialInterior {
         if (kind.use === 'music') return '🎹 Play music, move it or sell it';
         if (kind.use === 'snooker') return '🎱 Play snooker, move it or sell it';
         if (kind.use === 'fitness') return '🏋️ Workout, move it or sell it';
-        if (kind.use === 'drink') return '🧊 Refreshment, move it or sell it';
+        if (kind.use === 'drink') return /fridge/.test(item.modelType) ? '🧊 Open the fridge, move it or sell it' : '🧊 Refreshment, move it or sell it';
         if (kind.use === 'power') return this.powerLabel(item);
         if (kind.use === 'clean') return item.modelType === 'smart_mirror' ? '🪞 Mirror, move it or sell it' : '🧺 Laundry, move it or sell it';
         if (kind.use === 'door') return '🚪 Move the door or sell it';
@@ -924,6 +924,10 @@ export class ResidentialInterior {
           });
         }
         if (kind.use === 'drink') {
+          // Any fridge in any home opens on what is in it: what was stocked, what the cook made
+          if (/fridge/.test(item.modelType) && ResidentialInterior.openFridge) {
+            choices.push({ label: '🧊 Open the fridge', note: 'Take out what is inside and eat it', pick: () => ResidentialInterior.openFridge?.() });
+          }
           choices.push({
             label: 'Pour Ice-Cold Chapman & Refreshment',
             note: 'Hunger -20, Fun +15',
@@ -1968,6 +1972,8 @@ export class ResidentialInterior {
   public storey = 0;
   /** Told when the player has gone up or down, and on leaving (storeys 0): the floor button */
   public static onStorey: ((storey: number, storeys: number) => void) | null = null;
+  /** Opens the home's fridge on what is inside (set by the game) */
+  public static openFridge: (() => void) | null = null;
   /** The player is in the house */
   private inside = false;
   private upperGroup: THREE.Group | null = null;

@@ -15,7 +15,7 @@ import { CityLife } from './CityLife';
 import { buildGrid, type GridStyle } from './CityGrid';
 import { PH_CREEK, PH_ROADS } from '../world/plan/GridRoads';
 import { PH_KEEP_OUT, buildPhLandmarks, phBuildings } from './PortHarcourtDistricts';
-import { avenueTrees, cullTiles, placeDoors, tiledTown, type CityTile } from './CityExtras';
+import { avenueTrees, cullTiles, placeDoors, tiledTown, townDoors, type CityTile } from './CityExtras';
 import type { AbujaPlace as CityPlace } from './AbujaDistricts';
 
 /** Port Harcourt's roads: worn asphalt, a yellow line down the middle, kerbs painted black and yellow, open drains */
@@ -89,7 +89,9 @@ export class PortHarcourtCity implements CityInstance {
     // The creek (drawn with the landmarks, the whole length of the city) is water: nobody walks or drives on it but over the bridges
     this.standing = [...town.obstructions, ...this.refinery.obstructions, ...roads.obstructions];
     // The districts along the roads, a square of the city at a time; the places it is known for
-    const blocks = tiledTown('Port Harcourt', phBuildings());
+    const streetBuildings = phBuildings();
+    const blocks = tiledTown('Port Harcourt', streetBuildings);
+    townDoors(this.group, this.interactiveList, streetBuildings, 'port_harcourt');
     for (const t of blocks.tiles) this.group.add(t.group);
     this.tiles = blocks.tiles;
     this.standing.push(...blocks.obstructions);
