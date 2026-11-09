@@ -2010,6 +2010,8 @@ export class Game {
     this.ownedVehicles.movingElsewhere = (vehicle) => this.vehicleSync.driverOf(vehicle) !== null;
     // The home is furnished as what the player rents or owns, and their own vehicles stand in its carport
     ResidentialInterior.homeId = () => this.currentHome();
+    // A generator bought for a house the player built stands in that house's compound, on the street
+    ResidentialInterior.onYard = () => this.syncCompoundGenerators();
     ResidentialInterior.standardNow = () => {
       const data = BackendService.getInstance().getData();
       const plotId = this.currentHome();
@@ -2394,6 +2396,19 @@ export class Game {
   /** A house the player built on their land (its plot's id), as opposed to a flat or house rented or bought */
   private isPlotHome(id: string): boolean {
     return id !== 'main' && !id.startsWith('prop:');
+  }
+
+  /** Generators of the house the player is in, stood in its compound. A flat has no compound of its own. */
+  private syncCompoundGenerators(): void {
+    const id = this.currentHome();
+    if (!this.isPlotHome(id)) return;
+    const decor = HouseDecorationSystem.getInstance();
+    if (decor.homeId !== id) return;
+    const types = decor.placed
+      .filter((item) => item.modelType === 'generator_big' || item.modelType === 'generator_small')
+      .map((item) => item.modelType)
+      .sort((a, b) => Number(b === 'generator_big') - Number(a === 'generator_big'));
+    this.plotWorld.setCompoundGenerators(id, types.map((model) => decor.createFurniture3DMesh(model)));
   }
 
   /** The flat or house the player is at home in now, if it is one rented or bought (not a built house) */

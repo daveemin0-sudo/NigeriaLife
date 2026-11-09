@@ -10,7 +10,7 @@ import { Activity } from '../../life/Activity';
 import { Pets, PET_KINDS, PET_FOOD_PRICE } from '../../housing/Pets';
 import { Garden, SEEDS } from '../../housing/Garden';
 import { profileKey } from '../../backend/Profile';
-import type { InteriorDefinition } from '../InteriorTypes';
+import { RENDER_LAYERS, type InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
@@ -28,7 +28,7 @@ import { InteractionDirector, type InteractionDef } from '../../interactions/Int
 import type { PoseState } from '../../interactions/Poses';
 import { Sequence, steps } from '../../interactions/Sequence';
 import { showGameToast } from '../../ui/GameToast';
-import { planFor, briefOf, roomAt, STOREY_H, type HomeBrief, type HomePlan, type Fixture, type PlanRoom, type PlanWall, type Stairs } from '../../housing/HomePlan';
+import { planFor, briefOf, generatorPads, roomAt, STOREY_H, type HomeBrief, type HomePlan, type Fixture, type PlanRoom, type PlanWall, type Stairs } from '../../housing/HomePlan';
 import { HomePower } from '../../housing/HomePower';
 import { SoundEngine } from '../../audio/SoundEngine';
 
@@ -159,6 +159,8 @@ export class ResidentialInterior {
   public static homeId: (() => string) | null = null;
   /** The lease of the rented home shown, when the landlord has served a quit notice on it */
   public static noticeNow: (() => LeaseView | null) | null = null;
+  /** A generator was put outside: the compound of a built house can show it on the street too */
+  public static onYard: (() => void) | null = null;
 
   /** The player is coming in: the home is furnished as what they rent or own, and called by its name */
   private gardenTimer = 0;
@@ -478,14 +480,16 @@ export class ResidentialInterior {
       }
       const id = `home_item_${item.uid}`;
       this.furnitureIds.push(id);
+      const outdoors = item.modelType === 'generator_small' || item.modelType === 'generator_big';
+      const reachPoint = outdoors ? this.generatorStand(item) : new THREE.Vector3(origin.x + item.x + face.x * reach, 0, origin.z + item.z + face.z * reach);
       this.interactiveList.push({
         mesh: item.mesh,
         id,
         name: entry?.name ?? 'Furniture',
         category: 'Your furniture',
         description: entry?.description ?? 'Yours, to move or sell.',
-        interactionPoint: new THREE.Vector3(origin.x + item.x + face.x * reach, 0, origin.z + item.z + face.z * reach),
-        storey: item.storey ?? 0,
+        interactionPoint: reachPoint,
+        storey: outdoors ? 0 : (item.storey ?? 0),
       });
       PlaceActions.register(id, this.furnitureAction(item));
     }
@@ -495,6 +499,7 @@ export class ResidentialInterior {
     this.refreshGarden();
     this.refreshPets();
     HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
+    ResidentialInterior.onYard?.();
     for (const uid of [...this.sets.keys()]) {
       if (!standing.has(uid)) this.sets.delete(uid);
     }
@@ -636,7 +641,47 @@ export class ResidentialInterior {
     })));
   }
 
+  /**
+   * The concrete the generator sits on, outside the walls: beside the house in a compound, or on
+   * the apron in front of a flat. Wide enough for a Mikano.
+   */
+  private generatorApron(pads: Array<{ x: number; z: number; turns: number }>, compound: boolean): THREE.Object3D {
+    const b = new Builder();
+    for (const pad of pads) {
+      const wide = pad.turns % 2 === 0;
+      b.box(0x9ca3af, wide ? 2.9 : 1.7, 0.08, wide ? 1.7 : 3.0, pad.x, 0.04, pad.z);
+    }
+    const apron = b.build(compound ? 'compound generator pad' : 'front generator pad', { roughness: 0.9 });
+    apron.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+    return apron;
+  }
+
+  /** Just inside, toward the generator, so it can be started without leaving the house */
+  private generatorStand(item: PlacedItem): THREE.Vector3 {
+    const plan = this.plan;
+    const o = this.group.position;
+    if (!plan) return new THREE.Vector3(o.x + item.x, 0, o.z + item.z);
+    const hw = plan.width / 2;
+    const hl = plan.length / 2;
+    if (plan.carport || Math.abs(item.x) > hw - 0.2) {
+      const side = item.x >= 0 ? 1 : -1;
+      const inset = Math.min(2.4, Math.max(0.9, hw - 0.7));
+      const x = side * (hw - inset);
+      const z = Math.max(-hl + 1.2, Math.min(plan.frontZ - 1.2, item.z));
+      return new THREE.Vector3(o.x + x, 0, o.z + z);
+    }
+    let x = item.x;
+    if (Math.abs(x - plan.entrance.x) < 1.3) x = plan.entrance.x + (item.x < plan.entrance.x ? -1.6 : 1.6);
+    x = Math.max(-hw + 0.8, Math.min(hw - 0.8, x));
+    return new THREE.Vector3(o.x + x, 0, o.z + plan.frontZ - 1.15);
+  }
+
   private standAt(item: PlacedItem): { stand: THREE.Vector3; at: THREE.Vector3 } {
+    if (item.modelType === 'generator_small' || item.modelType === 'generator_big') {
+      const stand = this.generatorStand(item);
+      const o = this.group.position;
+      return { stand, at: new THREE.Vector3(o.x + item.x, 0, o.z + item.z) };
+    }
     const decor = HouseDecorationSystem.getInstance();
     const size = decor.footprint(item.modelType, item.turns);
     const face = decor.facing(item.turns);
@@ -1696,6 +1741,10 @@ export class ResidentialInterior {
       ...(plan.upper?.doors ?? []).map((d) => ({ x: d.x, z: d.z, storey: 1 })),
       ...(plan.stairs ? [{ ...plan.stairs.foot, storey: 0 }, { ...plan.stairs.top, storey: 1 }, { ...plan.stairs.landing, storey: 1 }] : []),
     ];
+    const pads = generatorPads(plan);
+    this.room.generatorPads = pads;
+    this.room.generatorInCompound = plan.carport;
+    g.add(this.generatorApron(pads, plan.carport));
 
     // A carport only beside a house
     this.carport.visible = plan.carport;

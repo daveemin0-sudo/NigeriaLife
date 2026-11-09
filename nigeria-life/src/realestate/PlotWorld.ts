@@ -21,6 +21,12 @@ export interface ActiveCompound {
   plot: Plot;
 }
 
+/** A bought generator standing in a compound, and the ground it takes so people walk round it */
+interface YardGenerator {
+  group: THREE.Group;
+  solids: Obstruction[];
+}
+
 const EARTH = 0xa8855a;
 const CONCRETE = 0x9aa0a6;
 const BLOCKWORK = 0x8d9299;
@@ -306,6 +312,8 @@ export class PlotWorld {
   /** Every plot's card, whatever city it is in */
   public readonly interactiveList: InteractiveObject[] = [];
   public readonly compounds = new Map<string, ActiveCompound>();
+  /** Generators the owner has bought, standing in the compound rather than in the house */
+  private readonly yardGenerators = new Map<string, YardGenerator>();
   public onGateChanged?: (plotId: string, open: boolean) => void;
   private readonly cityGroups = new Map<PlotCity, THREE.Group>();
   private readonly cityCards = new Map<PlotCity, InteractiveObject[]>();
@@ -529,6 +537,39 @@ export class PlotWorld {
     this.onGateChanged?.(plotId, false);
   }
 
+  /**
+   * The generators bought for this house, standing in its compound. An empty list takes them away.
+   * Each mesh is a new generator model; this owns it from here.
+   */
+  public setCompoundGenerators(plotId: string, models: THREE.Object3D[]): void {
+    const previous = this.yardGenerators.get(plotId);
+    previous?.group.removeFromParent();
+    this.yardGenerators.delete(plotId);
+    const comp = this.compounds.get(plotId);
+    const spots = comp?.drawing.generatorSpots ?? [];
+    if (!comp || models.length === 0 || spots.length === 0) return;
+    const group = new THREE.Group();
+    group.name = 'compound generators';
+    const solids: Obstruction[] = [];
+    models.forEach((model, i) => {
+      const spot = spots[Math.min(i, spots.length - 1)];
+      const holder = new THREE.Group();
+      holder.position.set(spot.x, 0, spot.z);
+      holder.rotation.y = spot.yaw;
+      const slab = new THREE.Mesh(
+        new THREE.BoxGeometry(2.8, 0.08, 1.55),
+        new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.9 }),
+      );
+      slab.position.y = 0.04;
+      holder.add(slab, model);
+      group.add(holder);
+      if (i < spots.length) solids.push({ owner: `Generator at ${comp.plot.name}`, structure: false, height: 1.6, ...spot.rect });
+    });
+    group.traverse((child) => child.layers.set(RENDER_LAYERS.STREET));
+    comp.drawing.group.add(group);
+    this.yardGenerators.set(plotId, { group, solids });
+  }
+
   public nearestGate(x: number, z: number, maxDist = 22): { plotId: string; comp: ActiveCompound; dist: number } | null {
     let best: { plotId: string; comp: ActiveCompound; dist: number } | null = null;
     for (const [plotId, comp] of this.compounds) {
@@ -552,6 +593,8 @@ export class PlotWorld {
       const comp = this.compounds.get(plot.id);
       if (comp) {
         out.push(...comp.drawing.fixed);
+        const yard = this.yardGenerators.get(plot.id);
+        if (yard) out.push(...yard.solids);
         // Only solid while gate is shut or mostly shut (< 0.7 open)
         if (comp.progress < 0.7) {
           out.push(comp.drawing.leafSolid);

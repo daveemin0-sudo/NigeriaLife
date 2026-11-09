@@ -110,9 +110,19 @@ export class GameCamera {
     return h;
   }
 
-  /** Where the driving camera sits, and looks, from the car (smoothed) */
+  /** Where the bonnet camera sits, and looks, from the car (smoothed). The chase camera does not use these. */
   private vehCamOffset = new THREE.Vector3();
   private vehLookOffset = new THREE.Vector3();
+  /** Chase camera height, eased. The camera is placed from the car every frame, not lagged in the world. */
+  private chaseHeight = 4.4;
+
+  /**
+   * How much of a gap to close this frame. Exponential, and capped, so a hitch on a phone
+   * (one long frame, then a short one) does not whip the view round the car.
+   */
+  private ease(rate: number, delta: number): number {
+    return 1 - Math.exp(-rate * Math.min(delta, 1 / 30));
+  }
   // Vehicle driving chase camera heading filter
   private cameraVehYaw: number = 0;
   private hasInitializedVehCam: boolean = false;
@@ -483,6 +493,7 @@ export class GameCamera {
         this.cameraVehYaw = vehRot;
         this.hasInitializedVehCam = true;
         this.vehCamRoom = 11.2;
+        this.chaseHeight = 4.4;
         // From wherever the camera was, relative to the car
         this.vehCamOffset.copy(this.camera.position).sub(vehPos);
         this.vehLookOffset.copy(this.currentLookAt).sub(vehPos);
@@ -490,7 +501,7 @@ export class GameCamera {
         // Smoothly track vehicle heading to decouple visual camera rotation from high-frequency wheel inputs
         const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
         const angleDiff = THREE.MathUtils.euclideanModulo(vehRot - this.cameraVehYaw + Math.PI, Math.PI * 2) - Math.PI;
-        this.cameraVehYaw += angleDiff * Math.min(delta * (4.6 / smoothMultiplier), 1.0);
+        this.cameraVehYaw += angleDiff * this.ease(4.6 / smoothMultiplier, delta);
       }
 
       // Over the bonnet: the driver's view down the road, the front of the car at the bottom of it
@@ -499,10 +510,10 @@ export class GameCamera {
         const h = this.carHeight(player.currentVehicle.mesh);
         // Just over the roof at the middle of the car, so the bonnet runs out ahead at the bottom of the view
         const eye = new THREE.Vector3(Math.sin(yaw) * -0.1, h * 1.08 + 0.05, Math.cos(yaw) * -0.1);
-        this.vehCamOffset.lerp(eye, Math.min(1, delta * 12));
+        this.vehCamOffset.lerp(eye, this.ease(12, delta));
         this.camera.position.copy(vehPos).add(this.vehCamOffset);
         const ahead = new THREE.Vector3(Math.sin(this.cameraVehYaw) * 26, h * 0.25, Math.cos(this.cameraVehYaw) * 26);
-        this.vehLookOffset.lerp(ahead, Math.min(1, delta * 10));
+        this.vehLookOffset.lerp(ahead, this.ease(10, delta));
         this.currentLookAt.copy(vehPos).add(this.vehLookOffset);
         this.camera.lookAt(this.currentLookAt);
         return;
@@ -524,22 +535,20 @@ export class GameCamera {
           }
         }
       }
-      this.vehCamRoom += (room - this.vehCamRoom) * Math.min(1, delta * (room < this.vehCamRoom ? 6 : 1.2));
-      const behindX = vehPos.x - Math.sin(this.cameraVehYaw) * this.vehCamRoom;
-      const behindZ = vehPos.z - Math.cos(this.cameraVehYaw) * this.vehCamRoom;
-      const targetCameraPos = new THREE.Vector3(behindX, vehPos.y + chaseHeight, behindZ);
-
-      const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
-      const vehLerp = Math.min(delta * (6.5 / smoothMultiplier), 1);
-      // The camera rides with the car: where it sits round the car is smoothed, not where it is in
-      // the world, so a fast car never pulls away from it and swings across the view in a bend
-      this.vehCamOffset.lerp(targetCameraPos.sub(vehPos), vehLerp);
-      this.camera.position.copy(vehPos).add(this.vehCamOffset);
-
-      // Look ahead of vehicle along travel direction to provide natural driving perspective
+      // In quickly when a wall is close; back out slowly. A hitch must not throw the camera at the car.
+      this.vehCamRoom += (room - this.vehCamRoom) * this.ease(room < this.vehCamRoom ? 6 : 1.2, delta);
+      this.chaseHeight += (chaseHeight - this.chaseHeight) * this.ease(4, delta);
+      // Placed from the car every frame. A second smoothing of the world position, on top of the
+      // smoothed heading, lags on a short frame and catches up on a long one: that is the jerk
+      // on a phone, where frame time is uneven. The car stays planted in the view.
+      const yaw = this.cameraVehYaw;
+      this.camera.position.set(
+        vehPos.x - Math.sin(yaw) * this.vehCamRoom,
+        vehPos.y + this.chaseHeight,
+        vehPos.z - Math.cos(yaw) * this.vehCamRoom,
+      );
       const lookAhead = Math.min(Math.max(vehSpeed * 0.16, 1.6), 7);
-      this.vehLookOffset.lerp(new THREE.Vector3(Math.sin(this.cameraVehYaw) * lookAhead, 1.5, Math.cos(this.cameraVehYaw) * lookAhead), vehLerp);
-      this.currentLookAt.copy(vehPos).add(this.vehLookOffset);
+      this.currentLookAt.set(vehPos.x + Math.sin(yaw) * lookAhead, vehPos.y + 1.5, vehPos.z + Math.cos(yaw) * lookAhead);
       this.camera.lookAt(this.currentLookAt);
       return;
     } else {

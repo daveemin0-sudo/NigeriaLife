@@ -29,7 +29,7 @@ export const CATALOGUE_ITEMS: CatalogueItem[] = [
     category: 'power',
     price: 85000,
     icon: '⚡',
-    description: 'Iconic Nigerian compact 950W generator. Keeps fan and TV running when NEPA strikes.',
+    description: 'Iconic Nigerian compact 950W generator. Keeps fan and TV running when NEPA takes light. It stands outside, not in the house.',
     modelType: 'generator_small',
   },
   {
@@ -38,7 +38,7 @@ export const CATALOGUE_ITEMS: CatalogueItem[] = [
     category: 'power',
     price: 1200000,
     icon: '🔋',
-    description: 'Industrial heavy-duty diesel generator with automatic changeover. Powers all ACs smoothly.',
+    description: 'Industrial heavy-duty diesel generator with automatic changeover. Powers all ACs smoothly. It stands outside: in the compound of a house, beside the front of a flat.',
     modelType: 'generator_big',
   },
   {
@@ -708,6 +708,13 @@ export interface RoomForFurniture {
   storey?: number;
   /** What the home came with on a floor the player is not on */
   solidsOn?(storey: number): Array<{ x: number; z: number; halfWidth: number; halfLength: number }>;
+  /**
+   * Where a generator stands, outside the walls. A house: in the compound, along the side.
+   * A flat or a room: on the apron beside the front door. Several share the row.
+   */
+  generatorPads?: Array<{ x: number; z: number; turns: number }>;
+  /** The pads are in the compound (a house), not on the apron of a flat */
+  generatorInCompound?: boolean;
 }
 
 export const WALL_COLOURS: Array<{ id: string; name: string; hex: number }> = [
@@ -819,6 +826,7 @@ export class HouseDecorationSystem {
   /** The home says how big it is and where people can stand. What is already placed is made solid in it. */
   public attach(room: RoomForFurniture): void {
     this.room = room;
+    this.settleGenerators();
     for (const item of this.placed) this.solidify(item, true);
     this.onPaint?.(this.wallHex());
     const fi = this.floorInfo();
@@ -836,6 +844,28 @@ export class HouseDecorationSystem {
 
   public kind(modelType: string): FurnitureKind {
     return FURNITURE[modelType] ?? { solid: true, use: 'none' };
+  }
+
+  /** A Tiger or a Mikano: it stands outside, never in a room */
+  private isGenerator(modelType: string): boolean {
+    return modelType === 'generator_small' || modelType === 'generator_big';
+  }
+
+  /** The outdoor spot for the generator at this place in the row, or null if the home has not said where */
+  private generatorPad(index: number): { x: number; z: number; turns: number } | null {
+    const pads = this.room?.generatorPads;
+    if (!pads?.length) return null;
+    return pads[Math.min(Math.max(0, index), pads.length - 1)];
+  }
+
+  /** Which outdoor spot a generator takes. One being moved keeps its own; a new one takes the next. */
+  private generatorSlot(moving: PlacedItem | null): number {
+    const gens = this.placed.filter((item) => this.isGenerator(item.modelType));
+    if (moving) {
+      const at = gens.indexOf(moving);
+      if (at >= 0) return at;
+    }
+    return gens.length;
   }
 
   public catalogueItem(id: string): CatalogueItem | null {
@@ -877,6 +907,28 @@ export class HouseDecorationSystem {
   // PUTTING A PIECE DOWN
   // =========================================================================
 
+  /**
+   * A generator bought earlier, and put down indoors, is moved outside: into the compound of a
+   * house, or onto the apron beside the front door of a flat. Nothing else is touched.
+   */
+  private settleGenerators(): void {
+    if (!this.room?.generatorPads?.length) return;
+    let moved = false;
+    const gens = this.placed.filter((item) => this.isGenerator(item.modelType));
+    gens.forEach((item, i) => {
+      const pad = this.generatorPad(i);
+      if (!pad) return;
+      if (item.x === pad.x && item.z === pad.z && item.turns === pad.turns && (item.storey ?? 0) === 0) return;
+      item.x = pad.x;
+      item.z = pad.z;
+      item.turns = pad.turns;
+      item.storey = 0;
+      this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, 0);
+      moved = true;
+    });
+    if (moved) this.save();
+  }
+
   /** Starts putting a new piece down. Nothing is paid until it is placed. */
   public beginPlacing(itemId: string, options: { stored?: boolean } = {}): boolean {
     const item = this.catalogueItem(itemId);
@@ -884,8 +936,9 @@ export class HouseDecorationSystem {
     if (options.stored && !this.stored.includes(itemId)) return false;
     this.cancel();
     this.closeCatalogueModal();
-    const at = this.startAt?.() ?? { x: 0, z: 4 };
-    this.placing = { item, x: this.snap(at.x), z: this.snap(at.z), turns: 0, moving: null, stored: !!options.stored };
+    const pad = this.isGenerator(item.modelType) ? this.generatorPad(this.generatorSlot(null)) : null;
+    const at = pad ?? this.startAt?.() ?? { x: 0, z: 4 };
+    this.placing = { item, x: this.snap(at.x), z: this.snap(at.z), turns: pad?.turns ?? 0, moving: null, stored: !!options.stored };
     this.showGhost();
     return true;
   }
@@ -911,8 +964,15 @@ export class HouseDecorationSystem {
   /** Moves the piece being put down to a point on the floor, measured from the middle of the home. */
   public moveTo(x: number, z: number): boolean {
     if (!this.placing) return false;
-    this.placing.x = this.snap(x);
-    this.placing.z = this.snap(z);
+    const pad = this.isGenerator(this.placing.item.modelType) ? this.generatorPad(this.generatorSlot(this.placing.moving)) : null;
+    if (pad) {
+      this.placing.x = pad.x;
+      this.placing.z = pad.z;
+      this.placing.turns = pad.turns;
+    } else {
+      this.placing.x = this.snap(x);
+      this.placing.z = this.snap(z);
+    }
     this.showGhost();
     return true;
   }
@@ -928,6 +988,16 @@ export class HouseDecorationSystem {
     const placing = this.placing;
     const room = this.room;
     if (!placing || !room) return 'Nothing is being placed.';
+    if (this.isGenerator(placing.item.modelType)) {
+      const pad = this.generatorPad(this.generatorSlot(placing.moving));
+      if (!pad) return 'A generator stands outside, and this home has nowhere for it yet.';
+      if (Math.hypot(placing.x - pad.x, placing.z - pad.z) > 0.4) return 'A generator stands outside.';
+      if (!placing.moving && !placing.stored) {
+        const data = this.backend.getData();
+        if (data.walletCash + data.bank.balance < placing.item.price) return `You need ₦${placing.item.price.toLocaleString()} for it.`;
+      }
+      return null;
+    }
     const size = this.footprint(placing.item.modelType, placing.turns);
     const minX = placing.x - size.width / 2;
     const maxX = placing.x + size.width / 2;
@@ -966,11 +1036,18 @@ export class HouseDecorationSystem {
     const reason = this.blocked();
     if (reason) return { ok: false, reason };
 
+    const pad = this.isGenerator(placing.item.modelType) ? this.generatorPad(this.generatorSlot(placing.moving)) : null;
+    if (pad) {
+      placing.x = pad.x;
+      placing.z = pad.z;
+      placing.turns = pad.turns;
+    }
     let item = placing.moving;
     if (item) {
       item.x = placing.x;
       item.z = placing.z;
       item.turns = placing.turns;
+      item.storey = pad ? 0 : item.storey;
       item.mesh.visible = true;
     } else {
       if (placing.stored) {
@@ -990,7 +1067,7 @@ export class HouseDecorationSystem {
         x: placing.x,
         z: placing.z,
         turns: placing.turns,
-        storey: this.room?.storey ?? 0,
+        storey: pad ? 0 : (this.room?.storey ?? 0),
         mesh: this.createFurniture3DMesh(placing.item.modelType),
       };
       this.placed.push(item);
@@ -1005,7 +1082,11 @@ export class HouseDecorationSystem {
     this.onChanged?.();
     this.onPlacingChanged?.();
     if (wasNew) {
-      showGameToast(`${placing.item.name} is in place. ₦${placing.item.price.toLocaleString()} paid.`, 'success');
+      const where = pad ? (this.room?.generatorInCompound ? 'in the compound' : 'beside the front') : null;
+      showGameToast(
+        where ? `${placing.item.name} stands outside, ${where}. ₦${placing.item.price.toLocaleString()} paid.` : `${placing.item.name} is in place. ₦${placing.item.price.toLocaleString()} paid.`,
+        'success',
+      );
       this.onFurniturePlaced?.(placing.item);
     } else if (placing.stored) {
       showGameToast(`${placing.item.name} is out of storage and in place.`, 'success');
@@ -1067,16 +1148,21 @@ export class HouseDecorationSystem {
       const entry = this.catalogueItem(piece.id);
       if (!entry) continue;
       if (piece.uid && this.placed.some((item) => item.uid === piece.uid)) continue;
-      floor = piece.storey ?? 0;
-      const size = this.footprint(entry.modelType, piece.turns);
-      if (this.kind(entry.modelType).solid && overlaps(piece.x, piece.z, size.width, size.depth)) continue;
+      // A generator never stands in a room: it takes the next spot outside
+      const pad = this.isGenerator(entry.modelType) ? this.generatorPad(this.generatorSlot(null)) : null;
+      floor = pad ? 0 : (piece.storey ?? 0);
+      const x = pad?.x ?? piece.x;
+      const z = pad?.z ?? piece.z;
+      const turns = pad?.turns ?? piece.turns;
+      const size = this.footprint(entry.modelType, turns);
+      if (this.kind(entry.modelType).solid && overlaps(x, z, size.width, size.depth)) continue;
       const item: PlacedItem = {
         uid: piece.uid ?? `${piece.id}_came_${taken.toString(36)}${Date.now().toString(36)}`,
         id: piece.id,
         modelType: entry.modelType,
-        x: piece.x,
-        z: piece.z,
-        turns: piece.turns,
+        x,
+        z,
+        turns,
         storey: floor,
         mesh: this.createFurniture3DMesh(entry.modelType),
       };
@@ -1109,6 +1195,19 @@ export class HouseDecorationSystem {
     const kept: PlacedItem[] = [];
     const stored: string[] = [];
     for (const item of order) {
+      if (this.isGenerator(item.modelType)) {
+        const pad = this.generatorPad(kept.filter((other) => this.isGenerator(other.modelType)).length);
+        if (pad) {
+          item.x = pad.x;
+          item.z = pad.z;
+          item.turns = pad.turns;
+          item.storey = 0;
+          this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, 0);
+          kept.push(item);
+          this.solidify(item, true);
+          continue;
+        }
+      }
       const want = moves[item.uid];
       let spot: { x: number; z: number; turns: number; storey: number } | null = null;
       if (want) {

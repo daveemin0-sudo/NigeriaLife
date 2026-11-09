@@ -190,6 +190,30 @@ export function briefOfBuilding(typeId: string): HomeBrief {
   return typeId === 'duplex' ? { kind: 'house', bedrooms: 4, carport: true, storeys: 2 } : { kind: 'house', bedrooms: 3, carport: true };
 }
 
+/** Where a bought generator stands. A house has a compound: along the side wall, outside it. A flat or a room has no compound: on the apron beside the front door. */
+export function generatorPads(plan: HomePlan): Array<{ x: number; z: number; turns: number }> {
+  const hw = plan.width / 2;
+  if (plan.carport) {
+    // Narrow side out from the wall (turns 1), long side along the house, on the side away from the carport
+    const x = -(hw + 0.95);
+    const z0 = plan.frontZ - 1.7;
+    return [
+      { x, z: z0, turns: 1 },
+      { x, z: z0 - 2.8, turns: 1 },
+    ];
+  }
+  // Outside the left wall, near the front. The view into a home is from the front-right,
+  // so the left side is beside the building and out of that view. On the apron, or on the
+  // right, a generator fills the picture and reads as standing in the room.
+  const x = -(hw + 0.95);
+  const z0 = plan.frontZ - 1.7;
+  const back = -plan.length / 2;
+  const pads = [{ x, z: z0, turns: 1 }];
+  const z1 = z0 - 2.8;
+  pads.push(z1 > back + 1.4 ? { x, z: z1, turns: 1 } : { x: x - 1.6, z: z0, turns: 1 });
+  return pads;
+}
+
 export function planFor(brief: HomeBrief): HomePlan {
   if (brief.storeys === 2 && brief.kind === 'house' && brief.bedrooms >= 3) return duplex(brief);
   if (brief.kind === 'self-contain') return selfContain(brief);

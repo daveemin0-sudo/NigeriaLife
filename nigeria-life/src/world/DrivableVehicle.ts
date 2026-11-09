@@ -2215,9 +2215,11 @@ export class DrivableVehicle {
    */
   private stepThroughWorld(stepX: number, stepZ: number, delta: number, slowedAlready: boolean): 'moved' | 'slid' | 'stopped' {
     const pos = this.mesh.position;
-    // The kerb at speed: from the road, the car does not leave it; it slides along the kerb instead
+    // The kerb at speed: the car does not leave the road; it slides along the kerb instead.
+    // Only the middle of the car counts. A nose that clips the edge on a long phone frame used to
+    // throw the car sideways and slow it, which reads as a jerk. The body still cannot drive off.
     const road = DrivableVehicle.onRoad;
-    if (road && this.driver && Math.abs(this.currentSpeed) > KERB_SPEED && this.onTheRoad(road, pos.x, pos.z) && !this.onTheRoad(road, pos.x + stepX, pos.z + stepZ)) {
+    if (road && this.driver && Math.abs(this.currentSpeed) > KERB_SPEED && road(pos.x, pos.z) && !road(pos.x + stepX, pos.z + stepZ)) {
       const alongX = this.onTheRoad(road, pos.x + stepX, pos.z);
       const alongZ = this.onTheRoad(road, pos.x, pos.z + stepZ);
       const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
