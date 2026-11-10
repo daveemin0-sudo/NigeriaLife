@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { bedDuvetNear, duvetOver } from '../../interactions/Duvet';
-import { fineBathtub, fineBed, fineFridge, fineLamp, fineSofa, fineToilet, fineWardrobe } from '../../housing/FineFurniture';
+import { fineBasin, fineBathtub, fineBed, fineFridge, fineLamp, fineSofa, fineToilet, fineWardrobe } from '../../housing/FineFurniture';
+import { repeated, smallTiles } from '../../graphics/Surfaces';
 import { RENDER_LAYERS } from '../InteriorTypes';
 import { Builder, signBoard } from '../../world/kit/ArchKit';
 import { Sequence, steps } from '../../interactions/Sequence';
@@ -1057,7 +1058,7 @@ class TownLobby {
       host.say(hotel.lapsed() ? 'Your stay has ended. See the front desk.' : 'Check in at the front desk for a key card.', 'info');
       return;
     }
-    const suiteKey = this.hotel.replace(/-hotel$/, '-suite');
+    const suiteKey = this.hotel.endsWith('-hotel') ? this.hotel.replace(/-hotel$/, '-suite') : `${this.hotel}-suite`;
     const suite = rooms.get(suiteKey);
     const id = suite?.def.id ?? `interior_place_${suiteKey}`;
     const at = suite ? suite.at(1.2, -1.2) : this.room.at(0, 2);
@@ -1066,9 +1067,11 @@ class TownLobby {
 }
 
 /** Where the bed sits, and which side of the room the bathroom is on. Abuja and Port Harcourt are mirrored. */
-function roomPlan(hotel: string): { bed: { x: number; z: number }; side: number } {
-  const side = hotel.startsWith('port') ? -1 : 1;
-  return { bed: { x: -side * 2.1, z: -2.3 }, side };
+function roomPlan(hotel: string): { bed: { x: number; z: number }; side: number; variant: number } {
+  const variant = hotel.includes('-hotel-1') ? 1 : hotel.includes('-hotel-2') ? 2 : 0;
+  const side = (hotel.startsWith('port') ? -1 : 1) * (variant === 2 ? -1 : 1);
+  const bed = variant === 1 ? { x: 0, z: -1.4 } : { x: -side * 2.1, z: -2.3 };
+  return { bed, side, variant };
 }
 
 const lay = (parent: THREE.Object3D, object: THREE.Object3D, x: number, y: number, z: number, yaw = 0): void => {
@@ -1084,17 +1087,17 @@ const lay = (parent: THREE.Object3D, object: THREE.Object3D, x: number, y: numbe
  */
 function furnishGuestRoom(room: THREE.Object3D, hotel: string): { x: number; z: number } {
   const ph = hotel.startsWith('port');
-  const { bed, side } = roomPlan(hotel);
-  const cover = ph ? 0x0f766e : 0x9a3412;
-  const trim = ph ? 0xe0f2fe : 0xf5e6c8;
-  const wood = ph ? 0x44403c : 0x6b3f1d;
+  const { bed, side, variant } = roomPlan(hotel);
+  const cover = variant === 1 ? (ph ? 0x1e3a8a : 0xb45309) : variant === 2 ? (ph ? 0x7c2d12 : 0x14532d) : ph ? 0x0f766e : 0x9a3412;
+  const trim = variant === 0 && !ph ? 0xf5e6c8 : 0xe0f2fe;
+  const wood = variant === 2 ? 0x3f3f46 : ph ? 0x44403c : 0x6b3f1d;
   lay(room, fineBed(1.7, cover, trim, wood), bed.x, 0, bed.z, 0);
   const b = new Builder();
   for (const edge of [-1, 1]) {
     const x = bed.x + edge * 1.35;
     b.box(wood, 0.46, 0.52, 0.42, x, 0, bed.z - 0.95);
-    b.cylinder(0xf8fafc, 0.07, 0.1, x, 0.54, bed.z - 0.95);
-    b.cylinder(trim, 0.11, 0.14, x, 0.66, bed.z - 0.95, { glow: true });
+    b.cylinder(0x1c1917, 0.025, 0.28, x, 0.52, bed.z - 0.95, { sides: 6 });
+    b.cone(0xfde68a, 0.14, 0.18, x, 0.78, bed.z - 0.95, 12, { glow: true });
   }
   b.box(ph ? 0x134e4a : 0x7c2d12, 5.4, 0.02, 4.4, bed.x, 0.01, bed.z + 0.15);
   // The window, with the city beyond the glass and the curtains drawn back
@@ -1110,7 +1113,6 @@ function furnishGuestRoom(room: THREE.Object3D, hotel: string): { x: number; z: 
   // A desk under the window, on the side away from the bathroom
   const deskX = -side * 5.8;
   b.box(wood, 1.35, 0.75, 0.62, deskX, 0, -4.8);
-  b.box(0x111827, 0.46, 0.46, 0.48, deskX, 0, -4.05);
   b.box(0xe5e7eb, 0.95, 0.28, 0.18, side * 1.6, 2.55, -6.75);
   b.box(ph ? 0x0e7490 : 0xb45309, 1.05, 0.7, 0.04, side * 7.7, 1.7, -1.2);
   b.box(0xfef3c7, 0.82, 0.5, 0.02, side * 7.68, 1.7, -1.2);
@@ -1120,21 +1122,81 @@ function furnishGuestRoom(room: THREE.Object3D, hotel: string): { x: number; z: 
   b.box(0xf5f5f4, 0.12, 2.35, 3.4, side * 3.6, 0, 4.2);
   b.box(ph ? 0x99f6e4 : 0xfde68a, 3.6, 0.025, 4.2, side * 5.7, 0.02, 4.3);
   b.box(trim, 0.42, 0.7, 0.05, side * 7.7, 1.35, 4.4);
+  // A shower beside the bath: a stall, a curtain and a head
+  b.box(0xe7e5e4, 0.08, 2.05, 1.15, side * 4.15, 0, 2.7);
+  b.box(0xf8fafc, 0.04, 1.7, 0.9, side * 4.28, 0.1, 2.7);
+  b.cylinder(0xcbd5e1, 0.08, 0.04, side * 5.15, 2.05, 2.35);
   room.add(b.build('guest room', { roughness: 0.65 }));
+  lay(room, cityBeyond(ph ? 'ph' : 'abuja'), bed.x, 1.78, -6.78);
+  const tiles = new THREE.Mesh(
+    new THREE.BoxGeometry(3.6, 0.02, 4.8),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, map: repeated(smallTiles(ph ? '#d5efe6' : '#f4ead8'), 9, 12) ?? undefined }),
+  );
+  tiles.name = 'bathroom tiles';
+  lay(room, tiles, side * 5.6, 0.02, 4.15);
   lay(room, fineWardrobe(), -side * 6.4, 0, 0.2, side > 0 ? -Math.PI / 2 : Math.PI / 2);
   lay(room, fineSofa(1, cover, trim, wood), side * 1.1, 0, 1.5, Math.PI);
+  lay(room, fineSofa(1, wood, trim, wood), deskX, 0, -3.85, Math.PI);
   const fridge = fineFridge();
   fridge.scale.setScalar(0.55);
   lay(room, fridge, side * 5.9, 0, -0.6, side > 0 ? -Math.PI / 2 : Math.PI / 2);
   lay(room, fineToilet(), side * 5.9, 0, 5.5, Math.PI);
   lay(room, fineBathtub(), side * 5.5, 0, 2.7, side > 0 ? Math.PI / 2 : -Math.PI / 2);
   lay(room, fineLamp(), bed.x - side * 2.6, 0, bed.z + 1.8, 0);
-  const basin = new Builder();
-  basin.box(0xf8fafc, 0.72, 0.82, 0.42, side * 5.9, 0, 6.35);
-  basin.cylinder(0xe7e5e4, 0.16, 0.08, side * 5.9, 0.86, 6.35);
-  basin.box(0xdbeafe, 0.55, 0.42, 0.02, side * 7.75, 1.5, 6.35);
-  room.add(basin.build('basin', { roughness: 0.25 }));
+  // The mirror sits on the outside wall. wallBack is behind the basin, in the basin's own space.
+  lay(room, fineBasin(-0.32), side * 6.15, 0, 6.15, side > 0 ? -Math.PI / 2 : Math.PI / 2);
   return bed;
+}
+
+/** What is outside the glass: Aso Rock and the dome in Abuja, the creek and a bridge in Port Harcourt. */
+function cityBeyond(city: 'abuja' | 'ph'): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.15, 1.28), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  mesh.name = 'window view';
+  if (typeof document === 'undefined') return mesh;
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 320;
+  const g = c.getContext('2d');
+  if (!g) return mesh;
+  const sky = g.createLinearGradient(0, 0, 0, 210);
+  if (city === 'abuja') {
+    sky.addColorStop(0, '#7eb6e8');
+    sky.addColorStop(1, '#f6d2a0');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, 512, 320);
+    g.fillStyle = '#6b7280';
+    g.beginPath();
+    g.moveTo(30, 214);
+    g.lineTo(150, 78);
+    g.lineTo(280, 214);
+    g.fill();
+    g.fillStyle = '#15803d';
+    g.beginPath();
+    g.ellipse(370, 168, 54, 30, 0, Math.PI, 0);
+    g.fill();
+    g.fillStyle = '#e5e7eb';
+    g.fillRect(330, 168, 80, 46);
+  } else {
+    sky.addColorStop(0, '#5eaddf');
+    sky.addColorStop(1, '#fde68a');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, 512, 320);
+    g.fillStyle = '#0e7490';
+    g.fillRect(0, 168, 512, 152);
+    g.fillStyle = '#f8fafc';
+    g.fillRect(0, 188, 512, 7);
+    g.fillStyle = '#334155';
+    for (let x = 16; x < 512; x += 46) g.fillRect(x, 195, 5, 28);
+    g.fillStyle = '#14532d';
+    g.fillRect(0, 230, 90, 90);
+    g.fillRect(430, 214, 82, 106);
+  }
+  g.fillStyle = city === 'abuja' ? '#166534' : '#0f766e';
+  if (city === 'abuja') g.fillRect(0, 214, 512, 106);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  (mesh.material as THREE.MeshBasicMaterial).map = tex;
+  return mesh;
 }
 
 /** The guest room: a bed to sleep in for as long as the stay lasts */
@@ -1182,11 +1244,13 @@ class TownSuite {
     // The foot of the bed points toward the door. The head is on the pillows.
     const facing = 0;
     const top = 0.72;
+    // Feet at the footboard. Lying faces the foot, so the head lands on the pillows.
+    const feet = { x: bed.x, z: bed.z + 0.85 };
     const lying = { legs: 'lie' as const, arms: 'rest' as const, height: top };
     const lieDown = new Sequence('lie down', [player]).add(
       steps.walk(player, this.room.at(standX, bed.z + 0.6), { speed: 2.4 }),
       steps.face(player, this.room.at(bed.x, bed.z)),
-      steps.slide(player, this.room.at(bed.x, bed.z - 0.15), 0.5),
+      steps.slide(player, this.room.at(feet.x, feet.z), 0.5),
       steps.face(player, facing),
       steps.setPose(player, lying),
       steps.wait(0.4),
@@ -1202,7 +1266,6 @@ class TownSuite {
       this.restedTold = false;
       this.duvet?.removeFromParent();
       if (this.bedCloth) this.bedCloth.visible = true;
-      const feet = { x: bed.x, z: bed.z - 0.15 };
       this.bedCloth = bedDuvetNear(this.room.group, feet);
       this.duvet = duvetOver(this.room.group, feet, facing, top, this.bedCloth);
       if (this.bedCloth) this.bedCloth.visible = false;
@@ -1245,15 +1308,19 @@ class TownSuite {
 }
 
 /** Gives each part of the hotel what it needs, as it is built */
+const townHotelKey = (key: string) => key.endsWith('-town-hotel') || /-hotel-[12]$/.test(key);
+const townSuiteKey = (key: string) => key.endsWith('-town-suite') || /-hotel-[12]-suite$/.test(key);
+
 export function attachHotel(room: PlaceInterior, key: string): void {
-  if (key.endsWith('-town-hotel')) {
+  if (townHotelKey(key)) {
     rooms.set(key, room);
     new TownLobby(room, key);
     return;
   }
-  if (key.endsWith('-town-suite')) {
+  if (townSuiteKey(key)) {
     rooms.set(key, room);
-    new TownSuite(room, key.replace(/-suite$/, '-hotel'));
+    const hotel = key.endsWith('-town-suite') ? key.replace(/-suite$/, '-hotel') : key.replace(/-suite$/, '');
+    new TownSuite(room, hotel);
     return;
   }
   if (key !== HOTEL.lobby && key !== HOTEL.floor && key !== HOTEL.suite) return;

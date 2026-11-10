@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Obstruction, Rect } from '../world/plan/CityPlan';
+import { signBoard } from '../world/kit/ArchKit';
 import { buildTownscape, type TownBuilding } from '../world/kit/Townscape';
 import { between, junctionsOf, type GridRoad } from '../world/plan/GridRoads';
 import { footprintOf } from './BlockFiller';
@@ -69,11 +70,26 @@ const TOWN_WORDS: Record<TownRoomKind, { word: string; category: string; label: 
   market: { word: 'Market', category: 'Market', label: '🛍️ Into the market' },
 };
 
-/** The room a door opens: a shop or a bank is the full one, the same activities as in Lagos */
-const roomFor = (cityId: string, kind: TownRoomKind): string => {
-  if (kind === 'shops') return 'supermarket';
-  if (kind === 'bank') return 'bank';
-  return `roadside-${townRoomKey(cityId, kind)}`;
+/**
+ * Which room a door opens. Shops, banks, offices and markets are that city's own room.
+ * The first named hotel of a city uses the main lobby. The others use a different lobby,
+ * so two hotels are not the same room with a different name.
+ */
+const roomFor = (cityId: string, kind: TownRoomKind, name: string): string => {
+  if (kind !== 'hotel') return `roadside-${townRoomKey(cityId, kind)}`;
+  const main = /Unity Fountain|^Garden City/.test(name);
+  let variant = 0;
+  if (!main) {
+    let h = 0;
+    for (const c of name) h = (h + c.charCodeAt(0)) % 2;
+    variant = h + 1;
+  }
+  const key = variant === 0 ? townRoomKey(cityId, 'hotel') : `${cityId}-hotel-${variant}`;
+  return `roadside-${key}`;
+};
+
+const SIGN_COLOUR: Record<TownRoomKind, string> = {
+  shops: '#166534', office: '#1e3a8a', hotel: '#7c2d12', bank: '#0f172a', market: '#92400e',
 };
 
 /**
@@ -101,9 +117,15 @@ export function townDoors(group: THREE.Group, list: InteractiveObject[], buildin
     const count = (used.get(base) ?? 0) + 1;
     used.set(base, count);
     const name = count === 1 ? base : `${base} ${count}`;
-    const room = roomFor(cityId, kind);
+    const room = roomFor(cityId, kind, name);
     list.push({ mesh, id, name, category: words.category, description: `${name}, ${district}.`, interactionPoint: stand.clone() });
     PlaceActions.register(id, { label: () => words.label, run: (host) => host.enter(room, stand) });
+    // The name is on the building, outside, over the door
+    const board = signBoard([name], Math.min(8, Math.max(4.5, name.length * 0.32)), 0.7, SIGN_COLOUR[kind], '#f8fafc');
+    const yaw = front.dx !== 0 ? (front.dx > 0 ? -Math.PI / 2 : Math.PI / 2) : front.dz > 0 ? 0 : Math.PI;
+    board.position.set(front.x + front.dx * 0.35, 3.4, front.z + front.dz * 0.35);
+    board.rotation.y = yaw;
+    group.add(board);
   }
   return n;
 }

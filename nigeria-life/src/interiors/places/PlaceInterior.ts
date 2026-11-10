@@ -6,6 +6,7 @@ import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import { HumanMeshBuilder } from '../../graphics/HumanMeshBuilder';
 import { bakeToGeometry } from '../../graphics/MeshBaker';
 import type { InteractiveObject } from '../../world/World';
+import { floorSurface, repeated } from '../../graphics/Surfaces';
 import { Builder, signBoard } from '../../world/kit/ArchKit';
 import { PlaceActions, type PlaceHost } from '../../destinations/PlaceActions';
 import type { ArmPose } from '../../interactions/Poses';
@@ -84,7 +85,7 @@ export interface PlaceSpec {
   key: string;
   name: string;
   district: string;
-  room: { width: number; length: number; height: number; floor: number; wall: number };
+  room: { width: number; length: number; height: number; floor: number; wall: number; /** A textured finish from Surfaces.floorSurface */ finish?: string };
   /** What the room is furnished with, drawn in its own space (the door is at +z) */
   build(b: Builder, room: THREE.Group): void;
   /** The sign on the back wall */
@@ -195,7 +196,17 @@ export class PlaceInterior {
   private build(): void {
     const before = new Set(this.group.children);
     const { width, length, height, floor, wall } = this.spec.room;
-    this.group.add(InteriorPrefabs.createRoom(width, length, height, floor, wall));
+    const shell = InteriorPrefabs.createRoom(width, length, height, floor, wall);
+    this.group.add(shell);
+    if (this.spec.room.finish) {
+      const mesh = shell.getObjectByName('interior_floor_mesh');
+      if (mesh instanceof THREE.Mesh && mesh.material instanceof THREE.MeshStandardMaterial) {
+        const surface = floorSurface(this.spec.room.finish);
+        mesh.material.map = repeated(surface.map, width / surface.metres, length / surface.metres);
+        mesh.material.color.setHex(0xffffff);
+        mesh.material.needsUpdate = true;
+      }
+    }
     // Lights across the ceiling, so the room is bright at any hour
     for (let x = -width / 2 + 4; x < width / 2 - 2; x += 7) for (let z = -length / 2 + 4; z < length / 2 - 2; z += 7) this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(x, height - 0.3, z), 0xfff7e6));
     const b = new Builder();
@@ -215,7 +226,7 @@ export class PlaceInterior {
     const way = this.spec.door ?? { name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.' };
     this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: way.name, category: way.category, description: way.description, interactionPoint: this.world(0, length / 2 - 1), exitLabel: this.spec.door ? `🚪 ${this.spec.door.name}` : undefined });
     // A guest room has its own bathroom. The customers' toilet door belongs in the public rooms.
-    if (!this.spec.key.endsWith('-town-suite')) this.addRestroom(b.footprints);
+    if (!this.spec.key.endsWith('-town-suite') && !/-hotel-[12]-suite$/.test(this.spec.key)) this.addRestroom(b.footprints);
     // The tables: what was built at table height, small enough to sit round
     this.tables = b.footprints.filter((f) => f.height >= 0.6 && f.height <= 0.92 && f.maxX - f.minX >= 0.8 && f.maxZ - f.minZ >= 0.6 && f.maxX - f.minX <= 4.2 && f.maxZ - f.minZ <= 4.2);
 
