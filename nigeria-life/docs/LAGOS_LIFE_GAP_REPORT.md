@@ -1,0 +1,137 @@
+# What NigeriaLife needs next (10 November 2026)
+
+A brief for Cursor, from the owner's own play of the live build (`a665d0e`) and of Lagos Life.
+Every item says what is wrong or missing, what the player should get, and where the code is.
+
+**About the Lagos Life details:** they come from the owner's descriptions and their earlier
+screenshots. Claude did not open Lagos Life again for this report, so the owner's word is the
+reference. Do not copy Lagos Life's names, art or text; build our own version, Nigerian and real.
+
+**Ground rules (from the owner):**
+- Phone first: test at 316 to 412 px with real taps and look at screenshots.
+- Every action is acted out in the world.
+- Nothing half-done.
+- To publish: `git push origin claude/next-steps:stabilise-core` (see `docs/HANDOVER.md`).
+
+---
+
+## Bugs first
+
+### 1. Shift pay stuck: "The server has no record of this shift"
+- **What happens:** after a Junior Software Engineer shift, the phone says "Shift done: collect your ₦31,250". Tapping Collect says "The server has no record of this shift", and the money never comes.
+- **Cause:** `src/phone/apps/life.ts`, around line 228.
+  - `start` runs the shift locally (`backend.startJobShift`), then calls `online.startGig('career:<id>')` asynchronously. A failed server start is only shown as a message; the local shift carries on.
+  - `claim` needs `online.rememberedGig(...)`. The record is missing whenever the server start failed (the server was asleep or redeploying, which is common on Render), the shift was started another way (in person at the workplace, `src/jobs`), or the record did not survive a reload.
+- **Fix:**
+  - Every way of starting a shift goes through one function. It starts the server gig first and only starts the local shift once the server agrees (or offline, locally only).
+  - The gig record is kept in localStorage until it is paid.
+  - At Collect with no record, ask the server for the player's open gig for that job before failing. If there truly is none, say so plainly and clear the stuck shift; never leave "collect" showing pay that can never come.
+- **Check:** start a shift, reload the page, finish it, collect. Start a shift with the server down, then up. Start in person at the refinery. All three are paid exactly once (`money` and `jobs` suites).
+
+### 2. Eating from the fridge walks to the wrong places
+- **What happens:** the player taps a food. They walk to an empty corner of the parlour, wait, then go to the middle of the room and sit on nothing.
+- **Cause:** `HomeLife.eatFromFridge` (`src/interiors/home/HomeLife.ts`, about line 284) uses `HOME.fridge` and `HOME.sofa`. Those positions are only kept up to date for the pieces a home came with (`followCore`, `CORE_CARDS` in `ResidentialInterior.ts`). In other homes, and for a bought fridge or sofa, they are the default flat's positions.
+- **Fix:**
+  - Take the food at the fridge that was tapped, at its own front.
+  - Eat it on the nearest real seat in the home (a placed piece whose kind has `seat`).
+  - With no seat, eat standing at the fridge.
+- **Check:** in a second home and a built duplex, with a bought fridge and sofa. Look at screenshots.
+
+### 3. Rooms in Abuja and Port Harcourt are empty of real activities
+- **What happens:** "Abuja hotel" has a lounge and a bar but no check-in, room, key or stay.
+- **Cause:** every Abuja and Port Harcourt shop, office, hotel, bank and market shares one thin room per kind (`townRooms` in `src/interiors/places/PlaceSpecs.ts`).
+- **Fix:**
+  - **Hotels:** give them the Lagos hotel's front desk, key card, room and stay (`HOTEL_SPECS`, `HotelStay` in `src/interiors/places/Hotel.ts`).
+  - **Banks:** teller and ATM, as Lagos.
+  - **Supermarkets:** the Lagos supermarket (shelves, trolley, till).
+  - **Markets:** stalls with real buying.
+  - **Offices:** real work, linked to Jobs.
+  - Give each door its own name ("Wuse Suites", "Garki Supermarket") and put it on the map and in the map's search.
+
+### 4. Two failing checks left from the last round
+- **The blackout picture:** with the lights off, a home is under 15% darker. Something may still light the room since the generator moved outside. Test a power cut with an empty generator and look at the room.
+- **The live ArrowUp driving check:** the car covers about 8 m in 12 s where the check wants 10 m. Run it alone with the game closed. If it still fails, the car now accelerates more slowly.
+
+---
+
+## Jobs: real pay, real hours
+
+**Pay:** pay what Nigerian jobs really pay (2025–26 levels).
+- Today: Dangote Refinery about ₦20k a shift; most jobs ₦10–15k.
+- Use a real monthly salary for each job, turned into pay per shift. Examples:
+  - Junior software engineer: ₦400k–₦800k a month.
+  - Refinery operator: ₦500k–₦1.5M a month.
+  - Banker: ₦250k–₦600k.
+  - Doctor: ₦600k–₦1.5M.
+  - Cleaner or dispatch rider: ₦70k–₦150k.
+- Promotions raise pay.
+- The server's earn rules (`server/earn.ts`) must agree: the server pays.
+
+**Hours:**
+- A shift should be a real stretch of play (the owner's reference: Lagos Life's hour or more), not 4 rounds in a minute or two.
+- During the shift the player is at the workplace, in uniform, doing the work.
+- The player can't wander off without leaving the shift (pay for the time worked, or none).
+
+**Working while offline:**
+- If the player has a job and is offline at their shift time, their character goes to work by itself.
+- On return they find the pay, less a cut, with a short "while you were away" note.
+- This must be decided by the server, so it can't be faked.
+
+**CV and qualifications:**
+- Better jobs ask for a CV, experience and certificates (see Courses below). Some ask for an interview.
+- Show what is missing: "Needs: Software Developer level 3 certificate".
+
+## Businesses: register your own and grow it
+
+Buying a business starts at ₦8M, which is out of reach. Add **Register a business**, built from scratch:
+1. **Pick the area.** The owner's fees: Ikorodu, Ajah, Wuse (Abuja) ₦6M; Yaba, Lagos Island ₦10M; Lekki ₦18M; Victoria Island, Ikoyi, Banana Island ₦30M. Add Port Harcourt areas the same way.
+2. **Pick the type:** food spot, salon, provisions, fashion, pharmacy, events, dispatch, tech startup, filling station, transport (buses), and more.
+3. **Name it, and design its logo:** colour, icon, letters.
+4. **Pay the area's fee to register.** It starts small: a kiosk or a small shop, a few customers.
+5. **Grow it:** hire staff, stock, upgrade the premises, open branches.
+
+Its income comes from real customers in the world, settled by the server like other takings. Its sign, with its name and logo, stands on its building in that area. Keep the current "buy a business" for the rich. Where the code is today: `src/backend` (businesses, takings), the phone's business app, `src/realestate` (land and building).
+
+## New phone apps
+
+Every app follows the phone's design system (`src/ui/kit`, `src/ui/theme`), fits 316 px, and is checked by the `phonefit` suite.
+
+- **Gadgets:** a shop for phones, PlayStation and other consoles, a titanium watch, retro games, sports watches, AirPods, MP3 players. Real models and prices. Bought items go into the bag and can be used: play the console at home, wear the watch.
+- **Contacts:** everyone the player has met (people in the world, other players, staff, landlord, employer). Call, message, and see how they know you. `src/phone/apps` has Messages; Contacts sits beside it.
+- **Courses (a university, e.g. UNILAG):**
+  - Courses: lawyer, doctor, software developer, banker, chef, musician, artist, fashion designer, pilot, real estate pro, journalism, broadcast, entrepreneur, civil engineer, money smart.
+  - Each has levels 0 to 5. Each level is study time (attend class, take the test) and a fee.
+  - Each level gives a certificate in the CV, and certificates unlock jobs and better pay.
+- **Bus company:** for players who buy buses (`src/assets` fleet, Motors).
+  - The fleet, routes, drivers and conductors (crew), daily takings, servicing, and bookings.
+  - The buses run their routes in the world and earn while the player is away.
+- **Police:**
+  - Report a crime or a person, check a case, pay a fine, request an escort, ask for a police report.
+  - All from the phone, without driving to headquarters.
+  - Ties into the existing police and Cases code (`src/life`, `src/phone/apps/cases.ts`).
+
+## Settings and how to play
+
+Make the settings page as clear and good-looking as the rest. It should cover:
+- **How to play:** a short guided tour of moving, entering places, the phone, jobs, money, homes and driving.
+- **Controls:** phone and PC shown separately.
+- **Sound and music volumes.**
+- **Graphics quality.**
+- **Light and dark theme.**
+- **Text size.**
+- **Notifications.**
+- **Account, privacy, help, and report a problem.**
+
+Where: `src/phone/apps/life.ts` (settings).
+
+## A full check of the game, as a player
+
+On a phone viewport with real taps, in each city (Lagos, Abuja, Port Harcourt):
+- enter one place of every kind and press every button inside;
+- rent a home and build one, then use the bed, fridge, sofa, TV, bath, generator and cook in both;
+- take a job shift end to end and get paid;
+- book a ride and drive yourself;
+- fly the jet both ways;
+- open every phone app.
+
+Write down what you did, what happened and what should happen. Fix it and rerun the suite that covers it.
