@@ -8,6 +8,7 @@ import { noticesEnabled, setNotices } from '../../ui/GameToast';
 import { Employment, EMPLOYERS, WORKSITES } from '../../jobs/Employment';
 import { WORKPLACE } from '../../interiors/places/PlaceJobs';
 import { Shifts } from '../../jobs/HandWork';
+import { CareerShift } from '../../jobs/CareerShift';
 import { PlaceOpeners } from '../../interiors/places/PlaceInterior';
 import { Deeds } from '../../realestate/Deeds';
 import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerLink';
@@ -96,63 +97,7 @@ async function beginShift(host: PhoneHost, id: string): Promise<void> {
   }
   const result = host.backend.startJobShift(id);
   host.say(result.message, result.success ? 'good' : 'bad');
-}
-
-/** Collects the wage once. A lost id is asked of the server. A shift the server does not have is cleared. */
-async function collectShift(host: PhoneHost): Promise<void> {
-  const online = OnlineAccount.get();
-  if (!online) {
-    const result = host.backend.completeJobShift();
-    if (result.success) SoundEngine.getInstance().playTransactionSuccess();
-    host.say(result.message, result.success ? 'good' : 'bad');
-    return;
-  }
-  const shiftInfo = host.backend.getActiveJobShift();
-  if (!shiftInfo) { host.say('No active job shift.', 'bad'); return; }
-  if (!shiftInfo.isReady) { host.say(`Shift still ongoing. ${leftWords(shiftInfo.remainingSecs)} left.`, 'bad'); return; }
-  const gigId = `career:${shiftInfo.job.id}`;
-  let shift = online.rememberedGig(gigId);
-  if (!shift) {
-    const opened = await online.openGig(gigId);
-    if (opened.status === 0) {
-      host.say('The server could not be reached, so this shift cannot be paid yet. Collect again when it answers.', 'bad');
-      return;
-    }
-    if (typeof opened.shift === 'string' && opened.shift) shift = opened.shift;
-  }
-  if (!shift) {
-    const started = await online.startGig(gigId);
-    if (started.status === 0) {
-      host.say('The server could not be reached, so this shift cannot be paid yet. Collect again when it answers.', 'bad');
-      return;
-    }
-    if (started.ok && started.shift) {
-      host.backend.touchJobShiftClock();
-      host.say('The server has just taken this shift on. Finish the time, then collect.', 'info');
-      return;
-    }
-    host.backend.abandonJobShift();
-    host.say('There is no shift on the books to collect.', 'bad');
-    return;
-  }
-  const finished = await online.finishGig(shift);
-  if (!finished.ok) {
-    const reason = finished.reason ?? '';
-    const status = (finished as { status?: number }).status;
-    if (status === 0) {
-      host.say('The server could not be reached, so this shift cannot be paid yet. Collect again when it answers.', 'bad');
-      return;
-    }
-    if (/faster than anyone/.test(reason)) { host.say(reason, 'bad'); return; }
-    online.forgetGig(gigId);
-    host.backend.abandonJobShift();
-    host.say(reason || 'There is no shift on the books to collect.', 'bad');
-    return;
-  }
-  online.forgetGig(gigId);
-  const noted = host.backend.noteServerJobShift(finished.pay ?? shiftInfo.job.salary, finished.slip);
-  if (noted.success) SoundEngine.getInstance().playTransactionSuccess();
-  host.say(noted.message, noted.success ? 'good' : 'bad');
+  if (result.success) CareerShift.started(id);
 }
 
 export const jobsApp: PhoneApp = {
@@ -317,7 +262,7 @@ export const jobsApp: PhoneApp = {
     } else if (action === 'start') {
       return beginShift(host, el.dataset.arg ?? '');
     } else if (action === 'claim') {
-      return collectShift(host);
+      return CareerShift.collect();
     } else if (action === 'train-skill') {
       const skillKey = (el.dataset.arg || '') as keyof PlayerSkills;
       const data = host.backend.getData();

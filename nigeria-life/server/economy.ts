@@ -492,7 +492,7 @@ export class Economy {
     return { ok: true, shift: row.id };
   }
 
-  public finishGig(accountId: string, shiftId: unknown, idemRaw: unknown): Result<{ pay?: number; slip?: Payslip; replay?: boolean }> {
+  public finishGig(accountId: string, shiftId: unknown, idemRaw: unknown, leftRaw?: unknown): Result<{ pay?: number; slip?: Payslip; replay?: boolean }> {
     const idem = cleanIdem(idemRaw);
     if (!idem) return { ok: false, reason: 'That could not be read.' };
     if (this.db.prepare('SELECT 1 FROM ledger WHERE account_id = ? AND idem = ?').get(accountId, idem)) {
@@ -506,21 +506,29 @@ export class Economy {
     if (!gig) return { ok: false, reason: 'That work is not run by the server yet.' };
     const took = Date.now() - shift.started_at;
     if (took > SHIFT_EXPIRES_MS) return { ok: false, reason: 'That work took too long and was given up.' };
-    if (took < gig.minSeconds * 1000) {
+    // Leaving early pays the share of the shift the server's clock has seen. The client does not name the amount.
+    const span = gig.spanSeconds ?? gig.minSeconds;
+    const early = leftRaw === true && gig.spanSeconds !== undefined;
+    let gross = gig.pay;
+    if (early) {
+      if (took < 5_000) return { ok: false, reason: 'You had barely started.' };
+      gross = Math.round(gig.pay * Math.min(1, took / (span * 1000)));
+      if (gross < 1) return { ok: false, reason: 'You had barely started.' };
+    } else if (took < gig.minSeconds * 1000) {
       alert(this.db, accountId, 'shift-too-fast', `${shift.employer} finished in ${(took / 1000).toFixed(1)} s (least ${gig.minSeconds} s)`);
       return { ok: false, reason: 'That was done faster than anyone could.' };
     }
-    if (gig.site) {
+    if (!early && gig.site) {
       const away = this.awayFrom(accountId, gig.site, 'You are not at the workplace.');
       if (away) return { ok: false, reason: away };
     }
     this.db.prepare('UPDATE shifts SET finished_at = ? WHERE id = ?').run(Date.now(), shift.id);
     // A career shift is a wage: PAYE comes off it and there is a payslip. A gig is cash in hand.
-    const slip = gig.employer ? this.payslip(accountId, gig.pay, gig.employer, gig.memo, gig.site?.city ?? 'lagos') : null;
-    const paid = this.apply(accountId, 'gig', slip ? slip.net : gig.pay, 0, slip?.paye ? `${gig.memo} (PAYE ₦${slip.paye.toLocaleString()})` : gig.memo, true, idem);
+    const slip = gig.employer ? this.payslip(accountId, gross, gig.employer, gig.memo, gig.site?.city ?? 'lagos') : null;
+    const paid = this.apply(accountId, 'gig', slip ? slip.net : gross, 0, slip?.paye ? `${gig.memo} (PAYE ₦${slip.paye.toLocaleString()})` : gig.memo, true, idem);
     if (!paid.ok) return paid;
     if (slip) this.keepPayslip(accountId, slip, idem);
-    return { ok: true, wallet: paid.wallet, pay: gig.pay, ...(slip ? { slip } : {}) };
+    return { ok: true, wallet: paid.wallet, pay: gross, ...(slip ? { slip } : {}) };
   }
 
   // --- Eko Rides (src/jobs/RideHail.ts) -------------------------------------------------------

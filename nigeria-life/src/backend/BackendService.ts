@@ -1579,6 +1579,30 @@ export class BackendService {
   }
 
   /**
+   * The worker left before the hour was up. Pays the share of the wage the clock has seen
+   * (this device only: on a server the server names that share). Under five seconds, nothing.
+   */
+  public cashOutJobShift(): { success: boolean; reward: number; message: string } {
+    const active = this.data.activeJobShift;
+    const shiftInfo = this.getActiveJobShift();
+    if (!active || !shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
+    if (shiftInfo.isReady) return this.completeJobShift();
+    const took = Date.now() - active.startTime;
+    if (took < 5_000) {
+      this.abandonJobShift();
+      return { success: true, reward: 0, message: 'You had barely started. Nothing was paid.' };
+    }
+    const { job } = shiftInfo;
+    const share = Math.min(1, took / (active.duration * 1000));
+    const pay = Math.max(1, Math.round(job.salary * (this.data.career.bonusMultiplier || 1) * share));
+    const wage = this.takeWage(pay, job.workplace, job.title, 'lagos', `Left early: ${job.title}`);
+    if (!wage.success || !wage.slip) return { success: false, reward: 0, message: wage.message };
+    this.data.activeJobShift = null;
+    this.saveData();
+    return { success: true, reward: wage.slip.net, message: `You left the shift early. ${job.workplace} paid ${takeHome(wage.slip)} for the time worked.` };
+  }
+
+  /**
    * A career shift the server has already paid, at its own rate and after PAYE. Experience is
    * recorded here, and the payslip. The money is not: the server's wallet is what the player has.
    */

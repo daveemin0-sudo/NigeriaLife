@@ -1043,3 +1043,32 @@ body.nl-hud-hidden #v-btn-run {
 
 html[data-text="small"] #phone-screen-content { zoom: 0.92; }
 html[data-text="large"] #phone-screen-content { zoom: 1.12; }
+
+/* The shift card: what the worker is doing, and how to leave. Clear of the stick and the top bar. */
+#career-shift-card {
+  position: fixed;
+  z-index: 80;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(320px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font: 600 13px/1.35 system-ui, sans-serif;
+}
+#career-shift-card .career-shift-doing { margin-top: 4px; font-weight: 500; color: #e2e8f0; }
+#career-shift-card .career-shift-time { margin-top: 2px; font-size: 12px; color: #cbd5e1; }
+#career-shift-card .career-shift-actions { display: flex; gap: 8px; margin-top: 8px; }
+#career-shift-card button {
+  flex: 1;
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: 700 12px/1 system-ui, sans-serif;
+}

@@ -135,6 +135,7 @@ import { myProfile } from '../social/Profile';
 import { profileKey } from '../backend/Profile';
 import { MiniMap } from '../ui/MiniMap';
 import { Shifts } from '../jobs/HandWork';
+import { CareerShift } from '../jobs/CareerShift';
 import { uniformFor } from '../jobs/Uniforms';
 import { WORKPLACE } from '../interiors/places/PlaceJobs';
 import { BAE_AT, ROLES, Ties } from '../social/Ties';
@@ -1564,12 +1565,26 @@ export class Game {
       const held = police.custody();
       if (held && rooms.currentInterior?.type === 'police') return `🔒 The cell is locked: ${this.timeLeft(held)} left, or bail of ₦${held.bail.toLocaleString()} (the cell's card).`;
       // On a shift: nobody walks out till it is done, unless they tell the one in charge
+      const onCareer = CareerShift.lock();
+      if (onCareer) return onCareer;
       const shift = Shifts.current;
       if (shift && rooms.isPlayerInside()) return `🦺 You are on shift (${shift.done} of ${shift.total} done). Finish it, or tell ${shift.boss} you are ending it.`;
       return null;
     };
     // The work clothes go on for a shift and come off when it ends
     Shifts.dress = (trade) => this.player.wearUniform(trade ? uniformFor(trade) : null);
+    CareerShift.hooks = {
+      backend: BackendService.getInstance(),
+      interiorId: () => this.world.interiorManager.currentInterior?.id ?? null,
+      street: () => (this.world.interiorManager.isPlayerInside() ? null : { x: this.player.position.x, z: this.player.position.z }),
+      dress: (trade) => this.player.wearUniform(trade ? uniformFor(trade) : null),
+      pose: (arms) => { this.player.actor.pose = { ...this.player.actor.pose, arms }; },
+      still: () => !this.player.isMoving && !this.player.actor.busy,
+      go: (post, name) => {
+        if (post.go) PlaceOpeners.open(`ride:roadside-${post.go}`);
+        else if (post.outdoor) this.hud.onRideTo?.(new THREE.Vector3(post.outdoor.x, 0, post.outdoor.z), name, 1500);
+      },
+    };
     // Sent from the phone to work somewhere: on arrival, straight to whoever is in charge there
     InteriorManager.entered = (interiorId) => {
       const want = Shifts.arriving;
@@ -3565,6 +3580,7 @@ export class Game {
     }
     this.ownedVehicles.update();
     this.vehicleSync.update(delta);
+    CareerShift.tick();
     this.deliveries.update(delta);
     this.messages.update(delta);
     Nollywood.get().tick(delta);

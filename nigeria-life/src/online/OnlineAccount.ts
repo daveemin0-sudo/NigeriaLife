@@ -381,8 +381,8 @@ export class OnlineAccount {
   }
 
   /** A career shift is a wage and comes with a payslip; any other gig is cash in hand */
-  public finishGig(shift: string): Promise<{ ok: boolean; pay?: number; slip?: Payslip; reason?: string; replay?: boolean }> {
-    return this.request('/work/gig/finish', { shift, idem: this.idem('g') });
+  public finishGig(shift: string, early = false): Promise<{ ok: boolean; pay?: number; slip?: Payslip; reason?: string; replay?: boolean }> {
+    return this.request('/work/gig/finish', { shift, idem: this.idem('g'), ...(early ? { left: true } : {}) });
   }
 
   /** This month's and year's PAYE and the payslips, as the server holds them */

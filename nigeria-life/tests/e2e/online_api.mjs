@@ -516,6 +516,18 @@ export async function run(_browser, check) {
     check('online: a career shift comes with a payslip from its employer; the generator gig is paid whole with none',
       clerkPaid.ok && clerkPaid.pay === 4_500 && clerkPaid.slip?.employer === 'Balogun Wholesale Market' && clerkPaid.slip.paye === 0 && clerkPaid.wallet.cash === 25_000 + 4_500 && genPaid.ok && genPaid.slip === undefined,
       { clerkPaid, gen: genPaid.slip });
+    const dev = await call('/auth/guest', { name: 'Dev' });
+    const devStart = await call('/work/gig/start', { gig: 'career:job_software_dev' }, dev.token);
+    const devFast = await call('/work/gig/finish', { shift: devStart.shift, idem: idem() }, dev.token);
+    await wait(6_200);
+    const devLeft = await call('/work/gig/finish', { shift: devStart.shift, idem: idem(), left: true }, dev.token);
+    const devAgain = await call('/work/gig/finish', { shift: devStart.shift, idem: idem(), left: true }, dev.token);
+    check('online: an hour-long shift is not paid at once; leaving after a few seconds pays only that share of ₦27,000, once',
+      devStart.ok && !devFast.ok && /faster/.test(devFast.reason ?? '')
+      && devLeft.ok && devLeft.pay >= 30 && devLeft.pay <= 120 && devLeft.pay < 27_000
+      && !devAgain.ok,
+      { devFast, devLeft, devAgain });
+
     check('online: a career shift can be found again while it is open, is paid once, and is gone after that',
       clerkOpen.ok && clerkOpen.shift === clerkStart.shift && !unknownGig.ok && !clerkSoon.ok && /faster/.test(clerkSoon.reason ?? '')
       && clerkOpenAfter.ok && clerkOpenAfter.shift === null && !clerkAgain.ok,

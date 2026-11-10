@@ -496,7 +496,7 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
     case 'POST /work/gig/start':
       return done(economy.startGig(account.id, String(body.gig ?? '')));
     case 'POST /work/gig/finish':
-      return done(economy.finishGig(account.id, body.shift, body.idem));
+      return done(economy.finishGig(account.id, body.shift, body.idem, body.left));
     case 'POST /work/fare':
       return done(economy.payFare(account.id, body));
     case 'POST /work/ride/start':
