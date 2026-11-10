@@ -102,6 +102,12 @@ export class Economy {
   constructor(db: Store, positionOf: (accountId: string) => Position | null) {
     this.db = db;
     this.positionOf = positionOf;
+    // The job the server will cover while the player is away, and when it last saw them
+    this.db.exec(`CREATE TABLE IF NOT EXISTS duty (
+      account_id TEXT PRIMARY KEY,
+      gig TEXT NOT NULL,
+      seen_at INTEGER NOT NULL
+    )`);
   }
 
   public wallet(accountId: string): Wallet {
@@ -277,6 +283,7 @@ export class Economy {
       if (refused) return { ok: false, reason: refused };
     }
     this.db.prepare('INSERT OR IGNORE INTO jobs (account_id, employer, done, since) VALUES (?, ?, 0, ?)').run(accountId, employerId, Date.now());
+    this.holdPost(accountId, employerId, false);
     return { ok: true, done: this.job(accountId, employerId)!.done };
   }
 
@@ -464,6 +471,77 @@ export class Economy {
 
   // --- Gigs, takings, and one-off catalogue pays -----------------------------------------------
 
+  /** How often a missed day of work is covered, and how many days one absence will pay */
+  private static readonly AWAY_DAY_MS = 20 * 60 * 60 * 1000;
+  private static readonly AWAY_DAYS = 5;
+  /** The office keeps this share when the player was not there for the shift */
+  private static readonly AWAY_CUT = 0.15;
+  private seenWrite = new Map<string, number>();
+
+  /**
+   * The job this player holds, so the server can cover a shift they miss. An hour-long career
+   * job replaces a workplace. A workplace does not replace an hour-long career job.
+   */
+  private holdPost(accountId: string, post: string, career: boolean): void {
+    const row = this.db.prepare('SELECT gig FROM duty WHERE account_id = ?').get(accountId) as { gig: string } | undefined;
+    if (!row) {
+      this.db.prepare('INSERT INTO duty (account_id, gig, seen_at) VALUES (?, ?, ?)').run(accountId, post, Date.now());
+      return;
+    }
+    if (!career && row.gig.startsWith('gig:')) return;
+    if (row.gig !== post) this.db.prepare('UPDATE duty SET gig = ? WHERE account_id = ?').run(post, accountId);
+  }
+
+  /** The player is online. Written at most once a minute, and never invented by the client. */
+  public touch(accountId: string): void {
+    const now = Date.now();
+    if (now - (this.seenWrite.get(accountId) ?? 0) < 60_000) return;
+    this.seenWrite.set(accountId, now);
+    this.db.prepare('UPDATE duty SET seen_at = ? WHERE account_id = ?').run(now, accountId);
+  }
+
+  private wageFor(accountId: string, post: string): { pay: number; employer: string; title: string; city: string } | null {
+    if (post.startsWith('gig:')) {
+      const gig = GIGS[post.slice(4)];
+      if (!gig || (gig.spanSeconds ?? 0) < 3_600 || !gig.employer) return null;
+      return { pay: gig.pay, employer: gig.employer, title: gig.memo, city: gig.site?.city ?? 'lagos' };
+    }
+    const held = this.job(accountId, post);
+    const employer = EMPLOYERS.find((e) => e.id === post);
+    if (!held || !employer) return null;
+    return { pay: held.grade.pay, employer: employer.name, title: held.grade.title, city: WORKSITES[post]?.city ?? 'lagos' };
+  }
+
+  /**
+   * The player has come back. If they hold a job and the server has not seen them for a
+   * working day, it pays the shifts they missed, less a cut, and says so. The client does
+   * not send the hours or the amount. At most five days, and an open shift for that job is
+   * closed so the same day cannot be collected again in full.
+   */
+  public coverAbsence(accountId: string): { note: string; pay: number; net: number } | null {
+    const row = this.db.prepare('SELECT gig, seen_at FROM duty WHERE account_id = ?').get(accountId) as { gig: string; seen_at: number } | undefined;
+    if (!row) return null;
+    const now = Date.now();
+    const gap = now - row.seen_at;
+    this.seenWrite.set(accountId, now);
+    this.db.prepare('UPDATE duty SET seen_at = ? WHERE account_id = ?').run(now, accountId);
+    const days = Math.min(Economy.AWAY_DAYS, Math.floor(gap / Economy.AWAY_DAY_MS));
+    if (days < 1) return null;
+    const wage = this.wageFor(accountId, row.gig);
+    if (!wage) return null;
+    const gross = Math.round(wage.pay * (1 - Economy.AWAY_CUT)) * days;
+    if (gross < 1) return null;
+    const idem = `away:${row.seen_at}`;
+    this.db.prepare('UPDATE shifts SET finished_at = -1 WHERE account_id = ? AND employer = ? AND finished_at IS NULL').run(accountId, row.gig);
+    const slip = this.payslip(accountId, gross, wage.employer, wage.title, wage.city);
+    const memo = `While you were away: ${wage.title}, ${wage.employer}${slip.paye ? ` (PAYE ₦${slip.paye.toLocaleString('en-NG')})` : ''}`;
+    const paid = this.apply(accountId, 'shift', slip.net, 0, memo, true, idem);
+    if (!paid.ok) return null;
+    this.keepPayslip(accountId, slip, idem);
+    const shifts = days === 1 ? 'a shift' : `${days} shifts`;
+    return { note: `While you were away you worked ${shifts} at ${wage.employer}. The office kept a cut.`, pay: gross, net: slip.net };
+  }
+
   public startGig(accountId: string, gigId: string): { ok: true; shift: string } | { ok: false; reason: string } {
     const gig = GIGS[gigId];
     if (!gig) return { ok: false, reason: 'That work is not run by the server yet.' };
@@ -474,6 +552,7 @@ export class Economy {
     this.db.prepare('UPDATE shifts SET finished_at = -1 WHERE account_id = ? AND finished_at IS NULL').run(accountId);
     const shift = randomUUID();
     this.db.prepare('INSERT INTO shifts (id, account_id, employer, started_at) VALUES (?, ?, ?, ?)').run(shift, accountId, `gig:${gigId}`, Date.now());
+    if ((gig.spanSeconds ?? 0) >= 3_600) this.holdPost(accountId, `gig:${gigId}`, true);
     return { ok: true, shift };
   }
 

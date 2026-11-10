@@ -63,6 +63,7 @@ const registry = new Registry(DATA_DIR, CORS);
 const server = http.createServer((req, res) => void route(req, res));
 const rooms = new Rooms(server, accounts, db, Number(process.env.NL_MAX_PLAYERS) || DEFAULT_MAX_PLAYERS);
 const economy = new Economy(db, (id) => rooms.positionOf(id));
+rooms.onHere = (id) => economy.touch(id);
 const hustle = new Hustle(db, economy);
 const league = new League(db, economy);
 const ads = new Ads(db, economy);
@@ -447,8 +448,10 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
   const body = req.method === 'POST' ? await readBody(req) : {};
   const done = (result: { ok: boolean }) => reply(res, result.ok ? 200 : 409, result);
   switch (`${req.method} ${url.pathname}`) {
-    case 'GET /me':
-      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id) });
+    case 'GET /me': {
+      const away = economy.coverAbsence(account.id);
+      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id), ...(away ? { away } : {}) });
+    }
     case 'POST /me/trait': {
       // Picked once for the account, on whichever device picks first; a different one later is refused
       const trait = String(body.trait ?? '');

@@ -132,6 +132,8 @@ export class Rooms {
     return total;
   }
   private counts = { messagesIn: 0, messagesOut: 0, bytesOut: 0, dropped: 0, admittedFromQueue: 0 };
+  /** The player is in the city: the economy uses this to know they were not away */
+  public onHere: ((accountId: string) => void) | null = null;
 
   constructor(server: http.Server, accounts: Accounts, db: Store, maxPlayers = DEFAULT_MAX_PLAYERS) {
     this.accounts = accounts;
@@ -402,6 +404,7 @@ export class Rooms {
     const city = typeof player.city === 'string' && /^[a-z_]{2,20}$/.test(player.city) ? player.city : c.city;
     const place = typeof player.place === 'string' ? player.place.slice(0, 60) : undefined;
     const now = Date.now();
+    this.onHere?.(c.account.id);
 
     // A jump on the street that nobody could walk or drive: not believed for a while
     const before = c.position;

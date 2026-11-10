@@ -528,6 +528,34 @@ export async function run(_browser, check) {
       && !devAgain.ok,
       { devFast, devLeft, devAgain });
 
+    // The server, not the phone, decides a missed day. The clock is moved in the database; the request sends no hours and no amount.
+    const ngozi = await call('/auth/guest', { name: 'Ngozi' });
+    const ngoziStart = await call('/work/gig/start', { gig: 'career:job_software_dev' }, ngozi.token);
+    const beforeAway = (await call('/me', null, ngozi.token)).wallet.cash;
+    const stillHere = await call('/me', null, ngozi.token);
+    const book = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    book.prepare('UPDATE duty SET seen_at = ? WHERE account_id = ?').run(Date.now() - 21 * 60 * 60 * 1000, ngozi.account.id);
+    book.close();
+    const back = await call('/me', null, ngozi.token);
+    const backAgain = await call('/me', null, ngozi.token);
+    const collected = await call('/work/gig/finish', { shift: ngoziStart.shift, idem: idem() }, ngozi.token);
+    const book2 = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    book2.prepare('UPDATE duty SET seen_at = ? WHERE account_id = ?').run(Date.now() - 30 * 60 * 1000, ngozi.account.id);
+    book2.close();
+    const shortAway = await call('/me', null, ngozi.token);
+    const idleGuest = await call('/auth/guest', { name: 'Tunde' });
+    const strangerHome = await call('/me', null, idleGuest.token);
+    check('online: a day away from an hour-long job is worked by the server, paid once less a cut, with a while-you-were-away note; a short absence and a player with no job are not paid, and the open shift cannot also be collected',
+      ngoziStart.ok && !stillHere.away && beforeAway === 25_000
+      && back.away && /while you were away/i.test(back.away.note) && /kept a cut/i.test(back.away.note)
+      && back.away.pay === Math.round(27_000 * 0.85) && back.away.pay < 27_000
+      && back.wallet.cash - beforeAway === back.away.net
+      && !backAgain.away && backAgain.wallet.cash === back.wallet.cash
+      && !collected.ok
+      && !shortAway.away && shortAway.wallet.cash === back.wallet.cash
+      && !strangerHome.away && strangerHome.wallet.cash === 25_000,
+      { back, backAgain, collected, shortAway: shortAway.away, stranger: strangerHome.wallet });
+
     check('online: a career shift can be found again while it is open, is paid once, and is gone after that',
       clerkOpen.ok && clerkOpen.shift === clerkStart.shift && !unknownGig.ok && !clerkSoon.ok && /faster/.test(clerkSoon.reason ?? '')
       && clerkOpenAfter.ok && clerkOpenAfter.shift === null && !clerkAgain.ok,

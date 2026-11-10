@@ -925,6 +925,7 @@ export class Game {
       void online.ready.then(async (ok) => {
         if (!ok) return;
         const me = await online.request('/me');
+        if (me.away?.note) showGameToast(String(me.away.note), 'success', 8000);
         if (me.trait) backend.adoptTrait(me.trait);
         else if (me.ok && backend.getTrait()) backend.onTraitChosen?.(backend.getTrait()!);
       });
