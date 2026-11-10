@@ -7,6 +7,7 @@
 //   NL_PUBLIC_URL=https://...            the address sign-in links point to
 //   NL_MAX_PLAYERS=300                   players this process admits before the next waits in line
 //   NL_DEV=1                             sign-in links are also returned to the game (tests)
+//   NL_BACKUP_DIR=/mnt/backups           a second place for the daily copy of the database
 //
 // What it does: accounts (guest, then email sign-in to keep progress), the money (every online
 // player's wallet and an append-only ledger; job shifts checked and paid here), players in the
@@ -40,6 +41,8 @@ import { DEFAULT_MAX_PLAYERS, Rooms } from './rooms.ts';
 import { isTraitId } from '../src/life/Traits.ts';
 import { RateLimit } from './accounts.ts';
 import { openStore } from './store.ts';
+import { Saves } from './saves.ts';
+import { startDailyBackup } from './backup.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -59,6 +62,7 @@ const CORS = {
 
 const db = openStore(DATA_DIR);
 const accounts = new Accounts(db, consoleMailer, PUBLIC_URL, DEV, Number(process.env.NL_GUESTS_PER_HOUR || (DEV ? 1000 : 10)));
+startDailyBackup(db, DATA_DIR);
 const registry = new Registry(DATA_DIR, CORS);
 const server = http.createServer((req, res) => void route(req, res));
 const rooms = new Rooms(server, accounts, db, Number(process.env.NL_MAX_PLAYERS) || DEFAULT_MAX_PLAYERS);
@@ -77,6 +81,7 @@ const studio = new ServerStudio(db, economy);
 const marriage = new ServerMarriage(db, economy);
 const chieftaincy = new ServerChieftaincy(db, economy);
 const motors = new ServerMotors(db, economy);
+const saves = new Saves(db, (id) => economy.wallet(id));
 // The police: cells, bail (by anyone), bribes, and a record the vetting employers read
 const police = new ServerPolice(db, economy);
 police.nameOf = (id) => accounts.get(id)?.name ?? 'someone';
@@ -452,6 +457,24 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
       const away = economy.coverAbsence(account.id);
       return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id), ...(away ? { away } : {}) });
     }
+    case 'GET /me/save':
+      return reply(res, 200, saves.read(account.id));
+    case 'POST /me/save': {
+      const written = saves.write(account.id, body);
+      return reply(res, written.ok ? 200 : 400, { ...written, wallet: economy.wallet(account.id) });
+    }
+    case 'POST /me/email': {
+      const changed = accounts.changeEmail(account, body.email, body.password);
+      return reply(res, changed.ok ? 200 : 400, changed);
+    }
+    case 'POST /me/delete': {
+      const removed = accounts.deleteAccount(account, body.password);
+      if (removed.ok) saves.deleteAll(account.id);
+      return reply(res, removed.ok ? 200 : 400, removed);
+    }
+    case 'POST /auth/logout':
+      accounts.logout(tokenOf(req));
+      return reply(res, 200, { ok: true });
     case 'POST /me/trait': {
       // Picked once for the account, on whichever device picks first; a different one later is refused
       const trait = String(body.trait ?? '');
@@ -580,6 +603,10 @@ async function admin(req: http.IncomingMessage, res: http.ServerResponse, url: U
     case 'POST /admin/grant': {
       const result = economy.grant(id, Number(body.amount) || 0, String(body.memo ?? ''));
       return reply(res, result.ok ? 200 : 409, result);
+    }
+    case 'POST /admin/save/rollback': {
+      const restored = saves.rollback(id);
+      return reply(res, restored.ok ? 200 : 404, restored);
     }
     default:
       return reply(res, 404, { ok: false, reason: 'Not found.' });

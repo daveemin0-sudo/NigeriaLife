@@ -4,6 +4,8 @@ import { applyRealPrices } from './RealPrices';
 import {
   type PlayerAccount,
   type Item,
+  type BusinessEnterprise,
+  type BusinessType,
   type PropertyStatus,
   type TransactionRecord,
   type SavedWorldState,
@@ -28,6 +30,40 @@ const PROPERTY_STATUSES: ReadonlySet<string> = new Set([
   'available', 'rented', 'owned', 'unavailable', 'unowned', 'purchased',
 ]);
 const SAVED_CITIES: ReadonlySet<string> = new Set(['lagos', 'abuja', 'port_harcourt']);
+const BUSINESS_TYPES: ReadonlySet<string> = new Set([
+  'restaurant', 'supermarket', 'pharmacy', 'fashion shop', 'phone shop', 'mechanic', 'salon',
+  'barbershop', 'hotel', 'logistics', 'filling station', 'tech company', 'transport business',
+]);
+
+/** A kiosk the player registered. It is not in the catalogue, so its name and place are theirs. */
+function registeredBusiness(s: Raw): BusinessEnterprise | null {
+  const id = typeof s.id === 'string' ? s.id : '';
+  if (!id.startsWith('reg_') || id.length > 40) return null;
+  const name = typeof s.name === 'string' ? s.name.trim().slice(0, 32) : '';
+  if (name.length < 2) return null;
+  const cityId = typeof s.cityId === 'string' && SAVED_CITIES.has(s.cityId) ? s.cityId : undefined;
+  const spot = isRecord(s.streetPosition) && Number.isFinite(s.streetPosition.x) && Number.isFinite(s.streetPosition.z)
+    ? { x: Number(s.streetPosition.x), y: 0, z: Number(s.streetPosition.z) }
+    : undefined;
+  const kind: BusinessType = typeof s.type === 'string' && BUSINESS_TYPES.has(s.type) ? (s.type as BusinessType) : 'restaurant';
+  return {
+    id,
+    name,
+    ...(cityId ? { cityId } : {}),
+    ...(typeof s.districtId === 'string' ? { districtId: s.districtId.slice(0, 40) } : {}),
+    type: kind,
+    category: typeof s.category === 'string' && s.category ? s.category.slice(0, 48) : 'Kiosk',
+    icon: typeof s.icon === 'string' && s.icon ? s.icon.slice(0, 8) : '🏪',
+    ...(typeof s.logo === 'string' ? { logo: s.logo.slice(0, 16) } : {}),
+    purchasePrice: Math.max(0, Math.round(Number(s.purchasePrice) || 0)),
+    baseIncomePerCycle: Math.max(0, Math.round(Number(s.baseIncomePerCycle) || 0)),
+    owned: s.owned === true,
+    pendingRevenue: Math.max(0, Math.round(Number(s.pendingRevenue) || 0)),
+    level: Math.max(1, Math.round(Number(s.level) || 1)),
+    upgrades: [],
+    ...(spot ? { streetPosition: spot } : {}),
+  };
+}
 
 type Raw = Record<string, any>;
 const isRecord = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -268,21 +304,28 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       academics: num(skills.academics, base.skills?.academics ?? 1, 'skills.academics', 1, 10),
     },
     inventory,
-    businesses: DEFAULT_BUSINESSES.map((def) => {
-      const s = savedBusinesses.find((b) => b.id === def.id);
-      if (!s) return structuredClone(def);
-      const savedUpgrades = list(s.upgrades, `businesses.${def.id}.upgrades`) || [];
-      return {
-        ...structuredClone(def),
-        owned: s.owned === true,
-        pendingRevenue: Math.round(num(s.pendingRevenue, 0, `businesses.${def.id}.pendingRevenue`, 0)),
-        level: num(s.level, def.level, `businesses.${def.id}.level`, 1),
-        upgrades: def.upgrades.map((uDef) => ({
-          ...uDef,
-          purchased: savedUpgrades.some((u) => u.id === uDef.id && u.purchased === true),
-        })),
-      };
-    }),
+    businesses: [
+      ...DEFAULT_BUSINESSES.map((def) => {
+        const s = savedBusinesses.find((b) => b.id === def.id);
+        if (!s) return structuredClone(def);
+        const savedUpgrades = list(s.upgrades, `businesses.${def.id}.upgrades`) || [];
+        return {
+          ...structuredClone(def),
+          owned: s.owned === true,
+          pendingRevenue: Math.round(num(s.pendingRevenue, 0, `businesses.${def.id}.pendingRevenue`, 0)),
+          level: num(s.level, def.level, `businesses.${def.id}.level`, 1),
+          upgrades: def.upgrades.map((uDef) => ({
+            ...uDef,
+            purchased: savedUpgrades.some((u) => u.id === uDef.id && u.purchased === true),
+          })),
+        };
+      }),
+      ...savedBusinesses
+        .filter((b) => typeof b.id === 'string' && !DEFAULT_BUSINESSES.some((def) => def.id === b.id))
+        .map((b) => registeredBusiness(b))
+        .filter((b): b is BusinessEnterprise => b !== null)
+        .slice(0, 40),
+    ],
     properties: DEFAULT_PROPERTIES.map((def) => {
       const s = savedProperties.find((p) => p.id === def.id);
       if (!s) return structuredClone(def);

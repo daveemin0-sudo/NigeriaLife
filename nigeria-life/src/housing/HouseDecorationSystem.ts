@@ -767,6 +767,8 @@ export class HouseDecorationSystem {
 
   /** Everything standing in the home that the player put there */
   public readonly placed: PlacedItem[] = [];
+  /** This visit has loaded furniture, or the player cleared the room. Until then an empty list is not written over what is stored. */
+  private hold = false;
   /** The piece being put down now, if any */
   public placing: Placing | null = null;
   /** The colour the walls are painted */
@@ -1246,6 +1248,7 @@ export class HouseDecorationSystem {
       }
     }
     this.placed.length = 0;
+    this.hold = true;
     this.placed.push(...kept);
     if (stored.length) {
       this.stored.push(...stored);
@@ -1295,6 +1298,7 @@ export class HouseDecorationSystem {
     this.solidify(item, false);
     item.mesh.removeFromParent();
     this.placed.splice(index, 1);
+    this.hold = true;
     this.backend.processTransaction({ type: 'ITEM_SALE', amount: refund, description: `Sold: ${this.catalogueItem(item.id)?.name ?? 'furniture'}` });
     HouseDecorationSystem.onSold?.(uid);
     this.save();
@@ -1311,6 +1315,7 @@ export class HouseDecorationSystem {
     this.solidify(item, false);
     item.mesh.removeFromParent();
     this.placed.splice(index, 1);
+    this.hold = true;
     this.stored.push(item.id);
     this.saveStored();
     this.save();
@@ -1487,6 +1492,7 @@ export class HouseDecorationSystem {
       item.mesh.removeFromParent();
     }
     this.placed.length = 0;
+    this.hold = false;
     this.homeId = id;
     const suffix = id === 'main' ? '' : `:${id}`;
     this.storageKey = profileKey(`nigeria_life_placed_furniture_v1${suffix}`);
@@ -1518,6 +1524,7 @@ export class HouseDecorationSystem {
       item.mesh.removeFromParent();
     }
     this.placed.length = 0;
+    this.hold = true;
     this.wallColour = 'ochre';
     this.floorStyle = 'ceramic_white';
     try {
@@ -1746,7 +1753,12 @@ export class HouseDecorationSystem {
   }
 
   private save(): void {
+    if (this.backend.holdSaves?.()) return;
     try {
+      if (this.placed.length === 0 && !this.hold) {
+        const existing = localStorage.getItem(this.storageKey);
+        if (existing && existing !== '[]') return;
+      }
       localStorage.setItem(this.storageKey, JSON.stringify(this.placed.map((item) => ({
         uid: item.uid, id: item.id, modelType: item.modelType, position: { x: item.x, y: 0, z: item.z }, turns: item.turns, storey: item.storey ?? 0,
       }))));
@@ -1774,6 +1786,7 @@ export class HouseDecorationSystem {
         };
         this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, item.storey ?? 0);
         this.placed.push(item);
+        this.hold = true;
         this.placedItemsGroup.add(item.mesh);
       });
     } catch {

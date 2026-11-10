@@ -1,269 +1,328 @@
-import { BackendService } from './BackendService';
-import type { PlayerAccount } from './types';
+import { OnlineAccount } from '../online/OnlineAccount';
 import { profileKey } from './Profile';
 
+/**
+ * The cloud pill. It used to write a backup code into this browser and call that synced.
+ * It now sends the life to the account on the game server, and the pill says whether that
+ * happened. Money and land are not part of what this decides: the server's ledgers are.
+ *
+ * With no server, or while the player is still a guest, the pill says to sign up. A guest
+ * who never does can lose everything on this device.
+ */
+
 export interface CloudSyncInfo {
-  status: 'synced' | 'syncing' | 'offline';
+  status: 'saved' | 'offline' | 'guest';
+  /** The words on the pill, exactly */
+  label: string;
   lastSyncedTimestamp: number;
   lastSyncedFormatted: string;
-  backupCode: string;
-  serverRegion: 'lagos' | 'abuja' | 'port_harcourt';
-  serverRegionName: string;
-  pingMs: number;
-  autoSyncEnabled: boolean;
+}
+
+interface SaveDoc {
+  v: 1;
+  at: number;
+  bags: Record<string, string>;
+}
+
+/** Kept in step with server/saves.ts. These never go into the account. */
+const DENY = [
+  'nigeria_life_session',
+  'nigeria_life_account_id',
+  'nigeria_life_cloud_',
+  'nigeria_cloud_code_',
+  'nigeria_life_world_registry',
+  'nigeria_life_world_server',
+  'nl_account_save_',
+  'nigeria_life_network_player_id',
+  'nigeria_life_account_data_v1__backup',
+];
+
+const VERSION_KEY = () => profileKey('nl_account_save_version');
+const AT_KEY = () => profileKey('nl_account_save_at');
+const QUIET_KEY = () => profileKey('nl_account_save_quiet');
+
+function denied(key: string): boolean {
+  return DENY.some((prefix) => key === prefix || key.startsWith(prefix));
+}
+
+function ago(ts: number): string {
+  if (!ts) return 'never';
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if (mins <= 0) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  return `${Math.round(mins / 60)} hr ago`;
 }
 
 export class CloudSyncService {
   private static instance: CloudSyncService;
-  private readonly CLOUD_STORAGE_KEY = profileKey('nigeria_life_cloud_backup_v2');
-  private readonly CLOUD_META_KEY = profileKey('nigeria_life_cloud_meta_v2');
-  private backend = BackendService.getInstance();
-  private lastSyncedTimestamp: number = Date.now();
-  private backupCode: string = '';
-  private serverRegion: 'lagos' | 'abuja' | 'port_harcourt' = 'lagos';
-  private autoSyncInterval: number | null = null;
-  private autoSyncEnabled: boolean = true;
+  private online: OnlineAccount | null = null;
   private listeners: Array<(info: CloudSyncInfo) => void> = [];
+  private timer = 0;
+  private flying: Promise<boolean> | null = null;
+  private again = false;
+  private offline = false;
+  private savedAt = 0;
+  /** Pushes start once the first sign-in has decided whether the server's copy is newer. */
+  private live = false;
+  private armed = false;
 
   private constructor() {
-    this.loadMeta();
-    if (!this.backupCode) {
-      this.backupCode = this.generateNewBackupCode();
-    }
-    // Perform initial cloud snapshot
-    this.saveToCloud();
-    // Start auto-sync timer (every 60 seconds)
-    this.startAutoSync();
+    this.savedAt = Number(localStorage.getItem(AT_KEY()) || 0);
   }
 
   public static getInstance(): CloudSyncService {
-    if (!CloudSyncService.instance) {
-      CloudSyncService.instance = new CloudSyncService();
-    }
+    if (!CloudSyncService.instance) CloudSyncService.instance = new CloudSyncService();
     return CloudSyncService.instance;
   }
 
-  private loadMeta(): void {
-    try {
-      const stored = localStorage.getItem(this.CLOUD_META_KEY);
-      if (stored) {
-        const meta = JSON.parse(stored);
-        this.backupCode = meta.backupCode || '';
-        this.lastSyncedTimestamp = meta.lastSyncedTimestamp || Date.now();
-        this.serverRegion = meta.serverRegion || 'lagos';
-        this.autoSyncEnabled = meta.autoSyncEnabled ?? true;
-      }
-    } catch {
-      // Storage fallback
-    }
+  /** Called when the game has a server. Loads a newer save, then keeps sending. */
+  public attach(online: OnlineAccount): void {
+    this.online = online;
+    void online.ready.then(async (ok) => {
+      if (!ok || online.leaving) return;
+      const pulled = await this.pullIfNewer();
+      if (pulled) return;
+      this.live = true;
+      this.arm();
+      this.publish();
+    });
   }
 
-  private saveMeta(): void {
-    try {
-      localStorage.setItem(
-        this.CLOUD_META_KEY,
-        JSON.stringify({
-          backupCode: this.backupCode,
-          lastSyncedTimestamp: this.lastSyncedTimestamp,
-          serverRegion: this.serverRegion,
-          autoSyncEnabled: this.autoSyncEnabled,
-        })
-      );
-    } catch {
-      // Storage fallback
-    }
+  /** A local save changed. Sent shortly after, and in full every minute while playing. */
+  public note(): void {
+    if (!this.live) return;
+    window.clearTimeout(this.timer);
+    this.timer = window.setTimeout(() => void this.pushNow(), 2000);
   }
 
-  public generateNewBackupCode(): string {
-    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-    let code = 'EKO-';
-    for (let i = 0; i < 4; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+  public async pushNow(): Promise<boolean> {
+    if (this.flying) {
+      this.again = true;
+      return this.flying;
     }
-    code += '-NIG';
-    this.backupCode = code;
-    this.saveMeta();
-    return code;
+    this.flying = this.send();
+    const ok = await this.flying;
+    this.flying = null;
+    if (this.again) {
+      this.again = false;
+      return this.pushNow();
+    }
+    return ok;
   }
 
-  public saveToCloud(): boolean {
-    try {
-      const data = this.backend.getData();
-      const payload = {
-        version: '2.0.0',
-        timestamp: Date.now(),
-        code: this.backupCode,
-        region: this.serverRegion,
-        account: data,
-      };
-
-      const serialized = JSON.stringify(payload);
-      localStorage.setItem(this.CLOUD_STORAGE_KEY, serialized);
-
-      // Keyed backup by code for cross-profile recovery on same machine
-      localStorage.setItem(`nigeria_cloud_code_${this.backupCode}`, serialized);
-
-      this.lastSyncedTimestamp = Date.now();
-      this.saveMeta();
-      this.notifyListeners();
+  /** The server's copy replaces this device, then the page loads again so every system reads it. */
+  public async replaceFromServer(): Promise<boolean> {
+    const online = this.online ?? OnlineAccount.get();
+    if (!online) return false;
+    const remote = await online.request('/me/save');
+    if (!remote.ok) return false;
+    if (!remote.doc) {
+      this.clearGameKeys();
+      this.remember(0, 0);
       return true;
-    } catch (e) {
-      console.warn('Cloud save error', e);
-      return false;
     }
+    this.apply(remote.doc, remote.version, remote.savedAt);
+    return true;
   }
 
-  public exportBackupString(): string {
-    const data = this.backend.getData();
-    const payload = {
-      app: 'NigeriaLife_V2',
-      version: '2.0.0',
-      timestamp: Date.now(),
-      backupCode: this.backupCode,
-      region: this.serverRegion,
-      data,
-    };
-    const jsonStr = JSON.stringify(payload);
-    return btoa(encodeURIComponent(jsonStr));
+  public async download(): Promise<string | null> {
+    const online = this.online ?? OnlineAccount.get();
+    if (!online) return null;
+    const remote = await online.request('/me/save');
+    if (!remote.ok || !remote.doc) return null;
+    return JSON.stringify(remote.doc, null, 2);
   }
 
-  public importBackupString(input: string): { success: boolean; message: string } {
-    const cleanInput = input.trim();
-    if (!cleanInput) {
-      return { success: false, message: 'Please provide a valid Cloud Code or Export String' };
-    }
+  public async changeEmail(email: string, password: string): Promise<{ ok: boolean; reason?: string }> {
+    const online = this.online ?? OnlineAccount.get();
+    if (!online) return { ok: false, reason: 'Not signed in.' };
+    const result = await online.request('/me/email', { email, password });
+    if (result.ok && result.account) online.account = result.account;
+    return result.ok ? { ok: true } : { ok: false, reason: result.reason ?? 'The email was not changed.' };
+  }
 
+  public async signOut(): Promise<void> {
+    const online = this.online ?? OnlineAccount.get();
+    await online?.request('/auth/logout', {});
     try {
-      let rawJson = '';
-
-      // Check if it's a Cloud Code shortcut like EKO-XXXX-NIG
-      if (cleanInput.startsWith('EKO-') && cleanInput.endsWith('-NIG')) {
-        const storedByCode = localStorage.getItem(`nigeria_cloud_code_${cleanInput}`);
-        if (!storedByCode) {
-          return {
-            success: false,
-            message: `Cloud code ${cleanInput} not found in active cloud register. Please use the full export string for cross-device migration!`,
-          };
-        }
-        const parsed = JSON.parse(storedByCode);
-        if (parsed.account) {
-          this.applyImportedAccount(parsed.account);
-          this.backupCode = cleanInput;
-          this.saveToCloud();
-          return { success: true, message: `Successfully restored cloud save for code ${cleanInput}!` };
-        }
-      }
-
-      // Base64 decoded string
-      try {
-        rawJson = decodeURIComponent(atob(cleanInput));
-      } catch {
-        rawJson = cleanInput;
-      }
-
-      const parsed = JSON.parse(rawJson);
-      const targetAccount: PlayerAccount = parsed.account || parsed.data;
-
-      if (!targetAccount || !targetAccount.username || typeof targetAccount.walletCash !== 'number') {
-        return { success: false, message: 'Corrupted or invalid cloud save structure' };
-      }
-
-      this.applyImportedAccount(targetAccount);
-      if (parsed.backupCode) {
-        this.backupCode = parsed.backupCode;
-      }
-      this.saveToCloud();
-      return { success: true, message: `Cloud account @${targetAccount.username} restored successfully!` };
-    } catch (e: any) {
-      return { success: false, message: `Failed to import cloud save: ${e?.message || 'Invalid format'}` };
+      localStorage.clear();
+    } catch {
+      // The session on the server is already closed
     }
+    window.location.reload();
   }
 
-  private applyImportedAccount(account: PlayerAccount): void {
-    // The backend validates the imported account like any saved game, then saves and notifies
-    this.backend.replaceAccount(account);
-  }
-
-  public setServerRegion(region: 'lagos' | 'abuja' | 'port_harcourt'): void {
-    this.serverRegion = region;
-    this.saveMeta();
-    this.notifyListeners();
-  }
-
-  public toggleAutoSync(): boolean {
-    this.autoSyncEnabled = !this.autoSyncEnabled;
-    if (this.autoSyncEnabled) {
-      this.startAutoSync();
-    } else {
-      this.stopAutoSync();
+  public async deleteAccount(password: string): Promise<{ ok: boolean; reason?: string }> {
+    const online = this.online ?? OnlineAccount.get();
+    if (!online) return { ok: false, reason: 'Not signed in.' };
+    const result = await online.request('/me/delete', { password });
+    if (!result.ok) return { ok: false, reason: result.reason ?? 'The account was not deleted.' };
+    try {
+      localStorage.clear();
+    } catch {
+      // Closed on the server either way
     }
-    this.saveMeta();
-    this.notifyListeners();
-    return this.autoSyncEnabled;
-  }
-
-  private startAutoSync(): void {
-    if (this.autoSyncInterval) return;
-    this.autoSyncInterval = window.setInterval(() => {
-      if (this.autoSyncEnabled) {
-        this.saveToCloud();
-      }
-    }, 60000); // Every 60s
-  }
-
-  private stopAutoSync(): void {
-    if (this.autoSyncInterval) {
-      clearInterval(this.autoSyncInterval);
-      this.autoSyncInterval = null;
-    }
+    window.location.reload();
+    return { ok: true };
   }
 
   public getSyncInfo(): CloudSyncInfo {
-    const elapsedSecs = Math.max(0, Math.floor((Date.now() - this.lastSyncedTimestamp) / 1000));
-    let timeStr = 'Just now';
-    if (elapsedSecs >= 60) {
-      const mins = Math.floor(elapsedSecs / 60);
-      timeStr = `${mins}m ago`;
-    } else if (elapsedSecs > 5) {
-      timeStr = `${elapsedSecs}s ago`;
+    const online = this.online ?? OnlineAccount.get();
+    const guest = !online?.account || online.account.kind === 'guest' || !online.account.verified;
+    let status: CloudSyncInfo['status'] = 'guest';
+    let label = 'Guest: sign up to keep your progress';
+    if (!guest) {
+      if (this.offline || !this.savedAt) {
+        status = 'offline';
+        label = 'Not saved: no connection';
+      } else {
+        status = 'saved';
+        label = `Saved to your account · ${ago(this.savedAt)}`;
+      }
     }
-
-    const regionNames: Record<string, string> = {
-      lagos: 'Lagos Island • Broad St Hub',
-      abuja: 'Abuja FCT • Diplomatic Core',
-      port_harcourt: 'Port Harcourt • Garden Hub',
-    };
-
-    const pings: Record<string, number> = {
-      lagos: 15,
-      abuja: 22,
-      port_harcourt: 28,
-    };
-
-    return {
-      status: 'synced',
-      lastSyncedTimestamp: this.lastSyncedTimestamp,
-      lastSyncedFormatted: timeStr,
-      backupCode: this.backupCode,
-      serverRegion: this.serverRegion,
-      serverRegionName: regionNames[this.serverRegion] || 'Lagos Island Central',
-      pingMs: pings[this.serverRegion] || 18,
-      autoSyncEnabled: this.autoSyncEnabled,
-    };
+    return { status, label, lastSyncedTimestamp: this.savedAt, lastSyncedFormatted: ago(this.savedAt) };
   }
 
   public subscribe(cb: (info: CloudSyncInfo) => void): () => void {
     this.listeners.push(cb);
     cb(this.getSyncInfo());
     return () => {
-      this.listeners = this.listeners.filter((l) => l !== cb);
+      this.listeners = this.listeners.filter((listener) => listener !== cb);
     };
   }
 
-  private notifyListeners(): void {
-    const info = this.getSyncInfo();
-    for (const cb of this.listeners) {
-      cb(info);
+  private async pullIfNewer(): Promise<boolean> {
+    const online = this.online ?? OnlineAccount.get();
+    if (!online) return false;
+    const remote = await online.request('/me/save');
+    if (!remote.ok || !remote.doc) return false;
+    if (Number(remote.version) > this.version()) {
+      this.apply(remote.doc, remote.version, remote.savedAt);
+      online.leaving = true;
+      window.location.reload();
+      return true;
     }
+    this.savedAt = Number(remote.savedAt) || this.savedAt;
+    return false;
+  }
+
+  private async send(): Promise<boolean> {
+    const online = this.online ?? OnlineAccount.get();
+    // A sign-in is about to load the account's copy. Don't send this device's guest life over it.
+    if (online?.leaving || this.quiet()) return true;
+    if (!online) {
+      this.offline = true;
+      this.publish();
+      return false;
+    }
+    const id = online.id;
+    await online.settled();
+    // The session may have changed while the money reports were in flight: this device's guest
+    // life must not be written onto the account that was just signed in.
+    if (online.leaving || online.id !== id || this.quiet()) return true;
+    const doc = this.collect();
+    const result = await online.request('/me/save', { doc, base: this.version() });
+    if (!result.ok || !result.doc) {
+      this.offline = true;
+      this.publish();
+      return false;
+    }
+    this.offline = false;
+    if (result.kept === 'server' || result.stripped) {
+      this.apply(result.doc, result.version, result.savedAt);
+      this.publish();
+      online.leaving = true;
+      window.location.reload();
+      return true;
+    }
+    this.remember(Number(result.version) || 0, Number(result.savedAt) || Date.now());
+    this.publish();
+    return true;
+  }
+
+  private collect(): SaveDoc {
+    const bags: Record<string, string> = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key || denied(key)) continue;
+        const value = localStorage.getItem(key);
+        if (value === null || value.length > 400_000) continue;
+        bags[key] = value;
+      }
+    } catch {
+      // Whatever could be read is what is sent
+    }
+    return { v: 1, at: Date.now(), bags };
+  }
+
+  private apply(doc: SaveDoc, version: number, savedAt: number): void {
+    this.clearGameKeys();
+    for (const [key, value] of Object.entries(doc.bags || {})) {
+      if (denied(key) || typeof value !== 'string') continue;
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // This device could not hold it; the account still has it
+      }
+    }
+    this.remember(Number(version) || 0, Number(savedAt) || Date.now());
+    try {
+      localStorage.setItem(QUIET_KEY(), String(Date.now() + 20_000));
+    } catch {
+      // A reload still has the save
+    }
+  }
+
+  /** Everything except the sign-in itself, so the account's copy is the whole device. */
+  private clearGameKeys(): void {
+    const keep = new Set([
+      profileKey('nigeria_life_session'),
+      profileKey('nigeria_life_account_id'),
+      profileKey('nigeria_life_network_player_id'),
+      'nigeria_life_world_server',
+      'nigeria_life_world_server_key',
+    ]);
+    const drop: string[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && !keep.has(key)) drop.push(key);
+      }
+      for (const key of drop) localStorage.removeItem(key);
+    } catch {
+      // Cleared as far as the browser allowed
+    }
+  }
+
+  private remember(version: number, savedAt: number): void {
+    this.savedAt = savedAt;
+    try {
+      localStorage.setItem(VERSION_KEY(), String(version));
+      localStorage.setItem(AT_KEY(), String(savedAt));
+    } catch {
+      // The page is about to load again
+    }
+  }
+
+  private version(): number {
+    return Number(localStorage.getItem(VERSION_KEY()) || 0);
+  }
+
+  private quiet(): boolean {
+    return Date.now() < Number(localStorage.getItem(QUIET_KEY()) || 0);
+  }
+
+  private arm(): void {
+    if (this.armed) return;
+    this.armed = true;
+    window.setInterval(() => void this.pushNow(), 60_000);
+    window.setInterval(() => this.publish(), 20_000);
+    window.addEventListener('online', () => void this.pushNow());
+  }
+
+  private publish(): void {
+    const info = this.getSyncInfo();
+    for (const listener of this.listeners) listener(info);
   }
 }

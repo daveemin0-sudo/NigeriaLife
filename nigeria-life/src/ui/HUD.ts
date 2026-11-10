@@ -316,9 +316,9 @@ export class HUD {
             <span>📸</span>
             <span>PHOTO</span>
           </button>
-          <button class="btn-camera-view-toggle hud-cloud-pill" id="hud-btn-cloud-sync" title="Multiplayer & EkoCloud Hub • Click to Open Meetumo" style="border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.15); color: #4ade80;">
+          <button class="btn-camera-view-toggle hud-cloud-pill" id="hud-btn-cloud-sync" title="Whether this life is saved to your account" style="border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.15); color: #4ade80;">
             <span class="cloud-dot-live">🟢</span>
-            <span id="hud-online-count">1 Online</span> • <span id="hud-cloud-status">☁️ Synced</span>
+            <span id="hud-online-count">1 Online</span> • <span id="hud-cloud-status">Guest: sign up to keep your progress</span>
           </button>
           <div class="hud-location">
             <span class="flag">🇳🇬</span>
@@ -1240,17 +1240,15 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
     });
 
-    // Cloud & Multiplayer Hub Pill
+    // The save pill: the account page, and the words of the last real save
     document.getElementById('hud-btn-cloud-sync')?.addEventListener('click', () => {
       this.phoneModal.open();
-      this.phoneModal.openApp('meetumo');
+      this.phoneModal.openApp('settings');
     });
 
     CloudSyncService.getInstance().subscribe((info) => {
       const cloudStatusEl = document.getElementById('hud-cloud-status');
-      if (cloudStatusEl) {
-        cloudStatusEl.textContent = `☁️ ${info.lastSyncedFormatted}`;
-      }
+      if (cloudStatusEl) cloudStatusEl.textContent = info.label;
     });
 
     // City tabs inside aerial map view

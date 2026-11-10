@@ -362,21 +362,53 @@ const isMine = (prop: RealEstateProperty) => prop.status === 'owned' || prop.sta
 /** Who the player is on the game server, and how a guest keeps their progress */
 function accountSection(host: { get(key: string, fallback: string): string }): string {
   const online = OnlineAccount.get();
-  if (!online) return '';
+  const label = CloudSyncService.getInstance().getSyncInfo().label;
+  const statusLine = `<div class="nl-hint" id="settings-save-status">${esc(label)}</div>`;
+  if (!online) {
+    return `
+        <div class="nl-section">Your account</div>
+        ${statusLine}
+        <div class="nl-hint">A guest who never signs up can lose everything.</div>`;
+  }
   const account = online.account;
   const devLink = host.get('settings.devLink', '');
-  const status = !account ? 'Signing in…' : account.verified ? `${esc(account.name)}, kept on ${esc(account.email ?? 'your email')}` : `${esc(account.name)}, playing as a guest`;
-  return `
+  const guest = !account || account.kind === 'guest' || !account.verified;
+  const who = !account ? 'Signing in…' : guest ? `${esc(account.name)}, playing as a guest` : `${esc(account.name)}${account.email ? `, ${esc(account.email)}` : ''}`;
+  if (guest) {
+    return `
         <div class="nl-section">Your account</div>
         <div class="nl-list">
-          ${row({ icon: account?.verified ? '✅' : '👤', title: online.connected ? 'Online' : 'Connecting…', sub: status })}
+          ${row({ icon: '👤', title: online.connected ? 'Online' : 'Connecting…', sub: who })}
         </div>
-        ${account && !account.verified ? `
-        <div class="nl-hint">A guest's progress lives on this server under this device. Add an email address to keep it for good and to play it on another phone.</div>
+        ${statusLine}
+        <div class="nl-hint">A guest who never signs up can lose everything. Create an account and this life — homes, bag, businesses — is kept, and it is there when you sign in on another phone.</div>
+        <label class="nl-label" for="settings-username">Username</label>
+        <input class="nl-field" id="settings-username" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="16" placeholder="e.g. Ada_Lagos" value="${esc(host.get('settings.username', ''))}" data-bind="settings.username" />
+        <label class="nl-label" for="settings-password">Password</label>
+        <input class="nl-field" id="settings-password" type="password" autocomplete="new-password" placeholder="At least 6 characters" value="${esc(host.get('settings.password', ''))}" data-bind="settings.password" />
+        <button class="nl-btn nl-btn--block" id="settings-account-register" data-act="account-register">Create my account</button>
+        <div class="nl-hint">Or add an email address and open the sign-in link. That keeps this same life too.</div>
         <label class="nl-label" for="settings-email">Email address</label>
         <input class="nl-field" id="settings-email" type="email" autocomplete="email" placeholder="you@example.com" value="${esc(host.get('settings.email', ''))}" data-bind="settings.email" />
         <button class="nl-btn nl-btn--block" id="settings-email-send" data-act="account-email">Send me a sign-in link</button>
-        ${devLink ? `<div class="nl-hint" id="settings-dev-link">Sign-in link: <a href="${esc(devLink)}">${esc(devLink)}</a></div>` : ''}` : ''}`;
+        ${devLink ? `<div class="nl-hint" id="settings-dev-link">Sign-in link: <a href="${esc(devLink)}">${esc(devLink)}</a></div>` : ''}`;
+  }
+  return `
+        <div class="nl-section">Your account</div>
+        <div class="nl-list">
+          ${row({ icon: '✅', title: online.connected ? 'Online' : 'Connecting…', sub: who })}
+        </div>
+        ${statusLine}
+        <label class="nl-label" for="settings-new-email">Change email</label>
+        <input class="nl-field" id="settings-new-email" type="email" autocomplete="email" placeholder="you@example.com" value="${esc(host.get('settings.newEmail', ''))}" data-bind="settings.newEmail" />
+        <label class="nl-label" for="settings-email-password">Password</label>
+        <input class="nl-field" id="settings-email-password" type="password" autocomplete="current-password" placeholder="Your password" value="${esc(host.get('settings.emailPassword', ''))}" data-bind="settings.emailPassword" />
+        <button class="nl-btn nl-btn--block" id="settings-account-email-change" data-act="account-change-email">Save this email</button>
+        <button class="nl-btn nl-btn--block" id="settings-account-download" data-act="account-download">Download my data</button>
+        <button class="nl-btn nl-btn--block" id="settings-account-signout" data-act="account-signout">Sign out</button>
+        <label class="nl-label" for="settings-delete-password">Delete this account</label>
+        <input class="nl-field" id="settings-delete-password" type="password" autocomplete="current-password" placeholder="Your password" value="${esc(host.get('settings.deletePassword', ''))}" data-bind="settings.deletePassword" />
+        <button class="nl-btn nl-btn--danger nl-btn--block" id="settings-account-delete" data-act="account-delete">Delete my account</button>`;
 }
 
 /** What each graphics level gives up, in the player's terms */
@@ -727,7 +759,7 @@ export const settingsApp: PhoneApp = {
           <div class="nl-card" id="settings-server">
             <div class="nl-card-title">${ServerLink.get()?.connected ? '🟢 Connected' : '🟠 Trying to reach'} the world server</div>
             <div class="nl-card-line">${esc(SERVER_URL)}</div>
-            <div class="nl-card-line">Land, buildings, vehicles and the market are shared with everyone on this server. Your money and your saved game stay on this device.</div>
+            <div class="nl-card-line">Land, buildings, vehicles and the market are shared with everyone on this server. Your money and your land are decided by the server. The rest of your life is saved to your account.</div>
             <button class="nl-btn nl-btn--danger nl-btn--sm" data-act="server-off">Leave the server and play on this device only</button>
           </div>` : `
           <div class="nl-hint">Land and the market are shared by the players in this browser. To share them with other devices, run the world server (npm run server) and enter its address.</div>
@@ -785,21 +817,13 @@ export const settingsApp: PhoneApp = {
         </div>
         <div class="nl-section">Privacy</div>
         <div class="nl-card" id="settings-privacy">
-          <div class="nl-card-line">Your saved game stays on this device. While you are signed in, your money is kept by the server, so a changed number in the browser does not stick. Other players see your name and what you do in the same place. You can block someone from their chat.</div>
+          <div class="nl-card-line">While you are signed in, your money and your land are kept by the server, so a changed number in the browser does not stick. Everything else you own is saved to your account, and signing in on another phone brings it back. A guest who never signs up can lose everything. Other players see your name and what you do in the same place. You can block someone from their chat.</div>
         </div>
         <div class="nl-section">Help</div>
         <div class="nl-hint">The guide at the top of this page covers moving, places, the phone, jobs, money, homes and driving. If something is wrong, write it below and copy it, then send it to whoever runs this game.</div>
         <label class="nl-label" for="settings-report">Report a problem</label>
         <input class="nl-field" id="settings-report" type="text" maxlength="240" placeholder="What happened, and where you were" value="${esc(host.get('settings.report', ''))}" data-bind="settings.report" />
         <button class="nl-btn nl-btn--block" id="settings-report-copy" data-act="report">Copy the report</button>
-        <div class="nl-section">Saved game</div>
-        <div class="nl-hint">The game saves itself on this device every few seconds. A copy as text lets you move it to another browser.</div>
-        <div class="nl-list">
-          ${row({ icon: '📋', title: 'Copy my saved game', sub: 'Puts it on the clipboard as text', attrs: 'data-act="export"' })}
-        </div>
-        <label class="nl-label" for="settings-import">Restore from a copy</label>
-        <input class="nl-field" id="settings-import" type="text" placeholder="Paste a saved game here" value="${esc(host.get('settings.import', ''))}" data-bind="settings.import" />
-        <button class="nl-btn nl-btn--block" data-act="import">Restore</button>
       `,
     };
   },
@@ -855,6 +879,34 @@ export const settingsApp: PhoneApp = {
       host.set('settings.devLink', result.devLink ?? '');
       host.say(result.devLink ? 'No email service is set up on this server: the link is shown below.' : `A sign-in link is on its way to ${email}. Open it within 15 minutes.`, 'good');
       host.refresh();
+    } else if (action === 'account-register') {
+      const online = OnlineAccount.get();
+      if (!online) return;
+      const result = await online.register(host.get('settings.username', '').trim(), host.get('settings.password', ''));
+      if (!result.ok) return host.say(result.reason ?? 'Could not create the account.', 'bad');
+      host.say('Your account is ready. This life is kept on it.', 'good');
+      host.refresh();
+    } else if (action === 'account-change-email') {
+      const result = await CloudSyncService.getInstance().changeEmail(host.get('settings.newEmail', '').trim(), host.get('settings.emailPassword', ''));
+      host.say(result.ok ? 'That email is on your account now.' : (result.reason ?? 'The email was not changed.'), result.ok ? 'good' : 'bad');
+      if (result.ok) host.refresh();
+    } else if (action === 'account-download') {
+      const text = await CloudSyncService.getInstance().download();
+      if (!text) return host.say('Nothing is saved to the account yet.', 'bad');
+      const file = new Blob([text], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(file);
+      link.download = 'nigeria-life.json';
+      link.click();
+      URL.revokeObjectURL(link.href);
+      host.say('Your data is downloading.', 'good');
+    } else if (action === 'account-signout') {
+      if (!(await host.confirm('Sign out on this device? Your life stays on the account.', 'Sign out'))) return;
+      await CloudSyncService.getInstance().signOut();
+    } else if (action === 'account-delete') {
+      if (!(await host.confirm('Delete this account? It cannot be signed in to again.', 'Delete'))) return;
+      const result = await CloudSyncService.getInstance().deleteAccount(host.get('settings.deletePassword', ''));
+      if (!result.ok) host.say(result.reason ?? 'The account was not deleted.', 'bad');
     } else if (action === 'toggle-graphics') {
       const graphics = (window as any).game?.graphics;
       if (graphics) graphics.choose(graphics.next());
@@ -907,21 +959,6 @@ export const settingsApp: PhoneApp = {
     } else if (action === 'wardrobe') {
       host.close();
       host.world.openWardrobe();
-    } else if (action === 'export') {
-      const text = CloudSyncService.getInstance().exportBackupString();
-      try {
-        await navigator.clipboard.writeText(text);
-        host.say('Your saved game is on the clipboard.', 'good');
-      } catch {
-        host.say('The browser would not let the game use the clipboard.', 'bad');
-      }
-    } else if (action === 'import') {
-      const text = host.get('settings.import', '').trim();
-      if (!text) return host.say('Paste a saved game first.', 'bad');
-      if (!(await host.confirm('Replace the game you are playing now with the pasted one?', 'Replace it'))) return;
-      const result = CloudSyncService.getInstance().importBackupString(text);
-      if (result.success) host.set('settings.import', '');
-      host.say(result.message, result.success ? 'good' : 'bad');
     }
   },
 };

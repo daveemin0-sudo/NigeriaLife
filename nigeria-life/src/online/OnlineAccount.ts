@@ -41,6 +41,13 @@ export class OnlineAccount {
   public account: AccountView | null = null;
   public wallet: WalletView | null = null;
   public connected = false;
+  /** Set when this page is loading again, so nothing else starts a second connection. */
+  public leaving = false;
+  /**
+   * Sign-in, sign-up and a guest becoming a real account. The game uses it to bring the
+   * account's save onto this device (login) or to send this device's life up (a guest signing up).
+   */
+  public onSwitch: ((mode: 'login' | 'upgrade' | 'fresh') => Promise<void>) | null = null;
   /** Resolves once signed in (false if the server could not be reached) */
   public readonly ready: Promise<boolean>;
 
@@ -185,6 +192,8 @@ export class OnlineAccount {
         if (done.ok) {
           this.keep(done.token, done.account);
           this.emit('signed-in', { upgraded: done.upgraded, account: done.account });
+          if (this.onSwitch) await this.onSwitch(done.upgraded ? 'upgrade' : 'login');
+          if (this.leaving) return true;
         } else {
           this.emit('notice', done.reason);
         }
@@ -317,6 +326,11 @@ export class OnlineAccount {
    * Tells the server about money the game moved itself, in order. The server answers with the
    * balance as it holds it, which the game then shows (see BackendService.applyServerWallet).
    */
+  /** Resolves once every money report made so far has been answered. A save waits for this. */
+  public settled(): Promise<unknown> {
+    return this.reports;
+  }
+
   public report(cash: number, bank: number, memo: string, known?: string): void {
     // A payment that could be made twice (a week's rent on two devices) comes with its own name
     const idem = known ? `${known}:${this.id ?? 'x'}`.slice(0, 80) : this.idem('r');
@@ -411,21 +425,26 @@ export class OnlineAccount {
   public async register(username: string, password: string): Promise<{ ok: boolean; reason?: string }> {
     const done = await this.request('/auth/register', { username, password });
     if (!done.ok) return { ok: false, reason: done.reason ?? 'Could not register. Try again.' };
-    await this.switchTo(done);
+    await this.switchTo(done, done.upgraded ? 'upgrade' : 'fresh');
     return { ok: true };
   }
 
   public async login(username: string, password: string): Promise<{ ok: boolean; reason?: string }> {
     const done = await this.request('/auth/login', { username, password });
     if (!done.ok) return { ok: false, reason: done.reason ?? 'Could not sign in. Try again.' };
-    await this.switchTo(done);
+    await this.switchTo(done, 'login');
     return { ok: true };
   }
 
-  /** Now this account: its session kept, its money shown, the city reached with it */
-  private async switchTo(done: { token: string; account: AccountView; wallet?: WalletView }): Promise<void> {
+  /** Now this account: its session kept, its life loaded or, for a guest signing up, sent up. */
+  private async switchTo(done: { token: string; account: AccountView; wallet?: WalletView }, mode: 'login' | 'upgrade' | 'fresh'): Promise<void> {
+    // Signing in must not upload this device's guest life onto the account. A guest signing up
+    // is the opposite: this life is the one that moves.
+    if (mode !== 'upgrade') this.leaving = true;
     this.keep(done.token, done.account);
     if (done.wallet) this.setWallet(done.wallet);
+    if (this.onSwitch) await this.onSwitch(mode);
+    if (this.leaving) return;
     await this.bindRegistry();
     const old = this.socket;
     this.socket = null;

@@ -279,6 +279,37 @@ export class Accounts {
     return (this.db.prepare('SELECT registry_id FROM accounts WHERE id = ?').get(account.id) as { registry_id: string | null } | undefined)?.registry_id ?? null;
   }
 
+  /** Closes this session only. The account, and the life on it, stay. */
+  public logout(token: string | null | undefined): void {
+    if (!token) return;
+    this.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hash(token));
+  }
+
+  /** A new email address, once the password confirms it is the same player. */
+  public changeEmail(account: Account, rawEmail: unknown, rawPassword: unknown): { ok: true; account: Account } | { ok: false; reason: string } {
+    const email = String(rawEmail ?? '').trim().toLowerCase();
+    if (!EMAIL.test(email)) return { ok: false, reason: 'That does not look like an email address.' };
+    const row = this.db.prepare('SELECT password_hash FROM accounts WHERE id = ?').get(account.id) as { password_hash: string | null } | undefined;
+    if (!row || !passwordMatches(String(rawPassword ?? ''), row.password_hash)) return { ok: false, reason: 'That password does not match.' };
+    if (this.db.prepare('SELECT 1 FROM accounts WHERE email = ? AND id != ?').get(email, account.id)) return { ok: false, reason: 'That email is already on another account.' };
+    this.db.prepare('UPDATE accounts SET email = ? WHERE id = ?').run(email, account.id);
+    return { ok: true, account: this.row(account.id)! };
+  }
+
+  /**
+   * Closes the account. The password confirms it. Sessions are dropped and the username is
+   * cleared, so it cannot be signed in to again. The saved life is removed by the caller.
+   */
+  public deleteAccount(account: Account, rawPassword: unknown): { ok: true } | { ok: false; reason: string } {
+    const row = this.db.prepare('SELECT password_hash FROM accounts WHERE id = ?').get(account.id) as { password_hash: string | null } | undefined;
+    if (!row?.password_hash || !passwordMatches(String(rawPassword ?? ''), row.password_hash)) return { ok: false, reason: 'That password does not match.' };
+    transaction(this.db, () => {
+      this.db.prepare('DELETE FROM sessions WHERE account_id = ?').run(account.id);
+      this.db.prepare("UPDATE accounts SET banned = 1, username = NULL, email = NULL, password_hash = NULL, name = 'Deleted' WHERE id = ?").run(account.id);
+    });
+    return { ok: true };
+  }
+
   public rename(account: Account, rawName: unknown): Account | null {
     const name = cleanName(rawName);
     if (!name) return null;

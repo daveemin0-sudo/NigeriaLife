@@ -167,6 +167,8 @@ import { Solids } from '../world/plan/Solids';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
 import { GraphicsQuality } from '../graphics/GraphicsQuality';
 import { OnlineAccount } from '../online/OnlineAccount';
+import { CloudSyncService } from '../backend/CloudSyncService';
+import { Qualifications } from '../life/Qualifications';
 import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
 import { buildingType } from '../realestate/BuildingCatalogue';
@@ -314,7 +316,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -347,6 +349,8 @@ export class Game {
   /** Frames drawn since the game started, counted by the wall clock (the device report's frame rate) */
   private framesDrawn = 0;
   private lastAutosaveAt: number = performance.now();
+  /** The saved city has been stepped back into, so a save may record where the player is standing. */
+  private placeRestored = false;
   private onJourneyCompleted: (() => void) | null = null;
 
   constructor() {
@@ -950,10 +954,30 @@ export class Game {
     const online = OnlineAccount.start({ name: start.username, save: { cash: start.walletCash, bank: start.bank.balance } });
     if (online) {
       backend.authority = { report: (cash, bank, memo, idem) => online.report(cash, bank, memo, idem) };
+      const sync = CloudSyncService.getInstance();
+      sync.attach(online);
+      backend.onSaved = () => sync.note();
+      backend.holdSaves = () => online.leaving;
+      // A guest signing up sends this life up. Signing in on another device brings that life here.
+      online.onSwitch = async (mode) => {
+        if (mode === 'upgrade') {
+          await sync.pushNow();
+          return;
+        }
+        const pulled = await sync.replaceFromServer();
+        if (pulled) {
+          online.leaving = true;
+          window.location.reload();
+        }
+      };
       // The trait belongs to the account: the server's wins, and one picked here is kept there
       backend.onTraitChosen = (id) => void online.request('/me/trait', { trait: id }).then((r) => r.trait && backend.adoptTrait(r.trait));
       void online.ready.then(async (ok) => {
         if (!ok) return;
+        // The account's player in the land register is bound before titles are matched, so a
+        // second phone does not give the homes and businesses back and then have to be given them again.
+        this.deeds.arm();
+        void this.modules.Motors.get().syncOnline();
         const me = await online.request('/me');
         if (me.away?.note) showGameToast(String(me.away.note), 'success', 8000);
         if (me.trait) backend.adoptTrait(me.trait);
@@ -1146,6 +1170,8 @@ export class Game {
     // A first visit has no saved spot: they start on the pavement by their own gate, not in the crowd.
     this.restoreWorldState();
     if (!BackendService.getInstance().getData().worldState) this.arriveAtTheGate();
+    this.placeRestored = true;
+    if (!OnlineAccount.get()) this.deeds.arm();
     this.connectDues();
     this.connectPower();
     this.connectPolice();
@@ -3578,6 +3604,8 @@ export class Game {
 
   /** Records the player's city, street position and the time of day in the saved game. */
   private saveWorldState(): void {
+    // Not until the saved city has been stepped back into. The boot spawn would otherwise overwrite it.
+    if (!this.placeRestored) return;
     // Mid-journey or while boarding/pulling out, the destination was already saved when the ticket was bought
     if (
       this.flightExperience.isActive ||
@@ -3611,6 +3639,7 @@ export class Game {
   }
 
   private restoreWorldState(): void {
+    this.placeRestored = true;
     const saved = BackendService.getInstance().getData().worldState;
     if (!saved) return;
 

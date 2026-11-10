@@ -208,6 +208,10 @@ export class BackendService {
    * made here, and its answer is the balance (`applyServerWallet`). Null in this browser only.
    */
   public authority: { report(cash: number, bank: number, memo: string, idem?: string): void } | null = null;
+  /** Told after the saved game is written, so the account on the server can be sent a copy. */
+  public onSaved: (() => void) | null = null;
+  /** While signing in, this device's game must not write over the account just loaded. */
+  public holdSaves: (() => boolean) | null = null;
   private settling = false;
   /** Reports waiting for a registry change to be kept (see checkpoint) */
   private heldReports: Array<Array<[number, number, string, string | undefined]>> = [];
@@ -417,6 +421,7 @@ export class BackendService {
   }
 
   private saveData(): void {
+    if (this.holdSaves?.()) return;
     try {
       // While the game is open the clock of time away is held at now (see settleTimeAway)
       if (this.awaySettled) this.data.lastActiveAt = Date.now();
@@ -427,10 +432,12 @@ export class BackendService {
       console.warn('Could not write the saved game', e);
     }
     this.notifyListeners();
+    this.onSaved?.();
   }
 
   /** Records where the player is standing and the time of day, and writes the save. */
   public saveWorldState(state: SavedWorldState): void {
+    if (this.holdSaves?.()) return;
     this.syncFromStorage();
     this.data.worldState = state;
     this.saveData();

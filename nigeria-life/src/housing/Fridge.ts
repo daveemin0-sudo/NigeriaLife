@@ -33,6 +33,7 @@ export class Fridge {
   }
 
   private save(): void {
+    if (this.backend.holdSaves?.()) return;
     try {
       localStorage.setItem(this.key(), JSON.stringify(this.food));
     } catch {
