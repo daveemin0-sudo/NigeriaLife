@@ -13,6 +13,8 @@ export class SoundEngine {
   private static instance: SoundEngine;
   private ctx: AudioContext | null = null;
   public isMuted: boolean = false;
+  /** How loud the game is, from 0 to 1. Mute is separate and wins. */
+  public soundLevel = 0.65;
   private masterGain: GainNode | null = null;
 
   // Background generator & ambient loops
@@ -20,6 +22,13 @@ export class SoundEngine {
   private generatorGain: GainNode | null = null;
 
   private constructor() {
+    try {
+      const raw = localStorage.getItem('nl_sound_level');
+      const saved = raw === null ? NaN : Number(raw);
+      if (Number.isFinite(saved)) this.soundLevel = Math.min(1, Math.max(0, saved));
+    } catch {
+      // The default stands
+    }
     // Lazy initialize on first user interaction to satisfy browser autoplay policy
     const initAudio = () => {
       this.ensureContext();
@@ -47,7 +56,7 @@ export class SoundEngine {
       this.ctx = new AudioCtxClass();
 
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.65, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.soundLevel, this.ctx.currentTime);
       this.masterGain.connect(this.ctx.destination);
     }
 
@@ -60,10 +69,21 @@ export class SoundEngine {
 
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
-    if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.65, this.ctx.currentTime);
-    }
+    this.applyLevel();
     return this.isMuted;
+  }
+
+  /** Sets how loud the game is (0 to 1) and remembers it. Mute still silences it. */
+  public setLevel(level: number): void {
+    this.soundLevel = Math.min(1, Math.max(0, level));
+    try { localStorage.setItem('nl_sound_level', String(this.soundLevel)); } catch { /* not remembered */ }
+    this.applyLevel();
+  }
+
+  private applyLevel(): void {
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.soundLevel, this.ctx.currentTime);
+    }
   }
 
   // =========================================================================

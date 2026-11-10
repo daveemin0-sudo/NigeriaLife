@@ -458,7 +458,7 @@ export async function run(_browser, check) {
     check('online: CcHUB, the refinery and LASTMA pay the entry grade once the server has timed the shift, and not from across town',
       cchub.hired.ok && cchub.started.ok && !cchub.tooFast.ok && /faster/.test(cchub.tooFast.reason) && cchub.paid.pay === 16_000 && cchub.gained === 16_000
       && !notAtHub.ok && /not at the workplace/.test(notAtHub.reason)
-      && refinery.paid.pay === 12_000 && refinery.gained === 12_000 && !refinery.tooFast.ok
+      && refinery.paid.pay === 36_000 && refinery.gained === 36_000 && !refinery.tooFast.ok
       && lastma.paid.pay === 8_500 && lastma.gained === 8_500 && !lastma.tooFast.ok,
       { cchub, notAtHub, refinery, lastma });
 
@@ -492,12 +492,17 @@ export async function run(_browser, check) {
     // A career shift is a wage too (a payslip, no PAYE yet on a first ₦4,500); the generator is cash in hand
     const clerk = await call('/auth/guest', { name: 'Clerk' });
     const clerkStart = await call('/work/gig/start', { gig: 'career:job_shop_assistant' }, clerk.token);
+    const clerkOpen = await call('/work/gig/open', { gig: 'career:job_shop_assistant' }, clerk.token);
+    const unknownGig = await call('/work/gig/open', { gig: 'career:no-such-job' }, clerk.token);
+    const clerkSoon = await call('/work/gig/finish', { shift: clerkStart.shift, idem: idem() }, clerk.token);
     await wait(10_300);
     taxed.sock.send(stand(-10, -25));
     await wait(200);
     const taxBefore = (await call('/me', null, taxed.guest.token)).wallet.cash;
     const taxPaid = await call('/work/finish', { shift: taxStart.shift, idem: idem() }, taxed.guest.token);
     const clerkPaid = await call('/work/gig/finish', { shift: clerkStart.shift, idem: idem() }, clerk.token);
+    const clerkOpenAfter = await call('/work/gig/open', { gig: 'career:job_shop_assistant' }, clerk.token);
+    const clerkAgain = await call('/work/gig/finish', { shift: clerkStart.shift, idem: idem() }, clerk.token);
     // Home rent paid this month earns relief (a fifth, at most ₦41,667); a staff wage does not
     await call('/money/report', { bank: -100000, memo: 'RENT_PAYMENT: Saturday rent: Room in Mushin', idem: idem() }, taxed.guest.token);
     await call('/money/report', { bank: -5000, memo: 'RENT_PAYMENT: Home Staff Wage: Cook (Cook)', idem: idem() }, taxed.guest.token);
@@ -511,6 +516,10 @@ export async function run(_browser, check) {
     check('online: a career shift comes with a payslip from its employer; the generator gig is paid whole with none',
       clerkPaid.ok && clerkPaid.pay === 4_500 && clerkPaid.slip?.employer === 'Balogun Wholesale Market' && clerkPaid.slip.paye === 0 && clerkPaid.wallet.cash === 25_000 + 4_500 && genPaid.ok && genPaid.slip === undefined,
       { clerkPaid, gen: genPaid.slip });
+    check('online: a career shift can be found again while it is open, is paid once, and is gone after that',
+      clerkOpen.ok && clerkOpen.shift === clerkStart.shift && !unknownGig.ok && !clerkSoon.ok && /faster/.test(clerkSoon.reason ?? '')
+      && clerkOpenAfter.ok && clerkOpenAfter.shift === null && !clerkAgain.ok,
+      { clerkOpen, unknownGig, clerkSoon, clerkOpenAfter, clerkAgain });
 
     // The police: the server keeps the cell and the record; anyone can stand bail; vetting employers read the record
     const jailed = await onSpot('Dapo', 0, 1.5);

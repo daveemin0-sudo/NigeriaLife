@@ -1,8 +1,10 @@
-import type { PhoneApp } from '../PhoneApp';
+import type { PhoneApp, PhoneHost } from '../PhoneApp';
 import { areaName, bandOf, hasLight, homeArea, hourWords, hoursOfLight, nextChange, BAND_HOURS, type Band } from '../../life/Grid';
 import { theme, setTheme } from '../../ui/theme/Theme';
 import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
+import { MusicPlayer } from '../../audio/MusicPlayer';
+import { noticesEnabled, setNotices } from '../../ui/GameToast';
 import { Employment, EMPLOYERS, WORKSITES } from '../../jobs/Employment';
 import { WORKPLACE } from '../../interiors/places/PlaceJobs';
 import { Shifts } from '../../jobs/HandWork';
@@ -64,6 +66,94 @@ const RANKS = [
   { level: 2, at: 100 },
   { level: 3, at: 300 },
 ];
+
+function leftWords(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest ? `${minutes} min ${rest}s` : `${minutes} min`;
+}
+
+/** What Collect pays. Signed in, the server pays the wage. A rank bonus is added only on this device. */
+function collectPay(salary: number, bonus: number): number {
+  return Math.round(salary * (OnlineAccount.get() ? 1 : (bonus || 1)));
+}
+
+/**
+ * The server clocks the shift first. Only then does the phone start it.
+ * If the server cannot be reached, the shift runs on the phone and can be paid once the server answers.
+ * A refusal (unknown work, not at a site) does not start a shift that can never be paid.
+ */
+async function beginShift(host: PhoneHost, id: string): Promise<void> {
+  const online = OnlineAccount.get();
+  if (online) {
+    const started = await online.startGig(`career:${id}`);
+    if (!started.ok && started.status !== 0) {
+      host.say(started.reason ?? 'The server did not start the shift.', 'bad');
+      return;
+    }
+    if (!started.ok) host.say('The server could not be reached. This shift runs on the phone, and it can be paid once the server answers.', 'info');
+  }
+  const result = host.backend.startJobShift(id);
+  host.say(result.message, result.success ? 'good' : 'bad');
+}
+
+/** Collects the wage once. A lost id is asked of the server. A shift the server does not have is cleared. */
+async function collectShift(host: PhoneHost): Promise<void> {
+  const online = OnlineAccount.get();
+  if (!online) {
+    const result = host.backend.completeJobShift();
+    if (result.success) SoundEngine.getInstance().playTransactionSuccess();
+    host.say(result.message, result.success ? 'good' : 'bad');
+    return;
+  }
+  const shiftInfo = host.backend.getActiveJobShift();
+  if (!shiftInfo) { host.say('No active job shift.', 'bad'); return; }
+  if (!shiftInfo.isReady) { host.say(`Shift still ongoing. ${leftWords(shiftInfo.remainingSecs)} left.`, 'bad'); return; }
+  const gigId = `career:${shiftInfo.job.id}`;
+  let shift = online.rememberedGig(gigId);
+  if (!shift) {
+    const opened = await online.openGig(gigId);
+    if (opened.status === 0) {
+      host.say('The server could not be reached, so this shift cannot be paid yet. Collect again when it answers.', 'bad');
+      return;
+    }
+    if (typeof opened.shift === 'string' && opened.shift) shift = opened.shift;
+  }
+  if (!shift) {
+    const started = await online.startGig(gigId);
+    if (started.status === 0) {
+      host.say('The server could not be reached, so this shift cannot be paid yet. Collect again when it answers.', 'bad');
+      return;
+    }
+    if (started.ok && started.shift) {
+      host.backend.touchJobShiftClock();
+      host.say('The server has just taken this shift on. Finish the time, then collect.', 'info');
+      return;
+    }
+    host.backend.abandonJobShift();
+    host.say('There is no shift on the books to collect.', 'bad');
+    return;
+  }
+  const finished = await online.finishGig(shift);
+  if (!finished.ok) {
+    const reason = finished.reason ?? '';
+    const status = (finished as { status?: number }).status;
+    if (status === 0) {
+      host.say('The server could not be reached, so this shift cannot be paid yet. Collect again when it answers.', 'bad');
+      return;
+    }
+    if (/faster than anyone/.test(reason)) { host.say(reason, 'bad'); return; }
+    online.forgetGig(gigId);
+    host.backend.abandonJobShift();
+    host.say(reason || 'There is no shift on the books to collect.', 'bad');
+    return;
+  }
+  online.forgetGig(gigId);
+  const noted = host.backend.noteServerJobShift(finished.pay ?? shiftInfo.job.salary, finished.slip);
+  if (noted.success) SoundEngine.getInstance().playTransactionSuccess();
+  host.say(noted.message, noted.success ? 'good' : 'bad');
+}
 
 export const jobsApp: PhoneApp = {
   id: 'jobs',
@@ -132,8 +222,8 @@ export const jobsApp: PhoneApp = {
             <div class="nl-card-line">${esc(shift.job.workplace)}</div>
             ${meter(shift.progress * 100, shift.isReady ? 'good' : 'plain')}
             ${shift.isReady
-              ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="btn-claim-shift-salary" data-act="claim">Collect ${naira(Math.round(shift.job.salary * (career.bonusMultiplier || 1)))}</button>`
-              : `<div class="nl-card-line" id="jobs-shift-time">${shift.remainingSecs}s left on this shift</div>`}
+              ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="btn-claim-shift-salary" data-act="claim">Collect ${naira(collectPay(shift.job.salary, career.bonusMultiplier))}</button>`
+              : `<div class="nl-card-line" id="jobs-shift-time">${leftWords(shift.remainingSecs)} left on this shift</div>`}
           </div>` : ''}
 
         <div class="nl-section">Where you work</div>
@@ -192,7 +282,7 @@ export const jobsApp: PhoneApp = {
             return row({
               icon: job.icon,
               title: esc(job.title),
-              sub: `${esc(job.workplace)} · ${job.shiftDuration}s shift${locked ? ` · needs rank ${job.requiredLevel}` : ''}`,
+              sub: `${esc(job.workplace)} · ${naira(job.salary * 22)} a month · ${leftWords(job.shiftDuration)} shift${locked ? ` · needs rank ${job.requiredLevel}` : ''}`,
               trailing: `<span class="nl-stack"><strong>${naira(job.salary)}</strong>${
                 mine ? '<span class="nl-tag">On it</span>'
                 : locked ? '<span class="nl-tag nl-tag--muted">🔒 Rank ' + job.requiredLevel + '</span>'
@@ -225,35 +315,9 @@ export const jobsApp: PhoneApp = {
       host.world.showPlace(site.x, site.z, employer.name);
       host.close();
     } else if (action === 'start') {
-      const id = el.dataset.arg ?? '';
-      const result = host.backend.startJobShift(id);
-      if (!result.success) { host.say(result.message, 'bad'); return; }
-      const online = OnlineAccount.get();
-      if (!online) { host.say(result.message, 'good'); return; }
-      void online.startGig(`career:${id}`).then((started) => {
-        host.say(started.ok ? result.message : (started.reason ?? 'The server did not start the shift.'), started.ok ? 'good' : 'bad');
-      });
+      return beginShift(host, el.dataset.arg ?? '');
     } else if (action === 'claim') {
-      const online = OnlineAccount.get();
-      if (online) {
-        const shiftInfo = host.backend.getActiveJobShift();
-        if (!shiftInfo) { host.say('No active job shift.', 'bad'); return; }
-        if (!shiftInfo.isReady) { host.say(`Shift still ongoing! ${shiftInfo.remainingSecs}s remaining.`, 'bad'); return; }
-        const shift = online.rememberedGig(`career:${shiftInfo.job.id}`);
-        if (!shift) { host.say('The server has no record of this shift.', 'bad'); return; }
-        void online.finishGig(shift).then((finished) => {
-          if (!finished.ok) { host.say(finished.reason ?? 'Not paid.', 'bad'); return; }
-          online.forgetGig(`career:${shiftInfo.job.id}`);
-          const noted = host.backend.noteServerJobShift(finished.pay ?? shiftInfo.job.salary, finished.slip);
-          if (noted.success) SoundEngine.getInstance().playTransactionSuccess();
-          host.say(noted.message, noted.success ? 'good' : 'bad');
-          host.refresh();
-        });
-        return;
-      }
-      const result = host.backend.completeJobShift();
-      if (result.success) SoundEngine.getInstance().playTransactionSuccess();
-      host.say(result.message, result.success ? 'good' : 'bad');
+      return collectShift(host);
     } else if (action === 'train-skill') {
       const skillKey = (el.dataset.arg || '') as keyof PlayerSkills;
       const data = host.backend.getData();
@@ -285,7 +349,11 @@ export const jobsApp: PhoneApp = {
             host.refresh();
             return;
           }
-          const shift = online.rememberedGig(`life:${gig.id}`);
+          let shift = online.rememberedGig(`life:${gig.id}`);
+          if (!shift) {
+            const opened = await online.openGig(`life:${gig.id}`);
+            if (typeof opened.shift === 'string') shift = opened.shift;
+          }
           if (!shift) { host.say('The server has no record of this work.', 'bad'); return; }
           if (host.backend.getData().stats.energy < gig.energy) {
             host.say(`You are too exhausted for this work (need ${gig.energy}% Energy). Eat or rest first.`, 'bad');
@@ -587,6 +655,24 @@ export const healthApp: PhoneApp = {
 const toggle = (id: string, on: boolean, action: string) =>
   `<button class="nl-toggle${on ? ' is-on' : ''}" id="${id}" role="switch" aria-checked="${on}" data-act="${action}"><span></span></button>`;
 
+type TextSize = 'small' | 'normal' | 'large';
+
+function textSize(): TextSize {
+  try {
+    const saved = localStorage.getItem('nl_text');
+    if (saved === 'small' || saved === 'large') return saved;
+  } catch { /* normal */ }
+  return 'normal';
+}
+
+function applyText(size: TextSize): void {
+  if (size === 'normal') delete document.documentElement.dataset.text;
+  else document.documentElement.dataset.text = size;
+  try { localStorage.setItem('nl_text', size); } catch { /* this visit only */ }
+}
+
+applyText(textSize());
+
 export const settingsApp: PhoneApp = {
   id: 'settings',
   name: 'Settings',
@@ -600,6 +686,22 @@ export const settingsApp: PhoneApp = {
     return {
       title: 'Settings',
       body: `
+        <div class="nl-section">How to play</div>
+        <div class="nl-card" id="settings-howto">
+          <div class="nl-card-title">A short guide</div>
+          <div class="nl-card-line"><strong>Moving.</strong> On a phone, use the stick. On a computer, use W A S D or the arrow keys. Hold run to go faster.</div>
+          <div class="nl-card-line"><strong>Places.</strong> Walk up to a door and press the action button (or F on a computer) to go in. The card on the screen names what you can do there.</div>
+          <div class="nl-card-line"><strong>This phone.</strong> Open it from the bar. Jobs, the bank, rides, your homes and the map are apps. Close it to see the street again.</div>
+          <div class="nl-card-line"><strong>Jobs.</strong> Take a shift and stay for the time it says, then collect. The wage is one day of that job's monthly pay. At a workplace, talk to the person in charge and do the rounds there. Walking off ends the shift.</div>
+          <div class="nl-card-line"><strong>Money.</strong> Cash is on you. The bank holds the rest. What you earn while signed in is paid by the server, once.</div>
+          <div class="nl-card-line"><strong>Homes.</strong> Rent from Property, or buy land and build. Sleep in the bed, eat from the fridge, sit, watch the television, wash, and run the generator when the light goes.</div>
+          <div class="nl-card-line"><strong>Driving.</strong> Walk to your car and get in. On a phone the wheel is on the screen. On a computer the arrows steer and drive. Get out the same way you got in.</div>
+        </div>
+        <div class="nl-section">Controls</div>
+        <div class="nl-list">
+          ${row({ icon: '📱', title: 'On a phone', sub: 'Stick to walk · the round button to act, get in, or get out · RUN beside the stick · the bar along the bottom opens the phone, the map and the bag' })}
+          ${row({ icon: '⌨️', title: 'On a computer', sub: 'W A S D or arrows to walk and to drive · Shift to run · F to act, enter, get in or get out · M map · P phone · Esc closes what is open' })}
+        </div>
         <div class="nl-section">Look</div>
         <div class="nl-card" id="settings-look">
           <div class="nl-card-title">Light or dark</div>
@@ -610,10 +712,25 @@ export const settingsApp: PhoneApp = {
             <button type="button" role="radio" class="lx-seg-btn${theme() === 'dark' ? ' is-on' : ''}" id="settings-theme-dark" aria-checked="${theme() === 'dark'}" data-act="theme-dark">🌙 Dark</button>
           </div>
         </div>
+        <div class="nl-section">Text</div>
+        <div class="lx-seg" role="radiogroup" style="--n:3;--i:${textSize() === 'small' ? 0 : textSize() === 'large' ? 2 : 1}">
+          <span class="lx-seg-thumb"></span>
+          <button type="button" role="radio" class="lx-seg-btn${textSize() === 'small' ? ' is-on' : ''}" id="settings-text-small" data-act="text-small">Small</button>
+          <button type="button" role="radio" class="lx-seg-btn${textSize() === 'normal' ? ' is-on' : ''}" id="settings-text-normal" data-act="text-normal">Normal</button>
+          <button type="button" role="radio" class="lx-seg-btn${textSize() === 'large' ? ' is-on' : ''}" id="settings-text-large" data-act="text-large">Large</button>
+        </div>
         <div class="nl-section">Sound</div>
         <div class="nl-list">
           ${row({ icon: '🔊', title: 'Game sound', sub: sound.isMuted ? 'Off' : 'On', trailing: toggle('settings-sound', !sound.isMuted, 'sound') })}
-          ${row({ icon: '📻', title: 'Street radio', sub: sound.isRadioActive() ? 'Playing' : 'Off', trailing: toggle('settings-radio', sound.isRadioActive(), 'radio') })}
+          ${row({ icon: '📻', title: 'Music', sub: sound.isRadioActive() ? 'Playing' : 'Off', trailing: toggle('settings-radio', sound.isRadioActive(), 'radio') })}
+        </div>
+        <label class="nl-label" for="settings-sound-level">Sound volume</label>
+        <input id="settings-sound-level" type="range" min="0" max="100" value="${Math.round(sound.soundLevel * 100)}" data-act="sound-level" />
+        <label class="nl-label" for="settings-music-level">Music volume</label>
+        <input id="settings-music-level" type="range" min="0" max="100" value="${Math.round(MusicPlayer.get().volume * 100)}" data-act="music-level" />
+        <div class="nl-section">Notices</div>
+        <div class="nl-list">
+          ${row({ icon: '🔔', title: 'Notifications', sub: noticesEnabled() ? 'On. Warnings still show if you turn these off.' : 'Off. Warnings and problems still show.', trailing: toggle('settings-notices', noticesEnabled(), 'notices') })}
         </div>
         <div class="nl-section">You</div>
         <div class="nl-list">
@@ -681,6 +798,15 @@ export const settingsApp: PhoneApp = {
             trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-nepa-power">Toggle</button>',
           })}
         </div>
+        <div class="nl-section">Privacy</div>
+        <div class="nl-card" id="settings-privacy">
+          <div class="nl-card-line">Your saved game stays on this device. While you are signed in, your money is kept by the server, so a changed number in the browser does not stick. Other players see your name and what you do in the same place. You can block someone from their chat.</div>
+        </div>
+        <div class="nl-section">Help</div>
+        <div class="nl-hint">The guide at the top of this page covers moving, places, the phone, jobs, money, homes and driving. If something is wrong, write it below and copy it, then send it to whoever runs this game.</div>
+        <label class="nl-label" for="settings-report">Report a problem</label>
+        <input class="nl-field" id="settings-report" type="text" maxlength="240" placeholder="What happened, and where you were" value="${esc(host.get('settings.report', ''))}" data-bind="settings.report" />
+        <button class="nl-btn nl-btn--block" id="settings-report-copy" data-act="report">Copy the report</button>
         <div class="nl-section">Saved game</div>
         <div class="nl-hint">The game saves itself on this device every few seconds. A copy as text lets you move it to another browser.</div>
         <div class="nl-list">
@@ -693,10 +819,39 @@ export const settingsApp: PhoneApp = {
     };
   },
 
-  async act(host, action) {
+  async act(host, action, el) {
     if (action === 'theme-light' || action === 'theme-dark') {
       setTheme(action === 'theme-dark' ? 'dark' : 'light');
       host.refresh();
+      return;
+    }
+    if (action === 'text-small' || action === 'text-normal' || action === 'text-large') {
+      applyText(action === 'text-small' ? 'small' : action === 'text-large' ? 'large' : 'normal');
+      host.refresh();
+      return;
+    }
+    if (action === 'sound-level') {
+      SoundEngine.getInstance().setLevel(Number((el as HTMLInputElement).value) / 100);
+      return;
+    }
+    if (action === 'music-level') {
+      MusicPlayer.get().setVolume(Number((el as HTMLInputElement).value) / 100);
+      return;
+    }
+    if (action === 'notices') {
+      setNotices(!noticesEnabled());
+      host.refresh();
+      return;
+    }
+    if (action === 'report') {
+      const note = host.get('settings.report', '').trim();
+      if (!note) return host.say('Write what happened first.', 'bad');
+      try {
+        await navigator.clipboard.writeText(`Nigeria Life: ${note}`);
+        host.say('Copied. Send it to the person who runs this game.', 'good');
+      } catch {
+        host.say('Could not copy. Select the text and copy it yourself.', 'bad');
+      }
       return;
     }
     const sound = SoundEngine.getInstance();

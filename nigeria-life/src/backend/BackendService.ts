@@ -1507,6 +1507,22 @@ export class BackendService {
     };
   }
 
+  /** Drops a shift the server will never pay, so Collect stops offering money that cannot come. */
+  public abandonJobShift(): void {
+    if (!this.data.activeJobShift) return;
+    this.data.activeJobShift = null;
+    this.saveData();
+  }
+
+  /** The server has only just clocked this shift, so the wait on the phone starts again from now. */
+  public touchJobShiftClock(): void {
+    const shift = this.data.activeJobShift;
+    if (!shift) return;
+    shift.startTime = Date.now();
+    shift.completed = false;
+    this.saveData();
+  }
+
   public getActiveJobShift(): { job: JobListing; progress: number; remainingSecs: number; isReady: boolean } | null {
     if (!this.data.activeJobShift) return null;
     const job = this.getJobById(this.data.activeJobShift.jobId);

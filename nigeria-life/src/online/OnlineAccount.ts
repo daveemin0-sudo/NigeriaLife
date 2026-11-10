@@ -70,6 +70,7 @@ export class OnlineAccount {
     this.token = this.read(TOKEN_KEY());
     const known = this.read(ACCOUNT_KEY());
     if (known) this.account = { id: known, name: options.name, kind: 'guest', email: null, verified: false };
+    this.loadGigs();
     this.ready = this.signIn(options)
       .catch(() => false)
       .finally(() => {
@@ -98,6 +99,32 @@ export class OnlineAccount {
       localStorage.setItem(ACCOUNT_KEY(), account.id);
     } catch {
       // Signed in for this visit only
+    }
+    this.loadGigs();
+  }
+
+  /** The open gigs survive a reload, so Collect can still find the shift the server started. */
+  private gigsKey(): string {
+    return profileKey(`nl_open_gigs_v1:${this.account?.id ?? 'local'}`);
+  }
+
+  private loadGigs(): void {
+    this.gigShifts.clear();
+    try {
+      const raw = JSON.parse(localStorage.getItem(this.gigsKey()) || '{}') as Record<string, unknown>;
+      for (const [gig, shift] of Object.entries(raw)) {
+        if (typeof shift === 'string' && shift) this.gigShifts.set(gig, shift);
+      }
+    } catch {
+      // A bad record is the same as none: Collect will ask the server
+    }
+  }
+
+  private saveGigs(): void {
+    try {
+      localStorage.setItem(this.gigsKey(), JSON.stringify(Object.fromEntries(this.gigShifts)));
+    } catch {
+      // The server still has the row; Collect can ask for it
     }
   }
 
@@ -329,13 +356,28 @@ export class OnlineAccount {
 
   public forgetGig(gig: string): void {
     this.gigShifts.delete(gig);
+    this.saveGigs();
   }
 
-  public async startGig(gig: string): Promise<{ ok: boolean; shift?: string; reason?: string }> {
+  public async startGig(gig: string): Promise<{ ok: boolean; shift?: string; reason?: string; status?: number }> {
     await this.ready;
     const started = await this.request('/work/gig/start', { gig });
-    if (started.ok && started.shift) this.gigShifts.set(gig, started.shift);
+    if (started.ok && started.shift) {
+      this.gigShifts.set(gig, started.shift);
+      this.saveGigs();
+    }
     return started;
+  }
+
+  /** The unfinished shift the server already has for this gig, remembered if there is one. */
+  public async openGig(gig: string): Promise<{ ok: boolean; shift?: string | null; reason?: string; status?: number }> {
+    await this.ready;
+    const opened = await this.request('/work/gig/open', { gig });
+    if (opened.ok && typeof opened.shift === 'string' && opened.shift) {
+      this.gigShifts.set(gig, opened.shift);
+      this.saveGigs();
+    }
+    return opened;
   }
 
   /** A career shift is a wage and comes with a payslip; any other gig is cash in hand */

@@ -1040,3 +1040,6 @@ body.nl-hud-hidden #v-btn-run {
     border-radius: 999px !important;
   }
 }
+
+html[data-text="small"] #phone-screen-content { zoom: 0.92; }
+html[data-text="large"] #phone-screen-content { zoom: 1.12; }

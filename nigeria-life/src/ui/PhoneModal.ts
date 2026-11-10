@@ -328,6 +328,11 @@ export class PhoneModal {
 
   private onInput(event: Event): void {
     const field = event.target as HTMLInputElement;
+    if (field.type === 'range' && field.dataset?.act && this.host) {
+      const here = this.here();
+      void this.appFor(here.app)?.act?.(this.host, field.dataset.act, field, here.route);
+      return;
+    }
     const key = field.dataset?.bind;
     if (!key) return;
     this.memory.set(key, field.value);

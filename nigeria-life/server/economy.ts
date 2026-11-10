@@ -59,7 +59,8 @@ export const FAST_MONEY_ALERT = 300_000;
 /** A position older than this is not taken as where the player is */
 const POSITION_FRESH_MS = 6_000;
 /** A shift not finished within this is given up */
-const SHIFT_EXPIRES_MS = 10 * 60_000;
+/** A shift can be a working day. It stays open long enough to finish one, and no longer. */
+const SHIFT_EXPIRES_MS = 4 * 60 * 60_000;
 /** The most a local save may bring onto a new account, once */
 export const IMPORT_LIMIT = 2_000_000;
 const TEN_MINUTES = 10 * 60_000;
@@ -474,6 +475,21 @@ export class Economy {
     const shift = randomUUID();
     this.db.prepare('INSERT INTO shifts (id, account_id, employer, started_at) VALUES (?, ?, ?, ?)').run(shift, accountId, `gig:${gigId}`, Date.now());
     return { ok: true, shift };
+  }
+
+  /**
+   * The shift this player already has open for a gig, so a phone that lost the id (a reload)
+   * can finish the same one. An unknown gig is refused. A row older than the shift window,
+   * or none at all, is simply not open: nothing is invented and nothing is paid.
+   */
+  public openGig(accountId: string, gigId: string): { ok: true; shift: string | null } | { ok: false; reason: string } {
+    const gig = GIGS[gigId];
+    if (!gig) return { ok: false, reason: 'That work is not run by the server yet.' };
+    const row = this.db.prepare(
+      `SELECT id, started_at FROM shifts WHERE account_id = ? AND employer = ? AND finished_at IS NULL ORDER BY started_at DESC LIMIT 1`,
+    ).get(accountId, `gig:${gigId}`) as { id: string; started_at: number } | undefined;
+    if (!row || Date.now() - row.started_at > SHIFT_EXPIRES_MS) return { ok: true, shift: null };
+    return { ok: true, shift: row.id };
   }
 
   public finishGig(accountId: string, shiftId: unknown, idemRaw: unknown): Result<{ pay?: number; slip?: Payslip; replay?: boolean }> {

@@ -6,6 +6,19 @@
 
 let audioCtx: AudioContext | null = null;
 
+/** Ordinary notices can be switched off in Settings. A warning or an error still shows. */
+let noticesOn = true;
+try { noticesOn = localStorage.getItem('nl_notices') !== 'off'; } catch { /* they stay on */ }
+
+export function setNotices(on: boolean): void {
+  noticesOn = on;
+  try { localStorage.setItem('nl_notices', on ? 'on' : 'off'); } catch { /* this visit only */ }
+}
+
+export function noticesEnabled(): boolean {
+  return noticesOn;
+}
+
 function playToastSound(type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -57,6 +70,7 @@ export function showGameToast(
   type: 'info' | 'success' | 'warning' | 'error' = 'info',
   durationMs: number = 3200
 ): void {
+  if (!noticesOn && (type === 'info' || type === 'success')) return;
   playToastSound(type);
 
   let toastContainer = document.getElementById('game-toast-container');
