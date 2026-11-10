@@ -135,3 +135,42 @@ On a phone viewport with real taps, in each city (Lagos, Abuja, Port Harcourt):
 - open every phone app.
 
 Write down what you did, what happened and what should happen. Fix it and rerun the suite that covers it.
+
+---
+
+## Real interiors for every place in Abuja and Port Harcourt (added 10 November, from the owner's screenshots)
+
+**What the owner saw:** the "Abuja hotel room" is a white box.
+- A box bed with a flat white block on it, a dark cube for a nightstand, bare white walls and floor. No chair, TV, wardrobe, window or bathroom.
+- The hotel's big red sign ("ABUJA HOTEL... Bed · Until noon") is painted on the inside wall of the room.
+- Asleep, the player lies across the bed with the head hanging off the end, on top of the covers.
+
+The other shared rooms (supermarket, office, bank, market) are thin in the same way.
+
+**What every place needs** (the Lagos standard is the floor; `src/housing/FineFurniture.ts`, `src/interiors/places/Hotel.ts`):
+- **Built from the real pieces, not boxes:** `fineBed` (headboard, mattress, pillows, duvet), `fineSofa`, `fineWardrobe`, `fineToilet`, `fineBathtub`, `fineFridge`, `fineLamp`, `fineDining`, `fineFan`, with textured floors and walls (`src/graphics/Surfaces.ts`) and warm lights.
+- **Its own room, designed for that place and that city.** Abuja and Port Harcourt each have their own look. Two hotels must not be the same room with a different name.
+- **The sign outside on the building, not inside on a wall.** Inside, at most a small reception plaque.
+- **Real things to do there,** acted out in the room (see the bug list above for each kind).
+
+**A hotel room in Abuja should have:**
+- a king bed with headboard, bedside tables and lamps;
+- a wall TV over a console, a desk and chair, an armchair;
+- a wardrobe and luggage rack;
+- curtains on a window with a view of the city;
+- a minibar fridge and an AC unit on the wall;
+- carpet or a rug, and art on the walls;
+- a key-card slot by the door;
+- an en-suite bathroom: toilet, shower, basin and mirror, tiles, towels.
+
+The lobby needs a reception desk with staff, seating, a lift, and the bar or restaurant. Check-in gives a key card. The room is yours until checkout.
+
+**Sleeping:** lie along the bed, head on the pillow, under that bed's own duvet. Use the bed's real foot, side and facing (`HomeLife.sleepAt`, `duvetOver` and `bedDuvetNear` in `src/interactions/Duvet.ts`), as in Lagos homes and hotels.
+
+**Check every place:** go through every place and door kind in Abuja and Port Harcourt (`townRooms`, `ABUJA_SPECS`, `PH_SPECS` in `src/interiors/places/PlaceSpecs.ts`). For each:
+- open it;
+- take a screenshot from the player's view and from above;
+- compare it with its Lagos equivalent;
+- fix it until it looks like a real Nigerian place of that kind.
+
+Show the owner the screenshots.
