@@ -103,10 +103,20 @@ export class RideService {
     return null;
   }
 
+  /** A ride stays in this city. Another city is a flight or a coach. */
+  private otherCity(destination: DestinationDefinition): string | null {
+    const here = this.world?.cityId();
+    if (!here || destination.city === here) return null;
+    const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+    return `That is in ${names[destination.city] ?? destination.city}. You go there by air or by coach.`;
+  }
+
   public book(destinationId: string, mode: string): RideResult {
     const destination = DestinationRegistry.getInstance().getById(destinationId);
     const vehicle = !destination ? undefined : mode === 'car' ? RideService.ownOption(destination) ?? undefined : destination.transportAvailability.find((option) => option.mode === mode);
     if (!destination || !vehicle || (vehicle.mode !== 'car' && !BOOKABLE.has(vehicle.mode))) return { ok: false, reason: 'That ride is not available.' };
+    const elsewhere = this.otherCity(destination);
+    if (elsewhere) return { ok: false, reason: elsewhere };
     const blocked = this.cannotBook(vehicle);
     if (blocked) return { ok: false, reason: blocked };
 
@@ -117,7 +127,7 @@ export class RideService {
 
   /** Plays a trip there in this vehicle (the fare already settled), then `arrived` */
   public journey(destination: DestinationDefinition, vehicle: TransportOption, arrived: () => void): boolean {
-    if (!this.world) return false;
+    if (!this.world || this.otherCity(destination)) return false;
     this.world.startJourney(destination, vehicle, arrived);
     return true;
   }

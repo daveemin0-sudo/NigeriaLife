@@ -419,6 +419,12 @@ export class WorldMapUI {
         list.style.display = 'none';
         const extra = this.extraPins?.().find((p) => p.id === hit.id);
         if (extra) {
+          const standing = this.standing?.();
+          // A pin in another city is not a cab. The way there is a flight or a coach.
+          if (standing && extra.city && extra.city !== standing.here) {
+            this.onInterstateTravel?.(standing.here);
+            return;
+          }
           this.onFocusPoint?.(extra.x, extra.z);
           this.onPickExtra?.(extra.id);
           return;

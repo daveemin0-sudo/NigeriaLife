@@ -249,6 +249,15 @@ export const jobsApp: PhoneApp = {
     if (action === 'work-go') {
       const key = WORKPLACE[el.dataset.arg ?? ''];
       if (!key) return;
+      const site = WORKSITES[el.dataset.arg ?? ''];
+      const city = site?.city ?? 'lagos';
+      if (city !== host.world.cityId()) {
+        const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+        host.say(`That workplace is in ${names[city] ?? city}. Fly or take the coach.`, 'info');
+        host.close();
+        host.world.openFlights();
+        return;
+      }
       // On arrival, straight to whoever is in charge there: they take the player on and start the shift
       Shifts.arriving = el.dataset.arg ?? null;
       host.close();
@@ -257,6 +266,13 @@ export const jobsApp: PhoneApp = {
       const site = WORKSITES[el.dataset.arg ?? ''];
       const employer = EMPLOYERS.find((e) => e.id === el.dataset.arg);
       if (!site || !employer) return;
+      if (site.city !== host.world.cityId()) {
+        const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+        host.say(`That workplace is in ${names[site.city] ?? site.city}. Fly or take the coach.`, 'info');
+        host.close();
+        host.world.openFlights();
+        return;
+      }
       host.world.showPlace(site.x, site.z, employer.name);
       host.close();
     } else if (action === 'start') {
@@ -563,7 +579,15 @@ export const healthApp: PhoneApp = {
           ${hasHome
             ? row({ icon: '🛏️', title: 'Go home and sleep', sub: 'Energy and health come back while you sleep', attrs: 'data-act="home"' })
             : row({ icon: '🔑', title: 'Find a place to sleep', sub: 'You have no home yet', attrs: 'data-app="property"' })}
-          ${row({ icon: '🏥', title: 'Ride to the hospital', sub: 'St. Nicholas General, Lagos Island', attrs: 'data-app="ride" data-route="d:dest_lagos_hospital"' })}
+          ${(() => {
+            const city = host.world.cityId();
+            const hospital = city === 'abuja'
+              ? { name: 'National Hospital, Garki', id: 'dest_abuja_garki_hospital' }
+              : city === 'port_harcourt'
+                ? { name: 'UPTH, Choba', id: 'dest_ph_upth' }
+                : { name: 'St. Nicholas General, Lagos Island', id: 'dest_lagos_hospital' };
+            return row({ icon: '🏥', title: 'Ride to the hospital', sub: hospital.name, attrs: `data-app="ride" data-route="d:${hospital.id}"` });
+          })()}
         </div>
         <div class="nl-section">Emergency</div>
         <div class="nl-card nl-card--warn">
@@ -574,7 +598,9 @@ export const healthApp: PhoneApp = {
           <button class="nl-btn nl-btn--danger nl-btn--block" id="health-ambulance" data-act="ambulance" ${serious ? '' : 'disabled'}>Call an ambulance</button>
         </div>
         <div class="nl-list">
-          ${row({ icon: '👮', title: 'Ride to the police station', sub: 'Area Command, Lagos Island. Reports are made at the front desk.', attrs: 'data-app="ride" data-route="d:dest_lagos_police"' })}
+          ${host.world.cityId() === 'lagos'
+            ? row({ icon: '👮', title: 'Ride to the police station', sub: 'Area Command, Lagos Island. Reports are made at the front desk.', attrs: 'data-app="ride" data-route="d:dest_lagos_police"' })
+            : row({ icon: '👮', title: 'The police station is in Lagos', sub: 'Fly or take the coach. A report is not taken across cities.', attrs: 'data-act="to-lagos"' })}
         </div>
       `,
     };
@@ -589,6 +615,10 @@ export const healthApp: PhoneApp = {
       if (stats.health >= 40 && stats.hunger > 0) return host.say('You are well enough to get there yourself.', 'info');
       if (!host.world.ambulance()) return host.say('The ambulance cannot reach you where you are right now.', 'bad');
       host.close();
+    } else if (action === 'to-lagos') {
+      host.say('That is in Lagos. You go there by air or by coach.', 'info');
+      host.close();
+      host.world.openFlights();
     }
   },
 };

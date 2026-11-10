@@ -923,8 +923,21 @@ export class HUD {
     const inAnotherCity = (): boolean => {
       const here = this.world?.cityManager.currentCityId;
       if (!here || here === this.mapCity) return false;
+      // The place card already offers the flight. A second dialogue would cover that button.
+      if (document.getElementById('btn-card-interstate')) return true;
       const names: Record<string, string> = CITY_NAME;
-      showGameToast(`That is in ${names[this.mapCity] ?? this.mapCity}. You are in ${names[here] ?? here}: book a flight or a coach to go there.`, 'warning', 3800);
+      const there = names[this.mapCity] ?? this.mapCity;
+      const from = names[here] ?? here;
+      this.showDialogueModal({
+        speakerName: there,
+        speakerRole: 'Another city',
+        speakerAvatar: '✈️',
+        dialogueText: `That is in ${there}. You are in ${from}. You go there by air or by coach.`,
+        choices: [
+          { id: 'fly', label: `Fly or take the coach to ${there}`, onSelect: () => this.interstateModal.open(here) },
+          { id: 'stay', label: 'Stay here', onSelect: () => undefined },
+        ],
+      });
       return true;
     };
     /** Sets off on foot from the map: the map is put away and the player walks there by the streets. */
@@ -1024,6 +1037,11 @@ export class HUD {
 
     this.worldMapUI.onTravelWithTransport = (dest, transport, enterInside) => {
       if (inAnotherCity()) return false;
+      const hereNow = this.world?.cityManager.currentCityId;
+      if (hereNow && dest.city && dest.city !== hereNow) {
+        this.interstateModal.open(hereNow);
+        return false;
+      }
       const spotId = LANDMARK_STREET_SPOTS[dest.id] ?? dest.aliases?.map((a) => LANDMARK_STREET_SPOTS[a]).find(Boolean);
       const spot = spotId ? this.world?.interactiveObjects.find((o) => o.id === spotId) : null;
       const targetPos = (!dest.isEnterable && spot) ? spot.interactionPoint : dest.streetPosition;
@@ -1145,8 +1163,10 @@ export class HUD {
       this.world?.worldMap.focusOn(at.x, at.z);
     };
 
-    this.worldMapUI.onInterstateTravel = (destCityId) => {
-      this.interstateModal.open((destCityId as any) || this.world?.cityManager.currentCityId);
+    this.worldMapUI.onInterstateTravel = () => {
+      // The ticket is bought in the city the player is standing in, not the city they are looking at
+      const here = this.world?.cityManager.currentCityId;
+      if (here) this.interstateModal.open(here);
     };
 
     this.worldMapUI.onSelectDistrictFromChips = (districtId) => {
