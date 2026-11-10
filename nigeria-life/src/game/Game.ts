@@ -10,7 +10,7 @@ import { RouteGuide } from '../world/RouteGuide';
 import { Fridge } from '../housing/Fridge';
 import * as LudoRules from '../games/Ludo';
 import { Worship } from '../interiors/places/Worship';
-import { HotelStay, HotelState } from '../interiors/places/Hotel';
+import { HotelStay, HotelState, TownStay } from '../interiors/places/Hotel';
 import { Garden } from '../housing/Garden';
 import { Pets } from '../housing/Pets';
 import { Cases } from '../life/Cases';
@@ -104,7 +104,7 @@ import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
 import type { SavedCityId } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
-import { HouseDecorationSystem, CATALOGUE_ITEMS } from '../housing/HouseDecorationSystem';
+import { HouseDecorationSystem, CATALOGUE_ITEMS, type PlacedItem } from '../housing/HouseDecorationSystem';
 import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type FlightStatus } from '../travel/Flights';
 import { CoachService, MOTOR_PARKS, OPERATOR, type CoachCity, type CoachTicket } from '../travel/Coaches';
 import { openAirportHall } from '../travel/AirportHall';
@@ -311,7 +311,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -864,7 +864,7 @@ export class Game {
       else if (objectId === 'flat-drum') homeLife.bathe();
       else if (objectId === 'flat-fridge') this.openFridge();
     };
-    ResidentialInterior.openFridge = () => this.openFridge();
+    ResidentialInterior.openFridge = (item) => this.openFridge(item);
     InterStateModal.ownJets = () => Fleet.get().mine('jet').map((j) => ({ uid: j.uid, name: j.name }));
     InterStateModal.flyJet = (uid, to) => this.flyJetFrom(uid, to);
     DeliveryService.atHome = () => this.world.interiorManager.currentInterior?.type === 'residence';
@@ -2249,22 +2249,30 @@ export class Game {
     return true;
   }
 
-  /** The fridge at home: what is in it to take out and eat, stocking it from the bag, ordering more */
-  private openFridge(): void {
-    const homeLife = this.world.interiorManager.residence.life;
+  /** The fridge that was opened: what is in it to take out and eat, stocking it from the bag, ordering more */
+  private openFridge(item?: PlacedItem): void {
+    const residence = this.world.interiorManager.residence;
+    const place = residence.mealFor(item);
+    if (!place) {
+      showGameToast('There is no fridge here to take food from.', 'warning', 3200);
+      return;
+    }
+    const homeLife = residence.life;
     const fridge = Fridge.get();
     const inside = fridge.contents();
     const bag = fridge.inBag();
     const inBag = bag.reduce((n, i) => n + i.quantity, 0);
     const eat = (id?: string) => {
-      const ate = homeLife.eatFromFridge(id);
+      const ate = homeLife.eatFromFridge(id, place);
       if (!ate.ok && ate.reason) showGameToast(ate.reason, 'warning', 3600);
     };
     this.hud.showDialogueModal({
       speakerName: 'Your fridge',
       speakerRole: inside.length ? `${fridge.count()} thing${fridge.count() === 1 ? '' : 's'} inside` : 'Empty',
       speakerAvatar: '🧊',
-      dialogueText: inside.length ? 'What will you eat? Take it out, sit down on the sofa and eat it.' : inBag ? 'Nothing in it yet. Put the food from your bag in, or order groceries: delivered here, they go straight in.' : 'Nothing in it yet. Order groceries on your phone: delivered here, they go straight into the fridge.',
+      dialogueText: inside.length
+        ? (place.seat ? 'What will you eat? Take it out, sit down and eat it.' : 'What will you eat? Take it out and eat it here.')
+        : inBag ? 'Nothing in it yet. Put the food from your bag in, or order groceries: delivered here, they go straight in.' : 'Nothing in it yet. Order groceries on your phone: delivered here, they go straight into the fridge.',
       choices: [
         ...inside.map((item) => ({ id: `fridge-${item.id}`, label: `${item.icon} ${item.name}`, badge: `×${item.quantity}`, onSelect: () => eat(item.id) })),
         ...(inBag ? [{ id: 'fridge-stock', label: '🧺 Put the food from your bag in the fridge', badge: `${inBag}`, onSelect: () => { const n = fridge.stockFromBag(); showGameToast(`🧊 ${n} thing${n === 1 ? '' : 's'} into the fridge.`, 'success', 2800); } }] : []),

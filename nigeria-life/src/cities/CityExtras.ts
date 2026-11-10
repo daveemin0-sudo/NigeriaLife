@@ -7,7 +7,8 @@ import { clickBox } from '../world/landmarks/Landmark';
 import { PlaceActions, type PlaceHost } from '../destinations/PlaceActions';
 import type { InteractiveObject } from '../world/World';
 import { townRoomKey, type TownRoomKind } from '../interiors/places/PlaceSpecs';
-import { plantTrees, type AbujaPlace as CityPlace } from './AbujaDistricts';
+import { abujaWhere, plantTrees, type AbujaPlace as CityPlace } from './AbujaDistricts';
+import { phWhere } from './PortHarcourtDistricts';
 
 /**
  * What a planned city (Abuja, Port Harcourt) does the same way: its ordinary buildings drawn a
@@ -60,12 +61,19 @@ export interface OpenGround {
 }
 
 const TOWN_ROOM: Partial<Record<TownBuilding['kind'], TownRoomKind>> = { shops: 'shops', office: 'office', hotel: 'hotel', bank: 'bank', market: 'market' };
-const TOWN_WORDS: Record<TownRoomKind, { name: string; category: string; label: string }> = {
-  shops: { name: 'Supermarket', category: 'Shop', label: '🛒 Into the shop' },
-  office: { name: 'Office block', category: 'Office', label: '🏢 Into the office block' },
-  hotel: { name: 'Hotel', category: 'Hotel', label: '🏨 Into the lobby' },
-  bank: { name: 'Bank branch', category: 'Bank', label: '🏦 Into the bank' },
-  market: { name: 'Market', category: 'Market', label: '🛍️ Into the market' },
+const TOWN_WORDS: Record<TownRoomKind, { word: string; category: string; label: string }> = {
+  shops: { word: 'Supermarket', category: 'Shop', label: '🛒 Into the shop' },
+  office: { word: 'Offices', category: 'Office', label: '🏢 Into the office' },
+  hotel: { word: 'Suites Hotel', category: 'Hotel', label: '🏨 Into the lobby' },
+  bank: { word: 'Bank', category: 'Bank', label: '🏦 Into the bank' },
+  market: { word: 'Market', category: 'Market', label: '🛍️ Into the market' },
+};
+
+/** The room a door opens: a shop or a bank is the full one, the same activities as in Lagos */
+const roomFor = (cityId: string, kind: TownRoomKind): string => {
+  if (kind === 'shops') return 'supermarket';
+  if (kind === 'bank') return 'bank';
+  return `roadside-${townRoomKey(cityId, kind)}`;
 };
 
 /**
@@ -74,6 +82,8 @@ const TOWN_WORDS: Record<TownRoomKind, { name: string; category: string; label: 
  */
 export function townDoors(group: THREE.Group, list: InteractiveObject[], buildings: readonly TownBuilding[], cityId: string): number {
   let n = 0;
+  const used = new Map<string, number>();
+  const where = cityId === 'abuja' ? abujaWhere : phWhere;
   for (const b of buildings) {
     const kind = TOWN_ROOM[b.kind];
     if (!kind) continue;
@@ -86,8 +96,13 @@ export function townDoors(group: THREE.Group, list: InteractiveObject[], buildin
     mesh.position.set(front.x + front.dx * 0.6, 1.5, front.z + front.dz * 0.6);
     group.add(mesh);
     const words = TOWN_WORDS[kind];
-    const room = `roadside-${townRoomKey(cityId, kind)}`;
-    list.push({ mesh, id, name: b.name ?? words.name, category: words.category, description: `${b.name ?? words.name} on this street.`, interactionPoint: stand.clone() });
+    const district = where(b.x, b.z).name;
+    const base = b.name ?? `${district} ${words.word}`;
+    const count = (used.get(base) ?? 0) + 1;
+    used.set(base, count);
+    const name = count === 1 ? base : `${base} ${count}`;
+    const room = roomFor(cityId, kind);
+    list.push({ mesh, id, name, category: words.category, description: `${name}, ${district}.`, interactionPoint: stand.clone() });
     PlaceActions.register(id, { label: () => words.label, run: (host) => host.enter(room, stand) });
   }
   return n;

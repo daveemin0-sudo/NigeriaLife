@@ -56,7 +56,7 @@ export class WorldMapUI {
   public onTravelToDistrict?: (district: DistrictData) => void;
   public onTravelToLandmark?: (landmark: MapLandmark) => void;
   /** Places along the expressway, pinned where they stand */
-  public extraPins?: () => Array<{ id: string; name: string; icon: string; x: number; z: number; category: 'transit' | 'food' | 'work' | 'civic' | 'other' }>;
+  public extraPins?: () => Array<{ id: string; name: string; icon: string; x: number; z: number; category: 'transit' | 'food' | 'work' | 'civic' | 'other'; city?: string; where?: string }>;
   public onPickExtra?: (id: string) => void;
   /** Brings a point of the map into the middle (set by the HUD) */
   public onFocusPoint?: (x: number, z: number) => void;
@@ -375,9 +375,11 @@ export class WorldMapUI {
     }
     // And the places along the roads, pinned on Lagos's map
     for (const p of this.extraPins?.() ?? []) {
-      const score = rank(p.name, [p.category, registry.getById(p.id)?.category ?? '', registry.getById(p.id)?.districtName ?? '']);
-      if (score < 0 || hits.some((h) => h.name === p.name)) continue;
-      hits.push({ id: p.id, name: p.name, icon: p.icon, where: registry.getById(p.id)?.districtName ?? 'Along the road', city: 'lagos', here: viewing === 'lagos', rank: score + (viewing === 'lagos' ? 0 : 10) });
+      const city = p.city ?? 'lagos';
+      const score = rank(p.name, [p.category, p.where ?? '', registry.getById(p.id)?.category ?? '', registry.getById(p.id)?.districtName ?? '']);
+      if (score < 0 || hits.some((h) => h.name === p.name && h.city === city)) continue;
+      const here = city === viewing;
+      hits.push({ id: p.id, name: p.name, icon: p.icon, where: p.where ?? registry.getById(p.id)?.districtName ?? 'Along the road', city, here, rank: score + (here ? 0 : 10) });
     }
     return hits.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).slice(0, 10);
   }

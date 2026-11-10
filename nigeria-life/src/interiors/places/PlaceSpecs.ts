@@ -1035,44 +1035,58 @@ const PH_SPECS: PlaceSpec[] = [
 export type TownRoomKind = 'shops' | 'office' | 'hotel' | 'bank' | 'market';
 export const townRoomKey = (city: string, kind: TownRoomKind) => `${city}-town-${kind}`;
 const townRooms = (city: string, place: string): PlaceSpec[] => [
-  venue(townRoomKey(city, 'shops'), `${place} Supermarket`, `${place} · shops`, 'Groceries · Drinks · Home things', '#0f766e', 0xf1f5f9, 0xf8fafc, (b) => {
-    for (let i = 0; i < 4; i++) shelf(b, -7 + i * 3.4, -5, 2.6, [0x0f766e, 0xfacc15, 0xdc2626, 0x2563eb, 0xf8fafc]);
-    counter(b, 5, 2, 3, 0x0f766e);
-  }, [{ name: 'Cashier Amaka', title: 'Cashier', at: [5, 1], facing: 0, outfit: 0x0f766e, gender: 'female', says: 'Welcome. Bag is ₦100 o.' }], [
-    { id: 'shelves', name: '🛒 The shelves', at: [-3.6, -5], stand: [-3.6, -3.6], who: 'The shelves', role: `${place} Supermarket`, text: 'Groceries, drinks, soap and everything for the house.', choices: [{ label: 'Shop', note: 'Opens Shopping', open: 'app:shopping' }] },
-    { id: 'till', name: '🧃 A cold drink at the till', at: [5, 2], stand: [5, 3.4], who: 'Cashier Amaka', role: 'Cashier', text: 'Malt, Coke or water?', choices: [{ label: 'A cold malt', price: 700, note: 'Hunger +6, Energy +8', arms: 'reach', seconds: 3, effect: need({ hunger: 6, energy: 8 }), said: 'Ice cold. You finished it at the door.' }] },
-  ], [{ at: [-1, -2], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' }], [20, 16]),
-  venue(townRoomKey(city, 'office'), `${place} office block`, `${place} · offices`, 'Reception · Lifts · Meeting rooms', '#1e3a8a', 0xe5e7eb, 0xf8fafc, (b) => {
+  // Shops and banks are the full Lagos rooms (shelves, trolley, till; teller and ATM). The door comes back out where it was.
+  venue(townRoomKey(city, 'office'), `${place} Offices`, `${place} · offices`, 'Reception · A desk · The Jobs app', '#1e3a8a', 0xe5e7eb, 0xf8fafc, (b) => {
     counter(b, 0, -5, 5, 0x1e3a8a, 0xe5e7eb);
+    desk(b, 5, -1);
     for (const x of [-6, 6]) b.box(0x334155, 1.8, 3.2, 0.2, x, 0, -7.8);
     for (let i = 0; i < 3; i++) b.box(0x1f2937, 1.8, 0.45, 0.6, -4 + i * 2.6, 0, 3);
-  }, [{ name: 'Receptionist Halima', title: 'Front desk', at: [0, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Good day. Who are you here to see?' }], [
+  }, [{ name: 'Receptionist Halima', title: 'Front desk', at: [0, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Good day. The jobs are on the board, and the manager takes people on.' }], [
     { id: 'desk', name: '🛎️ Front desk', at: [0, -5], stand: [0, -3.6], who: 'Receptionist Halima', role: 'Front desk', text: 'The companies upstairs are hiring. Shall I show you the openings?', choices: [{ label: 'See the jobs going', note: 'Opens Jobs', open: 'app:jobs' }, { label: 'Leave your CV', note: 'Social +6', arms: 'reach', seconds: 2, effect: need({ social: 6 }), said: 'She stamped it received. "We will call you."' }] },
     { id: 'wait', name: '🪑 The waiting chairs', at: [-1.4, 3], stand: [-1.4, 1.8], who: 'Waiting area', role: 'Reception', text: 'The air conditioning is strong.', choices: [{ label: 'Sit and cool off', note: 'Energy +8', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 8 }), said: 'Ten minutes under the AC. Sweat gone.' }] },
   ], [{ at: [3, 1], facing: Math.PI, outfit: 0x111827 }], [18, 16]),
-  venue(townRoomKey(city, 'hotel'), `${place} hotel`, `${place} · hotel`, 'Lobby · Bar · Lounge', '#7c2d12', 0xd6d3d1, 0xfaf7f2, (b) => {
+  venue(townRoomKey(city, 'hotel'), `${place} Suites`, `${place} · hotel`, 'Front desk · Your room · Bar', '#7c2d12', 0xd6d3d1, 0xfaf7f2, (b) => {
     counter(b, -4, -5, 4, 0x7c2d12, 0xd4af37);
     counter(b, 5, -4, 3, 0x1f2937);
     for (const [x, z] of [[-3, 3], [3, 3]]) table(b, x, z, 0xf8fafc, 2, 0x7c2d12);
-  }, [{ name: 'Receptionist Tonye', title: 'Reception', at: [-4, -6], facing: 0, outfit: 0x7c2d12, gender: 'male', says: 'Welcome. Checking in?' }, { name: 'Barman Ifeanyi', title: 'Bar', at: [5, -5], facing: 0, outfit: 0x111827, gender: 'male', says: 'What are we drinking?' }], [
+    b.box(0x6b3f1d, 1.1, 2.2, 0.08, 0, 0, -8.6);
+  }, [{ name: 'Receptionist Tonye', title: 'Front desk', at: [-4, -6], facing: 0, outfit: 0x7c2d12, gender: 'male', says: 'Welcome. A room is at the desk: a key card, yours until noon.' }, { name: 'Barman Ifeanyi', title: 'Bar', at: [5, -5], facing: 0, outfit: 0x111827, gender: 'male', says: 'What are we drinking?' }], [
     { id: 'bar', name: '🍹 The bar', at: [5, -4], stand: [5, -2.6], who: 'Barman Ifeanyi', role: 'Bar', text: 'Chapman, palm wine or a cold beer?', choices: [{ label: 'A Chapman', price: 2500, note: 'Fun +12', sit: true, seconds: 5, effect: need({ fun: 12, social: 6 }), said: 'Sweet, cold, with a slice of cucumber.' }] },
-    { id: 'lounge', name: '🛋️ The lounge', at: [-3, 3], stand: [-3, 4.4], who: 'Lounge', role: `${place} hotel`, text: 'Soft chairs and the news on the TV.', choices: [{ label: 'Rest in the lounge', note: 'Energy +12', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 12 }), said: 'You nearly slept in the armchair.' }] },
+    { id: 'lounge', name: '🛋️ The lounge', at: [-3, 3], stand: [-3, 4.4], who: 'Lounge', role: `${place} Suites`, text: 'Soft chairs and the news on the TV.', choices: [{ label: 'Rest in the lounge', note: 'Energy +12', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 12 }), said: 'You nearly slept in the armchair.' }] },
   ], [{ at: [3, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 18]),
-  venue(townRoomKey(city, 'bank'), `${place} bank branch`, `${place} · bank`, 'Tellers · ATMs · Customer care', '#14532d', 0xe7e5e4, 0xf8fafc, (b) => {
-    counter(b, 0, -5, 7, 0x14532d, 0xe7e5e4);
-    for (const x of [-7, -5.5]) b.box(0x1f2937, 1, 1.8, 0.6, x, 0, 3);
-  }, [{ name: 'Teller Musa', title: 'Teller', at: [0, -6], facing: 0, outfit: 0x14532d, gender: 'male', says: 'Next customer, please.' }], [
-    { id: 'teller', name: '🏦 The teller', at: [0, -5], stand: [0, -3.6], who: 'Teller Musa', role: 'Teller', text: 'Deposit, withdrawal or transfer?', choices: [{ label: 'Open your account', note: 'Opens Bank', open: 'app:bank' }] },
-  ], [{ at: [3, -2], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }], [18, 16]),
-  venue(townRoomKey(city, 'market'), `${place} market stalls`, `${place} · market`, 'Foodstuff · Fabric · Phones', '#92400e', 0x8b8378, 0xc8b48a, (b) => {
-    for (let i = 0; i < 4; i++) {
-      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
-      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0xdc2626, 0x65a30d, 0xfacc15, 0x78350f][i]);
-    }
-  }, [{ name: 'Mama Nkechi', title: 'Foodstuff', at: [-7, -6.2], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Fine tomatoes, fresh pepper. Come and price!' }], [
-    { id: 'food', name: '🍅 Foodstuff', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Nkechi', role: 'Foodstuff', text: 'Tomatoes, pepper, onions, yam.', choices: [buy('A basket of tomatoes and pepper', 4500, { id: 'tomato_pepper', name: 'Tomatoes and pepper', icon: '🍅', price: 4500, category: 'food', usable: true, description: 'For stew.' }, 'She added two extra tomatoes. "Dash."')] },
-    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
-  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0x16a34a }, { at: [3, 1], facing: 0, outfit: 0xf59e0b, gender: 'female' }], [24, 20]),
+  venue(`${city}-town-suite`, `${place} hotel room`, `${place} · your room`, 'Bed · Until noon', '#7c2d12', 0xe7e5e4, 0xfaf7f2, (b) => {
+    b.box(0x6b3f1d, 2.2, 0.45, 1.6, -0.4, 0, -2.2).box(0xf8fafc, 2.1, 0.12, 1.5, -0.4, 0.5, -2.2);
+    b.box(0x1f2937, 0.5, 0.45, 0.5, 1.2, 0, -3.2);
+    b.box(0x6b3f1d, 1.1, 2.2, 0.08, 0, 0, 5.4);
+  }, [], [], [], [14, 12]),
+  venue(townRoomKey(city, 'market'), `${place} Market`, `${place} · market`, 'Foodstuff · Grains · Cloth · Oil', '#92400e', 0x8b8378, 0xc8b48a, (b) => {
+    stall(b, -8, -6, 0xdc2626, (bb, x, z) => { pile(bb, x - 0.5, z, 0xdc2626); pile(bb, x + 0.4, z, 0xf97316, 0.28); });
+    stall(b, 0, -6, 0x16a34a, (bb, x, z) => { sack(bb, x - 0.5, z); sack(bb, x + 0.4, z, 0xfef3c7); });
+    stall(b, 8, -6, 0x7c3aed, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box([0xe11d48, 0x0ea5e9, 0xfacc15, 0x7c3aed][i], 0.4, 0.2, 0.8, x - 0.7 + i * 0.45, 0.95, z); });
+    stall(b, -4, 2, 0xca8a04, (bb, x, z) => { for (let i = 0; i < 3; i++) bb.cylinder(i % 2 ? 0xb91c1c : 0xfacc15, 0.14, 0.4, x - 0.5 + i * 0.5, 0.95, z, { sides: 8 }); });
+    stall(b, 5, 2, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box(0x78350f, 0.16, 0.16, 0.6, x - 0.6 + i * 0.4, 0.95, z); });
+  }, [
+    { name: 'Mama Nkechi', title: 'Foodstuff', at: [-8, -7.4], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Fine tomatoes, fresh pepper. Come and price!' },
+    { name: 'Alhaji Sani', title: 'Grains', at: [0, -7.4], facing: 0, outfit: 0xf5f5f4, gender: 'male', says: 'Rice, beans, garri. Mudu or bag.' },
+    { name: 'Alhaja Kudi', title: 'Cloth', at: [8, -7.4], facing: 0, outfit: 0x7c3aed, gender: 'female', says: 'Ankara, lace. Owambe ready!' },
+    { name: 'Oga Femi', title: 'Oil', at: [-4, 3.4], facing: Math.PI, outfit: 0x15803d, gender: 'male', says: 'Palm oil, groundnut oil, by the litre.' },
+  ], [
+    { id: 'food', name: '🍅 Foodstuff', at: [-8, -6], stand: [-8, -4.4], who: 'Mama Nkechi', role: 'Foodstuff', text: 'Tomatoes, pepper, yam.', choices: [
+      buy('A basket of tomatoes and pepper', 4500, item('tomato_pepper', 'Tomatoes and pepper', '🍅', 4500), 'She added two extra tomatoes. "Dash."'),
+      buy('A tuber of yam', 6000, item('mkt_yam', 'Tuber of yam', '🍠', 6000), 'A fat yam, heavy in the nylon.'),
+    ] },
+    { id: 'grains', name: '🍚 Rice and garri', at: [0, -6], stand: [0, -4.4], who: 'Alhaji Sani', role: 'Grains', text: 'Mudu or bag?', choices: [
+      buy('A mudu of rice', 3500, item('mkt_rice_mudu', 'Mudu of rice', '🍚', 3500), 'Heaped mudu, poured into your bag.'),
+      buy('Garri, a paint', 4500, item('mkt_garri', 'Paint of garri', '🥣', 4500), 'Yellow garri, crunchy.'),
+    ] },
+    { id: 'cloth', name: '🧵 Ankara and lace', at: [8, -6], stand: [8, -4.4], who: 'Alhaja Kudi', role: 'Cloth', text: 'Which print?', choices: [
+      buy('Six yards of Ankara', 18000, item('mkt_ankara', 'Six yards of Ankara', '🧵', 18000, 'luxury'), 'Folded, tied, into your bag.'),
+    ] },
+    { id: 'oil', name: '🫙 Palm oil', at: [-4, 2], stand: [-4, 0.4], who: 'Oga Femi', role: 'Oil', text: 'How many litres?', choices: [
+      buy('A keg of palm oil', 8000, item('mkt_palm_oil', 'Keg of palm oil', '🫙', 8000), 'Red oil, the keg sealed.'),
+    ] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [5, 2], stand: [5, 0.4], who: 'Phone seller', role: 'Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-2, 4], facing: Math.PI, outfit: 0x16a34a }, { at: [3, 5], facing: 0, outfit: 0xf59e0b, gender: 'female' }], [24, 20]),
 ];
 
 export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt')];

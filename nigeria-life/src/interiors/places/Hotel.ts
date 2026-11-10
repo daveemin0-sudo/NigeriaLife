@@ -894,11 +894,276 @@ class Suite {
  * the way in). Without this the lift opened, closed, and went nowhere.
  */
 export function knowHotelRoom(room: PlaceInterior, key: string): void {
-  if (key === HOTEL.lobby || key === HOTEL.floor || key === HOTEL.suite) rooms.set(key, room);
+  if (key === HOTEL.lobby || key === HOTEL.floor || key === HOTEL.suite || key.endsWith('-town-hotel') || key.endsWith('-town-suite')) rooms.set(key, room);
+}
+
+/** A night at an Abuja or Port Harcourt hotel: its own key and room, the same idea as the Eko Grand */
+export const TOWN_NIGHT = 72_000;
+const TOWN_ROOMS = [12, 14, 16, 18];
+
+export class TownStay {
+  private static all = new Map<string, TownStay>();
+  public static get(hotel: string): TownStay {
+    let stay = TownStay.all.get(hotel);
+    if (!stay) TownStay.all.set(hotel, stay = new TownStay(hotel));
+    return stay;
+  }
+  public now: () => { day: number; hour: number } = () => EventClock.now();
+  private stay: Stay | null = null;
+  private readonly hotel: string;
+  private constructor(hotel: string) { this.hotel = hotel; }
+  private key(): string { return `nl_town_hotel_v1:${Activity.player()}:${this.hotel}`; }
+  private load(): void {
+    try { this.stay = JSON.parse(localStorage.getItem(this.key()) ?? 'null'); } catch { this.stay = null; }
+  }
+  private save(): void {
+    try { localStorage.setItem(this.key(), JSON.stringify(this.stay)); } catch { /* private window */ }
+  }
+  public current(): Stay | null {
+    this.load();
+    const s = this.stay;
+    if (!s) return null;
+    if (s.expiresAt && Date.now() >= s.expiresAt) return null;
+    const { day, hour } = this.now();
+    if (day > s.until || (day === s.until && hour >= 12)) return null;
+    return s;
+  }
+  public lapsed(): Stay | null {
+    this.load();
+    return this.stay && !this.current() ? this.stay : null;
+  }
+  public checkIn(nights: number, paid: number): Stay {
+    const { day, hour } = this.now();
+    const from = hour < 6 ? day - 1 : day;
+    const until = from + nights;
+    const room = TOWN_ROOMS[(day + nights + Math.floor(hour)) % TOWN_ROOMS.length];
+    const co = new Date();
+    co.setDate(co.getDate() + nights);
+    co.setHours(12, 0, 0, 0);
+    this.stay = { room, from, until, paid, expiresAt: co.getTime() };
+    this.save();
+    return this.stay;
+  }
+  public extend(nights: number, paid: number): Stay | null {
+    const s = this.current();
+    if (!s) return null;
+    s.until += nights;
+    s.paid += paid;
+    const co = new Date(s.expiresAt || Date.now());
+    co.setDate(co.getDate() + nights);
+    co.setHours(12, 0, 0, 0);
+    s.expiresAt = co.getTime();
+    this.save();
+    return s;
+  }
+  public checkOut(): void { this.stay = null; this.save(); }
+  public until(s: Stay): string { return `noon on ${dayName(s.until)}`; }
+  public keyItem(): string { return `town_key_${this.hotel}`; }
+}
+
+/** Front desk, a key card, and the door to the guest room */
+class TownLobby {
+  private readonly room: PlaceInterior;
+  private readonly hotel: string;
+  constructor(room: PlaceInterior, hotel: string) {
+    this.room = room;
+    this.hotel = hotel;
+    const stay = () => TownStay.get(hotel);
+    room.addCard({
+      id: `place_${hotel}_reception`, name: '🛎️ Reception', description: 'A room for the night, and a key card.',
+      at: [-4, -5], stand: [-4, -3.6],
+      label: () => {
+        const s = stay().current();
+        return s ? `🛎️ Reception · room ${s.room}` : `🛎️ Check in · ${naira(TOWN_NIGHT)} a night`;
+      },
+      run: (host) => this.desk(host),
+    });
+    room.addCard({
+      id: `place_${hotel}_room`, name: '🔑 Your room', description: 'Up to the room on your key card.',
+      at: [0, -8.2], stand: [0, -6.6],
+      label: () => {
+        const s = stay().current();
+        return s ? `🔑 To room ${s.room}` : '🔑 Your room (check in first)';
+      },
+      run: (host) => this.toRoom(host),
+    });
+  }
+
+  private desk(host: PlaceHost): void {
+    const hotel = TownStay.get(this.hotel);
+    const s = hotel.current();
+    const lapsed = hotel.lapsed();
+    const name = this.room.spec.name;
+    const choices: Array<{ label: string; note?: string; pick: () => void }> = [];
+    if (s) {
+      choices.push({ label: 'Stay another night', note: naira(TOWN_NIGHT), pick: () => this.book(host, 1) });
+      choices.push({ label: 'Check out', note: 'Hand the key card back', pick: () => this.leave(host) });
+    } else {
+      for (const [nights, label] of [[1, 'Tonight'], [2, 'Two nights'], [3, 'Three nights']] as Array<[number, string]>) {
+        choices.push({ label, note: naira(TOWN_NIGHT * nights), pick: () => this.book(host, nights) });
+      }
+      if (lapsed) choices.push({ label: 'Hand back the old key card', note: `Room ${lapsed.room}`, pick: () => this.leave(host) });
+    }
+    choices.push({ label: 'Not now', pick: () => undefined });
+    host.ask({
+      who: 'Front desk', role: name,
+      text: s ? `Room ${s.room} is yours until ${hotel.until(s)}.` : lapsed ? `Your stay in room ${lapsed.room} has ended. Another night?` : `Welcome to ${name}. A room for how many nights? Out by noon.`,
+      choices,
+    });
+  }
+
+  private book(host: PlaceHost, nights: number): void {
+    const hotel = TownStay.get(this.hotel);
+    const price = TOWN_NIGHT * nights;
+    const extending = !!hotel.current();
+    const name = this.room.spec.name;
+    host.director.perform({
+      id: extending ? 'another night' : 'check in', actor: host.actor, point: this.room.at(-4, -3.6), target: this.room.at(-4, -5),
+      animation: { arms: 'reach' }, seconds: 1.4, effectAt: 0.55,
+      effect: () => {
+        if (!host.backend.pay(price, `${name}: ${nights === 1 ? 'a night' : `${nights} nights`}`, 'SHOP_PURCHASE')) {
+          host.say(`That is ${naira(price)}. You do not have enough.`, 'warning');
+          return false;
+        }
+        const s = extending ? hotel.extend(nights, price)! : hotel.checkIn(nights, price);
+        host.backend.removeItem(hotel.keyItem());
+        host.backend.addItem({ id: hotel.keyItem(), name: `Room ${s.room} key card`, icon: '💳', price: 0, category: 'key', usable: false, description: `${name}, room ${s.room}. Until ${hotel.until(s)}.` });
+        host.say(extending ? `🛎️ Another night in room ${s.room}, until ${hotel.until(s)}.` : `🛎️ Checked in: room ${s.room}, until ${hotel.until(s)}. The key card is in your bag.`, 'success');
+        return true;
+      },
+    });
+  }
+
+  private leave(host: PlaceHost): void {
+    const hotel = TownStay.get(this.hotel);
+    host.director.perform({
+      id: 'check out', actor: host.actor, point: this.room.at(-4, -3.6), target: this.room.at(-4, -5),
+      animation: { arms: 'reach' }, seconds: 1.2, effectAt: 0.5,
+      effect: () => {
+        hotel.checkOut();
+        host.backend.removeItem(hotel.keyItem());
+        host.say('🛎️ Checked out. The key card is handed back.', 'success');
+        return true;
+      },
+    });
+  }
+
+  private toRoom(host: PlaceHost): void {
+    const hotel = TownStay.get(this.hotel);
+    const s = hotel.current();
+    if (!s) {
+      host.say(hotel.lapsed() ? 'Your stay has ended. See the front desk.' : 'Check in at the front desk for a key card.', 'info');
+      return;
+    }
+    const suiteKey = this.hotel.replace(/-hotel$/, '-suite');
+    const suite = rooms.get(suiteKey);
+    const id = suite?.def.id ?? `interior_place_${suiteKey}`;
+    const at = suite ? suite.at(1.2, -1.2) : this.room.at(0, 2);
+    host.ride(id, at, Math.PI);
+  }
+}
+
+/** The guest room: a bed to sleep in for as long as the stay lasts */
+class TownSuite {
+  private readonly hold: { release: (instant?: boolean) => void };
+  private sleeping = false;
+  private duvet: THREE.Group | null = null;
+  private slept = 0;
+  private restedTold = false;
+  private readonly room: PlaceInterior;
+  private readonly hotel: string;
+  constructor(room: PlaceInterior, hotel: string) {
+    this.room = room;
+    this.hotel = hotel;
+    this.hold = { release: (instant) => this.getUp(instant) };
+    const bed = { x: -0.4, z: -2.2 };
+    room.addCard({
+      id: `place_${room.spec.key}_bed`, name: '🛏️ The bed', description: 'Clean sheets. Yours until noon.',
+      at: [bed.x, bed.z], stand: [1.2, -1.2],
+      label: () => (this.sleeping ? '🛏️ Sleeping' : '🛏️ Sleep'),
+      run: (host) => this.sleep(host, bed),
+    });
+    room.leadsTo = () => {
+      const lobby = rooms.get(hotel);
+      if (!lobby) return null;
+      return { id: lobby.def.id, spawnAt: lobby.at(0, -6.6), spawnYaw: Math.PI };
+    };
+    room.ticks.push((delta) => this.tick(delta));
+  }
+
+  private sleep(host: PlaceHost, bed: { x: number; z: number }): void {
+    const stay = TownStay.get(this.hotel).current();
+    if (!stay) {
+      host.say(TownStay.get(this.hotel).lapsed() ? 'Your stay has ended. The bed is made up for the next guest.' : 'This room is not yours yet. Check in at the desk.', 'info');
+      return;
+    }
+    const player = host.actor;
+    if (this.sleeping || host.director.interrupt(player) === 'locked') return;
+    const lying = { legs: 'lie' as const, arms: 'rest' as const, height: 0.62 };
+    const lieDown = new Sequence('lie down', [player]).add(
+      steps.walk(player, this.room.at(1.2, -1.2), { speed: 2.4 }),
+      steps.face(player, this.room.at(bed.x, bed.z)),
+      steps.slide(player, this.room.at(bed.x, bed.z), 0.5),
+      steps.setPose(player, lying),
+      steps.wait(0.4),
+    );
+    lieDown.onEnd((reason) => {
+      if (reason !== 'done') return;
+      player.hold = this.hold;
+      player.setScripted(true);
+      player.pose = lying;
+      this.sleeping = true;
+      this.slept = 0;
+      this.restedTold = false;
+      this.duvet?.removeFromParent();
+      this.duvet = duvetOver(this.room.group, bed, 0, 0.62, bedDuvetNear(this.room.group, bed) ?? 0xf8fafc);
+      host.say(`🛏️ Room ${stay.room}. You drift off.`, 'info');
+    });
+    host.director.run(lieDown);
+  }
+
+  private getUp(instant?: boolean): void {
+    const player = InteractionDirector.get().player;
+    this.sleeping = false;
+    this.duvet?.removeFromParent();
+    this.duvet = null;
+    if (!player) return;
+    player.hold = null;
+    if (instant) { player.setScripted(false); return; }
+    const rise = new Sequence('get up', [player]).locked().add(
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, this.room.at(1.2, -1.2), 0.5),
+    );
+    if (!InteractionDirector.get().run(rise)) player.setScripted(false);
+  }
+
+  private tick(delta: number): void {
+    const player = InteractionDirector.get().player;
+    if (this.sleeping && player?.hold !== this.hold) this.sleeping = false;
+    if (!this.sleeping) return;
+    this.slept += delta;
+    const be = BackendService.getInstance();
+    be.rest(9 * delta, 5 * delta, false);
+    const stats = be.getData().stats;
+    if (stats.energy >= 100 && stats.health >= 100 && this.slept > 3 && !this.restedTold) {
+      this.restedTold = true;
+      showGameToast('You are fully rested. Stay in bed, or get up when you are ready.', 'success', 3600);
+    }
+  }
 }
 
 /** Gives each part of the hotel what it needs, as it is built */
 export function attachHotel(room: PlaceInterior, key: string): void {
+  if (key.endsWith('-town-hotel')) {
+    rooms.set(key, room);
+    new TownLobby(room, key);
+    return;
+  }
+  if (key.endsWith('-town-suite')) {
+    rooms.set(key, room);
+    new TownSuite(room, key.replace(/-suite$/, '-hotel'));
+    return;
+  }
   if (key !== HOTEL.lobby && key !== HOTEL.floor && key !== HOTEL.suite) return;
   rooms.set(key, room);
   if (key === HOTEL.lobby) HotelState.lobby = new Lobby(room);

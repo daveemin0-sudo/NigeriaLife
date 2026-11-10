@@ -954,11 +954,18 @@ export class HUD {
       'computer-village': 'work', 'ladipo-auto': 'work', lasuth: 'civic', 'faith-arena': 'civic',
     };
     this.worldMapUI.extraPins = () => {
-      if (this.mapCity !== 'lagos' || !this.world) return [];
-      return this.world.expressway.roadside.interactive.map((o) => {
-        const key = o.id.replace('roadside-', '');
-        return { id: o.id, name: o.name, icon: ROAD_ICONS[key] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: ROAD_KIND[key] ?? 'other' };
-      });
+      if (!this.world) return [];
+      if (this.mapCity === 'lagos') {
+        return this.world.expressway.roadside.interactive.map((o) => {
+          const key = o.id.replace('roadside-', '');
+          return { id: o.id, name: o.name, icon: ROAD_ICONS[key] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: ROAD_KIND[key] ?? 'other', city: 'lagos' };
+        });
+      }
+      const icon: Record<string, string> = { Shop: '🛒', Office: '🏢', Hotel: '🏨', Bank: '🏦', Market: '🧺' };
+      const kind: Record<string, 'food' | 'work' | 'civic' | 'other'> = { Shop: 'food', Office: 'work', Hotel: 'other', Bank: 'civic', Market: 'food' };
+      return this.world.cityManager.thingsIn(this.mapCity)
+        .filter((o) => o.id.startsWith(`door-${this.mapCity}-`))
+        .map((o) => ({ id: o.id, name: o.name, icon: icon[o.category] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: kind[o.category] ?? 'other', city: this.mapCity, where: o.description }));
     };
     // Every place along the roads is on the record too: found by name in the map's search and the phone's Ride list
     const ROAD_CATEGORY: Record<string, DestinationDefinition['category']> = { food: 'Restaurant', transit: 'Transit', civic: 'Civic', work: 'Civic', other: 'Culture' };
@@ -983,7 +990,8 @@ export class HUD {
     this.worldMapUI.onFocusPoint = (x, z) => this.world?.worldMap.focusOn(x, z);
     this.worldMapUI.onRailTo = (z) => this.world?.worldMap.glideTo(z);
     this.worldMapUI.onPickExtra = (id) => {
-      const place = this.world?.expressway.roadside.interactive.find((o) => o.id === id);
+      const place = this.world?.expressway.roadside.interactive.find((o) => o.id === id)
+        ?? this.world?.cityManager.thingsIn(this.mapCity).find((o) => o.id === id);
       if (!place || inAnotherCity()) return;
       const metres = Math.round(Math.hypot(place.interactionPoint.x - this.player.position.x, place.interactionPoint.z - this.player.position.z));
       const fare = Math.round(4500 * RideService.fareFactor());

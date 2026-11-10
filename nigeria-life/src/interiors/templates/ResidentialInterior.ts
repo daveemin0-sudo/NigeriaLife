@@ -20,7 +20,7 @@ import { TV_SCREEN, buildFurniture } from '../../housing/FurnitureModels';
 import { Builder } from '../../world/kit/ArchKit';
 import { PlaceActions, type PlaceAction, type PlaceHost } from '../../destinations/PlaceActions';
 import type { NavGrid } from '../../interactions/NavGrid';
-import { HomeLife, HOME } from '../home/HomeLife';
+import { HomeLife, HOME, type MealPlace } from '../home/HomeLife';
 import type { HomeStandard } from '../../housing/HomeStandard';
 import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
 import { roomDoor, DOOR_STYLES, type DoorStyle } from '../../housing/MoreFurniture';
@@ -325,6 +325,7 @@ export class ResidentialInterior {
     const supply = HomePower.get().supply();
     const lit = supply.any;
     this.group.traverse((o) => {
+      if (o.userData.powerGlow) o.visible = lit;
       if (o.name !== 'ceiling_light') return;
       for (const child of o.children) {
         if (child instanceof THREE.PointLight) {
@@ -971,7 +972,7 @@ export class ResidentialInterior {
         if (kind.use === 'drink') {
           // Any fridge in any home opens on what is in it: what was stocked, what the cook made
           if (/fridge/.test(item.modelType) && ResidentialInterior.openFridge) {
-            choices.push({ label: '🧊 Open the fridge', note: 'Take out what is inside and eat it', pick: () => ResidentialInterior.openFridge?.() });
+            choices.push({ label: '🧊 Open the fridge', note: 'Take out what is inside and eat it', pick: () => ResidentialInterior.openFridge?.(item) });
           }
           choices.push({
             label: 'Pour Ice-Cold Chapman & Refreshment',
@@ -1888,11 +1889,13 @@ export class ResidentialInterior {
         cone.position.set(x, top - 1.3, z);
         cone.rotation.y = yaw;
         cone.renderOrder = 2;
+        cone.userData.powerGlow = true;
         group.add(cone);
         // The fitting itself, a bright disc under the ceiling line
         const lamp = new THREE.Mesh(new THREE.CircleGeometry(0.12, 16), new THREE.MeshBasicMaterial({ color: 0xfff7e0, toneMapped: false }));
         lamp.position.set(x, top + 0.02, z);
         lamp.rotation.y = yaw;
+        lamp.userData.powerGlow = true;
         group.add(lamp);
       };
       for (let x = -hw + 1.6; x <= hw - 1.6; x += 2.6) put(x, -hl + inner + 0.03, 0);
@@ -1934,6 +1937,10 @@ export class ResidentialInterior {
     for (const { x, z } of lights) b.cylinder(0xe7e5e4, 0.16, 0.03, x, wallH - 0.22, z, { sides: 20 }).cylinder(0xfff1c8, 0.11, 0.02, x, wallH - 0.24, z, { sides: 16, glow: true });
     const pop = b.build('pop ceiling', { roughness: 0.6 });
     pop.name = 'pop ceiling';
+    // The cove light and the downlight lenses: on with the power, off in a blackout
+    pop.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshBasicMaterial) child.userData.powerGlow = true;
+    });
     return pop;
   }
 
@@ -2021,8 +2028,42 @@ export class ResidentialInterior {
   public storey = 0;
   /** Told when the player has gone up or down, and on leaving (storeys 0): the floor button */
   public static onStorey: ((storey: number, storeys: number) => void) | null = null;
-  /** Opens the home's fridge on what is inside (set by the game) */
-  public static openFridge: (() => void) | null = null;
+  /** Opens the home's fridge on what is inside (set by the game). The piece is the fridge that was tapped. */
+  public static openFridge: ((item?: PlacedItem) => void) | null = null;
+
+  /**
+   * Where to take food from this fridge, and the nearest real seat on the same floor.
+   * A toilet is not a seat for a meal. With no fridge, there is nowhere to eat.
+   */
+  public mealFor(item?: PlacedItem): MealPlace | null {
+    const decor = HouseDecorationSystem.getInstance();
+    const fridge = item ?? decor.placed.find((piece) => piece.uid === 'home_fridge' && /fridge/.test(piece.modelType));
+    if (!fridge || !/fridge/.test(fridge.modelType)) return null;
+    const spot = (piece: PlacedItem) => {
+      const kind = decor.kind(piece.modelType);
+      const turn = (piece.turns * Math.PI) / 2;
+      const face = decor.facing(piece.turns);
+      const size = decor.footprint(piece.modelType, piece.turns);
+      const reach = (face.x !== 0 ? size.width : size.depth) / 2 + (kind.use === 'seat' ? 0.55 : 0.6);
+      const at = kind.seat
+        ? new THREE.Vector3(piece.x + kind.seat.x * Math.cos(turn) + kind.seat.z * Math.sin(turn), 0, piece.z - kind.seat.x * Math.sin(turn) + kind.seat.z * Math.cos(turn))
+        : new THREE.Vector3(piece.x, 0, piece.z);
+      const front = new THREE.Vector3(piece.x + face.x * reach, 0, piece.z + face.z * reach);
+      return { at, front, facing: Math.atan2(face.x, face.z) };
+    };
+    const here = spot(fridge);
+    const storey = fridge.storey ?? 0;
+    let nearest: { piece: PlacedItem; away: number } | null = null;
+    for (const other of decor.placed) {
+      if (other === fridge || (other.storey ?? 0) !== storey || other.modelType === 'toilet_wc') continue;
+      const kind = decor.kind(other.modelType);
+      if (kind.use !== 'seat' || !kind.seat) continue;
+      const away = (other.x - fridge.x) ** 2 + (other.z - fridge.z) ** 2;
+      if (!nearest || away < nearest.away) nearest = { piece: other, away };
+    }
+    const seat = nearest ? spot(nearest.piece) : null;
+    return { fridgeAt: here.at, fridgeFront: here.front, seat };
+  }
   /** The player is in the house */
   private inside = false;
   private upperGroup: THREE.Group | null = null;

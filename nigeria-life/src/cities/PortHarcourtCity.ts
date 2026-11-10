@@ -91,7 +91,7 @@ export class PortHarcourtCity implements CityInstance {
     // The districts along the roads, a square of the city at a time; the places it is known for
     const streetBuildings = phBuildings();
     const blocks = tiledTown('Port Harcourt', streetBuildings);
-    townDoors(this.group, this.interactiveList, streetBuildings, 'port_harcourt');
+    townDoors(this.group, this.interactiveList, [...PORT_HARCOURT_BUILDINGS, ...streetBuildings], 'port_harcourt');
     for (const t of blocks.tiles) this.group.add(t.group);
     this.tiles = blocks.tiles;
     this.standing.push(...blocks.obstructions);

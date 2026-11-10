@@ -92,7 +92,7 @@ export class AbujaCity implements CityInstance {
     const streetBuildings = districts.flatMap((d) => d.buildings);
     const blocks = tiledTown('Abuja', streetBuildings);
     // Every shop, office, hotel, bank and market along the avenues has its door
-    townDoors(this.group, this.interactiveList, streetBuildings, 'abuja');
+    townDoors(this.group, this.interactiveList, [...ABUJA_BUILDINGS, ...streetBuildings], 'abuja');
     for (const t of blocks.tiles) this.group.add(t.group);
     this.tiles = blocks.tiles;
     this.standing.push(...blocks.obstructions);

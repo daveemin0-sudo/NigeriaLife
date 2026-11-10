@@ -63,9 +63,17 @@ async function openCard(page, uid) {
 const choose = (page, text) => page.evaluate((t) => [...document.querySelectorAll('#game-dialogue-overlay button')].find((b) => b.textContent.includes(t))?.click(), text);
 const said = (page, pattern) => page.evaluate((source) => new RegExp(source).test(document.body.innerText), pattern);
 
-/** How bright a drawn frame is, 0 to 255 */
+/** How bright the room is, 0 to 255. The camera is put in the room for the sample: the yard, and the night sky through the door, are not the room. */
 const brightness = (page) => page.evaluate(() => {
   const g = window.game;
+  const room = g.world.interiorManager.residence?.group.position;
+  const cam = g.cameraManager.camera;
+  const saved = cam.position.clone();
+  const look = g.cameraManager.currentLookAt.clone();
+  if (room) {
+    cam.position.set(room.x + 1.5, room.y + 2.2, room.z + 2.5);
+    cam.lookAt(room.x, room.y + 1.15, room.z);
+  }
   g.render();
   const small = document.createElement('canvas');
   small.width = 160;
@@ -75,7 +83,16 @@ const brightness = (page) => page.evaluate(() => {
   const data = ctx.getImageData(0, 0, 160, 90).data;
   let sum = 0;
   for (let i = 0; i < data.length; i += 4) sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-  return sum / (data.length / 4);
+  cam.position.copy(saved);
+  cam.lookAt(look);
+  const sky = g.world.skyEnvironment;
+  return {
+    value: sum / (data.length / 4),
+    indoors: sky.indoors,
+    blackout: sky.indoorBlackout,
+    hemi: Math.round(sky.hemiLight.intensity * 100) / 100,
+    sun: Math.round(sky.sunLight.intensity * 100) / 100,
+  };
 });
 
 export async function run(browser, check) {
@@ -241,13 +258,16 @@ export async function run(browser, check) {
   await clockTo(page, day2 + 1, darkHour + 0.4);
   await page.evaluate(() => { const P = window.game.modules.HomePower.get(); P.homes[P.homeId()].batteries.nepa_inverter = 100; P.tick(); });
   await wait(300);
+  // Pulling the cord walks out to the generator in the yard. The check is the room, so go back in.
+  if (!(await page.evaluate(() => window.game.world.interiorManager.isPlayerInside()))) await enterInterior(page, 'residence');
+  await wait(400);
   const withBattery = await brightness(page);
   await page.evaluate(() => { const P = window.game.modules.HomePower.get(); P.homes[P.homeId()].batteries.nepa_inverter = 0; P.tick(); });
-  await wait(300);
+  await wait(400);
   const withoutAny = await brightness(page);
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/nepa_cut.png` });
   check('nepa: in a cut the room is darker than with power, and still clearly seen by the lantern (never too dark)',
-    withoutAny < withBattery * 0.85 && withoutAny > 60, { darkHour, withBattery: Math.round(withBattery), withoutAny: Math.round(withoutAny) });
+    withoutAny.value < withBattery.value * 0.85 && withoutAny.value > 60, { darkHour, withBattery, withoutAny });
 
   // ------------------------------------------------------------------ The compound generator, 7 to 11 pm
   const compound = await page.evaluate(async (d) => {
@@ -259,8 +279,10 @@ export async function run(browser, check) {
     const sky = g.world.skyEnvironment;
     sky.setDay(d);
     sky.setHour(h + 0.3);
-    // Nothing of the player's own running: battery flat, generators off
+    // Nothing of the player's own running: battery flat, generators off.
+    // The clock just jumped a day; don't let that sunny gap refill the battery before the check.
     const home = P.homes[P.homeId()];
+    home.at = sky.day * 24 + sky.currentHour;
     for (const k of Object.keys(home.batteries)) home.batteries[k] = 0;
     for (const k of Object.keys(home.gens)) home.gens[k].on = false;
     P.tick();
@@ -285,10 +307,14 @@ export async function run(browser, check) {
     sky.setDay(d);
     sky.setHour(h);
     const Svc = be.constructor;
+    const city = biz.cityId ?? 'lagos';
+    const at = biz.districtId ? null : window.game.world.interactiveObjects.find((o) => o.id === biz.buildingId)?.interactionPoint;
+    const area = biz.districtId ?? (at ? window.game.districtAt(city, at.x, at.z).id : null);
     const plain = Svc.powerShare({ ...biz, upgrades: biz.upgrades.map((u) => ({ ...u, purchased: false })) }, 1);
-    const area = biz.districtId;
     const G = window.game.modules.Grid;
-    return { plain, lit: G.hasLight(area, d, h - 0.5, 'lagos') || G.hasLight(area, d, h, 'lagos'), backed: Svc.powerShare({ ...biz, upgrades: [{ id: 'upg_gen', purchased: true }] }, 1) };
+    // The same area, day, hour and city the share itself looks up
+    const lit = area ? G.hasLight(area, sky.day, sky.currentHour, city) : true;
+    return { plain, lit, area, city, day: sky.day, hour: sky.currentHour, backed: Svc.powerShare({ ...biz, upgrades: [{ id: 'upg_gen', purchased: true }] }, 1) };
   }, [day2 + 1, darkHour + 0.4]);
   check('nepa: a business whose area has no light takes less (half, without a generator or solar); with one it takes it all', share.backed === 1 && (share.lit ? share.plain > 0.5 : share.plain === 0.5), share);
 

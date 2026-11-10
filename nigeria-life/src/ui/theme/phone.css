@@ -713,7 +713,6 @@ body.nl-hud-hidden #v-btn-run {
     padding: 0 !important;
     border-radius: 999px !important;
     overflow: hidden !important;
-    transition: width 0.2s ease;
   }
   html body .map-search .map-search-ico {
     width: 38px !important;
