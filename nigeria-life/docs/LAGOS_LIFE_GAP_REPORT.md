@@ -243,3 +243,32 @@ The owner wants everything a player has (money, homes, land, cars, jets and yach
 2. Clear the browser and sign in again; then sign in on a second browser or phone. Everything must be there and identical, standing where you left.
 3. Restart the server: everything is still there.
 4. Add a `accountsave` suite that does this.
+
+---
+
+## LAUNCH REQUIREMENT: the phone layout, on every screen (added from the owner's phone, again)
+
+The owner still sees cards overlapping, cards covered by others, text and cards too big, and buttons hidden below the screen. Two examples:
+- **A ride in motion:** the cards at the top of the screen (ride badges such as go-slow and weather, the camera buttons, the ride status and buttons) lie on top of each other. Code: `src/transit/TransitHUD.ts` (`#transit-hud-root`; `.ride-badge`, `.cam-pill-btn`, `.ride-actions`, and the flight HUD in the same file).
+- **A place picked on the map:** the card that opens (`#map-context-card`, `src/ui/WorldMapUI.ts`) is taller than the screen, so its travel and action buttons are hidden below the bottom edge.
+
+**Why it was missed:** the `phonefit` check opens 21 screens, but not a ride in motion, a flight in the air, or a map place card, and it only checks the first view of each.
+
+**The rules for every card, sheet and overlay on a phone** (put them in `src/ui/theme/phone.css`):
+- **Fits the screen:** never wider than the screen less a small gutter, never taller than the screen.
+- **Tall cards scroll inside, with their buttons always visible:** the title at the top, the main actions in a footer that stays put above the safe-area inset at the bottom, the middle scrolling.
+- **One place for each kind of thing, and no two on the same spot:** the top rows, the round buttons, toasts, the busy bar, the bottom bar, the action button. A screen that adds its own pieces (ride, flight, driving, race, map) gives each its own row, or hides what it covers.
+- **Slim and simple, as the owner keeps asking:** short labels on one line, 11 to 13 px text, small padding and corners, no big gradients or heavy borders.
+
+**Extend `phonefit`** to open and check, at 316 and 390 px, upright and on its side, every screen that adds its own cards:
+- a taxi, okada and bus ride in motion, in each camera view;
+- a flight in the air;
+- the map with a place picked (a big place with many options);
+- a dialogue with six or more choices;
+- the catalogue and each shop sheet;
+- each job workplace and its rounds;
+- the race panel and the driving controls;
+- a staff dialogue;
+- every phone app, including Police, Courses, Business, Gadgets, Buses and Contacts.
+
+For each, check three things: nothing past the edge (including below the bottom), nothing on top of anything else, and every button reachable by a tap (`elementFromPoint` at its centre is the button). Save a screenshot of each to `docs/shots/phone/` and look at them.
