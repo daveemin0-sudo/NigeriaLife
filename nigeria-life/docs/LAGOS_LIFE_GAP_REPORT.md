@@ -212,3 +212,34 @@ The owner flew from Lagos to Abuja:
 - Use real taps on a phone viewport.
 
 **Before the public launch next week:** a full pass by hand of every button that names or moves to a place, in each city. Write down what happened and fix every case.
+
+---
+
+## LAUNCH REQUIREMENT: everything in a real account
+
+The owner wants everything a player has (money, homes, land, cars, jets and yachts, businesses, furniture, the bag, certificates) kept in their real account, so it is never lost and is the same on any phone or computer they sign in from.
+
+**What is true today:**
+- **The "☁ Just now" cloud pill is not real.** `src/backend/CloudSyncService.ts` writes its "backup" and "backup code" only into the same browser's localStorage, with no server call. Clearing the browser or changing phones loses everything.
+- **On the server already** (`server/`): accounts (`accounts.ts`: guest, email, password); online players' cash and bank (`economy.ts`, a ledger that can't be paid twice); the land register (`registry.ts`); and the parts in `motors`, `staff`, `races`, `police`, `trade` and so on.
+- **Only on the device:** most of `BackendService`'s save (rented and bought homes), furniture and decor (`HouseDecorationSystem`), the bag, the fridge, the Fleet (jets and yachts), businesses (bought and registered), courses and certificates, gadgets, buses, quests, skills, the look, settings, the current city and spot.
+
+**What to build:**
+1. **One save per account on the server.** Every player-owned or earned thing not already in a server ledger, as one versioned document (`server/store.ts`, on the Render disk).
+   - The client sends changes after each meaningful action, and a full save every minute while playing.
+   - The server keeps the last few versions, so a bad save can be rolled back.
+2. **The server stays the authority for money and land.** Cash, bank and title deeds come from their ledgers, never from the client's save. Expensive things the client claims (a jet, a business, a house) must match a server payment in the ledger. Don't trust a client save that says "I own a jet".
+3. **Sign in anywhere:** on a new phone, signing in loads everything, and the player stands in the city and spot they left.
+   - Signing in with an email (a code, or a password) is the real account.
+   - A guest's progress moves into the account when they sign up, never lost.
+   - A clear note that a guest who never signs up can lose everything.
+4. **Offline:** play keeps working. Changes are queued on the device and sent when back online. If two devices clash, the newer version wins for small things; money and land always come from the server.
+5. **Replace the fake pill with the true status:** "Saved to your account · 2 min ago", or "Not saved: no connection", or "Guest: sign up to keep your progress". Remove the device-only backup code.
+6. **Account page:** sign in or out, change email, download my data, delete my account (needed for launch).
+7. **Back up the server's data every day** (Render disk to a second place).
+
+**Check:**
+1. Make a new account, earn money, rent and buy homes, furnish them, buy a car and a jet, register a business, and take a course.
+2. Clear the browser and sign in again; then sign in on a second browser or phone. Everything must be there and identical, standing where you left.
+3. Restart the server: everything is still there.
+4. Add a `accountsave` suite that does this.
