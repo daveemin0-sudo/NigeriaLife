@@ -1034,6 +1034,22 @@ const PH_SPECS: PlaceSpec[] = [
 // (src/cities/CityExtras.ts, townDoors).
 export type TownRoomKind = 'shops' | 'office' | 'hotel' | 'bank' | 'market';
 export const townRoomKey = (city: string, kind: TownRoomKind) => `${city}-town-${kind}`;
+/** A guest room: the furniture is the real pieces, put in by the hotel (Hotel.ts). No sign on the inside wall. */
+const guestRoom = (city: string, place: string): PlaceSpec => ({
+  key: `${city}-town-suite`,
+  name: `${place} hotel room`,
+  district: `${place} · your room`,
+  room: {
+    width: 16, length: 14, height: 4.2,
+    floor: city === 'abuja' ? 0xc4a484 : 0x5f8f86,
+    wall: city === 'abuja' ? 0xf6efe4 : 0xe7f2ec,
+  },
+  build: () => { /* furnished when the room is attached */ },
+  staff: [],
+  stations: [],
+  door: { name: 'Back to the lobby', category: 'Door', description: 'The corridor, and the front desk.' },
+});
+
 const townRooms = (city: string, place: string): PlaceSpec[] => [
   // Shops and banks are the full Lagos rooms (shelves, trolley, till; teller and ATM). The door comes back out where it was.
   venue(townRoomKey(city, 'office'), `${place} Offices`, `${place} · offices`, 'Reception · A desk · The Jobs app', '#1e3a8a', 0xe5e7eb, 0xf8fafc, (b) => {
@@ -1054,11 +1070,7 @@ const townRooms = (city: string, place: string): PlaceSpec[] => [
     { id: 'bar', name: '🍹 The bar', at: [5, -4], stand: [5, -2.6], who: 'Barman Ifeanyi', role: 'Bar', text: 'Chapman, palm wine or a cold beer?', choices: [{ label: 'A Chapman', price: 2500, note: 'Fun +12', sit: true, seconds: 5, effect: need({ fun: 12, social: 6 }), said: 'Sweet, cold, with a slice of cucumber.' }] },
     { id: 'lounge', name: '🛋️ The lounge', at: [-3, 3], stand: [-3, 4.4], who: 'Lounge', role: `${place} Suites`, text: 'Soft chairs and the news on the TV.', choices: [{ label: 'Rest in the lounge', note: 'Energy +12', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 12 }), said: 'You nearly slept in the armchair.' }] },
   ], [{ at: [3, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 18]),
-  venue(`${city}-town-suite`, `${place} hotel room`, `${place} · your room`, 'Bed · Until noon', '#7c2d12', 0xe7e5e4, 0xfaf7f2, (b) => {
-    b.box(0x6b3f1d, 2.2, 0.45, 1.6, -0.4, 0, -2.2).box(0xf8fafc, 2.1, 0.12, 1.5, -0.4, 0.5, -2.2);
-    b.box(0x1f2937, 0.5, 0.45, 0.5, 1.2, 0, -3.2);
-    b.box(0x6b3f1d, 1.1, 2.2, 0.08, 0, 0, 5.4);
-  }, [], [], [], [14, 12]),
+  guestRoom(city, place),
   venue(townRoomKey(city, 'market'), `${place} Market`, `${place} · market`, 'Foodstuff · Grains · Cloth · Oil', '#92400e', 0x8b8378, 0xc8b48a, (b) => {
     stall(b, -8, -6, 0xdc2626, (bb, x, z) => { pile(bb, x - 0.5, z, 0xdc2626); pile(bb, x + 0.4, z, 0xf97316, 0.28); });
     stall(b, 0, -6, 0x16a34a, (bb, x, z) => { sack(bb, x - 0.5, z); sack(bb, x + 0.4, z, 0xfef3c7); });

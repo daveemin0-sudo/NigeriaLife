@@ -214,7 +214,8 @@ export class PlaceInterior {
     this.group.add(door);
     const way = this.spec.door ?? { name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.' };
     this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: way.name, category: way.category, description: way.description, interactionPoint: this.world(0, length / 2 - 1), exitLabel: this.spec.door ? `🚪 ${this.spec.door.name}` : undefined });
-    this.addRestroom(b.footprints);
+    // A guest room has its own bathroom. The customers' toilet door belongs in the public rooms.
+    if (!this.spec.key.endsWith('-town-suite')) this.addRestroom(b.footprints);
     // The tables: what was built at table height, small enough to sit round
     this.tables = b.footprints.filter((f) => f.height >= 0.6 && f.height <= 0.92 && f.maxX - f.minX >= 0.8 && f.maxZ - f.minZ >= 0.6 && f.maxX - f.minX <= 4.2 && f.maxZ - f.minZ <= 4.2);
 

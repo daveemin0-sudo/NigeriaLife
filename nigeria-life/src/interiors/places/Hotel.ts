@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { bedDuvetNear, duvetOver } from '../../interactions/Duvet';
+import { fineBathtub, fineBed, fineFridge, fineLamp, fineSofa, fineToilet, fineWardrobe } from '../../housing/FineFurniture';
+import { RENDER_LAYERS } from '../InteriorTypes';
 import { Builder, signBoard } from '../../world/kit/ArchKit';
 import { Sequence, steps } from '../../interactions/Sequence';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
@@ -1063,25 +1065,101 @@ class TownLobby {
   }
 }
 
+/** Where the bed sits, and which side of the room the bathroom is on. Abuja and Port Harcourt are mirrored. */
+function roomPlan(hotel: string): { bed: { x: number; z: number }; side: number } {
+  const side = hotel.startsWith('port') ? -1 : 1;
+  return { bed: { x: -side * 2.1, z: -2.3 }, side };
+}
+
+const lay = (parent: THREE.Object3D, object: THREE.Object3D, x: number, y: number, z: number, yaw = 0): void => {
+  object.position.set(x, y, z);
+  object.rotation.y = yaw;
+  object.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+  parent.add(object);
+};
+
+/**
+ * A real guest room: a king bed, the window, a desk, a wardrobe, and an en-suite.
+ * Abuja is terracotta and gold. Port Harcourt is river green, and the bathroom is on the other side.
+ */
+function furnishGuestRoom(room: THREE.Object3D, hotel: string): { x: number; z: number } {
+  const ph = hotel.startsWith('port');
+  const { bed, side } = roomPlan(hotel);
+  const cover = ph ? 0x0f766e : 0x9a3412;
+  const trim = ph ? 0xe0f2fe : 0xf5e6c8;
+  const wood = ph ? 0x44403c : 0x6b3f1d;
+  lay(room, fineBed(1.7, cover, trim, wood), bed.x, 0, bed.z, 0);
+  const b = new Builder();
+  for (const edge of [-1, 1]) {
+    const x = bed.x + edge * 1.35;
+    b.box(wood, 0.46, 0.52, 0.42, x, 0, bed.z - 0.95);
+    b.cylinder(0xf8fafc, 0.07, 0.1, x, 0.54, bed.z - 0.95);
+    b.cylinder(trim, 0.11, 0.14, x, 0.66, bed.z - 0.95, { glow: true });
+  }
+  b.box(ph ? 0x134e4a : 0x7c2d12, 5.4, 0.02, 4.4, bed.x, 0.01, bed.z + 0.15);
+  // The window, with the city beyond the glass and the curtains drawn back
+  b.box(ph ? 0x0369a1 : 0x7dd3fc, 2.6, 1.55, 0.05, bed.x, 1.75, -6.85, { glow: true });
+  b.box(0x1e293b, 2.2, 0.35, 0.04, bed.x, 1.15, -6.8);
+  for (const edge of [-1, 1]) b.box(cover, 0.22, 2.15, 0.08, bed.x + edge * 1.45, 1.6, -6.55);
+  for (const edge of [-1, 1]) b.box(trim, 0.42, 1.85, 0.05, bed.x + edge * 1.05, 1.55, -6.5);
+  // The television on a console at the foot of the bed
+  const tvZ = bed.z + 2.2;
+  b.box(wood, 1.7, 0.42, 0.42, bed.x, 0, tvZ);
+  b.box(0x0a0a0a, 1.4, 0.8, 0.06, bed.x, 1.4, tvZ - 0.16);
+  b.box(0x1e293b, 1.26, 0.66, 0.02, bed.x, 1.4, tvZ - 0.2, { glow: true });
+  // A desk under the window, on the side away from the bathroom
+  const deskX = -side * 5.8;
+  b.box(wood, 1.35, 0.75, 0.62, deskX, 0, -4.8);
+  b.box(0x111827, 0.46, 0.46, 0.48, deskX, 0, -4.05);
+  b.box(0xe5e7eb, 0.95, 0.28, 0.18, side * 1.6, 2.55, -6.75);
+  b.box(ph ? 0x0e7490 : 0xb45309, 1.05, 0.7, 0.04, side * 7.7, 1.7, -1.2);
+  b.box(0xfef3c7, 0.82, 0.5, 0.02, side * 7.68, 1.7, -1.2);
+  b.box(0x111827, 0.16, 0.24, 0.05, 0.9, 1.15, 6.55);
+  b.box(0x22c55e, 0.08, 0.016, 0.02, 0.9, 1.2, 6.52, { glow: true });
+  b.box(0x78350f, 1.15, 0.26, 0.4, bed.x + side * 1.7, 0, bed.z + 1.35);
+  b.box(0xf5f5f4, 0.12, 2.35, 3.4, side * 3.6, 0, 4.2);
+  b.box(ph ? 0x99f6e4 : 0xfde68a, 3.6, 0.025, 4.2, side * 5.7, 0.02, 4.3);
+  b.box(trim, 0.42, 0.7, 0.05, side * 7.7, 1.35, 4.4);
+  room.add(b.build('guest room', { roughness: 0.65 }));
+  lay(room, fineWardrobe(), -side * 6.4, 0, 0.2, side > 0 ? -Math.PI / 2 : Math.PI / 2);
+  lay(room, fineSofa(1, cover, trim, wood), side * 1.1, 0, 1.5, Math.PI);
+  const fridge = fineFridge();
+  fridge.scale.setScalar(0.55);
+  lay(room, fridge, side * 5.9, 0, -0.6, side > 0 ? -Math.PI / 2 : Math.PI / 2);
+  lay(room, fineToilet(), side * 5.9, 0, 5.5, Math.PI);
+  lay(room, fineBathtub(), side * 5.5, 0, 2.7, side > 0 ? Math.PI / 2 : -Math.PI / 2);
+  lay(room, fineLamp(), bed.x - side * 2.6, 0, bed.z + 1.8, 0);
+  const basin = new Builder();
+  basin.box(0xf8fafc, 0.72, 0.82, 0.42, side * 5.9, 0, 6.35);
+  basin.cylinder(0xe7e5e4, 0.16, 0.08, side * 5.9, 0.86, 6.35);
+  basin.box(0xdbeafe, 0.55, 0.42, 0.02, side * 7.75, 1.5, 6.35);
+  room.add(basin.build('basin', { roughness: 0.25 }));
+  return bed;
+}
+
 /** The guest room: a bed to sleep in for as long as the stay lasts */
 class TownSuite {
   private readonly hold: { release: (instant?: boolean) => void };
   private sleeping = false;
   private duvet: THREE.Group | null = null;
+  private bedCloth: THREE.Mesh | null = null;
   private slept = 0;
   private restedTold = false;
   private readonly room: PlaceInterior;
   private readonly hotel: string;
+  private readonly bed: { x: number; z: number };
   constructor(room: PlaceInterior, hotel: string) {
     this.room = room;
     this.hotel = hotel;
     this.hold = { release: (instant) => this.getUp(instant) };
-    const bed = { x: -0.4, z: -2.2 };
+    this.bed = furnishGuestRoom(room.group, hotel);
+    const bed = this.bed;
+    const standX = bed.x + (bed.x < 0 ? 1.6 : -1.6);
     room.addCard({
       id: `place_${room.spec.key}_bed`, name: '🛏️ The bed', description: 'Clean sheets. Yours until noon.',
-      at: [bed.x, bed.z], stand: [1.2, -1.2],
+      at: [bed.x, bed.z], stand: [standX, bed.z + 0.6],
       label: () => (this.sleeping ? '🛏️ Sleeping' : '🛏️ Sleep'),
-      run: (host) => this.sleep(host, bed),
+      run: (host) => this.sleep(host),
     });
     room.leadsTo = () => {
       const lobby = rooms.get(hotel);
@@ -1091,7 +1169,7 @@ class TownSuite {
     room.ticks.push((delta) => this.tick(delta));
   }
 
-  private sleep(host: PlaceHost, bed: { x: number; z: number }): void {
+  private sleep(host: PlaceHost): void {
     const stay = TownStay.get(this.hotel).current();
     if (!stay) {
       host.say(TownStay.get(this.hotel).lapsed() ? 'Your stay has ended. The bed is made up for the next guest.' : 'This room is not yours yet. Check in at the desk.', 'info');
@@ -1099,16 +1177,23 @@ class TownSuite {
     }
     const player = host.actor;
     if (this.sleeping || host.director.interrupt(player) === 'locked') return;
-    const lying = { legs: 'lie' as const, arms: 'rest' as const, height: 0.62 };
+    const bed = this.bed;
+    const standX = bed.x + (bed.x < 0 ? 1.6 : -1.6);
+    // The foot of the bed points toward the door. The head is on the pillows.
+    const facing = 0;
+    const top = 0.72;
+    const lying = { legs: 'lie' as const, arms: 'rest' as const, height: top };
     const lieDown = new Sequence('lie down', [player]).add(
-      steps.walk(player, this.room.at(1.2, -1.2), { speed: 2.4 }),
+      steps.walk(player, this.room.at(standX, bed.z + 0.6), { speed: 2.4 }),
       steps.face(player, this.room.at(bed.x, bed.z)),
-      steps.slide(player, this.room.at(bed.x, bed.z), 0.5),
+      steps.slide(player, this.room.at(bed.x, bed.z - 0.15), 0.5),
+      steps.face(player, facing),
       steps.setPose(player, lying),
       steps.wait(0.4),
     );
     lieDown.onEnd((reason) => {
       if (reason !== 'done') return;
+      player.yaw = facing;
       player.hold = this.hold;
       player.setScripted(true);
       player.pose = lying;
@@ -1116,7 +1201,11 @@ class TownSuite {
       this.slept = 0;
       this.restedTold = false;
       this.duvet?.removeFromParent();
-      this.duvet = duvetOver(this.room.group, bed, 0, 0.62, bedDuvetNear(this.room.group, bed) ?? 0xf8fafc);
+      if (this.bedCloth) this.bedCloth.visible = true;
+      const feet = { x: bed.x, z: bed.z - 0.15 };
+      this.bedCloth = bedDuvetNear(this.room.group, feet);
+      this.duvet = duvetOver(this.room.group, feet, facing, top, this.bedCloth);
+      if (this.bedCloth) this.bedCloth.visible = false;
       host.say(`🛏️ Room ${stay.room}. You drift off.`, 'info');
     });
     host.director.run(lieDown);
@@ -1127,12 +1216,15 @@ class TownSuite {
     this.sleeping = false;
     this.duvet?.removeFromParent();
     this.duvet = null;
+    if (this.bedCloth) this.bedCloth.visible = true;
+    this.bedCloth = null;
     if (!player) return;
     player.hold = null;
     if (instant) { player.setScripted(false); return; }
+    const standX = this.bed.x + (this.bed.x < 0 ? 1.6 : -1.6);
     const rise = new Sequence('get up', [player]).locked().add(
       steps.setPose(player, { legs: 'stand', arms: 'rest' }),
-      steps.slide(player, this.room.at(1.2, -1.2), 0.5),
+      steps.slide(player, this.room.at(standX, this.bed.z + 0.6), 0.5),
     );
     if (!InteractionDirector.get().run(rise)) player.setScripted(false);
   }
