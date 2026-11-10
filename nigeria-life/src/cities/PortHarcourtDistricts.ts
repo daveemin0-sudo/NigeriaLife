@@ -191,6 +191,28 @@ export function buildPhLandmarks(): PhLandmarks {
     places.push({ key: 'rivers-govt-house', name: 'Rivers State Government House', category: 'Government', description: 'The Brick House: the governor\'s office, petitions and appointments.', door: { x: cx, z: cz - 15 }, stand: { x: cx, z: cz - 26 }, inside: true });
   }
 
+  // --- UPTH, the teaching hospital: a real ward in Port Harcourt, not a ride to Lagos
+  {
+    const cx = 120;
+    const cz = -40;
+    b.box(0xf8fafc, 70, 14, 28, cx, 0, cz, { solid: true });
+    b.box(0x0e7490, 70, 2, 28, cx, 14, cz);
+    lit.windows(0x99f6e4, 16, 3, 64, 2, 10, cx, cz - 14.06, Math.PI, { glow: true });
+    b.box(0x0e7490, 2.2, 7, 0.25, cx + 22, 5, cz - 14.3).box(0x0e7490, 7, 2.2, 0.25, cx + 22, 7.4, cz - 14.3);
+    sign(group, ['UPTH', 'TEACHING HOSPITAL'], 18, 1.8, cx - 8, 12.2, cz - 14.4, Math.PI, '#0e7490', '#ffffff');
+    places.push({ key: 'upth', name: 'University of Port Harcourt Teaching Hospital', category: 'Hospital', description: 'Emergency, the wards and the pharmacy. Port Harcourt, not Lagos.', door: { x: cx, z: cz - 14 }, stand: { x: cx, z: -65 }, inside: true });
+  }
+
+  // --- Rivers State Police Command
+  {
+    const cx = 200;
+    const cz = 40;
+    b.box(0x14532d, 32, 9, 16, cx, 0, cz, { solid: true });
+    lit.windows(0xfde68a, 6, 2, 26, 2, 6, cx, cz - 8.06, Math.PI, { glow: true });
+    sign(group, ['RIVERS STATE', 'POLICE COMMAND'], 14, 1.6, cx, 7.4, cz - 8.2, Math.PI, '#14532d', '#fde68a');
+    places.push({ key: 'ph-police', name: 'Rivers State Police Command', category: 'Police', description: 'Reports, a character certificate and the cells. Port Harcourt, not Lagos.', door: { x: cx, z: cz - 8 }, stand: { x: 200, z: 20 }, inside: true });
+  }
+
   // --- The waterfront: a promenade on the creek's east bank, a jetty out over the water, boats at it
   {
     const cx = 97;

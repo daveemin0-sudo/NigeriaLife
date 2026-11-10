@@ -9,6 +9,8 @@ import { SoundEngine } from '../../audio/SoundEngine';
 import { Deeds } from '../../realestate/Deeds';
 import { AssetMarket } from '../../realestate/AssetMarket';
 import { Companies, AREAS, type RoleId } from '../../business/Companies';
+import { REGISTER_AREAS, spotFor } from '../../life/Kiosks';
+import type { BusinessType } from '../../backend/types';
 import { BackendService } from '../../backend/BackendService';
 import { Dues, dayLabel } from '../../life/Dues';
 import { monthBands, monthLabel, monthRelief, RENT_RELIEF_CAP, VAT_RATE, type Payslip, type TaxBook } from '../../life/Tax';
@@ -542,6 +544,44 @@ export const businessApp: PhoneApp = {
       };
     }
 
+    if (route === 'register') {
+      const city = host.world.cityId();
+      const areas = REGISTER_AREAS.filter((a) => a.cityId === city);
+      const kinds: Array<{ id: BusinessType; label: string; icon: string }> = [
+        { id: 'restaurant', label: 'Food spot', icon: '🍲' },
+        { id: 'salon', label: 'Salon', icon: '💇' },
+        { id: 'supermarket', label: 'Provisions', icon: '🏪' },
+        { id: 'fashion shop', label: 'Fashion', icon: '👗' },
+        { id: 'pharmacy', label: 'Pharmacy', icon: '💊' },
+        { id: 'hotel', label: 'Events', icon: '🎉' },
+        { id: 'logistics', label: 'Dispatch', icon: '📦' },
+        { id: 'tech company', label: 'Tech startup', icon: '💻' },
+        { id: 'filling station', label: 'Filling station', icon: '⛽' },
+        { id: 'transport business', label: 'Transport', icon: '🚌' },
+      ];
+      const colours: Array<[string, string]> = [['#14532d', 'Green'], ['#1e3a8a', 'Blue'], ['#9f1239', 'Red'], ['#92400e', 'Gold'], ['#0f172a', 'Black']];
+      const area = host.get('biz.area', areas[0]?.area ?? '');
+      const kind = host.get('biz.kind', kinds[0].id);
+      const colour = host.get('biz.colour', colours[0][0]);
+      const picked = areas.find((a) => a.area === area) ?? areas[0];
+      return {
+        title: 'Register',
+        body: `
+          <div class="nl-card" id="biz-register">
+            <div class="nl-card-line">A new business in ${esc(host.world.cityName())}. It starts as a kiosk. You can still buy a business that is already running.</div>
+            <input class="nl-field" id="biz-name" placeholder="The name" maxlength="32" data-bind="biz.name" value="${esc(host.get('biz.name', ''))}" />
+            <div class="nl-section">Area</div>
+            ${chips('biz.area', area, areas.map((a) => [a.area, `${a.area} · ${naira(a.fee)}`]))}
+            <div class="nl-section">What it is</div>
+            ${chips('biz.kind', kind, kinds.map((k) => [k.id, `${k.icon} ${k.label}`]))}
+            <div class="nl-section">Logo colour</div>
+            ${chips('biz.colour', colour, colours)}
+            <button class="nl-btn nl-btn--primary nl-btn--block" data-act="register" ${picked ? '' : 'disabled'}>Pay ${picked ? naira(picked.fee) : ''} and register</button>
+          </div>
+        `,
+      };
+    }
+
     const owned = data.businesses.filter((b) => b.owned);
     const forSale = data.businesses.filter((b) => !b.owned);
     const pending = owned.reduce((sum, b) => sum + b.pendingRevenue, 0);
@@ -554,6 +594,7 @@ export const businessApp: PhoneApp = {
           <span class="nl-hero-sub">${count(owned.length, 'business', 'businesses')} · ${naira(owned.reduce((sum, b) => sum + earns(b.id), 0))} each payout</span>
           <div class="nl-hero-actions">
             <button class="nl-btn nl-btn--glass" data-act="collect" ${pending > 0 ? '' : 'disabled'}>Collect into bank</button>
+            <button class="nl-btn nl-btn--glass" data-go="register">Register a business</button>
           </div>
         </div>
         <div class="nl-section">Yours</div>
@@ -574,6 +615,34 @@ export const businessApp: PhoneApp = {
 
   async act(host, action, el) {
     const arg = el.dataset.arg ?? '';
+    if (action === 'register') {
+      const city = host.world.cityId();
+      const areas = REGISTER_AREAS.filter((a) => a.cityId === city);
+      const area = areas.find((a) => a.area === host.get('biz.area', areas[0]?.area ?? '')) ?? areas[0];
+      if (!area) return host.say('Pick an area in this city.', 'bad');
+      const kinds: Array<{ id: BusinessType; icon: string }> = [
+        { id: 'restaurant', icon: '🍲' }, { id: 'salon', icon: '💇' }, { id: 'supermarket', icon: '🏪' },
+        { id: 'fashion shop', icon: '👗' }, { id: 'pharmacy', icon: '💊' }, { id: 'hotel', icon: '🎉' },
+        { id: 'logistics', icon: '📦' }, { id: 'tech company', icon: '💻' }, { id: 'filling station', icon: '⛽' },
+        { id: 'transport business', icon: '🚌' },
+      ];
+      const kind = kinds.find((k) => k.id === host.get('biz.kind', 'restaurant')) ?? kinds[0];
+      const spot = spotFor(city, area.area);
+      const result = host.backend.registerBusiness({
+        name: host.get('biz.name', ''),
+        type: kind.id,
+        cityId: city,
+        area: area.area,
+        fee: area.fee,
+        icon: kind.icon,
+        logo: host.get('biz.colour', '#14532d'),
+        x: spot?.x ?? 0,
+        z: spot?.z ?? 0,
+      });
+      host.say(result.message, result.success ? 'good' : 'bad');
+      if (result.success) host.go('');
+      return;
+    }
     if (action === 'collect') {
       const result = host.backend.collectBusinessRevenue();
       if (result.totalCollected > 0) SoundEngine.getInstance().playTransactionSuccess();

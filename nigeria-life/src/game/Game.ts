@@ -20,6 +20,8 @@ import { HomePower } from '../housing/HomePower';
 import { TradeDesk } from '../travel/TradeDesk';
 import { motorParkTrade } from '../world/landmarks/MotorPark';
 import { Police } from '../life/Police';
+import { BusLine } from '../life/BusLine';
+import { showKiosks } from '../life/Kiosks';
 import { BRIBE, OFFENCES, type Custody } from '../life/Offences';
 import { InteriorManager } from '../interiors/InteriorManager';
 import * as Grid from '../life/Grid';
@@ -1717,24 +1719,31 @@ export class Game {
   /** Into the van and the cell. Back after a reload, the player is simply in the cell again. */
   private async takeToCell(custody: Custody, offence: string, back: boolean): Promise<void> {
     const rooms = this.world.interiorManager;
+    const city = this.world.cityManager.currentCityId;
+    const station = city === 'abuja' ? 'roadside-abuja-police' : city === 'port_harcourt' ? 'roadside-ph-police' : 'police';
+    const stationName = city === 'abuja' ? 'FCT Police Command' : city === 'port_harcourt' ? 'Rivers State Police Command' : 'Area Command';
     if (!back) {
       this.hud.showDialogueModal({
         speakerName: 'Inspector Danjuma',
-        speakerRole: 'Area Command joint patrol',
+        speakerRole: `${stationName} joint patrol`,
         speakerAvatar: '🚔',
         soundType: 'general',
-        dialogueText: `"You are under arrest for ${(OFFENCES[offence]?.name ?? 'an offence').toLowerCase()}. Into the van." ${this.timeLeft(custody)} in the cell at Area Command, or bail of ₦${custody.bail.toLocaleString()}.`,
+        dialogueText: `"You are under arrest for ${(OFFENCES[offence]?.name ?? 'an offence').toLowerCase()}. Into the van." ${this.timeLeft(custody)} in the cell at ${stationName}, or bail of ₦${custody.bail.toLocaleString()}.`,
       });
     }
     if (this.player.isDriving) this.exitVehicle();
-    if (rooms.currentInterior?.type !== 'police') {
-      if (rooms.currentInterior) await rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
-      await rooms.enterInterior('police', this.player, this.cameraManager, this.hud, this.world);
+    const here = rooms.currentInterior;
+    const inThisStation = city === 'lagos' ? here?.type === 'police' : here?.id === `interior_place_${station.replace('roadside-', '')}` || here?.streetBuildingId === station;
+    if (!inThisStation) {
+      if (here) await rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+      await rooms.enterInterior(station, this.player, this.cameraManager, this.hud, this.world);
     }
     const origin = rooms.currentInterior?.interiorOrigin;
-    if (rooms.currentInterior?.type === 'police' && origin) {
+    if (origin) {
       this.player.stopMoving();
-      this.player.mesh.position.set(origin.x + 6, 0, origin.z - 5.4);
+      // Lagos Area Command keeps its cell. The other stations use a holding bench inside their own room.
+      const cell = rooms.currentInterior?.type === 'police' ? { x: 6, z: -5.4 } : { x: 4, z: -4 };
+      this.player.mesh.position.set(origin.x + cell.x, 0, origin.z + cell.z);
     }
     this.showCustody();
   }
@@ -1772,7 +1781,9 @@ export class Game {
       el.setAttribute('role', 'status');
       document.body.appendChild(el);
     }
-    const text = `🚔 In the cell at Area Command · ${this.timeLeft(held)} left · bail ₦${held.bail.toLocaleString()}`;
+    const city = this.world.cityManager.currentCityId;
+    const stationName = city === 'abuja' ? 'FCT Police Command' : city === 'port_harcourt' ? 'Rivers State Police Command' : 'Area Command';
+    const text = `🚔 In the cell at ${stationName} · ${this.timeLeft(held)} left · bail ₦${held.bail.toLocaleString()}`;
     if (el.textContent !== text) el.textContent = text;
   }
 
@@ -1780,6 +1791,8 @@ export class Game {
   private checkpointPassAt = 0;
   /** The Eko Rides trip the server has started, to be paid at the drop-off */
   private rideOnServer: string | null = null;
+  /** Which city's kiosks are already on the street, so they are not rebuilt every frame */
+  private kioskStamp = '';
   private watchCheckpoint(): void {
     if (!this.player.isDriving || Police.get().custody() || this.world.cityManager.currentCityId !== 'lagos') return;
     const point = this.world.interactiveObjects.find((o) => o.id === 'street-checkpoint')?.interactionPoint;
@@ -2290,19 +2303,14 @@ export class Game {
     const where = this.whereabouts();
     if (where === 'transit' || where === 'driving' || this.world.interiorManager.busy) return false;
     const city = this.world.cityManager.currentCityId;
-    const hospital = city === 'lagos' ? 'hospital' : city === 'abuja' ? 'roadside-national-hospital-abuja' : null;
+    const hospital = city === 'lagos' ? 'hospital' : city === 'abuja' ? 'roadside-national-hospital-abuja' : 'roadside-upth';
     const backend = BackendService.getInstance();
     backend.processTransaction({ type: 'MEDICAL_BILL', amount: 3500, description: 'Ambulance and emergency treatment' });
     backend.treatEmergency();
-    if (!hospital) {
-      showGameToast('The ambulance treated you where you are. It does not leave the city.', 'success', 5200);
-      return true;
-    }
     this.world.worldMap.deactivate();
     void this.world.interiorManager.enterInterior(hospital, this.player, this.cameraManager, this.hud, this.world);
-    showGameToast(city === 'lagos'
-      ? 'The ambulance brought you to St. Nicholas. You have been treated: ₦3,500.'
-      : 'The ambulance brought you to the National Hospital. You have been treated: ₦3,500.', 'success', 5200);
+    const ward = city === 'lagos' ? 'St. Nicholas' : city === 'abuja' ? 'the National Hospital' : 'UPTH';
+    showGameToast(`The ambulance brought you to ${ward}. You have been treated: ₦3,500.`, 'success', 5200);
     return true;
   }
 
@@ -2784,7 +2792,8 @@ export class Game {
       host?.say(`Your ${offer.name.toLowerCase().replace(/^a /, '')} is with you till the end of day ${convoys.escort.until + 1}.`, 'info');
       return;
     }
-    if (!BackendService.getInstance().pay(offer.price, `${offer.name}, Lagos State Police Command`, 'SHOP_PURCHASE')) {
+    const command = `${this.cityLabel(this.world.cityManager.currentCityId)} Police Command`;
+    if (!BackendService.getInstance().pay(offer.price, `${offer.name}, ${command}`, 'SHOP_PURCHASE')) {
       host?.say(`That is ₦${offer.price.toLocaleString()}. You do not have it.`, 'warning');
       return;
     }
@@ -3853,6 +3862,15 @@ export class Game {
     const driven = this.player.isDriving ? this.player.currentVehicle : null;
     if (driven) avoid.push({ x: driven.mesh.position.x, z: driven.mesh.position.z, r: 2.4 });
     else if (!this.world.interiorManager.isPlayerInside()) avoid.push({ x: this.player.position.x, z: this.player.position.z, r: 0.35 });
+    const cityNow = this.world.cityManager.currentCityId;
+    const books = BackendService.getInstance().getData().businesses;
+    const stamp = `${cityNow}:${books.filter((b) => b.owned && b.id.startsWith('reg_')).map((b) => b.id).join(',')}`;
+    if (stamp !== this.kioskStamp) {
+      this.kioskStamp = stamp;
+      showKiosks(this.world.scene, cityNow, books);
+    }
+    const line = BusLine.get();
+    line.draw(this.world.scene, `${cityNow}:${line.buses().map((b) => b.id).join(',')}`, this.world.skyEnvironment.currentHour);
     this.world.update(delta, this.input.keys, this.player.position, this.player);
     this.world.agamas.update(delta, this.player.position);
     if (!this.world.interiorManager.isPlayerInside()) this.world.lagoon.update(delta, this.player.position);

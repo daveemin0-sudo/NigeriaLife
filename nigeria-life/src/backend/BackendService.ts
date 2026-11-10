@@ -5,6 +5,7 @@ import { isHomeRent, labelOfDay, lagosMonth, monthOfDay, payeNote, rollBook, tak
 import {
   type PlayerAccount,
   type BusinessEnterprise,
+  type BusinessType,
   type PlayerStats,
   type PlayerSkills,
   type Item,
@@ -1296,6 +1297,42 @@ export class BackendService {
       success: true,
       message: `Congratulations! You now own ${biz.name}! Passive income has started.`,
     };
+  }
+
+  /** Register a new business. It starts as a small kiosk in the area paid for. */
+  public registerBusiness(input: { name: string; type: BusinessType; cityId: string; area: string; fee: number; icon: string; logo: string; x: number; z: number }): { success: boolean; message: string } {
+    const name = input.name.trim().slice(0, 32);
+    if (name.length < 2) return { success: false, message: 'Give it a name.' };
+    if (this.data.businesses.some((b) => b.owned && b.name.toLowerCase() === name.toLowerCase())) {
+      return { success: false, message: 'You already have a business by that name.' };
+    }
+    const paid = this.processTransaction({
+      type: 'BUSINESS_PURCHASE',
+      amount: input.fee,
+      description: `Register ${name}, ${input.area}`,
+      source: 'bank',
+    });
+    if (!paid.success) return { success: false, message: `The papers are ₦${input.fee.toLocaleString()} and you do not have it.` };
+    this.data.businesses.push({
+      id: `reg_${Date.now().toString(36)}`,
+      name,
+      cityId: input.cityId,
+      districtId: input.area,
+      type: input.type,
+      category: `Kiosk · ${input.area}`,
+      icon: input.icon,
+      logo: input.logo,
+      purchasePrice: input.fee,
+      baseIncomePerCycle: 8000,
+      owned: true,
+      pendingRevenue: 0,
+      level: 1,
+      upgrades: [],
+      streetPosition: { x: input.x, y: 0, z: input.z },
+    });
+    this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + 5);
+    this.saveData();
+    return { success: true, message: `${name} is registered. The kiosk is in ${input.area}, with your name on the sign.` };
   }
 
   public upgradeBusiness(bizId: string, upgradeId: string): { success: boolean; message: string } {

@@ -307,7 +307,7 @@ export const shoppingApp: PhoneApp = {
 
 export const peopleApp: PhoneApp = {
   id: 'messages',
-  aliases: ['contacts', 'meetumo', 'people'],
+  aliases: ['meetumo', 'people'],
   name: 'Messages',
   icon: '💬',
   tint: ['#0e7490', '#22d3ee'],

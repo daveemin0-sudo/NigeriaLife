@@ -982,6 +982,22 @@ const ABUJA_SPECS: PlaceSpec[] = [
     ] },
     { id: 'ward', name: '🛏️ Admission', at: [-3, 4], stand: [-3, 2.4], who: 'Nurse Aisha', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 55000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
   ], [{ at: [-6, 4], facing: 0, outfit: 0x60a5fa, sit: true }], [20, 18]), [-290, 443]),
+
+  abuja(venue('abuja-police', 'FCT Police Command', 'Garki · police', 'Police is your friend · 112', '#1e3a8a', 0xcbd5e1, 0xe2e8f0, (b) => {
+    counter(b, -6, -5, 4, 0x1e3a8a, 0xf8fafc);
+    desk(b, 2, -5);
+    bench(b, 4, -4, 3, 0x334155);
+    for (const x of [-2, 0]) b.box(0x334155, 0.08, 2.6, 2.4, x, 0, 5);
+    b.box(0x1e3a8a, 0.9, 1.4, 0.08, 6.5, 1.2, -6);
+  }, [{ name: 'Sgt. Halima', title: 'Desk sergeant', at: [-6, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', cap: true, says: 'Yes? Wetin happen?' }], [
+    { id: 'desk', name: '👮 Charge desk', at: [-6, -5], stand: [-6, -3.6], who: 'Sgt. Halima', role: 'FCT Police Command', text: 'State your business. This is Abuja, not Lagos.', choices: [
+      { label: 'Report a crime', note: 'Free', arms: 'talk', seconds: 3, effect: () => {}, said: 'She writes it in the Abuja book: "We go look into am."' },
+      buy('Police character certificate', 3500, { id: 'police_cert', name: 'Police character certificate', icon: '📜', price: 3500, category: 'document', usable: false, description: 'A clean police report, issued in Abuja.' }, 'Stamped at the FCT command.', 'For jobs and visas'),
+    ] },
+    { id: 'escort', name: '🚨 Escort', at: [2, -5], stand: [2, -3.6], who: 'Inspector Bello', role: 'Escort desk', text: 'A patrol van follows you in Abuja.', choices: [
+      { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
+    ] },
+  ], [{ at: [4, -4], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [48, -172]),
 ];
 
 
@@ -1030,6 +1046,44 @@ const PH_SPECS: PlaceSpec[] = [
     { id: 'petition', name: '📜 Leave a petition', at: [0, -6], stand: [0, -4.6], who: 'Chief of Staff', role: 'Government House', text: 'Write it down. It will get to his desk.', choices: [{ label: 'About the roads in your area', note: 'Social +10', arms: 'reach', seconds: 3, effect: need({ social: 10 }), said: 'Stamped, signed, filed. "We will look into it."' }] },
     { id: 'house', name: '🏛️ The State House', at: [3, 3], stand: [3, 4.4], who: 'Chief of Staff', role: 'Government House', text: 'Laws, the cabinet and the election.', choices: [{ label: 'Open the State House', note: 'Pay is collected here', open: 'house' }] },
   ]), [-370, -190]),
+
+  abuja(venue('upth', 'University of Port Harcourt Teaching Hospital', 'Choba · UPTH', 'Emergency · Wards · Pharmacy', '#0e7490', 0xf8fafc, 0xecfeff, (b) => {
+    counter(b, 5, -6, 4, 0x0e7490, 0xf8fafc);
+    shelf(b, -7, -6, 3.2, [0xf8fafc, 0x14b8a6, 0xfacc15]);
+    for (let i = 0; i < 4; i++) {
+      b.box(0xf8fafc, 1, 0.55, 2.1, -6 + i * 2.4, 0, 3);
+      b.box(0x99f6e4, 0.9, 0.12, 1.9, -6 + i * 2.4, 0.55, 3);
+      b.box(0x0f766e, 0.15, 1.1, 0.15, -6.4 + i * 2.4, 0, 2.1);
+    }
+    b.box(0x0e7490, 1.2, 1.2, 0.08, 7.2, 1.4, -7);
+    b.box(0xf8fafc, 0.35, 1.2, 0.08, 7.2, 1.4, -7);
+  }, [
+    { name: 'Nurse Ibiere', title: 'Nurse', at: [5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
+    { name: 'Pharmacist Tamuno', title: 'Pharmacist', at: [-7, -5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription from the ward?' },
+  ], [
+    { id: 'clinic', name: '🩺 See a doctor', at: [5, -6], stand: [5, -4.6], who: 'Nurse Ibiere', role: 'UPTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant checked you and wrote it down. You can go.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [-7, -6], stand: [-7, -4.4], who: 'Pharmacist Tamuno', role: 'UPTH pharmacy', text: 'What do you need?', choices: [
+      buy('Malaria treatment', 6500, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 6500, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
+      buy('Paracetamol', 1000, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1000, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
+    ] },
+    { id: 'ward', name: '🛏️ The ward', at: [-2, 3], stand: [-2, 1.2], who: 'Nurse Ibiere', role: 'UPTH ward', text: 'Stay and rest. The creek is quiet from here.', choices: [{ label: 'Admitted overnight', price: 48000, note: 'Health +80', sit: true, seconds: 6, effect: need({ health: 80 }), said: 'Drip, rest, and you walk out stronger.' }] },
+  ], [{ at: [-4, 3], facing: Math.PI, outfit: 0x5eead4, sit: true, gender: 'female' }], [20, 18]), [120, -65]),
+
+  abuja(venue('ph-police', 'Rivers State Police Command', 'Port Harcourt · police', 'Police is your friend · 112', '#14532d', 0xd6d3d1, 0xf5f5f4, (b) => {
+    counter(b, 5, -5, 4, 0x14532d, 0xfde68a);
+    bench(b, -4, 2, 4, 0x78350f);
+    for (let i = 0; i < 3; i++) b.box(0x14532d, 0.5, 0.45, 0.5, -2 + i * 1.4, 0, -3);
+    b.box(0x334155, 0.08, 2.4, 2.2, -7, 0, 4);
+    plant(b, 7, 4);
+  }, [{ name: 'Sgt. Briggs', title: 'Desk sergeant', at: [5, -6], facing: 0, outfit: 0x14532d, gender: 'male', cap: true, says: 'Wetin happen? This is Port Harcourt.' }], [
+    { id: 'desk', name: '👮 Charge desk', at: [5, -5], stand: [5, -3.6], who: 'Sgt. Briggs', role: 'Rivers State Police Command', text: 'State your business. You do not have to go to Lagos.', choices: [
+      { label: 'Report a crime', note: 'Free', arms: 'talk', seconds: 3, effect: () => {}, said: 'He writes it in the Rivers book: "We go look into am."' },
+      buy('Police character certificate', 3500, { id: 'police_cert', name: 'Police character certificate', icon: '📜', price: 3500, category: 'document', usable: false, description: 'A clean police report, issued in Port Harcourt.' }, 'Stamped at the Rivers command.', 'For jobs and visas'),
+    ] },
+    { id: 'escort', name: '🚨 Escort', at: [-4, 2], stand: [-4, 3.4], who: 'Inspector Briggs', role: 'Escort desk', text: 'A patrol van follows you in Port Harcourt.', choices: [
+      { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
+    ] },
+  ], [{ at: [-4, 2], facing: 0, outfit: 0xf97316, sit: true }], [18, 16]), [200, 20]),
 ];
 
 // --- Every shop, office, hotel, bank and market along Abuja's and Port Harcourt's streets ---
@@ -1182,6 +1236,9 @@ const QUIET_FLOOR: Record<string, string> = {
   'wuse-market': 'parquet_wood',
   'jabi-lake-mall': 'ceramic_white',
   'national-hospital-abuja': 'ceramic_white',
+  'abuja-police': 'grey_granite',
+  'upth': 'ceramic_white',
+  'ph-police': 'grey_granite',
   'mile-one-market': 'parquet_wood',
   'ph-mall': 'ceramic_white',
   'rivers-govt-house': 'chevron_oak',

@@ -619,6 +619,62 @@ export class DestinationRegistry {
     });
 
     this.register({
+      id: 'dest_abuja_police',
+      aliases: ['abuja_police', 'fct_police_command'],
+      name: 'FCT Police Command',
+      category: 'Healthcare',
+      city: 'abuja',
+      district: 'garki',
+      districtName: 'Garki, Abuja',
+      mapPosition: new THREE.Vector3(48, 0, -172),
+      mapVisualType: 'police',
+      mapIcon: '👮',
+      exteriorType: 'police_facade',
+      streetPosition: new THREE.Vector3(48, 0, -172),
+      entrance: {
+        position: new THREE.Vector3(48, 0, -172),
+        promptLabel: 'Enter FCT Police Command',
+        triggerRadius: 6.5,
+      },
+      interiorId: 'roadside-abuja-police',
+      shortDescription: 'Reports, a character certificate and bail, in Abuja',
+      destinationDescription: 'The FCT command. A report is taken here, not in Lagos.',
+      services: ['Incident Reports', 'Character Clearance', 'Bail Processing'],
+      transportAvailability: defaultTransports,
+      npcPopulation: [],
+      activities: [],
+      isEnterable: true,
+    });
+
+    this.register({
+      id: 'dest_ph_police',
+      aliases: ['ph_police', 'rivers_police_command'],
+      name: 'Rivers State Police Command',
+      category: 'Healthcare',
+      city: 'port_harcourt',
+      district: 'township',
+      districtName: 'Port Harcourt',
+      mapPosition: new THREE.Vector3(200, 0, 20),
+      mapVisualType: 'police',
+      mapIcon: '👮',
+      exteriorType: 'police_facade',
+      streetPosition: new THREE.Vector3(200, 0, 20),
+      entrance: {
+        position: new THREE.Vector3(200, 0, 20),
+        promptLabel: 'Enter Rivers State Police Command',
+        triggerRadius: 6.5,
+      },
+      interiorId: 'roadside-ph-police',
+      shortDescription: 'Reports, a character certificate and bail, in Port Harcourt',
+      destinationDescription: 'The Rivers command. A report is taken here, not in Lagos.',
+      services: ['Incident Reports', 'Character Clearance', 'Bail Processing'],
+      transportAvailability: defaultTransports,
+      npcPopulation: [],
+      activities: [],
+      isEnterable: true,
+    });
+
+    this.register({
       id: 'dest_lagos_residence',
       aliases: ['villa-compound', 'palm-view-flats', 'residence', 'home'],
       name: 'Victoria Residence Estate',

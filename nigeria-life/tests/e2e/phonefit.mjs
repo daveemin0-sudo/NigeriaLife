@@ -5,7 +5,7 @@
 // scroll sideways may run past the edge; anything else cut off by its window is a fault.
 import { newPlayer, closeDialogs, wait, playUntil, GAME_URL } from './lib.mjs';
 
-const APPS = ['jobs', 'bank', 'shopping', 'land', 'odds', 'studio', 'gist', 'ride'];
+const APPS = ['jobs', 'bank', 'shopping', 'land', 'odds', 'studio', 'gist', 'ride', 'courses', 'gadgets', 'contacts', 'police', 'buses', 'business'];
 // Rows that scroll sideways by design, full width
 const SCROLLERS = /cat-tab/;
 

@@ -226,12 +226,14 @@ export async function run(browser, check) {
     await page.evaluate(() => window.game.hud.phoneModal.openApp('health'));
     await wait(300);
     const health = await page.evaluate(() => ({
-      hospital: [...document.querySelectorAll('[data-route]')].map((el) => el.getAttribute('data-route')),
-      police: document.querySelector('[data-act="to-lagos"]')?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
+      routes: [...document.querySelectorAll('[data-route]')].map((el) => el.getAttribute('data-route')),
+      toLagos: document.querySelector('[data-act="to-lagos"]')?.textContent ?? null,
     }));
     const localHospital = city === 'lagos' ? 'dest_lagos_hospital' : city === 'abuja' ? 'dest_abuja_garki_hospital' : 'dest_ph_upth';
-    check(`${city}: Health offers this city's hospital, and the Lagos police station only from Lagos`,
-      health.hospital.some((id) => id === `d:${localHospital}`) && !health.hospital.some((id) => id?.includes('dest_lagos') && city !== 'lagos') && (city === 'lagos' ? !health.police : /Lagos/.test(health.police || '')),
+    const localPolice = city === 'lagos' ? 'dest_lagos_police' : city === 'abuja' ? 'dest_abuja_police' : 'dest_ph_police';
+    check(`${city}: Health offers this city's hospital and this city's police station`,
+      health.routes.some((id) => id === `d:${localHospital}`) && health.routes.some((id) => id === `d:${localPolice}`)
+        && !health.routes.some((id) => id?.includes('dest_lagos') && city !== 'lagos') && !health.toLagos,
       health);
     await page.evaluate(() => {
       const d = window.game.hud.backend.getData();
@@ -246,12 +248,10 @@ export async function run(browser, check) {
       btn.click();
       return { clicked: true, disabled: false };
     });
-    if (city !== 'port_harcourt') {
-      await playUntil(page, () => (!window.game.world.interiorManager.busy && window.game.world.interiorManager.currentInterior ? true : null), 12);
-    }
+    await playUntil(page, () => (!window.game.world.interiorManager.busy && window.game.world.interiorManager.currentInterior ? true : null), 12);
     await wait(400);
     const ward = await where(page);
-    const rightWard = city === 'lagos' ? ward.type === 'hospital' : city === 'abuja' ? /National Hospital/.test(ward.name || '') : !ward.inside;
+    const rightWard = city === 'lagos' ? ward.type === 'hospital' : city === 'abuja' ? /National Hospital/.test(ward.name || '') : /Teaching Hospital|UPTH/.test(ward.name || '');
     check(`${city}: the ambulance treats the player in ${city} and does not drive them to Lagos`, called.clicked && ward.city === city && rightWard, { called, ward });
     await leave(page);
     await page.evaluate(() => {

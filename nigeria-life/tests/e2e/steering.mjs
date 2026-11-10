@@ -261,9 +261,10 @@ export async function run(browser, check) {
   }, LANE);
   await page.bringToFront();
   await page.keyboard.down('ArrowUp');
-  // However slowly this machine draws, the car should be on its way within a few seconds
+  // Wall time, not game time: a slow machine draws fewer frames, so the car covers the
+  // same 10 m more slowly. It still has to get there, and stay in the lane.
   const started = Date.now();
-  while (Date.now() - started < 12000) {
+  while (Date.now() - started < 22000) {
     await wait(250);
     if (await page.evaluate(() => window.game.player.currentVehicle.mesh.position.z > -90)) break;
   }

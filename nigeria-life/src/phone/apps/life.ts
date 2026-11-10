@@ -6,6 +6,7 @@ import { SoundEngine } from '../../audio/SoundEngine';
 import { MusicPlayer } from '../../audio/MusicPlayer';
 import { noticesEnabled, setNotices } from '../../ui/GameToast';
 import { Employment, EMPLOYERS, WORKSITES } from '../../jobs/Employment';
+import { Qualifications } from '../../life/Qualifications';
 import { WORKPLACE } from '../../interiors/places/PlaceJobs';
 import { Shifts } from '../../jobs/HandWork';
 import { CareerShift } from '../../jobs/CareerShift';
@@ -186,10 +187,13 @@ export const jobsApp: PhoneApp = {
             const there = (id: string) => (WORKPLACE[id] ? 2 : WORKSITES[id] ? 1 : 0);
             return [...open].sort((a, b) => there(b.id) - there(a.id)).map((employer) => {
               const how = there(employer.id);
+              const paper = employer.needs
+                ? Qualifications.get().missing(employer.needs.course, employer.needs.level, employer.needs.paper)
+                : null;
               return row({
                 icon: how ? '📌' : '🕓',
                 title: how ? `${esc(employer.name)} is taking hands on` : esc(employer.name),
-                sub: how ? `${esc(employer.trade)} · ask at ${esc(employer.place)}` : `${esc(employer.trade)} · not taking walk-ins yet`,
+                sub: `${how ? `${esc(employer.trade)} · ask at ${esc(employer.place)}` : `${esc(employer.trade)} · not taking walk-ins yet`}${paper ? ` · ${esc(paper)}` : ''}`,
                 trailing: `<span class="nl-stack"><strong>${naira(employer.grades[0].pay)}</strong>${how === 2
                   ? `<button class="nl-btn nl-btn--sm" data-act="work-go" data-arg="${esc(employer.id)}">🚕 Go</button>`
                   : how === 1 ? `<button class="nl-btn nl-btn--sm" data-act="work-show" data-arg="${esc(employer.id)}">📍 Show</button>` : ''}</span>`,
@@ -598,9 +602,15 @@ export const healthApp: PhoneApp = {
           <button class="nl-btn nl-btn--danger nl-btn--block" id="health-ambulance" data-act="ambulance" ${serious ? '' : 'disabled'}>Call an ambulance</button>
         </div>
         <div class="nl-list">
-          ${host.world.cityId() === 'lagos'
-            ? row({ icon: '👮', title: 'Ride to the police station', sub: 'Area Command, Lagos Island. Reports are made at the front desk.', attrs: 'data-app="ride" data-route="d:dest_lagos_police"' })
-            : row({ icon: '👮', title: 'The police station is in Lagos', sub: 'Fly or take the coach. A report is not taken across cities.', attrs: 'data-act="to-lagos"' })}
+          ${(() => {
+            const city = host.world.cityId();
+            const station = city === 'abuja'
+              ? { name: 'FCT Police Command', id: 'dest_abuja_police' }
+              : city === 'port_harcourt'
+                ? { name: 'Rivers State Police Command', id: 'dest_ph_police' }
+                : { name: 'Area Command, Lagos Island', id: 'dest_lagos_police' };
+            return row({ icon: '👮', title: 'Ride to the police station', sub: `${station.name}. Reports are made at the front desk.`, attrs: `data-app="ride" data-route="d:${station.id}"` });
+          })()}
         </div>
       `,
     };

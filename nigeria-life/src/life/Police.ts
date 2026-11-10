@@ -133,6 +133,25 @@ export class Police {
     return { ok: true, message: `Bail of ₦${held.bail.toLocaleString()} paid. The sergeant unlocks the cell.` };
   }
 
+  /** Pay the fine on the oldest charge and take it off the record */
+  public payFine(): { ok: boolean; message: string } {
+    const list = this.record();
+    if (!list.length) return { ok: false, message: 'You have no fine to pay.' };
+    const oldest = list[0];
+    const amount = Math.max(5000, Math.round((OFFENCES[oldest.offence]?.bail ?? 20000) / 4));
+    const paid = BackendService.getInstance().processTransaction({
+      type: 'FINE_PAYMENT',
+      amount,
+      description: `Fine: ${OFFENCES[oldest.offence]?.name ?? oldest.offence}`,
+      source: 'bank',
+      funding: 'split',
+    });
+    if (!paid.success) return { ok: false, message: `The fine is ₦${amount.toLocaleString()} and you do not have it.` };
+    this.entries = this.entries.filter((entry) => !(entry.offence === oldest.offence && entry.at === oldest.at));
+    this.changed();
+    return { ok: true, message: `Fine of ₦${amount.toLocaleString()} paid. That charge is off your record.` };
+  }
+
   /** An envelope through the bars: taken (out you go) or a new charge (more time, more bail) */
   public async bribe(): Promise<{ ok: boolean; taken?: boolean; message: string }> {
     const held = this.custody();

@@ -134,6 +134,8 @@ export interface BusinessEnterprise {
   revenueEst?: string;
   upgrades: BusinessUpgrade[];
   buildingId?: string;
+  /** Sign colour for a business the player registered */
+  logo?: string;
 }
 
 export type TransactionType =

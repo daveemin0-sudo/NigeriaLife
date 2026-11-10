@@ -1,4 +1,5 @@
 import { BackendService } from '../backend/BackendService';
+import { Qualifications } from '../life/Qualifications';
 import { profileKey } from '../backend/Profile';
 import { emitGameEvent } from '../game/GameEvents';
 import type { Payslip } from '../life/Tax';
@@ -162,6 +163,10 @@ export class Employment {
     if (this.isEmployed(id)) return { ok: false, reason: `You already work at ${employer.name}.` };
     const refused = Employment.refusal(employer);
     if (refused) return { ok: false, reason: `${employer.name} will not take you on. ${refused}` };
+    if (employer.needs) {
+      const missing = Qualifications.get().missing(employer.needs.course, employer.needs.level, employer.needs.paper);
+      if (missing) return { ok: false, reason: missing };
+    }
     this.records[id] = { since: this.today(), done: 0 };
     this.changed();
     return { ok: true };

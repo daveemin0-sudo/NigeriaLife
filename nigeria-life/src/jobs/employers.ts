@@ -28,6 +28,8 @@ export interface Employer {
   xp: number;
   /** Primary life skill this workplace cultivates */
   skill?: keyof PlayerSkills;
+  /** A certificate the job asks for before it will take the player on */
+  needs?: { course: string; level: number; paper: string };
   grades: Grade[];
 }
 
@@ -86,6 +88,7 @@ export const EMPLOYERS: Employer[] = [
   {
     id: 'first-bank-marina',
     name: 'Eko Commercial Bank Tower',
+    needs: { course: 'banker', level: 2, paper: 'Banker' },
     place: 'the banking hall in Marina Towers, on the Marina',
     trade: 'Corporate Banking & Wealth',
     task: 'Serve a customer at the teller’s window',
@@ -137,6 +140,7 @@ export const EMPLOYERS: Employer[] = [
   {
     id: 'st-nicholas-hosp',
     name: 'St. Nicholas Hospital',
+    needs: { course: 'doctor', level: 3, paper: 'Doctor' },
     place: 'the inpatient clinical ward on Lagos Island',
     trade: 'Clinical Healthcare & Nursing',
     task: 'Administer intravenous medications and update patient recovery charts',
@@ -171,6 +175,7 @@ export const EMPLOYERS: Employer[] = [
   {
     id: 'amala-shitta-surulere',
     name: 'Amala Shitta Bukateria',
+    needs: { course: 'chef', level: 2, paper: 'Chef' },
     place: 'the kitchen at Amala Shitta, Surulere',
     trade: 'Culinary Arts & Traditional Cuisine',
     task: 'Turn the amala and serve a plate',
@@ -307,6 +312,7 @@ export const EMPLOYERS: Employer[] = [
   {
     id: 'air-peace-mma',
     name: 'Air Peace Commercial Operations',
+    needs: { course: 'pilot', level: 4, paper: 'Pilot' },
     place: 'the domestic terminal flight deck, MMA2 Ikeja',
     trade: 'Aviation Flight Operations',
     task: 'Calculate flight fuel burns and execute smooth crosswind landings',
@@ -561,6 +567,7 @@ export const EMPLOYERS: Employer[] = [
   },
   {
     id: 'cv-phone-repair',
+    needs: { course: 'software', level: 3, paper: 'Software developer' },
     name: 'Chinedu Phones & Repairs',
     place: 'the repair bench at Computer Village, Ikeja',
     trade: 'Phone repair',

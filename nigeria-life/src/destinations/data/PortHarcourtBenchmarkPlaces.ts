@@ -192,13 +192,13 @@ export function getPortHarcourtBenchmarkDestinations(defaultTransports: Transpor
       mapVisualType: 'health',
       mapIcon: '🏥',
       exteriorType: 'hospital_facade',
-      streetPosition: new THREE.Vector3(-10.75, 0, -50),
+      streetPosition: new THREE.Vector3(120, 0, -65),
       entrance: {
-        position: new THREE.Vector3(-10.75, 0, -50),
+        position: new THREE.Vector3(120, 0, -65),
         promptLabel: 'Enter UPTH Emergency Casualty Ward',
         triggerRadius: 6.5,
       },
-      interiorId: '',
+      interiorId: 'roadside-upth',
       hours: undefined,
       shortDescription: 'Regional tertiary referral teaching hospital with intensive care, surgery, oncology, and trauma centre.',
       destinationDescription:
@@ -207,7 +207,7 @@ export function getPortHarcourtBenchmarkDestinations(defaultTransports: Transpor
       transportAvailability: defaultTransports,
       npcPopulation: [],
       activities: [],
-      isEnterable: false,
+      isEnterable: true,
     },
     {
       id: 'dest_ph_rsu',
