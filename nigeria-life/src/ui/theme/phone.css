@@ -359,21 +359,47 @@ body.nl-hud-hidden #v-btn-run {
     font-size: 12px !important;
     flex: 0 0 auto !important;
   }
-  html body .place-card .place-chips {
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 2px !important;
-  }
-  html body .place-card .place-chips::-webkit-scrollbar {
-    display: none;
+  /* Two columns that wrap, so a toilet and a chair are on the screen instead of off the end of one line */
+  html body .place-card:not(.is-folded) .place-chips {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 6px !important;
+    max-height: 28vh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding-bottom: 0 !important;
   }
   html body .place-card .place-chip {
-    flex: 0 0 auto !important;
-    padding: 6px 10px !important;
-    font-size: 11.5px !important;
+    flex: unset !important;
+    width: auto !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    justify-content: flex-start !important;
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+  }
+  html body .place-card .place-chip .place-chip-icon {
+    flex: none !important;
+  }
+  html body .place-card .place-chip span:last-child {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  html body .map-context-card .transport-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  html body .map-context-card .transport-name {
+    white-space: normal !important;
+    text-align: center;
+    font-size: 11px !important;
+    line-height: 1.2;
+  }
+  html body .map-context-card .transport-fare {
+    font-weight: 800;
+    font-size: 12px;
   }
 
   /* The moves bar is in the phone's menu: on the screen it only covered the street */

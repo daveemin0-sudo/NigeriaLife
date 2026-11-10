@@ -361,7 +361,7 @@ export const peopleApp: PhoneApp = {
                 icon: contact.kind === 'player' ? '🟢' : contact.standing === 'friend' ? '🤝' : '👤',
                 title: `${esc(contact.name)}${contact.unread > 0 ? ` <span class="nl-dot" aria-label="${contact.unread} unread">${contact.unread}</span>` : ''}`,
                 sub: contact.last ? `${contact.last.from === 'me' ? 'You: ' : ''}${esc(contact.last.text)}` : esc(contact.note),
-                trailing: `<span class="nl-row-sub">${contact.last ? esc(contact.last.at) : esc(contact.note)}</span>`,
+                trailing: contact.last ? esc(contact.last.at) : '',
                 attrs: `data-go="c:${esc(contact.id)}" data-contact="${esc(contact.id)}"`,
               })).join('')}
         </div>

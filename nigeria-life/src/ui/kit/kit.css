@@ -284,21 +284,32 @@ button.nl-row:disabled {
 }
 .nl-row-title {
   font: 700 14px/1.25 var(--nl-font);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .nl-row-sub {
   font: 500 12px/1.35 var(--nl-font);
   color: var(--nl-dim);
-  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .nl-row-trail {
-  flex: none;
+  flex: 0 1 auto;
+  max-width: 38%;
+  min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   font: 700 13.5px/1.2 var(--nl-font);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .nl-stack {
   display: flex;

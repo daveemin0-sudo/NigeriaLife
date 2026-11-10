@@ -106,6 +106,15 @@ export class PlaceCard {
       const short = obj.name.split('(')[0].trim().split(/\s+/).slice(0, 2).join(' ');
       return { icon: '💬', label: short };
     }
+    if (obj.name === 'Toilet' || obj.name === 'Shower') {
+      const icon = obj.name === 'Toilet' ? '🚽' : '🚿';
+      const room = /in the ([^.]+)/i.exec(obj.description ?? '')?.[1] ?? '';
+      const n = Number(/(\d+)$/.exec(obj.id)?.[1] ?? 1);
+      const bit = room && room.toLowerCase() !== 'bathroom' ? room : n > 1 ? `bathroom ${n}` : room ? 'bathroom' : '';
+      return { icon, label: bit ? `${obj.name} · ${bit}` : obj.name };
+    }
+    const lead = /^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u.exec(obj.name);
+    if (lead) return { icon: lead[1], label: lead[2] || obj.name };
     return { icon: '📍', label: obj.name };
   }
 

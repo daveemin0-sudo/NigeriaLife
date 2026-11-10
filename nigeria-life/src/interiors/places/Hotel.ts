@@ -1203,6 +1203,9 @@ function cityBeyond(city: 'abuja' | 'ph'): THREE.Mesh {
 class TownSuite {
   private readonly hold: { release: (instant?: boolean) => void };
   private sleeping = false;
+  private seated = false;
+  private lampOn = false;
+  private lampLight: THREE.PointLight | null = null;
   private duvet: THREE.Group | null = null;
   private bedCloth: THREE.Mesh | null = null;
   private slept = 0;
@@ -1216,6 +1219,7 @@ class TownSuite {
     this.hold = { release: (instant) => this.getUp(instant) };
     this.bed = furnishGuestRoom(room.group, hotel);
     const bed = this.bed;
+    const side = roomPlan(hotel).side;
     const standX = bed.x + (bed.x < 0 ? 1.6 : -1.6);
     room.addCard({
       id: `place_${room.spec.key}_bed`, name: '🛏️ The bed', description: 'Clean sheets. Yours until noon.',
@@ -1223,12 +1227,135 @@ class TownSuite {
       label: () => (this.sleeping ? '🛏️ Sleeping' : '🛏️ Sleep'),
       run: (host) => this.sleep(host),
     });
+    room.addCard({
+      id: `place_${room.spec.key}_chair`, name: '🪑 The chair', description: 'A seat in the room.',
+      at: [side * 1.1, 1.5], stand: [side * 1.1, 2.4],
+      label: () => (this.seated ? '🪑 Sitting' : '🪑 Sit'),
+      run: (host) => this.sit(host),
+    });
+    room.addCard({
+      id: `place_${room.spec.key}_toilet`, name: '🚽 The toilet', description: 'The en-suite.',
+      at: [side * 5.9, 5.5], stand: [side * 5.9, 4.5],
+      label: () => '🚽 Use the toilet',
+      run: (host) => this.useToilet(host),
+    });
+    room.addCard({
+      id: `place_${room.spec.key}_bath`, name: '🚿 The shower', description: 'Hot water beside the bath.',
+      at: [side * 5.5, 2.7], stand: [side * 5.2, 1.5],
+      label: () => '🚿 Take a shower',
+      run: (host) => this.wash(host),
+    });
+    room.addCard({
+      id: `place_${room.spec.key}_lamp`, name: '💡 The lamp', description: 'The floor lamp by the bed.',
+      at: [bed.x - side * 2.6, bed.z + 1.8], stand: [bed.x - side * 2.2, bed.z + 1.2],
+      label: () => (this.lampOn ? '💡 Lamp on' : '💡 Lamp off'),
+      run: (host) => this.lamp(host),
+    });
     room.leadsTo = () => {
       const lobby = rooms.get(hotel);
       if (!lobby) return null;
       return { id: lobby.def.id, spawnAt: lobby.at(0, -6.6), spawnYaw: Math.PI };
     };
     room.ticks.push((delta) => this.tick(delta));
+  }
+
+  /** The room is theirs only after they have checked in */
+  private stayOrSay(host: PlaceHost): boolean {
+    if (TownStay.get(this.hotel).current()) return true;
+    host.say(TownStay.get(this.hotel).lapsed() ? 'Your stay has ended. See the front desk.' : 'This room is not yours yet. Check in at the desk.', 'info');
+    return false;
+  }
+
+  /** Sit in the chair. Getting up is the same hold the bed uses, so one tap stands them. */
+  private sit(host: PlaceHost): void {
+    if (!this.stayOrSay(host)) return;
+    const actor = host.actor;
+    if (this.seated || this.sleeping || host.director.interrupt(actor) === 'locked') return;
+    const side = roomPlan(this.hotel).side;
+    const seat = this.room.at(side * 1.1, 1.2);
+    const stand = this.room.at(side * 1.1, 2.4);
+    const down = new Sequence('sit in the chair', [actor]).add(
+      steps.walk(actor, stand, { speed: 2.2, ifStuck: 'snap' }),
+      steps.face(actor, seat),
+      steps.slide(actor, seat, 0.45),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.wait(0.3),
+    );
+    down.onEnd((reason) => {
+      if (reason !== 'done') return;
+      actor.hold = { release: (instant) => this.standFrom(stand, instant) };
+      actor.setScripted(true);
+      actor.pose = { legs: 'sit', arms: 'rest' };
+      this.seated = true;
+      host.say('You sit down.', 'info');
+    });
+    host.director.run(down);
+  }
+
+  private standFrom(stand: THREE.Vector3, instant?: boolean): void {
+    const player = InteractionDirector.get().player;
+    this.seated = false;
+    if (!player) return;
+    player.hold = null;
+    if (instant) { player.setScripted(false); return; }
+    const rise = new Sequence('get up from the chair', [player]).locked().add(
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, stand, 0.45),
+    );
+    if (!InteractionDirector.get().run(rise)) player.setScripted(false);
+  }
+
+  private useToilet(host: PlaceHost): void {
+    if (!this.stayOrSay(host)) return;
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    const side = roomPlan(this.hotel).side;
+    const at = (x: number, z: number) => this.room.at(x, z);
+    const use = new Sequence('hotel toilet', [actor]).add(
+      steps.walk(actor, at(side * 5.9, 4.5), { ifStuck: 'snap' }),
+      steps.face(actor, at(side * 5.9, 5.5)),
+      steps.slide(actor, at(side * 5.9, 5.15), 0.45),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.wait(2.2),
+      steps.call('relieved', () => {
+        host.backend.relieveBladder();
+        showGameToast('🚽 Relieved. *Flush*', 'success', 2200);
+      }),
+      steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
+      steps.slide(actor, at(side * 5.9, 4.5), 0.45),
+    );
+    host.director.run(use);
+  }
+
+  private wash(host: PlaceHost): void {
+    if (!this.stayOrSay(host)) return;
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    const side = roomPlan(this.hotel).side;
+    const at = (x: number, z: number) => this.room.at(x, z);
+    const wash = new Sequence('hotel shower', [actor]).add(
+      steps.walk(actor, at(side * 5.2, 1.5), { ifStuck: 'snap' }),
+      steps.face(actor, at(side * 5.5, 2.7)),
+      steps.slide(actor, at(side * 5.35, 2.2), 0.55),
+      steps.animate(actor, { arms: 'reach' }, 3.2, [{ at: 0.7, run: () => {
+        host.backend.takeShower();
+        host.say('🚿 A hot shower. You are clean.', 'success');
+      } }]),
+      steps.slide(actor, at(side * 5.2, 1.5), 0.55),
+    );
+    host.director.run(wash);
+  }
+
+  private lamp(host: PlaceHost): void {
+    if (!this.lampLight) {
+      const side = roomPlan(this.hotel).side;
+      this.lampLight = new THREE.PointLight(0xffe0b0, 0, 7);
+      this.lampLight.position.set(this.bed.x - side * 2.6, 1.5, this.bed.z + 1.8);
+      this.room.group.add(this.lampLight);
+    }
+    this.lampOn = !this.lampOn;
+    this.lampLight.intensity = this.lampOn ? 1.3 : 0;
+    host.say(this.lampOn ? '💡 The lamp is on.' : 'The lamp is off.', 'info');
   }
 
   private sleep(host: PlaceHost): void {
