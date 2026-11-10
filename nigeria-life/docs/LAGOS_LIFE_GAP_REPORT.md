@@ -174,3 +174,41 @@ The lobby needs a reception desk with staff, seating, a lift, and the bar or res
 - fix it until it looks like a real Nigerian place of that kind.
 
 Show the owner the screenshots.
+
+---
+
+## LAUNCH BLOCKER: cities must never leak into each other (added 10 November)
+
+The owner flew from Lagos to Abuja:
+- **The map:** they opened the map, picked a **supermarket**, and were set down **in Lagos, behind Apapa port**.
+- **Home:** they pressed **Home** in Abuja and were taken **straight into their Lagos house**, with no flight or coach, and came out on its Lagos street.
+
+**Cause:** nothing on these paths checks which city the player is in.
+- `RideService.journey` (`src/phone/services/RideService.ts`) takes any destination in any city.
+- The map's list and search (`src/ui/WorldMapUI.ts`) never read `cityManager.currentCityId`.
+- The Home button (`Game.onNavigateMode('home')`, `canGoHome`, `currentHome`) enters the home whatever city it is in.
+
+**The rule, everywhere:** a place in another city is reached only by travelling there: a flight, a coach, or the player's own jet (the flights terminal, `InterStateModal`). Nothing in one city ever opens a door, sets the player down, or walks or drives them to a place in another city.
+1. **Map:** it shows and searches this city's places (the city tabs switch the view). Picking a place in another city offers "Fly or take the coach to <city>", which opens the flights terminal. It never teleports.
+2. **Home:** with no home in this city, Home says "Your home is in Lagos (its address). Fly back, or check into a hotel here", with buttons for the flights terminal and the city's hotel. With a home here (rented, bought, built, or a hotel room checked into), Home goes there. The same goes for the phone's home shortcuts and the land app's "Go inside".
+3. **Rides, deliveries, staff, jobs:**
+   - Rides and "drive yourself" go only to places in this city.
+   - Deliveries come to a home in this city, or to the player where they stand.
+   - The driver, cook and cleaner work in the home's city.
+   - "Go to work" for a workplace in another city offers the flight.
+4. **Everything else that moves the player:** fainting or the hospital, the ambulance, police custody and release, a reload or a new session (come back in the city you left), races, convoys, the train, the yacht and the jet, and quest "Track" buttons. Each must keep or choose the right city.
+
+**Check it properly:** add a `crosscity` suite.
+- From each of Lagos, Abuja and Port Harcourt:
+  - pick a place on the map;
+  - search the map;
+  - book a phone ride;
+  - press Home, both with and without a home in that city;
+  - order a delivery;
+  - start a job shift;
+  - reload the page.
+- After each step, assert the city and that the player stands in that city.
+- Then fly, coach and jet between all three, and check each lands at the right apron or terminal.
+- Use real taps on a phone viewport.
+
+**Before the public launch next week:** a full pass by hand of every button that names or moves to a place, in each city. Write down what happened and fix every case.
