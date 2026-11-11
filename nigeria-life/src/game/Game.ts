@@ -930,6 +930,9 @@ export class Game {
     // Driving with fingers: steering, pedals, horn and Get out, on touch screens
     const drive = new DriveControls({
       keys: this.input.keys,
+      steer: (amount) => {
+        DrivableVehicle.touchSteer = amount;
+      },
       speed: () => this.player.currentVehicle?.currentSpeed ?? 0,
       fuel: () => this.player.currentVehicle?.fuel ?? 0,
       name: () => this.player.currentVehicle?.name ?? '',
@@ -1815,8 +1818,9 @@ export class Game {
     if (el.textContent !== text) el.textContent = text;
   }
 
-  /** Driving fast through the checkpoint: half the time a patrol van comes after the player */
+  /** Driving through the checkpoint at over 40 km/h: half the time a patrol van comes after the player */
   private checkpointPassAt = 0;
+  private checkpointWarnedAt = 0;
   /** The Eko Rides trip the server has started, to be paid at the drop-off */
   private rideOnServer: string | null = null;
   /** Which city's kiosks are already on the street, so they are not rebuilt every frame */
@@ -1826,8 +1830,19 @@ export class Game {
     const point = this.world.interactiveObjects.find((o) => o.id === 'street-checkpoint')?.interactionPoint;
     if (!point) return;
     const p = this.player.position;
-    if (Math.hypot(p.x - point.x, p.z - point.z) > 15) return;
-    if (Math.abs(this.player.currentVehicle?.currentSpeed ?? 0) < 6 || Date.now() - this.checkpointPassAt < 120_000) return;
+    const away = Math.hypot(p.x - point.x, p.z - point.z);
+    const speed = Math.abs(this.player.currentVehicle?.currentSpeed ?? 0);
+    // Through at up to 40 km/h is a wave-through. Faster than that the driver is told while there is still road to slow down in.
+    const LIMIT = 40 / 3.6;
+    if (Date.now() - this.checkpointPassAt < 120_000) return;
+    if (away > 18) {
+      if (away < 110 && speed > LIMIT && Date.now() - this.checkpointWarnedAt > 45_000) {
+        this.checkpointWarnedAt = Date.now();
+        showGameToast('🚧 Police checkpoint ahead. Slow to 40 km/h or they come after you.', 'warning', 4000);
+      }
+      return;
+    }
+    if (speed <= LIMIT) return;
     this.checkpointPassAt = Date.now();
     if (Math.random() < 0.5) {
       showGameToast('🚨 You ran the checkpoint. A patrol van pulls out behind you, siren going...', 'warning', 3500);
@@ -3867,8 +3882,13 @@ export class Game {
     // Update Camera Follow (moved in closer while the player is seated)
     const playerActor = this.player.actor;
     this.cameraManager.setCloseUp(playerActor.hold !== null || (playerActor.busy && playerActor.sequence?.closeUp === true));
-    this.cameraManager.update(this.player, delta);
-    this.viewPicker.update();
+    // At the wheel the view is placed after the car has moved this frame (below). Placed here it sat where
+    // the car was a frame ago: at speed, on a phone's uneven frames, the car jumped back and forth in the view.
+    const viewAfterTheCar = this.player.isDriving && !!this.player.currentVehicle;
+    if (!viewAfterTheCar) {
+      this.cameraManager.update(this.player, delta);
+      this.viewPicker.update();
+    }
     if (this.world.interiorManager.isPlayerInside()) {
       this.world.interiorManager.updateCutaway(delta, this.cameraManager.camera, this.player);
     }
@@ -3930,6 +3950,10 @@ export class Game {
     const line = BusLine.get();
     line.draw(this.world.scene, `${cityNow}:${line.buses().map((b) => b.id).join(',')}`, this.world.skyEnvironment.currentHour);
     this.world.update(delta, this.input.keys, this.player.position, this.player);
+    if (viewAfterTheCar) {
+      this.cameraManager.update(this.player, delta);
+      this.viewPicker.update();
+    }
     this.world.agamas.update(delta, this.player.position);
     if (!this.world.interiorManager.isPlayerInside()) this.world.lagoon.update(delta, this.player.position);
     this.world.expressway.redLine.update(delta, this.player.position, !this.world.interiorManager.isPlayerInside() && this.world.cityManager.currentCityId === 'lagos');

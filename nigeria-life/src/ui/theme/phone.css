@@ -1260,3 +1260,23 @@ body:has(.buka-order-status[style*="flex"]) #nl-first-steps {
     box-sizing: border-box !important;
   }
 }
+
+/* In the cell: the strip sits under the rows of chips, clear of the needs and of the round buttons */
+@media (max-width: 700px) {
+  html body .custody-banner {
+    top: calc(env(safe-area-inset-top, 0px) + 158px) !important;
+    left: 8px !important;
+    right: 64px !important;
+    transform: none !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    text-align: center !important;
+  }
+}
+
+/* The steering slider: the pad takes the finger (the page does not scroll or zoom under it), and its knob rides with the finger */
+html body .drive-steer { pointer-events: auto !important; touch-action: none !important; -webkit-user-select: none; user-select: none; }
+html body .drive-steer .drive-arrow { touch-action: none !important; }
+html body .drive-steer-knob { position: relative; z-index: 1; pointer-events: none; transition: transform 0.07s linear; }

@@ -108,11 +108,47 @@ export function turnWheel(wheel: number, held: -1 | 0 | 1, speed: number, dt: nu
   return clamp(wheel + held * rate * dt, -1, 1);
 }
 
+/** How fast the wheel follows a finger on the steering slider, lock-widths per second at a standstill. */
+const SLIDER_TURN_RATE = 3.4;
+
+/**
+ * The wheel after `dt` seconds with a finger holding the steering slider at `target` (-1 full
+ * right to +1 full left). The wheel goes to where the finger is, quickly but not at once (slower
+ * at speed), so a finger a little off the middle is a little steering and stays that.
+ */
+export function turnWheelTo(wheel: number, target: number, speed: number, dt: number): number {
+  const want = clamp(target, -1, 1);
+  const gap = want - wheel;
+  // Further from the middle the same way: the turn-in rate. Back towards the middle or across it: the quicker ones.
+  const outward = Math.abs(want) > Math.abs(wheel) && (wheel === 0 || Math.sign(want) === Math.sign(wheel));
+  const crossing = wheel !== 0 && want !== 0 && Math.sign(want) !== Math.sign(wheel);
+  const rate = crossing ? WHEEL_SWAP_RATE : outward ? SLIDER_TURN_RATE / (1 + Math.abs(speed) / 20) : WHEEL_RETURN_RATE;
+  const step = rate * dt;
+  return Math.abs(gap) <= step ? want : wheel + Math.sign(gap) * step;
+}
+
+/** How long a car braked to a stop stays stopped, pedal still down, before it starts to back up, seconds. */
+export const REVERSE_PAUSE = 0.6;
+
 /** The angle of the front wheels, radians, for a wheel position at a speed. `handling` scales lock (1 = standard). */
 export function wheelAngle(wheel: number, speed: number, handling: number): number {
   const lock = (LOCK * handling) / Math.sqrt(1 + (speed / LOCK_FADE_SPEED) ** 2);
   // A little softer round the middle, so small corrections are small
   return Math.sign(wheel) * Math.pow(Math.abs(wheel), 1.3) * lock;
+}
+
+/**
+ * The angle of the front wheels for a finger on the steering slider. At speed the tyres give out
+ * long before full lock (at 50 km/h a sedan's grip is used up at under half of it), so with the
+ * plain wheel the outer half of the slider did nothing and the inner half was a hair trigger.
+ * Here the whole slider spans what the tyres can hold at this speed: the same hardest turn at the
+ * end of it, and twice the room (four times at 100 km/h) for a lane change.
+ */
+export function sliderAngle(kind: HandlingKind, wheel: number, speed: number, handling: number): number {
+  const lock = (LOCK * handling) / Math.sqrt(1 + (speed / LOCK_FADE_SPEED) ** 2);
+  const v = Math.abs(speed);
+  const held = v > 1 ? Math.atan((GRIP[kind] * WHEELBASE[kind]) / (v * v)) : lock;
+  return Math.sign(wheel) * Math.pow(Math.abs(wheel), 1.3) * Math.min(lock, held);
 }
 
 /** How fast the vehicle turns, rad/s (positive = to the left), for a front-wheel angle at a speed (negative in reverse). */

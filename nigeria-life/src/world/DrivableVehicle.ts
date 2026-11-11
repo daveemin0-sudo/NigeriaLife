@@ -12,7 +12,7 @@ import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import type { Zone } from './plan/CityPlan';
 import { Bodies, bodyOf, depthIntoCar, type CarBody } from './Bodies';
 import { buildCarBody, CAR_SPECS, type CarSpec } from './vehicles/CarBodyKit';
-import { ASSIST_HANDS_ON, assistYawRate, handlingOf, nextSpeed, roadUnder, turnWheel, wheelAngle, yawRate } from './VehicleHandling';
+import { ASSIST_HANDS_ON, REVERSE_PAUSE, assistYawRate, handlingOf, nextSpeed, roadUnder, sliderAngle, turnWheel, turnWheelTo, wheelAngle, yawRate } from './VehicleHandling';
 
 /** Below this speed (m/s, about 11 km/h) a car may be driven over the kerb, off the road */
 const KERB_SPEED = 3;
@@ -96,6 +96,8 @@ export class DrivableVehicle {
 
   // Vehicle Handling, Steering Physics & Lane Centering
   public static steeringSensitivity: number = 1.0;
+  /** A finger on the steering slider: -1 (full left of the pad) to +1 (full right); null when no finger is on it */
+  public static touchSteer: number | null = null;
   public static laneAssistStrength: number = 0.85;
   public static cameraSmoothing: number = 1.0;
 
@@ -124,6 +126,10 @@ export class DrivableVehicle {
   }
 
   public steerInput: number = 0;
+  /** Braked to a stop with the pedal still down: how long it has stood there (it backs up after REVERSE_PAUSE) */
+  private stoppedOnBrake = -1;
+  /** The wheel was last turned by a finger on the slider (until it is back in the middle, or a key takes over) */
+  private byFinger = false;
   public isCenteringActive: boolean = false;
   private velocityDirection: THREE.Vector2 = new THREE.Vector2(0, 1);
 
@@ -2049,13 +2055,26 @@ export class DrivableVehicle {
     // Danfos and kekes: pull up at a bus stop and the queue boards, each paying as they step in
     if (this.isCommercialTransit) this.workTheRoute(delta);
 
-    // Pedals, then the wheel, then how fast that turns the vehicle at this speed (see VehicleHandling)
-    this.currentSpeed = nextSpeed(this.currentSpeed, delta, { gas, brake }, this.config);
+    // Pedals, then the wheel, then how fast that turns the vehicle at this speed (see VehicleHandling).
+    // A car braked to a stop stays stopped for a moment, pedal still down, before it backs up: the brake
+    // is a brake first. Let go and pressed again, or pressed from a standstill, it backs up at once.
+    let reversing = brake;
+    if (!brake || gas) this.stoppedOnBrake = -1;
+    else if (this.currentSpeed > 0.5) this.stoppedOnBrake = 0;
+    else if (this.stoppedOnBrake >= 0 && this.stoppedOnBrake < REVERSE_PAUSE) {
+      this.stoppedOnBrake += delta;
+      this.currentSpeed = 0;
+      reversing = false;
+    }
+    this.currentSpeed = nextSpeed(this.currentSpeed, delta, { gas, brake: reversing }, this.config);
 
     const held: -1 | 0 | 1 = left && !right ? 1 : right && !left ? -1 : 0;
-    this.steerInput = turnWheel(this.steerInput, held, this.currentSpeed, delta);
+    const finger = DrivableVehicle.touchSteer;
+    // A finger on the slider puts the wheel where the finger is; keys turn it while they are held
+    this.steerInput = finger !== null && held === 0 ? turnWheelTo(this.steerInput, -finger, this.currentSpeed, delta) : turnWheel(this.steerInput, held, this.currentSpeed, delta);
     const handling = handlingOf(this.config.turnSpeed, DrivableVehicle.steeringSensitivity);
-    this.turnAngle = wheelAngle(this.steerInput, this.currentSpeed, handling);
+    this.byFinger = held === 0 && (finger !== null || (this.byFinger && this.steerInput !== 0));
+    this.turnAngle = this.byFinger ? sliderAngle(this.type, this.steerInput, this.currentSpeed, handling) : wheelAngle(this.steerInput, this.currentSpeed, handling);
     let turn = yawRate(this.type, this.turnAngle, this.currentSpeed);
 
     // Road assist: keeps a car going straight in its lane, and stays out of the way while the driver steers

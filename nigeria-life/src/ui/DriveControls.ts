@@ -1,10 +1,13 @@
 /**
- * Driving with fingers: steering on the left (hold ◀ or ▶), the pedals on the right (hold GAS to
- * go, BRAKE to slow and then reverse), a horn and a Get out button above them, and the speed in
- * the middle. Shown on touch screens while driving, in place of the stick.
+ * Driving with fingers: steering on the left (a slider: a finger a little off the middle steers a
+ * little, at either end fully; let go and the wheel comes back), the pedals on the right (hold GAS
+ * to go, BRAKE to slow, stop, and then reverse), a horn and a Get out button above them, and the
+ * speed in the middle. Shown on touch screens while driving, in place of the stick.
  */
 export interface DriveHooks {
   keys: Record<string, boolean>;
+  /** A finger on the steering slider: -1 full left to +1 full right; null when it is let go */
+  steer(amount: number | null): void;
   speed(): number;
   fuel(): number;
   honk(): void;
@@ -23,6 +26,9 @@ export class DriveControls {
   private readonly hooks: DriveHooks;
   private frame = 0;
   private held = new Map<number, string>();
+  /** The finger on the steering slider, or -1 */
+  private steerFinger = -1;
+  private steerOff: () => void = () => undefined;
 
   constructor(hooks: DriveHooks) {
     this.hooks = hooks;
@@ -32,9 +38,9 @@ export class DriveControls {
     this.el.innerHTML = `
       <div class="drive-top"><span class="drive-name" data-name></span><span class="drive-fuel" data-fuel></span><button class="drive-chip" data-music aria-label="Car stereo">🎵</button><button class="drive-chip" data-view aria-label="Camera view">👁 View</button><button class="drive-chip" data-refuel>⛽ Refuel</button></div>
       <div class="drive-steer" aria-label="Steering">
-        <button class="drive-arrow" data-key="a" aria-label="Steer left">◀</button>
+        <button class="drive-arrow" data-side="left" aria-label="Steer left">◀</button>
         <span class="drive-steer-knob" aria-hidden="true"></span>
-        <button class="drive-arrow" data-key="d" aria-label="Steer right">▶</button>
+        <button class="drive-arrow" data-side="right" aria-label="Steer right">▶</button>
       </div>
       <div class="drive-speed"><b data-speed>0</b><span>km/h</span></div>
       <div class="drive-right">
@@ -69,6 +75,44 @@ export class DriveControls {
         this.el.querySelector(`[data-key="${key}"]`)?.classList.remove('is-down');
       }
     };
+    // The steering slider: the wheel goes where the finger is across the pad
+    const pad = this.el.querySelector<HTMLElement>('.drive-steer')!;
+    const knob = pad.querySelector<HTMLElement>('.drive-steer-knob')!;
+    const arrows = { left: pad.querySelector<HTMLElement>('[data-side="left"]')!, right: pad.querySelector<HTMLElement>('[data-side="right"]')! };
+    const steerTo = (event: PointerEvent) => {
+      const box = pad.getBoundingClientRect();
+      const half = box.width / 2;
+      // Full lock a little before the very edge, and a small dead middle so a resting thumb is straight ahead
+      let amount = Math.max(-1, Math.min(1, (event.clientX - (box.left + half)) / (half * 0.8)));
+      if (Math.abs(amount) < 0.08) amount = 0;
+      // Finer round the middle, where lane changes are made; the ends are still full lock
+      this.hooks.steer(Math.sign(amount) * Math.pow(Math.abs(amount), 1.5));
+      knob.style.transform = `translateX(${Math.round(amount * (half - 28))}px)`;
+      arrows.left.classList.toggle('is-down', amount < 0);
+      arrows.right.classList.toggle('is-down', amount > 0);
+    };
+    const steerOff = (event?: PointerEvent) => {
+      if (event && event.pointerId !== this.steerFinger) return;
+      this.steerFinger = -1;
+      this.hooks.steer(null);
+      knob.style.transform = '';
+      arrows.left.classList.remove('is-down');
+      arrows.right.classList.remove('is-down');
+    };
+    this.steerOff = () => steerOff();
+    pad.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      this.steerFinger = event.pointerId;
+      pad.setPointerCapture?.(event.pointerId);
+      steerTo(event);
+    });
+    pad.addEventListener('pointermove', (event) => {
+      if (event.pointerId === this.steerFinger) steerTo(event);
+    });
+    pad.addEventListener('pointerup', steerOff);
+    pad.addEventListener('pointercancel', steerOff);
+    pad.addEventListener('lostpointercapture', steerOff);
+
     this.el.addEventListener('pointerdown', press);
     this.el.addEventListener('pointerup', release);
     this.el.addEventListener('pointercancel', release);
@@ -93,6 +137,7 @@ export class DriveControls {
     this.el.classList.toggle('is-on', on);
     cancelAnimationFrame(this.frame);
     if (!on) {
+      this.steerOff();
       for (const key of new Set(this.held.values())) this.hooks.keys[key] = false;
       this.held.clear();
       this.el.querySelectorAll('.is-down').forEach((b) => b.classList.remove('is-down'));
