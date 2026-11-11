@@ -7,7 +7,9 @@ import { PROFILE_ID } from '../backend/Profile';
 
 export interface TitleHost {
   /** Who the player is and how they are doing, for the card */
-  summary(): { name: string; day: string; money: string; place: string; home: string | null };
+  summary(): { name: string; day: string; money: string; place: string; home: string | null; fresh?: boolean };
+  /** The title has gone and the player is in the world */
+  closed?(): void;
   /** Turns the camera a little, each frame, while the title is up */
   drift(delta: number): void;
   /** The view while the title is up (high over the city), and back to the street after */
@@ -118,7 +120,12 @@ export class TitleScreen {
         <p class="ts-line">Lagos · Abuja · Port Harcourt</p>
       </div>
       <div class="ts-card lx-pop is-open" id="title-card">
-        ${asking ? `
+        ${s.fresh && !asking && !others.length ? `
+          <div class="ts-ask ts-welcome">
+            <strong>Welcome. Your Nigerian life starts here.</strong>
+            <p>Work, earn, rent a room, build a name, in Lagos, Abuja and Port Harcourt. You begin with ${esc(s.money)} and a short guide to your first pay.</p>
+            <button type="button" class="lx-btn lx-btn-brand ts-go" data-title="continue" id="title-continue">Start your life</button>
+          </div>` : asking ? `
           <div class="ts-ask">
             <strong>Start a new life?</strong>
             <p>A new life begins with ₦25,000 and nothing else: a new name, a new look, no home yet. Your life as ${esc(s.name)} is kept. Come back to it from here any time.</p>
@@ -137,7 +144,7 @@ export class TitleScreen {
           <button type="button" class="lx-btn lx-btn-soft ts-new" data-title="new" id="title-new">New life</button>
           ${others.length ? `<div class="ts-lives"><span>Your other lives</span>${others.map((life) => `<button type="button" class="ts-life" data-title="life:${esc(life.id)}">${esc(life.name)}</button>`).join('')}</div>` : ''}`}
       </div>
-      <p class="ts-tip">Tap Continue, or press Enter</p>
+      <p class="ts-tip">${s.fresh && !others.length ? 'Tap Start your life, or press Enter' : 'Tap Continue, or press Enter'}</p>
     `;
   }
 
@@ -149,5 +156,6 @@ export class TitleScreen {
     document.body.classList.remove('lx-title');
     this.host.frame(false);
     setTimeout(() => this.el.remove(), 600);
+    this.host.closed?.();
   }
 }

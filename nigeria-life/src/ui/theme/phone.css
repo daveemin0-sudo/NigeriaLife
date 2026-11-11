@@ -1098,3 +1098,109 @@ html[data-text="large"] #phone-screen-content { zoom: 1.12; }
   color: #0f172a;
   font: 700 12px/1 system-ui, sans-serif;
 }
+
+/* --- A new player's first steps: one slim line that says what to do next (any screen) ----------- */
+#nl-first-steps {
+  position: fixed;
+  top: 226px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(520px, calc(100vw - 16px));
+  padding: 6px 6px 6px 8px;
+  border-radius: 999px;
+  background: var(--lx-card, #ffffff);
+  border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.1));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  color: var(--lx-ink, #0f1a14);
+  font: 700 12.5px/1.25 var(--nl-font, system-ui, sans-serif);
+  box-sizing: border-box;
+}
+#nl-first-steps .fs-n {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--lx-brand-soft, #e6f4ec);
+  color: var(--lx-brand-deep, #0e7a4e);
+  font-size: 11px;
+  font-weight: 800;
+}
+#nl-first-steps .fs-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#nl-first-steps .fs-do {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #0e7a4e;
+  color: #fff;
+  font: 800 12px/1 var(--nl-font, system-ui, sans-serif);
+  cursor: pointer;
+}
+#nl-first-steps .fs-skip {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--lx-dim, #6b7a72);
+  font-size: 12px;
+  cursor: pointer;
+}
+/* Out of the way of a window, the title, the map, a clean screen and the wheel */
+body.ui-modal-open #nl-first-steps,
+body.lx-title #nl-first-steps,
+body.lx-clean #nl-first-steps,
+body.nl-hud-hidden #nl-first-steps,
+body[data-ui-mode="world-map"] #nl-first-steps,
+body[data-ui-mode="driving"] #nl-first-steps,
+body[data-ui-mode="transit"] #nl-first-steps,
+body:has(.buka-order-status[style*="flex"]) #nl-first-steps {
+  display: none !important;
+}
+/* The button a step points at */
+.fs-point {
+  animation: fsPoint 1.4s ease-in-out infinite;
+  border-radius: 14px;
+}
+@keyframes fsPoint {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(14, 122, 78, 0.55); }
+  50% { box-shadow: 0 0 0 8px rgba(14, 122, 78, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fs-point { animation: none; outline: 2px solid #0e7a4e; }
+}
+@media (max-width: 700px) and (orientation: portrait) {
+  #nl-first-steps {
+    top: calc(env(safe-area-inset-top, 0px) + 150px);
+    left: 8px;
+    right: 56px;
+    transform: none;
+    max-width: none;
+    border-radius: 14px;
+    font-size: 12px;
+  }
+  /* The toasts go under it */
+  html body:has(#nl-first-steps) #game-toast-container {
+    top: calc(env(safe-area-inset-top, 0px) + 200px) !important;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  #nl-first-steps {
+    top: calc(env(safe-area-inset-top, 0px) + 92px);
+    left: 30vw;
+    right: 30vw;
+    transform: none;
+    max-width: none;
+    border-radius: 14px;
+  }
+  html body:has(#nl-first-steps) #game-toast-container {
+    top: calc(env(safe-area-inset-top, 0px) + 138px) !important;
+  }
+}

@@ -172,6 +172,25 @@ export const jobsApp: PhoneApp = {
               : `<div class="nl-card-line" id="jobs-shift-time">${leftWords(shift.remainingSecs)} left on this shift</div>`}
           </div>` : ''}
 
+        <div class="nl-section">Shifts</div>
+        <div class="nl-list" id="jobs-list">
+          ${host.backend.getJobs().map((job) => {
+            const locked = job.requiredLevel > career.rankLevel;
+            const mine = shift?.job.id === job.id;
+            const can = !shift && !locked;
+            return row({
+              icon: job.icon,
+              title: esc(job.title),
+              sub: `${esc(job.workplace)} · ${naira(job.salary * 22)} a month · ${leftWords(job.shiftDuration)} shift${locked ? ` · needs rank ${job.requiredLevel}` : ''}`,
+              trailing: `<span class="nl-stack"><strong>${naira(job.salary)}</strong>${
+                mine ? '<span class="nl-tag">On it</span>'
+                : locked ? '<span class="nl-tag nl-tag--muted">🔒 Rank ' + job.requiredLevel + '</span>'
+                : `<button class="nl-btn nl-btn--sm" data-start-job="${esc(job.id)}" data-act="start" data-arg="${esc(job.id)}" ${can ? '' : 'disabled'}>Take shift</button>`}</span>`,
+              tone: locked ? 'muted' : 'default',
+            });
+          }).join('')}
+        </div>
+
         <div class="nl-section">Where you work</div>
         <div class="nl-list" id="jobs-employment">
           ${Employment.get().jobs().map((job) => row({
@@ -220,25 +239,6 @@ export const jobsApp: PhoneApp = {
               });
             }).join('');
           })()}
-        </div>
-
-        <div class="nl-section">Shifts</div>
-        <div class="nl-list" id="jobs-list">
-          ${host.backend.getJobs().map((job) => {
-            const locked = job.requiredLevel > career.rankLevel;
-            const mine = shift?.job.id === job.id;
-            const can = !shift && !locked;
-            return row({
-              icon: job.icon,
-              title: esc(job.title),
-              sub: `${esc(job.workplace)} · ${naira(job.salary * 22)} a month · ${leftWords(job.shiftDuration)} shift${locked ? ` · needs rank ${job.requiredLevel}` : ''}`,
-              trailing: `<span class="nl-stack"><strong>${naira(job.salary)}</strong>${
-                mine ? '<span class="nl-tag">On it</span>'
-                : locked ? '<span class="nl-tag nl-tag--muted">🔒 Rank ' + job.requiredLevel + '</span>'
-                : `<button class="nl-btn nl-btn--sm" data-start-job="${esc(job.id)}" data-act="start" data-arg="${esc(job.id)}" ${can ? '' : 'disabled'}>Take shift</button>`}</span>`,
-              tone: locked ? 'muted' : 'default',
-            });
-          }).join('')}
         </div>
 
         <div class="nl-section">Quick work</div>

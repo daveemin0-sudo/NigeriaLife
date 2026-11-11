@@ -146,6 +146,7 @@ import { FORECOURT, STATIONS, jerryCanShare, nearestStation, stationNear, type S
 import { TopMenu } from '../ui/TopMenu';
 import { Fleet, fleetColour, fleetModel } from '../assets/Fleet';
 import { InterStateModal } from '../ui/InterStateModal';
+import { FirstSteps, type FirstStepsHost } from '../ui/FirstSteps';
 import { buildJet, buildYacht } from '../world/expressway/FleetModels';
 import { AIRFIELD, MARINA } from '../world/expressway/Roadside';
 import { FurnitureThumbs } from '../ui/FurnitureThumbs';
@@ -2524,6 +2525,33 @@ export class Game {
     }
     return best;
   }
+
+  /** What the first-steps guide reads and does */
+  public firstStepsHost(): FirstStepsHost {
+    const backend = BackendService.getInstance();
+    return {
+      name: () => backend.getData().username,
+      position: () => this.player.position,
+      phoneOpen: () => this.hud.phoneModal.isOpen,
+      onShift: () => backend.getActiveJobShift() !== null,
+      timesPaid: () => backend.getData().career.completedGigs,
+      hasHome: () => this.myHomes().length > 0 || this.land.hasHome(),
+      openLook: () => this.hud.creatorModal.open('look'),
+      openApp: (app) => {
+        this.hud.phoneModal.open();
+        this.hud.phoneModal.openApp(app);
+      },
+      say: (text) => showGameToast(text, 'success', 8000),
+      touch: () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches,
+    };
+  }
+
+  /** The guide to the first pay, for a life that is new (once; nothing for a life under way) */
+  public startFirstSteps(): void {
+    if (!this.firstSteps) this.firstSteps = FirstSteps.begin(this.firstStepsHost());
+  }
+
+  private firstSteps: FirstSteps | null = null;
 
   /** A house the player built on their land (its plot's id), as opposed to a flat or house rented or bought */
   private isPlotHome(id: string): boolean {

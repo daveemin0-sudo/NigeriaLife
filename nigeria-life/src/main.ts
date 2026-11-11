@@ -12,6 +12,7 @@ import './ui/theme/luxe.css';
 // Phones: after everything else, so the phone layout is what a phone shows
 import './ui/theme/phone.css';
 import { Game } from './game/Game';
+import { isFreshLife } from './ui/FirstSteps';
 import { startTheme } from './ui/theme/Theme';
 import { TitleScreen } from './ui/TitleScreen';
 import { BackendService } from './backend/BackendService';
@@ -46,6 +47,7 @@ void fontsReady.then(() => {
     window.addEventListener('pointerdown', () => StreetAmbience.get().warm(), { once: true, capture: true });
     // The title over the city, to carry on or begin a new life (not for the automated tests, unless asked for)
     const w = window as any;
+    if (navigator.webdriver && !w.__titleOn && w.__firstStepsOn) game.startFirstSteps();
     if (!navigator.webdriver || w.__titleOn) {
       w.titleScreen = new TitleScreen({
         summary: () => {
@@ -58,8 +60,11 @@ void fontsReady.then(() => {
             money: `₦${(data.walletCash + data.bank.balance).toLocaleString()}`,
             place: game.world.getDistrictAtPosition(game.player.position).name,
             home: home ? home.name : null,
+            fresh: isFreshLife(game.firstStepsHost()),
           };
         },
+        // In the world for the first time: the guide to the first pay
+        closed: () => game.startFirstSteps(),
         drift: (delta) => game.cameraManager.rotate(delta * 0.1),
         frame: (on) => game.cameraManager.setPreset(on ? 'isometric' : 'street'),
       });

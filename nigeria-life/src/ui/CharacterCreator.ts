@@ -245,6 +245,12 @@ export class CharacterCreatorModal {
           <button class="dialog-close-btn" id="creator-close-btn">&times;</button>
         </header>
 
+        <!-- The player's name, on every tab -->
+        <label style="display: flex; align-items: center; gap: 10px; padding: 10px 24px 0; font-size: 13px; font-weight: 700; color: #66736c;">
+          Your name
+          <input type="text" id="creator-name-input" class="text-input" maxlength="20" autocomplete="off" value="${this.player.config.name && this.player.config.name !== 'Bayo' ? this.player.config.name : ''}" placeholder="Type your name" style="flex: 1; min-width: 0;">
+        </label>
+
         <!-- Studio Mode Tabs -->
         <div style="display: flex; gap: 8px; padding: 12px 24px; background: transparent; border-bottom: 1px solid rgba(15, 26, 20, 0.08);">
           <button id="tab-btn-look" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'look' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'look' ? '#ffffff' : '#66736c'};">
@@ -478,6 +484,18 @@ export class CharacterCreatorModal {
     const saveBtn = document.getElementById('creator-save-btn');
     if (saveBtn) saveBtn.onclick = () => this.close();
 
+    // The name: at the top on every tab, and with the origin on its own tab
+    for (const nameInput of [document.getElementById('cfg-name-input'), document.getElementById('creator-name-input')] as Array<HTMLInputElement | null>) {
+      if (!nameInput) continue;
+      nameInput.oninput = () => {
+        this.player.config.name = nameInput.value;
+        this.player.applyCustomization(this.player.config);
+        // The name is the player's everywhere: the title, the phone, their card
+        const typed = nameInput.value.trim();
+        if (typed) this.backend.updateUsername(typed);
+      };
+    }
+
     // Tab buttons
     const tabLook = document.getElementById('tab-btn-look');
     if (tabLook) {
@@ -638,13 +656,6 @@ export class CharacterCreatorModal {
         };
       }
 
-      const nameInput = document.getElementById('cfg-name-input') as HTMLInputElement;
-      if (nameInput) {
-        nameInput.oninput = () => {
-          this.player.config.name = nameInput.value;
-          this.player.applyCustomization(this.player.config);
-        };
-      }
 
       const skinSwatches = this.container.querySelectorAll('.skin-swatch');
       skinSwatches.forEach((btn) => {
