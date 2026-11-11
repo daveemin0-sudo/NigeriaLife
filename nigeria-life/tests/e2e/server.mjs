@@ -220,6 +220,8 @@ export async function run(browser, check) {
       await g.land.buyFromState(free);
       await g.land.buyFromState(taken);
       const r = g.land.plot(free).rect;
+      // The family on the land is seen off first (the levy has its own suite)
+      g.land.reportLevy(free, () => 0);
       await g.land.startBuilding(free, 'bungalow', (r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2, 0);
       await g.garage.buyNew('okada');
       const d = g.hud.backend.getData();
