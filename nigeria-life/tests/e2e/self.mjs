@@ -289,7 +289,8 @@ export async function run(browser, check) {
   // Somewhere on the 3D view that the menu is not covering
   const away = await page.evaluate(() => {
     const menu = document.getElementById('self-menu').getBoundingClientRect();
-    const canvas = document.querySelector('canvas');
+    // The game's own view (there are other canvases now: the small map, the dials)
+    const canvas = window.game.renderer.domElement;
     for (let y = 60; y < innerHeight - 20; y += 20) {
       for (let x = 12; x < innerWidth - 10; x += 20) {
         const inMenu = x > menu.left - 8 && x < menu.right + 8 && y > menu.top - 8 && y < menu.bottom + 8;

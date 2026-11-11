@@ -156,6 +156,13 @@ export class Employment {
     }));
   }
 
+  /** The certificate this employer asks for and the player does not hold yet, or null */
+  public paperNeeded(id: string): string | null {
+    const needs = this.employer(id)?.needs;
+    if (!needs || this.isEmployed(id)) return null;
+    return Qualifications.get().level(needs.course) >= needs.level ? null : `a ${needs.paper} level ${needs.level} certificate`;
+  }
+
   /** Taken on. Someone who worked there before and left starts again from the bottom. */
   public apply(id: string): { ok: boolean; reason?: string } {
     const employer = this.employer(id);

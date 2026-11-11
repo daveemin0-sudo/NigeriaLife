@@ -60,7 +60,8 @@ export async function run(browser, check) {
   const p0 = (await company(page)).pending;
   await payout(page);
   c = await company(page);
-  const boost = await page.evaluate(() => window.game.hud.backend.constructor.revenueBoost());
+  // The government's policy for business, and NEPA: a shop with no generator keeps half of what it would take while its area has no light
+  const boost = await page.evaluate((id) => { const b = window.game.hud.backend; const biz = b.getData().businesses.find((x) => x.id === id); return b.constructor.revenueBoost() * b.constructor.powerShare(biz, 45000 / 3_600_000); }, BIZ);
   check('companies: a payout is the shop\'s own takings lifted by its staff (cook +18%, server +8%)', Math.abs(c.lift - 1.26) < 1e-9 && c.pending - p0 === Math.round(24000 * 1.26 * boost), { lift: c.lift, paid: c.pending - p0, expect: Math.round(24000 * 1.26 * boost) });
 
   // ------------------------------------------------------------------ A manager, and the close of the day

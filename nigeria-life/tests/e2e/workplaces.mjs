@@ -124,6 +124,17 @@ export async function run(browser, check) {
   const away = { label: turnedAway, paid: (await money(page)).total - m0.total, told: await page.evaluate(() => /Ask me for work first/.test(document.body.innerText)) };
   check('workplaces: the teller\'s window is for staff: someone not taken on is sent to the manager and nothing is paid', /ask Mr Eze/i.test(away.label ?? '') && away.paid === 0 && away.told, away);
 
+  // The bank asks for a banker's certificate: without it the manager says so, and where it is got
+  await use(page, 'work_marina-towers_hire_first-bank-marina');
+  const noPaper = (await playUntil(page, () => document.getElementById('game-dialogue-overlay')?.innerText || null, 10)) ?? '';
+  await choose(page, 'All right');
+  await wait(300);
+  const stillOut = await page.evaluate(() => !window.game.jobs.isEmployed('first-bank-marina'));
+  check('workplaces: without the banker certificate Mr Eze says which paper the bank asks for and that it is got in Courses on the phone; no offer is made',
+    /Banker level 2 certificate/.test(noPaper) && /Courses/.test(noPaper) && !/Take the job/.test(noPaper) && stillOut, { noPaper: noPaper.slice(0, 300), stillOut });
+  // Every paper in hand for the rest (the courses themselves are tested in their own suite)
+  await page.evaluate(() => { const q = window.game.modules.Qualifications.get(); for (const id of ['banker', 'doctor', 'chef', 'pilot', 'software']) q.levels[id] = 5; });
+
   const taken = await hire(page, 'marina-towers', 'first-bank-marina');
   check('workplaces: Mr Eze states the terms, grade by grade, and takes the player on as a teller', /Ask Mr Eze for work/.test(taken.label ?? '') && /a round to start/.test(taken.offer) && taken.employed, taken);
 

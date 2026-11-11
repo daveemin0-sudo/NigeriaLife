@@ -1402,7 +1402,7 @@ export class Game {
         const station = RED_LINE[near.index].name;
         if (!BackendService.getInstance().pay(fare, `Keke to ${station} station`, 'TRAVEL_COST')) return `A keke to ${station} station is ₦${fare.toLocaleString()}, and you do not have it.`;
         const gate = line.gate(near.index, near.side);
-        const destination = { name: `${station} station`, streetPosition: gate } as unknown as DestinationDefinition;
+        const destination = { name: `${station} station`, streetPosition: gate, city: 'lagos' } as unknown as DestinationDefinition;
         const keke = { mode: 'keke', label: 'Keke to the station', icon: '🛺', fare, travelTimeSec: 60, description: '' } as TransportOption;
         this.rides.journey(destination, keke, () => {
           // Set down a few steps from the gate, facing it, then on to the train
@@ -1422,7 +1422,8 @@ export class Game {
       where: () => this.whereabouts(),
       cityId,
       startJourney: (destination, vehicle, arrived) => {
-        if (destination.city !== cityId()) {
+        // A place in another city is flown to; a spot with no city named is here, in this one
+        if (destination.city && destination.city !== cityId()) {
           this.flyInstead(destination.city);
           return;
         }

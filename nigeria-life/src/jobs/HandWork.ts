@@ -333,6 +333,17 @@ export function createHandWork(options: HandWorkOptions): HandWork {
       const name = employer?.name ?? 'here';
       const shiftWords = piecesNow() > 0 ? `A shift is ${piecesNow()} rounds of work back to back, in work clothes; you stay till it is done.` : '';
       if (!jobs.isEmployed(id)) {
+        // No paper, no job: said plainly before any offer, with where the paper is got
+        const paper = jobs.paperNeeded(id);
+        if (paper) {
+          host.ask({
+            who: words.boss,
+            role: words.role,
+            text: `${name} only takes on people with ${paper}. Get it in Courses on your phone, then come back and the work is yours.`,
+            choices: [{ label: 'All right', pick: () => undefined }],
+          });
+          return;
+        }
         const take = (thenWork: boolean) => {
           const taken = jobs.apply(id);
           host.say(taken.ok ? `You are taken on at ${name} as a ${(jobs.grade(id)?.title ?? 'hand').toLowerCase()}. ${words.ready}` : taken.reason ?? '', taken.ok ? 'success' : 'warning');
