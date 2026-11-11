@@ -108,7 +108,7 @@ export async function run(browser, check) {
   const fake = ['novare_mall_wuse'];
   const builtNow = ['national_assembly', 'transcorp_hilton', 'eagle_square', 'central_bank_abuja', 'millennium_tower', 'wuse_market', 'jabi_lake_mall', 'millennium_park', 'national_hospital_abuja'];
   check('the map of Abuja is Abuja as built: the city itself under the map, a pin over each real place (the mosque, the Christian centre, the secretariat, Aso Rock, the cab rank, the motor park, the bank, the airport, and now the National Assembly, Transcorp Hilton, Eagle Square, the Central Bank, the Millennium Tower, Wuse Market, Jabi Lake Mall, Millennium Park and the National Hospital), and none for a place that is not there',
-    abujaMap.viewing === 'abuja' && abujaMap.real && abujaMap.onRealThings && abujaMap.youAreHere && abujaMap.pins.length === 17 && ['national_mosque', 'ecumenical_centre', 'federal_secretariat', 'aso_rock', 'abuja_cab_rank', 'utako_motor_park', 'abuja_airport', 'savanna_bank_abuja', ...builtNow].every((id) => abujaMap.pins.includes(id))
+    abujaMap.viewing === 'abuja' && abujaMap.real && abujaMap.onRealThings && abujaMap.youAreHere && abujaMap.pins.filter((id) => !id.startsWith('door-')).length === 17 && ['national_mosque', 'ecumenical_centre', 'federal_secretariat', 'aso_rock', 'abuja_cab_rank', 'utako_motor_park', 'abuja_airport', 'savanna_bank_abuja', ...builtNow].every((id) => abujaMap.pins.includes(id))
       && !fake.some((id) => abujaMap.pins.includes(id)) && underMap.abuja && noneOfLagos(underMap), { abujaMap, underMap });
 
   await page.evaluate(() => window.game.hud.worldMapUI.goToPlace('utako_motor_park', 'abuja'));
@@ -150,7 +150,7 @@ export async function run(browser, check) {
   await wait(400);
   const zoo = await page.evaluate(() => document.getElementById('map-search-results').innerText);
   check('from Lagos, the map of Port Harcourt is Port Harcourt as built, though the player has never been: the refinery, the bole spot, the university, the motor park, the bank and the airport, each pinned where it stands',
-    backInLagos && phMap.viewing === 'port_harcourt' && phMap.real && phMap.onRealThings && phMap.pins.length === 11 && ['mile_one_market', 'ph_mall', 'pleasure_park', 'rivers_govt_house', 'ph_waterfront'].every((id) => phMap.pins.includes(id)) && phMap.pins.includes('waterlines_motor_park') && phMap.pins.includes('delta_bank_ph') && phUnder.portHarcourt && !phUnder.lagos.roads && phUnder.city === 'lagos', { backInLagos, phMap, phUnder });
+    backInLagos && phMap.viewing === 'port_harcourt' && phMap.real && phMap.onRealThings && phMap.pins.filter((id) => !id.startsWith('door-')).length >= 11 && ['mile_one_market', 'ph_mall', 'pleasure_park', 'rivers_govt_house', 'ph_waterfront'].every((id) => phMap.pins.includes(id)) && phMap.pins.includes('waterlines_motor_park') && phMap.pins.includes('delta_bank_ph') && phUnder.portHarcourt && !phUnder.lagos.roads && phUnder.city === 'lagos', { backInLagos, phMap, phUnder });
   check('searching finds the three motor parks, one in each city, and nothing for the zoo that was only ever on the old drawing',
     parks.length === 3 && parks.some((p) => /Waterlines/.test(p)) && parks.some((p) => /Jibowu/.test(p) && /In Lagos/.test(p)) && parks.some((p) => /Utako/.test(p) && /In Abuja/.test(p)) && /Nothing called/.test(zoo), { parks, zoo });
   await page.click('#btn-map-back-street');

@@ -203,11 +203,24 @@ Licensed music; real-money shop and payments (needs legal and a provider); more 
 5. A `phone` test harness that opens every screen by name, so new screens are covered the day they are added.
 6. The server: Postgres when a second process is needed; until then, nightly copies off Render to object storage, verified by a restore.
 
-## 7. First implementations (this session)
-1. The full run of all 108 suites against `8690f5b` as the audit baseline (section 8 below).
-2. An `onboarding` suite: a new guest from the title screen to the first ₦ in the bank, phone viewport, real taps, no dead ends.
-3. Fixes for whatever 1 and 2 find.
-Cursor, in parallel: the phone layout on every screen (the brief in `LAGOS_LIFE_GAP_REPORT.md`), then weddings.
+## 7. First implementations (this session, on `claude/next-steps`, not yet live)
 
-## 8. Test baseline
-(filled in when the run completes)
+1. **First-time player** (tested: `onboarding`, 9/9 on a 360 px phone with real taps).
+   - Found: a brand-new visitor's title showed a made-up life ("Bayo · ₦175,000 · Continue"); Continue left them in the street with no name and nothing to follow.
+   - Now: a first visit is welcomed with "Start your life"; one slim line guides them through a name and a look, walking, the phone, the first shift and the first pay; each step is ticked by what was really done; it can be skipped and never returns.
+   - The name field is on every tab of the look editor and saves to the account (it only sat on the origin tab and did not change the account's name).
+   - Jobs lists the shifts that can be taken now first (the starter shift was 4,000 px down, under 36 employers).
+2. **Abuja's police station could not be reached on foot** (tested: `plan`, `cities`, `towns`, `police`, `crosscity`, 116 checks).
+   - Found by the baseline run: FCT Police Command stood on Aso Rock's ground past the end of the road, failing the city plan.
+   - Now it stands in Garki on Independence Avenue with a pavement at its door; Abuja's plan is clean and its four hotels are still there.
+3. **Three checks brought up to date** with features added since they were written: 37 phone apps (was 32), door pins on the city maps, the bank's certificate rule.
+
+## 8. Test baseline of the live build `8690f5b`
+
+The full run of 109 suites takes several hours on the dev laptop (Intel HD 620). At the time of writing 28 suites
+had run: 560 checks passed, 23 failed. Of the failures looked at so far:
+- 6 were the police station's door (fixed in 7.2).
+- 3 were checks out of date with new features (fixed in 7.3).
+- `self` (the tap-on-yourself menu on a phone) stops with an error: **not yet looked at**.
+- The rest are **not yet looked at**; some will be the load of two runs at once.
+The run continues; this section is to be completed with the full list, and each failure either fixed or explained.

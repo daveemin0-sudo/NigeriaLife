@@ -997,7 +997,7 @@ const ABUJA_SPECS: PlaceSpec[] = [
     { id: 'escort', name: '🚨 Escort', at: [2, -5], stand: [2, -3.6], who: 'Inspector Bello', role: 'Escort desk', text: 'A patrol van follows you in Abuja.', choices: [
       { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
     ] },
-  ], [{ at: [4, -4], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [48, -172]),
+  ], [{ at: [4, -4], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [-100, 444.5]),
 ];
 
 

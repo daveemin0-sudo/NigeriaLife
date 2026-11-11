@@ -33,6 +33,7 @@ export const ABUJA_KEEP_OUT: Rect[] = [
   { minX: -92, maxX: -6, minZ: 104, maxZ: 126 },
   { minX: -170, maxX: 170, minZ: -300, maxZ: -96 },
   // The landmarks' ground
+  { minX: -122, maxX: -78, minZ: 440, maxZ: 470 },
   { minX: 258, maxX: 372, minZ: -58, maxZ: 28 },
   { minX: 236, maxX: 324, minZ: 100, maxZ: 162 },
   { minX: 18, maxX: 152, minZ: 180, maxZ: 312 },
@@ -319,15 +320,16 @@ export function buildLandmarks(): Landmarks {
     places.push({ key: 'national-hospital-abuja', name: 'National Hospital Abuja', category: 'Hospital', description: 'Emergency, clinics and the pharmacy, open day and night.', door: { x: cx - 20, z: cz - 17 }, stand: { x: cx - 20, z: cz - 25 }, inside: true });
   }
 
-  // --- FCT Police Command, south of the centre, so a report is made in Abuja
+  // --- FCT Police Command, in Garki on Independence Avenue, west of Shehu Shagari Way (it stood
+  // on Aso Rock's ground past the end of the road, where no pavement reaches)
   {
-    const cx = 48;
-    const cz = -150;
+    const cx = -100;
+    const cz = 457;
     b.box(0x1e3a8a, 36, 10, 18, cx, 0, cz, { solid: true });
     lit.windows(0xbfdbfe, 8, 2, 30, 2, 7, cx, cz - 9.06, Math.PI, { glow: true });
     b.box(0xf8fafc, 8, 3, 0.2, cx, 6, cz - 9.2);
     sign(group, ['FCT POLICE COMMAND'], 16, 1.4, cx, 8.2, cz - 9.3, Math.PI, '#1e3a8a', '#ffffff');
-    places.push({ key: 'abuja-police', name: 'FCT Police Command', category: 'Police', description: 'Reports, a character certificate and the cells. Abuja, not Lagos.', door: { x: cx, z: cz - 9 }, stand: { x: cx, z: cz - 22 }, inside: true });
+    places.push({ key: 'abuja-police', name: 'FCT Police Command', category: 'Police', description: 'Reports, a character certificate and the cells. Abuja, not Lagos.', door: { x: cx, z: cz - 9 }, stand: { x: cx, z: cz - 12.5 }, inside: true });
   }
 
   group.add(b.build('Abuja landmarks', { roughness: 0.6 }), lit.build('Abuja landmarks lit', { roughness: 0.3 }));

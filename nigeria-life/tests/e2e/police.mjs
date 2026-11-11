@@ -168,7 +168,8 @@ export async function run(browser, check) {
     window.game.jobs.resign('first-bank-marina');
     return { was, now: P.record().length, bank: window.game.jobs.apply('first-bank-marina') };
   });
-  check('police: thirty days on with nothing new, the record has lapsed and the bank takes the player on', lapsed.was >= 4 && lapsed.now === 0 && lapsed.bank.ok, lapsed);
+  // The bank also asks for a banker's certificate now: what must be gone is the refusal over the record
+  check('police: thirty days on with nothing new, the record has lapsed and the bank no longer turns the player away over it', lapsed.was >= 4 && lapsed.now === 0 && (lapsed.bank.ok || !/record|police|convict|offen/i.test(lapsed.bank.reason ?? '')), lapsed);
 
   check('police: no errors', log.errors.length === 0, log.errors.slice(0, 5));
 }
