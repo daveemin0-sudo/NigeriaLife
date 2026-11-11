@@ -1204,3 +1204,59 @@ body:has(.buka-order-status[style*="flex"]) #nl-first-steps {
     top: calc(env(safe-area-inset-top, 0px) + 138px) !important;
   }
 }
+
+/* ------------------------------------------------------------- Big enough for a thumb
+   On a phone everything that is tapped is at least 40 px tall (36 px in the slim top row),
+   whatever the surface it sits on. */
+@media (max-width: 700px), (pointer: coarse) {
+  html body .place-card:not(.is-folded) .place-chips {
+    grid-auto-rows: minmax(42px, auto) !important;
+  }
+  html body .place-card .place-chip {
+    min-height: 42px !important;
+    box-sizing: border-box !important;
+  }
+  html body :is(.place-fold-btn, .place-leave-btn, .dialog-close-btn, .quest-modal-close-btn, .card-close, .phone-close-floating-pill, .btn-map-close, .city-nav-tab, .map-filter-btn, .map-rail-stop, .district-chip-btn, .quest-tab-btn, .look-opt, .buka-status-btn, .drive-chip, .nl-step, .nlphone-needs, .yn-like),
+  html body #smartphone-wrapper :is(.nl-btn, button:not(.nlphone-app):not(.app-grid-icon-btn)),
+  html body #map-search-input {
+    min-height: 40px !important;
+    box-sizing: border-box !important;
+  }
+  html body :is(.dialog-close-btn, .quest-modal-close-btn, .card-close, .place-fold-btn, .nl-step, .drive-chip, .yn-like, .map-filter-btn) {
+    min-width: 40px !important;
+  }
+  html body :is(.quest-tab-btn, .yn-like, .city-nav-tab, .map-filter-btn, .map-rail-stop, .district-chip-btn, .look-opt, .buka-status-btn, .place-leave-btn, .phone-close-floating-pill, .btn-map-close) {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  html body .drive-chip, html body .drive-controls .drive-top > .drive-chip { height: auto !important; min-height: 40px !important; }
+  html body .buka-order-status .buka-status-btn { min-height: 40px !important; }
+  /* The folded chat: the whole of its bar is the button */
+  html body #street-chat-box.minimized .chat-header { position: relative !important; padding-right: 30px !important; }
+  html body #street-chat-box.minimized .chat-minimize-btn {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 40px !important;
+    background: transparent !important;
+    text-align: right !important;
+    justify-content: flex-end !important;
+    padding: 0 10px 0 0 !important;
+    border-radius: inherit !important;
+  }
+  /* The look editor: its close button stays on the card */
+  html body #character-creator-modal .dialog-header { position: relative !important; }
+  html body #character-creator-modal .dialog-title-wrap { min-width: 0 !important; padding-right: 46px !important; }
+  html body #character-creator-modal .dialog-badge { white-space: normal !important; }
+  html body #character-creator-modal #creator-close-btn { position: absolute !important; top: 8px !important; right: 8px !important; }
+  /* The map's train line starts below the taller rows of buttons */
+  html body .map-rail { top: 236px !important; }
+  /* The slim row along the top: 36 px, so the street stays in view */
+  html body :is(#btn-quick-topup, #hud-today-chip, #top-menu-btn) {
+    min-height: 36px !important;
+    min-width: 36px !important;
+    box-sizing: border-box !important;
+  }
+}
