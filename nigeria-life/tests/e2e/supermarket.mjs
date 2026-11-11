@@ -81,6 +81,7 @@ export async function run(browser, check) {
   check('supermarket: four packs of drinks ordered from the wholesaler (₦57,600) are stacked in the stockroom', m0.total - m1.total === 57_600 && s.back.drinks === 96 && piles > 200, { paid: m0.total - m1.total, back: s.back, piles });
 
   // ------------------------------------------------------------------ Laid out, and a carton carried out
+  await page.evaluate(() => { const b = window.game.hud.backend; b.data.lastRevenueAt = Date.now(); b.saveData(); });
   const bare = await use(page, 'supermarket_bay_0');
   await choose(page, 'Soft drinks');
   let carried = false;
@@ -94,6 +95,8 @@ export async function run(browser, check) {
   await page.evaluate(() => window.game.hud.hideInteractionCard());
 
   // A second carton, from the shelf's own menu
+  // (the shop's own payout comes round on the real clock and customers would buy from the shelf meanwhile: its clock is restarted so the count is of the carrying alone)
+  await page.evaluate(() => { const b = window.game.hud.backend; b.data.lastRevenueAt = Date.now(); b.saveData(); });
   await use(page, 'supermarket_bay_0');
   await choose(page, 'Carry a carton out');
   await idle(page);
@@ -101,12 +104,13 @@ export async function run(browser, check) {
   check('supermarket: another carton from the shelf\'s own menu: two of eight', s.bays[0].units === 48, s.bays[0]);
 
   // ------------------------------------------------------------------ Customers buy what is on the shelves
+  const onShelf = (await state(page)).bays[0].units;
   const before = await page.evaluate(() => window.game.hud.backend.getData().businesses.find((b) => b.id === 'biz_supermarket').pendingRevenue);
   await page.evaluate(() => { const b = window.game.hud.backend; b.data.lastRevenueAt = Date.now() - 45000; b.saveData(); b.accrueBusinessRevenue(); });
   const after = await page.evaluate(() => window.game.hud.backend.getData().businesses.find((b) => b.id === 'biz_supermarket').pendingRevenue);
   s = await state(page);
   const boost = await page.evaluate(() => window.game.hud.backend.constructor.revenueBoost());
-  const sold = 48 - s.bays[0].units;
+  const sold = onShelf - s.bays[0].units;
   check('supermarket: in a payout customers buy drinks off the shelf, and the till takes ₦800 a can for what was sold; the empty shelves sell nothing',
     sold > 0 && after - before === Math.round(sold * 800 * boost), { sold, took: after - before });
 
