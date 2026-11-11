@@ -224,3 +224,16 @@ had run: 560 checks passed, 23 failed. Of the failures looked at so far:
 - `self` (the tap-on-yourself menu on a phone) stops with an error: **not yet looked at**.
 - The rest are **not yet looked at**; some will be the load of two runs at once.
 The run continues; this section is to be completed with the full list, and each failure either fixed or explained.
+
+### 8a. Result of the investigation (11 Nov 2026)
+
+Live build `8690f5b`, all 109 suites: 1374 of 1408 checks passed, 34 failed. Every failure was traced:
+
+- Game bugs, fixed on the branch: the keke to the Red Line station took ₦500 and no ride began (2 checks); the Abuja police station door could not be reached on foot (6 checks).
+- Checks behind the game, corrected after the behaviour was confirmed in play: jobs that need a course certificate (4), toilet doors built on first entry (1), takings halved without light (1), barber and pump cards (2), the family's levy before building (1), three stale counts.
+- Faults in the checks themselves: self menu, hidden pieces, a scrolled chip, the supermarket's timed payout, and the online suite serving the old `dist` folder (it must be run with `GAME_STATIC` set to the build under test).
+- Machine load: shop, home, social, land, account save and the server restart passed when run alone.
+
+Development branch, all 109 suites in one run: 1445 of 1449; the 4 that failed (server, online, supermarket x2) were traced as above and pass when rerun: server 17/17, online 9/9, supermarket 10/10.
+
+The competitor's handbook is now public and was read in full: see `LAGOS_LIFE_REGISTER.md` and `LAGOS_LIFE_HANDBOOK_FINDINGS.md`.

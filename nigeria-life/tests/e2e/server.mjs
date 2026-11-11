@@ -17,7 +17,7 @@ function startServer(dataDir) {
   return child;
 }
 
-async function serverUp(tries = 50) {
+async function serverUp(tries = 600) {
   for (let i = 0; i < tries; i++) {
     try {
       const response = await fetch(`${SERVER}/health`);
