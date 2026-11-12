@@ -24,8 +24,12 @@ export const FOOTBRIDGE = {
   steps: 14,
   run: 0.85,
 };
-/** Every footbridge over Broad Street, by where its deck crosses (all the same shape as FOOTBRIDGE) */
-export const FOOTBRIDGES: number[] = [FOOTBRIDGE.z, -33, -110, 116];
+/**
+ * Every footbridge over Broad Street, by where its deck crosses (all the same shape as FOOTBRIDGE).
+ * The northern one's stairs come down between the NaijaPetro forecourt and God's Grace Auto Works
+ * (at 116 they stood across the whole open front of the workshop, and no car could get in).
+ */
+export const FOOTBRIDGES: number[] = [FOOTBRIDGE.z, -33, -110, 101.5];
 
 export type BridgeShape = Omit<typeof FOOTBRIDGE, 'z'>;
 

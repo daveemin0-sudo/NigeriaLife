@@ -130,6 +130,7 @@ export class CityFabric {
    * @param reserved ground taken by the great places (stadium, port, airport), kept clear the same way
    */
   constructor(obstacles: THREE.Object3D[], plots: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [], reserved: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
+    this.plotRects = plots;
     this.scanObstacles(obstacles);
     for (const plot of plots) this.mark(plot.minX - 3.2, plot.maxX + 3.2, plot.minZ - 3.2, plot.maxZ + 3.2, NO_BUILD);
     for (const zone of reserved) this.mark(zone.minX, zone.maxX, zone.minZ, zone.maxZ, NO_BUILD);
@@ -224,6 +225,18 @@ export class CityFabric {
   // =========================================================================
   private inMainCorridor(x: number, z: number): boolean {
     return Math.abs(x) < MAIN_CORRIDOR_HALF && z > MAIN_ROAD.zMin - 9 && z < MAIN_ROAD.zMax + 1;
+  }
+
+  /** The land registry's plots, whose fronts are kept clear */
+  private plotRects: ReadonlyArray<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [];
+
+  /**
+   * On the pavement in front of a plot: whatever is built there has its gate somewhere along that
+   * front and a car crosses the pavement to it, so no lamp or stall stands there.
+   */
+  private beforeAPlot(x: number, z: number): boolean {
+    const M = 3.6;
+    return this.plotRects.some((p) => x >= p.minX - M && x <= p.maxX + M && z >= p.minZ - M && z <= p.maxZ + M);
   }
 
   private inOtherRoad(x: number, z: number, self: SideStreet): boolean {
@@ -336,8 +349,8 @@ export class CityFabric {
         const inJunction = s <= st.from + 5 || s >= st.to - 5 || this.inOtherRoad(lampX, lampZ, st) || this.inMainCorridor(lampX, lampZ);
 
         if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction) {
-          this.addStreetLamp(lampX, lampZ, isX, -sign);
-        } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st)) {
+          if (!this.beforeAPlot(lampX, lampZ)) this.addStreetLamp(lampX, lampZ, isX, -sign);
+        } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st) && !this.beforeAPlot(px, pz)) {
           this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2, narrow);
         }
       }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Builder, signBoard } from './kit/ArchKit';
-import type { Obstruction } from './plan/CityPlan';
+import type { Obstruction, Zone } from './plan/CityPlan';
 import type { InteractiveObject } from './World';
 import { PlaceActions } from '../destinations/PlaceActions';
 
@@ -18,6 +18,27 @@ const CARS = [0x111827, 0xf8fafc, 0x9ca3af, 0x1e3a8a, 0x7f1d1d];
 
 /** The estate's land and its lanes */
 export const ESTATE = { minX: 158, maxX: 318, minZ: -150, maxZ: 150, avenueX: 166, entryZ: 10, cols: 11, plot: 13.5, rows: 15, pitch: 20 };
+
+/**
+ * The estate's roads, as drawn below: the avenue in from Banana Island Road, the avenue down the
+ * estate, and the lane of each close. A driven car keeps to them like any road (the kerb, the lane
+ * assist, the pavements they cross). They are the estate's own, not streets of the city plan:
+ * no traffic, no hawkers, no pavements.
+ */
+export function estateRoads(): Zone[] {
+  const E = ESTATE;
+  const road = (id: string, street: string, axis: 'x' | 'z', minX: number, maxX: number, minZ: number, maxZ: number, lane: number): Zone =>
+    ({ id: `estate:${id}`, kind: 'carriageway', street, axis, clear: 3.2, lanes: [lane], minX, maxX, minZ, maxZ });
+  const roads: Zone[] = [
+    road('in', 'Banana Island estate avenue', 'x', 116, E.avenueX + 4, E.entryZ - 4, E.entryZ + 4, 2),
+    road('avenue', 'Banana Island estate avenue', 'z', E.avenueX - 4, E.avenueX + 4, E.minZ + 3, E.maxZ - 3, 2),
+  ];
+  for (let r = 0; r < E.rows; r++) {
+    const z = E.minZ + 4 + r * E.pitch;
+    roads.push(road(`close-${r}`, CLOSES[r % CLOSES.length], 'x', E.avenueX + 4, E.maxX, z - 3, z + 3, 1.5));
+  }
+  return roads;
+}
 
 export class BananaEstate {
   public readonly group = new THREE.Group();

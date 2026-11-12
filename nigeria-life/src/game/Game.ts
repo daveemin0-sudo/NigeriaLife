@@ -155,6 +155,7 @@ import { StreetAmbience } from '../audio/StreetAmbience';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD } from '../world/density/StreetLayout';
 import { EXPRESS, ROADSIDE, SIDE_ROADS } from '../world/expressway/layout';
 import { kerbsFrom, wayIn, type KerbSet } from '../world/plan/Kerbs';
+import { estateRoads } from '../world/BananaEstate';
 import { isRushHour } from '../world/StreetLife';
 import { ResidentialInterior } from '../interiors/templates/ResidentialInterior';
 import { standardOf } from '../housing/HomeStandard';
@@ -2107,17 +2108,20 @@ export class Game {
     DrivableVehicle.hootTraffic = (x, z, dirX, dirZ, range, halfWidth) =>
       (this.world.cityManager.currentCityId === 'lagos' ? this.world.trafficSpawner : this.world.cityManager.lifeHere()?.traffic)?.hoot(x, z, dirX, dirZ, range, halfWidth) ?? 0;
     const roadsByCity = new Map<string, ReturnType<typeof zonesFor>>();
+    // The roads a car drives on: the city's streets, and in Lagos Banana Island's estate roads too
     DrivableVehicle.roads = () => {
       const city = this.world.cityManager.currentCityId;
       let roads = roadsByCity.get(city);
-      if (!roads) roadsByCity.set(city, (roads = zonesFor(city)));
+      if (!roads) roadsByCity.set(city, (roads = city === 'lagos' ? [...zonesFor(city), ...estateRoads()] : zonesFor(city)));
       return roads;
     };
-    // The road a car keeps to at speed: any carriageway of the city (they overlap at junctions)
+    // The road a car keeps to at speed: any carriageway of the city (they overlap at junctions), and
+    // the mouth of a road where it meets another across that one's pavement (a T-junction)
     DrivableVehicle.onRoad = (x, z) => {
       const roads = DrivableVehicle.roads?.();
       if (!roads) return true;
       for (const zone of roads) if (zone.kind === 'carriageway' && x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) return true;
+      for (const mouth of this.kerbsHere()?.junctions ?? []) if (x >= mouth.minX && x <= mouth.maxX && z >= mouth.minZ && z <= mouth.maxZ) return true;
       return false;
     };
     // What players build on their plots is solid too: when that changes, the list is made again
@@ -3380,7 +3384,7 @@ export class Game {
       const gate = this.plotWorld.compounds.get(plot.id)?.drawing.centre ?? frontOf(plot);
       ways.push(wayIn(gate.x, gate.z, dx, dz, 5.5, 14, 3));
     }
-    return kerbsFrom(zonesFor(city), extra, ways);
+    return kerbsFrom(zonesFor(city), extra, ways, city === 'lagos' ? estateRoads() : []);
   }
 
   /** The hall inside is one room: it carries the name of the airport of the city it is entered from. */

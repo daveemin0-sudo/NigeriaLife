@@ -37,8 +37,8 @@ export async function run(browser, check) {
   v = await found([thing('Test kiosk', 7, 13.5, 0, 2, false, 2.2)]);
   check('a kiosk across the whole pavement is reported as blocking the walkway', v.some((x) => x.rule === 'walkway-blocked' && x.what.includes('Test kiosk')), v);
 
-  // Nothing stands at z = 97 on the east pavement, so a stall there is judged on its own
-  v = await found([thing('Test stall', 11.6, 13.4, 96, 98, false, 1.1)]);
+  // Nothing stands at z = 107 on the east pavement, so a stall there is judged on its own
+  v = await found([thing('Test stall', 11.6, 13.4, 106, 108, false, 1.1)]);
   check('a stall against the buildings, leaving the pavement open, is allowed', v.length === 0, v);
 
   v = await found([thing('Test checkpoint', 3.4, 7, 100, 101.5, false, 1.2)]);

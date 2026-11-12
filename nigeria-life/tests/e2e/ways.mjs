@@ -78,12 +78,13 @@ export async function run(browser, check) {
   check('sent from the east pavement to a spot inside the stadium, the player walks there by the gate, never inside a wall on the way',
     Math.hypot(seat.x + 60, seat.z - 20) < 0.5 && toSeat.every((s) => !s.inside) && toSeat.some((s) => s.x < -42 && s.x > -54 && Math.abs(s.z - 5) < 4), { seat, steps: toSeat.length, inside: toSeat.filter((s) => s.inside).length, last: toSeat.slice(-4) });
 
+  // To (10, 106): clear of the decks (a spot under one is taken for the footbridge itself, walked to straight)
   await put(page, 10, -100);
-  const along = await follow(page, 10, 100);
+  const along = await follow(page, 10, 106);
   const alongEnd = along[along.length - 1];
   const onPavement = along.filter((s) => s.on === 'pavement').length / along.length;
   check('a long walk down Broad Street keeps to the pavement, steps into the road only where a side street crosses, and stays on the ground under the footbridge',
-    Math.hypot(alongEnd.x - 10, alongEnd.z - 100) < 0.5 && onPavement > 0.85 && along.every((s) => !s.inside && s.y < 0.05), { alongEnd, onPavement: +onPavement.toFixed(2), steps: along.length });
+    Math.hypot(alongEnd.x - 10, alongEnd.z - 106) < 0.5 && onPavement > 0.85 && along.every((s) => !s.inside && s.y < 0.05), { alongEnd, onPavement: +onPavement.toFixed(2), steps: along.length });
 
   await put(page, 8.5, -22);
   const atBank = await follow(page, 16, -22, 20);

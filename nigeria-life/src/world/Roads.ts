@@ -442,7 +442,8 @@ export class Roads {
       { color: 0x9333ea, label: 'SUNGLASSES & ACCESSORIES', item: 'shades' },
     ];
 
-    const stallZPositions = [-78, -52, -22, 12, 44, 72, 98];
+    // (The last, the POS stall, stands north of the footbridge's west stairs, clear of the mechanic's way in)
+    const stallZPositions = [-78, -52, -22, 12, 44, 72, 118];
 
     stallZPositions.forEach((sz, idx) => {
       const side = idx % 2 === 0 ? -1 : 1;

@@ -2241,8 +2241,19 @@ export class DrivableVehicle {
     const reach = Math.max(0, me.halfLength - 0.6);
     const fx = Math.sin(me.yaw) * reach;
     const fz = Math.cos(me.yaw) * reach;
-    const points = (kerbs.at(me.x + fx, me.z + fz, r) ? 1 : 0) + (kerbs.at(me.x, me.z, r) ? 1 : 0) + (kerbs.at(me.x - fx, me.z - fz, r) ? 1 : 0);
-    return points === 0 ? 0 : points * 1000 + Math.min(999, kerbs.offRoad(me.x, me.z));
+    // How many of its points touch a pavement, and then how far onto it they are: a car already touching
+    // one may move only so that it touches less (measured at the touching points, not the middle, which
+    // can still be on the road while the nose creeps further on)
+    let points = 0;
+    let depth = 0;
+    for (const s of [1, 0, -1]) {
+      const px = me.x + fx * s;
+      const pz = me.z + fz * s;
+      if (!kerbs.at(px, pz, r)) continue;
+      points += 1;
+      depth += kerbs.offRoad(px, pz);
+    }
+    return points === 0 ? 0 : points * 1000 + Math.min(999, depth);
   }
 
   /** Would standing at (x, z) put the car further onto a pavement than it is now? */
