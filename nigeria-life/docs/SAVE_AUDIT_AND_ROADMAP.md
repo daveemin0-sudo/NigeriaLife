@@ -19,7 +19,7 @@ Earnings made in the browser are reported to `/money/report`; the server pays bu
 
 ## 2. Risks found
 
-1. **A stale second device can overwrite newer progress.** (Read in code; not yet reproduced in a test.) `saves.write` keeps the server's copy only when the incoming save's clock is *older* than the stored one **and** its base version differs. A device left open stamps every save with the current time, so after playing on a PC, a phone tab that wakes up sends its old life with a new time and wins. The five kept versions are used up in five minutes of once-a-minute saves, so the good copy can be gone before anyone notices.
+1. **A stale second device can overwrite newer progress.** *(Fixed by step 1, 12 Nov 2026. Reproduced first: on the old server all four two-device checks in `accountsave` fail, the stale copy winning each time.)* `saves.write` keeps the server's copy only when the incoming save's clock is *older* than the stored one **and** its base version differs. A device left open stamps every save with the current time, so after playing on a PC, a phone tab that wakes up sends its old life with a new time and wins. The five kept versions are used up in five minutes of once-a-minute saves, so the good copy can be gone before anyone notices.
 2. **The client's clock is trusted** in that same rule (`doc.at`).
 3. **Things taken on the browser's word** can be edited: a certificate level opens better-paid jobs; stock, furniture and bag items can be invented. Money cannot be invented this way (the ledger decides), so the damage is to fairness, not to the economy's totals. Wages from a job the edited certificate opened still pass through the earnings limit.
 4. **Backups sit on the same disk** unless `NL_BACKUP_DIR` points elsewhere. On Render that is one disk: a lost disk loses the data and its copies. Whether the live server has `NL_BACKUP_DIR` set was not checked (it needs the Render dashboard).
@@ -31,7 +31,18 @@ Earnings made in the browser are reported to `/money/report`; the server pays bu
 
 Each step is separate, can be shipped alone, and has its own test. None changes the format of what is stored.
 
-**Step 1. Stop the stale overwrite (small, server only).**
+**Step 1. Stop the stale overwrite. DONE (12 Nov 2026), on `claude/next-steps`, not live.**
+
+What was built:
+- Server (`server/saves.ts`): a save is kept only when its `base` is the stored version, or it comes from the device that wrote the stored version (a lost reply). Otherwise the newer copy is sent back (`kept: 'server'`), whatever the device's clock says. A save that names no base (an old client, a tool) keeps the old clock rule. New nullable column `device` on `player_saves`, added only if missing. A copy put back by the admin gets a new, higher version and no device, so every device is behind it.
+- Client (`src/backend/CloudSyncService.ts`): a random device id kept in the browser (`nl_account_save_device`, never in the save), sent with each save. A device that is behind loads the newer copy once and says so ("This device was behind..."). Behind again within 90 seconds, the other device is being played: this one stops saving and shows "Playing on another device", with **Play here instead** (which loads the latest and takes the life over: its next save carries `take: true` and is kept; the other device is then the one behind).
+- This also ends a loop found while testing (it was there before, measured on the old code): a device opened while another was being played loaded the life again every time the other saved.
+- Tests (`accountsave`, 23 checks): four server checks (stale device refused even with its clock ahead; caught up it saves; a lost reply still saves but another device naming the same number does not; a put-back copy wins) and four in the game (loads once and says why; steps aside; takes over; the life comes through whole).
+- Roll-back: the old server ignores the `device` column and `take`; it can be redeployed as it was.
+
+Found while testing, not fixed (separate): in the test, signing in on a second browser while the first is still open and connected to the city never finishes (it stays on the local guest). The same happens on the old code, so it is not caused by this step. To be looked at with the city connection (`OnlineAccount.bindRegistry`, the socket).
+
+The plan as written before the work:
 - Rule: a save is accepted only when its `base` equals the stored version, or when it comes from the same device that wrote the stored version (so a lost reply does not throw away a minute of play). Otherwise the server's copy is returned (`kept: 'server'`), as it already is for an old clock.
 - Needs: a random device id kept in the browser (not part of the save), sent with each save; one new nullable column `device` on `player_saves` (added with `ALTER TABLE ... ADD COLUMN`, which leaves existing rows valid).
 - Test (in `accountsave`): device A and B signed in to one account; A plays and saves; B, never reloaded, saves: the server keeps A's life and B reloads into it. Then A saves twice with the first reply dropped: the second is accepted.

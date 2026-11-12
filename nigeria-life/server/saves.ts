@@ -52,6 +52,13 @@ interface Row {
   version: number;
   saved_at: number;
   doc: string;
+  /** The device that wrote this version (null for versions written before devices were named) */
+  device?: string | null;
+}
+
+/** A device's name for itself: random, kept in its browser, never part of the save */
+function deviceOf(value: unknown): string | null {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(value) ? value : null;
 }
 
 function denied(key: string): boolean {
@@ -91,6 +98,10 @@ export class Saves {
       );
       CREATE INDEX IF NOT EXISTS player_save_history_account ON player_save_history(account_id, version);
     `);
+    // Which device wrote the stored version. Added to a table that may already hold saves: rows
+    // written before have none (null), which the old server ignores, so it can still be put back
+    const columns = (db.prepare('PRAGMA table_info(player_saves)').all() as Array<{ name: string }>).map((c) => c.name);
+    if (!columns.includes('device')) db.exec('ALTER TABLE player_saves ADD COLUMN device TEXT');
   }
 
   public read(accountId: string): { ok: true; version: number; savedAt: number; doc: SaveDoc | null } {
@@ -103,17 +114,28 @@ export class Saves {
   }
 
   /**
-   * Keeps a save. An older one from another device is ignored (the newer small things win).
+   * Keeps a save, unless it would overwrite newer progress: a save is taken only when it was built
+   * on the version stored now (its `base`), or when it comes from the device that wrote that
+   * version (a reply that never arrived must not throw away a minute of play). A device left open
+   * while the player went on elsewhere is sent the newer copy instead (`kept: 'server'`), whatever
+   * its clock says. A save that names no base (an old client, a tool) keeps the old rule: refused
+   * only when its own time is older than the stored one.
    * Cash and bank are the wallet's. A new jet, business or house with no matching payment is removed.
    */
   public write(accountId: string, raw: unknown): { ok: true; version: number; savedAt: number; doc: SaveDoc; stripped: boolean; kept: 'client' | 'server' } | { ok: false; reason: string } {
-    const body = raw && typeof raw === 'object' ? (raw as { doc?: unknown; base?: unknown }) : {};
+    const body = raw && typeof raw === 'object' ? (raw as { doc?: unknown; base?: unknown; device?: unknown; take?: unknown }) : {};
     const incoming = this.clean(body.doc);
     if (!incoming) return { ok: false, reason: 'That save could not be read.' };
-    const row = this.db.prepare('SELECT version, saved_at, doc FROM player_saves WHERE account_id = ?').get(accountId) as Row | undefined;
+    const row = this.db.prepare('SELECT version, saved_at, doc, device FROM player_saves WHERE account_id = ?').get(accountId) as Row | undefined;
     const current = row ? this.parse(row.doc) : null;
+    const device = deviceOf(body.device);
+    const named = body.base !== undefined && body.base !== null && body.base !== '' && Number.isFinite(Number(body.base));
     const base = Number(body.base);
-    if (current && row && incoming.at + 2000 < current.at && base !== row.version) {
+    // "Play here instead" on a device that had stepped aside: the player chose this device, which has
+    // just loaded the latest copy (whatever the other device saved since is the price of that choice)
+    const taking = body.take === true && device !== null;
+    const behind = taking ? false : named ? base !== row?.version && !(device !== null && row?.device === device) : !!current && incoming.at + 2000 < current.at;
+    if (current && row && behind) {
       this.overlayMoney(accountId, current);
       return { ok: true, version: row.version, savedAt: row.saved_at, doc: current, stripped: false, kept: 'server' };
     }
@@ -131,34 +153,39 @@ export class Saves {
       }
       this.db
         .prepare(
-          `INSERT INTO player_saves (account_id, version, saved_at, doc) VALUES (?, ?, ?, ?)
-           ON CONFLICT(account_id) DO UPDATE SET version = excluded.version, saved_at = excluded.saved_at, doc = excluded.doc`,
+          `INSERT INTO player_saves (account_id, version, saved_at, doc, device) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(account_id) DO UPDATE SET version = excluded.version, saved_at = excluded.saved_at, doc = excluded.doc, device = excluded.device`,
         )
-        .run(accountId, version, now, text);
+        .run(accountId, version, now, text, device);
     });
     return { ok: true, version, savedAt: now, doc: incoming, stripped, kept: 'client' };
   }
 
-  /** Puts back the previous version. The one replaced is kept in the history. */
+  /**
+   * Puts back the previous version. The one replaced is kept in the history. What is put back gets a
+   * new, higher number and no device, so every device (even one still holding the number of the copy
+   * put back) is behind it and is sent it on its next save.
+   */
   public rollback(accountId: string): { ok: true; version: number } | { ok: false; reason: string } {
     const prev = this.db
       .prepare('SELECT id, version, saved_at, doc FROM player_save_history WHERE account_id = ? ORDER BY version DESC LIMIT 1')
       .get(accountId) as { id: number; version: number; saved_at: number; doc: string } | undefined;
     if (!prev) return { ok: false, reason: 'Nothing earlier to restore.' };
     const current = this.db.prepare('SELECT version, saved_at, doc FROM player_saves WHERE account_id = ?').get(accountId) as Row | undefined;
+    const restored = Math.max(current?.version ?? 0, prev.version) + 1;
     transaction(this.db, () => {
       if (current) {
         this.db.prepare('INSERT INTO player_save_history (account_id, version, saved_at, doc) VALUES (?, ?, ?, ?)').run(accountId, current.version, current.saved_at, current.doc);
       }
       this.db
         .prepare(
-          `INSERT INTO player_saves (account_id, version, saved_at, doc) VALUES (?, ?, ?, ?)
-           ON CONFLICT(account_id) DO UPDATE SET version = excluded.version, saved_at = excluded.saved_at, doc = excluded.doc`,
+          `INSERT INTO player_saves (account_id, version, saved_at, doc, device) VALUES (?, ?, ?, ?, NULL)
+           ON CONFLICT(account_id) DO UPDATE SET version = excluded.version, saved_at = excluded.saved_at, doc = excluded.doc, device = NULL`,
         )
-        .run(accountId, prev.version, prev.saved_at, prev.doc);
+        .run(accountId, restored, prev.saved_at, prev.doc);
       this.db.prepare('DELETE FROM player_save_history WHERE id = ?').run(prev.id);
     });
-    return { ok: true, version: prev.version };
+    return { ok: true, version: restored };
   }
 
   public deleteAll(accountId: string): void {

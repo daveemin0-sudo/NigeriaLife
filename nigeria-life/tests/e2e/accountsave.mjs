@@ -77,6 +77,16 @@ async function openGame(browser) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message || e).slice(0, 240)));
+  page.__said = [];
+  page.on('console', (m) => { page.__said.push(m.text().slice(0, 140)); if (page.__said.length > 60) page.__said.shift(); });
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) page.__said.push('NAV'); });
+  page.on('response', async (r) => {
+    const path = new URL(r.url()).pathname;
+    if (!/^\/(me|auth)/.test(path)) return;
+    let note = '';
+    try { const j = await r.json(); note = `${j.ok}${j.kept ? ' kept=' + j.kept : ''}${j.version !== undefined ? ' v' + j.version : ''}${j.account ? ' ' + j.account.kind + ':' + j.account.name : ''}${j.reason ? ' ' + String(j.reason).slice(0, 50) : ''}`; } catch { /* not json */ }
+    page.__said.push(`${r.request().method()} ${path} ${r.status()} ${note}`);
+  });
   await page.setViewport({ width: 1100, height: 700 });
   await page.goto(`${GAME_URL}?server=${encodeURIComponent(SERVER)}`, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction('window.game && window.game.hud', { timeout: 120000 });
@@ -87,7 +97,7 @@ async function openGame(browser) {
 }
 
 async function signIn(page) {
-  await page.evaluate((user, pass) => window.game.modules.OnlineAccount.get().login(user, pass), USER, PASS).catch(() => {});
+  const tried = await page.evaluate((user, pass) => window.game.modules.OnlineAccount.get().login(user, pass), USER, PASS).catch((e) => ({ reloaded: String(e.message || e).slice(0, 80) }));
   // Signing in reloads, and the registry id may reload once more. Wait until a page stays.
   const deadline = Date.now() + 120000;
   let last = null;
@@ -118,7 +128,7 @@ async function signIn(page) {
     }
     await wait(400);
   }
-  throw new Error(`sign-in did not settle: ${JSON.stringify(last)}`);
+  throw new Error(`sign-in did not settle: ${JSON.stringify(last)} (login said ${JSON.stringify(tried)}) console: ${JSON.stringify((page.__said ?? []).filter((t) => !/\[Interaction\]|THREE|shaders|AssetManager/.test(t)).slice(-25))}`);
 }
 
 function life() {
@@ -201,6 +211,49 @@ export async function run(browser, check) {
     const rolled = await api('/admin/save/rollback', { id: forged.account.id }, undefined, true);
     const restored = await api('/me/save', undefined, forged.token);
     check('the previous save can be put back', rolled.ok && restored.doc?.bags?.nl_marker === 'one', { rolled, marker: restored.doc?.bags?.nl_marker });
+
+    // Two devices on one account, straight to the server: an out-of-date device never overwrites newer progress
+    // (the account above: a new guest here would count against the guests allowed from one address in an hour)
+    const two = forged;
+    const plain = (marker, at = Date.now()) => ({ v: 1, at, bags: { nl_marker: marker } });
+    const A = 'devAAAAAAAAAA';
+    const B = 'devBBBBBBBBBB';
+    // Device A has the account's copy as it stands, and saves on from it
+    const start = await api('/me/save', undefined, two.token);
+    const a1 = await api('/me/save', { doc: plain('A1'), base: start.version, device: A }, two.token);
+    // Device B signs in now and reads version 1, then is left open
+    const bRead = await api('/me/save', undefined, two.token);
+    const a2 = await api('/me/save', { doc: plain('A2'), base: a1.version, device: A }, two.token);
+    const a3 = await api('/me/save', { doc: plain('A3'), base: a2.version, device: A }, two.token);
+    // B wakes up and saves its old life, with a clock a minute ahead of everyone
+    const bStale = await api('/me/save', { doc: plain('B-old', Date.now() + 60_000), base: bRead.version, device: B }, two.token);
+    const afterStale = await api('/me/save', undefined, two.token);
+    check('saves: a second device left open, saving its old life later (even with a clock ahead), is sent the newer copy and does not overwrite it',
+      a1.kept === 'client' && a3.kept === 'client' && bStale.ok && bStale.kept === 'server' && bStale.doc?.bags?.nl_marker === 'A3' && afterStale.doc?.bags?.nl_marker === 'A3' && afterStale.version === a3.version,
+      { a3: a3.version, bStale: { kept: bStale.kept, marker: bStale.doc?.bags?.nl_marker, version: bStale.version }, stored: afterStale.doc?.bags?.nl_marker });
+    // B takes the newer copy and plays on from it: its saves are taken
+    const b1 = await api('/me/save', { doc: plain('B1'), base: bStale.version, device: B }, two.token);
+    // A, still on its own last number, is now the one behind
+    const aBehind = await api('/me/save', { doc: plain('A-old'), base: a3.version, device: A }, two.token);
+    check('saves: once caught up, that device saves as normal, and the other device is now the one behind',
+      b1.kept === 'client' && b1.version === a3.version + 1 && aBehind.kept === 'server' && aBehind.doc?.bags?.nl_marker === 'B1', { b1: { kept: b1.kept, version: b1.version }, aBehind: { kept: aBehind.kept, marker: aBehind.doc?.bags?.nl_marker } });
+    // A catches up and saves twice; the reply to the first is lost, so its second still names the old number
+    const a4 = await api('/me/save', { doc: plain('A4'), base: b1.version, device: A }, two.token);
+    const a5 = await api('/me/save', { doc: plain('A5'), base: b1.version, device: A }, two.token);
+    // Another device naming that same old number is refused
+    const bAgain = await api('/me/save', { doc: plain('B-again'), base: b1.version, device: B }, two.token);
+    const afterLost = await api('/me/save', undefined, two.token);
+    check('saves: a device whose reply was lost still saves (it wrote the copy it is behind), but another device naming the same old number does not',
+      a4.kept === 'client' && a5.kept === 'client' && bAgain.kept === 'server' && afterLost.doc?.bags?.nl_marker === 'A5',
+      { a4: a4.kept, a5: a5.kept, bAgain: bAgain.kept, stored: afterLost.doc?.bags?.nl_marker });
+    // A copy put back by the admin wins over every device, even one holding its old number
+    const putBack = await api('/admin/save/rollback', { id: two.account.id }, undefined, true);
+    const aAfterRollback = await api('/me/save', { doc: plain('A6'), base: a5.version, device: A }, two.token);
+    const holdingOld = await api('/me/save', { doc: plain('A-older'), base: a4.version, device: A }, two.token);
+    const afterRollback = await api('/me/save', undefined, two.token);
+    check('saves: a copy put back is sent to every device, whatever number it holds, and is not overwritten',
+      putBack.ok && putBack.version > a5.version && aAfterRollback.kept === 'server' && holdingOld.kept === 'server' && afterRollback.doc?.bags?.nl_marker === 'A4' && afterRollback.version === putBack.version,
+      { putBack, aAfterRollback: aAfterRollback.kept, holdingOld: holdingOld.kept, stored: afterRollback.doc?.bags?.nl_marker, version: afterRollback.version });
 
     const made = await api('/auth/register', { username: 'Del_Save1', password: PASS });
     const email = await api('/me/email', { email: 'ada@example.com', password: PASS }, made.token);
@@ -321,6 +374,62 @@ export async function run(browser, check) {
     await signIn(second.page);
     const other = await second.page.evaluate(life);
     check('signing in on a second device brings the same life, standing in the same place', sameLife(firstLife, other), { first: firstLife, second: other, errors: second.errors.slice(0, 4) });
+
+    // Another device of the same player saves on: the whole life as the server has it, one thing changed,
+    // under its own name and on the version it read, as a real device does
+    const OTHER = 'devOTHERdevice01';
+    const otherSaves = async (value) => {
+      const now = await api('/me/save', undefined, token);
+      const doc = { ...now.doc, at: Date.now(), bags: { ...now.doc.bags, nl_two_devices: value } };
+      return api('/me/save', { doc, base: now.version, device: OTHER }, token);
+    };
+    const quietOff = () => { for (const key of Object.keys(localStorage)) if (key.includes('nl_account_save_quiet')) localStorage.removeItem(key); };
+    const push = (p, value) => p.evaluate((value, quiet) => { new Function(quiet)(); localStorage.setItem('nl_two_devices', value); void window.game.modules.CloudSyncService.getInstance().pushNow(); }, value, `(${quietOff})()`).catch(() => {});
+    const toasts = (p) => p.evaluate(() => [...document.querySelectorAll('.game-toast')].map((t) => t.textContent).join(' | ')).catch(() => '');
+    const aside = (p) => p.evaluate(() => !!document.getElementById('nl-elsewhere')).catch(() => false);
+    const settle = async (p) => { await wait(2500); await p.waitForFunction('window.game && window.game.hud', { timeout: 120000 }).catch(() => {}); await wait(1500); };
+    let loads = 0;
+    second.page.on('framenavigated', (f) => { if (f === second.page.mainFrame()) loads += 1; });
+
+    // 1. The other device saved since: this one, saving its old life, loads the newer one instead, once, and says why
+    const otherFirst = await otherSaves('played on the other device');
+    await push(second.page, 'the old tab');
+    await settle(second.page);
+    let told = '';
+    for (let i = 0; i < 30 && !/behind/.test(told); i++) { await wait(300); told = await toasts(second.page); }
+    const tabNow = await second.page.evaluate(() => localStorage.getItem('nl_two_devices')).catch(() => null);
+    const afterOne = await api('/me/save', undefined, token);
+    check('saves: a device left open while the player went on elsewhere does not overwrite that progress: it loads the newer life once and says why',
+      otherFirst.kept === 'client' && afterOne.doc?.bags?.nl_two_devices === 'played on the other device' && tabNow === 'played on the other device' && /This device was behind/.test(told) && loads === 1 && !(await aside(second.page)),
+      { otherFirst: otherFirst.kept, server: afterOne.doc?.bags?.nl_two_devices, tabNow, told: told.slice(0, 120), loads });
+
+    // 2. The other device is still being played: behind again at once, this one steps aside instead of loading again
+    await otherSaves('still playing on the other device');
+    await push(second.page, 'the old tab again');
+    let isAside = false;
+    for (let i = 0; i < 20 && !isAside; i++) { await wait(500); isAside = await aside(second.page); }
+    await wait(3000);
+    const afterTwo = await api('/me/save', undefined, token);
+    const pausedPush = await (async () => { await push(second.page, 'saved while stepped aside'); await wait(2500); return api('/me/save', undefined, token); })();
+    check('saves: behind again while the other device is being played, it stops saving and says so ("Playing on another device"), instead of loading again and again',
+      isAside && loads === 1 && afterTwo.doc?.bags?.nl_two_devices === 'still playing on the other device' && pausedPush.doc?.bags?.nl_two_devices === 'still playing on the other device',
+      { isAside, loads, server: afterTwo.doc?.bags?.nl_two_devices, afterPausedPush: pausedPush.doc?.bags?.nl_two_devices });
+
+    // 3. "Play here instead": this device takes the life over, and the other, saving its old copy, is the one turned away
+    await second.page.click('#nl-elsewhere-here');
+    await settle(second.page);
+    await wait(2000);
+    await push(second.page, 'played here after taking over');
+    let taken = null;
+    for (let i = 0; i < 20 && taken?.doc?.bags?.nl_two_devices !== 'played here after taking over'; i++) { await wait(500); taken = await api('/me/save', undefined, token); }
+    const otherOld = await api('/me/save', { doc: { ...taken.doc, at: Date.now() + 60_000, bags: { ...taken.doc.bags, nl_two_devices: 'the other device, behind now' } }, base: afterTwo.version, device: OTHER }, token);
+    const afterThree = await api('/me/save', undefined, token);
+    check('saves: "Play here instead" takes the life over on this device; the other device, now behind, cannot overwrite it',
+      taken?.doc?.bags?.nl_two_devices === 'played here after taking over' && !(await aside(second.page)) && otherOld.kept === 'server' && afterThree.doc?.bags?.nl_two_devices === 'played here after taking over',
+      { server: afterThree.doc?.bags?.nl_two_devices, otherOld: otherOld.kept, stillAside: await aside(second.page) });
+    // The life itself came through all of that whole
+    const lifeAfter = await second.page.evaluate(life);
+    check('saves: and through all of that the life itself is whole: the same homes, vehicles, business and place', sameLife(firstLife, lifeAfter), { first: firstLife, after: lifeAfter });
     await second.page.close();
 
     await stopServer(server);
