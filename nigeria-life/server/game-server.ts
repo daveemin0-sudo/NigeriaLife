@@ -116,16 +116,14 @@ function traitOf(accountId: string): string | null {
 
 /**
  * The first five minutes (src/ui/FirstSteps.ts): 'open' until the account finishes or skips them,
- * and over from then on, on every device. An account that has ever been paid a wage is past them
- * whatever it says (accounts from before this was kept).
+ * and over from then on, on every device. (The first pay comes part-way through them, so being
+ * paid does not end them. An account from before this was kept is marked done by the game the
+ * first time it sees the life is already under way.)
  */
 function guideOf(accountId: string): 'open' | 'done' | 'skipped' {
   const row = db.prepare('SELECT state FROM guide WHERE account_id = ?').get(accountId) as { state: string } | undefined;
-  if (row) return row.state === 'skipped' ? 'skipped' : 'done';
-  const paid = db.prepare('SELECT 1 FROM payslips WHERE account_id = ? LIMIT 1').get(accountId);
-  if (!paid) return 'open';
-  db.prepare("INSERT OR IGNORE INTO guide (account_id, state, at) VALUES (?, 'done', ?)").run(accountId, Date.now());
-  return 'done';
+  if (!row) return 'open';
+  return row.state === 'skipped' ? 'skipped' : 'done';
 }
 
 /** The share of a sale's price the market keeps: as the game (src/realestate/AssetMarket.ts) */

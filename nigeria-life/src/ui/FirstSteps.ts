@@ -203,6 +203,7 @@ export class FirstSteps {
   private readonly ticked = new Set<StepId>();
   private current: Step | null = null;
   private marked: string | null = null;
+  private shown = '';
   private timer = 0;
   private last = { x: 0, z: 0 };
   private walked = 0;
@@ -341,9 +342,10 @@ export class FirstSteps {
       ${there && !near ? `<button type="button" class="fs-do fs-go" data-fs="go">Take me</button>` : ''}
       ${near && step.there && !busy ? `<button type="button" class="fs-do fs-there" data-fs="there">${typeof step.there.label === 'string' ? step.there.label : step.there.label(this.host)}</button>` : ''}
       <button type="button" class="fs-skip" data-fs="skip" aria-label="End the guide">✕</button>`;
-    if (step !== this.current || this.el.dataset.html !== html) {
+    // Drawn again only when what it says has changed
+    if (step !== this.current || this.shown !== html) {
       this.el.innerHTML = html;
-      this.el.dataset.html = html;
+      this.shown = html;
       this.el.dataset.step = step.id;
     }
     // The marker follows the step, and a step whose place changes (the site knocks off: the port)

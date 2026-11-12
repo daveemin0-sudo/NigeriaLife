@@ -1012,6 +1012,15 @@ export class Game {
         if (me.away?.note) showGameToast(String(me.away.note), 'success', 8000);
         if (me.trait) backend.adoptTrait(me.trait);
         else if (me.ok && backend.getTrait()) backend.onTraitChosen?.(backend.getTrait()!);
+        // The first five minutes: over on the account is over on this device at once, and a guide
+        // that ended here while the server could not be told (offline) is told to it now
+        if (me.ok && (me.guide === 'done' || me.guide === 'skipped')) {
+          if (this.firstSteps) this.firstSteps.dismiss(me.guide);
+          else if (!guideOver()) keepGuideOver(me.guide);
+        } else if (me.ok && me.guide === 'open') {
+          const ended = guideEnded();
+          if (ended) void online.request('/me/guide', { state: ended }).catch(() => undefined);
+        }
       });
       online.on('wallet', (wallet) => backend.applyServerWallet(wallet));
       online.on('notice', (text) => showGameToast(String(text), 'warning', 5200));
@@ -1046,7 +1055,7 @@ export class Game {
           later,
           // The name they gave Chief Alabi, as a username (letters, numbers, _ and . only)
           suggest: () => {
-            const name = this.playerName().replace(/s+/g, '_').replace(/[^A-Za-z0-9_.]/g, '').slice(0, 16);
+            const name = this.playerName().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_.]/g, '').slice(0, 16);
             return name.length >= 3 && name !== 'Bayo' ? name : '';
           },
         }, mode);
@@ -2651,16 +2660,8 @@ export class Game {
   public startFirstSteps(): void {
     if (this.firstSteps || this.firstStepsWaiting) return;
     const online = OnlineAccount.get();
-    const ended = guideEnded();
-    if (ended) {
-      // It ended on this device while the server could not be told (offline): told now, kept there for good
-      if (online) void online.ready.then(async (ok) => {
-        if (!ok) return;
-        const me = await online.request('/me');
-        if (me?.ok && me.guide === 'open') await online.request('/me/guide', { state: ended });
-      }).catch(() => undefined);
-      return;
-    }
+    // Over on this device (if the server could not be told at the time, it is told when it next answers)
+    if (guideOver()) return;
     if (!online) {
       this.firstSteps = FirstSteps.begin(this.firstStepsHost());
       return;
@@ -2684,6 +2685,11 @@ export class Game {
         return;
       }
       if (!this.firstSteps && !guideOver()) this.firstSteps = FirstSteps.begin(this.firstStepsHost());
+      // A life already under way from before the guide was kept on the server: it is past it, for good
+      if (!this.firstSteps && said === 'open' && !guideOver()) {
+        keepGuideOver('done');
+        void online.request('/me/guide', { state: 'done' }).catch(() => undefined);
+      }
     });
     // An answer that came after the wait still counts: over on the account is over here
     void asked.then((said) => {

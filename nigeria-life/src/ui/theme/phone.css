@@ -1262,6 +1262,8 @@ body:has(.buka-order-status[style*="flex"]) #nl-first-steps {
     transform: none;
     max-width: none;
     border-radius: 14px;
+    flex-wrap: wrap;
+    row-gap: 4px;
   }
   html body:not(.ui-modal-open):not(.lx-title):has(#nl-first-steps) #game-toast-container {
     top: calc(env(safe-area-inset-top, 0px) + 138px) !important;
