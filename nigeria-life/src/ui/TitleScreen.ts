@@ -14,6 +14,10 @@ export interface TitleHost {
   drift(delta: number): void;
   /** The view while the title is up (high over the city), and back to the street after */
   frame(on: boolean): void;
+  /** Can an account be signed in to from here (a guest, on a game server)? */
+  canSignIn?(): boolean;
+  /** Opens the sign-in screen for a player who has an account */
+  signIn?(): void;
 }
 
 interface Life {
@@ -75,6 +79,7 @@ export class TitleScreen {
       if (!target) return;
       const act = target.dataset.title!;
       if (act === 'continue') this.close();
+      else if (act === 'signin') this.host.signIn?.();
       else if (act === 'new') this.render(true);
       else if (act === 'cancel') this.render(false);
       else if (act === 'start') {
@@ -112,6 +117,7 @@ export class TitleScreen {
     const s = this.host.summary();
     const all = lives();
     const others = all.filter((life) => life.id !== PROFILE_ID);
+    const account = this.host.canSignIn?.() ? '<button type="button" class="lx-btn lx-btn-soft ts-account" data-title="signin" id="title-signin">I already have an account</button>' : '';
     const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
     this.el.innerHTML = `
       <div class="ts-top">
@@ -123,8 +129,9 @@ export class TitleScreen {
         ${s.fresh && !asking && !others.length ? `
           <div class="ts-ask ts-welcome">
             <strong>Welcome. Your Nigerian life starts here.</strong>
-            <p>Work, earn, rent a room, build a name, in Lagos, Abuja and Port Harcourt. You begin with ${esc(s.money)} and a short guide to your first pay.</p>
+            <p>Work, earn, rent a room, build a name, in Lagos, Abuja and Port Harcourt. You begin on Broad Street with ${esc(s.money)}, and the city will show you the rest.</p>
             <button type="button" class="lx-btn lx-btn-brand ts-go" data-title="continue" id="title-continue">Start your life</button>
+            ${account}
           </div>` : asking ? `
           <div class="ts-ask">
             <strong>Start a new life?</strong>
@@ -142,10 +149,16 @@ export class TitleScreen {
           ${s.home ? `<div class="ts-home">🏠 ${esc(s.home)}</div>` : ''}
           <button type="button" class="lx-btn lx-btn-brand ts-go" data-title="continue" id="title-continue">Continue</button>
           <button type="button" class="lx-btn lx-btn-soft ts-new" data-title="new" id="title-new">New life</button>
+          ${account}
           ${others.length ? `<div class="ts-lives"><span>Your other lives</span>${others.map((life) => `<button type="button" class="ts-life" data-title="life:${esc(life.id)}">${esc(life.name)}</button>`).join('')}</div>` : ''}`}
       </div>
       <p class="ts-tip">${s.fresh && !others.length ? 'Tap Start your life, or press Enter' : 'Tap Continue, or press Enter'}</p>
     `;
+  }
+
+  /** Drawn again (the game server has answered: the way in to an account can be offered) */
+  public refresh(): void {
+    if (this.open && !this.el.querySelector('[data-title="start"]')) this.render(false);
   }
 
   public close(): void {

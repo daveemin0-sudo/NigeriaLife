@@ -96,6 +96,13 @@ export class CloudSyncService {
   /** This device has taken the life over: its next save is kept even though it is behind */
   private taking = false;
 
+  private decide: (loading: boolean) => void = () => undefined;
+  /**
+   * Settles once the first sign-in has decided whose copy is newer: true if the account's newer
+   * copy is being loaded (the page is about to load again), false if this device's stands.
+   */
+  public readonly decided: Promise<boolean> = new Promise((resolve) => { this.decide = resolve; });
+
   private constructor() {
     this.savedAt = Number(localStorage.getItem(AT_KEY()) || 0);
   }
@@ -126,10 +133,14 @@ export class CloudSyncService {
       // Not taken over
     }
     void online.ready.then(async (ok) => {
-      if (!ok || online.leaving) return;
+      if (!ok || online.leaving) {
+        this.decide(online.leaving);
+        return;
+      }
       // Taking the life over: the copy loaded a moment ago is the one to play on, even if the
       // other device has saved since
       const pulled = this.taking ? false : await this.pullIfNewer();
+      this.decide(pulled);
       if (pulled) return;
       this.live = true;
       this.arm();

@@ -1549,6 +1549,7 @@ html body .map-context-card .transport-fare.free { color: var(--lx-brand) !impor
 #title-screen .ts-home { margin: 0 0 12px; padding: 9px 12px; border-radius: 14px; background: var(--lx-surface-2); color: var(--lx-ink-2); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #title-screen .ts-go { width: 100%; height: 52px; font-size: 16px; border-radius: 16px; }
 #title-screen .ts-new { width: 100%; margin-top: 8px; }
+#title-screen .ts-account { width: 100%; margin-top: 8px; }
 #title-screen .ts-lives { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
 #title-screen .ts-lives span { width: 100%; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--lx-dim); }
 #title-screen .ts-life { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--lx-line); background: var(--lx-card); color: var(--lx-ink); font: 700 12.5px var(--nl-font); cursor: pointer; }

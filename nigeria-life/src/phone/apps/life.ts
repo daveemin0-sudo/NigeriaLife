@@ -503,9 +503,10 @@ export const propertyApp: PhoneApp = {
     const filter = host.get<string>('property.filter', 'all');
     const search = host.get('property.search', '').toLowerCase();
     const list = data.properties
-      .filter((prop) => (filter === 'all' ? true : filter === 'mine' ? isMine(prop) : prop.cityId === filter))
+      // "I can afford": what can be leased with the money in hand, in the city the player is in
+      .filter((prop) => (filter === 'all' ? true : filter === 'mine' ? isMine(prop) : filter === 'afford' ? !isMine(prop) && !['office', 'shop', 'business', 'land', 'commercial'].includes(String(prop.type)) && prop.rentalPriceMonthly > 0 && prop.rentalPriceMonthly <= funds && prop.cityId === host.world.cityId() : prop.cityId === filter))
       .filter((prop) => !search || `${prop.name} ${prop.location ?? ''} ${prop.districtId}`.toLowerCase().includes(search))
-      .sort((a, b) => Number(isMine(b)) - Number(isMine(a)) || a.purchasePrice - b.purchasePrice);
+      .sort((a, b) => (filter === 'afford' ? a.rentalPriceMonthly - b.rentalPriceMonthly : Number(isMine(b)) - Number(isMine(a)) || a.purchasePrice - b.purchasePrice));
     const mine = data.properties.filter(isMine);
 
     return {
@@ -517,18 +518,20 @@ export const propertyApp: PhoneApp = {
           <span class="nl-hero-sub">${mine.length ? `${count(mine.length, 'property', 'properties')} in your name` : 'Lease or buy one below to have a bed, a sofa and a fridge of your own'}</span>
           ${mine.length ? '<div class="nl-hero-actions"><button class="nl-btn nl-btn--glass" data-act="home">Go home</button></div>' : ''}
         </div>
-        ${chips('property.filter', filter, [['all', 'All'], ['mine', 'Mine'], ['lagos', 'Lagos'], ['abuja', 'Abuja'], ['port_harcourt', 'Port Harcourt']])}
+        ${chips('property.filter', filter, [['all', 'All'], ['afford', 'I can afford'], ['mine', 'Mine'], ['lagos', 'Lagos'], ['abuja', 'Abuja'], ['port_harcourt', 'Port Harcourt']])}
         <input class="nl-field nl-field--search" id="property-search" type="search" placeholder="Search by name or area" value="${esc(host.get('property.search', ''))}" data-bind="property.search" />
         <div class="nl-list" id="property-list">
           ${list.length === 0
-            ? empty('🏘️', 'Nothing matches', filter === 'mine' ? 'You do not own or lease anything yet.' : 'Try another city or a different search.')
+            ? empty('🏘️', 'Nothing matches', filter === 'mine' ? 'You do not own or lease anything yet.' : filter === 'afford' ? 'Nothing to lease here with the money you have. A few shifts will change that.' : 'Try another city or a different search.')
             : list.map((prop) => row({
                 icon: prop.icon,
                 title: esc(prop.name),
                 sub: `${esc(prop.location || prop.districtId)} · ${esc(CITY_NAMES[prop.cityId] ?? prop.cityId)}`,
                 trailing: isMine(prop)
                   ? `<span class="nl-tag nl-tag--good">${prop.status === 'rented' ? 'Leased' : 'Owned'}</span>`
-                  : `<span class="nl-stack"><strong>${naira(prop.purchasePrice)}</strong>${prop.rentalPriceMonthly > 0 ? `<span class="nl-row-sub">lease ${naira(prop.rentalPriceMonthly)}</span>` : ''}</span>`,
+                  : filter === 'afford'
+                    ? `<span class="nl-stack"><strong>${naira(prop.rentalPriceMonthly)}</strong><span class="nl-row-sub">to lease</span></span>`
+                    : `<span class="nl-stack"><strong>${naira(prop.purchasePrice)}</strong>${prop.rentalPriceMonthly > 0 ? `<span class="nl-row-sub">lease ${naira(prop.rentalPriceMonthly)}</span>` : ''}</span>`,
                 attrs: `data-go="p:${esc(prop.id)}" data-property="${esc(prop.id)}"`,
               })).join('')}
         </div>

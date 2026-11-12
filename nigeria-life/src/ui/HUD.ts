@@ -113,6 +113,8 @@ export class HUD {
   public currentActiveObject: InteractiveObject | null = null;
 
   public onExitVehicle?: () => void;
+  /** The player greeted, shook hands with or chatted to this person */
+  public onSpokenTo?: (id: string) => void;
   public onHonkVehicle?: () => void;
   public onRefuelVehicle?: () => void;
   /** Opens the pump at a filling station (or the nearest one's directions) */
@@ -542,7 +544,7 @@ export class HUD {
           : chatWith(me, person, options);
         if (!result.ok) {
           this.showNotification(result.reason && result.reason !== 'busy' ? result.reason : 'Finish what you are doing first.');
-        }
+        } else if (kind !== 'wave') this.onSpokenTo?.(obj.id);
       });
     };
     social('card-wave-btn', 'wave');
@@ -592,8 +594,14 @@ export class HUD {
         return;
       }
       if (this.currentActiveObject) {
-        this.economyModal.open(this.currentActiveObject.id);
+        const id = this.currentActiveObject.id;
         this.hideInteractionCard();
+        // The estate office: the homes to let and for sale, as the phone lists them. Someone with
+        // no home is shown what they can pay for now, cheapest first.
+        if (id === 'villa-compound' || id === 'palm-view-flats') {
+          const homeless = !this.backend.getData().properties.some((p) => p.status === 'owned' || p.status === 'rented' || p.status === 'purchased');
+          this.phoneModal.openApp('property', homeless ? 'afford' : '');
+        } else this.economyModal.open(id);
       }
     });
 
@@ -1927,6 +1935,10 @@ export class HUD {
     } else if (obj.id.startsWith('remote_player_')) {
       btnEl.textContent = '👤 See their card · chat, hire, CV';
       bizBtn.style.display = 'none';
+    } else if (obj.id === 'community-elder') {
+      // An elder is greeted: he answers with a conversation (src/world/ChiefAlabi.ts)
+      btnEl.textContent = '🙏 Greet Chief Alabi';
+      bizBtn.style.display = 'none';
     } else {
       btnEl.textContent = 'Enter / Inspect';
       bizBtn.style.display = 'none';
@@ -2442,6 +2454,10 @@ export class HUD {
   private handleCardAction(): void {
     if (!this.currentActiveObject) return;
     const id = this.currentActiveObject.id;
+    if (id === 'community-elder') {
+      document.getElementById('card-greet-btn')?.click();
+      return;
+    }
     if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;
     if (!this.actingOut && this.actOutInStreet(this.currentActiveObject)) return;
     this.questManager.triggerEvent('interact_object', { objectId: id });

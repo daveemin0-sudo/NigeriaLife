@@ -146,7 +146,9 @@ import { FORECOURT, STATIONS, jerryCanShare, nearestStation, stationNear, type S
 import { TopMenu } from '../ui/TopMenu';
 import { Fleet, fleetColour, fleetModel } from '../assets/Fleet';
 import { InterStateModal } from '../ui/InterStateModal';
-import { FirstSteps, type FirstStepsHost } from '../ui/FirstSteps';
+import { FirstSteps, GUIDE_TARGETS, guideEnded, guideOver, guideWouldRun, keepGuideOver, type FirstStepsHost } from '../ui/FirstSteps';
+import { elderCard, elderHello, elderMemory, talkToElder } from '../world/ChiefAlabi';
+import { GuideMarker } from '../world/GuideMarker';
 import { buildJet, buildYacht } from '../world/expressway/FleetModels';
 import { AIRFIELD, MARINA } from '../world/expressway/Roadside';
 import { FurnitureThumbs } from '../ui/FurnitureThumbs';
@@ -862,6 +864,22 @@ export class Game {
       }
       this.world.interiorManager.enterThroughDoor(buildingId, this.player, this.cameraManager, this.hud, this.world);
     };
+    // Chief Alabi answers a greeting with a conversation, and remembers it
+    this.hud.onSpokenTo = (id) => {
+      if (id === GUIDE_TARGETS.elder) this.talkToElder();
+    };
+    this.remindElder();
+    // He calls out to someone he knows when they pass (not more than once in a few minutes)
+    window.setInterval(() => {
+      const known = elderMemory();
+      if (!known || this.player.isDriving || this.world.cityManager.currentCityId !== 'lagos' || this.world.interiorManager.isPlayerInside()) return;
+      const now = performance.now();
+      if (now - this.elderCalledAt < 240_000 || document.getElementById('game-dialogue-overlay')) return;
+      const elder = this.placeById(GUIDE_TARGETS.elder);
+      if (!elder || Math.hypot(elder.interactionPoint.x - this.player.position.x, elder.interactionPoint.z - this.player.position.z) > 9) return;
+      this.elderCalledAt = now;
+      InteractionDirector.get().actorFor(GUIDE_TARGETS.elder)?.say(elderHello(known, this.playerName()), 3.2);
+    }, 1500);
     this.hud.onRideInterior = (id, spawnAt, spawnYaw) => {
       const rooms = this.world.interiorManager;
       void rooms.enterInterior(id, this.player, this.cameraManager, this.hud, this.world, { returnTo: rooms.getStreetReturnPosition().clone(), returnYaw: rooms.getStreetReturnYaw(), spawnAt, spawnYaw });
@@ -1001,7 +1019,14 @@ export class Game {
       void online.ready.then((ok) => {
         if (!ok || online.account?.kind !== 'guest') return;
         if (navigator.webdriver && !(window as unknown as { __signInOn?: boolean }).__signInOn) return;
-        new SignInScreen({
+        // A new player sees the city first: the guide asks for a name once they have earned something
+        // worth keeping. A guest whose guide is over is asked here, as before.
+        if (guideWouldRun(this.firstStepsHost())) return;
+        this.openSignIn('register');
+      });
+      ServerLink.authorization = () => online.authorization;
+      this.signInScreen = (mode, later) => {
+        const screen = new SignInScreen({
           register: (u, p) => online.register(u, p),
           login: (u, p) => online.login(u, p),
           done: (typed, gender, isNew) => {
@@ -1018,9 +1043,15 @@ export class Game {
             showGameToast(isNew ? `🎉 Welcome to Lagos, @${name}! Make your look your own.` : `👋 Welcome back, @${name}.`, 'success', 5200);
             if (isNew) this.hud.creatorModal.open('look');
           },
-        }).open();
-      });
-      ServerLink.authorization = () => online.authorization;
+          later,
+          // The name they gave Chief Alabi, as a username (letters, numbers, _ and . only)
+          suggest: () => {
+            const name = this.playerName().replace(/s+/g, '_').replace(/[^A-Za-z0-9_.]/g, '').slice(0, 16);
+            return name.length >= 3 && name !== 'Bayo' ? name : '';
+          },
+        }, mode);
+        screen.open();
+      };
       // Every 20 s, how the game is running on this device (frame rate, screen, quality, whether
       // the player could move), so the game team can see what a real phone does. Nothing personal.
       let lastAt = this.player.position.clone();
@@ -2557,29 +2588,190 @@ export class Game {
   /** What the first-steps guide reads and does */
   public firstStepsHost(): FirstStepsHost {
     const backend = BackendService.getInstance();
+    const lagos = () => this.world.cityManager.currentCityId === 'lagos';
+    const centre = (id: string): THREE.Vector3 | null => {
+      const o = lagos() ? this.placeById(id) : null;
+      if (!o) return null;
+      // People are pointed at over their heads; a door or a gate at the spot in front of it
+      const person = id === GUIDE_TARGETS.elder || id === GUIDE_TARGETS.suya || id === GUIDE_TARGETS.port || id === GUIDE_TARGETS.site;
+      return person && o.mesh ? o.mesh.getWorldPosition(new THREE.Vector3()).setY(0) : o.interactionPoint.clone().setY(0);
+    };
     return {
-      name: () => backend.getData().username,
       position: () => this.player.position,
-      phoneOpen: () => this.hud.phoneModal.isOpen,
-      onShift: () => backend.getActiveJobShift() !== null,
       timesPaid: () => backend.getData().career.completedGigs,
       hasHome: () => this.myHomes().length > 0 || this.land.hasHome(),
-      openLook: () => this.hud.creatorModal.open('look'),
-      openApp: (app) => {
-        this.hud.phoneModal.open();
-        this.hud.phoneModal.openApp(app);
+      employed: (employer) => Employment.get().isEmployed(employer),
+      siteOpen: () => this.world.landmarks.buildingSite?.status?.().open !== false,
+      where: (id) => centre(id),
+      walkTo: (id) => {
+        const o = lagos() ? this.placeById(id) : null;
+        if (o) this.input.approachAndInteract(o);
+      },
+      mark: (id) => {
+        if (!this.guideMarker) this.guideMarker = new GuideMarker(this.world.scene);
+        this.guideMarker.point(id ? () => centre(id) : null);
+      },
+      bearing: (id) => {
+        const at = centre(id);
+        if (!at) return null;
+        const look = this.cameraManager.camera.getWorldDirection(new THREE.Vector3());
+        const dx = at.x - this.player.position.x;
+        const dz = at.z - this.player.position.z;
+        // Ahead on the screen is where the camera looks along the ground; its right is (-z, x) of that
+        return (Math.atan2(dx * -look.z + dz * look.x, dx * look.x + dz * look.z) * 180) / Math.PI;
+      },
+      working: () => this.world.landmarks.buildingSite?.status?.().working === true || this.world.landmarks.port?.status?.().bay === 'loading',
+      windowOpen: () => UIStateManager.getInstance().isAnyModalOpen(),
+      lookingAtRooms: () => this.hud.phoneModal.isOpen && this.hud.phoneModal.currentAppId === 'property',
+      seeRooms: () => this.hud.phoneModal.openApp('property', 'afford'),
+      metElder: () => elderMemory() !== null,
+      elderCalls: (text) => InteractionDirector.get().actorFor(GUIDE_TARGETS.elder)?.say(text, 3.2),
+      guest: () => {
+        const online = OnlineAccount.get();
+        if (!online || !online.account) return null;
+        return online.account.kind === 'guest';
+      },
+      signUp: (later) => {
+        if (!this.openSignIn('register', later)) later();
       },
       say: (text) => showGameToast(text, 'success', 8000),
       touch: () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches,
+      ended: (how) => {
+        const online = OnlineAccount.get();
+        if (online) void online.request('/me/guide', { state: how }).catch(() => undefined);
+      },
     };
   }
 
-  /** The guide to the first pay, for a life that is new (once; nothing for a life under way) */
+  /**
+   * The first five minutes, for a life that is new or part-way through them (once; nothing for a
+   * life under way). With a game server, its word comes first: an account whose guide is over
+   * (finished or skipped on any device) never sees it, not even for a moment while its save loads.
+   */
   public startFirstSteps(): void {
-    if (!this.firstSteps) this.firstSteps = FirstSteps.begin(this.firstStepsHost());
+    if (this.firstSteps || this.firstStepsWaiting) return;
+    const online = OnlineAccount.get();
+    const ended = guideEnded();
+    if (ended) {
+      // It ended on this device while the server could not be told (offline): told now, kept there for good
+      if (online) void online.ready.then(async (ok) => {
+        if (!ok) return;
+        const me = await online.request('/me');
+        if (me?.ok && me.guide === 'open') await online.request('/me/guide', { state: ended });
+      }).catch(() => undefined);
+      return;
+    }
+    if (!online) {
+      this.firstSteps = FirstSteps.begin(this.firstStepsHost());
+      return;
+    }
+    this.firstStepsWaiting = true;
+    // No answer in a few seconds (no server, a slow line): the guide runs on this device's word
+    const late = new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 6000));
+    const asked = online.ready.then(async (ok) => {
+      if (!ok) return null;
+      const me = await online.request('/me');
+      if (!me?.ok) return null;
+      // The account's newer copy is being loaded onto this device: nothing is shown before it is
+      if (await CloudSyncService.getInstance().decided) return 'loading';
+      return String(me.guide ?? 'open');
+    }).catch(() => null);
+    void Promise.race([asked, late]).then((said) => {
+      this.firstStepsWaiting = false;
+      if (online.leaving || said === 'loading') return;
+      if (said === 'done' || said === 'skipped') {
+        keepGuideOver(said);
+        return;
+      }
+      if (!this.firstSteps && !guideOver()) this.firstSteps = FirstSteps.begin(this.firstStepsHost());
+    });
+    // An answer that came after the wait still counts: over on the account is over here
+    void asked.then((said) => {
+      if (said === 'done' || said === 'skipped') this.firstSteps?.dismiss(said);
+    });
   }
 
+  /** The sign-up or sign-in screen (from the title, the guide, or a guest's visit) */
+  public openSignIn(mode: 'register' | 'login', later?: () => void): boolean {
+    if (!this.signInScreen) return false;
+    this.signInScreen(mode, later);
+    return true;
+  }
+
+  private signInScreen: ((mode: 'register' | 'login', later?: () => void) => void) | null = null;
   private firstSteps: FirstSteps | null = null;
+  private firstStepsWaiting = false;
+  private guideMarker: GuideMarker | null = null;
+  /** When Chief Alabi last called out to, or spoke with, the player */
+  private elderCalledAt = -Infinity;
+
+  /** The guide, for tests */
+  public get guide(): FirstSteps | null {
+    return this.firstSteps;
+  }
+
+  /** A person or door in this city by its interactive id */
+  private placeById(id: string) {
+    return this.world.interactiveObjects.find((o) => o.id === id) ?? null;
+  }
+
+  /** The player's name as the street knows it */
+  private playerName(): string {
+    return this.player.config.name || BackendService.getInstance().getData().username || 'my child';
+  }
+
+  /** Chief Alabi: the card says what he remembers of the player */
+  private remindElder(): void {
+    const elder = this.placeById(GUIDE_TARGETS.elder);
+    if (elder) elder.description = elderCard(elderMemory(), this.playerName());
+  }
+
+  /** After a greeting, a handshake or a chat with Chief Alabi, the conversation (the gesture plays first) */
+  public talkToElder(): void {
+    this.elderCalledAt = performance.now();
+    const backend = BackendService.getInstance();
+    const host = this.firstStepsHost();
+    let typed = '';
+    window.setTimeout(() => talkToElder({
+      name: () => this.playerName(),
+      typedName: () => typed,
+      rename: (name) => {
+        const cfg = this.player.config;
+        cfg.name = name;
+        this.player.applyCustomization(cfg);
+        backend.updateUsername(name);
+        return name;
+      },
+      siteOpen: () => host.siteOpen(),
+      timesPaid: () => host.timesPaid(),
+      hasHome: () => host.hasHome(),
+      warm: (by) => Ties.get().grow(GUIDE_TARGETS.elder, 'Chief Alabi', by),
+      speak: (text, replies, onClose, askName) => {
+        let chosen = false;
+        window.setTimeout(() => {
+          // "Who are you?": a place to say their name, under his words
+          const box = askName ? document.querySelector('#game-dialogue-overlay .dialogue-speech-box') : null;
+          if (!box) return;
+          const row = document.createElement('label');
+          row.className = 'dialogue-name-row';
+          row.innerHTML = '<span>Tell him your name</span><input id="dialogue-name-input" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Your name" />';
+          box.after(row);
+          const input = row.querySelector('input')!;
+          input.addEventListener('input', () => { typed = input.value; });
+          // Typing a name is typing, not walking or picking reply 1, 2 or 3
+          for (const type of ['keydown', 'keyup', 'keypress'] as const) input.addEventListener(type, (e) => e.stopPropagation());
+        }, 0);
+        this.hud.showDialogueModal({
+          speakerName: 'Chief Alabi',
+          speakerRole: 'Elder of Broad Street',
+          speakerAvatar: '👴🏾',
+          dialogueText: text,
+          choices: replies.length ? replies.map((r, i) => ({ id: 'elder-' + i, label: r.label, onSelect: () => { chosen = true; r.run(); } })) : undefined,
+          onConfirm: () => window.setTimeout(() => { if (!chosen) onClose?.(); }, 0),
+        });
+      },
+    }, () => this.remindElder()), 1400);
+  }
 
   /** A house the player built on their land (its plot's id), as opposed to a flat or house rented or bought */
   private isPlotHome(id: string): boolean {
@@ -3688,7 +3880,7 @@ export class Game {
     this.cameraManager.snapToPlayer(this.player, 'street');
     this.gateStart = { x, z };
     document.body.classList.add('lx-arrive');
-    showGameToast('Your gate is ahead. Walk out onto the street.', 'info', 4200);
+    showGameToast('Broad Street, Lagos Island. You have just arrived in Lagos.', 'info', 4200);
   }
 
   /** The quiet arrival is over once they have walked out, or gone inside. */
@@ -4012,6 +4204,7 @@ export class Game {
     const line = BusLine.get();
     line.draw(this.world.scene, `${cityNow}:${line.buses().map((b) => b.id).join(',')}`, this.world.skyEnvironment.currentHour);
     this.world.update(delta, this.input.keys, this.player.position, this.player);
+    this.guideMarker?.update(delta, this.player.position, this.player.isDriving || this.world.interiorManager.isPlayerInside());
     if (viewAfterTheCar) {
       this.cameraManager.update(this.player, delta);
       this.viewPicker.update();

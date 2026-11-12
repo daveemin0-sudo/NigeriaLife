@@ -77,11 +77,15 @@ void fontsReady.then(() => {
             fresh: isFreshLife(game.firstStepsHost()),
           };
         },
-        // In the world for the first time: the guide to the first pay
+        // In the world for the first time: the first five minutes
         closed: () => game.startFirstSteps(),
+        canSignIn: () => game.modules.OnlineAccount.get()?.account?.kind === 'guest',
+        signIn: () => game.openSignIn('login'),
         drift: (delta) => game.cameraManager.rotate(delta * 0.1),
         frame: (on) => game.cameraManager.setPreset(on ? 'isometric' : 'street'),
       });
+      // Once the game server has answered, a guest is offered the way in to an account they have
+      void game.modules.OnlineAccount.get()?.ready.then(() => w.titleScreen?.refresh());
     }
   } catch (err: any) {
     console.error('[NIGERIA LIFE ERROR]', err);

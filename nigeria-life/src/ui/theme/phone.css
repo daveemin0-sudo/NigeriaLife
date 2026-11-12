@@ -1099,6 +1099,31 @@ html[data-text="large"] #phone-screen-content { zoom: 1.12; }
   font: 700 12px/1 system-ui, sans-serif;
 }
 
+/* Chief Alabi asks who you are: a place to say a name, under his words */
+.dialogue-name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 2px;
+  font: 700 12px/1.2 var(--nl-font, system-ui, sans-serif);
+  color: var(--lx-dim, #6b7a72);
+}
+.dialogue-name-row input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--lx-line, rgba(15, 26, 20, 0.18));
+  background: var(--lx-card, #fff);
+  color: var(--lx-ink, #0f1a14);
+  font: 700 16px/1.2 var(--nl-font, system-ui, sans-serif);
+}
+.dialogue-name-row input:focus {
+  outline: 2px solid #0e7a4e;
+  outline-offset: 1px;
+}
+
 /* --- A new player's first steps: one slim line that says what to do next (any screen) ----------- */
 #nl-first-steps {
   position: fixed;
@@ -1141,6 +1166,26 @@ html[data-text="large"] #phone-screen-content { zoom: 1.12; }
   color: #fff;
   font: 800 12px/1 var(--nl-font, system-ui, sans-serif);
   cursor: pointer;
+}
+#nl-first-steps .fs-far {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--lx-dim, #6b7a72);
+  white-space: nowrap;
+}
+#nl-first-steps .fs-way {
+  display: inline-block;
+  font-style: normal;
+  font-weight: 800;
+  color: #0e7a4e;
+}
+#nl-first-steps .fs-go,
+#nl-first-steps .fs-there {
+  background: #f5b301;
+  color: #1a1400;
+}
+#nl-first-steps .fs-do + .fs-do {
+  margin-left: -2px;
 }
 #nl-first-steps .fs-skip {
   flex: 0 0 auto;
@@ -1186,9 +1231,27 @@ body:has(.buka-order-status[style*="flex"]) #nl-first-steps {
     border-radius: 14px;
     font-size: 12px;
   }
+  /* On a narrow phone the words have the first row to themselves and the buttons sit under them */
+  #nl-first-steps {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 7px 8px;
+  }
+  #nl-first-steps .fs-text {
+    flex: 1 1 60%;
+  }
+  #nl-first-steps .fs-skip {
+    order: 2;
+    margin-left: auto;
+  }
+  #nl-first-steps .fs-do {
+    order: 3;
+    min-height: 36px;
+    padding: 8px 14px;
+  }
   /* The toasts go under it */
-  html body:has(#nl-first-steps) #game-toast-container {
-    top: calc(env(safe-area-inset-top, 0px) + 200px) !important;
+  html body:not(.ui-modal-open):not(.lx-title):has(#nl-first-steps) #game-toast-container {
+    top: calc(env(safe-area-inset-top, 0px) + 236px) !important;
   }
 }
 @media (max-height: 500px) and (orientation: landscape) {
@@ -1200,7 +1263,7 @@ body:has(.buka-order-status[style*="flex"]) #nl-first-steps {
     max-width: none;
     border-radius: 14px;
   }
-  html body:has(#nl-first-steps) #game-toast-container {
+  html body:not(.ui-modal-open):not(.lx-title):has(#nl-first-steps) #game-toast-container {
     top: calc(env(safe-area-inset-top, 0px) + 138px) !important;
   }
 }

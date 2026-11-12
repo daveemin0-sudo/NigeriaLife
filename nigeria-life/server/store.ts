@@ -118,6 +118,11 @@ CREATE TABLE IF NOT EXISTS traits (
   trait TEXT NOT NULL,             -- src/life/Traits.ts; picked once, never changed
   chosen_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS guide (
+  account_id TEXT PRIMARY KEY REFERENCES accounts(id),
+  state TEXT NOT NULL,             -- 'done' | 'skipped': the first five minutes are over for this account, for good
+  at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS once_paid (
   account_id TEXT NOT NULL,
   kind TEXT NOT NULL,              -- 'quest' | 'album' | 'case' | 'agama'

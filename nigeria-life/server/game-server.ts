@@ -114,6 +114,20 @@ function traitOf(accountId: string): string | null {
   return row?.trait ?? null;
 }
 
+/**
+ * The first five minutes (src/ui/FirstSteps.ts): 'open' until the account finishes or skips them,
+ * and over from then on, on every device. An account that has ever been paid a wage is past them
+ * whatever it says (accounts from before this was kept).
+ */
+function guideOf(accountId: string): 'open' | 'done' | 'skipped' {
+  const row = db.prepare('SELECT state FROM guide WHERE account_id = ?').get(accountId) as { state: string } | undefined;
+  if (row) return row.state === 'skipped' ? 'skipped' : 'done';
+  const paid = db.prepare('SELECT 1 FROM payslips WHERE account_id = ? LIMIT 1').get(accountId);
+  if (!paid) return 'open';
+  db.prepare("INSERT OR IGNORE INTO guide (account_id, state, at) VALUES (?, 'done', ?)").run(accountId, Date.now());
+  return 'done';
+}
+
 /** The share of a sale's price the market keeps: as the game (src/realestate/AssetMarket.ts) */
 const SALE_FEE_RATE = 0.02;
 
@@ -455,7 +469,14 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
   switch (`${req.method} ${url.pathname}`) {
     case 'GET /me': {
       const away = economy.coverAbsence(account.id);
-      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id), ...(away ? { away } : {}) });
+      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id), guide: guideOf(account.id), ...(away ? { away } : {}) });
+    }
+    case 'POST /me/guide': {
+      // Over once, over for good: nothing a device sends later opens it again
+      const state = body.state === 'skipped' ? 'skipped' : body.state === 'done' ? 'done' : null;
+      if (!state) return reply(res, 400, { ok: false, reason: 'That is not a state of the guide.' });
+      db.prepare('INSERT OR IGNORE INTO guide (account_id, state, at) VALUES (?, ?, ?)').run(account.id, state, Date.now());
+      return reply(res, 200, { ok: true, guide: guideOf(account.id) });
     }
     case 'GET /me/save':
       return reply(res, 200, saves.read(account.id));

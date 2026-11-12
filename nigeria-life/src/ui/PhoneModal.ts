@@ -185,6 +185,11 @@ export class PhoneModal {
     else this.open();
   }
 
+  /** The app on the screen now ('home' on the home screen) */
+  public get currentAppId(): string {
+    return this.stack[this.stack.length - 1]?.app ?? 'home';
+  }
+
   /** Opens an app (by its id, or an older name for it) from the home screen. */
   public openApp(appId: string, route = ''): void {
     const app = this.appFor(appId);
@@ -194,7 +199,9 @@ export class PhoneModal {
     // The older names carry which part of the app they meant
     const start = route || (appId === 'chowdeck' ? 'food' : appId === 'boutique' || appId === 'market' ? 'market' : '');
     if (app.id === 'shopping' && start) this.memory.set('shopping.tab', start);
-    const inside = app.id === 'shopping' ? '' : start;
+    // Property, opened on the homes the player can pay for now (the estate office, a new arrival)
+    if (app.id === 'property' && start === 'afford') this.memory.set('property.filter', 'afford');
+    const inside = app.id === 'shopping' || (app.id === 'property' && start === 'afford') ? '' : start;
     // Opened straight onto a screen inside an app, Back still goes up to the app before the home screen
     this.stack = [{ app: 'home', route: '' }, { app: app.id, route: '' }];
     if (inside) this.stack.push({ app: app.id, route: inside });
