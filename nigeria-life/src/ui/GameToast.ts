@@ -21,6 +21,10 @@ export function noticesEnabled(): boolean {
 
 function playToastSound(type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
   try {
+    // Before the player's first tap the browser keeps sound off: making the sound engine then plays
+    // nothing and costs time while the game is starting (seconds, measured on a slow processor)
+    const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+    if (!audioCtx && activation && !activation.hasBeenActive) return;
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
     if (!audioCtx) audioCtx = new AudioContextClass();

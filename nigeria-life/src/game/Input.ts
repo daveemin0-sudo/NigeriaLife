@@ -542,6 +542,11 @@ export class InputManager {
   /** What the player last tapped to go to: while they are in reach of it, its card is the one shown */
   private chosen: InteractiveObject | null = null;
 
+  /** This keeps the action button while the player is in reach of it, over anything nearer (the vehicle just got out of) */
+  public prefer(obj: InteractiveObject | null): void {
+    this.chosen = obj;
+  }
+
   public approachAndInteract(obj: InteractiveObject): void {
     this.chosen = obj;
     const dist = this.player.position.distanceTo(obj.interactionPoint);

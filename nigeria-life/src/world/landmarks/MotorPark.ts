@@ -84,6 +84,8 @@ export interface MotorParkLandmark extends Landmark {
   coach: THREE.Group;
   /** Which way the gate is from the bays: the way a coach leaves */
   leaves: { x: number; z: number };
+  /** The middle of the gate on the line of the front fence, and half its width: the way in for vehicles */
+  gate: { x: number; z: number; half: number };
   /** The coach is in its bay, for a passenger arriving on it */
   receive(): void;
   /** The coach pulls out of its bay and through the gate; `gone` is called when it has left the park */
@@ -264,6 +266,7 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
     city,
     coach,
     leaves: { x: X(0, 0) - X(0, 1), z: Z(0, 0) - Z(0, 1) },
+    gate: { x: site.x, z: site.z, half: GATE },
     setDown: doorPoint,
     setDownFacing: yawOf(0, -1),
     zone: south

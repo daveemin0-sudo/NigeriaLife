@@ -153,7 +153,8 @@ import { FurnitureThumbs } from '../ui/FurnitureThumbs';
 import { DriveControls } from '../ui/DriveControls';
 import { StreetAmbience } from '../audio/StreetAmbience';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD } from '../world/density/StreetLayout';
-import { EXPRESS } from '../world/expressway/layout';
+import { EXPRESS, ROADSIDE, SIDE_ROADS } from '../world/expressway/layout';
+import { kerbsFrom, wayIn, type KerbSet } from '../world/plan/Kerbs';
 import { isRushHour } from '../world/StreetLife';
 import { ResidentialInterior } from '../interiors/templates/ResidentialInterior';
 import { standardOf } from '../housing/HomeStandard';
@@ -172,6 +173,7 @@ import { CloudSyncService } from '../backend/CloudSyncService';
 import { Qualifications } from '../life/Qualifications';
 import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
+import { showHornTag } from '../ui/HornTag';
 import { buildingType } from '../realestate/BuildingCatalogue';
 import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
 
@@ -930,6 +932,9 @@ export class Game {
     this.hud.onOpenMusic = () => music.open();
 
     // Driving with fingers: steering, pedals, horn and Get out, on touch screens
+    // From the bonnet the horn is a small tag on the screen, not the bubble over the car (which would fill the view)
+    DrivableVehicle.eyeOnTheBonnet = () => this.cameraManager.driveView === 'bonnet' && this.player.isDriving;
+    DrivableVehicle.ownHorn = (text, seconds) => showHornTag(text, seconds);
     const drive = new DriveControls({
       keys: this.input.keys,
       steer: (amount) => {
@@ -1945,6 +1950,7 @@ export class Game {
     this.plotWorld.onGateChanged = () => {
       this.solidsByCity.clear();
       this.waysByCity.clear();
+      this.kerbsByCity.clear();
     };
     BackendService.getInstance().addHomeCheck(() => this.land.hasHome());
 
@@ -2018,6 +2024,7 @@ export class Game {
       },
     });
     DrivableVehicle.solids = () => this.solidsHere();
+    DrivableVehicle.kerbs = () => this.kerbsHere();
     // Jets and yachts: bought here, standing at the airfield and the marina, flown and sailed from there
     const fleet = Fleet.get();
     const fleetSheet = new FleetSheet();
@@ -2119,6 +2126,7 @@ export class Game {
       if (built === this.builtOnPlots) return;
       this.builtOnPlots = built;
       this.solidsByCity.clear();
+      this.kerbsByCity.clear();
       this.waysByCity.clear();
     });
 
@@ -3332,6 +3340,49 @@ export class Game {
     return solids;
   }
 
+  private kerbsByCity = new Map<string, KerbSet>();
+
+  /** The pavements a driven car may not go onto, where the player is (none indoors) */
+  public kerbsHere(): KerbSet | null {
+    if (this.world.interiorManager.isPlayerInside() || this.world.interiorManager.busy) return null;
+    const city = this.world.cityManager.currentCityId;
+    let kerbs = this.kerbsByCity.get(city);
+    if (!kerbs) this.kerbsByCity.set(city, (kerbs = this.kerbsIn(city)));
+    return kerbs;
+  }
+
+  /**
+   * Every pavement of a city's streets (and in Lagos the expressway's), and the ways across them
+   * made for vehicles: the gate of each plot and compound, the motor park's gate, and in Lagos the
+   * filling station and the mechanic on Broad Street, the side roads off the expressway, and the
+   * fronts of its places that take cars (filling stations, the motor dealers, the airfield, the
+   * marina, the airport, the interchange). Lay-bys are already cut out of the expressway's pavements.
+   */
+  private kerbsIn(city: string): KerbSet {
+    const extra: Rect[] = [];
+    const ways: Rect[] = [];
+    if (city === 'lagos') {
+      extra.push(...this.world.expressway.pavements);
+      const H = EXPRESS.half;
+      const W = EXPRESS.walk;
+      const across = (side: number, z0: number, z1: number): Rect => (side < 0 ? { minX: -(H + W + 4), maxX: -H + 0.5, minZ: z0, maxZ: z1 } : { minX: H - 0.5, maxX: H + W + 4, minZ: z0, maxZ: z1 });
+      const takesCars = /^station-|motors|auto|airfield|marina|terminal|interchange/;
+      for (const place of ROADSIDE) if (takesCars.test(place.id)) ways.push(across(place.side, place.z - place.length / 2, place.z + place.length / 2));
+      for (const road of SIDE_ROADS) ways.push(across(road.side, road.z - road.half - 2, road.z + road.half + 2));
+      // Broad Street: the NaijaPetro forecourt (its pad 18 m along the road) and God's Grace Auto Works
+      ways.push(wayIn(-13.5, 78.2, 1, 0, 17), wayIn(-13.5, 109, 1, 0, 10));
+    }
+    const park = this.world.motorParkOf(city);
+    if (park) ways.push(wayIn(park.gate.x, park.gate.z, park.leaves.x, park.leaves.z, park.gate.half * 2));
+    // Every plot: through its gate where a compound stands, else across the middle of its front
+    for (const plot of this.land.plots(city)) {
+      const { dx, dz } = towardStreet(plot);
+      const gate = this.plotWorld.compounds.get(plot.id)?.drawing.centre ?? frontOf(plot);
+      ways.push(wayIn(gate.x, gate.z, dx, dz, 5.5, 14, 3));
+    }
+    return kerbsFrom(zonesFor(city), extra, ways);
+  }
+
   /** The hall inside is one room: it carries the name of the airport of the city it is entered from. */
   private nameAirportHall(city: string): void {
     const airport = AIRPORTS[city as FlightCity];
@@ -3771,7 +3822,11 @@ export class Game {
 
   private exitVehicle(): void {
     if (this.player.isDriving && this.player.currentVehicle) {
-      this.ownedVehicles?.leftVehicle(this.player.currentVehicle);
+      const left = this.player.currentVehicle;
+      this.ownedVehicles?.leftVehicle(left);
+      // Got out of it: its button stays the one shown while the player is beside it, even with
+      // someone or something else a step nearer, so getting straight back in is one tap
+      this.input.prefer(this.world.vehicles.cardBy(left) ?? this.world.interactiveObjects.find((o) => o.id === left.id) ?? null);
       const exitPos = this.player.currentVehicle.exit();
       this.player.mesh.position.copy(exitPos);
       this.player.mesh.visible = true;

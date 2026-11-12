@@ -21,6 +21,7 @@ import { LagosStreetLifeSystem } from '../../world/LagosStreetLifeSystem';
 import { OnlineAccount } from '../../online/OnlineAccount';
 import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
 import { Dues, dayLabel } from '../../life/Dues';
+import { describeLoad, loadHistory, thisLoad } from '../../app/LoadTimes';
 
 // ============================================================================================
 // Jobs
@@ -774,6 +775,11 @@ export const settingsApp: PhoneApp = {
             title: 'Graphics quality',
             sub: `${(window as any).game?.graphics?.label ?? 'High'}: ${GRAPHICS_NOTES[(window as any).game?.graphics?.level ?? 'high']}`,
             trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-graphics">Change</button>',
+          })}
+          ${row({
+            icon: '⏱️',
+            title: 'Start-up on this device',
+            sub: esc([thisLoad(), ...loadHistory().filter((r) => r.at !== thisLoad().at).slice(0, 2)].map((r, i) => `${i === 0 ? 'This time' : new Date(r.at).toLocaleDateString()}: ${describeLoad(r)}`).join(' | ')),
           })}
         </div>
         <div class="nl-section">Driving & Vehicle Handling</div>

@@ -51,6 +51,10 @@ export class SoundEngine {
 
   private ensureContext(): AudioContext | null {
     if (!this.ctx) {
+      // Not before the player's first tap or key: the browser keeps sound off until then, so it would
+      // play nothing, and making it while the game starts costs time (half a second, measured)
+      const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+      if (activation && !activation.hasBeenActive) return null;
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtxClass) return null;
       this.ctx = new AudioCtxClass();

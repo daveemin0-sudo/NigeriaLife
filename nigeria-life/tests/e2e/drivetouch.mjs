@@ -90,7 +90,10 @@ export async function run(browser, check) {
   let r = await rows();
   await lift();
   const at = (rs, t) => rs.find((row) => row[0] - rs[0][0] >= t) ?? rs[rs.length - 1];
-  const pull = { after2s: +(at(r, 2)[4] * 3.6).toFixed(0), after6s: +(r[r.length - 1][4] * 3.6).toFixed(0), drift: +Math.max(...r.map((row) => Math.abs(row[1] - LANE))).toFixed(2), frames: r.length, fps: +(r.length / ((r[r.length - 1][8] - r[0][8]) / 1000)).toFixed(1) };
+  // Read at six seconds of game time. On a slow machine the test overruns (seven or eight seconds),
+  // and the car then reaches the roadworks cones standing in this lane at z 52 to 56 and stops
+  r = r.filter((row) => row[0] - r[0][0] <= 6.05);
+  const pull = { after2s: +(at(r, 2)[4] * 3.6).toFixed(0), after6s: +(at(r, 6)[4] * 3.6).toFixed(0), drift: +Math.max(...r.map((row) => Math.abs(row[1] - LANE))).toFixed(2), frames: r.length, fps: +(r.length / ((r[r.length - 1][8] - r[0][8]) / 1000)).toFixed(1) };
   check('drivetouch: holding GAS pulls away (over 25 km/h in two seconds, over 60 in six) and the car stays in its lane untouched', pull.after2s > 25 && pull.after6s > 60 && pull.drift < 0.4, pull);
 
   // ------------------------------------------------------------------ The view follows without jerking

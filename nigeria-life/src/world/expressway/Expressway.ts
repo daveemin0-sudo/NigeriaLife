@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RedLine, STATIONS, VIADUCT } from './RedLine';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
-import type { Obstruction } from '../plan/CityPlan';
+import type { Obstruction, Rect } from '../plan/CityPlan';
 import { EXPRESS_BRIDGE, EXPRESS_BRIDGES } from '../density/StreetLayout';
 import { EXPRESS, roadsideAt } from './layout';
 import { SideStreets } from './SideStreets';
@@ -95,6 +95,8 @@ export class Expressway {
   public readonly group = new THREE.Group();
   /** What stands on the ground: the barrier, lamps, buildings, parapets and the rest */
   public readonly obstructions: Array<Obstruction & { pole?: boolean }> = [];
+  /** The pavements as drawn (not where a lay-by cuts into them): a driven car may not go onto them */
+  public readonly pavements: Rect[] = [];
   private readonly chunks: Array<{ group: THREE.Group; z: number }> = [];
   private readonly rand = seededRandom(4410);
 
@@ -363,6 +365,9 @@ export class Expressway {
       if (c - a < 0.01) return;
       const m = (a + c) / 2;
       b.box(0xbcb3a3, W - cut, 0.2, c - a, side * (H + cut + (W - cut) / 2), 0, m);
+      const inner = side * (H + cut);
+      const outer = side * (H + W);
+      this.pavements.push({ minX: Math.min(inner, outer), maxX: Math.max(inner, outer), minZ: a, maxZ: c });
       b.box(0xe5e7eb, 0.25, 0.22, c - a, side * (H + cut + 0.12), 0, m);
       // The floor of the bay: at the level of the road, and its colour
       if (cut > 0) b.box(0x2b2f36, cut, 0.02, c - a, side * (H + cut / 2), 0, m);

@@ -10,6 +10,7 @@ import { showGameToast } from '../ui/GameToast';
 import { BackendService } from '../backend/BackendService';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import type { Zone } from './plan/CityPlan';
+import type { KerbSet } from './plan/Kerbs';
 import { Bodies, bodyOf, depthIntoCar, type CarBody } from './Bodies';
 import { buildCarBody, CAR_SPECS, type CarSpec } from './vehicles/CarBodyKit';
 import { ASSIST_HANDS_ON, REVERSE_PAUSE, assistYawRate, handlingOf, nextSpeed, roadUnder, sliderAngle, turnWheel, turnWheelTo, wheelAngle, yawRate } from './VehicleHandling';
@@ -65,6 +66,8 @@ export class DrivableVehicle {
    * field. Below KERB_SPEED it can be driven over on purpose: into a forecourt, a driveway, a lay-by.
    */
   public static onRoad: ((x: number, z: number) => boolean) | null = null;
+  /** The pavements a driven car may not go onto at any speed, but at a way in for vehicles: set by the game (src/world/plan/Kerbs.ts) */
+  public static kerbs: (() => KerbSet | null) | null = null;
   private kerbToastAt = 0;
   /** The bus stops and the people waiting at them, for danfos and kekes: set once by the game */
   public static busStops: BusStops | null = null;
@@ -76,6 +79,10 @@ export class DrivableVehicle {
   public static hootTraffic: ((x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth: number) => number) | null = null;
   /** Handling tests drive on a road with nobody else on it */
   public static ignoreBodies = false;
+  /** The camera is on the bonnet of the car the player drives (the horn bubble would fill the screen) */
+  public static eyeOnTheBonnet: (() => boolean) | null = null;
+  /** The player's own horn, heard from the bonnet: shown on the screen instead of over the car */
+  public static ownHorn: ((text: string, seconds: number) => void) | null = null;
   /** The driver has a convoy clearing the road (set by the game): cars pulling over for it never stop them */
   public static clearsTraffic: () => boolean = () => false;
   /** The stop where the people now aboard got on (-1: none yet) */
@@ -1785,9 +1792,15 @@ export class DrivableVehicle {
     return exitPos;
   }
 
+  /** The player drives this car with the camera on its bonnet */
+  private seenFromTheBonnet(): boolean {
+    return this.driver !== null && DrivableVehicle.eyeOnTheBonnet?.() === true;
+  }
+
   public honk(): string {
     this.hornTimer = 1.2;
-    this.hornDisplayGroup.visible = true;
+    this.hornDisplayGroup.visible = !this.seenFromTheBonnet();
+    if (!this.hornDisplayGroup.visible) DrivableVehicle.ownHorn?.(this.config.hornText, this.hornTimer);
     SoundEngine.getInstance().playVehicleHorn(this.type);
     // Everyone in the road ahead hurries to the side
     const yaw = this.mesh.rotation.y;
@@ -1865,7 +1878,8 @@ export class DrivableVehicle {
         const nz = z + push.z;
         const after = this.crowding(nx, nz);
         const solids = DrivableVehicle.solids?.();
-        const walled = solids ? this.solidPoints(solids, nx, nz) > this.solidPoints(solids, pos.x, pos.z) : false;
+        // Pushed clear of another car, but never into a wall or up onto the pavement
+        const walled = (solids ? this.solidPoints(solids, nx, nz) > this.solidPoints(solids, pos.x, pos.z) : false) || this.ontoPavement(nx, nz);
         if (after.cars <= now.cars + 1e-3 && after.people <= now.people + 1e-3 && !walled) {
           this.currentSpeed *= Math.exp(-0.6 * push.square * delta);
           pos.x = nx;
@@ -1882,7 +1896,7 @@ export class DrivableVehicle {
       const length = Math.hypot(dx, dz);
       const slideX = xOk && (!zOk || Math.abs(dx) >= Math.abs(dz));
       const along = length > 0 ? Math.abs((slideX ? dx : dz)) / length : 0;
-      if ((xOk || zOk) && along >= 0.45) {
+      if ((xOk || zOk) && along >= 0.45 && !this.ontoPavement(slideX ? pos.x + dx : pos.x, slideX ? pos.z : pos.z + dz)) {
         this.currentSpeed *= Math.exp(-3 * (1 - along) * delta);
         if (slideX) pos.x += dx;
         else pos.z += dz;
@@ -2013,9 +2027,8 @@ export class DrivableVehicle {
     // Update horn display timer
     if (this.hornTimer > 0) {
       this.hornTimer -= delta;
-      if (this.hornTimer <= 0) {
-        this.hornDisplayGroup.visible = false;
-      }
+      // Never over the car while the camera sits on its bonnet (the view can be changed mid-horn)
+      this.hornDisplayGroup.visible = this.hornTimer > 0 && !this.seenFromTheBonnet();
     }
 
     if (!this.driver) {
@@ -2217,6 +2230,28 @@ export class DrivableVehicle {
     return road(me.x, me.z) && road(me.x + fx, me.z + fz) && road(me.x - fx, me.z - fz);
   }
 
+  /**
+   * How far into the pavement the car would be at (x, z): a point for each of nose, middle and tail
+   * over a pavement, and how far it is then from the road. Only the line down its middle counts,
+   * with a little width, so a car may stand half up on the kerb as cars park in Lagos.
+   */
+  private onPavement(kerbs: KerbSet, x: number, z: number): number {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const r = Math.max(0.2, me.halfWidth * 0.35);
+    const reach = Math.max(0, me.halfLength - 0.6);
+    const fx = Math.sin(me.yaw) * reach;
+    const fz = Math.cos(me.yaw) * reach;
+    const points = (kerbs.at(me.x + fx, me.z + fz, r) ? 1 : 0) + (kerbs.at(me.x, me.z, r) ? 1 : 0) + (kerbs.at(me.x - fx, me.z - fz, r) ? 1 : 0);
+    return points === 0 ? 0 : points * 1000 + Math.min(999, kerbs.offRoad(me.x, me.z));
+  }
+
+  /** Would standing at (x, z) put the car further onto a pavement than it is now? */
+  private ontoPavement(x: number, z: number): boolean {
+    const kerbs = this.driver ? DrivableVehicle.kerbs?.() : null;
+    if (!kerbs) return false;
+    return this.onPavement(kerbs, x, z) > this.onPavement(kerbs, this.mesh.position.x, this.mesh.position.z) + 1e-6;
+  }
+
   /** How many of the body's three points (nose, middle, tail) are in something solid if it stood at (x, z) */
   private solidPoints(solids: Solids, x: number, z: number): number {
     const me = bodyOf(this.mesh, this.myBody, x, z);
@@ -2257,6 +2292,32 @@ export class DrivableVehicle {
       this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
       const ok = slideX ? this.moveUnlessBlocked(pos.x + stepX, pos.z, delta) : this.moveUnlessBlocked(pos.x, pos.z + stepZ, delta);
       return ok ? 'slid' : 'stopped';
+    }
+    // The pavement, at any speed: a wall to a car, but at a way in made for vehicles. Never in the way
+    // of getting back to the road: a step that leaves the car no further onto it, or from the road, is free.
+    const kerbs = this.driver ? DrivableVehicle.kerbs?.() : null;
+    if (kerbs && (stepX !== 0 || stepZ !== 0)) {
+      const here = this.onPavement(kerbs, pos.x, pos.z);
+      const there = this.onPavement(kerbs, pos.x + stepX, pos.z + stepZ);
+      if (there > here + 1e-6) {
+        const alongX = stepX !== 0 && this.onPavement(kerbs, pos.x + stepX, pos.z) <= here + 1e-6;
+        const alongZ = stepZ !== 0 && this.onPavement(kerbs, pos.x, pos.z + stepZ) <= here + 1e-6;
+        const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
+        const length = Math.hypot(stepX, stepZ);
+        const along = length > 0 ? Math.abs(slideX ? stepX : stepZ) / length : 0;
+        if ((!slideX && !alongZ) || along < 0.2) {
+          this.currentSpeed = 0;
+          if (performance.now() - this.kerbToastAt > 6000) {
+            this.kerbToastAt = performance.now();
+            showGameToast('🚧 The pavement is for people. A car crosses it only at a gate, a forecourt, a lay-by or a junction.', 'info', 3600);
+          }
+          return 'stopped';
+        }
+        if (!slowedAlready) this.currentSpeed *= along * Math.exp(-1.5 * delta);
+        this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
+        const slid = this.stepThroughWorld(slideX ? stepX : 0, slideX ? 0 : stepZ, delta, true);
+        return slid === 'moved' ? 'slid' : slid;
+      }
     }
     const solids = DrivableVehicle.solids?.();
     if (!solids) return this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta) ? 'moved' : 'stopped';

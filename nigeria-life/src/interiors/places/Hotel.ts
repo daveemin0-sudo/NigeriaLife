@@ -1130,7 +1130,10 @@ function furnishGuestRoom(room: THREE.Object3D, hotel: string): { x: number; z: 
   lay(room, cityBeyond(ph ? 'ph' : 'abuja'), bed.x, 1.78, -6.78);
   const tiles = new THREE.Mesh(
     new THREE.BoxGeometry(3.6, 0.02, 4.8),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, map: repeated(smallTiles(ph ? '#d5efe6' : '#f4ead8'), 9, 12) ?? undefined }),
+    (() => {
+      const map = repeated(smallTiles(ph ? '#d5efe6' : '#f4ead8'), 9, 12);
+      return new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, ...(map ? { map } : {}) });
+    })(),
   );
   tiles.name = 'bathroom tiles';
   lay(room, tiles, side * 5.6, 0.02, 4.15);

@@ -24,7 +24,9 @@ const LEG = (h: number): Array<[number, number]> => [[0.028, 0], [0.04, 0.02], [
 
 /** A cloth for a bed: damask, dyed `colour`, repeated over the duvet */
 function clothMaterial(colour: number, kind: 'damask' | 'quilt' | 'weave' = 'damask'): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color: colour, roughness: 0.88, metalness: 0, map: fabric(kind) ?? undefined, side: THREE.DoubleSide });
+  // Without a picture where none can be drawn (no `map: undefined`: three.js warns of each one)
+  const map = fabric(kind);
+  return new THREE.MeshStandardMaterial({ color: colour, roughness: 0.88, metalness: 0, ...(map ? { map } : {}), side: THREE.DoubleSide });
 }
 
 /**
