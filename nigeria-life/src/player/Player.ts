@@ -156,6 +156,7 @@ export class Player {
     this.sinceNearer = 0;
     this.blockedFor = 0;
     this.tries = 0;
+    this.replans = 0;
     this.roundIt = null;
     this.way = [];
     this.goal = target.clone();
@@ -232,6 +233,21 @@ export class Player {
       p.z = step.z;
     }
     if (solids) this.keepClearOfBodies(cameFrom, solids);
+  }
+
+  /** Is the straight line from where the walker stands to this point clear of everything solid, for a walker's width? */
+  private clearLineTo(to: { x: number; z: number }): boolean {
+    const solids = this.solids?.();
+    if (!solids) return true;
+    const p = this.mesh.position;
+    // Only the stretch just ahead matters: further on, the way-finder has already checked the line
+    const length = Math.hypot(to.x - p.x, to.z - p.z);
+    const reach = Math.min(length, 2.5);
+    for (let d = 0.15; d <= reach; d += 0.15) {
+      const t = d / length;
+      if (solids.at(p.x + (to.x - p.x) * t, p.z + (to.z - p.z) * t, 0.4)) return false;
+    }
+    return true;
   }
 
   /**
@@ -477,8 +493,15 @@ export class Player {
     // 2. Moving state (Point and Click)
     if (this.targetPosition && this.isMoving) {
       const currentPos = this.mesh.position;
-      // A point on the way is passed, not stopped at: on to the next as soon as this one is underfoot
-      while (this.way.length > 0 && Math.hypot(this.targetPosition.x - currentPos.x, this.targetPosition.z - currentPos.z) <= 0.45) {
+      // A point on the way is passed, not stopped at: on to the next as soon as this one is underfoot.
+      // The corner is only cut (from up to 0.45 m short of it) where the straight line on to the next
+      // point is clear: the way was found round a post or a stall's corner, and cutting inside the
+      // point brushes it, the walker steps round the wrong side and gives up (seen by Broad Street's
+      // scaffold posts). Where it is not clear the point itself is walked to first.
+      while (this.way.length > 0) {
+        const left = Math.hypot(this.targetPosition.x - currentPos.x, this.targetPosition.z - currentPos.z);
+        if (left > 0.45) break;
+        if (left > 0.16 && !this.onBridge && !this.clearLineTo(this.way[0])) break;
         this.targetPosition = this.way.shift()!;
         this.nearest = Infinity;
         this.sinceNearer = 0;
@@ -570,6 +593,14 @@ export class Player {
             this.playAnimation('idle');
             return;
           }
+          // Brought up short with the place still a way off (a corner clipped, pushed aside into a
+          // dead end): the way is found again from where they stand, twice at most, before giving up
+          if (this.goal && this.replans < 2 && !this.onBridge && Math.hypot(this.goal.x - this.mesh.position.x, this.goal.z - this.mesh.position.z) > 3) {
+            const again = this.replans + 1;
+            this.setDestination(this.goal.clone(), this.arrived ?? undefined);
+            this.replans = again;
+            return;
+          }
           this.endWalk();
           return;
         }
@@ -653,6 +684,8 @@ export class Player {
   private blockedFor = 0;
   /** Times this walk has stopped for traffic or people and gone on again */
   private tries = 0;
+  /** How many times this walk has had its way found again after being brought up short */
+  private replans = 0;
   /** Stepping round something in the way: which way they turned, and for how much longer */
   private roundIt: { turn: number; left: number } | null = null;
 
