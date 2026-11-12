@@ -373,7 +373,9 @@ export class Game {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // This version of three.js draws PCFSoftShadowMap as PCFShadowMap, and switches to it at the first shadow drawn:
+    // asked for by its old name, every shader that takes a shadow was built twice (a third of them all, 7 seconds of loading)
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     // Checking each shader for errors on first use waits for it to finish compiling (on Windows,
     // through ANGLE, that stalls the game). Only while developing.
     this.renderer.debug.checkShaderErrors = !!import.meta.env.DEV;
@@ -1520,15 +1522,13 @@ export class Game {
         }
       });
       await Promise.race([renderer.compileAsync(warmer, camera, this.scene), new Promise((done) => setTimeout(done, ms))]);
-      // The shadow map's own depth shaders are made by drawing it once: done here, into a 1-pixel target
+      // The shadow map's own depth shaders are made by drawing one ordinary frame, shadows and all, to the
+      // screen. (Drawing it into a small target instead built a second set of every shader, for a target
+      // that is never used again: 6 seconds of loading, measured. Drawing the shadow map alone, outside a
+      // frame, left the graphics card pointed at it: every frame after was drawn into the shadow map.)
       if (root === this.scene && renderer.shadowMap.enabled) {
-        const target = new THREE.WebGLRenderTarget(1, 1);
-        const was = renderer.getRenderTarget();
-        renderer.setRenderTarget(target);
         renderer.shadowMap.needsUpdate = true;
         renderer.render(this.scene, camera);
-        renderer.setRenderTarget(was);
-        target.dispose();
       }
     } catch (error) {
       console.warn('[shaders] could not be compiled ahead', error);
@@ -3809,9 +3809,12 @@ export class Game {
     if (!this.warming) this.render();
   };
 
-  /** Shaders are compiling before play (warmShaders): nothing is drawn meanwhile */
-  /** Nothing is drawn while shaders are being compiled ahead */
-  private warming = false;
+  /**
+   * Nothing is drawn while shaders are being compiled ahead (warmShaders). True from the start: the
+   * first frame used to be drawn as the game was made, before the warm-up, and drawing waits for each
+   * shader in turn (8 of the 30 seconds of loading, measured). The warm-up builds them side by side.
+   */
+  private warming = true;
 
   /**
    * Runs the game forward by some seconds of game time without drawing every frame.

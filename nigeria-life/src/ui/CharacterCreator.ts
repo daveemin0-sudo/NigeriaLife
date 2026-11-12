@@ -520,7 +520,8 @@ export class CharacterCreatorModal {
         this.setupEvents();
       };
     });
-    if (this.activeTab === 'look') requestAnimationFrame(() => this.showPreview());
+    // The studio pictures are taken when the editor is open, not as the game starts (a second of loading)
+    if (this.isOpen && this.activeTab === 'look') requestAnimationFrame(() => this.showPreview());
     const tabWardrobe = document.getElementById('tab-btn-wardrobe');
     if (tabWardrobe) {
       tabWardrobe.onclick = () => {

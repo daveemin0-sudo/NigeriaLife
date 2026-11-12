@@ -13,6 +13,7 @@ import './ui/theme/luxe.css';
 import './ui/theme/phone.css';
 import { Game } from './game/Game';
 import { isFreshLife } from './ui/FirstSteps';
+import { installStillMatrices } from './graphics/StillMatrices';
 import { startTheme } from './ui/theme/Theme';
 import { TitleScreen } from './ui/TitleScreen';
 import { BackendService } from './backend/BackendService';
@@ -29,6 +30,8 @@ const fontsReady = Promise.race([
 // Initialize the Nigeria Life Engine
 void fontsReady.then(() => {
   try {
+    // Things that do not move are not placed again every frame (a third of the processor's work on the street)
+    installStillMatrices();
     const game = new Game();
     (window as any).game = game;
     console.log('[NIGERIA LIFE] Game successfully initialized!');
