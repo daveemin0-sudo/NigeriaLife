@@ -705,7 +705,10 @@ export class Player {
       const reach = Math.max(c.halfWidth, c.halfLength);
       if (ahead > -reach && ahead < 3 + reach && side < reach + 0.5) car = true;
     }
+    // (Someone drawn where a wall is, as the street crowd can be against a shopfront, is not in the way: the wall is)
+    const solids = this.solids?.();
     for (const o of Bodies.peopleNear(from.x, from.z, 2)) {
+      if (solids?.at(o.x, o.z, 0)) continue;
       const dx = o.x - from.x;
       const dz = o.z - from.z;
       const ahead = dx * dir.x + dz * dir.z;

@@ -6,7 +6,7 @@ import type { StreetSpot, WalkRun } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_JUNCTION_GAPS, MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
 import { isAbroad } from '../StreetLife';
 import { Bodies, type PersonBody } from '../Bodies';
-import { calendar, type OpeningHours } from '../../destinations/Hours';
+import { calendar, isOpen, type OpeningHours } from '../../destinations/Hours';
 import { WalkNetwork, PROFILES, hash01, hoursOfKind, kindOf, planDay, roleOf, workplaceOf, type CityProfile, type Place, type PlaceInput, type PlaceKind, type PlacePicker, type Role, type Step } from './Routines';
 
 type Mode = 'walk' | 'idle' | 'talk';
@@ -95,11 +95,11 @@ interface Life {
   step: number;
   /** When the current step began and the next begins (hours on the plan's clock) */
   nextAt: number;
-  state: 'home' | 'going' | 'in' | 'pitch' | 'stroll' | 'buy';
+  state: 'home' | 'going' | 'in' | 'pitch' | 'stroll' | 'buy' | 'hang';
   /** Walking: the node they last reached, the node they are making for, and what they do there */
   node: number;
   goal: number;
-  then: 'in' | 'pitch' | 'home' | 'buy' | 'stroll';
+  then: 'in' | 'pitch' | 'home' | 'buy' | 'stroll' | 'hang';
   place: number;
   /** The point they are walking to now, and the node it is (-1: the door or the pitch itself) */
   wx: number;
@@ -665,7 +665,7 @@ export class CityPopulation {
   /** Out in the street now: by their own day if they have one, else by the hour's share */
   private isOut(a: Agent, i: number): boolean {
     const l = a.life;
-    if (l) return l.state === 'going' || l.state === 'pitch' || l.state === 'stroll' || l.state === 'buy';
+    if (l) return l.state === 'going' || l.state === 'pitch' || l.state === 'stroll' || l.state === 'buy' || l.state === 'hang';
     if (a.stallOf !== undefined) return this.stallUp[a.stallOf] ?? true;
     return isAbroad(i, this.abroad);
   }
@@ -1024,8 +1024,16 @@ export class CityPopulation {
   private keepDay(a: Agent, jump: boolean): void {
     const l = a.life!;
     if (l.day !== this.day) {
+      const today = calendar.weekday();
+      const before = today === null ? null : (today + 6) % 7;
+      // Yesterday's plan as it was (or as it would have been, after a jump in the clock)
+      const yesterday = l.day === this.day - 1 && l.plan.length ? l.plan : this.planFor(a, l, this.day - 1, before);
+      // Whatever it had them doing at midnight, and anything it had for after, carry on into today
+      let atMidnight = -1;
+      for (let k = 0; k < yesterday.length; k++) if (yesterday[k].at < 24) atMidnight = k;
+      const carried = yesterday.filter((st, k) => k === atMidnight || st.at >= 24).map((st) => ({ ...st, at: st.at - 24 }));
       l.day = this.day;
-      l.plan = planDay(a.id, l.role, this.profile!, l.work >= 0 ? this.places[l.work] : undefined, l.work, calendar.weekday(), this.pickerFor(a, l), this.places);
+      l.plan = [...carried, ...this.planFor(a, l, this.day, today)];
       l.step = -2;
     }
     let want = -1;
@@ -1037,9 +1045,9 @@ export class CityPopulation {
     const place = placeIndex >= 0 ? this.places[placeIndex] : undefined;
 
     if (!COMMUTER.has(l.role)) {
-      const busy = l.state === 'going' || l.state === 'in' || l.state === 'buy';
-      // An errand: from their pavement to a shop, a stall or a buka (only while they are out)
-      if ((step.kind === 'in' || step.kind === 'buy') && place) {
+      const busy = l.state === 'going' || l.state === 'in' || l.state === 'buy' || l.state === 'hang';
+      // An errand, or the evening out: from their pavement (or the last place) to a shop, a stall, a buka or a bar
+      if ((step.kind === 'in' || step.kind === 'buy' || step.kind === 'hang') && place) {
         l.step = want;
         if (jump || l.state === 'home') {
           if (jump) {
@@ -1078,19 +1086,22 @@ export class CityPopulation {
 
     l.step = want;
     if (jump) {
-      const kind = step.kind === 'in' || step.kind === 'pitch' || step.kind === 'buy' ? step.kind : 'home';
+      const kind = step.kind === 'in' || step.kind === 'pitch' || step.kind === 'buy' || step.kind === 'hang' ? step.kind : 'home';
       this.placeAt(a, l, kind, placeIndex);
       // Set out only minutes ago: still on the way, part-way along their route
       if (want >= 0) this.stillOnTheWay(a, l, want, kind, placeIndex);
       return;
     }
-    if (step.kind === 'buy' || (place && place.kind !== 'stall' && placeIndex !== l.work && step.kind === 'in')) this.visits += 1;
-    // Their place is shut when they would set out for it: they stay where they are (at home)
-    if (place && step.kind === 'in' && !this.openAt(place, this.hour) && !this.openAt(place, this.hour + 1.5)) return;
-    // Off they go: from home, out of the door, or away from the stall
-    const goHome = step.kind === 'home' || !place;
+    const elsewhere = !!place && placeIndex !== l.work;
+    if (elsewhere && step.kind !== 'pitch') this.visits += 1;
+    // Their work is shut when they would set out for it: they stay where they are (at home)
+    if (place && !elsewhere && step.kind === 'in' && !this.openAt(place, this.hour) && !this.openAt(place, this.hour + 1.5)) return;
+    // Off they go: from home, out of the door, or away from the stall. A place to eat or drink
+    // that is shut now is not gone to: home instead.
+    const goHome = step.kind === 'home' || !place || (elsewhere && !this.openAt(place, this.hour));
     if (goHome && l.state === 'home') return;
-    this.setOff(a, l, goHome ? l.home : place.node, goHome ? 'home' : step.kind === 'pitch' ? 'pitch' : step.kind === 'buy' ? 'buy' : 'in', goHome ? -1 : placeIndex);
+    const then: Life['then'] = step.kind === 'pitch' ? 'pitch' : step.kind === 'buy' ? 'buy' : step.kind === 'hang' ? 'hang' : 'in';
+    this.setOff(a, l, goHome ? l.home : place!.node, goHome ? 'home' : then, goHome ? -1 : placeIndex);
   }
 
   /**
@@ -1098,7 +1109,12 @@ export class CityPopulation {
    * visit, that they can walk to from where they are (work, or their own pavement); one of the
    * nearest few, the same one on the same day.
    */
-  private pickerFor(a: Agent, l: Life): PlacePicker {
+  /** Someone's plan for a day (and that day of the week) */
+  private planFor(a: Agent, l: Life, day: number, weekday: number | null): Step[] {
+    return planDay(a.id, l.role, this.profile!, l.work >= 0 ? this.places[l.work] : undefined, l.work, weekday, this.pickerFor(a, l, day, weekday), this.places);
+  }
+
+  private pickerFor(a: Agent, l: Life, day: number, weekday: number | null): PlacePicker {
     const net = this.network!;
     const from = l.work >= 0 ? this.places[l.work].node : l.ownNode >= 0 ? l.ownNode : l.home;
     const at = net.nodes[from];
@@ -1107,7 +1123,7 @@ export class CityPopulation {
         const near: Array<{ i: number; d: number }> = [];
         this.places.forEach((p, i) => {
           if (i === l.work || !kinds.includes(p.kind)) return;
-          if (!this.openAt(p, hour) || !this.openAt(p, hour + stay)) return;
+          if (!this.openAt(p, hour, weekday) || !this.openAt(p, hour + stay, weekday) || !this.openAt(p, hour + stay / 2, weekday)) return;
           if (!net.reaches(from, p.node)) return;
           near.push({ i, d: Math.hypot(p.x - at.x, p.z - at.z) });
         });
@@ -1115,7 +1131,7 @@ export class CityPopulation {
         near.sort((p, q) => p.d - q.d);
         // One of the nearest six: not always the very nearest (a favourite buka may be over the road)
         const few = near.slice(0, 6);
-        return few[Math.floor(hash01(a.id, salt + this.day * 7) * few.length)].i;
+        return few[Math.floor(hash01(a.id, salt + day * 7) * few.length)].i;
       }
       return -1;
     };
@@ -1164,19 +1180,28 @@ export class CityPopulation {
   }
 
   /** Is the place open at this hour? */
-  private openAt(place: Place, hour: number): boolean {
+  private openAt(place: Place, hour: number, weekday: number | null = calendar.weekday()): boolean {
     const h = place.hours;
     if (!h) return true;
-    const t = ((hour % 24) + 24) % 24;
-    if (h.opens === h.closes || (h.opens <= 0 && h.closes >= 24)) return true;
-    return h.opens < h.closes ? t >= h.opens && t < h.closes : t >= h.opens || t < h.closes;
+    // Hours past midnight belong to the next day (and before it, to the day before)
+    let t = hour;
+    let day = weekday;
+    while (t >= 24) {
+      t -= 24;
+      day = day === null ? null : (day + 1) % 7;
+    }
+    while (t < 0) {
+      t += 24;
+      day = day === null ? null : (day + 6) % 7;
+    }
+    return isOpen(h, t, day);
   }
 
   /**
    * After a jump in the clock: someone whose step began only minutes ago is still walking it. They
    * are put where their pace would have taken them along the route from where the step before left them.
    */
-  private stillOnTheWay(a: Agent, l: Life, want: number, kind: 'home' | 'in' | 'pitch' | 'buy', placeIndex: number): void {
+  private stillOnTheWay(a: Agent, l: Life, want: number, kind: 'home' | 'in' | 'pitch' | 'buy' | 'hang', placeIndex: number): void {
     const net = this.network!;
     const prev = want > 0 ? l.plan[want - 1] : undefined;
     const fromNode = !prev || prev.kind === 'home' ? l.home : prev.kind === 'stroll' ? l.ownNode : prev.place !== undefined ? this.places[prev.place].node : -1;
@@ -1225,13 +1250,13 @@ export class CityPopulation {
   private readonly lastSeen = new Set<Agent>();
 
   /** Straight to where their day has them (after a jump in the clock) */
-  private placeAt(a: Agent, l: Life, kind: 'home' | 'in' | 'pitch' | 'buy', placeIndex: number): void {
+  private placeAt(a: Agent, l: Life, kind: 'home' | 'in' | 'pitch' | 'buy' | 'hang', placeIndex: number): void {
     this.leavePitch(l);
     this.leaveCounter(a, l);
     a.xing = undefined;
     this.crossers.delete(a);
     const place = placeIndex >= 0 ? this.places[placeIndex] : undefined;
-    if (kind === 'home' || !place || (kind === 'in' && !this.openAt(place, this.hour))) {
+    if (kind === 'home' || !place || ((kind === 'in' || kind === 'hang') && !this.openAt(place, this.hour))) {
       l.state = 'home';
       l.node = l.home;
       return;
@@ -1248,7 +1273,32 @@ export class CityPopulation {
       this.atCounter(a, l, place);
       return;
     }
+    if (kind === 'hang') {
+      this.outside(a, l, place);
+      return;
+    }
     this.atPitch(a, l, place);
+  }
+
+  /**
+   * Standing about outside a buka or a bar of an evening, with whoever else is there: beside the
+   * door, a little to one side or the other (not in the doorway), on the pavement it opens onto.
+   */
+  private outside(a: Agent, l: Life, place: Place): void {
+    const n = this.network!.nodes[place.node];
+    const vx = place.x - n.x;
+    const vz = place.z - n.z;
+    const d = Math.hypot(vx, vz) || 1;
+    // Along the pavement, and out from the door toward the kerb a little
+    const ax = -vz / d;
+    const az = vx / d;
+    const along = ((a.id % 5) - 2) * 0.75 + (a.id % 2 ? 0.9 : -0.9);
+    a.x = n.x + vx * 0.55 + ax * along;
+    a.z = n.z + vz * 0.55 + az * along;
+    // Facing the others, roughly toward the door
+    a.yaw = Math.atan2(place.x - a.x, place.z - a.z) + ((a.id % 3) - 1) * 0.8;
+    a.mode = 'talk';
+    l.state = 'hang';
   }
 
   /** At their stall: it goes up */
@@ -1338,8 +1388,11 @@ export class CityPopulation {
           }
           const place = this.places[l.place];
           const to = l.then === 'buy' && place.front ? place.front : place;
-          l.wx = to.x;
-          l.wz = to.z;
+          // (Standing about outside: they stop on the pavement short of the door)
+          const n = net.nodes[l.node];
+          const stop = l.then === 'hang' ? 0.5 : 1;
+          l.wx = n.x + (to.x - n.x) * stop;
+          l.wz = n.z + (to.z - n.z) * stop;
           l.wnode = -1;
           continue;
         }
@@ -1402,7 +1455,7 @@ export class CityPopulation {
     }
     const place = this.places[l.place];
     // Shut by the time they get there: back to work if that is open, else home (or their pavement)
-    if ((l.then === 'in' || l.then === 'buy') && (!this.openAt(place, this.hour) || (place.stall !== undefined && !this.stallUp[place.stall] && l.then === 'buy'))) {
+    if ((l.then === 'in' || l.then === 'buy' || l.then === 'hang') && (!this.openAt(place, this.hour) || (place.stall !== undefined && !this.stallUp[place.stall] && l.then === 'buy'))) {
       l.node = place.node;
       if (l.own && l.ownNode >= 0) this.setOff(a, l, l.ownNode, 'stroll', -1);
       else if (l.work >= 0 && l.place !== l.work && this.openAt(this.places[l.work], this.hour)) this.setOff(a, l, this.places[l.work].node, 'in', l.work);
@@ -1411,6 +1464,7 @@ export class CityPopulation {
     }
     if (l.then === 'pitch') this.atPitch(a, l, place);
     else if (l.then === 'buy') this.atCounter(a, l, place);
+    else if (l.then === 'hang') this.outside(a, l, place);
     else l.state = 'in';
   }
 

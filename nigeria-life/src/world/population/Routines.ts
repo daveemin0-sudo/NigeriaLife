@@ -20,7 +20,7 @@ import { hoursFor, isOpen, PLACE_HOURS, type OpeningHours } from '../../destinat
 // PLACES
 // ---------------------------------------------------------------------------------------------
 
-export type PlaceKind = 'office' | 'bank' | 'shop' | 'food' | 'market' | 'school' | 'site' | 'transit' | 'worship' | 'night' | 'stall';
+export type PlaceKind = 'office' | 'bank' | 'shop' | 'food' | 'market' | 'school' | 'site' | 'transit' | 'worship' | 'night' | 'stall' | 'hotel';
 
 export interface PlaceInput {
   id: string;
@@ -56,6 +56,8 @@ export function kindOf(name: string, category: string): PlaceKind | null {
   if (/\bland\b|vehicle|a home|open all hours|cash machine|boarding|arrivals|staff|lift|stairs|gate/.test(s)) return null;
   if (/mosque|church|christian centre|cathedral|worship/.test(s)) return 'worship';
   if (/club|lounge|nightlife|\bbar\b|viewing|gaming|\bbet\b|shrine/.test(s)) return 'night';
+  // A hotel: a place of work by day, and its bar and lounge of an evening
+  if (/hotel/.test(s)) return 'hotel';
   if (/buka|mama put|food|restaurant|suya|eatery|chop|kitchen|bole/.test(s)) return 'food';
   if (/supermarket|mini mart/.test(s)) return 'shop';
   if (/market/.test(s)) return 'market';
@@ -92,6 +94,7 @@ export function hoursOfKind(kind: PlaceKind, name: string): OpeningHours | undef
     case 'stall':
       return PLACE_HOURS.stall;
     case 'worship':
+    case 'hotel':
       return undefined;
   }
 }
@@ -524,6 +527,9 @@ export interface CityProfile {
   /** Lunch: when on average, and how widely spread (hours either way), so the whole street does not go at once */
   lunch: number;
   lunchSpread: number;
+  /** The share of workers (and of idlers) who go out of an evening before home, and when night owls make for their first place */
+  eveningOut: number;
+  nightOut: number;
 }
 
 /**
@@ -537,35 +543,43 @@ export const PROFILES: Record<string, CityProfile> = {
     early: 1.6,
     spread: 1.2,
     knockOff: 0.6,
-    out: { hawker: [6, 20], idler: [6.5, 21.5], owl: [17, 24], elder: [7, 11] },
+    // Owls out till two or three: Lagos does not sleep early
+    out: { hawker: [6, 20], idler: [6.5, 21.5], owl: [17, 26], elder: [7, 11] },
     lunch: 12.75,
     lunchSpread: 1.25,
+    eveningOut: 0.35,
+    nightOut: 20.5,
   },
   abuja: {
     roles: { office: 0.36, trader: 0.06, artisan: 0.08, student: 0.1, hawker: 0.08, idler: 0.18, owl: 0.06, elder: 0.08 },
     early: 0.8,
     spread: 0.5,
     knockOff: 0.3,
-    out: { hawker: [7, 18], idler: [7.5, 19.5], owl: [18, 23], elder: [7.5, 10.5] },
+    // A quiet capital: its owls are home around midnight
+    out: { hawker: [7, 18], idler: [7.5, 19.5], owl: [18, 24], elder: [7.5, 10.5] },
     // The civil service breaks at one, and not for long
     lunch: 13,
     lunchSpread: 0.75,
+    eveningOut: 0.18,
+    nightOut: 20,
   },
   port_harcourt: {
     roles: { office: 0.16, trader: 0.14, artisan: 0.2, student: 0.08, hawker: 0.16, idler: 0.14, owl: 0.07, elder: 0.05 },
     early: 1.2,
     spread: 0.9,
     knockOff: 0.8,
-    out: { hawker: [6, 20.5], idler: [6.5, 21.5], owl: [17.5, 24], elder: [7, 11] },
+    out: { hawker: [6, 20.5], idler: [6.5, 21.5], owl: [17.5, 25.5], elder: [7, 11] },
     // Shift workers eat when the shift lets them
     lunch: 12.5,
     lunchSpread: 1.5,
+    eveningOut: 0.4,
+    nightOut: 20.5,
   },
 };
 
 /** The kinds of place each commuting role works at, in order of preference */
 const WORKS_AT: Partial<Record<Role, PlaceKind[]>> = {
-  office: ['office', 'bank'],
+  office: ['office', 'bank', 'hotel'],
   trader: ['stall', 'market', 'shop', 'food'],
   artisan: ['site', 'transit', 'shop'],
   student: ['school', 'office'],
@@ -613,7 +627,7 @@ export function workplaceOf(id: number, role: Role, places: readonly Place[], re
 export interface Step {
   at: number;
   /** in: inside a door; pitch: keeping their stall; buy: at someone else's stall counter */
-  kind: 'home' | 'in' | 'pitch' | 'stroll' | 'buy';
+  kind: 'home' | 'in' | 'pitch' | 'stroll' | 'buy' | 'hang';
   place?: number;
 }
 
@@ -627,6 +641,10 @@ export type PlacePicker = (kinds: readonly PlaceKind[][], at: number, stay: numb
 const LUNCH: PlaceKind[][] = [['food', 'stall'], ['market', 'shop']];
 /** Where a street walker pops into: a shop, a stall, a market, a buka */
 const ERRAND: PlaceKind[][] = [['shop', 'stall', 'market', 'food']];
+/** Out of an evening: a buka, a bar or club, a hotel lounge */
+const EVENING: PlaceKind[][] = [['food', 'night', 'hotel']];
+/** Late, after the bukas shut: the clubs and the hotel bars */
+const LATE: PlaceKind[][] = [['night', 'hotel']];
 
 /**
  * Someone's day, worked out afresh each morning from who they are and what is open. Commuters
@@ -637,11 +655,12 @@ const ERRAND: PlaceKind[][] = [['shop', 'stall', 'market', 'food']];
 export function planDay(id: number, role: Role, profile: CityProfile, work: Place | undefined, workIndex: number, weekday: number | null, pick?: PlacePicker, places?: readonly Place[]): Step[] {
   const j = (salt: number) => hash01(id, salt) - 0.5;
   const steps: Step[] = [];
-  const visit = (index: number): Step['kind'] => (places?.[index]?.kind === 'stall' ? 'buy' : 'in');
+  // Inside the door, or (a stall) at its counter; out of an evening, some stand about outside with friends
+  const visit = (index: number, outside = false): Step['kind'] => (places?.[index]?.kind === 'stall' ? 'buy' : outside ? 'hang' : 'in');
   if (role in profile.out) {
     const [from, to] = profile.out[role as keyof CityProfile['out']];
     const out = from + j(3) * 1.5;
-    const home = to + j(4) * 1.5;
+    let home = to + j(4) * 1.5;
     steps.push({ at: out, kind: 'stroll' });
     // Errands while they are out: an idler is in and out of places all day, an elder twice in the morning
     const errands = role === 'idler' ? [9.5 + j(12), 12 + j(13), 14.5 + j(16), 17 + j(17)] : role === 'elder' ? [out + 0.4 + Math.abs(j(14)), out + 2.2 + Math.abs(j(18))] : [];
@@ -652,18 +671,39 @@ export function planDay(id: number, role: Role, profile: CityProfile, work: Plac
       if (place < 0) continue;
       steps.push({ at, kind: visit(place), place }, { at: at + stay, kind: 'stroll' });
     }
+    // The evening: night owls make for a bar, a club or a hotel lounge (and on to another later);
+    // some idlers end the day outside a buka or a bar with friends rather than walking about
+    if (pick && role === 'owl') {
+      let at = profile.nightOut + j(40) * 1.5;
+      for (let k = 0; k < 2 && at < home - 0.75; k++) {
+        const stay = Math.min(home - 0.25 - at, 1.2 + Math.abs(j(41 + k)) * 2.6);
+        const place = pick(k === 0 ? EVENING : LATE, at, stay, 40 + k);
+        if (place < 0) break;
+        steps.push({ at, kind: visit(place, hash01(id, 43 + k) < 0.5), place });
+        at += stay;
+        if (k === 0 && at < home - 0.75) steps.push({ at, kind: 'stroll' });
+        at += 0.1;
+      }
+      // Home when the last place is left, or at their own late hour
+      home = Math.max(home, steps[steps.length - 1].at + 0.25);
+    } else if (pick && role === 'idler' && hash01(id, 44) < profile.eveningOut) {
+      const at = Math.max(18.5, home - 2.5) + Math.abs(j(45));
+      const place = at < home - 0.5 ? pick(EVENING, at, home - at, 46) : -1;
+      if (place >= 0) steps.push({ at, kind: visit(place, true), place });
+    }
     steps.push({ at: home, kind: 'home' });
-    return steps;
+    return steps.sort((p, q) => p.at - q.at);
   }
   if (!work) return steps;
   const h = work.hours;
   // Open today at all? (Checked at midday and at the hour it opens)
   const opens = h ? h.opens : 8;
   if (h && !isOpen(h, Math.max(opens + 0.01, 0), weekday) && !isOpen(h, 12, weekday)) return steps;
-  // Their own working day inside the place's hours
+  // Their working day: from when the place opens (or their own start) to when it actually closes.
+  // A place that never shuts keeps its staff an ordinary day; students leave school mid-afternoon.
   const start = Math.max(opens, role === 'student' ? 7.5 : role === 'artisan' ? 7 : 8);
-  let end = h ? (h.closes > h.opens ? h.closes : 24) : 17;
-  end = Math.min(end, role === 'student' ? 15 : role === 'artisan' ? 17.5 : role === 'trader' ? 19.5 : 17.5);
+  const closes = h && h.closes > h.opens && h.closes <= 24 ? h.closes : null;
+  const end = role === 'student' ? Math.min(15, closes ?? 15) : closes ?? (role === 'trader' ? 19.5 : 17.5);
   const leave = start - profile.early * (0.5 + 0.25 * (j(5) + 0.5)) - Math.abs(j(6)) * profile.spread;
   steps.push({ at: leave, kind: work.kind === 'stall' ? 'pitch' : 'in', place: workIndex });
   // Lunch, at their own time (the street does not all go at once), somewhere open near work; then
@@ -676,7 +716,17 @@ export function planDay(id: number, role: Role, profile: CityProfile, work: Plac
       if (place >= 0) steps.push({ at: lunch, kind: visit(place), place }, { at: lunch + stay, kind: 'in', place: workIndex });
     }
   }
-  // Staff stay on a while after closing, never more than most of an hour
-  steps.push({ at: end + Math.min(0.9, profile.knockOff * (0.4 + j(7) + 0.5)), kind: 'home' });
+  // Staff stay on a while after closing, never more than most of an hour; then home, or (some) out
+  // for the evening first: a buka, a bar, a hotel lounge, open for as long as they stay
+  const off = end + Math.min(0.9, profile.knockOff * (0.4 + j(7) + 0.5));
+  if (pick && role !== 'student' && hash01(id, 47) < profile.eveningOut && off < 22) {
+    const stay = 1 + Math.abs(j(48)) * 2.4;
+    const place = pick(EVENING, off, stay, 48);
+    if (place >= 0) {
+      steps.push({ at: off, kind: visit(place, hash01(id, 49) < 0.4), place }, { at: off + stay, kind: 'home' });
+      return steps;
+    }
+  }
+  steps.push({ at: off, kind: 'home' });
   return steps;
 }

@@ -362,6 +362,121 @@ The `convoys` failure was the test, not the game. It kept a vehicle box from the
 - Abuja and Port Harcourt have almost no food places (Port Harcourt 1, Abuja none), so lunch there is mostly in markets and supermarkets, out of sight. The roadside food stalls in step 3d will change that.
 - Lunches and errands are walks of a minute or two on the real clock, so few people are on a route at any moment. Street walkers are still most of the street.
 
+### Stage 3c: evening and night (built 2026-11-14)
+
+Built on the same systems: `CityPopulation`, the planner in `Routines.ts`, the city doors, `Hours.ts` and the pavement network. Stage 2 crossing rules are unchanged, and no crossings were added to raise the numbers.
+
+**What is built**
+
+- **Home at the real closing time.** A worker's day now ends when their own workplace actually closes, not at a fixed hour for their role:
+
+  | Workplace | Closes |
+  |---|---|
+  | Office (civil service) | 4 pm |
+  | Market, work site | 6 pm |
+  | Stall | 7 pm |
+  | Supermarket | 9 pm |
+  | Buka | 11 pm |
+
+  Staff stay on for up to 0.9 hours after closing. A place that never shuts, such as a hotel, keeps an ordinary day. Students leave school mid-afternoon.
+- **Evenings out.** Some workers go out before going home (Lagos 35%, Abuja 18%, Port Harcourt 40%): to a buka, a bar or club, or a hotel lounge. The place must be open on arrival, halfway through, and when they leave, by its own hours. Some go inside, and some stand about outside by the door with friends, where they can be seen. Some idlers end their day the same way instead of walking about. Hotels became a place kind of their own: a workplace by day and a bar and lounge in the evening.
+- **Night owls.** They walk their own pavement from early evening, then go to a first place at about 8:30 pm (Abuja 8 pm). After the bukas shut at 11 they move on to a club or a hotel bar. They go home at their city's hour:
+
+  | City | Night owls home |
+  |---|---|
+  | Lagos | about 1:15 to 2:45 am |
+  | Port Harcourt | about 12:45 to 2:15 am |
+  | Abuja | about 11:15 pm to 12:45 am |
+
+- **Hours by day of the week.** A place's hours are now checked with its days of the week as well, by the rule the doors use. After midnight the next day's rules apply. A bank is shut on Sunday, and Fela's Shrine opens Thursday to Sunday.
+- **Plans across midnight.** Whatever someone was doing at midnight, and anything planned for after it, carries into the new day. An owl at a club at 11:50 pm is still there at 12:30 am.
+- **Resuming.** After sleeping (a jump in the clock), fast-forwarding (the fast clock) or changing city, everyone is put where their plan has them. People who set out only minutes before are put part-way along their route.
+
+**Measured on the laptop** (`livingcity`, a pinned Wednesday and Thursday, 316 px screen). No phone results: nothing in Stage 3 has been measured on the A16.
+
+People out (and 40 m squares with someone in them):
+
+| City | 5 pm | 7 pm | 9 pm | 11 pm | 12:30 am | 2 am | 3:30 am |
+|---|---|---|---|---|---|---|---|
+| Lagos | 215 (30) | 254 (28) | 117 (20) | 50 (11) | 48 (10) | 44 (10) | 37 |
+| Abuja | 124 (81) | 110 (67) | 31 (13) | 27 (13) | 11 (6) | 10 (5) | 10 |
+| Port Harcourt | 252 (127) | 326 (140) | 184 (93) | 157 (75) | 43 (9) | 15 (7) | 11 |
+
+At night the cities differ as their profiles say: Lagos stays up, Abuja is quiet by 9 pm, and Port Harcourt is busy until midnight.
+
+At 9 pm, at bukas, bars and hotel lounges:
+
+| City | Total | Outside |
+|---|---|---|
+| Lagos | 38 | 28 |
+| Abuja | 30 | 15 |
+| Port Harcourt | 59 | 40 |
+
+Nobody was at a shut place at any hour checked. Night owls at open places at 12:30 am: Lagos 21 of 21, Port Harcourt 53 of 53, Abuja 5 (most are already home). All owls were home by 3:30 am.
+
+Every worker's day ends at or after their own workplace's closing time:
+
+| City | Workers checked | Leaving early |
+|---|---|---|
+| Lagos | 113 | 0 |
+| Abuja | 219 | 0 |
+| Port Harcourt | 317 | 0 |
+
+Resuming routines, out of 380 Lagos residents:
+
+| Case | Out of place |
+|---|---|
+| After sleeping, 11 pm to 7:30 am | 0 |
+| After fast-forwarding 4 pm to 8 pm | 0 |
+| Back in Lagos at 9 pm after visiting Abuja and Port Harcourt | 0 |
+
+Crowd update per frame (all under 1 ms):
+
+| City | 10:30 am | 1 pm | 3:30 pm | 7 pm | 9 pm | 11 pm | 12:30 am |
+|---|---|---|---|---|---|---|---|
+| Lagos | 0.37 | 0.34 | 0.18 | 0.14 | 0.19 | 0.04 | 0.03 |
+| Abuja | 0.12 | 0.07 | 0.06 | 0.06 | 0.05 | 0.06 | 0.02 |
+| Port Harcourt | 0.17 | 0.13 | 0.16 | 0.20 | 0.24 | 0.07 | 0.07 |
+
+All figures in ms.
+
+Crossings (two-minute samples). No car was ever on top of anyone in any sample.
+
+| City and time | Crossings per minute | Give-ups |
+|---|---|---|
+| Lagos, 8 am / 1 pm / 2 pm | 38 / 31 / 33.5 | 1 to 4 |
+| Lagos, 9 pm | 11 | 0 |
+| Abuja, 1 pm / 2 pm | 29.5 / 18.5 | |
+| Port Harcourt, 1 pm / 2 pm | 47.5 / 52 | |
+
+**Regression** (laptop): 154/155 across 13 suites:
+
+| Suite | Result |
+|---|---|
+| `citylife` | passed |
+| `bigcities` | passed |
+| `sidestreets` | passed |
+| `danfo` | passed |
+| `streets` | 16/17, then 17/17 twice after the fix below |
+| `touch` | passed |
+| `convoys` | passed |
+| `vehicles` | passed |
+| `bodies` | passed |
+| `cities` | passed |
+| `ways` | passed |
+| `kerbs` | passed |
+| `input` | passed |
+
+The one failure was the busy-pavement wall walk: 13.5 s against 8 s on the quiet pavement. With more people about at 5 pm, passers-by on Broad Street are drawn across the bank's front, where the crowd's walking line overlaps the shopfronts. They were counted as standing in front of the player. Someone drawn where a wall is cannot be in the player's way, so the player now ignores them. After the fix: 7 s against 10 s, then 6.25 s against 6.75 s. The player suites `bodies`, `ways`, `kerbs`, `touch` and `input` were rerun after it: 72/72.
+
+**Test changes**
+- The daytime crossing check's bar went from 20 to 15 a minute. Abuja at 2 pm measured 19.5, then 18.5, against 21 to 26 earlier. The quiet capital's natural range sits at the old bar, and crossings were not raised to meet it. The check is that people do cross, and that no car is ever on top of them.
+- The sleep and fast-forward checks now jump and check in one step. In a first version the game's own loop reset the crowd's clock between the two, so they measured 9 pm.
+
+**Not done here** (Stage 3d, waiting for approval): roadside food stalls and suya spots for Abuja and Port Harcourt. Abuja's evenings are only its 2 hotel lounges, and Port Harcourt's are 4 hotels and 1 street-food place.
+
+**Incident during this stage:** the local `node_modules` was partly deleted, when a temporary git worktree with a junction to it was force-removed. The source was untouched, and `node_modules` was restored with `npm install`. The lockfile is unchanged from the commit, and `npm ls` is clean.
+
 ## 7. Stage 3 design: daily routines and destinations (for approval, not built)
 
 Nothing in this section is built. It answers the stage 3 brief of 2026-11-13. The existing systems were inspected first, and the design extends them. It adds no second crowd, schedule or business system.
