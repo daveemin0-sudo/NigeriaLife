@@ -130,6 +130,106 @@ Tests: `livingcity` now also runs a minute of the street per city. It checks tha
 
 **Not done from the stage 2 plan:** when someone is crossing, a horn gets no reaction made for them. They keep crossing and the car waits. The existing reaction, where a person in front of a car steps aside and says so, is unchanged.
 
+### Stage 3a: morning routines, workplaces and stalls (built 2026-11-13)
+
+Built as section 7 set out. It extends `CityPopulation`, the city door lists, `Hours.ts` and `CityFabric`. The new logic is in `src/world/population/Routines.ts`, the crowd's own planning code, not a second crowd. Stage 2 crossing code is unchanged: people on a route cross roads with the same waiting and the same give-way rules.
+
+**What is built**
+
+- **Pavement network.** In each city the existing pavements are joined at corners, across roads that have a crossing, and up to Broad Street, the avenue in each city. Doors and stalls are attached to it. Routes are worked out once for each destination, the first time someone needs it.
+
+  | City | Points on the network | Home edges | Places |
+  |---|---|---|---|
+  | Lagos | 134 | 20 | 50, including 20 umbrella stalls |
+  | Abuja | 337 | 22 | 109 |
+  | Port Harcourt | 336 | 27 | 128 |
+
+- **Places.** These are the doors the city already has, sorted into kinds: office, bank, shop, food, market, school, work site, transit, place of worship, night spot, stall. Each keeps the hours its door keeps, from the same record the door checks (a new `InteriorManager.hoursOfDoor`). Where a door has no room behind it, its kind's hours come from `Hours.ts`. Stalls keep the new `PLACE_HOURS.stall`, 7 am to 7 pm.
+- **Residents.** Every walker has a role that comes from their number, so the same person has the same life every day. Each city has its own profile:
+
+  | City | Office | Trader | Artisan | Student | Hawker | Idler | Night owl | Elder |
+  |---|---|---|---|---|---|---|---|---|
+  | Lagos | 22% | 10% | 10% | 8% | 16% | 20% | 7% | 7% |
+  | Abuja | 36% | 6% | 8% | 10% | 8% | 18% | 6% | 8% |
+  | Port Harcourt | 16% | 14% | 20% | 8% | 16% | 14% | 7% | 5% |
+
+  - **Commuters** (office worker, trader, artisan, student) get a workplace among the places, and a home edge that can walk to it.
+  - **Leaving time:** before their place opens. Lagos leaves earliest to beat the go-slow.
+  - **Home time:** they leave a little after closing, staying no more than 0.9 hours.
+  - **Closed places:** a place shut that day (an office on a Sunday) keeps its staff at home.
+  - **Street walkers** (hawker, idler, night owl, elder) walk their own pavement in their role's hours. They step out of the crowd or back into it only when the player cannot see them.
+- **Stalls (Lagos).** Each of the 20 umbrella stalls belongs to the trader behind it:
+  - When the trader arrives, the umbrella goes up and the goods go out.
+  - When the trader leaves, the umbrella is furled and a blue tarpaulin is tied over the table.
+  - A stall's customer is there only while it is open.
+  - Night no longer hides all the umbrellas at once.
+- **The clock.** Sleeping, setting the hour or arriving in another city puts everyone straight where their day has them at that hour. On the fast clock (25 s a game hour), people the player cannot see walk at the clock's pace, up to 60 times normal, so they still arrive on time. People the player can see walk normally.
+
+**Measured** (laptop, 316 px screen, `livingcity` suite, a Wednesday):
+
+| City | 3 am out | 10:30 commuters at work | Inside a place shut over an hour ago | Fast-clock morning: set out / arrived / stuck | Crowd update at 10:30, 1 pm, 7 pm |
+|---|---|---|---|---|---|
+| Lagos | 38 of 451 | 188 of 188 | 0 | 250 / 236 / 0 | 0.47, 0.41, 0.40 ms |
+| Abuja | 10 of 499 | 293 of 293 | 0 | 468 / 465 / 0 | 0.11, 0.13, 0.21 ms |
+| Port Harcourt | 11 of 696 | 388 of 388 | 0 | 617 / 569 / 0 | 0.26, 0.21, 0.20 ms |
+
+The crowd stays under the 1 ms target in each city, measured separately. People indoors or at home cost nothing, so the routines make the crowd cheaper: in the probe, Lagos at 1 pm took 0.91 ms with routines and 1.55 ms with them removed. Not measured on a phone.
+
+**What changed on the street**
+
+| City | Office share | Artisan share | Out at 10 pm |
+|---|---|---|---|
+| Lagos | 0.21 | 0.09 | 16% |
+| Abuja | 0.34 | 0.09 | 8% |
+| Port Harcourt | 0.17 | 0.19 | 11% |
+
+Abuja is the office city and the quietest at night; Port Harcourt has the most artisans and tradespeople.
+
+In working hours the office workers are indoors, so fewer people are out to cross roads:
+
+| City | Crossings per minute now | Stage 2 |
+|---|---|---|
+| Lagos | 38 | about 70 |
+| Abuja | 25 | about 115 |
+| Port Harcourt | 64 | about 150 |
+
+The crossing check's bar went from 30 to 20 a minute, and its no-overlap rule is unchanged. Midday food trips (step 3b) should bring crossings back up.
+
+**Tests:** `livingcity` 36/36. New checks in each city:
+- the network, places and workplaces exist
+- 3 am is empty
+- at 10:30 those due at work are there, and nobody is inside a shut place
+- 1 pm and 7 pm
+- the fast-clock morning: setting out, arriving and nobody stuck
+- under 1 ms
+- Lagos stalls up and down, as drawn
+- the three cities differ
+
+Regression on the same build:
+
+| Suite | Result |
+|---|---|
+| `citylife` | passed |
+| `bigcities` | passed |
+| `sidestreets` | passed |
+| `danfo` | passed |
+| `touch` | passed |
+| `convoys` | passed |
+| `vehicles` | passed |
+| `bodies` | passed |
+| `cities` | passed |
+| `streets` | 15/16, then 16/16 after one change to its bank-wall check |
+
+The wall check walks the player straight at the bank with the wayfinder off. With people passing close, the player waits and retries by design, for up to about 30 s. Since stage 3 the pavement by the bank is busy in the afternoon, so that one walk is now made at 3 am. The same check had flaked once in stage 2 for the same reason.
+
+Two stage 1 checks changed. They assumed everyone is out at 8 am, which is no longer true now that commuters are indoors.
+
+**Known limits**
+- The Lagos network is in pieces. The Martins Street pavements do not reach Broad Street, so some side streets have no workplace in reach; walkers there stay street walkers.
+- Midday food trips, evening places and night owls at venues are steps 3b and 3c.
+- Abuja and Port Harcourt stalls are step 3d.
+- Follow-up: a player walking into a wall on a busy pavement keeps retrying for up to about 30 s before giving up.
+
 ## 7. Stage 3 design: daily routines and destinations (for approval, not built)
 
 Nothing in this section is built. It answers the stage 3 brief of 2026-11-13. The existing systems were inspected first, and the design extends them. It adds no second crowd, schedule or business system.

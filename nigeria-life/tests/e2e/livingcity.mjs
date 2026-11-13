@@ -36,8 +36,9 @@ export async function run(browser, check) {
   // ------------------------------------------------------------------ Lagos: a fraction of the work
   const morning = await crowdNow(8);
   const night = await crowdNow(2);
-  check('livingcity: on Broad Street at 8 am everyone is out, and well under half of them are moved in any one frame (the rest wait their turn)',
-    morning.agents > 300 && morning.out === morning.agents && morning.movedPerFrame < morning.agents * 0.45 && morning.movedPerFrame >= morning.agents / 4 - 1, morning);
+  // (Since stage 3, commuters are indoors at work by 8 and are not moved at all: so fewer are out)
+  check('livingcity: on Broad Street at 8 am the street is busy, and well under half of the crowd are moved in any one frame (the rest wait their turn, or are indoors)',
+    morning.agents > 300 && morning.out > morning.agents * 0.35 && morning.movedPerFrame < morning.agents * 0.45 && morning.movedPerFrame >= morning.out / 4 - 1, morning);
   check('livingcity: those who are drawn are exactly those moved as seen: nobody in view is skipped',
     morning.drawn === morning.seenLast && morning.drawn > 0, morning);
   check('livingcity: at 2 am most are at home and the street costs less again', night.out < morning.out * 0.2 && night.movedPerFrame < morning.movedPerFrame, night);
@@ -48,12 +49,16 @@ export async function run(browser, check) {
     const w = g.world;
     w.skyEnvironment.setHour(8);
     const crowd = w.cityPopulation;
+    // The crowd hears the hour from the game loop: tell it now, before choosing who to watch
+    crowd.setClock(8, w.skyEnvironment.day, 0);
     const p = g.player.position;
     const SECONDS = 4;
     const frustum = w.frustumNow();
     // Plain walkers out of the player's range, with room ahead of them for the whole test
     const picked = crowd.agents.filter((a) => {
       if (a.mode !== 'walk' || a.errand || a.willCross || a.xing || a.stop !== undefined || a.crossing !== undefined) return false;
+      // Street walkers out walking their pavement (commuters follow routes, and those at home do not move)
+      if (a.life && (a.life.work >= 0 || a.life.state !== 'stroll')) return false;
       if (Math.hypot(a.x - p.x, a.z - p.z) < crowd.drawDistance + 15) return false;
       const along = a.axis === 'x' ? a.x : a.z;
       const room = a.dir > 0 ? a.max - along : along - a.min;
@@ -133,11 +138,109 @@ export async function run(browser, check) {
     return { city, hour, crossed: crowd.crossed - c0, gaveUp: crowd.gaveUp - g0, hits, heldShare: +(heldFrames / steps).toFixed(2), waitedMax: +waitedMax.toFixed(1), moving: traffic.moving.now, msPerFrame: +(cost / steps).toFixed(2) };
   }, hour, seconds);
   const crossCheck = (name, r) => {
-    check(`livingcity: ${name} at ${r.hour}:00, a minute of the street: dozens cross the roads, and no moving vehicle is ever on top of someone crossing`, r.crossed >= 30 && r.hits === 0, r);
+    // (Since stage 3 office workers are indoors in working hours, so fewer are out to cross: Abuja most of all)
+    check(`livingcity: ${name} at ${r.hour}:00, a minute of the street: at least 20 cross the roads, and no moving vehicle is ever on top of someone crossing`, r.crossed >= 20 && r.hits === 0, r);
     check(`livingcity: ${name}: people wait at the kerb for the lights or a gap, but almost nobody gives up and turns back, and the traffic keeps moving`, r.gaveUp <= Math.max(2, r.crossed * 0.05) && r.heldShare < 0.9 && r.moving > 40, r);
   };
   crossCheck('Lagos', await crossings(8, 60));
   crossCheck('Lagos', await crossings(14, 60));
+
+  // ------------------------------------------------------------------ Stage 3: their days
+  // Each walker has a role, a home at the edge of the map and (commuters) a workplace among the
+  // city's real doors. The clock is jumped to an hour (as sleeping does) and the street then run.
+  // The day is pinned to a Wednesday so the test means the same whichever day it is run.
+  const dayOf = () => page.evaluate(() => {
+    const g = window.game;
+    const w = g.world;
+    const city = w.cityManager.currentCityId;
+    const life = city === 'lagos' ? null : w.cityManager.lifeHere();
+    const crowd = life ? life.crowd : w.cityPopulation;
+    const p = g.player.position;
+    const frustum = w.frustumNow();
+    const cal = g.modules.Hours.calendar;
+    const realWeekday = cal.weekday;
+    cal.weekday = () => 3;
+    const residents = crowd.agents.filter((a) => a.life);
+    const commuters = residents.filter((a) => a.life.work >= 0);
+    const walkers = crowd.agents.filter((a) => a.life && a.stall === undefined).length;
+    const roles = {};
+    for (const a of residents) roles[a.life.role] = (roles[a.life.role] ?? 0) + 1;
+    const kinds = {};
+    for (const pl of crowd.places) kinds[pl.kind] = (kinds[pl.kind] ?? 0) + 1;
+    const DAY = 40;
+    const at = (hour) => {
+      crowd.setClock(hour, DAY, 0);
+      for (let k = 0; k < 60; k++) {
+        crowd.setClock(hour + k / 30 / 3600, DAY, 1 / 30);
+        crowd.update(1 / 30, p, frustum);
+      }
+      const t0 = performance.now();
+      for (let k = 0; k < 60; k++) crowd.update(1 / 30, p, frustum);
+      const ms = +((performance.now() - t0) / 60).toFixed(3);
+      const state = {};
+      for (const a of residents) state[a.life.state] = (state[a.life.state] ?? 0) + 1;
+      // Commuters whose plan has them at work now, and how many of them are (in, at the pitch, or on the way)
+      const due = commuters.filter((a) => {
+        const plan = a.life.plan;
+        let k = -1;
+        for (let i = 0; i < plan.length; i++) if (plan[i].at <= hour) k = i;
+        return k >= 0 && (plan[k].kind === 'in' || plan[k].kind === 'pitch');
+      });
+      const atWork = due.filter((a) => a.life.state === 'in' || a.life.state === 'pitch' || a.life.state === 'going').length;
+      // Inside a place that shut over an hour ago (staff may stay on a little after closing)
+      const inShut = commuters.filter((a) => a.life.state === 'in' && !crowd.openAt(crowd.places[a.life.place], hour) && !crowd.openAt(crowd.places[a.life.place], hour - 1)).length;
+      const stalls = crowd.stallUp.length;
+      const stallsUp = crowd.stallUp.filter(Boolean).length;
+      const fabricUp = city === 'lagos' ? crowd.stallUp.filter((_, i) => w.cityDensity.fabric.isStallOpen(i)).length : 0;
+      return { hour, state, out: crowd.outNow, due: due.length, atWork, inShut, stalls, stallsUp, fabricUp, ms };
+    };
+    const night = at(3);
+    const work = at(10.5);
+    const midday = at(13);
+    const evening = at(19);
+    const late = at(22);
+    // A morning on the fast clock (an hour each 25 s, as after sleeping): who sets out, who gets
+    // there, and whether anyone is stuck (out walking, not waiting at a kerb, not moved in 10 s)
+    crowd.setClock(5.5, DAY, 0);
+    const s0 = crowd.setOut;
+    const a0 = crowd.arrived;
+    const frames = 3000;
+    for (let k = 0; k < frames; k++) {
+      crowd.setClock(5.5 + k * (0.04 / 30), DAY, 1 / 30);
+      crowd.update(1 / 30, p, frustum);
+    }
+    const was = new Map();
+    for (const a of residents) if (a.life.state === 'going') was.set(a, [a.x, a.z]);
+    for (let k = 0; k < 300; k++) {
+      crowd.setClock(5.5 + (frames + k) * (0.04 / 30), DAY, 1 / 30);
+      crowd.update(1 / 30, p, frustum);
+    }
+    let stuck = 0;
+    for (const [a, [x, z]] of was) if (a.life.state === 'going' && a.xing?.phase !== 'wait' && Math.hypot(a.x - x, a.z - z) < 0.5) stuck++;
+    const morning = { setOut: crowd.setOut - s0, arrived: crowd.arrived - a0, stuck };
+    cal.weekday = realWeekday;
+    return { city, agents: crowd.agents.length, walkers, commuters: commuters.length, places: crowd.places.length, kinds, roles, nodes: crowd.network.nodes.length, homes: crowd.network.homes.length, night, work, midday, evening, late, morning };
+  });
+  const days = {};
+  const dayCheck = (name, d) => {
+    days[name] = d;
+    check(`livingcity: ${name}: the walkers have lives - a pavement network to walk (${d.nodes} points), the city's own doors to go to (${d.places}), and at least a quarter of them a workplace`,
+      d.nodes > 50 && d.homes >= 4 && d.places >= 15 && d.commuters >= d.walkers * 0.25, { nodes: d.nodes, homes: d.homes, places: d.places, kinds: d.kinds, commuters: d.commuters, walkers: d.walkers, roles: d.roles });
+    check(`livingcity: ${name} at 3 am: every commuter is at home and the street is nearly empty`,
+      (d.night.state.going ?? 0) + (d.night.state.in ?? 0) + (d.night.state.pitch ?? 0) === 0 && d.night.out < d.agents * 0.12, d.night);
+    check(`livingcity: ${name} at 10:30 on a Wednesday: those due at work are there (in, at their stall, or still on the way), and nobody is inside a place that is shut`,
+      d.work.due > 20 && d.work.atWork >= d.work.due * 0.95 && d.work.inShut === 0, d.work);
+    check(`livingcity: ${name} at 1 pm and 7 pm: nobody is inside a place that shut over an hour ago`, d.midday.inShut === 0 && d.evening.inShut === 0, { midday: d.midday, evening: d.evening });
+    check(`livingcity: ${name} on the fast clock, 5:30 to 9:30: commuters set out from the edges of the map and get to their doors, and nobody is stuck on the way`,
+      d.morning.setOut >= d.commuters * 0.5 && d.morning.arrived >= d.commuters * 0.3 && d.morning.stuck === 0, d.morning);
+    check(`livingcity: ${name}: the crowd's update stays under 1 ms a frame at 10:30, 1 pm and 7 pm`,
+      d.work.ms < 1 && d.midday.ms < 1 && d.evening.ms < 1, { work: d.work.ms, midday: d.midday.ms, evening: d.evening.ms });
+  };
+  const lagosDay = await dayOf();
+  dayCheck('Lagos', lagosDay);
+  check('livingcity: Lagos stalls: all packed away at 3 am and 10 pm, put up by their traders by 10:30 (as drawn, not only as counted)',
+    lagosDay.night.stalls >= 10 && lagosDay.night.stallsUp === 0 && lagosDay.late.stallsUp === 0 && lagosDay.work.stallsUp >= lagosDay.work.stalls * 0.9 && lagosDay.work.fabricUp === lagosDay.work.stallsUp,
+    { night: lagosDay.night, work: lagosDay.work, late: lagosDay.late });
 
   // ------------------------------------------------------------------ The other cities
   for (const city of ['abuja', 'port_harcourt']) {
@@ -146,9 +249,17 @@ export async function run(browser, check) {
     const there = await crowdNow(8);
     const name = city === 'abuja' ? 'Abuja' : 'Port Harcourt';
     check(`livingcity: ${name} at 8 am: its own crowd is out, and well under half of them are moved in any one frame`,
-      there.city === city && there.agents > 300 && there.out === there.agents && there.movedPerFrame < there.agents * 0.45, there);
+      there.city === city && there.agents > 300 && there.out > there.agents * 0.2 && there.movedPerFrame < there.agents * 0.45, there);
     crossCheck(name, await crossings(14, 60));
+    dayCheck(name, await dayOf());
   }
+  // Each city its own day: Abuja a city of offices that empties early, Port Harcourt of trades and shifts
+  const share = (d, role) => (d.roles[role] ?? 0) / d.walkers;
+  const [L, A, P] = [days.Lagos, days.Abuja, days['Port Harcourt']];
+  check('livingcity: each city its own pattern: Abuja has the most office workers, Port Harcourt the most artisans and tradespeople, and Abuja is the quietest at 10 pm',
+    share(A, 'office') > share(L, 'office') && share(A, 'office') > share(P, 'office') && share(P, 'artisan') > share(L, 'artisan') && share(P, 'artisan') > share(A, 'artisan') &&
+      A.late.out / A.agents < L.late.out / L.agents && A.late.out / A.agents < P.late.out / P.agents,
+    { office: [share(L, 'office'), share(A, 'office'), share(P, 'office')].map((v) => +v.toFixed(2)), artisan: [share(L, 'artisan'), share(A, 'artisan'), share(P, 'artisan')].map((v) => +v.toFixed(2)), lateOut: [L, A, P].map((d) => +(d.late.out / d.agents).toFixed(2)) });
   check('livingcity: no errors in the page', log.errors.length === 0, log.errors.slice(0, 4));
   await ctx.close();
 }

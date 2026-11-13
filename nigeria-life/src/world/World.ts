@@ -224,6 +224,18 @@ export class World {
       ...this.expressway.redLine.interactive,
     ];
 
+    // Stage 3: the crowd's people get their days. Their destinations are these doors, keeping the
+    // hours the doors keep; the stalls go up when their traders arrive and are packed away at dusk.
+    this.cityPopulation.onStall = (i, open) => this.cityDensity.fabric.setStallOpen(i, open);
+    this.cityDensity.fabric.stallsKept = true;
+    this.cityPopulation.giveLives(
+      'lagos',
+      this.interactiveObjects
+        .filter((o) => o.interactionPoint.y < 1.5 && !o.moving)
+        .map((o) => ({ id: o.id, name: o.name, category: o.category, x: o.interactionPoint.x, z: o.interactionPoint.z })),
+      (id) => this.interiorManager.hoursOfDoor(id)
+    );
+
     if (this.atmosphere.generatorMesh) {
       this.interactiveObjects.push({
         mesh: this.atmosphere.generatorMesh,
@@ -586,7 +598,7 @@ export class World {
       if (life) {
         const driven = player?.isDriving ? player.currentVehicle : null;
         const size = driven ? outlineOf(driven.mesh) : null;
-        life.update(delta, playerPos, this.frustumNow(), this.skyEnvironment.currentHour, { halfWidth: size ? size.w / 2 : 0.35, halfLength: size ? size.l / 2 : 1.4 }, this.cityPopulation.avoid);
+        life.update(delta, playerPos, this.frustumNow(), this.skyEnvironment.currentHour + 24 * this.skyEnvironment.day, { halfWidth: size ? size.w / 2 : 0.35, halfLength: size ? size.l / 2 : 1.4 }, this.cityPopulation.avoid);
       }
       this.weather.update(delta, playerPos);
       // NEPA's plan for the area the player is in
@@ -603,6 +615,7 @@ export class World {
     const abroad = shareAbroad(this.skyEnvironment.currentHour);
     this.trafficSpawner.abroad = abroad;
     this.cityPopulation.abroad = abroad;
+    this.cityPopulation.setClock(this.skyEnvironment.currentHour, this.skyEnvironment.day, delta);
 
     // Update instanced go-slow traffic: drivers keep clear of the player, as big as they are on the road
     const driven = player?.isDriving ? player.currentVehicle : null;

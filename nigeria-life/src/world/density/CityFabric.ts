@@ -111,6 +111,11 @@ export class CityFabric {
 
   public facadeMats?: Record<FacadeKind, THREE.MeshStandardMaterial>;
   public umbrellaMesh?: THREE.InstancedMesh | null;
+  private boxMesh?: THREE.InstancedMesh | null;
+  /** Each umbrella stall: its umbrella and its goods (instance numbers), to open it up or pack it away */
+  private stalls: Array<{ umbrella: number; goods: number; x: number; z: number; yaw: number; deep: number; open: boolean }> = [];
+  /** Set once the street's people open and shut the stalls themselves (stage 3): night no longer hides the umbrellas */
+  public stallsKept = false;
 
   private archetypes: Archetype[] = [
     { kind: 'tenement', floors: 2, bays: 4, floorHeight: 3.2, items: [] },
@@ -382,6 +387,7 @@ export class CityFabric {
     // Wooden table stacked with goods
     this.boxes.push({ m: this.mat(x, 0.28, z, 1.3, 0.7, deep, yaw), c: new THREE.Color(0x8b5a2b) });
     const goods = [0xf59e0b, 0xef4444, 0x22c55e, 0xfde047, 0xf8fafc];
+    this.stalls.push({ umbrella: this.umbrellas.length - 1, goods: this.boxes.length, x, z, yaw, deep, open: true });
     this.boxes.push({ m: this.mat(x, 0.98, z, 1.05, 0.22, deep - 0.2, yaw), c: new THREE.Color(this.pick(goods)) });
     this.stallSpots.push({ x, z, yaw });
     // The table, whichever way it is turned
@@ -728,7 +734,7 @@ export class CityFabric {
 
     // --- Roofs, trim and street furniture ---
     const trimMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
-    this.instanced(unitBox, trimMat, this.boxes, false, true);
+    this.boxMesh = this.instanced(unitBox, trimMat, this.boxes, false, true);
     this.instanced(unitCylinder, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), this.cylinders, false, false);
     this.instanced(unitHip, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }), this.hipRoofs, true, false);
     this.umbrellaMesh = this.instanced(
@@ -1021,10 +1027,44 @@ export class CityFabric {
         mat.emissiveIntensity = intensity;
       }
     }
-    if (this.umbrellaMesh) {
+    if (this.umbrellaMesh && !this.stallsKept) {
       this.umbrellaMesh.visible = !isNight;
     }
   }
+
+  /** How many umbrella stalls the street has, in the order of `stallSpots` */
+  public get stallCount(): number {
+    return this.stalls.length;
+  }
+
+  public isStallOpen(i: number): boolean {
+    return this.stalls[i]?.open ?? false;
+  }
+
+  /**
+   * Opens a stall up (umbrella out, goods on the table) or packs it away (umbrella furled on its
+   * pole, a tarpaulin tied over the table). Two instance writes; done when its trader arrives or leaves.
+   */
+  public setStallOpen(i: number, open: boolean): void {
+    const st = this.stalls[i];
+    if (!st || st.open === open || !this.umbrellaMesh || !this.boxMesh) return;
+    st.open = open;
+    if (open) {
+      this.umbrellaMesh.setMatrixAt(st.umbrella, this.umbrellas[st.umbrella].m);
+      this.boxMesh.setMatrixAt(st.goods, this.boxes[st.goods].m);
+      if (this.boxes[st.goods].c) this.boxMesh.setColorAt(st.goods, this.boxes[st.goods].c!);
+    } else {
+      this.umbrellaMesh.setMatrixAt(st.umbrella, this.mat(st.x, 1.2, st.z, 0.13, 1.15, 0.13));
+      this.boxMesh.setMatrixAt(st.goods, this.mat(st.x, 0.97, st.z, 1.4, 0.1, st.deep + 0.1, st.yaw));
+      this.boxMesh.setColorAt(st.goods, CityFabric.TARP);
+    }
+    this.umbrellaMesh.instanceMatrix.needsUpdate = true;
+    this.boxMesh.instanceMatrix.needsUpdate = true;
+    if (this.boxMesh.instanceColor) this.boxMesh.instanceColor.needsUpdate = true;
+    this.umbrellaMesh.visible = true;
+  }
+
+  private static readonly TARP = new THREE.Color(0x1d4ed8);
 
   /** All shop signboards share one atlas texture; each instance picks its cell in the shader */
   private commitSigns(): void {

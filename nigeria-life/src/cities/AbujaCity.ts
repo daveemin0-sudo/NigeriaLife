@@ -1,3 +1,4 @@
+import { InteriorManager } from '../interiors/InteriorManager';
 import * as THREE from 'three';
 import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
@@ -137,6 +138,8 @@ export class AbujaCity implements CityInstance {
     // The avenue's traffic and the people on its pavements
     this.life = new CityLife('abuja');
     this.group.add(this.life.group);
+    // Stage 3: the crowd's people go to these doors, in the hours the doors keep
+    this.life.giveLives('abuja', this.interactiveList, (id) => InteriorManager.getInstance().hoursOfDoor(id));
 
     this.registerCityActions();
   }

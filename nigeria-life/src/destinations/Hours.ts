@@ -33,6 +33,8 @@ export const PLACE_HOURS = {
   club: { opens: 20, closes: 5 },
   // Places of work that keep working hours: taken on at any hour, but the work is done in these
   buildingSite: { opens: 7, closes: 18 },
+  // A street trader's umbrella stall: up in the morning, packed away at dusk
+  stall: { opens: 7, closes: 19 },
 } satisfies Record<string, OpeningHours>;
 
 /**

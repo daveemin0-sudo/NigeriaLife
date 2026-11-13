@@ -217,14 +217,29 @@ export class CityLife {
 
   /** Runs the street for a frame: the share of people and vehicles out is the hour's */
   public update(delta: number, playerPos: THREE.Vector3 | undefined, frustum: THREE.Frustum | undefined, hour: number, player: { halfWidth: number; halfLength: number }, avoid: Array<{ x: number; z: number; r: number }>): void {
-    const abroad = shareAbroad(hour);
+    // (The hour may come with the days before it: hours since the clock began)
+    const day = Math.floor(hour / 24);
+    const abroad = shareAbroad(hour - day * 24);
     this.traffic.abroad = abroad;
     this.crowd.abroad = abroad;
+    this.crowd.setClock(hour - day * 24, day, delta);
     this.traffic.playerHalfWidth = player.halfWidth;
     this.traffic.playerHalfLength = player.halfLength;
     this.crowd.avoid = avoid;
     this.traffic.update(delta, playerPos, frustum);
     this.crowd.update(delta, playerPos, frustum);
+  }
+
+  /**
+   * Stage 3: the crowd's people get their days, going to these doors (the city's own list) in the
+   * hours they keep. Called by the city once its doors are all built.
+   */
+  public giveLives(cityId: string, doors: ReadonlyArray<{ id: string; name: string; category: string; interactionPoint: THREE.Vector3; moving?: boolean }>, hoursOf?: (id: string) => import('../destinations/Hours').OpeningHours | undefined | null): void {
+    this.crowd.giveLives(
+      cityId,
+      doors.filter((o) => o.interactionPoint.y < 1.5 && !o.moving).map((o) => ({ id: o.id, name: o.name, category: o.category, x: o.interactionPoint.x, z: o.interactionPoint.z })),
+      hoursOf
+    );
   }
 
   /** Who is in the way here: people and vehicles near a point (for walking and driving) */

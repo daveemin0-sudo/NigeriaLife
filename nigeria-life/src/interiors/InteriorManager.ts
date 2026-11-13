@@ -488,6 +488,15 @@ export class InteriorManager {
     return DestinationRegistry.getInstance().getAll().find((place) => place.interiorId === target.type)?.hours ?? target.hours;
   }
 
+  /**
+   * The hours a street door keeps, for planning ahead (the crowd's days): null when no room is
+   * behind it, undefined when it never shuts. The same record `turnedAway` reads.
+   */
+  public hoursOfDoor(id: string): OpeningHours | undefined | null {
+    const target = this.getInteriorByBuildingId(id);
+    return target ? this.hoursOf(target) : null;
+  }
+
   /** Is this place open now? (Places that keep no hours always are.) */
   public isOpenNow(typeOrId: InteriorType | string): boolean {
     const target = this.getInteriorByBuildingId(typeOrId);

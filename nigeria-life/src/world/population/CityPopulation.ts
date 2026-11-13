@@ -6,6 +6,8 @@ import type { StreetSpot, WalkRun } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_JUNCTION_GAPS, MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
 import { isAbroad } from '../StreetLife';
 import { Bodies, type PersonBody } from '../Bodies';
+import { calendar, type OpeningHours } from '../../destinations/Hours';
+import { WalkNetwork, PROFILES, hash01, hoursOfKind, kindOf, planDay, roleOf, workplaceOf, type CityProfile, type Place, type PlaceInput, type Role, type Step } from './Routines';
 
 type Mode = 'walk' | 'idle' | 'talk';
 
@@ -70,7 +72,47 @@ interface Agent {
   crossCool?: number;
   /** This walker crosses at the junction instead of staying on one pavement */
   willCross?: boolean;
+  /** Who they are and what their day is (stage 3); without one, the hour's share decides if they are out */
+  life?: Life;
+  /** The stall this one trades at, or haggles at (index into the street's stalls) */
+  stall?: number;
+  stallOf?: number;
 }
+
+/**
+ * A resident's day as it goes. Commuters walk the pavement network from home to their place and
+ * back; street walkers (hawkers, idlers, night owls, elders) walk their own pavement in their hours.
+ */
+interface Life {
+  role: Role;
+  /** Their workplace or pitch (index into the places), -1 for street walkers */
+  work: number;
+  /** Where they come in from and go home to (a node at the edge of the map) */
+  home: number;
+  plan: Step[];
+  /** The day the plan is for, and the step being carried out (-1: before the first, at home) */
+  day: number;
+  step: number;
+  /** When the current step began and the next begins (hours on the plan's clock) */
+  nextAt: number;
+  state: 'home' | 'going' | 'in' | 'pitch' | 'stroll';
+  /** Walking: the node they last reached, the node they are making for, and what they do there */
+  node: number;
+  goal: number;
+  then: 'in' | 'pitch' | 'home';
+  place: number;
+  /** The point they are walking to now, and the node it is (-1: the door or the pitch itself) */
+  wx: number;
+  wz: number;
+  wnode: number;
+  /** Their side of the pavement, as a share of its half-width */
+  lane: number;
+  /** A street walker's own pavement, to come back out onto */
+  own?: { x: number; z: number };
+}
+
+/** Commuters, who have somewhere to be; everyone else walks the streets in their hours */
+const COMMUTER: ReadonlySet<Role> = new Set<Role>(['office', 'trader', 'artisan', 'student']);
 
 /**
  * A way over a road, and what governs it. With lights (`group`: the traffic that runs across the
@@ -237,6 +279,28 @@ export class CityPopulation {
   private static blobMaterial: THREE.MeshBasicMaterial | null = null;
   private agents: Agent[] = [];
   private shadows?: THREE.InstancedMesh;
+
+  // ---- Stage 3: the day ----
+  /** The pavements and the places along them, once the city's doors are known (`giveLives`) */
+  public network: WalkNetwork | null = null;
+  public places: Place[] = [];
+  private profile: CityProfile | null = null;
+  /** The game's clock as the crowd last saw it (set each frame with `setClock`) */
+  private hour = -1;
+  private day = 0;
+  /** How much faster than real time the clock runs (1 on Lagos time; far more on the fast clock) */
+  private clockRate = 1;
+  /** Stalls up now (their trader is at them), by stall number */
+  private stallUp: boolean[] = [];
+  private stallSpots: StreetSpot[] = [];
+  /** Told when a stall is opened up or packed away (the street draws it) */
+  public onStall: ((stall: number, open: boolean) => void) | null = null;
+  /** In the draw range this turn (people far off cross roads without waiting, and walk at the clock's pace) */
+  private nowInRange = true;
+  private nowSeen = true;
+  /** How many have set out, arrived and gone in since the city was made (for tests) */
+  public setOut = 0;
+  public arrived = 0;
 
   // Scratch objects reused every frame
   private base = new THREE.Matrix4();
@@ -539,14 +603,16 @@ export class CityPopulation {
 
   /** A trader behind every umbrella stall, and a customer haggling at most of them */
   private spawnStallTraders(stalls: StreetSpot[]): void {
-    for (const stall of stalls) {
+    this.stallSpots = stalls;
+    this.stallUp = stalls.map(() => true);
+    stalls.forEach((stall, index) => {
       const fx = Math.sin(stall.yaw);
       const fz = Math.cos(stall.yaw);
-      this.addAgent({ mode: 'idle', x: stall.x - fx * 0.75, z: stall.z - fz * 0.75, yaw: stall.yaw });
+      this.addAgent({ mode: 'idle', x: stall.x - fx * 0.75, z: stall.z - fz * 0.75, yaw: stall.yaw, stall: index });
       if (this.rand() < 0.6) {
-        this.addAgent({ mode: 'talk', x: stall.x + fx * 0.95, z: stall.z + fz * 0.95, yaw: stall.yaw + Math.PI });
+        this.addAgent({ mode: 'talk', x: stall.x + fx * 0.95, z: stall.z + fz * 0.95, yaw: stall.yaw + Math.PI, stallOf: index });
       }
-    }
+    });
   }
 
   private createInstancedMeshes(): void {
@@ -587,8 +653,16 @@ export class CityPopulation {
   /** How many of them are out now. */
   public get outNow(): number {
     let out = 0;
-    for (let i = 0; i < this.agents.length; i++) if (isAbroad(i, this.abroad)) out += 1;
+    for (let i = 0; i < this.agents.length; i++) if (this.isOut(this.agents[i], i)) out += 1;
     return out;
+  }
+
+  /** Out in the street now: by their own day if they have one, else by the hour's share */
+  private isOut(a: Agent, i: number): boolean {
+    const l = a.life;
+    if (l) return l.state === 'going' || l.state === 'pitch' || l.state === 'stroll';
+    if (a.stallOf !== undefined) return this.stallUp[a.stallOf] ?? true;
+    return isAbroad(i, this.abroad);
   }
 
   /** Step toward a point on the pavement. Returns true once they are there. */
@@ -639,6 +713,10 @@ export class CityPopulation {
     }
     if (a.xing) {
       this.cross(a, a.xing, delta);
+      return false;
+    }
+    if (a.life?.state === 'going') {
+      this.walkRoute(a, a.life, delta);
       return false;
     }
 
@@ -805,6 +883,341 @@ export class CityPopulation {
   }
 
   // =========================================================================
+  // THE DAY (stage 3)
+  // =========================================================================
+  /**
+   * The city's doors are known: build the pavement network, find each door's place on it, and give
+   * the walkers their lives (a role, a home, a workplace, a day). `hoursOf` gives the hours a door
+   * keeps (null when it has no room behind it: its kind's hours are used).
+   */
+  public giveLives(cityId: string, doors: ReadonlyArray<PlaceInput>, hoursOf?: (id: string) => OpeningHours | undefined | null): void {
+    const profile = PROFILES[cityId] ?? PROFILES.lagos;
+    this.profile = profile;
+    const net = new WalkNetwork({ runs: this.runs, links: this.links, avenue: this.plan.avenue, gaps: this.plan.gaps ?? [], zebras: this.plan.zebras ?? [] });
+    const places: Array<Omit<Place, 'node'>> = [];
+    const seen = new Set<string>();
+    for (const d of doors) {
+      const kind = kindOf(d.name, d.category);
+      // One place per door (the same door can be listed twice)
+      const key = `${Math.round(d.x)},${Math.round(d.z)}`;
+      if (!kind || seen.has(key)) continue;
+      seen.add(key);
+      // The door's own hours if it has a room behind it (undefined: never shut), else its kind's
+      const own = d.hours !== undefined ? d.hours : hoursOf ? hoursOf(d.id) : null;
+      const hours = own === null ? hoursOfKind(kind, d.name) : own;
+      if (net.addPlace(d.x, d.z, places.length)) places.push({ id: d.id, name: d.name, kind, x: d.x, z: d.z, hours });
+    }
+    // The umbrella stalls, each kept by the trader standing behind it
+    const stallPlace: number[] = [];
+    this.stallSpots.forEach((spot, i) => {
+      const fx = Math.sin(spot.yaw);
+      const fz = Math.cos(spot.yaw);
+      const x = spot.x - fx * 0.75;
+      const z = spot.z - fz * 0.75;
+      stallPlace[i] = -1;
+      if (!net.addPlace(x, z, places.length)) return;
+      stallPlace[i] = places.length;
+      places.push({ id: `stall-${i}`, name: 'Umbrella stall', kind: 'stall', x, z, hours: hoursOfKind('stall', ''), stall: i, yaw: spot.yaw });
+    });
+    const nodes = net.finish();
+    this.network = net;
+    this.places = places.map((p, i) => ({ ...p, node: nodes.get(i)! }));
+    if (!net.homes.length) return;
+
+    const taken = new Set<number>(stallPlace.filter((p) => p >= 0));
+    // The edges of the map each place can be walked to from (worked out once a place)
+    const homesFor = new Map<number, number[]>();
+    const homesOf = (node: number): number[] => {
+      let list = homesFor.get(node);
+      if (!list) {
+        list = net.homes.filter((h) => net.reaches(h, node));
+        homesFor.set(node, list);
+      }
+      return list;
+    };
+    const reachable = (node: number) => homesOf(node).length > 0;
+    for (const a of this.agents) {
+      let role: Role | null = null;
+      let work = -1;
+      if (a.stall !== undefined && stallPlace[a.stall] >= 0) {
+        role = 'trader';
+        work = stallPlace[a.stall];
+      } else if (a.mode === 'walk' && a.stop === undefined) {
+        role = a.errand ? 'idler' : roleOf(a.id, profile);
+      }
+      if (!role) continue;
+      // Their workplace first (one that some edge of the map can be walked from), then a home that reaches it
+      const homes = net.homes;
+      if (COMMUTER.has(role) && work < 0) {
+        work = workplaceOf(a.id, role, this.places, reachable, taken);
+        if (work < 0) role = 'idler';
+      }
+      let home = homes[Math.floor(hash01(a.id, 9) * homes.length)];
+      if (work >= 0) {
+        const ways = homesOf(this.places[work].node);
+        if (!ways.length) {
+          role = 'idler';
+          work = -1;
+        } else home = ways[Math.floor(hash01(a.id, 9) * ways.length)];
+      }
+      a.life = {
+        role, work, home, plan: [], day: -1, step: -2, nextAt: -Infinity, state: COMMUTER.has(role) ? 'home' : 'stroll',
+        node: home, goal: home, then: 'home', place: -1, wx: a.x, wz: a.z, wnode: -1,
+        lane: 0.25 + hash01(a.id, 11) * 0.7,
+        own: COMMUTER.has(role) ? undefined : { x: a.x, z: a.z },
+      };
+    }
+    // A kept stall is packed away until its trader comes and puts it up
+    stallPlace.forEach((p, i) => {
+      if (p < 0) return;
+      this.stallUp[i] = false;
+      this.onStall?.(i, false);
+    });
+    // Everyone where their day has them, from the start
+    if (this.hour >= 0) for (const a of this.agents) if (a.life) this.keepDay(a, true);
+  }
+
+  /**
+   * The game's clock, each frame. A jump (sleeping, the hour set, arriving from another city) puts
+   * everyone straight where their day has them at the new hour, instead of walking a stale route.
+   */
+  public setClock(hour: number, day: number, frameDelta = 0): void {
+    const was = this.hour;
+    const wasDay = this.day;
+    this.hour = hour;
+    this.day = day;
+    if (!this.network) return;
+    const passed = (day - wasDay) * 24 + (hour - was);
+    if (was < 0 || passed < -0.01 || passed > 0.25) {
+      for (const a of this.agents) if (a.life) this.keepDay(a, true);
+      return;
+    }
+    if (frameDelta > 0 && passed > 0) {
+      // Game seconds per real second, smoothed: 1 on Lagos time
+      const rate = (passed * 3600) / frameDelta;
+      this.clockRate += (Math.min(400, Math.max(1, rate)) - this.clockRate) * Math.min(1, frameDelta * 2);
+    }
+  }
+
+  /** Is this person in the street, at this hour, on their plan? Brings their day up to the hour. */
+  private keepDay(a: Agent, jump: boolean): void {
+    const l = a.life!;
+    if (l.day !== this.day) {
+      l.day = this.day;
+      l.plan = planDay(a.id, l.role, this.profile!, l.work >= 0 ? this.places[l.work] : undefined, l.work, calendar.weekday());
+      l.step = -2;
+    }
+    let want = -1;
+    for (let k = 0; k < l.plan.length; k++) if (l.plan[k].at <= this.hour) want = k;
+    l.nextAt = want + 1 < l.plan.length ? l.plan[want + 1].at : Infinity;
+    if (want === l.step) return;
+    const step: Step = want >= 0 ? l.plan[want] : { at: 0, kind: 'home' };
+    const placeIndex = step.place ?? -1;
+    const place = placeIndex >= 0 ? this.places[placeIndex] : undefined;
+
+    if (!COMMUTER.has(l.role)) {
+      // A street walker steps out of (or back into) the crowd only where nobody is looking at them
+      const out = step.kind === 'stroll';
+      if (out === (l.state === 'stroll')) {
+        l.step = want;
+        return;
+      }
+      if (!jump && this.lastSeen.has(a)) return;
+      l.step = want;
+      l.state = out ? 'stroll' : 'home';
+      if (out && l.own) {
+        a.x = l.own.x;
+        a.z = l.own.z;
+      }
+      return;
+    }
+
+    l.step = want;
+    if (jump) {
+      this.placeAt(a, l, step.kind === 'in' || step.kind === 'pitch' ? step.kind : 'home', placeIndex);
+      return;
+    }
+    // Their place is shut when they would set out for it: they stay where they are (at home)
+    if (place && step.kind === 'in' && !this.openAt(place, this.hour) && !this.openAt(place, this.hour + 1.5)) return;
+    // Off they go: from home, out of the door, or away from the stall
+    const goHome = step.kind === 'home' || !place;
+    if (goHome && l.state === 'home') return;
+    this.setOff(a, l, goHome ? l.home : place.node, goHome ? 'home' : step.kind === 'pitch' ? 'pitch' : 'in', goHome ? -1 : placeIndex);
+  }
+
+  /** Is the place open at this hour? */
+  private openAt(place: Place, hour: number): boolean {
+    const h = place.hours;
+    if (!h) return true;
+    const t = ((hour % 24) + 24) % 24;
+    if (h.opens === h.closes || (h.opens <= 0 && h.closes >= 24)) return true;
+    return h.opens < h.closes ? t >= h.opens && t < h.closes : t >= h.opens || t < h.closes;
+  }
+
+  /** Who was drawn last frame (a street walker does not vanish or appear in front of the player) */
+  private readonly lastSeen = new Set<Agent>();
+
+  /** Straight to where their day has them (after a jump in the clock) */
+  private placeAt(a: Agent, l: Life, kind: 'home' | 'in' | 'pitch', placeIndex: number): void {
+    this.leavePitch(l);
+    a.xing = undefined;
+    this.crossers.delete(a);
+    const place = placeIndex >= 0 ? this.places[placeIndex] : undefined;
+    if (kind === 'home' || !place || (kind === 'in' && !this.openAt(place, this.hour))) {
+      l.state = 'home';
+      l.node = l.home;
+      return;
+    }
+    l.node = place.node;
+    l.place = placeIndex;
+    a.x = place.x;
+    a.z = place.z;
+    if (kind === 'in') {
+      l.state = 'in';
+      return;
+    }
+    this.atPitch(a, l, place);
+  }
+
+  /** At their stall: it goes up */
+  private atPitch(a: Agent, l: Life, place: Place): void {
+    l.state = 'pitch';
+    a.mode = 'idle';
+    a.x = place.x;
+    a.z = place.z;
+    a.yaw = place.yaw ?? a.yaw;
+    if (place.stall !== undefined) {
+      this.stallUp[place.stall] = true;
+      this.onStall?.(place.stall, true);
+    }
+  }
+
+  /** Leaving their stall: it is packed away */
+  private leavePitch(l: Life): void {
+    if (l.state !== 'pitch') return;
+    const place = this.places[l.place];
+    if (place?.stall !== undefined) {
+      this.stallUp[place.stall] = false;
+      this.onStall?.(place.stall, false);
+    }
+  }
+
+  /** Sets off for a node, and what they do when they get there */
+  private setOff(a: Agent, l: Life, goal: number, then: Life['then'], placeIndex: number): void {
+    const net = this.network!;
+    this.leavePitch(l);
+    if (l.state === 'home') {
+      // In from the edge of the map
+      const n = net.nodes[l.home];
+      a.x = n.x;
+      a.z = n.z;
+      l.node = l.home;
+    } else if (l.state !== 'going') {
+      // Out of the door, or away from the stall, to the pavement it opens off
+      const from = l.place >= 0 ? this.places[l.place] : undefined;
+      l.node = from ? from.node : net.nearest(a.x, a.z);
+    }
+    if (l.state !== 'going') {
+      const n = net.nodes[l.node];
+      l.wx = n.x;
+      l.wz = n.z;
+      l.wnode = l.node;
+    }
+    l.goal = goal;
+    l.then = then;
+    if (then !== 'home') l.place = placeIndex;
+    l.state = 'going';
+    a.mode = 'walk';
+    this.setOut += 1;
+  }
+
+  /** One stride along their route: to the next waypoint, then on to the next node, over roads where they must */
+  private walkRoute(a: Agent, l: Life, delta: number): void {
+    const net = this.network!;
+    // Where the player cannot see them they keep the clock's pace (on the fast clock, an hour is 25 s)
+    const pace = this.nowSeen ? 1 : Math.min(this.clockRate, 60);
+    const own = a.speed;
+    a.speed = own * pace;
+    try {
+      for (let hops = 0; hops < 4; hops++) {
+        if (!this.stepToward(a, l.wx, l.wz, delta)) return;
+        if (l.wnode < 0) {
+          // At the door or the pitch
+          this.arrive(a, l);
+          return;
+        }
+        l.node = l.wnode;
+        if (l.node === l.goal) {
+          if (l.then === 'home') {
+            this.arrive(a, l);
+            return;
+          }
+          const place = this.places[l.place];
+          l.wx = place.x;
+          l.wz = place.z;
+          l.wnode = -1;
+          continue;
+        }
+        const e = net.step(l.node, l.goal);
+        if (e < 0) {
+          // No way on from here: home, out of sight
+          l.state = 'home';
+          return;
+        }
+        const edge = net.edges[e];
+        const m = net.other(e, l.node);
+        const to = net.nodes[m];
+        const from = net.nodes[l.node];
+        // Their own side of the pavement: walkers keep to one side, so the two ways pass each other
+        const dx = to.x - from.x;
+        const dz = to.z - from.z;
+        const len = Math.hypot(dx, dz) || 1;
+        const half = to.main && from.main ? Math.max(0.35, this.plan.avenue.walk / 2 - 0.9) : 0.35;
+        const side = edge.c ? 0 : l.lane * half;
+        l.wx = to.x + (dz / len) * side;
+        l.wz = to.z - (dx / len) * side;
+        l.wnode = m;
+        a.onMainWalk = from.main && to.main;
+        a.axis = Math.abs(dx) > Math.abs(dz) ? 'x' : 'z';
+        a.dir = (a.axis === 'x' ? dx : dz) >= 0 ? 1 : -1;
+        if (edge.c && this.nowInRange) {
+          // Over a road: to the kerb, wait for the lights or a gap, across, and on (they do not give up)
+          const near = edge.a === l.node ? edge.ka : edge.kb;
+          const far = edge.a === l.node ? edge.kb : edge.ka;
+          a.xing = {
+            c: edge.c, phase: 'kerb', kx: near?.x ?? from.x, kz: near?.z ?? from.z, tx: far?.x ?? to.x, tz: far?.z ?? to.z,
+            sx: to.x, sz: to.z, bx: from.x, bz: from.z, pace: Math.max(own, edge.c.kind === 'major' ? 1.7 : 1.35), waited: 0, patience: Infinity,
+          };
+          l.node = m;
+          l.wx = to.x;
+          l.wz = to.z;
+          return;
+        }
+      }
+    } finally {
+      a.speed = own;
+    }
+  }
+
+  /** Where they were going: in at the door, up at the stall, or home */
+  private arrive(a: Agent, l: Life): void {
+    this.arrived += 1;
+    if (l.then === 'home') {
+      l.state = 'home';
+      l.node = l.home;
+      return;
+    }
+    const place = this.places[l.place];
+    // Shut by the time they get there: home again
+    if (l.then === 'in' && !this.openAt(place, this.hour)) {
+      this.setOff(a, l, l.home, 'home', -1);
+      return;
+    }
+    if (l.then === 'pitch') this.atPitch(a, l, place);
+    else l.state = 'in';
+  }
+
+  // =========================================================================
   // SIMULATION
   // =========================================================================
   public update(frameDelta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
@@ -814,6 +1227,7 @@ export class CityPopulation {
       variant.drawnFar = 0;
     }
     let shadowCount = 0;
+    this.lastSeen.clear();
     // The time owed to each turn of those who are not moved every frame
     const tick = this.tick++;
     for (let k = 0; k < HIDDEN_EVERY; k++) this.owedHidden[k] += frameDelta;
@@ -829,7 +1243,14 @@ export class CityPopulation {
       if (!variant.body) continue;
 
       // Who can be seen this frame: out at this hour, within range, and in the camera's view
-      const abroadNow = isAbroad(i, this.abroad);
+      // A resident keeps their day: setting out, going in, coming home, at the hour their plan says
+      const life = a.life;
+      if (life && this.hour >= 0) {
+        if (life.day !== this.day || this.hour >= life.nextAt) this.keepDay(a, false);
+        // Indoors or at home: nothing to move or draw
+        if (life.state === 'home' || life.state === 'in') continue;
+      }
+      const abroadNow = this.isOut(a, i);
       let inRange = abroadNow;
       let seen = abroadNow;
       let far = false;
@@ -855,6 +1276,8 @@ export class CityPopulation {
         delta = (inRange ? this.owedHidden : this.owedFar)[slot];
       }
       moved += 1;
+      this.nowInRange = inRange;
+      this.nowSeen = seen;
 
       // Limb rotations: [leftArm, rightArm, leftLeg, rightLeg] as (x, z) pairs
       let lax = 0, laz = 0, rax = 0, raz = 0, llx = 0, rlx = 0, bob = 0;
@@ -927,6 +1350,7 @@ export class CityPopulation {
       // Everyone keeps walking, but only pedestrians the camera can see are drawn
       if (!seen) continue;
       seenNow += 1;
+      this.lastSeen.add(a);
       const ax = a.x + (a.ox ?? 0);
       const az = a.z + (a.oz ?? 0);
       const slot = far ? variant.drawnFar++ : variant.drawn++;
@@ -967,7 +1391,7 @@ export class CityPopulation {
     // Who is out on a carriageway now: the traffic stops for them
     let onRoad = 0;
     for (const a of this.crossers) {
-      if (!isAbroad(a.id, this.abroad)) continue;
+      if (!this.isOut(a, a.id)) continue;
       const spot = this.onRoad[onRoad] ?? (this.onRoad[onRoad] = { x: 0, z: 0 });
       spot.x = a.x;
       spot.z = a.z;
@@ -1078,7 +1502,7 @@ export class CityPopulation {
     let moved = 0;
     for (let i = 0; i < this.agents.length; i++) {
       const a = this.agents[i];
-      if (a.away || a.boarding || !isAbroad(i, this.abroad)) continue;
+      if (a.away || a.boarding || !this.isOut(a, i)) continue;
       const rx = a.x + (a.ox ?? 0) - x;
       const rz = a.z + (a.oz ?? 0) - z;
       const ahead = rx * fx + rz * fz;
@@ -1101,7 +1525,7 @@ export class CityPopulation {
     let used = 0;
     for (let i = 0; i < this.agents.length; i++) {
       const a = this.agents[i];
-      if (a.away || !isAbroad(i, this.abroad)) continue;
+      if (a.away || !this.isOut(a, i)) continue;
       const ax = a.x + (a.ox ?? 0);
       const az = a.z + (a.oz ?? 0);
       if (Math.abs(ax - x) > range || Math.abs(az - z) > range) continue;

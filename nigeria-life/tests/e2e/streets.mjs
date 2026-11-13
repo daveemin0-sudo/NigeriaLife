@@ -133,8 +133,14 @@ export async function run(browser, check) {
     return { minX: Math.min(...all.map((o) => o.minX)), maxX: Math.max(...all.map((o) => o.maxX)), minZ: Math.min(...all.map((o) => o.minZ)), maxZ: Math.max(...all.map((o) => o.maxZ)), solids: window.game.solidsHere().count };
   });
   const midZ = (bank.minZ + bank.maxZ) / 2;
+  // Walls are what is tested here, on a quiet pavement: with people passing close by the player
+  // waits for them and tries again (by design), and since stage 3 the pavement by the bank is busy
+  // in the afternoon. So this one walk is made at 3 am, and the hour put back after.
+  const hourWas = await page.evaluate(() => { const sky = window.game.world.skyEnvironment; const h = sky.currentHour; sky.setHour(3); return h; });
+  await advance(page, 0.5);
   await put(page, 8.5, midZ);
   const atWall = (await walk(page, (bank.minX + bank.maxX) / 2, midZ, 20)).pop();
+  await page.evaluate((h) => window.game.world.skyEnvironment.setHour(h), hourWas);
   check('walking at the front of the bank stops at its wall: the player does not pass into the building',
     bank.solids > 150 && atWall.x < bank.minX && !atWall.moving, { atWall, front: bank.minX });
 
