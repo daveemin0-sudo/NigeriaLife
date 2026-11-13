@@ -630,10 +630,12 @@ export class TrafficSpawner {
     for (const lane of this.lanes) {
       let leaderRear = Infinity;
       // Those on foot in this lane, as places along it
+      // (pairs: place along the lane, distance from its middle)
       ahead.length = 0;
       for (let w = 0; w < walkers.length; w++) {
         const person = walkers[w];
-        if (Math.abs((lane.axis === 'z' ? person.x : person.z) - lane.fixed) < 1.75) ahead.push((lane.axis === 'z' ? person.z : person.x) * lane.dir);
+        const off = Math.abs((lane.axis === 'z' ? person.x : person.z) - lane.fixed);
+        if (off < 1.75) ahead.push((lane.axis === 'z' ? person.z : person.x) * lane.dir, off);
       }
 
       // Drivers brake for the player (on foot or in a vehicle) standing in their lane
@@ -648,8 +650,15 @@ export class TrafficSpawner {
         let limit = leaderRear - 1.8 - car.length / 2;
         if (car.u + car.length / 2 <= playerU) limit = Math.min(limit, playerU - this.playerHalfLength - 1.2 - car.length / 2);
         // Someone crossing ahead: pull up short of them, and move off when they are over
-        for (let w = 0; w < ahead.length; w++) {
-          if (car.u + car.length / 2 > ahead[w] + 0.3) continue;
+        for (let w = 0; w < ahead.length; w += 2) {
+          if (car.u + car.length / 2 > ahead[w] + 0.3) {
+            // Already alongside them: if they are in its path it does not move another inch
+            if (car.u - car.length / 2 - 0.3 < ahead[w] && ahead[w + 1] < this.batches[car.kind].width / 2 + 0.35) {
+              limit = Math.min(limit, car.u);
+              held += 1;
+            }
+            continue;
+          }
           const short = ahead[w] - 1.7 - car.length / 2;
           if (short < limit) {
             limit = short;
@@ -806,10 +815,13 @@ export class TrafficSpawner {
       body.halfLength = batch.length / 2;
       body.parked = parked;
       body.yielding = false;
+      body.speed = 0;
       out.push(body);
       return body;
     };
     for (const lane of this.lanes) {
+      // A whole lane out of reach (pulled-over cars sit up to 2.3 m off its middle)
+      if (Math.abs(lane.fixed - (lane.axis === 'z' ? x : z)) > range + 5) continue;
       const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       for (const car of lane.cars) {
         if (car.place !== undefined && !isAbroad(car.place, this.abroad)) continue;
@@ -817,7 +829,10 @@ export class TrafficSpawner {
         // Where it is drawn, pulled over or not: its body is there too, never left behind in the lane
         const aside = lane.axis === 'z' ? (car.asideDir ?? Math.sign(lane.fixed)) * (car.aside ?? 0) : 0;
         const body = add(car.kind, lane.axis === 'z' ? lane.fixed + aside : along, lane.axis === 'z' ? along : lane.fixed, yaw, false);
-        if (body) body.yielding = (car.aside ?? 0) > 0.3;
+        if (body) {
+          body.yielding = (car.aside ?? 0) > 0.3;
+          body.speed = car.v;
+        }
       }
     }
     for (const car of this.parked) if (!car.cleared) add(car.kind, car.x, car.z, car.yaw, true);

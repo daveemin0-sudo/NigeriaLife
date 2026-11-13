@@ -105,12 +105,29 @@ interface Xing {
   then?: { run: number; min: number; max: number };
   /** Gave up: back the way they came */
   back?: boolean;
+  /** Seconds to the next look at the traffic, and what they saw last time (looking is not free) */
+  look?: number;
+  blocked?: boolean;
 }
 
 /** How long a walker allows over and above the walk itself before the traffic may move again, seconds */
 const CROSS_MARGIN = 1;
 /** How near a moving vehicle may be to a crossing with no lights for someone to step out, metres */
 const LOOK_BOTH_WAYS = 14;
+/** On the lights too: nobody steps out in front of a vehicle that would be on the crossing within this many seconds */
+const STILL_COMING = 2.5;
+/** How often someone at a kerb or out on the road looks again at the traffic, seconds */
+const LOOK_EVERY = 0.12;
+
+/** Is the point inside the vehicle's box, grown by `margin` all round and by `lead` metres in front? */
+function inCar(px: number, pz: number, car: { x: number; z: number; yaw: number; halfWidth: number; halfLength: number }, margin: number, lead: number): boolean {
+  const dx = px - car.x;
+  const dz = pz - car.z;
+  const s = Math.sin(car.yaw);
+  const c = Math.cos(car.yaw);
+  const along = dx * s + dz * c;
+  return Math.abs(dx * c - dz * s) < car.halfWidth + margin && along > -car.halfLength - margin && along < car.halfLength + margin + lead;
+}
 
 // Where people wait for a danfo (src/transit/Fares.ts, shared with the game server)
 export { BUS_STOPS };
@@ -692,11 +709,39 @@ export class CityPopulation {
   /** May this walker step out now: the traffic that crosses their path held for long enough, or nothing coming */
   private mayCross(a: Agent, x: Xing): boolean {
     const far = Math.hypot(x.tx - a.x, x.tz - a.z);
-    if (x.c.group) return (this.walkTime?.(x.c.group) ?? 0) >= far / x.pace + CROSS_MARGIN;
     const mx = (a.x + x.tx) / 2;
     const mz = (a.z + x.tz) / 2;
-    for (const car of Bodies.carsNear(mx, mz, far / 2 + LOOK_BOTH_WAYS)) if (!car.parked) return false;
+    if (!x.c.group) {
+      for (const car of Bodies.carsNear(mx, mz, far / 2 + LOOK_BOTH_WAYS)) if (!car.parked) return false;
+      return true;
+    }
+    if ((this.walkTime?.(x.c.group) ?? 0) < far / x.pace + CROSS_MARGIN) return false;
+    // The light says go; the road must say so too: nothing still running the junction or standing on the crossing
+    const steps = Math.max(1, Math.ceil(far / 0.6));
+    for (const car of Bodies.carsNear(mx, mz, far / 2 + 30)) {
+      if (car.parked) continue;
+      const lead = (car.speed ?? 0) * STILL_COMING;
+      for (let k = 0; k <= steps; k++) {
+        const f = k / steps;
+        if (inCar(a.x + (x.tx - a.x) * f, a.z + (x.tz - a.z) * f, car, 0.4, lead)) return false;
+      }
+    }
     return true;
+  }
+
+  /** Out on the road: would the next stride take them into the side of a vehicle? Then they stop and let it by */
+  private stepBlocked(a: Agent, x: Xing): boolean {
+    const dx = x.tx - a.x;
+    const dz = x.tz - a.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.3) return false;
+    const nx = a.x + (dx / d) * 0.7;
+    const nz = a.z + (dz / d) * 0.7;
+    for (const car of Bodies.carsNear(a.x, a.z, 7)) {
+      if (car.parked) continue;
+      if (inCar(nx, nz, car, 0.3, 0) && !inCar(a.x, a.z, car, 0.3, 0)) return true;
+    }
+    return false;
   }
 
   /** Someone crossing a road: up to the kerb, waiting there, over, and back among the walkers */
@@ -714,8 +759,14 @@ export class CityPopulation {
       a.yaw = Math.atan2(x.tx - a.x, x.tz - a.z);
     }
     if (x.phase === 'wait') {
-      if (this.mayCross(a, x)) {
+      x.look = (x.look ?? 0) - delta;
+      if (x.look <= 0) {
+        x.look = LOOK_EVERY;
+        x.blocked = !this.mayCross(a, x);
+      }
+      if (!x.blocked) {
         x.phase = 'go';
+        x.look = 0;
         this.crossers.add(a);
       } else {
         x.waited += delta;
@@ -729,6 +780,12 @@ export class CityPopulation {
       }
     }
     if (x.phase === 'go') {
+      x.look = (x.look ?? 0) - delta;
+      if (x.look <= 0) {
+        x.look = LOOK_EVERY;
+        x.blocked = this.stepBlocked(a, x);
+      }
+      if (x.blocked) return;
       if (!walk(x.tx, x.tz, x.pace)) return;
       this.crossers.delete(a);
       this.crossed += 1;

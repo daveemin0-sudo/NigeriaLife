@@ -53,17 +53,20 @@ export async function run(browser, check) {
     const frustum = w.frustumNow();
     // Plain walkers out of the player's range, with room ahead of them for the whole test
     const picked = crowd.agents.filter((a) => {
-      if (a.mode !== 'walk' || a.errand || a.willCross || a.stop !== undefined || a.crossing !== undefined) return false;
+      if (a.mode !== 'walk' || a.errand || a.willCross || a.xing || a.stop !== undefined || a.crossing !== undefined) return false;
       if (Math.hypot(a.x - p.x, a.z - p.z) < crowd.drawDistance + 15) return false;
       const along = a.axis === 'x' ? a.x : a.z;
       const room = a.dir > 0 ? a.max - along : along - a.min;
+      // Nor anyone whose way runs over a side road in that time (they wait at its kerb for the lights)
+      const end = along + a.dir * (a.speed * SECONDS + 1);
+      if (a.onMainWalk && a.axis === 'z' && (crowd.plan.gaps ?? []).some((g) => Math.max(along, end) > g.from - 1 && Math.min(along, end) < g.to + 1)) return false;
       return room > a.speed * SECONDS + 2;
     });
     const before = picked.map((a) => ({ at: a.axis === 'x' ? a.x : a.z, dir: a.dir }));
     // The crowd's own clock, a frame at a time (the game's fast-forward does not run it in full)
     for (let k = 0; k < SECONDS * 30; k++) crowd.update(1 / 30, p, frustum);
     // Someone who turned back on the way is not a measure of pace
-    const kept = picked.map((a, i) => ({ a, was: before[i] })).filter(({ a, was }) => a.dir === was.dir && !a.errand && a.crossing === undefined).slice(0, 40);
+    const kept = picked.map((a, i) => ({ a, was: before[i] })).filter(({ a, was }) => a.dir === was.dir && !a.errand && !a.xing && a.crossing === undefined).slice(0, 40);
     const off = kept.map(({ a, was }) => Math.abs(Math.abs((a.axis === 'x' ? a.x : a.z) - was.at) - a.speed * SECONDS));
     return { n: kept.length, worst: +Math.max(...off).toFixed(2), mean: +(off.reduce((t, v) => t + v, 0) / off.length).toFixed(2) };
   });
@@ -88,13 +91,63 @@ export async function run(browser, check) {
   });
   check('livingcity: looking each way along and across the street, people are drawn in every direction that has pavement in it', turned.filter((n) => n > 0).length >= 3, turned);
 
+  // ------------------------------------------------------------------ Stage 2: crossing the road
+  // A minute of the street, traffic and crowd a frame at a time: who crosses, who gives up, and
+  // whether a moving vehicle's body ever covers someone out on the carriageway.
+  const crossings = (hour, seconds) => page.evaluate((hour, seconds) => {
+    const g = window.game;
+    const w = g.world;
+    const city = w.cityManager.currentCityId;
+    const life = city === 'lagos' ? null : w.cityManager.lifeHere();
+    const crowd = life ? life.crowd : w.cityPopulation;
+    const traffic = life ? life.traffic : w.trafficSpawner;
+    const B = g.modules.Bodies;
+    const p = g.player.position;
+    const frustum = w.frustumNow();
+    w.skyEnvironment.setHour(hour);
+    const c0 = crowd.crossed;
+    const g0 = crowd.gaveUp;
+    let hits = 0;
+    let heldFrames = 0;
+    let waitedMax = 0;
+    const steps = seconds * 30;
+    let cost = 0;
+    for (let k = 0; k < steps; k++) {
+      const t0 = performance.now();
+      traffic.update(1 / 30, p, frustum);
+      crowd.update(1 / 30, p, frustum);
+      cost += performance.now() - t0;
+      if (traffic.heldForWalkers > 0) heldFrames++;
+      for (const person of crowd.onRoad) {
+        for (const car of B.carsNear(person.x, person.z, 8)) {
+          if (car.parked) continue;
+          const dx = person.x - car.x;
+          const dz = person.z - car.z;
+          const s = Math.sin(car.yaw);
+          const c = Math.cos(car.yaw);
+          if (Math.abs(dx * s + dz * c) < car.halfLength + 0.2 && Math.abs(dx * c - dz * s) < car.halfWidth + 0.2) hits++;
+        }
+      }
+      for (const a of crowd.agents) if (a.xing?.phase === 'wait') waitedMax = Math.max(waitedMax, a.xing.waited);
+    }
+    return { city, hour, crossed: crowd.crossed - c0, gaveUp: crowd.gaveUp - g0, hits, heldShare: +(heldFrames / steps).toFixed(2), waitedMax: +waitedMax.toFixed(1), moving: traffic.moving.now, msPerFrame: +(cost / steps).toFixed(2) };
+  }, hour, seconds);
+  const crossCheck = (name, r) => {
+    check(`livingcity: ${name} at ${r.hour}:00, a minute of the street: dozens cross the roads, and no moving vehicle is ever on top of someone crossing`, r.crossed >= 30 && r.hits === 0, r);
+    check(`livingcity: ${name}: people wait at the kerb for the lights or a gap, but almost nobody gives up and turns back, and the traffic keeps moving`, r.gaveUp <= Math.max(2, r.crossed * 0.05) && r.heldShare < 0.9 && r.moving > 40, r);
+  };
+  crossCheck('Lagos', await crossings(8, 60));
+  crossCheck('Lagos', await crossings(14, 60));
+
   // ------------------------------------------------------------------ The other cities
   for (const city of ['abuja', 'port_harcourt']) {
     await page.evaluate((c) => window.game.arriveInCity(c), city);
     await wait(3500);
     const there = await crowdNow(8);
-    check(`livingcity: ${city === 'abuja' ? 'Abuja' : 'Port Harcourt'} at 8 am: its own crowd is out, and well under half of them are moved in any one frame`,
+    const name = city === 'abuja' ? 'Abuja' : 'Port Harcourt';
+    check(`livingcity: ${name} at 8 am: its own crowd is out, and well under half of them are moved in any one frame`,
       there.city === city && there.agents > 300 && there.out === there.agents && there.movedPerFrame < there.agents * 0.45, there);
+    crossCheck(name, await crossings(14, 60));
   }
   check('livingcity: no errors in the page', log.errors.length === 0, log.errors.slice(0, 4));
   await ctx.close();
