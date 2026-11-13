@@ -72,3 +72,28 @@ Each stage is small enough to test, commit and push on its own.
 ## 5. Tests planned
 
 A new `livingcity` suite, per stage: people counted by level and the crowd update timed and counted in all three cities at four hours; no walker crosses against the light and no car passes through a walker on a crossing; a resident followed through a compressed day reaches work, food and home; a shop's inside count matches the street; a greeted regular answers differently the second time; city changes keep the right crowd. Plus the usual regression suites (ways, streets, sidestreets, citylife, bigcities, convoys, danfo, vehicles, touch, phonefit, social, access, kerbs), reported per suite with anything not run named.
+
+## 6. Progress
+
+### Stage 1: levels of detail (built 2026-11-13)
+
+`CityPopulation.update` now moves people at three rates: every frame if the camera can see them (or they are stepping onto a bus), every second frame if they are in range but out of view, every fourth if they are out of range or at home. Each is moved by all the time since their turn, so nobody falls behind. Nothing looks different.
+
+Laptop measure, 316 px screen, crowd update per frame, before and after:
+
+| City, hour | People moved per frame | Before | After |
+|---|---|---|---|
+| Lagos 8 am | 451 to about 170 | 0.67 ms | 0.39 ms |
+| Lagos 1 pm | | 0.52 ms | 0.27 ms |
+| Lagos 10 pm | | 0.33 ms | 0.16 ms |
+| Lagos 2 am | | 0.22 ms | 0.08 ms |
+| Abuja 8 am | 499 to about 148 | 1.18 ms | 0.29 ms |
+| Port Harcourt 8 am | 696 to about 202 | 0.77 ms | 0.56 ms |
+
+Draw calls and triangles are unchanged (the same people are drawn). Not measured on a phone.
+
+The 12 older pedestrians in `NPCs.ts` were found to be already hidden and frozen beyond 38 m, so they were left alone; they become the first named regulars in stage 5 rather than being folded in now.
+
+Tests: new `livingcity` suite 8/8 (share moved per frame in all three cities, nobody in view skipped, far walkers exactly on pace, people drawn in every direction, night cheaper than morning). Regression on the same build: citylife 8/8, bigcities 9/9, sidestreets 5/5, danfo (bus queues boarding) passed, streets 16/16, touch 10/10. Other suites were not run for this stage.
+
+Note for later stages: the game's fast-forward (`advance`) does not run the crowd for the full time asked, so crowd tests step the crowd's own update.

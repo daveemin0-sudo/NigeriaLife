@@ -81,6 +81,14 @@ const TROUSERS = [0x1e293b, 0x1f2937, 0x334155, 0x57534e, 0x1e3a8a, 0x292524];
 const DRAW_DISTANCE = 90;
 /** Nearer than this a pedestrian is drawn in full; further away, simplified (no one can see the fingers at 20 m) */
 const NEAR_DISTANCE = 22;
+/**
+ * How often someone nobody can see is moved on. In view, every frame. In range but out of view
+ * (behind the camera, round a corner of the screen), every second frame. Out of range or at home,
+ * every fourth. Each is moved by all the time that has passed since their last turn, so nobody
+ * falls behind: they are where they would have been, at a fraction of the work.
+ */
+const HIDDEN_EVERY = 2;
+const FAR_EVERY = 4;
 /** Size of the cubes the far model's vertices are gathered into, metres */
 const FAR_CELL = 0.045;
 
@@ -126,6 +134,12 @@ export class CityPopulation {
   /** How far away pedestrians are drawn at all, and drawn in full (the graphics setting changes these) */
   public drawDistance = DRAW_DISTANCE;
   public nearDistance = NEAR_DISTANCE;
+  /** How many were moved on in the last frame, and how many of them were drawn (the rest wait their turn) */
+  public movedNow = 0;
+  public seenNow = 0;
+  private tick = 0;
+  private readonly owedHidden = new Float64Array(HIDDEN_EVERY);
+  private readonly owedFar = new Float64Array(FAR_EVERY);
   /** Who the walkers step round this frame: the player, or the vehicle the player is driving */
   public avoid: Array<{ x: number; z: number; r: number }> = [];
   private bodyPool: PersonBody[] = [];
@@ -548,18 +562,54 @@ export class CityPopulation {
   // =========================================================================
   // SIMULATION
   // =========================================================================
-  public update(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
+  public update(frameDelta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
     const { base, limb, out, pos, quat, scl, euler, sphere } = this;
     for (const variant of this.variants) {
       variant.drawn = 0;
       variant.drawnFar = 0;
     }
     let shadowCount = 0;
+    // The time owed to each turn of those who are not moved every frame
+    const tick = this.tick++;
+    for (let k = 0; k < HIDDEN_EVERY; k++) this.owedHidden[k] += frameDelta;
+    for (let k = 0; k < FAR_EVERY; k++) this.owedFar[k] += frameDelta;
+    let moved = 0;
+    let seenNow = 0;
+    const draw2 = this.drawDistance * this.drawDistance;
+    const near2 = this.nearDistance * this.nearDistance;
 
     for (let i = 0; i < this.agents.length; i++) {
       const a = this.agents[i];
       const variant = this.variants[a.variant];
       if (!variant.body) continue;
+
+      // Who can be seen this frame: out at this hour, within range, and in the camera's view
+      const abroadNow = isAbroad(i, this.abroad);
+      let inRange = abroadNow;
+      let seen = abroadNow;
+      let far = false;
+      if (abroadNow && playerPos) {
+        const dx = a.x + (a.ox ?? 0) - playerPos.x;
+        const dz = a.z + (a.oz ?? 0) - playerPos.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > draw2) {
+          inRange = false;
+          seen = false;
+        } else far = d2 > near2;
+      }
+      if (seen && frustum) {
+        sphere.center.set(a.x + (a.ox ?? 0), 1, a.z + (a.oz ?? 0));
+        if (!frustum.intersectsSphere(sphere)) seen = false;
+      }
+      // Seen, or stepping onto a bus: moved this frame. Anyone else, when their turn comes round.
+      let delta = frameDelta;
+      if (!seen && !a.boarding) {
+        const every = inRange ? HIDDEN_EVERY : FAR_EVERY;
+        const slot = i % every;
+        if (slot !== tick % every) continue;
+        delta = (inRange ? this.owedHidden : this.owedFar)[slot];
+      }
+      moved += 1;
 
       // Limb rotations: [leftArm, rightArm, leftLeg, rightLeg] as (x, z) pairs
       let lax = 0, laz = 0, rax = 0, raz = 0, llx = 0, rlx = 0, bob = 0;
@@ -620,23 +670,13 @@ export class CityPopulation {
       }
 
       // Those who are at home at this hour are not in the street
-      if (!isAbroad(i, this.abroad)) continue;
+      if (!abroadNow) continue;
       this.sidestep(a, delta);
+      // Everyone keeps walking, but only pedestrians the camera can see are drawn
+      if (!seen) continue;
+      seenNow += 1;
       const ax = a.x + (a.ox ?? 0);
       const az = a.z + (a.oz ?? 0);
-      // Everyone keeps walking, but only pedestrians the camera can see are drawn
-      let far = false;
-      if (playerPos) {
-        const dx = ax - playerPos.x;
-        const dz = az - playerPos.z;
-        const d2 = dx * dx + dz * dz;
-        if (d2 > this.drawDistance * this.drawDistance) continue;
-        far = d2 > this.nearDistance * this.nearDistance;
-      }
-      if (frustum) {
-        sphere.center.set(ax, 1, az);
-        if (!frustum.intersectsSphere(sphere)) continue;
-      }
       const slot = far ? variant.drawnFar++ : variant.drawn++;
       const bodyMesh = far ? variant.farBody! : variant.body;
       const limbMeshes = far ? variant.farLimbs : variant.limbs;
@@ -671,6 +711,11 @@ export class CityPopulation {
         this.shadows.setMatrixAt(shadowCount++, base);
       }
     }
+
+    this.owedHidden[tick % HIDDEN_EVERY] = 0;
+    this.owedFar[tick % FAR_EVERY] = 0;
+    this.movedNow = moved;
+    this.seenNow = seenNow;
 
     // A mesh with nobody in it this frame is hidden, so it costs no draw call
     const settle = (mesh: THREE.InstancedMesh, count: number) => {
