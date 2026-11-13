@@ -7,7 +7,7 @@ import { CROSS_STREET_Z, MAIN_JUNCTION_GAPS, MAIN_ROAD, isInJunctionGap } from '
 import { isAbroad } from '../StreetLife';
 import { Bodies, type PersonBody } from '../Bodies';
 import { calendar, type OpeningHours } from '../../destinations/Hours';
-import { WalkNetwork, PROFILES, hash01, hoursOfKind, kindOf, planDay, roleOf, workplaceOf, type CityProfile, type Place, type PlaceInput, type Role, type Step } from './Routines';
+import { WalkNetwork, PROFILES, hash01, hoursOfKind, kindOf, planDay, roleOf, workplaceOf, type CityProfile, type Place, type PlaceInput, type PlaceKind, type PlacePicker, type Role, type Step } from './Routines';
 
 type Mode = 'walk' | 'idle' | 'talk';
 
@@ -95,11 +95,11 @@ interface Life {
   step: number;
   /** When the current step began and the next begins (hours on the plan's clock) */
   nextAt: number;
-  state: 'home' | 'going' | 'in' | 'pitch' | 'stroll';
+  state: 'home' | 'going' | 'in' | 'pitch' | 'stroll' | 'buy';
   /** Walking: the node they last reached, the node they are making for, and what they do there */
   node: number;
   goal: number;
-  then: 'in' | 'pitch' | 'home';
+  then: 'in' | 'pitch' | 'home' | 'buy' | 'stroll';
   place: number;
   /** The point they are walking to now, and the node it is (-1: the door or the pitch itself) */
   wx: number;
@@ -107,8 +107,9 @@ interface Life {
   wnode: number;
   /** Their side of the pavement, as a share of its half-width */
   lane: number;
-  /** A street walker's own pavement, to come back out onto */
-  own?: { x: number; z: number };
+  /** A street walker's own pavement, to come back out onto (and the network point nearest it) */
+  own?: { x: number; z: number; axis: 'x' | 'z'; min: number; max: number; main: boolean; run?: number };
+  ownNode: number;
 }
 
 /** Commuters, who have somewhere to be; everyone else walks the streets in their hours */
@@ -292,6 +293,10 @@ export class CityPopulation {
   private clockRate = 1;
   /** Stalls up now (their trader is at them), by stall number */
   private stallUp: boolean[] = [];
+  /** How many are at each stall's counter now: its trader serves while there are any */
+  private buyers: number[] = [];
+  /** How many lunches and errands have been begun since the city was made (for tests) */
+  public visits = 0;
   private stallSpots: StreetSpot[] = [];
   /** Told when a stall is opened up or packed away (the street draws it) */
   public onStall: ((stall: number, open: boolean) => void) | null = null;
@@ -660,7 +665,7 @@ export class CityPopulation {
   /** Out in the street now: by their own day if they have one, else by the hour's share */
   private isOut(a: Agent, i: number): boolean {
     const l = a.life;
-    if (l) return l.state === 'going' || l.state === 'pitch' || l.state === 'stroll';
+    if (l) return l.state === 'going' || l.state === 'pitch' || l.state === 'stroll' || l.state === 'buy';
     if (a.stallOf !== undefined) return this.stallUp[a.stallOf] ?? true;
     return isAbroad(i, this.abroad);
   }
@@ -890,10 +895,16 @@ export class CityPopulation {
    * the walkers their lives (a role, a home, a workplace, a day). `hoursOf` gives the hours a door
    * keeps (null when it has no room behind it: its kind's hours are used).
    */
-  public giveLives(cityId: string, doors: ReadonlyArray<PlaceInput>, hoursOf?: (id: string) => OpeningHours | undefined | null): void {
+  public giveLives(
+    cityId: string,
+    doors: ReadonlyArray<PlaceInput>,
+    hoursOf?: (id: string) => OpeningHours | undefined | null,
+    clear?: (x1: number, z1: number, x2: number, z2: number) => boolean,
+    traffic?: (x1: number, z1: number, x2: number, z2: number) => boolean
+  ): void {
     const profile = PROFILES[cityId] ?? PROFILES.lagos;
     this.profile = profile;
-    const net = new WalkNetwork({ runs: this.runs, links: this.links, avenue: this.plan.avenue, gaps: this.plan.gaps ?? [], zebras: this.plan.zebras ?? [] });
+    const net = new WalkNetwork({ runs: this.runs, links: this.links, avenue: this.plan.avenue, gaps: this.plan.gaps ?? [], zebras: this.plan.zebras ?? [], clear, traffic });
     const places: Array<Omit<Place, 'node'>> = [];
     const seen = new Set<string>();
     for (const d of doors) {
@@ -917,10 +928,16 @@ export class CityPopulation {
       stallPlace[i] = -1;
       if (!net.addPlace(x, z, places.length)) return;
       stallPlace[i] = places.length;
-      places.push({ id: `stall-${i}`, name: 'Umbrella stall', kind: 'stall', x, z, hours: hoursOfKind('stall', ''), stall: i, yaw: spot.yaw });
+      places.push({ id: `stall-${i}`, name: 'Umbrella stall', kind: 'stall', x, z, hours: hoursOfKind('stall', ''), stall: i, yaw: spot.yaw, front: { x: spot.x + fx * 0.95, z: spot.z + fz * 0.95 } });
     });
     const nodes = net.finish();
     this.network = net;
+    // Street walkers who reach the end of their pavement may go on over the side road, as the
+    // network now does (Abuja's and Port Harcourt's already could; Lagos's gain it here)
+    for (const r of net.sideRoads) {
+      if (!this.links[r.a].up) this.links[r.a].up = { run: r.b, c: r.c };
+      if (!this.links[r.b].down) this.links[r.b].down = { run: r.a, c: r.c };
+    }
     this.places = places.map((p, i) => ({ ...p, node: nodes.get(i)! }));
     if (!net.homes.length) return;
 
@@ -964,9 +981,13 @@ export class CityPopulation {
         role, work, home, plan: [], day: -1, step: -2, nextAt: -Infinity, state: COMMUTER.has(role) ? 'home' : 'stroll',
         node: home, goal: home, then: 'home', place: -1, wx: a.x, wz: a.z, wnode: -1,
         lane: 0.25 + hash01(a.id, 11) * 0.7,
-        own: COMMUTER.has(role) ? undefined : { x: a.x, z: a.z },
+        own: COMMUTER.has(role) ? undefined : { x: a.x, z: a.z, axis: a.axis, min: a.min, max: a.max, main: a.onMainWalk, run: a.run },
+        ownNode: COMMUTER.has(role) ? -1 : net.nearest(a.x, a.z),
       };
     }
+    // Who is at each stall's counter (the regulars who stand there all day count as one each)
+    this.buyers = this.stallSpots.map(() => 0);
+    for (const a of this.agents) if (a.stallOf !== undefined) this.buyers[a.stallOf] += 1;
     // A kept stall is packed away until its trader comes and puts it up
     stallPlace.forEach((p, i) => {
       if (p < 0) return;
@@ -1004,7 +1025,7 @@ export class CityPopulation {
     const l = a.life!;
     if (l.day !== this.day) {
       l.day = this.day;
-      l.plan = planDay(a.id, l.role, this.profile!, l.work >= 0 ? this.places[l.work] : undefined, l.work, calendar.weekday());
+      l.plan = planDay(a.id, l.role, this.profile!, l.work >= 0 ? this.places[l.work] : undefined, l.work, calendar.weekday(), this.pickerFor(a, l), this.places);
       l.step = -2;
     }
     let want = -1;
@@ -1016,33 +1037,130 @@ export class CityPopulation {
     const place = placeIndex >= 0 ? this.places[placeIndex] : undefined;
 
     if (!COMMUTER.has(l.role)) {
+      const busy = l.state === 'going' || l.state === 'in' || l.state === 'buy';
+      // An errand: from their pavement to a shop, a stall or a buka (only while they are out)
+      if ((step.kind === 'in' || step.kind === 'buy') && place) {
+        l.step = want;
+        if (jump || l.state === 'home') {
+          if (jump) {
+            this.placeAt(a, l, step.kind, placeIndex);
+            this.stillOnTheWay(a, l, want, step.kind, placeIndex);
+          }
+          return;
+        }
+        // Shut now, or its trader gone: the errand is let go
+        if (!this.openAt(place, this.hour) || (place.stall !== undefined && !this.stallUp[place.stall])) return;
+        this.visits += 1;
+        this.setOff(a, l, place.node, step.kind, placeIndex);
+        return;
+      }
+      // Back from an errand: to their own pavement, and on along it
+      if (busy && !jump) {
+        l.step = want;
+        if (l.ownNode >= 0) this.setOff(a, l, l.ownNode, 'stroll', -1);
+        return;
+      }
       // A street walker steps out of (or back into) the crowd only where nobody is looking at them
       const out = step.kind === 'stroll';
-      if (out === (l.state === 'stroll')) {
+      if (out === (l.state === 'stroll') && !busy) {
         l.step = want;
         return;
       }
       if (!jump && this.lastSeen.has(a)) return;
       l.step = want;
+      this.leaveCounter(a, l);
+      a.xing = undefined;
+      this.crossers.delete(a);
       l.state = out ? 'stroll' : 'home';
-      if (out && l.own) {
-        a.x = l.own.x;
-        a.z = l.own.z;
-      }
+      if (out) this.backOnPavement(a, l);
       return;
     }
 
     l.step = want;
     if (jump) {
-      this.placeAt(a, l, step.kind === 'in' || step.kind === 'pitch' ? step.kind : 'home', placeIndex);
+      const kind = step.kind === 'in' || step.kind === 'pitch' || step.kind === 'buy' ? step.kind : 'home';
+      this.placeAt(a, l, kind, placeIndex);
+      // Set out only minutes ago: still on the way, part-way along their route
+      if (want >= 0) this.stillOnTheWay(a, l, want, kind, placeIndex);
       return;
     }
+    if (step.kind === 'buy' || (place && place.kind !== 'stall' && placeIndex !== l.work && step.kind === 'in')) this.visits += 1;
     // Their place is shut when they would set out for it: they stay where they are (at home)
     if (place && step.kind === 'in' && !this.openAt(place, this.hour) && !this.openAt(place, this.hour + 1.5)) return;
     // Off they go: from home, out of the door, or away from the stall
     const goHome = step.kind === 'home' || !place;
     if (goHome && l.state === 'home') return;
-    this.setOff(a, l, goHome ? l.home : place.node, goHome ? 'home' : step.kind === 'pitch' ? 'pitch' : 'in', goHome ? -1 : placeIndex);
+    this.setOff(a, l, goHome ? l.home : place.node, goHome ? 'home' : step.kind === 'pitch' ? 'pitch' : step.kind === 'buy' ? 'buy' : 'in', goHome ? -1 : placeIndex);
+  }
+
+  /**
+   * How this person chooses where to eat or shop: a place of the kinds wanted, open for the whole
+   * visit, that they can walk to from where they are (work, or their own pavement); one of the
+   * nearest few, the same one on the same day.
+   */
+  private pickerFor(a: Agent, l: Life): PlacePicker {
+    const net = this.network!;
+    const from = l.work >= 0 ? this.places[l.work].node : l.ownNode >= 0 ? l.ownNode : l.home;
+    const at = net.nodes[from];
+    return (groups: readonly PlaceKind[][], hour: number, stay: number, salt: number) => {
+      for (const kinds of groups) {
+        const near: Array<{ i: number; d: number }> = [];
+        this.places.forEach((p, i) => {
+          if (i === l.work || !kinds.includes(p.kind)) return;
+          if (!this.openAt(p, hour) || !this.openAt(p, hour + stay)) return;
+          if (!net.reaches(from, p.node)) return;
+          near.push({ i, d: Math.hypot(p.x - at.x, p.z - at.z) });
+        });
+        if (!near.length) continue;
+        near.sort((p, q) => p.d - q.d);
+        // One of the nearest six: not always the very nearest (a favourite buka may be over the road)
+        const few = near.slice(0, 6);
+        return few[Math.floor(hash01(a.id, salt + this.day * 7) * few.length)].i;
+      }
+      return -1;
+    };
+  }
+
+  /** A street walker back on their own pavement, pacing it as before */
+  private backOnPavement(a: Agent, l: Life): void {
+    const own = l.own;
+    if (!own) return;
+    a.axis = own.axis;
+    a.min = own.min;
+    a.max = own.max;
+    a.onMainWalk = own.main;
+    a.run = own.run;
+    a.mode = 'walk';
+    // Onto the pavement's line, where along it they now are
+    if (own.axis === 'z') {
+      a.x = own.x;
+      a.z = Math.min(own.max, Math.max(own.min, a.z));
+    } else {
+      a.z = own.z;
+      a.x = Math.min(own.max, Math.max(own.min, a.x));
+    }
+  }
+
+  /** Leaving a stall's counter */
+  private leaveCounter(_a: Agent, l: Life): void {
+    if (l.state !== 'buy') return;
+    const stall = this.places[l.place]?.stall;
+    if (stall !== undefined) this.buyers[stall] = Math.max(0, this.buyers[stall] - 1);
+  }
+
+  /** At a stall's counter, facing the trader (beside anyone already there) */
+  private atCounter(a: Agent, l: Life, place: Place): void {
+    const stall = place.stall ?? 0;
+    const n = this.buyers[stall] ?? 0;
+    const yaw = place.yaw ?? 0;
+    const side = ((n % 3) - 1) * 0.6;
+    const f = place.front ?? place;
+    l.state = 'buy';
+    a.mode = 'talk';
+    a.x = f.x + Math.cos(yaw) * side;
+    a.z = f.z - Math.sin(yaw) * side;
+    a.yaw = yaw + Math.PI;
+    this.buyers[stall] = n + 1;
   }
 
   /** Is the place open at this hour? */
@@ -1054,12 +1172,62 @@ export class CityPopulation {
     return h.opens < h.closes ? t >= h.opens && t < h.closes : t >= h.opens || t < h.closes;
   }
 
+  /**
+   * After a jump in the clock: someone whose step began only minutes ago is still walking it. They
+   * are put where their pace would have taken them along the route from where the step before left them.
+   */
+  private stillOnTheWay(a: Agent, l: Life, want: number, kind: 'home' | 'in' | 'pitch' | 'buy', placeIndex: number): void {
+    const net = this.network!;
+    const prev = want > 0 ? l.plan[want - 1] : undefined;
+    const fromNode = !prev || prev.kind === 'home' ? l.home : prev.kind === 'stroll' ? l.ownNode : prev.place !== undefined ? this.places[prev.place].node : -1;
+    const toNode = kind === 'home' ? l.home : placeIndex >= 0 ? this.places[placeIndex].node : -1;
+    if (fromNode < 0 || toNode < 0 || fromNode === toNode) return;
+    // How far they have come: the real seconds since they set out, at their pace (which, where the
+    // player cannot see them, keeps up with a fast clock: see walkRoute)
+    const rate = Math.max(1, this.clockRate);
+    let metres = ((this.hour - l.plan[want].at) * 3600 * a.speed * Math.min(rate, 60)) / rate;
+    if (metres <= 0) return;
+    let node = fromNode;
+    for (let hops = 0; hops < 400; hops++) {
+      const e = net.step(node, toNode);
+      if (e < 0) return;
+      const next = net.other(e, node);
+      const len = net.edges[e].len;
+      if (metres < len) {
+        const p = net.nodes[node];
+        const q = net.nodes[next];
+        // Never left standing in a road: at its kerb instead, to cross it as anyone does
+        const road = !!net.edges[e].c;
+        const f = road ? 0 : metres / len;
+        // Back out of where placeAt put them, and onto the pavement
+        this.leavePitch(l);
+        this.leaveCounter(a, l);
+        a.x = p.x + (q.x - p.x) * f;
+        a.z = p.z + (q.z - p.z) * f;
+        a.mode = 'walk';
+        l.state = 'going';
+        l.node = node;
+        l.goal = toNode;
+        l.then = kind === 'home' ? 'home' : kind;
+        if (kind !== 'home') l.place = placeIndex;
+        l.wx = road ? p.x : q.x;
+        l.wz = road ? p.z : q.z;
+        l.wnode = road ? node : next;
+        a.onMainWalk = p.main && q.main;
+        return;
+      }
+      metres -= len;
+      node = next;
+    }
+  }
+
   /** Who was drawn last frame (a street walker does not vanish or appear in front of the player) */
   private readonly lastSeen = new Set<Agent>();
 
   /** Straight to where their day has them (after a jump in the clock) */
-  private placeAt(a: Agent, l: Life, kind: 'home' | 'in' | 'pitch', placeIndex: number): void {
+  private placeAt(a: Agent, l: Life, kind: 'home' | 'in' | 'pitch' | 'buy', placeIndex: number): void {
     this.leavePitch(l);
+    this.leaveCounter(a, l);
     a.xing = undefined;
     this.crossers.delete(a);
     const place = placeIndex >= 0 ? this.places[placeIndex] : undefined;
@@ -1074,6 +1242,10 @@ export class CityPopulation {
     a.z = place.z;
     if (kind === 'in') {
       l.state = 'in';
+      return;
+    }
+    if (kind === 'buy') {
+      this.atCounter(a, l, place);
       return;
     }
     this.atPitch(a, l, place);
@@ -1106,12 +1278,16 @@ export class CityPopulation {
   private setOff(a: Agent, l: Life, goal: number, then: Life['then'], placeIndex: number): void {
     const net = this.network!;
     this.leavePitch(l);
+    this.leaveCounter(a, l);
     if (l.state === 'home') {
       // In from the edge of the map
       const n = net.nodes[l.home];
       a.x = n.x;
       a.z = n.z;
       l.node = l.home;
+    } else if (l.state === 'stroll') {
+      // Off their own pavement, from the nearest point of the network
+      l.node = net.nearest(a.x, a.z);
     } else if (l.state !== 'going') {
       // Out of the door, or away from the stall, to the pavement it opens off
       const from = l.place >= 0 ? this.places[l.place] : undefined;
@@ -1125,7 +1301,7 @@ export class CityPopulation {
     }
     l.goal = goal;
     l.then = then;
-    if (then !== 'home') l.place = placeIndex;
+    if (then !== 'home' && then !== 'stroll') l.place = placeIndex;
     l.state = 'going';
     a.mode = 'walk';
     this.setOut += 1;
@@ -1152,9 +1328,18 @@ export class CityPopulation {
             this.arrive(a, l);
             return;
           }
+          if (l.then === 'stroll') {
+            // Back to their own pavement, the last few steps
+            const own = l.own!;
+            l.wx = own.axis === 'z' ? own.x : Math.min(own.max, Math.max(own.min, a.x));
+            l.wz = own.axis === 'z' ? Math.min(own.max, Math.max(own.min, a.z)) : own.z;
+            l.wnode = -1;
+            continue;
+          }
           const place = this.places[l.place];
-          l.wx = place.x;
-          l.wz = place.z;
+          const to = l.then === 'buy' && place.front ? place.front : place;
+          l.wx = to.x;
+          l.wz = to.z;
           l.wnode = -1;
           continue;
         }
@@ -1207,13 +1392,25 @@ export class CityPopulation {
       l.node = l.home;
       return;
     }
+    if (l.then === 'stroll') {
+      l.state = 'stroll';
+      this.backOnPavement(a, l);
+      // Their day is looked at again (it may be time they went home)
+      l.step = -3;
+      l.nextAt = -Infinity;
+      return;
+    }
     const place = this.places[l.place];
-    // Shut by the time they get there: home again
-    if (l.then === 'in' && !this.openAt(place, this.hour)) {
-      this.setOff(a, l, l.home, 'home', -1);
+    // Shut by the time they get there: back to work if that is open, else home (or their pavement)
+    if ((l.then === 'in' || l.then === 'buy') && (!this.openAt(place, this.hour) || (place.stall !== undefined && !this.stallUp[place.stall] && l.then === 'buy'))) {
+      l.node = place.node;
+      if (l.own && l.ownNode >= 0) this.setOff(a, l, l.ownNode, 'stroll', -1);
+      else if (l.work >= 0 && l.place !== l.work && this.openAt(this.places[l.work], this.hour)) this.setOff(a, l, this.places[l.work].node, 'in', l.work);
+      else this.setOff(a, l, l.home, 'home', -1);
       return;
     }
     if (l.then === 'pitch') this.atPitch(a, l, place);
+    else if (l.then === 'buy') this.atCounter(a, l, place);
     else l.state = 'in';
   }
 
@@ -1249,6 +1446,11 @@ export class CityPopulation {
         if (life.day !== this.day || this.hour >= life.nextAt) this.keepDay(a, false);
         // Indoors or at home: nothing to move or draw
         if (life.state === 'home' || life.state === 'in') continue;
+        // At their stall: serving while anyone is at the counter, waiting when nobody is
+        if (life.state === 'pitch') {
+          const stall = this.places[life.place]?.stall;
+          if (stall !== undefined) a.mode = (this.buyers[stall] ?? 0) > 0 ? 'talk' : 'idle';
+        }
       }
       const abroadNow = this.isOut(a, i);
       let inRange = abroadNow;

@@ -569,8 +569,8 @@ export class Player {
           this.mesh.position.z = cameFrom.z;
           this.blockedFor += delta;
           this.sinceNearer = 0;
-          // Traffic going past: wait at the kerb for a gap, as anyone crossing does; anything else, a moment
-          const waitFor = Bodies.carsNear(cameFrom.x, cameFrom.z, 5).some((car) => !car.parked) ? 12 : 1.5;
+          // Traffic going past in front: wait at the kerb for a gap, as anyone crossing does; anything else, a moment
+          const waitFor = this.inTheWay(cameFrom, direction).car ? 12 : 1.5;
           if (this.blockedFor < waitFor) {
             this.playAnimation('idle');
             return;
@@ -584,7 +584,9 @@ export class Player {
           this.blockedFor = 0;
           // Held up by traffic going past or someone standing in the way: a moment, and on again.
           // Against a wall, with nobody about, the walk ends as before.
-          const busy = Bodies.carsNear(cameFrom.x, cameFrom.z, 6).some((car) => !car.parked) || Bodies.peopleNear(cameFrom.x, cameFrom.z, 2.5).length > 0;
+          // Only what is in front counts: traffic in the next lane or people walking past behind are not in the way
+          const way = this.inTheWay(cameFrom, direction);
+          const busy = way.car || way.person;
           if (busy && !this.onBridge && this.tries < 3) {
             this.tries += 1;
             this.sinceNearer = 0;
@@ -597,8 +599,11 @@ export class Player {
           // dead end): the way is found again from where they stand, twice at most, before giving up
           if (this.goal && this.replans < 2 && !this.onBridge && Math.hypot(this.goal.x - this.mesh.position.x, this.goal.z - this.mesh.position.z) > 3) {
             const again = this.replans + 1;
+            // (The tries already spent count: a walk into a wall does not get its patience back each time)
+            const tried = this.tries;
             this.setDestination(this.goal.clone(), this.arrived ?? undefined);
             this.replans = again;
+            this.tries = tried;
             return;
           }
           this.endWalk();
@@ -682,6 +687,33 @@ export class Player {
   private sinceNearer = 0;
   /** How long the next step has been blocked by something in the way */
   private blockedFor = 0;
+
+  /**
+   * What is in the way of a step from `from` along `dir` (a unit vector): a moving vehicle in front
+   * (within 3 m of the step, its body allowed for), or someone standing in front (within 1.6 m).
+   * Things beside or behind the player, and traffic going by in its own lane, are not in the way.
+   */
+  private inTheWay(from: THREE.Vector3, dir: THREE.Vector3): { car: boolean; person: boolean } {
+    let car = false;
+    let person = false;
+    for (const c of Bodies.carsNear(from.x, from.z, 7)) {
+      if (c.parked) continue;
+      const dx = c.x - from.x;
+      const dz = c.z - from.z;
+      const ahead = dx * dir.x + dz * dir.z;
+      const side = Math.abs(dx * dir.z - dz * dir.x);
+      const reach = Math.max(c.halfWidth, c.halfLength);
+      if (ahead > -reach && ahead < 3 + reach && side < reach + 0.5) car = true;
+    }
+    for (const o of Bodies.peopleNear(from.x, from.z, 2)) {
+      const dx = o.x - from.x;
+      const dz = o.z - from.z;
+      const ahead = dx * dir.x + dz * dir.z;
+      const side = Math.abs(dx * dir.z - dz * dir.x);
+      if (ahead > 0 && ahead < 1.6 && side < o.r + 0.6) person = true;
+    }
+    return { car, person };
+  }
   /** Times this walk has stopped for traffic or people and gone on again */
   private tries = 0;
   /** How many times this walk has had its way found again after being brought up short */

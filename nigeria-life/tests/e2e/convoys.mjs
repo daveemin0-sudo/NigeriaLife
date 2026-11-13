@@ -118,7 +118,9 @@ export async function run(browser, check) {
     for (let i = 0; i < 20; i++) await g.advance(0.1);
     const bodies = [];
     g.world.trafficSpawner.cars(-5.0, target.u, 6, bodies);
-    const body = bodies.find((b) => Math.abs(b.z - target.u) < 0.5);
+    // (Copied now: the boxes come from a pool that the next look at the traffic, anyone's, writes over)
+    const found = bodies.find((b) => Math.abs(b.z - target.u) < 0.5);
+    const body = found ? { ...found } : null;
     let stopped = 0;
     for (let i = 0; i < 60; i++) {
       const p = v.mesh.position;

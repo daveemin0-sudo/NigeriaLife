@@ -233,7 +233,23 @@ export class World {
       this.interactiveObjects
         .filter((o) => o.interactionPoint.y < 1.5 && !o.moving)
         .map((o) => ({ id: o.id, name: o.name, category: o.category, x: o.interactionPoint.x, z: o.interactionPoint.z })),
-      (id) => this.interiorManager.hoursOfDoor(id)
+      (id) => this.interiorManager.hoursOfDoor(id),
+      // Nothing built across a straight walk (the pavements are joined over open ground and side roads)
+      (() => {
+        const solids = this.standingOnTheGround().filter((o) => o.maxZ - o.minZ < 200 && o.maxX - o.minX < 200);
+        return (x1: number, z1: number, x2: number, z2: number) => {
+          const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, z2 - z1) / 0.5));
+          for (let k = 0; k <= steps; k++) {
+            const x = x1 + ((x2 - x1) * k) / steps;
+            const z = z1 + ((z2 - z1) * k) / steps;
+            for (const o of solids) if (x > o.minX - 0.2 && x < o.maxX + 0.2 && z > o.minZ - 0.2 && z < o.maxZ + 0.2) return false;
+          }
+          return true;
+        };
+      })(),
+      // Over a road with traffic, or so near one that looking both ways never finds a gap (the
+      // unlit-road rule asks for nothing moving within 14 m): gone round, not waited at
+      (x1, z1, x2, z2) => this.trafficSpawner.crossesTraffic(x1, z1, x2, z2) || this.trafficSpawner.trafficNear((x1 + x2) / 2, (z1 + z2) / 2, 14)
     );
 
     if (this.atmosphere.generatorMesh) {

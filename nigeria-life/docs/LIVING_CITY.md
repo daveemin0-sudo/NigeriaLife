@@ -230,6 +230,138 @@ Two stage 1 checks changed. They assumed everyone is out at 8 am, which is no lo
 - Abuja and Port Harcourt stalls are step 3d.
 - Follow-up: a player walking into a wall on a busy pavement keeps retrying for up to about 30 s before giving up.
 
+### Stage 3b: midday routines (built 2026-11-13)
+
+Built on `CityPopulation` and `Routines.ts`. No new crowd or business system. Stage 2 crossing rules are unchanged: every walker on a route crosses with the same code, and cars give way the same way.
+
+**Before building: pavement connectivity (Lagos)**
+
+The Lagos network was in 13 pieces, and the main one held 81 of 134 points. The Martins Street pavements stopped 10 to 12 m short of Broad Street's, and the probe found nothing built in those gaps. Pavements in line along side streets were not joined across side roads, and the far south pavement and a north-south street at x 106 to 118 were cut off.
+
+The network builder now joins, checked against everything standing on the ground:
+- pavements in line, across a side road
+- a side-street pavement that stops within 13 m of the avenue's
+- any piece still cut off, by its shortest safe link: across a road to the pavement opposite, or over open ground
+
+A crossing over a road with traffic and no lights, or within 14 m of one, is marked busy. The Stage 2 unlit-road rule needs nothing moving within 14 m, so a gap there almost never comes. Routes avoid a busy crossing unless there is no other way, and street walkers are not given it. Street walkers do get the quiet side-road crossings, as they already had in Abuja and Port Harcourt.
+
+Result: Lagos is one piece (139 points, all 50 places reachable). In Abuja (109 places) and Port Harcourt (128 places), every place can be reached from an edge of the map.
+
+**Before building: the player retrying against a wall**
+
+Cause, in `Player.ts`, which affected real play and not only the test:
+
+| Problem | Effect |
+|---|---|
+| "Busy" counted anyone within 2.5 m in any direction, and any moving car within 6 m | On Broad Street's pavement the nearest lane is about 5 m away, so passing traffic alone made it busy |
+| The retry count reset on every re-plan | Up to 3 plans × 4 tries × 2.5 s, about 30 s standing still while still "walking" |
+
+Fix:
+- Only what is in front of the player counts: a moving vehicle within 3 m of the step, or a person within 1.6 m ahead.
+- Tries already spent carry over to a re-plan.
+
+New `streets` check, walking at the bank wall:
+
+| Walk | Before the fix | After the fix |
+|---|---|---|
+| 5 pm, people passing | over 20 s | 5.5 s |
+| 3 am, quiet | | 7.5 s |
+
+**What is built**
+
+- **Lunch.** Office workers, artisans and students go out at their own time, in a window that differs by city:
+
+  | City | Lunch window | Spread (standard deviation) |
+  |---|---|---|
+  | Lagos | 11:30 to 14:00 | 0.71 h |
+  | Abuja | 12:15 to 13:45 | 0.43 h |
+  | Port Harcourt | 11:00 to 14:00 | 0.82 h |
+
+  Each eats at one of the six nearest places, choosing a buka or food stall first, then a market or supermarket. The place must be open for the whole meal by its own hours, and they go back to work afterwards. Traders stay at their stall or shop.
+- **Errands.** Idlers go into shops, stalls, markets and bukas four times a day; elders go twice in the morning. They walk back to their own pavement afterwards and carry on along it. If a place has shut or a stall has been packed away by the time they arrive, they go back: to work if it is open, otherwise home or to their pavement.
+- **Serving at stalls (Lagos).** Buyers stand at the counter, up to three side by side, facing the trader. A trader serves, gesturing as they talk, while anyone is at their counter, and waits when nobody is.
+- **After a clock jump.** Someone who set out only minutes before is put part-way along their route, never in the middle of a road. People are seen on their way, not only at their destinations.
+- **Stage 2 fix.** A car's "do not move" band beside a walker (width + 0.25 m) is now narrower than the margin a walker keeps from a car's side (width + 0.30 m), so the two can never wait for each other.
+
+**Measured on the laptop** (`livingcity`, a Wednesday, 316 px screen). No phone results: nothing in 3b has been measured on the A16.
+
+Crowd update per frame:
+
+| City | 10:30 | 1 pm | 3:30 pm | 7 pm |
+|---|---|---|---|---|
+| Lagos | 0.28 ms | 0.53 ms | 0.24 ms | 0.32 ms |
+| Abuja | 0.09 ms | 0.13 ms | 0.09 ms | 0.10 ms |
+| Port Harcourt | 0.41 ms | 0.41 ms | 0.42 ms | 0.47 ms |
+
+All under 1 ms. Crowd and traffic together: Lagos 1.6 to 2.7 ms, Abuja 0.6 to 0.9 ms, Port Harcourt 0.9 to 1.0 ms.
+
+Lunch hour, 4 minutes at 1 pm, Stage 3a against 3b (the same test on both builds):
+
+| City | Out in the street | Walking a route at any moment | Crossings per minute |
+|---|---|---|---|
+| Lagos | 235 → 262 (+11%) | 0 → 3 | 29.5 → 33 (+12%) |
+| Abuja | 125 → 139 (+11%) | 0 → 14 | 26.5 → 26.5 (no change) |
+| Port Harcourt | 208 → 241 (+16%) | 0 → 33 | 47 → 47.8 (+2%) |
+
+This was measured before the busy-crossing change.
+
+- **Pedestrian activity rose in every city.** Lunchers and errand-goers are on the pavements and at the stalls; in Lagos, 24 people were buying at stalls at 1 pm.
+- **Crossings rose only in Lagos.** On the real clock a lunch walk takes a minute or two, so only a few people are on a route at any moment. In Abuja and Port Harcourt most lunch places are on the same side of the avenue as the offices, and the avenue has one or two crossings, so lunch walks rarely cross.
+- **Raising crossings further** would take food places across the avenue (the stalls planned for step 3d) or more crossings on it. That is a design choice, not a tuning one.
+
+**Final `livingcity` run, 55/55:**
+- crossings over two minutes:
+
+  | City | Crossings per minute | Give-ups per two minutes | Cars on top of anyone |
+  |---|---|---|---|
+  | Lagos | 30.5 to 41 | 1 to 2 | 0 |
+  | Abuja | 22 to 26 | 0 to 2 | 0 |
+  | Port Harcourt | 50.5 to 51.5 | 0 | 0 |
+
+- every place reachable
+- lunch spread at least 1.5 hours
+- at 1 pm, people out at lunch with none in a shut place:
+
+  | City | People out at lunch |
+  |---|---|
+  | Lagos | 34 |
+  | Abuja | 81 |
+  | Port Harcourt | 57 |
+
+- at 3:30 pm, everyone due back at work is there or on the way
+- Lagos traders serve whoever is at their counter
+- fast-clock morning: nobody stuck in any city
+- under 1 ms in each city
+
+Test changes:
+- Crossings are now counted over two minutes; one-minute counts swung by half either way.
+- The give-up limit scales with that: at most 2 a minute, or 8% of crossings.
+- The crossing test now gives the crowd the hour and keeps its clock running through the window. Before this, its "1 pm" ran on the previous hour's plan.
+
+Regression on the same build (laptop): 154/155, then 155/155 across 13 suites.
+
+| Suite | Result |
+|---|---|
+| `citylife` | passed |
+| `bigcities` | passed |
+| `sidestreets` | passed |
+| `danfo` | passed |
+| `streets` | 17/17, with the new busy-pavement wall check |
+| `touch` | passed |
+| `convoys` | 10/10 after a test fix |
+| `vehicles` | passed |
+| `bodies` | passed |
+| `cities` | passed |
+| `ways` | passed |
+| `kerbs` | passed |
+| `input` | passed |
+
+The `convoys` failure was the test, not the game. It kept a vehicle box from the traffic's shared pool and read it 60 frames later, by which time the more frequent traffic checks from walkers had written another car into that slot. The test now copies the values when it takes them. The car did pull over (2.3 m) and the convoy was never stopped.
+
+**Known limits**
+- Abuja and Port Harcourt have almost no food places (Port Harcourt 1, Abuja none), so lunch there is mostly in markets and supermarkets, out of sight. The roadside food stalls in step 3d will change that.
+- Lunches and errands are walks of a minute or two on the real clock, so few people are on a route at any moment. Street walkers are still most of the street.
+
 ## 7. Stage 3 design: daily routines and destinations (for approval, not built)
 
 Nothing in this section is built. It answers the stage 3 brief of 2026-11-13. The existing systems were inspected first, and the design extends them. It adds no second crowd, schedule or business system.

@@ -546,6 +546,34 @@ export class TrafficSpawner {
     }
   }
 
+  /**
+   * Does a straight walk between two points cut across a lane of moving traffic? (A road without
+   * lights that has traffic: somewhere people should go round to a crossing rather than wait for a gap.)
+   */
+  public crossesTraffic(x1: number, z1: number, x2: number, z2: number): boolean {
+    for (const lane of this.lanes) {
+      const a1 = lane.axis === 'z' ? x1 : z1;
+      const a2 = lane.axis === 'z' ? x2 : z2;
+      if ((a1 - lane.fixed) * (a2 - lane.fixed) > 0) continue;
+      const t = Math.abs(a2 - a1) < 1e-6 ? 0 : (lane.fixed - a1) / (a2 - a1);
+      const along = lane.axis === 'z' ? z1 + (z2 - z1) * t : x1 + (x2 - x1) * t;
+      const u = along * lane.dir;
+      if (u >= Math.min(lane.uMin, lane.uMax) && u <= Math.max(lane.uMin, lane.uMax)) return true;
+    }
+    return false;
+  }
+
+  /** Is a lane of moving traffic within `range` metres of a point? */
+  public trafficNear(x: number, z: number, range: number): boolean {
+    for (const lane of this.lanes) {
+      const across = lane.axis === 'z' ? x : z;
+      if (Math.abs(across - lane.fixed) > range) continue;
+      const u = (lane.axis === 'z' ? z : x) * lane.dir;
+      if (u >= Math.min(lane.uMin, lane.uMax) - range && u <= Math.max(lane.uMin, lane.uMax) + range) return true;
+    }
+    return false;
+  }
+
   /** State of a signal group at the current point in the cycle */
   /**
    * For someone on foot: how many seconds the traffic of this group will still be held at red.
@@ -652,8 +680,9 @@ export class TrafficSpawner {
         // Someone crossing ahead: pull up short of them, and move off when they are over
         for (let w = 0; w < ahead.length; w += 2) {
           if (car.u + car.length / 2 > ahead[w] + 0.3) {
-            // Already alongside them: if they are in its path it does not move another inch
-            if (car.u - car.length / 2 - 0.3 < ahead[w] && ahead[w + 1] < this.batches[car.kind].width / 2 + 0.35) {
+            // Already alongside them: if they are in its path it does not move another inch. (Narrower
+            // than the margin a walker keeps from a vehicle's side, so the two never wait for each other.)
+            if (car.u - car.length / 2 - 0.3 < ahead[w] && ahead[w + 1] < this.batches[car.kind].width / 2 + 0.25) {
               limit = Math.min(limit, car.u);
               held += 1;
             }

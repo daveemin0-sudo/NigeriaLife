@@ -139,10 +139,22 @@ export async function run(browser, check) {
   const hourWas = await page.evaluate(() => { const sky = window.game.world.skyEnvironment; const h = sky.currentHour; sky.setHour(3); return h; });
   await advance(page, 0.5);
   await put(page, 8.5, midZ);
-  const atWall = (await walk(page, (bank.minX + bank.maxX) / 2, midZ, 20)).pop();
+  const quietWalk = await walk(page, (bank.minX + bank.maxX) / 2, midZ, 20);
+  const atWall = quietWalk[quietWalk.length - 1];
   await page.evaluate((h) => window.game.world.skyEnvironment.setHour(h), hourWas);
   check('walking at the front of the bank stops at its wall: the player does not pass into the building',
     bank.solids > 150 && atWall.x < bank.minX && !atWall.moving, { atWall, front: bank.minX });
+
+  // The same walk at 5 pm, people passing on the pavement and traffic in the next lane: only what is in
+  // front of the player is worth waiting for, so they still give up on the wall within a few seconds
+  await page.evaluate(() => window.game.world.skyEnvironment.setHour(17));
+  await advance(page, 0.5);
+  await put(page, 8.5, midZ);
+  const busyWalk = await walk(page, (bank.minX + bank.maxX) / 2, midZ, 20);
+  const busyEnd = busyWalk.pop();
+  await page.evaluate((h) => window.game.world.skyEnvironment.setHour(h), hourWas);
+  check('at 5 pm, with people passing on the pavement, walking at the bank wall ends about as soon as on the quiet pavement at 3 am (within 3 s of it; no half-minute of retrying)',
+    busyEnd.x < bank.minX && !busyEnd.moving && busyWalk.length * 0.25 <= quietWalk.length * 0.25 + 3, { busyEnd, busySeconds: busyWalk.length * 0.25, quietSeconds: quietWalk.length * 0.25 });
 
   await put(page, 10, bank.minZ - 12);
   const past = (await walk(page, 10, bank.maxZ + 12, 40)).pop();

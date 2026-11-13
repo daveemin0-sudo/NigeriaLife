@@ -46,6 +46,8 @@ export interface Place {
   /** A stall: its number in the street (for opening and shutting it), and which way it faces */
   stall?: number;
   yaw?: number;
+  /** A stall's counter: where a customer stands to buy */
+  front?: { x: number; z: number };
 }
 
 /** What a door is, from its name and the category the game gives it. Null: nobody's destination (land, cars, cash machines, the player's homes). */
@@ -116,6 +118,8 @@ export interface NetEdge {
   /** Where to wait at the kerb on each side, if not at the nodes themselves (over the avenue) */
   ka?: { x: number; z: number };
   kb?: { x: number; z: number };
+  /** Over a busy road with no lights: a last resort for a route (gaps in the go-slow are few) */
+  busy?: boolean;
 }
 
 interface Segment {
@@ -137,6 +141,14 @@ export interface NetworkInput {
   gaps: ReadonlyArray<{ from: number; to: number } & Crossing>;
   /** Ways over the avenue itself */
   zebras: ReadonlyArray<{ z: number } & Crossing>;
+  /**
+   * Is the straight walk between two points free of anything built (where it is known)? With it,
+   * pavements in line with a side road between them are joined over that road (looking both ways),
+   * and a side street's pavement that stops short of the avenue's is joined to it.
+   */
+  clear?: (x1: number, z1: number, x2: number, z2: number) => boolean;
+  /** Does a straight walk cut across a lane of moving traffic? (Such a road with no lights is gone round, not waited at) */
+  traffic?: (x1: number, z1: number, x2: number, z2: number) => boolean;
 }
 
 /** How far a door may stand from a pavement and still open off it, metres */
@@ -145,12 +157,16 @@ const DOOR_REACH = 7;
 const CORNER = 5.5;
 /** What a road crossing costs a route, in metres of walking (people prefer to stay on their side) */
 const CROSSING_COST = 12;
+/** A busy road with no lights: walked a long way round to avoid (gaps in the go-slow are rare) */
+const BUSY_CROSSING_COST = 250;
 
 export class WalkNetwork {
   public readonly nodes: NetNode[] = [];
   public readonly edges: NetEdge[] = [];
   /** Where people come in from beyond the map and go home to: the dead ends at its edges */
   public readonly homes: number[] = [];
+  /** The pavements newly joined straight on over a side road (run numbers): street walkers may cross there too */
+  public readonly sideRoads: Array<{ a: number; b: number; c: Crossing }> = [];
   /** For each destination node: the edge to take from every node (-1: there, or no way) */
   private readonly tables = new Map<number, Int32Array>();
   private readonly segs: Segment[] = [];
@@ -172,7 +188,7 @@ export class WalkNetwork {
     }
     const runSeg = input.runs.map((r) => (r.to - r.from >= 10 ? this.addSeg(r.axis, r.fixed, r.from, r.to, false) : -1));
 
-    const joins: Array<{ s: number; u: number; t: number; v: number; c?: Crossing; ka?: { x: number; z: number }; kb?: { x: number; z: number } }> = [];
+    const joins: Array<{ s: number; u: number; t: number; v: number; c?: Crossing; ka?: { x: number; z: number }; kb?: { x: number; z: number }; busy?: boolean }> = [];
     // Over a road that cuts the avenue's pavement: from one piece to the next
     for (const k of [0, 1]) {
       const pieces = avenueSegs[k];
@@ -194,6 +210,29 @@ export class WalkNetwork {
       if (!l.up || runSeg[i] < 0 || runSeg[l.up.run] < 0) return;
       joins.push({ s: runSeg[i], u: this.segs[runSeg[i]].to, t: runSeg[l.up.run], v: this.segs[runSeg[l.up.run]].from, c: l.up.c });
     });
+    // Straight on over a side road with no crossing of its own: look both ways, and over
+    if (input.clear) {
+      const linked = new Set(input.links.map((l, i) => (l.up ? i : -1)));
+      input.runs.forEach((a, i) => {
+        if (runSeg[i] < 0 || linked.has(i)) return;
+        let best = -1;
+        input.runs.forEach((b, j) => {
+          if (j === i || runSeg[j] < 0 || b.axis !== a.axis || Math.abs(b.fixed - a.fixed) > 0.6) return;
+          const gap = b.from - a.to;
+          if (gap > 3 && gap < 20 && (best < 0 || b.from < input.runs[best].from)) best = j;
+        });
+        if (best < 0) return;
+        const p = this.at(runSeg[i], a.to);
+        const q = this.at(runSeg[best], input.runs[best].from);
+        if (input.clear!(p.x, p.z, q.x, q.z)) {
+          const c: Crossing = { kind: 'street' };
+          const busy = input.traffic?.(p.x, p.z, q.x, q.z) ?? false;
+          joins.push({ s: runSeg[i], u: a.to, t: runSeg[best], v: input.runs[best].from, c, busy });
+          // Street walkers go on over a quiet side road; a busy one they turn back at, as before
+          if (!busy) this.sideRoads.push({ a: i, b: best, c });
+        }
+      });
+    }
     // Round a corner, or along a pavement broken by a driveway: ends close together
     const ends: Array<{ s: number; u: number; x: number; z: number }> = [];
     this.segs.forEach((g, s) => {
@@ -212,11 +251,20 @@ export class WalkNetwork {
       if (g.main || g.axis !== 'x') return;
       for (const u of [g.from, g.to]) {
         const side = Math.sign(u);
-        if (Math.abs(Math.abs(u) - (av.halfRoad + av.walk)) > 3 || g.fixed < av.from || g.fixed > av.to) continue;
+        // Up to its edge; or, with nothing built between, a little short of it (open ground at a corner)
+        const short = Math.abs(u) - (av.halfRoad + av.walk);
+        const reach = input.clear ? 13 : 3;
+        if (short > reach || short < -3 || g.fixed < av.from || g.fixed > av.to) continue;
+        if (short > 3 && !input.clear!(u, g.fixed, side * (av.halfRoad + av.walk), g.fixed)) continue;
         const piece = avenueSegs[side < 0 ? 0 : 1].find((p) => g.fixed >= this.segs[p].from && g.fixed <= this.segs[p].to);
         if (piece !== undefined) joins.push({ s, u, t: piece, v: g.fixed });
       }
     });
+
+    // Any stretch still cut off from the rest is joined by the shortest safe way: over the road to
+    // the pavement opposite (looking both ways), or over open ground (nothing built in between)
+    this.trafficAt = input.traffic;
+    if (input.clear) this.bridge(joins, input.clear);
 
     // Every point something joins at is a node on its pavement
     for (const j of joins) {
@@ -226,7 +274,52 @@ export class WalkNetwork {
     this.pendingJoins = joins;
   }
 
-  private pendingJoins: Array<{ s: number; u: number; t: number; v: number; c?: Crossing; ka?: { x: number; z: number }; kb?: { x: number; z: number } }> | null = null;
+  /** Joins the pieces of the network that nothing else joined, each to another by its shortest safe link */
+  private bridge(joins: Array<{ s: number; u: number; t: number; v: number; c?: Crossing; busy?: boolean }>, clear: (x1: number, z1: number, x2: number, z2: number) => boolean): void {
+    const n = this.segs.length;
+    const root = Array.from({ length: n }, (_, i) => i);
+    const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i])));
+    for (const j of joins) root[find(j.s)] = find(j.t);
+    for (let round = 0; round < 40; round++) {
+      const size = new Map<number, number>();
+      for (let i = 0; i < n; i++) size.set(find(i), (size.get(find(i)) ?? 0) + 1);
+      if (size.size <= 1) return;
+      let best: { s: number; u: number; t: number; v: number; c?: Crossing; cost: number; busy?: boolean } | null = null;
+      for (let a = 0; a < n; a++) {
+        const A = this.segs[a];
+        for (const u of [A.from, A.to]) {
+          const p = this.at(a, u);
+          for (let b = 0; b < n; b++) {
+            if (find(a) === find(b)) continue;
+            const B = this.segs[b];
+            if (B.axis === A.axis) {
+              // The pavement opposite, across the road: straight over from this end
+              const across = Math.abs(B.fixed - A.fixed);
+              if (across < 5 || across > 14 || u < B.from - 1 || u > B.to + 1) continue;
+              const v = Math.min(B.to, Math.max(B.from, u));
+              const q = this.at(b, v);
+              const cost = across + 5;
+              if ((!best || cost < best.cost) && clear(p.x, p.z, q.x, q.z)) best = { s: a, u, t: b, v, c: { kind: 'street' }, cost, busy: this.trafficAt?.(p.x, p.z, q.x, q.z) ?? false };
+            } else {
+              // A pavement round the corner, over open ground
+              const along = B.axis === 'z' ? p.z : p.x;
+              const v = Math.min(B.to, Math.max(B.from, along));
+              const q = this.at(b, v);
+              const d = Math.hypot(p.x - q.x, p.z - q.z);
+              if (d > 10) continue;
+              if ((!best || d < best.cost) && clear(p.x, p.z, q.x, q.z)) best = { s: a, u, t: b, v, cost: d };
+            }
+          }
+        }
+      }
+      if (!best) return;
+      joins.push(best);
+      root[find(best.s)] = find(best.t);
+    }
+  }
+
+  private pendingJoins: Array<{ s: number; u: number; t: number; v: number; c?: Crossing; ka?: { x: number; z: number }; kb?: { x: number; z: number }; busy?: boolean }> | null = null;
+  private trafficAt?: (x1: number, z1: number, x2: number, z2: number) => boolean;
   private pendingPlaces: Array<{ seg: number; u: number; index: number }> = [];
 
   /** Where on its pavement a door opens off: its segment and point along it, or null if no pavement is near */
@@ -272,7 +365,7 @@ export class WalkNetwork {
     for (const j of this.pendingJoins ?? []) {
       const a = this.nodeAt(j.s, j.u);
       const b = this.nodeAt(j.t, j.v);
-      if (a !== b) this.addEdge(a, b, j.c, j.ka, j.kb);
+      if (a !== b) this.addEdge(a, b, j.c, j.ka, j.kb, j.busy);
     }
     this.pendingJoins = null;
     // The dead ends far out are where people come in from and go home to
@@ -366,7 +459,7 @@ export class WalkNetwork {
       for (const e of this.nodes[u].edges) {
         const edge = this.edges[e];
         const v = edge.a === u ? edge.b : edge.a;
-        const d = dist[u] + edge.len + (edge.c ? CROSSING_COST : 0);
+        const d = dist[u] + edge.len + (edge.c ? (edge.busy ? BUSY_CROSSING_COST : CROSSING_COST) : 0);
         if (d < dist[v]) {
           dist[v] = d;
           via[v] = e;
@@ -399,12 +492,12 @@ export class WalkNetwork {
     return this.nodes.length - 1;
   }
 
-  private addEdge(a: number, b: number, c?: Crossing, ka?: { x: number; z: number }, kb?: { x: number; z: number }): void {
+  private addEdge(a: number, b: number, c?: Crossing, ka?: { x: number; z: number }, kb?: { x: number; z: number }, busy?: boolean): void {
     const p = this.nodes[a];
     const q = this.nodes[b];
     // An edge that already exists is not added twice
     for (const e of p.edges) if (this.other(e, a) === b) return;
-    this.edges.push({ a, b, len: Math.hypot(p.x - q.x, p.z - q.z), c, ka, kb });
+    this.edges.push({ a, b, len: Math.hypot(p.x - q.x, p.z - q.z), c, ka, kb, busy });
     const id = this.edges.length - 1;
     p.edges.push(id);
     q.edges.push(id);
@@ -428,6 +521,9 @@ export interface CityProfile {
   knockOff: number;
   /** When street walkers are out: hawkers, idlers, night owls, elders [from, to] */
   out: Record<'hawker' | 'idler' | 'owl' | 'elder', [number, number]>;
+  /** Lunch: when on average, and how widely spread (hours either way), so the whole street does not go at once */
+  lunch: number;
+  lunchSpread: number;
 }
 
 /**
@@ -442,6 +538,8 @@ export const PROFILES: Record<string, CityProfile> = {
     spread: 1.2,
     knockOff: 0.6,
     out: { hawker: [6, 20], idler: [6.5, 21.5], owl: [17, 24], elder: [7, 11] },
+    lunch: 12.75,
+    lunchSpread: 1.25,
   },
   abuja: {
     roles: { office: 0.36, trader: 0.06, artisan: 0.08, student: 0.1, hawker: 0.08, idler: 0.18, owl: 0.06, elder: 0.08 },
@@ -449,6 +547,9 @@ export const PROFILES: Record<string, CityProfile> = {
     spread: 0.5,
     knockOff: 0.3,
     out: { hawker: [7, 18], idler: [7.5, 19.5], owl: [18, 23], elder: [7.5, 10.5] },
+    // The civil service breaks at one, and not for long
+    lunch: 13,
+    lunchSpread: 0.75,
   },
   port_harcourt: {
     roles: { office: 0.16, trader: 0.14, artisan: 0.2, student: 0.08, hawker: 0.16, idler: 0.14, owl: 0.07, elder: 0.05 },
@@ -456,6 +557,9 @@ export const PROFILES: Record<string, CityProfile> = {
     spread: 0.9,
     knockOff: 0.8,
     out: { hawker: [6, 20.5], idler: [6.5, 21.5], owl: [17.5, 24], elder: [7, 11] },
+    // Shift workers eat when the shift lets them
+    lunch: 12.5,
+    lunchSpread: 1.5,
   },
 };
 
@@ -508,9 +612,21 @@ export function workplaceOf(id: number, role: Role, places: readonly Place[], re
 /** One step in a day: from `at` (hours), be at home, in a place, at a pitch, or out walking the streets */
 export interface Step {
   at: number;
-  kind: 'home' | 'in' | 'pitch' | 'stroll';
+  /** in: inside a door; pitch: keeping their stall; buy: at someone else's stall counter */
+  kind: 'home' | 'in' | 'pitch' | 'stroll' | 'buy';
   place?: number;
 }
+
+/**
+ * Chooses a place of these kinds (in order of preference) that is open from `at` for `stay` hours
+ * and can be walked to; -1 if none. Supplied by the crowd, which knows where the person is.
+ */
+export type PlacePicker = (kinds: readonly PlaceKind[][], at: number, stay: number, salt: number) => number;
+
+/** Where people eat: a buka or a food stall first, then a market or a supermarket */
+const LUNCH: PlaceKind[][] = [['food', 'stall'], ['market', 'shop']];
+/** Where a street walker pops into: a shop, a stall, a market, a buka */
+const ERRAND: PlaceKind[][] = [['shop', 'stall', 'market', 'food']];
 
 /**
  * Someone's day, worked out afresh each morning from who they are and what is open. Commuters
@@ -518,12 +634,25 @@ export interface Step {
  * a place shut today (an office on Sunday) keeps them at home. Street walkers are out in their
  * role's hours, each a little different.
  */
-export function planDay(id: number, role: Role, profile: CityProfile, work: Place | undefined, workIndex: number, weekday: number | null): Step[] {
+export function planDay(id: number, role: Role, profile: CityProfile, work: Place | undefined, workIndex: number, weekday: number | null, pick?: PlacePicker, places?: readonly Place[]): Step[] {
   const j = (salt: number) => hash01(id, salt) - 0.5;
   const steps: Step[] = [];
+  const visit = (index: number): Step['kind'] => (places?.[index]?.kind === 'stall' ? 'buy' : 'in');
   if (role in profile.out) {
     const [from, to] = profile.out[role as keyof CityProfile['out']];
-    steps.push({ at: from + j(3) * 1.5, kind: 'stroll' }, { at: to + j(4) * 1.5, kind: 'home' });
+    const out = from + j(3) * 1.5;
+    const home = to + j(4) * 1.5;
+    steps.push({ at: out, kind: 'stroll' });
+    // Errands while they are out: an idler is in and out of places all day, an elder twice in the morning
+    const errands = role === 'idler' ? [9.5 + j(12), 12 + j(13), 14.5 + j(16), 17 + j(17)] : role === 'elder' ? [out + 0.4 + Math.abs(j(14)), out + 2.2 + Math.abs(j(18))] : [];
+    for (const [k, at] of errands.entries()) {
+      if (!pick || at < out + 0.25 || at > home - 0.75) continue;
+      const stay = 0.2 + Math.abs(j(30 + k)) * 0.4;
+      const place = pick(ERRAND, at, stay, 20 + k);
+      if (place < 0) continue;
+      steps.push({ at, kind: visit(place), place }, { at: at + stay, kind: 'stroll' });
+    }
+    steps.push({ at: home, kind: 'home' });
     return steps;
   }
   if (!work) return steps;
@@ -537,6 +666,16 @@ export function planDay(id: number, role: Role, profile: CityProfile, work: Plac
   end = Math.min(end, role === 'student' ? 15 : role === 'artisan' ? 17.5 : role === 'trader' ? 19.5 : 17.5);
   const leave = start - profile.early * (0.5 + 0.25 * (j(5) + 0.5)) - Math.abs(j(6)) * profile.spread;
   steps.push({ at: leave, kind: work.kind === 'stall' ? 'pitch' : 'in', place: workIndex });
+  // Lunch, at their own time (the street does not all go at once), somewhere open near work; then
+  // back to work. Traders keep their stall and their shop: they eat where they are.
+  if (pick && role !== 'trader') {
+    const lunch = profile.lunch + j(8) * 2 * profile.lunchSpread;
+    const stay = 0.35 + Math.abs(j(9)) * 0.5;
+    if (lunch > start + 1 && lunch + stay < end - 0.5) {
+      const place = pick(LUNCH, lunch, stay, 10);
+      if (place >= 0) steps.push({ at: lunch, kind: visit(place), place }, { at: lunch + stay, kind: 'in', place: workIndex });
+    }
+  }
   // Staff stay on a while after closing, never more than most of an hour
   steps.push({ at: end + Math.min(0.9, profile.knockOff * (0.4 + j(7) + 0.5)), kind: 'home' });
   return steps;

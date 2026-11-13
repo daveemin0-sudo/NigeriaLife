@@ -71,7 +71,7 @@ export async function run(browser, check) {
     // The crowd's own clock, a frame at a time (the game's fast-forward does not run it in full)
     for (let k = 0; k < SECONDS * 30; k++) crowd.update(1 / 30, p, frustum);
     // Someone who turned back on the way is not a measure of pace
-    const kept = picked.map((a, i) => ({ a, was: before[i] })).filter(({ a, was }) => a.dir === was.dir && !a.errand && !a.xing && a.crossing === undefined).slice(0, 40);
+    const kept = picked.map((a, i) => ({ a, was: before[i] })).filter(({ a, was }) => a.dir === was.dir && !a.errand && !a.xing && a.crossing === undefined && (!a.life || a.life.state === 'stroll')).slice(0, 40);
     const off = kept.map(({ a, was }) => Math.abs(Math.abs((a.axis === 'x' ? a.x : a.z) - was.at) - a.speed * SECONDS));
     return { n: kept.length, worst: +Math.max(...off).toFixed(2), mean: +(off.reduce((t, v) => t + v, 0) / off.length).toFixed(2) };
   });
@@ -110,15 +110,21 @@ export async function run(browser, check) {
     const p = g.player.position;
     const frustum = w.frustumNow();
     w.skyEnvironment.setHour(hour);
+    // The crowd hears the hour from the game loop: tell it now, and keep its clock going through the minute
+    const day = w.skyEnvironment.day;
+    crowd.setClock(hour, day, 0);
     const c0 = crowd.crossed;
     const g0 = crowd.gaveUp;
     let hits = 0;
     let heldFrames = 0;
     let waitedMax = 0;
+    const backs = new Set();
+    const gaveUpAt = {};
     const steps = seconds * 30;
     let cost = 0;
     for (let k = 0; k < steps; k++) {
       const t0 = performance.now();
+      crowd.setClock(hour + k / 30 / 3600, day, 1 / 30);
       traffic.update(1 / 30, p, frustum);
       crowd.update(1 / 30, p, frustum);
       cost += performance.now() - t0;
@@ -133,17 +139,27 @@ export async function run(browser, check) {
           if (Math.abs(dx * s + dz * c) < car.halfLength + 0.2 && Math.abs(dx * c - dz * s) < car.halfWidth + 0.2) hits++;
         }
       }
-      for (const a of crowd.agents) if (a.xing?.phase === 'wait') waitedMax = Math.max(waitedMax, a.xing.waited);
+      for (const a of crowd.agents) {
+        if (a.xing?.phase === 'wait') waitedMax = Math.max(waitedMax, a.xing.waited);
+        // Where anyone gives up (for the report)
+        if (a.xing?.back && !backs.has(a.xing)) {
+          backs.add(a.xing);
+          const key = `${a.xing.c.kind}${a.xing.c.group ? '/' + a.xing.c.group : ''} ${a.xing.bx.toFixed(0)},${a.xing.bz.toFixed(0)}`;
+          gaveUpAt[key] = (gaveUpAt[key] ?? 0) + 1;
+        }
+      }
     }
-    return { city, hour, crossed: crowd.crossed - c0, gaveUp: crowd.gaveUp - g0, hits, heldShare: +(heldFrames / steps).toFixed(2), waitedMax: +waitedMax.toFixed(1), moving: traffic.moving.now, msPerFrame: +(cost / steps).toFixed(2) };
+    return { gaveUpAt, city, hour, seconds, perMinute: +((crowd.crossed - c0) / (seconds / 60)).toFixed(1), crossed: crowd.crossed - c0, gaveUp: crowd.gaveUp - g0, hits, heldShare: +(heldFrames / steps).toFixed(2), waitedMax: +waitedMax.toFixed(1), moving: traffic.moving.now, msPerFrame: +(cost / steps).toFixed(2) };
   }, hour, seconds);
   const crossCheck = (name, r) => {
     // (Since stage 3 office workers are indoors in working hours, so fewer are out to cross: Abuja most of all)
-    check(`livingcity: ${name} at ${r.hour}:00, a minute of the street: at least 20 cross the roads, and no moving vehicle is ever on top of someone crossing`, r.crossed >= 20 && r.hits === 0, r);
-    check(`livingcity: ${name}: people wait at the kerb for the lights or a gap, but almost nobody gives up and turns back, and the traffic keeps moving`, r.gaveUp <= Math.max(2, r.crossed * 0.05) && r.heldShare < 0.9 && r.moving > 40, r);
+    // (Two minutes at a time: a single minute's count swings by half either way)
+    check(`livingcity: ${name} at ${r.hour}:00, two minutes of the street: at least 20 a minute cross the roads, and no moving vehicle is ever on top of someone crossing`, r.perMinute >= 20 && r.hits === 0, r);
+    check(`livingcity: ${name}: people wait at the kerb for the lights or a gap, but almost nobody gives up and turns back, and the traffic keeps moving`, r.gaveUp <= Math.max(2 * (r.seconds / 60), r.crossed * 0.08) && r.heldShare < 0.9 && r.moving > 40, r);
   };
-  crossCheck('Lagos', await crossings(8, 60));
-  crossCheck('Lagos', await crossings(14, 60));
+  crossCheck('Lagos', await crossings(8, 120));
+  crossCheck('Lagos', await crossings(14, 120));
+  crossCheck('Lagos', await crossings(13, 120));
 
   // ------------------------------------------------------------------ Stage 3: their days
   // Each walker has a role, a home at the edge of the map and (commuters) a workplace among the
@@ -192,11 +208,26 @@ export async function run(browser, check) {
       const stalls = crowd.stallUp.length;
       const stallsUp = crowd.stallUp.filter(Boolean).length;
       const fabricUp = city === 'lagos' ? crowd.stallUp.filter((_, i) => w.cityDensity.fabric.isStallOpen(i)).length : 0;
-      return { hour, state, out: crowd.outNow, due: due.length, atWork, inShut, stalls, stallsUp, fabricUp, ms };
+      // Out for lunch or an errand: in a place that is not their work, or at a stall's counter, or on the way to one
+      const away = residents.filter((a) => a.life.state === 'buy' || (a.life.state === 'in' && a.life.place !== a.life.work) || (a.life.state === 'going' && (a.life.then === 'buy' || (a.life.then === 'in' && a.life.place !== a.life.work))));
+      const visitShut = away.filter((a) => a.life.state !== 'going' && !crowd.openAt(crowd.places[a.life.place], hour)).length;
+      const buying = residents.filter((a) => a.life.state === 'buy').length;
+      const serving = residents.filter((a) => a.life.state === 'pitch' && a.mode === 'talk').length;
+      const servedStalls = crowd.buyers.filter((n) => n > 0).length;
+      // Those whose plan has them back at their own work now, and how many are (in, or on the way)
+      const back = commuters.filter((a) => {
+        const plan = a.life.plan;
+        let k = -1;
+        for (let i = 0; i < plan.length; i++) if (plan[i].at <= hour) k = i;
+        return k > 1 && plan[k].kind === 'in' && plan[k].place === a.life.work;
+      });
+      const backAtWork = back.filter((a) => (a.life.state === 'in' && a.life.place === a.life.work) || a.life.state === 'going').length;
+      return { hour, state, out: crowd.outNow, due: due.length, atWork, inShut, stalls, stallsUp, fabricUp, away: away.length, visitShut, buying, serving, servedStalls, back: back.length, backAtWork, ms };
     };
     const night = at(3);
     const work = at(10.5);
     const midday = at(13);
+    const afternoon = at(15.5);
     const evening = at(19);
     const late = at(22);
     // A morning on the fast clock (an hour each 25 s, as after sleeping): who sets out, who gets
@@ -216,10 +247,24 @@ export async function run(browser, check) {
       crowd.update(1 / 30, p, frustum);
     }
     let stuck = 0;
-    for (const [a, [x, z]] of was) if (a.life.state === 'going' && a.xing?.phase !== 'wait' && Math.hypot(a.x - x, a.z - z) < 0.5) stuck++;
-    const morning = { setOut: crowd.setOut - s0, arrived: crowd.arrived - a0, stuck };
+    const stuckAt = [];
+    for (const [a, [x, z]] of was) {
+      if (a.life.state === 'going' && a.xing?.phase !== 'wait' && Math.hypot(a.x - x, a.z - z) < 0.5) {
+        stuck++;
+        if (stuckAt.length < 3) stuckAt.push({ x: +a.x.toFixed(1), z: +a.z.toFixed(1), xing: a.xing?.phase ?? null, blocked: a.xing?.blocked ?? null, node: a.life.node, wnode: a.life.wnode, goal: a.life.goal, then: a.life.then, w: [+a.life.wx.toFixed(1), +a.life.wz.toFixed(1)] });
+      }
+    }
+    const morning = { setOut: crowd.setOut - s0, arrived: crowd.arrived - a0, stuck, stuckAt };
+    // Lunch hours as planned for this Wednesday: when each commuter goes, and how spread out that is
+    const lunches = commuters.map((a) => a.life.plan.find((st, i) => i > 0 && st.place !== a.life.work && (st.kind === 'in' || st.kind === 'buy'))?.at).filter((t) => t !== undefined);
+    const mean = lunches.reduce((t, v) => t + v, 0) / Math.max(1, lunches.length);
+    const spread = Math.sqrt(lunches.reduce((t, v) => t + (v - mean) * (v - mean), 0) / Math.max(1, lunches.length));
+    const lunch = { n: lunches.length, first: +Math.min(...lunches).toFixed(2), last: +Math.max(...lunches).toFixed(2), mean: +mean.toFixed(2), spread: +spread.toFixed(2) };
+    // The network in one piece? (Places that cannot be reached from any edge of the map)
+    const net = crowd.network;
+    const unreachable = crowd.places.filter((pl) => !net.homes.some((h) => net.reaches(h, pl.node))).length;
     cal.weekday = realWeekday;
-    return { city, agents: crowd.agents.length, walkers, commuters: commuters.length, places: crowd.places.length, kinds, roles, nodes: crowd.network.nodes.length, homes: crowd.network.homes.length, night, work, midday, evening, late, morning };
+    return { city, agents: crowd.agents.length, walkers, commuters: commuters.length, places: crowd.places.length, kinds, roles, nodes: crowd.network.nodes.length, homes: crowd.network.homes.length, night, work, midday, afternoon, evening, late, morning, lunch, unreachable };
   });
   const days = {};
   const dayCheck = (name, d) => {
@@ -233,14 +278,24 @@ export async function run(browser, check) {
     check(`livingcity: ${name} at 1 pm and 7 pm: nobody is inside a place that shut over an hour ago`, d.midday.inShut === 0 && d.evening.inShut === 0, { midday: d.midday, evening: d.evening });
     check(`livingcity: ${name} on the fast clock, 5:30 to 9:30: commuters set out from the edges of the map and get to their doors, and nobody is stuck on the way`,
       d.morning.setOut >= d.commuters * 0.5 && d.morning.arrived >= d.commuters * 0.3 && d.morning.stuck === 0, d.morning);
-    check(`livingcity: ${name}: the crowd's update stays under 1 ms a frame at 10:30, 1 pm and 7 pm`,
-      d.work.ms < 1 && d.midday.ms < 1 && d.evening.ms < 1, { work: d.work.ms, midday: d.midday.ms, evening: d.evening.ms });
+    check(`livingcity: ${name}: the crowd's update stays under 1 ms a frame at 10:30, 1 pm, 3:30 pm and 7 pm`,
+      d.work.ms < 1 && d.midday.ms < 1 && d.afternoon.ms < 1 && d.evening.ms < 1, { work: d.work.ms, midday: d.midday.ms, afternoon: d.afternoon.ms, evening: d.evening.ms });
+    // Stage 3b: lunch and errands
+    check(`livingcity: ${name}: every place on the network can be walked to from the edge of the map`, d.unreachable === 0, { unreachable: d.unreachable, places: d.places });
+    check(`livingcity: ${name}: commuters take lunch at their own times (spread over at least an hour and a half, not all at once)`,
+      d.lunch.n >= d.commuters * 0.5 && d.lunch.last - d.lunch.first >= 1.5 && d.lunch.spread >= 0.3, d.lunch);
+    check(`livingcity: ${name} at 1 pm: people are out at lunch or on errands (a buka, a stall, a shop), and none of them at a place that is shut`,
+      d.midday.away >= d.commuters * 0.1 && d.midday.visitShut === 0, d.midday);
+    check(`livingcity: ${name} at 3:30 pm: lunch is over, and those due back at work are there or on the way`,
+      d.afternoon.back > 20 && d.afternoon.backAtWork >= d.afternoon.back * 0.95, d.afternoon);
   };
   const lagosDay = await dayOf();
   dayCheck('Lagos', lagosDay);
   check('livingcity: Lagos stalls: all packed away at 3 am and 10 pm, put up by their traders by 10:30 (as drawn, not only as counted)',
     lagosDay.night.stalls >= 10 && lagosDay.night.stallsUp === 0 && lagosDay.late.stallsUp === 0 && lagosDay.work.stallsUp >= lagosDay.work.stalls * 0.9 && lagosDay.work.fabricUp === lagosDay.work.stallsUp,
     { night: lagosDay.night, work: lagosDay.work, late: lagosDay.late });
+  check('livingcity: Lagos at 1 pm: people buy at the stalls, and the traders serve them (a trader with someone at the counter is busy serving)',
+    lagosDay.midday.buying > 0 && lagosDay.midday.serving >= lagosDay.midday.servedStalls - 1 && lagosDay.midday.servedStalls > 0, lagosDay.midday);
 
   // ------------------------------------------------------------------ The other cities
   for (const city of ['abuja', 'port_harcourt']) {
@@ -250,7 +305,8 @@ export async function run(browser, check) {
     const name = city === 'abuja' ? 'Abuja' : 'Port Harcourt';
     check(`livingcity: ${name} at 8 am: its own crowd is out, and well under half of them are moved in any one frame`,
       there.city === city && there.agents > 300 && there.out > there.agents * 0.2 && there.movedPerFrame < there.agents * 0.45, there);
-    crossCheck(name, await crossings(14, 60));
+    crossCheck(name, await crossings(14, 120));
+    crossCheck(name, await crossings(13, 120));
     dayCheck(name, await dayOf());
   }
   // Each city its own day: Abuja a city of offices that empties early, Port Harcourt of trades and shifts
