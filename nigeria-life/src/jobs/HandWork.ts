@@ -88,7 +88,8 @@ export interface HandWorkOptions {
   rounds?: WorkRound[];
   /** Why the work cannot start just now, in the words of whoever is in charge; null if it can */
   cannotStart?(): string | null;
-  began?(): void;
+  /** The work is starting (the place may turn the view to where it can be seen) */
+  began?(host: PlaceHost): void;
   /** It is over: paid for, or given up part-way (things go back where they were) */
   ended(paid: boolean, host: PlaceHost): void;
   /** How long it may take before it is given up as abandoned */
@@ -161,7 +162,7 @@ export function createHandWork(options: HandWorkOptions): HandWork {
     const actor = host.actor;
     working = true;
     setDown = 0;
-    options.began?.();
+    options.began?.(host);
     // Skill on the job: a sweep for each part of the work, rated in stars at the end
     const skill = ShiftSkill.get();
     skill.begin(SKILL_WORD[employer?.skill ?? ''] ?? 'Tap in the green!', options.rounds?.length ?? options.count ?? 1);

@@ -163,7 +163,10 @@ export function createBuildingSite(options: BuildingSiteOptions): Landmark {
       },
     }),
     cannotStart: () => (isOpen(hours, hour) ? null : `Supervisor: "We have knocked off for the day. Work starts at ${clockTime(hours.opens)}."`),
-    began: () => {
+    began: (host) => {
+      // Seen from the open side of the yard, along the wall: from the north the camera stands over
+      // a floor of the unfinished building, and its slab hides the blocks going down
+      host.look(Math.PI / 2, 0.44, 8.5);
       // A bay that is up to height is finished: the gang starts the next from its footing
       if (courses >= COURSES) {
         courses = 0;

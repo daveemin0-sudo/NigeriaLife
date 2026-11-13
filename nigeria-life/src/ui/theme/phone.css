@@ -1099,6 +1099,13 @@ html[data-text="large"] #phone-screen-content { zoom: 1.12; }
   font: 700 12px/1 system-ui, sans-serif;
 }
 
+/* While someone is speaking, a street toast sits at the very top of the screen, not over their words */
+@media (max-width: 700px) and (orientation: portrait) {
+  html body:has(#game-dialogue-overlay) #game-toast-container {
+    top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+  }
+}
+
 /* Chief Alabi asks who you are: a place to say a name, under his words */
 .dialogue-name-row {
   display: flex;

@@ -214,7 +214,7 @@ export async function run(browser, check) {
     await p.morning();
     await p.adv(3);
     const st = await page.evaluate(() => window.game.world.landmarks.buildingSite.status());
-    if (!half && st.inWall >= 3) half = { ...st, line: await p.guideLine() };
+    if (!half && st.inWall >= 3) half = { ...st, line: await p.guideLine(), cam: await page.evaluate(() => { const c = window.game.cameraManager.camera.position; return { x: +c.x.toFixed(1), z: +c.z.toFixed(1) }; }) };
     if (!st.working && st.paidRuns > before.paidRuns) break;
   }
   await wait(1200);
@@ -222,6 +222,10 @@ export async function run(browser, check) {
   const eat = await p.stepIs('eat');
   check('onboarding: the pallet\'s card starts the course and the work is seen: blocks leave the pallet and the wall grows block by block (0 to 6), with no button on the line while carrying',
     /Pallet/.test(toPallet.card?.title ?? '') && !!lay?.reachable && before.inWall === 0 && !!half && half.inWall >= 3 && half.inWall < 6 && half.onPallet < 6 && !(half.line?.buttons ?? []).includes('Start work') && after.inWall === 6 && after.courses === 1, { before, half, after });
+  // They walked down from Chief Alabi, so the camera came in behind them from the north, where it would
+  // stand over a floor of the unfinished building and its slab would hide the wall
+  const overTheFrame = !!half && half.cam.x > 13.5 && half.cam.x < 24.5 && half.cam.z > 48.8 && half.cam.z < 60.8;
+  check('onboarding: while the blocks go down the view is from the open side of the yard, not from over the unfinished building, so the wall is seen growing', !!half && !overTheFrame, half?.cam);
   check('onboarding: the course is paid at the labourer\'s rate, ₦5,000 in the pocket and one job done, and the line turns to something to eat with "Not hungry" beside it',
     after.money === before.money + 5000 && after.paid === 1 && !!eat && /suya/i.test(eat.text) && eat.buttons.includes('Not hungry') && eat.buttons.includes('Take me') && eat.inView, { before: before.money, after: after.money, eat });
 
