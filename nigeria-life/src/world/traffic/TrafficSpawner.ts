@@ -157,6 +157,11 @@ export class TrafficSpawner {
   /** The share of the day's moving traffic that is on the road at this hour. Parked vehicles stay parked. */
   public abroad = 1;
   /** The player's size on the road: on foot, or the vehicle they are driving (set by the world each frame) */
+  /** Everyone on foot out on a carriageway (the crowd's own list): drivers stop short of them */
+  public walkers: ReadonlyArray<{ x: number; z: number }> = [];
+  private readonly walkersAhead: number[] = [];
+  /** How many vehicles are held up by someone crossing in front of them, this frame */
+  public heldForWalkers = 0;
   public playerHalfWidth = 0.35;
   public playerHalfLength = 1.4;
   private places = 0;
@@ -542,6 +547,26 @@ export class TrafficSpawner {
   }
 
   /** State of a signal group at the current point in the cycle */
+  /**
+   * For someone on foot: how many seconds the traffic of this group will still be held at red.
+   * 0 while it is moving or on amber, and for its first second at red (the last car through).
+   */
+  public walkTime(group: SignalGroup): number {
+    const lost = AMBER + ALL_RED;
+    const cycle = this.mainGreen + this.crossGreen + 2 * lost;
+    const t = this.signalTime % cycle;
+    if (group === 'main') {
+      // Red from the end of its amber to the end of the cycle
+      const red = this.mainGreen + AMBER;
+      return t >= red + 1 ? cycle - t : 0;
+    }
+    // The cross roads: red from the end of their amber, through the main road's green, to their next green
+    const green = this.mainGreen + lost;
+    const red = green + this.crossGreen + AMBER;
+    if (t < green) return green - t;
+    return t >= red + 1 ? cycle - t + green : 0;
+  }
+
   public signalState(group: SignalGroup): 'go' | 'amber' | 'stop' {
     const cycle = this.mainGreen + this.crossGreen + 2 * (AMBER + ALL_RED);
     let t = this.signalTime % cycle;
@@ -599,8 +624,17 @@ export class TrafficSpawner {
       cross: this.signalState('cross') === 'go',
     };
 
+    const walkers = this.walkers;
+    const ahead = this.walkersAhead;
+    let held = 0;
     for (const lane of this.lanes) {
       let leaderRear = Infinity;
+      // Those on foot in this lane, as places along it
+      ahead.length = 0;
+      for (let w = 0; w < walkers.length; w++) {
+        const person = walkers[w];
+        if (Math.abs((lane.axis === 'z' ? person.x : person.z) - lane.fixed) < 1.75) ahead.push((lane.axis === 'z' ? person.z : person.x) * lane.dir);
+      }
 
       // Drivers brake for the player (on foot or in a vehicle) standing in their lane
       let playerU = Infinity;
@@ -613,6 +647,15 @@ export class TrafficSpawner {
         // Furthest point this car may reach: behind its leader, the player, or a red stop line
         let limit = leaderRear - 1.8 - car.length / 2;
         if (car.u + car.length / 2 <= playerU) limit = Math.min(limit, playerU - this.playerHalfLength - 1.2 - car.length / 2);
+        // Someone crossing ahead: pull up short of them, and move off when they are over
+        for (let w = 0; w < ahead.length; w++) {
+          if (car.u + car.length / 2 > ahead[w] + 0.3) continue;
+          const short = ahead[w] - 1.7 - car.length / 2;
+          if (short < limit) {
+            limit = short;
+            if (short - car.u < 6) held += 1;
+          }
+        }
         for (const stop of lane.stops) {
           const front = car.u + car.length / 2;
           // While it is green, a car too close to pull up if the light changed now is let through
@@ -700,6 +743,7 @@ export class TrafficSpawner {
       }
     }
 
+    this.heldForWalkers = held;
     for (const car of this.parked) if (!car.cleared) this.draw(car.kind, car.matrix, car.paint, car.x, car.z, playerPos, frustum);
 
     for (const batch of this.batches) {

@@ -3,9 +3,9 @@ import { BUS_STOPS, stopAt } from '../../transit/Fares';
 import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
 import { bakeToGeometry, seededRandom, simplifyByClustering } from '../../graphics/MeshBaker';
 import type { StreetSpot, WalkRun } from '../density/CityFabric';
-import { MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
+import { CROSS_STREET_Z, MAIN_JUNCTION_GAPS, MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
 import { isAbroad } from '../StreetLife';
-import type { PersonBody } from '../Bodies';
+import { Bodies, type PersonBody } from '../Bodies';
 
 type Mode = 'walk' | 'idle' | 'talk';
 
@@ -60,13 +60,57 @@ interface Agent {
   ft?: number;
   /** A shop or buka on their side of Broad Street. They walk in, stay a while, and come back out. */
   errand?: { doorX: number; doorZ: number; homeX: number; phase: 'pace' | 'approach' | 'in' | 'out'; left: number; cool: number };
-  /** While set, they are crossing to this sidewalk x at the junction */
-  crossing?: number;
+  /** Which pavement run they walk (side streets and the grid's roads), for the way over to the next one */
+  run?: number;
+  /** Their place in the crowd (who is at home at this hour goes by it) */
+  id: number;
+  /** Crossing a road: to the kerb, waiting there, over, and back into the stream of walkers */
+  xing?: Xing;
   /** Seconds before they will cross again */
   crossCool?: number;
   /** This walker crosses at the junction instead of staying on one pavement */
   willCross?: boolean;
 }
+
+/**
+ * A way over a road, and what governs it. With lights (`group`: the traffic that runs across the
+ * walker's path) people go only while that traffic is held at red and there is time to get over.
+ * Without lights they look both ways and go when nothing is coming.
+ *   junction: where two roads with lights meet; walked at an ordinary pace
+ *   major:    a zebra over a wide avenue; people step out briskly and together
+ *   street:   a small road with no lights
+ */
+export interface Crossing {
+  kind: 'junction' | 'major' | 'street';
+  group?: 'main' | 'cross';
+}
+
+interface Xing {
+  c: Crossing;
+  phase: 'kerb' | 'wait' | 'go' | 'settle';
+  /** Where they stand to wait, where they are going, and where they end up back among the walkers */
+  kx: number;
+  kz: number;
+  tx: number;
+  tz: number;
+  sx: number;
+  sz: number;
+  /** Where they go back to if they give it up */
+  bx: number;
+  bz: number;
+  pace: number;
+  waited: number;
+  patience: number;
+  /** Over the road: the run they walk from then on */
+  then?: { run: number; min: number; max: number };
+  /** Gave up: back the way they came */
+  back?: boolean;
+}
+
+/** How long a walker allows over and above the walk itself before the traffic may move again, seconds */
+const CROSS_MARGIN = 1;
+/** How near a moving vehicle may be to a crossing with no lights for someone to step out, metres */
+const LOOK_BOTH_WAYS = 14;
 
 // Where people wait for a danfo (src/transit/Fares.ts, shared with the game server)
 export { BUS_STOPS };
@@ -103,6 +147,12 @@ export interface CrowdPlan {
   groups: number;
   busStops: boolean;
   gap: (z: number) => boolean;
+  /** Where a road cuts across the avenue's pavements: walked over, not through, by those on the pavement */
+  gaps?: ReadonlyArray<{ from: number; to: number } & Crossing>;
+  /** The ways over the avenue itself, each a line across it at `z` */
+  zebras?: ReadonlyArray<{ z: number } & Crossing>;
+  /** Between one pavement run and the next along the same road: the road in between, if it is one */
+  link?: (axis: 'x' | 'z', fixed: number, from: number, to: number) => Crossing | null;
   keepClear: (x: number, z: number) => boolean;
   seed?: number;
 }
@@ -113,6 +163,10 @@ const LAGOS_CROWD: CrowdPlan = {
   groups: 14,
   busStops: true,
   gap: isInJunctionGap,
+  // Martins Street runs through the gap: its traffic is what a walker on Broad Street's pavement waits for
+  gaps: MAIN_JUNCTION_GAPS.map(([from, to]) => ({ from, to, kind: 'junction' as const, group: 'cross' as const })),
+  // Over Broad Street itself, on either side of the junction, between its stop lines and the box
+  zebras: [-6.6, 6.6].map((off) => ({ z: CROSS_STREET_Z + off, kind: 'junction' as const, group: 'main' as const })),
   // The footbridge stairs and the doorways on Broad Street
   keepClear: (cx, cz) => isInJunctionGap(cz) || (cx > 8.0 && cz > 98 && cz < 108) || (cx > 8.0 && cz > -28 && cz < -18) || (cx < -8.0 && cz > -62 && cz < -50) || (cx < -8.0 && cz > -8 && cz < 2),
 };
@@ -134,6 +188,20 @@ export class CityPopulation {
   /** How far away pedestrians are drawn at all, and drawn in full (the graphics setting changes these) */
   public drawDistance = DRAW_DISTANCE;
   public nearDistance = NEAR_DISTANCE;
+  /**
+   * The lights, as the traffic keeps them: how many seconds the traffic of a group will still be
+   * held at red (0 if it is moving, about to, or only just stopped). Set by whoever owns both.
+   */
+  public walkTime: ((group: 'main' | 'cross') => number) | null = null;
+  /** Everyone out on a carriageway this frame: what the traffic stops for */
+  public readonly onRoad: Array<{ x: number; z: number }> = [];
+  private readonly crossers = new Set<Agent>();
+  private runs: WalkRun[] = [];
+  /** For each run, the run beyond the road at its far end and at its near end, with the crossing between */
+  private links: Array<{ up?: { run: number; c: Crossing }; down?: { run: number; c: Crossing } }> = [];
+  /** How many have gone over a road since the city was made, and how many gave up waiting */
+  public crossed = 0;
+  public gaveUp = 0;
   /** How many were moved on in the last frame, and how many of them were drawn (the rest wait their turn) */
   public movedNow = 0;
   public seenNow = 0;
@@ -182,6 +250,11 @@ export class CityPopulation {
     if (plan.busStops) this.spawnBusStopQueues();
     this.spawnChatGroups();
     this.spawnStallTraders(stallSpots);
+    // Some of the avenue's walkers go over it at its zebra (Lagos's are picked with their errands)
+    if (!plan.busStops && plan.zebras?.length) {
+      let n = 0;
+      for (const a of this.agents) if (a.mode === 'walk' && a.onMainWalk && n++ % 8 === 0) a.willCross = true;
+    }
 
     this.createInstancedMeshes();
     this.count = this.agents.length;
@@ -282,14 +355,15 @@ export class CityPopulation {
       max: 0,
       onMainWalk: false,
       ...partial,
+      id: this.agents.length,
     };
     this.agents.push(agent);
     return agent;
   }
 
-  private addWalker(axis: 'x' | 'z', fixed: number, from: number, to: number, onMainWalk: boolean): void {
+  private addWalker(axis: 'x' | 'z', fixed: number, from: number, to: number, onMainWalk: boolean): Agent {
     const along = from + this.rand() * (to - from);
-    this.addAgent({
+    return this.addAgent({
       mode: 'walk',
       axis,
       x: axis === 'x' ? along : fixed,
@@ -316,14 +390,34 @@ export class CityPopulation {
 
   /** Side streets: density proportional to sidewalk length */
   private spawnSideStreetWalkers(runs: WalkRun[]): void {
-    for (const run of runs) {
+    this.runs = runs;
+    this.links = runs.map(() => ({}));
+    runs.forEach((run, index) => {
       const length = run.to - run.from;
-      if (length < 10) continue;
+      if (length < 10) return;
       const walkers = Math.round(length / (run.every ?? 9));
       for (let i = 0; i < walkers; i++) {
-        this.addWalker(run.axis, run.fixed + (this.rand() - 0.5) * 1.0, run.from + 1, run.to - 1, false);
+        this.addWalker(run.axis, run.fixed + (this.rand() - 0.5) * 1.0, run.from + 1, run.to - 1, false).run = index;
       }
-    }
+    });
+    // One pavement and the next along the same side of the same road, with a road between them
+    const link = this.plan.link;
+    if (!link) return;
+    runs.forEach((a, i) => {
+      if (a.to - a.from < 10) return;
+      let best = -1;
+      for (let j = 0; j < runs.length; j++) {
+        const b = runs[j];
+        if (j === i || b.axis !== a.axis || Math.abs(b.fixed - a.fixed) > 0.6 || b.to - b.from < 10) continue;
+        const gap = b.from - a.to;
+        if (gap > 3 && gap < 45 && (best < 0 || b.from < runs[best].from)) best = j;
+      }
+      if (best < 0) return;
+      const c = link(a.axis, a.fixed, a.to, runs[best].from);
+      if (!c) return;
+      this.links[i].up = { run: best, c };
+      this.links[best].down = { run: i, c };
+    });
   }
 
   /** Commuters queueing at the kerb for danfo and BRT */
@@ -526,16 +620,39 @@ export class CityPopulation {
       }
       return false;
     }
-    if (a.crossing !== undefined) {
-      if (this.stepToward(a, a.crossing, a.z, delta)) {
-        a.crossing = undefined;
-        a.crossCool = 45;
-      }
+    if (a.xing) {
+      this.cross(a, a.xing, delta);
       return false;
     }
 
+    const was = a.axis === 'x' ? a.x : a.z;
+    let along = was + a.dir * a.speed * delta;
+    // A road across the avenue's pavement: to its kerb, and over when its traffic is held
+    if (a.onMainWalk && a.axis === 'z' && this.plan.gaps) {
+      for (const g of this.plan.gaps) {
+        const inside = (z: number) => z > g.from && z < g.to;
+        if (inside(was) || !inside(along)) continue;
+        const kerb = a.dir > 0 ? g.from - 0.25 : g.to + 0.25;
+        const far = a.dir > 0 ? g.to + 0.6 : g.from - 0.6;
+        a.xing = { c: g, phase: 'kerb', kx: a.x, kz: kerb, tx: a.x, tz: far, sx: a.x, sz: far, bx: a.x, bz: kerb, pace: a.speed, waited: 0, patience: 70 + this.rand() * 40, back: false };
+        return false;
+      }
+    }
+    // The end of this pavement: over the road to the next one, for some; the rest turn back
+    if ((along > a.max || along < a.min) && a.run !== undefined) {
+      const over = along > a.max ? this.links[a.run]?.up : this.links[a.run]?.down;
+      if (over && this.rand() < 0.55) {
+        const next = this.runs[over.run];
+        const here = a.dir > 0 ? a.max : a.min;
+        const there = a.dir > 0 ? next.from + 1.4 : next.to - 1.4;
+        const at = (v: number) => (a.axis === 'x' ? { x: v, z: a.z } : { x: a.x, z: v });
+        const k = at(here);
+        const t = at(there);
+        a.xing = { c: over.c, phase: 'kerb', kx: k.x, kz: k.z, tx: t.x, tz: t.z, sx: t.x, sz: t.z, bx: k.x, bz: k.z, pace: a.speed, waited: 0, patience: 50 + this.rand() * 40, then: { run: over.run, min: next.from + 1, max: next.to - 1 } };
+        return false;
+      }
+    }
     a.phase += delta * (a.speed / 1.35);
-    let along = (a.axis === 'x' ? a.x : a.z) + a.dir * a.speed * delta;
     if (along > a.max) {
       a.dir = -1;
       along = a.max;
@@ -552,11 +669,82 @@ export class CityPopulation {
       if (e.cool === 0 && Math.abs(a.z - e.doorZ) < 1.15 && Math.sign(a.x) === Math.sign(e.doorX || 1)) {
         e.phase = 'approach';
       }
-    } else if (a.willCross && a.axis === 'z' && !e) {
+    } else if (a.willCross && a.axis === 'z' && !e && this.plan.zebras) {
       a.crossCool = Math.max(0, (a.crossCool ?? 0) - delta);
-      if (a.crossCool === 0 && this.plan.gap(a.z)) a.crossing = -a.x;
+      if (a.crossCool === 0) {
+        // Passing a way over the avenue: to its kerb, and over to the other pavement when the lights allow
+        for (const zebra of this.plan.zebras) {
+          if ((was - zebra.z) * (a.z - zebra.z) > 0) continue;
+          const side = Math.sign(a.x) || 1;
+          const kerb = this.plan.avenue.halfRoad + 0.45;
+          a.xing = {
+            c: zebra, phase: 'kerb', kx: side * kerb, kz: zebra.z, tx: -side * kerb, tz: zebra.z, sx: -a.x, sz: zebra.z, bx: a.x, bz: zebra.z,
+            // Over a wide avenue nobody dawdles
+            pace: Math.max(a.speed, zebra.kind === 'major' ? 1.7 : 1.35), waited: 0, patience: 60 + this.rand() * 40,
+          };
+          break;
+        }
+      }
     }
     return false;
+  }
+
+  /** May this walker step out now: the traffic that crosses their path held for long enough, or nothing coming */
+  private mayCross(a: Agent, x: Xing): boolean {
+    const far = Math.hypot(x.tx - a.x, x.tz - a.z);
+    if (x.c.group) return (this.walkTime?.(x.c.group) ?? 0) >= far / x.pace + CROSS_MARGIN;
+    const mx = (a.x + x.tx) / 2;
+    const mz = (a.z + x.tz) / 2;
+    for (const car of Bodies.carsNear(mx, mz, far / 2 + LOOK_BOTH_WAYS)) if (!car.parked) return false;
+    return true;
+  }
+
+  /** Someone crossing a road: up to the kerb, waiting there, over, and back among the walkers */
+  private cross(a: Agent, x: Xing, delta: number): void {
+    const walk = (toX: number, toZ: number, pace: number): boolean => {
+      const own = a.speed;
+      a.speed = pace;
+      const there = this.stepToward(a, toX, toZ, delta);
+      a.speed = own;
+      return there;
+    };
+    if (x.phase === 'kerb') {
+      if (!walk(x.kx, x.kz, a.speed)) return;
+      x.phase = 'wait';
+      a.yaw = Math.atan2(x.tx - a.x, x.tz - a.z);
+    }
+    if (x.phase === 'wait') {
+      if (this.mayCross(a, x)) {
+        x.phase = 'go';
+        this.crossers.add(a);
+      } else {
+        x.waited += delta;
+        if (x.waited < x.patience) return;
+        // Tired of waiting: back the way they came
+        x.back = true;
+        x.phase = 'settle';
+        x.sx = x.bx;
+        x.sz = x.bz;
+        this.gaveUp += 1;
+      }
+    }
+    if (x.phase === 'go') {
+      if (!walk(x.tx, x.tz, x.pace)) return;
+      this.crossers.delete(a);
+      this.crossed += 1;
+      x.phase = 'settle';
+    }
+    if (!walk(x.sx, x.sz, a.speed)) return;
+    a.xing = undefined;
+    a.crossCool = 50 + this.rand() * 40;
+    if (x.back) {
+      a.dir = -a.dir;
+    } else if (x.then) {
+      a.run = x.then.run;
+      a.min = x.then.min;
+      a.max = x.then.max;
+    }
+    a.yaw = a.axis === 'z' ? (a.dir > 0 ? 0 : Math.PI) : a.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
   }
 
   // =========================================================================
@@ -603,7 +791,7 @@ export class CityPopulation {
       }
       // Seen, or stepping onto a bus: moved this frame. Anyone else, when their turn comes round.
       let delta = frameDelta;
-      if (!seen && !a.boarding) {
+      if (!seen && !a.boarding && a.xing?.phase !== 'go') {
         const every = inRange ? HIDDEN_EVERY : FAR_EVERY;
         const slot = i % every;
         if (slot !== tick % every) continue;
@@ -651,12 +839,19 @@ export class CityPopulation {
         bob = Math.abs(stride) * 0.035;
       } else if (a.mode === 'walk') {
         if (this.advanceWalker(a, delta)) continue;
-        const stride = Math.sin(a.phase * 8);
-        llx = stride * 0.6;
-        rlx = -stride * 0.6;
-        lax = -stride * 0.5;
-        rax = stride * 0.5;
-        bob = Math.abs(Math.sin(a.phase * 8)) * 0.035;
+        if (a.xing?.phase === 'wait') {
+          // Standing at the kerb, looking at the lights
+          a.phase += delta;
+          lax = Math.sin(a.phase * 2) * 0.03;
+          rax = -lax;
+        } else {
+          const stride = Math.sin(a.phase * 8);
+          llx = stride * 0.6;
+          rlx = -stride * 0.6;
+          lax = -stride * 0.5;
+          rax = stride * 0.5;
+          bob = Math.abs(Math.sin(a.phase * 8)) * 0.035;
+        }
       } else if (a.mode === 'talk') {
         a.phase += delta;
         lax = -0.4 + Math.sin(a.phase * 4) * 0.2;
@@ -682,7 +877,7 @@ export class CityPopulation {
       const limbMeshes = far ? variant.farLimbs : variant.limbs;
 
       // Broad Street's sidewalk drops to road level where a side street cuts through
-      const ground = a.onMainWalk && this.plan.gap(a.z) ? 0.02 : this.plan.avenue.top;
+      const ground = (a.onMainWalk && this.plan.gap(a.z)) || a.xing?.phase === 'go' ? 0.02 : this.plan.avenue.top;
 
       pos.set(ax, ground - variant.footY * a.scale + bob, az);
       quat.setFromAxisAngle(CityPopulation.UP, a.yaw);
@@ -711,6 +906,17 @@ export class CityPopulation {
         this.shadows.setMatrixAt(shadowCount++, base);
       }
     }
+
+    // Who is out on a carriageway now: the traffic stops for them
+    let onRoad = 0;
+    for (const a of this.crossers) {
+      if (!isAbroad(a.id, this.abroad)) continue;
+      const spot = this.onRoad[onRoad] ?? (this.onRoad[onRoad] = { x: 0, z: 0 });
+      spot.x = a.x;
+      spot.z = a.z;
+      onRoad += 1;
+    }
+    this.onRoad.length = onRoad;
 
     this.owedHidden[tick % HIDDEN_EVERY] = 0;
     this.owedFar[tick % FAR_EVERY] = 0;

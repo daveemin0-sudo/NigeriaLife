@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { TrafficSpawner, type TrafficPlan } from '../world/traffic/TrafficSpawner';
 import { CityPopulation, type CrowdPlan } from '../world/population/CityPopulation';
 import { ABUJA_AVENUE, PORT_HARCOURT_AVENUE } from '../world/plan/CityPlan';
-import { ABUJA_ROADS, PH_ROADS, gridTraffic, gridWalkRuns, type GridRoad } from '../world/plan/GridRoads';
+import { ABUJA_ROADS, PH_ROADS, gridTraffic, gridWalkRuns, junctionsOf, type GridRoad } from '../world/plan/GridRoads';
+import type { Crossing } from '../world/population/CityPopulation';
 import { shareAbroad } from '../world/StreetLife';
 import type { CarBody, PersonBody } from '../world/Bodies';
 
@@ -129,11 +130,42 @@ function crowdPlan(streets: CityStreets): CrowdPlan {
     walkers: streets.walkers,
     groups: streets.groups,
     busStops: false,
-    // Nobody walks out into the avenue here (the crossing waits for its own work)
+    // The pavements here do not drop at a side road: people on them are drawn at pavement height
     gap: () => false,
+    // The roads that cut across the avenue's pavements, each with the lights of its junction (if it has them)
+    gaps: spineGaps(streets),
+    // The zebra by the market, on the avenue's own lights: people go over while the avenue waits
+    zebras: [{ z: streets.crossing, kind: 'major', group: 'main' }],
+    link: streets.roads ? (axis, fixed, from, to) => crossingBetween(streets.roads!, axis, fixed, from, to) : undefined,
     keepClear: streets.keepClear,
     seed: streets.seed + 1,
   };
+}
+
+/** What a road is to someone crossing it: lights where two roads with traffic meet, otherwise a street to look both ways on */
+function crossingOf(along: GridRoad, across: GridRoad): Crossing {
+  const lights = along.traffic !== false && across.traffic !== false;
+  return lights ? { kind: 'junction', group: across.axis === 'z' ? 'main' : 'cross' } : { kind: 'street' };
+}
+
+/** The road between two stretches of the same pavement, if there is one */
+function crossingBetween(roads: readonly GridRoad[], axis: 'x' | 'z', fixed: number, from: number, to: number): Crossing | null {
+  for (const j of junctionsOf(roads)) {
+    const along = axis === 'z' ? j.ns : j.ew;
+    const across = axis === 'z' ? j.ew : j.ns;
+    const at = axis === 'z' ? j.z : j.x;
+    if (at > from && at < to && Math.abs(fixed - along.fixed) < along.halfRoad + along.walk + 1) return crossingOf(along, across);
+  }
+  return null;
+}
+
+/** Where the other roads cut across the avenue's pavements */
+function spineGaps(streets: CityStreets): Array<{ from: number; to: number } & Crossing> {
+  const spine = streets.roads?.[0];
+  if (!spine || !streets.roads) return [];
+  return junctionsOf(streets.roads)
+    .filter((j) => j.ns === spine && j.z > streets.avenue.from + 4 && j.z < streets.avenue.to - 4)
+    .map((j) => ({ from: j.z - j.ew.halfRoad, to: j.z + j.ew.halfRoad, ...crossingOf(spine, j.ew) }));
 }
 
 export class CityLife {
@@ -153,6 +185,9 @@ export class CityLife {
     const spine = streets.roads?.[0];
     const runs = streets.roads ? gridWalkRuns(streets.roads, streets.walkEvery ?? 18).filter((run) => !(spine && run.axis === spine.axis && Math.abs(run.fixed - spine.fixed) < spine.halfRoad + spine.walk + 1 && run.to <= streets.avenue.to + 2)) : [];
     this.crowd = new CityPopulation(runs, [], crowdPlan(streets));
+    // The crowd reads the lights the traffic keeps, and the traffic stops for whoever is crossing
+    this.crowd.walkTime = (group) => this.traffic.walkTime(group);
+    this.traffic.walkers = this.crowd.onRoad;
     this.group.add(this.traffic.group, this.crowd.group, CityLife.zebra(streets));
   }
 

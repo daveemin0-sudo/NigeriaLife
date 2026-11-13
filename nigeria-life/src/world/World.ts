@@ -170,6 +170,9 @@ export class World {
       .filter((o): o is NonNullable<typeof o> => !!o)
       .map((o) => ({ x: o.interactionPoint.x, z: o.interactionPoint.z }));
     this.cityPopulation.giveErrands(shopDoors);
+    // The crowd reads the lights the traffic keeps, and the traffic stops for whoever is crossing
+    this.cityPopulation.walkTime = (group) => this.trafficSpawner.walkTime(group);
+    this.trafficSpawner.walkers = this.cityPopulation.onRoad;
 
     // Broad Street carries on south as the expressway, over the lagoon to the mainland
     this.expressway = new Expressway();
