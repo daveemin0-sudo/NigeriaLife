@@ -129,3 +129,100 @@ In the final `livingcity` run, crowd and traffic together took 1.7 to 2.2 ms per
 Tests: `livingcity` now also runs a minute of the street per city. It checks that at least 30 people cross, no moving vehicle overlaps anyone, almost nobody gives up and the traffic keeps moving. Final result: `livingcity` and `streets` together 32/32. In the wider run (`livingcity`, `citylife`, `bigcities`, `sidestreets`, `danfo`, `streets`, `touch`, `convoys`, `vehicles`, `bodies`), 98 of 100 checks passed. One failure was a gap in the pace check: it did not skip walkers who reach a side road. That is fixed. The other was the `streets` bank-wall check, which covers the player and passed on rerun.
 
 **Not done from the stage 2 plan:** when someone is crossing, a horn gets no reaction made for them. They keep crossing and the car waits. The existing reaction, where a person in front of a car steps aside and says so, is unchanged.
+
+## 7. Stage 3 design: daily routines and destinations (for approval, not built)
+
+Nothing in this section is built. It answers the stage 3 brief of 2026-11-13. The existing systems were inspected first, and the design extends them. It adds no second crowd, schedule or business system.
+
+### What already exists and is reused
+
+| Need | Existing system | How stage 3 uses it |
+|---|---|---|
+| The people | `CityPopulation`: one crowd in each city, with levels of detail (stage 1) and crossings (stage 2) | Each agent gets a routine. Drawing, levels of detail, crossings, bus queues and chat groups stay as they are |
+| Where people can go | Each city's `interactiveList`: every door with its name, category and standing point. Lagos has the Broad Street buildings and landmarks; Abuja and Port Harcourt use `townDoors` and `placeDoors` | These are the destinations: offices, banks, shops, bukas, markets, the building site, the motor park, churches, the mosque, clubs, homes |
+| When places are open | `destinations/Hours.ts` (`PLACE_HOURS`, `hoursFor`, `isOpen`, the game calendar). The map, the doors and the interiors already read it | Routines read the same hours. Nobody goes into a shut place, and a stall keeps the hours of its kind |
+| Going into a place | The walker's `errand` steps (walk to the door, inside, back out), used today for 4 Broad Street shops | Generalised to every leg that ends at a door, instead of adding a new mechanism |
+| How busy the street is | `StreetLife.shareAbroad`: rush hours and a quiet night. Traffic uses it too | Kept as the curve the routines are tuned to, so the crowd and the traffic agree on how busy the hour is |
+| Stall traders | One trader and one customer at each Lagos stall, standing there 24 hours | They arrive in the morning, set up and leave at closing |
+| Stalls | Built into the street geometry (`CityFabric`). Umbrellas are their own instanced mesh; goods share the street's box mesh | Instance numbers are recorded so a stall can open (umbrella up, goods out) or shut (umbrella folded, goods gone). This changes about once an hour of game time, not every frame |
+| Pavements | Walk runs: straight stretches of pavement. In Abuja and Port Harcourt they join only straight over a road. Lagos side-street walkers pace one run | This is the main gap: nobody can turn a corner (see 2 below) |
+
+### What is added
+
+1. **Residents.** Each agent's role comes from its number, so there is nothing to store. In the following list the share is the share of the crowd:
+   - office worker 25%
+   - trader 15%
+   - artisan or labourer 10%
+   - student 10%
+   - hawker 10%
+   - shopper or idler 20%
+   - night owl 5%
+   - elder 5%
+
+   Each agent also has a home (a residential door, or the end of a street where people walk in from beyond the map), a workplace or pitch picked from the open doors and stalls that suit the role, and a temper (hurried or strolling). The same agent has the same life every day. This is how routines are remembered across updates: the state is just the current leg.
+2. **Turning corners.** The pavement network gets corner links where two runs meet at a junction, then one table of next-step-to-each-run, worked out once when the city loads. Lagos has about 300 runs and the other cities fewer, so this is a small array. Agents never path-find while walking. The player's `Wayfinder` is not used.
+3. **The day plan.** A few legs worked out from role, city and weekday:
+   - home to work
+   - inside or at the pitch
+   - out for food at an open buka or a food stall
+   - back to work
+   - home, or to the evening place (bar, club, viewing spot, church or mosque on its day)
+   - home
+
+   Each leg starts at a set time with some spread per agent, so the rush builds up rather than everyone leaving at once. While people are inside a place they are not drawn and cost nothing.
+4. **Clock jumps.** Sleeping, fast-forwarding and arriving in another city all move the clock. After a jump, everyone is put straight where their plan says they should be at that hour, so nobody walks a stale route.
+5. **Each city its own pattern.** A small profile per city sets role shares, start times and evening places:
+
+   | City | Pattern |
+   |---|---|
+   | Lagos | Leaves early to beat the go-slow (from about 5:30), heavy trading all day, late bukas and clubs, Sunday church |
+   | Abuja | Civil-service hours (8 to 4 on weekdays), orderly and thinner streets, Friday Jumu'ah crowd at the mosque around 1 pm, suya in the evening, quiet early and very quiet at weekends |
+   | Port Harcourt | Port and oil shifts (about 6 to 6), busy roadside trading on Aba Road, evenings at bars and pepper-soup joints |
+
+6. **Stalls in Abuja and Port Harcourt.** These cities have no stalls today. Port Harcourt gets many along Aba Road. Abuja gets few: kiosks by the motor park and the market. They are placed with the same open and shut behaviour as Lagos.
+
+### Order of building (each a commit, tested and pushed)
+
+| Step | Built | Done when |
+|---|---|---|
+| 3a | Residents, corner links and route table, the morning legs and workplaces, Lagos stalls open and shut | At 8 am people walk to real doors and go in, traders set up, and stalls are shut at 2 am |
+| 3b | Midday: food legs to open bukas and food stalls, a customer at a stall, errands to any open shop | Around 1 pm the bukas draw people and nobody goes into a shut door |
+| 3c | Evening and night: legs home and to evening places, the clock-jump catch-up | At 7 pm the flow runs homeward and to bars, and at 2 am only night owls are out |
+| 3d | The Abuja and Port Harcourt profiles and stalls, then all three cities measured | Each city's hourly counts differ the way the profiles say |
+
+### Performance plan (Samsung A16)
+
+| Work | Cost |
+|---|---|
+| A leg starting | One table lookup, a few times a second across the whole crowd |
+| Walking a leg | The same per-frame work as walking a run today |
+| People inside | Skipped |
+| Stall open and shut | About once per game hour |
+
+Budget: the crowd update stays under 1 ms on the laptop measure in each city at 8 am, 1 pm and 7 pm. It adds no new draw calls, meshes or shaders. Then the A16 is checked through the frame and load figures in Settings.
+
+### Risks
+
+| Risk | Plan |
+|---|---|
+| The street empties when workers go inside | Role shares are tuned so the count out at each hour stays near `shareAbroad`. Hawkers, traders and idlers keep the pavements lived in |
+| Lagos's Broad Street pavement is a raised walk that is not a run | It joins the network at its ends and at the Martins Street crossing |
+| People appear or vanish at doors in sight of the player | They go in and come out at the door, as errands do now |
+| Clock jumps put people in odd places | Covered by the catch-up step in 3c, with a test |
+
+### Tests to add to `livingcity`
+
+- Follow one resident per city through a compressed day: home, then work at 8, food at 1, home or out in the evening. Each door reached must be open at that hour.
+- Count each activity per city at 8 am, 1 pm, 7 pm and 2 am, against that city's profile.
+- Stalls: umbrella and goods hidden at 2 am, shown at 10 am, with the trader present only while open. Checked in the instance data and in one screenshot each.
+- Nobody walks off the pavement network; positions are sampled.
+- The cost budget above.
+- Regression: `citylife`, `bigcities`, `sidestreets`, `danfo`, `streets`, `touch`, `convoys`, `vehicles`, `bodies`.
+
+### Not in stage 3
+
+These belong to stages 4 and 5 of the plan:
+- customers seen inside shops
+- story people with routines
+- tapping or talking to residents
+- horn reactions for people crossing
