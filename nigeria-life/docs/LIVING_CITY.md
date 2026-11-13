@@ -97,3 +97,35 @@ The 12 older pedestrians in `NPCs.ts` were found to be already hidden and frozen
 Tests: new `livingcity` suite 8/8 (share moved per frame in all three cities, nobody in view skipped, far walkers exactly on pace, people drawn in every direction, night cheaper than morning). Regression on the same build: citylife 8/8, bigcities 9/9, sidestreets 5/5, danfo (bus queues boarding) passed, streets 16/16, touch 10/10. Other suites were not run for this stage.
 
 Note for later stages: the game's fast-forward (`advance`) does not run the crowd for the full time asked, so crowd tests step the crowd's own update.
+
+### Stage 2: crossing and traffic (built 2026-11-13)
+
+People on foot now cross properly in all three cities. Each walker goes to the kerb, waits there and crosses, then rejoins the walkers on the far side. There are three kinds of crossing:
+
+- **Junctions with lights:** people cross only while the traffic that cuts their path is held at red, with enough red time left to get over. They also wait until the crossing is clear: no vehicle on it, and none that would reach it within 2.5 seconds at its speed. That covers cars still running the junction after their light changed.
+- **Zebras on lights:** one over Broad Street at Martins Street in Lagos, and one at each other city's market. They work the same way, and people step out briskly.
+- **Side streets without lights:** people look both ways and go when nothing is moving within 14 m.
+
+Pavements are now joined across the grid roads (Abuja, Port Harcourt) and across the side roads that cut Broad Street.
+
+Drivers give way to people on the road:
+
+- A car pulls up 1.7 m short of someone in its lane.
+- A car with someone alongside it in its path does not move until they are clear.
+- Out on the road, a walker stops rather than step into the side of a vehicle.
+
+**Cost.** Walkers check the traffic about 8 times a second, not every frame, and checks for nearby vehicles skip lanes that are out of range.
+
+Laptop measure, 2 minutes of street at 8 am, 2 pm and 10 pm, traffic and crowd stepped together:
+
+| City | Crossings in 2 min | Gave up | Vehicles overlapping someone crossing |
+|---|---|---|---|
+| Lagos | 138 to 144 | 0 to 1 | 0 (24 to 88 before the final fix) |
+| Abuja | 212 to 245 | 1 | 0 (7 before) |
+| Port Harcourt | 281 to 335 | 0 to 1 | 0 |
+
+In the final `livingcity` run, crowd and traffic together took 1.7 to 2.2 ms per frame in Lagos, 0.8 ms in Abuja and 1.5 ms in Port Harcourt. Not measured on a phone.
+
+Tests: `livingcity` now also runs a minute of the street per city. It checks that at least 30 people cross, no moving vehicle overlaps anyone, almost nobody gives up and the traffic keeps moving. Final result: `livingcity` and `streets` together 32/32. In the wider run (`livingcity`, `citylife`, `bigcities`, `sidestreets`, `danfo`, `streets`, `touch`, `convoys`, `vehicles`, `bodies`), 98 of 100 checks passed. One failure was a gap in the pace check: it did not skip walkers who reach a side road. That is fixed. The other was the `streets` bank-wall check, which covers the player and passed on rerun.
+
+**Not done from the stage 2 plan:** when someone is crossing, a horn gets no reaction made for them. They keep crossing and the car waits. The existing reaction, where a person in front of a car steps aside and says so, is unchanged.
