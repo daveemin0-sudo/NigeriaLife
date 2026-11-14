@@ -286,7 +286,94 @@ Every step also runs the full suite. Results are reported separately for the lap
 
 To run with the next session (`npm run a16:session`, local server only). Each one says what to do and what to send; the report does the rest.
 
-1. **The ride.** Tap Mark. Then Phone › Ride › Murtala Muhammed International Airport › Taxi. Ride all the way. When you are set down, wait 10 s and tap Mark. Then close Chrome completely, open the address again, and tap Mark once you can walk. Send the report, and say in one line whether you were at the airport after reopening. Today's report shows whether Chrome reloaded the page, but not the spot. Repair step 3 adds the spot to each mark.
+1. **The ride.** Use the Step 1 check below; it replaces this step.
 2. **The map.** After loading, wait 30 s, tap Mark, open the map once, close it, wait 30 s, tap Mark. Send the report: the worst frame between the two marks is the map's.
 3. **The Abuja building.** Go to the building you meant. Tap it as before, then tap Mark straight away. After repair step 3 the report names the last places tapped and what opened.
 4. **Optional, with a USB cable** (`docs/A16_TEST_SESSION.md` section 3): `adb shell dumpsys meminfo com.android.chrome` at the two map marks. This shows the memory Chrome is actually using and settles P5.
+
+## Step 1 check on the A16: rides survive a reload
+
+This checks build `a8ce080` or later on the phone. Allow about 20 minutes, plus the coach trip for part C.
+
+### Before you start
+
+1. On the laptop, in the `nigeria-life` folder, run `npm run a16:session`. Its first line must say `Branch claude/next-steps at` with `a8ce080` or a later commit; an older build does not have the fix.
+2. Open the printed address in Chrome on the A16. A brand-new player is fine: the fares below are well within the starting money.
+3. **How to reload Chrome:** tap **⋮** (top right), then the **circular arrow** at the top of the menu. Wait until you can walk again.
+4. **How to check a fare:** open Phone › **Bank** and type the place's name in the search box. Each ride shows one line, for example "Taxi / Bolt Cab to Murtala Muhammed International Airport (LOS)", with the fare.
+
+### A. A ride played to the end, then a reload (Lagos)
+
+1. Note your cash at the top of the screen.
+2. Phone › **Ride**. Search "Murtala" and tap **Murtala Muhammed International Airport (LOS)**. Tap **Taxi / Bolt Cab** and note the fare. Wait on the street: the driver comes in a few seconds.
+3. Let the ride play to the end; don't press Skip.
+4. **Check:** the message "You have arrived at Murtala Muhammed International Airport (LOS)" appears, and you are standing outside the airport terminal. Open Phone › Ride and note the line under "You are in", then close the phone.
+5. Reload Chrome.
+6. **Check:** you are still outside the airport terminal, not back on the island where you started. Phone › Ride shows the same "You are in" line as in step 4.
+7. **Check:** in the Bank app, searching "Murtala" shows exactly **one** fare line, and your cash went down by that one fare.
+
+### B. A reload in the middle of a ride (Lagos)
+
+1. From the airport: Phone › **Ride** › **Computer Village (Otigba Technology Market)** › **Taxi / Bolt Cab**. Note the fare and your cash.
+2. As soon as the ride view appears (the ride card at the top with "Skip ride"), reload Chrome straight away. The ride lasts only about 10 seconds, so be quick. If it ends before you reload, write "too late" and repeat B.
+3. **Check:** after the reload, the message "You have arrived at Computer Village (Otigba Technology Market)" appears, and you are outside Computer Village. You are **not** at the airport.
+4. Wait a minute. **Check:** in the Bank app, searching "Computer Village" shows exactly **one** fare line, and your cash went down by one fare only: not twice, and not nothing.
+
+### C. Once in Abuja
+
+1. Get to Abuja by coach (a flight costs millions): Phone › Ride › **Jibowu Motor Park**. At the park's ticket window buy the coach to Abuja (₦42,000), then board at the coach.
+2. In Abuja: Phone › Ride › **FCT Police Command** (the Abuja place farthest from the park) › Taxi. Ride to the end.
+3. **Check:** you are outside the FCT Police Command. Reload Chrome. **Check:** you are still there.
+4. Phone › Ride › any other place › Taxi, and reload as soon as the ride view appears.
+5. **Check:** you open at that place with the "You have arrived at …" message, and the Bank app shows one fare line for it.
+
+### What to send me
+
+For each of A, B and C: each **Check** marked yes or no, plus a screenshot of anything that looks wrong. Then tap **Report** on the performance panel and send that too: it records each Chrome reload, so it confirms that each reload really happened.
+
+## Step 1: two remaining limitations (recommended fixes, not implemented)
+
+### L1. "Turn back" acts like "Skip ride"
+
+**What happens now:** the ride card has two buttons, "Skip ride" and "Turn back". Both call the same thing (`src/transit/TransitHUD.ts:161`, `onSkipRide`), so "Turn back" takes the player **to the destination**, the opposite of what it says.
+
+**Recommended fix:**
+- "Turn back" ends the ride where it was booked. The player is set down at the pickup spot, which `startRoadRide` already knows. At that moment the save is changed to the pickup spot, so a reload after turning back opens there too.
+- **Fare:** the fare was paid when the driver arrived, as for any taxi. I recommend keeping it, with the button saying so before it is pressed: "Turn back: to <pickup place>, fare not refunded". It is honest and simple, and there is no money path to exploit.
+  - The alternative is to refund part of the fare for the distance not ridden. That needs a refund the game server checks, so it is better done with the money work in Stage 2b. **This needs your decision.**
+- The Ride app, the map cab and the keke to a station all behave the same way.
+
+**Files:** `TransitHUD.ts` (its own callback), `RoadRideExperience.ts` (a "turned back" end), `Game.ts` (`startRoadRide` keeps the pickup spot; the turned-back path sets the player down there and saves).
+
+**Tests:**
+- Turning back sets the player within 3 m of the pickup spot, in each city.
+- A reload after turning back keeps them there.
+- The fare is taken once (or the refund is exact, if you choose refunds).
+- "Skip ride" still goes to the destination.
+
+### L2. Clearing the browser just after arriving can bring back an older position
+
+**What happens now:**
+- On the phone itself, the arrival is saved the moment the player is set down.
+- The copy on the **game server** is sent about 2 seconds after any save (`CloudSyncService.note()`, a 2 s wait), and in full every minute.
+- If the browser's data is wiped in those 2 seconds, signing in again brings back the server's previous copy: the pickup spot, or wherever the last save was.
+- A normal reload, closing the tab or Chrome dropping the tab are **not** affected: they read the save kept on the phone.
+
+**Recommended fix:**
+1. **Send important moments at once.** When a ride starts (the saved set-down) and when it ends (the arrival), send the save to the server straight away (`pushNow`), not after the 2 s wait. The same applies to the other journeys that move the player (coach and flight arrivals). This closes the gap to the time one request takes.
+2. **Send on the way out.** When the page is hidden or closed, send the save with a request the browser finishes after the page has gone (`fetch` with `keepalive`).
+   - Browsers limit such a request to 64 KB, so this is used only when the save fits under that.
+   - Larger saves rely on point 1.
+3. **Offline:** the save stays on the phone and is sent when the connection returns, as now. The report would show "not yet saved to your account" until then.
+
+Point 1 is the main fix. Point 2 also covers a player who closes the game straight after arriving and then plays on another device.
+
+**Files:** `CloudSyncService.ts` (an immediate push, and the keepalive send), `Game.ts` (calls at ride start, arrival, and coach and flight arrival).
+
+**Tests (local test server):**
+- Arrive at the airport, clear the browser 300 ms later, sign in: the player is at the airport.
+- Close the tab during a ride and sign in on a second browser: the player is at the destination.
+- With the server stopped, arrive, then restart the server: the arrival reaches the account when the connection returns.
+- The existing account-save suite still passes, including two devices and "behind" handling.
+
+Both fixes wait for your A16 results and your approval. Nothing here has been implemented.
