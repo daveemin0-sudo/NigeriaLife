@@ -477,6 +477,112 @@ The one failure was the busy-pavement wall walk: 13.5 s against 8 s on the quiet
 
 **Incident during this stage:** the local `node_modules` was partly deleted, when a temporary git worktree with a junction to it was force-removed. The source was untouched, and `node_modules` was restored with `npm install`. The lockfile is unchanged from the commit, and `npm ls` is clean.
 
+### Stage 3d: roadside trading in all three cities (built 2026-11-14)
+
+**One stall system.** Lagos's umbrella stalls were drawn inside its street fabric. They are now drawn by `src/world/street/StreetStalls.ts`, a few instanced meshes per city that open and shut one stall at a time. Lagos, Abuja and Port Harcourt all use it.
+
+- Lagos's stalls stand where they always did. The fabric still draws its random numbers in the same order, so the rest of Lagos is unchanged.
+- The stalls' hours, the people who run them and their customers all go through the existing systems: `Hours.ts` (`STALL_HOURS`), the places on the pavement network, and `CityPopulation`.
+
+**Three kinds of stall:**
+
+| Kind | Looks like |
+|---|---|
+| Goods | Umbrella over a table of goods |
+| Food | Pot, cool box and a tray (akara, boli and fish, rice) |
+| Suya | Grill over glowing coals, a darker umbrella, a lantern for the evening |
+
+Packed away: the umbrella is furled, a tarpaulin covers the table, and the coals and lantern go out.
+
+**Each city its own trade:**
+
+| City | Stalls | Goods | Food | Suya | Where |
+|---|---|---|---|---|---|
+| Lagos | 20 (as before) | 14 (7 am to 7 pm) | 4 (6 am to 9 pm, for the early commute) | 2 (5 pm to 1 am) | Its side streets |
+| Abuja | 8, a believable few | 3 by Wuse market (8 am to 6 pm, shut Sunday) | 3 by the ministries and the supermarket (9 am to 5 pm, weekdays) | 2 by the hotels (5:30 pm to midnight) | Avenue pavement |
+| Port Harcourt | 19 | 11 along the Mile 1 market stretch of Aba Road (7 am to 8 pm, every day) | 5 by the offices and the motor park (7 am to 10 pm) | 3 by Bole King and the Garden City Hotel (4:30 pm to 2 am) | Aba Road |
+
+Stalls stand on the building edge of the avenue pavement, at least 3.5 m from any door, 5 m from the zebra, clear of side roads and 6 m apart. They face the road, and walkers get past them. Their tables are solid to the player and to drivers (each city's standing list).
+
+**Who keeps them.**
+- Lagos keeps its own traders.
+- In Abuja and Port Harcourt, each stall is kept by one of the city's existing people: a trader by role, or a hawker or idler turned trader. Nobody was added: Abuja 499 and Port Harcourt 696, as in 3c.
+- Lagos has 11 fewer (440): the customers who stood at a stall all day are gone, and real ones come and go.
+- A trader comes for the stall's opening, whenever it is. The stall goes up only at its hour, and is packed away within a quarter of an hour of closing.
+
+**Customers.**
+- People choose a stall like any other place: one of the nearest that is open for the whole visit. A stall takes at most 6 bookings in a half hour, made when people plan their day.
+- They walk up and join the queue at the counter: the first is served and the rest wait behind. Serving takes 20 to 50 seconds, and the trader gestures while serving.
+- From a food stall or a suya spot they step aside and eat for 10 to 20 minutes, then go back to work, their pavement or home. From a goods stall they go straight on.
+- If four or more are already waiting, or the stall is shut or its trader gone, they go elsewhere.
+- After a jump in the clock: anyone who came more than about 100 seconds before is already served, and is eating beside the stall or gone.
+
+**Measured on the laptop** (`livingcity` 83/83, a pinned Wednesday into Thursday). No phone results.
+
+Ten hours checked, 6:30 am to 3 am the next morning: no stall was up outside its own hours in any city, every stall due open was up, and what was drawn matched what was counted. At 12:30 am the Lagos and Port Harcourt suya spots are up and Abuja's are shut, by their hours. Everything is packed away by 3 am.
+
+Customers in 10 minutes of lunch hour on the real clock:
+
+| City | Served | Waited at the counter | Then |
+|---|---|---|---|
+| Lagos | 3 | at least 39 s | ate beside the stall |
+| Abuja | 4 | at least 27 s | ate beside the stall |
+| Port Harcourt | 1 | 27 s | ate beside the stall |
+
+Nobody was ever at a shut stall. Every trader with someone at the counter was serving. The longest queue was 2.
+
+Crowd update per frame (all under 1 ms):
+
+| City | 10:30 am | 1 pm | 3:30 pm | 7 pm | 9 pm | 11 pm | 12:30 am |
+|---|---|---|---|---|---|---|---|
+| Lagos | 0.16 | 0.13 | 0.17 | 0.21 | 0.10 | 0.04 | 0.03 |
+| Abuja | 0.14 | 0.31 | 0.19 | 0.18 | 0.10 | 0.06 | 0.05 |
+| Port Harcourt | 0.16 | 0.21 | 0.35 | 0.26 | 0.25 | 0.14 | 0.05 |
+
+All figures in ms. On a second probe (jump to an hour, then a minute of street, 3c and 3d builds measured alternately, the laptop at 88% CPU with OneDrive syncing), both builds read 1 to 2 ms in Lagos. That is the machine, not the code.
+
+Crossings over two minutes: Lagos 32.5 to 44 a minute, Abuja 19.5 to 24.5, Port Harcourt 49 to 49.5. No car was ever on top of anyone, and give-ups were 0 to 3. At 9 pm in Lagos: 12 a minute, 0 give-ups.
+
+Resuming routines, Lagos residents out of place:
+
+| Case | Out of place |
+|---|---|
+| After sleeping | 0 of 380 |
+| After fast-forwarding | 1 of 380 |
+| After a city change | 0 of 380 |
+
+Fast-clock mornings: nobody stuck in any city.
+
+Regression (laptop), 13 suites, 155/155:
+
+| Suite | Result |
+|---|---|
+| `citylife` | passed |
+| `bigcities` | passed |
+| `sidestreets` | passed |
+| `danfo` | passed |
+| `streets` | passed |
+| `touch` | passed |
+| `convoys` | passed |
+| `vehicles` | passed |
+| `bodies` | passed |
+| `cities` | passed |
+| `ways` | passed |
+| `kerbs` | passed |
+| `input` | passed |
+
+**Test changes**
+- 3a's Lagos stall check now follows what each stall sells (suya spots are up at 10 pm).
+- 3b's 1 pm snapshot of buyers became a minutes-long watch, because a counter is now served in half a minute.
+- The "resumed" check accepts a stall visit that is already over (served, eating, or gone on).
+- The 3d lunch watch is 10 minutes. On the real clock a walk to a stall from across Aba Road takes minutes: 26 were on their way at once, and 2 arrived in a 4-minute window.
+
+**Known limits**
+- On the real clock a stall sees a customer only every few minutes (Port Harcourt served 1 in 10 minutes of lunch hour). Customers come from the people who live on the map, and their walks take minutes; nobody was added to make the stalls look busier.
+- In one run, a single Abuja walker out of 687 stood still on the zebra for 10 s in the fast-clock test. It did not recur in three replays or in the next three full runs. The test now records that walker's mode and speed if it does.
+- Abuja still has only its 2 hotel lounges for evenings out besides the suya spots, and no bukas. Port Harcourt has 4 hotels and Bole King.
+
+
 ## 7. Stage 3 design: daily routines and destinations (for approval, not built)
 
 Nothing in this section is built. It answers the stage 3 brief of 2026-11-13. The existing systems were inspected first, and the design extends them. It adds no second crowd, schedule or business system.
@@ -573,3 +679,16 @@ These belong to stages 4 and 5 of the plan:
 - story people with routines
 - tapping or talking to residents
 - horn reactions for people crossing
+
+## 8. Living City: where it stands (2026-11-14)
+
+All on `claude/next-steps`: nothing merged, deployed or published. Every measurement here is from the laptop. Nothing in stages 2 to 3d has been measured on the Samsung A16.
+
+| Stage | Commit | What it does |
+|---|---|---|
+| 1 | `bac38a9` | The crowd at three levels of detail: in view every frame, hidden every second frame, far every fourth |
+| 2 | `9219198` | Kerb waiting, crossing on the lights or a gap, cars stopping for walkers; no car ever on top of anyone |
+| 3a | `7bda73c` | Residents with homes, workplaces and days; the pavement network and routes; Lagos stalls open and shut |
+| 3b | `45c1bf1` | Lunch and errands; the Lagos network joined; the player's wall retry fixed |
+| 3c | `0fb4f05` | Home at real closing times; evenings out; night owls; plans across midnight; resuming after sleep, fast-forward and city change |
+| 3d | this commit | One stall system for all three cities; goods, food and suya; each city's trade and hours; queues and service |

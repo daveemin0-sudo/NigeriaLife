@@ -33,9 +33,22 @@ export const PLACE_HOURS = {
   club: { opens: 20, closes: 5 },
   // Places of work that keep working hours: taken on at any hour, but the work is done in these
   buildingSite: { opens: 7, closes: 18 },
-  // A street trader's umbrella stall: up in the morning, packed away at dusk
+  // A street trader's umbrella stall: up in the morning, packed away at dusk (Lagos's goods stalls; see STALL_HOURS)
   stall: { opens: 7, closes: 19 },
 } satisfies Record<string, OpeningHours>;
+
+/**
+ * Roadside stalls, by city and by what they sell: the one record of their hours.
+ *   Lagos: goods all day every day; akara and boli from six for the early commute; suya from five till one
+ *   Abuja: orderly and office-shaped: goods shut on Sunday, food stalls feed the ministries on weekdays,
+ *          suya is the evening trade and is done by midnight
+ *   Port Harcourt: Aba Road trades long, every day; roadside bole and fish till ten; suya till two
+ */
+export const STALL_HOURS: Record<string, Record<'goods' | 'food' | 'suya', OpeningHours>> = {
+  lagos: { goods: { opens: 7, closes: 19 }, food: { opens: 6, closes: 21 }, suya: { opens: 17, closes: 1 } },
+  abuja: { goods: { opens: 8, closes: 18, days: NOT_SUNDAY }, food: { opens: 9, closes: 17, days: WEEKDAYS }, suya: { opens: 17.5, closes: 24 } },
+  port_harcourt: { goods: { opens: 7, closes: 20 }, food: { opens: 7, closes: 22 }, suya: { opens: 16.5, closes: 2 } },
+};
 
 /**
  * The hours of a place that has none of its own, from what it is: a hospital, a police station,

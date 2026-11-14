@@ -20,7 +20,8 @@ import { hoursFor, isOpen, PLACE_HOURS, type OpeningHours } from '../../destinat
 // PLACES
 // ---------------------------------------------------------------------------------------------
 
-export type PlaceKind = 'office' | 'bank' | 'shop' | 'food' | 'market' | 'school' | 'site' | 'transit' | 'worship' | 'night' | 'stall' | 'hotel';
+/** stall: a goods stall; foodstall: a roadside food stall or a suya spot */
+export type PlaceKind = 'office' | 'bank' | 'shop' | 'food' | 'market' | 'school' | 'site' | 'transit' | 'worship' | 'night' | 'stall' | 'foodstall' | 'hotel';
 
 export interface PlaceInput {
   id: string;
@@ -48,6 +49,8 @@ export interface Place {
   yaw?: number;
   /** A stall's counter: where a customer stands to buy */
   front?: { x: number; z: number };
+  /** What a stall sells */
+  sells?: 'goods' | 'food' | 'suya';
 }
 
 /** What a door is, from its name and the category the game gives it. Null: nobody's destination (land, cars, cash machines, the player's homes). */
@@ -92,6 +95,7 @@ export function hoursOfKind(kind: PlaceKind, name: string): OpeningHours | undef
     case 'night':
       return hoursFor(name, 'Nightclub');
     case 'stall':
+    case 'foodstall':
       return PLACE_HOURS.stall;
     case 'worship':
     case 'hotel':
@@ -580,7 +584,7 @@ export const PROFILES: Record<string, CityProfile> = {
 /** The kinds of place each commuting role works at, in order of preference */
 const WORKS_AT: Partial<Record<Role, PlaceKind[]>> = {
   office: ['office', 'bank', 'hotel'],
-  trader: ['stall', 'market', 'shop', 'food'],
+  trader: ['stall', 'foodstall', 'market', 'shop', 'food'],
   artisan: ['site', 'transit', 'shop'],
   student: ['school', 'office'],
 };
@@ -613,11 +617,11 @@ export function workplaceOf(id: number, role: Role, places: readonly Place[], re
     const choices: number[] = [];
     places.forEach((p, i) => {
       // A stall has one trader
-      if (p.kind === kind && reach(p.node) && !(kind === 'stall' && taken.has(i))) choices.push(i);
+      if (p.kind === kind && reach(p.node) && !(p.stall !== undefined && taken.has(i))) choices.push(i);
     });
     if (!choices.length) continue;
     const pick = choices[Math.floor(hash01(id, 2) * choices.length)];
-    if (kind === 'stall') taken.add(pick);
+    if (places[pick].stall !== undefined) taken.add(pick);
     return pick;
   }
   return -1;
@@ -638,13 +642,13 @@ export interface Step {
 export type PlacePicker = (kinds: readonly PlaceKind[][], at: number, stay: number, salt: number) => number;
 
 /** Where people eat: a buka or a food stall first, then a market or a supermarket */
-const LUNCH: PlaceKind[][] = [['food', 'stall'], ['market', 'shop']];
+const LUNCH: PlaceKind[][] = [['food', 'foodstall'], ['market', 'shop']];
 /** Where a street walker pops into: a shop, a stall, a market, a buka */
-const ERRAND: PlaceKind[][] = [['shop', 'stall', 'market', 'food']];
+const ERRAND: PlaceKind[][] = [['shop', 'stall', 'foodstall', 'market', 'food']];
 /** Out of an evening: a buka, a bar or club, a hotel lounge */
-const EVENING: PlaceKind[][] = [['food', 'night', 'hotel']];
+const EVENING: PlaceKind[][] = [['food', 'foodstall', 'night', 'hotel']];
 /** Late, after the bukas shut: the clubs and the hotel bars */
-const LATE: PlaceKind[][] = [['night', 'hotel']];
+const LATE: PlaceKind[][] = [['night', 'hotel', 'foodstall']];
 
 /**
  * Someone's day, worked out afresh each morning from who they are and what is open. Commuters
@@ -656,7 +660,7 @@ export function planDay(id: number, role: Role, profile: CityProfile, work: Plac
   const j = (salt: number) => hash01(id, salt) - 0.5;
   const steps: Step[] = [];
   // Inside the door, or (a stall) at its counter; out of an evening, some stand about outside with friends
-  const visit = (index: number, outside = false): Step['kind'] => (places?.[index]?.kind === 'stall' ? 'buy' : outside ? 'hang' : 'in');
+  const visit = (index: number, outside = false): Step['kind'] => (places?.[index]?.stall !== undefined ? 'buy' : outside ? 'hang' : 'in');
   if (role in profile.out) {
     const [from, to] = profile.out[role as keyof CityProfile['out']];
     const out = from + j(3) * 1.5;
@@ -701,11 +705,13 @@ export function planDay(id: number, role: Role, profile: CityProfile, work: Plac
   if (h && !isOpen(h, Math.max(opens + 0.01, 0), weekday) && !isOpen(h, 12, weekday)) return steps;
   // Their working day: from when the place opens (or their own start) to when it actually closes.
   // A place that never shuts keeps its staff an ordinary day; students leave school mid-afternoon.
-  const start = Math.max(opens, role === 'student' ? 7.5 : role === 'artisan' ? 7 : 8);
-  const closes = h && h.closes > h.opens && h.closes <= 24 ? h.closes : null;
+  // (A stall's trader comes for its opening, whenever that is: six for the akara, five in the afternoon for suya)
+  const start = work.stall !== undefined ? opens : Math.max(opens, role === 'student' ? 7.5 : role === 'artisan' ? 7 : 8);
+  // (A place open past midnight, a suya spot till one, closes the next day: 25)
+  const closes = h && h.closes > h.opens && h.closes <= 24 ? h.closes : h && h.closes < h.opens ? 24 + h.closes : null;
   const end = role === 'student' ? Math.min(15, closes ?? 15) : closes ?? (role === 'trader' ? 19.5 : 17.5);
   const leave = start - profile.early * (0.5 + 0.25 * (j(5) + 0.5)) - Math.abs(j(6)) * profile.spread;
-  steps.push({ at: leave, kind: work.kind === 'stall' ? 'pitch' : 'in', place: workIndex });
+  steps.push({ at: leave, kind: work.stall !== undefined ? 'pitch' : 'in', place: workIndex });
   // Lunch, at their own time (the street does not all go at once), somewhere open near work; then
   // back to work. Traders keep their stall and their shop: they eat where they are.
   if (pick && role !== 'trader') {
@@ -716,10 +722,11 @@ export function planDay(id: number, role: Role, profile: CityProfile, work: Plac
       if (place >= 0) steps.push({ at: lunch, kind: visit(place), place }, { at: lunch + stay, kind: 'in', place: workIndex });
     }
   }
-  // Staff stay on a while after closing, never more than most of an hour; then home, or (some) out
-  // for the evening first: a buka, a bar, a hotel lounge, open for as long as they stay
-  const off = end + Math.min(0.9, profile.knockOff * (0.4 + j(7) + 0.5));
-  if (pick && role !== 'student' && hash01(id, 47) < profile.eveningOut && off < 22) {
+  // Staff stay on a while after closing, never more than most of an hour (a stall is packed up
+  // within a quarter of an hour); then home, or (some) out for the evening first: a buka, a bar,
+  // a hotel lounge, open for as long as they stay
+  const off = end + Math.min(work.stall !== undefined ? 0.25 : 0.9, profile.knockOff * (0.4 + j(7) + 0.5));
+  if (pick && role !== 'student' && work.stall === undefined && hash01(id, 47) < profile.eveningOut && off < 22) {
     const stay = 1 + Math.abs(j(48)) * 2.4;
     const place = pick(EVENING, off, stay, 48);
     if (place >= 0) {

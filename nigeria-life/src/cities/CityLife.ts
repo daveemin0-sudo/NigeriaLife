@@ -6,6 +6,79 @@ import { ABUJA_ROADS, PH_ROADS, gridTraffic, gridWalkRuns, junctionsOf, type Gri
 import type { Crossing } from '../world/population/CityPopulation';
 import { shareAbroad } from '../world/StreetLife';
 import type { CarBody, PersonBody } from '../world/Bodies';
+import { StreetStalls, type StallSells, type StallSpot } from '../world/street/StreetStalls';
+import type { OpeningHours } from '../destinations/Hours';
+
+/**
+ * Where each city's roadside traders set up: by the places that draw them (a market, the offices,
+ * a hotel's evening trade), on the building edge of the avenue's pavement. A believable few in
+ * orderly Abuja; Aba Road in Port Harcourt busy with them.
+ */
+interface StallAnchor {
+  /** The door they gather by (its name) */
+  near: RegExp;
+  sells: StallSells;
+  count: number;
+  /** How far up and down the pavement from the door they may stand, metres */
+  spread: number;
+}
+const STALL_ANCHORS: Record<'abuja' | 'port_harcourt', StallAnchor[]> = {
+  abuja: [
+    { near: /wuse farmers market/i, sells: 'goods', count: 3, spread: 18 },
+    { near: /^central area offices$/i, sells: 'food', count: 1, spread: 12 },
+    { near: /federal secretariat/i, sells: 'food', count: 1, spread: 12 },
+    { near: /central area supermarket/i, sells: 'food', count: 1, spread: 10 },
+    { near: /unity fountain hotel/i, sells: 'suya', count: 1, spread: 12 },
+    { near: /central area offices 2/i, sells: 'suya', count: 1, spread: 12 },
+  ],
+  // Aba Road: traders all along the market stretch, food by the offices and the motor park, suya
+  // by Bole King and the hotel of an evening
+  port_harcourt: [
+    { near: /mile 1 creek market/i, sells: 'goods', count: 8, spread: 42 },
+    { near: /aba road supermarket/i, sells: 'goods', count: 3, spread: 24 },
+    { near: /^aba road offices$/i, sells: 'food', count: 2, spread: 20 },
+    { near: /^aba road offices 2$/i, sells: 'food', count: 2, spread: 20 },
+    { near: /^aba road offices 3$/i, sells: 'food', count: 1, spread: 20 },
+    { near: /waterlines motor park, good/i, sells: 'food', count: 2, spread: 24 },
+    { near: /bole king/i, sells: 'suya', count: 2, spread: 30 },
+    { near: /garden city hotel/i, sells: 'suya', count: 2, spread: 18 },
+  ],
+};
+
+/** The roadside stalls of a city's avenue, placed by its anchors, clear of doors, crossings, side roads and each other */
+function roadsideStalls(city: 'abuja' | 'port_harcourt', streets: CityStreets, doors: ReadonlyArray<{ name: string; x: number; z: number }>): StallSpot[] {
+  const av = streets.avenue;
+  const narrow = av.walk < 3.2;
+  const edge = av.halfRoad + av.walk - (narrow ? 0.32 : 0.55);
+  const gaps = spineGaps(streets);
+  const spots: StallSpot[] = [];
+  const free = (x: number, z: number) =>
+    z > av.from + 8 && z < av.to - 8 &&
+    !streets.keepClear(x, z) &&
+    Math.abs(z - streets.crossing) > 5 &&
+    !gaps.some((g) => z > g.from - 3 && z < g.to + 3) &&
+    // Not in front of anyone's door, and not on top of another stall
+    !doors.some((d) => Math.sign(d.x) === Math.sign(x) && Math.abs(d.x) < av.halfRoad + av.walk + 6 && Math.abs(d.z - z) < 3.5) &&
+    !spots.some((s) => Math.sign(s.x) === Math.sign(x) && Math.abs(s.z - z) < 6);
+  for (const anchor of STALL_ANCHORS[city]) {
+    const door = doors.find((d) => anchor.near.test(d.name));
+    if (!door) continue;
+    const side = Math.sign(door.x) || 1;
+    const x = side * edge;
+    let placed = 0;
+    // Outward from the door, a few metres at a time, either way
+    for (let k = 1; placed < anchor.count && k * 3 <= anchor.spread; k++) {
+      for (const dir of [1, -1]) {
+        const z = door.z + dir * k * 3;
+        if (placed >= anchor.count || !free(x, z)) continue;
+        // Facing the road
+        spots.push({ x, z, yaw: side > 0 ? -Math.PI / 2 : Math.PI / 2, sells: anchor.sells, narrow });
+        placed++;
+      }
+    }
+  }
+  return spots;
+}
 
 /**
  * The life of Abuja's and Port Harcourt's streets: traffic on the avenue that keeps to the right
@@ -174,10 +247,14 @@ export class CityLife {
   public readonly crowd: CityPopulation;
 
   public readonly city: 'abuja' | 'port_harcourt';
+  /** The avenue's roadside stalls (set up once the city's doors are known) */
+  public stalls: StreetStalls | null = null;
+  private readonly streets: CityStreets;
 
   constructor(city: 'abuja' | 'port_harcourt') {
     this.city = city;
     const streets = STREETS[city];
+    this.streets = streets;
     this.group.name = `${city} street life`;
     this.group.userData.streetLife = true;
     this.traffic = new TrafficSpawner(null, [], trafficPlan(streets));
@@ -234,12 +311,21 @@ export class CityLife {
    * Stage 3: the crowd's people get their days, going to these doors (the city's own list) in the
    * hours they keep. Called by the city once its doors are all built.
    */
-  public giveLives(cityId: string, doors: ReadonlyArray<{ id: string; name: string; category: string; interactionPoint: THREE.Vector3; moving?: boolean }>, hoursOf?: (id: string) => import('../destinations/Hours').OpeningHours | undefined | null): void {
-    this.crowd.giveLives(
-      cityId,
-      doors.filter((o) => o.interactionPoint.y < 1.5 && !o.moving).map((o) => ({ id: o.id, name: o.name, category: o.category, x: o.interactionPoint.x, z: o.interactionPoint.z })),
-      hoursOf
-    );
+  public giveLives(cityId: string, doors: ReadonlyArray<{ id: string; name: string; category: string; interactionPoint: THREE.Vector3; moving?: boolean }>, hoursOf?: (id: string) => OpeningHours | undefined | null): void {
+    const ground = doors.filter((o) => o.interactionPoint.y < 1.5 && !o.moving).map((o) => ({ id: o.id, name: o.name, category: o.category, x: o.interactionPoint.x, z: o.interactionPoint.z }));
+    // The roadside stalls, kept by the city's own people (the crowd finds them traders)
+    const spots = roadsideStalls(this.city, this.streets, ground);
+    if (spots.length) {
+      this.stalls = new StreetStalls(spots);
+      this.group.add(this.stalls.group);
+      this.crowd.onStall = (i, open) => this.stalls?.setOpen(i, open);
+    }
+    this.crowd.giveLives(cityId, ground, hoursOf, undefined, undefined, spots);
+  }
+
+  /** What is solid of the street life: the stalls' tables (traffic and people are bodies, not things on the ground) */
+  public obstructions(): Array<{ owner: string; structure: boolean; height: number; minX: number; maxX: number; minZ: number; maxZ: number }> {
+    return (this.stalls?.boxes ?? []).map((b, i) => ({ owner: `Roadside stall #${i}`, structure: false, height: 1.1, ...b }));
   }
 
   /** Who is in the way here: people and vehicles near a point (for walking and driving) */

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { MaterialLibrary } from '../../materials/MaterialLibrary';
 import { seededRandom } from '../../graphics/MeshBaker';
 import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, type SideStreet } from './StreetLayout';
+import { StreetStalls, lagosStallSells, type StallSpot } from '../street/StreetStalls';
 
 // Occupancy bit flags
 const OBSTACLE = 1; // hand-built buildings, districts, props
@@ -84,7 +85,10 @@ export class CityFabric {
   public group = new THREE.Group();
   public walkRuns: WalkRun[] = [];
   public parkingSpots: StreetSpot[] = [];
-  public stallSpots: StreetSpot[] = [];
+  /** The roadside stalls, in the order they were placed: where, which way they face, what they sell */
+  public stallSpots: StallSpot[] = [];
+  /** The stalls themselves, drawn and opened and shut (shared with the other cities' stalls) */
+  public stallSet: StreetStalls | null = null;
   public buildingCount = 0;
   /** The ground each generated building stands on, for the city plan */
   public footprints: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; height: number }> = [];
@@ -106,14 +110,9 @@ export class CityFabric {
   private boxes: Inst[] = [];
   private cylinders: Inst[] = [];
   private hipRoofs: Inst[] = [];
-  private umbrellas: Inst[] = [];
   private signs: Array<Inst & { atlas: number }> = [];
 
   public facadeMats?: Record<FacadeKind, THREE.MeshStandardMaterial>;
-  public umbrellaMesh?: THREE.InstancedMesh | null;
-  private boxMesh?: THREE.InstancedMesh | null;
-  /** Each umbrella stall: its umbrella and its goods (instance numbers), to open it up or pack it away */
-  private stalls: Array<{ umbrella: number; goods: number; x: number; z: number; yaw: number; deep: number; open: boolean }> = [];
   /** Set once the street's people open and shut the stalls themselves (stage 3): night no longer hides the umbrellas */
   public stallsKept = false;
 
@@ -377,23 +376,13 @@ export class CityFabric {
 
   /** A stall on a narrow pavement is a shallower table, so people can still get past it. */
   private addUmbrellaStall(x: number, z: number, yaw: number, narrow = false): void {
-    const deep = narrow ? 0.6 : 0.8;
-    const canopy = [0xdc2626, 0x16a34a, 0xfacc15, 0x2563eb, 0xf97316, 0xffffff, 0xdb2777];
-    this.cylinders.push({ m: this.mat(x, 0, z, 0.07, 2.3, 0.07), c: new THREE.Color(0x4b5563) });
-    this.umbrellas.push({
-      m: this.mat(x, 2.1, z, 1.25, 0.55, 1.25, this.rand() * Math.PI),
-      c: new THREE.Color(this.pick(canopy)),
-    });
-    // Wooden table stacked with goods
-    this.boxes.push({ m: this.mat(x, 0.28, z, 1.3, 0.7, deep, yaw), c: new THREE.Color(0x8b5a2b) });
-    const goods = [0xf59e0b, 0xef4444, 0x22c55e, 0xfde047, 0xf8fafc];
-    this.stalls.push({ umbrella: this.umbrellas.length - 1, goods: this.boxes.length, x, z, yaw, deep, open: true });
-    this.boxes.push({ m: this.mat(x, 0.98, z, 1.05, 0.22, deep - 0.2, yaw), c: new THREE.Color(this.pick(goods)) });
-    this.stallSpots.push({ x, z, yaw });
-    // The table, whichever way it is turned
-    const alongX = Math.abs(Math.cos(yaw)) > 0.5;
-    const half = deep / 2;
-    this.stallBoxes.push({ minX: x - (alongX ? 0.65 : half), maxX: x + (alongX ? 0.65 : half), minZ: z - (alongX ? half : 0.65), maxZ: z + (alongX ? half : 0.65) });
+    // (The street's own random numbers are drawn here in the order they always were, so everything
+    // after a stall in the street comes out as before; the stall itself is drawn by StreetStalls)
+    const spin = this.rand() * Math.PI;
+    const canopy = this.pick([0xdc2626, 0x16a34a, 0xfacc15, 0x2563eb, 0xf97316, 0xffffff, 0xdb2777]);
+    const goods = this.pick([0xf59e0b, 0xef4444, 0x22c55e, 0xfde047, 0xf8fafc]);
+    const sells = lagosStallSells(this.stallSpots.length);
+    this.stallSpots.push({ x, z, yaw, narrow, sells, spin, canopy: sells === 'suya' ? undefined : canopy, goods });
   }
 
   /** Zebra crossings on all four arms of the Broad Street / Martins Street junction */
@@ -672,7 +661,6 @@ export class CityFabric {
     const unitPlane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     const unitCylinder = new THREE.CylinderGeometry(0.5, 0.5, 1, 10).translate(0, 0.5, 0);
     const unitHip = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0);
-    const unitUmbrella = new THREE.ConeGeometry(1, 1, 8, 1).translate(0, 0.5, 0);
 
     // --- Streets ---
     const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x3b3f47, roughness: 0.94 });
@@ -734,16 +722,13 @@ export class CityFabric {
 
     // --- Roofs, trim and street furniture ---
     const trimMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
-    this.boxMesh = this.instanced(unitBox, trimMat, this.boxes, false, true);
+    this.instanced(unitBox, trimMat, this.boxes, false, true);
     this.instanced(unitCylinder, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), this.cylinders, false, false);
     this.instanced(unitHip, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }), this.hipRoofs, true, false);
-    this.umbrellaMesh = this.instanced(
-      unitUmbrella,
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide, flatShading: true }),
-      this.umbrellas,
-      true,
-      false
-    );
+    // The roadside stalls, and what is solid of them (their tables)
+    this.stallSet = new StreetStalls(this.stallSpots);
+    this.group.add(this.stallSet.group);
+    this.stallBoxes.push(...this.stallSet.boxes);
 
     this.commitSigns();
   }
@@ -1027,44 +1012,23 @@ export class CityFabric {
         mat.emissiveIntensity = intensity;
       }
     }
-    if (this.umbrellaMesh && !this.stallsKept) {
-      this.umbrellaMesh.visible = !isNight;
-    }
+    // (Before the street's people kept the stalls, night simply hid them all)
+    if (this.stallSet && !this.stallsKept) this.stallSet.group.visible = !isNight;
   }
 
-  /** How many umbrella stalls the street has, in the order of `stallSpots` */
+  /** How many roadside stalls the street has, in the order of `stallSpots` */
   public get stallCount(): number {
-    return this.stalls.length;
+    return this.stallSet?.count ?? 0;
   }
 
   public isStallOpen(i: number): boolean {
-    return this.stalls[i]?.open ?? false;
+    return this.stallSet?.isOpen(i) ?? false;
   }
 
-  /**
-   * Opens a stall up (umbrella out, goods on the table) or packs it away (umbrella furled on its
-   * pole, a tarpaulin tied over the table). Two instance writes; done when its trader arrives or leaves.
-   */
+  /** Opens a stall up or packs it away: done when its trader arrives or leaves */
   public setStallOpen(i: number, open: boolean): void {
-    const st = this.stalls[i];
-    if (!st || st.open === open || !this.umbrellaMesh || !this.boxMesh) return;
-    st.open = open;
-    if (open) {
-      this.umbrellaMesh.setMatrixAt(st.umbrella, this.umbrellas[st.umbrella].m);
-      this.boxMesh.setMatrixAt(st.goods, this.boxes[st.goods].m);
-      if (this.boxes[st.goods].c) this.boxMesh.setColorAt(st.goods, this.boxes[st.goods].c!);
-    } else {
-      this.umbrellaMesh.setMatrixAt(st.umbrella, this.mat(st.x, 1.2, st.z, 0.13, 1.15, 0.13));
-      this.boxMesh.setMatrixAt(st.goods, this.mat(st.x, 0.97, st.z, 1.4, 0.1, st.deep + 0.1, st.yaw));
-      this.boxMesh.setColorAt(st.goods, CityFabric.TARP);
-    }
-    this.umbrellaMesh.instanceMatrix.needsUpdate = true;
-    this.boxMesh.instanceMatrix.needsUpdate = true;
-    if (this.boxMesh.instanceColor) this.boxMesh.instanceColor.needsUpdate = true;
-    this.umbrellaMesh.visible = true;
+    this.stallSet?.setOpen(i, open);
   }
-
-  private static readonly TARP = new THREE.Color(0x1d4ed8);
 
   /** All shop signboards share one atlas texture; each instance picks its cell in the shader */
   private commitSigns(): void {

@@ -140,6 +140,8 @@ export class AbujaCity implements CityInstance {
     this.group.add(this.life.group);
     // Stage 3: the crowd's people go to these doors, in the hours the doors keep
     this.life.giveLives('abuja', this.interactiveList, (id) => InteriorManager.getInstance().hoursOfDoor(id));
+    // Its roadside stalls' tables stand on the pavement: walked round, not through
+    this.standing.push(...this.life.obstructions());
 
     this.registerCityActions();
   }

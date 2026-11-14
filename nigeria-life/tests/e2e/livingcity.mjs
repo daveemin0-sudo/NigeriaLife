@@ -209,12 +209,17 @@ export async function run(browser, check) {
       const stalls = crowd.stallUp.length;
       const stallsUp = crowd.stallUp.filter(Boolean).length;
       const fabricUp = city === 'lagos' ? crowd.stallUp.filter((_, i) => w.cityDensity.fabric.isStallOpen(i)).length : 0;
+      const stallPlaces = crowd.places.filter((pl) => pl.stall !== undefined);
+      const dayStalls = stallPlaces.filter((pl) => pl.sells !== 'suya');
+      const dayStallsUp = dayStalls.filter((pl) => crowd.stallUp[pl.stall]).length;
+      const suyaUp = stallPlaces.filter((pl) => pl.sells === 'suya' && crowd.stallUp[pl.stall]).length;
+      const suyaCount = stallPlaces.filter((pl) => pl.sells === 'suya').length;
       // Out for lunch or an errand: in a place that is not their work, or at a stall's counter, or on the way to one
-      const away = residents.filter((a) => a.life.state === 'buy' || (a.life.state === 'in' && a.life.place !== a.life.work) || (a.life.state === 'going' && (a.life.then === 'buy' || (a.life.then === 'in' && a.life.place !== a.life.work))));
+      const away = residents.filter((a) => a.life.state === 'buy' || a.life.state === 'eat' || (a.life.state === 'in' && a.life.place !== a.life.work) || (a.life.state === 'going' && (a.life.then === 'buy' || (a.life.then === 'in' && a.life.place !== a.life.work))));
       const visitShut = away.filter((a) => a.life.state !== 'going' && !crowd.openAt(crowd.places[a.life.place], hour)).length;
       const buying = residents.filter((a) => a.life.state === 'buy').length;
       const serving = residents.filter((a) => a.life.state === 'pitch' && a.mode === 'talk').length;
-      const servedStalls = crowd.buyers.filter((n) => n > 0).length;
+      const servedStalls = crowd.queues.filter((q) => q.length > 0).length;
       // Those whose plan has them back at their own work now, and how many are (in, or on the way)
       const back = commuters.filter((a) => {
         const plan = a.life.plan;
@@ -223,7 +228,7 @@ export async function run(browser, check) {
         return k > 1 && plan[k].kind === 'in' && plan[k].place === a.life.work;
       });
       const backAtWork = back.filter((a) => (a.life.state === 'in' && a.life.place === a.life.work) || a.life.state === 'going').length;
-      return { hour, state, out: crowd.outNow, due: due.length, atWork, inShut, stalls, stallsUp, fabricUp, away: away.length, visitShut, buying, serving, servedStalls, back: back.length, backAtWork, ms };
+      return { hour, state, out: crowd.outNow, due: due.length, atWork, inShut, stalls, stallsUp, fabricUp, dayStalls: dayStalls.length, dayStallsUp, suyaUp, suyaCount, away: away.length, visitShut, buying, serving, servedStalls, back: back.length, backAtWork, ms };
     };
     const night = at(3);
     const work = at(10.5);
@@ -252,7 +257,7 @@ export async function run(browser, check) {
     for (const [a, [x, z]] of was) {
       if (a.life.state === 'going' && a.xing?.phase !== 'wait' && Math.hypot(a.x - x, a.z - z) < 0.5) {
         stuck++;
-        if (stuckAt.length < 3) stuckAt.push({ x: +a.x.toFixed(1), z: +a.z.toFixed(1), xing: a.xing?.phase ?? null, blocked: a.xing?.blocked ?? null, node: a.life.node, wnode: a.life.wnode, goal: a.life.goal, then: a.life.then, w: [+a.life.wx.toFixed(1), +a.life.wz.toFixed(1)] });
+        if (stuckAt.length < 3) stuckAt.push({ mode: a.mode, speed: +a.speed.toFixed(2), crossing: crowd.crossers.has(a), x: +a.x.toFixed(1), z: +a.z.toFixed(1), xing: a.xing?.phase ?? null, blocked: a.xing?.blocked ?? null, node: a.life.node, wnode: a.life.wnode, goal: a.life.goal, then: a.life.then, w: [+a.life.wx.toFixed(1), +a.life.wz.toFixed(1)] });
       }
     }
     const morning = { setOut: crowd.setOut - s0, arrived: crowd.arrived - a0, stuck, stuckAt };
@@ -292,11 +297,12 @@ export async function run(browser, check) {
   };
   const lagosDay = await dayOf();
   dayCheck('Lagos', lagosDay);
-  check('livingcity: Lagos stalls: all packed away at 3 am and 10 pm, put up by their traders by 10:30 (as drawn, not only as counted)',
-    lagosDay.night.stalls >= 10 && lagosDay.night.stallsUp === 0 && lagosDay.late.stallsUp === 0 && lagosDay.work.stallsUp >= lagosDay.work.stalls * 0.9 && lagosDay.work.fabricUp === lagosDay.work.stallsUp,
+  check('livingcity: Lagos stalls: all packed away at 3 am; the goods and food stalls up by 10:30 and packed away by 10 pm; the suya spots shut by day and up at 10 pm (as drawn, not only as counted)',
+    lagosDay.night.stalls >= 10 && lagosDay.night.stallsUp === 0 && lagosDay.work.dayStallsUp >= lagosDay.work.dayStalls * 0.9 && lagosDay.work.suyaUp === 0 &&
+      lagosDay.late.dayStallsUp === 0 && lagosDay.late.suyaUp === lagosDay.late.suyaCount && lagosDay.work.fabricUp === lagosDay.work.stallsUp,
     { night: lagosDay.night, work: lagosDay.work, late: lagosDay.late });
-  check('livingcity: Lagos at 1 pm: people buy at the stalls, and the traders serve them (a trader with someone at the counter is busy serving)',
-    lagosDay.midday.buying > 0 && lagosDay.midday.serving >= lagosDay.midday.servedStalls - 1 && lagosDay.midday.servedStalls > 0, lagosDay.midday);
+  check('livingcity: Lagos at 1 pm: a trader with someone at the counter is serving them (the stage 3d checks watch the counters over minutes)',
+    lagosDay.midday.serving >= lagosDay.midday.servedStalls - 1, lagosDay.midday);
 
   // ------------------------------------------------------------------ Stage 3c: evening and night
   // The same pinned Wednesday. Each hour is jumped to (as sleeping does), then the street run.
@@ -329,7 +335,7 @@ export async function run(browser, check) {
       const ms = +((performance.now() - t0) / 60).toFixed(3);
       const visible = crowd.agents.filter((a) => crowd.isOut(a, a.id));
       // Out of an evening: inside, or standing about outside, a buka, a bar or club, a hotel lounge
-      const atVenue = residents.filter((a) => (a.life.state === 'in' || a.life.state === 'hang') && a.life.place !== a.life.work && ['food', 'night', 'hotel'].includes(crowd.places[a.life.place]?.kind));
+      const atVenue = residents.filter((a) => (a.life.state === 'in' || a.life.state === 'hang' || a.life.state === 'buy' || a.life.state === 'eat') && a.life.place !== a.life.work && ['food', 'foodstall', 'night', 'hotel'].includes(crowd.places[a.life.place]?.kind));
       const shut = residents.filter((a) => (a.life.state === 'in' || a.life.state === 'hang' || a.life.state === 'buy') && a.life.place !== a.life.work && !crowd.openAt(crowd.places[a.life.place], h)).length;
       const outside = residents.filter((a) => a.life.state === 'hang').length;
       const owlsOut = owls.filter((a) => a.life.state !== 'home').length;
@@ -378,7 +384,8 @@ export async function run(browser, check) {
       const step = k >= 0 ? l.plan[k] : { kind: 'home', at: -99 };
       const place = step.place !== undefined ? crowd.places[step.place] : null;
       const shut = place && (step.kind === 'in' || step.kind === 'hang' || step.kind === 'buy') && !crowd.openAt(place, hour);
-      const ok = l.state === step.kind || (l.state === 'going' && hour - step.at < 1) || (shut && (l.state === 'home' || l.state === 'stroll' || l.state === 'going'))
+      const atStall = step.kind === 'buy' && ['buy', 'eat', 'going', 'stroll', 'in', 'home'].includes(l.state);
+      const ok = l.state === step.kind || atStall || (l.state === 'going' && hour - step.at < 1) || (shut && (l.state === 'home' || l.state === 'stroll' || l.state === 'going'))
         || (l.state === 'going' && step.kind === 'home') || (l.work < 0 && crowd.lastSeen.has(a)) || (step.kind === 'in' && place && l.state === 'in');
       if (!ok) {
         wrong += 1;
@@ -410,6 +417,109 @@ export async function run(browser, check) {
     const r = await crossings(21, 120);
     check('livingcity: Lagos at 9 pm, two minutes of the street: no moving vehicle is ever on top of someone crossing, and almost nobody gives up', r.hits === 0 && r.gaveUp <= Math.max(4, r.crossed * 0.08), r);
   }
+  // ------------------------------------------------------------------ Stage 3d: roadside trading
+  // The stalls of each city: what they sell, who keeps them, when they are up, and the customers
+  // who come, wait at the counter, are served and go (or eat beside a food stall first).
+  const stallsOf = () => page.evaluate(() => {
+    const g = window.game;
+    const w = g.world;
+    const city = w.cityManager.currentCityId;
+    const life = city === 'lagos' ? null : w.cityManager.lifeHere();
+    const crowd = life ? life.crowd : w.cityPopulation;
+    const drawn = (i) => (city === 'lagos' ? w.cityDensity.fabric.isStallOpen(i) : life.stalls?.isOpen(i));
+    const p = g.player.position;
+    const frustum = w.frustumNow();
+    const cal = g.modules.Hours.calendar;
+    const realWeekday = cal.weekday;
+    const stalls = crowd.places.filter((pl) => pl.stall !== undefined);
+    const bySells = {};
+    for (const s of stalls) bySells[s.sells] = (bySells[s.sells] ?? 0) + 1;
+    const unkept = stalls.filter((s) => !crowd.agents.some((a) => a.life?.work === crowd.places.indexOf(s))).length;
+    const DAY = 100;
+    // Through a day and the night after, each hour jumped to: a stall is up only in its hours, and up when it should be
+    const hours = [6.5, 10.5, 13, 18.5, 19.5, 21.5, 23, 24.5, 25.5, 27];
+    const day = hours.map((hour) => {
+      const d = hour >= 24 ? DAY + 1 : DAY;
+      const h = hour >= 24 ? hour - 24 : hour;
+      const wd = hour >= 24 ? 4 : 3;
+      cal.weekday = () => wd;
+      crowd.setClock(h, d, 0);
+      for (let k = 0; k < 30; k++) { crowd.setClock(h + k / 30 / 3600, d, 1 / 30); crowd.update(1 / 30, p, frustum); }
+      const upShut = stalls.filter((s) => crowd.stallUp[s.stall] && !crowd.openAt(s, h, wd)).length;
+      const due = stalls.filter((s) => crowd.openAt(s, h, wd));
+      const dueUp = due.filter((s) => crowd.stallUp[s.stall]).length;
+      const drawnWrong = stalls.filter((s) => !!drawn(s.stall) !== !!crowd.stallUp[s.stall]).length;
+      const up = {};
+      for (const s of stalls) if (crowd.stallUp[s.stall]) up[s.sells] = (up[s.sells] ?? 0) + 1;
+      return { hour, up, upShut, due: due.length, dueUp, drawnWrong };
+    });
+    // Customers, minute by minute in real time: at lunch, and of an evening at the suya spots
+    const watch = (hour, minutes) => {
+      cal.weekday = () => 3;
+      crowd.setClock(hour, DAY + 2, 0);
+      const s0 = crowd.served;
+      const atCounterSince = new Map();
+      const waited = [];
+      let served = 0;
+      let leftEating = 0;
+      let leftGoing = 0;
+      let atShut = 0;
+      let notServing = 0;
+      let samples = 0;
+      const frames = minutes * 60 * 30;
+      for (let k = 0; k < frames; k++) {
+        crowd.setClock(hour + k / 30 / 3600, DAY + 2, 1 / 30);
+        crowd.update(1 / 30, p, frustum);
+        for (const a of crowd.agents) {
+          const l = a.life;
+          if (!l) continue;
+          if (l.state === 'buy') {
+            if (!atCounterSince.has(a)) atCounterSince.set(a, k);
+            const pl = crowd.places[l.place];
+            if (pl?.stall !== undefined && !crowd.stallUp[pl.stall] && k % 30 === 0) atShut++;
+          } else if (atCounterSince.has(a)) {
+            waited.push((k - atCounterSince.get(a)) / 30);
+            atCounterSince.delete(a);
+            served++;
+            if (l.state === 'eat') leftEating++;
+            else if (l.state === 'going') leftGoing++;
+          }
+        }
+        // A trader with someone at the counter is serving them
+        if (k % 30 === 0) {
+          crowd.queues.forEach((q, i) => {
+            if (!q.length) return;
+            samples++;
+            const trader = crowd.agents.find((a) => a.life?.state === 'pitch' && crowd.places[a.life.place]?.stall === i);
+            if (trader && trader.mode !== 'talk') notServing++;
+          });
+        }
+      }
+      return { hour, servedCount: crowd.served - s0, left: served, leftEating, leftGoing, waitedMin: waited.length ? +Math.min(...waited).toFixed(1) : null, atShut, notServing, samples, longest: crowd.longestQueue };
+    };
+    // (Ten minutes of lunch hour on the real clock: a walk to a stall from across the avenue takes minutes)
+    const lunch = watch(13, 10);
+    const evening = watch(19.75, 4);
+    cal.weekday = realWeekday;
+    return { city, agents: crowd.agents.length, stalls: stalls.length, bySells, unkept, day, lunch, evening, hours: g.modules.Hours.STALL_HOURS[city] };
+  });
+  const stallCheck = (name, d, want) => {
+    stallDays[name] = d;
+    check(`livingcity: ${name}: ${want.text}`, want.ok(d), { stalls: d.stalls, bySells: d.bySells, unkept: d.unkept, agents: d.agents });
+    const wrong = d.day.filter((x) => x.upShut > 0 || x.dueUp < x.due * 0.9 || x.drawnWrong > 0);
+    check(`livingcity: ${name}, a day and the night after: a stall is up only in its own hours, up when it should be, and drawn as it is (through midnight and on to 3 am)`,
+      wrong.length === 0, d.day);
+    check(`livingcity: ${name}: customers come to the stalls, wait at the counter to be served, and go (eating beside a food stall, or on their way), never at a stall that is shut, and the trader serves whoever is at the counter`,
+      d.lunch.servedCount + d.evening.servedCount > 0 && d.lunch.left + d.evening.left > 0 && (d.lunch.waitedMin ?? 99) >= 10 && (d.evening.waitedMin ?? 99) >= 10 &&
+        d.lunch.atShut + d.evening.atShut === 0 && d.lunch.notServing + d.evening.notServing === 0 && Math.max(d.lunch.longest, d.evening.longest) <= 5,
+      { lunch: d.lunch, evening: d.evening });
+  };
+  const stallDays = {};
+  stallCheck('Lagos', await stallsOf(), {
+    text: 'its 20 side-street stalls kept as before, now goods, food and suya spots, each with its own trader; nobody was added to the crowd (the all-day customers are gone: real ones come and go)',
+    ok: (d) => d.stalls === 20 && d.bySells.goods > 0 && d.bySells.food > 0 && d.bySells.suya > 0 && d.unkept === 0 && d.agents === 440,
+  });
+
   // After sleeping: from 11 pm to 7:30 the next morning in one jump, and after fast-forwarding 4 pm to 8 pm on the fast clock
   // (Each jump and its check in one go: between calls the game's own loop sets the crowd's clock)
   const afterSleep = await page.evaluate(() => {
@@ -449,6 +559,17 @@ export async function run(browser, check) {
     crossCheck(name, await crossings(13, 120));
     dayCheck(name, await dayOf());
     nightCheck(name, await nightOf());
+    stallCheck(name, await stallsOf(), city === 'abuja'
+      ? { text: 'a believable few roadside stalls (by the market, the offices and the hotels: goods, food and suya), each kept by one of its own people; nobody added to the crowd', ok: (d) => d.stalls >= 6 && d.stalls <= 12 && d.bySells.goods > 0 && d.bySells.food > 0 && d.bySells.suya > 0 && d.unkept === 0 && d.agents === 499 }
+      : { text: 'Aba Road busy with roadside trade (goods along the market stretch, food by the offices and the motor park, suya by Bole King and the hotel), each kept by one of its own people; nobody added to the crowd', ok: (d) => d.stalls >= 14 && d.bySells.goods >= 8 && d.bySells.food > 0 && d.bySells.suya > 0 && d.unkept === 0 && d.agents === 696 });
+  }
+  {
+    const [L, A, P] = [stallDays.Lagos, stallDays.Abuja, stallDays['Port Harcourt']];
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    check('livingcity: each city trades its own way: different stall hours in each, Port Harcourt with more stalls than Abuja, and Abuja\'s suya done by midnight while Lagos\'s and Port Harcourt\'s go on past it',
+      !same(L.hours, A.hours) && !same(L.hours, P.hours) && !same(A.hours, P.hours) && P.stalls > A.stalls &&
+        (A.day.find((x) => x.hour === 24.5).up.suya ?? 0) === 0 && (L.day.find((x) => x.hour === 24.5).up.suya ?? 0) > 0 && (P.day.find((x) => x.hour === 24.5).up.suya ?? 0) > 0,
+      { hours: { lagos: L.hours, abuja: A.hours, port_harcourt: P.hours }, stalls: [L.stalls, A.stalls, P.stalls] });
   }
   // Each city its own day: Abuja a city of offices that empties early, Port Harcourt of trades and shifts
   const share = (d, role) => (d.roles[role] ?? 0) / d.walkers;

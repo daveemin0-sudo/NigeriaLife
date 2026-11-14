@@ -6,7 +6,8 @@ import type { StreetSpot, WalkRun } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_JUNCTION_GAPS, MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
 import { isAbroad } from '../StreetLife';
 import { Bodies, type PersonBody } from '../Bodies';
-import { calendar, isOpen, type OpeningHours } from '../../destinations/Hours';
+import { calendar, isOpen, STALL_HOURS, type OpeningHours } from '../../destinations/Hours';
+import type { StallSpot } from '../street/StreetStalls';
 import { WalkNetwork, PROFILES, hash01, hoursOfKind, kindOf, planDay, roleOf, workplaceOf, type CityProfile, type Place, type PlaceInput, type PlaceKind, type PlacePicker, type Role, type Step } from './Routines';
 
 type Mode = 'walk' | 'idle' | 'talk';
@@ -95,7 +96,7 @@ interface Life {
   step: number;
   /** When the current step began and the next begins (hours on the plan's clock) */
   nextAt: number;
-  state: 'home' | 'going' | 'in' | 'pitch' | 'stroll' | 'buy' | 'hang';
+  state: 'home' | 'going' | 'in' | 'pitch' | 'stroll' | 'buy' | 'hang' | 'eat';
   /** Walking: the node they last reached, the node they are making for, and what they do there */
   node: number;
   goal: number;
@@ -110,6 +111,10 @@ interface Life {
   /** A street walker's own pavement, to come back out onto (and the network point nearest it) */
   own?: { x: number; z: number; axis: 'x' | 'z'; min: number; max: number; main: boolean; run?: number };
   ownNode: number;
+  /** At a stall: seconds of being served still to come (counted only once at the front of the queue) */
+  serve?: number;
+  /** Eating beside a food stall: seconds left before they move on */
+  eat?: number;
 }
 
 /** Commuters, who have somewhere to be; everyone else walks the streets in their hours */
@@ -293,11 +298,14 @@ export class CityPopulation {
   private clockRate = 1;
   /** Stalls up now (their trader is at them), by stall number */
   private stallUp: boolean[] = [];
-  /** How many are at each stall's counter now: its trader serves while there are any */
-  private buyers: number[] = [];
+  /** Who is at each stall's counter, in the order they came: the first is served, the rest wait */
+  private queues: Agent[][] = [];
+  /** How many have been served at a stall since the city was made, and the longest queue seen (for tests) */
+  public served = 0;
+  public longestQueue = 0;
   /** How many lunches and errands have been begun since the city was made (for tests) */
   public visits = 0;
-  private stallSpots: StreetSpot[] = [];
+  private stallSpots: Array<StreetSpot & { sells?: StallSpot['sells'] }> = [];
   /** Told when a stall is opened up or packed away (the street draws it) */
   public onStall: ((stall: number, open: boolean) => void) | null = null;
   /** In the draw range this turn (people far off cross roads without waiting, and walk at the clock's pace) */
@@ -614,9 +622,8 @@ export class CityPopulation {
       const fx = Math.sin(stall.yaw);
       const fz = Math.cos(stall.yaw);
       this.addAgent({ mode: 'idle', x: stall.x - fx * 0.75, z: stall.z - fz * 0.75, yaw: stall.yaw, stall: index });
-      if (this.rand() < 0.6) {
-        this.addAgent({ mode: 'talk', x: stall.x + fx * 0.95, z: stall.z + fz * 0.95, yaw: stall.yaw + Math.PI, stallOf: index });
-      }
+      // (No customer stands at it all day any more: since stage 3d the street's own people come, queue,
+      // are served and go)
     });
   }
 
@@ -665,7 +672,7 @@ export class CityPopulation {
   /** Out in the street now: by their own day if they have one, else by the hour's share */
   private isOut(a: Agent, i: number): boolean {
     const l = a.life;
-    if (l) return l.state === 'going' || l.state === 'pitch' || l.state === 'stroll' || l.state === 'buy' || l.state === 'hang';
+    if (l) return l.state === 'going' || l.state === 'pitch' || l.state === 'stroll' || l.state === 'buy' || l.state === 'hang' || l.state === 'eat';
     if (a.stallOf !== undefined) return this.stallUp[a.stallOf] ?? true;
     return isAbroad(i, this.abroad);
   }
@@ -900,9 +907,15 @@ export class CityPopulation {
     doors: ReadonlyArray<PlaceInput>,
     hoursOf?: (id: string) => OpeningHours | undefined | null,
     clear?: (x1: number, z1: number, x2: number, z2: number) => boolean,
-    traffic?: (x1: number, z1: number, x2: number, z2: number) => boolean
+    traffic?: (x1: number, z1: number, x2: number, z2: number) => boolean,
+    /** A city's roadside stalls, where its crowd has no traders of its own at them (Abuja, Port Harcourt) */
+    stalls?: readonly StallSpot[]
   ): void {
     const profile = PROFILES[cityId] ?? PROFILES.lagos;
+    if (stalls?.length) {
+      this.stallSpots = [...stalls];
+      this.stallUp = stalls.map(() => true);
+    }
     this.profile = profile;
     const net = new WalkNetwork({ runs: this.runs, links: this.links, avenue: this.plan.avenue, gaps: this.plan.gaps ?? [], zebras: this.plan.zebras ?? [], clear, traffic });
     const places: Array<Omit<Place, 'node'>> = [];
@@ -928,7 +941,11 @@ export class CityPopulation {
       stallPlace[i] = -1;
       if (!net.addPlace(x, z, places.length)) return;
       stallPlace[i] = places.length;
-      places.push({ id: `stall-${i}`, name: 'Umbrella stall', kind: 'stall', x, z, hours: hoursOfKind('stall', ''), stall: i, yaw: spot.yaw, front: { x: spot.x + fx * 0.95, z: spot.z + fz * 0.95 } });
+      // Its hours: what it sells, in this city (the one record of stall hours)
+      const sells = spot.sells ?? 'goods';
+      const hours = STALL_HOURS[cityId]?.[sells] ?? hoursOfKind('stall', '');
+      const name = sells === 'suya' ? 'Suya spot' : sells === 'food' ? 'Roadside food' : 'Roadside stall';
+      places.push({ id: `stall-${i}`, name, kind: sells === 'goods' ? 'stall' : 'foodstall', sells, x, z, hours, stall: i, yaw: spot.yaw, front: { x: spot.x + fx * 0.95, z: spot.z + fz * 0.95 } });
     });
     const nodes = net.finish();
     this.network = net;
@@ -985,9 +1002,28 @@ export class CityPopulation {
         ownNode: COMMUTER.has(role) ? -1 : net.nearest(a.x, a.z),
       };
     }
-    // Who is at each stall's counter (the regulars who stand there all day count as one each)
-    this.buyers = this.stallSpots.map(() => 0);
-    for (const a of this.agents) if (a.stallOf !== undefined) this.buyers[a.stallOf] += 1;
+    // A stall with no trader of its own is kept by one of the street's people: a trader by role if
+    // one is free, else someone who walked the streets (nobody is added to the crowd for it)
+    const kept = new Set<number>();
+    for (const a of this.agents) if (a.life && a.life.work >= 0 && this.places[a.life.work].stall !== undefined) kept.add(a.life.work);
+    const spare = this.agents.filter((a) => a.life && a.stall === undefined && (a.life.work < 0 || this.places[a.life.work].stall === undefined));
+    spare.sort((p, q) => Number(q.life!.role === 'trader') - Number(p.life!.role === 'trader') || hash01(p.id, 12) - hash01(q.id, 12));
+    this.places.forEach((p, i) => {
+      if (p.stall === undefined || kept.has(i)) return;
+      const ways = homesOf(p.node);
+      const a = spare.find((s) => ways.length && (s.life!.role === 'trader' || s.life!.role === 'idler' || s.life!.role === 'hawker'));
+      if (!a || !ways.length) return;
+      spare.splice(spare.indexOf(a), 1);
+      const l = a.life!;
+      l.role = 'trader';
+      l.work = i;
+      l.home = ways[Math.floor(hash01(a.id, 9) * ways.length)];
+      l.state = 'home';
+      l.own = undefined;
+      l.ownNode = -1;
+      kept.add(i);
+    });
+    this.queues = this.stallSpots.map(() => []);
     // A kept stall is packed away until its trader comes and puts it up
     stallPlace.forEach((p, i) => {
       if (p < 0) return;
@@ -1045,13 +1081,13 @@ export class CityPopulation {
     const place = placeIndex >= 0 ? this.places[placeIndex] : undefined;
 
     if (!COMMUTER.has(l.role)) {
-      const busy = l.state === 'going' || l.state === 'in' || l.state === 'buy' || l.state === 'hang';
+      const busy = l.state === 'going' || l.state === 'in' || l.state === 'buy' || l.state === 'hang' || l.state === 'eat';
       // An errand, or the evening out: from their pavement (or the last place) to a shop, a stall, a buka or a bar
       if ((step.kind === 'in' || step.kind === 'buy' || step.kind === 'hang') && place) {
         l.step = want;
         if (jump || l.state === 'home') {
           if (jump) {
-            this.placeAt(a, l, step.kind, placeIndex);
+            this.placeAt(a, l, step.kind, placeIndex, step.at);
             this.stillOnTheWay(a, l, want, step.kind, placeIndex);
           }
           return;
@@ -1087,12 +1123,14 @@ export class CityPopulation {
     l.step = want;
     if (jump) {
       const kind = step.kind === 'in' || step.kind === 'pitch' || step.kind === 'buy' || step.kind === 'hang' ? step.kind : 'home';
-      this.placeAt(a, l, kind, placeIndex);
+      this.placeAt(a, l, kind, placeIndex, step.at);
       // Set out only minutes ago: still on the way, part-way along their route
       if (want >= 0) this.stillOnTheWay(a, l, want, kind, placeIndex);
       return;
     }
     const elsewhere = !!place && placeIndex !== l.work;
+    // Back at work already (a quick errand that ended early): nothing to do
+    if (!elsewhere && step.kind === 'in' && l.state === 'in' && l.place === placeIndex) return;
     if (elsewhere && step.kind !== 'pitch') this.visits += 1;
     // Their work is shut when they would set out for it: they stay where they are (at home)
     if (place && !elsewhere && step.kind === 'in' && !this.openAt(place, this.hour) && !this.openAt(place, this.hour + 1.5)) return;
@@ -1114,8 +1152,20 @@ export class CityPopulation {
     return planDay(a.id, l.role, this.profile!, l.work >= 0 ? this.places[l.work] : undefined, l.work, weekday, this.pickerFor(a, l, day, weekday), this.places);
   }
 
+  /**
+   * How many have chosen each stall for each half hour of the day (when they planned their day): a
+   * stall serves a handful at a time, so once it is spoken for, the next person picks somewhere else.
+   */
+  private bookings = new Map<string, number>();
+  private bookedDay = -1;
+  private static readonly STALL_PER_HALF_HOUR = 6;
+
   private pickerFor(a: Agent, l: Life, day: number, weekday: number | null): PlacePicker {
     const net = this.network!;
+    if (this.bookedDay !== day) {
+      this.bookings.clear();
+      this.bookedDay = day;
+    }
     const from = l.work >= 0 ? this.places[l.work].node : l.ownNode >= 0 ? l.ownNode : l.home;
     const at = net.nodes[from];
     return (groups: readonly PlaceKind[][], hour: number, stay: number, salt: number) => {
@@ -1123,6 +1173,7 @@ export class CityPopulation {
         const near: Array<{ i: number; d: number }> = [];
         this.places.forEach((p, i) => {
           if (i === l.work || !kinds.includes(p.kind)) return;
+          if (p.stall !== undefined && (this.bookings.get(`${i}:${Math.floor(hour * 2)}`) ?? 0) >= CityPopulation.STALL_PER_HALF_HOUR) return;
           if (!this.openAt(p, hour, weekday) || !this.openAt(p, hour + stay, weekday) || !this.openAt(p, hour + stay / 2, weekday)) return;
           if (!net.reaches(from, p.node)) return;
           near.push({ i, d: Math.hypot(p.x - at.x, p.z - at.z) });
@@ -1131,7 +1182,12 @@ export class CityPopulation {
         near.sort((p, q) => p.d - q.d);
         // One of the nearest six: not always the very nearest (a favourite buka may be over the road)
         const few = near.slice(0, 6);
-        return few[Math.floor(hash01(a.id, salt + day * 7) * few.length)].i;
+        const chosen = few[Math.floor(hash01(a.id, salt + day * 7) * few.length)].i;
+        if (this.places[chosen].stall !== undefined) {
+          const key = `${chosen}:${Math.floor(hour * 2)}`;
+          this.bookings.set(key, (this.bookings.get(key) ?? 0) + 1);
+        }
+        return chosen;
       }
       return -1;
     };
@@ -1158,29 +1214,121 @@ export class CityPopulation {
   }
 
   /** Leaving a stall's counter */
-  private leaveCounter(_a: Agent, l: Life): void {
+  private leaveCounter(a: Agent, l: Life): void {
     if (l.state !== 'buy') return;
     const stall = this.places[l.place]?.stall;
-    if (stall !== undefined) this.buyers[stall] = Math.max(0, this.buyers[stall] - 1);
+    if (stall === undefined) return;
+    const q = this.queues[stall];
+    const at = q ? q.indexOf(a) : -1;
+    if (at >= 0) q.splice(at, 1);
   }
 
-  /** At a stall's counter, facing the trader (beside anyone already there) */
+  /** At a stall: into its queue (the front of it is at the counter), to wait to be served */
   private atCounter(a: Agent, l: Life, place: Place): void {
     const stall = place.stall ?? 0;
-    const n = this.buyers[stall] ?? 0;
-    const yaw = place.yaw ?? 0;
-    const side = ((n % 3) - 1) * 0.6;
-    const f = place.front ?? place;
+    const q = (this.queues[stall] ??= []);
+    if (!q.includes(a)) q.push(a);
+    this.longestQueue = Math.max(this.longestQueue, q.length);
     l.state = 'buy';
+    // Ordering, a word with the trader, paying: half a minute or so once it is their turn
+    l.serve = 20 + hash01(a.id, 60 + this.served) * 30;
+    const slot = this.queueSlot(place, q.indexOf(a));
+    a.x = slot.x;
+    a.z = slot.z;
+    a.yaw = (place.yaw ?? 0) + Math.PI;
+    a.mode = q.indexOf(a) === 0 ? 'talk' : 'idle';
+  }
+
+  /** Served at a food stall or a suya spot: a little way off to the side, eating, facing the stall, for ten minutes or so */
+  private eatBy(a: Agent, l: Life, place: Place, left = 600 + hash01(a.id, 61) * 600): void {
+    const yaw = place.yaw ?? 0;
+    const f = place.front ?? place;
+    const k = a.id % 6;
+    const side = (k % 2 ? 1 : -1) * (1.3 + Math.floor(k / 2) * 0.55);
+    const out = 0.3 + (a.id % 3) * 0.35;
+    a.x = f.x + Math.cos(yaw) * side + Math.sin(yaw) * out;
+    a.z = f.z - Math.sin(yaw) * side + Math.cos(yaw) * out;
+    a.yaw = Math.atan2(f.x - a.x, f.z - a.z);
     a.mode = 'talk';
-    a.x = f.x + Math.cos(yaw) * side;
-    a.z = f.z - Math.sin(yaw) * side;
-    a.yaw = yaw + Math.PI;
-    this.buyers[stall] = n + 1;
+    l.state = 'eat';
+    l.eat = left;
+    l.place = this.places.indexOf(place);
+  }
+
+  /** Eating: when the food is finished, on their way (back to their pavement, to work, or home) */
+  private eating(a: Agent, l: Life, delta: number): void {
+    l.eat = (l.eat ?? 0) - delta * (this.nowSeen ? 1 : Math.min(this.clockRate, 60));
+    if (l.eat > 0) return;
+    l.eat = undefined;
+    this.moveOn(a, l);
+  }
+
+  /** Done at a stall before their plan's step is over: on to what comes next, as they would */
+  private moveOn(a: Agent, l: Life): void {
+    if (l.own && l.ownNode >= 0) this.setOff(a, l, l.ownNode, 'stroll', -1);
+    else if (l.work >= 0 && l.place !== l.work && this.openAt(this.places[l.work], this.hour)) this.setOff(a, l, this.places[l.work].node, 'in', l.work);
+    else this.setOff(a, l, l.home, 'home', -1);
+  }
+
+  /** Where the n-th in a stall's queue stands: the first at the counter, the rest behind, a little to the side */
+  private queueSlot(place: Place, n: number): { x: number; z: number } {
+    const yaw = place.yaw ?? 0;
+    const f = place.front ?? place;
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    const back = Math.min(n, 4) * 0.75;
+    const side = n === 0 ? 0 : (n % 2 ? 0.35 : -0.15);
+    return { x: f.x + fx * back + Math.cos(yaw) * side, z: f.z + fz * back - Math.sin(yaw) * side };
+  }
+
+  /**
+   * Someone at a stall, each turn: shuffling up as the queue moves, waiting, being served at the
+   * front, then away. From a food stall or a suya spot they step aside and eat there till it is time
+   * to go; from a goods stall they go straight on their way.
+   */
+  private atStall(a: Agent, l: Life, delta: number): void {
+    const place = this.places[l.place];
+    const stall = place?.stall;
+    if (stall === undefined) return;
+    const q = (this.queues[stall] ??= []);
+    let n = q.indexOf(a);
+    if (n < 0) {
+      q.push(a);
+      n = q.length - 1;
+    }
+    const slot = this.queueSlot(place, n);
+    // Up to their place in the queue, a step at a time
+    const dx = slot.x - a.x;
+    const dz = slot.z - a.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.05) {
+      const step = Math.min(d, 1.1 * delta);
+      a.x += (dx / d) * step;
+      a.z += (dz / d) * step;
+    }
+    a.yaw = (place.yaw ?? 0) + Math.PI;
+    if (n > 0) {
+      a.mode = 'idle';
+      return;
+    }
+    // At the counter: being served
+    a.mode = 'talk';
+    if (d > 0.3) return;
+    l.serve = (l.serve ?? 30) - delta * (this.nowSeen ? 1 : Math.min(this.clockRate, 60));
+    if (l.serve > 0) return;
+    q.shift();
+    this.served += 1;
+    l.serve = undefined;
+    if (place.sells === 'food' || place.sells === 'suya') {
+      this.eatBy(a, l, place);
+      return;
+    }
+    // Bought what they came for: on their way
+    this.moveOn(a, l);
   }
 
   /** Is the place open at this hour? */
-  private openAt(place: Place, hour: number, weekday: number | null = calendar.weekday()): boolean {
+  private openAt(place: Place, hour: number, weekday: number | null = this.weekdayNow()): boolean {
     const h = place.hours;
     if (!h) return true;
     // Hours past midnight belong to the next day (and before it, to the day before)
@@ -1246,11 +1394,22 @@ export class CityPopulation {
     }
   }
 
+  /** The day of the week, read once a frame (the game's calendar makes a date each time it is asked) */
+  private weekdayCache: number | null = null;
+  private weekdayFrame = -1;
+  private weekdayNow(): number | null {
+    if (this.weekdayFrame !== this.tick) {
+      this.weekdayFrame = this.tick;
+      this.weekdayCache = calendar.weekday();
+    }
+    return this.weekdayCache;
+  }
+
   /** Who was drawn last frame (a street walker does not vanish or appear in front of the player) */
   private readonly lastSeen = new Set<Agent>();
 
   /** Straight to where their day has them (after a jump in the clock) */
-  private placeAt(a: Agent, l: Life, kind: 'home' | 'in' | 'pitch' | 'buy' | 'hang', placeIndex: number): void {
+  private placeAt(a: Agent, l: Life, kind: 'home' | 'in' | 'pitch' | 'buy' | 'hang', placeIndex: number, since = this.hour): void {
     this.leavePitch(l);
     this.leaveCounter(a, l);
     a.xing = undefined;
@@ -1270,7 +1429,30 @@ export class CityPopulation {
       return;
     }
     if (kind === 'buy') {
-      this.atCounter(a, l, place);
+      // Came to the stall more than a minute or two ago: served by now. Eating beside a food stall or
+      // a suya spot; gone on their way from a goods stall.
+      const rate = Math.max(1, this.clockRate);
+      const seconds = ((this.hour - since) * 3600 * Math.min(rate, 60)) / rate;
+      if (seconds < 100 || place.stall === undefined) {
+        this.atCounter(a, l, place);
+        return;
+      }
+      if ((place.sells === 'food' || place.sells === 'suya') && seconds < 1300) {
+        this.eatBy(a, l, place, Math.max(30, 1300 - seconds));
+        return;
+      }
+      l.state = l.own ? 'stroll' : 'home';
+      if (l.own) {
+        if (l.ownNode >= 0) {
+          const n = this.network!.nodes[l.ownNode];
+          a.x = n.x;
+          a.z = n.z;
+        }
+        this.backOnPavement(a, l);
+      } else if (l.work >= 0 && this.openAt(this.places[l.work], this.hour)) {
+        l.state = 'in';
+        l.place = l.work;
+      }
       return;
     }
     if (kind === 'hang') {
@@ -1308,10 +1490,16 @@ export class CityPopulation {
     a.x = place.x;
     a.z = place.z;
     a.yaw = place.yaw ?? a.yaw;
-    if (place.stall !== undefined) {
-      this.stallUp[place.stall] = true;
-      this.onStall?.(place.stall, true);
-    }
+    this.keepStall(place);
+  }
+
+  /** A stall is up while its trader is at it and it is within its hours (set out early, they wait to open) */
+  private keepStall(place: Place): void {
+    if (place.stall === undefined) return;
+    const up = this.openAt(place, this.hour);
+    if (this.stallUp[place.stall] === up) return;
+    this.stallUp[place.stall] = up;
+    this.onStall?.(place.stall, up);
   }
 
   /** Leaving their stall: it is packed away */
@@ -1455,7 +1643,8 @@ export class CityPopulation {
     }
     const place = this.places[l.place];
     // Shut by the time they get there: back to work if that is open, else home (or their pavement)
-    if ((l.then === 'in' || l.then === 'buy' || l.then === 'hang') && (!this.openAt(place, this.hour) || (place.stall !== undefined && !this.stallUp[place.stall] && l.then === 'buy'))) {
+    const queueTooLong = l.then === 'buy' && place.stall !== undefined && (this.queues[place.stall]?.length ?? 0) >= 4;
+    if (queueTooLong || ((l.then === 'in' || l.then === 'buy' || l.then === 'hang') && (!this.openAt(place, this.hour) || (place.stall !== undefined && !this.stallUp[place.stall] && l.then === 'buy')))) {
       l.node = place.node;
       if (l.own && l.ownNode >= 0) this.setOff(a, l, l.ownNode, 'stroll', -1);
       else if (l.work >= 0 && l.place !== l.work && this.openAt(this.places[l.work], this.hour)) this.setOff(a, l, this.places[l.work].node, 'in', l.work);
@@ -1500,10 +1689,13 @@ export class CityPopulation {
         if (life.day !== this.day || this.hour >= life.nextAt) this.keepDay(a, false);
         // Indoors or at home: nothing to move or draw
         if (life.state === 'home' || life.state === 'in') continue;
-        // At their stall: serving while anyone is at the counter, waiting when nobody is
+        // At their stall: serving while anyone is at the counter, waiting when nobody is; opening
+        // up at its hour, packing away at closing
         if (life.state === 'pitch') {
-          const stall = this.places[life.place]?.stall;
-          if (stall !== undefined) a.mode = (this.buyers[stall] ?? 0) > 0 ? 'talk' : 'idle';
+          const pitch = this.places[life.place];
+          if (pitch) this.keepStall(pitch);
+          const stall = pitch?.stall;
+          if (stall !== undefined) a.mode = (this.queues[stall]?.length ?? 0) > 0 ? 'talk' : 'idle';
         }
       }
       const abroadNow = this.isOut(a, i);
@@ -1549,6 +1741,9 @@ export class CityPopulation {
         a.yaw = stop.side < 0 ? Math.PI / 2 : -Math.PI / 2;
       }
 
+      // At a stall's counter or in its queue, or eating beside it
+      if (a.life?.state === 'buy') this.atStall(a, a.life, delta);
+      else if (a.life?.state === 'eat') this.eating(a, a.life, delta);
       if (a.boarding) {
         const dx = a.boarding.x - a.x;
         const dz = a.boarding.z - a.z;
