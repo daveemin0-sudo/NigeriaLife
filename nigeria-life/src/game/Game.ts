@@ -179,6 +179,7 @@ import { DrivableVehicle } from '../world/DrivableVehicle';
 import { showHornTag } from '../ui/HornTag';
 import { buildingType } from '../realestate/BuildingCatalogue';
 import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
+import { PerfReadout } from '../ui/PerfReadout';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -1193,6 +1194,8 @@ export class Game {
 
     // 10b. The phone: its apps act on this game through the hooks below
     this.connectPhone();
+    // The performance readout (off unless switched on in Settings › Graphics or with ?perf=1)
+    PerfReadout.get().attach({ renderer: this.renderer, city: () => this.world.cityManager.currentCityId, where: () => this.whereabouts() });
     this.connectSelfMenu();
     this.connectLand();
 

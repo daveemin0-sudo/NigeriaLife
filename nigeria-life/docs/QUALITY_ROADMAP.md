@@ -90,6 +90,8 @@ Also changed:
 
 ## Stage 0. A16 baseline (no game changes)
 
+**Status (14 Nov):** built on `claude/next-steps`: the readout (`src/ui/PerfReadout.ts`) and the session launcher (`npm run a16:session`, `tests/a16/session.mjs`). Instructions and the baseline table are in `docs/A16_TEST_SESSION.md`. The A16 figures are still to be measured on the phone.
+
 **Why:**
 - P1: nothing in the audit was measured on a phone.
 - G3: the first five minutes have not been tried on one.

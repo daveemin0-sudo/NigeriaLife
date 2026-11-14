@@ -18,6 +18,7 @@ import { CloudSyncService } from '../../backend/CloudSyncService';
 import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
 import { DrivableVehicle } from '../../world/DrivableVehicle';
 import { LagosStreetLifeSystem } from '../../world/LagosStreetLifeSystem';
+import { PerfReadout } from '../../ui/PerfReadout';
 import { OnlineAccount } from '../../online/OnlineAccount';
 import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
 import { Dues, dayLabel } from '../../life/Dues';
@@ -784,6 +785,12 @@ export const settingsApp: PhoneApp = {
             title: 'Start-up on this device',
             sub: esc([thisLoad(), ...loadHistory().filter((r) => r.at !== thisLoad().at).slice(0, 2)].map((r, i) => `${i === 0 ? 'This time' : new Date(r.at).toLocaleDateString()}: ${describeLoad(r)}`).join(' | ')),
           })}
+          ${row({
+            icon: '📊',
+            title: 'Performance readout',
+            sub: PerfReadout.get().enabled ? 'On: frames, drawing and memory at the side of the screen, with Mark and Report' : 'Off. For measuring the game on this phone',
+            trailing: `<button class="nl-btn nl-btn--sm" data-act="toggle-perf-readout">${PerfReadout.get().enabled ? 'Turn off' : 'Turn on'}</button>`,
+          })}
         </div>
         <div class="nl-section">Driving & Vehicle Handling</div>
         <div class="nl-list">
@@ -916,6 +923,10 @@ export const settingsApp: PhoneApp = {
       if (!(await host.confirm('Delete this account? It cannot be signed in to again.', 'Delete'))) return;
       const result = await CloudSyncService.getInstance().deleteAccount(host.get('settings.deletePassword', ''));
       if (!result.ok) host.say(result.reason ?? 'The account was not deleted.', 'bad');
+    } else if (action === 'toggle-perf-readout') {
+      const readout = PerfReadout.get();
+      readout.setEnabled(!readout.enabled);
+      host.refresh();
     } else if (action === 'toggle-graphics') {
       const graphics = (window as any).game?.graphics;
       if (graphics) graphics.choose(graphics.next());
