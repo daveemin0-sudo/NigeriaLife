@@ -1,13 +1,21 @@
-# NigeriaLife quality roadmap (revision 2, 14 Nov 2026, awaiting approval)
+# NigeriaLife quality roadmap (revision 3, 14 Nov 2026, awaiting approval)
 
 This roadmap is built from `docs/QUALITY_AUDIT.md` (`eea1933`). It is planning only: no game code has been changed for it. All work will go on `claude/next-steps`; nothing will be merged, deployed or published without your approval.
+
+## Changes in revision 3
+
+| # | Your question | Decision |
+|---|---|---|
+| 1 | Backup verification | One architecture with three separately held keys and four bucket permissions; no part of it both writes and reads backups. **The live server writes only.** **A separate checker reads only.** It runs in a private repository of yours that I and Cursor never get access to, and holds its own decryption key in its own secret store. It decrypts in a throwaway runner and reports only pass or fail with counts. **You alone hold the full recovery key, offline.** **Nothing anywhere can delete or change a backup before its lock runs out.** Losing or leaking any one key cannot lose backups; only the checker's key could expose them, and that key can be rotated without touching the others. |
+| 2 | Last-resort recovery | **Removed.** Questions built from account records can be guessed (small answer spaces), seen by other players (the Rich List, player cards, CVs), known by friends and family, and worked through by repeated tries. Recovery is now only by something the owner **has**: an email inbox, a saved recovery code, a device they signed in on (with a key kept in that browser), or later an optional passkey. An account with none of these cannot be recovered. The game says so at sign-up and asks the player to secure the account as it grows in value. Admins never recover accounts. |
+| 3 | Dependencies 0, 1, 2b, 3 | Confirmed in that order, with four corrections found in the code. **First:** Stage 0's phone session runs against a local copy of the branch's server, never the live server. **Second:** course levels have no server route at all today, so 2b adds one rather than only a check at hiring. **Third:** Tunde's Treasury Bills never pay out at maturity, so their restoration needs a server route and moves into 2b; Stage 3 shows them only after 2b. **Fourth:** the doors Stage 3 adds would become Living City destinations, so restricted compounds, landmarks and gated venues are kept out of residents' workplaces and errands. Neither deploy trigger includes `claude/next-steps` (Render deploys `stabilise-core`; Pages deploys `stabilise-core` and `main`), so the branch cannot reach the live game. |
 
 ## Changes in revision 2
 
 | # | Your point | What changed |
 |---|---|---|
 | 1 | Stage 1 keys | Backups are now encrypted to a key pair whose private half never lives on the server, kept offline by you with a sealed second copy. Losing Render's secrets loses no backup. Added: automated daily integrity checks and a monthly decrypt-and-open drill; restores only into a separate place, behind your approval; every restore written to an append-only log. |
-| 2 | Stage 2 temporary passwords | Replaced. An administrator never sets or sees a password. Recovery runs in order: an email reset link, a recovery code given at sign-up, approval from a device already signed in, then (last resort) a claim checked by the system on private account facts, with a 72-hour hold and notices to the account, approved by an admin. Every step is single-use, rate-limited and logged. |
+| 2 | Stage 2 temporary passwords | Replaced (the question-based last resort described here was itself removed in revision 3). An administrator never sets or sees a password. Recovery runs in order: an email reset link, a recovery code given at sign-up, approval from a device already signed in, then (last resort) a claim checked by the system on private account facts, with a 72-hour hold and notices to the account, approved by an admin. Every step is single-use, rate-limited and logged. |
 | 3 | Stage 3 characters and landmarks | Every street character's interaction is inventoried. The audit's "Enter / Inspect" fault has a deeper cause: four written interactions are orphaned by an id change, including the danfo conductor's "Board Danfo (₦300)". Stage 3 now restores them rather than inventing new ones. Places that are not buildings (hills, parks, lakes, monuments, restricted compounds, commercial strips, wharves) get safe arrival points and fitting interactions instead of doors. |
 | 4 | Stage 4 memory | The JS heap is separated from the phone's real memory. The plan says what the A16 can measure on its own, with a USB cable, and not at all. Every target is provisional until Stage 0's baseline. |
 | 5 | Stage 6 room counts | The room-variety tests use the real number of doors of each kind in each city, from the audit's probe. |
@@ -45,7 +53,7 @@ Also changed:
 |---|---|---|---|
 | 0 | A16 baseline: measure before changing anything | S (me) + about 45 min (you) | The A16 on Wi-Fi; optionally a USB cable and Developer options for memory figures |
 | 1 | Save history, encrypted off-disk backups, auditable restore | M | A bucket; to hold the offline recovery key |
-| 2 | Account recovery: email, recovery codes, reset, safe last-resort claim, second sign-in | M | An email provider and address |
+| 2 | Account recovery by possession only (email, recovery codes, trusted devices), second sign-in | M | An email provider and address |
 | 2b | Server-checked certificates, and the unverified-earnings channel audited | S | – |
 | 3 | Broken interactions, every character, Ride and map accuracy, arrival by kind of place | M | – |
 | 4 | Mobile performance and memory | L | A16 sessions |
@@ -67,8 +75,8 @@ Also changed:
 |---|---|---|
 | 1 | – | First: it protects every later change to accounts and saves |
 | 2 | 1 | Account changes touch sessions and saves; history and backups must exist first |
-| 2b | 1 | It changes what the server accepts at hiring. An existing player's certificates are carried over from their current save once, with a log, so nobody loses a job they hold. Stage 1's history makes that safe to undo |
-| 3 | – | Independent of 1, 2 and 2b (no server change), so it can run while you set up the bucket and mail provider. Its A16 check waits for Stage 0's build |
+| 2b | 1 | It adds server routes (course levels, Treasury Bills) and changes what the server accepts at hiring. An existing player's certificates are carried over from their current save once, with a log, so nobody loses a job they hold. Stage 1's history makes that safe to undo |
+| 3 | 0 (A16 check); 2b for Tunde's T-bill only | Otherwise independent of 1, 2 and 2b: no server change. It can be built while you set up the bucket and mail provider. Tunde's T-bill purchase waits for 2b's route; the rest of his card does not. Its A16 check uses Stage 0's local-server set-up |
 | 4 | 0 and 3 | Targets come from Stage 0; screens and doors are settled in 3, so they are measured once |
 | 5 | 2b and 3 | 2b, because Stage 5 raises pay by grade (the exploit would be worth more); 3, because it uses the card and action framework fixed there |
 | 6 | 3 and 4 | Doors and arrival rules from 3; the per-room memory and draw-call budget from 4 |
@@ -102,7 +110,7 @@ Also changed:
 
 - A "copy report" button.
 
-**Your session on the A16** (about 45 minutes; I serve the build on your Wi-Fi):
+**Your session on the A16** (about 45 minutes): I serve the branch's build **and a local copy of the branch's own game server** on the laptop, over your Wi-Fi, with a throwaway database. A branch build is never pointed at the live server: the branch expects server routes the live server does not have, and its data must not mix with real players'. Sign-up and the first pay in the first five minutes then work against the local server.
 1. Cold load to playable, three times.
 2. Lagos: 2 minutes on foot on Broad Street, then 2 minutes driving to the expressway.
 3. Fly to Abuja, then take a coach to Port Harcourt. The same in each; note any tab reload.
@@ -152,30 +160,67 @@ A save gets thinned versions kept by age:
 
 The stored format does not change. Thinning runs in a background pass, never on the request path.
 
-### 2. Encryption that survives losing the server's secrets
-Files: `server/backup.ts`.
+### 2. Who can do what: three keys, four bucket permissions
 
-- Backups are encrypted with **public-key encryption** (the `age` format, X25519). The server holds only the public "recipient" keys. **No key on the server can decrypt a backup**, so a lost or leaked Render secret neither loses nor exposes backups.
-- Each backup is encrypted to **two recipients**:
-  - **The owner's recovery key:** the private half is generated on your own machine, never uploaded. It is kept in two places: your password manager, and a sealed paper or USB copy kept somewhere else.
-  - **A verification key**, held only in a separate secret store (for example GitHub Actions secrets, not Render), used by the automated check below.
+Nothing that writes backups can read them, and nothing that reads them can change or delete them.
 
-  Either key can decrypt. Losing one leaves the other.
-- **Key rotation:** a new pair yearly, or at once if a key may be exposed. Old private keys are kept offline to read old backups.
-- A one-page **key runbook** (`docs/BACKUP_KEYS.md`) says where each key is, how to rotate, and how to restore if any one of Render, GitHub or your password manager is lost.
+**Keys** (public-key encryption, the `age` format, X25519). Each backup is encrypted to two recipients; either private key alone can decrypt it.
+
+| Key | Private half held by | Public half held by | Used for |
+|---|---|---|---|
+| **Owner recovery key** | You only: generated on your own computer, kept in your password manager, plus a sealed paper or USB copy elsewhere. Never uploaded anywhere | The live server (to encrypt) | Real restores, and your monthly drill |
+| **Checker key** | The checker only: a secret in its own private repository's protected environment (see below) | The live server (to encrypt) | The daily automated check |
+| (none on the server) | – | – | **The live server holds no private key at all.** It cannot decrypt any backup, its own included |
+
+**Bucket permissions** (one bucket, separate credentials):
+
+| Credential | Held by | Can | Cannot |
+|---|---|---|---|
+| **Writer** | The live server (Render secret) | Put new objects under `backups/` and `manifests/` | Read, list, overwrite or delete anything |
+| **Checker reader** | The checker | Read and list `backups/` and `manifests/`; put under `checks/` | Write or delete backups or manifests |
+| **Owner reader** | You, offline (with the recovery key) | Read and list everything | Delete (not needed: expiry is by rule) |
+| **Bucket admin** | Your cloud account, with two-factor sign-in | Set the lock, the lifecycle rule and the credentials above | Used only to set up and rotate; never stored in any service |
+
+**The lock:**
+- The bucket keeps object versions and a **write-once retention of 35 days** (object lock or bucket lock: the provider must support it; R2, B2 and S3 do).
+- **Expiry is by a lifecycle rule** (14 daily, 8 weekly, 6 monthly), so **no credential holds delete rights**.
 
 ### 3. The backups
-- A consistent SQLite snapshot (the online backup API), compressed, encrypted as above, uploaded daily and on demand to an S3-compatible bucket.
-- Kept: 14 daily, 8 weekly, 6 monthly.
-- The server's bucket credential can **write new objects only**: it cannot list, read or delete.
-- The bucket keeps object versions and an **object lock** for 30 days, so a compromised server cannot erase backups.
+- A consistent SQLite snapshot (the online backup API), compressed and encrypted on the server to both public keys, uploaded daily and on demand with the writer credential.
+- A manifest goes beside it. It records:
+  - the backup id and time
+  - the SHA-256 of the plain database and of the encrypted file
+  - the counts (accounts, ledger sum, saves)
+- The plain snapshot is written to the server's disk only as a temporary file and deleted after encryption.
 
-### 4. Verification
-- **Automated, daily (integrity):**
-  - Each upload's manifest records the backup id, time, size, the SHA-256 of the plain database and of the encrypted file, and the counts (accounts, ledger sum, saves).
-  - A scheduled job (GitHub Actions, using the verification key) downloads the newest backup, checks the encrypted file's hash, decrypts it in memory, opens the database read-only, recomputes the counts and compares them with the manifest. It then discards everything.
-  - On a failure, an alert goes to you by email and appears on the admin page.
-- **Monthly, by you (restore drill):** with your own recovery key, decrypt a backup on your machine and run the restore script to a scratch folder. It reports what it found. This proves the offline key works.
+### 4. Verification: the checker, a separate service with its own access
+- **Where:** a scheduled GitHub Actions job in a **separate private repository you own** (for example `nigerialife-backup-check`). It is not the game's repository, and no one else, including me and Cursor, is a collaborator. It has nothing to do with the live server: different provider, different credentials.
+- **Protecting the checker's key:**
+  - **Where it lives:** the key and the checker reader credential are environment secrets in that repository. The environment allows only the default branch, and branch protection requires your review for any change to the workflow, so a workflow edit cannot quietly print the secret.
+  - **Supply chain:** third-party actions are pinned to exact commits, and the job uses only the age and SQLite tools it needs.
+  - **Your account:** two-factor sign-in on your GitHub account is required.
+- **Where decryption happens:** in a GitHub-hosted runner, a fresh virtual machine destroyed after the job. The job:
+  1. downloads the newest backup and its manifest with the checker reader
+  2. checks the encrypted file's hash against the manifest
+  3. decrypts to the runner's temporary disk
+  4. opens the database read-only and recomputes the counts
+  5. compares them with the manifest
+  6. writes **only** pass or fail, the backup id, the hashes and the counts (no player data) to `checks/` and to the job log
+  7. deletes the decrypted file
+
+  Nothing decrypted leaves the runner.
+- **Alerts:** a failed or missing check emails you (GitHub's workflow-failure notice, and the job's own message). The admin page shows the latest result: the job posts it to a narrow admin endpoint whose token can only record a check result.
+- **Why this does not weaken the model:**
+
+  | If this is compromised | The attacker can | The attacker cannot |
+  |---|---|---|
+  | The live server | Add junk backups (the checker flags a manifest that does not match) | Read, change or delete any existing backup |
+  | The checker | Read and decrypt backups (a confidentiality loss) | Change or delete any. The checker key is rotated by issuing a new pair: new backups use it, old backups stay readable with your owner key, and the old checker key is revoked |
+  | You lose your owner key | – | Lose backups: the checker key still decrypts, and a new owner key is issued |
+  | Render's secrets are lost | – | Lose backups: they hold no private key |
+
+  Only your owner key and the checker key can decrypt, and they are held by different parties in different places.
+- **Monthly, by you:** the restore drill on your own machine with your owner key and the owner reader. It proves the key you would really use in a disaster works.
 
 ### 5. Restores
 - **Whole database:**
@@ -191,6 +236,12 @@ Files: `server/backup.ts`.
   - The admin page shows it.
 
 **Acceptance (measurable):**
+- **Permissions check** (against a local S3 stand-in, MinIO, with the same policies):
+  - The writer cannot get, list, overwrite or delete.
+  - The checker reader cannot put under `backups/` or delete.
+  - Nothing deletes an object before its retention ends.
+  - The live server's environment contains no age private key (a scan of its config).
+- **Checker dry run** in a test private repository with test keys: pass on a good backup; fail and alert on a tampered file, on a missing day, and on a manifest whose counts differ.
 - **`savehistory` suite:**
   - Two hours of simulated once-a-minute saves leave exactly the versions the rules promise.
   - A 90-minute-old version restores, and the account loads it whole.
@@ -212,7 +263,13 @@ Files: `server/backup.ts`.
 - Restoring over live by mistake: impossible by design (a new folder, a named promote).
 - Object lock costs storage for 30 days: small at this size.
 
-**Needs from you:** the bucket (R2, B2 or S3). Generating and keeping the recovery key, with my written steps. A place for the verification key (GitHub secrets).
+**Needs from you:**
+- The bucket (R2, B2 or S3), with object or bucket lock turned on.
+- The private checker repository under your account.
+- Generating and keeping the owner key, with my written steps.
+- Two-factor sign-in on the cloud and GitHub accounts.
+
+**Overlooked dependency, now noted:** thinning history must never remove a save version that a device's stale-overwrite guard (save step 1, `9a82545`) still names as its base. `accountsave` and `savehistory` test both together.
 
 **Size:** M.
 
@@ -242,27 +299,30 @@ Files: `src/ui/SignInScreen.ts`.
 - `/auth/reset` sends a single-use link to the verified email, valid 30 minutes and bound to the account.
 - `/auth/reset/finish` sets the new password, ends every other session, and emails "your password was changed".
 
-### 5. Approval from a signed-in device
-If the player is still signed in on another phone or PC, that session can approve a reset (a prompt in the game), with no email or code needed.
+### 5. Trusted devices (approval and a device key)
+- **A device key:** each browser that signs in with a password (or email) gets a random **device recovery key** stored in that browser's own storage (IndexedDB). The server keeps only its hash, the device's label and when it was last used. It expires after 180 days unused.
+- **Signed in elsewhere:** if the player is still signed in on another phone or PC, that session can approve a password reset from a prompt in the game.
+- **Signed out, but on a device used before:** from that same browser the player can reset with the device key, after a **24-hour hold**. During the hold, the account's email (if any) and every other signed-in session get "A password reset was asked for from <device>. Cancel?". Any of them can cancel it.
+- Device keys are listed in the profile, where the player can remove any.
 
-### 6. Last resort: a recovery claim, checked by the system
-For an account with no email, no codes and no other session, the player starts a claim from the sign-in screen.
-- **The system, not an admin, checks the claimant.** It asks for private facts only the account's records hold, chosen at random from:
-  - the city they last played in
-  - the names of two homes they own or rent
-  - their bank balance within 20%
-  - a car they own
-  - their job
-  - the name of a person they hired
-  - the month they joined
+### 6. Accounts with none of these: no recovery, said plainly and early
+**Why there is no question-based recovery.** Questions drawn from the account's own records fail on four counts:
+- **Guessing:** the answer spaces are small. There are three cities, about 33 careers, a short car catalogue, the few months since the game launched, and bands of balances. Four right out of six is reachable by guessing, and more so across many accounts.
+- **Public information:** a multiplayer game shows much of it to others. The Rich List shows wealth; player cards show jobs and CVs; hiring shows names; homes are visible in the street.
+- **Social engineering:** friends, siblings and people sharing a phone know these facts. A hold and an admin's approval do not help when the claimant really does know them.
+- **Repeated attempts:** limits slow, but do not stop, someone who tries different accounts or comes back each week. Every question asked also confirms something about the account.
 
-  At least 4 of 6 must be right. Questions are never re-asked in the same form, and wrong answers are never revealed.
-- **A 72-hour hold.** During it the account shows a banner on any device that signs in ("Someone is trying to recover your account. Cancel?"), and emails the address if one exists. Any sign-in by the owner can cancel it.
-- **An admin approves after the hold**, with the system's check result in front of them. The admin cannot see the answers, sees no password, and cannot shorten the hold. High-value accounts (for example the top 100 on the Rich List, or over ₦50M) need a second admin.
-- **On approval** the system shows the claimant, in the claim's own session, a single-use link to set a password (valid 30 minutes). Every other session ends. Adding an email and recovery codes is required at once.
-- **Limits:** 1 open claim per account; 3 claims per address per week; after 3 failed claims, claims are off for that account for 7 days.
-- **Logged:** every claim, check, hold, cancel, approval, denial and use goes to the same `admin_audit` log as Stage 1, with the admin's id.
-- **No administrator ever types, chooses, sees or sends a password**, temporary or otherwise.
+A proof of **possession** (an inbox, a saved code, a device that was signed in) cannot be guessed or looked up, so recovery uses only those.
+
+**So:**
+- **At sign-up** the screen says clearly: "If you forget your password, only your email, your recovery codes or a phone you signed in on can get this account back."
+- **As the account grows in value**, the game asks the player to secure it, with one tap to add an email or show the codes: at the first home, the first car, ₦1M, and every week while nothing is set.
+- **The profile shows a security status:** email, codes, devices and (later) passkey, each set or not.
+- **An account with no email, no codes and no trusted device cannot be recovered by anyone.** Admins do not recover accounts and never set, see or send a password. Their recovery role is limited to freezing an account that is reported stolen, after which the owner recovers it by one of the means above.
+
+**Passkeys (optional, later):** a passkey on the phone (WebAuthn, supported by Chrome on Android) is the strongest option: it cannot be guessed or phished. It is tied to the site's domain. The game is on `daveemin0-sudo.github.io` today, and moving to a custom domain later would void every passkey made before. So passkeys come after the game has its own domain: a decision for you, listed below.
+
+**Phone numbers (Stage 10a)** add an SMS code as a further factor. In Nigeria, SIM-swap fraud means a phone number alone should not reset a password. With an SMS code, the same 24-hour hold and notices apply.
 
 ### 7. Sign in with email or username
 The same field takes either.
@@ -277,21 +337,24 @@ On sign-in, close the city connection and reconnect as the account.
   - An expired or used link is refused; 6 requests in an hour are refused.
   - A recovery code resets once, the same code fails twice, and 5 failures lock codes for 24 hours.
   - A signed-in device's approval resets.
-  - **Claims:**
-    - wrong facts are denied without saying which
-    - right facts start the 72-hour hold
-    - the owner's sign-in cancels it
-    - approval before 72 hours is refused
-    - approval issues a link only in the claim session
-    - an admin's view never contains an answer or a password
-    - a high-value account needs two admins
-    - each step writes an audit row
+  - **Device key:**
+    - a device key resets only after the 24-hour hold
+    - another session or the email can cancel it within the hold
+    - a device key from another browser or account is refused
+    - an expired or removed key is refused
+  - **No other route:**
+    - an account with no email, codes or devices has no recovery path
+    - the admin API has no route that sets or reveals a password (the test lists the admin routes)
+    - freezing a reported account stops sign-ins until the owner recovers it by a proper means
+  - **Prompts:** at the first home, the first car and ₦1M, the secure-your-account prompt appears for an unsecured account.
+  - **Audit:** each reset, hold, cancel and freeze writes an audit row.
 - **Second-browser sign-in** finishes within 5 s and loads the account's life.
 - **Regression:** `accountsave`, `onboarding`, `firstfive`, `online`.
 
 **Risks:**
 - Deliverability to Gmail, Yahoo and ng-domain inboxes: test each.
-- Social engineering: removed from admins by design (the system checks; admins only approve after a hold).
+- Social engineering: removed by design. No one, admin or system, recovers an account on what someone says they know.
+- Players who never secure their account can lose it: said at sign-up, prompted as the account grows, shown in the profile.
 - Codes shown once may be lost: they can be regenerated from a signed-in session (which voids the old ones).
 
 **Needs from you:** the email provider and the sending domain or address.
@@ -308,24 +371,41 @@ On sign-in, close the city connection and reconnect as the account.
 - It does not make money from nothing: the hour at work and the daily limit still apply. But it skews earnings and the Rich List for everyone else.
 - Stage 5 will raise pay by grade, so this goes first.
 
+**Found in revision 3:**
+- **Course levels have no server route at all today.** `Qualifications.sit` (`src/life/Qualifications.ts`) charges the fee and raises the level in the browser.
+- **Tunde's Treasury Bills, once restored, would take ₦50,000 for a document that never pays out.** The bill is a bag item (`src/ui/HUD.ts`, the `npc-banker` action). Documents cannot be resold (`BackendService.resaleValue` returns 0), so there is no money loop, but nothing pays the 18.5% at maturity.
+
 **What changes:**
-1. Certificate levels are recorded by the server when a course level is completed (the Courses app's level-ups go through a server route, like a shift).
+1. **A server route for sitting a course level.** It:
+   - charges the fee in the ledger
+   - records the level
+   - allows one level per game day per course
+
+   The client's test (the short check) stays as the experience, but the server decides.
 2. `hire` refuses a job whose certificate the server has no record of.
 3. **Migration:** each existing account's current certificate levels are taken from its last save once, logged, and capped to what that account's course time and payments make possible. Nobody loses a job they hold.
+5. **Treasury Bills as a server-held investment.** Buying one is a ledger transfer into a holding the server keeps, and at 90 game days the server pays the principal and interest into the bank. Tunde's card offers it (Stage 3) once this route exists. The bag shows the bill as a receipt, not as money.
 4. **The unverified-earnings channel** (`UNVERIFIED_EARNING_LIMIT`, ₦30,000 per 10 minutes, `server/economy.ts:50-54`): every caller is traced and listed. Any that a player can drive in a loop moves to a server-checked route, or gets its own daily cap.
 
 **Acceptance:**
 - **`certificates` server checks:**
+  - sitting a level through the route charges the fee once and records it
+  - a second level the same game day is refused
   - hire without the server's record is refused
   - a completed level is recorded and then hires
   - the migration takes existing levels within the cap and writes a log
   - an edited save cannot raise a level
 - **The unverified-channel trace** is written down, with each caller and its cap.
+- **`treasury` server checks:**
+  - a purchase moves ₦50,000 into a holding
+  - at maturity exactly principal + interest is paid once
+  - a second payout is refused
+  - the holding survives a reload and a restore from history (Stage 1)
 - **Regression:** `bizdays`, `companies`, `firstfive`, `money`, `accountsave`.
 
 **Risk:** a player mid-course at migration. Their in-progress level is kept and finished through the new route.
 
-**Size:** S.
+**Size:** S to M (revision 3 adds the course and Treasury Bill routes).
 
 ---
 
@@ -346,7 +426,7 @@ The audit found "Enter / Inspect" on six people opening the business sheet. The 
 | Danfo Conductor (`conductor-danfo`) | "🚌 Board Danfo Shuttle (₦300)": pays the fare and rides | Business sheet | Restore the boarding. Also offer the existing danfo ride from the terminus, and ask the route |
 | Segun, odds guru (`bet-customer`) | Nothing of his own | Business sheet | Talk about today's odds; open the Naija Odds app (exists) |
 | Mama Nkechi, textiles (`aunty-ankara`) | Sells fabric | Works | Keep |
-| Tunde, wealth advisor (`banker-tunde`) | "📈 Invest in 90-Day Federal Treasury Bills (₦50,000)" | Business sheet | Restore the T-bills; also "Talk about investing" |
+| Tunde, wealth advisor (`banker-tunde`) | "📈 Invest in 90-Day Federal Treasury Bills (₦50,000)", which today never pays out | Business sheet | "Talk about investing" in Stage 3; the T-bill purchase once Stage 2b's server-held investment exists (never restored as it was) |
 | Mallam Bisi, suya (`suya-master`) | Sells suya (also the first-steps guide) | Works | Keep |
 | Emeka, phone technician (`phone-tech`) | Nothing of his own | Business sheet | Repair the phone and talk gadgets, through the Gadgets app (exists) |
 | Master Tayo, mechanic (`lead-mechanic`) | "🛠️ Work Mechanic Apprentice Shift (+₦4,000)", paid by the server's `hud:workshop` gig | Business sheet | Restore the apprentice shift (Stage 5 deepens it) |
@@ -356,6 +436,8 @@ The audit found "Enter / Inspect" on six people opening the business sheet. The 
 | The 12 older pedestrians (Amara, Kelechi, Blessing, Tobi, Ngozi, Babajide, Femi, Zainab, Funke, Chinedu, Halima, Alhaji Musa; `NPCs.ts`) | Greet and wave | To be listed by the suite | Keep; checked by the suite. Folding them into the crowd is Living City's stage 1 part, now in Stage 7 |
 | Room staff in every room, all cities (nurses, cashiers, desk sergeants, clerks...) | Their room's actions | Not audited one by one | Listed and checked by the suite |
 | Other players (`remote_player_*`) | Their card: chat, hire, CV | Works | Keep |
+
+**Overlooked dependency, now noted:** the doors Stage 3 adds become places in each city's list, and Living City gives residents workplaces and errands from that list (`CityPopulation.giveLives`, `Routines.kindOf`). Restricted compounds, natural landmarks and open spaces are marked so they are never a workplace or an errand. Gated venues and the new public buildings take part like any other place of their kind, by their hours. `livingcity` checks that nobody's day leads into a restricted compound.
 
 **Rule:** a person's card shows only person actions (Greet, Wave, buy, ask, the service they give). The "Enter / Inspect" fallback and the business sheet are never shown on a person.
 
@@ -402,7 +484,7 @@ Plus:
   - It lists every interactive person in all three cities' streets and in every room built at the time.
   - For each, the card's first action does something within 2 s, and is not the business sheet.
   - No person shows "Enter / Inspect".
-  - The four restored actions work: the danfo fare is paid and the ride runs; T-bills bought (₦50,000 paid, holding recorded); the apprentice shift paid by the server; the warden gives cred.
+  - The restored actions work: the danfo fare is paid and the ride runs; the apprentice shift is paid by the server; the warden gives cred; Tunde talks about investing, and (with 2b in place) his T-bill moves ₦50,000 into the server's holding.
   - The list of actions before and after Stage 3 is compared; nothing that worked is lost.
 - **`phonefit`** opens the ride in motion, the map's place card, the map at three zooms and a person's card. It checks no overlap (including the "⌄"), no label past the edge, and taps of at least 44 px there.
 - **`livingcity`:** no stall within 3.6 m of any plot front, in all three cities.
@@ -683,8 +765,9 @@ That is why 10b stays after the feature stages, unless 2b's trace finds a money 
 | Before stage | Decision |
 |---|---|
 | 0 | Whether to use a USB cable and adb for real memory figures (optional) |
-| 1 | The bucket (R2, B2 or S3); generating and keeping the recovery key with my steps; GitHub secrets for the verification key |
-| 2 | The email provider and the sending domain or address; who the admins are, and the high-value threshold for two-admin approval |
+| 1 | The bucket (R2, B2 or S3) with lock turned on; a private repository of yours for the checker; generating and keeping the owner key with my steps; two-factor sign-in on both accounts |
+| 2 | The email provider and the sending domain or address; who may freeze a reported account |
+| After 2 | A custom domain for the game, if passkeys are wanted (they are tied to the domain) |
 | 8 | Landscape: support it, or lock to portrait |
 | 10a | An SMS provider and budget, or postpone |
 | Any deploy | Which stages go live, and when. The live site stays at `8690f5b` until you say |
@@ -718,4 +801,4 @@ That is why 10b stays after the feature stages, unless 2b's trace finds a money 
 
 **I will not start any stage until you approve.** The suggested start once you do:
 - **Stage 0** (the readout and the A16 session).
-- **Stage 1**, then 2b, alongside **Stage 3.** 3 touches no server code; 1 and 2b do.
+- **Stage 1**, then **2b**; **Stage 3**'s client work alongside, with Tunde's T-bill purchase switched on once 2b lands.
