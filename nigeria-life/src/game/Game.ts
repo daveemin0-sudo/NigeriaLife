@@ -690,6 +690,9 @@ export class Game {
       const journeyCompleted = this.onJourneyCompleted;
       this.onJourneyCompleted = null;
       journeyCompleted?.();
+      // Where the ride set the player down is saved now, not at the next autosave: a reload a moment
+      // later must not find the spot the ride began from
+      this.saveWorldState();
     };
 
     // Wire InterState Modal to trigger the 3D Flight Experience
@@ -1116,16 +1119,12 @@ export class Game {
         return;
       }
       const ride: RideDetails = { vehicleName: 'Taxi', vehicleType: 'taxi', originName: 'Here', destinationName: name, durationSeconds: 10, trafficCondition: 'Go-slow', weatherCondition: 'Sunny', destinationCityId: this.world.cityManager.currentCityId as CityId };
-      this.onJourneyCompleted = () => {
+      this.startRoadRide(ride, point, name, () => {
         this.player.stopMoving();
         this.player.mesh.position.set(point.x, 0, point.z);
         this.player.position.copy(this.player.mesh.position);
         this.cameraManager.snapToPlayer(this.player, 'street');
-      };
-      this.world.setStreetModeVisibility(false);
-      this.player.mesh.visible = false;
-      this.roadRideExperience.startRide(ride);
-      this.transitHUD.showRideHUD(ride);
+      });
     };
     PlaceLook.apply = (look) => {
       const cfg = { ...this.player.config };
@@ -1492,19 +1491,12 @@ export class Game {
           destinationCityId: cityId(),
           car: vehicle.mode === 'car' ? RideService.ownCar() ?? undefined : undefined,
         };
-        this.onJourneyCompleted = arrived;
-        this.hud.phoneModal.close();
-        this.world.setStreetModeVisibility(false);
-        this.player.mesh.visible = false;
-        this.roadRideExperience.startRide(ride);
-        this.transitHUD.showRideHUD(ride);
+        this.startRoadRide(ride, this.setDownSpot(destination), destination.name, arrived);
       },
       arriveAt: (destination) => {
         this.player.stopMoving();
-        // Set down at the place's own door when it has one near its spot on the street (an Abuja
-        // landmark's spot can be out on the avenue), else at that spot
-        const door = this.doorOf(destination.name, destination.streetPosition);
-        this.player.mesh.position.set(door?.x ?? destination.streetPosition.x, 0, door?.z ?? destination.streetPosition.z);
+        const spot = this.setDownSpot(destination);
+        this.player.mesh.position.set(spot.x, 0, spot.z);
         this.cameraManager.snapToPlayer(this.player, 'street');
         showGameToast(`You have arrived at ${destination.name}.`, 'success', 3600);
       },
@@ -3850,6 +3842,50 @@ export class Game {
     this.saveWorldState();
   }
 
+  /**
+   * Where a ride to this place sets the player down: the place's own door when it has one near its
+   * spot on the street (an Abuja landmark's spot can be out on the avenue), else that spot.
+   */
+  private setDownSpot(destination: DestinationDefinition): { x: number; z: number } {
+    const door = this.doorOf(destination.name, destination.streetPosition);
+    return { x: door?.x ?? destination.streetPosition.x, z: door?.z ?? destination.streetPosition.z };
+  }
+
+  /**
+   * Plays a paid ride within this city. Before it starts, the save already holds where it sets down,
+   * so a reload on the way (Chrome closing the tab on a phone short of memory) opens the game there:
+   * the ride is not lost and nothing is paid twice. Saves are held while it plays; `arrived` puts the
+   * player down and the arrival is saved again at once.
+   */
+  private startRoadRide(ride: RideDetails, spot: { x: number; z: number }, name: string, arrived: () => void): void {
+    // Seen from the street, not behind an open map
+    if (this.world.worldMap.isActive || this.hud.currentNavMode === 'map') this.hud.leaveMap();
+    this.hud.phoneModal.close();
+    this.saveRideInTransit(spot, name);
+    this.onJourneyCompleted = arrived;
+    this.world.setStreetModeVisibility(false);
+    this.player.mesh.visible = false;
+    this.roadRideExperience.startRide(ride);
+    this.transitHUD.showRideHUD(ride);
+  }
+
+  private saveRideInTransit(spot: { x: number; z: number }, name: string): void {
+    if (!this.placeRestored) return;
+    const cityId = this.world.cityManager.currentCityId;
+    if (!this.isSavedCity(cityId)) return;
+    BackendService.getInstance().saveWorldState({
+      cityId,
+      x: Number(spot.x.toFixed(2)),
+      z: Number(spot.z.toFixed(2)),
+      rotationY: Number(this.player.mesh.rotation.y.toFixed(2)),
+      hour: Number(this.world.skyEnvironment.currentHour.toFixed(3)),
+      day: this.world.skyEnvironment.day,
+      weather: this.world.weather.currentWeather,
+      clockMode: this.world.skyEnvironment.clockMode,
+      rideTo: name,
+    });
+  }
+
   private saveArrivalInTransit(cityId: CityId): void {
     if (!this.isSavedCity(cityId)) return;
     BackendService.getInstance().saveWorldState({
@@ -3985,6 +4021,11 @@ export class Game {
     this.player.mesh.position.set(saved.x, 0, saved.z);
     this.player.mesh.rotation.y = saved.rotationY;
     this.cameraManager.snapToPlayer(this.player, 'street');
+    if (saved.rideTo) {
+      // The game closed during a paid ride in this city: it finished, and the player is there
+      showGameToast(`You have arrived at ${saved.rideTo}.`, 'success', 4200);
+      this.saveWorldState();
+    }
   }
 
   /** Getting in is seen: the player walks round to the driver's door, reaches for it, and is then at the wheel. */

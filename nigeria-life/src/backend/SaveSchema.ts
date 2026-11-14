@@ -30,6 +30,20 @@ const PROPERTY_STATUSES: ReadonlySet<string> = new Set([
   'available', 'rented', 'owned', 'unavailable', 'unowned', 'purchased',
 ]);
 const SAVED_CITIES: ReadonlySet<string> = new Set(['lagos', 'abuja', 'port_harcourt']);
+
+/**
+ * How far a saved spot may be from each city's centre. A spot outside is not a place in that city
+ * (a damaged save), so it is brought back to the edge. Measured 14 Nov 2026: Lagos's places reach
+ * z 6,633 down the expressway (the airport) and x 314; Abuja's buildings x -620 to 620 and z -290
+ * to 850; Port Harcourt's x -580 to 560 and z -300 to 580. Each box leaves a few hundred metres
+ * beyond the last building. It was a flat 400 m, which put anyone saved further out (43 of
+ * Lagos's 61 ride destinations) back toward the centre on every reload.
+ */
+export const SAVED_CITY_BOUNDS: Readonly<Record<string, { minX: number; maxX: number; minZ: number; maxZ: number }>> = {
+  lagos: { minX: -1000, maxX: 1000, minZ: -1000, maxZ: 7500 },
+  abuja: { minX: -1000, maxX: 1000, minZ: -1000, maxZ: 1500 },
+  port_harcourt: { minX: -1000, maxX: 1000, minZ: -1000, maxZ: 1000 },
+};
 const BUSINESS_TYPES: ReadonlySet<string> = new Set([
   'restaurant', 'supermarket', 'pharmacy', 'fashion shop', 'phone shop', 'mechanic', 'salon',
   'barbershop', 'hotel', 'logistics', 'filling station', 'tech company', 'transport business',
@@ -240,14 +254,15 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
   if (isRecord(world) && SAVED_CITIES.has(world.cityId) && Number.isFinite(world.x) && Number.isFinite(world.z)) {
     worldState = {
       cityId: world.cityId,
-      x: Math.min(400, Math.max(-400, world.x)),
-      z: Math.min(400, Math.max(-400, world.z)),
+      x: Math.min(SAVED_CITY_BOUNDS[world.cityId].maxX, Math.max(SAVED_CITY_BOUNDS[world.cityId].minX, world.x)),
+      z: Math.min(SAVED_CITY_BOUNDS[world.cityId].maxZ, Math.max(SAVED_CITY_BOUNDS[world.cityId].minZ, world.z)),
       rotationY: Number.isFinite(world.rotationY) ? world.rotationY : 0,
       hour: num(world.hour, 13.3, 'worldState.hour', 0, 24),
       day: Math.floor(num(world.day, 0, 'worldState.day', 0)),
       ...(typeof world.weather === 'string' ? { weather: world.weather } : {}),
       ...(world.clockMode === 'REAL_TIME' || world.clockMode === 'SIMULATED_TIME' ? { clockMode: world.clockMode } : {}),
       ...(world.inTransit === true ? { inTransit: true } : {}),
+      ...(typeof world.rideTo === 'string' && world.rideTo ? { rideTo: world.rideTo.slice(0, 120) } : {}),
     };
   } else if (world !== undefined && world !== null) {
     repaired.push('worldState');

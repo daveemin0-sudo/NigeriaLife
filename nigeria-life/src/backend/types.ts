@@ -241,6 +241,8 @@ export interface SavedWorldState {
   weather?: string; // Active weather condition
   clockMode?: 'SIMULATED_TIME' | 'REAL_TIME'; // World clock simulation mode
   inTransit?: boolean; // Saved mid-journey: the trip is paid for, so a reload completes the arrival
+  /** Saved as a ride in this city began: x and z are already where it sets down, so a reload ends the paid ride there (the place's name, for the word on arrival) */
+  rideTo?: string;
 }
 
 export interface LeaseState {

@@ -243,7 +243,16 @@ Probe `inv_views.mjs` took screenshots and measured every on-screen element.
 
   How long a starting shift takes in real minutes was not measured in this pass. It is the remaining question for "frustrating with limited money", and the first test in repair step 7.
 
-## Repair plan (proposed; nothing started)
+## Repair plan
+
+**Step 1 (rides and saving) done**, on `claude/next-steps`; laptop only, not yet tried on the A16.
+- Saved spots are checked against each city's own bounds (`SAVED_CITY_BOUNDS` in `SaveSchema.ts`), not ±400 m.
+- A paid ride in a city saves where it sets down before it starts (`rideTo`), so a reload on the way opens the game there, told and not charged again.
+- The set-down is saved the moment the ride ends.
+- A ride closes the map.
+- Proven by `tests/e2e/ridesave.mjs` (35 checks).
+
+Steps 2 to 7 are not started.
 
 Ordered by harm to the player, then by how much each unblocks the next. Each step is small and separately approvable. None removes a gameplay system.
 

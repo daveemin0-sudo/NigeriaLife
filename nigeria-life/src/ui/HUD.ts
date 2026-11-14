@@ -172,6 +172,15 @@ export class HUD {
   public onOpenMusic?: () => void;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
 
+  /** Back to the street from the map (a ride starting is seen from the street, not behind the map) */
+  public leaveMap(): void {
+    this.currentNavMode = 'street';
+    document.getElementById('nav-btn-map')?.classList.remove('active');
+    this.worldMapUI.close();
+    UIStateManager.getInstance().setMode('street');
+    this.onNavigateMode?.('street');
+  }
+
   constructor() {
     this.backend = BackendService.getInstance();
     this.inventoryModal = new InventoryModal();
