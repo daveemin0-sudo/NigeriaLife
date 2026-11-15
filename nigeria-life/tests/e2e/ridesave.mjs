@@ -8,7 +8,12 @@
 // - Chrome killing the tab (a renderer crash: no page-hide, no last save) mid-ride, in every city;
 // - on an A16-sized phone (320 x 607, touch, CPU 4x slower, real time), booked by tapping the Ride
 //   app, the tab killed straight after arriving and again mid-ride;
-// - the fare once on the game server's own ledger, not only in the game.
+// - the fare once on the game server's own ledger, not only in the game;
+// - "Turn back" sets the player down where the ride was booked, the fare kept (as its button says);
+//   a coach has no Turn back;
+// - signed in, a journey's start and end reach the account at once: the browser's data wiped 0.3 s
+//   after a ride, a coach or a flight starts or ends, signing in again finds the player where they
+//   should be; and the page closed within 2 s of a move still sends its last copy.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -113,7 +118,7 @@ const toCity = async (page, city) => {
   await advance(page, 6); // an autosave in the new city
 };
 
-/** RIDESAVE_ONLY=cities,phone,map,account runs only those parts (all by default) */
+/** RIDESAVE_ONLY=cities,phone,turnback,map,account runs only those parts (all by default) */
 const part = (name) => !process.env.RIDESAVE_ONLY || process.env.RIDESAVE_ONLY.split(',').includes(name);
 
 export async function run(browser, check) {
@@ -178,6 +183,7 @@ export async function run(browser, check) {
 
   // ------------------------------------------------------------------ An A16-sized phone, by touch, CPU 4x slower, real time
   if (part('phone')) await phoneRun(browser, check);
+  if (part('turnback')) await turnBackRun(browser, check);
 
   // ------------------------------------------------------------------ A map cab beyond 400 m (Port Harcourt), and no ride behind an open map (Abuja)
   if (part('map')) {
@@ -225,6 +231,7 @@ export async function run(browser, check) {
 const PORT = 9100 + Math.floor(Math.random() * 150);
 const SERVER = `http://127.0.0.1:${PORT}`;
 const USER = 'Ride_Save1';
+const ADMIN = 'ridesave-admin';
 const PASS = 'lagos-life';
 
 async function serverUp(tries = 60) {
@@ -270,7 +277,7 @@ async function signedIn(browser, check) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nl-ridesave-'));
   const log = fs.openSync(path.join(dataDir, 'server.log'), 'a');
   const server = spawn(process.execPath, ['server/game-server.ts'], {
-    env: { ...process.env, PORT: String(PORT), NL_DATA: dataDir, NL_DEV: '1', NL_BACKUP_DIR: path.join(dataDir, 'backups'), NL_GUESTS_PER_HOUR: '1000' },
+    env: { ...process.env, PORT: String(PORT), NL_DATA: dataDir, NL_DEV: '1', NL_BACKUP_DIR: path.join(dataDir, 'backups'), NL_GUESTS_PER_HOUR: '1000', NL_ADMIN_KEY: ADMIN },
     stdio: ['ignore', log, log],
   });
   const contexts = [];
@@ -318,7 +325,7 @@ async function signedIn(browser, check) {
     await second.page.evaluate((u, p) => window.game.modules.OnlineAccount.get().login(u, p), USER, PASS).catch(() => null);
     let last = null;
     let steady = 0;
-    const deadline = Date.now() + 120000;
+    const deadline = Date.now() + 240000; // several full loads on a busy laptop
     while (Date.now() < deadline && steady < 3) {
       try {
         last = await second.page.evaluate((u) => {
@@ -336,6 +343,12 @@ async function signedIn(browser, check) {
     }
     check(`ridesave account: signing in on a cleared browser brings the player back where the last ride set them down (${m.name}), not at an earlier spot`,
       steady >= 3 && last.city === 'lagos' && near(last, m.spot) && !near(last, b.spot, 50) && !near(last, b.from, 50), { spot: m.spot, earlier: [b.from, b.spot], last, errors: second.errors.slice(0, 3) });
+
+    // One device at a time, as a player plays: another device still open and saving would (rightly)
+    // make a newly signed-in one step aside as "Playing on another device"
+    await first.ctx.close().catch(() => {});
+    await second.ctx.close().catch(() => {});
+    await recoveries(browser, check, contexts, m.spot);
   } finally {
     for (const c of contexts) await c.close().catch(() => {});
     await new Promise((resolve) => {
@@ -444,4 +457,271 @@ async function phoneRun(browser, check) {
     later.money === c.money - c.fare && later.charged === c.chargedBefore + 1, { before: c.money, fare: c.fare, now: later.money, charged: later.charged, chargedBefore: c.chargedBefore });
   check('ridesave phone: no errors in the page', page.__errors.length === 0, page.__errors.slice(0, 4));
   await ctx.close();
+}
+
+// --------------------------------------------------------------------------------------------- L2: at once to the account
+/**
+ * Signs in on a brand-new browser and waits until the game stands still at `want(view)` (a test run
+ * in the page on what it sees: name, city, where the player is, and the city's park and apron).
+ */
+/**
+ * After loading the account's copy a device stays quiet for 20 s (CloudSyncService.apply): what is
+ * saved then is sent when that ends. Journeys are tested as a player plays, past that moment, unless
+ * `quietToo` asks for the quiet moment itself.
+ */
+const QUIET_MS = 20_000;
+
+async function signInFresh(browser, contexts, want, quietToo = false) {
+  const fresh = await openOnline(browser);
+  contexts.push(fresh.ctx);
+  await fresh.page.evaluate((u, p) => window.game.modules.OnlineAccount.get().login(u, p), USER, PASS).catch(() => null);
+  let last = null;
+  let steady = 0;
+  const deadline = Date.now() + 240000; // several full loads on a busy laptop
+  while (Date.now() < deadline && steady < 3) {
+    try {
+      last = await fresh.page.evaluate((u) => {
+        const g = window.game;
+        if (!g?.hud) return null;
+        const online = g.modules.OnlineAccount.get();
+        const city = g.world.cityManager.currentCityId;
+        const p = g.player.position;
+        const park = g.world.motorParkOf(city)?.setDown;
+        const apron = g.world.airportOf(city)?.apron?.steps;
+        return { signedIn: online?.account?.name === u, city, x: +p.x.toFixed(2), z: +p.z.toFixed(2), park: park ? { x: park.x, z: park.z } : null, apron: apron ? { x: apron.x, z: apron.z } : null };
+      }, USER);
+      steady = last?.signedIn && want(last) ? steady + 1 : 0;
+    } catch {
+      steady = 0; // loading again
+    }
+    await wait(500);
+  }
+  if (steady >= 3 && !quietToo) await wait(QUIET_MS + 1000);
+  return { ...fresh, last, ok: steady >= 3 };
+}
+
+/** Every bit of this browser's data gone a moment after `ms`: the context (storage, tabs, requests) is closed */
+async function wipeAfter(ctx, ms) {
+  await wait(ms);
+  await ctx.close().catch(() => {});
+}
+
+async function recoveries(browser, check, contexts, standing) {
+  // Signed in on a new browser, the only one open (and past its quiet moment)
+  const start = await signInFresh(browser, contexts, (v) => v.city === 'lagos' && near(v, standing));
+  check('ridesave L2: signed in on a new browser, the only device open, the player is where the last ride left them', start.ok, { standing, last: start.last });
+  // 1. A ride played to the end; the browser's data wiped 0.3 s later; signed in on a new browser
+  let page = start.page;
+  const a = await bookFarthest(page);
+  await rideStarts(page);
+  const landed = await finish(page, 'played');
+  await wipeAfter(start.ctx, 300);
+  const one = await signInFresh(browser, contexts, (v) => v.city === 'lagos' && near(v, a.spot));
+  check(`ridesave L2: a ride to ${a.name} ends and the browser's data is wiped 0.3 s later: signed in again, the player is at ${a.name}`,
+    !!landed && near(landed, a.spot) && one.ok, { spot: a.spot, landed, last: one.last });
+
+  // 2. The tab closed (all data wiped) 0.3 s into a ride: the account already holds where it sets down
+  page = one.page;
+  const before = await serverLedger(page, 'Computer Village');
+  const c = await page.evaluate(() => {
+    const g = window.game;
+    const dest = g.rides.destinations().find((d) => /Computer Village/.test(d.name));
+    return { ...g.rides.book(dest.id, 'taxi'), name: dest.name, spot: g.setDownSpot(dest) };
+  });
+  await rideStarts(page);
+  await advance(page, 0.5);
+  await wipeAfter(one.ctx, 300);
+  const two = await signInFresh(browser, contexts, (v) => v.city === 'lagos' && near(v, c.spot));
+  const after = two.ok ? await serverLedger(two.page, 'Computer Village') : null;
+  check(`ridesave L2: the browser wiped 0.3 s into a ride: signed in again, the player is at ${c.name}, and the server has that fare once`,
+    c.ok && two.ok && after?.lines === before.lines + 1 && after.serverTotal === after.gameTotal, { spot: c.spot, last: two.last, before, after });
+
+  // 3. A coach boarded at Jibowu for Abuja; the browser wiped 0.3 s later: signed in again, they have arrived at Utako
+  page = two.page;
+  const coach = await page.evaluate(() => {
+    const g = window.game;
+    const route = g.coaches.routesFrom('lagos').find((r) => r.to === 'abuja');
+    const bought = g.coaches.buy(route, 'lagos');
+    const boarded = g.coaches.board('lagos');
+    return { bought: bought.ok, boarded: boarded.ok, reason: bought.reason ?? boarded.reason ?? null };
+  });
+  await wipeAfter(two.ctx, 300);
+  const three = await signInFresh(browser, contexts, (v) => v.city === 'abuja' && !!v.park && near(v, v.park));
+  check('ridesave L2: a coach boarded for Abuja and the browser wiped 0.3 s later: signed in again, the player has arrived at Utako Motor Park',
+    coach.bought && coach.boarded && three.ok, { coach, last: three.last });
+
+  // 4. A coach on from Abuja to Port Harcourt, ridden to the end; the browser wiped 0.3 s after it pulls in
+  page = three.page;
+  const coach2 = await page.evaluate(() => {
+    const g = window.game;
+    const route = g.coaches.routesFrom('abuja').find((r) => r.to === 'port_harcourt');
+    const bought = g.coaches.buy(route, 'abuja');
+    const boarded = g.coaches.board('abuja');
+    return { bought: bought.ok, boarded: boarded.ok, reason: bought.reason ?? boarded.reason ?? null };
+  });
+  const onRoad = await playUntil(page, () => (window.game.roadRideExperience.isActive ? true : null), 60);
+  if (onRoad) await page.evaluate(() => window.game.roadRideExperience.skipRide());
+  const pulledIn = await playUntil(page, () => (window.game.world.cityManager.currentCityId === 'port_harcourt' && !window.game.roadRideExperience.isActive ? true : null), 30);
+  await wipeAfter(three.ctx, 300);
+  const four = await signInFresh(browser, contexts, (v) => v.city === 'port_harcourt' && !!v.park && near(v, v.park));
+  check('ridesave L2: a coach to Port Harcourt pulls in and the browser is wiped 0.3 s later: signed in again, the player is at Waterlines Motor Park',
+    coach2.bought && coach2.boarded && !!onRoad && !!pulledIn && four.ok, { coach2, onRoad, pulledIn, last: four.last });
+
+  // 5. A flight boarded in Port Harcourt for Lagos; the browser wiped 0.3 s later: signed in again, landed in Lagos
+  page = four.page;
+  const accountId = await page.evaluate(() => window.game.modules.OnlineAccount.get().id);
+  const granted = await (await fetch(`${SERVER}/admin/grant`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-nl-admin': ADMIN }, body: JSON.stringify({ id: accountId, amount: 10_000_000, memo: 'test: flights' }) })).json().catch(() => ({}));
+  const flight = await page.evaluate(async () => {
+    const g = window.game;
+    await g.modules.OnlineAccount.get().request('/money/ledger'); // the server's wallet, with the grant, reaches the game
+    await new Promise((r) => setTimeout(r, 500));
+    const route = g.flights.routesFrom ? g.flights.routesFrom('port_harcourt').find((r) => r.to === 'lagos') : null;
+    if (!route) return { ok: false, reason: 'no route' };
+    const booked = g.flights.book(route, 'port_harcourt');
+    g.flights.checkIn('port_harcourt');
+    g.flights.clearSecurity('port_harcourt');
+    const boarded = g.flights.board('port_harcourt');
+    return { ok: booked.ok && boarded.ok, reason: booked.reason ?? boarded.reason ?? null };
+  });
+  // The first flight of a visit is drawn for the first time as it boards: the page is frozen for a
+  // moment (about 2 s here) and nothing, the save included, can be sent until it draws its next frame
+  // (the first-time freeze, repair step 2). The browser is wiped 0.3 s after that frame.
+  const frozenFor = await page.evaluate(() => { const t = performance.now(); return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(Math.round(performance.now() - t))))); });
+  await wipeAfter(four.ctx, 300);
+  const five = await signInFresh(browser, contexts, (v) => v.city === 'lagos' && !!v.apron && near(v, v.apron));
+  check('ridesave L2: a flight boarded for Lagos and the browser wiped 0.3 s after the page draws again: signed in again, the player has landed at the Lagos apron',
+    granted.ok && flight.ok && five.ok, { granted: granted.ok, flight, frozenForMs: frozenFor, last: five.last });
+
+  // 6. A flight on from Lagos to Abuja, flown to the end; the browser wiped 0.3 s after landing
+  page = five.page;
+  const flight2 = await page.evaluate(async () => {
+    const g = window.game;
+    const route = g.flights.routesFrom('lagos').find((r) => r.to === 'abuja');
+    const booked = g.flights.book(route, 'lagos');
+    g.flights.checkIn('lagos');
+    g.flights.clearSecurity('lagos');
+    const boarded = g.flights.board('lagos');
+    return { ok: booked.ok && boarded.ok, reason: booked.reason ?? boarded.reason ?? null };
+  });
+  const flying = await playUntil(page, () => (window.game.flightExperience.isActive ? true : null), 30);
+  if (flying) await page.evaluate(() => window.game.flightExperience.skipFlight());
+  const landedAbuja = await playUntil(page, () => (window.game.world.cityManager.currentCityId === 'abuja' && !window.game.flightExperience.isActive ? true : null), 30);
+  await wipeAfter(five.ctx, 300);
+  const six = await signInFresh(browser, contexts, (v) => v.city === 'abuja' && !!v.apron && near(v, v.apron));
+  check('ridesave L2: a flight to Abuja lands and the browser is wiped 0.3 s later: signed in again, the player is on the Abuja apron',
+    flight2.ok && !!flying && !!landedAbuja && six.ok, { flight2, flying, landedAbuja, last: six.last });
+
+  // 7. The page closed straight after a move (before the usual 2 s wait): the last copy is sent as it goes
+  page = six.page;
+  const moved = await page.evaluate(() => {
+    const g = window.game;
+    const online = g.modules.OnlineAccount.get();
+    const p = g.player;
+    p.stopMoving();
+    p.mesh.position.set(p.position.x + 7, 0, p.position.z + 5);
+    const sync = g.modules.CloudSyncService.getInstance();
+    return { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), token: online.authorization, size: JSON.stringify(sync.collect()).length };
+  });
+  await page.close({ runBeforeUnload: false });
+  await wait(2500);
+  const stored = await (await fetch(`${SERVER}/me/save`, { headers: { authorization: `Bearer ${moved.token}` } })).json().catch(() => ({}));
+  let ws = null;
+  try { ws = JSON.parse(stored?.doc?.bags?.nigeria_life_account_data_v1 ?? 'null')?.worldState ?? null; } catch { /* none */ }
+  check(`ridesave L2: the page closed within 2 s of a move: the last copy (${Math.round(moved.size / 1024)} KB) reaches the account as the page goes`,
+    moved.size <= 60000 && !!ws && Math.abs(ws.x - moved.x) < 0.1 && Math.abs(ws.z - moved.z) < 0.1, { moved: { x: moved.x, z: moved.z, size: moved.size }, stored: ws });
+
+  // 7b. The same browser opened again: the copy it sent as it closed is its own, so it loads once,
+  //     is not told it was behind, and stands where it left off
+  {
+    const again = await six.ctx.newPage();
+    let loads = 0;
+    again.on('framenavigated', (f) => { if (f === again.mainFrame()) loads += 1; });
+    await again.setViewport({ width: 1100, height: 700 });
+    await again.evaluateOnNewDocument(KEEP_TOASTS);
+    await again.goto(`${GAME_URL}?server=${encodeURIComponent(SERVER)}`, { waitUntil: 'load', timeout: 120000 });
+    await again.waitForFunction('window.game && window.game.hud', { timeout: 120000 });
+    await wait(12000);
+    const view = await again.evaluate(() => ({ x: +window.game.player.position.x.toFixed(2), z: +window.game.player.position.z.toFixed(2), toasts: (window.__toasts ?? []).join(' | ') })).catch(() => null);
+    check('ridesave L2: the same browser opened again after sending its last copy as it closed: one load, not told it was behind, standing where it left off',
+      loads === 1 && !!view && !/was behind/.test(view.toasts) && near(view, moved), { loads, view, moved: { x: moved.x, z: moved.z } });
+    await again.close().catch(() => {});
+  }
+
+  // 8. A ride in the quiet moment straight after signing in: the arrival is not dropped, it reaches
+  //    the account as soon as the quiet moment ends
+  const seven = await signInFresh(browser, contexts, (v) => v.city === 'abuja', true);
+  const q = await seven.page.evaluate(() => {
+    const g = window.game;
+    const p = g.player.position;
+    const far = (d) => Math.hypot(d.streetPosition.x - p.x, d.streetPosition.z - p.z);
+    const dest = g.rides.destinations().filter((d) => g.rides.vehiclesFor(d).some((v) => v.mode === 'taxi')).sort((a, b) => far(b) - far(a))[0];
+    return { ...g.rides.book(dest.id, 'taxi'), name: dest.name, spot: g.setDownSpot(dest), token: g.modules.OnlineAccount.get().authorization };
+  });
+  await rideStarts(seven.page);
+  const qEnd = await finish(seven.page, 'skip');
+  const readStored = async () => {
+    const doc = await (await fetch(`${SERVER}/me/save`, { headers: { authorization: `Bearer ${q.token}` } })).json().catch(() => ({}));
+    try { return JSON.parse(doc?.doc?.bags?.nigeria_life_account_data_v1 ?? 'null')?.worldState ?? null; } catch { return null; }
+  };
+  let reached = null;
+  const until = Date.now() + QUIET_MS + 15000;
+  while (Date.now() < until) {
+    const w = await readStored();
+    if (w && near(w, q.spot)) { reached = w; break; }
+    await wait(1000);
+  }
+  check(`ridesave L2: a ride taken in the quiet moment straight after signing in: the arrival at ${q.name} reaches the account as soon as that moment ends`,
+    q.ok && !!qEnd && near(qEnd, q.spot) && !!reached, { spot: q.spot, end: qEnd, reached });
+}
+
+// --------------------------------------------------------------------------------------------- L1: Turn back
+async function turnBackRun(browser, check) {
+  for (const city of ['lagos', 'abuja', 'port_harcourt']) {
+    const ctx = await newPlayer(browser);
+    const { page, log } = await open(ctx, { before: KEEP_TOASTS });
+    await closeDialogs(page);
+    await toCity(page, city);
+    const b = await bookFarthest(page);
+    const started = await rideStarts(page);
+    const button = await page.evaluate(() => {
+      const el = document.getElementById('btn-ride-back');
+      return { shown: !!el && getComputedStyle(el).display !== 'none', text: el?.textContent ?? '', title: el?.title ?? '' };
+    });
+    await advance(page, 1);
+    const turned = await page.evaluate(() => {
+      document.getElementById('btn-ride-back').click();
+      const g = window.game, p = g.player.position, ws = g.hud.backend.getData().worldState;
+      return { x: p.x, z: p.z, active: g.roadRideExperience.isActive, ride: g.rides.ride?.stage ?? null, saved: ws ? { x: ws.x, z: ws.z, rideTo: ws.rideTo ?? null } : null };
+    });
+    await advance(page, 2);
+    const now = await state(page, b.name);
+    check(`ridesave turn back ${city}: the ride card offers "Turn back", saying the fare is not refunded and naming where it goes back to`,
+      !!started && button.shown && /Turn back/.test(button.text) && /no refund/.test(button.text) && /Turn back to .+\. The fare is not refunded\./.test(button.title), { button });
+    check(`ridesave turn back ${city}: pressed, the player is set down where the ride was booked (not at ${b.name}), the ride over and that spot saved at once`,
+      near(turned, b.from) && !near(turned, b.spot, 20) && !turned.active && turned.ride === null && near(turned.saved, b.from, 0.05) && turned.saved.rideTo === null && /You turned back to .+ The fare is not refunded/.test(now.toasts),
+      { from: b.from, spot: b.spot, turned, toasts: now.toasts });
+    check(`ridesave turn back ${city}: the fare stays paid, once`, now.money === b.money - b.fare && now.charged === b.chargedBefore + 1, { before: b.money, fare: b.fare, now: now.money, charged: now.charged });
+    await reload(page, 3000);
+    await closeDialogs(page);
+    const after = await state(page, b.name);
+    check(`ridesave turn back ${city}: reloaded, the player is still where the ride was booked, and a new ride can be booked`,
+      after.city === city && near(after, b.from) && (await page.evaluate(() => window.game.rides.cannotBook())) === null, { from: b.from, after });
+
+    if (city === 'lagos') {
+      // A coach has no Turn back (it does not turn round for one passenger); Skip still works
+      const coach = await page.evaluate(() => {
+        const g = window.game;
+        const route = g.coaches.routesFrom('lagos').find((r) => r.to === 'abuja');
+        return { bought: g.coaches.buy(route, 'lagos').ok, boarded: g.coaches.board('lagos').ok };
+      });
+      const onRoad = await playUntil(page, () => (window.game.roadRideExperience.isActive ? true : null), 60);
+      const coachButton = await page.evaluate(() => { const el = document.getElementById('btn-ride-back'); return !!el && getComputedStyle(el).display !== 'none'; });
+      await page.evaluate(() => window.game.roadRideExperience.skipRide());
+      const arrived = await playUntil(page, () => (window.game.world.cityManager.currentCityId === 'abuja' ? true : null), 30);
+      check('ridesave turn back: a coach journey offers no "Turn back", and skipping it still arrives in Abuja',
+        coach.bought && coach.boarded && !!onRoad && !coachButton && !!arrived, { coach, onRoad, coachButton, arrived });
+    }
+    check(`ridesave turn back ${city}: no errors in the page`, log.errors.length === 0, log.errors.slice(0, 4));
+    await ctx.close();
+  }
 }

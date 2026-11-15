@@ -493,3 +493,100 @@ All four are small and none blocks Step 1. My recommended order:
 - **The fare is taken exactly once**, in the game and on the server's own ledger.
 - **On the A16 itself,** the fixed build ran and set a player down at a Port Harcourt destination. What the phone has not shown directly, a reload during a ride, is the case the laptop tests reproduce most closely.
 - **The open items (L1 to L4) do not affect what Step 1 promised,** and each has a small, separate fix. L1 and L2 are ready to do when you approve them.
+
+## L1 and L2 done; L3 and L4 recorded (15 Nov 2026)
+
+Approved: L1 and L2 only. L4 is left for Stage 2b. Step 2 and Stage 4 are not started.
+
+### L1. "Turn back" goes back to where the ride was booked
+
+- **The button now reads "↩ Turn back · no refund".** Its title and spoken label say "Turn back to <the place it was booked>. The fare is not refunded."
+- **Pressed,** the ride ends at the pickup spot, which `startRoadRide` keeps when the ride begins. That spot is saved at once and sent to the account.
+- **The fare stays paid,** once. The message reads "You turned back to <place>. The fare is not refunded."
+- **Where it appears:** only on a paid ride within a city (Ride app, map cab, keke to a station).
+  - Coach journeys and the car from the airport after a flight no longer show "Turn back". It used to act as Skip there.
+  - "Skip ride" is unchanged everywhere.
+- **Files:**
+  - `src/transit/TransitHUD.ts`: own callback; shown only when told where to turn back to.
+  - `src/transit/RoadRideExperience.ts`: `turnBack()` and `endedBy`.
+  - `src/phone/services/RideService.ts`: `endTrip()`.
+  - `src/game/Game.ts`: the pickup kept; `setDownAtPickup`.
+
+### L2. A journey's start and end reach the account at once
+
+- **What counts as an important moment.** Each of these is sent to the game server immediately (`CloudSyncService.saveNow()`), not after the usual 2 s wait:
+  - a ride in a city starting (its saved set-down)
+  - a ride ending, including turned back
+  - a coach or flight boarded (the in-transit save)
+  - a coach pulling in
+  - a flight landing
+  - a ride finished by reopening the game
+- **As the page goes away** (closed, or hidden), a last copy is sent with `fetch` keepalive, which the browser completes after the page has gone. This happens only if something was saved since the account's copy, and only if the copy is under 60 KB. Today's save is 35 to 41 KB.
+- **The quiet moment after signing in is no longer a hole.**
+  - After loading the account's copy, a device stays quiet for 20 s. This was already in the design: it keeps the reloading page's start-up from writing over the account.
+  - Until now, anything saved in those 20 s waited for the next full copy, up to a minute later.
+  - It is now sent the moment the quiet ends. The quiet itself is unchanged.
+- **A device knows its own last copy.**
+  - A copy sent as the page closes is stored by the server, but the closing page never hears the reply. On the next load the account's copy is one version "newer" than the device knows.
+  - Without care, that made the game reload once more at start and could say "This device was behind". The regression suites caught it.
+  - The server now says which device wrote the copy it holds; it already kept this for its lost-reply rule. A device seeing its own copy just notes the version and does not load it again. A copy from any other device, or one put back by the game team, still loads as before.
+- **Files:**
+  - `src/backend/CloudSyncService.ts`: `saveNow`, `sendOnLeave`, `quietLeft`, own-copy check on load; a pending count so a save made while a copy is on its way is not taken as sent.
+  - `server/saves.ts`: `read` also returns the device that wrote the copy (no change to what is stored or accepted).
+  - `src/online/OnlineAccount.ts`: `sendAsLeaving`.
+  - `src/game/Game.ts`: the calls at each journey point.
+
+### L3. What remains on Android (documented, as asked)
+
+Even with L2, a few seconds can exist where the newest position is only on the phone. L2 makes these as short as the page allows.
+
+| Moment | How long | Why | Protection |
+|---|---|---|---|
+| Right after a journey starts or ends | One request: about 20 ms on the laptop; on a phone, one or two network round trips | The save is sent at once but has to travel | L2 |
+| The first 20 s after loading the account's copy (signing in on a device) | Up to 20 s | The quiet moment that stops a reloading page from overwriting the account | Sent the moment it ends |
+| The first flight of a visit | About 2 s on the laptop, longer on the A16 | Boarding draws the flight scene for the first time and the page freezes (P2); nothing can be sent until it draws again | Repair step 2 removes the freeze |
+| Android closing **all of Chrome** (not just the tab) | Moments | Chrome writes browser storage to disk shortly after a change, not instantly; if the whole of Chrome is killed in that moment, the phone's copy can be one save behind | For a signed-in player, the account already has it (L2). A guest has only the phone's copy, and no web page can force Chrome to write to disk. |
+| Signing in on another browser | 30 to 100 s on the busy laptop, before and after this change | The sign-in loads the game several times (account copy, then the player registry); each load is a full start-up | Unchanged by L2; noted for the start-up work |
+| Two devices open at once | While both are open | The newer device steps aside ("Playing on another device") so it cannot overwrite the other; existing behaviour | By design; "Play here instead" |
+
+**Strongest practical protection:** be signed in. With L2, every journey's start and end are on the server within a request of happening. The only Android-specific gap left (all of Chrome killed in the same moment) is then covered by the account.
+
+### L4
+
+Left for Stage 2b as decided. The fare is reported to the server after it is paid in the game. If the tab dies within that instant, the fare is not charged; it is never charged twice.
+
+### Tests
+
+`tests/e2e/ridesave.mjs` gained two parts:
+
+- **`turnback`:**
+  - In Lagos, Abuja and Port Harcourt: the button's words, being set down at the pickup spot, that spot saved at once, the fare once, still there after a reload, and a new ride bookable.
+  - A coach journey shows no "Turn back", and Skip still arrives.
+- **L2,** inside `account`, on a local test server, one device at a time. In each case the browser's data is wiped 0.3 s after the moment, then the player signs in on a new browser:
+
+  | Moment | Signed in again, the player is |
+  |---|---|
+  | A ride's end | at the airport |
+  | 0.3 s into a ride | at its destination, the fare once on the server |
+  | A coach boarded | at Utako |
+  | A coach pulling in | at Waterlines |
+  | A flight boarded (0.3 s after the page draws again) | on the Lagos apron |
+  | A flight landing | on the Abuja apron |
+
+  Plus two more checks:
+  - The page closed within 2 s of a move: the last copy reached the account as the page went.
+  - A ride taken in the quiet moment after signing in reached the account as soon as the quiet ended.
+
+**Results** (laptop; `GAME_URL` a frozen build of this change):
+
+| Run | Result |
+|---|---|
+| `ridesave` in one full run (cities, phone, turnback, map, account with L2) | **74/74** |
+| Regression across 18 suites | **339/343** |
+| `perfreadout` run alone | 12/12 |
+
+The four regression failures:
+- `online` fails the same way on the build from before this change (a 401 on `/ads`).
+- `phonefit` fails on the build from before too, on different checks each run.
+- `perfreadout` timed out loading at the end of the long run, and passed 12/12 alone.
+- `accountsave` and `server` failed while the own-copy problem above was present, and pass now: `accountsave` 23/23 alone, and both in the full regression run.

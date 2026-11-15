@@ -525,6 +525,7 @@ export class RoadRideExperience {
   // =========================================================================
   public startRide(ride: RideDetails): void {
     this.currentRide = ride;
+    this.endedBy = 'arrived';
     this.isActive = true;
     this.group.visible = true;
     this.elapsedTime = 0;
@@ -631,6 +632,16 @@ export class RoadRideExperience {
   }
 
   public skipRide(): void {
+    this.completeRide();
+  }
+
+  /** How the last ride ended: at its destination, or turned back to where it was booked */
+  public endedBy: 'arrived' | 'turnedBack' = 'arrived';
+
+  /** The driver turns round: the ride ends back where it was booked (the game sets the player down there) */
+  public turnBack(): void {
+    if (!this.isActive) return;
+    this.endedBy = 'turnedBack';
     this.completeRide();
   }
 

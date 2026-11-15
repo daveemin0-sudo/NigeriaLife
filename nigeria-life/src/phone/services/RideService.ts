@@ -132,6 +132,13 @@ export class RideService {
     return true;
   }
 
+  /** The trip was turned back: it is over without reaching the destination (the fare stays paid) */
+  public endTrip(): void {
+    if (this.ride?.stage !== 'on_trip') return;
+    this.ride = null;
+    this.changed();
+  }
+
   /** Cancels a ride the driver has not reached yet. Nothing has been charged. */
   public cancel(): RideResult {
     if (!this.ride) return { ok: false, reason: 'There is no ride to cancel.' };

@@ -359,6 +359,8 @@ export class Game {
   /** The saved city has been stepped back into, so a save may record where the player is standing. */
   private placeRestored = false;
   private onJourneyCompleted: (() => void) | null = null;
+  /** Where the current paid ride in a city was booked: "Turn back" sets the player down there */
+  private ridePickup: { x: number; z: number; rotationY: number; name: string } | null = null;
 
   constructor() {
     // 1. Scene
@@ -631,6 +633,10 @@ export class Game {
       this.roadRideExperience.skipRide();
     };
 
+    this.transitHUD.onTurnBackRide = () => {
+      this.roadRideExperience.turnBack();
+    };
+
     // Wire Flight Progression & Landing
     this.flightExperience.onFlightPhaseChanged = (phase, timeRemaining, announcement) => {
       this.transitHUD.updateFlightProgress(phase, timeRemaining, announcement);
@@ -689,10 +695,15 @@ export class Game {
 
       const journeyCompleted = this.onJourneyCompleted;
       this.onJourneyCompleted = null;
-      journeyCompleted?.();
+      const pickup = this.roadRideExperience.endedBy === 'turnedBack' ? this.ridePickup : null;
+      this.ridePickup = null;
+      if (pickup) this.setDownAtPickup(pickup);
+      else journeyCompleted?.();
       // Where the ride set the player down is saved now, not at the next autosave: a reload a moment
-      // later must not find the spot the ride began from
+      // later must not find the spot the ride began from. And sent to the account at once, so even
+      // clearing the browser straight after cannot bring back an older spot.
       this.saveWorldState();
+      CloudSyncService.getInstance().saveNow();
     };
 
     // Wire InterState Modal to trigger the 3D Flight Experience
@@ -3687,6 +3698,7 @@ export class Game {
       this.cameraManager.snapToPlayer(this.player, 'street');
     }
     this.saveWorldState();
+    CloudSyncService.getInstance().saveNow();
     const there = MOTOR_PARKS[cityId as CoachCity];
     if (ridden && there) {
       showGameToast(`${ridden.route.coach} has pulled in at ${there.name}. Welcome to ${there.city}. The gate to the street is ahead.`, 'success', 6200);
@@ -3799,6 +3811,7 @@ export class Game {
     this.standOnApron(cityId);
     const flown = this.flights.arrive();
     this.saveWorldState();
+    CloudSyncService.getInstance().saveNow();
     const airport = AIRPORTS[cityId as FlightCity];
     if (flown && airport) {
       showGameToast(`${flown.route.flight} has landed at ${airport.name}. Welcome to ${airport.city}. The terminal is ahead: go through it for the street.`, 'success', 6200);
@@ -3861,12 +3874,28 @@ export class Game {
     // Seen from the street, not behind an open map
     if (this.world.worldMap.isActive || this.hud.currentNavMode === 'map') this.hud.leaveMap();
     this.hud.phoneModal.close();
+    // Where it was booked, for "Turn back"
+    const here = this.player.position;
+    const from = this.world.getDistrictAtPosition(here).name;
+    this.ridePickup = { x: here.x, z: here.z, rotationY: this.player.mesh.rotation.y, name: from };
     this.saveRideInTransit(spot, name);
+    CloudSyncService.getInstance().saveNow();
     this.onJourneyCompleted = arrived;
     this.world.setStreetModeVisibility(false);
     this.player.mesh.visible = false;
     this.roadRideExperience.startRide(ride);
-    this.transitHUD.showRideHUD(ride);
+    this.transitHUD.showRideHUD(ride, { turnBackTo: from });
+  }
+
+  /** Turned back: set down where the ride was booked. The fare stays paid, as the button said. */
+  private setDownAtPickup(pickup: { x: number; z: number; rotationY: number; name: string }): void {
+    this.player.stopMoving();
+    this.player.mesh.position.set(pickup.x, 0, pickup.z);
+    this.player.position.copy(this.player.mesh.position);
+    this.player.mesh.rotation.y = pickup.rotationY;
+    this.cameraManager.snapToPlayer(this.player, 'street');
+    this.rides.endTrip();
+    showGameToast(`You turned back to ${pickup.name}. The fare is not refunded.`, 'info', 4200);
   }
 
   private saveRideInTransit(spot: { x: number; z: number }, name: string): void {
@@ -3888,6 +3917,8 @@ export class Game {
 
   private saveArrivalInTransit(cityId: CityId): void {
     if (!this.isSavedCity(cityId)) return;
+    // Sent to the account at once (below), as well as kept on this device
+    queueMicrotask(() => CloudSyncService.getInstance().saveNow());
     BackendService.getInstance().saveWorldState({
       cityId,
       x: 0,
@@ -4025,6 +4056,7 @@ export class Game {
       // The game closed during a paid ride in this city: it finished, and the player is there
       showGameToast(`You have arrived at ${saved.rideTo}.`, 'success', 4200);
       this.saveWorldState();
+      CloudSyncService.getInstance().saveNow();
     }
   }
 

@@ -95,6 +95,9 @@ export class CloudSyncService {
   private paused = false;
   /** This device has taken the life over: its next save is kept even though it is behind */
   private taking = false;
+  /** Saved on this device since the account last took a copy; and a count of saves, so one made while a copy was on its way is not taken as sent */
+  private pending = false;
+  private changes = 0;
 
   private decide: (loading: boolean) => void = () => undefined;
   /**
@@ -150,9 +153,49 @@ export class CloudSyncService {
 
   /** A local save changed. Sent shortly after, and in full every minute while playing. */
   public note(): void {
+    this.pending = true;
+    this.changes += 1;
     if (!this.live) return;
     window.clearTimeout(this.timer);
-    this.timer = window.setTimeout(() => void this.pushNow(), 2000);
+    // Not sent while quiet after loading the account's copy: sent as soon as that ends instead
+    this.timer = window.setTimeout(() => void this.pushNow(), Math.max(2000, this.quietLeft() + 250));
+  }
+
+  /**
+   * An important moment (a journey begun or ended): sent to the account now, not after the usual
+   * short wait, so clearing the browser a moment later cannot bring back an older copy.
+   */
+  public saveNow(): void {
+    if (!this.live) return;
+    window.clearTimeout(this.timer);
+    // Just after loading the account's copy this device stays quiet for a moment (see apply):
+    // the moment is sent the instant that ends, not left for the minute's full copy
+    const quiet = this.quietLeft();
+    if (quiet > 0) {
+      this.timer = window.setTimeout(() => void this.pushNow(), quiet + 250);
+      return;
+    }
+    void this.pushNow();
+  }
+
+  /**
+   * The page is going away (closed, or hidden and perhaps never shown again): a last copy is sent in a
+   * way the browser finishes after the page has gone, if this device saved since the account's copy
+   * and the save is small enough for that (see OnlineAccount.sendAsLeaving).
+   */
+  private sendOnLeave(): void {
+    if (!this.live || !this.pending || this.paused || this.quiet()) return;
+    const online = this.online ?? OnlineAccount.get();
+    if (!online || online.leaving) return;
+    const sending = this.changes;
+    const sent = online.sendAsLeaving('/me/save', { doc: this.collect(), base: this.version(), device: deviceId(), ...(this.taking ? { take: true } : {}) });
+    // Only hidden, the page hears the reply: the account's copy is this one now
+    void sent?.then((result) => {
+      if (!result?.ok || result.kept !== 'client') return;
+      this.remember(Number(result.version) || 0, Number(result.savedAt) || Date.now());
+      if (this.changes === sending) this.pending = false;
+      this.publish();
+    });
   }
 
   public async pushNow(): Promise<boolean> {
@@ -256,7 +299,11 @@ export class CloudSyncService {
     if (!online) return false;
     const remote = await online.request('/me/save');
     if (!remote.ok || !remote.doc) return false;
-    if (Number(remote.version) > this.version()) return this.catchUp(remote.doc, remote.version, remote.savedAt, false);
+    // A newer copy written by this very device is the last one it sent as its page closed (it never
+    // heard the reply): this device already has everything in it, so it is not loaded again
+    const own = typeof remote.device === 'string' && remote.device === deviceId();
+    if (Number(remote.version) > this.version() && !own) return this.catchUp(remote.doc, remote.version, remote.savedAt, false);
+    if (own && Number(remote.version) > this.version()) this.remember(Number(remote.version) || 0, Number(remote.savedAt) || Date.now());
     this.savedAt = Number(remote.savedAt) || this.savedAt;
     return false;
   }
@@ -275,6 +322,7 @@ export class CloudSyncService {
     // The session may have changed while the money reports were in flight: this device's guest
     // life must not be written onto the account that was just signed in.
     if (online.leaving || online.id !== id || this.quiet()) return true;
+    const sending = this.changes;
     const doc = this.collect();
     // The version this device built on, and its name: the server refuses to let an out-of-date
     // device overwrite what another has saved since (server/saves.ts)
@@ -296,6 +344,7 @@ export class CloudSyncService {
       return true;
     }
     this.remember(Number(result.version) || 0, Number(result.savedAt) || Date.now());
+    if (this.changes === sending) this.pending = false;
     this.publish();
     return true;
   }
@@ -456,7 +505,16 @@ export class CloudSyncService {
   }
 
   private quiet(): boolean {
-    return Date.now() < Number(localStorage.getItem(QUIET_KEY()) || 0);
+    return this.quietLeft() > 0;
+  }
+
+  /** How long this device stays quiet after loading the account's copy, in ms (0 when it is not) */
+  private quietLeft(): number {
+    try {
+      return Math.max(0, Number(localStorage.getItem(QUIET_KEY()) || 0) - Date.now());
+    } catch {
+      return 0;
+    }
   }
 
   private arm(): void {
@@ -465,6 +523,11 @@ export class CloudSyncService {
     window.setInterval(() => void this.pushNow(), 60_000);
     window.setInterval(() => this.publish(), 20_000);
     window.addEventListener('online', () => void this.pushNow());
+    // The game saves where the player is as the page goes (Game.ts, registered first); this sends it on
+    window.addEventListener('pagehide', () => this.sendOnLeave());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.sendOnLeave();
+    });
   }
 
   private publish(): void {

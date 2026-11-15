@@ -157,6 +157,27 @@ export class OnlineAccount {
     return this.post(path, body);
   }
 
+  /**
+   * Sends as the page goes away: the browser finishes the request after the page has closed
+   * (fetch keepalive). Browsers limit such a request to 64 KB, so a larger body is not sent (null).
+   * The reply, if the page is still there to hear it (only hidden, not closed), is returned.
+   */
+  public sendAsLeaving(path: string, body: unknown): Promise<any> | null {
+    if (!this.token) return null;
+    const text = JSON.stringify(body);
+    if (text.length > 60_000) return null;
+    try {
+      return fetch(`${this.base}${path}`, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.token}` },
+        body: text,
+      }).then((response) => response.json()).catch(() => null);
+    } catch {
+      return null;
+    }
+  }
+
   /** Sends at once, signed in or not (the sign-in itself uses this) */
   private async post(path: string, body?: unknown): Promise<any> {
     try {

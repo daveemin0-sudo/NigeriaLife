@@ -104,13 +104,15 @@ export class Saves {
     if (!columns.includes('device')) db.exec('ALTER TABLE player_saves ADD COLUMN device TEXT');
   }
 
-  public read(accountId: string): { ok: true; version: number; savedAt: number; doc: SaveDoc | null } {
-    const row = this.db.prepare('SELECT version, saved_at, doc FROM player_saves WHERE account_id = ?').get(accountId) as Row | undefined;
-    if (!row) return { ok: true, version: 0, savedAt: 0, doc: null };
+  public read(accountId: string): { ok: true; version: number; savedAt: number; doc: SaveDoc | null; device: string | null } {
+    const row = this.db.prepare('SELECT version, saved_at, doc, device FROM player_saves WHERE account_id = ?').get(accountId) as Row | undefined;
+    if (!row) return { ok: true, version: 0, savedAt: 0, doc: null, device: null };
     const doc = this.parse(row.doc);
-    if (!doc) return { ok: true, version: 0, savedAt: 0, doc: null };
+    if (!doc) return { ok: true, version: 0, savedAt: 0, doc: null, device: null };
     this.overlayMoney(accountId, doc);
-    return { ok: true, version: row.version, savedAt: row.saved_at, doc };
+    // Which device wrote it: a device that sent its last copy as its page closed never heard the
+    // reply, and must know this copy is its own rather than load it as if another device were ahead
+    return { ok: true, version: row.version, savedAt: row.saved_at, doc, device: row.device ?? null };
   }
 
   /**

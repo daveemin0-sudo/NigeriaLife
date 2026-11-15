@@ -15,6 +15,8 @@ export class TransitHUD {
   public onSelectRideCamera?: (view: RideCameraView) => void;
   public onSkipFlight?: () => void;
   public onSkipRide?: () => void;
+  /** Turn back: the ride ends where it was booked (only offered on a paid ride within a city) */
+  public onTurnBackRide?: () => void;
 
   constructor() {
     this.container = document.createElement('div');
@@ -159,7 +161,7 @@ export class TransitHUD {
     });
 
     document.getElementById('btn-ride-back')?.addEventListener('click', () => {
-      this.onSkipRide?.();
+      this.onTurnBackRide?.();
     });
   }
 
@@ -229,7 +231,19 @@ export class TransitHUD {
   // =========================================================================
   // ROAD RIDE HUD CONTROLS
   // =========================================================================
-  public showRideHUD(ride: RideDetails): void {
+  /**
+   * The ride card. `turnBackTo` names where the ride was booked: only then is "Turn back" offered,
+   * saying the fare stays paid. A coach, or the car from the airport after a flight, has no turning back.
+   */
+  public showRideHUD(ride: RideDetails, options: { turnBackTo?: string } = {}): void {
+    const back = document.getElementById('btn-ride-back');
+    if (back) {
+      back.style.display = options.turnBackTo ? '' : 'none';
+      back.textContent = '↩ Turn back · no refund';
+      const said = options.turnBackTo ? `Turn back to ${options.turnBackTo}. The fare is not refunded.` : '';
+      back.title = said;
+      back.setAttribute('aria-label', said);
+    }
     this.container.style.display = 'block';
     this.rideCardEl.style.display = 'block';
     this.rideCameraNavEl.style.display = 'flex';
