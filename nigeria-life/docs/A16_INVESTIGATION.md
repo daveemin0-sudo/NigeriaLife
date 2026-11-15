@@ -243,6 +243,34 @@ Probe `inv_views.mjs` took screenshots and measured every on-screen element.
 
   How long a starting shift takes in real minutes was not measured in this pass. It is the remaining question for "frustrating with limited money", and the first test in repair step 7.
 
+## M. Memory when changing cities (15 Nov 2026)
+
+Laptop measurements on the Step 1 build (probes `inv_memory`, `inv_memory2`, `inv_memory3`, `inv_alloc`). The live heap is read after a forced collection; GPU geometries are three.js's count; model data is the vertex arrays the game holds outside the JS heap. Rooms are the number of interior templates.
+
+| After | Live JS heap MB | GPU geometries | Model data MB | Scene objects | Cities built |
+|---|---|---|---|---|---|
+| Lagos at start | 81 | 506 | 146 | 12,459 | Lagos |
+| Lagos, one room | 82 | 1,136 | 146 | 12,459 | Lagos |
+| Abuja, first visit | 91 | 1,198 | 220 | 14,829 | all three |
+| Port Harcourt, first visit | 91 | 1,221 | 220 | 14,829 | all three |
+| Lagos, Abuja, Port Harcourt, then Lagos again | 93 to 95 | 1,612 to 1,771 | 220 | 14,829 | all three |
+
+- **The readout's heap counts garbage.** Standing in Lagos, the readout figure was 245 to 265 MB while the live heap was 81 MB. After four Lagos–Abuja trips it was 361 to 379 MB, with a live heap of 90 MB. The A16's 687 to 765 MB is the same measure on a phone whose collector runs behind.
+- **Short-lived memory: about 25 MB a second** on Lagos's street.
+
+  | Share | What |
+  |---|---|
+  | 47% | `TrafficSpawner.update` |
+  | 17% | three.js re-choosing shader programs |
+  | 14% | uniform uploads |
+
+- **No leak.**
+  - Three minutes standing still: no new geometry made. The GPU count rose 605 → 668 only as existing people and cars were first drawn, bounded by the 9,150 in the scene.
+  - Four Lagos–Abuja round trips: +129, +10, +4 geometries.
+- **What stays:** the first city change builds both other cities (`CityManager.switchCity` calls `initAbuja()` and `initPortHarcourt()`), and no city is freed.
+
+The fixes are in roadmap Stage 4 (4a build a city only when visited, 4b cut per-frame garbage, then free a city on leaving).
+
 ## Repair plan
 
 **Step 1 (rides and saving) done**, on `claude/next-steps`; laptop only, not yet tried on the A16.
@@ -292,6 +320,8 @@ To run with the next session (`npm run a16:session`, local server only). Each on
 4. **Optional, with a USB cable** (`docs/A16_TEST_SESSION.md` section 3): `adb shell dumpsys meminfo com.android.chrome` at the two map marks. This shows the memory Chrome is actually using and settles P5.
 
 ## Step 1 check on the A16: rides survive a reload
+
+**Optional, not needed to accept Step 1.** The automated phone run in the verification report below covers these checks. This list is kept only in case you ever want to see it on the phone yourself.
 
 This checks build `a8ce080` or later on the phone. Allow about 20 minutes, plus the coach trip for part C.
 
@@ -377,3 +407,89 @@ Point 1 is the main fix. Point 2 also covers a player who closes the game straig
 - The existing account-save suite still passes, including two devices and "behind" handling.
 
 Both fixes wait for your A16 results and your approval. Nothing here has been implemented.
+
+## Step 1 verification report (15 Nov 2026)
+
+Step 1 was verified without asking for more phone testing: the A16 evidence already sent, plus automated tests, including an A16-sized, slowed-down phone run.
+
+### 1. The A16 evidence
+
+**Confirmed on the A16** (report `a16-569767f`, 23:20; screenshot):
+- The phone was running the fixed build (`Build: a16-569767f`).
+- A ride in Port Harcourt set the player down at its destination: "You have arrived at Delta Bank.", standing on Aba Road.
+- **Port Harcourt figures:**
+  - 20.1 fps, p95 88.8 ms, 169 draw calls, 421,196 triangles
+  - readout heap 687 MB (765 MB in the screenshot)
+- **Start-ups on the fixed build:**
+  - 42.3 s on the first load (19.2 s of it downloading the new code once)
+  - then 24.3 s and 29.8 s
+- **Abuja (old build, 22:57):** 19.1 fps, p95 111 ms; ride view 50 fps.
+
+**Not confirmed on the A16:**
+- Whether that Port Harcourt arrival was a normal arrival or the game reopening after a reload. The message reads the same.
+- That a Chrome reload happened during or after any ride. The report only describes the page open at the time, and that was "a fresh load".
+- A Lagos airport arrival, and the fare-once checks, on the phone.
+
+Those are covered below by tests that do the same things on the laptop, with the phone's screen, touch and a CPU four times slower.
+
+### 2. Automated tests added and results
+
+`tests/e2e/ridesave.mjs` now has 48 checks in four parts. It runs on its own with `npm run test:e2e -- ridesave`, or by part with `RIDESAVE_ONLY=cities,phone,map,account`.
+
+| Part | What it does | Result |
+|---|---|---|
+| **cities** (Lagos, Abuja, Port Harcourt) | <ul><li>The farthest Ride app place (beyond 400 m in Lagos and Abuja), played to the end and skipped.</li><li>A reload straight after arriving.</li><li>A reload in the middle of a ride.</li><li>**Chrome killing the tab mid-ride:** the page crashes, with no chance to save, and is opened again in a new tab.</li><li>The fare counted in the money and the ledger after each.</li></ul> | 36/36 |
+| **phone** (320×607, touch, CPU 4× slower, real time) | <ul><li>Phone › Ride › search › Murtala Muhammed International Airport › Taxi, **by tapping**. The ride plays to the end in real time.</li><li>The tab is killed the moment the player arrives and reopened: the player is at the airport, 6.3 km out.</li><li>Then a ride to Computer Village, the tab killed mid-ride: the game reopens at Computer Village with "You have arrived at…".</li><li>Each fare taken exactly once.</li></ul> | 5/5 |
+| **map** | <ul><li>A map cab in Port Harcourt to a place 531 m out, reloaded mid-ride: at the place, charged once.</li><li>A ride starting while the map is open: the map closes and the ride sets down at the door.</li></ul> | 3/3 |
+| **account** (a local test server, never the live one) | <ul><li>A signed-up player rides to the airport: the game server's **own ledger** has that fare exactly once, and its wallet equals the game's.</li><li>A reload mid-ride while signed in: one fare on the server, wallets equal.</li><li>The browser cleared and signed in again: the player is where the last ride set them down.</li></ul> | 4/4 |
+
+Notes:
+- **Test mistakes found and fixed while strengthening the suite**, none of them a game fault:
+  - a tap on a list item the phone screen had just redrawn
+  - a check that expected the first ride's spot after a second ride had moved the player on
+- **The full suite, end to end, after those fixes: 48/48 passed** (one run, about 30 minutes, on the Step 1 build).
+- **Regression** (from the Step 1 commit): 366/367 across 21 related suites. The one failure, `online`, also fails on the build from before Step 1; it times out loading a page on this laptop with the CPU slowed.
+
+### 3. Memory when changing cities
+
+The full evidence is in section M below and in roadmap Stage 4. In short:
+- The readout's "heap" (687 to 765 MB on the A16) is mostly memory waiting to be collected.
+- On the laptop, the memory the game actually keeps is 81 MB at start and 95 MB after seven city changes. There is **no leak**.
+- What does stay is every city once built. The first change of city builds both other cities, and none is ever freed: 146 → 220 MB of model data, outside the readout's figure.
+- About 25 MB a second of short-lived memory is made on Lagos's street, half of it by the traffic update.
+- Three changes were added to Stage 4: build a city only when visited, cut the per-frame garbage, and then free a city on leaving.
+
+### 4. Remaining ride limitations: do they need code? The safest fixes
+
+| # | Limitation | Needs code? | Safest fix | Risk if left |
+|---|---|---|---|---|
+| L1 | "Turn back" does what "Skip ride" does: it goes to the destination. | Yes (`TransitHUD.ts:161` wires both buttons to skip). | A turned-back end in `RoadRideExperience`, setting the player down at the pickup spot (kept by `startRoadRide`) and saving there; the fare is kept and the button says so. A part refund is your call and belongs with server-checked money (Stage 2b). About 40 lines. | Confusing, but no loss: the player arrives where they paid to go. |
+| L2 | The browser cleared within about 2 s of arriving brings back the server's older spot. | Yes (`CloudSyncService.note()` waits 2 s). | Send the save to the server at once when a ride starts and ends (`pushNow`), and on page-hide with `fetch` keepalive when the save is under 64 KB. | Only when a player deliberately clears the browser within 2 s; a reload, a closed tab or Chrome killing the tab are covered (tested). |
+| L3 *(new)* | If Android closes **the whole of Chrome**, not just the tab, within moments of a save, the last write may never have reached the disk. | Partly | Chrome writes browser storage to disk shortly after a change, not instantly. The L2 fix (sending the arrival to the server at once) covers signed-in players. Guests cannot be covered from the page. | Low; cannot be reproduced reliably on the laptop (see 5). |
+| L4 *(new)* | If the tab dies in the instant between paying at pickup and the payment's report reaching the server, the server never records the fare. The server's wallet wins on the next load, so the fare is **not** charged. | Yes, later | Server-settled fares (the server takes the fare before the ride starts), the same pattern as shift pay. Belongs with Stage 2b. | Very low, and never a double charge: at worst one fare not taken. |
+
+All four are small and none blocks Step 1. My recommended order:
+1. **L1** first: a misleading button.
+2. **L2**, together with L3.
+3. **L4** with Stage 2b.
+
+### 5. What genuinely needs the phone, and the alternative
+
+| Question | Why the laptop cannot settle it | Alternative without a testing session |
+|---|---|---|
+| Chrome on the A16 really reopens the tab the way the laptop's crash test does | Android decides when and how to drop a tab. The laptop crash test does the same thing to the page (kills it, no page-hide, storage kept), but it is not Android's decision. | **None needed for normal play.** Whenever you next play, the report already notes "BROUGHT BACK AFTER CHROME DISCARDED IT" or "reloaded". If a ride ever ends somewhere else, send that report. |
+| L3: whether Android sometimes closes all of Chrome before storage reaches the disk | Depends on Android's memory manager on that phone | The L2 fix removes it for signed-in players. No test session is useful. |
+| The phone's true memory use (what Android weighs) | The page cannot see it | `adb` with a USB cable (`A16_TEST_SESSION.md` section 3): one command, no gameplay. Only needed for Stage 4. |
+
+### 6. Recommendation
+
+**I recommend accepting Step 1.**
+- **The cause is removed.** The 400 m limit is gone, a ride's destination is saved before the ride plays, and the arrival is saved immediately.
+- **Every way a player can lose a ride is tested**, in all three cities and on an A16-sized phone running four times slower than the laptop:
+  - a reload straight after arriving
+  - a reload mid-ride
+  - Chrome killing the tab at arrival and mid-ride
+  - signing in again on a cleared browser
+- **The fare is taken exactly once**, in the game and on the server's own ledger.
+- **On the A16 itself,** the fixed build ran and set a player down at a Port Harcourt destination. What the phone has not shown directly, a reload during a ride, is the case the laptop tests reproduce most closely.
+- **The open items (L1 to L4) do not affect what Step 1 promised,** and each has a small, separate fix. L1 and L2 are ready to do when you approve them.

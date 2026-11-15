@@ -521,6 +521,48 @@ Plus:
 5. **Traffic at levels of detail (P5).**
 6. **Room first-entry pause (I7):** measured on the A16; if over the provisional limit, rooms are built during the door's fade or ahead of time.
 
+**Memory evidence, 14 and 15 Nov 2026** (added after the A16 sessions; see `docs/A16_INVESTIGATION.md`, section M):
+
+- **A16 readout figures** (`performance.memory.usedJSHeapSize`):
+
+  | Where | MB (of a 1,387 MB limit) |
+  |---|---|
+  | Lagos | 483 |
+  | Abuja | 376 to 411 |
+  | Port Harcourt mark, after three cities in one page | 687 |
+  | Port Harcourt, minutes later (screenshot) | 765 |
+
+- **That figure counts garbage not yet collected.**
+  - Laptop at the same moments: the readout showed 245 to 380 MB, but the live heap after a forced collection was **81 MB** in Lagos at start and **95 MB** after seven city changes and three rooms.
+  - So the JS objects the game keeps grow by about 15 MB over the tour. The rest of the readout's figure is short-lived memory waiting to be collected.
+- **What the short-lived memory is.** About **25 MB a second** is allocated on Lagos's street (laptop; 20 s allocation sample):
+
+  | Share | MB a second | What |
+  |---|---|---|
+  | 47% | 11.9 | `TrafficSpawner.update` |
+  | 17% | 4.3 | three.js choosing shader programs again (`getParameters`, `getProgramCacheKeyParameters`). Some materials appear to need a program re-check at every draw (likely a material shared by meshes needing different shader variants). |
+  | 14% | 3.5 | uniform uploads |
+
+  On a slow phone the collector runs behind this rate, so Chrome lets the heap grow. Collecting it costs CPU time too, adding to P3.
+- **What stays: every city, once seen.**
+  - The first change of city builds **both** Abuja and Port Harcourt (`CityManager.switchCity` calls `initAbuja()` and `initPortHarcourt()`).
+  - No city is ever freed; one left is only hidden.
+  - Scene objects: 12,459 → 14,829. Geometry arrays held in JS: 146 → 220 MB. These sit outside the JS heap, so the readout does not show them.
+  - The GPU copies grow as things are first drawn: 441 → 1,771 geometries over the tour.
+- **No leak found.**
+  - Standing still for 3 minutes, no new geometry is made. The GPU count rises only as existing objects (people, cars) are drawn for the first time, and it is bounded by the 9,150 in the scene.
+  - Repeating Lagos–Abuja–Lagos four times: +129, +10, +4 geometries; the live heap stays flat.
+- **What this means for the tab being closed on the A16:** Android weighs the whole process. That is the JS heap with its uncollected part, plus three cities' geometry arrays, plus their GPU copies. The first two are now measured; the process total still needs `adb` (see section 4 of `A16_TEST_SESSION.md`).
+
+**Changes added to this stage from that evidence:**
+- 4a. **Build a city only when it is visited.** Today going to Abuja also builds Port Harcourt (and the reverse). Low risk.
+- 4b. **Cut the per-frame garbage.**
+  - Traffic's update allocates nothing per frame: reused objects, no new numbers stored on cars.
+  - Find and fix the material that makes three.js re-choose its program at every draw.
+  - Target: under 5 MB a second allocated on Lagos's street (laptop), from 25. This also cuts collection pauses.
+- 4c. **Freeing a city on leaving** (item 4 above) is still the step that bounds memory. 4a and 4b come first because they are smaller and safer.
+- **Measuring:** the readout should show the live heap where Chrome allows it, and the `perfbudget` suite should record the allocation rate and the post-collection heap (laptop). That way the "rising heap" can no longer be confused with what the game keeps.
+
 **Acceptance.** All targets are **provisional until Stage 0's A16 baseline**; they are replaced by baseline-based figures before this stage starts, for example "a 25% cut from the A16 baseline".
 
 | Check | Laptop target (provisional) | A16 target (provisional) |
