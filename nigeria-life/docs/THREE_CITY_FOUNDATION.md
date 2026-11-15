@@ -1,80 +1,137 @@
 # NigeriaLife first release: the three-city foundation
 
-*15 Nov 2026. An honest assessment against the first-release direction. Documentation only; nothing here has been built.*
+*Assessment of 15 Nov 2026, branch `claude/next-steps` at commit `9f92883`. Documentation only.*
 
-## The direction (agreed)
+## 1. Adopted decisions (standing project rules, 15 Nov 2026)
 
-- **The first release has three cities: Lagos, Abuja and Port Harcourt.** All three must be accessible and playable, and all three must support the core game loop.
-- **The vision is all 36 states.** The game is built so states can be added without rebuilding it.
-- **The three cities need not be equally detailed on day one.** They share the same core systems, and each grows its own identity:
+1. **The first release contains Lagos, Abuja and Port Harcourt.** It is not reduced to one city.
+2. **The long-term vision is all 36 Nigerian states.**
+3. **Visible product progress.** Every development cycle delivers measurable progress a player can see or do. Critical infrastructure, security, stability and performance work is allowed when it directly supports the product.
+4. **The nine requirements in section 4 are the first release's acceptance criteria.**
 
-  | City | Identity |
-  |---|---|
-  | Lagos | Commerce, markets, ports, traffic, nightlife |
-  | Abuja | Capital, government districts, estates, institutions, planned streets |
-  | Port Harcourt | Industry, oil and gas, waterfronts, markets, neighbourhoods |
+Also accepted: A16 repair Step 1 and limitations L1 and L2 (commit `9f92883`), as complete on the development branch. That is not a merge or a deployment.
 
-- **Rule: no development without visible product progress.** Every cycle delivers something a player can see or do, alongside any essential maintenance. Technical work must serve the game.
+## 2. How each statement here is graded
 
-## Where each city stands against the nine first-release requirements
+| Grade | Meaning |
+|---|---|
+| **Complete** | Works end to end, and an automated test or measurement shows it |
+| **Partial** | Works, with gaps a player will hit (named) |
+| **Missing** | Not there |
+| **Unverified** | Not yet measured or tested; no claim is made either way |
 
-Key:
-- **Playable** = works end to end today.
-- **Partly** = works, with gaps a player will hit.
-- **Missing** = not there.
+Sources:
+- `QUALITY_AUDIT.md` (14 Nov), whose probes walk into rooms as a player would.
+- `A16_INVESTIGATION.md`.
+- The code.
+- The automated test suites.
+- The user's two Samsung A16 reports.
 
-Evidence is from the quality audit (`QUALITY_AUDIT.md`, 14 Nov), the A16 investigation (`A16_INVESTIGATION.md`), the code, and the automated tests. Phone figures are from the user's A16 reports; everything else is from the laptop.
+Laptop and phone results are kept apart.
 
-| # | Requirement | Lagos | Abuja | Port Harcourt |
-|---|---|---|---|---|
-| 1 | **Accessible, functioning city** | **Playable**: 60 of 61 Ride app places have a door | **Partly**: only 20 of 81 places can be entered (25%) | **Partly**: 15 of 33 (45%) |
-| 2 | **One character and progression system** | **Partly**: careers, courses, certificates and CV exist, but certificates are only checked on the phone, not the server (Stage 2b) | Same system | Same system |
-| 3 | **Working transport** | **Playable**: rides (now saved through reloads, tested 74/74), driving, own car, train (Red Line), coach, flights | **Playable**: rides, coach, flights; no train | **Playable**: rides, coach, flights; no train |
-| 4 | **Meaningful jobs and earning** | **Partly**: 20 employers, but shifts are short and repetitive (4 rounds) | **Missing in practice**: 1 employer | **Missing in practice**: 2 employers |
-| 5 | **Functional buildings and interiors** | **Partly**: own rooms for most places; some Broad Street places have none (salon, Sabo Textiles, NaijaBet, cash machine) | **Partly**: every office, bank, shop or market door opens one shared room; apartment blocks and houses have no door at all | **Partly**: shared rooms as in Abuja |
-| 6 | **NPCs with everyday routines** | **Playable**: Living City routines and stalls; 23 named people to talk to | **Partly**: routines and stalls, but **no one to talk to in the street** | **Partly**: as Abuja; two stalls block the 22 Aba Road plot |
-| 7 | **Property and business ownership** | **Playable**: land, building, homes, businesses; money and land held by the server | **Partly**: listings exist, but no home has a door in the street | **Partly**: as Abuja |
-| 8 | **Reliable saving and accounts** | **Partly**: progress is saved to the account and journeys survive reloads (Step 1, L2). There is no password reset, the save history keeps only 5 versions, and backups sit on the same server disk. | Same | Same |
-| 9 | **Performance on the Samsung A16** | **Not yet**: 8.6 fps on foot, a 10 s freeze on first map open, start-up 16–30 s | **Not yet**: 19 fps | **Not yet**: 20 fps, the heaviest city (421,000 triangles) |
+## 3. What already works, city by city
 
-**Plainly:**
-- **Lagos** is the most complete. It is playable but rough: jobs are thin, a few places have no room, and it runs too slowly on the A16.
-- **Abuja and Port Harcourt** can be reached and walked, and they have living streets. A player soon runs out of things to do there: most places cannot be entered, there is almost no work, nobody to talk to, and no home to go into.
-- **Across all three,** speed on the A16 and account safety (password reset, backups) are not yet ready for real players.
+### Lagos
+- **Getting about:**
+  - **Rides:** the Ride app's 61 places. A ride survives a reload or Chrome killing the tab, and the fare is taken once (tests, all cities).
+  - **Turn back:** returns you to the pickup.
+  - **Map cab.**
+  - **Driving:** your own car, and your car with a hired driver.
+  - **The Red Line train:** reached by keke when you are far from a station.
+  - **Coaches** from Jibowu Motor Park.
+  - **Flights** from Murtala Muhammed Airport.
+- **Places:**
+  - 60 of the 61 places offered have a door.
+  - **Walk-in rooms checked by the audit:** Mama Put, Everyday Supermarket, Executive Barbershop, the bank (weekdays).
+  - **Card or menu only (no room):** the cash machine, salon, NaijaBet, Sabo Textiles, Victoria Residence, the danfo terminus, pharmacy, Victory Phones, filling station, God's Grace Auto Works, the building site and the police checkpoint.
+  - The salon and Sabo Textiles show a dead "Enter / Inspect" button.
+- **Work:** 20 employers. Shifts are 4 rounds long.
+- **People:** 23 named street people to talk to. Living City routines (morning, work, lunch, evening, night), and stalls that open and close.
+- **Owning things:** renting and buying homes, building on land, furnishing, a fridge, cars, jets, registering a business. Money and land are held by the game server.
+- **Account:** progress saved to the account and back on any browser.
+  - Every journey's start and end are sent at once (L2).
+  - A last copy is sent as the page closes.
+- **Quests:** 3.
 
-## Is the game built to grow to 36 states?
+### Abuja
+- **Getting there:**
+  - coach to Utako Motor Park (₦42,000, affordable for a new player)
+  - flight (₦4.2 million)
+- **Getting about:**
+  - rides to the Ride app's 81 places (tested, including places beyond the old 400 m limit)
+  - Turn back and the map cab
+  - no train
+- **Places:**
+  - 20 of 81 places can be entered.
+  - **Walk-in rooms:** supermarket, bank, market, hotel, offices, National Assembly, Jabi Lake Mall, National Hospital, FCT Police, the airport.
+  - **But:** every supermarket, bank, market and office door in the city opens the *same* room. Apartment blocks, houses, duplexes and bungalows have no door or card.
+  - **Card only:** Aso Rock (lookout), the Utako goods shed (trade), Federal Secretariat, Millennium Park.
+- **Work:** 1 employer (the town offices).
+- **People:** Living City routines and food stalls, but nobody in the street to talk to. Named people exist only inside rooms (nurses, desk sergeants, cashiers).
+- **Trade:** buying and selling goods between cities at the Utako goods shed.
+- **Quests:** 3.
 
-**Not yet.** Adding a fourth city today would mean editing code in many places, not adding data:
-- The city name `'abuja'` appears in **48 source files**.
-- City changes are written city by city: `CityManager.switchCity` has a branch for each city.
-- The saved-position limits, flights, coaches, jobs, quests and destinations are each listed per city in their own files.
-- **Every city is kept in memory once built.** The first city change builds both other cities, and none is freed. With three cities that is about 220 MB of model data. With 36 it would not fit on a phone.
+### Port Harcourt
+- **Getting there:** coach to Waterlines Motor Park (₦36,000–38,000) or flight.
+- **Getting about:** rides to the Ride app's 33 places, Turn back, map cab; no train.
+- **Places:**
+  - 15 of 33 places can be entered.
+  - **Walk-in rooms:** supermarket, bank, market, hotel, offices (shared, as in Abuja), the mall, Government House, UPTH, the police, the airport.
+  - **Card only:** the refinery, Bole King, Uniport, the motor park, Pleasure Park.
+- **Work:** 2 employers (the refinery and the town offices).
+- **People:** routines and food stalls along Aba Road, but nobody to talk to in the street. Two stalls stand in front of the land plot at 22 Aba Road (a bug).
+- **Trade:** at the Waterlines goods shed.
+- **Quests:** 3.
 
-What 36 states needs, introduced gradually:
-1. **A city as data.** One description of a city (its map, places, prices, jobs, routes and identity) that the systems read, instead of code naming each city.
-2. **Build a city when it is visited, and free it when it is left.** This is already planned as roadmap Stage 4a and 4c.
-3. **Journeys from data.** Flights, coaches and roads between any two cities, from one timetable.
+## 4. The nine requirements: where each stands
 
-This can be done one system at a time while the three cities keep working. It should be built in, not added at the end.
+| # | Requirement | Lagos | Abuja | Port Harcourt | Overall |
+|---|---|---|---|---|---|
+| 1 | Three accessible, functioning cities | **Complete** (reachable; 60 of 61 places have a door) | **Partial** (25% of places open) | **Partial** (45%) | **Partial** |
+| 2 | One consistent character and progression system | **Partial** | **Partial** | **Partial** | **Partial**: careers, courses, certificates, CV and quests run the same in all three, but certificates are checked only on the phone (anyone could fake one). Character creation and appearance are **unverified** (not audited). |
+| 3 | Working transportation between locations | **Complete** | **Complete** | **Complete** | **Complete on the laptop** (ride, coach and flight tests). On the A16: rides **unverified** (laptop phone emulation passes); driving smoothness **unverified** since the Nov driving fixes. |
+| 4 | Meaningful jobs and economic activities | **Partial** (20 employers; short shifts) | **Missing** (1 employer) | **Missing** (2) | **Partial**. Whether a new player can earn and spend sensibly in the first hour is **unverified** (not yet measured in real minutes). |
+| 5 | Functional buildings and interiors | **Partial** (several places card-only) | **Partial** (shared rooms; homes have no doors) | **Partial** (shared rooms) | **Partial** |
+| 6 | NPCs with everyday routines | **Complete** | **Partial** (routines, no one to talk to) | **Partial** (as Abuja; stall bug) | **Partial** |
+| 7 | Property and business ownership | **Complete** | **Partial** (can be owned; no home has a door to go in) | **Partial** | **Partial** |
+| 8 | Reliable saving and accounts | **Partial** | **Partial** | **Partial** | **Partial**: progress and journeys are saved to the account (tested). There is no password reset or account recovery; the save history keeps only 5 versions (a few minutes); backups sit on the same server disk. |
+| 9 | Performance suitable for the Samsung A16 | **Missing** (8.6 fps on foot; a 10 s freeze on first map open; start-up 16–30 s) | **Missing** (19 fps) | **Missing** (20 fps; heaviest city) | **Missing**. Measured on the A16. Real phone memory (what Android weighs) is **unverified**. |
 
-## Applying "visible progress" to the plan
+**In one line:** one requirement is complete (transport), seven are partial, and one is missing (A16 performance). Lagos is furthest along. Abuja and Port Harcourt are reachable and alive, but thin.
 
-Each cycle pairs the essential work with something a player will notice. A suggested order, for discussion; nothing is approved or started:
+## 5. Remaining work to reach the first release
 
-| Cycle | Essential work | What a player sees |
-|---|---|---|
-| A16 Step 2 | Remove first-time freezes (map, rooms, rides, flights) | The 10 s freeze on opening the map is gone |
-| A16 Step 3 | Screen layout at 320 px | Nothing covers the character or the buttons; the ride card fits |
-| A16 Step 4 | Cameras | A wider view on a phone held upright; no camera inside walls in Abuja or Port Harcourt |
-| Abuja and PH doors | Doors and cards for the 61 + 18 places that cannot be entered (audit N1) | Abuja and Port Harcourt places open |
-| Work in every city | Employers and shifts in Abuja and Port Harcourt that suit each city (civil service, estates and institutions in Abuja; oil and gas, port and markets in PH) | A job in each city, paid properly |
-| People to talk to | Named street people in Abuja and Port Harcourt | Someone to greet and do business with in every city |
-| Homes in Abuja and PH | Doors on homes; rented or bought homes that open | A home in every city |
-| Stage 1 + 2 | Backups off the server disk; password reset and account recovery | "Forgot password" works; progress cannot be lost |
-| Stage 4 | Memory and speed; a city built when visited | Smoother play on the A16; groundwork for more states |
+Only what the nine requirements need:
 
-The account-safety stages (1 and 2) are invisible to a player but essential before launch. Following the rule, each is paired with a visible cycle rather than done alone.
+| # | What is left |
+|---|---|
+| 1 | Every place offered in Abuja (61) and Port Harcourt (18) opens, or clearly says what it is (a landmark, an open space). |
+| 2 | Certificates and course levels checked by the server. Character creation reviewed. |
+| 3 | Confirmed on the A16 in one short session of normal play (the report records it). |
+| 4 | Jobs that fit each city: Abuja's civil service, estates and institutions; Port Harcourt's oil and gas, port and markets. Shifts long enough to matter. A first hour that lets a new player earn and spend. |
+| 5 | Each building kind in Abuja and Port Harcourt has its own rooms, not one shared room. Lagos's card-only shops get rooms where a player would expect one. Homes in Abuja and Port Harcourt have doors. |
+| 6 | Named people in Abuja's and Port Harcourt's streets. The 22 Aba Road stall bug fixed. |
+| 7 | Owned and rented homes enterable in every city. |
+| 8 | Password reset and account recovery; a longer save history; backups off the server's disk; fares settled by the server (L4). |
+| 9 | Freezes removed (first map, room, ride, flight); the 320 px screen layout fixed; cameras fixed; per-frame waste cut; a city built only when visited; then targets met on the A16. |
 
-## What this document does not promise
+**Toward 36 states:** "a city as data", and loading a city when visited, are built as part of milestones 1 and 2 below, not as a separate project.
 
-No launch date. The table above is the gap. Each cycle is measured by what a player can do afterwards that they could not before, and is tested in all three cities.
+## 6. Milestones, in order
+
+Each milestone ends with something players notice, and is tested in all three cities. No dates are given. Each is approved separately before it starts.
+
+| Milestone | Player-facing result | Covers requirements | Done when |
+|---|---|---|---|
+| **M1. It runs on the A16** | No 10 s freeze. Nothing covers your character or buttons. A wider camera view on an upright phone. Smoother walking and driving. | 9 (and 3 on the phone) | No first-time freeze over 1 s (laptop at A16 speed). The 320 px screens pass. One short A16 session meets targets set from the A16 baseline. |
+| **M2. Every place opens** | Abuja and Port Harcourt places open into their own rooms, by building kind. Homes have doors. Lagos's shops have rooms. | 1, 5, 7 | 100% of places offered in each city open, or say clearly what they are. No shared room behind different kinds of door. |
+| **M3. Work and money in every city** | Real jobs that suit each city. Shifts worth doing. A first hour that makes sense with starting money. | 4, 2 (server-checked certificates) | Each city offers jobs from entry level up. A new player can earn their way to a coach fare. Certificates cannot be faked. |
+| **M4. People in every street** | Named people to greet, talk to and do business with in Abuja and Port Harcourt. The Aba Road stall moved. | 6 | Every city has named street people. All Living City tests pass in all three. |
+| **M5. Accounts players can trust** | "Forgot password" works. Progress cannot be lost. Fares are settled by the server. | 8 | Recovery by email or recovery codes works. Backups are held off the server. Save history covers days, not minutes. |
+| **M6. First-release check** | — | All nine | Every requirement is graded **Complete** in all three cities, with evidence. Anything short goes back to its milestone. |
+
+**Why this order:**
+- M1 comes first because the A16 is the target device and slowness hides everything else.
+- M2 to M4 make Abuja and Port Harcourt real, in the order a player meets the gaps: closed doors, then nothing to earn, then nobody to talk to.
+- M5 is mostly invisible, so it is paired with "Forgot password" and can run alongside M3 or M4 if you choose.
+- M6 checks the whole.
