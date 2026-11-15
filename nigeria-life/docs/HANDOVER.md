@@ -1,80 +1,109 @@
-# NigeriaLife handover (9 November 2026)
+# Handover: NigeriaLife (15 Nov 2026)
 
-What is live, what was done in the last few days, what is unfinished or unverified, and how to
-work on the game safely. Written for whoever picks up the code next (Cursor), and for the owner.
+For the next agent (Cursor) until Thursday, then back to Claude. Read this first, then the documents it points to.
 
-## Where things stand
+## 1. Where things stand
 
-| | |
-| --- | --- |
-| Working branch | `claude/next-steps` (PR #7). Every commit below is on it. |
-| Live game | GitHub Pages builds from **`stabilise-core`**: https://daveemin0-sudo.github.io/NigeriaLife/ . Live build: `149798d`. |
-| World server | Render, auto-deploys from `stabilise-core`: https://nigerialife-server.onrender.com/health (it answers 502 for a minute or two while it redeploys) |
-| How to publish | `git push origin claude/next-steps:stabilise-core` (a fast-forward). Phones then show "A new version is ready" (`src/app/Updates.ts` reads `version.json`). **Pushing only to `claude/next-steps` does NOT update the live game.** That is why the owner's phone showed no updates for days. |
-| Checklist | `docs/ROADMAP.md`, the phases and their status |
+- **Branch:** `claude/next-steps`. All work stays here.
+  - **Never merge, deploy or publish** unless the owner explicitly says so.
+  - Render deploys `stabilise-core`; Pages deploys `stabilise-core` and `main`. This branch never deploys.
+- **Last commits:**
 
-## Done, 6 to 8 November (all live)
+  | Commit | What |
+  |---|---|
+  | `8d81389` | `docs/M1_EXECUTION_PLAN.md` (M1 plan, **awaiting the owner's approval**) |
+  | `ae6db5a` | `docs/THREE_CITY_FOUNDATION.md` (adopted rules, city status, milestones M1–M6) |
+  | `9f92883` | L1 + L2 (Turn back; journeys saved to the account at once). **Accepted by the owner** |
+  | `a8ce080` | A16 repair Step 1 (rides survive reloads). Accepted |
 
-- **Duplex homes with an upstairs; street racing (Racing app)** (`86524dc`)
-- **Abuja and Port Harcourt as whole grid cities** (`8fd749d`): `src/cities/*`, `src/world/plan/GridRoads.ts`
-- **Phone layout** (`acb9c96`, `87e2641`, `fe7400f`)
-  - `src/ui/theme/phone.css` is loaded **last** (`src/main.ts`), so it beats `luxe.css` (equal specificity and loaded later, `luxe.css` used to win).
-  - Laid out for screens down to 316 px wide. A Samsung set to larger text zooms the page that far: test at that width.
-  - The Hide button (`src/ui/CleanView.ts`), the folded room card, slim toasts (`src/ui/GameToast.ts`), and every window as a full-width sheet.
-  - The map search is an icon until tapped; the in-game phone fills the screen.
-- **Homes**
-  - "Go inside" on a plot's page opens that plot's house. The button used plain quotes, so its id was literal code text.
-  - In a room, a drag turns the view, a click on a spot walks there, and the arrow keys walk.
-- **The bed's own duvet covers the sleeper** (`src/interactions/Duvet.ts`); **a real standing fan** (`fineFan` in `src/housing/FineFurniture.ts`).
-- **Doors in Abuja and Port Harcourt** (`625a9b5`)
-  - Every shop, office, hotel, bank and market has a door: `townDoors` in `src/cities/CityExtras.ts`. Abuja has 128.
-  - Each door leads to one room per kind per city (`townRooms` in `src/interiors/places/PlaceSpecs.ts`), and the player comes back out at that same door.
-- **Rides and vehicles**
-  - A ride ends at the place's door: `Game.doorOf`, used in `arriveAt`.
-  - The player's own car is offered only in the city where it is parked (`OwnedVehicles.ownCar`).
-  - The taxi ride scene matches the city (`RideStreet(city)`).
-  - The private jet can be flown from the flights terminal in any city (`Game.flyJetFrom`; card in `InterStateModal`).
-- **Any fridge in any home opens on its contents** (`ResidentialInterior.openFridge`).
-- **Photo mode fits a phone** (`149798d`).
+- **Next action:** wait for the owner to approve M1 (or package 1 of it). **Do not change game code until they do.**
 
-## Not done (the owner asked for these)
+## 2. Standing rules (adopted by the owner, 15 Nov)
 
-1. **Driving still jerks on the phone.** Not reproduced in tests and not fixed.
-   - Look at the chase camera in `src/game/Camera.ts`, around lines 476 to 545. It is smoothed twice (`cameraVehYaw`, then `vehCamOffset`) with lerps that depend on frame time, which can stutter at low and uneven frame rates.
-   - Also look at the car's checked half-metre steps and the kerb slide in `src/world/DrivableVehicle.ts` (`KERB_SPEED`, `onTheRoad`).
-   - Measure it on a real phone or a throttled CPU: log car and camera position each frame.
-2. **A bought generator (Mikano) stands inside the house.** It should stand outside: in the compound for a built house, beside the front for a rented flat. Generators are catalogue items with `use: 'power'` (`src/housing/FurnitureModels.ts`, `HouseDecorationSystem`).
-3. **A full play-through as a player, fixing the small things.** The owner's words: "check everything... the look, the interactions, the text, the borders, the colour". Compare against Lagos Life. Not started.
-4. Older open items are in `docs/ROADMAP.md`: the look editor and characters, Phase 4 performance on cheap phones, hosting races for friends.
+1. The first release contains **Lagos, Abuja and Port Harcourt**. Never propose reducing it to one city.
+2. The long-term vision is **all 36 Nigerian states**. Build so states can be added without rewrites.
+3. **Visible product progress:** every cycle delivers measurable player-facing progress. Infrastructure, security, stability and performance work is allowed when it directly supports the product.
+4. The **nine requirements** in `THREE_CITY_FOUNDATION.md` are the first-release acceptance criteria.
 
-## Done but not fully checked (be honest with the owner about these)
+## 3. How the owner works (important)
 
-- **Own jet from Abuja or Port Harcourt:** the button and its hook were checked. A flight was never flown end to end in a test.
-- **Port Harcourt doors:** the same code as Abuja, but only Abuja's were tapped through on a phone screen.
-- **The generic rooms:** one per kind per city, shared by every door of that kind, with generic names ("Supermarket", "Office block"). Not on the map, not searchable.
-- **`Game.doorOf`** matches a place to a door by its name, within 400 m. Two places sharing words could pick the wrong door.
-- **The ride scene per city** changes the scenery mix and traffic only. The shop signs are still Lagos signs.
-- **The phone layout check (`phonefit`)** covers 21 surfaces upright at 316 px. Most phone apps were not checked with the phone on its side. The decorate category tabs run past the edge on purpose: they scroll sideways.
-- **The cook's meals:** they go into the fridge of the home the cook works in. Not checked across several homes.
-- **Touch steering:** no changes to the handling. The owner's "a small turn spins 360°" came from the 2 November build. Not reproduced since.
+- The owner is **not technical**. Report in plain words: what changed, what the player sees, test results with exact numbers, and remaining risks.
+- **Approve stage by stage.** Do only the approved stage, then stop and report. Ask before anything outside it.
+- **Never make the owner diagnose.** Investigate yourself and bring evidence.
+- **No long manual phone test sessions.** Verify with automation (below). Ask for the phone only when the laptop truly cannot answer, and say why.
+- **Never claim Samsung A16 results** unless they came from the owner's device report. Always keep laptop and phone figures apart.
+- **No sprawling roadmaps.** Give one clear route.
+- **Don't remove or simplify gameplay** to make a problem disappear.
+- Don't touch production data or services. The A16 sessions use a local branch server (`npm run a16:session`).
+- The owner's private email must never go to external services.
 
-## How to run and test
+## 4. Documents to read
 
-- `npm run dev` (port 5173). The owner often plays there too.
-- **Tests run against a frozen build, not the dev server.**
-  1. Build: `npx vite build --outDir <dir>`.
-  2. Serve: `npx vite preview --outDir <dir> --port 4205`.
-  3. Run: `GAME_URL=http://localhost:4205/ node tests/e2e/run.mjs <suite> ...`. The suites are listed in `tests/e2e/run.mjs`.
-- **Do not build while suites run.** Suites are slow on this laptop (Intel HD 620), and slower still while the owner has the game open. Under that load, failures like "Runtime.callFunctionOn timed out" or timing-sensitive checks (hotel, buka, the home gate) are flaky: run the suite again on its own before believing them.
-- Relevant suites: `phonefit` (phone layout at 316 px), `touch`, `phonelife`, `phone`, `bigcities` (Abuja and Port Harcourt), `ownhomes` (several homes, including two built houses), `duplex`, `roadcraft` (driving and the home mouse), `steering`, `racing`, `plan` (city plan rules).
-- **Test the way a player plays:**
-  - Tap through the real screen (proximity prompt, then the card's button) on a phone viewport. Don't only call game functions directly: `bigcities` entered places through a shortcut and missed that most of Abuja had no doors.
-  - Look at screenshots: a check on state alone has passed while a room was not even drawn.
+| Document | What is in it |
+|---|---|
+| `docs/THREE_CITY_FOUNDATION.md` | The rules, what works in each city, the nine requirements graded, milestones M1–M6 |
+| `docs/M1_EXECUTION_PLAN.md` | **The next milestone**: 8 work packages with evidence, fixes, targets and tests |
+| `docs/A16_INVESTIGATION.md` | The A16 findings (performance, layout, cameras, rides, memory in section M), the Step 1 / L1–L4 records |
+| `docs/QUALITY_AUDIT.md`, `docs/QUALITY_ROADMAP.md` | Earlier audit (finding IDs such as N1, I1, G4, P3) and the stages (Stage 1 backups, 2 accounts, 2b server checks, 4 performance) |
+| `docs/A16_TEST_SESSION.md` | How the phone session runs |
+| `docs/LIVING_CITY.md` | NPC routines, stages 1–3d |
 
-## What the owner expects
+## 5. Testing
 
-- Lagos Life is the floor to beat: real-looking interiors, the car kept on the road, slim and simple cards.
-- The phone comes first. Nothing on top of anything else, nothing too big.
-- Every place can be entered and has real things to do.
-- Every action is acted out in the world.
-- Say exactly what was checked and what was not. The owner plays every change, and claims that turn out false cost trust.
+- **Test against a frozen build, not the dev server:**
+  ```
+  npx vite build --outDir <somewhere>
+  npx vite preview --outDir <somewhere> --port 4197 --strictPort
+  GAME_URL=http://localhost:4197/ node tests/e2e/run.mjs <suite ...>
+  ```
+- **The ride and save suite:** `ridesave` (74 checks).
+  - Its parts can be run alone: `RIDESAVE_ONLY=cities,phone,turnback,map,account`.
+  - It includes an A16-like run (320×607, touch, CPU slowed 4×) and "Chrome kills the tab" (`Page.crash`).
+- **Regression set used so far:** `rides saves accountsave server online coaches flights getabout redline quests crosscity cities away firstfive onboarding phone phonefit perfreadout`.
+- **Known unreliable on this busy laptop**, failing on older builds too:
+  - `online` (401 on `/ads`, 409 commit timeouts)
+  - `phonefit` (the phone app bottom bar sits below the screen at 316–360 px; this is real, and in M1 package 6)
+  - occasional navigation timeouts
+- Before blaming a change, **run the same suite on the build from before it** (A/B).
+- `npx tsc --noEmit -p .` must stay clean.
+
+## 6. Lessons that cost time (don't repeat)
+
+**Tests and the test tools**
+- **Puppeteer `setViewport` with `isMobile`/`hasTouch` reloads the page.**
+- **Two-device tests:** close other signed-in browsers first. A device still open and saving makes a newly signed-in one step aside ("Playing on another device"). That is correct behaviour.
+- **Signing in on a second browser takes 30–100 s on the laptop** (several full loads). Allow 240 s in tests.
+- **Phone screens redraw often:** tap with a retry when an element is detached (see `tapOn` in `ridesave.mjs`).
+- **Check what is drawn,** not only state; look at screenshots.
+
+**Saving**
+- **The 20 s quiet after loading the account's copy** (`CloudSyncService.apply`) is deliberate. Saves made in it are now sent when it ends.
+- **The server returns `device` with `GET /me/save`** so a browser knows its own last copy. Without this, the copy sent as the page closes caused an extra reload at start.
+
+**Measuring performance**
+- **The readout's "heap" is `usedJSHeapSize`,** which includes uncollected garbage. The live heap after collection is about 81–95 MB on the laptop.
+- On the busy laptop, measure **work** (objects, programs, allocations) as well as time.
+
+**Windows and the shell**
+- `git worktree remove --force` followed a `node_modules` junction and deleted it once. Use `git archive` for old builds.
+- Bash heredocs containing apostrophes break. Write scripts with the editor, then run them.
+- Use raw strings in Python replacements.
+
+## 7. What M1 needs first (when approved)
+
+Package 1: the `perfbudget` suite and readout additions:
+- **The suite** runs at laptop A16 emulation and at desktop size, in each city. It records:
+  - load stages
+  - first-time freezes (map, room, ride, flight, drive)
+  - main-thread busy time
+  - objects tested per frame
+  - allocation rate
+  - shader programs
+  - live heap
+- **The readout:**
+  - a long-frame log (frames over 500 ms, with what ran)
+  - the player's spot in each Mark
+  - the last places tapped
+  - moved off the player to a top-right strip
+
+The evidence and current numbers are in `M1_EXECUTION_PLAN.md`. Each later package must show before and after numbers from this suite.
