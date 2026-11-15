@@ -17,6 +17,10 @@ For the next agent (Cursor) until Thursday, then back to Claude. Read this first
   | `a8ce080` | A16 repair Step 1 (rides survive reloads). Accepted |
 
 - **Next action:** wait for the owner to approve M1 (or package 1 of it). **Do not change game code until they do.**
+- **The live game and server are not to be touched.** The game is at https://daveemin0-sudo.github.io/NigeriaLife/; the world server is at https://nigerialife-server.onrender.com.
+  - The live build has been held (it was `8690f5b` as of 12 Nov; check before stating it).
+- **The previous handover (9 Nov)** is in git history: `git show 62039e7:nigeria-life/docs/HANDOVER.md`. It has background on hosting and the older phases.
+  - **Its "how to publish" step does not apply now:** publishing needs the owner's explicit approval.
 
 ## 2. Standing rules (adopted by the owner, 15 Nov)
 
