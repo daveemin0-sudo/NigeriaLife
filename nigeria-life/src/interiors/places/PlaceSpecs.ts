@@ -1087,10 +1087,12 @@ const PH_SPECS: PlaceSpec[] = [
 ];
 
 // --- Every shop, office, hotel, bank and market along Abuja's and Port Harcourt's streets ---
-// One room of each kind for a city; each building's own door goes into it and back out at that door
-// (src/cities/CityExtras.ts, townDoors).
+// Three layouts per kind per city (plus hotel lobbies), so neighbouring doors are not clones.
+// Each building's door picks one by name (src/cities/CityExtras.ts, townDoors).
 export type TownRoomKind = 'shops' | 'office' | 'hotel' | 'bank' | 'market';
 export const townRoomKey = (city: string, kind: TownRoomKind) => `${city}-town-${kind}`;
+export const townRoomVariantKey = (city: string, kind: TownRoomKind, variant: number) =>
+  variant === 0 ? townRoomKey(city, kind) : `${city}-town-${kind}-${variant}`;
 /** A guest room: the furniture is the real pieces, put in by the hotel (Hotel.ts). No sign on the inside wall. */
 const guestRoom = (hotelKey: string, place: string, city: CityLook): PlaceSpec => ({
   key: hotelKey.endsWith('-hotel') ? hotelKey.replace(/-hotel$/, '-suite') : `${hotelKey}-suite`,
@@ -1126,58 +1128,74 @@ const hotelLobby = (key: string, place: string, city: string, variant: number): 
 
 const townRooms = (city: string, place: string): PlaceSpec[] => {
   const ph = city === 'port_harcourt';
-  const office = venue(townRoomKey(city, 'office'), `${place} Offices`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (_b, room) => {
-    if (room) furnishOffice(room, look(city));
-  }, [{ name: 'Receptionist Halima', title: 'Front desk', at: [0, -6], facing: 0, outfit: ph ? 0x0f766e : 0x1e3a8a, gender: 'female', says: 'Good day. The jobs are on the board, and the manager takes people on.' }], [
-    { id: 'desk', name: '🛎️ Front desk', at: [0, -5], stand: [0, -3.6], who: 'Receptionist Halima', role: 'Front desk', text: 'The companies upstairs are hiring. Shall I show you the openings?', choices: [{ label: 'See the jobs going', note: 'Opens Jobs', open: 'app:jobs' }, { label: 'Leave your CV', note: 'Social +6', arms: 'reach', seconds: 2, effect: need({ social: 6 }), said: 'She stamped it received. "We will call you."' }] },
-    { id: 'wait', name: '🪑 The waiting chairs', at: [ph ? 3 : -2.4, 3.4], stand: [ph ? 3 : -2.4, 2], who: 'Waiting area', role: 'Reception', text: 'The air conditioning is strong.', choices: [{ label: 'Sit and cool off', note: 'Energy +8', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 8 }), said: 'Ten minutes under the AC. Sweat gone.' }] },
-  ], [{ at: [ph ? -4 : 4, 1], facing: Math.PI, outfit: 0x111827 }], [18, 16]);
-  office.sign = undefined;
-  office.room.finish = ph ? 'grey_granite' : 'parquet_wood';
+  const officeOf = (variant: number): PlaceSpec => {
+    const key = townRoomVariantKey(city, 'office', variant);
+    const titles = variant === 0 ? 'Offices' : variant === 1 ? 'Chambers' : 'Secretariat';
+    const office = venue(key, `${place} ${titles}`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : variant === 1 ? '#0f172a' : variant === 2 ? '#7c2d12' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (_b, room) => {
+      if (room) furnishOffice(room, look(city), variant);
+    }, [{ name: 'Receptionist Halima', title: 'Front desk', at: [0, -6], facing: 0, outfit: ph ? 0x0f766e : 0x1e3a8a, gender: 'female', says: 'Good day. The jobs are on the board, and the manager takes people on.' }], [
+      { id: 'desk', name: '🛎️ Front desk', at: [0, -5], stand: [0, -3.6], who: 'Receptionist Halima', role: 'Front desk', text: 'The companies upstairs are hiring. Shall I show you the openings?', choices: [{ label: 'See the jobs going', note: 'Opens Jobs', open: 'app:jobs' }, { label: 'Leave your CV', note: 'Social +6', arms: 'reach', seconds: 2, effect: need({ social: 6 }), said: 'She stamped it received. "We will call you."' }] },
+      { id: 'wait', name: '🪑 The waiting chairs', at: [ph ? 3 : -2.4, 3.4], stand: [ph ? 3 : -2.4, 2], who: 'Waiting area', role: 'Reception', text: 'The air conditioning is strong.', choices: [{ label: 'Sit and cool off', note: 'Energy +8', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 8 }), said: 'Ten minutes under the AC. Sweat gone.' }] },
+    ], [{ at: [ph ? -4 : 4, 1], facing: Math.PI, outfit: 0x111827 }], [18, 16]);
+    office.sign = undefined;
+    office.room.finish = variant === 2 ? 'grey_granite' : ph ? 'grey_granite' : 'parquet_wood';
+    return office;
+  };
 
-  const shop = venue(townRoomKey(city, 'shops'), `${place} Supermarket`, `${place} · supermarket`, 'Shelves · A till · Household', ph ? '#0f766e' : '#166534', 0xffffff, 0xf8fafc, (b, room) => {
-    const goods = ph ? [0x0f766e, 0xfacc15, 0xdc2626, 0xf8fafc, 0xf97316] : [0x166534, 0xf97316, 0xfef3c7, 0x2563eb, 0xdc2626];
-    // Two aisles, a chiller wall, and the tills by the door. The drinks shelf stays at (-6, -4).
-    for (const z of [-6.2, -2.2]) for (let i = 0; i < 3; i++) shelf(b, -6 + i * 4, z, 3.2, goods);
-    for (let i = 0; i < 4; i++) {
-      b.box(0xe2e8f0, 1.3, 2.05, 0.7, 8.2, 0, -5 + i * 2.2);
-      b.box(0xbae6fd, 1.15, 1.5, 0.04, 8.2, 0.3, -4.62 + i * 2.2, { glow: true });
-    }
-    for (let i = 0; i < 5; i++) pile(b, 5.2, -5 + i * 1.1, [0xdc2626, 0xf97316, 0x65a30d, 0xfacc15, 0xfef3c7][i], 0.28);
-    for (const x of [-2.2, 2.2]) counter(b, x, 4.2, 1.6, ph ? 0x0f766e : 0x166534, 0xf8fafc);
-    b.box(0x111827, 0.42, 0.28, 0.32, -2.2, 1.12, 3.7);
-    b.box(0x111827, 0.42, 0.28, 0.32, 2.2, 1.12, 3.7);
-    plant(b, -8.6, 5.4);
-    if (room) {
-      const fridge = fineFridge();
-      fridge.scale.setScalar(0.85);
-      layFine(room, fridge, 6.2, 0, 5.2, Math.PI);
-    }
-  }, [{ name: 'Cashier Amaka', title: 'Till', at: [0, 3], facing: Math.PI, outfit: ph ? 0x0f766e : 0x166534, gender: 'female', says: 'Next customer.' }], [
-    { id: 'drinks', name: 'shop_shelf_drinks Cold drinks', at: [-6, -4], stand: [-6, -2.6], who: 'Shelves', role: 'Supermarket', text: 'Drinks, food and the house things.', choices: [{ label: 'Shop the shelves', note: 'Opens Shopping', open: 'app:shopping' }] },
-    { id: 'till', name: 'Till', at: [0, 4], stand: [0, 2.6], who: 'Cashier Amaka', role: 'Till', text: 'Pay for what you picked up.', choices: [{ label: 'Pay at the till', note: 'Opens Shopping', open: 'app:shopping' }] },
-  ], [{ at: [4, 0], facing: Math.PI, outfit: 0xf97316 }], [20, 16]);
-  shop.sign = undefined;
-  shop.room.finish = 'ceramic_white';
+  const shopOf = (variant: number): PlaceSpec => {
+    const key = townRoomVariantKey(city, 'shops', variant);
+    const aisleZ = variant === 1 ? [-5.2, -1.2] : variant === 2 ? [-6.8, -3.2, 0.2] : [-6.2, -2.2];
+    const shop = venue(key, `${place} ${variant === 0 ? 'Supermarket' : variant === 1 ? 'Mini Mart' : 'Provision Store'}`, `${place} · supermarket`, 'Shelves · A till · Household', ph ? '#0f766e' : '#166534', 0xffffff, 0xf8fafc, (b, room) => {
+      const goods = ph ? [0x0f766e, 0xfacc15, 0xdc2626, 0xf8fafc, 0xf97316] : variant === 1 ? [0x0f172a, 0xf97316, 0xfef3c7, 0x16a34a, 0xdc2626] : [0x166534, 0xf97316, 0xfef3c7, 0x2563eb, 0xdc2626];
+      for (const z of aisleZ) for (let i = 0; i < (variant === 2 ? 2 : 3); i++) shelf(b, -6 + i * 4, z, 3.2, goods);
+      const chillX = variant === 1 ? -8.2 : 8.2;
+      for (let i = 0; i < 4; i++) {
+        b.box(0xe2e8f0, 1.3, 2.05, 0.7, chillX, 0, -5 + i * 2.2);
+        b.box(0xbae6fd, 1.15, 1.5, 0.04, chillX, 0.3, -4.62 + i * 2.2, { glow: true });
+      }
+      for (let i = 0; i < 5; i++) pile(b, variant === 1 ? -5.2 : 5.2, -5 + i * 1.1, [0xdc2626, 0xf97316, 0x65a30d, 0xfacc15, 0xfef3c7][i], 0.28);
+      for (const x of [-2.2, 2.2]) counter(b, x, 4.2, 1.6, ph ? 0x0f766e : 0x166534, 0xf8fafc);
+      b.box(0x111827, 0.42, 0.28, 0.32, -2.2, 1.12, 3.7);
+      b.box(0x111827, 0.42, 0.28, 0.32, 2.2, 1.12, 3.7);
+      plant(b, variant === 1 ? 8.6 : -8.6, 5.4);
+      if (room) {
+        const fridge = fineFridge();
+        fridge.scale.setScalar(0.85);
+        layFine(room, fridge, variant === 1 ? -6.2 : 6.2, 0, 5.2, Math.PI);
+      }
+    }, [{ name: 'Cashier Amaka', title: 'Till', at: [0, 3], facing: Math.PI, outfit: ph ? 0x0f766e : 0x166534, gender: 'female', says: 'Next customer.' }], [
+      { id: 'drinks', name: 'shop_shelf_drinks Cold drinks', at: [-6, -4], stand: [-6, -2.6], who: 'Shelves', role: 'Supermarket', text: 'Drinks, food and the house things.', choices: [{ label: 'Shop the shelves', note: 'Opens Shopping', open: 'app:shopping' }] },
+      { id: 'till', name: 'Till', at: [0, 4], stand: [0, 2.6], who: 'Cashier Amaka', role: 'Till', text: 'Pay for what you picked up.', choices: [{ label: 'Pay at the till', note: 'Opens Shopping', open: 'app:shopping' }] },
+    ], [{ at: [4, 0], facing: Math.PI, outfit: 0xf97316 }], [20, 16]);
+    shop.sign = undefined;
+    shop.room.finish = variant === 2 ? 'terrazzo' : 'ceramic_white';
+    return shop;
+  };
 
-  const bank = venue(townRoomKey(city, 'bank'), `${place} Bank`, `${place} · bank`, 'Teller · ATM', '#0f172a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (b, room) => {
-    counter(b, 0, -5, 8, 0x0f172a, ph ? 0x99f6e4 : 0xd4af37);
-    for (const x of [-2.4, 0, 2.4]) b.box(0xe2e8f0, 1.5, 0.7, 0.04, x, 1.35, -4.5);
-    b.box(0x111827, 1.1, 1.6, 0.5, ph ? -6 : 6, 0, 2).box(0x22c55e, 0.7, 0.5, 0.04, ph ? -6 : 6, 1.2, 2.28, { glow: true });
-    // The queue, and the waiting seats. The seats stay where the card is.
-    for (let i = 0; i < 4; i++) b.box(0x1f2937, 0.5, 0.48, 0.5, -3 + i * 1.6, 0, 4);
-    for (let i = 0; i < 5; i++) b.cylinder(0x94a3b8, 0.04, 0.9, -2 + i * 1, 0, 1.2);
-    b.box(0xcbd5e1, 4.2, 0.02, 0.02, 0, 0.85, 1.2);
-    plant(b, ph ? 7.2 : -7.2, -6);
-    plant(b, ph ? 7.2 : -7.2, 5);
-    if (room) layFine(room, fineSofa(3, ph ? 0x0f766e : 0x1e3a8a, 0xe2e8f0, 0x1c1917), ph ? -3.2 : 3.2, 0, 6.2, Math.PI);
-  }, [{ name: 'Teller Ngozi', title: 'Teller', at: [0, -6], facing: 0, outfit: 0x0f172a, gender: 'female', says: 'Good day. Cash, transfer, or the ATM on the wall.' }], [
-    { id: 'teller', name: 'Teller counter', at: [0, -5], stand: [0, -3.6], who: 'Teller Ngozi', role: 'Teller', text: 'How can the bank help?', choices: [{ label: 'Open the bank', note: 'Opens Bank', open: 'app:bank' }] },
-    { id: 'atm', name: 'ATM', at: [ph ? -6 : 6, 2], stand: [ph ? -4.6 : 4.6, 2], who: 'ATM', role: 'ATM', text: 'Cash, any hour.', choices: [{ label: 'Use the ATM', note: 'Opens Bank', open: 'app:bank' }] },
-  ], [{ at: [-1, 4], facing: Math.PI, outfit: 0x2563eb, sit: true }], [18, 16]);
-  bank.sign = undefined;
-  bank.room.finish = ph ? 'terrazzo' : 'grey_granite';
+  const bankOf = (variant: number): PlaceSpec => {
+    const key = townRoomVariantKey(city, 'bank', variant);
+    const atmLeft = variant === 1 ? !ph : ph;
+    const bank = venue(key, `${place} ${variant === 0 ? 'Bank' : variant === 1 ? 'Microfinance' : 'Bureau'}`, `${place} · bank`, 'Teller · ATM', '#0f172a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (b, room) => {
+      counter(b, 0, -5, 8, 0x0f172a, ph ? 0x99f6e4 : 0xd4af37);
+      for (const x of [-2.4, 0, 2.4]) b.box(0xe2e8f0, 1.5, 0.7, 0.04, x, 1.35, -4.5);
+      const atmX = atmLeft ? -6 : 6;
+      b.box(0x111827, 1.1, 1.6, 0.5, atmX, 0, 2).box(0x22c55e, 0.7, 0.5, 0.04, atmX, 1.2, 2.28, { glow: true });
+      for (let i = 0; i < 4; i++) b.box(0x1f2937, 0.5, 0.48, 0.5, -3 + i * 1.6, 0, variant === 2 ? 5.2 : 4);
+      for (let i = 0; i < 5; i++) b.cylinder(0x94a3b8, 0.04, 0.9, -2 + i * 1, 0, 1.2);
+      b.box(0xcbd5e1, 4.2, 0.02, 0.02, 0, 0.85, 1.2);
+      plant(b, atmLeft ? 7.2 : -7.2, -6);
+      plant(b, atmLeft ? 7.2 : -7.2, 5);
+      if (room) layFine(room, fineSofa(3, ph ? 0x0f766e : 0x1e3a8a, 0xe2e8f0, 0x1c1917), atmLeft ? 3.2 : -3.2, 0, 6.2, Math.PI);
+    }, [{ name: 'Teller Ngozi', title: 'Teller', at: [0, -6], facing: 0, outfit: 0x0f172a, gender: 'female', says: 'Good day. Cash, transfer, or the ATM on the wall.' }], [
+      { id: 'teller', name: 'Teller counter', at: [0, -5], stand: [0, -3.6], who: 'Teller Ngozi', role: 'Teller', text: 'How can the bank help?', choices: [{ label: 'Open the bank', note: 'Opens Bank', open: 'app:bank' }] },
+      { id: 'atm', name: 'ATM', at: [atmLeft ? -6 : 6, 2], stand: [atmLeft ? -4.6 : 4.6, 2], who: 'ATM', role: 'ATM', text: 'Cash, any hour.', choices: [{ label: 'Use the ATM', note: 'Opens Bank', open: 'app:bank' }] },
+    ], [{ at: [-1, 4], facing: Math.PI, outfit: 0x2563eb, sit: true }], [18, 16]);
+    bank.sign = undefined;
+    bank.room.finish = variant === 2 ? 'parquet_wood' : ph ? 'terrazzo' : 'grey_granite';
+    return bank;
+  };
 
+  // Markets stay one layout for now (stalls already dense); hotels already have 3 lobbies.
   const market = venue(townRoomKey(city, 'market'), `${place} Market`, `${place} · market`, ph ? 'Seafood · Plantain · Wrappers' : 'Foodstuff · Grains · Cloth · Oil', '#92400e', 0x8b8378, 0xc8b48a, (b) => {
     if (ph) {
       stall(b, -8, -6, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.cylinder(0x94a3b8, 0.16, 0.22, x - 0.6 + i * 0.4, 0.95, z, { sides: 10 }); });
@@ -1225,8 +1243,15 @@ const townRooms = (city: string, place: string): PlaceSpec[] => {
     const key = variant === 0 ? townRoomKey(city, 'hotel') : `${city}-hotel-${variant}`;
     return [hotelLobby(key, place, city, variant), guestRoom(key, place, look(city))];
   });
-  return [office, shop, bank, market, ...hotels];
+  return [
+    ...[0, 1, 2].map(officeOf),
+    ...[0, 1, 2].map(shopOf),
+    ...[0, 1, 2].map(bankOf),
+    market,
+    ...hotels,
+  ];
 };
+
 
 const QUIET_FLOOR: Record<string, string> = {
   'national-assembly': 'grey_granite',

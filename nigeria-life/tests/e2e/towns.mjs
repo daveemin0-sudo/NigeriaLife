@@ -150,9 +150,66 @@ export async function run(browser, check) {
 
   const office = await enterDoor(page, 'port_harcourt', 'Office');
   const officeText = await unfold(page);
+  const jobsDesk = await useSpot(page, 'Front desk|Reception');
   check('towns: a Port Harcourt office has work, and the Jobs app',
-    /Jobs|manager|shift/i.test(officeText), { door: office.door, officeText: officeText.slice(0, 400) });
+    /Jobs|manager|shift|openings|CV/i.test(`${officeText}\n${jobsDesk.dialogue ?? ''}`),
+    { door: office.door, officeText: officeText.slice(0, 400), jobsDesk });
   await page.screenshot({ path: `${SHOTS}/towns-ph-office.png` });
+  await leave(page);
+
+  // Three office / shop / bank layouts per city so neighbouring doors are not clones.
+  const layouts = await page.evaluate(() => {
+    const templates = window.game.world.interiorManager.templates
+      || window.game.world.interiorManager.getIdleWarmTargets?.()
+      || [];
+    const ids = templates.map((t) => t.def?.streetBuildingId || t.def?.id || t.def?.type || t.id).filter(Boolean);
+    const need = (city, kind) => [
+      `roadside-${city}-town-${kind}`,
+      `roadside-${city}-town-${kind}-1`,
+      `roadside-${city}-town-${kind}-2`,
+    ];
+    const present = (keys) => keys.filter((k) => ids.includes(k));
+    const abuja = {
+      office: present(need('abuja', 'office')),
+      shops: present(need('abuja', 'shops')),
+      bank: present(need('abuja', 'bank')),
+    };
+    const ph = {
+      office: present(need('port_harcourt', 'office')),
+      shops: present(need('port_harcourt', 'shops')),
+      bank: present(need('port_harcourt', 'bank')),
+    };
+    return { abuja, ph, n: ids.length };
+  });
+  check('towns: Abuja and Port Harcourt each have three office, shop and bank room layouts',
+    layouts.abuja.office.length === 3 && layouts.abuja.shops.length === 3 && layouts.abuja.bank.length === 3
+      && layouts.ph.office.length === 3 && layouts.ph.shops.length === 3 && layouts.ph.bank.length === 3,
+    layouts);
+
+  // Ride drop-off: Trukadero street coords match the map pin (not the old grass-by-park spot).
+  const drop = await page.evaluate(() => {
+    const g = window.game;
+    g.arriveInCity('abuja');
+    const dest = g.rides.destinations().find((d) => /Trukadero/i.test(d.name));
+    if (!dest) return { ok: false, reason: 'not listed' };
+    const spot = g.setDownSpot(dest);
+    const map = dest.mapPosition;
+    const street = dest.streetPosition;
+    const drift = Math.hypot(map.x - street.x, map.z - street.z);
+    const toMap = Math.hypot(spot.x - map.x, spot.z - map.z);
+    // Old buggy street was around (-11.5, -75); map pin is near (-42, 35).
+    const toOldGrass = Math.hypot(spot.x - (-11.5), spot.z - (-75));
+    return {
+      ok: drift < 1 && toMap < 30 && toOldGrass > 40,
+      name: dest.name,
+      spot: { x: +spot.x.toFixed(1), z: +spot.z.toFixed(1) },
+      map: { x: map.x, z: map.z },
+      street: { x: street.x, z: street.z },
+      drift, toMap, toOldGrass,
+    };
+  });
+  check('towns: a ride to Trukadero sets down at the bowling pin, not the old grass spot',
+    drop.ok === true, drop);
 
   check('towns: no errors in the page', log.errors.length === 0, log.errors.slice(0, 6));
   await ctx.close();
