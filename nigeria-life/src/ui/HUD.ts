@@ -43,6 +43,7 @@ import { draw as drawStable } from './kit/StableView';
 import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
 import { CareerMinigames } from '../jobs/CareerMinigames';
 import { Dues } from '../life/Dues';
+import { PerfReadout } from './PerfReadout';
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
@@ -1633,6 +1634,7 @@ export class HUD {
 
   public showInteractionCard(obj: InteractiveObject): void {
     this.currentActiveObject = obj;
+    PerfReadout.get().recordTap(obj.name || obj.id, obj.category || 'card', obj.id);
     const categoryEl = document.getElementById('card-category')!;
     const titleEl = document.getElementById('card-title')!;
     const descEl = document.getElementById('card-desc')!;

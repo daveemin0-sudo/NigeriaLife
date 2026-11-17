@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RedLine, STATIONS, VIADUCT } from './RedLine';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
+import { markStillGroup } from '../../graphics/StillMatrices';
 import type { Obstruction, Rect } from '../plan/CityPlan';
 import { EXPRESS_BRIDGE, EXPRESS_BRIDGES } from '../density/StreetLayout';
 import { EXPRESS, roadsideAt } from './layout';
@@ -98,7 +99,9 @@ export class Expressway {
   /** The pavements as drawn (not where a lay-by cuts into them): a driven car may not go onto them */
   public readonly pavements: Rect[] = [];
   private readonly chunks: Array<{ group: THREE.Group; z: number }> = [];
-  private readonly rand = seededRandom(4410);
+  private readonly pendingChunks: Array<{ z0: number; z1: number }> = [];
+  private readonly pendingExtras: Array<{ z: number; build: () => void }> = [];
+  private rand = seededRandom(4410);
 
   /** The places along it: showroom, cathedral, mosque, beach, mall, hotel and the rest */
   public readonly roadside = new Roadside();
@@ -117,11 +120,23 @@ export class Expressway {
     this.obstructions.push(...this.redLine.obstructions);
     // Their places are listed with the road's: on the map, a cab to each
     this.roadside.interactive.push(...this.sideStreets.interactive);
-    for (let z = EXPRESS.from; z < EXPRESS.to; z += CHUNK) this.buildChunk(z, Math.min(EXPRESS.to, z + CHUNK));
-    this.buildRoundabout();
-    this.buildLagoon();
-    this.buildToll();
-    this.buildPylon();
+    // Build only the chunks near the start at boot; create lightweight group shells and median barrier for the rest
+    this.solid('Expressway median', -0.35, 0.35, EXPRESS.from, EXPRESS.to, 0.9);
+    for (let z = EXPRESS.from; z < EXPRESS.to; z += CHUNK) {
+      const z1 = Math.min(EXPRESS.to, z + CHUNK);
+      const shell = new THREE.Group();
+      shell.visible = false;
+      this.chunks.push({ group: shell, z });
+      this.group.add(shell);
+      if (z < EXPRESS.from + 400) this.buildChunk(z, z1);
+      else this.pendingChunks.push({ z0: z, z1 });
+    }
+    this.pendingExtras.push(
+      { z: EXPRESS.ring.z, build: () => this.buildRoundabout() },
+      { z: (EXPRESS.lagoonFrom + EXPRESS.lagoonTo) / 2, build: () => this.buildLagoon() },
+      { z: EXPRESS.toll, build: () => this.buildToll() },
+      { z: EXPRESS.pylon, build: () => this.buildPylon() },
+    );
   }
 
   /** Is z on the bridge over the lagoon? */
@@ -129,8 +144,43 @@ export class Expressway {
     return z > EXPRESS.lagoonFrom && z < EXPRESS.lagoonTo;
   }
 
+  /** Ensures all chunks and landmarks near `playerZ` are built before they enter draw range. */
+  public ensureChunksNear(playerZ: number): void {
+    const reach = DRAW + 200;
+    for (let i = this.pendingChunks.length - 1; i >= 0; i--) {
+      const c = this.pendingChunks[i];
+      if (Math.abs((c.z0 + c.z1) / 2 - playerZ) <= reach) {
+        this.pendingChunks.splice(i, 1);
+        this.buildChunk(c.z0, c.z1);
+      }
+    }
+    for (let i = this.pendingExtras.length - 1; i >= 0; i--) {
+      const e = this.pendingExtras[i];
+      if (Math.abs(e.z - playerZ) <= reach + 600) {
+        this.pendingExtras.splice(i, 1);
+        e.build();
+      }
+    }
+  }
+
+  /** Builds one deferred expressway chunk or landmark during idle time. Returns true if work was done. */
+  public prepareIdleStep(): boolean {
+    const next = this.pendingChunks.shift();
+    if (next) {
+      this.buildChunk(next.z0, next.z1);
+      return true;
+    }
+    const extra = this.pendingExtras.shift();
+    if (extra) {
+      extra.build();
+      return true;
+    }
+    return false;
+  }
+
   /** Draws only the pieces near the player */
   public update(playerZ: number): void {
+    if (this.pendingChunks.length || this.pendingExtras.length) this.ensureChunksNear(playerZ);
     for (const chunk of this.chunks) chunk.group.visible = Math.abs(chunk.z - playerZ) < DRAW;
     this.roadside.update(playerZ);
     this.sideStreets.update(playerZ);
@@ -145,6 +195,7 @@ export class Expressway {
       this.group.add(chunk.group);
     }
     chunk.group.add(object);
+    markStillGroup(chunk.group);
   }
 
   private solid(owner: string, minX: number, maxX: number, minZ: number, maxZ: number, height: number, structure = false, pole = false): void {
@@ -152,6 +203,7 @@ export class Expressway {
   }
 
   private buildChunk(z0: number, z1: number): void {
+    this.rand = seededRandom(4410 + Math.round(z0));
     const b = new Builder();
     const mid = (z0 + z1) / 2;
     const len = z1 - z0;
@@ -439,6 +491,7 @@ export class Expressway {
   }
 
   private buildLagoon(): void {
+    this.rand = seededRandom(4411);
     const water = new THREE.Mesh(
       new THREE.PlaneGeometry(1600, EXPRESS.lagoonTo - EXPRESS.lagoonFrom + 60),
       new THREE.MeshStandardMaterial({ color: 0x1f6f8b, metalness: 0.35, roughness: 0.25 }),

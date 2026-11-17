@@ -67,16 +67,42 @@ export class RoadRideExperience {
     this.group.add(this.highwaySceneryGroup);
     this.group.add(this.vehicleGroup);
 
-    // Warm Sun and Ambient
-    const sunLight = new THREE.DirectionalLight(0xfffbeb, 2.5);
-    sunLight.position.set(40, 80, 50);
-    this.group.add(sunLight);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.6);
+    // Use the scene's existing directional sunLight so toggling RoadRideExperience does not alter NUM_DIR_LIGHTS.
+    // AmbientLight only adds to the scene ambient uniform without triggering shader recompilation.
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     this.group.add(ambientLight);
 
     this.buildHighwayAndRestStop();
     this.buildCoachCabin();
+  }
+
+  /** Incrementally pre-builds one ride asset (city road or vehicle) during idle time and returns it for shader warming. */
+  public prepareIdleStep(cityId: string): THREE.Object3D | null {
+    const city = String(cityId || 'lagos');
+    if (!this.streets.has(city)) {
+      const st = new RideStreet(city);
+      this.streets.set(city, st);
+      return st.group;
+    }
+    if (!this.rides.has('taxi')) {
+      const v = buildRideCar('corolla_2008', undefined, true, 0);
+      v.body.visible = false;
+      this.rides.set('taxi', v);
+      return v.body;
+    }
+    if (!this.rides.has('keke')) {
+      const v = buildRideKeke();
+      v.body.visible = false;
+      this.rides.set('keke', v);
+      return v.body;
+    }
+    if (!this.rides.has('okada')) {
+      const v = buildRideOkada();
+      v.body.visible = false;
+      this.rides.set('okada', v);
+      return v.body;
+    }
+    return null;
   }
 
   // =========================================================================
@@ -380,10 +406,13 @@ export class RoadRideExperience {
       }
     }
 
-    // Warm Hanging Bulbs under Canteen
-    const bulbLight = new THREE.PointLight(0xfef08a, 1.6, 12);
-    bulbLight.position.set(0, 3.0, 0);
-    canteenGroup.add(bulbLight);
+    // Warm Hanging Bulb under Canteen (mesh glow rather than PointLight so NUM_POINT_LIGHTS in scene stays constant)
+    const bulbMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xfef08a })
+    );
+    bulbMesh.position.set(0, 3.0, 0);
+    canteenGroup.add(bulbMesh);
 
     // Suya Barbecue Grill Station (Sizzling street suya)
     const grillMat = new THREE.MeshStandardMaterial({ color: 0x18181b, metalness: 0.8, roughness: 0.6 });
@@ -563,6 +592,8 @@ export class RoadRideExperience {
     if (!vehicle) {
       vehicle = kind === 'okada' ? buildRideOkada() : kind === 'keke' ? buildRideKeke() : kind === 'taxi' ? buildRideCar('corolla_2008', undefined, true, 0) : ride.car ? buildRideCar(ride.car.body, ride.car.paint, false, 1) : buildRideCar('gwagon', 0x111214, false, 1);
       this.rides.set(key, vehicle);
+    }
+    if (!vehicle.body.parent) {
       this.vehicleGroup.add(vehicle.body);
     }
     for (const other of this.rides.values()) other.body.visible = other === vehicle;
@@ -615,9 +646,9 @@ export class RoadRideExperience {
     this.rideCamera.lookAt(look);
     const aspect = this.rideCamera.aspect;
     // On a tall screen, keep as much side to side in view as a wide one would show
-    const across = THREE.MathUtils.degToRad(this.currentCameraView === 'inside' ? 52 : 44);
+    const across = THREE.MathUtils.degToRad(this.currentCameraView === 'inside' ? 56 : 54);
     const fov = aspect < 1 ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(across / 2) / aspect)) : view.fov;
-    const next = THREE.MathUtils.clamp(fov, view.fov, 88);
+    const next = THREE.MathUtils.clamp(fov, view.fov, 92);
     if (Math.abs(this.rideCamera.fov - next) > 0.01) {
       this.rideCamera.fov = next;
       this.rideCamera.updateProjectionMatrix();

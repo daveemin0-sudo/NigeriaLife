@@ -1748,10 +1748,11 @@ html body .nl-signin-later { border: 0; background: none; color: var(--lx-dim, #
     display: none !important;
   }
   html body #hud-proximity-prompt {
-    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
-    max-width: calc(100vw - 20px) !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+    bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+    max-width: calc(100vw - 156px) !important;
+    left: auto !important;
+    right: 8px !important;
+    transform: none !important;
     padding: 8px 14px !important;
     font-size: 12px !important;
     box-sizing: border-box !important;

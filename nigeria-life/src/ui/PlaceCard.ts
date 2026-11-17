@@ -70,6 +70,7 @@ export interface PlaceCardHooks {
 export class PlaceCard {
   private el: HTMLDivElement;
   private hooks: PlaceCardHooks;
+  private publishClear: () => void;
 
   constructor(hooks: PlaceCardHooks) {
     this.hooks = hooks;
@@ -86,6 +87,7 @@ export class PlaceCard {
       const top = shown ? window.innerHeight - this.el.getBoundingClientRect().top : 0;
       document.documentElement.style.setProperty('--place-card-clear', `${Math.ceil(top) + 10}px`);
     };
+    this.publishClear = publish;
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(publish).observe(this.el);
     window.addEventListener('resize', publish);
 
@@ -94,6 +96,7 @@ export class PlaceCard {
         this.render();
       } else {
         this.el.style.display = 'none';
+        this.publishClear();
       }
     });
   }
@@ -227,5 +230,7 @@ export class PlaceCard {
 
     this.el.append(head, chips);
     this.el.style.display = 'flex';
+    this.publishClear();
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this.publishClear());
   }
 }

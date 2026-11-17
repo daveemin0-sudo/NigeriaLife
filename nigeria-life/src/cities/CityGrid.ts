@@ -80,18 +80,18 @@ export function buildGrid(name: string, roads: readonly GridRoad[], style: GridS
     for (const [a, b] of walks) {
       for (const side of [-1, 1]) {
         const inner = side * road.halfRoad;
-        // The kerb, painted in stripes where the city paints them, then the pavement behind it
+        // The kerb: one continuous box per block; painted stripes are flat 2-triangle tops every 8 m
+        along(things, road, style.kerb, a, b, inner, inner + side * 0.25, 0, style.top + 0.02);
         if (style.kerbStripe) {
-          for (let u = a; u < b; u += 4) {
-            along(things, road, style.kerb, u, Math.min(b, u + 2), inner, inner + side * 0.25, 0, style.top + 0.02);
-            along(things, road, style.kerbStripe, Math.min(b, u + 2), Math.min(b, u + 4), inner, inner + side * 0.25, 0, style.top + 0.02);
+          for (let u = a; u < b; u += 8) {
+            along(ground, road, style.kerbStripe, u, Math.min(b, u + 4), inner, inner + side * 0.25, style.top + 0.021, 0.004);
           }
-        } else along(things, road, style.kerb, a, b, inner, inner + side * 0.25, 0, style.top + 0.02);
+        }
         const back = inner + side * 0.25;
         if (style.drain) {
-          // An open drain behind the kerb, its slab covers every few metres
-          along(things, road, 0x57534e, a, b, back, back + side * 0.7, 0, 0.05);
-          for (let u = a + 1; u < b - 1; u += 6) along(things, road, 0x9ca3af, u, u + 1.2, back, back + side * 0.7, style.top - 0.04, 0.06);
+          // An open drain behind the kerb, its slab covers every 10 m as flat 2-triangle quads
+          along(ground, road, 0x57534e, a, b, back, back + side * 0.7, 0.04, 0.005);
+          for (let u = a + 1; u < b - 1; u += 10) along(ground, road, 0x9ca3af, u, u + 1.4, back, back + side * 0.7, style.top - 0.01, 0.006);
           along(things, road, style.pavement, a, b, back + side * 0.7, side * (road.halfRoad + road.walk), 0, style.top);
         } else along(things, road, style.pavement, a, b, back, side * (road.halfRoad + road.walk), 0, style.top);
         // The lamps on the pavement's kerb side
@@ -100,7 +100,7 @@ export function buildGrid(name: string, roads: readonly GridRoad[], style: GridS
           for (let u = a + every / 2; u < b - 4; u += every) {
             const x = side * (road.halfRoad + 0.7);
             const p = road.axis === 'z' ? { x: road.fixed + x, z: u } : { x: u, z: road.fixed + x };
-            things.cylinder(0x6b7280, 0.1, 7.5, p.x, style.top, p.z, { sides: 8, solid: true });
+            things.cylinder(0x6b7280, 0.1, 7.5, p.x, style.top, p.z, { sides: 6, solid: true });
             const arm = road.axis === 'z' ? { x: p.x - side * 0.9, z: p.z } : { x: p.x, z: p.z - side * 0.9 };
             things.box(0x6b7280, road.axis === 'z' ? 1.9 : 0.1, 0.1, road.axis === 'z' ? 0.1 : 1.9, (p.x + arm.x) / 2, style.top + 7.4, (p.z + arm.z) / 2);
             glow.box(0xfff3c4, 0.6, 0.12, 0.3, arm.x, style.top + 7.32, arm.z, { glow: true });

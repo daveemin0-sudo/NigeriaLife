@@ -1,4 +1,5 @@
 import { MusicPlayer } from '../audio/MusicPlayer';
+import { thisLoad } from '../app/LoadTimes';
 import { SignInScreen } from '../ui/SignInScreen';
 import * as THREE from 'three';
 import { LookPreview } from '../ui/LookPreview';
@@ -401,7 +402,7 @@ export class Game {
     // Each account keeps its own hustles, ladder and album
     Activity.player = () => BackendService.getInstance().getData().id || 'local';
     this.world = new World(this.scene, this.renderer);
-    this.cameraManager.collisionObjects = [this.world.buildings.group, this.world.districts.group];
+    this.updateCameraColliders(this.world.cityManager.currentCityId);
     this.world.viewCamera = this.cameraManager.camera;
 
     // 5. Player Character
@@ -806,6 +807,7 @@ export class Game {
       this.cameraManager.setLayerMode(mode);
 
       if (mode === 'street') {
+        this.world.skyEnvironment.mapView = false;
         if (this.savedStreetFog) {
           this.scene.fog = this.savedStreetFog;
         }
@@ -816,7 +818,11 @@ export class Game {
         if (this.scene.fog) {
           this.savedStreetFog = this.scene.fog;
         }
-        this.scene.fog = null; // 100% clear crisp view for world map without blurry haze
+        // Keep FogExp2 instance with density = 0 rather than setting fog = null, so USE_FOG stays constant and 32 city shaders do not recompile
+        this.world.skyEnvironment.mapView = true;
+        if (this.scene.fog instanceof THREE.FogExp2) {
+          this.scene.fog.density = 0;
+        }
         this.world.setStreetModeVisibility(false);
         this.player.mesh.visible = false;
         this.world.worldMap.activate();
@@ -838,6 +844,7 @@ export class Game {
     // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)
     // The player walks in and out through the door wherever the place has one
     this.hud.onEnterInterior = (buildingId: string, comeOutAt?: THREE.Vector3) => {
+      PerfReadout.get().recordTap(buildingId, 'enter-interior', buildingId);
       const target = this.world.interiorManager.getInteriorByBuildingId(buildingId);
       // "Enter" on a home's card on the map names the home: that one is gone into, and is home from now on
       if (buildingId.startsWith('residence:')) {
@@ -1205,7 +1212,13 @@ export class Game {
     // 10b. The phone: its apps act on this game through the hooks below
     this.connectPhone();
     // The performance readout (off unless switched on in Settings › Graphics or with ?perf=1)
-    PerfReadout.get().attach({ renderer: this.renderer, city: () => this.world.cityManager.currentCityId, where: () => this.whereabouts() });
+    PerfReadout.get().attach({
+      renderer: this.renderer,
+      city: () => this.world.cityManager.currentCityId,
+      where: () => this.whereabouts(),
+      coords: () => ({ x: this.player.position.x, z: this.player.position.z }),
+      activity: () => (this.warming ? 'warming' : this.hud.currentNavMode === 'map' ? 'map' : this.flightExperience.isActive ? 'flight' : this.roadRideExperience.isActive ? 'ride' : this.whereabouts()),
+    });
     this.connectSelfMenu();
     this.connectLand();
 
@@ -1507,6 +1520,9 @@ export class Game {
       arriveAt: (destination) => {
         this.player.stopMoving();
         const spot = this.setDownSpot(destination);
+        if (this.world.cityManager.currentCityId === 'lagos') {
+          this.world.expressway.ensureChunksNear(spot.z);
+        }
         this.player.mesh.position.set(spot.x, 0, spot.z);
         this.cameraManager.snapToPlayer(this.player, 'street');
         showGameToast(`You have arrived at ${destination.name}.`, 'success', 3600);
@@ -1544,15 +1560,54 @@ export class Game {
     this.warming = true;
     try {
       if (!this.scene.environment || !this.scene.fog) sky.applyMode(sky.getTimePeriodForHour(sky.currentHour));
-      // One stand-in for every material under `root`, shown or not (three.js compiles only what is
-      // shown, so a street that switches on as the player nears it was compiled when it appeared),
-      // compiled with the lights the world has now
+      // At startup, skip hidden interior and ride groups (they are warmed incrementally in the idle queue)
+      const skip = root === this.scene
+        ? new Set<THREE.Object3D>([this.world.interiorManager.group, this.roadRideExperience.group])
+        : undefined;
+      const roots = root === this.scene ? [root] : [root, this.player.mesh];
+      const copies = this.extractShaderStandIns(roots, seen, skip);
       const warmer = new THREE.Scene();
-      root.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        const sprite = (o as THREE.Sprite).isSprite;
-        if (!mesh.isMesh && !(o as THREE.Points).isPoints && !(o as THREE.Line).isLine && !sprite) return;
-        if ((o as THREE.SkinnedMesh).isSkinnedMesh) return;
+      for (const copy of copies) warmer.add(copy);
+      await Promise.race([renderer.compileAsync(warmer, camera, this.scene), new Promise((done) => setTimeout(done, ms))]);
+      // The shadow map's own depth shaders are made by drawing one ordinary frame, shadows and all, to the
+      // screen. (Drawing it into a small target instead built a second set of every shader, for a target
+      // that is never used again: 6 seconds of loading, measured. Drawing the shadow map alone, outside a
+      // frame, left the graphics card pointed at it: every frame after was drawn into the shadow map.)
+      if (root === this.scene && renderer.shadowMap.enabled) {
+        renderer.shadowMap.needsUpdate = true;
+        renderer.render(this.scene, camera);
+      }
+    } catch (error) {
+      console.warn('[shaders] could not be compiled ahead', error);
+    } finally {
+      this.warming = false;
+    }
+    console.log(`[shaders] ${renderer.info.programs?.length ?? 0} programs ready, ${seen.size} materials warmed in ${Math.round(performance.now() - t0)} ms (parallel: ${parallel})`);
+    if (root === this.scene) {
+      this.idleQueueRunning = true;
+      const waitPlayable = (): void => {
+        if (thisLoad().stages.playable !== undefined) {
+          this.idleQueueRunning = false;
+          this.startIdleShaderQueue();
+        } else {
+          setTimeout(waitPlayable, 150);
+        }
+      };
+      setTimeout(waitPlayable, 200);
+    }
+  }
+
+  private extractShaderStandIns(
+    roots: THREE.Object3D[],
+    seen: Set<string>,
+    skipGroups?: Set<THREE.Object3D>
+  ): THREE.Object3D[] {
+    const out: THREE.Object3D[] = [];
+    const visit = (o: THREE.Object3D): void => {
+      if (skipGroups?.has(o)) return;
+      const mesh = o as THREE.Mesh;
+      const sprite = (o as THREE.Sprite).isSprite;
+      if ((mesh.isMesh || (o as THREE.Points).isPoints || (o as THREE.Line).isLine || sprite) && !(o as THREE.SkinnedMesh).isSkinnedMesh) {
         const instanced = (o as THREE.InstancedMesh).isInstancedMesh;
         const coloured = instanced && !!(o as THREE.InstancedMesh).instanceColor;
         for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
@@ -1570,24 +1625,180 @@ export class Game {
           copy.receiveShadow = o.receiveShadow;
           copy.castShadow = o.castShadow;
           copy.frustumCulled = false;
-          warmer.add(copy);
+          out.push(copy);
         }
-      });
-      await Promise.race([renderer.compileAsync(warmer, camera, this.scene), new Promise((done) => setTimeout(done, ms))]);
-      // The shadow map's own depth shaders are made by drawing one ordinary frame, shadows and all, to the
-      // screen. (Drawing it into a small target instead built a second set of every shader, for a target
-      // that is never used again: 6 seconds of loading, measured. Drawing the shadow map alone, outside a
-      // frame, left the graphics card pointed at it: every frame after was drawn into the shadow map.)
-      if (root === this.scene && renderer.shadowMap.enabled) {
-        renderer.shadowMap.needsUpdate = true;
-        renderer.render(this.scene, camera);
       }
-    } catch (error) {
-      console.warn('[shaders] could not be compiled ahead', error);
-    } finally {
-      this.warming = false;
+      for (const child of o.children) visit(child);
+    };
+    for (const r of roots) visit(r);
+    return out;
+  }
+
+  private idleShaderTasks: Array<() => Promise<void> | void> = [];
+  private idleQueueRunning = false;
+  private idleRoomLightScenes = new Map<number, THREE.Scene>();
+
+  /** True while background idle shader/asset preparation is still running. */
+  public get idleWarming(): boolean {
+    return this.idleQueueRunning || this.idleShaderTasks.length > 0;
+  }
+
+  private getRoomWarmTargetScene(pointLightCount: number): THREE.Scene {
+    let target = this.idleRoomLightScenes.get(pointLightCount);
+    if (!target) {
+      target = new THREE.Scene();
+      const sun = this.world.sunLight.clone();
+      sun.castShadow = this.world.sunLight.castShadow;
+      const hemi = this.world.hemiLight.clone();
+      const amb = new THREE.AmbientLight(0xffffff, 0.5);
+      target.add(sun, hemi, amb);
+      for (let i = 0; i < pointLightCount; i++) {
+        target.add(new THREE.PointLight(0xfbbf24, 1.5, 12, 1.2));
+      }
+      this.idleRoomLightScenes.set(pointLightCount, target);
     }
-    console.log(`[shaders] ${renderer.info.programs?.length ?? 0} programs ready, ${seen.size} materials warmed in ${Math.round(performance.now() - t0)} ms (parallel: ${parallel})`);
+    target.fog = this.scene.fog;
+    target.environment = this.scene.environment;
+    return target;
+  }
+
+  private enqueueShaderBatches(
+    standIns: THREE.Object3D[],
+    camera: THREE.Camera,
+    targetScene: THREE.Scene,
+    batchSize = 6,
+    onDone?: () => void
+  ): void {
+    if (standIns.length === 0) {
+      if (onDone) this.idleShaderTasks.push(onDone);
+      return;
+    }
+    for (let i = 0; i < standIns.length; i += batchSize) {
+      const slice = standIns.slice(i, i + batchSize);
+      const isLast = i + batchSize >= standIns.length;
+      this.idleShaderTasks.push(async () => {
+        const batch = new THREE.Scene();
+        for (const item of slice) batch.add(item);
+        await Promise.race([
+          this.renderer.compileAsync(batch, camera, targetScene),
+          new Promise((r) => setTimeout(r, 800)),
+        ]);
+        if (isLast && onDone) onDone();
+      });
+    }
+  }
+
+  private enqueueCityRideWarm(cityId: string): void {
+    const rideSeen = new Set<string>();
+    for (let step = 0; step < 4; step++) {
+      this.idleShaderTasks.push(() => {
+        const built = this.roadRideExperience.prepareIdleStep(cityId);
+        if (!built) return;
+        const standIns = this.extractShaderStandIns([built], rideSeen);
+        this.enqueueShaderBatches(standIns, this.roadRideExperience.rideCamera, this.scene, 8);
+      });
+    }
+  }
+
+  private startIdleShaderQueue(): void {
+    // 1. World Map materials
+    const mapSeen = new Set<string>();
+    const mapStandIns = this.extractShaderStandIns([this.world.worldMap.renderer.group, this.world.routeLine.group], mapSeen);
+    this.enqueueShaderBatches(mapStandIns, this.world.worldMap.mapCamera, this.scene, 8);
+
+    // 2. Road Ride assets & shaders ( highway/coach + current city road & vehicles )
+    const baseRideSeen = new Set<string>();
+    const baseRideStandIns = this.extractShaderStandIns([this.roadRideExperience.group], baseRideSeen);
+    this.enqueueShaderBatches(baseRideStandIns, this.roadRideExperience.rideCamera, this.scene, 8);
+    this.enqueueCityRideWarm(this.world.cityManager.currentCityId);
+
+    // 3. Interior room templates (starting with Mama Put / restaurant and core rooms)
+    const rooms = this.world.interiorManager.getIdleWarmTargets();
+    rooms.sort((a, b) => (a.id === 'interior_restaurant' ? -1 : b.id === 'interior_restaurant' ? 1 : 0));
+    const roomSeenByLights = new Map<number, Set<string>>();
+    for (const room of rooms) {
+      this.idleShaderTasks.push(() => {
+        let pointLights = 0;
+        room.group.traverse((o) => {
+          if ((o as THREE.PointLight).isPointLight) pointLights++;
+        });
+        let seen = roomSeenByLights.get(pointLights);
+        if (!seen) {
+          seen = new Set<string>();
+          roomSeenByLights.set(pointLights, seen);
+        }
+        const standIns = this.extractShaderStandIns([room.group, this.player.mesh], seen);
+        const targetScene = this.getRoomWarmTargetScene(pointLights);
+        this.enqueueShaderBatches(standIns, this.cameraManager.camera, targetScene, 8, () => {
+          this.world.interiorManager.markWarmed(room.id);
+        });
+      });
+    }
+
+    // 4. Flight experience assets & shaders
+    const flightSeen = new Set<string>();
+    for (let step = 0; step < 3; step++) {
+      this.idleShaderTasks.push(() => {
+        const built = this.flightExperience.prepareIdleStep();
+        if (!built) return;
+        const standIns = this.extractShaderStandIns([built], flightSeen);
+        this.enqueueShaderBatches(standIns, this.flightExperience.flightCamera, this.flightExperience.scene, 8);
+      });
+    }
+
+    // 5. Staggered sidewalk crowd & deferred expressway chunks (built incrementally after playable)
+    const scheduleDeferredCrowd = (): void => {
+      this.idleShaderTasks.push(() => {
+        if (this.world.npcs.prepareIdleStep(3)) scheduleDeferredCrowd();
+      });
+    };
+    scheduleDeferredCrowd();
+
+    const scheduleDeferredExpressway = (): void => {
+      this.idleShaderTasks.push(() => {
+        if (this.world.expressway.prepareIdleStep()) scheduleDeferredExpressway();
+      });
+    };
+    scheduleDeferredExpressway();
+
+    this.scheduleNextIdleShaderStep();
+  }
+
+  private scheduleNextIdleShaderStep(): void {
+    if (this.idleQueueRunning || this.idleShaderTasks.length === 0) return;
+    this.idleQueueRunning = true;
+    setTimeout(() => void this.runNextIdleShaderStep(), 20);
+  }
+
+  private async runNextIdleShaderStep(): Promise<void> {
+    if (this.idleShaderTasks.length === 0) {
+      this.idleQueueRunning = false;
+      return;
+    }
+    // Pause background preparation whenever gameplay is actively moving, driving, or transitioning
+    const busy =
+      this.warming ||
+      this.player.isDriving ||
+      this.player.isMoving ||
+      this.world.interiorManager.busy ||
+      this.flightExperience.isActive ||
+      this.roadRideExperience.isActive ||
+      this.world.worldMap.isActive;
+    if (busy) {
+      setTimeout(() => void this.runNextIdleShaderStep(), 100);
+      return;
+    }
+    const task = this.idleShaderTasks.shift();
+    try {
+      if (task) await task();
+    } catch (err) {
+      console.warn('[idle-shaders] step skipped:', err);
+    }
+    if (this.idleShaderTasks.length > 0) {
+      setTimeout(() => void this.runNextIdleShaderStep(), 15);
+    } else {
+      this.idleQueueRunning = false;
+    }
   }
 
   /** The district a point of a city is in, or the nearest one */
@@ -2142,6 +2353,10 @@ export class Game {
       scene: this.scene,
       crowd: this.world.cityPopulation,
       resized: () => this.postProcessing.setSize(window.innerWidth, window.innerHeight),
+      onLevel: ({ smokeEvery, districtDraw }) => {
+        this.world.smokeEvery = smokeEvery;
+        this.world.districtDrawDistance = districtDraw;
+      },
       tell: (text) => showGameToast(text, 'info', 7000),
     });
     // The queues at Broad Street's bus stops are who a danfo or keke picks up
@@ -3840,6 +4055,19 @@ export class Game {
     return cityId === 'lagos' || cityId === 'abuja' || cityId === 'port_harcourt';
   }
 
+  /** Keep the camera's building & vehicle wall-check groups aligned with the active city. */
+  private updateCameraColliders(cityId: CityId): void {
+    this.cameraManager.collisionObjects = cityId === 'lagos'
+      ? [
+          this.world.buildings.group,
+          this.world.districts.group,
+          this.world.landmarks.group,
+          this.world.vehicles.group,
+          this.world.trafficSpawner.group,
+        ]
+      : this.world.cityManager.getCameraColliders(cityId);
+  }
+
   /** Switches the world to a city the player has just travelled to, and reports the arrival. */
   private arriveInCity(cityId: CityId): void {
     this.hud.interstateModal.currentOriginCityId = cityId;
@@ -3851,6 +4079,9 @@ export class Game {
     this.world.cityManager.switchCity(cityId, this.player, (newObjs) => {
       this.world.interactiveObjects = newObjs;
     });
+    this.updateCameraColliders(cityId);
+    this.enqueueCityRideWarm(cityId);
+    this.scheduleNextIdleShaderStep();
     emitGameEvent('arrive_city', { city: cityId });
     this.saveWorldState();
   }
@@ -4047,6 +4278,7 @@ export class Game {
       this.world.cityManager.switchCity(saved.cityId, this.player, (newObjs) => {
         this.world.interactiveObjects = newObjs;
       });
+      this.updateCameraColliders(saved.cityId);
       this.hud.interstateModal.currentOriginCityId = saved.cityId;
     }
     this.player.mesh.position.set(saved.x, 0, saved.z);

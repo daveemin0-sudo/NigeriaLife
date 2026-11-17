@@ -559,10 +559,15 @@ export class SkyEnvironmentManager {
       if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.density *= 0.12;
       this.renderer.toneMappingExposure = Math.max(baseExposure, cut ? 0.9 : 1.08);
     }
+    if (this.mapView && this.scene.fog instanceof THREE.FogExp2) {
+      this.scene.fog.density = 0;
+    }
   }
 
   /** The player is inside a building: lit as rooms are, not as the street is at that hour */
   public indoors = false;
+  /** The world map is open: fog density is zeroed without removing the fog object (avoiding shader recompiles) */
+  public mapView = false;
   /** The player is in their home and it has no power (src/housing/HomePower.ts): lit dimmer and warmer */
   public indoorBlackout = false;
 

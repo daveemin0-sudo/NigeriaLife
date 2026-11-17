@@ -34,7 +34,15 @@ export interface CityMetadata {
   climate: 'coastal_tropical' | 'savannah_highland' | 'sahelian_semiarid' | 'delta_mangrove';
   skyColorHex: number;
   fogColorHex: number;
+  fogDensity: number;
   sunIntensity: number;
+  spawn: {
+    x: number;
+    y: number;
+    z: number;
+    vehicleX?: number;
+    vehicleZ?: number;
+  };
   routes: CityTravelRoute[];
 }
 

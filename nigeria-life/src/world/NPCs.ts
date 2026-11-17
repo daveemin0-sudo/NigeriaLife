@@ -32,6 +32,11 @@ export class NPCs {
 
   // Walking & animated crowd
   private pedestrians: AmbientPedestrian[] = [];
+  private pendingCrowd: Array<{
+    x: number; z: number; gender: Gender; username: string; outfit: Outfit;
+    outfitColor: number; hairstyle: Hairstyle; isWalking: boolean;
+    minZ: number; maxZ: number; speed: number; idleAction?: string;
+  }> = [];
 
   // Animated story character rigs
   private storyRigs: { rig: HumanRig; animState: string; actor?: Actor }[] = [];
@@ -487,7 +492,21 @@ export class NPCs {
       { x: 9.0, z: 26, gender: 'male', username: 'Alhaji Musa', outfit: 'agbada', outfitColor: 0x065f46, hairstyle: 'fila', isWalking: false, minZ: 26, maxZ: 26, speed: 0, idleAction: 'idle' },
     ];
 
-    for (const item of roster) {
+    this.pendingCrowd = roster;
+    // Build the nearest 3 pedestrians at startup; stagger the remaining 9 after playable
+    this.buildCrowdBatch(3);
+  }
+
+  /** Builds up to `count` deferred sidewalk pedestrians. Returns true if any were built. */
+  public prepareIdleStep(count = 3): boolean {
+    return this.buildCrowdBatch(count) > 0;
+  }
+
+  private buildCrowdBatch(count: number): number {
+    let built = 0;
+    while (built < count && this.pendingCrowd.length > 0) {
+      const item = this.pendingCrowd.shift()!;
+      built++;
       const pedGroup = new THREE.Group();
       pedGroup.position.set(item.x, 0.28, item.z);
 
@@ -517,6 +536,7 @@ export class NPCs {
         lateralOffset: 0,
       });
     }
+    return built;
   }
 
   private cachedPedPositions: Array<{ x: number; z: number; radius: number }> = [];

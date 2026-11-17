@@ -179,6 +179,23 @@ export class InteriorManager {
     this.group.visible = false;
   }
 
+  /** Built interior templates that have not yet had their shaders warmed, for the background idle queue. */
+  public getIdleWarmTargets(): Array<{ id: string; group: THREE.Group }> {
+    const out: Array<{ id: string; group: THREE.Group }> = [];
+    for (const t of this.templates) {
+      if (this.warmed.has(t.def.id)) continue;
+      // Skip unbuilt lazy roadside places until they are built
+      const lazy = t as { ensureBuilt?: () => boolean };
+      if (lazy.ensureBuilt && t.group.children.length <= 1) continue;
+      out.push({ id: t.def.id, group: t.group });
+    }
+    return out;
+  }
+
+  public markWarmed(id: string): void {
+    this.warmed.add(id);
+  }
+
   /**
    * Get all interactive objects across all active interiors.
    */
@@ -318,12 +335,6 @@ export class InteriorManager {
     for (const template of this.templates) {
       template.group.visible = template.def === target;
     }
-    // The first time in, the room's shaders are compiled while the screen is still black
-    if (!this.warmed.has(target.id) && InteriorManager.warm) {
-      this.warmed.add(target.id);
-      const shown = this.getActiveInteriorGroup();
-      if (shown) await InteriorManager.warm(shown);
-    }
 
     // 6. Teleport player character mesh into interior coordinates
     const spawnPos = options.spawnAt ?? target.interiorOrigin.clone().add(target.playerSpawnOffset);
@@ -350,6 +361,13 @@ export class InteriorManager {
     const activeGroup = this.getActiveInteriorGroup();
     if (activeGroup) this.cutaway.attach(activeGroup, target.interiorOrigin);
     this.cutaway.update(0, cameraManager.camera, player.position, true);
+
+    // 7b. If the idle queue has not warmed this room yet, compile its shaders now (after camera layers & cutaway are set)
+    if (!this.warmed.has(target.id) && InteriorManager.warm) {
+      this.warmed.add(target.id);
+      const shown = this.getActiveInteriorGroup();
+      if (shown) await InteriorManager.warm(shown);
+    }
 
     // 8. Update HUD location badge and banner
     hud.updateLocation(target.name, `Interior • ${target.districtName}`);

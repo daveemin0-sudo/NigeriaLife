@@ -12,7 +12,9 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
     climate: 'coastal_tropical',
     skyColorHex: 0x6eb7f2,
     fogColorHex: 0xa9d6f8,
+    fogDensity: 0.012,
     sunIntensity: 2.2,
+    spawn: { x: 0, y: 0, z: 5, vehicleX: -8.5, vehicleZ: 10 },
     routes: [
       {
         destinationId: 'abuja',
@@ -60,7 +62,9 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
     climate: 'savannah_highland',
     skyColorHex: 0x7dd3fc,
     fogColorHex: 0xbae6fd,
+    fogDensity: 0.009,
     sunIntensity: 2.4,
+    spawn: { x: 0, y: 0, z: 10 },
     routes: [
       {
         destinationId: 'lagos',
@@ -108,7 +112,9 @@ export const NIGERIA_CITIES_REGISTRY: Record<string, CityMetadata> = {
     climate: 'delta_mangrove',
     skyColorHex: 0x64748b,
     fogColorHex: 0x94a3b8,
+    fogDensity: 0.010,
     sunIntensity: 2.1,
+    spawn: { x: 0, y: 0, z: 10 },
     routes: [
       {
         destinationId: 'lagos',

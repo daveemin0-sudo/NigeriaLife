@@ -60,10 +60,11 @@ export async function run(browser, check) {
     const row = report.split('\n').find((l) => /^lagos street \|/.test(l)) ?? '';
     const cells = row.split(' | ');
     const fps = +cells[2], p95 = +cells[3], calls = +cells[5], tris = +cells[6], heap = parseInt(cells[10], 10);
-    check('perfreadout: ?perf=1 turns it on; a mark records the last 10 s in Lagos on the street with figures that make sense (fps, p95, draw calls, triangles, JS heap)',
-      snap.shown && fps > 0 && fps < 240 && p95 > 0 && calls > 10 && tris > 1000 && heap > 0, { snap, row });
-    check('perfreadout: the report names the build, the server, the device, the start-up times, how the page came, and lists the marks',
-      /^NigeriaLife performance report/.test(report) && /\nBuild: /.test(report) && /\nServer: /.test(report) && /\nDevice: /.test(report) && /\nStart-up now: .*s to playable/.test(report) && /\nThis page: a fresh load/.test(report) && /\nMarks/.test(report) && !!row,
+    const hasCoords = /^-?\d+,-?\d+$/.test((cells[11] ?? '').trim());
+    check('perfreadout: ?perf=1 turns it on; a mark records the last 10 s in Lagos on the street with figures that make sense (fps, p95, draw calls, triangles, JS heap, coords)',
+      snap.shown && fps > 0 && fps < 240 && p95 > 0 && calls > 10 && tris > 1000 && heap > 0 && hasCoords, { snap, row });
+    check('perfreadout: the report names the build, the server, the device, the start-up times, how the page came, long frames, tapped places, and lists the marks',
+      /^NigeriaLife performance report/.test(report) && /\nBuild: /.test(report) && /\nServer: /.test(report) && /\nDevice: /.test(report) && /\nStart-up now: .*s to playable/.test(report) && /\nThis page: a fresh load/.test(report) && /\nMarks/.test(report) && /\nLong frames \(>500 ms\):/.test(report) && /\nLast places tapped:/.test(report) && !!row,
       report.slice(0, 900));
     check('perfreadout: the report does not claim the live server for this test page', !/THE LIVE SERVER/.test(report), report.split('\n').find((l) => l.startsWith('Server:')));
     const buttons = await page.evaluate(() => [...document.querySelectorAll('#nl-perf-report button')].map((b) => { const r = b.getBoundingClientRect(); return { t: b.textContent, h: Math.round(r.height) }; }));

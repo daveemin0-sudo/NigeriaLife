@@ -641,16 +641,16 @@ export class TrafficSpawner {
    * ahead of one, in its lane or the next, pull over toward the edge of the road and slow down.
    */
   public sirens: Array<{ x: number; z: number; dir: 1 | -1 }> = [];
+  private readonly signalOpen: Record<SignalGroup, boolean> = { main: false, cross: false };
 
   public update(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
     this.signalTime += delta;
     this.updateLamps();
     for (const batch of this.batches) batch.drawn = 0;
 
-    const open: Record<SignalGroup, boolean> = {
-      main: this.signalState('main') === 'go',
-      cross: this.signalState('cross') === 'go',
-    };
+    const open = this.signalOpen;
+    open.main = this.signalState('main') === 'go';
+    open.cross = this.signalState('cross') === 'go';
 
     const walkers = this.walkers;
     const ahead = this.walkersAhead;
@@ -765,6 +765,10 @@ export class TrafficSpawner {
         lane.cars.push(lead);
       }
 
+      if (playerPos && Math.abs(lane.fixed - (lane.axis === 'z' ? playerPos.x : playerPos.z)) > DRAW_DISTANCE + 5) {
+        for (let i = 0; i < lane.cars.length; i++) lane.cars[i].place ??= this.places++;
+        continue;
+      }
       const yaw = lane.axis === 'z' ? (lane.dir > 0 ? 0 : Math.PI) : lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       this.dummy.rotation.set(0, yaw, 0);
       for (const car of lane.cars) {
@@ -786,12 +790,17 @@ export class TrafficSpawner {
 
     for (const batch of this.batches) {
       if (!batch.body) continue;
+      const hasAny = batch.drawn > 0;
+      batch.body.visible = hasAny;
       batch.body.count = batch.drawn;
-      batch.body.instanceMatrix.needsUpdate = true;
+      if (hasAny) batch.body.instanceMatrix.needsUpdate = true;
       if (batch.paint) {
+        batch.paint.visible = hasAny;
         batch.paint.count = batch.drawn;
-        batch.paint.instanceMatrix.needsUpdate = true;
-        if (batch.paint.instanceColor) batch.paint.instanceColor.needsUpdate = true;
+        if (hasAny) {
+          batch.paint.instanceMatrix.needsUpdate = true;
+          if (batch.paint.instanceColor) batch.paint.instanceColor.needsUpdate = true;
+        }
       }
     }
   }

@@ -62,7 +62,7 @@ export class WorldMap {
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
-    this.renderer = new WorldMapRenderer();
+    this.renderer = new WorldMapRenderer(true);
     this.renderer.group.visible = false;
     this.scene.add(this.renderer.group);
 

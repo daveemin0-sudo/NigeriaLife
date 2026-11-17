@@ -32,7 +32,18 @@ interface Kept {
 }
 
 const KEPT = Symbol('nl.placed');
-type Placed = THREE.Object3D & { [KEPT]?: Kept };
+const STILL_GROUP = Symbol('nl.stillGroup');
+type Placed = THREE.Object3D & { [KEPT]?: Kept; [STILL_GROUP]?: boolean };
+
+/**
+ * Marks a verified-still group so the renderer's per-frame scene walk skips its entire subtree.
+ * Call after the group's children are in their final positions; explicit updateMatrixWorld(true)
+ * still traverses it normally.
+ */
+export function markStillGroup(group: THREE.Object3D): void {
+  group.updateMatrixWorld(true);
+  (group as Placed)[STILL_GROUP] = true;
+}
 
 let installed = false;
 /** The renderer's walk over the whole scene is under way */
@@ -44,11 +55,13 @@ export function installStillMatrices(): void {
   installed = true;
   const place = function place(this: Placed, force?: boolean): void {
     if (frameWalk) {
-      const seen = this[KEPT];
       if (!this.visible) {
+        const seen = this[KEPT];
         if (seen !== undefined) seen.hidden = true;
         return;
       }
+      if (!force && this[STILL_GROUP]) return;
+      const seen = this[KEPT];
       if (seen !== undefined && seen.hidden) {
         seen.hidden = false;
         force = true;

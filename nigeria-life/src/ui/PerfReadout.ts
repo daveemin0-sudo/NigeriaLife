@@ -30,6 +30,8 @@ export interface PerfSource {
   renderer: THREE.WebGLRenderer;
   city: () => string;
   where: () => string;
+  coords?: () => { x: number; z: number } | null;
+  activity?: () => string;
 }
 
 interface Snapshot {
@@ -37,6 +39,8 @@ interface Snapshot {
   at: string;
   city: string;
   where: string;
+  x: number | null;
+  z: number | null;
   fps: number;
   p95: number;
   worst: number;
@@ -50,10 +54,32 @@ interface Snapshot {
   heapLimitMB: number | null;
 }
 
+interface LongFrame {
+  at: string;
+  gapMs: number;
+  city: string;
+  where: string;
+  x: number | null;
+  z: number | null;
+  activity: string;
+  programsDelta: number;
+}
+
+interface TapRecord {
+  at: string;
+  city: string;
+  name: string;
+  id: string;
+  outcome: string;
+}
+
 const ON_KEY = 'nl_perf_readout_v1';
 const MARKS_KEY = 'nl_perf_marks_v1';
+const LONG_FRAMES_KEY = 'nl_perf_long_frames_v1';
+const TAPS_KEY = 'nl_perf_taps_v1';
 const ALIVE_KEY = 'nl_perf_alive_v1';
 const WINDOW_MS = 10_000;
+const LONG_FRAME_MS = 500;
 
 export class PerfReadout {
   private static inst: PerfReadout | null = null;
@@ -65,12 +91,19 @@ export class PerfReadout {
   /** Frame times as [when, gap] pairs, the last 10 seconds */
   private readonly times: number[] = [];
   private last = 0;
+  private lastPrograms = 0;
   private running = false;
+  private collapsed = false;
   private shownAt = 0;
   private panel: HTMLDivElement | null = null;
   private text: HTMLDivElement | null = null;
+  private body: HTMLDivElement | null = null;
+  private toggleBtn: HTMLButtonElement | null = null;
+  private titleSpan: HTMLSpanElement | null = null;
   private sheet: HTMLDivElement | null = null;
   private marks: Snapshot[] = [];
+  private longFrames: LongFrame[] = [];
+  private taps: TapRecord[] = [];
   /** How this page came to be: a fresh load, a reload, or brought back after Chrome discarded it */
   public readonly arrival: { reload: boolean; discarded: boolean; wasRunning: boolean };
 
@@ -81,8 +114,14 @@ export class PerfReadout {
       wasRunning = sessionStorage.getItem(ALIVE_KEY) === '1';
       this.marks = JSON.parse(sessionStorage.getItem(MARKS_KEY) ?? '[]');
       if (!Array.isArray(this.marks)) this.marks = [];
+      this.longFrames = JSON.parse(sessionStorage.getItem(LONG_FRAMES_KEY) ?? '[]');
+      if (!Array.isArray(this.longFrames)) this.longFrames = [];
+      this.taps = JSON.parse(sessionStorage.getItem(TAPS_KEY) ?? '[]');
+      if (!Array.isArray(this.taps)) this.taps = [];
     } catch {
       this.marks = [];
+      this.longFrames = [];
+      this.taps = [];
     }
     this.arrival = { reload: nav === 'reload', discarded: !!(document as Document & { wasDiscarded?: boolean }).wasDiscarded, wasRunning };
     // The address can switch it on or off for this device
@@ -131,11 +170,14 @@ export class PerfReadout {
     const memory = (performance as Performance & { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
     const city = this.source?.city() ?? '';
     const where = this.source?.where() ?? '';
+    const pos = this.source?.coords?.() ?? null;
     return {
       label: label || `${city} ${where}`,
       at: new Date().toISOString(),
       city,
       where,
+      x: pos ? Math.round(pos.x) : null,
+      z: pos ? Math.round(pos.z) : null,
       fps: gaps.length && total > 0 ? +((gaps.length * 1000) / total).toFixed(1) : 0,
       p95: gaps.length ? +gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * 0.95))].toFixed(1) : 0,
       worst: gaps.length ? +gaps[gaps.length - 1].toFixed(1) : 0,
@@ -148,6 +190,25 @@ export class PerfReadout {
       heapMB: memory ? Math.round(memory.usedJSHeapSize / 1048576) : null,
       heapLimitMB: memory ? Math.round(memory.jsHeapSizeLimit / 1048576) : null,
     };
+  }
+
+  /** Records a tapped place/object and what opened, for diagnosing A16 reports */
+  public recordTap(name: string, outcome: string, id = ''): void {
+    if (!this.enabled) return;
+    const city = this.source?.city() ?? '';
+    this.taps.push({
+      at: new Date().toISOString().slice(11, 19),
+      city,
+      name: name.slice(0, 48),
+      id: id.slice(0, 48),
+      outcome: outcome.slice(0, 48),
+    });
+    if (this.taps.length > 8) this.taps.splice(0, this.taps.length - 8);
+    try {
+      sessionStorage.setItem(TAPS_KEY, JSON.stringify(this.taps));
+    } catch {
+      // Kept for this page only
+    }
   }
 
   /** Keeps a snapshot of now, labelled */
@@ -165,8 +226,12 @@ export class PerfReadout {
 
   public clearMarks(): void {
     this.marks = [];
+    this.longFrames = [];
+    this.taps = [];
     try {
       sessionStorage.removeItem(MARKS_KEY);
+      sessionStorage.removeItem(LONG_FRAMES_KEY);
+      sessionStorage.removeItem(TAPS_KEY);
     } catch {
       // Nothing kept
     }
@@ -186,7 +251,7 @@ export class PerfReadout {
       `Device: ${navigator.userAgent}`,
       `Screen: ${screen.width}x${screen.height} CSS px, window ${innerWidth}x${innerHeight}, pixel ratio ${devicePixelRatio}`,
       `Device memory (Chrome's rounded figure): ${nav.deviceMemory ?? 'not given'} GB; CPU threads: ${navigator.hardwareConcurrency ?? 'not given'}`,
-      `JS heap available: ${'memory' in performance ? 'yes (Chrome, rounded)' : 'no (this browser does not give it)'}`,
+      `JS heap available: ${'memory' in performance ? 'yes (Chrome, rounded; includes uncollected garbage — live heap requires DevTools/GC, Android PSS requires adb)' : 'no (this browser does not give it)'}`,
       `This page: ${this.arrival.discarded ? 'BROUGHT BACK AFTER CHROME DISCARDED IT' : this.arrival.reload ? (this.arrival.wasRunning ? 'reloaded while the readout was running' : 'reloaded') : 'a fresh load'}`,
       `Start-up now: ${describeLoad(thisLoad())}`,
       ...loadHistory()
@@ -195,12 +260,23 @@ export class PerfReadout {
         .map((r) => `Start-up ${r.at}: ${describeLoad(r)}`),
       '',
       'Marks (each over the 10 seconds before it):',
-      'label | time | fps | p95 ms | worst ms | draw calls | triangles | geometries | textures | shaders | JS heap MB / limit',
-      ...this.marks.map((m) => [m.label, m.at.slice(11, 19), m.fps, m.p95, m.worst, m.calls, m.triangles, m.geometries, m.textures, m.programs, m.heapMB === null ? 'n/a' : `${m.heapMB} / ${m.heapLimitMB}`].join(' | ')),
+      'label | time | fps | p95 ms | worst ms | draw calls | triangles | geometries | textures | shaders | JS heap MB / limit | pos (x,z)',
+      ...this.marks.map((m) => [m.label, m.at.slice(11, 19), m.fps, m.p95, m.worst, m.calls, m.triangles, m.geometries, m.textures, m.programs, m.heapMB === null ? 'n/a' : `${m.heapMB} / ${m.heapLimitMB}`, m.x !== null && m.z !== null ? `${m.x},${m.z}` : 'n/a'].join(' | ')),
+      '',
+      'Long frames (>500 ms):',
+      ...(this.longFrames.length
+        ? ['time | gap ms | city | where | pos (x,z) | activity | +shaders', ...this.longFrames.map((f) => [f.at, f.gapMs, f.city, f.where, f.x !== null && f.z !== null ? `${f.x},${f.z}` : 'n/a', f.activity || 'unknown', f.programsDelta].join(' | '))]
+        : ['none recorded']),
+      '',
+      'Last places tapped:',
+      ...(this.taps.length
+        ? ['time | city | place | id | opened', ...this.taps.map((t) => [t.at, t.city, t.name, t.id || '-', t.outcome].join(' | '))]
+        : ['none recorded']),
       '',
       `Now: ${(() => {
         const s = this.snapshot('now');
-        return `${s.fps} fps, p95 ${s.p95} ms, ${s.calls} calls, ${s.triangles} triangles, heap ${s.heapMB ?? 'n/a'} MB`;
+        const pos = s.x !== null && s.z !== null ? ` at (${s.x},${s.z})` : '';
+        return `${s.fps} fps, p95 ${s.p95} ms, ${s.calls} calls, ${s.triangles} triangles, heap ${s.heapMB ?? 'n/a'} MB${pos}`;
       })()}`,
     ];
     return lines.join('\n');
@@ -219,10 +295,18 @@ export class PerfReadout {
     this.build();
     if (this.panel) this.panel.style.display = '';
     this.last = performance.now();
+    this.shownAt = 0;
+    this.lastPrograms = this.source?.renderer.info.programs?.length ?? 0;
+    this.show();
     const tick = (now: number): void => {
       if (!this.running) return;
       const gap = now - this.last;
       this.last = now;
+      const programsNow = this.source?.renderer.info.programs?.length ?? 0;
+      if (this.times.length > 0 && gap > LONG_FRAME_MS) {
+        this.recordLongFrame(gap, programsNow - this.lastPrograms);
+      }
+      this.lastPrograms = programsNow;
       this.times.push(now, gap);
       while (this.times.length > 2 && now - this.times[0] > WINDOW_MS) this.times.splice(0, 2);
       if (now - this.shownAt > 500) {
@@ -232,6 +316,26 @@ export class PerfReadout {
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
+  }
+
+  private recordLongFrame(gapMs: number, programsDelta: number): void {
+    const pos = this.source?.coords?.() ?? null;
+    this.longFrames.push({
+      at: new Date().toISOString().slice(11, 19),
+      gapMs: Math.round(gapMs),
+      city: this.source?.city() ?? '',
+      where: this.source?.where() ?? '',
+      x: pos ? Math.round(pos.x) : null,
+      z: pos ? Math.round(pos.z) : null,
+      activity: this.source?.activity?.() ?? '',
+      programsDelta,
+    });
+    if (this.longFrames.length > 30) this.longFrames.splice(0, this.longFrames.length - 30);
+    try {
+      sessionStorage.setItem(LONG_FRAMES_KEY, JSON.stringify(this.longFrames));
+    } catch {
+      // Kept for this page only
+    }
   }
 
   private stop(): void {
@@ -248,8 +352,21 @@ export class PerfReadout {
   private show(): void {
     if (!this.text) return;
     const s = this.snapshot();
+    if (this.titleSpan) this.titleSpan.textContent = `Perf · ${s.fps} fps`;
+    if (this.collapsed) return;
     const heap = s.heapMB === null ? 'heap n/a' : `heap ${s.heapMB} MB`;
     this.text.textContent = `${s.fps} fps · p95 ${s.p95} ms\n${s.calls} calls · ${Math.round(s.triangles / 1000)}k tris\n${heap} · ${s.city} ${s.where}`;
+  }
+
+  public setCollapsed(collapsed: boolean): void {
+    this.collapsed = collapsed;
+    if (this.body) this.body.style.display = collapsed ? 'none' : '';
+    if (this.panel) this.panel.style.width = collapsed ? 'auto' : '152px';
+    if (this.toggleBtn) {
+      this.toggleBtn.textContent = collapsed ? '+' : '−';
+      this.toggleBtn.setAttribute('aria-label', collapsed ? 'Expand performance readout' : 'Collapse performance readout');
+    }
+    if (!collapsed) this.show();
   }
 
   private build(): void {
@@ -257,19 +374,41 @@ export class PerfReadout {
     const panel = document.createElement('div');
     panel.id = 'nl-perf-readout';
     panel.setAttribute('style', [
-      'position:fixed', 'left:6px', 'top:42%', 'z-index:2147483000', 'width:156px', 'padding:6px 8px',
-      'background:rgba(15,23,42,0.78)', 'color:#e2e8f0', 'border-radius:8px', 'font:600 11px/1.35 ui-monospace,Menlo,Consolas,monospace',
-      'pointer-events:auto', 'user-select:none',
+      'position:fixed', 'top:4px', 'right:4px', 'left:auto', 'z-index:2147483000',
+      'width:152px', 'max-width:calc(100vw - 8px)', 'padding:5px 7px',
+      'background:rgba(15,23,42,0.82)', 'color:#e2e8f0', 'border-radius:8px',
+      'font:600 10px/1.3 ui-monospace,Menlo,Consolas,monospace',
+      'pointer-events:auto', 'user-select:none', 'box-sizing:border-box',
     ].join(';'));
+
+    const header = document.createElement('div');
+    header.setAttribute('style', 'display:flex;align-items:center;justify-content:space-between;gap:6px');
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = 'Perf';
+    titleSpan.setAttribute('style', 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis');
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.textContent = '−';
+    toggleBtn.setAttribute('aria-label', 'Collapse performance readout');
+    toggleBtn.setAttribute('style', 'min-width:22px;min-height:22px;padding:0 5px;border:0;border-radius:5px;background:#334155;color:#f8fafc;font:700 12px/1 system-ui,sans-serif;cursor:pointer');
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.setCollapsed(!this.collapsed);
+    });
+    header.append(titleSpan, toggleBtn);
+
+    const body = document.createElement('div');
+    body.setAttribute('style', 'margin-top:4px');
     const text = document.createElement('div');
     text.style.whiteSpace = 'pre';
-    panel.appendChild(text);
+    body.appendChild(text);
     const bar = document.createElement('div');
     bar.setAttribute('style', 'display:flex;gap:4px;margin-top:5px');
     const button = (label: string, act: () => void): HTMLButtonElement => {
       const b = document.createElement('button');
+      b.type = 'button';
       b.textContent = label;
-      b.setAttribute('style', 'flex:1;min-height:32px;border:0;border-radius:6px;background:#334155;color:#f8fafc;font:600 11px/1 system-ui,sans-serif');
+      b.setAttribute('style', 'flex:1;min-height:28px;border:0;border-radius:6px;background:#334155;color:#f8fafc;font:600 11px/1 system-ui,sans-serif;cursor:pointer');
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         act();
@@ -277,10 +416,14 @@ export class PerfReadout {
       return b;
     };
     bar.append(button('Mark', () => this.mark()), button('Report', () => this.openSheet()));
-    panel.appendChild(bar);
+    body.appendChild(bar);
+    panel.append(header, body);
     document.body.appendChild(panel);
     this.panel = panel;
+    this.body = body;
     this.text = text;
+    this.toggleBtn = toggleBtn;
+    this.titleSpan = titleSpan;
   }
 
   private flash(message: string): void {

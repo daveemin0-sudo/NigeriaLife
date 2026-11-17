@@ -119,7 +119,7 @@ export class PortHarcourtCity implements CityInstance {
       banks.push({ x: PH_CREEK.minX - 3, z, s: 1.1 });
       if (!jetty) banks.push({ x: PH_CREEK.maxX + 3, z: z + 10, s: 1 });
     }
-    this.group.add(avenueTrees(PH_ROADS, blocks.footprints, PH_KEEP_OUT.slice(1), 'palm', 26, banks, 'Port Harcourt palms'));
+    this.group.add(avenueTrees(PH_ROADS, blocks.footprints, PH_KEEP_OUT.slice(1), 'palm', 36, banks, 'Port Harcourt palms'));
     // A cash machine in the wall of the bank on Aba Road
     const machine = createCashMachine({ id: 'delta-bank-ph', name: 'Delta Bank', x: 16.9, z: -22.4, facing: -Math.PI / 2 });
     this.group.add(machine.group);
@@ -390,7 +390,7 @@ export class PortHarcourtCity implements CityInstance {
     this.sinceTiles += delta;
     if (viewer && this.sinceTiles > 0.4) {
       this.sinceTiles = 0;
-      cullTiles(this.tiles, viewer);
+      cullTiles(this.tiles, viewer, 230);
     }
     this.animTime += delta;
     this.refinery.update?.(delta, 12);

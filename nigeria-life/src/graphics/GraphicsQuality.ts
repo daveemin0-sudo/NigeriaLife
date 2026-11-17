@@ -19,14 +19,18 @@ interface Level {
   /** Pedestrians drawn at all within this, in full within crowdNear, metres */
   crowdDraw: number;
   crowdNear: number;
+  /** Frames between smoke/atmosphere particle updates (1 = every frame) */
+  smokeEvery: number;
+  /** Distance beyond which outer Lagos district groups are culled */
+  districtDraw: number;
 }
 
 export const QUALITY_LEVELS: Record<Quality, Level> = {
-  high: { label: 'High', pixelRatio: (d) => Math.min(d, 2), shadows: true, shadowMapSize: 1536, shadowEvery: 0, crowdDraw: 90, crowdNear: 22 },
-  balanced: { label: 'Balanced', pixelRatio: (d) => Math.min(d, 1.5), shadows: true, shadowMapSize: 1024, shadowEvery: 0, crowdDraw: 70, crowdNear: 14 },
+  high: { label: 'High', pixelRatio: (d) => Math.min(d, 2), shadows: true, shadowMapSize: 1536, shadowEvery: 0, crowdDraw: 90, crowdNear: 22, smokeEvery: 1, districtDraw: 600 },
+  balanced: { label: 'Balanced', pixelRatio: (d) => Math.min(d, 1.5), shadows: true, shadowMapSize: 1024, shadowEvery: 0, crowdDraw: 70, crowdNear: 14, smokeEvery: 2, districtDraw: 420 },
   // On a phone's dense screen fewer than one pixel per point is a blur; on an ordinary monitor 0.75 is the saving that counts.
   // The shadow stays (turning it off rebuilds every shader, a freeze of seconds) but is redrawn once a second, not every frame.
-  low: { label: 'Low', pixelRatio: (d) => (d >= 1.5 ? 1 : 0.75), shadows: true, shadowMapSize: 512, shadowEvery: 1, crowdDraw: 50, crowdNear: 8 },
+  low: { label: 'Low', pixelRatio: (d) => (d >= 1.5 ? 1 : 0.75), shadows: true, shadowMapSize: 512, shadowEvery: 1, crowdDraw: 50, crowdNear: 8, smokeEvery: 3, districtDraw: 300 },
 };
 
 const ORDER: Quality[] = ['high', 'balanced', 'low'];
@@ -44,6 +48,8 @@ export interface QualityTargets {
   crowd: { drawDistance: number; nearDistance: number };
   /** Called after the pixel ratio changes, for anything sized to the drawing */
   resized?: () => void;
+  /** Called whenever a quality level is applied */
+  onLevel?: (settings: { smokeEvery: number; districtDraw: number }) => void;
   /** Tells the player what was changed by itself */
   tell?: (text: string) => void;
 }
@@ -121,6 +127,7 @@ export class GraphicsQuality {
     renderer.shadowMap.needsUpdate = true;
     crowd.drawDistance = l.crowdDraw;
     crowd.nearDistance = l.crowdNear;
+    this.targets.onLevel?.({ smokeEvery: l.smokeEvery, districtDraw: l.districtDraw });
 
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ level, chosen: this.chosen }));

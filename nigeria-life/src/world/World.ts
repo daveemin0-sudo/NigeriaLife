@@ -12,6 +12,7 @@ import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { AtmosphereManager } from './AtmosphereManager';
+import { markStillGroup } from '../graphics/StillMatrices';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
@@ -97,6 +98,8 @@ export class World {
 
   /** Gameplay camera, used to cull the instanced crowd and traffic to what is on screen */
   public viewCamera?: THREE.Camera;
+  public districtDrawDistance = 420;
+  public smokeEvery = 1;
   private viewFrustum = new THREE.Frustum();
   private viewMatrix = new THREE.Matrix4();
 
@@ -124,6 +127,7 @@ export class World {
     // 2. Roads Network & Street Furniture
     this.roads = new Roads();
     this.scene.add(this.roads.group);
+    markStillGroup(this.roads.group);
     this.weather.registerRoadMaterial(this.roads.asphaltMat);
     this.roads.setNightLighting(this.skyEnvironment.currentPeriod);
     this.skyEnvironment.onPeriodChange = (period) => {
@@ -507,7 +511,12 @@ export class World {
    */
   public showCityUnderMap(on: boolean, cityId: string = this.cityManager.currentCityId): void {
     this.cityManager.show(on ? cityId : null, false);
+    if (on && cityId === 'lagos') this.districts.showAllZones();
     this.routeLine.group.visible = on && this.routeLine.points.length > 0;
+    this.skyEnvironment.mapView = on;
+    if (on && this.scene.fog instanceof THREE.FogExp2) {
+      this.scene.fog.density = 0;
+    }
   }
 
   /** Draws the way to a place on the map of the real city (its first point is where it starts), or takes it away. */
@@ -650,8 +659,8 @@ export class World {
     // Update building animations (e.g. compound gate)
     this.buildings.update(delta);
 
-    // Update expanded districts (ocean waves, smoke particles)
-    this.districts.update(delta);
+    // Update expanded districts (distance culling, ocean waves, smoke particles)
+    this.districts.update(delta, playerPos, this.districtDrawDistance, this.smokeEvery);
 
     // The match at the stadium, the cranes at the port, the aircraft at the airport
     this.landmarks.update(delta, this.skyEnvironment.currentHour);
@@ -661,6 +670,7 @@ export class World {
     this.weather.update(delta, playerPos);
 
     // Update atmosphere effects (Harmattan dust, smoke, puddles)
+    this.atmosphere.updateEvery = this.smokeEvery;
     this.atmosphere.update(delta, playerPos);
 
     // Update living street life (NEPA blackout cycles & street triggers)

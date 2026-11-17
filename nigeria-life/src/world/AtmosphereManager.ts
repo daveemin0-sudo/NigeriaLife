@@ -314,9 +314,20 @@ export class AtmosphereManager {
   // =========================================================================
   // UPDATE LOOP (Delta Time & Dynamic Player Centering)
   // =========================================================================
-  public update(delta: number, playerPos?: THREE.Vector3): void {
-    this.elapsedTime += delta;
-    const center = playerPos || new THREE.Vector3(0, 0, 0);
+  public updateEvery = 1;
+  private updateTick = 0;
+  private accumDelta = 0;
+  private readonly fallbackCenter = new THREE.Vector3(0, 0, 0);
+
+  public update(dt: number, playerPos?: THREE.Vector3): void {
+    this.elapsedTime += dt;
+    this.accumDelta += dt;
+    this.updateTick++;
+    if (this.updateTick < this.updateEvery) return;
+    const delta = this.accumDelta;
+    this.updateTick = 0;
+    this.accumDelta = 0;
+    const center = playerPos || this.fallbackCenter;
 
     // 1. Update Harmattan Dust Motes
     const halfX = this.dustBoxSize.x / 2;

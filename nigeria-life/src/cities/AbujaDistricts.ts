@@ -349,9 +349,9 @@ export function plantTrees(points: Array<{ x: number; z: number; s: number }>, k
   group.name = name;
   // A shade tree: a short trunk and a round crown. A palm: a tall thin trunk and a flat spray of fronds
   const palm = kind === 'palm';
-  const trunk = palm ? new THREE.CylinderGeometry(0.14, 0.22, 6, 6) : new THREE.CylinderGeometry(0.18, 0.26, 3, 6);
+  const trunk = palm ? new THREE.CylinderGeometry(0.14, 0.22, 6, 5) : new THREE.CylinderGeometry(0.18, 0.26, 3, 6);
   trunk.translate(0, palm ? 3 : 1.5, 0);
-  const crown = palm ? new THREE.ConeGeometry(2.6, 1.3, 8, 1, true) : new THREE.IcosahedronGeometry(2.4, 0);
+  const crown = palm ? new THREE.ConeGeometry(2.6, 1.3, 6, 1, true) : new THREE.IcosahedronGeometry(2.4, 0);
   if (palm) {
     crown.rotateX(Math.PI);
     crown.translate(0, 6.3, 0);

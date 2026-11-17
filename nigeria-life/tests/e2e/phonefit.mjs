@@ -6,8 +6,8 @@
 import fs from 'node:fs';
 import { newPlayer, closeDialogs, wait, playUntil, GAME_URL } from './lib.mjs';
 
-// Width and height of each phone tried (PHONE_WIDTHS=316,390 tries only those)
-const PHONES = [[316, 704], [360, 780], [390, 844], [430, 932]].filter(([w]) => !process.env.PHONE_WIDTHS || process.env.PHONE_WIDTHS.split(',').includes(String(w)));
+// Width and height of each phone tried (PHONE_WIDTHS=316,320,390 tries only those)
+const PHONES = [[316, 704], [320, 607], [360, 780], [390, 844], [430, 932]].filter(([w]) => !process.env.PHONE_WIDTHS || process.env.PHONE_WIDTHS.split(',').includes(String(w)));
 // Rows that scroll sideways by design, full width
 const SCROLLERS = /cat-tab/;
 
@@ -130,8 +130,12 @@ async function phone(browser, W, H) {
   };
   await surface('street', async () => {});
   await surface('toast', async () => page.evaluate(() => window.game.modules.showGameToast('You are fully rested. Stay in bed as long as you like, or get up when you are ready.', 'success', 6000)));
+  await surface('street-prompt', async () => page.evaluate(() => { const el = document.getElementById('hud-proximity-prompt'); const lbl = el?.querySelector('.prompt-label'); if (lbl) lbl.textContent = 'Enter Lagos Mainland Residence'; if (el) el.style.display = 'flex'; }));
+  await page.evaluate(() => { const el = document.getElementById('hud-proximity-prompt'); if (el) el.style.display = 'none'; });
   await surface('street-card', async () => page.evaluate(() => { const g = window.game; const p = g.player.mesh.position; const o = g.world.interactiveObjects.filter((x) => x.interactionPoint).sort((a, b) => Math.hypot(a.interactionPoint.x - p.x, a.interactionPoint.z - p.z) - Math.hypot(b.interactionPoint.x - p.x, b.interactionPoint.z - p.z))[0]; g.hud.showInteractionCard(o); }));
   await page.evaluate(() => window.game.hud.hideInteractionCard());
+  await surface('ride', async () => page.evaluate(() => window.game.hud.transitHUD?.showRideHUD?.({ vehicleName: 'Mercedes G-Wagon', originName: 'PH International Airport', destinationName: 'Trans-Amadi Oil Base', trafficCondition: 'Go-slow', weatherCondition: 'Sunny' }, { turnBackTo: 'Ikeja' })));
+  await page.evaluate(() => window.game.hud.transitHUD?.hideRideHUD?.());
   await surface('look', async () => page.evaluate(() => window.game.hud.creatorModal.open('look')), 1200);
   await page.evaluate(() => { const b = document.getElementById('creator-save-btn'); if (b && b.offsetParent) b.click(); });
   await wait(600);
