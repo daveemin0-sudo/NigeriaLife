@@ -95,23 +95,28 @@ export async function run(browser, check) {
   check('journeycard: the fake "Shift started · Home at …" line is gone',
     layout.shiftGone, { shiftGone: layout.shiftGone });
 
-  // SafeInsets: Android Back/Home + Display size Large — bar must clear a tall system nav
+  // Transit-only floor clears Back/Home; Map/Phone master nav must stay in its normal place
   const clearance = await page.evaluate(() => {
-    const inset = getComputedStyle(document.documentElement).getPropertyValue('--nl-inset-bottom').trim();
-    const insetPx = parseFloat(inset) || 0;
-    return { inset, insetPx };
+    const transit = getComputedStyle(document.documentElement).getPropertyValue('--nl-transit-inset-bottom').trim();
+    const general = getComputedStyle(document.documentElement).getPropertyValue('--nl-inset-bottom').trim();
+    return {
+      transit,
+      transitPx: parseFloat(transit) || 0,
+      general,
+      generalPx: parseFloat(general) || 0,
+    };
   });
-  check('journeycard: SafeInsets sets a bottom inset on a phone (≥ 48 px floor)',
-    clearance.insetPx >= 48, clearance);
+  check('journeycard: transit inset has a ≥ 48 px floor; general inset is not forced up',
+    clearance.transitPx >= 48 && clearance.generalPx <= clearance.transitPx, clearance);
 
   await page.evaluate(() => {
-    document.documentElement.style.setProperty('--nl-inset-bottom', '64px');
+    document.documentElement.style.setProperty('--nl-transit-inset-bottom', '64px');
   });
   await wait(80);
   const tallNav = await page.evaluate(() => {
     const cams = document.getElementById('ride-camera-bar');
     const r = cams.getBoundingClientRect();
-    const inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nl-inset-bottom')) || 0;
+    const inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nl-transit-inset-bottom')) || 0;
     return {
       bottom: +r.bottom.toFixed(1),
       vh: innerHeight,
@@ -123,10 +128,35 @@ export async function run(browser, check) {
   check('journeycard: with a tall system nav (64 px) the camera bar stays fully on screen above it',
     tallNav.inside && tallNav.gap >= 64, tallNav);
 
+  // Hide ride HUD and confirm Map/Phone bar sits near the bottom (not lifted mid-screen)
+  await page.evaluate(() => {
+    window.game.transitHUD.hideRideHUD();
+    document.body.setAttribute('data-ui-mode', 'street');
+  });
+  await wait(200);
+  const masterNav = await page.evaluate(() => {
+    const nav = document.querySelector('.bottom-master-nav');
+    if (!nav) return { missing: true };
+    const r = nav.getBoundingClientRect();
+    const style = getComputedStyle(nav);
+    return {
+      missing: false,
+      display: style.display,
+      bottom: +r.bottom.toFixed(1),
+      top: +r.top.toFixed(1),
+      vh: innerHeight,
+      gapFromBottom: +(innerHeight - r.bottom).toFixed(1),
+      // Normal place: within ~24px of the viewport bottom (safe-area + 8), not floating mid-screen
+      nearBottom: (innerHeight - r.bottom) <= 28 && r.top > innerHeight * 0.7,
+    };
+  });
+  check('journeycard: Map/Phone bottom nav stays in its normal place on the street',
+    !masterNav.missing && masterNav.display !== 'none' && masterNav.nearBottom, masterNav);
+
   // Wider phone CSS (big handsets / not only 320)
   await page.setViewport({ width: 412, height: 915, isMobile: true, hasTouch: true, deviceScaleFactor: 2.625 });
   await page.evaluate(() => {
-    document.documentElement.style.setProperty('--nl-inset-bottom', '56px');
+    document.documentElement.style.setProperty('--nl-transit-inset-bottom', '56px');
     window.game.transitHUD.showRideHUD({
       vehicleName: 'SwiftRoute coach SR 12',
       originName: 'Jibowu Motor Park',

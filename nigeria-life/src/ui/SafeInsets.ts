@@ -1,10 +1,12 @@
 /**
- * Keeps `--nl-inset-top` / `--nl-inset-bottom` honest on real phones.
+ * Phone chrome insets.
  *
- * Chrome on Android often reports `env(safe-area-inset-bottom)` as 0 while the
- * system Back/Home bar still covers the bottom of the page — worse when the
- * player turns Display size up. We take the max of CSS safe-area, the visual
- * viewport gap, and a touch floor so journey controls stay above that bar.
+ * `--nl-inset-*` = real safe-area + visualViewport gap only. Used carefully;
+ * the Map/Phone bottom bar must stay in its normal place (not lifted by a floor).
+ *
+ * `--nl-transit-inset-bottom` = that bottom inset plus a touch floor, so the
+ * ride Chase/Side/Inside bar clears Android Back/Home when safe-area is 0
+ * (Display size Large). Transit-only — do not wire the master nav to this.
  */
 const PROBE_ID = 'nl-safe-inset-probe';
 
@@ -37,7 +39,13 @@ function isTouchLike(): boolean {
     || Math.min(window.innerWidth, window.innerHeight) <= 700;
 }
 
-export function readSafeInsets(): { top: number; bottom: number; left: number; right: number } {
+export function readSafeInsets(): {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  transitBottom: number;
+} {
   const probe = ensureProbe();
   const style = getComputedStyle(probe);
   const safeTop = parseFloat(style.paddingTop) || 0;
@@ -50,27 +58,31 @@ export function readSafeInsets(): { top: number; bottom: number; left: number; r
   const vvBottom = vv ? vv.offsetTop + vv.height : layoutH;
   const vvGap = Math.max(0, Math.round(layoutH - vvBottom));
 
-  // Display size "Large" grows the system nav in CSS px; keep a share of the short side.
+  const bottom = Math.max(0, Math.round(Math.max(safeBottom, vvGap)));
+  // Display size "Large" grows the system nav; only the journey camera bar uses this floor.
   const touchFloor = isTouchLike()
     ? Math.round(Math.max(48, Math.min(window.innerWidth, window.innerHeight) * 0.09))
     : 0;
+  const transitBottom = Math.max(bottom, touchFloor);
 
   return {
     top: Math.max(0, Math.round(safeTop)),
     right: Math.max(0, Math.round(safeRight)),
-    bottom: Math.max(0, Math.round(Math.max(safeBottom, vvGap, touchFloor))),
+    bottom,
     left: Math.max(0, Math.round(safeLeft)),
+    transitBottom,
   };
 }
 
-/** Writes the CSS variables the HUD and journey card use. Safe to call often. */
-export function applySafeInsets(): { top: number; bottom: number; left: number; right: number } {
+/** Writes the CSS variables. Safe to call often. */
+export function applySafeInsets(): ReturnType<typeof readSafeInsets> {
   const insets = readSafeInsets();
   const root = document.documentElement;
   root.style.setProperty('--nl-inset-top', `${insets.top}px`);
   root.style.setProperty('--nl-inset-right', `${insets.right}px`);
   root.style.setProperty('--nl-inset-bottom', `${insets.bottom}px`);
   root.style.setProperty('--nl-inset-left', `${insets.left}px`);
+  root.style.setProperty('--nl-transit-inset-bottom', `${insets.transitBottom}px`);
   return insets;
 }
 
@@ -84,6 +96,5 @@ export function installSafeInsets(): void {
   window.addEventListener('orientationchange', run);
   window.visualViewport?.addEventListener('resize', run);
   window.visualViewport?.addEventListener('scroll', run);
-  // First paint after fonts/layout can change innerHeight on Android Chrome
   requestAnimationFrame(() => requestAnimationFrame(run));
 }

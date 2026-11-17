@@ -5830,6 +5830,8 @@ body.ui-modal-open .place-card {
   --nl-inset-right: env(safe-area-inset-right, 0px);
   --nl-inset-bottom: env(safe-area-inset-bottom, 0px);
   --nl-inset-left: env(safe-area-inset-left, 0px);
+  /* Journey camera bar only — see SafeInsets.ts */
+  --nl-transit-inset-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @media (max-width: 700px) {
@@ -5877,8 +5879,8 @@ body.ui-modal-open .place-card {
     top: auto;
     right: auto;
     left: 50%;
-    /* Clear Android Back/Home — safe-area alone is often 0 in Chrome */
-    bottom: calc(var(--nl-inset-bottom, 0px) + 12px);
+    /* Clear Android Back/Home — transit inset only; master nav stays put */
+    bottom: calc(var(--nl-transit-inset-bottom, var(--nl-inset-bottom, 0px)) + 12px);
     transform: translateX(-50%);
     flex-direction: row;
     border-radius: 999px;
@@ -5902,7 +5904,7 @@ body.ui-modal-open .place-card {
   }
 
   .flight-camera-bar {
-    bottom: calc(var(--nl-inset-bottom, 0px) + 12px);
+    bottom: calc(var(--nl-transit-inset-bottom, var(--nl-inset-bottom, 0px)) + 12px);
     max-width: calc(100vw - 20px);
   }
 
