@@ -478,6 +478,23 @@ body[data-ui-mode="transit"] .view-fab,
 body.ui-modal-open .view-sheet,
 body[data-ui-mode="world-map"] .view-sheet { display: none !important; }
 
+/* Journey card owns the top of the screen: music / leave / ⌄ menu must not sit on it */
+body[data-ui-mode="transit"] .music-fab,
+body[data-ui-mode="transit"] #music-fab,
+body[data-ui-mode="transit"] .place-leave-btn,
+body[data-ui-mode="transit"] #place-leave-btn,
+body[data-ui-mode="transit"] .top-menu-btn,
+body[data-ui-mode="transit"] #top-menu-btn,
+body[data-ui-mode="transit"] .top-menu {
+  display: none !important;
+}
+
+/* Rest-stop toasts sit above the camera bar, not over the journey title */
+body[data-ui-mode="transit"] #game-toast-container {
+  top: auto !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px) !important;
+}
+
 /* The old camera pills and turn buttons live in the View sheet now */
 html body #btn-camera-view-toggle,
 html body #btn-photo-mode-toggle,
