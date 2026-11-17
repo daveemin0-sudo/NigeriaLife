@@ -877,6 +877,41 @@ const LAGOS_BARBERS: PlaceSpec = {
 // --- Abuja: the places along its avenues, each out at its own door on the street (src/cities/AbujaDistricts.ts) ---
 const abuja = (spec: PlaceSpec, out: [number, number]): PlaceSpec => ({ ...spec, streetId: `roadside-${spec.key}`, comeOut: [out[0], 0, out[1]] });
 const ABUJA_SPECS: PlaceSpec[] = [
+  abuja(venue('abuja-trukadero', 'Trukadero Bowling', 'Wuse 2 · Ademola Crescent', 'Ten-pin · Pool · Arcade · Sports bar', '#7c2d12', 0x1f2937, 0x111827, (b) => {
+    // Six lanes toward the back wall, glowing pins, a scoring desk, arcade cabinets and a bar
+    for (let lane = 0; lane < 6; lane++) {
+      const x = -7.5 + lane * 2.8;
+      b.box(0xf8fafc, 1.6, 0.04, 10, x, 0.02, -1);
+      b.box(0x334155, 1.7, 0.35, 0.5, x, 0, 4.6);
+      for (let p = 0; p < 4; p++) b.cylinder(0xf8fafc, 0.07, 0.35, x - 0.35 + (p % 2) * 0.35, 0.04, -5.2 - Math.floor(p / 2) * 0.35, { sides: 8 });
+      b.box(0x22c55e, 1.5, 0.04, 0.08, x, 0.06, -5.6, { glow: true });
+    }
+    counter(b, 8, 4, 3.2, 0x7c2d12, 0xfde68a);
+    bottles(b, 8, 5.8, 3);
+    for (let i = 0; i < 4; i++) {
+      b.box(0x111827, 1.1, 1.6, 0.7, -8.5, 0, 2 + i * 1.8);
+      b.box(0x38bdf8, 0.9, 0.7, 0.04, -8.5, 0.9, 2.38 + i * 1.8, { glow: true });
+    }
+    for (const x of [-4, 0, 4]) b.box(0x1e3a8a, 1.8, 0.75, 1.0, x, 0, 6.2);
+  }, [
+    { name: 'Attendant Tunde', title: 'Lanes', at: [0, 5], facing: Math.PI, outfit: 0x7c2d12, gender: 'male', says: 'Lanes are open. Shoes at the desk, glow balls after nine.' },
+    { name: 'Barman Chika', title: 'Sports bar', at: [8, 3], facing: Math.PI, outfit: 0x111827, gender: 'male', says: 'Cold draft, burgers, and the match on the screen.' },
+  ], [
+    { id: 'bowl', name: '🎳 Bowl a game', at: [0, -2], stand: [0, 0.5], who: 'Attendant Tunde', role: 'Bowling lanes', text: '₦4,000 a game, shoes included.', choices: [
+      { label: 'Bowl a game', price: 4000, note: 'Fun +30, Social +10', arms: 'swing', seconds: 8, effect: need({ fun: 30, social: 10 }), said: 'Strike on the last frame. The board flashed your name.' },
+      { label: 'Glow bowl after dark', price: 6000, note: 'Fun +40', arms: 'swing', seconds: 8, effect: need({ fun: 40 }), said: 'Black light, neon pins, and a crowd cheering every spare.' },
+    ] },
+    { id: 'pool', name: '🎱 Pool table', at: [-4, 6.2], stand: [-4, 4.8], who: 'Attendant Tunde', role: 'Billiards', text: 'American pool, ₦2,000 a game.', choices: [
+      { label: 'Play a frame', price: 2000, note: 'Fun +18, Social +8', arms: 'reach', seconds: 6, effect: need({ fun: 18, social: 8 }), said: 'You sank the eight. Someone bought the next round.' },
+    ] },
+    { id: 'arcade', name: '🕹️ Arcade cabinets', at: [-8.5, 3], stand: [-7, 3], who: 'Arcade', role: 'Games', text: 'Tokens at the desk.', choices: [
+      { label: 'Burn a few tokens', price: 1500, note: 'Fun +20', arms: 'reach', seconds: 5, effect: need({ fun: 20 }), said: 'High score on the racing cabinet. Your initials went on the board.' },
+    ] },
+    { id: 'bar', name: '🍔 Sports bar', at: [8, 4], stand: [8, 2.6], who: 'Barman Chika', role: 'Sports bar', text: 'Burgers, wings, cold draft.', choices: [
+      { label: 'Burger and a cold drink', price: 8500, note: 'Hunger +45, Fun +12', sit: true, seconds: 6, effect: need({ hunger: 45, fun: 12 }), said: 'Juicy burger, the match on three screens, Wuse talking loud.' },
+    ] },
+  ], [{ at: [0, 6.2], facing: Math.PI, outfit: 0xf97316, sit: true }, { at: [4, 6.2], facing: Math.PI, outfit: 0x2563eb, sit: true, gender: 'female' }], [22, 18]), [-140, 226]),
+
   abuja(venue('national-assembly', 'National Assembly', 'Three Arms Zone · the legislature', 'Senate · House of Representatives · Public gallery', '#14532d', 0xe7e5e4, 0xf8fafc, (b) => {
     // The chamber: rows of green benches facing the presiding officer's seat, the mace on its table
     for (let r = 0; r < 3; r++) for (let i = -3; i <= 3; i++) b.box(0x166534, 1.6, 0.5 + r * 0.25, 0.7, i * 2, 0, 1 + r * 1.6, { yaw: i * 0.06 });
@@ -1254,6 +1289,7 @@ const townRooms = (city: string, place: string): PlaceSpec[] => {
 
 
 const QUIET_FLOOR: Record<string, string> = {
+  'abuja-trukadero': 'grey_granite',
   'national-assembly': 'grey_granite',
   'transcorp-hilton': 'calacatta_gold',
   'cbn-abuja': 'grey_granite',

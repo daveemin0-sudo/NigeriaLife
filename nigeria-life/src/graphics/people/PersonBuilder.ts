@@ -192,7 +192,9 @@ function hairAndHat(config: HumanConfig, female: boolean): { hair: string; hat: 
 export function buildPerson(config: HumanConfig, nameTag: (username: string) => THREE.Sprite): HumanRig {
   const female = config.gender === 'female';
   const detailed = config.lod !== 'street';
-  const seg = detailed ? 28 : 14;
+  // Street crowds still need a readable face; keep segments high enough that heads are not
+  // pin-heads of flat spheres (the overnight “robot” complaint).
+  const seg = detailed ? 28 : 20;
   const group = new THREE.Group();
   const materials: THREE.Material[] = [];
   // One material for each look of surface, so pieces alike can be drawn together
@@ -206,12 +208,27 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     made.set(key, m);
     return m;
   };
+  /** Skin with a soft sheen so melanin reads warm under equatorial light (ART-BIBLE). */
+  const skinMat = (hex: string | number, rough = 0.42) => {
+    const key = `skin|${new THREE.Color(hex).getHex()}|${rough}`;
+    const known = made.get(key);
+    if (known) return known;
+    const m = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(hex),
+      roughness: rough,
+      metalness: 0.02,
+      envMapIntensity: 0.55,
+    });
+    materials.push(m);
+    made.set(key, m);
+    return m;
+  };
   const build: Build = (config.build as Build | undefined) ?? 'average';
   const breadth = build === 'slim' ? 0.92 : build === 'broad' ? 1.1 : 1;
   const shape: HeadShape = (config.headShape as HeadShape | undefined) ?? (female ? 'oval' : 'round');
   const skinHex = config.skinTone || (female ? SKIN_DEFAULT.female : SKIN_DEFAULT.male);
-  const skin = mat(skinHex, 0.48);
-  const skinDeep = mat(new THREE.Color(skinHex).multiplyScalar(0.78).getHex(), 0.6);
+  const skin = skinMat(skinHex, 0.4);
+  const skinDeep = skinMat(new THREE.Color(skinHex).multiplyScalar(0.78).getHex(), 0.55);
   const hairColour = new THREE.Color(config.hairColor ?? '#0b0908').getHex();
   const cut = cutFor(config, female);
   const top = mat(cut.colour, cut.pattern === 'lace' ? 0.6 : 0.78, fabric(cut.pattern, cut.colour, cut.accent, 0x111827));
@@ -416,13 +433,14 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const head = new THREE.Group();
   head.position.set(0, female ? 1.56 : 1.64, 0);
   group.add(head);
-  const neckR = (female ? 0.05 : 0.061) * (build === 'broad' ? 1.08 : 1);
+  const neckR = (female ? 0.056 : 0.068) * (build === 'broad' ? 1.08 : 1);
   const neck = new THREE.Mesh(lathe([[neckR * 0.98, -0.17], [neckR * 1.0, -0.1], [neckR, -0.04], [neckR * 0.98, 0.04]], seg, 1.0, 0.86), skin);
   neck.position.z = -0.008;
   head.add(neck);
-  const R = female ? 0.108 : 0.116;
-  const C = new THREE.Vector3(0, female ? 0.05 : 0.054, 0.012);
-  const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 40 : 18, detailed ? 30 : 14), R, shape), skin);
+  // Fuller heads (was ~0.11): thin skulls read as robots at street distance
+  const R = female ? 0.128 : 0.138;
+  const C = new THREE.Vector3(0, female ? 0.055 : 0.06, 0.014);
+  const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 40 : 24, detailed ? 30 : 18), R, shape), skin);
   skull.position.copy(C);
   head.add(skull);
   const face = new THREE.Group();
@@ -455,10 +473,10 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     eye.position.copy(eyeAt);
     eye.rotation.y = s * 0.2;
     face.add(eye);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0145, detailed ? 14 : 8, detailed ? 10 : 6), white);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0165, detailed ? 14 : 10, detailed ? 10 : 8), white);
     ball.scale.set(1.25, 0.82, 0.7);
     eye.add(ball);
-    const ir = new THREE.Mesh(new THREE.CircleGeometry(0.0082, detailed ? 18 : 10), iris);
+    const ir = new THREE.Mesh(new THREE.CircleGeometry(0.0092, detailed ? 18 : 12), iris);
     ir.position.z = 0.0101;
     eye.add(ir);
     const pu = new THREE.Mesh(new THREE.CircleGeometry(0.004, 10), pupil);

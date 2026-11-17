@@ -99,6 +99,38 @@ const SIGN_COLOUR: Record<TownRoomKind, string> = {
   shops: '#166534', office: '#1e3a8a', hotel: '#7c2d12', bank: '#0f172a', market: '#92400e',
 };
 
+/** Trade names so the map is not "Office 1…65" and "Supermarket 12". */
+const TOWN_NAMES: Record<TownRoomKind, string[]> = {
+  office: [
+    'Savanna Chambers', 'Aso Rock Consult', 'Green Dome Partners', 'Maitama Legal', 'Wuse Advisors',
+    'Capital Trust Desk', 'Three Arms Bureau', 'Garki Notaries', 'Unity Fountain Briefs', 'Federal Briefs',
+    'Harmattan & Co', 'NaijaBridge Agency', 'Eagle Square Desk', 'Shehu Shagari Suite', 'Jabi Works Hub',
+    'Utako Clearance', 'Banex Desk', 'Ademola Crescent Bureau', 'Zone 5 Partners', 'Cedar Crest Brief',
+    'Aso Rock Notaries', 'Maitama Chambers', 'Wuse Legal Desk', 'Garki Partners', 'Capital Briefs',
+    'Green Dome Agency', 'Unity Fountain Legal', 'Federal Desk', 'Harmattan Partners', 'NaijaBridge Briefs',
+  ],
+  shops: [
+    'Mama Nkechi Mart', 'QuickChop Mini', 'Wuse Fresh Shelf', 'Garki Daily Needs', 'Jabi Basket',
+    'Harmattan Provisions', 'Aso Corner Store', 'Green Cab Mart', 'Utako Kiosk Plus', 'Banex Grocery',
+    'NaijaPetro Mart', 'Cedar Crest Foods', 'Zone 4 Super', 'Maitama Pantry', 'Eagle Square Shop',
+    'Shehu Shagari Store', 'Capital Basket', 'Savanna Shelf', 'Three Arms Mart', 'Fountain Foods',
+  ],
+  bank: [
+    'Savanna Bank', 'Apex Trust Desk', 'Eko Commercial Abuja', 'Capital Microfinance', 'Green Dome Bureau',
+  ],
+  hotel: [
+    'Unity Fountain Suites', 'Maitama Palace Hotel', 'Wuse Creek Lodge', 'Garki Rest House', 'Capital Inn',
+  ],
+  market: ['Farmers Market', 'Night Market Hall', 'Cloth & Grain Market'],
+};
+
+const townTradeName = (cityId: string, kind: TownRoomKind, seed: string): string => {
+  const list = TOWN_NAMES[kind];
+  let h = 0;
+  for (const c of `${cityId}:${seed}`) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return list[h % list.length];
+};
+
 /**
  * A door on the front of every shop, office, hotel, bank and market along a city's streets (the
  * homes stay private): walked up to, it goes into that kind of room and back out at this door.
@@ -120,10 +152,13 @@ export function townDoors(group: THREE.Group, list: InteractiveObject[], buildin
     group.add(mesh);
     const words = TOWN_WORDS[kind];
     const district = where(b.x, b.z).name;
-    const base = b.name ?? `${district} ${words.word}`;
-    const count = (used.get(base) ?? 0) + 1;
-    used.set(base, count);
-    const name = count === 1 ? base : `${base} ${count}`;
+    const trade = townTradeName(cityId, kind, `${b.x.toFixed(1)},${b.z.toFixed(1)},${b.kind}`);
+    // Prefer a named building; otherwise a trade name. Never "Office 14".
+    let name = b.name ?? trade;
+    if (used.has(name)) name = `${trade} · ${district}`;
+    let dup = 2;
+    while (used.has(name)) name = `${trade} · ${district} ${dup++}`;
+    used.set(name, 1);
     const room = roomFor(cityId, kind, name);
     list.push({ mesh, id, name, category: words.category, description: `${name}, ${district}.`, interactionPoint: stand.clone() });
     PlaceActions.register(id, { label: () => words.label, run: (host) => host.enter(room, stand) });
@@ -150,7 +185,7 @@ export function placeDoors(group: THREE.Group, list: InteractiveObject[], places
     const stand = new THREE.Vector3(place.stand.x, 0, place.stand.z);
     list.push({ mesh, id, name: place.name, category: place.category, description: place.description, interactionPoint: stand.clone() });
     if (place.inside) {
-      const words = place.category === 'Hospital' ? '🏥 Go in to the hospital' : place.category === 'Hotel' ? '🏨 Into the lobby' : place.category === 'Market' ? '🛍️ Into the market' : place.category === 'Mall' ? '🛒 Into the mall' : place.key === 'millennium-tower' ? '🛗 Up to the observation deck' : '🚪 Go inside';
+      const words = place.category === 'Hospital' ? '🏥 Go in to the hospital' : place.category === 'Hotel' ? '🏨 Into the lobby' : place.category === 'Market' ? '🛍️ Into the market' : place.category === 'Mall' ? '🛒 Into the mall' : place.category === 'Leisure' ? '🎳 Go in and play' : place.key === 'millennium-tower' ? '🛗 Up to the observation deck' : '🚪 Go inside';
       PlaceActions.register(id, { label: () => words, run: (host) => host.enter(id, stand) });
       continue;
     }

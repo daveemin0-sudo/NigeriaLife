@@ -332,6 +332,29 @@ export function buildLandmarks(): Landmarks {
     places.push({ key: 'abuja-police', name: 'FCT Police Command', category: 'Police', description: 'Reports, a character certificate and the cells. Abuja, not Lagos.', door: { x: cx, z: cz - 9 }, stand: { x: cx, z: cz - 12.5 }, inside: true });
   }
 
+  // --- Trukadero bowling, west of Wuse Market on Ademola Crescent: a low entertainment hall you can ride to and walk into
+  {
+    const cx = -140;
+    const cz = 210;
+    b.box(0x1f2937, 42, 9, 24, cx, 0, cz, { solid: true });
+    lit.windows(0xfde68a, 10, 2, 38, 1, 6, cx, cz + 12.06, 0, { glow: true });
+    b.box(0x7c2d12, 44, 1.2, 26, cx, 9, cz);
+    // Canopy over the entrance and a neon strip
+    b.box(0x111827, 16, 0.4, 5, cx, 4.2, cz + 14.5);
+    for (const x of [cx - 6, cx + 6]) b.cylinder(0x94a3b8, 0.2, 4.2, x, 0, cz + 15.5, { solid: true });
+    lit.box(0x22c55e, 14, 0.35, 0.2, cx, 5.2, cz + 16.9, { glow: true });
+    sign(group, ['TRUKADERO', 'BOWLING · BILLIARDS · ARCADE'], 18, 2.0, cx, 6.8, cz + 12.3, 0, '#7c2d12', '#fef3c7');
+    places.push({
+      key: 'abuja-trukadero',
+      name: 'Trukadero By Bowling Entertainment Centre',
+      category: 'Leisure',
+      description: 'Ten-pin lanes, pool tables, arcade games and a sports bar on Ademola Crescent.',
+      door: { x: cx, z: cz + 12 },
+      stand: { x: cx, z: cz + 16 },
+      inside: true,
+    });
+  }
+
   group.add(b.build('Abuja landmarks', { roughness: 0.6 }), lit.build('Abuja landmarks lit', { roughness: 0.3 }));
   landmarkDoors.length = 0;
   for (const p of places) landmarkDoors.push({ name: p.name, x: p.stand.x, z: p.stand.z });
