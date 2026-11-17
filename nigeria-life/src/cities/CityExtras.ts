@@ -71,20 +71,27 @@ const TOWN_WORDS: Record<TownRoomKind, { word: string; category: string; label: 
 };
 
 /**
- * Which room a door opens. Shops, banks, offices and markets are that city's own room.
- * The first named hotel of a city uses the main lobby. The others use a different lobby,
- * so two hotels are not the same room with a different name.
+ * Which room a door opens. Hotels already use different lobbies.
+ * Shops / offices / banks / markets use three layouts per city (by name), so
+ * "Offices" and "Offices 2" are not the same room with a different sign.
  */
 const roomFor = (cityId: string, kind: TownRoomKind, name: string): string => {
-  if (kind !== 'hotel') return `roadside-${townRoomKey(cityId, kind)}`;
-  const main = /Unity Fountain|^Garden City/.test(name);
-  let variant = 0;
-  if (!main) {
-    let h = 0;
-    for (const c of name) h = (h + c.charCodeAt(0)) % 2;
-    variant = h + 1;
+  if (kind === 'hotel') {
+    const main = /Unity Fountain|^Garden City/.test(name);
+    let variant = 0;
+    if (!main) {
+      let h = 0;
+      for (const c of name) h = (h + c.charCodeAt(0)) % 2;
+      variant = h + 1;
+    }
+    const key = variant === 0 ? townRoomKey(cityId, 'hotel') : `${cityId}-hotel-${variant}`;
+    return `roadside-${key}`;
   }
-  const key = variant === 0 ? townRoomKey(cityId, 'hotel') : `${cityId}-hotel-${variant}`;
+  // Markets keep one hall; offices / shops / banks use three layouts.
+  if (kind === 'market') return `roadside-${townRoomKey(cityId, kind)}`;
+  let h = 0;
+  for (const c of name) h = (h + c.charCodeAt(0)) % 3;
+  const key = h === 0 ? townRoomKey(cityId, kind) : `${cityId}-town-${kind}-${h}`;
   return `roadside-${key}`;
 };
 

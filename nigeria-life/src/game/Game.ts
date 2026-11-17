@@ -2794,12 +2794,12 @@ export class Game {
     return propId === this.legacyMainHome() ? 'main' : `prop:${propId}`;
   }
 
-  /** Where to stand at the door of the place named, if one with that name is within 400 m of `near` */
-  private doorOf(name: string, near: { x: number; z: number }): THREE.Vector3 | null {
+  /** Where to stand at the door of the place named, if one with that name is close to `near` */
+  private doorOf(name: string, near: { x: number; z: number }, maxDistance = 28): THREE.Vector3 | null {
     const wanted = name.toLowerCase();
-    const words = wanted.replace(/\([^)]*\)/g, ' ').split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !['international', 'street', 'road'].includes(w));
+    const words = wanted.replace(/\([^)]*\)/g, ' ').split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !['international', 'street', 'road', 'centre', 'center'].includes(w));
     let best: THREE.Vector3 | null = null;
-    let bestDistance = 400;
+    let bestDistance = maxDistance;
     for (const o of this.world.interactiveObjects) {
       const at = o.interactionPoint;
       const own = (o.name ?? '').toLowerCase();
@@ -4087,12 +4087,19 @@ export class Game {
   }
 
   /**
-   * Where a ride to this place sets the player down: the place's own door when it has one near its
-   * spot on the street (an Abuja landmark's spot can be out on the avenue), else that spot.
+   * Where a ride to this place sets the player down: the place you booked on the map.
+   * Prefer map/entrance when street coords drifted; only snap to a named door within 28 m.
    */
   private setDownSpot(destination: DestinationDefinition): { x: number; z: number } {
-    const door = this.doorOf(destination.name, destination.streetPosition);
-    return { x: door?.x ?? destination.streetPosition.x, z: door?.z ?? destination.streetPosition.z };
+    const street = destination.streetPosition;
+    const map = destination.mapPosition;
+    const mapDrift = map ? Math.hypot(map.x - street.x, map.z - street.z) : 0;
+    // Abuja had many pins with street coords parked on the wrong avenue (~100 m off).
+    const base = mapDrift > 40 && map ? map : street;
+    const entrance = destination.entrance?.position;
+    const near = entrance && Math.hypot(entrance.x - base.x, entrance.z - base.z) <= 40 ? entrance : base;
+    const door = this.doorOf(destination.name, near, 28);
+    return { x: door?.x ?? near.x, z: door?.z ?? near.z };
   }
 
   /**

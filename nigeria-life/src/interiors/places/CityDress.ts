@@ -70,22 +70,33 @@ export function furnishLobby(group: THREE.Group, city: CityLook, variant: number
  * An office: a reception desk, waiting seats, and desks with chairs. Abuja faces the window
  * wall; Port Harcourt runs the desks down the other side.
  */
-export function furnishOffice(group: THREE.Group, city: CityLook): void {
-  const p = palette(city, 0);
+export function furnishOffice(group: THREE.Group, city: CityLook, variant = 0): void {
+  const p = palette(city, variant % 3);
   const b = new Builder();
-  b.box(city === 'ph' ? 0x0f766e : 0x1e3a8a, 5, 1.05, 0.9, 0, 0, -5).box(0xf8fafc, 5.1, 0.05, 1, 0, 1.05, -5);
-  const row = city === 'ph' ? [2.2, 5.2] : [-5.4, -2.2];
+  const brand = city === 'ph' ? 0x0f766e : variant === 1 ? 0x0f172a : variant === 2 ? 0x7c2d12 : 0x1e3a8a;
+  b.box(brand, 5, 1.05, 0.9, variant === 2 ? 3.2 : 0, 0, -5).box(0xf8fafc, 5.1, 0.05, 1, variant === 2 ? 3.2 : 0, 1.05, -5);
+  // variant 0: desks left (Abuja) / right (PH); 1: flip side; 2: centre row + side boardroom
+  const row = variant === 1
+    ? (city === 'ph' ? [-5.4, -2.2] : [2.2, 5.2])
+    : variant === 2
+      ? [-4.5, 0, 4.5]
+      : (city === 'ph' ? [2.2, 5.2] : [-5.4, -2.2]);
   for (const x of row) {
-    b.box(0xd6d3d1, 1.5, 0.75, 0.7, x, 0, -1);
-    b.box(0x0f172a, 0.55, 0.36, 0.04, x, 0.78, -1.2);
-    b.box(0x38bdf8, 0.48, 0.28, 0.02, x, 0.82, -1.16, { glow: true });
+    b.box(0xd6d3d1, 1.5, 0.75, 0.7, x, 0, variant === 2 ? 0.4 : -1);
+    b.box(0x0f172a, 0.55, 0.36, 0.04, x, 0.78, variant === 2 ? 0.2 : -1.2);
+    b.box(0x38bdf8, 0.48, 0.28, 0.02, x, 0.82, variant === 2 ? 0.24 : -1.16, { glow: true });
   }
-  b.box(city === 'ph' ? 0x0369a1 : 0xb45309, 1.1, 0.7, 0.04, city === 'ph' ? -8.6 : 8.6, 1.7, -2);
-  b.box(0xfef3c7, 0.86, 0.48, 0.02, city === 'ph' ? -8.55 : 8.55, 1.7, -2);
+  if (variant === 2) {
+    b.box(0x78716c, 4.2, 0.75, 1.4, 0, 0, 4.2);
+    b.box(0xf8fafc, 4.3, 0.05, 1.5, 0, 0.75, 4.2);
+  }
+  const boardX = variant === 1 ? (city === 'ph' ? 8.6 : -8.6) : (city === 'ph' ? -8.6 : 8.6);
+  b.box(city === 'ph' ? 0x0369a1 : 0xb45309, 1.1, 0.7, 0.04, boardX, 1.7, -2);
+  b.box(0xfef3c7, 0.86, 0.48, 0.02, boardX + (boardX > 0 ? -0.05 : 0.05), 1.7, -2);
   group.add(b.build('office fit', { roughness: 0.6 }));
-  for (const x of row) layFine(group, fineSofa(1, 0x1f2937, 0xe5e7eb, p.wood), x, 0, 0.15, Math.PI);
-  layFine(group, fineSofa(3, p.cloth, p.cushion, p.wood), city === 'ph' ? 3 : -2.4, 0, 3.4, Math.PI);
+  for (const x of row.slice(0, 2)) layFine(group, fineSofa(1, 0x1f2937, 0xe5e7eb, p.wood), x, 0, variant === 2 ? 1.5 : 0.15, Math.PI);
+  layFine(group, fineSofa(3, p.cloth, p.cushion, p.wood), city === 'ph' ? 3 : -2.4, 0, variant === 2 ? -3.2 : 3.4, Math.PI);
   layFine(group, fineLamp(), city === 'ph' ? -6 : 6, 0, 3, 0);
-  layFine(group, fineFan(city === 'ph' ? 0x0f766e : 0x1e3a8a), 0, 0, 1.2, 0);
-  plaque(group, ['Reception', 'Jobs'], 0, 1.7, -4.4, city === 'ph' ? '#0f766e' : '#1e3a8a');
+  layFine(group, fineFan(brand), 0, 0, 1.2, 0);
+  plaque(group, variant === 2 ? ['Boardroom', 'Jobs'] : variant === 1 ? ['Front desk', 'Contracts'] : ['Reception', 'Jobs'], variant === 2 ? 3.2 : 0, 1.7, -4.4, city === 'ph' ? '#0f766e' : '#1e3a8a');
 }
