@@ -254,6 +254,7 @@ body.nl-hud-hidden #v-btn-run {
   html body .bottom-master-nav {
     left: 8px !important;
     right: 8px !important;
+    /* Normal place — do not lift with the transit system-nav floor */
     bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
     transform: none !important;
     width: auto !important;
@@ -439,9 +440,12 @@ body.nl-hud-hidden #v-btn-run {
   }
   html body #ride-camera-bar.ride-camera-bar {
     top: auto !important;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+    /* Transit floor only — clears Android Back/Home; do not use left:50% + translate
+       together with left/right:8px (that shoved the bar off the left edge). */
+    bottom: calc(var(--nl-transit-inset-bottom, env(safe-area-inset-bottom, 0px)) + 12px) !important;
     left: 8px !important;
     right: 8px !important;
+    transform: none !important;
     width: fit-content !important;
     max-width: calc(100vw - 16px) !important;
     margin: 0 auto !important;

@@ -65,7 +65,7 @@ export class TransitHUD {
         </button>
       </nav>
 
-      <!-- 3. ROAD RIDE HUD CARD (Top-Left) -->
+      <!-- 3. ROAD RIDE HUD CARD (top band; phone CSS keeps it inside 320 px) -->
       <div class="transit-ride-card" id="ride-hud-card" style="display: none;">
         <div class="ride-header">
           <h3 id="r-hud-title">Mercedes G-Wagon · PH International Airport ⟶ Trans-Amadi</h3>
@@ -76,7 +76,6 @@ export class TransitHUD {
         </div>
         <div class="ride-timer-row">
           <span class="ride-time-eta" id="r-hud-eta">0:04 to destination</span>
-          <span class="ride-shift-time">Shift started · Home at 10:28 AM</span>
         </div>
         <p class="ride-subtext" id="r-hud-subtext">Almost there. Trans-Amadi Oil Base is just ahead.</p>
         <div class="ride-actions">
@@ -85,8 +84,8 @@ export class TransitHUD {
         </div>
       </div>
 
-      <!-- 4. RIDE CAMERA SWITCHER (Right-Side Vertical Pills) -->
-      <nav class="ride-camera-bar" id="ride-camera-bar" style="display: none;">
+      <!-- 4. RIDE CAMERA SWITCHER (right on desktop; bottom bar on phone) -->
+      <nav class="ride-camera-bar" id="ride-camera-bar" style="display: none;" aria-label="Ride camera">
         <button class="ride-cam-btn" data-rcam="chase">
           <span class="cam-icon">🚗</span>
           <span>Chase</span>
