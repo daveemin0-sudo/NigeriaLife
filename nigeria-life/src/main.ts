@@ -18,11 +18,14 @@ import { installStillMatrices } from './graphics/StillMatrices';
 import { startTheme } from './ui/theme/Theme';
 import { TitleScreen } from './ui/TitleScreen';
 import { BackendService } from './backend/BackendService';
+import { installSafeInsets } from './ui/SafeInsets';
 
 // How long each part of starting takes on this device: shown in Settings, under Graphics
 markLoad('script');
 // Light or dark, as chosen last time, before anything is drawn
 startTheme();
+// Phone Back/Home bar and Display-size scaling: keep HUD above the system chrome
+installSafeInsets();
 
 // The names over people's heads are drawn in the script font: it is loaded first (a moment at most)
 const fontsReady = Promise.race([

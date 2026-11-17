@@ -94,6 +94,62 @@ export async function run(browser, check) {
     { music: layout.musicVisible, leave: layout.leaveVisible, view: layout.viewVisible, menu: layout.menuVisible });
   check('journeycard: the fake "Shift started · Home at …" line is gone',
     layout.shiftGone, { shiftGone: layout.shiftGone });
+
+  // SafeInsets: Android Back/Home + Display size Large — bar must clear a tall system nav
+  const clearance = await page.evaluate(() => {
+    const inset = getComputedStyle(document.documentElement).getPropertyValue('--nl-inset-bottom').trim();
+    const insetPx = parseFloat(inset) || 0;
+    return { inset, insetPx };
+  });
+  check('journeycard: SafeInsets sets a bottom inset on a phone (≥ 48 px floor)',
+    clearance.insetPx >= 48, clearance);
+
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--nl-inset-bottom', '64px');
+  });
+  await wait(80);
+  const tallNav = await page.evaluate(() => {
+    const cams = document.getElementById('ride-camera-bar');
+    const r = cams.getBoundingClientRect();
+    const inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nl-inset-bottom')) || 0;
+    return {
+      bottom: +r.bottom.toFixed(1),
+      vh: innerHeight,
+      inset,
+      gap: +(innerHeight - r.bottom).toFixed(1),
+      inside: r.left >= -1 && r.top >= -1 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1,
+    };
+  });
+  check('journeycard: with a tall system nav (64 px) the camera bar stays fully on screen above it',
+    tallNav.inside && tallNav.gap >= 64, tallNav);
+
+  // Wider phone CSS (big handsets / not only 320)
+  await page.setViewport({ width: 412, height: 915, isMobile: true, hasTouch: true, deviceScaleFactor: 2.625 });
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--nl-inset-bottom', '56px');
+    window.game.transitHUD.showRideHUD({
+      vehicleName: 'SwiftRoute coach SR 12',
+      originName: 'Jibowu Motor Park',
+      destinationName: 'Utako Motor Park',
+      trafficCondition: 'Clear',
+      weatherCondition: 'Sunny',
+    }, {});
+  });
+  await wait(120);
+  const wide = await page.evaluate(() => {
+    const card = document.getElementById('ride-hud-card').getBoundingClientRect();
+    const cams = document.getElementById('ride-camera-bar').getBoundingClientRect();
+    return {
+      vw: innerWidth,
+      cardInside: card.left >= -1 && card.right <= innerWidth + 1,
+      camsInside: cams.left >= -1 && cams.right <= innerWidth + 1 && cams.bottom <= innerHeight + 1,
+      camsGap: +(innerHeight - cams.bottom).toFixed(1),
+      stacked: cams.top > card.bottom,
+    };
+  });
+  check('journeycard: on a wider phone (412 px) the card and camera bar still fit and stack',
+    wide.vw === 412 && wide.cardInside && wide.camsInside && wide.stacked && wide.camsGap >= 56, wide);
+
   check('journeycard: no page errors', errors.length === 0, errors.slice(0, 4));
 
   await ctx.close();

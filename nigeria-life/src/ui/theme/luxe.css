@@ -492,7 +492,7 @@ body[data-ui-mode="transit"] .top-menu {
 /* Rest-stop toasts sit above the camera bar, not over the journey title */
 body[data-ui-mode="transit"] #game-toast-container {
   top: auto !important;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px) !important;
+  bottom: calc(var(--nl-inset-bottom, 0px) + 72px) !important;
 }
 
 /* The old camera pills and turn buttons live in the View sheet now */

@@ -5820,16 +5820,24 @@ body.ui-modal-open .place-card {
 }
 
 /*
- * Phone portrait (A16 320×607 and neighbours): the old card was width 320 + left 24,
+ * Phones (incl. large Display size / big handsets): the old card was width 320 + left 24,
  * so it spilled off-screen; Chase/Side/Inside sat on top of it; music / ⌄ / toasts
- * covered the title. Keep one clean top band + a bottom camera bar.
+ * covered the title. Keep one clean top band + a bottom camera bar ABOVE the system
+ * Back/Home bar via --nl-inset-* (SafeInsets.ts). 700 px matches the rest of phone.css.
  */
-@media (max-width: 420px) {
+:root {
+  --nl-inset-top: env(safe-area-inset-top, 0px);
+  --nl-inset-right: env(safe-area-inset-right, 0px);
+  --nl-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --nl-inset-left: env(safe-area-inset-left, 0px);
+}
+
+@media (max-width: 700px) {
   .transit-flight-card,
   .transit-ride-card {
-    top: calc(env(safe-area-inset-top, 0px) + 10px);
-    left: 10px;
-    right: 10px;
+    top: calc(var(--nl-inset-top, 0px) + 10px);
+    left: calc(var(--nl-inset-left, 0px) + 10px);
+    right: calc(var(--nl-inset-right, 0px) + 10px);
     width: auto;
     max-width: none;
     padding: 12px 14px;
@@ -5869,12 +5877,15 @@ body.ui-modal-open .place-card {
     top: auto;
     right: auto;
     left: 50%;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    /* Clear Android Back/Home — safe-area alone is often 0 in Chrome */
+    bottom: calc(var(--nl-inset-bottom, 0px) + 12px);
     transform: translateX(-50%);
     flex-direction: row;
     border-radius: 999px;
     padding: 6px 8px;
     gap: 4px;
+    max-width: calc(100vw - 20px);
+    box-sizing: border-box;
   }
 
   .ride-cam-btn {
@@ -5891,7 +5902,8 @@ body.ui-modal-open .place-card {
   }
 
   .flight-camera-bar {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    bottom: calc(var(--nl-inset-bottom, 0px) + 12px);
+    max-width: calc(100vw - 20px);
   }
 
   .flight-catering-row {
