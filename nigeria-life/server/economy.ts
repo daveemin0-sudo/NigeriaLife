@@ -456,9 +456,9 @@ export class Economy {
     return this.apply(accountId, 'spent', -Math.abs(Math.trunc(amount)), 0, cleanMemo(memo), true, idem);
   }
 
-  /** A held fee paid into a player's bank: the worker's pay, or a refund */
+  /** A held fee paid into a player's pocket cash: the worker's pay, or a refund */
   public payFee(accountId: string, amount: number, memo: string, idem: string): Result {
-    return this.apply(accountId, 'paid', 0, Math.trunc(amount), cleanMemo(memo), true, idem);
+    return this.apply(accountId, 'paid', Math.trunc(amount), 0, cleanMemo(memo), true, idem);
   }
 
   public grant(accountId: string, amount: number, memo: string): Result {

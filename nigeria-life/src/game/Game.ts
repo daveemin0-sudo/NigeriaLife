@@ -108,7 +108,7 @@ import type { CityId } from '../cities/CityTypes';
 import type { SavedCityId } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { HouseDecorationSystem, CATALOGUE_ITEMS, type PlacedItem } from '../housing/HouseDecorationSystem';
-import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type FlightStatus } from '../travel/Flights';
+import { FlightService, AIRLINE, AIRPORTS, landingCity, type Booking, type FlightCity, type FlightStatus } from '../travel/Flights';
 import { CoachService, MOTOR_PARKS, OPERATOR, type CoachCity, type CoachTicket } from '../travel/Coaches';
 import { openAirportHall } from '../travel/AirportHall';
 import { FurnishBar } from '../ui/FurnishBar';
@@ -4022,14 +4022,20 @@ export class Game {
   private disembark(cityId: CityId): void {
     this.world.setStreetModeVisibility(true);
     this.player.mesh.visible = true;
-    this.arriveInCity(cityId);
-    this.standOnApron(cityId);
+    // Ibadan is a day-trip hop until that city is playable: land back at Murtala Muhammed.
+    const apron = landingCity(cityId as FlightCity);
+    this.arriveInCity(apron);
+    this.standOnApron(apron);
     const flown = this.flights.arrive();
     this.saveWorldState();
     CloudSyncService.getInstance().saveNow();
-    const airport = AIRPORTS[cityId as FlightCity];
-    if (flown && airport) {
-      showGameToast(`${flown.route.flight} has landed at ${airport.name}. Welcome to ${airport.city}. The terminal is ahead: go through it for the street.`, 'success', 6200);
+    if (flown && cityId === 'ibadan') {
+      showGameToast(`${flown.route.flight} day trip to Ibadan is done. Back at Murtala Muhammed — the terminal is ahead.`, 'success', 6200);
+    } else {
+      const airport = AIRPORTS[apron];
+      if (flown && airport) {
+        showGameToast(`${flown.route.flight} has landed at ${airport.name}. Welcome to ${airport.city}. The terminal is ahead: go through it for the street.`, 'success', 6200);
+      }
     }
     const journeyCompleted = this.onJourneyCompleted;
     this.onJourneyCompleted = null;
@@ -4154,11 +4160,13 @@ export class Game {
   }
 
   private saveArrivalInTransit(cityId: CityId): void {
-    if (!this.isSavedCity(cityId)) return;
+    // Day-trip hops (Ibadan) resume on the Lagos apron.
+    const landIn = landingCity(cityId as FlightCity);
+    if (!this.isSavedCity(landIn)) return;
     // Sent to the account at once (below), as well as kept on this device
     queueMicrotask(() => CloudSyncService.getInstance().saveNow());
     BackendService.getInstance().saveWorldState({
-      cityId,
+      cityId: landIn,
       x: 0,
       z: 10,
       rotationY: 0,
@@ -4264,7 +4272,8 @@ export class Game {
     const coachState = this.coaches.status();
     const flightState = this.flights.status();
     if (saved.inTransit || coachState.state === 'boarded' || flightState.state === 'boarded') {
-      const destCity = (saved.inTransit ? saved.cityId : (coachState.to ?? flightState.to)) as CityId;
+      const rawDest = (saved.inTransit ? saved.cityId : (coachState.to ?? flightState.to)) as CityId;
+      const destCity = rawDest ? landingCity(rawDest as FlightCity) : null;
       if (destCity) {
         // The game closed during a paid journey: finish it
         this.arriveInCity(destCity);

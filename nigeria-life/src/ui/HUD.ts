@@ -1733,10 +1733,10 @@ export class HUD {
       btnEl.textContent = '🛂 Biometric Security & Metal Detector Screening';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_flight_abuja') {
-      btnEl.textContent = '✈️ Board Flight LOS-ABV to Abuja FCT (₦35,000)';
+      btnEl.textContent = '✈️ Gate 1 — tickets at the desk (Abuja ₦95,000 · Ibadan ₦220,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_flight_ph') {
-      btnEl.textContent = '✈️ Board Flight LOS-PHC to Port Harcourt (₦32,000)';
+      btnEl.textContent = '✈️ Gate 2 — tickets at the desk (Port Harcourt ₦85,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_vip_lounge') {
       btnEl.textContent = '🥂 NigeriaLife Air Executive VIP Lounge Access (₦5,000)';
@@ -2882,49 +2882,16 @@ export class HUD {
         rewards: { streetCred: 10 },
       });
       return;
-    } else if (id === 'airport_flight_abuja') {
-      const success = this.backend.spendCash(35000, 'Flight LOS to ABV (Abuja)');
-      if (success) {
-        this.backend.addStreetCred(50);
-        this.backend.restoreEnergy(100);
-        this.showDialogueModal({
-          speakerName: 'Capt. Ibrahim',
-          speakerRole: 'Wazobia Air • Flight WZ-214 to Abuja',
-          speakerAvatar: '✈️',
-          soundType: 'aviation',
-          dialogueText: 'Cabin doors armed. Non-stop executive flight from Lagos to Nnamdi Azikiwe Intl Airport, Abuja FCT completed! Welcome to Abuja!',
-          rewards: { streetCred: 50, energy: 100 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Wazobia Air Ticketing',
-          speakerRole: 'Gate 1 Departures',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦35,000 cash for direct flight ticket to Abuja FCT!',
-        });
-      }
-      return;
-    } else if (id === 'airport_flight_ph') {
-      const success = this.backend.spendCash(32000, 'Flight LOS to PHC (Port Harcourt)');
-      if (success) {
-        this.backend.addStreetCred(50);
-        this.backend.restoreEnergy(100);
-        this.showDialogueModal({
-          speakerName: 'NigeriaLife Air Flight Crew',
-          speakerRole: 'Gate 2 • Flight NL 310 to Port Harcourt',
-          speakerAvatar: '✈️',
-          soundType: 'aviation',
-          dialogueText: 'Direct flight to Port Harcourt International Airport (Omagwa) completed! Welcome to the Garden City!',
-          rewards: { streetCred: 50, energy: 100 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'NigeriaLife Air Ticketing',
-          speakerRole: 'Gate 2 Departures',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦32,000 cash for flight ticket to Port Harcourt!',
-        });
-      }
+    } else if (id === 'airport_flight_abuja' || id === 'airport_flight_ph') {
+      // Real boarding is the Flights path (desk → check-in → security → apron). Gates only open that door.
+      this.showDialogueModal({
+        speakerName: 'NigeriaLife Air',
+        speakerRole: id === 'airport_flight_abuja' ? 'Gate 1' : 'Gate 2',
+        speakerAvatar: '✈️',
+        dialogueText: id === 'airport_flight_abuja'
+          ? 'Buy NL 204 to Abuja (₦95,000) or NL 118 to Ibadan (₦220,000) at the ticket desk, then check in and clear security. Coaches stay cheaper at the motor park (Abuja ₦42,000 · Port Harcourt ₦38,000).'
+          : 'Buy NL 310 to Port Harcourt (₦85,000) at the ticket desk, then check in and clear security. The coach from Jibowu is ₦38,000 if you are watching your purse.',
+      });
       return;
     } else if (id === 'airport_vip_lounge') {
       const success = this.backend.spendCash(5000, 'VIP Concourse Lounge Pass');

@@ -35,8 +35,9 @@ export const consoleMailer: Mailer = {
 };
 
 /** What a new account starts with: the same as a new game in the browser. */
-export const STARTING_CASH = 25_000;
-export const STARTING_BANK = 150_000;
+/** Pocket cash first so early fares and snacks do not force an ATM trip. */
+export const STARTING_CASH = 40_000;
+export const STARTING_BANK = 135_000;
 
 const LINK_MINUTES = 15;
 
