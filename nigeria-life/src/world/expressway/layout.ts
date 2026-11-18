@@ -49,6 +49,9 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'amala-shitta', side: -1, z: 425, length: 24, depth: 18 },
   { id: 'viewing-centre', side: -1, z: 485, length: 20, depth: 16 },
   { id: 'polling-unit', side: -1, z: 760, length: 26, depth: 20 },
+  // Passport then visa: a short Lagos-only document loop (Alagbon → consular desk)
+  { id: 'nis-passport', side: 1, z: 880, length: 32, depth: 24 },
+  { id: 'consular-visa', side: 1, z: 980, length: 28, depth: 22 },
   { id: 'afrika-shrine', side: -1, z: 2750, length: 50, depth: 36 },
   { id: 'lekki-conservation', side: 1, z: 3050, length: 70, depth: 70 },
   { id: 'dangote-refinery', side: 1, z: 3500, length: 120, depth: 120 },
