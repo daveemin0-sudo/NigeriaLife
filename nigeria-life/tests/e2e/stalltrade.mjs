@@ -88,7 +88,7 @@ export async function run(browser, check) {
     const water = await buy(page, lagosGoods.id, 'Sachet pure water');
     check(
       'stalltrade: Lagos sachet water costs ₦200 cash and restores a little energy',
-      /Buy from/.test(water.label ?? '') && water.after.cash === water.before.cash - 200 && water.after.energy > water.before.energy && water.toast,
+      /Stall: buy or help/.test(water.label ?? '') && water.after.cash === water.before.cash - 200 && water.after.energy > water.before.energy && water.toast,
       water,
     );
   }
@@ -104,7 +104,7 @@ export async function run(browser, check) {
     const akara = await buy(page, abujaFood.id, 'Akara wrap');
     check(
       'stalltrade: Abuja akara costs ₦800 cash and restores hunger',
-      /Buy from/.test(akara.label ?? '')
+      /Stall: buy or help/.test(akara.label ?? '')
         && akara.after.cash === akara.before.cash - 800
         && (akara.after.hunger >= Math.min(100, akara.before.hunger + 22) || akara.after.hunger === 100)
         && akara.toast,
@@ -127,7 +127,7 @@ export async function run(browser, check) {
     const bought = await buy(page, ph.id, item);
     check(
       'stalltrade: Port Harcourt stall takes cash for a street buy',
-      /Buy from/.test(bought.label ?? '') && bought.after.cash === bought.before.cash - price && bought.toast,
+      /Stall: buy or help/.test(bought.label ?? '') && bought.after.cash === bought.before.cash - price && bought.toast,
       bought,
     );
   }

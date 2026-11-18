@@ -94,6 +94,10 @@ export const GIGS: Record<string, GigDef> = {
   'hud:jibowu-boots': { pay: 10_000, minSeconds: 6, memo: 'Jibowu coach boot loading', site: { city: 'lagos', x: 92.5, z: -69.6, radius: 35 } },
   'hud:utako-boots': { pay: 10_000, minSeconds: 6, memo: 'Utako coach boot loading', site: { city: 'abuja', x: 15, z: 35, radius: 35 } },
   'hud:waterlines-boots': { pay: 10_000, minSeconds: 6, memo: 'Waterlines coach boot loading', site: { city: 'port_harcourt', x: 14.5, z: 38, radius: 35 } },
+  // Help at any open roadside stall: stack goods, call customers, fan the coals. Pocket cash in every city.
+  'hud:lagos-stall-help': { pay: 5_000, minSeconds: 5, memo: 'Lagos roadside stall help', site: { city: 'lagos', x: 0, z: 0, radius: 250 } },
+  'hud:abuja-stall-help': { pay: 5_000, minSeconds: 5, memo: 'Abuja roadside stall help', site: { city: 'abuja', x: 0, z: 20, radius: 120 } },
+  'hud:ph-stall-help': { pay: 5_000, minSeconds: 5, memo: 'Port Harcourt roadside stall help', site: { city: 'port_harcourt', x: 0, z: 20, radius: 150 } },
 };
 
 /** Story cash, once each. The ids and figures are the quest catalogue. */
