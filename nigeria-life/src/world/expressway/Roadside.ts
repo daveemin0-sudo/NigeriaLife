@@ -291,6 +291,16 @@ export class Roadside {
         card = { name: 'Port Health · Yellow Card Centre', category: 'Health', description: 'Bring your Nigerian passport for the yellow fever jab and international certificate.' };
         break;
       }
+      case 'bureau-fx': {
+        b.box(0xecfdf5, place.depth, 9, place.length, depthMid, 0, place.z);
+        b.box(0x0f766e, place.depth + 0.25, 1.0, place.length + 0.25, depthMid, 9, place.z);
+        for (let z = z0 + 3; z < z0 + place.length - 2; z += 3) b.box(0x14b8a6, 0.05, 1.4, 1.3, faceX - s * 0.03, 4.0, z, { glow: true });
+        b.box(0x0f172a, 0.08, 2.4, 2, faceX - s * 0.04, 0, place.z);
+        footprint(9);
+        label('BUREAU DE CHANGE', 'USD · GBP · Victoria Island rates', '#0f766e', 7.6, 24);
+        card = { name: 'Victoria Island Bureau de Change', category: 'Finance', description: 'Change naira for US dollars or British pounds — and back.' };
+        break;
+      }
       case 'efcc-office': {
         b.box(0xe7e5e4, place.depth, 14, place.length, depthMid, 0, place.z);
         b.box(0x166534, 0.3, 14, 4, faceX - s * 0.15, 0, place.z);

@@ -414,6 +414,7 @@ export class Game {
     this.hud = new HUD();
     setupCleanView();
     this.hud.init(this.player, this.world);
+    this.hud.onOpenSignIn = (mode) => this.openSignIn(mode);
     this.hud.onRotateCamera = (deltaYaw: number) => {
       this.cameraManager.rotate(deltaYaw);
     };

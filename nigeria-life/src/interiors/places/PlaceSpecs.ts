@@ -7,6 +7,7 @@ import type { PlaceSpec, StationChoice } from './PlaceInterior';
 import type { Item } from '../../backend/types';
 import { SUPERMARKET_SPEC } from './SupermarketRoom';
 import { buildKitCar } from '../../world/vehicles/KitCar';
+import { FX_BUNDLES, SPRAY_HARD, buyCost, sellProceeds, formatHard, FX_BUY, FX_SELL } from '../../life/HardCurrency';
 
 /**
  * The insides of the places along the expressway: each laid out for what is done there, with
@@ -227,6 +228,18 @@ const SPECS: PlaceSpec[] = [
     ] },
     { id: 'sofa', name: '🌇 Sit by the edge', at: [-6, 0], stand: [-6, -0.5], who: 'Host', role: 'Ivory Rooftop', text: 'Best view in Lagos.', choices: [{ label: 'Sit and watch the city', note: 'Fun +10', sit: true, seconds: 5, effect: need({ fun: 10 }), said: 'Orange sky over the lagoon. Beautiful.' }] },
     { id: 'floor', name: '💃 Dance', at: [5, -2], stand: [5, -2], who: 'DJ Kaywise', role: 'DJ', text: 'Oya, enter the floor!', choices: [{ label: 'Dance', note: 'Fun +25', dance: true, seconds: 8, effect: need({ fun: 25, social: 8 }), said: 'The DJ shouted your name.' }] },
+    { id: 'spray', name: '💸 Spray hard currency', at: [2, -2], stand: [2, -0.8], who: 'Hype man', role: 'Ivory Rooftop', text: 'Baller moves only. Dollars or pounds — not naira for this carpet.', choices: [
+      ...SPRAY_HARD.map((s) => ({
+        label: `Spray ${formatHard(s.kind, s.units)} on the floor`,
+        note: `${formatHard(s.kind, s.units)} · Fun +${s.fun} · Social +${s.social}`,
+        arms: 'wave' as const,
+        seconds: 3,
+        effect: (be: { sprayHard(kind: 'usd' | 'gbp', units: number, needs: { fun: number; social: number }): boolean }) =>
+          be.sprayHard(s.kind, s.units, { fun: s.fun, social: s.social }),
+        said: `Crisp ${formatHard(s.kind, s.units)} raining on the dancefloor. The roof knows your name.`,
+      })),
+      { label: 'Ask where to change money', note: 'Free', arms: 'talk' as const, seconds: 2, effect: () => {}, said: '"Victoria Island bureau de change, near here. Change naira for dollars or pounds, then come spray."' },
+    ] },
   ], [{ at: [2, 2.2], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [-2, 2.2], facing: Math.PI, outfit: 0xdc2626, sit: true }]),
   venue('the-library', 'The Library', 'Ikoyi · fine dining', 'Speakeasy · Private dining', '#78350f', 0x3f2a1d, 0x1c1917, (b) => {
     for (const x of [-8, -4, 0, 4, 8]) { b.box(0x3b2416, 3.4, 3.6, 0.5, x, 0, -8.6); for (let r = 0; r < 4; r++) for (let i = 0; i < 9; i++) b.box([0x7f1d1d, 0x1e3a8a, 0x14532d, 0xa16207][(i + r) % 4], 0.3, 0.6, 0.3, x - 1.4 + i * 0.35, 0.3 + r * 0.85, -8.4); }
@@ -468,6 +481,39 @@ const SPECS: PlaceSpec[] = [
       { label: 'Ask what I need', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Nigerian passport in hand. Fee paid. No passport, no card — Alagbon first, then come back."' },
     ] },
   ], [{ at: [-2, 5], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]),
+  // Lagos VI bureau: naira ↔ dollars / pounds (hard currency for high-roller spraying)
+  venue('bureau-fx', 'Victoria Island Bureau de Change', 'Victoria Island · FX desk', 'USD · GBP · Parallel rates', '#0f766e', 0xecfdf5, 0xf0fdfa, (b) => {
+    counter(b, 0, -5, 8, 0x0f766e, 0xf8fafc);
+    desk(b, -6, 2, 0xd1fae5); desk(b, 6, 2, 0xd1fae5);
+    b.box(0x0f172a, 2.4, 1.6, 0.08, 0, 1.2, -7.2);
+    b.box(0x22c55e, 0.9, 1.0, 0.04, -0.6, 1.35, -7.15, { glow: true });
+    b.box(0x3b82f6, 0.9, 1.0, 0.04, 0.6, 1.35, -7.15, { glow: true });
+    for (let i = 0; i < 4; i++) b.box(0xfef08a, 0.4, 0.08, 0.55, -2.4 + i * 1.2, 1.1, -5);
+  }, [
+    { name: 'Aboki Tunde', title: 'Bureau dealer', at: [0, -6], facing: 0, outfit: 0x0f766e, gender: 'male', tie: true, says: 'Dollar, pound — clean notes. Rate today is the rate.' },
+  ], [
+    { id: 'buy', name: '💵 Buy hard currency', at: [-3, -5], stand: [-3, -3.6], who: 'Aboki Tunde', role: 'Bureau dealer', text: `Buying today: $1 = ₦${FX_BUY.usd.toLocaleString()}, £1 = ₦${FX_BUY.gbp.toLocaleString()}.`, choices: [
+      ...FX_BUNDLES.map((b) => ({
+        label: `Buy ${formatHard(b.kind, b.units)}`,
+        note: `₦${buyCost(b.kind, b.units).toLocaleString()}`,
+        arms: 'reach' as const,
+        seconds: 2,
+        effect: (be: { buyHard(kind: 'usd' | 'gbp', units: number): boolean }) => be.buyHard(b.kind, b.units),
+        said: `${formatHard(b.kind, b.units)} counted into your pocket. Keep them for the roof.`,
+      })),
+      { label: 'Ask the rates', note: 'Free', arms: 'talk' as const, seconds: 2, effect: () => {}, said: `"Buy: $1 = ₦${FX_BUY.usd.toLocaleString()}, £1 = ₦${FX_BUY.gbp.toLocaleString()}. Sell a little lower. Spray dollars at Ivory Rooftop — that is how ballers move."` },
+    ] },
+    { id: 'sell', name: '💷 Sell hard currency', at: [3, -5], stand: [3, -3.6], who: 'Aboki Tunde', role: 'Bureau dealer', text: `Selling today: $1 = ₦${FX_SELL.usd.toLocaleString()}, £1 = ₦${FX_SELL.gbp.toLocaleString()}.`, choices: [
+      ...FX_BUNDLES.map((b) => ({
+        label: `Sell ${formatHard(b.kind, b.units)}`,
+        note: `₦${sellProceeds(b.kind, b.units).toLocaleString()} back`,
+        arms: 'reach' as const,
+        seconds: 2,
+        effect: (be: { sellHard(kind: 'usd' | 'gbp', units: number): boolean }) => be.sellHard(b.kind, b.units),
+        said: `${formatHard(b.kind, b.units)} taken. ₦${sellProceeds(b.kind, b.units).toLocaleString()} in your pocket.`,
+      })),
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0xf59e0b, sit: true }], [18, 16]),
 ];
 
 // The showroom's cars: on the three turntables, turning slowly, and a row along the side wall

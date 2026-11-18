@@ -43,6 +43,8 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'marina-towers', side: 1, z: 250, length: 40, depth: 30 },
   { id: 'freedom-park', side: 1, z: 340, length: 60, depth: 50 },
   { id: 'ivory-rooftop', side: 1, z: 540, length: 30, depth: 24 },
+  // VI bureau: dollars and pounds for high-roller spraying (Lagos only)
+  { id: 'bureau-fx', side: 1, z: 590, length: 26, depth: 20 },
   { id: 'the-library', side: 1, z: 640, length: 26, depth: 20 },
   { id: 'i-fitness', side: 1, z: 720, length: 34, depth: 26 },
   { id: 'balogun-market', side: -1, z: 300, length: 70, depth: 40 },

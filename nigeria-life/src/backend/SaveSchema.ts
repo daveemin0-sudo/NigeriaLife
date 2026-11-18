@@ -280,6 +280,8 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       ? Object.fromEntries(Object.entries(saved.skillCarry).filter(([, v]) => typeof v === 'number' && v > 0 && v < 1))
       : undefined,
     walletCash: Math.round(num(saved.walletCash, base.walletCash, 'walletCash', 0)),
+    walletUsd: Math.round(num(saved.walletUsd, base.walletUsd ?? 0, 'walletUsd', 0)),
+    walletGbp: Math.round(num(saved.walletGbp, base.walletGbp ?? 0, 'walletGbp', 0)),
     bank: {
       accountNumber: str(bank.accountNumber, base.bank.accountNumber, 'bank.accountNumber'),
       bankName: str(bank.bankName, base.bank.bankName, 'bank.bankName'),
@@ -418,8 +420,9 @@ export function parseSavedAccount(json: string): LoadedAccount | null {
   // fills with defaults. Version 2 -> 3 added `trait` and `skillCarry`: a save from before has no
   // trait, and the player is asked once to pick one. Version 3 -> 4 added weekly dues (`duesDay`,
   // `leases`, the loan's schedule, `credit`, `evicted`): a save from before has none, and the
-  // first settle starts the schedules from that day, so nothing is charged for weeks gone by. A future shape change converts `parsed`
-  // here, one step per version.
+  // first settle starts the schedules from that day, so nothing is charged for weeks gone by.
+  // Version 4 -> 5 added hard currency pockets (`walletUsd`, `walletGbp`): older saves get 0.
+  // A future shape change converts `parsed` here, one step per version.
 
   const repaired: string[] = [];
   const account = sanitizeAccount(parsed, repaired);
