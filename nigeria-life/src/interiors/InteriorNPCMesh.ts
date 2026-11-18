@@ -105,7 +105,9 @@ export class InteriorNPCMesh {
       hasStethoscope: hasStethoscope || def.hasStethoscope,
       hasTie: hasTie || def.hasTie,
       hasBackpack,
-      lod: def.light ? 'street' : undefined,
+      // Always detailed in interiors — player stands an arm's length away.
+      lod: 'detailed',
+      build: isFemale ? 'average' : (lowerRole.includes('security') || lowerRole.includes('chef') ? 'broad' : 'average'),
     });
 
     this.group.add(this.humanRig.group);

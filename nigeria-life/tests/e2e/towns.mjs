@@ -78,11 +78,18 @@ export async function run(browser, check) {
 
   await page.evaluate(() => document.querySelector('.city-tab[data-city="abuja"]')?.click());
   await wait(400);
-  const found = await page.evaluate(() => window.game.hud.worldMapUI.findPlaces('Suites Hotel').map((h) => ({ name: h.name, city: h.city, here: h.here })));
-  const garki = await page.evaluate(() => window.game.hud.worldMapUI.findPlaces('Supermarket').filter((h) => h.city === 'abuja').map((h) => h.name));
+  const found = await page.evaluate(() => window.game.hud.worldMapUI.findPlaces('Hotel').map((h) => ({ name: h.name, city: h.city, here: h.here })));
+  const garki = await page.evaluate(() => window.game.hud.worldMapUI.findPlaces('Mart').filter((h) => h.city === 'abuja').map((h) => h.name));
+  const trukRide = await page.evaluate(() => {
+    const reg = window.game.modules.DestinationRegistry.getInstance();
+    const d = reg.getAllForCity('abuja').find((x) => /Trukadero/i.test(x.name));
+    return d ? { name: d.name, enterable: d.isEnterable, interiorId: d.interiorId } : null;
+  });
   check('towns: the named Abuja places come up in the map search',
-    found.some((h) => h.city === 'abuja' && h.here && /Suites Hotel/.test(h.name)) && garki.length > 0,
-    { found, garki: garki.slice(0, 6) });
+    found.some((h) => h.city === 'abuja' && h.here && /Hotel|Suites|Lodge|Inn/i.test(h.name))
+      && garki.length > 0
+      && !!trukRide?.enterable && trukRide.interiorId === 'roadside-abuja-trukadero',
+    { found: found.slice(0, 6), garki: garki.slice(0, 6), trukRide });
 
   mkdirSync(SHOTS, { recursive: true });
   await page.evaluate(() => {
@@ -186,7 +193,7 @@ export async function run(browser, check) {
       && layouts.ph.office.length === 3 && layouts.ph.shops.length === 3 && layouts.ph.bank.length === 3,
     layouts);
 
-  // Ride drop-off: Trukadero street coords match the map pin (not the old grass-by-park spot).
+  // Ride drop-off: Trukadero sits at the real Wuse landmark door (not the old tiny-grid house block).
   const drop = await page.evaluate(() => {
     const g = window.game;
     g.arriveInCity('abuja');
@@ -197,19 +204,67 @@ export async function run(browser, check) {
     const street = dest.streetPosition;
     const drift = Math.hypot(map.x - street.x, map.z - street.z);
     const toMap = Math.hypot(spot.x - map.x, spot.z - map.z);
-    // Old buggy street was around (-11.5, -75); map pin is near (-42, 35).
-    const toOldGrass = Math.hypot(spot.x - (-11.5), spot.z - (-75));
+    // Old buggy pins were near origin (±50); the hall is west of Wuse Market (~-140, 226).
+    const nearWuse = Math.hypot(spot.x - (-140), spot.z - 226) < 8;
+    const leftTinyGrid = Math.hypot(spot.x, spot.z) > 80;
     return {
-      ok: drift < 1 && toMap < 30 && toOldGrass > 40,
+      ok: dest.isEnterable === true && dest.interiorId === 'roadside-abuja-trukadero'
+        && drift < 1 && toMap < 30 && nearWuse && leftTinyGrid,
       name: dest.name,
+      enterable: dest.isEnterable,
+      interiorId: dest.interiorId,
       spot: { x: +spot.x.toFixed(1), z: +spot.z.toFixed(1) },
       map: { x: map.x, z: map.z },
       street: { x: street.x, z: street.z },
-      drift, toMap, toOldGrass,
+      drift, toMap, nearWuse, leftTinyGrid,
     };
   });
-  check('towns: a ride to Trukadero sets down at the bowling pin, not the old grass spot',
+  check('towns: a ride to Trukadero sets down at the bowling hall, enterable',
     drop.ok === true, drop);
+
+  // Walk into Trukadero and bowl
+  const truck = await page.evaluate(() => {
+    const g = window.game;
+    g.arriveInCity('abuja');
+    const door = g.world.cityManager.thingsIn('abuja').find((o) => /Trukadero/i.test(o.name));
+    if (!door) return { ok: false, reason: 'no door' };
+    g.player.stopMoving();
+    g.player.mesh.position.set(door.interactionPoint.x, 0, door.interactionPoint.z);
+    g.hud.hideInteractionCard();
+    g.hud.showInteractionCard(door);
+    return { ok: true, id: door.id, name: door.name };
+  });
+  if (truck.ok) {
+    await page.evaluate(() => document.getElementById('card-action-btn')?.click());
+    await playUntil(page, () => (window.game.world.interiorManager.currentInterior && !window.game.world.interiorManager.busy ? true : null), 25);
+    await wait(400);
+  }
+  const insideTruck = await page.evaluate(() => {
+    const id = window.game.world.interiorManager.currentInterior?.id ?? '';
+    const names = window.game.world.interiorManager.getActiveInteractiveObjects?.()
+      ?.map((o) => o.name)?.join(' ') ?? '';
+    const card = document.getElementById('place-card');
+    if (card?.classList.contains('is-folded')) document.getElementById('place-fold-btn')?.click();
+    const text = `${card?.innerText ?? ''}\n${names}`;
+    return { id, text: text.slice(0, 400) };
+  });
+  check('towns: Trukadero opens a bowling hall you can play in',
+    truck.ok && /trukadero/i.test(insideTruck.id) && /Bowl|Pool|Arcade|Sports bar/i.test(insideTruck.text),
+    { truck, insideTruck });
+  if (truck.ok) await leave(page);
+
+  // Map names: offices are trade names, not "Office 14"
+  const namedTown = await page.evaluate(() => {
+    const offices = window.game.world.cityManager.thingsIn('abuja')
+      .filter((o) => o.id.startsWith('door-abuja-') && o.category === 'Office')
+      .map((o) => o.name);
+    const numbered = offices.filter((n) => /\bOffices?\s+\d+\b/i.test(n) || /\bOffice\s+\d+\b/i.test(n));
+    const unique = new Set(offices).size;
+    return { n: offices.length, unique, numbered: numbered.slice(0, 8), sample: offices.slice(0, 8) };
+  });
+  check('towns: Abuja office doors use trade names, not Office 1…N',
+    namedTown.n > 20 && namedTown.numbered.length === 0 && namedTown.unique === namedTown.n,
+    namedTown);
 
   check('towns: no errors in the page', log.errors.length === 0, log.errors.slice(0, 6));
   await ctx.close();
