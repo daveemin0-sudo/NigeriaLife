@@ -86,6 +86,7 @@ export async function run(browser, check) {
     const be = window.game.hud.backend;
     be.addItem({ id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false, description: 'test passport' });
     be.addItem({ id: 'travel_visa', name: 'Travel visa stamp', icon: '🧾', price: 45000, category: 'document', usable: false, description: 'test visa' });
+    be.addItem({ id: 'yellow_card', name: 'Yellow fever vaccination card', icon: '💛', price: 25000, category: 'document', usable: false, description: 'test yellow card' });
   });
   // Murtala Muhammed is in Ikeja, on Ikorodu Road: the test starts on the pavement near it
   await page.evaluate(() => { const g = window.game; g.player.stopMoving(); g.player.mesh.position.set(-14, 0, 6320); });

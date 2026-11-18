@@ -3,7 +3,7 @@
 // the bag; and the way out leads back to the door on the road.
 import { makeOpen, open, newPlayer, closeDialogs, advance, wait, playUntil, money } from './lib.mjs';
 
-const KEYS = ['balogun-market', 'amala-shitta', 'marina-towers', 'freedom-park', 'ivory-rooftop', 'the-library', 'i-fitness', 'lekki-conservation', 'dangote-refinery', 'radio-house', 'viewing-centre', 'polling-unit', 'nis-passport', 'consular-visa', 'afrika-shrine', 'redemption-cathedral', 'central-mosque', 'sankofa-motors', 'shopwell-mall', 'eko-grand-hotel', 'police-command', 'efcc-office', 'government-house', 'computer-village', 'ikeja-city-mall', 'allen-lounge', 'oshodi-interchange', 'lasuth', 'ladipo-auto', 'ikeja-gra', 'chop-express', 'faith-arena', 'mmia-terminal', 'lagoon-beach', 'ikeja-golf', 'lagoon-marina', 'private-airfield'];
+const KEYS = ['balogun-market', 'amala-shitta', 'marina-towers', 'freedom-park', 'ivory-rooftop', 'the-library', 'i-fitness', 'lekki-conservation', 'dangote-refinery', 'radio-house', 'viewing-centre', 'polling-unit', 'nis-passport', 'consular-visa', 'port-health', 'afrika-shrine', 'redemption-cathedral', 'central-mosque', 'sankofa-motors', 'shopwell-mall', 'eko-grand-hotel', 'police-command', 'efcc-office', 'government-house', 'computer-village', 'ikeja-city-mall', 'allen-lounge', 'oshodi-interchange', 'lasuth', 'ladipo-auto', 'ikeja-gra', 'chop-express', 'faith-arena', 'mmia-terminal', 'lagoon-beach', 'ikeja-golf', 'lagoon-marina', 'private-airfield'];
 
 const enter = async (page, key) => {
   await makeOpen(page, key);

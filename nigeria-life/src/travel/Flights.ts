@@ -134,16 +134,18 @@ export class FlightService {
 
   // --- Buying and handing back ------------------------------------------------------------
 
-  /** Travel papers from the Lagos document loop: Nigerian passport + travel visa stamp. */
+  /** Travel papers from the Lagos document loop: passport, visa stamp, and yellow fever card. */
   public missingPapers(): string | null {
     const bag = this.backend.getData().inventory;
     const passport = bag.some((e) => e.id === 'ng_passport');
     const visa = bag.some((e) => e.id === 'travel_visa');
-    if (!passport && !visa) {
-      return 'Bring your Nigerian passport and travel visa. Collect them at the Alagbon Passport Office, then the Visa & Consular Desk.';
+    const yellow = bag.some((e) => e.id === 'yellow_card');
+    if (!passport && !visa && !yellow) {
+      return 'Bring your Nigerian passport, travel visa, and yellow fever card. Alagbon Passport Office, Visa & Consular Desk, then Port Health on Airport Road.';
     }
     if (!passport) return 'You need a Nigerian passport in your bag. Go to the Federal Passport Office, Alagbon.';
     if (!visa) return 'You need a travel visa stamp in your bag. Bring your passport to the Visa & Consular Desk.';
+    if (!yellow) return 'You need a yellow fever vaccination card. Get it at Port Health on Airport Road, before MMIA.';
     return null;
   }
 

@@ -441,6 +441,33 @@ const SPECS: PlaceSpec[] = [
       { label: 'Ask what documents I need', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Nigerian passport in hand. Form filled. Fee paid. No passport, no stamp — go to Alagbon first."' },
     ] },
   ], [{ at: [-2, 5], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }], [18, 16]),
+  // Port Health by MMIA: yellow fever card (Lagos-only; passport required)
+  venue('port-health', 'Port Health · Yellow Card Centre', 'Airport Road · Mafoluku', 'Yellow fever · Stamps · Travel health', '#a16207', 0xfef9c3, 0xfefce8, (b) => {
+    counter(b, 0, -5, 7, 0xa16207, 0xfefce8);
+    desk(b, -6, 2, 0xfef08a); desk(b, 6, 2, 0xfef08a);
+    b.box(0xfef08a, 1.4, 1.8, 0.08, 0, 1.1, -7.2); b.box(0xca8a04, 1.0, 1.2, 0.04, 0, 1.3, -7.15, { glow: true });
+    for (let i = 0; i < 3; i++) b.box(0xfde047, 0.35, 0.08, 0.5, -2 + i * 1.4, 1.1, -5);
+    b.cylinder(0xeab308, 0.08, 0.9, 5.5, 0, -4, { sides: 8 });
+  }, [
+    { name: 'Nurse Funke', title: 'Port Health nurse', at: [0, -6], facing: 0, outfit: 0xffffff, gender: 'female', says: 'Passport first. Then we jab and stamp.' },
+  ], [
+    { id: 'yellow', name: '💉 Yellow fever desk', at: [0, -5], stand: [0, -3.6], who: 'Nurse Funke', role: 'Port Health', text: 'International yellow fever certificate. Bring your Nigerian passport.', choices: [
+      {
+        label: 'Register, jab, and collect my yellow card',
+        price: 25000,
+        note: 'Needs Nigerian passport · ₦25,000',
+        needItem: 'ng_passport',
+        item: {
+          id: 'yellow_card', name: 'Yellow fever vaccination card', icon: '💛', price: 25000, category: 'document', usable: false,
+          description: 'International yellow fever certificate from Port Health, Airport Road. Keep it with your passport for flights.',
+        },
+        arms: 'reach',
+        seconds: 3,
+        said: 'Jab done. Stamp, stamp, signature on the yellow booklet. Keep this with your passport.',
+      },
+      { label: 'Ask what I need', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Nigerian passport in hand. Fee paid. No passport, no card — Alagbon first, then come back."' },
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]),
 ];
 
 // The showroom's cars: on the three turntables, turning slowly, and a row along the side wall
