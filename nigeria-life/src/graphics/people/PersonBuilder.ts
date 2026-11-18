@@ -62,12 +62,13 @@ const SHAPES: Record<HeadShape, { w: number; h: number; d: number; jaw: number; 
 /** How a point on a round head of radius 1 moves for the chosen shape: its width, height and depth there */
 function headScale(ny: number, nz: number, shape: HeadShape): [number, number, number] {
   const s = SHAPES[shape];
-  let w = s.w * 0.86;
+  // Was 0.86 — crushed skulls into pinheads next to shoulder span (mesh audit).
+  let w = s.w * 0.98;
   if (ny < -0.08) w *= lerp(1, s.jaw, smooth(0.08, 0.85, -ny));
   else if (ny > 0.32) w *= lerp(1, s.brow, smooth(0.32, 0.92, ny));
   // Cheekbones, a little below the eyes
   w *= lerp(1, s.cheek, 1 - Math.min(1, Math.abs(ny + 0.05) / 0.3));
-  let d = s.d * 0.9;
+  let d = s.d * 0.96;
   // The face is flatter in front than the back of the head; the chin comes forward; the nape tucks in
   if (nz > 0 && Math.abs(ny) < 0.55) d *= 0.95;
   if (nz > 0 && ny < -0.6) d *= s.chin;
@@ -209,16 +210,16 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     made.set(key, m);
     return m;
   };
-  /** Skin with a soft sheen so melanin reads warm under equatorial light (ART-BIBLE). */
-  const skinMat = (hex: string | number, rough = 0.42) => {
+  /** Matte melanin skin (VISUAL_QUALITY_STANDARDS roughness 0.58–0.68 — not plastic). */
+  const skinMat = (hex: string | number, rough = 0.64) => {
     const key = `skin|${new THREE.Color(hex).getHex()}|${rough}`;
     const known = made.get(key);
     if (known) return known;
     const m = new THREE.MeshStandardMaterial({
       color: new THREE.Color(hex),
       roughness: rough,
-      metalness: 0.02,
-      envMapIntensity: 0.55,
+      metalness: 0.04,
+      envMapIntensity: 0.35,
     });
     materials.push(m);
     made.set(key, m);
@@ -228,8 +229,8 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const breadth = build === 'slim' ? 0.92 : build === 'broad' ? 1.1 : 1;
   const shape: HeadShape = (config.headShape as HeadShape | undefined) ?? (female ? 'oval' : 'round');
   const skinHex = config.skinTone || (female ? SKIN_DEFAULT.female : SKIN_DEFAULT.male);
-  const skin = skinMat(skinHex, 0.4);
-  const skinDeep = skinMat(new THREE.Color(skinHex).multiplyScalar(0.78).getHex(), 0.55);
+  const skin = skinMat(skinHex, 0.64);
+  const skinDeep = skinMat(new THREE.Color(skinHex).multiplyScalar(0.78).getHex(), 0.7);
   const hairColour = new THREE.Color(config.hairColor ?? '#0b0908').getHex();
   const cut = cutFor(config, female);
   const top = mat(cut.colour, cut.pattern === 'lace' ? 0.6 : 0.78, fabric(cut.pattern, cut.colour, cut.accent, 0x111827));
