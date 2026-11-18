@@ -49,13 +49,14 @@ const smooth = (a: number, b: number, x: number) => {
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** Head shapes as widths at the brow, the cheekbones and the jaw, and the face's length */
+// Wider, shorter skulls — tall pin-heads read as robots on phone (overnight ask).
 const SHAPES: Record<HeadShape, { w: number; h: number; d: number; jaw: number; brow: number; cheek: number; chin: number }> = {
-  round: { w: 0.9, h: 1.05, d: 1.0, jaw: 0.95, brow: 0.97, cheek: 1.02, chin: 0.98 },
-  oval: { w: 0.86, h: 1.1, d: 1.0, jaw: 0.86, brow: 0.95, cheek: 1.0, chin: 1.02 },
-  long: { w: 0.83, h: 1.17, d: 0.99, jaw: 0.88, brow: 0.95, cheek: 0.98, chin: 1.04 },
-  square: { w: 0.92, h: 1.04, d: 1.0, jaw: 1.03, brow: 1.0, cheek: 1.0, chin: 0.97 },
-  heart: { w: 0.89, h: 1.08, d: 1.0, jaw: 0.8, brow: 1.03, cheek: 1.02, chin: 1.03 },
-  diamond: { w: 0.86, h: 1.1, d: 1.0, jaw: 0.82, brow: 0.88, cheek: 1.07, chin: 1.03 },
+  round: { w: 0.98, h: 0.96, d: 1.02, jaw: 0.97, brow: 0.98, cheek: 1.04, chin: 0.98 },
+  oval: { w: 0.94, h: 1.02, d: 1.0, jaw: 0.9, brow: 0.96, cheek: 1.02, chin: 1.0 },
+  long: { w: 0.9, h: 1.08, d: 0.99, jaw: 0.9, brow: 0.95, cheek: 1.0, chin: 1.02 },
+  square: { w: 1.0, h: 0.94, d: 1.02, jaw: 1.05, brow: 1.0, cheek: 1.02, chin: 0.97 },
+  heart: { w: 0.96, h: 0.98, d: 1.0, jaw: 0.84, brow: 1.04, cheek: 1.04, chin: 1.02 },
+  diamond: { w: 0.93, h: 1.0, d: 1.0, jaw: 0.86, brow: 0.9, cheek: 1.08, chin: 1.02 },
 };
 
 /** How a point on a round head of radius 1 moves for the chosen shape: its width, height and depth there */
@@ -437,10 +438,10 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const neck = new THREE.Mesh(lathe([[neckR * 0.98, -0.17], [neckR * 1.0, -0.1], [neckR, -0.04], [neckR * 0.98, 0.04]], seg, 1.0, 0.86), skin);
   neck.position.z = -0.008;
   head.add(neck);
-  // Fuller heads (was ~0.11): thin skulls read as robots at street distance
-  const R = female ? 0.128 : 0.138;
-  const C = new THREE.Vector3(0, female ? 0.055 : 0.06, 0.014);
-  const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 40 : 24, detailed ? 30 : 18), R, shape), skin);
+  // Fuller heads: thin skulls read as robots at every distance (owner overnight ask).
+  const R = female ? 0.136 : 0.148;
+  const C = new THREE.Vector3(0, female ? 0.058 : 0.062, 0.016);
+  const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 44 : 28, detailed ? 34 : 22), R, shape), skin);
   skull.position.copy(C);
   head.add(skull);
   const face = new THREE.Group();
@@ -461,39 +462,40 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
       face.add(inner);
     }
   }
-  // Eyes: the white, the iris, the pupil, a glint, the lid over it, the lashes
+  // Eyes: almond whites mostly covered by lids (big round whites = robot stare).
   const white = mat(0xf4f1ea, 0.2);
   const iris = mat(config.eyeColor ?? 0x3b1f0e, 0.3);
   const pupil = mat(0x050505, 0.1);
   const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
   materials.push(glint);
   for (const s of [-1, 1]) {
-    const eyeAt = at(s * 0.36, 0.0, 0.92);
+    const eyeAt = at(s * 0.34, 0.02, 0.93);
     const eye = new THREE.Group();
     eye.position.copy(eyeAt);
-    eye.rotation.y = s * 0.2;
+    eye.rotation.y = s * 0.18;
     face.add(eye);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0165, detailed ? 14 : 10, detailed ? 10 : 8), white);
-    ball.scale.set(1.25, 0.82, 0.7);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0135, detailed ? 14 : 10, detailed ? 10 : 8), white);
+    ball.scale.set(1.35, 0.72, 0.62);
     eye.add(ball);
-    const ir = new THREE.Mesh(new THREE.CircleGeometry(0.0092, detailed ? 18 : 12), iris);
-    ir.position.z = 0.0101;
+    const ir = new THREE.Mesh(new THREE.CircleGeometry(0.0078, detailed ? 18 : 12), iris);
+    ir.position.z = 0.0088;
     eye.add(ir);
-    const pu = new THREE.Mesh(new THREE.CircleGeometry(0.004, 10), pupil);
-    pu.position.z = 0.0104;
+    const pu = new THREE.Mesh(new THREE.CircleGeometry(0.0034, 10), pupil);
+    pu.position.z = 0.0092;
     eye.add(pu);
     if (detailed) {
-      const gl = new THREE.Mesh(new THREE.CircleGeometry(0.0016, 6), glint);
-      gl.position.set(0.0025, 0.0028, 0.0107);
+      const gl = new THREE.Mesh(new THREE.CircleGeometry(0.0014, 6), glint);
+      gl.position.set(0.0022, 0.0024, 0.0095);
       eye.add(gl);
     }
-    // Upper lid: a skin crescent over the top of the eye, so the eye is almond, not round
-    const lid = new THREE.Mesh(new THREE.SphereGeometry(0.0158, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), skin);
-    lid.scale.set(1.3, 0.9, 0.78);
-    lid.position.y = 0.002;
+    // Heavy lids so the eye is a soft almond, not a startled circle
+    const lid = new THREE.Mesh(new THREE.SphereGeometry(0.0142, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), skin);
+    lid.scale.set(1.4, 0.95, 0.82);
+    lid.position.y = 0.004;
     eye.add(lid);
-    const lower = new THREE.Mesh(new THREE.SphereGeometry(0.0152, 12, 8, 0, Math.PI * 2, Math.PI * 0.7, Math.PI * 0.3), skin);
-    lower.scale.set(1.28, 0.85, 0.74);
+    const lower = new THREE.Mesh(new THREE.SphereGeometry(0.0136, 12, 8, 0, Math.PI * 2, Math.PI * 0.62, Math.PI * 0.38), skin);
+    lower.scale.set(1.35, 0.9, 0.78);
+    lower.position.y = -0.001;
     eye.add(lower);
     if (female && detailed) {
       const lash = new THREE.Mesh(new THREE.TorusGeometry(0.0145, 0.0018, 4, 12, Math.PI * 0.9), dark);
@@ -516,10 +518,17 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   bridge.position.copy(at(0, -0.14, 0.975));
   bridge.rotation.x = 0.32;
   face.add(bridge);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0128, 14, 12), skin);
-  tip.scale.set(1.3 * noseW, 0.82, 0.92);
-  tip.position.copy(at(0, -0.3, 1.035));
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0142, 14, 12), skin);
+  tip.scale.set(1.42 * noseW, 0.86, 0.98);
+  tip.position.copy(at(0, -0.3, 1.04));
   face.add(tip);
+  // Soft cheek volume so the face is not a flat mask
+  for (const s of [-1, 1]) {
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.028, detailed ? 12 : 8, detailed ? 10 : 6), skin);
+    cheek.scale.set(0.7, 0.85, 0.55);
+    cheek.position.copy(at(s * 0.55, -0.22, 0.92));
+    face.add(cheek);
+  }
   for (const s of [-1, 1]) {
     const wing = new THREE.Mesh(new THREE.SphereGeometry(0.0108, 12, 10), skin);
     wing.scale.set(0.9, 0.8, 0.82);
@@ -616,7 +625,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const shoulderX = (female ? 0.24 : 0.32) * (build === 'slim' ? 0.95 : build === 'broad' ? 1.06 : 1);
   const upperLen = female ? 0.28 : 0.32;
   const foreLen = female ? 0.26 : 0.3;
-  const armR = (female ? 0.05 : 0.064) * breadth;
+  const armR = (female ? 0.056 : 0.072) * breadth;
   const sleeveMat = cut.top === 'agbada' || cut.top === 'kaftan' || cut.top === 'buba' ? top : cut.top === 'overall' && cut.sleeves === 'none' ? skin : top;
   const coatMat = cut.coat !== undefined ? mat(cut.coat, 0.55) : null;
   const makeArm = (side: -1 | 1) => {
@@ -695,7 +704,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const thighLen = female ? 0.38 : 0.4;
   const shinLen = female ? 0.36 : 0.38;
   const legX = female ? 0.13 : 0.16;
-  const legR = (female ? 0.072 : 0.088) * breadth;
+  const legR = (female ? 0.082 : 0.1) * breadth;
   // What covers each part of the leg: trousers all the way, shorts to above the knee, skirts and dresses leave them bare
   const covered = cut.bottom === 'trousers' || cut.bottom === 'jeans' || cut.bottom === 'joggers';
   const shorts = cut.bottom === 'shorts';
@@ -1168,9 +1177,10 @@ function buildHat(face: THREE.Group, hat: Hat, R: number, shape: HeadShape, cut:
       // The Yoruba cap: a soft tall crown folded over to one side
       const cloth = mat(colour, 0.8, fabric('aso_oke', colour, new THREE.Color(colour).multiplyScalar(0.8).getHex()));
       const f = new THREE.Mesh(lathe([[R * 0.9, 0], [R * 0.93, R * 0.35], [R * 0.86, R * 0.7], [R * 0.45, R * 0.86], [0, R * 0.88]], seg, 1.0, 1.08), cloth);
-      f.position.y = crown - R * 0.4;
-      f.rotation.z = -0.22;
-      f.position.x = R * 0.05;
+      // Sit the fila on the crown (was floating above the skull on phone).
+      f.position.y = crown - R * 0.55;
+      f.rotation.z = -0.18;
+      f.position.x = R * 0.04;
       face.add(f);
       return;
     }

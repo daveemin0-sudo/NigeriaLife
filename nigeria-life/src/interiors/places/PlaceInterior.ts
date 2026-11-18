@@ -244,10 +244,12 @@ export class PlaceInterior {
     // Others already here: each one mesh, standing or sat down
     (this.spec.regulars ?? []).forEach((r, i) => {
       const female = (r.gender ?? (i % 2 ? 'female' : 'male')) === 'female';
+      // Detailed LOD in rooms — street LOD was baking into pin-head robots next to the player.
       const rig = HumanMeshBuilder.createHuman({
-        gender: female ? 'female' : 'male', username: '', lod: 'street', outfitColor: r.outfit,
+        gender: female ? 'female' : 'male', username: '', lod: 'detailed', outfitColor: r.outfit,
         outfit: female ? (i % 2 ? 'blue_dress' : 'casual_blouse') : i % 3 ? 'casual_tee' : 'senator',
         hairstyle: female ? (i % 2 ? 'braids' : 'gele') : 'short_crop',
+        build: i % 3 === 0 ? 'broad' : 'average',
       });
       rig.nameTag.visible = false;
       if (r.sit) {
