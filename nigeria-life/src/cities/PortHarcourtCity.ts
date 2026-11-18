@@ -138,6 +138,7 @@ export class PortHarcourtCity implements CityInstance {
     this.life.giveLives('port_harcourt', this.interactiveList, (id) => InteriorManager.getInstance().hoursOfDoor(id));
     // Its roadside stalls' tables stand on the pavement: walked round, not through
     this.standing.push(...this.life.obstructions());
+    this.interactiveList.push(...this.life.stallCards);
 
     this.registerCityActions();
   }
