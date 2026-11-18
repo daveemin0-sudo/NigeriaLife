@@ -109,6 +109,10 @@ export class InterStateModal {
         <div class="interstate-routes-grid">
           ${routes.map((route) => {
             const dest = NIGERIA_CITIES_REGISTRY[route.destinationId];
+            // Day-trip hops (e.g. Ibadan) are fare destinations, not full playable cities in the registry.
+            const destName = dest?.name
+              ?? ({ ibadan: 'Ibadan (day trip)' } as Record<string, string>)[route.destinationId]
+              ?? route.arrivalStation;
             const isFlight = route.mode === 'flight';
             return `
               <div class="route-card ${isFlight ? 'flight-card' : 'bus-card'}">
@@ -130,7 +134,7 @@ export class InterStateModal {
                   </div>
                   <div class="station-row">
                     <span class="dot arrival"></span>
-                    <span><strong>To:</strong> ${dest.name} (${route.arrivalStation})</span>
+                    <span><strong>To:</strong> ${destName} (${route.arrivalStation})</span>
                   </div>
                 </div>
 

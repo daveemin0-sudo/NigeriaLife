@@ -707,7 +707,7 @@ export class DestinationRegistry {
     // =========================================================================
     this.register({
       id: 'dest_lagos_jibowu',
-      aliases: ['jibowu_motor_park', 'jibowu-park', 'jibowu-park-tickets', 'jibowu-park-coach', 'jibowu'],
+      aliases: ['jibowu_motor_park', 'jibowu-park', 'jibowu-park-tickets', 'jibowu-park-coach', 'jibowu-park-boots', 'jibowu'],
       name: 'Jibowu Motor Park',
       category: 'Transit',
       city: 'lagos',
@@ -918,7 +918,7 @@ export class DestinationRegistry {
 
     this.register({
       id: 'dest_abuja_utako',
-      aliases: ['utako_motor_park', 'utako-park', 'utako-park-tickets', 'utako-park-coach', 'utako'],
+      aliases: ['utako_motor_park', 'utako-park', 'utako-park-tickets', 'utako-park-coach', 'utako-park-boots', 'utako'],
       name: 'Utako Motor Park',
       category: 'Transit',
       city: 'abuja',
@@ -1127,7 +1127,7 @@ export class DestinationRegistry {
 
     this.register({
       id: 'dest_ph_waterlines',
-      aliases: ['waterlines_motor_park', 'waterlines-park', 'waterlines-park-tickets', 'waterlines-park-coach', 'waterlines'],
+      aliases: ['waterlines_motor_park', 'waterlines-park', 'waterlines-park-tickets', 'waterlines-park-coach', 'waterlines-park-boots', 'waterlines'],
       name: 'Waterlines Motor Park',
       category: 'Transit',
       city: 'port_harcourt',
