@@ -394,6 +394,53 @@ const SPECS: PlaceSpec[] = [
   }, [{ name: 'Chief of Staff', title: 'Chief of Staff', at: [0, -7], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'His Excellency is in a meeting.' }], [
     { id: 'house', name: '🏛️ Lagos State House', at: [0, -6], stand: [0, -4.6], who: 'Chief of Staff', role: 'Government House', text: 'Laws, the cabinet and the election.', choices: [{ label: 'Open the State House', note: 'Pay is collected here', open: 'house' }] },
   ]),
+  // Lagos-only document loop: passport office → consular visa desk (no flights here)
+  venue('nis-passport', 'Federal Passport Office, Alagbon', 'Ikoyi · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+    b.box(0x0f172a, 1.2, 1.6, 0.4, 6, 0, 5); b.box(0x38bdf8, 0.9, 0.7, 0.05, 6, 0.7, 5.25, { glow: true });
+  }, [
+    { name: 'Officer Amina', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'female', says: 'Form filled? Biometrics next.' },
+    { name: 'Mr Okoro', title: 'Collection desk', at: [4, -5], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Passport ready? Bring your receipt.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Amina', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Alagbon. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today, booklet same day if the network holds. Come with cash or transfer."' },
+    ] },
+    { id: 'photo', name: '📷 Capture booth', at: [6, 5], stand: [6, 3.8], who: 'Photographer', role: 'Biometrics', text: 'Look at the camera. No smile.', choices: [
+      { label: 'Take the capture photo', note: 'Free · Fun −2', arms: 'reach', seconds: 2, effect: need({ fun: -2 }), said: 'Flash. The machine beeps. "Okay, go back to the desk."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0xf97316, sit: true }, { at: [-3, 3], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 16]),
+  venue('consular-visa', 'Visa & Consular Desk', 'Lagos Island · consular', 'Travel visas · Stamps', '#1e3a8a', 0xf1f5f9, 0xe2e8f0, (b) => {
+    counter(b, 0, -5, 7, 0x1e3a8a, 0xf8fafc);
+    desk(b, -6, 2, 0xe2e8f0); desk(b, 6, 2, 0xe2e8f0);
+    for (let i = 0; i < 4; i++) b.box(0x64748b, 0.45, 0.45, 0.45, -3 + i * 1.2, 0, 5);
+    b.box(0x0f172a, 2.2, 1.8, 0.08, 0, 1.2, -7.2); b.box(0xd4af37, 1.6, 1.1, 0.04, 0, 1.4, -7.15, { glow: true });
+  }, [
+    { name: 'Consul Bello', title: 'Visa officer', at: [0, -6], facing: 0, outfit: 0x1e3a8a, gender: 'male', tie: true, says: 'Passport first. Then we talk visa.' },
+  ], [
+    { id: 'visa', name: '🧾 Visa counter', at: [0, -5], stand: [0, -3.6], who: 'Consul Bello', role: 'Visa officer', text: 'Show your Nigerian passport. Single-entry travel visa for your next trip.', choices: [
+      {
+        label: 'Apply for a travel visa stamp',
+        price: 45000,
+        note: 'Needs Nigerian passport · ₦45,000',
+        needItem: 'ng_passport',
+        item: {
+          id: 'travel_visa', name: 'Travel visa stamp', icon: '🧾', price: 45000, category: 'document', usable: false,
+          description: 'A stamped travel visa from the Lagos consular desk. Keep it with your passport.',
+        },
+        arms: 'reach',
+        seconds: 2.5,
+        said: 'Stamp, stamp, signature. The visa page is full. Do not lose that booklet.',
+      },
+      { label: 'Ask what documents I need', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Nigerian passport in hand. Form filled. Fee paid. No passport, no stamp — go to Alagbon first."' },
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }], [18, 16]),
 ];
 
 // The showroom's cars: on the three turntables, turning slowly, and a row along the side wall

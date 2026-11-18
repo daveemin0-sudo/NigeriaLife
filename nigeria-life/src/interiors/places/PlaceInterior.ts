@@ -50,6 +50,8 @@ export interface StationChoice {
   look?: { hair?: string; beard?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'full' | 'chinstrap' };
   /** What goes into the bag */
   item?: Omit<Item, 'quantity'>;
+  /** Bag document required before this choice can run (e.g. passport before visa) */
+  needItem?: string;
   /** Something the game opens instead (the State House, the jobs app) */
   open?: string;
   said?: string;
@@ -848,6 +850,15 @@ export class PlaceInterior {
 
   /** The moment it is done: paid for, the goods in the bag, what it does done */
   private settle(c: StationChoice, host: PlaceHost): boolean {
+    const bag = host.backend.getData().inventory;
+    if (c.needItem && !bag.some((e) => e.id === c.needItem)) {
+      host.say('You need the right document in your bag first. Collect it at the right office, then come back.', 'warning');
+      return false;
+    }
+    if (c.item && bag.some((e) => e.id === c.item!.id)) {
+      host.say(`You already have ${c.item.name} in your bag.`, 'info');
+      return false;
+    }
     if (c.price && !host.backend.pay(c.price, `${c.label}, ${this.spec.name}`, c.item?.category === 'food' ? 'FOOD_PURCHASE' : 'SHOP_PURCHASE')) {
       host.say(`That is ₦${c.price.toLocaleString()}. You do not have enough.`, 'warning');
       return false;
