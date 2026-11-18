@@ -39,6 +39,9 @@ const givePapers = (page) => page.evaluate(() => {
   if (!be.getData().inventory.some((i) => i.id === 'travel_visa')) {
     be.addItem({ id: 'travel_visa', name: 'Travel visa stamp', icon: '🧾', price: 45000, category: 'document', usable: false, description: 'test' });
   }
+  if (!be.getData().inventory.some((i) => i.id === 'yellow_card')) {
+    be.addItem({ id: 'yellow_card', name: 'Yellow fever vaccination card', icon: '💛', price: 25000, category: 'document', usable: false, description: 'test' });
+  }
 });
 
 export async function run(browser, check) {
@@ -59,12 +62,12 @@ export async function run(browser, check) {
   await wait(400);
   const bare = await ticket(page);
   const m1 = await money(page);
-  const refused = await page.evaluate(() => /passport|visa|Alagbon|Consular/i.test(document.body.innerText));
-  check('lagosflight: without passport and visa the desk will not sell a ticket',
+  const refused = await page.evaluate(() => /passport|visa|yellow|Alagbon|Consular|Port Health/i.test(document.body.innerText));
+  check('lagosflight: without papers the desk will not sell a ticket',
     !bare.active && m1.total === m0.total && refused && offeredBare.some((o) => /NL 204 to Abuja/.test(o)),
     { bare, paid: m0.total - m1.total, refused, offeredBare: offeredBare.slice(0, 4) });
 
-  // With papers: buy → check-in → security → gate → board
+  // With passport, visa and yellow card: buy → check-in → security → gate → board
   givePapers(page);
   await at(page, 'airport_checkin_desk');
   await choose(page, 'to Abuja');
