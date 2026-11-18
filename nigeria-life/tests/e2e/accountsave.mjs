@@ -268,15 +268,21 @@ export async function run(browser, check) {
     contexts.push(device.ctx);
     const page = device.page;
 
-    await page.click('#hud-btn-cloud-sync');
-    await page.waitForSelector('#settings-save-status', { timeout: 10000 });
     const guestPill = await page.$eval('#hud-cloud-status', (el) => el.textContent);
-    const guestNote = await page.$eval('#settings-save-status', (el) => el.textContent);
-    const guestPage = await page.$eval('#settings-privacy', (el) => el.textContent);
-    const hasRegister = await page.$('#settings-account-register');
-    check('a guest is told to sign up, on the pill and on the account page',
-      guestPill === 'Guest: sign up to keep your progress' && guestNote === 'Guest: sign up to keep your progress' && /never signs up can lose everything/.test(guestPage || '') && !!hasRegister,
-      { guestPill, guestNote });
+    await page.click('#hud-btn-cloud-sync');
+    await page.waitForSelector('#nl-signin', { timeout: 10000 });
+    const signInForm = await page.evaluate(() => ({
+      open: !!document.getElementById('nl-signin'),
+      user: !!document.getElementById('nl-signin-user'),
+      pass: !!document.getElementById('nl-signin-pass'),
+      text: document.getElementById('nl-signin')?.innerText.replace(/\s+/g, ' ').slice(0, 160) ?? '',
+      settingsOpen: !!document.getElementById('settings-save-status'),
+    }));
+    check('a guest tapping the save pill opens Sign In (username and password), not Settings',
+      guestPill === 'Guest: sign up to keep your progress' && signInForm.open && signInForm.user && signInForm.pass && !signInForm.settingsOpen,
+      { guestPill, signInForm });
+    await page.evaluate(() => document.getElementById('nl-signin-later')?.click());
+    await wait(300);
 
     await page.setViewport({ width: 390, height: 800, isMobile: true, hasTouch: true });
     await page.evaluate(() => {
@@ -285,7 +291,9 @@ export async function run(browser, check) {
     });
     await page.waitForSelector('#settings-save-status', { timeout: 10000 });
     const phoneGuest = await page.$eval('#settings-save-status', (el) => el.textContent);
-    check('on a phone the account page says a guest is not saved', phoneGuest === 'Guest: sign up to keep your progress', phoneGuest);
+    const hasRegister = await page.$('#settings-account-register');
+    check('on a phone the account page says a guest is not saved and still offers sign-up',
+      phoneGuest === 'Guest: sign up to keep your progress' && !!hasRegister, { phoneGuest, hasRegister: !!hasRegister });
     await page.setViewport({ width: 1100, height: 700 });
 
     const guestId = await page.evaluate(() => window.game.modules.OnlineAccount.get().id);

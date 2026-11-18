@@ -92,6 +92,8 @@ const LANDMARK_STREET_SPOTS: Record<string, string> = {
 export class HUD {
   /** Opens the Today panel (set by the game) */
   public onOpenToday: (() => void) | null = null;
+  /** Opens the account Sign In / Create account overlay (set by the game) */
+  public onOpenSignIn: ((mode: 'register' | 'login') => boolean) | null = null;
   private container: HTMLDivElement;
   private interactionCard: HTMLDivElement;
   private drivingHudEl!: HTMLDivElement;
@@ -1263,8 +1265,15 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
     });
 
-    // The save pill: the account page, and the words of the last real save
+    // The save pill: guests get the Sign In overlay; signed-in players open account Settings
     document.getElementById('hud-btn-cloud-sync')?.addEventListener('click', () => {
+      const online = OnlineAccount.get();
+      const guest = !online?.account || online.account.kind === 'guest' || !online.account.verified;
+      if (guest) {
+        if (this.onOpenSignIn?.('login')) return;
+        // No world server yet: Sign In needs one — send them to Settings to Connect first
+        showGameToast('Connect to a world server in Settings, then sign in to keep this life.', 'info', 4500);
+      }
       this.phoneModal.open();
       this.phoneModal.openApp('settings');
     });
