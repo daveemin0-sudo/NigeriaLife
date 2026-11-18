@@ -44,8 +44,8 @@ export interface StationChoice {
   seconds?: number;
   /** Dance through it */
   dance?: boolean;
-  /** What it does to the player: needs, skills */
-  effect?: (backend: BackendService) => void;
+  /** What it does to the player: needs, skills. Return false to abort (no "said" success). */
+  effect?: (backend: BackendService) => void | boolean;
   /** A haircut: the style, and a beard where the character can wear one. Applied once the cut is paid for. */
   look?: { hair?: string; beard?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'full' | 'chinstrap' };
   /** What goes into the bag */
@@ -864,7 +864,10 @@ export class PlaceInterior {
       return false;
     }
     if (c.item) host.backend.addItem(c.item);
-    c.effect?.(host.backend);
+    if (c.effect?.(host.backend) === false) {
+      host.say(host.backend.lastMoneyError ?? 'That could not be done.', 'warning');
+      return false;
+    }
     if (c.look) PlaceLook.apply(c.look);
     if (c.said) host.say(c.said, 'success');
     return true;

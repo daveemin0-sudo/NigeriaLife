@@ -44,6 +44,7 @@ export const CREDIT_TYPES: ReadonlySet<TransactionType> = new Set<TransactionTyp
   'PURCHASE_REFUND',
   'CONSTRUCTION_REFUND',
   'TRADE_SALE',
+  'FX_SALE',
 ]);
 
 const MAX_HISTORY = 50;

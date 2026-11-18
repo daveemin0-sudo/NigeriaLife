@@ -177,6 +177,10 @@ export type TransactionType =
   /** Goods bought at a motor park's goods shed, and sold at another (src/travel/Trade.ts) */
   | 'TRADE_PURCHASE'
   | 'TRADE_SALE'
+  /** Naira paid at a bureau to buy dollars or pounds (src/life/HardCurrency.ts) */
+  | 'FX_PURCHASE'
+  /** Naira received at a bureau for selling dollars or pounds */
+  | 'FX_SALE'
   // Moves between the player's own bank account and wallet
   | 'ATM_WITHDRAWAL'
   | 'ATM_DEPOSIT';
@@ -226,7 +230,7 @@ export interface CareerProfile {
 export type OriginDestiny = 'nepo' | 'lapo' | 'tech_bro';
 
 /** Bump when the saved shape changes, and add a step to migrateAccount() in SaveSchema.ts */
-export const SAVE_SCHEMA_VERSION = 4;
+export const SAVE_SCHEMA_VERSION = 5;
 
 export type SavedCityId = 'lagos' | 'abuja' | 'port_harcourt';
 
@@ -278,6 +282,10 @@ export interface PlayerAccount {
   /** Parts of skill points a trait added that have not yet made a whole point, by skill */
   skillCarry?: Record<string, number>;
   walletCash: number;   // Physical cash in pocket (Naira ₦)
+  /** US dollars in pocket (whole dollars). Bought/sold at Lagos bureau de change. */
+  walletUsd: number;
+  /** British pounds in pocket (whole pounds). Bought/sold at Lagos bureau de change. */
+  walletGbp: number;
   bank: BankAccount;
   stats: PlayerStats;
   skills?: PlayerSkills;
@@ -1477,6 +1485,8 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
   username: 'Bayo',
   phoneNumber: '08023456789',
   walletCash: 25000, // ₦25,000 cash in pocket
+  walletUsd: 0,
+  walletGbp: 0,
   bank: {
     accountNumber: '0234891102',
     bankName: 'Eko Commercial Bank',

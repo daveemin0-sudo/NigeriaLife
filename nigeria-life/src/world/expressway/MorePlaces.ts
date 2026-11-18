@@ -362,6 +362,7 @@ export const DESTINATIONS_HERE: Record<string, string> = {
   'dest_lagos_nis_passport': 'nis-passport',
   'dest_lagos_consular_visa': 'consular-visa',
   'dest_lagos_port_health': 'port-health',
+  'dest_lagos_bureau_fx': 'bureau-fx',
   'dest_lagos_afrika_shrine': 'afrika-shrine',
   // Those that were already built
   'dest_lagos_chapel': 'redemption-cathedral',
