@@ -92,6 +92,8 @@ const LANDMARK_STREET_SPOTS: Record<string, string> = {
 export class HUD {
   /** Opens the Today panel (set by the game) */
   public onOpenToday: (() => void) | null = null;
+  /** Opens the account Sign In / Create account overlay (set by the game) */
+  public onOpenSignIn: ((mode: 'register' | 'login') => boolean) | null = null;
   private container: HTMLDivElement;
   private interactionCard: HTMLDivElement;
   private drivingHudEl!: HTMLDivElement;
@@ -622,7 +624,12 @@ export class HUD {
   private onDataUpdate(data: PlayerAccount): void {
     const moneyEl = document.getElementById('hud-money');
     if (moneyEl) {
-      moneyEl.textContent = `₦${data.walletCash.toLocaleString()}`;
+      {
+        const usd = data.walletUsd ?? 0;
+        const gbp = data.walletGbp ?? 0;
+        const hard = [usd > 0 ? `$${usd.toLocaleString()}` : '', gbp > 0 ? `£${gbp.toLocaleString()}` : ''].filter(Boolean).join(' · ');
+        moneyEl.textContent = hard ? `₦${data.walletCash.toLocaleString()} · ${hard}` : `₦${data.walletCash.toLocaleString()}`;
+      }
     }
 
     const health = Math.round(data.stats.health ?? 100);
@@ -969,7 +976,7 @@ export class HUD {
     // The places along the expressway: a pin each, and a cab there (too far to walk)
     const ROAD_ICONS: Record<string, string> = {
       'sankofa-motors': '🚗', 'redemption-cathedral': '⛪', 'central-mosque': '🕌', 'lagoon-beach': '🏖️', 'lagoon-marina': '🛥️', 'private-airfield': '🛩️',
-      'shopwell-mall': '🛍️', 'eko-grand-hotel': '🏨', 'police-command': '👮', 'efcc-office': '🏛️', 'ikeja-golf': '⛳', 'government-house': '🏛️',
+      'shopwell-mall': '🛍️', 'eko-grand-hotel': '🏨', 'police-command': '👮', 'nis-passport': '🛂', 'consular-visa': '🧾', 'port-health': '💛', 'bureau-fx': '💱', 'efcc-office': '🏛️', 'ikeja-golf': '⛳', 'government-house': '🏛️',
       'marina-towers': '🏢', 'freedom-park': '🎭', 'ivory-rooftop': '🍸', 'the-library': '📚', 'i-fitness': '🏋️', 'balogun-market': '🧺', 'amala-shitta': '🍲',
       'viewing-centre': '⚽', 'polling-unit': '🗳️', 'afrika-shrine': '🎷', 'lekki-conservation': '🌳', 'dangote-refinery': '🛢️', 'radio-house': '📻',
       'station-island': '⛽', 'station-bridge': '⛽', 'station-mainland': '⛽', 'station-ikeja': '⛽',
@@ -979,7 +986,7 @@ export class HUD {
     const ROAD_KIND: Record<string, 'transit' | 'food' | 'work' | 'civic' | 'other'> = {
       'amala-shitta': 'food', 'balogun-market': 'food', 'viewing-centre': 'food', 'ivory-rooftop': 'food', 'the-library': 'food', 'shopwell-mall': 'food',
       'marina-towers': 'work', 'dangote-refinery': 'work', 'radio-house': 'work', 'sankofa-motors': 'work',
-      'police-command': 'civic', 'efcc-office': 'civic', 'government-house': 'civic', 'polling-unit': 'civic', 'redemption-cathedral': 'civic', 'central-mosque': 'civic',
+      'police-command': 'civic', 'nis-passport': 'civic', 'consular-visa': 'civic', 'port-health': 'civic', 'bureau-fx': 'civic', 'efcc-office': 'civic', 'government-house': 'civic', 'polling-unit': 'civic', 'redemption-cathedral': 'civic', 'central-mosque': 'civic',
       'station-island': 'transit', 'station-bridge': 'transit', 'station-mainland': 'transit', 'private-airfield': 'transit', 'lagoon-marina': 'transit',
       'station-ikeja': 'transit', 'oshodi-interchange': 'transit', 'mmia-terminal': 'transit', 'chop-express': 'food', 'naija-fresh': 'food', 'allen-suya': 'food', 'allen-salon': 'work', 'allen-bank': 'civic', 'awolowo-fashion': 'work', 'awolowo-pharmacy': 'civic', 'awolowo-school': 'work', 'allen-lounge': 'food', 'ikeja-city-mall': 'food',
       'computer-village': 'work', 'ladipo-auto': 'work', lasuth: 'civic', 'faith-arena': 'civic',
@@ -1258,8 +1265,15 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
     });
 
-    // The save pill: the account page, and the words of the last real save
+    // The save pill: guests get the Sign In overlay; signed-in players open account Settings
     document.getElementById('hud-btn-cloud-sync')?.addEventListener('click', () => {
+      const online = OnlineAccount.get();
+      const guest = !online?.account || online.account.kind === 'guest' || !online.account.verified;
+      if (guest) {
+        if (this.onOpenSignIn?.('login')) return;
+        // No world server yet: Sign In needs one — send them to Settings to Connect first
+        showGameToast('Connect to a world server in Settings, then sign in to keep this life.', 'info', 4500);
+      }
       this.phoneModal.open();
       this.phoneModal.openApp('settings');
     });

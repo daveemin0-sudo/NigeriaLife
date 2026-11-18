@@ -106,7 +106,7 @@ export async function reload(page, settle = 2500) {
 
 export const money = (page) => page.evaluate(() => {
   const d = window.game.hud.backend.getData();
-  return { cash: d.walletCash, bank: d.bank.balance, total: d.walletCash + d.bank.balance, ledger: (d.transactionHistory || []).length };
+  return { cash: d.walletCash, bank: d.bank.balance, total: d.walletCash + d.bank.balance, usd: d.walletUsd ?? 0, gbp: d.walletGbp ?? 0, ledger: (d.transactionHistory || []).length };
 });
 
 export const quest = (page, id) => page.evaluate((qid) => {

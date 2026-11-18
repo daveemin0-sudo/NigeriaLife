@@ -162,11 +162,28 @@ export class FlightService {
 
   // --- Buying and handing back ------------------------------------------------------------
 
+  /** Travel papers from the Lagos document loop: passport, visa stamp, and yellow fever card. */
+  public missingPapers(): string | null {
+    const bag = this.backend.getData().inventory;
+    const passport = bag.some((e) => e.id === 'ng_passport');
+    const visa = bag.some((e) => e.id === 'travel_visa');
+    const yellow = bag.some((e) => e.id === 'yellow_card');
+    if (!passport && !visa && !yellow) {
+      return 'Bring your Nigerian passport, travel visa, and yellow fever card. Alagbon Passport Office, Visa & Consular Desk, then Port Health on Airport Road.';
+    }
+    if (!passport) return 'You need a Nigerian passport in your bag. Go to the Federal Passport Office, Alagbon.';
+    if (!visa) return 'You need a travel visa stamp in your bag. Bring your passport to the Visa & Consular Desk.';
+    if (!yellow) return 'You need a yellow fever vaccination card. Get it at Port Health on Airport Road, before MMIA.';
+    return null;
+  }
+
   /** Why a ticket for this flight cannot be bought right now, or null if it can. */
   public cannotBook(route: FlightRoute, city: string): string | null {
     if (route.from !== city) return `${route.flight} leaves from ${AIRPORTS[route.from].city}, and you are not there.`;
     const held = this.booking;
     if (held) return `You already hold a ticket: ${this.describe(held.route)}. Fly it, or hand it back at the desk first.`;
+    const papers = this.missingPapers();
+    if (papers) return papers;
     const data = this.backend.getData();
     if (data.walletCash + data.bank.balance < route.fare) return `${this.describe(route)} is ₦${route.fare.toLocaleString()}. You do not have it.`;
     return null;
@@ -218,6 +235,8 @@ export class FlightService {
   }
 
   public checkIn(city: string): FlightResult {
+    const papers = this.missingPapers();
+    if (papers) return { ok: false, reason: papers };
     return this.step(city, 'booked', 'checked-in', 'You are already past the desk.');
   }
 

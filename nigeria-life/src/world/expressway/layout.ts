@@ -43,12 +43,17 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'marina-towers', side: 1, z: 250, length: 40, depth: 30 },
   { id: 'freedom-park', side: 1, z: 340, length: 60, depth: 50 },
   { id: 'ivory-rooftop', side: 1, z: 540, length: 30, depth: 24 },
+  // VI bureau: dollars and pounds for high-roller spraying (Lagos only)
+  { id: 'bureau-fx', side: 1, z: 590, length: 26, depth: 20 },
   { id: 'the-library', side: 1, z: 640, length: 26, depth: 20 },
   { id: 'i-fitness', side: 1, z: 720, length: 34, depth: 26 },
   { id: 'balogun-market', side: -1, z: 300, length: 70, depth: 40 },
   { id: 'amala-shitta', side: -1, z: 425, length: 24, depth: 18 },
   { id: 'viewing-centre', side: -1, z: 485, length: 20, depth: 16 },
   { id: 'polling-unit', side: -1, z: 760, length: 26, depth: 20 },
+  // Passport then visa: a short Lagos-only document loop (Alagbon → consular desk)
+  { id: 'nis-passport', side: 1, z: 880, length: 32, depth: 24 },
+  { id: 'consular-visa', side: 1, z: 980, length: 28, depth: 22 },
   { id: 'afrika-shrine', side: -1, z: 2750, length: 50, depth: 36 },
   { id: 'lekki-conservation', side: 1, z: 3050, length: 70, depth: 70 },
   { id: 'dangote-refinery', side: 1, z: 3500, length: 120, depth: 120 },
@@ -68,6 +73,8 @@ export const ROADSIDE: Array<{ id: string; side: -1 | 1; z: number; length: numb
   { id: 'naija-fresh', side: -1, z: 5500, length: 40, depth: 28 },
   { id: 'chop-express', side: -1, z: 5700, length: 24, depth: 18 },
   { id: 'faith-arena', side: -1, z: 6060, length: 90, depth: 70 },
+  // Port Health on Airport Road before MMIA — yellow fever card for travel
+  { id: 'port-health', side: -1, z: 6160, length: 28, depth: 22 },
   // West of the road, with the airport itself behind it (its apron, aircraft and runway: see Landmarks)
   { id: 'mmia-terminal', side: -1, z: 6262, length: 160, depth: 120 },
   { id: 'station-ikeja', side: -1, z: 6620, length: 44, depth: 30 },

@@ -22,6 +22,14 @@ import { TransactionService, CREDIT_TYPES, type ProcessTransactionRequest, type 
 import { createFreshAccount, parseSavedAccount } from './SaveSchema';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { emitGameEvent } from '../game/GameEvents';
+import {
+  type HardKind,
+  buyCost,
+  sellProceeds,
+  formatHard,
+  FX_BUY,
+  FX_SELL,
+} from '../life/HardCurrency';
 
 type ListenerCallback = (data: PlayerAccount) => void;
 
@@ -482,6 +490,102 @@ export class BackendService {
 
   public addCash(amount: number, description: string = 'Cash received', type: TransactionType = 'BONUS'): boolean {
     return this.processTransaction({ type, amount, description, source: 'wallet' }).success;
+  }
+
+  /** Last FX / hard-cash refusal, for place desks to speak. */
+  public lastMoneyError: string | null = null;
+
+  public hardCash(): { usd: number; gbp: number } {
+    return { usd: this.data.walletUsd ?? 0, gbp: this.data.walletGbp ?? 0 };
+  }
+
+  private hardPocket(kind: HardKind): number {
+    return kind === 'usd' ? (this.data.walletUsd ?? 0) : (this.data.walletGbp ?? 0);
+  }
+
+  private setHardPocket(kind: HardKind, value: number): void {
+    if (kind === 'usd') this.data.walletUsd = Math.max(0, Math.round(value));
+    else this.data.walletGbp = Math.max(0, Math.round(value));
+  }
+
+  /** Buy dollars or pounds at the Lagos bureau: Naira out, hard currency in. */
+  public buyHard(kind: HardKind, units: number): boolean {
+    this.lastMoneyError = null;
+    const amount = Math.round(units);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.lastMoneyError = 'Pick a proper amount.';
+      return false;
+    }
+    const cost = buyCost(kind, amount);
+    const paid = this.processTransaction({
+      type: 'FX_PURCHASE',
+      amount: cost,
+      description: `Bureau: buy ${formatHard(kind, amount)} @ ₦${FX_BUY[kind].toLocaleString()}`,
+      source: 'wallet',
+      funding: 'split',
+    });
+    if (!paid.success) {
+      this.lastMoneyError = `${formatHard(kind, amount)} is ₦${cost.toLocaleString()} at this desk. You do not have it.`;
+      return false;
+    }
+    this.setHardPocket(kind, this.hardPocket(kind) + amount);
+    this.saveData();
+    return true;
+  }
+
+  /** Sell dollars or pounds at the Lagos bureau: hard currency out, Naira in. */
+  public sellHard(kind: HardKind, units: number): boolean {
+    this.lastMoneyError = null;
+    const amount = Math.round(units);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.lastMoneyError = 'Pick a proper amount.';
+      return false;
+    }
+    if (this.hardPocket(kind) < amount) {
+      this.lastMoneyError = `You only have ${formatHard(kind, this.hardPocket(kind))} in your pocket.`;
+      return false;
+    }
+    const proceeds = sellProceeds(kind, amount);
+    this.setHardPocket(kind, this.hardPocket(kind) - amount);
+    const credited = this.processTransaction({
+      type: 'FX_SALE',
+      amount: proceeds,
+      description: `Bureau: sell ${formatHard(kind, amount)} @ ₦${FX_SELL[kind].toLocaleString()}`,
+      source: 'wallet',
+    });
+    if (!credited.success) {
+      // Restore the hard currency if the naira credit failed (should not happen).
+      this.setHardPocket(kind, this.hardPocket(kind) + amount);
+      this.lastMoneyError = 'The desk could not pay you in naira. Try again.';
+      this.saveData();
+      return false;
+    }
+    this.saveData();
+    return true;
+  }
+
+  /**
+   * Spray hard currency at a Lagos high-roller venue. Spends $ / £ from the pocket
+   * (no naira ledger debit — the notes left the pocket). Returns false if short.
+   */
+  public sprayHard(kind: HardKind, units: number, needs: { fun: number; social: number }): boolean {
+    this.lastMoneyError = null;
+    const amount = Math.round(units);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.lastMoneyError = 'Pick a proper spray bundle.';
+      return false;
+    }
+    if (this.hardPocket(kind) < amount) {
+      this.lastMoneyError = `You need ${formatHard(kind, amount)} in your pocket to spray. Change naira at the Victoria Island bureau first.`;
+      return false;
+    }
+    this.setHardPocket(kind, this.hardPocket(kind) - amount);
+    this.modifyNeed('fun', needs.fun);
+    this.modifyNeed('social', needs.social);
+    this.data.stats.streetCred = Math.min(100, (this.data.stats.streetCred ?? 0) + 5);
+    this.saveData();
+    Activity.emit({ kind: 'acted', id: `spray_hard_${kind}_${amount}` });
+    return true;
   }
 
   public withdrawFromATM(amount: number): boolean {
