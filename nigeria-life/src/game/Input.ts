@@ -564,11 +564,14 @@ export class InputManager {
       // Player is at a distance: approach the object first, then interact on arrival
       this.spawnClickMarker(obj.interactionPoint, 0xfacc15); // Golden approach target
       this.hud.hideInteractionCard();
-      const routed = this.walkPlayerTo(obj.interactionPoint, () => {
+      const show = () => {
         const lookDir = new THREE.Vector3().subVectors(obj.interactionPoint, this.player.position);
         if (lookDir.lengthSq() > 0.01) this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+        this.pendingInteraction = null;
         this.hud.showInteractionCard(obj);
-      });
+      };
+      const routed = this.walkPlayerTo(obj.interactionPoint, show);
+      // Outdoors: pendingInteraction is a backup if the walk ends short of the spot
       this.pendingInteraction = routed ? null : obj;
     }
   }
@@ -584,7 +587,8 @@ export class InputManager {
     const actor = this.player.actor;
     if (!nav) {
       if (actor.scripted && InteractionDirector.get().interrupt(actor) === 'locked') return false;
-      this.player.setDestination(point);
+      this.player.setDestination(point, onArrive);
+      // Still false: outdoors is not room-nav routing; callers may also keep pendingInteraction
       return false;
     }
     if (InteractionDirector.get().interrupt(actor) === 'locked') {

@@ -2099,6 +2099,8 @@ export class HUD {
       badge?: string;
       onSelect: () => void;
     }>;
+    /** Under the speech: a text field for the player to type a name (Chief Alabi's first meeting) */
+    nameField?: { onType: (value: string) => void };
     onConfirm?: () => void;
   }): void {
     // Play Web Audio chime for video game feedback
@@ -2165,6 +2167,7 @@ export class HUD {
         <div class="dialogue-speech-box">
           "${options.dialogueText}"
         </div>
+        ${options.nameField ? `<label class="dialogue-name-row"><span>Tell him your name</span><input id="dialogue-name-input" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Your name" /></label>` : ''}
         ${rewardsHtml ? `<div class="dialogue-rewards-row">${rewardsHtml}</div>` : ''}
         ${choicesHtml}
         ${!hasChoices ? `
@@ -2177,6 +2180,14 @@ export class HUD {
     `;
 
     document.body.appendChild(overlay);
+    if (options.nameField) {
+      const input = overlay.querySelector('#dialogue-name-input') as HTMLInputElement | null;
+      if (input) {
+        input.addEventListener('input', () => options.nameField!.onType(input.value));
+        // Typing a name is typing, not walking or picking reply 1, 2 or 3
+        for (const type of ['keydown', 'keyup', 'keypress'] as const) input.addEventListener(type, (e) => e.stopPropagation());
+      }
+    }
     UIStateManager.getInstance().registerModal('dialogue', {
       id: 'dialogue',
       close: () => close(),
@@ -2207,6 +2218,14 @@ export class HUD {
           return;
         }
       } else {
+        // Don't dismiss while the player is typing their name
+        if (options.nameField && (e.target as HTMLElement | null)?.id === 'dialogue-name-input') {
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            e.preventDefault();
+            close();
+          }
+          return;
+        }
         if (e.key === 'e' || e.key === 'E' || e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
           e.preventDefault();
           close();
@@ -2466,7 +2485,13 @@ export class HUD {
     if (!this.currentActiveObject) return;
     const id = this.currentActiveObject.id;
     if (id === 'community-elder') {
-      document.getElementById('card-greet-btn')?.click();
+      // Greet when the arms are free; always open his conversation even if a walk just ended
+      const obj = this.currentActiveObject;
+      this.hideInteractionCard();
+      if (!obj) return;
+      const person = InteractionDirector.get().actorFor(obj.id);
+      if (person && this.player?.actor) greet(this.player.actor, person);
+      this.onSpokenTo?.(obj.id);
       return;
     }
     if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;

@@ -396,11 +396,11 @@ export class NPCs {
     });
   }
 
-  // J. Community Elder (Chief Alabi)
+  // J. Community Elder (Chief Alabi) — west pavement by Palm View, same side a new player starts on
   private createCommunityElder(): void {
     const elderGroup = new THREE.Group();
-    elderGroup.position.set(12.5, 0.28, 20);
-    elderGroup.rotation.y = -Math.PI / 2;
+    elderGroup.position.set(-12.5, 0.28, 12);
+    elderGroup.rotation.y = Math.PI / 2;
 
     const rig = HumanMeshBuilder.createHuman({
       gender: 'male',
@@ -422,7 +422,7 @@ export class NPCs {
       name: 'Chief Alabi (Community Elder)',
       category: 'Respected Elder',
       description: '"Welcome my child. Broad Street has seen many generations come and go. Maintain your peace of mind and integrity as you hustle in this vibrant city."',
-      interactionPoint: new THREE.Vector3(12.5, 0.28, 20),
+      interactionPoint: new THREE.Vector3(-12.5, 0.28, 12),
     });
   }
 
