@@ -101,7 +101,10 @@ export function openAirportHall(setting: HallSetting): void {
 
   const gate = (number: 1 | 2): PlaceAction => ({
     label: () => {
-      const route = flights.routeAtGate(setting.city(), number);
+      const held = flights.booking;
+      const route = held && held.route.from === setting.city() && held.route.gate === number
+        ? held.route
+        : flights.routeAtGate(setting.city(), number);
       return route ? `🛫 Gate ${number}: ${route.flight} to ${cityName(route.to)}` : `Gate ${number}`;
     },
     run: (host: PlaceHost) => {

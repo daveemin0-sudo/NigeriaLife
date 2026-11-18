@@ -1476,17 +1476,17 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
   id: 'usr_eko_001',
   username: 'Bayo',
   phoneNumber: '08023456789',
-  walletCash: 25000, // ₦25,000 cash in pocket
+  walletCash: 40000, // ₦40,000 cash in pocket — early jobs and fares spend from here
   bank: {
     accountNumber: '0234891102',
     bankName: 'Eko Commercial Bank',
-    balance: 150000, // ₦150,000 in bank
+    balance: 135000, // ₦135,000 in bank
     transactions: [
       {
         id: 'tx_01',
         type: 'credit',
-        amount: 150000,
-        description: 'Monthly Allowance / Freelance Pay',
+        amount: 40000,
+        description: 'Pocket cash / freelance pay',
         timestamp: 'Today, 08:30 AM',
       },
     ],
@@ -1553,10 +1553,10 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
       id: 'tx_init_01',
       playerId: 'usr_eko_001',
       type: 'JOB_SALARY',
-      amount: 150000,
+      amount: 40000,
       timestamp: 'Today, 08:30 AM',
-      description: 'Monthly Allowance / Freelance Pay',
-      source: 'bank',
+      description: 'Pocket cash / freelance pay',
+      source: 'wallet',
     },
   ],
   activeJobShift: null,

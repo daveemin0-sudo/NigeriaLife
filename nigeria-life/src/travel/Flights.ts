@@ -2,24 +2,42 @@ import { BackendService } from '../backend/BackendService';
 import { profileKey } from '../backend/Profile';
 
 /**
- * Flying between the three cities, as one thing with one record: a booking.
+ * Flying between the cities, as one thing with one record: a booking.
  *
  * A booking is bought once, for one flight, from the city the player is in. It then goes
  * through the airport the way a passenger does (checked in at the desk, cleared at security,
  * boarded at the aircraft) and ends when the flight has landed. Nothing else moves a player
  * between cities by air: no button pays a fare and reports an arrival.
  *
+ * Fares sit above coach prices but stay earnable early (tens of thousands to low hundreds of
+ * thousands). The Lagos→Ibadan hop is a middle-tier day trip: there is no playable Ibadan city
+ * yet, so landing returns the passenger to Murtala Muhammed.
+ *
  * The airline is NigeriaLife Air, made up for the game.
  */
 
 export const AIRLINE = 'NigeriaLife Air';
 
-export type FlightCity = 'lagos' | 'abuja' | 'port_harcourt';
+export type FlightCity = 'lagos' | 'abuja' | 'port_harcourt' | 'ibadan';
+
+/** Destinations that have a full city to switch into after landing. */
+export const PLAYABLE_FLIGHT_CITIES = ['lagos', 'abuja', 'port_harcourt'] as const;
+export type PlayableFlightCity = (typeof PLAYABLE_FLIGHT_CITIES)[number];
+
+export function isPlayableFlightCity(city: string): city is PlayableFlightCity {
+  return (PLAYABLE_FLIGHT_CITIES as readonly string[]).includes(city);
+}
+
+/** Where a passenger actually stands after this flight lands (Ibadan day trips return to Lagos). */
+export function landingCity(to: FlightCity): PlayableFlightCity {
+  return isPlayableFlightCity(to) ? to : 'lagos';
+}
 
 export const AIRPORTS: Record<FlightCity, { code: string; name: string; city: string }> = {
   lagos: { code: 'LOS', name: 'Murtala Muhammed Airport', city: 'Lagos' },
   abuja: { code: 'ABV', name: 'Nnamdi Azikiwe Airport', city: 'Abuja' },
   port_harcourt: { code: 'PHC', name: 'Port Harcourt Airport', city: 'Port Harcourt' },
+  ibadan: { code: 'IBA', name: 'Ibadan Airport', city: 'Ibadan' },
 };
 
 export interface FlightRoute {
@@ -33,14 +51,18 @@ export interface FlightRoute {
   gate: 1 | 2;
 }
 
-/** The timetable. Every route has a flight each way, with its own number. */
+/**
+ * The timetable. Intercity fares beat the coach but stay within a few gigs of early cash.
+ * Coaches stay at ₦38k / ₦42k (see CoachTimetable).
+ */
 export const ROUTES: FlightRoute[] = [
-  { flight: 'NL 204', from: 'lagos', to: 'abuja', fare: 4_200_000, minutes: 55, gate: 1 },
-  { flight: 'NL 310', from: 'lagos', to: 'port_harcourt', fare: 3_600_000, minutes: 60, gate: 2 },
-  { flight: 'NL 205', from: 'abuja', to: 'lagos', fare: 4_200_000, minutes: 55, gate: 1 },
-  { flight: 'NL 420', from: 'abuja', to: 'port_harcourt', fare: 3_900_000, minutes: 50, gate: 2 },
-  { flight: 'NL 311', from: 'port_harcourt', to: 'lagos', fare: 3_600_000, minutes: 60, gate: 1 },
-  { flight: 'NL 421', from: 'port_harcourt', to: 'abuja', fare: 3_900_000, minutes: 50, gate: 2 },
+  { flight: 'NL 204', from: 'lagos', to: 'abuja', fare: 95_000, minutes: 55, gate: 1 },
+  { flight: 'NL 310', from: 'lagos', to: 'port_harcourt', fare: 85_000, minutes: 60, gate: 2 },
+  { flight: 'NL 118', from: 'lagos', to: 'ibadan', fare: 220_000, minutes: 30, gate: 1 },
+  { flight: 'NL 205', from: 'abuja', to: 'lagos', fare: 95_000, minutes: 55, gate: 1 },
+  { flight: 'NL 420', from: 'abuja', to: 'port_harcourt', fare: 90_000, minutes: 50, gate: 2 },
+  { flight: 'NL 311', from: 'port_harcourt', to: 'lagos', fare: 85_000, minutes: 60, gate: 1 },
+  { flight: 'NL 421', from: 'port_harcourt', to: 'abuja', fare: 90_000, minutes: 50, gate: 2 },
 ];
 
 /** Where the passenger has got to. */
@@ -94,7 +116,11 @@ export class FlightService {
   private constructor() {
     try {
       const saved = JSON.parse(localStorage.getItem(profileKey(STORE)) || 'null') as Booking | null;
-      if (saved && saved.route && ROUTES.some((route) => route.flight === saved.route.flight)) this.current = saved;
+      if (saved && saved.route && ROUTES.some((route) => route.flight === saved.route.flight)) {
+        // Rebind to the live timetable so fare/gate edits apply to held tickets' display path
+        const live = ROUTES.find((route) => route.flight === saved.route.flight)!;
+        this.current = { ...saved, route: live };
+      }
     } catch {
       // A ticket that cannot be read back is not honoured; the money was recorded when it was bought
     }
@@ -124,6 +150,8 @@ export class FlightService {
   }
 
   public routeAtGate(city: string, gate: number): FlightRoute | null {
+    const held = this.booking;
+    if (held && held.route.from === city && held.route.gate === gate) return held.route;
     return ROUTES.find((route) => route.from === city && route.gate === gate) ?? null;
   }
 
@@ -169,7 +197,7 @@ export class FlightService {
     if (!held) return { ok: false, reason: 'You hold no ticket.' };
     if (held.state !== 'booked') return { ok: false, reason: 'You have checked in: the ticket can no longer be handed back.' };
     const refund = Math.round(held.route.fare * REFUND_SHARE);
-    this.backend.processTransaction({ type: 'PURCHASE_REFUND', amount: refund, description: `${AIRLINE} refund, ${this.describe(held.route)}` });
+    this.backend.processTransaction({ type: 'PURCHASE_REFUND', amount: refund, description: `${AIRLINE} refund, ${this.describe(held.route)}`, source: 'wallet' });
     held.state = 'cancelled';
     held.status = 'Cancelled';
     this.changed();

@@ -206,7 +206,7 @@ export async function run(browser, check) {
     const stored = accountOf(secondSave.doc);
     const fleet = JSON.parse(secondSave.doc?.bags?.nigeria_life_fleet_v1 || 'null');
     check('a save cannot grant itself money, a jet, a business or a house',
-      firstSave.ok && secondSave.ok && secondSave.stripped && stored?.walletCash === 25_000 && stored?.bank?.balance === 150_000 && Array.isArray(fleet) && fleet.length === 0 && !stored.businesses?.some((b) => b.owned) && stored.properties?.[0]?.status === 'available' && stored.inventory?.[0]?.id === 'note_keep',
+      firstSave.ok && secondSave.ok && secondSave.stripped && stored?.walletCash === 40_000 && stored?.bank?.balance === 135_000 && Array.isArray(fleet) && fleet.length === 0 && !stored.businesses?.some((b) => b.owned) && stored.properties?.[0]?.status === 'available' && stored.inventory?.[0]?.id === 'note_keep',
       { cash: stored?.walletCash, bank: stored?.bank?.balance, fleet, businesses: stored?.businesses, status: stored?.properties?.[0]?.status });
     const rolled = await api('/admin/save/rollback', { id: forged.account.id }, undefined, true);
     const restored = await api('/me/save', undefined, forged.token);

@@ -58,7 +58,7 @@ export async function run(browser, check) {
   await page.keyboard.press('f');
   await wait(500);
 
-  // Fares are in millions now (Lagos to Abuja is ₦4,200,000): the player is given the money for it
+  // Fares are earnable (Lagos to Abuja is ₦95,000): the player is given the money for it
   await page.evaluate(() => window.game.hud.backend.performGig(10_000_000, 0, 'test: travelling money'));
   const travelPaid = () => page.evaluate(() => window.game.hud.backend.getData().transactionHistory.filter((t) => t.type === 'TRAVEL_COST').reduce((sum, t) => sum + t.amount, 0));
   const beforeFlight = await travelPaid();
@@ -73,7 +73,7 @@ export async function run(browser, check) {
   await wait(2500);
   const city = await page.evaluate(() => window.game.world.cityManager.currentCityId);
   const afterFlight = await travelPaid();
-  check('the flight lands in Abuja and charges the fare once', city === 'abuja' && afterFlight - beforeFlight === 4_200_000, { city, charged: afterFlight - beforeFlight });
+  check('the flight lands in Abuja and charges the fare once', city === 'abuja' && afterFlight - beforeFlight === 95_000, { city, charged: afterFlight - beforeFlight });
   const qa = await quest(page, 'quest_abuja_1');
   check('arriving completes "Travel to Abuja", even though a Lagos quest is tracked', qa.obj.obj_a1_arrive === true && qa.obj.obj_a1_cab === false, qa);
 
