@@ -55,14 +55,14 @@ export function openAirportHall(setting: HallSetting): void {
         host.ask({
           who: 'Check-in',
           role: `${AIRLINE}  ·  ${AIRPORTS[city].name}`,
-          text: `${flights.describe(held.route)}, seat ${held.seat}. Checking in?`,
+          text: `${flights.describe(held.route)}, seat ${held.seat}. Passport and visa, please.`,
           choices: [
             {
               label: 'Check in',
-              note: `Gate ${held.route.gate}`,
+              note: `Gate ${held.route.gate} · papers required`,
               pick: () => {
                 const done = flights.checkIn(city);
-                host.say(done.ok ? `Checked in. Boarding pass: ${held.route.flight}, seat ${held.seat}, Gate ${held.route.gate}. Security is next.` : done.reason ?? '', done.ok ? 'success' : 'warning');
+                host.say(done.ok ? `Papers checked. Boarding pass: ${held.route.flight}, seat ${held.seat}, Gate ${held.route.gate}. Security is next.` : done.reason ?? '', done.ok ? 'success' : 'warning');
               },
             },
             {
