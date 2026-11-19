@@ -103,6 +103,91 @@ const sideOf = (p) => {
   const l = J('upperarm_l'), r = J('upperarm_r');
   return Math.abs(p[0] - l[0]) < Math.abs(p[0] - r[0]) ? 'l' : 'r';
 };
+
+// ---------------------------------------------------------------- an everyday build, not a superhero's
+// The free pack only has the very muscular body. Limbs and chest are drawn in toward the bones, and the
+// sculpted muscle is smoothed away; head, hands and feet are left exactly as they are.
+{
+  const SLIM = gender === 'female'
+    ? { upperarm: 0.88, lowerarm: 0.92, thigh: 0.95, calf: 0.96, chest: 0.95 }
+    : { upperarm: 0.82, lowerarm: 0.9, thigh: 0.93, calf: 0.95, chest: 0.92 };
+  const jn = (v) => { const j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0]; jnt.getElement(v, j4); wgt.getElement(v, w4); let b = 0; for (let k = 1; k < 4; k++) if (w4[k] > w4[b]) b = k; return jointNames[j4[b]]; };
+  const toward = (p, a, b, f) => { // radially toward the bone a->b
+    const A = J(a), B = J(b);
+    const d = [B[0] - A[0], B[1] - A[1], B[2] - A[2]];
+    const t = ((p[0] - A[0]) * d[0] + (p[1] - A[1]) * d[1] + (p[2] - A[2]) * d[2]) / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    const q = [A[0] + d[0] * t, A[1] + d[1] * t, A[2] + d[2] * t];
+    return [q[0] + (p[0] - q[0]) * f, q[1] + (p[1] - q[1]) * f, q[2] + (p[2] - q[2]) * f];
+  };
+  const keep = /^(Head|neck_01|hand_|index|middle|pinky|ring|thumb|foot|ball)/;
+  const moveable = new Array(vCount);
+  for (let v = 0; v < vCount; v++) {
+    const j = jn(v);
+    moveable[v] = !keep.test(j);
+    const p = P0[v];
+    let m = /^upperarm_([lr])/.exec(j);
+    if (m) { P0[v] = toward(p, `upperarm_${m[1]}`, `lowerarm_${m[1]}`, SLIM.upperarm); continue; }
+    m = /^lowerarm_([lr])/.exec(j);
+    if (m) { P0[v] = toward(p, `lowerarm_${m[1]}`, `hand_${m[1]}`, SLIM.lowerarm); continue; }
+    m = /^thigh_([lr])/.exec(j);
+    if (m) { P0[v] = toward(p, `thigh_${m[1]}`, `calf_${m[1]}`, SLIM.thigh); continue; }
+    m = /^calf_([lr])/.exec(j);
+    if (m) { P0[v] = toward(p, `calf_${m[1]}`, `foot_${m[1]}`, SLIM.calf); continue; }
+    if (/^(spine_03|clavicle_)/.test(j)) {
+      const c = J('spine_03');
+      P0[v] = [c[0] + (p[0] - c[0]) * SLIM.chest, p[1], c[2] + (p[2] - c[2]) * SLIM.chest];
+    }
+  }
+  // Smoothing over the welded surface (UV seams split vertices; welding keeps the skin closed)
+  const wkey = (p) => p.map((x) => Math.round(x * 1e4)).join(',');
+  const weldOf = new Array(vCount), groups = new Map();
+  for (let v = 0; v < vCount; v++) { const k = wkey(P0[v]); if (!groups.has(k)) groups.set(k, groups.size); weldOf[v] = groups.get(k); }
+  const W = groups.size;
+  let wp = Array.from({ length: W }, () => [0, 0, 0]);
+  const cnt = new Array(W).fill(0), canMove = new Array(W).fill(true);
+  for (let v = 0; v < vCount; v++) { const w = weldOf[v]; wp[w][0] += P0[v][0]; wp[w][1] += P0[v][1]; wp[w][2] += P0[v][2]; cnt[w]++; if (!moveable[v]) canMove[w] = false; }
+  wp = wp.map((p, w) => p.map((x) => x / cnt[w]));
+  const nb = Array.from({ length: W }, () => new Set());
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = weldOf[idx[t]], b = weldOf[idx[t + 1]], c = weldOf[idx[t + 2]];
+    nb[a].add(b).add(c); nb[b].add(a).add(c); nb[c].add(a).add(b);
+  }
+  for (let it = 0; it < 8; it++) {
+    for (const lambda of [0.5, -0.53]) {
+      wp = wp.map((p, w) => {
+        if (!canMove[w] || !nb[w].size) return p;
+        const avg = [0, 0, 0];
+        for (const n of nb[w]) { avg[0] += wp[n][0]; avg[1] += wp[n][1]; avg[2] += wp[n][2]; }
+        return p.map((x, k) => x + lambda * (avg[k] / nb[w].size - x));
+      });
+    }
+  }
+  // New normals where the skin moved; head, hands and feet keep their own
+  const wn = Array.from({ length: W }, () => [0, 0, 0]);
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = weldOf[idx[t]], b = weldOf[idx[t + 1]], c = weldOf[idx[t + 2]];
+    const A = wp[a], B = wp[b], C = wp[c];
+    const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+    const fn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    for (const w of [a, b, c]) { wn[w][0] += fn[0]; wn[w][1] += fn[1]; wn[w][2] += fn[2]; }
+  }
+  for (let v = 0; v < vCount; v++) {
+    const w = weldOf[v];
+    P0[v] = [...wp[w]];
+    pos.setElement(v, P0[v]);
+    if (canMove[w]) {
+      let n = wn[w];
+      const len = Math.hypot(n[0], n[1], n[2]) || 1;
+      n = n.map((x) => x / len);
+      if (n[0] * N0[v][0] + n[1] * N0[v][1] + n[2] * N0[v][2] < 0) n = n.map((x) => -x);
+      N0[v] = n;
+      nor.setElement(v, n);
+    }
+  }
+  // The painted muscle shading is softened too (it lives in the skin's normal map)
+  bodyPrim.getMaterial().getNormalTextureInfo() && bodyPrim.getMaterial().setNormalScale(0.45);
+}
+
 // What each garment covers, as tests on a point of the body (heights measured from the skeleton)
 const waistY = J('pelvis')[1] + 0.06 * height;  // a tee's hem, just below the waist
 const beltY = J('pelvis')[1] + 0.115 * height;   // trousers' top, under the hem
@@ -152,13 +237,13 @@ bodyNode.dispose();
 // ---------------------------------------------------------------- clothing shells: smoothed, loosened copies of what they cover
 const sheen = doc.createExtension(KHRMaterialsSheen);
 const cloth = (name, color, rough, sheenTint) => {
-  const m = doc.createMaterial(name).setBaseColorFactor([...color, 1]).setRoughnessFactor(rough).setMetallicFactor(0);
+  const m = doc.createMaterial(name).setBaseColorFactor([...color, 1]).setRoughnessFactor(rough).setMetallicFactor(0).setDoubleSided(true);
   m.setExtension('KHR_materials_sheen', sheen.createSheen().setSheenColorFactor(sheenTint).setSheenRoughnessFactor(0.9));
   return m;
 };
 const topMat = cloth('Cloth_Top', [0.92, 0.92, 0.92], 0.88, [0.12, 0.12, 0.12]);
 const bottomMat = cloth('Cloth_Bottom', [0.035, 0.045, 0.09], 0.9, [0.05, 0.05, 0.06]);
-const shoeMat = doc.createMaterial('Cloth_Shoes').setBaseColorFactor([0.05, 0.05, 0.055, 1]).setRoughnessFactor(0.42).setMetallicFactor(0);
+const shoeMat = doc.createMaterial('Cloth_Shoes').setBaseColorFactor([0.05, 0.05, 0.055, 1]).setRoughnessFactor(0.42).setMetallicFactor(0).setDoubleSided(true);
 // Positions welded by place (UV seams split vertices), so smoothing does not tear the cloth open
 const key = (p) => p.map((x) => Math.round(x * 1e4)).join(',');
 const SHELLS = [

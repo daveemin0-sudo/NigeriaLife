@@ -83,7 +83,7 @@ HumanFromConfig / Player.buildHumanMesh
 
 ### Known limits of this first version
 
-- **Body type.** The free pack's only body per gender is the very muscular "Superhero" one. The "Regular" everyday proportions are in Quaternius's paid Source version ($19.99, also CC0); the build needs only the body file changed.
+- **Body type.** The free pack's only body per gender is the very muscular "Superhero" one. The build slims it to an everyday build. The "Regular" proportions are in Quaternius's paid Source version ($19.99, also CC0) if the slimmed body is not enough.
 - **Cloth.** Clothing is close-fitting and plain-coloured: no prints, collars or buttons yet, and no flowing cloth. Agbada, gowns and wrappers are drawn as their closest fitted cut. The Ankara pattern is not shown, only its main colour.
 - **Edges.** Hem and neckline edges follow the body's triangles, so they are slightly ragged up close.
 - **Idle.** The library's only idle is a confident wide stance.

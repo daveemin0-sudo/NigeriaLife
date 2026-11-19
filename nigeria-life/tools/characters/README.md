@@ -7,6 +7,7 @@
 ## What the script does
 
 - Takes the Superhero body (the only body in the free pack) with its dark-skin texture. Adds buzzed hair (male) or buns (female) on the same 65-bone skeleton.
+- Slims the body to an everyday build: arms, chest and legs drawn in toward the bones, sculpted muscle smoothed away, the skin's muscle shading softened. Head, hands and feet are untouched.
 - Splits the body into pieces named `Body_c<mask>`. The mask has one digit per garment: TopShort, TopLong, BottomLong, BottomShort, Shoes. The game hides a piece when a shown garment has a 1 in that digit.
 - Cuts clothing shells from the body itself, so they bend exactly with it:
   - `Outfit_Top_Short`, `Outfit_Top_Long`, `Outfit_Bottom_Long`, `Outfit_Bottom_Short`, `Outfit_Shoes`
@@ -28,6 +29,6 @@ CLIPS='{"idle":"Idle_Loop","walk":"Walk_Loop","run":"Jog_Fwd_Loop","sprint":"Spr
 node build_ubc.mjs male human_male.glb "<unzipped>/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb"
 ```
 
-**Known gap:** the free pack gives one body type per gender, the very muscular "Superhero". The "Regular" everyday proportions are in the paid Source version. Swapping it in needs only `BODY` changed in the script.
+**Body type:** the free pack gives one body type per gender, the very muscular "Superhero"; the build slims it (see above). The "Regular" everyday proportions are in the paid Source version. Swapping it in needs only `BODY` changed in the script, and the slimming factors then set near 1.
 
 **One pack quirk:** its glTF refers to `T_Hair_1_Normal_png.png`, `T_Hair_2_Normal_png.png` and `T_Eye_Normal_png.png`, which the zip does not contain. Copy `T_Hair_1_Normal.png` (and the others) to those names first.
