@@ -45,9 +45,9 @@ Measured levers already in code comments / prior audits:
 
 1. **Environmental realism** ✅ (#33)
 2. Lighting and atmosphere ✅ (#31/#32)
-3. **Materials and textures** ← current slice (walls/roofs/glass wet response)
+3. **Materials and textures** ✅ (#34)
 4. Residential interiors ✅ (#30)
-5. Humans / NPCs
+5. **Humans / NPCs** ← current slice (fashion + idle/walk variety)
 6. Vehicles and traffic
 7. Weather simulation ✅ (#32)
 8. City identity and density

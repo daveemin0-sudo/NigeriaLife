@@ -78,7 +78,8 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     shadowMapSize: 512,
     shadowEvery: 1.5,
     crowdDraw: 36,
-    crowdNear: 6,
+    // Slightly farther full-detail pedestrians (presence without raising draw distance / fill-rate)
+    crowdNear: 10,
     smokeEvery: 4,
     districtDraw: 220,
     wetMetalnessMax: 0.22,
