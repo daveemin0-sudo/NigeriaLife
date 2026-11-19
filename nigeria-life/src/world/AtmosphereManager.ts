@@ -113,6 +113,9 @@ export class AtmosphereManager {
       { x: 5.4, z: -8.0, sx: 3.6, sz: 2.6, rot: 0.8 },   // Danfo terminus curb
       { x: -5.2, z: -32.0, sx: 2.4, sz: 3.0, rot: -0.2 }, // Sabo Textiles corner
       { x: -3.8, z: 46.0, sx: 3.0, sz: 2.2, rot: 0.6 },  // South residential curb
+      { x: 5.5, z: -52.0, sx: 2.6, sz: 2.1, rot: 0.4 },  // Gutter by Heritage Heights
+      { x: -5.6, z: 72.0, sx: 2.9, sz: 2.3, rot: -0.7 }, // North kerb after rain
+      { x: 1.2, z: 32.0, sx: 2.2, sz: 1.8, rot: 0.9 },   // Carriageway dip
     ];
 
     const puddleGeo = new THREE.PlaneGeometry(1, 1, 8, 8);
@@ -410,5 +413,17 @@ export class AtmosphereManager {
 
   public setPuddlesVisible(visible: boolean): void {
     this.puddlesGroup.visible = visible;
+  }
+
+  /** Scale puddle opacity/reflectivity with rain wetness (0 dry → 1 soaked). */
+  public setPuddleWetness(wetness: number): void {
+    const w = Math.max(0, Math.min(1, wetness));
+    this.puddlesGroup.visible = w > 0.12;
+    for (const mat of this.puddleMaterials) {
+      mat.opacity = 0.15 + w * 0.78;
+      mat.roughness = Math.max(0.03, 0.12 - w * 0.08);
+      mat.metalness = Math.min(0.28, 0.06 + w * 0.2);
+      mat.needsUpdate = true;
+    }
   }
 }

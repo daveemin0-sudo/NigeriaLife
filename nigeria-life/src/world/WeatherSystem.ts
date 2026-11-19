@@ -75,24 +75,24 @@ const WEATHER_PROFILES: Record<string, WeatherProfile> = {
   rainy: {
     name: 'Rainy',
     icon: '🌧️',
-    sunMultiplier: 0.35,
-    hemiMultiplier: 0.52,
-    fogDensityMultiplier: 1.55,
-    fogColorTint: [0.60, 0.66, 0.76],
-    rainIntensity: 0.65,
-    windStrength: 0.65,
+    sunMultiplier: 0.32,
+    hemiMultiplier: 0.48,
+    fogDensityMultiplier: 1.72,
+    fogColorTint: [0.55, 0.62, 0.72],
+    rainIntensity: 0.78,
+    windStrength: 0.7,
     harmattanDust: 0.0,
-    roadWetness: 0.85,
+    roadWetness: 0.9,
   },
   thunderstorm: {
     name: 'Thunderstorm',
     icon: '⛈️',
-    sunMultiplier: 0.20,
-    hemiMultiplier: 0.38,
-    fogDensityMultiplier: 1.85,
-    fogColorTint: [0.42, 0.48, 0.60],
+    sunMultiplier: 0.16,
+    hemiMultiplier: 0.34,
+    fogDensityMultiplier: 2.05,
+    fogColorTint: [0.38, 0.44, 0.56],
     rainIntensity: 1.0,
-    windStrength: 0.95,
+    windStrength: 1.0,
     harmattanDust: 0.0,
     roadWetness: 1.0,
   },
@@ -113,13 +113,16 @@ const WEATHER_PROFILES: Record<string, WeatherProfile> = {
 export class WeatherSystem {
   private scene: THREE.Scene;
   public currentWeather: WeatherType = 'sunny';
+  /** Cap wet-road metalness from GraphicsQuality (Low keeps specular cheap on HD 620) */
+  public wetMetalnessMax = 0.65;
 
   // Smooth interpolation state
   private curSunMultiplier: number = 1.0;
   private curHemiMultiplier: number = 1.0;
   private curFogDensityMultiplier: number = 1.0;
   private curFogColorTint = new THREE.Vector3(1.0, 1.0, 1.0);
-  private curRainIntensity: number = 0.0;
+  /** Live rain strength 0–1 (eased toward the weather profile); used by street ambience ducking */
+  public curRainIntensity: number = 0.0;
   private curWindStrength: number = 0.2;
   private curHarmattanDust: number = 0.25;
   private curRoadWetness: number = 0.0;
@@ -147,6 +150,14 @@ export class WeatherSystem {
   private sunLight: THREE.DirectionalLight | null = null;
   private hemiLight: THREE.HemisphereLight | null = null;
   private roadsMeshList: THREE.MeshStandardMaterial[] = [];
+  /** Walls/roofs/glass: wetness adjusts roughness/metalness only (preserves texture colour). */
+  private surfaceMats: Array<{
+    mat: THREE.MeshStandardMaterial;
+    dryRough: number;
+    dryMetal: number;
+    wetRough: number;
+    wetMetal: number;
+  }> = [];
   private atmosphere: any = null;
   private skyEnvironment: SkyEnvironmentManager | null = null;
 
@@ -162,6 +173,26 @@ export class WeatherSystem {
 
   public registerRoadMaterial(mat: THREE.MeshStandardMaterial): void {
     this.roadsMeshList.push(mat);
+  }
+
+  /**
+   * Register building surfaces that should gloss/darken in rain without wiping their maps.
+   * @param wetRough Target roughness when soaked (lower = wetter look)
+   * @param wetMetal Target metalness when soaked (kept modest for Low GPU)
+   */
+  public registerSurfaceMaterial(
+    mat: THREE.MeshStandardMaterial,
+    wetRough = Math.max(0.18, mat.roughness * 0.45),
+    wetMetal = Math.min(0.35, Math.max(mat.metalness, 0.08) + 0.12),
+  ): void {
+    if (this.surfaceMats.some((s) => s.mat === mat)) return;
+    this.surfaceMats.push({
+      mat,
+      dryRough: mat.roughness,
+      dryMetal: mat.metalness,
+      wetRough,
+      wetMetal,
+    });
   }
 
   public registerAtmosphere(atmosphere: any): void {
@@ -186,8 +217,8 @@ export class WeatherSystem {
     this.rainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
     this.rainMaterial = new THREE.PointsMaterial({
-      color: 0x93c5fd,
-      size: 0.28,
+      color: 0xa5c8f0,
+      size: 0.36,
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
@@ -212,7 +243,7 @@ export class WeatherSystem {
   public toggleWeather(): WeatherType {
     // Backward-compatible toggle between sunny and rainy
     const next = this.currentWeather === 'rainy' ? 'sunny' : 'rainy';
-    this.setWeather(next);
+    this.setWeather(next, true);
     return next;
   }
 
@@ -227,11 +258,15 @@ export class WeatherSystem {
     ];
     const currentIndex = sequence.indexOf(this.currentWeather);
     const next = sequence[(currentIndex + 1) % sequence.length];
-    this.setWeather(next);
+    this.setWeather(next, true);
     return next;
   }
 
-  public setWeather(type: WeatherType): void {
+  /**
+   * @param snap When true, jump wetness/rain/fog multipliers to the profile immediately
+   *             (UI / URL / demos). Normal gameplay still lerps via update().
+   */
+  public setWeather(type: WeatherType, snap = false): void {
     if (!WEATHER_PROFILES[type]) {
       type = 'sunny';
     }
@@ -243,6 +278,19 @@ export class WeatherSystem {
       this.startRainAudio();
     } else {
       this.stopRainAudio();
+    }
+
+    if (snap) {
+      this.curSunMultiplier = prof.sunMultiplier;
+      this.curHemiMultiplier = prof.hemiMultiplier;
+      this.curFogDensityMultiplier = prof.fogDensityMultiplier;
+      this.curFogColorTint.set(prof.fogColorTint[0], prof.fogColorTint[1], prof.fogColorTint[2]);
+      this.curRainIntensity = prof.rainIntensity;
+      this.curWindStrength = prof.windStrength;
+      this.curHarmattanDust = prof.harmattanDust;
+      this.curRoadWetness = prof.roadWetness;
+      // Apply materials / particles on the next update tick with a large delta
+      this.update(1.0);
     }
   }
 
@@ -331,12 +379,21 @@ export class WeatherSystem {
       if (this.hemiLight) this.hemiLight.intensity = this.curHemiMultiplier * 0.7;
     }
 
-    // 3. Wet Asphalt PBR Material Shimmer
-    const targetRoughness = THREE.MathUtils.lerp(0.85, 0.15, this.curRoadWetness);
-    const targetMetalness = THREE.MathUtils.lerp(0.05, 0.65, this.curRoadWetness);
+    // 3. Wet Asphalt PBR: darker + glossier when wet (metalness capped by graphics preset)
+    const targetRoughness = THREE.MathUtils.lerp(0.88, 0.12, this.curRoadWetness);
+    const targetMetalness = THREE.MathUtils.lerp(0.04, this.wetMetalnessMax, this.curRoadWetness);
+    const wetTint = 0.55 + (1 - this.curRoadWetness) * 0.45; // darken toward grey when soaked
     for (const mat of this.roadsMeshList) {
       mat.roughness = targetRoughness;
       mat.metalness = targetMetalness;
+      mat.color.setRGB(wetTint, wetTint, wetTint * 1.02);
+    }
+
+    // 3b. Building surfaces: gloss only (maps/colour stay intact)
+    const wetCap = Math.min(this.wetMetalnessMax, 0.4);
+    for (const s of this.surfaceMats) {
+      s.mat.roughness = THREE.MathUtils.lerp(s.dryRough, s.wetRough, this.curRoadWetness);
+      s.mat.metalness = THREE.MathUtils.lerp(s.dryMetal, Math.min(s.wetMetal, wetCap), this.curRoadWetness);
     }
 
     // 4. Harmattan Dust and Puddle Environmental Sync
@@ -344,7 +401,9 @@ export class WeatherSystem {
       if (typeof this.atmosphere.setDustIntensity === 'function') {
         this.atmosphere.setDustIntensity(this.curHarmattanDust);
       }
-      if (typeof this.atmosphere.setPuddlesVisible === 'function') {
+      if (typeof this.atmosphere.setPuddleWetness === 'function') {
+        this.atmosphere.setPuddleWetness(this.curRoadWetness);
+      } else if (typeof this.atmosphere.setPuddlesVisible === 'function') {
         this.atmosphere.setPuddlesVisible(this.curRoadWetness > 0.25);
       }
     }

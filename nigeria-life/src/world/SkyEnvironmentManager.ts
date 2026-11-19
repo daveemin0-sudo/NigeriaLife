@@ -124,17 +124,19 @@ interface LightingKeyframe {
 }
 
 const LIGHTING_TIMELINE: LightingKeyframe[] = [
-  // Night in Lagos is never black: moonlight, generators and street lamps keep it readable
-  { hour: 0.0,  sunColor: 0x6a80b8, sunIntensity: 0.75, hemiSky: 0x4a5d8c, hemiGround: 0x262c3a, hemiIntensity: 0.85, fogColor: 0x1b2436, fogDensity: 0.0055, exposure: 1.0 },
-  { hour: 5.5,  sunColor: 0x7088bb, sunIntensity: 0.80, hemiSky: 0x52618e, hemiGround: 0x2a2e3c, hemiIntensity: 0.90, fogColor: 0x232a3e, fogDensity: 0.0055, exposure: 1.0 },
-  { hour: 6.2,  sunColor: 0xffaa66, sunIntensity: 1.20, hemiSky: 0xffb888, hemiGround: 0x554433, hemiIntensity: 0.48, fogColor: 0x996655, fogDensity: 0.0062, exposure: 0.96 },
-  { hour: 7.5,  sunColor: 0xfff2d4, sunIntensity: 2.30, hemiSky: 0xcde4ff, hemiGround: 0x8a7a62, hemiIntensity: 0.65, fogColor: 0xe2d6c2, fogDensity: 0.0050, exposure: 1.05 },
-  { hour: 12.5, sunColor: 0xfff0d0, sunIntensity: 2.60, hemiSky: 0xbfdcff, hemiGround: 0x8a7a62, hemiIntensity: 0.75, fogColor: 0xd9cdb4, fogDensity: 0.0055, exposure: 1.05 },
-  { hour: 16.5, sunColor: 0xffe0b0, sunIntensity: 2.50, hemiSky: 0xc4dcff, hemiGround: 0x8a7a62, hemiIntensity: 0.70, fogColor: 0xdec8ab, fogDensity: 0.0056, exposure: 1.05 },
-  { hour: 18.0, sunColor: 0xffa65c, sunIntensity: 2.30, hemiSky: 0xffbf8a, hemiGround: 0x775544, hemiIntensity: 0.55, fogColor: 0xe0b184, fogDensity: 0.0060, exposure: 1.02 },
-  { hour: 19.3, sunColor: 0xdd7755, sunIntensity: 1.10, hemiSky: 0x8a6a9e, hemiGround: 0x3c2c3c, hemiIntensity: 0.62, fogColor: 0x4a3248, fogDensity: 0.0060, exposure: 0.98 },
-  { hour: 20.5, sunColor: 0x6f86bf, sunIntensity: 0.80, hemiSky: 0x4d5f8e, hemiGround: 0x282e3c, hemiIntensity: 0.88, fogColor: 0x1d2638, fogDensity: 0.0056, exposure: 1.0 },
-  { hour: 24.0, sunColor: 0x6a80b8, sunIntensity: 0.75, hemiSky: 0x4a5d8c, hemiGround: 0x262c3a, hemiIntensity: 0.85, fogColor: 0x1b2436, fogDensity: 0.0055, exposure: 1.0 },
+  // Night stays readable (streetlamps + moon) but deeper contrast than midday wash
+  { hour: 0.0,  sunColor: 0x7a90c4, sunIntensity: 0.55, hemiSky: 0x3a4d78, hemiGround: 0x1c2434, hemiIntensity: 0.72, fogColor: 0x121a2c, fogDensity: 0.0062, exposure: 0.94 },
+  { hour: 5.5,  sunColor: 0x7a90c4, sunIntensity: 0.62, hemiSky: 0x455888, hemiGround: 0x222a3a, hemiIntensity: 0.78, fogColor: 0x1a2438, fogDensity: 0.0060, exposure: 0.96 },
+  // Dawn — warm first light
+  { hour: 6.2,  sunColor: 0xff9a4a, sunIntensity: 1.35, hemiSky: 0xffb070, hemiGround: 0x5a4433, hemiIntensity: 0.50, fogColor: 0xa86a48, fogDensity: 0.0064, exposure: 0.98 },
+  { hour: 7.5,  sunColor: 0xfff2d4, sunIntensity: 2.35, hemiSky: 0xcde4ff, hemiGround: 0x8a7a62, hemiIntensity: 0.66, fogColor: 0xe2d6c2, fogDensity: 0.0050, exposure: 1.05 },
+  { hour: 12.5, sunColor: 0xfff0d0, sunIntensity: 2.70, hemiSky: 0xb8d8ff, hemiGround: 0x8a7a62, hemiIntensity: 0.78, fogColor: 0xd9cdb4, fogDensity: 0.0052, exposure: 1.06 },
+  { hour: 16.5, sunColor: 0xffe0b0, sunIntensity: 2.45, hemiSky: 0xc4dcff, hemiGround: 0x8a7a62, hemiIntensity: 0.70, fogColor: 0xdec8ab, fogDensity: 0.0055, exposure: 1.04 },
+  // Golden hour — stronger amber key + warmer fog (immersion seller)
+  { hour: 18.0, sunColor: 0xff8a3a, sunIntensity: 2.55, hemiSky: 0xffa858, hemiGround: 0x6a4028, hemiIntensity: 0.58, fogColor: 0xe8a060, fogDensity: 0.0064, exposure: 1.04 },
+  { hour: 19.2, sunColor: 0xe86848, sunIntensity: 1.15, hemiSky: 0x9a5a88, hemiGround: 0x3a2838, hemiIntensity: 0.58, fogColor: 0x523048, fogDensity: 0.0065, exposure: 0.97 },
+  { hour: 20.5, sunColor: 0x6f86bf, sunIntensity: 0.62, hemiSky: 0x3f527e, hemiGround: 0x1e2636, hemiIntensity: 0.75, fogColor: 0x151e30, fogDensity: 0.0060, exposure: 0.95 },
+  { hour: 24.0, sunColor: 0x7a90c4, sunIntensity: 0.55, hemiSky: 0x3a4d78, hemiGround: 0x1c2434, hemiIntensity: 0.72, fogColor: 0x121a2c, fogDensity: 0.0062, exposure: 0.94 },
 ];
 
 export class SkyEnvironmentManager {
@@ -460,14 +462,8 @@ export class SkyEnvironmentManager {
       );
     }
 
-    const weatherIconEl = document.getElementById('hud-weather-icon');
-    if (weatherIconEl) {
-      weatherIconEl.textContent =
-        this.currentPeriod === 'night' ? '🌙' :
-        this.currentPeriod === 'golden_hour' ? '🌅' :
-        this.currentPeriod === 'morning' ? '🌤️' :
-        '☀️';
-    }
+    // Time-of-day period used to overwrite #hud-weather-icon with sun/moon glyphs.
+    // That fights the real weather control (rain / harmattan). Period stays on the clock toast.
   }
 
   /** Interpolates lighting parameters smoothly between keyframes across the 24-hour cycle */

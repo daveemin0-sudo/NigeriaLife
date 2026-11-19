@@ -106,6 +106,8 @@ import { ActivityStatusUI } from '../ui/ActivityStatusUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
 import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
+import { abujaIdentity } from '../cities/AbujaDistricts';
+import { phIdentity } from '../cities/PortHarcourtDistricts';
 import type { SavedCityId } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { HouseDecorationSystem, CATALOGUE_ITEMS, type PlacedItem } from '../housing/HouseDecorationSystem';
@@ -325,7 +327,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast, abujaIdentity, phIdentity };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -784,7 +786,13 @@ export class Game {
         if (homeHere) {
           if (this.currentHome() !== homeHere) this.setHomeNow(homeHere);
           this.world.worldMap.deactivate();
-          void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
+          const home = this.homeProperty();
+          const atDoor = home?.streetPosition
+            ? new THREE.Vector3(home.streetPosition.x, 0, home.streetPosition.z)
+            : undefined;
+          void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world, atDoor
+            ? { returnTo: atDoor, returnYaw: 0 }
+            : undefined);
           return;
         }
         const suite = this.hotelStayHere();
@@ -859,9 +867,15 @@ export class Game {
           return;
         }
         this.setHomeNow(this.homeKey(prop.id));
-        // Straight in, as the Home button goes (not a walk across town to some other door)
+        // Straight in, as the Home button goes (not a walk across town to some other door).
+        // Come back out on that property's street so interior ↔ compound ↔ neighbourhood stay linked.
         this.world.worldMap.deactivate();
-        void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
+        const atDoor = prop.streetPosition
+          ? new THREE.Vector3(prop.streetPosition.x, 0, prop.streetPosition.z)
+          : undefined;
+        void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world, atDoor
+          ? { returnTo: atDoor, returnYaw: 0 }
+          : undefined);
         return;
       }
       if (target?.type === 'residence' && !this.homeInThisCity()) {
@@ -1260,6 +1274,8 @@ export class Game {
     // 12b. Resume where the player left off, then keep that position saved.
     // A first visit has no saved spot: they start on the pavement by their own gate, not in the crowd.
     this.restoreWorldState();
+    // Preview / share links: ?weather=rainy&hour=18.4 override the saved sky for demos
+    this.applyPreviewWorldParams();
     if (!BackendService.getInstance().getData().worldState) this.arriveAtTheGate();
     this.placeRestored = true;
     if (!OnlineAccount.get()) this.deeds.arm();
@@ -2365,13 +2381,21 @@ export class Game {
       sun: this.world.skyEnvironment.sunLight,
       scene: this.scene,
       crowd: this.world.cityPopulation,
-      resized: () => this.postProcessing.setSize(window.innerWidth, window.innerHeight),
-      onLevel: ({ smokeEvery, districtDraw }) => {
+      resized: () => this.applyDrawingSize(),
+      onLevel: ({ smokeEvery, districtDraw, trafficDraw, wetMetalnessMax, postFx }) => {
         this.world.smokeEvery = smokeEvery;
         this.world.districtDrawDistance = districtDraw;
+        this.world.trafficSpawner.drawDistance = trafficDraw;
+        for (const city of [this.world.cityManager.abujaCity, this.world.cityManager.portHarcourtCity]) {
+          if (city?.life?.traffic) city.life.traffic.drawDistance = trafficDraw;
+        }
+        this.world.weather.wetMetalnessMax = wetMetalnessMax;
+        this.postProcessing.setEnabled(postFx);
       },
       tell: (text) => showGameToast(text, 'info', 7000),
     });
+    this.world.weather.wetMetalnessMax = this.graphics.wetMetalnessMax;
+    this.applyDrawingSize();
     // The queues at Broad Street's bus stops are who a danfo or keke picks up
     const crowd = this.world.cityPopulation;
     DrivableVehicle.busStops = {
@@ -4321,6 +4345,29 @@ export class Game {
     }
   }
 
+  /** Deep-link weather / hour for Vercel previews and share links (wins over save). */
+  private applyPreviewWorldParams(): void {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const weather = params.get('weather');
+      if (weather) {
+        this.world.weather.setWeather(weather as any, true);
+        this.hud.updateWeatherButton(this.world.weather.currentWeather);
+      }
+      const hourRaw = params.get('hour');
+      if (hourRaw != null && hourRaw !== '') {
+        const hour = Number.parseFloat(hourRaw);
+        if (Number.isFinite(hour)) {
+          this.world.skyEnvironment.clockMode = 'SIMULATED_TIME';
+          this.world.skyEnvironment.setHour(hour);
+          this.world.roads.setLampIntensityForHour(hour);
+        }
+      }
+    } catch {
+      // Ignore bad query strings
+    }
+  }
+
   /** Getting in is seen: the player walks round to the driver's door, reaches for it, and is then at the wheel. */
   private walkToVehicleAndGetIn(vehicle: any): void {
     if (this.player.isDriving) return;
@@ -4381,8 +4428,22 @@ export class Game {
     this.world.worldMap.handleResize();
     this.flightExperience.handleResize();
     this.roadRideExperience.handleResize();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.postProcessing.setSize(window.innerWidth, window.innerHeight);
+    this.applyDrawingSize();
+  }
+
+  /**
+   * Drawing buffer follows GraphicsQuality render scale + height cap (Low ≈ 720p).
+   * CSS size stays full-window so UI layout is unchanged.
+   */
+  private applyDrawingSize(): void {
+    const cssW = window.innerWidth;
+    const cssH = window.innerHeight;
+    const size = this.graphics?.drawingSize(cssW, cssH) ?? { width: cssW, height: cssH };
+    this.renderer.setSize(size.width, size.height, false);
+    const canvas = this.renderer.domElement;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    this.postProcessing.setSize(size.width, size.height);
   }
 
   private loop = (): void => {
@@ -4516,16 +4577,29 @@ export class Game {
       this.ambienceClock = 0;
       const at = this.player.position;
       const outside = !this.world.interiorManager.isPlayerInside() && this.hud.currentNavMode !== 'map';
+      const cityId = this.world.cityManager.currentCityId;
+      const peopleNear = outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0;
+      const stallSpots = this.world.cityDensity?.fabric?.stallSpots ?? [];
+      const nearStall = stallSpots.some((s) => {
+        const dx = s.x - at.x;
+        const dz = s.z - at.z;
+        return dx * dx + dz * dz < 14 * 14;
+      });
+      // Lagos: umbrella stalls; other cities: a dense kerb crowd reads as market activity
+      const marketNear = outside && (nearStall || (cityId !== 'lagos' && peopleNear >= 12));
       StreetAmbience.get().update(0.5, {
         outside,
         // Broad Street and its pavements, or moving traffic on a main road: never an estate (Banana Island, the GRA)
         onMainRoad: outside && !QUIET_ESTATES.some((r) => at.x > r.minX && at.x < r.maxX && at.z > r.minZ && at.z < r.maxZ)
-          && ((this.world.cityManager.currentCityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3 && at.z > MAIN_ROAD.zMin - 15 && at.z < MAIN_ROAD.zMax + 15)
+          && ((cityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3 && at.z > MAIN_ROAD.zMin - 15 && at.z < MAIN_ROAD.zMax + 15)
             || Bodies.carsNear(at.x, at.z, 25).filter((car) => !car.parked).length >= 6),
         driving: this.player.isDriving,
-        people: outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0,
+        people: peopleNear,
         cars: outside ? Bodies.carsNear(at.x, at.z, 30).length : 0,
         hour: this.world.skyEnvironment.currentHour,
+        cityId,
+        marketNear,
+        rain: this.world.weather.curRainIntensity,
       });
     }
 

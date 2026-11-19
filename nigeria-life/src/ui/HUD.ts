@@ -269,8 +269,11 @@ export class HUD {
 
         <!-- Center Floating Pill Bar -->
         <div class="hud-center-pill-bar">
-          <div class="pill-item time-pill" id="hud-time-pill" title="World Clock • Click to toggle Real-Time (WAT) / Simulated time presets" style="cursor: pointer;">
-            <span id="hud-weather-icon">☀️</span>
+          <div class="pill-item time-pill" id="hud-time-pill" title="World Clock • Click the clock to toggle Real-Time (WAT) / Simulated time presets" style="cursor: pointer;">
+            <button type="button" id="hud-weather-btn" class="hud-weather-btn" title="Weather • Click to cycle (sunny → rain → storm → harmattan). Or open with ?weather=rainy" aria-label="Cycle weather">
+              <span id="hud-weather-icon">☀️</span>
+              <span id="hud-weather-label" class="hud-weather-label">Sunny</span>
+            </button>
             <span id="hud-clock-val">Wed 7 • 1:18 PM</span>
             <span id="hud-light-icon" class="hud-light-icon" data-light="on" title="NEPA light where you are">💡</span>
           </div>
@@ -772,11 +775,13 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
     });
 
-    document.getElementById('hud-weather-btn')?.addEventListener('click', () => {
-      if (this.world) {
-        const newW = this.world.weather.cycleWeather();
-        this.updateWeatherButton(newW);
-      }
+    document.getElementById('hud-weather-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation(); // don't also cycle the world clock
+      e.preventDefault();
+      if (!this.world) return;
+      const newW = this.world.weather.cycleWeather();
+      this.updateWeatherButton(newW);
+      showGameToast(`🌦️ ${this.world.weather.getWeatherLabel()}`, 'info', 2800);
     });
 
     document.getElementById('btn-drive-exit')?.addEventListener('click', () => {
@@ -1412,6 +1417,14 @@ export class HUD {
         this.travelModal.toggle();
       } else if (e.key.toLowerCase() === 'm') {
         this.interstateModal.toggle(this.world?.cityManager.currentCityId);
+      } else if (e.key.toLowerCase() === 'r' && e.shiftKey) {
+        // Shift+R cycles weather (R alone is reserved for driving / other uses)
+        e.preventDefault();
+        if (this.world) {
+          const newW = this.world.weather.cycleWeather();
+          this.updateWeatherButton(newW);
+          showGameToast(`🌦️ ${this.world.weather.getWeatherLabel()}`, 'info', 2800);
+        }
       } else if (e.key === '1') {
         this.player.playEmote('zanku', 4.0);
       } else if (e.key === '2') {
@@ -1530,6 +1543,7 @@ export class HUD {
   public updateWeatherButton(type: string): void {
     const iconEl = document.getElementById('hud-weather-icon');
     const labelEl = document.getElementById('hud-weather-label');
+    const btn = document.getElementById('hud-weather-btn') as HTMLButtonElement | null;
     const icons: Record<string, string> = {
       sunny: '☀️',
       clear: '☀️',
@@ -1548,8 +1562,10 @@ export class HUD {
       thunderstorm: 'Thunderstorm',
       harmattan: 'Harmattan',
     };
+    const label = labels[type] || type;
     if (iconEl) iconEl.textContent = icons[type] || '☀️';
-    if (labelEl) labelEl.textContent = labels[type] || type;
+    if (labelEl) labelEl.textContent = label;
+    if (btn) btn.title = `Weather: ${label} • Click to cycle (or Shift+R). Preview: ?weather=rainy`;
   }
 
   public onQuestUpdate(quest: StoryQuest | null): void {

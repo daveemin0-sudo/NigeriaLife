@@ -77,14 +77,21 @@ export async function run(browser, check) {
   const balanced = await state(page);
   const balancedRow = await rowText(page);
   check(
-    'graphics: pressing Change on the phone moves to Balanced: one pixel per screen pixel at most, people in full only to 14 m, the row says so, and the choice is kept',
-    pressedOnce && balanced.level === 'balanced' && balanced.pixelRatio <= 1 && balanced.crowd[1] === 14 && /Balanced/.test(balancedRow || '') && /"chosen":true/.test(balanced.stored || ''),
+    'graphics: pressing Change on the phone moves to Medium: capped pixel ratio, people in full only to 12 m, the row says so, and the choice is kept',
+    pressedOnce && balanced.level === 'balanced' && balanced.pixelRatio <= 1.25 && balanced.crowd[1] === 12 && /Medium/.test(balancedRow || '') && /"chosen":true/.test(balanced.stored || ''),
     { balanced, balancedRow }
   );
   await press(page, 'toggle-graphics');
   const low = await state(page);
-  // The shadow is kept on Low (turning it off rebuilds every shader, a freeze), small and redrawn once a second
-  check('graphics: pressed again it moves to Low: a softer picture (0.75), a small sun shadow redrawn once a second, fewer people far off', low.level === 'low' && low.pixelRatio === 0.75 && low.shadows && low.shadowSize === 512 && !low.everyFrame /* 0.75 on this 1x test screen; 1 on a phone */ && low.crowd[0] === 50, low);
+  const lowDraw = await page.evaluate(() => {
+    const g = window.game;
+    const s = g.graphics.drawingSize(1280, 720);
+    return { ...s, scale: g.graphics.renderScale, wet: g.world.weather.wetMetalnessMax };
+  });
+  // The shadow is kept on Low (turning it off rebuilds every shader, a freeze), small and redrawn on an interval; 720p-class buffer
+  check('graphics: pressed again it moves to Low: ≤1× pixels, 720p-class drawing, small sun shadow on an interval, lean crowds',
+    low.level === 'low' && low.pixelRatio <= 1 && low.shadows && low.shadowSize === 512 && !low.everyFrame && low.crowd[0] === 36 && lowDraw.height <= 720 && lowDraw.wet <= 0.25,
+    { low, lowDraw });
 
   await page.evaluate(() => window.game.hud.phoneModal.close?.());
   await page.keyboard.press('Escape');
@@ -135,7 +142,7 @@ export async function run(browser, check) {
     const chosenStays = g.graphics.level;
     return { level, told, chosenStays, chosen: g.graphics.chosen };
   });
-  check('graphics: running slowly, the game steps down to Balanced by itself and says so; a level the player picks afterwards stands', slow.level === 'balanced' && slow.told && slow.chosenStays === 'high' && slow.chosen, slow);
+  check('graphics: running slowly, the game steps down to Medium by itself and says so; a level the player picks afterwards stands', slow.level === 'balanced' && slow.told && slow.chosenStays === 'high' && slow.chosen, slow);
   await ctx2.close();
 
   check('graphics: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));

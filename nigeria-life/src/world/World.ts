@@ -12,6 +12,7 @@ import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { AtmosphereManager } from './AtmosphereManager';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { markStillGroup } from '../graphics/StillMatrices';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import { CityDensityManager } from './density/CityDensityManager';
@@ -130,6 +131,19 @@ export class World {
     this.scene.add(this.roads.group);
     markStillGroup(this.roads.group);
     this.weather.registerRoadMaterial(this.roads.asphaltMat);
+    this.weather.registerRoadMaterial(MaterialLibrary.getInstance().sidewalkMaterial);
+    // Materials layer: walls/roofs/glass respond to rain without wiping texture colour
+    {
+      const mats = MaterialLibrary.getInstance();
+      this.weather.registerSurfaceMaterial(mats.wallPlasterCream, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterOchre, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterDistressedWhite, 0.4, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterTeal, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.concreteTrimMaterial, 0.35, 0.12);
+      this.weather.registerSurfaceMaterial(mats.corrugatedRoofRusty, 0.28, 0.55);
+      this.weather.registerSurfaceMaterial(mats.corrugatedRoofSilver, 0.18, 0.8);
+      this.weather.registerSurfaceMaterial(mats.glassReflectiveMaterial, 0.04, 0.95);
+    }
     this.roads.setNightLighting(this.skyEnvironment.currentPeriod);
     this.skyEnvironment.onPeriodChange = (period) => {
       this.roads.setNightLighting(period);
@@ -601,6 +615,9 @@ export class World {
     // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day (rooms keep their lights on)
     this.skyEnvironment.indoors = this.interiorManager.isPlayerInside();
     this.skyEnvironment.update(delta, playerPos);
+    // Continuous dusk→dawn street lamps + window glow (sells night immersion without PointLights)
+    this.roads.setLampIntensityForHour(this.skyEnvironment.currentHour);
+    MaterialLibrary.getInstance().setWindowGlowForHour(this.skyEnvironment.currentHour);
 
     // Keep live player coordinate synced in WorldDataManager
     if (playerPos) {
@@ -651,6 +668,7 @@ export class World {
     // The street is as busy as the hour: full by day, thin in the evening, nearly empty in the small hours
     const abroad = shareAbroad(this.skyEnvironment.currentHour);
     this.trafficSpawner.abroad = abroad;
+    this.trafficSpawner.setHour(this.skyEnvironment.currentHour);
     this.cityPopulation.abroad = abroad;
     this.cityPopulation.setClock(this.skyEnvironment.currentHour, this.skyEnvironment.day, delta);
 

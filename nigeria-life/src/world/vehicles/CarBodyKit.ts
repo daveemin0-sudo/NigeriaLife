@@ -195,12 +195,12 @@ export interface CarMaterials {
 
 export function carMaterials(paint: number): CarMaterials {
   return {
-    paint: new THREE.MeshStandardMaterial({ color: paint, metalness: 0.55, roughness: 0.28 }),
-    glass: new THREE.MeshStandardMaterial({ color: 0x1b2a3c, metalness: 0.7, roughness: 0.08 }),
+    paint: new THREE.MeshStandardMaterial({ color: paint, metalness: 0.62, roughness: 0.24 }),
+    glass: new THREE.MeshStandardMaterial({ color: 0x152434, metalness: 0.85, roughness: 0.055 }),
     trim: new THREE.MeshStandardMaterial({ color: 0x0f1115, metalness: 0.2, roughness: 0.65 }),
     chrome: new THREE.MeshStandardMaterial({ color: 0xe5e7eb, metalness: 1, roughness: 0.12 }),
-    lamp: new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xf1f5f9, emissiveIntensity: 1.3, roughness: 0.2 }),
-    tail: new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0xb91c1c, emissiveIntensity: 1.1, roughness: 0.3 }),
+    lamp: new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xfff7ed, emissiveIntensity: 1.55, roughness: 0.18 }),
+    tail: new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0xef4444, emissiveIntensity: 1.35, roughness: 0.28 }),
     plate: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 }),
     gold: new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.25 }),
     blue: new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 }),

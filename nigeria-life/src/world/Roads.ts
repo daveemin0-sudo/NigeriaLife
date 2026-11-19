@@ -46,7 +46,7 @@ export class Roads {
     this.streetGlowMaterial.opacity = level;
     for (const glow of this.streetGlows) glow.visible = level > 0;
   }
-  private roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
+  public roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
   constructor() {
     this.group = new THREE.Group();
     this.buildRoadNetwork();
@@ -200,22 +200,8 @@ export class Roads {
 
   public setNightLighting(period: string): void {
     const isNight = period === 'night';
-    const isGolden = period === 'golden_hour';
-
-    for (const mat of this.streetBulbMaterials) {
-      if (isNight) {
-        mat.emissive.setHex(0xfff1d6);
-        mat.emissiveIntensity = 2.4;
-      } else if (isGolden) {
-        mat.emissive.setHex(0xffc570);
-        mat.emissiveIntensity = 1.1;
-      } else {
-        mat.emissive.setHex(0xffedd5);
-        mat.emissiveIntensity = 0.15;
-      }
-    }
-
-    this.setLampGlow(isNight ? 0.5 : isGolden ? 0.2 : 0);
+    // Continuous hour-based lamps are preferred; period still drives stall pack-down
+    this.setLampIntensityForHour(isNight ? 22 : period === 'golden_hour' ? 18.4 : 12);
 
     // Roadside umbrella stalls pack down when evening arrives and set back up before dawn
     for (const stall of this.roadsideStalls) {
@@ -235,6 +221,36 @@ export class Roads {
         stall.stool.position.set(0.1, 0.28, -0.65);
       }
     }
+  }
+
+  /**
+   * Smooth dusk→night→dawn street lighting from the world clock.
+   * Avoids the hard “period flip” so immersion holds while the sun sets.
+   */
+  public setLampIntensityForHour(hour: number): void {
+    const h = ((hour % 24) + 24) % 24;
+    let glow = 0;
+    if (h >= 19.6 || h < 5.7) glow = 0.88;
+    else if (h >= 17.8 && h < 19.6) glow = this.smooth01((h - 17.8) / 1.8) * 0.88;
+    else if (h >= 5.7 && h < 6.9) glow = (1 - this.smooth01((h - 5.7) / 1.2)) * 0.88;
+
+    this.setLampGlow(glow);
+
+    for (const mat of this.streetBulbMaterials) {
+      if (glow > 0.04) {
+        // Warm sodium/LED mix — stronger as night deepens
+        mat.emissive.setHex(glow > 0.55 ? 0xfff4e0 : 0xffc570);
+        mat.emissiveIntensity = 0.25 + glow * 3.2;
+      } else {
+        mat.emissive.setHex(0xffedd5);
+        mat.emissiveIntensity = 0.15;
+      }
+    }
+  }
+
+  private smooth01(t: number): number {
+    const x = Math.max(0, Math.min(1, t));
+    return x * x * (3 - 2 * x);
   }
 
   private buildPowerPoles(): void {
@@ -372,10 +388,7 @@ export class Roads {
     const mats = MaterialLibrary.getInstance();
 
     // A. Concrete Drainage Channels (Open Gutters flanking the road)
-    const gutterMat = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      roughness: 0.9,
-    });
+    const gutterMat = mats.concreteTrimMaterial;
     const culvertMat = mats.concreteTrimMaterial;
 
     for (const side of [-1, 1]) {
@@ -443,7 +456,7 @@ export class Roads {
     ];
 
     // (The last, the POS stall, stands north of the footbridge's west stairs, clear of the mechanic's way in)
-    const stallZPositions = [-78, -52, -22, 12, 44, 72, 118];
+    const stallZPositions = [-78, -62, -52, -22, 12, 28, 44, 72, 96, 118];
 
     stallZPositions.forEach((sz, idx) => {
       const side = idx % 2 === 0 ? -1 : 1;
@@ -511,6 +524,21 @@ export class Roads {
       stool.position.set(0.1, 0.28, -0.65);
       stool.castShadow = true;
       stallGroup.add(stool);
+
+      // Extra crate / carton stack beside some stalls (street clutter without new systems)
+      if (idx % 2 === 0) {
+        const crate = new THREE.Mesh(
+          new THREE.BoxGeometry(0.55, 0.4, 0.45),
+          new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.92 })
+        );
+        crate.position.set(0.55, 0.2, -0.35);
+        crate.castShadow = true;
+        stallGroup.add(crate);
+        const crate2 = crate.clone();
+        crate2.position.set(0.55, 0.55, -0.35);
+        crate2.rotation.y = 0.25;
+        stallGroup.add(crate2);
+      }
 
       this.group.add(stallGroup);
       this.roadsideStalls.push({ canopy, rim, cooler, lid, stool });

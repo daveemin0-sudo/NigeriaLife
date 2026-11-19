@@ -308,18 +308,18 @@ export class MaterialLibrary {
     this.corrugatedRoofRusty = new THREE.MeshStandardMaterial({
       map: rustyColor,
       bumpMap: corrugatedBump,
-      bumpScale: 0.08,
-      metalness: 0.5,
-      roughness: 0.72,
+      bumpScale: 0.1,
+      metalness: 0.42,
+      roughness: 0.78,
     });
 
     const { colorMap: silverColor } = this.generateCorrugatedRoof(false);
     this.corrugatedRoofSilver = new THREE.MeshStandardMaterial({
       map: silverColor,
       bumpMap: corrugatedBump,
-      bumpScale: 0.08,
-      metalness: 0.75,
-      roughness: 0.45,
+      bumpScale: 0.1,
+      metalness: 0.68,
+      roughness: 0.4,
     });
   }
 
@@ -402,8 +402,8 @@ export class MaterialLibrary {
     this.wallPlasterCream = new THREE.MeshStandardMaterial({
       map: creamColor,
       bumpMap: wallBump,
-      bumpScale: 0.035,
-      roughness: 0.85,
+      bumpScale: 0.045,
+      roughness: 0.9,
     });
 
     // B. Warm Sand / Ochre (#d9b99a)
@@ -411,8 +411,8 @@ export class MaterialLibrary {
     this.wallPlasterOchre = new THREE.MeshStandardMaterial({
       map: ochreColor,
       bumpMap: wallBump,
-      bumpScale: 0.035,
-      roughness: 0.85,
+      bumpScale: 0.045,
+      roughness: 0.9,
     });
 
     // C. Sunlit Warm Stone Plaster (#e6c9a0)
@@ -420,8 +420,8 @@ export class MaterialLibrary {
     this.wallPlasterDistressedWhite = new THREE.MeshStandardMaterial({
       map: whiteColor,
       bumpMap: wallBump,
-      bumpScale: 0.03,
-      roughness: 0.85,
+      bumpScale: 0.04,
+      roughness: 0.9,
     });
 
     // D. Warm Terracotta Plaster (#d8a889)
@@ -429,16 +429,16 @@ export class MaterialLibrary {
     this.wallPlasterTeal = new THREE.MeshStandardMaterial({
       map: tealColor,
       bumpMap: wallBump,
-      bumpScale: 0.035,
-      roughness: 0.85,
+      bumpScale: 0.045,
+      roughness: 0.9,
     });
 
     // Concrete architectural trim
     this.concreteTrimMaterial = new THREE.MeshStandardMaterial({
       color: 0xa59d90,
-      roughness: 0.8,
+      roughness: 0.86,
       bumpMap: wallBump,
-      bumpScale: 0.02,
+      bumpScale: 0.028,
     });
   }
 
@@ -462,27 +462,36 @@ export class MaterialLibrary {
     bCtx.fillStyle = '#808080';
     bCtx.fillRect(0, 0, size, size);
 
-    // Weathering stains and texture specks
-    for (let i = 0; i < 260; i++) {
-      ctx.fillStyle = `rgba(${(60 + Math.random() * 40) | 0}, ${(50 + Math.random() * 30) | 0}, 40, ${Math.random() * 0.07})`;
+    // Weathering stains and texture specks (denser for lived-in Lagos façades)
+    for (let i = 0; i < 380; i++) {
+      ctx.fillStyle = `rgba(${(60 + Math.random() * 40) | 0}, ${(50 + Math.random() * 30) | 0}, 40, ${Math.random() * 0.09})`;
       ctx.fillRect(Math.random() * size, Math.random() * size, 20 + Math.random() * 90, 10 + Math.random() * 70);
     }
 
-    // Vertical runoff stains
-    for (let i = 0; i < 45; i++) {
+    // Vertical runoff stains (rain streaks / AC drip)
+    for (let i = 0; i < 70; i++) {
       const x = Math.random() * size;
-      const l = 60 + Math.random() * 220;
+      const l = 60 + Math.random() * 260;
       const gr = ctx.createLinearGradient(0, 0, 0, l);
       gr.addColorStop(0, stainHex);
       gr.addColorStop(1, '#00000000');
       ctx.save();
       ctx.translate(x, 0);
       ctx.fillStyle = gr;
-      ctx.globalAlpha = 0.28;
-      ctx.fillRect(0, 0, 3 + Math.random() * 8, l);
+      ctx.globalAlpha = 0.34;
+      ctx.fillRect(0, 0, 3 + Math.random() * 9, l);
       ctx.restore();
       ctx.globalAlpha = 1.0;
     }
+
+    // Lower-wall grime band (kerb splash / harmattan dust)
+    const grime = ctx.createLinearGradient(0, size * 0.62, 0, size);
+    grime.addColorStop(0, '#00000000');
+    grime.addColorStop(1, stainHex);
+    ctx.fillStyle = grime;
+    ctx.globalAlpha = 0.22;
+    ctx.fillRect(0, size * 0.62, size, size * 0.38);
+    ctx.globalAlpha = 1.0;
 
     // Sunlit tropical highlights
     for (let i = 0; i < 22; i++) {
@@ -513,11 +522,14 @@ export class MaterialLibrary {
   // 4. ARCHITECTURAL PROPS & DETAILS
   // ==========================================
   private initPropMaterials(): void {
-    // Reflective architectural tinted glass
+    // Reflective architectural tinted glass (reads as wet-sky glass under sun/rain)
     this.glassReflectiveMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1e3a8a,
-      roughness: 0.1,
-      metalness: 0.95,
+      color: 0x243b6b,
+      roughness: 0.08,
+      metalness: 0.92,
+      envMapIntensity: 1.15,
+      transparent: true,
+      opacity: 0.92,
     });
 
     // Louvered window texture (horizontal slatted glass/metal blades)
@@ -708,29 +720,40 @@ export class MaterialLibrary {
   }
 
   public setNightLighting(period: string): void {
-    const isNight = period === 'night';
-    const isGolden = period === 'golden_hour';
+    const hour = period === 'night' ? 22 : period === 'golden_hour' ? 18.4 : 12;
+    this.setWindowGlowForHour(hour);
+  }
+
+  /** Continuous façade / window glow from the world clock (matches street lamp dusk ramp). */
+  public setWindowGlowForHour(hour: number): void {
+    const h = ((hour % 24) + 24) % 24;
+    let glow = 0;
+    if (h >= 19.6 || h < 5.7) glow = 1;
+    else if (h >= 17.8 && h < 19.6) {
+      const t = (h - 17.8) / 1.8;
+      glow = t * t * (3 - 2 * t);
+    } else if (h >= 5.7 && h < 6.9) {
+      const t = (h - 5.7) / 1.2;
+      glow = 1 - t * t * (3 - 2 * t);
+    }
 
     if (this.louveredWindowMaterial) {
-      if (isNight) {
-        this.louveredWindowMaterial.emissive.setHex(0xfbbf24); // warm golden interior lamp glow
-        this.louveredWindowMaterial.emissiveIntensity = 0.65;
-      } else if (isGolden) {
-        this.louveredWindowMaterial.emissive.setHex(0xf59e0b);
-        this.louveredWindowMaterial.emissiveIntensity = 0.25;
+      if (glow > 0.05) {
+        this.louveredWindowMaterial.emissive.setHex(glow > 0.55 ? 0xfbbf24 : 0xf59e0b);
+        this.louveredWindowMaterial.emissiveIntensity = 0.2 + glow * 0.85;
       } else {
         this.louveredWindowMaterial.emissive.setHex(0x000000);
-        this.louveredWindowMaterial.emissiveIntensity = 0.0;
+        this.louveredWindowMaterial.emissiveIntensity = 0;
       }
     }
 
     if (this.glassReflectiveMaterial) {
-      if (isNight) {
-        this.glassReflectiveMaterial.emissive.setHex(0x38bdf8); // modern blue office tower glow
-        this.glassReflectiveMaterial.emissiveIntensity = 0.35;
+      if (glow > 0.05) {
+        this.glassReflectiveMaterial.emissive.setHex(0x38bdf8);
+        this.glassReflectiveMaterial.emissiveIntensity = 0.12 + glow * 0.5;
       } else {
         this.glassReflectiveMaterial.emissive.setHex(0x000000);
-        this.glassReflectiveMaterial.emissiveIntensity = 0.0;
+        this.glassReflectiveMaterial.emissiveIntensity = 0;
       }
     }
   }
