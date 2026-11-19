@@ -192,7 +192,9 @@ function hairAndHat(config: HumanConfig, female: boolean): { hair: string; hat: 
 export function buildPerson(config: HumanConfig, nameTag: (username: string) => THREE.Sprite): HumanRig {
   const female = config.gender === 'female';
   const detailed = config.lod !== 'street';
-  const seg = detailed ? 28 : 14;
+  // Street LOD still gets readable faces (glint, nostrils, lip line) — proportions stay 8-head
+  const faceDetail = true;
+  const seg = detailed ? 28 : 18;
   const group = new THREE.Group();
   const materials: THREE.Material[] = [];
   // One material for each look of surface, so pieces alike can be drawn together
@@ -210,8 +212,8 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const breadth = build === 'slim' ? 0.92 : build === 'broad' ? 1.1 : 1;
   const shape: HeadShape = (config.headShape as HeadShape | undefined) ?? (female ? 'oval' : 'round');
   const skinHex = config.skinTone || (female ? SKIN_DEFAULT.female : SKIN_DEFAULT.male);
-  const skin = mat(skinHex, 0.48);
-  const skinDeep = mat(new THREE.Color(skinHex).multiplyScalar(0.78).getHex(), 0.6);
+  const skin = mat(skinHex, 0.42);
+  const skinDeep = mat(new THREE.Color(skinHex).multiplyScalar(0.78).getHex(), 0.55);
   const hairColour = new THREE.Color(config.hairColor ?? '#0b0908').getHex();
   const cut = cutFor(config, female);
   const top = mat(cut.colour, cut.pattern === 'lace' ? 0.6 : 0.78, fabric(cut.pattern, cut.colour, cut.accent, 0x111827));
@@ -227,16 +229,16 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   shadow.position.y = 0.01;
   group.add(shadow);
 
-  // ---------------------------------------------------------------- Torso
-  const torsoY = female ? 1.05 : 1.1;
+  // ---------------------------------------------------------------- Torso (8-head: longer legs, narrower waist→shoulder read)
+  const torsoY = female ? 1.08 : 1.14;
   const torso = new THREE.Group();
   torso.position.y = torsoY;
   group.add(torso);
-  const sx = (female ? 1.22 : 1.28) * breadth;
-  const sz = (female ? 0.8 : 0.74) * (build === 'broad' ? 1.06 : 1);
+  const sx = (female ? 1.18 : 1.24) * breadth;
+  const sz = (female ? 0.78 : 0.72) * (build === 'broad' ? 1.08 : 1);
   const profile: Array<[number, number]> = female
-    ? [[0.0, -0.36], [0.15, -0.34], [0.19, -0.26], [0.178, -0.16], [0.138, -0.06], [0.142, 0.04], [0.156, 0.13], [0.164, 0.2], [0.16, 0.245], [0.12, 0.29], [0.075, 0.33], [0.06, 0.37], [0.0, 0.375]]
-    : [[0.0, -0.38], [0.15, -0.36], [0.176, -0.3], [0.166, -0.2], [0.154, -0.1], [0.166, 0.02], [0.188, 0.14], [0.2, 0.22], [0.196, 0.27], [0.15, 0.32], [0.092, 0.37], [0.074, 0.41], [0.0, 0.415]];
+    ? [[0.0, -0.38], [0.14, -0.36], [0.185, -0.28], [0.17, -0.16], [0.128, -0.05], [0.136, 0.05], [0.152, 0.14], [0.16, 0.21], [0.155, 0.255], [0.115, 0.3], [0.072, 0.34], [0.055, 0.38], [0.0, 0.385]]
+    : [[0.0, -0.4], [0.14, -0.38], [0.17, -0.3], [0.158, -0.2], [0.146, -0.08], [0.16, 0.04], [0.186, 0.15], [0.2, 0.23], [0.195, 0.28], [0.148, 0.33], [0.09, 0.38], [0.07, 0.42], [0.0, 0.425]];
   const hemLocal = Math.min(cut.hem, torsoY - 0.02) - torsoY;
   // What shows of the torso: the top down to its hem (or to the waist for a long top, its skirt drawn after), the bottom under it
   const topTo = cut.hem < torsoY - 0.36 ? -0.36 : hemLocal;
@@ -412,17 +414,17 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     torso.add(tie);
   }
 
-  // ---------------------------------------------------------------- Head and neck
+  // ---------------------------------------------------------------- Head and neck (~1/8 of standing height)
   const head = new THREE.Group();
-  head.position.set(0, female ? 1.56 : 1.64, 0);
+  head.position.set(0, female ? 1.6 : 1.7, 0);
   group.add(head);
-  const neckR = (female ? 0.05 : 0.061) * (build === 'broad' ? 1.08 : 1);
-  const neck = new THREE.Mesh(lathe([[neckR * 0.98, -0.17], [neckR * 1.0, -0.1], [neckR, -0.04], [neckR * 0.98, 0.04]], seg, 1.0, 0.86), skin);
+  const neckR = (female ? 0.048 : 0.058) * (build === 'broad' ? 1.08 : 1);
+  const neck = new THREE.Mesh(lathe([[neckR * 0.98, -0.18], [neckR * 1.0, -0.11], [neckR, -0.04], [neckR * 0.98, 0.05]], seg, 1.0, 0.86), skin);
   neck.position.z = -0.008;
   head.add(neck);
-  const R = female ? 0.108 : 0.116;
-  const C = new THREE.Vector3(0, female ? 0.05 : 0.054, 0.012);
-  const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 40 : 18, detailed ? 30 : 14), R, shape), skin);
+  const R = female ? 0.105 : 0.112;
+  const C = new THREE.Vector3(0, female ? 0.048 : 0.052, 0.014);
+  const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 40 : 24, detailed ? 30 : 18), R, shape), skin);
   skull.position.copy(C);
   head.add(skull);
   const face = new THREE.Group();
@@ -436,7 +438,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     ear.position.copy(at(s * Math.PI * 0.5, -0.04, 0.98)).add(new THREE.Vector3(0, 0, -0.008));
     ear.rotation.y = s * 0.25;
     face.add(ear);
-    if (detailed) {
+    if (faceDetail) {
       const inner = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), skinDeep);
       inner.scale.set(0.3, 0.9, 0.6);
       inner.position.copy(ear.position).add(new THREE.Vector3(s * 0.006, 0, 0.004));
@@ -455,16 +457,16 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     eye.position.copy(eyeAt);
     eye.rotation.y = s * 0.2;
     face.add(eye);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0145, detailed ? 14 : 8, detailed ? 10 : 6), white);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0145, faceDetail ? 14 : 8, faceDetail ? 10 : 6), white);
     ball.scale.set(1.25, 0.82, 0.7);
     eye.add(ball);
-    const ir = new THREE.Mesh(new THREE.CircleGeometry(0.0082, detailed ? 18 : 10), iris);
+    const ir = new THREE.Mesh(new THREE.CircleGeometry(0.0082, faceDetail ? 18 : 10), iris);
     ir.position.z = 0.0101;
     eye.add(ir);
     const pu = new THREE.Mesh(new THREE.CircleGeometry(0.004, 10), pupil);
     pu.position.z = 0.0104;
     eye.add(pu);
-    if (detailed) {
+    if (faceDetail) {
       const gl = new THREE.Mesh(new THREE.CircleGeometry(0.0016, 6), glint);
       gl.position.set(0.0025, 0.0028, 0.0107);
       eye.add(gl);
@@ -477,7 +479,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     const lower = new THREE.Mesh(new THREE.SphereGeometry(0.0152, 12, 8, 0, Math.PI * 2, Math.PI * 0.7, Math.PI * 0.3), skin);
     lower.scale.set(1.28, 0.85, 0.74);
     eye.add(lower);
-    if (female && detailed) {
+    if (female && faceDetail) {
       const lash = new THREE.Mesh(new THREE.TorusGeometry(0.0145, 0.0018, 4, 12, Math.PI * 0.9), dark);
       lash.rotation.z = Math.PI * 0.05;
       lash.scale.set(1.25, 0.75, 1);
@@ -507,7 +509,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     wing.scale.set(0.9, 0.8, 0.82);
     wing.position.copy(at(s * 0.15 * noseW, -0.315, 0.985));
     face.add(wing);
-    if (detailed) {
+    if (faceDetail) {
       const hole = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 6, 4), mat(0x1a0d07, 0.9));
       hole.scale.set(1.2, 0.6, 1);
       hole.position.copy(at(s * 0.07 * noseW, -0.355, 1.02));
@@ -525,7 +527,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   lowerLip.scale.set(1.4, 0.52, 0.68);
   lowerLip.position.copy(at(0, -0.53, 0.985));
   face.add(lowerLip);
-  if (detailed) {
+  if (faceDetail) {
     const line = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.0016, 0.004), mat(0x1a0b07, 0.9));
     line.position.copy(at(0, -0.5, 1.012));
     face.add(line);
@@ -603,7 +605,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const coatMat = cut.coat !== undefined ? mat(cut.coat, 0.55) : null;
   const makeArm = (side: -1 | 1) => {
     const arm = new THREE.Group();
-    arm.position.set(side * shoulderX, female ? 1.3 : 1.38, 0);
+    arm.position.set(side * shoulderX, female ? 1.34 : 1.44, 0);
     group.add(arm);
     const sleeveLen = cut.sleeves === 'none' ? 0 : cut.sleeves === 'short' ? upperLen * 0.5 : upperLen;
     const ease = cut.sleeves === 'wide' ? 0.06 : 0.012;
@@ -672,10 +674,10 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     Rt.fore.add(tray);
   }
 
-  // ---------------------------------------------------------------- Legs
-  const hipY = female ? 0.74 : 0.78;
-  const thighLen = female ? 0.38 : 0.4;
-  const shinLen = female ? 0.36 : 0.38;
+  // ---------------------------------------------------------------- Legs (longer for 8-head read)
+  const hipY = female ? 0.76 : 0.8;
+  const thighLen = female ? 0.4 : 0.42;
+  const shinLen = female ? 0.38 : 0.4;
   const legX = female ? 0.13 : 0.16;
   const legR = (female ? 0.072 : 0.088) * breadth;
   // What covers each part of the leg: trousers all the way, shorts to above the knee, skirts and dresses leave them bare

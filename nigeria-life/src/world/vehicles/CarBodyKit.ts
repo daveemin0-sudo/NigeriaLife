@@ -195,16 +195,17 @@ export interface CarMaterials {
 
 export function carMaterials(paint: number): CarMaterials {
   return {
-    paint: new THREE.MeshStandardMaterial({ color: paint, metalness: 0.62, roughness: 0.24 }),
-    glass: new THREE.MeshStandardMaterial({ color: 0x152434, metalness: 0.85, roughness: 0.055 }),
-    trim: new THREE.MeshStandardMaterial({ color: 0x0f1115, metalness: 0.2, roughness: 0.65 }),
-    chrome: new THREE.MeshStandardMaterial({ color: 0xe5e7eb, metalness: 1, roughness: 0.12 }),
-    lamp: new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xfff7ed, emissiveIntensity: 1.55, roughness: 0.18 }),
-    tail: new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0xef4444, emissiveIntensity: 1.35, roughness: 0.28 }),
+    // Closer to ART-BIBLE clearcoat read (MeshStandard approximation for instancing)
+    paint: new THREE.MeshStandardMaterial({ color: paint, metalness: 0.72, roughness: 0.18 }),
+    glass: new THREE.MeshStandardMaterial({ color: 0x0c1824, metalness: 0.9, roughness: 0.04 }),
+    trim: new THREE.MeshStandardMaterial({ color: 0x0f1115, metalness: 0.25, roughness: 0.55 }),
+    chrome: new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 1, roughness: 0.08 }),
+    lamp: new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xfff7ed, emissiveIntensity: 1.7, roughness: 0.16 }),
+    tail: new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0xef4444, emissiveIntensity: 1.45, roughness: 0.25 }),
     plate: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 }),
-    gold: new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.25 }),
-    blue: new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 }),
-    red: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.3 }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.2 }),
+    blue: new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.28 }),
+    red: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.28 }),
   };
 }
 
@@ -458,9 +459,10 @@ export const CAR_SPECS: Record<string, Omit<CarSpec, 'paint'> & { paint?: number
     tumblehome: 0.18, roundness: 0.95, grille: 'closed', lamps: 'slim', tailBar: true, paint: 0xe5e7eb,
   },
   sports_car: {
-    style: 'sports', length: 4.55, width: 1.9, clearance: 0.12, belt: 0.82, roof: 1.27, noseTop: 0.62, tailTop: 0.9,
-    screenFoot: 0.75, screenTop: -0.1, backTop: -0.6, backFoot: -1.75, frontAxle: 1.3, rearAxle: -1.2, wheelRadius: 0.34,
-    tumblehome: 0.22, roundness: 1, grille: 'mesh', lamps: 'round', wing: true, paint: 0xb91c1c,
+    // Lower, wider wedge — reads as supercar even at street distance
+    style: 'sports', length: 4.65, width: 1.98, clearance: 0.1, belt: 0.76, roof: 1.18, noseTop: 0.55, tailTop: 0.86,
+    screenFoot: 0.85, screenTop: -0.12, backTop: -0.65, backFoot: -1.85, frontAxle: 1.35, rearAxle: -1.25, wheelRadius: 0.355,
+    tumblehome: 0.26, roundness: 0.7, grille: 'mesh', lamps: 'slim', wing: true, paint: 0xb91c1c,
   },
   suv: {
     style: 'suv', length: 4.85, width: 1.9, clearance: 0.3, belt: 1.18, roof: 1.86, noseTop: 1.06, tailTop: 1.22,
