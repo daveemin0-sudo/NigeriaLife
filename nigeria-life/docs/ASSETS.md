@@ -21,7 +21,9 @@ nigeria-life/
 
 | Asset Name | Target Path | Source / Creator | License | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **Human Skeletal Rig & Base Mesh** | `public/models/characters/human_base.glb` | Custom Synthesized / Quaternius Rig Standard | CC0 1.0 Universal / MIT | Compatible with standard Mixamo humanoid animations |
+| **Human Male (player)** | `public/models/characters/human_male.glb` | Quaternius Characters_Matt | CC0 1.0 Universal | Idle / Walk / Run — see `docs/CHARACTER-PIPELINE.md` |
+| **Human Female (player)** | `public/models/characters/human_female.glb` | Quaternius Casual_Female | CC0 1.0 Universal | Idle / Walk / Run / SitDown |
+| **Human Male alt** | `public/models/characters/human_male_alt_soldier.glb` | Quaternius Soldier_Male | CC0 1.0 Universal | Optional; not default player |
 | **Danfo Minibus 3D Model** | `public/models/vehicles/danfo_minibus.glb` | NigeriaLife 3D Production Pipeline | Original Project Asset (MIT) | Separated nodes for body, 4 wheels, sliding door, headlights |
 | **Keke Tricycle 3D Model** | `public/models/vehicles/keke_napep.glb` | NigeriaLife 3D Production Pipeline | Original Project Asset (MIT) | Canopy, handlebars, 3 wheels, open cabin bench |
 | **Okada Motorcycle** | `public/models/vehicles/okada_bike.glb` | NigeriaLife 3D Production Pipeline | Original Project Asset (MIT) | Frame, 2 wheels, turning fork, exhaust |
