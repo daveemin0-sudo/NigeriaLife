@@ -4577,16 +4577,29 @@ export class Game {
       this.ambienceClock = 0;
       const at = this.player.position;
       const outside = !this.world.interiorManager.isPlayerInside() && this.hud.currentNavMode !== 'map';
+      const cityId = this.world.cityManager.currentCityId;
+      const peopleNear = outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0;
+      const stallSpots = this.world.cityDensity?.fabric?.stallSpots ?? [];
+      const nearStall = stallSpots.some((s) => {
+        const dx = s.x - at.x;
+        const dz = s.z - at.z;
+        return dx * dx + dz * dz < 14 * 14;
+      });
+      // Lagos: umbrella stalls; other cities: a dense kerb crowd reads as market activity
+      const marketNear = outside && (nearStall || (cityId !== 'lagos' && peopleNear >= 12));
       StreetAmbience.get().update(0.5, {
         outside,
         // Broad Street and its pavements, or moving traffic on a main road: never an estate (Banana Island, the GRA)
         onMainRoad: outside && !QUIET_ESTATES.some((r) => at.x > r.minX && at.x < r.maxX && at.z > r.minZ && at.z < r.maxZ)
-          && ((this.world.cityManager.currentCityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3 && at.z > MAIN_ROAD.zMin - 15 && at.z < MAIN_ROAD.zMax + 15)
+          && ((cityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3 && at.z > MAIN_ROAD.zMin - 15 && at.z < MAIN_ROAD.zMax + 15)
             || Bodies.carsNear(at.x, at.z, 25).filter((car) => !car.parked).length >= 6),
         driving: this.player.isDriving,
-        people: outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0,
+        people: peopleNear,
         cars: outside ? Bodies.carsNear(at.x, at.z, 30).length : 0,
         hour: this.world.skyEnvironment.currentHour,
+        cityId,
+        marketNear,
+        rain: this.world.weather.curRainIntensity,
       });
     }
 

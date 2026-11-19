@@ -121,7 +121,8 @@ export class WeatherSystem {
   private curHemiMultiplier: number = 1.0;
   private curFogDensityMultiplier: number = 1.0;
   private curFogColorTint = new THREE.Vector3(1.0, 1.0, 1.0);
-  private curRainIntensity: number = 0.0;
+  /** Live rain strength 0–1 (eased toward the weather profile); used by street ambience ducking */
+  public curRainIntensity: number = 0.0;
   private curWindStrength: number = 0.2;
   private curHarmattanDust: number = 0.25;
   private curRoadWetness: number = 0.0;
