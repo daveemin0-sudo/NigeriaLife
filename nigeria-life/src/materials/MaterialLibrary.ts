@@ -402,8 +402,8 @@ export class MaterialLibrary {
     this.wallPlasterCream = new THREE.MeshStandardMaterial({
       map: creamColor,
       bumpMap: wallBump,
-      bumpScale: 0.035,
-      roughness: 0.85,
+      bumpScale: 0.045,
+      roughness: 0.9,
     });
 
     // B. Warm Sand / Ochre (#d9b99a)
@@ -411,8 +411,8 @@ export class MaterialLibrary {
     this.wallPlasterOchre = new THREE.MeshStandardMaterial({
       map: ochreColor,
       bumpMap: wallBump,
-      bumpScale: 0.035,
-      roughness: 0.85,
+      bumpScale: 0.045,
+      roughness: 0.9,
     });
 
     // C. Sunlit Warm Stone Plaster (#e6c9a0)
@@ -420,8 +420,8 @@ export class MaterialLibrary {
     this.wallPlasterDistressedWhite = new THREE.MeshStandardMaterial({
       map: whiteColor,
       bumpMap: wallBump,
-      bumpScale: 0.03,
-      roughness: 0.85,
+      bumpScale: 0.04,
+      roughness: 0.9,
     });
 
     // D. Warm Terracotta Plaster (#d8a889)
@@ -429,16 +429,16 @@ export class MaterialLibrary {
     this.wallPlasterTeal = new THREE.MeshStandardMaterial({
       map: tealColor,
       bumpMap: wallBump,
-      bumpScale: 0.035,
-      roughness: 0.85,
+      bumpScale: 0.045,
+      roughness: 0.9,
     });
 
     // Concrete architectural trim
     this.concreteTrimMaterial = new THREE.MeshStandardMaterial({
       color: 0xa59d90,
-      roughness: 0.8,
+      roughness: 0.86,
       bumpMap: wallBump,
-      bumpScale: 0.02,
+      bumpScale: 0.028,
     });
   }
 
@@ -462,27 +462,36 @@ export class MaterialLibrary {
     bCtx.fillStyle = '#808080';
     bCtx.fillRect(0, 0, size, size);
 
-    // Weathering stains and texture specks
-    for (let i = 0; i < 260; i++) {
-      ctx.fillStyle = `rgba(${(60 + Math.random() * 40) | 0}, ${(50 + Math.random() * 30) | 0}, 40, ${Math.random() * 0.07})`;
+    // Weathering stains and texture specks (denser for lived-in Lagos façades)
+    for (let i = 0; i < 380; i++) {
+      ctx.fillStyle = `rgba(${(60 + Math.random() * 40) | 0}, ${(50 + Math.random() * 30) | 0}, 40, ${Math.random() * 0.09})`;
       ctx.fillRect(Math.random() * size, Math.random() * size, 20 + Math.random() * 90, 10 + Math.random() * 70);
     }
 
-    // Vertical runoff stains
-    for (let i = 0; i < 45; i++) {
+    // Vertical runoff stains (rain streaks / AC drip)
+    for (let i = 0; i < 70; i++) {
       const x = Math.random() * size;
-      const l = 60 + Math.random() * 220;
+      const l = 60 + Math.random() * 260;
       const gr = ctx.createLinearGradient(0, 0, 0, l);
       gr.addColorStop(0, stainHex);
       gr.addColorStop(1, '#00000000');
       ctx.save();
       ctx.translate(x, 0);
       ctx.fillStyle = gr;
-      ctx.globalAlpha = 0.28;
-      ctx.fillRect(0, 0, 3 + Math.random() * 8, l);
+      ctx.globalAlpha = 0.34;
+      ctx.fillRect(0, 0, 3 + Math.random() * 9, l);
       ctx.restore();
       ctx.globalAlpha = 1.0;
     }
+
+    // Lower-wall grime band (kerb splash / harmattan dust)
+    const grime = ctx.createLinearGradient(0, size * 0.62, 0, size);
+    grime.addColorStop(0, '#00000000');
+    grime.addColorStop(1, stainHex);
+    ctx.fillStyle = grime;
+    ctx.globalAlpha = 0.22;
+    ctx.fillRect(0, size * 0.62, size, size * 0.38);
+    ctx.globalAlpha = 1.0;
 
     // Sunlit tropical highlights
     for (let i = 0; i < 22; i++) {

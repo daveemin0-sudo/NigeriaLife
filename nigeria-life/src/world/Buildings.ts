@@ -1395,13 +1395,13 @@ export class Buildings {
   private buildApartmentBlocks(): void {
     const aptConfigs = [
       // Each on a stretch of Broad Street frontage of its own, clear of the landmarks either side
-      { x: -19, z: -100, floors: 3, color: 0xf0e4cc, name: 'Palm View Flats' },
-      { x: 19, z: -74.5, floors: 4, color: 0xd9b99a, name: 'Heritage Heights' },
+      { x: -19, z: -100, floors: 3, plaster: 'cream' as const, accent: 0xb45309, bays: 4, name: 'Palm View Flats' },
+      { x: 19, z: -74.5, floors: 4, plaster: 'ochre' as const, accent: 0x7c2d12, bays: 3, name: 'Heritage Heights' },
       // Set back off Wharf Road, which runs to the port gate where this block used to stand
-      { x: -35.5, z: 36, floors: 3, color: 0xe6c9a0, name: 'Tejuosho Mansions' },
+      { x: -35.5, z: 36, floors: 3, plaster: 'stone' as const, accent: 0x0f766e, bays: 5, name: 'Tejuosho Mansions' },
     ];
 
-    aptConfigs.forEach((cfg) => {
+    aptConfigs.forEach((cfg, idx) => {
       const aptGroup = new THREE.Group();
       aptGroup.position.set(cfg.x, 0, cfg.z);
 
@@ -1409,27 +1409,28 @@ export class Buildings {
       const D = 10.0;
       const H = 4.2 + cfg.floors * 3.2;
 
-      // Main structural block
+      // Main structural block — weathered plaster (shared MaterialLibrary maps)
+      const plasterMat =
+        cfg.plaster === 'ochre' ? this.matLib.wallPlasterOchre :
+        cfg.plaster === 'stone' ? this.matLib.wallPlasterDistressedWhite :
+        this.matLib.wallPlasterCream;
       const bGeo = new THREE.BoxGeometry(W, H, D);
-      const bMat = new THREE.MeshStandardMaterial({
-        color: cfg.color,
-        roughness: 0.85,
-      });
-      const bMesh = new THREE.Mesh(bGeo, bMat);
+      const bMesh = new THREE.Mesh(bGeo, plasterMat);
       bMesh.position.y = H / 2;
       bMesh.castShadow = true;
       bMesh.receiveShadow = true;
       aptGroup.add(bMesh);
 
-      // A balcony with railings and a door on every upper floor, barred windows with hoods,
-      // a stair core behind pierced blocks, and a parapet roof with its tank and dish
+      // Façade variation: bay count, accent, and slightly different window band heights
       const facingRoad = cfg.x < 0 ? 1 : -1;
       dressBuilding(aptGroup, {
         style: 'flats',
         facing: (facingRoad * Math.PI) / 2,
         floors: cfg.floors + 1,
-        accent: new THREE.Color(cfg.color).multiplyScalar(0.62).getHex(),
-        frontBays: 4,
+        accent: cfg.accent,
+        frontBays: cfg.bays,
+        frontFrom: idx === 1 ? 0.4 : 0,
+        openGround: idx === 2,
       });
 
       this.group.add(aptGroup);
