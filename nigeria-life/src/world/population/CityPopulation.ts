@@ -253,6 +253,10 @@ export class CityPopulation {
   /** How far away pedestrians are drawn at all, and drawn in full (the graphics setting changes these) */
   public drawDistance = DRAW_DISTANCE;
   public nearDistance = NEAR_DISTANCE;
+  /** How many baked look variants the crowd can pick from (fashion variety). */
+  public get lookCount(): number {
+    return this.variants.length;
+  }
   /**
    * The lights, as the traffic keeps them: how many seconds the traffic of a group will still be
    * held at red (0 if it is moving, about to, or only just stopped). Set by whoever owns both.
@@ -386,6 +390,11 @@ export class CityPopulation {
     male({ outfit: 'mechanic_overalls', outfitColor: 0x1e40af, trousersColor: 0x1e40af, hairstyle: 'short_crop' });
     male({ outfit: 'security_uniform', outfitColor: 0x0f172a, trousersColor: 0x0f172a, hairstyle: 'police_cap' });
     male({ outfit: 'lecturer_suit', outfitColor: 0x374151, trousersColor: 0x374151, hairstyle: 'fade', hasTie: true });
+    // Street fashion variety (same street LOD — no remesh)
+    male({ outfit: 'ankara_shirt', outfitColor: 0xeab308, accentColor: 0xdc2626, pattern: 'ankara', hairstyle: 'fade', trousersColor: 0x1e293b });
+    male({ outfit: 'hoodie', outfitColor: 0x0f172a, trousersColor: 0x334155, hairstyle: 'afro' });
+    male({ outfit: 'jersey', outfitColor: 0x16a34a, accentColor: 0xf8fafc, hairstyle: 'fade', trousersColor: 0x111827 });
+    male({ outfit: 'button_shirt', outfitColor: 0xf8fafc, pattern: 'stripes', hairstyle: 'short_crop', trousersColor: 0x1e3a8a });
 
     // Everyday Lagos women
     for (const color of [0x2563eb, 0xdb2777, 0xf59e0b, 0x16a34a]) {
@@ -399,6 +408,10 @@ export class CityPopulation {
     }
     female({ outfit: 'nurse_scrubs', outfitColor: 0x5eead4, hairstyle: 'ponytail' });
     female({ outfit: 'student_casual', outfitColor: 0xf43f5e, hairstyle: 'braids', hasBackpack: true });
+    female({ outfit: 'ankara_gown', outfitColor: 0xf59e0b, accentColor: 0x7c2d12, pattern: 'ankara', hairstyle: 'gele' });
+    female({ outfit: 'ankara_gown', outfitColor: 0xdb2777, accentColor: 0xfde68a, pattern: 'ankara', hairstyle: 'braids' });
+    female({ outfit: 'buba_iro', outfitColor: 0x0d9488, accentColor: 0xf8fafc, pattern: 'aso_oke', hairstyle: 'gele' });
+    female({ outfit: 'hoodie', outfitColor: 0x7c3aed, trousersColor: 0x1e293b, hairstyle: 'ponytail' });
 
     for (const look of looks) {
       const rig = HumanMeshBuilder.createHuman(look);
@@ -1776,23 +1789,61 @@ export class CityPopulation {
           lax = Math.sin(a.phase * 2) * 0.03;
           rax = -lax;
         } else {
-          const stride = Math.sin(a.phase * 8);
+          // Per-walker cadence from speed + id (crowd no longer marches in lockstep)
+          const cadence = 6.5 + (a.speed ?? 1.2) * 1.4 + (a.id % 5) * 0.35;
+          const armAmp = 0.42 + (a.id % 3) * 0.08;
+          const stride = Math.sin(a.phase * cadence);
           llx = stride * 0.6;
           rlx = -stride * 0.6;
-          lax = -stride * 0.5;
-          rax = stride * 0.5;
-          bob = Math.abs(Math.sin(a.phase * 8)) * 0.035;
+          lax = -stride * armAmp;
+          rax = stride * armAmp;
+          bob = Math.abs(stride) * (0.028 + (a.speed ?? 1.2) * 0.008);
         }
       } else if (a.mode === 'talk') {
         a.phase += delta;
-        lax = -0.4 + Math.sin(a.phase * 4) * 0.2;
-        laz = -0.2;
-        rax = -0.75 + Math.cos(a.phase * 3) * 0.25;
-        raz = 0.25;
+        const kind = a.id % 3;
+        if (kind === 0) {
+          // Animated haggling / storytelling
+          lax = -0.4 + Math.sin(a.phase * 4) * 0.2;
+          laz = -0.2;
+          rax = -0.75 + Math.cos(a.phase * 3) * 0.25;
+          raz = 0.25;
+        } else if (kind === 1) {
+          // Phone-to-ear pose (x/z only — instanced limbs have no Y channel)
+          lax = -1.15;
+          laz = 0.35;
+          rax = Math.sin(a.phase * 1.5) * 0.05;
+        } else {
+          // Clapping / point while talking
+          lax = -0.55 + Math.sin(a.phase * 5) * 0.35;
+          rax = -0.55 + Math.cos(a.phase * 5) * 0.35;
+          laz = -0.1;
+          raz = 0.1;
+        }
       } else {
         a.phase += delta;
-        lax = Math.sin(a.phase * 2) * 0.03;
-        rax = -lax;
+        const kind = a.id % 4;
+        if (kind === 0) {
+          // Phone check
+          lax = -0.95;
+          laz = 0.4;
+          rax = Math.sin(a.phase * 1.2) * 0.04;
+        } else if (kind === 1) {
+          // Weight shift
+          lax = Math.sin(a.phase * 1.4) * 0.08;
+          rax = -lax * 0.6;
+          bob = Math.sin(a.phase * 0.9) * 0.012;
+        } else if (kind === 2) {
+          // Arms folded / wait
+          lax = -0.35;
+          laz = 0.45;
+          rax = -0.35;
+          raz = -0.45;
+        } else {
+          // Soft breath sway
+          lax = Math.sin(a.phase * 2) * 0.03;
+          rax = -lax;
+        }
       }
 
       // Those who are at home at this hour are not in the street
