@@ -214,7 +214,7 @@ export class WeatherSystem {
   public toggleWeather(): WeatherType {
     // Backward-compatible toggle between sunny and rainy
     const next = this.currentWeather === 'rainy' ? 'sunny' : 'rainy';
-    this.setWeather(next);
+    this.setWeather(next, true);
     return next;
   }
 
@@ -229,11 +229,15 @@ export class WeatherSystem {
     ];
     const currentIndex = sequence.indexOf(this.currentWeather);
     const next = sequence[(currentIndex + 1) % sequence.length];
-    this.setWeather(next);
+    this.setWeather(next, true);
     return next;
   }
 
-  public setWeather(type: WeatherType): void {
+  /**
+   * @param snap When true, jump wetness/rain/fog multipliers to the profile immediately
+   *             (UI / URL / demos). Normal gameplay still lerps via update().
+   */
+  public setWeather(type: WeatherType, snap = false): void {
     if (!WEATHER_PROFILES[type]) {
       type = 'sunny';
     }
@@ -245,6 +249,19 @@ export class WeatherSystem {
       this.startRainAudio();
     } else {
       this.stopRainAudio();
+    }
+
+    if (snap) {
+      this.curSunMultiplier = prof.sunMultiplier;
+      this.curHemiMultiplier = prof.hemiMultiplier;
+      this.curFogDensityMultiplier = prof.fogDensityMultiplier;
+      this.curFogColorTint.set(prof.fogColorTint[0], prof.fogColorTint[1], prof.fogColorTint[2]);
+      this.curRainIntensity = prof.rainIntensity;
+      this.curWindStrength = prof.windStrength;
+      this.curHarmattanDust = prof.harmattanDust;
+      this.curRoadWetness = prof.roadWetness;
+      // Apply materials / particles on the next update tick with a large delta
+      this.update(1.0);
     }
   }
 

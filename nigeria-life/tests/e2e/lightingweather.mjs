@@ -90,5 +90,28 @@ export async function run(browser, check) {
     rain.weather === 'rainy' && rainState.roughness < 0.5 && rainState.colorR < 0.85 && rainState.puddles,
     { rain, rainState });
 
+  // Reset to sunny, then prove the live HUD control can reach rain (preview default is sunny)
+  await page.evaluate(() => {
+    window.game.world.weather.setWeather('sunny', true);
+    window.game.hud.updateWeatherButton('sunny');
+  });
+  const btn = await page.$('#hud-weather-btn');
+  check('lightingweather: weather control exists in the HUD', !!btn, { btn: !!btn });
+  // Cycle sunny → partly_cloudy → overcast → rainy
+  for (let i = 0; i < 3; i++) await btn.click();
+  await wait(200);
+  const fromUi = await page.evaluate(() => {
+    const g = window.game;
+    return {
+      weather: g.world.weather.currentWeather,
+      wet: +g.world.roads.asphaltMat.roughness.toFixed(2),
+      label: document.getElementById('hud-weather-label')?.textContent || null,
+      icon: document.getElementById('hud-weather-icon')?.textContent || null,
+    };
+  });
+  check('lightingweather: HUD weather button reaches rainy with wet asphalt',
+    fromUi.weather === 'rainy' && fromUi.wet < 0.5 && /rain/i.test(fromUi.label || ''),
+    fromUi);
+
   check('lightingweather: no page errors', log.errors.length === 0, log.errors.slice(0, 4));
 }

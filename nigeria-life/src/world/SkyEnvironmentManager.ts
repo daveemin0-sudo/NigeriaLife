@@ -462,14 +462,8 @@ export class SkyEnvironmentManager {
       );
     }
 
-    const weatherIconEl = document.getElementById('hud-weather-icon');
-    if (weatherIconEl) {
-      weatherIconEl.textContent =
-        this.currentPeriod === 'night' ? '🌙' :
-        this.currentPeriod === 'golden_hour' ? '🌅' :
-        this.currentPeriod === 'morning' ? '🌤️' :
-        '☀️';
-    }
+    // Time-of-day period used to overwrite #hud-weather-icon with sun/moon glyphs.
+    // That fights the real weather control (rain / harmattan). Period stays on the clock toast.
   }
 
   /** Interpolates lighting parameters smoothly between keyframes across the 24-hour cycle */
