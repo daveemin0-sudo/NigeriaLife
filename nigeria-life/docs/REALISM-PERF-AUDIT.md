@@ -51,8 +51,8 @@ Measured levers already in code comments / prior audits:
 6. **Vehicles and traffic** ✅ (#36)
 7. Weather simulation ✅ (#32)
 8. **City identity and density** ✅ (#37)
-9. **Cinematic camera** ← current slice (eased presets, chase polish)
-10. Audio immersion
+9. **Cinematic camera** ✅ (#38)
+10. **Audio immersion** ← current slice (city beds, rain duck, market)
 11. Technical performance ✅ Low preset (#31)
 
 ## Lighting + weather immersion ✅
@@ -78,14 +78,17 @@ Broad Street vertical slice — denser Nigerian mix and night lamps, no driving-
 
 Three-city vertical slice — Abuja/PH must not read as Lagos copies.
 
-## Cinematic camera (current)
+## Cinematic camera ✅ (#38)
 
-Ordinary-gameplay camera polish — no new modes/presets:
+Ordinary-gameplay camera polish — eased presets/FOV, look-ahead, chase polish.
 
-1. Ease pitch/distance/FOV toward preset targets (orbit/zoom keep targets in sync).
-2. Hitch-resistant street follow + slight walk look-ahead.
-3. Chase: softer heading filter, slightly longer cinematic pull-back.
-4. `framing` diagnostic + `cinematiccamera` e2e.
+## Audio immersion (current)
+
+Street soundscape polish — reuse `StreetAmbience` / `SoundEngine`, no sample packs:
+
+1. City mix: Lagos commercial, Abuja quieter/orderly, PH heavier traffic rumble.
+2. Market kerb boost near umbrella stalls; rain ducks street beds.
+3. Soft interior hush when indoors; `levels` diagnostic + `audioimmersion` e2e.
 
 ## Out of scope for this slice
 
