@@ -45,54 +45,69 @@ export const PH_KEEP_OUT: Rect[] = [
 
 const D = (name: string, rect: Rect, kinds: District['kinds'], colours: number[], trims: number[], setback: [number, number], gap: [number, number]): District => ({ name, rect, kinds, colours, trims, setback, gap });
 
+/** Garden-city greens + creek teal + industrial rust — PH should not read as Abuja limestone */
+const LEAF = 0xdce7d4;
+const CREEK = 0x0f766e;
+const RUST = 0x9a3412;
+const SLATE = 0x64748b;
+
 const DISTRICTS: District[] = [
   D('GRA Phase 2', { minX: -272, maxX: -12, minZ: -192, maxZ: 172 }, [
     { kind: 'duplex', weight: 4, width: [14, 18], depth: [12, 15] },
     { kind: 'house', weight: 2, width: [13, 16], depth: [11, 14] },
     { kind: 'bungalow', weight: 1.5, width: [12, 15], depth: [11, 13] },
-  ], [WHITE, CREAM, SAND], [0x14532d, 0x7c2d12, 0x1e3a5f], [7, 12], [10, 16]),
+  ], [WHITE, CREAM, LEAF, SAGE, SAND], [0x14532d, CREEK, 0x7c2d12], [7, 12], [10, 16]),
   D('Rumuokoro', { minX: -532, maxX: -288, minZ: -192, maxZ: 172 }, [
     { kind: 'house', weight: 3, width: [11, 13], depth: [10, 12] },
     { kind: 'shops', weight: 3, width: [12, 18], depth: [11, 13] },
     { kind: 'flats', weight: 1.5, width: [14, 18], depth: [12, 15], floors: [2, 4] },
-  ], [OCHRE, TERRACOTTA, SAND, ROSE, CREAM, SAGE], [0x7c2d12, 0x475569, 0x15803d], [2, 5], [3, 6]),
+  ], [OCHRE, TERRACOTTA, SAND, ROSE, CREAM, SAGE, 0xeab308], [0x7c2d12, 0x475569, 0x15803d, CREEK], [2, 5], [3, 6]),
   D('Rumuola', { minX: -532, maxX: 520, minZ: -262, maxZ: -208 }, [
     { kind: 'shops', weight: 3, width: [12, 20], depth: [11, 14] },
     { kind: 'flats', weight: 2, width: [14, 20], depth: [12, 16], floors: [3, 4] },
     { kind: 'office', weight: 1, width: [14, 18], depth: [12, 16], floors: [2, 4] },
-  ], [SAND, OCHRE, CREAM, STONE], [0x475569, 0x7f1d1d], [3, 6], [4, 8]),
+  ], [SAND, OCHRE, CREAM, STONE, TERRACOTTA], [0x475569, 0x7f1d1d, CREEK], [3, 6], [4, 8]),
   D('D-Line', { minX: -272, maxX: -12, minZ: 188, maxZ: 372 }, [
     { kind: 'shops', weight: 4, width: [12, 22], depth: [11, 15] },
     { kind: 'office', weight: 2, width: [14, 20], depth: [14, 18], floors: [3, 6] },
     { kind: 'bank', weight: 0.8, width: [12, 16], depth: [12, 16], floors: [3, 5] },
     { kind: 'hotel', weight: 0.5, width: [16, 22], depth: [16, 20], floors: [5, 8] },
     { kind: 'flats', weight: 1.5, width: [14, 20], depth: [12, 16], floors: [3, 5] },
-  ], [SAND, CREAM, STONE, SKY, ROSE], [0x475569, 0x15803d, 0x7f1d1d, 0x0c4a6e], [2, 5], [3, 7]),
+  ], [SAND, CREAM, STONE, SKY, ROSE, OCHRE], [0x475569, 0x15803d, 0x7f1d1d, CREEK, 0x0c4a6e], [2, 5], [3, 7]),
   D('Diobu', { minX: -532, maxX: -288, minZ: 388, maxZ: 542 }, [
     { kind: 'house', weight: 3, width: [10, 12], depth: [10, 12] },
     { kind: 'flats', weight: 2, width: [12, 16], depth: [12, 14], floors: [2, 4] },
     { kind: 'shops', weight: 2, width: [10, 16], depth: [10, 12] },
-  ], [OCHRE, TERRACOTTA, SAND, ROSE, SAGE], [0x7c2d12, 0x475569], [2, 4], [2, 5]),
+  ], [OCHRE, TERRACOTTA, SAND, ROSE, SAGE, 0xb45309], [0x7c2d12, 0x475569, RUST], [2, 4], [2, 5]),
   D('Old Township', { minX: -272, maxX: -12, minZ: 388, maxZ: 542 }, [
     { kind: 'shops', weight: 4, width: [10, 18], depth: [10, 14] },
     { kind: 'flats', weight: 2, width: [12, 18], depth: [12, 16], floors: [2, 4] },
     { kind: 'market', weight: 0.6, width: [10, 14], depth: [14, 16] },
-  ], [OCHRE, SAND, CREAM, TERRACOTTA, STONE], [0x15803d, 0x475569, 0x7c2d12], [2, 4], [2, 5]),
+  ], [OCHRE, SAND, CREAM, TERRACOTTA, STONE, LEAF], [CREEK, 0x15803d, 0x475569, 0x7c2d12], [2, 4], [2, 5]),
   D('Aba Road', { minX: 12, maxX: 50, minZ: 142, maxZ: 542 }, [
     { kind: 'shops', weight: 3, width: [12, 18], depth: [11, 14] },
     { kind: 'office', weight: 2, width: [14, 20], depth: [12, 16], floors: [3, 6] },
     { kind: 'bank', weight: 0.8, width: [12, 16], depth: [12, 14], floors: [3, 4] },
-  ], [SAND, STONE, SKY, CREAM], [0x475569, 0x0c4a6e], [2, 5], [3, 6]),
+  ], [SAND, STONE, SKY, CREAM, OCHRE], [0x475569, CREEK, 0x0c4a6e], [2, 5], [3, 6]),
   D('Aba Road west', { minX: -50, maxX: -12, minZ: 142, maxZ: 542 }, [
     { kind: 'shops', weight: 3, width: [12, 18], depth: [11, 14] },
     { kind: 'flats', weight: 1.5, width: [14, 18], depth: [12, 14], floors: [3, 5] },
-  ], [SAND, OCHRE, CREAM], [0x475569, 0x7f1d1d], [2, 5], [3, 6]),
+  ], [SAND, OCHRE, CREAM, TERRACOTTA], [0x475569, 0x7f1d1d, CREEK], [2, 5], [3, 6]),
   D('Trans-Amadi', { minX: 82, maxX: 522, minZ: -262, maxZ: 542 }, [
     { kind: 'market', weight: 3, width: [24, 36], depth: [18, 24] },
     { kind: 'office', weight: 2, width: [16, 24], depth: [14, 18], floors: [2, 5] },
     { kind: 'shops', weight: 1, width: [14, 22], depth: [12, 16] },
-  ], [GREY, STONE, SKY, 0xcbd5e1], [0x1e3a5f, 0x334155, 0x7f1d1d], [6, 12], [8, 14]),
+  ], [GREY, SLATE, STONE, 0xcbd5e1, 0x57534e, 0x78716c], [0x1e3a5f, 0x334155, RUST, CREEK], [6, 12], [8, 14]),
 ];
+
+/** Fingerprint for e2e / audits: garden + industrial + creek teal vs Abuja civic limestone */
+export function phIdentity(): { districts: number; colours: number[]; kinds: string[]; tightSetbacks: number; hasIndustrial: boolean } {
+  const colours = [...new Set(DISTRICTS.flatMap((d) => d.colours))];
+  const kinds = [...new Set(DISTRICTS.flatMap((d) => d.kinds.map((k) => k.kind)))].sort();
+  const tightSetbacks = DISTRICTS.filter((d) => d.setback[1] <= 6).length;
+  const hasIndustrial = DISTRICTS.some((d) => d.name === 'Trans-Amadi');
+  return { districts: DISTRICTS.length, colours, kinds, tightSetbacks, hasIndustrial };
+}
 
 /** The ordinary buildings of Port Harcourt beyond its first stretch, along its roads */
 export function phBuildings(): TownBuilding[] {

@@ -48,9 +48,9 @@ Measured levers already in code comments / prior audits:
 3. **Materials and textures** ✅ (#34)
 4. Residential interiors ✅ (#30)
 5. **Humans / NPCs** ✅ (#35)
-6. **Vehicles and traffic** ← current slice (mix, paint, night lamps)
+6. **Vehicles and traffic** ✅ (#36)
 7. Weather simulation ✅ (#32)
-8. City identity and density
+8. **City identity and density** ← current slice (Abuja/PH fingerprints)
 9. Cinematic camera
 10. Audio immersion
 11. Technical performance ✅ Low preset (#31)
@@ -70,14 +70,17 @@ Broad Street vertical slice — denser lived-in kerbs and weathered façades, no
 3. More LAWMA bins, cones, potholes, umbrella stalls + crate clutter.
 4. Extra gutter puddles; gutters use concrete trim material.
 
-## Vehicles + traffic immersion (current)
+## Vehicles + traffic immersion ✅ (#36)
 
-Broad Street vertical slice — denser Nigerian mix and night lamps, no driving-physics changes / full remasters:
+Broad Street vertical slice — denser Nigerian mix and night lamps, no driving-physics changes / full remasters.
 
-1. Heavier danfo / keke / okada / taxi share; extra sedan/SUV body recipes.
-2. Wider Lagos paint palette; glossier shared traffic body/paint materials.
-3. Night head/tail lamp MeshBasic overlay from baked emissive patches.
-4. Low/Balanced traffic draw-distance cull via GraphicsQuality.
+## City identity (current)
+
+Three-city vertical slice — Abuja/PH must not read as Lagos copies:
+
+1. Abuja district palettes → civic limestone / glass; PH → creek teal, ochre, industrial slate.
+2. Traffic/crowd fingerprints: Abuja SUV/police, wide gaps; PH keke/tanker/taxi, denser walkers.
+3. `abujaIdentity` / `phIdentity` + `CityLife.identity()` for e2e.
 
 ## Out of scope for this slice
 
