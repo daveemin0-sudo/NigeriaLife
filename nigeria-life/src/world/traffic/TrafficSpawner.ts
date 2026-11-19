@@ -201,8 +201,8 @@ export class TrafficSpawner {
   private crossGreen = 14;
   /** Every vehicle's baked shape, made once (by Lagos's traffic, the first) and shared by every city's */
   private static shapes: Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo' | 'lightsGeo'>> | null = null;
-  private static bodyMat: THREE.MeshStandardMaterial | null = null;
-  private static paintMat: THREE.MeshStandardMaterial | null = null;
+  private static bodyMat: THREE.MeshPhysicalMaterial | null = null;
+  private static paintMat: THREE.MeshPhysicalMaterial | null = null;
   private static lightsMat: THREE.MeshBasicMaterial | null = null;
   private lanes: Lane[] = [];
   private parked: ParkedCar[] = [];
@@ -523,16 +523,22 @@ export class TrafficSpawner {
   }
 
   private createInstancedMeshes(): void {
-    // One body and one paint material for every city's traffic: the same shaders, built once
-    const bodyMat = (TrafficSpawner.bodyMat ??= new THREE.MeshStandardMaterial({
+    // Clearcoat traffic paint — same env reflections as kit cars; one material for the whole fleet
+    const bodyMat = (TrafficSpawner.bodyMat ??= new THREE.MeshPhysicalMaterial({
       vertexColors: true,
-      roughness: 0.38,
-      metalness: 0.22,
+      roughness: 0.32,
+      metalness: 0.28,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.28,
+      envMapIntensity: 1.15,
     }));
-    const paintMat = (TrafficSpawner.paintMat ??= new THREE.MeshStandardMaterial({
+    const paintMat = (TrafficSpawner.paintMat ??= new THREE.MeshPhysicalMaterial({
       vertexColors: true,
-      roughness: 0.22,
-      metalness: 0.42,
+      roughness: 0.18,
+      metalness: 0.55,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.1,
+      envMapIntensity: 1.45,
     }));
     const lightsMat = (TrafficSpawner.lightsMat ??= new THREE.MeshBasicMaterial({
       vertexColors: true,

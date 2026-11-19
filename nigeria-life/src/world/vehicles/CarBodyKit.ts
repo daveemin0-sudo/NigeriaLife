@@ -181,8 +181,8 @@ function glassHalfWidth(s: CarSpec, y: number): number {
 }
 
 export interface CarMaterials {
-  paint: THREE.MeshStandardMaterial;
-  glass: THREE.MeshStandardMaterial;
+  paint: THREE.MeshPhysicalMaterial;
+  glass: THREE.MeshPhysicalMaterial;
   trim: THREE.MeshStandardMaterial;
   chrome: THREE.MeshStandardMaterial;
   lamp: THREE.MeshStandardMaterial;
@@ -195,9 +195,24 @@ export interface CarMaterials {
 
 export function carMaterials(paint: number): CarMaterials {
   return {
-    // Closer to ART-BIBLE clearcoat read (MeshStandard approximation for instancing)
-    paint: new THREE.MeshStandardMaterial({ color: paint, metalness: 0.72, roughness: 0.18 }),
-    glass: new THREE.MeshStandardMaterial({ color: 0x0c1824, metalness: 0.9, roughness: 0.04 }),
+    // ART-BIBLE clearcoat paint — env-map reflections make supercars read instantly
+    paint: new THREE.MeshPhysicalMaterial({
+      color: paint,
+      metalness: 0.68,
+      roughness: 0.22,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 1.4,
+    }),
+    // Tint + env sheen (full transmission is costly in dense traffic prototypes)
+    glass: new THREE.MeshPhysicalMaterial({
+      color: 0x0a1520,
+      metalness: 0.85,
+      roughness: 0.04,
+      transparent: true,
+      opacity: 0.72,
+      envMapIntensity: 1.35,
+    }),
     trim: new THREE.MeshStandardMaterial({ color: 0x0f1115, metalness: 0.25, roughness: 0.55 }),
     chrome: new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 1, roughness: 0.08 }),
     lamp: new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xfff7ed, emissiveIntensity: 1.7, roughness: 0.16 }),

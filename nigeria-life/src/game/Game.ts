@@ -2391,6 +2391,8 @@ export class Game {
         }
         this.world.weather.wetMetalnessMax = wetMetalnessMax;
         this.postProcessing.setEnabled(postFx);
+        // Env reflections drive clearcoat paint; punch them when the grade is on
+        this.scene.environmentIntensity = postFx ? 1.35 : 1.0;
       },
       tell: (text) => showGameToast(text, 'info', 7000),
     });
@@ -4726,7 +4728,8 @@ export class Game {
     } else if (this.roadRideExperience.isActive) {
       this.renderer.render(this.scene, this.roadRideExperience.rideCamera);
     } else {
-      this.renderer.render(this.scene, this.cameraManager.camera);
+      // Street / chase / interior: bloom + Lagos grade when High quality enables postFx
+      this.postProcessing.render(this.scene, this.cameraManager.camera, delta);
     }
 
     // Performance Diagnostics Calculation
