@@ -43,9 +43,9 @@ Measured levers already in code comments / prior audits:
 
 ## Realism layers (from overhaul plan)
 
-1. **Environmental realism** — street density, façades, clutter, weathering ← current slice
+1. **Environmental realism** ✅ (#33)
 2. Lighting and atmosphere ✅ (#31/#32)
-3. Materials and textures (partial overlap with #1 plaster/asphalt)
+3. **Materials and textures** ← current slice (walls/roofs/glass wet response)
 4. Residential interiors ✅ (#30)
 5. Humans / NPCs
 6. Vehicles and traffic
