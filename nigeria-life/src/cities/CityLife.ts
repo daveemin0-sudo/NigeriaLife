@@ -131,29 +131,30 @@ const STREETS: Record<'abuja' | 'port_harcourt', CityStreets> = {
     avenue: ABUJA_AVENUE,
     top: 0.26,
     crossing: 15.5,
-    mix: { okada: 0, keke: 0, brt: 0, taxi: 0, danfo: 0, suv: 2.2, sedan: 1.3, police: 2.5, tanker: 0.4, truck: 0.5, delivery_van: 0.8 },
-    gap: 24,
-    walkers: 80,
-    groups: 6,
+    // Planned capital: jeeps, saloons, police — no okada/keke/danfo in the centre
+    mix: { okada: 0, keke: 0, brt: 0, taxi: 0, danfo: 0, suv: 2.6, sedan: 1.5, police: 2.8, tanker: 0.35, truck: 0.45, delivery_van: 0.9, pickup: 0.7 },
+    gap: 22,
+    walkers: 95,
+    groups: 7,
     keepClear: (x, z) => Math.abs(z - 15.5) < 3 || (x > 0 && Math.abs(z - 35) < 10) || (x > 0 && Math.abs(z + 8.6) < 2.5) || (x < 0 && z < -72),
     seed: 5150,
     roads: ABUJA_ROADS,
-    walkEvery: 40,
+    walkEvery: 36,
   },
   // Aba Road: busier and rougher, kekes everywhere (okadas are banned in the city), tankers and
-  // lorries for the oil and the port
+  // lorries for the oil and the port, yellow taxis and the odd danfo
   port_harcourt: {
     avenue: PORT_HARCOURT_AVENUE,
     top: 0.3,
     crossing: 15.5,
-    mix: { okada: 0, brt: 0, taxi: 0, keke: 1.4, danfo: 0.8, tanker: 2.5, truck: 1.6, pickup: 1.6 },
-    gap: 16,
-    walkers: 120,
-    groups: 10,
+    mix: { okada: 0, brt: 0, taxi: 1.2, keke: 1.8, danfo: 0.9, tanker: 2.8, truck: 1.9, pickup: 1.8, delivery_van: 1.1, sedan: 0.9, suv: 0.7 },
+    gap: 14,
+    walkers: 145,
+    groups: 12,
     keepClear: (x, z) => Math.abs(z - 15.5) < 3 || (x > 0 && Math.abs(z - 38) < 10) || (x > 0 && Math.abs(z + 22.4) < 2.5) || (x < 0 && z < -70 && z > -86),
     seed: 6270,
     roads: PH_ROADS,
-    walkEvery: 26,
+    walkEvery: 22,
   },
 };
 
@@ -307,14 +308,36 @@ export class CityLife {
     return stripes;
   }
 
+  /** Street-life fingerprint for city-identity e2e (mix keys, crowd budget, gap). */
+  public identity(): {
+    city: 'abuja' | 'port_harcourt';
+    walkers: number;
+    groups: number;
+    gap: number;
+    walkEvery: number;
+    mix: TrafficPlan['mix'];
+  } {
+    const s = this.streets;
+    return {
+      city: this.city,
+      walkers: s.walkers,
+      groups: s.groups,
+      gap: s.gap,
+      walkEvery: s.walkEvery ?? 0,
+      mix: { ...s.mix },
+    };
+  }
+
   /** Runs the street for a frame: the share of people and vehicles out is the hour's */
   public update(delta: number, playerPos: THREE.Vector3 | undefined, frustum: THREE.Frustum | undefined, hour: number, player: { halfWidth: number; halfLength: number }, avoid: Array<{ x: number; z: number; r: number }>): void {
     // (The hour may come with the days before it: hours since the clock began)
     const day = Math.floor(hour / 24);
-    const abroad = shareAbroad(hour - day * 24);
+    const clock = hour - day * 24;
+    const abroad = shareAbroad(clock);
     this.traffic.abroad = abroad;
+    this.traffic.setHour(clock);
     this.crowd.abroad = abroad;
-    this.crowd.setClock(hour - day * 24, day, delta);
+    this.crowd.setClock(clock, day, delta);
     this.traffic.playerHalfWidth = player.halfWidth;
     this.traffic.playerHalfLength = player.halfLength;
     this.crowd.avoid = avoid;

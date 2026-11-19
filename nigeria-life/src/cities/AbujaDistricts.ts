@@ -49,58 +49,71 @@ export const ABUJA_KEEP_OUT: Rect[] = [
 
 const D = (name: string, rect: Rect, kinds: District['kinds'], colours: number[], trims: number[], setback: [number, number], gap: [number, number]): District => ({ name, rect, kinds, colours, trims, setback, gap });
 
+/** Civic glass / limestone — Abuja should read planned and cooler than Lagos cream or PH ochre */
+const CIVIC = 0xb8c9dc;
+const LIMESTONE = 0xe8e4d9;
+const NAVY = 0x1e3a5f;
+
 const DISTRICTS: District[] = [
   D('Maitama', { minX: 18, maxX: 374, minZ: -62, maxZ: 164 }, [
     { kind: 'duplex', weight: 4, width: [14, 18], depth: [12, 15] },
     { kind: 'house', weight: 2, width: [13, 16], depth: [11, 14] },
     { kind: 'office', weight: 1.5, width: [16, 22], depth: [14, 18], floors: [2, 4] },
-  ], [WHITE, CREAM, SAND, STONE], [0x1e3a5f, 0x7c2d12, 0x14532d], [8, 14], [10, 18]),
+  ], [WHITE, LIMESTONE, CREAM, STONE], [NAVY, 0x7c2d12, GREEN], [8, 14], [10, 18]),
   D('Asokoro', { minX: 386, maxX: 562, minZ: -62, maxZ: 164 }, [
     { kind: 'duplex', weight: 5, width: [16, 20], depth: [13, 16] },
     { kind: 'house', weight: 1, width: [14, 17], depth: [12, 14] },
-  ], [WHITE, CREAM, ROSE], [0x1e3a5f, 0x7c2d12], [10, 16], [12, 20]),
+  ], [WHITE, LIMESTONE, ROSE, CREAM], [NAVY, 0x7c2d12, 0xd4af37], [10, 16], [12, 20]),
   D('Gwarinpa', { minX: -562, maxX: -386, minZ: -62, maxZ: 164 }, [
     { kind: 'bungalow', weight: 3, width: [11, 13], depth: [10, 12] },
     { kind: 'house', weight: 3, width: [11, 13], depth: [10, 12] },
     { kind: 'duplex', weight: 2, width: [12, 14], depth: [10, 12] },
-  ], [CREAM, SAND, WHITE, ROSE, TERRACOTTA], [0x9a3412, 0x7c2d12, 0x1e3a5f], [4, 7], [4, 8]),
+  ], [CREAM, SAND, WHITE, ROSE, TERRACOTTA, SAGE], [0x9a3412, 0x7c2d12, NAVY], [4, 7], [4, 8]),
   D('Garki Area 1', { minX: -374, maxX: -18, minZ: -62, maxZ: 164 }, [
     { kind: 'flats', weight: 3, width: [16, 22], depth: [14, 18], floors: [3, 5] },
     { kind: 'shops', weight: 2, width: [14, 20], depth: [12, 14] },
     { kind: 'office', weight: 1.5, width: [14, 20], depth: [14, 18], floors: [3, 6] },
-  ], [SAND, CREAM, SAGE, STONE], [0x475569, 0x57534e], [4, 8], [6, 12]),
+  ], [LIMESTONE, CREAM, SAGE, STONE, CIVIC], [0x475569, 0x57534e, NAVY], [4, 8], [6, 12]),
   D('Central Business District', { minX: 18, maxX: 374, minZ: 178, maxZ: 424 }, [
     { kind: 'office', weight: 5, width: [20, 30], depth: [18, 26], floors: [6, 12] },
     { kind: 'bank', weight: 1.2, width: [16, 22], depth: [16, 20], floors: [5, 8] },
     { kind: 'hotel', weight: 1, width: [20, 26], depth: [18, 22], floors: [8, 12] },
-  ], [SKY, STONE, WHITE, 0xbfd4e6], [GLASS, 0x0f172a, 0x7f1d1d], [6, 10], [10, 18]),
+  ], [CIVIC, STONE, WHITE, 0xa8bdd4, SKY], [GLASS, 0x0f172a, NAVY, 0x7f1d1d], [6, 10], [10, 18]),
   D('Wuse', { minX: -374, maxX: -18, minZ: 178, maxZ: 424 }, [
     { kind: 'shops', weight: 4, width: [14, 24], depth: [12, 16] },
     { kind: 'flats', weight: 2.5, width: [16, 22], depth: [14, 18], floors: [4, 7] },
     { kind: 'office', weight: 2, width: [16, 22], depth: [14, 18], floors: [3, 6] },
     { kind: 'bank', weight: 0.6, width: [14, 18], depth: [14, 16], floors: [4, 5] },
-  ], [SAND, CREAM, STONE, SAGE, ROSE], [0x475569, 0x15803d, 0x7f1d1d], [3, 6], [4, 8]),
+  ], [SAND, CREAM, STONE, SAGE, ROSE, WHITE], [0x475569, GREEN, 0x7f1d1d, NAVY], [3, 6], [4, 8]),
   D('Utako', { minX: 386, maxX: 562, minZ: 178, maxZ: 762 }, [
     { kind: 'office', weight: 2, width: [16, 24], depth: [14, 20], floors: [4, 8] },
     { kind: 'flats', weight: 2, width: [16, 22], depth: [14, 18], floors: [4, 6] },
     { kind: 'shops', weight: 2, width: [14, 20], depth: [12, 14] },
-  ], [STONE, SAND, CREAM, SKY], [0x334155, 0x475569], [5, 9], [6, 12]),
+  ], [STONE, CIVIC, CREAM, SKY, WHITE], [0x334155, 0x475569, NAVY], [6, 10], [6, 12]),
   D('Jabi', { minX: -562, maxX: -386, minZ: 422, maxZ: 762 }, [
     { kind: 'flats', weight: 3, width: [16, 22], depth: [14, 18], floors: [3, 6] },
     { kind: 'house', weight: 2, width: [12, 15], depth: [11, 13] },
     { kind: 'shops', weight: 1, width: [14, 18], depth: [12, 14] },
-  ], [CREAM, SAGE, SAND, WHITE], [0x57534e, 0x1e3a5f], [5, 9], [6, 12]),
+  ], [CREAM, SAGE, LIMESTONE, WHITE, 0xdce7d4], [0x57534e, NAVY, GREEN], [6, 10], [6, 12]),
   D('Garki', { minX: -374, maxX: -18, minZ: 436, maxZ: 762 }, [
     { kind: 'house', weight: 3, width: [12, 15], depth: [11, 13] },
     { kind: 'duplex', weight: 2, width: [13, 16], depth: [11, 14] },
     { kind: 'flats', weight: 2, width: [16, 20], depth: [14, 16], floors: [3, 4] },
     { kind: 'shops', weight: 1.5, width: [14, 20], depth: [12, 14] },
-  ], [CREAM, SAND, TERRACOTTA, WHITE, ROSE], [0x9a3412, 0x1e3a5f, 0x57534e], [4, 8], [5, 10]),
+  ], [CREAM, SAND, TERRACOTTA, WHITE, ROSE, LIMESTONE], [0x9a3412, NAVY, 0x57534e], [4, 8], [5, 10]),
   D('Durumi', { minX: 18, maxX: 374, minZ: 684, maxZ: 762 }, [
     { kind: 'flats', weight: 2, width: [16, 22], depth: [14, 18], floors: [3, 5] },
     { kind: 'house', weight: 2, width: [12, 15], depth: [11, 13] },
-  ], [CREAM, SAND, STONE], [0x57534e, 0x9a3412], [5, 8], [6, 12]),
+  ], [CREAM, LIMESTONE, STONE, SAGE], [0x57534e, 0x9a3412, NAVY], [5, 8], [6, 12]),
 ];
+
+/** Fingerprint for e2e / audits: planned civic districts vs Lagos cream or PH ochre */
+export function abujaIdentity(): { districts: number; colours: number[]; kinds: string[]; wideSetbacks: number } {
+  const colours = [...new Set(DISTRICTS.flatMap((d) => d.colours))];
+  const kinds = [...new Set(DISTRICTS.flatMap((d) => d.kinds.map((k) => k.kind)))].sort();
+  const wideSetbacks = DISTRICTS.filter((d) => d.setback[0] >= 6).length;
+  return { districts: DISTRICTS.length, colours, kinds, wideSetbacks };
+}
 
 /** Every ordinary building in Abuja: the Central Area's, by hand, and the districts', along their avenues */
 export function abujaBuildings(): { core: TownBuilding[]; districts: Array<{ name: string; buildings: TownBuilding[] }> } {

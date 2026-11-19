@@ -14,13 +14,15 @@ export const layFine = (parent: THREE.Object3D, object: THREE.Object3D, x: numbe
 };
 
 const palette = (city: CityLook, variant: number) => {
+  // Port Harcourt: creek teal / industrial navy / bole brown
   if (city === 'ph') {
     return variant === 2
       ? { cloth: 0x7c2d12, cushion: 0xfef3c7, wood: 0x44403c, gold: 0xd4af37 }
       : variant === 1
-        ? { cloth: 0x1e3a8a, cushion: 0xe0f2fe, wood: 0x1c1917, gold: 0xf8fafc }
-        : { cloth: 0x0f766e, cushion: 0xe0f2fe, wood: 0x44403c, gold: 0xd4af37 };
+        ? { cloth: 0x0c4a6e, cushion: 0xe0f2fe, wood: 0x1c1917, gold: 0xf8fafc }
+        : { cloth: 0x0f766e, cushion: 0xccfbf1, wood: 0x44403c, gold: 0xd4af37 };
   }
+  // Abuja: terracotta / amber / federal green with warmer stone wood
   return variant === 2
     ? { cloth: 0x14532d, cushion: 0xfef3c7, wood: 0x3f2a17, gold: 0xd4af37 }
     : variant === 1

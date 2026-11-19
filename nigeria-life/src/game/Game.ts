@@ -106,6 +106,8 @@ import { ActivityStatusUI } from '../ui/ActivityStatusUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
 import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
+import { abujaIdentity } from '../cities/AbujaDistricts';
+import { phIdentity } from '../cities/PortHarcourtDistricts';
 import type { SavedCityId } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { HouseDecorationSystem, CATALOGUE_ITEMS, type PlacedItem } from '../housing/HouseDecorationSystem';
@@ -325,7 +327,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast, abujaIdentity, phIdentity };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
