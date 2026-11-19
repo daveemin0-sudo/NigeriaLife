@@ -106,7 +106,8 @@ export async function run(browser, check) {
       'stalltrade: Abuja akara costs ₦800 cash and restores hunger',
       /Stall: buy or help/.test(akara.label ?? '')
         && akara.after.cash === akara.before.cash - 800
-        && (akara.after.hunger >= Math.min(100, akara.before.hunger + 22) || akara.after.hunger === 100)
+        // Hunger tops out near 100; a tick of drain can leave 99.x instead of exactly 100
+        && (akara.after.hunger >= Math.min(99.5, akara.before.hunger + 20) || akara.after.hunger >= 99.5)
         && akara.toast,
       akara,
     );

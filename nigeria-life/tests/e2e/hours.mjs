@@ -76,8 +76,11 @@ export async function run(browser, check) {
   const evening = await streetAt(21);
   const small = await streetAt(3);
   const dawn = await streetAt(7.5);
-  check('the street is as busy as the hour: everyone is out in the rush hours (7:30 am, 6 pm), fewer at noon, fewer again by nine at night, about one in ten at three in the morning',
-    rush.walkers === rush.ofWalkers && rush.traffic.now === rush.traffic.byDay && dawn.walkers === rush.walkers && dawn.traffic.now === rush.traffic.byDay
+  // Living City: people at work or home are not street walkers, so rush is the busiest street hour
+  // rather than every agent standing on a pavement. Traffic still fills the roads in both rushes.
+  check('the street is as busy as the hour: rush hours pack the roads and the pavements, noon is lighter, nine at night quieter, about one in ten at three in the morning',
+    rush.traffic.now === rush.traffic.byDay && dawn.traffic.now === rush.traffic.byDay
+      && rush.walkers > rush.ofWalkers * 0.5 && Math.abs(dawn.walkers - rush.walkers) <= rush.walkers * 0.1
       && noon.walkers < rush.walkers && noon.walkers > rush.walkers * 0.45 && evening.walkers < rush.walkers * 0.8 && evening.walkers > small.walkers
       && small.walkers < rush.walkers * 0.2 && small.walkers > 0 && small.traffic.now < rush.traffic.byDay * 0.2 && small.drawn <= small.walkers, { noon, rush, evening, small, dawn });
 

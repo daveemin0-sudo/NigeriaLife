@@ -292,10 +292,11 @@ export class FirstSteps {
 
   private check(): void {
     if (this.over) return;
-    // How far they have walked (a ride or a door is a jump, not a walk)
+    // How far they have walked (a ride or a door is a jump, not a walk). Cap per sample is
+    // generous so accelerated game-time walks still count when this check only runs twice a second.
     const at = this.host.position();
     const stride = Math.hypot(at.x - this.last.x, at.z - this.last.z);
-    if (stride < 6) this.walked += stride;
+    if (stride > 0 && stride < 28) this.walked += stride;
     this.last = { x: at.x, z: at.z };
     if (this.walked > 3) this.tick('move');
     // The list of homes, however it was opened (the estate office, the phone)

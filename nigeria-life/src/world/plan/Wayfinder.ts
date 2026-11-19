@@ -104,8 +104,10 @@ export class Wayfinder {
     this.seen = new Uint32Array(n);
     for (const solid of solids.all) {
       const isSmall = (solid.maxX - solid.minX < 0.9) && (solid.maxZ - solid.minZ < 0.9);
-      const standMargin = isSmall ? 0.4 : STAND;
-      const openMargin = isSmall ? 0.45 : OPEN;
+      // Parked cars, stalls and bins sit on the kerb: keep a walkable strip of pavement beside them.
+      // Walls and buildings still get the full clearance so routes do not clip corners.
+      const standMargin = isSmall ? 0.4 : solid.wall ? STAND : 0.32;
+      const openMargin = isSmall ? 0.45 : solid.wall ? OPEN : 0.38;
       this.fill(this.walk, solid.minX - standMargin, solid.maxX + standMargin, solid.minZ - standMargin, solid.maxZ + standMargin, 0);
       this.fill(this.open, solid.minX - openMargin, solid.maxX + openMargin, solid.minZ - openMargin, solid.maxZ + openMargin, 0);
     }

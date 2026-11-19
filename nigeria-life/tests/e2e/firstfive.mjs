@@ -125,13 +125,23 @@ async function desk(browser) {
   const morning = () => page.evaluate(() => window.game.world.skyEnvironment.setHour(10));
   const card = () => page.evaluate(() => { const c = document.getElementById('interaction-card'); return c && getComputedStyle(c).display !== 'none' ? { title: document.getElementById('card-title')?.textContent ?? '', action: document.getElementById('card-action-btn')?.textContent.trim() ?? '' } : null; });
   const dialogue = () => page.evaluate(() => document.getElementById('game-dialogue-overlay')?.innerText.replace(/\s+/g, ' ') ?? null);
-  /** The line's own button, then the walk in real time (the server keeps its own clock), until the card is up */
-  const go = async (seconds = 150) => {
+  /** Advance game time (walks, traffic gaps) without waiting on wall clock alone */
+  const adv = async (seconds) => {
+    for (let s = 0; s < seconds; s += 0.5) {
+      await page.evaluate(() => window.game.advance(0.5));
+      await wait(25);
+    }
+  };
+  /** The line's own button, then the walk (game time advanced so traffic gaps clear), until the card is up */
+  const go = async (seconds = 120) => {
     await morning();
     const pressed = await click('#nl-first-steps .fs-go, #nl-first-steps .fs-there');
-    const at = await until(card, seconds);
+    for (let s = 0; s < seconds; s += 2) {
+      await adv(2);
+      if (await card()) break;
+    }
     await wait(500);
-    return { pressed, card: at };
+    return { pressed, card: await card() };
   };
   const online = () => page.evaluate(() => {
     const o = window.game?.modules.OnlineAccount.get();
@@ -181,12 +191,13 @@ export async function run(browser, check) {
     await a.click('#card-action-btn');
     const asks = await a.until(a.dialogue, 20);
     const stood = await a.page.evaluate(() => { const p = window.game.player.position; return [p.x, p.z]; });
+    const nameReady = await a.until(async () => (await a.page.$('#dialogue-name-input')) ? true : null, 20);
     await a.click('#dialogue-name-input');
     await a.page.type('#dialogue-name-input', USER);
     await wait(400);
     const typed = await a.page.evaluate(() => { const p = window.game.player.position; return { at: [p.x, p.z], value: document.getElementById('dialogue-name-input')?.value ?? null, open: !!document.getElementById('game-dialogue-overlay') }; });
     check('firstfive: W walks, "Take me" is clicked, and Chief Alabi asks who they are; a name with W, A and S in it is typed without the player walking off or a reply being picked',
-      !!called && /Chief Alabi/.test(toElder.card?.title ?? '') && /Who are you/.test(asks ?? '') && typed.value === USER && typed.open && Math.hypot(typed.at[0] - stood[0], typed.at[1] - stood[1]) < 0.2, { called, toElder, typed, stood });
+      !!called && /Chief Alabi/.test(toElder.card?.title ?? '') && /Who are you/.test(asks ?? '') && !!nameReady && typed.value === USER && typed.open && Math.hypot(typed.at[0] - stood[0], typed.at[1] - stood[1]) < 0.2, { called, toElder, typed, stood, nameReady });
     await a.click('.dialogue-choice-btn');
     const answer = await a.until(async () => { const d = await a.dialogue(); return d && /Amaka|port/.test(d) ? d : null; }, 8);
     await a.page.keyboard.press('1');

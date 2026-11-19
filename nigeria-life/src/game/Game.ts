@@ -2555,7 +2555,10 @@ export class Game {
     if (instance?.airport) doors.push(...instance.airport.doors);
     if (instance?.motorPark) doors.push(...instance.motorPark.doors);
     for (const destination of DestinationRegistry.getInstance().getAll()) {
-      if (destination.city === city) doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
+      if (destination.city !== city) continue;
+      // Map pins that are not yet built as places you can walk into are not city-plan doors
+      if (!destination.isEnterable && !destination.interiorId) continue;
+      doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
     }
     const zones = zonesFor(city);
     const walk = zones.find((zone) => zone.kind === 'walkway');
@@ -2975,27 +2978,16 @@ export class Game {
       warm: (by) => Ties.get().grow(GUIDE_TARGETS.elder, 'Chief Alabi', by),
       speak: (text, replies, onClose, askName) => {
         let chosen = false;
-        window.setTimeout(() => {
-          // "Who are you?": a place to say their name, under his words
-          const box = askName ? document.querySelector('#game-dialogue-overlay .dialogue-speech-box') : null;
-          if (!box) return;
-          const row = document.createElement('label');
-          row.className = 'dialogue-name-row';
-          row.innerHTML = '<span>Tell him your name</span><input id="dialogue-name-input" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Your name" />';
-          box.after(row);
-          const input = row.querySelector('input')!;
-          input.addEventListener('input', () => { typed = input.value; });
-          // Typing a name is typing, not walking or picking reply 1, 2 or 3
-          for (const type of ['keydown', 'keyup', 'keypress'] as const) input.addEventListener(type, (e) => e.stopPropagation());
-        }, 0);
         this.hud.showDialogueModal({
           speakerName: 'Chief Alabi',
           speakerRole: 'Elder of Broad Street',
           speakerAvatar: '👴🏾',
           dialogueText: text,
           choices: replies.length ? replies.map((r, i) => ({ id: 'elder-' + i, label: r.label, onSelect: () => { chosen = true; r.run(); } })) : undefined,
+          nameField: askName ? { onType: (value) => { typed = value; } } : undefined,
           onConfirm: () => window.setTimeout(() => { if (!chosen) onClose?.(); }, 0),
         });
+
       },
     }, () => this.remindElder()), 1400);
   }

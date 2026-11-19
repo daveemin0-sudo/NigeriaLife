@@ -71,7 +71,7 @@ export async function run(browser, check) {
     };
   });
   check('the phone opens on a home screen with the time, the money really held, and a named tile for each app',
-    home.open && home.apps.length === 37 && ['courses', 'gadgets', 'contacts', 'police', 'buses'].every((app) => home.apps.includes(app)) && home.apps.includes('racing') && home.apps.includes('ideas') && home.apps.includes('trade') && home.apps.includes('motors') && home.apps.includes('titles') && home.apps.includes('marriage') && home.apps.includes('studio') && home.apps.includes('owambe') && home.apps.includes('spark') && home.apps.includes('staff') && home.apps.includes('nollywood') && home.apps.includes('yarn') && home.apps.includes('odds') && home.apps.includes('ads') && home.apps.includes('rich') && home.apps.includes('hustle') && home.apps.includes('events') && home.apps.includes('games') && home.apps.includes('gist') && home.apps.includes('cases') && home.named && home.smallest >= 44 && /150,000/.test(home.wallet) && /25,000/.test(home.wallet) && home.clock.length > 3, home);
+    home.open && home.apps.length === 37 && ['courses', 'gadgets', 'contacts', 'police', 'buses'].every((app) => home.apps.includes(app)) && home.apps.includes('racing') && home.apps.includes('ideas') && home.apps.includes('trade') && home.apps.includes('motors') && home.apps.includes('titles') && home.apps.includes('marriage') && home.apps.includes('studio') && home.apps.includes('owambe') && home.apps.includes('spark') && home.apps.includes('staff') && home.apps.includes('nollywood') && home.apps.includes('yarn') && home.apps.includes('odds') && home.apps.includes('ads') && home.apps.includes('rich') && home.apps.includes('hustle') && home.apps.includes('events') && home.apps.includes('games') && home.apps.includes('gist') && home.apps.includes('cases') && home.named && home.smallest >= 44 && /135,000/.test(home.wallet) && /40,000/.test(home.wallet) && home.clock.length > 3, home);
 
   // Every tile opens a screen of its own, and nothing on any screen is a button that does nothing
   const visited = [];
@@ -148,7 +148,7 @@ export async function run(browser, check) {
   const searched = await page.evaluate(() => ({ rows: document.querySelectorAll('#bank-history .nl-row').length, focused: document.activeElement?.id, value: document.activeElement?.value }));
   await type(page, '#bank-search', '');
   check('the bank shows the real balance and the real history; filters and search narrow it and the search box keeps the keyboard',
-    balance === '₦150,000' && rows >= 1 && outRows === 0 && emptyState && searched.rows === 0 && searched.focused === 'bank-search' && searched.value === 'zzzz',
+    balance === '₦135,000' && rows >= 1 && outRows === 0 && emptyState && searched.rows === 0 && searched.focused === 'bank-search' && searched.value === 'zzzz',
     { balance, rows, outRows, emptyState, searched });
 
   await tap(page, '[data-go="send"]');

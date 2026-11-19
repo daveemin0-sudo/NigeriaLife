@@ -145,9 +145,12 @@ export async function run(browser, check) {
   // ------------------------------------------------------------------ Loaded again: the same step
   await wait(1500);
   await p.load(true);
-  const backTitle = await page.evaluate(() => [...(document.getElementById('title-card')?.querySelectorAll('button') ?? [])].map((b) => b.textContent.trim()));
+  const backTitle = await p.until(async () => {
+    const buttons = await page.evaluate(() => [...(document.getElementById('title-card')?.querySelectorAll('button') ?? [])].map((b) => b.textContent.trim()));
+    return buttons.includes('Continue') ? buttons : null;
+  }, 15) ?? [];
   await p.tap('#title-continue');
-  const resumed = await p.stepIs('elder', 10);
+  const resumed = await p.stepIs('elder', 15);
   check('onboarding: the page loaded again before meeting him: the title offers to carry on and the line is still about Chief Alabi, not about walking again',
     backTitle.includes('Continue') && !!resumed && resumed.step === 'elder', { backTitle, resumed });
 
@@ -156,12 +159,13 @@ export async function run(browser, check) {
   const greet = await p.tap('#card-action-btn');
   await p.adv(3);
   const asks = await p.until(p.dialogue, 8);
-  const nameField = await p.tap('#dialogue-name-input');
-  await page.type('#dialogue-name-input', 'Tunde');
+  const nameReady = await p.until(async () => (await page.$('#dialogue-name-input')) ? true : null, 12);
+  const nameField = nameReady ? await p.tap('#dialogue-name-input') : null;
+  if (nameReady) await page.type('#dialogue-name-input', 'Tunde');
   await wait(300);
   const replies = await page.$$('.dialogue-choice-btn');
   check('onboarding: "Take me" walks up to him and his card offers to greet him; greeted, he asks who they are, with a place to say a name and three ways to answer',
-    !!toElder.pressed?.reachable && /Chief Alabi/.test(toElder.card?.title ?? '') && /Greet/.test(toElder.card?.action ?? '') && !!greet?.reachable && /Who are you/.test(asks ?? '') && !!nameField?.reachable && replies.length === 3, { toElder, asks });
+    !!toElder.pressed?.reachable && /Chief Alabi/.test(toElder.card?.title ?? '') && /Greet/.test(toElder.card?.action ?? '') && !!greet?.reachable && /Who are you/.test(asks ?? '') && !!nameReady && !!nameField?.reachable && replies.length === 3, { toElder, asks, nameReady });
   if (replies[1]) await replies[1].tap();
   await wait(900);
   const answer = await p.dialogue();

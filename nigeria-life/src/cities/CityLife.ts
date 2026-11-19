@@ -10,6 +10,7 @@ import { StreetStalls, type StallSells, type StallSpot } from '../world/street/S
 import { wireStallTrade } from '../world/street/StallTrade';
 import type { InteractiveObject } from '../world/World';
 import type { OpeningHours } from '../destinations/Hours';
+import { ALL_PLOTS } from '../realestate/PlotCatalogue';
 
 /**
  * Where each city's roadside traders set up: by the places that draw them (a market, the offices,
@@ -47,12 +48,13 @@ const STALL_ANCHORS: Record<'abuja' | 'port_harcourt', StallAnchor[]> = {
   ],
 };
 
-/** The roadside stalls of a city's avenue, placed by its anchors, clear of doors, crossings, side roads and each other */
+/** The roadside stalls of a city's avenue, placed by its anchors, clear of doors, plot gates, crossings, side roads and each other */
 function roadsideStalls(city: 'abuja' | 'port_harcourt', streets: CityStreets, doors: ReadonlyArray<{ name: string; x: number; z: number }>): StallSpot[] {
   const av = streets.avenue;
   const narrow = av.walk < 3.2;
   const edge = av.halfRoad + av.walk - (narrow ? 0.32 : 0.55);
   const gaps = spineGaps(streets);
+  const plots = ALL_PLOTS.filter((p) => p.city === city);
   const spots: StallSpot[] = [];
   const free = (x: number, z: number) =>
     z > av.from + 8 && z < av.to - 8 &&
@@ -61,6 +63,15 @@ function roadsideStalls(city: 'abuja' | 'port_harcourt', streets: CityStreets, d
     !gaps.some((g) => z > g.from - 3 && z < g.to + 3) &&
     // Not in front of anyone's door, and not on top of another stall
     !doors.some((d) => Math.sign(d.x) === Math.sign(x) && Math.abs(d.x) < av.halfRoad + av.walk + 6 && Math.abs(d.z - z) < 3.5) &&
+    // Not across a plot's street gate: cars still need a clear run from the carriageway in
+    !plots.some((p) => {
+      const r = p.rect;
+      const front = p.frontage === 'west' ? r.minX : p.frontage === 'east' ? r.maxX : p.frontage === 'south' ? r.minZ : r.maxZ;
+      if (p.frontage === 'west' || p.frontage === 'east') {
+        return Math.sign(front) === Math.sign(x) && Math.abs(x - front) < 4.5 && z > r.minZ - 1.5 && z < r.maxZ + 1.5;
+      }
+      return Math.sign(front) === Math.sign(z) && Math.abs(z - front) < 4.5 && x > r.minX - 1.5 && x < r.maxX + 1.5;
+    }) &&
     !spots.some((s) => Math.sign(s.x) === Math.sign(x) && Math.abs(s.z - z) < 6);
   for (const anchor of STALL_ANCHORS[city]) {
     const door = doors.find((d) => anchor.near.test(d.name));
