@@ -784,7 +784,13 @@ export class Game {
         if (homeHere) {
           if (this.currentHome() !== homeHere) this.setHomeNow(homeHere);
           this.world.worldMap.deactivate();
-          void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
+          const home = this.homeProperty();
+          const atDoor = home?.streetPosition
+            ? new THREE.Vector3(home.streetPosition.x, 0, home.streetPosition.z)
+            : undefined;
+          void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world, atDoor
+            ? { returnTo: atDoor, returnYaw: 0 }
+            : undefined);
           return;
         }
         const suite = this.hotelStayHere();
@@ -859,9 +865,15 @@ export class Game {
           return;
         }
         this.setHomeNow(this.homeKey(prop.id));
-        // Straight in, as the Home button goes (not a walk across town to some other door)
+        // Straight in, as the Home button goes (not a walk across town to some other door).
+        // Come back out on that property's street so interior ↔ compound ↔ neighbourhood stay linked.
         this.world.worldMap.deactivate();
-        void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
+        const atDoor = prop.streetPosition
+          ? new THREE.Vector3(prop.streetPosition.x, 0, prop.streetPosition.z)
+          : undefined;
+        void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world, atDoor
+          ? { returnTo: atDoor, returnYaw: 0 }
+          : undefined);
         return;
       }
       if (target?.type === 'residence' && !this.homeInThisCity()) {

@@ -117,6 +117,8 @@ export class InteriorManager {
   private streetDoors = new Map<InteriorType, StreetDoor>();
   /** True from the moment the player commits to a doorway until they are through it */
   private usingDoor: boolean = false;
+  /** Soft fill light from each room's ambientLightColor / ambientLightIntensity (was unused metadata) */
+  private roomAmbient: THREE.AmbientLight | null = null;
   /** Keeps the player in view indoors: lowers outer walls and fades whatever else is in the way */
   public readonly cutaway = new RoomCutaway();
   /** The last clear floor the player stood on indoors, to put them back when they walk into furniture */
@@ -369,6 +371,9 @@ export class InteriorManager {
       if (shown) await InteriorManager.warm(shown);
     }
 
+    // 7c. Apply the room's ambient fill (defs already declare colour + intensity)
+    this.applyRoomAmbient(target);
+
     // 8. Update HUD location badge and banner
     hud.updateLocation(target.name, `Interior • ${target.districtName}`);
     // The place's own name and where it is, not a generic line
@@ -415,6 +420,7 @@ export class InteriorManager {
 
     // 2. Hide all interior groups, with every wall and fitting back as it was
     this.cutaway.detach();
+    this.clearRoomAmbient();
     for (const template of this.templates) {
       template.group.visible = false;
     }
@@ -458,6 +464,22 @@ export class InteriorManager {
   public nameOfPlace(id: string): string | null {
     const t = this.templates.find((x) => x.def.id === id || x.def.streetBuildingId === id || x.def.type === id);
     return t?.def.name ?? null;
+  }
+
+  /** Soft fill from the room definition so interiors are not only ceiling spots. */
+  private applyRoomAmbient(def: InteriorDefinition): void {
+    if (!this.roomAmbient) {
+      this.roomAmbient = new THREE.AmbientLight(0xffffff, 0);
+      this.roomAmbient.layers.enable(RENDER_LAYERS.INTERIOR);
+      this.group.add(this.roomAmbient);
+    }
+    this.roomAmbient.color.setHex(def.ambientLightColor ?? 0xfff7ed);
+    this.roomAmbient.intensity = def.ambientLightIntensity ?? 0.9;
+    this.roomAmbient.visible = true;
+  }
+
+  private clearRoomAmbient(): void {
+    if (this.roomAmbient) this.roomAmbient.visible = false;
   }
 
   private getActiveTemplate(): InteriorTemplate | null {

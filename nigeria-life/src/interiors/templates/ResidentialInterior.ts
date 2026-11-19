@@ -87,7 +87,7 @@ export class ResidentialInterior {
   private wallPaint!: THREE.MeshStandardMaterial;
   private floorMat!: THREE.MeshStandardMaterial;
   /** The floor's finish (FLOOR_STYLES), drawn as its own texture: marble with veins, parquet, terrazzo */
-  private floorStyle = 'ceramic_white';
+  private floorStyle = 'parquet_wood';
   /** How big the floor is now, metres (the plan sets it), so the tiles are the right size */
   private floorSize = { w: 32, l: 26 };
 
@@ -292,8 +292,8 @@ export class ResidentialInterior {
       exitDoorOffset: new THREE.Vector3(0, 0, 11),
       cameraOffset: new THREE.Vector3(0, 16, 20),
       ambientLightColor: 0xffedd5,
-      // Bright at any hour: the POP lights and the cove strips do the rest
-      ambientLightIntensity: 1.55,
+      // Warm fill so cutaway / aerial views still read furniture colour, not silhouettes
+      ambientLightIntensity: 1.72,
       rooms: [
         {
           id: 'residence_main',
@@ -862,27 +862,51 @@ export class ResidentialInterior {
         if (kind.use === 'garden') this.gardenChoices(item, host, choices);
         if (kind.use === 'pet') this.petChoices(item, host, choices);
         if (kind.use === 'cook') {
+          const fridge = Fridge.get();
+          const stocked = fridge.count();
           choices.push({
             label: 'Cook Party Jollof & Fried Dodo',
-            note: 'Hunger +60, Cooking +1',
-            pick: () => this.actOut(item, host, [
-              { pose: { arms: 'reach' }, seconds: 4.5, effect: () => { host.say('🍳 The jollof is done and the dodo fried golden.', 'info'); } },
-              { pose: { arms: 'eat' }, seconds: 3, effect: () => {
-                (host as any).backend.modifyNeed('hunger', 60);
-                (host as any).backend.modifyNeed('energy', -10);
-                (host as any).backend.addSkillExp('cooking', 1);
-                host.say('You ate your smoky party jollof with sweet fried plantain. Hunger replenished, cooking +1.', 'success');
-              } },
-            ]),
+            note: stocked ? 'Uses food from the fridge · Hunger +60, Cooking +1' : 'Stock the fridge first',
+            pick: () => {
+              const ingredient = fridge.pickIngredient([
+                'jollof', 'rice', 'tomato', 'plantain', 'dodo', 'gala_snack', 'akara', 'suya', 'boli', 'egusi',
+              ]);
+              if (!ingredient) {
+                host.say('The fridge is empty. Buy food or put groceries in before you cook.', 'warning');
+                return;
+              }
+              const used = fridge.useUp(ingredient.id);
+              if (!used) {
+                host.say('That food is gone from the fridge.', 'warning');
+                return;
+              }
+              this.actOut(item, host, [
+                { pose: { arms: 'reach' }, seconds: 4.5, effect: () => { host.say(`🍳 Cooking with ${used.name} from the fridge…`, 'info'); } },
+                { pose: { arms: 'eat' }, seconds: 3, effect: () => {
+                  host.backend.modifyNeed('hunger', 60);
+                  host.backend.modifyNeed('energy', -10);
+                  host.backend.addSkillExp('cooking', 1);
+                  host.say(`Smoky party jollof with fried plantain — made from ${used.name}. Hunger up, cooking +1.`, 'success');
+                } },
+              ]);
+            },
           });
           choices.push({
             label: 'Boil Tea & Breakfast Coffee',
-            note: 'Energy +25',
-            pick: () => this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 2.5, effect: () => {
-              (host as any).backend.modifyNeed('energy', 25);
-              (host as any).backend.modifyNeed('hunger', 15);
-              host.say('Hot brew prepared! Energy +25.', 'success');
-            } }]),
+            note: stocked ? 'Uses a snack from the fridge · Energy +25' : 'From the cupboard · Energy +15',
+            pick: () => {
+              const snack = fridge.pickIngredient(['gala_snack', 'akara', 'boli', 'plantain', 'dodo']);
+              const used = snack ? fridge.useUp(snack.id) : null;
+              const energy = used ? 25 : 15;
+              const hunger = used ? 15 : 5;
+              this.actOut(item, host, [{ pose: { arms: 'reach' }, seconds: 2.5, effect: () => {
+                host.backend.modifyNeed('energy', energy);
+                host.backend.modifyNeed('hunger', hunger);
+                host.say(used
+                  ? `Hot brew with ${used.name} from the fridge. Energy +${energy}.`
+                  : 'Hot brew from the cupboard. Energy +15. Stock the fridge for a proper breakfast.', 'success');
+              } }]);
+            },
           });
         }
         if (kind.use === 'bath') {
@@ -1624,8 +1648,8 @@ export class ResidentialInterior {
     const shell = new THREE.Group();
     shell.name = 'interior_room_shell';
     shell.userData.size = { width: W, length: L, height: wallH };
-    // A big home is framed a part at a time, the camera following the player through it
-    shell.userData.view = { width: 24, length: 20 };
+    // Frame enough of a multi-room plan that aerial/isometric dollhouse views read as one house
+    shell.userData.view = { width: Math.min(W, 36), length: Math.min(L, 30) };
     const floor = new THREE.Mesh(new THREE.BoxGeometry(W, 0.4, L), this.floorMat);
     floor.name = 'interior_floor_mesh';
     floor.position.set(0, -0.2, 0);
@@ -1667,6 +1691,23 @@ export class ResidentialInterior {
       solid((a + b) / 2, plan.frontZ, (b - a) / 2, T / 2);
       // Nobody walks along the step outside it either
       solid((a + b) / 2, (plan.frontZ + hl) / 2, (b - a) / 2, (hl - plan.frontZ) / 2);
+    }
+    // Dark entrance frame — marks the threshold between compound and interior
+    {
+      const jamb = 0.12;
+      const depth = T + 0.08;
+      const openH = 2.2;
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.5 });
+      const left = new THREE.Mesh(new THREE.BoxGeometry(jamb, openH, depth), frameMat);
+      const right = left.clone();
+      const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorGap + jamb * 2, 0.16, depth), frameMat);
+      left.position.set(plan.entrance.x - doorGap / 2 - jamb / 2, openH / 2, plan.frontZ);
+      right.position.set(plan.entrance.x + doorGap / 2 + jamb / 2, openH / 2, plan.frontZ);
+      lintel.position.set(plan.entrance.x, openH + 0.08, plan.frontZ);
+      const entrance = new THREE.Group();
+      entrance.name = 'entrance_frame';
+      entrance.add(left, right, lintel);
+      g.add(entrance);
     }
     // Outside the walls is not floor
     const navW = HOME.room.width / 2;
@@ -1907,12 +1948,20 @@ export class ResidentialInterior {
     return group;
   }
 
-  /** A window with burglar-proof bars, facing +z */
+  /** A window with burglar-proof bars, facing +z — curtains give rooms a lived-in read from the dollhouse view */
   private burglarProofWindow(): THREE.Group {
     const win = new THREE.Group();
     win.name = 'window';
-    const b = new Builder().box(0xf8fafc, 2.4, 1.8, 0.16, 0, -0.9, 0).box(0x9cc9e0, 2.1, 1.5, 0.04, 0, -0.75, 0.04);
+    const b = new Builder()
+      .box(0xf8fafc, 2.4, 1.8, 0.16, 0, -0.9, 0)
+      .box(0x9cc9e0, 2.1, 1.5, 0.04, 0, -0.75, 0.04);
     for (let bx = -0.95; bx <= 0.96; bx += 0.32) b.box(0x18181b, 0.04, 1.6, 0.04, bx, -0.8, 0.12);
+    // Curtain rod + teal fabric panels (Nigerian parlour accent — not a Lagos Life colour copy)
+    b.box(0x44403c, 2.25, 0.05, 0.05, 0, 0.02, 0.14);
+    b.box(0x0f766e, 0.42, 1.55, 0.05, -0.95, -0.78, 0.18);
+    b.box(0x0f766e, 0.42, 1.55, 0.05, 0.95, -0.78, 0.18);
+    b.box(0x115e59, 0.18, 1.55, 0.04, -0.72, -0.78, 0.2);
+    b.box(0x115e59, 0.18, 1.55, 0.04, 0.72, -0.78, 0.2);
     win.add(b.build('window'));
     return win;
   }
@@ -2083,12 +2132,16 @@ export class ResidentialInterior {
   /** A box of tiles over a bathroom's or the kitchen's floor: 30 cm squares, grouted */
   private roomTiles(room: PlanRoom): THREE.Mesh | null {
     if (room.kind !== 'ensuite' && room.kind !== 'bathroom' && room.kind !== 'kitchen') return null;
-    // Beige in the kitchen, pale blue-grey in a bathroom
     const tw = room.maxX - room.minX;
     const td = room.maxZ - room.minZ;
+    // Kitchen: warm beige tiles. Bathroom/ensuite: black-and-white check so wet rooms read from the dollhouse view
+    const wet = room.kind === 'bathroom' || room.kind === 'ensuite';
+    const map = wet
+      ? repeated(this.checkeredTiles(), tw / 0.9, td / 0.9)
+      : repeated(smallTiles('#e2dccd'), tw / 1.2, td / 1.2);
     const tiles = new THREE.Mesh(
       new THREE.PlaneGeometry(tw, td),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25, map: repeated(smallTiles(room.kind === 'kitchen' ? '#e2dccd' : '#dfe8ee'), tw / 1.2, td / 1.2) })
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: wet ? 0.35 : 0.25, map }),
     );
     tiles.rotation.x = -Math.PI / 2;
     tiles.position.set((room.minX + room.maxX) / 2, 0.012, (room.minZ + room.maxZ) / 2);
@@ -2096,10 +2149,39 @@ export class ResidentialInterior {
     return tiles;
   }
 
+  /** Black / white bathroom check — readable from elevated cutaway without heavy geometry */
+  private checkeredTiles(): THREE.CanvasTexture {
+    const size = 128;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d')!;
+    const cell = size / 4;
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        g.fillStyle = (x + y) % 2 === 0 ? '#f8fafc' : '#1e293b';
+        g.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+    // Fine grout lines
+    g.strokeStyle = 'rgba(100,116,139,0.45)';
+    g.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      g.beginPath(); g.moveTo(i * cell, 0); g.lineTo(i * cell, size); g.stroke();
+      g.beginPath(); g.moveTo(0, i * cell); g.lineTo(size, i * cell); g.stroke();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    return t;
+  }
+
   /** The inner walls of a floor, as tall as the catalogue's partitions, with doorways in them */
   private partitions(walls: PlanWall[], add: (part: THREE.Object3D) => void, solid: (x: number, z: number, halfWidth: number, halfLength: number) => void): void {
     const partitionH = 2.6;
     const T = 0.4;
+    // Dark timber frames around every doorway — readable room divisions from elevated views
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.55, metalness: 0.05 });
     for (const wall of walls) {
       const cuts: Array<[number, number]> = [];
       let from = wall.from;
@@ -2119,6 +2201,33 @@ export class ResidentialInterior {
         add(piece);
         if (wall.axis === 'x') solid(mid, wall.at, len / 2, T / 2);
         else solid(wall.at, mid, T / 2, len / 2);
+      }
+      for (const door of wall.doors) {
+        const jamb = 0.1;
+        const depth = T + 0.06;
+        const lintelH = 0.14;
+        const openH = 2.15;
+        const frame = new THREE.Group();
+        frame.name = 'door_frame';
+        const left = new THREE.Mesh(new THREE.BoxGeometry(wall.axis === 'x' ? jamb : depth, openH, wall.axis === 'x' ? depth : jamb), frameMat);
+        const right = left.clone();
+        const lintel = new THREE.Mesh(
+          wall.axis === 'x'
+            ? new THREE.BoxGeometry(DOORWAY + jamb * 2, lintelH, depth)
+            : new THREE.BoxGeometry(depth, lintelH, DOORWAY + jamb * 2),
+          frameMat,
+        );
+        if (wall.axis === 'x') {
+          left.position.set(door - DOORWAY / 2 - jamb / 2, openH / 2, wall.at);
+          right.position.set(door + DOORWAY / 2 + jamb / 2, openH / 2, wall.at);
+          lintel.position.set(door, openH + lintelH / 2, wall.at);
+        } else {
+          left.position.set(wall.at, openH / 2, door - DOORWAY / 2 - jamb / 2);
+          right.position.set(wall.at, openH / 2, door + DOORWAY / 2 + jamb / 2);
+          lintel.position.set(wall.at, openH + lintelH / 2, door);
+        }
+        frame.add(left, right, lintel);
+        add(frame);
       }
     }
   }

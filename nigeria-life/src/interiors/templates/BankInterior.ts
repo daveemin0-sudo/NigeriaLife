@@ -30,7 +30,7 @@ export class BankInterior {
       exitDoorOffset: new THREE.Vector3(0, 0, 11),
       cameraOffset: new THREE.Vector3(0, 14, 18),
       ambientLightColor: 0xfef3c7,
-      ambientLightIntensity: 1.15,
+      ambientLightIntensity: 1.25,
       rooms: [
         {
           id: 'bank_banking_hall',
@@ -203,6 +203,82 @@ export class BankInterior {
     // Waiting queue chairs
     const queueChairs = InteriorPrefabs.createWaitingChairs(new THREE.Vector3(0, 0, 1.5), 6, 0.9);
     this.group.add(queueChairs);
+
+    // Queue rope stanchions (customers form a line toward the teller)
+    const ropeMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.55 });
+    const postMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.7, roughness: 0.35 });
+    for (let i = 0; i < 4; i++) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.05, 10), postMat);
+      post.position.set(-2.2 + i * 1.35, 0.52, -2.2);
+      this.group.add(post);
+      if (i < 3) {
+        const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.25, 8), ropeMat);
+        rope.rotation.z = Math.PI / 2;
+        rope.position.set(-1.5 + i * 1.35, 0.95, -2.2);
+        this.group.add(rope);
+      }
+    }
+
+    // Floor runner toward the teller — polished bank carpet strip
+    const runner = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 0.02, 10),
+      new THREE.MeshStandardMaterial({ color: 0x7f1d1d, roughness: 0.85 }),
+    );
+    runner.position.set(0, 0.02, 0);
+    this.group.add(runner);
+
+    // Nigerian flag panel on the back wall (green–white–green)
+    for (let f = 0; f < 3; f++) {
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(1.0, 2.0, 0.06),
+        new THREE.MeshStandardMaterial({ color: f === 1 ? 0xf8fafc : 0x166534, roughness: 0.55 }),
+      );
+      stripe.position.set(-1.0 + f * 1.0, 2.4, -10.85);
+      this.group.add(stripe);
+    }
+
+    // Branch signage
+    const signBoard = new THREE.Mesh(
+      new THREE.BoxGeometry(6.5, 0.7, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 }),
+    );
+    signBoard.position.set(0, 3.5, -10.7);
+    this.group.add(signBoard);
+    const signGlow = new THREE.Mesh(
+      new THREE.BoxGeometry(6.1, 0.45, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xb45309, emissiveIntensity: 0.35 }),
+    );
+    signGlow.position.set(0, 3.5, -10.64);
+    this.group.add(signGlow);
+
+    // Ticket / Q-matic display near the queue
+    const ticket = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 1.1, 0.15),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35 }),
+    );
+    ticket.position.set(3.2, 1.1, -2.0);
+    this.group.add(ticket);
+    const ticketScreen = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 0.55, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x166534, emissiveIntensity: 0.4 }),
+    );
+    ticketScreen.position.set(3.2, 1.35, -1.9);
+    this.group.add(ticketScreen);
+
+    // Potted plants at the entrance (Nigerian bank lobby dressing)
+    for (const x of [-9, 9]) {
+      const pot = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.28, 0.22, 0.4, 10),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.7 }),
+      );
+      pot.position.set(x, 0.2, 9.2);
+      const leaf = new THREE.Mesh(
+        new THREE.SphereGeometry(0.45, 10, 10),
+        new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.8 }),
+      );
+      leaf.position.set(x, 0.85, 9.2);
+      this.group.add(pot, leaf);
+    }
 
     // Gold Vault Steel Door on back wall
     const vaultDoor = new THREE.Mesh(

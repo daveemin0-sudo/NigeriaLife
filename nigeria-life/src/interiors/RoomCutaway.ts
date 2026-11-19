@@ -4,6 +4,8 @@ import * as THREE from 'three';
 const SEE_THROUGH = 0.2;
 /** How tall a cut-away outer wall is left */
 const CUT_WALL_HEIGHT = 1.2;
+/** In dollhouse (high aerial) overview, leave only a stub so room divisions stay clear */
+const DOLLHOUSE_WALL_HEIGHT = 0.75;
 /** Only things at least this tall can hide a standing person */
 const MIN_BLOCKER_HEIGHT = 1.4;
 /** Seconds between checks of what stands in the way */
@@ -55,6 +57,8 @@ export class RoomCutaway {
   private owner = new Map<THREE.Object3D, Piece>();
   private walls: Wall[] = [];
   private sinceCheck = CHECK_EVERY;
+  /** True when the camera is high enough that the whole plan should read as a cutaway dollhouse */
+  private dollhouse = false;
   private readonly raycaster = new THREE.Raycaster();
   private readonly from = new THREE.Vector3();
   private readonly to = new THREE.Vector3();
@@ -157,9 +161,16 @@ export class RoomCutaway {
 
     // Outer walls: cut the ones the camera is looking over. A wall that has been cut stays cut
     // until the camera is well clear of it, so turning the view slowly cannot make it flicker.
+    // High aerial / isometric dollhouse: cut every outer wall so the full multi-room plan is inspectable.
+    const camY = camera.position.y - this.origin.y;
+    this.dollhouse = camY > this.size.height + 5.5;
     const dx = camera.position.x - this.origin.x;
     const dz = camera.position.z - this.origin.z;
     for (const wall of this.walls) {
+      if (this.dollhouse) {
+        wall.want = 1;
+        continue;
+      }
       const half = (wall.axis === 'x' ? this.size.width : this.size.length) / 2;
       const beyond = (wall.axis === 'x' ? dx : dz) * wall.side;
       if (beyond > half - 2) wall.want = 1;
@@ -216,7 +227,8 @@ export class RoomCutaway {
   }
 
   private applyWall(wall: Wall, cut: number): void {
-    const height = THREE.MathUtils.lerp(this.size.height, CUT_WALL_HEIGHT, cut);
+    const stub = this.dollhouse ? DOLLHOUSE_WALL_HEIGHT : CUT_WALL_HEIGHT;
+    const height = THREE.MathUtils.lerp(this.size.height, stub, cut);
     wall.mesh.scale.y = height / this.size.height;
     wall.mesh.position.y = height / 2;
   }

@@ -17,9 +17,10 @@ const PORTRAIT_MIN_HORIZ_STREET = 60;
 const PORTRAIT_MIN_HORIZ_INTERIOR = 46;
 const PORTRAIT_MIN_HORIZ_EYE = 60;
 const INTERIOR_YAW = 0.62;
-const INTERIOR_PITCH = 0.86;
+/** Room diorama: high enough to read furniture layout without going fully top-down */
+const INTERIOR_PITCH = 0.95;
 /** How far the view drifts from the room centre toward the player (0 = fixed room view, 1 = follows the player) */
-const INTERIOR_FOLLOW = 0.55;
+const INTERIOR_FOLLOW = 0.45;
 /** How far the room is raised on the screen, as a share of the camera distance, to clear the cards along the bottom */
 const INTERIOR_SCREEN_LIFT = 0.12;
 /** Seconds between checks for buildings between the street camera and the player */
@@ -244,14 +245,17 @@ export class GameCamera {
   private interiorFocus(player: Player): THREE.Vector3 {
     const focus = new THREE.Vector3(player.position.x, 1.0, player.position.z);
     if (this.roomCenter) {
-      const follow = THREE.MathUtils.lerp(this.bigRoom ? 0.9 : INTERIOR_FOLLOW, 0.95, this.closeUp);
+      // Aerial / high isometric hold the plan centre so multi-room layouts stay inspectable
+      const overview = this.currentPreset === 'aerial' || this.currentPreset === 'isometric';
+      const baseFollow = overview ? (this.bigRoom ? 0.28 : 0.12) : (this.bigRoom ? 0.9 : INTERIOR_FOLLOW);
+      const follow = THREE.MathUtils.lerp(baseFollow, 0.95, this.closeUp);
       focus.set(
         THREE.MathUtils.lerp(this.roomCenter.x, player.position.x, follow),
-        1.0,
+        overview ? 0.4 : 1.0,
         THREE.MathUtils.lerp(this.roomCenter.z, player.position.z, follow)
       );
       // Aim a little short of that, so the room sits above the cards along the bottom of the screen
-      const lift = this.interiorDistance * THREE.MathUtils.lerp(1, 0.45, this.closeUp) * INTERIOR_SCREEN_LIFT;
+      const lift = this.interiorDistance * THREE.MathUtils.lerp(1, 0.45, this.closeUp) * INTERIOR_SCREEN_LIFT * (overview ? 0.55 : 1);
       focus.x += Math.sin(this.interiorYaw) * lift;
       focus.z += Math.cos(this.interiorYaw) * lift;
     }
@@ -300,8 +304,8 @@ export class GameCamera {
       this.interiorYaw += deltaYaw;
       while (this.interiorYaw > Math.PI) this.interiorYaw -= Math.PI * 2;
       while (this.interiorYaw < -Math.PI) this.interiorYaw += Math.PI * 2;
-      // Never low enough to look through the walls from the side
-      this.interiorPitch = Math.max(0.5, Math.min(1.35, this.interiorPitch + deltaPitch));
+      // Never low enough to look through the walls from the side; allow dollhouse pitch up to aerial
+      this.interiorPitch = Math.max(0.5, Math.min(1.48, this.interiorPitch + deltaPitch));
     } else {
       this.yaw += deltaYaw;
       while (this.yaw > Math.PI) this.yaw -= Math.PI * 2;
@@ -345,11 +349,17 @@ export class GameCamera {
         this.interiorPitch = INTERIOR_PITCH;
         this.interiorDistance = this.roomFrameDistance;
       } else if (preset === 'isometric') {
-        this.interiorPitch = 1.05;
-        this.interiorDistance = this.roomFrameDistance * 1.25;
+        // Raised isometric — whole-home cutaway, walls still readable
+        this.interiorPitch = 1.12;
+        this.interiorDistance = this.roomFrameDistance * 1.35;
+        this.closeUp = 0;
+        this.closeUpTarget = 0;
       } else if (preset === 'aerial') {
-        this.interiorPitch = 1.35;
-        this.interiorDistance = this.roomFrameDistance * 1.5;
+        // Dollhouse overview: near top-down so every room division is inspectable
+        this.interiorPitch = 1.42;
+        this.interiorDistance = this.roomFrameDistance * 1.75;
+        this.closeUp = 0;
+        this.closeUpTarget = 0;
       }
     } else {
       const wasEye = this.currentPreset === 'eye';

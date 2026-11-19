@@ -774,7 +774,8 @@ export class HouseDecorationSystem {
   /** The colour the walls are painted */
   public wallColour = 'ochre';
   /** The style of flooring fitted */
-  public floorStyle = 'ceramic_white';
+  /** Warm hardwood by default so dollhouse views read as a lived-in home, not a clinic */
+  public floorStyle = 'parquet_wood';
   /** Told when furniture is added, moved or taken away */
   public onChanged: (() => void) | null = null;
   /** Told whenever the piece being put down moves, turns, lands or is given up */
@@ -1505,7 +1506,7 @@ export class HouseDecorationSystem {
     }
     this.loadSavedFurniture();
     this.wallColour = 'ochre';
-    this.floorStyle = 'ceramic_white';
+    this.floorStyle = 'parquet_wood';
     try {
       const look = JSON.parse(localStorage.getItem(this.lookKey) || 'null');
       if (look && WALL_COLOURS.some((colour) => colour.id === look.wall)) this.wallColour = look.wall;
@@ -1526,7 +1527,7 @@ export class HouseDecorationSystem {
     this.placed.length = 0;
     this.hold = true;
     this.wallColour = 'ochre';
-    this.floorStyle = 'ceramic_white';
+    this.floorStyle = 'parquet_wood';
     try {
       localStorage.setItem(this.lookKey, JSON.stringify({ wall: this.wallColour, floor: this.floorStyle }));
     } catch {
