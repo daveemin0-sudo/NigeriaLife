@@ -1,0 +1,21 @@
+Character base meshes (NigeriaLife)
+
+human_male.glb
+  Source: Quaternius — Zombie Apocalypse Kit — Characters_Matt
+  Hosted mirror: cdn.cinevva.com
+  License: CC0 1.0 Universal (Quaternius)
+  Clips: Idle, Walk, Run, Wave, Jump, …
+
+human_female.glb
+  Source: Quaternius — Ultimate Animated Characters — Casual_Female
+  Hosted mirror: cdn.cinevva.com
+  License: CC0 1.0 Universal (Quaternius)
+  Clips: Idle, Walk, Run, SitDown, …
+
+human_male_alt_soldier.glb
+  Source: Quaternius — Ultimate Animated Characters — Soldier_Male
+  License: CC0 1.0 Universal (Quaternius)
+
+Xbot (Mixamo) was evaluated and rejected for player default (joint-dummy look).
+
+Procedural PersonBuilder remains the NPC / offline fallback.
