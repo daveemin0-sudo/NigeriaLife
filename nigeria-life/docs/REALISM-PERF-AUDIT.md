@@ -52,8 +52,10 @@ Measured levers already in code comments / prior audits:
 7. Weather simulation ✅ (#32)
 8. **City identity and density** ✅ (#37)
 9. **Cinematic camera** ✅ (#38)
-10. **Audio immersion** ← current slice (city beds, rain duck, market)
+10. **Audio immersion** ✅ (#39)
 11. Technical performance ✅ Low preset (#31)
+
+**All 11 realism overhaul layers shipped** as vertical slices on `cursor/interior-quality-7e9b` (#30–#39).
 
 ## Lighting + weather immersion ✅
 
@@ -82,14 +84,10 @@ Three-city vertical slice — Abuja/PH must not read as Lagos copies.
 
 Ordinary-gameplay camera polish — eased presets/FOV, look-ahead, chase polish.
 
-## Audio immersion (current)
+## Audio immersion ✅ (#39)
 
-Street soundscape polish — reuse `StreetAmbience` / `SoundEngine`, no sample packs:
+Street soundscape polish — city-mixed beds, market boost, rain duck, interior hush + `audioimmersion` e2e.
 
-1. City mix: Lagos commercial, Abuja quieter/orderly, PH heavier traffic rumble.
-2. Market kerb boost near umbrella stalls; rain ducks street beds.
-3. Soft interior hush when indoors; `levels` diagnostic + `audioimmersion` e2e.
-
-## Out of scope for this slice
+## Out of scope for this effort
 
 Full city rebuild, character remeshing, full vehicle remasters, enabling bloom on Low, merging unrelated stacks.
