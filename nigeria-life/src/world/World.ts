@@ -668,6 +668,7 @@ export class World {
     // The street is as busy as the hour: full by day, thin in the evening, nearly empty in the small hours
     const abroad = shareAbroad(this.skyEnvironment.currentHour);
     this.trafficSpawner.abroad = abroad;
+    this.trafficSpawner.setHour(this.skyEnvironment.currentHour);
     this.cityPopulation.abroad = abroad;
     this.cityPopulation.setClock(this.skyEnvironment.currentHour, this.skyEnvironment.day, delta);
 

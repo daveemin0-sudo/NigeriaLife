@@ -2380,9 +2380,13 @@ export class Game {
       scene: this.scene,
       crowd: this.world.cityPopulation,
       resized: () => this.applyDrawingSize(),
-      onLevel: ({ smokeEvery, districtDraw, wetMetalnessMax, postFx }) => {
+      onLevel: ({ smokeEvery, districtDraw, trafficDraw, wetMetalnessMax, postFx }) => {
         this.world.smokeEvery = smokeEvery;
         this.world.districtDrawDistance = districtDraw;
+        this.world.trafficSpawner.drawDistance = trafficDraw;
+        for (const city of [this.world.cityManager.abujaCity, this.world.cityManager.portHarcourtCity]) {
+          if (city?.life?.traffic) city.life.traffic.drawDistance = trafficDraw;
+        }
         this.world.weather.wetMetalnessMax = wetMetalnessMax;
         this.postProcessing.setEnabled(postFx);
       },
