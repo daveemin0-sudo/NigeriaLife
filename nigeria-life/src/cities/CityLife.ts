@@ -7,6 +7,8 @@ import type { Crossing } from '../world/population/CityPopulation';
 import { shareAbroad } from '../world/StreetLife';
 import type { CarBody, PersonBody } from '../world/Bodies';
 import { StreetStalls, type StallSells, type StallSpot } from '../world/street/StreetStalls';
+import { wireStallTrade } from '../world/street/StallTrade';
+import type { InteractiveObject } from '../world/World';
 import type { OpeningHours } from '../destinations/Hours';
 
 /**
@@ -249,6 +251,8 @@ export class CityLife {
   public readonly city: 'abuja' | 'port_harcourt';
   /** The avenue's roadside stalls (set up once the city's doors are known) */
   public stalls: StreetStalls | null = null;
+  /** Clickables to buy from those stalls when they are open */
+  public stallCards: InteractiveObject[] = [];
   private readonly streets: CityStreets;
 
   constructor(city: 'abuja' | 'port_harcourt') {
@@ -319,6 +323,13 @@ export class CityLife {
       this.stalls = new StreetStalls(spots);
       this.group.add(this.stalls.group);
       this.crowd.onStall = (i, open) => this.stalls?.setOpen(i, open);
+      // Player can buy what an open stall sells (water, food, suya)
+      this.stallCards = wireStallTrade({
+        cityId,
+        spots,
+        isOpen: (i) => this.stalls?.isOpen(i) ?? false,
+        parent: this.group,
+      });
     }
     this.crowd.giveLives(cityId, ground, hoursOf, undefined, undefined, spots);
   }

@@ -30,6 +30,7 @@ import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import { Landmarks } from './landmarks/Landmarks';
 import type { AirportLandmark } from './landmarks/Airport';
 import type { MotorParkLandmark } from './landmarks/MotorPark';
+import { wireStallTrade } from './street/StallTrade';
 import { lagosZones, obstructionsUnder, obstructionsOf, validatePlan, type Obstruction, type PlanInput, type Violation } from './plan/CityPlan';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { LAGOS_PLOTS } from '../realestate/PlotCatalogue';
@@ -255,6 +256,17 @@ export class World {
       // unlit-road rule asks for nothing moving within 14 m): gone round, not waited at
       (x1, z1, x2, z2) => this.trafficSpawner.crossesTraffic(x1, z1, x2, z2) || this.trafficSpawner.trafficNear((x1 + x2) / 2, (z1 + z2) / 2, 14)
     );
+    // Roadside stalls: buy sachet water, akara, suya when the trader has the umbrella up
+    {
+      const fabric = this.cityDensity.fabric;
+      const stallCards = wireStallTrade({
+        cityId: 'lagos',
+        spots: fabric.stallSpots,
+        isOpen: (i) => fabric.isStallOpen(i),
+        parent: fabric.group,
+      });
+      this.interactiveObjects.push(...stallCards);
+    }
 
     if (this.atmosphere.generatorMesh) {
       this.interactiveObjects.push({
