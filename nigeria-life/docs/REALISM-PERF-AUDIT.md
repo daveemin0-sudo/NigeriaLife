@@ -50,8 +50,8 @@ Measured levers already in code comments / prior audits:
 5. **Humans / NPCs** ✅ (#35)
 6. **Vehicles and traffic** ✅ (#36)
 7. Weather simulation ✅ (#32)
-8. **City identity and density** ← current slice (Abuja/PH fingerprints)
-9. Cinematic camera
+8. **City identity and density** ✅ (#37)
+9. **Cinematic camera** ← current slice (eased presets, chase polish)
 10. Audio immersion
 11. Technical performance ✅ Low preset (#31)
 
@@ -74,13 +74,18 @@ Broad Street vertical slice — denser lived-in kerbs and weathered façades, no
 
 Broad Street vertical slice — denser Nigerian mix and night lamps, no driving-physics changes / full remasters.
 
-## City identity (current)
+## City identity ✅ (#37)
 
-Three-city vertical slice — Abuja/PH must not read as Lagos copies:
+Three-city vertical slice — Abuja/PH must not read as Lagos copies.
 
-1. Abuja district palettes → civic limestone / glass; PH → creek teal, ochre, industrial slate.
-2. Traffic/crowd fingerprints: Abuja SUV/police, wide gaps; PH keke/tanker/taxi, denser walkers.
-3. `abujaIdentity` / `phIdentity` + `CityLife.identity()` for e2e.
+## Cinematic camera (current)
+
+Ordinary-gameplay camera polish — no new modes/presets:
+
+1. Ease pitch/distance/FOV toward preset targets (orbit/zoom keep targets in sync).
+2. Hitch-resistant street follow + slight walk look-ahead.
+3. Chase: softer heading filter, slightly longer cinematic pull-back.
+4. `framing` diagnostic + `cinematiccamera` e2e.
 
 ## Out of scope for this slice
 

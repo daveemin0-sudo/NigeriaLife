@@ -33,8 +33,14 @@ export class GameCamera {
 
   // Street mode spherical coordinates
   public yaw: number = 0;              // Horizontal azimuth around player (radians)
-  public pitch: number = 0.44;          // Vertical elevation angle (~25 deg)
-  public distance: number = 8.5;        // Distance to target (m)
+  public pitch: number = 0.46;          // Vertical elevation (~26 deg) — slight cinematic lift
+  public distance: number = 8.8;        // Distance to target (m)
+  /** Preset pitch/distance eased toward these (orbit/zoom updates both live + target) */
+  private targetPitch = 0.46;
+  private targetDistance = 8.8;
+  private targetInteriorPitch = INTERIOR_PITCH;
+  private targetInteriorDistance = 30;
+  private fovTarget = STREET_FOV;
 
   // Interior mode: a cutaway "diorama" view of the whole room from above one corner
   public interiorYaw: number = INTERIOR_YAW;
@@ -193,10 +199,51 @@ export class GameCamera {
     return this.portraitScaledFov(STREET_FOV, PORTRAIT_MIN_HORIZ_STREET, 95);
   }
 
-  private setFov(fov: number): void {
-    if (Math.abs(this.camera.fov - fov) < 0.01) return;
-    this.camera.fov = fov;
+  private setFov(fov: number, instant = false): void {
+    this.fovTarget = fov;
+    if (instant || Math.abs(this.camera.fov - fov) < 0.01) {
+      if (Math.abs(this.camera.fov - fov) >= 0.01) {
+        this.camera.fov = fov;
+        this.camera.updateProjectionMatrix();
+      }
+      return;
+    }
+  }
+
+  /** Ease FOV toward the active mode/preset target (photo mode sets FOV instantly). */
+  private easeFov(delta: number): void {
+    if (this.mode === 'photo') return;
+    const next = this.camera.fov + (this.fovTarget - this.camera.fov) * this.ease(7.5, delta);
+    if (Math.abs(next - this.camera.fov) < 0.02) {
+      if (Math.abs(this.camera.fov - this.fovTarget) >= 0.02) {
+        this.camera.fov = this.fovTarget;
+        this.camera.updateProjectionMatrix();
+      }
+      return;
+    }
+    this.camera.fov = next;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Framing state for e2e / debug: live values vs eased preset targets */
+  public get framing(): {
+    pitch: number;
+    distance: number;
+    targetPitch: number;
+    targetDistance: number;
+    fov: number;
+    fovTarget: number;
+    preset: CameraPreset;
+  } {
+    return {
+      pitch: this.pitch,
+      distance: this.distance,
+      targetPitch: this.targetPitch,
+      targetDistance: this.targetDistance,
+      fov: this.camera.fov,
+      fovTarget: this.fovTarget,
+      preset: this.currentPreset,
+    };
   }
 
   /**
@@ -214,8 +261,10 @@ export class GameCamera {
     this.roomRadius = 0.5 * Math.hypot(w, l);
     this.roomFrameDistance = this.computeRoomFrameDistance();
     this.interiorDistance = this.roomFrameDistance;
+    this.targetInteriorDistance = this.roomFrameDistance;
     this.interiorYaw = INTERIOR_YAW;
     this.interiorPitch = INTERIOR_PITCH;
+    this.targetInteriorPitch = INTERIOR_PITCH;
     this.currentPreset = this.interiorEye ? 'eye' : 'street';
     this.closeUp = 0;
     this.closeUpTarget = 0;
@@ -306,11 +355,13 @@ export class GameCamera {
       while (this.interiorYaw < -Math.PI) this.interiorYaw += Math.PI * 2;
       // Never low enough to look through the walls from the side; allow dollhouse pitch up to aerial
       this.interiorPitch = Math.max(0.5, Math.min(1.48, this.interiorPitch + deltaPitch));
+      this.targetInteriorPitch = this.interiorPitch;
     } else {
       this.yaw += deltaYaw;
       while (this.yaw > Math.PI) this.yaw -= Math.PI * 2;
       while (this.yaw < -Math.PI) this.yaw += Math.PI * 2;
       this.pitch = Math.max(0.12, Math.min(1.30, this.pitch + deltaPitch));
+      this.targetPitch = this.pitch;
     }
   }
 
@@ -327,8 +378,10 @@ export class GameCamera {
       // Far enough out to take in the whole place and what is outside it (a home's carport)
       const max = this.roomFrameDistance * 2.4;
       this.interiorDistance = Math.max(min, Math.min(max, this.interiorDistance + deltaDistance * 3));
+      this.targetInteriorDistance = this.interiorDistance;
     } else {
       this.distance = Math.max(4.0, Math.min(22.0, this.distance + deltaDistance));
+      this.targetDistance = this.distance;
     }
   }
 
@@ -341,26 +394,30 @@ export class GameCamera {
     this.currentPreset = preset;
     if (this.mode === 'interior') {
       this.setInteriorEye(preset === 'eye');
-      if (preset === 'eye') return;
+      if (preset === 'eye') {
+        this.setFov(this.activeFov());
+        return;
+      }
       if (preset === 'close') {
-        this.interiorPitch = 0.62;
-        this.interiorDistance = this.roomFrameDistance * 0.55;
+        this.targetInteriorPitch = 0.62;
+        this.targetInteriorDistance = this.roomFrameDistance * 0.55;
       } else if (preset === 'street') {
-        this.interiorPitch = INTERIOR_PITCH;
-        this.interiorDistance = this.roomFrameDistance;
+        this.targetInteriorPitch = INTERIOR_PITCH;
+        this.targetInteriorDistance = this.roomFrameDistance;
       } else if (preset === 'isometric') {
         // Raised isometric — whole-home cutaway, walls still readable
-        this.interiorPitch = 1.12;
-        this.interiorDistance = this.roomFrameDistance * 1.35;
+        this.targetInteriorPitch = 1.12;
+        this.targetInteriorDistance = this.roomFrameDistance * 1.35;
         this.closeUp = 0;
         this.closeUpTarget = 0;
       } else if (preset === 'aerial') {
         // Dollhouse overview: near top-down so every room division is inspectable
-        this.interiorPitch = 1.42;
-        this.interiorDistance = this.roomFrameDistance * 1.75;
+        this.targetInteriorPitch = 1.42;
+        this.targetInteriorDistance = this.roomFrameDistance * 1.75;
         this.closeUp = 0;
         this.closeUpTarget = 0;
       }
+      this.setFov(this.activeFov());
     } else {
       const wasEye = this.currentPreset === 'eye';
       this.currentPreset = preset;
@@ -375,20 +432,20 @@ export class GameCamera {
       this.setFov(this.activeFov());
       if (preset === 'close') {
         // Close third-person: shoulder-level view, character prominent
-        this.pitch = 0.22;
-        this.distance = 5.2;
+        this.targetPitch = 0.22;
+        this.targetDistance = 5.2;
       } else if (preset === 'street') {
-        // Standard street view
-        this.pitch = 0.44;
-        this.distance = 8.5;
+        // Standard street view — slight cinematic lift vs the old 0.44 / 8.5
+        this.targetPitch = 0.46;
+        this.targetDistance = 8.8;
       } else if (preset === 'isometric') {
         // High angle overview looking down at sidewalks and road lanes
-        this.pitch = 0.82;
-        this.distance = 15.0;
+        this.targetPitch = 0.82;
+        this.targetDistance = 15.0;
       } else if (preset === 'aerial') {
         // High city aerial view
-        this.pitch = 1.18;
-        this.distance = 26.0;
+        this.targetPitch = 1.18;
+        this.targetDistance = 26.0;
       }
     }
   }
@@ -421,10 +478,15 @@ export class GameCamera {
     if (this.mode === 'interior') {
       this.interiorYaw = INTERIOR_YAW;
       this.interiorPitch = INTERIOR_PITCH;
+      this.targetInteriorPitch = INTERIOR_PITCH;
       this.interiorDistance = this.roomFrameDistance;
+      this.targetInteriorDistance = this.roomFrameDistance;
     } else {
       this.yaw = 0;
-      this.pitch = 0.44;
+      this.pitch = 0.46;
+      this.targetPitch = 0.46;
+      this.distance = 8.8;
+      this.targetDistance = 8.8;
     }
   }
 
@@ -505,7 +567,20 @@ export class GameCamera {
   }
 
   public update(player: Player, delta: number): void {
-    const lerpFactor = Math.min(delta * 9.0, 1);
+    // Hitch-resistant follow rates (capped exponential ease)
+    const followEase = this.ease(10, delta);
+    const lookEase = this.ease(12, delta);
+    this.easeFov(delta);
+
+    // Ease spherical framing toward the last preset (orbit/zoom keep targets in sync)
+    if (this.mode === 'street' && !this.isStreetEye() && !(player.isDriving && player.currentVehicle)) {
+      this.pitch += (this.targetPitch - this.pitch) * this.ease(8, delta);
+      this.distance += (this.targetDistance - this.distance) * this.ease(7, delta);
+    }
+    if (this.mode === 'interior' && !this.interiorEye) {
+      this.interiorPitch += (this.targetInteriorPitch - this.interiorPitch) * this.ease(6.5, delta);
+      this.interiorDistance += (this.targetInteriorDistance - this.interiorDistance) * this.ease(6, delta);
+    }
 
     if (this.mode === 'photo') {
       this.setStreetEyeHidden(player, false);
@@ -514,14 +589,14 @@ export class GameCamera {
       const z = Math.cos(this.photoYaw) * Math.cos(this.photoPitch) * this.photoDistance;
       const targetCameraPos = new THREE.Vector3().copy(player.position).add(new THREE.Vector3(x, y, z));
 
-      this.camera.position.lerp(targetCameraPos, lerpFactor * 1.5);
+      this.camera.position.lerp(targetCameraPos, this.ease(14, delta));
 
       const targetLookAt = new THREE.Vector3(
         player.position.x,
         player.position.y + this.photoHeight,
         player.position.z
       );
-      this.currentLookAt.lerp(targetLookAt, lerpFactor * 1.5);
+      this.currentLookAt.lerp(targetLookAt, this.ease(14, delta));
       this.camera.lookAt(this.currentLookAt);
       return;
     }
@@ -536,9 +611,9 @@ export class GameCamera {
     if (this.mode === 'interior') {
       this.setStreetEyeHidden(player, false);
       // Room diorama: the camera stays above a corner and drifts gently as the player walks
-      this.closeUp += (this.closeUpTarget - this.closeUp) * Math.min(1, delta * 3);
+      this.closeUp += (this.closeUpTarget - this.closeUp) * this.ease(3.2, delta);
       const focus = this.interiorFocus(player);
-      const roomLerp = Math.min(delta * 4.0, 1);
+      const roomLerp = this.ease(5.2, delta);
       this.currentLookAt.lerp(focus, roomLerp);
       this.camera.position.lerp(focus.clone().add(this.computeOffset()), roomLerp);
       this.camera.lookAt(this.currentLookAt);
@@ -546,15 +621,15 @@ export class GameCamera {
     }
 
     if (this.mode === 'home') {
-      this.camera.position.lerp(this.homeCamPos, lerpFactor);
-      this.currentLookAt.lerp(this.homeLookAt, lerpFactor);
+      this.camera.position.lerp(this.homeCamPos, followEase);
+      this.currentLookAt.lerp(this.homeLookAt, lookEase);
       this.camera.lookAt(this.currentLookAt);
       return;
     }
 
     if (this.mode === 'map') {
-      this.camera.position.lerp(this.mapCamPos, lerpFactor);
-      this.currentLookAt.lerp(this.mapLookAt, lerpFactor);
+      this.camera.position.lerp(this.mapCamPos, followEase);
+      this.currentLookAt.lerp(this.mapLookAt, lookEase);
       this.camera.lookAt(this.currentLookAt);
       return;
     }
@@ -578,7 +653,8 @@ export class GameCamera {
         // Smoothly track vehicle heading to decouple visual camera rotation from high-frequency wheel inputs
         const smoothMultiplier = Math.max(0.2, DrivableVehicle.cameraSmoothing);
         const angleDiff = THREE.MathUtils.euclideanModulo(vehRot - this.cameraVehYaw + Math.PI, Math.PI * 2) - Math.PI;
-        this.cameraVehYaw += angleDiff * this.ease(4.6 / smoothMultiplier, delta);
+        // Slightly softer heading filter for cinematic chase without lagging corners
+        this.cameraVehYaw += angleDiff * this.ease(4.1 / smoothMultiplier, delta);
       }
 
       // Over the bonnet: the driver's view down the road, the front of the car at the bottom of it
@@ -598,8 +674,8 @@ export class GameCamera {
 
       // Dynamic distance and height: pull back slightly at top speed
       const speedNorm = Math.min(1.0, vehSpeed / 30);
-      const chaseDistance = 11.2 + speedNorm * 2.2;
-      const chaseHeight = 4.4 + speedNorm * 0.8;
+      const chaseDistance = 11.8 + speedNorm * 2.4;
+      const chaseHeight = 4.55 + speedNorm * 0.85;
 
       // A wall between the car and the camera: the camera comes in closer (fast), and goes back out slowly
       let room = chaseDistance;
@@ -624,8 +700,8 @@ export class GameCamera {
         vehPos.y + this.chaseHeight,
         vehPos.z - Math.cos(yaw) * this.vehCamRoom,
       );
-      const lookAhead = Math.min(Math.max(vehSpeed * 0.16, 1.6), 7);
-      this.currentLookAt.set(vehPos.x + Math.sin(yaw) * lookAhead, vehPos.y + 1.5, vehPos.z + Math.cos(yaw) * lookAhead);
+      const lookAhead = Math.min(Math.max(vehSpeed * 0.18, 1.8), 7.5);
+      this.currentLookAt.set(vehPos.x + Math.sin(yaw) * lookAhead, vehPos.y + 1.65, vehPos.z + Math.cos(yaw) * lookAhead);
       this.camera.lookAt(this.currentLookAt);
       return;
     } else {
@@ -640,7 +716,7 @@ export class GameCamera {
 
     // Default 'street' mode: rotatable framing centered on player
     const offset = this.computeOffset();
-    const lookHeight = this.currentPreset === 'close' ? 1.35 : this.currentPreset === 'isometric' ? 0.9 : 1.6;
+    const lookHeight = this.currentPreset === 'close' ? 1.35 : this.currentPreset === 'isometric' ? 0.9 : 1.55;
     const origin = new THREE.Vector3(player.position.x, player.position.y + lookHeight, player.position.z);
 
     // Collision avoidance against city buildings, landmarks & vehicles
@@ -682,14 +758,18 @@ export class GameCamera {
       }
     }
     const camInWall = this.blocked ? this.blocked(this.camera.position.x, this.camera.position.z) : false;
-    this.camera.position.lerp(targetCameraPos, camInWall ? 1 : lerpFactor);
+    this.camera.position.lerp(targetCameraPos, camInWall ? 1 : followEase);
 
+    // Slight look-ahead when walking so Broad Street framing feels cinematic, not glued
+    const moving = player.isMoving || (player.actor.scripted && player.actor.pose.legs === 'walk');
+    const face = player.mesh.rotation.y;
+    const lead = moving ? 0.55 : 0;
     const targetLookAt = new THREE.Vector3(
-      player.position.x,
+      player.position.x + Math.sin(face) * lead,
       player.position.y + lookHeight,
-      player.position.z
+      player.position.z + Math.cos(face) * lead
     );
-    this.currentLookAt.lerp(targetLookAt, lerpFactor);
+    this.currentLookAt.lerp(targetLookAt, lookEase);
     this.camera.lookAt(this.currentLookAt);
   }
 
