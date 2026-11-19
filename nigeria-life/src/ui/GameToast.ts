@@ -6,8 +6,25 @@
 
 let audioCtx: AudioContext | null = null;
 
+/** Ordinary notices can be switched off in Settings. A warning or an error still shows. */
+let noticesOn = true;
+try { noticesOn = localStorage.getItem('nl_notices') !== 'off'; } catch { /* they stay on */ }
+
+export function setNotices(on: boolean): void {
+  noticesOn = on;
+  try { localStorage.setItem('nl_notices', on ? 'on' : 'off'); } catch { /* this visit only */ }
+}
+
+export function noticesEnabled(): boolean {
+  return noticesOn;
+}
+
 function playToastSound(type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
   try {
+    // Before the player's first tap the browser keeps sound off: making the sound engine then plays
+    // nothing and costs time while the game is starting (seconds, measured on a slow processor)
+    const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+    if (!audioCtx && activation && !activation.hasBeenActive) return;
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
     if (!audioCtx) audioCtx = new AudioContextClass();
@@ -57,6 +74,7 @@ export function showGameToast(
   type: 'info' | 'success' | 'warning' | 'error' = 'info',
   durationMs: number = 3200
 ): void {
+  if (!noticesOn && (type === 'info' || type === 'success')) return;
   playToastSound(type);
 
   let toastContainer = document.getElementById('game-toast-container');
@@ -66,8 +84,10 @@ export function showGameToast(
     toastContainer.style.cssText = `
       position: fixed;
       top: ${window.innerWidth <= 700 ? 150 : 104}px;
-      left: 50%;
-      transform: translateX(-50%);
+      /* Across the screen with a gutter, the toasts centred in it: at left 50% a toast only had half
+         the screen to wrap in, and on a phone came out as a tall narrow board */
+      left: 8px;
+      right: 8px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -78,12 +98,12 @@ export function showGameToast(
     document.body.appendChild(toastContainer);
   }
 
-  // The same notice already showing is not shown twice; and no more than three at a time, the oldest going
+  // The same notice already showing is not shown twice; and no more than three at a time (two on a phone, where each takes a tenth of the screen), the oldest going
   for (const shown of Array.from(toastContainer.children) as HTMLElement[]) {
     if (shown.dataset.message === message && shown.dataset.leaving !== '1') return;
   }
   const showing = (Array.from(toastContainer.children) as HTMLElement[]).filter((t) => t.dataset.leaving !== '1');
-  while (showing.length >= 3) {
+  while (showing.length >= (window.innerWidth <= 700 ? 2 : 3)) {
     const oldest = showing.shift()!;
     oldest.dataset.leaving = '1';
     oldest.style.opacity = '0';
@@ -121,7 +141,8 @@ export function showGameToast(
     opacity: 0;
     transform: translateY(-12px) scale(0.96);
     transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
-    max-width: ${phone ? '90vw' : 'min(90vw, 520px)'};
+    max-width: ${phone ? '100%' : 'min(100%, 520px)'};
+    box-sizing: border-box;
     text-align: left;
   `;
   const badge = document.createElement('span');

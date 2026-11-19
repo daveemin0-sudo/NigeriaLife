@@ -1,6 +1,6 @@
 // The same walk-up, face, do-it, effect-part-way pattern, used for more than restaurants:
 // a street seller handing something over, a cash machine, a bank desk, a car door.
-import { open, wait, newPlayer, enterInterior, leaveInterior, advance, playUntil, closeDialogs, useStation } from './lib.mjs';
+import { makeOpen, open, wait, newPlayer, enterInterior, leaveInterior, advance, playUntil, closeDialogs, useStation } from './lib.mjs';
 
 const state = (page) => page.evaluate(() => {
   const g = window.game;
@@ -232,10 +232,13 @@ export async function run(browser, check) {
   };
 
   await setCash(page, 20000);
+  // The barber is a shop gone into now (the haircut is given in the chair inside, tested with the places): its card opens the door and takes nothing
   const barber = await useInStreet('barber-shop', { x: 0, z: -2 });
-  check('the barber: pressing the card takes no money; the player walks up and reaches first, and then the ₦2,500 is taken, once',
-    barber.pressed.cash === barber.start.cash && barber.pressed.me.doing === 'use barber-shop' && !!barber.gesture && barber.gesture.ledger === barber.start.ledger && barber.gesture.away < 0.6
-      && barber.start.cash - barber.done.cash === 2500 && !barber.done.me.scripted, { pressed: barber.pressed.me, gesture: barber.gesture, paid: barber.start.cash - barber.done.cash });
+  const inBarber = await playUntil(page, () => window.game.world.interiorManager.currentInterior?.name ?? null, 12);
+  check('the barber: the card on the street takes no money; it takes the player inside the barber shop',
+    /Barber/i.test(inBarber ?? '') && barber.start.cash === (await state(page)).cash, { inBarber, paid: barber.start.cash - (await state(page)).cash });
+  await leaveInterior(page);
+  await advance(page, 1);
 
   const pump = await useInStreet('fuel-station', { x: 2, z: 0 });
   const pumpOpen = await page.evaluate(() => { const el = document.getElementById('pump-sheet'); const open = !!el && el.style.display !== 'none'; window.game.pumpSheet.close(); return open; });
@@ -243,10 +246,11 @@ export async function run(browser, check) {
     pump.pressed.cash === pump.start.cash && !!pump.gesture && pumpOpen && pump.start.cash === pump.done.cash, { gesture: pump.gesture, pumpOpen, paid: pump.start.cash - pump.done.cash });
 
   // A door is still a door: its card walks the player through it, with no gesture of this kind
+  await page.evaluate(() => window.game.world.skyEnvironment.setHour(11));
+  await makeOpen(page, 'bank');
   await page.evaluate(() => {
     const g = window.game;
     const o = g.world.interactiveObjects.find((x) => x.id === 'lagos-bank');
-    g.world.skyEnvironment.setHour(11);
     g.player.stopMoving();
     g.player.mesh.position.set(o.interactionPoint.x, 0, o.interactionPoint.z);
     g.hud.showInteractionCard(o);

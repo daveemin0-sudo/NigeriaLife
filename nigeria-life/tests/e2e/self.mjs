@@ -69,7 +69,7 @@ export async function run(browser, check) {
   check('the menu lists what a character has and can do: look, bag, money, needs, work, property, vehicle, emotes, rest, quests, phone, settings',
     ['look', 'bag', 'money', 'needs', 'career', 'property', 'vehicle', 'emotes', 'rest', 'quests', 'phone', 'settings'].every((id) => names.includes(id)), names);
   check('opening the menu did not walk the character anywhere or move the camera', same(before, after), { before, after });
-  check('the money line shows what is really held', /25,000/.test(shown.items.money.why) && /150,000/.test(shown.items.money.why), shown.items.money);
+  check('the money line shows what is really held', /40,000/.test(shown.items.money.why) && /135,000/.test(shown.items.money.why), shown.items.money);
   check('every line is big enough to press', Object.values(shown.items).every((item) => item.height >= 40), Object.fromEntries(Object.entries(shown.items).map(([id, item]) => [id, Math.round(item.height)])));
 
   // What cannot be done here is listed, greyed, and says why; pressing it does nothing
@@ -289,7 +289,8 @@ export async function run(browser, check) {
   // Somewhere on the 3D view that the menu is not covering
   const away = await page.evaluate(() => {
     const menu = document.getElementById('self-menu').getBoundingClientRect();
-    const canvas = document.querySelector('canvas');
+    // The game's own view (there are other canvases now: the small map, the dials)
+    const canvas = window.game.renderer.domElement;
     for (let y = 60; y < innerHeight - 20; y += 20) {
       for (let x = 12; x < innerWidth - 10; x += 20) {
         const inMenu = x > menu.left - 8 && x < menu.right + 8 && y > menu.top - 8 && y < menu.bottom + 8;

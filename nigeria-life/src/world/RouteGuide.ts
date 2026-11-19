@@ -105,6 +105,10 @@ export class RouteGuide {
   private readonly up = new THREE.Vector3(0, 1, 0);
   private readonly spot = new THREE.Vector3();
   private path: THREE.Vector3[] = [];
+  /** The way being shown, for the minimap (empty when none is) */
+  public get way(): readonly THREE.Vector3[] {
+    return this.path;
+  }
   private target: { x: number; z: number; name: string } | null = null;
   /** For this trip only: told on arrival instead of `onArrived` */
   private arrived: ((name: string) => void) | null = null;

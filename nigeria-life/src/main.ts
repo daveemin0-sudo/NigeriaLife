@@ -1,3 +1,4 @@
+import { markLoad, noteLoad, watchPlayable } from './app/LoadTimes';
 import { startUpdates } from './app/Updates';
 import '@fontsource-variable/outfit/wght.css';
 import { StreetAmbience } from './audio/StreetAmbience';
@@ -9,13 +10,22 @@ import './style.css';
 import './ui/kit/kit.css';
 // The one look of the game: loaded last, it decides how every surface looks
 import './ui/theme/luxe.css';
+// Phones: after everything else, so the phone layout is what a phone shows
+import './ui/theme/phone.css';
 import { Game } from './game/Game';
+import { isFreshLife } from './ui/FirstSteps';
+import { installStillMatrices } from './graphics/StillMatrices';
 import { startTheme } from './ui/theme/Theme';
 import { TitleScreen } from './ui/TitleScreen';
 import { BackendService } from './backend/BackendService';
+import { installSafeInsets } from './ui/SafeInsets';
 
+// How long each part of starting takes on this device: shown in Settings, under Graphics
+markLoad('script');
 // Light or dark, as chosen last time, before anything is drawn
 startTheme();
+// Phone Back/Home bar and Display-size scaling: keep HUD above the system chrome
+installSafeInsets();
 
 // The names over people's heads are drawn in the script font: it is loaded first (a moment at most)
 const fontsReady = Promise.race([
@@ -25,23 +35,36 @@ const fontsReady = Promise.race([
 
 // Initialize the Nigeria Life Engine
 void fontsReady.then(() => {
+  markLoad('fonts');
   try {
+    // Things that do not move are not placed again every frame (a third of the processor's work on the street)
+    installStillMatrices();
     const game = new Game();
+    markLoad('world');
     (window as any).game = game;
     console.log('[NIGERIA LIFE] Game successfully initialized!');
-    // The city has drawn its first frames: the splash steps aside
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    // Every shader the city needs is compiled while the splash is still up (in parallel where the
+    // browser can), so walking up Broad Street does not stop to build them; then the splash steps aside
+    const lift = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+      markLoad('shown');
+      watchPlayable();
       const splash = document.getElementById('nl-splash');
       if (!splash) return;
       splash.classList.add('is-gone');
       setTimeout(() => splash.remove(), 650);
     }));
+    void game.warmShaders(12_000).finally(() => {
+      markLoad('shaders');
+      noteLoad({ programs: game.renderer.info.programs?.length ?? 0 });
+      lift();
+    });
     // On the web: kept on the phone, and told when a new version is out
     startUpdates();
     // The speech engine is woken at the first tap (Continue on the title), not mid-street
     window.addEventListener('pointerdown', () => StreetAmbience.get().warm(), { once: true, capture: true });
     // The title over the city, to carry on or begin a new life (not for the automated tests, unless asked for)
     const w = window as any;
+    if (navigator.webdriver && !w.__titleOn && w.__firstStepsOn) game.startFirstSteps();
     if (!navigator.webdriver || w.__titleOn) {
       w.titleScreen = new TitleScreen({
         summary: () => {
@@ -54,11 +77,18 @@ void fontsReady.then(() => {
             money: `₦${(data.walletCash + data.bank.balance).toLocaleString()}`,
             place: game.world.getDistrictAtPosition(game.player.position).name,
             home: home ? home.name : null,
+            fresh: isFreshLife(game.firstStepsHost()),
           };
         },
+        // In the world for the first time: the first five minutes
+        closed: () => game.startFirstSteps(),
+        canSignIn: () => game.modules.OnlineAccount.get()?.account?.kind === 'guest',
+        signIn: () => game.openSignIn('login'),
         drift: (delta) => game.cameraManager.rotate(delta * 0.1),
         frame: (on) => game.cameraManager.setPreset(on ? 'isometric' : 'street'),
       });
+      // Once the game server has answered, a guest is offered the way in to an account they have
+      void game.modules.OnlineAccount.get()?.ready.then(() => w.titleScreen?.refresh());
     }
   } catch (err: any) {
     console.error('[NIGERIA LIFE ERROR]', err);

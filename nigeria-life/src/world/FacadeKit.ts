@@ -27,12 +27,22 @@ export interface FacadeSpec {
   doorAt?: number;
 }
 
-const solidMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+/** Shared baked-façade material: vertex colours + plaster bump for tropical wear (no extra draw calls). */
+function facadeSolidMaterial(): THREE.MeshStandardMaterial {
+  const bump = MaterialLibrary.getInstance().concreteTrimMaterial.bumpMap;
+  return new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.9,
+    metalness: 0.02,
+    bumpMap: bump ?? undefined,
+    bumpScale: bump ? 0.028 : 0,
+  });
+}
 const paints = new Map<number, THREE.MeshStandardMaterial>();
 const paint = (color: number) => {
   let material = paints.get(color);
   if (!material) {
-    material = new THREE.MeshStandardMaterial({ color });
+    material = new THREE.MeshStandardMaterial({ color, roughness: 0.88 });
     paints.set(color, material);
   }
   return material;
@@ -369,7 +379,7 @@ export function dressBuilding(group: THREE.Group, spec: FacadeSpec): void {
     });
   }
   if (solidGeometry) {
-    const mesh = new THREE.Mesh(solidGeometry, solidMaterial);
+    const mesh = new THREE.Mesh(solidGeometry, facadeSolidMaterial());
     mesh.name = 'facade_detail';
     mesh.castShadow = false;
     mesh.receiveShadow = true;

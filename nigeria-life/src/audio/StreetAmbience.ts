@@ -118,6 +118,12 @@ export interface StreetHere {
   people: number;
   cars: number;
   hour: number;
+  /** City fingerprint for ambience mix (lagos / abuja / port_harcourt) */
+  cityId?: string;
+  /** Near umbrella stalls / market kerb */
+  marketNear?: boolean;
+  /** Rain intensity 0–1; ducks street beds so rain can read */
+  rain?: number;
 }
 
 export class StreetAmbience {
@@ -129,6 +135,8 @@ export class StreetAmbience {
   private crowd: GainNode | null = null;
   private crowdFilter: BiquadFilterNode | null = null;
   private traffic: GainNode | null = null;
+  /** Soft indoor hush when the player is not outside */
+  private interior: GainNode | null = null;
   private nextHorn = 4;
   private nextCall = 8;
   private time = 0;
@@ -139,6 +147,8 @@ export class StreetAmbience {
   /** A street voice of ours is speaking */
   private calling = false;
   private warmed = false;
+  /** Last computed bed levels (for e2e / debug) */
+  public levels = { crowd: 0, traffic: 0, interior: 0, rainDuck: 1, marketBoost: 1, city: 'lagos' };
 
   /**
    * Wakes the speech engine with a silent word at the first tap, so the first conductor's call on
@@ -216,7 +226,29 @@ export class StreetAmbience {
     low.connect(this.traffic);
     this.traffic.connect(master);
     trafficSource.start(0, 1.3);
+
+    // Quiet muffled indoor bed (same noise, darker filter)
+    const hushSource = ctx.createBufferSource();
+    hushSource.buffer = buffer;
+    hushSource.loop = true;
+    hushSource.playbackRate.value = 0.45;
+    const hushFilter = ctx.createBiquadFilter();
+    hushFilter.type = 'lowpass';
+    hushFilter.frequency.value = 320;
+    this.interior = ctx.createGain();
+    this.interior.gain.value = 0;
+    hushSource.connect(hushFilter);
+    hushFilter.connect(this.interior);
+    this.interior.connect(master);
+    hushSource.start(0, 2.1);
     return true;
+  }
+
+  /** City mix: Lagos loudest commercial, Abuja orderly, PH industrial/rumble */
+  private cityMix(cityId: string | undefined): { crowd: number; traffic: number; horns: number; calls: number } {
+    if (cityId === 'abuja') return { crowd: 0.72, traffic: 0.78, horns: 0.55, calls: 0.35 };
+    if (cityId === 'port_harcourt') return { crowd: 0.95, traffic: 1.25, horns: 0.9, calls: 0.7 };
+    return { crowd: 1.1, traffic: 1.05, horns: 1, calls: 1 };
   }
 
   public update(delta: number, here: StreetHere): void {
@@ -224,13 +256,32 @@ export class StreetAmbience {
     const ctx = SoundEngine.getInstance().audio()!.ctx;
     this.time += delta;
     const night = here.hour < 6 || here.hour >= 22;
-    const busy = here.outside ? Math.min(1, here.people / 30) * (here.onMainRoad ? 1 : 0.45) : 0;
-    const roads = here.outside ? Math.min(1, here.cars / 12) : 0;
+    const city = this.cityMix(here.cityId);
+    const rainDuck = here.rain && here.rain > 0.05 ? Math.max(0.35, 1 - here.rain * 0.55) : 1;
+    const marketBoost = here.outside && here.marketNear ? 1.35 : 1;
+    const busy = here.outside ? Math.min(1, here.people / 28) * (here.onMainRoad ? 1 : 0.45) : 0;
+    const roads = here.outside ? Math.min(1, here.cars / 11) : 0;
     // The crowd's murmur rises and falls, as a crowd does
     const swell = 0.75 + 0.25 * Math.sin(this.time * 0.7) * Math.sin(this.time * 0.23);
-    this.crowd!.gain.setTargetAtTime((night ? 0.03 : 0.11) * busy * swell * (here.driving ? 0.6 : 1), ctx.currentTime, 0.4);
-    this.crowdFilter!.frequency.setTargetAtTime(560 + 220 * Math.sin(this.time * 1.3), ctx.currentTime, 0.3);
-    this.traffic!.gain.setTargetAtTime(0.12 * roads * (here.driving ? 1.2 : 1), ctx.currentTime, 0.5);
+    const crowdLevel = (night ? 0.035 : 0.125) * busy * swell * marketBoost * city.crowd * rainDuck * (here.driving ? 0.6 : 1);
+    const trafficLevel = 0.13 * roads * city.traffic * rainDuck * (here.driving ? 1.25 : 1);
+    const interiorLevel = here.outside ? 0 : 0.028;
+    this.crowd!.gain.setTargetAtTime(crowdLevel, ctx.currentTime, 0.4);
+    this.crowdFilter!.frequency.setTargetAtTime(
+      (here.marketNear ? 720 : 560) + 220 * Math.sin(this.time * 1.3),
+      ctx.currentTime,
+      0.3
+    );
+    this.traffic!.gain.setTargetAtTime(trafficLevel, ctx.currentTime, 0.5);
+    this.interior!.gain.setTargetAtTime(interiorLevel, ctx.currentTime, 0.55);
+    this.levels = {
+      crowd: +crowdLevel.toFixed(4),
+      traffic: +trafficLevel.toFixed(4),
+      interior: +interiorLevel.toFixed(4),
+      rainDuck: +rainDuck.toFixed(3),
+      marketBoost: +marketBoost.toFixed(3),
+      city: here.cityId ?? 'lagos',
+    };
     // Indoors, or off the main road: a voice from the street stops there and then
     if (!here.outside || !here.onMainRoad) {
       if (this.calling && typeof window !== 'undefined') window.speechSynthesis?.cancel();
@@ -241,16 +292,17 @@ export class StreetAmbience {
     // A horn somewhere in the traffic
     this.nextHorn -= delta;
     if (this.nextHorn <= 0 && roads > 0.1) {
-      this.nextHorn = 3 + Math.random() * (night ? 20 : 8);
-      SoundEngine.getInstance().playDistantHorn(0.15 + Math.random() * 0.3);
+      this.nextHorn = (3 + Math.random() * (night ? 20 : 8)) / Math.max(0.4, city.horns);
+      SoundEngine.getInstance().playDistantHorn((0.15 + Math.random() * 0.3) * city.horns);
     }
     // A voice from the street
     this.nextCall -= delta;
     if (this.nextCall <= 0) {
-      this.nextCall = 9 + Math.random() * 14;
+      this.nextCall = (9 + Math.random() * 14) / Math.max(0.35, city.calls);
       // Voices belong to the main road and the bus stops, not to a quiet street
-      if (this.voices && here.onMainRoad && busy > 0.15 && !night) {
-        const conductor = Math.random() < 0.55;
+      const callChance = city.calls * (here.marketNear ? 1.25 : 1);
+      if (this.voices && here.onMainRoad && busy > 0.15 && !night && Math.random() < callChance) {
+        const conductor = Math.random() < (here.cityId === 'lagos' ? 0.55 : 0.25);
         this.call(conductor ? CONDUCTORS : here.hour >= 18 ? [...STREET, ...EVENING] : STREET, conductor);
       }
     }

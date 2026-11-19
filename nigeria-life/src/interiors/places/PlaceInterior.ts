@@ -6,17 +6,18 @@ import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import { HumanMeshBuilder } from '../../graphics/HumanMeshBuilder';
 import { bakeToGeometry } from '../../graphics/MeshBaker';
 import type { InteractiveObject } from '../../world/World';
+import { floorSurface, repeated } from '../../graphics/Surfaces';
 import { Builder, signBoard } from '../../world/kit/ArchKit';
 import { PlaceActions, type PlaceHost } from '../../destinations/PlaceActions';
 import type { ArmPose } from '../../interactions/Poses';
 import type { Item } from '../../backend/types';
 import type { BackendService } from '../../backend/BackendService';
 import { PLACE_WORK, type WorkSpec } from './PlaceJobs';
-import { createHandWork } from '../../jobs/HandWork';
+import { createHandWork, Shifts, SHIFT_PIECES } from '../../jobs/HandWork';
 import { Employment } from '../../jobs/Employment';
 import { attachShows } from './LiveEvents';
 import { attachWorship, Figure } from './Worship';
-import { attachHotel } from './Hotel';
+import { attachHotel, knowHotelRoom } from './Hotel';
 import { attachViewing } from './ViewingCentre';
 import { attachTravellers } from './Travellers';
 import { attachNollywood } from '../../film/Nollywood';
@@ -43,12 +44,14 @@ export interface StationChoice {
   seconds?: number;
   /** Dance through it */
   dance?: boolean;
-  /** What it does to the player: needs, skills */
-  effect?: (backend: BackendService) => void;
+  /** What it does to the player: needs, skills. Return false to abort (no "said" success). */
+  effect?: (backend: BackendService) => void | boolean;
   /** A haircut: the style, and a beard where the character can wear one. Applied once the cut is paid for. */
   look?: { hair?: string; beard?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'full' | 'chinstrap' };
   /** What goes into the bag */
   item?: Omit<Item, 'quantity'>;
+  /** Bag document required before this choice can run (e.g. passport before visa) */
+  needItem?: string;
   /** Something the game opens instead (the State House, the jobs app) */
   open?: string;
   said?: string;
@@ -84,7 +87,7 @@ export interface PlaceSpec {
   key: string;
   name: string;
   district: string;
-  room: { width: number; length: number; height: number; floor: number; wall: number };
+  room: { width: number; length: number; height: number; floor: number; wall: number; /** A textured finish from Surfaces.floorSurface */ finish?: string };
   /** What the room is furnished with, drawn in its own space (the door is at +z) */
   build(b: Builder, room: THREE.Group): void;
   /** The sign on the back wall */
@@ -142,6 +145,7 @@ export class PlaceInterior {
     this.spec = spec;
     this.group.position.copy(origin);
     this.group.name = `place ${spec.key}`;
+    knowHotelRoom(this, spec.key);
     const { width, length, height } = spec.room;
     this.def = {
       id: `interior_place_${spec.key}`,
@@ -162,7 +166,15 @@ export class PlaceInterior {
       stations: [],
       npcs: [],
     };
+  }
+
+  private isBuilt = false;
+  /** Builds the room and its people the first time it is needed (InteriorManager, on the way in) */
+  public ensureBuilt(): boolean {
+    if (this.isBuilt) return false;
+    this.isBuilt = true;
     this.build();
+    return true;
   }
 
   /** A point in the room's own space, in the world */
@@ -184,16 +196,27 @@ export class PlaceInterior {
   }
 
   private build(): void {
+    const before = new Set(this.group.children);
     const { width, length, height, floor, wall } = this.spec.room;
-    this.group.add(InteriorPrefabs.createRoom(width, length, height, floor, wall));
+    const shell = InteriorPrefabs.createRoom(width, length, height, floor, wall);
+    this.group.add(shell);
+    if (this.spec.room.finish) {
+      const mesh = shell.getObjectByName('interior_floor_mesh');
+      if (mesh instanceof THREE.Mesh && mesh.material instanceof THREE.MeshStandardMaterial) {
+        const surface = floorSurface(this.spec.room.finish);
+        mesh.material.map = repeated(surface.map, width / surface.metres, length / surface.metres);
+        mesh.material.color.setHex(0xffffff);
+        mesh.material.needsUpdate = true;
+      }
+    }
     // Lights across the ceiling, so the room is bright at any hour
     for (let x = -width / 2 + 4; x < width / 2 - 2; x += 7) for (let z = -length / 2 + 4; z < length / 2 - 2; z += 7) this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(x, height - 0.3, z), 0xfff7e6));
     const b = new Builder();
     this.spec.build(b, this.group);
     for (const work of PLACE_WORK[this.spec.key] ?? []) work.build?.(b);
     this.group.add(b.build(`${this.spec.key} furniture`, { roughness: 0.7 }));
-    // What was built (not the people, nor the cards put in later): where the seats are found
-    this.built = this.group.children.slice();
+    // What was built (not the people, nor the cards put in before or after): where the seats are found
+    this.built = this.group.children.filter((child) => !before.has(child));
     if (this.spec.sign) {
       const board = signBoard([this.spec.sign.text, this.spec.sign.sub], Math.min(width - 4, 10), 1.6, this.spec.sign.bg, '#ffffff');
       board.position.set(0, height - 1.3, -length / 2 + 0.25);
@@ -204,7 +227,8 @@ export class PlaceInterior {
     this.group.add(door);
     const way = this.spec.door ?? { name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.' };
     this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: way.name, category: way.category, description: way.description, interactionPoint: this.world(0, length / 2 - 1), exitLabel: this.spec.door ? `🚪 ${this.spec.door.name}` : undefined });
-    this.addRestroom(b.footprints);
+    // A guest room has its own bathroom. The customers' toilet door belongs in the public rooms.
+    if (!this.spec.key.endsWith('-town-suite') && !/-hotel-[12]-suite$/.test(this.spec.key)) this.addRestroom(b.footprints);
     // The tables: what was built at table height, small enough to sit round
     this.tables = b.footprints.filter((f) => f.height >= 0.6 && f.height <= 0.92 && f.maxX - f.minX >= 0.8 && f.maxZ - f.minZ >= 0.6 && f.maxX - f.minX <= 4.2 && f.maxZ - f.minZ <= 4.2);
 
@@ -352,7 +376,8 @@ export class PlaceInterior {
     const npc = new InteriorNPCMesh(def);
     this.npcs.push(npc);
     this.group.add(npc.group);
-    const piece = w.piece ?? 'shift';
+    // A shift is a few rounds of this work; each round is paid as it is done
+    const piece = w.piece ?? 'round';
     let host: PlaceHost | null = null;
     const work = createHandWork({
       employerId: w.employer,
@@ -372,8 +397,23 @@ export class PlaceInterior {
       },
     });
     const hire = `work_${key}_hire_${w.employer}`;
-    this.interactiveList.push({ mesh: npc.group, id: hire, name: `${s.name} (${s.title})`, category: this.spec.name, description: s.says, interactionPoint: this.world(s.at[0] + Math.sin(s.facing) * 1.3, s.at[1] + Math.cos(s.facing) * 1.3) });
-    PlaceActions.register(hire, { label: () => work.bossLabel(), run: (by) => work.askBoss(by) });
+    const before = this.world(s.at[0] + Math.sin(s.facing) * 1.3, s.at[1] + Math.cos(s.facing) * 1.3);
+    this.interactiveList.push({ mesh: npc.group, id: hire, name: `${s.name} (${s.title})`, category: this.spec.name, description: s.says, interactionPoint: before });
+    PlaceActions.register(hire, {
+      label: () => (work.onShift ? `🦺 ${s.name}: you are on shift` : work.bossLabel()),
+      // Up to them first, face to face, then the talk
+      run: (by) => {
+        host = by;
+        const went = by.director.perform({
+          id: `to ${s.name}`, actor: by.actor, point: before, target: this.world(s.at[0], s.at[1]), animation: { arms: 'talk' }, seconds: 0.7, effectAt: 0.2,
+          effect: () => {
+            work.askBoss(by);
+            return true;
+          },
+        });
+        if (!went.ok) work.askBoss(by);
+      },
+    });
 
     const first = w.tasks[0];
     const marker = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 1.2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
@@ -383,10 +423,10 @@ export class PlaceInterior {
     const title = w.shift.charAt(0).toUpperCase() + w.shift.slice(1);
     this.interactiveList.push({ mesh: marker, id: shift, name: `💼 ${title}`, category: `${jobs.employer(w.employer)!.name}: staff only`, description: jobs.employer(w.employer)!.task, interactionPoint: this.world(first.at[0], first.at[1]) });
     PlaceActions.register(shift, {
-      label: () => (jobs.isEmployed(w.employer) ? `💼 Start: ${w.shift} · ₦${Math.round(work.rate() * Employment.payBoost()).toLocaleString()}` : `💼 ${title} (ask ${s.name} for work)`),
+      label: () => (work.onShift ? `🦺 On shift: ${Shifts.current?.done ?? 0} of ${Shifts.current?.total ?? SHIFT_PIECES} done` : jobs.isEmployed(w.employer) ? `💼 Start a shift: ${w.shift} · ₦${Math.round(work.rate() * Employment.payBoost()).toLocaleString()} each` : `💼 ${title} (ask ${s.name} for work)`),
       run: (by) => {
         host = by;
-        work.start(by);
+        work.startShift(by);
       },
     });
   }
@@ -810,12 +850,24 @@ export class PlaceInterior {
 
   /** The moment it is done: paid for, the goods in the bag, what it does done */
   private settle(c: StationChoice, host: PlaceHost): boolean {
+    const bag = host.backend.getData().inventory;
+    if (c.needItem && !bag.some((e) => e.id === c.needItem)) {
+      host.say('You need the right document in your bag first. Collect it at the right office, then come back.', 'warning');
+      return false;
+    }
+    if (c.item && bag.some((e) => e.id === c.item!.id)) {
+      host.say(`You already have ${c.item.name} in your bag.`, 'info');
+      return false;
+    }
     if (c.price && !host.backend.pay(c.price, `${c.label}, ${this.spec.name}`, c.item?.category === 'food' ? 'FOOD_PURCHASE' : 'SHOP_PURCHASE')) {
       host.say(`That is ₦${c.price.toLocaleString()}. You do not have enough.`, 'warning');
       return false;
     }
     if (c.item) host.backend.addItem(c.item);
-    c.effect?.(host.backend);
+    if (c.effect?.(host.backend) === false) {
+      host.say(host.backend.lastMoneyError ?? 'That could not be done.', 'warning');
+      return false;
+    }
     if (c.look) PlaceLook.apply(c.look);
     if (c.said) host.say(c.said, 'success');
     return true;

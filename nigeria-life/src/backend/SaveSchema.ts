@@ -1,8 +1,11 @@
 import { isTraitId } from '../life/Traits';
+import { MAX_SLIPS, type Payslip, type TaxBook } from '../life/Tax';
 import { applyRealPrices } from './RealPrices';
 import {
   type PlayerAccount,
   type Item,
+  type BusinessEnterprise,
+  type BusinessType,
   type PropertyStatus,
   type TransactionRecord,
   type SavedWorldState,
@@ -28,8 +31,93 @@ const PROPERTY_STATUSES: ReadonlySet<string> = new Set([
 ]);
 const SAVED_CITIES: ReadonlySet<string> = new Set(['lagos', 'abuja', 'port_harcourt']);
 
+/**
+ * How far a saved spot may be from each city's centre. A spot outside is not a place in that city
+ * (a damaged save), so it is brought back to the edge. Measured 14 Nov 2026: Lagos's places reach
+ * z 6,633 down the expressway (the airport) and x 314; Abuja's buildings x -620 to 620 and z -290
+ * to 850; Port Harcourt's x -580 to 560 and z -300 to 580. Each box leaves a few hundred metres
+ * beyond the last building. It was a flat 400 m, which put anyone saved further out (43 of
+ * Lagos's 61 ride destinations) back toward the centre on every reload.
+ */
+export const SAVED_CITY_BOUNDS: Readonly<Record<string, { minX: number; maxX: number; minZ: number; maxZ: number }>> = {
+  lagos: { minX: -1000, maxX: 1000, minZ: -1000, maxZ: 7500 },
+  abuja: { minX: -1000, maxX: 1000, minZ: -1000, maxZ: 1500 },
+  port_harcourt: { minX: -1000, maxX: 1000, minZ: -1000, maxZ: 1000 },
+};
+const BUSINESS_TYPES: ReadonlySet<string> = new Set([
+  'restaurant', 'supermarket', 'pharmacy', 'fashion shop', 'phone shop', 'mechanic', 'salon',
+  'barbershop', 'hotel', 'logistics', 'filling station', 'tech company', 'transport business',
+]);
+
+/** A kiosk the player registered. It is not in the catalogue, so its name and place are theirs. */
+function registeredBusiness(s: Raw): BusinessEnterprise | null {
+  const id = typeof s.id === 'string' ? s.id : '';
+  if (!id.startsWith('reg_') || id.length > 40) return null;
+  const name = typeof s.name === 'string' ? s.name.trim().slice(0, 32) : '';
+  if (name.length < 2) return null;
+  const cityId = typeof s.cityId === 'string' && SAVED_CITIES.has(s.cityId) ? s.cityId : undefined;
+  const spot = isRecord(s.streetPosition) && Number.isFinite(s.streetPosition.x) && Number.isFinite(s.streetPosition.z)
+    ? { x: Number(s.streetPosition.x), y: 0, z: Number(s.streetPosition.z) }
+    : undefined;
+  const kind: BusinessType = typeof s.type === 'string' && BUSINESS_TYPES.has(s.type) ? (s.type as BusinessType) : 'restaurant';
+  return {
+    id,
+    name,
+    ...(cityId ? { cityId } : {}),
+    ...(typeof s.districtId === 'string' ? { districtId: s.districtId.slice(0, 40) } : {}),
+    type: kind,
+    category: typeof s.category === 'string' && s.category ? s.category.slice(0, 48) : 'Kiosk',
+    icon: typeof s.icon === 'string' && s.icon ? s.icon.slice(0, 8) : '🏪',
+    ...(typeof s.logo === 'string' ? { logo: s.logo.slice(0, 16) } : {}),
+    purchasePrice: Math.max(0, Math.round(Number(s.purchasePrice) || 0)),
+    baseIncomePerCycle: Math.max(0, Math.round(Number(s.baseIncomePerCycle) || 0)),
+    owned: s.owned === true,
+    pendingRevenue: Math.max(0, Math.round(Number(s.pendingRevenue) || 0)),
+    level: Math.max(1, Math.round(Number(s.level) || 1)),
+    upgrades: [],
+    ...(spot ? { streetPosition: spot } : {}),
+  };
+}
+
 type Raw = Record<string, any>;
 const isRecord = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The tax book: whole naira, never below zero, the latest payslips only */
+function sanitizeTax(saved: Raw): TaxBook {
+  const money = (v: unknown) => (Number.isFinite(v) ? Math.max(0, Math.round(v as number)) : 0);
+  const text = (v: unknown, fallback = '') => (typeof v === 'string' ? v.slice(0, 80) : fallback);
+  const month = String(saved.month);
+  const slips: Payslip[] = Array.isArray(saved.slips)
+    ? saved.slips
+        .filter((s: unknown): s is Raw => isRecord(s) && Number.isFinite(s.gross) && Number.isFinite(s.net))
+        .slice(-MAX_SLIPS)
+        .map((s: Raw) => ({
+          month: /^\d{4}-\d{2}$/.test(String(s.month)) ? String(s.month) : month,
+          date: text(s.date),
+          employer: text(s.employer, 'Employer'),
+          title: text(s.title, 'Wage'),
+          gross: money(s.gross),
+          relief: money(s.relief),
+          paye: money(s.paye),
+          net: money(s.net),
+          monthGross: money(s.monthGross),
+          monthPaye: money(s.monthPaye),
+          rate: Number.isFinite(s.rate) ? Math.min(1, Math.max(0, s.rate)) : 0,
+          office: text(s.office),
+        }))
+    : [];
+  return {
+    month,
+    gross: money(saved.gross),
+    paye: money(saved.paye),
+    rent: money(saved.rent),
+    year: /^\d{4}$/.test(String(saved.year)) ? String(saved.year) : month.slice(0, 4),
+    yearGross: money(saved.yearGross),
+    yearPaye: money(saved.yearPaye),
+    yearVat: money(saved.yearVat),
+    slips,
+  };
+}
 
 export function createFreshAccount(): PlayerAccount {
   return applyRealPrices(structuredClone(INITIAL_PLAYER_DATA));
@@ -105,6 +193,8 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
           timestamp: typeof t.timestamp === 'string' ? t.timestamp : '',
           description: typeof t.description === 'string' ? t.description : '',
           source: t.source === 'bank' ? 'bank' : 'wallet',
+          ...(Number.isFinite(t.vat) && t.vat > 0 ? { vat: Math.round(t.vat) } : {}),
+          ...(Number.isFinite(t.paye) && t.paye > 0 ? { paye: Math.round(t.paye) } : {}),
         }))
     : base.transactionHistory;
 
@@ -164,14 +254,15 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
   if (isRecord(world) && SAVED_CITIES.has(world.cityId) && Number.isFinite(world.x) && Number.isFinite(world.z)) {
     worldState = {
       cityId: world.cityId,
-      x: Math.min(400, Math.max(-400, world.x)),
-      z: Math.min(400, Math.max(-400, world.z)),
+      x: Math.min(SAVED_CITY_BOUNDS[world.cityId].maxX, Math.max(SAVED_CITY_BOUNDS[world.cityId].minX, world.x)),
+      z: Math.min(SAVED_CITY_BOUNDS[world.cityId].maxZ, Math.max(SAVED_CITY_BOUNDS[world.cityId].minZ, world.z)),
       rotationY: Number.isFinite(world.rotationY) ? world.rotationY : 0,
       hour: num(world.hour, 13.3, 'worldState.hour', 0, 24),
       day: Math.floor(num(world.day, 0, 'worldState.day', 0)),
       ...(typeof world.weather === 'string' ? { weather: world.weather } : {}),
       ...(world.clockMode === 'REAL_TIME' || world.clockMode === 'SIMULATED_TIME' ? { clockMode: world.clockMode } : {}),
       ...(world.inTransit === true ? { inTransit: true } : {}),
+      ...(typeof world.rideTo === 'string' && world.rideTo ? { rideTo: world.rideTo.slice(0, 120) } : {}),
     };
   } else if (world !== undefined && world !== null) {
     repaired.push('worldState');
@@ -189,6 +280,8 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       ? Object.fromEntries(Object.entries(saved.skillCarry).filter(([, v]) => typeof v === 'number' && v > 0 && v < 1))
       : undefined,
     walletCash: Math.round(num(saved.walletCash, base.walletCash, 'walletCash', 0)),
+    walletUsd: Math.round(num(saved.walletUsd, base.walletUsd ?? 0, 'walletUsd', 0)),
+    walletGbp: Math.round(num(saved.walletGbp, base.walletGbp ?? 0, 'walletGbp', 0)),
     bank: {
       accountNumber: str(bank.accountNumber, base.bank.accountNumber, 'bank.accountNumber'),
       bankName: str(bank.bankName, base.bank.bankName, 'bank.bankName'),
@@ -228,21 +321,28 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
       academics: num(skills.academics, base.skills?.academics ?? 1, 'skills.academics', 1, 10),
     },
     inventory,
-    businesses: DEFAULT_BUSINESSES.map((def) => {
-      const s = savedBusinesses.find((b) => b.id === def.id);
-      if (!s) return structuredClone(def);
-      const savedUpgrades = list(s.upgrades, `businesses.${def.id}.upgrades`) || [];
-      return {
-        ...structuredClone(def),
-        owned: s.owned === true,
-        pendingRevenue: Math.round(num(s.pendingRevenue, 0, `businesses.${def.id}.pendingRevenue`, 0)),
-        level: num(s.level, def.level, `businesses.${def.id}.level`, 1),
-        upgrades: def.upgrades.map((uDef) => ({
-          ...uDef,
-          purchased: savedUpgrades.some((u) => u.id === uDef.id && u.purchased === true),
-        })),
-      };
-    }),
+    businesses: [
+      ...DEFAULT_BUSINESSES.map((def) => {
+        const s = savedBusinesses.find((b) => b.id === def.id);
+        if (!s) return structuredClone(def);
+        const savedUpgrades = list(s.upgrades, `businesses.${def.id}.upgrades`) || [];
+        return {
+          ...structuredClone(def),
+          owned: s.owned === true,
+          pendingRevenue: Math.round(num(s.pendingRevenue, 0, `businesses.${def.id}.pendingRevenue`, 0)),
+          level: num(s.level, def.level, `businesses.${def.id}.level`, 1),
+          upgrades: def.upgrades.map((uDef) => ({
+            ...uDef,
+            purchased: savedUpgrades.some((u) => u.id === uDef.id && u.purchased === true),
+          })),
+        };
+      }),
+      ...savedBusinesses
+        .filter((b) => typeof b.id === 'string' && !DEFAULT_BUSINESSES.some((def) => def.id === b.id))
+        .map((b) => registeredBusiness(b))
+        .filter((b): b is BusinessEnterprise => b !== null)
+        .slice(0, 40),
+    ],
     properties: DEFAULT_PROPERTIES.map((def) => {
       const s = savedProperties.find((p) => p.id === def.id);
       if (!s) return structuredClone(def);
@@ -287,12 +387,14 @@ export function sanitizeAccount(saved: Raw, repaired: string[] = []): PlayerAcco
     ...(isRecord(saved.credit)
       ? { credit: { cleanLoans: Math.max(0, Math.floor(Number(saved.credit.cleanLoans) || 0)), missed: Math.max(0, Math.floor(Number(saved.credit.missed) || 0)) } }
       : {}),
+    ...(isRecord(saved.tax) && /^\d{4}-\d{2}$/.test(String(saved.tax.month)) ? { tax: sanitizeTax(saved.tax) } : {}),
     claims,
     relationships,
     investments,
     threads,
     ...(Array.isArray(saved.releasedDeeds) ? { releasedDeeds: saved.releasedDeeds.filter((entry: unknown) => typeof entry === 'string').slice(0, 50) } : {}),
     lastRevenueAt: Number.isFinite(saved.lastRevenueAt) ? saved.lastRevenueAt : undefined,
+    ...(Number.isFinite(saved.lastActiveAt) ? { lastActiveAt: saved.lastActiveAt } : {}),
     worldState,
     createdAt: str(saved.createdAt, base.createdAt, 'createdAt'),
   };
@@ -318,8 +420,9 @@ export function parseSavedAccount(json: string): LoadedAccount | null {
   // fills with defaults. Version 2 -> 3 added `trait` and `skillCarry`: a save from before has no
   // trait, and the player is asked once to pick one. Version 3 -> 4 added weekly dues (`duesDay`,
   // `leases`, the loan's schedule, `credit`, `evicted`): a save from before has none, and the
-  // first settle starts the schedules from that day, so nothing is charged for weeks gone by. A future shape change converts `parsed`
-  // here, one step per version.
+  // first settle starts the schedules from that day, so nothing is charged for weeks gone by.
+  // Version 4 -> 5 added hard currency pockets (`walletUsd`, `walletGbp`): older saves get 0.
+  // A future shape change converts `parsed` here, one step per version.
 
   const repaired: string[] = [];
   const account = sanitizeAccount(parsed, repaired);

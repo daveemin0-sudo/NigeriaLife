@@ -8,6 +8,7 @@ import { buildFurniture, FURNITURE, type FurnitureKind } from './FurnitureModels
 import { EXTRA_ITEMS, PRICE_FIXES } from './CatalogueExtras';
 import { CatalogueSheet } from '../ui/CatalogueSheet';
 import { FurnitureThumbs } from '../ui/FurnitureThumbs';
+import { STOREY_H } from './HomePlan';
 
 export interface CatalogueItem {
   id: string;
@@ -28,7 +29,7 @@ export const CATALOGUE_ITEMS: CatalogueItem[] = [
     category: 'power',
     price: 85000,
     icon: '⚡',
-    description: 'Iconic Nigerian compact 950W generator. Keeps fan and TV running when NEPA strikes.',
+    description: 'Iconic Nigerian compact 950W generator. Keeps fan and TV running when NEPA takes light. It stands outside, not in the house.',
     modelType: 'generator_small',
   },
   {
@@ -37,7 +38,7 @@ export const CATALOGUE_ITEMS: CatalogueItem[] = [
     category: 'power',
     price: 1200000,
     icon: '🔋',
-    description: 'Industrial heavy-duty diesel generator with automatic changeover. Powers all ACs smoothly.',
+    description: 'Industrial heavy-duty diesel generator with automatic changeover. Powers all ACs smoothly. It stands outside: in the compound of a house, beside the front of a flat.',
     modelType: 'generator_big',
   },
   {
@@ -676,6 +677,8 @@ export interface PlacedItem {
   z: number;
   /** Quarter turns from facing the front of the home */
   turns: number;
+  /** Which floor it stands on: 0 the ground floor, 1 upstairs in a two-storey home */
+  storey?: number;
   mesh: THREE.Group;
 }
 
@@ -698,8 +701,20 @@ export interface RoomForFurniture {
   solids(): Array<{ x: number; z: number; halfWidth: number; halfLength: number }>;
   block(x: number, z: number, halfWidth: number, halfLength: number): void;
   unblock(x: number, z: number, halfWidth: number, halfLength: number): void;
-  /** Places that must stay open: inside the front door, and where the player comes in */
-  keepClear: Array<{ x: number; z: number }>;
+  /** Places that must stay open: inside the front door, and where the player comes in (on one floor, when it says) */
+  keepClear: Array<{ x: number; z: number; storey?: number }>;
+  /** How many floors the home has, and which the player is on (0 the ground floor) */
+  storeys?: number;
+  storey?: number;
+  /** What the home came with on a floor the player is not on */
+  solidsOn?(storey: number): Array<{ x: number; z: number; halfWidth: number; halfLength: number }>;
+  /**
+   * Where a generator stands, outside the walls. A house: in the compound, along the side.
+   * A flat or a room: on the apron beside the front door. Several share the row.
+   */
+  generatorPads?: Array<{ x: number; z: number; turns: number }>;
+  /** The pads are in the compound (a house), not on the apron of a flat */
+  generatorInCompound?: boolean;
 }
 
 export const WALL_COLOURS: Array<{ id: string; name: string; hex: number }> = [
@@ -752,12 +767,15 @@ export class HouseDecorationSystem {
 
   /** Everything standing in the home that the player put there */
   public readonly placed: PlacedItem[] = [];
+  /** This visit has loaded furniture, or the player cleared the room. Until then an empty list is not written over what is stored. */
+  private hold = false;
   /** The piece being put down now, if any */
   public placing: Placing | null = null;
   /** The colour the walls are painted */
   public wallColour = 'ochre';
   /** The style of flooring fitted */
-  public floorStyle = 'ceramic_white';
+  /** Warm hardwood by default so dollhouse views read as a lived-in home, not a clinic */
+  public floorStyle = 'parquet_wood';
   /** Told when furniture is added, moved or taken away */
   public onChanged: (() => void) | null = null;
   /** Told whenever the piece being put down moves, turns, lands or is given up */
@@ -765,7 +783,8 @@ export class HouseDecorationSystem {
   /** Told to paint the walls */
   public onPaint: ((hex: number) => void) | null = null;
   /** Told to fit the floor */
-  public onFloor: ((hex: number, roughness: number) => void) | null = null;
+  /** The floor's finish changed: its colour, its shine, and which finish it is (FLOOR_STYLES) */
+  public onFloor: ((hex: number, roughness: number, style: string) => void) | null = null;
   /** Where a new piece first appears: in front of the player */
   public startAt: (() => { x: number; z: number }) | null = null;
 
@@ -810,10 +829,11 @@ export class HouseDecorationSystem {
   /** The home says how big it is and where people can stand. What is already placed is made solid in it. */
   public attach(room: RoomForFurniture): void {
     this.room = room;
+    this.settleGenerators();
     for (const item of this.placed) this.solidify(item, true);
     this.onPaint?.(this.wallHex());
     const fi = this.floorInfo();
-    this.onFloor?.(fi.hex, fi.roughness);
+    this.onFloor?.(fi.hex, fi.roughness, this.floorStyle);
   }
 
   public wallHex(): number {
@@ -827,6 +847,28 @@ export class HouseDecorationSystem {
 
   public kind(modelType: string): FurnitureKind {
     return FURNITURE[modelType] ?? { solid: true, use: 'none' };
+  }
+
+  /** A Tiger or a Mikano: it stands outside, never in a room */
+  private isGenerator(modelType: string): boolean {
+    return modelType === 'generator_small' || modelType === 'generator_big';
+  }
+
+  /** The outdoor spot for the generator at this place in the row, or null if the home has not said where */
+  private generatorPad(index: number): { x: number; z: number; turns: number } | null {
+    const pads = this.room?.generatorPads;
+    if (!pads?.length) return null;
+    return pads[Math.min(Math.max(0, index), pads.length - 1)];
+  }
+
+  /** Which outdoor spot a generator takes. One being moved keeps its own; a new one takes the next. */
+  private generatorSlot(moving: PlacedItem | null): number {
+    const gens = this.placed.filter((item) => this.isGenerator(item.modelType));
+    if (moving) {
+      const at = gens.indexOf(moving);
+      if (at >= 0) return at;
+    }
+    return gens.length;
   }
 
   public catalogueItem(id: string): CatalogueItem | null {
@@ -851,14 +893,15 @@ export class HouseDecorationSystem {
 
   private solidify(item: PlacedItem, solid: boolean): void {
     if (!this.room || !this.kind(item.modelType).solid) return;
+    if ((item.storey ?? 0) !== (this.room.storey ?? 0)) return;
     const size = this.footprint(item.modelType, item.turns);
     if (solid) this.room.block(item.x, item.z, size.width / 2, size.depth / 2);
     else this.room.unblock(item.x, item.z, size.width / 2, size.depth / 2);
   }
 
-  private dress(mesh: THREE.Group, x: number, z: number, turns: number, modelType?: string): void {
+  private dress(mesh: THREE.Group, x: number, z: number, turns: number, modelType?: string, storey = 0): void {
     const elevation = (modelType ? this.kind(modelType).elevation : undefined) ?? 0;
-    mesh.position.set(x, elevation, z);
+    mesh.position.set(x, elevation + storey * STOREY_H, z);
     mesh.rotation.y = (turns * Math.PI) / 2;
     mesh.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
   }
@@ -867,6 +910,28 @@ export class HouseDecorationSystem {
   // PUTTING A PIECE DOWN
   // =========================================================================
 
+  /**
+   * A generator bought earlier, and put down indoors, is moved outside: into the compound of a
+   * house, or onto the apron beside the front door of a flat. Nothing else is touched.
+   */
+  private settleGenerators(): void {
+    if (!this.room?.generatorPads?.length) return;
+    let moved = false;
+    const gens = this.placed.filter((item) => this.isGenerator(item.modelType));
+    gens.forEach((item, i) => {
+      const pad = this.generatorPad(i);
+      if (!pad) return;
+      if (item.x === pad.x && item.z === pad.z && item.turns === pad.turns && (item.storey ?? 0) === 0) return;
+      item.x = pad.x;
+      item.z = pad.z;
+      item.turns = pad.turns;
+      item.storey = 0;
+      this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, 0);
+      moved = true;
+    });
+    if (moved) this.save();
+  }
+
   /** Starts putting a new piece down. Nothing is paid until it is placed. */
   public beginPlacing(itemId: string, options: { stored?: boolean } = {}): boolean {
     const item = this.catalogueItem(itemId);
@@ -874,8 +939,9 @@ export class HouseDecorationSystem {
     if (options.stored && !this.stored.includes(itemId)) return false;
     this.cancel();
     this.closeCatalogueModal();
-    const at = this.startAt?.() ?? { x: 0, z: 4 };
-    this.placing = { item, x: this.snap(at.x), z: this.snap(at.z), turns: 0, moving: null, stored: !!options.stored };
+    const pad = this.isGenerator(item.modelType) ? this.generatorPad(this.generatorSlot(null)) : null;
+    const at = pad ?? this.startAt?.() ?? { x: 0, z: 4 };
+    this.placing = { item, x: this.snap(at.x), z: this.snap(at.z), turns: pad?.turns ?? 0, moving: null, stored: !!options.stored };
     this.showGhost();
     return true;
   }
@@ -901,8 +967,15 @@ export class HouseDecorationSystem {
   /** Moves the piece being put down to a point on the floor, measured from the middle of the home. */
   public moveTo(x: number, z: number): boolean {
     if (!this.placing) return false;
-    this.placing.x = this.snap(x);
-    this.placing.z = this.snap(z);
+    const pad = this.isGenerator(this.placing.item.modelType) ? this.generatorPad(this.generatorSlot(this.placing.moving)) : null;
+    if (pad) {
+      this.placing.x = pad.x;
+      this.placing.z = pad.z;
+      this.placing.turns = pad.turns;
+    } else {
+      this.placing.x = this.snap(x);
+      this.placing.z = this.snap(z);
+    }
     this.showGhost();
     return true;
   }
@@ -918,6 +991,16 @@ export class HouseDecorationSystem {
     const placing = this.placing;
     const room = this.room;
     if (!placing || !room) return 'Nothing is being placed.';
+    if (this.isGenerator(placing.item.modelType)) {
+      const pad = this.generatorPad(this.generatorSlot(placing.moving));
+      if (!pad) return 'A generator stands outside, and this home has nowhere for it yet.';
+      if (Math.hypot(placing.x - pad.x, placing.z - pad.z) > 0.4) return 'A generator stands outside.';
+      if (!placing.moving && !placing.stored) {
+        const data = this.backend.getData();
+        if (data.walletCash + data.bank.balance < placing.item.price) return `You need ₦${placing.item.price.toLocaleString()} for it.`;
+      }
+      return null;
+    }
     const size = this.footprint(placing.item.modelType, placing.turns);
     const minX = placing.x - size.width / 2;
     const maxX = placing.x + size.width / 2;
@@ -925,6 +1008,7 @@ export class HouseDecorationSystem {
     const maxZ = placing.z + size.depth / 2;
     if (minX < -room.halfWidth + 0.2 || maxX > room.halfWidth - 0.2 || minZ < -room.halfLength + 0.2 || maxZ > room.halfLength - 0.2) return 'That is through the wall.';
     for (const point of room.keepClear) {
+      if (point.storey !== undefined && point.storey !== this.placingStorey()) continue;
       if (point.x > minX - 0.9 && point.x < maxX + 0.9 && point.z > minZ - 0.9 && point.z < maxZ + 0.9) return 'That would block the way in.';
     }
     if (this.kind(placing.item.modelType).solid) {
@@ -934,8 +1018,9 @@ export class HouseDecorationSystem {
       for (const solid of room.solids()) {
         if (overlaps(solid.x, solid.z, solid.halfWidth, solid.halfLength)) return 'Something is already standing there.';
       }
+      const floor = this.placingStorey();
       for (const other of this.placed) {
-        if (other === placing.moving || !this.kind(other.modelType).solid) continue;
+        if (other === placing.moving || !this.kind(other.modelType).solid || (other.storey ?? 0) !== floor) continue;
         const theirs = this.footprint(other.modelType, other.turns);
         if (overlaps(other.x, other.z, theirs.width / 2, theirs.depth / 2)) return 'Something is already standing there.';
       }
@@ -954,11 +1039,18 @@ export class HouseDecorationSystem {
     const reason = this.blocked();
     if (reason) return { ok: false, reason };
 
+    const pad = this.isGenerator(placing.item.modelType) ? this.generatorPad(this.generatorSlot(placing.moving)) : null;
+    if (pad) {
+      placing.x = pad.x;
+      placing.z = pad.z;
+      placing.turns = pad.turns;
+    }
     let item = placing.moving;
     if (item) {
       item.x = placing.x;
       item.z = placing.z;
       item.turns = placing.turns;
+      item.storey = pad ? 0 : item.storey;
       item.mesh.visible = true;
     } else {
       if (placing.stored) {
@@ -978,12 +1070,13 @@ export class HouseDecorationSystem {
         x: placing.x,
         z: placing.z,
         turns: placing.turns,
+        storey: pad ? 0 : (this.room?.storey ?? 0),
         mesh: this.createFurniture3DMesh(placing.item.modelType),
       };
       this.placed.push(item);
       this.placedItemsGroup.add(item.mesh);
     }
-    this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
+    this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, item.storey ?? 0);
     this.solidify(item, true);
     const wasNew = !placing.moving && !placing.stored;
     this.placing = null;
@@ -992,13 +1085,38 @@ export class HouseDecorationSystem {
     this.onChanged?.();
     this.onPlacingChanged?.();
     if (wasNew) {
-      showGameToast(`${placing.item.name} is in place. ₦${placing.item.price.toLocaleString()} paid.`, 'success');
+      const where = pad ? (this.room?.generatorInCompound ? 'in the compound' : 'beside the front') : null;
+      showGameToast(
+        where ? `${placing.item.name} stands outside, ${where}. ₦${placing.item.price.toLocaleString()} paid.` : `${placing.item.name} is in place. ₦${placing.item.price.toLocaleString()} paid.`,
+        'success',
+      );
       this.onFurniturePlaced?.(placing.item);
     } else if (placing.stored) {
       showGameToast(`${placing.item.name} is out of storage and in place.`, 'success');
     }
     this.backToCatalogue(true);
     return { ok: true };
+  }
+
+  /** The floor map was marked afresh (the player went up or down the stairs): what stands on their floor is solid again */
+  public solidifyAll(): void {
+    for (const item of this.placed) if (item !== this.placing?.moving) this.solidify(item, true);
+  }
+
+  /** The floor the piece being put down stands on: its own if it is being moved, else the player's */
+  private placingStorey(): number {
+    return this.placing?.moving?.storey ?? this.room?.storey ?? 0;
+  }
+
+  /**
+   * The player is on this floor of a two-storey home: what stands on the floors above it is not
+   * shown (the floor above is cut away to see in), and what stands below is under their feet.
+   */
+  public showStorey(storey: number): void {
+    for (const item of this.placed) {
+      if (this.placing?.moving === item) continue;
+      item.mesh.visible = (item.storey ?? 0) <= storey;
+    }
   }
 
   /** Gives up putting the piece down. A piece that was being moved goes back where it was. */
@@ -1021,10 +1139,11 @@ export class HouseDecorationSystem {
    * it can be moved, put away or sold like anything bought. A piece is left out if a solid piece
    * of the player's own already stands where it would go, or one with its id is already placed.
    */
-  public adopt(pieces: Array<{ uid?: string; id: string; x: number; z: number; turns: number }>): number {
+  public adopt(pieces: Array<{ uid?: string; id: string; x: number; z: number; turns: number; storey?: number }>): number {
     let taken = 0;
+    let floor = 0;
     const overlaps = (x: number, z: number, w: number, d: number) => this.placed.some((other) => {
-      if (!this.kind(other.modelType).solid) return false;
+      if (!this.kind(other.modelType).solid || (other.storey ?? 0) !== floor) return false;
       const o = this.footprint(other.modelType, other.turns);
       return Math.abs(other.x - x) * 2 < o.width + w - 0.05 && Math.abs(other.z - z) * 2 < o.depth + d - 0.05;
     });
@@ -1032,18 +1151,25 @@ export class HouseDecorationSystem {
       const entry = this.catalogueItem(piece.id);
       if (!entry) continue;
       if (piece.uid && this.placed.some((item) => item.uid === piece.uid)) continue;
-      const size = this.footprint(entry.modelType, piece.turns);
-      if (this.kind(entry.modelType).solid && overlaps(piece.x, piece.z, size.width, size.depth)) continue;
+      // A generator never stands in a room: it takes the next spot outside
+      const pad = this.isGenerator(entry.modelType) ? this.generatorPad(this.generatorSlot(null)) : null;
+      floor = pad ? 0 : (piece.storey ?? 0);
+      const x = pad?.x ?? piece.x;
+      const z = pad?.z ?? piece.z;
+      const turns = pad?.turns ?? piece.turns;
+      const size = this.footprint(entry.modelType, turns);
+      if (this.kind(entry.modelType).solid && overlaps(x, z, size.width, size.depth)) continue;
       const item: PlacedItem = {
         uid: piece.uid ?? `${piece.id}_came_${taken.toString(36)}${Date.now().toString(36)}`,
         id: piece.id,
         modelType: entry.modelType,
-        x: piece.x,
-        z: piece.z,
-        turns: piece.turns,
+        x,
+        z,
+        turns,
+        storey: floor,
         mesh: this.createFurniture3DMesh(entry.modelType),
       };
-      this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
+      this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, item.storey ?? 0);
       this.placed.push(item);
       this.placedItemsGroup.add(item.mesh);
       if (this.room) this.solidify(item, true);
@@ -1062,7 +1188,7 @@ export class HouseDecorationSystem {
    * as they fit; a piece hung on a wall needs a wall behind it; what fits nowhere goes into
    * storage, to be placed again for nothing.
    */
-  public relay(moves: Record<string, { x: number; z: number; turns: number }>, onWall: (x: number, z: number) => boolean): { stored: string[] } {
+  public relay(moves: Record<string, { x: number; z: number; turns: number; storey?: number }>, onWall: (x: number, z: number, storey: number) => boolean): { stored: string[] } {
     const room = this.room;
     if (!room) return { stored: [] };
     if (this.placing) this.cancel();
@@ -1072,26 +1198,49 @@ export class HouseDecorationSystem {
     const kept: PlacedItem[] = [];
     const stored: string[] = [];
     for (const item of order) {
+      if (this.isGenerator(item.modelType)) {
+        const pad = this.generatorPad(kept.filter((other) => this.isGenerator(other.modelType)).length);
+        if (pad) {
+          item.x = pad.x;
+          item.z = pad.z;
+          item.turns = pad.turns;
+          item.storey = 0;
+          this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, 0);
+          kept.push(item);
+          this.solidify(item, true);
+          continue;
+        }
+      }
       const want = moves[item.uid];
-      let spot: { x: number; z: number; turns: number } | null = null;
+      let spot: { x: number; z: number; turns: number; storey: number } | null = null;
       if (want) {
         // Where it is meant to go, or the nearest place round it that is free
+        const floor = want.storey ?? 0;
         search: for (const r of [0, 0.25, 0.5, 0.75, 1, 1.4, 1.8]) {
           for (const [dx, dz] of r === 0 ? [[0, 0]] : [[r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, r], [r, -r], [-r, -r]]) {
-            if (this.fitsAt(item.modelType, want.x + dx, want.z + dz, want.turns, kept)) {
-              spot = { x: want.x + dx, z: want.z + dz, turns: want.turns };
+            if (this.fitsAt(item.modelType, want.x + dx, want.z + dz, want.turns, kept, floor)) {
+              spot = { x: want.x + dx, z: want.z + dz, turns: want.turns, storey: floor };
               break search;
             }
           }
         }
-      } else if (this.fitsAt(item.modelType, item.x, item.z, item.turns, kept) && (this.kind(item.modelType).mount !== 'wall' || onWall(item.x, item.z))) {
-        spot = { x: item.x, z: item.z, turns: item.turns };
+      } else {
+        // Where it stood, on its own floor if this home has it; else the same spot on the other floor
+        const floors = Math.max(1, room.storeys ?? 1);
+        const own = Math.min(item.storey ?? 0, floors - 1);
+        for (const floor of [own, ...[0, 1].filter((f) => f !== own && f < floors)]) {
+          if (this.fitsAt(item.modelType, item.x, item.z, item.turns, kept, floor) && (this.kind(item.modelType).mount !== 'wall' || onWall(item.x, item.z, floor))) {
+            spot = { x: item.x, z: item.z, turns: item.turns, storey: floor };
+            break;
+          }
+        }
       }
       if (spot) {
         item.x = spot.x;
         item.z = spot.z;
         item.turns = spot.turns;
-        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
+        item.storey = spot.storey;
+        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, item.storey ?? 0);
         kept.push(item);
         this.solidify(item, true);
       } else {
@@ -1100,6 +1249,7 @@ export class HouseDecorationSystem {
       }
     }
     this.placed.length = 0;
+    this.hold = true;
     this.placed.push(...kept);
     if (stored.length) {
       this.stored.push(...stored);
@@ -1111,7 +1261,7 @@ export class HouseDecorationSystem {
   }
 
   /** Whether a piece fits on the floor here: inside the walls, clear of the way in, and of everything solid */
-  private fitsAt(modelType: string, x: number, z: number, turns: number, others: readonly PlacedItem[]): boolean {
+  private fitsAt(modelType: string, x: number, z: number, turns: number, others: readonly PlacedItem[], storey = this.room?.storey ?? 0): boolean {
     const room = this.room;
     if (!room) return false;
     const size = this.footprint(modelType, turns);
@@ -1121,16 +1271,18 @@ export class HouseDecorationSystem {
     const maxZ = z + size.depth / 2;
     if (minX < -room.halfWidth + 0.2 || maxX > room.halfWidth - 0.2 || minZ < -room.halfLength + 0.2 || maxZ > room.halfLength - 0.2) return false;
     for (const point of room.keepClear) {
+      if (point.storey !== undefined && point.storey !== storey) continue;
       if (point.x > minX - 0.9 && point.x < maxX + 0.9 && point.z > minZ - 0.9 && point.z < maxZ + 0.9) return false;
     }
     if (!this.kind(modelType).solid) return true;
     const overlaps = (ox: number, oz: number, halfWidth: number, halfLength: number) =>
       ox - halfWidth < maxX - 0.02 && ox + halfWidth > minX + 0.02 && oz - halfLength < maxZ - 0.02 && oz + halfLength > minZ + 0.02;
-    for (const solid of room.solids()) {
+    const solids = storey === (room.storey ?? 0) ? room.solids() : (room.solidsOn?.(storey) ?? room.solids());
+    for (const solid of solids) {
       if (overlaps(solid.x, solid.z, solid.halfWidth, solid.halfLength)) return false;
     }
     for (const other of others) {
-      if (!this.kind(other.modelType).solid) continue;
+      if (!this.kind(other.modelType).solid || (other.storey ?? 0) !== storey) continue;
       const theirs = this.footprint(other.modelType, other.turns);
       if (overlaps(other.x, other.z, theirs.width / 2, theirs.depth / 2)) return false;
     }
@@ -1147,6 +1299,7 @@ export class HouseDecorationSystem {
     this.solidify(item, false);
     item.mesh.removeFromParent();
     this.placed.splice(index, 1);
+    this.hold = true;
     this.backend.processTransaction({ type: 'ITEM_SALE', amount: refund, description: `Sold: ${this.catalogueItem(item.id)?.name ?? 'furniture'}` });
     HouseDecorationSystem.onSold?.(uid);
     this.save();
@@ -1163,6 +1316,7 @@ export class HouseDecorationSystem {
     this.solidify(item, false);
     item.mesh.removeFromParent();
     this.placed.splice(index, 1);
+    this.hold = true;
     this.stored.push(item.id);
     this.saveStored();
     this.save();
@@ -1202,10 +1356,11 @@ export class HouseDecorationSystem {
       this.ghostMark.rotation.x = -Math.PI / 2;
       this.placedItemsGroup.add(this.ghost, this.ghostMark);
     }
-    this.dress(this.ghost, placing.x, placing.z, placing.turns, placing.item.modelType);
+    const floor = this.placingStorey();
+    this.dress(this.ghost, placing.x, placing.z, placing.turns, placing.item.modelType, floor);
     const size = this.footprint(placing.item.modelType, placing.turns);
     if (this.ghostMark) {
-      this.ghostMark.position.set(placing.x, 0.03, placing.z);
+      this.ghostMark.position.set(placing.x, 0.03 + floor * STOREY_H, placing.z);
       this.ghostMark.scale.set(size.width + 0.2, size.depth + 0.2, 1);
       this.ghostMark.layers.set(RENDER_LAYERS.INTERIOR);
       // Green where it may stand, red where it may not
@@ -1258,7 +1413,7 @@ export class HouseDecorationSystem {
     } catch {
       // Storage shut off: the flooring holds until the page is closed
     }
-    this.onFloor?.(style.hex, style.roughness);
+    this.onFloor?.(style.hex, style.roughness, style.id);
     this.backend.notifyDeedChanged();
     return { ok: true };
   }
@@ -1272,6 +1427,7 @@ export class HouseDecorationSystem {
       x: item.x,
       z: item.z,
       turns: item.turns,
+      storey: item.storey ?? 0,
     }));
     list.push(JSON.stringify({ type: 'look', wall: this.wallColour, floor: this.floorStyle }));
     return list;
@@ -1291,7 +1447,7 @@ export class HouseDecorationSystem {
           if (parsed.floor && FLOOR_STYLES.some((f) => f.id === parsed.floor)) {
             this.floorStyle = parsed.floor;
             const fi = this.floorInfo();
-            this.onFloor?.(fi.hex, fi.roughness);
+            this.onFloor?.(fi.hex, fi.roughness, this.floorStyle);
           }
           try {
             localStorage.setItem(this.lookKey, JSON.stringify({ wall: this.wallColour, floor: this.floorStyle }));
@@ -1308,9 +1464,10 @@ export class HouseDecorationSystem {
           x: parsed.x ?? 0,
           z: parsed.z ?? 4,
           turns: parsed.turns ?? 0,
+          storey: parsed.storey === 1 ? 1 : 0,
           mesh: this.createFurniture3DMesh(parsed.modelType),
         };
-        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
+        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, item.storey ?? 0);
         this.placed.push(item);
         this.placedItemsGroup.add(item.mesh);
         this.solidify(item, true);
@@ -1336,6 +1493,7 @@ export class HouseDecorationSystem {
       item.mesh.removeFromParent();
     }
     this.placed.length = 0;
+    this.hold = false;
     this.homeId = id;
     const suffix = id === 'main' ? '' : `:${id}`;
     this.storageKey = profileKey(`nigeria_life_placed_furniture_v1${suffix}`);
@@ -1348,7 +1506,7 @@ export class HouseDecorationSystem {
     }
     this.loadSavedFurniture();
     this.wallColour = 'ochre';
-    this.floorStyle = 'ceramic_white';
+    this.floorStyle = 'parquet_wood';
     try {
       const look = JSON.parse(localStorage.getItem(this.lookKey) || 'null');
       if (look && WALL_COLOURS.some((colour) => colour.id === look.wall)) this.wallColour = look.wall;
@@ -1367,8 +1525,9 @@ export class HouseDecorationSystem {
       item.mesh.removeFromParent();
     }
     this.placed.length = 0;
+    this.hold = true;
     this.wallColour = 'ochre';
-    this.floorStyle = 'ceramic_white';
+    this.floorStyle = 'parquet_wood';
     try {
       localStorage.setItem(this.lookKey, JSON.stringify({ wall: this.wallColour, floor: this.floorStyle }));
     } catch {
@@ -1376,7 +1535,7 @@ export class HouseDecorationSystem {
     }
     this.onPaint?.(this.wallHex());
     const fi = this.floorInfo();
-    this.onFloor?.(fi.hex, fi.roughness);
+    this.onFloor?.(fi.hex, fi.roughness, this.floorStyle);
     this.save();
     this.onChanged?.();
   }
@@ -1595,9 +1754,14 @@ export class HouseDecorationSystem {
   }
 
   private save(): void {
+    if (this.backend.holdSaves?.()) return;
     try {
+      if (this.placed.length === 0 && !this.hold) {
+        const existing = localStorage.getItem(this.storageKey);
+        if (existing && existing !== '[]') return;
+      }
       localStorage.setItem(this.storageKey, JSON.stringify(this.placed.map((item) => ({
-        uid: item.uid, id: item.id, modelType: item.modelType, position: { x: item.x, y: 0, z: item.z }, turns: item.turns,
+        uid: item.uid, id: item.id, modelType: item.modelType, position: { x: item.x, y: 0, z: item.z }, turns: item.turns, storey: item.storey ?? 0,
       }))));
     } catch {
       // Storage full or shut off: the furniture stays until the page is closed
@@ -1618,10 +1782,12 @@ export class HouseDecorationSystem {
           x: entry.position?.x ?? 0,
           z: entry.position?.z ?? 4,
           turns: entry.turns ?? 0,
+          storey: entry.storey === 1 ? 1 : 0,
           mesh: this.createFurniture3DMesh(entry.modelType),
         };
-        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType);
+        this.dress(item.mesh, item.x, item.z, item.turns, item.modelType, item.storey ?? 0);
         this.placed.push(item);
+        this.hold = true;
         this.placedItemsGroup.add(item.mesh);
       });
     } catch {

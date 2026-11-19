@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { InteractiveObject } from './World';
 import { createColorCanvasTexture } from '../utils/TextureUtils';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
+import { markStillGroup } from '../graphics/StillMatrices';
 
 export class Districts {
   public group: THREE.Group;
@@ -17,6 +18,8 @@ export class Districts {
   // Market stalls
   private marketStallUmbrellas: THREE.Mesh[] = [];
   private marketFabricRolls: THREE.Mesh[] = [];
+  private cullZones: Array<{ group: THREE.Object3D; cx: number; cz: number; reach: number }> = [];
+  private smokeTick = 0;
 
   public setNightLighting(period: string): void {
     const isNight = period === 'night';
@@ -72,6 +75,33 @@ export class Districts {
 
     // 11. District Connecting Roads & Billboards
     this.buildDistrictRoadsAndBillboards();
+
+    // Precompute bounding spheres for whole-group distance culling and mark static district groups still
+    const box = new THREE.Box3();
+    const center = new THREE.Vector3();
+    const size = new THREE.Vector3();
+    const animated = new Set<THREE.Object3D>([
+      ...(this.oceanMesh ? [this.oceanMesh] : []),
+      ...this.smokeParticles,
+      ...this.marketStallUmbrellas,
+      ...this.marketFabricRolls,
+    ]);
+    for (const child of this.group.children) {
+      box.setFromObject(child);
+      if (!box.isEmpty()) {
+        box.getCenter(center);
+        box.getSize(size);
+        this.cullZones.push({
+          group: child,
+          cx: center.x,
+          cz: center.z,
+          reach: Math.hypot(size.x, size.z) * 0.5,
+        });
+      }
+      let hasAnimated = false;
+      child.traverse((o) => { if (animated.has(o)) hasAnimated = true; });
+      if (!hasAnimated) markStillGroup(child);
+    }
   }
 
   // =========================================================================
@@ -1045,20 +1075,40 @@ export class Districts {
     return new THREE.Mesh(boardGeo, boardMat);
   }
 
-  public update(delta: number): void {
+  /** Restores all district groups visible when viewing the aerial world map. */
+  public showAllZones(): void {
+    for (const z of this.cullZones) z.group.visible = true;
+  }
+
+  public update(delta: number, playerPos?: THREE.Vector3, drawDistance = 420, smokeEvery = 1): void {
     this.animTime += delta;
 
+    if (playerPos) {
+      for (let i = 0; i < this.cullZones.length; i++) {
+        const z = this.cullZones[i];
+        const maxDist = z.reach + drawDistance;
+        const dx = playerPos.x - z.cx;
+        const dz = playerPos.z - z.cz;
+        z.group.visible = dx * dx + dz * dz <= maxDist * maxDist;
+      }
+    }
+
     // Ocean ripple effect
-    if (this.oceanMesh) {
+    if (this.oceanMesh && this.oceanMesh.parent?.visible !== false) {
       this.oceanMesh.position.y = -0.15 + Math.sin(this.animTime * 1.8) * 0.08;
     }
 
-    // Generator smoke pulse
-    for (let i = 0; i < this.smokeParticles.length; i++) {
-      const sp = this.smokeParticles[i];
-      sp.position.y += delta * 0.4;
-      if (sp.position.y > 3.8) {
-        sp.position.y = 2.2;
+    // Generator smoke pulse (throttled on low-end quality)
+    this.smokeTick++;
+    if (this.smokeTick >= smokeEvery) {
+      const step = delta * this.smokeTick;
+      this.smokeTick = 0;
+      for (let i = 0; i < this.smokeParticles.length; i++) {
+        const sp = this.smokeParticles[i];
+        sp.position.y += step * 0.4;
+        if (sp.position.y > 3.8) {
+          sp.position.y = 2.2;
+        }
       }
     }
   }

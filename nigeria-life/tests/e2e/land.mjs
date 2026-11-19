@@ -15,6 +15,8 @@ async function join(ctx, player, cash = 6_000_000_000) {
   await wait(2500);
   await closeDialogs(page);
   await page.evaluate((amount) => { const b = window.game.hud.backend; b.data.bank.balance = amount; b.saveData(); }, cash);
+  // Not about omo-onile (the omoonile suite is): every plot's family is settled before anything is built
+  await page.evaluate(() => { for (const p of window.game.land.plots()) window.game.land.reportLevy(p.id, () => 0); });
   return { page, errors };
 }
 

@@ -202,19 +202,38 @@ export class Vehicles {
     for (const v of this.drivableVehicles) {
       this.group.add(v.mesh);
 
-      this.interactiveList.push({
+      const card: InteractiveObject = {
         mesh: v.mesh,
         id: v.id,
         name: v.name,
         category: 'Drivable Vehicle',
         description: `Get behind the wheel! Press [F] to enter driver's seat. Controls: W/S Gas/Brake, A/D Steer, H Horn.`,
-        interactionPoint: new THREE.Vector3(
-          v.mesh.position.x + 1.8,
-          0,
-          v.mesh.position.z
-        ),
-      });
+        interactionPoint: new THREE.Vector3(),
+      };
+      this.interactiveList.push(card);
+      this.streetCards.set(v, card);
+      this.keepCardBy(v, card);
     }
+  }
+
+  /** The button for each of the city's own vehicles: it goes where the vehicle goes */
+  private readonly streetCards = new Map<DrivableVehicle, InteractiveObject>();
+
+  /**
+   * A vehicle's button stands by its driver's door, where the player gets in and is set down on
+   * getting out. Kept there every frame: it once stayed where the vehicle was first parked, so a
+   * street car driven somewhere and left could not be got into again from the screen (only with F).
+   */
+  /** The button of one of the city's own vehicles, put by its driver's door now (on getting out); null for any other vehicle */
+  public cardBy(v: DrivableVehicle): InteractiveObject | null {
+    const card = this.streetCards.get(v);
+    if (card) this.keepCardBy(v, card);
+    return card ?? null;
+  }
+
+  private keepCardBy(v: DrivableVehicle, card: InteractiveObject): void {
+    const yaw = v.mesh.rotation.y;
+    card.interactionPoint.set(v.mesh.position.x - 1.8 * Math.cos(yaw), 0, v.mesh.position.z + 1.8 * Math.sin(yaw));
   }
 
   public getNearestDrivableVehicle(pos: THREE.Vector3, maxDist: number = 5.0): DrivableVehicle | null {
@@ -892,6 +911,8 @@ export class Vehicles {
   public updateDrivables(delta: number, keys: Record<string, boolean>, playerPos: THREE.Vector3 | undefined, city: string): void {
     for (const v of this.drivableVehicles) {
       if (v.city !== city) continue;
+      const card = this.streetCards.get(v);
+      if (card) this.keepCardBy(v, card);
       if (playerPos) {
         const dSq = (v.mesh.position.x - playerPos.x) ** 2 + (v.mesh.position.z - playerPos.z) ** 2;
         const visible = dSq < 48 * 48;

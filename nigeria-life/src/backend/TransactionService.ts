@@ -43,6 +43,8 @@ export const CREDIT_TYPES: ReadonlySet<TransactionType> = new Set<TransactionTyp
   'RENT_INCOME',
   'PURCHASE_REFUND',
   'CONSTRUCTION_REFUND',
+  'TRADE_SALE',
+  'FX_SALE',
 ]);
 
 const MAX_HISTORY = 50;
@@ -80,7 +82,18 @@ export class TransactionService {
     }
 
     if (CREDIT_TYPES.has(type)) {
-      const pocket = source === 'bank' || type === 'BUSINESS_INCOME' ? 'bank' : 'wallet';
+      // Early work and street pay land in the pocket so fares and snacks do not force an ATM trip.
+      // Business / property / rent income still settles in the bank.
+      const cashInHand =
+        type === 'JOB_SALARY' ||
+        type === 'BONUS' ||
+        type === 'QUEST_REWARD' ||
+        type === 'WINNINGS' ||
+        type === 'LOAN_DISBURSEMENT' ||
+        type === 'PURCHASE_REFUND' ||
+        type === 'TRADE_SALE' ||
+        type === 'ITEM_SALE';
+      const pocket = cashInHand ? 'wallet' : source === 'bank' || type === 'BUSINESS_INCOME' ? 'bank' : 'wallet';
       const record = this.createRecord(data, type, amount, description, pocket, req.idem);
       this.apply(data, record);
       return {

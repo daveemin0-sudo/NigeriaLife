@@ -30,10 +30,10 @@
  *  12. Agama catches. ₦2,000, ₦50,000 on every tenth, ₦500,000 for the last of forty. Once each.
  *
  * Still reported by the game, and what a busy ten minutes of those needs:
- *   diaspora remittance ₦25,000 (once a day), transit fares about ₦12,000, one or two Eko Rides
- *   trips about ₦8,000. Together about ₦45,000. A new player's hustle, a gist riddle and a small
+ *   diaspora remittance ₦25,000 (once a day). Transit fares (payFare) and Eko Rides trips
+ *   (startRide / finishRide) moved to the server, in economy.ts. A new player's hustle, a gist riddle and a small
  *   phone-game pot fit in the same window when they are not all stacked on that. The allowance
- *   is ₦48,000. Larger one-offs (a plot sale, a high ladder rung, politics pay) stay on the
+ *   is ₦30,000. Larger one-offs (a plot sale, a high ladder rung, politics pay) stay on the
  *   held queue, as they already did above ₦60,000.
  */
 import { buildingType, MAX_DAYS_HELD } from '../src/realestate/BuildingCatalogue.ts';
@@ -49,8 +49,12 @@ export interface GigSite {
 
 export interface GigDef {
   pay: number;
-  /** Seconds the server counts from the start before it will pay */
+  /** Set for a career shift: a wage from this employer, with a payslip and PAYE. Other gigs are cash in hand. */
+  employer?: string;
+  /** Seconds the server counts from the start before it will pay the full wage */
   minSeconds: number;
+  /** The full shift, when leaving early pays for the share of it the clock has seen */
+  spanSeconds?: number;
   memo: string;
   site?: GigSite;
 }
@@ -69,14 +73,15 @@ export const GIGS: Record<string, GigDef> = {
   'phone:job_conductor': { pay: 4_500, minSeconds: 3, memo: 'Danfo Bus Conductor Shift' },
   'phone:job_food': { pay: 3_800, minSeconds: 3, memo: 'Express Jollof Delivery' },
   // Career shifts. Base salary only: a career bonus the browser adds is not paid online.
-  'career:job_shop_assistant': { pay: 4_500, minSeconds: 10, memo: 'Trade Shop Assistant' },
-  'career:job_mechanic': { pay: 6_000, minSeconds: 12, memo: 'Auto Mechanic Apprentice' },
-  'career:job_danfo_driver': { pay: 8_000, minSeconds: 15, memo: 'Danfo Commercial Driver' },
-  'career:job_food_seller': { pay: 5_000, minSeconds: 10, memo: 'Buka Kitchen Cook Assistant' },
-  'career:job_office_worker': { pay: 12_000, minSeconds: 18, memo: 'Corporate Office Clerk' },
-  'career:job_software_dev': { pay: 25_000, minSeconds: 20, memo: 'Junior Software Engineer' },
-  'career:job_construction': { pay: 8_500, minSeconds: 14, memo: 'Site Framing Artisan' },
-  'career:job_security': { pay: 6_500, minSeconds: 12, memo: 'Estate Security Officer' },
+  'career:job_shop_assistant': { pay: 4_500, minSeconds: 10, spanSeconds: 10, memo: 'Trade Shop Assistant', employer: 'Balogun Wholesale Market' },
+  // A day's wage. The phone holds the hour; the server pays the full wage a minute short of that, and a share if the worker leaves.
+  'career:job_mechanic': { pay: 7_000, minSeconds: 3540, spanSeconds: 3600, memo: 'Auto Mechanic Apprentice', employer: "God's Grace Auto Repair" },
+  'career:job_danfo_driver': { pay: 8_000, minSeconds: 3540, spanSeconds: 3600, memo: 'Danfo Commercial Driver', employer: 'Broad Street Danfo Terminus' },
+  'career:job_food_seller': { pay: 5_500, minSeconds: 3540, spanSeconds: 3600, memo: 'Buka Kitchen Cook Assistant', employer: 'Mama Put Special Bukateria' },
+  'career:job_office_worker': { pay: 18_000, minSeconds: 3540, spanSeconds: 3600, memo: 'Corporate Office Clerk', employer: 'Eko Commercial Bank Tower' },
+  'career:job_software_dev': { pay: 27_000, minSeconds: 3540, spanSeconds: 3600, memo: 'Junior Software Engineer', employer: 'Co-Creation Hub (CcHub)' },
+  'career:job_construction': { pay: 9_000, minSeconds: 3540, spanSeconds: 3600, memo: 'Site Framing Artisan', employer: 'Crown Luxury Estate Site' },
+  'career:job_security': { pay: 7_000, minSeconds: 3540, spanSeconds: 3600, memo: 'Estate Security Officer', employer: 'Victoria Residence Estate Gate' },
   // HUD and city gigs, at the place the button is.
   'hud:remote': { pay: 12_000, minSeconds: 6, memo: 'Remote Tech Sprint' },
   'hud:hackathon': { pay: 15_000, minSeconds: 6, memo: 'CcHub Hackathon Sprint', site: { city: 'lagos', x: -10, z: -25, radius: 30 } },
@@ -85,6 +90,14 @@ export const GIGS: Record<string, GigDef> = {
   'hud:workshop': { pay: 4_000, minSeconds: 6, memo: 'Auto Workshop Gig', site: { city: 'lagos', x: -13, z: -25, radius: 20 } },
   'hud:secretariat': { pay: 14_000, minSeconds: 6, memo: 'Federal Secretariat Policy Sprint', site: { city: 'abuja', x: -24, z: 32, radius: 40 } },
   'hud:transamadi': { pay: 12_000, minSeconds: 6, memo: 'Trans-Amadi Petrochemical Shift', site: { city: 'port_harcourt', x: 55, z: -10, radius: 40 } },
+  // Motor-park day work: load coach boots for pocket cash. Same loop in every city so a new arrival can earn at the park.
+  'hud:jibowu-boots': { pay: 10_000, minSeconds: 6, memo: 'Jibowu coach boot loading', site: { city: 'lagos', x: 92.5, z: -69.6, radius: 35 } },
+  'hud:utako-boots': { pay: 10_000, minSeconds: 6, memo: 'Utako coach boot loading', site: { city: 'abuja', x: 15, z: 35, radius: 35 } },
+  'hud:waterlines-boots': { pay: 10_000, minSeconds: 6, memo: 'Waterlines coach boot loading', site: { city: 'port_harcourt', x: 14.5, z: 38, radius: 35 } },
+  // Help at any open roadside stall: stack goods, call customers, fan the coals. Pocket cash in every city.
+  'hud:lagos-stall-help': { pay: 5_000, minSeconds: 5, memo: 'Lagos roadside stall help', site: { city: 'lagos', x: 0, z: 0, radius: 250 } },
+  'hud:abuja-stall-help': { pay: 5_000, minSeconds: 5, memo: 'Abuja roadside stall help', site: { city: 'abuja', x: 0, z: 20, radius: 120 } },
+  'hud:ph-stall-help': { pay: 5_000, minSeconds: 5, memo: 'Port Harcourt roadside stall help', site: { city: 'port_harcourt', x: 0, z: 20, radius: 150 } },
 };
 
 /** Story cash, once each. The ids and figures are the quest catalogue. */
@@ -99,6 +112,13 @@ export const QUEST_CASH: Record<string, number> = {
   quest_ph_2: 60_000,
   quest_ph_3: 200_000,
 };
+
+/** The life ladder's rewards, once a rung, in order (src/life/Ladder.ts RUNGS) */
+export const LADDER_CASH: Record<string, number> = {
+  '1': 25_000, '2': 75_000, '3': 200_000, '4': 500_000, '5': 1_200_000, '6': 3_000_000, '7': 8_000_000, '8': 25_000_000, '9': 100_000_000,
+};
+/** A rung is paid only to someone the server has seen earn this many times its reward, from work, trade and their own takings */
+export const LADDER_PROOF = 2;
 
 /** Album set completion, once each. */
 export const ALBUM_CASH: Record<string, number> = {

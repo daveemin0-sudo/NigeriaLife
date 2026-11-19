@@ -260,6 +260,47 @@ export class Roadside {
         card = { name: 'Lagos State Police Command', category: 'Police', description: 'Report a crime, ask for help, or bail somebody out.' };
         break;
       }
+      case 'nis-passport': {
+        b.box(0xe7e5e4, place.depth, 12, place.length, depthMid, 0, place.z);
+        b.box(0x166534, place.depth + 0.3, 1.2, place.length + 0.3, depthMid, 12, place.z);
+        for (let z = z0 + 4; z < z0 + place.length - 3; z += 3.2) b.box(0x0f172a, 0.06, 1.8, 1.5, faceX - s * 0.03, 4.5, z);
+        b.box(0xf8fafc, 0.08, 2.4, 2.2, faceX - s * 0.04, 0, place.z);
+        for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, faceX + s * -2.2 + f * 0.75, 8.5, place.z);
+        footprint(12);
+        label('FEDERAL PASSPORT OFFICE', 'Alagbon · Capture · Collection', '#166534', 9.2, 26);
+        card = { name: 'Federal Passport Office, Alagbon', category: 'Immigration', description: 'Apply, capture biometrics, and collect your Nigerian passport.' };
+        break;
+      }
+      case 'consular-visa': {
+        b.box(0xf1f5f9, place.depth, 10, place.length, depthMid, 0, place.z);
+        b.box(0x1e3a8a, place.depth + 0.25, 1.1, place.length + 0.25, depthMid, 10, place.z);
+        for (let z = z0 + 3; z < z0 + place.length - 2; z += 3) b.box(0x38bdf8, 0.05, 1.5, 1.4, faceX - s * 0.03, 4.2, z, { glow: true });
+        b.box(0x0f172a, 0.08, 2.6, 2, faceX - s * 0.04, 0, place.z);
+        footprint(10);
+        label('VISA & CONSULAR DESK', 'Travel permits · Stamps · Advice', '#1e3a8a', 8.4, 24);
+        card = { name: 'Visa & Consular Desk', category: 'Immigration', description: 'Bring your Nigerian passport and apply for a travel visa stamp.' };
+        break;
+      }
+      case 'port-health': {
+        b.box(0xfefce8, place.depth, 9, place.length, depthMid, 0, place.z);
+        b.box(0xca8a04, place.depth + 0.25, 1.0, place.length + 0.25, depthMid, 9, place.z);
+        for (let z = z0 + 3; z < z0 + place.length - 2; z += 3) b.box(0xfde047, 0.05, 1.4, 1.3, faceX - s * 0.03, 4.0, z, { glow: true });
+        b.box(0x0f172a, 0.08, 2.4, 2, faceX - s * 0.04, 0, place.z);
+        footprint(9);
+        label('PORT HEALTH · YELLOW CARD', 'Airport Road · Yellow fever · Stamps', '#a16207', 7.8, 26);
+        card = { name: 'Port Health · Yellow Card Centre', category: 'Health', description: 'Bring your Nigerian passport for the yellow fever jab and international certificate.' };
+        break;
+      }
+      case 'bureau-fx': {
+        b.box(0xecfdf5, place.depth, 9, place.length, depthMid, 0, place.z);
+        b.box(0x0f766e, place.depth + 0.25, 1.0, place.length + 0.25, depthMid, 9, place.z);
+        for (let z = z0 + 3; z < z0 + place.length - 2; z += 3) b.box(0x14b8a6, 0.05, 1.4, 1.3, faceX - s * 0.03, 4.0, z, { glow: true });
+        b.box(0x0f172a, 0.08, 2.4, 2, faceX - s * 0.04, 0, place.z);
+        footprint(9);
+        label('BUREAU DE CHANGE', 'USD · GBP · Victoria Island rates', '#0f766e', 7.6, 24);
+        card = { name: 'Victoria Island Bureau de Change', category: 'Finance', description: 'Change naira for US dollars or British pounds — and back.' };
+        break;
+      }
       case 'efcc-office': {
         b.box(0xe7e5e4, place.depth, 14, place.length, depthMid, 0, place.z);
         b.box(0x166534, 0.3, 14, 4, faceX - s * 0.15, 0, place.z);

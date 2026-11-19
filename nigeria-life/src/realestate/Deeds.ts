@@ -25,6 +25,8 @@ export class Deeds {
   private readonly backend = BackendService.getInstance();
   private working = false;
   private again = false;
+  /** Not until this device is the account's player in the registry. A new phone's own id would otherwise give the homes and businesses back. */
+  private armed = false;
 
   private constructor() {
     this.market.provide(this.provider('property'));
@@ -34,6 +36,12 @@ export class Deeds {
       () => void this.reconcile()
     );
     this.registry.subscribe(() => void this.reconcile());
+  }
+
+  /** The sign-in has the account's registry id, so the titles can be matched to this game. */
+  public arm(): void {
+    if (this.armed) return;
+    this.armed = true;
     void this.reconcile();
   }
 
@@ -92,6 +100,7 @@ export class Deeds {
    * every difference. Safe to run at any time and any number of times.
    */
   public async reconcile(): Promise<void> {
+    if (!this.armed) return;
     if (this.working) {
       this.again = true;
       return;

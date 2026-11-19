@@ -1,3 +1,4 @@
+import type { Uniform } from '../jobs/Uniforms';
 import * as THREE from 'three';
 import {
   type CharacterConfig,
@@ -100,7 +101,7 @@ export class Player {
     }
 
     // 1. Procedural Anatomical Model (Zero-latency instant render)
-    this.humanRig = createHumanForConfig(this.config);
+    this.humanRig = createHumanForConfig(this.config, this.uniform);
 
     this.mesh.add(this.humanRig.group);
 
@@ -155,6 +156,7 @@ export class Player {
     this.sinceNearer = 0;
     this.blockedFor = 0;
     this.tries = 0;
+    this.replans = 0;
     this.roundIt = null;
     this.way = [];
     this.goal = target.clone();
@@ -231,6 +233,21 @@ export class Player {
       p.z = step.z;
     }
     if (solids) this.keepClearOfBodies(cameFrom, solids);
+  }
+
+  /** Is the straight line from where the walker stands to this point clear of everything solid, for a walker's width? */
+  private clearLineTo(to: { x: number; z: number }): boolean {
+    const solids = this.solids?.();
+    if (!solids) return true;
+    const p = this.mesh.position;
+    // Only the stretch just ahead matters: further on, the way-finder has already checked the line
+    const length = Math.hypot(to.x - p.x, to.z - p.z);
+    const reach = Math.min(length, 2.5);
+    for (let d = 0.15; d <= reach; d += 0.15) {
+      const t = d / length;
+      if (solids.at(p.x + (to.x - p.x) * t, p.z + (to.z - p.z) * t, 0.4)) return false;
+    }
+    return true;
   }
 
   /**
@@ -333,6 +350,16 @@ export class Player {
     this.targetPosition = null;
     this.isMoving = false;
     this.currentEmote = 'idle';
+  }
+
+  /** Work clothes worn over the chosen look while on a shift (null: their own clothes) */
+  public uniform: Uniform | null = null;
+
+  /** Into the work clothes for a shift, or back into their own */
+  public wearUniform(uniform: Uniform | null): void {
+    if (this.uniform === uniform) return;
+    this.uniform = uniform;
+    this.buildHumanMesh();
   }
 
   public applyCustomization(newConfig: CharacterConfig): void {
@@ -466,8 +493,15 @@ export class Player {
     // 2. Moving state (Point and Click)
     if (this.targetPosition && this.isMoving) {
       const currentPos = this.mesh.position;
-      // A point on the way is passed, not stopped at: on to the next as soon as this one is underfoot
-      while (this.way.length > 0 && Math.hypot(this.targetPosition.x - currentPos.x, this.targetPosition.z - currentPos.z) <= 0.45) {
+      // A point on the way is passed, not stopped at: on to the next as soon as this one is underfoot.
+      // The corner is only cut (from up to 0.45 m short of it) where the straight line on to the next
+      // point is clear: the way was found round a post or a stall's corner, and cutting inside the
+      // point brushes it, the walker steps round the wrong side and gives up (seen by Broad Street's
+      // scaffold posts). Where it is not clear the point itself is walked to first.
+      while (this.way.length > 0) {
+        const left = Math.hypot(this.targetPosition.x - currentPos.x, this.targetPosition.z - currentPos.z);
+        if (left > 0.45) break;
+        if (left > 0.16 && !this.onBridge && !this.clearLineTo(this.way[0])) break;
         this.targetPosition = this.way.shift()!;
         this.nearest = Infinity;
         this.sinceNearer = 0;
@@ -535,8 +569,8 @@ export class Player {
           this.mesh.position.z = cameFrom.z;
           this.blockedFor += delta;
           this.sinceNearer = 0;
-          // Traffic going past: wait at the kerb for a gap, as anyone crossing does; anything else, a moment
-          const waitFor = Bodies.carsNear(cameFrom.x, cameFrom.z, 5).some((car) => !car.parked) ? 12 : 1.5;
+          // Traffic going past in front: wait at the kerb for a gap, as anyone crossing does; anything else, a moment
+          const waitFor = this.inTheWay(cameFrom, direction).car ? 12 : 1.5;
           if (this.blockedFor < waitFor) {
             this.playAnimation('idle');
             return;
@@ -550,13 +584,26 @@ export class Player {
           this.blockedFor = 0;
           // Held up by traffic going past or someone standing in the way: a moment, and on again.
           // Against a wall, with nobody about, the walk ends as before.
-          const busy = Bodies.carsNear(cameFrom.x, cameFrom.z, 6).some((car) => !car.parked) || Bodies.peopleNear(cameFrom.x, cameFrom.z, 2.5).length > 0;
+          // Only what is in front counts: traffic in the next lane or people walking past behind are not in the way
+          const way = this.inTheWay(cameFrom, direction);
+          const busy = way.car || way.person;
           if (busy && !this.onBridge && this.tries < 3) {
             this.tries += 1;
             this.sinceNearer = 0;
             this.nearest = Infinity;
             this.roundIt = null;
             this.playAnimation('idle');
+            return;
+          }
+          // Brought up short with the place still a way off (a corner clipped, pushed aside into a
+          // dead end): the way is found again from where they stand, twice at most, before giving up
+          if (this.goal && this.replans < 2 && !this.onBridge && Math.hypot(this.goal.x - this.mesh.position.x, this.goal.z - this.mesh.position.z) > 3) {
+            const again = this.replans + 1;
+            // (The tries already spent count: a walk into a wall does not get its patience back each time)
+            const tried = this.tries;
+            this.setDestination(this.goal.clone(), this.arrived ?? undefined);
+            this.replans = again;
+            this.tries = tried;
             return;
           }
           this.endWalk();
@@ -640,8 +687,40 @@ export class Player {
   private sinceNearer = 0;
   /** How long the next step has been blocked by something in the way */
   private blockedFor = 0;
+
+  /**
+   * What is in the way of a step from `from` along `dir` (a unit vector): a moving vehicle in front
+   * (within 3 m of the step, its body allowed for), or someone standing in front (within 1.6 m).
+   * Things beside or behind the player, and traffic going by in its own lane, are not in the way.
+   */
+  private inTheWay(from: THREE.Vector3, dir: THREE.Vector3): { car: boolean; person: boolean } {
+    let car = false;
+    let person = false;
+    for (const c of Bodies.carsNear(from.x, from.z, 7)) {
+      if (c.parked) continue;
+      const dx = c.x - from.x;
+      const dz = c.z - from.z;
+      const ahead = dx * dir.x + dz * dir.z;
+      const side = Math.abs(dx * dir.z - dz * dir.x);
+      const reach = Math.max(c.halfWidth, c.halfLength);
+      if (ahead > -reach && ahead < 3 + reach && side < reach + 0.5) car = true;
+    }
+    // (Someone drawn where a wall is, as the street crowd can be against a shopfront, is not in the way: the wall is)
+    const solids = this.solids?.();
+    for (const o of Bodies.peopleNear(from.x, from.z, 2)) {
+      if (solids?.at(o.x, o.z, 0)) continue;
+      const dx = o.x - from.x;
+      const dz = o.z - from.z;
+      const ahead = dx * dir.x + dz * dir.z;
+      const side = Math.abs(dx * dir.z - dz * dir.x);
+      if (ahead > 0 && ahead < 1.6 && side < o.r + 0.6) person = true;
+    }
+    return { car, person };
+  }
   /** Times this walk has stopped for traffic or people and gone on again */
   private tries = 0;
+  /** How many times this walk has had its way found again after being brought up short */
+  private replans = 0;
   /** Stepping round something in the way: which way they turned, and for how much longer */
   private roundIt: { turn: number; left: number } | null = null;
 

@@ -77,6 +77,7 @@ export class FlightExperience {
   private worldFor = 0;
   private airliner: Airliner | null = null;
   private cabin: Cabin | null = null;
+  private cabinSeat: string | undefined = undefined;
   private readonly sound = new FlightSound();
   private readonly pose: Pose = FlightPlan.blank();
   private elapsed = 0;
@@ -118,6 +119,35 @@ export class FlightExperience {
 
   // --- Start and end ----------------------------------------------------------------------
 
+  /** Incrementally pre-builds one flight asset during idle time and returns it for background shader warming. */
+  public prepareIdleStep(): THREE.Object3D | null {
+    this.group.visible = true;
+    if (!this.world) {
+      const total = 120;
+      this.plan = new FlightPlan(total);
+      const routeLength = this.plan.touchdownZ + 3000;
+      this.world = new FlightWorld(routeLength, this.plan.arrivalThreshold, this.scene);
+      this.worldFor = total;
+      this.world.setLight(lightFor(this.hour()));
+      this.world.placeAirports('Lagos MMIA', true, this.plan.arrivalThreshold, 'Abuja NAIA', false);
+      this.group.add(this.world.root);
+      return this.world.root;
+    }
+    if (!this.airliner) {
+      this.airliner = new Airliner();
+      this.group.add(this.airliner.root);
+      return this.airliner.root;
+    }
+    if (!this.cabin) {
+      this.cabinSeat = undefined;
+      this.cabin = new Cabin(undefined, this.passengerLook);
+      this.cabin.onServed = () => this.onServed?.();
+      this.airliner.body.add(this.cabin.group);
+      return this.cabin.group;
+    }
+    return null;
+  }
+
   public startFlight(flight: FlightDetails): void {
     this.currentFlight = flight;
     const total = Math.max(120, flight.durationSeconds || 0);
@@ -133,11 +163,14 @@ export class FlightExperience {
       this.airliner = new Airliner();
       this.group.add(this.airliner.root);
     }
-    if (this.cabin) this.airliner.body.remove(this.cabin.group);
     const seat = /seat\s+(\S+)/i.exec(flight.travelClass)?.[1];
-    this.cabin = new Cabin(seat, this.passengerLook);
-    this.cabin.onServed = () => this.onServed?.();
-    this.airliner.body.add(this.cabin.group);
+    if (!this.cabin || this.cabinSeat !== seat) {
+      if (this.cabin) this.airliner.body.remove(this.cabin.group);
+      this.cabinSeat = seat;
+      this.cabin = new Cabin(seat, this.passengerLook);
+      this.cabin.onServed = () => this.onServed?.();
+      this.airliner.body.add(this.cabin.group);
+    }
 
     this.world.setLight(lightFor(this.hour()));
     this.world.placeAirports(flight.originName, COASTAL.has(flight.originId), this.plan.arrivalThreshold, flight.destinationName, COASTAL.has(flight.destinationId));

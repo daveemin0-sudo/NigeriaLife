@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fareOf, seatsOf } from '../transit/Fares';
 import type { Player } from '../player/Player';
 import type { Solids } from './plan/Solids';
 import { SignageLibrary } from '../materials/SignageLibrary';
@@ -9,9 +10,13 @@ import { showGameToast } from '../ui/GameToast';
 import { BackendService } from '../backend/BackendService';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import type { Zone } from './plan/CityPlan';
+import type { KerbSet } from './plan/Kerbs';
 import { Bodies, bodyOf, depthIntoCar, type CarBody } from './Bodies';
 import { buildCarBody, CAR_SPECS, type CarSpec } from './vehicles/CarBodyKit';
-import { ASSIST_HANDS_ON, assistYawRate, handlingOf, nextSpeed, roadUnder, turnWheel, wheelAngle, yawRate } from './VehicleHandling';
+import { ASSIST_HANDS_ON, REVERSE_PAUSE, assistYawRate, handlingOf, nextSpeed, roadUnder, sliderAngle, turnWheel, turnWheelTo, wheelAngle, yawRate } from './VehicleHandling';
+
+/** Below this speed (m/s, about 11 km/h) a car may be driven over the kerb, off the road */
+const KERB_SPEED = 3;
 
 export type VehicleType =
   | 'danfo'
@@ -55,12 +60,29 @@ export class DrivableVehicle {
   public static solids: (() => Solids | null) | null = null;
   /** The streets of the city the game is in, for the road assist: set once by the game */
   public static roads: (() => readonly Zone[] | null) | null = null;
+  /**
+   * Is this point on a road (a carriageway) a vehicle drives along? Set by the game. At speed the
+   * kerb is a barrier: a car scrapes along it and cannot mount the pavement into a building or a
+   * field. Below KERB_SPEED it can be driven over on purpose: into a forecourt, a driveway, a lay-by.
+   */
+  public static onRoad: ((x: number, z: number) => boolean) | null = null;
+  /** The pavements a driven car may not go onto at any speed, but at a way in for vehicles: set by the game (src/world/plan/Kerbs.ts) */
+  public static kerbs: (() => KerbSet | null) | null = null;
+  private kerbToastAt = 0;
   /** The bus stops and the people waiting at them, for danfos and kekes: set once by the game */
   public static busStops: BusStops | null = null;
+  /** Pays a boarding passenger's fare through the game server, when there is one (set by the game) */
+  public static payFare: ((stop: number, type: string, fare: number, what: string) => void) | null = null;
   /** People in front of a vehicle step out of its way: returns how many moved (set by the game) */
   public static makeWay: ((x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth: number) => number) | null = null;
+  /** Vehicles ahead hear the horn: they hurry on where the road is free and move over (set by the game) */
+  public static hootTraffic: ((x: number, z: number, dirX: number, dirZ: number, range: number, halfWidth: number) => number) | null = null;
   /** Handling tests drive on a road with nobody else on it */
   public static ignoreBodies = false;
+  /** The camera is on the bonnet of the car the player drives (the horn bubble would fill the screen) */
+  public static eyeOnTheBonnet: (() => boolean) | null = null;
+  /** The player's own horn, heard from the bonnet: shown on the screen instead of over the car */
+  public static ownHorn: ((text: string, seconds: number) => void) | null = null;
   /** The driver has a convoy clearing the road (set by the game): cars pulling over for it never stop them */
   public static clearsTraffic: () => boolean = () => false;
   /** The stop where the people now aboard got on (-1: none yet) */
@@ -81,6 +103,8 @@ export class DrivableVehicle {
 
   // Vehicle Handling, Steering Physics & Lane Centering
   public static steeringSensitivity: number = 1.0;
+  /** A finger on the steering slider: -1 (full left of the pad) to +1 (full right); null when no finger is on it */
+  public static touchSteer: number | null = null;
   public static laneAssistStrength: number = 0.85;
   public static cameraSmoothing: number = 1.0;
 
@@ -109,6 +133,10 @@ export class DrivableVehicle {
   }
 
   public steerInput: number = 0;
+  /** Braked to a stop with the pedal still down: how long it has stood there (it backs up after REVERSE_PAUSE) */
+  private stoppedOnBrake = -1;
+  /** The wheel was last turned by a finger on the slider (until it is back in the middle, or a key takes over) */
+  private byFinger = false;
   public isCenteringActive: boolean = false;
   private velocityDirection: THREE.Vector2 = new THREE.Vector2(0, 1);
 
@@ -137,16 +165,9 @@ export class DrivableVehicle {
     this.config = config;
 
     this.isCommercialTransit = this.type === 'danfo' || this.type === 'keke';
-    this.maxPassengers =
-      this.type === 'danfo' ? 8 :
-      this.type === 'keke' ? 3 :
-      this.type === 'suv' || this.type === 'gwagon' ? 5 :
-      this.type === 'sedan' || this.type === 'luxury_sedan' || this.type === 'electric_car' ? 4 :
-      this.type === 'ambulance' ? 2 : 1;
-    this.fareRate =
-      this.type === 'danfo' ? 350 :
-      this.type === 'keke' ? 250 :
-      this.type === 'ambulance' ? 1200 : 500;
+    // Seats and fare from the one table the game server pays by (src/transit/Fares.ts)
+    this.maxPassengers = seatsOf(this.type);
+    this.fareRate = fareOf(this.type);
 
     this.mesh = new THREE.Group();
     this.mesh.position.copy(initialPos);
@@ -1771,17 +1792,29 @@ export class DrivableVehicle {
     return exitPos;
   }
 
+  /** The player drives this car with the camera on its bonnet */
+  private seenFromTheBonnet(): boolean {
+    return this.driver !== null && DrivableVehicle.eyeOnTheBonnet?.() === true;
+  }
+
   public honk(): string {
     this.hornTimer = 1.2;
-    this.hornDisplayGroup.visible = true;
+    this.hornDisplayGroup.visible = !this.seenFromTheBonnet();
+    if (!this.hornDisplayGroup.visible) DrivableVehicle.ownHorn?.(this.config.hornText, this.hornTimer);
     SoundEngine.getInstance().playVehicleHorn(this.type);
     // Everyone in the road ahead hurries to the side
     const yaw = this.mesh.rotation.y;
     const me = bodyOf(this.mesh, this.myBody);
     const moved = DrivableVehicle.makeWay?.(this.mesh.position.x, this.mesh.position.z, Math.sin(yaw), Math.cos(yaw), 18, me.halfWidth) ?? 0;
+    // The car or okada in front hears it too, further off the faster the player is going
+    const reach = 24 + Math.max(0, this.currentSpeed) * 1.2;
+    const heard = this.driver ? (DrivableVehicle.hootTraffic?.(me.x, me.z, Math.sin(yaw), Math.cos(yaw), reach, me.halfWidth) ?? 0) : 0;
     if (moved > 0 && this.driver) {
       const lines = ['"Ehen, I don comot! Drive jeje o."', '"Oga driver, no jam me o!"', '"I dey pass, abeg no vex!"', '"Na wa for this horn sef!"', '"Easy, easy, road dey!"'];
       showGameToast(`🚶 ${lines[Math.floor(Math.random() * lines.length)]}`, 'info', 2600);
+    } else if (heard > 0) {
+      const lines = ['"Oya pass, oga!"', '"I don hear, I don hear!"', '"Na so you dey rush?"', '"Make I shift for you."'];
+      showGameToast(`🚗 ${lines[Math.floor(Math.random() * lines.length)]} The one in front moves over.`, 'info', 2200);
     }
     return this.config.hornText;
   }
@@ -1837,6 +1870,23 @@ export class DrivableVehicle {
       return true;
     }
     if (!intoPerson) {
+      // Brushed at an angle: pushed clear along the other car's side and on, a little slowed.
+      // Only a blow taken square (into its back, its front or its middle) stops the car
+      const push = this.pushClear(x, z);
+      if (push && push.square < 0.75) {
+        const nx = x + push.x;
+        const nz = z + push.z;
+        const after = this.crowding(nx, nz);
+        const solids = DrivableVehicle.solids?.();
+        // Pushed clear of another car, but never into a wall or up onto the pavement
+        const walled = (solids ? this.solidPoints(solids, nx, nz) > this.solidPoints(solids, pos.x, pos.z) : false) || this.ontoPavement(nx, nz);
+        if (after.cars <= now.cars + 1e-3 && after.people <= now.people + 1e-3 && !walled) {
+          this.currentSpeed *= Math.exp(-0.6 * push.square * delta);
+          pos.x = nx;
+          pos.z = nz;
+          return true;
+        }
+      }
       const dx = x - pos.x;
       const dz = z - pos.z;
       const tryX = this.crowding(pos.x + dx, pos.z);
@@ -1846,19 +1896,122 @@ export class DrivableVehicle {
       const length = Math.hypot(dx, dz);
       const slideX = xOk && (!zOk || Math.abs(dx) >= Math.abs(dz));
       const along = length > 0 ? Math.abs((slideX ? dx : dz)) / length : 0;
-      if ((xOk || zOk) && along >= 0.45) {
+      if ((xOk || zOk) && along >= 0.45 && !this.ontoPavement(slideX ? pos.x + dx : pos.x, slideX ? pos.z : pos.z + dz)) {
         this.currentSpeed *= Math.exp(-3 * (1 - along) * delta);
         if (slideX) pos.x += dx;
         else pos.z += dz;
         return true;
       }
     }
+    const was = this.currentSpeed;
     this.currentSpeed = 0;
-    if (this.driver && performance.now() - this.bumpToastAt > 3500) {
+    // Said only for a real knock (not creeping against it), and where the other one really is
+    if (this.driver && Math.abs(was) > 1.5 && performance.now() - this.bumpToastAt > 3500) {
       this.bumpToastAt = performance.now();
-      showGameToast(intoPerson ? '🚶 Person dey your front! Hoot your horn make dem shift.' : '🚗 Motor dey your front. Reverse small, then go round am.', 'warning', 3000);
+      const where = intoPerson ? 'front' : this.whereIsCar(x, z, Math.sign(was));
+      showGameToast(
+        intoPerson
+          ? '🚶 Person dey your front! Hoot your horn make dem shift.'
+          : where === 'front'
+            ? '🚗 Motor dey your front. Hoot, or go round am.'
+            : where === 'back'
+              ? '🚗 Motor dey your back. Go forward small.'
+              : '🚗 You don touch the motor beside you. Steer away small.',
+        'warning',
+        3000
+      );
     }
     return false;
+  }
+
+  /**
+   * Standing at (x, z), how far it must be pushed to be clear of every car it would overlap: out
+   * through the nearer of each car's sides or ends. `square` is how directly the push is against
+   * the way it is going (0 a brush along a side, 1 head on). Null if it overlaps nothing.
+   */
+  private pushClear(x: number, z: number): { x: number; z: number; square: number } | null {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const r = me.halfWidth;
+    const span = Math.max(0, me.halfLength - r);
+    const n = Math.max(2, Math.ceil((span * 2) / r) + 1);
+    const fx = Math.sin(me.yaw);
+    const fz = Math.cos(me.yaw);
+    const clearing = !!this.driver && DrivableVehicle.clearsTraffic();
+    const moving = Math.sign(this.currentSpeed) || 1;
+    let px = 0;
+    let pz = 0;
+    let any = false;
+    for (const car of Bodies.carsNear(me.x, me.z, me.halfLength + 8)) {
+      if (clearing && car.yielding) continue;
+      const c = Math.cos(car.yaw);
+      const s = Math.sin(car.yaw);
+      // Going mostly along that car (past it, not into its end): it is a scrape down its side
+      const alongIt = Math.abs((fx * s + fz * c) * moving) >= 0.5;
+      // The deepest of this body's circles in that car, and the way out for it
+      let best = 0;
+      let bx = 0;
+      let bz = 0;
+      for (let i = 0; i < n; i++) {
+        const t = -span + (2 * span * i) / (n - 1);
+        const dx = me.x + fx * t - car.x;
+        const dz = me.z + fz * t - car.z;
+        const across = dx * c - dz * s;
+        const along = dx * s + dz * c;
+        const overSide = car.halfWidth + r - Math.abs(across);
+        const overAlong = car.halfLength + r - Math.abs(along);
+        if (overSide <= 0 || overAlong <= 0) continue;
+        const depth = Math.min(overSide, overAlong);
+        if (depth <= best) continue;
+        best = depth;
+        // Out through its side when that is the shorter way, or when it is a scrape down its side
+        // that has only just begun (a shallow overlap); squarely behind it, out the way it came
+        if (overSide < overAlong || (alongIt && overSide <= 0.6)) {
+          bx = Math.sign(across || 1) * overSide * c;
+          bz = Math.sign(across || 1) * overSide * -s;
+        } else {
+          bx = Math.sign(along || 1) * overAlong * s;
+          bz = Math.sign(along || 1) * overAlong * c;
+        }
+      }
+      // A touch being made is pushed clear; cars already deep in each other (one set down on another,
+      // or run into from behind) are not shoved apart in a jump: they move apart as they drive
+      if (best > 0.6) return null;
+      if (best > 0) {
+        any = true;
+        px += bx;
+        pz += bz;
+      }
+    }
+    if (!any) return null;
+    const length = Math.hypot(px, pz);
+    if (length < 1e-6) return null;
+    const square = Math.max(0, -((px / length) * fx + (pz / length) * fz) * moving);
+    // A little past clear, so the next step does not start touching; never more than a hand's width at once
+    const step = Math.min(length + 0.01, 0.2);
+    return { x: (px / length) * step, z: (pz / length) * step, square };
+  }
+
+  /** Where the vehicle this one would run into at (x, z) is: ahead of it, behind it, or beside it */
+  private whereIsCar(x: number, z: number, moving: number): 'front' | 'back' | 'side' {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const fx = Math.sin(me.yaw);
+    const fz = Math.cos(me.yaw);
+    let best: CarBody | null = null;
+    let deepest = 0;
+    for (const car of Bodies.carsNear(me.x, me.z, me.halfLength + 8)) {
+      const depth = depthIntoCar(me.x + fx * me.halfLength * 0.6 * moving, me.z + fz * me.halfLength * 0.6 * moving, me.halfWidth, car) + depthIntoCar(me.x, me.z, me.halfWidth, car);
+      if (depth > deepest) {
+        deepest = depth;
+        best = car;
+      }
+    }
+    if (!best) return 'side';
+    const dx = best.x - me.x;
+    const dz = best.z - me.z;
+    const ahead = dx * fx + dz * fz;
+    const across = Math.abs(dx * fz - dz * fx);
+    if (Math.abs(ahead) < across) return 'side';
+    return ahead > 0 ? 'front' : 'back';
   }
 
   /** People see a vehicle coming at them and step aside without being hooted at */
@@ -1874,9 +2027,8 @@ export class DrivableVehicle {
     // Update horn display timer
     if (this.hornTimer > 0) {
       this.hornTimer -= delta;
-      if (this.hornTimer <= 0) {
-        this.hornDisplayGroup.visible = false;
-      }
+      // Never over the car while the camera sits on its bonnet (the view can be changed mid-horn)
+      this.hornDisplayGroup.visible = this.hornTimer > 0 && !this.seenFromTheBonnet();
     }
 
     if (!this.driver) {
@@ -1916,13 +2068,26 @@ export class DrivableVehicle {
     // Danfos and kekes: pull up at a bus stop and the queue boards, each paying as they step in
     if (this.isCommercialTransit) this.workTheRoute(delta);
 
-    // Pedals, then the wheel, then how fast that turns the vehicle at this speed (see VehicleHandling)
-    this.currentSpeed = nextSpeed(this.currentSpeed, delta, { gas, brake }, this.config);
+    // Pedals, then the wheel, then how fast that turns the vehicle at this speed (see VehicleHandling).
+    // A car braked to a stop stays stopped for a moment, pedal still down, before it backs up: the brake
+    // is a brake first. Let go and pressed again, or pressed from a standstill, it backs up at once.
+    let reversing = brake;
+    if (!brake || gas) this.stoppedOnBrake = -1;
+    else if (this.currentSpeed > 0.5) this.stoppedOnBrake = 0;
+    else if (this.stoppedOnBrake >= 0 && this.stoppedOnBrake < REVERSE_PAUSE) {
+      this.stoppedOnBrake += delta;
+      this.currentSpeed = 0;
+      reversing = false;
+    }
+    this.currentSpeed = nextSpeed(this.currentSpeed, delta, { gas, brake: reversing }, this.config);
 
     const held: -1 | 0 | 1 = left && !right ? 1 : right && !left ? -1 : 0;
-    this.steerInput = turnWheel(this.steerInput, held, this.currentSpeed, delta);
+    const finger = DrivableVehicle.touchSteer;
+    // A finger on the slider puts the wheel where the finger is; keys turn it while they are held
+    this.steerInput = finger !== null && held === 0 ? turnWheelTo(this.steerInput, -finger, this.currentSpeed, delta) : turnWheel(this.steerInput, held, this.currentSpeed, delta);
     const handling = handlingOf(this.config.turnSpeed, DrivableVehicle.steeringSensitivity);
-    this.turnAngle = wheelAngle(this.steerInput, this.currentSpeed, handling);
+    this.byFinger = held === 0 && (finger !== null || (this.byFinger && this.steerInput !== 0));
+    this.turnAngle = this.byFinger ? sliderAngle(this.type, this.steerInput, this.currentSpeed, handling) : wheelAngle(this.steerInput, this.currentSpeed, handling);
     let turn = yawRate(this.type, this.turnAngle, this.currentSpeed);
 
     // Road assist: keeps a car going straight in its lane, and stays out of the way while the driver steers
@@ -1995,7 +2160,9 @@ export class DrivableVehicle {
       this.passengers += 1;
       this.totalFaresCollected += this.fareRate;
       SoundEngine.getInstance().playTransactionSuccess();
-      BackendService.getInstance().addCash(this.fareRate, `Transit Fare: ${this.name}`);
+      // On a game server the fare is the server's: it sees the vehicle at the stop and pays it
+      if (DrivableVehicle.payFare) DrivableVehicle.payFare(stop, this.type, this.fareRate, `Transit Fare: ${this.name}`);
+      else BackendService.getInstance().addCash(this.fareRate, `Transit Fare: ${this.name}`);
       if (this.type === 'danfo') {
         LagosStreetLifeSystem.getInstance().triggerConductorShout();
       } else {
@@ -2038,32 +2205,150 @@ export class DrivableVehicle {
     this.velocityDirection.y = THREE.MathUtils.lerp(this.velocityDirection.y, forwardZ, gripFactor);
     this.velocityDirection.normalize();
 
-    const pos = this.mesh.position;
-    const stepX = this.velocityDirection.x * moveDist;
-    const stepZ = this.velocityDirection.y * moveDist;
+    if (moveDist === 0) return;
+    this.warnAhead();
+    // A fast car goes in short steps, each checked, so it can never jump through a wall in one frame
+    const steps = Math.min(24, Math.max(1, Math.ceil(Math.abs(moveDist) / 0.5)));
+    let slowed = false;
+    for (let i = 0; i < steps; i++) {
+      const length = (this.currentSpeed * delta) / steps;
+      if (length === 0) break;
+      const stepX = this.velocityDirection.x * length;
+      const stepZ = this.velocityDirection.y * length;
+      const moved = this.stepThroughWorld(stepX, stepZ, delta, slowed);
+      if (moved === 'stopped') break;
+      if (moved === 'slid') slowed = true;
+    }
+  }
 
-    // Buildings and walls: only the part of the speed along the wall survives the blow, so a car
-    // driven straight at a wall stops and one that strikes it at a glancing angle slides along it
-    const solids = DrivableVehicle.solids?.();
-    if (solids && solids.at(pos.x + stepX, pos.z + stepZ, 1.2)) {
-      const alongX = !solids.at(pos.x + stepX, pos.z, 1.2);
-      const alongZ = !solids.at(pos.x, pos.z + stepZ, 1.2);
+  /** Are the middle and both ends of the car on the road, if it stood at (x, z)? */
+  private onTheRoad(road: (x: number, z: number) => boolean, x: number, z: number): boolean {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const reach = Math.max(0, me.halfLength - 0.35);
+    const fx = Math.sin(me.yaw) * reach;
+    const fz = Math.cos(me.yaw) * reach;
+    return road(me.x, me.z) && road(me.x + fx, me.z + fz) && road(me.x - fx, me.z - fz);
+  }
+
+  /**
+   * How far into the pavement the car would be at (x, z): a point for each of nose, middle and tail
+   * over a pavement, and how far it is then from the road. Only the line down its middle counts,
+   * with a little width, so a car may stand half up on the kerb as cars park in Lagos.
+   */
+  private onPavement(kerbs: KerbSet, x: number, z: number): number {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const r = Math.max(0.2, me.halfWidth * 0.35);
+    const reach = Math.max(0, me.halfLength - 0.6);
+    const fx = Math.sin(me.yaw) * reach;
+    const fz = Math.cos(me.yaw) * reach;
+    // How many of its points touch a pavement, and then how far onto it they are: a car already touching
+    // one may move only so that it touches less (measured at the touching points, not the middle, which
+    // can still be on the road while the nose creeps further on)
+    let points = 0;
+    let depth = 0;
+    for (const s of [1, 0, -1]) {
+      const px = me.x + fx * s;
+      const pz = me.z + fz * s;
+      if (!kerbs.at(px, pz, r)) continue;
+      points += 1;
+      depth += kerbs.offRoad(px, pz);
+    }
+    return points === 0 ? 0 : points * 1000 + Math.min(999, depth);
+  }
+
+  /** Would standing at (x, z) put the car further onto a pavement than it is now? */
+  private ontoPavement(x: number, z: number): boolean {
+    const kerbs = this.driver ? DrivableVehicle.kerbs?.() : null;
+    if (!kerbs) return false;
+    return this.onPavement(kerbs, x, z) > this.onPavement(kerbs, this.mesh.position.x, this.mesh.position.z) + 1e-6;
+  }
+
+  /** How many of the body's three points (nose, middle, tail) are in something solid if it stood at (x, z) */
+  private solidPoints(solids: Solids, x: number, z: number): number {
+    const me = bodyOf(this.mesh, this.myBody, x, z);
+    const r = Math.min(1.1, me.halfWidth * 0.92);
+    const reach = Math.max(0, me.halfLength - r);
+    const fx = Math.sin(me.yaw) * reach;
+    const fz = Math.cos(me.yaw) * reach;
+    return (solids.at(me.x + fx, me.z + fz, r) ? 1 : 0) + (solids.at(me.x, me.z, r) ? 1 : 0) + (solids.at(me.x - fx, me.z - fz, r) ? 1 : 0);
+  }
+
+  /**
+   * One short step. Buildings and walls: only the part of the speed along the wall survives the
+   * blow, so a car driven straight at a wall stops and one that strikes it at a glancing angle
+   * slides along it. Its nose and tail are checked, not only its middle, so no part goes in.
+   */
+  private stepThroughWorld(stepX: number, stepZ: number, delta: number, slowedAlready: boolean): 'moved' | 'slid' | 'stopped' {
+    const pos = this.mesh.position;
+    // The kerb at speed: the car does not leave the road; it slides along the kerb instead.
+    // Only the middle of the car counts. A nose that clips the edge on a long phone frame used to
+    // throw the car sideways and slow it, which reads as a jerk. The body still cannot drive off.
+    const road = DrivableVehicle.onRoad;
+    if (road && this.driver && Math.abs(this.currentSpeed) > KERB_SPEED && road(pos.x, pos.z) && !road(pos.x + stepX, pos.z + stepZ)) {
+      const alongX = this.onTheRoad(road, pos.x + stepX, pos.z);
+      const alongZ = this.onTheRoad(road, pos.x, pos.z + stepZ);
       const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
       const length = Math.hypot(stepX, stepZ);
       const along = length > 0 ? Math.abs(slideX ? stepX : stepZ) / length : 0;
-      if ((!slideX && !alongZ) || along < 0.2) {
+      if ((!slideX && !alongZ) || along < 0.25) {
+        // Straight at the kerb: it stops the car, and says how to turn off the road
         this.currentSpeed = 0;
-        return;
+        if (performance.now() - this.kerbToastAt > 6000) {
+          this.kerbToastAt = performance.now();
+          showGameToast('🚧 The kerb. Slow right down (under 10 km/h) to turn off the road into a driveway, a forecourt or a lay-by.', 'info', 3600);
+        }
+        return 'stopped';
       }
-      this.currentSpeed *= along * Math.exp(-1.5 * delta);
-      // Now travelling along the wall, not into it
+      if (!slowedAlready) this.currentSpeed *= Math.pow(along, 0.5) * Math.exp(-0.8 * delta);
       this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
-      if (slideX) this.moveUnlessBlocked(pos.x + stepX, pos.z, delta);
-      else this.moveUnlessBlocked(pos.x, pos.z + stepZ, delta);
-      return;
+      const ok = slideX ? this.moveUnlessBlocked(pos.x + stepX, pos.z, delta) : this.moveUnlessBlocked(pos.x, pos.z + stepZ, delta);
+      return ok ? 'slid' : 'stopped';
     }
-
-    this.warnAhead();
-    this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta);
+    // The pavement, at any speed: a wall to a car, but at a way in made for vehicles. Never in the way
+    // of getting back to the road: a step that leaves the car no further onto it, or from the road, is free.
+    const kerbs = this.driver ? DrivableVehicle.kerbs?.() : null;
+    if (kerbs && (stepX !== 0 || stepZ !== 0)) {
+      const here = this.onPavement(kerbs, pos.x, pos.z);
+      const there = this.onPavement(kerbs, pos.x + stepX, pos.z + stepZ);
+      if (there > here + 1e-6) {
+        const alongX = stepX !== 0 && this.onPavement(kerbs, pos.x + stepX, pos.z) <= here + 1e-6;
+        const alongZ = stepZ !== 0 && this.onPavement(kerbs, pos.x, pos.z + stepZ) <= here + 1e-6;
+        const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
+        const length = Math.hypot(stepX, stepZ);
+        const along = length > 0 ? Math.abs(slideX ? stepX : stepZ) / length : 0;
+        if ((!slideX && !alongZ) || along < 0.2) {
+          this.currentSpeed = 0;
+          if (performance.now() - this.kerbToastAt > 6000) {
+            this.kerbToastAt = performance.now();
+            showGameToast('🚧 The pavement is for people. A car crosses it only at a gate, a forecourt, a lay-by or a junction.', 'info', 3600);
+          }
+          return 'stopped';
+        }
+        if (!slowedAlready) this.currentSpeed *= along * Math.exp(-1.5 * delta);
+        this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
+        const slid = this.stepThroughWorld(slideX ? stepX : 0, slideX ? 0 : stepZ, delta, true);
+        return slid === 'moved' ? 'slid' : slid;
+      }
+    }
+    const solids = DrivableVehicle.solids?.();
+    if (!solids) return this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta) ? 'moved' : 'stopped';
+    const now = this.solidPoints(solids, pos.x, pos.z);
+    const next = this.solidPoints(solids, pos.x + stepX, pos.z + stepZ);
+    // Clear, or already caught on something and not going further in: free to drive out
+    if (next === 0 || (now > 0 && next <= now)) return this.moveUnlessBlocked(pos.x + stepX, pos.z + stepZ, delta) ? 'moved' : 'stopped';
+    const alongX = this.solidPoints(solids, pos.x + stepX, pos.z) <= now;
+    const alongZ = this.solidPoints(solids, pos.x, pos.z + stepZ) <= now;
+    const slideX = alongX && (!alongZ || Math.abs(stepX) >= Math.abs(stepZ));
+    const length = Math.hypot(stepX, stepZ);
+    const along = length > 0 ? Math.abs(slideX ? stepX : stepZ) / length : 0;
+    if ((!slideX && !alongZ) || along < 0.2) {
+      this.currentSpeed = 0;
+      return 'stopped';
+    }
+    if (!slowedAlready) this.currentSpeed *= along * Math.exp(-1.5 * delta);
+    // Now travelling along the wall, not into it
+    this.velocityDirection.set(slideX ? Math.sign(stepX) : 0, slideX ? 0 : Math.sign(stepZ));
+    const ok = slideX ? this.moveUnlessBlocked(pos.x + stepX, pos.z, delta) : this.moveUnlessBlocked(pos.x, pos.z + stepZ, delta);
+    return ok ? 'slid' : 'stopped';
   }
 }

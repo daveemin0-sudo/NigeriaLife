@@ -44,18 +44,22 @@ const WHEELBASE: Record<HandlingKind, number> = {
   ambulance: 3.3,
 };
 
-/** The most sideways acceleration the tyres hold, m/s². A tall bus leans and slides sooner than a sports car. */
+/**
+ * The most sideways acceleration the tyres hold, m/s². A tall bus leans and slides sooner than a
+ * sports car. Set as a driving game sets it, above a road car's real limit, so a fast car still
+ * answers the wheel: a supercar holds about two g, and turns a bend at speed instead of running wide.
+ */
 const GRIP: Record<HandlingKind, number> = {
-  danfo: 6.0,
-  keke: 5.0,
-  okada: 7.5,
-  suv: 7.5,
-  gwagon: 7.5,
-  sedan: 8.5,
-  luxury_sedan: 8.5,
-  sports_car: 10.5,
-  electric_car: 8.5,
-  ambulance: 6.5,
+  danfo: 8.0,
+  keke: 6.5,
+  okada: 12.0,
+  suv: 11.0,
+  gwagon: 11.0,
+  sedan: 13.0,
+  luxury_sedan: 13.5,
+  sports_car: 20.0,
+  electric_car: 13.0,
+  ambulance: 9.0,
 };
 
 /** Full lock at walking pace, radians (about 35 degrees). */
@@ -104,11 +108,47 @@ export function turnWheel(wheel: number, held: -1 | 0 | 1, speed: number, dt: nu
   return clamp(wheel + held * rate * dt, -1, 1);
 }
 
+/** How fast the wheel follows a finger on the steering slider, lock-widths per second at a standstill. */
+const SLIDER_TURN_RATE = 3.4;
+
+/**
+ * The wheel after `dt` seconds with a finger holding the steering slider at `target` (-1 full
+ * right to +1 full left). The wheel goes to where the finger is, quickly but not at once (slower
+ * at speed), so a finger a little off the middle is a little steering and stays that.
+ */
+export function turnWheelTo(wheel: number, target: number, speed: number, dt: number): number {
+  const want = clamp(target, -1, 1);
+  const gap = want - wheel;
+  // Further from the middle the same way: the turn-in rate. Back towards the middle or across it: the quicker ones.
+  const outward = Math.abs(want) > Math.abs(wheel) && (wheel === 0 || Math.sign(want) === Math.sign(wheel));
+  const crossing = wheel !== 0 && want !== 0 && Math.sign(want) !== Math.sign(wheel);
+  const rate = crossing ? WHEEL_SWAP_RATE : outward ? SLIDER_TURN_RATE / (1 + Math.abs(speed) / 20) : WHEEL_RETURN_RATE;
+  const step = rate * dt;
+  return Math.abs(gap) <= step ? want : wheel + Math.sign(gap) * step;
+}
+
+/** How long a car braked to a stop stays stopped, pedal still down, before it starts to back up, seconds. */
+export const REVERSE_PAUSE = 0.6;
+
 /** The angle of the front wheels, radians, for a wheel position at a speed. `handling` scales lock (1 = standard). */
 export function wheelAngle(wheel: number, speed: number, handling: number): number {
   const lock = (LOCK * handling) / Math.sqrt(1 + (speed / LOCK_FADE_SPEED) ** 2);
   // A little softer round the middle, so small corrections are small
   return Math.sign(wheel) * Math.pow(Math.abs(wheel), 1.3) * lock;
+}
+
+/**
+ * The angle of the front wheels for a finger on the steering slider. At speed the tyres give out
+ * long before full lock (at 50 km/h a sedan's grip is used up at under half of it), so with the
+ * plain wheel the outer half of the slider did nothing and the inner half was a hair trigger.
+ * Here the whole slider spans what the tyres can hold at this speed: the same hardest turn at the
+ * end of it, and twice the room (four times at 100 km/h) for a lane change.
+ */
+export function sliderAngle(kind: HandlingKind, wheel: number, speed: number, handling: number): number {
+  const lock = (LOCK * handling) / Math.sqrt(1 + (speed / LOCK_FADE_SPEED) ** 2);
+  const v = Math.abs(speed);
+  const held = v > 1 ? Math.atan((GRIP[kind] * WHEELBASE[kind]) / (v * v)) : lock;
+  return Math.sign(wheel) * Math.pow(Math.abs(wheel), 1.3) * Math.min(lock, held);
 }
 
 /** How fast the vehicle turns, rad/s (positive = to the left), for a front-wheel angle at a speed (negative in reverse). */
@@ -181,14 +221,24 @@ export function assistYawRate(road: Zone | null, x: number, z: number, heading: 
 
   // The nearest lane centre, on either side: a car in the wrong lane is straightened, not dragged across.
   // Lanes share the road between the centre line and the kerb, where the traffic drives (1.8 and 4.9 m out on Broad Street)
-  const usable = Math.max(1, half - CENTRE_LINE_MARGIN - KERB_MARGIN);
-  const lanes = Math.max(1, Math.round(usable / LANE_WIDTH));
-  const width = usable / lanes;
-  const index = clamp(Math.floor((Math.abs(across) - CENTRE_LINE_MARGIN) / width), 0, lanes - 1);
-  const target = Math.sign(across || 1) * (CENTRE_LINE_MARGIN + (index + 0.5) * width);
+  let target: number;
+  if (road.lanes?.length) {
+    // The road's own lanes: the ones the traffic drives in
+    let best = road.lanes[0];
+    for (const lane of road.lanes) if (Math.abs(Math.abs(across) - lane) < Math.abs(Math.abs(across) - best)) best = lane;
+    target = Math.sign(across || 1) * best;
+  } else {
+    const usable = Math.max(1, half - CENTRE_LINE_MARGIN - KERB_MARGIN);
+    const lanes = Math.max(1, Math.round(usable / LANE_WIDTH));
+    const width = usable / lanes;
+    const index = clamp(Math.floor((Math.abs(across) - CENTRE_LINE_MARGIN) / width), 0, lanes - 1);
+    target = Math.sign(across || 1) * (CENTRE_LINE_MARGIN + (index + 0.5) * width);
+  }
   const offLane = across - target;
 
   // Sideways speed is -v·sin(headingError): to close the gap at a rate set by the lane gain, aim this far off the line
   const wanted = Math.asin(clamp((ASSIST_LANE_GAIN * offLane) / Math.max(speed, 4), -ASSIST_MAX_ANGLE, ASSIST_MAX_ANGLE));
-  return clamp(ASSIST_HEADING_GAIN * (wanted - headingError), -ASSIST_MAX_RATE, ASSIST_MAX_RATE);
+  // Gentler the faster the car goes: at speed it only straightens, and never turns the car harder than a touch of the wheel
+  const most = ASSIST_MAX_RATE / (1 + Math.max(0, speed - 12) / 14);
+  return clamp(ASSIST_HEADING_GAIN * (wanted - headingError), -most, most);
 }

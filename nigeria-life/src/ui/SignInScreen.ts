@@ -9,6 +9,10 @@ export interface SignInHooks {
   login(username: string, password: string): Promise<{ ok: boolean; reason?: string }>;
   /** Signed in or registered: the player's name, and (registering) who they chose to be */
   done(name: string, gender: 'male' | 'female' | null, isNew: boolean): void;
+  /** "Play as a guest for now" was chosen */
+  later?(): void;
+  /** A username to offer someone creating an account (the name they already go by), or '' */
+  suggest?(): string;
 }
 
 export class SignInScreen {
@@ -17,12 +21,13 @@ export class SignInScreen {
   private gender: 'male' | 'female' = 'male';
   private readonly hooks: SignInHooks;
 
-  constructor(hooks: SignInHooks) {
+  constructor(hooks: SignInHooks, mode: 'register' | 'login' = 'register') {
     this.hooks = hooks;
+    this.mode = mode;
   }
 
   public open(): void {
-    if (this.el) return;
+    if (this.el || document.getElementById('nl-signin')) return;
     const el = document.createElement('div');
     el.id = 'nl-signin';
     el.className = 'nl-signin';
@@ -46,8 +51,8 @@ export class SignInScreen {
     el.innerHTML = `
       <div class="nl-signin-card" role="dialog" aria-label="${reg ? 'Create your account' : 'Sign in'}">
         <img class="nl-signin-mark" src="${import.meta.env.BASE_URL}icon-192.png" alt="" />
-        <h1>${reg ? 'Your life in Lagos starts here' : 'Welcome back'}</h1>
-        <p>${reg ? 'Choose the name everyone in the city will know you by. Your money, homes and cars stay yours on any phone.' : 'Sign in with your username and password to carry on where you left off.'}</p>
+        <h1>${reg ? 'Keep your life in Lagos' : 'Welcome back'}</h1>
+        <p>${reg ? 'Choose the name everyone in the city will know you by. Everything you have now, your money and all you have done, stays yours on any phone.' : 'Sign in with your username and password to carry on where you left off. The life in your account takes the place of the guest one on this phone.'}</p>
         <div class="nl-signin-tabs" role="tablist">
           <button type="button" data-mode="register" class="${reg ? 'is-on' : ''}">Create account</button>
           <button type="button" data-mode="login" class="${reg ? '' : 'is-on'}">Sign in</button>
@@ -69,12 +74,15 @@ export class SignInScreen {
       this.gender = b.dataset.gender as 'male' | 'female';
       this.render();
     }));
-    el.querySelector('#nl-signin-later')!.addEventListener('click', () => this.close());
+    el.querySelector('#nl-signin-later')!.addEventListener('click', () => {
+      this.close();
+      this.hooks.later?.();
+    });
     const go = el.querySelector('#nl-signin-go') as HTMLButtonElement;
     const user = el.querySelector('#nl-signin-user') as HTMLInputElement;
     const pass = el.querySelector('#nl-signin-pass') as HTMLInputElement;
     const error = el.querySelector('#nl-signin-error') as HTMLDivElement;
-    user.value = typedUser;
+    user.value = typedUser || (reg ? this.hooks.suggest?.() ?? '' : '');
     pass.value = typedPass;
     // Typing here is typing, not walking or opening the map
     for (const input of [user, pass]) {

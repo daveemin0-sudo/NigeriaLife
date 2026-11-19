@@ -1,4 +1,5 @@
 import { SERVER_URL, NETWORK_PLAYER_ID } from '../realestate/ServerLink';
+import type { Payslip } from '../life/Tax';
 import { profileKey } from '../backend/Profile';
 
 /**
@@ -40,6 +41,13 @@ export class OnlineAccount {
   public account: AccountView | null = null;
   public wallet: WalletView | null = null;
   public connected = false;
+  /** Set when this page is loading again, so nothing else starts a second connection. */
+  public leaving = false;
+  /**
+   * Sign-in, sign-up and a guest becoming a real account. The game uses it to bring the
+   * account's save onto this device (login) or to send this device's life up (a guest signing up).
+   */
+  public onSwitch: ((mode: 'login' | 'upgrade' | 'fresh') => Promise<void>) | null = null;
   /** Resolves once signed in (false if the server could not be reached) */
   public readonly ready: Promise<boolean>;
 
@@ -69,6 +77,7 @@ export class OnlineAccount {
     this.token = this.read(TOKEN_KEY());
     const known = this.read(ACCOUNT_KEY());
     if (known) this.account = { id: known, name: options.name, kind: 'guest', email: null, verified: false };
+    this.loadGigs();
     this.ready = this.signIn(options)
       .catch(() => false)
       .finally(() => {
@@ -98,6 +107,32 @@ export class OnlineAccount {
     } catch {
       // Signed in for this visit only
     }
+    this.loadGigs();
+  }
+
+  /** The open gigs survive a reload, so Collect can still find the shift the server started. */
+  private gigsKey(): string {
+    return profileKey(`nl_open_gigs_v1:${this.account?.id ?? 'local'}`);
+  }
+
+  private loadGigs(): void {
+    this.gigShifts.clear();
+    try {
+      const raw = JSON.parse(localStorage.getItem(this.gigsKey()) || '{}') as Record<string, unknown>;
+      for (const [gig, shift] of Object.entries(raw)) {
+        if (typeof shift === 'string' && shift) this.gigShifts.set(gig, shift);
+      }
+    } catch {
+      // A bad record is the same as none: Collect will ask the server
+    }
+  }
+
+  private saveGigs(): void {
+    try {
+      localStorage.setItem(this.gigsKey(), JSON.stringify(Object.fromEntries(this.gigShifts)));
+    } catch {
+      // The server still has the row; Collect can ask for it
+    }
   }
 
   public on(type: string, handler: Handler): () => void {
@@ -120,6 +155,27 @@ export class OnlineAccount {
     if (this.signingIn) await this.ready;
     if (!this.token && !path.startsWith('/auth/')) return { ok: false, status: 401, reason: 'Not signed in to the game server.' };
     return this.post(path, body);
+  }
+
+  /**
+   * Sends as the page goes away: the browser finishes the request after the page has closed
+   * (fetch keepalive). Browsers limit such a request to 64 KB, so a larger body is not sent (null).
+   * The reply, if the page is still there to hear it (only hidden, not closed), is returned.
+   */
+  public sendAsLeaving(path: string, body: unknown): Promise<any> | null {
+    if (!this.token) return null;
+    const text = JSON.stringify(body);
+    if (text.length > 60_000) return null;
+    try {
+      return fetch(`${this.base}${path}`, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.token}` },
+        body: text,
+      }).then((response) => response.json()).catch(() => null);
+    } catch {
+      return null;
+    }
   }
 
   /** Sends at once, signed in or not (the sign-in itself uses this) */
@@ -157,6 +213,8 @@ export class OnlineAccount {
         if (done.ok) {
           this.keep(done.token, done.account);
           this.emit('signed-in', { upgraded: done.upgraded, account: done.account });
+          if (this.onSwitch) await this.onSwitch(done.upgraded ? 'upgrade' : 'login');
+          if (this.leaving) return true;
         } else {
           this.emit('notice', done.reason);
         }
@@ -289,6 +347,11 @@ export class OnlineAccount {
    * Tells the server about money the game moved itself, in order. The server answers with the
    * balance as it holds it, which the game then shows (see BackendService.applyServerWallet).
    */
+  /** Resolves once every money report made so far has been answered. A save waits for this. */
+  public settled(): Promise<unknown> {
+    return this.reports;
+  }
+
   public report(cash: number, bank: number, memo: string, known?: string): void {
     // A payment that could be made twice (a week's rent on two devices) comes with its own name
     const idem = known ? `${known}:${this.id ?? 'x'}`.slice(0, 80) : this.idem('r');
@@ -314,8 +377,9 @@ export class OnlineAccount {
     return { ...started, done: hired.done };
   }
 
-  public finishWork(shift: string, stars?: number): Promise<{ ok: boolean; pay?: number; tip?: number; done?: number; reason?: string; replay?: boolean }> {
-    return this.request('/work/finish', { shift, idem: this.idem('w'), ...(stars === 2 || stars === 3 ? { stars } : {}) });
+  /** Paid by the server: `pay` is the wage before tax, `slip` the payslip with the PAYE it took */
+  public finishWork(shift: string, stars?: number, poor?: boolean): Promise<{ ok: boolean; pay?: number; tip?: number; done?: number; slip?: Payslip; docked?: boolean; reason?: string; replay?: boolean }> {
+    return this.request('/work/finish', { shift, idem: this.idem('w'), ...(stars === 2 || stars === 3 ? { stars } : {}), ...(poor ? { poor: true } : {}) });
   }
 
   /** A gig shift the server has started and not yet paid, kept for the second call. */
@@ -327,17 +391,38 @@ export class OnlineAccount {
 
   public forgetGig(gig: string): void {
     this.gigShifts.delete(gig);
+    this.saveGigs();
   }
 
-  public async startGig(gig: string): Promise<{ ok: boolean; shift?: string; reason?: string }> {
+  public async startGig(gig: string): Promise<{ ok: boolean; shift?: string; reason?: string; status?: number }> {
     await this.ready;
     const started = await this.request('/work/gig/start', { gig });
-    if (started.ok && started.shift) this.gigShifts.set(gig, started.shift);
+    if (started.ok && started.shift) {
+      this.gigShifts.set(gig, started.shift);
+      this.saveGigs();
+    }
     return started;
   }
 
-  public finishGig(shift: string): Promise<{ ok: boolean; pay?: number; reason?: string; replay?: boolean }> {
-    return this.request('/work/gig/finish', { shift, idem: this.idem('g') });
+  /** The unfinished shift the server already has for this gig, remembered if there is one. */
+  public async openGig(gig: string): Promise<{ ok: boolean; shift?: string | null; reason?: string; status?: number }> {
+    await this.ready;
+    const opened = await this.request('/work/gig/open', { gig });
+    if (opened.ok && typeof opened.shift === 'string' && opened.shift) {
+      this.gigShifts.set(gig, opened.shift);
+      this.saveGigs();
+    }
+    return opened;
+  }
+
+  /** A career shift is a wage and comes with a payslip; any other gig is cash in hand */
+  public finishGig(shift: string, early = false): Promise<{ ok: boolean; pay?: number; slip?: Payslip; reason?: string; replay?: boolean }> {
+    return this.request('/work/gig/finish', { shift, idem: this.idem('g'), ...(early ? { left: true } : {}) });
+  }
+
+  /** This month's and year's PAYE and the payslips, as the server holds them */
+  public tax(): Promise<{ ok: boolean; month?: string; gross?: number; paye?: number; rent?: number; relief?: number; yearGross?: number; yearPaye?: number; slips?: Payslip[] }> {
+    return this.request('/me/tax');
   }
 
   // --- Safety ---------------------------------------------------------------------------------
@@ -361,21 +446,26 @@ export class OnlineAccount {
   public async register(username: string, password: string): Promise<{ ok: boolean; reason?: string }> {
     const done = await this.request('/auth/register', { username, password });
     if (!done.ok) return { ok: false, reason: done.reason ?? 'Could not register. Try again.' };
-    await this.switchTo(done);
+    await this.switchTo(done, done.upgraded ? 'upgrade' : 'fresh');
     return { ok: true };
   }
 
   public async login(username: string, password: string): Promise<{ ok: boolean; reason?: string }> {
     const done = await this.request('/auth/login', { username, password });
     if (!done.ok) return { ok: false, reason: done.reason ?? 'Could not sign in. Try again.' };
-    await this.switchTo(done);
+    await this.switchTo(done, 'login');
     return { ok: true };
   }
 
-  /** Now this account: its session kept, its money shown, the city reached with it */
-  private async switchTo(done: { token: string; account: AccountView; wallet?: WalletView }): Promise<void> {
+  /** Now this account: its session kept, its life loaded or, for a guest signing up, sent up. */
+  private async switchTo(done: { token: string; account: AccountView; wallet?: WalletView }, mode: 'login' | 'upgrade' | 'fresh'): Promise<void> {
+    // Signing in must not upload this device's guest life onto the account. A guest signing up
+    // is the opposite: this life is the one that moves.
+    if (mode !== 'upgrade') this.leaving = true;
     this.keep(done.token, done.account);
     if (done.wallet) this.setWallet(done.wallet);
+    if (this.onSwitch) await this.onSwitch(mode);
+    if (this.leaving) return;
     await this.bindRegistry();
     const old = this.socket;
     this.socket = null;

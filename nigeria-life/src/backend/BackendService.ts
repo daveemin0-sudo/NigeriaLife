@@ -1,9 +1,11 @@
 import { isTraitId, needRate, skillRate, tradePrice, traitById, type TraitId } from '../life/Traits';
 import { profileKey } from './Profile';
 import { Activity } from '../life/Activity';
+import { isHomeRent, labelOfDay, lagosMonth, monthOfDay, payeNote, rollBook, takeHome, taxOffice, vatIn, workPayslip, MAX_SLIPS, type Payslip, type TaxBook } from '../life/Tax';
 import {
   type PlayerAccount,
   type BusinessEnterprise,
+  type BusinessType,
   type PlayerStats,
   type PlayerSkills,
   type Item,
@@ -16,12 +18,24 @@ import {
   type PhoneThread,
   DEFAULT_JOBS,
 } from './types';
-import { TransactionService, type ProcessTransactionRequest, type TransactionResult } from './TransactionService';
+import { TransactionService, CREDIT_TYPES, type ProcessTransactionRequest, type TransactionResult } from './TransactionService';
 import { createFreshAccount, parseSavedAccount } from './SaveSchema';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { emitGameEvent } from '../game/GameEvents';
+import {
+  type HardKind,
+  buyCost,
+  sellProceeds,
+  formatHard,
+  FX_BUY,
+  FX_SELL,
+} from '../life/HardCurrency';
 
 type ListenerCallback = (data: PlayerAccount) => void;
+
+/** How fast each need runs down while the game is shut, a point an hour, and the least time away leaves it at */
+const AWAY_PER_HOUR = { hunger: 5.5, energy: 4, fun: 4.5, social: 3, hygiene: 3.5, bladder: 7 } as const;
+const AWAY_FLOOR = 25;
 
 /** Businesses pay out once per cycle while the game is open */
 const REVENUE_CYCLE_MS = 45000;
@@ -35,6 +49,11 @@ export class BackendService {
   public static sales: (biz: BusinessEnterprise, cycles: number) => number | null = () => null;
   /** Told what each business took, as it comes in (for the day's report) */
   public static onTakings: (bizId: string, amount: number) => void = () => {};
+  /**
+   * The share of its takings a business keeps for the hours just gone, given NEPA's light where
+   * it stands and the backup it has bought (set by the game; src/life/Grid.ts)
+   */
+  public static powerShare: (biz: BusinessEnterprise, hours: number) => number = () => 1;
   private static instance: BackendService;
   private readonly STORAGE_KEY = profileKey('nigeria_life_account_data_v1');
   private readonly BACKUP_KEY = profileKey('nigeria_life_account_data_v1__backup');
@@ -177,6 +196,7 @@ export class BackendService {
       for (const record of res.records) {
         this.recentTransactions.push({ record, at });
       }
+      this.noteTax(req, res.records);
       this.saveData();
       // On a game server the server holds the money: tell it what was done here
       const cash = this.data.walletCash - cashBefore;
@@ -196,12 +216,140 @@ export class BackendService {
    * made here, and its answer is the balance (`applyServerWallet`). Null in this browser only.
    */
   public authority: { report(cash: number, bank: number, memo: string, idem?: string): void } | null = null;
+  /** Told after the saved game is written, so the account on the server can be sent a copy. */
+  public onSaved: (() => void) | null = null;
+  /** While signing in, this device's game must not write over the account just loaded. */
+  public holdSaves: (() => boolean) | null = null;
   private settling = false;
   /** Reports waiting for a registry change to be kept (see checkpoint) */
   private heldReports: Array<Array<[number, number, string, string | undefined]>> = [];
 
+  /** Told what time away took off the needs, when the game opens (set by the game) */
+  public onAway: ((changed: Partial<Record<'hunger' | 'energy' | 'fun' | 'social' | 'hygiene' | 'bladder', number>>) => void) | null = null;
+
+  /**
+   * Why a piece of work is done badly now: starving, worn out or filthy. The employer docks a
+   * fifth of the pay for it (on the game server too). Null when the player is fit to work.
+   */
+  public poorShape(): string | null {
+    const s = this.data.stats;
+    if (s.hunger < 15) return 'You worked hungry';
+    if (s.energy < 15) return 'You worked exhausted';
+    if ((s.hygiene ?? 100) < 10) return 'You came to work unwashed';
+    return null;
+  }
+
   /** The game day now (the sky's), once the world is up: leases and loans are scheduled from it (src/life/Dues.ts) */
   public dayNow: (() => number) | null = null;
+
+  // --- Tax (src/life/Tax.ts) -------------------------------------------------------------------
+
+  /** The Lagos month now: the game's calendar once the world is up, else the clock's */
+  public monthNow(): string {
+    const day = this.dayNow?.();
+    return Number.isFinite(day) ? monthOfDay(day as number) : lagosMonth(Date.now());
+  }
+
+  /** The tax book, moved on to this month (a new month's figures start from nothing) */
+  private taxBook(): TaxBook {
+    this.data.tax = rollBook(this.data.tax, this.monthNow());
+    return this.data.tax;
+  }
+
+  /** This month's and year's tax and the latest payslips, to show */
+  public tax(): TaxBook {
+    this.syncFromStorage();
+    const book = this.taxBook();
+    return { ...book, slips: [...book.slips] };
+  }
+
+  /** A purchase's VAT is written on its receipt and added to the year's; home rent counts toward relief */
+  private noteTax(req: ProcessTransactionRequest, records: TransactionRecord[]): void {
+    if (CREDIT_TYPES.has(req.type)) return;
+    let vat = 0;
+    for (const record of records) {
+      const part = vatIn(req.type, req.description, record.amount);
+      if (part > 0) {
+        record.vat = part;
+        vat += part;
+      }
+    }
+    const homeRent = req.type === 'RENT_PAYMENT' && isHomeRent(req.description);
+    if (vat === 0 && !homeRent) return;
+    const book = this.taxBook();
+    book.yearVat += vat;
+    if (homeRent) book.rent += records.reduce((sum, r) => sum + r.amount, 0);
+  }
+
+  private keepSlip(book: TaxBook, slip: Payslip): void {
+    book.slips.push(slip);
+    if (book.slips.length > MAX_SLIPS) book.slips.splice(0, book.slips.length - MAX_SLIPS);
+  }
+
+  /**
+   * A wage from an employer, paid here (not on a game server): PAYE is worked out on the
+   * month's wages so far and taken before the money reaches the pocket; the payslip is kept.
+   */
+  private takeWage(gross: number, employer: string, title: string, city: string, description: string): { success: boolean; message: string; slip?: Payslip } {
+    const book = this.taxBook();
+    const slip: Payslip = { ...workPayslip(gross, book), month: book.month, date: labelOfDay(this.dayNow?.() ?? 0), employer, title, office: taxOffice(city) };
+    const res = this.processTransaction({ type: 'JOB_SALARY', amount: slip.net, description, source: 'wallet' }, false);
+    if (!res.success) return { success: false, message: res.message };
+    if (slip.paye > 0 && res.records[0]) res.records[0].paye = slip.paye;
+    const now = this.taxBook();
+    now.gross = slip.monthGross;
+    now.paye = slip.monthPaye;
+    now.yearGross += slip.gross;
+    now.yearPaye += slip.paye;
+    this.keepSlip(now, slip);
+    return { success: true, message: res.message, slip };
+  }
+
+  /** A wage, an employer's, for a piece of work that takes energy (src/jobs/Employment.ts) */
+  public payWage(gross: number, energyCost: number, employer: string, title: string, city: string): { success: boolean; message: string; slip?: Payslip } {
+    this.syncFromStorage();
+    if (this.data.stats.energy < energyCost) {
+      return { success: false, message: `You are too exhausted for this work (need ${energyCost}% Energy). Eat or rest first.` };
+    }
+    const paid = this.takeWage(gross, employer, title, city, `${title}, ${employer}`);
+    if (!paid.success) return paid;
+    this.data.stats.energy = Math.max(0, this.data.stats.energy - energyCost);
+    this.saveData();
+    emitGameEvent('work_shift');
+    return paid;
+  }
+
+  /** A payslip from the game server, which paid the wage: kept here with its month's figures (the server's) */
+  public noteServerPayslip(slip: Payslip | undefined): void {
+    if (!slip || !Number.isFinite(slip.gross)) return;
+    this.syncFromStorage();
+    const book = rollBook(this.data.tax, slip.month);
+    book.gross = slip.monthGross;
+    book.paye = slip.monthPaye;
+    book.yearGross += slip.gross;
+    book.yearPaye += slip.paye;
+    this.keepSlip(book, slip);
+    this.data.tax = book;
+    // The wage's line in the history says what was taken
+    const line = this.data.transactionHistory.find((t) => t.type === 'JOB_SALARY');
+    if (line && slip.paye > 0 && !line.paye) line.paye = slip.paye;
+    this.saveData();
+  }
+
+  /** The server's own account of the player's tax (it holds the payslips); VAT stays this device's count */
+  public applyServerTax(server: { month: string; gross: number; paye: number; rent: number; yearGross: number; yearPaye: number; slips: Payslip[] }): void {
+    if (!server || !/^\d{4}-\d{2}$/.test(server.month)) return;
+    this.syncFromStorage();
+    const book = rollBook(this.data.tax, server.month);
+    book.gross = server.gross;
+    book.paye = server.paye;
+    book.rent = Math.max(book.rent, server.rent);
+    book.yearGross = server.yearGross;
+    book.yearPaye = server.yearPaye;
+    book.slips = server.slips.slice(-MAX_SLIPS);
+    this.data.tax = book;
+    this.saveData();
+  }
 
   /**
    * Changes the saved account in place and saves it, for modules that keep their state in the
@@ -268,7 +416,8 @@ export class BackendService {
           }
         }
         const sold = BackendService.sales(biz, cycles);
-        const earned = Math.round((sold ?? BackendService.takings(biz, cycleEarnings) * cycles) * BackendService.revenueBoost());
+        const hours = Math.min(48, (cycles * REVENUE_CYCLE_MS) / 3_600_000);
+        const earned = Math.round((sold ?? BackendService.takings(biz, cycleEarnings) * cycles) * BackendService.revenueBoost() * BackendService.powerShare(biz, hours));
         biz.pendingRevenue += earned;
         BackendService.onTakings(biz.id, earned);
         revenueGenerated = true;
@@ -280,7 +429,10 @@ export class BackendService {
   }
 
   private saveData(): void {
+    if (this.holdSaves?.()) return;
     try {
+      // While the game is open the clock of time away is held at now (see settleTimeAway)
+      if (this.awaySettled) this.data.lastActiveAt = Date.now();
       const text = JSON.stringify(this.data);
       localStorage.setItem(this.STORAGE_KEY, text);
       this.lastSavedText = text;
@@ -288,10 +440,12 @@ export class BackendService {
       console.warn('Could not write the saved game', e);
     }
     this.notifyListeners();
+    this.onSaved?.();
   }
 
   /** Records where the player is standing and the time of day, and writes the save. */
   public saveWorldState(state: SavedWorldState): void {
+    if (this.holdSaves?.()) return;
     this.syncFromStorage();
     this.data.worldState = state;
     this.saveData();
@@ -336,6 +490,102 @@ export class BackendService {
 
   public addCash(amount: number, description: string = 'Cash received', type: TransactionType = 'BONUS'): boolean {
     return this.processTransaction({ type, amount, description, source: 'wallet' }).success;
+  }
+
+  /** Last FX / hard-cash refusal, for place desks to speak. */
+  public lastMoneyError: string | null = null;
+
+  public hardCash(): { usd: number; gbp: number } {
+    return { usd: this.data.walletUsd ?? 0, gbp: this.data.walletGbp ?? 0 };
+  }
+
+  private hardPocket(kind: HardKind): number {
+    return kind === 'usd' ? (this.data.walletUsd ?? 0) : (this.data.walletGbp ?? 0);
+  }
+
+  private setHardPocket(kind: HardKind, value: number): void {
+    if (kind === 'usd') this.data.walletUsd = Math.max(0, Math.round(value));
+    else this.data.walletGbp = Math.max(0, Math.round(value));
+  }
+
+  /** Buy dollars or pounds at the Lagos bureau: Naira out, hard currency in. */
+  public buyHard(kind: HardKind, units: number): boolean {
+    this.lastMoneyError = null;
+    const amount = Math.round(units);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.lastMoneyError = 'Pick a proper amount.';
+      return false;
+    }
+    const cost = buyCost(kind, amount);
+    const paid = this.processTransaction({
+      type: 'FX_PURCHASE',
+      amount: cost,
+      description: `Bureau: buy ${formatHard(kind, amount)} @ ₦${FX_BUY[kind].toLocaleString()}`,
+      source: 'wallet',
+      funding: 'split',
+    });
+    if (!paid.success) {
+      this.lastMoneyError = `${formatHard(kind, amount)} is ₦${cost.toLocaleString()} at this desk. You do not have it.`;
+      return false;
+    }
+    this.setHardPocket(kind, this.hardPocket(kind) + amount);
+    this.saveData();
+    return true;
+  }
+
+  /** Sell dollars or pounds at the Lagos bureau: hard currency out, Naira in. */
+  public sellHard(kind: HardKind, units: number): boolean {
+    this.lastMoneyError = null;
+    const amount = Math.round(units);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.lastMoneyError = 'Pick a proper amount.';
+      return false;
+    }
+    if (this.hardPocket(kind) < amount) {
+      this.lastMoneyError = `You only have ${formatHard(kind, this.hardPocket(kind))} in your pocket.`;
+      return false;
+    }
+    const proceeds = sellProceeds(kind, amount);
+    this.setHardPocket(kind, this.hardPocket(kind) - amount);
+    const credited = this.processTransaction({
+      type: 'FX_SALE',
+      amount: proceeds,
+      description: `Bureau: sell ${formatHard(kind, amount)} @ ₦${FX_SELL[kind].toLocaleString()}`,
+      source: 'wallet',
+    });
+    if (!credited.success) {
+      // Restore the hard currency if the naira credit failed (should not happen).
+      this.setHardPocket(kind, this.hardPocket(kind) + amount);
+      this.lastMoneyError = 'The desk could not pay you in naira. Try again.';
+      this.saveData();
+      return false;
+    }
+    this.saveData();
+    return true;
+  }
+
+  /**
+   * Spray hard currency at a Lagos high-roller venue. Spends $ / £ from the pocket
+   * (no naira ledger debit — the notes left the pocket). Returns false if short.
+   */
+  public sprayHard(kind: HardKind, units: number, needs: { fun: number; social: number }): boolean {
+    this.lastMoneyError = null;
+    const amount = Math.round(units);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.lastMoneyError = 'Pick a proper spray bundle.';
+      return false;
+    }
+    if (this.hardPocket(kind) < amount) {
+      this.lastMoneyError = `You need ${formatHard(kind, amount)} in your pocket to spray. Change naira at the Victoria Island bureau first.`;
+      return false;
+    }
+    this.setHardPocket(kind, this.hardPocket(kind) - amount);
+    this.modifyNeed('fun', needs.fun);
+    this.modifyNeed('social', needs.social);
+    this.data.stats.streetCred = Math.min(100, (this.data.stats.streetCred ?? 0) + 5);
+    this.saveData();
+    Activity.emit({ kind: 'acted', id: `spray_hard_${kind}_${amount}` });
+    return true;
   }
 
   public withdrawFromATM(amount: number): boolean {
@@ -549,6 +799,40 @@ export class BackendService {
   }
 
   private vitalsAccumulator = 0;
+  /** Time away has been taken off the needs this visit (once, at the first tick of the needs) */
+  private awaySettled = false;
+
+  /**
+   * Needs run down while the game is shut, gently (a Lagos day's rates by the hour, not the
+   * game's own fast ones), and never below a floor from time away alone: nobody comes back to
+   * a character who starved while they were at work. Returns what changed, for a line on the screen.
+   */
+  public settleTimeAway(now = Date.now()): Partial<Record<'hunger' | 'energy' | 'fun' | 'social' | 'hygiene' | 'bladder', number>> {
+    if (this.awaySettled) return {};
+    this.awaySettled = true;
+    const since = this.data.lastActiveAt;
+    this.data.lastActiveAt = now;
+    if (!Number.isFinite(since) || (since as number) >= now) {
+      this.saveData();
+      return {};
+    }
+    const hours = Math.min(72, (now - (since as number)) / 3_600_000);
+    if (hours < 0.25) {
+      this.saveData();
+      return {};
+    }
+    const trait = this.data.trait;
+    const changed: Partial<Record<'hunger' | 'energy' | 'fun' | 'social' | 'hygiene' | 'bladder', number>> = {};
+    for (const need of ['hunger', 'energy', 'fun', 'social', 'hygiene', 'bladder'] as const) {
+      const was = this.data.stats[need] ?? 100;
+      const fall = AWAY_PER_HOUR[need] * hours * needRate(trait, need);
+      const left = Math.max(Math.min(was, AWAY_FLOOR), was - fall);
+      if (left < was - 0.5) changed[need] = Math.round(was - left);
+      this.data.stats[need] = Math.round(left);
+    }
+    this.saveData();
+    return changed;
+  }
   private lastStarveWarningTime = 0;
   private lastBladderWarningTime = 0;
 
@@ -559,6 +843,10 @@ export class BackendService {
     }
     const elapsed = this.vitalsAccumulator;
     this.vitalsAccumulator = 0;
+    if (!this.awaySettled) {
+      const away = this.settleTimeAway();
+      if (Object.keys(away).length) this.onAway?.(away);
+    }
 
     // Base hunger drain: ~1 point every 30 seconds. The other needs drain in proportion to it.
     const hungerDrain = (isSprinting ? 0.07 : isDriving ? 0.02 : 0.035) * elapsed;
@@ -1122,6 +1410,42 @@ export class BackendService {
     };
   }
 
+  /** Register a new business. It starts as a small kiosk in the area paid for. */
+  public registerBusiness(input: { name: string; type: BusinessType; cityId: string; area: string; fee: number; icon: string; logo: string; x: number; z: number }): { success: boolean; message: string } {
+    const name = input.name.trim().slice(0, 32);
+    if (name.length < 2) return { success: false, message: 'Give it a name.' };
+    if (this.data.businesses.some((b) => b.owned && b.name.toLowerCase() === name.toLowerCase())) {
+      return { success: false, message: 'You already have a business by that name.' };
+    }
+    const paid = this.processTransaction({
+      type: 'BUSINESS_PURCHASE',
+      amount: input.fee,
+      description: `Register ${name}, ${input.area}`,
+      source: 'bank',
+    });
+    if (!paid.success) return { success: false, message: `The papers are ₦${input.fee.toLocaleString()} and you do not have it.` };
+    this.data.businesses.push({
+      id: `reg_${Date.now().toString(36)}`,
+      name,
+      cityId: input.cityId,
+      districtId: input.area,
+      type: input.type,
+      category: `Kiosk · ${input.area}`,
+      icon: input.icon,
+      logo: input.logo,
+      purchasePrice: input.fee,
+      baseIncomePerCycle: 8000,
+      owned: true,
+      pendingRevenue: 0,
+      level: 1,
+      upgrades: [],
+      streetPosition: { x: input.x, y: 0, z: input.z },
+    });
+    this.data.stats.streetCred = Math.min(100, this.data.stats.streetCred + 5);
+    this.saveData();
+    return { success: true, message: `${name} is registered. The kiosk is in ${input.area}, with your name on the sign.` };
+  }
+
   public upgradeBusiness(bizId: string, upgradeId: string): { success: boolean; message: string } {
     const biz = this.data.businesses.find((b) => b.id === bizId);
     if (!biz || !biz.owned) return { success: false, message: 'You must own this enterprise first' };
@@ -1331,6 +1655,22 @@ export class BackendService {
     };
   }
 
+  /** Drops a shift the server will never pay, so Collect stops offering money that cannot come. */
+  public abandonJobShift(): void {
+    if (!this.data.activeJobShift) return;
+    this.data.activeJobShift = null;
+    this.saveData();
+  }
+
+  /** The server has only just clocked this shift, so the wait on the phone starts again from now. */
+  public touchJobShiftClock(): void {
+    const shift = this.data.activeJobShift;
+    if (!shift) return;
+    shift.startTime = Date.now();
+    shift.completed = false;
+    this.saveData();
+  }
+
   public getActiveJobShift(): { job: JobListing; progress: number; remainingSecs: number; isReady: boolean } | null {
     if (!this.data.activeJobShift) return null;
     const job = this.getJobById(this.data.activeJobShift.jobId);
@@ -1346,6 +1686,7 @@ export class BackendService {
   }
 
   public completeJobShift(): { success: boolean; reward: number; message: string } {
+    this.syncFromStorage();
     const shiftInfo = this.getActiveJobShift();
     if (!shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
     if (!shiftInfo.isReady) {
@@ -1353,14 +1694,11 @@ export class BackendService {
     }
 
     const { job } = shiftInfo;
-    // A higher career rank is paid more for the same shift
+    // A higher career rank is paid more for the same shift; the employer takes PAYE before paying it
     const pay = Math.round(job.salary * (this.data.career.bonusMultiplier || 1));
-    const txRes = this.processTransaction({
-      type: 'JOB_SALARY',
-      amount: pay,
-      description: `Completed Shift: ${job.title}`,
-      source: 'wallet',
-    });
+    const wage = this.takeWage(pay, job.workplace, job.title, 'lagos', `Completed Shift: ${job.title}`);
+    if (!wage.success || !wage.slip) return { success: false, reward: 0, message: wage.message };
+    const slip = wage.slip;
 
     this.addJobExperience(25);
     this.addStreetCred(10);
@@ -1380,18 +1718,43 @@ export class BackendService {
     this.saveData();
     emitGameEvent('work_shift');
 
+    const note = payeNote(slip);
     return {
       success: true,
-      reward: pay,
-      message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket (${txRes.message}) and gained XP!`,
+      reward: slip.net,
+      message: `Shift completed! ${job.workplace} paid ${takeHome(slip)} into your pocket and you gained XP.${note ? ` ${note}` : ''}`,
     };
   }
 
   /**
-   * A career shift the server has already paid, at its own rate. Experience is recorded here.
-   * The money is not: the server's wallet is what the player has.
+   * The worker left before the hour was up. Pays the share of the wage the clock has seen
+   * (this device only: on a server the server names that share). Under five seconds, nothing.
    */
-  public noteServerJobShift(pay: number): { success: boolean; reward: number; message: string } {
+  public cashOutJobShift(): { success: boolean; reward: number; message: string } {
+    const active = this.data.activeJobShift;
+    const shiftInfo = this.getActiveJobShift();
+    if (!active || !shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
+    if (shiftInfo.isReady) return this.completeJobShift();
+    const took = Date.now() - active.startTime;
+    if (took < 5_000) {
+      this.abandonJobShift();
+      return { success: true, reward: 0, message: 'You had barely started. Nothing was paid.' };
+    }
+    const { job } = shiftInfo;
+    const share = Math.min(1, took / (active.duration * 1000));
+    const pay = Math.max(1, Math.round(job.salary * (this.data.career.bonusMultiplier || 1) * share));
+    const wage = this.takeWage(pay, job.workplace, job.title, 'lagos', `Left early: ${job.title}`);
+    if (!wage.success || !wage.slip) return { success: false, reward: 0, message: wage.message };
+    this.data.activeJobShift = null;
+    this.saveData();
+    return { success: true, reward: wage.slip.net, message: `You left the shift early. ${job.workplace} paid ${takeHome(wage.slip)} for the time worked.` };
+  }
+
+  /**
+   * A career shift the server has already paid, at its own rate and after PAYE. Experience is
+   * recorded here, and the payslip. The money is not: the server's wallet is what the player has.
+   */
+  public noteServerJobShift(pay: number, slip?: Payslip): { success: boolean; reward: number; message: string } {
     const shiftInfo = this.getActiveJobShift();
     if (!shiftInfo) return { success: false, reward: 0, message: 'No active job shift.' };
     const { job } = shiftInfo;
@@ -1411,7 +1774,10 @@ export class BackendService {
     this.data.activeJobShift = null;
     this.saveData();
     emitGameEvent('work_shift');
-    return { success: true, reward: pay, message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket and gained XP!` };
+    if (!slip) return { success: true, reward: pay, message: `Shift completed! Earned ₦${pay.toLocaleString()} cash in your pocket and gained XP!` };
+    this.noteServerPayslip(slip);
+    const note = payeNote(slip);
+    return { success: true, reward: slip.net, message: `Shift completed! ${slip.employer} paid ${takeHome(slip)} into your pocket and you gained XP.${note ? ` ${note}` : ''}` };
   }
 
   // === CAREER PROGRESSION ===

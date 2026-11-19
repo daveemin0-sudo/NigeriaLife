@@ -1,6 +1,8 @@
 import { BackendService } from '../backend/BackendService';
+import { Qualifications } from '../life/Qualifications';
 import { profileKey } from '../backend/Profile';
 import { emitGameEvent } from '../game/GameEvents';
+import type { Payslip } from '../life/Tax';
 
 /**
  * Being employed somewhere: taken on at a real workplace, doing its work there, paid for each
@@ -12,7 +14,7 @@ import { emitGameEvent } from '../game/GameEvents';
 
 export { EMPLOYERS, WORKSITES } from './employers';
 export type { Grade, Employer } from './employers';
-import { EMPLOYERS, type Grade, type Employer } from './employers';
+import { EMPLOYERS, WORKSITES, type Grade, type Employer } from './employers';
 
 
 interface Service {
@@ -24,10 +26,18 @@ interface Service {
 export interface WorkResult {
   ok: boolean;
   reason?: string;
+  /** The wage before tax */
   pay?: number;
+  /** What the employer took as PAYE, and the payslip (src/life/Tax.ts) */
+  slip?: Payslip;
+  /** Why a fifth of the pay was docked (the player was starving, worn out or unwashed) */
+  docked?: string;
   /** The grade just reached, if this piece of work earned one */
   promoted?: Grade;
 }
+
+/** The share of a shift's pay docked for working in poor shape (the server docks the same) */
+export const POOR_SHAPE_CUT = 0.2;
 
 const STORE = 'nigeria_life_employment_v1';
 /** Jobs left, kept for the CV */
@@ -48,6 +58,8 @@ export class Employment {
   private records: { [employerId: string]: Service } = {};
   /** What the law adds to every shift's pay (a minimum wage raise), set by the game */
   public static payBoost: () => number = () => 1;
+  /** Why this employer will not take the player on (a police record, for those who vet), or null; set by the game */
+  public static refusal: (employer: Employer) => string | null = () => null;
   private history: PastJob[] = [];
   private listeners: Array<() => void> = [];
   /** The day on the game's calendar, for the date someone was taken on */
@@ -144,11 +156,24 @@ export class Employment {
     }));
   }
 
+  /** The certificate this employer asks for and the player does not hold yet, or null */
+  public paperNeeded(id: string): string | null {
+    const needs = this.employer(id)?.needs;
+    if (!needs || this.isEmployed(id)) return null;
+    return Qualifications.get().level(needs.course) >= needs.level ? null : `a ${needs.paper} level ${needs.level} certificate`;
+  }
+
   /** Taken on. Someone who worked there before and left starts again from the bottom. */
   public apply(id: string): { ok: boolean; reason?: string } {
     const employer = this.employer(id);
     if (!employer) return { ok: false, reason: 'Nobody is hiring there.' };
     if (this.isEmployed(id)) return { ok: false, reason: `You already work at ${employer.name}.` };
+    const refused = Employment.refusal(employer);
+    if (refused) return { ok: false, reason: `${employer.name} will not take you on. ${refused}` };
+    if (employer.needs) {
+      const missing = Qualifications.get().missing(employer.needs.course, employer.needs.level, employer.needs.paper);
+      if (missing) return { ok: false, reason: missing };
+    }
     this.records[id] = { since: this.today(), done: 0 };
     this.changed();
     return { ok: true };
@@ -189,7 +214,7 @@ export class Employment {
    * A piece of work the game server has checked and paid (it holds the money and the count of
    * work done): the record here catches up and the work's energy is spent. Nothing is paid here.
    */
-  public settledByServer(id: string, pay: number, done: number): WorkResult {
+  public settledByServer(id: string, pay: number, done: number, slip?: Payslip, docked?: string): WorkResult {
     const employer = this.employer(id);
     const record = this.records[id];
     const grade = this.grade(id);
@@ -198,10 +223,11 @@ export class Employment {
     this.backend.addJobExperience(employer.xp);
     if (employer.skill) this.backend.addSkillXp(employer.skill, 1);
     record.done = Math.max(record.done + 1, done);
+    this.backend.noteServerPayslip(slip);
     const now = this.grade(id)!;
     this.changed();
     emitGameEvent('work_shift');
-    return { ok: true, pay, promoted: now !== grade ? now : undefined };
+    return { ok: true, pay, slip, docked, promoted: now !== grade ? now : undefined };
   }
 
   public complete(id: string): WorkResult {
@@ -209,8 +235,12 @@ export class Employment {
     const record = this.records[id];
     const grade = this.grade(id);
     if (!employer || !record || !grade) return { ok: false, reason: 'You do not work there.' };
-    const pay = Math.round(grade.pay * Employment.payBoost());
-    const paid = this.backend.performGig(pay, employer.energy, `${grade.title}, ${employer.name}`);
+    // Done badly (starving, worn out, unwashed), a fifth is docked
+    const poor = this.backend.poorShape();
+    const full = grade.pay * Employment.payBoost();
+    const pay = poor ? Math.round((full * (1 - POOR_SHAPE_CUT)) / 50) * 50 : Math.round(full);
+    // A wage: the employer takes PAYE before paying it, and gives a payslip
+    const paid = this.backend.payWage(pay, employer.energy, employer.name, grade.title, WORKSITES[id]?.city ?? 'lagos');
     if (!paid.success) return { ok: false, reason: paid.message };
     this.backend.addJobExperience(employer.xp);
     if (employer.skill) {
@@ -219,6 +249,6 @@ export class Employment {
     record.done += 1;
     const now = this.grade(id)!;
     this.changed();
-    return { ok: true, pay, promoted: now !== grade ? now : undefined };
+    return { ok: true, pay, slip: paid.slip, docked: poor ?? undefined, promoted: now !== grade ? now : undefined };
   }
 }

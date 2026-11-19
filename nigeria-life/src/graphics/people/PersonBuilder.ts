@@ -201,7 +201,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     const key = `${new THREE.Color(colour).getHex()}|${rough}|${map?.uuid ?? ''}|${metal}`;
     const known = made.get(key);
     if (known) return known;
-    const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(colour), roughness: rough, metalness: metal, map: map ?? undefined });
+    const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(colour), roughness: rough, metalness: metal, ...(map ? { map } : {}) }); // no `map: undefined`: three.js warns of each one, hundreds at start-up
     materials.push(m);
     made.set(key, m);
     return m;

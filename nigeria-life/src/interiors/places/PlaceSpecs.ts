@@ -1,9 +1,13 @@
+import type * as THREE from 'three';
 import type { Builder } from '../../world/kit/ArchKit';
+import { fineFridge, fineSofa } from '../../housing/FineFurniture';
+import { furnishLobby, furnishOffice, layFine, type CityLook } from './CityDress';
 import { HOTEL_SPECS } from './Hotel';
 import type { PlaceSpec, StationChoice } from './PlaceInterior';
 import type { Item } from '../../backend/types';
 import { SUPERMARKET_SPEC } from './SupermarketRoom';
 import { buildKitCar } from '../../world/vehicles/KitCar';
+import { FX_BUNDLES, SPRAY_HARD, buyCost, sellProceeds, formatHard, FX_BUY, FX_SELL } from '../../life/HardCurrency';
 
 /**
  * The insides of the places along the expressway: each laid out for what is done there, with
@@ -185,7 +189,7 @@ const MARINA_TOWERS: PlaceSpec = {
   ],
 };
 
-const venue = (key: string, name: string, district: string, sub: string, bg: string, floor: number, wall: number, extra: (b: Builder) => void, staff: PlaceSpec['staff'], stations: PlaceSpec['stations'], regulars: PlaceSpec['regulars'] = [], size: [number, number] = [20, 18]): PlaceSpec => ({
+const venue = (key: string, name: string, district: string, sub: string, bg: string, floor: number, wall: number, extra: (b: Builder, room?: THREE.Group) => void, staff: PlaceSpec['staff'], stations: PlaceSpec['stations'], regulars: PlaceSpec['regulars'] = [], size: [number, number] = [20, 18]): PlaceSpec => ({
   key, name, district, room: { width: size[0], length: size[1], height: 5, floor, wall }, sign: { text: name.toUpperCase(), sub, bg }, build: extra, staff, stations, regulars,
 });
 
@@ -224,6 +228,18 @@ const SPECS: PlaceSpec[] = [
     ] },
     { id: 'sofa', name: '🌇 Sit by the edge', at: [-6, 0], stand: [-6, -0.5], who: 'Host', role: 'Ivory Rooftop', text: 'Best view in Lagos.', choices: [{ label: 'Sit and watch the city', note: 'Fun +10', sit: true, seconds: 5, effect: need({ fun: 10 }), said: 'Orange sky over the lagoon. Beautiful.' }] },
     { id: 'floor', name: '💃 Dance', at: [5, -2], stand: [5, -2], who: 'DJ Kaywise', role: 'DJ', text: 'Oya, enter the floor!', choices: [{ label: 'Dance', note: 'Fun +25', dance: true, seconds: 8, effect: need({ fun: 25, social: 8 }), said: 'The DJ shouted your name.' }] },
+    { id: 'spray', name: '💸 Spray hard currency', at: [2, -2], stand: [2, -0.8], who: 'Hype man', role: 'Ivory Rooftop', text: 'Baller moves only. Dollars or pounds — not naira for this carpet.', choices: [
+      ...SPRAY_HARD.map((s) => ({
+        label: `Spray ${formatHard(s.kind, s.units)} on the floor`,
+        note: `${formatHard(s.kind, s.units)} · Fun +${s.fun} · Social +${s.social}`,
+        arms: 'wave' as const,
+        seconds: 3,
+        effect: (be: { sprayHard(kind: 'usd' | 'gbp', units: number, needs: { fun: number; social: number }): boolean }) =>
+          be.sprayHard(s.kind, s.units, { fun: s.fun, social: s.social }),
+        said: `Crisp ${formatHard(s.kind, s.units)} raining on the dancefloor. The roof knows your name.`,
+      })),
+      { label: 'Ask where to change money', note: 'Free', arms: 'talk' as const, seconds: 2, effect: () => {}, said: '"Victoria Island bureau de change, near here. Change naira for dollars or pounds, then come spray."' },
+    ] },
   ], [{ at: [2, 2.2], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [-2, 2.2], facing: Math.PI, outfit: 0xdc2626, sit: true }]),
   venue('the-library', 'The Library', 'Ikoyi · fine dining', 'Speakeasy · Private dining', '#78350f', 0x3f2a1d, 0x1c1917, (b) => {
     for (const x of [-8, -4, 0, 4, 8]) { b.box(0x3b2416, 3.4, 3.6, 0.5, x, 0, -8.6); for (let r = 0; r < 4; r++) for (let i = 0; i < 9; i++) b.box([0x7f1d1d, 0x1e3a8a, 0x14532d, 0xa16207][(i + r) % 4], 0.3, 0.6, 0.3, x - 1.4 + i * 0.35, 0.3 + r * 0.85, -8.4); }
@@ -391,6 +407,113 @@ const SPECS: PlaceSpec[] = [
   }, [{ name: 'Chief of Staff', title: 'Chief of Staff', at: [0, -7], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'His Excellency is in a meeting.' }], [
     { id: 'house', name: '🏛️ Lagos State House', at: [0, -6], stand: [0, -4.6], who: 'Chief of Staff', role: 'Government House', text: 'Laws, the cabinet and the election.', choices: [{ label: 'Open the State House', note: 'Pay is collected here', open: 'house' }] },
   ]),
+  // Lagos-only document loop: passport office → consular visa desk (no flights here)
+  venue('nis-passport', 'Federal Passport Office, Alagbon', 'Ikoyi · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+    b.box(0x0f172a, 1.2, 1.6, 0.4, 6, 0, 5); b.box(0x38bdf8, 0.9, 0.7, 0.05, 6, 0.7, 5.25, { glow: true });
+  }, [
+    { name: 'Officer Amina', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'female', says: 'Form filled? Biometrics next.' },
+    { name: 'Mr Okoro', title: 'Collection desk', at: [4, -5], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Passport ready? Bring your receipt.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Amina', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Alagbon. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today, booklet same day if the network holds. Come with cash or transfer."' },
+    ] },
+    { id: 'photo', name: '📷 Capture booth', at: [6, 5], stand: [6, 3.8], who: 'Photographer', role: 'Biometrics', text: 'Look at the camera. No smile.', choices: [
+      { label: 'Take the capture photo', note: 'Free · Fun −2', arms: 'reach', seconds: 2, effect: need({ fun: -2 }), said: 'Flash. The machine beeps. "Okay, go back to the desk."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0xf97316, sit: true }, { at: [-3, 3], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 16]),
+  venue('consular-visa', 'Visa & Consular Desk', 'Lagos Island · consular', 'Travel visas · Stamps', '#1e3a8a', 0xf1f5f9, 0xe2e8f0, (b) => {
+    counter(b, 0, -5, 7, 0x1e3a8a, 0xf8fafc);
+    desk(b, -6, 2, 0xe2e8f0); desk(b, 6, 2, 0xe2e8f0);
+    for (let i = 0; i < 4; i++) b.box(0x64748b, 0.45, 0.45, 0.45, -3 + i * 1.2, 0, 5);
+    b.box(0x0f172a, 2.2, 1.8, 0.08, 0, 1.2, -7.2); b.box(0xd4af37, 1.6, 1.1, 0.04, 0, 1.4, -7.15, { glow: true });
+  }, [
+    { name: 'Consul Bello', title: 'Visa officer', at: [0, -6], facing: 0, outfit: 0x1e3a8a, gender: 'male', tie: true, says: 'Passport first. Then we talk visa.' },
+  ], [
+    { id: 'visa', name: '🧾 Visa counter', at: [0, -5], stand: [0, -3.6], who: 'Consul Bello', role: 'Visa officer', text: 'Show your Nigerian passport. Single-entry travel visa for your next trip.', choices: [
+      {
+        label: 'Apply for a travel visa stamp',
+        price: 45000,
+        note: 'Needs Nigerian passport · ₦45,000',
+        needItem: 'ng_passport',
+        item: {
+          id: 'travel_visa', name: 'Travel visa stamp', icon: '🧾', price: 45000, category: 'document', usable: false,
+          description: 'A stamped travel visa from the Lagos consular desk. Keep it with your passport.',
+        },
+        arms: 'reach',
+        seconds: 2.5,
+        said: 'Stamp, stamp, signature. The visa page is full. Do not lose that booklet.',
+      },
+      { label: 'Ask what documents I need', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Nigerian passport in hand. Form filled. Fee paid. No passport, no stamp — go to Alagbon first."' },
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }], [18, 16]),
+  // Port Health by MMIA: yellow fever card (Lagos-only; passport required)
+  venue('port-health', 'Port Health · Yellow Card Centre', 'Airport Road · Mafoluku', 'Yellow fever · Stamps · Travel health', '#a16207', 0xfef9c3, 0xfefce8, (b) => {
+    counter(b, 0, -5, 7, 0xa16207, 0xfefce8);
+    desk(b, -6, 2, 0xfef08a); desk(b, 6, 2, 0xfef08a);
+    b.box(0xfef08a, 1.4, 1.8, 0.08, 0, 1.1, -7.2); b.box(0xca8a04, 1.0, 1.2, 0.04, 0, 1.3, -7.15, { glow: true });
+    for (let i = 0; i < 3; i++) b.box(0xfde047, 0.35, 0.08, 0.5, -2 + i * 1.4, 1.1, -5);
+    b.cylinder(0xeab308, 0.08, 0.9, 5.5, 0, -4, { sides: 8 });
+  }, [
+    { name: 'Nurse Funke', title: 'Port Health nurse', at: [0, -6], facing: 0, outfit: 0xffffff, gender: 'female', says: 'Passport first. Then we jab and stamp.' },
+  ], [
+    { id: 'yellow', name: '💉 Yellow fever desk', at: [0, -5], stand: [0, -3.6], who: 'Nurse Funke', role: 'Port Health', text: 'International yellow fever certificate. Bring your Nigerian passport.', choices: [
+      {
+        label: 'Register, jab, and collect my yellow card',
+        price: 25000,
+        note: 'Needs Nigerian passport · ₦25,000',
+        needItem: 'ng_passport',
+        item: {
+          id: 'yellow_card', name: 'Yellow fever vaccination card', icon: '💛', price: 25000, category: 'document', usable: false,
+          description: 'International yellow fever certificate from Port Health, Airport Road. Keep it with your passport for flights.',
+        },
+        arms: 'reach',
+        seconds: 3,
+        said: 'Jab done. Stamp, stamp, signature on the yellow booklet. Keep this with your passport.',
+      },
+      { label: 'Ask what I need', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Nigerian passport in hand. Fee paid. No passport, no card — Alagbon first, then come back."' },
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]),
+  // Lagos VI bureau: naira ↔ dollars / pounds (hard currency for high-roller spraying)
+  venue('bureau-fx', 'Victoria Island Bureau de Change', 'Victoria Island · FX desk', 'USD · GBP · Parallel rates', '#0f766e', 0xecfdf5, 0xf0fdfa, (b) => {
+    counter(b, 0, -5, 8, 0x0f766e, 0xf8fafc);
+    desk(b, -6, 2, 0xd1fae5); desk(b, 6, 2, 0xd1fae5);
+    b.box(0x0f172a, 2.4, 1.6, 0.08, 0, 1.2, -7.2);
+    b.box(0x22c55e, 0.9, 1.0, 0.04, -0.6, 1.35, -7.15, { glow: true });
+    b.box(0x3b82f6, 0.9, 1.0, 0.04, 0.6, 1.35, -7.15, { glow: true });
+    for (let i = 0; i < 4; i++) b.box(0xfef08a, 0.4, 0.08, 0.55, -2.4 + i * 1.2, 1.1, -5);
+  }, [
+    { name: 'Aboki Tunde', title: 'Bureau dealer', at: [0, -6], facing: 0, outfit: 0x0f766e, gender: 'male', tie: true, says: 'Dollar, pound — clean notes. Rate today is the rate.' },
+  ], [
+    { id: 'buy', name: '💵 Buy hard currency', at: [-3, -5], stand: [-3, -3.6], who: 'Aboki Tunde', role: 'Bureau dealer', text: `Buying today: $1 = ₦${FX_BUY.usd.toLocaleString()}, £1 = ₦${FX_BUY.gbp.toLocaleString()}.`, choices: [
+      ...FX_BUNDLES.map((b) => ({
+        label: `Buy ${formatHard(b.kind, b.units)}`,
+        note: `₦${buyCost(b.kind, b.units).toLocaleString()}`,
+        arms: 'reach' as const,
+        seconds: 2,
+        effect: (be: { buyHard(kind: 'usd' | 'gbp', units: number): boolean }) => be.buyHard(b.kind, b.units),
+        said: `${formatHard(b.kind, b.units)} counted into your pocket. Keep them for the roof.`,
+      })),
+      { label: 'Ask the rates', note: 'Free', arms: 'talk' as const, seconds: 2, effect: () => {}, said: `"Buy: $1 = ₦${FX_BUY.usd.toLocaleString()}, £1 = ₦${FX_BUY.gbp.toLocaleString()}. Sell a little lower. Spray dollars at Ivory Rooftop — that is how ballers move."` },
+    ] },
+    { id: 'sell', name: '💷 Sell hard currency', at: [3, -5], stand: [3, -3.6], who: 'Aboki Tunde', role: 'Bureau dealer', text: `Selling today: $1 = ₦${FX_SELL.usd.toLocaleString()}, £1 = ₦${FX_SELL.gbp.toLocaleString()}.`, choices: [
+      ...FX_BUNDLES.map((b) => ({
+        label: `Sell ${formatHard(b.kind, b.units)}`,
+        note: `₦${sellProceeds(b.kind, b.units).toLocaleString()} back`,
+        arms: 'reach' as const,
+        seconds: 2,
+        effect: (be: { sellHard(kind: 'usd' | 'gbp', units: number): boolean }) => be.sellHard(b.kind, b.units),
+        said: `${formatHard(b.kind, b.units)} taken. ₦${sellProceeds(b.kind, b.units).toLocaleString()} in your pocket.`,
+      })),
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0xf59e0b, sit: true }], [18, 16]),
 ];
 
 // The showroom's cars: on the three turntables, turning slowly, and a row along the side wall
@@ -870,4 +993,441 @@ const LAGOS_BARBERS: PlaceSpec = {
   ],
 };
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS];
+
+// --- Abuja: the places along its avenues, each out at its own door on the street (src/cities/AbujaDistricts.ts) ---
+const abuja = (spec: PlaceSpec, out: [number, number]): PlaceSpec => ({ ...spec, streetId: `roadside-${spec.key}`, comeOut: [out[0], 0, out[1]] });
+const ABUJA_SPECS: PlaceSpec[] = [
+  abuja(venue('national-assembly', 'National Assembly', 'Three Arms Zone · the legislature', 'Senate · House of Representatives · Public gallery', '#14532d', 0xe7e5e4, 0xf8fafc, (b) => {
+    // The chamber: rows of green benches facing the presiding officer's seat, the mace on its table
+    for (let r = 0; r < 3; r++) for (let i = -3; i <= 3; i++) b.box(0x166534, 1.6, 0.5 + r * 0.25, 0.7, i * 2, 0, 1 + r * 1.6, { yaw: i * 0.06 });
+    b.box(0x78350f, 4, 1.1, 1.4, 0, 0, -6).box(0xd4af37, 4.2, 0.08, 1.5, 0, 1.1, -6);
+    b.box(0x78350f, 2.6, 1.5, 1.2, 0, 0, -8).box(0x166534, 1.2, 1.4, 0.2, 0, 1.5, -8.6);
+    b.cylinder(0xd4af37, 0.08, 1.6, 0, 1.18, -6, { sides: 8 }).dome(0xd4af37, 0.18, 0, 2.7, -6);
+    for (let f = 0; f < 3; f++) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.9, 1.8, 0.05, -0.9 + f * 0.9, 3.2, -8.9);
+    for (const x of [-8, 8]) b.cylinder(0xf8fafc, 0.4, 5, x, 0, -2);
+  }, [
+    { name: 'Sergeant-at-Arms', title: 'Sergeant-at-Arms', at: [-3, -6], facing: 0, outfit: 0x111827, gender: 'male', cap: true, says: 'The gallery is upstairs. No phones while the Senate sits.' },
+    { name: 'Clerk Hauwa', title: 'Clerk of the Senate', at: [3, -7], facing: 0, outfit: 0x14532d, gender: 'female', says: 'The order paper for today: the budget, then a motion on the roads.' },
+  ], [
+    { id: 'gallery', name: '🏛️ Watch the Senate sit', at: [0, 4], stand: [0, 5.4], who: 'Sergeant-at-Arms', role: 'Public gallery', text: 'Sit quietly. They are on the budget.', choices: [{ label: 'Watch from the gallery', note: 'Fun +15, Social +5', sit: true, seconds: 8, effect: need({ fun: 15, social: 5 }), said: 'Point of order! The Senate President banged the gavel and the budget went to second reading.' }] },
+    { id: 'rep', name: '🤝 See your representative', at: [3, -7], stand: [3, -5.6], who: 'Clerk Hauwa', role: 'National Assembly', text: 'Your member has five minutes after plenary.', choices: [{ label: 'Tell them what your street needs', note: 'Social +15', arms: 'wave', seconds: 4, effect: need({ social: 15 }), said: 'The honourable member wrote it down and promised a borehole. We will see.' }] },
+  ], [{ at: [-2, 1], facing: Math.PI, outfit: 0x1e3a8a, sit: true }, { at: [2, 2.6], facing: Math.PI, outfit: 0x7f1d1d, sit: true }], [22, 20]), [342, -15]),
+
+  abuja(venue('transcorp-hilton', 'Transcorp Hilton Abuja', 'Maitama · hotel', '★★★★★ · Lobby bar · Buffet · Pool', '#0c4a6e', 0xf5f5f4, 0xe7e5e4, (b) => {
+    counter(b, -5, -6, 7, 0x0c4a6e, 0xf8fafc);
+    b.cylinder(0xfacc15, 0.1, 1.4, 0, 3.6, 0).dome(0xfde68a, 1, 0, 3.2, 0, { glow: true });
+    bottles(b, 6.5, -8.6, 4);
+    counter(b, 6.5, -6.5, 4, 0x1c1917, 0xd4af37);
+    for (const [x, z] of [[-6, 3], [-3, 3], [-6, 6]]) table(b, x, z, 0xf8fafc, 4, 0x0c4a6e);
+    b.box(0x0284c7, 7, 0.1, 4, 6, 0.01, 5.5, { glow: true });
+  }, [
+    { name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0x0c4a6e, gender: 'female', says: 'Welcome to Transcorp Hilton. Checking in?' },
+    { name: 'Barman Ifeanyi', title: 'Lobby bar', at: [6.5, -7.5], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'Chapman, or something stronger?' },
+  ], [
+    { id: 'buffet', name: '🍽️ The buffet', at: [-6, 3], stand: [-6, 3.95], who: 'Waiter', role: 'Transcorp Hilton', text: 'The buffet is open.', choices: [{ label: 'The lunch buffet', price: 32000, note: 'Hunger +70, Fun +10', sit: true, seconds: 7, effect: need({ hunger: 70, fun: 10 }), said: 'Jollof, asun, pepper soup and three desserts. You went back twice.' }] },
+    { id: 'bar', name: '🍹 The lobby bar', at: [6.5, -6.5], stand: [6.5, -5.1], who: 'Barman Ifeanyi', role: 'Lobby bar', text: 'What will it be?', choices: [{ label: 'A Chapman by the window', price: 7000, note: 'Fun +15, Social +10', sit: true, seconds: 5, effect: need({ fun: 15, social: 10 }), said: 'Half of Abuja is doing deals at the next table.' }] },
+    { id: 'pool', name: '🏊 The pool', at: [6, 5.5], stand: [3, 5.5], who: 'Pool attendant', role: 'Transcorp Hilton', text: 'Towel and a lounger?', choices: [{ label: 'A swim', price: 18000, note: 'Fun +25, Hygiene +20', arms: 'swing', seconds: 6, effect: need({ fun: 25, hygiene: 20 }), said: 'Clear water, the Maitama hills behind it.' }] },
+  ], [{ at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true }, { at: [7.5, -5], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' }], [24, 20]), [280, 157]),
+
+  abuja(venue('cbn-abuja', 'Central Bank of Nigeria', 'Central Business District · the apex bank', 'Visitors centre · Currency museum', '#0f172a', 0xd6d3d1, 0xe7e5e4, (b) => {
+    counter(b, 0, -6, 6, 0x0f172a, 0xd4af37);
+    // Glass cases of notes and coins down each side, and the vault door at the back
+    for (const x of [-7, 7]) for (const z of [-3, 1, 5]) b.box(0x334155, 1.6, 0.9, 1, x, 0, z).box(0x86efac, 1.4, 0.5, 0.8, x, 0.9, z, { glow: true });
+    b.cylinder(0x9ca3af, 2.2, 0.4, 0, 2.6, -8.7, { sides: 24 }).cylinder(0x6b7280, 0.6, 0.5, 0, 2.6, -8.4, { sides: 12 });
+  }, [{ name: 'Guide Chinedu', title: 'Visitors centre', at: [0, -7], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Welcome. This is how the Naira is made and kept.' }], [
+    { id: 'museum', name: '💵 The currency museum', at: [-7, 1], stand: [-5.6, 1], who: 'Guide Chinedu', role: 'Currency museum', text: 'From the pound to the Naira, every note we have printed.', choices: [{ label: 'Take the tour', note: 'Fun +12', arms: 'rest', seconds: 6, effect: need({ fun: 12 }), said: 'The first Naira notes of 1973, the old 20 kobo, and why the 1,000 note changed.' }] },
+    { id: 'coins', name: '🪙 The gift counter', at: [0, -6], stand: [0, -4.6], who: 'Guide Chinedu', role: 'Gift counter', text: 'Mint sets and commemorative coins.', choices: [buy('A commemorative coin set', 15000, { id: 'cbn_coins', name: 'CBN commemorative coins', icon: '🪙', price: 15000, category: 'luxury', usable: false, description: 'A mint set in a case.' }, 'A mint set in a velvet case.')] },
+  ], [{ at: [5, 1], facing: -Math.PI / 2, outfit: 0x2563eb }], [20, 18]), [196, 189]),
+
+  abuja(venue('millennium-tower', 'Millennium Tower', 'Central Business District · observation deck', 'Observation deck · Café · 102 m up', '#0f766e', 0xe5e7eb, 0xccfbf1, (b) => {
+    // The deck: glass all round, telescopes at the rail, the café counter
+    for (const x of [-9.6, 9.6]) b.box(0x99f6e4, 0.1, 3.4, 16, x, 0.6, 0, { glow: true });
+    b.box(0x99f6e4, 18, 3.4, 0.1, 0, 0.6, -8.6, { glow: true });
+    for (const [x, z] of [[-8, -6], [-8, 2], [8, -6], [8, 2]]) b.cylinder(0x334155, 0.08, 1.1, x, 0, z).box(0x0f172a, 0.25, 0.25, 0.7, x, 1.1, z, { yaw: x > 0 ? Math.PI / 2 : -Math.PI / 2 });
+    counter(b, 0, -6.5, 5, 0x0f766e, 0xf8fafc);
+    for (const [x, z] of [[-3, 3], [3, 3]]) table(b, x, z, 0xf8fafc, 3, 0x0f766e);
+  }, [{ name: 'Lift attendant', title: 'Observation deck', at: [0, -7.5], facing: 0, outfit: 0x0f766e, gender: 'female', says: 'Welcome to the top of Abuja.' }], [
+    { id: 'deck', name: '🔭 The view', at: [-8, -6], stand: [-7, -6], who: 'Lift attendant', role: 'Observation deck', text: 'On a clear day you see past Aso Rock to the hills.', choices: [{ label: 'Look out over the city', price: 6000, note: 'Fun +30', arms: 'rest', seconds: 6, effect: need({ fun: 30 }), said: 'The green dome, Eagle Square, the avenues to the horizon, and Aso Rock over all of it.' }] },
+    { id: 'cafe', name: '☕ The café', at: [0, -6.5], stand: [0, -5.1], who: 'Lift attendant', role: 'Café', text: 'Something while you look?', choices: [{ label: 'Small chops and a latte', price: 7500, note: 'Hunger +25, Fun +10', sit: true, seconds: 5, effect: need({ hunger: 25, fun: 10 }), said: 'Puff-puff and samosa a hundred metres up.' }] },
+  ], [{ at: [8, -1], facing: Math.PI / 2, outfit: 0xec4899, gender: 'female' }], [20, 18]), [225, 412]),
+
+  abuja(venue('wuse-market', 'Wuse Market', 'Wuse · market', 'Foodstuff · Fabric · Phones · Everything', '#14532d', 0x8b8378, 0xd6c7a1, (b) => {
+    for (let i = 0; i < 4; i++) {
+      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
+      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0xdc2626, 0xf59e0b, 0x65a30d, 0xfef3c7][i]);
+    }
+    for (let i = 0; i < 5; i++) sack(b, -7 + i * 1.2, 4, [0xf5f5f4, 0xfde68a][i % 2]);
+    for (let i = 0; i < 3; i++) b.box([0x7c3aed, 0x0891b2, 0xdb2777][i], 1.6, 2.2, 0.1, 5 + i * 1.8, 0.4, 5);
+  }, [
+    { name: 'Mama Ngozi', title: 'Foodstuff', at: [-7, -6.2], facing: 0, outfit: 0xf59e0b, gender: 'female', says: 'Customer, come and buy. Fresh pepper, fresh tomato!' },
+    { name: 'Alhaji Sani', title: 'Fabric', at: [7, 3.5], facing: Math.PI, outfit: 0x0f766e, gender: 'male', cap: true, says: 'Original Holland wax. I will give you good price.' },
+  ], [
+    { id: 'foodstuff', name: '🍅 Foodstuff', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Ngozi', role: 'Wuse Market', text: 'Rice, beans, pepper, oil: what are you cooking?', choices: [
+      buy('A paint bucket of rice', 9500, { id: 'rice_bucket', name: 'Rice (paint bucket)', icon: '🍚', price: 9500, category: 'food', usable: true, description: 'Enough rice for the week.' }, 'She shook the bucket to settle it and added a handful for you.'),
+      buy('Pepper and tomatoes', 3500, { id: 'pepper_mix', name: 'Pepper and tomatoes', icon: '🌶️', price: 3500, category: 'food', usable: true, description: 'For stew.' }, 'Fresh tatashe, rodo and tomatoes in a black nylon.'),
+    ] },
+    { id: 'fabric', name: '🧵 Fabric', at: [7, 5], stand: [7, 3.6], who: 'Alhaji Sani', role: 'Fabric stalls', text: 'Six yards, for an outfit?', choices: [buy('Six yards of Holland wax', 28000, { id: 'ankara_6', name: 'Holland wax, six yards', icon: '🧵', price: 28000, category: 'luxury', usable: false, description: 'Take it to a tailor.' }, 'He folded it neatly: real Holland, you will remember me.')] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [24, 20]), [-175, 186]),
+
+  abuja(venue('jabi-lake-mall', 'Jabi Lake Mall', 'Jabi · mall', 'Shoprite · Food court · Cinema · Lake view', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
+    for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0xdc2626, 0xfacc15, 0x2563eb, 0x16a34a, 0xf8fafc]);
+    for (const x of [-6, -3]) counter(b, x, 0, 1.6, 0xdc2626);
+    counter(b, 7, -3, 4, 0xf59e0b);
+    for (const [x, z] of [[5, 2], [8, 2], [5, 5.5], [8, 5.5]]) table(b, x, z, 0xf8fafc, 2, 0xdc2626);
+    screen(b, -5, 8.7, 4, 1.4, 2.4, 0x7c3aed);
+    b.box(0x7dd3fc, 8, 3, 0.1, 6, 0.8, 9.4, { glow: true });
+  }, [
+    { name: 'Cashier Zainab', title: 'Cashier', at: [-6, -1], facing: Math.PI, outfit: 0xdc2626, gender: 'female', says: 'Next customer, please.' },
+    { name: 'Chef Musa', title: 'Food court', at: [7, -4], facing: 0, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Suya wrap or chicken and chips?' },
+  ], [
+    { id: 'shelves', name: '🛒 Shoprite', at: [-3, -6], stand: [-3, -4.8], who: 'Shoprite', role: 'Jabi Lake Mall', text: 'Groceries, drinks and home things.', choices: [{ label: 'Shop', note: 'Opens Shopping', open: 'app:shopping' }] },
+    { id: 'food', name: '🍗 Food court', at: [7, -3], stand: [7, -1.7], who: 'Chef Musa', role: 'Food court', text: 'What will you have?', choices: [{ label: 'Chicken and chips with a Coke', price: 6500, note: 'Hunger +45', sit: true, seconds: 5, effect: need({ hunger: 45 }), said: 'Crispy, hot, and the lake out of the window.' }] },
+    { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'The new Nollywood picture is at 6.', choices: [{ label: 'A ticket and popcorn', price: 7500, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'The whole hall clapped at the end.' }] },
+  ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-3, -3], facing: 0, outfit: 0xec4899, gender: 'female' }], [24, 20]), [-475, 416]),
+
+  abuja(venue('national-hospital-abuja', 'National Hospital Abuja', 'Garki · hospital', 'Emergency 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
+    counter(b, -5, -6, 5, 0xf8fafc, 0x93c5fd);
+    shelf(b, 6, -7, 4, [0xf8fafc, 0x22c55e, 0xdc2626]);
+    counter(b, 6, -5, 4, 0x16a34a, 0xf8fafc);
+    for (let i = 0; i < 3; i++) b.box(0xf8fafc, 1.1, 0.6, 2.2, -6 + i * 3, 0, 4).box(0x93c5fd, 1, 0.15, 2, -6 + i * 3, 0.6, 4);
+  }, [
+    { name: 'Nurse Aisha', title: 'Nurse', at: [-5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your folder, please. The doctor will see you now.' },
+    { name: 'Pharmacist Emeka', title: 'Pharmacist', at: [6, -6], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+  ], [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-5, -6], stand: [-5, -4.7], who: 'Nurse Aisha', role: 'National Hospital', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 18000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant listened, checked everything and wrote it all down.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [6, -5], stand: [6, -3.7], who: 'Pharmacist Emeka', role: 'Pharmacy', text: 'What do you need?', choices: [
+      buy('Malaria treatment', 7000, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 7000, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
+      buy('Paracetamol', 1200, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1200, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
+    ] },
+    { id: 'ward', name: '🛏️ Admission', at: [-3, 4], stand: [-3, 2.4], who: 'Nurse Aisha', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 55000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
+  ], [{ at: [-6, 4], facing: 0, outfit: 0x60a5fa, sit: true }], [20, 18]), [-290, 443]),
+
+  abuja(venue('abuja-police', 'FCT Police Command', 'Garki · police', 'Police is your friend · 112', '#1e3a8a', 0xcbd5e1, 0xe2e8f0, (b) => {
+    counter(b, -6, -5, 4, 0x1e3a8a, 0xf8fafc);
+    desk(b, 2, -5);
+    bench(b, 4, -4, 3, 0x334155);
+    for (const x of [-2, 0]) b.box(0x334155, 0.08, 2.6, 2.4, x, 0, 5);
+    b.box(0x1e3a8a, 0.9, 1.4, 0.08, 6.5, 1.2, -6);
+  }, [{ name: 'Sgt. Halima', title: 'Desk sergeant', at: [-6, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', cap: true, says: 'Yes? Wetin happen?' }], [
+    { id: 'desk', name: '👮 Charge desk', at: [-6, -5], stand: [-6, -3.6], who: 'Sgt. Halima', role: 'FCT Police Command', text: 'State your business. This is Abuja, not Lagos.', choices: [
+      { label: 'Report a crime', note: 'Free', arms: 'talk', seconds: 3, effect: () => {}, said: 'She writes it in the Abuja book: "We go look into am."' },
+      buy('Police character certificate', 3500, { id: 'police_cert', name: 'Police character certificate', icon: '📜', price: 3500, category: 'document', usable: false, description: 'A clean police report, issued in Abuja.' }, 'Stamped at the FCT command.', 'For jobs and visas'),
+    ] },
+    { id: 'escort', name: '🚨 Escort', at: [2, -5], stand: [2, -3.6], who: 'Inspector Bello', role: 'Escort desk', text: 'A patrol van follows you in Abuja.', choices: [
+      { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
+    ] },
+  ], [{ at: [4, -4], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [-100, 444.5]),
+
+  // Abuja passport office — same booklet as Lagos Alagbon; domestic flights need this in the bag
+  abuja(venue('abuja-passport', 'Federal Passport Office, Abuja', 'Garki · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+  }, [
+    { name: 'Officer Habiba', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'female', says: 'Form filled? Biometrics next. This is Abuja, not Lagos.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Habiba', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Abuja. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today if the network holds. Cash or transfer."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [-140, 444.5]),
+];
+
+
+// --- Port Harcourt: the places along its roads, out at their own doors (src/cities/PortHarcourtDistricts.ts) ---
+const PH_SPECS: PlaceSpec[] = [
+  abuja(venue('mile-one-market', 'Mile 1 Market', 'Diobu · market', 'Periwinkle · Crayfish · Plantain · Fabric', '#14532d', 0x8b8378, 0xc8b48a, (b) => {
+    for (let i = 0; i < 4; i++) {
+      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
+      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0x78350f, 0xdc2626, 0x65a30d, 0xfacc15][i]);
+    }
+    for (let i = 0; i < 6; i++) b.cylinder([0x1f2937, 0x57534e][i % 2], 0.4, 0.35, -7 + i * 1.3, 0, 4, { sides: 14 }).dome(0x44403c, 0.36, -7 + i * 1.3, 0.35, 4);
+    for (let i = 0; i < 3; i++) b.box([0xf59e0b, 0x0891b2, 0x7c3aed][i], 1.6, 2.2, 0.1, 5 + i * 1.8, 0.4, 5);
+  }, [
+    { name: 'Mama Ibiere', title: 'Seafood', at: [-7, -6.2], facing: 0, outfit: 0x0891b2, gender: 'female', says: 'Fresh periwinkle, fresh crayfish! Come and price.' },
+    { name: 'Mr Ebi', title: 'Fabric', at: [7, 3.5], facing: Math.PI, outfit: 0x7c2d12, gender: 'male', says: 'George wrapper, Akwete, real Holland. Which one?' },
+  ], [
+    { id: 'seafood', name: '🦐 Seafood', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Ibiere', role: 'Mile 1 Market', text: 'For native soup or for pepper soup?', choices: [
+      buy('Periwinkle and crayfish', 6500, { id: 'periwinkle', name: 'Periwinkle and crayfish', icon: '🦐', price: 6500, category: 'food', usable: true, description: 'For native soup.' }, 'She packed it in a black nylon and added two extra crayfish.'),
+      buy('A bunch of plantain', 4000, { id: 'plantain', name: 'Plantain (bunch)', icon: '🍌', price: 4000, category: 'food', usable: true, description: 'Ripe enough for dodo tomorrow.' }, 'Ripe in two days. Dodo time.'),
+    ] },
+    { id: 'fabric', name: '🧵 George and wrappers', at: [7, 5], stand: [7, 3.6], who: 'Mr Ebi', role: 'Fabric stalls', text: 'For an occasion?', choices: [buy('A George wrapper', 35000, { id: 'george_wrapper', name: 'George wrapper', icon: '🧵', price: 35000, category: 'luxury', usable: false, description: 'For the next owambe.' }, 'He spread it out: real George, the colours will not fade.')] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Mile 1 Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x16a34a }], [24, 20]), [-211, 189]),
+
+  abuja(venue('ph-mall', 'Port Harcourt Mall', 'Old GRA · mall', 'Shoprite · Food court · Cinema', '#0c4a6e', 0xf1f5f9, 0xf8fafc, (b) => {
+    for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0x0c4a6e, 0xfacc15, 0xdc2626, 0x16a34a, 0xf8fafc]);
+    for (const x of [-6, -3]) counter(b, x, 0, 1.6, 0x0c4a6e);
+    counter(b, 7, -3, 4, 0xf59e0b);
+    for (const [x, z] of [[5, 2], [8, 2], [5, 5.5], [8, 5.5]]) table(b, x, z, 0xf8fafc, 2, 0x0c4a6e);
+    screen(b, -5, 8.7, 4, 1.4, 2.4, 0x7c3aed);
+  }, [
+    { name: 'Cashier Boma', title: 'Cashier', at: [-6, -1], facing: Math.PI, outfit: 0x0c4a6e, gender: 'female', says: 'Next customer, please.' },
+    { name: 'Chef Tari', title: 'Food court', at: [7, -4], facing: 0, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Bole and fish, or chicken and chips?' },
+  ], [
+    { id: 'shelves', name: '🛒 Shoprite', at: [-3, -6], stand: [-3, -4.8], who: 'Shoprite', role: 'Port Harcourt Mall', text: 'Groceries, drinks and home things.', choices: [{ label: 'Shop', note: 'Opens Shopping', open: 'app:shopping' }] },
+    { id: 'food', name: '🐟 Food court', at: [7, -3], stand: [7, -1.7], who: 'Chef Tari', role: 'Food court', text: 'What will you have?', choices: [{ label: 'Bole and roasted fish', price: 5500, note: 'Hunger +45', sit: true, seconds: 5, effect: need({ hunger: 45 }), said: 'Roasted plantain, catfish and the pepper sauce. Port Harcourt on a plate.' }] },
+    { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'The new picture is at 7.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'Packed hall, loud laughs.' }] },
+  ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }], [24, 20]), [-180, 389]),
+
+  abuja(venue('rivers-govt-house', 'Rivers State Government House', 'Rumuola · the Brick House', 'Office of the Governor', '#7c2d12', 0xe7e5e4, 0xf5efe6, (b) => {
+    counter(b, 0, -6, 6, 0x7c2d12, 0xd4af37);
+    for (let f = 0; f < 3; f++) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.8, 1.6, 0.05, -0.8 + f * 0.8, 3, -8.8);
+    for (const x of [-7, 7]) b.cylinder(0xf8fafc, 0.4, 5, x, 0, -4);
+    for (let i = 0; i < 6; i++) b.box(0x7c2d12, 0.5, 0.45, 0.5, -3 + i * 1.2, 0, 3);
+  }, [{ name: 'Chief of Staff', title: 'Chief of Staff', at: [0, -7], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'His Excellency is in Exco. Can I help you?' }], [
+    { id: 'petition', name: '📜 Leave a petition', at: [0, -6], stand: [0, -4.6], who: 'Chief of Staff', role: 'Government House', text: 'Write it down. It will get to his desk.', choices: [{ label: 'About the roads in your area', note: 'Social +10', arms: 'reach', seconds: 3, effect: need({ social: 10 }), said: 'Stamped, signed, filed. "We will look into it."' }] },
+    { id: 'house', name: '🏛️ The State House', at: [3, 3], stand: [3, 4.4], who: 'Chief of Staff', role: 'Government House', text: 'Laws, the cabinet and the election.', choices: [{ label: 'Open the State House', note: 'Pay is collected here', open: 'house' }] },
+  ]), [-370, -190]),
+
+  abuja(venue('upth', 'University of Port Harcourt Teaching Hospital', 'Choba · UPTH', 'Emergency · Wards · Pharmacy', '#0e7490', 0xf8fafc, 0xecfeff, (b) => {
+    counter(b, 5, -6, 4, 0x0e7490, 0xf8fafc);
+    shelf(b, -7, -6, 3.2, [0xf8fafc, 0x14b8a6, 0xfacc15]);
+    for (let i = 0; i < 4; i++) {
+      b.box(0xf8fafc, 1, 0.55, 2.1, -6 + i * 2.4, 0, 3);
+      b.box(0x99f6e4, 0.9, 0.12, 1.9, -6 + i * 2.4, 0.55, 3);
+      b.box(0x0f766e, 0.15, 1.1, 0.15, -6.4 + i * 2.4, 0, 2.1);
+    }
+    b.box(0x0e7490, 1.2, 1.2, 0.08, 7.2, 1.4, -7);
+    b.box(0xf8fafc, 0.35, 1.2, 0.08, 7.2, 1.4, -7);
+  }, [
+    { name: 'Nurse Ibiere', title: 'Nurse', at: [5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
+    { name: 'Pharmacist Tamuno', title: 'Pharmacist', at: [-7, -5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription from the ward?' },
+  ], [
+    { id: 'clinic', name: '🩺 See a doctor', at: [5, -6], stand: [5, -4.6], who: 'Nurse Ibiere', role: 'UPTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant checked you and wrote it down. You can go.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [-7, -6], stand: [-7, -4.4], who: 'Pharmacist Tamuno', role: 'UPTH pharmacy', text: 'What do you need?', choices: [
+      buy('Malaria treatment', 6500, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 6500, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
+      buy('Paracetamol', 1000, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1000, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
+    ] },
+    { id: 'ward', name: '🛏️ The ward', at: [-2, 3], stand: [-2, 1.2], who: 'Nurse Ibiere', role: 'UPTH ward', text: 'Stay and rest. The creek is quiet from here.', choices: [{ label: 'Admitted overnight', price: 48000, note: 'Health +80', sit: true, seconds: 6, effect: need({ health: 80 }), said: 'Drip, rest, and you walk out stronger.' }] },
+  ], [{ at: [-4, 3], facing: Math.PI, outfit: 0x5eead4, sit: true, gender: 'female' }], [20, 18]), [120, -65]),
+
+  abuja(venue('ph-police', 'Rivers State Police Command', 'Port Harcourt · police', 'Police is your friend · 112', '#14532d', 0xd6d3d1, 0xf5f5f4, (b) => {
+    counter(b, 5, -5, 4, 0x14532d, 0xfde68a);
+    bench(b, -4, 2, 4, 0x78350f);
+    for (let i = 0; i < 3; i++) b.box(0x14532d, 0.5, 0.45, 0.5, -2 + i * 1.4, 0, -3);
+    b.box(0x334155, 0.08, 2.4, 2.2, -7, 0, 4);
+    plant(b, 7, 4);
+  }, [{ name: 'Sgt. Briggs', title: 'Desk sergeant', at: [5, -6], facing: 0, outfit: 0x14532d, gender: 'male', cap: true, says: 'Wetin happen? This is Port Harcourt.' }], [
+    { id: 'desk', name: '👮 Charge desk', at: [5, -5], stand: [5, -3.6], who: 'Sgt. Briggs', role: 'Rivers State Police Command', text: 'State your business. You do not have to go to Lagos.', choices: [
+      { label: 'Report a crime', note: 'Free', arms: 'talk', seconds: 3, effect: () => {}, said: 'He writes it in the Rivers book: "We go look into am."' },
+      buy('Police character certificate', 3500, { id: 'police_cert', name: 'Police character certificate', icon: '📜', price: 3500, category: 'document', usable: false, description: 'A clean police report, issued in Port Harcourt.' }, 'Stamped at the Rivers command.', 'For jobs and visas'),
+    ] },
+    { id: 'escort', name: '🚨 Escort', at: [-4, 2], stand: [-4, 3.4], who: 'Inspector Briggs', role: 'Escort desk', text: 'A patrol van follows you in Port Harcourt.', choices: [
+      { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
+    ] },
+  ], [{ at: [-4, 2], facing: 0, outfit: 0xf97316, sit: true }], [18, 16]), [200, 20]),
+
+  // Port Harcourt passport office — same booklet; fly from PHC with this in the bag
+  abuja(venue('ph-passport', 'Federal Passport Office, Port Harcourt', 'Old GRA · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+  }, [
+    { name: 'Officer Tamuno', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'male', says: 'Form filled? Biometrics next. Rivers State issue.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Tamuno', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Port Harcourt. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today if the network holds. Cash or transfer."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]), [240, 20]),
+];
+
+// --- Every shop, office, hotel, bank and market along Abuja's and Port Harcourt's streets ---
+// Three layouts per kind per city (plus hotel lobbies), so neighbouring doors are not clones.
+// Each building's door picks one by name (src/cities/CityExtras.ts, townDoors).
+export type TownRoomKind = 'shops' | 'office' | 'hotel' | 'bank' | 'market';
+export const townRoomKey = (city: string, kind: TownRoomKind) => `${city}-town-${kind}`;
+export const townRoomVariantKey = (city: string, kind: TownRoomKind, variant: number) =>
+  variant === 0 ? townRoomKey(city, kind) : `${city}-town-${kind}-${variant}`;
+/** A guest room: the furniture is the real pieces, put in by the hotel (Hotel.ts). No sign on the inside wall. */
+const guestRoom = (hotelKey: string, place: string, city: CityLook): PlaceSpec => ({
+  key: hotelKey.endsWith('-hotel') ? hotelKey.replace(/-hotel$/, '-suite') : `${hotelKey}-suite`,
+  name: `${place} hotel room`,
+  district: `${place} · your room`,
+  room: {
+    width: 16, length: 14, height: 4.2,
+    floor: 0xffffff,
+    wall: city === 'abuja' ? 0xf6efe4 : 0xe7f2ec,
+    finish: city === 'abuja' ? 'royal_maroon' : 'calacatta_gold',
+  },
+  build: () => { /* furnished when the room is attached */ },
+  staff: [],
+  stations: [],
+  door: { name: 'Back to the lobby', category: 'Door', description: 'The corridor, and the front desk.' },
+});
+
+const look = (city: string): CityLook => (city === 'port_harcourt' ? 'ph' : 'abuja');
+
+/** One hotel lobby. variant 0, 1 and 2 are different rooms, so two hotels are not the same. */
+const hotelLobby = (key: string, place: string, city: string, variant: number): PlaceSpec => {
+  const ph = city === 'port_harcourt';
+  const spec = venue(key, variant === 0 ? `${place} Suites` : `${place} ${variant === 1 ? 'Palace' : 'Creek'} Hotel`, `${place} · hotel`, 'Front desk · Your room · Bar', ph ? '#0f766e' : '#7c2d12', 0xffffff, ph ? 0xe7f2ec : 0xf6efe4, (_b, room) => {
+    if (room) furnishLobby(room, look(city), variant);
+  }, [{ name: 'Receptionist Tonye', title: 'Front desk', at: [-4, -6], facing: 0, outfit: ph ? 0x0f766e : 0x7c2d12, gender: 'male', says: 'Welcome. A room is at the desk: a key card, yours until noon.' }, { name: 'Barman Ifeanyi', title: 'Bar', at: [5, -5], facing: 0, outfit: 0x111827, gender: 'male', says: 'What are we drinking?' }], [
+    { id: 'bar', name: '🍹 The bar', at: [5, -4], stand: [5, -2.6], who: 'Barman Ifeanyi', role: 'Bar', text: 'Chapman, palm wine or a cold beer?', choices: [{ label: 'A Chapman', price: 2500, note: 'Fun +12', sit: true, seconds: 5, effect: need({ fun: 12, social: 6 }), said: 'Sweet, cold, with a slice of cucumber.' }] },
+    { id: 'lounge', name: '🛋️ The lounge', at: [-3, 3], stand: [-3, 4.4], who: 'Lounge', role: `${place} Suites`, text: 'Soft chairs and the news on the TV.', choices: [{ label: 'Rest in the lounge', note: 'Energy +12', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 12 }), said: 'You nearly slept in the armchair.' }] },
+  ], [{ at: [3, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 18]);
+  spec.sign = undefined;
+  spec.room.finish = variant === 2 ? 'chevron_oak' : ph ? 'terrazzo' : 'calacatta_gold';
+  return spec;
+};
+
+const townRooms = (city: string, place: string): PlaceSpec[] => {
+  const ph = city === 'port_harcourt';
+  const officeOf = (variant: number): PlaceSpec => {
+    const key = townRoomVariantKey(city, 'office', variant);
+    const titles = variant === 0 ? 'Offices' : variant === 1 ? 'Chambers' : 'Secretariat';
+    const office = venue(key, `${place} ${titles}`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : variant === 1 ? '#0f172a' : variant === 2 ? '#7c2d12' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (_b, room) => {
+      if (room) furnishOffice(room, look(city), variant);
+    }, [{ name: 'Receptionist Halima', title: 'Front desk', at: [0, -6], facing: 0, outfit: ph ? 0x0f766e : 0x1e3a8a, gender: 'female', says: 'Good day. The jobs are on the board, and the manager takes people on.' }], [
+      { id: 'desk', name: '🛎️ Front desk', at: [0, -5], stand: [0, -3.6], who: 'Receptionist Halima', role: 'Front desk', text: 'The companies upstairs are hiring. Shall I show you the openings?', choices: [{ label: 'See the jobs going', note: 'Opens Jobs', open: 'app:jobs' }, { label: 'Leave your CV', note: 'Social +6', arms: 'reach', seconds: 2, effect: need({ social: 6 }), said: 'She stamped it received. "We will call you."' }] },
+      { id: 'wait', name: '🪑 The waiting chairs', at: [ph ? 3 : -2.4, 3.4], stand: [ph ? 3 : -2.4, 2], who: 'Waiting area', role: 'Reception', text: 'The air conditioning is strong.', choices: [{ label: 'Sit and cool off', note: 'Energy +8', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 8 }), said: 'Ten minutes under the AC. Sweat gone.' }] },
+    ], [{ at: [ph ? -4 : 4, 1], facing: Math.PI, outfit: 0x111827 }], [18, 16]);
+    office.sign = undefined;
+    office.room.finish = variant === 2 ? 'grey_granite' : ph ? 'grey_granite' : 'parquet_wood';
+    return office;
+  };
+
+  const shopOf = (variant: number): PlaceSpec => {
+    const key = townRoomVariantKey(city, 'shops', variant);
+    const aisleZ = variant === 1 ? [-5.2, -1.2] : variant === 2 ? [-6.8, -3.2, 0.2] : [-6.2, -2.2];
+    const shop = venue(key, `${place} ${variant === 0 ? 'Supermarket' : variant === 1 ? 'Mini Mart' : 'Provision Store'}`, `${place} · supermarket`, 'Shelves · A till · Household', ph ? '#0f766e' : '#166534', 0xffffff, 0xf8fafc, (b, room) => {
+      const goods = ph ? [0x0f766e, 0xfacc15, 0xdc2626, 0xf8fafc, 0xf97316] : variant === 1 ? [0x0f172a, 0xf97316, 0xfef3c7, 0x16a34a, 0xdc2626] : [0x166534, 0xf97316, 0xfef3c7, 0x2563eb, 0xdc2626];
+      for (const z of aisleZ) for (let i = 0; i < (variant === 2 ? 2 : 3); i++) shelf(b, -6 + i * 4, z, 3.2, goods);
+      const chillX = variant === 1 ? -8.2 : 8.2;
+      for (let i = 0; i < 4; i++) {
+        b.box(0xe2e8f0, 1.3, 2.05, 0.7, chillX, 0, -5 + i * 2.2);
+        b.box(0xbae6fd, 1.15, 1.5, 0.04, chillX, 0.3, -4.62 + i * 2.2, { glow: true });
+      }
+      for (let i = 0; i < 5; i++) pile(b, variant === 1 ? -5.2 : 5.2, -5 + i * 1.1, [0xdc2626, 0xf97316, 0x65a30d, 0xfacc15, 0xfef3c7][i], 0.28);
+      for (const x of [-2.2, 2.2]) counter(b, x, 4.2, 1.6, ph ? 0x0f766e : 0x166534, 0xf8fafc);
+      b.box(0x111827, 0.42, 0.28, 0.32, -2.2, 1.12, 3.7);
+      b.box(0x111827, 0.42, 0.28, 0.32, 2.2, 1.12, 3.7);
+      plant(b, variant === 1 ? 8.6 : -8.6, 5.4);
+      if (room) {
+        const fridge = fineFridge();
+        fridge.scale.setScalar(0.85);
+        layFine(room, fridge, variant === 1 ? -6.2 : 6.2, 0, 5.2, Math.PI);
+      }
+    }, [{ name: 'Cashier Amaka', title: 'Till', at: [0, 3], facing: Math.PI, outfit: ph ? 0x0f766e : 0x166534, gender: 'female', says: 'Next customer.' }], [
+      { id: 'drinks', name: 'shop_shelf_drinks Cold drinks', at: [-6, -4], stand: [-6, -2.6], who: 'Shelves', role: 'Supermarket', text: 'Drinks, food and the house things.', choices: [{ label: 'Shop the shelves', note: 'Opens Shopping', open: 'app:shopping' }] },
+      { id: 'till', name: 'Till', at: [0, 4], stand: [0, 2.6], who: 'Cashier Amaka', role: 'Till', text: 'Pay for what you picked up.', choices: [{ label: 'Pay at the till', note: 'Opens Shopping', open: 'app:shopping' }] },
+    ], [{ at: [4, 0], facing: Math.PI, outfit: 0xf97316 }], [20, 16]);
+    shop.sign = undefined;
+    shop.room.finish = variant === 2 ? 'terrazzo' : 'ceramic_white';
+    return shop;
+  };
+
+  const bankOf = (variant: number): PlaceSpec => {
+    const key = townRoomVariantKey(city, 'bank', variant);
+    const atmLeft = variant === 1 ? !ph : ph;
+    const bank = venue(key, `${place} ${variant === 0 ? 'Bank' : variant === 1 ? 'Microfinance' : 'Bureau'}`, `${place} · bank`, 'Teller · ATM', '#0f172a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (b, room) => {
+      counter(b, 0, -5, 8, 0x0f172a, ph ? 0x99f6e4 : 0xd4af37);
+      for (const x of [-2.4, 0, 2.4]) b.box(0xe2e8f0, 1.5, 0.7, 0.04, x, 1.35, -4.5);
+      const atmX = atmLeft ? -6 : 6;
+      b.box(0x111827, 1.1, 1.6, 0.5, atmX, 0, 2).box(0x22c55e, 0.7, 0.5, 0.04, atmX, 1.2, 2.28, { glow: true });
+      for (let i = 0; i < 4; i++) b.box(0x1f2937, 0.5, 0.48, 0.5, -3 + i * 1.6, 0, variant === 2 ? 5.2 : 4);
+      for (let i = 0; i < 5; i++) b.cylinder(0x94a3b8, 0.04, 0.9, -2 + i * 1, 0, 1.2);
+      b.box(0xcbd5e1, 4.2, 0.02, 0.02, 0, 0.85, 1.2);
+      plant(b, atmLeft ? 7.2 : -7.2, -6);
+      plant(b, atmLeft ? 7.2 : -7.2, 5);
+      if (room) layFine(room, fineSofa(3, ph ? 0x0f766e : 0x1e3a8a, 0xe2e8f0, 0x1c1917), atmLeft ? 3.2 : -3.2, 0, 6.2, Math.PI);
+    }, [{ name: 'Teller Ngozi', title: 'Teller', at: [0, -6], facing: 0, outfit: 0x0f172a, gender: 'female', says: 'Good day. Cash, transfer, or the ATM on the wall.' }], [
+      { id: 'teller', name: 'Teller counter', at: [0, -5], stand: [0, -3.6], who: 'Teller Ngozi', role: 'Teller', text: 'How can the bank help?', choices: [{ label: 'Open the bank', note: 'Opens Bank', open: 'app:bank' }] },
+      { id: 'atm', name: 'ATM', at: [atmLeft ? -6 : 6, 2], stand: [atmLeft ? -4.6 : 4.6, 2], who: 'ATM', role: 'ATM', text: 'Cash, any hour.', choices: [{ label: 'Use the ATM', note: 'Opens Bank', open: 'app:bank' }] },
+    ], [{ at: [-1, 4], facing: Math.PI, outfit: 0x2563eb, sit: true }], [18, 16]);
+    bank.sign = undefined;
+    bank.room.finish = variant === 2 ? 'parquet_wood' : ph ? 'terrazzo' : 'grey_granite';
+    return bank;
+  };
+
+  // Markets stay one layout for now (stalls already dense); hotels already have 3 lobbies.
+  const market = venue(townRoomKey(city, 'market'), `${place} Market`, `${place} · market`, ph ? 'Seafood · Plantain · Wrappers' : 'Foodstuff · Grains · Cloth · Oil', '#92400e', 0x8b8378, 0xc8b48a, (b) => {
+    if (ph) {
+      stall(b, -8, -6, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.cylinder(0x94a3b8, 0.16, 0.22, x - 0.6 + i * 0.4, 0.95, z, { sides: 10 }); });
+      stall(b, 0, -6, 0x15803d, (bb, x, z) => { for (let i = 0; i < 3; i++) bb.cylinder(0xfacc15, 0.12, 0.45, x - 0.4 + i * 0.4, 0.95, z, { sides: 8 }); });
+      stall(b, 8, -6, 0x7c2d12, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box([0xf59e0b, 0x0891b2, 0x7c3aed][i % 3], 0.45, 0.2, 0.9, x - 0.7 + i * 0.45, 0.95, z); });
+      stall(b, -4, 2, 0x0f766e, (bb, x, z) => { sack(bb, x - 0.4, z, 0xe0f2fe); sack(bb, x + 0.4, z, 0xfef3c7); });
+      stall(b, 5, 2, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box(0x78350f, 0.16, 0.16, 0.6, x - 0.6 + i * 0.4, 0.95, z); });
+      stall(b, -8, 6, 0xf59e0b, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.cylinder(0x94a3b8, 0.16, 0.2, x - 0.6 + i * 0.4, 0.95, z, { sides: 10 }); });
+      stall(b, 2, 6, 0x7c2d12, (bb, x, z) => { for (let i = 0; i < 3; i++) bb.box([0xf59e0b, 0x0891b2, 0x7c3aed][i], 0.45, 0.18, 0.8, x - 0.5 + i * 0.5, 0.95, z); });
+    } else {
+      stall(b, -8, -6, 0xdc2626, (bb, x, z) => { pile(bb, x - 0.5, z, 0xdc2626); pile(bb, x + 0.4, z, 0xf97316, 0.28); });
+      stall(b, 0, -6, 0x16a34a, (bb, x, z) => { sack(bb, x - 0.5, z); sack(bb, x + 0.4, z, 0xfef3c7); });
+      stall(b, 8, -6, 0x7c3aed, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box([0xe11d48, 0x0ea5e9, 0xfacc15, 0x7c3aed][i], 0.4, 0.2, 0.8, x - 0.7 + i * 0.45, 0.95, z); });
+      stall(b, -4, 2, 0xca8a04, (bb, x, z) => { for (let i = 0; i < 3; i++) bb.cylinder(i % 2 ? 0xb91c1c : 0xfacc15, 0.14, 0.4, x - 0.5 + i * 0.5, 0.95, z, { sides: 8 }); });
+      stall(b, 5, 2, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box(0x78350f, 0.16, 0.16, 0.6, x - 0.6 + i * 0.4, 0.95, z); });
+      stall(b, -8, 6, 0xdc2626, (bb, x, z) => { pile(bb, x - 0.4, z, 0xdc2626, 0.26); pile(bb, x + 0.4, z, 0xf97316, 0.22); });
+      stall(b, 2, 6, 0x15803d, (bb, x, z) => { sack(bb, x - 0.4, z); sack(bb, x + 0.4, z, 0xfef3c7); });
+      goat(b, 8.5, 6.4, Math.PI / 2);
+    }
+  }, [
+    { name: 'Mama Nkechi', title: 'Foodstuff', at: [-8, -7.4], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Fine tomatoes, fresh pepper. Come and price!' },
+    { name: 'Alhaji Sani', title: 'Grains', at: [0, -7.4], facing: 0, outfit: 0xf5f5f4, gender: 'male', says: 'Rice, beans, garri. Mudu or bag.' },
+    { name: 'Alhaja Kudi', title: 'Cloth', at: [8, -7.4], facing: 0, outfit: 0x7c3aed, gender: 'female', says: 'Ankara, lace. Owambe ready!' },
+    { name: 'Oga Femi', title: 'Oil', at: [-4, 3.4], facing: Math.PI, outfit: 0x15803d, gender: 'male', says: 'Palm oil, groundnut oil, by the litre.' },
+  ], [
+    { id: 'food', name: '🍅 Foodstuff', at: [-8, -6], stand: [-8, -4.4], who: 'Mama Nkechi', role: 'Foodstuff', text: 'Tomatoes, pepper, yam.', choices: [
+      buy('A basket of tomatoes and pepper', 4500, item('tomato_pepper', 'Tomatoes and pepper', '🍅', 4500), 'She added two extra tomatoes. "Dash."'),
+      buy('A tuber of yam', 6000, item('mkt_yam', 'Tuber of yam', '🍠', 6000), 'A fat yam, heavy in the nylon.'),
+    ] },
+    { id: 'grains', name: '🍚 Rice and garri', at: [0, -6], stand: [0, -4.4], who: 'Alhaji Sani', role: 'Grains', text: 'Mudu or bag?', choices: [
+      buy('A mudu of rice', 3500, item('mkt_rice_mudu', 'Mudu of rice', '🍚', 3500), 'Heaped mudu, poured into your bag.'),
+      buy('Garri, a paint', 4500, item('mkt_garri', 'Paint of garri', '🥣', 4500), 'Yellow garri, crunchy.'),
+    ] },
+    { id: 'cloth', name: '🧵 Ankara and lace', at: [8, -6], stand: [8, -4.4], who: 'Alhaja Kudi', role: 'Cloth', text: 'Which print?', choices: [
+      buy('Six yards of Ankara', 18000, item('mkt_ankara', 'Six yards of Ankara', '🧵', 18000, 'luxury'), 'Folded, tied, into your bag.'),
+    ] },
+    { id: 'oil', name: '🫙 Palm oil', at: [-4, 2], stand: [-4, 0.4], who: 'Oga Femi', role: 'Oil', text: 'How many litres?', choices: [
+      buy('A keg of palm oil', 8000, item('mkt_palm_oil', 'Keg of palm oil', '🫙', 8000), 'Red oil, the keg sealed.'),
+    ] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [5, 2], stand: [5, 0.4], who: 'Phone seller', role: 'Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-2, 4], facing: Math.PI, outfit: 0x16a34a }, { at: [3, 5], facing: 0, outfit: 0xf59e0b, gender: 'female' }], [24, 20]);
+  market.sign = undefined;
+
+  const hotels = [0, 1, 2].flatMap((variant) => {
+    const key = variant === 0 ? townRoomKey(city, 'hotel') : `${city}-hotel-${variant}`;
+    return [hotelLobby(key, place, city, variant), guestRoom(key, place, look(city))];
+  });
+  return [
+    ...[0, 1, 2].map(officeOf),
+    ...[0, 1, 2].map(shopOf),
+    ...[0, 1, 2].map(bankOf),
+    market,
+    ...hotels,
+  ];
+};
+
+
+const QUIET_FLOOR: Record<string, string> = {
+  'national-assembly': 'grey_granite',
+  'transcorp-hilton': 'calacatta_gold',
+  'cbn-abuja': 'grey_granite',
+  'millennium-tower': 'ceramic_white',
+  'wuse-market': 'parquet_wood',
+  'jabi-lake-mall': 'ceramic_white',
+  'national-hospital-abuja': 'ceramic_white',
+  'abuja-police': 'grey_granite',
+  'upth': 'ceramic_white',
+  'ph-police': 'grey_granite',
+  'mile-one-market': 'parquet_wood',
+  'ph-mall': 'ceramic_white',
+  'rivers-govt-house': 'chevron_oak',
+};
+for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
+  spec.sign = undefined;
+  const finish = QUIET_FLOOR[spec.key];
+  if (finish) spec.room.finish = finish;
+}
+
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt')];

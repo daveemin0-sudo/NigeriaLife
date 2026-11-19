@@ -32,22 +32,41 @@ const WALLS = [0xf1e4c8, 0xe7d3b3, 0xd9c1a0, 0xf5f5f4, 0xcbd5e1, 0xfde68a, 0xfed
 const AWNINGS = [0xdc2626, 0x16a34a, 0x2563eb, 0xf59e0b, 0x7c3aed, 0x0d9488, 0xdb2777, 0xea580c];
 const PAINTS = [0xf8fafc, 0xe5e7eb, 0x9ca3af, 0x18181b, 0x111827, 0x7f1d1d, 0x1e3a8a, 0xb45309, 0x14532d, 0xd1d5db, 0x475569, 0x991b1b];
 
-const SHOPS: Array<[string, string]> = [
-  ['IYA BASIRA KITCHEN', '#b91c1c'], ['CHUKWUDI & SONS ELECTRONICS', '#1d4ed8'], ['BLESSED HANDS SALON', '#db2777'],
-  ['ALHAJI MUSA PROVISIONS', '#15803d'], ['SHARP SHARP POS', '#0f766e'], ['FAITH PHONES & ACCESSORIES', '#7c3aed'],
-  ['MAMA NKECHI FABRICS', '#c2410c'], ['OLUWASEUN PHARMACY', '#047857'], ['ADE BARBING SALOON', '#1e3a8a'],
-  ["GOD'S GRACE SUPERMARKET", '#a16207'], ['EBUBE COLD ROOM', '#0369a1'], ['KEMI BAKERY & CAKES', '#be185d'],
-  ['WAZOBIA FAST FOOD', '#dc2626'], ['NO WAHALA AUTO PARTS', '#334155'], ['DIVINE FAVOUR VULCANIZER', '#4d7c0f'], ['POST NO BILL', '#57534e'],
-];
+/** Shop signs for the city the ride is in. The last two rows are the filling station and an empty wall. */
+function shopsFor(city: string): Array<[string, string]> {
+  const lagos: Array<[string, string]> = [
+    ['IYA BASIRA KITCHEN', '#b91c1c'], ['CHUKWUDI & SONS ELECTRONICS', '#1d4ed8'], ['BLESSED HANDS SALON', '#db2777'],
+    ['ALHAJI MUSA PROVISIONS', '#15803d'], ['SHARP SHARP POS', '#0f766e'], ['FAITH PHONES & ACCESSORIES', '#7c3aed'],
+    ['MAMA NKECHI FABRICS', '#c2410c'], ['OLUWASEUN PHARMACY', '#047857'], ['ADE BARBING SALOON', '#1e3a8a'],
+    ["GOD'S GRACE SUPERMARKET", '#a16207'], ['EBUBE COLD ROOM', '#0369a1'], ['KEMI BAKERY & CAKES', '#be185d'],
+    ['WAZOBIA FAST FOOD', '#dc2626'], ['NO WAHALA AUTO PARTS', '#334155'], ['DIVINE FAVOUR VULCANIZER', '#4d7c0f'], ['POST NO BILL', '#57534e'],
+  ];
+  if (city === 'abuja') return [
+    ['GARKI PROVISIONS', '#b91c1c'], ['WUSE ELECTRONICS', '#1d4ed8'], ['MAITAMA SALON', '#db2777'],
+    ['UTAKO SUPERMARKET', '#15803d'], ['CENTRAL POS', '#0f766e'], ['JABI PHONES', '#7c3aed'],
+    ['LIFE CAMP FABRICS', '#c2410c'], ['ASOKORO PHARMACY', '#047857'], ['WUSE 2 BARBING', '#1e3a8a'],
+    ['JABI LAKE MART', '#a16207'], ['KUJE COLD ROOM', '#0369a1'], ['GWARINPA BAKERY', '#be185d'],
+    ['LIFE CAMP KITCHEN', '#dc2626'], ['KUBWA AUTO PARTS', '#334155'], ['CAPITAL FUEL', '#4d7c0f'], ['POST NO BILL', '#57534e'],
+  ];
+  if (city === 'port_harcourt') return [
+    ['MILE 1 KITCHEN', '#b91c1c'], ['TRANS AMADI ELECTRONICS', '#1d4ed8'], ['GRA SALON', '#db2777'],
+    ['RUMUOLA PROVISIONS', '#15803d'], ['TOWN POS', '#0f766e'], ['DIKE PHONES', '#7c3aed'],
+    ['MILE 3 FABRICS', '#c2410c'], ['BOROKIRI PHARMACY', '#047857'], ['D-LINE BARBING', '#1e3a8a'],
+    ['RUMUOKORO MART', '#a16207'], ['ABONNEMA COLD ROOM', '#0369a1'], ['ELEME BAKERY', '#be185d'],
+    ['OIL MILL GRILL', '#dc2626'], ['RUMUOLA SPARES', '#334155'], ['GARDEN CITY FUEL', '#4d7c0f'], ['POST NO BILL', '#57534e'],
+  ];
+  return lagos;
+}
+
 const ROW = 64;
 
 /** Every shop sign on one canvas, a row each, so a whole stretch of signs is one draw */
-function signAtlas(): THREE.CanvasTexture {
+function signAtlas(shops: Array<[string, string]>): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
-  canvas.height = ROW * SHOPS.length;
+  canvas.height = ROW * shops.length;
   const ctx = canvas.getContext('2d')!;
-  SHOPS.forEach(([name, bg], i) => {
+  shops.forEach(([name, bg], i) => {
     const y = i * ROW;
     ctx.fillStyle = bg;
     ctx.fillRect(0, y, 512, ROW);
@@ -67,23 +86,37 @@ function signAtlas(): THREE.CanvasTexture {
 }
 
 /** A sign plane facing +x or -x, its picture one row of the atlas */
-function signPlane(row: number, width: number, height: number, x: number, y: number, z: number, facing: 1 | -1): THREE.BufferGeometry {
+function signPlane(row: number, width: number, height: number, x: number, y: number, z: number, facing: 1 | -1, rows: number): THREE.BufferGeometry {
   const plane = new THREE.PlaneGeometry(width, height);
   const uv = plane.getAttribute('uv') as THREE.BufferAttribute;
-  const top = 1 - row / SHOPS.length;
-  const bottom = 1 - (row + 1) / SHOPS.length;
+  const top = 1 - row / rows;
+  const bottom = 1 - (row + 1) / rows;
   for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) > 0.5 ? top : bottom);
   plane.rotateY(facing > 0 ? Math.PI / 2 : -Math.PI / 2);
   plane.translate(x, y, z);
   return plane;
 }
 
-const BILLBOARDS: Array<[string, string, string]> = [
-  ['NaijaFM 99.1', 'Afrobeats all day, all night', '#16a34a'],
-  ['JOLLOF KINGDOM', 'Party jollof, delivered hot', '#dc2626'],
-  ['EKO BANK', 'Your money, sharp sharp', '#1d4ed8'],
-  ['OWAMBE HALL', 'Weddings · Birthdays · Burials', '#7c3aed'],
-];
+function billboardsFor(city: string): Array<[string, string, string]> {
+  if (city === 'abuja') return [
+    ['Capital FM 92.9', 'The city, all day', '#16a34a'],
+    ['JOLLOF REPUBLIC', 'Party jollof, in the capital', '#dc2626'],
+    ['UNITY TRUST', 'Your money, in Abuja', '#1d4ed8'],
+    ['SHEHU MUSA HALL', 'Weddings · Conferences', '#7c3aed'],
+  ];
+  if (city === 'port_harcourt') return [
+    ['Garden City FM', 'Rivers, all day', '#16a34a'],
+    ['BOLÉ AND FISH', 'Roasted plantain, hot', '#dc2626'],
+    ['RIVERS TRUST', 'Your money, Garden City', '#1d4ed8'],
+    ['PLEASURE PARK HALL', 'Weddings · Birthdays', '#7c3aed'],
+  ];
+  return [
+    ['NaijaFM 99.1', 'Afrobeats all day, all night', '#16a34a'],
+    ['JOLLOF KINGDOM', 'Party jollof, delivered hot', '#dc2626'],
+    ['EKO BANK', 'Your money, sharp sharp', '#1d4ed8'],
+    ['OWAMBE HALL', 'Weddings · Birthdays · Burials', '#7c3aed'],
+  ];
+}
 
 function billboard(title: string, line: string, bg: string): THREE.Mesh {
   const canvas = document.createElement('canvas');
@@ -142,8 +175,14 @@ export class RideStreet {
   /** Keeps the next lane clear beside the ride, so a camera at the roadside sees it whole */
   public keepClear = false;
 
-  constructor() {
+  /** The city the road is in: Lagos's go-slow and danfos, Abuja's clean avenues of offices, Port Harcourt's kekes */
+  public readonly city: string;
+
+  constructor(city = 'lagos') {
+    this.city = city;
     this.group.name = 'ride street';
+    this.group.userData.shops = shopsFor(city).map(([name]) => name);
+    this.group.userData.boards = billboardsFor(city).map(([title]) => title);
     this.group.add(this.across);
     this.across.add(this.scenery, this.trafficGroup);
     const tile = this.buildTile();
@@ -215,6 +254,9 @@ export class RideStreet {
     const r = this.rand;
     const b = new Builder();
     const signs: THREE.BufferGeometry[] = [];
+    const shops = shopsFor(this.city);
+    const rows = shops.length;
+    const boards = billboardsFor(this.city);
     const half = TILE / 2;
     // The land, the two carriageways, patches where the road has been mended
     b.box(0x8a7a5c, 300, 0.02, TILE, 0, -0.06, 0);
@@ -237,7 +279,8 @@ export class RideStreet {
     // The median: kerbs painted yellow and black, grass, lamps with an arm over each side, flowers
     b.box(0x5b8a3a, MEDIAN_B - MEDIAN_A - 0.2, 0.22, TILE, (MEDIAN_A + MEDIAN_B) / 2, 0, 0);
     for (let z = -half; z < half; z += 1) {
-      const hex = Math.floor(z) % 2 ? 0xfacc15 : 0x111827;
+      // Abuja paints its kerbs black and white
+      const hex = Math.floor(z) % 2 ? (this.city === 'abuja' ? 0xf8fafc : 0xfacc15) : 0x111827;
       b.box(hex, 0.12, 0.24, 1, MEDIAN_A, 0, z + 0.5).box(hex, 0.12, 0.24, 1, MEDIAN_B, 0, z + 0.5);
     }
     const mid = (MEDIAN_A + MEDIAN_B) / 2;
@@ -260,9 +303,9 @@ export class RideStreet {
       b.box(0xb8a48c, WALK - 0.22, 0.18, TILE, kerb + side * (0.22 + (WALK - 0.22) / 2), 0, 0);
       b.box(0x3b3f45, 0.7, 0.05, TILE, walkIn + side * 0.35, -0.04, 0);
       for (let z = -half + 4; z < half; z += 7 + Math.floor(r() * 9)) b.box(0x9ca3af, 0.9, 0.08, 1.8, walkIn + side * 0.35, 0.12, z);
-      // Power poles and their wires
+      // Power poles and their wires (Abuja's cables run underground)
       const poleX = kerb + side * 0.7;
-      for (let z = -half + 6; z < half; z += 32) {
+      for (let z = -half + 6; z < half && this.city !== 'abuja'; z += 32) {
         b.box(0x9ca3af, 0.24, 9.5, 0.24, poleX, 0.18, z);
         b.box(0x6b7280, 1.6, 0.1, 0.1, poleX, 8.9, z);
         b.box(0x374151, 0.22, 0.4, 0.22, poleX + side * 0.4, 8.4, z);
@@ -273,7 +316,9 @@ export class RideStreet {
       const front = walkIn + side * 0.9;
       while (z < half - 6) {
         const width = Math.min(half - z, 7 + r() * 10);
-        const kind = r();
+        // Abuja: offices and blocks of flats along the avenue, a few shops, no hawkers
+        const roll = r();
+        const kind = this.city === 'abuja' ? (roll < 0.08 ? 0.2 : roll < 0.45 ? 0.6 : 0.85) : roll;
         const cz = z + width / 2;
         if (side < 0 && Math.abs(cz - 30) < 14) {
           // A filling station on our side: a canopy on columns over the pumps, the kiosk behind
@@ -283,7 +328,7 @@ export class RideStreet {
           for (const dz of [-5, 0, 5]) b.box(0xdc2626, 0.6, 1.5, 0.9, front + side * 9, 0, 30 + dz).box(0x111827, 0.62, 0.4, 0.5, front + side * 9, 1.0, 30 + dz);
           b.box(0xf5f5f4, 6, 3.4, 9, front + side * 17, 0, 30).box(0x0f172a, 0.05, 1.4, 6, front + side * 14, 1, 30);
           b.box(0x16a34a, 0.4, 7, 0.4, front + side * 0.8, 0, 41).box(0x16a34a, 0.3, 2, 3.4, front + side * 0.8, 7, 41);
-          signs.push(signPlane(14, 3.2, 0.42, front + side * 0.8 - side * 0.17, 8, 41, side < 0 ? 1 : -1));
+          signs.push(signPlane(14, 3.2, 0.42, front + side * 0.8 - side * 0.17, 8, 41, side < 0 ? 1 : -1, rows));
           z = 44;
           continue;
         }
@@ -298,7 +343,7 @@ export class RideStreet {
           for (let y = 0.4; y < 2.4; y += 0.35) b.box(0x475569, 0.07, 0.04, width - 1.3, face, y, cz);
           const awning = AWNINGS[Math.floor(r() * AWNINGS.length)];
           b.box(awning, 1.6, 0.08, width - 0.4, front - side * 0.75, 2.7, cz, { roll: side * 0.25 });
-          signs.push(signPlane(Math.floor(r() * (SHOPS.length - 1)), Math.min(width - 1, 7.5), 0.85, face - side * 0.04, 3.4, cz, side < 0 ? 1 : -1));
+          signs.push(signPlane(Math.floor(r() * (rows - 1)), Math.min(width - 1, 7.5), 0.85, face - side * 0.04, 3.4, cz, side < 0 ? 1 : -1, rows));
           if (floors > 1) {
             for (let w = 1.2; w < width - 1; w += 2.2) b.box(0x1e293b, 0.05, 1.2, 1.3, face, 4.3, z + w + 0.6);
           }
@@ -329,7 +374,7 @@ export class RideStreet {
           b.box(0xe7e5e4, 0.25, 2.3, width, front + side * 0.6, 0.18, cz);
           b.box(0x1f2937, 0.27, 2.0, 2.6, front + side * 0.6, 0.18, cz);
           b.box(0x6b7280, 0.04, 0.3, width, front + side * 0.6, 2.5, cz);
-          if (r() < 0.6) signs.push(signPlane(15, Math.min(width - 3.5, 4.5), 0.6, front + side * 0.6 - side * 0.14, 1.3, cz - width / 4 - 0.6, side < 0 ? 1 : -1));
+          if (r() < 0.6) signs.push(signPlane(15, Math.min(width - 3.5, 4.5), 0.6, front + side * 0.6 - side * 0.14, 1.3, cz - width / 4 - 0.6, side < 0 ? 1 : -1, rows));
         } else if (kind < 0.9) {
           // An office tower set back, glass and bands
           const floors = 8 + Math.floor(r() * 8);
@@ -393,10 +438,10 @@ export class RideStreet {
     });
     // All the shop signs, as one
     const signGeo = mergeGeometries(signs.map((g) => (g.index ? g.toNonIndexed() : g)));
-    tile.add(new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ map: signAtlas(), toneMapped: false })));
+    tile.add(new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ map: signAtlas(shops), toneMapped: false })));
     // Two billboards, and people waiting at the bus stop and walking by
     for (const [i, z] of [[0, -20], [1, 55]] as Array<[number, number]>) {
-      const [title, line, bg] = BILLBOARDS[i * 2 + Math.floor(r() * 2)];
+      const [title, line, bg] = boards[i * 2 + Math.floor(r() * 2)];
       const side = i ? 1 : -1;
       const x = (side < 0 ? OUR_KERB - WALK - 7 : THEIR_KERB + WALK + 7);
       const board = billboard(title, line, bg);
@@ -472,18 +517,21 @@ export class RideStreet {
       this.trafficGroup.add(mesh);
       this.traffic.push({ mesh, x, z, length: shape.length, speed: oncoming ? 7 + r() * 7 : 0, oncoming, temper: 0.85 + r() * 0.35 });
     };
+    // How many of each by the kerb: Lagos's danfos, kekes and okadas; Abuja only cars (no danfos, and
+    // no okadas or kekes in the city centre); Port Harcourt few danfos and many kekes
+    const mix = this.city === 'abuja' ? { danfo: 0, keke: 0, okada: 0 } : this.city === 'port_harcourt' ? { danfo: 0.1, keke: 0.4, okada: 0.5 } : { danfo: 0.3, keke: 0.5, okada: 0.62 };
     // Our side: danfos, kekes and okadas mostly by the kerb, cars in both lanes
     for (let i = 0; i < 7; i++) {
       const z = -55 + i * 32 + r() * 8;
       const pick = r();
-      add(pick < 0.3 ? danfoGeo : pick < 0.5 ? keke : pick < 0.62 ? okada : pool[Math.floor(r() * pool.length)], LANES.kerb, z, false);
+      add(pick < mix.danfo ? danfoGeo : pick < mix.keke ? keke : pick < mix.okada ? okada : pool[Math.floor(r() * pool.length)], LANES.kerb, z, false);
       add(pool[Math.floor(r() * pool.length)], LANES.inner, z + 14 + r() * 6, false);
     }
     // Coming the other way
     for (let i = 0; i < 7; i++) {
       const z = -80 + i * 46 + r() * 10;
       const pick = r();
-      add(pick < 0.25 ? danfoGeo : pick < 0.4 ? okada : pool[Math.floor(r() * pool.length)], LANES.oncomingKerb, z, true);
+      add(pick < mix.danfo * 0.8 ? danfoGeo : pick < mix.danfo * 0.8 + (mix.okada - mix.keke) * 1.2 ? okada : pool[Math.floor(r() * pool.length)], LANES.oncomingKerb, z, true);
       add(pool[Math.floor(r() * pool.length)], LANES.oncomingInner, z + 20, true);
     }
   }

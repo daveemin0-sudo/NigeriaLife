@@ -48,6 +48,8 @@ export interface CompoundDrawing {
   fixed: Obstruction[];
   /** Dedicated parking bays inside the compound for the owner's fleet */
   parkingBays: Array<{ x: number; z: number; yaw: number }>;
+  /** Beside the house, clear of the drive and the cars: where a bought generator stands */
+  generatorSpots: Array<{ x: number; z: number; yaw: number; rect: Rect }>;
 }
 
 const WALL = 0xf1e7d3;
@@ -537,6 +539,47 @@ export function drawCompound(o: CompoundOptions): CompoundDrawing {
   const slide = at(ug - G - 0.05, vLeaf);
   const centre = at(ug, vf);
   const outside = at(ug, -2.5);
+  // Against the side fence with more room, clear of the house, the gate and the cars.
+  // A Mikano is long along the fence and narrow out from it.
+  const gapL = hu0 - (uL + 1.3);
+  const gapR = (uR - 1.3) - hu1;
+  const genU = gapL >= gapR ? uL + 1.45 : uR - 1.45;
+  // Long side along the fence (into the plot), so a narrow gap beside the house still holds a Mikano
+  const yaw = Math.atan2(dz, -dx);
+  const houseRect = { minX: Math.min(house.minX, house.maxX), maxX: Math.max(house.minX, house.maxX), minZ: Math.min(house.minZ, house.maxZ), maxZ: Math.max(house.minZ, house.maxZ) };
+  const overlaps = (a: Rect, b: Rect) => a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
+  const spotAt = (v: number) => {
+    const p = at(genU, v);
+    const rect = rectOf(genU - 0.75, genU + 0.75, v - 1.35, v + 1.35);
+    return { x: p.x, z: p.z, yaw, rect };
+  };
+  const clear = (v: number) => {
+    const spot = spotAt(v);
+    if (v < vf + 2.2 || v > vBack - 1.4) return false;
+    if (overlaps(spot.rect, houseRect)) return false;
+    if (parkingBays.some((bay) => Math.hypot(bay.x - spot.x, bay.z - spot.z) < 2.6)) return false;
+    return true;
+  };
+  const generatorSpots: Array<{ x: number; z: number; yaw: number; rect: Rect }> = [];
+  for (let v = Math.max(vf + 2.4, hv0 - 1.2); v < vBack - 1.3 && generatorSpots.length < 2; v += 0.4) {
+    if (!clear(v)) continue;
+    const spot = spotAt(v);
+    if (generatorSpots.some((other) => Math.hypot(other.x - spot.x, other.z - spot.z) < 2.8)) continue;
+    generatorSpots.push(spot);
+  }
+  if (generatorSpots.length < 2) {
+    for (let v = vf + 2.6; v < hv0 - 1.2 && generatorSpots.length < 2; v += 0.4) {
+      if (!clear(v)) continue;
+      const spot = spotAt(v);
+      if (generatorSpots.some((other) => Math.hypot(other.x - spot.x, other.z - spot.z) < 2.8)) continue;
+      generatorSpots.push(spot);
+    }
+  }
+  if (generatorSpots.length === 0) {
+    const v = Math.min(vBack - 1.6, Math.max(vf + 2.4, (vf + vBack) / 2));
+    const spot = spotAt(v);
+    if (!overlaps(spot.rect, houseRect)) generatorSpots.push(spot);
+  }
   return {
     group,
     leaf,
@@ -549,6 +592,8 @@ export function drawCompound(o: CompoundOptions): CompoundDrawing {
     post,
     fixed,
     parkingBays,
+    generatorSpots,
   };
 }
+
 

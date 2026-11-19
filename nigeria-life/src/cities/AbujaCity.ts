@@ -1,5 +1,5 @@
+import { InteriorManager } from '../interiors/InteriorManager';
 import * as THREE from 'three';
-import { ABUJA_AVENUE } from '../world/plan/CityPlan';
 import type { CityInstance } from './CityTypes';
 import type { InteractiveObject } from '../world/World';
 import { createAirport, type AirportLandmark } from '../world/landmarks/Airport';
@@ -13,6 +13,17 @@ import type { Obstruction } from '../world/plan/CityPlan';
 import { PlaceActions } from '../destinations/PlaceActions';
 import { settleGig } from '../online/checkedEarn';
 import { emitGameEvent } from '../game/GameEvents';
+import { CityLife } from './CityLife';
+import { buildGrid, type GridStyle } from './CityGrid';
+import { ABUJA_ROADS } from '../world/plan/GridRoads';
+import { ABUJA_KEEP_OUT, abujaBuildings, buildLandmarks, type AbujaPlace } from './AbujaDistricts';
+import { avenueTrees, cullTiles, placeDoors, tiledTown, townDoors, type CityTile } from './CityExtras';
+
+/** Abuja's roads: white kerbs and lines, planted medians, twin lamps down the middle */
+const ABUJA_STYLE: GridStyle = {
+  asphalt: 0x1f2226, line: 0xf1f5f9, centre: 0xf1f5f9, medianTop: 0x3f8f2f, kerb: 0xe5e7eb,
+  pavement: 0xcbd5e1, top: 0.26, lamp: 'twin',
+};
 
 export class AbujaCity implements CityInstance {
   public group: THREE.Group;
@@ -21,26 +32,36 @@ export class AbujaCity implements CityInstance {
   public airport: AirportLandmark;
   public motorPark: MotorParkLandmark;
   public standing: Obstruction[] = [];
+  /** Traffic on Shehu Shagari Way and people on its pavements */
+  public life: CityLife;
 
   private flagMeshes: THREE.Mesh[] = [];
+  /** The places Abuja is known for, with their doors on the street */
+  public places: AbujaPlace[] = [];
+  /** The districts' buildings, a square at a time: shown only within sight of the player */
+  private tiles: CityTile[] = [];
+  private sinceTiles = 1;
   private animTime: number = 0;
 
   constructor() {
     this.group = new THREE.Group();
 
-    // 1. Manicured Capital Ground Terrain (Highland Savanna green)
-    const groundGeo = new THREE.PlaneGeometry(320, 320);
+    // 1. Manicured Capital Ground Terrain (Highland Savanna green), the whole planned city
+    const groundGeo = new THREE.PlaneGeometry(1240, 1120);
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x4d7c0f, // Well-watered lush capital lawn
       roughness: 0.85,
     });
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
     this.groundMesh.rotation.x = -Math.PI / 2;
+    // From the foot of Aso Rock in the north to the city's south edge
+    this.groundMesh.position.z = 290;
     this.groundMesh.receiveShadow = true;
     this.group.add(this.groundMesh);
 
-    // 2. Shehu Shagari Way (6-Lane Capital Boulevard with Green Median)
-    this.buildCapitalBoulevard();
+    // 2. The avenues: Shehu Shagari Way down the middle, two more beside it, three across it
+    const roads = buildGrid('Abuja roads', ABUJA_ROADS, ABUJA_STYLE);
+    this.group.add(roads.group);
 
     // 3. Aso Rock Monolith (Iconic geological mountain in backdrop)
     this.buildAsoRock();
@@ -66,7 +87,42 @@ export class AbujaCity implements CityInstance {
     // The ordinary buildings of the city: offices, shops, flats, houses, a hotel, along the boulevard and behind it
     const town = buildTownscape('Abuja townscape', ABUJA_BUILDINGS);
     this.group.add(town.group);
-    this.standing = town.obstructions;
+    this.standing = [...town.obstructions, ...roads.obstructions];
+    // The districts along the avenues, drawn a square of the city at a time, so what is beyond the view is left out
+    const { districts } = abujaBuildings();
+    const streetBuildings = districts.flatMap((d) => d.buildings);
+    const blocks = tiledTown('Abuja', streetBuildings);
+    // Every shop, office, hotel, bank and market along the avenues has its door
+    townDoors(this.group, this.interactiveList, [...ABUJA_BUILDINGS, ...streetBuildings], 'abuja');
+    for (const t of blocks.tiles) this.group.add(t.group);
+    this.tiles = blocks.tiles;
+    this.standing.push(...blocks.obstructions);
+    const footprints = blocks.footprints;
+    // The places it is known for
+    const marks = buildLandmarks();
+    this.group.add(marks.group);
+    this.standing.push(...marks.obstructions);
+    this.places = marks.places;
+    // Shade trees down the avenues, and groves either side of the paths in Millennium Park
+    const park: Array<{ x: number; z: number; s: number }> = [];
+    let n = 0;
+    for (let x = 32; x < 366; x += 17) {
+      for (let z = 452; z < 676; z += 17) {
+        if (Math.abs(x - 196) < 22 || Math.abs(z - 560) < 22 || Math.abs(x - 86) < 8 || Math.abs(x - 306) < 8) continue;
+        park.push({ x: x + ((n * 7) % 5) - 2, z: z + ((n * 11) % 5) - 2, s: 1 + ((n++ * 13) % 10) / 14 });
+      }
+    }
+    this.group.add(avenueTrees(ABUJA_ROADS, footprints, ABUJA_KEEP_OUT, 'shade', 24, park, 'Abuja trees'));
+    placeDoors(this.group, this.interactiveList, this.places, 'abuja', {
+      'eagle-square': { label: '🦅 At Eagle Square', who: 'Eagle Square', role: 'Central Business District', text: 'Where the nation marches on Independence Day.', choices: [
+        { label: '📸 A picture under the eagle', note: 'Fun +10', arms: 'wave', seconds: 2.4, needs: { fun: 10 }, said: '📸 You, the eagle and the flags. Posted.' },
+        { label: '🎖️ Watch the guards drill', note: 'Fun +8', arms: 'rest', seconds: 5, needs: { fun: 8 }, said: 'Left, right, halt! The guards drilled across the square in step.' },
+      ] },
+      'millennium-park': { label: '🌳 Millennium Park', who: 'Millennium Park', role: 'Central Area', text: 'Lawns, shade and the fountain.', choices: [
+        { label: '⛲ Sit by the fountain', note: 'Fun +15, Energy +5', arms: 'rest', seconds: 6, needs: { fun: 15, energy: 5 }, said: 'The fountain sprayed cool air. A whole hour went by.' },
+        { label: '🚶 A walk round the park', note: 'Fun +10, Health +5', arms: 'wave', seconds: 5, needs: { fun: 10, health: 5 }, said: 'Round the lawns and back under the trees.' },
+      ] },
+    });
     // A cash machine in the wall of the bank on the boulevard
     const machine = createCashMachine({ id: 'savanna-bank-abuja', name: 'Savanna Bank', x: 16.9, z: -8.6, facing: -Math.PI / 2 });
     this.group.add(machine.group);
@@ -78,6 +134,15 @@ export class AbujaCity implements CityInstance {
     this.group.add(this.airport.group);
     this.interactiveList.push(...this.airport.interactive);
     PlaceActions.registerAll(this.airport.actions);
+
+    // The avenue's traffic and the people on its pavements
+    this.life = new CityLife('abuja');
+    this.group.add(this.life.group);
+    // Stage 3: the crowd's people go to these doors, in the hours the doors keep
+    this.life.giveLives('abuja', this.interactiveList, (id) => InteriorManager.getInstance().hoursOfDoor(id));
+    // Its roadside stalls' tables stand on the pavement: walked round, not through
+    this.standing.push(...this.life.obstructions());
+    this.interactiveList.push(...this.life.stallCards);
 
     this.registerCityActions();
   }
@@ -297,78 +362,18 @@ export class AbujaCity implements CityInstance {
   }
 
   // =========================================================================
-  // 1. CAPITAL BOULEVARD (Shehu Shagari Way)
-  // =========================================================================
-  private buildCapitalBoulevard(): void {
-    const roadGroup = new THREE.Group();
-
-    // Dual carriage asphalt lanes, from the south of the city to the lookout at the foot of Aso Rock.
-    // The same figures the city plan holds the avenue to.
-    const roadWidth = ABUJA_AVENUE.halfRoad * 2;
-    const roadLen = ABUJA_AVENUE.to - ABUJA_AVENUE.from;
-    const roadMid = (ABUJA_AVENUE.from + ABUJA_AVENUE.to) / 2;
-    const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLen);
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8 });
-    const road = new THREE.Mesh(roadGeo, roadMat);
-    road.rotation.x = -Math.PI / 2;
-    road.position.set(0, 0.01, roadMid);
-    road.receiveShadow = true;
-    roadGroup.add(road);
-
-    // Center median grass island
-    const medianGeo = new THREE.BoxGeometry(2.2, 0.35, roadLen);
-    const medianMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.9 });
-    const median = new THREE.Mesh(medianGeo, medianMat);
-    median.position.set(0, 0.18, roadMid);
-    roadGroup.add(median);
-
-    // A paved walkway down each side
-    const walkMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.9 });
-    for (const side of [-1, 1]) {
-      const walk = new THREE.Mesh(new THREE.BoxGeometry(ABUJA_AVENUE.walk, 0.26, roadLen), walkMat);
-      walk.position.set(side * (ABUJA_AVENUE.halfRoad + ABUJA_AVENUE.walk / 2), 0.13, roadMid);
-      walk.receiveShadow = true;
-      roadGroup.add(walk);
-    }
-
-    // White lane dividers
-    for (let laneX of [-5.5, 5.5]) {
-      for (let z = ABUJA_AVENUE.from + 5; z < ABUJA_AVENUE.to - 5; z += 8) {
-        const lineGeo = new THREE.PlaneGeometry(0.25, 4.0);
-        const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const line = new THREE.Mesh(lineGeo, lineMat);
-        line.rotation.x = -Math.PI / 2;
-        line.position.set(laneX, 0.02, z);
-        roadGroup.add(line);
-      }
-    }
-
-    // Modern Capital Streetlamps with double arched arms
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7 });
-    for (let z = -70; z <= 110; z += 30) {
-      const poleGeo = new THREE.CylinderGeometry(0.18, 0.22, 10, 12);
-      const pole = new THREE.Mesh(poleGeo, poleMat);
-      pole.position.set(0, 5, z);
-      roadGroup.add(pole);
-
-      // Light heads
-      for (let armX of [-2.2, 2.2]) {
-        const headGeo = new THREE.BoxGeometry(0.8, 0.2, 0.4);
-        const head = new THREE.Mesh(headGeo, new THREE.MeshBasicMaterial({ color: 0xfffbeb }));
-        head.position.set(armX, 9.8, z);
-        roadGroup.add(head);
-      }
-    }
-
-    this.group.add(roadGroup);
-  }
-
-  // =========================================================================
   // 2. ASO ROCK MONOLITH (North Geological Monolith: Z -110 to -160)
   // =========================================================================
   private buildAsoRock(): void {
+    // Behind the city, on its own ground: its foot comes no nearer than about 150 m north of the
+    // avenue's middle, clear of the buildings at the avenue's north end and of the road itself
     const rockGroup = new THREE.Group();
-    rockGroup.position.set(0, 0, -125);
+    rockGroup.position.set(0, 0, -205);
+    const apron = new THREE.Mesh(new THREE.PlaneGeometry(420, 170), new THREE.MeshStandardMaterial({ color: 0x5a7d2a, roughness: 0.95 }));
+    apron.rotation.x = -Math.PI / 2;
+    apron.position.set(0, -0.02, 0);
+    apron.receiveShadow = true;
+    rockGroup.add(apron);
 
     // Majestic Granite Main Massif
     const rockGeo = new THREE.DodecahedronGeometry(36, 2);
@@ -378,35 +383,36 @@ export class AbujaCity implements CityInstance {
       flatShading: true,
     });
     const mainRock = new THREE.Mesh(rockGeo, rockMat);
-    mainRock.scale.set(3.2, 1.4, 1.6);
+    mainRock.scale.set(3.0, 1.5, 1.15);
     mainRock.position.y = 20;
     mainRock.castShadow = true;
     rockGroup.add(mainRock);
 
     // Second geological peak
     const peak2 = new THREE.Mesh(rockGeo, rockMat);
-    peak2.scale.set(2.2, 1.2, 1.4);
-    peak2.position.set(45, 16, 8);
+    peak2.scale.set(2.0, 1.2, 1.0);
+    peak2.position.set(50, 16, 6);
     rockGroup.add(peak2);
 
     // Third geological peak
     const peak3 = new THREE.Mesh(rockGeo, rockMat);
-    peak3.scale.set(2.4, 1.1, 1.3);
-    peak3.position.set(-45, 14, 5);
+    peak3.scale.set(2.1, 1.1, 1.0);
+    peak3.position.set(-50, 14, 4);
     rockGroup.add(peak3);
 
     // Aso Rock Lookout Platform in foreground
     const platformGeo = new THREE.BoxGeometry(16, 1.2, 8);
     const platformMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
     const platform = new THREE.Mesh(platformGeo, platformMat);
-    platform.position.set(0, 0.6, 32);
+    // The lookout at the end of the avenue, looking up at the rock
+    platform.position.set(0, 0.6, 112);
     rockGroup.add(platform);
 
     // Plaque & flagpole
     const plaqueGeo = new THREE.BoxGeometry(4, 1.8, 0.3);
     const plaqueMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
     const plaque = new THREE.Mesh(plaqueGeo, plaqueMat);
-    plaque.position.set(0, 1.8, 32);
+    plaque.position.set(0, 1.8, 112);
     rockGroup.add(plaque);
 
     this.group.add(rockGroup);
@@ -637,7 +643,13 @@ export class AbujaCity implements CityInstance {
     });
   }
 
-  public update(delta: number): void {
+  public update(delta: number, viewer?: { x: number; z: number }): void {
+    // Beyond the view's far end the city's squares are left out altogether
+    this.sinceTiles += delta;
+    if (viewer && this.sinceTiles > 0.4) {
+      this.sinceTiles = 0;
+      cullTiles(this.tiles, viewer);
+    }
     this.animTime += delta;
 
     // Flutter Nigerian flags in capital breeze

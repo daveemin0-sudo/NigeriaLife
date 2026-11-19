@@ -3,7 +3,8 @@ import { BackendService } from '../backend/BackendService';
 import { cannotBuild, type Rect, type Zone } from '../world/plan/CityPlan';
 import { AssetMarket, type AssetProvider } from './AssetMarket';
 import { BUILDING_TYPES, buildingType, demolitionCost, footprintAt, refundOnCancel, MAX_DAYS_HELD, type BuildingType } from './BuildingCatalogue';
-import { ALL_PLOTS, plotArea, statePrice, type PlotDef } from './PlotCatalogue';
+import { ALL_PLOTS, plotArea, priceOnDay, statePrice, LAND_GROWTH_PER_YEAR, DEFAULT_LAND_GROWTH, OMO_ONILE_CAP, OMO_ONILE_FLOOR, OMO_ONILE_SHARE, type PlotDef } from './PlotCatalogue';
+import { profileKey } from '../backend/Profile';
 import { Registry, MY_ID } from './Registry';
 import { daysHeld, hoursDone, isFinished, isLet, worldNow, MS_PER_RENT_WEEK } from './WorldClock';
 import { assetKey, STAGES, type ConstructionStage, type Listing, type Outcome, type PlotBuilding, type RegistryState, type Tenancy } from './types';
@@ -25,9 +26,23 @@ export interface Plot extends PlotDef {
   districtId: string;
   neighbourhood: string;
   area: number;
-  /** What the state asks for it while nobody owns it */
+  /** What the state asks for it while nobody owns it, today: land rises with the years (priceOnDay) */
   statePrice: number;
+  /** What the state asked on day 0 of the game's calendar */
+  basePrice: number;
+  /** How fast land rises here, a share a year */
+  growth: number;
 }
+
+/** The family's levy before building on a plot */
+export interface Levy {
+  amount: number;
+  family: string;
+  /** Asked again, twice over, after a report to the task force that did not stick */
+  doubled: boolean;
+}
+
+const FAMILIES = ['Ojomu', 'Oniru', 'Elegushi', 'Onikoyi', 'Olumegbon', 'Oluwa', 'Ojora', 'Aromire'];
 
 /** What the world tells the land office about a city: where things are. */
 export interface LandWorld {
@@ -85,12 +100,73 @@ export class Land {
     return Land.instance;
   }
 
+  /** The day on the game's calendar (set by the game): land prices rise with it */
+  public static today: () => number = () => 0;
+
   public connect(world: LandWorld): void {
     this.world = world;
     this.all = ALL_PLOTS.map((def) => {
       const district = world.districtAt(def.city, (def.rect.minX + def.rect.maxX) / 2, (def.rect.minZ + def.rect.maxZ) / 2);
-      return { ...def, districtId: district.id, neighbourhood: district.name, area: plotArea(def), statePrice: statePrice(def, district.id) };
+      const base = statePrice(def, district.id);
+      const plot = { ...def, districtId: district.id, neighbourhood: district.name, area: plotArea(def), basePrice: base, growth: LAND_GROWTH_PER_YEAR[district.id] ?? DEFAULT_LAND_GROWTH } as Plot;
+      // Today's price, whenever it is read
+      Object.defineProperty(plot, 'statePrice', { get: () => priceOnDay(base, district.id, Land.today()), enumerable: true });
+      return plot;
     });
+  }
+
+  // --- Omo-onile -------------------------------------------------------------------------------
+
+  private levyKey = profileKey('nl_omo_onile_v1');
+  private levies(): Record<string, { settled?: boolean; doubled?: boolean }> {
+    try {
+      return JSON.parse(localStorage.getItem(this.levyKey) || '{}') ?? {};
+    } catch {
+      return {};
+    }
+  }
+  private keepLevies(all: Record<string, { settled?: boolean; doubled?: boolean }>): void {
+    try {
+      localStorage.setItem(this.levyKey, JSON.stringify(all));
+    } catch {
+      // Asked again next visit
+    }
+  }
+
+  /** What the family will ask before anything is built on this plot of the player's, or null (nobody comes, or it is settled) */
+  public levyFor(plotId: string, typeCost = 0): Levy | null {
+    const plot = this.plot(plotId);
+    const share = plot ? OMO_ONILE_SHARE[plot.districtId] : undefined;
+    if (!plot || !share) return null;
+    const mine = this.levies()[plotId];
+    if (mine?.settled) return null;
+    const base = Math.min(OMO_ONILE_CAP, Math.max(OMO_ONILE_FLOOR, Math.round((typeCost * share) / 10_000) * 10_000));
+    const family = FAMILIES[[...plotId].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % FAMILIES.length];
+    return { amount: mine?.doubled ? base * 2 : base, family, doubled: !!mine?.doubled };
+  }
+
+  /** The levy paid: the family go, and do not come back for this plot */
+  public payLevy(plotId: string, typeCost: number): Outcome {
+    const levy = this.levyFor(plotId, typeCost);
+    if (!levy) return { ok: true };
+    const paid = this.backend.processTransaction({ type: 'CONSTRUCTION_COST', amount: levy.amount, description: `Omo-onile foundation levy (the ${levy.family} family): ${this.plot(plotId)?.name ?? 'your plot'}`, source: 'bank', funding: 'split' });
+    if (!paid.success) return fail(`The family want ${naira(levy.amount)} and you do not have it.`);
+    const all = this.levies();
+    all[plotId] = { ...all[plotId], settled: true };
+    this.keepLevies(all);
+    return { ok: true };
+  }
+
+  /**
+   * Reported to the state's task force on land grabbers: most times they are run off and the
+   * plot is left in peace; otherwise they come back, and ask twice as much.
+   */
+  public reportLevy(plotId: string, random = Math.random, typeCost = 0): { chased: boolean; levy: Levy | null } {
+    const all = this.levies();
+    const chased = random() < 0.6;
+    all[plotId] = chased ? { ...all[plotId], settled: true } : { ...all[plotId], doubled: true };
+    this.keepLevies(all);
+    return { chased, levy: chased ? null : this.levyFor(plotId, typeCost) };
   }
 
   private provider(): AssetProvider {
@@ -231,6 +307,9 @@ export class Land {
       const blocked = this.cannotPlace(plotId, typeId, x, z, turns, state);
       if (blocked) return fail(blocked);
       const type = buildingType(typeId)!;
+      // The family come before the first block is laid
+      const levy = this.levyFor(plotId, type.cost);
+      if (levy) return { ok: false, reason: `The ${levy.family} family want a foundation levy of ${naira(levy.amount)} before any building here.`, levy };
       if (this.market.funds() < type.cost) return fail(`A ${type.name.toLowerCase()} costs ${naira(type.cost)} to build and you have ${naira(this.market.funds())} in all.`);
       const paid = this.backend.processTransaction({ type: 'CONSTRUCTION_COST', amount: type.cost, description: `Building a ${type.name.toLowerCase()} at ${this.plot(plotId)!.name}`, source: 'bank', funding: 'split' });
       if (!paid.success) return fail('The payment did not go through, so no work was started.');

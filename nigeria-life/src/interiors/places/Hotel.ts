@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { duvetOver } from '../../interactions/Duvet';
+import { bedDuvetNear, duvetOver } from '../../interactions/Duvet';
+import { fineBasin, fineBathtub, fineBed, fineFridge, fineLamp, fineSofa, fineToilet, fineWardrobe } from '../../housing/FineFurniture';
+import { repeated, smallTiles } from '../../graphics/Surfaces';
+import { RENDER_LAYERS } from '../InteriorTypes';
 import { Builder, signBoard } from '../../world/kit/ArchKit';
 import { Sequence, steps } from '../../interactions/Sequence';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
@@ -278,6 +281,8 @@ export const HOTEL_SPECS: PlaceSpec[] = [
 // --- The three parts, alive ---------------------------------------------------------------------
 
 const rooms = new Map<string, PlaceInterior>();
+/** The room number of a guest on their way into a room not built yet */
+let arriving: number | null = null;
 /** For the tests: the moving parts and what they are doing */
 export const HotelState: { lobby?: Lobby; floor?: Floor; suite?: Suite } = {};
 
@@ -467,7 +472,9 @@ class Floor {
       door.close();
       if (reason !== 'done') return;
       const suite = rooms.get(HOTEL.suite);
-      HotelState.suite?.arrive(number);
+      // The room is built the first time it is entered: its number goes up as soon as it is
+      if (HotelState.suite) HotelState.suite.arrive(number);
+      else arriving = number;
       if (suite) host.ride(suite.def.id, suite.at(SUITE.door[0], SUITE.door[1]), Math.PI);
     });
     host.director.run(open);
@@ -675,7 +682,7 @@ class Suite {
       this.slept = 0;
       this.restedTold = false;
       this.duvet?.removeFromParent();
-      this.duvet = duvetOver(this.room.group, { x: rx, z: rz }, 0, SUITE.bed.top, 0xf8fafc);
+      this.duvet = duvetOver(this.room.group, { x: rx, z: rz }, 0, SUITE.bed.top, bedDuvetNear(this.room.group, { x: rx, z: rz }) ?? 0xf1ece2);
       host.say('🛏️ Cold AC, soft sheets. You drift off.', 'info');
     });
     host.director.run(lieDown);
@@ -884,11 +891,577 @@ class Suite {
   }
 }
 
+/**
+ * The hotel's three rooms, known from the start: a room is built only the first time it is entered,
+ * and the lift must be able to take the player up to a floor nobody has been to yet (it is built on
+ * the way in). Without this the lift opened, closed, and went nowhere.
+ */
+export function knowHotelRoom(room: PlaceInterior, key: string): void {
+  if (key === HOTEL.lobby || key === HOTEL.floor || key === HOTEL.suite || key.endsWith('-town-hotel') || key.endsWith('-town-suite')) rooms.set(key, room);
+}
+
+/** A night at an Abuja or Port Harcourt hotel: its own key and room, the same idea as the Eko Grand */
+export const TOWN_NIGHT = 72_000;
+const TOWN_ROOMS = [12, 14, 16, 18];
+
+export class TownStay {
+  private static all = new Map<string, TownStay>();
+  public static get(hotel: string): TownStay {
+    let stay = TownStay.all.get(hotel);
+    if (!stay) TownStay.all.set(hotel, stay = new TownStay(hotel));
+    return stay;
+  }
+  public now: () => { day: number; hour: number } = () => EventClock.now();
+  private stay: Stay | null = null;
+  private readonly hotel: string;
+  private constructor(hotel: string) { this.hotel = hotel; }
+  private key(): string { return `nl_town_hotel_v1:${Activity.player()}:${this.hotel}`; }
+  private load(): void {
+    try { this.stay = JSON.parse(localStorage.getItem(this.key()) ?? 'null'); } catch { this.stay = null; }
+  }
+  private save(): void {
+    try { localStorage.setItem(this.key(), JSON.stringify(this.stay)); } catch { /* private window */ }
+  }
+  public current(): Stay | null {
+    this.load();
+    const s = this.stay;
+    if (!s) return null;
+    if (s.expiresAt && Date.now() >= s.expiresAt) return null;
+    const { day, hour } = this.now();
+    if (day > s.until || (day === s.until && hour >= 12)) return null;
+    return s;
+  }
+  public lapsed(): Stay | null {
+    this.load();
+    return this.stay && !this.current() ? this.stay : null;
+  }
+  public checkIn(nights: number, paid: number): Stay {
+    const { day, hour } = this.now();
+    const from = hour < 6 ? day - 1 : day;
+    const until = from + nights;
+    const room = TOWN_ROOMS[(day + nights + Math.floor(hour)) % TOWN_ROOMS.length];
+    const co = new Date();
+    co.setDate(co.getDate() + nights);
+    co.setHours(12, 0, 0, 0);
+    this.stay = { room, from, until, paid, expiresAt: co.getTime() };
+    this.save();
+    return this.stay;
+  }
+  public extend(nights: number, paid: number): Stay | null {
+    const s = this.current();
+    if (!s) return null;
+    s.until += nights;
+    s.paid += paid;
+    const co = new Date(s.expiresAt || Date.now());
+    co.setDate(co.getDate() + nights);
+    co.setHours(12, 0, 0, 0);
+    s.expiresAt = co.getTime();
+    this.save();
+    return s;
+  }
+  public checkOut(): void { this.stay = null; this.save(); }
+  public until(s: Stay): string { return `noon on ${dayName(s.until)}`; }
+  public keyItem(): string { return `town_key_${this.hotel}`; }
+}
+
+/** Front desk, a key card, and the door to the guest room */
+class TownLobby {
+  private readonly room: PlaceInterior;
+  private readonly hotel: string;
+  constructor(room: PlaceInterior, hotel: string) {
+    this.room = room;
+    this.hotel = hotel;
+    const stay = () => TownStay.get(hotel);
+    room.addCard({
+      id: `place_${hotel}_reception`, name: '🛎️ Reception', description: 'A room for the night, and a key card.',
+      at: [-4, -5], stand: [-4, -3.6],
+      label: () => {
+        const s = stay().current();
+        return s ? `🛎️ Reception · room ${s.room}` : `🛎️ Check in · ${naira(TOWN_NIGHT)} a night`;
+      },
+      run: (host) => this.desk(host),
+    });
+    room.addCard({
+      id: `place_${hotel}_room`, name: '🔑 Your room', description: 'Up to the room on your key card.',
+      at: [0, -8.2], stand: [0, -6.6],
+      label: () => {
+        const s = stay().current();
+        return s ? `🔑 To room ${s.room}` : '🔑 Your room (check in first)';
+      },
+      run: (host) => this.toRoom(host),
+    });
+  }
+
+  private desk(host: PlaceHost): void {
+    const hotel = TownStay.get(this.hotel);
+    const s = hotel.current();
+    const lapsed = hotel.lapsed();
+    const name = this.room.spec.name;
+    const choices: Array<{ label: string; note?: string; pick: () => void }> = [];
+    if (s) {
+      choices.push({ label: 'Stay another night', note: naira(TOWN_NIGHT), pick: () => this.book(host, 1) });
+      choices.push({ label: 'Check out', note: 'Hand the key card back', pick: () => this.leave(host) });
+    } else {
+      for (const [nights, label] of [[1, 'Tonight'], [2, 'Two nights'], [3, 'Three nights']] as Array<[number, string]>) {
+        choices.push({ label, note: naira(TOWN_NIGHT * nights), pick: () => this.book(host, nights) });
+      }
+      if (lapsed) choices.push({ label: 'Hand back the old key card', note: `Room ${lapsed.room}`, pick: () => this.leave(host) });
+    }
+    choices.push({ label: 'Not now', pick: () => undefined });
+    host.ask({
+      who: 'Front desk', role: name,
+      text: s ? `Room ${s.room} is yours until ${hotel.until(s)}.` : lapsed ? `Your stay in room ${lapsed.room} has ended. Another night?` : `Welcome to ${name}. A room for how many nights? Out by noon.`,
+      choices,
+    });
+  }
+
+  private book(host: PlaceHost, nights: number): void {
+    const hotel = TownStay.get(this.hotel);
+    const price = TOWN_NIGHT * nights;
+    const extending = !!hotel.current();
+    const name = this.room.spec.name;
+    host.director.perform({
+      id: extending ? 'another night' : 'check in', actor: host.actor, point: this.room.at(-4, -3.6), target: this.room.at(-4, -5),
+      animation: { arms: 'reach' }, seconds: 1.4, effectAt: 0.55,
+      effect: () => {
+        if (!host.backend.pay(price, `${name}: ${nights === 1 ? 'a night' : `${nights} nights`}`, 'SHOP_PURCHASE')) {
+          host.say(`That is ${naira(price)}. You do not have enough.`, 'warning');
+          return false;
+        }
+        const s = extending ? hotel.extend(nights, price)! : hotel.checkIn(nights, price);
+        host.backend.removeItem(hotel.keyItem());
+        host.backend.addItem({ id: hotel.keyItem(), name: `Room ${s.room} key card`, icon: '💳', price: 0, category: 'key', usable: false, description: `${name}, room ${s.room}. Until ${hotel.until(s)}.` });
+        host.say(extending ? `🛎️ Another night in room ${s.room}, until ${hotel.until(s)}.` : `🛎️ Checked in: room ${s.room}, until ${hotel.until(s)}. The key card is in your bag.`, 'success');
+        return true;
+      },
+    });
+  }
+
+  private leave(host: PlaceHost): void {
+    const hotel = TownStay.get(this.hotel);
+    host.director.perform({
+      id: 'check out', actor: host.actor, point: this.room.at(-4, -3.6), target: this.room.at(-4, -5),
+      animation: { arms: 'reach' }, seconds: 1.2, effectAt: 0.5,
+      effect: () => {
+        hotel.checkOut();
+        host.backend.removeItem(hotel.keyItem());
+        host.say('🛎️ Checked out. The key card is handed back.', 'success');
+        return true;
+      },
+    });
+  }
+
+  private toRoom(host: PlaceHost): void {
+    const hotel = TownStay.get(this.hotel);
+    const s = hotel.current();
+    if (!s) {
+      host.say(hotel.lapsed() ? 'Your stay has ended. See the front desk.' : 'Check in at the front desk for a key card.', 'info');
+      return;
+    }
+    const suiteKey = this.hotel.endsWith('-hotel') ? this.hotel.replace(/-hotel$/, '-suite') : `${this.hotel}-suite`;
+    const suite = rooms.get(suiteKey);
+    const id = suite?.def.id ?? `interior_place_${suiteKey}`;
+    const at = suite ? suite.at(1.2, -1.2) : this.room.at(0, 2);
+    host.ride(id, at, Math.PI);
+  }
+}
+
+/** Where the bed sits, and which side of the room the bathroom is on. Abuja and Port Harcourt are mirrored. */
+function roomPlan(hotel: string): { bed: { x: number; z: number }; side: number; variant: number } {
+  const variant = hotel.includes('-hotel-1') ? 1 : hotel.includes('-hotel-2') ? 2 : 0;
+  const side = (hotel.startsWith('port') ? -1 : 1) * (variant === 2 ? -1 : 1);
+  const bed = variant === 1 ? { x: 0, z: -1.4 } : { x: -side * 2.1, z: -2.3 };
+  return { bed, side, variant };
+}
+
+const lay = (parent: THREE.Object3D, object: THREE.Object3D, x: number, y: number, z: number, yaw = 0): void => {
+  object.position.set(x, y, z);
+  object.rotation.y = yaw;
+  object.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+  parent.add(object);
+};
+
+/**
+ * A real guest room: a king bed, the window, a desk, a wardrobe, and an en-suite.
+ * Abuja is terracotta and gold. Port Harcourt is river green, and the bathroom is on the other side.
+ */
+function furnishGuestRoom(room: THREE.Object3D, hotel: string): { x: number; z: number } {
+  const ph = hotel.startsWith('port');
+  const { bed, side, variant } = roomPlan(hotel);
+  const cover = variant === 1 ? (ph ? 0x1e3a8a : 0xb45309) : variant === 2 ? (ph ? 0x7c2d12 : 0x14532d) : ph ? 0x0f766e : 0x9a3412;
+  const trim = variant === 0 && !ph ? 0xf5e6c8 : 0xe0f2fe;
+  const wood = variant === 2 ? 0x3f3f46 : ph ? 0x44403c : 0x6b3f1d;
+  lay(room, fineBed(1.7, cover, trim, wood), bed.x, 0, bed.z, 0);
+  const b = new Builder();
+  for (const edge of [-1, 1]) {
+    const x = bed.x + edge * 1.35;
+    b.box(wood, 0.46, 0.52, 0.42, x, 0, bed.z - 0.95);
+    b.cylinder(0x1c1917, 0.025, 0.28, x, 0.52, bed.z - 0.95, { sides: 6 });
+    b.cone(0xfde68a, 0.14, 0.18, x, 0.78, bed.z - 0.95, 12, { glow: true });
+  }
+  b.box(ph ? 0x134e4a : 0x7c2d12, 5.4, 0.02, 4.4, bed.x, 0.01, bed.z + 0.15);
+  // The window, with the city beyond the glass and the curtains drawn back
+  b.box(ph ? 0x0369a1 : 0x7dd3fc, 2.6, 1.55, 0.05, bed.x, 1.75, -6.85, { glow: true });
+  b.box(0x1e293b, 2.2, 0.35, 0.04, bed.x, 1.15, -6.8);
+  for (const edge of [-1, 1]) b.box(cover, 0.22, 2.15, 0.08, bed.x + edge * 1.45, 1.6, -6.55);
+  for (const edge of [-1, 1]) b.box(trim, 0.42, 1.85, 0.05, bed.x + edge * 1.05, 1.55, -6.5);
+  // The television on a console at the foot of the bed
+  const tvZ = bed.z + 2.2;
+  b.box(wood, 1.7, 0.42, 0.42, bed.x, 0, tvZ);
+  b.box(0x0a0a0a, 1.4, 0.8, 0.06, bed.x, 1.4, tvZ - 0.16);
+  b.box(0x1e293b, 1.26, 0.66, 0.02, bed.x, 1.4, tvZ - 0.2, { glow: true });
+  // A desk under the window, on the side away from the bathroom
+  const deskX = -side * 5.8;
+  b.box(wood, 1.35, 0.75, 0.62, deskX, 0, -4.8);
+  b.box(0xe5e7eb, 0.95, 0.28, 0.18, side * 1.6, 2.55, -6.75);
+  b.box(ph ? 0x0e7490 : 0xb45309, 1.05, 0.7, 0.04, side * 7.7, 1.7, -1.2);
+  b.box(0xfef3c7, 0.82, 0.5, 0.02, side * 7.68, 1.7, -1.2);
+  b.box(0x111827, 0.16, 0.24, 0.05, 0.9, 1.15, 6.55);
+  b.box(0x22c55e, 0.08, 0.016, 0.02, 0.9, 1.2, 6.52, { glow: true });
+  b.box(0x78350f, 1.15, 0.26, 0.4, bed.x + side * 1.7, 0, bed.z + 1.35);
+  b.box(0xf5f5f4, 0.12, 2.35, 3.4, side * 3.6, 0, 4.2);
+  b.box(ph ? 0x99f6e4 : 0xfde68a, 3.6, 0.025, 4.2, side * 5.7, 0.02, 4.3);
+  b.box(trim, 0.42, 0.7, 0.05, side * 7.7, 1.35, 4.4);
+  // A shower beside the bath: a stall, a curtain and a head
+  b.box(0xe7e5e4, 0.08, 2.05, 1.15, side * 4.15, 0, 2.7);
+  b.box(0xf8fafc, 0.04, 1.7, 0.9, side * 4.28, 0.1, 2.7);
+  b.cylinder(0xcbd5e1, 0.08, 0.04, side * 5.15, 2.05, 2.35);
+  room.add(b.build('guest room', { roughness: 0.65 }));
+  lay(room, cityBeyond(ph ? 'ph' : 'abuja'), bed.x, 1.78, -6.78);
+  const tiles = new THREE.Mesh(
+    new THREE.BoxGeometry(3.6, 0.02, 4.8),
+    (() => {
+      const map = repeated(smallTiles(ph ? '#d5efe6' : '#f4ead8'), 9, 12);
+      return new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, ...(map ? { map } : {}) });
+    })(),
+  );
+  tiles.name = 'bathroom tiles';
+  lay(room, tiles, side * 5.6, 0.02, 4.15);
+  lay(room, fineWardrobe(), -side * 6.4, 0, 0.2, side > 0 ? -Math.PI / 2 : Math.PI / 2);
+  lay(room, fineSofa(1, cover, trim, wood), side * 1.1, 0, 1.5, Math.PI);
+  lay(room, fineSofa(1, wood, trim, wood), deskX, 0, -3.85, Math.PI);
+  const fridge = fineFridge();
+  fridge.scale.setScalar(0.55);
+  lay(room, fridge, side * 5.9, 0, -0.6, side > 0 ? -Math.PI / 2 : Math.PI / 2);
+  lay(room, fineToilet(), side * 5.9, 0, 5.5, Math.PI);
+  lay(room, fineBathtub(), side * 5.5, 0, 2.7, side > 0 ? Math.PI / 2 : -Math.PI / 2);
+  lay(room, fineLamp(), bed.x - side * 2.6, 0, bed.z + 1.8, 0);
+  // The mirror sits on the outside wall. wallBack is behind the basin, in the basin's own space.
+  lay(room, fineBasin(-0.32), side * 6.15, 0, 6.15, side > 0 ? -Math.PI / 2 : Math.PI / 2);
+  return bed;
+}
+
+/** What is outside the glass: Aso Rock and the dome in Abuja, the creek and a bridge in Port Harcourt. */
+function cityBeyond(city: 'abuja' | 'ph'): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.15, 1.28), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  mesh.name = 'window view';
+  if (typeof document === 'undefined') return mesh;
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 320;
+  const g = c.getContext('2d');
+  if (!g) return mesh;
+  const sky = g.createLinearGradient(0, 0, 0, 210);
+  if (city === 'abuja') {
+    sky.addColorStop(0, '#7eb6e8');
+    sky.addColorStop(1, '#f6d2a0');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, 512, 320);
+    g.fillStyle = '#6b7280';
+    g.beginPath();
+    g.moveTo(30, 214);
+    g.lineTo(150, 78);
+    g.lineTo(280, 214);
+    g.fill();
+    g.fillStyle = '#15803d';
+    g.beginPath();
+    g.ellipse(370, 168, 54, 30, 0, Math.PI, 0);
+    g.fill();
+    g.fillStyle = '#e5e7eb';
+    g.fillRect(330, 168, 80, 46);
+  } else {
+    sky.addColorStop(0, '#5eaddf');
+    sky.addColorStop(1, '#fde68a');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, 512, 320);
+    g.fillStyle = '#0e7490';
+    g.fillRect(0, 168, 512, 152);
+    g.fillStyle = '#f8fafc';
+    g.fillRect(0, 188, 512, 7);
+    g.fillStyle = '#334155';
+    for (let x = 16; x < 512; x += 46) g.fillRect(x, 195, 5, 28);
+    g.fillStyle = '#14532d';
+    g.fillRect(0, 230, 90, 90);
+    g.fillRect(430, 214, 82, 106);
+  }
+  g.fillStyle = city === 'abuja' ? '#166534' : '#0f766e';
+  if (city === 'abuja') g.fillRect(0, 214, 512, 106);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  (mesh.material as THREE.MeshBasicMaterial).map = tex;
+  return mesh;
+}
+
+/** The guest room: a bed to sleep in for as long as the stay lasts */
+class TownSuite {
+  private readonly hold: { release: (instant?: boolean) => void };
+  private sleeping = false;
+  private seated = false;
+  private lampOn = false;
+  private lampLight: THREE.PointLight | null = null;
+  private duvet: THREE.Group | null = null;
+  private bedCloth: THREE.Mesh | null = null;
+  private slept = 0;
+  private restedTold = false;
+  private readonly room: PlaceInterior;
+  private readonly hotel: string;
+  private readonly bed: { x: number; z: number };
+  constructor(room: PlaceInterior, hotel: string) {
+    this.room = room;
+    this.hotel = hotel;
+    this.hold = { release: (instant) => this.getUp(instant) };
+    this.bed = furnishGuestRoom(room.group, hotel);
+    const bed = this.bed;
+    const side = roomPlan(hotel).side;
+    const standX = bed.x + (bed.x < 0 ? 1.6 : -1.6);
+    room.addCard({
+      id: `place_${room.spec.key}_bed`, name: '🛏️ The bed', description: 'Clean sheets. Yours until noon.',
+      at: [bed.x, bed.z], stand: [standX, bed.z + 0.6],
+      label: () => (this.sleeping ? '🛏️ Sleeping' : '🛏️ Sleep'),
+      run: (host) => this.sleep(host),
+    });
+    room.addCard({
+      id: `place_${room.spec.key}_chair`, name: '🪑 The chair', description: 'A seat in the room.',
+      at: [side * 1.1, 1.5], stand: [side * 1.1, 2.4],
+      label: () => (this.seated ? '🪑 Sitting' : '🪑 Sit'),
+      run: (host) => this.sit(host),
+    });
+    room.addCard({
+      id: `place_${room.spec.key}_toilet`, name: '🚽 The toilet', description: 'The en-suite.',
+      at: [side * 5.9, 5.5], stand: [side * 5.9, 4.5],
+      label: () => '🚽 Use the toilet',
+      run: (host) => this.useToilet(host),
+    });
+    room.addCard({
+      id: `place_${room.spec.key}_bath`, name: '🚿 The shower', description: 'Hot water beside the bath.',
+      at: [side * 5.5, 2.7], stand: [side * 5.2, 1.5],
+      label: () => '🚿 Take a shower',
+      run: (host) => this.wash(host),
+    });
+    room.addCard({
+      id: `place_${room.spec.key}_lamp`, name: '💡 The lamp', description: 'The floor lamp by the bed.',
+      at: [bed.x - side * 2.6, bed.z + 1.8], stand: [bed.x - side * 2.2, bed.z + 1.2],
+      label: () => (this.lampOn ? '💡 Lamp on' : '💡 Lamp off'),
+      run: (host) => this.lamp(host),
+    });
+    room.leadsTo = () => {
+      const lobby = rooms.get(hotel);
+      if (!lobby) return null;
+      return { id: lobby.def.id, spawnAt: lobby.at(0, -6.6), spawnYaw: Math.PI };
+    };
+    room.ticks.push((delta) => this.tick(delta));
+  }
+
+  /** The room is theirs only after they have checked in */
+  private stayOrSay(host: PlaceHost): boolean {
+    if (TownStay.get(this.hotel).current()) return true;
+    host.say(TownStay.get(this.hotel).lapsed() ? 'Your stay has ended. See the front desk.' : 'This room is not yours yet. Check in at the desk.', 'info');
+    return false;
+  }
+
+  /** Sit in the chair. Getting up is the same hold the bed uses, so one tap stands them. */
+  private sit(host: PlaceHost): void {
+    if (!this.stayOrSay(host)) return;
+    const actor = host.actor;
+    if (this.seated || this.sleeping || host.director.interrupt(actor) === 'locked') return;
+    const side = roomPlan(this.hotel).side;
+    const seat = this.room.at(side * 1.1, 1.2);
+    const stand = this.room.at(side * 1.1, 2.4);
+    const down = new Sequence('sit in the chair', [actor]).add(
+      steps.walk(actor, stand, { speed: 2.2, ifStuck: 'snap' }),
+      steps.face(actor, seat),
+      steps.slide(actor, seat, 0.45),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.wait(0.3),
+    );
+    down.onEnd((reason) => {
+      if (reason !== 'done') return;
+      actor.hold = { release: (instant) => this.standFrom(stand, instant) };
+      actor.setScripted(true);
+      actor.pose = { legs: 'sit', arms: 'rest' };
+      this.seated = true;
+      host.say('You sit down.', 'info');
+    });
+    host.director.run(down);
+  }
+
+  private standFrom(stand: THREE.Vector3, instant?: boolean): void {
+    const player = InteractionDirector.get().player;
+    this.seated = false;
+    if (!player) return;
+    player.hold = null;
+    if (instant) { player.setScripted(false); return; }
+    const rise = new Sequence('get up from the chair', [player]).locked().add(
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, stand, 0.45),
+    );
+    if (!InteractionDirector.get().run(rise)) player.setScripted(false);
+  }
+
+  private useToilet(host: PlaceHost): void {
+    if (!this.stayOrSay(host)) return;
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    const side = roomPlan(this.hotel).side;
+    const at = (x: number, z: number) => this.room.at(x, z);
+    const use = new Sequence('hotel toilet', [actor]).add(
+      steps.walk(actor, at(side * 5.9, 4.5), { ifStuck: 'snap' }),
+      steps.face(actor, at(side * 5.9, 5.5)),
+      steps.slide(actor, at(side * 5.9, 5.15), 0.45),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.wait(2.2),
+      steps.call('relieved', () => {
+        host.backend.relieveBladder();
+        showGameToast('🚽 Relieved. *Flush*', 'success', 2200);
+      }),
+      steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
+      steps.slide(actor, at(side * 5.9, 4.5), 0.45),
+    );
+    host.director.run(use);
+  }
+
+  private wash(host: PlaceHost): void {
+    if (!this.stayOrSay(host)) return;
+    const actor = host.actor;
+    if (host.director.interrupt(actor) === 'locked') return;
+    const side = roomPlan(this.hotel).side;
+    const at = (x: number, z: number) => this.room.at(x, z);
+    const wash = new Sequence('hotel shower', [actor]).add(
+      steps.walk(actor, at(side * 5.2, 1.5), { ifStuck: 'snap' }),
+      steps.face(actor, at(side * 5.5, 2.7)),
+      steps.slide(actor, at(side * 5.35, 2.2), 0.55),
+      steps.animate(actor, { arms: 'reach' }, 3.2, [{ at: 0.7, run: () => {
+        host.backend.takeShower();
+        host.say('🚿 A hot shower. You are clean.', 'success');
+      } }]),
+      steps.slide(actor, at(side * 5.2, 1.5), 0.55),
+    );
+    host.director.run(wash);
+  }
+
+  private lamp(host: PlaceHost): void {
+    if (!this.lampLight) {
+      const side = roomPlan(this.hotel).side;
+      this.lampLight = new THREE.PointLight(0xffe0b0, 0, 7);
+      this.lampLight.position.set(this.bed.x - side * 2.6, 1.5, this.bed.z + 1.8);
+      this.room.group.add(this.lampLight);
+    }
+    this.lampOn = !this.lampOn;
+    this.lampLight.intensity = this.lampOn ? 1.3 : 0;
+    host.say(this.lampOn ? '💡 The lamp is on.' : 'The lamp is off.', 'info');
+  }
+
+  private sleep(host: PlaceHost): void {
+    const stay = TownStay.get(this.hotel).current();
+    if (!stay) {
+      host.say(TownStay.get(this.hotel).lapsed() ? 'Your stay has ended. The bed is made up for the next guest.' : 'This room is not yours yet. Check in at the desk.', 'info');
+      return;
+    }
+    const player = host.actor;
+    if (this.sleeping || host.director.interrupt(player) === 'locked') return;
+    const bed = this.bed;
+    const standX = bed.x + (bed.x < 0 ? 1.6 : -1.6);
+    // The foot of the bed points toward the door. The head is on the pillows.
+    const facing = 0;
+    const top = 0.72;
+    // Feet at the footboard. Lying faces the foot, so the head lands on the pillows.
+    const feet = { x: bed.x, z: bed.z + 0.85 };
+    const lying = { legs: 'lie' as const, arms: 'rest' as const, height: top };
+    const lieDown = new Sequence('lie down', [player]).add(
+      steps.walk(player, this.room.at(standX, bed.z + 0.6), { speed: 2.4 }),
+      steps.face(player, this.room.at(bed.x, bed.z)),
+      steps.slide(player, this.room.at(feet.x, feet.z), 0.5),
+      steps.face(player, facing),
+      steps.setPose(player, lying),
+      steps.wait(0.4),
+    );
+    lieDown.onEnd((reason) => {
+      if (reason !== 'done') return;
+      player.yaw = facing;
+      player.hold = this.hold;
+      player.setScripted(true);
+      player.pose = lying;
+      this.sleeping = true;
+      this.slept = 0;
+      this.restedTold = false;
+      this.duvet?.removeFromParent();
+      if (this.bedCloth) this.bedCloth.visible = true;
+      this.bedCloth = bedDuvetNear(this.room.group, feet);
+      this.duvet = duvetOver(this.room.group, feet, facing, top, this.bedCloth);
+      if (this.bedCloth) this.bedCloth.visible = false;
+      host.say(`🛏️ Room ${stay.room}. You drift off.`, 'info');
+    });
+    host.director.run(lieDown);
+  }
+
+  private getUp(instant?: boolean): void {
+    const player = InteractionDirector.get().player;
+    this.sleeping = false;
+    this.duvet?.removeFromParent();
+    this.duvet = null;
+    if (this.bedCloth) this.bedCloth.visible = true;
+    this.bedCloth = null;
+    if (!player) return;
+    player.hold = null;
+    if (instant) { player.setScripted(false); return; }
+    const standX = this.bed.x + (this.bed.x < 0 ? 1.6 : -1.6);
+    const rise = new Sequence('get up', [player]).locked().add(
+      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+      steps.slide(player, this.room.at(standX, this.bed.z + 0.6), 0.5),
+    );
+    if (!InteractionDirector.get().run(rise)) player.setScripted(false);
+  }
+
+  private tick(delta: number): void {
+    const player = InteractionDirector.get().player;
+    if (this.sleeping && player?.hold !== this.hold) this.sleeping = false;
+    if (!this.sleeping) return;
+    this.slept += delta;
+    const be = BackendService.getInstance();
+    be.rest(9 * delta, 5 * delta, false);
+    const stats = be.getData().stats;
+    if (stats.energy >= 100 && stats.health >= 100 && this.slept > 3 && !this.restedTold) {
+      this.restedTold = true;
+      showGameToast('You are fully rested. Stay in bed, or get up when you are ready.', 'success', 3600);
+    }
+  }
+}
+
 /** Gives each part of the hotel what it needs, as it is built */
+const townHotelKey = (key: string) => key.endsWith('-town-hotel') || /-hotel-[12]$/.test(key);
+const townSuiteKey = (key: string) => key.endsWith('-town-suite') || /-hotel-[12]-suite$/.test(key);
+
 export function attachHotel(room: PlaceInterior, key: string): void {
+  if (townHotelKey(key)) {
+    rooms.set(key, room);
+    new TownLobby(room, key);
+    return;
+  }
+  if (townSuiteKey(key)) {
+    rooms.set(key, room);
+    const hotel = key.endsWith('-town-suite') ? key.replace(/-suite$/, '-hotel') : key.replace(/-suite$/, '');
+    new TownSuite(room, hotel);
+    return;
+  }
   if (key !== HOTEL.lobby && key !== HOTEL.floor && key !== HOTEL.suite) return;
   rooms.set(key, room);
   if (key === HOTEL.lobby) HotelState.lobby = new Lobby(room);
   else if (key === HOTEL.floor) HotelState.floor = new Floor(room);
-  else HotelState.suite = new Suite(room);
+  else {
+    HotelState.suite = new Suite(room);
+    if (arriving !== null) {
+      HotelState.suite.arrive(arriving);
+      arriving = null;
+    }
+  }
 }

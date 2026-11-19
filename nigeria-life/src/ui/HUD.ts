@@ -43,6 +43,7 @@ import { draw as drawStable } from './kit/StableView';
 import { waveAt, greet, shakeHands, chatWith, gestureToward, cannotShakeHands, standingWith } from '../interactions/Social';
 import { CareerMinigames } from '../jobs/CareerMinigames';
 import { Dues } from '../life/Dues';
+import { PerfReadout } from './PerfReadout';
 
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
@@ -55,6 +56,20 @@ const LANDMARK_STREET_SPOTS: Record<string, string> = {
   abuja_cab_rank: 'abuja-cab',
   abuja_airport: 'abuja-airport',
   savanna_bank_abuja: 'atm-savanna-bank-abuja',
+  national_assembly: 'roadside-national-assembly',
+  transcorp_hilton: 'roadside-transcorp-hilton',
+  eagle_square: 'abuja-eagle-square',
+  central_bank_abuja: 'roadside-cbn-abuja',
+  millennium_tower: 'roadside-millennium-tower',
+  wuse_market: 'roadside-wuse-market',
+  jabi_lake_mall: 'roadside-jabi-lake-mall',
+  millennium_park: 'abuja-millennium-park',
+  national_hospital_abuja: 'roadside-national-hospital-abuja',
+  mile_one_market: 'roadside-mile-one-market',
+  ph_mall: 'roadside-ph-mall',
+  pleasure_park: 'ph-pleasure-park',
+  rivers_govt_house: 'roadside-rivers-govt-house',
+  ph_waterfront: 'ph-waterfront',
   // Port Harcourt
   ph_refinery_hub: 'ph-refinery-complex',
   ph_airport_omagwa: 'ph-airport',
@@ -77,6 +92,8 @@ const LANDMARK_STREET_SPOTS: Record<string, string> = {
 export class HUD {
   /** Opens the Today panel (set by the game) */
   public onOpenToday: (() => void) | null = null;
+  /** Opens the account Sign In / Create account overlay (set by the game) */
+  public onOpenSignIn: ((mode: 'register' | 'login') => boolean) | null = null;
   private container: HTMLDivElement;
   private interactionCard: HTMLDivElement;
   private drivingHudEl!: HTMLDivElement;
@@ -99,6 +116,8 @@ export class HUD {
   public currentActiveObject: InteractiveObject | null = null;
 
   public onExitVehicle?: () => void;
+  /** The player greeted, shook hands with or chatted to this person */
+  public onSpokenTo?: (id: string) => void;
   public onHonkVehicle?: () => void;
   public onRefuelVehicle?: () => void;
   /** Opens the pump at a filling station (or the nearest one's directions) */
@@ -123,6 +142,10 @@ export class HUD {
   public onShopAction?: (objectId: string) => void;
   public onVendorAction?: (objectId: string) => void;
   /** A plot of land's board was used: open what is known about that plot */
+  /** The cell's card, when the player is the one in it: shown by the game, true if it did (src/life/Police.ts) */
+  public onCellCard: (() => boolean) | null = null;
+  /** Stopped at a checkpoint with no papers: the game arrests the player, true if it did */
+  public onNoPapers: (() => boolean) | null = null;
   public onPlotAction?: (plotId: string) => void;
   /** Compound gate toggled */
   public onGateAction?: (plotId?: string) => void;
@@ -151,6 +174,15 @@ export class HUD {
   /** Opens the music player */
   public onOpenMusic?: () => void;
   public currentNavMode: 'street' | 'home' | 'map' = 'street';
+
+  /** Back to the street from the map (a ride starting is seen from the street, not behind the map) */
+  public leaveMap(): void {
+    this.currentNavMode = 'street';
+    document.getElementById('nav-btn-map')?.classList.remove('active');
+    this.worldMapUI.close();
+    UIStateManager.getInstance().setMode('street');
+    this.onNavigateMode?.('street');
+  }
 
   constructor() {
     this.backend = BackendService.getInstance();
@@ -237,9 +269,13 @@ export class HUD {
 
         <!-- Center Floating Pill Bar -->
         <div class="hud-center-pill-bar">
-          <div class="pill-item time-pill" id="hud-time-pill" title="World Clock • Click to toggle Real-Time (WAT) / Simulated time presets" style="cursor: pointer;">
-            <span id="hud-weather-icon">☀️</span>
+          <div class="pill-item time-pill" id="hud-time-pill" title="World Clock • Click the clock to toggle Real-Time (WAT) / Simulated time presets" style="cursor: pointer;">
+            <button type="button" id="hud-weather-btn" class="hud-weather-btn" title="Weather • Click to cycle (sunny → rain → storm → harmattan). Or open with ?weather=rainy" aria-label="Cycle weather">
+              <span id="hud-weather-icon">☀️</span>
+              <span id="hud-weather-label" class="hud-weather-label">Sunny</span>
+            </button>
             <span id="hud-clock-val">Wed 7 • 1:18 PM</span>
+            <span id="hud-light-icon" class="hud-light-icon" data-light="on" title="NEPA light where you are">💡</span>
           </div>
           <div class="pill-item mood-pill" id="pill-mood" title="Current Character Mood">
             <span id="hud-mood-icon">😄</span>
@@ -297,9 +333,9 @@ export class HUD {
             <span>📸</span>
             <span>PHOTO</span>
           </button>
-          <button class="btn-camera-view-toggle hud-cloud-pill" id="hud-btn-cloud-sync" title="Multiplayer & EkoCloud Hub • Click to Open Meetumo" style="border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.15); color: #4ade80;">
+          <button class="btn-camera-view-toggle hud-cloud-pill" id="hud-btn-cloud-sync" title="Whether this life is saved to your account" style="border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.15); color: #4ade80;">
             <span class="cloud-dot-live">🟢</span>
-            <span id="hud-online-count">1 Online</span> • <span id="hud-cloud-status">☁️ Synced</span>
+            <span id="hud-online-count">1 Online</span> • <span id="hud-cloud-status">Guest: sign up to keep your progress</span>
           </button>
           <div class="hud-location">
             <span class="flag">🇳🇬</span>
@@ -434,10 +470,11 @@ export class HUD {
         <div class="speedo-box">
           <span class="speedo-val" id="speedo-val">0</span>
           <span class="speedo-unit">KM/H</span>
+          <span class="speedo-area" id="speedo-area"></span>
         </div>
         <div class="driving-meta-box">
           <h4 id="driving-veh-name">Danfo Minibus</h4>
-          <span class="driving-hint">WASD / Arrows to Drive • SPACE Handbrake</span>
+          <span class="driving-hint">WASD / Arrows to drive • SPACE handbrake • V bonnet or chase view</span>
           <div class="driving-stats-strip" style="display: flex; gap: 10px; margin-top: 4px; font-size: 11px;">
             <span id="driving-fuel-pill" style="color: #4ade80; font-weight: 700;">⛽ <span id="driving-fuel-val">85%</span></span>
             <span id="driving-transit-pill" style="color: #facc15; font-weight: 700; display: none;">👥 <span id="driving-passengers-val">0/8</span> • <span id="driving-fares-val">₦0</span></span>
@@ -522,7 +559,7 @@ export class HUD {
           : chatWith(me, person, options);
         if (!result.ok) {
           this.showNotification(result.reason && result.reason !== 'busy' ? result.reason : 'Finish what you are doing first.');
-        }
+        } else if (kind !== 'wave') this.onSpokenTo?.(obj.id);
       });
     };
     social('card-wave-btn', 'wave');
@@ -572,8 +609,14 @@ export class HUD {
         return;
       }
       if (this.currentActiveObject) {
-        this.economyModal.open(this.currentActiveObject.id);
+        const id = this.currentActiveObject.id;
         this.hideInteractionCard();
+        // The estate office: the homes to let and for sale, as the phone lists them. Someone with
+        // no home is shown what they can pay for now, cheapest first.
+        if (id === 'villa-compound' || id === 'palm-view-flats') {
+          const homeless = !this.backend.getData().properties.some((p) => p.status === 'owned' || p.status === 'rented' || p.status === 'purchased');
+          this.phoneModal.openApp('property', homeless ? 'afford' : '');
+        } else this.economyModal.open(id);
       }
     });
 
@@ -584,7 +627,12 @@ export class HUD {
   private onDataUpdate(data: PlayerAccount): void {
     const moneyEl = document.getElementById('hud-money');
     if (moneyEl) {
-      moneyEl.textContent = `₦${data.walletCash.toLocaleString()}`;
+      {
+        const usd = data.walletUsd ?? 0;
+        const gbp = data.walletGbp ?? 0;
+        const hard = [usd > 0 ? `$${usd.toLocaleString()}` : '', gbp > 0 ? `£${gbp.toLocaleString()}` : ''].filter(Boolean).join(' · ');
+        moneyEl.textContent = hard ? `₦${data.walletCash.toLocaleString()} · ${hard}` : `₦${data.walletCash.toLocaleString()}`;
+      }
     }
 
     const health = Math.round(data.stats.health ?? 100);
@@ -727,11 +775,13 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
     });
 
-    document.getElementById('hud-weather-btn')?.addEventListener('click', () => {
-      if (this.world) {
-        const newW = this.world.weather.cycleWeather();
-        this.updateWeatherButton(newW);
-      }
+    document.getElementById('hud-weather-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation(); // don't also cycle the world clock
+      e.preventDefault();
+      if (!this.world) return;
+      const newW = this.world.weather.cycleWeather();
+      this.updateWeatherButton(newW);
+      showGameToast(`🌦️ ${this.world.weather.getWeatherLabel()}`, 'info', 2800);
     });
 
     document.getElementById('btn-drive-exit')?.addEventListener('click', () => {
@@ -903,8 +953,21 @@ export class HUD {
     const inAnotherCity = (): boolean => {
       const here = this.world?.cityManager.currentCityId;
       if (!here || here === this.mapCity) return false;
+      // The place card already offers the flight. A second dialogue would cover that button.
+      if (document.getElementById('btn-card-interstate')) return true;
       const names: Record<string, string> = CITY_NAME;
-      showGameToast(`That is in ${names[this.mapCity] ?? this.mapCity}. You are in ${names[here] ?? here}: book a flight or a coach to go there.`, 'warning', 3800);
+      const there = names[this.mapCity] ?? this.mapCity;
+      const from = names[here] ?? here;
+      this.showDialogueModal({
+        speakerName: there,
+        speakerRole: 'Another city',
+        speakerAvatar: '✈️',
+        dialogueText: `That is in ${there}. You are in ${from}. You go there by air or by coach.`,
+        choices: [
+          { id: 'fly', label: `Fly or take the coach to ${there}`, onSelect: () => this.interstateModal.open(here) },
+          { id: 'stay', label: 'Stay here', onSelect: () => undefined },
+        ],
+      });
       return true;
     };
     /** Sets off on foot from the map: the map is put away and the player walks there by the streets. */
@@ -918,7 +981,7 @@ export class HUD {
     // The places along the expressway: a pin each, and a cab there (too far to walk)
     const ROAD_ICONS: Record<string, string> = {
       'sankofa-motors': '🚗', 'redemption-cathedral': '⛪', 'central-mosque': '🕌', 'lagoon-beach': '🏖️', 'lagoon-marina': '🛥️', 'private-airfield': '🛩️',
-      'shopwell-mall': '🛍️', 'eko-grand-hotel': '🏨', 'police-command': '👮', 'efcc-office': '🏛️', 'ikeja-golf': '⛳', 'government-house': '🏛️',
+      'shopwell-mall': '🛍️', 'eko-grand-hotel': '🏨', 'police-command': '👮', 'nis-passport': '🛂', 'abuja-passport': '🛂', 'ph-passport': '🛂', 'consular-visa': '🧾', 'port-health': '💛', 'bureau-fx': '💱', 'efcc-office': '🏛️', 'ikeja-golf': '⛳', 'government-house': '🏛️',
       'marina-towers': '🏢', 'freedom-park': '🎭', 'ivory-rooftop': '🍸', 'the-library': '📚', 'i-fitness': '🏋️', 'balogun-market': '🧺', 'amala-shitta': '🍲',
       'viewing-centre': '⚽', 'polling-unit': '🗳️', 'afrika-shrine': '🎷', 'lekki-conservation': '🌳', 'dangote-refinery': '🛢️', 'radio-house': '📻',
       'station-island': '⛽', 'station-bridge': '⛽', 'station-mainland': '⛽', 'station-ikeja': '⛽',
@@ -928,17 +991,24 @@ export class HUD {
     const ROAD_KIND: Record<string, 'transit' | 'food' | 'work' | 'civic' | 'other'> = {
       'amala-shitta': 'food', 'balogun-market': 'food', 'viewing-centre': 'food', 'ivory-rooftop': 'food', 'the-library': 'food', 'shopwell-mall': 'food',
       'marina-towers': 'work', 'dangote-refinery': 'work', 'radio-house': 'work', 'sankofa-motors': 'work',
-      'police-command': 'civic', 'efcc-office': 'civic', 'government-house': 'civic', 'polling-unit': 'civic', 'redemption-cathedral': 'civic', 'central-mosque': 'civic',
+      'police-command': 'civic', 'nis-passport': 'civic', 'abuja-passport': 'civic', 'ph-passport': 'civic', 'consular-visa': 'civic', 'port-health': 'civic', 'bureau-fx': 'civic', 'efcc-office': 'civic', 'government-house': 'civic', 'polling-unit': 'civic', 'redemption-cathedral': 'civic', 'central-mosque': 'civic',
       'station-island': 'transit', 'station-bridge': 'transit', 'station-mainland': 'transit', 'private-airfield': 'transit', 'lagoon-marina': 'transit',
       'station-ikeja': 'transit', 'oshodi-interchange': 'transit', 'mmia-terminal': 'transit', 'chop-express': 'food', 'naija-fresh': 'food', 'allen-suya': 'food', 'allen-salon': 'work', 'allen-bank': 'civic', 'awolowo-fashion': 'work', 'awolowo-pharmacy': 'civic', 'awolowo-school': 'work', 'allen-lounge': 'food', 'ikeja-city-mall': 'food',
       'computer-village': 'work', 'ladipo-auto': 'work', lasuth: 'civic', 'faith-arena': 'civic',
     };
     this.worldMapUI.extraPins = () => {
-      if (this.mapCity !== 'lagos' || !this.world) return [];
-      return this.world.expressway.roadside.interactive.map((o) => {
-        const key = o.id.replace('roadside-', '');
-        return { id: o.id, name: o.name, icon: ROAD_ICONS[key] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: ROAD_KIND[key] ?? 'other' };
-      });
+      if (!this.world) return [];
+      if (this.mapCity === 'lagos') {
+        return this.world.expressway.roadside.interactive.map((o) => {
+          const key = o.id.replace('roadside-', '');
+          return { id: o.id, name: o.name, icon: ROAD_ICONS[key] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: ROAD_KIND[key] ?? 'other', city: 'lagos' };
+        });
+      }
+      const icon: Record<string, string> = { Shop: '🛒', Office: '🏢', Hotel: '🏨', Bank: '🏦', Market: '🧺' };
+      const kind: Record<string, 'food' | 'work' | 'civic' | 'other'> = { Shop: 'food', Office: 'work', Hotel: 'other', Bank: 'civic', Market: 'food' };
+      return this.world.cityManager.thingsIn(this.mapCity)
+        .filter((o) => o.id.startsWith(`door-${this.mapCity}-`))
+        .map((o) => ({ id: o.id, name: o.name, icon: icon[o.category] ?? '📍', x: o.interactionPoint.x, z: o.interactionPoint.z, category: kind[o.category] ?? 'other', city: this.mapCity, where: o.description }));
     };
     // Every place along the roads is on the record too: found by name in the map's search and the phone's Ride list
     const ROAD_CATEGORY: Record<string, DestinationDefinition['category']> = { food: 'Restaurant', transit: 'Transit', civic: 'Civic', work: 'Civic', other: 'Culture' };
@@ -963,7 +1033,8 @@ export class HUD {
     this.worldMapUI.onFocusPoint = (x, z) => this.world?.worldMap.focusOn(x, z);
     this.worldMapUI.onRailTo = (z) => this.world?.worldMap.glideTo(z);
     this.worldMapUI.onPickExtra = (id) => {
-      const place = this.world?.expressway.roadside.interactive.find((o) => o.id === id);
+      const place = this.world?.expressway.roadside.interactive.find((o) => o.id === id)
+        ?? this.world?.cityManager.thingsIn(this.mapCity).find((o) => o.id === id);
       if (!place || inAnotherCity()) return;
       const metres = Math.round(Math.hypot(place.interactionPoint.x - this.player.position.x, place.interactionPoint.z - this.player.position.z));
       const fare = Math.round(4500 * RideService.fareFactor());
@@ -996,6 +1067,11 @@ export class HUD {
 
     this.worldMapUI.onTravelWithTransport = (dest, transport, enterInside) => {
       if (inAnotherCity()) return false;
+      const hereNow = this.world?.cityManager.currentCityId;
+      if (hereNow && dest.city && dest.city !== hereNow) {
+        this.interstateModal.open(hereNow);
+        return false;
+      }
       const spotId = LANDMARK_STREET_SPOTS[dest.id] ?? dest.aliases?.map((a) => LANDMARK_STREET_SPOTS[a]).find(Boolean);
       const spot = spotId ? this.world?.interactiveObjects.find((o) => o.id === spotId) : null;
       const targetPos = (!dest.isEnterable && spot) ? spot.interactionPoint : dest.streetPosition;
@@ -1117,8 +1193,10 @@ export class HUD {
       this.world?.worldMap.focusOn(at.x, at.z);
     };
 
-    this.worldMapUI.onInterstateTravel = (destCityId) => {
-      this.interstateModal.open((destCityId as any) || this.world?.cityManager.currentCityId);
+    this.worldMapUI.onInterstateTravel = () => {
+      // The ticket is bought in the city the player is standing in, not the city they are looking at
+      const here = this.world?.cityManager.currentCityId;
+      if (here) this.interstateModal.open(here);
     };
 
     this.worldMapUI.onSelectDistrictFromChips = (districtId) => {
@@ -1192,17 +1270,22 @@ export class HUD {
       this.interstateModal.toggle(this.world?.cityManager.currentCityId);
     });
 
-    // Cloud & Multiplayer Hub Pill
+    // The save pill: guests get the Sign In overlay; signed-in players open account Settings
     document.getElementById('hud-btn-cloud-sync')?.addEventListener('click', () => {
+      const online = OnlineAccount.get();
+      const guest = !online?.account || online.account.kind === 'guest' || !online.account.verified;
+      if (guest) {
+        if (this.onOpenSignIn?.('login')) return;
+        // No world server yet: Sign In needs one — send them to Settings to Connect first
+        showGameToast('Connect to a world server in Settings, then sign in to keep this life.', 'info', 4500);
+      }
       this.phoneModal.open();
-      this.phoneModal.openApp('meetumo');
+      this.phoneModal.openApp('settings');
     });
 
     CloudSyncService.getInstance().subscribe((info) => {
       const cloudStatusEl = document.getElementById('hud-cloud-status');
-      if (cloudStatusEl) {
-        cloudStatusEl.textContent = `☁️ ${info.lastSyncedFormatted}`;
-      }
+      if (cloudStatusEl) cloudStatusEl.textContent = info.label;
     });
 
     // City tabs inside aerial map view
@@ -1334,6 +1417,14 @@ export class HUD {
         this.travelModal.toggle();
       } else if (e.key.toLowerCase() === 'm') {
         this.interstateModal.toggle(this.world?.cityManager.currentCityId);
+      } else if (e.key.toLowerCase() === 'r' && e.shiftKey) {
+        // Shift+R cycles weather (R alone is reserved for driving / other uses)
+        e.preventDefault();
+        if (this.world) {
+          const newW = this.world.weather.cycleWeather();
+          this.updateWeatherButton(newW);
+          showGameToast(`🌦️ ${this.world.weather.getWeatherLabel()}`, 'info', 2800);
+        }
       } else if (e.key === '1') {
         this.player.playEmote('zanku', 4.0);
       } else if (e.key === '2') {
@@ -1452,6 +1543,7 @@ export class HUD {
   public updateWeatherButton(type: string): void {
     const iconEl = document.getElementById('hud-weather-icon');
     const labelEl = document.getElementById('hud-weather-label');
+    const btn = document.getElementById('hud-weather-btn') as HTMLButtonElement | null;
     const icons: Record<string, string> = {
       sunny: '☀️',
       clear: '☀️',
@@ -1470,8 +1562,10 @@ export class HUD {
       thunderstorm: 'Thunderstorm',
       harmattan: 'Harmattan',
     };
+    const label = labels[type] || type;
     if (iconEl) iconEl.textContent = icons[type] || '☀️';
-    if (labelEl) labelEl.textContent = labels[type] || type;
+    if (labelEl) labelEl.textContent = label;
+    if (btn) btn.title = `Weather: ${label} • Click to cycle (or Shift+R). Preview: ?weather=rainy`;
   }
 
   public onQuestUpdate(quest: StoryQuest | null): void {
@@ -1570,6 +1664,7 @@ export class HUD {
 
   public showInteractionCard(obj: InteractiveObject): void {
     this.currentActiveObject = obj;
+    PerfReadout.get().recordTap(obj.name || obj.id, obj.category || 'card', obj.id);
     const categoryEl = document.getElementById('card-category')!;
     const titleEl = document.getElementById('card-title')!;
     const descEl = document.getElementById('card-desc')!;
@@ -1668,10 +1763,10 @@ export class HUD {
       btnEl.textContent = '🛂 Biometric Security & Metal Detector Screening';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_flight_abuja') {
-      btnEl.textContent = '✈️ Board Flight LOS-ABV to Abuja FCT (₦35,000)';
+      btnEl.textContent = '✈️ Gate 1 — tickets at the desk (Abuja ₦95,000 · Ibadan ₦220,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_flight_ph') {
-      btnEl.textContent = '✈️ Board Flight LOS-PHC to Port Harcourt (₦32,000)';
+      btnEl.textContent = '✈️ Gate 2 — tickets at the desk (Port Harcourt ₦85,000)';
       bizBtn.style.display = 'none';
     } else if (obj.id === 'airport_vip_lounge') {
       btnEl.textContent = '🥂 NigeriaLife Air Executive VIP Lounge Access (₦5,000)';
@@ -1881,6 +1976,10 @@ export class HUD {
     } else if (obj.id.startsWith('remote_player_')) {
       btnEl.textContent = '👤 See their card · chat, hire, CV';
       bizBtn.style.display = 'none';
+    } else if (obj.id === 'community-elder') {
+      // An elder is greeted: he answers with a conversation (src/world/ChiefAlabi.ts)
+      btnEl.textContent = '🙏 Greet Chief Alabi';
+      bizBtn.style.display = 'none';
     } else {
       btnEl.textContent = 'Enter / Inspect';
       bizBtn.style.display = 'none';
@@ -1952,6 +2051,8 @@ export class HUD {
     btn.style.background = open ? '#d97706' : '#059669';
   }
 
+  private areaShownAt = 0;
+
   public updateDrivingHUD(
     speedMps: number,
     fuel?: number,
@@ -1964,6 +2065,13 @@ export class HUD {
     if (speedValEl) {
       const kmh = Math.round(Math.abs(speedMps) * 3.6);
       speedValEl.textContent = kmh.toString();
+    }
+    // Where the car is, under the speed: the area's name, looked up twice a second
+    const now = performance.now();
+    if (now - this.areaShownAt > 500 && this.world && this.player) {
+      this.areaShownAt = now;
+      const area = document.getElementById('speedo-area');
+      if (area) area.textContent = this.world.getDistrictAtPosition(this.player.position).name;
     }
     if (fuel !== undefined) {
       const fuelValEl = document.getElementById('driving-fuel-val');
@@ -2021,6 +2129,8 @@ export class HUD {
       badge?: string;
       onSelect: () => void;
     }>;
+    /** Under the speech: a text field for the player to type a name (Chief Alabi's first meeting) */
+    nameField?: { onType: (value: string) => void };
     onConfirm?: () => void;
   }): void {
     // Play Web Audio chime for video game feedback
@@ -2087,6 +2197,7 @@ export class HUD {
         <div class="dialogue-speech-box">
           "${options.dialogueText}"
         </div>
+        ${options.nameField ? `<label class="dialogue-name-row"><span>Tell him your name</span><input id="dialogue-name-input" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Your name" /></label>` : ''}
         ${rewardsHtml ? `<div class="dialogue-rewards-row">${rewardsHtml}</div>` : ''}
         ${choicesHtml}
         ${!hasChoices ? `
@@ -2099,6 +2210,14 @@ export class HUD {
     `;
 
     document.body.appendChild(overlay);
+    if (options.nameField) {
+      const input = overlay.querySelector('#dialogue-name-input') as HTMLInputElement | null;
+      if (input) {
+        input.addEventListener('input', () => options.nameField!.onType(input.value));
+        // Typing a name is typing, not walking or picking reply 1, 2 or 3
+        for (const type of ['keydown', 'keyup', 'keypress'] as const) input.addEventListener(type, (e) => e.stopPropagation());
+      }
+    }
     UIStateManager.getInstance().registerModal('dialogue', {
       id: 'dialogue',
       close: () => close(),
@@ -2129,6 +2248,14 @@ export class HUD {
           return;
         }
       } else {
+        // Don't dismiss while the player is typing their name
+        if (options.nameField && (e.target as HTMLElement | null)?.id === 'dialogue-name-input') {
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            e.preventDefault();
+            close();
+          }
+          return;
+        }
         if (e.key === 'e' || e.key === 'E' || e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
           e.preventDefault();
           close();
@@ -2375,9 +2502,28 @@ export class HUD {
     })();
   }
 
+  /** Uses a place's own card by its id, as a click on it would (false if there is no such card) */
+  public runPlaceAction(id: string): boolean {
+    const action = PlaceActions.get(id);
+    if (!action || !this.player) return false;
+    this.hideInteractionCard();
+    action.run(this.placeHost());
+    return true;
+  }
+
   private handleCardAction(): void {
     if (!this.currentActiveObject) return;
     const id = this.currentActiveObject.id;
+    if (id === 'community-elder') {
+      // Greet when the arms are free; always open his conversation even if a walk just ended
+      const obj = this.currentActiveObject;
+      this.hideInteractionCard();
+      if (!obj) return;
+      const person = InteractionDirector.get().actorFor(obj.id);
+      if (person && this.player?.actor) greet(this.player.actor, person);
+      this.onSpokenTo?.(obj.id);
+      return;
+    }
     if (!this.actingOut && HUD.ACTED_OUT.test(id) && this.actOut(this.currentActiveObject)) return;
     if (!this.actingOut && this.actOutInStreet(this.currentActiveObject)) return;
     this.questManager.triggerEvent('interact_object', { objectId: id });
@@ -2791,49 +2937,16 @@ export class HUD {
         rewards: { streetCred: 10 },
       });
       return;
-    } else if (id === 'airport_flight_abuja') {
-      const success = this.backend.spendCash(35000, 'Flight LOS to ABV (Abuja)');
-      if (success) {
-        this.backend.addStreetCred(50);
-        this.backend.restoreEnergy(100);
-        this.showDialogueModal({
-          speakerName: 'Capt. Ibrahim',
-          speakerRole: 'Wazobia Air • Flight WZ-214 to Abuja',
-          speakerAvatar: '✈️',
-          soundType: 'aviation',
-          dialogueText: 'Cabin doors armed. Non-stop executive flight from Lagos to Nnamdi Azikiwe Intl Airport, Abuja FCT completed! Welcome to Abuja!',
-          rewards: { streetCred: 50, energy: 100 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'Wazobia Air Ticketing',
-          speakerRole: 'Gate 1 Departures',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦35,000 cash for direct flight ticket to Abuja FCT!',
-        });
-      }
-      return;
-    } else if (id === 'airport_flight_ph') {
-      const success = this.backend.spendCash(32000, 'Flight LOS to PHC (Port Harcourt)');
-      if (success) {
-        this.backend.addStreetCred(50);
-        this.backend.restoreEnergy(100);
-        this.showDialogueModal({
-          speakerName: 'NigeriaLife Air Flight Crew',
-          speakerRole: 'Gate 2 • Flight NL 310 to Port Harcourt',
-          speakerAvatar: '✈️',
-          soundType: 'aviation',
-          dialogueText: 'Direct flight to Port Harcourt International Airport (Omagwa) completed! Welcome to the Garden City!',
-          rewards: { streetCred: 50, energy: 100 },
-        });
-      } else {
-        this.showDialogueModal({
-          speakerName: 'NigeriaLife Air Ticketing',
-          speakerRole: 'Gate 2 Departures',
-          speakerAvatar: '⚠️',
-          dialogueText: 'Need ₦32,000 cash for flight ticket to Port Harcourt!',
-        });
-      }
+    } else if (id === 'airport_flight_abuja' || id === 'airport_flight_ph') {
+      // Real boarding is the Flights path (desk → check-in → security → apron). Gates only open that door.
+      this.showDialogueModal({
+        speakerName: 'NigeriaLife Air',
+        speakerRole: id === 'airport_flight_abuja' ? 'Gate 1' : 'Gate 2',
+        speakerAvatar: '✈️',
+        dialogueText: id === 'airport_flight_abuja'
+          ? 'Buy NL 204 to Abuja (₦95,000) or NL 118 to Ibadan (₦220,000) at the ticket desk, then check in and clear security. Coaches stay cheaper at the motor park (Abuja ₦42,000 · Port Harcourt ₦38,000).'
+          : 'Buy NL 310 to Port Harcourt (₦85,000) at the ticket desk, then check in and clear security. The coach from Jibowu is ₦38,000 if you are watching your purse.',
+      });
       return;
     } else if (id === 'airport_vip_lounge') {
       const success = this.backend.spendCash(5000, 'VIP Concourse Lounge Pass');
@@ -2968,6 +3081,8 @@ export class HUD {
                   rewards: { streetCred: 20, energy: 15 },
                 });
               } else {
+                // No papers and nobody who knows you: taken to Area Command (src/life/Police.ts)
+                if (this.onNoPapers?.()) return;
                 this.backend.addStreetCred(5);
                 this.showDialogueModal({
                   speakerName: 'Inspector Danjuma',
@@ -3130,6 +3245,8 @@ export class HUD {
       return;
     } else if (id === 'police_holding_cell') {
       this.hideInteractionCard();
+      // The player's own cell, when they are in it (src/life/Police.ts)
+      if (this.onCellCard?.()) return;
       this.showDialogueModal({
         speakerName: 'Detention Cell Block & Detainee Kazeem',
         speakerRole: 'Area Command Holding Cell Block',

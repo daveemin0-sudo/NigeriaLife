@@ -3,7 +3,7 @@ import type {
   DestinationDefinition, 
   TransportOption 
 } from './DestinationTypes';
-import { PLACE_HOURS, describeHours } from './Hours';
+import { PLACE_HOURS, daysFor, describeHours, hoursFor } from './Hours';
 import { getLagosBenchmarkDestinations } from './data/LagosBenchmarkPlaces';
 import { getAbujaBenchmarkDestinations } from './data/AbujaBenchmarkPlaces';
 import { getPortHarcourtBenchmarkDestinations } from './data/PortHarcourtBenchmarkPlaces';
@@ -619,6 +619,62 @@ export class DestinationRegistry {
     });
 
     this.register({
+      id: 'dest_abuja_police',
+      aliases: ['abuja_police', 'fct_police_command'],
+      name: 'FCT Police Command',
+      category: 'Healthcare',
+      city: 'abuja',
+      district: 'garki',
+      districtName: 'Garki, Abuja',
+      mapPosition: new THREE.Vector3(-100, 0, 444.5),
+      mapVisualType: 'police',
+      mapIcon: '👮',
+      exteriorType: 'police_facade',
+      streetPosition: new THREE.Vector3(-100, 0, 444.5),
+      entrance: {
+        position: new THREE.Vector3(-100, 0, 444.5),
+        promptLabel: 'Enter FCT Police Command',
+        triggerRadius: 6.5,
+      },
+      interiorId: 'roadside-abuja-police',
+      shortDescription: 'Reports, a character certificate and bail, in Abuja',
+      destinationDescription: 'The FCT command. A report is taken here, not in Lagos.',
+      services: ['Incident Reports', 'Character Clearance', 'Bail Processing'],
+      transportAvailability: defaultTransports,
+      npcPopulation: [],
+      activities: [],
+      isEnterable: true,
+    });
+
+    this.register({
+      id: 'dest_ph_police',
+      aliases: ['ph_police', 'rivers_police_command'],
+      name: 'Rivers State Police Command',
+      category: 'Healthcare',
+      city: 'port_harcourt',
+      district: 'township',
+      districtName: 'Port Harcourt',
+      mapPosition: new THREE.Vector3(200, 0, 20),
+      mapVisualType: 'police',
+      mapIcon: '👮',
+      exteriorType: 'police_facade',
+      streetPosition: new THREE.Vector3(200, 0, 20),
+      entrance: {
+        position: new THREE.Vector3(200, 0, 20),
+        promptLabel: 'Enter Rivers State Police Command',
+        triggerRadius: 6.5,
+      },
+      interiorId: 'roadside-ph-police',
+      shortDescription: 'Reports, a character certificate and bail, in Port Harcourt',
+      destinationDescription: 'The Rivers command. A report is taken here, not in Lagos.',
+      services: ['Incident Reports', 'Character Clearance', 'Bail Processing'],
+      transportAvailability: defaultTransports,
+      npcPopulation: [],
+      activities: [],
+      isEnterable: true,
+    });
+
+    this.register({
       id: 'dest_lagos_residence',
       aliases: ['villa-compound', 'palm-view-flats', 'residence', 'home'],
       name: 'Victoria Residence Estate',
@@ -651,7 +707,7 @@ export class DestinationRegistry {
     // =========================================================================
     this.register({
       id: 'dest_lagos_jibowu',
-      aliases: ['jibowu_motor_park', 'jibowu-park', 'jibowu-park-tickets', 'jibowu-park-coach', 'jibowu'],
+      aliases: ['jibowu_motor_park', 'jibowu-park', 'jibowu-park-tickets', 'jibowu-park-coach', 'jibowu-park-boots', 'jibowu'],
       name: 'Jibowu Motor Park',
       category: 'Transit',
       city: 'lagos',
@@ -862,7 +918,7 @@ export class DestinationRegistry {
 
     this.register({
       id: 'dest_abuja_utako',
-      aliases: ['utako_motor_park', 'utako-park', 'utako-park-tickets', 'utako-park-coach', 'utako'],
+      aliases: ['utako_motor_park', 'utako-park', 'utako-park-tickets', 'utako-park-coach', 'utako-park-boots', 'utako'],
       name: 'Utako Motor Park',
       category: 'Transit',
       city: 'abuja',
@@ -1071,7 +1127,7 @@ export class DestinationRegistry {
 
     this.register({
       id: 'dest_ph_waterlines',
-      aliases: ['waterlines_motor_park', 'waterlines-park', 'waterlines-park-tickets', 'waterlines-park-coach', 'waterlines'],
+      aliases: ['waterlines_motor_park', 'waterlines-park', 'waterlines-park-tickets', 'waterlines-park-coach', 'waterlines-park-boots', 'waterlines'],
       name: 'Waterlines Motor Park',
       category: 'Transit',
       city: 'port_harcourt',
@@ -1202,9 +1258,17 @@ export class DestinationRegistry {
     }
   }
 
-  /** A place goes on the record. What its card says about its hours is written from the hours themselves. */
+  /**
+   * A place goes on the record. One that keeps no hours of its own is given hours for what it is
+   * (a market shuts on Sunday, an office at four; a hospital never). What its card says about its
+   * hours is written from the hours themselves.
+   */
   public register(place: Omit<DestinationDefinition, 'openingHours'>): void {
-    const dest: DestinationDefinition = { ...place, openingHours: describeHours(place.hours) };
+    const given = place.hours ?? hoursFor(place.name, place.category);
+    // Hours set without days keep the days a place of that kind keeps
+    const days = given && !given.days ? daysFor(place.name, place.category) : undefined;
+    const hours = given && days ? { ...given, days } : given;
+    const dest: DestinationDefinition = { ...place, hours, openingHours: describeHours(hours) };
     this.destinations.set(dest.id, dest);
     this.aliasMap.set(dest.id, dest.id);
     for (const alias of dest.aliases) {

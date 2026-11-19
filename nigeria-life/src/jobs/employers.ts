@@ -28,6 +28,8 @@ export interface Employer {
   xp: number;
   /** Primary life skill this workplace cultivates */
   skill?: keyof PlayerSkills;
+  /** A certificate the job asks for before it will take the player on */
+  needs?: { course: string; level: number; paper: string };
   grades: Grade[];
 }
 
@@ -86,6 +88,7 @@ export const EMPLOYERS: Employer[] = [
   {
     id: 'first-bank-marina',
     name: 'Eko Commercial Bank Tower',
+    needs: { course: 'banker', level: 2, paper: 'Banker' },
     place: 'the banking hall in Marina Towers, on the Marina',
     trade: 'Corporate Banking & Wealth',
     task: 'Serve a customer at the teller’s window',
@@ -93,11 +96,11 @@ export const EMPLOYERS: Employer[] = [
     xp: 35,
     skill: 'academics',
     grades: [
-      { title: 'Bank Teller', pay: 12000, from: 0, skillReq: 1 },
-      { title: 'Relationship Manager', pay: 20000, from: 3, skillReq: 1 },
-      { title: 'Credit Risk Analyst', pay: 32000, from: 8, skillReq: 3 },
-      { title: 'Branch Manager', pay: 50000, from: 15, skillReq: 5 },
-      { title: 'Regional Managing Director', pay: 85000, from: 25, skillReq: 7 },
+      { title: 'Bank Teller', pay: 18000, from: 0, skillReq: 1 },
+      { title: 'Relationship Manager', pay: 27000, from: 3, skillReq: 1 },
+      { title: 'Credit Risk Analyst', pay: 41000, from: 8, skillReq: 3 },
+      { title: 'Branch Manager', pay: 64000, from: 15, skillReq: 5 },
+      { title: 'Regional Managing Director', pay: 100000, from: 25, skillReq: 7 },
     ],
   },
   {
@@ -137,6 +140,7 @@ export const EMPLOYERS: Employer[] = [
   {
     id: 'st-nicholas-hosp',
     name: 'St. Nicholas Hospital',
+    needs: { course: 'doctor', level: 3, paper: 'Doctor' },
     place: 'the inpatient clinical ward on Lagos Island',
     trade: 'Clinical Healthcare & Nursing',
     task: 'Administer intravenous medications and update patient recovery charts',
@@ -144,11 +148,11 @@ export const EMPLOYERS: Employer[] = [
     xp: 30,
     skill: 'academics',
     grades: [
-      { title: 'Auxiliary Nurse', pay: 9000, from: 0, skillReq: 1 },
-      { title: 'Staff Nurse', pay: 16000, from: 3, skillReq: 1 },
-      { title: 'Senior Clinical Nurse', pay: 26000, from: 8, skillReq: 3 },
-      { title: 'Nursing Matron', pay: 42000, from: 15, skillReq: 5 },
-      { title: 'Hospital Clinical Director', pay: 68000, from: 25, skillReq: 7 },
+      { title: 'Auxiliary Nurse', pay: 14000, from: 0, skillReq: 1 },
+      { title: 'Staff Nurse', pay: 27000, from: 3, skillReq: 1 },
+      { title: 'Senior Clinical Nurse', pay: 40000, from: 8, skillReq: 3 },
+      { title: 'Nursing Matron', pay: 64000, from: 15, skillReq: 5 },
+      { title: 'Hospital Clinical Director', pay: 100000, from: 25, skillReq: 7 },
     ],
   },
   {
@@ -171,6 +175,7 @@ export const EMPLOYERS: Employer[] = [
   {
     id: 'amala-shitta-surulere',
     name: 'Amala Shitta Bukateria',
+    needs: { course: 'chef', level: 2, paper: 'Chef' },
     place: 'the kitchen at Amala Shitta, Surulere',
     trade: 'Culinary Arts & Traditional Cuisine',
     task: 'Turn the amala and serve a plate',
@@ -307,6 +312,7 @@ export const EMPLOYERS: Employer[] = [
   {
     id: 'air-peace-mma',
     name: 'Air Peace Commercial Operations',
+    needs: { course: 'pilot', level: 4, paper: 'Pilot' },
     place: 'the domestic terminal flight deck, MMA2 Ikeja',
     trade: 'Aviation Flight Operations',
     task: 'Calculate flight fuel burns and execute smooth crosswind landings',
@@ -416,11 +422,11 @@ export const EMPLOYERS: Employer[] = [
     xp: 35,
     skill: 'craft',
     grades: [
-      { title: 'Safety Trainee', pay: 12000, from: 0, skillReq: 1 },
-      { title: 'Plant Technician', pay: 18000, from: 3, skillReq: 1 },
-      { title: 'Operations Lead', pay: 26000, from: 8, skillReq: 3 },
-      { title: 'Reservoir Lead Specialist', pay: 45000, from: 15, skillReq: 5 },
-      { title: 'Offshore Operations Director', pay: 80000, from: 25, skillReq: 7 },
+      { title: 'Safety Trainee', pay: 36000, from: 0, skillReq: 1 },
+      { title: 'Plant Technician', pay: 50000, from: 3, skillReq: 1 },
+      { title: 'Operations Lead', pay: 68000, from: 8, skillReq: 3 },
+      { title: 'Reservoir Lead Specialist', pay: 90000, from: 15, skillReq: 5 },
+      { title: 'Offshore Operations Director', pay: 140000, from: 25, skillReq: 7 },
     ],
   },
   {
@@ -433,11 +439,11 @@ export const EMPLOYERS: Employer[] = [
     xp: 40,
     skill: 'craft',
     grades: [
-      { title: 'Trainee Operator', pay: 12000, from: 0, skillReq: 1 },
-      { title: 'Control Room Tech', pay: 20000, from: 3, skillReq: 1 },
-      { title: 'Process Senior Operator', pay: 32000, from: 8, skillReq: 3 },
-      { title: 'Operations Shift Supervisor', pay: 50000, from: 15, skillReq: 5 },
-      { title: 'Refinery General Plant Manager', pay: 82000, from: 25, skillReq: 7 },
+      { title: 'Trainee Operator', pay: 36000, from: 0, skillReq: 1 },
+      { title: 'Control Room Tech', pay: 50000, from: 3, skillReq: 1 },
+      { title: 'Process Senior Operator', pay: 68000, from: 8, skillReq: 3 },
+      { title: 'Operations Shift Supervisor', pay: 95000, from: 15, skillReq: 5 },
+      { title: 'Refinery General Plant Manager', pay: 150000, from: 25, skillReq: 7 },
     ],
   },
   {
@@ -535,11 +541,11 @@ export const EMPLOYERS: Employer[] = [
     xp: 30,
     skill: 'fitness',
     grades: [
-      { title: 'Student nurse', pay: 8000, from: 0, skillReq: 1 },
-      { title: 'Staff nurse', pay: 14000, from: 3, skillReq: 1 },
-      { title: 'Nursing sister', pay: 22000, from: 8, skillReq: 3 },
-      { title: 'Chief nursing officer', pay: 36000, from: 15, skillReq: 5 },
-      { title: 'Director of nursing', pay: 58000, from: 25, skillReq: 7 },
+      { title: 'Student nurse', pay: 14000, from: 0, skillReq: 1 },
+      { title: 'Staff nurse', pay: 27000, from: 3, skillReq: 1 },
+      { title: 'Nursing sister', pay: 40000, from: 8, skillReq: 3 },
+      { title: 'Chief nursing officer', pay: 64000, from: 15, skillReq: 5 },
+      { title: 'Director of nursing', pay: 100000, from: 25, skillReq: 7 },
     ],
   },
   {
@@ -561,6 +567,7 @@ export const EMPLOYERS: Employer[] = [
   },
   {
     id: 'cv-phone-repair',
+    needs: { course: 'software', level: 3, paper: 'Software developer' },
     name: 'Chinedu Phones & Repairs',
     place: 'the repair bench at Computer Village, Ikeja',
     trade: 'Phone repair',
@@ -628,6 +635,40 @@ export const EMPLOYERS: Employer[] = [
     ],
   },
   {
+    id: 'abuja-offices',
+    name: 'Abuja Offices',
+    place: 'the front office of an Abuja office block',
+    trade: 'Office work',
+    task: 'Sort the post, sign a visitor in, file the letters',
+    energy: 18,
+    xp: 20,
+    skill: 'charisma',
+    grades: [
+      { title: 'Clerk', pay: 7000, from: 0, skillReq: 1 },
+      { title: 'Secretary', pay: 12000, from: 3, skillReq: 1 },
+      { title: 'Supervisor', pay: 20000, from: 8, skillReq: 3 },
+      { title: 'Office manager', pay: 32000, from: 15, skillReq: 5 },
+      { title: 'Director', pay: 52000, from: 25, skillReq: 7 },
+    ],
+  },
+  {
+    id: 'ph-offices',
+    name: 'Port Harcourt Offices',
+    place: 'the front office of a Port Harcourt office block',
+    trade: 'Office work',
+    task: 'Sort the post, sign a visitor in, file the letters',
+    energy: 18,
+    xp: 20,
+    skill: 'charisma',
+    grades: [
+      { title: 'Clerk', pay: 6500, from: 0, skillReq: 1 },
+      { title: 'Secretary', pay: 11000, from: 3, skillReq: 1 },
+      { title: 'Supervisor', pay: 18000, from: 8, skillReq: 3 },
+      { title: 'Office manager', pay: 30000, from: 15, skillReq: 5 },
+      { title: 'Director', pay: 48000, from: 25, skillReq: 7 },
+    ],
+  },
+  {
     id: 'gra-interiors',
     name: 'GRA Homes & Interiors',
     place: 'the design studio at the Ikeja GRA estate office',
@@ -675,4 +716,6 @@ export const WORKSITES: Record<string, { city: string; x: number; z: number; rad
   'eko-grand-staff': { city: 'lagos', x: 0, z: 0, radius: 0, minSeconds: 6, place: 'interior_place_eko-grand-hotel' },
   'chop-express-crew': { city: 'lagos', x: 0, z: 0, radius: 0, minSeconds: 6, place: 'interior_place_chop-express' },
   'gra-interiors': { city: 'lagos', x: 0, z: 0, radius: 0, minSeconds: 6, place: 'interior_place_ikeja-gra' },
+  'abuja-offices': { city: 'abuja', x: 0, z: 0, radius: 0, minSeconds: 6, place: 'interior_place_abuja-town-office' },
+  'ph-offices': { city: 'port_harcourt', x: 0, z: 0, radius: 0, minSeconds: 6, place: 'interior_place_port_harcourt-town-office' },
 };

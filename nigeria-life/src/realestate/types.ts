@@ -230,4 +230,6 @@ export interface Outcome {
   ok: boolean;
   /** Why not, in words the player can read */
   reason?: string;
+  /** Not built: the omo-onile family's levy is asked first (src/realestate/Land.ts) */
+  levy?: { amount: number; family: string; doubled: boolean };
 }

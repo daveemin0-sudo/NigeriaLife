@@ -33,6 +33,7 @@ export class Fridge {
   }
 
   private save(): void {
+    if (this.backend.holdSaves?.()) return;
     try {
       localStorage.setItem(this.key(), JSON.stringify(this.food));
     } catch {
@@ -93,5 +94,27 @@ export class Fridge {
     const { quantity: _q, ...rest } = here;
     this.backend.addItem(rest, 1);
     return { ...here, quantity: 1 };
+  }
+
+  /**
+   * Uses one portion from the fridge for cooking (does not put it in the bag).
+   * Returns the item that was used, or null if it was not there.
+   */
+  public useUp(id: string): Item | null {
+    const here = this.food.find((f) => f.id === id);
+    if (!here) return null;
+    here.quantity -= 1;
+    if (here.quantity <= 0) this.food = this.food.filter((f) => f !== here);
+    this.save();
+    return { ...here, quantity: 1 };
+  }
+
+  /** First food id in the fridge that matches any of these ids, or the first food if `prefer` is empty. */
+  public pickIngredient(prefer: readonly string[] = []): Item | null {
+    for (const id of prefer) {
+      const hit = this.food.find((f) => f.id === id && f.quantity > 0);
+      if (hit) return { ...hit };
+    }
+    return this.food.find((f) => f.quantity > 0) ? { ...this.food.find((f) => f.quantity > 0)! } : null;
   }
 }

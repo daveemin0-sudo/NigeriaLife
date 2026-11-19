@@ -1,4 +1,5 @@
 import { MusicPlayer } from '../audio/MusicPlayer';
+import { thisLoad } from '../app/LoadTimes';
 import { SignInScreen } from '../ui/SignInScreen';
 import * as THREE from 'three';
 import { LookPreview } from '../ui/LookPreview';
@@ -10,13 +11,25 @@ import { RouteGuide } from '../world/RouteGuide';
 import { Fridge } from '../housing/Fridge';
 import * as LudoRules from '../games/Ludo';
 import { Worship } from '../interiors/places/Worship';
-import { HotelStay, HotelState } from '../interiors/places/Hotel';
+import { HotelStay, HotelState, TownStay } from '../interiors/places/Hotel';
 import { Garden } from '../housing/Garden';
 import { Pets } from '../housing/Pets';
 import { Cases } from '../life/Cases';
 import { Nollywood } from '../film/Nollywood';
 import { HomeStaff } from '../housing/HomeStaff';
+import { HomePower } from '../housing/HomePower';
+import { TradeDesk } from '../travel/TradeDesk';
+import { motorParkTrade } from '../world/landmarks/MotorPark';
+import { Police } from '../life/Police';
+import { BusLine } from '../life/BusLine';
+import { showKiosks } from '../life/Kiosks';
+import { BRIBE, OFFENCES, type Custody } from '../life/Offences';
+import { InteriorManager } from '../interiors/InteriorManager';
+import * as Grid from '../life/Grid';
+import * as HoursRules from '../destinations/Hours';
+import { calendar as hoursCalendar } from '../destinations/Hours';
 import { Dues, dayLabel, type DueEvent } from '../life/Dues';
+import * as Tax from '../life/Tax';
 import { QuitNotice } from '../housing/QuitNotice';
 import { Spark } from '../social/Spark';
 import { Owambe } from '../social/Owambe';
@@ -36,7 +49,7 @@ import { celebrate } from '../interiors/club/Balling';
 import { TodayPanel } from '../ui/TodayPanel';
 import { Album } from '../life/Album';
 import { Hustles } from '../life/Hustles';
-import { Ladder } from '../life/Ladder';
+import { Ladder, RUNGS } from '../life/Ladder';
 import { Activity } from '../life/Activity';
 import { World } from '../world/World';
 import { Player } from '../player/Player';
@@ -58,6 +71,7 @@ import { BackendService } from '../backend/BackendService';
 import { showGameToast } from '../ui/GameToast';
 import { UIStateManager } from '../ui/UIStateManager';
 import { PlaceCard } from '../ui/PlaceCard';
+import { setupCleanView } from '../ui/CleanView';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 import { BukaOrderUI } from '../ui/BukaOrderUI';
 import { ShopUI } from '../ui/ShopUI';
@@ -91,13 +105,19 @@ import { CITY_NAME, type PlotCity } from '../realestate/PlotCatalogue';
 import { ActivityStatusUI } from '../ui/ActivityStatusUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
+import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
+import { abujaIdentity } from '../cities/AbujaDistricts';
+import { phIdentity } from '../cities/PortHarcourtDistricts';
 import type { SavedCityId } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
-import { HouseDecorationSystem, CATALOGUE_ITEMS } from '../housing/HouseDecorationSystem';
-import { FlightService, AIRLINE, AIRPORTS, type Booking, type FlightCity, type FlightStatus } from '../travel/Flights';
+import { HouseDecorationSystem, CATALOGUE_ITEMS, type PlacedItem } from '../housing/HouseDecorationSystem';
+import { FlightService, AIRLINE, AIRPORTS, landingCity, type Booking, type FlightCity, type FlightStatus } from '../travel/Flights';
 import { CoachService, MOTOR_PARKS, OPERATOR, type CoachCity, type CoachTicket } from '../travel/Coaches';
 import { openAirportHall } from '../travel/AirportHall';
 import { FurnishBar } from '../ui/FurnishBar';
+import { StoreyButton } from '../ui/StoreyButton';
+import { Racing } from '../racing/Racing';
+import * as RaceRules from '../racing/RaceRules';
 import { Bodies, bodyOf, type CarBody } from '../world/Bodies';
 import { MusicSheet } from '../ui/MusicSheet';
 import { FleetSheet } from '../ui/FleetSheet';
@@ -118,18 +138,30 @@ import { hawkerPrices } from '../world/StreetVendors';
 import { petrolPolicy } from '../world/Fuel';
 import { RideService } from '../phone/services/RideService';
 import { myProfile } from '../social/Profile';
+import { profileKey } from '../backend/Profile';
+import { MiniMap } from '../ui/MiniMap';
+import { Shifts } from '../jobs/HandWork';
+import { CareerShift } from '../jobs/CareerShift';
+import { uniformFor } from '../jobs/Uniforms';
+import { WORKPLACE } from '../interiors/places/PlaceJobs';
 import { BAE_AT, ROLES, Ties } from '../social/Ties';
 import type { RemotePlayer } from '../multiplayer/RemotePlayer';
 import { FORECOURT, STATIONS, jerryCanShare, nearestStation, stationNear, type Station } from '../world/Fuel';
 import { TopMenu } from '../ui/TopMenu';
 import { Fleet, fleetColour, fleetModel } from '../assets/Fleet';
+import { InterStateModal } from '../ui/InterStateModal';
+import { FirstSteps, GUIDE_TARGETS, guideEnded, guideOver, guideWouldRun, keepGuideOver, type FirstStepsHost } from '../ui/FirstSteps';
+import { elderCard, elderHello, elderMemory, talkToElder } from '../world/ChiefAlabi';
+import { GuideMarker } from '../world/GuideMarker';
 import { buildJet, buildYacht } from '../world/expressway/FleetModels';
 import { AIRFIELD, MARINA } from '../world/expressway/Roadside';
 import { FurnitureThumbs } from '../ui/FurnitureThumbs';
 import { DriveControls } from '../ui/DriveControls';
 import { StreetAmbience } from '../audio/StreetAmbience';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD } from '../world/density/StreetLayout';
-import { EXPRESS } from '../world/expressway/layout';
+import { EXPRESS, ROADSIDE, SIDE_ROADS } from '../world/expressway/layout';
+import { kerbsFrom, wayIn, type KerbSet } from '../world/plan/Kerbs';
+import { estateRoads } from '../world/BananaEstate';
 import { isRushHour } from '../world/StreetLife';
 import { ResidentialInterior } from '../interiors/templates/ResidentialInterior';
 import { standardOf } from '../housing/HomeStandard';
@@ -144,10 +176,14 @@ import { Solids } from '../world/plan/Solids';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
 import { GraphicsQuality } from '../graphics/GraphicsQuality';
 import { OnlineAccount } from '../online/OnlineAccount';
+import { CloudSyncService } from '../backend/CloudSyncService';
+import { Qualifications } from '../life/Qualifications';
 import { Wayfinder, type Way } from '../world/plan/Wayfinder';
 import { DrivableVehicle } from '../world/DrivableVehicle';
+import { showHornTag } from '../ui/HornTag';
 import { buildingType } from '../realestate/BuildingCatalogue';
 import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
+import { PerfReadout } from '../ui/PerfReadout';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -177,6 +213,8 @@ export class Game {
   public photoMode: PhotoModeModal;
   /** Directions on the road when driving yourself somewhere */
   public readonly routeGuide = new RouteGuide();
+  /** The round map in the corner while driving */
+  private readonly miniMap = new MiniMap();
   /** Going online with Eko Rides once the player is in the car brought round for it */
   private rideHailWhenIn = false;
   /** A new arrival stands by the compound gate. The street chrome stays hidden until they walk out. */
@@ -212,7 +250,37 @@ export class Game {
       return this.routeGuide.start(() => DrivableVehicle.roads?.() ?? null, from, to, name, () => arrived());
     },
     stopGuide: () => this.routeGuide.stop(),
-    pay: (amount, what) => { BackendService.getInstance().performGig(amount, 0, what); },
+    // On a game server the trip is the server's: started where the passenger got in, paid by it at the drop-off
+    began: (from, to) => {
+      const online = OnlineAccount.get();
+      if (!online) return;
+      this.rideOnServer = null;
+      void online.request('/work/ride/start', { from, to }).then((started) => {
+        this.rideOnServer = started?.ok ? String(started.ride) : null;
+        if (!started?.ok) showGameToast(`Eko Rides: ${started?.reason ?? 'the server did not start this trip'}`, 'warning', 4500);
+      });
+    },
+    pay: (amount, what) => {
+      const online = OnlineAccount.get();
+      if (!online) {
+        BackendService.getInstance().performGig(amount, 0, what);
+        return;
+      }
+      const ride = this.rideOnServer;
+      this.rideOnServer = null;
+      if (!ride) return;
+      void online.request('/work/ride/finish', { ride, idem: `ride:${ride}` }).then((paid) => {
+        if (paid?.wallet) BackendService.getInstance().applyServerWallet(paid.wallet);
+        if (!paid?.ok) {
+          showGameToast(`Eko Rides did not pay: ${paid?.reason ?? 'the server did not answer'}`, 'warning', 5000);
+          return;
+        }
+        // On the statement, as the server paid it (not reported back)
+        const backend = BackendService.getInstance();
+        backend.settledByServer(() => backend.processTransaction({ type: 'JOB_SALARY', amount: paid.pay, description: what, source: 'wallet' }));
+        if (paid.wallet) backend.applyServerWallet(paid.wallet);
+      });
+    },
     say: (text, kind) => showGameToast(text, kind, 4600),
     alight: (x, z, yaw) => {
       // Out on the right, the kerb side, and off along the pavement
@@ -259,7 +327,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession } };
+  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast, abujaIdentity, phIdentity };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -272,6 +340,8 @@ export class Game {
   /** Where the player is employed, and how much work they have done there */
   public jobs = Employment.get();
   public furnishBar!: FurnishBar;
+  /** In a two-storey home: the way up or down */
+  public storeyButton!: StoreyButton;
   /** Tickets and where each has got to */
   public flights = FlightService.get();
   public coaches = CoachService.get();
@@ -290,7 +360,11 @@ export class Game {
   /** Frames drawn since the game started, counted by the wall clock (the device report's frame rate) */
   private framesDrawn = 0;
   private lastAutosaveAt: number = performance.now();
+  /** The saved city has been stepped back into, so a save may record where the player is standing. */
+  private placeRestored = false;
   private onJourneyCompleted: (() => void) | null = null;
+  /** Where the current paid ride in a city was booked: "Turn back" sets the player down there */
+  private ridePickup: { x: number; z: number; rotationY: number; name: string } | null = null;
 
   constructor() {
     // 1. Scene
@@ -311,7 +385,12 @@ export class Game {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // This version of three.js draws PCFSoftShadowMap as PCFShadowMap, and switches to it at the first shadow drawn:
+    // asked for by its old name, every shader that takes a shadow was built twice (a third of them all, 7 seconds of loading)
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Checking each shader for errors on first use waits for it to finish compiling (on Windows,
+    // through ANGLE, that stalls the game). Only while developing.
+    this.renderer.debug.checkShaderErrors = !!import.meta.env.DEV;
     document.body.appendChild(this.renderer.domElement);
     PointerScope.init(this.renderer.domElement);
 
@@ -326,7 +405,7 @@ export class Game {
     // Each account keeps its own hustles, ladder and album
     Activity.player = () => BackendService.getInstance().getData().id || 'local';
     this.world = new World(this.scene, this.renderer);
-    this.cameraManager.collisionObjects = [this.world.buildings.group, this.world.districts.group];
+    this.updateCameraColliders(this.world.cityManager.currentCityId);
     this.world.viewCamera = this.cameraManager.camera;
 
     // 5. Player Character
@@ -336,7 +415,9 @@ export class Game {
 
     // 6. UI / HUD
     this.hud = new HUD();
+    setupCleanView();
     this.hud.init(this.player, this.world);
+    this.hud.onOpenSignIn = (mode) => this.openSignIn(mode);
     this.hud.onRotateCamera = (deltaYaw: number) => {
       this.cameraManager.rotate(deltaYaw);
     };
@@ -557,6 +638,10 @@ export class Game {
       this.roadRideExperience.skipRide();
     };
 
+    this.transitHUD.onTurnBackRide = () => {
+      this.roadRideExperience.turnBack();
+    };
+
     // Wire Flight Progression & Landing
     this.flightExperience.onFlightPhaseChanged = (phase, timeRemaining, announcement) => {
       this.transitHUD.updateFlightProgress(phase, timeRemaining, announcement);
@@ -615,7 +700,15 @@ export class Game {
 
       const journeyCompleted = this.onJourneyCompleted;
       this.onJourneyCompleted = null;
-      journeyCompleted?.();
+      const pickup = this.roadRideExperience.endedBy === 'turnedBack' ? this.ridePickup : null;
+      this.ridePickup = null;
+      if (pickup) this.setDownAtPickup(pickup);
+      else journeyCompleted?.();
+      // Where the ride set the player down is saved now, not at the next autosave: a reload a moment
+      // later must not find the spot the ride began from. And sent to the account at once, so even
+      // clearing the browser straight after cannot bring back an older spot.
+      this.saveWorldState();
+      CloudSyncService.getInstance().saveNow();
     };
 
     // Wire InterState Modal to trigger the 3D Flight Experience
@@ -682,15 +775,37 @@ export class Game {
     // 9c. Camera Navigation Modes (Home Flat | Street Walk | Aerial World Map)
     this.hud.onNavigateMode = (mode: 'street' | 'home' | 'map') => {
       if (mode === 'home') {
-        // Already at home: the Home button opens the catalogue
-        if (this.world.interiorManager.currentInterior?.type === 'residence') {
+        const inside = this.world.interiorManager.currentInterior;
+        const homeHere = this.homeInThisCity();
+        // Already at the home in this city: the Home button opens the catalogue
+        if (inside?.type === 'residence' && homeHere) {
           UIStateManager.getInstance().setMode('interior');
           HouseDecorationSystem.getInstance().openCatalogueModal();
           return;
         }
+        if (homeHere) {
+          if (this.currentHome() !== homeHere) this.setHomeNow(homeHere);
+          this.world.worldMap.deactivate();
+          const home = this.homeProperty();
+          const atDoor = home?.streetPosition
+            ? new THREE.Vector3(home.streetPosition.x, 0, home.streetPosition.z)
+            : undefined;
+          void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world, atDoor
+            ? { returnTo: atDoor, returnYaw: 0 }
+            : undefined);
+          return;
+        }
+        const suite = this.hotelStayHere();
+        if (suite) {
+          void this.enterPlace(suite);
+          return;
+        }
+        const away = this.homeSomewhereElse();
+        if (away) {
+          this.homeIsElsewhere(away.city, away.address);
+          return;
+        }
         if (!this.canGoHome()) return;
-        this.world.worldMap.deactivate();
-        this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world);
         return;
       }
 
@@ -702,6 +817,7 @@ export class Game {
       this.cameraManager.setLayerMode(mode);
 
       if (mode === 'street') {
+        this.world.skyEnvironment.mapView = false;
         if (this.savedStreetFog) {
           this.scene.fog = this.savedStreetFog;
         }
@@ -712,7 +828,11 @@ export class Game {
         if (this.scene.fog) {
           this.savedStreetFog = this.scene.fog;
         }
-        this.scene.fog = null; // 100% clear crisp view for world map without blurry haze
+        // Keep FogExp2 instance with density = 0 rather than setting fog = null, so USE_FOG stays constant and 32 city shaders do not recompile
+        this.world.skyEnvironment.mapView = true;
+        if (this.scene.fog instanceof THREE.FogExp2) {
+          this.scene.fog.density = 0;
+        }
         this.world.setStreetModeVisibility(false);
         this.player.mesh.visible = false;
         this.world.worldMap.activate();
@@ -734,10 +854,47 @@ export class Game {
     // 9e. 3-Tier Interior Destination System (Hospital, Bank, Buka, Police, Residence)
     // The player walks in and out through the door wherever the place has one
     this.hud.onEnterInterior = (buildingId: string, comeOutAt?: THREE.Vector3) => {
+      PerfReadout.get().recordTap(buildingId, 'enter-interior', buildingId);
       const target = this.world.interiorManager.getInteriorByBuildingId(buildingId);
-      if (target?.type === 'residence' && !this.canGoHome()) return;
-      // In through the gate of the compound: the flat, not a house built elsewhere
-      if (target?.type === 'residence' && (buildingId === 'villa-compound' || buildingId === 'palm-view-flats')) this.homeNow = 'main';
+      // "Enter" on a home's card on the map names the home: that one is gone into, and is home from now on
+      if (buildingId.startsWith('residence:')) {
+        const propId = buildingId.slice('residence:'.length);
+        const prop = this.myHomes().find((p) => p.id === propId);
+        if (!prop) return;
+        const city = prop.cityId || 'lagos';
+        if (city !== this.world.cityManager.currentCityId) {
+          this.homeIsElsewhere(city, prop.location || prop.name);
+          return;
+        }
+        this.setHomeNow(this.homeKey(prop.id));
+        // Straight in, as the Home button goes (not a walk across town to some other door).
+        // Come back out on that property's street so interior ↔ compound ↔ neighbourhood stay linked.
+        this.world.worldMap.deactivate();
+        const atDoor = prop.streetPosition
+          ? new THREE.Vector3(prop.streetPosition.x, 0, prop.streetPosition.z)
+          : undefined;
+        void this.world.interiorManager.enterInterior('residence', this.player, this.cameraManager, this.hud, this.world, atDoor
+          ? { returnTo: atDoor, returnYaw: 0 }
+          : undefined);
+        return;
+      }
+      if (target?.type === 'residence' && !this.homeInThisCity()) {
+        const away = this.homeSomewhereElse();
+        if (away) {
+          this.homeIsElsewhere(away.city, away.address);
+          return;
+        }
+        if (!this.canGoHome()) return;
+      }
+      // In through the gate of the compound: that compound's home if it is the player's, else a home of theirs that is not a built house
+      if (target?.type === 'residence' && (buildingId === 'villa-compound' || buildingId === 'palm-view-flats')) {
+        const doorHome = this.myHomes().find((p) => p.buildingId === buildingId);
+        if (doorHome) this.setHomeNow(this.homeKey(doorHome.id));
+        else if (this.isPlotHome(this.currentHome())) {
+          const best = this.mainHome();
+          if (best) this.setHomeNow(this.homeKey(best.id));
+        }
+      }
       if (comeOutAt) {
         // In by one way and out by another: from the apron into the terminal, and out at the kerb
         void this.world.interiorManager.enterInterior(buildingId, this.player, this.cameraManager, this.hud, this.world, { returnTo: comeOutAt, returnYaw: 0 });
@@ -745,6 +902,22 @@ export class Game {
       }
       this.world.interiorManager.enterThroughDoor(buildingId, this.player, this.cameraManager, this.hud, this.world);
     };
+    // Chief Alabi answers a greeting with a conversation, and remembers it
+    this.hud.onSpokenTo = (id) => {
+      if (id === GUIDE_TARGETS.elder) this.talkToElder();
+    };
+    this.remindElder();
+    // He calls out to someone he knows when they pass (not more than once in a few minutes)
+    window.setInterval(() => {
+      const known = elderMemory();
+      if (!known || this.player.isDriving || this.world.cityManager.currentCityId !== 'lagos' || this.world.interiorManager.isPlayerInside()) return;
+      const now = performance.now();
+      if (now - this.elderCalledAt < 240_000 || document.getElementById('game-dialogue-overlay')) return;
+      const elder = this.placeById(GUIDE_TARGETS.elder);
+      if (!elder || Math.hypot(elder.interactionPoint.x - this.player.position.x, elder.interactionPoint.z - this.player.position.z) > 9) return;
+      this.elderCalledAt = now;
+      InteractionDirector.get().actorFor(GUIDE_TARGETS.elder)?.say(elderHello(known, this.playerName()), 3.2);
+    }, 1500);
     this.hud.onRideInterior = (id, spawnAt, spawnYaw) => {
       const rooms = this.world.interiorManager;
       void rooms.enterInterior(id, this.player, this.cameraManager, this.hud, this.world, { returnTo: rooms.getStreetReturnPosition().clone(), returnYaw: rooms.getStreetReturnYaw(), spawnAt, spawnYaw });
@@ -754,7 +927,18 @@ export class Game {
     };
 
     this.hud.onExitInterior = () => {
-      this.world.interiorManager.leaveThroughDoor(this.player, this.cameraManager, this.hud, this.world);
+      const leavingHome = this.world.interiorManager.currentInterior?.type === 'residence';
+      void this.world.interiorManager.leaveThroughDoor(this.player, this.cameraManager, this.hud, this.world).then(() => {
+        // Home ↔ neighbourhood continuity: leaving a residence puts the player back on a live street
+        if (leavingHome && !this.world.interiorManager.isPlayerInside()) {
+          const city = this.world.cityManager.currentCityId;
+          const where =
+            city === 'abuja' ? 'Abuja'
+              : city === 'port_harcourt' ? 'Port Harcourt'
+                : 'your Lagos neighbourhood';
+          showGameToast(`Back on the street in ${where}. Walk to shops, work, or open the map for destinations.`, 'info', 3800);
+        }
+      });
     };
 
     // 9e-2. The buka's menu and order status
@@ -788,7 +972,10 @@ export class Game {
       else if (objectId === 'flat-drum') homeLife.bathe();
       else if (objectId === 'flat-fridge') this.openFridge();
     };
-    DeliveryService.atHome = () => this.world.interiorManager.currentInterior?.type === 'residence';
+    ResidentialInterior.openFridge = (item) => this.openFridge(item);
+    InterStateModal.ownJets = () => Fleet.get().mine('jet').map((j) => ({ uid: j.uid, name: j.name }));
+    InterStateModal.flyJet = (uid, to) => this.flyJetFrom(uid, to);
+    DeliveryService.atHome = () => this.world.interiorManager.currentInterior?.type === 'residence' && this.homeInThisCity() !== null;
 
     // 9f. On-screen shortcuts to everything inside the current building
     this.placeCard = new PlaceCard({
@@ -813,8 +1000,14 @@ export class Game {
     this.hud.onOpenMusic = () => music.open();
 
     // Driving with fingers: steering, pedals, horn and Get out, on touch screens
+    // From the bonnet the horn is a small tag on the screen, not the bubble over the car (which would fill the view)
+    DrivableVehicle.eyeOnTheBonnet = () => this.cameraManager.driveView === 'bonnet' && this.player.isDriving;
+    DrivableVehicle.ownHorn = (text, seconds) => showHornTag(text, seconds);
     const drive = new DriveControls({
       keys: this.input.keys,
+      steer: (amount) => {
+        DrivableVehicle.touchSteer = amount;
+      },
       speed: () => this.player.currentVehicle?.currentSpeed ?? 0,
       fuel: () => this.player.currentVehicle?.fuel ?? 0,
       name: () => this.player.currentVehicle?.name ?? '',
@@ -823,8 +1016,15 @@ export class Game {
       refuel: () => this.hud.onRefuelVehicle?.(),
       music: () => SoundEngine.getInstance().toggleRadio(),
       musicOn: () => SoundEngine.getInstance().isRadioActive(),
+      view: () => {
+        const view = this.cameraManager.toggleDriveView();
+        showGameToast(view === 'bonnet' ? '📷 Bonnet view' : '📷 Chase view', 'info', 1600);
+      },
     });
-    UIStateManager.getInstance().onModeChange((mode) => drive.show(mode === 'driving'));
+    UIStateManager.getInstance().onModeChange((mode) => {
+      drive.show(mode === 'driving');
+      this.miniMap.show(mode === 'driving');
+    });
 
     // 10. Multiplayer & Street Chat. On a game server the player has an account there first: the
     // server holds their money from now on, and the city's players are reached through it
@@ -833,13 +1033,43 @@ export class Game {
     const online = OnlineAccount.start({ name: start.username, save: { cash: start.walletCash, bank: start.bank.balance } });
     if (online) {
       backend.authority = { report: (cash, bank, memo, idem) => online.report(cash, bank, memo, idem) };
+      const sync = CloudSyncService.getInstance();
+      sync.attach(online);
+      backend.onSaved = () => sync.note();
+      backend.holdSaves = () => online.leaving;
+      // A guest signing up sends this life up. Signing in on another device brings that life here.
+      online.onSwitch = async (mode) => {
+        if (mode === 'upgrade') {
+          await sync.pushNow();
+          return;
+        }
+        const pulled = await sync.replaceFromServer();
+        if (pulled) {
+          online.leaving = true;
+          window.location.reload();
+        }
+      };
       // The trait belongs to the account: the server's wins, and one picked here is kept there
       backend.onTraitChosen = (id) => void online.request('/me/trait', { trait: id }).then((r) => r.trait && backend.adoptTrait(r.trait));
       void online.ready.then(async (ok) => {
         if (!ok) return;
+        // The account's player in the land register is bound before titles are matched, so a
+        // second phone does not give the homes and businesses back and then have to be given them again.
+        this.deeds.arm();
+        void this.modules.Motors.get().syncOnline();
         const me = await online.request('/me');
+        if (me.away?.note) showGameToast(String(me.away.note), 'success', 8000);
         if (me.trait) backend.adoptTrait(me.trait);
         else if (me.ok && backend.getTrait()) backend.onTraitChosen?.(backend.getTrait()!);
+        // The first five minutes: over on the account is over on this device at once, and a guide
+        // that ended here while the server could not be told (offline) is told to it now
+        if (me.ok && (me.guide === 'done' || me.guide === 'skipped')) {
+          if (this.firstSteps) this.firstSteps.dismiss(me.guide);
+          else if (!guideOver()) keepGuideOver(me.guide);
+        } else if (me.ok && me.guide === 'open') {
+          const ended = guideEnded();
+          if (ended) void online.request('/me/guide', { state: ended }).catch(() => undefined);
+        }
       });
       online.on('wallet', (wallet) => backend.applyServerWallet(wallet));
       online.on('notice', (text) => showGameToast(String(text), 'warning', 5200));
@@ -847,7 +1077,14 @@ export class Game {
       void online.ready.then((ok) => {
         if (!ok || online.account?.kind !== 'guest') return;
         if (navigator.webdriver && !(window as unknown as { __signInOn?: boolean }).__signInOn) return;
-        new SignInScreen({
+        // A new player sees the city first: the guide asks for a name once they have earned something
+        // worth keeping. A guest whose guide is over is asked here, as before.
+        if (guideWouldRun(this.firstStepsHost())) return;
+        this.openSignIn('register');
+      });
+      ServerLink.authorization = () => online.authorization;
+      this.signInScreen = (mode, later) => {
+        const screen = new SignInScreen({
           register: (u, p) => online.register(u, p),
           login: (u, p) => online.login(u, p),
           done: (typed, gender, isNew) => {
@@ -864,9 +1101,15 @@ export class Game {
             showGameToast(isNew ? `🎉 Welcome to Lagos, @${name}! Make your look your own.` : `👋 Welcome back, @${name}.`, 'success', 5200);
             if (isNew) this.hud.creatorModal.open('look');
           },
-        }).open();
-      });
-      ServerLink.authorization = () => online.authorization;
+          later,
+          // The name they gave Chief Alabi, as a username (letters, numbers, _ and . only)
+          suggest: () => {
+            const name = this.playerName().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_.]/g, '').slice(0, 16);
+            return name.length >= 3 && name !== 'Bayo' ? name : '';
+          },
+        }, mode);
+        screen.open();
+      };
       // Every 20 s, how the game is running on this device (frame rate, screen, quality, whether
       // the player could move), so the game team can see what a real phone does. Nothing personal.
       let lastAt = this.player.position.clone();
@@ -920,17 +1163,13 @@ export class Game {
         showGameToast(`The cab is ₦${fare.toLocaleString()}. You do not have it.`, 'warning', 3600);
         return;
       }
-      const ride: RideDetails = { vehicleName: 'Lagos taxi', vehicleType: 'taxi', originName: 'Here', destinationName: name, durationSeconds: 10, trafficCondition: 'Go-slow', weatherCondition: 'Sunny', destinationCityId: 'lagos' };
-      this.onJourneyCompleted = () => {
+      const ride: RideDetails = { vehicleName: 'Taxi', vehicleType: 'taxi', originName: 'Here', destinationName: name, durationSeconds: 10, trafficCondition: 'Go-slow', weatherCondition: 'Sunny', destinationCityId: this.world.cityManager.currentCityId as CityId };
+      this.startRoadRide(ride, point, name, () => {
         this.player.stopMoving();
         this.player.mesh.position.set(point.x, 0, point.z);
         this.player.position.copy(this.player.mesh.position);
         this.cameraManager.snapToPlayer(this.player, 'street');
-      };
-      this.world.setStreetModeVisibility(false);
-      this.player.mesh.visible = false;
-      this.roadRideExperience.startRide(ride);
-      this.transitHUD.showRideHUD(ride);
+      });
     };
     PlaceLook.apply = (look) => {
       const cfg = { ...this.player.config };
@@ -951,9 +1190,13 @@ export class Game {
       else if (what === 'vote') this.stateHouse.open('polling');
       else if (what === 'house') this.stateHouse.open('house');
       else if (what === 'interstate') this.hud.interstateModal.open(this.world.cityManager.currentCityId);
-      else if (what === 'bus-island') this.hud.onRideTo?.(new THREE.Vector3(9, 0, 40), 'Lagos Island (Broad Street)', Math.round(750 * RideService.fareFactor()));
+      else if (what === 'bus-island') {
+        if (this.world.cityManager.currentCityId !== 'lagos') { this.flyInstead('lagos'); return; }
+        this.hud.onRideTo?.(new THREE.Vector3(9, 0, 40), 'Lagos Island (Broad Street)', Math.round(750 * RideService.fareFactor()));
+      }
       else if (what === 'repair') this.offerRepairs();
       else if (what === 'airside') {
+        if (this.world.cityManager.currentCityId !== 'lagos') { this.flyInstead('lagos'); return; }
         // From the hall on the road through to the airport: the terminal, out at its kerb when done
         const kerb = this.world.airportOf('lagos')?.kerb;
         const go = () => this.world.interiorManager.enterInterior('mma-airport', this.player, this.cameraManager, this.hud, this.world, kerb ? { returnTo: kerb.clone(), returnYaw: 0 } : undefined);
@@ -961,17 +1204,31 @@ export class Game {
         if (rooms.isPlayerInside()) void rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world).then(() => void go());
         else void go();
       }
-      else if (what === 'yachts' && host) this.world.expressway.roadside.yachtDesk(host);
+      else if (what === 'yachts' && host) {
+        if (this.world.cityManager.currentCityId !== 'lagos') { this.flyInstead('lagos'); return; }
+        this.world.expressway.roadside.yachtDesk(host);
+      }
       else if (what === 'escort:escort' || what === 'escort:convoy') this.hireEscort(what.slice(7) as EscortLevel, host);
       else if (what === 'escort:cancel') {
         this.convoys?.escort.cancel();
         host?.say('🚨 Police escort team dismissed and stood down.', 'info');
       }
-      else if (what === 'jets' && host) this.world.expressway.roadside.jetDesk(host);
+      else if (what === 'jets' && host) {
+        if (this.world.cityManager.currentCityId !== 'lagos') { this.flyInstead('lagos'); return; }
+        this.world.expressway.roadside.jetDesk(host);
+      }
       else if (what.startsWith('ride:')) {
-        // A cab to a place along the road (from the jobs list, say): out of any room first
-        const place = this.world.expressway.roadside.interactive.find((o) => o.id === what.slice(5));
-        if (!place) return;
+        // A cab to a place along the road (from the jobs list, say): out of any room first.
+        // A Lagos roadside is only a cab while the player is in Lagos. A door in this city is a cab here.
+        const id = what.slice(5);
+        const here = this.world.cityManager.currentCityId;
+        const lagosPlace = this.world.expressway.roadside.interactive.find((o) => o.id === id);
+        const local = lagosPlace ? null : this.world.cityManager.thingsIn(here).find((o) => o.id === id);
+        const place = here === 'lagos' ? lagosPlace : local;
+        if (!place) {
+          if (lagosPlace && here !== 'lagos') this.flyInstead('lagos');
+          return;
+        }
         const ride = () => this.hud.onRideTo?.(place.interactionPoint.clone(), place.name, Math.round(4500 * RideService.fareFactor()));
         const rooms = this.world.interiorManager;
         if (rooms.isPlayerInside()) void rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world).then(ride);
@@ -981,6 +1238,14 @@ export class Game {
 
     // 10b. The phone: its apps act on this game through the hooks below
     this.connectPhone();
+    // The performance readout (off unless switched on in Settings › Graphics or with ?perf=1)
+    PerfReadout.get().attach({
+      renderer: this.renderer,
+      city: () => this.world.cityManager.currentCityId,
+      where: () => this.whereabouts(),
+      coords: () => ({ x: this.player.position.x, z: this.player.position.z }),
+      activity: () => (this.warming ? 'warming' : this.hud.currentNavMode === 'map' ? 'map' : this.flightExperience.isActive ? 'flight' : this.roadRideExperience.isActive ? 'ride' : this.whereabouts()),
+    });
     this.connectSelfMenu();
     this.connectLand();
 
@@ -1009,8 +1274,30 @@ export class Game {
     // 12b. Resume where the player left off, then keep that position saved.
     // A first visit has no saved spot: they start on the pavement by their own gate, not in the crowd.
     this.restoreWorldState();
+    // Preview / share links: ?weather=rainy&hour=18.4 override the saved sky for demos
+    this.applyPreviewWorldParams();
     if (!BackendService.getInstance().getData().worldState) this.arriveAtTheGate();
+    this.placeRestored = true;
+    if (!OnlineAccount.get()) this.deeds.arm();
     this.connectDues();
+    this.connectPower();
+    this.connectPolice();
+    InteriorManager.warm = (group) => this.warmShaders(6_000, group);
+    this.connectLandLife();
+    // Trade between cities: the desk knows where the player stands; a shed's card opens the Trade app
+    const desk = TradeDesk.get();
+    desk.where = () => (this.world.interiorManager.isPlayerInside() ? null : { city: this.world.cityManager.currentCityId, x: this.player.position.x, z: this.player.position.z });
+    desk.today = () => this.world.skyEnvironment.day;
+    motorParkTrade.open = () => {
+      this.hud.phoneModal.open();
+      this.hud.phoneModal.openApp('trade');
+    };
+    // Back after time away: what it took off the needs, in one line
+    BackendService.getInstance().onAway = (changed) => {
+      const words: Record<string, string> = { hunger: 'hungrier', energy: 'more tired', fun: 'more bored', social: 'lonelier', hygiene: 'less fresh', bladder: 'in need of the toilet' };
+      const said = Object.entries(changed).filter(([, n]) => (n ?? 0) >= 3).map(([need, n]) => `${words[need]} (-${n})`);
+      if (said.length) showGameToast(`While you were away you got ${said.join(', ')}. Time away never takes a need below a quarter.`, 'info', 7000);
+    };
     window.addEventListener('pagehide', () => this.saveWorldState());
     document.addEventListener('visibilitychange', () => {
       // Out of sight (Chrome closed, another app on top): saved, and every sound held until the player is back
@@ -1080,9 +1367,25 @@ export class Game {
       cityName: () => cityNames[cityId()] ?? cityId(),
       where: () => this.whereabouts(),
       placeName,
-      goHome: (plotId) => {
-        // A built house is a home of its own: that is the one gone into
-        if (plotId && this.land.livesIn(plotId)) this.homeNow = plotId;
+      goHome: (homeId) => {
+        // A built house is a home of its own, and so is every flat or house rented or bought: that is the one gone into
+        const chosen = homeId && this.land.livesIn(homeId) ? homeId : homeId && this.myHomes().some((p) => p.id === homeId) ? this.homeKey(homeId) : null;
+        if (chosen && this.cityOfHome(chosen) !== cityId()) {
+          this.homeIsElsewhere(this.cityOfHome(chosen), this.homeAddress(chosen));
+          return;
+        }
+        if (chosen) this.setHomeNow(chosen);
+        else if (homeId) {
+          // Never some other house in its place: that one is not a home to go into (yet)
+          showGameToast('That house is not ready to live in yet.', 'info', 3600);
+          return;
+        }
+        // Inside another home: out of it first, then into the one chosen (Home there opens the catalogue)
+        const rooms = this.world.interiorManager;
+        if (rooms.currentInterior?.type === 'residence') {
+          void Promise.resolve(rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world)).then(() => document.getElementById('nav-btn-home')?.click());
+          return;
+        }
         document.getElementById('nav-btn-home')?.click();
       },
       openMap: () => document.getElementById('nav-btn-map')?.click(),
@@ -1134,6 +1437,10 @@ export class Game {
         return null;
       },
       driveToMechanic: () => {
+        if (cityId() !== 'lagos') {
+          this.flyInstead('lagos');
+          return 'Ladipo Auto Market is in Lagos. You go there by air or by coach.';
+        }
         const ladipo = this.world.expressway.roadside.interactive.find((o) => o.id === 'roadside-ladipo-auto');
         if (!ladipo) return 'Ladipo Auto Market is not on this map.';
         this.hud.phoneModal.close();
@@ -1165,6 +1472,10 @@ export class Game {
       driveTo: (destinationId) => {
         const d = DestinationRegistry.getInstance().getById(destinationId);
         if (!d) return 'That place is not on the map.';
+        if (d.city !== cityId()) {
+          this.flyInstead(d.city);
+          return `That is in ${cityNames[d.city] ?? d.city}. You go there by air or by coach.`;
+        }
         this.hud.phoneModal.close();
         return this.driveTo(d.name, d.streetPosition) ? null : 'There is no way there by road from here.';
       },
@@ -1197,7 +1508,7 @@ export class Game {
         const station = RED_LINE[near.index].name;
         if (!BackendService.getInstance().pay(fare, `Keke to ${station} station`, 'TRAVEL_COST')) return `A keke to ${station} station is ₦${fare.toLocaleString()}, and you do not have it.`;
         const gate = line.gate(near.index, near.side);
-        const destination = { name: `${station} station`, streetPosition: gate } as unknown as DestinationDefinition;
+        const destination = { name: `${station} station`, streetPosition: gate, city: 'lagos' } as unknown as DestinationDefinition;
         const keke = { mode: 'keke', label: 'Keke to the station', icon: '🛺', fare, travelTimeSec: 60, description: '' } as TransportOption;
         this.rides.journey(destination, keke, () => {
           // Set down a few steps from the gate, facing it, then on to the train
@@ -1217,6 +1528,11 @@ export class Game {
       where: () => this.whereabouts(),
       cityId,
       startJourney: (destination, vehicle, arrived) => {
+        // A place in another city is flown to; a spot with no city named is here, in this one
+        if (destination.city && destination.city !== cityId()) {
+          this.flyInstead(destination.city);
+          return;
+        }
         const ride: RideDetails = {
           vehicleName: vehicle.label,
           vehicleType: vehicle.mode,
@@ -1228,16 +1544,15 @@ export class Game {
           destinationCityId: cityId(),
           car: vehicle.mode === 'car' ? RideService.ownCar() ?? undefined : undefined,
         };
-        this.onJourneyCompleted = arrived;
-        this.hud.phoneModal.close();
-        this.world.setStreetModeVisibility(false);
-        this.player.mesh.visible = false;
-        this.roadRideExperience.startRide(ride);
-        this.transitHUD.showRideHUD(ride);
+        this.startRoadRide(ride, this.setDownSpot(destination), destination.name, arrived);
       },
       arriveAt: (destination) => {
         this.player.stopMoving();
-        this.player.mesh.position.set(destination.streetPosition.x, 0, destination.streetPosition.z);
+        const spot = this.setDownSpot(destination);
+        if (this.world.cityManager.currentCityId === 'lagos') {
+          this.world.expressway.ensureChunksNear(spot.z);
+        }
+        this.player.mesh.position.set(spot.x, 0, spot.z);
         this.cameraManager.snapToPlayer(this.player, 'street');
         showGameToast(`You have arrived at ${destination.name}.`, 'success', 3600);
       },
@@ -1256,18 +1571,631 @@ export class Game {
     this.hud.phoneModal.connect({ world, rides: this.rides, deliveries: this.deliveries, messages: this.messages, market: this.market });
   }
 
+  /**
+   * Compiles every shader the visible world needs before play starts, off the main thread where
+   * the browser has parallel shader compiling. Without it each material is compiled the first
+   * time it comes into view, and on a modest laptop that froze the game for seconds on Broad
+   * Street. Gives up waiting after `ms` (the rest compile as they come into view).
+   */
+  public async warmShaders(ms: number, root: THREE.Object3D = this.scene): Promise<void> {
+    const renderer = this.renderer;
+    const camera = this.cameraManager.camera;
+    const t0 = performance.now();
+    const parallel = !!renderer.getContext().getExtension('KHR_parallel_shader_compile');
+    // The sky's fog and reflections are part of every shader: they are put in place first, or every
+    // shader is compiled again the moment the sky first applies its part of the day
+    const sky = this.world.skyEnvironment;
+    const seen = new Set<string>();
+    this.warming = true;
+    try {
+      if (!this.scene.environment || !this.scene.fog) sky.applyMode(sky.getTimePeriodForHour(sky.currentHour));
+      // At startup, skip hidden interior and ride groups (they are warmed incrementally in the idle queue)
+      const skip = root === this.scene
+        ? new Set<THREE.Object3D>([this.world.interiorManager.group, this.roadRideExperience.group])
+        : undefined;
+      const roots = root === this.scene ? [root] : [root, this.player.mesh];
+      const copies = this.extractShaderStandIns(roots, seen, skip);
+      const warmer = new THREE.Scene();
+      for (const copy of copies) warmer.add(copy);
+      await Promise.race([renderer.compileAsync(warmer, camera, this.scene), new Promise((done) => setTimeout(done, ms))]);
+      // The shadow map's own depth shaders are made by drawing one ordinary frame, shadows and all, to the
+      // screen. (Drawing it into a small target instead built a second set of every shader, for a target
+      // that is never used again: 6 seconds of loading, measured. Drawing the shadow map alone, outside a
+      // frame, left the graphics card pointed at it: every frame after was drawn into the shadow map.)
+      if (root === this.scene && renderer.shadowMap.enabled) {
+        renderer.shadowMap.needsUpdate = true;
+        renderer.render(this.scene, camera);
+      }
+    } catch (error) {
+      console.warn('[shaders] could not be compiled ahead', error);
+    } finally {
+      this.warming = false;
+    }
+    console.log(`[shaders] ${renderer.info.programs?.length ?? 0} programs ready, ${seen.size} materials warmed in ${Math.round(performance.now() - t0)} ms (parallel: ${parallel})`);
+    if (root === this.scene) {
+      this.idleQueueRunning = true;
+      const waitPlayable = (): void => {
+        if (thisLoad().stages.playable !== undefined) {
+          this.idleQueueRunning = false;
+          this.startIdleShaderQueue();
+        } else {
+          setTimeout(waitPlayable, 150);
+        }
+      };
+      setTimeout(waitPlayable, 200);
+    }
+  }
+
+  private extractShaderStandIns(
+    roots: THREE.Object3D[],
+    seen: Set<string>,
+    skipGroups?: Set<THREE.Object3D>
+  ): THREE.Object3D[] {
+    const out: THREE.Object3D[] = [];
+    const visit = (o: THREE.Object3D): void => {
+      if (skipGroups?.has(o)) return;
+      const mesh = o as THREE.Mesh;
+      const sprite = (o as THREE.Sprite).isSprite;
+      if ((mesh.isMesh || (o as THREE.Points).isPoints || (o as THREE.Line).isLine || sprite) && !(o as THREE.SkinnedMesh).isSkinnedMesh) {
+        const instanced = (o as THREE.InstancedMesh).isInstancedMesh;
+        const coloured = instanced && !!(o as THREE.InstancedMesh).instanceColor;
+        for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+          if (!material) continue;
+          const key = `${material.uuid}|${o.receiveShadow}|${instanced}|${coloured}|${o.type}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          let copy: THREE.Object3D;
+          if (sprite) copy = new THREE.Sprite(material as THREE.SpriteMaterial);
+          else if (instanced) {
+            const many = new THREE.InstancedMesh(mesh.geometry, material, 1);
+            if (coloured) many.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3);
+            copy = many;
+          } else copy = new (o.constructor as new (g: THREE.BufferGeometry, m: THREE.Material) => THREE.Object3D)(mesh.geometry, material);
+          copy.receiveShadow = o.receiveShadow;
+          copy.castShadow = o.castShadow;
+          copy.frustumCulled = false;
+          out.push(copy);
+        }
+      }
+      for (const child of o.children) visit(child);
+    };
+    for (const r of roots) visit(r);
+    return out;
+  }
+
+  private idleShaderTasks: Array<() => Promise<void> | void> = [];
+  private idleQueueRunning = false;
+  private idleRoomLightScenes = new Map<number, THREE.Scene>();
+
+  /** True while background idle shader/asset preparation is still running. */
+  public get idleWarming(): boolean {
+    return this.idleQueueRunning || this.idleShaderTasks.length > 0;
+  }
+
+  private getRoomWarmTargetScene(pointLightCount: number): THREE.Scene {
+    let target = this.idleRoomLightScenes.get(pointLightCount);
+    if (!target) {
+      target = new THREE.Scene();
+      const sun = this.world.sunLight.clone();
+      sun.castShadow = this.world.sunLight.castShadow;
+      const hemi = this.world.hemiLight.clone();
+      const amb = new THREE.AmbientLight(0xffffff, 0.5);
+      target.add(sun, hemi, amb);
+      for (let i = 0; i < pointLightCount; i++) {
+        target.add(new THREE.PointLight(0xfbbf24, 1.5, 12, 1.2));
+      }
+      this.idleRoomLightScenes.set(pointLightCount, target);
+    }
+    target.fog = this.scene.fog;
+    target.environment = this.scene.environment;
+    return target;
+  }
+
+  private enqueueShaderBatches(
+    standIns: THREE.Object3D[],
+    camera: THREE.Camera,
+    targetScene: THREE.Scene,
+    batchSize = 6,
+    onDone?: () => void
+  ): void {
+    if (standIns.length === 0) {
+      if (onDone) this.idleShaderTasks.push(onDone);
+      return;
+    }
+    for (let i = 0; i < standIns.length; i += batchSize) {
+      const slice = standIns.slice(i, i + batchSize);
+      const isLast = i + batchSize >= standIns.length;
+      this.idleShaderTasks.push(async () => {
+        const batch = new THREE.Scene();
+        for (const item of slice) batch.add(item);
+        await Promise.race([
+          this.renderer.compileAsync(batch, camera, targetScene),
+          new Promise((r) => setTimeout(r, 800)),
+        ]);
+        if (isLast && onDone) onDone();
+      });
+    }
+  }
+
+  private enqueueCityRideWarm(cityId: string): void {
+    const rideSeen = new Set<string>();
+    for (let step = 0; step < 4; step++) {
+      this.idleShaderTasks.push(() => {
+        const built = this.roadRideExperience.prepareIdleStep(cityId);
+        if (!built) return;
+        const standIns = this.extractShaderStandIns([built], rideSeen);
+        this.enqueueShaderBatches(standIns, this.roadRideExperience.rideCamera, this.scene, 8);
+      });
+    }
+  }
+
+  private startIdleShaderQueue(): void {
+    // 1. World Map materials
+    const mapSeen = new Set<string>();
+    const mapStandIns = this.extractShaderStandIns([this.world.worldMap.renderer.group, this.world.routeLine.group], mapSeen);
+    this.enqueueShaderBatches(mapStandIns, this.world.worldMap.mapCamera, this.scene, 8);
+
+    // 2. Road Ride assets & shaders ( highway/coach + current city road & vehicles )
+    const baseRideSeen = new Set<string>();
+    const baseRideStandIns = this.extractShaderStandIns([this.roadRideExperience.group], baseRideSeen);
+    this.enqueueShaderBatches(baseRideStandIns, this.roadRideExperience.rideCamera, this.scene, 8);
+    this.enqueueCityRideWarm(this.world.cityManager.currentCityId);
+
+    // 3. Interior room templates (starting with Mama Put / restaurant and core rooms)
+    const rooms = this.world.interiorManager.getIdleWarmTargets();
+    rooms.sort((a, b) => (a.id === 'interior_restaurant' ? -1 : b.id === 'interior_restaurant' ? 1 : 0));
+    const roomSeenByLights = new Map<number, Set<string>>();
+    for (const room of rooms) {
+      this.idleShaderTasks.push(() => {
+        let pointLights = 0;
+        room.group.traverse((o) => {
+          if ((o as THREE.PointLight).isPointLight) pointLights++;
+        });
+        let seen = roomSeenByLights.get(pointLights);
+        if (!seen) {
+          seen = new Set<string>();
+          roomSeenByLights.set(pointLights, seen);
+        }
+        const standIns = this.extractShaderStandIns([room.group, this.player.mesh], seen);
+        const targetScene = this.getRoomWarmTargetScene(pointLights);
+        this.enqueueShaderBatches(standIns, this.cameraManager.camera, targetScene, 8, () => {
+          this.world.interiorManager.markWarmed(room.id);
+        });
+      });
+    }
+
+    // 4. Flight experience assets & shaders
+    const flightSeen = new Set<string>();
+    for (let step = 0; step < 3; step++) {
+      this.idleShaderTasks.push(() => {
+        const built = this.flightExperience.prepareIdleStep();
+        if (!built) return;
+        const standIns = this.extractShaderStandIns([built], flightSeen);
+        this.enqueueShaderBatches(standIns, this.flightExperience.flightCamera, this.flightExperience.scene, 8);
+      });
+    }
+
+    // 5. Staggered sidewalk crowd & deferred expressway chunks (built incrementally after playable)
+    const scheduleDeferredCrowd = (): void => {
+      this.idleShaderTasks.push(() => {
+        if (this.world.npcs.prepareIdleStep(3)) scheduleDeferredCrowd();
+      });
+    };
+    scheduleDeferredCrowd();
+
+    const scheduleDeferredExpressway = (): void => {
+      this.idleShaderTasks.push(() => {
+        if (this.world.expressway.prepareIdleStep()) scheduleDeferredExpressway();
+      });
+    };
+    scheduleDeferredExpressway();
+
+    this.scheduleNextIdleShaderStep();
+  }
+
+  private scheduleNextIdleShaderStep(): void {
+    if (this.idleQueueRunning || this.idleShaderTasks.length === 0) return;
+    this.idleQueueRunning = true;
+    setTimeout(() => void this.runNextIdleShaderStep(), 20);
+  }
+
+  private async runNextIdleShaderStep(): Promise<void> {
+    if (this.idleShaderTasks.length === 0) {
+      this.idleQueueRunning = false;
+      return;
+    }
+    // Pause background preparation whenever gameplay is actively moving, driving, or transitioning
+    const busy =
+      this.warming ||
+      this.player.isDriving ||
+      this.player.isMoving ||
+      this.world.interiorManager.busy ||
+      this.flightExperience.isActive ||
+      this.roadRideExperience.isActive ||
+      this.world.worldMap.isActive;
+    if (busy) {
+      setTimeout(() => void this.runNextIdleShaderStep(), 100);
+      return;
+    }
+    const task = this.idleShaderTasks.shift();
+    try {
+      if (task) await task();
+    } catch (err) {
+      console.warn('[idle-shaders] step skipped:', err);
+    }
+    if (this.idleShaderTasks.length > 0) {
+      setTimeout(() => void this.runNextIdleShaderStep(), 15);
+    } else {
+      this.idleQueueRunning = false;
+    }
+  }
+
+  /** The district a point of a city is in, or the nearest one */
+  private districtAt(city: string, x: number, z: number): { id: string; name: string } {
+    const districts: Record<string, typeof LAGOS_DISTRICTS> = { lagos: LAGOS_DISTRICTS, abuja: ABUJA_DISTRICTS, port_harcourt: PH_DISTRICTS };
+    const list = districts[city] ?? LAGOS_DISTRICTS;
+    const inside = list.find((d) => x >= d.bounds.minX && x <= d.bounds.maxX && z >= d.bounds.minZ && z <= d.bounds.maxZ);
+    const district = inside ?? [...list].sort((a, b) => Math.hypot(a.center.x - x, a.center.z - z) - Math.hypot(b.center.x - x, b.center.z - z))[0];
+    return { id: district.id, name: district.name };
+  }
+
+  /**
+   * NEPA (src/life/Grid.ts): every area has light by its band's plan. The street the player is on
+   * follows its area's; the home runs on NEPA, or the inverter or generator in it, or nothing
+   * (src/housing/HomePower.ts); the clock pill shows which.
+   */
+  private connectPower(): void {
+    const sky = this.world.skyEnvironment;
+    // Opening days follow the game's calendar (src/destinations/Hours.ts)
+    hoursCalendar.weekday = () => new Date(2026, 9, 7 + sky.day).getDay();
+    const power = HomePower.get();
+    power.clock = () => ({ day: sky.day, hour: sky.currentHour });
+    power.homeId = () => this.currentHome();
+    // The room and the clock pill change the moment the home's power does
+    power.subscribe(() => this.showLight());
+    power.where = () => {
+      const id = this.currentHome();
+      if (this.isPlotHome(id)) {
+        const plot = this.land.plot(id);
+        if (!plot) return null;
+        const area = this.districtAt(plot.city, (plot.rect.minX + plot.rect.maxX) / 2, (plot.rect.minZ + plot.rect.maxZ) / 2).id;
+        return { area, city: plot.city, own: Grid.bandOf(area, plot.city) === 'own' };
+      }
+      const home = this.homeProperty();
+      if (!home) return null;
+      const area = Grid.homeArea(home.districtId, home.location ?? '');
+      // An estate that makes its own power says so on its particulars
+      const own = Grid.bandOf(area, home.cityId) === 'own' || /zero power cuts|24\/7 microgrid|24\/7 .*power|full solar array/i.test((home.features ?? []).join(' '));
+      // A rented room or self-contain: the compound's landlord runs a generator in the evening
+      const compound = home.status === 'rented' && ['room', 'self_contain', 'selfcon', 'studio'].includes(String(home.type));
+      return { area, city: home.cityId, own, compound };
+    };
+    // A business without a generator or solar loses half of what it would take while its area has no light
+    BackendService.powerShare = (biz, hours) => {
+      if (biz.upgrades.some((u) => u.purchased && /^upg_(solar|gen|coldchain)$/.test(u.id))) return 1;
+      const city = biz.cityId ?? 'lagos';
+      const at = biz.districtId ? null : this.world.interactiveObjects.find((o) => o.id === biz.buildingId)?.interactionPoint;
+      const area = biz.districtId ?? (at ? this.districtAt(city, at.x, at.z).id : null);
+      if (!area) return 1;
+      const now = sky.day * 24 + sky.currentHour;
+      const steps = Math.max(1, Math.ceil(hours));
+      let lit = 0;
+      for (let i = 0; i < steps; i++) {
+        const t = now - (i * Math.max(hours, 1e-6)) / steps;
+        const day = Math.floor(t / 24);
+        if (Grid.hasLight(area, day, t - day * 24, city)) lit += 1;
+      }
+      return 0.5 + 0.5 * (lit / steps);
+    };
+    // A passenger's fare, online, is paid by the server for the stop the vehicle stands at
+    const online = OnlineAccount.get();
+    if (online) {
+      DrivableVehicle.payFare = (stop, type, _fare, what) => {
+        void online.request('/work/fare', { stop, vehicle: type, idem: `fare:${online.id ?? 'x'}:${Date.now()}` }).then((paid) => {
+          const backend = BackendService.getInstance();
+          if (!paid?.ok) {
+            if (paid?.wallet) backend.applyServerWallet(paid.wallet);
+            showGameToast(`The fare did not go through: ${paid?.reason ?? 'the server did not answer'}`, 'warning', 3500);
+            return;
+          }
+          backend.settledByServer(() => backend.processTransaction({ type: 'JOB_SALARY', amount: paid.pay, description: what, source: 'wallet' }));
+          if (paid.wallet) backend.applyServerWallet(paid.wallet);
+        });
+      };
+    }
+    LagosStreetLifeSystem.getInstance().lightHere = () => {
+      if (this.world.interiorManager.isPlayerInside()) return null;
+      const city = this.world.cityManager.currentCityId;
+      const p = this.player.position;
+      const district = this.districtAt(city, p.x, p.z);
+      return { area: district.id, name: Grid.areaName(district.id), light: Grid.hasLight(district.id, sky.day, sky.currentHour, city) };
+    };
+  }
+
+  /** The clock pill's light: NEPA where the player is, or what the home is running on */
+  private showLight(): void {
+    const el = document.getElementById('hud-light-icon');
+    if (!el) return;
+    const inside = this.world.interiorManager.currentInterior?.type === 'residence';
+    let icon = '💡';
+    let title = '';
+    let blackout = false;
+    if (inside) {
+      const supply = HomePower.get().supply();
+      icon = supply.source === 'none' ? '🕯️' : supply.source === 'inverter' ? '🔋' : supply.source === 'tiger' || supply.source === 'mikano' || supply.source === 'compound' ? '⛽' : '💡';
+      title = HomePower.get().describe();
+      blackout = supply.source === 'none';
+    } else {
+      const here = LagosStreetLifeSystem.getInstance().lightHere?.();
+      if (here) {
+        icon = here.light ? '💡' : '🕯️';
+        const city = this.world.cityManager.currentCityId;
+        const next = Grid.nextChange(here.area, this.world.skyEnvironment.day, this.world.skyEnvironment.currentHour, city);
+        title = `${here.name}: ${Grid.bandWords(here.area, city)}. ${here.light ? 'NEPA has light' : 'No NEPA light'}${next ? ` until about ${Grid.hourWords(next.hour)}` : ''}.`;
+      }
+    }
+    this.world.skyEnvironment.indoorBlackout = blackout;
+    if (el.textContent !== icon) el.textContent = icon;
+    if (el.title !== title) el.title = title;
+    el.dataset.light = icon === '🕯️' ? 'off' : 'on';
+  }
+
+  /**
+   * The police (src/life/Police.ts): stopped at the checkpoint with no papers, or caught after
+   * speeding through it, the player is driven to the Area Command and locked in its cell for real
+   * minutes. The cell's card offers bail, an envelope, or waiting; anyone online can pay the bail
+   * from their Bank. The record it leaves keeps the vetting employers' doors shut.
+   */
+  private connectPolice(): void {
+    const police = Police.get();
+    const rooms = this.world.interiorManager;
+    InteriorManager.holdIn = () => {
+      const held = police.custody();
+      if (held && rooms.currentInterior?.type === 'police') return `🔒 The cell is locked: ${this.timeLeft(held)} left, or bail of ₦${held.bail.toLocaleString()} (the cell's card).`;
+      // On a shift: nobody walks out till it is done, unless they tell the one in charge
+      const onCareer = CareerShift.lock();
+      if (onCareer) return onCareer;
+      const shift = Shifts.current;
+      if (shift && rooms.isPlayerInside()) return `🦺 You are on shift (${shift.done} of ${shift.total} done). Finish it, or tell ${shift.boss} you are ending it.`;
+      return null;
+    };
+    // The work clothes go on for a shift and come off when it ends
+    Shifts.dress = (trade) => this.player.wearUniform(trade ? uniformFor(trade) : null);
+    CareerShift.hooks = {
+      backend: BackendService.getInstance(),
+      interiorId: () => this.world.interiorManager.currentInterior?.id ?? null,
+      street: () => (this.world.interiorManager.isPlayerInside() ? null : { x: this.player.position.x, z: this.player.position.z }),
+      dress: (trade) => this.player.wearUniform(trade ? uniformFor(trade) : null),
+      pose: (arms) => { this.player.actor.pose = { ...this.player.actor.pose, arms }; },
+      still: () => !this.player.isMoving && !this.player.actor.busy,
+      go: (post, name) => {
+        // Every career post is in Lagos. From another city the way there is a flight or a coach.
+        if (this.world.cityManager.currentCityId !== 'lagos') {
+          this.flyInstead('lagos');
+          return;
+        }
+        if (post.go) PlaceOpeners.open(`ride:roadside-${post.go}`);
+        else if (post.outdoor) this.hud.onRideTo?.(new THREE.Vector3(post.outdoor.x, 0, post.outdoor.z), name, 1500);
+      },
+    };
+    // Sent from the phone to work somewhere: on arrival, straight to whoever is in charge there
+    InteriorManager.entered = (interiorId) => {
+      const want = Shifts.arriving;
+      if (!want) return;
+      const key = WORKPLACE[want];
+      if (!key || interiorId !== `interior_place_${key}`) return;
+      Shifts.arriving = null;
+      setTimeout(() => this.hud.runPlaceAction(`work_${key}_hire_${want}`), 700);
+    };
+    Employment.refusal = (employer) => police.refuses(employer.trade);
+    police.onArrested = (custody, offence) => void this.takeToCell(custody, offence, false);
+    police.onReleased = (why, by) => this.letOut(why, by);
+    police.subscribe(() => this.showCustody());
+    this.hud.onNoPapers = () => {
+      void police.arrest('no-papers');
+      return true;
+    };
+    this.hud.onCellCard = () => {
+      const held = police.custody();
+      if (!held) return false;
+      this.hud.showDialogueModal({
+        speakerName: 'Sgt. Danladi',
+        speakerRole: 'Desk sergeant, Area Command',
+        speakerAvatar: '🔒',
+        dialogueText: `"${OFFENCES[held.offence]?.name ?? 'You know what you did'}. You will sit here ${this.timeLeft(held)} more, unless your bail of ₦${held.bail.toLocaleString()} is paid. Anyone can pay it for you."`,
+        choices: [
+          {
+            id: 'cell_pay_bail',
+            label: `Pay my bail · ₦${held.bail.toLocaleString()}`,
+            badge: 'Bank, then cash',
+            onSelect: () => {
+              void police.payBail().then((paid) => { if (!paid.ok) showGameToast(paid.message, 'warning', 4500); });
+            },
+          },
+          {
+            id: 'cell_bribe',
+            label: `Push ₦${BRIBE.toLocaleString()} through the bars`,
+            badge: 'He may take it, or charge you',
+            onSelect: () => {
+              void police.bribe().then((tried) => showGameToast(tried.message, tried.ok && tried.taken ? 'success' : 'warning', 6000));
+            },
+          },
+          { id: 'cell_wait', label: 'Sit and wait it out', badge: this.timeLeft(held), onSelect: () => undefined },
+        ],
+      });
+      return true;
+    };
+    const online = OnlineAccount.get();
+    const backInCell = () => {
+      const held = police.custody();
+      if (held) void this.takeToCell(held, held.offence, true);
+    };
+    if (online) void online.ready.then(() => police.sync()).then(backInCell);
+    else backInCell();
+  }
+
+  private timeLeft(held: Custody): string {
+    const s = Math.max(0, Math.ceil((held.until - Date.now()) / 1000));
+    return s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`;
+  }
+
+  /** Into the van and the cell. Back after a reload, the player is simply in the cell again. */
+  private async takeToCell(custody: Custody, offence: string, back: boolean): Promise<void> {
+    const rooms = this.world.interiorManager;
+    const city = this.world.cityManager.currentCityId;
+    const station = city === 'abuja' ? 'roadside-abuja-police' : city === 'port_harcourt' ? 'roadside-ph-police' : 'police';
+    const stationName = city === 'abuja' ? 'FCT Police Command' : city === 'port_harcourt' ? 'Rivers State Police Command' : 'Area Command';
+    if (!back) {
+      this.hud.showDialogueModal({
+        speakerName: 'Inspector Danjuma',
+        speakerRole: `${stationName} joint patrol`,
+        speakerAvatar: '🚔',
+        soundType: 'general',
+        dialogueText: `"You are under arrest for ${(OFFENCES[offence]?.name ?? 'an offence').toLowerCase()}. Into the van." ${this.timeLeft(custody)} in the cell at ${stationName}, or bail of ₦${custody.bail.toLocaleString()}.`,
+      });
+    }
+    if (this.player.isDriving) this.exitVehicle();
+    const here = rooms.currentInterior;
+    const inThisStation = city === 'lagos' ? here?.type === 'police' : here?.id === `interior_place_${station.replace('roadside-', '')}` || here?.streetBuildingId === station;
+    if (!inThisStation) {
+      if (here) await rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+      await rooms.enterInterior(station, this.player, this.cameraManager, this.hud, this.world);
+    }
+    const origin = rooms.currentInterior?.interiorOrigin;
+    if (origin) {
+      this.player.stopMoving();
+      // Lagos Area Command keeps its cell. The other stations use a holding bench inside their own room.
+      const cell = rooms.currentInterior?.type === 'police' ? { x: 6, z: -5.4 } : { x: 4, z: -4 };
+      this.player.mesh.position.set(origin.x + cell.x, 0, origin.z + cell.z);
+    }
+    this.showCustody();
+  }
+
+  private letOut(why: 'served' | 'bail' | 'bribe' | 'bailed', by?: string): void {
+    const rooms = this.world.interiorManager;
+    const said = why === 'served'
+      ? 'Time served. The sergeant unlocks the cell: "You are free to go. Stay out of trouble."'
+      : why === 'bail'
+        ? 'Bail paid. The sergeant unlocks the cell and hands back your things.'
+        : why === 'bribe'
+          ? 'The officer pockets the envelope and leaves the cell door open.'
+          : `${by ?? 'Someone'} paid your bail. The cell door opens.`;
+    showGameToast(`🔓 ${said}`, 'success', 6000);
+    const origin = rooms.currentInterior?.interiorOrigin;
+    if (rooms.currentInterior?.type === 'police' && origin) {
+      this.player.stopMoving();
+      this.player.mesh.position.set(origin.x, 0, origin.z + 5.5);
+    }
+    this.showCustody();
+  }
+
+  /** The strip across the top while the player is in the cell: time left and bail */
+  private showCustody(): void {
+    const held = Police.get().custody();
+    let el = document.getElementById('custody-banner');
+    if (!held) {
+      el?.remove();
+      return;
+    }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'custody-banner';
+      el.className = 'custody-banner';
+      el.setAttribute('role', 'status');
+      document.body.appendChild(el);
+    }
+    const city = this.world.cityManager.currentCityId;
+    const stationName = city === 'abuja' ? 'FCT Police Command' : city === 'port_harcourt' ? 'Rivers State Police Command' : 'Area Command';
+    const text = `🚔 In the cell at ${stationName} · ${this.timeLeft(held)} left · bail ₦${held.bail.toLocaleString()}`;
+    if (el.textContent !== text) el.textContent = text;
+  }
+
+  /** Driving through the checkpoint at over 40 km/h: half the time a patrol van comes after the player */
+  private checkpointPassAt = 0;
+  private checkpointWarnedAt = 0;
+  /** The Eko Rides trip the server has started, to be paid at the drop-off */
+  private rideOnServer: string | null = null;
+  /** Which city's kiosks are already on the street, so they are not rebuilt every frame */
+  private kioskStamp = '';
+  private watchCheckpoint(): void {
+    if (!this.player.isDriving || Police.get().custody() || this.world.cityManager.currentCityId !== 'lagos') return;
+    const point = this.world.interactiveObjects.find((o) => o.id === 'street-checkpoint')?.interactionPoint;
+    if (!point) return;
+    const p = this.player.position;
+    const away = Math.hypot(p.x - point.x, p.z - point.z);
+    const speed = Math.abs(this.player.currentVehicle?.currentSpeed ?? 0);
+    // Through at up to 40 km/h is a wave-through. Faster than that the driver is told while there is still road to slow down in.
+    const LIMIT = 40 / 3.6;
+    if (Date.now() - this.checkpointPassAt < 120_000) return;
+    if (away > 18) {
+      if (away < 110 && speed > LIMIT && Date.now() - this.checkpointWarnedAt > 45_000) {
+        this.checkpointWarnedAt = Date.now();
+        showGameToast('🚧 Police checkpoint ahead. Slow to 40 km/h or they come after you.', 'warning', 4000);
+      }
+      return;
+    }
+    if (speed <= LIMIT) return;
+    this.checkpointPassAt = Date.now();
+    if (Math.random() < 0.5) {
+      showGameToast('🚨 You ran the checkpoint. A patrol van pulls out behind you, siren going...', 'warning', 3500);
+      setTimeout(() => void Police.get().arrest('ran-checkpoint'), 2500);
+    } else {
+      showGameToast('💨 You sped through the checkpoint. Nobody came after you, this time.', 'info', 3500);
+    }
+  }
+
+  /**
+   * Land that rises in value with the calendar, and omo-onile: in the neighbourhoods they work, a
+   * family comes to the site before the first block and asks a foundation levy. Pay it, or report
+   * them to the state's task force on land grabbers (they are run off, or come back asking double).
+   */
+  private connectLandLife(): void {
+    Land.today = () => this.world.skyEnvironment.day;
+    BuildBar.onLevy = (plot, cost, levy, again) => {
+      this.hud.showDialogueModal({
+        speakerName: `Chief of the ${levy.family} family`,
+        speakerRole: `Omo-onile, ${plot.neighbourhood}`,
+        speakerAvatar: '🪧',
+        soundType: 'general',
+        dialogueText: `Three men in agbada walk onto ${plot.name}: "This land is the ${levy.family} family's. Before you lay one block here, the foundation levy: ₦${levy.amount.toLocaleString()}.${levy.doubled ? ' You sent the task force after us. It is double now.' : ''}"`,
+        choices: [
+          {
+            id: 'levy_pay',
+            label: `Pay the levy · ₦${levy.amount.toLocaleString()}`,
+            badge: 'Bank, then cash',
+            onSelect: () => {
+              const paid = this.land.payLevy(plot.id, cost);
+              if (!paid.ok) return showGameToast(paid.reason ?? 'Not paid.', 'warning', 4500);
+              showGameToast(`The ${levy.family} family take the money and go. Nobody will trouble this site again.`, 'success', 4500);
+              again();
+            },
+          },
+          {
+            id: 'levy_report',
+            label: 'Report them to the task force',
+            badge: 'Lagos State Properties Protection Law',
+            onSelect: () => {
+              const told = this.land.reportLevy(plot.id, Math.random, cost);
+              if (told.chased) {
+                showGameToast('The task force come with a van. The family are run off the site and you can build in peace.', 'success', 5500);
+                again();
+              } else {
+                showGameToast(`The family come back the next morning, more of them: the levy is ₦${(told.levy?.amount ?? levy.amount * 2).toLocaleString()} now.`, 'warning', 5500);
+              }
+            },
+          },
+          { id: 'levy_leave', label: 'Not now', onSelect: () => undefined },
+        ],
+      });
+    };
+  }
+
   /** Land plots, what stands on them, and the market they are traded in. */
   private connectLand(): void {
-    const districts: Record<string, typeof LAGOS_DISTRICTS> = { lagos: LAGOS_DISTRICTS, abuja: ABUJA_DISTRICTS, port_harcourt: PH_DISTRICTS };
     const zones = new Map<string, ReturnType<typeof zonesFor>>();
     const near = new Map<string, Rect[]>();
     this.land.connect({
-      districtAt: (city, x, z) => {
-        const list = districts[city] ?? LAGOS_DISTRICTS;
-        const inside = list.find((d) => x >= d.bounds.minX && x <= d.bounds.maxX && z >= d.bounds.minZ && z <= d.bounds.maxZ);
-        const district = inside ?? [...list].sort((a, b) => Math.hypot(a.center.x - x, a.center.z - z) - Math.hypot(b.center.x - x, b.center.z - z))[0];
-        return { id: district.id, name: district.name };
-      },
+      districtAt: (city, x, z) => this.districtAt(city, x, z),
       zones: (city) => {
         if (!zones.has(city)) zones.set(city, zonesFor(city));
         return zones.get(city)!;
@@ -1287,6 +2215,13 @@ export class Game {
 
     this.plotWorld = new PlotWorld();
     this.scene.add(this.plotWorld.group);
+    // No car is parked across a way in: the front of every plot (its gate and driveway, built on or
+    // not), and every door and gate in the street (an estate home's, a shop's, a building's)
+    const waysIn = [
+      ...this.land.plots('lagos').map((plot) => frontOf(plot)),
+      ...this.world.interactiveObjects.filter((o) => o.interactionPoint).map((o) => o.interactionPoint),
+    ];
+    this.world.trafficSpawner.clearParkingAt(waysIn);
     // Lagos plots come and go with the rest of Lagos; the other cities' plots are shown when the player is there
     const lagos = this.plotWorld.of('lagos');
     if (lagos.group) this.world.cityManager.addToLagos(lagos.group, lagos.cards);
@@ -1302,6 +2237,7 @@ export class Game {
     this.plotWorld.onGateChanged = () => {
       this.solidsByCity.clear();
       this.waysByCity.clear();
+      this.kerbsByCity.clear();
     };
     BackendService.getInstance().addHomeCheck(() => this.land.hasHome());
 
@@ -1314,6 +2250,16 @@ export class Game {
     const decor = HouseDecorationSystem.getInstance();
     const home = this.world.interiorManager.residence;
     this.furnishBar = new FurnishBar();
+    // A two-storey home: the floor button, and the walk up or down the stairs it asks for
+    this.storeyButton = new StoreyButton();
+    this.storeyButton.onGo = (storey) => {
+      if (!home.goStorey(storey)) this.hud.showNotification('Finish what you are doing first.');
+    };
+    ResidentialInterior.onStorey = (storey, storeys) => {
+      this.storeyButton.show(storey, storeys);
+      // The bar of things to do: what is on this floor
+      this.placeCard?.refreshIfShown();
+    };
     decor.startAt = () => {
       const facing = this.player.mesh.rotation.y;
       return { x: this.player.position.x - home.group.position.x + Math.sin(facing) * 1.8, z: this.player.position.z - home.group.position.z + Math.cos(facing) * 1.8 };
@@ -1348,7 +2294,11 @@ export class Game {
     Bodies.add({
       people: (x, z, range, out) => {
         out.length = 0;
-        if (!onLagosStreet()) return;
+        // In Abuja and Port Harcourt, their own people on their own pavements
+        if (!onLagosStreet()) {
+          if (inTheStreet()) this.world.cityManager.lifeHere()?.people(x, z, range, out);
+          return;
+        }
         this.world.cityPopulation.people(x, z, range, out);
         for (const npc of this.world.npcs.getPedestrianPositions()) {
           if (Math.abs(npc.x - x) <= range && Math.abs(npc.z - z) <= range) out.push({ x: npc.x, z: npc.z, r: 0.3 });
@@ -1356,10 +2306,12 @@ export class Game {
       },
       cars: (x, z, range, out) => {
         if (onLagosStreet()) this.world.trafficSpawner.cars(x, z, range, out);
+        else if (inTheStreet()) this.world.cityManager.lifeHere()?.cars(x, z, range, out);
         if (inTheStreet()) this.world.vehicles.cars(x, z, range, out, this.world.cityManager.currentCityId);
       },
     });
     DrivableVehicle.solids = () => this.solidsHere();
+    DrivableVehicle.kerbs = () => this.kerbsHere();
     // Jets and yachts: bought here, standing at the airfield and the marina, flown and sailed from there
     const fleet = Fleet.get();
     const fleetSheet = new FleetSheet();
@@ -1408,7 +2360,8 @@ export class Game {
       const model = fleetModel(id)!;
       return model.kind === 'jet' ? buildJet(model.length, fleetColour(colour), 'NAIJA ONE') : buildYacht(model.length, fleetColour(colour), 'NAIJA ONE');
     };
-    this.cameraManager.blocked = (x, z) => this.solidsHere()?.at(x, z, 0.4) ?? false;
+    // Only buildings and walls bring the chase camera in: passing a lamp post or a kiosk does not make it jump
+    this.cameraManager.blocked = (x, z) => this.solidsHere()?.wallAt(x, z, 0.4) ?? false;
     // Broad Street is crossed on foot at the junction's zebra crossings or over the footbridge, nowhere else
     let toldAt = 0;
     this.player.mayNotStep = (fromX, fromZ, toX, toZ) => {
@@ -1428,9 +2381,21 @@ export class Game {
       sun: this.world.skyEnvironment.sunLight,
       scene: this.scene,
       crowd: this.world.cityPopulation,
-      resized: () => this.postProcessing.setSize(window.innerWidth, window.innerHeight),
+      resized: () => this.applyDrawingSize(),
+      onLevel: ({ smokeEvery, districtDraw, trafficDraw, wetMetalnessMax, postFx }) => {
+        this.world.smokeEvery = smokeEvery;
+        this.world.districtDrawDistance = districtDraw;
+        this.world.trafficSpawner.drawDistance = trafficDraw;
+        for (const city of [this.world.cityManager.abujaCity, this.world.cityManager.portHarcourtCity]) {
+          if (city?.life?.traffic) city.life.traffic.drawDistance = trafficDraw;
+        }
+        this.world.weather.wetMetalnessMax = wetMetalnessMax;
+        this.postProcessing.setEnabled(postFx);
+      },
       tell: (text) => showGameToast(text, 'info', 7000),
     });
+    this.world.weather.wetMetalnessMax = this.graphics.wetMetalnessMax;
+    this.applyDrawingSize();
     // The queues at Broad Street's bus stops are who a danfo or keke picks up
     const crowd = this.world.cityPopulation;
     DrivableVehicle.busStops = {
@@ -1438,12 +2403,24 @@ export class Game {
       board: (stop, doorX, doorZ, onBoard) => crowd.board(stop, doorX, doorZ, onBoard),
     };
     DrivableVehicle.makeWay = (x, z, dirX, dirZ, range, halfWidth) => (this.world.cityManager.currentCityId === 'lagos' ? crowd.scatter(x, z, dirX, dirZ, range, halfWidth) : 0);
+    DrivableVehicle.hootTraffic = (x, z, dirX, dirZ, range, halfWidth) =>
+      (this.world.cityManager.currentCityId === 'lagos' ? this.world.trafficSpawner : this.world.cityManager.lifeHere()?.traffic)?.hoot(x, z, dirX, dirZ, range, halfWidth) ?? 0;
     const roadsByCity = new Map<string, ReturnType<typeof zonesFor>>();
+    // The roads a car drives on: the city's streets, and in Lagos Banana Island's estate roads too
     DrivableVehicle.roads = () => {
       const city = this.world.cityManager.currentCityId;
       let roads = roadsByCity.get(city);
-      if (!roads) roadsByCity.set(city, (roads = zonesFor(city)));
+      if (!roads) roadsByCity.set(city, (roads = city === 'lagos' ? [...zonesFor(city), ...estateRoads()] : zonesFor(city)));
       return roads;
+    };
+    // The road a car keeps to at speed: any carriageway of the city (they overlap at junctions), and
+    // the mouth of a road where it meets another across that one's pavement (a T-junction)
+    DrivableVehicle.onRoad = (x, z) => {
+      const roads = DrivableVehicle.roads?.();
+      if (!roads) return true;
+      for (const zone of roads) if (zone.kind === 'carriageway' && x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) return true;
+      for (const mouth of this.kerbsHere()?.junctions ?? []) if (x >= mouth.minX && x <= mouth.maxX && z >= mouth.minZ && z <= mouth.maxZ) return true;
+      return false;
     };
     // What players build on their plots is solid too: when that changes, the list is made again
     this.registry.subscribe((state) => {
@@ -1451,12 +2428,21 @@ export class Game {
       if (built === this.builtOnPlots) return;
       this.builtOnPlots = built;
       this.solidsByCity.clear();
+      this.kerbsByCity.clear();
       this.waysByCity.clear();
     });
 
     // Flying: the hall is the same room in every city, and the flight starts at the aircraft door
     const hereCity = () => this.world.cityManager.currentCityId as FlightCity;
-    openAirportHall({ city: hereCity, apronDoor: () => this.world.airportOf(hereCity())?.apron.door ?? null });
+    openAirportHall({
+      city: hereCity,
+      apronDoor: () => this.world.airportOf(hereCity())?.apron.door ?? null,
+      kerb: () => this.world.airportOf(hereCity())?.kerb ?? null,
+      townDrop: () => {
+        const spawn = NIGERIA_CITIES_REGISTRY[hereCity()]?.spawn;
+        return spawn ? new THREE.Vector3(spawn.x, 0, spawn.z) : null;
+      },
+    });
     this.flights.onBoarded = (booking) => this.depart(booking);
     this.coaches.onBoarded = (ticket) => this.departByCoach(ticket);
     this.nameAirportHall(hereCity());
@@ -1481,25 +2467,43 @@ export class Game {
     this.ownedVehicles.movingElsewhere = (vehicle) => this.vehicleSync.driverOf(vehicle) !== null;
     // The home is furnished as what the player rents or owns, and their own vehicles stand in its carport
     ResidentialInterior.homeId = () => this.currentHome();
+    // A generator bought for a house the player built stands in that house's compound, on the street
+    ResidentialInterior.onYard = () => this.syncCompoundGenerators();
     ResidentialInterior.standardNow = () => {
       const data = BackendService.getInstance().getData();
       const plotId = this.currentHome();
-      if (plotId !== 'main') {
+      if (this.isPlotHome(plotId)) {
         // A house the player built: as grand as the house
         const type = buildingType(this.land.building(plotId)?.typeId ?? '');
         return type?.id === 'duplex' ? 'luxury' : 'comfortable';
       }
-      return standardOf(data.properties, data.id, false);
+      // As grand as this home, not the grandest the player has
+      const home = this.homeProperty();
+      return standardOf(home ? [home] : data.properties, data.id, false);
     };
     ResidentialInterior.carsOwned = () => this.ownedVehicles.myModels();
     // Your own car, your driver at the wheel: a ride that costs nothing
-    RideService.ownCar = () => this.ownedVehicles.ownCar() ?? (HomeStaff.get().isHired('driver') ? { name: 'Camry (Sunday)', body: 'camry', paint: 0x0f172a } : null);
+    // Your own car where it is parked; your driver's Camry in Lagos, where he lives
+    RideService.ownCar = () => this.ownedVehicles.ownCar() ?? (HomeStaff.get().isHired('driver') && this.world.cityManager.currentCityId === 'lagos' ? { name: 'Camry (Sunday)', body: 'camry', paint: 0x0f172a } : null);
     RideService.driverName = () => (HomeStaff.get().isHired('driver') ? 'Sunday Okafor' : null);
     this.hud.worldMapUI.ownOption = (dest) => RideService.ownOption(dest);
     this.hud.onJourney = (dest, transport, arrived) => this.rides.journey(dest, transport, arrived);
     // Driving yourself: the way along the streets drawn on the road
     this.scene.add(this.routeGuide.group);
     this.routeGuide.onArrived = (name) => showGameToast(`🏁 You have arrived at ${name}.`, 'success', 4200);
+    // Street racing on the long roads (the Racing app): raced in the player's own car
+    Racing.get().hooks = {
+      scene: this.scene,
+      car: () => {
+        const v = this.player.isDriving ? this.player.currentVehicle : null;
+        if (!v || !this.ownedVehicles.vehicleIdOf(v)) return null;
+        return { x: v.mesh.position.x, z: v.mesh.position.z, yaw: v.mesh.rotation.y, speed: v.currentSpeed, name: v.name };
+      },
+      driveTo: (name, x, z) => this.driveTo(name, new THREE.Vector3(x, 0, z)),
+      stopGuide: () => this.routeGuide.stop(),
+      city: () => this.world.cityManager.currentCityId,
+      away: () => this.whereabouts() === 'inside' || this.whereabouts() === 'transit',
+    };
     this.hud.worldMapUI.driveOption = () => (this.player.isDriving || this.ownedVehicles.ownCar()
       ? { mode: 'drive', label: 'Drive yourself', icon: '🧭', fare: 0, travelTimeSec: 60, description: 'You at the wheel; arrows on the road show the way' }
       : null);
@@ -1511,27 +2515,41 @@ export class Game {
     // Out of a house of their own by its own front door, onto its own street
     this.world.interiorManager.homeFront = () => {
       const plotId = this.currentHome();
-      const plot = plotId === 'main' ? null : this.land.plot(plotId);
-      if (!plot || plot.city !== this.world.cityManager.currentCityId) return null;
+      const plot = this.isPlotHome(plotId) ? this.land.plot(plotId) : null;
+      // A flat or house rented or bought: out at its own place on the street, where that is open ground
+      if (!plot) {
+        const home = this.homeProperty();
+        if (!home || home.cityId !== this.world.cityManager.currentCityId) return null;
+        const solids = this.solidsIn(home.cityId);
+        const at = new THREE.Vector3(home.streetPosition.x, 0, home.streetPosition.z);
+        if (solids?.at(at.x, at.z, 0.4)) return null;
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const out = at.clone().add(new THREE.Vector3(Math.sin(a) * 1.6, 0, Math.cos(a) * 1.6));
+          if (!solids?.at(out.x, out.z, 0.4)) return { inside: at, outside: out };
+        }
+        return null;
+      }
+      if (plot.city !== this.world.cityManager.currentCityId) return null;
       const front = frontOf(plot);
       const { dx, dz } = towardStreet(plot);
       return { inside: front.clone().add(new THREE.Vector3(-dx * 0.4, 0, -dz * 0.4)), outside: front.clone().add(new THREE.Vector3(dx * 1.6, 0, dz * 1.6)) };
     };
     ResidentialInterior.homeName = () => {
       const plotId = this.currentHome();
-      if (plotId !== 'main') {
+      if (this.isPlotHome(plotId)) {
         const plot = this.land.plot(plotId);
         const type = buildingType(this.land.building(plotId)?.typeId ?? '');
         return plot ? { name: `Your ${(type?.name ?? 'house').toLowerCase()} at ${plot.name}`, area: plot.neighbourhood } : null;
       }
-      const home = this.mainHome();
+      const home = this.homeProperty();
       this.homeShown = home?.id ?? null;
       return home ? { name: home.status === 'rented' ? `${home.name} (rented)` : home.name, area: home.location ?? '' } : null;
     };
     // A rented home the landlord has served a quit notice on has it pinned inside the front door
     ResidentialInterior.noticeNow = () => {
-      if (this.currentHome() !== 'main') return null;
-      const home = this.mainHome();
+      if (this.isPlotHome(this.currentHome())) return null;
+      const home = this.homeProperty();
       if (!home || home.status !== 'rented') return null;
       const lease = Dues.get().leaseOf(home.id);
       return lease && lease.deadline !== null ? lease : null;
@@ -1539,8 +2557,8 @@ export class Game {
     // The plan of the home: a self-contain is one room, a five-bedroom has five bedrooms
     ResidentialInterior.briefNow = () => {
       const plotId = this.currentHome();
-      if (plotId !== 'main') return briefOfBuilding(this.land.building(plotId)?.typeId ?? '');
-      return briefOf(this.mainHome());
+      if (this.isPlotHome(plotId)) return briefOfBuilding(this.land.building(plotId)?.typeId ?? '');
+      return briefOf(this.homeProperty());
     };
     ResidentialInterior.onSettled = (message) => showGameToast(`📦 ${message}`, 'info', 7000);
     void this.assetMarket.introduce(this.player.config.name);
@@ -1582,7 +2600,10 @@ export class Game {
     if (instance?.airport) doors.push(...instance.airport.doors);
     if (instance?.motorPark) doors.push(...instance.motorPark.doors);
     for (const destination of DestinationRegistry.getInstance().getAll()) {
-      if (destination.city === city) doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
+      if (destination.city !== city) continue;
+      // Map pins that are not yet built as places you can walk into are not city-plan doors
+      if (!destination.isEnterable && !destination.interiorId) continue;
+      doors.push({ name: destination.name, x: destination.streetPosition.x, z: destination.streetPosition.z });
     }
     const zones = zonesFor(city);
     const walk = zones.find((zone) => zone.kind === 'walkway');
@@ -1629,8 +2650,9 @@ export class Game {
         const vehicle = nearbyVehicle();
         if (vehicle) this.walkToVehicleAndGetIn(vehicle);
       },
-      sleep: () => interiors.residence.life.sleep(),
-      sitOnSofa: () => interiors.residence.life.watchTv(),
+      // In a duplex the bed is upstairs and the sofa down: up or down the stairs first
+      sleep: () => interiors.residence.onFloorOf('flat-bed', () => interiors.residence.life.sleep()),
+      sitOnSofa: () => interiors.residence.onFloorOf('flat-tv', () => interiors.residence.life.watchTv()),
       sitAtTable: () => this.bukaUI.open(),
     });
     this.input.onSelfClicked = (screen) => {
@@ -1640,17 +2662,19 @@ export class Game {
     };
   }
 
-  /** An ambulance takes the player to the hospital and they are treated on arrival. The bill goes on credit if it cannot be paid. */
+  /** An ambulance takes the player to the hospital in this city and they are treated on arrival. The bill goes on credit if it cannot be paid. It never leaves the city. */
   private callAmbulance(): boolean {
     const where = this.whereabouts();
     if (where === 'transit' || where === 'driving' || this.world.interiorManager.busy) return false;
-    if (this.world.cityManager.currentCityId !== 'lagos') return false;
+    const city = this.world.cityManager.currentCityId;
+    const hospital = city === 'lagos' ? 'hospital' : city === 'abuja' ? 'roadside-national-hospital-abuja' : 'roadside-upth';
     const backend = BackendService.getInstance();
     backend.processTransaction({ type: 'MEDICAL_BILL', amount: 3500, description: 'Ambulance and emergency treatment' });
     backend.treatEmergency();
     this.world.worldMap.deactivate();
-    void this.world.interiorManager.enterInterior('hospital', this.player, this.cameraManager, this.hud, this.world);
-    showGameToast('The ambulance brought you to St. Nicholas. You have been treated: ₦3,500.', 'success', 5200);
+    void this.world.interiorManager.enterInterior(hospital, this.player, this.cameraManager, this.hud, this.world);
+    const ward = city === 'lagos' ? 'St. Nicholas' : city === 'abuja' ? 'the National Hospital' : 'UPTH';
+    showGameToast(`The ambulance brought you to ${ward}. You have been treated: ₦3,500.`, 'success', 5200);
     return true;
   }
 
@@ -1687,22 +2711,30 @@ export class Game {
     return true;
   }
 
-  /** The fridge at home: what is in it to take out and eat, stocking it from the bag, ordering more */
-  private openFridge(): void {
-    const homeLife = this.world.interiorManager.residence.life;
+  /** The fridge that was opened: what is in it to take out and eat, stocking it from the bag, ordering more */
+  private openFridge(item?: PlacedItem): void {
+    const residence = this.world.interiorManager.residence;
+    const place = residence.mealFor(item);
+    if (!place) {
+      showGameToast('There is no fridge here to take food from.', 'warning', 3200);
+      return;
+    }
+    const homeLife = residence.life;
     const fridge = Fridge.get();
     const inside = fridge.contents();
     const bag = fridge.inBag();
     const inBag = bag.reduce((n, i) => n + i.quantity, 0);
     const eat = (id?: string) => {
-      const ate = homeLife.eatFromFridge(id);
+      const ate = homeLife.eatFromFridge(id, place);
       if (!ate.ok && ate.reason) showGameToast(ate.reason, 'warning', 3600);
     };
     this.hud.showDialogueModal({
       speakerName: 'Your fridge',
       speakerRole: inside.length ? `${fridge.count()} thing${fridge.count() === 1 ? '' : 's'} inside` : 'Empty',
       speakerAvatar: '🧊',
-      dialogueText: inside.length ? 'What will you eat? Take it out, sit down on the sofa and eat it.' : inBag ? 'Nothing in it yet. Put the food from your bag in, or order groceries: delivered here, they go straight in.' : 'Nothing in it yet. Order groceries on your phone: delivered here, they go straight into the fridge.',
+      dialogueText: inside.length
+        ? (place.seat ? 'What will you eat? Take it out, sit down and eat it.' : 'What will you eat? Take it out and eat it here.')
+        : inBag ? 'Nothing in it yet. Put the food from your bag in, or order groceries: delivered here, they go straight in.' : 'Nothing in it yet. Order groceries on your phone: delivered here, they go straight into the fridge.',
       choices: [
         ...inside.map((item) => ({ id: `fridge-${item.id}`, label: `${item.icon} ${item.name}`, badge: `×${item.quantity}`, onSelect: () => eat(item.id) })),
         ...(inBag ? [{ id: 'fridge-stock', label: '🧺 Put the food from your bag in the fridge', badge: `${inBag}`, onSelect: () => { const n = fridge.stockFromBag(); showGameToast(`🧊 ${n} thing${n === 1 ? '' : 's'} into the fridge.`, 'success', 2800); } }] : []),
@@ -1712,8 +2744,6 @@ export class Game {
     });
   }
 
-  /** The property the home was last laid out as, when the player went in */
-  private homeShown: string | null = null;
 
   /**
    * Rent and loan instalments, settled on the calendar (src/life/Dues.ts): days gone by while the
@@ -1728,7 +2758,8 @@ export class Game {
     // Put out while at home: out through the front door
     dues.onEvicted = (propId) => {
       const rooms = this.world.interiorManager;
-      if (rooms.currentInterior?.type === 'residence' && this.currentHome() === 'main' && this.homeShown === propId) {
+      // The flat they are standing in (it is no longer theirs by now, so it is the one they went into)
+      if (rooms.currentInterior?.type === 'residence' && this.homeShown === propId) {
         void rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
       }
     };
@@ -1770,13 +2801,418 @@ export class Game {
     return homes[0] ?? null;
   }
 
-  private currentHome(): string {
+  /** The flat or house the home was laid out as when the player went in (a rented or bought one) */
+  private homeShown: string | null = null;
+
+  /** The flats and houses the player rents or owns, each a home of its own */
+  private myHomes() {
     const data = BackendService.getInstance().getData();
-    const hasFlat = data.properties.some((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business', 'warehouse', 'land'].includes(String(p.type)));
-    if (this.homeNow && this.homeNow !== 'main' && this.land.livesIn(this.homeNow)) return this.homeNow;
-    if (this.homeNow === 'main' && hasFlat) return 'main';
-    if (hasFlat) return 'main';
+    return data.properties.filter((p) => p.ownerId === data.id && (p.status === 'owned' || p.status === 'rented') && !['office', 'shop', 'business', 'warehouse', 'land', 'commercial'].includes(String(p.type)));
+  }
+
+  /**
+   * The home that keeps the old single home's things (its furniture, its fridge, its plan). Before
+   * every property was a home of its own there was one, 'main', laid out as the best of them: that
+   * property keeps the name 'main', so what was furnished there is still there. Chosen once and kept.
+   */
+  private legacyMain: string | null | undefined = undefined;
+  private legacyMainHome(): string | null {
+    if (this.legacyMain !== undefined) return this.legacyMain;
+    const key = profileKey('nl_home_main_v1');
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved !== null) return (this.legacyMain = saved || null);
+    } catch {
+      // No storage: worked out again each visit
+    }
+    const best = this.mainHome();
+    // Nothing yet: the first home the player has will be it
+    if (!best) return null;
+    this.legacyMain = best.id;
+    try {
+      localStorage.setItem(key, best.id);
+    } catch {
+      // As above
+    }
+    return this.legacyMain;
+  }
+
+  /** The id a property's home goes by: its furniture, fridge and plan are kept under it */
+  private homeKey(propId: string): string {
+    return propId === this.legacyMainHome() ? 'main' : `prop:${propId}`;
+  }
+
+  /** Where to stand at the door of the place named, if one with that name is close to `near` */
+  private doorOf(name: string, near: { x: number; z: number }, maxDistance = 28): THREE.Vector3 | null {
+    const wanted = name.toLowerCase();
+    const words = wanted.replace(/\([^)]*\)/g, ' ').split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !['international', 'street', 'road', 'centre', 'center'].includes(w));
+    let best: THREE.Vector3 | null = null;
+    let bestDistance = maxDistance;
+    for (const o of this.world.interactiveObjects) {
+      const at = o.interactionPoint;
+      const own = (o.name ?? '').toLowerCase();
+      if (!at || !own) continue;
+      const same = own === wanted || (words.length > 0 && words.filter((w) => own.includes(w)).length >= Math.min(2, words.length));
+      if (!same) continue;
+      const distance = Math.hypot(at.x - near.x, at.z - near.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = at;
+      }
+    }
+    return best;
+  }
+
+  /** What the first-steps guide reads and does */
+  public firstStepsHost(): FirstStepsHost {
+    const backend = BackendService.getInstance();
+    const lagos = () => this.world.cityManager.currentCityId === 'lagos';
+    const centre = (id: string): THREE.Vector3 | null => {
+      const o = lagos() ? this.placeById(id) : null;
+      if (!o) return null;
+      // People are pointed at over their heads; a door or a gate at the spot in front of it
+      const person = id === GUIDE_TARGETS.elder || id === GUIDE_TARGETS.suya || id === GUIDE_TARGETS.port || id === GUIDE_TARGETS.site;
+      return person && o.mesh ? o.mesh.getWorldPosition(new THREE.Vector3()).setY(0) : o.interactionPoint.clone().setY(0);
+    };
+    return {
+      position: () => this.player.position,
+      timesPaid: () => backend.getData().career.completedGigs,
+      hasHome: () => this.myHomes().length > 0 || this.land.hasHome(),
+      employed: (employer) => Employment.get().isEmployed(employer),
+      siteOpen: () => this.world.landmarks.buildingSite?.status?.().open !== false,
+      where: (id) => centre(id),
+      walkTo: (id) => {
+        const o = lagos() ? this.placeById(id) : null;
+        if (o) this.input.approachAndInteract(o);
+      },
+      mark: (id) => {
+        if (!this.guideMarker) this.guideMarker = new GuideMarker(this.world.scene);
+        this.guideMarker.point(id ? () => centre(id) : null);
+      },
+      bearing: (id) => {
+        const at = centre(id);
+        if (!at) return null;
+        const look = this.cameraManager.camera.getWorldDirection(new THREE.Vector3());
+        const dx = at.x - this.player.position.x;
+        const dz = at.z - this.player.position.z;
+        // Ahead on the screen is where the camera looks along the ground; its right is (-z, x) of that
+        return (Math.atan2(dx * -look.z + dz * look.x, dx * look.x + dz * look.z) * 180) / Math.PI;
+      },
+      working: () => this.world.landmarks.buildingSite?.status?.().working === true || this.world.landmarks.port?.status?.().bay === 'loading',
+      windowOpen: () => UIStateManager.getInstance().isAnyModalOpen(),
+      lookingAtRooms: () => this.hud.phoneModal.isOpen && this.hud.phoneModal.currentAppId === 'property',
+      seeRooms: () => this.hud.phoneModal.openApp('property', 'afford'),
+      metElder: () => elderMemory() !== null,
+      elderCalls: (text) => InteractionDirector.get().actorFor(GUIDE_TARGETS.elder)?.say(text, 3.2),
+      guest: () => {
+        const online = OnlineAccount.get();
+        if (!online || !online.account) return null;
+        return online.account.kind === 'guest';
+      },
+      signUp: (later) => {
+        if (!this.openSignIn('register', later)) later();
+      },
+      say: (text) => showGameToast(text, 'success', 8000),
+      touch: () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches,
+      ended: (how) => {
+        const online = OnlineAccount.get();
+        if (online) void online.request('/me/guide', { state: how }).catch(() => undefined);
+      },
+    };
+  }
+
+  /**
+   * The first five minutes, for a life that is new or part-way through them (once; nothing for a
+   * life under way). With a game server, its word comes first: an account whose guide is over
+   * (finished or skipped on any device) never sees it, not even for a moment while its save loads.
+   */
+  public startFirstSteps(): void {
+    if (this.firstSteps || this.firstStepsWaiting) return;
+    const online = OnlineAccount.get();
+    // Over on this device (if the server could not be told at the time, it is told when it next answers)
+    if (guideOver()) return;
+    if (!online) {
+      this.firstSteps = FirstSteps.begin(this.firstStepsHost());
+      return;
+    }
+    this.firstStepsWaiting = true;
+    // No answer in a few seconds (no server, a slow line): the guide runs on this device's word
+    const late = new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 6000));
+    const asked = online.ready.then(async (ok) => {
+      if (!ok) return null;
+      const me = await online.request('/me');
+      if (!me?.ok) return null;
+      // The account's newer copy is being loaded onto this device: nothing is shown before it is
+      if (await CloudSyncService.getInstance().decided) return 'loading';
+      return String(me.guide ?? 'open');
+    }).catch(() => null);
+    void Promise.race([asked, late]).then((said) => {
+      this.firstStepsWaiting = false;
+      if (online.leaving || said === 'loading') return;
+      if (said === 'done' || said === 'skipped') {
+        keepGuideOver(said);
+        return;
+      }
+      if (!this.firstSteps && !guideOver()) this.firstSteps = FirstSteps.begin(this.firstStepsHost());
+      // A life already under way from before the guide was kept on the server: it is past it, for good
+      if (!this.firstSteps && said === 'open' && !guideOver()) {
+        keepGuideOver('done');
+        void online.request('/me/guide', { state: 'done' }).catch(() => undefined);
+      }
+    });
+    // An answer that came after the wait still counts: over on the account is over here
+    void asked.then((said) => {
+      if (said === 'done' || said === 'skipped') this.firstSteps?.dismiss(said);
+    });
+  }
+
+  /** The sign-up or sign-in screen (from the title, the guide, or a guest's visit) */
+  public openSignIn(mode: 'register' | 'login', later?: () => void): boolean {
+    if (!this.signInScreen) return false;
+    this.signInScreen(mode, later);
+    return true;
+  }
+
+  private signInScreen: ((mode: 'register' | 'login', later?: () => void) => void) | null = null;
+  private firstSteps: FirstSteps | null = null;
+  private firstStepsWaiting = false;
+  private guideMarker: GuideMarker | null = null;
+  /** When Chief Alabi last called out to, or spoke with, the player */
+  private elderCalledAt = -Infinity;
+
+  /** The guide, for tests */
+  public get guide(): FirstSteps | null {
+    return this.firstSteps;
+  }
+
+  /** A person or door in this city by its interactive id */
+  private placeById(id: string) {
+    return this.world.interactiveObjects.find((o) => o.id === id) ?? null;
+  }
+
+  /** The player's name as the street knows it */
+  private playerName(): string {
+    return this.player.config.name || BackendService.getInstance().getData().username || 'my child';
+  }
+
+  /** Chief Alabi: the card says what he remembers of the player */
+  private remindElder(): void {
+    const elder = this.placeById(GUIDE_TARGETS.elder);
+    if (elder) elder.description = elderCard(elderMemory(), this.playerName());
+  }
+
+  /** After a greeting, a handshake or a chat with Chief Alabi, the conversation (the gesture plays first) */
+  public talkToElder(): void {
+    this.elderCalledAt = performance.now();
+    const backend = BackendService.getInstance();
+    const host = this.firstStepsHost();
+    let typed = '';
+    window.setTimeout(() => talkToElder({
+      name: () => this.playerName(),
+      typedName: () => typed,
+      rename: (name) => {
+        const cfg = this.player.config;
+        cfg.name = name;
+        this.player.applyCustomization(cfg);
+        backend.updateUsername(name);
+        return name;
+      },
+      siteOpen: () => host.siteOpen(),
+      timesPaid: () => host.timesPaid(),
+      hasHome: () => host.hasHome(),
+      warm: (by) => Ties.get().grow(GUIDE_TARGETS.elder, 'Chief Alabi', by),
+      speak: (text, replies, onClose, askName) => {
+        let chosen = false;
+        this.hud.showDialogueModal({
+          speakerName: 'Chief Alabi',
+          speakerRole: 'Elder of Broad Street',
+          speakerAvatar: '👴🏾',
+          dialogueText: text,
+          choices: replies.length ? replies.map((r, i) => ({ id: 'elder-' + i, label: r.label, onSelect: () => { chosen = true; r.run(); } })) : undefined,
+          nameField: askName ? { onType: (value) => { typed = value; } } : undefined,
+          onConfirm: () => window.setTimeout(() => { if (!chosen) onClose?.(); }, 0),
+        });
+
+      },
+    }, () => this.remindElder()), 1400);
+  }
+
+  /** A house the player built on their land (its plot's id), as opposed to a flat or house rented or bought */
+  private isPlotHome(id: string): boolean {
+    return id !== 'main' && !id.startsWith('prop:');
+  }
+
+  /** Generators of the house the player is in, stood in its compound. A flat has no compound of its own. */
+  private syncCompoundGenerators(): void {
+    const id = this.currentHome();
+    if (!this.isPlotHome(id)) return;
+    const decor = HouseDecorationSystem.getInstance();
+    if (decor.homeId !== id) return;
+    const types = decor.placed
+      .filter((item) => item.modelType === 'generator_big' || item.modelType === 'generator_small')
+      .map((item) => item.modelType)
+      .sort((a, b) => Number(b === 'generator_big') - Number(a === 'generator_big'));
+    this.plotWorld.setCompoundGenerators(id, types.map((model) => decor.createFurniture3DMesh(model)));
+  }
+
+  /** The flat or house the player is at home in now, if it is one rented or bought (not a built house) */
+  private homeProperty() {
+    const id = this.currentHome();
+    if (this.isPlotHome(id)) return null;
+    const propId = id === 'main' ? this.legacyMainHome() : id.slice('prop:'.length);
+    return this.myHomes().find((p) => p.id === propId) ?? null;
+  }
+
+  /** The home gone into is home from now on: the Home button goes back to it, after a reload too */
+  private setHomeNow(id: string): void {
+    this.homeNow = id;
+    try {
+      localStorage.setItem(profileKey('nl_home_now_v1'), id);
+    } catch {
+      // Kept for this visit
+    }
+  }
+
+  private currentHome(): string {
+    if (this.homeNow === null) {
+      try {
+        this.homeNow = localStorage.getItem(profileKey('nl_home_now_v1'));
+      } catch {
+        this.homeNow = null;
+      }
+    }
+    const homes = this.myHomes();
+    const held = this.homeNow;
+    // The one last gone into, while it is still theirs
+    if (held) {
+      if (this.isPlotHome(held)) {
+        if (this.land.livesIn(held)) return held;
+      } else {
+        const propId = held === 'main' ? this.legacyMainHome() : held.slice('prop:'.length);
+        if (homes.some((p) => p.id === propId)) return held;
+      }
+    }
+    // Else the old home if it is still theirs, else the best they have, else a house they built
+    const legacy = this.legacyMainHome();
+    if (legacy && homes.some((p) => p.id === legacy)) return 'main';
+    const best = this.mainHome();
+    if (best) return this.homeKey(best.id);
     return this.land.homes()[0]?.id ?? 'main';
+  }
+
+  private cityLabel(id: string): string {
+    return (CITY_NAME as Record<string, string>)[id] ?? id;
+  }
+
+  /** A place in another city is reached by a flight, a coach, or the player's own jet. This opens that choice. */
+  private flyInstead(otherCity: string): void {
+    const there = this.cityLabel(otherCity);
+    const here = this.cityLabel(this.world.cityManager.currentCityId);
+    this.hud.showDialogueModal({
+      speakerName: there,
+      speakerRole: 'Another city',
+      speakerAvatar: '✈️',
+      dialogueText: `That is in ${there}. You are in ${here}. You go there by air or by coach.`,
+      choices: [
+        { id: 'fly', label: `Fly or take the coach to ${there}`, onSelect: () => this.hud.interstateModal.open(this.world.cityManager.currentCityId) },
+        { id: 'stay', label: 'Stay here', onSelect: () => undefined },
+      ],
+    });
+  }
+
+  /** Which city a home is in. A plot carries its city; a flat or house does too. An old home with none recorded is in Lagos. */
+  private cityOfHome(id: string): string {
+    if (this.isPlotHome(id)) return this.land.plot(id)?.city ?? 'lagos';
+    const propId = id === 'main' ? this.legacyMainHome() : id.startsWith('prop:') ? id.slice('prop:'.length) : id;
+    return this.myHomes().find((p) => p.id === propId)?.cityId || 'lagos';
+  }
+
+  private homeAddress(id: string): string {
+    if (this.isPlotHome(id)) {
+      const plot = this.land.plot(id);
+      return plot ? `${plot.name}, ${plot.street}` : 'your house';
+    }
+    const propId = id === 'main' ? this.legacyMainHome() : id.startsWith('prop:') ? id.slice('prop:'.length) : id;
+    const prop = this.myHomes().find((p) => p.id === propId);
+    return prop?.location || prop?.name || 'your house';
+  }
+
+  private ownsHome(id: string): boolean {
+    if (!id) return false;
+    if (this.isPlotHome(id)) return this.land.livesIn(id);
+    const propId = id === 'main' ? this.legacyMainHome() : id.startsWith('prop:') ? id.slice('prop:'.length) : id;
+    return !!propId && this.myHomes().some((p) => p.id === propId);
+  }
+
+  /** A home in the city the player is standing in: the one they last chose, else any flat, house or plot here. */
+  private homeInThisCity(): string | null {
+    const here = this.world.cityManager.currentCityId;
+    const current = this.currentHome();
+    if (this.ownsHome(current) && this.cityOfHome(current) === here) return current;
+    for (const prop of this.myHomes()) {
+      if ((prop.cityId || 'lagos') === here) return this.homeKey(prop.id);
+    }
+    for (const plot of this.land.homes()) {
+      if (plot.city === here) return plot.id;
+    }
+    return null;
+  }
+
+  /** A home that is not in this city, so Home can say where it is. */
+  private homeSomewhereElse(): { city: string; address: string } | null {
+    const here = this.world.cityManager.currentCityId;
+    const current = this.currentHome();
+    if (this.ownsHome(current) && this.cityOfHome(current) !== here) return { city: this.cityOfHome(current), address: this.homeAddress(current) };
+    for (const prop of this.myHomes()) {
+      const city = prop.cityId || 'lagos';
+      if (city !== here) return { city, address: prop.location || prop.name };
+    }
+    for (const plot of this.land.homes()) {
+      if (plot.city !== here) return { city: plot.city, address: `${plot.name}, ${plot.street}` };
+    }
+    return null;
+  }
+
+  /** A hotel room the player has checked into in this city. Home goes there. */
+  private hotelStayHere(): string | null {
+    const here = this.world.cityManager.currentCityId;
+    if (here === 'lagos') return HotelStay.get().current() ? 'interior_place_eko-grand-suite' : null;
+    return TownStay.get(`${here}-town-hotel`).current() ? `interior_place_${here}-town-suite` : null;
+  }
+
+  private hotelLobbyId(): string {
+    const here = this.world.cityManager.currentCityId;
+    return here === 'lagos' ? 'roadside-eko-grand-hotel' : `roadside-${here}-town-hotel`;
+  }
+
+  /** Into a room, out of whatever room they are in first. */
+  private async enterPlace(id: string): Promise<void> {
+    const rooms = this.world.interiorManager;
+    this.world.worldMap.deactivate();
+    if (rooms.isPlayerInside()) await rooms.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+    await rooms.enterInterior(id, this.player, this.cameraManager, this.hud, this.world);
+  }
+
+  private enterHotelHere(): void {
+    void this.enterPlace(this.hotelLobbyId());
+  }
+
+  /** The only home is in another city. Fly back, or take a room where they stand. */
+  private homeIsElsewhere(city: string, address: string): void {
+    const there = this.cityLabel(city);
+    this.hud.currentNavMode = 'street';
+    document.getElementById('nav-btn-home')?.classList.remove('active');
+    this.hud.showDialogueModal({
+      speakerName: 'Your home',
+      speakerRole: there,
+      speakerAvatar: '🏠',
+      dialogueText: `Your home is in ${there} (${address}). Fly back, or check into a hotel here.`,
+      choices: [
+        { id: 'fly', label: 'Fly back', onSelect: () => this.hud.interstateModal.open(this.world.cityManager.currentCityId) },
+        { id: 'hotel', label: 'Check into a hotel here', onSelect: () => this.enterHotelHere() },
+        { id: 'stay', label: 'Stay here', onSelect: () => undefined },
+      ],
+    });
   }
 
   private canGoHome(): boolean {
@@ -1792,7 +3228,11 @@ export class Game {
         speakerName: 'Alhaji Lateef',
         speakerRole: `Landlord, ${evicted.name}`,
         speakerAvatar: '🔒',
-        dialogueText: `The locks on ${evicted.name} were changed on ${dayLabel(evicted.day)}, when the rent was still not paid. Your key no longer opens it. Find another place in Houses on your phone.`,
+        dialogueText: `The locks on ${evicted.name} were changed on ${dayLabel(evicted.day)}, when the rent was still not paid. Your key no longer opens it. Find another place in Houses on your phone. Or check into a hotel here.`,
+        choices: [
+          { id: 'hotel', label: 'Check into a hotel here', onSelect: () => this.enterHotelHere() },
+          { id: 'stay', label: 'Not now', onSelect: () => undefined },
+        ],
       });
       return false;
     }
@@ -1800,7 +3240,11 @@ export class Game {
       speakerName: 'No home yet',
       speakerRole: 'Housing',
       speakerAvatar: '🔑',
-      dialogueText: 'You do not own or rent a place yet. Open Houses on your phone to rent or buy one, then come back.',
+      dialogueText: 'You do not own or rent a place yet. Open Houses on your phone to rent or buy one, then come back. Or check into a hotel here.',
+      choices: [
+        { id: 'hotel', label: 'Check into a hotel here', onSelect: () => this.enterHotelHere() },
+        { id: 'stay', label: 'Not now', onSelect: () => undefined },
+      ],
     });
     return false;
   }
@@ -1886,7 +3330,8 @@ export class Game {
       host?.say(`Your ${offer.name.toLowerCase().replace(/^a /, '')} is with you till the end of day ${convoys.escort.until + 1}.`, 'info');
       return;
     }
-    if (!BackendService.getInstance().pay(offer.price, `${offer.name}, Lagos State Police Command`, 'SHOP_PURCHASE')) {
+    const command = `${this.cityLabel(this.world.cityManager.currentCityId)} Police Command`;
+    if (!BackendService.getInstance().pay(offer.price, `${offer.name}, ${command}`, 'SHOP_PURCHASE')) {
       host?.say(`That is ₦${offer.price.toLocaleString()}. You do not have it.`, 'warning');
       return;
     }
@@ -1933,11 +3378,13 @@ export class Game {
     // Staff and branches lift a business's takings, and so do its adverts on the expressway
     BackendService.takings = (biz, own) => companies.perCycle(biz, own) * Adverts.get().lift(biz.id);
     BackendService.onTakings = (id, amount) => companies.took(id, amount);
+    // A day's luck for each business; a test browser leaves it out unless the test turns it on
+    Companies.luckOn = () => !navigator.webdriver || !!(window as unknown as { __luckOn?: boolean }).__luckOn;
     // The supermarket takes what customers buy off its shelves, which its stackers keep filled
     BackendService.sales = (biz, cycles) => (biz.id === SUPERMARKET ? Supermarket.get().trade(cycles, companies.lift(biz.id), companies.count(biz.id, 'stacker')) : null);
     companies.onReports = (reports) => {
       reports.forEach(({ business, report }, i) => {
-        const line = `📊 ${business.name}, ${companies.dayName(report.day)}: took ₦${report.takings.toLocaleString()} · wages ₦${report.wages.toLocaleString()}${report.rent ? ` · rent ₦${report.rent.toLocaleString()}` : ''} · tax ₦${report.tax.toLocaleString()} · ${report.profit >= 0 ? 'profit' : 'loss'} ₦${Math.abs(report.profit).toLocaleString()}${report.banked ? ` · ₦${report.banked.toLocaleString()} banked by the manager` : ''}${report.note ? `. ${report.note}` : ''}`;
+        const line = `📊 ${business.name}, ${companies.dayName(report.day)}: took ₦${report.takings.toLocaleString()} · wages ₦${report.wages.toLocaleString()}${report.rent ? ` · rent ₦${report.rent.toLocaleString()}` : ''} · tax ₦${report.tax.toLocaleString()} · ${report.profit >= 0 ? 'profit' : 'loss'} ₦${Math.abs(report.profit).toLocaleString()}${report.banked ? ` · ₦${report.banked.toLocaleString()} banked by the manager` : ''}${report.event ? `. ${report.event}` : ''}${report.note ? `. ${report.note}` : ''}`;
         setTimeout(() => showGameToast(line, report.note ? 'warning' : 'info', 7000), i * 1500);
       });
     };
@@ -2080,6 +3527,44 @@ export class Game {
     }
   }
 
+  /**
+   * The player's own jet from wherever they are: from Lagos the take-off over the airfield; from
+   * Abuja or Port Harcourt the crew brings her in, and the player lands at the other city's apron
+   * (in Lagos beside the jet's own stand).
+   */
+  private flyJetFrom(uid: string, to: CityId): void {
+    const here = this.world.cityManager.currentCityId;
+    const owned = Fleet.get().mine('jet').find((c) => c.uid === uid);
+    if (!owned || to === here || this.ride) return;
+    if (here === 'lagos') {
+      this.flyPrivate(uid, to);
+      return;
+    }
+    const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+    const fuel = to === 'abuja' || here === 'abuja' ? 2_500_000 : 2_000_000;
+    const paid = BackendService.getInstance().processTransaction({ type: 'TRAVEL_COST', amount: fuel, description: `Fuel and crew, "${owned.name}" to ${names[to] ?? to}` });
+    if (!paid.success) {
+      showGameToast(`Fuel and crew come to ₦${fuel.toLocaleString()}. You do not have it.`, 'warning', 4000);
+      return;
+    }
+    if (this.world.interiorManager.isPlayerInside()) void this.world.interiorManager.exitCurrentInterior(this.player, this.cameraManager, this.hud, this.world);
+    showGameToast(`✈️ Your crew has "${owned.name}" on the apron. Wheels up for ${names[to] ?? to}.`, 'info', 3600);
+    window.setTimeout(() => {
+      this.arriveInCity(to);
+      const craft = to === 'lagos' ? this.world.expressway.roadside.craft.get(uid) : null;
+      const home = craft?.userData.home as THREE.Vector3 | undefined;
+      if (home) {
+        this.player.stopMoving();
+        this.player.mesh.position.set(home.x + 8, 0, home.z);
+        this.player.position.copy(this.player.mesh.position);
+        this.cameraManager.snapToPlayer(this.player, 'street');
+      } else {
+        this.standOnApron(to);
+      }
+      showGameToast(`🛬 "${owned.name}" has landed you in ${names[to] ?? to}.`, 'success', 5000);
+    }, 1800);
+  }
+
   /** Flies the player in their own jet: taxi, take-off over the airfield, and on landing they are at the destination's apron */
   private flyPrivate(uid: string, city: string): void {
     const craft = this.world.expressway.roadside.craft.get(uid);
@@ -2121,6 +3606,10 @@ export class Game {
 
   /** Takes the player out on the lagoon in their own yacht, round and back to the berth */
   private cruise(uid: string): void {
+    if (this.world.cityManager.currentCityId !== 'lagos') {
+      this.flyInstead('lagos');
+      return;
+    }
     const craft = this.world.expressway.roadside.craft.get(uid);
     const owned = Fleet.get().mine('yacht').find((c) => c.uid === uid);
     if (!craft || !owned || this.ride) return;
@@ -2205,7 +3694,10 @@ export class Game {
     }
     let ways = this.waysByCity.get(city);
     if (!ways) {
-      ways = new Wayfinder(city === 'lagos' ? new Solids([...this.standingIn(city), ...this.world.streetLamps(), ...this.parkedCars()]) : solids, zonesFor(city), city === 'lagos' ? NO_CROSSING : []);
+      // Abuja and Port Harcourt are whole planned cities: their ground in metre squares, the other cities' maps let go
+      const ground = city === 'abuja' ? { minX: -580, maxX: 580, minZ: -280, maxZ: 800, cell: 1 } : city === 'port_harcourt' ? { minX: -570, maxX: 560, minZ: -290, maxZ: 570, cell: 1 } : undefined;
+      if (ground) for (const other of [...this.waysByCity.keys()]) if (other !== 'lagos') this.waysByCity.delete(other);
+      ways = new Wayfinder(city === 'lagos' ? new Solids([...this.standingIn(city), ...this.world.streetLamps(), ...this.parkedCars()]) : solids, zonesFor(city), city === 'lagos' ? NO_CROSSING : [], ground);
       this.waysByCity.set(city, ways);
     }
     return ways;
@@ -2254,7 +3746,7 @@ export class Game {
   public kerbNear(x: number, z: number): { x: number; z: number; yaw: number } | null {
     // If the player is in or near their compound, deliver directly into their private compound parking bay
     const plotId = this.currentHome();
-    if (plotId && plotId !== 'main') {
+    if (plotId && this.isPlotHome(plotId)) {
       const comp = this.plotWorld.compounds.get(plotId);
       if (comp && comp.drawing.parkingBays?.length) {
         const dist = Math.hypot(x - comp.drawing.centre.x, z - comp.drawing.centre.z);
@@ -2295,13 +3787,60 @@ export class Game {
 
   public solidsHere(): Solids | null {
     if (this.world.interiorManager.isPlayerInside() || this.world.interiorManager.busy) return null;
-    const city = this.world.cityManager.currentCityId;
+    return this.solidsIn(this.world.cityManager.currentCityId);
+  }
+
+  /** What is solid in a city's streets, whether or not the player is out in them */
+  private solidsIn(city: string): Solids | null {
     let solids = this.solidsByCity.get(city);
     if (!solids) {
       solids = new Solids(city === 'lagos' ? [...this.standingIn(city), ...this.world.streetLamps()] : this.standingIn(city));
       this.solidsByCity.set(city, solids);
     }
     return solids;
+  }
+
+  private kerbsByCity = new Map<string, KerbSet>();
+
+  /** The pavements a driven car may not go onto, where the player is (none indoors) */
+  public kerbsHere(): KerbSet | null {
+    if (this.world.interiorManager.isPlayerInside() || this.world.interiorManager.busy) return null;
+    const city = this.world.cityManager.currentCityId;
+    let kerbs = this.kerbsByCity.get(city);
+    if (!kerbs) this.kerbsByCity.set(city, (kerbs = this.kerbsIn(city)));
+    return kerbs;
+  }
+
+  /**
+   * Every pavement of a city's streets (and in Lagos the expressway's), and the ways across them
+   * made for vehicles: the gate of each plot and compound, the motor park's gate, and in Lagos the
+   * filling station and the mechanic on Broad Street, the side roads off the expressway, and the
+   * fronts of its places that take cars (filling stations, the motor dealers, the airfield, the
+   * marina, the airport, the interchange). Lay-bys are already cut out of the expressway's pavements.
+   */
+  private kerbsIn(city: string): KerbSet {
+    const extra: Rect[] = [];
+    const ways: Rect[] = [];
+    if (city === 'lagos') {
+      extra.push(...this.world.expressway.pavements);
+      const H = EXPRESS.half;
+      const W = EXPRESS.walk;
+      const across = (side: number, z0: number, z1: number): Rect => (side < 0 ? { minX: -(H + W + 4), maxX: -H + 0.5, minZ: z0, maxZ: z1 } : { minX: H - 0.5, maxX: H + W + 4, minZ: z0, maxZ: z1 });
+      const takesCars = /^station-|motors|auto|airfield|marina|terminal|interchange/;
+      for (const place of ROADSIDE) if (takesCars.test(place.id)) ways.push(across(place.side, place.z - place.length / 2, place.z + place.length / 2));
+      for (const road of SIDE_ROADS) ways.push(across(road.side, road.z - road.half - 2, road.z + road.half + 2));
+      // Broad Street: the NaijaPetro forecourt (its pad 18 m along the road) and God's Grace Auto Works
+      ways.push(wayIn(-13.5, 78.2, 1, 0, 17), wayIn(-13.5, 109, 1, 0, 10));
+    }
+    const park = this.world.motorParkOf(city);
+    if (park) ways.push(wayIn(park.gate.x, park.gate.z, park.leaves.x, park.leaves.z, park.gate.half * 2));
+    // Every plot: through its gate where a compound stands, else across the middle of its front
+    for (const plot of this.land.plots(city)) {
+      const { dx, dz } = towardStreet(plot);
+      const gate = this.plotWorld.compounds.get(plot.id)?.drawing.centre ?? frontOf(plot);
+      ways.push(wayIn(gate.x, gate.z, dx, dz, 5.5, 14, 3));
+    }
+    return kerbsFrom(zonesFor(city), extra, ways, city === 'lagos' ? estateRoads() : []);
   }
 
   /** The hall inside is one room: it carries the name of the airport of the city it is entered from. */
@@ -2411,6 +3950,7 @@ export class Game {
       this.cameraManager.snapToPlayer(this.player, 'street');
     }
     this.saveWorldState();
+    CloudSyncService.getInstance().saveNow();
     const there = MOTOR_PARKS[cityId as CoachCity];
     if (ridden && there) {
       showGameToast(`${ridden.route.coach} has pulled in at ${there.name}. Welcome to ${there.city}. The gate to the street is ahead.`, 'success', 6200);
@@ -2446,8 +3986,22 @@ export class Game {
     };
     if (!quiet) Hustles.get().hooks = { pay, tell, rung: () => Ladder.get().rung, pack: (n, why) => Album.get().addPacks(n, why) };
     if (!quiet) Album.get().hooks = { pay, tell };
+    // Online a rung's reward is the server's: paid once, in order, to someone it has seen earn
+    const ladderPay = (amount: number, why: string) => {
+      const online = OnlineAccount.get();
+      const rung = RUNGS.find((r) => why.endsWith(r.area));
+      if (!online || !rung) return pay(amount, why);
+      void online.request('/money/ladder', { rung: rung.n }).then((paid) => {
+        if (paid?.wallet) be.applyServerWallet(paid.wallet);
+        if (!paid?.ok) return showGameToast(paid?.reason ?? 'The ladder reward did not go through.', 'info', 6000);
+        if (paid.replay) return;
+        be.settledByServer(() => be.processTransaction({ type: 'QUEST_REWARD', amount: paid.pay, description: why }));
+        if (paid.wallet) be.applyServerWallet(paid.wallet);
+        SoundEngine.getInstance().playTransactionSuccess();
+      });
+    };
     if (!quiet) Ladder.get().hooks = {
-      pay,
+      pay: ladderPay,
       tell,
       facts: () => {
         const data = be.getData();
@@ -2505,13 +4059,20 @@ export class Game {
   private disembark(cityId: CityId): void {
     this.world.setStreetModeVisibility(true);
     this.player.mesh.visible = true;
-    this.arriveInCity(cityId);
-    this.standOnApron(cityId);
+    // Ibadan is a day-trip hop until that city is playable: land back at Murtala Muhammed.
+    const apron = landingCity(cityId as FlightCity);
+    this.arriveInCity(apron);
+    this.standOnApron(apron);
     const flown = this.flights.arrive();
     this.saveWorldState();
-    const airport = AIRPORTS[cityId as FlightCity];
-    if (flown && airport) {
-      showGameToast(`${flown.route.flight} has landed at ${airport.name}. Welcome to ${airport.city}. The terminal is ahead: go through it for the street.`, 'success', 6200);
+    CloudSyncService.getInstance().saveNow();
+    if (flown && cityId === 'ibadan') {
+      showGameToast(`${flown.route.flight} day trip to Ibadan is done. Back at Murtala Muhammed — the terminal is ahead.`, 'success', 6200);
+    } else {
+      const airport = AIRPORTS[apron];
+      if (flown && airport) {
+        showGameToast(`${flown.route.flight} has landed at ${airport.name}. Welcome to ${airport.city}. The terminal is ahead: go through it for the street.`, 'success', 6200);
+      }
     }
     const journeyCompleted = this.onJourneyCompleted;
     this.onJourneyCompleted = null;
@@ -2537,6 +4098,19 @@ export class Game {
     return cityId === 'lagos' || cityId === 'abuja' || cityId === 'port_harcourt';
   }
 
+  /** Keep the camera's building & vehicle wall-check groups aligned with the active city. */
+  private updateCameraColliders(cityId: CityId): void {
+    this.cameraManager.collisionObjects = cityId === 'lagos'
+      ? [
+          this.world.buildings.group,
+          this.world.districts.group,
+          this.world.landmarks.group,
+          this.world.vehicles.group,
+          this.world.trafficSpawner.group,
+        ]
+      : this.world.cityManager.getCameraColliders(cityId);
+  }
+
   /** Switches the world to a city the player has just travelled to, and reports the arrival. */
   private arriveInCity(cityId: CityId): void {
     this.hud.interstateModal.currentOriginCityId = cityId;
@@ -2548,14 +4122,88 @@ export class Game {
     this.world.cityManager.switchCity(cityId, this.player, (newObjs) => {
       this.world.interactiveObjects = newObjs;
     });
+    this.updateCameraColliders(cityId);
+    this.enqueueCityRideWarm(cityId);
+    this.scheduleNextIdleShaderStep();
     emitGameEvent('arrive_city', { city: cityId });
     this.saveWorldState();
   }
 
-  private saveArrivalInTransit(cityId: CityId): void {
+  /**
+   * Where a ride to this place sets the player down: the place you booked on the map.
+   * Prefer map/entrance when street coords drifted; only snap to a named door within 28 m.
+   */
+  private setDownSpot(destination: DestinationDefinition): { x: number; z: number } {
+    const street = destination.streetPosition;
+    const map = destination.mapPosition;
+    const mapDrift = map ? Math.hypot(map.x - street.x, map.z - street.z) : 0;
+    // Abuja had many pins with street coords parked on the wrong avenue (~100 m off).
+    const base = mapDrift > 40 && map ? map : street;
+    const entrance = destination.entrance?.position;
+    const near = entrance && Math.hypot(entrance.x - base.x, entrance.z - base.z) <= 40 ? entrance : base;
+    const door = this.doorOf(destination.name, near, 28);
+    return { x: door?.x ?? near.x, z: door?.z ?? near.z };
+  }
+
+  /**
+   * Plays a paid ride within this city. Before it starts, the save already holds where it sets down,
+   * so a reload on the way (Chrome closing the tab on a phone short of memory) opens the game there:
+   * the ride is not lost and nothing is paid twice. Saves are held while it plays; `arrived` puts the
+   * player down and the arrival is saved again at once.
+   */
+  private startRoadRide(ride: RideDetails, spot: { x: number; z: number }, name: string, arrived: () => void): void {
+    // Seen from the street, not behind an open map
+    if (this.world.worldMap.isActive || this.hud.currentNavMode === 'map') this.hud.leaveMap();
+    this.hud.phoneModal.close();
+    // Where it was booked, for "Turn back"
+    const here = this.player.position;
+    const from = this.world.getDistrictAtPosition(here).name;
+    this.ridePickup = { x: here.x, z: here.z, rotationY: this.player.mesh.rotation.y, name: from };
+    this.saveRideInTransit(spot, name);
+    CloudSyncService.getInstance().saveNow();
+    this.onJourneyCompleted = arrived;
+    this.world.setStreetModeVisibility(false);
+    this.player.mesh.visible = false;
+    this.roadRideExperience.startRide(ride);
+    this.transitHUD.showRideHUD(ride, { turnBackTo: from });
+  }
+
+  /** Turned back: set down where the ride was booked. The fare stays paid, as the button said. */
+  private setDownAtPickup(pickup: { x: number; z: number; rotationY: number; name: string }): void {
+    this.player.stopMoving();
+    this.player.mesh.position.set(pickup.x, 0, pickup.z);
+    this.player.position.copy(this.player.mesh.position);
+    this.player.mesh.rotation.y = pickup.rotationY;
+    this.cameraManager.snapToPlayer(this.player, 'street');
+    this.rides.endTrip();
+    showGameToast(`You turned back to ${pickup.name}. The fare is not refunded.`, 'info', 4200);
+  }
+
+  private saveRideInTransit(spot: { x: number; z: number }, name: string): void {
+    if (!this.placeRestored) return;
+    const cityId = this.world.cityManager.currentCityId;
     if (!this.isSavedCity(cityId)) return;
     BackendService.getInstance().saveWorldState({
       cityId,
+      x: Number(spot.x.toFixed(2)),
+      z: Number(spot.z.toFixed(2)),
+      rotationY: Number(this.player.mesh.rotation.y.toFixed(2)),
+      hour: Number(this.world.skyEnvironment.currentHour.toFixed(3)),
+      day: this.world.skyEnvironment.day,
+      weather: this.world.weather.currentWeather,
+      clockMode: this.world.skyEnvironment.clockMode,
+      rideTo: name,
+    });
+  }
+
+  private saveArrivalInTransit(cityId: CityId): void {
+    // Day-trip hops (Ibadan) resume on the Lagos apron.
+    const landIn = landingCity(cityId as FlightCity);
+    if (!this.isSavedCity(landIn)) return;
+    // Sent to the account at once (below), as well as kept on this device
+    queueMicrotask(() => CloudSyncService.getInstance().saveNow());
+    BackendService.getInstance().saveWorldState({
+      cityId: landIn,
       x: 0,
       z: 10,
       rotationY: 0,
@@ -2591,7 +4239,7 @@ export class Game {
     this.cameraManager.snapToPlayer(this.player, 'street');
     this.gateStart = { x, z };
     document.body.classList.add('lx-arrive');
-    showGameToast('Your gate is ahead. Walk out onto the street.', 'info', 4200);
+    showGameToast('Broad Street, Lagos Island. You have just arrived in Lagos.', 'info', 4200);
   }
 
   /** The quiet arrival is over once they have walked out, or gone inside. */
@@ -2606,6 +4254,8 @@ export class Game {
 
   /** Records the player's city, street position and the time of day in the saved game. */
   private saveWorldState(): void {
+    // Not until the saved city has been stepped back into. The boot spawn would otherwise overwrite it.
+    if (!this.placeRestored) return;
     // Mid-journey or while boarding/pulling out, the destination was already saved when the ticket was bought
     if (
       this.flightExperience.isActive ||
@@ -2639,6 +4289,7 @@ export class Game {
   }
 
   private restoreWorldState(): void {
+    this.placeRestored = true;
     const saved = BackendService.getInstance().getData().worldState;
     if (!saved) return;
 
@@ -2658,7 +4309,8 @@ export class Game {
     const coachState = this.coaches.status();
     const flightState = this.flights.status();
     if (saved.inTransit || coachState.state === 'boarded' || flightState.state === 'boarded') {
-      const destCity = (saved.inTransit ? saved.cityId : (coachState.to ?? flightState.to)) as CityId;
+      const rawDest = (saved.inTransit ? saved.cityId : (coachState.to ?? flightState.to)) as CityId;
+      const destCity = rawDest ? landingCity(rawDest as FlightCity) : null;
       if (destCity) {
         // The game closed during a paid journey: finish it
         this.arriveInCity(destCity);
@@ -2679,11 +4331,41 @@ export class Game {
       this.world.cityManager.switchCity(saved.cityId, this.player, (newObjs) => {
         this.world.interactiveObjects = newObjs;
       });
+      this.updateCameraColliders(saved.cityId);
       this.hud.interstateModal.currentOriginCityId = saved.cityId;
     }
     this.player.mesh.position.set(saved.x, 0, saved.z);
     this.player.mesh.rotation.y = saved.rotationY;
     this.cameraManager.snapToPlayer(this.player, 'street');
+    if (saved.rideTo) {
+      // The game closed during a paid ride in this city: it finished, and the player is there
+      showGameToast(`You have arrived at ${saved.rideTo}.`, 'success', 4200);
+      this.saveWorldState();
+      CloudSyncService.getInstance().saveNow();
+    }
+  }
+
+  /** Deep-link weather / hour for Vercel previews and share links (wins over save). */
+  private applyPreviewWorldParams(): void {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const weather = params.get('weather');
+      if (weather) {
+        this.world.weather.setWeather(weather as any, true);
+        this.hud.updateWeatherButton(this.world.weather.currentWeather);
+      }
+      const hourRaw = params.get('hour');
+      if (hourRaw != null && hourRaw !== '') {
+        const hour = Number.parseFloat(hourRaw);
+        if (Number.isFinite(hour)) {
+          this.world.skyEnvironment.clockMode = 'SIMULATED_TIME';
+          this.world.skyEnvironment.setHour(hour);
+          this.world.roads.setLampIntensityForHour(hour);
+        }
+      }
+    } catch {
+      // Ignore bad query strings
+    }
   }
 
   /** Getting in is seen: the player walks round to the driver's door, reaches for it, and is then at the wheel. */
@@ -2726,7 +4408,11 @@ export class Game {
 
   private exitVehicle(): void {
     if (this.player.isDriving && this.player.currentVehicle) {
-      this.ownedVehicles?.leftVehicle(this.player.currentVehicle);
+      const left = this.player.currentVehicle;
+      this.ownedVehicles?.leftVehicle(left);
+      // Got out of it: its button stays the one shown while the player is beside it, even with
+      // someone or something else a step nearer, so getting straight back in is one tap
+      this.input.prefer(this.world.vehicles.cardBy(left) ?? this.world.interactiveObjects.find((o) => o.id === left.id) ?? null);
       const exitPos = this.player.currentVehicle.exit();
       this.player.mesh.position.copy(exitPos);
       this.player.mesh.visible = true;
@@ -2742,8 +4428,22 @@ export class Game {
     this.world.worldMap.handleResize();
     this.flightExperience.handleResize();
     this.roadRideExperience.handleResize();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.postProcessing.setSize(window.innerWidth, window.innerHeight);
+    this.applyDrawingSize();
+  }
+
+  /**
+   * Drawing buffer follows GraphicsQuality render scale + height cap (Low ≈ 720p).
+   * CSS size stays full-window so UI layout is unchanged.
+   */
+  private applyDrawingSize(): void {
+    const cssW = window.innerWidth;
+    const cssH = window.innerHeight;
+    const size = this.graphics?.drawingSize(cssW, cssH) ?? { width: cssW, height: cssH };
+    this.renderer.setSize(size.width, size.height, false);
+    const canvas = this.renderer.domElement;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    this.postProcessing.setSize(size.width, size.height);
   }
 
   private loop = (): void => {
@@ -2760,8 +4460,16 @@ export class Game {
     } else {
       this.step(clampedDelta);
     }
-    this.render();
+    // Not drawn while the shaders are compiling in the background: drawing would wait for each one
+    if (!this.warming) this.render();
   };
+
+  /**
+   * Nothing is drawn while shaders are being compiled ahead (warmShaders). True from the start: the
+   * first frame used to be drawn as the game was made, before the warm-up, and drawing waits for each
+   * shader in turn (8 of the 30 seconds of loading, measured). The warm-up builds them side by side.
+   */
+  private warming = true;
 
   /**
    * Runs the game forward by some seconds of game time without drawing every frame.
@@ -2814,6 +4522,7 @@ export class Game {
     }
     this.ownedVehicles.update();
     this.vehicleSync.update(delta);
+    CareerShift.tick();
     this.deliveries.update(delta);
     this.messages.update(delta);
     Nollywood.get().tick(delta);
@@ -2831,8 +4540,13 @@ export class Game {
     // Update Camera Follow (moved in closer while the player is seated)
     const playerActor = this.player.actor;
     this.cameraManager.setCloseUp(playerActor.hold !== null || (playerActor.busy && playerActor.sequence?.closeUp === true));
-    this.cameraManager.update(this.player, delta);
-    this.viewPicker.update();
+    // At the wheel the view is placed after the car has moved this frame (below). Placed here it sat where
+    // the car was a frame ago: at speed, on a phone's uneven frames, the car jumped back and forth in the view.
+    const viewAfterTheCar = this.player.isDriving && !!this.player.currentVehicle;
+    if (!viewAfterTheCar) {
+      this.cameraManager.update(this.player, delta);
+      this.viewPicker.update();
+    }
     if (this.world.interiorManager.isPlayerInside()) {
       this.world.interiorManager.updateCutaway(delta, this.cameraManager.camera, this.player);
     }
@@ -2848,6 +4562,8 @@ export class Game {
     }
     this.rideHail.update(delta);
     this.riderOut?.tick(delta);
+    // A street race: the lights, the gates, the racers
+    Racing.get().update(delta);
     // The arrows on the road for the stretch ahead (hidden indoors and on a ride)
     if (this.routeGuide.active) {
       const outside = !this.world.interiorManager.isPlayerInside() && this.whereabouts() !== 'transit';
@@ -2861,16 +4577,29 @@ export class Game {
       this.ambienceClock = 0;
       const at = this.player.position;
       const outside = !this.world.interiorManager.isPlayerInside() && this.hud.currentNavMode !== 'map';
+      const cityId = this.world.cityManager.currentCityId;
+      const peopleNear = outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0;
+      const stallSpots = this.world.cityDensity?.fabric?.stallSpots ?? [];
+      const nearStall = stallSpots.some((s) => {
+        const dx = s.x - at.x;
+        const dz = s.z - at.z;
+        return dx * dx + dz * dz < 14 * 14;
+      });
+      // Lagos: umbrella stalls; other cities: a dense kerb crowd reads as market activity
+      const marketNear = outside && (nearStall || (cityId !== 'lagos' && peopleNear >= 12));
       StreetAmbience.get().update(0.5, {
         outside,
         // Broad Street and its pavements, or moving traffic on a main road: never an estate (Banana Island, the GRA)
         onMainRoad: outside && !QUIET_ESTATES.some((r) => at.x > r.minX && at.x < r.maxX && at.z > r.minZ && at.z < r.maxZ)
-          && ((this.world.cityManager.currentCityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3 && at.z > MAIN_ROAD.zMin - 15 && at.z < MAIN_ROAD.zMax + 15)
+          && ((cityId === 'lagos' && Math.abs(at.x) < MAIN_CORRIDOR_HALF + 3 && at.z > MAIN_ROAD.zMin - 15 && at.z < MAIN_ROAD.zMax + 15)
             || Bodies.carsNear(at.x, at.z, 25).filter((car) => !car.parked).length >= 6),
         driving: this.player.isDriving,
-        people: outside ? Bodies.peopleNear(at.x, at.z, 20).length : 0,
+        people: peopleNear,
         cars: outside ? Bodies.carsNear(at.x, at.z, 30).length : 0,
         hour: this.world.skyEnvironment.currentHour,
+        cityId,
+        marketNear,
+        rain: this.world.weather.curRainIntensity,
       });
     }
 
@@ -2882,7 +4611,21 @@ export class Game {
     const driven = this.player.isDriving ? this.player.currentVehicle : null;
     if (driven) avoid.push({ x: driven.mesh.position.x, z: driven.mesh.position.z, r: 2.4 });
     else if (!this.world.interiorManager.isPlayerInside()) avoid.push({ x: this.player.position.x, z: this.player.position.z, r: 0.35 });
+    const cityNow = this.world.cityManager.currentCityId;
+    const books = BackendService.getInstance().getData().businesses;
+    const stamp = `${cityNow}:${books.filter((b) => b.owned && b.id.startsWith('reg_')).map((b) => b.id).join(',')}`;
+    if (stamp !== this.kioskStamp) {
+      this.kioskStamp = stamp;
+      showKiosks(this.world.scene, cityNow, books);
+    }
+    const line = BusLine.get();
+    line.draw(this.world.scene, `${cityNow}:${line.buses().map((b) => b.id).join(',')}`, this.world.skyEnvironment.currentHour);
     this.world.update(delta, this.input.keys, this.player.position, this.player);
+    this.guideMarker?.update(delta, this.player.position, this.player.isDriving || this.world.interiorManager.isPlayerInside());
+    if (viewAfterTheCar) {
+      this.cameraManager.update(this.player, delta);
+      this.viewPicker.update();
+    }
     this.world.agamas.update(delta, this.player.position);
     if (!this.world.interiorManager.isPlayerInside()) this.world.lagoon.update(delta, this.player.position);
     this.world.expressway.redLine.update(delta, this.player.position, !this.world.interiorManager.isPlayerInside() && this.world.cityManager.currentCityId === 'lagos');
@@ -2890,6 +4633,13 @@ export class Game {
     if (this.lifeTimer <= 0) {
       this.lifeTimer = 2;
       Ladder.get().check();
+      // The home's light: fuel burned, batteries charged, and the house told when it changes
+      HomePower.get().tick();
+      this.showLight();
+      // The cell: time served lets the player out; speeding past the checkpoint may bring a patrol van
+      Police.get().tick();
+      this.showCustody();
+      this.watchCheckpoint();
     }
     this.companyStaff?.update();
     this.tellEvents();
@@ -2928,6 +4678,9 @@ export class Game {
     // Update Driving HUD Speedometer & Vehicle Simulation Metrics
     if (this.player.isDriving && this.player.currentVehicle) {
       const v = this.player.currentVehicle;
+      // The minimap round the car, the way ahead on it when the arrows are showing it
+      const car = this.player.currentVehicle;
+      if (car) this.miniMap.update(car.mesh.position.x, car.mesh.position.z, car.mesh.rotation.y, DrivableVehicle.roads?.() ?? [], Racing.get().lineAhead() ?? this.routeGuide.way);
       this.hud.updateDrivingHUD(
         v.currentSpeed,
         v.fuel,

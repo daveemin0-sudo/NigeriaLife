@@ -15,9 +15,12 @@ import { gamesApp } from '../phone/apps/games';
 import { gistApp } from '../phone/apps/gist';
 import { casesApp } from '../phone/apps/cases';
 import { oddsApp } from '../phone/apps/odds';
+import { tradeApp } from '../phone/apps/trade';
 import { adsApp } from '../phone/apps/ads';
 import { richApp } from '../phone/apps/rich';
 import { yarnApp } from '../phone/apps/yarn';
+import { ideasApp } from '../phone/apps/ideas';
+import { racingApp } from '../phone/apps/racing';
 import { nollywoodApp } from '../phone/apps/nollywood';
 import { staffApp } from '../phone/apps/staff';
 import { sparkApp } from '../phone/apps/spark';
@@ -26,6 +29,11 @@ import { studioApp } from '../phone/apps/studio';
 import { marriageApp } from '../phone/apps/marriage';
 import { titlesApp } from '../phone/apps/titles';
 import { motorsApp } from '../phone/apps/motors';
+import { coursesApp } from '../phone/apps/learn';
+import { gadgetsApp } from '../phone/apps/gadgets';
+import { contactsApp } from '../phone/apps/contacts';
+import { policeApp } from '../phone/apps/policeapp';
+import { busesApp } from '../phone/apps/buses';
 import { UIStateManager } from './UIStateManager';
 import { draw } from './kit/StableView';
 import { esc, naira, meter } from './kit/html';
@@ -36,9 +44,10 @@ const APPS: PhoneApp[] = [
   shoppingApp, propertyApp, landApp, garageApp,
   businessApp, investApp, healthApp, settingsApp,
   eventsApp, gamesApp, gistApp, casesApp,
-  oddsApp, adsApp, richApp, yarnApp, nollywoodApp,
+  oddsApp, adsApp, richApp, yarnApp, ideasApp, nollywoodApp,
   staffApp, sparkApp, owambeApp, studioApp,
-  marriageApp, titlesApp, motorsApp,
+  marriageApp, titlesApp, motorsApp, tradeApp, racingApp,
+  coursesApp, gadgetsApp, contactsApp, policeApp, busesApp,
 ];
 
 /** Things the phone opens elsewhere in the game instead of showing itself. */
@@ -176,6 +185,11 @@ export class PhoneModal {
     else this.open();
   }
 
+  /** The app on the screen now ('home' on the home screen) */
+  public get currentAppId(): string {
+    return this.stack[this.stack.length - 1]?.app ?? 'home';
+  }
+
   /** Opens an app (by its id, or an older name for it) from the home screen. */
   public openApp(appId: string, route = ''): void {
     const app = this.appFor(appId);
@@ -185,7 +199,9 @@ export class PhoneModal {
     // The older names carry which part of the app they meant
     const start = route || (appId === 'chowdeck' ? 'food' : appId === 'boutique' || appId === 'market' ? 'market' : '');
     if (app.id === 'shopping' && start) this.memory.set('shopping.tab', start);
-    const inside = app.id === 'shopping' ? '' : start;
+    // Property, opened on the homes the player can pay for now (the estate office, a new arrival)
+    if (app.id === 'property' && start === 'afford') this.memory.set('property.filter', 'afford');
+    const inside = app.id === 'shopping' || (app.id === 'property' && start === 'afford') ? '' : start;
     // Opened straight onto a screen inside an app, Back still goes up to the app before the home screen
     this.stack = [{ app: 'home', route: '' }, { app: app.id, route: '' }];
     if (inside) this.stack.push({ app: app.id, route: inside });
@@ -325,6 +341,11 @@ export class PhoneModal {
 
   private onInput(event: Event): void {
     const field = event.target as HTMLInputElement;
+    if (field.type === 'range' && field.dataset?.act && this.host) {
+      const here = this.here();
+      void this.appFor(here.app)?.act?.(this.host, field.dataset.act, field, here.route);
+      return;
+    }
     const key = field.dataset?.bind;
     if (!key) return;
     this.memory.set(key, field.value);

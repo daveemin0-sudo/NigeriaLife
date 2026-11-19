@@ -43,12 +43,18 @@ const use = async (page, id) => {
   return label;
 };
 const choose = (page, text) => page.evaluate((t) => [...document.querySelectorAll('#game-dialogue-overlay button')].find((b) => b.textContent.includes(t))?.click(), text);
+/** The button saying exactly this ("Take the job", not "Take the job and start a shift now") */
+const chooseExactly = (page, text) => page.evaluate((t) => {
+  const buttons = [...document.querySelectorAll('#game-dialogue-overlay button')];
+  (buttons.find((b) => b.textContent.replace(/\s+/g, ' ').trim().startsWith(t) && !/start a shift/i.test(b.textContent)) ?? buttons.find((b) => b.textContent.includes(t)))?.click();
+}, text);
 const rate = (page, employer) => page.evaluate((e) => { const j = window.game.jobs; return Math.round(j.grade(e).pay * j.constructor.payBoost()); }, employer);
 const done = (page, employer) => page.evaluate((e) => window.game.jobs.done(e), employer);
 const hire = async (page, key, employer) => {
   const label = await use(page, `work_${key}_hire_${employer}`);
-  const offer = await page.evaluate(() => document.getElementById('game-dialogue-overlay')?.innerText ?? '');
-  await choose(page, 'Take the job');
+  // Up to them first, then they speak
+  const offer = (await playUntil(page, () => document.getElementById('game-dialogue-overlay')?.innerText || null, 10)) ?? '';
+  await chooseExactly(page, 'Take the job');
   await wait(200);
   return { label, offer, employed: await page.evaluate((e) => window.game.jobs.isEmployed(e), employer) };
 };
@@ -58,6 +64,7 @@ const shift = async (page, key, employer) => {
   const pay = await rate(page, employer);
   const before = await money(page);
   const n0 = await done(page, employer);
+  const slips0 = await page.evaluate(() => window.game.hud.backend.tax().slips.length);
   const label = await use(page, `work_${key}_shift_${employer}`);
   const poses = new Set();
   const finished = await playUntil(page, () => {
@@ -68,7 +75,9 @@ const shift = async (page, key, employer) => {
   }, 80);
   for (const p of await page.evaluate(() => { const p = [...(window.__poses ?? [])]; window.__poses = new Set(); return p; })) poses.add(p);
   await advance(page, 0.3);
-  return { label, finished: !!finished, paid: (await money(page)).total - before.total, pay, done: (await done(page, employer)) - n0, poses: [...poses] };
+  // The wage comes with a payslip; once the month's wages pass the tax-free part, PAYE comes off it (src/life/Tax.ts)
+  const slip = await page.evaluate((n) => { const all = window.game.hud.backend.tax().slips; return all.length > n ? all[all.length - 1] : null; }, slips0);
+  return { label, finished: !!finished, paid: (await money(page)).total - before.total, pay, paye: slip?.paye ?? 0, done: (await done(page, employer)) - n0, poses: [...poses] };
 };
 
 export async function run(browser, check) {
@@ -76,6 +85,8 @@ export async function run(browser, check) {
   const { page, log } = await open(ctx);
   await closeDialogs(page);
   await page.evaluate(() => { const be = window.game.hud.backend; be.data.walletCash += 50000; be.saveData(); window.game.world.skyEnvironment.setHour(11); });
+  // Each workplace's work is looked at a round at a time: a shift of one round (the ownhomes suite works a whole shift)
+  await page.evaluate(() => { window.game.modules.Shifts.pieces = 1; });
 
   // ------------------------------------------------------------------ The phone sends the player there
   await page.evaluate(() => window.game.hud.phoneModal.openApp('jobs'));
@@ -113,22 +124,37 @@ export async function run(browser, check) {
   const away = { label: turnedAway, paid: (await money(page)).total - m0.total, told: await page.evaluate(() => /Ask me for work first/.test(document.body.innerText)) };
   check('workplaces: the teller\'s window is for staff: someone not taken on is sent to the manager and nothing is paid', /ask Mr Eze/i.test(away.label ?? '') && away.paid === 0 && away.told, away);
 
+  // The bank asks for a banker's certificate: without it the manager says so, and where it is got
+  await use(page, 'work_marina-towers_hire_first-bank-marina');
+  const noPaper = (await playUntil(page, () => document.getElementById('game-dialogue-overlay')?.innerText || null, 10)) ?? '';
+  await choose(page, 'All right');
+  await wait(300);
+  const stillOut = await page.evaluate(() => !window.game.jobs.isEmployed('first-bank-marina'));
+  check('workplaces: without the banker certificate Mr Eze says which paper the bank asks for and that it is got in Courses on the phone; no offer is made',
+    /Banker level 2 certificate/.test(noPaper) && /Courses/.test(noPaper) && !/Take the job/.test(noPaper) && stillOut, { noPaper: noPaper.slice(0, 300), stillOut });
+  // Every paper in hand for the rest (the courses themselves are tested in their own suite)
+  await page.evaluate(() => { const q = window.game.modules.Qualifications.get(); for (const id of ['banker', 'doctor', 'chef', 'pilot', 'software']) q.levels[id] = 5; });
+
   const taken = await hire(page, 'marina-towers', 'first-bank-marina');
-  check('workplaces: Mr Eze states the terms, grade by grade, and takes the player on as a teller', /Ask Mr Eze for work/.test(taken.label ?? '') && /a shift to start/.test(taken.offer) && taken.employed, taken);
+  check('workplaces: Mr Eze states the terms, grade by grade, and takes the player on as a teller', /Ask Mr Eze for work/.test(taken.label ?? '') && /a round to start/.test(taken.offer) && taken.employed, taken);
 
   const first = await shift(page, 'marina-towers', 'first-bank-marina');
   check('workplaces: a teller\'s shift is acted out at the window (slip, counting machine, posting, receipt) and paid once, at the grade\'s rate, when it is done',
-    first.finished && first.paid === first.pay && first.done === 1 && first.poses.includes('carry') && first.poses.includes('greet'), first);
+    first.finished && first.paid === first.pay - first.paye && first.done === 1 && first.poses.includes('carry') && first.poses.includes('greet'), first);
 
-  // Walking off half way: the shift is given up and pays nothing
+  // Half way through a shift: the door will not let the worker out; told to the boss, the shift ends, and the round cut short pays nothing
   await page.evaluate(() => window.game.hud.backend.restoreEnergy(100));
   const m1 = await money(page);
   await use(page, 'work_marina-towers_shift_first-bank-marina');
   await playUntil(page, () => (window.game.player.actor.pose.arms === 'carry' ? true : null), 20);
-  await leave(page);
+  const held = await page.evaluate(() => window.game.world.interiorManager.constructor.holdIn?.() ?? null);
+  await use(page, 'work_marina-towers_hire_first-bank-marina');
+  await playUntil(page, () => ([...document.querySelectorAll('#game-dialogue-overlay button')].some((b) => /End the shift now/.test(b.textContent)) ? true : null), 10);
+  await choose(page, 'End the shift now');
   await advance(page, 2);
-  const left = { paid: (await money(page)).total - m1.total, done: await done(page, 'first-bank-marina'), told: await page.evaluate(() => /pays nothing for that/.test(document.body.innerText)) };
-  check('workplaces: walking out half way through a shift gives it up: nothing paid, nothing counted', left.paid === 0 && left.done === 1, left);
+  const left = { held, paid: (await money(page)).total - m1.total, done: await done(page, 'first-bank-marina'), onShift: await page.evaluate(() => !!window.game.modules.Shifts.current), uniform: await page.evaluate(() => window.game.player.uniform?.outfit ?? null) };
+  check('workplaces: half way through a shift the player cannot walk out; ending it with the manager stops it, the round cut short pays nothing and is not counted, and the work clothes come off',
+    /on shift/i.test(held ?? '') && left.paid === 0 && left.done === 1 && !left.onShift && left.uniform === null, left);
 
   // ------------------------------------------------------------------ Every other workplace: taken on, one whole shift
   const rows = [];
@@ -138,12 +164,12 @@ export async function run(browser, check) {
       if (key === 'marina-towers') continue;
       const h = await hire(page, key, employer);
       const s = await shift(page, key, employer);
-      rows.push({ key, employer, name, employed: h.employed, finished: s.finished, paid: s.paid, pay: s.pay, done: s.done });
+      rows.push({ key, employer, name, employed: h.employed, finished: s.finished, paid: s.paid, pay: s.pay, paye: s.paye, done: s.done });
     }
     await leave(page);
   }
-  const bad = rows.filter((r) => !r.name || !r.employed || !r.finished || r.paid !== r.pay || r.done !== 1);
-  check(`workplaces: in all ${rows.length} other workplaces the player is taken on and works a whole shift, every task reached and acted out, paid once at the rate`, rows.length === 15 && bad.length === 0, bad.length ? bad : rows.map((r) => `${r.employer} ₦${r.paid}`));
+  const bad = rows.filter((r) => !r.name || !r.employed || !r.finished || r.paid !== r.pay - r.paye || r.done !== 1);
+  check(`workplaces: in all ${rows.length} other workplaces the player is taken on and works a whole shift, every task reached and acted out, paid once at the rate (less PAYE once the month's wages pass the free part)`, rows.length === 15 && bad.length === 0, bad.length ? bad : rows.map((r) => `${r.employer} ₦${r.paid}`));
 
   // ------------------------------------------------------------------ On the phone
   await page.evaluate(() => window.game.hud.phoneModal.openApp('jobs'));

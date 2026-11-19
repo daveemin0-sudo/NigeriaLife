@@ -42,7 +42,7 @@ export class WorldMapRenderer {
   // District highlight meshes
   private districtHighlightMeshes: Map<string, THREE.Mesh> = new Map();
 
-  constructor() {
+  constructor(realWorld: boolean = true) {
     this.group = new THREE.Group();
     this.cityContentGroup = new THREE.Group();
     this.propertyGroup = new THREE.Group();
@@ -54,19 +54,21 @@ export class WorldMapRenderer {
     // Dedicated Ultra-Vibrant Map Lighting (Zero haze, rich contrast, crystal-clear readability)
     const mapSun = new THREE.DirectionalLight(0xffffff, 2.6);
     mapSun.position.set(60, 220, 80);
+    mapSun.visible = !realWorld;
     this.group.add(mapSun);
 
     const mapFill = new THREE.DirectionalLight(0xe0f2fe, 1.3);
     mapFill.position.set(-60, 160, -60);
+    mapFill.visible = !realWorld;
     this.group.add(mapFill);
 
     const mapAmbient = new THREE.AmbientLight(0xffffff, 1.7);
     this.group.add(mapAmbient);
     this.mapLights = { sun: mapSun, fill: mapFill, ambient: mapAmbient };
 
-    // Initial load defaults to current city in WorldDataManager
+    // Initial load defaults to current city in WorldDataManager, pre-built for realWorld view
     const initialCity = this.dataManager.getCurrentCityId();
-    this.loadCity(initialCity);
+    this.loadCity(initialCity, realWorld);
   }
 
   // =========================================================================
@@ -118,11 +120,14 @@ export class WorldMapRenderer {
       this.buildLagosTraffic();
     }
 
-    // The real city is lit by its own sun; the model needs lights of its own
+    // The real city is lit by its own sun; the model needs lights of its own.
+    // Hide directional lights when realWorld is true so NUM_DIR_LIGHTS in the scene stays constant (avoiding 32-shader recompile).
     if (this.mapLights) {
+      this.mapLights.sun.visible = !this.realWorld;
+      this.mapLights.fill.visible = !this.realWorld;
       this.mapLights.sun.intensity = this.realWorld ? 0 : 2.6;
-      this.mapLights.fill.intensity = this.realWorld ? 0.3 : 1.3;
-      this.mapLights.ambient.intensity = this.realWorld ? 0.55 : 1.7;
+      this.mapLights.fill.intensity = this.realWorld ? 0 : 1.3;
+      this.mapLights.ambient.intensity = this.realWorld ? 0.85 : 1.7;
     }
 
     // Shared: build district territories, property markers, and player pin

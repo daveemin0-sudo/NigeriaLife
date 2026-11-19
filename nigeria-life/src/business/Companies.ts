@@ -104,8 +104,53 @@ export interface Branch {
   cost: number;
 }
 
+/**
+ * A business's luck on a day, the same on every device (from the business and the date): most
+ * days are ordinary; some are bad (rain, the road dug up outside, a rival opening next door) or
+ * good (an owambe on the street, a football crowd); and some days officials come for a levy,
+ * paid from the till at close.
+ */
+export interface DayLuck {
+  kind: 'ordinary' | 'bad' | 'good' | 'officials';
+  /** What the day's takings are multiplied by */
+  factor: number;
+  text: string;
+}
+
+const BAD_DAYS = [
+  'Rain all day kept the customers at home',
+  'The water board dug up the road outside',
+  'A rival opened next door with launch prices',
+  'A power cut across the street and a long queue for fuel',
+];
+const GOOD_DAYS = [
+  'An owambe on the street brought a crowd',
+  'A football crowd passed on their way to the stadium',
+  'A food blogger posted about you',
+  'Salaries came in and everyone was spending',
+];
+/** Officials' levy: a share of the day's takings, at least this */
+export const OFFICIALS_SHARE = 0.05;
+export const OFFICIALS_FLOOR = 5_000;
+const ORDINARY: DayLuck = { kind: 'ordinary', factor: 1, text: '' };
+
+export function dayLuck(bizId: string, day: number): DayLuck {
+  let h = 2166136261;
+  for (const c of `${bizId}:${day}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  const r = (h % 10_000) / 10_000;
+  const pick = (list: string[]) => list[(h >>> 7) % list.length];
+  if (r < 0.1) return { kind: 'bad', factor: 0.6, text: pick(BAD_DAYS) };
+  if (r < 0.2) return { kind: 'good', factor: 1.3, text: pick(GOOD_DAYS) };
+  if (r < 0.28) return { kind: 'officials', factor: 1, text: 'Officials from the local government came for a "signage levy"' };
+  return { kind: 'ordinary', factor: 1, text: '' };
+}
+
 export interface DayReport {
   day: number;
+  /** What kind of day it was, when it was not an ordinary one (dayLuck) */
+  event?: string;
+  /** Paid to officials from the till (a levy) */
+  levy?: number;
   takings: number;
   wages: number;
   rent: number;
@@ -146,6 +191,13 @@ export class Companies {
   private listeners: Array<() => void> = [];
   /** The game's day, for when people were taken on and branches opened */
   public today: () => number = () => 1;
+  /** Whether days have their luck (bad, good, officials): off in a test browser unless a test asks (set by the game) */
+  public static luckOn: () => boolean = () => true;
+
+  /** The day's luck for a business (ordinary when luck is off) */
+  public luck(bizId: string, day: number): DayLuck {
+    return Companies.luckOn() ? dayLuck(bizId, day) : ORDINARY;
+  }
   /** A game day as the calendar on the top bar names it: "Wed 7 Oct" */
   public dayName: (day: number) => string = (day) => `day ${day}`;
   /** Told when a day's reports are in */
@@ -252,7 +304,9 @@ export class Companies {
   /** What one payout comes to: the first outlet (with its upgrades) and the branches, lifted by the staff */
   public perCycle(biz: BusinessEnterprise, first: number): number {
     const branches = this.branches(biz.id).reduce((sum, b) => sum + biz.baseIncomePerCycle * (AREAS.find((a) => a.id === b.area)?.takes ?? 0), 0);
-    return Math.round((first + branches) * this.lift(biz.id));
+    // A bad day takes less, a good day more
+    const luck = Companies.luckOn() ? dayLuck(biz.id, this.today()).factor : 1;
+    return Math.round((first + branches) * this.lift(biz.id) * luck);
   }
 
   /** Stock bought for the shelves: already paid, but a cost of the day's trade */
@@ -336,9 +390,12 @@ export class Companies {
       const wages = this.wages(biz.id);
       const rent = this.rent(biz.id);
       const stock = Math.round(book.stock ?? 0);
-      const profit = takings - wages - rent - stock;
+      // Officials on the day: a levy from the till
+      const luck = Companies.luckOn() ? dayLuck(biz.id, day) : ORDINARY;
+      const levy = luck.kind === 'officials' && takings > 0 ? Math.max(OFFICIALS_FLOOR, Math.round((takings * OFFICIALS_SHARE) / 500) * 500) : 0;
+      const profit = takings - wages - rent - stock - levy;
       const tax = takings * DAYS_A_YEAR > SMALL_COMPANY_TURNOVER ? Math.round(Math.max(0, profit) * TAX_RATE) : 0;
-      let due = wages + rent + tax + book.owed;
+      let due = wages + rent + tax + levy + book.owed;
       let note: string | undefined;
       // From the till first
       due -= this.backend.takeFromTill(biz.id, due);
@@ -356,7 +413,8 @@ export class Companies {
       }
       let banked = 0;
       if (this.managed(biz.id)) banked = this.backend.collectBusinessRevenue(biz.id).totalCollected;
-      const report: DayReport = { day, takings, wages, rent, stock: stock || undefined, tax, profit: profit - tax, banked, note };
+      const event = luck.kind === 'ordinary' ? undefined : luck.kind === 'officials' ? (levy ? `${luck.text}: ₦${levy.toLocaleString()} from the till` : undefined) : luck.text;
+      const report: DayReport = { day, ...(event ? { event } : {}), ...(levy ? { levy } : {}), takings, wages, rent, stock: stock || undefined, tax, profit: profit - tax, banked, note };
       book.reports.unshift(report);
       book.reports = book.reports.slice(0, 14);
       book.takings = 0;

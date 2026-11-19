@@ -24,6 +24,8 @@ export interface CarBody {
   parked?: boolean;
   /** Pulling over for a siren (a convoy coming through) */
   yielding?: boolean;
+  /** Metres a second along its heading (traffic only; unknown is taken as standing) */
+  speed?: number;
 }
 
 export interface BodySource {

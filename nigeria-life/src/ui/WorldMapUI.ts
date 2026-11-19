@@ -56,7 +56,7 @@ export class WorldMapUI {
   public onTravelToDistrict?: (district: DistrictData) => void;
   public onTravelToLandmark?: (landmark: MapLandmark) => void;
   /** Places along the expressway, pinned where they stand */
-  public extraPins?: () => Array<{ id: string; name: string; icon: string; x: number; z: number; category: 'transit' | 'food' | 'work' | 'civic' | 'other' }>;
+  public extraPins?: () => Array<{ id: string; name: string; icon: string; x: number; z: number; category: 'transit' | 'food' | 'work' | 'civic' | 'other'; city?: string; where?: string }>;
   public onPickExtra?: (id: string) => void;
   /** Brings a point of the map into the middle (set by the HUD) */
   public onFocusPoint?: (x: number, z: number) => void;
@@ -284,8 +284,25 @@ export class WorldMapUI {
       this.onCardClosed?.();
     });
 
-    // Finding a place by name, or by what is done there
+    // Finding a place by name, or by what is done there. On a phone the search is its icon until
+    // tapped (the map is left to be seen); it closes again when left empty or a place is chosen
     const search = document.getElementById('map-search-input') as HTMLInputElement | null;
+    const searchBox = document.getElementById('map-search');
+    searchBox?.querySelector('.map-search-ico')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !searchBox.classList.contains('is-open');
+      searchBox.classList.toggle('is-open', open);
+      if (open) search?.focus();
+      else search?.blur();
+    });
+    search?.addEventListener('blur', () => {
+      window.setTimeout(() => {
+        if (search.value.trim() === '' && document.activeElement !== search) searchBox?.classList.remove('is-open');
+      }, 250);
+    });
+    document.getElementById('map-search-results')?.addEventListener('click', () => {
+      window.setTimeout(() => searchBox?.classList.remove('is-open'), 50);
+    });
     search?.addEventListener('input', () => this.showSearchResults(search.value));
     search?.addEventListener('focus', () => this.showSearchResults(search.value));
     search?.addEventListener('keydown', (e) => {
@@ -358,9 +375,11 @@ export class WorldMapUI {
     }
     // And the places along the roads, pinned on Lagos's map
     for (const p of this.extraPins?.() ?? []) {
-      const score = rank(p.name, [p.category, registry.getById(p.id)?.category ?? '', registry.getById(p.id)?.districtName ?? '']);
-      if (score < 0 || hits.some((h) => h.name === p.name)) continue;
-      hits.push({ id: p.id, name: p.name, icon: p.icon, where: registry.getById(p.id)?.districtName ?? 'Along the road', city: 'lagos', here: viewing === 'lagos', rank: score + (viewing === 'lagos' ? 0 : 10) });
+      const city = p.city ?? 'lagos';
+      const score = rank(p.name, [p.category, p.where ?? '', registry.getById(p.id)?.category ?? '', registry.getById(p.id)?.districtName ?? '']);
+      if (score < 0 || hits.some((h) => h.name === p.name && h.city === city)) continue;
+      const here = city === viewing;
+      hits.push({ id: p.id, name: p.name, icon: p.icon, where: p.where ?? registry.getById(p.id)?.districtName ?? 'Along the road', city, here, rank: score + (here ? 0 : 10) });
     }
     return hits.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).slice(0, 10);
   }
@@ -400,6 +419,12 @@ export class WorldMapUI {
         list.style.display = 'none';
         const extra = this.extraPins?.().find((p) => p.id === hit.id);
         if (extra) {
+          const standing = this.standing?.();
+          // A pin in another city is not a cab. The way there is a flight or a coach.
+          if (standing && extra.city && extra.city !== standing.here) {
+            this.onInterstateTravel?.(standing.here);
+            return;
+          }
           this.onFocusPoint?.(extra.x, extra.z);
           this.onPickExtra?.(extra.id);
           return;
@@ -926,7 +951,7 @@ export class WorldMapUI {
 
       actions.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-          ${isResidential ? `
+          ${isResidential && (isOwned || isRented) ? `
             <button class="btn-primary-action" id="btn-card-prop-enter" style="background: linear-gradient(135deg, #10b981, #059669); font-weight: 800;">
               🚪 Enter Residence Inside
             </button>
@@ -946,9 +971,10 @@ export class WorldMapUI {
       `;
 
       if (isResidential) {
+        // This home, by name: its own rooms, furniture and address, and home from now on
         document.getElementById('btn-card-prop-enter')?.addEventListener('click', () => {
           this.close();
-          this.onEnterInterior?.('residence');
+          this.onEnterInterior?.(`residence:${p.id}`);
         });
       }
 

@@ -3,6 +3,7 @@ import { Builder, signBoard } from '../kit/ArchKit';
 import { clickBox, type Landmark, type LandmarkHost } from './Landmark';
 import { Sequence, steps } from '../../interactions/Sequence';
 import { CoachService, MOTOR_PARKS, OPERATOR, COACH_REFUND_SHARE, type CoachCity } from '../../travel/Coaches';
+import { settleGig } from '../../online/checkedEarn';
 
 /**
  * A motor park: where the coaches to other cities leave from and pull in. A fenced yard with
@@ -11,10 +12,20 @@ import { CoachService, MOTOR_PARKS, OPERATOR, COACH_REFUND_SHARE, type CoachCity
  * passenger with a ticket walks up to its door, shows the conductor the ticket, and it pulls
  * out through the gate with them on it.
  *
+ * Day work: load passengers' bags into the coaches' boots for pocket cash — the same loop in
+ * Lagos, Abuja and Port Harcourt, so every city has an earn at the park a new arrival can find.
+ *
  * It is drawn looking in from the street: `u` runs across the front (right is positive) and
  * `v` runs from the gate to the back fence. The same park is put down facing whichever way
  * its street is.
  */
+
+/** Server-priced boot-loading gigs, one per park city. */
+const BOOT_GIG: Record<CoachCity, { id: string; pay: number; energy: number; title: string }> = {
+  lagos: { id: 'hud:jibowu-boots', pay: 10_000, energy: 18, title: 'Jibowu coach boot loading' },
+  abuja: { id: 'hud:utako-boots', pay: 10_000, energy: 18, title: 'Utako coach boot loading' },
+  port_harcourt: { id: 'hud:waterlines-boots', pay: 10_000, energy: 18, title: 'Waterlines coach boot loading' },
+};
 
 const WIDTH = 29;
 const DEPTH = 31;
@@ -84,11 +95,16 @@ export interface MotorParkLandmark extends Landmark {
   coach: THREE.Group;
   /** Which way the gate is from the bays: the way a coach leaves */
   leaves: { x: number; z: number };
+  /** The middle of the gate on the line of the front fence, and half its width: the way in for vehicles */
+  gate: { x: number; z: number; half: number };
   /** The coach is in its bay, for a passenger arriving on it */
   receive(): void;
   /** The coach pulls out of its bay and through the gate; `gone` is called when it has left the park */
   sendOff(gone: () => void): void;
 }
+
+/** What the goods shed's card opens: the Trade app (set by the game; src/travel/TradeDesk.ts) */
+export const motorParkTrade = { open: (): void => {} };
 
 export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
   const coaches = CoachService.get();
@@ -179,6 +195,17 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
   // Posts for the board that stands over the back fence
   for (const u of [-5.6, 5.6]) box(0x94a3b8, 0.2, 4.2, 0.2, u, 0, DEPTH - 0.35);
 
+  // --- The goods shed, between the ticket office and the coaches: traders buy and sell what goes
+  // between the cities in the coaches' boots (src/travel/Trade.ts). A roof on posts, and the goods.
+  box(0x9a3412, 4.2, 0.16, 3.4, -11, 2.75, 11);
+  for (const u of [-12.9, -9.1]) for (const v of [9.5, 12.5]) post(0x57534e, 0.07, 2.75, u, v);
+  box(0xd6c7a1, 0.6, 0.55, 0.9, -12.2, 0, 10.2);
+  box(0xd6c7a1, 0.6, 0.55, 0.9, -12.2, 0.55, 10.2);
+  box(0xb45309, 0.55, 0.5, 0.8, -12.3, 0, 11.4);
+  box(0x1d4ed8, 0.5, 0.45, 0.7, -12.2, 0, 12.4);
+  box(0xdb2777, 0.5, 0.45, 0.7, -12.2, 0.45, 12.4);
+  b.cylinder(0xea580c, 0.24, 0.62, X(-10.6, 12.2), 0, Z(-10.6, 12.2));
+
   const group = b.build(options.id);
   group.position.set(site.x, 0, site.z);
 
@@ -213,22 +240,37 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
   park(BAY_V);
   group.add(coach);
 
+  const shedPoint = at(-8.4, 11);
+  const shedTarget = at(-11, 11);
+  const goodsId = `${options.id}-goods`;
+  const goodsBox = clickBox(3.4, 3, 3.6);
+  goodsBox.position.copy(local(-11, 1.5, 11));
+  goodsBox.userData.surface = true;
+  group.add(goodsBox);
+
   // --- What can be done here --------------------------------------------------------------
   const windowPoint = at(-6.4, 4.2);
   const windowTarget = at(-7.8, 4.2);
   const doorPoint = at(-2.5, BAY_V - 4.55);
   const doorTarget = at(-1.3, BAY_V - 4.55);
+  const loadPoint = at(-3.3, 20.2);
+  const loadTarget = at(-2.2, BAY_V - 2);
   const ticketsId = options.ticketsId ?? `${options.id}-tickets`;
   const coachId = `${options.id}-coach`;
+  const loadId = `${options.id}-boots`;
+  const bootGig = BOOT_GIG[city];
 
   const windowBox = clickBox(south ? 2.6 : 3.2, 3, south ? 3.2 : 2.6);
   windowBox.position.copy(local(-7.2, 1.5, 4.2));
   const coachBox = clickBox(south ? 4.4 : COACH_LENGTH * 0.6, 3.6, south ? COACH_LENGTH * 0.6 : 4.4);
   coachBox.position.copy(local(-0.8, 1.8, BAY_V - 3));
+  const loadBox = clickBox(2.4, 2.6, 2.4);
+  loadBox.position.copy(local(-3.3, 1.3, 20.6));
   // Marks of where to press, not things standing in the yard
   windowBox.userData.surface = true;
   coachBox.userData.surface = true;
-  group.add(windowBox, coachBox);
+  loadBox.userData.surface = true;
+  group.add(windowBox, coachBox, loadBox);
 
   let leaving: { clock: number; gone: (() => void) | null } | null = null;
   let away = false;
@@ -242,6 +284,7 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
     city,
     coach,
     leaves: { x: X(0, 0) - X(0, 1), z: Z(0, 0) - Z(0, 1) },
+    gate: { x: site.x, z: site.z, half: GATE },
     setDown: doorPoint,
     setDownFacing: yawOf(0, -1),
     zone: south
@@ -250,6 +293,14 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
     group,
     obstructions: b.obstructions(name, site.x, site.z),
     interactive: [
+      {
+        mesh: goodsBox,
+        id: goodsId,
+        name: `${name}, goods shed`,
+        category: 'Trade between cities',
+        description: 'Traders buy and sell what goes between Lagos, Abuja and Port Harcourt in the coaches\' boots: crayfish and palm oil from the creeks, yams and beans from the north, Ankara and phone accessories from Lagos.',
+        interactionPoint: shedPoint,
+      },
       {
         mesh: windowBox,
         id: ticketsId,
@@ -266,8 +317,85 @@ export function createMotorPark(options: MotorParkOptions): MotorParkLandmark {
         description: 'The coach that goes next. The conductor at its door lets on passengers who hold a ticket from this park.',
         interactionPoint: doorPoint,
       },
+      {
+        mesh: loadBox,
+        id: loadId,
+        name: `${name}, loading bay`,
+        category: 'Day work · Cash in hand',
+        description: `Load Ghana-must-go bags and crates into the coaches' boots. Pays about ₦${bootGig.pay.toLocaleString()} cash when the bay is done.`,
+        interactionPoint: loadPoint,
+      },
     ],
     actions: {
+      [goodsId]: {
+        label: () => '📦 Goods shed: buy and sell',
+        run: (host) => {
+          host.director.perform({ id: 'talk to the traders', actor: host.actor, point: shedPoint, target: shedTarget, speed: 4, animation: { arms: 'talk' }, seconds: 1, effectAt: 0.6, effect: () => motorParkTrade.open() });
+        },
+      },
+      [loadId]: {
+        label: () => `🎒 Load coach boots (+₦${bootGig.pay.toLocaleString()} cash)`,
+        run: (host) => {
+          host.ask({
+            who: 'Yard marshal',
+            role: `${name} · Loading bay`,
+            text: 'Oya, the boots dey empty. Stack the bags, lock the hatch, collect your pay in cash.',
+            choices: [
+              {
+                label: 'Load the coaches\' boots',
+                note: `+₦${bootGig.pay.toLocaleString()} cash · -${bootGig.energy}% Energy`,
+                pick: () => {
+                  const actor = host.actor;
+                  if (host.director.interrupt(actor) === 'locked') return;
+                  const work = new Sequence('load coach boots', [actor]).add(
+                    steps.walk(actor, loadPoint, { speed: 4 }),
+                    steps.face(actor, loadTarget),
+                    steps.setPose(actor, { arms: 'reach' }),
+                    steps.wait(1.4),
+                    steps.setPose(actor, { arms: 'rest' }),
+                    steps.wait(0.35),
+                    steps.setPose(actor, { arms: 'reach' }),
+                    steps.wait(1.4),
+                    steps.setPose(actor, { arms: 'rest' }),
+                    steps.wait(0.35),
+                    steps.setPose(actor, { arms: 'reach' }),
+                    steps.wait(1.2),
+                    steps.setPose(actor, { arms: 'rest' }),
+                    steps.call('pay for the bay', () => {
+                      void (async () => {
+                        const paid = await settleGig(bootGig.id, bootGig.energy);
+                        if (paid === null) {
+                          const gig = host.backend.performGig(bootGig.pay, bootGig.energy, bootGig.title);
+                          if (gig.success) {
+                            host.backend.addStreetCred(8);
+                            host.say(`Boots locked. ₦${bootGig.pay.toLocaleString()} cash in your pocket. Cred +8.`, 'success');
+                          } else {
+                            host.say(gig.message, 'warning');
+                          }
+                          return;
+                        }
+                        if (!paid.ok) {
+                          host.say(
+                            paid.clockedIn
+                              ? 'Bay started. Stack another round of bags here, then the marshal pays in cash.'
+                              : paid.reason,
+                            paid.clockedIn ? 'info' : 'warning',
+                          );
+                          return;
+                        }
+                        host.backend.addStreetCred(8);
+                        host.say(`Boots locked. ₦${paid.pay.toLocaleString()} cash in your pocket. Cred +8.`, 'success');
+                      })();
+                    }),
+                  );
+                  host.director.run(work);
+                },
+              },
+              { label: 'Not now', pick: () => {} },
+            ],
+          });
+        },
+      },
       [ticketsId]: {
         label: () => {
           const held = coaches.ticket;

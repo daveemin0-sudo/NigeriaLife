@@ -18,7 +18,13 @@ interface Solid {
   maxX: number;
   minZ: number;
   maxZ: number;
+  /** A building or wall: tall and broad enough to hide a car behind it (not a lamp, a bin or a stall) */
+  wall?: boolean;
 }
+
+/** A wall is at least this tall and this long */
+const WALL_HEIGHT = 3;
+const WALL_SIZE = 1.5;
 
 const CELL = 8;
 
@@ -43,7 +49,7 @@ export class Solids {
       if (thing.height < MIN_SOLID_HEIGHT) continue;
       const width = thing.maxX - thing.minX;
       const depth = thing.maxZ - thing.minZ;
-      let solid: Solid = { minX: thing.minX, maxX: thing.maxX, minZ: thing.minZ, maxZ: thing.maxZ };
+      let solid: Solid = { minX: thing.minX, maxX: thing.maxX, minZ: thing.minZ, maxZ: thing.maxZ, wall: !thing.pole && thing.height >= WALL_HEIGHT && Math.max(width, depth) >= WALL_SIZE };
       if (Math.max(width, depth) < MIN_SOLID_SIZE) {
         // Something thin is stepped past, except a street lamp: that is walked round
         if (!thing.pole) continue;
@@ -85,6 +91,11 @@ export class Solids {
   /** Is there something solid at this point? */
   public at(x: number, z: number, radius = 0): boolean {
     return this.touching(x, z, radius, this.now).length > 0;
+  }
+
+  /** Is a building or wall here (not a lamp post, a bin or a stall)? What a camera behind a car must keep in front of */
+  public wallAt(x: number, z: number, radius = 0): boolean {
+    return this.touching(x, z, radius, this.now).some((solid) => solid.wall);
   }
 
   private blocked(fromX: number, fromZ: number, toX: number, toZ: number, radius: number): boolean {

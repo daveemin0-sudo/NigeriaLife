@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../../materials/MaterialLibrary';
 import { seededRandom } from '../../graphics/MeshBaker';
-import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, type SideStreet } from './StreetLayout';
+import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, type SideStreet } from './StreetLayout';
+import { StreetStalls, lagosStallSells, type StallSpot } from '../street/StreetStalls';
 
 // Occupancy bit flags
 const OBSTACLE = 1; // hand-built buildings, districts, props
@@ -23,12 +24,17 @@ export interface WalkRun {
   fixed: number;
   from: number;
   to: number;
+  /** One walker every so many metres (9, as Lagos's side streets, unless it says) */
+  every?: number;
 }
 
 export interface StreetSpot {
   x: number;
   z: number;
   yaw: number;
+  /** A car stood half up on the kerb: raised by this much, and tilted by this much about its length */
+  lift?: number;
+  roll?: number;
 }
 
 interface Inst {
@@ -79,7 +85,10 @@ export class CityFabric {
   public group = new THREE.Group();
   public walkRuns: WalkRun[] = [];
   public parkingSpots: StreetSpot[] = [];
-  public stallSpots: StreetSpot[] = [];
+  /** The roadside stalls, in the order they were placed: where, which way they face, what they sell */
+  public stallSpots: StallSpot[] = [];
+  /** The stalls themselves, drawn and opened and shut (shared with the other cities' stalls) */
+  public stallSet: StreetStalls | null = null;
   public buildingCount = 0;
   /** The ground each generated building stands on, for the city plan */
   public footprints: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; height: number }> = [];
@@ -101,11 +110,11 @@ export class CityFabric {
   private boxes: Inst[] = [];
   private cylinders: Inst[] = [];
   private hipRoofs: Inst[] = [];
-  private umbrellas: Inst[] = [];
   private signs: Array<Inst & { atlas: number }> = [];
 
   public facadeMats?: Record<FacadeKind, THREE.MeshStandardMaterial>;
-  public umbrellaMesh?: THREE.InstancedMesh | null;
+  /** Set once the street's people open and shut the stalls themselves (stage 3): night no longer hides the umbrellas */
+  public stallsKept = false;
 
   private archetypes: Archetype[] = [
     { kind: 'tenement', floors: 2, bays: 4, floorHeight: 3.2, items: [] },
@@ -125,6 +134,7 @@ export class CityFabric {
    * @param reserved ground taken by the great places (stadium, port, airport), kept clear the same way
    */
   constructor(obstacles: THREE.Object3D[], plots: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [], reserved: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }> = []) {
+    this.plotRects = plots;
     this.scanObstacles(obstacles);
     for (const plot of plots) this.mark(plot.minX - 3.2, plot.maxX + 3.2, plot.minZ - 3.2, plot.maxZ + 3.2, NO_BUILD);
     for (const zone of reserved) this.mark(zone.minX, zone.maxX, zone.minZ, zone.maxZ, NO_BUILD);
@@ -221,6 +231,18 @@ export class CityFabric {
     return Math.abs(x) < MAIN_CORRIDOR_HALF && z > MAIN_ROAD.zMin - 9 && z < MAIN_ROAD.zMax + 1;
   }
 
+  /** The land registry's plots, whose fronts are kept clear */
+  private plotRects: ReadonlyArray<{ minX: number; maxX: number; minZ: number; maxZ: number }> = [];
+
+  /**
+   * On the pavement in front of a plot: whatever is built there has its gate somewhere along that
+   * front and a car crosses the pavement to it, so no lamp or stall stands there.
+   */
+  private beforeAPlot(x: number, z: number): boolean {
+    const M = 3.6;
+    return this.plotRects.some((p) => x >= p.minX - M && x <= p.maxX + M && z >= p.minZ - M && z <= p.maxZ + M);
+  }
+
   private inOtherRoad(x: number, z: number, self: SideStreet): boolean {
     for (const st of SIDE_STREETS) {
       if (st === self) continue;
@@ -302,13 +324,19 @@ export class CityFabric {
           run.to = s + STEP;
         }
 
-        // Kerbside parking on the quiet streets
-        if (!st.traffic && Math.round(s / STEP) % 3 === 0 && this.rand() < 0.62 && !this.inOtherRoad(cx, cz, st)) {
-          const parkLateral = st.fixed + sign * (st.halfRoad - 1.2);
+        // Kerbside parking on the quiet streets: half up on the kerb, as in Lagos, and on one side of the
+        // street only, so the road stays open to drive (the other side is kept for gates and the way through)
+        if (!st.traffic && Math.round(s / STEP) % 3 === 0 && this.rand() < 0.62 && !this.inOtherRoad(cx, cz, st) && sign > 0) {
+          const parkLateral = st.fixed + sign * (st.halfRoad - PARK_IN);
+          const yaw = isX ? (sign > 0 ? Math.PI / 2 : -Math.PI / 2) : sign > 0 ? Math.PI : 0;
+          // Tilted up on the kerb side: which way that is in the car's own frame
+          const kerbSide = isX ? sign * -Math.sin(yaw) : sign * Math.cos(yaw);
           this.parkingSpots.push({
             x: isX ? mid : parkLateral,
             z: isX ? parkLateral : mid,
-            yaw: isX ? (sign > 0 ? Math.PI / 2 : -Math.PI / 2) : sign > 0 ? Math.PI : 0,
+            yaw,
+            lift: MAIN_ROAD.sidewalkTop / 2,
+            roll: Math.sign(kerbSide) * Math.atan2(MAIN_ROAD.sidewalkTop, 1.72),
           });
         }
 
@@ -325,8 +353,8 @@ export class CityFabric {
         const inJunction = s <= st.from + 5 || s >= st.to - 5 || this.inOtherRoad(lampX, lampZ, st) || this.inMainCorridor(lampX, lampZ);
 
         if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction) {
-          this.addStreetLamp(lampX, lampZ, isX, -sign);
-        } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st)) {
+          if (!this.beforeAPlot(lampX, lampZ)) this.addStreetLamp(lampX, lampZ, isX, -sign);
+        } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st) && !this.beforeAPlot(px, pz)) {
           this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2, narrow);
         }
       }
@@ -348,22 +376,13 @@ export class CityFabric {
 
   /** A stall on a narrow pavement is a shallower table, so people can still get past it. */
   private addUmbrellaStall(x: number, z: number, yaw: number, narrow = false): void {
-    const deep = narrow ? 0.6 : 0.8;
-    const canopy = [0xdc2626, 0x16a34a, 0xfacc15, 0x2563eb, 0xf97316, 0xffffff, 0xdb2777];
-    this.cylinders.push({ m: this.mat(x, 0, z, 0.07, 2.3, 0.07), c: new THREE.Color(0x4b5563) });
-    this.umbrellas.push({
-      m: this.mat(x, 2.1, z, 1.25, 0.55, 1.25, this.rand() * Math.PI),
-      c: new THREE.Color(this.pick(canopy)),
-    });
-    // Wooden table stacked with goods
-    this.boxes.push({ m: this.mat(x, 0.28, z, 1.3, 0.7, deep, yaw), c: new THREE.Color(0x8b5a2b) });
-    const goods = [0xf59e0b, 0xef4444, 0x22c55e, 0xfde047, 0xf8fafc];
-    this.boxes.push({ m: this.mat(x, 0.98, z, 1.05, 0.22, deep - 0.2, yaw), c: new THREE.Color(this.pick(goods)) });
-    this.stallSpots.push({ x, z, yaw });
-    // The table, whichever way it is turned
-    const alongX = Math.abs(Math.cos(yaw)) > 0.5;
-    const half = deep / 2;
-    this.stallBoxes.push({ minX: x - (alongX ? 0.65 : half), maxX: x + (alongX ? 0.65 : half), minZ: z - (alongX ? half : 0.65), maxZ: z + (alongX ? half : 0.65) });
+    // (The street's own random numbers are drawn here in the order they always were, so everything
+    // after a stall in the street comes out as before; the stall itself is drawn by StreetStalls)
+    const spin = this.rand() * Math.PI;
+    const canopy = this.pick([0xdc2626, 0x16a34a, 0xfacc15, 0x2563eb, 0xf97316, 0xffffff, 0xdb2777]);
+    const goods = this.pick([0xf59e0b, 0xef4444, 0x22c55e, 0xfde047, 0xf8fafc]);
+    const sells = lagosStallSells(this.stallSpots.length);
+    this.stallSpots.push({ x, z, yaw, narrow, sells, spin, canopy: sells === 'suya' ? undefined : canopy, goods });
   }
 
   /** Zebra crossings on all four arms of the Broad Street / Martins Street junction */
@@ -642,7 +661,6 @@ export class CityFabric {
     const unitPlane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     const unitCylinder = new THREE.CylinderGeometry(0.5, 0.5, 1, 10).translate(0, 0.5, 0);
     const unitHip = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0);
-    const unitUmbrella = new THREE.ConeGeometry(1, 1, 8, 1).translate(0, 0.5, 0);
 
     // --- Streets ---
     const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x3b3f47, roughness: 0.94 });
@@ -707,13 +725,10 @@ export class CityFabric {
     this.instanced(unitBox, trimMat, this.boxes, false, true);
     this.instanced(unitCylinder, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), this.cylinders, false, false);
     this.instanced(unitHip, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }), this.hipRoofs, true, false);
-    this.umbrellaMesh = this.instanced(
-      unitUmbrella,
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide, flatShading: true }),
-      this.umbrellas,
-      true,
-      false
-    );
+    // The roadside stalls, and what is solid of them (their tables)
+    this.stallSet = new StreetStalls(this.stallSpots);
+    this.group.add(this.stallSet.group);
+    this.stallBoxes.push(...this.stallSet.boxes);
 
     this.commitSigns();
   }
@@ -997,9 +1012,22 @@ export class CityFabric {
         mat.emissiveIntensity = intensity;
       }
     }
-    if (this.umbrellaMesh) {
-      this.umbrellaMesh.visible = !isNight;
-    }
+    // (Before the street's people kept the stalls, night simply hid them all)
+    if (this.stallSet && !this.stallsKept) this.stallSet.group.visible = !isNight;
+  }
+
+  /** How many roadside stalls the street has, in the order of `stallSpots` */
+  public get stallCount(): number {
+    return this.stallSet?.count ?? 0;
+  }
+
+  public isStallOpen(i: number): boolean {
+    return this.stallSet?.isOpen(i) ?? false;
+  }
+
+  /** Opens a stall up or packs it away: done when its trader arrives or leaves */
+  public setStallOpen(i: number, open: boolean): void {
+    this.stallSet?.setOpen(i, open);
   }
 
   /** All shop signboards share one atlas texture; each instance picks its cell in the shader */

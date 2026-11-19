@@ -40,7 +40,7 @@ export class InputManager {
   private hoverReticle: THREE.Mesh;
   private markerAnimTime: number = 0;
   private hoverGroundPoint = new THREE.Vector3();
-  private cursorState: 'default' | 'walk' | 'interact' = 'default';
+  private cursorState: 'default' | 'walk' | 'interact' | 'grab' = 'default';
   public hoveredObject: InteractiveObject | null = null;
   private pendingInteraction: InteractiveObject | null = null;
   private lastLoggedTargetId: string | null = null;
@@ -193,6 +193,10 @@ export class InputManager {
         this.onBuyFromWindow?.('water');
       } else if (k === 'r') {
         this.onRefuelVehicle?.();
+      } else if (k === 'v' && this.player.isDriving && this.cameraManager) {
+        // At the wheel: behind the car, or over its bonnet
+        const view = this.cameraManager.toggleDriveView();
+        this.hud.showNotification(view === 'bonnet' ? '📷 Bonnet view: the road as the driver sees it' : '📷 Chase view: behind the car');
       } else if (k === 'v') {
         // Toggle camera preset (Third-Person -> Street -> Isometric -> Aerial)
         if (this.cameraManager) {
@@ -267,7 +271,8 @@ export class InputManager {
       return;
     }
 
-    // Camera rotation orbit drag (with left-drag, right-drag, or middle-drag)
+    // A drag with any button (on a touchpad, tap twice and drag) turns the view, in a room as in the
+    // street. The body walks with the arrow keys or WASD, or to a spot clicked; a drag never moves it
     if (this.isPointerDown && this.cameraManager) {
       const dist = Math.hypot(event.clientX - this.pointerDownPos.x, event.clientY - this.pointerDownPos.y);
       if (dist > 4) {
@@ -280,7 +285,7 @@ export class InputManager {
         const rotSpeed = 0.0055;
         this.cameraManager.rotate(-deltaX * rotSpeed, -deltaY * rotSpeed * 0.7);
         this.hoverReticle.visible = false;
-        this.setCursor('default');
+        this.setCursor('grab');
         return;
       }
     }
@@ -537,6 +542,11 @@ export class InputManager {
   /** What the player last tapped to go to: while they are in reach of it, its card is the one shown */
   private chosen: InteractiveObject | null = null;
 
+  /** This keeps the action button while the player is in reach of it, over anything nearer (the vehicle just got out of) */
+  public prefer(obj: InteractiveObject | null): void {
+    this.chosen = obj;
+  }
+
   public approachAndInteract(obj: InteractiveObject): void {
     this.chosen = obj;
     const dist = this.player.position.distanceTo(obj.interactionPoint);
@@ -554,11 +564,14 @@ export class InputManager {
       // Player is at a distance: approach the object first, then interact on arrival
       this.spawnClickMarker(obj.interactionPoint, 0xfacc15); // Golden approach target
       this.hud.hideInteractionCard();
-      const routed = this.walkPlayerTo(obj.interactionPoint, () => {
+      const show = () => {
         const lookDir = new THREE.Vector3().subVectors(obj.interactionPoint, this.player.position);
         if (lookDir.lengthSq() > 0.01) this.player.mesh.rotation.y = Math.atan2(lookDir.x, lookDir.z);
+        this.pendingInteraction = null;
         this.hud.showInteractionCard(obj);
-      });
+      };
+      const routed = this.walkPlayerTo(obj.interactionPoint, show);
+      // Outdoors: pendingInteraction is a backup if the walk ends short of the spot
       this.pendingInteraction = routed ? null : obj;
     }
   }
@@ -574,7 +587,8 @@ export class InputManager {
     const actor = this.player.actor;
     if (!nav) {
       if (actor.scripted && InteractionDirector.get().interrupt(actor) === 'locked') return false;
-      this.player.setDestination(point);
+      this.player.setDestination(point, onArrive);
+      // Still false: outdoors is not room-nav routing; callers may also keep pendingInteraction
       return false;
     }
     if (InteractionDirector.get().interrupt(actor) === 'locked') {
@@ -591,15 +605,17 @@ export class InputManager {
     return true;
   }
 
-  private setCursor(state: 'default' | 'walk' | 'interact'): void {
+  private setCursor(state: 'default' | 'walk' | 'interact' | 'grab'): void {
     if (this.cursorState === state) return;
     this.cursorState = state;
 
     document.body.style.cursor =
       state === 'interact' ? 'pointer' :
       state === 'walk' ? 'crosshair' :
+      state === 'grab' ? 'grabbing' :
       'default';
   }
+
 
   private findInteractiveParent(obj: THREE.Object3D): InteractiveObject | null {
     // Ground, terrain, interior floor and room root should NEVER be matched as interactive!

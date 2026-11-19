@@ -3,6 +3,7 @@ import { kennel, catTree, perch, aquarium } from './Pets';
 import { planterBox, flowerPots } from './Garden';
 import { Builder } from '../world/kit/ArchKit';
 import { MORE_KINDS, MORE_MAKERS } from './MoreFurniture';
+import { fineBathtub, fineBed, fineDining, fineFan, fineFridge, fineLamp, fineSofa, fineToilet, fineWardrobe } from './FineFurniture';
 
 /**
  * Furniture that reads as furniture, made with the building kit: a sofa has a seat, a back,
@@ -147,18 +148,7 @@ export const FURNITURE: Record<string, FurnitureKind> = {
 export const TV_SCREEN = 'tv_screen';
 
 function sofa(seats: number, cloth: number, cushion: number, frame: number): THREE.Group {
-  const b = new Builder();
-  const each = 0.74;
-  const inside = seats * each;
-  const width = inside + 0.48;
-  b.box(frame, width, 0.42, 1, 0, 0, 0).box(cloth, width, 0.78, 0.24, 0, 0.42, -0.38);
-  for (const side of [-1, 1]) b.box(frame, 0.24, 0.7, 1, side * (width / 2 - 0.12), 0, 0).box(cloth, 0.28, 0.08, 1.02, side * (width / 2 - 0.12), 0.7, 0);
-  for (let i = 0; i < seats; i++) {
-    const x = -inside / 2 + (i + 0.5) * each;
-    b.box(cushion, each - 0.04, 0.16, 0.7, x, 0.42, 0.1).box(cushion, each - 0.06, 0.46, 0.14, x, 0.6, -0.2, { pitch: -0.16 });
-  }
-  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.box(0x1c1917, 0.1, 0.08, 0.1, x * (width / 2 - 0.1), -0.0, z * 0.42);
-  return b.build('sofa');
+  return fineSofa(seats, cloth, cushion, frame);
 }
 
 function television(): THREE.Group {
@@ -178,14 +168,7 @@ function television(): THREE.Group {
 }
 
 function bed(): THREE.Group {
-  const b = new Builder();
-  const wood = 0x78350f;
-  b.box(wood, 2.1, 0.34, 2.3, 0, 0.1, 0).box(0x5b2c0a, 2.14, 1.2, 0.14, 0, 0, -1.12).box(0x5b2c0a, 2.14, 0.5, 0.1, 0, 0, 1.13);
-  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.box(0x3f1d06, 0.12, 0.1, 0.12, x * 0.96, 0, z * 1.05);
-  b.box(0xf8fafc, 1.98, 0.26, 2.12, 0, 0.44, 0.02);
-  for (const x of [-0.5, 0.5]) b.box(0xffffff, 0.76, 0.16, 0.44, x, 0.7, -0.74);
-  b.box(0x1d4ed8, 2.02, 0.07, 1.3, 0, 0.7, 0.42).box(0x93c5fd, 2.02, 0.07, 0.24, 0, 0.71, -0.3);
-  return b.build('bed');
+  return fineBed(2.1, 0x4c1d95, 0xc4b5fd, 0x5b2c0a);
 }
 
 function bookshelf(): THREE.Group {
@@ -210,11 +193,7 @@ function bookshelf(): THREE.Group {
 }
 
 function wardrobe(): THREE.Group {
-  const b = new Builder();
-  b.box(0x7c5a3a, 1.8, 2.1, 0.6, 0, 0.06, 0).box(0x5b4027, 1.86, 0.08, 0.66, 0, 2.16, 0).box(0x3f2a17, 1.7, 0.06, 0.5, 0, 0, 0);
-  for (const x of [-0.45, 0.45]) b.box(0x8b6a47, 0.86, 1.96, 0.03, x, 0.13, 0.3).box(0xd4af37, 0.03, 0.22, 0.03, x - Math.sign(x) * 0.36, 1.05, 0.33);
-  b.box(0xcbd5e1, 0.5, 1.2, 0.01, -0.45, 0.6, 0.32);
-  return b.build('wardrobe');
+  return fineWardrobe();
 }
 
 function armchair(): THREE.Group {
@@ -222,10 +201,7 @@ function armchair(): THREE.Group {
 }
 
 function floorLamp(): THREE.Group {
-  const b = new Builder();
-  b.cylinder(0x1c1917, 0.2, 0.04, 0, 0, 0, { sides: 16 }).cylinder(0x44403c, 0.025, 1.5, 0, 0.04, 0);
-  b.cylinder(0xfef3c7, 0.24, 0.36, 0, 1.5, 0, { topRadius: 0.15, sides: 16, glow: true });
-  return b.build('floor lamp');
+  return fineLamp();
 }
 
 function inverter(): THREE.Group {
@@ -338,43 +314,15 @@ function gasCooker(): THREE.Group {
 }
 
 function doubleDoorFridge(): THREE.Group {
-  const b = new Builder();
-  b.box(0x94a3b8, 1.1, 1.95, 0.85, 0, 0.04, 0)
-    .box(0x64748b, 0.53, 1.25, 0.04, -0.27, 0.72, 0.44)
-    .box(0x64748b, 0.53, 1.25, 0.04, 0.27, 0.72, 0.44)
-    .box(0x475569, 1.08, 0.6, 0.04, 0, -0.22, 0.44)
-    .box(0x0f172a, 0.28, 0.38, 0.02, -0.27, 0.95, 0.47)
-    .box(0x38bdf8, 0.2, 0.08, 0.01, -0.27, 1.18, 0.48, { glow: true });
-  return b.build('double_door_fridge');
+  return fineFridge();
 }
 
 function diningTable(seats: 6 | 10): THREE.Group {
-  const b = new Builder();
-  const len = seats === 10 ? 3.4 : 2.2;
-  const marbleColor = seats === 10 ? 0xf8fafc : 0x78350f;
-  b.box(marbleColor, 1.1, 0.08, len, 0, 0.74, 0);
-  for (const [x, z] of [[-0.45, -len / 2 + 0.2], [0.45, -len / 2 + 0.2], [-0.45, len / 2 - 0.2], [0.45, len / 2 - 0.2]]) {
-    b.box(0x1c1917, 0.09, 0.74, 0.09, x, 0, z);
-  }
-  const chairCountEachSide = seats === 10 ? 4 : 2;
-  const step = (len - 0.6) / (chairCountEachSide - 1 || 1);
-  for (let c = 0; c < chairCountEachSide; c++) {
-    const cz = -len / 2 + 0.3 + c * step;
-    for (const side of [-1, 1]) {
-      b.box(0x18181b, 0.42, 0.44, 0.42, side * 0.75, 0, cz)
-        .box(0x0284c7, 0.44, 0.08, 0.44, side * 0.75, 0.44, cz)
-        .box(0x18181b, 0.08, 0.52, 0.44, side * 0.92, 0.52, cz);
-    }
-  }
-  return b.build(`dining_table_${seats}`);
+  return fineDining(seats, seats === 10 ? 0xf1ede6 : 0x6b3a1c, seats === 10 ? 0xe7dcc6 : 0x0f5132);
 }
 
 function bathtub(): THREE.Group {
-  const b = new Builder();
-  b.box(0xf8fafc, 1.8, 0.62, 0.88, 0, 0.05, 0)
-    .box(0x0284c7, 1.6, 0.48, 0.72, 0, 0.16, 0, { glow: true })
-    .cylinder(0xe2e8f0, 0.04, 0.85, 0.85, 0, 0, { sides: 12 });
-  return b.build('bathtub');
+  return fineBathtub();
 }
 
 function jacuzzi(): THREE.Group {
@@ -390,11 +338,7 @@ function jacuzzi(): THREE.Group {
 }
 
 function toiletWc(): THREE.Group {
-  const b = new Builder();
-  b.box(0xf8fafc, 0.44, 0.44, 0.65, 0, 0, 0.05)
-    .box(0xf8fafc, 0.44, 0.48, 0.28, 0, 0.44, -0.22)
-    .cylinder(0xe2e8f0, 0.035, 0.02, 0, 0.92, -0.22, { sides: 12 });
-  return b.build('toilet_wc');
+  return fineToilet();
 }
 
 function ps5Station(): THREE.Group {
@@ -500,11 +444,7 @@ function bigGen(): THREE.Group {
 }
 
 function standingFan(): THREE.Group {
-  const b = new Builder();
-  b.cylinder(0x0284c7, 0.35, 0.08, 0, 0, 0, { sides: 16 })
-    .cylinder(0x0f172a, 0.035, 1.35, 0, 0.08, 0, { sides: 8 })
-    .cylinder(0x38bdf8, 0.42, 0.08, 0, 1.45, 0.05, { sides: 16, pitch: Math.PI / 2 });
-  return b.build('standing_fan');
+  return fineFan();
 }
 
 function rugCircle(): THREE.Group {

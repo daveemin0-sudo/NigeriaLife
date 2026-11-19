@@ -7,6 +7,7 @@
 //   NL_PUBLIC_URL=https://...            the address sign-in links point to
 //   NL_MAX_PLAYERS=300                   players this process admits before the next waits in line
 //   NL_DEV=1                             sign-in links are also returned to the game (tests)
+//   NL_BACKUP_DIR=/mnt/backups           a second place for the daily copy of the database
 //
 // What it does: accounts (guest, then email sign-in to keep progress), the money (every online
 // player's wallet and an append-only ledger; job shifts checked and paid here), players in the
@@ -23,6 +24,8 @@ import { Hustle } from './hustle.ts';
 import { League } from './league.ts';
 import { Ads } from './ads.ts';
 import { Feed } from './feed.ts';
+import { Ideas } from './ideas.ts';
+import { ServerRaces } from './races.ts';
 import { ServerNollywood } from './nollywood.ts';
 import { ServerStaff } from './staff.ts';
 import { ServerSpark } from './spark.ts';
@@ -31,11 +34,15 @@ import { ServerStudio } from './studio.ts';
 import { ServerMarriage } from './marriage.ts';
 import { ServerChieftaincy } from './chieftaincy.ts';
 import { ServerMotors } from './motors.ts';
+import { ServerPolice } from './police.ts';
+import { ServerTrade } from './trade.ts';
 import { Registry } from './registry.ts';
 import { DEFAULT_MAX_PLAYERS, Rooms } from './rooms.ts';
 import { isTraitId } from '../src/life/Traits.ts';
 import { RateLimit } from './accounts.ts';
 import { openStore } from './store.ts';
+import { Saves } from './saves.ts';
+import { startDailyBackup } from './backup.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -55,14 +62,17 @@ const CORS = {
 
 const db = openStore(DATA_DIR);
 const accounts = new Accounts(db, consoleMailer, PUBLIC_URL, DEV, Number(process.env.NL_GUESTS_PER_HOUR || (DEV ? 1000 : 10)));
+startDailyBackup(db, DATA_DIR);
 const registry = new Registry(DATA_DIR, CORS);
 const server = http.createServer((req, res) => void route(req, res));
 const rooms = new Rooms(server, accounts, db, Number(process.env.NL_MAX_PLAYERS) || DEFAULT_MAX_PLAYERS);
 const economy = new Economy(db, (id) => rooms.positionOf(id));
+rooms.onHere = (id) => economy.touch(id);
 const hustle = new Hustle(db, economy);
 const league = new League(db, economy);
 const ads = new Ads(db, economy);
 const feed = new Feed(db);
+const ideas = new Ideas(db);
 const nollywood = new ServerNollywood(db, economy);
 const staff = new ServerStaff(db, economy);
 const spark = new ServerSpark(db, economy);
@@ -71,6 +81,17 @@ const studio = new ServerStudio(db, economy);
 const marriage = new ServerMarriage(db, economy);
 const chieftaincy = new ServerChieftaincy(db, economy);
 const motors = new ServerMotors(db, economy);
+const saves = new Saves(db, (id) => economy.wallet(id));
+// The police: cells, bail (by anyone), bribes, and a record the vetting employers read
+const police = new ServerPolice(db, economy);
+police.nameOf = (id) => accounts.get(id)?.name ?? 'someone';
+police.isOnline = (id) => rooms.isOnline(id);
+police.tell = (id, message) => rooms.tell(id, message);
+economy.hireRefusal = (id, employer) => police.refuses(id, employer.trade);
+// Trade between cities: cargo held here, bought and sold at the motor parks' goods sheds
+const trade = new ServerTrade(db, economy, (id) => rooms.positionOf(id));
+// Street races: stakes held here, the racers' times worked out here, the fastest on the board
+const races = new ServerRaces(db, economy);
 // Bets on matches that are over are paid every half minute, whether or not their players are looking
 setInterval(() => { try { league.settle(); } catch (error) { console.warn('[league] settle failed', error); } }, 30_000).unref();
 // What businesses an account owns, as the ownership registry says
@@ -91,6 +112,18 @@ economy.onChange = (id, wallet) => rooms.tell(id, { type: 'wallet', wallet });
 function traitOf(accountId: string): string | null {
   const row = db.prepare('SELECT trait FROM traits WHERE account_id = ?').get(accountId) as { trait: string } | undefined;
   return row?.trait ?? null;
+}
+
+/**
+ * The first five minutes (src/ui/FirstSteps.ts): 'open' until the account finishes or skips them,
+ * and over from then on, on every device. (The first pay comes part-way through them, so being
+ * paid does not end them. An account from before this was kept is marked done by the game the
+ * first time it sees the life is already under way.)
+ */
+function guideOf(accountId: string): 'open' | 'done' | 'skipped' {
+  const row = db.prepare('SELECT state FROM guide WHERE account_id = ?').get(accountId) as { state: string } | undefined;
+  if (!row) return 'open';
+  return row.state === 'skipped' ? 'skipped' : 'done';
 }
 
 /** The share of a sale's price the market keeps: as the game (src/realestate/AssetMarket.ts) */
@@ -211,7 +244,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       res.end(fs.readFileSync(path.join(here, 'admin.html')));
       return;
     }
-    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors)(\/|$)/.test(url.pathname);
+    const api = /^\/(health|registry|events|lock|commit|net|auth|me|money|work|social|admin|hustle|league|bets|ads|richlist|feed|nollywood|staff|spark|owambe|studio|marriage|chieftaincy|motors|police|trade|ideas|races)(\/|$)/.test(url.pathname);
     if (!api) {
       if (req.method === 'GET' && serveStatic(res, url.pathname)) return;
       return reply(res, 404, { ok: false, reason: 'Not found.' });
@@ -296,6 +329,23 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
       const done = url.pathname === '/feed/post' ? feed.post(account, body) : url.pathname === '/feed/like' ? feed.like(account, body) : feed.remove(account, body);
       return reply(res, done.ok ? 200 : 400, done);
     }
+    // Ideas: what players want next, voted on, marked by the makers
+    if (req.method === 'GET' && url.pathname === '/ideas') return reply(res, 200, { ok: true, ideas: ideas.list(account.id, url.searchParams.get('order') === 'new' ? 'new' : 'top') });
+    if (req.method === 'POST' && (url.pathname === '/ideas/post' || url.pathname === '/ideas/vote')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/ideas/post' ? ideas.post(account, body) : ideas.vote(account, body);
+      return reply(res, done.ok ? 200 : 400, done);
+    }
+    // Street races: the board for a course, entering a race, and the finish
+    if (req.method === 'GET' && url.pathname === '/races/board') {
+      const done = races.board(account.id, url.searchParams.get('course') ?? '');
+      return reply(res, done.ok ? 200 : 400, done);
+    }
+    if (req.method === 'POST' && (url.pathname === '/races/enter' || url.pathname === '/races/finish')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/races/enter' ? races.enter(account, body) : races.finish(account, body);
+      return reply(res, done.ok ? 200 : 400, done);
+    }
     // Eko Ads: billboards on the expressway rented by players, seen by everyone
     if (req.method === 'GET' && url.pathname === '/ads') return reply(res, 200, { ok: true, ads: ads.active(account.id) });
     if (req.method === 'POST' && (url.pathname === '/ads/rent' || url.pathname === '/ads/remove')) {
@@ -313,6 +363,21 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
           ? nollywood.completeShoot(account.id, String(body.filmId ?? ''), Number(body.stars ?? 1))
           : nollywood.stateFor(account.id);
       return reply(res, done.ok ? 200 : 400, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // Trade between cities: what the player carries, today's prices, and buying and selling at a shed
+    if (req.method === 'GET' && url.pathname === '/trade') return reply(res, 200, trade.state(account.id));
+    if (req.method === 'POST' && (url.pathname === '/trade/buy' || url.pathname === '/trade/sell')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/trade/buy' ? trade.buy(account.id, body) : trade.sell(account.id, body);
+      return reply(res, done.ok ? 200 : 409, { ...done, wallet: economy.wallet(account.id) });
+    }
+    // The police: in a cell until a time, bail paid by the player or anyone else, a record that lapses
+    if (req.method === 'GET' && url.pathname === '/police') return reply(res, 200, police.state(account.id));
+    if (req.method === 'GET' && url.pathname === '/police/held') return reply(res, 200, police.held(account.id));
+    if (req.method === 'POST' && (url.pathname === '/police/arrest' || url.pathname === '/police/bail' || url.pathname === '/police/bribe')) {
+      const body = await readBody(req);
+      const done = url.pathname === '/police/arrest' ? police.arrest(account.id, body) : url.pathname === '/police/bail' ? police.bail(account.id, body) : police.bribe(account.id, body);
+      return reply(res, done.ok ? 200 : 409, { ...done, wallet: economy.wallet(account.id) });
     }
     // Home staff: cook, cleaner, driver and gateman hired for the home and paid every day from the bank
     if (req.method === 'GET' && url.pathname === '/staff') return reply(res, 200, staff.snapshot(account.id));
@@ -400,8 +465,35 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
   const body = req.method === 'POST' ? await readBody(req) : {};
   const done = (result: { ok: boolean }) => reply(res, result.ok ? 200 : 409, result);
   switch (`${req.method} ${url.pathname}`) {
-    case 'GET /me':
-      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id) });
+    case 'GET /me': {
+      const away = economy.coverAbsence(account.id);
+      return reply(res, 200, { ok: true, account, wallet: economy.wallet(account.id), trait: traitOf(account.id), guide: guideOf(account.id), ...(away ? { away } : {}) });
+    }
+    case 'POST /me/guide': {
+      // Over once, over for good: nothing a device sends later opens it again
+      const state = body.state === 'skipped' ? 'skipped' : body.state === 'done' ? 'done' : null;
+      if (!state) return reply(res, 400, { ok: false, reason: 'That is not a state of the guide.' });
+      db.prepare('INSERT OR IGNORE INTO guide (account_id, state, at) VALUES (?, ?, ?)').run(account.id, state, Date.now());
+      return reply(res, 200, { ok: true, guide: guideOf(account.id) });
+    }
+    case 'GET /me/save':
+      return reply(res, 200, saves.read(account.id));
+    case 'POST /me/save': {
+      const written = saves.write(account.id, body);
+      return reply(res, written.ok ? 200 : 400, { ...written, wallet: economy.wallet(account.id) });
+    }
+    case 'POST /me/email': {
+      const changed = accounts.changeEmail(account, body.email, body.password);
+      return reply(res, changed.ok ? 200 : 400, changed);
+    }
+    case 'POST /me/delete': {
+      const removed = accounts.deleteAccount(account, body.password);
+      if (removed.ok) saves.deleteAll(account.id);
+      return reply(res, removed.ok ? 200 : 400, removed);
+    }
+    case 'POST /auth/logout':
+      accounts.logout(tokenOf(req));
+      return reply(res, 200, { ok: true });
     case 'POST /me/trait': {
       // Picked once for the account, on whichever device picks first; a different one later is refused
       const trait = String(body.trait ?? '');
@@ -436,16 +528,26 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
     }
     case 'GET /money/ledger':
       return reply(res, 200, { ok: true, wallet: economy.wallet(account.id), ledger: economy.ledger(account.id) });
+    case 'GET /me/tax':
+      return reply(res, 200, { ok: true, ...economy.taxOf(account.id) });
     case 'POST /work/hire':
       return done(economy.hire(account.id, String(body.employer ?? '')));
     case 'POST /work/start':
       return done(economy.startShift(account.id, String(body.employer ?? '')));
     case 'POST /work/finish':
-      return done(economy.finishShift(account.id, body.shift, body.idem, body.stars));
+      return done(economy.finishShift(account.id, body.shift, body.idem, body.stars, body.poor));
+    case 'POST /work/gig/open':
+      return done(economy.openGig(account.id, String(body.gig ?? '')));
     case 'POST /work/gig/start':
       return done(economy.startGig(account.id, String(body.gig ?? '')));
     case 'POST /work/gig/finish':
-      return done(economy.finishGig(account.id, body.shift, body.idem));
+      return done(economy.finishGig(account.id, body.shift, body.idem, body.left));
+    case 'POST /work/fare':
+      return done(economy.payFare(account.id, body));
+    case 'POST /work/ride/start':
+      return done(economy.startRide(account.id, body));
+    case 'POST /work/ride/finish':
+      return done(economy.finishRide(account.id, body.ride, body.idem));
     case 'POST /money/takings':
       return done(economy.collectTakings(account.id, String(body.plot ?? ''), body.idem, accounts.registryOf(account), registry.text));
     case 'POST /money/quest':
@@ -456,6 +558,8 @@ async function player(req: http.IncomingMessage, res: http.ServerResponse, url: 
       return done(economy.claimOnce(account.id, 'case', String(body.id ?? '')));
     case 'POST /money/agama':
       return done(economy.claimOnce(account.id, 'agama', String(body.id ?? '')));
+    case 'POST /money/ladder':
+      return done(economy.claimOnce(account.id, 'ladder', String(body.rung ?? '')));
     case 'POST /money/naibet':
       return done(economy.playNaibet(account.id, body.idem));
     case 'GET /work': {
@@ -492,6 +596,12 @@ async function admin(req: http.IncomingMessage, res: http.ServerResponse, url: U
       return reply(res, 200, { ok: true, cpu: process.cpuUsage() });
     case 'GET /admin/devices':
       return reply(res, 200, { ok: true, devices: Array.from(devices, ([id, d]) => ({ id, ...d }) as Record<string, unknown>).filter((d) => Date.now() - Number(d.at) < 10 * 60_000) });
+    case 'GET /admin/ideas':
+      return reply(res, 200, { ok: true, ideas: ideas.forAdmin() });
+    case 'POST /admin/ideas': {
+      const done = ideas.mark(body);
+      return reply(res, done.ok ? 200 : 400, done);
+    }
     case 'GET /admin/reports':
       return reply(res, 200, { ok: true, reports: db.prepare('SELECT * FROM reports ORDER BY id DESC LIMIT 100').all() });
     case 'GET /admin/ledger':
@@ -512,6 +622,10 @@ async function admin(req: http.IncomingMessage, res: http.ServerResponse, url: U
     case 'POST /admin/grant': {
       const result = economy.grant(id, Number(body.amount) || 0, String(body.memo ?? ''));
       return reply(res, result.ok ? 200 : 409, result);
+    }
+    case 'POST /admin/save/rollback': {
+      const restored = saves.rollback(id);
+      return reply(res, restored.ok ? 200 : 404, restored);
     }
     default:
       return reply(res, 404, { ok: false, reason: 'Not found.' });

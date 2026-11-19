@@ -70,6 +70,7 @@ export interface PlaceCardHooks {
 export class PlaceCard {
   private el: HTMLDivElement;
   private hooks: PlaceCardHooks;
+  private publishClear: () => void;
 
   constructor(hooks: PlaceCardHooks) {
     this.hooks = hooks;
@@ -86,6 +87,7 @@ export class PlaceCard {
       const top = shown ? window.innerHeight - this.el.getBoundingClientRect().top : 0;
       document.documentElement.style.setProperty('--place-card-clear', `${Math.ceil(top) + 10}px`);
     };
+    this.publishClear = publish;
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(publish).observe(this.el);
     window.addEventListener('resize', publish);
 
@@ -94,6 +96,7 @@ export class PlaceCard {
         this.render();
       } else {
         this.el.style.display = 'none';
+        this.publishClear();
       }
     });
   }
@@ -106,12 +109,35 @@ export class PlaceCard {
       const short = obj.name.split('(')[0].trim().split(/\s+/).slice(0, 2).join(' ');
       return { icon: '💬', label: short };
     }
+    if (obj.name === 'Toilet' || obj.name === 'Shower') {
+      const icon = obj.name === 'Toilet' ? '🚽' : '🚿';
+      const room = /in the ([^.]+)/i.exec(obj.description ?? '')?.[1] ?? '';
+      const n = Number(/(\d+)$/.exec(obj.id)?.[1] ?? 1);
+      const bit = room && room.toLowerCase() !== 'bathroom' ? room : n > 1 ? `bathroom ${n}` : room ? 'bathroom' : '';
+      return { icon, label: bit ? `${obj.name} · ${bit}` : obj.name };
+    }
+    const lead = /^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u.exec(obj.name);
+    if (lead) return { icon: lead[1], label: lead[2] || obj.name };
     return { icon: '📍', label: obj.name };
+  }
+
+  /** Folded away: as the player last left it, or on a phone, folded to begin with */
+  public static folded(): boolean {
+    try {
+      const kept = localStorage.getItem('nl_place_folded_v1');
+      if (kept !== null) return kept === '1';
+    } catch { /* no storage */ }
+    return typeof matchMedia === 'function' && matchMedia('(max-width: 700px), (max-height: 500px)').matches;
   }
 
   /** Draws the card again for the room the player is in now (after a lift or a door to the next room) */
   public refresh(): void {
     this.render();
+  }
+
+  /** Draws it again only if it is up (the player went up or down the stairs at home) */
+  public refreshIfShown(): void {
+    if (this.el.style.display !== 'none') this.render();
   }
 
   private render(): void {
@@ -150,7 +176,26 @@ export class PlaceCard {
     leave.textContent = '🚪 Leave';
     leave.addEventListener('click', () => this.hooks.leave());
 
-    head.append(icon, titles, leave);
+    // Folded, it is only the place's name and the way out: the room can be seen. On a phone it starts folded
+    const fold = document.createElement('button');
+    fold.className = 'place-fold-btn';
+    fold.id = 'place-fold-btn';
+    const folded = PlaceCard.folded();
+    this.el.classList.toggle('is-folded', folded);
+    fold.textContent = folded ? '▴' : '▾';
+    fold.setAttribute('aria-label', folded ? 'Show what there is to do here' : 'Fold this card away');
+    fold.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const now = !this.el.classList.contains('is-folded');
+      try { localStorage.setItem('nl_place_folded_v1', now ? '1' : '0'); } catch { /* kept for now */ }
+      this.render();
+    });
+    titles.addEventListener('click', () => {
+      if (!this.el.classList.contains('is-folded')) return;
+      try { localStorage.setItem('nl_place_folded_v1', '0'); } catch { /* kept for now */ }
+      this.render();
+    });
+    head.append(icon, titles, fold, leave);
 
     const chips = document.createElement('div');
     chips.className = 'place-chips';
@@ -185,5 +230,7 @@ export class PlaceCard {
 
     this.el.append(head, chips);
     this.el.style.display = 'flex';
+    this.publishClear();
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this.publishClear());
   }
 }

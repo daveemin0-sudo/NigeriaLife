@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
+import { DatabaseSync } from 'node:sqlite';
 import { wait } from './lib.mjs';
 
 const PORT = 8803;
@@ -54,7 +55,7 @@ export async function run(_browser, check) {
     // Accounts
     const ada = await call('/auth/guest', { name: 'Ada' });
     const bayo = await call('/auth/guest', { name: 'Bayo <script>' });
-    check('online: anyone can start as a guest at once, with the starting money held by the server', ada.ok && ada.account.kind === 'guest' && !ada.account.verified && ada.wallet.cash === 25000 && ada.wallet.bank === 150000, ada);
+    check('online: anyone can start as a guest at once, with the starting money held by the server', ada.ok && ada.account.kind === 'guest' && !ada.account.verified && ada.wallet.cash === 40000 && ada.wallet.bank === 135000, ada);
     check('online: a name is cleaned before anyone sees it', bayo.account.name === 'Bayo script', bayo.account);
     const noToken = await call('/me');
     check('online: without signing in, nothing of anyone is shown', noToken.status === 401, noToken);
@@ -79,7 +80,7 @@ export async function run(_browser, check) {
     const closed = await call('/money/report', { cash: -50000, memo: 'LOAN_REPAYMENT: Loan repayment', idem: idem() }, chidi.token);
     const huge = await call('/money/report', { cash: 900_000_000, memo: 'LOAN_DISBURSEMENT: devtools', idem: idem() }, chidi.token);
     check('online: a ₦50,000 bank loan is paid at once even after ₦20,000 earned in ten minutes; a second one while the first is open is refused; repaid, another can be taken; nobody borrows ₦900m',
-      loan.ok && loan.wallet.cash === 25000 + 20000 + 50000 && !second.ok && repaid.ok && again2.ok && closed.ok && !huge.ok && !huge.held,
+      loan.ok && loan.wallet.cash === 40000 + 20000 + 50000 && !second.ok && repaid.ok && again2.ok && closed.ok && !huge.ok && !huge.held,
       { loan: loan.wallet, second: second.reason, repaid: repaid.ok, again: again2.ok, huge: huge.reason });
 
     // Weekly instalments: each is taken once however many devices send it, and the loan stays
@@ -94,7 +95,7 @@ export async function run(_browser, check) {
     const last = await call('/money/report', { cash: -48125, memo: 'LOAN_REPAYMENT: Last instalment, loan cleared: Eko Commercial Bank', idem: idem() }, emeka.token);
     const next = await call('/money/report', { cash: 50000, memo: 'LOAN_DISBURSEMENT: Loan from Eko Commercial Bank', idem: idem() }, emeka.token);
     check('online: a weekly instalment sent twice is taken once; the loan stays open after it and after an old Lapo loan was cleared, and closes with the last payment',
-      lapoCleared.ok && lent.ok && part.ok && partAgain.ok && partAgain.wallet.cash === 25000 - 5000 + 50000 - 6875 && !whileOpen.ok && last.ok && next.ok,
+      lapoCleared.ok && lent.ok && part.ok && partAgain.ok && partAgain.wallet.cash === 40000 - 5000 + 50000 - 6875 && !whileOpen.ok && last.ok && next.ok,
       { lapoCleared: lapoCleared.ok, lent: lent.ok, part: part.wallet, partAgain: partAgain.wallet, whileOpen: whileOpen.reason, last: last.ok, next: next.ok });
 
     // A job shift, checked by the server
@@ -220,7 +221,7 @@ export async function run(_browser, check) {
     const lateBet = await call('/bets/place', { slot, pick: '1', stake: 1000 }, funmi.token);
     const myBets = await call('/bets/mine', null, funmi.token);
     check('online: a bet on the next match holds its stake on the server; a bet on the match already playing is refused; the seed of the next match is not out before kick-off',
-      league.ok && (slot in league.seeds) && !((slot + 1) in league.seeds) && placedBet.ok && placedBet.wallet.bank === 150000 - 20000 && placedBet.bet.price > 1 && !lateBet.ok && myBets.bets.length === 1 && myBets.bets[0].status === 'open',
+      league.ok && (slot in league.seeds) && !((slot + 1) in league.seeds) && placedBet.ok && placedBet.wallet.bank === 135000 - 20000 && placedBet.bet.price > 1 && !lateBet.ok && myBets.bets.length === 1 && myBets.bets[0].status === 'open',
       { seeds: Object.keys(league.seeds ?? {}), placedBet, lateBet: lateBet.reason, mine: myBets.bets });
 
     // Eko Ads: a board rented by one player is charged on the server, seen by everyone, and cannot be taken by another
@@ -230,7 +231,7 @@ export async function run(_browser, check) {
     const seen = await call('/ads', null, funmi.token);
     const bogus = await call('/ads/rent', { board: 'board-x', days: 1, headline: 'Hi there' }, funmi.token);
     check('online: a billboard rented on Eko Ads is charged on the server (₦90,000 a day for a back face on the expressway), everyone sees it, and another player cannot take it',
-      rentA.ok && rentA.wallet.bank === 150000 - 90000 && !rentB.ok && /Tunde/.test(rentB.reason) && seen.ads.some((a) => a.board === 'board-2370-b' && a.headline === 'Tunde Tailors' && !a.mine) && !bogus.ok,
+      rentA.ok && rentA.wallet.bank === 135000 - 90000 && !rentB.ok && /Tunde/.test(rentB.reason) && seen.ads.some((a) => a.board === 'board-2370-b' && a.headline === 'Tunde Tailors' && !a.mine) && !bogus.ok,
       { rentA: rentA.wallet, rentB: rentB.reason, seen: seen.ads, bogus: bogus.reason });
 
     // The players' rich list: richest first, and where this player stands
@@ -360,9 +361,9 @@ export async function run(_browser, check) {
     // The allowance, now that the large earners are checked by the server. ₦48,000 still
     // clears; the next ₦1,000 in the same ten minutes is held.
     const bola = await call('/auth/guest', { name: 'Bola' });
-    const within = await call('/money/report', { cash: 48_000, memo: 'Fares and a remittance', idem: idem() }, bola.token);
+    const within = await call('/money/report', { cash: 30_000, memo: 'A remittance and a pot', idem: idem() }, bola.token);
     const pastIt = await call('/money/report', { cash: 1000, memo: 'One more fare', idem: idem() }, bola.token);
-    check('online: unverified earnings clear up to ₦48,000 in ten minutes, and the next ₦1,000 is held', within.ok && within.wallet.cash === 25_000 + 48_000 && !pastIt.ok && pastIt.held > 0, { within: within.wallet, pastIt });
+    check('online: unverified earnings clear up to ₦30,000 in ten minutes, and the next ₦1,000 is held', within.ok && within.wallet.cash === 40_000 + 30_000 && !pastIt.ok && pastIt.held > 0, { within: within.wallet, pastIt });
 
     // A guest stood on a spot from the first packet, and kept there, so the server believes them.
     const onSpot = async (name, x, z, city = 'lagos') => {
@@ -434,6 +435,18 @@ export async function run(_browser, check) {
       there.stop();
       return { hired, started, tooFast, paid, gained: (paid.wallet?.cash ?? 0) - before };
     };
+    const gradeShiftPoor = async (name, employer, x, z, city, seconds) => {
+      const there = await onSpot(name, x, z, city);
+      await call('/work/hire', { employer }, there.guest.token);
+      const started = await call('/work/start', { employer }, there.guest.token);
+      await wait(seconds);
+      there.sock.send(stand(x, z, city));
+      await wait(200);
+      const before = (await call('/me', null, there.guest.token)).wallet.cash;
+      const paid = await call('/work/finish', { shift: started.shift, idem: idem(), poor: true }, there.guest.token);
+      there.stop();
+      return { paid, gained: (paid.wallet?.cash ?? 0) - before };
+    };
     // 3, 4, 5. The three minigames, entry grade.
     const cchub = await gradeShift('Wale', 'cchub-yaba', -10, -25, 'lagos', 6_800);
     const away = await onSpot('Tobi', 80, 80);
@@ -445,7 +458,7 @@ export async function run(_browser, check) {
     check('online: CcHUB, the refinery and LASTMA pay the entry grade once the server has timed the shift, and not from across town',
       cchub.hired.ok && cchub.started.ok && !cchub.tooFast.ok && /faster/.test(cchub.tooFast.reason) && cchub.paid.pay === 16_000 && cchub.gained === 16_000
       && !notAtHub.ok && /not at the workplace/.test(notAtHub.reason)
-      && refinery.paid.pay === 12_000 && refinery.gained === 12_000 && !refinery.tooFast.ok
+      && refinery.paid.pay === 36_000 && refinery.gained === 36_000 && !refinery.tooFast.ok
       && lastma.paid.pay === 8_500 && lastma.gained === 8_500 && !lastma.tooFast.ok,
       { cchub, notAtHub, refinery, lastma });
 
@@ -463,6 +476,211 @@ export async function run(_browser, check) {
     check('online: the generator pays ₦2,500 after a few seconds beside it, and a pull from nowhere is refused',
       genStart.ok && !genFast.ok && /faster/.test(genFast.reason) && genPaid.pay === 2_500 && genPaid.wallet.cash - genBefore === 2_500 && !genAway.ok,
       { genStart, genFast, genPaid, genAway });
+
+    // PAYE, taken by the server. Earlier this month the player was paid ₦300,000 in wages, with
+    // ₦36,500 PAYE on them (put straight into the server's payslips); a CcHUB shift now is taxed at 18%.
+    const lagosMonth = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+    const taxed = await onSpot('Taiwo', -10, -25);
+    const seeded = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    seeded.exec('PRAGMA busy_timeout = 2000');
+    seeded
+      .prepare("INSERT INTO payslips (account_id, at, month, employer, title, office, gross, relief, paye, net, month_gross, month_paye, rate, idem) VALUES (?, ?, ?, 'Earlier employer', 'Earlier work', 'Lagos State Internal Revenue Service', 300000, 0, 36500, 263500, 300000, 36500, 0.18, 'seed')")
+      .run(taxed.guest.account.id, Date.now() - 60_000, lagosMonth);
+    seeded.close();
+    await call('/work/hire', { employer: 'cchub-yaba' }, taxed.guest.token);
+    const taxStart = await call('/work/start', { employer: 'cchub-yaba' }, taxed.guest.token);
+    // A career shift is a wage too (a payslip, no PAYE yet on a first ₦4,500); the generator is cash in hand
+    const clerk = await call('/auth/guest', { name: 'Clerk' });
+    const clerkStart = await call('/work/gig/start', { gig: 'career:job_shop_assistant' }, clerk.token);
+    const clerkOpen = await call('/work/gig/open', { gig: 'career:job_shop_assistant' }, clerk.token);
+    const unknownGig = await call('/work/gig/open', { gig: 'career:no-such-job' }, clerk.token);
+    const clerkSoon = await call('/work/gig/finish', { shift: clerkStart.shift, idem: idem() }, clerk.token);
+    await wait(10_300);
+    taxed.sock.send(stand(-10, -25));
+    await wait(200);
+    const taxBefore = (await call('/me', null, taxed.guest.token)).wallet.cash;
+    const taxPaid = await call('/work/finish', { shift: taxStart.shift, idem: idem() }, taxed.guest.token);
+    const clerkPaid = await call('/work/gig/finish', { shift: clerkStart.shift, idem: idem() }, clerk.token);
+    const clerkOpenAfter = await call('/work/gig/open', { gig: 'career:job_shop_assistant' }, clerk.token);
+    const clerkAgain = await call('/work/gig/finish', { shift: clerkStart.shift, idem: idem() }, clerk.token);
+    // Home rent paid this month earns relief (a fifth, at most ₦41,667); a staff wage does not
+    await call('/money/report', { bank: -100000, memo: 'RENT_PAYMENT: Saturday rent: Room in Mushin', idem: idem() }, taxed.guest.token);
+    await call('/money/report', { bank: -5000, memo: 'RENT_PAYMENT: Home Staff Wage: Cook (Cook)', idem: idem() }, taxed.guest.token);
+    const taxBook = await call('/me/tax', null, taxed.guest.token);
+    taxed.stop();
+    check('online: PAYE is the server\'s: ₦16,000 at CcHUB after ₦300,000 this month is taxed at 18% (₦2,880), ₦13,120 is paid, the payslip says so, and the tax page has the month, the year, rent relief and both payslips',
+      taxPaid.ok && taxPaid.pay === 16_000 && taxPaid.slip?.paye === 2_880 && taxPaid.slip.net === 13_120 && taxPaid.wallet.cash - taxBefore === 13_120 && taxPaid.slip.rate === 0.18 && /Lagos State/.test(taxPaid.slip.office)
+      && taxBook.ok && taxBook.month === lagosMonth && taxBook.gross === 316_000 && taxBook.paye === 39_380 && taxBook.rent === 100_000 && taxBook.relief === 20_000 && taxBook.yearPaye === 39_380
+      && taxBook.slips.length === 2 && taxBook.slips[1].paye === 2_880 && taxBook.slips[1].monthGross === 316_000,
+      { taxPaid, taxBook });
+    check('online: a career shift comes with a payslip from its employer; the generator gig is paid whole with none',
+      clerkPaid.ok && clerkPaid.pay === 4_500 && clerkPaid.slip?.employer === 'Balogun Wholesale Market' && clerkPaid.slip.paye === 0 && clerkPaid.wallet.cash === 40_000 + 4_500 && genPaid.ok && genPaid.slip === undefined,
+      { clerkPaid, gen: genPaid.slip });
+    const dev = await call('/auth/guest', { name: 'Dev' });
+    const devStart = await call('/work/gig/start', { gig: 'career:job_software_dev' }, dev.token);
+    const devFast = await call('/work/gig/finish', { shift: devStart.shift, idem: idem() }, dev.token);
+    await wait(6_200);
+    const devLeft = await call('/work/gig/finish', { shift: devStart.shift, idem: idem(), left: true }, dev.token);
+    const devAgain = await call('/work/gig/finish', { shift: devStart.shift, idem: idem(), left: true }, dev.token);
+    check('online: an hour-long shift is not paid at once; leaving after a few seconds pays only that share of ₦27,000, once',
+      devStart.ok && !devFast.ok && /faster/.test(devFast.reason ?? '')
+      && devLeft.ok && devLeft.pay >= 30 && devLeft.pay <= 120 && devLeft.pay < 27_000
+      && !devAgain.ok,
+      { devFast, devLeft, devAgain });
+
+    // The server, not the phone, decides a missed day. The clock is moved in the database; the request sends no hours and no amount.
+    const ngozi = await call('/auth/guest', { name: 'Ngozi' });
+    const ngoziStart = await call('/work/gig/start', { gig: 'career:job_software_dev' }, ngozi.token);
+    const beforeAway = (await call('/me', null, ngozi.token)).wallet.cash;
+    const stillHere = await call('/me', null, ngozi.token);
+    const book = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    book.prepare('UPDATE duty SET seen_at = ? WHERE account_id = ?').run(Date.now() - 21 * 60 * 60 * 1000, ngozi.account.id);
+    book.close();
+    const back = await call('/me', null, ngozi.token);
+    const backAgain = await call('/me', null, ngozi.token);
+    const collected = await call('/work/gig/finish', { shift: ngoziStart.shift, idem: idem() }, ngozi.token);
+    const book2 = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    book2.prepare('UPDATE duty SET seen_at = ? WHERE account_id = ?').run(Date.now() - 30 * 60 * 1000, ngozi.account.id);
+    book2.close();
+    const shortAway = await call('/me', null, ngozi.token);
+    const idleGuest = await call('/auth/guest', { name: 'Tunde' });
+    const strangerHome = await call('/me', null, idleGuest.token);
+    check('online: a day away from an hour-long job is worked by the server, paid once less a cut, with a while-you-were-away note; a short absence and a player with no job are not paid, and the open shift cannot also be collected',
+      ngoziStart.ok && !stillHere.away && beforeAway === 40_000
+      && back.away && /while you were away/i.test(back.away.note) && /kept a cut/i.test(back.away.note)
+      && back.away.pay === Math.round(27_000 * 0.85) && back.away.pay < 27_000
+      && back.wallet.cash - beforeAway === back.away.net
+      && !backAgain.away && backAgain.wallet.cash === back.wallet.cash
+      && !collected.ok
+      && !shortAway.away && shortAway.wallet.cash === back.wallet.cash
+      && !strangerHome.away && strangerHome.wallet.cash === 40_000,
+      { back, backAgain, collected, shortAway: shortAway.away, stranger: strangerHome.wallet });
+
+    check('online: a career shift can be found again while it is open, is paid once, and is gone after that',
+      clerkOpen.ok && clerkOpen.shift === clerkStart.shift && !unknownGig.ok && !clerkSoon.ok && /faster/.test(clerkSoon.reason ?? '')
+      && clerkOpenAfter.ok && clerkOpenAfter.shift === null && !clerkAgain.ok,
+      { clerkOpen, unknownGig, clerkSoon, clerkOpenAfter, clerkAgain });
+
+    // The police: the server keeps the cell and the record; anyone can stand bail; vetting employers read the record
+    const jailed = await onSpot('Dapo', 0, 1.5);
+    const charged = await call('/police/arrest', { offence: 'ran-checkpoint' }, jailed.guest.token);
+    const mine = await call('/police', null, jailed.guest.token);
+    const funke = await call('/auth/guest', { name: 'Funke' });
+    const heldList = await call('/police/held', null, funke.token);
+    const funkeBefore = (await call('/me', null, funke.token)).wallet;
+    const bailKey = idem();
+    const bailed = await call('/police/bail', { for: jailed.guest.account.id, idem: bailKey }, funke.token);
+    const bailedAgain = await call('/police/bail', { for: jailed.guest.account.id, idem: bailKey }, funke.token);
+    await wait(300);
+    const freed = await call('/police', null, jailed.guest.token);
+    const toldOut = jailed.sock.got.some((m) => m.type === 'bailed' && m.by === 'Funke');
+    const vetted = await call('/work/hire', { employer: 'lastma-warden' }, jailed.guest.token);
+    const port = await call('/work/hire', { employer: 'apapa-port' }, jailed.guest.token);
+    const madeUp = await call('/police/arrest', { offence: 'jaywalking' }, jailed.guest.token);
+    jailed.stop();
+    check('online: the server keeps the cell and the record: running a checkpoint is 10 minutes and ₦50,000; anyone online sees who is held and pays it once from their bank, the prisoner is told and let out; LASTMA (which vets) will not hire someone with a record, the port will; a made-up charge is refused',
+      charged.ok && charged.custody.bail === 50_000 && charged.custody.until - charged.custody.since === 600_000 && !!mine.custody && mine.record.length === 1
+      && heldList.held.some((h) => h.id === jailed.guest.account.id && h.bail === 50_000 && h.name === 'Dapo')
+      && bailed.ok && bailed.wallet.bank === funkeBefore.bank - 50_000 && !bailedAgain.ok && bailedAgain.wallet.bank === bailed.wallet.bank
+      && freed.custody === null && freed.record.length === 1 && toldOut && !vetted.ok && /records/.test(vetted.reason ?? '') && port.ok && !madeUp.ok,
+      { charged, mine, heldList, bailed, bailedAgain, freed, toldOut, vetted, port, madeUp });
+
+    // Eko Rides is the server's: it sees the car at the stop and at the drop-off, times the drive, and pays its own fare
+    const kola = await call('/auth/guest', { name: 'Kola' });
+    const car = await connect(kola.token);
+    await wait(200);
+    car.send(stand(0, 1.5));
+    await wait(300);
+    const rideAway = await call('/work/ride/start', { from: { x: 0, z: 80 }, to: { x: 0, z: 280 } }, kola.token);
+    const rideStart = await call('/work/ride/start', { from: { x: 0, z: 1.5 }, to: { x: 0, z: 201.5 } }, kola.token);
+    const rideFast = await call('/work/ride/finish', { ride: rideStart.ride, idem: idem() }, kola.token);
+    // 200 m up the road in twelve seconds, as a car in traffic
+    for (let i = 1; i <= 30; i++) {
+      car.send(stand(0, 1.5 + (200 * i) / 30));
+      await wait(400);
+    }
+    car.send(stand(0, 201.5));
+    await wait(200);
+    const kolaBefore = (await call('/me', null, kola.token)).wallet.cash;
+    const rideKey = idem();
+    const ridePaid = await call('/work/ride/finish', { ride: rideStart.ride, idem: rideKey, pay: 9_999_999 }, kola.token);
+    const rideAgain = await call('/work/ride/finish', { ride: rideStart.ride, idem: rideKey }, kola.token);
+    car.ws.close();
+    check('online: the server runs each Eko Rides trip: not started away from the stop, not paid if done faster than a car could, then the fare for 250 m by road (₦650) paid once whatever the game asks',
+      !rideAway.ok && /cannot see your car at the stop/.test(rideAway.reason) && rideStart.ok && rideStart.metres === 250 && !rideFast.ok && /faster than any car/.test(rideFast.reason)
+      && ridePaid.ok && ridePaid.pay === 650 && ridePaid.wallet.cash - kolaBefore === 650 && rideAgain.ok && rideAgain.replay,
+      { rideAway, rideStart, rideFast, ridePaid, rideAgain });
+
+    // Fares are the server's: paid only pulled up at a stop, one passenger at a time, no more than the seats from one stop
+    const conductor = await call('/auth/guest', { name: 'Sule' });
+    const bus = await connect(conductor.token);
+    await wait(200);
+    bus.send(stand(-5.2, -20));
+    await wait(300);
+    const fare = (s, v = 'keke') => call('/work/fare', { stop: s, vehicle: v, idem: idem(), amount: 9_999 }, conductor.token);
+    const wrongStop = await fare(1);
+    const fares = [];
+    for (let i = 0; i < 4; i++) {
+      fares.push(await fare(0));
+      await wait(1_300);
+    }
+    const tooQuick = [await fare(0, 'danfo'), await fare(0, 'danfo')];
+    bus.ws.close();
+    const busCash = (await call('/me', null, conductor.token)).wallet.cash;
+    check('online: a fare is the server\'s: not at another stop, ₦250 a keke passenger at the stop it is pulled up at, three (its seats) and then nobody else is waiting, one passenger at a time',
+      !wrongStop.ok && /not pulled up at that stop/.test(wrongStop.reason) && fares.slice(0, 3).every((f) => f.ok && f.pay === 250) && !fares[3].ok && /Nobody else is waiting/.test(fares[3].reason)
+        && tooQuick[0].ok && tooQuick[0].pay === 350 && !tooQuick[1].ok && /One passenger at a time/.test(tooQuick[1].reason) && busCash === 40_000 + 750 + 350,
+      { wrongStop, fares, tooQuick, busCash });
+
+    // Work done in poor shape (the game owns up to it): the server docks a fifth
+    const tired = await gradeShiftPoor('Yinka', 'cchub-yaba', -10, -25, 'lagos', 6_800);
+    check('online: a shift the game says was worked starving or worn out is docked a fifth by the server (CcHUB ₦16,000 becomes ₦12,800)',
+      tired.paid.ok && tired.paid.pay === 12_800 && tired.paid.docked === true && tired.gained === 12_800, tired);
+
+    // Trade between cities: bought at the Lagos shed, carried, sold in Abuja once it could have got there
+    const trader = await call('/auth/guest', { name: 'Iya Basira' });
+    const van = await connect(trader.token);
+    await wait(200);
+    van.send(stand(0, 0));
+    await wait(300);
+    const notAtShed = await call('/trade/buy', { good: 'ankara', qty: 1, idem: idem() }, trader.token);
+    van.send(stand(92.5, -69.6));
+    await wait(11_000); // a jump across town is not believed for a while
+    van.send(stand(92.5, -69.6));
+    await wait(300);
+    const tooHeavy = await call('/trade/buy', { good: 'beans', qty: 3, idem: idem() }, trader.token);
+    const bought = await call('/trade/buy', { good: 'ankara', qty: 2, idem: idem(), price: 1 }, trader.token);
+    const lagosState = await call('/trade', null, trader.token);
+    van.send(stand(15, 35, 'abuja'));
+    await wait(300);
+    const sellTooSoon = await call('/trade/sell', { good: 'ankara', qty: 2, idem: idem() }, trader.token);
+    const shipped = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    shipped.exec('PRAGMA busy_timeout = 2000');
+    shipped.prepare('UPDATE cargo SET at = at - 300000 WHERE account_id = ?').run(trader.account.id);
+    shipped.close();
+    const sold = await call('/trade/sell', { good: 'ankara', qty: 2, idem: idem() }, trader.token);
+    van.ws.close();
+    const ankara = lagosState.prices?.find((p) => p.good === 'ankara');
+    check('online: the server runs trade: nothing away from a shed, no more than 120 kg, Ankara bought at the Lagos shed at its price (whatever the game says), not sold in Abuja before it could get there, then sold there for more',
+      !notAtShed.ok && /goods shed/.test(notAtShed.reason) && !tooHeavy.ok && /120 kg/.test(tooHeavy.reason) && bought.ok && bought.each === ankara.buy.lagos && bought.total === ankara.buy.lagos * 2
+        && lagosState.cargo.some((c) => c.good === 'ankara' && c.qty === 2 && c.city === 'lagos') && !sellTooSoon.ok && /could not have got here yet/.test(sellTooSoon.reason)
+        && sold.ok && sold.each === ankara.sell.abuja && sold.profit > 0 && sold.cargo.length === 0,
+      { notAtShed, tooHeavy, bought, sellTooSoon, sold, ankara });
+
+    // The life ladder's rewards: once a rung, in order, to someone the server has seen earn twice the reward
+    const climber = await call('/auth/guest', { name: 'Climber' });
+    const skipped = await call('/money/ladder', { rung: 2 }, climber.token);
+    const tooEarly = await call('/money/ladder', { rung: 1 }, climber.token);
+    const worked = new DatabaseSync(path.join(dataDir, 'nigerialife.db'));
+    worked.exec('PRAGMA busy_timeout = 2000');
+    worked.prepare("INSERT INTO ledger (account_id, at, kind, cash_delta, bank_delta, cash_after, bank_after, verified, memo, idem) VALUES (?, ?, 'shift', 60000, 0, 85000, 150000, 1, 'Seeded shift', 'seed-ladder')").run(climber.account.id, Date.now());
+    worked.prepare('UPDATE wallets SET cash = 85000 WHERE account_id = ?').run(climber.account.id);
+    worked.close();
+    const rung1 = await call('/money/ladder', { rung: 1 }, climber.token);
+    const rung1Again = await call('/money/ladder', { rung: 1 }, climber.token);
+    check('online: the server pays each ladder rung: not before the rung below, not before it has seen twice the reward earned from work, then ₦25,000 once',
+      !skipped.ok && /rung below first/.test(skipped.reason) && !tooEarly.ok && /₦50,000/.test(tooEarly.reason) && rung1.ok && rung1.pay === 25_000 && rung1.wallet.cash === 85_000 + 25_000 && rung1Again.ok && rung1Again.replay,
+      { skipped, tooEarly, rung1, rung1Again });
 
     // The next tier, same gig clock: the code sprint the phone used to pay at once.
     const kode = await call('/auth/guest', { name: 'Kode' });

@@ -1,6 +1,6 @@
 import { Adverts } from '../../business/Adverts';
 import type { PhoneApp, PhoneHost } from '../PhoneApp';
-import { esc, naira, row, empty, chips, count } from '../../ui/kit/html';
+import { esc, naira, row, empty, chips, count, meter } from '../../ui/kit/html';
 import { CREDIT_TYPES } from '../../backend/TransactionService';
 import type { TransactionRecord } from '../../backend/types';
 import { NetworkManager } from '../../multiplayer/NetworkManager';
@@ -9,8 +9,13 @@ import { SoundEngine } from '../../audio/SoundEngine';
 import { Deeds } from '../../realestate/Deeds';
 import { AssetMarket } from '../../realestate/AssetMarket';
 import { Companies, AREAS, type RoleId } from '../../business/Companies';
+import { REGISTER_AREAS, spotFor } from '../../life/Kiosks';
+import type { BusinessType } from '../../backend/types';
 import { BackendService } from '../../backend/BackendService';
 import { Dues, dayLabel } from '../../life/Dues';
+import { monthBands, monthLabel, monthRelief, RENT_RELIEF_CAP, VAT_RATE, type Payslip, type TaxBook } from '../../life/Tax';
+import { OnlineAccount } from '../../online/OnlineAccount';
+import { Police } from '../../life/Police';
 
 // ============================================================================================
 // Bank
@@ -22,10 +27,11 @@ const direction = (tx: TransactionRecord): 'in' | 'out' | 'move' =>
 
 function transactionRow(tx: TransactionRecord): string {
   const way = direction(tx);
+  const tax = tx.paye ? ` · <span class="nl-tax-note">PAYE ${naira(tx.paye)} taken</span>` : tx.vat ? ` · <span class="nl-tax-note">incl. VAT ${naira(tx.vat)}</span>` : '';
   return row({
     icon: way === 'in' ? '↙' : way === 'out' ? '↗' : '⇄',
     title: esc(tx.description),
-    sub: `${esc(tx.timestamp)} · ${tx.source === 'bank' ? 'Bank account' : 'Cash'}`,
+    sub: `${esc(tx.timestamp)} · ${tx.source === 'bank' ? 'Bank account' : 'Cash'}${tax}`,
     trailing: `<span class="nl-amount nl-amount--${way}">${way === 'in' ? '+' : way === 'out' ? '−' : ''}${naira(tx.amount)}</span>`,
   });
 }
@@ -39,6 +45,8 @@ export const bankApp: PhoneApp = {
 
   render(host, route) {
     const data = host.backend.getData();
+
+    if (route === 'tax') return taxScreen(host);
 
     if (route === 'send') {
       const others = (NetworkManager.getInstance()?.getOnlinePlayersList() ?? []).filter((p) => !p.isLocal);
@@ -73,7 +81,8 @@ export const bankApp: PhoneApp = {
 
     const filter = host.get<string>('bank.filter', 'all');
     const search = host.get('bank.search', '').toLowerCase();
-    const history = [...data.transactionHistory].reverse()
+    // Newest first, as the account keeps them
+    const history = data.transactionHistory
       .filter((tx) => filter === 'all' || direction(tx) === filter)
       .filter((tx) => !search || tx.description.toLowerCase().includes(search));
     const loan = Dues.get().loan();
@@ -87,6 +96,7 @@ export const bankApp: PhoneApp = {
           <span class="nl-hero-sub">Acct ${esc(data.bank.accountNumber)} · Cash on you ${naira(data.walletCash)}</span>
           <div class="nl-hero-actions">
             <button class="nl-btn nl-btn--glass" data-go="send">↗ Send</button>
+            <button class="nl-btn nl-btn--glass" id="bank-tax" data-go="tax">🧾 Tax</button>
             <button class="nl-btn nl-btn--glass" data-app="invest">📈 Invest</button>
           </div>
         </div>
@@ -102,6 +112,7 @@ export const bankApp: PhoneApp = {
               <button class="nl-btn nl-btn--sm" id="bank-repay-all" data-act="repay">Pay it all · ${naira(loan.owed)}</button>
             </div>
           </div>` : ''}
+        ${heldCard(host)}
         <div class="nl-section">Transactions</div>
         ${chips('bank.filter', filter, [['all', 'All'], ['in', 'Money in'], ['out', 'Money out']])}
         <input class="nl-field nl-field--search" id="bank-search" type="search" placeholder="Search transactions" value="${esc(host.get('bank.search', ''))}" data-bind="bank.search" />
@@ -114,10 +125,19 @@ export const bankApp: PhoneApp = {
     };
   },
 
-  act(host, action) {
+  async act(host, action, el) {
     if (action === 'repay') {
       const result = host.backend.repayLoan();
       host.say(result.message, result.success ? 'good' : 'bad');
+      return;
+    }
+    if (action === 'bail-for') {
+      const id = el.dataset.arg ?? '';
+      const paid = await Police.get().bailFor(id);
+      if (paid.ok) SoundEngine.getInstance().playTransactionSuccess();
+      host.set('police.asked', 0);
+      host.say(paid.message, paid.ok ? 'good' : 'bad');
+      host.refresh();
       return;
     }
     if (action === 'instalment') {
@@ -142,6 +162,145 @@ export const bankApp: PhoneApp = {
     }
   },
 };
+
+// ============================================================================================
+// Tax: PAYE on payslips, and VAT on what was bought (src/life/Tax.ts)
+// ============================================================================================
+
+const pct = (rate: number) => `${Math.round(rate * 100)}%`;
+
+/**
+ * Players in a police cell right now (online): anyone can stand bail for them, from this bank.
+ * Asked of the server when the Bank opens, then every half minute.
+ */
+function heldCard(host: PhoneHost): string {
+  if (!OnlineAccount.get()) return '';
+  if (Date.now() - host.get<number>('police.asked', 0) > 30_000) {
+    host.set('police.asked', Date.now());
+    void Police.get().others().then((held) => {
+      host.set('police.held', held);
+      if (held.length) host.refresh();
+    });
+  }
+  const held = host.get<Array<{ id: string; name: string; bail: number; offence: string }>>('police.held', []);
+  if (!held.length) return '';
+  return `
+    <div class="nl-card nl-card--warn" id="bank-held">
+      <div class="nl-card-title">🚔 In a cell at Area Command</div>
+      <div class="nl-card-line">Anyone can stand bail. It comes from your bank, then your cash.</div>
+      <div class="nl-list">
+        ${held.slice(0, 5).map((h) => row({
+          icon: '👤',
+          title: esc(h.name),
+          sub: esc(h.offence),
+          trailing: `<button class="nl-btn nl-btn--sm nl-btn--primary" data-act="bail-for" data-arg="${esc(h.id)}">Bail · ${naira(h.bail)}</button>`,
+          tag: 'div',
+        })).join('')}
+      </div>
+    </div>`;
+}
+
+function bandName(band: { from: number; upTo: number }): string {
+  if (band.from === 0) return `First ${naira(band.upTo)}`;
+  if (band.upTo === Infinity) return `Above ${naira(band.from)}`;
+  return `${naira(band.from)} to ${naira(band.upTo)}`;
+}
+
+function slipRow(slip: Payslip): string {
+  return row({
+    icon: '🧾',
+    title: `${esc(slip.title)} · ${esc(slip.employer)}`,
+    sub: `${esc(slip.date)} · ${naira(slip.gross)} gross · ${slip.paye ? `PAYE ${naira(slip.paye)} at ${pct(slip.rate)}` : 'no PAYE'}${slip.relief ? ` · relief ${naira(slip.relief)}` : ''}`,
+    trailing: `<span class="nl-amount nl-amount--in">+${naira(slip.net)}</span>`,
+    attrs: 'data-slip="1"',
+    tag: 'div',
+  });
+}
+
+/** Online, the server holds the payslips: asked for them once when the screen opens, then every half minute */
+function askServer(host: PhoneHost): void {
+  const online = OnlineAccount.get();
+  if (!online || Date.now() - host.get<number>('tax.asked', 0) < 30_000) return;
+  host.set('tax.asked', Date.now());
+  void online.tax().then((server) => {
+    if (!server.ok || !server.month) return;
+    host.backend.applyServerTax(server as Parameters<typeof host.backend.applyServerTax>[0]);
+    host.refresh();
+  }).catch(() => undefined);
+}
+
+function taxScreen(host: PhoneHost): { title: string; body: string } {
+  askServer(host);
+  const book: TaxBook = host.backend.tax();
+  const relief = monthRelief(book.rent);
+  const taxable = Math.max(0, book.gross - relief);
+  const bands = monthBands();
+  const at = Math.max(0, bands.findIndex((b) => taxable < b.upTo));
+  const band = bands[at];
+  const next = bands[at + 1];
+  const through = band.upTo === Infinity ? 100 : ((taxable - band.from) / (band.upTo - band.from)) * 100;
+  const freeLeft = Math.max(0, bands[0].upTo - taxable);
+  const where = taxable < bands[0].upTo
+    ? `<strong id="tax-free-left">${naira(freeLeft)}</strong> more in wages this month is tax-free. After that, PAYE starts at 15%.`
+    : next
+      ? `Your next naira of wages is taxed at <strong id="tax-rate">${pct(band.rate)}</strong>. ${naira(band.upTo - taxable)} more and it is ${pct(next.rate)}.`
+      : `Your next naira of wages is taxed at <strong id="tax-rate">${pct(band.rate)}</strong>, the top rate.`;
+  const slips = [...book.slips].reverse();
+  const month = monthLabel(book.month);
+  return {
+    title: 'Tax',
+    body: `
+      <div class="nl-hero" id="tax-hero">
+        <span class="nl-hero-label">PAYE in ${esc(month)}</span>
+        <span class="nl-hero-value" id="tax-month-paye">${naira(book.paye)}</span>
+        <span class="nl-hero-sub" id="tax-month-sub">on ${naira(book.gross)} of wages · you took home ${naira(book.gross - book.paye)}</span>
+      </div>
+      <div class="nl-card" id="tax-band">
+        <div class="nl-card-title">Where you are this month</div>
+        <div class="nl-card-line">${where}</div>
+        ${meter(through, at === 0 ? 'good' : 'plain')}
+        <div class="nl-list nl-tax-bands" id="tax-bands">
+          ${bands.map((b, i) => row({
+            icon: i < at ? '✓' : i === at ? '●' : '○',
+            title: bandName(b),
+            sub: i === at ? '<span class="nl-tag nl-tag--good">You are here</span>' : undefined,
+            trailing: `<strong>${pct(b.rate)}</strong>`,
+            tone: i === at ? 'default' : 'muted',
+            attrs: `data-band="${i}"${i === at ? ' aria-current="true"' : ''}`,
+            tag: 'div',
+          })).join('')}
+        </div>
+        <div class="nl-card-line">The year's bands, a twelfth a month: the first ₦800,000 of a year free, then 15%, 18%, 21%, 23% and 25% (Nigeria Tax Act 2025).</div>
+      </div>
+      <div class="nl-card" id="tax-relief">
+        <div class="nl-card-title">Rent relief</div>
+        <div class="nl-card-line">${book.rent > 0
+          ? `You paid <strong>${naira(book.rent)}</strong> in home rent this month, so <strong id="tax-relief-amount">${naira(relief)}</strong> of your wages is not taxed.`
+          : 'Pay rent on a home and a fifth of it comes off your taxed wages.'} At most ${naira(Math.round(RENT_RELIEF_CAP / 12))} a month (${naira(RENT_RELIEF_CAP)} a year).</div>
+      </div>
+      <div class="nl-card" id="tax-year">
+        <div class="nl-card-title">${esc(book.year)} so far</div>
+        <div class="nl-stats">
+          <span><strong>${naira(book.yearGross)}</strong>wages</span>
+          <span><strong id="tax-year-paye">${naira(book.yearPaye)}</strong>PAYE</span>
+          <span><strong id="tax-year-vat">${naira(book.yearVat)}</strong>VAT in prices</span>
+        </div>
+      </div>
+      <div class="nl-section">Payslips</div>
+      <div class="nl-list" id="tax-slips">
+        ${slips.length === 0
+          ? empty('🧾', 'No payslips yet', 'Work for an employer (the port, a site, CcHUB, a career shift) and each wage comes with a payslip. Gigs and tips are cash in hand: no payslip, no PAYE.')
+          : slips.map(slipRow).join('')}
+      </div>
+      ${slips[0] ? `<div class="nl-hint">PAYE goes to the ${esc(slips[0].office)}.</div>` : ''}
+      <div class="nl-section">VAT</div>
+      <div class="nl-card" id="tax-vat">
+        <div class="nl-card-line">VAT is <strong>${(VAT_RATE * 100).toFixed(1)}%</strong> and, as in any Nigerian shop, it is already in the price: nothing costs more. Each receipt in your Bank says how much of it was VAT.</div>
+        <div class="nl-card-line"><strong>No VAT on:</strong> basic food from a buka, mama put or market, medicine, books, home rent, land and houses, fares and fuel.</div>
+      </div>
+    `,
+  };
+}
 
 // ============================================================================================
 // Invest
@@ -366,7 +525,7 @@ export const businessApp: PhoneApp = {
               ${reports.length === 0 ? empty('📊', 'No day closed yet', 'At the end of each day the takings, wages, rent and tax are reported here.') : reports.map((r) => row({
                 icon: r.profit >= 0 ? '📈' : '📉',
                 title: `${companies.dayName(r.day)}: ${r.profit >= 0 ? 'profit' : 'loss'} ${naira(Math.abs(r.profit))}`,
-                sub: `Took ${naira(r.takings)} · wages ${naira(r.wages)}${r.rent ? ` · rent ${naira(r.rent)}` : ''}${r.stock ? ` · stock ${naira(r.stock)}` : ''} · tax ${r.tax ? naira(r.tax) : 'none (small company)'}${r.banked ? ` · ${naira(r.banked)} banked` : ''}${r.note ? ` · ${esc(r.note)}` : ''}`,
+                sub: `Took ${naira(r.takings)} · wages ${naira(r.wages)}${r.rent ? ` · rent ${naira(r.rent)}` : ''}${r.stock ? ` · stock ${naira(r.stock)}` : ''} · tax ${r.tax ? naira(r.tax) : 'none (small company)'}${r.banked ? ` · ${naira(r.banked)} banked` : ''}${r.event ? ` · ${esc(r.event)}` : ''}${r.note ? ` · ${esc(r.note)}` : ''}`,
                 tone: r.note ? 'bad' : r.profit >= 0 ? 'good' : 'bad',
               })).join('')}
             </div>`;
@@ -385,6 +544,44 @@ export const businessApp: PhoneApp = {
       };
     }
 
+    if (route === 'register') {
+      const city = host.world.cityId();
+      const areas = REGISTER_AREAS.filter((a) => a.cityId === city);
+      const kinds: Array<{ id: BusinessType; label: string; icon: string }> = [
+        { id: 'restaurant', label: 'Food spot', icon: '🍲' },
+        { id: 'salon', label: 'Salon', icon: '💇' },
+        { id: 'supermarket', label: 'Provisions', icon: '🏪' },
+        { id: 'fashion shop', label: 'Fashion', icon: '👗' },
+        { id: 'pharmacy', label: 'Pharmacy', icon: '💊' },
+        { id: 'hotel', label: 'Events', icon: '🎉' },
+        { id: 'logistics', label: 'Dispatch', icon: '📦' },
+        { id: 'tech company', label: 'Tech startup', icon: '💻' },
+        { id: 'filling station', label: 'Filling station', icon: '⛽' },
+        { id: 'transport business', label: 'Transport', icon: '🚌' },
+      ];
+      const colours: Array<[string, string]> = [['#14532d', 'Green'], ['#1e3a8a', 'Blue'], ['#9f1239', 'Red'], ['#92400e', 'Gold'], ['#0f172a', 'Black']];
+      const area = host.get('biz.area', areas[0]?.area ?? '');
+      const kind = host.get('biz.kind', kinds[0].id);
+      const colour = host.get('biz.colour', colours[0][0]);
+      const picked = areas.find((a) => a.area === area) ?? areas[0];
+      return {
+        title: 'Register',
+        body: `
+          <div class="nl-card" id="biz-register">
+            <div class="nl-card-line">A new business in ${esc(host.world.cityName())}. It starts as a kiosk. You can still buy a business that is already running.</div>
+            <input class="nl-field" id="biz-name" placeholder="The name" maxlength="32" data-bind="biz.name" value="${esc(host.get('biz.name', ''))}" />
+            <div class="nl-section">Area</div>
+            ${chips('biz.area', area, areas.map((a) => [a.area, `${a.area} · ${naira(a.fee)}`]))}
+            <div class="nl-section">What it is</div>
+            ${chips('biz.kind', kind, kinds.map((k) => [k.id, `${k.icon} ${k.label}`]))}
+            <div class="nl-section">Logo colour</div>
+            ${chips('biz.colour', colour, colours)}
+            <button class="nl-btn nl-btn--primary nl-btn--block" data-act="register" ${picked ? '' : 'disabled'}>Pay ${picked ? naira(picked.fee) : ''} and register</button>
+          </div>
+        `,
+      };
+    }
+
     const owned = data.businesses.filter((b) => b.owned);
     const forSale = data.businesses.filter((b) => !b.owned);
     const pending = owned.reduce((sum, b) => sum + b.pendingRevenue, 0);
@@ -397,6 +594,7 @@ export const businessApp: PhoneApp = {
           <span class="nl-hero-sub">${count(owned.length, 'business', 'businesses')} · ${naira(owned.reduce((sum, b) => sum + earns(b.id), 0))} each payout</span>
           <div class="nl-hero-actions">
             <button class="nl-btn nl-btn--glass" data-act="collect" ${pending > 0 ? '' : 'disabled'}>Collect into bank</button>
+            <button class="nl-btn nl-btn--glass" data-go="register">Register a business</button>
           </div>
         </div>
         <div class="nl-section">Yours</div>
@@ -417,6 +615,34 @@ export const businessApp: PhoneApp = {
 
   async act(host, action, el) {
     const arg = el.dataset.arg ?? '';
+    if (action === 'register') {
+      const city = host.world.cityId();
+      const areas = REGISTER_AREAS.filter((a) => a.cityId === city);
+      const area = areas.find((a) => a.area === host.get('biz.area', areas[0]?.area ?? '')) ?? areas[0];
+      if (!area) return host.say('Pick an area in this city.', 'bad');
+      const kinds: Array<{ id: BusinessType; icon: string }> = [
+        { id: 'restaurant', icon: '🍲' }, { id: 'salon', icon: '💇' }, { id: 'supermarket', icon: '🏪' },
+        { id: 'fashion shop', icon: '👗' }, { id: 'pharmacy', icon: '💊' }, { id: 'hotel', icon: '🎉' },
+        { id: 'logistics', icon: '📦' }, { id: 'tech company', icon: '💻' }, { id: 'filling station', icon: '⛽' },
+        { id: 'transport business', icon: '🚌' },
+      ];
+      const kind = kinds.find((k) => k.id === host.get('biz.kind', 'restaurant')) ?? kinds[0];
+      const spot = spotFor(city, area.area);
+      const result = host.backend.registerBusiness({
+        name: host.get('biz.name', ''),
+        type: kind.id,
+        cityId: city,
+        area: area.area,
+        fee: area.fee,
+        icon: kind.icon,
+        logo: host.get('biz.colour', '#14532d'),
+        x: spot?.x ?? 0,
+        z: spot?.z ?? 0,
+      });
+      host.say(result.message, result.success ? 'good' : 'bad');
+      if (result.success) host.go('');
+      return;
+    }
     if (action === 'collect') {
       const result = host.backend.collectBusinessRevenue();
       if (result.totalCollected > 0) SoundEngine.getInstance().playTransactionSuccess();

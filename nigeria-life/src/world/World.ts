@@ -1,3 +1,4 @@
+import { outlineOf } from './Bodies';
 import { BananaEstate } from './BananaEstate';
 import * as THREE from 'three';
 import { Agamas } from '../life/Agamas';
@@ -11,6 +12,8 @@ import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { AtmosphereManager } from './AtmosphereManager';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
+import { markStillGroup } from '../graphics/StillMatrices';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import { CityDensityManager } from './density/CityDensityManager';
 import { TrafficSpawner } from './traffic/TrafficSpawner';
@@ -28,10 +31,13 @@ import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import { Landmarks } from './landmarks/Landmarks';
 import type { AirportLandmark } from './landmarks/Airport';
 import type { MotorParkLandmark } from './landmarks/MotorPark';
+import { wireStallTrade } from './street/StallTrade';
 import { lagosZones, obstructionsUnder, obstructionsOf, validatePlan, type Obstruction, type PlanInput, type Violation } from './plan/CityPlan';
 import { DestinationRegistry } from '../destinations/DestinationRegistry';
 import { LAGOS_PLOTS } from '../realestate/PlotCatalogue';
 import type { DrivableVehicle } from './DrivableVehicle';
+import { abujaWhere } from '../cities/AbujaDistricts';
+import { phWhere } from '../cities/PortHarcourtDistricts';
 
 export interface InteractiveObject {
   mesh: THREE.Object3D;
@@ -44,6 +50,8 @@ export interface InteractiveObject {
   moving?: boolean;
   /** A way out that does not lead to the street (a hotel room's door to its corridor): what its button says */
   exitLabel?: string;
+  /** In a two-storey home, the floor it is on (0 the ground floor): only reached from that floor */
+  storey?: number;
 }
 
 export interface InteractionTarget {
@@ -92,6 +100,8 @@ export class World {
 
   /** Gameplay camera, used to cull the instanced crowd and traffic to what is on screen */
   public viewCamera?: THREE.Camera;
+  public districtDrawDistance = 420;
+  public smokeEvery = 1;
   private viewFrustum = new THREE.Frustum();
   private viewMatrix = new THREE.Matrix4();
 
@@ -119,7 +129,21 @@ export class World {
     // 2. Roads Network & Street Furniture
     this.roads = new Roads();
     this.scene.add(this.roads.group);
+    markStillGroup(this.roads.group);
     this.weather.registerRoadMaterial(this.roads.asphaltMat);
+    this.weather.registerRoadMaterial(MaterialLibrary.getInstance().sidewalkMaterial);
+    // Materials layer: walls/roofs/glass respond to rain without wiping texture colour
+    {
+      const mats = MaterialLibrary.getInstance();
+      this.weather.registerSurfaceMaterial(mats.wallPlasterCream, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterOchre, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterDistressedWhite, 0.4, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterTeal, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.concreteTrimMaterial, 0.35, 0.12);
+      this.weather.registerSurfaceMaterial(mats.corrugatedRoofRusty, 0.28, 0.55);
+      this.weather.registerSurfaceMaterial(mats.corrugatedRoofSilver, 0.18, 0.8);
+      this.weather.registerSurfaceMaterial(mats.glassReflectiveMaterial, 0.04, 0.95);
+    }
     this.roads.setNightLighting(this.skyEnvironment.currentPeriod);
     this.skyEnvironment.onPeriodChange = (period) => {
       this.roads.setNightLighting(period);
@@ -165,6 +189,9 @@ export class World {
       .filter((o): o is NonNullable<typeof o> => !!o)
       .map((o) => ({ x: o.interactionPoint.x, z: o.interactionPoint.z }));
     this.cityPopulation.giveErrands(shopDoors);
+    // The crowd reads the lights the traffic keeps, and the traffic stops for whoever is crossing
+    this.cityPopulation.walkTime = (group) => this.trafficSpawner.walkTime(group);
+    this.trafficSpawner.walkers = this.cityPopulation.onRoad;
 
     // Broad Street carries on south as the expressway, over the lagoon to the mainland
     this.expressway = new Expressway();
@@ -215,6 +242,45 @@ export class World {
       // The Red Line's gates at the foot of each station's stairs
       ...this.expressway.redLine.interactive,
     ];
+
+    // Stage 3: the crowd's people get their days. Their destinations are these doors, keeping the
+    // hours the doors keep; the stalls go up when their traders arrive and are packed away at dusk.
+    this.cityPopulation.onStall = (i, open) => this.cityDensity.fabric.setStallOpen(i, open);
+    this.cityDensity.fabric.stallsKept = true;
+    this.cityPopulation.giveLives(
+      'lagos',
+      this.interactiveObjects
+        .filter((o) => o.interactionPoint.y < 1.5 && !o.moving)
+        .map((o) => ({ id: o.id, name: o.name, category: o.category, x: o.interactionPoint.x, z: o.interactionPoint.z })),
+      (id) => this.interiorManager.hoursOfDoor(id),
+      // Nothing built across a straight walk (the pavements are joined over open ground and side roads)
+      (() => {
+        const solids = this.standingOnTheGround().filter((o) => o.maxZ - o.minZ < 200 && o.maxX - o.minX < 200);
+        return (x1: number, z1: number, x2: number, z2: number) => {
+          const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, z2 - z1) / 0.5));
+          for (let k = 0; k <= steps; k++) {
+            const x = x1 + ((x2 - x1) * k) / steps;
+            const z = z1 + ((z2 - z1) * k) / steps;
+            for (const o of solids) if (x > o.minX - 0.2 && x < o.maxX + 0.2 && z > o.minZ - 0.2 && z < o.maxZ + 0.2) return false;
+          }
+          return true;
+        };
+      })(),
+      // Over a road with traffic, or so near one that looking both ways never finds a gap (the
+      // unlit-road rule asks for nothing moving within 14 m): gone round, not waited at
+      (x1, z1, x2, z2) => this.trafficSpawner.crossesTraffic(x1, z1, x2, z2) || this.trafficSpawner.trafficNear((x1 + x2) / 2, (z1 + z2) / 2, 14)
+    );
+    // Roadside stalls: buy sachet water, akara, suya when the trader has the umbrella up
+    {
+      const fabric = this.cityDensity.fabric;
+      const stallCards = wireStallTrade({
+        cityId: 'lagos',
+        spots: fabric.stallSpots,
+        isOpen: (i) => fabric.isStallOpen(i),
+        parent: fabric.group,
+      });
+      this.interactiveObjects.push(...stallCards);
+    }
 
     if (this.atmosphere.generatorMesh) {
       this.interactiveObjects.push({
@@ -471,7 +537,12 @@ export class World {
    */
   public showCityUnderMap(on: boolean, cityId: string = this.cityManager.currentCityId): void {
     this.cityManager.show(on ? cityId : null, false);
+    if (on && cityId === 'lagos') this.districts.showAllZones();
     this.routeLine.group.visible = on && this.routeLine.points.length > 0;
+    this.skyEnvironment.mapView = on;
+    if (on && this.scene.fog instanceof THREE.FogExp2) {
+      this.scene.fog.density = 0;
+    }
   }
 
   /** Draws the way to a place on the map of the real city (its first point is where it starts), or takes it away. */
@@ -497,25 +568,12 @@ export class World {
       };
     }
 
-    if (this.cityManager.currentCityId === 'abuja') {
-      if (pos.z < -60) {
-        return { name: 'Abuja FCT', sub: 'Aso Rock Monolith & Presidential Lookout' };
-      }
-      if (pos.x < -15) {
-        return { name: 'Abuja FCT', sub: 'National Mosque & Diplomatic Zone' };
-      }
-      if (pos.x > 15) {
-        return { name: 'Abuja FCT', sub: 'National Christian Centre & Central Area' };
-      }
-      return { name: 'Abuja FCT', sub: 'Shehu Shagari Way • Three Arms Zone' };
-    }
+    // Abuja: the avenue or street the player is on, and the district round it
+    if (this.cityManager.currentCityId === 'abuja') return abujaWhere(pos.x, pos.z);
 
     // Port Harcourt: its own districts, never Lagos's (the loaded map data may be another city's)
     const city = this.cityManager.currentCityId;
-    if (city === 'port_harcourt') {
-      const district = this.dataManager.districtIn('port_harcourt', pos);
-      return { name: 'Port Harcourt', sub: district ? `${district.name} • Aba Road` : 'Aba Road' };
-    }
+    if (city === 'port_harcourt') return phWhere(pos.x, pos.z);
     if (city !== 'lagos') {
       return { name: city.charAt(0).toUpperCase() + city.slice(1), sub: 'City centre' };
     }
@@ -557,6 +615,9 @@ export class World {
     // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day (rooms keep their lights on)
     this.skyEnvironment.indoors = this.interiorManager.isPlayerInside();
     this.skyEnvironment.update(delta, playerPos);
+    // Continuous dusk→dawn street lamps + window glow (sells night immersion without PointLights)
+    this.roads.setLampIntensityForHour(this.skyEnvironment.currentHour);
+    MaterialLibrary.getInstance().setWindowGlowForHour(this.skyEnvironment.currentHour);
 
     // Keep live player coordinate synced in WorldDataManager
     if (playerPos) {
@@ -581,29 +642,41 @@ export class World {
       return;
     }
 
-    if (this.cityManager.currentCityId === 'abuja') {
-      this.cityManager.update(delta);
-      // The vehicles parked in Abuja are driven here like anywhere else
-      this.vehicles.updateDrivables(delta, keys, playerPos, 'abuja');
+    // Abuja and Port Harcourt: their own streets' traffic and people; Lagos's systems wait
+    const city = this.cityManager.currentCityId;
+    if (city !== 'lagos') {
+      this.cityManager.update(delta, playerPos);
+      // The vehicles parked here are driven here like anywhere else
+      this.vehicles.updateDrivables(delta, keys, playerPos, city);
+      const life = this.cityManager.lifeHere();
+      if (life) {
+        const driven = player?.isDriving ? player.currentVehicle : null;
+        const size = driven ? outlineOf(driven.mesh) : null;
+        life.update(delta, playerPos, this.frustumNow(), this.skyEnvironment.currentHour + 24 * this.skyEnvironment.day, { halfWidth: size ? size.w / 2 : 0.35, halfLength: size ? size.l / 2 : 1.4 }, this.cityPopulation.avoid);
+      }
       this.weather.update(delta, playerPos);
+      // NEPA's plan for the area the player is in
+      LagosStreetLifeSystem.getInstance().update(delta, this.skyEnvironment.currentPeriod);
       return;
     }
 
     // Update vehicle movements & drivable controls with distance culling
     this.vehicles.update(delta, keys, playerPos, this.cityManager.currentCityId);
 
-    let frustum: THREE.Frustum | undefined;
-    if (this.viewCamera) {
-      this.viewMatrix.multiplyMatrices(this.viewCamera.projectionMatrix, this.viewCamera.matrixWorldInverse);
-      frustum = this.viewFrustum.setFromProjectionMatrix(this.viewMatrix);
-    }
+    const frustum = this.frustumNow();
 
     // The street is as busy as the hour: full by day, thin in the evening, nearly empty in the small hours
     const abroad = shareAbroad(this.skyEnvironment.currentHour);
     this.trafficSpawner.abroad = abroad;
+    this.trafficSpawner.setHour(this.skyEnvironment.currentHour);
     this.cityPopulation.abroad = abroad;
+    this.cityPopulation.setClock(this.skyEnvironment.currentHour, this.skyEnvironment.day, delta);
 
-    // Update instanced go-slow traffic
+    // Update instanced go-slow traffic: drivers keep clear of the player, as big as they are on the road
+    const driven = player?.isDriving ? player.currentVehicle : null;
+    const size = driven ? outlineOf(driven.mesh) : null;
+    this.trafficSpawner.playerHalfWidth = size ? size.w / 2 : 0.35;
+    this.trafficSpawner.playerHalfLength = size ? size.l / 2 : 1.4;
     this.trafficSpawner.update(delta, playerPos, frustum);
     if (playerPos) this.expressway.update(playerPos.z);
 
@@ -616,8 +689,8 @@ export class World {
     // Update building animations (e.g. compound gate)
     this.buildings.update(delta);
 
-    // Update expanded districts (ocean waves, smoke particles)
-    this.districts.update(delta);
+    // Update expanded districts (distance culling, ocean waves, smoke particles)
+    this.districts.update(delta, playerPos, this.districtDrawDistance, this.smokeEvery);
 
     // The match at the stadium, the cranes at the port, the aircraft at the airport
     this.landmarks.update(delta, this.skyEnvironment.currentHour);
@@ -627,6 +700,7 @@ export class World {
     this.weather.update(delta, playerPos);
 
     // Update atmosphere effects (Harmattan dust, smoke, puddles)
+    this.atmosphere.updateEvery = this.smokeEvery;
     this.atmosphere.update(delta, playerPos);
 
     // Update living street life (NEPA blackout cycles & street triggers)
@@ -648,10 +722,17 @@ export class World {
     }
 
     // Update city manager
-    this.cityManager.update(delta);
+    this.cityManager.update(delta, playerPos);
 
     // Update 3D simulated interiors (fans, smoke, NPCs)
     this.interiorManager.update(delta);
+  }
+
+  /** What the camera sees this frame, for drawing only what is in view */
+  private frustumNow(): THREE.Frustum | undefined {
+    if (!this.viewCamera) return undefined;
+    this.viewMatrix.multiplyMatrices(this.viewCamera.projectionMatrix, this.viewCamera.matrixWorldInverse);
+    return this.viewFrustum.setFromProjectionMatrix(this.viewMatrix);
   }
 
   // Temporary Street Highlight Beacon for Property Navigation

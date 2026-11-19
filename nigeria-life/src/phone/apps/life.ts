@@ -1,9 +1,15 @@
-import type { PhoneApp } from '../PhoneApp';
+import type { PhoneApp, PhoneHost } from '../PhoneApp';
+import { areaName, bandOf, hasLight, homeArea, hourWords, hoursOfLight, nextChange, BAND_HOURS, type Band } from '../../life/Grid';
 import { theme, setTheme } from '../../ui/theme/Theme';
 import { esc, naira, row, empty, chips, meter, count } from '../../ui/kit/html';
 import { SoundEngine } from '../../audio/SoundEngine';
+import { MusicPlayer } from '../../audio/MusicPlayer';
+import { noticesEnabled, setNotices } from '../../ui/GameToast';
 import { Employment, EMPLOYERS, WORKSITES } from '../../jobs/Employment';
+import { Qualifications } from '../../life/Qualifications';
 import { WORKPLACE } from '../../interiors/places/PlaceJobs';
+import { Shifts } from '../../jobs/HandWork';
+import { CareerShift } from '../../jobs/CareerShift';
 import { PlaceOpeners } from '../../interiors/places/PlaceInterior';
 import { Deeds } from '../../realestate/Deeds';
 import { ServerLink, SERVER_URL, rememberServer } from '../../realestate/ServerLink';
@@ -12,9 +18,11 @@ import { CloudSyncService } from '../../backend/CloudSyncService';
 import { HouseDecorationSystem } from '../../housing/HouseDecorationSystem';
 import { DrivableVehicle } from '../../world/DrivableVehicle';
 import { LagosStreetLifeSystem } from '../../world/LagosStreetLifeSystem';
+import { PerfReadout } from '../../ui/PerfReadout';
 import { OnlineAccount } from '../../online/OnlineAccount';
 import type { RealEstateProperty, PlayerSkills } from '../../backend/types';
 import { Dues, dayLabel } from '../../life/Dues';
+import { describeLoad, loadHistory, thisLoad } from '../../app/LoadTimes';
 
 // ============================================================================================
 // Jobs
@@ -62,6 +70,38 @@ const RANKS = [
   { level: 2, at: 100 },
   { level: 3, at: 300 },
 ];
+
+function leftWords(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest ? `${minutes} min ${rest}s` : `${minutes} min`;
+}
+
+/** What Collect pays. Signed in, the server pays the wage. A rank bonus is added only on this device. */
+function collectPay(salary: number, bonus: number): number {
+  return Math.round(salary * (OnlineAccount.get() ? 1 : (bonus || 1)));
+}
+
+/**
+ * The server clocks the shift first. Only then does the phone start it.
+ * If the server cannot be reached, the shift runs on the phone and can be paid once the server answers.
+ * A refusal (unknown work, not at a site) does not start a shift that can never be paid.
+ */
+async function beginShift(host: PhoneHost, id: string): Promise<void> {
+  const online = OnlineAccount.get();
+  if (online) {
+    const started = await online.startGig(`career:${id}`);
+    if (!started.ok && started.status !== 0) {
+      host.say(started.reason ?? 'The server did not start the shift.', 'bad');
+      return;
+    }
+    if (!started.ok) host.say('The server could not be reached. This shift runs on the phone, and it can be paid once the server answers.', 'info');
+  }
+  const result = host.backend.startJobShift(id);
+  host.say(result.message, result.success ? 'good' : 'bad');
+  if (result.success) CareerShift.started(id);
+}
 
 export const jobsApp: PhoneApp = {
   id: 'jobs',
@@ -130,9 +170,28 @@ export const jobsApp: PhoneApp = {
             <div class="nl-card-line">${esc(shift.job.workplace)}</div>
             ${meter(shift.progress * 100, shift.isReady ? 'good' : 'plain')}
             ${shift.isReady
-              ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="btn-claim-shift-salary" data-act="claim">Collect ${naira(Math.round(shift.job.salary * (career.bonusMultiplier || 1)))}</button>`
-              : `<div class="nl-card-line" id="jobs-shift-time">${shift.remainingSecs}s left on this shift</div>`}
+              ? `<button class="nl-btn nl-btn--primary nl-btn--block" id="btn-claim-shift-salary" data-act="claim">Collect ${naira(collectPay(shift.job.salary, career.bonusMultiplier))}</button>`
+              : `<div class="nl-card-line" id="jobs-shift-time">${leftWords(shift.remainingSecs)} left on this shift</div>`}
           </div>` : ''}
+
+        <div class="nl-section">Shifts</div>
+        <div class="nl-list" id="jobs-list">
+          ${host.backend.getJobs().map((job) => {
+            const locked = job.requiredLevel > career.rankLevel;
+            const mine = shift?.job.id === job.id;
+            const can = !shift && !locked;
+            return row({
+              icon: job.icon,
+              title: esc(job.title),
+              sub: `${esc(job.workplace)} · ${naira(job.salary * 22)} a month · ${leftWords(job.shiftDuration)} shift${locked ? ` · needs rank ${job.requiredLevel}` : ''}`,
+              trailing: `<span class="nl-stack"><strong>${naira(job.salary)}</strong>${
+                mine ? '<span class="nl-tag">On it</span>'
+                : locked ? '<span class="nl-tag nl-tag--muted">🔒 Rank ' + job.requiredLevel + '</span>'
+                : `<button class="nl-btn nl-btn--sm" data-start-job="${esc(job.id)}" data-act="start" data-arg="${esc(job.id)}" ${can ? '' : 'disabled'}>Take shift</button>`}</span>`,
+              tone: locked ? 'muted' : 'default',
+            });
+          }).join('')}
+        </div>
 
         <div class="nl-section">Where you work</div>
         <div class="nl-list" id="jobs-employment">
@@ -140,7 +199,8 @@ export const jobsApp: PhoneApp = {
             icon: '🧑‍🏭',
             title: `${esc(job.employer.name)} · ${esc(job.grade.title)}`,
             sub: `${esc(job.employer.task)} · ${count(job.done, job.employer.id === 'apapa-port' ? 'lorry' : job.employer.id === 'eko-plaza-site' ? 'course' : 'shift')} done${job.next ? ` · ${esc(job.next.title)} at ${job.next.from}` : ' · top grade'}`,
-            trailing: `<strong>${naira(job.grade.pay)}</strong>`,
+            // A workplace to ride to: there, straight to the one in charge and into a shift
+            trailing: `<span class="nl-stack"><strong>${naira(job.grade.pay)}</strong>${WORKPLACE[job.employer.id] ? `<button class="nl-btn nl-btn--sm" data-act="work-go" data-arg="${esc(job.employer.id)}">🚕 Go to work</button>` : ''}</span>`,
           })).join('')}
           ${(() => {
             // Those with a place to go and ask come first, with a way there
@@ -148,10 +208,13 @@ export const jobsApp: PhoneApp = {
             const there = (id: string) => (WORKPLACE[id] ? 2 : WORKSITES[id] ? 1 : 0);
             return [...open].sort((a, b) => there(b.id) - there(a.id)).map((employer) => {
               const how = there(employer.id);
+              const paper = employer.needs
+                ? Qualifications.get().missing(employer.needs.course, employer.needs.level, employer.needs.paper)
+                : null;
               return row({
                 icon: how ? '📌' : '🕓',
                 title: how ? `${esc(employer.name)} is taking hands on` : esc(employer.name),
-                sub: how ? `${esc(employer.trade)} · ask at ${esc(employer.place)}` : `${esc(employer.trade)} · not taking walk-ins yet`,
+                sub: `${how ? `${esc(employer.trade)} · ask at ${esc(employer.place)}` : `${esc(employer.trade)} · not taking walk-ins yet`}${paper ? ` · ${esc(paper)}` : ''}`,
                 trailing: `<span class="nl-stack"><strong>${naira(employer.grades[0].pay)}</strong>${how === 2
                   ? `<button class="nl-btn nl-btn--sm" data-act="work-go" data-arg="${esc(employer.id)}">🚕 Go</button>`
                   : how === 1 ? `<button class="nl-btn nl-btn--sm" data-act="work-show" data-arg="${esc(employer.id)}">📍 Show</button>` : ''}</span>`,
@@ -180,25 +243,6 @@ export const jobsApp: PhoneApp = {
           })()}
         </div>
 
-        <div class="nl-section">Shifts</div>
-        <div class="nl-list" id="jobs-list">
-          ${host.backend.getJobs().map((job) => {
-            const locked = job.requiredLevel > career.rankLevel;
-            const mine = shift?.job.id === job.id;
-            const can = !shift && !locked;
-            return row({
-              icon: job.icon,
-              title: esc(job.title),
-              sub: `${esc(job.workplace)} · ${job.shiftDuration}s shift${locked ? ` · needs rank ${job.requiredLevel}` : ''}`,
-              trailing: `<span class="nl-stack"><strong>${naira(job.salary)}</strong>${
-                mine ? '<span class="nl-tag">On it</span>'
-                : locked ? '<span class="nl-tag nl-tag--muted">🔒 Rank ' + job.requiredLevel + '</span>'
-                : `<button class="nl-btn nl-btn--sm" data-start-job="${esc(job.id)}" data-act="start" data-arg="${esc(job.id)}" ${can ? '' : 'disabled'}>Take shift</button>`}</span>`,
-              tone: locked ? 'muted' : 'default',
-            });
-          }).join('')}
-        </div>
-
         <div class="nl-section">Quick work</div>
         <div class="nl-list">
           ${GIGS.map((gig) => row({ icon: gig.icon, title: esc(gig.name), sub: `Three steps · uses ${gig.energy}% energy`, trailing: `<strong>${naira(gig.pay)}</strong>`, attrs: `data-go="gig:${gig.id}"` })).join('')}
@@ -211,44 +255,36 @@ export const jobsApp: PhoneApp = {
     if (action === 'work-go') {
       const key = WORKPLACE[el.dataset.arg ?? ''];
       if (!key) return;
+      const site = WORKSITES[el.dataset.arg ?? ''];
+      const city = site?.city ?? 'lagos';
+      if (city !== host.world.cityId()) {
+        const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+        host.say(`That workplace is in ${names[city] ?? city}. Fly or take the coach.`, 'info');
+        host.close();
+        host.world.openFlights();
+        return;
+      }
+      // On arrival, straight to whoever is in charge there: they take the player on and start the shift
+      Shifts.arriving = el.dataset.arg ?? null;
       host.close();
       PlaceOpeners.open(`ride:roadside-${key}`);
     } else if (action === 'work-show') {
       const site = WORKSITES[el.dataset.arg ?? ''];
       const employer = EMPLOYERS.find((e) => e.id === el.dataset.arg);
       if (!site || !employer) return;
+      if (site.city !== host.world.cityId()) {
+        const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
+        host.say(`That workplace is in ${names[site.city] ?? site.city}. Fly or take the coach.`, 'info');
+        host.close();
+        host.world.openFlights();
+        return;
+      }
       host.world.showPlace(site.x, site.z, employer.name);
       host.close();
     } else if (action === 'start') {
-      const id = el.dataset.arg ?? '';
-      const result = host.backend.startJobShift(id);
-      if (!result.success) { host.say(result.message, 'bad'); return; }
-      const online = OnlineAccount.get();
-      if (!online) { host.say(result.message, 'good'); return; }
-      void online.startGig(`career:${id}`).then((started) => {
-        host.say(started.ok ? result.message : (started.reason ?? 'The server did not start the shift.'), started.ok ? 'good' : 'bad');
-      });
+      return beginShift(host, el.dataset.arg ?? '');
     } else if (action === 'claim') {
-      const online = OnlineAccount.get();
-      if (online) {
-        const shiftInfo = host.backend.getActiveJobShift();
-        if (!shiftInfo) { host.say('No active job shift.', 'bad'); return; }
-        if (!shiftInfo.isReady) { host.say(`Shift still ongoing! ${shiftInfo.remainingSecs}s remaining.`, 'bad'); return; }
-        const shift = online.rememberedGig(`career:${shiftInfo.job.id}`);
-        if (!shift) { host.say('The server has no record of this shift.', 'bad'); return; }
-        void online.finishGig(shift).then((finished) => {
-          if (!finished.ok) { host.say(finished.reason ?? 'Not paid.', 'bad'); return; }
-          online.forgetGig(`career:${shiftInfo.job.id}`);
-          const noted = host.backend.noteServerJobShift(finished.pay ?? shiftInfo.job.salary);
-          if (noted.success) SoundEngine.getInstance().playTransactionSuccess();
-          host.say(noted.message, noted.success ? 'good' : 'bad');
-          host.refresh();
-        });
-        return;
-      }
-      const result = host.backend.completeJobShift();
-      if (result.success) SoundEngine.getInstance().playTransactionSuccess();
-      host.say(result.message, result.success ? 'good' : 'bad');
+      return CareerShift.collect();
     } else if (action === 'train-skill') {
       const skillKey = (el.dataset.arg || '') as keyof PlayerSkills;
       const data = host.backend.getData();
@@ -280,7 +316,11 @@ export const jobsApp: PhoneApp = {
             host.refresh();
             return;
           }
-          const shift = online.rememberedGig(`life:${gig.id}`);
+          let shift = online.rememberedGig(`life:${gig.id}`);
+          if (!shift) {
+            const opened = await online.openGig(`life:${gig.id}`);
+            if (typeof opened.shift === 'string') shift = opened.shift;
+          }
           if (!shift) { host.say('The server has no record of this work.', 'bad'); return; }
           if (host.backend.getData().stats.energy < gig.energy) {
             host.say(`You are too exhausted for this work (need ${gig.energy}% Energy). Eat or rest first.`, 'bad');
@@ -324,28 +364,60 @@ const isMine = (prop: RealEstateProperty) => prop.status === 'owned' || prop.sta
 /** Who the player is on the game server, and how a guest keeps their progress */
 function accountSection(host: { get(key: string, fallback: string): string }): string {
   const online = OnlineAccount.get();
-  if (!online) return '';
+  const label = CloudSyncService.getInstance().getSyncInfo().label;
+  const statusLine = `<div class="nl-hint" id="settings-save-status">${esc(label)}</div>`;
+  if (!online) {
+    return `
+        <div class="nl-section">Your account</div>
+        ${statusLine}
+        <div class="nl-hint">A guest who never signs up can lose everything.</div>`;
+  }
   const account = online.account;
   const devLink = host.get('settings.devLink', '');
-  const status = !account ? 'Signing in…' : account.verified ? `${esc(account.name)}, kept on ${esc(account.email ?? 'your email')}` : `${esc(account.name)}, playing as a guest`;
-  return `
+  const guest = !account || account.kind === 'guest' || !account.verified;
+  const who = !account ? 'Signing in…' : guest ? `${esc(account.name)}, playing as a guest` : `${esc(account.name)}${account.email ? `, ${esc(account.email)}` : ''}`;
+  if (guest) {
+    return `
         <div class="nl-section">Your account</div>
         <div class="nl-list">
-          ${row({ icon: account?.verified ? '✅' : '👤', title: online.connected ? 'Online' : 'Connecting…', sub: status })}
+          ${row({ icon: '👤', title: online.connected ? 'Online' : 'Connecting…', sub: who })}
         </div>
-        ${account && !account.verified ? `
-        <div class="nl-hint">A guest's progress lives on this server under this device. Add an email address to keep it for good and to play it on another phone.</div>
+        ${statusLine}
+        <div class="nl-hint">A guest who never signs up can lose everything. Create an account and this life — homes, bag, businesses — is kept, and it is there when you sign in on another phone.</div>
+        <label class="nl-label" for="settings-username">Username</label>
+        <input class="nl-field" id="settings-username" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="16" placeholder="e.g. Ada_Lagos" value="${esc(host.get('settings.username', ''))}" data-bind="settings.username" />
+        <label class="nl-label" for="settings-password">Password</label>
+        <input class="nl-field" id="settings-password" type="password" autocomplete="new-password" placeholder="At least 6 characters" value="${esc(host.get('settings.password', ''))}" data-bind="settings.password" />
+        <button class="nl-btn nl-btn--block" id="settings-account-register" data-act="account-register">Create my account</button>
+        <div class="nl-hint">Or add an email address and open the sign-in link. That keeps this same life too.</div>
         <label class="nl-label" for="settings-email">Email address</label>
         <input class="nl-field" id="settings-email" type="email" autocomplete="email" placeholder="you@example.com" value="${esc(host.get('settings.email', ''))}" data-bind="settings.email" />
         <button class="nl-btn nl-btn--block" id="settings-email-send" data-act="account-email">Send me a sign-in link</button>
-        ${devLink ? `<div class="nl-hint" id="settings-dev-link">Sign-in link: <a href="${esc(devLink)}">${esc(devLink)}</a></div>` : ''}` : ''}`;
+        ${devLink ? `<div class="nl-hint" id="settings-dev-link">Sign-in link: <a href="${esc(devLink)}">${esc(devLink)}</a></div>` : ''}`;
+  }
+  return `
+        <div class="nl-section">Your account</div>
+        <div class="nl-list">
+          ${row({ icon: '✅', title: online.connected ? 'Online' : 'Connecting…', sub: who })}
+        </div>
+        ${statusLine}
+        <label class="nl-label" for="settings-new-email">Change email</label>
+        <input class="nl-field" id="settings-new-email" type="email" autocomplete="email" placeholder="you@example.com" value="${esc(host.get('settings.newEmail', ''))}" data-bind="settings.newEmail" />
+        <label class="nl-label" for="settings-email-password">Password</label>
+        <input class="nl-field" id="settings-email-password" type="password" autocomplete="current-password" placeholder="Your password" value="${esc(host.get('settings.emailPassword', ''))}" data-bind="settings.emailPassword" />
+        <button class="nl-btn nl-btn--block" id="settings-account-email-change" data-act="account-change-email">Save this email</button>
+        <button class="nl-btn nl-btn--block" id="settings-account-download" data-act="account-download">Download my data</button>
+        <button class="nl-btn nl-btn--block" id="settings-account-signout" data-act="account-signout">Sign out</button>
+        <label class="nl-label" for="settings-delete-password">Delete this account</label>
+        <input class="nl-field" id="settings-delete-password" type="password" autocomplete="current-password" placeholder="Your password" value="${esc(host.get('settings.deletePassword', ''))}" data-bind="settings.deletePassword" />
+        <button class="nl-btn nl-btn--danger nl-btn--block" id="settings-account-delete" data-act="account-delete">Delete my account</button>`;
 }
 
 /** What each graphics level gives up, in the player's terms */
 const GRAPHICS_NOTES: Record<string, string> = {
-  high: 'everything drawn in full',
-  balanced: 'sharp on ordinary screens, distant people simpler',
-  low: 'softer picture, no sun shadows, fewer people far off',
+  high: 'full resolution, far crowds, sharp shadows',
+  balanced: 'Medium — fewer pixels, nearer crowds',
+  low: '720p-class drawing, soft shadows, lean crowds (laptops / phones)',
 };
 const CITY_NAMES: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
 
@@ -371,6 +443,12 @@ export const propertyApp: PhoneApp = {
       const takenBy = owned ? null : Deeds.get().takenBy('property', prop.id);
       const listing = Deeds.get().listingFor('property', prop.id);
       const lease = rented ? Dues.get().leaseOf(prop.id) : null;
+      // Its light: the area's band, and NEPA now (src/life/Grid.ts)
+      const sky = (window as any).game?.world.skyEnvironment;
+      const area = homeArea(prop.districtId, prop.location ?? '');
+      const ownPower = bandOf(area, prop.cityId) === 'own' || /zero power cuts|24\/7 microgrid|24\/7 .*power|full solar array/i.test(prop.features.join(' '));
+      const lightNow = ownPower || !sky || hasLight(area, sky.day, sky.currentHour, prop.cityId);
+      const change = !ownPower && sky ? nextChange(area, sky.day, sky.currentHour, prop.cityId) : null;
       return {
         title: owned ? 'Your property' : rented ? 'Your lease' : 'For sale or rent',
         body: `
@@ -385,6 +463,13 @@ export const propertyApp: PhoneApp = {
               <span><strong>${owned ? 'Owned' : rented ? 'Leased' : takenBy ? 'Owned' : 'Available'}</strong>status</span>
             </div>
           </div>
+          <div class="nl-card" id="property-power">
+            <div class="nl-card-title">${lightNow ? '💡' : '🕯️'} Light</div>
+            <div class="nl-card-line">${ownPower
+              ? 'The estate makes its own power: light day and night, whatever NEPA does.'
+              : `${esc(areaName(area))} is <strong>Band ${esc(String(bandOf(area, prop.cityId)))}</strong>: at least ${BAND_HOURS[bandOf(area, prop.cityId) as Band]} hours of NEPA light a day, ${sky ? `${hoursOfLight(area, sky.day, prop.cityId)} today` : ''}.`}</div>
+            ${ownPower ? '' : `<div class="nl-card-line" id="property-power-now">${lightNow ? 'NEPA has light there now' : '<strong>No NEPA light there now</strong>'}${change ? `${lightNow ? ' until' : '; back'} about ${hourWords(change.hour)}` : ''}. A generator or an inverter from the furniture catalogue keeps a home going through a cut.</div>`}
+          </div>
           ${lease ? `
             <div class="nl-card ${lease.deadline !== null ? 'nl-card--warn' : ''}" id="property-rent">
               <div class="nl-card-title">${lease.deadline !== null ? '📜 Quit notice' : 'Rent'}</div>
@@ -395,7 +480,7 @@ export const propertyApp: PhoneApp = {
                 <button class="nl-btn nl-btn--primary nl-btn--block" id="property-pay-rent" data-act="pay-rent" data-arg="${esc(prop.id)}" ${funds >= lease.arrears ? '' : 'disabled'}>Pay the landlord · ${naira(lease.arrears)}</button>` : ''}
             </div>` : ''}
           ${owned || rented ? `
-            <button class="nl-btn nl-btn--primary nl-btn--block" id="property-go-home" data-act="home">Go home</button>
+            <button class="nl-btn nl-btn--primary nl-btn--block" id="property-go-home" data-act="home" data-arg="${esc(prop.id)}">Go home here</button>
             <button class="nl-btn nl-btn--block" data-act="decor">Furniture catalogue</button>
             ${owned
               ? `${listing
@@ -419,9 +504,10 @@ export const propertyApp: PhoneApp = {
     const filter = host.get<string>('property.filter', 'all');
     const search = host.get('property.search', '').toLowerCase();
     const list = data.properties
-      .filter((prop) => (filter === 'all' ? true : filter === 'mine' ? isMine(prop) : prop.cityId === filter))
+      // "I can afford": what can be leased with the money in hand, in the city the player is in
+      .filter((prop) => (filter === 'all' ? true : filter === 'mine' ? isMine(prop) : filter === 'afford' ? !isMine(prop) && !['office', 'shop', 'business', 'land', 'commercial'].includes(String(prop.type)) && prop.rentalPriceMonthly > 0 && prop.rentalPriceMonthly <= funds && prop.cityId === host.world.cityId() : prop.cityId === filter))
       .filter((prop) => !search || `${prop.name} ${prop.location ?? ''} ${prop.districtId}`.toLowerCase().includes(search))
-      .sort((a, b) => Number(isMine(b)) - Number(isMine(a)) || a.purchasePrice - b.purchasePrice);
+      .sort((a, b) => (filter === 'afford' ? a.rentalPriceMonthly - b.rentalPriceMonthly : Number(isMine(b)) - Number(isMine(a)) || a.purchasePrice - b.purchasePrice));
     const mine = data.properties.filter(isMine);
 
     return {
@@ -433,18 +519,20 @@ export const propertyApp: PhoneApp = {
           <span class="nl-hero-sub">${mine.length ? `${count(mine.length, 'property', 'properties')} in your name` : 'Lease or buy one below to have a bed, a sofa and a fridge of your own'}</span>
           ${mine.length ? '<div class="nl-hero-actions"><button class="nl-btn nl-btn--glass" data-act="home">Go home</button></div>' : ''}
         </div>
-        ${chips('property.filter', filter, [['all', 'All'], ['mine', 'Mine'], ['lagos', 'Lagos'], ['abuja', 'Abuja'], ['port_harcourt', 'Port Harcourt']])}
+        ${chips('property.filter', filter, [['all', 'All'], ['afford', 'I can afford'], ['mine', 'Mine'], ['lagos', 'Lagos'], ['abuja', 'Abuja'], ['port_harcourt', 'Port Harcourt']])}
         <input class="nl-field nl-field--search" id="property-search" type="search" placeholder="Search by name or area" value="${esc(host.get('property.search', ''))}" data-bind="property.search" />
         <div class="nl-list" id="property-list">
           ${list.length === 0
-            ? empty('🏘️', 'Nothing matches', filter === 'mine' ? 'You do not own or lease anything yet.' : 'Try another city or a different search.')
+            ? empty('🏘️', 'Nothing matches', filter === 'mine' ? 'You do not own or lease anything yet.' : filter === 'afford' ? 'Nothing to lease here with the money you have. A few shifts will change that.' : 'Try another city or a different search.')
             : list.map((prop) => row({
                 icon: prop.icon,
                 title: esc(prop.name),
                 sub: `${esc(prop.location || prop.districtId)} · ${esc(CITY_NAMES[prop.cityId] ?? prop.cityId)}`,
                 trailing: isMine(prop)
                   ? `<span class="nl-tag nl-tag--good">${prop.status === 'rented' ? 'Leased' : 'Owned'}</span>`
-                  : `<span class="nl-stack"><strong>${naira(prop.purchasePrice)}</strong>${prop.rentalPriceMonthly > 0 ? `<span class="nl-row-sub">lease ${naira(prop.rentalPriceMonthly)}</span>` : ''}</span>`,
+                  : filter === 'afford'
+                    ? `<span class="nl-stack"><strong>${naira(prop.rentalPriceMonthly)}</strong><span class="nl-row-sub">to lease</span></span>`
+                    : `<span class="nl-stack"><strong>${naira(prop.purchasePrice)}</strong>${prop.rentalPriceMonthly > 0 ? `<span class="nl-row-sub">lease ${naira(prop.rentalPriceMonthly)}</span>` : ''}</span>`,
                 attrs: `data-go="p:${esc(prop.id)}" data-property="${esc(prop.id)}"`,
               })).join('')}
         </div>
@@ -457,7 +545,8 @@ export const propertyApp: PhoneApp = {
     const prop = host.backend.getData().properties.find((entry) => entry.id === id);
     if (action === 'home') {
       host.close();
-      host.world.goHome();
+      // From a home's own page: that home; from the top of the list: the home last gone into
+      host.world.goHome(id || undefined);
     } else if (action === 'decor') {
       host.close();
       HouseDecorationSystem.getInstance().openCatalogueModal();
@@ -531,7 +620,15 @@ export const healthApp: PhoneApp = {
           ${hasHome
             ? row({ icon: '🛏️', title: 'Go home and sleep', sub: 'Energy and health come back while you sleep', attrs: 'data-act="home"' })
             : row({ icon: '🔑', title: 'Find a place to sleep', sub: 'You have no home yet', attrs: 'data-app="property"' })}
-          ${row({ icon: '🏥', title: 'Ride to the hospital', sub: 'St. Nicholas General, Lagos Island', attrs: 'data-app="ride" data-route="d:dest_lagos_hospital"' })}
+          ${(() => {
+            const city = host.world.cityId();
+            const hospital = city === 'abuja'
+              ? { name: 'National Hospital, Garki', id: 'dest_abuja_garki_hospital' }
+              : city === 'port_harcourt'
+                ? { name: 'UPTH, Choba', id: 'dest_ph_upth' }
+                : { name: 'St. Nicholas General, Lagos Island', id: 'dest_lagos_hospital' };
+            return row({ icon: '🏥', title: 'Ride to the hospital', sub: hospital.name, attrs: `data-app="ride" data-route="d:${hospital.id}"` });
+          })()}
         </div>
         <div class="nl-section">Emergency</div>
         <div class="nl-card nl-card--warn">
@@ -542,7 +639,15 @@ export const healthApp: PhoneApp = {
           <button class="nl-btn nl-btn--danger nl-btn--block" id="health-ambulance" data-act="ambulance" ${serious ? '' : 'disabled'}>Call an ambulance</button>
         </div>
         <div class="nl-list">
-          ${row({ icon: '👮', title: 'Ride to the police station', sub: 'Area Command, Lagos Island. Reports are made at the front desk.', attrs: 'data-app="ride" data-route="d:dest_lagos_police"' })}
+          ${(() => {
+            const city = host.world.cityId();
+            const station = city === 'abuja'
+              ? { name: 'FCT Police Command', id: 'dest_abuja_police' }
+              : city === 'port_harcourt'
+                ? { name: 'Rivers State Police Command', id: 'dest_ph_police' }
+                : { name: 'Area Command, Lagos Island', id: 'dest_lagos_police' };
+            return row({ icon: '👮', title: 'Ride to the police station', sub: `${station.name}. Reports are made at the front desk.`, attrs: `data-app="ride" data-route="d:${station.id}"` });
+          })()}
         </div>
       `,
     };
@@ -557,6 +662,10 @@ export const healthApp: PhoneApp = {
       if (stats.health >= 40 && stats.hunger > 0) return host.say('You are well enough to get there yourself.', 'info');
       if (!host.world.ambulance()) return host.say('The ambulance cannot reach you where you are right now.', 'bad');
       host.close();
+    } else if (action === 'to-lagos') {
+      host.say('That is in Lagos. You go there by air or by coach.', 'info');
+      host.close();
+      host.world.openFlights();
     }
   },
 };
@@ -567,6 +676,24 @@ export const healthApp: PhoneApp = {
 
 const toggle = (id: string, on: boolean, action: string) =>
   `<button class="nl-toggle${on ? ' is-on' : ''}" id="${id}" role="switch" aria-checked="${on}" data-act="${action}"><span></span></button>`;
+
+type TextSize = 'small' | 'normal' | 'large';
+
+function textSize(): TextSize {
+  try {
+    const saved = localStorage.getItem('nl_text');
+    if (saved === 'small' || saved === 'large') return saved;
+  } catch { /* normal */ }
+  return 'normal';
+}
+
+function applyText(size: TextSize): void {
+  if (size === 'normal') delete document.documentElement.dataset.text;
+  else document.documentElement.dataset.text = size;
+  try { localStorage.setItem('nl_text', size); } catch { /* this visit only */ }
+}
+
+applyText(textSize());
 
 export const settingsApp: PhoneApp = {
   id: 'settings',
@@ -581,6 +708,22 @@ export const settingsApp: PhoneApp = {
     return {
       title: 'Settings',
       body: `
+        <div class="nl-section">How to play</div>
+        <div class="nl-card" id="settings-howto">
+          <div class="nl-card-title">A short guide</div>
+          <div class="nl-card-line"><strong>Moving.</strong> On a phone, use the stick. On a computer, use W A S D or the arrow keys. Hold run to go faster.</div>
+          <div class="nl-card-line"><strong>Places.</strong> Walk up to a door and press the action button (or F on a computer) to go in. The card on the screen names what you can do there.</div>
+          <div class="nl-card-line"><strong>This phone.</strong> Open it from the bar. Jobs, the bank, rides, your homes and the map are apps. Close it to see the street again.</div>
+          <div class="nl-card-line"><strong>Jobs.</strong> Take a shift and stay for the time it says, then collect. The wage is one day of that job's monthly pay. At a workplace, talk to the person in charge and do the rounds there. Walking off ends the shift.</div>
+          <div class="nl-card-line"><strong>Money.</strong> Cash is on you. The bank holds the rest. What you earn while signed in is paid by the server, once.</div>
+          <div class="nl-card-line"><strong>Homes.</strong> Rent from Property, or buy land and build. Sleep in the bed, eat from the fridge, sit, watch the television, wash, and run the generator when the light goes.</div>
+          <div class="nl-card-line"><strong>Driving.</strong> Walk to your car and get in. On a phone the wheel is on the screen. On a computer the arrows steer and drive. Get out the same way you got in.</div>
+        </div>
+        <div class="nl-section">Controls</div>
+        <div class="nl-list">
+          ${row({ icon: '📱', title: 'On a phone', sub: 'Stick to walk · the round button to act, get in, or get out · RUN beside the stick · the bar along the bottom opens the phone, the map and the bag' })}
+          ${row({ icon: '⌨️', title: 'On a computer', sub: 'W A S D or arrows to walk and to drive · Shift to run · F to act, enter, get in or get out · M map · P phone · Esc closes what is open' })}
+        </div>
         <div class="nl-section">Look</div>
         <div class="nl-card" id="settings-look">
           <div class="nl-card-title">Light or dark</div>
@@ -591,10 +734,25 @@ export const settingsApp: PhoneApp = {
             <button type="button" role="radio" class="lx-seg-btn${theme() === 'dark' ? ' is-on' : ''}" id="settings-theme-dark" aria-checked="${theme() === 'dark'}" data-act="theme-dark">🌙 Dark</button>
           </div>
         </div>
+        <div class="nl-section">Text</div>
+        <div class="lx-seg" role="radiogroup" style="--n:3;--i:${textSize() === 'small' ? 0 : textSize() === 'large' ? 2 : 1}">
+          <span class="lx-seg-thumb"></span>
+          <button type="button" role="radio" class="lx-seg-btn${textSize() === 'small' ? ' is-on' : ''}" id="settings-text-small" data-act="text-small">Small</button>
+          <button type="button" role="radio" class="lx-seg-btn${textSize() === 'normal' ? ' is-on' : ''}" id="settings-text-normal" data-act="text-normal">Normal</button>
+          <button type="button" role="radio" class="lx-seg-btn${textSize() === 'large' ? ' is-on' : ''}" id="settings-text-large" data-act="text-large">Large</button>
+        </div>
         <div class="nl-section">Sound</div>
         <div class="nl-list">
           ${row({ icon: '🔊', title: 'Game sound', sub: sound.isMuted ? 'Off' : 'On', trailing: toggle('settings-sound', !sound.isMuted, 'sound') })}
-          ${row({ icon: '📻', title: 'Street radio', sub: sound.isRadioActive() ? 'Playing' : 'Off', trailing: toggle('settings-radio', sound.isRadioActive(), 'radio') })}
+          ${row({ icon: '📻', title: 'Music', sub: sound.isRadioActive() ? 'Playing' : 'Off', trailing: toggle('settings-radio', sound.isRadioActive(), 'radio') })}
+        </div>
+        <label class="nl-label" for="settings-sound-level">Sound volume</label>
+        <input id="settings-sound-level" type="range" min="0" max="100" value="${Math.round(sound.soundLevel * 100)}" data-act="sound-level" />
+        <label class="nl-label" for="settings-music-level">Music volume</label>
+        <input id="settings-music-level" type="range" min="0" max="100" value="${Math.round(MusicPlayer.get().volume * 100)}" data-act="music-level" />
+        <div class="nl-section">Notices</div>
+        <div class="nl-list">
+          ${row({ icon: '🔔', title: 'Notifications', sub: noticesEnabled() ? 'On. Warnings still show if you turn these off.' : 'Off. Warnings and problems still show.', trailing: toggle('settings-notices', noticesEnabled(), 'notices') })}
         </div>
         <div class="nl-section">You</div>
         <div class="nl-list">
@@ -606,7 +764,7 @@ export const settingsApp: PhoneApp = {
           <div class="nl-card" id="settings-server">
             <div class="nl-card-title">${ServerLink.get()?.connected ? '🟢 Connected' : '🟠 Trying to reach'} the world server</div>
             <div class="nl-card-line">${esc(SERVER_URL)}</div>
-            <div class="nl-card-line">Land, buildings, vehicles and the market are shared with everyone on this server. Your money and your saved game stay on this device.</div>
+            <div class="nl-card-line">Land, buildings, vehicles and the market are shared with everyone on this server. Your money and your land are decided by the server. The rest of your life is saved to your account.</div>
             <button class="nl-btn nl-btn--danger nl-btn--sm" data-act="server-off">Leave the server and play on this device only</button>
           </div>` : `
           <div class="nl-hint">Land and the market are shared by the players in this browser. To share them with other devices, run the world server (npm run server) and enter its address.</div>
@@ -621,6 +779,23 @@ export const settingsApp: PhoneApp = {
             title: 'Graphics quality',
             sub: `${(window as any).game?.graphics?.label ?? 'High'}: ${GRAPHICS_NOTES[(window as any).game?.graphics?.level ?? 'high']}`,
             trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-graphics">Change</button>',
+          })}
+          ${row({
+            icon: '📐',
+            title: 'Render scale',
+            sub: `${Math.round(((window as any).game?.graphics?.userScale ?? 1) * 100)}% of the quality preset (lower = smoother on weak GPUs)`,
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-render-scale">Change</button>',
+          })}
+          ${row({
+            icon: '⏱️',
+            title: 'Start-up on this device',
+            sub: esc([thisLoad(), ...loadHistory().filter((r) => r.at !== thisLoad().at).slice(0, 2)].map((r, i) => `${i === 0 ? 'This time' : new Date(r.at).toLocaleDateString()}: ${describeLoad(r)}`).join(' | ')),
+          })}
+          ${row({
+            icon: '📊',
+            title: 'Performance readout',
+            sub: PerfReadout.get().enabled ? 'On: frames, drawing and memory at the side of the screen, with Mark and Report' : 'Off. For measuring the game on this phone',
+            trailing: `<button class="nl-btn nl-btn--sm" data-act="toggle-perf-readout">${PerfReadout.get().enabled ? 'Turn off' : 'Turn on'}</button>`,
           })}
         </div>
         <div class="nl-section">Driving & Vehicle Handling</div>
@@ -658,26 +833,56 @@ export const settingsApp: PhoneApp = {
           ${row({
             icon: '⚡',
             title: 'Lagos power grid (NEPA)',
-            sub: LagosStreetLifeSystem.getInstance().isNepaOn ? 'Grid is ON ("UP NEPA!")' : 'Blackout! Generators Running',
+            sub: `${LagosStreetLifeSystem.getInstance().isNepaOn ? 'Light here now' : 'No light here now'}, by this area's band. Switching it holds for ten minutes.`,
             trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-nepa-power">Toggle</button>',
           })}
         </div>
-        <div class="nl-section">Saved game</div>
-        <div class="nl-hint">The game saves itself on this device every few seconds. A copy as text lets you move it to another browser.</div>
-        <div class="nl-list">
-          ${row({ icon: '📋', title: 'Copy my saved game', sub: 'Puts it on the clipboard as text', attrs: 'data-act="export"' })}
+        <div class="nl-section">Privacy</div>
+        <div class="nl-card" id="settings-privacy">
+          <div class="nl-card-line">While you are signed in, your money and your land are kept by the server, so a changed number in the browser does not stick. Everything else you own is saved to your account, and signing in on another phone brings it back. A guest who never signs up can lose everything. Other players see your name and what you do in the same place. You can block someone from their chat.</div>
         </div>
-        <label class="nl-label" for="settings-import">Restore from a copy</label>
-        <input class="nl-field" id="settings-import" type="text" placeholder="Paste a saved game here" value="${esc(host.get('settings.import', ''))}" data-bind="settings.import" />
-        <button class="nl-btn nl-btn--block" data-act="import">Restore</button>
+        <div class="nl-section">Help</div>
+        <div class="nl-hint">The guide at the top of this page covers moving, places, the phone, jobs, money, homes and driving. If something is wrong, write it below and copy it, then send it to whoever runs this game.</div>
+        <label class="nl-label" for="settings-report">Report a problem</label>
+        <input class="nl-field" id="settings-report" type="text" maxlength="240" placeholder="What happened, and where you were" value="${esc(host.get('settings.report', ''))}" data-bind="settings.report" />
+        <button class="nl-btn nl-btn--block" id="settings-report-copy" data-act="report">Copy the report</button>
       `,
     };
   },
 
-  async act(host, action) {
+  async act(host, action, el) {
     if (action === 'theme-light' || action === 'theme-dark') {
       setTheme(action === 'theme-dark' ? 'dark' : 'light');
       host.refresh();
+      return;
+    }
+    if (action === 'text-small' || action === 'text-normal' || action === 'text-large') {
+      applyText(action === 'text-small' ? 'small' : action === 'text-large' ? 'large' : 'normal');
+      host.refresh();
+      return;
+    }
+    if (action === 'sound-level') {
+      SoundEngine.getInstance().setLevel(Number((el as HTMLInputElement).value) / 100);
+      return;
+    }
+    if (action === 'music-level') {
+      MusicPlayer.get().setVolume(Number((el as HTMLInputElement).value) / 100);
+      return;
+    }
+    if (action === 'notices') {
+      setNotices(!noticesEnabled());
+      host.refresh();
+      return;
+    }
+    if (action === 'report') {
+      const note = host.get('settings.report', '').trim();
+      if (!note) return host.say('Write what happened first.', 'bad');
+      try {
+        await navigator.clipboard.writeText(`Nigeria Life: ${note}`);
+        host.say('Copied. Send it to the person who runs this game.', 'good');
+      } catch {
+        host.say('Could not copy. Select the text and copy it yourself.', 'bad');
+      }
       return;
     }
     const sound = SoundEngine.getInstance();
@@ -696,9 +901,48 @@ export const settingsApp: PhoneApp = {
       host.set('settings.devLink', result.devLink ?? '');
       host.say(result.devLink ? 'No email service is set up on this server: the link is shown below.' : `A sign-in link is on its way to ${email}. Open it within 15 minutes.`, 'good');
       host.refresh();
+    } else if (action === 'account-register') {
+      const online = OnlineAccount.get();
+      if (!online) return;
+      const result = await online.register(host.get('settings.username', '').trim(), host.get('settings.password', ''));
+      if (!result.ok) return host.say(result.reason ?? 'Could not create the account.', 'bad');
+      host.say('Your account is ready. This life is kept on it.', 'good');
+      host.refresh();
+    } else if (action === 'account-change-email') {
+      const result = await CloudSyncService.getInstance().changeEmail(host.get('settings.newEmail', '').trim(), host.get('settings.emailPassword', ''));
+      host.say(result.ok ? 'That email is on your account now.' : (result.reason ?? 'The email was not changed.'), result.ok ? 'good' : 'bad');
+      if (result.ok) host.refresh();
+    } else if (action === 'account-download') {
+      const text = await CloudSyncService.getInstance().download();
+      if (!text) return host.say('Nothing is saved to the account yet.', 'bad');
+      const file = new Blob([text], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(file);
+      link.download = 'nigeria-life.json';
+      link.click();
+      URL.revokeObjectURL(link.href);
+      host.say('Your data is downloading.', 'good');
+    } else if (action === 'account-signout') {
+      if (!(await host.confirm('Sign out on this device? Your life stays on the account.', 'Sign out'))) return;
+      await CloudSyncService.getInstance().signOut();
+    } else if (action === 'account-delete') {
+      if (!(await host.confirm('Delete this account? It cannot be signed in to again.', 'Delete'))) return;
+      const result = await CloudSyncService.getInstance().deleteAccount(host.get('settings.deletePassword', ''));
+      if (!result.ok) host.say(result.reason ?? 'The account was not deleted.', 'bad');
+    } else if (action === 'toggle-perf-readout') {
+      const readout = PerfReadout.get();
+      readout.setEnabled(!readout.enabled);
+      host.refresh();
     } else if (action === 'toggle-graphics') {
       const graphics = (window as any).game?.graphics;
       if (graphics) graphics.choose(graphics.next());
+      host.refresh();
+    } else if (action === 'toggle-render-scale') {
+      const graphics = (window as any).game?.graphics;
+      if (graphics?.cycleUserScale) {
+        const scale = graphics.cycleUserScale();
+        host.say(`Render scale ${Math.round(scale * 100)}%.`, 'good');
+      }
       host.refresh();
     } else if (action === 'toggle-steer-sens') {
       DrivableVehicle.steeringSensitivity =
@@ -748,21 +992,6 @@ export const settingsApp: PhoneApp = {
     } else if (action === 'wardrobe') {
       host.close();
       host.world.openWardrobe();
-    } else if (action === 'export') {
-      const text = CloudSyncService.getInstance().exportBackupString();
-      try {
-        await navigator.clipboard.writeText(text);
-        host.say('Your saved game is on the clipboard.', 'good');
-      } catch {
-        host.say('The browser would not let the game use the clipboard.', 'bad');
-      }
-    } else if (action === 'import') {
-      const text = host.get('settings.import', '').trim();
-      if (!text) return host.say('Paste a saved game first.', 'bad');
-      if (!(await host.confirm('Replace the game you are playing now with the pasted one?', 'Replace it'))) return;
-      const result = CloudSyncService.getInstance().importBackupString(text);
-      if (result.success) host.set('settings.import', '');
-      host.say(result.message, result.success ? 'good' : 'bad');
     }
   },
 };

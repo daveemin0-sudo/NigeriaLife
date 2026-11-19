@@ -112,7 +112,8 @@ export async function run(browser, check) {
     !!out && hidden && shown && placeBladder >= 99, { hidden, shown, placeBladder });
   check('showroom: Sankofa Motors has cars standing in it, three turning on their stands', showroom.cars >= 5, showroom);
 
-  const spots = await page.evaluate(() => window.game.world.interiorManager.places.map((pl) => ({ key: pl.spec.key, ...pl.restroomAt })));
+  // A room is built the first time it is needed, so each is built before its door is asked about
+  const spots = await page.evaluate(() => window.game.world.interiorManager.places.filter((pl) => !/-suite$/.test(pl.spec.key)).map((pl) => { pl.ensureBuilt(); return { key: pl.spec.key, ...pl.restroomAt }; }));
   const blocked = spots.filter((sp) => !sp.clear).map((sp) => sp.key);
   check(`needs: every place gone into (${spots.length}) has its toilet door on the back wall, where nothing stands in front of it`, spots.length > 40 && blocked.length === 0, { blocked });
 

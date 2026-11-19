@@ -19,7 +19,7 @@ const ROSE = 0xe9c7c0;
 /** Abuja: Shehu Shagari Way runs north and south at x = 0. East fronts start at x = 15, west fronts end at x = -15. */
 export const ABUJA_BUILDINGS: TownBuilding[] = [
   // East side, south to north
-  // (The north end of the boulevard is the foot of Aso Rock, which overhangs it: only low shops stand there)
+  // (Aso Rock stands beyond the north end of the boulevard, on its own ground, clear of every building)
   { kind: 'shops', x: 25, z: -69, width: 7, depth: 14, faces: 'west', colour: SAND, trim: 0x475569 },
   { kind: 'bank', x: 25, z: -4.5, width: 12, depth: 16, faces: 'west', floors: 5, colour: STONE, trim: 0x7f1d1d, name: 'Savanna Bank' },
   { kind: 'market', x: 26, z: 15.5, width: 6, depth: 16, faces: 'west', colour: CREAM, trim: 0x15803d, name: 'Wuse Farmers Market' },

@@ -34,7 +34,15 @@ export interface CityMetadata {
   climate: 'coastal_tropical' | 'savannah_highland' | 'sahelian_semiarid' | 'delta_mangrove';
   skyColorHex: number;
   fogColorHex: number;
+  fogDensity: number;
   sunIntensity: number;
+  spawn: {
+    x: number;
+    y: number;
+    z: number;
+    vehicleX?: number;
+    vehicleZ?: number;
+  };
   routes: CityTravelRoute[];
 }
 
@@ -48,6 +56,7 @@ export interface CityInstance {
   standing?: Obstruction[];
   /** Its motor park, where the coaches to other cities leave from and pull in */
   motorPark?: MotorParkLandmark;
-  update(delta: number): void;
+  /** `viewer`: where the player is, so what is beyond the view can be left out */
+  update(delta: number, viewer?: { x: number; z: number }): void;
   dispose?(): void;
 }

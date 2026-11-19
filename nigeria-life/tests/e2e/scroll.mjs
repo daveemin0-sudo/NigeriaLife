@@ -148,7 +148,16 @@ export async function run(browser, check) {
   // Going to a different app is a new screen: that one starts at the top
   await page.evaluate(() => (document.getElementById('app-back-btn') ?? document.querySelector('#smartphone-wrapper [data-phone-back]')).click());
   await wait(300);
-  await pressSteady(page, '#smartphone-wrapper [data-app="property"]');
+  // Back may land on home or need another press; open property by id so the tile need not be under the finger
+  await page.evaluate(() => {
+    const phone = window.game.hud.phoneModal;
+    if (!phone.isOpen) phone.open();
+    // Ensure we are on the home tile grid before opening another app
+    for (let i = 0; i < 4 && !document.querySelector('#smartphone-wrapper [data-app="property"]'); i++) {
+      (document.getElementById('app-back-btn') ?? document.querySelector('#smartphone-wrapper [data-phone-back]'))?.click();
+    }
+    phone.openApp('property');
+  });
   await wait(400);
   const fresh = await at(page, '#smartphone-wrapper .phone-screen');
   check('opening a different app starts at the top of that app', fresh && fresh.top === 0, fresh);

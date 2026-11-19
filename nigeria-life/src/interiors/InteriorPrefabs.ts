@@ -615,6 +615,7 @@ export class InteriorPrefabs {
   // =========================================================================
   public static createCeilingLight(pos: THREE.Vector3, color: number = 0xf8fafc): THREE.Group {
     const lightGroup = new THREE.Group();
+    lightGroup.name = 'ceiling_light';
     lightGroup.position.copy(pos);
 
     // Fluorescent fixture box

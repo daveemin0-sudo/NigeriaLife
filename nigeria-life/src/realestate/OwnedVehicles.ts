@@ -65,11 +65,17 @@ export class OwnedVehicles {
     });
   }
 
-  /** The player's dearest car (not an okada or a keke), for their driver to take them about in */
+  /**
+   * The player's dearest car (not an okada or a keke) in the city they are in, for their driver to
+   * take them about in. A car parked in Lagos is not offered in Abuja; one never yet parked is
+   * brought round wherever its owner is.
+   */
   public ownCar(): { id: string; name: string; body: string; paint?: number } | null {
     const state = Registry.get().peek();
+    const here = this.hooks.city();
     const cars = Object.values(state.vehicles)
       .filter((record) => this.garage.ownerOf(record.id) === MY_ID)
+      .filter((record) => !record.parkedAt || (record.parkedAt.city ?? 'lagos') === here)
       .map((record) => ({ record, model: vehicleModel(record.modelId) }))
       .filter((entry) => !!entry.model && !['okada', 'keke', 'bike'].includes(String(entry.model.type)) && !!(entry.model.drive as { body?: string }).body)
       .sort((a, b) => (b.model!.price ?? 0) - (a.model!.price ?? 0));

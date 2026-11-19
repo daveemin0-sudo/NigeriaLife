@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Builder } from '../world/kit/ArchKit';
 import type { FurnitureKind } from './FurnitureModels';
+import { fineBed, fineSofa } from './FineFurniture';
 
 /**
  * More furniture, for every pocket: the small television a first flat starts with and the big
@@ -43,31 +44,12 @@ function sizedTelevision(inches: number): THREE.Group {
 }
 
 function sofa(seats: number, cloth: number, cushion: number, frame: number): THREE.Group {
-  const b = new Builder();
-  const each = 0.74;
-  const inside = seats * each;
-  const width = inside + 0.48;
-  b.box(frame, width, 0.42, 1, 0, 0, 0).box(cloth, width, 0.78, 0.24, 0, 0.42, -0.38);
-  for (const side of [-1, 1]) b.box(frame, 0.24, 0.7, 1, side * (width / 2 - 0.12), 0, 0).box(cloth, 0.28, 0.08, 1.02, side * (width / 2 - 0.12), 0.7, 0);
-  for (let i = 0; i < seats; i++) {
-    const x = -inside / 2 + (i + 0.5) * each;
-    b.box(cushion, each - 0.04, 0.16, 0.7, x, 0.42, 0.1).box(cushion, each - 0.06, 0.46, 0.14, x, 0.6, -0.2, { pitch: -0.16 });
-  }
-  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.box(0x1c1917, 0.1, 0.08, 0.1, x * (width / 2 - 0.1), 0, z * 0.42);
-  return b.build('sofa');
+  return fineSofa(seats, cloth, cushion, frame);
 }
 
 /** A bed of a given width, its cover in a colour, with a headboard and pillows */
 function bedIn(width: number, cover: number, trim: number, wood: number): THREE.Group {
-  const b = new Builder();
-  const dark = new THREE.Color(wood).multiplyScalar(0.7).getHex();
-  b.box(wood, width, 0.34, 2.3, 0, 0.1, 0).box(dark, width + 0.04, 1.2, 0.14, 0, 0, -1.12).box(dark, width + 0.04, 0.5, 0.1, 0, 0, 1.13);
-  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.box(0x3f1d06, 0.1, 0.1, 0.1, x * (width / 2 - 0.08), 0, z * 1.05);
-  b.box(0xf8fafc, width - 0.12, 0.26, 2.12, 0, 0.44, 0.02);
-  const pillows = width > 1.3 ? [-width / 4, width / 4] : [0];
-  for (const x of pillows) b.box(0xffffff, Math.min(0.76, width / pillows.length - 0.12), 0.16, 0.44, x, 0.7, -0.74);
-  b.box(cover, width - 0.08, 0.07, 1.3, 0, 0.7, 0.42).box(trim, width - 0.08, 0.07, 0.24, 0, 0.71, -0.3);
-  return b.build('bed');
+  return fineBed(width, cover, trim, wood);
 }
 
 /**

@@ -288,6 +288,8 @@ export function createPort(options: PortOptions): Landmark {
   let bayClock = 0;
 
   const loading = createHandWork({
+    // Work done a piece at a time (a lorry, a course of blocks), each taken on its own
+    shiftPieces: 0,
     employerId: options.id,
     name: 'load the lorry',
     words: {

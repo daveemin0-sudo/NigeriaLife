@@ -9,8 +9,44 @@ export class Roads {
   public roadWidth: number = 14;
   public asphaltMat!: THREE.MeshStandardMaterial;
   public streetBulbMaterials: THREE.MeshStandardMaterial[] = [];
-  public streetPointLights: THREE.PointLight[] = [];
-  private roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
+  /** The pool of light each lamp throws on the road at night. A soft glow drawn on the ground, not a
+   *  light: every light in the street is worked out in the shader of every material, so seven lamp
+   *  lights made every street shader bigger and slower to build (the hang on first reaching a street) */
+  public streetGlowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffdcaa,
+    map: Roads.glowTexture(),
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: true,
+  });
+  private streetGlows: THREE.Mesh[] = [];
+
+  /** A round soft spot, bright in the middle and gone at the edge */
+  private static glowTexture(): THREE.Texture | null {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 64;
+    const g = canvas.getContext('2d');
+    if (!g) return null;
+    const spot = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    spot.addColorStop(0, 'rgba(255,255,255,1)');
+    spot.addColorStop(0.45, 'rgba(255,255,255,0.55)');
+    spot.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = spot;
+    g.fillRect(0, 0, 64, 64);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /** How bright the pools of lamp light are (0 by day, and in a NEPA cut) */
+  public setLampGlow(level: number): void {
+    this.streetGlowMaterial.opacity = level;
+    for (const glow of this.streetGlows) glow.visible = level > 0;
+  }
+  public roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
   constructor() {
     this.group = new THREE.Group();
     this.buildRoadNetwork();
@@ -93,6 +129,8 @@ export class Roads {
     this.group.add(mesh);
   }
 
+  private static glowDisc = new THREE.CircleGeometry(6.5, 24);
+
   private buildStreetLights(): void {
     // Street lamps on alternating sides every 24 meters
     const lampX = 7.5;
@@ -147,11 +185,14 @@ export class Roads {
       bulb.position.set(-poleSide * 1.55, 6.28, 0);
       lampGroup.add(bulb);
 
-      // Night downward sodium / warm LED street light pool
-      const lampLight = new THREE.PointLight(0xffedd5, 0, 16, 1.8);
-      lampLight.position.set(-poleSide * 1.55, 6.1, 0);
-      this.streetPointLights.push(lampLight);
-      lampGroup.add(lampLight);
+      // Night downward sodium / warm LED street light pool, on the road under the lamp
+      const glow = new THREE.Mesh(Roads.glowDisc, this.streetGlowMaterial);
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.set(-poleSide * 1.55, 0.04, 0);
+      glow.renderOrder = 1;
+      glow.visible = false;
+      this.streetGlows.push(glow);
+      lampGroup.add(glow);
 
       this.group.add(lampGroup);
     }
@@ -159,32 +200,8 @@ export class Roads {
 
   public setNightLighting(period: string): void {
     const isNight = period === 'night';
-    const isGolden = period === 'golden_hour';
-
-    for (const mat of this.streetBulbMaterials) {
-      if (isNight) {
-        mat.emissive.setHex(0xfff1d6);
-        mat.emissiveIntensity = 2.4;
-      } else if (isGolden) {
-        mat.emissive.setHex(0xffc570);
-        mat.emissiveIntensity = 1.1;
-      } else {
-        mat.emissive.setHex(0xffedd5);
-        mat.emissiveIntensity = 0.15;
-      }
-    }
-
-    for (const light of this.streetPointLights) {
-      if (isNight) {
-        light.intensity = 1.8;
-      } else if (isGolden) {
-        light.intensity = 0.7;
-      } else {
-        light.intensity = 0.0;
-      }
-      // A switched-off lamp must not stay in the shader's light loop all day
-      light.visible = light.intensity > 0;
-    }
+    // Continuous hour-based lamps are preferred; period still drives stall pack-down
+    this.setLampIntensityForHour(isNight ? 22 : period === 'golden_hour' ? 18.4 : 12);
 
     // Roadside umbrella stalls pack down when evening arrives and set back up before dawn
     for (const stall of this.roadsideStalls) {
@@ -204,6 +221,36 @@ export class Roads {
         stall.stool.position.set(0.1, 0.28, -0.65);
       }
     }
+  }
+
+  /**
+   * Smooth dusk→night→dawn street lighting from the world clock.
+   * Avoids the hard “period flip” so immersion holds while the sun sets.
+   */
+  public setLampIntensityForHour(hour: number): void {
+    const h = ((hour % 24) + 24) % 24;
+    let glow = 0;
+    if (h >= 19.6 || h < 5.7) glow = 0.88;
+    else if (h >= 17.8 && h < 19.6) glow = this.smooth01((h - 17.8) / 1.8) * 0.88;
+    else if (h >= 5.7 && h < 6.9) glow = (1 - this.smooth01((h - 5.7) / 1.2)) * 0.88;
+
+    this.setLampGlow(glow);
+
+    for (const mat of this.streetBulbMaterials) {
+      if (glow > 0.04) {
+        // Warm sodium/LED mix — stronger as night deepens
+        mat.emissive.setHex(glow > 0.55 ? 0xfff4e0 : 0xffc570);
+        mat.emissiveIntensity = 0.25 + glow * 3.2;
+      } else {
+        mat.emissive.setHex(0xffedd5);
+        mat.emissiveIntensity = 0.15;
+      }
+    }
+  }
+
+  private smooth01(t: number): number {
+    const x = Math.max(0, Math.min(1, t));
+    return x * x * (3 - 2 * x);
   }
 
   private buildPowerPoles(): void {
@@ -341,10 +388,7 @@ export class Roads {
     const mats = MaterialLibrary.getInstance();
 
     // A. Concrete Drainage Channels (Open Gutters flanking the road)
-    const gutterMat = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      roughness: 0.9,
-    });
+    const gutterMat = mats.concreteTrimMaterial;
     const culvertMat = mats.concreteTrimMaterial;
 
     for (const side of [-1, 1]) {
@@ -411,7 +455,8 @@ export class Roads {
       { color: 0x9333ea, label: 'SUNGLASSES & ACCESSORIES', item: 'shades' },
     ];
 
-    const stallZPositions = [-78, -52, -22, 12, 44, 72, 98];
+    // (The last, the POS stall, stands north of the footbridge's west stairs, clear of the mechanic's way in)
+    const stallZPositions = [-78, -62, -52, -22, 12, 28, 44, 72, 96, 118];
 
     stallZPositions.forEach((sz, idx) => {
       const side = idx % 2 === 0 ? -1 : 1;
@@ -479,6 +524,21 @@ export class Roads {
       stool.position.set(0.1, 0.28, -0.65);
       stool.castShadow = true;
       stallGroup.add(stool);
+
+      // Extra crate / carton stack beside some stalls (street clutter without new systems)
+      if (idx % 2 === 0) {
+        const crate = new THREE.Mesh(
+          new THREE.BoxGeometry(0.55, 0.4, 0.45),
+          new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.92 })
+        );
+        crate.position.set(0.55, 0.2, -0.35);
+        crate.castShadow = true;
+        stallGroup.add(crate);
+        const crate2 = crate.clone();
+        crate2.position.set(0.55, 0.55, -0.35);
+        crate2.rotation.y = 0.25;
+        stallGroup.add(crate2);
+      }
 
       this.group.add(stallGroup);
       this.roadsideStalls.push({ canopy, rim, cooler, lid, stool });

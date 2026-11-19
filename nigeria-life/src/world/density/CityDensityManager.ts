@@ -41,26 +41,32 @@ export class CityDensityManager {
     this.createGenCage(-14.5, 0, -74);
 
     // C. LAWMA Lagos Trash Wheelie Bins along sidewalks
-    for (let z of [-80, -40, 2, 40, 80]) {
+    for (let z of [-90, -80, -55, -40, -18, 2, 22, 40, 60, 80]) {
       // At the kerb, so the middle of the pavement stays open
       this.createTrashBin(-7.75, 0, z);
-      this.createTrashBin(7.75, 0, z + 12);
+      this.createTrashBin(7.75, 0, z + 10);
     }
 
     // D. Traffic Warning Signs & Speed Limit 40 km/h
     this.createTrafficSign(-7.6, 0, -90, 'SPEED 40');
     this.createTrafficSign(7.6, 0, -10, 'ZEBRA CROSSING');
     this.createTrafficSign(-7.6, 0, 60, 'BUS STOP');
+    this.createTrafficSign(7.6, 0, 95, 'NO PARKING');
 
     // E. Traffic Safety Cones & Construction Barriers
     this.createTrafficCone(-4.5, 0, 52);
     this.createTrafficCone(-4.5, 0, 54);
     this.createTrafficCone(-4.5, 0, 56);
+    this.createTrafficCone(4.2, 0, -28);
+    this.createTrafficCone(4.2, 0, -26);
 
     // F. Asphalt Pothole Patches
-    for (let pz of [-55, 18, 65]) {
+    for (let pz of [-72, -55, -12, 18, 48, 65]) {
       this.createPotholePatch(pz % 2 === 0 ? -1.8 : 1.8, pz);
     }
+
+    // G. Extra generator cage mid-corridor (lived-in power culture)
+    this.createGenCage(14.5, 0, 48);
   }
 
   // Satellite Dish Model

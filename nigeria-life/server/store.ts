@@ -118,12 +118,35 @@ CREATE TABLE IF NOT EXISTS traits (
   trait TEXT NOT NULL,             -- src/life/Traits.ts; picked once, never changed
   chosen_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS guide (
+  account_id TEXT PRIMARY KEY REFERENCES accounts(id),
+  state TEXT NOT NULL,             -- 'done' | 'skipped': the first five minutes are over for this account, for good
+  at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS once_paid (
   account_id TEXT NOT NULL,
   kind TEXT NOT NULL,              -- 'quest' | 'album' | 'case' | 'agama'
   item TEXT NOT NULL,
   PRIMARY KEY (account_id, kind, item)
 );
+CREATE TABLE IF NOT EXISTS payslips (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  month TEXT NOT NULL,             -- Lagos month, 'YYYY-MM': PAYE is worked out on the month's wages
+  employer TEXT NOT NULL,
+  title TEXT NOT NULL,
+  office TEXT NOT NULL,            -- the state revenue service the PAYE goes to
+  gross INTEGER NOT NULL,
+  relief INTEGER NOT NULL,
+  paye INTEGER NOT NULL,
+  net INTEGER NOT NULL,
+  month_gross INTEGER NOT NULL,    -- the month's wages and PAYE so far, this one included
+  month_paye INTEGER NOT NULL,
+  rate REAL NOT NULL,
+  idem TEXT NOT NULL               -- the ledger row that paid it
+);
+CREATE INDEX IF NOT EXISTS payslips_month ON payslips(account_id, month);
 `;
 
 export type Store = DatabaseSync;

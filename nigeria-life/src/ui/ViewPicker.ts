@@ -24,12 +24,14 @@ const OUTSIDE: Choice[] = [
   { id: 'street', label: 'Street', line: 'At street level, a few steps back' },
   { id: 'isometric', label: 'High', line: 'Raised, to see the road and the people' },
   { id: 'aerial', label: 'Above', line: 'From the sky, the whole block' },
+  { id: 'eye', label: 'Eyes', line: 'Through your own eyes' },
 ];
 const INSIDE: Choice[] = [
   { id: 'street', label: 'Room', line: 'The whole room, from the corner' },
+  { id: 'isometric', label: 'Home', line: 'Raised cutaway of the whole house' },
   { id: 'eye', label: 'Eyes', line: 'Through your own eyes' },
   { id: 'close', label: 'Close', line: 'Over your shoulder' },
-  { id: 'aerial', label: 'Above', line: 'From above, the walls cut away' },
+  { id: 'aerial', label: 'Above', line: 'From above, every room visible' },
 ];
 
 const svg = (body: string, size = 22) =>

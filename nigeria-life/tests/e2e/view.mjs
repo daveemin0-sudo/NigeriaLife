@@ -86,8 +86,9 @@ const materialSnapshot = (page, type) => page.evaluate((type) => {
   group.getObjectByName('interior_room_shell').traverse((o) => { if (o.name.startsWith('shell_wall_')) walls.push(+o.scale.y.toFixed(3)); });
   // What the home came with is shown or not by how well it is furnished (a cheap room has no big sofa): not counted here
   const kits = new Set([...(window.game.world.interiorManager[type].kits ?? []).map((k) => k.object), ...(window.game.world.interiorManager[type].builtIns ?? [])]);
-  const inKit = (o) => { for (let n = o; n; n = n.parent) if (kits.has(n)) return true; return false; };
-  return { ids: ids.join(','), count: ids.length, walls, hidden: (() => { let n = 0; group.traverse((o) => { if (o.isMesh && !o.visible && !inKit(o)) n++; }); return n; })() };
+  // Nor is what NEPA switches: the glow of the lights on the walls goes and the rechargeable lamps come out when the light is taken
+  const inKit = (o) => { for (let n = o; n; n = n.parent) if (kits.has(n) || n.userData.powerGlow || /^rechargeable_lamp/.test(n.name)) return true; return false; };
+  return { ids: ids.join(','), count: ids.length, walls, hidden: (() => { let n = 0; group.traverse((o) => { if (o.isMesh && !o.visible && !inKit(o)) n++; }); return n; })(), hiddenNames: (() => { const out = []; group.traverse((o) => { if (o.isMesh && !o.visible && !inKit(o)) { const p = []; for (let n = o; n && n !== group; n = n.parent) p.unshift(n.name || n.type); out.push(p.join('/')); } }); return out; })() };
 }, type);
 
 export async function run(browser, check) {
@@ -259,7 +260,7 @@ export async function run(browser, check) {
   await leaveInterior(page);
   const homeAfter = await materialSnapshot(page, 'residence');
   check('on leaving, every wall is back to full height and every material is the one it started with',
-    homeAfter.ids === homeBefore.ids && homeAfter.walls.every((h) => h === 1) && homeAfter.hidden === homeBefore.hidden, { walls: homeAfter.walls, sameMaterials: homeAfter.ids === homeBefore.ids, hidden: homeAfter.hidden, meshes: [homeBefore.count, homeAfter.count], firstDifferent: homeBefore.ids.split(',').findIndex((id, i) => id !== homeAfter.ids.split(',')[i]) });
+    homeAfter.ids === homeBefore.ids && homeAfter.walls.every((h) => h === 1) && homeAfter.hidden === homeBefore.hidden, { walls: homeAfter.walls, sameMaterials: homeAfter.ids === homeBefore.ids, hidden: [homeBefore.hidden, homeAfter.hidden], nowHidden: homeAfter.hiddenNames.filter((n) => !homeBefore.hiddenNames.includes(n)).slice(0, 8), nowShown: homeBefore.hiddenNames.filter((n) => !homeAfter.hiddenNames.includes(n)).slice(0, 8), meshes: [homeBefore.count, homeAfter.count], firstDifferent: homeBefore.ids.split(',').findIndex((id, i) => id !== homeAfter.ids.split(',')[i]) });
   const street = await page.evaluate(() => {
     const g = window.game;
     return { buildings: g.world.buildings.group.visible, shadows: g.renderer.shadowMap.enabled, sun: g.world.sunLight.visible && g.world.sunLight.castShadow, mode: g.cameraManager.mode };

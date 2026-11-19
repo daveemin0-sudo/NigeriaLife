@@ -4,6 +4,8 @@ import * as THREE from 'three';
 const SEE_THROUGH = 0.2;
 /** How tall a cut-away outer wall is left */
 const CUT_WALL_HEIGHT = 1.2;
+/** In dollhouse (high aerial) overview, leave only a stub so room divisions stay clear */
+const DOLLHOUSE_WALL_HEIGHT = 0.75;
 /** Only things at least this tall can hide a standing person */
 const MIN_BLOCKER_HEIGHT = 1.4;
 /** Seconds between checks of what stands in the way */
@@ -55,6 +57,8 @@ export class RoomCutaway {
   private owner = new Map<THREE.Object3D, Piece>();
   private walls: Wall[] = [];
   private sinceCheck = CHECK_EVERY;
+  /** True when the camera is high enough that the whole plan should read as a cutaway dollhouse */
+  private dollhouse = false;
   private readonly raycaster = new THREE.Raycaster();
   private readonly from = new THREE.Vector3();
   private readonly to = new THREE.Vector3();
@@ -82,8 +86,16 @@ export class RoomCutaway {
 
     const box = new THREE.Box3();
     const center = new THREE.Vector3();
+    // The floor upstairs in a two-storey home: its walls and furniture faded one by one, like those downstairs
+    const roots: THREE.Object3D[] = [];
     for (const root of room.children) {
-      if (root === shell || root.name === 'interior_ground_plot' || root.name.startsWith('interior_npc_')) continue;
+      if (root.name === 'interior_upper_storey') roots.push(...root.children);
+      else roots.push(root);
+    }
+    for (const root of roots) {
+      if (root === shell || root.name === 'interior_ground_plot' || root.name.startsWith('interior_npc_') || root.name.startsWith('upper_wall_')) continue;
+      // Measured from its own floor
+      const base = root.parent && root.parent !== room ? root.parent.position.y : 0;
       const meshes: THREE.Mesh[] = [];
       root.traverse((child) => {
         const mesh = child as THREE.Mesh;
@@ -91,14 +103,14 @@ export class RoomCutaway {
       });
       if (meshes.length === 0) continue;
       box.setFromObject(root);
-      if (box.isEmpty() || box.max.y - origin.y < MIN_BLOCKER_HEIGHT) continue;
+      if (box.isEmpty() || box.max.y - origin.y - base < MIN_BLOCKER_HEIGHT) continue;
 
       box.getCenter(center);
       const piece: Piece = {
         root, meshes, fade: 1, target: 1, linger: 0, swapped: false,
         solid: new Map(), clear: new Map(),
         wall: this.wallBeside(center.x - origin.x, center.z - origin.z),
-        mounted: box.min.y - origin.y > 0.9,
+        mounted: box.min.y - origin.y - base > 0.9,
       };
       this.pieces.push(piece);
       for (const mesh of meshes) {
@@ -107,6 +119,12 @@ export class RoomCutaway {
       }
     }
     this.sinceCheck = CHECK_EVERY;
+  }
+
+  /** Shown, and everything it is in shown too */
+  private shown(object: THREE.Object3D): boolean {
+    for (let o: THREE.Object3D | null = object; o && o !== this.room; o = o.parent) if (!o.visible) return false;
+    return true;
   }
 
   /** The outer wall this spot is hard up against, if any. */
@@ -143,9 +161,16 @@ export class RoomCutaway {
 
     // Outer walls: cut the ones the camera is looking over. A wall that has been cut stays cut
     // until the camera is well clear of it, so turning the view slowly cannot make it flicker.
+    // High aerial / isometric dollhouse: cut every outer wall so the full multi-room plan is inspectable.
+    const camY = camera.position.y - this.origin.y;
+    this.dollhouse = camY > this.size.height + 5.5;
     const dx = camera.position.x - this.origin.x;
     const dz = camera.position.z - this.origin.z;
     for (const wall of this.walls) {
+      if (this.dollhouse) {
+        wall.want = 1;
+        continue;
+      }
       const half = (wall.axis === 'x' ? this.size.width : this.size.length) / 2;
       const beyond = (wall.axis === 'x' ? dx : dz) * wall.side;
       if (beyond > half - 2) wall.want = 1;
@@ -169,7 +194,8 @@ export class RoomCutaway {
         this.raycaster.layers.enableAll();
         for (const hit of this.raycaster.intersectObjects(this.targets, false)) {
           const piece = this.owner.get(hit.object);
-          if (piece && piece.root.visible) {
+          // Not what is not shown: the floor upstairs while the player is downstairs, furniture put away
+          if (piece && piece.root.visible && this.shown(hit.object)) {
             piece.target = SEE_THROUGH;
             piece.linger = LINGER;
           }
@@ -201,7 +227,8 @@ export class RoomCutaway {
   }
 
   private applyWall(wall: Wall, cut: number): void {
-    const height = THREE.MathUtils.lerp(this.size.height, CUT_WALL_HEIGHT, cut);
+    const stub = this.dollhouse ? DOLLHOUSE_WALL_HEIGHT : CUT_WALL_HEIGHT;
+    const height = THREE.MathUtils.lerp(this.size.height, stub, cut);
     wall.mesh.scale.y = height / this.size.height;
     wall.mesh.position.y = height / 2;
   }

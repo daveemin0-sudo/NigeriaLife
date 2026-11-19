@@ -1,4 +1,5 @@
 import type { TraitId } from '../life/Traits.ts';
+import type { TaxBook } from '../life/Tax.ts';
 export interface Item {
   id: string;
   name: string;
@@ -133,6 +134,8 @@ export interface BusinessEnterprise {
   revenueEst?: string;
   upgrades: BusinessUpgrade[];
   buildingId?: string;
+  /** Sign colour for a business the player registered */
+  logo?: string;
 }
 
 export type TransactionType =
@@ -169,6 +172,15 @@ export type TransactionType =
   | 'LOAN_REPAYMENT'
   /** One weekly instalment of a loan that is not the last (the last is LOAN_REPAYMENT) */
   | 'LOAN_INSTALMENT'
+  /** Bail, a fine, or an envelope for an officer (src/life/Police.ts) */
+  | 'FINE_PAYMENT'
+  /** Goods bought at a motor park's goods shed, and sold at another (src/travel/Trade.ts) */
+  | 'TRADE_PURCHASE'
+  | 'TRADE_SALE'
+  /** Naira paid at a bureau to buy dollars or pounds (src/life/HardCurrency.ts) */
+  | 'FX_PURCHASE'
+  /** Naira received at a bureau for selling dollars or pounds */
+  | 'FX_SALE'
   // Moves between the player's own bank account and wallet
   | 'ATM_WITHDRAWAL'
   | 'ATM_DEPOSIT';
@@ -181,6 +193,10 @@ export interface TransactionRecord {
   timestamp: string;
   description: string;
   source: 'wallet' | 'bank';
+  /** The VAT inside the price, on a purchase that carries it */
+  vat?: number;
+  /** PAYE the employer took before paying this wage */
+  paye?: number;
 }
 
 export interface JobListing {
@@ -214,7 +230,7 @@ export interface CareerProfile {
 export type OriginDestiny = 'nepo' | 'lapo' | 'tech_bro';
 
 /** Bump when the saved shape changes, and add a step to migrateAccount() in SaveSchema.ts */
-export const SAVE_SCHEMA_VERSION = 4;
+export const SAVE_SCHEMA_VERSION = 5;
 
 export type SavedCityId = 'lagos' | 'abuja' | 'port_harcourt';
 
@@ -229,6 +245,8 @@ export interface SavedWorldState {
   weather?: string; // Active weather condition
   clockMode?: 'SIMULATED_TIME' | 'REAL_TIME'; // World clock simulation mode
   inTransit?: boolean; // Saved mid-journey: the trip is paid for, so a reload completes the arrival
+  /** Saved as a ride in this city began: x and z are already where it sets down, so a reload ends the paid ride there (the place's name, for the word on arrival) */
+  rideTo?: string;
 }
 
 export interface LeaseState {
@@ -264,6 +282,10 @@ export interface PlayerAccount {
   /** Parts of skill points a trait added that have not yet made a whole point, by skill */
   skillCarry?: Record<string, number>;
   walletCash: number;   // Physical cash in pocket (Naira ₦)
+  /** US dollars in pocket (whole dollars). Bought/sold at Lagos bureau de change. */
+  walletUsd: number;
+  /** British pounds in pocket (whole pounds). Bought/sold at Lagos bureau de change. */
+  walletGbp: number;
   bank: BankAccount;
   stats: PlayerStats;
   skills?: PlayerSkills;
@@ -295,6 +317,8 @@ export interface PlayerAccount {
   evicted?: { propId: string; name: string; day: number };
   /** What lenders know of the player: loans repaid without a missed week, and weeks missed in all */
   credit?: { cleanLoans: number; missed: number };
+  /** PAYE taken from wages this month and year, VAT in what was bought, and the latest payslips (src/life/Tax.ts) */
+  tax?: TaxBook;
   /** Timed payouts already collected: claim key -> when it was last collected (ms since epoch) */
   claims: Record<string, number>;
   /** How well each person knows the player, 0 (stranger) to 100, by the person's id */
@@ -307,6 +331,8 @@ export interface PlayerAccount {
   releasedDeeds?: string[];
   /** When business revenue was last accrued (ms since epoch) */
   lastRevenueAt?: number;
+  /** When the game was last open on this account (ms): needs run down gently for the time away */
+  lastActiveAt?: number;
   worldState?: SavedWorldState;
   createdAt: string;
 }
@@ -1369,10 +1395,10 @@ export const DEFAULT_JOBS: JobListing[] = [
   {
     id: 'job_mechanic',
     title: 'Auto Mechanic Apprentice',
-    salary: 6000,
+    salary: 7_000,
     workplace: "God's Grace Auto Repair",
     districtId: 'lagos_island',
-    shiftDuration: 12,
+    shiftDuration: 3600,
     requiredLevel: 1,
     icon: '🔧',
     description: 'Change motor oil, bleed brakes, and help master mechanic overhaul Japanese engines.',
@@ -1380,10 +1406,10 @@ export const DEFAULT_JOBS: JobListing[] = [
   {
     id: 'job_danfo_driver',
     title: 'Danfo Commercial Driver',
-    salary: 8000,
+    salary: 8_000,
     workplace: 'Broad Street Danfo Terminus',
     districtId: 'lagos_island',
-    shiftDuration: 15,
+    shiftDuration: 3600,
     requiredLevel: 1,
     icon: '🚌',
     description: 'Navigate Lagos traffic rush hour, honk at stubborn kekes, and collect passenger fares.',
@@ -1391,10 +1417,10 @@ export const DEFAULT_JOBS: JobListing[] = [
   {
     id: 'job_food_seller',
     title: 'Buka Kitchen Cook Assistant',
-    salary: 5000,
+    salary: 5_500,
     workplace: 'Mama Put Special Bukateria',
     districtId: 'lagos_island',
-    shiftDuration: 10,
+    shiftDuration: 3600,
     requiredLevel: 1,
     icon: '🍲',
     description: 'Stir steaming hot Amala, dish spicy party Jollof rice, and serve lunchtime bankers.',
@@ -1402,10 +1428,10 @@ export const DEFAULT_JOBS: JobListing[] = [
   {
     id: 'job_office_worker',
     title: 'Corporate Office Clerk',
-    salary: 12000,
+    salary: 18_000,
     workplace: 'Eko Commercial Bank Tower',
     districtId: 'lagos_island',
-    shiftDuration: 18,
+    shiftDuration: 3600,
     requiredLevel: 2,
     icon: '🏢',
     description: 'Sort bank trade vouchers, verify customer BVN documents, and prepare executive tea.',
@@ -1413,10 +1439,10 @@ export const DEFAULT_JOBS: JobListing[] = [
   {
     id: 'job_software_dev',
     title: 'Junior Software Engineer',
-    salary: 25000,
+    salary: 27_000,
     workplace: 'Co-Creation Hub (CcHub)',
     districtId: 'yaba',
-    shiftDuration: 20,
+    shiftDuration: 3600,
     requiredLevel: 2,
     icon: '💻',
     description: 'Write TypeScript microservices, push clean pull requests, and debug fintech API payment hooks.',
@@ -1424,10 +1450,10 @@ export const DEFAULT_JOBS: JobListing[] = [
   {
     id: 'job_construction',
     title: 'Site Framing Artisan',
-    salary: 8500,
+    salary: 9_000,
     workplace: 'Crown Luxury Estate Site',
     districtId: 'ajah',
-    shiftDuration: 14,
+    shiftDuration: 3600,
     requiredLevel: 1,
     icon: '👷',
     description: 'Mix Dangote cement mortar, stack 9-inch hollow blocks, and hoist roof timber rafters.',
@@ -1435,10 +1461,10 @@ export const DEFAULT_JOBS: JobListing[] = [
   {
     id: 'job_security',
     title: 'Estate Security Officer',
-    salary: 6500,
+    salary: 7_000,
     workplace: 'Victoria Residence Estate Gate',
     districtId: 'lagos_island',
-    shiftDuration: 12,
+    shiftDuration: 3600,
     requiredLevel: 1,
     icon: '👮',
     description: 'Screen incoming vehicles, verify visitor passes, and maintain quiet residential peace.',
@@ -1458,17 +1484,19 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
   id: 'usr_eko_001',
   username: 'Bayo',
   phoneNumber: '08023456789',
-  walletCash: 25000, // ₦25,000 cash in pocket
+  walletCash: 40000, // ₦40,000 cash in pocket — early jobs and fares spend from here
+  walletUsd: 0,
+  walletGbp: 0,
   bank: {
     accountNumber: '0234891102',
     bankName: 'Eko Commercial Bank',
-    balance: 150000, // ₦150,000 in bank
+    balance: 135000, // ₦135,000 in bank
     transactions: [
       {
         id: 'tx_01',
         type: 'credit',
-        amount: 150000,
-        description: 'Monthly Allowance / Freelance Pay',
+        amount: 40000,
+        description: 'Pocket cash / freelance pay',
         timestamp: 'Today, 08:30 AM',
       },
     ],
@@ -1535,10 +1563,10 @@ export const INITIAL_PLAYER_DATA: PlayerAccount = {
       id: 'tx_init_01',
       playerId: 'usr_eko_001',
       type: 'JOB_SALARY',
-      amount: 150000,
+      amount: 40000,
       timestamp: 'Today, 08:30 AM',
-      description: 'Monthly Allowance / Freelance Pay',
-      source: 'bank',
+      description: 'Pocket cash / freelance pay',
+      source: 'wallet',
     },
   ],
   activeJobShift: null,

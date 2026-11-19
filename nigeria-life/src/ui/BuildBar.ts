@@ -21,6 +21,9 @@ export class BuildBar {
   private busy = false;
   private readonly plots: PlotWorld;
 
+  /** The family's levy is asked at the site: shown by the game, which calls `again` once it is settled */
+  public static onLevy: ((plot: Plot, cost: number, levy: { amount: number; family: string; doubled: boolean }, again: () => void) => void) | null = null;
+
   constructor(plots: PlotWorld) {
     this.plots = plots;
     this.el = document.createElement('div');
@@ -136,6 +139,11 @@ export class BuildBar {
     const plot = this.plot;
     const result = await this.land.startBuilding(plot.id, type.id, this.x, this.z, this.turns);
     this.busy = false;
+    // The omo-onile family at the site: the game asks the player what to do, then building is tried again
+    if (!result.ok && result.levy && BuildBar.onLevy) {
+      BuildBar.onLevy(plot, type.cost, result.levy, () => void this.confirm());
+      return;
+    }
     if (!result.ok) {
       showGameToast(result.reason ?? 'That could not be built.', 'warning', 4200);
       this.render();

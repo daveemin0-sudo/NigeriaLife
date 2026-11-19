@@ -1,6 +1,6 @@
 // Every interior: each station, NPC and exit door can be reached with the E prompt,
 // and the door actually lets the player out.
-import { open, wait, newPlayer, playUntil } from './lib.mjs';
+import { open, wait, newPlayer, playUntil, makeOpen } from './lib.mjs';
 
 const TYPES = ['hospital', 'bank', 'restaurant', 'police', 'residence', 'university', 'airport'];
 
@@ -9,10 +9,10 @@ export async function run(browser, check) {
   const { page, log } = await open(ctx);
 
   for (const type of TYPES) {
+    // The clock is Lagos time now: a place shut at this hour (the bank after four, or on a Sunday) is visited when it opens
+    await makeOpen(page, type);
     const entered = await page.evaluate((t) => {
       const g = window.game;
-      // The clock is Lagos time now: a place shut at this hour (the bank after four) is visited at noon
-      if (!g.world.interiorManager.isOpenNow(t)) g.world.skyEnvironment.setHour(12);
       return g.world.interiorManager.enterInterior(t, g.player, g.cameraManager, g.hud, g.world);
     }, type);
     await wait(900);

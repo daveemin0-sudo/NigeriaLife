@@ -30,7 +30,7 @@ export class PoliceInterior {
       exitDoorOffset: new THREE.Vector3(0, 0, 11),
       cameraOffset: new THREE.Vector3(0, 14, 18),
       ambientLightColor: 0xdbeafe,
-      ambientLightIntensity: 1.15,
+      ambientLightIntensity: 1.28,
       rooms: [
         {
           id: 'police_charge_room',
@@ -180,13 +180,67 @@ export class PoliceInterior {
     const bench = InteriorPrefabs.createWaitingChairs(new THREE.Vector3(0, 0, 5), 4);
     this.group.add(bench);
 
+    // Second waiting row + barrier posts (station foyer feels used)
+    const bench2 = InteriorPrefabs.createWaitingChairs(new THREE.Vector3(3.5, 0, 7.2), 3);
+    this.group.add(bench2);
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, metalness: 0.4, roughness: 0.45 });
+    for (const x of [-1.5, 1.5]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.1, 10), postMat);
+      post.position.set(x, 0.55, 3.2);
+      this.group.add(post);
+    }
+    const tape = new THREE.Mesh(
+      new THREE.BoxGeometry(3.0, 0.04, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.5 }),
+    );
+    tape.position.set(0, 1.0, 3.2);
+    this.group.add(tape);
+
+    // Charge book / statement stack on the front desk
+    const book = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.08, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.7 }),
+    );
+    book.position.set(-3.2, 1.15, -4.1);
+    this.group.add(book);
+    const papers = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 0.04, 0.28),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.9 }),
+    );
+    papers.position.set(-3.2, 1.22, -4.1);
+    this.group.add(papers);
+
+    // "POLICE IS YOUR FRIEND" wall board
+    const motto = new THREE.Mesh(
+      new THREE.BoxGeometry(5.2, 0.65, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 }),
+    );
+    motto.position.set(0, 3.6, -10.7);
+    this.group.add(motto);
+    const mottoGlow = new THREE.Mesh(
+      new THREE.BoxGeometry(4.8, 0.4, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0xfde68a, emissive: 0xb45309, emissiveIntensity: 0.25 }),
+    );
+    mottoGlow.position.set(0, 3.6, -10.64);
+    this.group.add(mottoGlow);
+
+    // Filing cabinets along the side wall
+    for (let i = 0; i < 3; i++) {
+      const cab = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 1.6, 0.55),
+        new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.55, metalness: 0.25 }),
+      );
+      cab.position.set(10.2, 0.8, -6 + i * 2.2);
+      this.group.add(cab);
+    }
+
     // Nigerian Flag & Police Shield on back wall
     const flagGroup = new THREE.Group();
     flagGroup.position.set(0, 3.2, -10.8);
     for (let f = 0; f < 3; f++) {
       const stripe = new THREE.Mesh(
         new THREE.BoxGeometry(0.8, 1.6, 0.05),
-        new THREE.MeshBasicMaterial({ color: f === 1 ? 0xffffff : 0x16a34a })
+        new THREE.MeshStandardMaterial({ color: f === 1 ? 0xffffff : 0x16a34a, roughness: 0.5 })
       );
       stripe.position.set(-0.8 + f * 0.8, 0, 0);
       flagGroup.add(stripe);

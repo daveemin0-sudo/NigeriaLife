@@ -111,14 +111,16 @@ export async function run(browser, check) {
   const clear = await page.evaluate(async () => {
     const g = window.game;
     const v = g.player.currentVehicle;
-    const lane = g.world.trafficSpawner.lanes.find((l) => l.axis === 'z' && l.fixed === -4.9 && l.dir === 1);
+    const lane = g.world.trafficSpawner.lanes.find((l) => l.axis === 'z' && l.fixed === -5.0 && l.dir === 1);
     const target = lane.cars.find((c) => c.u > 900 && c.u < 3000);
-    v.mesh.position.set(-4.9, 0, target.u - 30);
+    v.mesh.position.set(-5.0, 0, target.u - 30);
     v.mesh.rotation.y = 0;
     for (let i = 0; i < 20; i++) await g.advance(0.1);
     const bodies = [];
-    g.world.trafficSpawner.cars(-4.9, target.u, 6, bodies);
-    const body = bodies.find((b) => Math.abs(b.z - target.u) < 0.5);
+    g.world.trafficSpawner.cars(-5.0, target.u, 6, bodies);
+    // (Copied now: the boxes come from a pool that the next look at the traffic, anyone's, writes over)
+    const found = bodies.find((b) => Math.abs(b.z - target.u) < 0.5);
+    const body = found ? { ...found } : null;
     let stopped = 0;
     for (let i = 0; i < 60; i++) {
       const p = v.mesh.position;
@@ -134,18 +136,19 @@ export async function run(browser, check) {
   const plain = await page.evaluate(async () => {
     const g = window.game;
     const day = g.world.skyEnvironment.day;
-    const saved = g.convoys.escort.until;
+    // Run out for the moment (the game then lets it go), and hired back the same afterwards
+    const saved = { level: g.convoys.escort.level, until: g.convoys.escort.until, expiresAt: g.convoys.escort.expiresAt };
     g.convoys.escort.until = day - 1;
     const v = g.player.currentVehicle;
     for (let i = 0; i < 30; i++) await g.advance(0.1);
     // A car really on the road in the player's lane, its body where it is drawn
     const bodies = [];
-    g.world.trafficSpawner.cars(-4.9, 3500, 3000, bodies);
-    const target = bodies.find((b) => Math.abs(b.x + 4.9) < 0.3 && !b.parked && b.z > 600);
-    v.mesh.position.set(-4.9, 0, target.z - 7);
+    g.world.trafficSpawner.cars(-5.0, 3500, 3000, bodies);
+    const target = bodies.find((b) => Math.abs(b.x + 5.0) < 0.3 && !b.parked && b.z > 600);
+    v.mesh.position.set(-5.0, 0, target.z - 7);
     let stopped = 0;
-    for (let i = 0; i < 10; i++) if (!v.moveUnlessBlocked(-4.9, v.mesh.position.z + 0.8)) stopped += 1;
-    g.convoys.escort.until = saved;
+    for (let i = 0; i < 10; i++) if (!v.moveUnlessBlocked(-5.0, v.mesh.position.z + 0.8)) stopped += 1;
+    g.convoys.escort.set(saved.level, saved.until, saved.expiresAt);
     return { stopped };
   });
   check('convoys: without one, a car in the way still stops the player', plain.stopped > 0, plain);

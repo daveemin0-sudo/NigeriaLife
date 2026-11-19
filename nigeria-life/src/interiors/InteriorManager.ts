@@ -32,6 +32,7 @@ import { RoomCutaway } from './RoomCutaway';
 import { PlaceInterior } from './places/PlaceInterior';
 import { PLACE_SPECS } from './places/PlaceSpecs';
 import { EXPRESS, ROADSIDE, sideFront } from '../world/expressway/layout';
+import { STOREY_H } from '../housing/HomePlan';
 
 /** What an interior can optionally provide beyond its room and stations. */
 interface InteriorTemplate {
@@ -48,6 +49,9 @@ interface InteriorTemplate {
   onPlayerLeft?: () => void;
   /** Where its door leads, when not out to the road (a hotel room to its corridor) */
   leadsTo?: (() => { id: string; spawnAt: THREE.Vector3; spawnYaw: number } | null) | null;
+  /** In a two-storey home: the floor the player is on, and the floor they walk on there */
+  storey?: number;
+  activeFloor?: () => THREE.Mesh | null;
 }
 
 export interface EnterOptions {
@@ -71,6 +75,16 @@ export interface ExitOptions {
 
 export class InteriorManager {
   private static instance: InteriorManager | null = null;
+  /** Compiles a room's shaders before it is shown, behind the door's fade (set by the game) */
+  public static warm: ((group: THREE.Object3D) => Promise<void>) | null = null;
+  /** Rooms whose shaders have been compiled */
+  private warmed = new Set<string>();
+  /** Rooms built on demand whose parts have been put on the rooms' render layer */
+  private layered = new Set<string>();
+  /** Why the player may not leave the room they are in (a locked cell), or null (set by the game) */
+  public static holdIn: (() => string | null) | null = null;
+  /** In a room, the fade gone: whatever was waiting for the player to arrive there goes ahead (set by the game) */
+  public static entered: ((interiorId: string) => void) | null = null;
   public group: THREE.Group;
 
   // Interior Template Instances
@@ -103,6 +117,8 @@ export class InteriorManager {
   private streetDoors = new Map<InteriorType, StreetDoor>();
   /** True from the moment the player commits to a doorway until they are through it */
   private usingDoor: boolean = false;
+  /** Soft fill light from each room's ambientLightColor / ambientLightIntensity (was unused metadata) */
+  private roomAmbient: THREE.AmbientLight | null = null;
   /** Keeps the player in view indoors: lowers outer walls and fades whatever else is in the way */
   public readonly cutaway = new RoomCutaway();
   /** The last clear floor the player stood on indoors, to put them back when they walk into furniture */
@@ -165,6 +181,23 @@ export class InteriorManager {
     this.group.visible = false;
   }
 
+  /** Built interior templates that have not yet had their shaders warmed, for the background idle queue. */
+  public getIdleWarmTargets(): Array<{ id: string; group: THREE.Group }> {
+    const out: Array<{ id: string; group: THREE.Group }> = [];
+    for (const t of this.templates) {
+      if (this.warmed.has(t.def.id)) continue;
+      // Skip unbuilt lazy roadside places until they are built
+      const lazy = t as { ensureBuilt?: () => boolean };
+      if (lazy.ensureBuilt && t.group.children.length <= 1) continue;
+      out.push({ id: t.def.id, group: t.group });
+    }
+    return out;
+  }
+
+  public markWarmed(id: string): void {
+    this.warmed.add(id);
+  }
+
   /**
    * Get all interactive objects across all active interiors.
    */
@@ -176,7 +209,12 @@ export class InteriorManager {
    * Get interactive objects for only the currently active interior.
    */
   public getActiveInteractiveObjects(): InteractiveObject[] {
-    return this.getActiveTemplate()?.interactiveList ?? [];
+    const template = this.getActiveTemplate();
+    if (!template) return [];
+    // In a two-storey home only what is on the player's floor can be reached
+    if (template.storey === undefined) return template.interactiveList;
+    const floor = template.storey;
+    return template.interactiveList.filter((o) => (o.storey ?? 0) === floor);
   }
 
   /**
@@ -190,6 +228,8 @@ export class InteriorManager {
    * Retrieve the active floor mesh for input raycasting.
    */
   public getActiveFloorMesh(): THREE.Mesh | null {
+    const own = this.getActiveTemplate()?.activeFloor?.();
+    if (own) return own;
     const activeGroup = this.getActiveInteriorGroup();
     if (!activeGroup) return null;
     const floor = activeGroup.getObjectByName('interior_floor_mesh');
@@ -247,6 +287,12 @@ export class InteriorManager {
     if (this.isTransitioning) return false;
     const target = this.getInteriorByBuildingId(typeOrId);
     if (!target) return false;
+    // Held in a cell: nowhere else until let out
+    const held = this.currentInterior && this.currentInterior.type !== target.type ? InteriorManager.holdIn?.() : null;
+    if (held) {
+      showGameToast(held, 'warning', 4000);
+      return false;
+    }
     if (this.turnedAway(target)) return false;
 
     this.isTransitioning = true;
@@ -266,7 +312,16 @@ export class InteriorManager {
     // 2. Start cinematic fade to black
     await this.setFadeOverlay(1);
 
-    // 3. Update game location state
+    // 3. Update game location state. A roadside place is built the first time it is gone into (behind the fade)
+    const lazy = this.templates.find((t) => t.def.id === target.id) as { ensureBuilt?: () => boolean; group: THREE.Group } | undefined;
+    // Built now if it never was; drawn with the rooms either way (built early, it may not be yet)
+    if (lazy?.ensureBuilt) {
+      const fresh = lazy.ensureBuilt();
+      if (fresh || !this.layered.has(target.id)) {
+        lazy.group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+        this.layered.add(target.id);
+      }
+    }
     this.locationMode = 'interior';
     this.currentInterior = target;
     Activity.emit({ kind: 'visited', place: target.id, name: target.name });
@@ -309,6 +364,16 @@ export class InteriorManager {
     if (activeGroup) this.cutaway.attach(activeGroup, target.interiorOrigin);
     this.cutaway.update(0, cameraManager.camera, player.position, true);
 
+    // 7b. If the idle queue has not warmed this room yet, compile its shaders now (after camera layers & cutaway are set)
+    if (!this.warmed.has(target.id) && InteriorManager.warm) {
+      this.warmed.add(target.id);
+      const shown = this.getActiveInteriorGroup();
+      if (shown) await InteriorManager.warm(shown);
+    }
+
+    // 7c. Apply the room's ambient fill (defs already declare colour + intensity)
+    this.applyRoomAmbient(target);
+
     // 8. Update HUD location badge and banner
     hud.updateLocation(target.name, `Interior • ${target.districtName}`);
     // The place's own name and where it is, not a generic line
@@ -318,6 +383,7 @@ export class InteriorManager {
     options.onPlaced?.();
     await this.setFadeOverlay(0);
     this.isTransitioning = false;
+    InteriorManager.entered?.(target.id);
 
     return true;
   }
@@ -333,6 +399,11 @@ export class InteriorManager {
     options: ExitOptions = {}
   ): Promise<void> {
     if (this.isTransitioning || !this.currentInterior) return;
+    const held = InteriorManager.holdIn?.();
+    if (held) {
+      showGameToast(held, 'warning', 4000);
+      return;
+    }
     this.isTransitioning = true;
 
     // Leaving ends whatever the player was doing inside (a meal, a seat, an order)
@@ -349,6 +420,7 @@ export class InteriorManager {
 
     // 2. Hide all interior groups, with every wall and fitting back as it was
     this.cutaway.detach();
+    this.clearRoomAmbient();
     for (const template of this.templates) {
       template.group.visible = false;
     }
@@ -394,6 +466,22 @@ export class InteriorManager {
     return t?.def.name ?? null;
   }
 
+  /** Soft fill from the room definition so interiors are not only ceiling spots. */
+  private applyRoomAmbient(def: InteriorDefinition): void {
+    if (!this.roomAmbient) {
+      this.roomAmbient = new THREE.AmbientLight(0xffffff, 0);
+      this.roomAmbient.layers.enable(RENDER_LAYERS.INTERIOR);
+      this.group.add(this.roomAmbient);
+    }
+    this.roomAmbient.color.setHex(def.ambientLightColor ?? 0xfff7ed);
+    this.roomAmbient.intensity = def.ambientLightIntensity ?? 0.9;
+    this.roomAmbient.visible = true;
+  }
+
+  private clearRoomAmbient(): void {
+    if (this.roomAmbient) this.roomAmbient.visible = false;
+  }
+
   private getActiveTemplate(): InteriorTemplate | null {
     if (!this.currentInterior) return null;
     // By the room itself: many places share a type (every place along the expressway is an 'office')
@@ -431,13 +519,22 @@ export class InteriorManager {
   private turnedAway(target: InteriorDefinition): boolean {
     const hours = this.hoursOf(target);
     if (!hours || isOpen(hours, this.clock())) return false;
-    showGameToast(closedNotice(target.name, hours), 'info', 3600);
+    showGameToast(closedNotice(target.name, hours, this.clock()), 'info', 3600);
     return true;
   }
 
   /** When a room can be gone into: what the record of places says for the place it is the inside of. */
   private hoursOf(target: InteriorDefinition): OpeningHours | undefined {
     return DestinationRegistry.getInstance().getAll().find((place) => place.interiorId === target.type)?.hours ?? target.hours;
+  }
+
+  /**
+   * The hours a street door keeps, for planning ahead (the crowd's days): null when no room is
+   * behind it, undefined when it never shuts. The same record `turnedAway` reads.
+   */
+  public hoursOfDoor(id: string): OpeningHours | undefined | null {
+    const target = this.getInteriorByBuildingId(id);
+    return target ? this.hoursOf(target) : null;
   }
 
   /** Is this place open now? (Places that keep no hours always are.) */
@@ -710,6 +807,8 @@ export class InteriorManager {
     const height = room.size.height ?? 3.2;
     let ceiling = template.group.getObjectByName('inside view ceiling') as THREE.Mesh | undefined;
     const o = def.interiorOrigin;
+    // Upstairs in a two-storey home the ceiling is a storey higher in the house, which is lowered by as much
+    const base = (template.storey ?? 0) * STOREY_H;
     const inside = Math.abs(camera.position.x - o.x) < width / 2 && Math.abs(camera.position.z - o.z) < length / 2 && camera.position.y < height;
     if (!inside) {
       if (ceiling) ceiling.visible = false;
@@ -724,6 +823,7 @@ export class InteriorManager {
       ceiling.layers.set(RENDER_LAYERS.INTERIOR);
       template.group.add(ceiling);
     }
+    ceiling.position.y = height + base;
     ceiling.visible = true;
   }
 

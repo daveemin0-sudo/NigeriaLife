@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { duvetOver } from '../../interactions/Duvet';
+import { bedDuvetNear, duvetOver } from '../../interactions/Duvet';
 import { Fridge } from '../../housing/Fridge';
 import { RENDER_LAYERS } from '../InteriorTypes';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
@@ -17,6 +17,16 @@ export const HOME = {
   fridge: { position: new THREE.Vector3(-14.7, 0, 10.6), front: new THREE.Vector3(-13.35, 0, 10.6) },
   drum: { position: new THREE.Vector3(8.5, 0, 0.5), front: new THREE.Vector3(7.1, 0, 0.5) },
 };
+
+/**
+ * Where a meal is eaten, in the home's own space. The fridge is the one that was opened.
+ * `seat` is a real seat in this home (a sofa, an armchair, a dining chair); null when there is none.
+ */
+export interface MealPlace {
+  fridgeAt: THREE.Vector3;
+  fridgeFront: THREE.Vector3;
+  seat: { at: THREE.Vector3; front: THREE.Vector3; facing: number } | null;
+}
 
 export type HomeActivity = 'sleeping' | 'watching_tv';
 
@@ -62,6 +72,8 @@ export class HomeLife {
   public onWatch: (() => void) | null = null;
   /** The duvet over the sleeper while they are in bed */
   private duvet: THREE.Group | null = null;
+  /** The bed's own duvet, folded away while it is pulled over the sleeper */
+  private bedCloth: THREE.Mesh | null = null;
   /** Everything the home came with that stands on the floor, as it was marked solid */
   public readonly solids: Array<{ x: number; z: number; halfWidth: number; halfLength: number }> = [];
 
@@ -148,9 +160,12 @@ export class HomeLife {
       player.hold = { release: (instant) => this.leaveFurniture(standAt, instant) };
       player.setScripted(true);
       player.pose = lying;
-      // Under the duvet, to the chest
+      // Under the bed's own duvet, pulled up to the chest
       this.duvet?.removeFromParent();
-      this.duvet = duvetOver(this.group, root, facing, top);
+      if (this.bedCloth) this.bedCloth.visible = true;
+      this.bedCloth = bedDuvetNear(this.group, root);
+      this.duvet = duvetOver(this.group, root, facing, top, this.bedCloth);
+      if (this.bedCloth) this.bedCloth.visible = false;
       this.begin('sleeping');
     });
     return this.director.run(lieDown);
@@ -222,9 +237,11 @@ export class HomeLife {
   private leaveFurniture(standAt: THREE.Vector3, instant = false): void {
     const player = this.director.player;
     const was = this.activity;
-    // The duvet thrown back
+    // The duvet thrown back, onto the bed again
     this.duvet?.removeFromParent();
     this.duvet = null;
+    if (this.bedCloth) this.bedCloth.visible = true;
+    this.bedCloth = null;
     this.activity = null;
     this.changed();
     if (!player) return;
@@ -256,10 +273,11 @@ export class HomeLife {
   }
 
   /**
-   * Walk to the fridge, take out this (from the fridge, or from the bag when no id is given), carry
-   * it to the sofa, sit down and eat it there, and get up. Uses up exactly one.
+   * Walk to the fridge that was opened, take this out (from the fridge, or from the bag when no
+   * id is given), and eat it. With a seat in the home, sit on the nearest one. With none, eat
+   * standing at the fridge. Uses up exactly one. Never walks to a spot where nothing is.
    */
-  public eatFromFridge(itemId?: string): { ok: boolean; reason?: string } {
+  public eatFromFridge(itemId: string | undefined, place: MealPlace): { ok: boolean; reason?: string } {
     const player = this.director.player;
     if (!player) return { ok: false };
     const fridge = Fridge.get();
@@ -274,35 +292,39 @@ export class HomeLife {
     );
     snack.name = 'home_snack';
     let taken = false;
-    const seat = HOME.sofa.seat.clone();
-    const front = HOME.sofa.front.clone();
-    const facing = HOME.sofa.facing;
+    const take = () => {
+      if (itemId) taken = !!fridge.takeOut(itemId);
+      else taken = this.foodInBag()?.id === food.id;
+      if (!taken) return false;
+      player.carry(snack);
+    };
+    const finish = () => {
+      const used = this.backend.useItem(food.id);
+      if (!used.success) return false;
+      if (player.carried === snack) player.letGo();
+      snack.removeFromParent();
+      showGameToast(`🍽️ You ate the ${food.name}.`, 'success', 2600);
+    };
     const eat = new Sequence('eat from the fridge', [player]).add(
-      steps.walk(player, this.world(HOME.fridge.front), { nav: this.nav, ifStuck: 'snap' }),
-      steps.face(player, this.world(HOME.fridge.position)),
-      steps.animate(player, { arms: 'reach' }, 0.9, [{ at: 0.55, run: () => {
-        // Out of the fridge (back in the hand), or out of the bag
-        if (itemId) taken = !!fridge.takeOut(itemId);
-        else taken = this.foodInBag()?.id === food.id;
-        if (!taken) return false;
-        player.carry(snack);
-      } }]),
-      // To the sofa to eat it sitting down
-      steps.walk(player, this.world(front), { nav: this.nav, ifStuck: 'snap' }),
-      steps.face(player, facing),
-      steps.slide(player, this.world(seat), 0.45),
-      steps.setPose(player, { legs: 'sit', arms: 'eat' }),
-      steps.wait(0.2),
-      steps.animate(player, { arms: 'eat' }, 3.4, [{ at: 0.6, run: () => {
-        const used = this.backend.useItem(food.id);
-        if (!used.success) return false;
-        if (player.carried === snack) player.letGo();
-        snack.removeFromParent();
-        showGameToast(`🍽️ You ate the ${food.name}.`, 'success', 2600);
-      } }]),
-      steps.setPose(player, { legs: 'stand', arms: 'rest' }),
-      steps.slide(player, this.world(front), 0.45),
+      steps.walk(player, this.world(place.fridgeFront), { nav: this.nav, ifStuck: 'snap' }),
+      steps.face(player, this.world(place.fridgeAt)),
+      steps.animate(player, { arms: 'reach' }, 0.9, [{ at: 0.55, run: take }]),
     );
+    const seat = place.seat;
+    if (seat) {
+      eat.add(
+        steps.walk(player, this.world(seat.front), { nav: this.nav, ifStuck: 'snap' }),
+        steps.face(player, seat.facing),
+        steps.slide(player, this.world(seat.at), 0.45),
+        steps.setPose(player, { legs: 'sit', arms: 'eat' }),
+        steps.wait(0.2),
+        steps.animate(player, { arms: 'eat' }, 3.4, [{ at: 0.6, run: finish }]),
+        steps.setPose(player, { legs: 'stand', arms: 'rest' }),
+        steps.slide(player, this.world(seat.front), 0.45),
+      );
+    } else {
+      eat.add(steps.animate(player, { arms: 'eat' }, 3.4, [{ at: 0.6, run: finish }]));
+    }
     eat.onEnd(() => {
       if (player.carried === snack) player.letGo();
       snack.removeFromParent();
