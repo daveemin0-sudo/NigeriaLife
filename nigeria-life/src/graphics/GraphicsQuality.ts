@@ -26,6 +26,8 @@ interface Level {
   /** Pedestrians drawn at all within this, in full within crowdNear, metres */
   crowdDraw: number;
   crowdNear: number;
+  /** Instanced traffic draw distance, metres */
+  trafficDraw: number;
   /** Frames between smoke/atmosphere particle updates (1 = every frame) */
   smokeEvery: number;
   /** Distance beyond which outer Lagos district groups are culled */
@@ -47,6 +49,7 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     shadowEvery: 0,
     crowdDraw: 90,
     crowdNear: 22,
+    trafficDraw: 150,
     smokeEvery: 1,
     districtDraw: 600,
     wetMetalnessMax: 0.65,
@@ -62,6 +65,7 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     shadowEvery: 0,
     crowdDraw: 60,
     crowdNear: 12,
+    trafficDraw: 110,
     smokeEvery: 2,
     districtDraw: 380,
     wetMetalnessMax: 0.45,
@@ -80,6 +84,7 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     crowdDraw: 36,
     // Slightly farther full-detail pedestrians (presence without raising draw distance / fill-rate)
     crowdNear: 10,
+    trafficDraw: 80,
     smokeEvery: 4,
     districtDraw: 220,
     wetMetalnessMax: 0.22,
@@ -106,6 +111,7 @@ export interface QualityTargets {
   onLevel?: (settings: {
     smokeEvery: number;
     districtDraw: number;
+    trafficDraw: number;
     wetMetalnessMax: number;
     postFx: boolean;
     level: Quality;
@@ -254,6 +260,7 @@ export class GraphicsQuality {
     this.targets.onLevel?.({
       smokeEvery: l.smokeEvery,
       districtDraw: l.districtDraw,
+      trafficDraw: l.trafficDraw,
       wetMetalnessMax: l.wetMetalnessMax,
       postFx: l.postFx,
       level,

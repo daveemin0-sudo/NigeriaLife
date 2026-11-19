@@ -27,22 +27,26 @@ interface KindSpec {
 }
 
 const KINDS: KindSpec[] = [
-  { kind: 'danfo', weight: 20, cruise: 11.5, tinted: false, stopsForPassengers: true, parkable: false },
-  { kind: 'keke', weight: 14, cruise: 8.5, tinted: false, stopsForPassengers: true, parkable: true },
-  { kind: 'okada', weight: 12, cruise: 13.5, tinted: false, stopsForPassengers: false, parkable: true },
-  // Saloons: Corollas old and new, Camrys, Accords
+  // Nigerian commercial stock: denser share on Broad Street
+  { kind: 'danfo', weight: 24, cruise: 11.5, tinted: false, stopsForPassengers: true, parkable: false },
+  { kind: 'keke', weight: 16, cruise: 8.5, tinted: false, stopsForPassengers: true, parkable: true },
+  { kind: 'okada', weight: 14, cruise: 13.5, tinted: false, stopsForPassengers: false, parkable: true },
+  // Saloons: Corollas old and new, Camrys, Accords, the odd executive
   { kind: 'sedan', body: 'corolla_2008', weight: 6, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'sedan', body: 'camry', weight: 4, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'sedan', body: 'corolla_2020', weight: 3, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'sedan', body: 'accord', weight: 3, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'sedan', body: 'sedan', weight: 2, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
-  // Jeeps: Lexus, Highlander, the odd Range Rover and G-Wagon
+  { kind: 'sedan', body: 'bmw_7', weight: 1, cruise: 12.2, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'panamera', weight: 0.8, cruise: 12.4, tinted: true, stopsForPassengers: false, parkable: true },
+  // Jeeps: Lexus, Highlander, Cayenne, the odd Range Rover and G-Wagon
   { kind: 'suv', body: 'lexus_rx', weight: 4, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'highlander', weight: 3, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'suv', weight: 2, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'cayenne', weight: 1.5, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'range_rover', weight: 1, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'gwagon', weight: 1, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
-  { kind: 'taxi', body: 'corolla_2008', weight: 8, cruise: 11.5, tinted: false, stopsForPassengers: false, parkable: true },
+  { kind: 'taxi', body: 'corolla_2008', weight: 10, cruise: 11.5, tinted: false, stopsForPassengers: false, parkable: true },
   { kind: 'pickup', weight: 5, cruise: 11.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'delivery_van', weight: 4, cruise: 11, tinted: false, stopsForPassengers: false, parkable: true },
   { kind: 'brt', weight: 3, cruise: 10, tinted: false, stopsForPassengers: true, parkable: false },
@@ -51,7 +55,14 @@ const KINDS: KindSpec[] = [
   { kind: 'police', weight: 1, cruise: 13, tinted: false, stopsForPassengers: false, parkable: false },
 ];
 
-const PAINTS = [0xf8fafc, 0xe5e7eb, 0x9ca3af, 0x18181b, 0x111827, 0x7f1d1d, 0x1e3a8a, 0xb45309, 0x14532d, 0xd1d5db, 0x475569];
+/** Lagos street paints: silver/white/black fleet plus danfo yellow, taxi cream, market greens and reds */
+const PAINTS = [
+  0xf8fafc, 0xe5e7eb, 0xd1d5db, 0x9ca3af, 0x64748b, 0x475569,
+  0x18181b, 0x111827, 0x0f172a,
+  0xfacc15, 0xf59e0b, 0xb45309, 0xea580c,
+  0x7f1d1d, 0x9f1239, 0x1e3a8a, 0x1d4ed8,
+  0x14532d, 0x166534, 0x0f766e, 0x44403c,
+];
 /** Sentinel paint colour used to find the tintable body panels of a prototype */
 const PAINT_KEY = 0xfe01fd;
 
@@ -117,11 +128,14 @@ interface Batch {
   width: number;
   bodyGeo: THREE.BufferGeometry;
   paintGeo: THREE.BufferGeometry | null;
+  /** Head / tail lamp patches baked for night MeshBasic overlay */
+  lightsGeo: THREE.BufferGeometry | null;
   count: number;
   /** Instances written this frame (only vehicles in view are drawn) */
   drawn: number;
   body?: THREE.InstancedMesh;
   paint?: THREE.InstancedMesh;
+  lights?: THREE.InstancedMesh;
 }
 
 interface ParkedCar {
@@ -135,7 +149,7 @@ interface ParkedCar {
   cleared?: boolean;
 }
 
-/** Vehicles further than this from the player are simulated but not drawn */
+/** Default draw distance; GraphicsQuality may tighten this on Low/Balanced */
 const DRAW_DISTANCE = 150;
 
 // Signal cycle (seconds)
@@ -156,6 +170,12 @@ export class TrafficSpawner {
   public vehicleCount = 0;
   /** The share of the day's moving traffic that is on the road at this hour. Parked vehicles stay parked. */
   public abroad = 1;
+  /** How far from the player moving traffic is drawn (GraphicsQuality may tighten this) */
+  public drawDistance = DRAW_DISTANCE;
+  /** Instances written last frame (moving + parked, in draw range) */
+  public drawnNow = 0;
+  /** 0 day → 1 full night head/tail lamp overlay */
+  public nightLights = 0;
   /** The player's size on the road: on foot, or the vehicle they are driving (set by the world each frame) */
   /** Everyone on foot out on a carriageway (the crowd's own list): drivers stop short of them */
   public walkers: ReadonlyArray<{ x: number; z: number }> = [];
@@ -172,15 +192,26 @@ export class TrafficSpawner {
   private mainGreen = 30;
   private crossGreen = 14;
   /** Every vehicle's baked shape, made once (by Lagos's traffic, the first) and shared by every city's */
-  private static shapes: Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo'>> | null = null;
+  private static shapes: Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo' | 'lightsGeo'>> | null = null;
   private static bodyMat: THREE.MeshStandardMaterial | null = null;
   private static paintMat: THREE.MeshStandardMaterial | null = null;
+  private static lightsMat: THREE.MeshBasicMaterial | null = null;
   private lanes: Lane[] = [];
   private parked: ParkedCar[] = [];
   private sphere = new THREE.Sphere(new THREE.Vector3(), 6.5);
   private signalTime = 0;
   private signalLamps: Record<SignalGroup, LampSet>;
   private dummy = new THREE.Object3D();
+
+  /** Distinct body recipes in the Lagos mix (sedans, buses, okadas, …) */
+  public get kindVariety(): number {
+    return this.batches.length;
+  }
+
+  /** Paint palette size used for tintable traffic */
+  public get paintCount(): number {
+    return PAINTS.length;
+  }
 
   constructor(vehicles: Vehicles | null, parkingSpots: StreetSpot[] = [], plan?: TrafficPlan) {
     this.group = new THREE.Group();
@@ -223,13 +254,17 @@ export class TrafficSpawner {
     this.batches = TrafficSpawner.shapes.map((shape) => ({ ...shape, count: 0, drawn: 0 }));
   }
 
-  private bake(vehicles: Vehicles): Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo'>> {
-    const out: Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo'>> = [];
+  private bake(vehicles: Vehicles): Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo' | 'lightsGeo'>> {
+    const out: Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo' | 'lightsGeo'>> = [];
     const fromGarage = new Set<VehicleKind>(['danfo', 'keke', 'okada', 'sedan', 'suv', 'taxi', 'police']);
     const paintKey = new THREE.Color(PAINT_KEY);
     const isPaint = (material: THREE.Material) => {
       const c = (material as THREE.MeshStandardMaterial).color;
       return !!c && Math.abs(c.r - paintKey.r) + Math.abs(c.g - paintKey.g) + Math.abs(c.b - paintKey.b) < 0.01;
+    };
+    const isLamp = (material: THREE.Material) => {
+      const m = material as THREE.MeshStandardMaterial;
+      return typeof m.emissiveIntensity === 'number' && m.emissiveIntensity > 0.4;
     };
     const white = new THREE.Color(0xffffff);
 
@@ -242,12 +277,19 @@ export class TrafficSpawner {
 
       const bodyGeo = bakeToGeometry(proto, { filter: (_m, mat) => !(spec.tinted && isPaint(mat)) });
       const paintGeo = spec.tinted ? bakeToGeometry(proto, { filter: (_m, mat) => (isPaint(mat) ? white : false) }) : null;
+      const lightsGeo = bakeToGeometry(proto, {
+        filter: (_m, mat) => {
+          if (!isLamp(mat)) return false;
+          const m = mat as THREE.MeshStandardMaterial;
+          return m.emissive?.getHex?.() ? m.emissive.clone() : m.color?.clone() ?? white;
+        },
+      });
       if (!bodyGeo) continue;
 
       const box = bodyGeo.boundingBox!.clone();
       if (paintGeo) box.union(paintGeo.boundingBox!);
 
-      out.push({ spec, length: box.max.z - box.min.z, width: box.max.x - box.min.x, bodyGeo, paintGeo });
+      out.push({ spec, length: box.max.z - box.min.z, width: box.max.x - box.min.x, bodyGeo, paintGeo, lightsGeo });
     }
     return out;
   }
@@ -255,12 +297,14 @@ export class TrafficSpawner {
   /** Large commercial vehicles that the drivable garage does not model */
   private buildHeavyVehicle(kind: VehicleKind): THREE.Group {
     const group = new THREE.Group();
-    const add = (geo: THREE.BufferGeometry, color: number, x: number, y: number, z: number) => {
-      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color }));
+    const add = (geo: THREE.BufferGeometry, color: number, x: number, y: number, z: number, mat?: THREE.MeshStandardMaterial) => {
+      const mesh = new THREE.Mesh(geo, mat ?? new THREE.MeshStandardMaterial({ color }));
       mesh.position.set(x, y, z);
       group.add(mesh);
       return mesh;
     };
+    const lamp = (color: number, emissive: number, intensity: number) =>
+      new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, roughness: 0.25 });
     const wheels = (xs: number[], zs: number[], radius: number) => {
       const geo = new THREE.CylinderGeometry(radius, radius, 0.3, 12);
       for (const x of xs) {
@@ -268,6 +312,8 @@ export class TrafficSpawner {
       }
     };
     const glass = 0x0f172a;
+    const head = lamp(0xfffbeb, 0xffedd5, 1.4);
+    const tail = lamp(0xdc2626, 0xb91c1c, 1.2);
 
     switch (kind) {
       case 'brt': {
@@ -277,8 +323,10 @@ export class TrafficSpawner {
         add(new THREE.BoxGeometry(2.5, 1.0, 0.1), glass, 0, 2.0, 4.6);
         add(new THREE.BoxGeometry(2.62, 0.18, 9.25), 0xf8fafc, 0, 2.86, 0);
         add(new THREE.BoxGeometry(2.64, 0.3, 9.0), 0xdc2626, 0, 1.0, 0);
-        add(new THREE.BoxGeometry(0.4, 0.2, 0.08), 0xfef08a, -0.9, 0.9, 4.62);
-        add(new THREE.BoxGeometry(0.4, 0.2, 0.08), 0xfef08a, 0.9, 0.9, 4.62);
+        add(new THREE.BoxGeometry(0.4, 0.2, 0.08), 0xfef08a, -0.9, 0.9, 4.62, head);
+        add(new THREE.BoxGeometry(0.4, 0.2, 0.08), 0xfef08a, 0.9, 0.9, 4.62, head);
+        add(new THREE.BoxGeometry(0.35, 0.16, 0.06), 0xdc2626, -0.9, 1.0, -4.62, tail);
+        add(new THREE.BoxGeometry(0.35, 0.16, 0.06), 0xdc2626, 0.9, 1.0, -4.62, tail);
         wheels([-1.3, 1.3], [-3.0, 3.1], 0.48);
         break;
       }
@@ -289,6 +337,10 @@ export class TrafficSpawner {
         const tank = add(new THREE.CylinderGeometry(1.2, 1.2, 6.4, 16), 0xd1d5db, 0, 2.3, -1.4);
         tank.rotation.x = Math.PI / 2;
         add(new THREE.BoxGeometry(2.42, 0.4, 5.6), 0x15803d, 0, 2.3, -1.4);
+        add(new THREE.BoxGeometry(0.32, 0.16, 0.06), 0xfffbeb, -0.85, 1.1, 4.54, head);
+        add(new THREE.BoxGeometry(0.32, 0.16, 0.06), 0xfffbeb, 0.85, 1.1, 4.54, head);
+        add(new THREE.BoxGeometry(0.3, 0.14, 0.06), 0xdc2626, -0.85, 1.0, -4.7, tail);
+        add(new THREE.BoxGeometry(0.3, 0.14, 0.06), 0xdc2626, 0.85, 1.0, -4.7, tail);
         wheels([-1.2, 1.2], [-3.8, -2.5, 3.2], 0.5);
         break;
       }
@@ -300,6 +352,10 @@ export class TrafficSpawner {
         // Stacked cargo: bags of cement / crates
         add(new THREE.BoxGeometry(2.1, 1.0, 2.2), 0xd6d3d1, 0, 1.65, -0.2);
         add(new THREE.BoxGeometry(2.0, 1.3, 2.4), 0xa16207, 0, 1.8, -2.6);
+        add(new THREE.BoxGeometry(0.3, 0.14, 0.06), 0xfffbeb, -0.85, 1.05, 4.08, head);
+        add(new THREE.BoxGeometry(0.3, 0.14, 0.06), 0xfffbeb, 0.85, 1.05, 4.08, head);
+        add(new THREE.BoxGeometry(0.28, 0.12, 0.06), 0xdc2626, -0.85, 0.95, -3.9, tail);
+        add(new THREE.BoxGeometry(0.28, 0.12, 0.06), 0xdc2626, 0.85, 0.95, -3.9, tail);
         wheels([-1.2, 1.2], [-2.9, -1.4, 2.9], 0.5);
         break;
       }
@@ -308,6 +364,10 @@ export class TrafficSpawner {
         add(new THREE.BoxGeometry(1.9, 0.75, 0.1), glass, 0, 1.85, 2.42);
         add(new THREE.BoxGeometry(2.14, 0.6, 1.2), glass, 0, 1.85, 1.5);
         add(new THREE.BoxGeometry(2.14, 0.35, 2.6), 0xdc2626, 0, 1.3, -0.9);
+        add(new THREE.BoxGeometry(0.28, 0.14, 0.06), 0xfffbeb, -0.75, 1.05, 2.44, head);
+        add(new THREE.BoxGeometry(0.28, 0.14, 0.06), 0xfffbeb, 0.75, 1.05, 2.44, head);
+        add(new THREE.BoxGeometry(0.26, 0.12, 0.06), 0xdc2626, -0.75, 1.0, -2.42, tail);
+        add(new THREE.BoxGeometry(0.26, 0.12, 0.06), 0xdc2626, 0.75, 1.0, -2.42, tail);
         wheels([-1.05, 1.05], [-1.5, 1.5], 0.4);
         break;
       }
@@ -318,6 +378,10 @@ export class TrafficSpawner {
         add(new THREE.BoxGeometry(1.94, 0.5, 1.7), glass, 0, 1.75, 0.5);
         add(new THREE.BoxGeometry(1.7, 0.5, 0.1), glass, 0, 1.75, 1.52);
         add(new THREE.BoxGeometry(1.8, 0.06, 1.9), 0x1f2937, 0, 1.36, -1.5);
+        add(new THREE.BoxGeometry(0.26, 0.12, 0.05), 0xfffbeb, -0.7, 0.95, 2.52, head);
+        add(new THREE.BoxGeometry(0.26, 0.12, 0.05), 0xfffbeb, 0.7, 0.95, 2.52, head);
+        add(new THREE.BoxGeometry(0.24, 0.1, 0.05), 0xdc2626, -0.7, 0.9, -2.52, tail);
+        add(new THREE.BoxGeometry(0.24, 0.1, 0.05), 0xdc2626, 0.7, 0.9, -2.52, tail);
         wheels([-1.0, 1.0], [-1.6, 1.5], 0.42);
         break;
       }
@@ -346,7 +410,8 @@ export class TrafficSpawner {
         busStops: outer ? (dir > 0 ? [-20, 60] : [-40, 90]) : [],
         heavy: outer,
         keke: outer,
-        gap: 13,
+        // Tighter go-slow packing on Broad Street (was 13)
+        gap: 11,
         // Out on the expressway the cars are further apart, until rush hour fills it
         far: (u) => Math.abs(u * dir) > MAIN_ROAD.zMax + 20,
         cars: [],
@@ -366,7 +431,7 @@ export class TrafficSpawner {
         busStops: [],
         heavy: true,
         keke: true,
-        gap: 13,
+        gap: 11,
         far: (u) => Math.abs(u * dir) > MAIN_ROAD.zMax + 20,
         cars: [],
       });
@@ -446,8 +511,20 @@ export class TrafficSpawner {
 
   private createInstancedMeshes(): void {
     // One body and one paint material for every city's traffic: the same shaders, built once
-    const bodyMat = (TrafficSpawner.bodyMat ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.15 }));
-    const paintMat = (TrafficSpawner.paintMat ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35 }));
+    const bodyMat = (TrafficSpawner.bodyMat ??= new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.38,
+      metalness: 0.22,
+    }));
+    const paintMat = (TrafficSpawner.paintMat ??= new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.22,
+      metalness: 0.42,
+    }));
+    const lightsMat = (TrafficSpawner.lightsMat ??= new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      toneMapped: false,
+    }));
 
     for (const batch of this.batches) {
       if (batch.count === 0) continue;
@@ -462,8 +539,24 @@ export class TrafficSpawner {
         batch.paint.frustumCulled = false;
         this.group.add(batch.paint);
       }
+      if (batch.lightsGeo) {
+        batch.lights = new THREE.InstancedMesh(batch.lightsGeo, lightsMat, batch.count);
+        batch.lights.frustumCulled = false;
+        batch.lights.visible = false;
+        this.group.add(batch.lights);
+      }
     }
     this.vehicleCount = this.batches.reduce((sum, b) => sum + b.count, 0);
+  }
+
+  /** Dusk→dawn head/tail lamp overlay for instanced traffic (no PointLights). */
+  public setHour(hour: number): void {
+    const night =
+      hour < 6.0 || hour >= 19.0 ? 1 : hour < 6.8 || hour >= 18.2 ? 0.55 : hour < 7.4 || hour >= 17.5 ? 0.2 : 0;
+    this.nightLights = night;
+    for (const batch of this.batches) {
+      if (batch.lights) batch.lights.visible = night > 0.05;
+    }
   }
 
   /** Writes one vehicle into the next free instance slot of its batch, if the camera can see it */
@@ -479,7 +572,8 @@ export class TrafficSpawner {
     if (playerPos) {
       const dx = x - playerPos.x;
       const dz = z - playerPos.z;
-      if (dx * dx + dz * dz > DRAW_DISTANCE * DRAW_DISTANCE) return;
+      const reach = this.drawDistance;
+      if (dx * dx + dz * dz > reach * reach) return;
     }
     if (frustum) {
       this.sphere.center.set(x, 1.4, z);
@@ -493,6 +587,9 @@ export class TrafficSpawner {
     if (batch.paint) {
       batch.paint.setMatrixAt(slot, matrix);
       batch.paint.setColorAt(slot, paint);
+    }
+    if (batch.lights && this.nightLights > 0.05) {
+      batch.lights.setMatrixAt(slot, matrix);
     }
   }
 
@@ -765,7 +862,7 @@ export class TrafficSpawner {
         lane.cars.push(lead);
       }
 
-      if (playerPos && Math.abs(lane.fixed - (lane.axis === 'z' ? playerPos.x : playerPos.z)) > DRAW_DISTANCE + 5) {
+      if (playerPos && Math.abs(lane.fixed - (lane.axis === 'z' ? playerPos.x : playerPos.z)) > this.drawDistance + 5) {
         for (let i = 0; i < lane.cars.length; i++) lane.cars[i].place ??= this.places++;
         continue;
       }
@@ -788,9 +885,11 @@ export class TrafficSpawner {
     this.heldForWalkers = held;
     for (const car of this.parked) if (!car.cleared) this.draw(car.kind, car.matrix, car.paint, car.x, car.z, playerPos, frustum);
 
+    let drawn = 0;
     for (const batch of this.batches) {
       if (!batch.body) continue;
       const hasAny = batch.drawn > 0;
+      drawn += batch.drawn;
       batch.body.visible = hasAny;
       batch.body.count = batch.drawn;
       if (hasAny) batch.body.instanceMatrix.needsUpdate = true;
@@ -802,7 +901,14 @@ export class TrafficSpawner {
           if (batch.paint.instanceColor) batch.paint.instanceColor.needsUpdate = true;
         }
       }
+      if (batch.lights) {
+        const lit = hasAny && this.nightLights > 0.05;
+        batch.lights.visible = lit;
+        batch.lights.count = batch.drawn;
+        if (lit) batch.lights.instanceMatrix.needsUpdate = true;
+      }
     }
+    this.drawnNow = drawn;
   }
 
   /**
