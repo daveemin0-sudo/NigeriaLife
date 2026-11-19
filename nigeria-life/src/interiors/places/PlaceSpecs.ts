@@ -1118,6 +1118,24 @@ const ABUJA_SPECS: PlaceSpec[] = [
       { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
     ] },
   ], [{ at: [4, -4], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [-100, 444.5]),
+
+  // Abuja passport office — same booklet as Lagos Alagbon; domestic flights need this in the bag
+  abuja(venue('abuja-passport', 'Federal Passport Office, Abuja', 'Garki · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+  }, [
+    { name: 'Officer Habiba', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'female', says: 'Form filled? Biometrics next. This is Abuja, not Lagos.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Habiba', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Abuja. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today if the network holds. Cash or transfer."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [-140, 444.5]),
 ];
 
 
@@ -1204,6 +1222,24 @@ const PH_SPECS: PlaceSpec[] = [
       { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
     ] },
   ], [{ at: [-4, 2], facing: 0, outfit: 0xf97316, sit: true }], [18, 16]), [200, 20]),
+
+  // Port Harcourt passport office — same booklet; fly from PHC with this in the bag
+  abuja(venue('ph-passport', 'Federal Passport Office, Port Harcourt', 'Old GRA · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+  }, [
+    { name: 'Officer Tamuno', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'male', says: 'Form filled? Biometrics next. Rivers State issue.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Tamuno', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Port Harcourt. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today if the network holds. Cash or transfer."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]), [240, 20]),
 ];
 
 // --- Every shop, office, hotel, bank and market along Abuja's and Port Harcourt's streets ---

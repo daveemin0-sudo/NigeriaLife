@@ -105,6 +105,7 @@ import { CITY_NAME, type PlotCity } from '../realestate/PlotCatalogue';
 import { ActivityStatusUI } from '../ui/ActivityStatusUI';
 import { emitGameEvent } from './GameEvents';
 import type { CityId } from '../cities/CityTypes';
+import { NIGERIA_CITIES_REGISTRY } from '../cities/CityRegistry';
 import type { SavedCityId } from '../backend/types';
 import { WorldDataManager } from '../world/data/WorldDataManager';
 import { HouseDecorationSystem, CATALOGUE_ITEMS, type PlacedItem } from '../housing/HouseDecorationSystem';
@@ -912,7 +913,18 @@ export class Game {
     };
 
     this.hud.onExitInterior = () => {
-      this.world.interiorManager.leaveThroughDoor(this.player, this.cameraManager, this.hud, this.world);
+      const leavingHome = this.world.interiorManager.currentInterior?.type === 'residence';
+      void this.world.interiorManager.leaveThroughDoor(this.player, this.cameraManager, this.hud, this.world).then(() => {
+        // Home ↔ neighbourhood continuity: leaving a residence puts the player back on a live street
+        if (leavingHome && !this.world.interiorManager.isPlayerInside()) {
+          const city = this.world.cityManager.currentCityId;
+          const where =
+            city === 'abuja' ? 'Abuja'
+              : city === 'port_harcourt' ? 'Port Harcourt'
+                : 'your Lagos neighbourhood';
+          showGameToast(`Back on the street in ${where}. Walk to shops, work, or open the map for destinations.`, 'info', 3800);
+        }
+      });
     };
 
     // 9e-2. The buka's menu and order status
@@ -2398,7 +2410,15 @@ export class Game {
 
     // Flying: the hall is the same room in every city, and the flight starts at the aircraft door
     const hereCity = () => this.world.cityManager.currentCityId as FlightCity;
-    openAirportHall({ city: hereCity, apronDoor: () => this.world.airportOf(hereCity())?.apron.door ?? null });
+    openAirportHall({
+      city: hereCity,
+      apronDoor: () => this.world.airportOf(hereCity())?.apron.door ?? null,
+      kerb: () => this.world.airportOf(hereCity())?.kerb ?? null,
+      townDrop: () => {
+        const spawn = NIGERIA_CITIES_REGISTRY[hereCity()]?.spawn;
+        return spawn ? new THREE.Vector3(spawn.x, 0, spawn.z) : null;
+      },
+    });
     this.flights.onBoarded = (booking) => this.depart(booking);
     this.coaches.onBoarded = (ticket) => this.departByCoach(ticket);
     this.nameAirportHall(hereCity());

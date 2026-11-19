@@ -104,22 +104,26 @@ export async function run(browser, check) {
     m5.total === m4.total && count === 1,
     { paid: m4.total - m5.total, count });
 
-  // Flights gate: passport + visa alone still blocked without yellow card
+  // Full papers gate is the Lagos→Ibadan hop (domestic LOS→ABV only needs the passport)
   await page.evaluate(() => {
     const be = window.game.hud.backend;
     if (!be.getData().inventory.some((i) => i.id === 'travel_visa')) {
       be.addItem({ id: 'travel_visa', name: 'Travel visa stamp', icon: '🧾', price: 45000, category: 'document', usable: false, description: 'test' });
     }
   });
-  // Drop yellow card from bag to prove the flight gate
+  // Drop yellow card from bag to prove the Ibadan papers gate
   await page.evaluate(() => window.game.hud.backend.removeItem('yellow_card'));
   const gate = await page.evaluate(() => {
     const flights = window.game.flights;
-    const route = flights.routesFrom('lagos').find((r) => r.to === 'abuja');
-    return flights.cannotBook(route, 'lagos');
+    const ibadan = flights.routesFrom('lagos').find((r) => r.to === 'ibadan');
+    const abuja = flights.routesFrom('lagos').find((r) => r.to === 'abuja');
+    return {
+      ibadan: flights.cannotBook(ibadan, 'lagos'),
+      abuja: flights.cannotBook(abuja, 'lagos'),
+    };
   });
-  check('yellowcard: MMIA will not sell a ticket without the yellow fever card',
-    /yellow fever|Port Health|yellow card/i.test(gate || ''),
+  check('yellowcard: Ibadan hop still needs the yellow fever card; domestic Abuja does not',
+    /yellow fever|Port Health|yellow card/i.test(gate.ibadan || '') && !gate.abuja,
     { gate });
 
   check('yellowcard: no page errors', log.errors.length === 0, log.errors.slice(0, 4));

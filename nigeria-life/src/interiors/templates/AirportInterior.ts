@@ -163,6 +163,22 @@ export class AirportInterior {
             },
           ],
         },
+        {
+          id: 'airport_telecom_desk',
+          name: '📱 Arrivals Telecom Desk',
+          category: 'Passenger Services',
+          description: 'Prepaid local SIM and airtime for passengers just off the aircraft.',
+          relativePosition: new THREE.Vector3(-9, 0, 8),
+          actions: [],
+        },
+        {
+          id: 'airport_cab_pickup',
+          name: '🚕 Cab Pickup',
+          category: 'Ground Transport',
+          description: 'Walk to the arrivals kerb or take a paid cab into town.',
+          relativePosition: new THREE.Vector3(9, 0, 10),
+          actions: [],
+        },
       ],
       npcs: [
         {
@@ -838,6 +854,55 @@ export class AirportInterior {
       category: 'Aviation Baggage Claim',
       description: 'Rotating baggage reclaim belt for arriving domestic and regional flights.',
       interactionPoint: new THREE.Vector3(7.5, 0, 2.2),
+    });
+
+    // Arrivals passenger services: telecom (SIM / airtime) and cab pickup to the street
+    const telecomDesk = new THREE.Group();
+    telecomDesk.position.set(-9, 0, 8);
+    const telecomTop = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 1.0, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0x0f766e, roughness: 0.4 }),
+    );
+    telecomTop.position.y = 0.5;
+    telecomDesk.add(telecomTop);
+    const telecomScreen = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.55, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x166534, emissiveIntensity: 0.45 }),
+    );
+    telecomScreen.position.set(0, 1.15, 0.45);
+    telecomDesk.add(telecomScreen);
+    this.group.add(telecomDesk);
+    this.interactiveList.push({
+      mesh: telecomDesk,
+      id: 'airport_telecom_desk',
+      name: '📱 Arrivals Telecom Desk',
+      category: 'Passenger Services',
+      description: 'Prepaid local SIM and airtime for passengers just off the aircraft.',
+      interactionPoint: new THREE.Vector3(-9, 0, 6.6),
+    });
+
+    const cabDesk = new THREE.Group();
+    cabDesk.position.set(9, 0, 10);
+    const cabTop = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 1.0, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.45 }),
+    );
+    cabTop.position.y = 0.5;
+    cabDesk.add(cabTop);
+    const cabSign = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 0.45, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xb45309, emissiveIntensity: 0.35 }),
+    );
+    cabSign.position.set(0, 1.2, 0.48);
+    cabDesk.add(cabSign);
+    this.group.add(cabDesk);
+    this.interactiveList.push({
+      mesh: cabDesk,
+      id: 'airport_cab_pickup',
+      name: '🚕 Cab Pickup',
+      category: 'Ground Transport',
+      description: 'Walk to the arrivals kerb or take a paid cab into town.',
+      interactionPoint: new THREE.Vector3(9, 0, 8.6),
     });
   }
 

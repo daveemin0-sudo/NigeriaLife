@@ -31,19 +31,6 @@ async function enterAirport(page) {
   return playUntil(page, () => (window.game.world.interiorManager.currentInterior?.type === 'airport' && !window.game.world.interiorManager.busy ? true : null), 30);
 }
 
-const givePapers = (page) => page.evaluate(() => {
-  const be = window.game.hud.backend;
-  if (!be.getData().inventory.some((i) => i.id === 'ng_passport')) {
-    be.addItem({ id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false, description: 'test' });
-  }
-  if (!be.getData().inventory.some((i) => i.id === 'travel_visa')) {
-    be.addItem({ id: 'travel_visa', name: 'Travel visa stamp', icon: '🧾', price: 45000, category: 'document', usable: false, description: 'test' });
-  }
-  if (!be.getData().inventory.some((i) => i.id === 'yellow_card')) {
-    be.addItem({ id: 'yellow_card', name: 'Yellow fever vaccination card', icon: '💛', price: 25000, category: 'document', usable: false, description: 'test' });
-  }
-});
-
 export async function run(browser, check) {
   const ctx = await newPlayer(browser);
   const { page, log } = await open(ctx);
@@ -54,7 +41,7 @@ export async function run(browser, check) {
   const hall = await page.evaluate(() => window.game.world.interiorManager.currentInterior?.name ?? '');
   check('lagosflight: map Go opens Murtala Muhammed terminal', /Murtala Muhammed/.test(hall), { hall });
 
-  // Without papers: desk refuses, no charge
+  // Without a passport: desk refuses domestic ticket, no charge
   const m0 = await money(page);
   await at(page, 'airport_checkin_desk');
   const offeredBare = await choices(page);
@@ -62,20 +49,25 @@ export async function run(browser, check) {
   await wait(400);
   const bare = await ticket(page);
   const m1 = await money(page);
-  const refused = await page.evaluate(() => /passport|visa|yellow|Alagbon|Consular|Port Health/i.test(document.body.innerText));
-  check('lagosflight: without papers the desk will not sell a ticket',
+  const refused = await page.evaluate(() => /passport|Passport Office/i.test(document.body.innerText));
+  check('lagosflight: without a passport the desk will not sell a domestic ticket',
     !bare.active && m1.total === m0.total && refused && offeredBare.some((o) => /NL 204 to Abuja/.test(o)),
     { bare, paid: m0.total - m1.total, refused, offeredBare: offeredBare.slice(0, 4) });
 
-  // With passport, visa and yellow card: buy → check-in → security → gate → board
-  givePapers(page);
+  // Domestic hop needs passport only (visa / yellow card are for the Ibadan papers-gated hop)
+  await page.evaluate(() => {
+    const be = window.game.hud.backend;
+    if (!be.getData().inventory.some((i) => i.id === 'ng_passport')) {
+      be.addItem({ id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false, description: 'test' });
+    }
+  });
   await at(page, 'airport_checkin_desk');
   await choose(page, 'to Abuja');
   await wait(400);
   let held = await ticket(page);
   const m2 = await money(page);
-  check('lagosflight: with papers, NL 204 to Abuja is sold for ₦4,200,000',
-    held.active && held.flight === 'NL 204' && held.state === 'booked' && m0.total - m2.total === 4_200_000,
+  check('lagosflight: with a passport, NL 204 to Abuja is sold for ₦95,000',
+    held.active && held.flight === 'NL 204' && held.state === 'booked' && m0.total - m2.total === 95_000,
     { held, paid: m0.total - m2.total });
 
   await at(page, 'airport_checkin_desk');
