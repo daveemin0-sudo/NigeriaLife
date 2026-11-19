@@ -378,7 +378,16 @@ export class CityPopulation {
     const female = (cfg: Partial<HumanConfig>) =>
       looks.push({ gender: 'female', username: '', lod: 'street', skinTone: this.pick(SKIN_TONES), ...cfg });
 
-    // Everyday Lagos men — tees, senators, agbadas, street fashion
+    // Everyday Lagos streetwear first — polos & tees (not costumes)
+    for (const color of [0x1e3a8a, 0xf8fafc, 0x166534, 0x7f1d1d, 0x0f172a]) {
+      male({
+        outfit: 'polo_shirt',
+        outfitColor: color,
+        trousersColor: this.pick([0x1e3a5f, 0xd4a373, 0x1e40af, 0x18181b]),
+        hairstyle: this.pick(['fade', 'short_crop', 'low_cut']),
+        build: this.pick(['slim', 'average', 'broad']),
+      });
+    }
     for (const color of [0x10b981, 0xdc2626, 0xf8fafc, 0xfacc15, 0x38bdf8, 0x0f172a, 0xf97316, 0x7c3aed]) {
       male({ outfit: 'casual_tee', outfitColor: color, hairstyle: this.pick(['fade', 'short_crop', 'afro']), build: this.pick(['slim', 'average', 'broad']) });
     }

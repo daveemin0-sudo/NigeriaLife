@@ -34,15 +34,20 @@ export function makeClothMaterial(
 ): THREE.MeshPhysicalMaterial {
   const map = fabric(pattern, colour, accent, 0x111827);
   const satin = opts.satin ?? (pattern === 'aso_oke' || pattern === 'gold_chain' || pattern === 'lace');
+  const cottony = pattern === 'pique' || pattern === 'cotton' || pattern === 'knit';
   return new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(colour),
     map: map ?? undefined,
-    roughness: opts.roughness ?? (satin ? 0.42 : (pattern === 'ankara' || pattern === 'denim' ? 0.82 : 0.72)),
+    roughness: opts.roughness ?? (satin ? 0.42 : cottony ? 0.78 : pattern === 'ankara' || pattern === 'denim' ? 0.85 : 0.72),
     metalness: satin && pattern === 'gold_chain' ? 0.12 : 0.02,
-    sheen: satin ? 0.85 : 0.25,
-    sheenRoughness: satin ? 0.28 : 0.7,
-    sheenColor: satin ? new THREE.Color(accent).lerp(new THREE.Color(0xffe6a8), 0.35) : new THREE.Color(0xffffff),
-    envMapIntensity: satin ? 0.9 : 0.45,
+    sheen: satin ? 0.85 : cottony ? 0.32 : 0.22,
+    sheenRoughness: satin ? 0.28 : cottony ? 0.62 : 0.72,
+    sheenColor: satin
+      ? new THREE.Color(accent).lerp(new THREE.Color(0xffe6a8), 0.35)
+      : cottony
+        ? new THREE.Color(colour).lerp(new THREE.Color(0xffffff), 0.25)
+        : new THREE.Color(0xffffff),
+    envMapIntensity: satin ? 0.9 : cottony ? 0.4 : 0.45,
   });
 }
 

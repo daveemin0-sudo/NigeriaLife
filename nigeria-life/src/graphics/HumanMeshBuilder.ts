@@ -77,6 +77,8 @@ export interface HumanConfig {
   hatColor?: number;
   /** The cloth of the top: plain, ankara, aso-oke, lace, denim, check, stripes */
   pattern?: Pattern;
+  /** Wardrobe bottom override (jeans vs chinos etc.) */
+  bottomStyle?: 'jeans' | 'trousers' | 'shorts' | 'joggers' | 'skirt' | 'wrapper' | 'none';
   accentColor?: number;
   eyeColor?: number;
   lipColor?: number;

@@ -57,10 +57,19 @@ export function createHumanForConfig(config: CharacterConfig, uniform?: Uniform 
 
   // 2. Resolve Modular Bottoms / Trousers
   let trousersHex = 0xffffff;
+  let bottomStyle: 'jeans' | 'trousers' | 'shorts' | 'joggers' | 'skirt' | 'wrapper' | 'none' | undefined;
   if (config.bottomId) {
     const bottomItem = WARDROBE_CATALOGUE.find((i) => i.id === config.bottomId);
     if (bottomItem) {
       trousersHex = bottomItem.color;
+      const sk = bottomItem.styleKey;
+      if (sk === 'jeans' || sk === 'trousers' || sk === 'shorts' || sk === 'joggers' || sk === 'skirt' || sk === 'wrapper') {
+        bottomStyle = sk;
+      } else if (sk === 'skirt') {
+        bottomStyle = 'skirt';
+      } else {
+        bottomStyle = 'trousers';
+      }
     }
   } else if (config.trousersColor) {
     const parsed = parseInt(config.trousersColor.replace('#', '0x'), 16);
@@ -155,6 +164,7 @@ export function createHumanForConfig(config: CharacterConfig, uniform?: Uniform 
     outfit,
     outfitColor,
     trousersColor: trousersHex,
+    bottomStyle,
     shoeColor,
     shoeStyle,
     bagStyle,

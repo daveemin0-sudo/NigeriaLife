@@ -6,7 +6,7 @@ import * as THREE from 'three';
  * a small repeating canvas so a garment reads as cloth up close and costs little.
  */
 
-export type Pattern = 'plain' | 'denim' | 'ankara' | 'aso_oke' | 'check' | 'stripes' | 'lace' | 'leather' | 'knit' | 'gold_chain';
+export type Pattern = 'plain' | 'denim' | 'ankara' | 'aso_oke' | 'check' | 'stripes' | 'lace' | 'leather' | 'knit' | 'gold_chain' | 'pique' | 'cotton';
 
 const cache = new Map<string, THREE.Texture>();
 
@@ -174,6 +174,32 @@ export function fabric(pattern: Pattern, base: number, accent = 0xffffff, third 
       }
     }
     repeat = [4, 4];
+  } else if (pattern === 'pique') {
+    // Polo pique: small honeycomb / waffle knit that reads as fabric up close
+    ctx.fillStyle = hex(base);
+    ctx.fillRect(0, 0, size, size);
+    for (let y = 0; y < size; y += 6) {
+      for (let x = (y / 6) % 2 ? 0 : 3; x < size; x += 6) {
+        ctx.fillStyle = shade(base, 0.12);
+        ctx.beginPath();
+        ctx.arc(x + 2, y + 2, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = shade(base, -0.1);
+        ctx.fillRect(x + 1, y + 3, 3, 1);
+      }
+    }
+    repeat = [4, 4];
+  } else if (pattern === 'cotton') {
+    // Soft jersey tee weave — fine cross-hatch, matte
+    for (let y = 0; y < size; y += 2) {
+      ctx.fillStyle = shade(base, y % 4 === 0 ? 0.06 : -0.05);
+      ctx.fillRect(0, y, size, 1);
+    }
+    for (let x = 0; x < size; x += 3) {
+      ctx.fillStyle = `rgba(255,255,255,${0.03 + rand() * 0.04})`;
+      ctx.fillRect(x, 0, 1, size);
+    }
+    repeat = [5, 5];
   } else if (pattern === 'gold_chain') {
     // GTA-dock street-luxury: bold black + metallic gold chain/medallion print (readable at street distance)
     ctx.fillStyle = hex(base || 0x111111);

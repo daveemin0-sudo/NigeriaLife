@@ -165,9 +165,42 @@ function cutFor(config: HumanConfig, female: boolean): Cut {
     case 'peplum_skirt': return { ...base, top: 'blouse', sleeves: 'short', hem: 0.86, pattern: pattern ?? 'ankara', accent: config.accentColor ?? 0xfacc15, bottom: 'skirt', bottomColour: config.trousersColor ?? c, bottomPattern: 'ankara' };
     case 'casual_blouse': return { ...base, top: 'blouse', sleeves: 'short', hem: 0.86, bottom: female ? 'jeans' : 'trousers', bottomColour: config.trousersColor ?? 0x1e3a8a, bottomPattern: 'denim' };
     case 'casual_tee':
-    case 'tshirt': return { ...base, top: 'tee', bottom: 'jeans', bottomColour: config.trousersColor ?? 0x1e3a8a, bottomPattern: 'denim' };
-    case 'polo_shirt': return { ...base, top: 'polo', collar: true, buttons: true, bottom: 'trousers', bottomColour: config.trousersColor ?? 0xd6c7a1 };
-    case 'button_shirt': return { ...base, top: 'shirt', sleeves: 'long', collar: true, buttons: true, pattern: pattern ?? 'check', accent: config.accentColor ?? 0xffffff, bottom: 'jeans', bottomColour: config.trousersColor ?? 0x1e3a8a, bottomPattern: 'denim' };
+    case 'tshirt':
+      return {
+        ...base,
+        top: 'tee',
+        pattern: pattern ?? 'cotton',
+        bottom: 'jeans',
+        bottomColour: config.trousersColor ?? 0x1e3a8a,
+        bottomPattern: 'denim',
+      };
+    case 'polo_shirt':
+    case 'student_casual':
+      return {
+        ...base,
+        top: 'polo',
+        sleeves: 'short',
+        collar: true,
+        buttons: true,
+        pattern: pattern ?? 'pique',
+        hem: female ? 0.88 : 0.9,
+        bottom: 'trousers',
+        bottomColour: config.trousersColor ?? 0x1e3a5f,
+        bottomPattern: 'plain',
+      };
+    case 'button_shirt':
+      return {
+        ...base,
+        top: 'shirt',
+        sleeves: 'long',
+        collar: true,
+        buttons: true,
+        pattern: pattern ?? 'check',
+        accent: config.accentColor ?? 0xffffff,
+        bottom: 'jeans',
+        bottomColour: config.trousersColor ?? 0x1e3a8a,
+        bottomPattern: 'denim',
+      };
     case 'ankara_shirt': return { ...base, top: 'shirt', sleeves: 'short', collar: true, buttons: true, pattern: 'ankara', accent: config.accentColor ?? 0xfacc15, bottom: 'trousers', bottomColour: config.trousersColor ?? 0x111827 };
     // Open black shirt with metallic gold chain print + board shorts (dock hero)
     case 'street_gold_shirt':
@@ -211,9 +244,22 @@ function cutFor(config: HumanConfig, female: boolean): Cut {
     case 'chef_attire': return { ...base, top: 'chef', sleeves: 'long', collar: true, buttons: true, colour: 0xffffff, bottom: 'trousers', bottomColour: 0x111827, bottomPattern: 'check' };
     case 'mechanic_overalls': return { ...base, top: 'overall', sleeves: 'long', colour: 0x1d4ed8, bottom: 'trousers', bottomColour: 0x1d4ed8 };
     case 'engineer_vest': return { ...base, top: 'shirt', sleeves: 'long', collar: true, buttons: true, colour: 0x1e3a8a, vest: 0xf97316, bottom: 'jeans', bottomColour: 0x1e3a8a, bottomPattern: 'denim' };
-    case 'student_casual': return { ...base, top: 'polo', collar: true, buttons: true, bottom: 'jeans', bottomColour: 0x1e3a8a, bottomPattern: 'denim' };
     default: return base;
   }
+}
+
+/** Apply wardrobe bottom choice over the outfit's default lower half */
+function withBottom(cut: Cut, config: HumanConfig): Cut {
+  const b = config.bottomStyle;
+  if (!b) return cut;
+  if (b === 'jeans') return { ...cut, bottom: 'jeans', bottomPattern: 'denim' };
+  if (b === 'trousers') return { ...cut, bottom: 'trousers', bottomPattern: 'plain' };
+  if (b === 'shorts') return { ...cut, bottom: 'shorts', bottomPattern: 'plain' };
+  if (b === 'joggers') return { ...cut, bottom: 'joggers', bottomPattern: 'knit' };
+  if (b === 'skirt') return { ...cut, bottom: 'skirt', bottomPattern: cut.bottomPattern };
+  if (b === 'wrapper') return { ...cut, bottom: 'wrapper', bottomPattern: 'aso_oke' };
+  if (b === 'none') return { ...cut, bottom: 'none' };
+  return cut;
 }
 
 /** The hair a hat-wearing look still has, and the hat, from the old single setting */
@@ -258,7 +304,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   skinDeep.sheen = 0.35;
   materials.push(skinDeep);
   const hairColour = new THREE.Color(config.hairColor ?? '#0b0908').getHex();
-  const cut = cutFor(config, female);
+  const cut = withBottom(cutFor(config, female), config);
   const clothSatin =
     cut.pattern === 'aso_oke' ||
     cut.pattern === 'gold_chain' ||
@@ -327,14 +373,31 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     buckle.position.set(0, beltY, interp(profile, beltY) * sz + 0.016);
     torso.add(buckle);
   }
+  // Soft shoulder pads that blend into the torso (not floating robot balls)
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Mesh(new THREE.SphereGeometry(1, seg, seg / 2), torsoTop.material as THREE.Material);
-    // Fuller deltoid mass so arms read connected to the torso
-    shoulder.scale.set((female ? 0.115 : 0.14) * breadth, female ? 0.058 : 0.07, female ? 0.082 : 0.1);
-    shoulder.position.set(side * (female ? 0.185 : 0.24) * breadth, female ? 0.248 : 0.275, -0.002);
-    shoulder.rotation.z = side * -0.28;
+    shoulder.scale.set((female ? 0.1 : 0.118) * breadth, female ? 0.048 : 0.055, female ? 0.07 : 0.082);
+    shoulder.position.set(side * (female ? 0.168 : 0.205) * breadth, female ? 0.255 : 0.282, 0.008);
+    shoulder.rotation.z = side * -0.18;
     torso.add(shoulder);
   }
+  // Trapezius / collar shelf: fills the gap between neck and shoulders so the silhouette reads human
+  const trap = new THREE.Mesh(
+    lathe(
+      [
+        [0.055, 0.34],
+        [0.1, 0.33],
+        [0.155 * breadth, 0.31],
+        [0.18 * breadth, 0.285],
+        [0.165 * breadth, 0.26],
+      ],
+      seg,
+      sx * 0.92,
+      sz * 0.95,
+    ),
+    torsoTop.material as THREE.Material,
+  );
+  torso.add(trap);
   if (female) {
     // The bust, under the top
     for (const s of [-1, 1]) {
@@ -424,10 +487,24 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   }
   if ((cut.collar && cut.top !== 'kaftan') || cut.top === 'jacket') {
     for (const s of [-1, 1]) {
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.045, 0.012), cut.top === 'jacket' ? mat(0xffffff, 0.6) : top);
-      wing.position.set(s * 0.04, female ? 0.285 : 0.315, frontAt(0.28) - 0.012);
-      wing.rotation.set(-0.5, 0, s * 0.5);
+      // Polo / shirt collars: wider, flatter wings that sit on the trap
+      const polo = cut.top === 'polo';
+      const wing = new THREE.Mesh(
+        new THREE.BoxGeometry(polo ? 0.095 : 0.075, polo ? 0.038 : 0.045, polo ? 0.016 : 0.012),
+        cut.top === 'jacket' ? mat(0xffffff, 0.6) : top,
+      );
+      wing.position.set(s * (polo ? 0.048 : 0.04), female ? 0.29 : 0.318, frontAt(0.28) - (polo ? 0.004 : 0.012));
+      wing.rotation.set(polo ? -0.35 : -0.5, polo ? s * 0.15 : 0, s * (polo ? 0.35 : 0.5));
       torso.add(wing);
+    }
+    if (cut.top === 'polo' && detailed) {
+      // Stand collar band under the wings
+      const band = new THREE.Mesh(lathe([[0.07, 0.3], [0.078, 0.325], [0.07, 0.34]], seg, sx * 0.75, sz * 1.05), top);
+      torso.add(band);
+      // Soft placket strip
+      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.008), top);
+      placket.position.set(0, 0.22, frontAt(0.22) + 0.004);
+      torso.add(placket);
     }
   }
   if (cut.top === 'kaftan' || cut.top === 'buba') {
@@ -472,26 +549,31 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     }
   }
 
-  // Cloth folds / drape on showcase outfits (excluded from merge so they can sway)
+  // Cloth folds on everyday Lagos streetwear + traditional (polo / tee / shirt included)
   if (detailed) {
     const foldZ = frontAt(0.1) + 0.014;
     const wantsFolds =
       cut.pattern === 'ankara' ||
       cut.pattern === 'aso_oke' ||
       cut.pattern === 'gold_chain' ||
+      cut.pattern === 'pique' ||
+      cut.pattern === 'cotton' ||
       config.outfit === 'street_gold_shirt' ||
       config.outfit === 'jason_dock' ||
       config.outfit === 'kaftan' ||
       config.outfit === 'senator' ||
+      config.outfit === 'polo_shirt' ||
       cut.top === 'tee' ||
+      cut.top === 'polo' ||
+      cut.top === 'shirt' ||
       cut.top === 'kaftan' ||
       cut.top === 'agbada';
     if (wantsFolds) {
       const folds = addFrontFolds(torso, top, {
-        count: config.outfit === 'jason_dock' || cut.top === 'tee' ? 4 : 6,
+        count: cut.top === 'polo' || cut.top === 'tee' ? 5 : 6,
         z: foldZ,
-        y0: cut.top === 'tee' || config.outfit === 'jason_dock' ? -0.12 : -0.22,
-        y1: 0.22,
+        y0: cut.top === 'tee' || cut.top === 'polo' || config.outfit === 'jason_dock' ? -0.1 : -0.22,
+        y1: cut.top === 'polo' ? 0.16 : 0.22,
         width: (female ? 0.22 : 0.26) * breadth,
       });
       for (const f of folds) {
@@ -534,31 +616,32 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     torso.add(tie);
   }
 
-  // ---------------------------------------------------------------- Head and neck (~1/8 of standing height)
+  // ---------------------------------------------------------------- Head and neck (natural ~10–12 cm neck — not a robot pipe)
   const head = new THREE.Group();
-  head.position.set(0, female ? 1.6 : 1.7, 0);
+  // Head sits just above the trap/collar shelf (was 1.6/1.7 → giraffe)
+  head.position.set(0, female ? 1.42 : 1.48, 0);
   group.add(head);
-  const neckR = (female ? 0.052 : 0.062) * (build === 'broad' ? 1.1 : 1);
-  // Tapered neck with sternomastoid mass (not a pipe)
+  const neckR = (female ? 0.055 : 0.064) * (build === 'broad' ? 1.08 : 1);
+  // Short thick neck: collarbone flare into jaw (~11 cm visible)
   const neck = new THREE.Mesh(
     lathe(
       [
-        [neckR * 1.08, -0.2],
-        [neckR * 1.02, -0.12],
-        [neckR * 0.98, -0.04],
-        [neckR * 0.96, 0.04],
-        [neckR * 0.94, 0.08],
+        [neckR * 1.35, -0.1],
+        [neckR * 1.15, -0.06],
+        [neckR * 1.02, -0.02],
+        [neckR * 0.98, 0.03],
+        [neckR * 0.95, 0.055],
       ],
       seg,
-      1.05,
-      0.88,
+      1.08,
+      0.9,
     ),
     skin,
   );
-  neck.position.z = -0.006;
+  neck.position.z = -0.004;
   head.add(neck);
   const R = female ? 0.108 : 0.115;
-  const C = new THREE.Vector3(0, female ? 0.05 : 0.054, 0.016);
+  const C = new THREE.Vector3(0, female ? 0.042 : 0.046, 0.014);
   // Higher-resolution skull topology for stylized-real face read
   const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 56 : 28, detailed ? 42 : 20), R, shape), skin);
   skull.position.copy(C);
@@ -783,29 +866,41 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     head.add(tube);
   }
 
-  // ---------------------------------------------------------------- Arms (thicker limb mass, fuller deltoids)
-  const shoulderX = (female ? 0.26 : 0.34) * (build === 'slim' ? 0.96 : build === 'broad' ? 1.08 : 1);
+  // ---------------------------------------------------------------- Arms — tucked under trap so shoulders don't float as separate balls
+  const shoulderX = (female ? 0.22 : 0.28) * (build === 'slim' ? 0.96 : build === 'broad' ? 1.06 : 1);
   const upperLen = female ? 0.28 : 0.32;
   const foreLen = female ? 0.26 : 0.3;
-  const armR = (female ? 0.058 : 0.074) * breadth;
+  const armR = (female ? 0.055 : 0.07) * breadth;
   const sleeveMat = cut.top === 'agbada' || cut.top === 'kaftan' || cut.top === 'buba' ? top : cut.top === 'overall' && cut.sleeves === 'none' ? skin : top;
   const coatMat = cut.coat !== undefined ? mat(cut.coat, 0.55) : null;
   const makeArm = (side: -1 | 1) => {
     const arm = new THREE.Group();
-    arm.position.set(side * shoulderX, female ? 1.34 : 1.44, 0);
+    // Align with trap height (torsoY + ~0.28)
+    arm.position.set(side * shoulderX, female ? 1.3 : 1.38, 0.01);
     group.add(arm);
-    const sleeveLen = cut.sleeves === 'none' ? 0 : cut.sleeves === 'short' ? upperLen * 0.5 : upperLen;
-    const ease = cut.sleeves === 'wide' ? 0.06 : 0.012;
-    // The shoulder's round
-    const deltoid = new THREE.Mesh(new THREE.SphereGeometry(armR * 1.08 + (sleeveLen ? Math.min(ease, 0.014) * 0.6 : 0), seg / 2, seg / 3), sleeveLen ? (coatMat ?? sleeveMat) : skin);
-    deltoid.scale.set(0.95, 1.0, 0.92);
-    deltoid.position.set(-side * 0.016, -0.035, 0);
+    const sleeveLen = cut.sleeves === 'none' ? 0 : cut.sleeves === 'short' ? upperLen * 0.55 : upperLen;
+    const ease = cut.sleeves === 'wide' ? 0.06 : cut.top === 'polo' ? 0.018 : 0.012;
+    // Deltoid as a soft oval tucked into the torso, not a detached ball
+    const deltoid = new THREE.Mesh(
+      new THREE.SphereGeometry(armR * 1.05 + (sleeveLen ? Math.min(ease, 0.014) * 0.5 : 0), seg / 2, seg / 3),
+      sleeveLen ? (coatMat ?? sleeveMat) : skin,
+    );
+    deltoid.scale.set(0.85, 1.05, 0.88);
+    deltoid.position.set(-side * 0.01, -0.02, 0);
     arm.add(deltoid);
     if (sleeveLen > 0) {
       // The sleeve: from the shoulder down to its hem, a little loose; wide for the agbada
       const hemR = (sleeveLen >= upperLen ? armR * 0.9 : armR * 1.04) + ease * (cut.sleeves === 'wide' ? 1.6 : 1);
       const sleeve = new THREE.Mesh(lathe([[hemR * 0.96, -sleeveLen - 0.004], [hemR, -sleeveLen], [armR * 1.08 + ease, -sleeveLen * 0.4], [armR * 1.06 + ease, -0.02], [0, -0.01]], seg / 2), coatMat ?? sleeveMat);
       arm.add(sleeve);
+      // Polo / tee ribbed cuff at the hem — reads as finished fabric, not a cut pipe
+      if (detailed && (cut.top === 'polo' || cut.top === 'tee') && cut.sleeves === 'short') {
+        const cuff = new THREE.Mesh(
+          lathe([[hemR + 0.004, -sleeveLen - 0.002], [hemR + 0.006, -sleeveLen + 0.028]], seg / 2),
+          coatMat ?? sleeveMat,
+        );
+        arm.add(cuff);
+      }
     }
     if (sleeveLen < upperLen) arm.add(new THREE.Mesh(lathe([[armR * 0.88, -upperLen], [armR * 1.08, -upperLen * 0.35], [armR * 1.15, -sleeveLen + 0.01]], seg / 2), skin));
     const fore = new THREE.Group();
