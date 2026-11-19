@@ -36,10 +36,19 @@ Measured levers already in code comments / prior audits:
 
 ## Vertical-slice plan (this effort)
 
-1. Harden **Low** for laptop: render scale, 720p internal cap, stronger cull distances, GPU auto-detect.
-2. Lagos **Broad Street** presentation: stronger night street pools + window glow (no new PointLights).
-3. Cap wet-road metalness on Low (cheaper specular).
-4. Profile High vs Low at **1280×720** in e2e (`laptopperf`) — software WebGL on CI/cloud is not HD 620; numbers are comparative, not device claims.
+1. Harden **Low** for laptop: render scale, 720p internal cap, stronger cull distances, GPU auto-detect. ✅ (PR #31)
+2. Lagos **Broad Street** presentation: stronger night street pools + window glow (no new PointLights). ✅ (PR #31)
+3. Cap wet-road metalness on Low (cheaper specular). ✅ (PR #31)
+4. Profile High vs Low at **1280×720** in e2e (`laptopperf`) — software WebGL on CI/cloud is not HD 620; numbers are comparative, not device claims. ✅ (PR #31)
+
+## Next realism layer (lighting + weather immersion)
+
+Incremental follow-on (this branch): sell day↔night↔rain without new PointLights or city rebuilds.
+
+1. Continuous dusk→dawn street lamp + façade window glow from `currentHour` (not just period flips).
+2. Stronger golden-hour / deeper night keyframes in `SkyEnvironmentManager`.
+3. Rain: darker wet asphalt tint, puddle wetness scaling, slightly denser rain particles.
+4. Sidewalk wet registration + `lightingweather` e2e (midday / golden / night / rain screenshots).
 
 ## Out of scope for this slice
 

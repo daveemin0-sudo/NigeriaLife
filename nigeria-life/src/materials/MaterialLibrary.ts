@@ -708,29 +708,40 @@ export class MaterialLibrary {
   }
 
   public setNightLighting(period: string): void {
-    const isNight = period === 'night';
-    const isGolden = period === 'golden_hour';
+    const hour = period === 'night' ? 22 : period === 'golden_hour' ? 18.4 : 12;
+    this.setWindowGlowForHour(hour);
+  }
+
+  /** Continuous façade / window glow from the world clock (matches street lamp dusk ramp). */
+  public setWindowGlowForHour(hour: number): void {
+    const h = ((hour % 24) + 24) % 24;
+    let glow = 0;
+    if (h >= 19.6 || h < 5.7) glow = 1;
+    else if (h >= 17.8 && h < 19.6) {
+      const t = (h - 17.8) / 1.8;
+      glow = t * t * (3 - 2 * t);
+    } else if (h >= 5.7 && h < 6.9) {
+      const t = (h - 5.7) / 1.2;
+      glow = 1 - t * t * (3 - 2 * t);
+    }
 
     if (this.louveredWindowMaterial) {
-      if (isNight) {
-        this.louveredWindowMaterial.emissive.setHex(0xfbbf24); // warm golden interior lamp glow
-        this.louveredWindowMaterial.emissiveIntensity = 0.95;
-      } else if (isGolden) {
-        this.louveredWindowMaterial.emissive.setHex(0xf59e0b);
-        this.louveredWindowMaterial.emissiveIntensity = 0.32;
+      if (glow > 0.05) {
+        this.louveredWindowMaterial.emissive.setHex(glow > 0.55 ? 0xfbbf24 : 0xf59e0b);
+        this.louveredWindowMaterial.emissiveIntensity = 0.2 + glow * 0.85;
       } else {
         this.louveredWindowMaterial.emissive.setHex(0x000000);
-        this.louveredWindowMaterial.emissiveIntensity = 0.0;
+        this.louveredWindowMaterial.emissiveIntensity = 0;
       }
     }
 
     if (this.glassReflectiveMaterial) {
-      if (isNight) {
-        this.glassReflectiveMaterial.emissive.setHex(0x38bdf8); // modern blue office tower glow
-        this.glassReflectiveMaterial.emissiveIntensity = 0.55;
+      if (glow > 0.05) {
+        this.glassReflectiveMaterial.emissive.setHex(0x38bdf8);
+        this.glassReflectiveMaterial.emissiveIntensity = 0.12 + glow * 0.5;
       } else {
         this.glassReflectiveMaterial.emissive.setHex(0x000000);
-        this.glassReflectiveMaterial.emissiveIntensity = 0.0;
+        this.glassReflectiveMaterial.emissiveIntensity = 0;
       }
     }
   }

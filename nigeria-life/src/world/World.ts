@@ -12,6 +12,7 @@ import { WeatherSystem } from './WeatherSystem';
 import { CityManager } from '../cities/CityManager';
 import { SkyEnvironmentManager } from './SkyEnvironmentManager';
 import { AtmosphereManager } from './AtmosphereManager';
+import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { markStillGroup } from '../graphics/StillMatrices';
 import { LagosStreetLifeSystem } from './LagosStreetLifeSystem';
 import { CityDensityManager } from './density/CityDensityManager';
@@ -130,6 +131,7 @@ export class World {
     this.scene.add(this.roads.group);
     markStillGroup(this.roads.group);
     this.weather.registerRoadMaterial(this.roads.asphaltMat);
+    this.weather.registerRoadMaterial(MaterialLibrary.getInstance().sidewalkMaterial);
     this.roads.setNightLighting(this.skyEnvironment.currentPeriod);
     this.skyEnvironment.onPeriodChange = (period) => {
       this.roads.setNightLighting(period);
@@ -601,6 +603,9 @@ export class World {
     // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day (rooms keep their lights on)
     this.skyEnvironment.indoors = this.interiorManager.isPlayerInside();
     this.skyEnvironment.update(delta, playerPos);
+    // Continuous dusk→dawn street lamps + window glow (sells night immersion without PointLights)
+    this.roads.setLampIntensityForHour(this.skyEnvironment.currentHour);
+    MaterialLibrary.getInstance().setWindowGlowForHour(this.skyEnvironment.currentHour);
 
     // Keep live player coordinate synced in WorldDataManager
     if (playerPos) {

@@ -411,4 +411,16 @@ export class AtmosphereManager {
   public setPuddlesVisible(visible: boolean): void {
     this.puddlesGroup.visible = visible;
   }
+
+  /** Scale puddle opacity/reflectivity with rain wetness (0 dry → 1 soaked). */
+  public setPuddleWetness(wetness: number): void {
+    const w = Math.max(0, Math.min(1, wetness));
+    this.puddlesGroup.visible = w > 0.12;
+    for (const mat of this.puddleMaterials) {
+      mat.opacity = 0.15 + w * 0.78;
+      mat.roughness = Math.max(0.03, 0.12 - w * 0.08);
+      mat.metalness = Math.min(0.28, 0.06 + w * 0.2);
+      mat.needsUpdate = true;
+    }
+  }
 }

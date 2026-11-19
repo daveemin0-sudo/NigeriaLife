@@ -75,24 +75,24 @@ const WEATHER_PROFILES: Record<string, WeatherProfile> = {
   rainy: {
     name: 'Rainy',
     icon: '🌧️',
-    sunMultiplier: 0.35,
-    hemiMultiplier: 0.52,
-    fogDensityMultiplier: 1.55,
-    fogColorTint: [0.60, 0.66, 0.76],
-    rainIntensity: 0.65,
-    windStrength: 0.65,
+    sunMultiplier: 0.32,
+    hemiMultiplier: 0.48,
+    fogDensityMultiplier: 1.72,
+    fogColorTint: [0.55, 0.62, 0.72],
+    rainIntensity: 0.78,
+    windStrength: 0.7,
     harmattanDust: 0.0,
-    roadWetness: 0.85,
+    roadWetness: 0.9,
   },
   thunderstorm: {
     name: 'Thunderstorm',
     icon: '⛈️',
-    sunMultiplier: 0.20,
-    hemiMultiplier: 0.38,
-    fogDensityMultiplier: 1.85,
-    fogColorTint: [0.42, 0.48, 0.60],
+    sunMultiplier: 0.16,
+    hemiMultiplier: 0.34,
+    fogDensityMultiplier: 2.05,
+    fogColorTint: [0.38, 0.44, 0.56],
     rainIntensity: 1.0,
-    windStrength: 0.95,
+    windStrength: 1.0,
     harmattanDust: 0.0,
     roadWetness: 1.0,
   },
@@ -188,8 +188,8 @@ export class WeatherSystem {
     this.rainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
     this.rainMaterial = new THREE.PointsMaterial({
-      color: 0x93c5fd,
-      size: 0.28,
+      color: 0xa5c8f0,
+      size: 0.36,
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
@@ -333,12 +333,14 @@ export class WeatherSystem {
       if (this.hemiLight) this.hemiLight.intensity = this.curHemiMultiplier * 0.7;
     }
 
-    // 3. Wet Asphalt PBR Material Shimmer (metalness capped by graphics preset)
-    const targetRoughness = THREE.MathUtils.lerp(0.85, 0.15, this.curRoadWetness);
-    const targetMetalness = THREE.MathUtils.lerp(0.05, this.wetMetalnessMax, this.curRoadWetness);
+    // 3. Wet Asphalt PBR: darker + glossier when wet (metalness capped by graphics preset)
+    const targetRoughness = THREE.MathUtils.lerp(0.88, 0.12, this.curRoadWetness);
+    const targetMetalness = THREE.MathUtils.lerp(0.04, this.wetMetalnessMax, this.curRoadWetness);
+    const wetTint = 0.55 + (1 - this.curRoadWetness) * 0.45; // darken toward grey when soaked
     for (const mat of this.roadsMeshList) {
       mat.roughness = targetRoughness;
       mat.metalness = targetMetalness;
+      mat.color.setRGB(wetTint, wetTint, wetTint * 1.02);
     }
 
     // 4. Harmattan Dust and Puddle Environmental Sync
@@ -346,7 +348,9 @@ export class WeatherSystem {
       if (typeof this.atmosphere.setDustIntensity === 'function') {
         this.atmosphere.setDustIntensity(this.curHarmattanDust);
       }
-      if (typeof this.atmosphere.setPuddlesVisible === 'function') {
+      if (typeof this.atmosphere.setPuddleWetness === 'function') {
+        this.atmosphere.setPuddleWetness(this.curRoadWetness);
+      } else if (typeof this.atmosphere.setPuddlesVisible === 'function') {
         this.atmosphere.setPuddlesVisible(this.curRoadWetness > 0.25);
       }
     }
