@@ -308,18 +308,18 @@ export class MaterialLibrary {
     this.corrugatedRoofRusty = new THREE.MeshStandardMaterial({
       map: rustyColor,
       bumpMap: corrugatedBump,
-      bumpScale: 0.08,
-      metalness: 0.5,
-      roughness: 0.72,
+      bumpScale: 0.1,
+      metalness: 0.42,
+      roughness: 0.78,
     });
 
     const { colorMap: silverColor } = this.generateCorrugatedRoof(false);
     this.corrugatedRoofSilver = new THREE.MeshStandardMaterial({
       map: silverColor,
       bumpMap: corrugatedBump,
-      bumpScale: 0.08,
-      metalness: 0.75,
-      roughness: 0.45,
+      bumpScale: 0.1,
+      metalness: 0.68,
+      roughness: 0.4,
     });
   }
 
@@ -522,11 +522,14 @@ export class MaterialLibrary {
   // 4. ARCHITECTURAL PROPS & DETAILS
   // ==========================================
   private initPropMaterials(): void {
-    // Reflective architectural tinted glass
+    // Reflective architectural tinted glass (reads as wet-sky glass under sun/rain)
     this.glassReflectiveMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1e3a8a,
-      roughness: 0.1,
-      metalness: 0.95,
+      color: 0x243b6b,
+      roughness: 0.08,
+      metalness: 0.92,
+      envMapIntensity: 1.15,
+      transparent: true,
+      opacity: 0.92,
     });
 
     // Louvered window texture (horizontal slatted glass/metal blades)

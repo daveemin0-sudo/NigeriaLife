@@ -25,7 +25,7 @@ export class Buildings {
   public compoundGateMesh: THREE.Mesh | null = null;
   public isGateOpen: boolean = false;
   private compoundGate: SlidingGate | null = null;
-  private matLib: MaterialLibrary;
+  public matLib: MaterialLibrary;
   private signLib: SignageLibrary;
 
   constructor() {

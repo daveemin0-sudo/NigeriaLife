@@ -149,6 +149,14 @@ export class WeatherSystem {
   private sunLight: THREE.DirectionalLight | null = null;
   private hemiLight: THREE.HemisphereLight | null = null;
   private roadsMeshList: THREE.MeshStandardMaterial[] = [];
+  /** Walls/roofs/glass: wetness adjusts roughness/metalness only (preserves texture colour). */
+  private surfaceMats: Array<{
+    mat: THREE.MeshStandardMaterial;
+    dryRough: number;
+    dryMetal: number;
+    wetRough: number;
+    wetMetal: number;
+  }> = [];
   private atmosphere: any = null;
   private skyEnvironment: SkyEnvironmentManager | null = null;
 
@@ -164,6 +172,26 @@ export class WeatherSystem {
 
   public registerRoadMaterial(mat: THREE.MeshStandardMaterial): void {
     this.roadsMeshList.push(mat);
+  }
+
+  /**
+   * Register building surfaces that should gloss/darken in rain without wiping their maps.
+   * @param wetRough Target roughness when soaked (lower = wetter look)
+   * @param wetMetal Target metalness when soaked (kept modest for Low GPU)
+   */
+  public registerSurfaceMaterial(
+    mat: THREE.MeshStandardMaterial,
+    wetRough = Math.max(0.18, mat.roughness * 0.45),
+    wetMetal = Math.min(0.35, Math.max(mat.metalness, 0.08) + 0.12),
+  ): void {
+    if (this.surfaceMats.some((s) => s.mat === mat)) return;
+    this.surfaceMats.push({
+      mat,
+      dryRough: mat.roughness,
+      dryMetal: mat.metalness,
+      wetRough,
+      wetMetal,
+    });
   }
 
   public registerAtmosphere(atmosphere: any): void {
@@ -358,6 +386,13 @@ export class WeatherSystem {
       mat.roughness = targetRoughness;
       mat.metalness = targetMetalness;
       mat.color.setRGB(wetTint, wetTint, wetTint * 1.02);
+    }
+
+    // 3b. Building surfaces: gloss only (maps/colour stay intact)
+    const wetCap = Math.min(this.wetMetalnessMax, 0.4);
+    for (const s of this.surfaceMats) {
+      s.mat.roughness = THREE.MathUtils.lerp(s.dryRough, s.wetRough, this.curRoadWetness);
+      s.mat.metalness = THREE.MathUtils.lerp(s.dryMetal, Math.min(s.wetMetal, wetCap), this.curRoadWetness);
     }
 
     // 4. Harmattan Dust and Puddle Environmental Sync

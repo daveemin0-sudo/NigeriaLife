@@ -132,6 +132,18 @@ export class World {
     markStillGroup(this.roads.group);
     this.weather.registerRoadMaterial(this.roads.asphaltMat);
     this.weather.registerRoadMaterial(MaterialLibrary.getInstance().sidewalkMaterial);
+    // Materials layer: walls/roofs/glass respond to rain without wiping texture colour
+    {
+      const mats = MaterialLibrary.getInstance();
+      this.weather.registerSurfaceMaterial(mats.wallPlasterCream, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterOchre, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterDistressedWhite, 0.4, 0.1);
+      this.weather.registerSurfaceMaterial(mats.wallPlasterTeal, 0.42, 0.1);
+      this.weather.registerSurfaceMaterial(mats.concreteTrimMaterial, 0.35, 0.12);
+      this.weather.registerSurfaceMaterial(mats.corrugatedRoofRusty, 0.28, 0.55);
+      this.weather.registerSurfaceMaterial(mats.corrugatedRoofSilver, 0.18, 0.8);
+      this.weather.registerSurfaceMaterial(mats.glassReflectiveMaterial, 0.04, 0.95);
+    }
     this.roads.setNightLighting(this.skyEnvironment.currentPeriod);
     this.skyEnvironment.onPeriodChange = (period) => {
       this.roads.setNightLighting(period);
