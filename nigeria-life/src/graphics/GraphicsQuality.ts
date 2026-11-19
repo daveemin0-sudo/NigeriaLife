@@ -5,6 +5,9 @@ import * as THREE from 'three';
  * cost frame time on the target machine (Intel HD 620): the size of the drawing in pixels,
  * the sun's shadows, and how far away street pedestrians are drawn and drawn in full.
  * High is the game as it has always looked.
+ *
+ * Render scale + an optional internal height cap let a Low preset target ~720p fill-rate
+ * without changing the CSS layout size of the canvas.
  */
 export type Quality = 'high' | 'balanced' | 'low';
 
@@ -12,6 +15,10 @@ interface Level {
   label: string;
   /** Pixels drawn per screen point, from the screen's own density */
   pixelRatio: (deviceRatio: number) => number;
+  /** Extra shrink of the drawing buffer (1 = full window × pixelRatio) */
+  renderScale: number;
+  /** Cap drawing-buffer height (CSS px × scale); Low uses 720 for HD 620-class fill-rate */
+  maxInternalHeight: number;
   shadows: boolean;
   shadowMapSize: number;
   /** Seconds between redraws of the shadow map; 0 is every frame */
@@ -23,14 +30,60 @@ interface Level {
   smokeEvery: number;
   /** Distance beyond which outer Lagos district groups are culled */
   districtDraw: number;
+  /** Max wet-road metalness (specular cost); rain still darkens roughness */
+  wetMetalnessMax: number;
+  /** Whether the optional bloom/grade composer may run */
+  postFx: boolean;
 }
 
 export const QUALITY_LEVELS: Record<Quality, Level> = {
-  high: { label: 'High', pixelRatio: (d) => Math.min(d, 2), shadows: true, shadowMapSize: 1536, shadowEvery: 0, crowdDraw: 90, crowdNear: 22, smokeEvery: 1, districtDraw: 600 },
-  balanced: { label: 'Balanced', pixelRatio: (d) => Math.min(d, 1.5), shadows: true, shadowMapSize: 1024, shadowEvery: 0, crowdDraw: 70, crowdNear: 14, smokeEvery: 2, districtDraw: 420 },
-  // On a phone's dense screen fewer than one pixel per point is a blur; on an ordinary monitor 0.75 is the saving that counts.
-  // The shadow stays (turning it off rebuilds every shader, a freeze of seconds) but is redrawn once a second, not every frame.
-  low: { label: 'Low', pixelRatio: (d) => (d >= 1.5 ? 1 : 0.75), shadows: true, shadowMapSize: 512, shadowEvery: 1, crowdDraw: 50, crowdNear: 8, smokeEvery: 3, districtDraw: 300 },
+  high: {
+    label: 'High',
+    pixelRatio: (d) => Math.min(d, 2),
+    renderScale: 1,
+    maxInternalHeight: 1440,
+    shadows: true,
+    shadowMapSize: 1536,
+    shadowEvery: 0,
+    crowdDraw: 90,
+    crowdNear: 22,
+    smokeEvery: 1,
+    districtDraw: 600,
+    wetMetalnessMax: 0.65,
+    postFx: false,
+  },
+  balanced: {
+    label: 'Medium',
+    pixelRatio: (d) => Math.min(d, 1.25),
+    renderScale: 0.9,
+    maxInternalHeight: 1080,
+    shadows: true,
+    shadowMapSize: 1024,
+    shadowEvery: 0,
+    crowdDraw: 60,
+    crowdNear: 12,
+    smokeEvery: 2,
+    districtDraw: 380,
+    wetMetalnessMax: 0.45,
+    postFx: false,
+  },
+  // EliteBook HD 620 / A16-class: fewer pixels, throttled shadows, tight crowd, 720p cap.
+  // Shadows stay on (turning them off rebuilds every lit shader — multi-second freeze).
+  low: {
+    label: 'Low',
+    pixelRatio: (d) => Math.min(d, 1),
+    renderScale: 0.7,
+    maxInternalHeight: 720,
+    shadows: true,
+    shadowMapSize: 512,
+    shadowEvery: 1.5,
+    crowdDraw: 36,
+    crowdNear: 6,
+    smokeEvery: 4,
+    districtDraw: 220,
+    wetMetalnessMax: 0.22,
+    postFx: false,
+  },
 };
 
 const ORDER: Quality[] = ['high', 'balanced', 'low'];
@@ -46,18 +99,41 @@ export interface QualityTargets {
   sun: THREE.DirectionalLight;
   scene: THREE.Scene;
   crowd: { drawDistance: number; nearDistance: number };
-  /** Called after the pixel ratio changes, for anything sized to the drawing */
+  /** Called after the pixel ratio / drawing size changes */
   resized?: () => void;
   /** Called whenever a quality level is applied */
-  onLevel?: (settings: { smokeEvery: number; districtDraw: number }) => void;
+  onLevel?: (settings: {
+    smokeEvery: number;
+    districtDraw: number;
+    wetMetalnessMax: number;
+    postFx: boolean;
+    level: Quality;
+  }) => void;
   /** Tells the player what was changed by itself */
   tell?: (text: string) => void;
+}
+
+/** Integrated / software GPUs that should start on Low unless the player already chose. */
+export function preferLowGpu(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!gl || !(gl instanceof WebGLRenderingContext)) return false;
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '') : '';
+    // Real weak laptop iGPUs only — not SwiftShader/Mesa (CI / headless stay on High for visual tests)
+    return /Intel.*(HD|UHD|Iris)/i.test(name);
+  } catch {
+    return false;
+  }
 }
 
 export class GraphicsQuality {
   public level: Quality = 'high';
   /** True once the player has picked a level: the game then never changes it by itself */
   public chosen = false;
+  /** Extra scale the player set (1 = use the level default). Persisted with the level. */
+  public userScale = 1;
   private played = 0;
   private sinceShadow = 0;
   private frames = 0;
@@ -74,19 +150,39 @@ export class GraphicsQuality {
         this.storedLevel = true;
         this.level = saved.level;
         this.chosen = !!saved.chosen;
+        if (typeof saved.userScale === 'number' && saved.userScale >= 0.5 && saved.userScale <= 1) {
+          this.userScale = saved.userScale;
+        }
       }
     } catch {
       // No storage (private window): start at High
     }
-    // A phone's first visit starts at Balanced: most phones cannot draw High smoothly (a real
-    // Android phone measured 4 to 16 frames a second on the street at High). The player can
-    // still choose High, and that choice is kept.
-    if (!this.chosen && !this.storedLevel && typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) this.level = 'balanced';
+    // Phones → Medium. Weak integrated GPUs (HD 620 class) → Low on first visit.
+    if (!this.chosen && !this.storedLevel) {
+      if (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) this.level = 'balanced';
+      else if (preferLowGpu()) this.level = 'low';
+    }
     this.apply(this.level);
   }
 
   public get label(): string {
     return QUALITY_LEVELS[this.level].label;
+  }
+
+  public get renderScale(): number {
+    return QUALITY_LEVELS[this.level].renderScale * this.userScale;
+  }
+
+  public get maxInternalHeight(): number {
+    return QUALITY_LEVELS[this.level].maxInternalHeight;
+  }
+
+  public get wetMetalnessMax(): number {
+    return QUALITY_LEVELS[this.level].wetMetalnessMax;
+  }
+
+  public get postFx(): boolean {
+    return QUALITY_LEVELS[this.level].postFx;
   }
 
   /** The player picks a level (from the phone). */
@@ -95,9 +191,36 @@ export class GraphicsQuality {
     this.apply(level);
   }
 
+  /** Cycle render scale: 100% → 85% → 70% → 55% → 100% of the level’s scale. */
+  public cycleUserScale(): number {
+    const steps = [1, 0.85, 0.7, 0.55];
+    const i = steps.findIndex((s) => Math.abs(s - this.userScale) < 0.02);
+    this.userScale = steps[(i + 1) % steps.length];
+    this.chosen = true;
+    this.apply(this.level);
+    return this.userScale;
+  }
+
   /** The next level down the list, wrapping round: for a single "Change" button. */
   public next(): Quality {
     return ORDER[(ORDER.indexOf(this.level) + 1) % ORDER.length];
+  }
+
+  /**
+   * Drawing-buffer size for the current window and quality.
+   * CSS canvas size stays full-window; only the GPU buffer shrinks.
+   */
+  public drawingSize(cssWidth = window.innerWidth, cssHeight = window.innerHeight): { width: number; height: number } {
+    const scale = this.renderScale;
+    let w = Math.max(1, Math.floor(cssWidth * scale));
+    let h = Math.max(1, Math.floor(cssHeight * scale));
+    const cap = this.maxInternalHeight;
+    if (h > cap) {
+      const f = cap / h;
+      w = Math.max(1, Math.floor(w * f));
+      h = Math.max(1, Math.floor(h * f));
+    }
+    return { width: w, height: h };
   }
 
   public apply(level: Quality): void {
@@ -127,10 +250,16 @@ export class GraphicsQuality {
     renderer.shadowMap.needsUpdate = true;
     crowd.drawDistance = l.crowdDraw;
     crowd.nearDistance = l.crowdNear;
-    this.targets.onLevel?.({ smokeEvery: l.smokeEvery, districtDraw: l.districtDraw });
+    this.targets.onLevel?.({
+      smokeEvery: l.smokeEvery,
+      districtDraw: l.districtDraw,
+      wetMetalnessMax: l.wetMetalnessMax,
+      postFx: l.postFx,
+      level,
+    });
 
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ level, chosen: this.chosen }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ level, chosen: this.chosen, userScale: this.userScale }));
     } catch {
       // Not kept, but still applied for this visit
     }

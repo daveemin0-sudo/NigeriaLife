@@ -714,10 +714,10 @@ export class MaterialLibrary {
     if (this.louveredWindowMaterial) {
       if (isNight) {
         this.louveredWindowMaterial.emissive.setHex(0xfbbf24); // warm golden interior lamp glow
-        this.louveredWindowMaterial.emissiveIntensity = 0.65;
+        this.louveredWindowMaterial.emissiveIntensity = 0.95;
       } else if (isGolden) {
         this.louveredWindowMaterial.emissive.setHex(0xf59e0b);
-        this.louveredWindowMaterial.emissiveIntensity = 0.25;
+        this.louveredWindowMaterial.emissiveIntensity = 0.32;
       } else {
         this.louveredWindowMaterial.emissive.setHex(0x000000);
         this.louveredWindowMaterial.emissiveIntensity = 0.0;
@@ -727,7 +727,7 @@ export class MaterialLibrary {
     if (this.glassReflectiveMaterial) {
       if (isNight) {
         this.glassReflectiveMaterial.emissive.setHex(0x38bdf8); // modern blue office tower glow
-        this.glassReflectiveMaterial.emissiveIntensity = 0.35;
+        this.glassReflectiveMaterial.emissiveIntensity = 0.55;
       } else {
         this.glassReflectiveMaterial.emissive.setHex(0x000000);
         this.glassReflectiveMaterial.emissiveIntensity = 0.0;

@@ -204,18 +204,19 @@ export class Roads {
 
     for (const mat of this.streetBulbMaterials) {
       if (isNight) {
-        mat.emissive.setHex(0xfff1d6);
-        mat.emissiveIntensity = 2.4;
+        mat.emissive.setHex(0xfff4e0);
+        mat.emissiveIntensity = 3.1;
       } else if (isGolden) {
         mat.emissive.setHex(0xffc570);
-        mat.emissiveIntensity = 1.1;
+        mat.emissiveIntensity = 1.35;
       } else {
         mat.emissive.setHex(0xffedd5);
         mat.emissiveIntensity = 0.15;
       }
     }
 
-    this.setLampGlow(isNight ? 0.5 : isGolden ? 0.2 : 0);
+    // Stronger night pools so Lagos streets read as lit neighbourhoods, not darkened flats
+    this.setLampGlow(isNight ? 0.78 : isGolden ? 0.28 : 0);
 
     // Roadside umbrella stalls pack down when evening arrives and set back up before dawn
     for (const stall of this.roadsideStalls) {
