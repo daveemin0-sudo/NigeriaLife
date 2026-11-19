@@ -78,8 +78,9 @@ export class Player {
       id: 'player',
       name: this.config.name || 'You',
       root: this.mesh,
-      // The built-in body can be animated by hand; a loaded character model cannot (yet)
+      // The built-in body is animated joint by joint; a loaded character model acts with its clips
       getRig: () => (this.glbModel ? null : this.humanRig),
+      getSkinned: () => this.skinned,
       speed: 3.4,
     });
     InteractionDirector.get().player = InteractionDirector.get().register(this.actor);
@@ -141,8 +142,10 @@ export class Player {
 
   public playAnimation(clipName: string, fadeDuration: number = 0.25): void {
     if (this.skinned) {
-      const state = clipName.toLowerCase() as SkinnedAnimState;
-      this.skinned.play(state, fadeDuration);
+      // Emotes with no clip of their own are acted with the nearest one there is
+      const EMOTE: Record<string, SkinnedAnimState> = { zanku: 'dance', groove: 'dance', salute: 'interact', wave: 'interact', greet: 'interact' };
+      const name = clipName.toLowerCase();
+      this.skinned.play(EMOTE[name] ?? (name as SkinnedAnimState), fadeDuration);
       return;
     }
     if (!this.mixer) return;

@@ -19,6 +19,11 @@ export interface ActorOptions {
   root: THREE.Object3D;
   /** Read each frame, because the player's body is rebuilt when they change their look. */
   getRig: () => HumanRig | null;
+  /**
+   * A skinned character model, when one is worn instead of the built-in body (read each frame).
+   * The interaction system then acts its poses out with the model's own clips.
+   */
+  getSkinned?: () => { applyPose: (pose: PoseState) => void } | null;
   speed?: number;
 }
 
@@ -44,6 +49,7 @@ export class Actor {
   public homeYaw: number;
 
   private readonly getRig: () => HumanRig | null;
+  private readonly getSkinned: () => { applyPose: (pose: PoseState) => void } | null;
   private time = Math.random() * 10;
   private joints: JointValues = neutralJoints();
   private target: JointValues = neutralJoints();
@@ -57,6 +63,7 @@ export class Actor {
     this.name = options.name;
     this.root = options.root;
     this.getRig = options.getRig;
+    this.getSkinned = options.getSkinned ?? (() => null);
     this.speed = options.speed ?? 2.8;
     this.homeYaw = this.root.rotation.y;
   }
@@ -105,7 +112,11 @@ export class Actor {
     if (this.scripted === on) return;
     this.scripted = on;
     const rig = this.getRig();
-    if (!rig) return;
+    if (!rig) {
+      // A skinned model: let go of it standing (the owner then plays its own idle or walk)
+      if (!on) this.getSkinned()?.applyPose({ legs: 'stand', arms: 'rest' });
+      return;
+    }
     if (on) {
       this.adoptRig(rig);
     } else {
@@ -204,7 +215,11 @@ export class Actor {
     }
     if (!this.scripted) return;
     const rig = this.getRig();
-    if (!rig) return;
+    if (!rig) {
+      // A skinned model acts the pose out with its clips (walking up to a place, sitting, sleeping, eating)
+      this.getSkinned()?.applyPose(this.pose);
+      return;
+    }
     if (this.lastRig !== rig) this.adoptRig(rig);
 
     this.time += delta;

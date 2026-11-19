@@ -3,6 +3,7 @@ import { AssetManager } from '../../assets/AssetManager';
 import { WARDROBE_CATALOGUE, type CharacterConfig } from '../../player/CharacterCustomization';
 import { makeClothMaterial, makeSkinMaterial } from './CharacterSurfaces';
 import type { Pattern } from './Fabrics';
+import type { PoseState } from '../../interactions/Poses';
 
 /**
  * Production skinned-human runtime:
@@ -12,12 +13,16 @@ import type { Pattern } from './Fabrics';
  * - PersonBuilder remains the procedural fallback elsewhere
  */
 
-export type SkinnedAnimState = 'idle' | 'walk' | 'run' | 'sit' | 'drive' | 'dance' | 'talk' | 'phone_call';
+export type SkinnedAnimState =
+  | 'idle' | 'walk' | 'run' | 'sprint' | 'sit' | 'sit_talk' | 'drive' | 'dance' | 'talk' | 'phone_call'
+  | 'interact' | 'pickup' | 'push' | 'kneel' | 'fix' | 'lie' | 'crouch_walk' | 'walk_formal';
 
 export interface SkinnedCharacterHandle {
   root: THREE.Group;
   mixer: THREE.AnimationMixer;
   play: (state: SkinnedAnimState, fade?: number) => void;
+  /** Acts out what the interaction system asks of the body (sit, lie, kneel, eat, reach, wave, ...) */
+  applyPose: (pose: PoseState) => void;
   update: (delta: number) => void;
   applyAppearance: (config: CharacterConfig) => void;
   dispose: () => void;
@@ -33,11 +38,52 @@ const ANIM_ALIASES: Record<SkinnedAnimState, string[]> = {
   drive: ['drive', 'Drive', 'Driving', 'Sit', 'SitDown'],
   dance: ['dance', 'Dance', 'Victory'],
   talk: ['talk', 'Talk', 'agree', 'Talking'],
-  phone_call: ['phone', 'Phone', 'Talk', 'agree'],
+  phone_call: ['phone', 'Phone', 'talk', 'Talk', 'agree'],
+  sprint: ['sprint', 'run', 'Run'],
+  sit_talk: ['sit_talk', 'sit', 'Sit'],
+  interact: ['interact', 'talk'],
+  pickup: ['pickup', 'interact'],
+  push: ['push', 'idle'],
+  kneel: ['kneel', 'fix', 'sit'],
+  fix: ['fix', 'kneel', 'interact'],
+  lie: ['fall'],
+  crouch_walk: ['crouch_walk', 'walk'],
+  walk_formal: ['walk_formal', 'walk'],
 };
 
+/**
+ * The clip that acts out a pose from the interaction system. Legs decide first (sitting, lying,
+ * kneeling); the arms then pick among what the legs allow. Gestures the clip library does not
+ * have (wave, clap, praise, takbir) use the nearest it does: a reach, or talking hands.
+ */
+export function clipForPose(pose: PoseState): SkinnedAnimState {
+  const talking = ['talk', 'greet', 'palms', 'preach', 'praise', 'clap', 'pray', 'takbir', 'drum', 'eat'].includes(pose.arms);
+  switch (pose.legs) {
+    case 'walk':
+      return pose.arms === 'carry' ? 'push' : 'walk';
+    case 'sit':
+      return talking ? 'sit_talk' : 'sit';
+    case 'lie':
+      return 'lie';
+    case 'kneel':
+      return pose.arms === 'reach' ? 'fix' : 'kneel';
+    case 'bow':
+      return 'pickup';
+    case 'prostrate':
+      return 'kneel';
+    case 'dance':
+      return 'dance';
+    default:
+      if (pose.arms === 'carry') return 'push';
+      if (pose.arms === 'reach' || pose.arms === 'shake' || pose.arms === 'wave') return 'interact';
+      if (talking) return 'talk';
+      return 'idle';
+  }
+}
+
 function findClip(actions: Map<string, THREE.AnimationAction>, state: SkinnedAnimState): THREE.AnimationAction | null {
-  for (const name of ANIM_ALIASES[state]) {
+  // An emote with no clip of its own (zanku, salute, ...) is looked up by its own name, then idle
+  for (const name of ANIM_ALIASES[state] ?? [state]) {
     const hit = actions.get(name.toLowerCase());
     if (hit) return hit;
   }
@@ -79,6 +125,78 @@ function normalizeGroundAndScale(root: THREE.Group, targetHeight = 1.75): number
   return targetHeight;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Garment layout (docs/CHARACTER-PIPELINE.md, "Garment layout"): the body is split into pieces
+// named Body_c<mask>, one mask digit per garment in GARMENTS' order. A piece is hidden when a garment
+// that is shown has a 1 in its digit, so skin never shows through clothes and nothing is left bare.
+const GARMENTS = ['Outfit_Top_Short', 'Outfit_Top_Long', 'Outfit_Bottom_Long', 'Outfit_Bottom_Short', 'Outfit_Shoes'] as const;
+/** Tops with long sleeves (a robe or gown is drawn as its long-sleeved top until flowing cloth is modelled) */
+const LONG_SLEEVES = new Set(['button_shirt', 'hoodie', 'suit', 'kaftan', 'senator', 'agbada', 'buba_iro', 'ankara_gown']);
+/** Tops that come with their own bottom in the same cloth (dresses, gowns, a jumpsuit) */
+const ONE_PIECE: Record<string, 'long' | 'short'> = { bodycon: 'short', ankara_gown: 'long', jumpsuit: 'long', buba_iro: 'long' };
+/** Bottoms cut above the knee */
+const SHORT_BOTTOMS = new Set(['skirt', 'peplum_skirt']);
+/** The skin colour the build bakes in, and the tone it stands for: other tones scale from it */
+const BAKED_SKIN = new THREE.Color(0.62, 0.44, 0.33);
+const BAKED_TONE = new THREE.Color('#7a4b33');
+
+function applyGarmentLayout(scene: THREE.Object3D, cfg: CharacterConfig, gender: 'male' | 'female'): void {
+  const find = (id?: string) => (id ? WARDROBE_CATALOGUE.find((i) => i.id === id) : undefined);
+  const top = find(cfg.topId);
+  const bottom = find(cfg.bottomId);
+  const shoes = find(cfg.shoesId);
+  const topStyle = top?.styleKey ?? '';
+  const onePiece = ONE_PIECE[topStyle];
+  const sleeves: 'short' | 'long' = LONG_SLEEVES.has(topStyle) ? 'long' : 'short';
+  const legs: 'long' | 'short' = onePiece ?? (SHORT_BOTTOMS.has(bottom?.styleKey ?? '') ? 'short' : 'long');
+  const shown: Record<(typeof GARMENTS)[number], boolean> = {
+    Outfit_Top_Short: sleeves === 'short',
+    Outfit_Top_Long: sleeves === 'long',
+    Outfit_Bottom_Long: legs === 'long',
+    Outfit_Bottom_Short: legs === 'short',
+    Outfit_Shoes: true,
+  };
+  const topHex = top?.color ?? 0xf8fafc;
+  const bottomHex = onePiece ? topHex : bottom?.color ?? (typeof cfg.trousersColor === 'string' ? new THREE.Color(cfg.trousersColor).getHex() : 0x1e293b);
+  const shoesHex = shoes?.color ?? 0x111827;
+
+  // Skin: the player's tone, scaled from the tone the build's colour stands for
+  const tone = new THREE.Color(cfg.skinTone || (gender === 'female' ? '#7a4b33' : '#5c3a28'));
+  const skinMul = new THREE.Color(
+    Math.min(1, (BAKED_SKIN.r * tone.r) / BAKED_TONE.r),
+    Math.min(1, (BAKED_SKIN.g * tone.g) / BAKED_TONE.g),
+    Math.min(1, (BAKED_SKIN.b * tone.b) / BAKED_TONE.b),
+  );
+  const hair = new THREE.Color(cfg.hairColor || '#0b0908');
+
+  // One material per role, shared by every piece that uses it (the pieces were cloned with the scene)
+  const made = new Map<string, THREE.Material>();
+  const restyle = (m: THREE.Material): THREE.Material => {
+    const hit = made.get(m.name);
+    if (hit) return hit;
+    const next = m.clone() as THREE.MeshStandardMaterial;
+    if (m.name === 'Skin_Body') next.color.copy(skinMul);
+    else if (m.name === 'Hair') next.color.copy(hair);
+    else if (m.name === 'Cloth_Top') next.color.setHex(topHex);
+    else if (m.name === 'Cloth_Bottom') next.color.setHex(bottomHex);
+    else if (m.name === 'Cloth_Shoes') next.color.setHex(shoesHex);
+    made.set(m.name, next);
+    return next;
+  };
+
+  scene.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    const garment = GARMENTS.indexOf(obj.name as (typeof GARMENTS)[number]);
+    if (garment >= 0) obj.visible = shown[GARMENTS[garment]];
+    const piece = /^Body_c([01]{5})$/.exec(obj.name);
+    if (piece) obj.visible = ![...piece[1]].some((bit, i) => bit === '1' && shown[GARMENTS[i]]);
+    if (!mesh.isMesh || !mesh.material) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(restyle) : restyle(mesh.material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+  });
+}
+
 /**
  * Load a gender-specific skinned human GLB. Returns null if the asset is missing
  * (caller should keep PersonBuilder visible).
@@ -115,16 +233,51 @@ export async function loadSkinnedCharacter(
     actions.set(clip.name.toLowerCase(), mixer.clipAction(clip));
   }
 
+  // Lying down is the end of the fall clip, held: where its feet end up is measured once, so a
+  // sleeper's feet can be put where the bed asks (the interaction system puts the root at the feet)
+  const lieFeet = new THREE.Vector3();
+  const fall = actions.get('fall');
+  if (fall) {
+    fall.setLoop(THREE.LoopOnce, 1);
+    fall.clampWhenFinished = true;
+    fall.reset().setEffectiveWeight(1).play();
+    fall.time = fall.getClip().duration;
+    mixer.update(0);
+    scene.updateMatrixWorld(true);
+    const l = scene.getObjectByName('foot_l'), r = scene.getObjectByName('foot_r');
+    if (l && r) {
+      const a = root.worldToLocal(l.getWorldPosition(new THREE.Vector3()));
+      const b = root.worldToLocal(r.getWorldPosition(new THREE.Vector3()));
+      lieFeet.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+    }
+    fall.stop();
+  }
+  const groundY = root.position.y;
+
   let current: THREE.AnimationAction | null = null;
   const play = (state: SkinnedAnimState, fade = 0.25) => {
     const next = findClip(actions, state);
     if (!next || next === current) return;
     next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(fade).play();
+    if (next === fall) next.time = fall.getClip().duration; // straight to lying, held
     if (current) current.fadeOut(fade);
     current = next;
+    // Lying: feet where the bed asks; any other pose stands where the body is
+    scene.position.set(state === 'lie' ? -lieFeet.x / root.scale.x : 0, scene.position.y, state === 'lie' ? -lieFeet.z / root.scale.z : 0);
+  };
+  const applyPose = (pose: PoseState) => {
+    const state = clipForPose(pose);
+    play(state, 0.3);
+    // A bed's mattress (or any raised surface lain on) lifts the sleeper onto it
+    root.position.y = groundY + (state === 'lie' && pose.height ? pose.height : 0);
   };
 
   const applyAppearance = (cfg: CharacterConfig) => {
+    // Universal Base Characters build (body pieces + garment shells on one skeleton): its own path
+    if (scene.getObjectByName('Outfit_Top_Short')) {
+      applyGarmentLayout(scene, cfg, gender);
+      return;
+    }
     const skinHex = cfg.skinTone || (gender === 'female' ? '#7a4b33' : '#5c3a28');
     const hairHex = cfg.hairColor || '#0b0908';
     const topItem = WARDROBE_CATALOGUE.find((i) => i.id === cfg.topId);
@@ -190,7 +343,12 @@ export async function loadSkinnedCharacter(
   return {
     root,
     mixer,
-    play,
+    play: (state: SkinnedAnimState, fade?: number) => {
+      // The game's own movement takes the body back from a pose: standing on the ground again
+      root.position.y = groundY;
+      play(state, fade);
+    },
+    applyPose,
     update: (delta: number) => {
       mixer.update(delta);
     },
