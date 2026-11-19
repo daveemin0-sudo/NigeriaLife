@@ -34,6 +34,7 @@ export const ABUJA_KEEP_OUT: Rect[] = [
   { minX: -170, maxX: 170, minZ: -300, maxZ: -96 },
   // The landmarks' ground
   { minX: -122, maxX: -78, minZ: 440, maxZ: 470 },
+  { minX: -156, maxX: -124, minZ: 440, maxZ: 470 }, // Federal Passport Office, Garki
   { minX: 258, maxX: 372, minZ: -58, maxZ: 28 },
   { minX: 236, maxX: 324, minZ: 100, maxZ: 162 },
   { minX: 18, maxX: 152, minZ: 180, maxZ: 312 },
@@ -330,6 +331,16 @@ export function buildLandmarks(): Landmarks {
     b.box(0xf8fafc, 8, 3, 0.2, cx, 6, cz - 9.2);
     sign(group, ['FCT POLICE COMMAND'], 16, 1.4, cx, 8.2, cz - 9.3, Math.PI, '#1e3a8a', '#ffffff');
     places.push({ key: 'abuja-police', name: 'FCT Police Command', category: 'Police', description: 'Reports, a character certificate and the cells. Abuja, not Lagos.', door: { x: cx, z: cz - 9 }, stand: { x: cx, z: cz - 12.5 }, inside: true });
+  }
+
+  // --- Federal Passport Office, Garki (west of the police command)
+  {
+    const cx = -140;
+    const cz = 457;
+    b.box(0x166534, 28, 9, 16, cx, 0, cz, { solid: true });
+    lit.windows(0xbbf7d0, 6, 2, 22, 2, 6, cx, cz - 8.06, Math.PI, { glow: true });
+    sign(group, ['FEDERAL PASSPORT OFFICE'], 16, 1.4, cx, 7.8, cz - 8.3, Math.PI, '#166534', '#ffffff');
+    places.push({ key: 'abuja-passport', name: 'Federal Passport Office, Abuja', category: 'Immigration', description: 'Biometrics and Nigerian passport collection in Garki. Needed for domestic flights from ABV.', door: { x: cx, z: cz - 8 }, stand: { x: cx, z: cz - 12 }, inside: true });
   }
 
   group.add(b.build('Abuja landmarks', { roughness: 0.6 }), lit.build('Abuja landmarks lit', { roughness: 0.3 }));

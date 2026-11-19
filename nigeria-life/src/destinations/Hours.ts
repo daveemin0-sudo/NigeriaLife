@@ -64,6 +64,8 @@ export function hoursFor(name: string, category: string): OpeningHours | undefin
   switch (category) {
     case 'Bank':
       return office;
+    case 'Immigration':
+      return office;
     case 'Civic':
       if (/cchub|co-creation/.test(n)) return { opens: 8, closes: 20, days: NOT_SUNDAY };
       if (/conference centre|world trade|commercial|tech strip|plaza/.test(n)) return { opens: 8, closes: 22 };

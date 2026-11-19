@@ -40,6 +40,7 @@ export const PH_KEEP_OUT: Rect[] = [
   { minX: -412, maxX: -328, minZ: -194, maxZ: -134 },
   { minX: 79, maxX: 116, minZ: 222, maxZ: 358 },
   { minX: 316, maxX: 414, minZ: 30, maxZ: 150 },
+  { minX: 180, maxX: 260, minZ: 20, maxZ: 60 }, // Police command + Federal Passport Office
 ];
 
 const D = (name: string, rect: Rect, kinds: District['kinds'], colours: number[], trims: number[], setback: [number, number], gap: [number, number]): District => ({ name, rect, kinds, colours, trims, setback, gap });
@@ -211,6 +212,16 @@ export function buildPhLandmarks(): PhLandmarks {
     lit.windows(0xfde68a, 6, 2, 26, 2, 6, cx, cz - 8.06, Math.PI, { glow: true });
     sign(group, ['RIVERS STATE', 'POLICE COMMAND'], 14, 1.6, cx, 7.4, cz - 8.2, Math.PI, '#14532d', '#fde68a');
     places.push({ key: 'ph-police', name: 'Rivers State Police Command', category: 'Police', description: 'Reports, a character certificate and the cells. Port Harcourt, not Lagos.', door: { x: cx, z: cz - 8 }, stand: { x: 200, z: 20 }, inside: true });
+  }
+
+  // --- Federal Passport Office, near the police command on Azikiwe Road
+  {
+    const cx = 240;
+    const cz = 40;
+    b.box(0x166534, 26, 9, 14, cx, 0, cz, { solid: true });
+    lit.windows(0xbbf7d0, 5, 2, 20, 2, 5, cx, cz - 7.06, Math.PI, { glow: true });
+    sign(group, ['FEDERAL PASSPORT OFFICE'], 15, 1.3, cx, 7.4, cz - 7.3, Math.PI, '#166534', '#ffffff');
+    places.push({ key: 'ph-passport', name: 'Federal Passport Office, Port Harcourt', category: 'Immigration', description: 'Biometrics and Nigerian passport collection in Old GRA. Needed for domestic flights from PHC.', door: { x: cx, z: cz - 7 }, stand: { x: cx, z: cz - 11 }, inside: true });
   }
 
   // --- The waterfront: a promenade on the creek's east bank, a jetty out over the water, boats at it

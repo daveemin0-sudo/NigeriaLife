@@ -162,11 +162,41 @@ export class FlightService {
 
   // --- Buying and handing back ------------------------------------------------------------
 
+  /**
+   * Domestic hops (Lagos ↔ Abuja ↔ Port Harcourt) need a Nigerian passport only.
+   * The Lagos→Ibadan day trip is the papers-gated regional hop: passport + visa + yellow card.
+   * Keeps ordinary city travel playable while visa/Port Health still matter for that route.
+   */
+  public needsFullPapers(route: FlightRoute): boolean {
+    return route.to === 'ibadan';
+  }
+
+  /** What travel documents are still missing for this booking (or for domestic air travel). */
+  public missingPapers(route?: FlightRoute): string | null {
+    const bag = this.backend.getData().inventory;
+    const passport = bag.some((e) => e.id === 'ng_passport');
+    const visa = bag.some((e) => e.id === 'travel_visa');
+    const yellow = bag.some((e) => e.id === 'yellow_card');
+    const full = route ? this.needsFullPapers(route) : false;
+
+    if (!passport) {
+      return full
+        ? 'You need a Nigerian passport in your bag. Go to a Federal Passport Office (Lagos Alagbon, Abuja Garki, or Port Harcourt).'
+        : 'You need a Nigerian passport in your bag for domestic flights. Go to a Federal Passport Office.';
+    }
+    if (!full) return null;
+    if (!visa) return 'You need a travel visa stamp in your bag for this hop. Bring your passport to the Visa & Consular Desk in Lagos.';
+    if (!yellow) return 'You need a yellow fever vaccination card for this hop. Get it at Port Health on Airport Road, before MMIA.';
+    return null;
+  }
+
   /** Why a ticket for this flight cannot be bought right now, or null if it can. */
   public cannotBook(route: FlightRoute, city: string): string | null {
     if (route.from !== city) return `${route.flight} leaves from ${AIRPORTS[route.from].city}, and you are not there.`;
     const held = this.booking;
     if (held) return `You already hold a ticket: ${this.describe(held.route)}. Fly it, or hand it back at the desk first.`;
+    const papers = this.missingPapers(route);
+    if (papers) return papers;
     const data = this.backend.getData();
     if (data.walletCash + data.bank.balance < route.fare) return `${this.describe(route)} is ₦${route.fare.toLocaleString()}. You do not have it.`;
     return null;
@@ -218,6 +248,9 @@ export class FlightService {
   }
 
   public checkIn(city: string): FlightResult {
+    const held = this.booking;
+    const papers = this.missingPapers(held?.route);
+    if (papers) return { ok: false, reason: papers };
     return this.step(city, 'booked', 'checked-in', 'You are already past the desk.');
   }
 

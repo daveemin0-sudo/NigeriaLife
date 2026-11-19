@@ -2,19 +2,30 @@ import type * as THREE from 'three';
 import { PlaceActions, type PlaceAction, type PlaceHost } from '../destinations/PlaceActions';
 import { FlightService, AIRLINE, AIRPORTS, REFUND_SHARE, type FlightCity } from './Flights';
 
+/** Cab from the arrivals kerb into the city centre (naira). */
+export const ARRIVAL_CAB_FARE = 8_500;
+/** Prepaid SIM at the arrivals telecom desk. */
+export const ARRIVAL_SIM_PRICE = 3_000;
+/** Airtime top-up at the arrivals telecom desk. */
+export const ARRIVAL_AIRTIME_PRICE = 500;
+
 /** What the hall needs to know about the airport it is the inside of. */
 export interface HallSetting {
   /** The city the player is in, whose airport this is */
   city(): FlightCity;
   /** Where the door to the apron comes out, in that city */
   apronDoor(): THREE.Vector3 | null;
+  /** Outside the front door, at the arrivals kerb */
+  kerb(): THREE.Vector3 | null;
+  /** Where a paid airport cab drops the passenger in this city */
+  townDrop(): THREE.Vector3 | null;
 }
 
 /**
  * The departures hall, which is the same room in every city: a desk that sells tickets and
- * checks passengers in, security, and two gates that lead out to the apron. Each does one
- * step of a booking and nothing else. Nothing in here flies anyone anywhere: the flight is
- * boarded at the aircraft, outside.
+ * checks passengers in, security, and two gates that lead out to the apron. Arrivals also
+ * has baggage claim, a telecom desk (SIM / airtime), and cab pickup onto the street.
+ * Nothing in here flies anyone anywhere: the flight is boarded at the aircraft, outside.
  */
 export function openAirportHall(setting: HallSetting): void {
   const flights = FlightService.get();
@@ -37,7 +48,7 @@ export function openAirportHall(setting: HallSetting): void {
           text: 'Where are you flying to?',
           choices: flights.routesFrom(city).map((route) => ({
             label: `${route.flight} to ${cityName(route.to)}`,
-            note: `₦${route.fare.toLocaleString()}`,
+            note: `₦${route.fare.toLocaleString()}${flights.needsFullPapers(route) ? ' · passport, visa & yellow card' : ' · passport'}`,
             pick: () => {
               const sold = flights.book(route, city);
               const ticket = flights.booking;
@@ -52,17 +63,27 @@ export function openAirportHall(setting: HallSetting): void {
         return;
       }
       if (held.state === 'booked') {
+        const full = flights.needsFullPapers(held.route);
         host.ask({
           who: 'Check-in',
           role: `${AIRLINE}  ·  ${AIRPORTS[city].name}`,
-          text: `${flights.describe(held.route)}, seat ${held.seat}. Checking in?`,
+          text: full
+            ? `${flights.describe(held.route)}, seat ${held.seat}. Passport, visa and yellow card, please.`
+            : `${flights.describe(held.route)}, seat ${held.seat}. Nigerian passport, please.`,
           choices: [
             {
               label: 'Check in',
-              note: `Gate ${held.route.gate}`,
+              note: full ? `Gate ${held.route.gate} · full papers` : `Gate ${held.route.gate} · passport`,
               pick: () => {
                 const done = flights.checkIn(city);
-                host.say(done.ok ? `Checked in. Boarding pass: ${held.route.flight}, seat ${held.seat}, Gate ${held.route.gate}. Security is next.` : done.reason ?? '', done.ok ? 'success' : 'warning');
+                host.say(
+                  done.ok
+                    ? (full
+                      ? `Papers and yellow card checked. Boarding pass: ${held.route.flight}, seat ${held.seat}, Gate ${held.route.gate}. Security is next.`
+                      : `Passport checked. Boarding pass: ${held.route.flight}, seat ${held.seat}, Gate ${held.route.gate}. Security is next.`)
+                    : done.reason ?? '',
+                  done.ok ? 'success' : 'warning',
+                );
               },
             },
             {
@@ -144,10 +165,110 @@ export function openAirportHall(setting: HallSetting): void {
       const city = setting.city();
       const held = flights.booking;
       if (held?.state === 'arrived') {
-        host.say(`You retrieved your travel suitcase from Carousel 1 at ${AIRPORTS[city].name}. Luggage verified and cleared! The curbside doors to the street are just ahead.`, 'success');
+        host.say(`You retrieved your travel suitcase from Carousel 1 at ${AIRPORTS[city].name}. Luggage verified and cleared! Cab pickup and the telecom desk are on your way to the street.`, 'success');
       } else {
-        host.say(`Carousel 1 is circulating luggage for incoming flights at ${AIRPORTS[city].name}. If you are departing, proceed to the ticket desk. Curbside doors lead out to the street.`, 'info');
+        host.say(`Carousel 1 is circulating luggage for incoming flights at ${AIRPORTS[city].name}. If you are departing, proceed to the ticket desk. Arrivals: claim bags, then cab or walk to the kerb.`, 'info');
       }
+    },
+  };
+
+  const telecom: PlaceAction = {
+    label: () => '📱 Arrivals telecom desk',
+    run: (host: PlaceHost) => {
+      const city = setting.city();
+      host.ask({
+        who: 'Arrivals telecom',
+        role: `${AIRPORTS[city].name}  ·  prepaid`,
+        text: 'Local SIM and airtime for passengers just off the aircraft.',
+        choices: [
+          {
+            label: 'Buy a prepaid local SIM',
+            note: `₦${ARRIVAL_SIM_PRICE.toLocaleString()} · Into your bag`,
+            pick: () => {
+              const bag = host.backend.getData().inventory;
+              if (bag.some((e) => e.id === 'airport_sim')) {
+                host.say('You already have a prepaid SIM in your bag.', 'info');
+                return;
+              }
+              if (!host.backend.pay(ARRIVAL_SIM_PRICE, `${AIRPORTS[city].name} prepaid SIM`, 'SHOP_PURCHASE')) {
+                host.say(`That is ₦${ARRIVAL_SIM_PRICE.toLocaleString()} and you do not have it.`, 'warning');
+                return;
+              }
+              host.backend.addItem({
+                id: 'airport_sim',
+                name: 'Prepaid local SIM',
+                icon: '📱',
+                price: ARRIVAL_SIM_PRICE,
+                category: 'gadget',
+                usable: false,
+                description: `A prepaid SIM bought at ${AIRPORTS[city].name} arrivals.`,
+              });
+              host.say('SIM registered and in your bag. Top up airtime when you need data.', 'success');
+            },
+          },
+          {
+            label: 'Buy ₦500 airtime',
+            note: `₦${ARRIVAL_AIRTIME_PRICE.toLocaleString()} · Social +5`,
+            pick: () => {
+              if (!host.backend.pay(ARRIVAL_AIRTIME_PRICE, `${AIRPORTS[city].name} airtime`, 'SHOP_PURCHASE')) {
+                host.say(`That is ₦${ARRIVAL_AIRTIME_PRICE.toLocaleString()} and you do not have it.`, 'warning');
+                return;
+              }
+              host.backend.modifyNeed('social', 5);
+              host.say('Airtime loaded. You can call home from the kerb.', 'success');
+            },
+          },
+          {
+            label: 'Ask about networks',
+            note: 'Free',
+            pick: () => host.say('MTN, Airtel, Glo and 9mobile all work from this desk. Same SIM price.', 'info'),
+          },
+        ],
+      });
+    },
+  };
+
+  const cabPickup: PlaceAction = {
+    label: () => '🚕 Cab pickup',
+    run: (host: PlaceHost) => {
+      const city = setting.city();
+      const kerb = setting.kerb();
+      const town = setting.townDrop();
+      host.ask({
+        who: 'Cab pickup',
+        role: `${AIRPORTS[city].name}  ·  arrivals`,
+        text: 'Welcome. Walk out to the kerb, or take a cab into town.',
+        choices: [
+          {
+            label: 'Walk out to the kerb',
+            note: 'Free · Street outside the terminal',
+            pick: () => {
+              if (!kerb) {
+                host.say('The kerb doors are closed right now.', 'warning');
+                return;
+              }
+              host.say(`Out to the arrivals kerb at ${AIRPORTS[city].name}. From here you can walk or hail a ride.`, 'info');
+              host.leave(kerb, 0);
+            },
+          },
+          {
+            label: `Cab into ${cityName(city)}`,
+            note: `₦${ARRIVAL_CAB_FARE.toLocaleString()} · Dropped in town`,
+            pick: () => {
+              if (!town) {
+                host.say('No cab is free right now. Walk out to the kerb instead.', 'warning');
+                return;
+              }
+              if (!host.backend.pay(ARRIVAL_CAB_FARE, `${AIRPORTS[city].name} arrivals cab`, 'TRAVEL_COST')) {
+                host.say(`The cab is ₦${ARRIVAL_CAB_FARE.toLocaleString()} and you do not have it.`, 'warning');
+                return;
+              }
+              host.say(`Cab paid. You are dropped in ${cityName(city)}. Welcome.`, 'success');
+              host.leave(town, 0);
+            },
+          },
+        ],
+      });
     },
   };
 
@@ -157,5 +278,7 @@ export function openAirportHall(setting: HallSetting): void {
     airport_flight_abuja: gate(1),
     airport_flight_ph: gate(2),
     airport_baggage_carousel: baggageClaim,
+    airport_telecom_desk: telecom,
+    airport_cab_pickup: cabPickup,
   });
 }

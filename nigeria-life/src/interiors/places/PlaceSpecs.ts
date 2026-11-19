@@ -7,6 +7,7 @@ import type { PlaceSpec, StationChoice } from './PlaceInterior';
 import type { Item } from '../../backend/types';
 import { SUPERMARKET_SPEC } from './SupermarketRoom';
 import { buildKitCar } from '../../world/vehicles/KitCar';
+import { FX_BUNDLES, SPRAY_HARD, buyCost, sellProceeds, formatHard, FX_BUY, FX_SELL } from '../../life/HardCurrency';
 
 /**
  * The insides of the places along the expressway: each laid out for what is done there, with
@@ -227,6 +228,18 @@ const SPECS: PlaceSpec[] = [
     ] },
     { id: 'sofa', name: '🌇 Sit by the edge', at: [-6, 0], stand: [-6, -0.5], who: 'Host', role: 'Ivory Rooftop', text: 'Best view in Lagos.', choices: [{ label: 'Sit and watch the city', note: 'Fun +10', sit: true, seconds: 5, effect: need({ fun: 10 }), said: 'Orange sky over the lagoon. Beautiful.' }] },
     { id: 'floor', name: '💃 Dance', at: [5, -2], stand: [5, -2], who: 'DJ Kaywise', role: 'DJ', text: 'Oya, enter the floor!', choices: [{ label: 'Dance', note: 'Fun +25', dance: true, seconds: 8, effect: need({ fun: 25, social: 8 }), said: 'The DJ shouted your name.' }] },
+    { id: 'spray', name: '💸 Spray hard currency', at: [2, -2], stand: [2, -0.8], who: 'Hype man', role: 'Ivory Rooftop', text: 'Baller moves only. Dollars or pounds — not naira for this carpet.', choices: [
+      ...SPRAY_HARD.map((s) => ({
+        label: `Spray ${formatHard(s.kind, s.units)} on the floor`,
+        note: `${formatHard(s.kind, s.units)} · Fun +${s.fun} · Social +${s.social}`,
+        arms: 'wave' as const,
+        seconds: 3,
+        effect: (be: { sprayHard(kind: 'usd' | 'gbp', units: number, needs: { fun: number; social: number }): boolean }) =>
+          be.sprayHard(s.kind, s.units, { fun: s.fun, social: s.social }),
+        said: `Crisp ${formatHard(s.kind, s.units)} raining on the dancefloor. The roof knows your name.`,
+      })),
+      { label: 'Ask where to change money', note: 'Free', arms: 'talk' as const, seconds: 2, effect: () => {}, said: '"Victoria Island bureau de change, near here. Change naira for dollars or pounds, then come spray."' },
+    ] },
   ], [{ at: [2, 2.2], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [-2, 2.2], facing: Math.PI, outfit: 0xdc2626, sit: true }]),
   venue('the-library', 'The Library', 'Ikoyi · fine dining', 'Speakeasy · Private dining', '#78350f', 0x3f2a1d, 0x1c1917, (b) => {
     for (const x of [-8, -4, 0, 4, 8]) { b.box(0x3b2416, 3.4, 3.6, 0.5, x, 0, -8.6); for (let r = 0; r < 4; r++) for (let i = 0; i < 9; i++) b.box([0x7f1d1d, 0x1e3a8a, 0x14532d, 0xa16207][(i + r) % 4], 0.3, 0.6, 0.3, x - 1.4 + i * 0.35, 0.3 + r * 0.85, -8.4); }
@@ -394,6 +407,113 @@ const SPECS: PlaceSpec[] = [
   }, [{ name: 'Chief of Staff', title: 'Chief of Staff', at: [0, -7], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'His Excellency is in a meeting.' }], [
     { id: 'house', name: '🏛️ Lagos State House', at: [0, -6], stand: [0, -4.6], who: 'Chief of Staff', role: 'Government House', text: 'Laws, the cabinet and the election.', choices: [{ label: 'Open the State House', note: 'Pay is collected here', open: 'house' }] },
   ]),
+  // Lagos-only document loop: passport office → consular visa desk (no flights here)
+  venue('nis-passport', 'Federal Passport Office, Alagbon', 'Ikoyi · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+    b.box(0x0f172a, 1.2, 1.6, 0.4, 6, 0, 5); b.box(0x38bdf8, 0.9, 0.7, 0.05, 6, 0.7, 5.25, { glow: true });
+  }, [
+    { name: 'Officer Amina', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'female', says: 'Form filled? Biometrics next.' },
+    { name: 'Mr Okoro', title: 'Collection desk', at: [4, -5], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Passport ready? Bring your receipt.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Amina', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Alagbon. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today, booklet same day if the network holds. Come with cash or transfer."' },
+    ] },
+    { id: 'photo', name: '📷 Capture booth', at: [6, 5], stand: [6, 3.8], who: 'Photographer', role: 'Biometrics', text: 'Look at the camera. No smile.', choices: [
+      { label: 'Take the capture photo', note: 'Free · Fun −2', arms: 'reach', seconds: 2, effect: need({ fun: -2 }), said: 'Flash. The machine beeps. "Okay, go back to the desk."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0xf97316, sit: true }, { at: [-3, 3], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 16]),
+  venue('consular-visa', 'Visa & Consular Desk', 'Lagos Island · consular', 'Travel visas · Stamps', '#1e3a8a', 0xf1f5f9, 0xe2e8f0, (b) => {
+    counter(b, 0, -5, 7, 0x1e3a8a, 0xf8fafc);
+    desk(b, -6, 2, 0xe2e8f0); desk(b, 6, 2, 0xe2e8f0);
+    for (let i = 0; i < 4; i++) b.box(0x64748b, 0.45, 0.45, 0.45, -3 + i * 1.2, 0, 5);
+    b.box(0x0f172a, 2.2, 1.8, 0.08, 0, 1.2, -7.2); b.box(0xd4af37, 1.6, 1.1, 0.04, 0, 1.4, -7.15, { glow: true });
+  }, [
+    { name: 'Consul Bello', title: 'Visa officer', at: [0, -6], facing: 0, outfit: 0x1e3a8a, gender: 'male', tie: true, says: 'Passport first. Then we talk visa.' },
+  ], [
+    { id: 'visa', name: '🧾 Visa counter', at: [0, -5], stand: [0, -3.6], who: 'Consul Bello', role: 'Visa officer', text: 'Show your Nigerian passport. Single-entry travel visa for your next trip.', choices: [
+      {
+        label: 'Apply for a travel visa stamp',
+        price: 45000,
+        note: 'Needs Nigerian passport · ₦45,000',
+        needItem: 'ng_passport',
+        item: {
+          id: 'travel_visa', name: 'Travel visa stamp', icon: '🧾', price: 45000, category: 'document', usable: false,
+          description: 'A stamped travel visa from the Lagos consular desk. Keep it with your passport.',
+        },
+        arms: 'reach',
+        seconds: 2.5,
+        said: 'Stamp, stamp, signature. The visa page is full. Do not lose that booklet.',
+      },
+      { label: 'Ask what documents I need', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Nigerian passport in hand. Form filled. Fee paid. No passport, no stamp — go to Alagbon first."' },
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }], [18, 16]),
+  // Port Health by MMIA: yellow fever card (Lagos-only; passport required)
+  venue('port-health', 'Port Health · Yellow Card Centre', 'Airport Road · Mafoluku', 'Yellow fever · Stamps · Travel health', '#a16207', 0xfef9c3, 0xfefce8, (b) => {
+    counter(b, 0, -5, 7, 0xa16207, 0xfefce8);
+    desk(b, -6, 2, 0xfef08a); desk(b, 6, 2, 0xfef08a);
+    b.box(0xfef08a, 1.4, 1.8, 0.08, 0, 1.1, -7.2); b.box(0xca8a04, 1.0, 1.2, 0.04, 0, 1.3, -7.15, { glow: true });
+    for (let i = 0; i < 3; i++) b.box(0xfde047, 0.35, 0.08, 0.5, -2 + i * 1.4, 1.1, -5);
+    b.cylinder(0xeab308, 0.08, 0.9, 5.5, 0, -4, { sides: 8 });
+  }, [
+    { name: 'Nurse Funke', title: 'Port Health nurse', at: [0, -6], facing: 0, outfit: 0xffffff, gender: 'female', says: 'Passport first. Then we jab and stamp.' },
+  ], [
+    { id: 'yellow', name: '💉 Yellow fever desk', at: [0, -5], stand: [0, -3.6], who: 'Nurse Funke', role: 'Port Health', text: 'International yellow fever certificate. Bring your Nigerian passport.', choices: [
+      {
+        label: 'Register, jab, and collect my yellow card',
+        price: 25000,
+        note: 'Needs Nigerian passport · ₦25,000',
+        needItem: 'ng_passport',
+        item: {
+          id: 'yellow_card', name: 'Yellow fever vaccination card', icon: '💛', price: 25000, category: 'document', usable: false,
+          description: 'International yellow fever certificate from Port Health, Airport Road. Keep it with your passport for flights.',
+        },
+        arms: 'reach',
+        seconds: 3,
+        said: 'Jab done. Stamp, stamp, signature on the yellow booklet. Keep this with your passport.',
+      },
+      { label: 'Ask what I need', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Nigerian passport in hand. Fee paid. No passport, no card — Alagbon first, then come back."' },
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]),
+  // Lagos VI bureau: naira ↔ dollars / pounds (hard currency for high-roller spraying)
+  venue('bureau-fx', 'Victoria Island Bureau de Change', 'Victoria Island · FX desk', 'USD · GBP · Parallel rates', '#0f766e', 0xecfdf5, 0xf0fdfa, (b) => {
+    counter(b, 0, -5, 8, 0x0f766e, 0xf8fafc);
+    desk(b, -6, 2, 0xd1fae5); desk(b, 6, 2, 0xd1fae5);
+    b.box(0x0f172a, 2.4, 1.6, 0.08, 0, 1.2, -7.2);
+    b.box(0x22c55e, 0.9, 1.0, 0.04, -0.6, 1.35, -7.15, { glow: true });
+    b.box(0x3b82f6, 0.9, 1.0, 0.04, 0.6, 1.35, -7.15, { glow: true });
+    for (let i = 0; i < 4; i++) b.box(0xfef08a, 0.4, 0.08, 0.55, -2.4 + i * 1.2, 1.1, -5);
+  }, [
+    { name: 'Aboki Tunde', title: 'Bureau dealer', at: [0, -6], facing: 0, outfit: 0x0f766e, gender: 'male', tie: true, says: 'Dollar, pound — clean notes. Rate today is the rate.' },
+  ], [
+    { id: 'buy', name: '💵 Buy hard currency', at: [-3, -5], stand: [-3, -3.6], who: 'Aboki Tunde', role: 'Bureau dealer', text: `Buying today: $1 = ₦${FX_BUY.usd.toLocaleString()}, £1 = ₦${FX_BUY.gbp.toLocaleString()}.`, choices: [
+      ...FX_BUNDLES.map((b) => ({
+        label: `Buy ${formatHard(b.kind, b.units)}`,
+        note: `₦${buyCost(b.kind, b.units).toLocaleString()}`,
+        arms: 'reach' as const,
+        seconds: 2,
+        effect: (be: { buyHard(kind: 'usd' | 'gbp', units: number): boolean }) => be.buyHard(b.kind, b.units),
+        said: `${formatHard(b.kind, b.units)} counted into your pocket. Keep them for the roof.`,
+      })),
+      { label: 'Ask the rates', note: 'Free', arms: 'talk' as const, seconds: 2, effect: () => {}, said: `"Buy: $1 = ₦${FX_BUY.usd.toLocaleString()}, £1 = ₦${FX_BUY.gbp.toLocaleString()}. Sell a little lower. Spray dollars at Ivory Rooftop — that is how ballers move."` },
+    ] },
+    { id: 'sell', name: '💷 Sell hard currency', at: [3, -5], stand: [3, -3.6], who: 'Aboki Tunde', role: 'Bureau dealer', text: `Selling today: $1 = ₦${FX_SELL.usd.toLocaleString()}, £1 = ₦${FX_SELL.gbp.toLocaleString()}.`, choices: [
+      ...FX_BUNDLES.map((b) => ({
+        label: `Sell ${formatHard(b.kind, b.units)}`,
+        note: `₦${sellProceeds(b.kind, b.units).toLocaleString()} back`,
+        arms: 'reach' as const,
+        seconds: 2,
+        effect: (be: { sellHard(kind: 'usd' | 'gbp', units: number): boolean }) => be.sellHard(b.kind, b.units),
+        said: `${formatHard(b.kind, b.units)} taken. ₦${sellProceeds(b.kind, b.units).toLocaleString()} in your pocket.`,
+      })),
+    ] },
+  ], [{ at: [-2, 5], facing: Math.PI, outfit: 0xf59e0b, sit: true }], [18, 16]),
 ];
 
 // The showroom's cars: on the three turntables, turning slowly, and a row along the side wall
@@ -998,6 +1118,24 @@ const ABUJA_SPECS: PlaceSpec[] = [
       { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
     ] },
   ], [{ at: [4, -4], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [-100, 444.5]),
+
+  // Abuja passport office — same booklet as Lagos Alagbon; domestic flights need this in the bag
+  abuja(venue('abuja-passport', 'Federal Passport Office, Abuja', 'Garki · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+  }, [
+    { name: 'Officer Habiba', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'female', says: 'Form filled? Biometrics next. This is Abuja, not Lagos.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Habiba', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Abuja. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today if the network holds. Cash or transfer."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0xf97316, sit: true }], [18, 16]), [-140, 444.5]),
 ];
 
 
@@ -1084,6 +1222,24 @@ const PH_SPECS: PlaceSpec[] = [
       { label: 'A police escort, three days', note: '₦450,000 · a patrol van', open: 'escort:escort' },
     ] },
   ], [{ at: [-4, 2], facing: 0, outfit: 0xf97316, sit: true }], [18, 16]), [200, 20]),
+
+  // Port Harcourt passport office — same booklet; fly from PHC with this in the bag
+  abuja(venue('ph-passport', 'Federal Passport Office, Port Harcourt', 'Old GRA · immigration', 'Capture · Payment · Collection', '#166534', 0xe7e5e4, 0xf8fafc, (b) => {
+    counter(b, -4, -5, 6, 0x166534, 0xf8fafc);
+    desk(b, 4, -4, 0xe7e5e4);
+    for (let i = 0; i < 5; i++) b.box(0x3f3f46, 0.45, 0.45, 0.45, -6 + i * 1.1, 0, 3);
+    for (const f of [0, 1, 2]) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.7, 1.4, 0.05, -0.7 + f * 0.7, 3.2, -7.5);
+  }, [
+    { name: 'Officer Tamuno', title: 'Passport officer', at: [-4, -6], facing: 0, outfit: 0x166534, gender: 'male', says: 'Form filled? Biometrics next. Rivers State issue.' },
+  ], [
+    { id: 'apply', name: '🛂 Passport application', at: [-4, -5], stand: [-4, -3.6], who: 'Officer Tamuno', role: 'Passport officer', text: 'Standard booklet, thirty-two pages. Capture is today.', choices: [
+      buy('Apply and collect my Nigerian passport', 70000, {
+        id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false,
+        description: 'A fresh Nigerian passport from the Federal Passport Office, Port Harcourt. Keep it for travel desks.',
+      }, 'Photo, fingerprints, and the green booklet is in your hand. Safe journey.', '₦70,000 · Into your bag'),
+      { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today if the network holds. Cash or transfer."' },
+    ] },
+  ], [{ at: [-5, 3], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]), [240, 20]),
 ];
 
 // --- Every shop, office, hotel, bank and market along Abuja's and Port Harcourt's streets ---

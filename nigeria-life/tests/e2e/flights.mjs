@@ -81,6 +81,13 @@ export async function run(browser, check) {
   const { page, log } = await open(ctx);
   await closeDialogs(page);
   await page.evaluate(() => window.game.hud.backend.performGig(40_000_000, 0, 'test: travelling money'));
+  // Papers from the Lagos document loop — MMIA will not sell a ticket without them
+  await page.evaluate(() => {
+    const be = window.game.hud.backend;
+    be.addItem({ id: 'ng_passport', name: 'Nigerian passport', icon: '🛂', price: 70000, category: 'document', usable: false, description: 'test passport' });
+    be.addItem({ id: 'travel_visa', name: 'Travel visa stamp', icon: '🧾', price: 45000, category: 'document', usable: false, description: 'test visa' });
+    be.addItem({ id: 'yellow_card', name: 'Yellow fever vaccination card', icon: '💛', price: 25000, category: 'document', usable: false, description: 'test yellow card' });
+  });
   // Murtala Muhammed is in Ikeja, on Ikorodu Road: the test starts on the pavement near it
   await page.evaluate(() => { const g = window.game; g.player.stopMoving(); g.player.mesh.position.set(-14, 0, 6320); });
   await advance(page, 0.5);
