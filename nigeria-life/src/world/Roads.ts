@@ -46,7 +46,7 @@ export class Roads {
     this.streetGlowMaterial.opacity = level;
     for (const glow of this.streetGlows) glow.visible = level > 0;
   }
-  private roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
+  public roadsideStalls: Array<{ canopy: THREE.Mesh; rim: THREE.Mesh; cooler: THREE.Mesh; lid: THREE.Mesh; stool: THREE.Mesh }> = [];
   constructor() {
     this.group = new THREE.Group();
     this.buildRoadNetwork();
@@ -388,10 +388,7 @@ export class Roads {
     const mats = MaterialLibrary.getInstance();
 
     // A. Concrete Drainage Channels (Open Gutters flanking the road)
-    const gutterMat = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      roughness: 0.9,
-    });
+    const gutterMat = mats.concreteTrimMaterial;
     const culvertMat = mats.concreteTrimMaterial;
 
     for (const side of [-1, 1]) {
@@ -459,7 +456,7 @@ export class Roads {
     ];
 
     // (The last, the POS stall, stands north of the footbridge's west stairs, clear of the mechanic's way in)
-    const stallZPositions = [-78, -52, -22, 12, 44, 72, 118];
+    const stallZPositions = [-78, -62, -52, -22, 12, 28, 44, 72, 96, 118];
 
     stallZPositions.forEach((sz, idx) => {
       const side = idx % 2 === 0 ? -1 : 1;
@@ -527,6 +524,21 @@ export class Roads {
       stool.position.set(0.1, 0.28, -0.65);
       stool.castShadow = true;
       stallGroup.add(stool);
+
+      // Extra crate / carton stack beside some stalls (street clutter without new systems)
+      if (idx % 2 === 0) {
+        const crate = new THREE.Mesh(
+          new THREE.BoxGeometry(0.55, 0.4, 0.45),
+          new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.92 })
+        );
+        crate.position.set(0.55, 0.2, -0.35);
+        crate.castShadow = true;
+        stallGroup.add(crate);
+        const crate2 = crate.clone();
+        crate2.position.set(0.55, 0.55, -0.35);
+        crate2.rotation.y = 0.25;
+        stallGroup.add(crate2);
+      }
 
       this.group.add(stallGroup);
       this.roadsideStalls.push({ canopy, rim, cooler, lid, stool });

@@ -41,14 +41,34 @@ Measured levers already in code comments / prior audits:
 3. Cap wet-road metalness on Low (cheaper specular). ✅ (PR #31)
 4. Profile High vs Low at **1280×720** in e2e (`laptopperf`) — software WebGL on CI/cloud is not HD 620; numbers are comparative, not device claims. ✅ (PR #31)
 
-## Next realism layer (lighting + weather immersion)
+## Realism layers (from overhaul plan)
 
-Incremental follow-on (this branch): sell day↔night↔rain without new PointLights or city rebuilds.
+1. **Environmental realism** — street density, façades, clutter, weathering ← current slice
+2. Lighting and atmosphere ✅ (#31/#32)
+3. Materials and textures (partial overlap with #1 plaster/asphalt)
+4. Residential interiors ✅ (#30)
+5. Humans / NPCs
+6. Vehicles and traffic
+7. Weather simulation ✅ (#32)
+8. City identity and density
+9. Cinematic camera
+10. Audio immersion
+11. Technical performance ✅ Low preset (#31)
 
-1. Continuous dusk→dawn street lamp + façade window glow from `currentHour` (not just period flips).
-2. Stronger golden-hour / deeper night keyframes in `SkyEnvironmentManager`.
-3. Rain: darker wet asphalt tint, puddle wetness scaling, slightly denser rain particles.
-4. Sidewalk wet registration + `lightingweather` e2e (midday / golden / night / rain screenshots).
+## Lighting + weather immersion ✅
+
+1. Continuous dusk→dawn street lamp + façade window glow from `currentHour`.
+2. Stronger golden-hour / deeper night keyframes.
+3. Rain: darker wet asphalt, puddle wetness, denser rain particles + HUD/`?weather=` toggle.
+
+## Next realism layer (environmental street density)
+
+Broad Street vertical slice — denser lived-in kerbs and weathered façades, no city rebuild / PointLights:
+
+1. Stronger plaster weathering maps + façade bump on baked `FacadeKit` detail.
+2. Apartment blocks use varied plaster + bay/accent specs.
+3. More LAWMA bins, cones, potholes, umbrella stalls + crate clutter.
+4. Extra gutter puddles; gutters use concrete trim material.
 
 ## Out of scope for this slice
 

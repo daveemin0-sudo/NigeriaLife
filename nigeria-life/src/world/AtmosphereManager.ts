@@ -113,6 +113,9 @@ export class AtmosphereManager {
       { x: 5.4, z: -8.0, sx: 3.6, sz: 2.6, rot: 0.8 },   // Danfo terminus curb
       { x: -5.2, z: -32.0, sx: 2.4, sz: 3.0, rot: -0.2 }, // Sabo Textiles corner
       { x: -3.8, z: 46.0, sx: 3.0, sz: 2.2, rot: 0.6 },  // South residential curb
+      { x: 5.5, z: -52.0, sx: 2.6, sz: 2.1, rot: 0.4 },  // Gutter by Heritage Heights
+      { x: -5.6, z: 72.0, sx: 2.9, sz: 2.3, rot: -0.7 }, // North kerb after rain
+      { x: 1.2, z: 32.0, sx: 2.2, sz: 1.8, rot: 0.9 },   // Carriageway dip
     ];
 
     const puddleGeo = new THREE.PlaneGeometry(1, 1, 8, 8);
