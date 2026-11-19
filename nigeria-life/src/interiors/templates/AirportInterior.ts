@@ -61,17 +61,18 @@ export class AirportInterior {
             {
               id: 'airport_issue_boarding_pass',
               label: '🎫 Flight Check-In & Boarding Pass',
-              description: 'Check in baggage and receive verified Wazobia Air boarding pass.',
+              // Live check-in is PlaceActions on airport_checkin_desk (FlightService). Def actions are display-only.
+              description: 'Check in baggage and receive a NigeriaLife Air boarding pass.',
               cost: 0,
               rewardSocial: 10,
               itemReward: {
                 id: 'boarding_pass_ticket',
-                name: 'Wazobia Air Digital Boarding Pass',
+                name: 'NigeriaLife Air boarding pass',
                 category: 'document',
                 price: 0,
                 usable: true,
                 icon: '🎫',
-                description: 'Verified boarding pass for Gate 2 Interstate Departures.',
+                description: 'Verified boarding pass for interstate departures.',
               },
               dialogueResponse: '🎫 Check-In Officer: "Baggage checked! Here is your verified boarding pass. Please proceed through Security Screening."',
             },
@@ -100,14 +101,15 @@ export class AirportInterior {
           category: 'Interstate Flight',
           description: 'Direct 55-minute scheduled jet flight to Nnamdi Azikiwe International Airport, Abuja FCT.',
           relativePosition: new THREE.Vector3(8, 0, -8),
+          // Live gate exit is PlaceActions → apron board. Fares live on FlightService (₦95,000).
           actions: [
             {
               id: 'airport_fly_abuja_action',
-              label: '✈️ Board Flight to Abuja FCT (₦4,200,000)',
-              description: 'Board Wazobia Air express jet flight directly to Abuja.',
-              cost: 4_200_000,
-              rewardCred: 25,
-              dialogueResponse: '✈️ "Captain Ibrahim: Welcome aboard Flight WZ-7120 to Abuja FCT. Fasten your seatbelts for takeoff!"',
+              label: '✈️ Gate 1 to Abuja (use the apron steps)',
+              description: 'Exit Gate 1 to the apron and board NigeriaLife Air NL 204 at the steps.',
+              cost: 0,
+              rewardCred: 0,
+              dialogueResponse: '✈️ Gate 1 leads out to the apron. Board NL 204 at the aircraft steps.',
             },
           ],
         },
@@ -120,11 +122,11 @@ export class AirportInterior {
           actions: [
             {
               id: 'airport_fly_ph_action',
-              label: '✈️ Board Flight to Port Harcourt (₦3,600,000)',
-              description: 'Board NigeriaLife Air flight directly to Port Harcourt Garden City.',
-              cost: 3_600_000,
-              rewardCred: 25,
-              dialogueResponse: '✈️ "Welcome aboard flight NL 310 to Port Harcourt. Preparing for runway departure!"',
+              label: '✈️ Gate 2 to Port Harcourt (use the apron steps)',
+              description: 'Exit Gate 2 to the apron and board NigeriaLife Air NL 310 at the steps.',
+              cost: 0,
+              rewardCred: 0,
+              dialogueResponse: '✈️ Gate 2 leads out to the apron. Board NL 310 at the aircraft steps.',
             },
           ],
         },
@@ -465,7 +467,7 @@ export class AirportInterior {
       obj.interactionPoint.add(this.group.position);
     }
 
-    // 11. Apron Tarmac & Wazobia Air Commercial Jet View
+    // 11. Apron Tarmac & NigeriaLife Air commercial jet view
     this.buildTarmacAndAirliner();
   }
 
@@ -542,7 +544,7 @@ export class AirportInterior {
     }
     this.group.add(glassWallGroup);
 
-    // 5. Wazobia Air Boeing 737 Commercial Twin-Jet
+    // 5. NigeriaLife Air Boeing 737 commercial twin-jet
     const planeGroup = new THREE.Group();
     planeGroup.position.set(3.5, 0, -2);
     planeGroup.rotation.y = -Math.PI * 0.45; // Angled parked at gate
@@ -569,7 +571,7 @@ export class AirportInterior {
     nose.position.set(0, 2.4, 10.5);
     planeGroup.add(nose);
 
-    // C. Wazobia Air Iconic Blue & Red Cheatline Ribbon
+    // C. NigeriaLife Air blue & green cheatline ribbon
     const ribbonMat = new THREE.MeshStandardMaterial({ color: 0x0284c7 }); // Sky blue
     const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(1.52, 1.52, 14, 20, 1, true), ribbonMat);
     ribbon.rotation.x = Math.PI / 2;
@@ -628,7 +630,7 @@ export class AirportInterior {
       this.turbineFans.push(fanHub);
     }
 
-    // G. Vertical Tail Fin (Wazobia Air Livery)
+    // G. Vertical tail fin (NigeriaLife Air livery)
     const tailFinGeo = new THREE.BoxGeometry(0.2, 4.2, 3.5);
     const tailFin = new THREE.Mesh(tailFinGeo, ribbonMat);
     tailFin.position.set(0, 4.8, -7.5);
