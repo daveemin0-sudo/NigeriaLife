@@ -175,20 +175,28 @@ export function fabric(pattern: Pattern, base: number, accent = 0xffffff, third 
     }
     repeat = [4, 4];
   } else if (pattern === 'pique') {
-    // Polo pique: small honeycomb / waffle knit that reads as fabric up close
+    // Polo pique: bold waffle knit — high local contrast so it reads at street distance
     ctx.fillStyle = hex(base);
     ctx.fillRect(0, 0, size, size);
-    for (let y = 0; y < size; y += 6) {
-      for (let x = (y / 6) % 2 ? 0 : 3; x < size; x += 6) {
-        ctx.fillStyle = shade(base, 0.12);
+    for (let y = 0; y < size; y += 5) {
+      for (let x = (y / 5) % 2 ? 0 : 2.5; x < size; x += 5) {
+        ctx.fillStyle = shade(base, 0.28);
         ctx.beginPath();
-        ctx.arc(x + 2, y + 2, 1.6, 0, Math.PI * 2);
+        ctx.moveTo(x + 2.5, y);
+        ctx.lineTo(x + 5, y + 2.5);
+        ctx.lineTo(x + 2.5, y + 5);
+        ctx.lineTo(x, y + 2.5);
+        ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = shade(base, -0.1);
-        ctx.fillRect(x + 1, y + 3, 3, 1);
+        ctx.fillStyle = shade(base, -0.22);
+        ctx.fillRect(x + 1.5, y + 1.5, 2, 2);
       }
     }
-    repeat = [4, 4];
+    for (let i = 0; i < 120; i++) {
+      ctx.fillStyle = `rgba(${rand() > 0.5 ? '255,255,255' : '0,0,0'},${0.04 + rand() * 0.07})`;
+      ctx.fillRect(rand() * size, rand() * size, 1 + rand() * 2, 1);
+    }
+    repeat = [5, 5];
   } else if (pattern === 'cotton') {
     // Soft jersey tee weave — fine cross-hatch, matte
     for (let y = 0; y < size; y += 2) {

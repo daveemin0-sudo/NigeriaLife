@@ -35,19 +35,22 @@ export function makeClothMaterial(
   const map = fabric(pattern, colour, accent, 0x111827);
   const satin = opts.satin ?? (pattern === 'aso_oke' || pattern === 'gold_chain' || pattern === 'lace');
   const cottony = pattern === 'pique' || pattern === 'cotton' || pattern === 'knit';
+  const pique = pattern === 'pique';
+  // Map already carries dye colour — keep material tint near-white so weave contrast survives
+  const tint = map && cottony ? new THREE.Color(0xffffff) : new THREE.Color(colour);
   return new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(colour),
+    color: tint,
     map: map ?? undefined,
-    roughness: opts.roughness ?? (satin ? 0.42 : cottony ? 0.78 : pattern === 'ankara' || pattern === 'denim' ? 0.85 : 0.72),
-    metalness: satin && pattern === 'gold_chain' ? 0.12 : 0.02,
-    sheen: satin ? 0.85 : cottony ? 0.32 : 0.22,
-    sheenRoughness: satin ? 0.28 : cottony ? 0.62 : 0.72,
+    roughness: opts.roughness ?? (satin ? 0.42 : pique ? 0.88 : cottony ? 0.84 : pattern === 'ankara' || pattern === 'denim' ? 0.85 : 0.72),
+    metalness: satin && pattern === 'gold_chain' ? 0.12 : 0.0,
+    sheen: satin ? 0.85 : pique ? 0.18 : cottony ? 0.24 : 0.22,
+    sheenRoughness: satin ? 0.28 : pique ? 0.82 : cottony ? 0.72 : 0.72,
     sheenColor: satin
       ? new THREE.Color(accent).lerp(new THREE.Color(0xffe6a8), 0.35)
       : cottony
-        ? new THREE.Color(colour).lerp(new THREE.Color(0xffffff), 0.25)
+        ? new THREE.Color(colour).lerp(new THREE.Color(0xffffff), 0.12)
         : new THREE.Color(0xffffff),
-    envMapIntensity: satin ? 0.9 : cottony ? 0.4 : 0.45,
+    envMapIntensity: satin ? 0.9 : pique ? 0.22 : cottony ? 0.28 : 0.45,
   });
 }
 
@@ -77,21 +80,24 @@ export function addFrontFolds(
     y1: number;
     width: number;
     amplitude?: number;
+    /** Soft knit ridges (polo/tee) — thinner, less plastic armor look */
+    soft?: boolean;
   },
 ): THREE.Mesh[] {
   const n = opts.count ?? 5;
+  const soft = opts.soft === true;
   const folds: THREE.Mesh[] = [];
   for (let i = 0; i < n; i++) {
     const t = n === 1 ? 0.5 : i / (n - 1);
     const y = opts.y0 + (opts.y1 - opts.y0) * t;
     const w = opts.width * (0.72 + 0.28 * Math.sin(t * Math.PI));
-    const fold = makeFoldRidge(material, w, 0.018, 0.012);
-    fold.position.set(0, y, opts.z + Math.sin(t * Math.PI) * 0.006);
-    fold.rotation.x = -0.15 + t * 0.08;
+    const fold = makeFoldRidge(material, w, soft ? 0.01 : 0.018, soft ? 0.005 : 0.012);
+    fold.position.set(0, y, opts.z + Math.sin(t * Math.PI) * (soft ? 0.003 : 0.006));
+    fold.rotation.x = (soft ? -0.08 : -0.15) + t * 0.06;
     fold.userData.baseY = fold.position.y;
     fold.userData.baseZ = fold.position.z;
     fold.userData.baseRotX = fold.rotation.x;
-    fold.userData.sway = 0.7 + t * 0.5;
+    fold.userData.sway = soft ? 0.45 + t * 0.35 : 0.7 + t * 0.5;
     parent.add(fold);
     folds.push(fold);
   }

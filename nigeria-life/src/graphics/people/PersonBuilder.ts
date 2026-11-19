@@ -345,12 +345,13 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const torso = new THREE.Group();
   torso.position.y = torsoY;
   group.add(torso);
-  const sx = (female ? 1.22 : 1.28) * breadth;
-  const sz = (female ? 0.82 : 0.78) * (build === 'broad' ? 1.1 : 1);
-  // Hip flare + chest mass; waist nips for both silhouettes
+  // Slightly narrower chest so the silhouette reads human, not an inverted-triangle golem
+  const sx = (female ? 1.16 : 1.18) * breadth;
+  const sz = (female ? 0.8 : 0.76) * (build === 'broad' ? 1.08 : 1);
+  // Open neckline + rounded shoulder mass in the torso itself (arms tuck under the yoke)
   const profile: Array<[number, number]> = female
-    ? [[0.0, -0.38], [0.155, -0.36], [0.205, -0.28], [0.188, -0.16], [0.132, -0.05], [0.128, 0.05], [0.155, 0.14], [0.168, 0.21], [0.162, 0.255], [0.118, 0.3], [0.075, 0.34], [0.055, 0.38], [0.0, 0.385]]
-    : [[0.0, -0.4], [0.152, -0.38], [0.185, -0.3], [0.168, -0.2], [0.148, -0.08], [0.155, 0.04], [0.195, 0.15], [0.218, 0.23], [0.212, 0.28], [0.158, 0.33], [0.095, 0.38], [0.072, 0.42], [0.0, 0.425]];
+    ? [[0.0, -0.38], [0.155, -0.36], [0.2, -0.28], [0.185, -0.16], [0.132, -0.05], [0.128, 0.05], [0.15, 0.14], [0.165, 0.2], [0.17, 0.24], [0.14, 0.265], [0.095, 0.282], [0.072, 0.292]]
+    : [[0.0, -0.4], [0.15, -0.38], [0.18, -0.3], [0.165, -0.2], [0.145, -0.08], [0.15, 0.04], [0.175, 0.13], [0.195, 0.195], [0.2, 0.235], [0.175, 0.26], [0.115, 0.282], [0.078, 0.298]];
   const hemLocal = Math.min(cut.hem, torsoY - 0.02) - torsoY;
   // What shows of the torso: the top down to its hem (or to the waist for a long top, its skirt drawn after), the bottom under it
   const topTo = cut.hem < torsoY - 0.36 ? -0.36 : hemLocal;
@@ -373,31 +374,34 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     buckle.position.set(0, beltY, interp(profile, beltY) * sz + 0.016);
     torso.add(buckle);
   }
-  // Soft shoulder pads that blend into the torso (not floating robot balls)
-  for (const side of [-1, 1]) {
-    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(1, seg, seg / 2), torsoTop.material as THREE.Material);
-    shoulder.scale.set((female ? 0.1 : 0.118) * breadth, female ? 0.048 : 0.055, female ? 0.07 : 0.082);
-    shoulder.position.set(side * (female ? 0.168 : 0.205) * breadth, female ? 0.255 : 0.282, 0.008);
-    shoulder.rotation.z = side * -0.18;
-    torso.add(shoulder);
-  }
-  // Trapezius / collar shelf — stays below the chin (world ~1.40), slopes out to the shoulders
+  // Soft clavicle fill at the collar hole
   const trap = new THREE.Mesh(
     lathe(
       [
-        [0.07, 0.295],
-        [0.12, 0.29],
-        [0.16 * breadth, 0.275],
-        [0.19 * breadth, 0.255],
-        [0.175 * breadth, 0.235],
+        [0.07, 0.296],
+        [0.09, 0.29],
+        [0.105, 0.278],
+        [0.1, 0.265],
       ],
       seg,
-      sx * 0.92,
-      sz * 0.95,
+      sx * 0.5,
+      sz * 0.82,
     ),
     torsoTop.material as THREE.Material,
   );
   torso.add(trap);
+  // Shoulder yoke: sloping cloth from collar → sleeve seam (breaks the square shelf silhouette)
+  for (const side of [-1, 1] as const) {
+    const yoke = new THREE.Mesh(
+      new THREE.BoxGeometry(female ? 0.11 : 0.13, female ? 0.045 : 0.05, female ? 0.1 : 0.11),
+      torsoTop.material as THREE.Material,
+    );
+    yoke.position.set(side * (female ? 0.12 : 0.135) * breadth, female ? 0.255 : 0.268, 0.01);
+    yoke.rotation.z = side * -0.38;
+    yoke.rotation.x = -0.08;
+    yoke.scale.set(1, 0.85, 1);
+    torso.add(yoke);
+  }
   if (female) {
     // The bust, under the top
     for (const s of [-1, 1]) {
@@ -493,16 +497,16 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
         new THREE.BoxGeometry(polo ? 0.095 : 0.075, polo ? 0.038 : 0.045, polo ? 0.016 : 0.012),
         cut.top === 'jacket' ? mat(0xffffff, 0.6) : top,
       );
-      wing.position.set(s * (polo ? 0.048 : 0.04), female ? 0.268 : 0.288, frontAt(0.26) - (polo ? 0.002 : 0.01));
-      wing.rotation.set(polo ? -0.28 : -0.5, polo ? s * 0.12 : 0, s * (polo ? 0.32 : 0.5));
+      wing.position.set(s * (polo ? 0.042 : 0.038), female ? 0.255 : 0.268, frontAt(0.25) - (polo ? 0.002 : 0.01));
+      wing.rotation.set(polo ? -0.22 : -0.5, polo ? s * 0.1 : 0, s * (polo ? 0.28 : 0.5));
       torso.add(wing);
     }
     if (cut.top === 'polo' && detailed) {
-      // Low stand collar — must not climb into the chin
-      const band = new THREE.Mesh(lathe([[0.068, 0.268], [0.074, 0.285], [0.068, 0.295]], seg, sx * 0.72, sz * 1.02), top);
+      // Thin ribbed stand collar around the open neckline — below the chin
+      const band = new THREE.Mesh(lathe([[0.07, 0.268], [0.076, 0.282], [0.07, 0.292]], seg, sx * 0.52, sz * 0.9), top);
       torso.add(band);
-      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.12, 0.008), top);
-      placket.position.set(0, 0.2, frontAt(0.2) + 0.004);
+      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.1, 0.006), top);
+      placket.position.set(0, 0.19, frontAt(0.19) + 0.003);
       torso.add(placket);
     }
   }
@@ -568,12 +572,14 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
       cut.top === 'kaftan' ||
       cut.top === 'agbada';
     if (wantsFolds) {
+      const softKnit = cut.top === 'polo' || cut.top === 'tee';
       const folds = addFrontFolds(torso, top, {
-        count: cut.top === 'polo' || cut.top === 'tee' ? 5 : 6,
-        z: foldZ,
-        y0: cut.top === 'tee' || cut.top === 'polo' || config.outfit === 'jason_dock' ? -0.1 : -0.22,
-        y1: cut.top === 'polo' ? 0.16 : 0.22,
-        width: (female ? 0.22 : 0.26) * breadth,
+        count: softKnit ? 3 : 5,
+        z: foldZ - (softKnit ? 0.004 : 0),
+        y0: softKnit || config.outfit === 'jason_dock' ? -0.06 : -0.22,
+        y1: softKnit ? 0.1 : 0.22,
+        width: (female ? 0.18 : 0.2) * breadth,
+        soft: softKnit,
       });
       for (const f of folds) {
         keepFromMerge.add(f);
@@ -615,31 +621,31 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     torso.add(tie);
   }
 
-  // ---------------------------------------------------------------- Head and neck (natural ~10–12 cm neck — not a robot pipe)
+  // ---------------------------------------------------------------- Head and neck — visible skin column through the open collar
   const head = new THREE.Group();
-  // Head sits just above the trap/collar shelf (was 1.6/1.7 → giraffe)
-  head.position.set(0, female ? 1.42 : 1.48, 0);
+  // Collar ~1.44; head ~1.50 → short visible neck, not a pipe
+  head.position.set(0, female ? 1.45 : 1.5, 0);
   group.add(head);
-  const neckR = (female ? 0.055 : 0.064) * (build === 'broad' ? 1.08 : 1);
-  // Short thick neck: collarbone flare into jaw (~11 cm visible)
+  const neckR = (female ? 0.054 : 0.06) * (build === 'broad' ? 1.06 : 1);
   const neck = new THREE.Mesh(
     lathe(
       [
-        [neckR * 1.35, -0.1],
-        [neckR * 1.15, -0.06],
+        [neckR * 1.2, -0.1],
+        [neckR * 1.08, -0.06],
         [neckR * 1.02, -0.02],
-        [neckR * 0.98, 0.03],
-        [neckR * 0.95, 0.055],
+        [neckR * 0.98, 0.02],
+        [neckR * 0.95, 0.05],
       ],
       seg,
-      1.08,
+      1.04,
       0.9,
     ),
     skin,
   );
-  neck.position.z = -0.004;
+  neck.position.z = -0.002;
   head.add(neck);
-  const R = female ? 0.108 : 0.115;
+  // Slightly larger skull so the head doesn't read tiny against the chest
+  const R = female ? 0.112 : 0.122;
   const C = new THREE.Vector3(0, female ? 0.042 : 0.046, 0.014);
   // Higher-resolution skull topology for stylized-real face read
   const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 56 : 28, detailed ? 42 : 20), R, shape), skin);
@@ -865,33 +871,61 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     head.add(tube);
   }
 
-  // ---------------------------------------------------------------- Arms — tucked under trap so shoulders don't float as separate balls
-  const shoulderX = (female ? 0.22 : 0.28) * (build === 'slim' ? 0.96 : build === 'broad' ? 1.06 : 1);
+  // ---------------------------------------------------------------- Arms — continuous sleeve caps (no ball joints)
+  const shoulderX = (female ? 0.19 : 0.225) * (build === 'slim' ? 0.96 : build === 'broad' ? 1.05 : 1);
   const upperLen = female ? 0.28 : 0.32;
   const foreLen = female ? 0.26 : 0.3;
-  const armR = (female ? 0.055 : 0.07) * breadth;
+  const armR = (female ? 0.055 : 0.068) * breadth;
   const sleeveMat = cut.top === 'agbada' || cut.top === 'kaftan' || cut.top === 'buba' ? top : cut.top === 'overall' && cut.sleeves === 'none' ? skin : top;
   const coatMat = cut.coat !== undefined ? mat(cut.coat, 0.55) : null;
   const makeArm = (side: -1 | 1) => {
     const arm = new THREE.Group();
-    // Align with trap height (torsoY + ~0.28)
-    arm.position.set(side * shoulderX, female ? 1.3 : 1.38, 0.01);
+    // Tuck under the yoke so the silhouette slopes instead of shelving
+    arm.position.set(side * shoulderX, female ? 1.3 : 1.36, 0.01);
+    arm.rotation.z = side * 0.08;
     group.add(arm);
     const sleeveLen = cut.sleeves === 'none' ? 0 : cut.sleeves === 'short' ? upperLen * 0.55 : upperLen;
-    const ease = cut.sleeves === 'wide' ? 0.06 : cut.top === 'polo' ? 0.018 : 0.012;
-    // Deltoid as a soft oval tucked into the torso, not a detached ball
-    const deltoid = new THREE.Mesh(
-      new THREE.SphereGeometry(armR * 1.05 + (sleeveLen ? Math.min(ease, 0.014) * 0.5 : 0), seg / 2, seg / 3),
-      sleeveLen ? (coatMat ?? sleeveMat) : skin,
-    );
-    deltoid.scale.set(0.85, 1.05, 0.88);
-    deltoid.position.set(-side * 0.01, -0.02, 0);
-    arm.add(deltoid);
+    const ease = cut.sleeves === 'wide' ? 0.06 : cut.top === 'polo' ? 0.014 : 0.01;
     if (sleeveLen > 0) {
-      // The sleeve: from the shoulder down to its hem, a little loose; wide for the agbada
-      const hemR = (sleeveLen >= upperLen ? armR * 0.9 : armR * 1.04) + ease * (cut.sleeves === 'wide' ? 1.6 : 1);
-      const sleeve = new THREE.Mesh(lathe([[hemR * 0.96, -sleeveLen - 0.004], [hemR, -sleeveLen], [armR * 1.08 + ease, -sleeveLen * 0.4], [armR * 1.06 + ease, -0.02], [0, -0.01]], seg / 2), coatMat ?? sleeveMat);
+      // Continuous sleeve from torso seam → hem (no sphere joint — kills the action-figure shoulder)
+      const hemR = (sleeveLen >= upperLen ? armR * 0.9 : armR * 1.02) + ease * (cut.sleeves === 'wide' ? 1.6 : 1);
+      const shoulderCap = armR * 1.12 + ease;
+      const sleeve = new THREE.Mesh(
+        lathe(
+          [
+            [hemR * 0.96, -sleeveLen - 0.004],
+            [hemR, -sleeveLen],
+            [armR * 1.05 + ease, -sleeveLen * 0.45],
+            [armR * 1.08 + ease, -sleeveLen * 0.15],
+            [shoulderCap, -0.015],
+            [shoulderCap * 0.92, 0.02],
+            [shoulderCap * 0.55, 0.04],
+            [0.001, 0.045],
+          ],
+          seg / 2,
+        ),
+        coatMat ?? sleeveMat,
+      );
       arm.add(sleeve);
+    } else {
+      // Bare shoulder: soft cap, not a ball joint
+      const bare = new THREE.Mesh(
+        lathe(
+          [
+            [armR * 0.95, -0.06],
+            [armR * 1.05, -0.02],
+            [armR * 1.0, 0.02],
+            [armR * 0.55, 0.04],
+            [0.001, 0.045],
+          ],
+          seg / 2,
+        ),
+        skin,
+      );
+      arm.add(bare);
+    }
+    if (sleeveLen > 0) {
+      const hemR = (sleeveLen >= upperLen ? armR * 0.9 : armR * 1.02) + ease * (cut.sleeves === 'wide' ? 1.6 : 1);
       // Polo / tee ribbed cuff at the hem — reads as finished fabric, not a cut pipe
       if (detailed && (cut.top === 'polo' || cut.top === 'tee') && cut.sleeves === 'short') {
         const cuff = new THREE.Mesh(
@@ -1041,7 +1075,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
       const a = running ? 0.95 : 0.58;
       set(LL.leg, stride * a); set(RL.leg, -stride * a);
       set(LL.lower, Math.max(0, -stride * (running ? 1.1 : 0.75))); set(RL.lower, Math.max(0, stride * (running ? 1.1 : 0.75)));
-      set(L.arm, -stride * (running ? 0.85 : 0.48), 0, running ? -0.25 : 0); set(Rt.arm, stride * (running ? 0.85 : 0.48), 0, running ? 0.25 : 0);
+      set(L.arm, -stride * (running ? 0.85 : 0.48), 0, running ? -0.25 : -0.08); set(Rt.arm, stride * (running ? 0.85 : 0.48), 0, running ? 0.25 : 0.08);
       set(L.fore, running ? -0.9 + stride * 0.25 : -0.28 + Math.max(0, -stride * 0.35)); set(Rt.fore, running ? -0.9 - stride * 0.25 : -0.28 + Math.max(0, stride * 0.35));
       torso.position.y = torsoY + Math.abs(Math.sin(time * f * 2)) * (running ? 0.08 : 0.034);
       set(torso, running ? 0.14 : 0, 0, stride * (running ? 0.04 : 0.025));
@@ -1076,7 +1110,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
       const breath = Math.sin(time * 2) * 0.01;
       torso.position.y = torsoY + breath;
       set(torso, 0); set(head, 0);
-      set(L.arm, Math.sin(time * 2) * 0.025, 0, -0.03); set(Rt.arm, -Math.sin(time * 2) * 0.025, 0, 0.03);
+      set(L.arm, Math.sin(time * 2) * 0.025, 0, -0.1); set(Rt.arm, -Math.sin(time * 2) * 0.025, 0, 0.1);
       set(L.fore, -0.12); set(Rt.fore, -0.12);
       for (const q of [LL.leg, RL.leg, LL.lower, RL.lower]) set(q, 0);
     }
