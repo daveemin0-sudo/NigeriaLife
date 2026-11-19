@@ -9,8 +9,12 @@ import { createHumanForConfig } from './HumanFromConfig';
 import { RENDER_LAYERS } from '../interiors/InteriorTypes';
 import type { GameCamera } from '../game/Camera';
 import type { HumanRig } from '../graphics/HumanMeshBuilder';
-import { AssetManager } from '../assets/AssetManager';
 import { SoundEngine } from '../audio/SoundEngine';
+import {
+  loadSkinnedCharacter,
+  type SkinnedAnimState,
+  type SkinnedCharacterHandle,
+} from '../graphics/people/SkinnedCharacter';
 import { bridgeNear } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
 import { Bodies, outOfCar, outOfPerson, waysRoundCar } from '../world/Bodies';
@@ -45,11 +49,13 @@ export class Player {
   // Human anatomical procedural rig
   public humanRig!: HumanRig;
 
-  // Skinned GLTF Model & AnimationMixer
+  // Production skinned human (GLB) — preferred when assets are present
   public glbModel: THREE.Group | null = null;
   public mixer: THREE.AnimationMixer | null = null;
   public actions: Map<string, THREE.AnimationAction> = new Map();
   public currentAction: THREE.AnimationAction | null = null;
+  private skinned: SkinnedCharacterHandle | null = null;
+  private skinnedLoadGen = 0;
 
   // Animation state
   private animTime: number = 0;
@@ -92,41 +98,40 @@ export class Player {
     if (this.humanRig) {
       this.mesh.remove(this.humanRig.group);
     }
+    if (this.skinned) {
+      this.mesh.remove(this.skinned.root);
+      this.skinned.dispose();
+      this.skinned = null;
+    }
     if (this.glbModel) {
       this.mesh.remove(this.glbModel);
       this.glbModel = null;
-      this.mixer = null;
-      this.actions.clear();
-      this.currentAction = null;
     }
+    this.mixer = null;
+    this.actions.clear();
+    this.currentAction = null;
 
-    // 1. Procedural Anatomical Model (Zero-latency instant render)
+    // 1. Procedural fallback (instant) — NPCs / offline / until GLB loads
     this.humanRig = createHumanForConfig(this.config, this.uniform);
-
     this.mesh.add(this.humanRig.group);
 
-    // 2. Asynchronous GLB Humanoid Rig (if available in public/models/characters/)
-    const glbPath = `/models/characters/human_${this.config.gender || 'male'}.glb`;
-    AssetManager.getInstance().instantiate(glbPath).then((gltfScene: THREE.Group | null) => {
-      if (gltfScene) {
-        this.mesh.remove(this.humanRig.group);
-        this.glbModel = gltfScene;
-        this.mesh.add(gltfScene);
-
-        // Setup AnimationMixer
-        if (gltfScene.userData.animations && gltfScene.userData.animations.length > 0) {
-          this.mixer = new THREE.AnimationMixer(gltfScene);
-          for (const clip of gltfScene.userData.animations) {
-            const action = this.mixer.clipAction(clip);
-            this.actions.set(clip.name.toLowerCase(), action);
-          }
-          this.playAnimation('idle');
-        }
-
-        this.mesh.traverse((child) => {
-          child.layers.set(RENDER_LAYERS.PLAYER);
-        });
+    // 2. Production skinned humanoid (docs/CHARACTER-PIPELINE.md)
+    const gen = ++this.skinnedLoadGen;
+    const gender = (this.config.gender || 'male') as 'male' | 'female';
+    loadSkinnedCharacter(gender, this.config).then((handle) => {
+      if (!handle || gen !== this.skinnedLoadGen) {
+        handle?.dispose();
+        return;
       }
+      this.mesh.remove(this.humanRig.group);
+      this.skinned = handle;
+      this.glbModel = handle.root;
+      this.mixer = handle.mixer;
+      this.mesh.add(handle.root);
+      handle.play('idle', 0);
+      this.mesh.traverse((child) => {
+        child.layers.set(RENDER_LAYERS.PLAYER);
+      });
     });
 
     this.mesh.traverse((child) => {
@@ -135,6 +140,11 @@ export class Player {
   }
 
   public playAnimation(clipName: string, fadeDuration: number = 0.25): void {
+    if (this.skinned) {
+      const state = clipName.toLowerCase() as SkinnedAnimState;
+      this.skinned.play(state, fadeDuration);
+      return;
+    }
     if (!this.mixer) return;
     const target = this.actions.get(clipName.toLowerCase()) || this.actions.get('idle');
     if (target && target !== this.currentAction) {
