@@ -341,7 +341,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   group.add(shadow);
 
   // ---------------------------------------------------------------- Torso (8-head with natural shoulder→waist→hip mass)
-  const torsoY = female ? 1.08 : 1.14;
+  const torsoY = female ? 1.06 : 1.12;
   const torso = new THREE.Group();
   torso.position.y = torsoY;
   group.add(torso);
@@ -393,13 +393,12 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   // Shoulder yoke: sloping cloth from collar → sleeve seam (breaks the square shelf silhouette)
   for (const side of [-1, 1] as const) {
     const yoke = new THREE.Mesh(
-      new THREE.BoxGeometry(female ? 0.11 : 0.13, female ? 0.045 : 0.05, female ? 0.1 : 0.11),
+      new THREE.SphereGeometry(0.072, detailed ? 24 : 12, detailed ? 16 : 8),
       torsoTop.material as THREE.Material,
     );
-    yoke.position.set(side * (female ? 0.12 : 0.135) * breadth, female ? 0.255 : 0.268, 0.01);
-    yoke.rotation.z = side * -0.38;
-    yoke.rotation.x = -0.08;
-    yoke.scale.set(1, 0.85, 1);
+    yoke.position.set(side * (female ? 0.112 : 0.126) * breadth, female ? 0.246 : 0.258, 0.006);
+    yoke.rotation.z = side * -0.34;
+    yoke.scale.set(female ? 1.38 : 1.48, 0.46, 0.78);
     torso.add(yoke);
   }
   if (female) {
@@ -624,17 +623,17 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   // ---------------------------------------------------------------- Head and neck — visible skin column through the open collar
   const head = new THREE.Group();
   // Collar ~1.44; head ~1.50 → short visible neck, not a pipe
-  head.position.set(0, female ? 1.45 : 1.5, 0);
+  head.position.set(0, female ? 1.405 : 1.455, 0);
   group.add(head);
-  const neckR = (female ? 0.054 : 0.06) * (build === 'broad' ? 1.06 : 1);
+  const neckR = (female ? 0.049 : 0.053) * (build === 'broad' ? 1.04 : 1);
   const neck = new THREE.Mesh(
     lathe(
       [
-        [neckR * 1.2, -0.1],
-        [neckR * 1.08, -0.06],
-        [neckR * 1.02, -0.02],
-        [neckR * 0.98, 0.02],
-        [neckR * 0.95, 0.05],
+        [neckR * 1.34, -0.055],
+        [neckR * 1.22, -0.035],
+        [neckR * 1.08, -0.005],
+        [neckR * 0.98, 0.025],
+        [neckR * 0.94, 0.055],
       ],
       seg,
       1.04,
@@ -645,7 +644,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   neck.position.z = -0.002;
   head.add(neck);
   // Slightly larger skull so the head doesn't read tiny against the chest
-  const R = female ? 0.112 : 0.122;
+  const R = female ? 0.124 : 0.132;
   const C = new THREE.Vector3(0, female ? 0.042 : 0.046, 0.014);
   // Higher-resolution skull topology for stylized-real face read
   const skull = new THREE.Mesh(shapeIt(new THREE.SphereGeometry(R, detailed ? 56 : 28, detailed ? 42 : 20), R, shape), skin);
@@ -657,19 +656,20 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const at = (az: number, ny: number, out = 1) => onHead(R, shape, az, ny, out);
   // Soft facial volume: cheeks + jaw mass (reads as anatomy, not a bare sphere)
   if (detailed) {
-    for (const s of [-1, 1] as const) {
-      const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.028, 14, 12), skin);
-      cheek.scale.set(0.85, 0.72, 0.55);
-      cheek.position.copy(at(s * 0.55, -0.12, 0.92));
+    // Keep facial planes subtle and blended into the skull; avoid visible attached spheres.
+    for (const side of [-1, 1] as const) {
+      const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.018, 20, 16), skin);
+      cheek.scale.set(1.0, 0.7, 0.42);
+      cheek.position.copy(at(side * 0.48, -0.12, 0.985));
       face.add(cheek);
-      const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), skin);
-      jaw.scale.set(0.7, 0.55, 0.65);
-      jaw.position.copy(at(s * 0.62, -0.42, 0.88));
+      const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.017, 18, 14), skin);
+      jaw.scale.set(0.82, 0.64, 0.4);
+      jaw.position.copy(at(side * 0.51, -0.39, 0.97));
       face.add(jaw);
     }
-    const chin = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), skin);
-    chin.scale.set(1.05, 0.7, 0.85);
-    chin.position.copy(at(0, -0.72, 0.95));
+    const chin = new THREE.Mesh(new THREE.SphereGeometry(0.015, 18, 14), skin);
+    chin.scale.set(1.0, 0.66, 0.58);
+    chin.position.copy(at(0, -0.70, 0.995));
     face.add(chin);
   }
   // Ears
@@ -687,7 +687,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     }
   }
   // Eyes: orbital socket + layered sclera / iris sphere / pupil / cornea glint + almond lids
-  const white = new THREE.MeshPhysicalMaterial({ color: 0xf7f3ea, roughness: 0.22, metalness: 0.02, sheen: 0.2, sheenColor: 0xffffff });
+  const white = new THREE.MeshPhysicalMaterial({ color: 0xe8dfd2, roughness: 0.34, metalness: 0, sheen: 0.08, sheenColor: 0xffffff });
   materials.push(white);
   const irisCol = config.eyeColor ?? 0x3b1f0e;
   const iris = new THREE.MeshPhysicalMaterial({ color: irisCol, roughness: 0.35, metalness: 0.05, sheen: 0.15, sheenColor: 0xffffff });
@@ -696,7 +696,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
   materials.push(glint);
   for (const s of [-1, 1]) {
-    const eyeAt = at(s * 0.34, 0.02, 0.9);
+    const eyeAt = at(s * 0.31, 0.015, 0.91);
     const eye = new THREE.Group();
     eye.position.copy(eyeAt);
     eye.rotation.y = s * 0.18;
@@ -708,11 +708,11 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
       orbit.position.set(0, 0.002, -0.006);
       eye.add(orbit);
     }
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0152, faceDetail ? 20 : 10, faceDetail ? 16 : 8), white);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0125, faceDetail ? 20 : 10, faceDetail ? 16 : 8), white);
     ball.scale.set(1.28, 0.88, 0.78);
     eye.add(ball);
     // Domed iris (not a flat disc)
-    const ir = new THREE.Mesh(new THREE.SphereGeometry(0.0088, faceDetail ? 18 : 10, faceDetail ? 14 : 8), iris);
+    const ir = new THREE.Mesh(new THREE.SphereGeometry(0.0072, faceDetail ? 18 : 10, faceDetail ? 14 : 8), iris);
     ir.scale.set(1, 1, 0.45);
     ir.position.z = 0.0095;
     eye.add(ir);
@@ -766,7 +766,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   bridge.position.copy(at(0, -0.12, 0.978));
   bridge.rotation.x = 0.28;
   face.add(bridge);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0135, faceDetail ? 20 : 12, faceDetail ? 16 : 10), skin);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0105, faceDetail ? 20 : 12, faceDetail ? 16 : 10), skin);
   tip.scale.set(1.35 * noseW, 0.85, 0.95);
   tip.position.copy(at(0, -0.3, 1.045));
   face.add(tip);
@@ -793,7 +793,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     sheenColor: new THREE.Color(lipColour).lerp(new THREE.Color(0xff8866), 0.3),
   });
   materials.push(lip);
-  const upperLip = new THREE.Mesh(new THREE.SphereGeometry(0.021, faceDetail ? 18 : 12, faceDetail ? 12 : 8), lip);
+  const upperLip = new THREE.Mesh(new THREE.SphereGeometry(0.016, faceDetail ? 18 : 12, faceDetail ? 12 : 8), lip);
   upperLip.scale.set(1.62, 0.4, 0.68);
   upperLip.position.copy(at(0, -0.465, 1.005));
   face.add(upperLip);
@@ -806,7 +806,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
       face.add(peak);
     }
   }
-  const lowerLip = new THREE.Mesh(new THREE.SphereGeometry(0.022, faceDetail ? 18 : 12, faceDetail ? 12 : 8), lip);
+  const lowerLip = new THREE.Mesh(new THREE.SphereGeometry(0.017, faceDetail ? 18 : 12, faceDetail ? 12 : 8), lip);
   lowerLip.scale.set(1.48, 0.58, 0.75);
   lowerLip.position.copy(at(0, -0.535, 0.99));
   face.add(lowerLip);
@@ -889,10 +889,10 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   }
 
   // ---------------------------------------------------------------- Arms — continuous sleeve caps (no ball joints)
-  const shoulderX = (female ? 0.19 : 0.225) * (build === 'slim' ? 0.96 : build === 'broad' ? 1.05 : 1);
-  const upperLen = female ? 0.28 : 0.32;
-  const foreLen = female ? 0.26 : 0.3;
-  const armR = (female ? 0.055 : 0.068) * breadth;
+  const shoulderX = (female ? 0.17 : 0.205) * (build === 'slim' ? 0.96 : build === 'broad' ? 1.04 : 1);
+  const upperLen = female ? 0.30 : 0.33;
+  const foreLen = female ? 0.28 : 0.31;
+  const armR = (female ? 0.046 : 0.056) * breadth;
   const sleeveMat = cut.top === 'agbada' || cut.top === 'kaftan' || cut.top === 'buba' ? top : cut.top === 'overall' && cut.sleeves === 'none' ? skin : top;
   const coatMat = cut.coat !== undefined ? mat(cut.coat, 0.55) : null;
   const makeArm = (side: -1 | 1) => {
@@ -906,7 +906,7 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     if (sleeveLen > 0) {
       // Continuous sleeve from torso seam → hem (no sphere joint — kills the action-figure shoulder)
       const hemR = (sleeveLen >= upperLen ? armR * 0.9 : armR * 1.02) + ease * (cut.sleeves === 'wide' ? 1.6 : 1);
-      const shoulderCap = armR * 1.12 + ease;
+      const shoulderCap = armR * 1.04 + ease * 0.65;
       const sleeve = new THREE.Mesh(
         lathe(
           [
@@ -1020,10 +1020,10 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
 
   // ---------------------------------------------------------------- Legs (hip mass + thigh/calf volume)
   const hipY = female ? 0.76 : 0.8;
-  const thighLen = female ? 0.4 : 0.42;
-  const shinLen = female ? 0.38 : 0.4;
+  const thighLen = female ? 0.43 : 0.45;
+  const shinLen = female ? 0.41 : 0.43;
   const legX = female ? 0.14 : 0.17;
-  const legR = (female ? 0.082 : 0.098) * breadth;
+  const legR = (female ? 0.074 : 0.087) * breadth;
   // What covers each part of the leg: trousers all the way, shorts to above the knee, skirts and dresses leave them bare
   const covered = cut.bottom === 'trousers' || cut.bottom === 'jeans' || cut.bottom === 'joggers';
   const shorts = cut.bottom === 'shorts';
