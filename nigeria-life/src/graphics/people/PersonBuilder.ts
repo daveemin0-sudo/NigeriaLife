@@ -381,15 +381,15 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     shoulder.rotation.z = side * -0.18;
     torso.add(shoulder);
   }
-  // Trapezius / collar shelf: fills the gap between neck and shoulders so the silhouette reads human
+  // Trapezius / collar shelf — stays below the chin (world ~1.40), slopes out to the shoulders
   const trap = new THREE.Mesh(
     lathe(
       [
-        [0.055, 0.34],
-        [0.1, 0.33],
-        [0.155 * breadth, 0.31],
-        [0.18 * breadth, 0.285],
-        [0.165 * breadth, 0.26],
+        [0.07, 0.295],
+        [0.12, 0.29],
+        [0.16 * breadth, 0.275],
+        [0.19 * breadth, 0.255],
+        [0.175 * breadth, 0.235],
       ],
       seg,
       sx * 0.92,
@@ -493,17 +493,16 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
         new THREE.BoxGeometry(polo ? 0.095 : 0.075, polo ? 0.038 : 0.045, polo ? 0.016 : 0.012),
         cut.top === 'jacket' ? mat(0xffffff, 0.6) : top,
       );
-      wing.position.set(s * (polo ? 0.048 : 0.04), female ? 0.29 : 0.318, frontAt(0.28) - (polo ? 0.004 : 0.012));
-      wing.rotation.set(polo ? -0.35 : -0.5, polo ? s * 0.15 : 0, s * (polo ? 0.35 : 0.5));
+      wing.position.set(s * (polo ? 0.048 : 0.04), female ? 0.268 : 0.288, frontAt(0.26) - (polo ? 0.002 : 0.01));
+      wing.rotation.set(polo ? -0.28 : -0.5, polo ? s * 0.12 : 0, s * (polo ? 0.32 : 0.5));
       torso.add(wing);
     }
     if (cut.top === 'polo' && detailed) {
-      // Stand collar band under the wings
-      const band = new THREE.Mesh(lathe([[0.07, 0.3], [0.078, 0.325], [0.07, 0.34]], seg, sx * 0.75, sz * 1.05), top);
+      // Low stand collar — must not climb into the chin
+      const band = new THREE.Mesh(lathe([[0.068, 0.268], [0.074, 0.285], [0.068, 0.295]], seg, sx * 0.72, sz * 1.02), top);
       torso.add(band);
-      // Soft placket strip
-      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.008), top);
-      placket.position.set(0, 0.22, frontAt(0.22) + 0.004);
+      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.12, 0.008), top);
+      placket.position.set(0, 0.2, frontAt(0.2) + 0.004);
       torso.add(placket);
     }
   }
