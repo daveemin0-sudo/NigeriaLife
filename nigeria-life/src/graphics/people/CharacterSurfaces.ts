@@ -34,13 +34,13 @@ function skinDetailMaps(hex: string | number): { map: THREE.CanvasTexture; bump:
   ctx.fillStyle = `#${base.getHexString()}`;
   ctx.fillRect(0, 0, size, size);
   // Soft melanin mottling
-  for (let i = 0; i < 900; i++) {
+  for (let i = 0; i < 320; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
     const r = 1 + Math.random() * 3;
     const light = Math.random() > 0.55;
     const c = base.clone().offsetHSL(0, light ? -0.02 : 0.03, light ? 0.04 : -0.05);
-    ctx.fillStyle = `rgba(${(c.r * 255) | 0},${(c.g * 255) | 0},${(c.b * 255) | 0},${0.08 + Math.random() * 0.12})`;
+    ctx.fillStyle = `rgba(${(c.r * 255) | 0},${(c.g * 255) | 0},${(c.b * 255) | 0},${0.025 + Math.random() * 0.055})`;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
@@ -58,7 +58,7 @@ function skinDetailMaps(hex: string | number): { map: THREE.CanvasTexture; bump:
   if (!bctx) return null;
   bctx.fillStyle = '#808080';
   bctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < 2200; i++) {
+  for (let i = 0; i < 900; i++) {
     const g = (100 + Math.random() * 55) | 0;
     bctx.fillStyle = `rgb(${g},${g},${g})`;
     bctx.fillRect(Math.random() * size, Math.random() * size, 1 + (Math.random() > 0.85 ? 1 : 0), 1);
@@ -76,14 +76,16 @@ function skinDetailMaps(hex: string | number): { map: THREE.CanvasTexture; bump:
 export function makeSkinMaterial(hex: string | number): THREE.MeshPhysicalMaterial {
   const details = skinDetailMaps(hex);
   return new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(hex),
+    // The canvas map already contains the selected melanin colour; white tint avoids
+    // multiplying skin tone twice and muddying deeper skin tones.
+    color: details ? 0xffffff : new THREE.Color(hex),
     map: details?.map,
     bumpMap: details?.bump,
-    bumpScale: 0.012,
-    roughness: 0.48,
+    bumpScale: 0.0025,
+    roughness: 0.68,
     metalness: 0.0,
-    sheen: 0.72,
-    sheenRoughness: 0.38,
+    sheen: 0.18,
+    sheenRoughness: 0.62,
     sheenColor: warmUnder(hex),
     envMapIntensity: 0.5,
   });
