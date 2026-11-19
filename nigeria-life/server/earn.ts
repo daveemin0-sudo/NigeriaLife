@@ -90,6 +90,10 @@ export const GIGS: Record<string, GigDef> = {
   'hud:workshop': { pay: 4_000, minSeconds: 6, memo: 'Auto Workshop Gig', site: { city: 'lagos', x: -13, z: -25, radius: 20 } },
   'hud:secretariat': { pay: 14_000, minSeconds: 6, memo: 'Federal Secretariat Policy Sprint', site: { city: 'abuja', x: -24, z: 32, radius: 40 } },
   'hud:transamadi': { pay: 12_000, minSeconds: 6, memo: 'Trans-Amadi Petrochemical Shift', site: { city: 'port_harcourt', x: 55, z: -10, radius: 40 } },
+  // Motor-park day work: load coach boots for pocket cash. Same loop in every city so a new arrival can earn at the park.
+  'hud:jibowu-boots': { pay: 10_000, minSeconds: 6, memo: 'Jibowu coach boot loading', site: { city: 'lagos', x: 92.5, z: -69.6, radius: 35 } },
+  'hud:utako-boots': { pay: 10_000, minSeconds: 6, memo: 'Utako coach boot loading', site: { city: 'abuja', x: 15, z: 35, radius: 35 } },
+  'hud:waterlines-boots': { pay: 10_000, minSeconds: 6, memo: 'Waterlines coach boot loading', site: { city: 'port_harcourt', x: 14.5, z: 38, radius: 35 } },
 };
 
 /** Story cash, once each. The ids and figures are the quest catalogue. */
