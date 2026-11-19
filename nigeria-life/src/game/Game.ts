@@ -1272,6 +1272,8 @@ export class Game {
     // 12b. Resume where the player left off, then keep that position saved.
     // A first visit has no saved spot: they start on the pavement by their own gate, not in the crowd.
     this.restoreWorldState();
+    // Preview / share links: ?weather=rainy&hour=18.4 override the saved sky for demos
+    this.applyPreviewWorldParams();
     if (!BackendService.getInstance().getData().worldState) this.arriveAtTheGate();
     this.placeRestored = true;
     if (!OnlineAccount.get()) this.deeds.arm();
@@ -4334,6 +4336,29 @@ export class Game {
       showGameToast(`You have arrived at ${saved.rideTo}.`, 'success', 4200);
       this.saveWorldState();
       CloudSyncService.getInstance().saveNow();
+    }
+  }
+
+  /** Deep-link weather / hour for Vercel previews and share links (wins over save). */
+  private applyPreviewWorldParams(): void {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const weather = params.get('weather');
+      if (weather) {
+        this.world.weather.setWeather(weather as any, true);
+        this.hud.updateWeatherButton(this.world.weather.currentWeather);
+      }
+      const hourRaw = params.get('hour');
+      if (hourRaw != null && hourRaw !== '') {
+        const hour = Number.parseFloat(hourRaw);
+        if (Number.isFinite(hour)) {
+          this.world.skyEnvironment.clockMode = 'SIMULATED_TIME';
+          this.world.skyEnvironment.setHour(hour);
+          this.world.roads.setLampIntensityForHour(hour);
+        }
+      }
+    } catch {
+      // Ignore bad query strings
     }
   }
 

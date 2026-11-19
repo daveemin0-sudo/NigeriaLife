@@ -200,23 +200,8 @@ export class Roads {
 
   public setNightLighting(period: string): void {
     const isNight = period === 'night';
-    const isGolden = period === 'golden_hour';
-
-    for (const mat of this.streetBulbMaterials) {
-      if (isNight) {
-        mat.emissive.setHex(0xfff4e0);
-        mat.emissiveIntensity = 3.1;
-      } else if (isGolden) {
-        mat.emissive.setHex(0xffc570);
-        mat.emissiveIntensity = 1.35;
-      } else {
-        mat.emissive.setHex(0xffedd5);
-        mat.emissiveIntensity = 0.15;
-      }
-    }
-
-    // Stronger night pools so Lagos streets read as lit neighbourhoods, not darkened flats
-    this.setLampGlow(isNight ? 0.78 : isGolden ? 0.28 : 0);
+    // Continuous hour-based lamps are preferred; period still drives stall pack-down
+    this.setLampIntensityForHour(isNight ? 22 : period === 'golden_hour' ? 18.4 : 12);
 
     // Roadside umbrella stalls pack down when evening arrives and set back up before dawn
     for (const stall of this.roadsideStalls) {
@@ -236,6 +221,36 @@ export class Roads {
         stall.stool.position.set(0.1, 0.28, -0.65);
       }
     }
+  }
+
+  /**
+   * Smooth dusk→night→dawn street lighting from the world clock.
+   * Avoids the hard “period flip” so immersion holds while the sun sets.
+   */
+  public setLampIntensityForHour(hour: number): void {
+    const h = ((hour % 24) + 24) % 24;
+    let glow = 0;
+    if (h >= 19.6 || h < 5.7) glow = 0.88;
+    else if (h >= 17.8 && h < 19.6) glow = this.smooth01((h - 17.8) / 1.8) * 0.88;
+    else if (h >= 5.7 && h < 6.9) glow = (1 - this.smooth01((h - 5.7) / 1.2)) * 0.88;
+
+    this.setLampGlow(glow);
+
+    for (const mat of this.streetBulbMaterials) {
+      if (glow > 0.04) {
+        // Warm sodium/LED mix — stronger as night deepens
+        mat.emissive.setHex(glow > 0.55 ? 0xfff4e0 : 0xffc570);
+        mat.emissiveIntensity = 0.25 + glow * 3.2;
+      } else {
+        mat.emissive.setHex(0xffedd5);
+        mat.emissiveIntensity = 0.15;
+      }
+    }
+  }
+
+  private smooth01(t: number): number {
+    const x = Math.max(0, Math.min(1, t));
+    return x * x * (3 - 2 * x);
   }
 
   private buildPowerPoles(): void {
