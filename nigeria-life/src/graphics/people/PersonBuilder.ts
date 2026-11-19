@@ -162,6 +162,35 @@ function cutFor(config: HumanConfig, female: boolean): Cut {
     case 'polo_shirt': return { ...base, top: 'polo', collar: true, buttons: true, bottom: 'trousers', bottomColour: config.trousersColor ?? 0xd6c7a1 };
     case 'button_shirt': return { ...base, top: 'shirt', sleeves: 'long', collar: true, buttons: true, pattern: pattern ?? 'check', accent: config.accentColor ?? 0xffffff, bottom: 'jeans', bottomColour: config.trousersColor ?? 0x1e3a8a, bottomPattern: 'denim' };
     case 'ankara_shirt': return { ...base, top: 'shirt', sleeves: 'short', collar: true, buttons: true, pattern: 'ankara', accent: config.accentColor ?? 0xfacc15, bottom: 'trousers', bottomColour: config.trousersColor ?? 0x111827 };
+    // Open black shirt with metallic gold chain print + board shorts (dock hero)
+    case 'street_gold_shirt':
+      return {
+        ...base,
+        top: 'shirt',
+        sleeves: 'short',
+        hem: 0.88,
+        collar: true,
+        buttons: false,
+        pattern: 'gold_chain',
+        colour: config.outfitColor ?? 0x111111,
+        accent: config.accentColor ?? 0xd4af37,
+        bottom: 'shorts',
+        bottomColour: config.trousersColor ?? 0x111111,
+        bottomPattern: 'gold_chain',
+      };
+    // Charcoal tee, backwards cap look (Jason)
+    case 'jason_dock':
+      return {
+        ...base,
+        top: 'tee',
+        sleeves: 'short',
+        hem: 0.9,
+        pattern: 'knit',
+        colour: config.outfitColor ?? 0x333333,
+        bottom: 'shorts',
+        bottomColour: config.trousersColor ?? 0x3b82f6,
+        bottomPattern: 'stripes',
+      };
     case 'hoodie': return { ...base, top: 'hoodie', sleeves: 'long', hem: female ? 0.82 : 0.86, pattern: 'knit', hood: true, bottom: 'joggers', bottomColour: config.trousersColor ?? 0x374151 };
     case 'jersey': return { ...base, top: 'jersey', pattern: 'stripes', accent: config.accentColor ?? 0xffffff, bottom: 'shorts', bottomColour: config.trousersColor ?? 0xffffff };
     case 'suit':
@@ -392,6 +421,18 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     crest.position.set(0.08, 0.17, frontAt(0.17) + 0.003);
     torso.add(crest);
   }
+  // Open unbuttoned gold-chain shirt: skin strip down the chest + collar wings out
+  if (config.outfit === 'street_gold_shirt' && detailed) {
+    const skinStrip = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.42), mat(new THREE.Color(skinHex).getHex(), 0.55));
+    skinStrip.position.set(0, 0.08, frontAt(0.08) + 0.004);
+    torso.add(skinStrip);
+    for (const s of [-1, 1]) {
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.4, 0.01), top);
+      edge.position.set(s * 0.055, 0.08, frontAt(0.08) + 0.006);
+      edge.rotation.y = s * 0.35;
+      torso.add(edge);
+    }
+  }
   if (cut.hood) {
     const hood = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.035, 8, 16, Math.PI * 1.3), top);
     hood.rotation.set(Math.PI / 2 + 0.3, 0, Math.PI * 0.85);
@@ -576,12 +617,21 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
     bar.position.copy(at(0, 0.06, 1.08));
     face.add(bar);
   }
-  // Round the neck
-  if (config.hasGoldChain) {
-    const chain = new THREE.Mesh(new THREE.TorusGeometry(neckR * 1.5, 0.006, 6, 28), mat(0xe5b84b, 0.2, null, 0.95));
+  // Round the neck — thicker pendant chain for street_gold_shirt (dock hero)
+  if (config.hasGoldChain || config.outfit === 'street_gold_shirt') {
+    const thick = config.outfit === 'street_gold_shirt';
+    const chain = new THREE.Mesh(
+      new THREE.TorusGeometry(neckR * (thick ? 1.65 : 1.5), thick ? 0.01 : 0.006, 6, 28),
+      mat(0xd4af37, 0.18, null, 0.95),
+    );
     chain.rotation.x = Math.PI / 2 + 0.35;
     chain.position.set(0, -0.15, 0.025);
     head.add(chain);
+    if (thick) {
+      const pendant = new THREE.Mesh(new THREE.CircleGeometry(0.028, 16), mat(0xd4af37, 0.15, null, 0.98));
+      pendant.position.set(0, -0.28, 0.12);
+      head.add(pendant);
+    }
   }
   if (config.hasCoralBeads) {
     const beads = new THREE.Mesh(new THREE.TorusGeometry(neckR * 1.4, 0.013, 8, 30), mat(0xc2410c, 0.3));
@@ -1189,7 +1239,9 @@ function buildHat(face: THREE.Group, hat: Hat, R: number, shape: HeadShape, cut:
       if (hat === 'cap') {
         const brim = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.7, R * 0.7, 0.008, 16, 1, false, -Math.PI / 2, Math.PI), m);
         brim.scale.set(1, 1, 0.9);
-        brim.position.set(0, crown - R * 0.7, R * 0.88);
+        const back = !!config.hatBackwards || config.outfit === 'jason_dock';
+        brim.position.set(0, crown - R * 0.7, back ? -R * 0.88 : R * 0.88);
+        if (back) brim.rotation.y = Math.PI;
         face.add(brim);
       }
       return;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeVertices, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { decorateSupercar, isSupercarSpec } from './SupercarDetail';
 
 /**
  * Car bodies that read as cars: each is drawn as a side profile (bumpers, bonnet, glass, roof,
@@ -262,32 +263,34 @@ export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.
   const front = s.length / 2;
   const back = -s.length / 2;
   const halfW = s.width / 2;
-
-  // Lamps
+  const showcase = isSupercarSpec(s);
   const lampY = s.noseTop - (s.style === 'boxy' ? 0.24 : 0.14);
-  for (const side of [-1, 1]) {
-    if (s.lamps === 'round') {
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, detail === 'light' ? 10 : 24), m.chrome);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(side * (halfW - 0.3), lampY, front + 0.03);
-      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.105, detail === 'light' ? 10 : 24), m.lamp);
-      lens.position.set(side * (halfW - 0.3), lampY, front + 0.065);
-      car.add(ring, lens);
-    } else {
-      const w = s.lamps === 'slim' ? 0.42 : 0.34;
-      const h = s.lamps === 'slim' ? 0.075 : 0.14;
-      const lamp = box(m.lamp, w, h, 0.05, side * (halfW - 0.28 - (s.roundness * 0.08)), lampY, front - 0.05 - s.roundness * 0.12);
-      lamp.rotation.y = side * 0.25 * s.roundness;
-      car.add(lamp);
+
+  // Generic lamps/grille — supercars get showcase Y-LEDs + honeycomb instead
+  if (!showcase) {
+    for (const side of [-1, 1]) {
+      if (s.lamps === 'round') {
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, detail === 'light' ? 10 : 24), m.chrome);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(side * (halfW - 0.3), lampY, front + 0.03);
+        const lens = new THREE.Mesh(new THREE.CircleGeometry(0.105, detail === 'light' ? 10 : 24), m.lamp);
+        lens.position.set(side * (halfW - 0.3), lampY, front + 0.065);
+        car.add(ring, lens);
+      } else {
+        const w = s.lamps === 'slim' ? 0.42 : 0.34;
+        const h = s.lamps === 'slim' ? 0.075 : 0.14;
+        const lamp = box(m.lamp, w, h, 0.05, side * (halfW - 0.28 - (s.roundness * 0.08)), lampY, front - 0.05 - s.roundness * 0.12);
+        lamp.rotation.y = side * 0.25 * s.roundness;
+        car.add(lamp);
+      }
     }
-  }
-  // Grille
-  const grilleW = s.grille === 'closed' ? 0.7 : s.style === 'boxy' ? 0.9 : 0.78;
-  if (s.grille !== 'closed') {
-    const grille = box(s.grille === 'chrome' ? m.chrome : m.trim, grilleW, s.style === 'boxy' ? 0.3 : 0.18, 0.05, 0, lampY - (s.style === 'boxy' ? 0.02 : 0.06), front + (s.style === 'boxy' ? 0.03 : -0.04));
-    car.add(grille);
-    if (s.grille === 'chrome' || s.grille === 'mesh') {
-      for (let i = 0; i < (s.style === 'boxy' ? 3 : 4); i++) car.add(box(m.trim, grilleW - 0.06, 0.018, 0.02, 0, lampY - 0.12 + i * 0.05, front - 0.01 + (s.style === 'boxy' ? 0.05 : 0)));
+    const grilleW = s.grille === 'closed' ? 0.7 : s.style === 'boxy' ? 0.9 : 0.78;
+    if (s.grille !== 'closed') {
+      const grille = box(s.grille === 'chrome' ? m.chrome : m.trim, grilleW, s.style === 'boxy' ? 0.3 : 0.18, 0.05, 0, lampY - (s.style === 'boxy' ? 0.02 : 0.06), front + (s.style === 'boxy' ? 0.03 : -0.04));
+      car.add(grille);
+      if (s.grille === 'chrome' || s.grille === 'mesh') {
+        for (let i = 0; i < (s.style === 'boxy' ? 3 : 4); i++) car.add(box(m.trim, grilleW - 0.06, 0.018, 0.02, 0, lampY - 0.12 + i * 0.05, front - 0.01 + (s.style === 'boxy' ? 0.05 : 0)));
+      }
     }
   }
 
@@ -407,12 +410,14 @@ export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.
   car.add(box(m.trim, s.width * 0.55, 0.1, 0.05, 0, s.clearance + 0.12, front - 0.02));
   car.add(box(m.plate, 0.44, 0.11, 0.02, 0, s.clearance + 0.26, front + 0.015));
   car.add(box(m.plate, 0.44, 0.11, 0.02, 0, s.clearance + 0.3, back - 0.015));
-  // Tail lamps
-  const tailY = s.tailTop - 0.13;
-  if (s.tailBar) {
-    car.add(box(m.tail, s.width - 0.3, 0.06, 0.04, 0, tailY, back + 0.02));
-  } else {
-    for (const side of [-1, 1]) car.add(box(m.tail, s.lamps === 'round' ? 0.16 : 0.34, s.lamps === 'round' ? 0.3 : 0.1, 0.04, side * (halfW - 0.25), tailY - (s.lamps === 'round' ? 0.1 : 0), back + 0.02 + s.roundness * 0.05));
+  // Tail lamps (showcase cars get hexagon blades in decorateSupercar)
+  if (!showcase) {
+    const tailY = s.tailTop - 0.13;
+    if (s.tailBar) {
+      car.add(box(m.tail, s.width - 0.3, 0.06, 0.04, 0, tailY, back + 0.02));
+    } else {
+      for (const side of [-1, 1]) car.add(box(m.tail, s.lamps === 'round' ? 0.16 : 0.34, s.lamps === 'round' ? 0.3 : 0.1, 0.04, side * (halfW - 0.25), tailY - (s.lamps === 'round' ? 0.1 : 0), back + 0.02 + s.roundness * 0.05));
+    }
   }
   // Mirrors, at the foot of the windscreen
   for (const side of [-1, 1]) {
@@ -452,6 +457,7 @@ export function buildCarBody(spec: CarSpec, m: CarMaterials = carMaterials(spec.
     cover.rotation.y = Math.PI;
     car.add(spare, cover);
   }
+  if (showcase) decorateSupercar(car, s, m);
   return car;
 }
 
@@ -515,6 +521,7 @@ Object.assign(CAR_SPECS, {
   // Sports and super cars
   porsche_911: { ...S.sports_car, brand: 'porsche', wing: false, length: 4.52, roof: 1.3, roundness: 1, paint: 0xf8fafc },
   huracan: { ...S.sports_car, brand: 'lamborghini', wing: false, length: 4.52, width: 1.93, roof: 1.16, belt: 0.74, noseTop: 0.55, tailTop: 0.82, screenFoot: 1.0, screenTop: -0.05, backTop: -0.75, backFoot: -1.85, roundness: 0.45, tumblehome: 0.26, lamps: 'slim', grille: 'mesh', paint: 0x84cc16 },
-  aventador: { ...S.sports_car, brand: 'lamborghini', wing: true, length: 4.8, width: 2.03, roof: 1.14, belt: 0.72, noseTop: 0.52, tailTop: 0.85, screenFoot: 1.15, screenTop: 0.05, backTop: -0.8, backFoot: -2.0, frontAxle: 1.45, rearAxle: -1.3, roundness: 0.35, tumblehome: 0.28, lamps: 'slim', grille: 'mesh', paint: 0xf97316 },
+  // Black + gold (dock-scene street-luxury palette) — showcase clearcoat supercar
+  aventador: { ...S.sports_car, brand: 'lamborghini', wing: true, length: 4.8, width: 2.03, roof: 1.14, belt: 0.72, noseTop: 0.52, tailTop: 0.85, screenFoot: 1.15, screenTop: 0.05, backTop: -0.8, backFoot: -2.0, frontAxle: 1.45, rearAxle: -1.3, roundness: 0.35, tumblehome: 0.28, lamps: 'slim', grille: 'mesh', paint: 0x0a0a0c },
   chiron: { ...S.sports_car, brand: 'bugatti', wing: false, length: 4.54, width: 2.04, roof: 1.21, belt: 0.78, noseTop: 0.6, tailTop: 0.9, screenFoot: 0.95, screenTop: 0.0, backTop: -0.7, backFoot: -1.8, roundness: 1, tumblehome: 0.24, lamps: 'slim', grille: 'chrome', tailBar: true, blackRoof: true, paint: 0x1d4ed8 },
 } as Record<string, Omit<CarSpec, 'paint'> & { paint?: number }>);

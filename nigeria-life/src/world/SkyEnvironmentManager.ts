@@ -46,19 +46,18 @@ export interface SkyModeConfig {
 const MODES: Record<TimePeriod, SkyModeConfig> = {
   midday: {
     period: 'midday',
-    top: '#3a78c0',
+    top: '#3f7fc4',
     mid: '#8fc0e8',
-    hor: '#f0e0c0',
-    glow: '#fff4cc',
+    hor: '#e9dcc2',
+    glow: '#fff7d8',
     fog: 0xd9cdb4,
-    fogDensity: 0.0048,
-    sun: 0xfff3d6,
-    // Harder equatorial key so shadows and chrome pop under the cinematic grade
-    si: 3.15,
+    fogDensity: 0.0055,
+    sun: 0xfff0d0,
+    si: 2.6,
     dir: [40, 70, 25],
-    hemiSky: 0xb8d8ff,
-    hemiGround: 0x7a6a52,
-    hi: 0.68,
+    hemiSky: 0xbfdcff,
+    hemiGround: 0x8a7a62,
+    hi: 0.75,
     label: '☀️ Midday',
   },
   golden_hour: {
@@ -131,8 +130,8 @@ const LIGHTING_TIMELINE: LightingKeyframe[] = [
   // Dawn — warm first light
   { hour: 6.2,  sunColor: 0xff9a4a, sunIntensity: 1.35, hemiSky: 0xffb070, hemiGround: 0x5a4433, hemiIntensity: 0.50, fogColor: 0xa86a48, fogDensity: 0.0064, exposure: 0.98 },
   { hour: 7.5,  sunColor: 0xfff2d4, sunIntensity: 2.35, hemiSky: 0xcde4ff, hemiGround: 0x8a7a62, hemiIntensity: 0.66, fogColor: 0xe2d6c2, fogDensity: 0.0050, exposure: 1.05 },
-  { hour: 12.5, sunColor: 0xfff3d6, sunIntensity: 3.25, hemiSky: 0xb0d2ff, hemiGround: 0x7a6a52, hemiIntensity: 0.62, fogColor: 0xd9cdb4, fogDensity: 0.0046, exposure: 1.08 },
-  { hour: 16.5, sunColor: 0xffe0b0, sunIntensity: 2.7, hemiSky: 0xc4dcff, hemiGround: 0x8a7a62, hemiIntensity: 0.66, fogColor: 0xdec8ab, fogDensity: 0.0052, exposure: 1.05 },
+  { hour: 12.5, sunColor: 0xfff0d0, sunIntensity: 2.70, hemiSky: 0xb8d8ff, hemiGround: 0x8a7a62, hemiIntensity: 0.78, fogColor: 0xd9cdb4, fogDensity: 0.0052, exposure: 1.06 },
+  { hour: 16.5, sunColor: 0xffe0b0, sunIntensity: 2.45, hemiSky: 0xc4dcff, hemiGround: 0x8a7a62, hemiIntensity: 0.70, fogColor: 0xdec8ab, fogDensity: 0.0055, exposure: 1.04 },
   // Golden hour — stronger amber key + warmer fog (immersion seller)
   { hour: 18.0, sunColor: 0xff8a3a, sunIntensity: 2.55, hemiSky: 0xffa858, hemiGround: 0x6a4028, hemiIntensity: 0.58, fogColor: 0xe8a060, fogDensity: 0.0064, exposure: 1.04 },
   { hour: 19.2, sunColor: 0xe86848, sunIntensity: 1.15, hemiSky: 0x9a5a88, hemiGround: 0x3a2838, hemiIntensity: 0.58, fogColor: 0x523048, fogDensity: 0.0065, exposure: 0.97 },

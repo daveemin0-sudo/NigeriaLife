@@ -53,8 +53,7 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     smokeEvery: 1,
     districtDraw: 600,
     wetMetalnessMax: 0.65,
-    // Cinematic Lagos bloom + tropical grade — the first-second street read
-    postFx: true,
+    postFx: false,
   },
   balanced: {
     label: 'Medium',

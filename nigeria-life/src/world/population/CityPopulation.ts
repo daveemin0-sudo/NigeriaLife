@@ -406,6 +406,34 @@ export class CityPopulation {
     male({ outfit: 'jersey', outfitColor: 0xdc2626, accentColor: 0xf8fafc, hairstyle: 'afro', trousersColor: 0x111827 });
     male({ outfit: 'button_shirt', outfitColor: 0xf8fafc, pattern: 'stripes', hairstyle: 'short_crop', trousersColor: 0x1e3a8a });
     male({ outfit: 'button_shirt', outfitColor: 0x0ea5e9, hairstyle: 'fade', trousersColor: 0x1e293b, hasShades: true });
+    // Dock-scene reference looks (gold-chain open shirt + Jason charcoal tee)
+    male({
+      outfit: 'street_gold_shirt',
+      outfitColor: 0x111111,
+      accentColor: 0xd4af37,
+      trousersColor: 0x111111,
+      skinTone: '#8a5a3c',
+      hairstyle: 'high_top',
+      hairColor: '#c4a882',
+      build: 'slim',
+      hasShades: true,
+      hasGoldChain: true,
+    });
+    male({
+      outfit: 'jason_dock',
+      outfitColor: 0x333333,
+      trousersColor: 0x2563eb,
+      accentColor: 0x93c5fd,
+      skinTone: '#c4a07a',
+      hairstyle: 'low_cut',
+      hat: 'cap',
+      hatColor: 0x1f2937,
+      hatBackwards: true,
+      build: 'broad',
+      hasShades: true,
+      hasGoldChain: true,
+      beard: 'stubble',
+    });
 
     // Everyday Lagos women — dresses, peplum, ankara, aso-oke, gele
     for (const color of [0x2563eb, 0xdb2777, 0xf59e0b, 0x16a34a, 0x7c3aed, 0xf43f5e]) {
