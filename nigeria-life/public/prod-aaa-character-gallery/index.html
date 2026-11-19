@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NigeriaLife — cinematic character upgrade gallery</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0f1419; --fg:#f4efe6; --muted:#9aa3ad; }
+    body { margin:0; font: 16px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+    main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+    h1 { font-size: 1.5rem; margin: 0 0 6px; }
+    h2 { font-size: 1.15rem; margin: 40px 0 8px; }
+    p { color: var(--muted); margin: 0 0 22px; }
+    figure { margin: 0 0 32px; }
+    figcaption { margin: 0 0 10px; font-weight: 650; }
+    img { display:block; width:100%; height:auto; border-radius: 10px; background:#1a222c; }
+    a { color: #8ec8ff; }
+    pre { background:#1a222c; padding:14px; border-radius:8px; overflow:auto; font-size:13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Cinematic character upgrade</h1>
+    <p>
+      Procedural stylized-realism pass (ART-BIBLE) on the existing PersonBuilder rig —
+      not a GTA 6 clone. Inspired by open-world character readability: skin response,
+      facial volume, blended locomotion, Nigerian wardrobe.
+      <a href="https://nigeria-life.vercel.app/">nigeria-life.vercel.app</a>
+    </p>
+
+    <h2>Before (robot silhouette)</h2>
+    <figure>
+      <figcaption>BEFORE — robot body</figcaption>
+      <img src="./00-BEFORE-robot-body.png" alt="Before robot body" />
+    </figure>
+    <figure>
+      <figcaption>BEFORE — robot face</figcaption>
+      <img src="./00-BEFORE-robot-face.png" alt="Before robot face" />
+    </figure>
+
+    <h2>Male base — navy polo (day / night)</h2>
+    <figure><figcaption>Male face — daylight</figcaption><img src="./aaa-male-face-day.png" alt="Male face day" /></figure>
+    <figure><figcaption>Male front — daylight</figcaption><img src="./aaa-male-front-day.png" alt="Male front day" /></figure>
+    <figure><figcaption>Male side — daylight</figcaption><img src="./aaa-male-side-day.png" alt="Male side day" /></figure>
+    <figure><figcaption>Male rear — daylight</figcaption><img src="./aaa-male-rear-day.png" alt="Male rear day" /></figure>
+    <figure><figcaption>Male walk — daylight</figcaption><img src="./aaa-male-walk-day.png" alt="Male walk day" /></figure>
+    <figure><figcaption>Male run — daylight</figcaption><img src="./aaa-male-run-day.png" alt="Male run day" /></figure>
+    <figure><figcaption>Male front — night</figcaption><img src="./aaa-male-front-night.png" alt="Male front night" /></figure>
+    <figure><figcaption>Male face — night</figcaption><img src="./aaa-male-face-night.png" alt="Male face night" /></figure>
+
+    <h2>Female base — ankara gown</h2>
+    <figure><figcaption>Female face — daylight</figcaption><img src="./aaa-female-face-day.png" alt="Female face day" /></figure>
+    <figure><figcaption>Female front — daylight</figcaption><img src="./aaa-female-front-day.png" alt="Female front day" /></figure>
+    <figure><figcaption>Female side — daylight</figcaption><img src="./aaa-female-side-day.png" alt="Female side day" /></figure>
+    <figure><figcaption>Female rear — daylight</figcaption><img src="./aaa-female-rear-day.png" alt="Female rear day" /></figure>
+    <figure><figcaption>Female walk — daylight</figcaption><img src="./aaa-female-walk-day.png" alt="Female walk day" /></figure>
+    <figure><figcaption>Female run — daylight</figcaption><img src="./aaa-female-run-day.png" alt="Female run day" /></figure>
+    <figure><figcaption>Female front — night</figcaption><img src="./aaa-female-front-night.png" alt="Female front night" /></figure>
+
+    <h2>Clothing combinations (male)</h2>
+    <figure><figcaption>Corporate oxford</figcaption><img src="./aaa-male-outfit-corporate.png" alt="Corporate" /></figure>
+    <figure><figcaption>White senator kaftan</figcaption><img src="./aaa-male-outfit-kaftan.png" alt="Kaftan" /></figure>
+    <figure><figcaption>Super Eagles jersey</figcaption><img src="./aaa-male-outfit-jersey.png" alt="Jersey" /></figure>
+
+    <h2>Performance sample</h2>
+    <p>Character <code>updateAnimation</code> + full Broad Street render (cloud VM). HD 620 / A16 should use Medium/Low LOD (street NPCs already drop face detail).</p>
+    <pre id="perf">loading…</pre>
+  </main>
+  <script>
+    fetch('./aaa-character-perf.json').then(r => r.json()).then(j => {
+      document.getElementById('perf').textContent = JSON.stringify(j, null, 2);
+    }).catch(() => { document.getElementById('perf').textContent = 'perf json unavailable'; });
+  </script>
+</body>
+</html>

@@ -655,10 +655,27 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   face.position.copy(C);
   head.add(face);
   const at = (az: number, ny: number, out = 1) => onHead(R, shape, az, ny, out);
+  // Soft facial volume: cheeks + jaw mass (reads as anatomy, not a bare sphere)
+  if (detailed) {
+    for (const s of [-1, 1] as const) {
+      const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.028, 14, 12), skin);
+      cheek.scale.set(0.85, 0.72, 0.55);
+      cheek.position.copy(at(s * 0.55, -0.12, 0.92));
+      face.add(cheek);
+      const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), skin);
+      jaw.scale.set(0.7, 0.55, 0.65);
+      jaw.position.copy(at(s * 0.62, -0.42, 0.88));
+      face.add(jaw);
+    }
+    const chin = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), skin);
+    chin.scale.set(1.05, 0.7, 0.85);
+    chin.position.copy(at(0, -0.72, 0.95));
+    face.add(chin);
+  }
   // Ears
   for (const s of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8), skin);
-    ear.scale.set(0.42, 1.05, 0.78);
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), skin);
+    ear.scale.set(0.4, 1.12, 0.72);
     ear.position.copy(at(s * Math.PI * 0.5, -0.04, 0.98)).add(new THREE.Vector3(0, 0, -0.008));
     ear.rotation.y = s * 0.25;
     face.add(ear);
@@ -978,6 +995,18 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   const L = makeArm(-1);
   const Rt = makeArm(1);
 
+  // Everyday Lagos accessory: slim wristwatch on the left forearm (detailed LOD only)
+  if (detailed && !female) {
+    const watchBand = new THREE.Mesh(new THREE.TorusGeometry(armR * 0.95, 0.005, 6, 16), mat(0x1c1917, 0.45, fabric('leather', 0x1c1917)));
+    watchBand.rotation.x = Math.PI / 2;
+    watchBand.position.y = -foreLen * 0.92;
+    L.fore.add(watchBand);
+    const faceWatch = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.004, 12), mat(0xd4af37, 0.25, null, 0.75));
+    faceWatch.rotation.x = Math.PI / 2;
+    faceWatch.position.set(0, -foreLen * 0.92, armR * 0.55);
+    L.fore.add(faceWatch);
+  }
+
   // The phone in the right hand, for calls
   const phoneMesh = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.07, 0.008), mat(0x111827, 0.3, null, 0.4));
   phoneMesh.position.set(0, -foreLen - 0.06, 0.03);
@@ -1060,61 +1089,156 @@ export function buildPerson(config: HumanConfig, nameTag: (username: string) => 
   tag.position.set(0, female ? 2.02 : 2.14, 0);
   group.add(tag);
 
-  // The same motions the game's people have always had: idle, walk, run, dance, talk, a call
+  // Damped targets — kills snap between idle ↔ walk ↔ run (HD 620 friendly: no extra bones)
+  const poseTarget = {
+    head: new THREE.Euler(),
+    torso: new THREE.Euler(),
+    lArm: new THREE.Euler(),
+    rArm: new THREE.Euler(),
+    lFore: new THREE.Euler(),
+    rFore: new THREE.Euler(),
+    lLeg: new THREE.Euler(),
+    rLeg: new THREE.Euler(),
+    lLower: new THREE.Euler(),
+    rLower: new THREE.Euler(),
+    torsoY: torsoY,
+  };
+  let lastAnimT = 0;
+  const dampToward = (g: THREE.Object3D, e: THREE.Euler, k: number) => {
+    g.rotation.x += (e.x - g.rotation.x) * k;
+    g.rotation.y += (e.y - g.rotation.y) * k;
+    g.rotation.z += (e.z - g.rotation.z) * k;
+  };
+  const aim = (e: THREE.Euler, x: number, y = 0, z = 0) => {
+    e.x = x;
+    e.y = y;
+    e.z = z;
+  };
+
+  // Idle / walk / run / dance / talk / call / sit / drive — blended, no hard snaps
   const updateAnimation = (time: number, state?: boolean | string) => {
     const walking = state === true || state === 'walk';
     const running = state === 'run';
     const dancing = state === 'dance';
     const talking = state === 'talk';
     const calling = state === 'phone_call' || state === 'call';
+    const sitting = state === 'sit' || state === 'sitting';
+    const driving = state === 'drive' || state === 'driving';
     phoneMesh.visible = calling;
-    const set = (g: THREE.Object3D, x: number, y = 0, z = 0) => g.rotation.set(x, y, z);
+    const dt = Math.max(0.001, Math.min(0.05, lastAnimT === 0 ? 1 / 60 : time - lastAnimT));
+    lastAnimT = time;
+    // Faster blend when moving so feet don't slide; softer for idle expression
+    const k = Math.min(1, (walking || running ? 14 : sitting || driving ? 10 : 8) * dt);
+
     if (running || walking) {
-      const f = running ? 14 : 8;
+      const f = running ? 12.5 : 7.2;
       const stride = Math.sin(time * f);
-      const a = running ? 0.95 : 0.58;
-      set(LL.leg, stride * a); set(RL.leg, -stride * a);
-      set(LL.lower, Math.max(0, -stride * (running ? 1.1 : 0.75))); set(RL.lower, Math.max(0, stride * (running ? 1.1 : 0.75)));
-      set(L.arm, -stride * (running ? 0.85 : 0.48), 0, running ? -0.25 : -0.08); set(Rt.arm, stride * (running ? 0.85 : 0.48), 0, running ? 0.25 : 0.08);
-      set(L.fore, running ? -0.9 + stride * 0.25 : -0.28 + Math.max(0, -stride * 0.35)); set(Rt.fore, running ? -0.9 - stride * 0.25 : -0.28 + Math.max(0, stride * 0.35));
-      torso.position.y = torsoY + Math.abs(Math.sin(time * f * 2)) * (running ? 0.08 : 0.034);
-      set(torso, running ? 0.14 : 0, 0, stride * (running ? 0.04 : 0.025));
-      set(head, running ? -0.06 : 0);
+      const a = running ? 0.88 : 0.52;
+      const knee = running ? 1.05 : 0.72;
+      aim(poseTarget.lLeg, stride * a);
+      aim(poseTarget.rLeg, -stride * a);
+      aim(poseTarget.lLower, Math.max(0.05, -stride * knee + 0.08));
+      aim(poseTarget.rLower, Math.max(0.05, stride * knee + 0.08));
+      aim(poseTarget.lArm, -stride * (running ? 0.78 : 0.42), 0, running ? -0.22 : -0.1);
+      aim(poseTarget.rArm, stride * (running ? 0.78 : 0.42), 0, running ? 0.22 : 0.1);
+      aim(poseTarget.lFore, running ? -0.85 + stride * 0.2 : -0.32 + Math.max(0, -stride * 0.28));
+      aim(poseTarget.rFore, running ? -0.85 - stride * 0.2 : -0.32 + Math.max(0, stride * 0.28));
+      poseTarget.torsoY = torsoY + Math.abs(Math.sin(time * f * 2)) * (running ? 0.07 : 0.03);
+      aim(poseTarget.torso, running ? 0.12 : 0.02, 0, stride * (running ? 0.035 : 0.022));
+      aim(poseTarget.head, running ? -0.05 : 0.02, Math.sin(time * 1.2) * 0.03, 0);
     } else if (dancing) {
       const beat = time * 8;
       const bounce = Math.abs(Math.sin(beat)) * 0.08;
-      torso.position.y = torsoY - bounce;
-      set(torso, 0.04, Math.cos(beat * 0.5) * 0.12, Math.sin(beat * 0.5) * 0.15);
-      set(L.arm, -0.8 + Math.sin(beat) * 0.35, 0, -0.35 + Math.sin(beat * 0.5) * 0.22);
-      set(Rt.arm, -0.8 + Math.cos(beat) * 0.35, 0, 0.35 - Math.cos(beat * 0.5) * 0.22);
-      set(L.fore, -0.75 + Math.sin(beat) * 0.3); set(Rt.fore, -0.75 + Math.cos(beat) * 0.3);
-      set(head, Math.sin(beat) * 0.08, Math.sin(beat * 0.5) * 0.16);
-      set(LL.leg, Math.sin(beat * 0.5) * 0.2); set(RL.leg, -Math.sin(beat * 0.5) * 0.2);
-      set(LL.lower, bounce * 3.5); set(RL.lower, bounce * 3.5);
+      poseTarget.torsoY = torsoY - bounce;
+      aim(poseTarget.torso, 0.04, Math.cos(beat * 0.5) * 0.12, Math.sin(beat * 0.5) * 0.15);
+      aim(poseTarget.lArm, -0.8 + Math.sin(beat) * 0.35, 0, -0.35 + Math.sin(beat * 0.5) * 0.22);
+      aim(poseTarget.rArm, -0.8 + Math.cos(beat) * 0.35, 0, 0.35 - Math.cos(beat * 0.5) * 0.22);
+      aim(poseTarget.lFore, -0.75 + Math.sin(beat) * 0.3);
+      aim(poseTarget.rFore, -0.75 + Math.cos(beat) * 0.3);
+      aim(poseTarget.head, Math.sin(beat) * 0.08, Math.sin(beat * 0.5) * 0.16);
+      aim(poseTarget.lLeg, Math.sin(beat * 0.5) * 0.2);
+      aim(poseTarget.rLeg, -Math.sin(beat * 0.5) * 0.2);
+      aim(poseTarget.lLower, bounce * 3.5);
+      aim(poseTarget.rLower, bounce * 3.5);
     } else if (calling) {
-      torso.position.y = torsoY + Math.sin(time * 2) * 0.012;
-      set(torso, 0);
-      set(Rt.arm, -0.85, 0.25, 0.45); set(Rt.fore, -1.45);
-      set(L.arm, Math.sin(time * 2) * 0.04); set(L.fore, -0.15);
-      set(head, Math.sin(time * 2.5) * 0.05, 0, -0.1);
-      for (const g of [LL.leg, RL.leg, LL.lower, RL.lower]) set(g, 0);
+      poseTarget.torsoY = torsoY + Math.sin(time * 2) * 0.012;
+      aim(poseTarget.torso, 0);
+      aim(poseTarget.rArm, -0.85, 0.25, 0.45);
+      aim(poseTarget.rFore, -1.45);
+      aim(poseTarget.lArm, Math.sin(time * 2) * 0.04);
+      aim(poseTarget.lFore, -0.15);
+      aim(poseTarget.head, Math.sin(time * 2.5) * 0.05, 0, -0.1);
+      aim(poseTarget.lLeg, 0);
+      aim(poseTarget.rLeg, 0);
+      aim(poseTarget.lLower, 0.05);
+      aim(poseTarget.rLower, 0.05);
     } else if (talking) {
       const g = Math.sin(time * 4);
-      torso.position.y = torsoY + Math.sin(time * 2) * 0.015;
-      set(torso, 0);
-      set(L.arm, -0.35 + g * 0.15, 0, -0.15); set(L.fore, -0.55 + g * 0.2);
-      set(Rt.arm, -0.55 + Math.cos(time * 3) * 0.2, 0, 0.2); set(Rt.fore, -0.75 + Math.cos(time * 3) * 0.25);
-      set(head, Math.sin(time * 3) * 0.08, Math.sin(time * 1.5) * 0.12);
-      for (const q of [LL.leg, RL.leg, LL.lower, RL.lower]) set(q, 0);
+      poseTarget.torsoY = torsoY + Math.sin(time * 2) * 0.015;
+      aim(poseTarget.torso, 0, Math.sin(time * 0.8) * 0.04, 0);
+      aim(poseTarget.lArm, -0.35 + g * 0.15, 0, -0.15);
+      aim(poseTarget.lFore, -0.55 + g * 0.2);
+      aim(poseTarget.rArm, -0.55 + Math.cos(time * 3) * 0.2, 0, 0.2);
+      aim(poseTarget.rFore, -0.75 + Math.cos(time * 3) * 0.25);
+      aim(poseTarget.head, Math.sin(time * 3) * 0.08, Math.sin(time * 1.5) * 0.12);
+      // Subtle mouth / jaw bob via head nod amplitude already; keep legs planted
+      aim(poseTarget.lLeg, 0);
+      aim(poseTarget.rLeg, 0);
+      aim(poseTarget.lLower, 0.04);
+      aim(poseTarget.rLower, 0.04);
+    } else if (sitting) {
+      poseTarget.torsoY = torsoY - 0.42;
+      aim(poseTarget.torso, 0.12, 0, 0);
+      aim(poseTarget.head, 0.05, Math.sin(time * 0.6) * 0.04, 0);
+      aim(poseTarget.lArm, -0.35, 0, -0.25);
+      aim(poseTarget.rArm, -0.35, 0, 0.25);
+      aim(poseTarget.lFore, -0.55);
+      aim(poseTarget.rFore, -0.55);
+      aim(poseTarget.lLeg, -1.35, 0, -0.08);
+      aim(poseTarget.rLeg, -1.35, 0, 0.08);
+      aim(poseTarget.lLower, 1.45);
+      aim(poseTarget.rLower, 1.45);
+    } else if (driving) {
+      poseTarget.torsoY = torsoY - 0.28;
+      aim(poseTarget.torso, 0.18, 0, 0);
+      aim(poseTarget.head, 0.02, Math.sin(time * 0.5) * 0.03, 0);
+      aim(poseTarget.lArm, -0.95, 0.15, -0.35);
+      aim(poseTarget.rArm, -0.95, -0.1, 0.4);
+      aim(poseTarget.lFore, -0.85);
+      aim(poseTarget.rFore, -0.9);
+      aim(poseTarget.lLeg, -1.1, 0, -0.12);
+      aim(poseTarget.rLeg, -0.85, 0, 0.15);
+      aim(poseTarget.lLower, 1.15);
+      aim(poseTarget.rLower, 0.95);
     } else {
-      const breath = Math.sin(time * 2) * 0.01;
-      torso.position.y = torsoY + breath;
-      set(torso, 0); set(head, 0);
-      set(L.arm, Math.sin(time * 2) * 0.025, 0, -0.1); set(Rt.arm, -Math.sin(time * 2) * 0.025, 0, 0.1);
-      set(L.fore, -0.12); set(Rt.fore, -0.12);
-      for (const q of [LL.leg, RL.leg, LL.lower, RL.lower]) set(q, 0);
+      // Idle: breath + weight shift + soft look-around (body language, not a mannequin)
+      const breath = Math.sin(time * 1.7) * 0.012;
+      const shift = Math.sin(time * 0.55) * 0.035;
+      poseTarget.torsoY = torsoY + breath;
+      aim(poseTarget.torso, breath * 2.2, shift * 0.4, shift);
+      aim(poseTarget.head, Math.sin(time * 0.7) * 0.04, Math.sin(time * 0.45) * 0.12, Math.sin(time * 0.35) * 0.03);
+      aim(poseTarget.lArm, 0.04 + Math.sin(time * 1.7) * 0.02, 0, -0.12 + shift * 0.3);
+      aim(poseTarget.rArm, 0.04 - Math.sin(time * 1.7) * 0.02, 0, 0.12 - shift * 0.3);
+      aim(poseTarget.lFore, -0.14);
+      aim(poseTarget.rFore, -0.14);
+      aim(poseTarget.lLeg, shift * 0.15, 0, -0.02);
+      aim(poseTarget.rLeg, -shift * 0.15, 0, 0.02);
+      aim(poseTarget.lLower, 0.06 + Math.max(0, -shift) * 0.2);
+      aim(poseTarget.rLower, 0.06 + Math.max(0, shift) * 0.2);
     }
-    // Cloth folds / side drape respond to motion
+
+    dampToward(head, poseTarget.head, k);
+    dampToward(torso, poseTarget.torso, k);
+    torso.position.y += (poseTarget.torsoY - torso.position.y) * k;
+    dampToward(L.arm, poseTarget.lArm, k);
+    dampToward(Rt.arm, poseTarget.rArm, k);
+    dampToward(L.fore, poseTarget.lFore, k);
+    dampToward(Rt.fore, poseTarget.rFore, k);
+    dampToward(LL.leg, poseTarget.lLeg, k);
+    dampToward(RL.leg, poseTarget.rLeg, k);
+    dampToward(LL.lower, poseTarget.lLower, k);
+    dampToward(RL.lower, poseTarget.rLower, k);
+
     if (clothMotion.length) swayCloth(clothMotion, time, walking || running || dancing);
   };
 
