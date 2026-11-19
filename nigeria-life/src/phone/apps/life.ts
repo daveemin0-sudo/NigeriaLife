@@ -415,9 +415,9 @@ function accountSection(host: { get(key: string, fallback: string): string }): s
 
 /** What each graphics level gives up, in the player's terms */
 const GRAPHICS_NOTES: Record<string, string> = {
-  high: 'everything drawn in full',
-  balanced: 'sharp on ordinary screens, distant people simpler',
-  low: 'softer picture, no sun shadows, fewer people far off',
+  high: 'full resolution, far crowds, sharp shadows',
+  balanced: 'Medium — fewer pixels, nearer crowds',
+  low: '720p-class drawing, soft shadows, lean crowds (laptops / phones)',
 };
 const CITY_NAMES: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
 
@@ -781,6 +781,12 @@ export const settingsApp: PhoneApp = {
             trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-graphics">Change</button>',
           })}
           ${row({
+            icon: '📐',
+            title: 'Render scale',
+            sub: `${Math.round(((window as any).game?.graphics?.userScale ?? 1) * 100)}% of the quality preset (lower = smoother on weak GPUs)`,
+            trailing: '<button class="nl-btn nl-btn--sm" data-act="toggle-render-scale">Change</button>',
+          })}
+          ${row({
             icon: '⏱️',
             title: 'Start-up on this device',
             sub: esc([thisLoad(), ...loadHistory().filter((r) => r.at !== thisLoad().at).slice(0, 2)].map((r, i) => `${i === 0 ? 'This time' : new Date(r.at).toLocaleDateString()}: ${describeLoad(r)}`).join(' | ')),
@@ -930,6 +936,13 @@ export const settingsApp: PhoneApp = {
     } else if (action === 'toggle-graphics') {
       const graphics = (window as any).game?.graphics;
       if (graphics) graphics.choose(graphics.next());
+      host.refresh();
+    } else if (action === 'toggle-render-scale') {
+      const graphics = (window as any).game?.graphics;
+      if (graphics?.cycleUserScale) {
+        const scale = graphics.cycleUserScale();
+        host.say(`Render scale ${Math.round(scale * 100)}%.`, 'good');
+      }
       host.refresh();
     } else if (action === 'toggle-steer-sens') {
       DrivableVehicle.steeringSensitivity =

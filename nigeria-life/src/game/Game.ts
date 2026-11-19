@@ -2377,13 +2377,17 @@ export class Game {
       sun: this.world.skyEnvironment.sunLight,
       scene: this.scene,
       crowd: this.world.cityPopulation,
-      resized: () => this.postProcessing.setSize(window.innerWidth, window.innerHeight),
-      onLevel: ({ smokeEvery, districtDraw }) => {
+      resized: () => this.applyDrawingSize(),
+      onLevel: ({ smokeEvery, districtDraw, wetMetalnessMax, postFx }) => {
         this.world.smokeEvery = smokeEvery;
         this.world.districtDrawDistance = districtDraw;
+        this.world.weather.wetMetalnessMax = wetMetalnessMax;
+        this.postProcessing.setEnabled(postFx);
       },
       tell: (text) => showGameToast(text, 'info', 7000),
     });
+    this.world.weather.wetMetalnessMax = this.graphics.wetMetalnessMax;
+    this.applyDrawingSize();
     // The queues at Broad Street's bus stops are who a danfo or keke picks up
     const crowd = this.world.cityPopulation;
     DrivableVehicle.busStops = {
@@ -4393,8 +4397,22 @@ export class Game {
     this.world.worldMap.handleResize();
     this.flightExperience.handleResize();
     this.roadRideExperience.handleResize();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.postProcessing.setSize(window.innerWidth, window.innerHeight);
+    this.applyDrawingSize();
+  }
+
+  /**
+   * Drawing buffer follows GraphicsQuality render scale + height cap (Low ≈ 720p).
+   * CSS size stays full-window so UI layout is unchanged.
+   */
+  private applyDrawingSize(): void {
+    const cssW = window.innerWidth;
+    const cssH = window.innerHeight;
+    const size = this.graphics?.drawingSize(cssW, cssH) ?? { width: cssW, height: cssH };
+    this.renderer.setSize(size.width, size.height, false);
+    const canvas = this.renderer.domElement;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    this.postProcessing.setSize(size.width, size.height);
   }
 
   private loop = (): void => {

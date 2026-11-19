@@ -113,6 +113,8 @@ const WEATHER_PROFILES: Record<string, WeatherProfile> = {
 export class WeatherSystem {
   private scene: THREE.Scene;
   public currentWeather: WeatherType = 'sunny';
+  /** Cap wet-road metalness from GraphicsQuality (Low keeps specular cheap on HD 620) */
+  public wetMetalnessMax = 0.65;
 
   // Smooth interpolation state
   private curSunMultiplier: number = 1.0;
@@ -331,9 +333,9 @@ export class WeatherSystem {
       if (this.hemiLight) this.hemiLight.intensity = this.curHemiMultiplier * 0.7;
     }
 
-    // 3. Wet Asphalt PBR Material Shimmer
+    // 3. Wet Asphalt PBR Material Shimmer (metalness capped by graphics preset)
     const targetRoughness = THREE.MathUtils.lerp(0.85, 0.15, this.curRoadWetness);
-    const targetMetalness = THREE.MathUtils.lerp(0.05, 0.65, this.curRoadWetness);
+    const targetMetalness = THREE.MathUtils.lerp(0.05, this.wetMetalnessMax, this.curRoadWetness);
     for (const mat of this.roadsMeshList) {
       mat.roughness = targetRoughness;
       mat.metalness = targetMetalness;
