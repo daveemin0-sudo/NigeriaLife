@@ -1,0 +1,18 @@
+{
+  "scene": "Broad Street (full city still loaded; crowd/traffic hidden)",
+  "quality": "high",
+  "drawCalls": 3488,
+  "triangles": 651994,
+  "notes": [
+    "No new GLB character packs — upgrade stays on the existing PersonBuilder joint rig (head/torso/arms/legs) so Actor poses and wardrobe keep working.",
+    "Skin pore/bump + facial volume + damped locomotion add little CPU vs full city draw.",
+    "Street NPCs already use lower LOD (fewer face segments, no pore maps on far agents via shared materials when detailed=false).",
+    "Target Intel HD 620 / Galaxy A16: keep GraphicsQuality at Medium/Low; player stays detailed."
+  ],
+  "changes": {
+    "skin": "Canvas melanin mottling + pore bumpMap on MeshPhysicalMaterial",
+    "face": "Cheek/jaw/chin volume pads; denser ears",
+    "animation": "Damped Euler blend for idle/walk/run/talk/call/sit/drive — no hard snaps",
+    "accessories": "Wristwatch on detailed male left forearm"
+  }
+}
