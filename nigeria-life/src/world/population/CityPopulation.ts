@@ -518,7 +518,7 @@ export class CityPopulation {
       variant,
       mode: 'idle',
       yaw: 0,
-      scale: 0.93 + this.rand() * 0.14,
+      scale: 0.9 + this.rand() * 0.2,
       phase: this.rand() * 20,
       axis: 'z',
       dir: 1,

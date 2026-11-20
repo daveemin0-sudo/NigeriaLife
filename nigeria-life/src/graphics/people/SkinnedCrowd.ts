@@ -41,6 +41,18 @@ interface Slot {
   lookKey: number;
 }
 
+/**
+ * Everyone is their own size: a build from slim to broad and a height from short to tall, fixed for
+ * each person (from their id), so the same person is the same size every time they are seen.
+ */
+export function buildOf(id: number): [width: number, height: number] {
+  let h = (id * 2654435761) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0;
+  const a = (h & 0xffff) / 0xffff;
+  const b = (h >>> 16) / 0xffff;
+  return [0.9 + a * 0.26, 0.92 + b * 0.16];
+}
+
 export class SkinnedCrowd {
   /** How many near people are drawn as models (set by the graphics setting: more on a strong device) */
   public static limit = 6;
@@ -113,12 +125,15 @@ export class SkinnedCrowd {
         if (slot.holder.parent !== o.parent) o.parent.add(slot.holder);
         slot.holder.position.set(0, 0, 0);
         slot.holder.rotation.set(0, 0, 0);
-        slot.holder.scale.setScalar(1);
+        const [width, height] = buildOf(o.id);
+        slot.holder.scale.set(width, height, width);
       } else {
         if (slot.holder.parent !== this.group) this.group.add(slot.holder);
         slot.holder.position.set(o.x, o.y, o.z);
         slot.holder.rotation.set(0, o.yaw, 0);
-        slot.holder.scale.setScalar(o.scale);
+        // The crowd's own height for this person (so the far figure and the near model agree), and their build
+        const [width] = buildOf(o.id);
+        slot.holder.scale.set(o.scale * width, o.scale, o.scale * width);
       }
       if (o.mode) handle.play(o.mode, 0.3);
       handle.update(delta);
