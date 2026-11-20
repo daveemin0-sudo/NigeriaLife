@@ -472,7 +472,8 @@ export class Expressway {
     this.bench(seatX, bay.z, s);
   }
 
-  /** Who sits on a lay-by bench to rest: anyone passing can */
+  /** The lay-by benches built so far, and a hand to give the world each one built later */
+  public readonly benches: InteractiveObject[] = [];
   public onInteractive: ((o: InteractiveObject) => void) | null = null;
 
   /** The bench in a lay-by, to sit on: walk up, sit down facing the road, rest a while, get up */
@@ -486,7 +487,8 @@ export class Expressway {
     const seat = new THREE.Vector3(seatX, 0, z);
     const facing = side > 0 ? -Math.PI / 2 : Math.PI / 2;
     const card: InteractiveObject = { mesh: marker, id, name: '🪑 Bench', category: 'Lay-by', description: 'A bench under a shade by the road. Sit down and rest your legs.', interactionPoint: front.clone() };
-    this.roadside.interactive.push(card);
+    // Benches are things to use, not places: kept apart from the roadside's places (the map, search, rides)
+    this.benches.push(card);
     this.onInteractive?.(card);
     PlaceActions.register(id, {
       label: () => '🪑 Sit down and rest',

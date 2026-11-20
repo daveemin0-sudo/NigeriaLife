@@ -4,6 +4,8 @@ import { clickBox, figure, Route, type Landmark, type LandmarkHost } from './Lan
 import { RENDER_LAYERS } from '../../interiors/InteriorTypes';
 import { Employment } from '../../jobs/Employment';
 import { createHandWork } from '../../jobs/HandWork';
+import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
+import { waterSheet } from '../../graphics/Water';
 
 /**
  * A container port: a quay with a cargo ship alongside, gantry cranes that lift boxes off
@@ -29,6 +31,12 @@ const INBOUND_Z = -30;
 const BAY_X = 23;
 
 const CRATES = 3;
+
+/** The city's western shore (world x): the sea is everything west of it, and west of the quay at the port */
+const WEST_SHORE = -160;
+/** How far north and south (world z) the sea runs along that shore: up to where the lagoon begins */
+const SEA_FROM_Z = -600;
+const SEA_TO_Z = 1290;
 
 const BOX_COLOURS = [0x1d4ed8, 0xb91c1c, 0x15803d, 0xea580c, 0x64748b, 0xe5e7eb, 0xca8a04, 0x0e7490];
 const BOX_W = 2.44;
@@ -94,7 +102,6 @@ function yardTractor(): THREE.Group {
     .box(0xfacc15, 1.8, 1.9, 2.2, 3.6, 0.6, 0)
     .box(0x1f2937, 0.1, 0.7, 1.8, 4.52, 1.6, 0)
     .box(0x374151, 8.4, 0.3, 2.2, -0.4, 0.7, 0)
-    .box(0xea580c, BOX_L, BOX_H, BOX_W, -1, 1, 0)
     .box(0x111827, 0.9, 0.9, 2.4, 3.4, 0, 0)
     .box(0x111827, 0.9, 0.9, 2.4, -3, 0, 0)
     .box(0x111827, 0.9, 0.9, 2.4, -4, 0, 0)
@@ -118,7 +125,7 @@ export function createPort(options: PortOptions): Landmark {
 
   // --- Ground: water, the quay and the yard -------------------------------------------------
   const landWidth = HALF_X - QUAY_X;
-  b.ground(0x1b5873, QUAY_X + HALF_X, HALF_Z * 2, (QUAY_X - HALF_X) / 2, 0.05, 0);
+  // The sea is not built here: it is one sheet of real water from the quay out past the city's edge (below)
   b.ground(0x8f8f8b, landWidth, HALF_Z * 2, QUAY_X + landWidth / 2, 0.02, 0);
   // The quay's edge: nobody walks off it onto the water or into the ship (only a gangway would take them aboard)
   b.box(0xa8a29e, 1.4, 0.5, HALF_Z * 2, QUAY_X + 0.7, 0, 0, { solid: true });
@@ -187,20 +194,27 @@ export function createPort(options: PortOptions): Landmark {
   b.box(0x0b7a43, 1, 1.3, GATE_TO - GATE_FROM + 2, HALF_X - 0.2, 5.8, GATE_Z);
   b.box(0xf1f5f9, 3, 2.8, 3, HALF_X - 3, 0, GATE_TO + 2.6, { solid: true }).box(0x1f2937, 3.5, 0.2, 3.5, HALF_X - 3, 2.8, GATE_TO + 2.6);
   b.box(0xfef9c3, 0.1, 0.9, 1.8, HALF_X - 4.52, 1.2, GATE_TO + 2.6, { glow: true });
-  // Barriers, raised
-  for (const z of [GATE_FROM + 0.4, GATE_TO - 0.4]) {
-    b.box(0xf1f5f9, 0.3, 1.1, 0.3, HALF_X - 1.6, 0, z).box(0xdc2626, 0.12, 0.12, 4.2, HALF_X - 1.6, 2.6, z + (z < GATE_Z ? 1.1 : -1.1), { pitch: z < GATE_Z ? -0.95 : 0.95 });
-  }
+  // The barriers' posts (their arms move: below)
+  for (const z of [GATE_FROM + 0.4, GATE_TO - 0.4]) b.box(0xf1f5f9, 0.3, 1.1, 0.3, HALF_X - 1.6, 0, z);
   // Tall lamps over the yard
   for (const [x, z] of [[-3, -30], [-3, 32], [26, 8]]) {
     b.cylinder(0x94a3b8, 0.3, 17, x, 0, z, { topRadius: 0.18, solid: true }).box(0xfff7c2, 2.6, 0.5, 1.2, x, 17, z, { glow: true });
   }
+  // The sea is not walked on: past the quay, and all along the city's western shore
+  b.occupy(WEST_SHORE - site.x, QUAY_X, -HALF_Z, HALF_Z, 1);
+  b.occupy(WEST_SHORE - 40 - site.x, WEST_SHORE - site.x, SEA_FROM_Z - site.z, SEA_TO_Z - site.z, 1);
+
   // The pallet the crates wait on
   const pallet = { x: 13, z: -19.5 };
   b.box(0x92400e, 2.6, 0.14, 1.1, pallet.x, 0, pallet.z);
 
   const group = b.build(options.id);
   group.position.set(site.x, 0, site.z);
+  // The harbour and the sea beyond it: real water, from the quay to the horizon
+  const harbourWest = WEST_SHORE - site.x;
+  group.add(waterSheet(QUAY_X - harbourWest, HALF_Z * 2, (QUAY_X + harbourWest) / 2, 0.03, 0, 0x1d5f73));
+  const seaWest = -1400 - site.x;
+  group.add(waterSheet(harbourWest - seaWest, SEA_TO_Z - SEA_FROM_Z, (harbourWest + seaWest) / 2, 0.03, (SEA_FROM_Z + SEA_TO_Z) / 2 - site.z, 0x1d5f73));
   // Working here is a job, with a record of its own
   const jobs = Employment.get();
   const employer = jobs.employer(options.id);
@@ -223,6 +237,39 @@ export function createPort(options: PortOptions): Landmark {
   foreman.position.set(pallet.x + 3.4, 0, pallet.z + 1.2);
   foreman.rotation.y = Math.PI;
   group.add(gateSign, officeSign, shedSign, guard, foreman);
+  // Dock workers in hi-vis vests and helmets, walking the quay and the yard
+  const worker = (look: Partial<HumanConfig>): THREE.Group => {
+    const holder = new THREE.Group();
+    const rig = HumanMeshBuilder.createHuman({ gender: 'male', username: '', lod: 'street', outfit: 'mechanic_overalls', outfitColor: 0xf97316, trousersColor: 0x1e3a8a, hairstyle: 'short_crop', ...look });
+    rig.nameTag.visible = false;
+    holder.add(rig.group);
+    group.add(holder);
+    return holder;
+  };
+  const dockers = [
+    { body: worker({}), route: new Route([[-12, -20], [-12, 30], [-7, 30], [-7, -20]], true), speed: 1.2, at: 0 },
+    { body: worker({ outfitColor: 0xfacc15, skinTone: '#4a2c1d' }), route: new Route([[0, -14], [24, -14], [24, 28], [0, 28]], true), speed: 1.1, at: 40 },
+    { body: worker({ outfit: 'casual_tee', outfitColor: 0xf97316, skinTone: '#6b4226' }), route: new Route([[-14, 10], [-14, 34], [-14, 10]], false), speed: 0.9, at: 0 },
+  ];
+
+  // --- The gate's barriers: down across the way, lifted for a lorry coming or going ----------
+  const armLook = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 });
+  const stripeLook = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
+  const barriers = [GATE_FROM + 0.4, GATE_TO - 0.4].map((z) => {
+    const toward = z < GATE_Z ? 1 : -1;
+    const pivot = new THREE.Group();
+    pivot.position.set(HALF_X - 1.6, 1.15, z);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 4.4), armLook);
+    arm.position.z = toward * 2.2;
+    pivot.add(arm);
+    for (let k = 0; k < 3; k++) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.4), stripeLook);
+      stripe.position.z = toward * (0.9 + k * 1.2);
+      pivot.add(stripe);
+    }
+    group.add(pivot);
+    return { pivot, toward, lift: 0 };
+  });
 
   // --- The ship ----------------------------------------------------------------------------
   const ship = cargoShip(options.ship);
@@ -237,7 +284,12 @@ export function createPort(options: PortOptions): Landmark {
   const cable = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1, 0.12), new THREE.MeshStandardMaterial({ color: 0x111827 }));
   cable.userData.surface = true;
   const spreader = new Builder().box(0xfacc15, 2.6, 0.3, 6.3, 0, 0, 0).build('spreader');
-  const lifted = new Builder().box(0xb91c1c, BOX_W, BOX_H, BOX_L, 0, -BOX_H, 0).build('lifted box');
+  const boxGeometry = new THREE.BoxGeometry(BOX_W, BOX_H, BOX_L);
+  // The ridged steel of a shipping container, in its own colour each time
+  const liftedLook = new THREE.MeshStandardMaterial({ color: BOX_COLOURS[0], roughness: 0.55, metalness: 0.35 });
+  const lifted = new THREE.Mesh(boxGeometry, liftedLook);
+  lifted.position.y = -BOX_H / 2;
+  lifted.castShadow = true;
   spreader.add(lifted);
   group.add(trolley, cable, spreader);
   /** Over the stack on the ship nearest the quay */
@@ -245,13 +297,24 @@ export function createPort(options: PortOptions): Landmark {
   const quaySide = -9.5;
   const HIGH = 16;
   const ON_SHIP = 5.2 + BOX_H * 2;
-  const ON_QUAY = BOX_H + 1;
-  const CRANE_CYCLE = 26;
+  /** Set down on the tractor's trailer (its bed is 1 m up): the box rests on it, never let go in the air */
+  const ON_TRAILER = 1 + BOX_H;
+  const CRANE_CYCLE = 34;
 
   // --- The yard tractor --------------------------------------------------------------------
   const tractor = yardTractor();
-  const round = new Route([[-2.2, -16], [-2.2, 29.6], [15.5, 29.6], [15.5, -16]], true);
+  // It waits between the crane's legs for each box, takes it round the back of the yard to the stacks, and comes back
+  const underCrane: [number, number] = [quaySide, craneAt[0] + 1];
+  const round = new Route([underCrane, [quaySide, 29.6], [15.5, 29.6], [15.5, -16], [quaySide, -16]], true);
+  const carriedLook = new THREE.MeshStandardMaterial({ color: BOX_COLOURS[0], roughness: 0.55, metalness: 0.35 });
+  const carried = new THREE.Mesh(boxGeometry, carriedLook);
+  carried.position.set(-1, 1 + BOX_H / 2, 0);
+  carried.rotation.y = Math.PI / 2;
+  carried.castShadow = true;
+  carried.visible = false;
+  tractor.add(carried);
   group.add(tractor);
+  let cycle = -1;
 
   // --- The loading bay ---------------------------------------------------------------------
   const lorry = flatbed();
@@ -406,19 +469,33 @@ export function createPort(options: PortOptions): Landmark {
       time += delta;
       ship.position.y = Math.sin(time * 0.7) * 0.1;
       ship.rotation.z = Math.sin(time * 0.45) * 0.008;
-      round.place(tractor, (time * 4.5) % round.length);
-
-      // The crane: up off the ship, across, down onto the quay, and back empty
+      // The crane: up off the ship with a box, across, down onto the waiting tractor, and back empty
       const u = (time % CRANE_CYCLE) / CRANE_CYCLE;
+      const thisCycle = Math.floor(time / CRANE_CYCLE);
+      if (thisCycle !== cycle) {
+        // A new box off the ship, of whatever colour comes next
+        cycle = thisCycle;
+        liftedLook.color.setHex(BOX_COLOURS[(cycle * 5 + 3) % BOX_COLOURS.length]);
+      }
+      // The tractor: under the crane from when the box comes over until it is on, then round the yard
+      // Driving from u 0.6 round to u 0.35 of the next cycle: 0 to 1 of the round, without a jump where the cycle turns over
+      const drive = (u >= 0.6 ? u - 0.6 : u + 0.4) / 0.75;
+      if (u >= 0.35 && u < 0.6) round.place(tractor, 0);
+      else round.place(tractor, Math.min(1, drive) * round.length * 0.999);
+      // On its trailer from the moment it is set down until it is taken off at the stacks at the back
+      if (u >= 0.57 && u < 0.6) carriedLook.color.copy(liftedLook.color);
+      const waiting = u >= 0.35 && u < 0.6;
+      carried.visible = (u >= 0.57 && u < 0.6) || (!waiting && drive < 0.55);
+      for (const d of dockers) d.route.place(d.body, (d.at + time * d.speed) % d.route.length);
       const ease = (t: number) => t * t * (3 - 2 * t);
       const span = (from: number, to: number) => ease(Math.max(0, Math.min(1, (u - from) / (to - from))));
       let x = shipSide;
       let y = ON_SHIP;
       if (u < 0.15) y = ON_SHIP + (HIGH - ON_SHIP) * span(0, 0.15);
       else if (u < 0.4) { x = shipSide + (quaySide - shipSide) * span(0.15, 0.4); y = HIGH; }
-      else if (u < 0.55) { x = quaySide; y = HIGH + (ON_QUAY - HIGH) * span(0.4, 0.55); }
-      else if (u < 0.6) { x = quaySide; y = ON_QUAY; }
-      else if (u < 0.7) { x = quaySide; y = ON_QUAY + (HIGH - ON_QUAY) * span(0.6, 0.7); }
+      else if (u < 0.55) { x = quaySide; y = HIGH + (ON_TRAILER - HIGH) * span(0.4, 0.55); }
+      else if (u < 0.6) { x = quaySide; y = ON_TRAILER; }
+      else if (u < 0.7) { x = quaySide; y = ON_TRAILER + (HIGH - ON_TRAILER) * span(0.6, 0.7); }
       else if (u < 0.9) { x = quaySide + (shipSide - quaySide) * span(0.7, 0.9); y = HIGH; }
       else y = HIGH + (ON_SHIP - HIGH) * span(0.9, 1);
       lifted.visible = u < 0.57;
@@ -427,6 +504,13 @@ export function createPort(options: PortOptions): Landmark {
       const drop = trolley.position.y - 0.4 - y;
       cable.position.set(x, y + drop / 2, zc);
       cable.scale.y = Math.max(0.1, drop);
+
+      // The barriers lift while a lorry is at the gate, and come down behind it
+      const atGate = lorry.visible && Math.abs(lorry.position.x - (HALF_X - 1.6)) < 11;
+      for (const bar of barriers) {
+        bar.lift += ((atGate ? 1 : 0) - bar.lift) * Math.min(1, delta * 2.5);
+        bar.pivot.rotation.x = -bar.toward * bar.lift * 1.35;
+      }
 
       // The lorry: away when loaded, and another in its place a while later
       if (bay === 'leaving') {
