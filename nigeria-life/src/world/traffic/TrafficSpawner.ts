@@ -95,6 +95,28 @@ interface Lane {
   far?: (u: number) => boolean;
   /** Ordered leader first */
   cars: Car[];
+  /**
+   * At its end the traffic turns back round a U-turn (a half ellipse centred at cx, cz, rx across and rz
+   * deep) into `into`, waiting there for room: nothing drives on into the buildings at a street's end
+   */
+  uTurn?: { into: Lane; cx: number; cz: number; rx: number; rz: number };
+  /** At its end (far off, out of sight) the traffic carries on as `loopTo`'s, from that lane's start */
+  loopTo?: Lane;
+}
+
+/** Where a car is on a U-turn, `t` of the way round (0 to 1): x, z and its heading */
+function turnPose(turn: NonNullable<Lane['uTurn']>, t: number): [number, number, number] {
+  const a = t * Math.PI;
+  const x = turn.cx + turn.rx * Math.cos(a);
+  const z = turn.cz - turn.rz * Math.sin(a);
+  return [x, z, Math.atan2(-turn.rx * Math.sin(a), -turn.rz * Math.cos(a))];
+}
+
+/** How far round a U-turn is (half an ellipse) */
+function turnLength(turn: NonNullable<Lane['uTurn']>): number {
+  const a = turn.rx;
+  const b = turn.rz;
+  return (Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)))) / 2;
 }
 
 /**
@@ -187,6 +209,8 @@ export class TrafficSpawner {
   /** The player's size on the road: on foot, or the vehicle they are driving (set by the world each frame) */
   /** Everyone on foot out on a carriageway (the crowd's own list): drivers stop short of them */
   public walkers: ReadonlyArray<{ x: number; z: number }> = [];
+  /** Vehicles going round a U-turn from one lane into another, `t` of the way round */
+  private readonly turning: Array<{ car: Car; lane: Lane; t: number }> = [];
   private readonly walkersAhead: number[] = [];
   /** How many vehicles are held up by someone crossing in front of them, this frame */
   public heldForWalkers = 0;
@@ -432,6 +456,20 @@ export class TrafficSpawner {
         far: (u) => Math.abs(u * dir) > MAIN_ROAD.zMax + 20,
         cars: [],
       });
+    }
+
+    // At the end of Broad Street (Nnamdi Azikiwe Street's T-junction) the traffic going that way turns
+    // back: the kerb lanes round the end of the street, the fast lanes at a gap in the middle further up.
+    // Out at the far end of the expressway, out of sight, the traffic going that way comes back the other.
+    // So nothing drives into the buildings at the street's end, or comes out of them.
+    const broad = (x: number) => this.lanes.find((l) => l.axis === 'z' && l.fixed === x)!;
+    for (const [south, north, cz, rz] of [[5.0, -5.0, -(MAIN_ROAD.zMax + 2), 5], [1.8, -1.8, -(MAIN_ROAD.zMax - 8), 3.5]]) {
+      const s = broad(south);
+      const n = broad(north);
+      s.uMax = -cz;
+      n.uMin = cz;
+      s.uTurn = { into: n, cx: 0, cz, rx: south, rz };
+      n.loopTo = s;
     }
 
     // Expressway outer 3rd lanes (±8.0m) on the 6-lane carriageway
@@ -873,15 +911,30 @@ export class TrafficSpawner {
         leaderRear = car.u - car.length / 2;
       }
 
-      // Recycle the leader to the back of the queue once it leaves the map
+      // The leader at the end of its lane: round the U-turn there (waiting at the line while the one before
+      // it is still close in the turn), on as another lane's traffic, or back to the far end of its own
       const lead = lane.cars[0];
       if (lead && lead.u > lane.uMax) {
-        const tail = lane.cars[lane.cars.length - 1];
-        lane.cars.shift();
-        lead.u = Math.min(lane.uMin, tail.u - tail.length / 2 - lead.length / 2 - 5 - this.rand() * 10);
-        lead.v = lead.cruise * 0.7;
-        lead.committed = false;
-        lane.cars.push(lead);
+        if (lane.uTurn) {
+          const length = turnLength(lane.uTurn);
+          const busy = this.turning.some((t) => t.lane === lane && t.t * length < lead.length + 4);
+          if (busy) {
+            lead.u = lane.uMax;
+            lead.v = 0;
+          } else {
+            lane.cars.shift();
+            lead.v = Math.min(lead.v, 4.5);
+            this.turning.push({ car: lead, lane, t: 0 });
+          }
+        } else {
+          const into = lane.loopTo ?? lane;
+          lane.cars.shift();
+          const tail = into.cars[into.cars.length - 1];
+          lead.u = tail ? Math.min(into.uMin, tail.u - tail.length / 2 - lead.length / 2 - 5 - this.rand() * 10) : into.uMin;
+          lead.v = lead.cruise * 0.7;
+          lead.committed = false;
+          into.cars.push(lead);
+        }
       }
 
       if (playerPos && Math.abs(lane.fixed - (lane.axis === 'z' ? playerPos.x : playerPos.z)) > this.drawDistance + 5) {
@@ -905,6 +958,7 @@ export class TrafficSpawner {
     }
 
     this.heldForWalkers = held;
+    this.turnBack(delta, playerPos, frustum);
     for (const car of this.parked) if (!car.cleared) this.draw(car.kind, car.matrix, car.paint, car.x, car.z, playerPos, frustum);
 
     let drawn = 0;
@@ -931,6 +985,54 @@ export class TrafficSpawner {
       }
     }
     this.drawnNow = drawn;
+  }
+
+  /**
+   * The vehicles going round a U-turn: slowly, keeping their distance, stopping for anyone on the road in
+   * front of them; at the end of it into the other lane as soon as there is room at its start.
+   */
+  private turnBack(delta: number, playerPos?: THREE.Vector3, frustum?: THREE.Frustum): void {
+    for (let i = 0; i < this.turning.length; i++) {
+      const tc = this.turning[i];
+      const turn = tc.lane.uTurn!;
+      const length = turnLength(turn);
+      const [x, z, yaw] = turnPose(turn, tc.t);
+      let room = Infinity;
+      for (const other of this.turning) {
+        if (other !== tc && other.lane === tc.lane && other.t > tc.t) room = Math.min(room, (other.t - tc.t) * length - (other.car.length + tc.car.length) / 2);
+      }
+      let blocked = room < 2;
+      const fx = Math.sin(yaw);
+      const fz = Math.cos(yaw);
+      const people = playerPos ? [...this.walkers, playerPos] : this.walkers;
+      for (const w of people) {
+        const dx = w.x - x;
+        const dz = w.z - z;
+        const ahead = dx * fx + dz * fz;
+        if (ahead > 0 && ahead < tc.car.length / 2 + 3 && Math.abs(dx * fz - dz * fx) < 1.6) blocked = true;
+      }
+      tc.car.v += THREE.MathUtils.clamp((blocked ? 0 : 4.5) - tc.car.v, -9 * delta, 3 * delta);
+      if (tc.car.v < 0.02 && blocked) tc.car.v = 0;
+      tc.t = Math.min(1, tc.t + (tc.car.v * delta) / length);
+      if (tc.t >= 1) {
+        const into = turn.into;
+        const tail = into.cars[into.cars.length - 1];
+        if (!tail || tail.u - tail.length / 2 - tc.car.length / 2 - 2 >= into.uMin) {
+          tc.car.u = into.uMin;
+          tc.car.committed = false;
+          into.cars.push(tc.car);
+          this.turning.splice(i, 1);
+          i -= 1;
+          continue;
+        }
+        tc.car.v = 0;
+      }
+      const [px, pz, pyaw] = turnPose(turn, tc.t);
+      this.dummy.position.set(px, 0, pz);
+      this.dummy.rotation.set(0, pyaw, 0);
+      this.dummy.updateMatrix();
+      this.draw(tc.car.kind, this.dummy.matrix, tc.car.paint, px, pz, playerPos, frustum);
+    }
   }
 
   /**
