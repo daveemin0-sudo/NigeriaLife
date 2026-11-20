@@ -29,6 +29,16 @@ CLIPS='{"idle":"Idle_Loop","walk":"Walk_Loop","run":"Jog_Fwd_Loop","sprint":"Spr
 node build_ubc.mjs male human_male.glb "<unzipped>/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb"
 ```
 
+3. Add the far-away copies (needs `npm install meshoptimizer` too), once per gender:
+
+```
+node add_lod.mjs human_male.glb human_male.glb
+```
+
+This adds `LOD_<name>` copies of the body pieces, clothes and hair: about 1,000–1,300 triangles a person instead of about 15,000, skinned to the same skeleton. The game never draws them on a model. `src/graphics/people/BakedPeople.ts` poses them a few frames per action and draws everyone beyond the nearest few with them. So a person looks the same at every distance, and the old procedural figures are never drawn.
+
+**Posture:** the everyday stance (shoulders and hips brought in, legs under the hips, arms by the sides, hands open) is applied in the game by `src/graphics/people/Posture.ts`, over every clip. It is not in the file.
+
 **Body type:** the free pack gives one body type per gender, the very muscular "Superhero"; the build slims it (see above). The "Regular" everyday proportions are in the paid Source version. Swapping it in needs only `BODY` changed in the script, and the slimming factors then set near 1.
 
 **One pack quirk:** its glTF refers to `T_Hair_1_Normal_png.png`, `T_Hair_2_Normal_png.png` and `T_Eye_Normal_png.png`, which the zip does not contain. Copy `T_Hair_1_Normal.png` (and the others) to those names first.

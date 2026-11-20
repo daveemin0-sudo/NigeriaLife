@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RigRegistry } from '../graphics/people/RigRegistry';
 import type { HumanRig } from '../graphics/HumanMeshBuilder';
 import {
   type PoseState, type JointValues,
@@ -221,6 +222,8 @@ export class Actor {
       return;
     }
     if (this.lastRig !== rig) this.adoptRig(rig);
+    // A character model standing in for the rig takes the same pose
+    RigRegistry.notePose(rig, this.pose);
 
     this.time += delta;
     poseTargets(this.pose, this.time, this.target);

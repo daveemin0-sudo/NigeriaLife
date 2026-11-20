@@ -181,16 +181,51 @@ function applyGarmentLayout(scene: THREE.Object3D, cfg: CharacterConfig, gender:
 
 /** Dresses a skinned model as a street person looks (their outfit style and colours) */
 export function applyStreetLook(scene: THREE.Object3D, look: StreetLook): void {
-  applyGarments(scene, {
-    topStyle: look.outfit ?? '',
-    topHex: look.outfitColor ?? 0xf8fafc,
-    // A skirt outfit is a top over a skirt
-    bottomStyle: SHORT_BOTTOMS.has(look.outfit ?? '') ? look.outfit! : '',
-    bottomHex: look.trousersColor ?? look.outfitColor ?? 0x1e293b,
-    shoesHex: look.shoeColor ?? 0x111827,
-    skinTone: look.skinTone,
-    hairColor: look.hairColor,
-  }, look.gender);
+  applyGarments(scene, streetGarments(look), look.gender);
+}
+
+/** What a look comes to on the model: which garments show (in GARMENTS order) and each part's colour */
+export interface Dress {
+  shown: boolean[];
+  /** The garments shown, as the 5-digit mask the build writes (TopShort TopLong BottomLong BottomShort Shoes) */
+  mask: string;
+  skin: THREE.Color;
+  hair: THREE.Color;
+  top: THREE.Color;
+  bottom: THREE.Color;
+  shoes: THREE.Color;
+}
+
+function dressOf(g: Garments, gender: 'male' | 'female'): Dress {
+  const onePiece = ONE_PIECE[g.topStyle];
+  const sleeves: 'short' | 'long' = LONG_SLEEVES.has(g.topStyle) ? 'long' : 'short';
+  const legs: 'long' | 'short' = onePiece ?? (SHORT_BOTTOMS.has(g.bottomStyle) ? 'short' : 'long');
+  const shown = [sleeves === 'short', sleeves === 'long', legs === 'long', legs === 'short', true];
+  return {
+    shown,
+    mask: shown.map((b) => (b ? '1' : '0')).join(''),
+    skin: new THREE.Color(g.skinTone || (gender === 'female' ? '#7a4b33' : '#5c3a28')),
+    hair: new THREE.Color(g.hairColor || '#0b0908'),
+    top: new THREE.Color(g.topHex),
+    bottom: new THREE.Color(onePiece ? g.topHex : g.bottomHex),
+    shoes: new THREE.Color(g.shoesHex),
+  };
+}
+
+const streetGarments = (look: StreetLook): Garments => ({
+  topStyle: look.outfit ?? '',
+  topHex: look.outfitColor ?? 0xf8fafc,
+  // A skirt outfit is a top over a skirt
+  bottomStyle: SHORT_BOTTOMS.has(look.outfit ?? '') ? look.outfit! : '',
+  bottomHex: look.trousersColor ?? look.outfitColor ?? 0x1e293b,
+  shoesHex: look.shoeColor ?? 0x111827,
+  skinTone: look.skinTone,
+  hairColor: look.hairColor,
+});
+
+/** A street person's look as the model shows it (for drawing them without a model of their own, far off) */
+export function streetDress(look: StreetLook): Dress {
+  return dressOf(streetGarments(look), look.gender);
 }
 
 function applyGarments(scene: THREE.Object3D, g: Garments, gender: 'male' | 'female'): void {
@@ -262,8 +297,13 @@ export async function loadSkinnedCharacter(
   root.name = `skinned_${gender}`;
   root.add(scene);
 
-  // Strip pack props (guns, bats, etc.) — keep only the skinned body
+  // Strip pack props (guns, bats, etc.) — keep only the skinned body. The far-away copies (LOD_) are
+  // never drawn on a model: BakedPeople bakes them into posed frames.
   scene.traverse((obj) => {
+    if (obj.name.startsWith('LOD_')) {
+      obj.visible = false;
+      return;
+    }
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
     if (mesh.type === 'SkinnedMesh') return;

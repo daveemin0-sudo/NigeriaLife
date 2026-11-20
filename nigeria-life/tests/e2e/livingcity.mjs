@@ -31,7 +31,9 @@ export async function run(browser, check) {
     }
     // Drawn as crowd figures, or as full character models (the nearest few, SkinnedCrowd)
     const models = (crowd.models?.slots ?? []).filter((m) => m.id >= 0 && m.holder.visible).length;
-    const drawn = crowd.variants.reduce((n, v) => n + v.drawn + v.drawnFar, 0) + models;
+    // ...and everyone else in view as the models in less detail (BakedPeople)
+    const baked = [...(crowd.baked?.batches?.values() ?? [])].reduce((n, b) => n + b.count, 0);
+    const drawn = crowd.variants.reduce((n, v) => n + v.drawn + v.drawnFar, 0) + models + baked;
     return { city, hour, agents: crowd.agents.length, out: crowd.outNow, movedPerFrame: +(moved / frames).toFixed(1), seenPerFrame: +(seen / frames).toFixed(1), seenLast: crowd.seenNow, drawn };
   }, hour);
 
@@ -86,7 +88,7 @@ export async function run(browser, check) {
     const w = g.world;
     w.skyEnvironment.setHour(8);
     const crowd = w.cityPopulation;
-    const count = () => crowd.variants.reduce((n, v) => n + v.drawn + v.drawnFar, 0);
+    const count = () => crowd.variants.reduce((n, v) => n + v.drawn + v.drawnFar, 0) + [...(crowd.baked?.batches?.values() ?? [])].reduce((n, b) => n + b.count, 0) + (crowd.models?.slots ?? []).filter((m) => m.id >= 0 && m.holder.visible).length;
     const seen = [];
     for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       g.cameraManager.yaw = yaw;

@@ -30,6 +30,8 @@ export interface CrowdOffer {
    * follows it, and x, y, z, yaw and scale are ignored
    */
   parent?: THREE.Object3D;
+  /** The layers the model is drawn on (a room draws its own); the pool's own when not given */
+  layers?: number;
 }
 
 interface Slot {
@@ -123,6 +125,8 @@ export class SkinnedCrowd {
       if (o.parent) {
         // Inside the character's own group: it carries the model wherever it goes
         if (slot.holder.parent !== o.parent) o.parent.add(slot.holder);
+        const mask = o.layers ?? this.group.layers.mask;
+        if (handle.root.layers.mask !== mask) handle.root.traverse((n) => { n.layers.mask = mask; });
         slot.holder.position.set(0, 0, 0);
         slot.holder.rotation.set(0, 0, 0);
         const [width, height] = buildOf(o.id);

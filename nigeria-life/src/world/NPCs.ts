@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { InteractiveObject } from './World';
 import { HumanMeshBuilder, type HumanConfig, type HumanRig, type Gender, type Outfit, type Hairstyle } from '../graphics/HumanMeshBuilder';
-import { SkinnedCrowd } from '../graphics/people/SkinnedCrowd';
+import { SkinnedCrowd, buildOf } from '../graphics/people/SkinnedCrowd';
+import { BakedPeople } from '../graphics/people/BakedPeople';
 import type { StreetLook } from '../graphics/people/SkinnedCharacter';
 import { Actor } from '../interactions/Actor';
 import { InteractionDirector } from '../interactions/InteractionDirector';
@@ -66,6 +67,9 @@ export class NPCs {
   private readonly looks = new Map<HumanRig, HumanConfig>();
   /** The named people nearest the player, drawn as full character models in place of their rigs */
   private readonly models: SkinnedCrowd;
+  /** The rest of them, further off: the same models in less detail (their old rigs are never drawn) */
+  private readonly baked: BakedPeople;
+  private bakedClock = 0;
 
   private human(config: HumanConfig): HumanRig {
     const rig = HumanMeshBuilder.createHuman(config);
@@ -76,6 +80,7 @@ export class NPCs {
   constructor() {
     this.group = new THREE.Group();
     this.models = new SkinnedCrowd(this.group);
+    this.baked = new BakedPeople(this.group);
 
     // 1. Core Interactive Story NPCs (10 rich characters)
     this.createInteractiveNPCs();
@@ -627,8 +632,27 @@ export class NPCs {
       if (d2 < reach2 && look) this.models.offer({ id, look: look as StreetLook, lookKey: id, x: 0, y: 0, z: 0, yaw: 0, scale: 1, mode, d2, parent: root });
     }
     this.models.sync(delta);
-    for (const [id, , rig] of cast) rig.group.visible = !this.models.has(id);
+    // Everyone without a full model: the same person in less detail, where they stand
+    this.bakedClock += delta;
+    this.baked.begin();
+    for (const [id, root, rig, mode] of cast) {
+      rig.group.visible = false;
+      if (this.models.has(id) || !root.visible) continue;
+      const look = this.looks.get(rig);
+      if (!look) continue;
+      root.getWorldPosition(this.at);
+      this.group.worldToLocal(this.at);
+      root.getWorldQuaternion(this.turn);
+      const yaw = this.facing.setFromQuaternion(this.turn, 'YXZ').y;
+      const doing = mode ?? 'idle';
+      const cycle = doing === 'walk' ? this.bakedClock * 1.15 + id * 0.37 : this.bakedClock / 3 + id * 0.37;
+      this.baked.draw(id, look as StreetLook, id, this.at.x, this.at.y, this.at.z, yaw, buildOf(id)[1], doing, cycle);
+    }
+    this.baked.end();
   }
+  private readonly at = new THREE.Vector3();
+  private readonly turn = new THREE.Quaternion();
+  private readonly facing = new THREE.Euler();
 
   public update(delta: number, playerPos?: THREE.Vector3): void {
     this.storyAnimTime += delta;

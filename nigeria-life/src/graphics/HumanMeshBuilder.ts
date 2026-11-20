@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RigRegistry } from './people/RigRegistry';
 import { buildPerson, type HeadShape, type Beard, type Build, type Hat } from './people/PersonBuilder';
 import type { Pattern } from './people/Fabrics';
 
@@ -279,7 +280,17 @@ export class HumanMeshBuilder {
   /** The old builder, kept to compare against (off: everyone is built by the person builder) */
   public static classic = false;
 
+  /**
+   * A procedural person. Every one made is registered (RigRegistry), so that wherever it is out in the
+   * world it is drawn as a character model (StandIns) and its own figure never shows.
+   */
   public static createHuman(config: HumanConfig): HumanRig {
+    const rig = HumanMeshBuilder.makeHuman(config);
+    RigRegistry.add(rig, config);
+    return rig;
+  }
+
+  private static makeHuman(config: HumanConfig): HumanRig {
     if (!HumanMeshBuilder.classic) return buildPerson(config, (name) => HumanMeshBuilder.createUsernameTag(name));
     const group = new THREE.Group();
     const materials: THREE.Material[] = [];

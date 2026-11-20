@@ -35,7 +35,11 @@ export async function run(browser, check) {
       t.update(0, g.player.position);
       here.crowd.update(0, g.player.position);
       const vehiclesDrawn = t.batches.reduce((n, b) => n + (b.body ? b.body.count : 0), 0);
-      const peopleDrawn = here.crowd.variants.reduce((n, v) => n + (v.body ? v.body.count : 0) + (v.farBody ? v.farBody.count : 0), 0);
+      // People are drawn as character models: the nearest few in full, the rest in less detail (BakedPeople)
+      const oldFigures = here.crowd.variants.reduce((n, v) => n + (v.body ? v.body.count : 0) + (v.farBody ? v.farBody.count : 0), 0);
+      const baked = [...(here.crowd.baked?.batches?.values() ?? [])].reduce((n, b) => n + b.count, 0);
+      const models = (here.crowd.models?.slots ?? []).filter((m) => m.id >= 0 && m.holder.visible).length;
+      const peopleDrawn = oldFigures + baked + models;
       const kinds = new Set();
       for (const l of lanes) for (const c of l.cars) kinds.add(t.batches[c.kind].spec.kind);
       // Solid: a vehicle near the player is felt by the body checks, and Lagos's are not

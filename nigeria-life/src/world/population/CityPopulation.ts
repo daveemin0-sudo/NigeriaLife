@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BUS_STOPS, stopAt } from '../../transit/Fares';
 import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
 import { SkinnedCrowd } from '../../graphics/people/SkinnedCrowd';
+import { BakedPeople, type BakedMode } from '../../graphics/people/BakedPeople';
 import type { StreetLook } from '../../graphics/people/SkinnedCharacter';
 import { bakeToGeometry, seededRandom, simplifyByClustering } from '../../graphics/MeshBaker';
 import type { StreetSpot, WalkRun } from '../density/CityFabric';
@@ -256,6 +257,8 @@ export class CityPopulation {
   public group: THREE.Group;
   /** The nearest few people, drawn as full character models instead of the light figures */
   public readonly models: SkinnedCrowd;
+  /** Everyone else in view, as the same character models in less detail (the old figures are never drawn) */
+  public readonly baked: BakedPeople;
   public count = 0;
   /** The share of them who are out at this hour: the rest are at home, and not drawn */
   public abroad = 1;
@@ -293,6 +296,8 @@ export class CityPopulation {
   private rand = seededRandom(90210);
   private variants: Variant[] = [];
   private plan: CrowdPlan;
+  /** The crowd drawn as character models (near: full models; further: BakedPeople). Off draws the old figures (tests only). */
+  public static PEOPLE_AS_MODELS = true;
   private static shapes: Shape[] | null = null;
   private static material: THREE.MeshStandardMaterial | null = null;
   private static blobMaterial: THREE.MeshBasicMaterial | null = null;
@@ -344,6 +349,7 @@ export class CityPopulation {
   constructor(walkRuns: WalkRun[] = [], stallSpots: StreetSpot[] = [], plan: CrowdPlan = LAGOS_CROWD) {
     this.group = new THREE.Group();
     this.models = new SkinnedCrowd(this.group);
+    this.baked = new BakedPeople(this.group);
     this.plan = plan;
     if (plan.seed) this.rand = seededRandom(plan.seed);
 
@@ -1744,6 +1750,7 @@ export class CityPopulation {
       variant.drawn = 0;
       variant.drawnFar = 0;
     }
+    this.baked.begin();
     let shadowCount = 0;
     this.lastSeen.clear();
     // The time owed to each turn of those who are not moved every frame
@@ -1930,12 +1937,28 @@ export class CityPopulation {
         }
         if (this.models.has(a.id)) continue;
       }
+      // Broad Street's sidewalk drops to road level where a side street cuts through
+      const ground = (a.onMainWalk && this.plan.gap(a.z)) || a.xing?.phase === 'go' ? 0.02 : this.plan.avenue.top;
+
+      // Drawn as the character model in less detail: the same person at every distance. Until the models
+      // have loaded (the first moments, under the loading screen) nobody is drawn, never the old figures.
+      if (CityPopulation.PEOPLE_AS_MODELS) {
+        const walking = a.mode === 'walk' && a.xing?.phase !== 'wait';
+        const mode: BakedMode = walking || a.boarding ? 'walk' : a.mode === 'talk' ? 'talk' : 'idle';
+        // A stride's turns from the walker's own cadence (as the old figures stepped), else a slow cycle
+        const cadence = 6.5 + (a.speed ?? 1.2) * 1.4 + (a.id % 5) * 0.35;
+        const cycle = mode === 'walk' ? (a.phase * cadence) / (Math.PI * 2) : a.phase / 3;
+        if (this.baked.draw(a.id, variant.look as StreetLook, a.variant, ax, ground, az, a.yaw, a.scale, mode, cycle) && this.shadows) {
+          base.makeScale(a.scale, 1, a.scale);
+          base.setPosition(ax, ground + 0.015, az);
+          this.shadows.setMatrixAt(shadowCount++, base);
+        }
+        continue;
+      }
+
       const slot = far ? variant.drawnFar++ : variant.drawn++;
       const bodyMesh = far ? variant.farBody! : variant.body;
       const limbMeshes = far ? variant.farLimbs : variant.limbs;
-
-      // Broad Street's sidewalk drops to road level where a side street cuts through
-      const ground = (a.onMainWalk && this.plan.gap(a.z)) || a.xing?.phase === 'go' ? 0.02 : this.plan.avenue.top;
 
       pos.set(ax, ground - variant.footY * a.scale + bob, az);
       quat.setFromAxisAngle(CityPopulation.UP, a.yaw);
@@ -1978,8 +2001,9 @@ export class CityPopulation {
 
     this.owedHidden[tick % HIDDEN_EVERY] = 0;
     this.owedFar[tick % FAR_EVERY] = 0;
-    // The nearest few, as character models
+    // The nearest few, as character models; everyone else in view in less detail
     this.models.sync(frameDelta);
+    this.baked.end();
     this.movedNow = moved;
     this.seenNow = seenNow;
 
