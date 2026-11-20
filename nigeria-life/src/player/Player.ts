@@ -503,6 +503,15 @@ export class Player {
       }
     }
 
+    // The keys are let go of: they stop and stand still (no legs stepping on the spot)
+    if (!hasMoveKey && this.isMoving && !this.targetPosition) {
+      this.isMoving = false;
+      this.isSprinting = false;
+      this.currentVelocity.set(0, 0, 0);
+      this.currentEmote = 'idle';
+      this.playAnimation('idle');
+    }
+
     // 2. Moving state (Point and Click)
     if (this.targetPosition && this.isMoving) {
       const currentPos = this.mesh.position;
