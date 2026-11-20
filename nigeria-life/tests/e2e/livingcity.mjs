@@ -29,7 +29,9 @@ export async function run(browser, check) {
       moved += crowd.movedNow;
       seen += crowd.seenNow;
     }
-    const drawn = crowd.variants.reduce((n, v) => n + v.drawn + v.drawnFar, 0);
+    // Drawn as crowd figures, or as full character models (the nearest few, SkinnedCrowd)
+    const models = (crowd.models?.slots ?? []).filter((m) => m.id >= 0 && m.holder.visible).length;
+    const drawn = crowd.variants.reduce((n, v) => n + v.drawn + v.drawnFar, 0) + models;
     return { city, hour, agents: crowd.agents.length, out: crowd.outNow, movedPerFrame: +(moved / frames).toFixed(1), seenPerFrame: +(seen / frames).toFixed(1), seenLast: crowd.seenNow, drawn };
   }, hour);
 
