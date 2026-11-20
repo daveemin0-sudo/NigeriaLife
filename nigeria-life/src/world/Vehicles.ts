@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { groundAt } from './density/StreetLayout';
 import { DrivableVehicle } from './DrivableVehicle';
 import type { InteractiveObject } from './World';
 import { SignageLibrary } from '../materials/SignageLibrary';
@@ -306,6 +307,9 @@ export class Vehicles {
     this.group.add(aptSedan);
 
     this.parkedVehicles = [oandoCar, marketSUV, mechCar, okada1, okada2, aptSedan];
+    // Parked up on the pavement or a forecourt: standing on it, not sunk into it
+    for (const v of this.parkedVehicles) v.position.y = groundAt(v.position.x, v.position.z);
+    jackStand.position.y += groundAt(jackStand.position.x, jackStand.position.z);
   }
 
   // =========================================================================

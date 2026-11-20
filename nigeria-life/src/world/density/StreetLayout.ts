@@ -91,17 +91,29 @@ export const MAIN_ROAD = {
   sidewalkTop: 0.28,
 };
 
-/** Raised pavement slabs beside the side streets (Broad Street's own are known from MAIN_ROAD), recorded as they are built */
-const PAVEMENTS: Array<[number, number, number, number]> = [];
-export function addPavement(minX: number, maxX: number, minZ: number, maxZ: number): void {
-  PAVEMENTS.push([minX, maxX, minZ, maxZ]);
+/**
+ * Raised ground in Lagos, recorded as it is built: the side streets' pavements, the expressway's, the
+ * filling station forecourts and other pads (Broad Street's own pavements are known from MAIN_ROAD).
+ * [minX, maxX, minZ, maxZ, top]
+ */
+const PAVEMENTS: Array<[number, number, number, number, number]> = [];
+export function addPavement(minX: number, maxX: number, minZ: number, maxZ: number, top: number = MAIN_ROAD.sidewalkTop): void {
+  PAVEMENTS.push([minX, maxX, minZ, maxZ, top]);
 }
-/** Is this spot on top of a raised pavement (Broad Street's, or a side street's)? Someone on it stands sidewalkTop up */
-export function onPavement(x: number, z: number): boolean {
+/**
+ * How high the ground is here in Lagos: the top of a pavement, forecourt or pad, or 0 on the road.
+ * Whoever stands, parks or is put here stands on it, not sunk into it.
+ */
+export function groundAt(x: number, z: number): number {
+  let top = 0;
   const ax = Math.abs(x);
-  if (ax >= MAIN_ROAD.halfRoad && ax <= MAIN_ROAD.halfRoad + MAIN_ROAD.walk && z >= MAIN_ROAD.zMin && z <= MAIN_ROAD.zMax && !isInJunctionGap(z)) return true;
-  for (const [a, b, c, d] of PAVEMENTS) if (x >= a && x <= b && z >= c && z <= d) return true;
-  return false;
+  if (ax >= MAIN_ROAD.halfRoad && ax <= MAIN_ROAD.halfRoad + MAIN_ROAD.walk && z >= MAIN_ROAD.zMin && z <= MAIN_ROAD.zMax && !isInJunctionGap(z)) top = MAIN_ROAD.sidewalkTop;
+  for (const [a, b, c, d, t] of PAVEMENTS) if (t > top && x >= a && x <= b && z >= c && z <= d) top = t;
+  return top;
+}
+/** Is this spot on top of raised ground (a pavement, a forecourt)? */
+export function onPavement(x: number, z: number): boolean {
+  return groundAt(x, z) > 0;
 }
 
 /** Outer edge of the Broad Street sidewalks */

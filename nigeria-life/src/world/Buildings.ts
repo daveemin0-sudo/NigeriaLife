@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addPavement } from './density/StreetLayout';
 import { HingedDoor, SlidingGate, type Doorway } from '../interactions/Door';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 import type { InteractiveObject } from './World';
@@ -1451,6 +1452,7 @@ export class Buildings {
     pad.position.y = 0.09;
     pad.receiveShadow = true;
     stationGroup.add(pad);
+    addPavement(-21 - 8, -21 + 8, 78.2 - 9, 78.2 + 9, 0.18);
 
     // Large high-clearance illuminated canopy
     const canopyGeo = new THREE.BoxGeometry(14, 0.75, 15);
@@ -1485,7 +1487,8 @@ export class Buildings {
 
     for (const pz of [-3.5, 3.5]) {
       const pump = new THREE.Mesh(pumpGeo, pumpMat);
-      pump.position.set(0, 0.9, pz);
+      // Standing on the forecourt (0.18 high), not sunk into it
+      pump.position.set(0, 0.18 + 0.9, pz);
       pump.castShadow = true;
       stationGroup.add(pump);
 
@@ -1494,12 +1497,12 @@ export class Buildings {
       const screenMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
       const screenL = new THREE.Mesh(screenGeo, screenMat);
       screenL.rotation.y = -Math.PI / 2;
-      screenL.position.set(-0.36, 1.2, pz);
+      screenL.position.set(-0.36, 1.38, pz);
       stationGroup.add(screenL);
 
       const screenR = new THREE.Mesh(screenGeo, screenMat);
       screenR.rotation.y = Math.PI / 2;
-      screenR.position.set(0.36, 1.2, pz);
+      screenR.position.set(0.36, 1.38, pz);
       stationGroup.add(screenR);
     }
 

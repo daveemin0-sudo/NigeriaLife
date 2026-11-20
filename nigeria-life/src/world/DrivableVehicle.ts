@@ -68,6 +68,8 @@ export class DrivableVehicle {
   public static onRoad: ((x: number, z: number) => boolean) | null = null;
   /** The pavements a driven car may not go onto at any speed, but at a way in for vehicles: set by the game (src/world/plan/Kerbs.ts) */
   public static kerbs: (() => KerbSet | null) | null = null;
+  /** How high the ground is at (x, z) in the city shown (a pavement, a forecourt), so a car stands on it */
+  public static ground: ((x: number, z: number) => number) | null = null;
   private kerbToastAt = 0;
   /** The bus stops and the people waiting at them, for danfos and kekes: set once by the game */
   public static busStops: BusStops | null = null;
@@ -2023,7 +2025,31 @@ export class DrivableVehicle {
     DrivableVehicle.makeWay(this.mesh.position.x, this.mesh.position.z, Math.sin(yaw) * sign, Math.cos(yaw) * sign, me.halfLength + 3 + Math.abs(this.currentSpeed) * 0.5, me.halfWidth);
   }
 
+  /**
+   * Stands on the ground under it: up on a pavement or forecourt it is parked on, at road level on the
+   * road, and tilted when half up on the kerb (as Lagos parks), never sunk into a slab.
+   */
+  private grounded = false;
+  private settleOnGround(delta: number): void {
+    const ground = DrivableVehicle.ground;
+    if (!ground) return;
+    const me = bodyOf(this.mesh, this.myBody);
+    const w = Math.max(0.2, me.halfWidth * 0.8);
+    // The car's right, square to its heading (its nose along +z of its own frame)
+    const rx = Math.cos(me.yaw) * w;
+    const rz = -Math.sin(me.yaw) * w;
+    const right = ground(me.x + rx, me.z + rz);
+    const left = ground(me.x - rx, me.z - rz);
+    // Straight onto it the first time (no rising out of the slab in view), smoothly after that
+    const k = this.grounded ? Math.min(1, delta * 10) : 1;
+    this.grounded = true;
+    this.mesh.position.y += ((right + left) / 2 - this.mesh.position.y) * k;
+    // Its own +x side up when the ground there is higher
+    this.mesh.rotation.z += (Math.atan2(right - left, w * 2) - this.mesh.rotation.z) * k;
+  }
+
   public update(delta: number, keys: Record<string, boolean>): void {
+    this.settleOnGround(delta);
     // Update horn display timer
     if (this.hornTimer > 0) {
       this.hornTimer -= delta;

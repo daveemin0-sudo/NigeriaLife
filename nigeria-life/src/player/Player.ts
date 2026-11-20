@@ -15,7 +15,7 @@ import {
   type SkinnedAnimState,
   type SkinnedCharacterHandle,
 } from '../graphics/people/SkinnedCharacter';
-import { bridgeNear, onPavement, MAIN_ROAD } from '../world/density/StreetLayout';
+import { bridgeNear, groundAt } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
 import { Bodies, outOfCar, outOfPerson, waysRoundCar } from '../world/Bodies';
 import type { Way } from '../world/plan/Wayfinder';
@@ -776,8 +776,8 @@ export class Player {
     const stadY = this.stadiumHeight(x, z);
     if (stadY !== null) return stadY;
 
-    // Up on a raised pavement (the slabs are 28 cm above the road): feet on top of it, not inside it
-    if (this.pavements?.() && onPavement(x, z)) return MAIN_ROAD.sidewalkTop;
+    // Up on raised ground (a pavement 20-28 cm above the road, a forecourt): feet on top of it, not inside it
+    if (this.pavements?.()) return groundAt(x, z);
 
     // Broad Street ground level (0.0m)
     return 0;
