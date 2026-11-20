@@ -38,7 +38,9 @@ export type Outfit =
   | 'traffic_warden'
   | 'agbada'
   // Clothes of the wardrobe, cut as garments
-  | 'tshirt' | 'polo_shirt' | 'hoodie' | 'button_shirt' | 'jersey' | 'ankara_shirt' | 'suit' | 'ankara_gown' | 'buba_iro' | 'bodycon' | 'jumpsuit' | 'kaftan';
+  | 'tshirt' | 'polo_shirt' | 'hoodie' | 'button_shirt' | 'jersey' | 'ankara_shirt' | 'suit' | 'ankara_gown' | 'buba_iro' | 'bodycon' | 'jumpsuit' | 'kaftan'
+  /** Dock-scene street looks (GTA-style reference): open gold-chain shirt + Jason charcoal tee */
+  | 'street_gold_shirt' | 'jason_dock';
 
 export interface HumanConfig {
   gender: Gender;
@@ -62,6 +64,8 @@ export interface HumanConfig {
   hasShades?: boolean;
   hasGoldChain?: boolean;
   hasCoralBeads?: boolean;
+  /** Cap brim faces backward (Jason dock look) */
+  hatBackwards?: boolean;
   lod?: 'detailed' | 'street';
   /** The look editor's choices */
   headShape?: HeadShape;
@@ -73,6 +77,8 @@ export interface HumanConfig {
   hatColor?: number;
   /** The cloth of the top: plain, ankara, aso-oke, lace, denim, check, stripes */
   pattern?: Pattern;
+  /** Wardrobe bottom override (jeans vs chinos etc.) */
+  bottomStyle?: 'jeans' | 'trousers' | 'shorts' | 'joggers' | 'skirt' | 'wrapper' | 'none';
   accentColor?: number;
   eyeColor?: number;
   lipColor?: number;

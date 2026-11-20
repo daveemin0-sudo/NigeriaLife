@@ -183,8 +183,11 @@ export { BUS_STOPS };
 const RIDER_AWAY = 120;
 const BOARDING_SPEED = 1.7;
 
-const SKIN_TONES = ['#3b2416', '#4a2c1d', '#5c3722', '#6b4226', '#7a4a2b', '#8d5a3b'];
-const TROUSERS = [0x1e293b, 0x1f2937, 0x334155, 0x57534e, 0x1e3a8a, 0x292524];
+const SKIN_TONES = [
+  '#1c1008', '#2a180e', '#3b2416', '#4a2c1d', '#5c3722',
+  '#6b4226', '#7a4a2b', '#8d5a3b', '#9a6a48', '#a87852',
+];
+const TROUSERS = [0x1e293b, 0x1f2937, 0x334155, 0x57534e, 0x1e3a8a, 0x292524, 0x0f172a, 0x44403c];
 
 /** Pedestrians further than this from the player are simulated but not drawn */
 const DRAW_DISTANCE = 90;
@@ -224,8 +227,8 @@ export interface CrowdPlan {
 
 const LAGOS_CROWD: CrowdPlan = {
   avenue: { halfRoad: MAIN_ROAD.halfRoad, walk: MAIN_ROAD.walk, from: MAIN_ROAD.zMin, to: MAIN_ROAD.zMax, top: MAIN_ROAD.sidewalkTop },
-  walkers: 190,
-  groups: 14,
+  walkers: 220,
+  groups: 18,
   busStops: true,
   gap: isInJunctionGap,
   // Martins Street runs through the gap: its traffic is what a walker on Broad Street's pavement waits for
@@ -375,43 +378,97 @@ export class CityPopulation {
     const female = (cfg: Partial<HumanConfig>) =>
       looks.push({ gender: 'female', username: '', lod: 'street', skinTone: this.pick(SKIN_TONES), ...cfg });
 
-    // Everyday Lagos men
-    for (const color of [0x10b981, 0xdc2626, 0xf8fafc, 0xfacc15, 0x38bdf8]) {
-      male({ outfit: 'casual_tee', outfitColor: color, hairstyle: this.pick(['fade', 'short_crop', 'afro']) });
+    // Everyday Lagos streetwear first — polos & tees (not costumes)
+    for (const color of [0x1e3a8a, 0xf8fafc, 0x166534, 0x7f1d1d, 0x0f172a]) {
+      male({
+        outfit: 'polo_shirt',
+        outfitColor: color,
+        trousersColor: this.pick([0x1e3a5f, 0xd4a373, 0x1e40af, 0x18181b]),
+        hairstyle: this.pick(['fade', 'short_crop', 'low_cut']),
+        build: this.pick(['slim', 'average', 'broad']),
+      });
     }
-    for (const color of [0x1e3a8a, 0xf5f5f4, 0x7f1d1d]) {
-      male({ outfit: 'senator', outfitColor: color, trousersColor: color, hairstyle: this.pick(['fila', 'short_crop']) });
+    for (const color of [0x10b981, 0xdc2626, 0xf8fafc, 0xfacc15, 0x38bdf8, 0x0f172a, 0xf97316, 0x7c3aed]) {
+      male({ outfit: 'casual_tee', outfitColor: color, hairstyle: this.pick(['fade', 'short_crop', 'afro']), build: this.pick(['slim', 'average', 'broad']) });
     }
-    for (const color of [0xf8fafc, 0x065f46]) {
-      male({ outfit: 'agbada', outfitColor: color, trousersColor: color, hairstyle: 'fila' });
+    for (const color of [0x1e3a8a, 0xf5f5f4, 0x7f1d1d, 0x0f766e, 0x78350f]) {
+      male({ outfit: 'senator', outfitColor: color, trousersColor: color, hairstyle: this.pick(['fila', 'short_crop', 'fade']), hasGoldChain: this.rand() < 0.35 });
+    }
+    for (const color of [0xf8fafc, 0x065f46, 0xeab308, 0x1e3a8a]) {
+      male({ outfit: 'agbada', outfitColor: color, trousersColor: color, hairstyle: 'fila', hasGoldChain: true });
+    }
+    for (const color of [0x0f172a, 0xf8fafc, 0xb45309]) {
+      male({ outfit: 'kaftan', outfitColor: color, trousersColor: color, hairstyle: this.pick(['fila', 'short_crop']), pattern: this.pick(['plain', 'stripes']) });
     }
     male({ outfit: 'student_casual', outfitColor: 0x1d4ed8, hairstyle: 'afro', hasBackpack: true });
     male({ outfit: 'engineer_vest', outfitColor: 0xf97316, hairstyle: 'hardhat', trousersColor: 0x1e3a8a });
     male({ outfit: 'mechanic_overalls', outfitColor: 0x1e40af, trousersColor: 0x1e40af, hairstyle: 'short_crop' });
     male({ outfit: 'security_uniform', outfitColor: 0x0f172a, trousersColor: 0x0f172a, hairstyle: 'police_cap' });
     male({ outfit: 'lecturer_suit', outfitColor: 0x374151, trousersColor: 0x374151, hairstyle: 'fade', hasTie: true });
-    // Street fashion variety (same street LOD — no remesh)
-    male({ outfit: 'ankara_shirt', outfitColor: 0xeab308, accentColor: 0xdc2626, pattern: 'ankara', hairstyle: 'fade', trousersColor: 0x1e293b });
+    // Richer ankara / street wear
+    for (const [c, a] of [[0xeab308, 0xdc2626], [0x16a34a, 0xfde68a], [0x7c2d12, 0xf59e0b], [0x1d4ed8, 0xf8fafc], [0xdb2777, 0xfbbf24]] as const) {
+      male({ outfit: 'ankara_shirt', outfitColor: c, accentColor: a, pattern: 'ankara', hairstyle: this.pick(['fade', 'afro']), trousersColor: this.pick(TROUSERS), hasShades: this.rand() < 0.25 });
+    }
     male({ outfit: 'hoodie', outfitColor: 0x0f172a, trousersColor: 0x334155, hairstyle: 'afro' });
+    male({ outfit: 'hoodie', outfitColor: 0x14532d, trousersColor: 0x1e293b, hairstyle: 'fade', hasGoldChain: true });
     male({ outfit: 'jersey', outfitColor: 0x16a34a, accentColor: 0xf8fafc, hairstyle: 'fade', trousersColor: 0x111827 });
+    male({ outfit: 'jersey', outfitColor: 0xdc2626, accentColor: 0xf8fafc, hairstyle: 'afro', trousersColor: 0x111827 });
     male({ outfit: 'button_shirt', outfitColor: 0xf8fafc, pattern: 'stripes', hairstyle: 'short_crop', trousersColor: 0x1e3a8a });
+    male({ outfit: 'button_shirt', outfitColor: 0x0ea5e9, hairstyle: 'fade', trousersColor: 0x1e293b, hasShades: true });
+    // Dock-scene reference looks (gold-chain open shirt + Jason charcoal tee)
+    male({
+      outfit: 'street_gold_shirt',
+      outfitColor: 0x111111,
+      accentColor: 0xd4af37,
+      trousersColor: 0x111111,
+      skinTone: '#8a5a3c',
+      hairstyle: 'high_top',
+      hairColor: '#c4a882',
+      build: 'slim',
+      hasShades: true,
+      hasGoldChain: true,
+    });
+    male({
+      outfit: 'jason_dock',
+      outfitColor: 0x333333,
+      trousersColor: 0x2563eb,
+      accentColor: 0x93c5fd,
+      skinTone: '#c4a07a',
+      hairstyle: 'low_cut',
+      hat: 'cap',
+      hatColor: 0x1f2937,
+      hatBackwards: true,
+      build: 'broad',
+      hasShades: true,
+      hasGoldChain: true,
+      beard: 'stubble',
+    });
 
-    // Everyday Lagos women
-    for (const color of [0x2563eb, 0xdb2777, 0xf59e0b, 0x16a34a]) {
-      female({ outfit: 'blue_dress', outfitColor: color, hairstyle: this.pick(['bob_wig', 'braids', 'ponytail']) });
+    // Everyday Lagos women — dresses, peplum, ankara, aso-oke, gele
+    for (const color of [0x2563eb, 0xdb2777, 0xf59e0b, 0x16a34a, 0x7c3aed, 0xf43f5e]) {
+      female({ outfit: 'blue_dress', outfitColor: color, hairstyle: this.pick(['bob_wig', 'braids', 'ponytail', 'afro']), build: this.pick(['slim', 'average']) });
     }
-    for (const color of [0xdc2626, 0x0d9488, 0xfbbf24]) {
-      female({ outfit: 'peplum_skirt', outfitColor: color, hairstyle: this.pick(['braids', 'gele']) });
+    for (const color of [0xdc2626, 0x0d9488, 0xfbbf24, 0x1d4ed8]) {
+      female({ outfit: 'peplum_skirt', outfitColor: color, hairstyle: this.pick(['braids', 'gele', 'bob_wig']), hasCoralBeads: this.rand() < 0.3 });
     }
-    for (const color of [0xd97706, 0xec4899, 0xf8fafc]) {
-      female({ outfit: 'casual_blouse', outfitColor: color, hairstyle: this.pick(['gele', 'afro', 'ponytail']) });
+    for (const color of [0xd97706, 0xec4899, 0xf8fafc, 0x0f766e]) {
+      female({ outfit: 'casual_blouse', outfitColor: color, hairstyle: this.pick(['gele', 'afro', 'ponytail', 'braids']) });
     }
     female({ outfit: 'nurse_scrubs', outfitColor: 0x5eead4, hairstyle: 'ponytail' });
     female({ outfit: 'student_casual', outfitColor: 0xf43f5e, hairstyle: 'braids', hasBackpack: true });
-    female({ outfit: 'ankara_gown', outfitColor: 0xf59e0b, accentColor: 0x7c2d12, pattern: 'ankara', hairstyle: 'gele' });
-    female({ outfit: 'ankara_gown', outfitColor: 0xdb2777, accentColor: 0xfde68a, pattern: 'ankara', hairstyle: 'braids' });
-    female({ outfit: 'buba_iro', outfitColor: 0x0d9488, accentColor: 0xf8fafc, pattern: 'aso_oke', hairstyle: 'gele' });
+    for (const [c, a, hair] of [
+      [0xf59e0b, 0x7c2d12, 'gele'], [0xdb2777, 0xfde68a, 'braids'], [0x16a34a, 0xfbbf24, 'gele'],
+      [0x1d4ed8, 0xf8fafc, 'braids'], [0x7c3aed, 0xf59e0b, 'gele'], [0xea580c, 0x111827, 'afro'],
+    ] as const) {
+      female({ outfit: 'ankara_gown', outfitColor: c, accentColor: a, pattern: 'ankara', hairstyle: hair, hasCoralBeads: this.rand() < 0.4 });
+    }
+    for (const [c, a] of [[0x0d9488, 0xf8fafc], [0xb45309, 0xfde68a], [0x7f1d1d, 0xeab308], [0x1e3a8a, 0xf8fafc]] as const) {
+      female({ outfit: 'buba_iro', outfitColor: c, accentColor: a, pattern: 'aso_oke', hairstyle: 'gele', hasCoralBeads: true });
+    }
     female({ outfit: 'hoodie', outfitColor: 0x7c3aed, trousersColor: 0x1e293b, hairstyle: 'ponytail' });
+    female({ outfit: 'hoodie', outfitColor: 0x0f172a, trousersColor: 0x334155, hairstyle: 'braids', hasShades: true });
+    female({ outfit: 'ankara_shirt', outfitColor: 0xe11d48, accentColor: 0xfbbf24, pattern: 'ankara', hairstyle: 'braids', trousersColor: 0x1e293b });
+    female({ outfit: 'kaftan', outfitColor: 0xf8fafc, pattern: 'lace', hairstyle: 'gele', hasCoralBeads: true });
 
     for (const look of looks) {
       const rig = HumanMeshBuilder.createHuman(look);

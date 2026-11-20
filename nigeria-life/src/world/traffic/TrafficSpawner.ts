@@ -39,13 +39,19 @@ const KINDS: KindSpec[] = [
   { kind: 'sedan', body: 'sedan', weight: 2, cruise: 12, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'sedan', body: 'bmw_7', weight: 1, cruise: 12.2, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'sedan', body: 'panamera', weight: 0.8, cruise: 12.4, tinted: true, stopsForPassengers: false, parkable: true },
-  // Jeeps: Lexus, Highlander, Cayenne, the odd Range Rover and G-Wagon
+  // Supercars / hypercars — rare but unmistakable on Broad Street
+  { kind: 'sedan', body: 'aventador', weight: 1.8, cruise: 14.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'huracan', weight: 1.4, cruise: 14.2, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'porsche_911', weight: 0.9, cruise: 13.8, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'sedan', body: 'chiron', weight: 0.5, cruise: 14.8, tinted: true, stopsForPassengers: false, parkable: true },
+  // Jeeps: Lexus, Highlander, Cayenne, the odd Range Rover, G-Wagon and Urus
   { kind: 'suv', body: 'lexus_rx', weight: 4, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'highlander', weight: 3, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'suv', weight: 2, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'cayenne', weight: 1.5, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'range_rover', weight: 1, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'suv', body: 'gwagon', weight: 1, cruise: 12.5, tinted: true, stopsForPassengers: false, parkable: true },
+  { kind: 'suv', body: 'urus', weight: 1.2, cruise: 13.2, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'taxi', body: 'corolla_2008', weight: 10, cruise: 11.5, tinted: false, stopsForPassengers: false, parkable: true },
   { kind: 'pickup', weight: 5, cruise: 11.5, tinted: true, stopsForPassengers: false, parkable: true },
   { kind: 'delivery_van', weight: 4, cruise: 11, tinted: false, stopsForPassengers: false, parkable: true },
@@ -55,13 +61,15 @@ const KINDS: KindSpec[] = [
   { kind: 'police', weight: 1, cruise: 13, tinted: false, stopsForPassengers: false, parkable: false },
 ];
 
-/** Lagos street paints: silver/white/black fleet plus danfo yellow, taxi cream, market greens and reds */
+/** Lagos street paints: fleet neutrals, market brights, and supercar accents (lime / pearl / deep orange) */
 const PAINTS = [
   0xf8fafc, 0xe5e7eb, 0xd1d5db, 0x9ca3af, 0x64748b, 0x475569,
   0x18181b, 0x111827, 0x0f172a,
   0xfacc15, 0xf59e0b, 0xb45309, 0xea580c,
   0x7f1d1d, 0x9f1239, 0x1e3a8a, 0x1d4ed8,
   0x14532d, 0x166534, 0x0f766e, 0x44403c,
+  // Supercar showroom accents — rare but loud on Broad Street
+  0x84cc16, 0xa3e635, 0xf97316, 0xfb923c, 0x22d3ee, 0xe879f9,
 ];
 /** Sentinel paint colour used to find the tintable body panels of a prototype */
 const PAINT_KEY = 0xfe01fd;
@@ -193,8 +201,8 @@ export class TrafficSpawner {
   private crossGreen = 14;
   /** Every vehicle's baked shape, made once (by Lagos's traffic, the first) and shared by every city's */
   private static shapes: Array<Pick<Batch, 'spec' | 'length' | 'width' | 'bodyGeo' | 'paintGeo' | 'lightsGeo'>> | null = null;
-  private static bodyMat: THREE.MeshStandardMaterial | null = null;
-  private static paintMat: THREE.MeshStandardMaterial | null = null;
+  private static bodyMat: THREE.MeshPhysicalMaterial | null = null;
+  private static paintMat: THREE.MeshPhysicalMaterial | null = null;
   private static lightsMat: THREE.MeshBasicMaterial | null = null;
   private lanes: Lane[] = [];
   private parked: ParkedCar[] = [];
@@ -206,6 +214,11 @@ export class TrafficSpawner {
   /** Distinct body recipes in the Lagos mix (sedans, buses, okadas, …) */
   public get kindVariety(): number {
     return this.batches.length;
+  }
+
+  /** Body-kit ids / procedural kinds baked into the current fleet (for e2e / debug) */
+  public get bodyIds(): string[] {
+    return this.batches.map((b) => b.spec.body ?? b.spec.kind);
   }
 
   /** Paint palette size used for tintable traffic */
@@ -510,16 +523,22 @@ export class TrafficSpawner {
   }
 
   private createInstancedMeshes(): void {
-    // One body and one paint material for every city's traffic: the same shaders, built once
-    const bodyMat = (TrafficSpawner.bodyMat ??= new THREE.MeshStandardMaterial({
+    // Clearcoat traffic paint — same env reflections as kit cars; one material for the whole fleet
+    const bodyMat = (TrafficSpawner.bodyMat ??= new THREE.MeshPhysicalMaterial({
       vertexColors: true,
-      roughness: 0.38,
-      metalness: 0.22,
+      roughness: 0.32,
+      metalness: 0.28,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.28,
+      envMapIntensity: 1.15,
     }));
-    const paintMat = (TrafficSpawner.paintMat ??= new THREE.MeshStandardMaterial({
+    const paintMat = (TrafficSpawner.paintMat ??= new THREE.MeshPhysicalMaterial({
       vertexColors: true,
-      roughness: 0.22,
-      metalness: 0.42,
+      roughness: 0.18,
+      metalness: 0.55,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.1,
+      envMapIntensity: 1.45,
     }));
     const lightsMat = (TrafficSpawner.lightsMat ??= new THREE.MeshBasicMaterial({
       vertexColors: true,

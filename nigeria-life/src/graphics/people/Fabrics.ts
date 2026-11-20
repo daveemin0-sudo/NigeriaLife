@@ -6,7 +6,7 @@ import * as THREE from 'three';
  * a small repeating canvas so a garment reads as cloth up close and costs little.
  */
 
-export type Pattern = 'plain' | 'denim' | 'ankara' | 'aso_oke' | 'check' | 'stripes' | 'lace' | 'leather' | 'knit';
+export type Pattern = 'plain' | 'denim' | 'ankara' | 'aso_oke' | 'check' | 'stripes' | 'lace' | 'leather' | 'knit' | 'gold_chain' | 'pique' | 'cotton';
 
 const cache = new Map<string, THREE.Texture>();
 
@@ -174,6 +174,77 @@ export function fabric(pattern: Pattern, base: number, accent = 0xffffff, third 
       }
     }
     repeat = [4, 4];
+  } else if (pattern === 'pique') {
+    // Polo pique: bold waffle knit — high local contrast so it reads at street distance
+    ctx.fillStyle = hex(base);
+    ctx.fillRect(0, 0, size, size);
+    for (let y = 0; y < size; y += 5) {
+      for (let x = (y / 5) % 2 ? 0 : 2.5; x < size; x += 5) {
+        ctx.fillStyle = shade(base, 0.28);
+        ctx.beginPath();
+        ctx.moveTo(x + 2.5, y);
+        ctx.lineTo(x + 5, y + 2.5);
+        ctx.lineTo(x + 2.5, y + 5);
+        ctx.lineTo(x, y + 2.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = shade(base, -0.22);
+        ctx.fillRect(x + 1.5, y + 1.5, 2, 2);
+      }
+    }
+    for (let i = 0; i < 120; i++) {
+      ctx.fillStyle = `rgba(${rand() > 0.5 ? '255,255,255' : '0,0,0'},${0.04 + rand() * 0.07})`;
+      ctx.fillRect(rand() * size, rand() * size, 1 + rand() * 2, 1);
+    }
+    repeat = [5, 5];
+  } else if (pattern === 'cotton') {
+    // Soft jersey tee weave — fine cross-hatch, matte
+    for (let y = 0; y < size; y += 2) {
+      ctx.fillStyle = shade(base, y % 4 === 0 ? 0.06 : -0.05);
+      ctx.fillRect(0, y, size, 1);
+    }
+    for (let x = 0; x < size; x += 3) {
+      ctx.fillStyle = `rgba(255,255,255,${0.03 + rand() * 0.04})`;
+      ctx.fillRect(x, 0, 1, size);
+    }
+    repeat = [5, 5];
+  } else if (pattern === 'gold_chain') {
+    // GTA-dock street-luxury: bold black + metallic gold chain/medallion print (readable at street distance)
+    ctx.fillStyle = hex(base || 0x111111);
+    ctx.fillRect(0, 0, size, size);
+    const gold = hex(accent || 0xd4af37);
+    const goldBright = shade(accent || 0xd4af37, 0.35);
+    const goldDim = shade(accent || 0xd4af37, -0.2);
+    for (let y = 16; y < size; y += 64) {
+      for (let x = (y / 64) % 2 ? 8 : 40; x < size; x += 64) {
+        ctx.strokeStyle = gold;
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 26, 16, 0.45, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = goldBright;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.ellipse(x + 18, y + 18, 26, 16, -0.55, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = gold;
+        ctx.beginPath();
+        ctx.arc(x + 8, y + 8, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = goldDim;
+        ctx.beginPath();
+        ctx.arc(x + 8, y + 8, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = goldBright;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+    for (let i = 0; i < 180; i++) {
+      ctx.fillStyle = `rgba(255,236,180,${0.12 + rand() * 0.25})`;
+      ctx.fillRect(rand() * size, rand() * size, 2 + rand() * 3, 1 + rand());
+    }
+    repeat = [1.4, 1.4];
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
