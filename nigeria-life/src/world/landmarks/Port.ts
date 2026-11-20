@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addWater } from '../density/StreetLayout';
 import { Builder, signBoard } from '../kit/ArchKit';
 import { clickBox, figure, Route, type Landmark, type LandmarkHost } from './Landmark';
 import { RENDER_LAYERS } from '../../interiors/InteriorTypes';
@@ -6,6 +7,7 @@ import { Employment } from '../../jobs/Employment';
 import { createHandWork } from '../../jobs/HandWork';
 import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
 import { waterSheet } from '../../graphics/Water';
+import { BOX_H, ContainerStacks, LIVERIES, containerMaterial, containerMesh, containerShip, craneDetail, yardTruck } from './PortKit';
 
 /**
  * A container port: a quay with a cargo ship alongside, gantry cranes that lift boxes off
@@ -38,10 +40,6 @@ const WEST_SHORE = -160;
 const SEA_FROM_Z = -600;
 const SEA_TO_Z = 1290;
 
-const BOX_COLOURS = [0x1d4ed8, 0xb91c1c, 0x15803d, 0xea580c, 0x64748b, 0xe5e7eb, 0xca8a04, 0x0e7490];
-const BOX_W = 2.44;
-const BOX_H = 2.6;
-const BOX_L = 6.1;
 
 function seeded(start: number): () => number {
   let seed = start;
@@ -49,38 +47,6 @@ function seeded(start: number): () => number {
     seed = (seed * 1664525 + 1013904223) % 4294967296;
     return seed / 4294967296;
   };
-}
-
-/** The ship, built round its own middle with its bow to the south. */
-function cargoShip(name: string): THREE.Group {
-  const random = seeded(911);
-  const b = new Builder();
-  const NAVY = 0x1e293b;
-  const RED = 0x991b1b;
-  b.box(RED, 10, 1, 40, 0, 0, 0).box(NAVY, 10, 4, 40, 0, 1, 0);
-  b.box(RED, 7.07, 1, 7.07, 0, 0, 20, { yaw: Math.PI / 4 }).box(NAVY, 7.07, 4, 7.07, 0, 1, 20, { yaw: Math.PI / 4 });
-  b.box(0x57534e, 9.6, 0.2, 40, 0, 5, 0).box(0xf8fafc, 10.1, 0.25, 40.1, 0, 4.2, 0);
-  // The accommodation block and bridge at the stern
-  b.box(0xf8fafc, 8.6, 7.4, 6, 0, 5.2, -16).box(0xf8fafc, 10.6, 1.7, 2.6, 0, 11.1, -14.6);
-  b.box(0x93c5fd, 8.2, 0.7, 0.1, 0, 11.7, -13.28, { glow: true });
-  b.windows(0x38bdf8, 5, 3, 8, 5.6, 5.4, 0, -12.97, 0);
-  b.box(0x0b7a43, 2.6, 3.6, 2.8, 0, 12.6, -17.4).box(0xf2b705, 2.7, 0.7, 2.9, 0, 14.4, -17.4);
-  b.cylinder(0xe5e7eb, 0.1, 4.5, 0, 12.8, -14.2).box(0xe5e7eb, 2.4, 0.1, 0.1, 0, 16, -14.2);
-  // Boxes on deck. The stacks nearest the cranes are part unloaded.
-  for (let row = 0; row < 4; row++) {
-    for (let column = 0; column < 3; column++) {
-      const high = row === 1 ? Math.floor(random() * 2) : 1 + Math.floor(random() * 3);
-      for (let level = 0; level < high; level++) {
-        b.box(BOX_COLOURS[Math.floor(random() * BOX_COLOURS.length)], BOX_W, BOX_H, BOX_L, (column - 1) * 2.7, 5.2 + level * BOX_H, -8.6 + row * 6.5);
-      }
-    }
-  }
-  const ship = b.build('cargo ship');
-  const plate = signBoard([name], 8, 0.9, '#1e293b', '#f8fafc');
-  plate.position.set(5.04, 3.9, 12);
-  plate.rotation.y = Math.PI / 2;
-  ship.add(plate);
-  return ship;
 }
 
 /** A flat-bed lorry, built round the middle of its length with its cab toward +x. */
@@ -94,18 +60,6 @@ function flatbed(): THREE.Group {
     .box(0x111827, 0.9, 0.9, 2.5, -2.4, 0, 0)
     .box(0x111827, 0.9, 0.9, 2.5, -3.4, 0, 0)
     .build('flatbed lorry');
-}
-
-/** The yard tractor with a box on its trailer. */
-function yardTractor(): THREE.Group {
-  return new Builder()
-    .box(0xfacc15, 1.8, 1.9, 2.2, 3.6, 0.6, 0)
-    .box(0x1f2937, 0.1, 0.7, 1.8, 4.52, 1.6, 0)
-    .box(0x374151, 8.4, 0.3, 2.2, -0.4, 0.7, 0)
-    .box(0x111827, 0.9, 0.9, 2.4, 3.4, 0, 0)
-    .box(0x111827, 0.9, 0.9, 2.4, -3, 0, 0)
-    .box(0x111827, 0.9, 0.9, 2.4, -4, 0, 0)
-    .build('yard tractor');
 }
 
 export interface PortOptions {
@@ -153,19 +107,19 @@ export function createPort(options: PortOptions): Landmark {
     b.box(CRANE, 0.6, 9, 0.6, -9.5, BOOM_Y + 0.7, zc);
     b.box(CRANE, 25.8, 0.16, 0.16, -21.75, BOOM_Y + 5.1, zc, { roll: 0.316 }).box(CRANE, 15.5, 0.16, 0.16, -3.2, BOOM_Y + 5.1, zc, { roll: -0.62 });
     b.box(0xdc2626, 0.3, 0.3, 0.3, -9.5, BOOM_Y + 9.7, zc, { glow: true });
+    craneDetail(b, [-13.5, -5.5], zc, BOOM_Y, CRANE);
   }
   // The second crane is at rest, its trolley parked over the quay
   b.box(0x374151, 2.4, 0.8, 2.2, -9.5, BOOM_Y - 1.9, craneAt[1]).box(0x111827, 0.1, 5, 0.1, -9.5, BOOM_Y - 6.9, craneAt[1]).box(0xfacc15, 2.6, 0.3, 6.3, -9.5, BOOM_Y - 7.2, craneAt[1]);
 
   // --- The container yard -------------------------------------------------------------------
+  const yardStacks = new ContainerStacks();
   for (const blockX of [2, 11, 20]) {
     for (let row = 0; row < 6; row++) {
       for (const dx of [-1.3, 1.3]) {
         const high = random() < 0.12 ? 0 : 1 + Math.floor(random() * 4);
         const z = -12 + 3.05 + row * 6.35;
-        for (let level = 0; level < high; level++) {
-          b.box(BOX_COLOURS[Math.floor(random() * BOX_COLOURS.length)], BOX_W, BOX_H, BOX_L, blockX + dx, level * BOX_H, z);
-        }
+        for (let level = 0; level < high; level++) yardStacks.put(Math.floor(random() * LIVERIES.length), blockX + dx, level * BOX_H, z);
       }
     }
     b.occupy(blockX - 2.55, blockX + 2.55, -12, 26.1, BOX_H * 2);
@@ -210,7 +164,10 @@ export function createPort(options: PortOptions): Landmark {
 
   const group = b.build(options.id);
   group.position.set(site.x, 0, site.z);
-  // The harbour and the sea beyond it: real water, from the quay to the horizon
+  // (the ship's deck boxes are added to the same stacks below, before they are drawn)
+  // The harbour and the sea beyond it: real water, from the quay to the horizon (and nobody walks on it)
+  addWater(-1400, WEST_SHORE, SEA_FROM_Z, SEA_TO_Z);
+  addWater(WEST_SHORE, site.x + QUAY_X, site.z - HALF_Z, site.z + HALF_Z);
   const harbourWest = WEST_SHORE - site.x;
   group.add(waterSheet(QUAY_X - harbourWest, HALF_Z * 2, (QUAY_X + harbourWest) / 2, 0.03, 0, 0x1d5f73));
   const seaWest = -1400 - site.x;
@@ -253,29 +210,23 @@ export function createPort(options: PortOptions): Landmark {
   ];
 
   // --- The gate's barriers: down across the way, lifted for a lorry coming or going ----------
-  const armLook = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 });
-  const stripeLook = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
   const barriers = [GATE_FROM + 0.4, GATE_TO - 0.4].map((z) => {
     const toward = z < GATE_Z ? 1 : -1;
-    const pivot = new THREE.Group();
+    const arm = new Builder().box(0xdc2626, 0.12, 0.12, 4.4, 0, -0.06, toward * 2.2);
+    for (let k = 0; k < 3; k++) arm.box(0xf8fafc, 0.13, 0.13, 0.4, 0, -0.065, toward * (0.9 + k * 1.2));
+    const pivot = arm.build('barrier arm');
     pivot.position.set(HALF_X - 1.6, 1.15, z);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 4.4), armLook);
-    arm.position.z = toward * 2.2;
-    pivot.add(arm);
-    for (let k = 0; k < 3; k++) {
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.4), stripeLook);
-      stripe.position.z = toward * (0.9 + k * 1.2);
-      pivot.add(stripe);
-    }
     group.add(pivot);
     return { pivot, toward, lift: 0 };
   });
 
   // --- The ship ----------------------------------------------------------------------------
-  const ship = cargoShip(options.ship);
   const shipX = QUAY_X - 5.9;
+  const { ship } = containerShip(options.ship, seeded(911), yardStacks, [shipX, 4]);
   ship.position.set(shipX, 0, 4);
   group.add(ship);
+  // Every container in the yard and on deck: one batch per line
+  group.add(yardStacks.build('containers'));
 
   // --- The working crane: a trolley that fetches boxes off the ship -------------------------
   const zc = craneAt[0];
@@ -284,13 +235,11 @@ export function createPort(options: PortOptions): Landmark {
   const cable = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1, 0.12), new THREE.MeshStandardMaterial({ color: 0x111827 }));
   cable.userData.surface = true;
   const spreader = new Builder().box(0xfacc15, 2.6, 0.3, 6.3, 0, 0, 0).build('spreader');
-  const boxGeometry = new THREE.BoxGeometry(BOX_W, BOX_H, BOX_L);
-  // The ridged steel of a shipping container, in its own colour each time
-  const liftedLook = new THREE.MeshStandardMaterial({ color: BOX_COLOURS[0], roughness: 0.55, metalness: 0.35 });
-  const lifted = new THREE.Mesh(boxGeometry, liftedLook);
-  lifted.position.y = -BOX_H / 2;
-  lifted.castShadow = true;
+  // A shipping container hangs under the spreader, a different line's each lift
+  const lifted = containerMesh(0);
+  lifted.position.y = -BOX_H;
   spreader.add(lifted);
+  let livery = 0;
   group.add(trolley, cable, spreader);
   /** Over the stack on the ship nearest the quay */
   const shipSide = shipX + 2.7;
@@ -302,15 +251,13 @@ export function createPort(options: PortOptions): Landmark {
   const CRANE_CYCLE = 34;
 
   // --- The yard tractor --------------------------------------------------------------------
-  const tractor = yardTractor();
+  const tractor = yardTruck();
   // It waits between the crane's legs for each box, takes it round the back of the yard to the stacks, and comes back
   const underCrane: [number, number] = [quaySide, craneAt[0] + 1];
   const round = new Route([underCrane, [quaySide, 29.6], [15.5, 29.6], [15.5, -16], [quaySide, -16]], true);
-  const carriedLook = new THREE.MeshStandardMaterial({ color: BOX_COLOURS[0], roughness: 0.55, metalness: 0.35 });
-  const carried = new THREE.Mesh(boxGeometry, carriedLook);
-  carried.position.set(-1, 1 + BOX_H / 2, 0);
+  const carried = containerMesh(0);
+  carried.position.set(-1, 1.05, 0);
   carried.rotation.y = Math.PI / 2;
-  carried.castShadow = true;
   carried.visible = false;
   tractor.add(carried);
   group.add(tractor);
@@ -467,15 +414,14 @@ export function createPort(options: PortOptions): Landmark {
     doors: [{ name: `Gate of ${options.name}`, x: site.x + HALF_X + 1.6, z: site.z + GATE_Z }],
     update(delta) {
       time += delta;
-      ship.position.y = Math.sin(time * 0.7) * 0.1;
-      ship.rotation.z = Math.sin(time * 0.45) * 0.008;
       // The crane: up off the ship with a box, across, down onto the waiting tractor, and back empty
       const u = (time % CRANE_CYCLE) / CRANE_CYCLE;
       const thisCycle = Math.floor(time / CRANE_CYCLE);
       if (thisCycle !== cycle) {
         // A new box off the ship, of whatever colour comes next
         cycle = thisCycle;
-        liftedLook.color.setHex(BOX_COLOURS[(cycle * 5 + 3) % BOX_COLOURS.length]);
+        livery = (cycle * 5 + 3) % LIVERIES.length;
+        lifted.material = containerMaterial(livery);
       }
       // The tractor: under the crane from when the box comes over until it is on, then round the yard
       // Driving from u 0.6 round to u 0.35 of the next cycle: 0 to 1 of the round, without a jump where the cycle turns over
@@ -483,7 +429,7 @@ export function createPort(options: PortOptions): Landmark {
       if (u >= 0.35 && u < 0.6) round.place(tractor, 0);
       else round.place(tractor, Math.min(1, drive) * round.length * 0.999);
       // On its trailer from the moment it is set down until it is taken off at the stacks at the back
-      if (u >= 0.57 && u < 0.6) carriedLook.color.copy(liftedLook.color);
+      if (u >= 0.57 && u < 0.6) carried.material = containerMaterial(livery);
       const waiting = u >= 0.35 && u < 0.6;
       carried.visible = (u >= 0.57 && u < 0.6) || (!waiting && drive < 0.55);
       for (const d of dockers) d.route.place(d.body, (d.at + time * d.speed) % d.route.length);
