@@ -3,10 +3,12 @@ import { fabric, type Pattern } from './Fabrics';
 
 /**
  * Stylized-realism skin and cloth response (ART-BIBLE):
- * - Skin: MeshPhysical sheen as a warm subsurface stand-in (no scene lighting changes)
+ * - Skin: MeshPhysical sheen as a warm subsurface stand-in + pore/microvariation maps
  * - Cloth: pattern maps + sheen/satin for aso-oke / gold_chain; matte cotton for ankara
  * - Folds: soft ridge meshes that can sway in updateAnimation
  */
+
+const skinCache = new Map<string, THREE.CanvasTexture>();
 
 /** Warm melanin undertone for sheen (SSS-style rim in stylized PBR) */
 function warmUnder(hex: string | number): THREE.Color {
@@ -14,15 +16,76 @@ function warmUnder(hex: string | number): THREE.Color {
   return base.clone().lerp(new THREE.Color(0xffb089), 0.45);
 }
 
+/** Fine pore + melanin micro-variation — cheap canvas, scaled for HD 620 / A16 */
+function skinDetailMaps(hex: string | number): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } | null {
+  if (typeof document === 'undefined') return null;
+  const key = `skin:${new THREE.Color(hex).getHexString()}`;
+  const knownMap = skinCache.get(`${key}:map`);
+  const knownBump = skinCache.get(`${key}:bump`);
+  if (knownMap && knownBump) return { map: knownMap, bump: knownBump };
+
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const base = new THREE.Color(hex);
+  ctx.fillStyle = `#${base.getHexString()}`;
+  ctx.fillRect(0, 0, size, size);
+  // Soft melanin mottling
+  for (let i = 0; i < 900; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = 1 + Math.random() * 3;
+    const light = Math.random() > 0.55;
+    const c = base.clone().offsetHSL(0, light ? -0.02 : 0.03, light ? 0.04 : -0.05);
+    ctx.fillStyle = `rgba(${(c.r * 255) | 0},${(c.g * 255) | 0},${(c.b * 255) | 0},${0.08 + Math.random() * 0.12})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(3, 3);
+  map.anisotropy = 2;
+
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = size;
+  bumpCanvas.height = size;
+  const bctx = bumpCanvas.getContext('2d');
+  if (!bctx) return null;
+  bctx.fillStyle = '#808080';
+  bctx.fillRect(0, 0, size, size);
+  for (let i = 0; i < 2200; i++) {
+    const g = (100 + Math.random() * 55) | 0;
+    bctx.fillStyle = `rgb(${g},${g},${g})`;
+    bctx.fillRect(Math.random() * size, Math.random() * size, 1 + (Math.random() > 0.85 ? 1 : 0), 1);
+  }
+  const bump = new THREE.CanvasTexture(bumpCanvas);
+  bump.wrapS = bump.wrapT = THREE.RepeatWrapping;
+  bump.repeat.set(6, 6);
+  bump.anisotropy = 2;
+
+  skinCache.set(`${key}:map`, map);
+  skinCache.set(`${key}:bump`, bump);
+  return { map, bump };
+}
+
 export function makeSkinMaterial(hex: string | number): THREE.MeshPhysicalMaterial {
+  const details = skinDetailMaps(hex);
   return new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(hex),
-    roughness: 0.52,
+    map: details?.map,
+    bumpMap: details?.bump,
+    bumpScale: 0.012,
+    roughness: 0.48,
     metalness: 0.0,
-    sheen: 0.65,
-    sheenRoughness: 0.42,
+    sheen: 0.72,
+    sheenRoughness: 0.38,
     sheenColor: warmUnder(hex),
-    envMapIntensity: 0.55,
+    envMapIntensity: 0.5,
   });
 }
 
