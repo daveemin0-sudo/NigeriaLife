@@ -111,6 +111,24 @@ export function groundAt(x: number, z: number): number {
   for (const [a, b, c, d, t] of PAVEMENTS) if (t > top && x >= a && x <= b && z >= c && z <= d) top = t;
   return top;
 }
+/**
+ * Water in Lagos nobody walks on (the lagoon under Third Mainland Bridge, the sea west of the island), and
+ * the ways over it that are walked (the bridge, the Makoko jetty). Recorded as they are built.
+ */
+const WATERS: Array<[number, number, number, number]> = [];
+const OVER_WATER: Array<[number, number, number, number]> = [];
+export function addWater(minX: number, maxX: number, minZ: number, maxZ: number): void {
+  WATERS.push([minX, maxX, minZ, maxZ]);
+}
+export function addWayOverWater(minX: number, maxX: number, minZ: number, maxZ: number): void {
+  OVER_WATER.push([minX, maxX, minZ, maxZ]);
+}
+/** Is this spot open water (not a bridge or a jetty over it)? Nobody steps onto it */
+export function onWater(x: number, z: number): boolean {
+  const inside = (r: [number, number, number, number]) => x >= r[0] && x <= r[1] && z >= r[2] && z <= r[3];
+  return WATERS.some(inside) && !OVER_WATER.some(inside);
+}
+
 /** Is this spot on top of raised ground (a pavement, a forecourt)? */
 export function onPavement(x: number, z: number): boolean {
   return groundAt(x, z) > 0;

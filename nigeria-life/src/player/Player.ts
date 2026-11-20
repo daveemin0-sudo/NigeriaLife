@@ -15,7 +15,7 @@ import {
   type SkinnedAnimState,
   type SkinnedCharacterHandle,
 } from '../graphics/people/SkinnedCharacter';
-import { bridgeNear, groundAt } from '../world/density/StreetLayout';
+import { bridgeNear, groundAt, onWater } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
 import { Bodies, outOfCar, outOfPerson, waysRoundCar } from '../world/Bodies';
 import type { Way } from '../world/plan/Wayfinder';
@@ -246,6 +246,11 @@ export class Player {
       p.z = step.z;
     }
     if (solids) this.keepClearOfBodies(cameFrom, solids);
+    // Nobody walks on the lagoon or the sea: the step onto open water is not taken
+    if (this.pavements?.() && onWater(p.x, p.z) && !onWater(cameFrom.x, cameFrom.z)) {
+      p.x = cameFrom.x;
+      p.z = cameFrom.z;
+    }
   }
 
   /** Is the straight line from where the walker stands to this point clear of everything solid, for a walker's width? */

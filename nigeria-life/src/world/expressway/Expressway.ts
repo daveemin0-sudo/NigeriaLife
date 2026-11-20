@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { waterMaterial } from '../../graphics/Water';
-import { addPavement } from '../density/StreetLayout';
+import { addPavement, addWater, addWayOverWater } from '../density/StreetLayout';
 import { RedLine, STATIONS, VIADUCT } from './RedLine';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
@@ -559,6 +559,10 @@ export class Expressway {
     water.rotation.x = -Math.PI / 2;
     water.position.set(0, -3.2, (EXPRESS.lagoonFrom + EXPRESS.lagoonTo) / 2);
     water.name = 'Lagos Lagoon';
+    // Nobody walks on it: only along the bridge, and out on the Makoko jetty
+    addWater(-800, 800, EXPRESS.lagoonFrom, EXPRESS.lagoonTo);
+    addWayOverWater(-(EXPRESS.half + EXPRESS.walk + 0.5), EXPRESS.half + EXPRESS.walk + 0.5, EXPRESS.lagoonFrom - 1, EXPRESS.lagoonTo + 1);
+    addWayOverWater(-42.5, -37.5, EXPRESS.lagoonTo - 13, EXPRESS.lagoonTo + 1);
     // Drawn whenever any part of the bridge is
     this.add(EXPRESS.lagoonFrom, water);
     const near = water.clone();

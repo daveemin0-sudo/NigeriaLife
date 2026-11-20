@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RigRegistry } from '../graphics/people/RigRegistry';
 
 /** How see-through something standing in the way becomes (0 = gone, 1 = solid) */
 const SEE_THROUGH = 0.2;
@@ -94,6 +95,10 @@ export class RoomCutaway {
     }
     for (const root of roots) {
       if (root === shell || root.name === 'interior_ground_plot' || root.name.startsWith('interior_npc_') || root.name.startsWith('upper_wall_')) continue;
+      // People are never cut away (faded, a person showed as a head over a pair of legs): staff, guests, anyone
+      let person = false;
+      root.traverse((child) => { if ((child as THREE.SkinnedMesh).isSkinnedMesh || RigRegistry.entryOfGroup(child)) person = true; });
+      if (person) continue;
       // Measured from its own floor
       const base = root.parent && root.parent !== room ? root.parent.position.y : 0;
       const meshes: THREE.Mesh[] = [];
