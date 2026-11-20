@@ -249,12 +249,19 @@ const neckLineY = (x, z) => {
 };
 // Hands and head are never covered (a sleeve stops at the wrist; the neck is open)
 const never = (t) => [idx[t], idx[t + 1], idx[t + 2]].every((v) => /^(Head|hand_|index|middle|pinky|ring|thumb)/.test(vJointName(v)));
-const triCovered = (t, kind) => {
+/** Whether a kind of garment's cloth covers body triangle t. A top leaves the neck open: no triangle with a
+ *  corner inside the ring round the neck (`band` widens that ring) */
+const triCovered = (t, kind, band = 0) => {
   const a = P0[idx[t]], b = P0[idx[t + 1]], c = P0[idx[t + 2]];
-  // A top leaves the neck open: the skin there is kept (exactly the triangles the top's cloth leaves out)
-  if (kind.startsWith('Top') && (inNeck(a) || inNeck(b) || inNeck(c))) return false;
+  const nearNeck = (p) => p[1] > neckTop() && Math.hypot(p[0] - NECK.cx, p[2] - NECK.cz) < NECK_CUT + band * height;
+  if (kind.startsWith('Top') && (nearNeck(a) || nearNeck(b) || nearNeck(c))) return false;
   return COVER[kind]([(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]);
 };
+/** The skin hidden under a kind: as the cloth covers, but under a top a band of skin past the neckline is kept
+ *  (unseen under the cloth, it closes the gap that would show between the neck and the collar) */
+const skinHidden = (t, kind) => triCovered(t, kind, kind.startsWith('Top') ? 0.025 : 0);
+/** The cloth of a kind of garment: the body triangles it is made from */
+const clothOf = (t, kind) => (kind.startsWith('Top') ? triCovered(t, kind) : masks[t / 3][kIndex[kind]] === '1');
 
 // ---------------------------------------------------------------- the body in pieces, by what can cover them
 // Each piece is named Body_c<mask>, one digit per garment kind (TopShort TopLong BottomLong BottomShort Shoes):
@@ -262,7 +269,7 @@ const triCovered = (t, kind) => {
 const groups = new Map();
 const masks = [];
 for (let t = 0; t < idx.length; t += 3) {
-  const mask = never(t) ? '00000' : KINDS.map((k) => (triCovered(t, k) ? '1' : '0')).join('');
+  const mask = never(t) ? '00000' : KINDS.map((k) => (skinHidden(t, k) ? '1' : '0')).join('');
   if (!groups.has(mask)) groups.set(mask, []);
   groups.get(mask).push(idx[t], idx[t + 1], idx[t + 2]);
   masks[t / 3] = mask;
@@ -304,6 +311,18 @@ const uv2 = [0, 0], j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0];
  * (muscle out, edges pinned), and set out from the body by `off` (a fraction of the body's height) plus
  * offAt(p) at each point p of the body (a silhouette: a leg that does not taper, a sleeve that opens).
  */
+/** The skin weights of the nearest point of the body to q among those mostly on the joints `re` names
+ *  (by default the chest, back and shoulders) */
+const torsoSkinAt = (q, re = /^(spine|clavicle)/) => {
+  let best = -1, bd = Infinity;
+  for (let v = 0; v < P0.length; v++) {
+    const d = (P0[v][0] - q[0]) ** 2 + (P0[v][1] - q[1]) ** 2 + (P0[v][2] - q[2]) ** 2;
+    if (d < bd && re.test(vJointName(v))) { bd = d; best = v; }
+  }
+  const j = [0, 0, 0, 0], w = [0, 0, 0, 0];
+  jnt.getElement(best, j); wgt.getElement(best, w);
+  return { j, w };
+};
 function makeShell(pick, spec) {
   const tris = [];
   for (let t = 0; t < idx.length; t += 3) {
@@ -338,10 +357,12 @@ function makeShell(pick, spec) {
   // An edge point near a hem line is put on it too, so the edge runs along the line, not up and down beside it
   const hemmed = new Array(W).fill(-1);
   const dirs = new Array(W).fill(null);
+  const reskin = new Array(W).fill(null);
   if (spec.hem) wp = wp.map((p, w) => {
     const q = spec.hem(p, pinned.has(w));
     if (q.pin) pinned.add(w);
-    if (q.dir) dirs[w] = q.dir;
+    if (q.dir) dirs[w] = q;
+    else if (q.skinFrom) reskin[w] = q;
     if (q[1] !== p[1]) hemmed[w] = 1;
     else if (q[0] !== p[0]) hemmed[w] = 0;
     return q;
@@ -371,7 +392,7 @@ function makeShell(pick, spec) {
     const len = Math.hypot(n[0], n[1], n[2]) || 1;
     n = n.map((x) => x / len);
     if (n[0] * N0[v][0] + n[1] * N0[v][1] + n[2] * N0[v][2] < 0) n = n.map((x) => -x);
-    if (dirs[w]) n = dirs[w];
+    if (dirs[w]) n = dirs[w].dir;
     else if (hemmed[w] >= 0) {
       // On a hem line: out from the body only across the line, so the hem runs level
       const m = n.slice();
@@ -391,12 +412,37 @@ function makeShell(pick, spec) {
       o = Math.max(o, o + (spec.ankleMin - o) * t);
     }
     o *= height;
-    P.push(wp[w][0] + n[0] * o, wp[w][1] + n[1] * o, wp[w][2] + n[2] * o);
+    const out = [wp[w][0] + n[0] * o, wp[w][1] + n[1] * o, wp[w][2] + n[2] * o];
+    // A top's cloth, set out from the shoulders, never rises above its neckline near the neck (it would stand
+    // up past the rib as a step inside the collar)
+    if (spec.hem?.neck && Math.hypot(out[0] - NECK.cx, out[2] - NECK.cz) < NECK_CUT + 0.08 * height) out[1] = Math.min(out[1], neckLineY(out[0], out[2]) + 0.003 * height);
+    P.push(...out);
     N.push(...n);
     uv.getElement(v, uv2); jnt.getElement(v, j4); wgt.getElement(v, w4);
+    // A point brought onto the neckline from inside the neck rides the chest and shoulders there, not the neck
+    // (with the neck's weights it would swing with the head and tear away from the rest of the collar)
+    if (dirs[w]) { const near = torsoSkinAt(dirs[w]); U.push(...uv2); JJ.push(...near.j); WW.push(...near.w); return; }
+    if (reskin[w]) { const near = torsoSkinAt(reskin[w], reskin[w].skinFrom); U.push(...uv2); JJ.push(...near.j); WW.push(...near.w); return; }
     U.push(...uv2); JJ.push(...j4); WW.push(...w4);
   });
-  return { P, N, U, JJ, WW, I: tris.map((v) => local.get(v)) };
+  // Triangles that folded over where a hem pulled points onto its line (their face turned against the cloth's
+  // own normals) or shrank to nothing are left out: drawn, their back shows as a dark notch in the cloth
+  const I = [];
+  for (let t = 0; t < tris.length; t += 3) {
+    const k = [local.get(tris[t]), local.get(tris[t + 1]), local.get(tris[t + 2])];
+    // Cloth from past a sleeve's end (the wrist and hand) all pushed back onto the end: it would lie flat across
+    // the opening as a star of slivers; the sleeve is left open there, its cuff finishing it
+    if (k.every((i) => reskin[wOf[i]])) continue;
+    const A = k.map((i) => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]]);
+    const e1 = [A[1][0] - A[0][0], A[1][1] - A[0][1], A[1][2] - A[0][2]], e2 = [A[2][0] - A[0][0], A[2][1] - A[0][1], A[2][2] - A[0][2]];
+    const fn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    const area = Math.hypot(fn[0], fn[1], fn[2]);
+    if (area < 1e-12) continue;
+    const vn = [0, 1, 2].map((c) => N[k[0] * 3 + c] + N[k[1] * 3 + c] + N[k[2] * 3 + c]);
+    if (fn[0] * vn[0] + fn[1] * vn[1] + fn[2] * vn[2] < 0) continue;
+    I.push(...k);
+  }
+  return { P, N, U, JJ, WW, I };
 }
 
 /** Several parts as one (their vertices end to end, their triangles renumbered) */
@@ -439,7 +485,7 @@ const HEMS = {
   Shoes: () => (p, edge) => [p[0], edge && p[1] > ankleY - 0.03 * height ? ankleY : Math.min(ankleY, p[1]), p[2]],
 };
 for (const shell of SHELLS) {
-  const geo = makeShell((t) => masks[t / 3][kIndex[shell.kind]] === '1', { ...shell, hem: HEMS[shell.kind]() });
+  const geo = makeShell((t) => !never(t) && clothOf(t, shell.kind), { ...shell, hem: HEMS[shell.kind]() });
   addGarment(shell.name, [{ mat: shell.mat, geo }]);
 }
 };
@@ -620,7 +666,7 @@ const cuffs = (t, thick) => merge(...['l', 'r'].map((s) => {
   const dir = Math.sign(J(`hand_${s}`)[0] - J(`lowerarm_${s}`)[0]);
   return band(jIndex(`lowerarm_${s}`), [w.at[0] - dir * 0.02 * H, w.at[1], w.at[2]], Y, Z, [dir, 0, 0], 0.035 * H, () => [w.ry + thick * H, w.rz + thick * H]);
 }));
-const ribHem = () => topHem(waistY, 0.028, 0.034);
+const ribHem = () => topHem(waistY, 0.028, 0.034, 0.12);
 const hood = () => {
   const back = neck.cz - neck.rz;
   return dome(sp3, [neck.cx, neckY - 0.03 * H, back - 0.025 * H], 0.07 * H, 0.05 * H, 0.045 * H, 1.5, { tilt: -1.2 });
@@ -660,15 +706,52 @@ const skinToBody = (g) => {
 const backPockets = (extra) => skinToBody(merge(...[-1, 1].map((s) => {
   const th = thighSide(s > 0 ? (J('thigh_l')[0] > 0 ? 'l' : 'r') : (J('thigh_l')[0] > 0 ? 'r' : 'l'), 0.05);
   const turn = -s * 0.3;
-  return pillow(pel, [s * 0.04 * H + waist.cx, hipY - 0.008 * H, th.back - (0.009 + extra) * H], [Math.cos(turn), 0, -Math.sin(turn)], Y, [-Math.sin(turn), 0, -Math.cos(turn)], 0.026 * H, 0.03 * H, 0.004 * H, 0.3, 7);
+  return pillow(pel, [s * 0.04 * H + waist.cx, hipY - 0.008 * H, th.back - (0.0075 + extra) * H], [Math.cos(turn), 0, -Math.sin(turn)], Y, [-Math.sin(turn), 0, -Math.cos(turn)], 0.026 * H, 0.03 * H, 0.0025 * H, 0.3, 7);
 })));
-const cargoPockets = (t, extra) => skinToBody(merge(...['l', 'r'].map((s) => {
+/** Where a garment's own cloth is outermost on one side at height y: the pocket is sewn on that, not on the body
+ *  (the body's outer thigh can lie wider than the cloth over it, and a pocket set from it stands off the leg) */
+const clothSide = (shell, sign, y, near) => {
+  const pts = [];
+  for (let i = 0; i < shell.P.length; i += 3) {
+    const x = shell.P[i], py = shell.P[i + 1], z = shell.P[i + 2];
+    if (Math.abs(py - y) < 0.012 * H && sign * x > 0.03 * H && Math.abs(z - near) < 0.06 * H) pts.push([x, z]);
+  }
+  if (pts.length < 3) return null;
+  pts.sort((a, b) => sign * b[0] - sign * a[0]);
+  const top = pts.slice(0, Math.max(2, Math.ceil(pts.length * 0.1)));
+  return { x: top.reduce((m, p) => m + p[0], 0) / top.length, z: top.reduce((m, p) => m + p[1], 0) / top.length };
+};
+/** A flat part bent round a leg: its width (along z) follows the leg's curve about the axis at (ax, az), so a wide
+ *  pocket lies on the thigh all across instead of touching it only at its widest point */
+const wrapRound = (g, ax, az, sign, x0, z0) => {
+  // The pocket's centre line sits at angle f0 round the axis, R out from it; a point u along the pocket's width
+  // goes to angle f0 + u / R, and d out from the pocket's back to R + d from the axis
+  const R = Math.hypot(x0 - ax, z0 - az), f0 = Math.atan2(z0 - az, sign * (x0 - ax));
+  for (let i = 0; i < g.P.length; i += 3) {
+    const d = sign * (g.P[i] - x0), u = g.P[i + 2] - z0, turn = u / R, a = f0 + turn, r = R + d;
+    g.P[i] = ax + sign * r * Math.cos(a);
+    g.P[i + 2] = az + r * Math.sin(a);
+    const c = Math.cos(turn), sn = Math.sin(turn), nx = sign * g.N[i], nz = g.N[i + 2];
+    g.N[i] = sign * (nx * c - nz * sn);
+    g.N[i + 2] = nx * sn + nz * c;
+  }
+  return g;
+};
+const cargoPockets = (t, extra, shell) => skinToBody(merge(...['l', 'r'].map((s) => {
   const th = thighSide(s, t);
   const ji = jIndex(`thigh_${s}`);
-  return merge(
-    pillow(ji, [th.x + th.sign * (0.019 + extra) * H, th.y, th.cz], Z, Y, [th.sign, 0, 0], 0.04 * H, 0.048 * H, 0.009 * H, 0.32),
-    pillow(ji, [th.x + th.sign * (0.026 + extra) * H, th.y + 0.042 * H, th.cz], Z, Y, [th.sign, 0, 0], 0.043 * H, 0.014 * H, 0.004 * H, 0.3, 7),
+  const on = shell ? clothSide(shell, th.sign, th.y, th.cz) : null;
+  // The pocket half sunk into the cloth, the flap lying over its top
+  const x = on ? on.x - th.sign * 0.0015 * H : th.x + th.sign * (0.019 + extra) * H;
+  const z = on ? on.z : th.cz;
+  const parts = merge(
+    pillow(ji, [x, th.y, z], Z, Y, [th.sign, 0, 0], 0.04 * H, 0.048 * H, 0.0055 * H, 0.3),
+    pillow(ji, [x + th.sign * 0.0045 * H, th.y + 0.042 * H, z], Z, Y, [th.sign, 0, 0], 0.043 * H, 0.014 * H, 0.0025 * H, 0.3, 7),
   );
+  // Bent round the thigh's own axis there (between the hip and knee joints)
+  const A = J(`thigh_${s}`), B = J(`calf_${s}`);
+  const k = (th.y - A[1]) / (B[1] - A[1]);
+  return wrapRound(parts, A[0] + (B[0] - A[0]) * k, A[2] + (B[2] - A[2]) * k, th.sign, x, z);
 })));
 // Caps, over the head; the brim reaches forward (+z, the face's side) from over the brow
 // The crown of the head: the skull above the brow (the head's box runs down to the jaw)
@@ -689,7 +772,10 @@ const armStop = (p, t, edge = false) => {
   if (!inArm(p) || armT(p) <= t - (edge ? 0.14 : 0)) return p;
   const s = sideOf(p);
   const [a, b, u] = t <= 1 ? [`upperarm_${s}`, `lowerarm_${s}`, t] : [`lowerarm_${s}`, `hand_${s}`, t - 1];
-  return [J(a)[0] + (J(b)[0] - J(a)[0]) * u, p[1], p[2]];
+  const q = [J(a)[0] + (J(b)[0] - J(a)[0]) * u, p[1], p[2]];
+  // (brought back to the sleeve's end from further down the arm or the hand: it moves with the arm where it now is)
+  q.skinFrom = new RegExp(`^(upperarm|lowerarm)_${s}`);
+  return q;
 };
 /** Hems for a top: sleeves end at armT `sleeve`, the body at `bottom`, the neckline at neckY */
 const topHems = (sleeve, bottom) => Object.assign((p, edge) => {
@@ -744,9 +830,9 @@ const sleeveHems = (t, out, len = 0.028) => merge(...['l', 'r'].map((s) => {
   return band(r.ji, [r.at[0] - r.dir * len * 0.6 * H, r.at[1], r.at[2]], Y, Z, [r.dir, 0, 0], len * H, () => [r.ry + out * H, r.rz + out * H]);
 }));
 /** A top's hem round the hips */
-const topHem = (y, out, len = 0.03) => {
+const topHem = (y, out, len = 0.03, above = 0.5) => {
   const r = ringAt((v, p) => torso(v) && !inArm(p), y, 0.01 * H);
-  return band(sp1, [r.cx, y - len * 0.5 * H, r.cz], X, Z, Y, len * H, () => [r.rx + out * H, r.rz + out * H]);
+  return band(sp1, [r.cx, y - len * (1 - above) * H, r.cz], X, Z, Y, len * H, () => [r.rx + out * H, r.rz + out * H]);
 };
 /** The hems of a pair of short legs (shorts), round each thigh where the leg ends */
 const legHems = (y, out, len = 0.03) => merge(...['l', 'r'].map((s) => {
@@ -764,7 +850,7 @@ const belowKnee = (by) => (p) => (inArm(p) ? 0 : ramp(kneeY + 0.04 * H - p[1], 0
 const hatMat = cloth('Cloth_Hat', [0.08, 0.08, 0.1], 0.85, [0.1, 0.1, 0.1]);
 const trimMat = doc.createMaterial('Cloth_Trim').setBaseColorFactor([0.92, 0.9, 0.85, 1]).setRoughnessFactor(0.4).setMetallicFactor(0.1);
 const KIND_HEMS = { TopShort: () => topHems(0.55, waistY), TopLong: () => topHems(1.92, waistY), BottomLong: () => legHemsAt(ankleY - 0.012 * H), BottomShort: () => legHemsAt(shortLegY) };
-const shellOf = (kind, extraCover, spec) => makeShell((t) => masks[t / 3][kIndex[kind]] === '1' || (extraCover ? triCoveredBy(t, extraCover) : false), { hem: KIND_HEMS[kind](), ...(kind.startsWith('Bottom') ? { snugAbove: waistY - 0.03 * H } : {}), ...spec });
+const shellOf = (kind, extraCover, spec) => makeShell((t) => (!never(t) && clothOf(t, kind)) || (extraCover ? triCoveredBy(t, extraCover) : false), { hem: KIND_HEMS[kind](), ...(kind.startsWith('Bottom') ? { snugAbove: waistY - 0.03 * H } : {}), ...spec });
 const triCoveredBy = (t, test) => {
   if (never(t)) return false;
   const a = P0[idx[t]], b = P0[idx[t + 1]], c = P0[idx[t + 2]];
@@ -895,11 +981,11 @@ const GARMENTS2 = [
   ['Outfit_Bottom_Long__jeans_slim', () => [{ mat: fab('Cloth_Bottom', 'denim'), geo: merge(shellOf('BottomLong', null, { off: 0.011, smooth: 14, lap: 6, ankleMin: 0.03 }), backPockets(0)) }]],
   ['Outfit_Bottom_Long__jeans_straight', () => [{ mat: fab('Cloth_Bottom', 'denim'), geo: merge(shellOf('BottomLong', null, { off: 0.013, smooth: 16, lap: 8, offAt: belowKnee(0.018), ankleMin: 0.032 }), backPockets(0.002)) }]],
   ['Outfit_Bottom_Long__jeans_baggy', () => [{ mat: fab('Cloth_Bottom', 'denim'), geo: merge(shellOf('BottomLong', null, { off: 0.022, smooth: 20, lap: 12, offAt: (p) => 0.006 + belowKnee(0.026)(p), ankleMin: 0.036 }), backPockets(0.012)) }]],
-  ['Outfit_Bottom_Long__cargo', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: merge(shellOf('BottomLong', null, { off: 0.018, smooth: 18, lap: 10, offAt: belowKnee(0.012), ankleMin: 0.032 }), cargoPockets(0.55, 0.0), backPockets(0.008)) }]],
+  ['Outfit_Bottom_Long__cargo', () => { const sh = shellOf('BottomLong', null, { off: 0.018, smooth: 18, lap: 10, offAt: belowKnee(0.012), ankleMin: 0.032 }); return [{ mat: fab('Cloth_Bottom', 'twill'), geo: merge(sh, cargoPockets(0.55, 0.0, sh), backPockets(0.008)) }]; }],
   ['Outfit_Bottom_Long__chinos', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: shellOf('BottomLong', null, { off: 0.014, smooth: 16, lap: 8, offAt: belowKnee(0.01), ankleMin: 0.031 }) }]],
   // Shorts: cotton twill
   ['Outfit_Bottom_Short__shorts', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: shellOf('BottomShort', null, { off: 0.016, smooth: 14, lap: 6, offAt: (p) => ramp(hipY - p[1], 0, hipY - kneeY) * 0.014 }) }]],
-  ['Outfit_Bottom_Short__cargo_shorts', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: merge(shellOf('BottomShort', null, { off: 0.022, smooth: 16, lap: 8, offAt: (p) => ramp(hipY - p[1], 0, hipY - kneeY) * 0.012 }), cargoPockets(0.6, 0.004)) }]],
+  ['Outfit_Bottom_Short__cargo_shorts', () => { const sh = shellOf('BottomShort', null, { off: 0.022, smooth: 16, lap: 8, offAt: (p) => ramp(hipY - p[1], 0, hipY - kneeY) * 0.012 }); return [{ mat: fab('Cloth_Bottom', 'twill'), geo: merge(sh, cargoPockets(0.6, 0.004, sh)) }]; }],
   // Headwear: a twill cap and bucket hat, a rib-knit beanie
   ['Outfit_Hat__cap', () => [{ mat: fab('Cloth_Hat', 'twill'), geo: merge(capCrown(), capBrim(), capButton()) }]],
   ['Outfit_Hat__bucket', () => [{ mat: fab('Cloth_Hat', 'twill'), geo: merge(bucketCrown(), bucketBrim()) }]],
@@ -907,7 +993,7 @@ const GARMENTS2 = [
   // Footwear: canvas sneakers on a thick white sole, leather shoes on a thin one, leather boots up the ankle, and slides
   ['Outfit_Shoes__sneaker', () => shoe(fab('Cloth_Shoes', 'canvas'), fab('Sole', 'rubber'), 0.016, { off: 0.024, smooth: 12, lap: 26 })],
   ['Outfit_Shoes__formal', () => shoe(fab('Cloth_Shoes', 'leather'), fab('Sole', 'leather'), 0.008, { off: 0.016, smooth: 16, lap: 34 })],
-  ['Outfit_Shoes__boot', () => shoe(fab('Cloth_Shoes', 'leather'), fab('Sole', 'rubber'), 0.012, { off: 0.022, smooth: 14, lap: 24, offAt: (p) => (p[1] > ankleY - 0.01 * H ? -0.004 : 0) }, (p) => !inArm(p) && p[1] < ankleY + 0.026 * H && p[1] > groundY && p[1] < kneeY, ankleY + 0.026 * H)],
+  ['Outfit_Shoes__boot', () => shoe(fab('Cloth_Shoes', 'leather'), fab('Sole', 'rubber'), 0.012, { off: 0.022, smooth: 14, lap: 24, offAt: (p) => (p[1] > ankleY - 0.01 * H ? -0.004 - 0.006 * ramp(p[1], ankleY, ankleY + 0.026 * H) : 0) }, (p) => !inArm(p) && p[1] < ankleY + 0.026 * H && p[1] > groundY && p[1] < kneeY, ankleY + 0.026 * H)],
   ['Outfit_Feet__slides', () => [{ mat: fab('Cloth_Shoes', 'rubber'), geo: slides() }]],
 ];
 plainShells();

@@ -404,7 +404,8 @@ function linesOf(mesh: THREE.SkinnedMesh, kind: string) {
   const variant = garmentOf(mesh)?.variant ?? '';
   return {
     hemY: top || bottom ? shape.minY : -1000,
-    sleeveX: top ? shape.maxX : -1,
+    // (a ribbed cuff finishes a hoodie's sleeve: no hem stitching under it, which would show inside a bent arm's cuff)
+    sleeveX: top && variant !== 'hoodie' ? shape.maxX : -1,
     elbowX: kind === 'Top_Long' && elbow ? Math.abs(elbow.x) : -1,
     // (the shell's lowest point is under the ground by the shoe's own thickness, about 4 cm)
     soleY: kind === 'Shoes' ? shape.minY + 0.042 + (soleThickness[variant] ?? 0.02) : -1000,
