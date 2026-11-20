@@ -108,9 +108,10 @@ const sideOf = (p) => {
 // The free pack only has the very muscular body. Limbs and chest are drawn in toward the bones, and the
 // sculpted muscle is smoothed away; head, hands and feet are left exactly as they are.
 {
+  // An everyday Nigerian build: a man strong but not bulky, a woman shapely and slim
   const SLIM = gender === 'female'
-    ? { upperarm: 0.88, lowerarm: 0.92, thigh: 0.95, calf: 0.96, chest: 0.95 }
-    : { upperarm: 0.82, lowerarm: 0.9, thigh: 0.93, calf: 0.95, chest: 0.92 };
+    ? { upperarm: 0.8, lowerarm: 0.88, thigh: 0.9, calf: 0.92, chest: 0.92, back: 0.93, waist: 0.95, neck: 0.9 }
+    : { upperarm: 0.66, lowerarm: 0.8, thigh: 0.82, calf: 0.87, chest: 0.85, back: 0.86, waist: 0.92, neck: 0.82 };
   const jn = (v) => { const j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0]; jnt.getElement(v, j4); wgt.getElement(v, w4); let b = 0; for (let k = 1; k < 4; k++) if (w4[k] > w4[b]) b = k; return jointNames[j4[b]]; };
   const toward = (p, a, b, f) => { // radially toward the bone a->b
     const A = J(a), B = J(b);
@@ -119,7 +120,7 @@ const sideOf = (p) => {
     const q = [A[0] + d[0] * t, A[1] + d[1] * t, A[2] + d[2] * t];
     return [q[0] + (p[0] - q[0]) * f, q[1] + (p[1] - q[1]) * f, q[2] + (p[2] - q[2]) * f];
   };
-  const keep = /^(Head|neck_01|hand_|index|middle|pinky|ring|thumb|foot|ball)/;
+  const keep = /^(Head|hand_|index|middle|pinky|ring|thumb|foot|ball)/;
   const moveable = new Array(vCount);
   for (let v = 0; v < vCount; v++) {
     const j = jn(v);
@@ -133,9 +134,14 @@ const sideOf = (p) => {
     if (m) { P0[v] = toward(p, `thigh_${m[1]}`, `calf_${m[1]}`, SLIM.thigh); continue; }
     m = /^calf_([lr])/.exec(j);
     if (m) { P0[v] = toward(p, `calf_${m[1]}`, `foot_${m[1]}`, SLIM.calf); continue; }
-    if (/^(spine_03|clavicle_)/.test(j)) {
-      const c = J('spine_03');
-      P0[v] = [c[0] + (p[0] - c[0]) * SLIM.chest, p[1], c[2] + (p[2] - c[2]) * SLIM.chest];
+    // Chest, back and waist drawn in toward the spine; the neck toward its own bone
+    const ring = /^(spine_03|clavicle_)/.test(j) ? ['spine_03', SLIM.chest]
+      : j === 'spine_02' ? ['spine_02', SLIM.back]
+      : j === 'spine_01' ? ['spine_01', SLIM.waist]
+      : j === 'neck_01' ? ['neck_01', SLIM.neck] : null;
+    if (ring) {
+      const c = J(ring[0]);
+      P0[v] = [c[0] + (p[0] - c[0]) * ring[1], p[1], c[2] + (p[2] - c[2]) * ring[1]];
     }
   }
   // Smoothing over the welded surface (UV seams split vertices; welding keeps the skin closed)

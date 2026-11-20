@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makePosture, POSTURE } from './Posture';
 import { AssetManager } from '../../assets/AssetManager';
 import { WARDROBE_CATALOGUE, type CharacterConfig } from '../../player/CharacterCustomization';
 import { makeClothMaterial, makeSkinMaterial } from './CharacterSurfaces';
@@ -272,6 +273,8 @@ export async function loadSkinnedCharacter(
     }
   });
 
+  // An everyday posture (shoulders and hips brought in, set before the body is measured)
+  const posture = makePosture(root, scene, POSTURE[gender === 'female' ? 'female' : 'male']);
   const height = normalizeGroundAndScale(root, gender === 'female' ? 1.68 : 1.78);
 
   const mixer = new THREE.AnimationMixer(scene);
@@ -303,9 +306,11 @@ export async function loadSkinnedCharacter(
   const groundY = root.position.y;
 
   let current: THREE.AnimationAction | null = null;
+  let currentState: string = 'idle';
   const play = (state: SkinnedAnimState, fade = 0.25) => {
     const next = findClip(actions, state);
     if (!next || next === current) return;
+    currentState = next.getClip().name.toLowerCase();
     next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(fade).play();
     if (next === fall) next.time = fall.getClip().duration; // straight to lying, held
     if (current) current.fadeOut(fade);
@@ -398,7 +403,9 @@ export async function loadSkinnedCharacter(
     },
     applyPose,
     update: (delta: number) => {
+      posture.restore();
       mixer.update(delta);
+      posture.apply(currentState);
     },
     applyAppearance,
     dispose: () => {
