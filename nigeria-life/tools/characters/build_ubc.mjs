@@ -110,8 +110,8 @@ const sideOf = (p) => {
 {
   // An everyday Nigerian build: a man strong but not bulky, a woman shapely and slim
   const SLIM = gender === 'female'
-    ? { upperarm: 0.8, lowerarm: 0.88, thigh: 0.9, calf: 0.92, chest: 0.92, back: 0.93, waist: 0.95, neck: 0.9 }
-    : { upperarm: 0.66, lowerarm: 0.8, thigh: 0.82, calf: 0.87, chest: 0.85, back: 0.86, waist: 0.92, neck: 0.82 };
+    ? { upperarm: 0.82, lowerarm: 0.9, thigh: 0.86, calf: 0.9, chest: 0.92, front: 0.95, back: 0.93, waist: 0.95, neck: 0.9 }
+    : { upperarm: 0.76, lowerarm: 0.86, thigh: 0.76, calf: 0.83, chest: 0.82, front: 0.7, back: 0.86, waist: 0.92, neck: 0.82 };
   const jn = (v) => { const j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0]; jnt.getElement(v, j4); wgt.getElement(v, w4); let b = 0; for (let k = 1; k < 4; k++) if (w4[k] > w4[b]) b = k; return jointNames[j4[b]]; };
   const toward = (p, a, b, f) => { // radially toward the bone a->b
     const A = J(a), B = J(b);
@@ -141,7 +141,9 @@ const sideOf = (p) => {
       : j === 'neck_01' ? ['neck_01', SLIM.neck] : null;
     if (ring) {
       const c = J(ring[0]);
-      P0[v] = [c[0] + (p[0] - c[0]) * ring[1], p[1], c[2] + (p[2] - c[2]) * ring[1]];
+      // The chest's front (the pecs) comes in further than its sides
+      const fz = ring[0] === 'spine_03' && p[2] > c[2] ? ring[1] * SLIM.front : ring[1];
+      P0[v] = [c[0] + (p[0] - c[0]) * ring[1], p[1], c[2] + (p[2] - c[2]) * fz];
     }
   }
   // Smoothing over the welded surface (UV seams split vertices; welding keeps the skin closed)
