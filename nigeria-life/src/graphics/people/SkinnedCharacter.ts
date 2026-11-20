@@ -131,24 +131,72 @@ function normalizeGroundAndScale(root: THREE.Group, targetHeight = 1.75): number
 // that is shown has a 1 in its digit, so skin never shows through clothes and nothing is left bare.
 const GARMENTS = ['Outfit_Top_Short', 'Outfit_Top_Long', 'Outfit_Bottom_Long', 'Outfit_Bottom_Short', 'Outfit_Shoes'] as const;
 /** Tops with long sleeves (a robe or gown is drawn as its long-sleeved top until flowing cloth is modelled) */
-const LONG_SLEEVES = new Set(['button_shirt', 'hoodie', 'suit', 'kaftan', 'senator', 'agbada', 'buba_iro', 'ankara_gown']);
+const LONG_SLEEVES = new Set(['button_shirt', 'hoodie', 'suit', 'kaftan', 'senator', 'agbada', 'buba_iro', 'ankara_gown', 'corporate_shirt', 'native_attire', 'boubou', 'abaya', 'hijab_dress', 'lecturer_suit', 'mechanic_overalls', 'security_uniform']);
 /** Tops that come with their own bottom in the same cloth (dresses, gowns, a jumpsuit) */
-const ONE_PIECE: Record<string, 'long' | 'short'> = { bodycon: 'short', ankara_gown: 'long', jumpsuit: 'long', buba_iro: 'long' };
+const ONE_PIECE: Record<string, 'long' | 'short'> = { bodycon: 'short', ankara_gown: 'long', jumpsuit: 'long', buba_iro: 'long', boubou: 'long', abaya: 'long', hijab_dress: 'long', royal_dress: 'long', dress: 'short', blue_dress: 'short', mechanic_overalls: 'long', nurse_scrubs: 'long' };
 /** Bottoms cut above the knee */
 const SHORT_BOTTOMS = new Set(['skirt', 'peplum_skirt']);
 /** The skin colour the build bakes in, and the tone it stands for: other tones scale from it */
 const BAKED_SKIN = new THREE.Color(0.62, 0.44, 0.33);
 const BAKED_TONE = new THREE.Color('#7a4b33');
 
+/** What someone wears, resolved: from the player's wardrobe or from a street person's look */
+interface Garments {
+  topStyle: string;
+  topHex: number;
+  bottomStyle: string;
+  bottomHex: number;
+  shoesHex: number;
+  skinTone?: string;
+  hairColor?: string;
+}
+
+/** A street person's look (the crowd's HumanConfig fields the skinned model can show) */
+export interface StreetLook {
+  gender: 'male' | 'female';
+  skinTone?: string;
+  hairColor?: string;
+  outfit?: string;
+  outfitColor?: number;
+  trousersColor?: number;
+  shoeColor?: number;
+}
+
 function applyGarmentLayout(scene: THREE.Object3D, cfg: CharacterConfig, gender: 'male' | 'female'): void {
   const find = (id?: string) => (id ? WARDROBE_CATALOGUE.find((i) => i.id === id) : undefined);
   const top = find(cfg.topId);
   const bottom = find(cfg.bottomId);
   const shoes = find(cfg.shoesId);
-  const topStyle = top?.styleKey ?? '';
+  applyGarments(scene, {
+    topStyle: top?.styleKey ?? '',
+    topHex: top?.color ?? 0xf8fafc,
+    bottomStyle: bottom?.styleKey ?? '',
+    bottomHex: bottom?.color ?? (typeof cfg.trousersColor === 'string' ? new THREE.Color(cfg.trousersColor).getHex() : 0x1e293b),
+    shoesHex: shoes?.color ?? 0x111827,
+    skinTone: cfg.skinTone,
+    hairColor: cfg.hairColor,
+  }, gender);
+}
+
+/** Dresses a skinned model as a street person looks (their outfit style and colours) */
+export function applyStreetLook(scene: THREE.Object3D, look: StreetLook): void {
+  applyGarments(scene, {
+    topStyle: look.outfit ?? '',
+    topHex: look.outfitColor ?? 0xf8fafc,
+    // A skirt outfit is a top over a skirt
+    bottomStyle: SHORT_BOTTOMS.has(look.outfit ?? '') ? look.outfit! : '',
+    bottomHex: look.trousersColor ?? look.outfitColor ?? 0x1e293b,
+    shoesHex: look.shoeColor ?? 0x111827,
+    skinTone: look.skinTone,
+    hairColor: look.hairColor,
+  }, look.gender);
+}
+
+function applyGarments(scene: THREE.Object3D, g: Garments, gender: 'male' | 'female'): void {
+  const topStyle = g.topStyle;
   const onePiece = ONE_PIECE[topStyle];
   const sleeves: 'short' | 'long' = LONG_SLEEVES.has(topStyle) ? 'long' : 'short';
-  const legs: 'long' | 'short' = onePiece ?? (SHORT_BOTTOMS.has(bottom?.styleKey ?? '') ? 'short' : 'long');
+  const legs: 'long' | 'short' = onePiece ?? (SHORT_BOTTOMS.has(g.bottomStyle) ? 'short' : 'long');
   const shown: Record<(typeof GARMENTS)[number], boolean> = {
     Outfit_Top_Short: sleeves === 'short',
     Outfit_Top_Long: sleeves === 'long',
@@ -156,18 +204,18 @@ function applyGarmentLayout(scene: THREE.Object3D, cfg: CharacterConfig, gender:
     Outfit_Bottom_Short: legs === 'short',
     Outfit_Shoes: true,
   };
-  const topHex = top?.color ?? 0xf8fafc;
-  const bottomHex = onePiece ? topHex : bottom?.color ?? (typeof cfg.trousersColor === 'string' ? new THREE.Color(cfg.trousersColor).getHex() : 0x1e293b);
-  const shoesHex = shoes?.color ?? 0x111827;
+  const topHex = g.topHex;
+  const bottomHex = onePiece ? topHex : g.bottomHex;
+  const shoesHex = g.shoesHex;
 
   // Skin: the player's tone, scaled from the tone the build's colour stands for
-  const tone = new THREE.Color(cfg.skinTone || (gender === 'female' ? '#7a4b33' : '#5c3a28'));
+  const tone = new THREE.Color(g.skinTone || (gender === 'female' ? '#7a4b33' : '#5c3a28'));
   const skinMul = new THREE.Color(
     Math.min(1, (BAKED_SKIN.r * tone.r) / BAKED_TONE.r),
     Math.min(1, (BAKED_SKIN.g * tone.g) / BAKED_TONE.g),
     Math.min(1, (BAKED_SKIN.b * tone.b) / BAKED_TONE.b),
   );
-  const hair = new THREE.Color(cfg.hairColor || '#0b0908');
+  const hair = new THREE.Color(g.hairColor || '#0b0908');
 
   // One material per role, shared by every piece that uses it (the pieces were cloned with the scene)
   const made = new Map<string, THREE.Material>();

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { BUS_STOPS, stopAt } from '../../transit/Fares';
 import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
+import { SkinnedCrowd } from '../../graphics/people/SkinnedCrowd';
+import type { StreetLook } from '../../graphics/people/SkinnedCharacter';
 import { bakeToGeometry, seededRandom, simplifyByClustering } from '../../graphics/MeshBaker';
 import type { StreetSpot, WalkRun } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_JUNCTION_GAPS, MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
@@ -30,6 +32,8 @@ interface Variant {
   drawnFar: number;
   farBody?: THREE.InstancedMesh;
   farLimbs: THREE.InstancedMesh[];
+  /** The look it was made from: the near character models dress as it */
+  look: HumanConfig;
 }
 
 interface Agent {
@@ -240,7 +244,7 @@ const LAGOS_CROWD: CrowdPlan = {
 };
 
 /** The shapes of the crowd's looks, baked once (by Lagos's crowd, the first) and shared by every city's */
-type Shape = Pick<Variant, 'bodyGeo' | 'limbGeos' | 'farBodyGeo' | 'farLimbGeos' | 'pivots' | 'footY'>;
+type Shape = Pick<Variant, 'bodyGeo' | 'limbGeos' | 'farBodyGeo' | 'farLimbGeos' | 'pivots' | 'footY' | 'look'>;
 
 /**
  * CityPopulation
@@ -250,6 +254,8 @@ type Shape = Pick<Variant, 'bodyGeo' | 'limbGeos' | 'farBodyGeo' | 'farLimbGeos'
  */
 export class CityPopulation {
   public group: THREE.Group;
+  /** The nearest few people, drawn as full character models instead of the light figures */
+  public readonly models: SkinnedCrowd;
   public count = 0;
   /** The share of them who are out at this hour: the rest are at home, and not drawn */
   public abroad = 1;
@@ -337,6 +343,7 @@ export class CityPopulation {
 
   constructor(walkRuns: WalkRun[] = [], stallSpots: StreetSpot[] = [], plan: CrowdPlan = LAGOS_CROWD) {
     this.group = new THREE.Group();
+    this.models = new SkinnedCrowd(this.group);
     this.plan = plan;
     if (plan.seed) this.rand = seededRandom(plan.seed);
 
@@ -344,7 +351,7 @@ export class CityPopulation {
       this.variants = CityPopulation.shapes.map((shape) => ({ ...shape, count: 0, drawn: 0, limbs: [], drawnFar: 0, farLimbs: [] }));
     } else {
       this.bakeVariants();
-      CityPopulation.shapes = this.variants.map(({ bodyGeo, limbGeos, farBodyGeo, farLimbGeos, pivots, footY }) => ({ bodyGeo, limbGeos, farBodyGeo, farLimbGeos, pivots, footY }));
+      CityPopulation.shapes = this.variants.map(({ bodyGeo, limbGeos, farBodyGeo, farLimbGeos, pivots, footY, look }) => ({ bodyGeo, limbGeos, farBodyGeo, farLimbGeos, pivots, footY, look }));
     }
     this.spawnMainStreetWalkers();
     this.spawnSideStreetWalkers(walkRuns);
@@ -492,6 +499,7 @@ export class CityPopulation {
         count: 0,
         drawn: 0,
         limbs: [],
+        look,
       });
 
       // The prototype rig is only a mould; release its GPU-side resources
@@ -1912,6 +1920,16 @@ export class CityPopulation {
       this.lastSeen.add(a);
       const ax = a.x + (a.ox ?? 0);
       const az = a.z + (a.oz ?? 0);
+      if (!far && playerPos) {
+        const dx = ax - playerPos.x;
+        const dz = az - playerPos.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < this.models.reach2) {
+          const ground0 = (a.onMainWalk && this.plan.gap(a.z)) || a.xing?.phase === 'go' ? 0.02 : this.plan.avenue.top;
+          this.models.offer({ id: a.id, look: variant.look as StreetLook, lookKey: a.variant, x: ax, y: ground0, z: az, yaw: a.yaw, scale: a.scale, mode: a.mode, d2 });
+        }
+        if (this.models.has(a.id)) continue;
+      }
       const slot = far ? variant.drawnFar++ : variant.drawn++;
       const bodyMesh = far ? variant.farBody! : variant.body;
       const limbMeshes = far ? variant.farLimbs : variant.limbs;
@@ -1960,6 +1978,8 @@ export class CityPopulation {
 
     this.owedHidden[tick % HIDDEN_EVERY] = 0;
     this.owedFar[tick % FAR_EVERY] = 0;
+    // The nearest few, as character models
+    this.models.sync(frameDelta);
     this.movedNow = moved;
     this.seenNow = seenNow;
 

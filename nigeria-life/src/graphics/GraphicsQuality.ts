@@ -1,3 +1,4 @@
+import { SkinnedCrowd } from './people/SkinnedCrowd';
 import * as THREE from 'three';
 
 /**
@@ -26,6 +27,8 @@ interface Level {
   /** Pedestrians drawn at all within this, in full within crowdNear, metres */
   crowdDraw: number;
   crowdNear: number;
+  /** How many of the nearest street people are drawn as full character models */
+  crowdModels: number;
   /** Instanced traffic draw distance, metres */
   trafficDraw: number;
   /** Frames between smoke/atmosphere particle updates (1 = every frame) */
@@ -49,6 +52,7 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     shadowEvery: 0,
     crowdDraw: 90,
     crowdNear: 22,
+    crowdModels: 10,
     trafficDraw: 150,
     smokeEvery: 1,
     districtDraw: 600,
@@ -65,6 +69,7 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     shadowEvery: 0,
     crowdDraw: 60,
     crowdNear: 12,
+    crowdModels: 6,
     trafficDraw: 110,
     smokeEvery: 2,
     districtDraw: 380,
@@ -84,6 +89,7 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     crowdDraw: 36,
     // Slightly farther full-detail pedestrians (presence without raising draw distance / fill-rate)
     crowdNear: 10,
+    crowdModels: 3,
     trafficDraw: 80,
     smokeEvery: 4,
     districtDraw: 220,
@@ -257,6 +263,7 @@ export class GraphicsQuality {
     renderer.shadowMap.needsUpdate = true;
     crowd.drawDistance = l.crowdDraw;
     crowd.nearDistance = l.crowdNear;
+    SkinnedCrowd.limit = l.crowdModels;
     this.targets.onLevel?.({
       smokeEvery: l.smokeEvery,
       districtDraw: l.districtDraw,
