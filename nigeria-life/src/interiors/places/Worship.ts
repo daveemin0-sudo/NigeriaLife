@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { HumanMeshBuilder, type HumanConfig, type HumanRig } from '../../graphics/HumanMeshBuilder';
 import { bakeToGeometry } from '../../graphics/MeshBaker';
+import { applyStreetLook, loadSkinnedCharacter, type SkinnedCharacterHandle, type StreetLook } from '../../graphics/people/SkinnedCharacter';
+import { buildOf } from '../../graphics/people/SkinnedCrowd';
+import type { CharacterConfig } from '../../player/CharacterCustomization';
 import { Builder, signBoard } from '../../world/kit/ArchKit';
 import { Actor } from '../../interactions/Actor';
 import { InteractionDirector } from '../../interactions/InteractionDirector';
@@ -285,8 +288,14 @@ export class Figure {
   private dancing = false;
   private holdLeft = 0;
   private holdThen: (() => void) | null = null;
+  /** The full character model standing in for the rig, once it has loaded (only for a figure made with `model`) */
+  private model: SkinnedCharacterHandle | null = null;
 
-  constructor(parent: THREE.Group, id: string, name: string, look: HumanConfig, at: [number, number], facing: number, y = 0) {
+  /**
+   * `model`: drawn as a full character model (the player's build: clothes, hair, clips) once it loads, the
+   * light rig until then. For the few people met up close (the house staff); a big congregation stays light.
+   */
+  constructor(parent: THREE.Group, id: string, name: string, look: HumanConfig, at: [number, number], facing: number, y = 0, model = false) {
     this.rig = HumanMeshBuilder.createHuman({ lod: 'street', ...look, username: '' });
     this.rig.nameTag.visible = false;
     if (this.rig.phoneMesh) this.rig.phoneMesh.visible = false;
@@ -295,8 +304,31 @@ export class Figure {
     this.root.position.set(at[0], y, at[1]);
     this.root.rotation.y = facing;
     parent.add(this.root);
-    this.actor = InteractionDirector.get().register(new Actor({ id: `worship:${id}`, name, root: this.root, getRig: () => this.rig }));
+    this.actor = InteractionDirector.get().register(
+      new Actor({ id: `worship:${id}`, name, root: this.root, getRig: () => (this.model ? null : this.rig), getSkinned: () => this.model })
+    );
     this.actor.setScripted(true);
+    if (model) this.loadModel(id, look);
+  }
+
+  private loadModel(id: string, look: HumanConfig): void {
+    const gender = look.gender === 'female' ? 'female' : 'male';
+    void loadSkinnedCharacter(gender, { gender } as CharacterConfig).then((handle) => {
+      if (!handle) return;
+      applyStreetLook(handle.root, { ...look, gender } as StreetLook);
+      // Drawn on the same layers as the rig it replaces (rooms draw their own layers)
+      let mask = this.root.layers.mask;
+      this.rig.group.traverse((o) => { if ((o as THREE.Mesh).isMesh) mask = o.layers.mask; });
+      handle.root.traverse((o) => { o.layers.mask = mask; });
+      // Their own build and height, the same every time
+      let seed = 0;
+      for (let i = 0; i < id.length; i++) seed = (Math.imul(seed, 31) + id.charCodeAt(i)) | 0;
+      const [width, height] = buildOf(seed);
+      handle.root.scale.set(handle.root.scale.x * width, handle.root.scale.y * height, handle.root.scale.z * width);
+      this.root.add(handle.root);
+      this.rig.group.visible = false;
+      this.model = handle;
+    });
   }
 
   public get walking(): boolean {
@@ -344,6 +376,7 @@ export class Figure {
   }
 
   public tick(delta: number): void {
+    this.model?.update(delta);
     if (this.holdThen) {
       this.holdLeft -= delta;
       if (this.holdLeft <= 0) {

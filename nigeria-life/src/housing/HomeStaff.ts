@@ -578,7 +578,7 @@ export class HomeStaff {
       const layout = this.spotsFor(spec.id, this.homePlan);
       if (!live || live.figure.root.parent !== group) {
         if (live) live.figure.root.removeFromParent();
-        const figure = new Figure(group, `staff_${spec.id}`, spec.name, spec.look, layout.start, layout.facing);
+        const figure = new Figure(group, `staff_${spec.id}`, spec.name, spec.look, layout.start, layout.facing, 0, true);
         figure.root.userData.staffRole = spec.id;
         const card: InteractiveObject = {
           id: cardId,
