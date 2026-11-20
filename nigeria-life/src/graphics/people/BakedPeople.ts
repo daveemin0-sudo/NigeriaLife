@@ -18,7 +18,7 @@ export type BakedMode = 'walk' | 'idle' | 'talk' | 'dance' | 'sit';
 /** Frames baked for each action (a walk needs enough for the legs to read as walking) */
 const FRAMES: Record<BakedMode, number> = { walk: 8, idle: 1, talk: 2, dance: 4, sit: 1 };
 /** Parts of the body by material, as the colour each takes */
-const PART: Record<string, number> = { Skin_Body: 0, Hair: 1, Cloth_Top: 2, Cloth_Bottom: 3, Cloth_Shoes: 4, Cloth_Hat: 5, Cloth_Trim: 2 };
+const PART: Record<string, number> = { Skin_Body: 0, Hair: 1, Cloth_Top: 2, Cloth_Bottom: 3, Cloth_Shoes: 4, Sole: 4, Cloth_Hat: 5, Cloth_Trim: 2 };
 const TINTS = ['tSkin', 'tHair', 'tTop', 'tBottom', 'tShoes', 'tHat'] as const;
 const MODES: BakedMode[] = ['walk', 'idle', 'talk', 'dance', 'sit'];
 
@@ -126,7 +126,11 @@ export class BakedPeople {
     if (!model) return false;
     let dress = this.dresses.get(lookKey);
     if (!dress) {
-      const d = streetDress(look);
+      const near = streetDress(look);
+      // Far away a sneaker, a formal shoe and a boot look alike: one shoe shape for all (bare feet in slides
+      // still show), so shoe styles do not multiply the frames baked (their colour still comes per person)
+      const variants = { ...near.variants, shoes: near.variants.feet ? '' : 'sneaker' };
+      const d = { ...near, variants, key: near.key.replace(/\|[a-z_]*\|([a-z_]*)$/, `|${variants.shoes}|$1`) };
       let cut = BakedPeople.cuts.get(d.key);
       if (cut === undefined) {
         cut = BakedPeople.cuts.size;
@@ -286,7 +290,7 @@ export class BakedPeople {
       const piece = /^Body_c([01]{5})$/.exec(name);
       if (piece && [...piece[1]].some((bit, i) => bit === '1' && shown[i])) return;
       const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-      const part = PART[material?.name ?? ''] ?? (material?.name === 'Eyes' ? 1 : 0);
+      const part = PART[(material?.name ?? '').split(':')[0]] ?? (material?.name === 'Eyes' ? 1 : 0);
       const pos = mesh.geometry.getAttribute('position');
       const idx = mesh.geometry.getIndex();
       const count = idx ? idx.count : pos.count;
@@ -331,7 +335,7 @@ export class BakedPeople {
       const piece = /^Body_c([01]{5})$/.exec(name);
       if (piece && [...piece[1]].some((bit, i) => bit === '1' && shown[i])) return;
       const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-      const part = PART[material?.name ?? ''] ?? 0;
+      const part = PART[(material?.name ?? '').split(':')[0]] ?? 0;
       const pos = mesh.geometry.getAttribute('position');
       const base = positions.length / 3;
       for (let i = 0; i < pos.count; i++) {

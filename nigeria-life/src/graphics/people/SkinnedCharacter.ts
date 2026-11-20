@@ -4,6 +4,7 @@ import { AssetManager } from '../../assets/AssetManager';
 import { WARDROBE_CATALOGUE, type CharacterConfig } from '../../player/CharacterCustomization';
 import { makeClothMaterial, makeSkinMaterial } from './CharacterSurfaces';
 import type { Pattern } from './Fabrics';
+import { fabricMaterial, setGarmentLines, type FabricKind } from './GarmentFabrics';
 import type { PoseState } from '../../interactions/Poses';
 
 /**
@@ -148,7 +149,12 @@ const VARIANTS: Record<string, string[]> = {
   Bottom_Long: ['jeans_slim', 'jeans_straight', 'jeans_baggy', 'cargo', 'chinos'],
   Bottom_Short: ['shorts', 'cargo_shorts'],
   Hat: ['cap', 'bucket', 'beanie'],
+  Shoes: ['sneaker', 'formal', 'boot'],
+  Feet: ['slides'],
 };
+/** Shoes by style: in shoes (sneakers, formal shoes, boots), or bare-footed in slides */
+const SHOE_VARIANT: Record<string, string> = { sneakers: 'sneaker', trainers: 'sneaker', oxfords: 'formal', loafers: 'formal', heels: 'formal', formal: 'formal', boots: 'boot' };
+const FEET_VARIANT: Record<string, string> = { sandals: 'slides', slides: 'slides', slippers: 'slides' };
 const TOP_VARIANT: Record<string, string> = { tshirt: 'tee', casual_tee: 'tee', jersey: 'tee', tee_oversized: 'tee_oversized', graphic_tee: 'tee_oversized', polo_shirt: 'polo', button_shirt: 'shirt', corporate_shirt: 'shirt', hoodie: 'hoodie' };
 const BOTTOM_VARIANT: Record<string, string> = { jeans: 'jeans_straight', jeans_slim: 'jeans_slim', jeans_straight: 'jeans_straight', jeans_baggy: 'jeans_baggy', cargo_pants: 'cargo', trousers: 'chinos', chinos: 'chinos', shorts: 'shorts', cargo_shorts: 'cargo_shorts' };
 const HAT_VARIANT: Record<string, string> = { cap: 'cap', bucket_hat: 'bucket', beanie: 'beanie' };
@@ -156,7 +162,7 @@ const HAT_VARIANT: Record<string, string> = { cap: 'cap', bucket_hat: 'bucket', 
 /** The garment a part of the model belongs to (its own node, or the node it is a part of; low-detail copies too) */
 export function garmentOf(obj: THREE.Object3D): { kind: string; variant: string } | null {
   for (const o of [obj, obj.parent]) {
-    const m = o ? /^(?:LOD_)?Outfit_(Top_Short|Top_Long|Bottom_Long|Bottom_Short|Shoes|Hat)(?:__([a-z_]+))?$/.exec(o.name) : null;
+    const m = o ? /^(?:LOD_)?Outfit_(Top_Short|Top_Long|Bottom_Long|Bottom_Short|Shoes|Hat|Feet)(?:__([a-z_]+))?$/.exec(o.name) : null;
     if (m) return { kind: m[1], variant: m[2] ?? '' };
   }
   return null;
@@ -165,9 +171,10 @@ export function garmentOf(obj: THREE.Object3D): { kind: string; variant: string 
 /** Is this garment (kind, variant) worn in this dress? */
 export function wears(dress: Dress, garment: { kind: string; variant: string }): boolean {
   if (garment.kind === 'Hat') return !!dress.variants.hat && garment.variant === dress.variants.hat;
+  if (garment.kind === 'Feet') return !!dress.variants.feet && garment.variant === dress.variants.feet;
   const i = KINDS.indexOf(garment.kind as (typeof KINDS)[number]);
   if (i < 0 || !dress.shown[i]) return false;
-  const want = garment.kind.startsWith('Top') ? dress.variants.top : garment.kind.startsWith('Bottom') ? dress.variants.bottom : '';
+  const want = garment.kind.startsWith('Top') ? dress.variants.top : garment.kind.startsWith('Bottom') ? dress.variants.bottom : garment.kind === 'Shoes' ? dress.variants.shoes : '';
   const modelled = !!want && (VARIANTS[garment.kind] ?? []).includes(want);
   return modelled ? garment.variant === want : garment.variant === '';
 }
@@ -186,6 +193,8 @@ interface Garments {
   hairColor?: string;
   /** Headwear (cap, bucket_hat, beanie) and its colour, if any */
   hatStyle?: string;
+  /** Footwear style (sneakers, oxfords, loafers, boots, sandals...) */
+  shoesStyle?: string;
   hatHex?: number;
 }
 
@@ -202,6 +211,8 @@ export interface StreetLook {
   bottom?: string;
   hat?: string;
   hatColor?: number;
+  /** Footwear style (sneakers, oxfords, loafers, boots, sandals) */
+  shoes?: string;
 }
 
 function applyGarmentLayout(scene: THREE.Object3D, cfg: CharacterConfig, gender: 'male' | 'female'): void {
@@ -215,6 +226,7 @@ function applyGarmentLayout(scene: THREE.Object3D, cfg: CharacterConfig, gender:
     bottomStyle: bottom?.styleKey ?? '',
     bottomHex: bottom?.color ?? (typeof cfg.trousersColor === 'string' ? new THREE.Color(cfg.trousersColor).getHex() : 0x1e293b),
     shoesHex: shoes?.color ?? 0x111827,
+    shoesStyle: shoes?.styleKey,
     skinTone: cfg.skinTone,
     hairColor: cfg.hairColor,
   }, gender);
@@ -229,7 +241,7 @@ export function applyStreetLook(scene: THREE.Object3D, look: StreetLook): void {
 export interface Dress {
   shown: boolean[];
   /** The garment models worn on top, below and on the head ('' for a kind's plain shell, or none) */
-  variants: { top: string; bottom: string; hat: string };
+  variants: { top: string; bottom: string; hat: string; shoes: string; feet: string };
   /** Everything about the cut of the clothes, as one key (the same key, the same garments) */
   key: string;
   hatColour: THREE.Color;
@@ -246,17 +258,21 @@ function dressOf(g: Garments, gender: 'male' | 'female'): Dress {
   const onePiece = ONE_PIECE[g.topStyle];
   const sleeves: 'short' | 'long' = LONG_SLEEVES.has(g.topStyle) ? 'long' : 'short';
   const legs: 'long' | 'short' = onePiece ?? (SHORT_BOTTOMS.has(g.bottomStyle) ? 'short' : 'long');
-  const shown = [sleeves === 'short', sleeves === 'long', legs === 'long', legs === 'short', true];
+  const feet = FEET_VARIANT[g.shoesStyle ?? ''] ?? '';
+  // In slides the feet are bare (no shoes drawn, the foot itself seen)
+  const shown = [sleeves === 'short', sleeves === 'long', legs === 'long', legs === 'short', !feet];
   const variants = {
     top: TOP_VARIANT[g.topStyle] ?? '',
     bottom: onePiece ? '' : BOTTOM_VARIANT[g.bottomStyle] ?? '',
     hat: HAT_VARIANT[g.hatStyle ?? ''] ?? '',
+    shoes: SHOE_VARIANT[g.shoesStyle ?? ''] ?? '',
+    feet,
   };
   const mask = shown.map((b) => (b ? '1' : '0')).join('');
   return {
     shown,
     variants,
-    key: `${mask}|${variants.top}|${variants.bottom}|${variants.hat}`,
+    key: `${mask}|${variants.top}|${variants.bottom}|${variants.hat}|${variants.shoes}|${variants.feet}`,
     hatColour: new THREE.Color(g.hatHex ?? 0x111827),
     mask,
     skin: new THREE.Color(g.skinTone || (gender === 'female' ? '#7a4b33' : '#5c3a28')),
@@ -274,6 +290,7 @@ const streetGarments = (look: StreetLook): Garments => ({
   bottomStyle: SHORT_BOTTOMS.has(look.outfit ?? '') ? look.outfit! : look.bottom ?? '',
   hatStyle: look.hat,
   hatHex: look.hatColor,
+  shoesStyle: look.shoes,
   bottomHex: look.trousersColor ?? look.outfitColor ?? 0x1e293b,
   shoesHex: look.shoeColor ?? 0x111827,
   skinTone: look.skinTone,
@@ -303,16 +320,30 @@ function applyGarments(scene: THREE.Object3D, g: Garments, gender: 'male' | 'fem
 
   // One material per role, shared by every piece that uses it (the pieces were cloned with the scene)
   const made = new Map<string, THREE.Material>();
+  // Cloth by fabric: each part names its cloth (Cloth_Top:pique, Cloth_Bottom:denim...); a plain shell takes its kind's usual one
+  const DEFAULT_FABRIC: Record<string, FabricKind> = { Cloth_Top: 'cotton', Cloth_Bottom: 'twill', Cloth_Hat: 'twill', Cloth_Shoes: 'leather', Sole: 'rubber' };
+  const colourOf: Record<string, THREE.Color> = {
+    Cloth_Top: new THREE.Color(topHex),
+    Cloth_Bottom: new THREE.Color(bottomHex),
+    Cloth_Hat: dress.hatColour,
+    Cloth_Shoes: new THREE.Color(shoesHex),
+  };
   const restyle = (m: THREE.Material): THREE.Material => {
     const hit = made.get(m.name);
     if (hit) return hit;
-    const next = m.clone() as THREE.MeshStandardMaterial;
-    if (m.name === 'Skin_Body') next.color.copy(skinMul);
-    else if (m.name === 'Hair') next.color.copy(hair);
-    else if (m.name === 'Cloth_Top') next.color.setHex(topHex);
-    else if (m.name === 'Cloth_Bottom') next.color.setHex(bottomHex);
-    else if (m.name === 'Cloth_Shoes') next.color.setHex(shoesHex);
-    else if (m.name === 'Cloth_Hat') next.color.copy(dress.hatColour);
+    const [role, kind] = m.name.split(':');
+    let next: THREE.Material;
+    if (role in DEFAULT_FABRIC) {
+      const fabric = (kind as FabricKind) || DEFAULT_FABRIC[role];
+      // A sole is white rubber or dark leather, whatever the shoe's colour
+      const colour = role === 'Sole' ? new THREE.Color(fabric === 'leather' ? 0x2a1d14 : 0xeeeeea) : colourOf[role];
+      next = fabricMaterial(m, { kind: fabric, colour });
+    } else {
+      const plain = m.clone() as THREE.MeshStandardMaterial;
+      if (m.name === 'Skin_Body') plain.color.copy(skinMul);
+      else if (m.name === 'Hair') plain.color.copy(hair);
+      next = plain;
+    }
     made.set(m.name, next);
     return next;
   };
@@ -332,6 +363,55 @@ function applyGarments(scene: THREE.Object3D, g: Garments, gender: 'male' | 'fem
     mesh.castShadow = true;
     mesh.receiveShadow = true;
   });
+  // Where each worn garment's hems and sleeve ends are, so its stitching runs along them
+  scene.traverse((obj) => {
+    const mesh = obj as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh || !mesh.visible || obj.name.startsWith('LOD_')) return;
+    const garment = garmentOf(obj);
+    if (!garment) return;
+    const lines = linesOf(mesh, garment.kind);
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) setGarmentLines(material, lines);
+  });
+}
+
+/** Where a garment's hem and sleeve ends are, from its shape at rest; knees and hips from the skeleton (kept on the geometry) */
+function linesOf(mesh: THREE.SkinnedMesh, kind: string) {
+  const geo = mesh.geometry;
+  const bones = mesh.skeleton?.bones ?? [];
+  const bind = (name: string): THREE.Vector3 | null => {
+    const i = bones.findIndex((b) => b.name === name);
+    return i < 0 ? null : new THREE.Vector3().setFromMatrixPosition(mesh.skeleton.boneInverses[i].clone().invert());
+  };
+  let shape = geo.userData.garmentShape as { minY: number; maxX: number } | undefined;
+  if (!shape) {
+    const pos = geo.getAttribute('position');
+    let minY = Infinity, maxX = 0;
+    for (let i = 0; i < pos.count; i++) {
+      minY = Math.min(minY, pos.getY(i));
+      maxX = Math.max(maxX, Math.abs(pos.getX(i)));
+    }
+    shape = { minY, maxX };
+    geo.userData.garmentShape = shape;
+  }
+  const shoulder = bind('upperarm_l') ?? bind('upperarm_r');
+  const elbow = bind('lowerarm_l') ?? bind('lowerarm_r');
+  const knee = bind('calf_l');
+  const hip = bind('thigh_l');
+  const top = kind.startsWith('Top');
+  const bottom = kind.startsWith('Bottom');
+  // A shoe's sole is this thick (sneakers thick rubber, formal shoes a thin leather sole), at rest
+  const soleThickness: Record<string, number> = { sneaker: 0.029, formal: 0.015, boot: 0.022 };
+  const variant = garmentOf(mesh)?.variant ?? '';
+  return {
+    hemY: top || bottom ? shape.minY : -1000,
+    sleeveX: top ? shape.maxX : -1,
+    elbowX: kind === 'Top_Long' && elbow ? Math.abs(elbow.x) : -1,
+    // (the shell's lowest point is under the ground by the shoe's own thickness, about 4 cm)
+    soleY: kind === 'Shoes' ? shape.minY + 0.042 + (soleThickness[variant] ?? 0.02) : -1000,
+    shoulderX: shoulder ? Math.abs(shoulder.x) : 10,
+    kneeY: knee?.y ?? 0.5,
+    hipY: hip?.y ?? 0.95,
+  };
 }
 
 /**

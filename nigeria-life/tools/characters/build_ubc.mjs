@@ -205,18 +205,54 @@ const neckY = J('neck_01')[1] + 0.012 * height; // a crew neck at the base of th
 const inArm = (p) => { const s = sideOf(p); return Math.abs(p[0]) > Math.abs(J(`upperarm_${s}`)[0]) - 0.01 * height && p[1] > J('spine_03')[1] - 0.06 * height; };
 const armT = (p) => { const s = sideOf(p); const t1 = along(p, `upperarm_${s}`, `lowerarm_${s}`); return t1 <= 1 ? t1 : 1 + along(p, `lowerarm_${s}`, `hand_${s}`); };
 const COVER = {
-  TopShort: (p) => p[1] > waistY && p[1] < neckY && (!inArm(p) || armT(p) < 0.55),
-  TopLong: (p) => p[1] > waistY && p[1] < neckY && (!inArm(p) || armT(p) < 1.92),
+  TopShort: (p) => p[1] > waistY && p[1] < neckLineY(p[0], p[2]) + 0.012 * height && !inNeck(p) && (!inArm(p) || armT(p) < 0.55),
+  TopLong: (p) => p[1] > waistY && p[1] < neckLineY(p[0], p[2]) + 0.012 * height && !inNeck(p) && (!inArm(p) || armT(p) < 1.92),
   BottomLong: (p) => p[1] < beltY && p[1] > ankleY - 0.012 * height && !inArm(p), // a little over the shoe
   BottomShort: (p) => p[1] < beltY && p[1] > J('calf_l')[1] + 0.03 * height && !inArm(p),
   Shoes: (p) => p[1] <= ankleY,
 };
 const KINDS = Object.keys(COVER);
 const vJointName = (v) => { const j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0]; jnt.getElement(v, j4); wgt.getElement(v, w4); let b = 0; for (let k = 1; k < 4; k++) if (w4[k] > w4[b]) b = k; return jointNames[j4[b]]; };
+// The neck's axis and girth (just above the base of the neck): a top's neckline is a ring round it, a little out
+// from the skin, at whatever height the shoulders reach it (a flat cut at one height would open wide at the sides)
+const NECK = (() => {
+  const y = J('neck_01')[1] + 0.016 * height;
+  const pts = P0.filter((q, v) => vJointName(v) === 'neck_01' && Math.abs(q[1] - y) < 0.008 * height);
+  const cx = pts.reduce((sum, q) => sum + q[0], 0) / pts.length, cz = pts.reduce((sum, q) => sum + q[2], 0) / pts.length;
+  const r = pts.map((q) => Math.hypot(q[0] - cx, q[2] - cz)).sort((a, b) => a - b);
+  return { cx, cz, r: r[Math.floor(r.length * 0.6)] };
+})();
+const NECK_CUT = NECK.r + 0.01 * height;
+const neckTop = () => J('spine_03')[1];
+const inNeck = (p) => p[1] > neckTop() && Math.hypot(p[0] - NECK.cx, p[2] - NECK.cz) < NECK_CUT;
+const NECK_BINS = 48;
+const binOf = (x, z) => (Math.atan2(z - NECK.cz, x - NECK.cx) + Math.PI) / (2 * Math.PI) * NECK_BINS;
+const NECK_LINE = (() => {
+  const top = new Array(NECK_BINS).fill(-Infinity);
+  P0.forEach((q, v) => {
+    const d = Math.hypot(q[0] - NECK.cx, q[2] - NECK.cz);
+    if (Math.abs(d - NECK_CUT) > 0.014 * height || q[1] < J('spine_03')[1] - 0.04 * height || q[1] > J('neck_01')[1] + 0.03 * height) return;
+    if (!/^(spine|clavicle)/.test(vJointName(v))) return;
+    const b = Math.floor(binOf(q[0], q[2])) % NECK_BINS;
+    top[b] = Math.max(top[b], q[1]);
+  });
+  // Bins with nothing in them take their neighbours' height; then smoothed round the ring
+  let line = top.map((y, b) => (Number.isFinite(y) ? y : null));
+  for (let pass = 0; pass < NECK_BINS && line.some((y) => y === null); pass++)
+    line = line.map((y, b) => y ?? line[(b + 1) % NECK_BINS] ?? line[(b + NECK_BINS - 1) % NECK_BINS]);
+  for (let it = 0; it < 6; it++) line = line.map((y, b) => (line[(b + NECK_BINS - 1) % NECK_BINS] + 2 * y + line[(b + 1) % NECK_BINS]) / 4);
+  return line;
+})();
+const neckLineY = (x, z) => {
+  const f = binOf(x, z) - 0.5, b0 = ((Math.floor(f) % NECK_BINS) + NECK_BINS) % NECK_BINS, t = f - Math.floor(f);
+  return NECK_LINE[b0] * (1 - t) + NECK_LINE[(b0 + 1) % NECK_BINS] * t;
+};
 // Hands and head are never covered (a sleeve stops at the wrist; the neck is open)
 const never = (t) => [idx[t], idx[t + 1], idx[t + 2]].every((v) => /^(Head|hand_|index|middle|pinky|ring|thumb)/.test(vJointName(v)));
 const triCovered = (t, kind) => {
   const a = P0[idx[t]], b = P0[idx[t + 1]], c = P0[idx[t + 2]];
+  // A top leaves the neck open: the skin there is kept (exactly the triangles the top's cloth leaves out)
+  if (kind.startsWith('Top') && (inNeck(a) || inNeck(b) || inNeck(c))) return false;
   return COVER[kind]([(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]);
 };
 
@@ -270,7 +306,12 @@ const uv2 = [0, 0], j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0];
  */
 function makeShell(pick, spec) {
   const tris = [];
-  for (let t = 0; t < idx.length; t += 3) if (pick(t)) tris.push(idx[t], idx[t + 1], idx[t + 2]);
+  for (let t = 0; t < idx.length; t += 3) {
+    if (!pick(t)) continue;
+    // A top's neck stays open: no triangle with a corner inside the ring round the neck
+    if (spec.hem?.neck && (inNeck(P0[idx[t]]) || inNeck(P0[idx[t + 1]]) || inNeck(P0[idx[t + 2]]))) continue;
+    tris.push(idx[t], idx[t + 1], idx[t + 2]);
+  }
   const local = new Map();
   const order = [];
   for (const v of tris) if (!local.has(v)) { local.set(v, order.length); order.push(v); }
@@ -296,8 +337,11 @@ function makeShell(pick, spec) {
   // (and remember which way each was brought back: it is set out from the body only square to that, below).
   // An edge point near a hem line is put on it too, so the edge runs along the line, not up and down beside it
   const hemmed = new Array(W).fill(-1);
+  const dirs = new Array(W).fill(null);
   if (spec.hem) wp = wp.map((p, w) => {
     const q = spec.hem(p, pinned.has(w));
+    if (q.pin) pinned.add(w);
+    if (q.dir) dirs[w] = q.dir;
     if (q[1] !== p[1]) hemmed[w] = 1;
     else if (q[0] !== p[0]) hemmed[w] = 0;
     return q;
@@ -327,7 +371,8 @@ function makeShell(pick, spec) {
     const len = Math.hypot(n[0], n[1], n[2]) || 1;
     n = n.map((x) => x / len);
     if (n[0] * N0[v][0] + n[1] * N0[v][1] + n[2] * N0[v][2] < 0) n = n.map((x) => -x);
-    if (hemmed[w] >= 0) {
+    if (dirs[w]) n = dirs[w];
+    else if (hemmed[w] >= 0) {
       // On a hem line: out from the body only across the line, so the hem runs level
       const m = n.slice();
       m[hemmed[w]] = 0;
@@ -339,6 +384,11 @@ function makeShell(pick, spec) {
     if (spec.snugAbove !== undefined) {
       const t = Math.max(0, Math.min(1, (P0[v][1] - spec.snugAbove) / (0.035 * height)));
       o += (Math.min(o, 0.009) - o) * t;
+    }
+    // Trouser legs end over the shoe, never inside it (no notch where they meet)
+    if (spec.ankleMin !== undefined) {
+      const t = Math.max(0, Math.min(1, (ankleY + 0.045 * height - P0[v][1]) / (0.045 * height)));
+      o = Math.max(o, o + (spec.ankleMin - o) * t);
     }
     o *= height;
     P.push(wp[w][0] + n[0] * o, wp[w][1] + n[1] * o, wp[w][2] + n[2] * o);
@@ -521,7 +571,9 @@ const thighSide = (s, t) => {
   const y = A[1] + (B[1] - A[1]) * t;
   const pts = P0.filter((p, v) => vJoint(v) === `thigh_${s}` && Math.abs(p[1] - y) < 0.01 * H);
   const sign = Math.sign(A[0]) || 1;
-  const outer = pts.reduce((m, p) => (sign * p[0] > sign * m ? p[0] : m), A[0]);
+  // The thigh's outer side (a high percentile, not the single outermost point: a stray vertex would set a pocket off the leg)
+  const xs = pts.map((p) => sign * p[0]).sort((a, b) => a - b);
+  const outer = xs.length ? sign * xs[Math.floor(xs.length * 0.85)] : A[0];
   const cz = pts.reduce((sum, p) => sum + p[2], 0) / pts.length;
   const back = Math.min(...pts.map((p) => p[2]));
   return { sign, x: outer, y, cz, back };
@@ -535,8 +587,8 @@ const X = [1, 0, 0], Y = [0, 1, 0], Z = [0, 0, 1];
 const crewRib = () => band(sp3, [neck.cx, neckY - 0.012 * H, neck.cz], X, Z, Y, 0.014 * H, (s) => [neck.rx + (0.012 - 0.003 * s) * H, neck.rz + (0.012 - 0.003 * s) * H]);
 /** A turned-down collar: a band standing up at the back and sides, then out and down; open at the front */
 const foldedCollar = (points) => merge(
-  band(sp3, [neck.cx, neckY - 0.014 * H, neck.cz], X, Z, Y, 0.024 * H, (s) => [neck.rx + (0.009 + 0.002 * s) * H, neck.rz + (0.009 + 0.002 * s) * H], { skip: [Math.PI / 2 - 0.42, Math.PI / 2 + 0.42] }),
-  band(sp3, [neck.cx, neckY + 0.01 * H, neck.cz], X, Z, Y, -0.026 * H, (s) => [neck.rx + (0.013 + 0.012 * s) * H, neck.rz + (0.013 + 0.012 * s) * H], { skip: [Math.PI / 2 - (points ? 0.25 : 0.42), Math.PI / 2 + (points ? 0.25 : 0.42)] }),
+  band(sp3, [NECK.cx, neckY - 0.03 * H, NECK.cz], X, Z, Y, 0.042 * H, (s) => [NECK_CUT - NECK.r + neck.rx + (0.012 + 0.002 * s) * H, NECK_CUT - NECK.r + neck.rz + (0.012 + 0.002 * s) * H], { skip: [Math.PI / 2 - 0.42, Math.PI / 2 + 0.42] }),
+  band(sp3, [NECK.cx, neckY + 0.012 * H, NECK.cz], X, Z, Y, -0.03 * H, (s) => [NECK_CUT - NECK.r + neck.rx + (0.016 + 0.012 * s) * H, NECK_CUT - NECK.r + neck.rz + (0.016 + 0.012 * s) * H], { skip: [Math.PI / 2 - (points ? 0.25 : 0.42), Math.PI / 2 + (points ? 0.25 : 0.42)] }),
 );
 const chestFront = (y) => ringAt((v, p) => torso(v) && !inArm(p), y, 0.008 * H);
 const placket = (count) => {
@@ -544,7 +596,7 @@ const placket = (count) => {
   const parts = [];
   const ring = chestFront(top - 0.03 * H);
   const z = ring.cz + ring.rz + 0.021 * H;
-  parts.push(box(sp3, [ring.cx, top - 0.032 * H, z - 0.002 * H], [0.016 * H, 0.06 * H, 0.002 * H]));
+  if (count === 0) parts.push(box(sp3, [ring.cx, top - 0.032 * H, z - 0.002 * H], [0.016 * H, 0.06 * H, 0.002 * H]));
   for (let k = 0; k < count; k++) parts.push(box(sp3, [ring.cx, top - 0.012 * H - k * 0.025 * H, z + 0.003 * H], [0.007 * H, 0.007 * H, 0.004 * H]));
   return merge(...parts);
 };
@@ -555,11 +607,13 @@ const buttonLine = () => {
     const ji = y > J('spine_03')[1] ? sp3 : y > J('spine_02')[1] ? sp2 : sp1;
     parts.push(box(ji, [ring.cx, y, ring.cz + ring.rz + 0.021 * H], [0.008 * H, 0.008 * H, 0.004 * H]));
   }
-  // The strip the buttons are sewn on
+  return merge(...parts);
+};
+/** The strip the buttons are sewn on, in the shirt's own cloth */
+const buttonStrip = () => {
   const yTop = neckY - 0.02 * H, yBot = waistY + 0.01 * H;
   const ring = chestFront((yTop + yBot) / 2);
-  parts.push(box(sp2, [ring.cx, (yTop + yBot) / 2, ring.cz + ring.rz + 0.0195 * H], [0.02 * H, yTop - yBot, 0.002 * H]));
-  return merge(...parts);
+  return box(sp2, [ring.cx, (yTop + yBot) / 2, ring.cz + ring.rz + 0.0195 * H], [0.02 * H, yTop - yBot, 0.002 * H]);
 };
 const cuffs = (t, thick) => merge(...['l', 'r'].map((s) => {
   const w = wristRing(s, t);
@@ -574,7 +628,7 @@ const hood = () => {
 const kangaroo = () => {
   const y = waistY + 0.06 * H;
   const ring = chestFront(y);
-  return box(sp1, [ring.cx, y, ring.cz + ring.rz + 0.027 * H], [0.15 * H, 0.065 * H, 0.004 * H]);
+  return pillow(sp1, [ring.cx, y, ring.cz + ring.rz + 0.03 * H], X, Y, Z, 0.075 * H, 0.033 * H, 0.007 * H, 0.35);
 };
 const waistband = (extra) => band(pel, [waist.cx, beltY - 0.024 * H, waist.cz], X, Z, Y, 0.022 * H, () => [waist.rx + (0.012 + extra) * H, waist.rz + (0.012 + extra) * H]);
 const beltLoops = (extra) => {
@@ -586,18 +640,36 @@ const beltLoops = (extra) => {
   }
   return merge(...parts);
 };
-const backPockets = (extra) => merge(...[-1, 1].map((s) => {
+/** A part skinned as the body under it (each point takes the nearest body point's joints and weights), so it moves
+ *  with the cloth it is sewn on instead of riding one bone (a pocket would swing off the hip as the thigh turns) */
+const skinToBody = (g) => {
+  const j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0];
+  for (let i = 0; i < g.P.length / 3; i++) {
+    const q = [g.P[i * 3], g.P[i * 3 + 1], g.P[i * 3 + 2]];
+    let best = -1, bd = Infinity;
+    for (let v = 0; v < P0.length; v++) {
+      const d = (P0[v][0] - q[0]) ** 2 + (P0[v][1] - q[1]) ** 2 + (P0[v][2] - q[2]) ** 2;
+      if (d < bd && !/^(hand|lowerarm|upperarm|index|middle|pinky|ring|thumb)/.test(vJointName(v))) { bd = d; best = v; }
+    }
+    if (best < 0) continue;
+    jnt.getElement(best, j4); wgt.getElement(best, w4);
+    for (let k = 0; k < 4; k++) { g.JJ[i * 4 + k] = j4[k]; g.WW[i * 4 + k] = w4[k]; }
+  }
+  return g;
+};
+const backPockets = (extra) => skinToBody(merge(...[-1, 1].map((s) => {
   const th = thighSide(s > 0 ? (J('thigh_l')[0] > 0 ? 'l' : 'r') : (J('thigh_l')[0] > 0 ? 'r' : 'l'), 0.05);
-  return box(pel, [s * 0.04 * H + waist.cx, hipY - 0.008 * H, th.back - (0.012 + extra) * H], [0.052 * H, 0.06 * H, 0.003 * H], -s * 0.3);
-}));
-const cargoPockets = (t, extra) => merge(...['l', 'r'].map((s) => {
+  const turn = -s * 0.3;
+  return pillow(pel, [s * 0.04 * H + waist.cx, hipY - 0.008 * H, th.back - (0.009 + extra) * H], [Math.cos(turn), 0, -Math.sin(turn)], Y, [-Math.sin(turn), 0, -Math.cos(turn)], 0.026 * H, 0.03 * H, 0.004 * H, 0.3, 7);
+})));
+const cargoPockets = (t, extra) => skinToBody(merge(...['l', 'r'].map((s) => {
   const th = thighSide(s, t);
   const ji = jIndex(`thigh_${s}`);
   return merge(
-    box(ji, [th.x + th.sign * (0.023 + extra) * H, th.y, th.cz], [0.01 * H, 0.095 * H, 0.08 * H]),
-    box(ji, [th.x + th.sign * (0.029 + extra) * H, th.y + 0.043 * H, th.cz], [0.004 * H, 0.028 * H, 0.084 * H]),
+    pillow(ji, [th.x + th.sign * (0.019 + extra) * H, th.y, th.cz], Z, Y, [th.sign, 0, 0], 0.04 * H, 0.048 * H, 0.009 * H, 0.32),
+    pillow(ji, [th.x + th.sign * (0.026 + extra) * H, th.y + 0.042 * H, th.cz], Z, Y, [th.sign, 0, 0], 0.043 * H, 0.014 * H, 0.004 * H, 0.3, 7),
   );
-}));
+})));
 // Caps, over the head; the brim reaches forward (+z, the face's side) from over the brow
 // The crown of the head: the skull above the brow (the head's box runs down to the jaw)
 const skull = { c: [head.c[0], head.c[1] + head.r[1] * 0.25, head.c[2] - head.r[2] * 0.08], rx: head.r[0] * 0.98, ry: head.r[1] * 0.78, rz: head.r[2] * 0.95 };
@@ -620,14 +692,33 @@ const armStop = (p, t, edge = false) => {
   return [J(a)[0] + (J(b)[0] - J(a)[0]) * u, p[1], p[2]];
 };
 /** Hems for a top: sleeves end at armT `sleeve`, the body at `bottom`, the neckline at neckY */
-const topHems = (sleeve, bottom) => (p, edge) => {
-  if (inArm(p)) return armStop(p, sleeve, edge);
-  let y = Math.min(neckY, Math.max(bottom, p[1]));
-  // Edge points just above the hem, or just under the neckline, onto the line
-  if (edge && y < bottom + 0.035 * height) y = bottom;
-  if (edge && y > neckY - 0.03 * height) y = neckY;
-  return [p[0], y, p[2]];
-};
+const topHems = (sleeve, bottom) => Object.assign((p, edge) => {
+  // (a sleeve stops at its end; near the neck, arm points meet the neckline as the body's do)
+  const arm = inArm(p) ? armStop(p, sleeve, edge) : null;
+  if (arm && Math.hypot(p[0] - NECK.cx, p[2] - NECK.cz) > NECK_CUT + 0.07 * height) return arm;
+  let y = arm ? arm[1] : Math.max(bottom, p[1]);
+  // Edge points just above the hem onto the line
+  if (!arm && edge && y < bottom + 0.035 * height) y = bottom;
+  let x = arm ? arm[0] : p[0], z = arm ? arm[2] : p[2];
+  // The neckline: on the ring round the neck, at the line's height there (edge points near it too)
+  const dx = x - NECK.cx, dz = z - NECK.cz, d = Math.hypot(dx, dz);
+  if (y > neckTop() - 0.02 * height && (d < NECK_CUT || (edge && d < NECK_CUT + 0.035 * height))) {
+    const k = NECK_CUT / (d || 1);
+    x = NECK.cx + dx * k;
+    z = NECK.cz + dz * k;
+    y = neckLineY(x, z);
+    // (held there: smoothing must not pull the neckline back into the neck)
+    const q = [x, y, z];
+    q.pin = true;
+    // (and set out from it straight away from the neck, whatever the squeezed triangles' normals say)
+    q.dir = [dx / (d || 1), 0, dz / (d || 1)];
+    return q;
+  } else if (d < NECK_CUT + 0.07 * height) {
+    // Near the neck nothing of the cloth rises above the neckline (no points left standing up into the neck)
+    y = Math.min(y, neckLineY(x, z));
+  }
+  return [x, y, z];
+}, { neck: true });
 /** Hems for trousers or shorts: the waist at beltY, the legs at `leg` */
 const legHemsAt = (leg) => (p, edge) => {
   let y = Math.min(beltY, Math.max(leg, p[1]));
@@ -679,27 +770,145 @@ const triCoveredBy = (t, test) => {
   const a = P0[idx[t]], b = P0[idx[t + 1]], c = P0[idx[t + 2]];
   return test([(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]);
 };
+// ---- fabrics: each garment part names its cloth (Cloth_<role>:<fabric>); the game draws each fabric's weave
+const fabricMats = new Map();
+const fab = (role, kind) => {
+  const name = `${role}:${kind}`;
+  if (!fabricMats.has(name)) {
+    const base = { Cloth_Top: [[0.92, 0.92, 0.92], 0.88], Cloth_Bottom: [[0.035, 0.045, 0.09], 0.9], Cloth_Hat: [[0.08, 0.08, 0.1], 0.85], Cloth_Shoes: [[0.08, 0.08, 0.09], 0.6], Sole: [[0.92, 0.92, 0.9], 0.7] }[role];
+    // Each fabric its own material, marked as such (identical ones would otherwise be merged into one when the file is tidied)
+    const m = cloth(name, base[0], base[1] + fabricMats.size * 0.0005, [0.1, 0.1, 0.1]);
+    m.setExtras({ fabric: kind });
+    fabricMats.set(name, m);
+  }
+  return fabricMats.get(name);
+};
+/** Smooth normals for a part built without them (a pillow) */
+const withNormals = (g) => {
+  const n = new Array(g.P.length).fill(0);
+  for (let t = 0; t < g.I.length; t += 3) {
+    const [a, b, c] = [g.I[t], g.I[t + 1], g.I[t + 2]];
+    const A = g.P.slice(a * 3, a * 3 + 3), B = g.P.slice(b * 3, b * 3 + 3), C = g.P.slice(c * 3, c * 3 + 3);
+    const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+    const f = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    for (const i of [a, b, c]) for (let k = 0; k < 3; k++) n[i * 3 + k] += f[k];
+  }
+  for (let i = 0; i < n.length; i += 3) { const l = Math.hypot(n[i], n[i + 1], n[i + 2]) || 1; g.N[i] = n[i] / l; g.N[i + 1] = n[i + 1] / l; g.N[i + 2] = n[i + 2] / l; }
+  return g;
+};
+/**
+ * A rounded pillow of cloth (a patch pocket, a flap, a sole): a superquadric su x sv x sw along u, v, w (w out
+ * from the garment), its corners rounded by `e` (0 a box, 1 an egg)
+ */
+function pillow(ji, c, u, v, w, su, sv, sw, e = 0.3, seg = 9) {
+  const g = geoOf();
+  const sp = (x, k) => Math.sign(x) * Math.abs(x) ** k;
+  const rows = [];
+  for (let r = 0; r <= seg; r++) {
+    const th = -Math.PI / 2 + (r / seg) * Math.PI;
+    const row = [];
+    for (let k = 0; k <= seg * 2; k++) {
+      const ph = -Math.PI + (k / (seg * 2)) * Math.PI * 2;
+      const a = su * sp(Math.cos(th), e) * sp(Math.cos(ph), e);
+      const b = sv * sp(Math.sin(th), e);
+      const d = sw * sp(Math.cos(th), e) * sp(Math.sin(ph), e);
+      row.push(pushV(g, add3(add3(add3(c, u, a), v, b), w, d), [0, 1, 0], ji));
+    }
+    rows.push(row);
+  }
+  for (let r = 0; r < seg; r++) for (let k = 0; k < seg * 2; k++) g.I.push(rows[r][k], rows[r + 1][k], rows[r][k + 1], rows[r][k + 1], rows[r + 1][k], rows[r + 1][k + 1]);
+  return withNormals(g);
+}
+/** A crew neck's rib, set on the shell's own neckline (so the neckline is finished all round, with no edge showing) */
+const neckRibOn = (off, thick = 0.0035, len = 0.016) => {
+  const g = geoOf();
+  const cols = [];
+  for (let k = 0; k < NECK_BINS; k++) {
+    const a = ((k + 0.5) / NECK_BINS) * 2 * Math.PI - Math.PI, dx = Math.cos(a), dz = Math.sin(a);
+    const x = NECK.cx + dx * NECK_CUT, z = NECK.cz + dz * NECK_CUT, y = neckLineY(x, z);
+    const r = (off + thick) * H;
+    cols.push([pushV(g, [x + dx * r, y - len * 0.7 * H, z + dz * r], [dx, 0, dz], sp3), pushV(g, [x + dx * (r - 0.002 * H), y + len * 0.3 * H, z + dz * (r - 0.002 * H)], [dx, 0.4, dz], sp3)]);
+  }
+  for (let k = 0; k < cols.length; k++) {
+    const A = cols[k], B = cols[(k + 1) % cols.length];
+    g.I.push(A[0], A[1], B[0], B[0], A[1], B[1]);
+  }
+  return g;
+};
+const neckRibOnFlat = (shell, thick = 0.0035, len = 0.016) => {
+  const pts = [];
+  for (let i = 0; i < shell.P.length; i += 3) if (Math.abs(shell.P[i + 1] - neckY) < 1e-5 * H && Math.abs(shell.P[i] - neck.cx) < neck.rx * 3) pts.push([shell.P[i], shell.P[i + 2]]);
+  // The neckline is the innermost of them all round (shoulder tops cut flat to the same height lie further out)
+  const bins = new Array(36).fill(null);
+  for (const q of pts) {
+    const a = Math.atan2(q[1] - neck.cz, q[0] - neck.cx), r = Math.hypot(q[0] - neck.cx, q[1] - neck.cz);
+    const b = Math.floor(((a + Math.PI) / (2 * Math.PI)) * 36) % 36;
+    if (!bins[b] || r < bins[b][2]) bins[b] = [q[0], q[1], r];
+  }
+  const inner = bins.filter(Boolean);
+  const cx = inner.reduce((sum, q) => sum + q[0], 0) / inner.length, cz = inner.reduce((sum, q) => sum + q[1], 0) / inner.length;
+  const rx = Math.max(...inner.map((q) => Math.abs(q[0] - cx))), rz = Math.max(...inner.map((q) => Math.abs(q[1] - cz)));
+  return band(sp3, [cx, neckY - len * 0.75 * H, cz], X, Z, Y, len * H, (s) => [rx + (thick - 0.002 * s) * H, rz + (thick - 0.002 * s) * H], { seg: 40 });
+};
+/** Splits a shell in two by height: the part below `y` (a shoe's sole) and the rest (its upper) */
+const splitBelow = (geo, y) => {
+  const lo = { ...geo, I: [] }, hi = { ...geo, I: [] };
+  for (let t = 0; t < geo.I.length; t += 3) {
+    const cy = (geo.P[geo.I[t] * 3 + 1] + geo.P[geo.I[t + 1] * 3 + 1] + geo.P[geo.I[t + 2] * 3 + 1]) / 3;
+    (cy < y ? lo : hi).I.push(geo.I[t], geo.I[t + 1], geo.I[t + 2]);
+  }
+  return [lo, hi];
+};
+const groundY = Math.min(...P0.map((q) => q[1]));
+/** A foot (side s) measured near the ground: middle, half-width and half-length (the foot points along +z) */
+const footOf = (s) => {
+  const pts = P0.filter((q, v) => /^(foot_|ball_)/.test(vJoint(v)) && vJoint(v).endsWith(`_${s}`) && q[1] < groundY + 0.035 * H);
+  const xs = pts.map((q) => q[0]), zs = pts.map((q) => q[2]);
+  return { c: [(Math.min(...xs) + Math.max(...xs)) / 2, groundY, (Math.min(...zs) + Math.max(...zs)) / 2], hw: (Math.max(...xs) - Math.min(...xs)) / 2, hl: (Math.max(...zs) - Math.min(...zs)) / 2, ball: J(`ball_${s}`) };
+};
+/** Slides: a moulded sole under each foot and a broad strap over the instep; the foot itself is seen */
+const slides = () => merge(...['l', 'r'].map((s) => {
+  const f = footOf(s);
+  const ji = jIndex(`foot_${s}`);
+  return merge(
+    pillow(ji, [f.c[0], groundY + 0.0035 * H, f.c[2] + 0.004 * H], X, Y, Z, f.hw + 0.006 * H, 0.0055 * H, f.hl + 0.008 * H, 0.25),
+    band(ji, [f.c[0], groundY + 0.006 * H, f.ball[2] - 0.035 * H], X, Y, Z, 0.032 * H, () => [f.hw + 0.006 * H, 0.03 * H], { skip: [Math.PI, Math.PI * 2], seg: 32 }),
+  );
+}));
+const SHOE_HEM = (top) => (p, edge) => [p[0], edge && p[1] > top - 0.03 * H ? top : Math.min(top, p[1]), p[2]];
+/** A shoe: the upper and its sole, cut where the sole ends */
+const shoe = (upper, sole, soleTop, spec, extraCover = null, top = ankleY) => {
+  const geo = makeShell((t) => masks[t / 3][kIndex.Shoes] === '1' || (extraCover ? triCoveredBy(t, extraCover) : false), { hem: SHOE_HEM(top), ...spec });
+  void sole; void soleTop;
+  return [{ mat: upper, geo }];
+};
+
 const GARMENTS2 = [
-  // Tops, short sleeves
-  ['Outfit_Top_Short__tee', () => [{ mat: topMat, geo: shellOf('TopShort', null, { off: 0.018, smooth: 12, lap: 3, offAt: sleeveOpen(0.25, 0.55, 0.011) }) }, { mat: topMat, geo: crewRib() }]],
-  ['Outfit_Top_Short__tee_oversized', () => [{ mat: topMat, geo: shellOf('TopShort', (p) => p[1] > waistY - 0.04 * H && p[1] < neckY && (!inArm(p) || armT(p) < 0.8), { hem: topHems(0.8, waistY - 0.04 * H), off: 0.026, smooth: 16, lap: 6, offAt: (p) => (inArm(p) ? 0.008 + ramp(armT(p), 0.2, 0.8) * 0.016 : 0.004) }) }, { mat: topMat, geo: band(sp3, [neck.cx, neckY - 0.014 * H, neck.cz], X, Z, Y, 0.014 * H, (s) => [neck.rx + (0.02 - 0.004 * s) * H, neck.rz + (0.02 - 0.004 * s) * H]) }]],
-  ['Outfit_Top_Short__polo', () => [{ mat: topMat, geo: shellOf('TopShort', null, { off: 0.016, smooth: 12, lap: 3, offAt: sleeveOpen(0.3, 0.55, 0.007) }) }, { mat: topMat, geo: foldedCollar(false) }, { mat: topMat, geo: placket(0) }, { mat: trimMat, geo: placket(2) }]],
-  // Tops, long sleeves
-  ['Outfit_Top_Long__shirt', () => [{ mat: topMat, geo: shellOf('TopLong', null, { off: 0.019, smooth: 12, lap: 3, offAt: (p) => (inArm(p) ? 0.004 : 0) }) }, { mat: topMat, geo: foldedCollar(true) }, { mat: topMat, geo: cuffs(0.86, 0.022) }, { mat: trimMat, geo: buttonLine() }]],
-  ['Outfit_Top_Long__hoodie', () => [{ mat: topMat, geo: shellOf('TopLong', null, { off: 0.024, smooth: 18, lap: 8, offAt: (p) => (inArm(p) ? 0.004 : 0.002) }) }, { mat: topMat, geo: hood() }, { mat: topMat, geo: kangaroo() }, { mat: topMat, geo: cuffs(0.88, 0.02) }, { mat: topMat, geo: ribHem() }]],
-  // Trousers
-  ['Outfit_Bottom_Long__jeans_slim', () => [{ mat: bottomMat, geo: shellOf('BottomLong', null, { off: 0.011, smooth: 14, lap: 6 }) }, { mat: bottomMat, geo: backPockets(0) }]],
-  ['Outfit_Bottom_Long__jeans_straight', () => [{ mat: bottomMat, geo: shellOf('BottomLong', null, { off: 0.013, smooth: 16, lap: 8, offAt: belowKnee(0.018) }) }, { mat: bottomMat, geo: backPockets(0.002) }]],
-  ['Outfit_Bottom_Long__jeans_baggy', () => [{ mat: bottomMat, geo: shellOf('BottomLong', null, { off: 0.022, smooth: 20, lap: 12, offAt: (p) => 0.006 + belowKnee(0.026)(p) }) }, { mat: bottomMat, geo: backPockets(0.012) }]],
-  ['Outfit_Bottom_Long__cargo', () => [{ mat: bottomMat, geo: shellOf('BottomLong', null, { off: 0.018, smooth: 18, lap: 10, offAt: belowKnee(0.012) }) }, { mat: bottomMat, geo: cargoPockets(0.55, 0.0) }, { mat: bottomMat, geo: backPockets(0.008) }]],
-  ['Outfit_Bottom_Long__chinos', () => [{ mat: bottomMat, geo: shellOf('BottomLong', null, { off: 0.014, smooth: 16, lap: 8, offAt: belowKnee(0.01) }) }, ]],
-  // Shorts
-  ['Outfit_Bottom_Short__shorts', () => [{ mat: bottomMat, geo: shellOf('BottomShort', null, { off: 0.016, smooth: 14, lap: 6, offAt: (p) => ramp(hipY - p[1], 0, hipY - kneeY) * 0.014 }) }]],
-  ['Outfit_Bottom_Short__cargo_shorts', () => [{ mat: bottomMat, geo: shellOf('BottomShort', null, { off: 0.022, smooth: 16, lap: 8, offAt: (p) => ramp(hipY - p[1], 0, hipY - kneeY) * 0.012 }) }, { mat: bottomMat, geo: cargoPockets(0.6, 0.004) }]],
-  // Headwear
-  ['Outfit_Hat__cap', () => [{ mat: hatMat, geo: capCrown() }, { mat: hatMat, geo: capBrim() }, { mat: hatMat, geo: capButton() }]],
-  ['Outfit_Hat__bucket', () => [{ mat: hatMat, geo: bucketCrown() }, { mat: hatMat, geo: bucketBrim() }]],
-  ['Outfit_Hat__beanie', () => [{ mat: hatMat, geo: beanie() }]],
+  // Tops, short sleeves: cotton jersey tees, a piqué polo
+  ['Outfit_Top_Short__tee', () => { const sh = shellOf('TopShort', null, { off: 0.018, smooth: 12, lap: 3, offAt: sleeveOpen(0.25, 0.55, 0.011) }); return [{ mat: fab('Cloth_Top', 'jersey'), geo: sh }, { mat: fab('Cloth_Top', 'rib'), geo: neckRibOn(0.018) }]; }],
+  ['Outfit_Top_Short__tee_oversized', () => { const sh = shellOf('TopShort', (p) => p[1] > waistY - 0.04 * H && p[1] < neckY && (!inArm(p) || armT(p) < 0.8), { hem: topHems(0.8, waistY - 0.04 * H), off: 0.026, smooth: 16, lap: 6, offAt: (p) => (inArm(p) ? 0.008 + ramp(armT(p), 0.2, 0.8) * 0.016 : 0.004) }); return [{ mat: fab('Cloth_Top', 'jersey'), geo: sh }, { mat: fab('Cloth_Top', 'rib'), geo: neckRibOn(0.026, 0.004, 0.02) }]; }],
+  ['Outfit_Top_Short__polo', () => [{ mat: fab('Cloth_Top', 'pique'), geo: shellOf('TopShort', null, { off: 0.016, smooth: 12, lap: 3, offAt: sleeveOpen(0.3, 0.55, 0.007) }) }, { mat: fab('Cloth_Top', 'rib'), geo: foldedCollar(false) }, { mat: fab('Cloth_Top', 'pique'), geo: placket(0) }, { mat: trimMat, geo: placket(2) }]],
+  // Tops, long sleeves: an oxford shirt, a fleece hoodie with rib cuffs and hem
+  ['Outfit_Top_Long__shirt', () => [{ mat: fab('Cloth_Top', 'oxford'), geo: shellOf('TopLong', null, { off: 0.019, smooth: 12, lap: 3, offAt: (p) => (inArm(p) ? 0.004 : 0) }) }, { mat: fab('Cloth_Top', 'oxford'), geo: merge(foldedCollar(true), cuffs(0.86, 0.022), buttonStrip()) }, { mat: trimMat, geo: buttonLine() }]],
+  ['Outfit_Top_Long__hoodie', () => { const sh = shellOf('TopLong', null, { off: 0.024, smooth: 18, lap: 8, offAt: (p) => (inArm(p) ? 0.004 : 0.002) }); return [{ mat: fab('Cloth_Top', 'fleece'), geo: merge(sh, hood(), kangaroo()) }, { mat: fab('Cloth_Top', 'rib'), geo: merge(cuffs(0.88, 0.02), ribHem(), neckRibOn(0.026, 0.004, 0.02)) }]; }],
+  // Trousers: denim jeans, cotton twill cargo trousers and chinos; every leg ends over the shoe
+  ['Outfit_Bottom_Long__jeans_slim', () => [{ mat: fab('Cloth_Bottom', 'denim'), geo: merge(shellOf('BottomLong', null, { off: 0.011, smooth: 14, lap: 6, ankleMin: 0.03 }), backPockets(0)) }]],
+  ['Outfit_Bottom_Long__jeans_straight', () => [{ mat: fab('Cloth_Bottom', 'denim'), geo: merge(shellOf('BottomLong', null, { off: 0.013, smooth: 16, lap: 8, offAt: belowKnee(0.018), ankleMin: 0.032 }), backPockets(0.002)) }]],
+  ['Outfit_Bottom_Long__jeans_baggy', () => [{ mat: fab('Cloth_Bottom', 'denim'), geo: merge(shellOf('BottomLong', null, { off: 0.022, smooth: 20, lap: 12, offAt: (p) => 0.006 + belowKnee(0.026)(p), ankleMin: 0.036 }), backPockets(0.012)) }]],
+  ['Outfit_Bottom_Long__cargo', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: merge(shellOf('BottomLong', null, { off: 0.018, smooth: 18, lap: 10, offAt: belowKnee(0.012), ankleMin: 0.032 }), cargoPockets(0.55, 0.0), backPockets(0.008)) }]],
+  ['Outfit_Bottom_Long__chinos', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: shellOf('BottomLong', null, { off: 0.014, smooth: 16, lap: 8, offAt: belowKnee(0.01), ankleMin: 0.031 }) }]],
+  // Shorts: cotton twill
+  ['Outfit_Bottom_Short__shorts', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: shellOf('BottomShort', null, { off: 0.016, smooth: 14, lap: 6, offAt: (p) => ramp(hipY - p[1], 0, hipY - kneeY) * 0.014 }) }]],
+  ['Outfit_Bottom_Short__cargo_shorts', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: merge(shellOf('BottomShort', null, { off: 0.022, smooth: 16, lap: 8, offAt: (p) => ramp(hipY - p[1], 0, hipY - kneeY) * 0.012 }), cargoPockets(0.6, 0.004)) }]],
+  // Headwear: a twill cap and bucket hat, a rib-knit beanie
+  ['Outfit_Hat__cap', () => [{ mat: fab('Cloth_Hat', 'twill'), geo: merge(capCrown(), capBrim(), capButton()) }]],
+  ['Outfit_Hat__bucket', () => [{ mat: fab('Cloth_Hat', 'twill'), geo: merge(bucketCrown(), bucketBrim()) }]],
+  ['Outfit_Hat__beanie', () => [{ mat: fab('Cloth_Hat', 'rib'), geo: beanie() }]],
+  // Footwear: canvas sneakers on a thick white sole, leather shoes on a thin one, leather boots up the ankle, and slides
+  ['Outfit_Shoes__sneaker', () => shoe(fab('Cloth_Shoes', 'canvas'), fab('Sole', 'rubber'), 0.016, { off: 0.024, smooth: 12, lap: 26 })],
+  ['Outfit_Shoes__formal', () => shoe(fab('Cloth_Shoes', 'leather'), fab('Sole', 'leather'), 0.008, { off: 0.016, smooth: 16, lap: 34 })],
+  ['Outfit_Shoes__boot', () => shoe(fab('Cloth_Shoes', 'leather'), fab('Sole', 'rubber'), 0.012, { off: 0.022, smooth: 14, lap: 24, offAt: (p) => (p[1] > ankleY - 0.01 * H ? -0.004 : 0) }, (p) => !inArm(p) && p[1] < ankleY + 0.026 * H && p[1] > groundY && p[1] < kneeY, ankleY + 0.026 * H)],
+  ['Outfit_Feet__slides', () => [{ mat: fab('Cloth_Shoes', 'rubber'), geo: slides() }]],
 ];
 plainShells();
 for (const [name, make] of GARMENTS2) addGarment(name, make());

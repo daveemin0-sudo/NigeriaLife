@@ -23,6 +23,21 @@ The owner's brief (20 November 2026): a real clothing collection at the quality 
 | F3 | **Catalogue v2.** Every item is a garment model plus a fabric plus a colour, with a price. The old item ids keep working (saved players are not broken). | Every item renders on both bodies |
 | F4 | **Dressed city.** People's outfits come from the catalogue by gender, age, place, time of day, weather and job (shopkeepers, drivers, security, office staff, house staff, market traders). Named characters keep theirs. | A street picture with no two people dressed alike, in the right clothes for the place |
 
+### Progress
+
+- **Stage 1 (garment models), approved 20 Nov.** Fifteen garments with their own shapes: tee, oversized tee, polo, shirt, hoodie, slim/straight/baggy jeans, cargo, chinos, shorts, cargo shorts, cap, bucket hat, beanie.
+- **Stage 2 (fabrics and footwear), built 20 Nov, awaiting review.**
+  - Every cloth part names its fabric in its material (`Cloth_Top:pique`, `Cloth_Bottom:denim`, ...). `src/graphics/people/GarmentFabrics.ts` draws it: a weave made in code, bump, colour variation, stitch rows along hems and the outer leg seam, denim fade, creases at knees and elbows, and a shoe's sole drawn by height.
+  - The material takes a `FabricLook` (kind, colour, stitch colour, wear), so prints, logos and dirt can be added later without new models.
+  - Fabrics: jersey, piqué, oxford, denim, twill, rib, fleece, canvas, leather, rubber.
+  - Rounded pockets (jeans back pockets, cargo pockets and flaps, the hoodie's kangaroo pocket).
+  - The neckline follows the body: a ring round the neck at the height the shoulders meet it, with the rib on that line. The skin under it is hidden by the same rule, so there are no holes.
+  - Trousers end over the shoe, never inside it.
+  - Footwear: sneakers, formal shoes, boots and slides (bare feet), picked by the outfit's shoe style.
+  - Cost: 8 to 10 draws and 16k to 18.5k triangles per dressed person close up (the old plain outfit was 7 draws, 15.5k). Far people stay baked.
+  - Known leftovers: a small step inside the male neckline at the left, seen only from close in front; formal shoes a little rounded; the female shorts hem slightly uneven.
+- Next, after review: Stage 3 customisation, Stage 4 NPC wardrobe, Stage 5 Boutique (only once the clothes pass), Stage 6 dirt, wear and weather. Clothing definitions stay apart from geometry, materials and the character's equipment.
+
 ## Milestone B: buying
 
 | Stage | What | Done when |
