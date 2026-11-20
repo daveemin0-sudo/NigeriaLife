@@ -1,4 +1,5 @@
 import { MusicPlayer } from '../audio/MusicPlayer';
+import { tickWater } from '../graphics/Water';
 import { thisLoad } from '../app/LoadTimes';
 import { SignInScreen } from '../ui/SignInScreen';
 import * as THREE from 'three';
@@ -158,7 +159,8 @@ import { AIRFIELD, MARINA } from '../world/expressway/Roadside';
 import { FurnitureThumbs } from '../ui/FurnitureThumbs';
 import { DriveControls } from '../ui/DriveControls';
 import { StreetAmbience } from '../audio/StreetAmbience';
-import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD } from '../world/density/StreetLayout';
+import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD, groundAt } from '../world/density/StreetLayout';
+import { Billboards } from '../world/expressway/Billboards';
 import { EXPRESS, ROADSIDE, SIDE_ROADS } from '../world/expressway/layout';
 import { kerbsFrom, wayIn, type KerbSet } from '../world/plan/Kerbs';
 import { estateRoads } from '../world/BananaEstate';
@@ -184,6 +186,7 @@ import { showHornTag } from '../ui/HornTag';
 import { buildingType } from '../realestate/BuildingCatalogue';
 import { CharacterQualityTestScene } from '../world/CharacterQualityTestScene';
 import { PerfReadout } from '../ui/PerfReadout';
+import { StandIns } from '../graphics/people/StandIns';
 
 /** How often the player's position, the time of day and their vitals are written to the save */
 const AUTOSAVE_SECONDS = 5;
@@ -202,6 +205,8 @@ const NO_CROSSING = [
 export class Game {
   public scene: THREE.Scene;
   public renderer: THREE.WebGLRenderer;
+  /** Everyone made the old way, drawn as the character models */
+  public standIns!: StandIns;
   public cameraManager: GameCamera;
   public world: World;
   public player: Player;
@@ -327,7 +332,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast, abujaIdentity, phIdentity };
+  public readonly modules = { groundAt, Billboards, WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast, abujaIdentity, phIdentity };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;
@@ -410,6 +415,7 @@ export class Game {
 
     // 5. Player Character
     this.player = new Player();
+    this.standIns = new StandIns(this.scene, () => [this.player.mesh]);
     this.player.cameraManager = this.cameraManager;
     this.scene.add(this.player.mesh);
 
@@ -2289,6 +2295,8 @@ export class Game {
     this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
     this.player.pavements = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
+    // Cars and bikes stand on Lagos's pavements and forecourts too (the other cities' ground is level)
+    DrivableVehicle.ground = (x, z) => (this.world.cityManager.currentCityId === 'lagos' ? groundAt(x, z) : 0);
     // People and vehicles take up room: nobody walks or drives through them
     const onLagosStreet = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
     const inTheStreet = () => !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
@@ -4711,6 +4719,16 @@ export class Game {
       const map = this.world.worldMap;
       const lagosMap = map.showingRealWorld && map.renderer.currentCityId === 'lagos';
       this.hud.worldMapUI.updateRail(lagosMap, map.view.z, lagosMap && this.world.cityManager.currentCityId === 'lagos' ? this.player.position.z : null, map.reach);
+    }
+
+    // Ripples move on every water surface
+    tickWater(delta);
+
+    // Everyone else made the old way (shops, rooms, guests, staff, riders) drawn as the character models
+    if (this.hud.currentNavMode !== 'map' && !this.flightExperience.isActive) {
+      const riding = this.roadRideExperience.isActive;
+      const camera = riding ? this.roadRideExperience.rideCamera : this.cameraManager.camera;
+      this.standIns.update(delta, camera, riding ? camera.position : this.player.position);
     }
 
     this.lastStepDelta = delta;
