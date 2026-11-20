@@ -275,9 +275,12 @@ export class TrafficSpawner {
       const c = (material as THREE.MeshStandardMaterial).color;
       return !!c && Math.abs(c.r - paintKey.r) + Math.abs(c.g - paintKey.g) + Math.abs(c.b - paintKey.b) < 0.01;
     };
+    // A lamp is a part that glows: a lit emissive colour, not just the intensity every standard
+    // material carries by default (1). Testing the intensity alone took whole cars, magenta paint key
+    // and all, into the night-lights batch, so after dark every tinted car glowed pink.
     const isLamp = (material: THREE.Material) => {
       const m = material as THREE.MeshStandardMaterial;
-      return typeof m.emissiveIntensity === 'number' && m.emissiveIntensity > 0.4;
+      return typeof m.emissiveIntensity === 'number' && m.emissiveIntensity > 0.4 && !!m.emissive && m.emissive.getHex() !== 0;
     };
     const white = new THREE.Color(0xffffff);
 
