@@ -26,6 +26,7 @@ export interface RigEntry {
 
 const entries: RigEntry[] = [];
 const byRig = new WeakMap<HumanRig, RigEntry>();
+const byGroup = new WeakMap<object, RigEntry>();
 let nextId = 1;
 
 export const RigRegistry = {
@@ -34,6 +35,7 @@ export const RigRegistry = {
     const entry: RigEntry = { id: nextId++, rig: new WeakRef(rig), look, state: 'idle', stateAt: 0, pose: null, poseAt: 0, last: null, speed: 0 };
     entries.push(entry);
     byRig.set(rig, entry);
+    byGroup.set(rig.group, entry);
     // What it is told to do, noted on the way through
     const animate = rig.updateAnimation;
     rig.updateAnimation = (time: number, animState?: boolean | string) => {
@@ -59,5 +61,10 @@ export const RigRegistry = {
 
   entryOf(rig: HumanRig): RigEntry | undefined {
     return byRig.get(rig);
+  },
+
+  /** The rig whose group this is, if it is one */
+  entryOfGroup(group: object): RigEntry | undefined {
+    return byGroup.get(group);
   },
 };

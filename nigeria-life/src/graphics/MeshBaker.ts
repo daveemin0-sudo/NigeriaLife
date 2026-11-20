@@ -11,6 +11,21 @@ export interface BakeOptions {
 }
 
 /**
+ * Stands in for a procedural person met in a bake (a seated diner, a congregation, riders): given the
+ * object, and whether it is the whole of what is baked, returns the character model in its place and pose
+ * (position, normal and colour, in the object's own space, not indexed), or null to bake it as it is.
+ * Set by BakedPeople once the models have loaded.
+ */
+let personBaker: ((obj: THREE.Object3D, alone: boolean) => THREE.BufferGeometry | null) | null = null;
+export function setPersonBaker(baker: typeof personBaker): void {
+  personBaker = baker;
+}
+/** Are people baked as the character models now (the models have loaded)? */
+export function bakingPeopleAsModels(): boolean {
+  return personBaker !== null;
+}
+
+/**
  * Flattens a hierarchy of meshes into ONE vertex-coloured geometry so that many copies
  * can be drawn with a single InstancedMesh instead of dozens of draw calls each.
  */
@@ -24,6 +39,17 @@ export function bakeToGeometry(root: THREE.Object3D, opts: BakeOptions = {}): TH
 
   const visit = (obj: THREE.Object3D): void => {
     if (excluded.has(obj) || !obj.visible) return;
+    // A person made the old way: baked as the character model (not when parts of it are baked apart)
+    if (personBaker && excluded.size === 0) {
+      // On its own: the whole bake, or the one thing in a holder made just for it
+      const person = personBaker(obj, obj === root || (obj.parent === root && root.children.length === 1));
+      if (person) {
+        const part = person.clone();
+        part.applyMatrix4(local.multiplyMatrices(inverse, obj.matrixWorld));
+        parts.push(part);
+        return;
+      }
+    }
 
     const mesh = obj as THREE.Mesh;
     if (mesh.isMesh && mesh.geometry) {

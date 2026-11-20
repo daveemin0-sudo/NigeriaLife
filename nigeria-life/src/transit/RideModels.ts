@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Builder } from '../world/kit/ArchKit';
 import { HumanMeshBuilder, type HumanConfig, type HumanRig } from '../graphics/HumanMeshBuilder';
 import { buildKitCar, plainWheel } from '../world/vehicles/KitCar';
-import { bakeToGeometry } from '../graphics/MeshBaker';
+import { bakeToGeometry, bakingPeopleAsModels } from '../graphics/MeshBaker';
 import type { CarSpec } from '../world/vehicles/CarBodyKit';
 
 /**
@@ -52,10 +52,13 @@ function bakeFigure(rig: HumanRig): void {
   const arms = [rig.leftArm, rig.rightArm];
   const forearms = [rig.leftForearm, rig.rightForearm];
   rig.group.updateWorldMatrix(true, true);
-  const body = bakeToGeometry(rig.group, { exclude: [...arms, rig.head] });
-  const head = bakeToGeometry(rig.head, { space: rig.head });
-  const uppers = arms.map((arm, i) => bakeToGeometry(arm, { space: arm, exclude: forearms[i] ? [forearms[i]!] : [] }));
-  const lowers = forearms.map((f) => (f ? bakeToGeometry(f, { space: f }) : null));
+  // With the character models loaded, the whole person is the model, seated, in one piece (its own
+  // arms and head are not turned apart); before then, as before
+  const whole = bakingPeopleAsModels();
+  const body = whole ? bakeToGeometry(rig.group) : bakeToGeometry(rig.group, { exclude: [...arms, rig.head] });
+  const head = whole ? null : bakeToGeometry(rig.head, { space: rig.head });
+  const uppers = arms.map((arm, i) => (whole ? null : bakeToGeometry(arm, { space: arm, exclude: forearms[i] ? [forearms[i]!] : [] })));
+  const lowers = forearms.map((f) => (f && !whole ? bakeToGeometry(f, { space: f }) : null));
   const keepOnly = (parent: THREE.Object3D, keep: Array<THREE.Object3D | undefined>, geo: THREE.BufferGeometry | null) => {
     for (const child of [...parent.children]) if (!keep.includes(child)) parent.remove(child);
     if (geo) {

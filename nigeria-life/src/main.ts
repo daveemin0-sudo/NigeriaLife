@@ -1,4 +1,5 @@
 import { markLoad, noteLoad, watchPlayable } from './app/LoadTimes';
+import { BakedPeople } from './graphics/people/BakedPeople';
 import { startUpdates } from './app/Updates';
 import '@fontsource-variable/outfit/wght.css';
 import { StreetAmbience } from './audio/StreetAmbience';
@@ -33,8 +34,12 @@ const fontsReady = Promise.race([
   new Promise((resolve) => setTimeout(resolve, 1500)),
 ]).catch(() => undefined);
 
+// The character models load alongside: everyone the world makes at start-up (diners, riders, a congregation)
+// is made as them, never the old figures (at most a few seconds' wait on a slow line)
+const peopleReady = Promise.race([BakedPeople.prepare(), new Promise((resolve) => setTimeout(resolve, 8000))]).catch(() => undefined);
+
 // Initialize the Nigeria Life Engine
-void fontsReady.then(() => {
+void Promise.all([fontsReady, peopleReady]).then(() => {
   markLoad('fonts');
   try {
     // Things that do not move are not placed again every frame (a third of the processor's work on the street)

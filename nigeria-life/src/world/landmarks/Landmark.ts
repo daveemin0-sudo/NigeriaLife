@@ -1,9 +1,9 @@
 import * as THREE from 'three';
+import { HumanMeshBuilder } from '../../graphics/HumanMeshBuilder';
 import type { InteractiveObject } from '../World';
 import type { Obstruction, Rect } from '../plan/CityPlan';
 import type { StreetDoor } from '../Buildings';
 import type { PlaceAction, PlaceHost } from '../../destinations/PlaceActions';
-import { Builder } from '../kit/ArchKit';
 
 /** A landmark's things are used through the same contract as anything else in the world. */
 export type LandmarkHost = PlaceHost;
@@ -40,12 +40,23 @@ export interface Landmark {
 
 /** A standing figure in one piece, for workers and officials who belong to a place. */
 export function figure(shirt: number, trousers = 0x1f2937, skin = 0x6b4226, hat?: number): THREE.Group {
-  const builder = new Builder()
-    .box(trousers, 0.42, 0.8, 0.26, 0, 0, 0)
-    .box(shirt, 0.5, 0.62, 0.3, 0, 0.8, 0)
-    .box(skin, 0.3, 0.3, 0.3, 0, 1.43, 0);
-  if (hat !== undefined) builder.box(hat, 0.36, 0.14, 0.36, 0, 1.73, 0);
-  return builder.build('figure');
+  // A real person in these colours (drawn as the character model wherever it stands: StandIns), not boxes.
+  // A hat means a uniform cap: a guard's, a marshal's, a steward's
+  const holder = new THREE.Group();
+  holder.name = 'figure';
+  const rig = HumanMeshBuilder.createHuman({
+    gender: 'male',
+    username: '',
+    lod: 'street',
+    outfit: hat !== undefined ? 'security_uniform' : 'casual_tee',
+    outfitColor: shirt,
+    trousersColor: trousers,
+    skinTone: `#${skin.toString(16).padStart(6, '0')}`,
+    hairstyle: hat !== undefined ? 'police_cap' : 'short_crop',
+  });
+  rig.nameTag.visible = false;
+  holder.add(rig.group);
+  return holder;
 }
 
 /** A box that is not drawn: it only marks what to click to reach something. */

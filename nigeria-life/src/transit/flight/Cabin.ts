@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder } from '../../world/kit/ArchKit';
 import { HumanMeshBuilder, type HumanRig, type HumanConfig } from '../../graphics/HumanMeshBuilder';
-import { bakeToGeometry } from '../../graphics/MeshBaker';
+import { bakeToGeometry, bakingPeopleAsModels } from '../../graphics/MeshBaker';
 import { seatFigure } from '../RideModels';
 import type { Pose } from './FlightPlan';
 
@@ -333,7 +333,8 @@ export class Cabin {
     looks.forEach((look, i) => {
       // Under the seat in front the legs are never seen: they are left out of the mesh
       const seated = seatedForBaking(look);
-      const geo = bakeToGeometry(seated.root, { exclude: seated.legs });
+      // As the character model (its legs under the seat in front are not seen either way)
+      const geo = bakingPeopleAsModels() ? bakeToGeometry(seated.root) : bakeToGeometry(seated.root, { exclude: seated.legs });
       if (!geo) return;
       const mine = near.slice(i * per, (i + 1) * per);
       if (mine.length) place(new THREE.InstancedMesh(geo, material, mine.length), mine);
