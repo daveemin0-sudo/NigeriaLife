@@ -91,6 +91,19 @@ export const MAIN_ROAD = {
   sidewalkTop: 0.28,
 };
 
+/** Raised pavement slabs beside the side streets (Broad Street's own are known from MAIN_ROAD), recorded as they are built */
+const PAVEMENTS: Array<[number, number, number, number]> = [];
+export function addPavement(minX: number, maxX: number, minZ: number, maxZ: number): void {
+  PAVEMENTS.push([minX, maxX, minZ, maxZ]);
+}
+/** Is this spot on top of a raised pavement (Broad Street's, or a side street's)? Someone on it stands sidewalkTop up */
+export function onPavement(x: number, z: number): boolean {
+  const ax = Math.abs(x);
+  if (ax >= MAIN_ROAD.halfRoad && ax <= MAIN_ROAD.halfRoad + MAIN_ROAD.walk && z >= MAIN_ROAD.zMin && z <= MAIN_ROAD.zMax && !isInJunctionGap(z)) return true;
+  for (const [a, b, c, d] of PAVEMENTS) if (x >= a && x <= b && z >= c && z <= d) return true;
+  return false;
+}
+
 /** Outer edge of the Broad Street sidewalks */
 export const MAIN_CORRIDOR_HALF = MAIN_ROAD.halfRoad + MAIN_ROAD.walk;
 

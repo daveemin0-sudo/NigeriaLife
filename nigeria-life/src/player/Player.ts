@@ -15,7 +15,7 @@ import {
   type SkinnedAnimState,
   type SkinnedCharacterHandle,
 } from '../graphics/people/SkinnedCharacter';
-import { bridgeNear } from '../world/density/StreetLayout';
+import { bridgeNear, onPavement, MAIN_ROAD } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
 import { Bodies, outOfCar, outOfPerson, waysRoundCar } from '../world/Bodies';
 import type { Way } from '../world/plan/Wayfinder';
@@ -690,6 +690,8 @@ export class Player {
   public wayfinder: ((fromX: number, fromZ: number, toX: number, toZ: number) => Way | null) | null = null;
   /** Is the footbridge in the city the player is in? (It is in Lagos.) */
   public footbridge: (() => boolean) | null = null;
+  /** Out in the Lagos streets (not in another city, not indoors): where the raised pavements are */
+  public pavements: (() => boolean) | null = null;
   /** Active pedestrian positions for collision avoidance */
   /** A walk by a found way: the points still to pass after the one being walked to, and where it all ends */
   private way: THREE.Vector3[] = [];
@@ -764,6 +766,9 @@ export class Player {
     // National Stadium Surulere stands elevation (5 tiers rising from 0.8m to 4.0m)
     const stadY = this.stadiumHeight(x, z);
     if (stadY !== null) return stadY;
+
+    // Up on a raised pavement (the slabs are 28 cm above the road): feet on top of it, not inside it
+    if (this.pavements?.() && onPavement(x, z)) return MAIN_ROAD.sidewalkTop;
 
     // Broad Street ground level (0.0m)
     return 0;

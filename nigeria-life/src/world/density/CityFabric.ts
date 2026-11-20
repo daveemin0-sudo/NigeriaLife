@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../../materials/MaterialLibrary';
 import { seededRandom } from '../../graphics/MeshBaker';
-import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, type SideStreet } from './StreetLayout';
+import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, addPavement, type SideStreet } from './StreetLayout';
 import { StreetStalls, lagosStallSells, type StallSpot } from '../street/StreetStalls';
 
 // Occupancy bit flags
@@ -314,6 +314,7 @@ export class CityFabric {
           m: this.mat(wx, 0, wz, isX ? STEP : st.walk, MAIN_ROAD.sidewalkTop, isX ? st.walk : STEP),
         });
         this.mark(wMinX, wMaxX, wMinZ, wMaxZ, ROAD);
+        addPavement(wMinX, wMaxX, wMinZ, wMaxZ);
 
         let run = runs[side];
         if (!run) {

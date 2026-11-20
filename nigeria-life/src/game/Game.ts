@@ -2288,6 +2288,7 @@ export class Game {
     this.player.solids = () => this.solidsHere();
     this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
+    this.player.pavements = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
     // People and vehicles take up room: nobody walks or drives through them
     const onLagosStreet = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
     const inTheStreet = () => !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
