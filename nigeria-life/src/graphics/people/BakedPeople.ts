@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { CharacterConfig } from '../../player/CharacterCustomization';
-import { loadSkinnedCharacter, streetDress, type Dress, type SkinnedAnimState, type SkinnedCharacterHandle, type StreetLook } from './SkinnedCharacter';
+import { garmentOf, loadSkinnedCharacter, streetDress, wears, type Dress, type SkinnedAnimState, type SkinnedCharacterHandle, type StreetLook } from './SkinnedCharacter';
 import { buildOf } from './SkinnedCrowd';
 import { RigRegistry } from './RigRegistry';
 import { setPersonBaker } from '../MeshBaker';
@@ -18,8 +18,8 @@ export type BakedMode = 'walk' | 'idle' | 'talk' | 'dance' | 'sit';
 /** Frames baked for each action (a walk needs enough for the legs to read as walking) */
 const FRAMES: Record<BakedMode, number> = { walk: 8, idle: 1, talk: 2, dance: 4, sit: 1 };
 /** Parts of the body by material, as the colour each takes */
-const PART: Record<string, number> = { Skin_Body: 0, Hair: 1, Cloth_Top: 2, Cloth_Bottom: 3, Cloth_Shoes: 4 };
-const TINTS = ['tSkin', 'tHair', 'tTop', 'tBottom', 'tShoes'] as const;
+const PART: Record<string, number> = { Skin_Body: 0, Hair: 1, Cloth_Top: 2, Cloth_Bottom: 3, Cloth_Shoes: 4, Cloth_Hat: 5, Cloth_Trim: 2 };
+const TINTS = ['tSkin', 'tHair', 'tTop', 'tBottom', 'tShoes', 'tHat'] as const;
 const MODES: BakedMode[] = ['walk', 'idle', 'talk', 'dance', 'sit'];
 
 interface Model {
@@ -53,7 +53,7 @@ varying vec3 vTint;`,
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-vTint = part < 0.5 ? tSkin : part < 1.5 ? tHair : part < 2.5 ? tTop : part < 3.5 ? tBottom : tShoes;`,
+vTint = part < 0.5 ? tSkin : part < 1.5 ? tHair : part < 2.5 ? tTop : part < 3.5 ? tBottom : part < 4.5 ? tShoes : tHat;`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vTint;')
@@ -68,6 +68,8 @@ export class BakedPeople {
   private static models: Partial<Record<'male' | 'female', Model>> = {};
   private static loading: Promise<void> | null = null;
   private static frames = new Map<string, THREE.BufferGeometry>();
+  /** Each cut of clothes (Dress.key) as a small number, for the batch keys */
+  private static cuts = new Map<string, number>();
 
   /** Loads the two models once, for every BakedPeople there is */
   public static prepare(): Promise<void> {
@@ -125,15 +127,20 @@ export class BakedPeople {
     let dress = this.dresses.get(lookKey);
     if (!dress) {
       const d = streetDress(look);
-      dress = { ...d, cut: parseInt(d.mask, 2) };
+      let cut = BakedPeople.cuts.get(d.key);
+      if (cut === undefined) {
+        cut = BakedPeople.cuts.size;
+        BakedPeople.cuts.set(d.key, cut);
+      }
+      dress = { ...d, cut };
       this.dresses.set(lookKey, dress);
     }
     const frames = FRAMES[mode];
     const duration = model.durations.get(mode) ?? 1;
     const frame = frames === 1 ? 0 : Math.floor((((cycle % 1) + 1) % 1) * frames) % frames;
-    const key = (((look.gender === 'female' ? 1 : 0) * 32 + dress.cut) * 8 + MODES.indexOf(mode)) * 8 + frame;
+    const key = (((look.gender === 'female' ? 1 : 0) * 4096 + dress.cut) * 8 + MODES.indexOf(mode)) * 8 + frame;
     let batch = this.batches.get(key);
-    if (!batch || batch.count >= batch.mesh.instanceMatrix.count) batch = this.grow(key, model, look.gender, dress.mask, mode, frame, (frame + 0.5) / frames * duration, batch);
+    if (!batch || batch.count >= batch.mesh.instanceMatrix.count) batch = this.grow(key, model, look.gender, dress, mode, frame, (frame + 0.5) / frames * duration, batch);
 
     const [width] = buildOf(id);
     this.p.set(x, y, z);
@@ -144,8 +151,8 @@ export class BakedPeople {
     batch.mesh.setMatrixAt(i, this.m);
     if (batch.keys[i] !== lookKey) {
       batch.keys[i] = lookKey;
-      const colours = [dress.skin, dress.hair, dress.top, dress.bottom, dress.shoes];
-      for (let t = 0; t < 5; t++) batch.tints[t].setXYZ(i, colours[t].r, colours[t].g, colours[t].b);
+      const colours = [dress.skin, dress.hair, dress.top, dress.bottom, dress.shoes, dress.hatColour];
+      for (let t = 0; t < 6; t++) batch.tints[t].setXYZ(i, colours[t].r, colours[t].g, colours[t].b);
       batch.tintsDirty = true;
     }
     return true;
@@ -171,11 +178,11 @@ export class BakedPeople {
   }
 
   /** A batch for this frame, made (or made bigger, keeping who is in it) */
-  private grow(key: number, model: Model, gender: 'male' | 'female', mask: string, mode: BakedMode, frame: number, at: number, old?: Batch): Batch {
-    const frameKey = `${gender}|${mask}|${mode}|${frame}`;
+  private grow(key: number, model: Model, gender: 'male' | 'female', dress: Dress, mode: BakedMode, frame: number, at: number, old?: Batch): Batch {
+    const frameKey = `${gender}|${dress.key}|${mode}|${frame}`;
     let geometry = BakedPeople.frames.get(frameKey);
     if (!geometry) {
-      geometry = this.bake(model, mask, mode, at);
+      geometry = this.bake(model, dress, mode, at);
       BakedPeople.frames.set(frameKey, geometry);
     }
     const capacity = old ? old.mesh.instanceMatrix.count * 2 : 16;
@@ -200,7 +207,7 @@ export class BakedPeople {
       for (let i = 0; i < old.count; i++) {
         old.mesh.getMatrixAt(i, this.m);
         mesh.setMatrixAt(i, this.m);
-        for (let t = 0; t < 5; t++) tints[t].setXYZ(i, old.tints[t].getX(i), old.tints[t].getY(i), old.tints[t].getZ(i));
+        for (let t = 0; t < TINTS.length; t++) tints[t].setXYZ(i, old.tints[t].getX(i), old.tints[t].getY(i), old.tints[t].getZ(i));
       }
       batch.count = old.count;
       batch.keys = old.keys.slice();
@@ -230,10 +237,10 @@ export class BakedPeople {
     if (!model) return null;
     const seated = (rig.leftLeg.rotation.x + rig.rightLeg.rotation.x) / 2 < -0.9;
     const dress = streetDress({ ...look, gender });
-    const key = `${gender}|${dress.mask}|${seated ? 'sit' : 'stand'}|${alone ? 'full' : 'lod'}`;
+    const key = `${gender}|${dress.key}|${seated ? 'sit' : 'stand'}|${alone ? 'full' : 'lod'}`;
     let statue = BakedPeople.statues.get(key);
     if (!statue) {
-      statue = BakedPeople.pose(model, dress.mask, seated ? 'sit' : 'idle', !alone);
+      statue = BakedPeople.pose(model, dress, seated ? 'sit' : 'idle', !alone);
       BakedPeople.statues.set(key, statue);
     }
     const geometry = statue.geometry.clone();
@@ -245,7 +252,7 @@ export class BakedPeople {
     }
     // Each part in this person's colours
     const part = geometry.getAttribute('part');
-    const colours = [dress.skin, dress.hair, dress.top, dress.bottom, dress.shoes];
+    const colours = [dress.skin, dress.hair, dress.top, dress.bottom, dress.shoes, dress.hatColour];
     const colour = new Float32Array(part.count * 3);
     for (let i = 0; i < part.count; i++) {
       const c = colours[part.getX(i)] ?? dress.skin;
@@ -259,13 +266,13 @@ export class BakedPeople {
   }
 
   /** The model (full detail, or its low-detail copy) in a cut of clothes, posed still, not indexed */
-  private static pose(model: Model, mask: string, mode: BakedMode, lod: boolean): { geometry: THREE.BufferGeometry; hip: number } {
+  private static pose(model: Model, dress: Dress, mode: BakedMode, lod: boolean): { geometry: THREE.BufferGeometry; hip: number } {
     const { handle } = model;
     handle.play(mode as SkinnedAnimState, 0);
     handle.mixer.setTime((model.durations.get(mode) ?? 1) * 0.5);
     handle.update(0);
     handle.root.updateMatrixWorld(true);
-    const shown = [...mask].map((b) => b === '1');
+    const shown = dress.shown;
     const positions: number[] = [];
     const parts: number[] = [];
     const v = new THREE.Vector3();
@@ -273,8 +280,9 @@ export class BakedPeople {
       const mesh = o as THREE.SkinnedMesh;
       if (!mesh.isSkinnedMesh || o.name.startsWith('LOD_') !== lod) return;
       const name = lod ? o.name.slice(4) : o.name;
-      const garment = ['Outfit_Top_Short', 'Outfit_Top_Long', 'Outfit_Bottom_Long', 'Outfit_Bottom_Short', 'Outfit_Shoes'].indexOf(name);
-      if (garment >= 0 && !shown[garment]) return;
+      const garment = garmentOf(o);
+      if (garment && !wears(dress, garment)) return;
+      if (/^Hair/.test(name) && dress.variants.hat) return;
       const piece = /^Body_c([01]{5})$/.exec(name);
       if (piece && [...piece[1]].some((bit, i) => bit === '1' && shown[i])) return;
       const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
@@ -301,14 +309,14 @@ export class BakedPeople {
   }
 
   /** The low-detail model in this cut of clothes, posed `at` seconds into the action, as one plain mesh */
-  private bake(model: Model, mask: string, mode: BakedMode, at: number): THREE.BufferGeometry {
+  private bake(model: Model, dress: Dress, mode: BakedMode, at: number): THREE.BufferGeometry {
     const { handle } = model;
     handle.play(mode as SkinnedAnimState, 0);
     handle.mixer.setTime(at);
     handle.update(0); // the everyday posture over the clip, as on a full model
     handle.root.updateMatrixWorld(true);
 
-    const shown = [...mask].map((b) => b === '1');
+    const shown = dress.shown;
     const positions: number[] = [];
     const parts: number[] = [];
     const index: number[] = [];
@@ -317,8 +325,9 @@ export class BakedPeople {
       const mesh = o as THREE.SkinnedMesh;
       if (!mesh.isSkinnedMesh || !o.name.startsWith('LOD_')) return;
       const name = o.name.slice(4);
-      const garment = ['Outfit_Top_Short', 'Outfit_Top_Long', 'Outfit_Bottom_Long', 'Outfit_Bottom_Short', 'Outfit_Shoes'].indexOf(name);
-      if (garment >= 0 && !shown[garment]) return;
+      const garment = garmentOf(o);
+      if (garment && !wears(dress, garment)) return;
+      if (/^Hair/.test(name) && dress.variants.hat) return;
       const piece = /^Body_c([01]{5})$/.exec(name);
       if (piece && [...piece[1]].some((bit, i) => bit === '1' && shown[i])) return;
       const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;

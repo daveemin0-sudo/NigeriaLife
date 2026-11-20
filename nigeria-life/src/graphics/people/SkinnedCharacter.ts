@@ -130,13 +130,47 @@ function normalizeGroundAndScale(root: THREE.Group, targetHeight = 1.75): number
 // Garment layout (docs/CHARACTER-PIPELINE.md, "Garment layout"): the body is split into pieces
 // named Body_c<mask>, one mask digit per garment in GARMENTS' order. A piece is hidden when a garment
 // that is shown has a 1 in its digit, so skin never shows through clothes and nothing is left bare.
-const GARMENTS = ['Outfit_Top_Short', 'Outfit_Top_Long', 'Outfit_Bottom_Long', 'Outfit_Bottom_Short', 'Outfit_Shoes'] as const;
 /** Tops with long sleeves (a robe or gown is drawn as its long-sleeved top until flowing cloth is modelled) */
 const LONG_SLEEVES = new Set(['button_shirt', 'hoodie', 'suit', 'kaftan', 'senator', 'agbada', 'buba_iro', 'ankara_gown', 'corporate_shirt', 'native_attire', 'boubou', 'abaya', 'hijab_dress', 'lecturer_suit', 'mechanic_overalls', 'security_uniform']);
 /** Tops that come with their own bottom in the same cloth (dresses, gowns, a jumpsuit) */
 const ONE_PIECE: Record<string, 'long' | 'short'> = { bodycon: 'short', ankara_gown: 'long', jumpsuit: 'long', buba_iro: 'long', boubou: 'long', abaya: 'long', hijab_dress: 'long', royal_dress: 'long', dress: 'short', blue_dress: 'short', mechanic_overalls: 'long', nurse_scrubs: 'long' };
 /** Bottoms cut above the knee */
-const SHORT_BOTTOMS = new Set(['skirt', 'peplum_skirt']);
+const SHORT_BOTTOMS = new Set(['skirt', 'peplum_skirt', 'shorts', 'cargo_shorts']);
+
+/**
+ * The garment models the build makes (Outfit_<kind>__<variant>: each its own shape, collar, cuffs, pockets),
+ * and which style wears which. A style without a model of its own wears its kind's plain shell.
+ */
+const KINDS = ['Top_Short', 'Top_Long', 'Bottom_Long', 'Bottom_Short', 'Shoes'] as const;
+const VARIANTS: Record<string, string[]> = {
+  Top_Short: ['tee', 'tee_oversized', 'polo'],
+  Top_Long: ['shirt', 'hoodie'],
+  Bottom_Long: ['jeans_slim', 'jeans_straight', 'jeans_baggy', 'cargo', 'chinos'],
+  Bottom_Short: ['shorts', 'cargo_shorts'],
+  Hat: ['cap', 'bucket', 'beanie'],
+};
+const TOP_VARIANT: Record<string, string> = { tshirt: 'tee', casual_tee: 'tee', jersey: 'tee', tee_oversized: 'tee_oversized', graphic_tee: 'tee_oversized', polo_shirt: 'polo', button_shirt: 'shirt', corporate_shirt: 'shirt', hoodie: 'hoodie' };
+const BOTTOM_VARIANT: Record<string, string> = { jeans: 'jeans_straight', jeans_slim: 'jeans_slim', jeans_straight: 'jeans_straight', jeans_baggy: 'jeans_baggy', cargo_pants: 'cargo', trousers: 'chinos', chinos: 'chinos', shorts: 'shorts', cargo_shorts: 'cargo_shorts' };
+const HAT_VARIANT: Record<string, string> = { cap: 'cap', bucket_hat: 'bucket', beanie: 'beanie' };
+
+/** The garment a part of the model belongs to (its own node, or the node it is a part of; low-detail copies too) */
+export function garmentOf(obj: THREE.Object3D): { kind: string; variant: string } | null {
+  for (const o of [obj, obj.parent]) {
+    const m = o ? /^(?:LOD_)?Outfit_(Top_Short|Top_Long|Bottom_Long|Bottom_Short|Shoes|Hat)(?:__([a-z_]+))?$/.exec(o.name) : null;
+    if (m) return { kind: m[1], variant: m[2] ?? '' };
+  }
+  return null;
+}
+
+/** Is this garment (kind, variant) worn in this dress? */
+export function wears(dress: Dress, garment: { kind: string; variant: string }): boolean {
+  if (garment.kind === 'Hat') return !!dress.variants.hat && garment.variant === dress.variants.hat;
+  const i = KINDS.indexOf(garment.kind as (typeof KINDS)[number]);
+  if (i < 0 || !dress.shown[i]) return false;
+  const want = garment.kind.startsWith('Top') ? dress.variants.top : garment.kind.startsWith('Bottom') ? dress.variants.bottom : '';
+  const modelled = !!want && (VARIANTS[garment.kind] ?? []).includes(want);
+  return modelled ? garment.variant === want : garment.variant === '';
+}
 /** The skin colour the build bakes in, and the tone it stands for: other tones scale from it */
 const BAKED_SKIN = new THREE.Color(0.62, 0.44, 0.33);
 const BAKED_TONE = new THREE.Color('#7a4b33');
@@ -150,6 +184,9 @@ interface Garments {
   shoesHex: number;
   skinTone?: string;
   hairColor?: string;
+  /** Headwear (cap, bucket_hat, beanie) and its colour, if any */
+  hatStyle?: string;
+  hatHex?: number;
 }
 
 /** A street person's look (the crowd's HumanConfig fields the skinned model can show) */
@@ -161,6 +198,10 @@ export interface StreetLook {
   outfitColor?: number;
   trousersColor?: number;
   shoeColor?: number;
+  /** What is worn below (jeans, jeans_slim, jeans_baggy, cargo_pants, chinos, shorts, cargo_shorts) and on the head */
+  bottom?: string;
+  hat?: string;
+  hatColor?: number;
 }
 
 function applyGarmentLayout(scene: THREE.Object3D, cfg: CharacterConfig, gender: 'male' | 'female'): void {
@@ -187,6 +228,11 @@ export function applyStreetLook(scene: THREE.Object3D, look: StreetLook): void {
 /** What a look comes to on the model: which garments show (in GARMENTS order) and each part's colour */
 export interface Dress {
   shown: boolean[];
+  /** The garment models worn on top, below and on the head ('' for a kind's plain shell, or none) */
+  variants: { top: string; bottom: string; hat: string };
+  /** Everything about the cut of the clothes, as one key (the same key, the same garments) */
+  key: string;
+  hatColour: THREE.Color;
   /** The garments shown, as the 5-digit mask the build writes (TopShort TopLong BottomLong BottomShort Shoes) */
   mask: string;
   skin: THREE.Color;
@@ -201,9 +247,18 @@ function dressOf(g: Garments, gender: 'male' | 'female'): Dress {
   const sleeves: 'short' | 'long' = LONG_SLEEVES.has(g.topStyle) ? 'long' : 'short';
   const legs: 'long' | 'short' = onePiece ?? (SHORT_BOTTOMS.has(g.bottomStyle) ? 'short' : 'long');
   const shown = [sleeves === 'short', sleeves === 'long', legs === 'long', legs === 'short', true];
+  const variants = {
+    top: TOP_VARIANT[g.topStyle] ?? '',
+    bottom: onePiece ? '' : BOTTOM_VARIANT[g.bottomStyle] ?? '',
+    hat: HAT_VARIANT[g.hatStyle ?? ''] ?? '',
+  };
+  const mask = shown.map((b) => (b ? '1' : '0')).join('');
   return {
     shown,
-    mask: shown.map((b) => (b ? '1' : '0')).join(''),
+    variants,
+    key: `${mask}|${variants.top}|${variants.bottom}|${variants.hat}`,
+    hatColour: new THREE.Color(g.hatHex ?? 0x111827),
+    mask,
     skin: new THREE.Color(g.skinTone || (gender === 'female' ? '#7a4b33' : '#5c3a28')),
     hair: new THREE.Color(g.hairColor || '#0b0908'),
     top: new THREE.Color(g.topHex),
@@ -215,8 +270,10 @@ function dressOf(g: Garments, gender: 'male' | 'female'): Dress {
 const streetGarments = (look: StreetLook): Garments => ({
   topStyle: look.outfit ?? '',
   topHex: look.outfitColor ?? 0xf8fafc,
-  // A skirt outfit is a top over a skirt
-  bottomStyle: SHORT_BOTTOMS.has(look.outfit ?? '') ? look.outfit! : '',
+  // A skirt outfit is a top over a skirt; otherwise what they wear below, if it is said
+  bottomStyle: SHORT_BOTTOMS.has(look.outfit ?? '') ? look.outfit! : look.bottom ?? '',
+  hatStyle: look.hat,
+  hatHex: look.hatColor,
   bottomHex: look.trousersColor ?? look.outfitColor ?? 0x1e293b,
   shoesHex: look.shoeColor ?? 0x111827,
   skinTone: look.skinTone,
@@ -229,17 +286,8 @@ export function streetDress(look: StreetLook): Dress {
 }
 
 function applyGarments(scene: THREE.Object3D, g: Garments, gender: 'male' | 'female'): void {
-  const topStyle = g.topStyle;
-  const onePiece = ONE_PIECE[topStyle];
-  const sleeves: 'short' | 'long' = LONG_SLEEVES.has(topStyle) ? 'long' : 'short';
-  const legs: 'long' | 'short' = onePiece ?? (SHORT_BOTTOMS.has(g.bottomStyle) ? 'short' : 'long');
-  const shown: Record<(typeof GARMENTS)[number], boolean> = {
-    Outfit_Top_Short: sleeves === 'short',
-    Outfit_Top_Long: sleeves === 'long',
-    Outfit_Bottom_Long: legs === 'long',
-    Outfit_Bottom_Short: legs === 'short',
-    Outfit_Shoes: true,
-  };
+  const dress = dressOf(g, gender);
+  const onePiece = ONE_PIECE[g.topStyle];
   const topHex = g.topHex;
   const bottomHex = onePiece ? topHex : g.bottomHex;
   const shoesHex = g.shoesHex;
@@ -264,16 +312,21 @@ function applyGarments(scene: THREE.Object3D, g: Garments, gender: 'male' | 'fem
     else if (m.name === 'Cloth_Top') next.color.setHex(topHex);
     else if (m.name === 'Cloth_Bottom') next.color.setHex(bottomHex);
     else if (m.name === 'Cloth_Shoes') next.color.setHex(shoesHex);
+    else if (m.name === 'Cloth_Hat') next.color.copy(dress.hatColour);
     made.set(m.name, next);
     return next;
   };
 
   scene.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
-    const garment = GARMENTS.indexOf(obj.name as (typeof GARMENTS)[number]);
-    if (garment >= 0) obj.visible = shown[GARMENTS[garment]];
+    // The garments worn (never the low-detail copies: those are only baked), the body pieces they do not cover,
+    // and the hair under a hat
+    const lod = obj.name.startsWith('LOD_') || !!obj.parent?.name.startsWith('LOD_');
+    const garment = lod ? null : garmentOf(obj);
+    if (garment && /^Outfit_/.test(obj.name)) obj.visible = wears(dress, garment);
     const piece = /^Body_c([01]{5})$/.exec(obj.name);
-    if (piece) obj.visible = ![...piece[1]].some((bit, i) => bit === '1' && shown[GARMENTS[i]]);
+    if (piece) obj.visible = ![...piece[1]].some((bit, i) => bit === '1' && dress.shown[i]);
+    if (/^Hair/.test(obj.name)) obj.visible = !dress.variants.hat;
     if (!mesh.isMesh || !mesh.material) return;
     mesh.material = Array.isArray(mesh.material) ? mesh.material.map(restyle) : restyle(mesh.material);
     mesh.castShadow = true;
