@@ -217,10 +217,12 @@ export class RedLine {
         for (const r of [-0.72, 0.72]) b.box(0x71717a, 0.08, 0.14, len, tx + r, DECK + 0.12, mid);
       }
       for (let z = z0; z < z1; z += 3) for (const tx of [-TRACK, TRACK]) b.box(0x44403c, 2.3, 0.08, 0.25, tx, DECK + 0.04, z);
-      // Columns on the median every 30 m, each with a cap
+      // Columns on the median every 30 m, each with a cap. No wider than the barrier they stand in line
+      // with (it is 0.35 m either side of the middle): a car running along the barrier in the fast lane
+      // passes them as it passes the barrier, and is never caught on one.
       for (let z = Math.ceil(z0 / 30) * 30; z < z1; z += 30) {
-        b.cylinder(0xa8a29e, 0.55, DECK - 1.3, 0, 0, z, { sides: 12 }).box(0xa8a29e, 3.4, 0.6, 1.6, 0, DECK - 1.5, z);
-        this.solid('Red Line column', -0.6, 0.6, z - 0.6, z + 0.6, DECK);
+        b.cylinder(0xa8a29e, 0.36, DECK - 1.3, 0, 0, z, { sides: 12 }).box(0xa8a29e, 3.4, 0.6, 1.6, 0, DECK - 1.5, z);
+        this.solid('Red Line column', -0.35, 0.35, z - 0.36, z + 0.36, DECK);
       }
       for (let z = z0 + 15; z < z1; z += 60) for (const sx of [-4.4, 4.4]) b.box(0xfde68a, 0.2, 0.25, 0.4, sx, DECK + 0.9, z, { glow: true });
       // The road's lights, under the deck: a bracket out from each column's cap over each carriageway, the lamp facing down

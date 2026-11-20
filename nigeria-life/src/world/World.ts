@@ -242,6 +242,8 @@ export class World {
       // The Red Line's gates at the foot of each station's stairs
       ...this.expressway.redLine.interactive,
     ];
+    // Lay-by benches built later, as the expressway is built further out, join the rest
+    this.expressway.onInteractive = (o) => this.interactiveObjects.push(o);
 
     // Stage 3: the crowd's people get their days. Their destinations are these doors, keeping the
     // hours the doors keep; the stalls go up when their traders arrive and are packed away at dusk.

@@ -120,7 +120,8 @@ export function createPort(options: PortOptions): Landmark {
   const landWidth = HALF_X - QUAY_X;
   b.ground(0x1b5873, QUAY_X + HALF_X, HALF_Z * 2, (QUAY_X - HALF_X) / 2, 0.05, 0);
   b.ground(0x8f8f8b, landWidth, HALF_Z * 2, QUAY_X + landWidth / 2, 0.02, 0);
-  b.box(0xa8a29e, 1.4, 0.5, HALF_Z * 2, QUAY_X + 0.7, 0, 0);
+  // The quay's edge: nobody walks off it onto the water or into the ship (only a gangway would take them aboard)
+  b.box(0xa8a29e, 1.4, 0.5, HALF_Z * 2, QUAY_X + 0.7, 0, 0, { solid: true });
   b.ground(0xfacc15, 0.3, HALF_Z * 2, QUAY_X + 2, 0.03, 0);
   for (let z = -HALF_Z + 4; z < HALF_Z; z += 8) b.cylinder(0x1f2937, 0.3, 0.7, QUAY_X + 0.7, 0.5, z, { topRadius: 0.4 });
   for (const x of [-13.5, -5.5]) b.ground(0x44403c, 0.3, 62, x, 0.03, 4);

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { waterMaterial } from '../../graphics/Water';
+import { addPavement } from '../density/StreetLayout';
 import { RedLine, STATIONS, VIADUCT } from './RedLine';
 import { Builder } from '../kit/ArchKit';
 import { seededRandom } from '../../graphics/MeshBaker';
@@ -9,6 +11,9 @@ import { EXPRESS, roadsideAt } from './layout';
 import { SideStreets } from './SideStreets';
 import { Roadside } from './Roadside';
 import { Billboards } from './Billboards';
+import { Sequence, steps } from '../../interactions/Sequence';
+import { PlaceActions, type PlaceHost } from '../../destinations/PlaceActions';
+import type { InteractiveObject } from '../World';
 
 /**
  * The expressway out of Lagos Island. Broad Street carries straight on south and becomes it:
@@ -80,7 +85,8 @@ const ADS = new Map<string, THREE.Texture>();
  * A lay-by: the pavement cut back so a car can pull right off the road, as at a Lagos bus bay,
  * tapered at both ends; a bench under a shade at the back of it. Half its length, and how deep it is cut.
  */
-export const LAYBY = { half: 6, core: 3, depth: 2.6 };
+// Long and deep enough to pull a car right in and out again (16 m, 9 m of it full depth, 3 m deep)
+export const LAYBY = { half: 8, core: 4.5, depth: 3 };
 
 /** A parked car in a lay-by: body, cabin, glass and wheels, nose along +z */
 function parkedCar(b: Builder, x: number, z: number, colour: number, flip: boolean): void {
@@ -321,9 +327,10 @@ export class Expressway {
       }
       const board = new THREE.Mesh(new THREE.PlaneGeometry(W, Hb), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
       board.name = `billboard: ${ad[0]}`;
+      // Flat on its face of the frame, square to its side of the road: the whole advert shows (angled,
+      // half of the 16 m board swung back into the frame and was hidden)
       board.position.set(x + face * 0.52, y, z);
-      // Each face to its side of the road, a little toward the traffic coming
-      board.rotation.y = (face < 0 ? -Math.PI / 2 : Math.PI / 2) + face * side * 0.18;
+      board.rotation.y = face < 0 ? -Math.PI / 2 : Math.PI / 2;
       this.add(chunkZ, board);
       // Rentable on Eko Ads: the face turned to the road is "a", the one behind it "b"
       const letter = face === -side ? 'a' : 'b';
@@ -332,8 +339,8 @@ export class Expressway {
   }
 
   /** Shops, offices and houses along one stretch, both sides, facing the road; and where a car stands in front of one */
-  private buildFrontage(b: Builder, z0: number, z1: number): Array<{ side: number; z: number; colour: number }> {
-    const bays: Array<{ side: number; z: number; colour: number }> = [];
+  private buildFrontage(b: Builder, z0: number, z1: number): Array<{ side: number; z: number; colour: number; parked: boolean }> {
+    const bays: Array<{ side: number; z: number; colour: number; parked: boolean }> = [];
     const front = EXPRESS.half + EXPRESS.walk;
     for (const side of [-1, 1]) {
       let z = z0 + this.rand() * 3;
@@ -367,7 +374,8 @@ export class Expressway {
         }
         // A car parked in front of the shop, now and then (in a lay-by: see laybys)
         if (!tall && this.rand() < 0.3 && !EXPRESS_BRIDGES.some((bz) => Math.abs(bz - cz) < 14)) {
-          bays.push({ side, z: cz, colour: CAR_PAINT[Math.floor(this.rand() * CAR_PAINT.length)] });
+          // Most stand empty, free for whoever pulls in
+          bays.push({ side, z: cz, colour: CAR_PAINT[Math.floor(this.rand() * CAR_PAINT.length)], parked: this.rand() < 0.35 });
         }
         if (!tall) {
           // A shop sign over the ground floor, and a roof
@@ -420,6 +428,7 @@ export class Expressway {
       const inner = side * (H + cut);
       const outer = side * (H + W);
       this.pavements.push({ minX: Math.min(inner, outer), maxX: Math.max(inner, outer), minZ: a, maxZ: c });
+      addPavement(Math.min(inner, outer), Math.max(inner, outer), a, c, 0.2);
       b.box(0xe5e7eb, 0.25, 0.22, c - a, side * (H + cut + 0.12), 0, m);
       // The floor of the bay: at the level of the road, and its colour
       if (cut > 0) b.box(0x2b2f36, cut, 0.02, c - a, side * (H + cut / 2), 0, m);
@@ -433,14 +442,18 @@ export class Expressway {
     strip(from, z1, 0);
   }
 
-  /** A car standing in a lay-by, and a bench under a shade on the pavement behind it */
-  private layby(b: Builder, bay: { side: number; z: number; colour: number }): void {
+  /** A lay-by: now and then a car standing in it, and a bench under a shade on the pavement behind it */
+  private layby(b: Builder, bay: { side: number; z: number; colour: number; parked?: boolean }): void {
     const H = EXPRESS.half;
     const W = EXPRESS.walk;
     const s = bay.side;
-    const carX = s * (H + LAYBY.depth / 2 + 0.05);
-    parkedCar(b, carX, bay.z, bay.colour, s > 0);
-    this.solid('Parked car', carX - 0.95, carX + 0.95, bay.z - 2.2, bay.z + 2.2, 1.4);
+    if (bay.parked) {
+      const carX = s * (H + LAYBY.depth / 2 + 0.05);
+      // At the far end of the bay, leaving room to pull in behind it
+      const carZ = bay.z + LAYBY.core - 2.4;
+      parkedCar(b, carX, carZ, bay.colour, s > 0);
+      this.solid('Parked car', carX - 0.95, carX + 0.95, carZ - 2.2, carZ + 2.2, 1.4);
+    }
     // The bay marked out: a broken white line where it leaves the road, a yellow L for the lay-by in it
     for (let dz = -LAYBY.half + 0.5; dz < LAYBY.half - 0.5; dz += 1.6) b.box(0xf8fafc, 0.12, 0.01, 0.8, s * (H - 0.35), 0.022, bay.z + dz);
     // The shade: two posts at the back of the pavement, a roof leaning out over the bench
@@ -453,9 +466,53 @@ export class Expressway {
     b.box(0x0f766e, W - LAYBY.depth + 0.5, 0.08, 3.6, roofX, 2.8, bay.z);
     b.box(0xf8fafc, 0.06, 0.25, 3.6, s * (H + LAYBY.depth - 0.15), 2.62, bay.z);
     // The bench: a wooden seat on two legs, a back rail, facing the road
-    const seatX = s * (H + LAYBY.depth + 0.55);
+    const seatX = s * (H + LAYBY.depth + 0.45);
     b.box(0x92400e, 0.42, 0.06, 2.4, seatX, 0.62, bay.z).box(0x92400e, 0.06, 0.32, 2.4, seatX + s * 0.22, 0.72, bay.z);
     for (const dz of [-1.0, 1.0]) b.box(0x374151, 0.36, 0.42, 0.06, seatX, 0.2, bay.z + dz);
+    this.bench(seatX, bay.z, s);
+  }
+
+  /** Who sits on a lay-by bench to rest: anyone passing can */
+  public onInteractive: ((o: InteractiveObject) => void) | null = null;
+
+  /** The bench in a lay-by, to sit on: walk up, sit down facing the road, rest a while, get up */
+  private bench(seatX: number, z: number, side: number): void {
+    const id = `layby-bench-${side > 0 ? 'e' : 'w'}-${Math.round(z)}`;
+    const marker = new THREE.Object3D();
+    marker.position.set(seatX, 0.68, z);
+    this.group.add(marker);
+    // In front of the seat, toward the road; the seat itself; and facing the road from it
+    const front = new THREE.Vector3(seatX - side * 0.75, 0, z);
+    const seat = new THREE.Vector3(seatX, 0, z);
+    const facing = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    const card: InteractiveObject = { mesh: marker, id, name: '🪑 Bench', category: 'Lay-by', description: 'A bench under a shade by the road. Sit down and rest your legs.', interactionPoint: front.clone() };
+    this.roadside.interactive.push(card);
+    this.onInteractive?.(card);
+    PlaceActions.register(id, {
+      label: () => '🪑 Sit down and rest',
+      run: (host: PlaceHost) => {
+        const actor = host.actor;
+        if (host.director.interrupt(actor) === 'locked') return;
+        const rest = new Sequence('rest on a bench', [actor]);
+        rest.maxSeconds = 60;
+        rest.add(
+          steps.walk(actor, front, { ifStuck: 'snap' }),
+          steps.face(actor, seat),
+          steps.slide(actor, seat, 0.45),
+          // Up on the pavement the bench stands on
+          steps.call('on the pavement', () => { actor.root.position.y = 0.2; }),
+          steps.face(actor, facing),
+          steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+          steps.animate(actor, { legs: 'sit', arms: 'rest' }, 8, [{ at: 0.5, run: () => {
+            host.backend.restoreNeed('energy', 8);
+            host.say('🪑 You sit on the bench and watch the traffic go by. Energy +8.', 'success');
+          } }]),
+          steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
+          steps.slide(actor, front, 0.45),
+        );
+        host.director.run(rest);
+      },
+    });
   }
 
   /** A footbridge right across the road, stairs going up on both pavements */
@@ -494,7 +551,8 @@ export class Expressway {
     this.rand = seededRandom(4411);
     const water = new THREE.Mesh(
       new THREE.PlaneGeometry(1600, EXPRESS.lagoonTo - EXPRESS.lagoonFrom + 60),
-      new THREE.MeshStandardMaterial({ color: 0x1f6f8b, metalness: 0.35, roughness: 0.25 }),
+      // Real water: ripples drifting over it, the sky on it (Water.ts)
+      waterMaterial(0x1f6f8b),
     );
     water.rotation.x = -Math.PI / 2;
     water.position.set(0, -3.2, (EXPRESS.lagoonFrom + EXPRESS.lagoonTo) / 2);

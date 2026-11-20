@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { waterMaterial } from '../graphics/Water';
 import type { InteractiveObject } from './World';
 import { createColorCanvasTexture } from '../utils/TextureUtils';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
@@ -113,13 +114,8 @@ export class Districts {
 
     // Atlantic Ocean Water Surface
     const oceanGeo = new THREE.PlaneGeometry(160, 60, 32, 16);
-    const oceanMat = new THREE.MeshStandardMaterial({
-      color: 0x0284c7,
-      roughness: 0.1,
-      metalness: 0.85,
-      transparent: true,
-      opacity: 0.88,
-    });
+    // The Atlantic: real water (ripples, the sky on it), the deep blue-green of the open sea
+    const oceanMat = waterMaterial(0x0f5e7a);
     this.oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
     this.oceanMesh.rotation.x = -Math.PI / 2;
     this.oceanMesh.position.set(0, -0.15, 35);
