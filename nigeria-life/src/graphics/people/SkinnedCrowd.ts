@@ -21,9 +21,15 @@ export interface CrowdOffer {
   z: number;
   yaw: number;
   scale: number;
-  mode: 'walk' | 'idle' | 'talk';
+  /** What they are doing; null when something else (an Actor's scripted pose) animates the model */
+  mode: 'walk' | 'idle' | 'talk' | 'dance' | null;
   /** Squared distance from the player */
   d2: number;
+  /**
+   * A character with a place of their own (a named person's group): the model goes inside it and
+   * follows it, and x, y, z, yaw and scale are ignored
+   */
+  parent?: THREE.Object3D;
 }
 
 interface Slot {
@@ -59,6 +65,11 @@ export class SkinnedCrowd {
   /** Is this walker drawn as a model this frame (so the crowd leaves it out)? */
   public has(id: number): boolean {
     return this.byId.has(id);
+  }
+
+  /** The model drawn for this walker, if any (an Actor directs it through this) */
+  public handleOf(id: number): SkinnedCharacterHandle | null {
+    return this.byId.get(id)?.handle ?? null;
   }
 
   public offer(o: CrowdOffer): void {
@@ -97,10 +108,19 @@ export class SkinnedCrowd {
         slot.lookKey = o.lookKey;
       }
       slot.holder.visible = true;
-      slot.holder.position.set(o.x, o.y, o.z);
-      slot.holder.rotation.set(0, o.yaw, 0);
-      slot.holder.scale.setScalar(o.scale);
-      handle.play(o.mode === 'walk' ? 'walk' : o.mode === 'talk' ? 'talk' : 'idle', 0.3);
+      if (o.parent) {
+        // Inside the character's own group: it carries the model wherever it goes
+        if (slot.holder.parent !== o.parent) o.parent.add(slot.holder);
+        slot.holder.position.set(0, 0, 0);
+        slot.holder.rotation.set(0, 0, 0);
+        slot.holder.scale.setScalar(1);
+      } else {
+        if (slot.holder.parent !== this.group) this.group.add(slot.holder);
+        slot.holder.position.set(o.x, o.y, o.z);
+        slot.holder.rotation.set(0, o.yaw, 0);
+        slot.holder.scale.setScalar(o.scale);
+      }
+      if (o.mode) handle.play(o.mode, 0.3);
       handle.update(delta);
     }
     this.offers = [];

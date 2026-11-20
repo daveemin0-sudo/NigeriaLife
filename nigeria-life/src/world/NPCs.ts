@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { InteractiveObject } from './World';
-import { HumanMeshBuilder, type HumanRig, type Gender, type Outfit, type Hairstyle } from '../graphics/HumanMeshBuilder';
+import { HumanMeshBuilder, type HumanConfig, type HumanRig, type Gender, type Outfit, type Hairstyle } from '../graphics/HumanMeshBuilder';
+import { SkinnedCrowd } from '../graphics/people/SkinnedCrowd';
+import type { StreetLook } from '../graphics/people/SkinnedCharacter';
 import { Actor } from '../interactions/Actor';
 import { InteractionDirector } from '../interactions/InteractionDirector';
 
@@ -26,6 +28,14 @@ interface AmbientPedestrian {
  * - Occupation-specific clothing (traffic warden high-vis, chef aprons, mechanic overalls, agbada)
  * - Real articulated walking and idle breathing animations
  */
+/** Ids for the character models: the hawker, the story characters, the sidewalk pedestrians */
+const HAWKER = 0;
+const STORY = 1;
+const PEDESTRIAN = 100;
+/** A rig's animation state, as the clip a character model plays */
+const modeOf = (state: string): 'walk' | 'idle' | 'talk' | 'dance' =>
+  state === 'walk' ? 'walk' : state === 'talk' || state === 'phone_call' ? 'talk' : state === 'dance' ? 'dance' : 'idle';
+
 export class NPCs {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
@@ -52,8 +62,20 @@ export class NPCs {
   private hawkerSpeed: number = 2.0;
   private hawkerWalkTime: number = 0;
 
+  /** The look each rig was made from, so a character model can dress the same */
+  private readonly looks = new Map<HumanRig, HumanConfig>();
+  /** The named people nearest the player, drawn as full character models in place of their rigs */
+  private readonly models: SkinnedCrowd;
+
+  private human(config: HumanConfig): HumanRig {
+    const rig = HumanMeshBuilder.createHuman(config);
+    this.looks.set(rig, config);
+    return rig;
+  }
+
   constructor() {
     this.group = new THREE.Group();
+    this.models = new SkinnedCrowd(this.group);
 
     // 1. Core Interactive Story NPCs (10 rich characters)
     this.createInteractiveNPCs();
@@ -71,15 +93,17 @@ export class NPCs {
       const root = entry.mesh;
       if (root === this.hawkerGroup) {
         this.hawkerActor = director.register(
-          new Actor({ id: `npc:${entry.id}`, name: entry.name, root, getRig: () => this.hawkerRig }),
+          new Actor({ id: `npc:${entry.id}`, name: entry.name, root, getRig: () => (this.models.has(HAWKER) ? null : this.hawkerRig), getSkinned: () => this.models.handleOf(HAWKER) }),
           entry.id
         );
         continue;
       }
-      const story = this.storyRigs.find((item) => item.rig.group.parent === root);
+      const index = this.storyRigs.findIndex((item) => item.rig.group.parent === root);
+      const story = this.storyRigs[index];
       if (!story) continue;
+      const id = STORY + index;
       story.actor = director.register(
-        new Actor({ id: `npc:${entry.id}`, name: entry.name, root, getRig: () => story.rig }),
+        new Actor({ id: `npc:${entry.id}`, name: entry.name, root, getRig: () => (this.models.has(id) ? null : story.rig), getSkinned: () => this.models.handleOf(id) }),
         entry.id
       );
     }
@@ -128,7 +152,7 @@ export class NPCs {
     this.hawkerGroup = new THREE.Group();
     this.hawkerGroup.position.set(-8.5, 0.28, -15);
 
-    this.hawkerRig = HumanMeshBuilder.createHuman({
+    this.hawkerRig = this.human({
       gender: 'male',
       username: 'Chidi (Drinks & Gala)',
       skinTone: '#4a2c1d',
@@ -160,7 +184,7 @@ export class NPCs {
     conductorGroup.position.set(7.5, 0.28, 5);
     conductorGroup.rotation.y = -Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Danfo Conductor',
       skinTone: '#3f2518',
@@ -190,7 +214,7 @@ export class NPCs {
     betGroup.position.set(-13, 0.28, 4.5);
     betGroup.rotation.y = Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Segun (Odds Guru)',
       skinTone: '#543321',
@@ -220,7 +244,7 @@ export class NPCs {
     auntyGroup.position.set(13, 0.28, -28);
     auntyGroup.rotation.y = -Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'female',
       username: 'Mama Nkechi (Textiles)',
       skinTone: '#5c3722',
@@ -251,7 +275,7 @@ export class NPCs {
     bankerGroup.position.set(12, 0.28, -11);
     bankerGroup.rotation.y = -Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Tunde (Wealth Advisor)',
       skinTone: '#452718',
@@ -282,7 +306,7 @@ export class NPCs {
     suyaGroup.position.set(-13, 0.28, 16.5);
     suyaGroup.rotation.y = Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Mallam Bisi (Suya Master)',
       skinTone: '#4a2c1d',
@@ -312,7 +336,7 @@ export class NPCs {
     phoneGroup.position.set(13, 0.28, -5);
     phoneGroup.rotation.y = -Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Emeka (Slot Phone Guru)',
       skinTone: '#4e2f1f',
@@ -342,7 +366,7 @@ export class NPCs {
     mechGroup.position.set(-13, 0.28, -25);
     mechGroup.rotation.y = Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Master Tayo (Lead Mechanic)',
       skinTone: '#3d2417',
@@ -372,7 +396,7 @@ export class NPCs {
     wardenGroup.position.set(0, 0, 1.5);
     wardenGroup.rotation.y = 0;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Sgt. Bello (LASTMA Warden)',
       skinTone: '#452718',
@@ -402,7 +426,7 @@ export class NPCs {
     elderGroup.position.set(-12.5, 0.28, 12);
     elderGroup.rotation.y = Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Chief Alabi (Community Elder)',
       skinTone: '#4a2c1d',
@@ -432,7 +456,7 @@ export class NPCs {
     agberoGroup.position.set(7.8, 0.28, 12);
     agberoGroup.rotation.y = -Math.PI / 2;
 
-    const rig = HumanMeshBuilder.createHuman({
+    const rig = this.human({
       gender: 'male',
       username: 'Alaye (Terminus Chairman)',
       skinTone: '#3f2518',
@@ -510,7 +534,7 @@ export class NPCs {
       const pedGroup = new THREE.Group();
       pedGroup.position.set(item.x, 0.28, item.z);
 
-      const rig = HumanMeshBuilder.createHuman({
+      const rig = this.human({
         gender: item.gender,
         username: item.username,
         outfit: item.outfit,
@@ -579,6 +603,33 @@ export class NPCs {
   // =========================================================================
   // UPDATE TICK
   // =========================================================================
+  /**
+   * The named people nearest the player are drawn as full character models (inside their own groups,
+   * so they stand, walk and turn as before); their rigs are hidden while a model stands in.
+   * One a scripted interaction is directing is animated by it (the Actor's pose), not here.
+   */
+  private showModels(delta: number, playerPos?: THREE.Vector3): void {
+    if (!playerPos) return;
+    const reach2 = this.models.reach2;
+    const cast: Array<[number, THREE.Object3D, HumanRig, 'walk' | 'idle' | 'talk' | 'dance' | null]> = [];
+    if (this.hawkerGroup && this.hawkerRig) cast.push([HAWKER, this.hawkerGroup, this.hawkerRig, this.hawkerActor?.scripted ? null : 'walk']);
+    this.storyRigs.forEach((story, i) => {
+      const root = story.rig.group.parent;
+      if (root) cast.push([STORY + i, root, story.rig, story.actor?.scripted ? null : modeOf(story.animState)]);
+    });
+    this.pedestrians.forEach((ped, i) => cast.push([PEDESTRIAN + i, ped.group, ped.rig, ped.isWalking ? 'walk' : modeOf(ped.idleAction ?? 'idle')]));
+    for (const [id, root, rig, mode] of cast) {
+      if (!root.visible) continue;
+      const dx = root.position.x - playerPos.x;
+      const dz = root.position.z - playerPos.z;
+      const d2 = dx * dx + dz * dz;
+      const look = this.looks.get(rig);
+      if (d2 < reach2 && look) this.models.offer({ id, look: look as StreetLook, lookKey: id, x: 0, y: 0, z: 0, yaw: 0, scale: 1, mode, d2, parent: root });
+    }
+    this.models.sync(delta);
+    for (const [id, , rig] of cast) rig.group.visible = !this.models.has(id);
+  }
+
   public update(delta: number, playerPos?: THREE.Vector3): void {
     this.storyAnimTime += delta;
 
@@ -680,6 +731,8 @@ export class NPCs {
         ped.rig.updateAnimation(ped.walkTime, ped.idleAction || 'idle');
       }
     }
+
+    this.showModels(delta, playerPos);
 
     // Continuous physical collision non-penetration between pedestrians & player
     for (let i = 0; i < this.pedestrians.length; i++) {
