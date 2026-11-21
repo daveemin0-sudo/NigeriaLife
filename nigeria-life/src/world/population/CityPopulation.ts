@@ -3,7 +3,6 @@ import { BUS_STOPS, stopAt } from '../../transit/Fares';
 import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
 import { SkinnedCrowd } from '../../graphics/people/SkinnedCrowd';
 import { BakedPeople, type BakedMode } from '../../graphics/people/BakedPeople';
-import type { StreetLook } from '../../graphics/people/SkinnedCharacter';
 import { bakeToGeometry, seededRandom, simplifyByClustering } from '../../graphics/MeshBaker';
 import type { StreetSpot, WalkRun } from '../density/CityFabric';
 import { CROSS_STREET_Z, MAIN_JUNCTION_GAPS, MAIN_ROAD, isInJunctionGap } from '../density/StreetLayout';
@@ -11,6 +10,9 @@ import { isAbroad } from '../StreetLife';
 import { Bodies, type PersonBody } from '../Bodies';
 import { calendar, isOpen, STALL_HOURS, type OpeningHours } from '../../destinations/Hours';
 import type { StallSpot } from '../street/StreetStalls';
+import { CrowdWardrobe, type CrowdPerson, type WardrobeEntry } from './CrowdWardrobe';
+import { OCCUPATIONS, occupationFor } from './NpcWardrobe';
+import { fashionAt, fashionOfWorkplace } from './FashionDistricts';
 import { WalkNetwork, PROFILES, hash01, hoursOfKind, kindOf, planDay, roleOf, workplaceOf, type CityProfile, type Place, type PlaceInput, type PlaceKind, type PlacePicker, type Role, type Step } from './Routines';
 
 type Mode = 'walk' | 'idle' | 'talk';
@@ -72,6 +74,9 @@ interface Agent {
   run?: number;
   /** Their place in the crowd (who is at home at this hour goes by it) */
   id: number;
+  /** Where they were first placed (their own streets, for what they wear: the same every session) */
+  sx?: number;
+  sz?: number;
   /** Crossing a road: to the kerb, waiting there, over, and back into the stream of walkers */
   xing?: Xing;
   /** Seconds before they will cross again */
@@ -298,6 +303,10 @@ export class CityPopulation {
   private plan: CrowdPlan;
   /** The crowd drawn as character models (near: full models; further: BakedPeople). Off draws the old figures (tests only). */
   public static PEOPLE_AS_MODELS = true;
+  /** The weather now (the world sets it each frame): what people put on follows it (src/world/population/NpcWardrobe.ts) */
+  public static weather = 'sunny';
+  /** What each person wears, and when (made as they are first seen) */
+  public readonly wardrobe = new CrowdWardrobe('lagos');
   private static shapes: Shape[] | null = null;
   private static material: THREE.MeshStandardMaterial | null = null;
   private static blobMaterial: THREE.MeshBasicMaterial | null = null;
@@ -534,6 +543,8 @@ export class CityPopulation {
       onMainWalk: false,
       ...partial,
       id: this.agents.length,
+      sx: partial.x,
+      sz: partial.z,
     };
     this.agents.push(agent);
     return agent;
@@ -996,6 +1007,9 @@ export class CityPopulation {
     stalls?: readonly StallSpot[]
   ): void {
     const profile = PROFILES[cityId] ?? PROFILES.lagos;
+    this.wardrobe.setCity(cityId);
+    // Their jobs are known from now on: everyone is dressed again for who they are (under the loading screen)
+    this.wardrobe.reset();
     if (stalls?.length) {
       this.stallSpots = [...stalls];
       this.stallUp = stalls.map(() => true);
@@ -1481,6 +1495,38 @@ export class CityPopulation {
   /** The day of the week, read once a frame (the game's calendar makes a date each time it is asked) */
   private weekdayCache: number | null = null;
   private weekdayFrame = -1;
+  /** Nobody is seen changing clothes: within this distance (squared, metres) a change waits */
+  public static HOLD_CHANGE2 = 45 * 45;
+
+  /** What this person is wearing now (their wardrobe, the hour, the day and the weather) */
+  private dressOf(a: Agent, variant: Variant, hold: boolean, holdHat = hold): WardrobeEntry {
+    return this.wardrobe.dress(a.id, () => this.personOf(a, variant), this.hour < 0 ? 12 : this.hour, this.day, this.weekdayNow(), CityPopulation.weather, hold, holdHat);
+  }
+
+  /** Who a person is, for their wardrobe: their body, occupation, and the districts they live and work in */
+  public personOf(a: Agent, variant: Variant): CrowdPerson {
+    const l = a.life;
+    const work = l && l.work >= 0 ? this.places[l.work] : undefined;
+    const occupation = occupationFor(l?.role, work?.kind, hash01(a.id, 41));
+    const city = this.wardrobe.city;
+    // Their own streets are where they were placed; a commuter's work clothes follow where they work
+    const home = fashionAt(city, a.sx ?? a.x, a.sz ?? a.z);
+    const at = work ? fashionAt(city, work.x, work.z) : home;
+    const hair = hash01(a.id, 43);
+    return {
+      gender: variant.look.gender === 'female' ? 'female' : 'male',
+      occupation,
+      home: home.fashion,
+      work: fashionOfWorkplace(work?.kind, at.fashion),
+      homeDistrict: home.district,
+      workDistrict: at.district,
+      skinTone: SKIN_TONES[Math.floor(hash01(a.id, 42) * SKIN_TONES.length)],
+      hairColor: hair < 0.92 ? '#0b0908' : hair < 0.97 ? '#5a3418' : '#b08d57',
+      important: !!work && (occupation === 'market_trader' || occupation === 'shopkeeper' || occupation === 'security'),
+      works: (OCCUPATIONS[occupation]?.workdays.length ?? 0) > 0,
+    };
+  }
+
   private weekdayNow(): number | null {
     if (this.weekdayFrame !== this.tick) {
       this.weekdayFrame = this.tick;
@@ -1927,13 +1973,15 @@ export class CityPopulation {
       this.lastSeen.add(a);
       const ax = a.x + (a.ox ?? 0);
       const az = a.z + (a.oz ?? 0);
+      // What they wear now: a change of clothes waits while they are close in front of the player
+      const pd2 = playerPos ? (ax - playerPos.x) ** 2 + (az - playerPos.z) ** 2 : Infinity;
+      const model = this.models.has(a.id);
+      const dress = this.dressOf(a, variant, model || pd2 < CityPopulation.HOLD_CHANGE2, model);
       if (!far && playerPos) {
-        const dx = ax - playerPos.x;
-        const dz = az - playerPos.z;
-        const d2 = dx * dx + dz * dz;
+        const d2 = pd2;
         if (d2 < this.models.reach2) {
           const ground0 = (a.onMainWalk && this.plan.gap(a.z)) || a.xing?.phase === 'go' ? 0.02 : this.plan.avenue.top;
-          this.models.offer({ id: a.id, look: variant.look as StreetLook, lookKey: a.variant, x: ax, y: ground0, z: az, yaw: a.yaw, scale: a.scale, mode: a.mode, d2 });
+          this.models.offer({ id: a.id, look: dress.look, lookKey: dress.key, x: ax, y: ground0, z: az, yaw: a.yaw, scale: a.scale, mode: a.mode, d2 });
         }
         if (this.models.has(a.id)) continue;
       }
@@ -1948,7 +1996,7 @@ export class CityPopulation {
         // A stride's turns from the walker's own cadence (as the old figures stepped), else a slow cycle
         const cadence = 6.5 + (a.speed ?? 1.2) * 1.4 + (a.id % 5) * 0.35;
         const cycle = mode === 'walk' ? (a.phase * cadence) / (Math.PI * 2) : a.phase / 3;
-        if (this.baked.draw(a.id, variant.look as StreetLook, a.variant, ax, ground, az, a.yaw, a.scale, mode, cycle) && this.shadows) {
+        if (this.baked.draw(a.id, dress.look, dress.key, ax, ground, az, a.yaw, a.scale, mode, cycle) && this.shadows) {
           base.makeScale(a.scale, 1, a.scale);
           base.setPosition(ax, ground + 0.015, az);
           this.shadows.setMatrixAt(shadowCount++, base);

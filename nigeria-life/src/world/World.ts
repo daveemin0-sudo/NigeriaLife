@@ -659,6 +659,7 @@ export class World {
         life.update(delta, playerPos, this.frustumNow(), this.skyEnvironment.currentHour + 24 * this.skyEnvironment.day, { halfWidth: size ? size.w / 2 : 0.35, halfLength: size ? size.l / 2 : 1.4 }, this.cityPopulation.avoid);
       }
       this.weather.update(delta, playerPos);
+      CityPopulation.weather = this.weather.currentWeather;
       // NEPA's plan for the area the player is in
       LagosStreetLifeSystem.getInstance().update(delta, this.skyEnvironment.currentPeriod);
       return;
@@ -702,6 +703,7 @@ export class World {
 
     // Update weather effects (rain particles, lighting, thunder)
     this.weather.update(delta, playerPos);
+    CityPopulation.weather = this.weather.currentWeather;
 
     // Update atmosphere effects (Harmattan dust, smoke, puddles)
     this.atmosphere.updateEvery = this.smokeEvery;

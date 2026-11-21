@@ -21,6 +21,9 @@ const FRAMES: Record<BakedMode, number> = { walk: 8, idle: 1, talk: 2, dance: 4,
 const PART: Record<string, number> = { Skin_Body: 0, Hair: 1, Cloth_Top: 2, Cloth_Bottom: 3, Cloth_Shoes: 4, Sole: 4, Cloth_Hat: 5, Cloth_Trim: 2 };
 const TINTS = ['tSkin', 'tHair', 'tTop', 'tBottom', 'tShoes', 'tHat'] as const;
 const MODES: BakedMode[] = ['walk', 'idle', 'talk', 'dance', 'sit'];
+/** Garment cuts that read the same far off, each as the one baked for it */
+const FAR_TOP: Record<string, string> = { tee_oversized: 'tee', polo: 'tee', shirt: '' };
+const FAR_BOTTOM: Record<string, string> = { jeans_slim: 'jeans_straight', jeans_baggy: 'jeans_straight', chinos: 'jeans_straight', cargo: 'jeans_straight', cargo_shorts: 'shorts' };
 
 interface Model {
   handle: SkinnedCharacterHandle;
@@ -128,15 +131,20 @@ export class BakedPeople {
     if (!dress) {
       const near = streetDress(look);
       // Far away a sneaker, a formal shoe and a boot look alike: one shoe shape for all (bare feet in slides
-      // still show), so shoe styles do not multiply the frames baked (their colour still comes per person)
-      const variants = { ...near.variants, shoes: near.variants.feet ? '' : 'sneaker' };
-      const d = { ...near, variants, key: near.key.replace(/\|[a-z_]*\|([a-z_]*)$/, `|${variants.shoes}|$1`) };
+      // still show), so shoe styles do not multiply the frames baked (their colour still comes per person).
+      // So do the cuts of a tee, a polo and an oversized tee, a shirt and a plain long top, and slim, straight
+      // and baggy jeans, chinos and cargo trousers: one of each far off (the hood, shorts and hats still show).
+      const v = near.variants;
+      const variants = { ...v, top: FAR_TOP[v.top] ?? v.top, bottom: FAR_BOTTOM[v.bottom] ?? v.bottom, shoes: v.feet ? '' : 'sneaker' };
+      const d = { ...near, variants, key: `${near.mask}|${variants.top}|${variants.bottom}|${variants.hat}|${variants.shoes}|${variants.feet}` };
       let cut = BakedPeople.cuts.get(d.key);
       if (cut === undefined) {
         cut = BakedPeople.cuts.size;
         BakedPeople.cuts.set(d.key, cut);
       }
       dress = { ...d, cut };
+      // Everyone has their own look now (and a new one when they change): the oldest are let go
+      if (this.dresses.size > 4000) this.dresses.clear();
       this.dresses.set(lookKey, dress);
     }
     const frames = FRAMES[mode];

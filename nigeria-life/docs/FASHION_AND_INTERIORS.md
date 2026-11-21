@@ -75,7 +75,34 @@ The owner's brief (20 November 2026): a real clothing collection at the quality 
     - outfits through a reload;
     - 800 style changes.
   - Performance is compared with `clothingperf` against Stage 2.
-- Next, after review: Stage 4 NPC wardrobe, Stage 5 Boutique (only once the clothes pass), Stage 6 dirt, wear and weather (the condition states are the start of it), accessories drawn. Clothing definitions stay apart from geometry, materials and the character's equipment.
+- **Stage 3 approved 21 Nov.**
+- **Stage 4 (NPC wardrobe), built 21 Nov, awaiting review.**
+  - The engine (`src/world/population/NpcWardrobe.ts`, data and arithmetic only):
+    - Every street person has a wardrobe profile made from their city and their number, so they are the same person at every meeting and in every session. It holds their leanings (formal, premium, young, traditional), four colours plus a signature colour, the shoes they reach for, how they keep their clothes, and when they dress.
+    - Occupations, each with its working days and its work clothes: office, student, mechanic, construction, security, market trader, driver, shopkeeper, fitness, hawker, out and about, elder, night owl. `registerOccupation` and `registerTemplate` add more without touching the engine. The crowd's roles and workplaces map onto them (`occupationFor`).
+    - Outfit templates: about 30, each made of the existing garments, footwear and cloths. Each says who wears it, for what (work, everyday, evening, occasion, sport), and its leanings, colours, patterns and condition.
+    - Each person keeps two or three outfits per purpose and rotates them day by day. Uniforms keep the employer's colour.
+  - Districts (`src/world/population/FashionDistricts.ts`): every district of the three maps points at a fashion profile: business, premium business, premium casual, student, market, everyday, island mixed, tech, industrial, capital formal, capital residential, nightlife. Each profile sets formality, premium, youth, tradition, practicality and colours. Home taste comes from where a person lives; work taste from where they work.
+  - Time:
+    - People dress at their own morning hour; some change at their own evening hour.
+    - Nobody changes between morning and afternoon. The small hours belong to the night before.
+    - Office workers wear native dress on Fridays; churchgoers wear occasion dress on Sundays.
+    - A change waits while the person is within 45 m of the player or is a close-up model.
+  - Weather, applied when people dress:
+    - rain: closed shoes, caps, sometimes a hoodie and long trousers;
+    - harmattan mornings: hoodies, beanies, long trousers;
+    - hot days: tees instead of hoodies, some shorts and slides.
+    - When rain starts mid-day, only those who carry a cap put it on. Nobody's outfit changes.
+  - Persistence:
+    - Everything follows from the person's number, so only the regulars' choices are stored (traders, shopkeepers, guards): the outfit they put on today and the weather they dressed in.
+    - Stored under `nl_npc_wardrobe_v1` on the device, apart from the player's outfits and out of the account save. It is written once, a few seconds after a change.
+  - Rendering:
+    - The crowd (`CityPopulation`) gives each person their own look and look number. The near models and the far figures use the same look.
+    - No new geometry, textures or shader programs. NPC prints come from a fixed set of five, plus the SECURITY lettering.
+    - Far off, the far figures treat a tee, a polo and an oversized tee as one cut, and slim, straight and baggy jeans, chinos and cargo trousers as another. Hoods, shorts and hats still show. This keeps the cuts baked at 25 to 29 (74 before the merge).
+  - Not drawn until garments are modelled for them: skirts, dresses, gowns (ankara gown, buba and iro) and the agbada. The existing shells show these as a catsuit or shorts, so the wardrobe uses two-piece sets instead (ankara blouse and trousers, a senator shirt with matching trousers).
+  - Tests: `tests/e2e/npcwardrobe.mjs` (13 checks) covers occupations, districts, time, weather, a shower starting, the evening on the live street, the 100 nearest people, near and far looks, regulars across a reload, the whole crowd identical after a reload, every occupation on the model in each motion, and Abuja and Port Harcourt.
+- Next, after review: Stage 5 Boutique (only once the clothes pass), Stage 6 dirt, wear and weather (the condition states are the start of it), accessories drawn, and models for skirts, dresses, gowns and the agbada (needs approval: new geometry). Clothing definitions stay apart from geometry, materials and the character's equipment.
 
 ## Milestone B: buying
 

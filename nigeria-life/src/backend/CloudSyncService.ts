@@ -36,6 +36,8 @@ const DENY = [
   'nl_account_save_',
   'nigeria_life_network_player_id',
   'nigeria_life_account_data_v1__backup',
+  // Street people's outfit choices: this device only (src/world/population/CrowdWardrobe.ts)
+  'nl_npc_wardrobe_',
 ];
 
 const VERSION_KEY = () => profileKey('nl_account_save_version');

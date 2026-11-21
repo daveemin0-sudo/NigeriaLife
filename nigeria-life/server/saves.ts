@@ -34,6 +34,8 @@ const DENY = [
   'nl_account_save_',
   'nigeria_life_network_player_id',
   'nigeria_life_account_data_v1__backup',
+  // Street people's outfit choices stay on the device (src/world/population/CrowdWardrobe.ts)
+  'nl_npc_wardrobe_',
 ];
 
 export interface SaveDoc {
