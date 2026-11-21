@@ -1791,3 +1791,48 @@ html body .nl-signin-later { border: 0; background: none; color: var(--lx-dim, #
     left: 8px !important;
   }
 }
+
+/* ---------------------------------------------------------------- Clothing studio (Style & outfits tab) */
+html body .cs-studio { display: grid; grid-template-columns: minmax(200px, 0.9fr) 1.4fr; gap: 16px; align-items: start; }
+html body .cs-stage { position: sticky; top: 0; display: grid; gap: 8px; }
+html body .cs-shot { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 16px; background: #eef2ef; box-shadow: var(--lx-shadow-sm); }
+html body .cs-turn { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+html body .cs-panel { display: grid; gap: 12px; min-width: 0; }
+html body .cs-section { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: var(--lx-surface-2, #f6f8f6); border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.08)); }
+html body .cs-title { font: 800 12px/1.2 var(--nl-font, system-ui); letter-spacing: 0.04em; text-transform: uppercase; color: var(--lx-dim, #66736c); display: flex; justify-content: space-between; }
+html body .cs-count { text-transform: none; letter-spacing: 0; font-weight: 700; }
+html body .cs-row { display: flex; flex-wrap: wrap; gap: 6px; }
+html body .cs-chip { padding: 7px 11px; border-radius: 99px; border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.1)); background: var(--lx-card, #fff); color: var(--lx-ink, #0f1a14); font: 700 12px/1 var(--nl-font, system-ui); cursor: pointer; }
+html body .cs-chip.is-on { background: var(--lx-brand, #0e7a4e); border-color: var(--lx-brand, #0e7a4e); color: #fff; }
+html body .cs-slots .cs-chip { padding: 9px 14px; font-size: 13px; }
+html body .cs-icon { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.1)); background: var(--lx-card, #fff); color: var(--lx-ink, #0f1a14); font-size: 16px; cursor: pointer; }
+html body .cs-palettes .cs-chip { padding: 5px 9px; font-size: 11px; }
+html body .cs-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 7px; }
+html body .cs-swatch { position: relative; aspect-ratio: 1; min-width: 28px; border-radius: 50%; border: 2px solid var(--lx-card, #fff); box-shadow: 0 0 0 1px var(--lx-line, rgba(15, 26, 20, 0.15)); cursor: pointer; padding: 0; }
+html body .cs-swatch.is-on { box-shadow: 0 0 0 2px var(--lx-brand, #0e7a4e); }
+html body .cs-any { display: grid; place-items: center; background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #ec4899, #ef4444); color: #fff; font: 800 14px/1 var(--nl-font, system-ui); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); overflow: hidden; }
+html body .cs-any input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+html body .cs-field { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; font: 700 12px/1.2 var(--nl-font, system-ui); color: var(--lx-ink-2, #2f3a34); }
+html body .cs-field input[type='text'] { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.12)); background: var(--lx-card, #fff); color: var(--lx-ink, #0f1a14); font: 600 13px/1.2 var(--nl-font, system-ui); min-width: 0; }
+html body .cs-field input[type='range'] { width: 100%; accent-color: var(--lx-brand, #0e7a4e); }
+html body .cs-reset { justify-self: start; padding: 7px 12px; border-radius: 10px; border: 1px dashed var(--lx-line, rgba(15, 26, 20, 0.2)); background: transparent; color: var(--lx-dim, #66736c); font: 700 12px/1 var(--nl-font, system-ui); cursor: pointer; }
+html body .cs-save { display: flex; gap: 8px; }
+html body .cs-save input { flex: 1; min-width: 0; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.12)); background: var(--lx-card, #fff); color: var(--lx-ink, #0f1a14); font: 600 13px/1.2 var(--nl-font, system-ui); }
+html body .cs-primary { padding: 9px 14px; border-radius: 10px; border: none; background: var(--lx-brand, #0e7a4e); color: #fff; font: 800 12px/1 var(--nl-font, system-ui); cursor: pointer; }
+html body .cs-primary[disabled] { opacity: 0.45; cursor: default; }
+html body .cs-hint { font: 600 12px/1.4 var(--nl-font, system-ui); color: var(--lx-dim, #66736c); }
+html body .cs-list { display: grid; gap: 6px; }
+html body .cs-outfit { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--lx-card, #fff); border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.08)); }
+html body .cs-outfit-name { font: 800 13px/1.2 var(--nl-font, system-ui); color: var(--lx-ink, #0f1a14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+html body .cs-rename { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--lx-brand, #0e7a4e); background: var(--lx-card, #fff); color: var(--lx-ink, #0f1a14); font: 700 13px/1.2 var(--nl-font, system-ui); }
+html body .cs-outfit-acts { display: flex; gap: 4px; flex: 0 0 auto; }
+html body .cs-mini { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--lx-line, rgba(15, 26, 20, 0.12)); background: var(--lx-card, #fff); color: var(--lx-ink, #0f1a14); font: 700 11px/1 var(--nl-font, system-ui); cursor: pointer; }
+html body .cs-mini.cs-primary { border-color: transparent; color: #fff; }
+html body .cs-danger { color: var(--lx-red, #b91c1c); }
+@media (max-width: 640px) {
+  html body .cs-studio { grid-template-columns: 1fr; }
+  html body .cs-stage { position: static; grid-template-columns: 1fr; justify-items: center; }
+  html body .cs-shot { width: min(62vw, 240px); }
+  html body .cs-outfit { flex-wrap: wrap; }
+  html body .cs-field { grid-template-columns: 70px 1fr; }
+}

@@ -1,4 +1,5 @@
 import { profileKey } from '../backend/Profile';
+import { cleanOutfits, cleanStyles, type Accessories, type ClothingStyles, type SavedOutfit } from './ClothingStyle';
 export type Gender = 'male' | 'female';
 export type HeadwearType = 'fila_cream' | 'igbo_red_cap' | 'afro_hair' | 'braids' | 'bob_wig' | 'gele' | 'hardhat' | 'none';
 export type AttireStyle =
@@ -30,6 +31,10 @@ export interface ModularClothingItem {
 }
 
 export const WARDROBE_CATALOGUE: ModularClothingItem[] = [
+  // === Hats with their own models (worn over the hair) ===
+  { id: 'head_cap_black', name: 'Black Baseball Cap', category: 'headwear', price: 5500, color: 0x111827, styleKey: 'cap', description: 'Six-panel cotton twill cap with a curved brim.', icon: '🧢', gender: 'unisex' },
+  { id: 'head_bucket_khaki', name: 'Khaki Bucket Hat', category: 'headwear', price: 6500, color: 0xc2b280, styleKey: 'bucket_hat', description: 'Soft twill bucket hat for the Lagos sun.', icon: '👒', gender: 'unisex' },
+  { id: 'head_beanie_grey', name: 'Grey Rib Beanie', category: 'headwear', price: 4500, color: 0x6b7280, styleKey: 'beanie', description: 'Rib-knit beanie with a turned-up cuff.', icon: '🧶', gender: 'unisex' },
   // === 0. CLOTHES OF LAGOS TODAY, CUT FROM REAL CLOTH ===
   { id: 'top_white_tee', name: 'Plain White T-Shirt', category: 'top', price: 6500, color: 0xf8fafc, styleKey: 'tshirt', description: 'Heavy cotton crew-neck tee. Goes with everything.', icon: '👕', gender: 'unisex' },
   { id: 'top_black_tee', name: 'Black Oversized T-Shirt', category: 'top', price: 7500, color: 0x111827, styleKey: 'tshirt', description: 'Thick black cotton, a relaxed cut.', icon: '👕', gender: 'unisex' },
@@ -527,6 +532,12 @@ export interface CharacterConfig {
   hairColor?: string;
   beard?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'full' | 'chinstrap';
   build?: 'slim' | 'average' | 'broad';
+  /** Clothing customisation per slot (colours, cloth, pattern, thread, condition): see ClothingStyle.ts */
+  clothingStyles?: ClothingStyles;
+  /** Saved outfits (the items worn and their styles together) */
+  outfits?: SavedOutfit[];
+  /** Accessories per slot (watch, chain, glasses, bracelet, belt, headwear): kept for the accessory models to come */
+  accessories?: Accessories;
 }
 
 export const DEFAULT_CHARACTER_CONFIG: CharacterConfig = {
@@ -654,7 +665,11 @@ export class CharacterStorage {
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY);
       if (saved) {
-        return { ...DEFAULT_CHARACTER_CONFIG, ...JSON.parse(saved) };
+        const cfg: CharacterConfig = { ...DEFAULT_CHARACTER_CONFIG, ...JSON.parse(saved) };
+        // Customisation read safely (an old or damaged save never breaks the look)
+        cfg.clothingStyles = cleanStyles(cfg.clothingStyles);
+        cfg.outfits = cleanOutfits(cfg.outfits);
+        return cfg;
       }
     } catch {
       // Fallback to default

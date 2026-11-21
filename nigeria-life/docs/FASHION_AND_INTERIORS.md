@@ -43,7 +43,39 @@ The owner's brief (20 November 2026): a real clothing collection at the quality 
     - Folded or flattened cloth triangles at hems and sleeve ends are left out.
   - Tests: `tests/e2e/clothingperf.mjs` measures 6, 20, 50 and 100 nearby dressed people, and repeated outfit changes. Draws and triangles are within about 1% of the pre-clothing build (c7e6519). Outfit changes take about 1 ms each and add no textures or shader programs once every garment has been worn.
   - Known leftovers: a slightly ragged cuff edge when the wrist bends (most on the shirt); formal shoes a little rounded; the female shorts hem slightly uneven.
-- Next, after review: Stage 3 customisation, Stage 4 NPC wardrobe, Stage 5 Boutique (only once the clothes pass), Stage 6 dirt, wear and weather. Clothing definitions stay apart from geometry, materials and the character's equipment.
+- **Stage 2 approved 21 Nov.**
+- **Stage 3 (customisation), built 21 Nov, awaiting review.**
+  - Four things are kept apart:
+    - the clothing definitions (`WARDROBE_CATALOGUE`);
+    - the garment geometry and materials (the build, `GarmentFabrics.ts`);
+    - the customisation (`src/player/ClothingStyle.ts`: a `GarmentStyle` per slot);
+    - what is worn (`topId`, `bottomId`, `shoesId`, `headwearId`).
+  - A style belongs to a slot (top, trousers, shoes, hat). It sets:
+    - the main colour;
+    - the cloth, from the ones that garment can be made in (`FABRIC_CHOICES`);
+    - a pattern or print and its colours: stripes, pinstripe, check, camouflage, Ankara, six original graphic prints, or the player's own logo (up to 12 letters in a shape), with size, angle and place on the chest;
+    - the thread colour;
+    - the condition: clean, worn, dirty or damaged.
+  - Rendering: all of it is drawn by the same fabric program from uniforms, so no new shader is compiled and no new garment model is needed.
+  - Caching:
+    - prints are drawn on a canvas once and the 12 most recent are kept, the oldest released;
+    - materials are cached by body, cut, part and look (600 kept), so people dressed alike share them.
+  - Hats: the cap, bucket hat and beanie models can now be bought and worn by the player (headwear items).
+  - Studio: the **Style & outfits** tab in the wardrobe.
+    - Pick a garment, then a region (main, pattern, accent, stitching); palettes and any colour; cloth; pattern; sliders; condition.
+    - A picture of the player's real model in it, turned and framed on the whole look or one garment.
+    - Changes are worn at once (dressed again in place, no reload) and saved.
+  - Saved outfits: up to 12. Each can be saved, worn, updated, renamed and deleted, and is kept in the character save, which goes to the account save. Wearing an outfit whose item is no longer owned keeps what is worn in that slot.
+  - Prepared, not drawn yet:
+    - accessory slots (watch, chain, glasses, bracelet, belt, headwear), with the bone each will hang on;
+    - a saved `accessories` field in outfits.
+  - Tests: `tests/e2e/clothingstyle.mjs` checks:
+    - every garment and footwear style on both bodies in each motion;
+    - the studio;
+    - outfits through a reload;
+    - 800 style changes.
+  - Performance is compared with `clothingperf` against Stage 2.
+- Next, after review: Stage 4 NPC wardrobe, Stage 5 Boutique (only once the clothes pass), Stage 6 dirt, wear and weather (the condition states are the start of it), accessories drawn. Clothing definitions stay apart from geometry, materials and the character's equipment.
 
 ## Milestone B: buying
 

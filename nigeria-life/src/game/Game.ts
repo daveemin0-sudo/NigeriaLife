@@ -160,7 +160,9 @@ import { FurnitureThumbs } from '../ui/FurnitureThumbs';
 import { DriveControls } from '../ui/DriveControls';
 import { StreetAmbience } from '../audio/StreetAmbience';
 import { CROSS_STREET_Z, MAIN_CORRIDOR_HALF, MAIN_ROAD, groundAt } from '../world/density/StreetLayout';
-import { applyStreetLook } from '../graphics/people/SkinnedCharacter';
+import { applyStreetLook, garmentMaterialsKept, loadSkinnedCharacter, playerGarments } from '../graphics/people/SkinnedCharacter';
+import { fabricUniforms } from '../graphics/people/GarmentFabrics';
+import { printsHeld } from '../graphics/people/GarmentPrints';
 import { Billboards } from '../world/expressway/Billboards';
 import { EXPRESS, ROADSIDE, SIDE_ROADS } from '../world/expressway/layout';
 import { kerbsFrom, wayIn, type KerbSet } from '../world/plan/Kerbs';
@@ -333,7 +335,7 @@ export class Game {
   /** Scripted interactions, exposed for the browser tests and for debugging in the console */
   public interactions = InteractionDirector.get();
   /** Game data the browser tests read, reachable the same way from a dev server and from a built game */
-  public readonly modules = { groundAt, Billboards, SkinnedCharacterApi: { applyStreetLook }, WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast, abujaIdentity, phIdentity };
+  public readonly modules = { groundAt, Billboards, SkinnedCharacterApi: { applyStreetLook, loadSkinnedCharacter, playerGarments, garmentMaterialsKept, fabricUniforms, printsHeld, LookPreview }, WorldDataManager, HouseDecorationSystem, CATALOGUE_ITEMS, SoundEngine, DestinationRegistry, zonesFor, ServerLink, OnlineAccount, CloudSyncService, Fleet, Qualifications, THREE, Activity, Hustles, Album, Ladder, GistTimes, Cases, Nollywood, HomeStaff, Spark, Owambe, Studio, Marriage, Chieftaincy, Motors, CAR_SPECS, buildCarBody, Garden, Pets, ShiftSkill, InteractionDirector, Worship, HotelStay, HotelState, TownStay, Fridge, Bodies, HumanMeshBuilder, Bets, League: LeagueRules, Adverts, RichList, Dues, QuitNotice, Tax, Employment, HomePower, Grid, LagosStreetLifeSystem, Hours: HoursRules, Police, BuildBar, TradeDesk, Shifts, Racing, RaceRules, Games: { Ayo: AyoRules, Whot: WhotRules, Ludo: LudoRules, session: gameSession }, showGameToast, abujaIdentity, phIdentity };
   private lastStepDelta: number = 0;
   /** How much is drawn on this device (Phone › Life › Settings) */
   public graphics!: GraphicsQuality;

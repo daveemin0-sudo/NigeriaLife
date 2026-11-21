@@ -1,5 +1,6 @@
 import { TRAITS, isTraitId, traitById, type TraitId } from '../life/Traits';
 import { LookPreview } from './LookPreview';
+import { ClothingStudio } from './ClothingStudio';
 import {
   ATTIRE_PRESETS,
   SKIN_TONES,
@@ -21,7 +22,9 @@ export class CharacterCreatorModal {
   private player: Player;
   private backend: BackendService;
   public isOpen: boolean = false;
-  private activeTab: 'look' | 'wardrobe' | 'presets' = 'look';
+  private activeTab: 'look' | 'style' | 'wardrobe' | 'presets' = 'look';
+  /** The clothing studio (colours, cloth, patterns, saved outfits), on its own tab */
+  private studio: ClothingStudio | null = null;
   private categoryFilter: 'all' | ClothingCategory = 'all';
 
   constructor(player: Player) {
@@ -37,7 +40,7 @@ export class CharacterCreatorModal {
     this.setupEvents();
   }
 
-  public open(tab: 'look' | 'wardrobe' | 'presets' = 'look'): void {
+  public open(tab: 'look' | 'style' | 'wardrobe' | 'presets' = 'look'): void {
     this.isOpen = true;
     this.activeTab = tab;
     this.container.style.display = 'flex';
@@ -256,6 +259,9 @@ export class CharacterCreatorModal {
           <button id="tab-btn-look" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'look' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'look' ? '#ffffff' : '#66736c'};">
             💇 Look
           </button>
+          <button id="tab-btn-style" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'style' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'style' ? '#ffffff' : '#66736c'};">
+            🎨 Style & outfits
+          </button>
           <button id="tab-btn-wardrobe" style="flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; background: ${this.activeTab === 'wardrobe' ? '#0e7a4e' : '#ffffff'}; color: ${this.activeTab === 'wardrobe' ? '#ffffff' : '#66736c'};">
             🛍️ Modular Wardrobe Market
           </button>
@@ -266,7 +272,7 @@ export class CharacterCreatorModal {
 
         <div class="dialog-body" style="padding: 20px 24px; max-height: 65vh; overflow-y: auto;">
           ${
-            this.activeTab === 'look' ? this.lookPanel() : this.activeTab === 'wardrobe'
+            this.activeTab === 'look' ? this.lookPanel() : this.activeTab === 'style' ? '<div id="clothing-studio-host"></div>' : this.activeTab === 'wardrobe'
               ? `
             <!-- Wardrobe Category Filters -->
             <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px;">
@@ -522,6 +528,19 @@ export class CharacterCreatorModal {
     });
     // The studio pictures are taken when the editor is open, not as the game starts (a second of loading)
     if (this.isOpen && this.activeTab === 'look') requestAnimationFrame(() => this.showPreview());
+    const tabStyle = document.getElementById('tab-btn-style');
+    if (tabStyle) {
+      tabStyle.onclick = () => {
+        this.activeTab = 'style';
+        this.render();
+        this.setupEvents();
+      };
+    }
+    const studioHost = document.getElementById('clothing-studio-host');
+    if (studioHost && this.isOpen) {
+      this.studio ??= new ClothingStudio(this.player);
+      this.studio.mount(studioHost);
+    }
     const tabWardrobe = document.getElementById('tab-btn-wardrobe');
     if (tabWardrobe) {
       tabWardrobe.onclick = () => {

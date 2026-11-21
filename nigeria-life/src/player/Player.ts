@@ -386,6 +386,18 @@ export class Player {
     this.buildHumanMesh();
   }
 
+  /**
+   * A change of clothes only (styles, outfits, items of the same body): the model already worn is dressed
+   * again in place (no reload, the same geometry), and the look is saved. Anything else rebuilds as before.
+   */
+  public restyle(newConfig: CharacterConfig): void {
+    const sameBody = this.skinned && !this.uniform && (newConfig.gender || 'male') === (this.config.gender || 'male');
+    this.config = { ...newConfig };
+    CharacterStorage.save(this.config);
+    if (sameBody && this.skinned) this.skinned.applyAppearance(this.config);
+    else this.buildHumanMesh();
+  }
+
   public playEmote(emote: EmoteType, durationSeconds: number = 3.5): void {
     this.currentEmote = emote;
     this.emoteTimer = durationSeconds;

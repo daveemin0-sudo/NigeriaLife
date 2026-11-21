@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { CharacterConfig } from '../player/CharacterCustomization';
 import { createHumanForConfig } from '../player/HumanFromConfig';
+import { loadSkinnedCharacter, type SkinnedAnimState, type SkinnedCharacterHandle } from '../graphics/people/SkinnedCharacter';
 
 /**
  * A studio photograph of a look, for the look editor: the person full length and their face
@@ -75,5 +76,74 @@ export const LookPreview = {
       if (mesh.isMesh) mesh.geometry.dispose();
     });
     return { full, face };
+  },
+
+  /** The real models (one per body), kept for the clothing studio: dressed again for each picture */
+  models: {} as Partial<Record<'male' | 'female', SkinnedCharacterHandle | Promise<SkinnedCharacterHandle | null>>>,
+
+  /**
+   * A studio picture of the clothes on the real model (the same garments, cloth, patterns and prints as in the
+   * world), turned to `yaw` and framed on the whole body or one garment.
+   */
+  async shootClothes(config: CharacterConfig, yaw = -0.35, focus: 'full' | 'top' | 'bottom' | 'shoes' | 'hat' = 'full', dress?: (root: THREE.Object3D) => void, clip: SkinnedAnimState = 'idle'): Promise<string | null> {
+    const renderer = this.renderer;
+    if (!renderer) return null;
+    if (!this.scene) this.shoot(config);
+    const scene = this.scene;
+    if (!scene) return null;
+    const gender = config.gender === 'female' ? 'female' : 'male';
+    let held = this.models[gender];
+    if (!held) {
+      held = loadSkinnedCharacter(gender, config);
+      this.models[gender] = held;
+    }
+    const handle = await held;
+    if (!handle) return null;
+    this.models[gender] = handle;
+    // (a street look can be put on instead of the player's own, for pictures of any garment)
+    if (dress) dress(handle.root);
+    else handle.applyAppearance(config);
+    handle.play(clip, 0);
+    handle.update(0.6);
+    handle.root.rotation.y = yaw;
+    scene.add(handle.root);
+    handle.root.updateMatrixWorld(true);
+    const size = renderer.getSize(new THREE.Vector2());
+    const ratio = renderer.getPixelRatio();
+    const w = Math.floor(Math.min(size.x, size.y * 0.75));
+    const h = Math.floor(w / 0.75);
+    const out = document.createElement('canvas');
+    out.width = Math.round(w * ratio);
+    out.height = Math.round(h * ratio);
+    const ctx = out.getContext('2d')!;
+    const tall = handle.height;
+    // Eye height, where to look, how far, and how much height to fit, for each framing
+    const frames = {
+      full: [tall * 0.6, tall * 0.53, 4.2, tall * 1.2],
+      top: [tall * 0.78, tall * 0.7, 1.9, tall * 0.48],
+      bottom: [tall * 0.42, tall * 0.33, 2.4, tall * 0.68],
+      shoes: [tall * 0.16, tall * 0.05, 1.1, tall * 0.2],
+      hat: [tall * 0.97, tall * 0.93, 1.1, tall * 0.26],
+    } as const;
+    const [eyeY, lookY, distance, viewHeight] = frames[focus];
+    const cam = new THREE.PerspectiveCamera(THREE.MathUtils.radToDeg(2 * Math.atan(viewHeight / 2 / distance)), 0.75, 0.05, 50);
+    cam.position.set(0.05, eyeY, distance);
+    cam.lookAt(0, lookY, 0);
+    const target = renderer.getRenderTarget();
+    const viewport = renderer.getViewport(new THREE.Vector4());
+    const scissor = renderer.getScissor(new THREE.Vector4());
+    const scissorOn = renderer.getScissorTest();
+    renderer.setRenderTarget(null);
+    renderer.setViewport(0, size.y - h, w, h);
+    renderer.setScissor(0, size.y - h, w, h);
+    renderer.setScissorTest(true);
+    renderer.render(scene, cam);
+    ctx.drawImage(renderer.domElement, 0, 0, out.width, out.height, 0, 0, out.width, out.height);
+    renderer.setViewport(viewport);
+    renderer.setScissor(scissor);
+    renderer.setScissorTest(scissorOn);
+    renderer.setRenderTarget(target);
+    scene.remove(handle.root);
+    return out.toDataURL('image/jpeg', 0.88);
   },
 };
