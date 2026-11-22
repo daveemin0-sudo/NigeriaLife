@@ -108,6 +108,7 @@ async function phone(browser, W, H) {
   await page.emulate({ viewport: { width: W, height: H, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-A165F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36' });
   await page.goto(GAME_URL, { waitUntil: 'load', timeout: 240000 });
   await page.waitForFunction('window.game', { timeout: 240000 });
+  await page.waitForFunction(() => !document.getElementById('nl-splash'), { timeout: 240000 });
   await wait(4000);
   await closeDialogs(page);
   await wait(600);
