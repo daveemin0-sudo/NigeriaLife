@@ -8,6 +8,8 @@ export interface BakeOptions {
   filter?: (mesh: THREE.Mesh, material: THREE.Material) => boolean | THREE.Color;
   /** Object whose local space the baked vertices are expressed in (defaults to root) */
   space?: THREE.Object3D;
+  /** One figure of a big congregation: its hanging garments (skirts, gowns, tunics, the agbada) use their light copies */
+  congregation?: boolean;
 }
 
 /**
@@ -16,7 +18,7 @@ export interface BakeOptions {
  * (position, normal and colour, in the object's own space, not indexed), or null to bake it as it is.
  * Set by BakedPeople once the models have loaded.
  */
-let personBaker: ((obj: THREE.Object3D, alone: boolean) => THREE.BufferGeometry | null) | null = null;
+let personBaker: ((obj: THREE.Object3D, alone: boolean, congregation: boolean) => THREE.BufferGeometry | null) | null = null;
 export function setPersonBaker(baker: typeof personBaker): void {
   personBaker = baker;
 }
@@ -42,7 +44,7 @@ export function bakeToGeometry(root: THREE.Object3D, opts: BakeOptions = {}): TH
     // A person made the old way: baked as the character model (not when parts of it are baked apart)
     if (personBaker && excluded.size === 0) {
       // On its own: the whole bake, or the one thing in a holder made just for it
-      const person = personBaker(obj, obj === root || (obj.parent === root && root.children.length === 1));
+      const person = personBaker(obj, obj === root || (obj.parent === root && root.children.length === 1), !!opts.congregation);
       if (person) {
         const part = person.clone();
         part.applyMatrix4(local.multiplyMatrices(inverse, obj.matrixWorld));

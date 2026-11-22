@@ -190,6 +190,8 @@ export interface GarmentLines {
   soleY?: number;
   /** The middle of the chest at rest (where a print goes on a top) */
   chestY?: number;
+  /** Cloth with no leg to run a side seam down (a skirt, gown or robe) */
+  noSideSeam?: boolean;
 }
 
 /**
@@ -478,6 +480,7 @@ export function setGarmentLines(material: THREE.Material, lines: GarmentLines): 
   u.uHipY.value = lines.hipY;
   u.uElbowX.value = lines.elbowX ?? -1;
   u.uSoleY.value = lines.soleY ?? -1000;
+  if (lines.noSideSeam) u.uSeams.value = 0;
   if (lines.chestY !== undefined) (u.uPrintAt.value as THREE.Vector4).y = lines.chestY;
 }
 

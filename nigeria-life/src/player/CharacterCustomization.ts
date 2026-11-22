@@ -35,6 +35,21 @@ export const WARDROBE_CATALOGUE: ModularClothingItem[] = [
   { id: 'head_cap_black', name: 'Black Baseball Cap', category: 'headwear', price: 5500, color: 0x111827, styleKey: 'cap', description: 'Six-panel cotton twill cap with a curved brim.', icon: '🧢', gender: 'unisex' },
   { id: 'head_bucket_khaki', name: 'Khaki Bucket Hat', category: 'headwear', price: 6500, color: 0xc2b280, styleKey: 'bucket_hat', description: 'Soft twill bucket hat for the Lagos sun.', icon: '👒', gender: 'unisex' },
   { id: 'head_beanie_grey', name: 'Grey Rib Beanie', category: 'headwear', price: 4500, color: 0x6b7280, styleKey: 'beanie', description: 'Rib-knit beanie with a turned-up cuff.', icon: '🧶', gender: 'unisex' },
+  // Traditional headwear with their own models
+  { id: 'head_gele_gold', name: 'Gold Aso-Oke Gele', category: 'headwear', price: 15000, color: 0xd4a017, styleKey: 'gele', description: 'A stiff aso-oke head tie, fanned up and out at the back.', icon: '👑', gender: 'female' },
+  { id: 'head_fila_wine', name: 'Wine Abeti-Aja Fila', category: 'headwear', price: 9000, color: 0x7f1d1d, styleKey: 'fila', description: 'The soft Yoruba cap worn leaning to one side, its flaps folded up.', icon: '🎩', gender: 'male' },
+  { id: 'head_kufi_white', name: 'White Kufi Cap', category: 'headwear', price: 5000, color: 0xf5f5f4, styleKey: 'kufi', description: 'A low round knitted cap.', icon: '🧢', gender: 'male' },
+  // Skirts, dresses and native tops with their own models (Stage 4.5)
+  { id: 'bottom_mini_denim', name: 'Denim Mini Skirt', category: 'bottom', price: 9000, color: 0x1e3a8a, styleKey: 'mini_skirt', description: 'A short flared denim skirt.', icon: '👗', gender: 'female' },
+  { id: 'bottom_pleated_navy', name: 'Navy Pleated Skirt', category: 'bottom', price: 11000, color: 0x1e3a5f, styleKey: 'pleated_skirt', description: 'Knee-length knife pleats in twill.', icon: '👗', gender: 'female' },
+  { id: 'bottom_pencil_black', name: 'Black Pencil Skirt', category: 'bottom', price: 12000, color: 0x111827, styleKey: 'pencil_skirt', description: 'A fitted knee-length office skirt.', icon: '👗', gender: 'female' },
+  { id: 'bottom_maxi_cream', name: 'Cream Maxi Skirt', category: 'bottom', price: 13000, color: 0xf5f0e6, styleKey: 'maxi_skirt', description: 'A flowing ankle-length cotton skirt.', icon: '👗', gender: 'female' },
+  { id: 'bottom_iro_ankara', name: 'Ankara Iro Wrapper', category: 'bottom', price: 18000, color: 0x0d9488, secondaryColor: 0xfacc15, styleKey: 'iro', description: 'A wax-print wrapper tied and rolled at the waist, its end lapped over the front.', icon: '👗', gender: 'female' },
+  { id: 'top_sundress_yellow', name: 'Yellow Sundress', category: 'top', price: 18000, color: 0xfacc15, styleKey: 'sundress', description: 'A light knee-length dress with short sleeves.', icon: '👗', gender: 'female' },
+  { id: 'top_evening_gown_wine', name: 'Wine Evening Gown', category: 'top', price: 55000, color: 0x7f1d1d, styleKey: 'evening_gown', description: 'Sleeveless, close to the figure, flaring to the floor.', icon: '👗', gender: 'female' },
+  { id: 'top_peplum_ankara', name: 'Ankara Peplum Blouse', category: 'top', price: 14000, color: 0xdb2777, secondaryColor: 0xfde68a, styleKey: 'peplum_top', description: 'A fitted wax-print blouse with a flared peplum: half of an ankara two-piece.', icon: '👚', gender: 'female' },
+  { id: 'top_buba_lace', name: 'Lace Buba', category: 'top', price: 20000, color: 0xf5f0e6, styleKey: 'buba', description: 'A loose blouse with wide sleeves, worn over an iro.', icon: '👚', gender: 'female' },
+  { id: 'top_senator_midnight', name: 'Navy Senator Top', category: 'top', price: 30000, color: 0x1e3a8a, styleKey: 'senator', description: 'A tunic to mid-thigh with a standing collar, buttoned at the side.', icon: '👔', gender: 'male' },
   // === 0. CLOTHES OF LAGOS TODAY, CUT FROM REAL CLOTH ===
   { id: 'top_white_tee', name: 'Plain White T-Shirt', category: 'top', price: 6500, color: 0xf8fafc, styleKey: 'tshirt', description: 'Heavy cotton crew-neck tee. Goes with everything.', icon: '👕', gender: 'unisex' },
   { id: 'top_black_tee', name: 'Black Oversized T-Shirt', category: 'top', price: 7500, color: 0x111827, styleKey: 'tshirt', description: 'Thick black cotton, a relaxed cut.', icon: '👕', gender: 'unisex' },

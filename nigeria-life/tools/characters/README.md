@@ -14,6 +14,9 @@
   - Cut lines come from the skeleton.
   - The shells are smoothed (no muscles under cloth) and loosened.
   - Their edges are pinned so no gap opens.
+- Builds garment models of their own (`Outfit_<kind>__<variant>`): tees, polo, shirt, hoodie, jeans, cargo, chinos, shorts, caps, footwear; skirts, dresses and gowns, the peplum, buba, kaftan and senator tops, the agbada robe, and the gele, fila and kufi.
+- Hanging cloth (skirts, gown skirts, tunics, the agbada) is a tube round the hips and legs, skinned to four cloth bones added under the pelvis (`cloth_front`, `cloth_front_low`, `cloth_back`, `cloth_back_low`). No clip animates them: the game turns them from the legs every frame (`src/graphics/people/ClothRig.ts`).
+- From the hips to the fingertips, hanging cloth falls straight round the legs as they stand in play, so the hands hang outside it, and flares below them. The legs' stance is measured from the running game by `measure_hand_room.mjs` into `hand_room.json`; run it again if the posture or the arm clips change.
 - Bakes everyday colours: very dark brown hair, warm brown skin. The game tints skin, hair and clothes per player in `SkinnedCharacter.ts`, `applyGarmentLayout`.
 - Copies 19 animation clips, renamed to the game's names, and resamples them. Scale tracks are dropped, and translation tracks are kept only for the hips, applied as movement from this body's own hip height. The "fall" clip is held at its end for lying in bed.
 - Converts textures to WebP: 1024 px colour and normal maps, 512 px roughness.
@@ -36,6 +39,14 @@ node add_lod.mjs human_male.glb human_male.glb
 ```
 
 This adds `LOD_<name>` copies of the body pieces, clothes and hair: about 1,000–1,300 triangles a person instead of about 15,000, skinned to the same skeleton. The game never draws them on a model. `src/graphics/people/BakedPeople.ts` poses them a few frames per action and draws everyone beyond the nearest few with them. So a person looks the same at every distance, and the old procedural figures are never drawn.
+
+4. Add the seated shapes, once per gender, after the far-away copies:
+
+```
+node add_seated.mjs human_male.glb human_male.glb male
+```
+
+This gives each hanging garment a morph target `Seated`, solved against the pose in `seated_pose.json`. If the sit clip or `src/graphics/people/ClothRig.ts` changes, record the pose again with `GAME_URL=<running build> node tools/characters/measure_seated_pose.mjs`, then run this step again.
 
 **Posture:** the everyday stance (shoulders and hips brought in, legs under the hips, arms by the sides, hands open) is applied in the game by `src/graphics/people/Posture.ts`, over every clip. It is not in the file.
 

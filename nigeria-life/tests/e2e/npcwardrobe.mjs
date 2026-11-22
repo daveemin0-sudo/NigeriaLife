@@ -66,7 +66,7 @@ export async function run(browser, check) {
         formalShoes: share((r) => ['oxfords', 'loafers', 'heels'].includes(r.shoes)), sandals: share((r) => r.shoes === 'sandals'), boots: share((r) => r.shoes === 'boots'),
         logo: share((r) => r.logo === 'SECURITY'), dirtyOrWorn: share((r) => r.cond === 'dirty' || r.cond === 'worn' || r.cond === 'damaged'),
         hivis: share((r) => ['#f97316', '#facc15', '#a3e635'].includes(r.colour)), purposes: [...new Set(rows.map((r) => r.purpose))],
-        native: share((r) => ['kaftan', 'senator', 'ankara_shirt', 'ankara_set_f', 'ankara_long_set_f'].includes(r.t)),
+        native: share((r) => ['kaftan', 'senator', 'agbada', 'ankara_shirt', 'ankara_set_f', 'ankara_gown', 'iro_buba', 'ankara_two_piece'].includes(r.t)),
         youth: share((r) => ['oversized_street', 'hoodie_jeans', 'tee_jeans', 'tee_jeans_f'].includes(r.t)),
         sport: share((r) => r.t.startsWith('sport_')),
         bothBodies: rows.some((r) => r.gender === 'male') && rows.some((r) => r.gender === 'female'),
@@ -113,9 +113,9 @@ export async function run(browser, check) {
       const share = (list, f) => +(list.filter(f).length / list.length).toFixed(3);
       out[name] = {
         fashion: f,
-        formal: share(casual, (r) => ['polo_chinos', 'shirt_casual', 'office_shirt', 'office_polo_f', 'senator'].includes(r.t) || ['oxfords', 'loafers', 'heels'].includes(r.shoes)),
+        formal: share(casual, (r) => ['polo_chinos', 'shirt_casual', 'office_shirt', 'office_polo_f', 'office_skirt_f', 'senator'].includes(r.t) || ['oxfords', 'loafers', 'heels'].includes(r.shoes)),
         youth: share(casual, (r) => ['oversized_street', 'hoodie_jeans'].includes(r.t) || r.pat === 'graphic' || r.hat === 'cap' || r.hat === 'bucket_hat'),
-        native: share(casual, (r) => ['kaftan', 'senator', 'ankara_shirt', 'ankara_set_f', 'ankara_long_set_f'].includes(r.t) || r.pat === 'ankara'),
+        native: share(casual, (r) => ['kaftan', 'senator', 'agbada', 'ankara_shirt', 'ankara_set_f', 'ankara_gown', 'iro_buba', 'ankara_two_piece'].includes(r.t) || r.pat === 'ankara'),
         sandals: share(casual, (r) => r.shoes === 'sandals'),
         worn: share(casual, (r) => r.cond !== 'clean'),
         officeFormalShoes: share(rows.filter((r) => r.occupation === 'office'), (r) => ['oxfords', 'loafers', 'heels'].includes(r.shoes)),

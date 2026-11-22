@@ -22,7 +22,9 @@ const PART: Record<string, number> = { Skin_Body: 0, Hair: 1, Cloth_Top: 2, Clot
 const TINTS = ['tSkin', 'tHair', 'tTop', 'tBottom', 'tShoes', 'tHat'] as const;
 const MODES: BakedMode[] = ['walk', 'idle', 'talk', 'dance', 'sit'];
 /** Garment cuts that read the same far off, each as the one baked for it */
-const FAR_TOP: Record<string, string> = { tee_oversized: 'tee', polo: 'tee', shirt: '' };
+const FAR_TOP: Record<string, string> = { tee_oversized: 'tee', polo: 'tee', shirt: '', peplum: 'tee', buba: 'tee' };
+const FAR_SKIRT: Record<string, string> = { pleated: 'knee', pencil: 'knee', iro: 'maxi' };
+const FAR_HAT: Record<string, string> = { fila: 'kufi' };
 const FAR_BOTTOM: Record<string, string> = { jeans_slim: 'jeans_straight', jeans_baggy: 'jeans_straight', chinos: 'jeans_straight', cargo: 'jeans_straight', cargo_shorts: 'shorts' };
 
 interface Model {
@@ -88,7 +90,7 @@ export class BakedPeople {
         }),
       ).then(() => {
         // From now on a procedural person baked into a still mesh anywhere is baked as the model
-        if (BakedPeople.ready) setPersonBaker((obj, alone) => BakedPeople.statueFor(obj, alone));
+        if (BakedPeople.ready) setPersonBaker((obj, alone, congregation) => BakedPeople.statueFor(obj, alone, congregation));
       });
     }
     return BakedPeople.loading;
@@ -136,7 +138,11 @@ export class BakedPeople {
       // and baggy jeans, chinos and cargo trousers: one of each far off (the hood, shorts and hats still show).
       const v = near.variants;
       const variants = { ...v, top: FAR_TOP[v.top] ?? v.top, bottom: FAR_BOTTOM[v.bottom] ?? v.bottom, shoes: v.feet ? '' : 'sneaker' };
-      const d = { ...near, variants, key: `${near.mask}|${variants.top}|${variants.bottom}|${variants.hat}|${variants.shoes}|${variants.feet}` };
+      const skirt = FAR_SKIRT[v.skirt] ?? v.skirt;
+      const hat = FAR_HAT[v.hat] ?? v.hat;
+      variants.skirt = skirt;
+      variants.hat = hat;
+      const d = { ...near, variants, key: `${near.mask}|${variants.top}|${variants.bottom}|${hat}|${variants.shoes}|${variants.feet}|${skirt}|${v.dress}|${v.robe}` };
       let cut = BakedPeople.cuts.get(d.key);
       if (cut === undefined) {
         cut = BakedPeople.cuts.size;
@@ -237,9 +243,10 @@ export class BakedPeople {
   /**
    * A procedural person (a rig's group) about to be baked into a still mesh, as the character model: standing,
    * or seated (legs raised) with its hips where the rig's are, so whatever lowers it onto a seat still does.
-   * Full detail for one person baked on their own; less for one among many (a congregation, a carriage).
+   * Full detail for one person baked on their own; less for one among many (a carriage). A congregation's figures keep
+   * their full body and face, with their hanging garments in the light copies.
    */
-  public static statueFor(obj: THREE.Object3D, alone: boolean): THREE.BufferGeometry | null {
+  public static statueFor(obj: THREE.Object3D, alone: boolean, congregation = false): THREE.BufferGeometry | null {
     const entry = RigRegistry.entryOfGroup(obj);
     const rig = entry?.rig.deref();
     if (!entry || !rig) return null;
@@ -249,10 +256,10 @@ export class BakedPeople {
     if (!model) return null;
     const seated = (rig.leftLeg.rotation.x + rig.rightLeg.rotation.x) / 2 < -0.9;
     const dress = streetDress({ ...look, gender });
-    const key = `${gender}|${dress.key}|${seated ? 'sit' : 'stand'}|${alone ? 'full' : 'lod'}`;
+    const key = `${gender}|${dress.key}|${seated ? 'sit' : 'stand'}|${alone ? 'full' : 'lod'}${congregation ? '|congregation' : ''}`;
     let statue = BakedPeople.statues.get(key);
     if (!statue) {
-      statue = BakedPeople.pose(model, dress, seated ? 'sit' : 'idle', !alone);
+      statue = BakedPeople.pose(model, dress, seated ? 'sit' : 'idle', !alone, congregation);
       BakedPeople.statues.set(key, statue);
     }
     const geometry = statue.geometry.clone();
@@ -278,7 +285,7 @@ export class BakedPeople {
   }
 
   /** The model (full detail, or its low-detail copy) in a cut of clothes, posed still, not indexed */
-  private static pose(model: Model, dress: Dress, mode: BakedMode, lod: boolean): { geometry: THREE.BufferGeometry; hip: number } {
+  private static pose(model: Model, dress: Dress, mode: BakedMode, lod: boolean, lightCloth = false): { geometry: THREE.BufferGeometry; hip: number } {
     const { handle } = model;
     handle.play(mode as SkinnedAnimState, 0);
     handle.mixer.setTime((model.durations.get(mode) ?? 1) * 0.5);
@@ -287,11 +294,17 @@ export class BakedPeople {
     const shown = dress.shown;
     const positions: number[] = [];
     const parts: number[] = [];
+    /** Smooth normals of the light garments (they have few faces, so face normals would show them) */
+    const smooth: number[] = [];
     const v = new THREE.Vector3();
     handle.root.traverse((o) => {
       const mesh = o as THREE.SkinnedMesh;
-      if (!mesh.isSkinnedMesh || o.name.startsWith('LOD_') !== lod) return;
-      const name = lod ? o.name.slice(4) : o.name;
+      if (!mesh.isSkinnedMesh) return;
+      // In a congregation, what hangs on the cloth rig comes from its light copy and everything else as asked
+      const isLight = o.name.startsWith('LOD_') || !!o.parent?.name.startsWith('LOD_');
+      const onClothRig = lightCloth && !!mesh.skeleton.getBoneByName('cloth_front');
+      if (onClothRig ? !isLight : o.name.startsWith('LOD_') !== lod) return;
+      const name = o.name.startsWith('LOD_') ? o.name.slice(4) : o.name;
       const garment = garmentOf(o);
       if (garment && !wears(dress, garment)) return;
       if (/^Hair/.test(name) && dress.variants.hat) return;
@@ -302,22 +315,55 @@ export class BakedPeople {
       const pos = mesh.geometry.getAttribute('position');
       const idx = mesh.geometry.getIndex();
       const count = idx ? idx.count : pos.count;
+      const normals = onClothRig ? BakedPeople.smoothNormals(mesh) : null;
       for (let k = 0; k < count; k++) {
         const i = idx ? idx.getX(k) : k;
-        v.fromBufferAttribute(pos, i);
-        mesh.applyBoneTransform(i, v);
+        mesh.getVertexPosition(i, v); // skinned, with the seated shape of hanging cloth
         v.applyMatrix4(mesh.matrixWorld);
         positions.push(v.x, v.y, v.z);
         parts.push(part);
+        if (lightCloth) smooth.push(normals?.[i * 3] ?? 0, normals?.[i * 3 + 1] ?? 0, normals?.[i * 3 + 2] ?? 0);
       }
     });
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('part', new THREE.Float32BufferAttribute(parts, 1));
     geometry.computeVertexNormals();
+    if (lightCloth) {
+      const normal = geometry.getAttribute('normal');
+      for (let i = 0; i < normal.count; i++) {
+        if (smooth[i * 3] || smooth[i * 3 + 1] || smooth[i * 3 + 2]) normal.setXYZ(i, smooth[i * 3], smooth[i * 3 + 1], smooth[i * 3 + 2]);
+      }
+    }
     const pelvis = handle.root.getObjectByName('pelvis');
     const hip = pelvis ? pelvis.getWorldPosition(new THREE.Vector3()).y : 0.9;
     return { geometry, hip };
+  }
+
+  /** A posed mesh's normals, averaged where its faces meet */
+  private static smoothNormals(mesh: THREE.SkinnedMesh): Float32Array {
+    const pos = mesh.geometry.getAttribute('position');
+    const idx = mesh.geometry.getIndex();
+    const at = new Float32Array(pos.count * 3), out = new Float32Array(pos.count * 3);
+    const v = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      mesh.getVertexPosition(i, v);
+      v.applyMatrix4(mesh.matrixWorld).toArray(at, i * 3);
+    }
+    const faces = idx ? idx.count : pos.count;
+    for (let t = 0; t + 2 < faces; t += 3) {
+      const [i, j, k] = idx ? [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)] : [t, t + 1, t + 2];
+      a.fromArray(at, i * 3);
+      b.fromArray(at, j * 3).sub(a);
+      c.fromArray(at, k * 3).sub(a);
+      b.cross(c);
+      for (const n of [i, j, k]) { out[n * 3] += b.x; out[n * 3 + 1] += b.y; out[n * 3 + 2] += b.z; }
+    }
+    for (let i = 0; i < pos.count; i++) {
+      const l = Math.hypot(out[i * 3], out[i * 3 + 1], out[i * 3 + 2]) || 1;
+      out[i * 3] /= l; out[i * 3 + 1] /= l; out[i * 3 + 2] /= l;
+    }
+    return out;
   }
 
   /** The low-detail model in this cut of clothes, posed `at` seconds into the action, as one plain mesh */
@@ -347,8 +393,7 @@ export class BakedPeople {
       const pos = mesh.geometry.getAttribute('position');
       const base = positions.length / 3;
       for (let i = 0; i < pos.count; i++) {
-        v.fromBufferAttribute(pos, i);
-        mesh.applyBoneTransform(i, v);
+        mesh.getVertexPosition(i, v); // skinned, with the seated shape of hanging cloth
         v.applyMatrix4(mesh.matrixWorld);
         positions.push(v.x, v.y, v.z);
         parts.push(part);

@@ -89,6 +89,24 @@ export const MAX_OUTFITS = 12;
 // ------------------------------------------------------------------------------------- What may go with what
 /** The cloths each garment model can be made in, its usual one first */
 export const FABRIC_CHOICES: Record<string, FabricKind[]> = {
+  // Skirts, dresses, tunics and the robe (the first is the cloth each is built in)
+  mini: ['denim', 'twill', 'cotton', 'jersey'],
+  knee: ['cotton', 'twill', 'denim'],
+  maxi: ['cotton', 'jersey'],
+  pleated: ['twill', 'cotton'],
+  pencil: ['twill', 'cotton', 'jersey'],
+  iro: ['cotton', 'canvas'],
+  sundress: ['cotton', 'jersey'],
+  evening: ['jersey', 'cotton'],
+  gown: ['cotton', 'jersey'],
+  peplum: ['cotton', 'jersey'],
+  buba: ['cotton', 'jersey'],
+  kaftan: ['cotton', 'twill'],
+  senator: ['cotton', 'twill', 'oxford'],
+  agbada: ['cotton', 'twill', 'canvas'],
+  gele: ['canvas', 'cotton'],
+  fila: ['twill', 'cotton', 'canvas'],
+  kufi: ['rib', 'cotton'],
   tee: ['jersey', 'cotton', 'pique'],
   tee_oversized: ['jersey', 'cotton', 'fleece'],
   polo: ['pique', 'jersey', 'cotton'],

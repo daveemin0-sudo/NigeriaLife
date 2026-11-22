@@ -35,7 +35,6 @@ import type { PlaceInterior } from './PlaceInterior';
  */
 
 const PEOPLE = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
-const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const POS = new THREE.Vector3();
 const QUAT = new THREE.Quaternion();
 const EUL = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -138,10 +137,13 @@ interface PoseSet {
   who?: (seat: number) => boolean;
 }
 
+const MOVED = new THREE.Matrix4();
+
 class Crowd {
   public readonly group = new THREE.Group();
   private built = false;
-  private readonly meshes = new Map<string, Array<{ mesh: THREE.InstancedMesh; shown: number }>>();
+  /** Each pose's figures: only the first `shown` instances are drawn, `seats` saying whose each one is */
+  private readonly meshes = new Map<string, Array<{ mesh: THREE.InstancedMesh; shown: number; seats: number[] }>>();
   private readonly where = new Map<string, Map<number, { m: number; k: number }>>();
   private readonly current: string[] = [];
   private readonly target: string[] = [];
@@ -184,16 +186,16 @@ class Crowd {
         poseTargets(set.pose, set.time ?? 0.3, joints);
         joints.headY += set.headY ?? 0;
         writeJoints(rig, joints, torsoY);
-        const geo = bakeToGeometry(holder);
+        const geo = bakeToGeometry(holder, { congregation: true });
         if (!geo) continue;
         const mesh = new THREE.InstancedMesh(geo, PEOPLE, mine.length);
         mesh.name = `${this.group.name}: ${name}`;
         mesh.frustumCulled = false;
         mesh.visible = false;
-        for (let k = 0; k < mine.length; k++) mesh.setMatrixAt(k, HIDDEN);
+        mesh.count = 0;
         this.group.add(mesh);
         const list = this.meshes.get(name) ?? [];
-        list.push({ mesh, shown: 0 });
+        list.push({ mesh, shown: 0, seats: [] });
         this.meshes.set(name, list);
         const map = this.where.get(name) ?? new Map<number, { m: number; k: number }>();
         mine.forEach((i, k) => map.set(i, { m: list.length - 1, k }));
@@ -239,9 +241,23 @@ class Crowd {
     const at = this.where.get(name)?.get(i);
     const entry = at ? this.meshes.get(name)?.[at.m] : undefined;
     if (!at || !entry) return;
-    entry.mesh.setMatrixAt(at.k, show ? this.place(i, this.sets[name], 0, 0) : HIDDEN);
+    if (show) {
+      at.k = entry.shown++;
+      entry.seats[at.k] = i;
+      entry.mesh.setMatrixAt(at.k, this.place(i, this.sets[name], 0, 0));
+    } else {
+      // The last one drawn takes this one's place, so nobody who has left a pose is still sent to be drawn
+      const last = --entry.shown;
+      if (at.k !== last) {
+        const moved = entry.seats[last];
+        entry.mesh.getMatrixAt(last, MOVED);
+        entry.mesh.setMatrixAt(at.k, MOVED);
+        entry.seats[at.k] = moved;
+        this.where.get(name)!.get(moved)!.k = at.k;
+      }
+    }
+    entry.mesh.count = entry.shown;
     entry.mesh.instanceMatrix.needsUpdate = true;
-    entry.shown += show ? 1 : -1;
     entry.mesh.visible = entry.shown > 0;
   }
 

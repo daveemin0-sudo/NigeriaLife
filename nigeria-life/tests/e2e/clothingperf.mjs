@@ -11,16 +11,23 @@ import { newPlayer, open, closeDialogs, wait } from './lib.mjs';
 async function sample(page, ms = 4000) {
   return page.evaluate(async (ms) => new Promise((resolve) => {
     const deltas = [];
+    // Draw calls and triangles of every frame: the shadows are redrawn only on some frames, and those frames count
+    // about double, so one frame's reading says little (the median is the usual frame, the peak a shadow frame)
+    const callsSeen = [];
+    const trisSeen = [];
+    const g = window.game;
+    const info = g.renderer.info;
     let last = performance.now();
     const start = last;
     const tick = (now) => {
       deltas.push(now - last);
+      callsSeen.push(info.render.calls);
+      trisSeen.push(info.render.triangles);
       last = now;
       if (now - start < ms) { requestAnimationFrame(tick); return; }
       const v = deltas.slice(2).sort((a, b) => a - b);
       const total = v.reduce((s, x) => s + x, 0);
-      const g = window.game;
-      const info = g.renderer.info;
+      const median = (list) => { const s = list.slice(2).sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
       const crowd = g.world.cityPopulation;
       const models = (crowd.models?.slots ?? []).filter((m) => m.handle && m.holder.visible).length;
       resolve({
@@ -28,8 +35,9 @@ async function sample(page, ms = 4000) {
         fps: +((v.length * 1000) / total).toFixed(1),
         avgMs: +(total / v.length).toFixed(1),
         p95: +v[Math.floor(v.length * 0.95)].toFixed(1),
-        calls: info.render.calls,
-        triangles: info.render.triangles,
+        calls: median(callsSeen),
+        triangles: median(trisSeen),
+        peakCalls: Math.max(...callsSeen.slice(2)),
         programs: info.programs?.length ?? 0,
         textures: info.memory.textures,
         geometries: info.memory.geometries,

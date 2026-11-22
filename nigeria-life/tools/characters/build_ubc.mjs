@@ -9,6 +9,7 @@ import { ALL_EXTENSIONS, KHRMaterialsSheen } from '@gltf-transform/extensions';
 import { mergeDocuments, prune, dedup, textureCompress, resample } from '@gltf-transform/functions';
 import sharp from 'sharp';
 import path from 'node:path';
+import fs from 'node:fs';
 
 const [gender, out, animFile] = process.argv.slice(2);
 // The unzipped Universal Base Characters [Standard] folder (free, CC0, from quaternius.com or itch.io)
@@ -473,7 +474,9 @@ function addGarment(name, given) {
       .setAttribute('JOINTS_0', accessor(`${tag}_j`, 'VEC4', new Uint8Array(geo.JJ)))
       .setAttribute('WEIGHTS_0', accessor(`${tag}_w`, 'VEC4', new Float32Array(geo.WW))));
   });
-  scene.addChild(doc.createNode(name).setMesh(mesh).setSkin(skin));
+  // Only cloth that hangs from the cloth rig uses its skin; everything else stays on the character's own
+  const onRig = parts.some(({ geo }) => geo.JJ.some((j) => j >= clothRig.firstJoint));
+  scene.addChild(doc.createNode(name).setMesh(mesh).setSkin(onRig ? clothRig.skin : skin));
 }
 
 const plainShells = () => {
@@ -969,6 +972,633 @@ const shoe = (upper, sole, soleTop, spec, extraCover = null, top = ankleY) => {
   return [{ mat: upper, geo }];
 };
 
+// ---------------------------------------------------------------- flowing cloth: skirts, dresses, gowns, tunics, robes
+// Cloth that hangs free of the legs is not cut from the body: it is a tube round the hips and legs, as wide at each
+// height as the body is there (bridging the gap between the legs, and never narrower than above it), eased out,
+// flared toward the hem and finished with a turned-up hem that gives the cloth its thickness. It is skinned to the
+// hips above and shared between both thighs (and, low down, the calves) by how far to each side it hangs: it swings
+// with the stride and lies over the lap when the wearer sits.
+const sideSign = Math.sign(J('thigh_l')[0]) || 1; // the side thigh_l is on
+const trunkPts = P0.filter((p, v) => !inArm(p) && !/^(hand_|Head|neck|index|middle|pinky|ring|thumb)/.test(vJointName(v)));
+const DRAPE_BINS = 48;
+/** How far the body reaches from the centre line at height y, in DRAPE_BINS directions round it (bin 0 at -x) */
+const hullAt = (y, tol = 0.012 * H) => {
+  let r = new Array(DRAPE_BINS).fill(0);
+  for (const p of trunkPts) {
+    if (Math.abs(p[1] - y) > tol) continue;
+    const dx = p[0] - waist.cx, dz = p[2] - waist.cz;
+    const b = Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * DRAPE_BINS) % DRAPE_BINS;
+    r[b] = Math.max(r[b], Math.hypot(dx, dz));
+  }
+  // Below the hips, across the gap between the legs (the widest within a few bins either way); round the waist
+  // and hips it keeps the body's own line, so it stays under the hem of whatever top is worn over it. Then smoothed
+  const reach = y > hipY + 0.012 * H ? 1 : y > hipY - 0.03 * H ? 3 : 5;
+  r = r.map((_, b) => { let m = 0; for (let k = -reach; k <= reach; k++) m = Math.max(m, r[(b + k + DRAPE_BINS) % DRAPE_BINS]); return m; });
+  for (let it = 0; it < 4; it++) r = r.map((x, b) => (r[(b + DRAPE_BINS - 1) % DRAPE_BINS] + 2 * x + r[(b + 1) % DRAPE_BINS]) / 4);
+  return r;
+};
+const hullRadius = (r, a) => {
+  const f = ((a + Math.PI) / (2 * Math.PI)) * DRAPE_BINS - 0.5, b0 = ((Math.floor(f) % DRAPE_BINS) + DRAPE_BINS) % DRAPE_BINS, t = f - Math.floor(f);
+  return r[b0] * (1 - t) + r[(b0 + 1) % DRAPE_BINS] * t;
+};
+/** Several joints' shares as the four largest, adding to 1 */
+const mixWeights = (pairs) => {
+  const m = new Map();
+  for (const [j, w] of pairs) if (w > 1e-4 && j >= 0) m.set(j, (m.get(j) ?? 0) + w);
+  const top = [...m].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const sum = top.reduce((s, [, w]) => s + w, 0) || 1;
+  const j = [0, 0, 0, 0], w = [0, 0, 0, 0];
+  top.forEach(([jj, ww], k) => { j[k] = jj; w[k] = ww / sum; });
+  return { j, w };
+};
+const smooth01 = (x) => { const t = Math.max(0, Math.min(1, x)); return t * t * (3 - 2 * t); };
+// The cloth rig: bones under the pelvis for hanging cloth only: the front and the back of it, and its left and right
+// sides, each with a lower part from the knees down. They have no animation of their own: the game turns them every
+// frame (src/graphics/people/ClothRig.ts). The front follows whichever leg is forward, the back whichever is behind,
+// each side its own leg once it swings from standing. They live in a skin of their own, used only by the garments
+// that hang from them: the character's skin, its joints and its animation are exactly as they were.
+const clothRig = (() => {
+  const pelIBM = new Array(16);
+  ibm.getElement(jIndex('pelvis'), pelIBM);
+  const local = (p) => [pelIBM[0] * p[0] + pelIBM[4] * p[1] + pelIBM[8] * p[2] + pelIBM[12], pelIBM[1] * p[0] + pelIBM[5] * p[1] + pelIBM[9] * p[2] + pelIBM[13], pelIBM[2] * p[0] + pelIBM[6] * p[1] + pelIBM[10] * p[2] + pelIBM[14]];
+  const mid = (a, b) => [(J(a)[0] + J(b)[0]) / 2, (J(a)[1] + J(b)[1]) / 2, (J(a)[2] + J(b)[2]) / 2];
+  const tHip = local(mid('thigh_l', 'thigh_r'));
+  const tKnee = local(mid('calf_l', 'calf_r'));
+  const pelvisNode = joints[jIndex('pelvis')];
+  const ibmAt = (t) => { const m = pelIBM.slice(); m[12] -= t[0]; m[13] -= t[1]; m[14] -= t[2]; return m; };
+  const firstJoint = joints.length;
+  const added = [];
+  const rigNodes = [];
+  const addBone = (name, parent, t, total) => {
+    const n = doc.createNode(name).setTranslation(t);
+    parent.addChild(n);
+    rigNodes.push(n);
+    jointNames.push(name);
+    added.push(ibmAt(total));
+    return n;
+  };
+  const down = [tKnee[0] - tHip[0], tKnee[1] - tHip[1], tKnee[2] - tHip[2]];
+  const front = addBone('cloth_front', pelvisNode, tHip, tHip);
+  addBone('cloth_front_low', front, down, tKnee);
+  const back = addBone('cloth_back', pelvisNode, tHip, tHip);
+  addBone('cloth_back_low', back, down, tKnee);
+  // Each side turns at its own hip and bends at its own knee
+  for (const s of ['l', 'r']) {
+    const hip = local(J(`thigh_${s}`)), knee = local(J(`calf_${s}`));
+    const side = addBone(`cloth_side_${s}`, pelvisNode, hip, hip);
+    addBone(`cloth_side_${s}_low`, side, [knee[0] - hip[0], knee[1] - hip[1], knee[2] - hip[2]], knee);
+  }
+  const old = ibm.getArray();
+  const arr = new Float32Array(old.length + added.length * 16);
+  arr.set(old);
+  added.forEach((m, k) => arr.set(m, old.length + k * 16));
+  const rigSkin = doc.createSkin('Cloth_Skin').setInverseBindMatrices(doc.createAccessor('Cloth_Skin_ibm').setType('MAT4').setArray(arr).setBuffer(root.listBuffers()[0]));
+  for (const j of joints) rigSkin.addJoint(j);
+  for (const n of rigNodes) rigSkin.addJoint(n);
+  if (skin.getSkeleton()) rigSkin.setSkeleton(skin.getSkeleton());
+  return { skin: rigSkin, firstJoint, f: jIndex('cloth_front'), fl: jIndex('cloth_front_low'), b: jIndex('cloth_back'), bl: jIndex('cloth_back_low'),
+    side: { l: jIndex('cloth_side_l'), r: jIndex('cloth_side_r') }, sideLow: { l: jIndex('cloth_side_l_low'), r: jIndex('cloth_side_r_low') } };
+})();
+/** How a point of hanging cloth rides the skeleton (see above): the hips above, the cloth rig below, front to back
+ *  by where round the body it hangs, each side on its own side bone, upper to lower at the knees */
+const drapeSkin = (p, spec) => {
+  const leg = ramp(hipY + 0.03 * H - p[1], 0, hipY + 0.03 * H - kneeY) * (spec.legMax ?? 0.92);
+  const dz = (p[2] - waist.cz) / (Math.hypot(p[0] - waist.cx, p[2] - waist.cz) || 1);
+  const f = Math.max(0, Math.min(1, 0.5 + 0.8 * dz)); // the face is toward +z
+  const low = ramp(kneeY + 0.02 * H - p[1], 0, 0.09 * H);
+  // At the sides the cloth rides that side's own cloth bone, from high on the thigh down (those bones do not move
+  // while standing, so the standing line and the print stay as they are)
+  const across = (p[0] - waist.cx) / (Math.hypot(p[0] - waist.cx, p[2] - waist.cz) || 1);
+  const a01 = Math.max(0, Math.min(1, (Math.abs(across) - 0.4) / 0.4));
+  const onSide = spec.room === false ? 0 : a01 * a01 * (3 - 2 * a01);
+  const legSide = across * sideSign > 0 ? 'l' : 'r';
+  const reach = Math.max(1e-3, 0.5 * (hipY + 0.03 * H - kneeY));
+  const high = Math.max(0, Math.min(1, (hipY + 0.03 * H - p[1]) / reach));
+  const sideLeg = (high * high * (3 - 2 * high)) * ((spec.legMax ?? 0.92) < 0.6 ? spec.legMax : 1);
+  const toSide = Math.max(leg, sideLeg) * onSide, toCloth = leg * (1 - onSide);
+  const pairs = [[clothRig.f, toCloth * f * (1 - low)], [clothRig.fl, toCloth * f * low], [clothRig.b, toCloth * (1 - f) * (1 - low)], [clothRig.bl, toCloth * (1 - f) * low],
+    [clothRig.side[legSide], toSide * (1 - low)], [clothRig.sideLow[legSide], toSide * low]];
+  // Above the hip joints it rides as the body under it does (the waist bends with the spine)
+  const body = torsoSkinAt(p, /^(pelvis|spine_0)/);
+  const share = Math.max(0, 1 - toSide - toCloth);
+  for (let k = 0; k < 4; k++) pairs.push([body.j[k], body.w[k] * share]);
+  return mixWeights(pairs);
+};
+// The legs as they really stand, measured in the game's own pose (tools/characters/measure_hand_room.mjs, relative to the
+// pelvis). The T-pose legs stand wider than that, so cloth shaped on them would swallow the hands hanging beside the
+// hips. From the hips to the fingertips hanging cloth falls straight, one smooth section round the legs as they stand;
+// below the fingertips it is free to flare. There are no pockets carved for the hands: the line stays clean.
+const ROOM = (() => {
+  const all = JSON.parse(fs.readFileSync(new URL('./hand_room.json', import.meta.url), 'utf8'));
+  const { top, step, bins, rows } = all;
+  const own = all[gender];
+  const around = (b) => ((b % bins) + bins) % bins;
+  const from = Math.max(0, Math.floor((top - 0.02) / step));
+  const to = Math.min(rows - 1, Math.floor((top - own.fingertip) / step));
+  // The furthest the legs reach in each direction between the hips and the fingertips
+  let column = new Array(bins).fill(0);
+  for (let row = from; row <= to; row++) own.legs[row].forEach((x, b) => { column[b] = Math.max(column[b], x ?? 0); });
+  // The tightest smooth section round both legs: their convex outline (straight across the gap between them, so no
+  // lobes or notches, and no wider over the front of the thighs, where the fingers rest), its corners softened
+  const angle = (i) => ((i + 0.5) / bins) * 2 * Math.PI - Math.PI;
+  const pts = column.map((r, i) => [Math.cos(angle(i)) * r, Math.sin(angle(i)) * r]).filter(([x, z]) => x || z).sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const turn = (o, p, q) => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
+  const chain = (list) => { const h = []; for (const q of list) { while (h.length > 1 && turn(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop(); h.push(q); } h.pop(); return h; };
+  const hull = [...chain(pts), ...chain([...pts].reverse())];
+  column = column.map((_, i) => {
+    const dx = Math.cos(angle(i)), dz = Math.sin(angle(i));
+    let far = 0;
+    hull.forEach((p, e) => {
+      const q = hull[(e + 1) % hull.length], ex = q[0] - p[0], ez = q[1] - p[1], det = dx * ez - dz * ex;
+      if (Math.abs(det) < 1e-9) return;
+      const t = (p[0] * ez - p[1] * ex) / det, u = (p[0] * dz - p[1] * dx) / det;
+      if (t > 0 && u >= -1e-6 && u <= 1 + 1e-6) far = Math.max(far, t);
+    });
+    return far;
+  });
+  for (let it = 0; it < 3; it++) column = column.map((x, b) => (column[around(b - 1)] + 2 * x + column[around(b + 1)]) / 4);
+  return { bins, column, fingertips: J('pelvis')[1] + own.fingertip };
+})();
+/**
+ * The radius of hanging cloth at height y and direction a. At the sides, where the hands hang, it falls from the hips
+ * round the legs as they stand (`gap` off them) and its own flare is added only from the fingertips down, so a pencil
+ * skirt stays straight and an A-line opens below the hands. The front and back keep their natural fall. `flare` scales
+ * the garment's flare; `sidesOnly` narrows the fit to the very sides (a peplum).
+ */
+const fitToRoom = (base, t, y, a, spec) => {
+  const easeNow = spec.ease(t, a);
+  const free = base + easeNow * H;
+  if (spec.room === false) return free;
+  const pelvis = J('pelvis');
+  const c = Math.cos(a), sn = Math.sin(a);
+  const f = ((Math.atan2(sn, c) + Math.PI) / (2 * Math.PI)) * ROOM.bins - 0.5;
+  const b0 = ((Math.floor(f) % ROOM.bins) + ROOM.bins) % ROOM.bins, u = f - Math.floor(f);
+  const reach = ROOM.column[b0] * (1 - u) + ROOM.column[(b0 + 1) % ROOM.bins] * u;
+  // The section is measured round the pelvis, the cloth round the waist's middle
+  const standing = reach - ((waist.cx - pelvis[0]) * c + (waist.cz - pelvis[2]) * sn) + (spec.gap ?? 0.007);
+  // The garment's own flare, counted from the fingertips down
+  const tf = Math.max(0, Math.min(1, (spec.top - ROOM.fingertips) / (spec.top - spec.hem)));
+  const grow = t > tf ? Math.max(0, easeNow - spec.ease(tf, a)) * smooth01((t - tf) / Math.max(1e-3, 1 - tf)) : 0;
+  const fitted = standing + grow * H * (spec.flare ?? 1);
+  const above = 1 - smooth01((y - (pelvis[1] + 0.02)) / 0.07);
+  // How far round from the side this direction is: the whole fit at the sides, none at the middle of the front and back
+  const fromSide = Math.min(Math.abs(a), Math.PI - Math.abs(a));
+  const side = spec.sidesOnly ? c * c : 1 - smooth01((fromSide - 0.96) / 0.52);
+  const out = free + (fitted - free) * above * side;
+  if (!spec.join) return out;
+  // Joined to the bodice above it: just inside its hem, easing away below it, so there is no ledge at the waist
+  const joined = hullRadius(spec.join, a) - 0.0015 * H;
+  return out + (joined - out) * (1 - smooth01(((spec.joinY ?? waistY) - y) / ((spec.joinFade ?? 0.07) * H)));
+};
+/** How far out a top's cloth stands round the body at height y (arms apart): what the cloth hanging from it joins */
+const hemProfile = (shell, y) => {
+  let r = new Array(DRAPE_BINS).fill(0);
+  for (let i = 0; i < shell.P.length; i += 3) {
+    const q = [shell.P[i], shell.P[i + 1], shell.P[i + 2]];
+    if (Math.abs(q[1] - y) > 0.014 * H || inArm(q)) continue;
+    const dx = q[0] - waist.cx, dz = q[2] - waist.cz;
+    const b = Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * DRAPE_BINS) % DRAPE_BINS;
+    r[b] = Math.max(r[b], Math.hypot(dx, dz));
+  }
+  for (let pass = 0; pass < DRAPE_BINS && r.some((x) => !x); pass++) r = r.map((x, b) => x || r[(b + 1) % DRAPE_BINS] || r[(b + DRAPE_BINS - 1) % DRAPE_BINS]);
+  for (let it = 0; it < 3; it++) r = r.map((x, b) => (r[(b + DRAPE_BINS - 1) % DRAPE_BINS] + 2 * x + r[(b + 1) % DRAPE_BINS]) / 4);
+  return r;
+};
+/**
+ * A tube of hanging cloth from height `top` down to `hem`: spec.ease(t) (in body heights; t 0 at the top, 1 at the
+ * hem) out from the body, pleats { n, depth }, an arc [a0, a1] for a panel that does not go all round,
+ * legMax (how much of the legs' swing it takes at the knee: less for wide cloth, which has room), seg, rings.
+ */
+function drape(given) {
+  // Cloth joined to a bodice starts at the bodice's hem (the waist narrows above it: it would stand out there)
+  const spec = given.join ? { ...given, top: (given.joinY ?? waistY) + 0.002 * H } : given;
+  const g = geoOf();
+  const seg = spec.seg ?? 64, rows = spec.rings ?? 22;
+  const arc = spec.arc ?? null;
+  const thick = (spec.thick ?? 0.004) * H, lip = (spec.lip ?? 0.022) * H;
+  // Rings from the top to the hem, then the hem turned up inside (its thickness)
+  const rings = [];
+  let prev = null;
+  for (let k = 0; k <= rows; k++) {
+    const t = k / rows;
+    const y = spec.top + (spec.hem - spec.top) * t;
+    let r = hullAt(Math.max(y, groundY + 0.03 * H));
+    if (prev && spec.free !== false) r = r.map((x, b) => Math.max(x, prev[b]));
+    prev = r;
+    rings.push({ y, t, r, inset: 0 });
+  }
+  const last = rings[rings.length - 1];
+  rings.push({ y: last.y, t: 1, r: last.r, inset: thick }, { y: last.y + lip, t: 1, r: last.r, inset: thick });
+  const grid = rings.map(({ y, t, r, inset }) => {
+    const row = [];
+    for (let k = 0; k <= seg; k++) {
+      if (!arc && k === seg) { row.push(row[0]); break; }
+      const a = arc ? arc[0] + ((arc[1] - arc[0]) * k) / seg : -Math.PI + (k / seg) * 2 * Math.PI;
+      let rad = fitToRoom(hullRadius(r, a), t, y, a, spec) - inset;
+      if (spec.pleats) {
+        const f = (k / seg) * spec.pleats.n;
+        rad += spec.pleats.depth * H * ramp(t, 0.04, 0.25) * (Math.abs((f % 1) - 0.5) * 2 - 0.5);
+      }
+      const p = [waist.cx + Math.cos(a) * rad, y, waist.cz + Math.sin(a) * rad];
+      const sk = drapeSkin(p, spec);
+      g.P.push(...p); g.N.push(Math.cos(a), 0, Math.sin(a)); g.U.push(0, 0); g.JJ.push(...sk.j); g.WW.push(...sk.w);
+      row.push(g.P.length / 3 - 1);
+    }
+    return row;
+  });
+  for (let r = 0; r < grid.length - 1; r++) for (let k = 0; k < grid[r].length - 1; k++) {
+    const a = grid[r][k], b = grid[r][k + 1], c = grid[r + 1][k], d = grid[r + 1][k + 1];
+    g.I.push(a, c, b, b, c, d);
+  }
+  // Every face turned outward (away from the centre line), except the turned-up hem inside
+  for (let t = 0; t < g.I.length; t += 3) {
+    const [i0, i1, i2] = [g.I[t], g.I[t + 1], g.I[t + 2]];
+    const A = g.P.slice(i0 * 3, i0 * 3 + 3), B = g.P.slice(i1 * 3, i1 * 3 + 3), C = g.P.slice(i2 * 3, i2 * 3 + 3);
+    const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+    const fn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    const out = [(A[0] + B[0] + C[0]) / 3 - waist.cx, 0, (A[2] + B[2] + C[2]) / 3 - waist.cz];
+    if (fn[0] * out[0] + fn[2] * out[2] < 0) { g.I[t + 1] = i2; g.I[t + 2] = i1; }
+  }
+  return withNormals(g);
+}
+/** A skirt's top: just inside the hem of any top worn over it */
+const skirtTop = waistY + 0.012 * H;
+const miniHemY = hipY - 0.5 * (hipY - kneeY);
+const kneeHemY = kneeY - 0.035 * H;
+const floorHemY = ankleY - 0.004 * H;
+const midThighY = hipY - 0.4 * (hipY - kneeY);
+/** The top of a dress's or tunic's skirt: tucked up under the bodice's hem */
+const tuckTop = waistY + 0.035 * H;
+/** Closes the small gaps a shell cut from the body can have (a wide sleeve pulls them open). Hems, cuffs and necks are far longer */
+const closeSmallHoles = (g, most = 6) => {
+  const count = g.P.length / 3, weld = new Map(), wid = new Int32Array(count), first = [];
+  for (let i = 0; i < count; i++) {
+    const k = `${Math.round(g.P[i * 3] * 1e4)},${Math.round(g.P[i * 3 + 1] * 1e4)},${Math.round(g.P[i * 3 + 2] * 1e4)}`;
+    if (!weld.has(k)) { weld.set(k, first.length); first.push(i); }
+    wid[i] = weld.get(k);
+  }
+  const uses = new Map();
+  for (let t = 0; t < g.I.length; t += 3) for (const [a, b] of [[g.I[t], g.I[t + 1]], [g.I[t + 1], g.I[t + 2]], [g.I[t + 2], g.I[t]]]) {
+    const x = wid[a], y = wid[b];
+    if (x === y) continue;
+    const k = x < y ? `${x}_${y}` : `${y}_${x}`;
+    uses.set(k, (uses.get(k) ?? 0) + 1);
+  }
+  const next = new Map();
+  for (const [k, n] of uses) {
+    if (n !== 1) continue;
+    const [x, y] = k.split('_').map(Number);
+    (next.get(x) ?? next.set(x, []).get(x)).push(y);
+    (next.get(y) ?? next.set(y, []).get(y)).push(x);
+  }
+  const seen = new Set();
+  for (const start of next.keys()) {
+    if (seen.has(start)) continue;
+    const loop = [start];
+    seen.add(start);
+    for (let cur = start; ;) {
+      const go = next.get(cur).find((w) => !seen.has(w));
+      if (go === undefined) break;
+      seen.add(go);
+      loop.push(go);
+      cur = go;
+    }
+    if (loop.length < 3 || loop.length > most || !next.get(loop[loop.length - 1]).includes(start) || loop.some((w) => next.get(w).length !== 2)) continue;
+    const v = loop.map((w) => first[w]);
+    const nor = [0, 1, 2].map((k) => v.reduce((sum, i) => sum + g.N[i * 3 + k], 0));
+    for (let i = 1; i < v.length - 1; i++) {
+      const [a, b, c] = [v[0], v[i], v[i + 1]];
+      const u = [0, 1, 2].map((k) => g.P[b * 3 + k] - g.P[a * 3 + k]), w = [0, 1, 2].map((k) => g.P[c * 3 + k] - g.P[a * 3 + k]);
+      const f = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+      if (f[0] * nor[0] + f[1] * nor[1] + f[2] * nor[2] < 0) g.I.push(a, c, b);
+      else g.I.push(a, b, c);
+    }
+  }
+  return g;
+};
+/** The narrowest height of the torso above a tee's hem: a seam there follows the body instead of turning at the hips */
+const narrowestWaist = () => {
+  let best = waistY, least = Infinity;
+  for (let y = waistY; y < waistY + 0.12 * H; y += 0.004 * H) {
+    let r = 0;
+    for (const q of trunkPts) if (Math.abs(q[1] - y) < 0.006 * H) r = Math.max(r, Math.hypot(q[0] - NECK.cx, q[2] - NECK.cz));
+    if (r && r < least) { least = r; best = y; }
+  }
+  return best;
+};
+/**
+ * A sleeveless bodice cut for itself, not from the body's triangles: a front and a back panel laid over the torso, each
+ * as wide as the torso up to the armpit and then curving in to the neck, so the armholes are one clean line. It stands
+ * `off` from the body and rides the chest and back as the skin under it does.
+ */
+const halterBodice = (off, low = waistY - 0.002 * H) => {
+  const under = J('upperarm_l')[1] - 0.05 * H;
+  const BINS = 72, ROWS = 32, COLS = 26;
+  const cache = new Map();
+  const torsoAt = (y) => {
+    const key = Math.round(y / (0.004 * H));
+    if (cache.has(key)) return cache.get(key);
+    let r = new Array(BINS).fill(0);
+    for (const q of trunkPts) {
+      if (Math.abs(q[1] - y) > 0.012 * H) continue;
+      const dx = q[0] - NECK.cx, dz = q[2] - NECK.cz;
+      const b = Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * BINS) % BINS;
+      r[b] = Math.max(r[b], Math.hypot(dx, dz));
+    }
+    for (let pass = 0; pass < BINS && r.some((x) => !x); pass++) r = r.map((x, b) => x || r[(b + 1) % BINS] || r[(b + BINS - 1) % BINS]);
+    for (let it = 0; it < 3; it++) r = r.map((x, b) => (r[(b + BINS - 1) % BINS] + 2 * x + r[(b + 1) % BINS]) / 4);
+    cache.set(key, r);
+    return r;
+  };
+  const radiusAt = (r, a) => {
+    const f = ((a + Math.PI) / (2 * Math.PI)) * BINS - 0.5, b0 = ((Math.floor(f) % BINS) + BINS) % BINS, t = f - Math.floor(f);
+    return r[b0] * (1 - t) + r[(b0 + 1) % BINS] * t;
+  };
+  const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  const sideAt = (y) => { const r = torsoAt(y); return Math.max(radiusAt(r, 0), radiusAt(r, Math.PI)); };
+  const wide = sideAt(under), neckWide = NECK_CUT + 0.016 * H;
+  const panel = (centre) => {
+    const rad = [], ys = [], angs = [];
+    for (let i = 0; i <= ROWS; i++) {
+      const v = i / ROWS;
+      const rRow = [], yRow = [], aRow = [];
+      for (let k = 0; k <= COLS; k++) {
+        const u = k / COLS;
+        const ringA = centre + (Math.PI / 2) * (2 * u - 1);
+        const top = neckLineY(NECK.cx + Math.cos(ringA) * NECK_CUT, NECK.cz + Math.sin(ringA) * NECK_CUT);
+        const y = low + (top - low) * v;
+        const r = torsoAt(y);
+        // Full width to the armpit; above it the panel's edge curves in to the side of the neck
+        let half = Math.PI / 2;
+        if (y > under) {
+          const s = Math.min(1, (y - under) / Math.max(1e-3, top - under));
+          const limit = neckWide + (wide - neckWide) * (1 - s) ** 1.6;
+          half = Math.asin(Math.min(1, limit / Math.max(1e-3, sideAt(y))));
+          // The foot of the armhole is round, not a V between the two panels
+          const R = 0.03 * H, dy = y - under;
+          if (dy < R) half = Math.min(half, Math.PI / 2 - Math.sqrt(Math.max(0, R * R - (R - dy) * (R - dy))) / Math.max(1e-3, sideAt(y)));
+          half += (Math.PI / 2 - half) * smooth01((v - 0.88) / 0.12);
+        }
+        const a = wrap(centre + half * (2 * u - 1));
+        const body = radiusAt(r, a) + off * H;
+        rRow.push(body + (NECK_CUT + off * H - body) * smooth01((v - 0.78) / 0.22));
+        yRow.push(y);
+        aRow.push(a);
+      }
+      rad.push(rRow); ys.push(yRow); angs.push(aRow);
+    }
+    // The armhole as one smooth line: no corner where it leaves the side seam or on its way up to the neck
+    const across = angs.map((row) => row.map((a) => wrap(a - centre)));
+    for (let it = 0; it < 4; it++) {
+      const was = across.map((row) => row.slice());
+      for (let i = 1; i < ROWS; i++) for (let k = 0; k <= COLS; k++) {
+        if (ys[i][k] > under) across[i][k] = (was[i - 1][k] + 2 * was[i][k] + was[i + 1][k]) / 4;
+      }
+    }
+    for (let i = 0; i <= ROWS; i++) for (let k = 0; k <= COLS; k++) angs[i][k] = wrap(centre + across[i][k]);
+    // Eased over the body's small bumps, the neck edge left where it is
+    for (let it = 0; it < 4; it++) {
+      const was = rad.map((row) => row.slice());
+      for (let i = 1; i < ROWS; i++) for (let k = 1; k < COLS; k++) rad[i][k] = (was[i - 1][k] + was[i + 1][k] + was[i][k - 1] + was[i][k + 1] + 2 * was[i][k]) / 6;
+    }
+    return { rad, ys, angs };
+  };
+  const front = panel(Math.PI / 2), back = panel(-Math.PI / 2);
+  // Where the panels meet down the sides, one line
+  for (let i = 0; i <= ROWS; i++) {
+    if (front.ys[i][0] > under) continue;
+    const a = (front.rad[i][0] + back.rad[i][COLS]) / 2, b = (front.rad[i][COLS] + back.rad[i][0]) / 2;
+    front.rad[i][0] = a; back.rad[i][COLS] = a;
+    front.rad[i][COLS] = b; back.rad[i][0] = b;
+    back.ys[i][COLS] = front.ys[i][0]; back.ys[i][0] = front.ys[i][COLS];
+    back.angs[i][COLS] = front.angs[i][0]; back.angs[i][0] = front.angs[i][COLS];
+  }
+  const g = geoOf();
+  for (const { rad, ys, angs } of [front, back]) {
+    const grid = rad.map((row, i) => row.map((r, k) => {
+      const q = [NECK.cx + Math.cos(angs[i][k]) * r, ys[i][k], NECK.cz + Math.sin(angs[i][k]) * r];
+      const sk = torsoSkinAt(q);
+      g.P.push(...q); g.N.push(Math.cos(angs[i][k]), 0, Math.sin(angs[i][k])); g.U.push(0, 0); g.JJ.push(...sk.j); g.WW.push(...sk.w);
+      return g.P.length / 3 - 1;
+    }));
+    for (let i = 0; i < ROWS; i++) for (let k = 0; k < COLS; k++) {
+      const q = [grid[i][k], grid[i][k + 1], grid[i + 1][k], grid[i][k + 1], grid[i + 1][k + 1], grid[i + 1][k]];
+      for (let t = 0; t < 6; t += 3) {
+        const [i0, i1, i2] = [q[t], q[t + 1], q[t + 2]];
+        const A = g.P.slice(i0 * 3, i0 * 3 + 3), B = g.P.slice(i1 * 3, i1 * 3 + 3), C = g.P.slice(i2 * 3, i2 * 3 + 3);
+        const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+        const fn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+        const out = [(A[0] + B[0] + C[0]) / 3 - NECK.cx, 0, (A[2] + B[2] + C[2]) / 3 - NECK.cz];
+        if (fn[0] * out[0] + fn[2] * out[2] < 0) g.I.push(i0, i2, i1);
+        else g.I.push(i0, i1, i2);
+      }
+    }
+  }
+  return withNormals(g);
+};
+/** The inside of a high neck: a facing from the collar in to the neck, so no gap shows between them at the back */
+const neckFacing = (off) => {
+  const g = geoOf(), cols = [];
+  for (let k = 0; k < NECK_BINS; k++) {
+    const a = ((k + 0.5) / NECK_BINS) * 2 * Math.PI - Math.PI, dx = Math.cos(a), dz = Math.sin(a);
+    const y = neckLineY(NECK.cx + dx * NECK_CUT, NECK.cz + dz * NECK_CUT) - 0.003 * H;
+    const at = (r) => [NECK.cx + dx * r, y, NECK.cz + dz * r];
+    cols.push([pushV(g, at(NECK_CUT + off * H), [0, 1, 0], sp3), pushV(g, at(NECK.r - 0.004 * H), [0, 1, 0], sp3)]);
+  }
+  for (let k = 0; k < cols.length; k++) {
+    const A = cols[k], B = cols[(k + 1) % cols.length];
+    g.I.push(A[0], A[1], B[0], B[0], A[1], B[1]);
+  }
+  return g;
+};
+/**
+ * A clean finished edge round a sleeveless top's armholes: the edge left by the cut is smoothed along itself, then
+ * bound with a narrow strip of the same cloth rolled over it (it moves with the cloth it is sewn on).
+ */
+const finishArmholes = (g, above = waistY + 0.04 * H) => {
+  const count = g.P.length / 3, weld = new Map(), wid = new Int32Array(count), members = [];
+  for (let i = 0; i < count; i++) {
+    const k = `${Math.round(g.P[i * 3] * 1e4)},${Math.round(g.P[i * 3 + 1] * 1e4)},${Math.round(g.P[i * 3 + 2] * 1e4)}`;
+    if (!weld.has(k)) { weld.set(k, members.length); members.push([]); }
+    wid[i] = weld.get(k);
+    members[wid[i]].push(i);
+  }
+  const at = (w) => { const i = members[w][0]; return [g.P[i * 3], g.P[i * 3 + 1], g.P[i * 3 + 2]]; };
+  const uses = new Map();
+  for (let t = 0; t < g.I.length; t += 3) for (const [a, b] of [[g.I[t], g.I[t + 1]], [g.I[t + 1], g.I[t + 2]], [g.I[t + 2], g.I[t]]]) {
+    const x = wid[a], y = wid[b], k = x < y ? `${x}_${y}` : `${y}_${x}`;
+    uses.set(k, (uses.get(k) ?? 0) + 1);
+  }
+  const onArmhole = (w) => { const q = at(w); return q[1] > above && Math.hypot(q[0] - NECK.cx, q[2] - NECK.cz) > NECK_CUT + 0.035 * H; };
+  const next = new Map();
+  for (const [k, n] of uses) {
+    if (n !== 1) continue;
+    const [x, y] = k.split('_').map(Number);
+    if (!onArmhole(x) || !onArmhole(y)) continue;
+    (next.get(x) ?? next.set(x, []).get(x)).push(y);
+    (next.get(y) ?? next.set(y, []).get(y)).push(x);
+  }
+  const seen = new Set(), loops = [];
+  for (const start of next.keys()) {
+    if (seen.has(start)) continue;
+    const loop = [start];
+    seen.add(start);
+    for (let cur = start; ;) {
+      const go = next.get(cur).find((w) => !seen.has(w));
+      if (go === undefined) break;
+      seen.add(go);
+      loop.push(go);
+      cur = go;
+    }
+    if (loop.length >= 8) loops.push(loop);
+  }
+  const strip = geoOf();
+  for (const loop of loops) {
+    const n = loop.length, closed = next.get(loop[n - 1]).includes(loop[0]);
+    let pts = loop.map(at);
+    for (let it = 0; it < 14; it++) pts = pts.map((q, i) => (!closed && (i === 0 || i === n - 1) ? q : [0, 1, 2].map((k) => (pts[(i + n - 1) % n][k] + 2 * q[k] + pts[(i + 1) % n][k]) / 4)));
+    loop.forEach((w, i) => { for (const v of members[w]) { g.P[v * 3] = pts[i][0]; g.P[v * 3 + 1] = pts[i][1]; g.P[v * 3 + 2] = pts[i][2]; } });
+    const rows = pts.map((q, i) => {
+      const v = members[loop[i]][0];
+      const nor = norm3([g.N[v * 3], g.N[v * 3 + 1], g.N[v * 3 + 2]]);
+      const prev = closed ? pts[(i + n - 1) % n] : pts[Math.max(0, i - 1)], nxt = closed ? pts[(i + 1) % n] : pts[Math.min(n - 1, i + 1)], tan = norm3([nxt[0] - prev[0], nxt[1] - prev[1], nxt[2] - prev[2]]);
+      // An open run's binding narrows away at its two ends
+      const taper = closed ? 1 : smooth01(Math.min(i, n - 1 - i) / 4);
+      let inward = norm3([nor[1] * tan[2] - nor[2] * tan[1], nor[2] * tan[0] - nor[0] * tan[2], nor[0] * tan[1] - nor[1] * tan[0]]);
+      if (inward[0] * (waist.cx - q[0]) + inward[2] * (waist.cz - q[2]) < 0) inward = inward.map((x) => -x);
+      const add = (d0, o0) => { const d = d0 * taper, o = o0 * taper; return [q[0] + inward[0] * d * H + nor[0] * o * H, q[1] + inward[1] * d * H + nor[1] * o * H, q[2] + inward[2] * d * H + nor[2] * o * H]; };
+      const j = [g.JJ[v * 4], g.JJ[v * 4 + 1], g.JJ[v * 4 + 2], g.JJ[v * 4 + 3]], ww = [g.WW[v * 4], g.WW[v * 4 + 1], g.WW[v * 4 + 2], g.WW[v * 4 + 3]];
+      return [add(0.007, 0.0012), add(0.003, 0.0026), add(-0.0012, 0.0018), add(-0.0016, -0.0004)].map((c) => {
+        strip.P.push(...c); strip.N.push(...nor); strip.U.push(0, 0); strip.JJ.push(...j); strip.WW.push(...ww);
+        return strip.P.length / 3 - 1;
+      });
+    });
+    for (let i = 0; i < (closed ? n : n - 1); i++) for (let r = 0; r < 3; r++) {
+      const a = rows[i][r], b = rows[(i + 1) % n][r], c = rows[i][r + 1], d = rows[(i + 1) % n][r + 1];
+      strip.I.push(a, c, b, b, c, d);
+    }
+  }
+  return withNormals(strip);
+};
+/** A standing collar (a senator's or kaftan's band round the neck) */
+const bandCollar = (h = 0.03, out = 0.02) => band(sp3, [NECK.cx, neckY - 0.022 * H, NECK.cz], X, Z, Y, h * H, (s) => [NECK_CUT - NECK.r + neck.rx + (out - 0.004 * s) * H, NECK_CUT - NECK.r + neck.rz + (out - 0.004 * s) * H], { seg: 40 });
+/** Buttons down one side of the chest (a senator's offset fastening) */
+const sideButtons = (n = 5) => {
+  const parts = [];
+  for (let k = 0; k < n; k++) {
+    const y = neckY - 0.035 * H - k * 0.042 * H;
+    const ring = chestFront(y);
+    const x = ring.cx + sideSign * -0.05 * H;
+    parts.push(box(y > J('spine_02')[1] ? sp3 : sp2, [x, y, ring.cz + ring.rz * 0.93 + 0.022 * H], [0.008 * H, 0.008 * H, 0.004 * H]));
+  }
+  return merge(...parts);
+};
+/** The wrapper's waist roll (an iro tucked and rolled at the waist) */
+const waistRoll = () => drape({ top: skirtTop - 0.004 * H, hem: skirtTop - 0.03 * H, ease: (t) => 0.0125 + 0.004 * Math.sin(t * Math.PI), rings: 5, legMax: 0.1, lip: 0.004, thick: 0.002 });
+// Traditional headwear: a gele (a stiff wrap fanned up and out at the back), an abeti-aja fila (a soft tall cap
+// leaning to one side, its flaps folded up over the ears), a kufi (a low round cap)
+const gele = () => {
+  const parts = [
+    dome(hd, [skull.c[0], skull.c[1] - skull.ry * 0.08, skull.c[2] - skull.rz * 0.04], skull.rx * 1.14, skull.ry * 1.16, skull.rz * 1.12, 1.6, { tilt: 0.12 }),
+    band(hd, [skull.c[0], skull.c[1] - skull.ry * 0.2, skull.c[2] - skull.rz * 0.04], X, Z, Y, 0.032 * H, (s) => [skull.rx * (1.16 + 0.03 * s), skull.rz * (1.14 + 0.03 * s)], { seg: 36 }),
+  ];
+  // The fan: folds standing up round the back and sides of the crown, leaning out
+  for (let i = 0; i < 9; i++) {
+    const f = -1 + (2 * i) / 8;
+    const phi = f * 1.25 + Math.PI; // round the back
+    const dir = [Math.sin(phi), 0, Math.cos(phi)];
+    const lean = 0.55 + 0.25 * Math.abs(f);
+    const up = norm3([dir[0] * lean, 1, dir[2] * lean]);
+    const across = norm3([Math.cos(phi), 0, -Math.sin(phi)]);
+    const out = norm3([up[1] * dir[0], -lean, up[1] * dir[2]]);
+    const c = add3(add3([skull.c[0], skull.c[1] + skull.ry * (0.72 - 0.18 * Math.abs(f)), skull.c[2] - skull.rz * 0.1], dir, skull.rx * 0.62), up, 0.045 * H);
+    parts.push(pillow(hd, c, across, up, out, 0.034 * H, 0.06 * H * (1 - 0.25 * Math.abs(f)), 0.005 * H, 0.45, 7));
+  }
+  return merge(...parts);
+};
+const fila = () => {
+  const g = merge(
+    dome(hd, [skull.c[0], skull.c[1] - skull.ry * 0.05, skull.c[2]], skull.rx * 1.08, skull.ry * 1.5, skull.rz * 1.07, 1.5, { tilt: 0.06 }),
+    band(hd, [skull.c[0], skull.c[1] - skull.ry * 0.12, skull.c[2]], X, Z, Y, 0.03 * H, () => [skull.rx * 1.1, skull.rz * 1.09], { seg: 36 }),
+    // The flaps, folded up at each side over the ears
+    ...[-1, 1].map((s) => pillow(hd, [skull.c[0] + s * skull.rx * 1.1, skull.c[1] + skull.ry * 0.02, skull.c[2] + skull.rz * 0.2], norm3([0, 0.35, 1]), norm3([0, 1, -0.35]), [s, 0, 0], 0.022 * H, 0.016 * H, 0.0025 * H, 0.15, 7)),
+  );
+  // The soft top falls over to one side
+  for (let i = 0; i < g.P.length; i += 3) {
+    const rise = Math.max(0, g.P[i + 1] - (skull.c[1] + skull.ry * 0.5));
+    g.P[i] += sideSign * rise * 1.4;
+    g.P[i + 1] -= rise * 0.45;
+  }
+  return withNormals(g);
+};
+const kufi = () => merge(
+  band(hd, [skull.c[0], skull.c[1] - skull.ry * 0.12, skull.c[2] - skull.rz * 0.05], X, Z, Y, 0.06 * H, () => [skull.rx * 1.08, skull.rz * 1.07], { seg: 40 }),
+  dome(hd, [skull.c[0], skull.c[1] - skull.ry * 0.12 + 0.06 * H, skull.c[2] - skull.rz * 0.05], skull.rx * 1.08, skull.ry * 0.32, skull.rz * 1.07, Math.PI / 2, { seg: 40 }),
+);
+
+const GARMENTS3 = [
+  // Skirts (on the bottom's cloth): their tube hangs from the waistband, free of the legs
+  ['Outfit_Skirt__mini', () => [{ mat: fab('Cloth_Bottom', 'denim'), geo: merge(drape({ top: skirtTop, hem: miniHemY, ease: (t) => 0.011 + 0.025 * t, rings: 12, legMax: 0.85 })) }]],
+  ['Outfit_Skirt__knee', () => [{ mat: fab('Cloth_Bottom', 'cotton'), geo: merge(drape({ top: skirtTop, hem: kneeHemY, ease: (t) => 0.011 + 0.045 * t * t + 0.011 * t, rings: 18, legMax: 0.8 })) }]],
+  ['Outfit_Skirt__maxi', () => [{ mat: fab('Cloth_Bottom', 'cotton'), geo: merge(drape({ top: skirtTop, hem: floorHemY, ease: (t) => 0.011 + 0.07 * t * t + 0.013 * t, rings: 26, legMax: 0.8 })) }]],
+  ['Outfit_Skirt__pleated', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: merge(drape({ top: skirtTop, hem: kneeHemY, ease: (t) => 0.012 + 0.044 * t, rings: 16, seg: 120, legMax: 0.8, pleats: { n: 30, depth: 0.007 } })) }]],
+  ['Outfit_Skirt__pencil', () => [{ mat: fab('Cloth_Bottom', 'twill'), geo: merge(drape({ top: skirtTop, hem: kneeHemY, ease: (t) => 0.011 + 0.009 * t, rings: 18, legMax: 0.95 })) }]],
+  ['Outfit_Skirt__iro', () => [{ mat: fab('Cloth_Bottom', 'cotton'), geo: merge(
+    drape({ top: skirtTop, hem: floorHemY, ease: (t) => 0.011 + 0.05 * t * t + 0.013 * t, rings: 26, legMax: 0.8 }),
+    // The wrapper's end, lapped over the front from the waist to the hem
+    drape({ top: skirtTop, hem: floorHemY, ease: (t) => 0.0165 + 0.05 * t * t + 0.013 * t, rings: 26, legMax: 0.8, gap: 0.017, arc: [0.15 * sideSign > 0 ? 0.2 : Math.PI - 1.4, 0.15 * sideSign > 0 ? 1.4 : Math.PI - 0.2], seg: 18 }),
+    waistRoll(),
+  ) }]],
+  // Dresses and gowns (all on the top's cloth: one garment, one look): a bodice from the body, a skirt that hangs free
+  ['Outfit_Dress__sundress', () => [{ mat: fab('Cloth_Top', 'cotton'), geo: merge(
+    ...(() => { const top = shellOf('TopShort', null, { off: 0.016, smooth: 12, lap: 3, offAt: sleeveOpen(0.3, 0.55, 0.009) }); return [top, drape({ top: tuckTop, hem: kneeHemY, ease: (t) => 0.011 + 0.05 * t * t + 0.012 * t, rings: 20, legMax: 0.8 , join: hemProfile(top, waistY) })]; })(),
+    neckRibOn(0.016),
+  ) }]],
+  ['Outfit_Dress__evening', () => [{ mat: fab('Cloth_Top', 'jersey'), geo: merge(
+    ...(() => { const seam = narrowestWaist(), bodice = halterBodice(0.013, seam - 0.002 * H), edge = finishArmholes(bodice, seam + 0.04 * H); return [bodice, edge,
+      // Close over the hips and thighs, flaring out below the knee to the floor
+      drape({ top: tuckTop, hem: floorHemY, ease: (t) => 0.009 + 0.006 * ramp(t, 0, 0.5) + 0.075 * ramp(t, 0.55, 1) ** 2, rings: 28, legMax: 0.88, join: hemProfile(bodice, seam), joinY: seam, joinFade: 0.09 })]; })(),
+    neckRibOn(0.013, 0.003, 0.012),
+    neckFacing(0.013),
+  ) }]],
+  ['Outfit_Dress__gown', () => [{ mat: fab('Cloth_Top', 'cotton'), geo: merge(
+    ...(() => { const top = shellOf('TopLong', null, { off: 0.018, smooth: 12, lap: 3, offAt: (p) => (inArm(p) ? 0.004 + ramp(armT(p), 1.2, 1.92) * 0.022 : 0) }); return [top, drape({ top: tuckTop, hem: floorHemY, ease: (t) => 0.013 + 0.075 * t * t + 0.012 * t, rings: 28, legMax: 0.8 , join: hemProfile(top, waistY) })]; })(),
+    neckRibOn(0.018),
+  ) }]],
+  // Tops that reach below the waist: a peplum blouse, a buba (wide sleeves to below the elbow, hanging over the hips),
+  // a kaftan (a tunic to below the knee) and a senator top (to mid-thigh, standing collar, buttoned at the side)
+  ['Outfit_Top_Short__peplum', () => [{ mat: fab('Cloth_Top', 'cotton'), geo: merge(
+    shellOf('TopShort', null, { off: 0.015, smooth: 12, lap: 3, offAt: sleeveOpen(0.3, 0.55, 0.006) }),
+    drape({ top: waistY + 0.02 * H, hem: waistY - 0.075 * H, ease: (t) => 0.024 + 0.03 * t, rings: 8, legMax: 0.3, lip: 0.012, gap: 0.018, sidesOnly: true }),
+    neckRibOn(0.015),
+  ) }]],
+  ['Outfit_Top_Short__buba', () => [{ mat: fab('Cloth_Top', 'cotton'), geo: merge(
+    shellOf('TopShort', (p) => p[1] > waistY && p[1] < neckY && inArm(p) && armT(p) < 1.45, { hem: topHems(1.45, waistY), off: 0.022, smooth: 16, lap: 6, offAt: (p) => (inArm(p) ? 0.004 + ramp(armT(p), 0.35, 1.45) * 0.04 : 0.003) }),
+    drape({ top: tuckTop - 0.01 * H, hem: hipY - 0.03 * H, ease: (t) => 0.019 + 0.008 * Math.min(1, t / 0.2) + 0.012 * t, rings: 10, legMax: 0.5, lip: 0.014, gap: 0.02  }),
+    neckRibOn(0.022, 0.004, 0.016),
+  ) }]],
+  ['Outfit_Top_Long__kaftan', () => [{ mat: fab('Cloth_Top', 'cotton'), geo: merge(
+    ...(() => { const top = shellOf('TopLong', null, { off: 0.021, smooth: 14, lap: 5, offAt: (p) => (inArm(p) ? 0.006 : 0.003) }); return [top, drape({ top: tuckTop, hem: kneeY - 0.05 * H, ease: (t) => 0.018 + 0.014 * Math.min(1, t / 0.15) + 0.022 * t, rings: 22, gap: 0.032 , join: hemProfile(top, waistY) })]; })(),
+    neckRibOn(0.021, 0.004, 0.016),
+    placket(0),
+  ) }]],
+  ['Outfit_Top_Long__senator', () => [{ mat: fab('Cloth_Top', 'cotton'), geo: merge(
+    ...(() => { const top = shellOf('TopLong', null, { off: 0.02, smooth: 12, lap: 4, offAt: (p) => (inArm(p) ? 0.004 : 0.002) }); return [top, drape({ top: tuckTop, hem: midThighY, ease: (t) => 0.017 + 0.014 * Math.min(1, t / 0.15) + 0.01 * t, rings: 14, gap: 0.032 , join: hemProfile(top, waistY) })]; })(),
+    bandCollar(),
+    cuffs(0.86, 0.022),
+  ) }, { mat: trimMat, geo: sideButtons() }]],
+  // The agbada: the great outer robe, worn over a top and trousers. Wide sleeves fall from the shoulders to the
+  // wrists; the robe hangs to mid-calf
+  ['Outfit_Robe__agbada', () => [{ mat: fab('Cloth_Top', 'cotton'), geo: merge(
+    ...(() => { const top = closeSmallHoles(shellOf('TopLong', null, { hem: topHems(1.7, waistY), off: 0.04, smooth: 18, lap: 8, offAt: (p) => (inArm(p) ? 0.008 + ramp(armT(p), 0.15, 1.6) * 0.056 : 0.004) })); return [top, drape({ top: tuckTop + 0.01 * H, hem: kneeY - 0.13 * H, ease: (t) => 0.036 + 0.012 * Math.min(1, t / 0.15) + 0.056 * t, rings: 24, legMax: 0.55, gap: 0.036, flare: 1.6 , join: hemProfile(top, waistY) })]; })(),
+    bandCollar(0.024, 0.044),
+  ) }]],
+  // Traditional headwear
+  ['Outfit_Hat__gele', () => [{ mat: fab('Cloth_Hat', 'canvas'), geo: gele() }]],
+  ['Outfit_Hat__fila', () => [{ mat: fab('Cloth_Hat', 'twill'), geo: fila() }]],
+  ['Outfit_Hat__kufi', () => [{ mat: fab('Cloth_Hat', 'rib'), geo: kufi() }]],
+];
+
 const GARMENTS2 = [
   // Tops, short sleeves: cotton jersey tees, a piqué polo
   ['Outfit_Top_Short__tee', () => { const sh = shellOf('TopShort', null, { off: 0.018, smooth: 12, lap: 3, offAt: sleeveOpen(0.25, 0.55, 0.011) }); return [{ mat: fab('Cloth_Top', 'jersey'), geo: sh }, { mat: fab('Cloth_Top', 'rib'), geo: neckRibOn(0.018) }]; }],
@@ -997,7 +1627,7 @@ const GARMENTS2 = [
   ['Outfit_Feet__slides', () => [{ mat: fab('Cloth_Shoes', 'rubber'), geo: slides() }]],
 ];
 plainShells();
-for (const [name, make] of GARMENTS2) addGarment(name, make());
+for (const [name, make] of [...GARMENTS2, ...GARMENTS3]) addGarment(name, make());
 
 // Everyday colours baked in (the game tints them per player): very dark brown hair, warm brown skin
 for (const m of root.listMaterials()) {
@@ -1043,7 +1673,7 @@ if (animFile) {
   // Everything the animation file brought besides its clips goes: its scene, its skeleton, its mannequin
   const disposeTree = (n) => { for (const c of n.listChildren()) disposeTree(c); n.dispose(); };
   for (const s of root.listScenes().slice(1)) { for (const n of s.listChildren()) disposeTree(n); s.dispose(); }
-  for (const sk of root.listSkins()) if (sk !== skin) sk.dispose();
+  for (const sk of root.listSkins()) if (sk !== skin && sk !== clothRig.skin) sk.dispose();
 }
 
 // ---------------------------------------------------------------- compact textures and tidy
