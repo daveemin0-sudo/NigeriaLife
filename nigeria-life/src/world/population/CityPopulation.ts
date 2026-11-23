@@ -841,28 +841,32 @@ export class CityPopulation {
    */
   private applySolidStep(a: Agent, nx: number, nz: number): void {
     const solids = this.solids?.();
-    // Pavement-network routes and dedicated road-crossers stay on their paths; solids here
-    // are for the street crowd the player sees (pacers), not for commute / kerb sims.
-    if (!solids || a.xing || a.willCross || a.life?.state === 'going') {
+    // Road crossers stay on the carriageway on purpose. Everyone else near the camera
+    // steers around street props. Pavement-network "going" walkers use propsOnly so
+    // building walls/doors on their route still work and they are not stranded.
+    if (!solids || a.xing || a.willCross) {
       a.x = nx;
       a.z = nz;
       a.solidBlock = false;
       a.solidStuck = 0;
       return;
     }
+    const propsOnly = a.life?.state === 'going';
+    const blockedAt = (x: number, z: number, r: number) =>
+      propsOnly ? (solids.propAt?.(x, z, r) ?? solids.at(x, z, r)) : solids.at(x, z, r);
     if (!this.takeSolidCheck(a)) {
-      // Budget miss: still never step into a solid near the player (cheap at-query, no slide).
+      // Budget miss: still never step into a prop/solid near the player (cheap at-query, no slide).
       // Already standing in one (trader, set-down): free to walk out.
       const fdx = a.x - this.solidFocusX;
       const fdz = a.z - this.solidFocusZ;
       if (fdx * fdx + fdz * fdz <= this.solidFocus2
-        && solids.at(nx, nz, 0.28)
-        && !solids.at(a.x, a.z, 0)) return;
+        && blockedAt(nx, nz, 0.28)
+        && !blockedAt(a.x, a.z, 0)) return;
       a.x = nx;
       a.z = nz;
       return;
     }
-    const slid = solids.step(a.x, a.z, nx, nz, 0.3, this.solidStep);
+    const slid = solids.step(a.x, a.z, nx, nz, 0.3, this.solidStep, propsOnly);
     if (!slid.stopped && slid.x === nx && slid.z === nz) {
       a.x = nx;
       a.z = nz;
@@ -897,7 +901,7 @@ export class CityPopulation {
         const lx = a.x + px * s * dist;
         const lz = a.z + pz * s * dist;
         if (a.onMainWalk && Math.abs(lx) < MAIN_ROAD.halfRoad + 0.65) continue;
-        const alt = solids.step(a.x, a.z, lx, lz, 0.3, this.solidStep);
+        const alt = solids.step(a.x, a.z, lx, lz, 0.3, this.solidStep, propsOnly);
         if (alt.stopped) continue;
         if (a.onMainWalk && Math.abs(alt.x) < MAIN_ROAD.halfRoad + 0.65) continue;
         a.x = alt.x;
@@ -924,7 +928,7 @@ export class CityPopulation {
       for (let ci = 0; ci < candidates.length; ci++) {
         const c = candidates[ci];
         if (a.onMainWalk && Math.abs(c.x) < MAIN_ROAD.halfRoad + 0.65) continue;
-        if (solids.at(c.x, c.z, 0.25)) continue;
+        if (blockedAt(c.x, c.z, 0.25)) continue;
         a.x = c.x;
         a.z = c.z;
         a.solidStuck = 0;

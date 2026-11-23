@@ -241,6 +241,7 @@ export async function run(browser, check) {
     const solids = g.solidsHere();
     const standing = g.standingIn('lagos');
     let sample = null;
+    let box = null;
     for (const o of standing) {
       if (!/stall|kiosk|bench|pole|lamp|shade|post/i.test(o.owner || '')) continue;
       if (o.structure && Math.max(o.maxX - o.minX, o.maxZ - o.minZ) >= 4) continue;
@@ -249,6 +250,7 @@ export async function run(browser, check) {
       if (Math.abs(cx) < 7 || Math.abs(cx) > 20) continue;
       if (!solids?.at(cx, cz, 0.2)) continue;
       sample = { x: +cx.toFixed(1), z: +cz.toFixed(1), owner: o.owner };
+      box = { minX: o.minX, maxX: o.maxX, minZ: o.minZ, maxZ: o.maxZ };
       break;
     }
     if (!sample) {
@@ -258,26 +260,54 @@ export async function run(browser, check) {
         const cz = (o.minZ + o.maxZ) / 2;
         if (!solids?.at(cx, cz, 0.15)) continue;
         sample = { x: +cx.toFixed(1), z: +cz.toFixed(1), owner: o.owner };
+        box = { minX: o.minX, maxX: o.maxX, minZ: o.minZ, maxZ: o.maxZ };
         break;
       }
     }
-    if (!sample) return { ok: false, reason: 'no-stall-sample' };
+    if (!sample || !box) return { ok: false, reason: 'no-stall-sample' };
+    const inSample = (x, z, r = 0.15) =>
+      x + r > box.minX && x - r < box.maxX && z + r > box.minZ && z - r < box.maxZ;
     g.player.mesh.position.set(sample.x + 4, 0, sample.z);
     g.player.position.copy(g.player.mesh.position);
     g.world.cityPopulation.drawDistance = 90;
+    // Seed street pacers on a collision course through the solid (start outside it).
+    // Stall traders (pitch/buy/…) are not walkers — leave them alone.
+    let seeded = 0;
+    for (const a of g.world.cityPopulation.agents) {
+      if (seeded >= 6) break;
+      if (a.life) continue; // prefer pure pavement pacers
+      if (a.xing || a.willCross || a.boarding) continue;
+      a.mode = 'walk';
+      a.axis = 'z';
+      a.dir = seeded % 2 === 0 ? 1 : -1;
+      a.speed = 1.4;
+      a.min = sample.z - 6;
+      a.max = sample.z + 6;
+      // Aim through the stall centre from outside so avoidance must fire
+      a.x = sample.x + ((seeded % 3) - 1) * 0.2;
+      a.z = sample.z + (a.dir > 0 ? -5.5 : 5.5);
+      a.onMainWalk = Math.abs(a.x) > 7;
+      a.solidBlock = false;
+      a.solidStuck = 0;
+      seeded += 1;
+    }
     let inside = 0;
     let near = 0;
-    for (let f = 0; f < 90; f++) {
+    for (let f = 0; f < 120; f++) {
       g.advance(1 / 30);
       for (const a of g.world.cityPopulation.agents) {
-        if (a.life?.state === 'home' || a.life?.state === 'in') continue;
+        // Indoors / at home, and people whose day puts them at a stall counter or pitch
+        // (buy/pitch/hang/eat), are allowed on the prop; everyone else must walk around it.
+        const st = a.life?.state;
+        if (st === 'home' || st === 'in' || st === 'pitch' || st === 'buy' || st === 'hang' || st === 'eat') continue;
         const d = Math.hypot(a.x - sample.x, a.z - sample.z);
         if (d >= 8) continue;
         near += 1;
-        if (solids.at(a.x, a.z, 0.15)) inside += 1;
+        // Only the sample prop — nearby building walls must not fail this check
+        if (inSample(a.x, a.z)) inside += 1;
       }
     }
-    return { ok: inside === 0 && near > 0, inside, nearFrames: near, sample };
+    return { ok: inside === 0 && near > 0, inside, nearFrames: near, sample, seeded };
   });
   check('crowd walkers stay outside a solid street prop (stall/bench/pole)', crowd.ok === true, crowd);
   if (crowd.sample) {

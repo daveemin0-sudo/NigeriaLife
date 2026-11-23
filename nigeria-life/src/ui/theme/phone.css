@@ -969,6 +969,9 @@ body.nl-hud-hidden #v-btn-run {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 64px) !important;
     left: 8px !important;
     right: 8px !important;
+    /* Stay clear of the left transit rail on narrow phones */
+    max-width: calc(100vw - 72px) !important;
+    margin-left: 56px !important;
   }
 }
 
@@ -1016,6 +1019,7 @@ body.nl-hud-hidden #v-btn-run {
   html body .hud-center-pill-bar #hud-weather-label {
     display: none !important;
   }
+  /* Row under the vitals card: quest (left) · chevron · place name (right) */
   html body .hud-header > .hud-top-right-group {
     top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
     max-width: calc(50vw - 34px) !important;
@@ -1043,8 +1047,9 @@ body.nl-hud-hidden #v-btn-run {
   html body #nl-minimap.nl-minimap {
     top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
   }
+  /* Next row: streak / today (left) · street chat (right) — must not share the quest/place row */
   html body #hud-today-chip {
-    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 134px) !important;
     max-width: calc(50vw - 34px) !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -1052,18 +1057,18 @@ body.nl-hud-hidden #v-btn-run {
   }
   html body #street-chat-box.minimized,
   html body #street-chat-box.minimized.chat-mobile-adapted {
-    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 134px) !important;
   }
   html body #music-fab {
-    top: calc(env(safe-area-inset-top, 0px) + 140px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 176px) !important;
     bottom: auto !important;
   }
   html body #view-fab {
-    top: calc(env(safe-area-inset-top, 0px) + 186px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 222px) !important;
     bottom: auto !important;
   }
   html body #game-toast-container {
-    top: calc(env(safe-area-inset-top, 0px) + 182px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 218px) !important;
   }
 }
 
@@ -1142,6 +1147,17 @@ body.nl-hud-hidden #v-btn-run {
   html body #street-chat-box.minimized,
   html body #street-chat-box.minimized.chat-mobile-adapted {
     top: calc(env(safe-area-inset-top, 0px) + 92px) !important;
+  }
+  /* Keep toasts and radar clear of the quest / place row in landscape */
+  html body #game-toast-container {
+    top: calc(env(safe-area-inset-top, 0px) + 128px) !important;
+  }
+  html body #street-radar-bar,
+  html body #street-radar-bar.street-radar-bar {
+    top: calc(env(safe-area-inset-top, 0px) + 88px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    max-width: min(420px, calc(100vw - 280px)) !important;
   }
   html body #music-fab,
   html body #view-fab {
