@@ -1,0 +1,319 @@
+{
+  "game": "http://127.0.0.1:5173/NigeriaLife/",
+  "takenAt": "2026-11-23T23:30:41.732Z",
+  "phones": [
+    {
+      "tag": "320x568-p",
+      "w": 320,
+      "h": 568,
+      "orient": "p",
+      "scenes": {
+        "street-hud": {
+          "file": "/tmp/nl-stage0-cards/320x568-p-street-hud.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "ride-card": {
+          "file": "/tmp/nl-stage0-cards/320x568-p-ride-card.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "driving-hud": {
+          "file": "/tmp/nl-stage0-cards/320x568-p-driving-hud.png",
+          "overlaps": [],
+          "offscreen": [
+            ".nl-minimap-north 315..333"
+          ]
+        },
+        "inside-place": {
+          "file": "/tmp/nl-stage0-cards/320x568-p-inside-place.png",
+          "overlaps": [],
+          "offscreen": [
+            ".nl-minimap-north 315..333"
+          ]
+        },
+        "phone": {
+          "file": "/tmp/nl-stage0-cards/320x568-p-phone.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "map": {
+          "file": "/tmp/nl-stage0-cards/320x568-p-map.png",
+          "overlaps": [
+            "#map-rail.map-rail × #game-toast-container"
+          ],
+          "offscreen": [
+            "#map-filter-group.map-filter-group 260..589",
+            ".map-filter-btn 304..380",
+            ".map-filter-btn 384..450",
+            ".map-filter-btn 454..521",
+            ".map-filter-btn 525..589"
+          ]
+        },
+        "dangote-lekki": {
+          "file": "/tmp/nl-stage0-cards/320x568-p-dangote-lekki.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "apapa-depot": {
+          "file": "/tmp/nl-stage0-cards/320x568-p-apapa-depot.png",
+          "overlaps": [],
+          "offscreen": []
+        }
+      },
+      "failedModels": [],
+      "vehicleGlbRequests": []
+    },
+    {
+      "tag": "360x800-p",
+      "w": 360,
+      "h": 800,
+      "orient": "p",
+      "scenes": {
+        "street-hud": {
+          "file": "/tmp/nl-stage0-cards/360x800-p-street-hud.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "ride-card": {
+          "file": "/tmp/nl-stage0-cards/360x800-p-ride-card.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "driving-hud": {
+          "file": "/tmp/nl-stage0-cards/360x800-p-driving-hud.png",
+          "overlaps": [],
+          "offscreen": [
+            ".nl-minimap-north 355..373"
+          ]
+        },
+        "inside-place": {
+          "file": "/tmp/nl-stage0-cards/360x800-p-inside-place.png",
+          "overlaps": [],
+          "offscreen": [
+            ".nl-minimap-north 355..373"
+          ]
+        },
+        "phone": {
+          "file": "/tmp/nl-stage0-cards/360x800-p-phone.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "map": {
+          "file": "/tmp/nl-stage0-cards/360x800-p-map.png",
+          "overlaps": [],
+          "offscreen": [
+            "#map-filter-group.map-filter-group 260..589",
+            ".map-filter-btn 304..380",
+            ".map-filter-btn 384..450",
+            ".map-filter-btn 454..521",
+            ".map-filter-btn 525..589"
+          ]
+        },
+        "dangote-lekki": {
+          "file": "/tmp/nl-stage0-cards/360x800-p-dangote-lekki.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "apapa-depot": {
+          "file": "/tmp/nl-stage0-cards/360x800-p-apapa-depot.png",
+          "overlaps": [],
+          "offscreen": []
+        }
+      },
+      "failedModels": [],
+      "vehicleGlbRequests": []
+    },
+    {
+      "tag": "390x844-p",
+      "w": 390,
+      "h": 844,
+      "orient": "p",
+      "scenes": {
+        "street-hud": {
+          "file": "/tmp/nl-stage0-cards/390x844-p-street-hud.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "ride-card": {
+          "file": "/tmp/nl-stage0-cards/390x844-p-ride-card.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "driving-hud": {
+          "file": "/tmp/nl-stage0-cards/390x844-p-driving-hud.png",
+          "overlaps": [],
+          "offscreen": [
+            ".nl-minimap-north 385..403"
+          ]
+        },
+        "inside-place": {
+          "file": "/tmp/nl-stage0-cards/390x844-p-inside-place.png",
+          "overlaps": [],
+          "offscreen": [
+            ".nl-minimap-north 385..403"
+          ]
+        },
+        "phone": {
+          "file": "/tmp/nl-stage0-cards/390x844-p-phone.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "map": {
+          "file": "/tmp/nl-stage0-cards/390x844-p-map.png",
+          "overlaps": [],
+          "offscreen": [
+            "#map-filter-group.map-filter-group 260..589",
+            ".map-filter-btn 384..450",
+            ".map-filter-btn 454..521",
+            ".map-filter-btn 525..589"
+          ]
+        },
+        "dangote-lekki": {
+          "file": "/tmp/nl-stage0-cards/390x844-p-dangote-lekki.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "apapa-depot": {
+          "file": "/tmp/nl-stage0-cards/390x844-p-apapa-depot.png",
+          "overlaps": [],
+          "offscreen": []
+        }
+      },
+      "failedModels": [],
+      "vehicleGlbRequests": []
+    },
+    {
+      "tag": "430x932-p",
+      "w": 430,
+      "h": 932,
+      "orient": "p",
+      "scenes": {
+        "street-hud": {
+          "file": "/tmp/nl-stage0-cards/430x932-p-street-hud.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "ride-card": {
+          "file": "/tmp/nl-stage0-cards/430x932-p-ride-card.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "driving-hud": {
+          "file": "/tmp/nl-stage0-cards/430x932-p-driving-hud.png",
+          "overlaps": [],
+          "offscreen": [
+            ".nl-minimap-north 425..443"
+          ]
+        },
+        "inside-place": {
+          "file": "/tmp/nl-stage0-cards/430x932-p-inside-place.png",
+          "overlaps": [],
+          "offscreen": [
+            ".nl-minimap-north 425..443"
+          ]
+        },
+        "phone": {
+          "file": "/tmp/nl-stage0-cards/430x932-p-phone.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "map": {
+          "file": "/tmp/nl-stage0-cards/430x932-p-map.png",
+          "overlaps": [],
+          "offscreen": [
+            "#map-filter-group.map-filter-group 260..589",
+            ".map-filter-btn 384..450",
+            ".map-filter-btn 454..521",
+            ".map-filter-btn 525..589"
+          ]
+        },
+        "dangote-lekki": {
+          "file": "/tmp/nl-stage0-cards/430x932-p-dangote-lekki.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "apapa-depot": {
+          "file": "/tmp/nl-stage0-cards/430x932-p-apapa-depot.png",
+          "overlaps": [],
+          "offscreen": []
+        }
+      },
+      "failedModels": [],
+      "vehicleGlbRequests": []
+    },
+    {
+      "tag": "844x390-l",
+      "w": 844,
+      "h": 390,
+      "orient": "l",
+      "scenes": {
+        "street-hud": {
+          "file": "/tmp/nl-stage0-cards/844x390-l-street-hud.png",
+          "overlaps": [
+            "#street-radar-bar.street-radar-bar × #top-menu-btn.top-menu-btn"
+          ],
+          "offscreen": []
+        },
+        "ride-card": {
+          "file": "/tmp/nl-stage0-cards/844x390-l-ride-card.png",
+          "overlaps": [
+            "#street-radar-bar.street-radar-bar × #game-toast-container"
+          ],
+          "offscreen": []
+        },
+        "driving-hud": {
+          "file": "/tmp/nl-stage0-cards/844x390-l-driving-hud.png",
+          "overlaps": [
+            "#nl-minimap.nl-minimap.is-on × .hud-header",
+            ".hud-header × #top-menu-btn.top-menu-btn"
+          ],
+          "offscreen": [
+            ".nl-minimap-north 843..861"
+          ]
+        },
+        "inside-place": {
+          "file": "/tmp/nl-stage0-cards/844x390-l-inside-place.png",
+          "overlaps": [
+            "#nl-minimap.nl-minimap.is-on × .hud-header",
+            ".hud-header × #top-menu-btn.top-menu-btn"
+          ],
+          "offscreen": [
+            ".nl-minimap-north 843..861"
+          ]
+        },
+        "phone": {
+          "file": "/tmp/nl-stage0-cards/844x390-l-phone.png",
+          "overlaps": [
+            ".bottom-master-nav × #hud-proximity-prompt.hud-proximity-prompt"
+          ],
+          "offscreen": []
+        },
+        "map": {
+          "file": "/tmp/nl-stage0-cards/844x390-l-map.png",
+          "overlaps": [],
+          "offscreen": []
+        },
+        "dangote-lekki": {
+          "file": "/tmp/nl-stage0-cards/844x390-l-dangote-lekki.png",
+          "overlaps": [
+            "#street-radar-bar.street-radar-bar × #top-menu-btn.top-menu-btn"
+          ],
+          "offscreen": []
+        },
+        "apapa-depot": {
+          "file": "/tmp/nl-stage0-cards/844x390-l-apapa-depot.png",
+          "overlaps": [
+            "#street-radar-bar.street-radar-bar × #top-menu-btn.top-menu-btn",
+            ".bottom-master-nav × #hud-proximity-prompt.hud-proximity-prompt"
+          ],
+          "offscreen": []
+        }
+      },
+      "failedModels": [],
+      "vehicleGlbRequests": []
+    }
+  ],
+  "failedModels": [],
+  "vehicleGlbRequests": []
+}
