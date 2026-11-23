@@ -637,6 +637,8 @@ export class Game {
     this.rideBar = new RideBar(this.rides);
     // The player rides as themselves: their own figure sits in the back, or behind the okada man
     this.roadRideExperience.passengerLook = () => createHumanForConfig(this.player.config);
+    // Cars use the live model in the player's real clothes; the baked figure is only a fallback
+    this.roadRideExperience.passengerConfig = () => this.player.config;
 
     this.transitHUD = new TransitHUD();
 

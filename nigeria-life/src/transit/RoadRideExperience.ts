@@ -5,6 +5,8 @@ import type { HumanRig } from '../graphics/HumanMeshBuilder';
 import { RideStreet, LANES } from './RideStreet';
 import { buildRideCar, buildRideKeke, buildRideOkada, holdOn, seatPassenger, type RideVehicle } from './RideModels';
 import { RideDriver } from './RideDriver';
+import { RidePassenger } from './RidePassenger';
+import type { CharacterConfig } from '../player/CharacterCustomization';
 import { Builder } from '../world/kit/ArchKit';
 import { showGameToast } from '../ui/GameToast';
 import { SoundEngine } from '../audio/SoundEngine';
@@ -28,10 +30,14 @@ export class RoadRideExperience {
   private readonly rides = new Map<string, RideVehicle>();
   /** The real character at the controls of whichever vehicle is out */
   private readonly driverModel = new RideDriver();
+  /** The player's live look in the back of a taxi or own car */
+  private readonly passengerModel = new RidePassenger();
   private headTurn = 0;
   private ride: RideVehicle | null = null;
   /** The player's own figure, to sit them in the vehicle; given by the game */
   public passengerLook: (() => HumanRig | null) | null = null;
+  /** The player's real clothes for the live car passenger; given by the game */
+  public passengerConfig: (() => CharacterConfig | null) | null = null;
   private speed = 0;
   private targetSpeed = 0;
   private nextChange = 0;
@@ -619,6 +625,8 @@ export class RoadRideExperience {
     const sound = SoundEngine.getInstance();
     this.startedMusic = (kind === 'taxi' || kind === 'car') && !sound.isRadioActive() && sound.toggleRadio();
     seatPassenger(vehicle, this.passengerLook?.() ?? null, kind === 'okada' ? 'bike' : kind === 'keke' ? 'bench' : 'car');
+    if (kind === 'taxi' || kind === 'car') this.passengerModel.seat(vehicle, this.passengerConfig?.() ?? null);
+    else this.passengerModel.clear();
     this.street.setLane(vehicle.lane === 'kerb' ? LANES.kerb : LANES.inner);
     // Go-slow or not, it pulls away from a stop
     this.speed = 0;
@@ -653,6 +661,7 @@ export class RoadRideExperience {
       ride.driver.rig.head.rotation.y = look;
       holdOn(ride);
     }
+    this.passengerModel.pose(delta);
   }
 
   /** The driver's model at the controls of this vehicle (also while it comes up the street) */
