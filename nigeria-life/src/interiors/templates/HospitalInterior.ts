@@ -267,6 +267,9 @@ export class HospitalInterior {
     this.nav.clearRect(-4, 4 + 1.2, 0.5, 0.5);
     this.nav.clearRect(6, -5 + 1.2, 0.5, 0.5);
     this.nav.clearRect(7, 2.8 + 1.0, 0.5, 0.5);
+    // Ward bed interaction stands beside the mattress, not on it
+    this.nav.clearRect(-6, -3.6, 0.55, 0.55);
+    this.nav.clearRect(-1.5, -3.6, 0.55, 0.55);
 
     // Red Cross Hospital Emblem on back wall
     const crossGroup = new THREE.Group();

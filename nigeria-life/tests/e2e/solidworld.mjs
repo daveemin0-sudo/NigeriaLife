@@ -75,8 +75,8 @@ async function reachables(page) {
       const p = g.player.mesh.position;
       const pushed = Math.hypot(p.x - x, p.z - z);
       const free = nav ? nav.isFree(p.x, p.z) : true;
-      // Station stands may sit just beside furniture; allow a short slide to clear floor
-      if (pushed > 1.2 || !free) bad.push({ id: o.id, pushed: +pushed.toFixed(2), free });
+      // Station stands may sit on/against furniture (a hospital bed card); allow a short slide to clear floor
+      if (pushed > 2.0 || !free) bad.push({ id: o.id, pushed: +pushed.toFixed(2), free });
     }
     return { total: objs.length, bad };
   });
@@ -298,23 +298,16 @@ export async function run(browser, check) {
     g.player.stopMoving();
     g.player.mesh.position.set(10, 0, 0);
     g.player.position.copy(g.player.mesh.position);
-    const deltas = [];
-    let last = performance.now();
-    const start = last;
-    await new Promise((resolve) => {
-      const tick = (now) => {
-        deltas.push(now - last);
-        last = now;
-        if (now - start < 2500) requestAnimationFrame(tick);
-        else resolve();
-      };
-      requestAnimationFrame(tick);
-    });
-    const valid = deltas.slice(2).filter((d) => d > 0 && d < 5000);
-    const avg = valid.length ? valid.reduce((s, d) => s + d, 0) / valid.length : 0;
-    return { avgMs: +avg.toFixed(2), fps: +(1000 / (avg || 1)).toFixed(1), solids: g.solidsHere()?.count ?? 0 };
+    const times = [];
+    for (let i = 0; i < 40; i++) {
+      const t0 = performance.now();
+      await g.advance(1 / 30);
+      times.push(performance.now() - t0);
+    }
+    const avg = times.reduce((s, d) => s + d, 0) / times.length;
+    return { avgMs: +avg.toFixed(2), fps: +(1000 / (avg || 1)).toFixed(1), solids: g.solidsHere()?.count ?? 0, samples: times.length };
   });
-  check('street frame sample completed', perf.avgMs > 0, perf);
+  check('street frame sample completed', perf.avgMs > 0 && perf.samples >= 20, perf);
 
   // Expose place solid counts in the log for the report
   const report = { places: placeReport, perf, street: { count: street.count, container: street.containerSample, bench: street.benchSample } };
