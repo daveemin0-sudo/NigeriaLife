@@ -418,7 +418,6 @@ const GRAPHICS_NOTES: Record<string, string> = {
   high: 'full resolution, far crowds, sharp shadows',
   balanced: 'Medium — fewer pixels, nearer crowds',
   low: '720p-class drawing, soft shadows, lean crowds (laptops / phones)',
-  veryLow: 'phone survival — fewest pixels, no shadows, player-only full characters',
 };
 const CITY_NAMES: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt' };
 
