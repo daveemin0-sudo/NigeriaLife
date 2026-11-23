@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ClothRig } from './ClothRig';
 import { makePosture, POSTURE } from './Posture';
 import { AssetManager } from '../../assets/AssetManager';
+import { assetUrl } from '../../assets/assetUrl';
 import { WARDROBE_CATALOGUE, type CharacterConfig } from '../../player/CharacterCustomization';
 import { makeClothMaterial, makeSkinMaterial } from './CharacterSurfaces';
 import type { Pattern } from './Fabrics';
@@ -536,7 +537,7 @@ export async function loadSkinnedCharacter(
   gender: 'male' | 'female',
   config: CharacterConfig,
 ): Promise<SkinnedCharacterHandle | null> {
-  const url = `/models/characters/human_${gender}.glb`;
+  const url = assetUrl(`models/characters/human_${gender}.glb`);
   const scene = await AssetManager.getInstance().instantiate(url);
   if (!scene) return null;
 
