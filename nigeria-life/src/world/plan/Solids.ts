@@ -93,18 +93,25 @@ export class Solids {
     return this.touching(x, z, radius, this.now).length > 0;
   }
 
+  /** Is a street prop here (stall, bench, pole) — not a building wall? */
+  public propAt(x: number, z: number, radius = 0): boolean {
+    return this.touching(x, z, radius, this.now).some((solid) => !solid.wall);
+  }
+
   /** Is a building or wall here (not a lamp post, a bin or a stall)? What a camera behind a car must keep in front of */
   public wallAt(x: number, z: number, radius = 0): boolean {
     return this.touching(x, z, radius, this.now).some((solid) => solid.wall);
   }
 
-  private blocked(fromX: number, fromZ: number, toX: number, toZ: number, radius: number): boolean {
+  private blocked(fromX: number, fromZ: number, toX: number, toZ: number, radius: number, propsOnly = false): boolean {
     /** How far into a solid (grown by the mover's half-width) a point is. Nothing or less means clear of it. */
     const into = (solid: Solid, x: number, z: number) => Math.min(x + radius - solid.minX, solid.maxX - (x - radius), z + radius - solid.minZ, solid.maxZ - (z - radius));
     // Standing inside something already (set down there, or walked in through its door): free to walk
     // out, through whatever else the same building is made of, until they are in the open again
-    if (this.touching(fromX, fromZ, 0, this.now).length > 0) return false;
+    const here = this.touching(fromX, fromZ, 0, this.now);
+    if (here.length > 0 && (!propsOnly || here.some((s) => !s.wall))) return false;
     for (const solid of this.touching(toX, toZ, radius, this.now)) {
+      if (propsOnly && solid.wall) continue;
       // Brushing against it is allowed; going further into it is not
       if (into(solid, toX, toZ) > Math.max(0, into(solid, fromX, fromZ)) + 1e-4) return true;
     }
@@ -115,6 +122,7 @@ export class Solids {
    * Where a step from one point toward another ends: all the way if nothing is in the way,
    * along the wall if the wall can be slid along, or not at all. `radius` is half the width
    * of whoever is moving. Pass `out` to reuse a scratch object (no per-call allocation).
+   * `propsOnly` skips building walls so pavement-network walkers can still reach doors.
    */
   public step(
     fromX: number,
@@ -123,21 +131,22 @@ export class Solids {
     toZ: number,
     radius: number,
     out?: { x: number; z: number; stopped: boolean },
+    propsOnly = false,
   ): { x: number; z: number; stopped: boolean } {
     const result = out ?? { x: 0, z: 0, stopped: false };
-    if (!this.blocked(fromX, fromZ, toX, toZ, radius)) {
+    if (!this.blocked(fromX, fromZ, toX, toZ, radius, propsOnly)) {
       result.x = toX;
       result.z = toZ;
       result.stopped = false;
       return result;
     }
-    if (toX !== fromX && !this.blocked(fromX, fromZ, toX, fromZ, radius)) {
+    if (toX !== fromX && !this.blocked(fromX, fromZ, toX, fromZ, radius, propsOnly)) {
       result.x = toX;
       result.z = fromZ;
       result.stopped = false;
       return result;
     }
-    if (toZ !== fromZ && !this.blocked(fromX, fromZ, fromX, toZ, radius)) {
+    if (toZ !== fromZ && !this.blocked(fromX, fromZ, fromX, toZ, radius, propsOnly)) {
       result.x = fromX;
       result.z = toZ;
       result.stopped = false;
