@@ -198,6 +198,8 @@ export interface RideVehicle {
   gripError?: number;
   /** The passenger's door, shown when it opens at the kerb, and the dark of the doorway behind it */
   door?: { hinge: THREE.Group; gap: THREE.Mesh };
+  /** Car cabin measures for seated leg IK (absent on keke / okada) */
+  cabin?: { floorY: number; dashBack: number };
 }
 
 const view = (at: [number, number, number], look: [number, number, number], fov: number) => ({ at: new THREE.Vector3(...at), look: new THREE.Vector3(...look), fov });
@@ -301,6 +303,7 @@ export function buildRideCar(specId: string, paint: number | undefined, taxi: bo
     body, wheels: car.wheels, wheelRadius: s.wheelRadius, steer,
     grips: [new THREE.Vector3(0.155, 0.06, 0.0), new THREE.Vector3(-0.155, 0.06, 0.0)],
     driver, passenger, hideInside: [passenger], door,
+    cabin: { floorY, dashBack },
     views: {
       // From the back seat, between the front seats: the driver at the wheel, the road through the windscreen
       inside: view([-0.05, eye + 0.03, rearHipZ + 0.08], [driverX * 1.5, eye - 0.3, 7], 58),
