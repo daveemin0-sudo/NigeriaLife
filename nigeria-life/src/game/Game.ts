@@ -4207,15 +4207,17 @@ export class Game {
 
   /**
    * Where a ride to this place sets the player down: the place you booked on the map.
-   * Prefer map/entrance when street coords drifted; only snap to a named door within 28 m.
+   * Prefer map only when the entrance also sits by the pin (Abuja avenue drift). Lagos
+   * roadside remaps keep street+entrance together on the expressway while an old city-map
+   * pin may still linger — never prefer that stale pin over the remapped door.
    */
   private setDownSpot(destination: DestinationDefinition): { x: number; z: number } {
     const street = destination.streetPosition;
     const map = destination.mapPosition;
-    const mapDrift = map ? Math.hypot(map.x - street.x, map.z - street.z) : 0;
-    // Abuja had many pins with street coords parked on the wrong avenue (~100 m off).
-    const base = mapDrift > 40 && map ? map : street;
     const entrance = destination.entrance?.position;
+    const mapDrift = map ? Math.hypot(map.x - street.x, map.z - street.z) : 0;
+    const entranceNearMap = !!(map && entrance && Math.hypot(entrance.x - map.x, entrance.z - map.z) <= 40);
+    const base = mapDrift > 40 && entranceNearMap && map ? map : street;
     const near = entrance && Math.hypot(entrance.x - base.x, entrance.z - base.z) <= 40 ? entrance : base;
     const door = this.doorOf(destination.name, near, 28);
     return { x: door?.x ?? near.x, z: door?.z ?? near.z };

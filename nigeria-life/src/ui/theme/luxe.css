@@ -1719,7 +1719,15 @@ html body .nl-signin-later { border: 0; background: none; color: var(--lx-dim, #
     padding: 2px 4px !important;
   }
 
-  /* Keep top-right location badge below or compact */
+  /* Location + quest sit under the vitals row — never over health/energy/food/cred */
+  html body .hud-center-pill-bar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+  }
+  html body .hud-center-pill-bar .hud-vitals-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+  }
   html body .hud-top-right-group {
     top: calc(56px + env(safe-area-inset-top, 0px)) !important;
     right: 8px !important;

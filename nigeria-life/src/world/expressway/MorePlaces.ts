@@ -357,7 +357,7 @@ export const DESTINATIONS_HERE: Record<string, string> = {
   'dest_lagos_radio': 'radio-house',
   'dest_lagos_balogun_market': 'balogun-market',
   'dest_lagos_amala_shitta': 'amala-shitta',
-  'dest_lagos_mama_bisi_salon': 'viewing-centre',
+  'dest_lagos_viewing_centre': 'viewing-centre',
   'dest_lagos_polling_unit': 'polling-unit',
   'dest_lagos_nis_passport': 'nis-passport',
   'dest_lagos_consular_visa': 'consular-visa',
