@@ -8,6 +8,7 @@ import {
   buildKekeSteer,
   buildOkadaSteer,
   buildSpokedWheel,
+  liftKekePassengerToDeck,
   KEKE_LAYOUT,
   OKADA_LAYOUT,
 } from '../world/vehicles/KekeOkadaModels';
@@ -376,6 +377,8 @@ export function buildRideKeke(): RideVehicle {
   other.root.position.set(KEKE_LAYOUT.passengerR.x, KEKE_LAYOUT.passengerR.y, KEKE_LAYOUT.passengerR.z);
   other.rig.leftArm.rotation.x = other.rig.rightArm.rotation.x = -0.5;
   body.add(other.root);
+  // Sit-animation shoes hang below the deck — lift this figure's own verts only
+  liftKekePassengerToDeck(other.root);
 
   return {
     body, wheels, wheelRadius: KEKE_LAYOUT.wheelRadius, steer,
@@ -454,5 +457,6 @@ export function seatPassenger(ride: RideVehicle, rig: HumanRig | null, kind: 'ca
   if (rig.leftForearm) rig.leftForearm.rotation.x = -0.5;
   if (rig.rightForearm) rig.rightForearm.rotation.x = -0.5;
   ride.passenger.add(seated.root);
+  if (kind === 'bench') liftKekePassengerToDeck(seated.root);
   return seated;
 }

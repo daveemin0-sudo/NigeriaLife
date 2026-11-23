@@ -26,6 +26,8 @@ export const KEKE_LAYOUT = {
   driver: { x: 0, y: 0.74, z: 0.3 },
   passengerL: { x: -0.3, y: 0.7, z: -0.62 },
   passengerR: { x: 0.34, y: 0.7, z: -0.62 },
+  /** Cabin floor top (interior mat) in vehicle space — shoes must not hang below this */
+  cabinDeckY: 0.37,
 } as const;
 
 export const OKADA_LAYOUT = {
@@ -534,6 +536,64 @@ export function addKekeBody(parent: THREE.Object3D): KekeBodyParts {
   attachBaked(sideCurtains, kekeSideCurtains!);
   parent.add(sideCurtains);
   return { sideCurtains };
+}
+
+/**
+ * Sit-animation shoes hang below the cabin deck. Lift any vertex of this figure that
+ * sits under the deck up to deck height (vehicle-body space). Clones each mesh's
+ * geometry first so shared buffers (statue caches) are never mutated.
+ */
+export function liftKekePassengerToDeck(
+  figure: THREE.Object3D,
+  deckY = KEKE_LAYOUT.cabinDeckY,
+): void {
+  figure.updateWorldMatrix(true, true);
+  // Ride body owns the figure directly (other passenger) or via the passenger slot
+  let vehicle: THREE.Object3D = figure;
+  while (vehicle.parent && !(vehicle.parent as THREE.Object3D & { isScene?: boolean }).isScene) {
+    vehicle = vehicle.parent;
+  }
+  vehicle.updateWorldMatrix(true, true);
+
+  const world = new THREE.Vector3();
+  const local = new THREE.Vector3();
+  const invVehicle = new THREE.Matrix4().copy(vehicle.matrixWorld).invert();
+  const invMesh = new THREE.Matrix4();
+
+  figure.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    const src = mesh.geometry.getAttribute('position');
+    if (!src) return;
+
+    let needsLift = false;
+    for (let i = 0; i < src.count; i++) {
+      world.fromBufferAttribute(src, i).applyMatrix4(mesh.matrixWorld);
+      local.copy(world).applyMatrix4(invVehicle);
+      if (local.y < deckY) {
+        needsLift = true;
+        break;
+      }
+    }
+    if (!needsLift) return;
+
+    mesh.geometry = mesh.geometry.clone();
+    const pos = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    invMesh.copy(mesh.matrixWorld).invert();
+    for (let i = 0; i < pos.count; i++) {
+      world.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      local.copy(world).applyMatrix4(invVehicle);
+      if (local.y >= deckY) continue;
+      local.y = deckY;
+      world.copy(local).applyMatrix4(vehicle.matrixWorld);
+      world.applyMatrix4(invMesh);
+      pos.setXYZ(i, world.x, world.y, world.z);
+    }
+    pos.needsUpdate = true;
+    mesh.geometry.computeBoundingBox();
+    mesh.geometry.computeBoundingSphere();
+    mesh.geometry.computeVertexNormals();
+  });
 }
 
 /** Handlebar column for the keke; grips sit at ±KEKE_LAYOUT.gripHalf on local x. */
