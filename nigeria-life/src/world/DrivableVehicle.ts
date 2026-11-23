@@ -5,7 +5,6 @@ import type { Solids } from './plan/Solids';
 import { SignageLibrary } from '../materials/SignageLibrary';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { AssetManager } from '../assets/AssetManager';
-import { assetUrl } from '../assets/assetUrl';
 import { SoundEngine } from '../audio/SoundEngine';
 import { showGameToast } from '../ui/GameToast';
 import { BackendService } from '../backend/BackendService';
@@ -208,20 +207,11 @@ export class DrivableVehicle {
     this.mesh.add(this.hornDisplayGroup);
     this.createHornSprite();
 
-    // Asynchronous GLB model loading if available in public/models/vehicles/
-    const glbMap: Partial<Record<VehicleType, string>> = {
-      danfo: assetUrl('models/vehicles/danfo_minibus.glb'),
-      keke: assetUrl('models/vehicles/keke_napep.glb'),
-      suv: assetUrl('models/vehicles/suv_luxury.glb'),
-      okada: assetUrl('models/vehicles/okada_bike.glb'),
-      sedan: assetUrl('models/vehicles/sedan_corolla.glb'),
-      luxury_sedan: assetUrl('models/vehicles/sedan_maybach.glb'),
-      gwagon: assetUrl('models/vehicles/suv_gwagon.glb'),
-      sports_car: assetUrl('models/vehicles/supercar_gt.glb'),
-      electric_car: assetUrl('models/vehicles/electric_sedan.glb'),
-      ambulance: assetUrl('models/vehicles/ambulance_van.glb'),
-    };
-    const glbPath = glbMap[this.type];
+    // Optional GLB override for vehicles that actually ship under public/models/vehicles/.
+    // Procedural builders above already set the look; do not request missing files (404 noise).
+    // When a GLB is added, import assetUrl and register e.g. danfo: assetUrl('models/vehicles/danfo_minibus.glb').
+    const shippedVehicleGlbs: Partial<Record<VehicleType, string>> = {};
+    const glbPath = shippedVehicleGlbs[this.type];
     if (glbPath) {
       AssetManager.getInstance().instantiate(glbPath).then((glbScene) => {
         if (glbScene) {
