@@ -81,6 +81,14 @@ const KEKE_MATS = {
     roughness: 0.25,
     metalness: 0.2,
   }),
+  /** Rear brake / tail lamps only (shared across copies) */
+  tail: new THREE.MeshStandardMaterial({
+    color: 0xb91c1c,
+    emissive: 0xef4444,
+    emissiveIntensity: 1.6,
+    roughness: 0.35,
+    metalness: 0.1,
+  }),
 } as const;
 
 const OKADA_MATS = {
@@ -117,6 +125,14 @@ const OKADA_MATS = {
     emissiveIntensity: 1.2,
     roughness: 0.2,
     metalness: 0.15,
+  }),
+  /** Rear brake / tail lamps only (shared across copies) */
+  tail: new THREE.MeshStandardMaterial({
+    color: 0xb91c1c,
+    emissive: 0xef4444,
+    emissiveIntensity: 1.6,
+    roughness: 0.35,
+    metalness: 0.1,
   }),
 } as const;
 
@@ -347,10 +363,9 @@ function ensureKekePrototype(): void {
   canvas.box('canvas', KEKE_MATS.canvas, 1.28, 0.04, 2.2, 0, 1.62, -0.2);
   for (const side of [-1, 1]) {
     canvas.box('canvas', KEKE_MATS.canvas, 0.04, 0.14, 2.15, side * 0.64, 1.55, -0.2);
-    // Rolled side curtain under the roof edge
+    // Rolled side curtain under the roof edge (horizontal along z)
     canvas.cyl('canvas', KEKE_MATS.canvas, 0.045, 0.045, 1.45, side * 0.63, 1.5, 0.02, 8, {
-      pitch: 0,
-      yaw: Math.PI / 2,
+      pitch: Math.PI / 2,
     });
     // Rear quarter canvas panels
     canvas.box('canvas', KEKE_MATS.canvas, 0.04, 0.95, 0.52, side * 0.64, 1.05, -1.0);
@@ -387,22 +402,26 @@ function ensureKekePrototype(): void {
   }
 
   // --- Metal frame, forks, mirrors, wipers ---
+  // Roof underside sits at y ≈ 1.55 (valance); posts must end there (keke ≤ 1.92 m overall)
+  const roofUnder = 1.55;
   for (const side of [-1, 1]) {
-    // Front A-pillars
-    metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, 0.68, side * 0.52, 1.3, 0.88, 6, { pitch: -0.18 });
-    // Mid and rear roof posts
-    metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, 0.95, side * 0.62, 1.15, -0.05, 6);
-    metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, 0.95, side * 0.62, 1.15, -0.85, 6);
-    // Roof longitudinal rail
-    metal.cyl('metal', KEKE_MATS.metal, 0.016, 0.016, 1.9, side * 0.6, 1.62, -0.15, 6, {
+    // Front A-pillars (top ends at roof underside)
+    metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, 0.55, side * 0.52, 1.22, 0.88, 6, { pitch: -0.18 });
+    // Mid and rear roof posts: sill → underside of roof
+    const postH = roofUnder - 0.72;
+    const postY = (roofUnder + 0.72) / 2;
+    metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, postH, side * 0.62, postY, -0.05, 6);
+    metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, postH, side * 0.62, postY, -0.85, 6);
+    // Roof longitudinal rail under the canvas edge
+    metal.cyl('metal', KEKE_MATS.metal, 0.016, 0.016, 1.9, side * 0.6, roofUnder, -0.15, 6, {
       pitch: Math.PI / 2,
     });
   }
   // Windscreen frame
   metal.box('metal', KEKE_MATS.metal, 1.02, 0.04, 0.04, 0, 1.08, 0.98);
-  metal.box('metal', KEKE_MATS.metal, 1.02, 0.04, 0.04, 0, 1.64, 0.86);
+  metal.box('metal', KEKE_MATS.metal, 1.02, 0.04, 0.04, 0, roofUnder, 0.86);
   for (const side of [-1, 1]) {
-    metal.box('metal', KEKE_MATS.metal, 0.04, 0.58, 0.04, side * 0.5, 1.36, 0.92, { pitch: -0.18 });
+    metal.box('metal', KEKE_MATS.metal, 0.04, 0.48, 0.04, side * 0.5, 1.3, 0.92, { pitch: -0.18 });
   }
   // Front fork legs to the axle
   for (const side of [-1, 1]) {
@@ -448,20 +467,23 @@ function ensureKekePrototype(): void {
   );
 
   // --- Lamps ---
-  // Cyclops headlamp (proud of the nose)
+  const tail = new GeoBag();
+  // Cyclops headlamp (proud of the nose) — white
   metal.cyl('metal', KEKE_MATS.metal, 0.13, 0.13, 0.06, 0, 0.64, 1.48, 14, { pitch: Math.PI / 2 });
   lamp.cyl('lamp', KEKE_MATS.lamp, 0.11, 0.11, 0.045, 0, 0.64, 1.52, 14, { pitch: Math.PI / 2 });
-  // Indicators
+  // Front indicators (white/amber-ish via headlamp material)
   for (const side of [-1, 1]) {
     lamp.box('lamp', KEKE_MATS.lamp, 0.09, 0.055, 0.045, side * 0.36, 0.9, 1.4);
-    lamp.box('lamp', KEKE_MATS.lamp, 0.16, 0.08, 0.04, side * 0.52, 0.86, -1.37);
   }
-  // Centre brake hint
-  lamp.box('lamp', KEKE_MATS.lamp, 0.22, 0.045, 0.035, 0, 0.98, -1.37);
+  // Rear tail lamps + centre brake — red
+  for (const side of [-1, 1]) {
+    tail.box('tail', KEKE_MATS.tail, 0.16, 0.08, 0.04, side * 0.52, 0.86, -1.37);
+  }
+  tail.box('tail', KEKE_MATS.tail, 0.22, 0.045, 0.035, 0, 0.98, -1.37);
 
   kekeShell = [...body.bake(), ...canvas.bake(), ...interior.bake(), ...metal.bake()];
   kekeGlass = glass.bake();
-  kekeLamps = lamp.bake();
+  kekeLamps = [...lamp.bake(), ...tail.bake()];
 }
 
 /**
@@ -631,13 +653,18 @@ function ensureOkadaPrototype(): void {
   chrome.box('chrome', OKADA_MATS.chrome, 0.16, 0.08, 0.006, 0, 0.55, -0.958);
 
   // --- Headlamp housing + indicators + tail ---
+  const tail = new GeoBag();
   dark.box('dark', OKADA_MATS.dark, 0.22, 0.18, 0.14, 0, 0.9, 0.58);
   lamp.cyl('lamp', OKADA_MATS.lamp, 0.065, 0.065, 0.03, 0, 0.92, 0.66, 12, { pitch: Math.PI / 2 });
+  // Front indicators — white
   for (const side of [-1, 1]) {
     lamp.box('lamp', OKADA_MATS.lamp, 0.05, 0.035, 0.03, side * 0.14, 0.88, 0.6);
-    lamp.box('lamp', OKADA_MATS.lamp, 0.05, 0.035, 0.03, side * 0.1, 0.78, -0.92);
   }
-  lamp.box('lamp', OKADA_MATS.lamp, 0.1, 0.05, 0.03, 0, 0.8, -0.94);
+  // Rear indicators / tail / brake — red
+  for (const side of [-1, 1]) {
+    tail.box('tail', OKADA_MATS.tail, 0.05, 0.035, 0.03, side * 0.1, 0.78, -0.92);
+  }
+  tail.box('tail', OKADA_MATS.tail, 0.1, 0.05, 0.03, 0, 0.8, -0.94);
 
   // Tank badge stripe (fictional, no logo) — thin white slash via chrome
   chrome.box('chrome', OKADA_MATS.chrome, 0.015, 0.04, 0.14, 0.17, 0.84, 0.22);
@@ -646,7 +673,7 @@ function ensureOkadaPrototype(): void {
   chrome.cyl('chrome', OKADA_MATS.chrome, 0.035, 0.035, 0.02, 0, 1.02, 0.22, 10);
 
   okadaShell = [...paint.bake(), ...dark.bake(), ...rubber.bake(), ...chrome.bake()];
-  okadaLamps = lamp.bake();
+  okadaLamps = [...lamp.bake(), ...tail.bake()];
   okadaCourierGeo = new THREE.BoxGeometry(0.48, 0.42, 0.42);
 }
 
