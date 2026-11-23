@@ -63,6 +63,8 @@ import { ChatBox } from '../ui/ChatBox';
 import { PostProcessingManager } from '../graphics/PostProcessingManager';
 import { FlightExperience } from '../transit/FlightExperience';
 import { RoadRideExperience } from '../transit/RoadRideExperience';
+import { RidePickup, PICKUP_LEAST_ROAD, PICKUP_REACH } from '../transit/RidePickup';
+import { RideBar } from '../ui/RideBar';
 import { createHumanForConfig } from '../player/HumanFromConfig';
 import { TransitHUD } from '../transit/TransitHUD';
 import type { FlightDetails, RideDetails } from '../transit/TransitTypes';
@@ -317,6 +319,9 @@ export class Game {
   public vendorUI!: VendorUI;
   /** What the phone's apps work with: rides, deliveries, messages and the market. They run whether or not the phone is open. */
   public rides = new RideService();
+  /** The booked vehicle on its way up the street */
+  public readonly rideAtKerb = new RidePickup();
+  private rideBar: RideBar | null = null;
   public deliveries = new DeliveryService();
   public messages = new MessageService();
   public market = new Market();
@@ -627,6 +632,8 @@ export class Game {
 
     this.roadRideExperience = new RoadRideExperience();
     this.scene.add(this.roadRideExperience.group);
+    this.scene.add(this.rideAtKerb.group);
+    this.rideBar = new RideBar(this.rides);
     // The player rides as themselves: their own figure sits in the back, or behind the okada man
     this.roadRideExperience.passengerLook = () => createHumanForConfig(this.player.config);
 
@@ -1172,16 +1179,18 @@ export class Game {
     this.connectGovernment();
     // A cab from the map to a place along the road: paid when the driver comes, ridden, and set down at the door
     this.hud.onRideTo = (point, name, fare) => {
-      if (!BackendService.getInstance().pay(fare, `Cab to ${name}`, 'TRAVEL_COST')) {
-        showGameToast(`The cab is ₦${fare.toLocaleString()}. You do not have it.`, 'warning', 3600);
-        return;
-      }
-      const ride: RideDetails = { vehicleName: 'Taxi', vehicleType: 'taxi', originName: 'Here', destinationName: name, durationSeconds: 10, trafficCondition: 'Go-slow', weatherCondition: 'Sunny', destinationCityId: this.world.cityManager.currentCityId as CityId };
-      this.startRoadRide(ride, point, name, () => {
+      const city = this.world.cityManager.currentCityId;
+      const destination = { name, streetPosition: point, city } as unknown as DestinationDefinition;
+      const cab = { mode: 'taxi', label: 'Cab', icon: '🚕', fare, travelTimeSec: 60, description: '' } as TransportOption;
+      const setDown = () => {
         this.player.stopMoving();
         this.player.mesh.position.set(point.x, 0, point.z);
         this.player.position.copy(this.player.mesh.position);
         this.cameraManager.snapToPlayer(this.player, 'street');
+      };
+      this.rides.journey(destination, cab, setDown, (done) => {
+        const ride: RideDetails = { vehicleName: 'Taxi', vehicleType: 'taxi', originName: 'Here', destinationName: name, durationSeconds: 10, trafficCondition: 'Go-slow', weatherCondition: 'Sunny', destinationCityId: city as CityId };
+        this.startRoadRide(ride, point, name, done);
       });
     };
     PlaceLook.apply = (look) => {
@@ -1519,10 +1528,10 @@ export class Game {
         // Far from the line: a keke to the nearest station's gate first, then the train from there
         const fare = 500;
         const station = RED_LINE[near.index].name;
-        if (!BackendService.getInstance().pay(fare, `Keke to ${station} station`, 'TRAVEL_COST')) return `A keke to ${station} station is ₦${fare.toLocaleString()}, and you do not have it.`;
+        if (this.rides.funds() < fare) return `A keke to ${station} station is ₦${fare.toLocaleString()}, and you do not have it.`;
         const gate = line.gate(near.index, near.side);
         const destination = { name: `${station} station`, streetPosition: gate, city: 'lagos' } as unknown as DestinationDefinition;
-        const keke = { mode: 'keke', label: 'Keke to the station', icon: '🛺', fare, travelTimeSec: 60, description: '' } as TransportOption;
+        const keke = { mode: 'keke', label: 'Keke', icon: '🛺', fare, travelTimeSec: 60, description: '' } as TransportOption;
         this.rides.journey(destination, keke, () => {
           // Set down a few steps from the gate, facing it, then on to the train
           this.player.stopMoving();
@@ -1559,6 +1568,35 @@ export class Game {
         };
         this.startRoadRide(ride, this.setDownSpot(destination), destination.name, arrived);
       },
+      // The vehicle itself comes up the road to the kerb nearest the player
+      sendDriver: (vehicle) => {
+        const here = this.player.position;
+        const kerb = this.roadKerbNear(here.x, here.z, PICKUP_REACH, PICKUP_LEAST_ROAD);
+        if (!kerb) return null;
+        const room = this.roadBehind(kerb);
+        const body = this.roadRideExperience.vehicleFor(vehicle.mode, vehicle.mode === 'car' ? RideService.ownCar() ?? undefined : undefined);
+        const cruise = vehicle.mode === 'bike' ? 9.5 : vehicle.mode === 'keke' ? 7.5 : 9;
+        // Turned to the kerb, so the player watches it come
+        this.cameraManager.lookTowards(here, kerb.x, kerb.z);
+        return this.rideAtKerb.start(body, kerb, room, cruise);
+      },
+      driverEta: () => this.rideAtKerb.eta,
+      walkToDriver: (inside) => {
+        this.hud.phoneModal.close();
+        const door = this.rideAtKerb.doorSpot();
+        if (!door) return 0;
+        const here = this.player.position;
+        const metres = Math.hypot(door.x - here.x, door.z - here.z);
+        const atDoor = () => {
+          this.player.stopMoving();
+          this.player.mesh.rotation.y = door.faceYaw;
+          this.rideAtKerb.openDoor(inside);
+        };
+        if (metres < 0.9) atDoor();
+        else this.player.setDestination(new THREE.Vector3(door.x, 0, door.z), atDoor);
+        return metres / 1.2 + 3;
+      },
+      driverLeaves: () => this.rideAtKerb.release(),
       arriveAt: (destination) => {
         this.player.stopMoving();
         const spot = this.setDownSpot(destination);
@@ -3772,7 +3810,24 @@ export class Game {
         }
       }
     }
+    return this.roadKerbNear(x, z);
+  }
 
+  /** How many metres of this road run back from a kerb spot, the way traffic comes to it */
+  private roadBehind(kerb: { x: number; z: number; yaw: number }): number {
+    let most = 0;
+    for (const road of DrivableVehicle.roads?.() ?? []) {
+      if (road.kind !== 'carriageway' || kerb.x < road.minX || kerb.x > road.maxX || kerb.z < road.minZ || kerb.z > road.maxZ) continue;
+      const room = road.axis === 'z'
+        ? (Math.cos(kerb.yaw) > 0 ? kerb.z - road.minZ : road.maxZ - kerb.z)
+        : (Math.sin(kerb.yaw) > 0 ? kerb.x - road.minX : road.maxX - kerb.x);
+      most = Math.max(most, room - 3);
+    }
+    return most;
+  }
+
+  /** The kerb of the road nearest a point, with room to pull up, facing the way the traffic goes there */
+  private roadKerbNear(x: number, z: number, reach = 40, roomBehind = 0): { x: number; z: number; yaw: number } | null {
     const roads = DrivableVehicle.roads?.() ?? [];
     const solids = this.solidsHere();
     const inset = 1.6;
@@ -3793,8 +3848,10 @@ export class Game {
         if (solids?.at(spot.x, spot.z, 1.2)) continue;
         const carAtSpot = this.world.vehicles.drivableVehicles.some((v) => Math.hypot(v.mesh.position.x - spot.x, v.mesh.position.z - spot.z) < 4.2);
         if (carAtSpot) continue;
+        // A vehicle coming to it needs that much road to come along
+        if (roomBehind > 0 && this.roadBehind(spot) < roomBehind) continue;
         const d = Math.hypot(spot.x - x, spot.z - z);
-        if (d <= 40 && (!best || d < best.d)) best = { ...spot, d };
+        if (d <= reach && (!best || d < best.d)) best = { ...spot, d };
         break;
       }
     }
@@ -4524,6 +4581,8 @@ export class Game {
 
     // Drivers on the way, riders with orders, replies to messages
     this.rides.update(delta);
+    this.rideAtKerb.update(delta);
+    this.rideBar?.update();
 
     // Building work goes on by the world's clock whoever is playing: once a second, show how far it has got,
     // pay any rent that is nearly due and clear any tenancy that has run out

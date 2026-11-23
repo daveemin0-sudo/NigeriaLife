@@ -572,6 +572,23 @@ export class RoadRideExperience {
     this.setCameraView('inside');
   }
 
+  private rideKind(type: string): 'okada' | 'keke' | 'taxi' | 'car' {
+    return type === 'bike' || type === 'okada' ? 'okada' : type === 'keke' ? 'keke' : type === 'taxi' ? 'taxi' : 'car';
+  }
+
+  /** The vehicle of this kind, built the first time; the same one comes up the street and is then ridden */
+  public vehicleFor(type: string, car?: RideDetails['car']): RideVehicle {
+    const kind = this.rideKind(type);
+    // The player's own car is built as it is, in its own paint
+    const key = kind === 'car' && car ? `own:${car.body}:${car.paint ?? ''}` : kind;
+    let vehicle = this.rides.get(key);
+    if (!vehicle) {
+      vehicle = kind === 'okada' ? buildRideOkada() : kind === 'keke' ? buildRideKeke() : kind === 'taxi' ? buildRideCar('corolla_2008', undefined, true, 0) : car ? buildRideCar(car.body, car.paint, false, 1) : buildRideCar('gwagon', 0x111214, false, 1);
+      this.rides.set(key, vehicle);
+    }
+    return vehicle;
+  }
+
   /** The vehicle for this ride, its driver at the wheel and the player sat in it, on the road */
   private boardVehicle(ride: RideDetails): void {
     // The road of the city the ride is in, built the first time a ride is taken there
@@ -585,17 +602,12 @@ export class RoadRideExperience {
       this.streets.set(city, this.street);
       this.vehicleGroup.add(this.street.group);
     }
-    const kind = ride.vehicleType === 'bike' || ride.vehicleType === 'okada' ? 'okada' : ride.vehicleType === 'keke' ? 'keke' : ride.vehicleType === 'taxi' ? 'taxi' : 'car';
-    // The player's own car is built as it is, in its own paint
-    const key = kind === 'car' && ride.car ? `own:${ride.car.body}:${ride.car.paint ?? ''}` : kind;
-    let vehicle = this.rides.get(key);
-    if (!vehicle) {
-      vehicle = kind === 'okada' ? buildRideOkada() : kind === 'keke' ? buildRideKeke() : kind === 'taxi' ? buildRideCar('corolla_2008', undefined, true, 0) : ride.car ? buildRideCar(ride.car.body, ride.car.paint, false, 1) : buildRideCar('gwagon', 0x111214, false, 1);
-      this.rides.set(key, vehicle);
-    }
-    if (!vehicle.body.parent) {
+    const kind = this.rideKind(String(ride.vehicleType));
+    const vehicle = this.vehicleFor(String(ride.vehicleType), ride.car);
+    if (vehicle.body.parent !== this.vehicleGroup) {
       this.vehicleGroup.add(vehicle.body);
     }
+    vehicle.body.position.set(0, 0, 0);
     for (const other of this.rides.values()) other.body.visible = other === vehicle;
     this.ride = vehicle;
     // A taxi or a car has its stereo on; an okada and a keke have the street

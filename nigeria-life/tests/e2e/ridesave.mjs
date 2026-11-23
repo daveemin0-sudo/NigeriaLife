@@ -96,7 +96,7 @@ async function killAndReopen(ctx, page, opts = {}) {
   await cdp.send('Page.crash').catch(() => {});
   await wait(800);
   await page.close().catch(() => {});
-  const fresh = await ctx.newPage();
+  const fresh = await ctx.newPage(); await fresh.evaluateOnNewDocument(() => { window.__nlInstantPickup = true; });
   fresh.__errors = [];
   fresh.on('pageerror', (e) => fresh.__errors.push('PAGEERR ' + String(e.message || e).slice(0, 200)));
   await fresh.setViewport(opts.viewport ?? { width: 1366, height: 768 });
@@ -249,7 +249,7 @@ async function serverUp(tries = 60) {
 
 async function openOnline(browser) {
   const ctx = await newPlayer(browser);
-  const page = await ctx.newPage();
+  const page = await ctx.newPage(); await page.evaluateOnNewDocument(() => { window.__nlInstantPickup = true; });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message || e).slice(0, 240)));
   await page.setViewport({ width: 1100, height: 700 });
@@ -416,7 +416,7 @@ async function realTime(page, test, seconds) {
 
 async function phoneRun(browser, check) {
   const ctx = await newPlayer(browser);
-  let page = await ctx.newPage();
+  let page = await ctx.newPage(); await page.evaluateOnNewDocument(() => { window.__nlInstantPickup = true; });
   page.__errors = [];
   page.on('pageerror', (e) => page.__errors.push('PAGEERR ' + String(e.message || e).slice(0, 200)));
   await page.setViewport(PHONE);
@@ -633,7 +633,7 @@ async function recoveries(browser, check, contexts, standing) {
   // 7b. The same browser opened again: the copy it sent as it closed is its own, so it loads once,
   //     is not told it was behind, and stands where it left off
   {
-    const again = await six.ctx.newPage();
+    const again = await six.ctx.newPage(); await again.evaluateOnNewDocument(() => { window.__nlInstantPickup = true; });
     let loads = 0;
     again.on('framenavigated', (f) => { if (f === again.mainFrame()) loads += 1; });
     await again.setViewport({ width: 1100, height: 700 });

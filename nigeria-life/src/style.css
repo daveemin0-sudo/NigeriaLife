@@ -10822,3 +10822,51 @@ body.dark-mode .nl-storey-words small, [data-theme="dark"] .nl-storey-words smal
 .amount-go { min-height: 44px; padding: 6px 12px; border: 0; border-radius: 8px; background: #0f766e; color: #fff; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; cursor: pointer; }
 .amount-go:disabled { opacity: 0.45; cursor: default; }
 .atm-btn--any { grid-column: 1 / -1; }
+
+/* A booked ride on its way: how long, then Get in */
+.ride-bar {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 156px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-hud-active-interaction);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 7px 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.65);
+  background: rgba(15, 23, 42, 0.94);
+  color: #fff;
+  font-family: var(--nl-font);
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+.ride-bar[hidden], .ride-bar [hidden] { display: none !important; }
+body.ui-modal-open .ride-bar { display: none; }
+.ride-bar-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ride-bar-go {
+  flex: none;
+  min-height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #00d26a;
+  color: #04220f;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ride-bar-x {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}

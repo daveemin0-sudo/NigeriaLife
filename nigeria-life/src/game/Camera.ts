@@ -342,7 +342,16 @@ export class GameCamera {
   public blocked: ((x: number, z: number) => boolean) | null = null;
   private vehCamRoom = 11.2;
 
+  /** Where the street camera is easing round to; the player turning it themselves takes over */
+  private yawGoal: number | null = null;
+
+  /** Eases round behind the player so that this point on the street is in view beyond them */
+  public lookTowards(from: { x: number; z: number }, x: number, z: number): void {
+    this.yawGoal = Math.atan2(from.x - x, from.z - z);
+  }
+
   public rotate(deltaYaw: number, deltaPitch: number = 0): void {
+    this.yawGoal = null;
     if ((this.mode === 'interior' && this.interiorEye) || this.isStreetEye()) {
       this.eyeYaw += deltaYaw;
       this.eyeHeld = 1.2;
@@ -576,6 +585,17 @@ export class GameCamera {
     if (this.mode === 'street' && !this.isStreetEye() && !(player.isDriving && player.currentVehicle)) {
       this.pitch += (this.targetPitch - this.pitch) * this.ease(8, delta);
       this.distance += (this.targetDistance - this.distance) * this.ease(7, delta);
+      if (this.yawGoal !== null) {
+        const gap = Math.atan2(Math.sin(this.yawGoal - this.yaw), Math.cos(this.yawGoal - this.yaw));
+        if (Math.abs(gap) < 0.01) {
+          this.yaw = this.yawGoal;
+          this.yawGoal = null;
+        } else {
+          this.yaw += gap * this.ease(3.2, delta);
+        }
+      }
+    } else {
+      this.yawGoal = null;
     }
     if (this.mode === 'interior' && !this.interiorEye) {
       this.interiorPitch += (this.targetInteriorPitch - this.interiorPitch) * this.ease(6.5, delta);

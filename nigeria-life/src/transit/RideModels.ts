@@ -76,16 +76,38 @@ function bakeFigure(rig: HumanRig): void {
 
 /** A helmet on top of whatever head it is put on */
 function helmetOn(rig: HumanRig, colour: number): void {
-  const box = new THREE.Box3().setFromObject(rig.head);
+  let box = new THREE.Box3().setFromObject(rig.head);
+  // A character model is baked in one piece, its head part of the body: the head is then the top of the figure
+  const whole = box.isEmpty();
+  if (whole) box = topOfFigure(rig.group);
+  if (box.isEmpty()) return;
+  const holder = whole ? rig.group : rig.head;
   const size = box.getSize(new THREE.Vector3());
-  const top = new THREE.Vector3(0, box.max.y, 0);
-  rig.head.worldToLocal(top);
+  const middle = box.getCenter(new THREE.Vector3());
+  const top = holder.worldToLocal(new THREE.Vector3(middle.x, box.max.y, middle.z));
   const radius = (Math.max(size.x, size.z) / rig.group.scale.x) * 0.62;
   const helmet = new THREE.Mesh(new THREE.SphereGeometry(radius, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), new THREE.MeshStandardMaterial({ color: colour, roughness: 0.3, metalness: 0.1 }));
-  helmet.position.set(0, top.y - radius * 0.62, 0.0);
+  helmet.position.set(top.x, top.y - radius * 0.62, top.z);
   const visor = new THREE.Mesh(new THREE.BoxGeometry(radius * 1.5, radius * 0.18, radius * 0.5), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 }));
-  visor.position.set(0, top.y - radius * 0.5, radius * 0.9);
-  rig.head.add(helmet, visor);
+  visor.position.set(top.x, top.y - radius * 0.5, top.z + radius * 0.9);
+  holder.add(helmet, visor);
+}
+
+/** The top 20 cm of a figure, in world space */
+function topOfFigure(figure: THREE.Object3D): THREE.Box3 {
+  figure.updateWorldMatrix(true, true);
+  const v = new THREE.Vector3();
+  let highest = -Infinity;
+  const each = (visit: (point: THREE.Vector3) => void) => figure.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const position = mesh.isMesh ? mesh.geometry.getAttribute('position') : null;
+    if (!position) return;
+    for (let i = 0; i < position.count; i++) visit(v.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld));
+  });
+  each((p) => { highest = Math.max(highest, p.y); });
+  const box = new THREE.Box3();
+  each((p) => { if (p.y > highest - 0.2) box.expandByPoint(p); });
+  return box;
 }
 
 export function person(config: Partial<HumanConfig> & { gender: 'male' | 'female' }): HumanRig {
@@ -173,6 +195,8 @@ export interface RideVehicle {
   lane: 'inner' | 'kerb';
   /** How far the driver's palms are from the grips, after the last pose (metres) */
   gripError?: number;
+  /** The passenger's door, shown when it opens at the kerb, and the dark of the doorway behind it */
+  door?: { hinge: THREE.Group; gap: THREE.Mesh };
 }
 
 const view = (at: [number, number, number], look: [number, number, number], fov: number) => ({ at: new THREE.Vector3(...at), look: new THREE.Vector3(...look), fov });
@@ -287,11 +311,32 @@ export function buildRideCar(specId: string, paint: number | undefined, taxi: bo
   passenger.rotation.x = -0.1;
   body.add(passenger);
 
+  // The passenger's door on the kerb side, hinged at its front edge
+  let door: RideVehicle['door'];
+  if (s.style !== 'sports') {
+    const doorFoot = s.clearance + 0.12;
+    const doorHeight = s.belt - doorFoot;
+    const doorLength = 0.92;
+    const hinge = new THREE.Group();
+    hinge.position.set(-s.width / 2 - 0.012, 0, rearHipZ + 0.5);
+    const skin = new THREE.Mesh(new THREE.BoxGeometry(0.04, doorHeight, doorLength), car.materials.paint);
+    skin.position.set(0, doorFoot + doorHeight / 2, -doorLength / 2);
+    const card = new THREE.Mesh(new THREE.BoxGeometry(0.02, doorHeight - 0.08, doorLength - 0.08), new THREE.MeshStandardMaterial({ color: trim, roughness: 0.75 }));
+    card.position.set(0.03, doorFoot + doorHeight / 2, -doorLength / 2);
+    hinge.add(skin, card);
+    hinge.visible = false;
+    const gap = new THREE.Mesh(new THREE.BoxGeometry(0.012, doorHeight, doorLength), new THREE.MeshBasicMaterial({ color: 0x08090b }));
+    gap.position.set(-s.width / 2 - 0.004, doorFoot + doorHeight / 2, rearHipZ + 0.5 - doorLength / 2);
+    gap.visible = false;
+    body.add(hinge, gap);
+    door = { hinge, gap };
+  }
+
   const eye = seatY + (tall ? 0.78 : 0.72);
   return {
     body, wheels: car.wheels, wheelRadius: s.wheelRadius, steer,
     grips: [new THREE.Vector3(0.155, 0.06, 0.0), new THREE.Vector3(-0.155, 0.06, 0.0)],
-    driver, passenger, hideInside: [passenger],
+    driver, passenger, hideInside: [passenger], door,
     views: {
       // From the back seat, between the front seats: the driver at the wheel, the road through the windscreen
       inside: view([-0.05, eye + 0.06, rearHipZ + 0.2], [driverX * 2, eye - 0.3, 7], 70),

@@ -58,7 +58,7 @@ export const rideApp: PhoneApp = {
   purpose: 'A keke, an okada, a cab or your own car; the Red Line train; flights',
 
   badge: (host) => (host.rides.ride ? 1 : 0),
-  live: (host) => host.rides.ride?.stage === 'driver_coming',
+  live: (host) => host.rides.ride?.stage === 'driver_coming' || host.rides.ride?.stage === 'driver_here',
 
   render(host, route) {
     const rides = host.rides;
@@ -66,6 +66,7 @@ export const rideApp: PhoneApp = {
 
     if (ride) {
       const waiting = ride.stage === 'driver_coming';
+      const here = ride.stage === 'driver_here';
       return {
         title: 'Your ride',
         body: `
@@ -74,9 +75,13 @@ export const rideApp: PhoneApp = {
             <div class="nl-card-line">To <strong>${esc(ride.destination.name)}</strong></div>
             ${waiting
               ? `<div class="nl-card-line" id="ride-eta">Driver arrives in ${Math.max(1, Math.ceil(ride.eta))}s. Wait on the street.</div>
-                 ${meter((1 - ride.eta / 6) * 100)}
+                 ${meter((1 - ride.eta / Math.max(1, ride.etaAtStart)) * 100)}
                  <div class="nl-card-line">Fare ${naira(ride.fare)}, paid when you get in.</div>
                  <button class="nl-btn nl-btn--danger nl-btn--block" id="ride-cancel" data-act="cancel">Cancel ride (no charge)</button>`
+              : here
+                ? `<div class="nl-card-line" id="ride-eta">Your driver is at the kerb. Fare ${naira(ride.fare)}, paid when you get in.</div>
+                   <button class="nl-btn nl-btn--block" id="ride-phone-getin" data-act="getin" ${ride.boarding ? 'disabled' : ''}>${ride.boarding ? 'Getting in…' : 'Get in'}</button>
+                   ${ride.boarding ? '' : '<button class="nl-btn nl-btn--danger nl-btn--block" id="ride-cancel" data-act="cancel">Cancel ride (no charge)</button>'}`
               : `<div class="nl-card-line">On the way. Fare of ${naira(ride.fare)} paid.</div>`}
           </div>
         `,
@@ -176,7 +181,10 @@ export const rideApp: PhoneApp = {
       if (reason) host.say(reason, 'bad');
       return;
     }
-    if (action === 'cancel') {
+    if (action === 'getin') {
+      const result = host.rides.getIn();
+      if (!result.ok) host.say(result.reason ?? 'You cannot get in yet.', 'bad');
+    } else if (action === 'cancel') {
       const result = host.rides.cancel();
       host.say(result.ok ? 'Ride cancelled. You were not charged.' : result.reason ?? 'That ride cannot be cancelled.', result.ok ? 'info' : 'bad');
     } else if (action === 'book') {

@@ -1103,8 +1103,30 @@ export class HUD {
         return true;
       }
 
+      // 3. Put down right outside the destination's entrance, then either walk straight in or wait at the door
+      const arrive = () => {
+        this.player.mesh.position.copy(targetPos);
+        this.player.position.copy(targetPos);
+        this.player.mesh.rotation.y = 0;
+        this.player.stopMoving();
+        this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
+        if (enterInside && dest.isEnterable) {
+          setTimeout(() => this.onEnterInterior?.(dest.interiorId), 50);
+        } else if (spot) {
+          this.showInteractionCard(spot);
+        } else {
+          this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}!${dest.isEnterable ? ' Press [E] to enter.' : ''}`);
+        }
+      };
+      // An okada, a keke, a cab or the player's own car comes to the kerb and is paid for on getting in
+      const ridden = ['bike', 'keke', 'taxi', 'car'].includes(transport.mode) && !!this.onJourney;
+      if (ridden) {
+        if (!this.onJourney!(dest, transport, arrive)) return false;
+        if (transport.fare > 0) emitGameEvent('drive', { city: this.world?.cityManager.currentCityId });
+      }
+
       // 1. If transport requires fare, deduct cash from wallet
-      if (transport.fare > 0) {
+      if (!ridden && transport.fare > 0) {
         const success = this.backend.spendCash(
           transport.fare,
           `Transport (${transport.label}) to ${dest.name}`,
@@ -1128,25 +1150,7 @@ export class HUD {
       this.worldMapUI.close();
       UIStateManager.getInstance().setMode('street');
       this.onNavigateMode?.('street');
-
-      // 3. Put down right outside the destination's entrance, then either walk straight in or wait at the door
-      const arrive = () => {
-        this.player.mesh.position.copy(targetPos);
-        this.player.position.copy(targetPos);
-        this.player.mesh.rotation.y = 0;
-        this.player.stopMoving();
-        this.updateLocation(dest.name, `${dest.category} • ${dest.districtName}`);
-        if (enterInside && dest.isEnterable) {
-          setTimeout(() => this.onEnterInterior?.(dest.interiorId), 50);
-        } else if (spot) {
-          this.showInteractionCard(spot);
-        } else {
-          this.showNotification(`${transport.icon} Arrived via ${transport.label} at ${dest.name}!${dest.isEnterable ? ' Press [E] to enter.' : ''}`);
-        }
-      };
-      // An okada, a keke, a cab or the player's own car is ridden there: the trip is played, then the arrival
-      if (['bike', 'keke', 'taxi', 'car'].includes(transport.mode) && this.onJourney?.(dest, transport, arrive)) return true;
-      arrive();
+      if (!ridden) arrive();
       return true;
     };
 

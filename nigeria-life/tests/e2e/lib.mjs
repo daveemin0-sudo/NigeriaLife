@@ -72,6 +72,8 @@ export async function open(ctx, opts = {}) {
       if (h < 9 || h >= 21) sky.setHour(12);
     }, 10);
   });
+  // Suites about what a ride does once under way skip the drive up to the kerb; `ridepickup` tests that itself
+  if (!opts.realPickup) await page.evaluateOnNewDocument(() => { window.__nlInstantPickup = true; });
   if (opts.before) await page.evaluateOnNewDocument(opts.before);
   await page.goto(opts.url || GAME_URL, { waitUntil: 'load', timeout: 120000 });
   await page.waitForFunction('window.game', { timeout: 120000 });
