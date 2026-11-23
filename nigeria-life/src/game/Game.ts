@@ -633,6 +633,7 @@ export class Game {
     this.roadRideExperience = new RoadRideExperience();
     this.scene.add(this.roadRideExperience.group);
     this.scene.add(this.rideAtKerb.group);
+    this.rideAtKerb.poseDriver = (delta) => this.roadRideExperience.poseDriver(delta);
     this.rideBar = new RideBar(this.rides);
     // The player rides as themselves: their own figure sits in the back, or behind the okada man
     this.roadRideExperience.passengerLook = () => createHumanForConfig(this.player.config);
@@ -1578,7 +1579,9 @@ export class Game {
         const cruise = vehicle.mode === 'bike' ? 9.5 : vehicle.mode === 'keke' ? 7.5 : 9;
         // Turned to the kerb, so the player watches it come
         this.cameraManager.lookTowards(here, kerb.x, kerb.z);
-        return this.rideAtKerb.start(body, kerb, room, cruise);
+        const seconds = this.rideAtKerb.start(body, kerb, room, cruise);
+        this.roadRideExperience.seatDriver(body, vehicle.mode);
+        return seconds;
       },
       driverEta: () => this.rideAtKerb.eta,
       walkToDriver: (inside) => {

@@ -4,6 +4,7 @@ import { WorldMapPrefabs } from '../world/map/WorldMapPrefabs';
 import type { HumanRig } from '../graphics/HumanMeshBuilder';
 import { RideStreet, LANES } from './RideStreet';
 import { buildRideCar, buildRideKeke, buildRideOkada, holdOn, seatPassenger, type RideVehicle } from './RideModels';
+import { RideDriver } from './RideDriver';
 import { Builder } from '../world/kit/ArchKit';
 import { showGameToast } from '../ui/GameToast';
 import { SoundEngine } from '../audio/SoundEngine';
@@ -25,6 +26,9 @@ export class RoadRideExperience {
   /** Each city's road, kept once built */
   private readonly streets = new Map<string, RideStreet>();
   private readonly rides = new Map<string, RideVehicle>();
+  /** The real character at the controls of whichever vehicle is out */
+  private readonly driverModel = new RideDriver();
+  private headTurn = 0;
   private ride: RideVehicle | null = null;
   /** The player's own figure, to sit them in the vehicle; given by the game */
   public passengerLook: (() => HumanRig | null) | null = null;
@@ -609,6 +613,7 @@ export class RoadRideExperience {
     }
     vehicle.body.position.set(0, 0, 0);
     for (const other of this.rides.values()) other.body.visible = other === vehicle;
+    this.seatDriver(vehicle, String(ride.vehicleType));
     this.ride = vehicle;
     // A taxi or a car has its stereo on; an okada and a keke have the street
     const sound = SoundEngine.getInstance();
@@ -642,8 +647,21 @@ export class RoadRideExperience {
     ride.body.position.y = Math.abs(Math.sin(t * 9)) * 0.008 * Math.min(1, this.speed / 4);
     for (const wheel of ride.wheels) wheel.rotation.x += (this.speed * delta) / ride.wheelRadius;
     // The driver looks about now and then
-    ride.driver.rig.head.rotation.y = Math.sin(t * 0.5) > 0.85 ? 0.45 : Math.sin(t * 0.31) > 0.9 ? -0.35 : 0;
-    holdOn(ride);
+    const look = Math.sin(t * 0.5) > 0.85 ? 0.45 : Math.sin(t * 0.31) > 0.9 ? -0.35 : 0;
+    this.headTurn += (look - this.headTurn) * Math.min(1, delta * 4);
+    if (!this.driverModel.pose(delta, this.headTurn)) {
+      ride.driver.rig.head.rotation.y = look;
+      holdOn(ride);
+    }
+  }
+
+  /** The driver's model at the controls of this vehicle (also while it comes up the street) */
+  public seatDriver(vehicle: RideVehicle, type: string): void {
+    this.driverModel.seat(vehicle, this.rideKind(type));
+  }
+
+  public poseDriver(delta: number): boolean {
+    return this.driverModel.pose(delta);
   }
 
   /** Where the camera is for this view: fixed to the vehicle, wide enough on a tall phone screen */

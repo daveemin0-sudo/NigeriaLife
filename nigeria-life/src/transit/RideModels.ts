@@ -4,6 +4,7 @@ import { HumanMeshBuilder, type HumanConfig, type HumanRig } from '../graphics/H
 import { buildKitCar, plainWheel } from '../world/vehicles/KitCar';
 import { bakeToGeometry, bakingPeopleAsModels } from '../graphics/MeshBaker';
 import type { CarSpec } from '../world/vehicles/CarBodyKit';
+import { buildCarCabin } from './CarCabin';
 
 /**
  * What a ride is made of: the vehicle, the driver sitting in it with his hands on the wheel
@@ -233,48 +234,11 @@ export function buildRideCar(specId: string, paint: number | undefined, taxi: bo
   const trim = taxi ? 0x2a2a2e : 0x1c1f24;
   const fabric = taxi ? 0x4a3f36 : tall ? 0x3b2a20 : 0x2f3238;
   const b = new Builder();
-  // Floor and roof lining
-  b.box(0x26272b, s.width - 0.24, 0.04, cabinFront - cabinBack, 0, floorY, (cabinFront + cabinBack) / 2);
-  b.box(taxi ? 0x6f675d : 0x7a756c, s.width * (1 - s.tumblehome) - 0.18, 0.04, s.screenTop - s.backTop - 0.1, 0, s.roof - 0.12, (s.screenTop + s.backTop) / 2);
-  // The dome light and the grab handles
-  b.box(0xfef9c3, 0.22, 0.03, 0.12, 0, s.roof - 0.15, (s.screenTop + s.backTop) / 2 + 0.2, { glow: true });
-  for (const side of [-1, 1]) b.box(0x3f3f46, 0.03, 0.03, 0.2, side * (s.width * (1 - s.tumblehome) / 2 - 0.16), s.roof - 0.22, rearHipZ + 0.1);
-  // The dashboard: the deck under the windscreen, the face toward the driver, the hood over the dials
-  b.box(trim, s.width - 0.12, 0.34, 0.55, 0, s.belt - 0.32, s.screenFoot - 0.24);
-  b.box(trim, s.width - 0.2, 0.3, 0.3, 0, floorY + 0.12, s.screenFoot - 0.3);
-  b.box(0x101114, 0.48, 0.09, 0.22, driverX, s.belt + 0.01, dashBack + 0.1, { pitch: -0.2 });
-  // Dials, the screen in the middle, the vents
-  for (const dx of [-0.1, 0.1]) b.cylinder(0x9ad8ff, 0.065, 0.01, driverX + dx, s.belt - 0.12, dashBack - 0.002, { pitch: Math.PI / 2, glow: true, sides: 18 });
-  b.box(0x38bdf8, 0.26, 0.15, 0.02, 0, s.belt - 0.16, dashBack - 0.01, { glow: true });
-  for (const dx of [-0.42, -0.14, 0.14, 0.42]) b.box(0x0a0a0a, 0.13, 0.05, 0.02, dx * (s.width / 1.8), s.belt - 0.06, dashBack - 0.012);
-  // The console between the front seats, the gear lever, the handbrake
-  b.box(trim, 0.24, 0.26, 0.75, 0, floorY, hipZ + 0.3);
-  b.cylinder(0x3f3f46, 0.015, 0.18, 0, floorY + 0.26, hipZ + 0.5).cylinder(0x18181b, 0.035, 0.05, 0, floorY + 0.44, hipZ + 0.5);
-  // Seats: two in front, a bench behind, each with a back and a headrest
-  const seat = (x: number, z: number, w: number) => {
-    b.box(fabric, w, 0.13, 0.5, x, seatY - 0.13, z + 0.05);
-    b.box(fabric, w, 0.64, 0.13, x, seatY - 0.02, z - 0.27, { pitch: -0.2 });
-  };
-  seat(driverX, hipZ, 0.5);
-  seat(-driverX, hipZ, 0.5);
-  for (const x of [driverX, -driverX]) b.box(fabric, 0.24, 0.16, 0.1, x, seatY + 0.66, hipZ - 0.42, { pitch: -0.2 });
-  seat(0, rearHipZ, s.width - 0.36);
-  // Door cards with an armrest and a handle, one each side
-  for (const side of [-1, 1]) {
-    const x = side * (s.width / 2 - 0.2);
-    b.box(trim, 0.05, s.belt - floorY - 0.02, cabinFront - cabinBack - 0.1, x, floorY, (cabinFront + cabinBack) / 2);
-    b.box(fabric, 0.1, 0.05, 0.6, x - side * 0.05, seatY + 0.2, hipZ + 0.05);
-    b.box(0xd4d4d8, 0.03, 0.03, 0.12, x - side * 0.03, s.belt - 0.12, hipZ + 0.4);
-  }
-  // The sills along the bottom of the windows, from the door cards out to the body
-  for (const side of [-1, 1]) b.box(trim, 0.24, 0.035, cabinFront - cabinBack + 0.2, side * (s.width / 2 - 0.13), s.belt - 0.04, (cabinFront + cabinBack) / 2);
-  // The mirror, and the rosary and the little green tree hanging from it
-  b.box(0x18181b, 0.03, 0.08, 0.03, 0, s.roof - 0.2, s.screenTop - 0.05);
-  b.box(0x111111, 0.26, 0.075, 0.035, 0, s.roof - 0.27, s.screenTop - 0.08);
-  for (let i = 0; i < 7; i++) b.box(0x7c2d12, 0.016, 0.016, 0.016, -0.03 + Math.abs(i - 3) * 0.012 * (i < 3 ? -1 : 1), s.roof - 0.3 - Math.min(i, 6 - i) * 0.03, s.screenTop - 0.08);
-  b.box(0x16a34a, 0.035, 0.05, 0.006, 0.05, s.roof - 0.4, s.screenTop - 0.08);
-  // Sun visors
-  for (const x of [driverX, -driverX]) b.box(trim, 0.42, 0.02, 0.18, x, s.roof - 0.16, s.screenTop - 0.14);
+  buildCarCabin(b, s, {
+    floorY, seatY, driverX, dashBack, hipZ, rearHipZ, cabinFront, cabinBack, trim, fabric,
+    insert: taxi ? 0x5d5247 : tall ? 0x4b3527 : 0x24262b,
+    lining: taxi ? 0xb7b0a4 : 0xc4beb2,
+  });
   const cabin = b.build('cabin', { roughness: 0.7 });
   body.add(cabin);
 
@@ -339,7 +303,7 @@ export function buildRideCar(specId: string, paint: number | undefined, taxi: bo
     driver, passenger, hideInside: [passenger], door,
     views: {
       // From the back seat, between the front seats: the driver at the wheel, the road through the windscreen
-      inside: view([-0.05, eye + 0.06, rearHipZ + 0.2], [driverX * 2, eye - 0.3, 7], 70),
+      inside: view([-0.05, eye + 0.03, rearHipZ + 0.08], [driverX * 1.5, eye - 0.3, 7], 58),
       chase: view([0, s.roof + 1.9, -s.length / 2 - 5.2], [0, 1.0, 5], 58),
       side: view([-(s.length / 2 + 0.6) / Math.tan(0.4), 1.5, 0.6], [0, 0.95, 0.2], 50),
     },

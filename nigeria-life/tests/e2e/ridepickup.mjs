@@ -194,6 +194,7 @@ export async function run(browser, check) {
   check('ridepickup: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
 
   // On a phone the bar is clear of everything at the top of the screen and Get in can be tapped
+  await page.close(); // two whole games at once can starve a slow machine
   const phoneCtx = await newPlayer(browser);
   const { page: phone } = await open(phoneCtx, { w: 360, h: 740, realPickup: true });
   await closeDialogs(phone);

@@ -37,6 +37,8 @@ export class RidePickup {
   private speed = 0;
   private door = 0;
   private opening: (() => void) | null = null;
+  /** Poses the real driver at the controls; false if it is not there yet (set by the game) */
+  public poseDriver: ((delta: number) => boolean) | null = null;
 
   constructor() {
     this.group.name = 'ride pickup';
@@ -102,6 +104,8 @@ export class RidePickup {
       if (this.left < 0.03) this.left = 0;
       for (const wheel of v.wheels) wheel.rotation.x += step / v.wheelRadius;
       this.place(delta);
+    } else {
+      this.poseDriver?.(delta);
     }
     if (this.opening) {
       this.door = Math.min(1, this.door + delta / DOOR_SECONDS);
@@ -149,6 +153,6 @@ export class RidePickup {
     v.body.rotation.set(0, yaw + turn, 0);
     if (v.lane === 'kerb') v.steer.rotation.set(v.steer.rotation.x, turn * 1.4, 0);
     else v.steer.rotation.z = turn * 3;
-    if (delta > 0 || this.left <= 0) holdOn(v);
+    if ((delta > 0 || this.left <= 0) && !this.poseDriver?.(delta)) holdOn(v);
   }
 }
