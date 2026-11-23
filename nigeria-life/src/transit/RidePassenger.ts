@@ -104,7 +104,10 @@ export class RidePassenger {
     this.detach();
     this.attached = ride;
     handle.applyAppearance(config);
-    for (const child of ride.passenger.children) child.visible = false;
+    // Drop the baked fallback once the live figure is ready (rides expects a single passenger child)
+    for (const child of [...ride.passenger.children]) {
+      if (child !== this.holder) ride.passenger.remove(child);
+    }
     ride.passenger.add(this.holder);
     this.holder.visible = true;
     this.holder.scale.setScalar(SCALE);
