@@ -102,6 +102,7 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
   },
   // Weak phones (A16-class and below): pixel ratio 1, short distances, player as only full model.
   // Shadows off — decided before first shader compile; never toggled live.
+  // Broad Street budget (measured): ≤250 draw calls and ≤110k triangles at 360×800.
   veryLow: {
     label: 'Very Low',
     pixelRatio: () => 1,
