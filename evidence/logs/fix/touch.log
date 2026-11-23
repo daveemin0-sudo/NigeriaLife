@@ -1,0 +1,18 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs touch
+
+
+--- touch ---
+PASS  touch: a phone on its first visit starts at Balanced graphics  "balanced"
+PASS  touch: pushed forward the joystick walks, and let go the player stops (no key left held)  {"forward":8.91,"afterLettingGo":0.27}
+PASS  touch: pulled back the joystick walks the other way  {"back":8.89}
+PASS  touch: a tap on the street just above the character walks there; it does not open the character's menu  {"walked":2.32,"menuOpened":false}
+PASS  touch: a tap on the character opens their menu with a close button that can be tapped and closes it; the stick steps aside meanwhile  {"menu":{"open":true,"close":{"x":272.6999969482422,"y":274.9199981689453,"reachable":true},"stickShown":false},"closed":true}
+PASS  touch: inside, the room card starts folded on a phone and one tap on its button opens it  {"folded":true,"opened":true,"foldAt":{"x":300.046875,"y":697}}
+PASS  touch: inside, every button on the place card that is on screen can be tapped (nothing on top of it)  ["▾: true","🚪 Leave: true","🛋️Decorate: true","📺Sofa & TV: true","🛏️Bed: true","🚿Water drum: true","🧊Fridge: true","🚽Toilet · master bathroom: true","🚿Shower · master bathroom: true","🚽Toilet…
+PASS  touch: after using the joystick, one tap on Bed walks all the way to the bed and its card offers sleep, which can be tapped  {"fromBed":0,"sleep":{"x":210,"y":638.0047607421875,"reachable":true},"cardSays":{"shown":true,"text":"× REST & RECOVERY Master Bed Lie down and sleep. Energy and health come back while you rest. 🛏️ …
+PASS  touch: tapping sleep puts the player to bed and their energy comes back  {"energy0":24.853587999999988,"energy1":35.590587999999975}
+PASS  touch: no errors in the page  []
+
+==== 10/10 passed ====

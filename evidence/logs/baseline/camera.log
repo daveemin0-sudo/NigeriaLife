@@ -1,0 +1,21 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs camera
+
+
+--- camera ---
+PASS  camera: desktop street FOV stays 55 deg  {"fov":55,"aspect":1.7786458333333333}
+FAIL  camera: street eye view is at head height, hides player mesh, and keeps 62 deg FOV on desktop  {"preset":"eye","meshVisible":false,"camY":1.97,"playerY":0.28,"fov":61.262205428066956,"dirZ":-0.99}
+PASS  camera: W walks forward in street first-person view  {"dist":1.17}
+PASS  camera: leaving street eye restores player mesh visibility  {"preset":"street","meshVisible":true}
+PASS  camera: Lagos street camera never ends up inside a building wall  {"lagosProbe":{"ok":true,"px":-16.298457332762478,"pz":42.12940785932786,"yawIntoWall":-3.141592653589793,"wallX":-16.298457332762478,"wallZ":39.12940785932786},"lagosCam":{"x":-16.3,"z":41.57,"inWall…
+PASS  camera: Lagos street camera does not sit inside a parked car  {"carSetup":{"ok":true,"cx":-8.5,"cz":10.00749999988824,"boxMin":[-9.905262793676581,7.125],"boxMax":[-7.094737206323421,12.889999999776482]},"carCam":{"cam":[-13.96,4.48,10.01],"inside":false}}
+PASS  camera: Abuja street camera never ends up inside a building wall  {"abujaProbe":{"ok":true,"px":22.770562748477143,"pz":26.97056274847714,"yawIntoWall":-1.5707963267948966,"wallX":19.770562748477143,"wallZ":26.97056274847714},"abujaCam":{"city":"abuja","x":21.93,"z"…
+PASS  camera: Port Harcourt street camera never ends up inside a building wall  {"phProbe":{"ok":true,"px":33.97310878027088,"pz":19.184402376762154,"yawIntoWall":-1.5707963267948966,"wallX":30.973108780270877,"wallZ":19.184402376762154},"phCam":{"city":"port_harcourt","x":33.35,…
+PASS  camera: no page errors on desktop run  []
+PASS  camera: at 320x607 portrait street horizontal FOV >= 55 deg  {"vfov":95,"aspect":0.5271828665568369,"hFov":59.8}
+PASS  camera: at 320x607 ride views (inside, chase, side) keep horizontal FOV >= 50 deg  {"rideFovs":{"inside":{"vfov":90.5,"aspect":0.527},"chase":{"vfov":88,"aspect":0.527},"side":{"vfov":88,"aspect":0.527}},"rideHoriz":{"inside":56,"chase":53.9,"side":53.9}}
+PASS  camera: no page errors on 320x607 portrait run  []
+
+==== 11/12 passed ====
+  FAILED: camera: street eye view is at head height, hides player mesh, and keeps 62 deg FOV on desktop

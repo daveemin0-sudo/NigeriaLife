@@ -1,0 +1,19 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs ridepickup
+
+
+--- ridepickup ---
+PASS  ridepickup: booking sends a real vehicle up the road, nothing is charged, and the trip has not started  {"booked":{"ok":true,"fare":4500,"name":"Murtala Muhammed International Airport (LOS)","id":"dest_lagos_airport","sent":true,"at":{"x":-3.7,"z":-6.600000000000001},"eta":6.777777777777778},"start":{"i…
+PASS  ridepickup: it drives smoothly to the kerb near the player and stops there, with a Get in button that can be tapped  {"steps":26,"motion":{"fastest":9.126895987516646,"backward":0},"stop":{"stage":"driver_here","near":4.1,"button":true,"tappable":true,"inView":true}}
+PASS  ridepickup: it waits at the kerb for the player, still unpaid  {"waits":{"stage":"driver_here","active":false},"charged":0}
+PASS  ridepickup: Get in walks the player to the door, it opens, and they are seated with the fare paid once  {"door":{"opened":true,"hadDoor":true,"fromDoor":0,"paidYet":false},"riding":{"stage":"on_trip","inRideGroup":true,"x":0,"z":0,"passenger":1,"doorHidden":true,"streetEmpty":true},"paid":4500,"fare":45…
+PASS  ridepickup: a keke booked from the map comes to the kerb and is paid only on getting in  {"asked":{"ok":true,"fare":500,"sent":true,"stage":"driver_coming"},"here":true,"going":true,"gotIn":{"ok":true,"stage":"driver_here","boarding":true,"limit":5.389851227354725,"door":{"x":-6.7,"z":44.…
+PASS  ridepickup: a okada booked from the map comes to the kerb and is paid only on getting in  {"asked":{"ok":true,"fare":800,"sent":true,"stage":"driver_coming"},"here":true,"going":true,"gotIn":{"ok":true,"stage":"driver_here","boarding":true,"limit":5.742780928587303,"door":{"x":-6.3,"z":44.…
+PASS  ridepickup: cancelled at the kerb or kept waiting too long, the vehicle goes and nothing is charged  {"cancelled":{"ride":null,"vehicle":null,"group":0,"bar":true},"left":{"ride":null,"vehicle":null},"charged":0}
+PASS  ridepickup: with no money left at the door the player is told and does not get in  {"ok":false,"reason":"The fare is ₦4,500 and you have ₦0 in all.","stage":"driver_here","active":false}
+PASS  ridepickup: where no road is near, no vehicle is pretended and the trip simply starts  {"noRoad":{"ok":true,"sent":false},"started":true}
+PASS  ridepickup: no errors in the page  []
+PASS  ridepickup: on a phone the ride bar fits the screen, nothing covers it, and Get in can be tapped  {"left":16,"right":344,"top":156,"covered":0,"tappable":"ride-getin","goHeight":34}
+
+==== 11/11 passed ====

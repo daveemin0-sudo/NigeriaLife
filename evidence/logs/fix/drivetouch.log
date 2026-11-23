@@ -1,0 +1,19 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs drivetouch
+
+
+--- drivetouch ---
+PASS  drivetouch: on a phone the pedals and the steering pad are on the screen, each big enough for a thumb  {"gas":{"x":308,"y":688,"w":76,"h":128,"left":270,"right":346},"brake":{"x":222,"y":704,"w":76,"h":96,"left":184,"right":260},"pad":{"x":96.796875,"y":706,"w":165.59375,"h":92,"left":14,"right":179.59…
+PASS  drivetouch: holding GAS pulls away (over 25 km/h in two seconds, over 60 in six) and the car stays in its lane untouched  {"after2s":58,"after6s":108,"drift":0.11,"frames":42,"fps":1.5}
+PASS  drivetouch: the chase view stays planted behind the car (its distance never jumps more than 15 cm between frames)  {"worstJump":0.078,"gapMin":11.5,"gapMax":13.78}
+PASS  drivetouch: a short touch half-way left on the pad at 50 km/h nudges the car (under 14 degrees) and it comes back to its lane (within 2 m, nearly straight), never a spin  {"peakHeadingDeg":4.7,"endHeadingDeg":-1.7,"sideways":0.09,"wheelPeak":0.45,"touchSeconds":0.15}
+PASS  drivetouch: holding the right of the pad for a second and a half at 50 km/h turns the car right by a bend (20 to 110 degrees), not round on itself  {"headingDeg":-62.3,"speedKmh":27,"wheel":-1}
+PASS  drivetouch: the pad is a slider: a finger a little right of the middle turns the wheel a little, far right turns it fully, and let go it comes back to the middle  {"wheelLittle":-0.21,"wheelLots":-1,"wheelFree":0}
+PASS  drivetouch: BRAKE from 60 km/h stops the car in a straight line in under three seconds and 30 metres, and with the pedal still down it stands for half a second before it backs up  {"seconds":1.65,"metres":13,"sideways":-0.04,"stoodSeconds":0.6}
+PASS  drivetouch: BRAKE kept down after the stop backs the car up, at no more than 35 km/h  {"speedKmh":-32.4,"wentBack":-17.8,"afterStop":3.6}
+PASS  drivetouch: with every finger off, the car rolls to rest  {"speed":-1.41}
+PASS  drivetouch: driven straight at the buildings beside the road with GAS held for six seconds, the car is stopped by them (it does not pass 30 m from the road)  {"x":-5.2,"z":-100,"speed":0,"inBuilding":false,"furthest":-5.2}
+PASS  drivetouch: no errors in the page  []
+
+==== 11/11 passed ====

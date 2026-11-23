@@ -1,0 +1,27 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs rides
+
+
+--- rides ---
+PASS  the taxi is drawn with its driver in it and the player sitting in it as themselves  {"shown":true,"driver":9,"passenger":1,"lane":"inner","kind":"taxi"}
+PASS  the taxi driver's hands stay on the wheel as they turn, the vehicle goes down the road, and no traffic drives into it  {"worstGrip":0.007,"turned":0.681,"went":69,"closest":16.87}
+PASS  the taxi's inside view is from a seat in it, with the player's own figure out of the way  {"inside":true,"onScreen":true,"ours":false,"passengerShown":false,"calls":119}
+PASS  the taxi's chase and side views frame the vehicle from outside, nothing in front of it, the player seen riding  {"chase":{"inside":false,"onScreen":true,"ours":true,"passengerShown":true,"calls":155},"side":{"inside":false,"onScreen":true,"ours":true,"passengerShown":true,"calls":122}}
+PASS  the taxi ride stays light enough for a phone (under 220 draws a frame)  {"inside":119,"chase":155,"side":122}
+PASS  the taxi ride ends with the player back on their feet  {"shown":true}
+PASS  the keke is drawn with its driver in it and the player sitting in it as themselves  {"shown":true,"driver":10,"passenger":1,"lane":"kerb","kind":"keke"}
+PASS  the keke driver's hands stay on the handlebars as they turn, the vehicle goes down the road, and no traffic drives into it  {"worstGrip":0,"turned":0.105,"went":21.1,"closest":4.6}
+PASS  the keke's inside view is from a seat in it, with the player's own figure out of the way  {"inside":true,"onScreen":false,"ours":false,"passengerShown":false,"calls":90}
+PASS  the keke's chase and side views frame the vehicle from outside, nothing in front of it, the player seen riding  {"chase":{"inside":false,"onScreen":true,"ours":true,"passengerShown":true,"calls":131},"side":{"inside":false,"onScreen":true,"ours":true,"passengerShown":true,"calls":97}}
+PASS  the keke ride stays light enough for a phone (under 220 draws a frame)  {"inside":90,"chase":131,"side":97}
+PASS  the keke ride ends with the player back on their feet  {"shown":true}
+PASS  the okada is drawn with its driver in it and the player sitting in it as themselves  {"shown":true,"driver":11,"passenger":1,"lane":"kerb","kind":"okada"}
+PASS  the okada driver's hands stay on the handlebars as they turn, the vehicle goes down the road, and no traffic drives into it  {"worstGrip":0.048,"turned":0.227,"went":70,"closest":5.13}
+PASS  the okada's inside view is from a seat in it, with the player's own figure out of the way  {"inside":true,"onScreen":false,"ours":false,"passengerShown":false,"calls":86}
+FAIL  the okada's chase and side views frame the vehicle from outside, nothing in front of it, the player seen riding  {"chase":{"inside":false,"onScreen":true,"ours":true,"passengerShown":true,"calls":110},"side":{"inside":false,"onScreen":true,"ours":false,"passengerShown":true,"calls":72}}
+PASS  the okada ride stays light enough for a phone (under 220 draws a frame)  {"inside":86,"chase":110,"side":72}
+PASS  the okada ride ends with the player back on their feet  {"shown":true}
+
+==== 17/18 passed ====
+  FAILED: the okada's chase and side views frame the vehicle from outside, nothing in front of it, the player seen riding

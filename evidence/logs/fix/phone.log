@@ -1,0 +1,47 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs phone
+
+
+--- phone ---
+PASS  the phone opens on a home screen with the time, the money really held, and a named tile for each app  {"open":true,"apps":["messages","bank","jobs","hustle","ride","shopping","property","land","garage","business","invest","health","settings","events","games","gist","cases","odds","ads","rich","yarn","…
+PASS  each app opens its own screen and Back returns to the home screen  ["messages:Messages","bank:Bank","jobs:Jobs","hustle:Hustle","ride:Ride","shopping:Shopping","property:Property","land:Land","garage:Garage","business:Business","invest:Invest","health:Health","settin…
+PASS  no app has a button that is not wired to anything  []
+PASS  a tile being pressed while the home screen updates still opens its app, and the update shows afterwards  {"redrawn":{"sameTile":true,"hunger":70.89059700000001},"landed":"Jobs"}
+PASS  a share opens from the list, Escape goes back one screen, the home bar goes home, and Escape from home puts the phone away  {"deep":"DNGC","upOne":"Invest","atHome":true,"closed":true}
+PASS  none of that tapping moved the character or the camera  {"before":{"x":-9.5,"z":45.4,"moving":false,"yaw":1.5707963267948966,"distance":8.8},"after":{"x":-9.5,"z":45.4,"moving":false,"yaw":1.5707963267948966,"distance":8.8}}
+PASS  the bank shows the real balance and the real history; filters and search narrow it and the search box keeps the keyboard  {"balance":"₦135,000","rows":1,"outRows":0,"emptyState":true,"searched":{"rows":0,"focused":"bank-search","value":"zzzz"}}
+PASS  with nobody else online, sending money explains why it cannot be done instead of offering a button  {"send":false,"text":"👥 Nobody to send to Transfers go to other players who are in the city at the same time as you. Nobody else is online right now."}
+PASS  a number typed slowly while the prices update keeps its digits in order  "125"
+PASS  buying 3 shares takes exactly the quoted cost (price plus the fee) once, and the shares are held  {"paid":9821,"quote":{"cost3":9821,"back3":9529,"price":3225},"held":{"units":3,"spent":9821},"offered":"Buy · ₦9,821"}
+PASS  the shares are still held after the game is closed and opened again  {"units":3,"spent":9821}
+PASS  more shares than are held cannot be sold; selling pays the quoted amount once and a second press pays nothing  {"oversell":true,"typedFive":"5","got":9532,"back":9532,"held":null}
+PASS  buying more than can be afforded is refused with the reason, and takes nothing  {"pressed":true,"refusal":"That costs ₦3,274,386,726 and your bank account has ₦134,711."}
+PASS  indoors, the ride app says to step outside and none of the vehicles can be booked  {"indoors":{"note":"Step outside first: the driver picks you up on the street."},"indoorsCar":{"any":3,"open":0}}
+PASS  booking a ride puts a driver on the way and takes no money yet  {"ride":{"stage":"driver_coming","card":"driver_coming"},"trip":{"id":"dest_lagos_airport","name":"Murtala Muhammed International Airport (LOS)","mode":"bike","fare":800,"x":-53,"z":6268.8}}
+PASS  cancelling before the driver arrives costs nothing and no driver turns up afterwards  {"ride":null,"delta":0}
+PASS  a second booking is refused while one is under way; when the driver arrives the fare is taken once and the trip starts  {"second":{"ok":false,"reason":"You already have a ride booked."},"picked":{"stage":"on_trip","phone":false,"where":true},"paid":800,"fare":800}
+PASS  the ride ends with the character standing at the place that was booked, and the fare was still only paid once  {"arrived":{"x":-53,"z":6268.8,"visible":true},"trip":{"id":"dest_lagos_airport","name":"Murtala Muhammed International Airport (LOS)","mode":"bike","fare":800,"x":-53,"z":6268.8}}
+PASS  ordering food sends a rider and takes no money until it arrives  {"order":{"total":11600,"card":true},"basket":"3 items · ₦11,200 + ₦400 delivery"}
+PASS  a cancelled order is never charged and never delivered  {"delta":0,"bag0":4,"bag1":4}
+PASS  when the rider arrives the order is paid for once and the food is in the bag  {"paid":9400,"delivered":{"id":"meal_jollof_pack","name":"Party jollof & plantain, packed","category":"food","icon":"🍛","description":"Smoky jollof with fried plantain and chicken, in a takeaway pack…
+PASS  eating the delivered food fills the character up and counts for the story  {"ate":{"success":true,"message":"Used Party jollof & plantain, packed! Restored energy."},"hungry":30,"fed":85.19999999999999}
+PASS  selling something from the bag pays what the app quoted and takes one of it away  {"forSale":{"id":"gala_snack","quantity":2,"worth":80},"got":80,"left":1}
+PASS  a shift above the character's rank is shown locked, is not offered, and the game refuses it too  {"rank":1,"locked":"job_office_worker","offered":false,"refused":{"success":false,"message":"Corporate Office Clerk needs career rank 2. You are rank 1: finish more shifts to move up."},"working":fals…
+PASS  a three-step job pays once, after the third step, and not again for extra presses  {"steps":[true,0,true,0,true,1,false,1],"gigPay":12500,"lastPay":12500}
+PASS  renting asks first, then takes the rent once and the flat is the character's home  {"asked":true,"notYet":true,"paid":35000,"flat":{"id":"prop_mushin_room","rent":35000,"price":9500000},"status":{"status":"rented","home":true,"goHome":true}}
+PASS  moving out asks first: Cancel keeps the flat, Yes gives it up  {"stayed":"rented","status":{"status":"available","home":false}}
+PASS  buying a home takes its price once; selling it pays back 80% once and it is on the market again  {"paid":9500000,"owned":"owned","back":7600000,"sold":"available"}
+PASS  buying a business takes its price once and it is owned  {"paid":2500000,"price":2500000,"owned":true}
+PASS  takings are collected into the bank once; with nothing left to collect the button is off  {"pendingShown":"₦7,300","got":7300,"again":false}
+PASS  an ambulance cannot be called when well; when badly hurt it takes the character to hospital, treats them and bills ₦3,500 once  {"well":true,"treated":{"health":70.10374999999999,"where":"hospital"},"paid":3500}
+PASS  the sound switch really turns the game sound off and on, and shows which  {"sound0":{"muted":false,"shown":"true"},"sound1":{"muted":true,"shown":"false"}}
+PASS  only people the character has met are contacts; a message is sent, the box clears and keeps the keyboard, and they answer a moment later  {"strangers":0,"listed":true,"sent":{"thread":["me"],"field":"","focused":"chat-input"},"replied":{"thread":["me","them"],"bubbles":2,"unread":0},"who":{"id":"npc:bet-customer","name":"Segun"}}
+PASS  an unread reply shows as a badge on the Messages tile, the conversation is saved, and opening it clears the badge  {"badge":"1","kept":{"thread":4,"unread":1},"read":0}
+PASS  sending more than the account holds is refused and nothing moves  {"tooMuch":"You have ₦90,000 in the bank, which is not enough to send ₦999,999,999.","untouched":true}
+PASS  a transfer leaves the sender's bank account once and arrives in the other player's bank account once  {"sent":12500,"received":12500}
+PASS  after sending, the app is back on the account with the amount box cleared, so a second press cannot repeat it  {"title":"Bank","amount":""}
+PASS  a private message reaches the other player's phone and does not appear in street chat  {"unread":1,"last":"Check your account","street":false}
+PASS  phone: no console errors  []
+
+==== 39/39 passed ====
