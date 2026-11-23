@@ -202,6 +202,14 @@ export class Economy {
       const paid = this.payTakings(accountId, cash, bank, memo, idem);
       if (paid) return paid;
     }
+    // Dollars or pounds sold back at the bureau: paid at once while the naira back is within what they paid in there
+    if (net > 0 && /^FX_SALE:/.test(memo)) {
+      const row = this.db.prepare(`SELECT
+        COALESCE(-SUM(CASE WHEN memo LIKE 'FX_PURCHASE:%' THEN cash_delta + bank_delta ELSE 0 END), 0) AS bought,
+        COALESCE(SUM(CASE WHEN memo LIKE 'FX_SALE:%' THEN cash_delta + bank_delta ELSE 0 END), 0) AS sold
+        FROM ledger WHERE account_id = ?`).get(accountId) as { bought: number; sold: number };
+      if (row.sold + net <= row.bought) return this.apply(accountId, 'bureau', cash, bank, memo, true, idem);
+    }
     if (net > 0) {
       const already = this.earnedSince(accountId, Date.now() - TEN_MINUTES, true);
       if (already + net > UNVERIFIED_EARNING_LIMIT) {

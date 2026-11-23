@@ -14,6 +14,7 @@ import { NaijaBeats, type Song } from '../../audio/NaijaBeats';
 import { MALE } from '../../audio/StreetAmbience';
 import type { PlaceHost } from '../../destinations/PlaceActions';
 import type { PlaceInterior } from './PlaceInterior';
+import { askAmount } from '../../ui/AmountSheet';
 
 /**
  * Churches and the mosque, alive. A service goes round all the time the doors are open, so
@@ -1140,6 +1141,11 @@ class Church {
       who: 'Offering', role: this.room.spec.name, text: 'God loves a cheerful giver. How much do you bring?',
       choices: [
         ...[1000, 5000, 20000, 100000].map((amount) => ({ label: amount >= 100000 ? `A thanksgiving offering of ${naira(amount)}` : `Dance forward with ${naira(amount)}`, note: amount >= 100000 ? 'Social +30, Fun +20' : 'Social +10, Fun +10', pick: () => this.danceOffering(host, amount) })),
+        { label: 'Give any amount', note: 'You choose', pick: () => askAmount({
+          who: 'Offering', role: this.room.spec.name, text: 'How much do you bring?', action: 'Give',
+          most: host.backend.getData().walletCash + host.backend.getData().bank.balance,
+          pick: (amount) => this.danceOffering(host, amount),
+        }) },
         { label: 'Not now', pick: () => undefined },
       ],
     });
@@ -1501,7 +1507,7 @@ class Mosque {
       label: () => '🤲 Give sadaqah',
       run: (host) => host.ask({
         who: 'Charity box', role: this.room.spec.name, text: 'For the poor and those in need.',
-        choices: [...[1000, 5000, 20000].map((amount) => ({ label: `Give ${naira(amount)}`, note: 'Social +8', pick: () => this.give(host, amount) })), { label: 'Not now', pick: () => undefined }],
+        choices: [...[1000, 5000, 20000].map((amount) => ({ label: `Give ${naira(amount)}`, note: 'Social +8', pick: () => this.give(host, amount) })), { label: 'Give any amount', note: 'Social +8', pick: () => askAmount({ who: 'Charity box', role: this.room.spec.name, text: 'How much are you giving?', action: 'Give', most: host.backend.getData().walletCash + host.backend.getData().bank.balance, pick: (amount) => this.give(host, amount) }) }, { label: 'Not now', pick: () => undefined }],
       }),
     });
   }

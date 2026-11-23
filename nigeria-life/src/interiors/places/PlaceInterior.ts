@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { askAmount } from '../../ui/AmountSheet';
 import { Sequence, steps } from '../../interactions/Sequence';
 import type { InteriorDefinition, InteriorNPCDef } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
@@ -34,6 +35,20 @@ import { attachEkoMotors } from '../../vehicles/Motors';
  * hands at that moment.
  */
 
+/** A choice where the player types how much (the bureau, the tithes desk) */
+export interface StationAmount {
+  ask: string;
+  action: string;
+  symbol?: string;
+  /** The most they can do now */
+  most: (backend: BackendService) => number;
+  /** What this amount comes to, shown as they type */
+  worth?: (amount: number) => string;
+  /** Moves the money; false if it could not be done */
+  effect: (backend: BackendService, amount: number) => void | boolean;
+  said: (amount: number) => string;
+}
+
 export interface StationChoice {
   label: string;
   note?: string;
@@ -54,6 +69,8 @@ export interface StationChoice {
   needItem?: string;
   /** Something the game opens instead (the State House, the jobs app) */
   open?: string;
+  /** Asks how much first, then is acted out as any other choice */
+  amount?: StationAmount;
   said?: string;
 }
 
@@ -445,6 +462,10 @@ export class PlaceInterior {
             PlaceOpeners.open(c.open, host);
             return;
           }
+          if (c.amount) {
+            this.askHowMuch(st, c, c.amount, host);
+            return;
+          }
           if (c.look && c.price && !host.backend.canPay(c.price)) {
             host.say(`That is ₦${c.price.toLocaleString()}. You do not have enough.`, 'warning');
             return;
@@ -482,6 +503,27 @@ export class PlaceInterior {
           if (meal && done.ok && done.sequence) this.serve(c, host, done.sequence);
         },
       })),
+    });
+  }
+
+  /** Asks how much, then acts it out at the station; the money moves at the hand-over */
+  private askHowMuch(st: StationSpec, c: StationChoice, a: StationAmount, host: PlaceHost): void {
+    askAmount({
+      who: st.who, role: st.role, text: a.ask, action: a.action, symbol: a.symbol, most: a.most(host.backend), worth: a.worth,
+      pick: (amount) => {
+        const typed: StationChoice = { label: c.label, arms: c.arms, seconds: c.seconds, effect: (backend) => a.effect(backend, amount), said: a.said(amount) };
+        host.director.perform({
+          id: `${st.id} ${c.label}`,
+          actor: host.actor,
+          point: this.world(st.stand[0], st.stand[1]),
+          target: this.world(st.at[0], st.at[1]),
+          animation: { arms: c.arms ?? 'reach', legs: 'stand' },
+          seconds: c.seconds ?? 2,
+          effectAt: 0.6,
+          ifStuck: 'snap',
+          effect: () => this.settle(typed, host),
+        });
+      },
     });
   }
 

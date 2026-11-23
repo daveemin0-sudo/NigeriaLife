@@ -4,6 +4,7 @@ import { showGameToast } from './GameToast';
 import { SoundEngine } from '../audio/SoundEngine';
 import { UIStateManager } from './UIStateManager';
 import { draw, forget } from './kit/StableView';
+import { askAmount } from './AmountSheet';
 
 export class ATMModal {
   private container: HTMLDivElement;
@@ -80,12 +81,14 @@ export class ATMModal {
             <button class="atm-btn" data-withdraw="10000">Withdraw ₦10,000</button>
             <button class="atm-btn" data-withdraw="20000">Withdraw ₦20,000</button>
             <button class="atm-btn" data-withdraw="50000">Withdraw ₦50,000</button>
+            <button class="atm-btn atm-btn--any" id="atm-any-withdraw">Type any amount</button>
           </div>
 
           <div class="atm-section-title">Cash Deposit (POS / Branch)</div>
           <div class="atm-grid">
             <button class="atm-btn deposit-btn" data-deposit="5000">Deposit ₦5,000</button>
             <button class="atm-btn deposit-btn" data-deposit="10000">Deposit ₦10,000</button>
+            <button class="atm-btn deposit-btn atm-btn--any" id="atm-any-deposit">Type any amount</button>
           </div>
 
           <!-- Recent Transactions -->
@@ -128,33 +131,45 @@ export class ATMModal {
     // Withdrawals
     const withdrawBtns = this.container.querySelectorAll('[data-withdraw]');
     withdrawBtns.forEach((btn) => {
-      (btn as HTMLElement).onclick = () => {
-        const amount = Number((btn as HTMLElement).getAttribute('data-withdraw'));
-        const success = this.backend.withdrawFromATM(amount);
-        if (success) {
-          SoundEngine.getInstance().playTransactionSuccess();
-          showGameToast(`💸 Dispensing ₦${amount.toLocaleString()} cash from ATM! Check your wallet.`, 'success');
-          this.onCashMoved?.('withdraw');
-        } else {
-          showGameToast('❌ Insufficient funds in bank account!', 'error');
-        }
-      };
+      (btn as HTMLElement).onclick = () => this.withdraw(Number((btn as HTMLElement).getAttribute('data-withdraw')));
+    });
+    const anyOut = document.getElementById('atm-any-withdraw');
+    if (anyOut) anyOut.onclick = () => askAmount({
+      who: 'Cash withdrawal', role: 'Eko Commercial Bank', text: 'How much do you want to take out?', action: 'Withdraw',
+      most: this.backend.getData().bank.balance,
+      pick: (amount) => this.withdraw(amount),
     });
 
     // Deposits
     const depositBtns = this.container.querySelectorAll('[data-deposit]');
     depositBtns.forEach((btn) => {
-      (btn as HTMLElement).onclick = () => {
-        const amount = Number((btn as HTMLElement).getAttribute('data-deposit'));
-        const success = this.backend.depositToBank(amount);
-        if (success) {
-          SoundEngine.getInstance().playTransactionSuccess();
-          showGameToast(`✅ Deposited ₦${amount.toLocaleString()} cash into your bank account!`, 'success');
-          this.onCashMoved?.('deposit');
-        } else {
-          showGameToast('❌ Not enough cash in your pocket wallet!', 'error');
-        }
-      };
+      (btn as HTMLElement).onclick = () => this.deposit(Number((btn as HTMLElement).getAttribute('data-deposit')));
     });
+    const anyIn = document.getElementById('atm-any-deposit');
+    if (anyIn) anyIn.onclick = () => askAmount({
+      who: 'Cash deposit', role: 'Eko Commercial Bank', text: 'How much cash are you paying in?', action: 'Deposit',
+      most: this.backend.getData().walletCash,
+      pick: (amount) => this.deposit(amount),
+    });
+  }
+
+  private withdraw(amount: number): void {
+    if (this.backend.withdrawFromATM(amount)) {
+      SoundEngine.getInstance().playTransactionSuccess();
+      showGameToast(`💸 Dispensing ₦${amount.toLocaleString()} cash from ATM! Check your wallet.`, 'success');
+      this.onCashMoved?.('withdraw');
+    } else {
+      showGameToast('❌ Insufficient funds in bank account!', 'error');
+    }
+  }
+
+  private deposit(amount: number): void {
+    if (this.backend.depositToBank(amount)) {
+      SoundEngine.getInstance().playTransactionSuccess();
+      showGameToast(`✅ Deposited ₦${amount.toLocaleString()} cash into your bank account!`, 'success');
+      this.onCashMoved?.('deposit');
+    } else {
+      showGameToast('❌ Not enough cash in your pocket wallet!', 'error');
+    }
   }
 }

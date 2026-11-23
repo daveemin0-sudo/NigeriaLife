@@ -8,6 +8,7 @@ import { BackendService } from '../../backend/BackendService';
 import { profileKey } from '../../backend/Profile';
 import type { PlaceHost } from '../../destinations/PlaceActions';
 import { type OpeningHours, PLACE_HOURS, isOpen, clockTime } from '../../destinations/Hours';
+import { askAmount } from '../../ui/AmountSheet';
 
 /** Where everything stands in the club, measured from the middle of the room. The door is in the south wall. */
 export const CLUB = {
@@ -347,6 +348,7 @@ export class ClubService {
         { label: 'Sit at your table', pick: () => this.sitInLounge(host) },
         ...(this.bottles > 0 ? [{ label: 'Pop a bottle', note: `${this.bottles} to pop`, pick: () => this.popBottle(host) }] : []),
         ...[1_000_000, 5_000_000, 20_000_000].map((amount) => ({ label: `Spray ${naira(amount)}`, note: 'In ₦1,000 notes', pick: () => this.spray(host, amount) })),
+        { label: 'Spray any amount', note: 'You choose', pick: () => askAmount({ who: 'Your table', role: CLUB.name, text: 'How much are you spraying?', action: 'Spray', least: 1000, most: this.backend.getData().walletCash + this.backend.getData().bank.balance, pick: (amount) => this.spray(host, amount) }) },
         ...TABLES.filter((t) => t.host && !this.hosting).map((t) => ({ label: t.name, note: naira(t.price), pick: () => this.buyTable(host, t) })),
       ],
     });

@@ -16,6 +16,7 @@ import { Dues, dayLabel } from '../../life/Dues';
 import { monthBands, monthLabel, monthRelief, RENT_RELIEF_CAP, VAT_RATE, type Payslip, type TaxBook } from '../../life/Tax';
 import { OnlineAccount } from '../../online/OnlineAccount';
 import { Police } from '../../life/Police';
+import { parseAmount } from '../../life/Amounts';
 
 // ============================================================================================
 // Bank
@@ -72,7 +73,7 @@ export const bankApp: PhoneApp = {
             <div class="nl-label">From</div>
             ${chips('bank.from', from, [['bank', `Bank · ${naira(data.bank.balance)}`], ['wallet', `Cash · ${naira(data.walletCash)}`]])}
             <label class="nl-label" for="bank-amount">Amount</label>
-            <input class="nl-field" id="bank-amount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="₦" value="${esc(amount)}" data-bind="bank.amount" />
+            <input class="nl-field" id="bank-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="₦ 5000, 2.5m, 3 billion" value="${esc(amount)}" data-bind="bank.amount" />
             <div class="nl-hint">You can send up to ${naira(available)}.</div>
             <button class="nl-btn nl-btn--primary nl-btn--block" id="bank-send-btn" data-act="send">Send</button>
           `,
@@ -149,7 +150,7 @@ export const bankApp: PhoneApp = {
     if (action === 'send') {
       const net = NetworkManager.getInstance();
       const to = host.get('bank.to', '') || (net?.getOnlinePlayersList() ?? []).find((p) => !p.isLocal)?.id || '';
-      const amount = wholeNumber(host.get('bank.amount', ''));
+      const amount = parseAmount(host.get('bank.amount', ''));
       const from = host.get<'bank' | 'wallet'>('bank.from', 'bank');
       if (!net || !to) return host.say('Choose who to send it to.', 'bad');
       if (!Number.isFinite(amount) || amount <= 0) return host.say('Enter an amount to send.', 'bad');

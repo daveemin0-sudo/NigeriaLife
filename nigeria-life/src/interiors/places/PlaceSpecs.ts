@@ -193,6 +193,49 @@ const venue = (key: string, name: string, district: string, sub: string, bg: str
   key, name, district, room: { width: size[0], length: size[1], height: 5, floor, wall }, sign: { text: name.toUpperCase(), sub, bg }, build: extra, staff, stations, regulars,
 });
 
+const pocketAndBank = (be: { getData(): { walletCash: number; bank: { balance: number } } }) => be.getData().walletCash + be.getData().bank.balance;
+
+/** Any amount of dollars or pounds, bought or sold at the bureau */
+const anyHard = (verb: 'buy' | 'sell', kind: 'usd' | 'gbp'): StationChoice => {
+  const name = kind === 'usd' ? 'dollars' : 'pounds';
+  const rate = verb === 'buy' ? FX_BUY[kind] : FX_SELL[kind];
+  const symbol = kind === 'usd' ? '$' : '£';
+  return {
+    label: `${verb === 'buy' ? 'Buy' : 'Sell'} any amount of ${name}`,
+    note: `${symbol}1 = ₦${rate.toLocaleString()}`,
+    arms: 'reach',
+    seconds: 2,
+    amount: {
+      ask: `How many ${name}? Today ${symbol}1 = ₦${rate.toLocaleString()}.`,
+      action: verb === 'buy' ? 'Buy' : 'Sell',
+      symbol,
+      most: (be) => (verb === 'buy' ? Math.floor(pocketAndBank(be) / rate) : be.hardCash()[kind]),
+      worth: (units) => (verb === 'buy' ? `costs ₦${buyCost(kind, units).toLocaleString()}` : `pays ₦${sellProceeds(kind, units).toLocaleString()}`),
+      effect: (be, units) => (verb === 'buy' ? be.buyHard(kind, units) : be.sellHard(kind, units)),
+      said: (units) => (verb === 'buy' ? `${formatHard(kind, units)} counted into your pocket.` : `${formatHard(kind, units)} taken. ₦${sellProceeds(kind, units).toLocaleString()} in your pocket.`),
+    },
+  };
+};
+
+/** Any amount of dollars or pounds sprayed on the floor */
+const anySpray = (s: (typeof SPRAY_HARD)[number]): StationChoice => {
+  const name = s.kind === 'usd' ? 'dollars' : 'pounds';
+  return {
+    label: `Spray any amount of ${name}`,
+    note: `Fun +${s.fun} · Social +${s.social}`,
+    arms: 'wave',
+    seconds: 3,
+    amount: {
+      ask: `How many ${name} are you spraying?`,
+      action: 'Spray',
+      symbol: s.kind === 'usd' ? '$' : '£',
+      most: (be) => be.hardCash()[s.kind],
+      effect: (be, units) => be.sprayHard(s.kind, units, { fun: s.fun, social: s.social }),
+      said: (units) => `Crisp ${formatHard(s.kind, units)} raining on the dancefloor. The roof knows your name.`,
+    },
+  };
+};
+
 const SPECS: PlaceSpec[] = [
   MARKET,
   buka('amala-shitta', 'Amala Shitta', 'Surulere · buka', 'Amala · Ewedu · Gbegiri · Assorted'),
@@ -238,6 +281,7 @@ const SPECS: PlaceSpec[] = [
           be.sprayHard(s.kind, s.units, { fun: s.fun, social: s.social }),
         said: `Crisp ${formatHard(s.kind, s.units)} raining on the dancefloor. The roof knows your name.`,
       })),
+      ...SPRAY_HARD.map(anySpray),
       { label: 'Ask where to change money', note: 'Free', arms: 'talk' as const, seconds: 2, effect: () => {}, said: '"Victoria Island bureau de change, near here. Change naira for dollars or pounds, then come spray."' },
     ] },
   ], [{ at: [2, 2.2], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [-2, 2.2], facing: Math.PI, outfit: 0xdc2626, sit: true }]),
@@ -501,6 +545,8 @@ const SPECS: PlaceSpec[] = [
         effect: (be: { buyHard(kind: 'usd' | 'gbp', units: number): boolean }) => be.buyHard(b.kind, b.units),
         said: `${formatHard(b.kind, b.units)} counted into your pocket. Keep them for the roof.`,
       })),
+      anyHard('buy', 'usd'),
+      anyHard('buy', 'gbp'),
       { label: 'Ask the rates', note: 'Free', arms: 'talk' as const, seconds: 2, effect: () => {}, said: `"Buy: $1 = ₦${FX_BUY.usd.toLocaleString()}, £1 = ₦${FX_BUY.gbp.toLocaleString()}. Sell a little lower. Spray dollars at Ivory Rooftop — that is how ballers move."` },
     ] },
     { id: 'sell', name: '💷 Sell hard currency', at: [3, -5], stand: [3, -3.6], who: 'Aboki Tunde', role: 'Bureau dealer', text: `Selling today: $1 = ₦${FX_SELL.usd.toLocaleString()}, £1 = ₦${FX_SELL.gbp.toLocaleString()}.`, choices: [
@@ -512,6 +558,8 @@ const SPECS: PlaceSpec[] = [
         effect: (be: { sellHard(kind: 'usd' | 'gbp', units: number): boolean }) => be.sellHard(b.kind, b.units),
         said: `${formatHard(b.kind, b.units)} taken. ₦${sellProceeds(b.kind, b.units).toLocaleString()} in your pocket.`,
       })),
+      anyHard('sell', 'usd'),
+      anyHard('sell', 'gbp'),
     ] },
   ], [{ at: [-2, 5], facing: Math.PI, outfit: 0xf59e0b, sit: true }], [18, 16]),
 ];
@@ -677,7 +725,16 @@ const IKEJA: PlaceSpec[] = [
     screen(b, -9, -11.8, 5, 2.4, 3.4, 0x38bdf8); screen(b, 9, -11.8, 5, 2.4, 3.4, 0x38bdf8);
     b.box(0x1e3a8a, 1.6, 0.9, 0.7, 9, 0, 9);
   }, [], [
-    { id: 'tithe', name: '📒 Tithes desk', at: [9, 9], stand: [9, 7.7], who: 'Church office', role: 'Faith Arena', text: 'Tithes and pledges, with a receipt.', choices: [{ label: 'Pay your tithe', price: 100000, note: 'Social +25', effect: need({ social: 25 }), said: 'Recorded, with a receipt and a prayer.' }] },
+    { id: 'tithe', name: '📒 Tithes desk', at: [9, 9], stand: [9, 7.7], who: 'Church office', role: 'Faith Arena', text: 'Tithes and pledges, with a receipt.', choices: [{ label: 'Pay your tithe', price: 100000, note: 'Social +25', effect: need({ social: 25 }), said: 'Recorded, with a receipt and a prayer.' }, {
+      label: 'Pay a different amount', note: 'Social +25', amount: {
+        ask: 'How much is your tithe?', action: 'Pay', most: pocketAndBank,
+        effect: (be, amount) => {
+          if (!be.pay(amount, 'Tithe, Faith Arena')) { be.lastMoneyError = `You do not have ₦${amount.toLocaleString()}.`; return false; }
+          need({ social: 25 })(be);
+        },
+        said: (amount) => `₦${amount.toLocaleString()} recorded, with a receipt and a prayer.`,
+      },
+    }] },
   ], [], [24, 26]),
   venue('mmia-terminal', 'Murtala Muhammed International Airport', 'Ikeja · LOS', 'Departures · Arrivals', '#0b7a43', 0xf1f5f9, 0xe2e8f0, (b) => {
     for (let i = 0; i < 4; i++) counter(b, -9 + i * 4, -7, 3, 0x0b7a43, 0xf8fafc);
