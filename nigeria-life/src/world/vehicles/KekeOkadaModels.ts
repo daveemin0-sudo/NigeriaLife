@@ -77,21 +77,20 @@ const KEKE_MATS = {
     depthWrite: false,
   }),
   lamp: new THREE.MeshStandardMaterial({
-    color: 0xfffbe6,
-    emissive: 0xfff3c4,
-    emissiveIntensity: 1.15,
-    roughness: 0.25,
-    metalness: 0.2,
-  }),
-  /** Rear brake / tail lamps only (shared across copies) */
-  tail: new THREE.MeshStandardMaterial({
-    color: 0xb91c1c,
-    emissive: 0xef4444,
-    emissiveIntensity: 1.6,
-    roughness: 0.35,
-    metalness: 0.1,
+    color: 0xfff8e7,
+    emissive: 0xffe08a,
+    emissiveIntensity: 0.55,
+    roughness: 0.22,
+    metalness: 0.15,
   }),
 } as const;
+
+/** Deep red for tail lenses via body vertex colours (no emissive wash on the boot). */
+const TAIL_RED = 0x6b0f0f;
+/** Amber front indicator lenses via body vertex colours. */
+const INDICATOR_AMBER = 0xf59e0b;
+/** Dark bezel ring so the headlamp cup reads from a dead-front view. */
+const LAMP_BEZEL = 0x3f3f46;
 
 const OKADA_MATS = {
   paint: new THREE.MeshPhysicalMaterial({
@@ -297,39 +296,55 @@ function ensureKekePrototype(): void {
   const glass = new GeoBag();
   const lamp = new GeoBag();
 
-  // --- Curved nose cowl (side profile extruded across width) ---
-  // Exterior front/top curves stay the same; the cabin face is a low dash shelf so both
-  // handlebar grips stay clear of yellow from the inside camera.
+  // --- Narrow tapered nose cowl (side profile extruded, then rotated to +z) ---
+  // Believable Lagos keke front: narrow rounded cowl that tapers forward, clears the
+  // mudguard/fork/wheel, and stops short so the headlamp housing can sit proud of the tip.
+  // Cabin face stays a low dash shelf so inside-view grips clear the yellow.
   const nose = new THREE.Shape();
-  nose.moveTo(0.72, 0.32); // cabin floor edge
-  nose.lineTo(1.18, 0.32);
-  nose.quadraticCurveTo(1.4, 0.36, 1.46, 0.55);
-  nose.quadraticCurveTo(1.48, 0.78, 1.36, 0.95);
-  nose.quadraticCurveTo(1.22, 1.08, 0.95, 1.1); // exterior top (unchanged)
-  // Drop under the glass to a low cabin dash (grips sit at y≈1.02, well above this)
-  nose.lineTo(1.02, 1.06);
-  nose.lineTo(0.95, 0.92);
-  nose.lineTo(0.82, 0.78);
-  nose.lineTo(0.72, 0.68);
-  nose.lineTo(0.72, 0.32);
+  nose.moveTo(0.74, 0.4); // cabin sill join
+  nose.lineTo(0.95, 0.4);
+  // Underside lifts early so mudguard + front wheel stay open under the tip
+  nose.quadraticCurveTo(1.05, 0.42, 1.14, 0.56);
+  nose.quadraticCurveTo(1.24, 0.68, 1.34, 0.78);
+  nose.quadraticCurveTo(1.42, 0.86, 1.4, 0.92); // tip ends short of the lamp
+  nose.quadraticCurveTo(1.34, 1.0, 1.18, 1.04); // blend into the windscreen base
+  nose.lineTo(1.0, 1.04);
+  nose.lineTo(0.9, 1.0);
+  // Cabin-facing dash (grips at y≈1.02 sit above this)
+  nose.lineTo(0.88, 0.88);
+  nose.lineTo(0.8, 0.72);
+  nose.lineTo(0.74, 0.55);
+  nose.lineTo(0.74, 0.4);
   const noseGeo = new THREE.ExtrudeGeometry(nose, {
-    depth: 0.82,
+    depth: 0.36, // narrow cowl — not a full-width egg
     bevelEnabled: true,
-    bevelThickness: 0.06,
-    bevelSize: 0.055,
+    bevelThickness: 0.045,
+    bevelSize: 0.04,
     bevelSegments: 3,
-    curveSegments: 12,
+    curveSegments: 14,
   });
-  noseGeo.translate(0, 0, -0.41);
+  noseGeo.translate(0, 0, -0.18);
   noseGeo.rotateY(-Math.PI / 2);
-  body.add('body', KEKE_MATS.body, noseGeo, 0, 0, 0.06, { hex: YELLOW });
-  // Bonnet scoop / headlamp brow (exterior — unchanged)
-  body.box('body', KEKE_MATS.body, 0.55, 0.06, 0.28, 0, 0.98, 1.15, { pitch: -0.25, hex: YELLOW });
-  body.box('body', KEKE_MATS.body, 0.7, 0.05, 0.08, 0, 0.78, 1.42, { hex: GREEN });
+  body.add('body', KEKE_MATS.body, noseGeo, 0, 0, 0.04, { hex: YELLOW });
+  // Cheek wedges blend the narrow cowl into the cabin side sills
+  for (const side of [-1, 1]) {
+    body.box('body', KEKE_MATS.body, 0.14, 0.3, 0.48, side * 0.3, 0.58, 0.9, {
+      yaw: side * -0.28,
+      hex: YELLOW,
+    });
+    body.box('body', KEKE_MATS.body, 0.08, 0.22, 0.28, side * 0.22, 0.7, 1.18, {
+      yaw: side * -0.2,
+      hex: YELLOW,
+    });
+  }
+  // Green accent across the cowl brow
+  body.box('body', KEKE_MATS.body, 0.34, 0.04, 0.05, 0, 0.96, 1.32, { hex: GREEN });
+  // Bonnet ridge under the windscreen base
+  body.box('body', KEKE_MATS.body, 0.42, 0.04, 0.2, 0, 1.0, 1.0, { pitch: -0.2, hex: YELLOW });
 
-  // Floor pan + undertray ribs
-  body.box('body', KEKE_MATS.body, 1.2, 0.05, 2.05, 0, 0.33, -0.18, { hex: BODY_DARK });
-  for (const z of [0.4, 0.0, -0.4, -0.8]) {
+  // Floor pan + undertray ribs (stops short of the front wheel so the fork reads clear)
+  body.box('body', KEKE_MATS.body, 1.2, 0.05, 1.85, 0, 0.33, -0.28, { hex: BODY_DARK });
+  for (const z of [0.25, -0.15, -0.5, -0.85]) {
     body.box('body', KEKE_MATS.body, 1.05, 0.03, 0.04, 0, 0.3, z, { hex: BODY_DARK });
   }
 
@@ -356,11 +371,11 @@ function ensureKekePrototype(): void {
     body.box('body', KEKE_MATS.body, 0.12, 0.1, 0.08, side * 0.58, 0.4, -1.34, { hex: YELLOW });
   }
 
-  // Front mudguard arch over the front wheel
-  const fender = new THREE.CylinderGeometry(0.36, 0.34, 0.22, 16, 1, false, 0, Math.PI);
-  body.add('body', KEKE_MATS.body, fender, 0, 0.42, 1.12, { roll: Math.PI / 2, hex: YELLOW });
-  body.box('body', KEKE_MATS.body, 0.24, 0.04, 0.48, 0, 0.58, 1.02, { hex: YELLOW });
-  body.box('body', KEKE_MATS.body, 0.18, 0.03, 0.2, 0, 0.5, 1.28, { pitch: 0.35, hex: YELLOW });
+  // Front mudguard arch — clear of the tapered cowl so the wheel reads from the front
+  const fender = new THREE.CylinderGeometry(0.34, 0.32, 0.18, 16, 1, false, 0, Math.PI);
+  body.add('body', KEKE_MATS.body, fender, 0, 0.38, 1.12, { roll: Math.PI / 2, hex: YELLOW });
+  body.box('body', KEKE_MATS.body, 0.2, 0.035, 0.36, 0, 0.52, 1.05, { hex: YELLOW });
+  body.box('body', KEKE_MATS.body, 0.14, 0.03, 0.16, 0, 0.46, 1.26, { pitch: 0.4, hex: YELLOW });
 
   // Number plate (rear)
   body.box('body', KEKE_MATS.body, 0.36, 0.13, 0.02, 0, 0.48, -1.36, { hex: 0xf8fafc });
@@ -375,9 +390,28 @@ function ensureKekePrototype(): void {
     // Rear quarter canvas panels
     canvas.box('canvas', KEKE_MATS.canvas, 0.04, 0.95, 0.52, side * 0.64, 1.05, -1.0);
   }
-  // Rear canvas wall + small rear window surround
-  canvas.box('canvas', KEKE_MATS.canvas, 1.28, 0.7, 0.04, 0, 1.15, -1.32);
-  canvas.box('canvas', KEKE_MATS.canvas, 0.55, 0.22, 0.03, 0, 1.35, -1.325);
+  // Rear canvas wall with a cut-out for the rear window (avoids z-fighting with a second panel)
+  const rearWall = new THREE.Shape();
+  rearWall.moveTo(-0.64, 0.8);
+  rearWall.lineTo(0.64, 0.8);
+  rearWall.lineTo(0.64, 1.5);
+  rearWall.lineTo(-0.64, 1.5);
+  rearWall.lineTo(-0.64, 0.8);
+  const rearHole = new THREE.Path();
+  rearHole.moveTo(-0.26, 1.24);
+  rearHole.lineTo(0.26, 1.24);
+  rearHole.lineTo(0.26, 1.46);
+  rearHole.lineTo(-0.26, 1.46);
+  rearHole.lineTo(-0.26, 1.24);
+  rearWall.holes.push(rearHole);
+  const rearWallGeo = new THREE.ExtrudeGeometry(rearWall, {
+    depth: 0.035,
+    bevelEnabled: false,
+    curveSegments: 1,
+  });
+  // Shape is in X/Y; extrude +Z then shift so the face sits at the rear
+  rearWallGeo.translate(0, 0, -1.335);
+  canvas.add('canvas', KEKE_MATS.canvas, rearWallGeo, 0, 0, 0);
 
   // Side rolls + roof-edge tubes that sit at the inside camera — hideInside only
   for (const side of [-1, 1]) {
@@ -451,11 +485,11 @@ function ensureKekePrototype(): void {
   for (const side of [-1, 1]) {
     metal.box('metal', KEKE_MATS.metal, 0.04, 0.48, 0.04, side * 0.5, 1.3, 0.92, { pitch: -0.18 });
   }
-  // Front fork legs to the axle
+  // Front fork legs to the axle (proud of the tapered cowl)
   for (const side of [-1, 1]) {
-    metal.cyl('metal', KEKE_MATS.metal, 0.018, 0.018, 0.55, side * 0.09, 0.48, 1.12, 6, { pitch: -0.05 });
+    metal.cyl('metal', KEKE_MATS.metal, 0.018, 0.018, 0.58, side * 0.1, 0.5, 1.12, 6, { pitch: -0.05 });
   }
-  metal.box('metal', KEKE_MATS.metal, 0.22, 0.04, 0.04, 0, 0.72, 1.12);
+  metal.box('metal', KEKE_MATS.metal, 0.24, 0.04, 0.04, 0, 0.76, 1.12);
   // Wiper arms on the windscreen
   metal.box('metal', KEKE_MATS.metal, 0.01, 0.01, 0.42, -0.12, 1.4, 0.93, { pitch: -0.35, yaw: 0.15 });
   metal.box('metal', KEKE_MATS.metal, 0.01, 0.01, 0.38, 0.18, 1.38, 0.94, { pitch: -0.3, yaw: -0.1 });
@@ -466,15 +500,15 @@ function ensureKekePrototype(): void {
     });
     metal.box('metal', KEKE_MATS.metal, 0.1, 0.07, 0.02, side * 0.7, 1.18, 0.98, { yaw: side * 0.35 });
   }
-  // Rear grab / bumper bar
-  metal.cyl('metal', KEKE_MATS.metal, 0.015, 0.015, 1.05, 0, 0.7, -1.35, 6, { yaw: Math.PI / 2 });
+  // Rear grab / bumper bar — must lie across X (roll), not stand as a vertical centre rod (yaw)
+  metal.cyl('metal', KEKE_MATS.metal, 0.015, 0.015, 1.05, 0, 0.42, -1.36, 6, { roll: Math.PI / 2 });
   // Exhaust out the rear-right
   metal.cyl('metal', KEKE_MATS.metal, 0.022, 0.028, 0.4, 0.45, 0.28, -1.15, 6, { pitch: Math.PI / 2 });
   metal.cyl('metal', KEKE_MATS.metal, 0.03, 0.03, 0.08, 0.45, 0.28, -1.38, 6, { pitch: Math.PI / 2 });
   // Steering column tube down to the floor
   metal.cyl('metal', KEKE_MATS.metal, 0.025, 0.03, 0.55, 0, 0.72, 0.78, 6, { pitch: -0.45 });
 
-  // --- Glass windscreen ---
+  // --- Glass windscreen only (rear window is a cut-out in the canvas — no second pane) ---
   glass.add(
     'glass',
     KEKE_MATS.glass,
@@ -484,35 +518,34 @@ function ensureKekePrototype(): void {
     0.92,
     { pitch: -0.18 },
   );
-  // Tiny rear window pane
-  glass.add(
-    'glass',
-    KEKE_MATS.glass,
-    new THREE.PlaneGeometry(0.5, 0.18),
-    0,
-    1.35,
-    -1.34,
-  );
 
-  // --- Lamps ---
-  const tail = new GeoBag();
-  // Cyclops headlamp (proud of the nose) — white
-  metal.cyl('metal', KEKE_MATS.metal, 0.13, 0.13, 0.06, 0, 0.64, 1.48, 14, { pitch: Math.PI / 2 });
-  lamp.cyl('lamp', KEKE_MATS.lamp, 0.11, 0.11, 0.045, 0, 0.64, 1.52, 14, { pitch: Math.PI / 2 });
-  // Front indicators (white/amber-ish via headlamp material)
+  // --- Headlamp: cup housing proud of the shortened cowl tip (reads from front + ¾) ---
+  metal.cyl('metal', KEKE_MATS.metal, 0.105, 0.125, 0.12, 0, 0.9, 1.45, 14, { pitch: Math.PI / 2 });
+  // Dark bezel ring (body colour) so the cup edge is obvious against yellow and the lens
+  body.cyl('body', KEKE_MATS.body, 0.095, 0.095, 0.025, 0, 0.9, 1.515, 14, {
+    pitch: Math.PI / 2,
+    hex: LAMP_BEZEL,
+  });
+  lamp.cyl('lamp', KEKE_MATS.lamp, 0.08, 0.08, 0.045, 0, 0.9, 1.545, 14, { pitch: Math.PI / 2 });
+  // Front indicators on the cowl cheeks (proud, outside the narrow extrusion)
   for (const side of [-1, 1]) {
-    lamp.box('lamp', KEKE_MATS.lamp, 0.09, 0.055, 0.045, side * 0.36, 0.9, 1.4);
+    metal.box('metal', KEKE_MATS.metal, 0.07, 0.055, 0.055, side * 0.32, 0.76, 1.34);
+    body.box('body', KEKE_MATS.body, 0.055, 0.042, 0.048, side * 0.32, 0.76, 1.375, {
+      hex: INDICATOR_AMBER,
+    });
   }
-  // Rear tail lamps + centre brake — red
+  // Rear tail lamps + centre brake — deep red body colour (no emissive wash on the boot)
   for (const side of [-1, 1]) {
-    tail.box('tail', KEKE_MATS.tail, 0.16, 0.08, 0.04, side * 0.52, 0.86, -1.37);
+    metal.box('metal', KEKE_MATS.metal, 0.18, 0.1, 0.03, side * 0.52, 0.86, -1.355);
+    body.box('body', KEKE_MATS.body, 0.15, 0.075, 0.04, side * 0.52, 0.86, -1.38, { hex: TAIL_RED });
   }
-  tail.box('tail', KEKE_MATS.tail, 0.22, 0.045, 0.035, 0, 0.98, -1.37);
+  metal.box('metal', KEKE_MATS.metal, 0.24, 0.055, 0.025, 0, 0.98, -1.355);
+  body.box('body', KEKE_MATS.body, 0.2, 0.04, 0.035, 0, 0.98, -1.38, { hex: TAIL_RED });
 
   kekeShell = [...body.bake(), ...canvas.bake(), ...interior.bake(), ...metal.bake()];
   kekeSideCurtains = sideRolls.bake();
   kekeGlass = glass.bake();
-  kekeLamps = [...lamp.bake(), ...tail.bake()];
+  kekeLamps = lamp.bake();
 }
 
 export interface KekeBodyParts {
