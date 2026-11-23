@@ -1,0 +1,21 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs expressway
+
+
+--- expressway ---
+FAIL  expressway: it is built in pieces, with its 40 places along it (36 to visit, 4 filling stations) and 6 more on its side streets, on to Ikeja, all of them in the world  {"pieces":78,"places":["roadside-sankofa-motors","roadside-redemption-cathedral","roadside-central-mosque","roadside-lagoon-beach","roadside-lagoon-marina","roadside-private-airfield","roadside-shopwell-mall","roadside-eko-grand-hotel","roadside-police-command","roadside-efcc-office","roadside-ikeja-golf","roadside-government-house","roadside-marina-towers","roadside-freedom-park","roadside-ivory-rooftop","roadside-bureau-fx","roadside-the-library","roadside-i-fitness","roadside-balogun-market","roadside-amala-shitta","roadside-viewing-centre","roadside-polling-unit","roadside-nis-passport","roadside-consular-visa","roadside-afrika-shrine","roadside-lekki-conservation","roadside-dangote-refinery","roadside-radio-house","roadside-station-island","roadside-station-bridge","roadside-station-mainland","roadside-computer-village","roadside-ikeja-city-mall","roadside-allen-lounge","roadside-oshodi-interchange","roadside-lasuth","roadside-ladipo-auto","roadside-ikeja-gra","roadside-naija-fresh","roadside-chop-express","roadside-faith-arena","roadside-port-health","roadside-mmia-terminal","roadside-station-ikeja","roadside-allen-salon","roadside-allen-suya","roadside-allen-bank","roadside-awolowo-fashion","roadside-awolowo-pharmacy","roadside-awolowo-school"],"inWorld":true,"carsOut":693,"barrier":true,"lane":true}
+PASS  expressway: traffic is out on it, the barrier down the middle is solid and the lanes are clear  {"pieces":78,"places":["roadside-sankofa-motors","roadside-redemption-cathedral","roadside-central-mosque","roadside-lagoon-beach","roadside-lagoon-marina","roadside-private-airfield","roadside-shopwe…
+PASS  expressway: a car driven from before the toll goes on down the expressway and out over the lagoon, keeping its lane  {"z":1519.9,"x":-4.9,"paid":400,"overWater":true}
+PASS  expressway: passing the toll plaza pays ₦400, once  {"z":1519.9,"x":-4.9,"paid":400,"overWater":true}
+PASS  expressway: on foot the player cannot walk onto it, and is told to use the footbridge  {"x":-10.8,"told":true}
+PASS  expressway: the beach has a card with something to do there  {"title":"×\nBEACH\nElegushi Beach\n\nSand, the lagoon breeze, cold drinks and music. Lie down","action":"🏖️ Go onto the beach"}
+PASS  expressway: every place the phone names (church, shrine, market, refinery, polling unit and the rest) is built, with its card at the spot a ride or a pin takes you to  {"count":17,"bad":[]}
+FAIL  expressway: a taxi booked to Amala Shitta leaves the player at its door, with the buka there in front of them  {"booked":true,"away":420.5,"shown":false}
+PASS  expressway: its footbridge is climbed from the stairs on the pavement, crossed over the traffic, and come down on the other side  {"up":6.549926840556326,"onDeck":{"x":-13.2,"y":6.55,"on":true},"across":{"x":13.2,"y":6.55},"down":{"x":13.2,"z":788.3,"y":0.2,"on":false}}
+PASS  expressway: the map pins every place along the road, goes up the road to show them, and a cab from a pin sets the player down at its door  {"onMap":{"pins":50,"refineryShown":true,"focus":3500},"offered":["[1]\n                🚕 Take a cab there\n              \n              ₦4,500","[2]\n                Just looking"],"arrived":{"away…
+PASS  expressway: no errors in the page  []
+
+==== 9/11 passed ====
+  FAILED: expressway: it is built in pieces, with its 40 places along it (36 to visit, 4 filling stations) and 6 more on its side streets, on to Ikeja, all of them in the world
+  FAILED: expressway: a taxi booked to Amala Shitta leaves the player at its door, with the buka there in front of them

@@ -1,0 +1,17 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs getabout
+
+
+--- getabout ---
+PASS  getting about: the Ride app has tabs for rides, the train and flights; with a car of their own it is offered first, as theirs and free  {"tabs":["🚕 Rides","🚆 Train","✈️ Flights"],"offer":{"first":"car","own":"🚘 Your Lexus RX 350 Your own car. Your driver brings it round and drives you. Free. Free"}}
+PASS  getting about: their driver brings their own car round and the trip is played in it, their own Lexus in its own paint, and nothing is paid  {"riding":{"vehicleName":"Your Lexus RX 350","vehicleType":"car","originName":"Lagos Island","destinationName":"St. Nicholas Lagos General Hospital","durationSeconds":9,"trafficCondition":"Go-slow","w…
+PASS  getting about: the trip ends at the place, the player on the street there  {"arrived":true}
+PASS  getting about: on a place’s sheet on the map their own car is a way there, free, and going by it plays the trip in it  {"placeId":"jibowu_motor_park","tile":{"tile":"🚘 Your Lexus RX 350 Free","go":"Go in your Lexus RX 350 · Free"},"mapRide":"lexus_rx"}
+PASS  getting about: the Train tab shows the nearest station, the keke there when it is far, and every station the line goes to with its fare and the next train  {"hero":"Red Line · Lagos Rail Mass Transit From Oyingbo The nearest station, 3.0 km away: a keke takes you there first (₦500)","rows":["🚆 To Yaba 1 stop · next train in 2 min ₦750","🚆 To Mushin 2 s…
+PASS  getting about: from across town a keke takes the player to Oyingbo station (₦500) and sets them down at the gate  {"keke":"keke","atGate":2.7}
+PASS  getting about: the player taps in, rides the Red Line and gets off at Yaba, down on the road there; ₦500 for the keke and ₦750 for the train  {"onTrain":true,"rodeIn":true,"end":{"z":3394.32,"y":0.19999999999998647},"paid":1250}
+PASS  getting about: driving yourself, the way to the airport is drawn as arrows on the road with where to and how far, and on arriving it says so and stops  {"guide":{"ok":true,"arrows":20,"pill":"🧭Murtala Muhammed International Airport (LOS)2.9 km to go✕","at":{"x":-53,"y":0,"z":6268.8}},"arrivedGuide":{"active":false,"told":true}}
+PASS  getting about: no errors in the page  []
+
+==== 9/9 passed ====

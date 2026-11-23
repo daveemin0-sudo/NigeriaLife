@@ -1,0 +1,36 @@
+
+> nigeria-life@0.0.0 test:e2e
+> node tests/e2e/run.mjs places
+
+
+--- places ---
+PASS  hospital: on entering, the player and every station are in view
+PASS  hospital: the place card lists a shortcut for everything in the room
+PASS  bank: on entering, the player and every station are in view
+PASS  bank: the place card lists a shortcut for everything in the room
+PASS  restaurant: on entering, the player and every station are in view
+PASS  restaurant: the place card lists a shortcut for everything in the room
+PASS  police: on entering, the player and every station are in view
+PASS  police: the place card lists a shortcut for everything in the room
+PASS  residence: on entering, the player and every station are in view
+PASS  residence: the place card lists a shortcut for everything in the room
+PASS  university: on entering, the player and every station are in view
+PASS  university: the place card lists a shortcut for everything in the room
+PASS  airport: on entering, the player and every station are in view
+PASS  airport: the place card lists a shortcut for everything in the room
+PASS  tapping the Pharmacy shortcut walks there and opens the pharmacy  {"opened":"hosp_pharmacy"}
+PASS  the pharmacy purchase then works by mouse alone (₦1,800)  {"paid":1800}
+PASS  the Leave button exits and the place card goes away  {"inside":false,"card":"none"}
+PASS  the map has a named pin for every landmark, and area names  {"landmarks":16,"pins":16,"named":true,"areas":12}
+PASS  the Names button hides and shows the place names  {"namesOff":"none","namesOn":"block"}
+FAIL  filtering by food keeps food pins visible and hides unrelated landmarks  {"all":66,"visibleCount":15,"bukaVisible":true,"stadiumHidden":false}
+PASS  filtering by All restores all landmark pins  {"allRestored":true}
+PASS  the destination sheet fits on screen and offers transport choices  {"fits":true,"tiles":6}
+PASS  Go by keke charges the ₦500 fare and takes the player inside the hospital  {"fare":500,"inside":"hospital","mapOpen":false}
+FAIL  an unaffordable fare is refused and the player stays on the map  {"mapOpen":false,"inside":false}
+FAIL  places: ran to completion  "Error: Node is either not clickable or not an Element\n    at CdpElementHandle.clickablePoint (file:///agent/repos/NigeriaLife/nigeria-life/node_modules/puppeteer-core/lib/puppeteer/api/ElementHandle.js:693:23)\n    at async CdpElementHandle.<anonymous> (file:///agent/repos/NigeriaLife/nigeria-life/node_modules/puppeteer-core/lib/puppeteer/api/ElementHandle.js:119:20)\n    at async CdpElementHandle.click (file:///agent/repos/NigeriaLife/nigeria-life/node_modules/puppeteer-core/lib/puppeteer/api/ElementHandle.js:723:30)\n    at async CdpElementHandle.<anonymous> (file:///agent/repos/NigeriaLife/nig"
+
+==== 22/25 passed ====
+  FAILED: filtering by food keeps food pins visible and hides unrelated landmarks
+  FAILED: an unaffordable fare is refused and the player stays on the map
+  FAILED: places: ran to completion
