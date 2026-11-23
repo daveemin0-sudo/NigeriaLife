@@ -539,9 +539,14 @@ export function addKekeBody(parent: THREE.Object3D): KekeBodyParts {
 }
 
 /**
- * Sit-animation shoes hang below the cabin deck. Lift any vertex of this figure that
- * sits under the deck up to deck height (vehicle-body space). Clones each mesh's
- * geometry first so shared buffers (statue caches) are never mutated.
+ * Sit-animation shoes hang below the cabin deck. Lift any vertex of this figure's
+ * baked (non-skinned) meshes that sits under the deck up to deck height
+ * (vehicle-body space). Clones each mesh's geometry first so shared buffers
+ * (statue caches) are never mutated.
+ *
+ * StandIns would otherwise hide the bake each frame and swap in a live skinned
+ * sit whose shoes hang under the sill. The lifted bake is reparented onto the
+ * seated root and the HumanRig group is hidden so StandIns leaves it alone.
  */
 export function liftKekePassengerToDeck(
   figure: THREE.Object3D,
@@ -559,10 +564,17 @@ export function liftKekePassengerToDeck(
   const local = new THREE.Vector3();
   const invVehicle = new THREE.Matrix4().copy(vehicle.matrixWorld).invert();
   const invMesh = new THREE.Matrix4();
+  const baked: THREE.Mesh[] = [];
 
   figure.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh || !mesh.geometry) return;
+    if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+      mesh.visible = false;
+      return;
+    }
+    baked.push(mesh);
+
     const src = mesh.geometry.getAttribute('position');
     if (!src) return;
 
@@ -594,6 +606,15 @@ export function liftKekePassengerToDeck(
     mesh.geometry.computeBoundingSphere();
     mesh.geometry.computeVertexNormals();
   });
+
+  for (const mesh of baked) {
+    mesh.visible = true;
+    if (mesh.parent !== figure) figure.attach(mesh);
+  }
+  for (const child of figure.children) {
+    if ((child as THREE.Mesh).isMesh) continue;
+    child.visible = false;
+  }
 }
 
 /** Handlebar column for the keke; grips sit at ±KEKE_LAYOUT.gripHalf on local x. */
