@@ -2338,10 +2338,11 @@ export class Game {
     // Billboards rented on Eko Ads go up on the expressway's boards
     Adverts.get();
 
-    // Buildings and walls are solid to someone on foot and to a vehicle being driven
+    // Buildings, stalls, benches and poles are solid to someone on foot and to a vehicle being driven
     this.player.solids = () => this.solidsHere();
-    // Living-city walkers already stay on the pavement network (clear of buildings); Broad Street
-    // patrol NPCs use Solids so they slide along walls and props.
+    // Living-city walkers steer around every solid (stalls, benches, poles and walls) via the Solids grid
+    this.world.cityPopulation.solids = () => this.solidsHere();
+    // Broad Street patrol NPCs use the same Solids so they slide along walls and props
     this.world.npcs.solids = () => this.solidsHere();
     this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';

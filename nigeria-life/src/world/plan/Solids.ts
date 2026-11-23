@@ -114,12 +114,38 @@ export class Solids {
   /**
    * Where a step from one point toward another ends: all the way if nothing is in the way,
    * along the wall if the wall can be slid along, or not at all. `radius` is half the width
-   * of whoever is moving.
+   * of whoever is moving. Pass `out` to reuse a scratch object (no per-call allocation).
    */
-  public step(fromX: number, fromZ: number, toX: number, toZ: number, radius: number): { x: number; z: number; stopped: boolean } {
-    if (!this.blocked(fromX, fromZ, toX, toZ, radius)) return { x: toX, z: toZ, stopped: false };
-    if (toX !== fromX && !this.blocked(fromX, fromZ, toX, fromZ, radius)) return { x: toX, z: fromZ, stopped: false };
-    if (toZ !== fromZ && !this.blocked(fromX, fromZ, fromX, toZ, radius)) return { x: fromX, z: toZ, stopped: false };
-    return { x: fromX, z: fromZ, stopped: true };
+  public step(
+    fromX: number,
+    fromZ: number,
+    toX: number,
+    toZ: number,
+    radius: number,
+    out?: { x: number; z: number; stopped: boolean },
+  ): { x: number; z: number; stopped: boolean } {
+    const result = out ?? { x: 0, z: 0, stopped: false };
+    if (!this.blocked(fromX, fromZ, toX, toZ, radius)) {
+      result.x = toX;
+      result.z = toZ;
+      result.stopped = false;
+      return result;
+    }
+    if (toX !== fromX && !this.blocked(fromX, fromZ, toX, fromZ, radius)) {
+      result.x = toX;
+      result.z = fromZ;
+      result.stopped = false;
+      return result;
+    }
+    if (toZ !== fromZ && !this.blocked(fromX, fromZ, fromX, toZ, radius)) {
+      result.x = fromX;
+      result.z = toZ;
+      result.stopped = false;
+      return result;
+    }
+    result.x = fromX;
+    result.z = fromZ;
+    result.stopped = true;
+    return result;
   }
 }

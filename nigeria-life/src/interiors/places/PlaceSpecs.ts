@@ -1346,8 +1346,8 @@ const look = (city: string): CityLook => (city === 'port_harcourt' ? 'ph' : 'abu
 /** One hotel lobby. variant 0, 1 and 2 are different rooms, so two hotels are not the same. */
 const hotelLobby = (key: string, place: string, city: string, variant: number): PlaceSpec => {
   const ph = city === 'port_harcourt';
-  const spec = venue(key, variant === 0 ? `${place} Suites` : `${place} ${variant === 1 ? 'Palace' : 'Creek'} Hotel`, `${place} · hotel`, 'Front desk · Your room · Bar', ph ? '#0f766e' : '#7c2d12', 0xffffff, ph ? 0xe7f2ec : 0xf6efe4, (_b, room) => {
-    if (room) furnishLobby(room, look(city), variant);
+  const spec = venue(key, variant === 0 ? `${place} Suites` : `${place} ${variant === 1 ? 'Palace' : 'Creek'} Hotel`, `${place} · hotel`, 'Front desk · Your room · Bar', ph ? '#0f766e' : '#7c2d12', 0xffffff, ph ? 0xe7f2ec : 0xf6efe4, (b, room) => {
+    if (room) furnishLobby(room, look(city), variant, b);
   }, [{ name: 'Receptionist Tonye', title: 'Front desk', at: [-4, -6], facing: 0, outfit: ph ? 0x0f766e : 0x7c2d12, gender: 'male', says: 'Welcome. A room is at the desk: a key card, yours until noon.' }, { name: 'Barman Ifeanyi', title: 'Bar', at: [5, -5], facing: 0, outfit: 0x111827, gender: 'male', says: 'What are we drinking?' }], [
     { id: 'bar', name: '🍹 The bar', at: [5, -4], stand: [5, -2.6], who: 'Barman Ifeanyi', role: 'Bar', text: 'Chapman, palm wine or a cold beer?', choices: [{ label: 'A Chapman', price: 2500, note: 'Fun +12', sit: true, seconds: 5, effect: need({ fun: 12, social: 6 }), said: 'Sweet, cold, with a slice of cucumber.' }] },
     { id: 'lounge', name: '🛋️ The lounge', at: [-3, 3], stand: [-3, 4.4], who: 'Lounge', role: `${place} Suites`, text: 'Soft chairs and the news on the TV.', choices: [{ label: 'Rest in the lounge', note: 'Energy +12', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 12 }), said: 'You nearly slept in the armchair.' }] },
@@ -1362,8 +1362,8 @@ const townRooms = (city: string, place: string): PlaceSpec[] => {
   const officeOf = (variant: number): PlaceSpec => {
     const key = townRoomVariantKey(city, 'office', variant);
     const titles = variant === 0 ? 'Offices' : variant === 1 ? 'Chambers' : 'Secretariat';
-    const office = venue(key, `${place} ${titles}`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : variant === 1 ? '#0f172a' : variant === 2 ? '#7c2d12' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (_b, room) => {
-      if (room) furnishOffice(room, look(city), variant);
+    const office = venue(key, `${place} ${titles}`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : variant === 1 ? '#0f172a' : variant === 2 ? '#7c2d12' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (b, room) => {
+      if (room) furnishOffice(room, look(city), variant, b);
     }, [{ name: 'Receptionist Halima', title: 'Front desk', at: [0, -6], facing: 0, outfit: ph ? 0x0f766e : 0x1e3a8a, gender: 'female', says: 'Good day. The jobs are on the board, and the manager takes people on.' }], [
       { id: 'desk', name: '🛎️ Front desk', at: [0, -5], stand: [0, -3.6], who: 'Receptionist Halima', role: 'Front desk', text: 'The companies upstairs are hiring. Shall I show you the openings?', choices: [{ label: 'See the jobs going', note: 'Opens Jobs', open: 'app:jobs' }, { label: 'Leave your CV', note: 'Social +6', arms: 'reach', seconds: 2, effect: need({ social: 6 }), said: 'She stamped it received. "We will call you."' }] },
       { id: 'wait', name: '🪑 The waiting chairs', at: [ph ? 3 : -2.4, 3.4], stand: [ph ? 3 : -2.4, 2], who: 'Waiting area', role: 'Reception', text: 'The air conditioning is strong.', choices: [{ label: 'Sit and cool off', note: 'Energy +8', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 8 }), said: 'Ten minutes under the AC. Sweat gone.' }] },
