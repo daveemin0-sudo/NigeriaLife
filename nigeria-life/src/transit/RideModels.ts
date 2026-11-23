@@ -2,6 +2,16 @@ import * as THREE from 'three';
 import { Builder } from '../world/kit/ArchKit';
 import { HumanMeshBuilder, type HumanConfig, type HumanRig } from '../graphics/HumanMeshBuilder';
 import { buildKitCar, plainWheel } from '../world/vehicles/KitCar';
+import {
+  addKekeBody,
+  addOkadaBody,
+  buildKekeSteer,
+  buildOkadaSteer,
+  buildSpokedWheel,
+  liftKekePassengerToDeck,
+  KEKE_LAYOUT,
+  OKADA_LAYOUT,
+} from '../world/vehicles/KekeOkadaModels';
 import { bakeToGeometry, bakingPeopleAsModels } from '../graphics/MeshBaker';
 import type { CarSpec } from '../world/vehicles/CarBodyKit';
 import { buildCarCabin } from './CarCabin';
@@ -344,124 +354,45 @@ function hollowCabin(car: THREE.Group, s: CarSpec): void {
   lower.geometry = open;
 }
 
-const YELLOW = 0xf6c90e;
-const GREEN = 0x15803d;
-
 /** Lagos's yellow tricycle: a rounded nose, a windscreen, a canvas roof on a frame, open sides */
 export function buildRideKeke(): RideVehicle {
   const body = new THREE.Group();
-  const b = new Builder();
-  // The nose, as a side profile pushed out to its width and rounded off
-  const nose = new THREE.Shape();
-  nose.moveTo(0.72, 0.36);
-  nose.lineTo(1.3, 0.36);
-  nose.quadraticCurveTo(1.46, 0.42, 1.44, 0.66);
-  nose.quadraticCurveTo(1.4, 0.95, 1.12, 1.06);
-  nose.lineTo(0.72, 1.08);
-  nose.lineTo(0.72, 0.36);
-  const noseGeo = new THREE.ExtrudeGeometry(nose, { depth: 0.8, bevelEnabled: true, bevelThickness: 0.07, bevelSize: 0.06, bevelSegments: 3, curveSegments: 10 });
-  noseGeo.translate(0, 0, -0.4);
-  noseGeo.rotateY(-Math.PI / 2);
-  b.shape(YELLOW, noseGeo, 0, 0, 0);
-  // The floor, the sills down the sides with their green stripe, the body over the engine at the back
-  b.box(0x1f2937, 1.22, 0.06, 2.1, 0, 0.34, -0.2);
-  for (const side of [-1, 1]) {
-    b.box(YELLOW, 0.06, 0.34, 1.75, side * 0.62, 0.36, -0.15);
-    b.box(GREEN, 0.065, 0.08, 1.75, side * 0.62, 0.56, -0.15);
-    // The back quarters, canvas, from the sill to the roof
-    b.box(0x16161a, 0.04, 1.0, 0.55, side * 0.645, 0.7, -1.02);
-  }
-  b.box(YELLOW, 1.32, 0.66, 0.46, 0, 0.36, -1.12);
-  b.box(GREEN, 1.33, 0.08, 0.47, 0, 0.82, -1.12);
-  // The back wall, canvas, with its little window
-  b.box(0x16161a, 1.3, 0.66, 0.04, 0, 1.02, -1.33);
-  b.box(0x0f172a, 0.6, 0.24, 0.05, 0, 1.3, -1.33);
-  // Tail lamps and the number plate
-  for (const side of [-1, 1]) b.box(0xef4444, 0.16, 0.08, 0.03, side * 0.52, 0.86, -1.36, { glow: true });
-  b.box(0xf8fafc, 0.34, 0.12, 0.02, 0, 0.5, -1.36);
-  // The frame that carries the roof: posts at the corners, rails along the top
-  for (const side of [-1, 1]) {
-    b.cylinder(0x27272a, 0.022, 0.62, side * 0.6, 1.07, 0.86);
-    b.cylinder(0x27272a, 0.022, 0.98, side * 0.63, 0.7, -0.76);
-    // A rolled-up side curtain under the roof's edge
-    b.tube(0x16161a, 0.05, 0.05, 1.5, side * 0.63, 1.62, 0.02, { yaw: Math.PI / 2, sides: 10 });
-  }
-  // The windscreen's frame
-  b.box(0x18181b, 1.0, 0.05, 0.05, 0, 1.06, 0.98).box(0x18181b, 1.0, 0.05, 0.05, 0, 1.66, 0.86);
-  for (const side of [-1, 1]) b.box(0x18181b, 0.05, 0.62, 0.05, side * 0.5, 1.06, 0.92, { pitch: -0.18 });
-  // Seats: the driver's saddle, the bench for three behind
-  b.box(0x111111, 0.5, 0.11, 0.42, 0, 0.62, 0.3).box(0x111111, 0.42, 0.22, 0.06, 0, 0.8, 0.07, { pitch: -0.15 });
-  b.box(0x1c1c1f, 1.16, 0.13, 0.46, 0, 0.56, -0.62).box(0x1c1c1f, 1.16, 0.48, 0.1, 0, 0.7, -0.9, { pitch: -0.15 });
-  // The headlamp on the nose, the indicators, the mudguard over the front wheel
-  b.cylinder(0xd4d4d8, 0.13, 0.05, 0, 0.62, 1.48, { pitch: Math.PI / 2, sides: 20 });
-  b.cylinder(0xfffbe6, 0.1, 0.02, 0, 0.62, 1.5, { pitch: Math.PI / 2, glow: true, sides: 20 });
-  for (const side of [-1, 1]) b.box(0xf59e0b, 0.08, 0.05, 0.04, side * 0.32, 0.88, 1.4, { glow: true });
-  b.box(YELLOW, 0.24, 0.05, 0.5, 0, 0.6, 1.12);
-  b.box(0x9ca3af, 0.05, 0.42, 0.05, 0.1, 0.2, 1.12).box(0x9ca3af, 0.05, 0.42, 0.05, -0.1, 0.2, 1.12);
-  // A sticker in the back window
-  b.box(0xfacc15, 0.18, 0.06, 0.055, 0, 1.38, -1.33);
-  body.add(b.build('keke', { roughness: 0.45, metalness: 0.15 }));
+  body.name = 'keke';
+  const { sideCurtains } = addKekeBody(body);
 
-  // The canvas roof, curved, seen from under it as well as over it
-  const roofGeo = new THREE.CylinderGeometry(0.69, 0.69, 2.4, 18, 1, true, -Math.PI / 2, Math.PI);
-  roofGeo.rotateX(-Math.PI / 2);
-  roofGeo.scale(1, 0.3, 1);
-  const roof = new THREE.Mesh(roofGeo, new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.95, side: THREE.DoubleSide }));
-  roof.position.set(0, 1.68, -0.24);
-  body.add(roof);
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.6), new THREE.MeshStandardMaterial({ color: 0xbfe3ff, transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0.2, side: THREE.DoubleSide, depthWrite: false }));
-  glass.position.set(0, 1.37, 0.92);
-  glass.rotation.x = -0.18;
-  body.add(glass);
-
-  // The handlebars on their column, turning about it
-  const steer = new THREE.Group();
-  steer.position.set(0, 1.02, 0.74);
-  steer.rotation.x = -0.35;
-  const chrome = new THREE.MeshStandardMaterial({ color: 0xd4d4d8, metalness: 0.9, roughness: 0.25 });
-  const grip = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.66, 8), chrome);
-  bar.rotation.z = Math.PI / 2;
-  steer.add(bar);
-  for (const side of [-1, 1]) {
-    const g = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 8), grip);
-    g.rotation.z = Math.PI / 2;
-    g.position.x = side * 0.3;
-    steer.add(g);
-  }
-  const pod = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.08), grip);
-  pod.position.set(0, 0.04, 0.04);
-  steer.add(pod);
+  const steer = buildKekeSteer();
   body.add(steer);
 
   const wheels: THREE.Object3D[] = [];
-  const front = plainWheel(0.25, 0.14);
-  front.position.set(0, 0.25, 1.12);
+  const front = plainWheel(KEKE_LAYOUT.wheelRadius, 0.14);
+  front.position.set(KEKE_LAYOUT.frontWheel.x, KEKE_LAYOUT.frontWheel.y, KEKE_LAYOUT.frontWheel.z);
   body.add(front);
   wheels.push(front);
   for (const side of [-1, 1]) {
-    const w = plainWheel(0.25, 0.16);
-    w.position.set(side * 0.6, 0.25, -0.78);
+    const w = plainWheel(KEKE_LAYOUT.wheelRadius, 0.16);
+    w.position.set(side * KEKE_LAYOUT.rearWheel.halfTrack, KEKE_LAYOUT.rearWheel.y, KEKE_LAYOUT.rearWheel.z);
     body.add(w);
     wheels.push(w);
   }
 
   const driver = seatFigure(person(DRIVERS[0]), 0.9, 'bench');
-  driver.root.position.set(0, 0.74, 0.3);
+  driver.root.position.set(KEKE_LAYOUT.driver.x, KEKE_LAYOUT.driver.y, KEKE_LAYOUT.driver.z);
   body.add(driver.root);
   const passenger = new THREE.Group();
-  passenger.position.set(-0.3, 0.7, -0.62);
+  passenger.position.set(KEKE_LAYOUT.passengerL.x, KEKE_LAYOUT.passengerL.y, KEKE_LAYOUT.passengerL.z);
   body.add(passenger);
   // Someone else on the bench too
   const other = seatFigure(person({ gender: 'female', outfit: 'peplum_skirt', outfitColor: 0x0d9488, hairstyle: 'gele', skinTone: '#4a2c1d' }), 0.88, 'bench');
-  other.root.position.set(0.34, 0.7, -0.62);
+  other.root.position.set(KEKE_LAYOUT.passengerR.x, KEKE_LAYOUT.passengerR.y, KEKE_LAYOUT.passengerR.z);
   other.rig.leftArm.rotation.x = other.rig.rightArm.rotation.x = -0.5;
   body.add(other.root);
+  // Sit-animation shoes hang below the deck — lift this figure's own verts only
+  liftKekePassengerToDeck(other.root);
 
   return {
-    body, wheels, wheelRadius: 0.25, steer,
-    grips: [new THREE.Vector3(0.29, 0, 0), new THREE.Vector3(-0.29, 0, 0)],
-    driver, passenger, hideInside: [passenger],
+    body, wheels, wheelRadius: KEKE_LAYOUT.wheelRadius, steer,
+    grips: [new THREE.Vector3(KEKE_LAYOUT.gripHalf, 0, 0), new THREE.Vector3(-KEKE_LAYOUT.gripHalf, 0, 0)],
+    driver, passenger, hideInside: [passenger, sideCurtains],
     views: {
       // From the bench: the driver's back, his hands on the bars, Lagos through the windscreen
       inside: view([-0.42, 1.5, -0.66], [0.05, 1.12, 8], 72),
@@ -476,78 +407,33 @@ export function buildRideKeke(): RideVehicle {
 /** An okada: a Boxer-type bike, the rider in his vest and helmet, the passenger behind */
 export function buildRideOkada(): RideVehicle {
   const body = new THREE.Group();
-  const b = new Builder();
-  const RED = 0xb91c1c;
-  // The engine, its fins, the exhaust down the right side
-  b.box(0x52525b, 0.26, 0.3, 0.38, 0, 0.26, 0.06);
-  for (let i = 0; i < 4; i++) b.box(0x71717a, 0.3, 0.02, 0.2, 0, 0.36 + i * 0.05, 0.2);
-  b.tube(0xd4d4d8, 0.035, 0.035, 0.9, -0.15, 0.3, -0.3, { yaw: Math.PI / 2, sides: 10 });
-  b.tube(0xd4d4d8, 0.05, 0.05, 0.32, -0.15, 0.36, -0.62, { yaw: Math.PI / 2, sides: 12 });
-  // The frame from the headstock down to the engine, and under the seat
-  b.box(0x18181b, 0.06, 0.06, 0.62, 0, 0.55, 0.32, { pitch: 0.75 });
-  b.box(0x18181b, 0.05, 0.05, 0.8, 0, 0.68, -0.32, { pitch: -0.1 });
-  // The tank, the side panels, the long seat, the carrier
-  const tank = new THREE.SphereGeometry(0.2, 16, 12);
-  tank.scale(0.95, 0.7, 1.6);
-  b.shape(RED, tank, 0, 0.86, 0.24);
-  b.box(0xf8fafc, 0.02, 0.05, 0.16, 0.18, 0.84, 0.24);
-  b.box(0xf8fafc, 0.02, 0.05, 0.16, -0.18, 0.84, 0.24);
-  b.box(RED, 0.24, 0.2, 0.36, 0, 0.62, -0.2);
-  b.box(0x0c0c0e, 0.27, 0.09, 0.82, 0, 0.8, -0.3);
-  b.box(0xa1a1aa, 0.3, 0.03, 0.34, 0, 0.88, -0.8);
-  // Mudguards, the tail lamp, the plate, the footrests
-  b.box(0x18181b, 0.14, 0.03, 0.42, 0, 0.6, -0.68, { pitch: 0.25 });
-  b.box(0x18181b, 0.12, 0.03, 0.36, 0, 0.58, 0.72, { pitch: -0.2 });
-  b.box(0xef4444, 0.1, 0.05, 0.04, 0, 0.82, -0.98, { glow: true });
-  b.box(0xf8fafc, 0.2, 0.1, 0.01, 0, 0.66, -0.94);
-  for (const side of [-1, 1]) b.box(0x27272a, 0.14, 0.025, 0.04, side * 0.17, 0.3, 0.05).box(0x27272a, 0.12, 0.025, 0.04, side * 0.16, 0.36, -0.42);
-  // The forks up to the lamp
-  for (const side of [-1, 1]) b.box(0xa1a1aa, 0.035, 0.66, 0.035, side * 0.07, 0.3, 0.62, { pitch: -0.42 });
-  b.box(0x18181b, 0.24, 0.2, 0.16, 0, 0.88, 0.56).cylinder(0xfffbe6, 0.07, 0.02, 0, 0.98, 0.64, { pitch: Math.PI / 2, glow: true, sides: 16 });
-  body.add(b.build('okada', { roughness: 0.4, metalness: 0.3 }));
+  body.name = 'okada';
+  addOkadaBody(body);
 
-  const steer = new THREE.Group();
-  steer.position.set(0, 1.08, 0.5);
-  steer.rotation.x = -0.4;
-  const chrome = new THREE.MeshStandardMaterial({ color: 0xd4d4d8, metalness: 0.9, roughness: 0.25 });
-  const grip = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.72, 8), chrome);
-  bar.rotation.z = Math.PI / 2;
-  steer.add(bar);
-  for (const side of [-1, 1]) {
-    const g = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.12, 8), grip);
-    g.rotation.z = Math.PI / 2;
-    g.position.x = side * 0.33;
-    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.26, 6), chrome);
-    stalk.position.set(side * 0.24, 0.13, 0);
-    const mirror = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.015, 12), grip);
-    mirror.rotation.x = Math.PI / 2;
-    mirror.position.set(side * 0.25, 0.27, 0);
-    steer.add(g, stalk, mirror);
-  }
+  const steer = buildOkadaSteer();
   body.add(steer);
 
   const wheels: THREE.Object3D[] = [];
-  for (const z of [0.68, -0.64]) {
-    const w = plainWheel(0.3, 0.1);
-    w.position.set(0, 0.3, z);
+  for (const axle of [OKADA_LAYOUT.frontWheel, OKADA_LAYOUT.rearWheel]) {
+    const w = buildSpokedWheel(OKADA_LAYOUT.wheelRadius, 0.1);
+    w.position.set(axle.x, axle.y, axle.z);
     body.add(w);
     wheels.push(w);
   }
 
   const driver = seatFigure(person({ gender: 'male', outfit: 'engineer_vest', outfitColor: 0x16a34a, trousersColor: 0x1e293b, hairstyle: 'short_crop', skinTone: '#3b2416' }), 0.9, 'bike');
-  driver.root.position.set(0, 0.88, -0.03);
-  driver.root.rotation.x = 0.12;
+  driver.root.position.set(OKADA_LAYOUT.driver.x, OKADA_LAYOUT.driver.y, OKADA_LAYOUT.driver.z);
+  driver.root.rotation.x = OKADA_LAYOUT.driver.pitch;
   body.add(driver.root);
   body.updateMatrixWorld(true);
   helmetOn(driver.rig, 0xfacc15);
   const passenger = new THREE.Group();
-  passenger.position.set(0, 0.92, -0.52);
+  passenger.position.set(OKADA_LAYOUT.passenger.x, OKADA_LAYOUT.passenger.y, OKADA_LAYOUT.passenger.z);
   body.add(passenger);
 
   return {
-    body, wheels, wheelRadius: 0.3, steer,
-    grips: [new THREE.Vector3(0.32, 0, 0), new THREE.Vector3(-0.32, 0, 0)],
+    body, wheels, wheelRadius: OKADA_LAYOUT.wheelRadius, steer,
+    grips: [new THREE.Vector3(OKADA_LAYOUT.gripHalf, 0, 0), new THREE.Vector3(-OKADA_LAYOUT.gripHalf, 0, 0)],
     driver, passenger, hideInside: [passenger],
     views: {
       // Over the rider's shoulder, from the back of the seat
@@ -580,5 +466,6 @@ export function seatPassenger(ride: RideVehicle, rig: HumanRig | null, kind: 'ca
   if (rig.leftForearm) rig.leftForearm.rotation.x = -0.5;
   if (rig.rightForearm) rig.rightForearm.rotation.x = -0.5;
   ride.passenger.add(seated.root);
+  if (kind === 'bench') liftKekePassengerToDeck(seated.root);
   return seated;
 }

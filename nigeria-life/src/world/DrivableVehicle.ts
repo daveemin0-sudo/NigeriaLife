@@ -13,6 +13,14 @@ import type { Zone } from './plan/CityPlan';
 import type { KerbSet } from './plan/Kerbs';
 import { Bodies, bodyOf, depthIntoCar, type CarBody } from './Bodies';
 import { buildCarBody, CAR_SPECS, type CarSpec } from './vehicles/CarBodyKit';
+import {
+  addKekeBody,
+  addOkadaBody,
+  buildKekeSteer,
+  buildOkadaSteer,
+  KEKE_LAYOUT,
+  OKADA_LAYOUT,
+} from './vehicles/KekeOkadaModels';
 import { ASSIST_HANDS_ON, REVERSE_PAUSE, assistYawRate, handlingOf, nextSpeed, roadUnder, sliderAngle, turnWheel, turnWheelTo, wheelAngle, yawRate } from './VehicleHandling';
 
 /** Below this speed (m/s, about 11 km/h) a car may be driven over the kerb, off the road */
@@ -653,161 +661,29 @@ export class DrivableVehicle {
 
   // === 2. BUILD SCULPTED KEKE NAPEP TRICYCLE ===
   private buildKeke(): void {
-    const matLib = MaterialLibrary.getInstance();
+    addKekeBody(this.mesh);
+    this.mesh.add(buildKekeSteer());
 
-    const yellowPaint = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      roughness: 0.35,
-      metalness: 0.15,
-    });
-    const canopyMat = new THREE.MeshStandardMaterial({
-      color: 0x18181b,
-      roughness: 0.92,
-    });
-    const cushionMat = new THREE.MeshStandardMaterial({
-      color: 0x27272a,
-      roughness: 0.75,
-    });
-    const chromeMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      metalness: 0.9,
-      roughness: 0.2,
-    });
-
-    // 1. Lower Chassis Tray & Mudguards
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.55, 2.4), yellowPaint);
-    chassis.position.y = 0.58;
-    chassis.castShadow = true;
-    this.mesh.add(chassis);
-
-    // 2. Aerodynamic Curved Front Fairing & Mudguard Apron
-    const cowlGeo = new THREE.CylinderGeometry(0.70, 0.58, 0.90, 20, 1, false, 0, Math.PI);
-    cowlGeo.scale(1.05, 1, 0.65);
-    const noseCowl = new THREE.Mesh(cowlGeo, yellowPaint);
-    noseCowl.position.set(0, 0.92, 0.92);
-    this.mesh.add(noseCowl);
-
-    // Front mudguard arch over front wheel
-    const frontFender = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.38, 0.38, 0.22, 16, 1, false, 0, Math.PI),
-      yellowPaint
-    );
-    frontFender.rotation.z = Math.PI / 2;
-    frontFender.position.set(0, 0.42, 1.15);
-    this.mesh.add(frontFender);
-
-    // Front Windshield with black rubber border
-    const windshield = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.25, 0.65),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.08, metalness: 0.9 })
-    );
-    windshield.position.set(0, 1.48, 1.05);
-    windshield.rotation.x = -0.15;
-    this.mesh.add(windshield);
-
-    // 3. Iconic Canvas Canopy Roof (Clean rectangular canopy slab with side valance flaps)
-    const canopyTop = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.08, 2.2), canopyMat);
-    canopyTop.position.set(0, 1.95, -0.05);
-    canopyTop.castShadow = true;
-    this.mesh.add(canopyTop);
-
-    // Weatherproof vinyl side valances
-    for (const sx of [-0.74, 0.74]) {
-      const valance = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 2.18), canopyMat);
-      valance.position.set(sx, 1.85, -0.05);
-      this.mesh.add(valance);
-    }
-    // Front sun visor flap
-    const frontFlap = new THREE.Mesh(new THREE.BoxGeometry(1.46, 0.14, 0.04), canopyMat);
-    frontFlap.position.set(0, 1.86, 1.04);
-    this.mesh.add(frontFlap);
-
-    // Canopy rear backdrop drape
-    const rearCanvas = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.85, 0.04), canopyMat);
-    rearCanvas.position.set(0, 1.45, -1.15);
-    this.mesh.add(rearCanvas);
-
-    // 4. Tubular Roll Cage Pillars (Iron Railing)
-    for (const px of [-0.70, 0.70]) {
-      for (const pz of [-1.05, 0.05, 0.95]) {
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.92, 8), matLib.ironRailingMaterial);
-        pillar.position.set(px, 1.42, pz);
-        this.mesh.add(pillar);
-      }
-    }
-
-    // 5. Driver Bucket Seat & Rear Passenger Bench
-    const driverSeat = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.35, 0.45), cushionMat);
-    driverSeat.position.set(0, 0.82, 0.35);
-    this.mesh.add(driverSeat);
-
-    const passengerBench = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.35, 0.55), cushionMat);
-    passengerBench.position.set(0, 0.82, -0.65);
-    this.mesh.add(passengerBench);
-
-    const passengerBackrest = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.45, 0.10), cushionMat);
-    passengerBackrest.position.set(0, 1.15, -0.98);
-    this.mesh.add(passengerBackrest);
-
-    // 6. Handlebars & Dashboard Pod
-    const handlebarGroup = new THREE.Group();
-    handlebarGroup.position.set(0, 1.05, 0.65);
-
-    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.65, 8), chromeMat);
-    bar.rotation.z = Math.PI / 2;
-    handlebarGroup.add(bar);
-
-    // Grips
-    for (const gx of [-0.30, 0.30]) {
-      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.12, 8), canopyMat);
-      grip.rotation.z = Math.PI / 2;
-      grip.position.set(gx, 0, 0);
-      handlebarGroup.add(grip);
-    }
-    this.mesh.add(handlebarGroup);
-
-    // 7. Prominent Cyclops Headlight with Chrome Bezel
-    const headlight = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.16, 0.10, 16),
-      new THREE.MeshStandardMaterial({ color: 0xfffbeb, emissive: 0xfffaed, emissiveIntensity: 1.4, roughness: 0.15 })
-    );
-    headlight.rotation.x = Math.PI / 2;
-    headlight.position.set(0, 0.86, 1.25);
-    this.mesh.add(headlight);
-
-    // 8. License Plate & Exhaust Tailpipe
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.02), yellowPaint);
-    plate.position.set(0, 0.65, -1.22);
-    this.mesh.add(plate);
-
-    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), chromeMat);
-    exhaust.rotation.x = Math.PI / 2;
-    exhaust.position.set(0.48, 0.22, -1.1);
-    this.mesh.add(exhaust);
-
-    // 9. Tricycle Wheels (1 Front Steerable, 2 Rear)
-    // Front Wheel Assembly
+    const r = KEKE_LAYOUT.wheelRadius;
     const frontSteerGroup = new THREE.Group();
-    frontSteerGroup.position.set(0, 0.32, 1.15);
-
-    // Front chrome suspension fork
-    const forkL = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.48, 8), chromeMat);
-    forkL.position.set(-0.14, 0.20, 0);
-    frontSteerGroup.add(forkL);
-    const forkR = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.48, 8), chromeMat);
-    forkR.position.set(0.14, 0.20, 0);
-    frontSteerGroup.add(forkR);
-
-    const { holder: fHolder, tire: fTire } = this.createRealisticWheel(0.32, 0.18, 0.18);
+    frontSteerGroup.position.set(
+      KEKE_LAYOUT.frontWheel.x,
+      KEKE_LAYOUT.frontWheel.y,
+      KEKE_LAYOUT.frontWheel.z,
+    );
+    const { holder: fHolder, tire: fTire } = this.createRealisticWheel(r, 0.14, r * 0.64);
     frontSteerGroup.add(fHolder);
     this.mesh.add(frontSteerGroup);
     this.wheels.push(fTire);
     this.steerWheels.push(frontSteerGroup as any);
 
-    // Rear Wheel Assemblies
-    for (const rx of [-0.74, 0.74]) {
-      const { holder: rHolder, tire: rTire } = this.createRealisticWheel(0.32, 0.18, 0.18);
-      rHolder.position.set(rx, 0.32, -0.85);
+    for (const side of [-1, 1] as const) {
+      const { holder: rHolder, tire: rTire } = this.createRealisticWheel(r, 0.16, r * 0.64);
+      rHolder.position.set(
+        side * KEKE_LAYOUT.rearWheel.halfTrack,
+        KEKE_LAYOUT.rearWheel.y,
+        KEKE_LAYOUT.rearWheel.z,
+      );
       this.mesh.add(rHolder);
       this.wheels.push(rTire);
     }
@@ -1011,91 +887,29 @@ export class DrivableVehicle {
 
   // === 4. BUILD SCULPTED OKADA MOTORCYCLE ===
   private buildOkada(): void {
-    const frameMat = new THREE.MeshPhysicalMaterial({ color: 0x18181b, metalness: 0.85, roughness: 0.25 });
-    const tankMat = new THREE.MeshPhysicalMaterial({
-      color: 0xdc2626, // Crimson Red Tank
-      metalness: 0.65,
-      roughness: 0.2,
-      clearcoat: 0.9,
-    });
-    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.95, roughness: 0.15 });
-    const engineMat = new THREE.MeshStandardMaterial({ color: 0x71717a, metalness: 0.8, roughness: 0.4 });
+    addOkadaBody(this.mesh, { courierBox: 0x059669, tankColor: 0xdc2626 });
+    this.mesh.add(buildOkadaSteer());
 
-    // 1. Tubular Steel Cradle Frame
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.28, 1.6), frameMat);
-    frame.position.y = 0.62;
-    this.mesh.add(frame);
-
-    // 2. Sculpted Teardrop Fuel Tank
-    const tankGeo = new THREE.SphereGeometry(0.24, 12, 10);
-    tankGeo.scale(0.85, 0.95, 1.6);
-    const tank = new THREE.Mesh(tankGeo, tankMat);
-    tank.position.set(0, 0.86, 0.18);
-    this.mesh.add(tank);
-
-    // Chrome Gas Cap
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 12), chromeMat);
-    cap.position.set(0, 1.05, 0.18);
-    this.mesh.add(cap);
-
-    // 3. Engine Block with Cooling Fins
-    const engine = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.35, 0.42), engineMat);
-    engine.position.set(0, 0.52, 0.12);
-    this.mesh.add(engine);
-
-    // Chrome Exhaust Header & Long Cylindrical Silencer Muffler
-    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.95, 12), chromeMat);
-    exhaust.rotation.x = Math.PI / 2;
-    exhaust.position.set(0.14, 0.36, -0.42);
-    this.mesh.add(exhaust);
-
-    // 4. Ergonomic Vinyl Saddle Seat
-    const seat = new THREE.Mesh(
-      new THREE.BoxGeometry(0.26, 0.14, 0.68),
-      new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.85 })
-    );
-    seat.position.set(0, 0.82, -0.32);
-    this.mesh.add(seat);
-
-    // 5. Courier Delivery Cargo Box (QuickChop Emerald)
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(0.52, 0.46, 0.46),
-      new THREE.MeshPhysicalMaterial({ color: 0x059669, roughness: 0.4, clearcoat: 0.6 })
-    );
-    box.position.set(0, 1.05, -0.76);
-    this.mesh.add(box);
-
-    // 6. Front Telescopic Fork & Steering Assembly
+    const r = OKADA_LAYOUT.wheelRadius;
     const forkGroup = new THREE.Group();
-    forkGroup.position.set(0, 0.35, 0.85);
+    forkGroup.position.set(
+      OKADA_LAYOUT.frontWheel.x,
+      OKADA_LAYOUT.frontWheel.y,
+      OKADA_LAYOUT.frontWheel.z,
+    );
     this.mesh.add(forkGroup);
     this.steerWheels.push(forkGroup as any);
 
-    for (const fx of [-0.08, 0.08]) {
-      const forkTube = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.68, 8), chromeMat);
-      forkTube.position.set(fx, 0.35, 0);
-      forkGroup.add(forkTube);
-    }
-
-    const handlebar = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.04, 0.04), chromeMat);
-    handlebar.position.set(0, 0.72, 0);
-    forkGroup.add(handlebar);
-
-    const headlight = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.12, 0.09, 14),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfffae0, emissiveIntensity: 1.5 })
-    );
-    headlight.rotation.x = Math.PI / 2;
-    headlight.position.set(0, 0.54, 0.09);
-    forkGroup.add(headlight);
-
-    // 7. Wire-Spoked Motorcycle Wheels
-    const { holder: fHolder, tire: fTire } = this.createRealisticWheel(0.36, 0.12, 0.26);
+    const { holder: fHolder, tire: fTire } = this.createRealisticWheel(r, 0.1, r * 0.62);
     forkGroup.add(fHolder);
     this.wheels.push(fTire);
 
-    const { holder: rHolder, tire: rTire } = this.createRealisticWheel(0.36, 0.12, 0.26);
-    rHolder.position.set(0, 0.35, -0.72);
+    const { holder: rHolder, tire: rTire } = this.createRealisticWheel(r, 0.1, r * 0.62);
+    rHolder.position.set(
+      OKADA_LAYOUT.rearWheel.x,
+      OKADA_LAYOUT.rearWheel.y,
+      OKADA_LAYOUT.rearWheel.z,
+    );
     this.mesh.add(rHolder);
     this.wheels.push(rTire);
   }
