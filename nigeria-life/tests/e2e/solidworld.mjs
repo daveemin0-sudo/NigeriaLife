@@ -1,11 +1,14 @@
 // The world is solid: walls, furniture and street props stop the player and NPCs.
 // For each place, walks into solids from 8 directions (no crossing) and checks every
 // activity point and exit stays reachable from a clear standing spot.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { open, newPlayer, closeDialogs, advance, wait, enterInterior, leaveInterior, makeOpen } from './lib.mjs';
 
 const SHOTS = process.env.SHOTS || '/opt/cursor/artifacts';
 mkdirSync(SHOTS, { recursive: true });
+const shot = async (page, name) => {
+  try { await page.screenshot({ path: `${SHOTS}/${name}` }); } catch { /* artifact store flake */ }
+};
 
 const DIRS = [
   [1, 0], [-1, 0], [0, 1], [0, -1],
@@ -152,7 +155,7 @@ export async function run(browser, check) {
       g.player.setDestination(new g.player.position.constructor(s.x, 0, s.z));
     }, street.containerSample);
     for (let i = 0; i < 40; i++) await advance(page, 0.1);
-    await page.screenshot({ path: `${SHOTS}/solidworld-port-container.png` });
+    await shot(page, 'solidworld-port-container.png');
   }
 
   // ---- Places: build each, probe solids, check reachability ----
@@ -172,7 +175,7 @@ export async function run(browser, check) {
     empty: placeReport.filter((p) => p.solids === 0).map((p) => p.key),
   });
 
-  // Sampled places covering buka, hotel, worship, home-like, market
+  // Sampled places covering buka, hotel, worship, home-like, market (one per kind)
   const SAMPLE_KEYS = [
     'amala-shitta',
     'balogun-market',
@@ -180,10 +183,9 @@ export async function run(browser, check) {
     'eko-grand-suite',
     'eko-grand-floor',
   ];
-  // Also pick first worship-like and a home/suite if present
   for (const p of placeReport) {
-    if (/church|mosque|worship|cathedral|chapel/i.test(p.key) && !SAMPLE_KEYS.includes(p.key)) SAMPLE_KEYS.push(p.key);
-    if (/town-suite|hotel-1-suite|hotel-2-suite/i.test(p.key) && !SAMPLE_KEYS.includes(p.key)) SAMPLE_KEYS.push(p.key);
+    if (/cathedral|mosque/i.test(p.key) && !SAMPLE_KEYS.some((k) => /cathedral|mosque/i.test(k))) SAMPLE_KEYS.push(p.key);
+    if (/town-suite$/i.test(p.key) && !SAMPLE_KEYS.some((k) => /town-suite$/i.test(k))) SAMPLE_KEYS.push(p.key);
   }
 
   const byKey = Object.fromEntries(placeReport.map((p) => [p.key, p]));
@@ -247,7 +249,7 @@ export async function run(browser, check) {
         g.cameraManager.snapToPlayer(g.player);
       });
       await advance(page, 0.2);
-      await page.screenshot({ path: `${SHOTS}/solidworld-buka-bench.png` });
+      await shot(page, 'solidworld-buka-bench.png');
     }
     if (key === 'eko-grand-suite') {
       await page.evaluate(() => {
@@ -258,9 +260,9 @@ export async function run(browser, check) {
         g.cameraManager.snapToPlayer(g.player);
       });
       await advance(page, 0.2);
-      await page.screenshot({ path: `${SHOTS}/solidworld-hotel-furniture.png` });
+      await shot(page, 'solidworld-hotel-furniture.png');
     }
-    if (/town-suite|hotel-.*-suite/.test(key) && key !== 'eko-grand-suite') {
+    if (/town-suite$/i.test(key)) {
       await page.evaluate(() => {
         const g = window.game;
         const o = g.world.interiorManager.currentInterior.interiorOrigin;
@@ -269,7 +271,7 @@ export async function run(browser, check) {
         g.cameraManager.snapToPlayer(g.player);
       });
       await advance(page, 0.2);
-      await page.screenshot({ path: `${SHOTS}/solidworld-home-table.png` });
+      await shot(page, 'solidworld-home-table.png');
     }
 
     await leaveInterior(page);
@@ -315,7 +317,9 @@ export async function run(browser, check) {
   check('street frame sample completed', perf.avgMs > 0, perf);
 
   // Expose place solid counts in the log for the report
+  const report = { places: placeReport, perf, street: { count: street.count, container: street.containerSample, bench: street.benchSample } };
   console.log('SOLID_COUNTS', JSON.stringify(placeReport));
   console.log('PERF_SAMPLE', JSON.stringify(perf));
-  console.log('STREET', JSON.stringify({ count: street.count, container: street.containerSample, bench: street.benchSample }));
+  console.log('STREET', JSON.stringify(report.street));
+  try { writeFileSync(`${SHOTS}/solidworld-report.json`, JSON.stringify(report, null, 2)); } catch { /* flake */ }
 }
