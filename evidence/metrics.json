@@ -1,0 +1,348 @@
+{
+  "metrics": {
+    "veryLow": {
+      "broadstreet": {
+        "level": "veryLow",
+        "shadows": false,
+        "calls": 125,
+        "triangles": 99140,
+        "frameMs": 263,
+        "fps": 3.8,
+        "heapMB": 476,
+        "drawing": {
+          "width": 198,
+          "height": 440
+        },
+        "pixelRatio": 1
+      },
+      "interior": {
+        "level": "veryLow",
+        "shadows": false,
+        "calls": 160,
+        "triangles": 29407,
+        "frameMs": 172.3,
+        "fps": 5.8,
+        "heapMB": 562,
+        "drawing": {
+          "width": 198,
+          "height": 440
+        },
+        "pixelRatio": 1
+      },
+      "ride": {
+        "level": "veryLow",
+        "shadows": false,
+        "calls": 150,
+        "triangles": 13369,
+        "frameMs": 46.3,
+        "fps": 21.6,
+        "heapMB": 504,
+        "drawing": {
+          "width": 198,
+          "height": 440
+        },
+        "pixelRatio": 1
+      }
+    },
+    "low": {
+      "broadstreet": {
+        "level": "low",
+        "shadows": true,
+        "calls": 155,
+        "triangles": 180067,
+        "frameMs": 1003.2,
+        "fps": 1,
+        "heapMB": 493,
+        "drawing": {
+          "width": 251,
+          "height": 560
+        },
+        "pixelRatio": 1
+      },
+      "interior": {
+        "level": "low",
+        "shadows": true,
+        "calls": 185,
+        "triangles": 74781,
+        "frameMs": 201,
+        "fps": 5,
+        "heapMB": 503,
+        "drawing": {
+          "width": 251,
+          "height": 560
+        },
+        "pixelRatio": 1
+      },
+      "ride": {
+        "level": "low",
+        "shadows": true,
+        "calls": 175,
+        "triangles": 58743,
+        "frameMs": 154.9,
+        "fps": 6.5,
+        "heapMB": 377,
+        "drawing": {
+          "width": 251,
+          "height": 560
+        },
+        "pixelRatio": 1
+      }
+    },
+    "balanced": {
+      "broadstreet": {
+        "level": "balanced",
+        "shadows": true,
+        "calls": 498,
+        "triangles": 413734,
+        "frameMs": 745.9,
+        "fps": 1.3,
+        "heapMB": 500,
+        "drawing": {
+          "width": 324,
+          "height": 720
+        },
+        "pixelRatio": 1.25
+      },
+      "interior": {
+        "level": "balanced",
+        "shadows": true,
+        "calls": 258,
+        "triangles": 207502,
+        "frameMs": 269.4,
+        "fps": 3.7,
+        "heapMB": 515,
+        "drawing": {
+          "width": 324,
+          "height": 720
+        },
+        "pixelRatio": 1.25
+      },
+      "ride": {
+        "level": "balanced",
+        "shadows": true,
+        "calls": 238,
+        "triangles": 175426,
+        "frameMs": 282.9,
+        "fps": 3.5,
+        "heapMB": 462,
+        "drawing": {
+          "width": 324,
+          "height": 720
+        },
+        "pixelRatio": 1.25
+      }
+    }
+  },
+  "first": {
+    "label": "FIRST",
+    "files": 34,
+    "total": 10355484,
+    "transferred": 10355484,
+    "top": [
+      {
+        "path": "/assets/index-DhmL3Oi_.js",
+        "size": 4262741,
+        "fromCache": false,
+        "status": 200,
+        "type": "text/javascript"
+      },
+      {
+        "path": "/models/characters/human_female.glb",
+        "size": 2556652,
+        "fromCache": false,
+        "status": 200,
+        "type": "model/gltf-binary"
+      },
+      {
+        "path": "/models/characters/human_male.glb",
+        "size": 2443324,
+        "fromCache": false,
+        "status": 200,
+        "type": "model/gltf-binary"
+      },
+      {
+        "path": "/assets/index-CkKAYs1-.css",
+        "size": 314725,
+        "fromCache": false,
+        "status": 200,
+        "type": "text/css"
+      },
+      {
+        "path": "http://127.0.0.1:4192/172681cf-9015-44fb-ae33-9b609d0803db",
+        "size": 156924,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "http://127.0.0.1:4192/13fa7f84-f55a-4ff6-917e-a950f966f118",
+        "size": 118658,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "http://127.0.0.1:4192/16959284-6e1c-47eb-beb3-97cf8d45a265",
+        "size": 84142,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "http://127.0.0.1:4192/618a5de5-a208-44ee-9857-74121298c378",
+        "size": 66630,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "http://127.0.0.1:4192/57a9a3d1-93d6-4f5f-a3f8-6b566f7aa091",
+        "size": 48520,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "/assets/dancing-script-latin-wght-normal-DjIcAtRH.woff2",
+        "size": 42672,
+        "fromCache": false,
+        "status": 200,
+        "type": "font/woff2"
+      },
+      {
+        "path": "http://127.0.0.1:4192/25af03f8-8022-427d-81f3-c210416f9926",
+        "size": 37022,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "/assets/outfit-latin-wght-normal-Bc-8i84L.woff2",
+        "size": 32292,
+        "fromCache": false,
+        "status": 200,
+        "type": "font/woff2"
+      },
+      {
+        "path": "http://127.0.0.1:4192/2c5914db-465d-4392-b0c7-31b4470819eb",
+        "size": 24034,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "http://127.0.0.1:4192/b2d2948e-1a4b-4cf6-8b14-5782186fafd0",
+        "size": 23656,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "http://127.0.0.1:4192/d31a03c9-1fc1-47ab-a889-34d6167f732b",
+        "size": 23064,
+        "fromCache": false,
+        "status": 200,
+        "type": "image/webp"
+      }
+    ]
+  },
+  "repeat": {
+    "label": "REPEAT",
+    "files": 36,
+    "total": 10254582,
+    "transferred": 10254582,
+    "top": [
+      {
+        "path": "/assets/index-DhmL3Oi_.js",
+        "size": 4262741,
+        "fromCache": false,
+        "status": 304
+      },
+      {
+        "path": "/models/characters/human_female.glb",
+        "size": 2556652,
+        "fromCache": false,
+        "status": 304
+      },
+      {
+        "path": "/models/characters/human_male.glb",
+        "size": 2443324,
+        "fromCache": false,
+        "status": 304
+      },
+      {
+        "path": "/assets/index-CkKAYs1-.css",
+        "size": 314725,
+        "fromCache": false,
+        "status": 304
+      },
+      {
+        "path": "http://127.0.0.1:4192/d01268dc-ca73-46bf-ba74-7f01b2fc52c9",
+        "size": 156924,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "http://127.0.0.1:4192/16490594-d76c-4820-9a95-b3da46f32685",
+        "size": 118658,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "http://127.0.0.1:4192/a8fda960-2044-411e-871f-0bb514abc7ed",
+        "size": 84142,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "http://127.0.0.1:4192/f480c6e4-a09c-4dd8-b010-8adbae7d23dd",
+        "size": 66630,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "http://127.0.0.1:4192/46e90ae3-4f15-4be9-8b4e-1ae04ca969a6",
+        "size": 48520,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "http://127.0.0.1:4192/05cd7f59-dbbf-48db-afe1-933ffb99a3ba",
+        "size": 37022,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "http://127.0.0.1:4192/b7bb5e8b-973c-4030-bb93-8d7f5fe79f88",
+        "size": 24034,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "http://127.0.0.1:4192/978db0b8-a732-46c7-97d7-75dc9e5bac1d",
+        "size": 23656,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "http://127.0.0.1:4192/e3068a96-8ad1-4e8b-8fc9-168f5fa90ca8",
+        "size": 23064,
+        "fromCache": false,
+        "status": 200
+      },
+      {
+        "path": "/icon-192.png",
+        "size": 22641,
+        "fromCache": false,
+        "status": 304
+      },
+      {
+        "path": "http://127.0.0.1:4192/e7072792-609b-408b-a1c6-9661161c3a9b",
+        "size": 20616,
+        "fromCache": false,
+        "status": 200
+      }
+    ],
+    "cached": 22
+  }
+}
