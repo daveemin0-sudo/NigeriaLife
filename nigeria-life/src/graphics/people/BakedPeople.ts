@@ -4,6 +4,7 @@ import { garmentOf, loadSkinnedCharacter, streetDress, wears, type Dress, type S
 import { buildOf } from './SkinnedCrowd';
 import { RigRegistry } from './RigRegistry';
 import { setPersonBaker } from '../MeshBaker';
+import type { PatternStyle } from '../../player/ClothingStyle';
 
 /**
  * People further off than the nearest few, drawn as the same character models (not the old figures):
@@ -22,10 +23,18 @@ const PART: Record<string, number> = { Skin_Body: 0, Hair: 1, Cloth_Top: 2, Clot
 const TINTS = ['tSkin', 'tHair', 'tTop', 'tBottom', 'tShoes', 'tHat'] as const;
 const MODES: BakedMode[] = ['walk', 'idle', 'talk', 'dance', 'sit'];
 /** Garment cuts that read the same far off, each as the one baked for it */
-const FAR_TOP: Record<string, string> = { tee_oversized: 'tee', polo: 'tee', shirt: '', peplum: 'tee', buba: 'tee' };
-const FAR_SKIRT: Record<string, string> = { pleated: 'knee', pencil: 'knee', iro: 'maxi' };
+const FAR_TOP: Record<string, string> = { tee_oversized: 'tee', polo: 'tee', shirt: '' };
+const FAR_SKIRT: Record<string, string> = { pleated: 'knee', iro: 'maxi' };
 const FAR_HAT: Record<string, string> = { fila: 'kufi' };
 const FAR_BOTTOM: Record<string, string> = { jeans_slim: 'jeans_straight', jeans_baggy: 'jeans_straight', chinos: 'jeans_straight', cargo: 'jeans_straight', cargo_shorts: 'shorts' };
+
+/** A printed cloth seen from far off: too small to draw, so it is the colour its print comes to */
+const printColour = (base: THREE.Color, pattern?: PatternStyle): THREE.Color => {
+  if (!pattern?.colour2) return base;
+  const second = new THREE.Color(pattern.colour2);
+  const third = pattern.colour3 ? new THREE.Color(pattern.colour3) : second;
+  return base.clone().multiplyScalar(0.62).add(second.multiplyScalar(0.26)).add(third.clone().multiplyScalar(0.12));
+};
 
 interface Model {
   handle: SkinnedCharacterHandle;
@@ -148,7 +157,7 @@ export class BakedPeople {
         cut = BakedPeople.cuts.size;
         BakedPeople.cuts.set(d.key, cut);
       }
-      dress = { ...d, cut };
+      dress = { ...d, cut, top: printColour(near.top, look.styles?.top?.pattern), bottom: printColour(near.bottom, look.styles?.bottom?.pattern) };
       // Everyone has their own look now (and a new one when they change): the oldest are let go
       if (this.dresses.size > 4000) this.dresses.clear();
       this.dresses.set(lookKey, dress);
@@ -288,8 +297,7 @@ export class BakedPeople {
   private static pose(model: Model, dress: Dress, mode: BakedMode, lod: boolean, lightCloth = false): { geometry: THREE.BufferGeometry; hip: number } {
     const { handle } = model;
     handle.play(mode as SkinnedAnimState, 0);
-    handle.mixer.setTime((model.durations.get(mode) ?? 1) * 0.5);
-    handle.update(0);
+    handle.poseAt((model.durations.get(mode) ?? 1) * 0.5);
     handle.root.updateMatrixWorld(true);
     const shown = dress.shown;
     const positions: number[] = [];
@@ -370,8 +378,7 @@ export class BakedPeople {
   private bake(model: Model, dress: Dress, mode: BakedMode, at: number): THREE.BufferGeometry {
     const { handle } = model;
     handle.play(mode as SkinnedAnimState, 0);
-    handle.mixer.setTime(at);
-    handle.update(0); // the everyday posture over the clip, as on a full model
+    handle.poseAt(at); // the clip at this moment, with the everyday posture over it, as on a full model
     handle.root.updateMatrixWorld(true);
 
     const shown = dress.shown;

@@ -1993,9 +1993,8 @@ export class CityPopulation {
       if (CityPopulation.PEOPLE_AS_MODELS) {
         const walking = a.mode === 'walk' && a.xing?.phase !== 'wait';
         const mode: BakedMode = walking || a.boarding ? 'walk' : a.mode === 'talk' ? 'talk' : 'idle';
-        // A stride's turns from the walker's own cadence (as the old figures stepped), else a slow cycle
-        const cadence = 6.5 + (a.speed ?? 1.2) * 1.4 + (a.id % 5) * 0.35;
-        const cycle = mode === 'walk' ? (a.phase * cadence) / (Math.PI * 2) : a.phase / 3;
+        // One full stride of the walk clip for each 1.2 m walked (at their height), so the feet stay planted; else a slow cycle
+        const cycle = mode === 'walk' ? (a.phase * 1.35) / (1.2 * a.scale) : a.phase / 3;
         if (this.baked.draw(a.id, dress.look, dress.key, ax, ground, az, a.yaw, a.scale, mode, cycle) && this.shadows) {
           base.makeScale(a.scale, 1, a.scale);
           base.setPosition(ax, ground + 0.015, az);

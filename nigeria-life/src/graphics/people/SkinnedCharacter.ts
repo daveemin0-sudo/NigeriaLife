@@ -28,6 +28,8 @@ export interface SkinnedCharacterHandle {
   /** Acts out what the interaction system asks of the body (sit, lie, kneel, eat, reach, wave, ...) */
   applyPose: (pose: PoseState) => void;
   update: (delta: number) => void;
+  /** Holds the action at this many seconds in, with the everyday posture and the cloth over it (for baking a still) */
+  poseAt: (seconds: number) => void;
   applyAppearance: (config: CharacterConfig) => void;
   dispose: () => void;
   /** Approximate height after normalize (metres) */
@@ -694,6 +696,18 @@ export async function loadSkinnedCharacter(
       mixer.update(delta);
       posture.apply(currentState);
       clothRig?.apply(delta);
+    },
+    poseAt: (seconds: number) => {
+      // This action alone, at this moment (no fade from the last one), before the posture goes over it
+      posture.restore();
+      if (current) {
+        mixer.stopAllAction();
+        current.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();
+        current.time = seconds;
+        mixer.update(0);
+      }
+      posture.apply(currentState);
+      clothRig?.apply();
     },
     applyAppearance,
     dispose: () => {
