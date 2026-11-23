@@ -382,6 +382,11 @@ export class Game {
   private onJourneyCompleted: (() => void) | null = null;
   /** Where the current paid ride in a city was booked: "Turn back" sets the player down there */
   private ridePickup: { x: number; z: number; rotationY: number; name: string } | null = null;
+  /** GPU context is gone — pause the loop until restored (or we reload at a lower quality). */
+  private contextLost = false;
+  /** How many times the GPU context has been lost this visit (repeat → drop quality and reload). */
+  private contextLossCount = 0;
+  private restoringBanner: HTMLDivElement | null = null;
 
   constructor() {
     // 1. Scene
@@ -413,6 +418,7 @@ export class Game {
     this.renderer.debug.checkShaderErrors = !!import.meta.env.DEV;
     document.body.appendChild(this.renderer.domElement);
     PointerScope.init(this.renderer.domElement);
+    this.bindWebGlLifecycle();
 
     // 3b. Post-Processing Pipeline (Phase 6: Bloom, Lagos Atmosphere Grade, OutputPass)
     this.postProcessing = new PostProcessingManager(
@@ -4532,6 +4538,11 @@ export class Game {
 
   private loop = (): void => {
     requestAnimationFrame(this.loop);
+    if (this.contextLost) {
+      // Keep the RAF alive; do not step or draw until the GPU context is back
+      this.clock.getDelta();
+      return;
+    }
     const rawDelta = this.clock.getDelta();
     this.graphics?.watch(rawDelta);
     // Cap maximum delta to prevent excessive steps after browser tab backgrounding
@@ -4547,6 +4558,118 @@ export class Game {
     // Not drawn while the shaders are compiling in the background: drawing would wait for each one
     if (!this.warming) this.render();
   };
+
+  /** webglcontextlost / restored: pause, save, restore in place; repeat failure drops quality and reloads. */
+  private bindWebGlLifecycle(): void {
+    const canvas = this.renderer.domElement;
+    canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      this.onWebGlContextLost();
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      void this.onWebGlContextRestored();
+    });
+  }
+
+  private onWebGlContextLost(): void {
+    this.contextLost = true;
+    this.contextLossCount += 1;
+    try {
+      this.saveWorldState();
+    } catch {
+      /* best effort */
+    }
+    try {
+      SoundEngine.getInstance().suspendAll();
+    } catch {
+      /* ignore */
+    }
+    this.showRestoringBanner();
+  }
+
+  private async onWebGlContextRestored(): Promise<void> {
+    // Repeated losses: drop one quality level and reload into the same save
+    if (this.contextLossCount >= 2) {
+      this.dropQualityAndReload();
+      return;
+    }
+    try {
+      if (this.graphics) {
+        // Re-apply the locked session level (will not flip shadowMap.enabled)
+        this.graphics.apply(this.graphics.level);
+        this.applyDrawingSize();
+      } else {
+        this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+      }
+      this.renderer.shadowMap.needsUpdate = true;
+      // Recompile a short warm pass so the first frames after restore do not stall
+      await this.warmShaders(4_000);
+      this.contextLost = false;
+      this.hideRestoringBanner();
+      this.clock.getDelta();
+      try {
+        SoundEngine.getInstance().resumeAll();
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      console.warn('[webgl] context restore failed', err);
+      this.dropQualityAndReload();
+    }
+  }
+
+  private showRestoringBanner(): void {
+    if (this.restoringBanner) return;
+    const el = document.createElement('div');
+    el.id = 'nl-restoring';
+    el.setAttribute('role', 'status');
+    el.textContent = 'Restoring…';
+    el.style.cssText =
+      'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483000;padding:12px 18px;border-radius:12px;background:rgba(15,26,20,.92);color:#fff;font:700 14px/1.2 system-ui,sans-serif;pointer-events:none;';
+    document.body.appendChild(el);
+    this.restoringBanner = el;
+  }
+
+  private hideRestoringBanner(): void {
+    this.restoringBanner?.remove();
+    this.restoringBanner = null;
+  }
+
+  /** Persist a lower quality for the next load and reload so the same save continues. */
+  private dropQualityAndReload(): void {
+    const order: Array<'high' | 'balanced' | 'low' | 'veryLow'> = ['high', 'balanced', 'low', 'veryLow'];
+    try {
+      const key = 'nigerialife.graphics';
+      let saved: { level?: string; chosen?: boolean; userScale?: number; shadows?: boolean } = {};
+      try {
+        saved = JSON.parse(localStorage.getItem(key) || '{}') || {};
+      } catch {
+        saved = {};
+      }
+      const current = (this.graphics?.level || saved.level || 'balanced') as 'high' | 'balanced' | 'low' | 'veryLow';
+      const idx = Math.min(order.length - 1, Math.max(0, order.indexOf(current)) + 1);
+      const next = order[idx];
+      const shadows = next !== 'veryLow';
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          level: next,
+          chosen: false,
+          userScale: typeof saved.userScale === 'number' ? saved.userScale : 1,
+          shadows,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.saveWorldState();
+    } catch {
+      /* ignore */
+    }
+    this.showRestoringBanner();
+    location.reload();
+  }
 
   /**
    * Nothing is drawn while shaders are being compiled ahead (warmShaders). True from the start: the
