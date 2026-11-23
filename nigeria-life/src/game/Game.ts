@@ -2340,7 +2340,8 @@ export class Game {
 
     // Buildings and walls are solid to someone on foot and to a vehicle being driven
     this.player.solids = () => this.solidsHere();
-    this.world.cityPopulation.solids = () => this.solidsHere();
+    // Living-city walkers already stay on the pavement network (clear of buildings); Broad Street
+    // patrol NPCs use Solids so they slide along walls and props.
     this.world.npcs.solids = () => this.solidsHere();
     this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';

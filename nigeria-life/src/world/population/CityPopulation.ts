@@ -296,12 +296,6 @@ export class CityPopulation {
   private readonly owedFar = new Float64Array(FAR_EVERY);
   /** Who the walkers step round this frame: the player, or the vehicle the player is driving */
   public avoid: Array<{ x: number; z: number; r: number }> = [];
-  /**
-   * Buildings and walls: set by the game so walkers cannot pass through structures.
-   * Only `wallAt` is used here — street furniture is already kept clear by the pavement network;
-   * treating every stall as a hard stop stranded walkers and made them give up at crossings.
-   */
-  public solids: (() => { step(fromX: number, fromZ: number, toX: number, toZ: number, radius: number): { x: number; z: number }; wallAt(x: number, z: number, radius?: number): boolean } | null) | null = null;
   private bodyPool: PersonBody[] = [];
 
   private rand = seededRandom(90210);
@@ -789,17 +783,8 @@ export class CityPopulation {
       return true;
     }
     const step = Math.min(d, Math.max(0.4, a.speed) * delta);
-    const nx = a.x + (dx / d) * step;
-    const nz = a.z + (dz / d) * step;
-    const solids = this.solids?.();
-    if (solids?.wallAt(nx, nz, 0.35)) {
-      const slid = solids.step(a.x, a.z, nx, nz, 0.3);
-      a.x = slid.x;
-      a.z = slid.z;
-    } else {
-      a.x = nx;
-      a.z = nz;
-    }
+    a.x += (dx / d) * step;
+    a.z += (dz / d) * step;
     a.yaw = Math.atan2(dx, dz);
     a.phase += delta * (Math.max(0.4, a.speed) / 1.35);
     return false;
