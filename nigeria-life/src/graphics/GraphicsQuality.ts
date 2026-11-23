@@ -1,16 +1,21 @@
 import { SkinnedCrowd } from './people/SkinnedCrowd';
 import * as THREE from 'three';
+import { resolveDeviceProfile, type DeviceTier } from './DeviceProfile';
 
 /**
  * How much the game draws, chosen per device. Each level sets only the things measured to
- * cost frame time on the target machine (Intel HD 620): the size of the drawing in pixels,
- * the sun's shadows, and how far away street pedestrians are drawn and drawn in full.
- * High is the game as it has always looked.
+ * cost frame time: the size of the drawing in pixels, the sun's shadows, and how far away
+ * street pedestrians are drawn and drawn in full.
+ * High is the game as it has always looked. Very Low is for weak phones.
  *
- * Render scale + an optional internal height cap let a Low preset target ~720p fill-rate
+ * Render scale + an optional internal height cap let Low/Very Low target lower fill-rate
  * without changing the CSS layout size of the canvas.
+ *
+ * IMPORTANT: toggling renderer.shadowMap.enabled rebuilds every lit shader (multi-second
+ * freeze). Shadows are decided once before the first compile and never flipped live;
+ * a desired change is kept for the next load.
  */
-export type Quality = 'high' | 'balanced' | 'low';
+export type Quality = 'high' | 'balanced' | 'low' | 'veryLow';
 
 interface Level {
   label: string;
@@ -76,8 +81,8 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     wetMetalnessMax: 0.45,
     postFx: false,
   },
-  // EliteBook HD 620 / A16-class: fewer pixels, throttled shadows, tight crowd, 720p cap.
-  // Shadows stay on (turning them off rebuilds every lit shader — multi-second freeze).
+  // EliteBook HD 620 / mid phone: fewer pixels, throttled shadows, tight crowd, 720p cap.
+  // Shadows stay on Low (turning them off rebuilds every lit shader — multi-second freeze).
   low: {
     label: 'Low',
     pixelRatio: (d) => Math.min(d, 1),
@@ -87,7 +92,6 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     shadowMapSize: 512,
     shadowEvery: 1.5,
     crowdDraw: 36,
-    // Slightly farther full-detail pedestrians (presence without raising draw distance / fill-rate)
     crowdNear: 10,
     crowdModels: 3,
     trafficDraw: 80,
@@ -96,15 +100,39 @@ export const QUALITY_LEVELS: Record<Quality, Level> = {
     wetMetalnessMax: 0.22,
     postFx: false,
   },
+  // Weak phones (A16-class and below): pixel ratio 1, short distances, player as only full model.
+  // Shadows off — decided before first shader compile; never toggled live.
+  veryLow: {
+    label: 'Very Low',
+    pixelRatio: () => 1,
+    renderScale: 0.55,
+    maxInternalHeight: 540,
+    shadows: false,
+    shadowMapSize: 256,
+    shadowEvery: 99,
+    crowdDraw: 22,
+    crowdNear: 6,
+    crowdModels: 0,
+    trafficDraw: 50,
+    smokeEvery: 8,
+    districtDraw: 140,
+    wetMetalnessMax: 0.08,
+    postFx: false,
+  },
 };
 
-const ORDER: Quality[] = ['high', 'balanced', 'low'];
+/** Highest → lowest (step-down walks toward the end) */
+const ORDER: Quality[] = ['high', 'balanced', 'low', 'veryLow'];
 const STORAGE_KEY = 'nigerialife.graphics';
 /** Below this many frames a second over a stretch of play, the game steps down a level by itself */
 const SLOW_FPS = 20;
+/** Above this for a full sample window, the game may step up one level (if not chosen by hand) */
+const GOOD_FPS = 48;
 /** Frames in the first seconds after loading are slow while shaders compile: not counted */
 const WARM_UP_SECONDS = 8;
 const SAMPLE_SECONDS = 12;
+/** After an auto change, wait this long before sampling again (avoids bouncing) */
+const COOLDOWN_SECONDS = 45;
 
 export interface QualityTargets {
   renderer: THREE.WebGLRenderer;
@@ -126,7 +154,7 @@ export interface QualityTargets {
   tell?: (text: string) => void;
 }
 
-/** Integrated / software GPUs that should start on Low unless the player already chose. */
+/** @deprecated Prefer resolveDeviceProfile(); kept for callers that only need the Intel-iGPU check. */
 export function preferLowGpu(): boolean {
   try {
     const canvas = document.createElement('canvas');
@@ -134,7 +162,6 @@ export function preferLowGpu(): boolean {
     if (!gl || !(gl instanceof WebGLRenderingContext)) return false;
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
     const name = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '') : '';
-    // Real weak laptop iGPUs only — not SwiftShader/Mesa (CI / headless stay on High for visual tests)
     return /Intel.*(HD|UHD|Iris)/i.test(name);
   } catch {
     return false;
@@ -147,16 +174,29 @@ export class GraphicsQuality {
   public chosen = false;
   /** Extra scale the player set (1 = use the level default). Persisted with the level. */
   public userScale = 1;
+  /** Device tier used for the first-visit default (for diagnostics) */
+  public deviceTier: DeviceTier = 'strong';
   private played = 0;
   private sinceShadow = 0;
   private frames = 0;
   private sampled = 0;
+  private cooldown = 0;
   private targets: QualityTargets;
   /** This device had a level kept from before */
   private storedLevel = false;
+  /**
+   * Shadows applied on this visit. Never flipped after the first apply — a desired change is
+   * written to storage and takes effect on the next load.
+   */
+  private sessionShadows: boolean;
+  private firstApplyDone = false;
 
-  constructor(targets: QualityTargets) {
+  constructor(targets: QualityTargets, opts?: { sessionShadows?: boolean }) {
     this.targets = targets;
+    const profile = resolveDeviceProfile();
+    this.deviceTier = profile.tier;
+
+    let desiredShadows = profile.shadows;
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
       if (saved && ORDER.includes(saved.level)) {
@@ -166,15 +206,43 @@ export class GraphicsQuality {
         if (typeof saved.userScale === 'number' && saved.userScale >= 0.5 && saved.userScale <= 1) {
           this.userScale = saved.userScale;
         }
+        if (typeof saved.shadows === 'boolean') desiredShadows = saved.shadows;
+        else desiredShadows = QUALITY_LEVELS[this.level].shadows;
       }
     } catch {
-      // No storage (private window): start at High
+      // No storage (private window): start from the device profile
     }
-    // Phones → Medium. Weak integrated GPUs (HD 620 class) → Low on first visit.
+
     if (!this.chosen && !this.storedLevel) {
-      if (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) this.level = 'balanced';
-      else if (preferLowGpu()) this.level = 'low';
+      this.level = profile.quality;
+      desiredShadows = QUALITY_LEVELS[this.level].shadows;
     }
+
+    // URL ?quality= wins for this visit's starting level (tests / probes), but does not mark chosen
+    // unless the player later presses Change. Existing automated suites keep High via webdriver tier.
+    try {
+      const q = new URLSearchParams(location.search).get('quality');
+      if (q) {
+        const aliases: Record<string, Quality> = {
+          high: 'high',
+          balanced: 'balanced',
+          medium: 'balanced',
+          low: 'low',
+          verylow: 'veryLow',
+          'very-low': 'veryLow',
+        };
+        const mapped = aliases[q.toLowerCase()];
+        if (mapped) {
+          this.level = mapped;
+          if (!this.storedLevel) desiredShadows = QUALITY_LEVELS[mapped].shadows;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // Constructor opts (from Game, which may have already primed the renderer) win for this session
+    this.sessionShadows = typeof opts?.sessionShadows === 'boolean' ? opts.sessionShadows : desiredShadows;
     this.apply(this.level);
   }
 
@@ -244,23 +312,29 @@ export class GraphicsQuality {
     renderer.setPixelRatio(l.pixelRatio(window.devicePixelRatio || 1));
     this.targets.resized?.();
 
-    // Turning shadows on or off changes every lit material's shader, so only touch them on a change
-    if (renderer.shadowMap.enabled !== l.shadows || sun.castShadow !== l.shadows) {
-      renderer.shadowMap.enabled = l.shadows;
-      sun.castShadow = l.shadows;
-      scene.traverse((o) => {
-        const m = (o as THREE.Mesh).material;
-        if (m) for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
-      });
+    const wantShadows = l.shadows;
+    if (!this.firstApplyDone) {
+      // First apply of the session: lock the shadow flag that Game may already have primed
+      renderer.shadowMap.enabled = this.sessionShadows;
+      sun.castShadow = this.sessionShadows;
+      this.firstApplyDone = true;
+    } else if (wantShadows !== this.sessionShadows) {
+      // Live change would rebuild every lit shader — keep the session flag; remember for next load
+      // (sessionShadows stays; storage below writes the desired wantShadows)
+    } else {
+      // Same shadow intent as session: only refresh map size / interval
+      sun.castShadow = this.sessionShadows;
     }
-    if (sun.shadow.mapSize.x !== l.shadowMapSize) {
+
+    // Shadow map size may shrink/grow without flipping enabled
+    if (this.sessionShadows && sun.shadow.mapSize.x !== l.shadowMapSize) {
       sun.shadow.mapSize.set(l.shadowMapSize, l.shadowMapSize);
       sun.shadow.map?.dispose();
       sun.shadow.map = null;
     }
 
-    renderer.shadowMap.autoUpdate = l.shadowEvery === 0;
-    renderer.shadowMap.needsUpdate = true;
+    renderer.shadowMap.autoUpdate = this.sessionShadows && l.shadowEvery === 0;
+    if (this.sessionShadows) renderer.shadowMap.needsUpdate = true;
     crowd.drawDistance = l.crowdDraw;
     crowd.nearDistance = l.crowdNear;
     SkinnedCrowd.limit = l.crowdModels;
@@ -274,29 +348,43 @@ export class GraphicsQuality {
     });
 
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ level, chosen: this.chosen, userScale: this.userScale }));
+      // Persist the level's desired shadows for the *next* load (may differ from sessionShadows)
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          level,
+          chosen: this.chosen,
+          userScale: this.userScale,
+          shadows: wantShadows,
+        })
+      );
     } catch {
       // Not kept, but still applied for this visit
     }
+
+    // Avoid unused-var lint if scene is only needed when we would traverse materials
+    void scene;
   }
 
   /**
-   * Called every frame with the real time it took. Once, after the warm-up, if play has been
-   * slower than SLOW_FPS the level steps down and the player is told; it does this at most
-   * twice and never once the player has chosen. Automated browsers are left alone, so tests
-   * draw the same thing every time.
+   * Called every frame with the real time it took. After warm-up, sustained slow play steps
+   * down; sustained smooth play may step up one level. Never once the player has chosen.
+   * Automated browsers are left alone so tests draw the same thing every time.
    */
   public watch(realSeconds: number): void {
-    // A shadow redrawn now and then, on a level that does not redraw it every frame
     const every = QUALITY_LEVELS[this.level].shadowEvery;
-    if (every > 0) {
+    if (this.sessionShadows && every > 0) {
       this.sinceShadow += realSeconds;
       if (this.sinceShadow >= every) {
         this.sinceShadow = 0;
         this.targets.renderer.shadowMap.needsUpdate = true;
       }
     }
-    if (this.chosen || this.level === 'low' || navigator.webdriver) return;
+    if (this.chosen || navigator.webdriver) return;
+    if (this.cooldown > 0) {
+      this.cooldown = Math.max(0, this.cooldown - realSeconds);
+      return;
+    }
     this.played += realSeconds;
     if (this.played < WARM_UP_SECONDS) return;
     this.frames++;
@@ -306,15 +394,41 @@ export class GraphicsQuality {
     this.frames = 0;
     this.sampled = 0;
     if (fps < SLOW_FPS) this.stepDown(fps);
+    else if (fps >= GOOD_FPS) this.stepUp(fps);
   }
 
-  /** One level down, and say so. */
+  /** One level down, and say so. Does not toggle shadowMap.enabled. */
   public stepDown(fps: number): void {
     const lower = ORDER[Math.min(ORDER.length - 1, ORDER.indexOf(this.level) + 1)];
     if (lower === this.level) return;
     this.apply(lower);
+    this.cooldown = COOLDOWN_SECONDS;
     this.targets.tell?.(
       `The game was running at ${Math.round(fps)} frames a second, so graphics are now ${QUALITY_LEVELS[lower].label}. Change it in Phone › Life › Settings.`
     );
   }
+
+  /** One level up after sustained good frame rate. Does not toggle shadowMap.enabled. */
+  public stepUp(fps: number): void {
+    const idx = ORDER.indexOf(this.level);
+    if (idx <= 0) return;
+    const higher = ORDER[idx - 1];
+    this.apply(higher);
+    this.cooldown = COOLDOWN_SECONDS;
+    this.targets.tell?.(
+      `The game is running smoothly (${Math.round(fps)} fps), so graphics are now ${QUALITY_LEVELS[higher].label}. Change it in Phone › Life › Settings.`
+    );
+  }
+}
+
+/** Shadows the renderer should enable before the first shader compile. */
+export function initialShadowFlag(): boolean {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved && typeof saved.shadows === 'boolean') return saved.shadows;
+    if (saved && ORDER.includes(saved.level)) return QUALITY_LEVELS[saved.level as Quality].shadows;
+  } catch {
+    /* ignore */
+  }
+  return resolveDeviceProfile().shadows;
 }

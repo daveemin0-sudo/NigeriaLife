@@ -185,7 +185,7 @@ const leagueFixture = LeagueRules.fixture;
 import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
-import { GraphicsQuality } from '../graphics/GraphicsQuality';
+import { GraphicsQuality, initialShadowFlag } from '../graphics/GraphicsQuality';
 import { OnlineAccount } from '../online/OnlineAccount';
 import { CloudSyncService } from '../backend/CloudSyncService';
 import { Qualifications } from '../life/Qualifications';
@@ -401,7 +401,10 @@ export class Game {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
-    this.renderer.shadowMap.enabled = true;
+    // Shadows are decided once before any lit shader compiles. Toggling later rebuilds every
+    // material (multi-second freeze on phones). DeviceProfile / a stored choice set the flag;
+    // live quality step-down never flips it — that waits for the next load.
+    this.renderer.shadowMap.enabled = initialShadowFlag();
     // This version of three.js draws PCFSoftShadowMap as PCFShadowMap, and switches to it at the first shadow drawn:
     // asked for by its old name, every shader that takes a shadow was built twice (a third of them all, 7 seconds of loading)
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -2433,24 +2436,29 @@ export class Game {
       return true;
     };
     DrivableVehicle.loadSettings();
-    this.graphics = new GraphicsQuality({
-      renderer: this.renderer,
-      sun: this.world.skyEnvironment.sunLight,
-      scene: this.scene,
-      crowd: this.world.cityPopulation,
-      resized: () => this.applyDrawingSize(),
-      onLevel: ({ smokeEvery, districtDraw, trafficDraw, wetMetalnessMax, postFx }) => {
-        this.world.smokeEvery = smokeEvery;
-        this.world.districtDrawDistance = districtDraw;
-        this.world.trafficSpawner.drawDistance = trafficDraw;
-        for (const city of [this.world.cityManager.abujaCity, this.world.cityManager.portHarcourtCity]) {
-          if (city?.life?.traffic) city.life.traffic.drawDistance = trafficDraw;
-        }
-        this.world.weather.wetMetalnessMax = wetMetalnessMax;
-        this.postProcessing.setEnabled(postFx);
+    this.graphics = new GraphicsQuality(
+      {
+        renderer: this.renderer,
+        sun: this.world.skyEnvironment.sunLight,
+        scene: this.scene,
+        crowd: this.world.cityPopulation,
+        resized: () => this.applyDrawingSize(),
+        onLevel: ({ smokeEvery, districtDraw, trafficDraw, wetMetalnessMax, postFx }) => {
+          this.world.smokeEvery = smokeEvery;
+          this.world.districtDrawDistance = districtDraw;
+          this.world.trafficSpawner.drawDistance = trafficDraw;
+          for (const city of [this.world.cityManager.abujaCity, this.world.cityManager.portHarcourtCity]) {
+            if (city?.life?.traffic) city.life.traffic.drawDistance = trafficDraw;
+          }
+          this.world.weather.wetMetalnessMax = wetMetalnessMax;
+          this.postProcessing.setEnabled(postFx);
+        },
+        tell: (text) => showGameToast(text, 'info', 7000),
       },
-      tell: (text) => showGameToast(text, 'info', 7000),
-    });
+      { sessionShadows: this.renderer.shadowMap.enabled }
+    );
+    // Keep the sun's cast flag aligned with the session shadow lock
+    this.world.skyEnvironment.sunLight.castShadow = this.renderer.shadowMap.enabled;
     this.world.weather.wetMetalnessMax = this.graphics.wetMetalnessMax;
     this.applyDrawingSize();
     // The queues at Broad Street's bus stops are who a danfo or keke picks up
