@@ -38,10 +38,8 @@ export function seatFigure(rig: HumanRig, scale = 0.92, legs: 'car' | 'bike' | '
   rig.group.position.y = -0.77 * scale;
   rig.nameTag.visible = false;
   if (rig.phoneMesh) rig.phoneMesh.visible = false;
-  // Bench (keke): tuck shins under the seat so shoes sit on the floor deck and
-  // stay behind the open side (not hanging out under the sill).
-  const thigh = legs === 'bike' ? -1.15 : legs === 'bench' ? -1.32 : -1.42;
-  const knee = legs === 'bike' ? 1.55 : legs === 'bench' ? 1.35 : 1.15;
+  const thigh = legs === 'bike' ? -1.15 : -1.42;
+  const knee = legs === 'bike' ? 1.55 : legs === 'bench' ? 1.4 : 1.15;
   const spread = legs === 'bike' ? 0.22 : 0.06;
   rig.leftLeg.rotation.set(thigh, 0, -spread);
   rig.rightLeg.rotation.set(thigh, 0, spread);
@@ -374,10 +372,8 @@ export function buildRideKeke(): RideVehicle {
   passenger.position.set(KEKE_LAYOUT.passengerL.x, KEKE_LAYOUT.passengerL.y, KEKE_LAYOUT.passengerL.z);
   body.add(passenger);
   // Someone else on the bench too
-  // Smaller so sit-pose shoes stay inside the deep floor tub; slight X squeeze keeps cloth inboard
-  const other = seatFigure(person({ gender: 'female', outfit: 'casual_blouse', outfitColor: 0x0d9488, hairstyle: 'gele', skinTone: '#4a2c1d' }), 0.78, 'bench');
+  const other = seatFigure(person({ gender: 'female', outfit: 'peplum_skirt', outfitColor: 0x0d9488, hairstyle: 'gele', skinTone: '#4a2c1d' }), 0.88, 'bench');
   other.root.position.set(KEKE_LAYOUT.passengerR.x, KEKE_LAYOUT.passengerR.y, KEKE_LAYOUT.passengerR.z);
-  other.root.scale.x = 0.82;
   other.rig.leftArm.rotation.x = other.rig.rightArm.rotation.x = -0.5;
   body.add(other.root);
 
@@ -451,9 +447,7 @@ export function holdOn(ride: RideVehicle): void {
 export function seatPassenger(ride: RideVehicle, rig: HumanRig | null, kind: 'car' | 'bike' | 'bench'): Seated | null {
   ride.passenger.clear();
   if (!rig) return null;
-  // Keke bench: a touch smaller so character sit-pose shoes stay in the floor tub
-  const seated = seatFigure(rig, kind === 'car' ? 0.85 : kind === 'bench' ? 0.8 : 0.92, kind);
-  if (kind === 'bench') seated.root.scale.x = 0.85;
+  const seated = seatFigure(rig, kind === 'car' ? 0.85 : 0.92, kind);
   // Hands in the lap, or on the rider's waist on a bike
   rig.leftArm.rotation.set(kind === 'bike' ? -0.9 : -0.55, 0, kind === 'bike' ? -0.2 : 0);
   rig.rightArm.rotation.set(kind === 'bike' ? -0.9 : -0.55, 0, kind === 'bike' ? 0.2 : 0);

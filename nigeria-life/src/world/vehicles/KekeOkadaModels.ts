@@ -325,26 +325,21 @@ function ensureKekePrototype(): void {
   body.box('body', KEKE_MATS.body, 0.55, 0.06, 0.28, 0, 0.98, 1.15, { pitch: -0.25, hex: YELLOW });
   body.box('body', KEKE_MATS.body, 0.7, 0.05, 0.08, 0, 0.78, 1.42, { hex: GREEN });
 
-  // Deep cabin tub — sit-pose shoes hang to ~y=-0.05 with hips at 0.7;
-  // tub + skirts enclose them so nothing reads under the chassis from outside.
-  body.box('body', KEKE_MATS.body, 1.26, 0.42, 2.05, 0, 0.15, -0.18, { hex: BODY_DARK });
-  body.box('body', KEKE_MATS.body, 1.16, 0.03, 1.95, 0, 0.36, -0.15, { hex: BODY_DARK });
+  // Floor pan + undertray ribs
+  body.box('body', KEKE_MATS.body, 1.2, 0.05, 2.05, 0, 0.33, -0.18, { hex: BODY_DARK });
   for (const z of [0.4, 0.0, -0.4, -0.8]) {
-    body.box('body', KEKE_MATS.body, 1.05, 0.03, 0.04, 0, 0.02, z, { hex: BODY_DARK });
+    body.box('body', KEKE_MATS.body, 1.05, 0.03, 0.04, 0, 0.3, z, { hex: BODY_DARK });
   }
 
-  // Side sills + green stripe + open entry lips — yellow reaches the tub bottom so
-  // no dark undertray (or shoe) reads under the body from outside.
+  // Side sills + green stripe + open entry lips
   for (const side of [-1, 1]) {
-    body.box('body', KEKE_MATS.body, 0.08, 0.7, 1.72, side * 0.62, 0.28, -0.12, { hex: YELLOW });
-    body.box('body', KEKE_MATS.body, 0.075, 0.09, 1.72, side * 0.62, 0.72, -0.12, { hex: GREEN });
+    body.box('body', KEKE_MATS.body, 0.07, 0.36, 1.72, side * 0.615, 0.52, -0.12, { hex: YELLOW });
+    body.box('body', KEKE_MATS.body, 0.075, 0.09, 1.72, side * 0.615, 0.72, -0.12, { hex: GREEN });
     body.box('body', KEKE_MATS.body, 0.05, 0.08, 0.55, side * 0.62, 0.4, 0.35, { hex: YELLOW });
-    // Foot skirt under the rear bench (boarding gap stays forward of z≈0.2)
-    body.box('body', KEKE_MATS.body, 0.08, 0.66, 1.25, side * 0.68, 0.26, -0.4, { hex: YELLOW });
     // Running-board step
-    body.box('body', KEKE_MATS.body, 0.14, 0.03, 0.7, side * 0.74, 0.02, 0.05, { hex: YELLOW });
+    body.box('body', KEKE_MATS.body, 0.14, 0.03, 0.7, side * 0.72, 0.28, 0.05, { hex: BODY_DARK });
     // Rear wheel arch flare
-    body.box('body', KEKE_MATS.body, 0.08, 0.36, 0.45, side * 0.68, 0.26, -0.78, { hex: YELLOW });
+    body.box('body', KEKE_MATS.body, 0.08, 0.22, 0.45, side * 0.68, 0.45, -0.78, { hex: YELLOW });
   }
 
   // Rear engine cover / boot with rounded top lip
@@ -393,10 +388,10 @@ function ensureKekePrototype(): void {
   }
 
   // --- Interior: floor mats, cabin dash, seats ---
-  interior.box('interior', KEKE_MATS.interior, 1.1, 0.02, 1.9, 0, 0.38, -0.15);
+  interior.box('interior', KEKE_MATS.interior, 1.1, 0.02, 1.9, 0, 0.37, -0.15);
   // Ribbed floor mat strips
   for (let i = 0; i < 6; i++) {
-    interior.box('interior', KEKE_MATS.interior, 1.0, 0.01, 0.04, 0, 0.395, 0.5 - i * 0.22);
+    interior.box('interior', KEKE_MATS.interior, 1.0, 0.01, 0.04, 0, 0.385, 0.5 - i * 0.22);
   }
   // Lower shaped dash under the windscreen: shelf + face toward the driver, column clear above
   interior.box('interior', KEKE_MATS.interior, 0.92, 0.05, 0.34, 0, 0.84, 0.78, { pitch: -0.12 });
