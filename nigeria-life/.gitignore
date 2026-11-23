@@ -32,3 +32,6 @@ server/data
 # Scratch workspace scripts
 scratch/
 
+
+# World audit raw frames (sheets + report are committed)
+docs/audit/raw/
