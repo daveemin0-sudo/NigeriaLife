@@ -190,14 +190,15 @@ export async function run(browser, check) {
   for (const key of SAMPLE_KEYS) {
     if (!byKey[key]) continue;
     await makeOpen(page, key);
-    const entered = await page.evaluate((k) => {
+    const entered = await page.evaluate(async (k) => {
       const g = window.game;
       const place = g.world.interiorManager.places.find((p) => p.spec.key === k);
       if (!place) return false;
       place.ensureBuilt();
-      return g.world.interiorManager.enterInterior(place.def, g.player, g.cameraManager, g.hud, g.world);
+      // enterInterior expects a string id / building id, not the def object
+      return g.world.interiorManager.enterInterior(place.def.id, g.player, g.cameraManager, g.hud, g.world);
     }, key);
-    await wait(600);
+    await wait(900);
     if (!entered) {
       check(`${key}: enter`, false);
       continue;
