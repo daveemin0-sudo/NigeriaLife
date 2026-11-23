@@ -2340,6 +2340,8 @@ export class Game {
 
     // Buildings and walls are solid to someone on foot and to a vehicle being driven
     this.player.solids = () => this.solidsHere();
+    this.world.cityPopulation.solids = () => this.solidsHere();
+    this.world.npcs.solids = () => this.solidsHere();
     this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
     this.player.pavements = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;

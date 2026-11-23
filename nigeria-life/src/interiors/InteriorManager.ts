@@ -345,6 +345,19 @@ export class InteriorManager {
     player.mesh.rotation.y = options.spawnYaw ?? 0; // Face forward into the room
     player.stopMoving();
     this.lastClearSpot = null;
+    // If the spawn sits inside furniture, step to the nearest clear floor
+    {
+      const nav = this.getActiveTemplate()?.nav;
+      if (nav && !nav.isFree(spawnPos.x, spawnPos.z)) {
+        const clear = nav.closestFree(spawnPos);
+        player.mesh.position.x = clear.x;
+        player.mesh.position.z = clear.z;
+        player.position.copy(player.mesh.position);
+        this.lastClearSpot = clear.clone();
+      } else if (nav) {
+        this.lastClearSpot = spawnPos.clone().setY(0);
+      }
+    }
     this.getActiveTemplate()?.onPlayerEntered?.();
 
     // 7. Activate dedicated interior camera and layer filter, framed on this room

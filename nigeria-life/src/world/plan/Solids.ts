@@ -1,4 +1,5 @@
 import type { Obstruction } from './CityPlan';
+import { MIN_SOLID_HEIGHT } from './CollisionSpace';
 
 /** What stands on the ground, and whether it is a street lamp (thin, but walked round) */
 type Standing = Obstruction & { pole?: boolean };
@@ -28,8 +29,7 @@ const WALL_SIZE = 1.5;
 
 const CELL = 8;
 
-/** Tall enough to be a solid physical obstacle (structures, stalls, bins, street lamps, poles) */
-const MIN_SOLID_HEIGHT = 0.65;
+/** Thin footprints below this are stepped past, except poles */
 const MIN_SOLID_SIZE = 0.20;
 /** A street lamp stops a person as if it were this wide */
 const POLE_HALF = 0.13;

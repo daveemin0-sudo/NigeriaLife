@@ -3,12 +3,14 @@ import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
+import { NavGrid } from '../../interactions/NavGrid';
 
 export class HospitalInterior {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
+  public nav: NavGrid;
 
   constructor() {
     this.group = new THREE.Group();
@@ -196,6 +198,7 @@ export class HospitalInterior {
       ],
     };
 
+    this.nav = new NavGrid(origin, 24, 22);
     this.build3DInterior();
   }
 
@@ -251,6 +254,19 @@ export class HospitalInterior {
     );
     triageCounter.position.set(-4, 0.55, 4);
     this.group.add(triageCounter);
+
+    // Walk-blocking solids for desks, beds, chairs, shelves and the triage counter
+    this.nav.blockRect(6, -5, 1.2, 0.8);
+    this.nav.blockRect(-6, -5, 1.1, 1.1);
+    this.nav.blockRect(-1.5, -5, 1.1, 1.1);
+    this.nav.blockRect(-1, 3.5, 2.4, 0.55);
+    this.nav.blockRect(7, 5, 0.9, 1.4);
+    this.nav.blockRect(-4, 4, 1.8, 0.65);
+    // Keep the door and station stand points clear
+    this.nav.clearRect(0, 9, 0.8, 0.8);
+    this.nav.clearRect(-4, 4 + 1.2, 0.5, 0.5);
+    this.nav.clearRect(6, -5 + 1.2, 0.5, 0.5);
+    this.nav.clearRect(7, 2.8 + 1.0, 0.5, 0.5);
 
     // Red Cross Hospital Emblem on back wall
     const crossGroup = new THREE.Group();

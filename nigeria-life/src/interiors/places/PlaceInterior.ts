@@ -27,6 +27,8 @@ import { attachOwambe } from '../../social/Owambe';
 import { attachStudio } from '../../music/Studio';
 import { attachPalaceCourt } from '../../social/Chieftaincy';
 import { attachEkoMotors } from '../../vehicles/Motors';
+import { NavGrid } from '../../interactions/NavGrid';
+import { buildRoomNav, type Footprint } from '../../world/plan/CollisionSpace';
 
 /**
  * A place along the expressway, gone into: its own room, laid out for what is done there, with
@@ -150,6 +152,12 @@ export class PlaceInterior {
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
   public readonly spec: PlaceSpec;
+  /** Floor map of furniture in this room; InteriorManager uses it to keep walkers off solids. */
+  public nav?: NavGrid;
+  /** How many solid footprints were blocked into the nav (for tests / reporting). */
+  public solidCount = 0;
+  /** Extra solids registered after the Builder finishes (FineFurniture, attach helpers). */
+  private readonly extraFootprints: Footprint[] = [];
   /** Where the toilet door went along the back wall, and whether a clear spot was found (for the tests) */
   public restroomAt = { x: 0, clear: false };
   /**
@@ -199,6 +207,40 @@ export class PlaceInterior {
     return this.world(x, z);
   }
 
+  /**
+   * Marks a rectangle of floor as solid (room-local). Used by attach helpers for FineFurniture
+   * and other pieces not built through the shared Builder footprints.
+   */
+  public block(centerX: number, centerZ: number, halfWidth: number, halfLength: number, height = 1): void {
+    this.extraFootprints.push({
+      minX: centerX - halfWidth,
+      maxX: centerX + halfWidth,
+      minZ: centerZ - halfLength,
+      maxZ: centerZ + halfLength,
+      height,
+    });
+    this.nav?.blockRect(centerX, centerZ, halfWidth, halfLength);
+    if (this.nav) this.solidCount += 1;
+  }
+
+  /** Rebuilds the room NavGrid from Builder footprints plus anything registered with block(). */
+  public rebuildNav(footprints: ReadonlyArray<Footprint>): void {
+    const { width, length } = this.spec.room;
+    const clearSpots: Array<{ x: number; z: number; radius?: number }> = [
+      { x: 0, z: length / 2 - 1.6, radius: 0.7 },
+      { x: 0, z: length / 2 - 1, radius: 0.55 },
+      ...this.spec.stations.map((st) => ({ x: st.stand[0], z: st.stand[1], radius: 0.5 })),
+      ...this.spec.staff.map((s) => ({ x: s.at[0] + Math.sin(s.facing) * 1.3, z: s.at[1] + Math.cos(s.facing) * 1.3, radius: 0.4 })),
+      ...this.interactiveList
+        .filter((o) => o.interactionPoint)
+        .map((o) => ({ x: o.interactionPoint.x - this.group.position.x, z: o.interactionPoint.z - this.group.position.z, radius: 0.45 })),
+    ];
+    const all = [...footprints, ...this.extraFootprints];
+    const built = buildRoomNav(this.group.position, width, length, all, clearSpots);
+    this.nav = built.nav;
+    this.solidCount = built.solids;
+  }
+
   /** Something in the room to go up to and use, with its own action */
   public addCard(card: { id: string; name: string; description: string; at: [number, number]; stand: [number, number]; label: () => string; run: (host: PlaceHost) => void }): void {
     const marker = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.6, 1.4), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
@@ -231,6 +273,8 @@ export class PlaceInterior {
     const b = new Builder();
     this.spec.build(b, this.group);
     for (const work of PLACE_WORK[this.spec.key] ?? []) work.build?.(b);
+    // Keep footprints before build() clears the part buffers (footprints stay on the Builder)
+    const furnitureFootprints = b.footprints.slice();
     this.group.add(b.build(`${this.spec.key} furniture`, { roughness: 0.7 }));
     // What was built (not the people, nor the cards put in before or after): where the seats are found
     this.built = this.group.children.filter((child) => !before.has(child));
@@ -245,9 +289,9 @@ export class PlaceInterior {
     const way = this.spec.door ?? { name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.' };
     this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: way.name, category: way.category, description: way.description, interactionPoint: this.world(0, length / 2 - 1), exitLabel: this.spec.door ? `🚪 ${this.spec.door.name}` : undefined });
     // A guest room has its own bathroom. The customers' toilet door belongs in the public rooms.
-    if (!this.spec.key.endsWith('-town-suite') && !/-hotel-[12]-suite$/.test(this.spec.key)) this.addRestroom(b.footprints);
+    if (!this.spec.key.endsWith('-town-suite') && !/-hotel-[12]-suite$/.test(this.spec.key)) this.addRestroom(furnitureFootprints);
     // The tables: what was built at table height, small enough to sit round
-    this.tables = b.footprints.filter((f) => f.height >= 0.6 && f.height <= 0.92 && f.maxX - f.minX >= 0.8 && f.maxZ - f.minZ >= 0.6 && f.maxX - f.minX <= 4.2 && f.maxZ - f.minZ <= 4.2);
+    this.tables = furnitureFootprints.filter((f) => f.height >= 0.6 && f.height <= 0.92 && f.maxX - f.minX >= 0.8 && f.maxZ - f.minZ >= 0.6 && f.maxX - f.minX <= 4.2 && f.maxZ - f.minZ <= 4.2);
 
     // Those who work here
     this.spec.staff.forEach((s, i) => {
@@ -308,6 +352,8 @@ export class PlaceInterior {
     attachStudio(this, this.spec.key);
     attachPalaceCourt(this, this.spec.key);
     attachEkoMotors(this, this.spec.key);
+    // Floor map after every attach has registered FineFurniture / extra solids
+    this.rebuildNav(furnitureFootprints);
   }
 
   /**
