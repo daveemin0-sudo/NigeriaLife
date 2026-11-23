@@ -1,0 +1,637 @@
+{
+  "places": [
+    {
+      "key": "balogun-market",
+      "name": "Balogun Market",
+      "solids": 29,
+      "hasNav": true
+    },
+    {
+      "key": "amala-shitta",
+      "name": "Amala Shitta",
+      "solids": 20,
+      "hasNav": true
+    },
+    {
+      "key": "marina-towers",
+      "name": "Marina Towers",
+      "solids": 14,
+      "hasNav": true
+    },
+    {
+      "key": "freedom-park",
+      "name": "Freedom Park",
+      "solids": 7,
+      "hasNav": true
+    },
+    {
+      "key": "ivory-rooftop",
+      "name": "Ivory Rooftop",
+      "solids": 12,
+      "hasNav": true
+    },
+    {
+      "key": "the-library",
+      "name": "The Library",
+      "solids": 32,
+      "hasNav": true
+    },
+    {
+      "key": "i-fitness",
+      "name": "i-Fitness",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "lekki-conservation",
+      "name": "Lekki Conservation Centre",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "dangote-refinery",
+      "name": "Dangote Refinery Visitors Centre",
+      "solids": 13,
+      "hasNav": true
+    },
+    {
+      "key": "radio-house",
+      "name": "Naija Radio House",
+      "solids": 4,
+      "hasNav": true
+    },
+    {
+      "key": "viewing-centre",
+      "name": "Oga Sunday Viewing Centre",
+      "solids": 26,
+      "hasNav": true
+    },
+    {
+      "key": "polling-unit",
+      "name": "Polling Unit 001 & NIN Centre",
+      "solids": 15,
+      "hasNav": true
+    },
+    {
+      "key": "afrika-shrine",
+      "name": "New Afrika Shrine",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "redemption-cathedral",
+      "name": "Redemption Cathedral",
+      "solids": 26,
+      "hasNav": true
+    },
+    {
+      "key": "central-mosque",
+      "name": "Lagos Central Mosque",
+      "solids": 6,
+      "hasNav": true
+    },
+    {
+      "key": "sankofa-motors",
+      "name": "Sankofa Motors",
+      "solids": 4,
+      "hasNav": true
+    },
+    {
+      "key": "shopwell-mall",
+      "name": "The Palms Mall",
+      "solids": 30,
+      "hasNav": true
+    },
+    {
+      "key": "eko-grand-hotel",
+      "name": "Eko Grand Hotel",
+      "solids": 21,
+      "hasNav": true
+    },
+    {
+      "key": "police-command",
+      "name": "Lagos State Police Command",
+      "solids": 10,
+      "hasNav": true
+    },
+    {
+      "key": "efcc-office",
+      "name": "EFCC Zonal Office",
+      "solids": 8,
+      "hasNav": true
+    },
+    {
+      "key": "government-house",
+      "name": "Lagos State Government House",
+      "solids": 10,
+      "hasNav": true
+    },
+    {
+      "key": "nis-passport",
+      "name": "Federal Passport Office, Alagbon",
+      "solids": 10,
+      "hasNav": true
+    },
+    {
+      "key": "consular-visa",
+      "name": "Visa & Consular Desk",
+      "solids": 10,
+      "hasNav": true
+    },
+    {
+      "key": "port-health",
+      "name": "Port Health · Yellow Card Centre",
+      "solids": 7,
+      "hasNav": true
+    },
+    {
+      "key": "bureau-fx",
+      "name": "Victoria Island Bureau de Change",
+      "solids": 6,
+      "hasNav": true
+    },
+    {
+      "key": "computer-village",
+      "name": "Computer Village",
+      "solids": 6,
+      "hasNav": true
+    },
+    {
+      "key": "ikeja-city-mall",
+      "name": "Ikeja City Mall",
+      "solids": 33,
+      "hasNav": true
+    },
+    {
+      "key": "allen-lounge",
+      "name": "Allen Lounge",
+      "solids": 11,
+      "hasNav": true
+    },
+    {
+      "key": "oshodi-interchange",
+      "name": "Oshodi Transport Interchange",
+      "solids": 11,
+      "hasNav": true
+    },
+    {
+      "key": "lasuth",
+      "name": "LASUTH",
+      "solids": 8,
+      "hasNav": true
+    },
+    {
+      "key": "ladipo-auto",
+      "name": "Ladipo Auto Market",
+      "solids": 3,
+      "hasNav": true
+    },
+    {
+      "key": "ikeja-gra",
+      "name": "Ikeja GRA Estate Office",
+      "solids": 8,
+      "hasNav": true
+    },
+    {
+      "key": "chop-express",
+      "name": "Chop Express",
+      "solids": 27,
+      "hasNav": true
+    },
+    {
+      "key": "faith-arena",
+      "name": "Faith Arena",
+      "solids": 34,
+      "hasNav": true
+    },
+    {
+      "key": "mmia-terminal",
+      "name": "Murtala Muhammed International Airport",
+      "solids": 15,
+      "hasNav": true
+    },
+    {
+      "key": "lagoon-beach",
+      "name": "Elegushi Beach",
+      "solids": 24,
+      "hasNav": true
+    },
+    {
+      "key": "ikeja-golf",
+      "name": "Ikeja Golf Club",
+      "solids": 25,
+      "hasNav": true
+    },
+    {
+      "key": "lagoon-marina",
+      "name": "Eko Marina Yacht Club",
+      "solids": 17,
+      "hasNav": true
+    },
+    {
+      "key": "private-airfield",
+      "name": "Eko Executive Terminal",
+      "solids": 10,
+      "hasNav": true
+    },
+    {
+      "key": "allen-salon",
+      "name": "Allen Hair & Barbing Salon",
+      "solids": 10,
+      "hasNav": true
+    },
+    {
+      "key": "allen-suya",
+      "name": "Mai Suya Spot",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "allen-bank",
+      "name": "Eko Commercial Bank, Allen",
+      "solids": 10,
+      "hasNav": true
+    },
+    {
+      "key": "awolowo-fashion",
+      "name": "Awolowo Way Fashion House",
+      "solids": 6,
+      "hasNav": true
+    },
+    {
+      "key": "awolowo-pharmacy",
+      "name": "Awolowo Way Pharmacy",
+      "solids": 4,
+      "hasNav": true
+    },
+    {
+      "key": "awolowo-school",
+      "name": "Ikeja Computer School",
+      "solids": 14,
+      "hasNav": true
+    },
+    {
+      "key": "lagos-barbers",
+      "name": "Lagos Executive Barbershop",
+      "solids": 7,
+      "hasNav": true
+    },
+    {
+      "key": "naija-fresh",
+      "name": "Naija Fresh Supermarket",
+      "solids": 17,
+      "hasNav": true
+    },
+    {
+      "key": "station-island",
+      "name": "NaijaPetro Mart, Island",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "station-bridge",
+      "name": "NaijaPetro Mart, Bridge End",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "station-mainland",
+      "name": "NaijaPetro Mart, Mainland",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "station-ikeja",
+      "name": "NaijaPetro Mart, Ikeja",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "eko-grand-floor",
+      "name": "Eko Grand Hotel · 2nd floor",
+      "solids": 2,
+      "hasNav": true
+    },
+    {
+      "key": "eko-grand-suite",
+      "name": "Eko Grand Hotel · your room",
+      "solids": 18,
+      "hasNav": true
+    },
+    {
+      "key": "national-assembly",
+      "name": "National Assembly",
+      "solids": 25,
+      "hasNav": true
+    },
+    {
+      "key": "transcorp-hilton",
+      "name": "Transcorp Hilton Abuja",
+      "solids": 32,
+      "hasNav": true
+    },
+    {
+      "key": "cbn-abuja",
+      "name": "Central Bank of Nigeria",
+      "solids": 8,
+      "hasNav": true
+    },
+    {
+      "key": "millennium-tower",
+      "name": "Millennium Tower",
+      "solids": 20,
+      "hasNav": true
+    },
+    {
+      "key": "wuse-market",
+      "name": "Wuse Market",
+      "solids": 13,
+      "hasNav": true
+    },
+    {
+      "key": "jabi-lake-mall",
+      "name": "Jabi Lake Mall",
+      "solids": 30,
+      "hasNav": true
+    },
+    {
+      "key": "national-hospital-abuja",
+      "name": "National Hospital Abuja",
+      "solids": 8,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-police",
+      "name": "FCT Police Command",
+      "solids": 7,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-passport",
+      "name": "Federal Passport Office, Abuja",
+      "solids": 9,
+      "hasNav": true
+    },
+    {
+      "key": "mile-one-market",
+      "name": "Mile 1 Market",
+      "solids": 8,
+      "hasNav": true
+    },
+    {
+      "key": "ph-mall",
+      "name": "Port Harcourt Mall",
+      "solids": 30,
+      "hasNav": true
+    },
+    {
+      "key": "rivers-govt-house",
+      "name": "Rivers State Government House",
+      "solids": 10,
+      "hasNav": true
+    },
+    {
+      "key": "upth",
+      "name": "University of Port Harcourt Teaching Hospital",
+      "solids": 11,
+      "hasNav": true
+    },
+    {
+      "key": "ph-police",
+      "name": "Rivers State Police Command",
+      "solids": 9,
+      "hasNav": true
+    },
+    {
+      "key": "ph-passport",
+      "name": "Federal Passport Office, Port Harcourt",
+      "solids": 9,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-office",
+      "name": "Abuja Offices",
+      "solids": 3,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-office-1",
+      "name": "Abuja Chambers",
+      "solids": 3,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-office-2",
+      "name": "Abuja Secretariat",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-shops",
+      "name": "Abuja Supermarket",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-shops-1",
+      "name": "Abuja Mini Mart",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-shops-2",
+      "name": "Abuja Provision Store",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-bank",
+      "name": "Abuja Bank",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-bank-1",
+      "name": "Abuja Microfinance",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-bank-2",
+      "name": "Abuja Bureau",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-market",
+      "name": "Abuja Market",
+      "solids": 19,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-hotel",
+      "name": "Abuja Suites",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-town-suite",
+      "name": "Abuja hotel room",
+      "solids": 15,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-hotel-1",
+      "name": "Abuja Palace Hotel",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-hotel-1-suite",
+      "name": "Abuja hotel room",
+      "solids": 15,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-hotel-2",
+      "name": "Abuja Creek Hotel",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "abuja-hotel-2-suite",
+      "name": "Abuja hotel room",
+      "solids": 15,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-office",
+      "name": "Port Harcourt Offices",
+      "solids": 3,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-office-1",
+      "name": "Port Harcourt Chambers",
+      "solids": 3,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-office-2",
+      "name": "Port Harcourt Secretariat",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-shops",
+      "name": "Port Harcourt Supermarket",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-shops-1",
+      "name": "Port Harcourt Mini Mart",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-shops-2",
+      "name": "Port Harcourt Provision Store",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-bank",
+      "name": "Port Harcourt Bank",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-bank-1",
+      "name": "Port Harcourt Microfinance",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-bank-2",
+      "name": "Port Harcourt Bureau",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-market",
+      "name": "Port Harcourt Market",
+      "solids": 16,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-hotel",
+      "name": "Port Harcourt Suites",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-town-suite",
+      "name": "Port Harcourt hotel room",
+      "solids": 15,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-hotel-1",
+      "name": "Port Harcourt Palace Hotel",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-hotel-1-suite",
+      "name": "Port Harcourt hotel room",
+      "solids": 15,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-hotel-2",
+      "name": "Port Harcourt Creek Hotel",
+      "solids": 5,
+      "hasNav": true
+    },
+    {
+      "key": "port_harcourt-hotel-2-suite",
+      "name": "Port Harcourt hotel room",
+      "solids": 15,
+      "hasNav": true
+    }
+  ],
+  "perf": {
+    "avgMs": 14.39,
+    "fps": 69.5,
+    "solids": 1764,
+    "samples": 40
+  },
+  "street": {
+    "count": 1764,
+    "container": {
+      "owner": "Apapa Port",
+      "x": -101,
+      "z": 73,
+      "w": 0.9,
+      "d": 0.9,
+      "height": 20
+    },
+    "bench": {
+      "owner": "Lay-by bench",
+      "x": -14.4,
+      "z": 194.2
+    }
+  },
+  "exceptions": [],
+  "crowd": {
+    "ok": true,
+    "inside": 0,
+    "nearFrames": 208,
+    "sample": {
+      "x": 19,
+      "z": -117.9,
+      "owner": "Roadside stall #8"
+    }
+  }
+}
