@@ -139,7 +139,8 @@ export async function run(_unusedBrowser, check) {
       });
       await broadStreet(page);
       const layout = await page.evaluate(() => {
-        const canvas = document.querySelector('canvas');
+        // Prefer the game's WebGL canvas — a zero-size probe/helper canvas may also exist in the DOM
+        const canvas = window.game?.renderer?.domElement || document.querySelector('canvas');
         const joy = document.querySelector('.v-joystick-base, .virtual-joystick, #virtual-mobile-controls');
         const hud = document.getElementById('hud-overlay') || document.querySelector('.hud-overlay');
         const cr = canvas?.getBoundingClientRect();
@@ -153,11 +154,12 @@ export async function run(_unusedBrowser, check) {
       });
       const tag = `${w}x${h}${landscape ? '-land' : ''}`;
       check(
-        `allphones: ${tag} canvas fills the viewport and touch chrome is present`,
+        `allphones: ${tag} game canvas fills the viewport and touch chrome is present`,
         layout.canvas &&
           Math.abs(layout.canvas.w - width) <= 2 &&
           Math.abs(layout.canvas.h - height) <= 2 &&
-          layout.inner.w === width,
+          layout.inner.w === width &&
+          (layout.joy || layout.hud),
         layout
       );
       check(`allphones: ${tag} no page errors / model 404s`, errors.length === 0 && failedModels.length === 0, {
