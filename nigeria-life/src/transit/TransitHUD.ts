@@ -65,23 +65,28 @@ export class TransitHUD {
         </button>
       </nav>
 
-      <!-- 3. ROAD RIDE HUD CARD (top band; phone CSS keeps it inside 320 px) -->
+      <!-- 3. ROAD RIDE HUD CARD (compact top band below safe-area; phone CSS keeps 320 px clear) -->
       <div class="transit-ride-card" id="ride-hud-card" style="display: none;">
-        <div class="ride-header">
+        <div class="ride-compact-row">
+          <div class="ride-compact-meta">
+            <span class="ride-vehicle" id="r-hud-vehicle">Taxi</span>
+            <span class="ride-dest-arrow" aria-hidden="true">→</span>
+            <span class="ride-dest" id="r-hud-dest">Destination</span>
+            <span class="ride-time-eta" id="r-hud-eta">0:04 left</span>
+          </div>
+          <div class="ride-actions">
+            <button class="btn-ride-skip" id="btn-ride-skip">Skip</button>
+            <button class="btn-ride-back" id="btn-ride-back">Turn back</button>
+          </div>
+        </div>
+        <div class="ride-header ride-header-detail">
           <h3 id="r-hud-title">Mercedes G-Wagon · PH International Airport ⟶ Trans-Amadi</h3>
           <div class="ride-badges">
             <span class="ride-badge go-slow" id="r-hud-badge-traffic">Go-slow</span>
             <span class="ride-badge weather" id="r-hud-badge-weather">Sunny</span>
           </div>
         </div>
-        <div class="ride-timer-row">
-          <span class="ride-time-eta" id="r-hud-eta">0:04 to destination</span>
-        </div>
         <p class="ride-subtext" id="r-hud-subtext">Almost there. Trans-Amadi Oil Base is just ahead.</p>
-        <div class="ride-actions">
-          <button class="btn-ride-skip" id="btn-ride-skip">Skip ride &gt;</button>
-          <button class="btn-ride-back" id="btn-ride-back">Turn back</button>
-        </div>
       </div>
 
       <!-- 4. RIDE CAMERA SWITCHER (right on desktop; bottom bar on phone) -->
@@ -238,7 +243,7 @@ export class TransitHUD {
     const back = document.getElementById('btn-ride-back');
     if (back) {
       back.style.display = options.turnBackTo ? '' : 'none';
-      back.textContent = '↩ Turn back · no refund';
+      back.textContent = '↩ Turn back';
       const said = options.turnBackTo ? `Turn back to ${options.turnBackTo}. The fare is not refunded.` : '';
       back.title = said;
       back.setAttribute('aria-label', said);
@@ -251,11 +256,15 @@ export class TransitHUD {
     UIStateManager.getInstance().setMode('transit');
 
     const titleEl = document.getElementById('r-hud-title');
+    const vehicleEl = document.getElementById('r-hud-vehicle');
+    const destEl = document.getElementById('r-hud-dest');
     const trafficEl = document.getElementById('r-hud-badge-traffic');
     const weatherEl = document.getElementById('r-hud-badge-weather');
     const subEl = document.getElementById('r-hud-subtext');
 
     if (titleEl) titleEl.textContent = `${ride.vehicleName} · ${ride.originName} ⟶ ${ride.destinationName}`;
+    if (vehicleEl) vehicleEl.textContent = ride.vehicleName;
+    if (destEl) destEl.textContent = ride.destinationName;
     if (trafficEl) trafficEl.textContent = ride.trafficCondition;
     if (weatherEl) weatherEl.textContent = ride.weatherCondition;
     if (subEl) subEl.textContent = `Almost there. ${ride.destinationName} is just ahead.`;
@@ -266,7 +275,7 @@ export class TransitHUD {
     if (etaEl) {
       const mins = Math.floor(timeRemainingSec / 60);
       const secs = Math.floor(timeRemainingSec % 60);
-      etaEl.textContent = `${mins}:${secs.toString().padStart(2, '0')} to destination`;
+      etaEl.textContent = `${mins}:${secs.toString().padStart(2, '0')} left`;
     }
   }
 

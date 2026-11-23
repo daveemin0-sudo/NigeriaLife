@@ -209,7 +209,15 @@ export class LagosStreetLifeSystem {
         if (now - this.lastHawkerToastTime > 18000) {
           this.lastHawkerToastTime = now;
           SoundEngine.getInstance().playClickSound();
-          showGameToast('🥤 Chidi at your window: "Oga buy cold pure water! Hot Gala dey!" [Press J for Water, G for Gala]', 'info', 4500);
+          const touch = typeof matchMedia === 'function'
+            && (matchMedia('(pointer: coarse)').matches || matchMedia('(hover: none)').matches);
+          showGameToast(
+            touch
+              ? '🥤 Chidi at your window: "Oga buy cold pure water! Hot Gala dey!" Tap Water or Gala.'
+              : '🥤 Chidi at your window: "Oga buy cold pure water! Hot Gala dey!" [Press J for Water, G for Gala]',
+            'info',
+            4500,
+          );
         }
       }
     } else {
