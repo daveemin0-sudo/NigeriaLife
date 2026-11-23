@@ -424,6 +424,24 @@ export class GraphicsQuality {
 
 /** Shadows the renderer should enable before the first shader compile. */
 export function initialShadowFlag(): boolean {
+  // URL ?quality= must win here too — Game primes the renderer before GraphicsQuality runs
+  try {
+    const q = new URLSearchParams(location.search).get('quality');
+    if (q) {
+      const aliases: Record<string, Quality> = {
+        high: 'high',
+        balanced: 'balanced',
+        medium: 'balanced',
+        low: 'low',
+        verylow: 'veryLow',
+        'very-low': 'veryLow',
+      };
+      const mapped = aliases[q.toLowerCase()];
+      if (mapped) return QUALITY_LEVELS[mapped].shadows;
+    }
+  } catch {
+    /* ignore */
+  }
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     if (saved && typeof saved.shadows === 'boolean') return saved.shadows;
