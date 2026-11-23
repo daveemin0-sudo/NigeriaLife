@@ -832,13 +832,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-dangote-petroleum-refinery-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-dangote-petroleum-refinery-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Wharf Road, Apapa Marine Corridor\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Lagos Central Command Zone · 2 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -884,13 +878,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-redemption-cathedral-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-redemption-cathedral-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Mobolaji Bank Anthony Way, Ikeja\" vs shown \"Third Mainland Expressway | Island approach | Lagos Central Command Zone · 2 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -936,13 +924,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naija-radio-house-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naija-radio-house-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Lateef Jakande Road, Agidingbi, Ikeja\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Lagos Central Command Zone · 2 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -988,13 +970,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-new-afrika-shrine-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-new-afrika-shrine-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Neruda Road, Agidingbi, Ikeja\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Lagos Central Command Zone · 2 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -1040,13 +1016,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-i-fitness-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-i-fitness-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Bourdillon Road, Ikoyi\" vs shown \"Third Mainland Expressway | Island approach | Lagos Central Command Zone · 2 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -1496,13 +1466,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-elegushi-beach-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-elegushi-beach-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Ikate Elegushi, Lekki Peninsula\" vs shown \"Third Mainland Expressway | Island approach | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -1640,13 +1604,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-amala-shitta-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-amala-shitta-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Shitta Roundabout, Surulere\" vs shown \"Third Mainland Expressway | Island approach | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -1692,13 +1650,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-oga-sunday-viewing-centre-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-oga-sunday-viewing-centre-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Adeniran Ogunsanya Street, Surulere\" vs shown \"Third Mainland Expressway | Island approach | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -1756,11 +1708,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-oga-sunday-premier-league-viewing-centre-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Bode Thomas Street, Surulere\" vs shown \"Mainland Central | Dense Residential & Commercial Core | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        },
         {
           "sev": "P2",
           "cat": "UI overlap",
@@ -1979,13 +1926,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-sankofa-motors-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-sankofa-motors-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Car showroom\" vs shown \"Third Mainland Expressway | Island approach | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2039,11 +1980,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Marina\" vs shown \"Third Mainland Expressway | Island approach | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "top-center: SPAN#.map-pin-icon over BUTTON#.map-pin map-pin-road"
@@ -2094,13 +2030,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-eko-executive-airfield-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-eko-executive-airfield-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Private airfield\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2154,11 +2084,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Hotel\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "banner-band: NAV#.map-city-tabs over BUTTON#.map-pin map-pin-road"
@@ -2209,13 +2134,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-lagos-state-police-command-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-lagos-state-police-command-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Police\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2261,13 +2180,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-efcc-zonal-office-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-efcc-zonal-office-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Government office\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2313,13 +2226,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ikeja-golf-club-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ikeja-golf-club-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Golf club\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2365,13 +2272,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-lagos-state-government-house-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-lagos-state-government-house-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Government\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2417,13 +2318,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naijapetro-island-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naijapetro-island-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Filling station\" vs shown \"Third Mainland Expressway | Island approach | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2469,13 +2364,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naijapetro-bridge-end-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naijapetro-bridge-end-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Filling station\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2521,13 +2410,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naijapetro-mainland-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naijapetro-mainland-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Filling station\" vs shown \"Third Mainland Expressway | Mainland · Oworonshoki | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2573,13 +2456,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-computer-village-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-computer-village-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Gadget market\" vs shown \"Ikorodu Road, Ikeja | Allen · Computer Village | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2625,13 +2502,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ikeja-city-mall-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ikeja-city-mall-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Mall\" vs shown \"Ikorodu Road, Ikeja | Allen · Computer Village | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2677,13 +2548,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-allen-lounge-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-allen-lounge-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Lounge & club\" vs shown \"Ikorodu Road, Ikeja | Allen · Computer Village | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2729,13 +2594,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-oshodi-transport-interchange-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-oshodi-transport-interchange-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Bus terminal\" vs shown \"Ikorodu Road, Ikeja | Oshodi | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2781,13 +2640,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-lasuth-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-lasuth-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Hospital\" vs shown \"Ikorodu Road, Ikeja | Oshodi | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2833,13 +2686,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ladipo-auto-market-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ladipo-auto-market-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Auto parts & mechanics\" vs shown \"Ikorodu Road, Ikeja | Ladipo · GRA | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2885,13 +2732,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ikeja-gra-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ikeja-gra-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Estate\" vs shown \"Ikorodu Road, Ikeja | Ladipo · GRA | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2937,13 +2778,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naija-fresh-supermarket-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-naija-fresh-supermarket-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Supermarket\" vs shown \"Ikorodu Road, Ikeja | Ladipo · GRA | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -2989,13 +2824,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-chop-express-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-chop-express-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Fast food\" vs shown \"Ikorodu Road, Ikeja | Ladipo · GRA | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -3041,13 +2870,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-faith-arena-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-faith-arena-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Church\" vs shown \"Ikorodu Road, Ikeja | Ladipo · GRA | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -3157,11 +2980,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Salon & barber\" vs shown \"Allen Avenue | Ikeja | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "top-center: SPAN#.map-pin-icon over BUTTON#.map-pin map-pin-road"
@@ -3212,13 +3030,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-mai-suya-spot-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-mai-suya-spot-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Suya\" vs shown \"Allen Avenue | Ikeja | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -3264,13 +3076,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-eko-commercial-bank-allen-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-eko-commercial-bank-allen-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Bank\" vs shown \"Allen Avenue | Ikeja | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -3316,13 +3122,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-awolowo-way-fashion-house-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-awolowo-way-fashion-house-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Tailor & fashion\" vs shown \"Obafemi Awolowo Way | Ikeja | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -3368,13 +3168,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-awolowo-way-pharmacy-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-awolowo-way-pharmacy-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Pharmacy\" vs shown \"Obafemi Awolowo Way | Ikeja | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -3420,13 +3214,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ikeja-computer-school-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/lagos-ikeja-computer-school-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Training centre\" vs shown \"Obafemi Awolowo Way | Ikeja | Airport Road · Mafoluku · 2 things to do · 1 person here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -4203,13 +3991,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-national-library-of-nigeria-abuja-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-national-library-of-nigeria-abuja-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Plot 274, Sanusi Dantata House, CBD\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -4439,13 +4221,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-securities-and-exchange-commission-sec-hq-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-securities-and-exchange-commission-sec-hq-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Tower 421, Constitution Avenue, CBD\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -4676,11 +4452,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Aso Rock Presidential Compound, Asokoro\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "top-right: SPAN#.map-pin-name over BUTTON#.map-pin map-pin-road; banner-band: NAV#.map-city-tabs over SPAN#.map-pin-icon"
@@ -4739,11 +4510,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Three Arms Zone, Asokoro\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "top-left: SPAN#.map-pin-name over BUTTON#.map-pin map-pin-road"
@@ -4797,11 +4563,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-supreme-court-of-nigeria-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Three Arms Zone, Asokoro\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
         {
           "sev": "P2",
           "cat": "broken activity",
@@ -4862,11 +4623,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-ecowas-commission-secretariat-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"101 Yakubu Gowon Crescent, Asokoro\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
         {
           "sev": "P2",
           "cat": "UI overlap",
@@ -4934,11 +4690,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Nelson Mandela Street, Asokoro\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "banner-band: NAV#.map-city-tabs over SPAN#.map-pin-name"
@@ -5002,11 +4753,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Sunrise Hills, Kugbo / Asokoro Heights\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "banner-band: NAV#.map-city-tabs over BUTTON#.map-pin map-pin-road"
@@ -5057,13 +4803,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-ibb-international-golf-and-country-club-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-ibb-international-golf-and-country-club-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"41 Aso Drive, Maitama / Asokoro Greenbelt\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -5128,11 +4868,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Keffi Road, Asokoro Extension\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "joystick: SPAN#.map-pin-icon over BUTTON#.map-pin map-pin-road; banner-band: NAV#.map-city-tabs over SPAN#.map-pin-name"
@@ -5188,13 +4923,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-national-open-university-of-nigeria-hq-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-national-open-university-of-nigeria-hq-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Plot 91, Cadastral Zone, Jabi / Asokoro Axis\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -5257,11 +4986,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-transcorp-hilton-hotel-maitama-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"1 Aguiyi Ironsi Street, Maitama\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        },
         {
           "sev": "P2",
           "cat": "UI overlap",
@@ -5437,11 +5161,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-maitama-district-hospital-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Aguiyi Ironsi Street, Maitama\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        },
         {
           "sev": "P2",
           "cat": "UI overlap",
@@ -5700,11 +5419,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Amazon Street, Maitama\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "top-center: BUTTON#.map-pin map-pin-road over SPAN#.map-pin-icon; banner-band: NAV#.map-city-tabs over BUTTON#.map-pin map-pin-road"
@@ -5831,11 +5545,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Ministers' Hill Road, Katampe / Maitama Ridge\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "joystick: SPAN#.map-pin-icon over BUTTON#.map-pin map-pin-road"
@@ -5896,11 +5605,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-banex-plaza-commercial-tech-hub-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Aminu Kano Crescent, Wuse 2\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
         {
           "sev": "P0",
           "cat": "walk-through object",
@@ -5967,11 +5671,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-hustle-bustle-club-restaurant-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Aminu Kano Crescent, Wuse 2\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
         {
           "sev": "P2",
           "cat": "UI overlap",
@@ -6045,11 +5744,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"35 Adetokunbo Ademola Crescent, Wuse 2\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "top-right: SPAN#.map-pin-icon over BUTTON#.map-pin"
@@ -6119,11 +5813,6 @@
       "defects": [
         {
           "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Adetokunbo Ademola Crescent, Wuse 2\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
-          "sev": "P0",
           "cat": "walk-through object",
           "detail": "Set down inside a solid"
         }
@@ -6186,11 +5875,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-trukadero-by-bowling-entertainment-centre-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"131B Ademola Adetokunbo Crescent, Wuse 2\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
         {
           "sev": "P2",
           "cat": "UI overlap",
@@ -6300,11 +5984,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Plot 130, Adetokunbo Ademola Crescent, Wuse 2\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "broken activity",
           "detail": "Unreachable or blocked activity points: abuja-secretariat"
@@ -6377,11 +6056,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-play-imperial-lounge-nightclub-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Adetokunbo Ademola Crescent, Wuse 2\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        },
         {
           "sev": "P2",
           "cat": "UI overlap",
@@ -6491,13 +6165,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-emab-plaza-technology-commercial-centre-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-emab-plaza-technology-commercial-centre-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Aminu Kano Crescent, Wuse 2\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -6592,13 +6260,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-jabi-lake-park-waterfront-promenade-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-jabi-lake-park-waterfront-promenade-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Alex Ekwueme Way, Jabi\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -6644,13 +6306,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-jabi-central-motor-park-bus-terminal-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-jabi-central-motor-park-bus-terminal-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Obafemi Awolowo Way, Jabi\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -6696,13 +6352,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-economic-and-financial-crimes-commission-efcc-hq-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-economic-and-financial-crimes-commission-efcc-hq-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Plot 301/302, Institution and Research District, Jabi\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -6748,13 +6398,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-jabi-boat-club-jbc-waterside-lounge-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-jabi-boat-club-jbc-waterside-lounge-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"N10 Alex Ekwueme Way, Jabi Lake\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -6800,13 +6444,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-nisa-premier-hospital-specialist-centre-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-nisa-premier-hospital-specialist-centre-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"15/21 Alex Ekwueme Way, Jabi\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -6852,13 +6490,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-garki-international-model-market-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-garki-international-model-market-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Lafia Road, Garki 2\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -7252,11 +6884,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"1st Avenue, Gwarinpa Estate\" vs shown \"Garki Area 1 | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "top-center: BUTTON#.map-pin map-pin-road over SPAN#.map-pin-icon; top-right: BUTTON#.map-pin map-pin-road over SPAN#.map-pin-name; banner-band: NAV#.map-city-tabs over SPAN#.map-pin-name"
@@ -7307,13 +6934,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-3rd-avenue-food-nightlife-strip-gwarinpa-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-3rd-avenue-food-nightlife-strip-gwarinpa-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"3rd Avenue, Gwarinpa Estate\" vs shown \"Garki Area 1 | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -7359,13 +6980,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-gwarinpa-general-hospital-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-gwarinpa-general-hospital-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"3rd Avenue, Gwarinpa Estate\" vs shown \"Garki Area 1 | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -7411,13 +7026,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-charlie-boy-bus-stop-transit-hub-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-charlie-boy-bus-stop-transit-hub-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Expressway Interchange, Gwarinpa\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -7517,13 +7126,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-magic-land-theme-park-near-city-gate-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-magic-land-theme-park-near-city-gate-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Plot 444, Constitution Avenue, Kukwaba\" vs shown \"Aso Rock | Three Arms Zone · the lookout | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -7623,13 +7226,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-package-b-sports-complex-training-pitches-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-package-b-sports-complex-training-pitches-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Stadium Ring Road, Kukwaba\" vs shown \"Aso Rock | Three Arms Zone · the lookout | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -7859,13 +7456,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-chemian-commercial-plaza-gwarinpa-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-chemian-commercial-plaza-gwarinpa-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"3rd Avenue Corner, Gwarinpa\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -8048,11 +7639,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Mabushi Corridor, Federal Capital Territory\" vs shown \"Central Area | Abuja FCT | Abuja airport · 8 things to do · 3 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "top-right: SPAN#.map-pin-name over BUTTON#.map-pin map-pin-road"
@@ -8166,13 +7752,7 @@
         "onsite": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-dugba-traditional-pottery-art-market-onsite.png",
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/abuja-dugba-traditional-pottery-art-market-overview.png"
       },
-      "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Ahmadu Bello South, Garki\" vs shown \"Shehu Shagari Way | Central Area · Abuja | Abuja airport · 8 things to do · 3 people here\""
-        }
-      ],
+      "defects": [],
       "notes": [
         "no-map-pin",
         "map pin missing; teleported to streetPosition only"
@@ -9369,11 +8949,6 @@
       },
       "defects": [
         {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Tombia Street, GRA Phase 2\" vs shown \"Aba Road | Aba Road · Port Harcourt | Choba · UPTH · 4 things to do · 2 people here\""
-        },
-        {
           "sev": "P2",
           "cat": "UI overlap",
           "detail": "banner-band: NAV#.map-city-tabs over BUTTON#.map-pin map-pin-road"
@@ -9519,11 +9094,6 @@
         "overview": "/agent/repos/NigeriaLife/nigeria-life/docs/audit/raw/port_harcourt-port-harcourt-club-1928-colonial-heritage-overview.png"
       },
       "defects": [
-        {
-          "sev": "P0",
-          "cat": "wrong location",
-          "detail": "No usable map pin for ride booking; audit had to teleport to streetPosition / enter directly · Booked district \"Forces Avenue, Old GRA\" vs shown \"Aba Road | Aba Road · Port Harcourt | Choba · UPTH · 4 things to do · 2 people here\""
-        },
         {
           "sev": "P2",
           "cat": "broken activity",

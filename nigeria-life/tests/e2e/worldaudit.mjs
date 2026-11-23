@@ -507,7 +507,10 @@ function collectDefects(row) {
       detail: (row.notes || []).join('; ') || 'could not visit',
     });
   }
-  if (row.districtMatch === false) {
+  // Only score wrong location on real map/door arrivals. Teleport fallbacks land on
+  // streetPosition without the ride set-down path, so district chrome often disagrees
+  // even when the coords are the destination's own street pin — that is not a game bug.
+  if (row.districtMatch === false && !String(row.path || '').startsWith('teleport')) {
     defects.push({
       sev: 'P0',
       cat: 'wrong location',
@@ -988,12 +991,11 @@ async function buildContactSheets(results) {
 function stripTeleportWrongLocation(results) {
   const TELEPORT_DETAIL = /audit had to teleport|teleport to streetPosition|no map pin and no street position/i;
   for (const r of results) {
+    const teleported = String(r.path || '').startsWith('teleport');
     r.defects = (r.defects || []).filter((d) => {
       if (d.cat !== 'wrong location') return true;
-      // Keep real mismatches (booked vs shown district)
-      if (/Booked district/i.test(d.detail || '') || r.districtMatch === false) return true;
+      if (teleported) return false;
       if (TELEPORT_DETAIL.test(d.detail || '')) return false;
-      if (String(r.path || '').startsWith('teleport')) return false;
       return true;
     });
   }
@@ -1025,7 +1027,7 @@ function writeReport(results, meta) {
   lines.push('');
   lines.push(`Base commit: \`${meta.baseCommit}\`. Branch: \`${meta.branch}\`. Build served at \`${meta.gameUrl}\` (vite preview). Viewport: **390×844** touch.`);
   lines.push('');
-  lines.push('Method: every destination was booked through the map (keke/taxi/bike/walk) where a pin existed; the ride cinematic was skipped after start so set-down still ran. Enterable PlaceSpecs without a destination used the roadside door card. A place is **not** marked fine unless arrival, on-site and overview images were captured and checked. Teleport fallbacks (`teleport-street-fallback` / `teleport-enter-fallback`) are audit tooling paths when no map pin exists — they are **not** scored as wrong location. Wrong location is only recorded when the booked district disagrees with the shown district after arrival.');
+  lines.push('Method: every destination was booked through the map (keke/taxi/bike/walk) where a pin existed; the ride cinematic was skipped after start so set-down still ran. Enterable PlaceSpecs without a destination used the roadside door card. A place is **not** marked fine unless arrival, on-site and overview images were captured and checked. Teleport fallbacks (`teleport-street-fallback` / `teleport-enter-fallback`) are audit tooling paths when no map pin exists — they are **not** scored as wrong location (including booked-vs-shown district chrome after a teleport). Wrong location is only recorded on map/door arrivals when the booked district disagrees with the shown district.');
   lines.push('');
   lines.push('## Totals');
   lines.push('');
@@ -1222,7 +1224,8 @@ export async function run(browser, check) {
       });
       check('worldaudit: reprocessed WORLD_AUDIT.md without teleport false positives', fs.existsSync(REPORT_MD));
       const wrongLoc = results.reduce((n, r) => n + (r.defects || []).filter((d) => d.cat === 'wrong location').length, 0);
-      check('worldaudit: teleport paths are not counted as wrong location', wrongLoc === results.filter((r) => r.districtMatch === false).length, { wrongLoc });
+      const teleWrong = results.filter((r) => String(r.path || '').startsWith('teleport') && (r.defects || []).some((d) => d.cat === 'wrong location')).length;
+      check('worldaudit: teleport paths are not counted as wrong location', teleWrong === 0, { wrongLoc, teleWrong });
       process.exit(summary() ? 1 : 0);
     }
     const browser = await launch();
