@@ -4,6 +4,7 @@ import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
 import { AssetManager } from '../../assets/AssetManager';
+import { assetUrl } from '../../assets/assetUrl';
 
 export class AirportInterior {
   public group: THREE.Group;
@@ -708,7 +709,7 @@ export class AirportInterior {
     this.group.add(tarmacGroup);
 
     // 8. Asynchronously swap in external GLB model if supplied
-    AssetManager.getInstance().instantiate('/models/aircraft/wazobia_jet737.glb').then((glbScene) => {
+    AssetManager.getInstance().instantiate(assetUrl('models/aircraft/wazobia_jet737.glb')).then((glbScene) => {
       if (glbScene) {
         tarmacGroup.remove(planeGroup);
         glbScene.position.copy(planeGroup.position);
