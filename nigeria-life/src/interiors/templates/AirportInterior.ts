@@ -4,12 +4,14 @@ import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
 import { AssetManager } from '../../assets/AssetManager';
+import { NavGrid } from '../../interactions/NavGrid';
 
 export class AirportInterior {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
+  public nav: NavGrid;
 
   // Animated elements
   private departureBoardPulse: number = 0;
@@ -220,6 +222,7 @@ export class AirportInterior {
       ],
     };
 
+    this.nav = new NavGrid(origin, 30, 26);
     this.build3DInterior();
   }
 
@@ -466,6 +469,28 @@ export class AirportInterior {
     for (const obj of this.interactiveList) {
       obj.interactionPoint.add(this.group.position);
     }
+
+    this.nav.blockRect(-7, 2, 3.25, 0.75);
+    this.nav.blockRect(0, 0, 0.95, 0.35);
+    this.nav.blockRect(2.4, 0, 0.85, 1.65);
+    this.nav.blockRect(8, -8, 1.85, 0.45);
+    this.nav.blockRect(12, -8, 1.85, 0.45);
+    this.nav.blockRect(-9, -7, 2.1, 0.95);
+    this.nav.blockRect(-9, -4.8, 1.5, 0.65);
+    this.nav.blockRect(7.5, 4.5, 2.0, 2.2);
+    this.nav.blockRect(10.7, 6.1, 0.4, 0.65);
+    this.nav.blockRect(-9, 8, 1.2, 0.5);
+    this.nav.blockRect(9, 10, 1.3, 0.5);
+    this.nav.blockRect(0, -13, 14, 0.2);
+    this.nav.clearRect(0, 10, 0.8, 0.8);
+    this.nav.clearRect(0, 0, 0.45, 0.45);
+    this.nav.clearRect(-7, 2 + 0.9, 0.5, 0.5);
+    this.nav.clearRect(8, -8 + 1.2, 0.5, 0.5);
+    this.nav.clearRect(12, -8 + 1.2, 0.5, 0.5);
+    this.nav.clearRect(-9, -7 + 1.2, 0.5, 0.5);
+    this.nav.clearRect(7.5, 4.5 + 1.0, 0.6, 0.6);
+    this.nav.clearRect(-9, 8 + 0.8, 0.5, 0.5);
+    this.nav.clearRect(9, 10 + 0.8, 0.5, 0.5);
 
     // 11. Apron Tarmac & NigeriaLife Air commercial jet view
     this.buildTarmacAndAirliner();

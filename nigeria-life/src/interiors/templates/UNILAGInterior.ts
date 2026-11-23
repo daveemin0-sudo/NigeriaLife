@@ -3,12 +3,14 @@ import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
+import { NavGrid } from '../../interactions/NavGrid';
 
 export class UNILAGInterior {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
+  public nav: NavGrid;
 
   constructor() {
     this.group = new THREE.Group();
@@ -153,6 +155,7 @@ export class UNILAGInterior {
       ],
     };
 
+    this.nav = new NavGrid(origin, 26, 24);
     this.build3DInterior();
   }
 
@@ -359,6 +362,26 @@ export class UNILAGInterior {
     for (const obj of this.interactiveList) {
       obj.interactionPoint.add(this.group.position);
     }
+
+    this.nav.blockRect(0, -7, 5, 2.5);
+    this.nav.blockRect(0, -6.5, 0.75, 0.5);
+    for (const zRow of [-2, 0.8, 3.6]) {
+      this.nav.blockRect(-4.5, zRow, 3.25, 0.5);
+      this.nav.blockRect(4.5, zRow, 3.25, 0.5);
+      this.nav.blockRect(-4.5, zRow + 0.9, 2.5, 0.4);
+      this.nav.blockRect(4.5, zRow + 0.9, 2.5, 0.4);
+    }
+    for (const zShelf of [-6, -1, 4]) {
+      this.nav.blockRect(-11.5, zShelf, 0.45, 2.25);
+    }
+    this.nav.blockRect(-8, 0, 1.6, 0.9);
+    this.nav.blockRect(8, -3, 2.1, 0.7);
+    this.nav.blockRect(7, 5, 1.7, 0.6);
+    this.nav.clearRect(0, 9, 0.8, 0.8);
+    this.nav.clearRect(0, -6.5 + 1.0, 0.5, 0.5);
+    this.nav.clearRect(-8, 0 + 1.0, 0.5, 0.5);
+    this.nav.clearRect(8, -3 + 1.0, 0.5, 0.5);
+    this.nav.clearRect(7, 5 + 0.8, 0.5, 0.5);
   }
 
   public update(delta: number, animTime: number): void {
