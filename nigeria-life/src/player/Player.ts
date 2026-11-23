@@ -17,6 +17,7 @@ import {
 } from '../graphics/people/SkinnedCharacter';
 import { bridgeNear, groundAt, onWater } from '../world/density/StreetLayout';
 import type { Solids } from '../world/plan/Solids';
+import { closestFreeOnSolids, WALKER_RADIUS } from '../world/plan/CollisionSpace';
 import { Bodies, outOfCar, outOfPerson, waysRoundCar } from '../world/Bodies';
 import type { Way } from '../world/plan/Wayfinder';
 import { BackendService } from '../backend/BackendService';
@@ -213,6 +214,9 @@ export class Player {
    * After a step: someone up on the footbridge is held by its rails, and nobody on the street
    * walks into the side of a flight of stairs and finds themselves half-way up it.
    */
+  /** Reused by unstick so closestFreeOnSolids does not allocate per frame */
+  private readonly freeSpot = { x: 0, z: 0 };
+
   private stayOnTheWay(cameFrom: THREE.Vector3): void {
     const fb = bridgeNear(this.mesh.position.z);
     if (this.onBridge) {
@@ -221,6 +225,16 @@ export class Player {
     }
     const p = this.mesh.position;
     const solids = this.solids?.();
+    // Spawned or stood inside a solid: step out to the nearest free spot (no ghost walk-through)
+    if (solids?.at(p.x, p.z, 0)) {
+      const free = closestFreeOnSolids(solids, p.x, p.z, WALKER_RADIUS, this.freeSpot);
+      if (free.x !== p.x || free.z !== p.z) {
+        p.x = free.x;
+        p.z = free.z;
+        this.keepClearOfBodies(cameFrom, solids);
+        return;
+      }
+    }
     if (this.footbridge && !this.footbridge()) {
       if (!solids) return;
       const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);

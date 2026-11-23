@@ -78,7 +78,7 @@ export async function run(browser, check) {
   // The places the phone and the map name: each has a building and a card where they send you
   const placed = await page.evaluate(() => {
     const g = window.game;
-    const ids = ['dest_lagos_marina_towers', 'dest_lagos_freedom_park', 'dest_lagos_ivory_rooftop', 'dest_lagos_the_library', 'dest_lagos_ifitness', 'dest_lagos_lekki_conservation', 'dest_lagos_refinery', 'dest_lagos_radio', 'dest_lagos_balogun_market', 'dest_lagos_amala_shitta', 'dest_lagos_mama_bisi_salon', 'dest_lagos_polling_unit', 'dest_lagos_afrika_shrine', 'dest_lagos_chapel', 'dest_lagos_central_mosque', 'dest_lagos_elegushi_beach', 'dest_lagos_palms_lekki'];
+    const ids = ['dest_lagos_marina_towers', 'dest_lagos_freedom_park', 'dest_lagos_ivory_rooftop', 'dest_lagos_the_library', 'dest_lagos_ifitness', 'dest_lagos_lekki_conservation', 'dest_lagos_refinery', 'dest_lagos_radio', 'dest_lagos_balogun_market', 'dest_lagos_amala_shitta', 'dest_lagos_viewing_centre', 'dest_lagos_polling_unit', 'dest_lagos_afrika_shrine', 'dest_lagos_chapel', 'dest_lagos_central_mosque', 'dest_lagos_elegushi_beach', 'dest_lagos_palms_lekki'];
     const registry = g.modules.DestinationRegistry.getInstance();
     const cards = g.world.interactiveObjects.filter((o) => o.id.startsWith('roadside-'));
     const bad = [];
@@ -109,6 +109,38 @@ export async function run(browser, check) {
     return { booked: booked.ok, away: +Math.hypot(g.player.position.x - card.interactionPoint.x, g.player.position.z - card.interactionPoint.z).toFixed(1), shown: !!shop?.visible };
   });
   check('expressway: a taxi booked to Amala Shitta leaves the player at its door, with the buka there in front of them', rode.booked && rode.away < 3 && rode.shown, rode);
+
+  // Every phone/map destination: a ride sets down at its remapped street door (not a stale city-map pin)
+  const arrivals = await page.evaluate(async () => {
+    const g = window.game;
+    const registry = g.modules.DestinationRegistry.getInstance();
+    const ids = ['dest_lagos_marina_towers', 'dest_lagos_freedom_park', 'dest_lagos_ivory_rooftop', 'dest_lagos_the_library', 'dest_lagos_ifitness', 'dest_lagos_lekki_conservation', 'dest_lagos_refinery', 'dest_lagos_radio', 'dest_lagos_balogun_market', 'dest_lagos_amala_shitta', 'dest_lagos_viewing_centre', 'dest_lagos_polling_unit', 'dest_lagos_afrika_shrine', 'dest_lagos_chapel', 'dest_lagos_central_mosque', 'dest_lagos_elegushi_beach', 'dest_lagos_palms_lekki'];
+    g.hud.backend.performGig(500000, 0, 'test: dest arrivals');
+    const bad = [];
+    for (const id of ids) {
+      const d = registry.getById(id);
+      if (!d) { bad.push({ id, reason: 'missing' }); continue; }
+      g.player.mesh.position.set(9, 0, 40);
+      g.player.position.copy(g.player.mesh.position);
+      const booked = g.rides.book(id, 'taxi');
+      for (let i = 0; i < 80 && (g.rides.ride || g.roadRideExperience.isActive || !booked.ok); i++) {
+        await g.advance(0.5);
+        if (g.roadRideExperience.isActive) g.roadRideExperience.skipRide();
+      }
+      await g.advance(0.3);
+      const away = Math.hypot(g.player.position.x - d.streetPosition.x, g.player.position.z - d.streetPosition.z);
+      const mapAway = d.mapPosition ? Math.hypot(d.mapPosition.x - d.streetPosition.x, d.mapPosition.z - d.streetPosition.z) : 0;
+      if (!booked.ok || away > 4 || mapAway > 4) bad.push({ id, name: d.name, booked: booked.ok, away: +away.toFixed(1), mapAway: +mapAway.toFixed(1), streetZ: Math.round(d.streetPosition.z) });
+    }
+    // Dangote must land in Lekki Free Zone (expressway ~3500), never Apapa (~z 58 / map -65,70)
+    const ref = registry.getById('dest_lagos_refinery');
+    const apapa = registry.getById('dest_lagos_apapa_fuel_depot');
+    const dangoteOk = !!ref && /dangote/i.test(ref.name) && /lekki/i.test(ref.districtName || '') && ref.streetPosition.z > 3000
+      && !!apapa && /apapa/i.test(apapa.name) && Math.abs(apapa.streetPosition.z) < 200;
+    return { bad, dangoteOk, refName: ref?.name, refZ: ref ? Math.round(ref.streetPosition.z) : null, apapaName: apapa?.name };
+  });
+  check('expressway: a ride to every phone destination arrives at its street door (map and street agree)', arrivals.bad.length === 0, arrivals);
+  check('expressway: Dangote books to Lekki Free Zone; Apapa Marine Fuel Depot stays a separate place', arrivals.dangoteOk, arrivals);
 
   // A footbridge over the expressway is climbed from the foot of its stairs, crossed, and come down on the far side
   const crossed = await page.evaluate(async () => {

@@ -98,8 +98,10 @@ export class Roadside {
       const d = registry.getById(destination);
       if (!place || !d) continue;
       const { standX } = this.front(place);
-      d.streetPosition = new THREE.Vector3(standX, 0, place.z);
-      if (d.entrance) d.entrance.position = new THREE.Vector3(standX, 0, place.z);
+      const at = new THREE.Vector3(standX, 0, place.z);
+      d.streetPosition = at.clone();
+      d.mapPosition = at.clone();
+      if (d.entrance) d.entrance.position = at.clone();
       d.name = this.names.get(placeId) ?? d.name;
     }
     this.fleetGroup.name = 'Jets and yachts';

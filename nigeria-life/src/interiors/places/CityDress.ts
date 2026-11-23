@@ -42,10 +42,11 @@ const plaque = (parent: THREE.Object3D, lines: string[], x: number, y: number, z
  * A hotel lobby: reception, a lift, a bar, and seats. Each variant moves the seats and the
  * colour, so two hotels in one city are not the same room.
  * The desk stays at (-4, -5) and the bar at (5, -4), where the cards are.
+ * Pass the place's Builder as `into` so desks/bar register as NavGrid solids.
  */
-export function furnishLobby(group: THREE.Group, city: CityLook, variant: number): void {
+export function furnishLobby(group: THREE.Group, city: CityLook, variant: number, into?: Builder): void {
   const p = palette(city, variant);
-  const b = new Builder();
+  const b = into ?? new Builder();
   b.box(p.wood, 4.2, 1.05, 0.9, -4, 0, -5).box(p.gold, 4.3, 0.06, 1, -4, 1.05, -5);
   b.box(0x1c1917, 3.2, 1.05, 0.8, 5, 0, -4).box(p.gold, 3.3, 0.05, 0.9, 5, 1.05, -4);
   // The lift, at the back
@@ -55,7 +56,7 @@ export function furnishLobby(group: THREE.Group, city: CityLook, variant: number
   // Bottles behind the bar, and a plant by the desk
   for (let i = 0; i < 8; i++) b.cylinder([0xfacc15, 0x166534, 0x7f1d1d, 0xe0f2fe][i % 4], 0.06, 0.32, 3.6 + (i % 4) * 0.28, 1.1, -4.3, { sides: 8 });
   b.cylinder(0x78350f, 0.22, 0.4, -7.2, 0, -6).dome(0x166534, 0.45, -7.2, 0.4, -6);
-  group.add(b.build('lobby fit', { roughness: 0.6 }));
+  if (!into) group.add(b.build('lobby fit', { roughness: 0.6 }));
   if (variant === 2) {
     layFine(group, fineDining(6, p.wood, p.cloth), 0, 0, 3.2, Math.PI / 2);
   } else {
@@ -71,10 +72,11 @@ export function furnishLobby(group: THREE.Group, city: CityLook, variant: number
 /**
  * An office: a reception desk, waiting seats, and desks with chairs. Abuja faces the window
  * wall; Port Harcourt runs the desks down the other side.
+ * Pass the place's Builder as `into` so desks register as NavGrid solids.
  */
-export function furnishOffice(group: THREE.Group, city: CityLook, variant = 0): void {
+export function furnishOffice(group: THREE.Group, city: CityLook, variant = 0, into?: Builder): void {
   const p = palette(city, variant % 3);
-  const b = new Builder();
+  const b = into ?? new Builder();
   const brand = city === 'ph' ? 0x0f766e : variant === 1 ? 0x0f172a : variant === 2 ? 0x7c2d12 : 0x1e3a8a;
   b.box(brand, 5, 1.05, 0.9, variant === 2 ? 3.2 : 0, 0, -5).box(0xf8fafc, 5.1, 0.05, 1, variant === 2 ? 3.2 : 0, 1.05, -5);
   // variant 0: desks left (Abuja) / right (PH); 1: flip side; 2: centre row + side boardroom
@@ -95,7 +97,7 @@ export function furnishOffice(group: THREE.Group, city: CityLook, variant = 0): 
   const boardX = variant === 1 ? (city === 'ph' ? 8.6 : -8.6) : (city === 'ph' ? -8.6 : 8.6);
   b.box(city === 'ph' ? 0x0369a1 : 0xb45309, 1.1, 0.7, 0.04, boardX, 1.7, -2);
   b.box(0xfef3c7, 0.86, 0.48, 0.02, boardX + (boardX > 0 ? -0.05 : 0.05), 1.7, -2);
-  group.add(b.build('office fit', { roughness: 0.6 }));
+  if (!into) group.add(b.build('office fit', { roughness: 0.6 }));
   for (const x of row.slice(0, 2)) layFine(group, fineSofa(1, 0x1f2937, 0xe5e7eb, p.wood), x, 0, variant === 2 ? 1.5 : 0.15, Math.PI);
   layFine(group, fineSofa(3, p.cloth, p.cushion, p.wood), city === 'ph' ? 3 : -2.4, 0, variant === 2 ? -3.2 : 3.4, Math.PI);
   layFine(group, fineLamp(), city === 'ph' ? -6 : 6, 0, 3, 0);

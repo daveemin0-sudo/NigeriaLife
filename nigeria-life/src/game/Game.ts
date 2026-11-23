@@ -185,7 +185,7 @@ const leagueFixture = LeagueRules.fixture;
 import { Employment } from '../jobs/Employment';
 import { Solids } from '../world/plan/Solids';
 import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
-import { GraphicsQuality } from '../graphics/GraphicsQuality';
+import { GraphicsQuality, initialShadowFlag } from '../graphics/GraphicsQuality';
 import { OnlineAccount } from '../online/OnlineAccount';
 import { CloudSyncService } from '../backend/CloudSyncService';
 import { Qualifications } from '../life/Qualifications';
@@ -382,6 +382,11 @@ export class Game {
   private onJourneyCompleted: (() => void) | null = null;
   /** Where the current paid ride in a city was booked: "Turn back" sets the player down there */
   private ridePickup: { x: number; z: number; rotationY: number; name: string } | null = null;
+  /** GPU context is gone — pause the loop until restored (or we reload at a lower quality). */
+  private contextLost = false;
+  /** How many times the GPU context has been lost this visit (repeat → drop quality and reload). */
+  private contextLossCount = 0;
+  private restoringBanner: HTMLDivElement | null = null;
 
   constructor() {
     // 1. Scene
@@ -401,7 +406,10 @@ export class Game {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
-    this.renderer.shadowMap.enabled = true;
+    // Shadows are decided once before any lit shader compiles. Toggling later rebuilds every
+    // material (multi-second freeze on phones). DeviceProfile / a stored choice set the flag;
+    // live quality step-down never flips it — that waits for the next load.
+    this.renderer.shadowMap.enabled = initialShadowFlag();
     // This version of three.js draws PCFSoftShadowMap as PCFShadowMap, and switches to it at the first shadow drawn:
     // asked for by its old name, every shader that takes a shadow was built twice (a third of them all, 7 seconds of loading)
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -410,6 +418,7 @@ export class Game {
     this.renderer.debug.checkShaderErrors = !!import.meta.env.DEV;
     document.body.appendChild(this.renderer.domElement);
     PointerScope.init(this.renderer.domElement);
+    this.bindWebGlLifecycle();
 
     // 3b. Post-Processing Pipeline (Phase 6: Bloom, Lagos Atmosphere Grade, OutputPass)
     this.postProcessing = new PostProcessingManager(
@@ -2338,8 +2347,12 @@ export class Game {
     // Billboards rented on Eko Ads go up on the expressway's boards
     Adverts.get();
 
-    // Buildings and walls are solid to someone on foot and to a vehicle being driven
+    // Buildings, stalls, benches and poles are solid to someone on foot and to a vehicle being driven
     this.player.solids = () => this.solidsHere();
+    // Living-city walkers steer around every solid (stalls, benches, poles and walls) via the Solids grid
+    this.world.cityPopulation.solids = () => this.solidsHere();
+    // Broad Street patrol NPCs use the same Solids so they slide along walls and props
+    this.world.npcs.solids = () => this.solidsHere();
     this.player.wayfinder = (fromX, fromZ, toX, toZ) => this.waysHere()?.route(fromX, fromZ, toX, toZ) ?? null;
     this.player.footbridge = () => this.world.cityManager.currentCityId === 'lagos';
     this.player.pavements = () => this.world.cityManager.currentCityId === 'lagos' && !this.world.interiorManager.isPlayerInside() && !this.world.interiorManager.busy;
@@ -2433,24 +2446,29 @@ export class Game {
       return true;
     };
     DrivableVehicle.loadSettings();
-    this.graphics = new GraphicsQuality({
-      renderer: this.renderer,
-      sun: this.world.skyEnvironment.sunLight,
-      scene: this.scene,
-      crowd: this.world.cityPopulation,
-      resized: () => this.applyDrawingSize(),
-      onLevel: ({ smokeEvery, districtDraw, trafficDraw, wetMetalnessMax, postFx }) => {
-        this.world.smokeEvery = smokeEvery;
-        this.world.districtDrawDistance = districtDraw;
-        this.world.trafficSpawner.drawDistance = trafficDraw;
-        for (const city of [this.world.cityManager.abujaCity, this.world.cityManager.portHarcourtCity]) {
-          if (city?.life?.traffic) city.life.traffic.drawDistance = trafficDraw;
-        }
-        this.world.weather.wetMetalnessMax = wetMetalnessMax;
-        this.postProcessing.setEnabled(postFx);
+    this.graphics = new GraphicsQuality(
+      {
+        renderer: this.renderer,
+        sun: this.world.skyEnvironment.sunLight,
+        scene: this.scene,
+        crowd: this.world.cityPopulation,
+        resized: () => this.applyDrawingSize(),
+        onLevel: ({ smokeEvery, districtDraw, trafficDraw, wetMetalnessMax, postFx }) => {
+          this.world.smokeEvery = smokeEvery;
+          this.world.districtDrawDistance = districtDraw;
+          this.world.trafficSpawner.drawDistance = trafficDraw;
+          for (const city of [this.world.cityManager.abujaCity, this.world.cityManager.portHarcourtCity]) {
+            if (city?.life?.traffic) city.life.traffic.drawDistance = trafficDraw;
+          }
+          this.world.weather.wetMetalnessMax = wetMetalnessMax;
+          this.postProcessing.setEnabled(postFx);
+        },
+        tell: (text) => showGameToast(text, 'info', 7000),
       },
-      tell: (text) => showGameToast(text, 'info', 7000),
-    });
+      { sessionShadows: this.renderer.shadowMap.enabled }
+    );
+    // Keep the sun's cast flag aligned with the session shadow lock
+    this.world.skyEnvironment.sunLight.castShadow = this.renderer.shadowMap.enabled;
     this.world.weather.wetMetalnessMax = this.graphics.wetMetalnessMax;
     this.applyDrawingSize();
     // The queues at Broad Street's bus stops are who a danfo or keke picks up
@@ -4207,15 +4225,17 @@ export class Game {
 
   /**
    * Where a ride to this place sets the player down: the place you booked on the map.
-   * Prefer map/entrance when street coords drifted; only snap to a named door within 28 m.
+   * Prefer map only when the entrance also sits by the pin (Abuja avenue drift). Lagos
+   * roadside remaps keep street+entrance together on the expressway while an old city-map
+   * pin may still linger — never prefer that stale pin over the remapped door.
    */
   private setDownSpot(destination: DestinationDefinition): { x: number; z: number } {
     const street = destination.streetPosition;
     const map = destination.mapPosition;
-    const mapDrift = map ? Math.hypot(map.x - street.x, map.z - street.z) : 0;
-    // Abuja had many pins with street coords parked on the wrong avenue (~100 m off).
-    const base = mapDrift > 40 && map ? map : street;
     const entrance = destination.entrance?.position;
+    const mapDrift = map ? Math.hypot(map.x - street.x, map.z - street.z) : 0;
+    const entranceNearMap = !!(map && entrance && Math.hypot(entrance.x - map.x, entrance.z - map.z) <= 40);
+    const base = mapDrift > 40 && entranceNearMap && map ? map : street;
     const near = entrance && Math.hypot(entrance.x - base.x, entrance.z - base.z) <= 40 ? entrance : base;
     const door = this.doorOf(destination.name, near, 28);
     return { x: door?.x ?? near.x, z: door?.z ?? near.z };
@@ -4524,6 +4544,11 @@ export class Game {
 
   private loop = (): void => {
     requestAnimationFrame(this.loop);
+    if (this.contextLost) {
+      // Keep the RAF alive; do not step or draw until the GPU context is back
+      this.clock.getDelta();
+      return;
+    }
     const rawDelta = this.clock.getDelta();
     this.graphics?.watch(rawDelta);
     // Cap maximum delta to prevent excessive steps after browser tab backgrounding
@@ -4539,6 +4564,118 @@ export class Game {
     // Not drawn while the shaders are compiling in the background: drawing would wait for each one
     if (!this.warming) this.render();
   };
+
+  /** webglcontextlost / restored: pause, save, restore in place; repeat failure drops quality and reloads. */
+  private bindWebGlLifecycle(): void {
+    const canvas = this.renderer.domElement;
+    canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      this.onWebGlContextLost();
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      void this.onWebGlContextRestored();
+    });
+  }
+
+  private onWebGlContextLost(): void {
+    this.contextLost = true;
+    this.contextLossCount += 1;
+    try {
+      this.saveWorldState();
+    } catch {
+      /* best effort */
+    }
+    try {
+      SoundEngine.getInstance().suspendAll();
+    } catch {
+      /* ignore */
+    }
+    this.showRestoringBanner();
+  }
+
+  private async onWebGlContextRestored(): Promise<void> {
+    // Repeated losses: drop one quality level and reload into the same save
+    if (this.contextLossCount >= 2) {
+      this.dropQualityAndReload();
+      return;
+    }
+    try {
+      if (this.graphics) {
+        // Re-apply the locked session level (will not flip shadowMap.enabled)
+        this.graphics.apply(this.graphics.level);
+        this.applyDrawingSize();
+      } else {
+        this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+      }
+      this.renderer.shadowMap.needsUpdate = true;
+      // Recompile a short warm pass so the first frames after restore do not stall
+      await this.warmShaders(4_000);
+      this.contextLost = false;
+      this.hideRestoringBanner();
+      this.clock.getDelta();
+      try {
+        SoundEngine.getInstance().resumeAll();
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      console.warn('[webgl] context restore failed', err);
+      this.dropQualityAndReload();
+    }
+  }
+
+  private showRestoringBanner(): void {
+    if (this.restoringBanner) return;
+    const el = document.createElement('div');
+    el.id = 'nl-restoring';
+    el.setAttribute('role', 'status');
+    el.textContent = 'Restoring…';
+    el.style.cssText =
+      'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483000;padding:12px 18px;border-radius:12px;background:rgba(15,26,20,.92);color:#fff;font:700 14px/1.2 system-ui,sans-serif;pointer-events:none;';
+    document.body.appendChild(el);
+    this.restoringBanner = el;
+  }
+
+  private hideRestoringBanner(): void {
+    this.restoringBanner?.remove();
+    this.restoringBanner = null;
+  }
+
+  /** Persist a lower quality for the next load and reload so the same save continues. */
+  private dropQualityAndReload(): void {
+    const order: Array<'high' | 'balanced' | 'low' | 'veryLow'> = ['high', 'balanced', 'low', 'veryLow'];
+    try {
+      const key = 'nigerialife.graphics';
+      let saved: { level?: string; chosen?: boolean; userScale?: number; shadows?: boolean } = {};
+      try {
+        saved = JSON.parse(localStorage.getItem(key) || '{}') || {};
+      } catch {
+        saved = {};
+      }
+      const current = (this.graphics?.level || saved.level || 'balanced') as 'high' | 'balanced' | 'low' | 'veryLow';
+      const idx = Math.min(order.length - 1, Math.max(0, order.indexOf(current)) + 1);
+      const next = order[idx];
+      const shadows = next !== 'veryLow';
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          level: next,
+          chosen: false,
+          userScale: typeof saved.userScale === 'number' ? saved.userScale : 1,
+          shadows,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.saveWorldState();
+    } catch {
+      /* ignore */
+    }
+    this.showRestoringBanner();
+    location.reload();
+  }
 
   /**
    * Nothing is drawn while shaders are being compiled ahead (warmShaders). True from the start: the

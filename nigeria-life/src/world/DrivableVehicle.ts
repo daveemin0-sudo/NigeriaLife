@@ -207,20 +207,11 @@ export class DrivableVehicle {
     this.mesh.add(this.hornDisplayGroup);
     this.createHornSprite();
 
-    // Asynchronous GLB model loading if available in public/models/vehicles/
-    const glbMap: Partial<Record<VehicleType, string>> = {
-      danfo: '/models/vehicles/danfo_minibus.glb',
-      keke: '/models/vehicles/keke_napep.glb',
-      suv: '/models/vehicles/suv_luxury.glb',
-      okada: '/models/vehicles/okada_bike.glb',
-      sedan: '/models/vehicles/sedan_corolla.glb',
-      luxury_sedan: '/models/vehicles/sedan_maybach.glb',
-      gwagon: '/models/vehicles/suv_gwagon.glb',
-      sports_car: '/models/vehicles/supercar_gt.glb',
-      electric_car: '/models/vehicles/electric_sedan.glb',
-      ambulance: '/models/vehicles/ambulance_van.glb',
-    };
-    const glbPath = glbMap[this.type];
+    // Optional GLB override for vehicles that actually ship under public/models/vehicles/.
+    // Procedural builders above already set the look; do not request missing files (404 noise).
+    // When a GLB is added, import assetUrl and register e.g. danfo: assetUrl('models/vehicles/danfo_minibus.glb').
+    const shippedVehicleGlbs: Partial<Record<VehicleType, string>> = {};
+    const glbPath = shippedVehicleGlbs[this.type];
     if (glbPath) {
       AssetManager.getInstance().instantiate(glbPath).then((glbScene) => {
         if (glbScene) {
