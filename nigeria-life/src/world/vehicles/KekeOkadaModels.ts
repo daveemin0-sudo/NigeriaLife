@@ -280,6 +280,7 @@ const GREEN = 0x15803d;
 const BODY_DARK = 0x1f2937;
 
 let kekeShell: Array<{ geometry: THREE.BufferGeometry; material: THREE.Material }> | null = null;
+let kekeSideCurtains: Array<{ geometry: THREE.BufferGeometry; material: THREE.Material }> | null = null;
 let kekeGlass: Array<{ geometry: THREE.BufferGeometry; material: THREE.Material }> | null = null;
 let kekeLamps: Array<{ geometry: THREE.BufferGeometry; material: THREE.Material }> | null = null;
 
@@ -288,20 +289,27 @@ function ensureKekePrototype(): void {
 
   const body = new GeoBag();
   const canvas = new GeoBag();
+  const sideRolls = new GeoBag();
   const interior = new GeoBag();
   const metal = new GeoBag();
   const glass = new GeoBag();
   const lamp = new GeoBag();
 
   // --- Curved nose cowl (side profile extruded across width) ---
+  // Exterior front/top curves stay the same; the cabin face is a low dash shelf so both
+  // handlebar grips stay clear of yellow from the inside camera.
   const nose = new THREE.Shape();
-  nose.moveTo(0.5, 0.32);
+  nose.moveTo(0.72, 0.32); // cabin floor edge
   nose.lineTo(1.18, 0.32);
   nose.quadraticCurveTo(1.4, 0.36, 1.46, 0.55);
   nose.quadraticCurveTo(1.48, 0.78, 1.36, 0.95);
-  nose.quadraticCurveTo(1.22, 1.08, 0.95, 1.1);
-  nose.lineTo(0.5, 1.08);
-  nose.lineTo(0.5, 0.32);
+  nose.quadraticCurveTo(1.22, 1.08, 0.95, 1.1); // exterior top (unchanged)
+  // Drop under the glass to a low cabin dash (grips sit at y≈1.02, well above this)
+  nose.lineTo(1.02, 1.06);
+  nose.lineTo(0.95, 0.92);
+  nose.lineTo(0.82, 0.78);
+  nose.lineTo(0.72, 0.68);
+  nose.lineTo(0.72, 0.32);
   const noseGeo = new THREE.ExtrudeGeometry(nose, {
     depth: 0.82,
     bevelEnabled: true,
@@ -313,7 +321,7 @@ function ensureKekePrototype(): void {
   noseGeo.translate(0, 0, -0.41);
   noseGeo.rotateY(-Math.PI / 2);
   body.add('body', KEKE_MATS.body, noseGeo, 0, 0, 0.06, { hex: YELLOW });
-  // Bonnet scoop / headlamp brow
+  // Bonnet scoop / headlamp brow (exterior — unchanged)
   body.box('body', KEKE_MATS.body, 0.55, 0.06, 0.28, 0, 0.98, 1.15, { pitch: -0.25, hex: YELLOW });
   body.box('body', KEKE_MATS.body, 0.7, 0.05, 0.08, 0, 0.78, 1.42, { hex: GREEN });
 
@@ -355,18 +363,13 @@ function ensureKekePrototype(): void {
   // Number plate (rear)
   body.box('body', KEKE_MATS.body, 0.36, 0.13, 0.02, 0, 0.48, -1.36, { hex: 0xf8fafc });
 
-  // --- Canvas roof (curved), side rolls, rear curtain ---
+  // --- Canvas roof (curved), rear curtain (side rolls are a separate hideInside group) ---
   const roofGeo = new THREE.CylinderGeometry(0.68, 0.68, 2.35, 16, 1, true, -Math.PI / 2, Math.PI);
   roofGeo.rotateX(-Math.PI / 2);
   canvas.add('canvas', KEKE_MATS.canvas, roofGeo, 0, 1.68, -0.22, { sy: 0.28 });
-  // Roof edge rails (valance)
+  // Roof edge rails (valance) — centre strip stays; side lips go with hideInside rolls
   canvas.box('canvas', KEKE_MATS.canvas, 1.28, 0.04, 2.2, 0, 1.62, -0.2);
   for (const side of [-1, 1]) {
-    canvas.box('canvas', KEKE_MATS.canvas, 0.04, 0.14, 2.15, side * 0.64, 1.55, -0.2);
-    // Rolled side curtain under the roof edge (horizontal along z)
-    canvas.cyl('canvas', KEKE_MATS.canvas, 0.045, 0.045, 1.45, side * 0.63, 1.5, 0.02, 8, {
-      pitch: Math.PI / 2,
-    });
     // Rear quarter canvas panels
     canvas.box('canvas', KEKE_MATS.canvas, 0.04, 0.95, 0.52, side * 0.64, 1.05, -1.0);
   }
@@ -374,19 +377,40 @@ function ensureKekePrototype(): void {
   canvas.box('canvas', KEKE_MATS.canvas, 1.28, 0.7, 0.04, 0, 1.15, -1.32);
   canvas.box('canvas', KEKE_MATS.canvas, 0.55, 0.22, 0.03, 0, 1.35, -1.325);
 
-  // --- Interior: floor mats, dash, seats ---
+  // Side rolls + roof-edge tubes that sit at the inside camera — hideInside only
+  for (const side of [-1, 1]) {
+    // Rolled side curtain under the roof edge (horizontal along z)
+    sideRolls.cyl('canvas', KEKE_MATS.canvas, 0.045, 0.045, 1.45, side * 0.63, 1.5, 0.02, 8, {
+      pitch: Math.PI / 2,
+    });
+    // Canvas valance lip (dark) beside the roll
+    sideRolls.box('canvas', KEKE_MATS.canvas, 0.04, 0.14, 2.15, side * 0.64, 1.55, -0.2);
+  }
+
+  // --- Interior: floor mats, cabin dash, seats ---
   interior.box('interior', KEKE_MATS.interior, 1.1, 0.02, 1.9, 0, 0.37, -0.15);
   // Ribbed floor mat strips
   for (let i = 0; i < 6; i++) {
     interior.box('interior', KEKE_MATS.interior, 1.0, 0.01, 0.04, 0, 0.385, 0.5 - i * 0.22);
   }
-  // Dashboard shelf behind the windscreen
-  interior.box('interior', KEKE_MATS.interior, 0.95, 0.08, 0.28, 0, 0.95, 0.72, { pitch: -0.2 });
-  interior.box('interior', KEKE_MATS.interior, 0.35, 0.06, 0.12, 0, 1.0, 0.7);
-  interior.box('interior', KEKE_MATS.interior, 0.22, 0.1, 0.06, 0, 1.02, 0.68);
-  // Speedo / switch blanks on the dash
-  interior.cyl('interior', KEKE_MATS.interior, 0.04, 0.04, 0.02, -0.12, 1.0, 0.66, 10, { pitch: Math.PI / 2 });
-  interior.cyl('interior', KEKE_MATS.interior, 0.03, 0.03, 0.02, 0.1, 1.0, 0.66, 8, { pitch: Math.PI / 2 });
+  // Lower shaped dash under the windscreen: shelf + face toward the driver, column clear above
+  interior.box('interior', KEKE_MATS.interior, 0.92, 0.05, 0.34, 0, 0.84, 0.78, { pitch: -0.12 });
+  interior.box('interior', KEKE_MATS.interior, 0.88, 0.16, 0.05, 0, 0.76, 0.62);
+  // Deck under the glass (further forward, stays below the handlebar height)
+  interior.box('interior', KEKE_MATS.interior, 0.7, 0.03, 0.18, 0, 0.92, 0.9, { pitch: -0.22 });
+  // Speedometer pod + face
+  interior.cyl('interior', KEKE_MATS.interior, 0.055, 0.055, 0.04, -0.14, 0.86, 0.64, 12, {
+    pitch: Math.PI / 2,
+  });
+  interior.cyl('interior', KEKE_MATS.interior, 0.042, 0.042, 0.012, -0.14, 0.86, 0.618, 12, {
+    pitch: Math.PI / 2,
+  });
+  // Switch / blank row on the right of the column
+  for (const dx of [0.06, 0.16, 0.26]) {
+    interior.box('interior', KEKE_MATS.interior, 0.06, 0.035, 0.02, dx, 0.8, 0.595);
+  }
+  // Small centre blank under the column
+  interior.box('interior', KEKE_MATS.interior, 0.12, 0.04, 0.03, 0, 0.72, 0.6);
   // Driver saddle + backrest (hip at y=0.74)
   interior.box('interior', KEKE_MATS.interior, 0.48, 0.1, 0.4, 0, 0.62, 0.3);
   interior.box('interior', KEKE_MATS.interior, 0.42, 0.04, 0.36, 0, 0.68, 0.3);
@@ -404,16 +428,18 @@ function ensureKekePrototype(): void {
   // --- Metal frame, forks, mirrors, wipers ---
   // Roof underside sits at y ≈ 1.55 (valance); posts must end there (keke ≤ 1.92 m overall)
   const roofUnder = 1.55;
+  const postH = roofUnder - 0.72;
+  const postY = (roofUnder + 0.72) / 2;
   for (const side of [-1, 1]) {
-    // Front A-pillars (top ends at roof underside)
+    // Front A-pillars (top ends at roof underside) — stay visible; they frame the glass
     metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, 0.55, side * 0.52, 1.22, 0.88, 6, { pitch: -0.18 });
-    // Mid and rear roof posts: sill → underside of roof
-    const postH = roofUnder - 0.72;
-    const postY = (roofUnder + 0.72) / 2;
-    metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, postH, side * 0.62, postY, -0.05, 6);
+    // Rear roof posts (behind the inside camera)
     metal.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, postH, side * 0.62, postY, -0.85, 6);
-    // Roof longitudinal rail under the canvas edge
-    metal.cyl('metal', KEKE_MATS.metal, 0.016, 0.016, 1.9, side * 0.6, roofUnder, -0.15, 6, {
+  }
+  // Mid posts + longitudinal rails sit in the inside camera's side thirds — hideInside group
+  for (const side of [-1, 1]) {
+    sideRolls.cyl('metal', KEKE_MATS.metal, 0.02, 0.02, postH, side * 0.62, postY, -0.05, 6);
+    sideRolls.cyl('metal', KEKE_MATS.metal, 0.016, 0.016, 1.9, side * 0.6, roofUnder, -0.15, 6, {
       pitch: Math.PI / 2,
     });
   }
@@ -482,19 +508,32 @@ function ensureKekePrototype(): void {
   tail.box('tail', KEKE_MATS.tail, 0.22, 0.045, 0.035, 0, 0.98, -1.37);
 
   kekeShell = [...body.bake(), ...canvas.bake(), ...interior.bake(), ...metal.bake()];
+  kekeSideCurtains = sideRolls.bake();
   kekeGlass = glass.bake();
   kekeLamps = [...lamp.bake(), ...tail.bake()];
+}
+
+export interface KekeBodyParts {
+  /** Rolled side curtains — hide in the ride inside camera so they do not fill the view. */
+  sideCurtains: THREE.Group;
 }
 
 /**
  * Adds the shared keke shell (merged by material) into `parent`.
  * Does not add wheels, steer, or people — callers attach those.
+ * Returns the side-curtain group for ride `hideInside`.
  */
-export function addKekeBody(parent: THREE.Object3D): void {
+export function addKekeBody(parent: THREE.Object3D): KekeBodyParts {
   ensureKekePrototype();
   attachBaked(parent, kekeShell!);
   attachBaked(parent, kekeGlass!, false);
   attachBaked(parent, kekeLamps!, false);
+
+  const sideCurtains = new THREE.Group();
+  sideCurtains.name = 'kekeSideCurtains';
+  attachBaked(sideCurtains, kekeSideCurtains!);
+  parent.add(sideCurtains);
+  return { sideCurtains };
 }
 
 /** Handlebar column for the keke; grips sit at ±KEKE_LAYOUT.gripHalf on local x. */

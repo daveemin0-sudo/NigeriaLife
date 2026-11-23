@@ -348,7 +348,7 @@ function hollowCabin(car: THREE.Group, s: CarSpec): void {
 export function buildRideKeke(): RideVehicle {
   const body = new THREE.Group();
   body.name = 'keke';
-  addKekeBody(body);
+  const { sideCurtains } = addKekeBody(body);
 
   const steer = buildKekeSteer();
   body.add(steer);
@@ -380,7 +380,7 @@ export function buildRideKeke(): RideVehicle {
   return {
     body, wheels, wheelRadius: KEKE_LAYOUT.wheelRadius, steer,
     grips: [new THREE.Vector3(KEKE_LAYOUT.gripHalf, 0, 0), new THREE.Vector3(-KEKE_LAYOUT.gripHalf, 0, 0)],
-    driver, passenger, hideInside: [passenger],
+    driver, passenger, hideInside: [passenger, sideCurtains],
     views: {
       // From the bench: the driver's back, his hands on the bars, Lagos through the windscreen
       inside: view([-0.42, 1.5, -0.66], [0.05, 1.12, 8], 72),
