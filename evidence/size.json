@@ -1,0 +1,9 @@
+{
+  "commit": "7f36a3db373d7b0cfd5d48e6f406ce0411b2ca95",
+  "target_m": [1.58, 1.87, 3.00],
+  "measured_wheels_steer_m": [1.580, 1.870, 2.987],
+  "triangles_body_wheels_steer": 4634,
+  "triangles_body_only": 2822,
+  "materials_body_only": 6,
+  "materials_with_wheels_steer": 8
+}
