@@ -243,7 +243,7 @@ export class TransitHUD {
     const back = document.getElementById('btn-ride-back');
     if (back) {
       back.style.display = options.turnBackTo ? '' : 'none';
-      back.textContent = '↩ Turn back · no refund';
+      back.textContent = '↩ Turn back';
       const said = options.turnBackTo ? `Turn back to ${options.turnBackTo}. The fare is not refunded.` : '';
       back.title = said;
       back.setAttribute('aria-label', said);

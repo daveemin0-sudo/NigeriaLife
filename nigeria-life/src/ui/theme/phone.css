@@ -424,14 +424,14 @@ body.nl-hud-hidden #v-btn-run {
 
   /* --- Road ride HUD: compact strip at the very top (below safe-area), road stays clear ------ */
   html body #ride-hud-card.transit-ride-card {
-    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
     left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
     right: calc(env(safe-area-inset-right, 0px) + 8px) !important;
     width: auto !important;
     max-width: none !important;
-    padding: 8px 10px !important;
+    padding: 6px 8px !important;
     box-sizing: border-box !important;
-    border-radius: 14px !important;
+    border-radius: 12px !important;
   }
   html body #ride-hud-card .ride-header-detail,
   html body #ride-hud-card .ride-subtext {
@@ -440,21 +440,21 @@ body.nl-hud-hidden #v-btn-run {
   html body #ride-hud-card .ride-compact-row {
     display: flex !important;
     flex-direction: column !important;
-    gap: 8px !important;
+    gap: 6px !important;
   }
   html body #ride-hud-card .ride-compact-meta {
     display: flex !important;
-    flex-wrap: wrap !important;
+    flex-wrap: nowrap !important;
     align-items: center !important;
-    gap: 6px 8px !important;
+    gap: 4px 6px !important;
     min-width: 0 !important;
   }
   html body #ride-hud-card .ride-vehicle,
   html body #ride-hud-card .ride-dest {
-    font-size: 12.5px !important;
+    font-size: 12px !important;
     font-weight: 800 !important;
     color: #fff !important;
-    max-width: 42vw !important;
+    max-width: 36vw !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
@@ -462,23 +462,27 @@ body.nl-hud-hidden #v-btn-run {
   html body #ride-hud-card .ride-dest-arrow {
     opacity: 0.7 !important;
     font-weight: 700 !important;
+    flex-shrink: 0 !important;
   }
   html body #ride-hud-card .ride-time-eta {
     margin-left: auto !important;
-    font-size: 12px !important;
+    font-size: 11px !important;
     font-weight: 800 !important;
     color: #38bdf8 !important;
     white-space: nowrap !important;
+    flex-shrink: 0 !important;
   }
   html body #ride-hud-card .ride-actions {
     display: flex !important;
-    gap: 8px !important;
+    gap: 6px !important;
     flex-wrap: nowrap !important;
   }
   html body #ride-hud-card .ride-actions button {
     flex: 1 1 0 !important;
-    min-height: 44px !important;
+    min-height: 40px !important;
     min-width: 0 !important;
+    padding: 8px 10px !important;
+    font-size: 13px !important;
   }
   html body #ride-camera-bar.ride-camera-bar {
     top: auto !important;
@@ -523,18 +527,19 @@ body.nl-hud-hidden #v-btn-run {
   html body[data-ui-mode="driving"] #top-menu-btn,
   html body[data-ui-mode="driving"] .top-menu-btn {
     top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
-    left: auto !important;
-    right: calc(env(safe-area-inset-right, 0px) + 114px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
+    right: auto !important;
     transform: none !important;
     width: 40px !important;
     height: 40px !important;
     min-width: 40px !important;
     min-height: 40px !important;
   }
+  /* Chips sit under the chevron and clear the minimap on the right */
   html body .drive-controls .drive-top {
     top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
     left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
-    right: calc(env(safe-area-inset-right, 0px) + 8px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 118px) !important;
     max-width: none !important;
     flex-wrap: wrap !important;
     gap: 6px !important;
@@ -588,7 +593,7 @@ body.nl-hud-hidden #v-btn-run {
   }
   html body .drive-controls .drive-top {
     left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
-    right: calc(env(safe-area-inset-right, 0px) + 8px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 118px) !important;
     max-width: none !important;
     flex-wrap: wrap !important;
     gap: 6px !important;
@@ -975,38 +980,44 @@ body.nl-hud-hidden #v-btn-run {
     right: calc(env(safe-area-inset-right, 0px) + 8px) !important;
     transform: none !important;
     max-width: none !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    gap: 6px !important;
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    gap: 4px 8px !important;
     padding: 5px 8px !important;
     box-sizing: border-box !important;
-    scrollbar-width: none;
+    justify-content: space-between !important;
   }
-  html body .hud-center-pill-bar::-webkit-scrollbar { display: none; }
+  /* Needs always get a full clear row so health/energy/food/cred never hide under money or location */
   html body .hud-center-pill-bar .hud-vitals-bar {
     display: flex !important;
-    flex: 0 0 auto !important;
+    flex: 1 0 100% !important;
+    order: 5 !important;
     flex-wrap: nowrap !important;
-    gap: 5px !important;
-    padding: 2px 0 !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    padding: 2px 0 0 !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
   }
   html body .hud-center-pill-bar .vital-item {
     display: flex !important;
-    flex: 0 0 auto !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    justify-content: center !important;
   }
   html body .hud-center-pill-bar .vital-track {
-    width: 20px !important;
+    width: 28px !important;
     height: 5px !important;
   }
   html body .hud-center-pill-bar .vital-val {
     display: none !important;
   }
+  html body .hud-center-pill-bar #hud-weather-label {
+    display: none !important;
+  }
   html body .hud-header > .hud-top-right-group {
-    top: calc(env(safe-area-inset-top, 0px) + 56px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
     max-width: calc(50vw - 34px) !important;
   }
   html body .hud-top-right-group .hud-location {
@@ -1014,13 +1025,13 @@ body.nl-hud-hidden #v-btn-run {
   }
   html body .hud-top-left-badges,
   html body #hud-quest-tracker {
-    top: calc(env(safe-area-inset-top, 0px) + 56px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
     left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
     max-width: calc(50vw - 34px) !important;
   }
   html body #top-menu-btn,
   html body .top-menu-btn {
-    top: calc(env(safe-area-inset-top, 0px) + 56px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
   }
   html body[data-ui-mode="driving"] #top-menu-btn,
   html body[data-ui-mode="driving"] .top-menu-btn {

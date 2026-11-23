@@ -416,7 +416,7 @@ html body .emote-btn:hover { background: var(--lx-brand-soft) !important; border
 
 /* The menu chevron sits under the top bar on wide screens, not on top of the needs */
 @media (min-width: 701px) {
-  html body .top-menu-btn { top: 62px !important; }
+  html body .top-menu-btn { top: calc(96px + env(safe-area-inset-top, 0px)) !important; }
 }
 
 /* --- The phone's home: glass cards on the wallpaper, gold for the money ----------------------- */
@@ -1729,7 +1729,7 @@ html body .nl-signin-later { border: 0; background: none; color: var(--lx-dim, #
     flex-wrap: nowrap !important;
   }
   html body .hud-top-right-group {
-    top: calc(56px + env(safe-area-inset-top, 0px)) !important;
+    top: calc(96px + env(safe-area-inset-top, 0px)) !important;
     right: 8px !important;
     gap: 4px !important;
   }
@@ -1746,7 +1746,7 @@ html body .nl-signin-later { border: 0; background: none; color: var(--lx-dim, #
 
   /* Compact Quest & Hustle card to single compact pill on mobile */
   html body .hud-quest-tracker {
-    top: calc(56px + env(safe-area-inset-top, 0px)) !important;
+    top: calc(96px + env(safe-area-inset-top, 0px)) !important;
     left: 8px !important;
     max-width: min(180px, 48vw) !important;
     padding: 4px 8px !important;
