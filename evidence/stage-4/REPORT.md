@@ -38,3 +38,8 @@ PlaceSpec rebuilt with shared `teachingHospital()` layout:
 
 - Phone hardware / iOS Safari
 - Every other audit interior beyond the three teaching hospitals
+
+## Banks (follow-up)
+
+- `allen-bank-hall.png` — Eko Commercial Bank, Allen: glass teller, queue, ATM bay, Guard Musa
+- Shared `branchBank()` also used by Abuja/PH town banks; CBN visitors centre enriched
