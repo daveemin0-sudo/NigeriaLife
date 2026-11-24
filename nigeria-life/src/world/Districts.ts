@@ -817,11 +817,12 @@ export class Districts {
   }
 
   // =========================================================================
-  // 10. GENERAL HOSPITAL & EMERGENCY CLINIC (East South: X 18, Z 75)
+  // 10. GENERAL HOSPITAL & EMERGENCY CLINIC (East: clear of Broad Street's 2 m walkway)
   // =========================================================================
   private buildGeneralHospital(): void {
     const hospGroup = new THREE.Group();
-    hospGroup.position.set(18, 0, 75);
+    // Was at x=18 with a 16 m façade → minX 10, which pinched the east pavement shut.
+    hospGroup.position.set(22, 0, 75);
 
     // Multi-story hospital modern medical complex
     const mainGeo = new THREE.BoxGeometry(16, 12, 14);
@@ -877,7 +878,7 @@ export class Districts {
       name: 'St. Nicholas Lagos General Hospital',
       category: 'Healthcare & Emergency',
       description: 'Lagos Island premier medical centre. Enter for doctor consultation, treatments, medical checkups, and pharmacy.',
-      interactionPoint: new THREE.Vector3(8.8, 0, 75),
+      interactionPoint: new THREE.Vector3(12.8, 0, 75),
     });
 
     this.interactiveList.push({
@@ -886,7 +887,7 @@ export class Districts {
       name: 'St. Nicholas Lagos General Hospital',
       category: 'Healthcare & Emergency',
       description: 'Lagos Island premier medical centre. Enter for doctor consultation, treatments, medical checkups, and pharmacy.',
-      interactionPoint: new THREE.Vector3(8.8, 0, 75),
+      interactionPoint: new THREE.Vector3(12.8, 0, 75),
     });
   }
 

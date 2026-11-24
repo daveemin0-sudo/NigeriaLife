@@ -1590,7 +1590,8 @@ export class Buildings {
   private buildConstructionSite(): void {
     const conGroup = new THREE.Group();
     // Positioned along the main commercial strip at x = 19, z = 54
-    conGroup.position.set(19, 0, 54.8);
+    // East of Broad Street walkway (was minX≈11 and pinched the pavement with stalls)
+    conGroup.position.set(22.5, 0, 54.8);
 
     const conMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.95 });
     const rebarMat = new THREE.MeshStandardMaterial({ color: 0xb45309, metalness: 0.6, roughness: 0.7 });
@@ -1742,7 +1743,7 @@ export class Buildings {
       name: 'Eko Mega Plaza Development Site',
       category: 'Work & Labor',
       description: 'Active 4-storey commercial development approved by LASPPPA. Casual day-labor available.',
-      interactionPoint: new THREE.Vector3(10, 0, 54.8),
+      interactionPoint: new THREE.Vector3(13.5, 0, 54.8),
     });
   }
 

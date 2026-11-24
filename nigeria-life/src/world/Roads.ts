@@ -455,12 +455,16 @@ export class Roads {
       { color: 0x9333ea, label: 'SUNGLASSES & ACCESSORIES', item: 'shades' },
     ];
 
-    // (The last, the POS stall, stands north of the footbridge's west stairs, clear of the mechanic's way in)
-    const stallZPositions = [-78, -62, -52, -22, 12, 28, 44, 72, 96, 118];
+    // Keep stalls clear of footbridge stairs/decks (they already pinch the pavement) and of
+    // District 8's frontage around z≈70–80 where the walkway was fully blocked.
+    const stallZPositions = [-78, -62, -52, -22, 12, 44, 88, 118].filter(
+      (z) => !FOOTBRIDGES.some((bz) => Math.abs(z - bz) < 14),
+    );
 
     stallZPositions.forEach((sz, idx) => {
       const side = idx % 2 === 0 ? -1 : 1;
-      const sx = side * (this.roadWidth / 2 + 3.2);
+      // Closer to the kerb than the shop fronts so a 2 m walkway stays open
+      const sx = side * (this.roadWidth / 2 + 2.15);
       const theme = umbrellaThemes[idx % umbrellaThemes.length];
 
       const stallGroup = new THREE.Group();
