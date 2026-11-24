@@ -56,6 +56,8 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Mama Put P0 wrong location | Yaba maxZ −16 so Broad Street south stays **Lagos Island** (verified) |
 | District fallback | Nearest-centre only within 80 m |
 | Aso Rock / Eagle Square / PH refinery | Dest + district bounds; Asokoro rock pocket before Maitama so boulevard land prices stay prime |
+| Venue seat sweep | Regulars off tabletops/backrests (lounge, MMIA, golf, hospitals, Oshodi, NASS, airfield) |
+| Aso Rock lookout solid | Platform + granite foot solid at Shehu Shagari north end; dest at (0,−90) |
 | Moscow / 345 / Mogadishu solids | Wuse nightlife façades + Asokoro cantonment walls; dests moved off empty Garki/maitama pins |
 | Banex Plaza solid | Landmark sheds in Wuse (−190, 200); dest set-down on clear pavement (−190, 220) |
 | Outdoor gateman | Musa at Banana Island Compound.post when hired + on duty (photo `gateman-at-post-390x844.png`) |
@@ -81,7 +83,7 @@ Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 - Full 155-suite e2e vs `bf55dab` on **current tip** (prior run used stale frozen serve).
 - Outdoor gateman: photo at Banana Island gatehouse (gateman-at-post-390x844.png) — desktop only.
 - Markets/malls still building shells (audit OPEN_AIR false positives).
-- Full venue seat sweep still open.
+- Venue seat sweep: regulars moved onto chairs/benches (tabletop sits fixed).
 
 ## Performance
 

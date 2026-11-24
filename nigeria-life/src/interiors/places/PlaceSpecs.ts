@@ -888,7 +888,7 @@ const IKEJA: PlaceSpec[] = [
     ] },
     { id: 'shisha', name: '💨 Shisha & small chops', at: [-6, 2], stand: [-6, 1.5], who: 'Waitress', role: 'Allen Lounge', text: 'Flavour?', choices: [{ label: 'Shisha and a small chops platter', price: 27000, note: 'Fun +20, Hunger +30', sit: true, seconds: 6, effect: need({ fun: 20, hunger: 30, social: 10 }), said: 'Mint shisha, puff-puff, samosa and spring rolls.' }] },
     { id: 'floor', name: '💃 The dance floor', at: [0, -2], stand: [0, -2], who: 'DJ', role: 'Allen Lounge', text: 'Oya shake body!', choices: [{ label: 'Dance', note: 'Fun +30', dance: true, seconds: 8, effect: need({ fun: 30, social: 10 }), said: 'The DJ played your song. You owned the floor.' }] },
-  ], [{ at: [-2, 4.4], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [1, -2], facing: 0.6, outfit: 0xfacc15 }], [20, 18]),
+  ], [{ at: [-2, 4], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [1, -2], facing: 0.6, outfit: 0xfacc15 }], [20, 18]),
   venue('oshodi-interchange', 'Oshodi Transport Interchange', 'Oshodi · terminal', 'BRT · Danfo · Interstate', '#1d4ed8', 0xd4d4d8, 0xe0f2fe, (b) => {
     for (const x of [-6, 0, 6]) counter(b, x, -6, 3, 0x1d4ed8, 0xf8fafc);
     screen(b, 0, -8.7, 10, 1.4, 3.2, 0xfacc15);
@@ -902,7 +902,7 @@ const IKEJA: PlaceSpec[] = [
     { id: 'brt', name: '🚌 BRT to the island', at: [-6, -6], stand: [-6, -4.7], who: 'Ticket clerk', role: 'BRT tickets', text: 'CMS, Obalende, TBS.', choices: [{ label: 'Take the BRT to Lagos Island', note: 'To Broad Street', open: 'bus-island' }] },
     { id: 'interstate', name: '🚍 Interstate buses', at: [6, -6], stand: [6, -4.7], who: 'Interstate clerk', role: 'Interstate buses', text: 'Where you dey go?', choices: [{ label: 'Buses to Abuja and Port Harcourt', note: 'Tickets', open: 'interstate' }] },
     { id: 'snacks', name: '🍩 Puff-puff', at: [9, 5], stand: [9, 6.3], who: 'Mama Puff', role: 'Snacks', text: 'How many?', choices: [buy('A nylon of puff-puff', 1000, item('puffpuff', 'Nylon of puff-puff', '🍩', 1000, 'food', true, 12), 'Ten hot puff-puff in a nylon.')] },
-  ], [{ at: [-4, 3.3], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 3.3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [1, -2], facing: 0, outfit: 0xf97316 }], [22, 18]),
+  ], [{ at: [-4, 3], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [1, -2], facing: 0, outfit: 0xf97316 }], [22, 18]),
   venue('lasuth', 'LASUTH', 'Ikeja · teaching hospital', 'A&E 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
     teachingHospital(b, 0xdc2626);
   }, [
@@ -919,7 +919,8 @@ const IKEJA: PlaceSpec[] = [
   ], [
     { at: [-5, 7.2], facing: Math.PI, outfit: 0x60a5fa, sit: true },
     { at: [-1.5, 7.2], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
-    { at: [-6, 3.8], facing: 0, outfit: 0x94a3b8, sit: true },
+    // Waiting bench (not the ward mattress — that reads as tabletop height)
+    { at: [2, 7.2], facing: Math.PI, outfit: 0x94a3b8, sit: true },
   ], [22, 20]),
   venue('ladipo-auto', 'Ladipo Auto Market', 'Mushin · auto parts', 'Parts · Mechanics · Panel beaters', '#78350f', 0x57534e, 0xd6d3d1, (b) => {
     b.box(0x7f1d1d, 2, 1.3, 4.4, -4, 0, -3).box(0x1e3a8a, 2, 1.3, 4.4, 2, 0, -3);
@@ -1023,7 +1024,7 @@ const IKEJA: PlaceSpec[] = [
       buy('A box of chocolates', 8000, item('chocolates', 'Box of chocolates', '🍫', 8000, 'food', true, 10), 'For somebody special.'),
     ] },
     { id: 'lounge', name: '🛋️ Business lounge', at: [6, 7], stand: [6, 6.5], who: 'Lounge host', role: 'Lounge', text: 'Welcome to the lounge.', choices: [{ label: 'Relax in the lounge', price: 40000, note: 'Energy +40, Hunger +30', sit: true, seconds: 6, effect: need({ energy: 40, hunger: 30 }), said: 'Soft chair, cold drink, quiet. Your flight is on time.' }] },
-  ], [{ at: [-5, -4], facing: Math.PI, outfit: 0x2563eb }, { at: [9, 7.4], facing: Math.PI, outfit: 0x111827, sit: true }, { at: [2, 3], facing: 0.4, outfit: 0xdb2777, gender: 'female' }], [26, 24]),
+  ], [{ at: [-5, -4], facing: Math.PI, outfit: 0x2563eb }, { at: [9, 7], facing: Math.PI, outfit: 0x111827, sit: true }, { at: [2, 3], facing: 0.4, outfit: 0xdb2777, gender: 'female' }], [26, 24]),
 ];
 
 
@@ -1137,7 +1138,7 @@ const OUTDOOR: PlaceSpec[] = [
       buy('A set of golf clubs and a bag', 450000, { id: 'golf_clubs', name: 'Golf clubs and bag', icon: '🏌️', price: 450000, category: 'luxury', usable: false, description: 'Irons, woods, a putter and a leather bag.' }, 'A full set in a leather bag, carried to your car.', 'Into your bag'),
       buy('A box of golf balls', 15000, { id: 'golf_balls', name: 'Box of golf balls', icon: '⚪', price: 15000, category: 'luxury', usable: false, description: 'A dozen new balls.' }, 'A dozen new balls.', 'Into your bag'),
     ] },
-  ], [{ at: [-12, 6.95], facing: Math.PI, outfit: 0xf8fafc, sit: true }, { at: [-6, 6.05], facing: 0, outfit: 0x1e3a8a, sit: true }], [48, 36], true),
+  ], [{ at: [-12, 6.95], facing: Math.PI, outfit: 0xf8fafc, sit: true }, { at: [-5.05, 6], facing: -Math.PI / 2, outfit: 0x1e3a8a, sit: true }], [48, 36], true),
 
   venue('lagoon-marina', 'Eko Marina Yacht Club', 'Lagoon · marina', 'Berths · Fuel · Chandlery · Bar on the deck', '#0e7490', 0xe2e8f0, 0xf8fafc, (b) => {
     // Glass across the back, the lagoon beyond it
@@ -1188,7 +1189,7 @@ const OUTDOOR: PlaceSpec[] = [
     { id: 'bar', name: '🥂 The bar', at: [7, -6], stand: [7, -4.7], who: 'Lounge host', role: 'Bar', text: 'Champagne?', choices: [
       { label: 'A glass of champagne', price: 35000, note: 'Fun +15, Social +10', effect: need({ fun: 15, social: 10 }), said: 'Cold champagne. The big men in the lounge nodded at you.' },
     ] },
-  ], [{ at: [5, 1.3], facing: Math.PI, outfit: 0x111827, sit: true }], [24, 20]),
+  ], [{ at: [5, 1], facing: Math.PI, outfit: 0x111827, sit: true }], [24, 20]),
 ];
 
 
@@ -1370,7 +1371,7 @@ const ABUJA_SPECS: PlaceSpec[] = [
   ], [
     { id: 'gallery', name: '🏛️ Watch the Senate sit', at: [0, 4], stand: [0, 5.4], who: 'Sergeant-at-Arms', role: 'Public gallery', text: 'Sit quietly. They are on the budget.', choices: [{ label: 'Watch from the gallery', note: 'Fun +15, Social +5', sit: true, seconds: 8, effect: need({ fun: 15, social: 5 }), said: 'Point of order! The Senate President banged the gavel and the budget went to second reading.' }] },
     { id: 'rep', name: '🤝 See your representative', at: [3, -7], stand: [3, -5.6], who: 'Clerk Hauwa', role: 'National Assembly', text: 'Your member has five minutes after plenary.', choices: [{ label: 'Tell them what your street needs', note: 'Social +15', arms: 'wave', seconds: 4, effect: need({ social: 15 }), said: 'The honourable member wrote it down and promised a borehole. We will see.' }] },
-  ], [{ at: [-2, 1], facing: Math.PI, outfit: 0x1e3a8a, sit: true }, { at: [2, 2.6], facing: Math.PI, outfit: 0x7f1d1d, sit: true }], [22, 20]), [342, -15]),
+  ], [{ at: [-2, 1], facing: Math.PI, outfit: 0x1e3a8a, sit: true }, { at: [2, 1], facing: Math.PI, outfit: 0x7f1d1d, sit: true }], [22, 20]), [342, -15]),
 
   abuja(venue('transcorp-hilton', 'Transcorp Hilton Abuja', 'Maitama · hotel', '★★★★★ · Lobby bar · Buffet · Pool', '#0c4a6e', 0xf5f5f4, 0xe7e5e4, (b) => {
     grandLobby(b, 0x0c4a6e, true);
@@ -1467,6 +1468,11 @@ const ABUJA_SPECS: PlaceSpec[] = [
       b.cylinder(0xe0f2fe, 0.18, 2.8, Math.sin(a) * 3.2, 0.75, -6 + Math.cos(a) * 3.2, { topRadius: 0.04, glow: true });
     }
     b.cylinder(0xe0f2fe, 0.45, 5, 0, 0.75, -6, { topRadius: 0.08, glow: true });
+    // Benches around the fountain rim (sit here — not on the basin lip)
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      bench(b, Math.sin(a) * 8, -6 + Math.cos(a) * 8, 2.4);
+    }
     for (let i = 0; i < 10; i++) bench(b, -16 + i * 3.5, 8 + (i % 2) * 2, 2.4);
     for (const [x, z] of [[-18, -14], [18, -12], [-14, 14], [16, 12], [-8, -18], [10, -16]] as Array<[number, number]>) {
       b.cylinder(0x57534e, 0.28, 4.2, x, 0, z, { topRadius: 0.18 });
@@ -1477,7 +1483,7 @@ const ABUJA_SPECS: PlaceSpec[] = [
     { name: 'Park keeper', title: 'Keeper', at: [6, -14], facing: 0, outfit: 0x14532d, gender: 'male', says: 'Welcome. Keep off the flower beds.' },
     { name: 'Ice-cream seller', title: 'Ice cream', at: [-10, 10], facing: Math.PI, outfit: 0xf8fafc, gender: 'female', says: 'Vanilla, chocolate, or both?' },
   ], [
-    { id: 'fountain', name: '⛲ The fountain', at: [0, -6], stand: [0, -2.5], who: 'Millennium Park', role: 'Fountain', text: 'Cool spray on a hot afternoon.', choices: [
+    { id: 'fountain', name: '⛲ The fountain', at: [0, 2], stand: [0, 3.2], who: 'Millennium Park', role: 'Fountain', text: 'Cool spray on a hot afternoon.', choices: [
       { label: 'Sit by the fountain', note: 'Fun +15, Energy +5', sit: true, seconds: 6, effect: need({ fun: 15, energy: 5 }), said: 'The fountain sprayed cool air. A whole hour went by.' },
     ] },
     { id: 'walk', name: '🚶 Park walk', at: [0, 12], stand: [0, 10], who: 'Park keeper', role: 'Millennium Park', text: 'Round the lawns?', choices: [
@@ -1488,8 +1494,8 @@ const ABUJA_SPECS: PlaceSpec[] = [
       buy('Ice cream cone', 1500, item('ice_cream', 'Ice cream', '🍦', 1500, 'food', true, 5), 'Cold and sweet. Drips on your hand.'),
     ] },
   ], [
-    { at: [-14, 8.5], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' },
-    { at: [4, 8.2], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [-16, 8], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' },
+    { at: [5, 8], facing: Math.PI, outfit: 0x2563eb, sit: true },
     { at: [-3, -3], facing: 0.4, outfit: 0x16a34a },
   ], [48, 40], true), [196, 446]),
 
@@ -1567,7 +1573,7 @@ const ABUJA_SPECS: PlaceSpec[] = [
     { id: 'ward', name: '🛏️ Admission', at: [-3, 3.8], stand: [-3, 2.2], who: 'Nurse Aisha', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 55000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
   ], [
     { at: [-5, 7.2], facing: Math.PI, outfit: 0x60a5fa, sit: true },
-    { at: [-6, 3.8], facing: 0, outfit: 0x94a3b8, sit: true },
+    { at: [2, 7.2], facing: Math.PI, outfit: 0x94a3b8, sit: true },
   ], [22, 20]), [-290, 443]),
 
   abuja(venue('abuja-police', 'FCT Police Command', 'Garki · police', 'Police is your friend · 112', '#1e3a8a', 0xcbd5e1, 0xe2e8f0, (b) => {
@@ -1668,7 +1674,7 @@ const PH_SPECS: PlaceSpec[] = [
     { id: 'ward', name: '🛏️ The ward', at: [-3, 3.8], stand: [-3, 2.2], who: 'Nurse Ibiere', role: 'UPTH ward', text: 'Stay and rest. The creek is quiet from here.', choices: [{ label: 'Admitted overnight', price: 48000, note: 'Health +80', sit: true, seconds: 6, effect: need({ health: 80 }), said: 'Drip, rest, and you walk out stronger.' }] },
   ], [
     { at: [-5, 7.2], facing: Math.PI, outfit: 0x5eead4, sit: true, gender: 'female' },
-    { at: [-6, 3.8], facing: 0, outfit: 0x94a3b8, sit: true },
+    { at: [2, 7.2], facing: Math.PI, outfit: 0x94a3b8, sit: true },
   ], [22, 20]), [120, -65]),
 
   abuja(venue('ph-police', 'Rivers State Police Command', 'Port Harcourt · police', 'Police is your friend · 112', '#14532d', 0xd6d3d1, 0xf5f5f4, (b) => {

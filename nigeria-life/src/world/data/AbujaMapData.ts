@@ -353,7 +353,7 @@ export const ABUJA_LANDMARKS: MapLandmark[] = [
     name: 'Aso Rock & Three Arms Monolith',
     districtId: 'asokoro',
     type: 'landmark',
-    position: new THREE.Vector3(85, 0, 50),
+    position: new THREE.Vector3(0, 0, -93),
     icon: '⛰️',
     title: 'Aso Rock Monolith',
     subtitle: '400m Natural Granite Peak & Power Seat',
