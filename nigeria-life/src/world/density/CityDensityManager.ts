@@ -42,9 +42,9 @@ export class CityDensityManager {
 
     // C. LAWMA Lagos Trash Wheelie Bins along sidewalks
     for (let z of [-90, -80, -55, -40, -18, 2, 22, 40, 60, 80]) {
-      // At the kerb, so the middle of the pavement stays open
-      this.createTrashBin(-7.75, 0, z);
-      this.createTrashBin(7.75, 0, z + 10);
+      // Hard against the kerb (halfRoad=7) so a 2 m clear way remains toward the shop fronts
+      this.createTrashBin(-7.35, 0, z);
+      this.createTrashBin(7.35, 0, z + 10);
     }
 
     // D. Traffic Warning Signs & Speed Limit 40 km/h

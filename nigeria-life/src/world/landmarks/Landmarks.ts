@@ -49,7 +49,8 @@ export class Landmarks {
     // Jibowu Motor Park, on the north side of Martins Street: where the coaches to Abuja and Port Harcourt leave from
     this.motorPark = createMotorPark({ id: 'jibowu-park', city: 'lagos', x: 92.5, z: -69.6, faces: 'south' });
     // The yard of the Eko Mega Plaza site on Broad Street, where the block work is done
-    this.buildingSite = createBuildingSite({ id: 'eko-plaza-site', name: 'Eko Mega Plaza site', x: 19.4, z: 64.3, siteCardId: 'construction-site' });
+    // Kept east of Broad Street's walkway (was minX≈10.2 and pinched the pavement with the roadside stall)
+    this.buildingSite = createBuildingSite({ id: 'eko-plaza-site', name: 'Eko Mega Plaza site', x: 22.5, z: 64.3, siteCardId: 'construction-site' });
     this.list = [this.stadium, this.port, this.airport, this.club, this.motorPark, this.buildingSite];
     for (const landmark of this.list) {
       this.group.add(landmark.group);

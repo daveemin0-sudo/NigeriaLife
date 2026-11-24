@@ -58,6 +58,7 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Outdoor gateman | `HomeStaff.syncStreetGateman` on `Compound.post` for plotted homes |
 | Jibowu district | Dedicated `jibowu` bounds (mainland no longer swallows Yaba/CcHub) |
 | CcHub | At (−12.5, −23.8) → **Yaba** (verified after mainland shrink) |
+| Broad Street walkway | Stalls clear of footbridges; hospital + Mega Plaza pushed east; bins at kerb — `plan` **17/17** |
 | Abuja/PH pins | Millennium/Wuse/Jabi PlaceSpec districts aligned; Wuse/Pleasure/Brick House dest coords matched to PlaceSpecs |
 
 Evidence: `cursor/evidence-stage-5` @ `4fa49dc` (desktop SwiftShader only; re-smoke CcHub/Jibowu after this tip).
