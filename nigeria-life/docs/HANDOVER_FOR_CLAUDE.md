@@ -100,24 +100,42 @@ Code tip this batch: `8e2178e`+. Integration: merge after each stage-5 push.
 - allphones Very Low: 143 draws / 80k tris.
 - ridelegs under 220 draws.
 
-## Tip e2e vs baseline (in progress)
+## Tip e2e vs baseline (done — stale serve)
 
-`full-tip.log` on **stale** serve `/tmp/nl-e2e-serve` @ `54a383a` (Stage 4 markets — **not** current tip). ~122/155 when last checked; still running. Phonefit sleep×fab FAIL on that log is fixed on stage-5 (`8e2178e`). Many unique FAILs are ENOENT screenshot paths (`C:/Users/User/.gemini/...`) or flaky timeouts — filter those before comparing to `bf55dab`.
+`full-tip.log` finished **2026-11-24 ~11:30 Africa/Lagos**: **1712/1836 PASS**, EXIT 0, 155/155 suites.
 
-| Check | Tip (stale serve) | Alone on stage-5 / notes |
+Serve was **stale** `/tmp/nl-e2e-serve` @ `54a383a` (Stage 4 markets merge) — **not** current `cursor/integration-1` / stage-5 tip. Treat as a lower bound; alone re-runs on stage-5 already green for the Stage 5 fixes below.
+
+Noise among tip FAILs (~29 “ran to completion”): ENOENT screenshot paths (`C:/Users/User/.gemini/...`), ProtocolError timeouts, HMR “Execution context was destroyed”. Do not treat those as product regressions.
+
+### Wins vs `bf55dab` baseline (on this tip log)
+
+| Check | Baseline | Tip (stale) |
 | --- | --- | --- |
-| Footbridge climb | **PASS** | Was FAIL before climb fix |
-| streets suite | aborted after climb (HMR) | Alone: **17/17** |
-| seats fountain onAir | FAIL (stale) | Alone: **5/5** (benches + occupy) |
-| phonefit sleep × fab | FAIL (stale) | Alone: **7/7** at 320 |
-| needs toilet doors | FAIL (open-air + Library) | Toilet-door check **PASS** after openAir + Library bay |
-| ways Broad Street y | fixed earlier | Alone: **ways 20/20** |
+| Footbridge climb / deck / rails / east stairs | FAIL | **PASS** |
+| Unstick / walk out of building | FAIL | **PASS** (climb path) |
+| Under-bridge street level | FAIL | **PASS** |
+| Lagos plan walkway-blocked (Sabo Textiles etc.) | FAIL | **PASS** (plan suite green on tip) |
 
+### Tip FAILs already fixed on stage-5 (alone)
+
+| Check | Tip (stale) | Stage-5 alone |
+| --- | --- | --- |
+| phonefit sleep × `#view-fab` @ 320 | FAIL | **7/7** |
+| seats millennium fountain onAir | FAIL | **5/5** |
+| needs toilet doors / Party Jollof | FAIL | **9/9** |
+| streetenviro stalls denser than 7 | FAIL (stalls:6) | **7/7** (stalls:13) |
+| plan Abuja landmarks on road | (not this log) | **17/17** |
+| roadcraft lay-by parked cars | FAIL (cars:0) | **14/14** (cars:12) |
+| streets suite | aborted mid-suite (HMR) | **17/17** |
+
+### Remaining tip FAILs (pre-existing / flake / out of Stage 5 scope)
+
+firstfive chain, livingcity stall-count / fast-clock wrongs, farwalk walkers:0, drivetouch/streetcar flakes, clothing*/perf* timeouts, ENOENT screenshot suites (owambe/spark/staff/…), phonefit nav-btn bottom overflow @ 320 (separate from sleep×fab).
 
 ## Exact next step
 
-1. Finish stale tip e2e; then FAIL-vs-baseline into this file (strip ENOENT / phonefit noise).
-2. Optionally re-run full 155 on **current** integration tip if time remains.
-3. Continue WORLD_AUDIT P2 chrome / unvisited town interiors.
-4. Do **not** merge to main or deploy.
+1. Optionally re-run full 155 on **current** integration tip (`ae1ce7d`+) for a clean FAIL list.
+2. Continue WORLD_AUDIT P2 chrome / unvisited town interiors; phonefit nav-btn bottom overflow if time.
+3. Do **not** merge to main or deploy.
 
