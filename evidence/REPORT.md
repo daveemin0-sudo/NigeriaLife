@@ -1,6 +1,7 @@
-# Stage 5 evidence — QA batches 1–2
+# Stage 5 evidence — QA (districts + footbridge)
 
-**Code tip:** `cursor/stage-5-qa-everywhere-181d` @ `b0aa3f5`  
+**Code tip:** `cursor/stage-5-qa-everywhere-181d` @ `10d07d9`  
+**Integration:** `cursor/integration-1` @ `9356ff9`  
 **How tested:** desktop Chromium + SwiftShader, `…/NigeriaLife/`. **Not** phone hardware.
 
 ## District labels
@@ -11,5 +12,15 @@
 | `stage-5/mama-put-district.png` / `mama-district.png` | (−17, −10) → **Lagos Island** |
 | `stage-5/cchub-district.png` | (−12.5, −23.8) → **Yaba** (mainland no longer steals it) |
 
+## Footbridge climb (`streets` 17/17)
+
+| Shot | Result |
+| --- | --- |
+| `stage-5/footbridge-climbing-390x844.png` | West stairs / deck approach at 390×844 |
+| `stage-5/footbridge-deck-390x844.png` | Player on deck (`y ≈ 5.65`, `onBridge`) |
+
+**Fix:** `Player.stayOnTheWay` no longer unsticks out of stair step solids (climb) or wall volumes (exit from inside a building). Pavement-height checks in `streets.mjs` aligned to `sidewalkTop` (0.28) / existing `y < 0.3` foot check.
+
 ## Also in this tip (no new shots yet)
-Outdoor gateman on `Compound.post`; Abuja/PH destination↔PlaceSpec alignment for Millennium, Wuse, Jabi, Pleasure Park, Brick House.
+
+Outdoor gateman on `Compound.post`; Abuja/PH destination↔PlaceSpec alignment; Broad Street walkway clear (`plan` 17/17).
