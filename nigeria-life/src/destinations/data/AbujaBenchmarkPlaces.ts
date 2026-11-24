@@ -692,7 +692,7 @@ export function getAbujaBenchmarkDestinations(defaultTransports: TransportOption
       name: 'Millennium Park (Maitama)',
       category: 'Culture',
       city: 'abuja',
-      district: 'maitama',
+      district: 'millennium_park',
       districtName: 'Maitama Green Corridor, Near Unity Fountain',
       mapPosition: new THREE.Vector3(196, 0, 446),
       mapVisualType: 'culture',
