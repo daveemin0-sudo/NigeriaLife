@@ -76,7 +76,7 @@ Code tip this batch: `10d07d9`. Integration: `9356ff9`.
 - 2 shared skins + meshopt IBM.
 - Remaining WORLD_AUDIT chrome (Aso Rock / Eagle Square / PH refinery) and map pins.
 - Full 155-suite e2e vs `bf55dab` on **current tip** (prior run used stale frozen serve).
-- Outdoor gateman visual smoke still pending (code wired; no photo yet).
+- Outdoor gateman: photo at Banana Island gatehouse () — desktop only.
 - Markets/malls still building shells (audit OPEN_AIR false positives).
 - Full venue seat sweep still open.
 
