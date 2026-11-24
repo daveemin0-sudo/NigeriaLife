@@ -958,13 +958,14 @@ export function getAbujaBenchmarkDestinations(defaultTransports: TransportOption
       city: 'abuja',
       district: 'wuse_2',
       districtName: 'Aminu Kano Crescent, Wuse 2',
-      mapPosition: new THREE.Vector3(-45, 0, 10),
+      // Match AbujaDistricts Banex landmark in Wuse (old −45,10 sat in Garki with no solid)
+      mapPosition: new THREE.Vector3(-190, 0, 200),
       mapVisualType: 'tech',
       mapIcon: '📱',
       exteriorType: 'market_facade',
-      streetPosition: new THREE.Vector3(-45, 0, 10),
+      streetPosition: new THREE.Vector3(-190, 0, 220),
       entrance: {
-        position: new THREE.Vector3(-45, 0, 10),
+        position: new THREE.Vector3(-190, 0, 220),
         promptLabel: 'Enter Banex Plaza Tech Arcade',
         triggerRadius: 6.5,
       },

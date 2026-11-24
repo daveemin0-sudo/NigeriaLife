@@ -286,6 +286,28 @@ export function buildLandmarks(): Landmarks {
     places.push({ key: 'wuse-market', name: 'Wuse Market', category: 'Market', description: 'Foodstuff, fabric, phones and everything else, sold in a thousand stalls.', door: { x: cx, z: cz - 38 }, stand: { x: cx, z: cz - 42 }, inside: true });
   }
 
+  // --- Banex Plaza (Aminu Kano / Wuse 2): electronics sheds you cannot walk through
+  {
+    const cx = -190;
+    const cz = 200;
+    b.box(0xe7e5e4, 36, 9, 22, cx, 0, cz, { solid: true });
+    b.box(0x0f172a, 38, 1.2, 24, cx, 9, cz);
+    lit.windows(0xbae6fd, 8, 2, 34, 2.2, 7, cx, cz + 11.06, 0, { glow: true });
+    for (const dx of [-12, 0, 12]) {
+      b.box(0xf8fafc, 8, 3.2, 6, cx + dx, 0, cz - 14, { solid: true });
+    }
+    sign(group, ['BANEX PLAZA', 'PHONES · LAPTOPS · FOREX'], 16, 1.8, cx, 6.2, cz + 11.4, 0, '#0f172a', '#fde68a');
+    places.push({
+      key: 'banex-plaza',
+      name: 'Banex Plaza',
+      category: 'Market',
+      description: 'Phones, laptops and forex on Aminu Kano Crescent. The sheds are solid.',
+      door: { x: cx, z: cz + 12 },
+      stand: { x: cx, z: cz + 20 },
+      inside: false,
+    });
+  }
+
   // --- Jabi Lake and the mall on its shore
   {
     b.box(0x1d6fa5, 150, 0.06, 176, -475, 0, 280);
