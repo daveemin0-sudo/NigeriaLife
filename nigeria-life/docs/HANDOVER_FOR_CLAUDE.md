@@ -57,6 +57,7 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | District fallback | Nearest-centre only within 80 m |
 | Aso Rock / Eagle Square / PH refinery | Dest + district bounds; Asokoro rock pocket before Maitama so boulevard land prices stay prime |
 | Venue seat sweep | Regulars off tabletops/backrests (lounge, MMIA, golf, hospitals, Oshodi, NASS, airfield) |
+| Town hotel lobby seats | Regulars on sofa occupy tops; furnishLobby registers sit surfaces |
 | Wuse nightlife strip expanded | Hustle/Cubana/Play/Trukadero/Emab/City Park solid façades in Wuse (off Garki) |
 | Wuse Market stand clear | Stand/dest moved to (−175, 178) off solid gate posts |
 | Millennium/Pleasure/Brick House districts | New millennium_park district; d_line west to Pleasure Park; old_gra west so Brick House is Old GRA |
@@ -110,6 +111,8 @@ Partial `full-tip.log` (~12/155 suites when last checked; still running):
 
 ## Exact next step
 
-1. Restart clean full 155-suite e2e on Stage 5 / integration tip; compare to `bf55dab` one suite at a time.
-2. Continue WORLD_AUDIT P0 chrome / seat sweep; keep full tip e2e running.
-3. Continue seat/activity/arrival QA across three cities.
+1. Finish full tip e2e (~109/155 at last check; streets climb/unstick look fixed vs bf55dab baseline).
+2. On completion: full FAIL vs baseline into this file; note phonefit/ENOENT screenshot noise.
+3. Continue WORLD_AUDIT P2 chrome / unvisited town interiors if time remains.
+4. Do **not** merge to main or deploy.
+
