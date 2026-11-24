@@ -31,7 +31,7 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 
 Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/daveemin0-sudo/NigeriaLife/pull/59). Merged into `cursor/integration-1`. CI green. **Still open:** full venue seat sweep; gateman on outdoor `Compound.post`.
 
-### Stage 4 — real interiors (started) (`cursor/stage-4-real-interiors-181d` @ `b577d6d`)
+### Stage 4 — real interiors (started) (`cursor/stage-4-real-interiors-181d` @ `63f9a7a`)
 
 **LASUTH first** + shared teaching-hospital floor for National Hospital Abuja and UPTH:
 
@@ -41,7 +41,7 @@ Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/dav
 - Nursing shift tasks re-aimed at new bed/chart coords
 
 **Verified:** Chromium enter `interior_place_lasuth`; doctor present; finish ceramic; shiftskill + insides + workplaces **24/24**.  
-Evidence: `cursor/evidence-stage-4` @ `1ccdb47aa54911aeeed3a8d33b02fe61ea14bff8`. Desktop SwiftShader only — **not** phone hardware.
+Evidence: `cursor/evidence-stage-4` @ `cfe96b7`. Desktop SwiftShader only — **not** phone hardware.
 
 **Banks (this tip):** shared `branchBank()` hall — teller glass, queue rope, ATM bay, manager desk, security gate. Applied to Allen Avenue Eko bank, town banks (Abuja/PH), plus a richer CBN visitors centre. Allen finish `grey_granite`. Stations/prices unchanged.
 
