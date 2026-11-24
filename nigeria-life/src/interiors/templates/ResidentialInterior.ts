@@ -869,27 +869,26 @@ export class ResidentialInterior {
           const stocked = fridge.count();
           choices.push({
             label: 'Cook Party Jollof & Fried Dodo',
-            note: stocked ? 'Uses food from the fridge · Hunger +60, Cooking +1' : 'Stock the fridge first',
+            note: stocked ? 'Uses food from the fridge · Hunger +60, Cooking +1' : 'From the cupboard · Hunger +60, Cooking +1',
             pick: () => {
               const ingredient = fridge.pickIngredient([
                 'jollof', 'rice', 'tomato', 'plantain', 'dodo', 'gala_snack', 'akara', 'suya', 'boli', 'egusi',
               ]);
-              if (!ingredient) {
-                host.say('The fridge is empty. Buy food or put groceries in before you cook.', 'warning');
-                return;
-              }
-              const used = fridge.useUp(ingredient.id);
-              if (!used) {
-                host.say('That food is gone from the fridge.', 'warning');
-                return;
-              }
+              const used = ingredient ? fridge.useUp(ingredient.id) : null;
+              const hunger = 60;
               this.actOut(item, host, [
-                { pose: { arms: 'reach' }, seconds: 4.5, effect: () => { host.say(`🍳 Cooking with ${used.name} from the fridge…`, 'info'); } },
+                { pose: { arms: 'reach' }, seconds: 4.5, effect: () => {
+                  host.say(used
+                    ? `🍳 Cooking with ${used.name} from the fridge…`
+                    : '🍳 Cooking Party Jollof from the cupboard…', 'info');
+                } },
                 { pose: { arms: 'eat' }, seconds: 3, effect: () => {
-                  host.backend.modifyNeed('hunger', 60);
+                  host.backend.modifyNeed('hunger', hunger);
                   host.backend.modifyNeed('energy', -10);
                   host.backend.addSkillExp('cooking', 1);
-                  host.say(`Smoky party jollof with fried plantain — made from ${used.name}. Hunger up, cooking +1.`, 'success');
+                  host.say(used
+                    ? `Smoky party jollof with fried plantain — made from ${used.name}. Hunger up, cooking +1.`
+                    : 'Smoky party jollof with fried plantain from the cupboard. Hunger up, cooking +1. Stock the fridge next time.', 'success');
                 } },
               ]);
             },
