@@ -216,9 +216,9 @@ body.nl-hud-hidden #v-btn-run {
     overflow: hidden;
   }
 
-  /* --- What the player is busy with (sleeping, eating): a slim bar under the chips ----------- */
+  /* --- What the player is busy with (sleeping, eating): under today/chat, not on that row ----- */
   html body .buka-order-status {
-    top: calc(env(safe-area-inset-top, 0px) + 150px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 176px) !important;
     bottom: auto !important;
     left: 8px !important;
     right: 56px !important;
@@ -1019,6 +1019,17 @@ body.nl-hud-hidden #v-btn-run {
   html body .hud-center-pill-bar #hud-weather-label {
     display: none !important;
   }
+  /* Icon-only weather still needs a 36×36 tap target on narrow phones */
+  html body .hud-center-pill-bar #hud-weather-btn.hud-weather-btn {
+    min-width: 36px !important;
+    min-height: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
   /* Row under the vitals card: quest (left) · chevron · place name (right) */
   html body .hud-header > .hud-top-right-group {
     top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
@@ -1059,16 +1070,20 @@ body.nl-hud-hidden #v-btn-run {
   html body #street-chat-box.minimized.chat-mobile-adapted {
     top: calc(env(safe-area-inset-top, 0px) + 134px) !important;
   }
-  html body #music-fab {
+  /* Sleep / eat status sits under the today · chat row (must clear both) */
+  html body .buka-order-status {
     top: calc(env(safe-area-inset-top, 0px) + 176px) !important;
+  }
+  html body #music-fab {
+    top: calc(env(safe-area-inset-top, 0px) + 220px) !important;
     bottom: auto !important;
   }
   html body #view-fab {
-    top: calc(env(safe-area-inset-top, 0px) + 222px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 266px) !important;
     bottom: auto !important;
   }
   html body #game-toast-container {
-    top: calc(env(safe-area-inset-top, 0px) + 218px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 262px) !important;
   }
 }
 
