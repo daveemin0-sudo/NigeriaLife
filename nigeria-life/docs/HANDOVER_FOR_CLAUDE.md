@@ -88,15 +88,18 @@ Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 
 ## Tip e2e vs baseline (in progress)
 
-Partial `full-tip.log` on tip serve (interrupted once by serve reload mid-streets):
+Partial `full-tip.log` (~12/155 suites when last checked; still running):
 
-| Check | Tip | Prior tip/stale / baseline notes |
+| Check | Tip | vs earlier full.log / notes |
 | --- | --- | --- |
-| Footbridge climb | **PASS** | Was FAIL on stale serve before climb fix |
-| streets suite | aborted after climb (context destroyed / HMR) | Re-run streets alone: **17/17** |
-| ways Broad Street walk | FAIL on stale run (`y < 0.05`); fixed → **ways 20/20** alone | Prior full.log also FAIL (onPavement 0.66 + y) |
-| input open 3D view | FAIL (null) once | PASS on earlier full.log — treat as flake / cold vite |
-| phone share sell / send | FAIL | PASS on earlier full.log — investigate after full tip finishes |
+| Footbridge climb | **PASS** | Was FAIL before climb fix |
+| streets suite | aborted after climb (HMR reload) | Alone: **17/17** |
+| ways Broad Street y | FAIL then fixed | Alone: **ways 20/20**; prior full.log also FAIL |
+| hours rush/dawn crowd | FAIL (dawn walkers ~268) | Same FAIL in earlier full.log — not new |
+| phone share oversell / bank send | FAIL (typedFive stayed `1`) | PASS in earlier full.log — flake or input; do not weaken |
+| input open 3D view | FAIL once (null) | PASS earlier — cold-vite flake |
+| ATM + walk-to-machine | FAIL in tip hours/landmarks area | Related ATM walk FAIL also in earlier full.log |
+
 
 ## Exact next step
 
