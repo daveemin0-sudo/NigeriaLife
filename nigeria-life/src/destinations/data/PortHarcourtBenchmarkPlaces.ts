@@ -477,7 +477,7 @@ export function getPortHarcourtBenchmarkDestinations(defaultTransports: Transpor
       name: 'Rivers State Government House (Brick House)',
       category: 'Civic',
       city: 'port_harcourt',
-      district: 'town_ph',
+      district: 'old_gra',
       districtName: 'Harley Street / Azikiwe Road, Old GRA',
       mapPosition: new THREE.Vector3(-370, 0, -190),
       mapVisualType: 'landmark',

@@ -27,6 +27,31 @@ export const ABUJA_DISTRICTS: DistrictData[] = [
   },
 
   {
+    id: 'millennium_park',
+    name: 'Millennium Park',
+    subtitle: 'Lawns, Fountain & Shade',
+    tagline: 'Maitama Green Corridor · Unity Fountain lawns',
+    zone: 'Special',
+    center: new THREE.Vector3(196, 0, 560),
+    // South of CBD (maxZ 436): park gate stand is at (196, 446)
+    bounds: { minX: 18, maxX: 374, minZ: 436, maxZ: 684 },
+    color: 0x22c55e,
+    populationEstimate: 'Weekend visitors',
+    propertyCount: 40,
+    businessCount: 20,
+    description: 'Abuja’s great public park south of Independence Avenue: Italian fountain, lawns and shade trees.',
+    landmarks: ['Millennium Park Fountain', 'Unity Fountain corridor'],
+    visualTheme: {
+      buildingDensity: 0.05,
+      avgHeight: 2,
+      residentialRatio: 0.0,
+      commercialRatio: 0.1,
+      industrialRatio: 0.0,
+    },
+    streetSpawnPoint: new THREE.Vector3(196, 0, 446),
+  },
+
+  {
     id: 'asokoro',
     name: 'Asokoro (Aso Rock Enclave)',
     subtitle: 'Presidential Villa & Granite Monolith',
@@ -279,7 +304,7 @@ export const ABUJA_LANDMARKS: MapLandmark[] = [
   {
     id: 'millennium_park',
     name: 'Millennium Park',
-    districtId: 'cbd_abuja',
+    districtId: 'millennium_park',
     type: 'landmark',
     position: new THREE.Vector3(196, 0, 446),
     icon: '🌳',
