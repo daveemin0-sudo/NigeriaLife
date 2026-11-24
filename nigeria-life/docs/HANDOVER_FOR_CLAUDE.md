@@ -41,7 +41,7 @@ Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/dav
 - Nursing shift tasks re-aimed at new bed/chart coords
 
 **Verified:** Chromium enter `interior_place_lasuth`; doctor present; finish ceramic; shiftskill + insides + workplaces **24/24**.  
-Evidence: `cursor/evidence-stage-4` (see tip). Desktop SwiftShader only — **not** phone hardware.
+Evidence: `cursor/evidence-stage-4` @ `1ccdb47aa54911aeeed3a8d33b02fe61ea14bff8`. Desktop SwiftShader only — **not** phone hardware.
 
 **Not done yet in Stage 4:** banks, hotels, restaurants, markets, homes interiors in audit order after LASUTH.
 
