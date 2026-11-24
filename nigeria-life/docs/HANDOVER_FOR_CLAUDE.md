@@ -63,9 +63,9 @@ Ranked list: `docs/audit/WORLD_AUDIT.md`. Stage 2 targets include Elegushi Beach
 ### Stage 2 — open places (in progress) (`cursor/stage-2-open-places-181d` @ `ecb6fb8`)
 
 - Open-air place system: `room.openAir`, `InteriorPrefabs.createOpenGround`, outdoor sky (`isOpenAir()`), no cutaway/ceiling.
-- **Elegushi Beach** rebuilt: no walls/ceiling, horizon sea + shared wave shader, foam, buoy swim line, palms, bar/cabanas/loungers/horses/suya/coconut/football/swim/party.
-- Smoke (Chromium): `openAir:true`, shell=`interior_open_ground`, walls=0, sea+swim present, skyIndoors=false, HUD `Outdoors • Lekki · beach`. Shot: `/opt/cursor/artifacts/elegushi-open-air.png`.
-- Next on Stage 2: Freedom Park, Lekki Conservation, Jabi Lake, other OPEN_AIR from audit; richer wave/foam look; evidence branch.
+- **Elegushi Beach**, **Freedom Park**, **Lekki Conservation Centre** are openAir (no walls/ceiling, outdoor sky).
+- Smoke (Chromium): all three `openAir:true`, shell=`interior_open_ground`, walls=0, skyIndoors=false. Evidence: `cursor/evidence-stage-2`.
+- Next on Stage 2: Jabi Lake waterfront (not the mall), remaining OPEN_AIR from audit; then Stage 3.
 
 ## Open bugs / follow-ups
 
