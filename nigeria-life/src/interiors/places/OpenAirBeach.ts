@@ -120,9 +120,74 @@ export function attachOpenAirBeach(group: THREE.Group, length: number): SwimZone
   return swim;
 }
 
-/** Advance wave time. Call once per frame while any open-air beach is active. */
+const LAKE_MAT = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  uniforms: {
+    uTime: { value: 0 },
+    uDeep: { value: new THREE.Color(0x0c4a6e) },
+    uShallow: { value: new THREE.Color(0x38bdf8) },
+  },
+  vertexShader: WAVE_MAT.vertexShader,
+  fragmentShader: WAVE_MAT.fragmentShader,
+});
+
+/**
+ * Freshwater horizon for lakes (Jabi etc.): darker water, soft shore wash, boat/swim line.
+ * Shares geometry with the beach sea; own material so beach colour stays independent.
+ */
+export function attachOpenAirLake(group: THREE.Group, length: number): SwimZone {
+  const sea = new THREE.Mesh(SEA_GEO, LAKE_MAT);
+  sea.name = 'open_air_lake';
+  sea.rotation.x = -Math.PI / 2;
+  sea.position.set(0, -0.05, -length / 2 - SEA_L * 0.35);
+  sea.renderOrder = 1;
+  group.add(sea);
+
+  const foam = new THREE.Mesh(FOAM_GEO, FOAM_MAT);
+  foam.name = 'open_air_lake_wash';
+  foam.rotation.x = -Math.PI / 2;
+  foam.position.set(0, 0.03, -length / 2 + 1.0);
+  foam.renderOrder = 2;
+  group.add(foam);
+
+  const swim: SwimZone = {
+    minX: -12,
+    maxX: 12,
+    minZ: -length / 2 - 5,
+    maxZ: -length / 2 + 2.2,
+    surfaceY: -0.08,
+  };
+
+  const buoys = new THREE.Group();
+  buoys.name = 'open_air_boat_line';
+  for (let i = 0; i < 7; i++) {
+    const t = i / 6;
+    const x = swim.minX + (swim.maxX - swim.minX) * t;
+    const z = swim.minZ + 0.4;
+    const buoy = new THREE.Mesh(BUOY_GEO, BUOY_MAT);
+    buoy.position.set(x, 0.22, z);
+    buoys.add(buoy);
+    if (i < 6) {
+      const nx = swim.minX + (swim.maxX - swim.minX) * ((i + 1) / 6);
+      const line = new THREE.Mesh(LINE_GEO, LINE_MAT);
+      line.position.set((x + nx) / 2, 0.1, z);
+      line.scale.z = Math.hypot(nx - x, 0);
+      buoys.add(line);
+    }
+  }
+  group.add(buoys);
+
+  group.userData.swimZone = swim;
+  group.userData.beachSea = sea;
+  group.userData.lakeMat = LAKE_MAT;
+  return swim;
+}
+
+/** Advance wave time. Call once per frame while any open-air beach or lake is active. */
 export function tickOpenAirBeach(dt: number): void {
   WAVE_MAT.uniforms.uTime.value += dt;
+  LAKE_MAT.uniforms.uTime.value += dt;
 }
 
 /**

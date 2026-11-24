@@ -18,9 +18,9 @@ Lead builder until then: Cursor cloud agent. Do **not** merge to `main`, do **no
 
 **Decisions:** no missing vehicle GLB requests; ship 101/95 meshopt skins (2-skin post-quantize unsafe); HUD quest/place then today/chat rows.
 
-### Stage 1 — integration (`cursor/integration-1` @ `9cdcdf2`)
+### Stage 1 — integration (`cursor/integration-1`)
 
-**Also:** `cursor/stage-1-integrate-181d` @ `9cdcdf2` · draft PR [#57](https://github.com/daveemin0-sudo/NigeriaLife/pull/57) → `feature/type-any-amount` (do not merge to main).
+**Also:** `cursor/stage-1-integrate-181d` · draft PR [#57](https://github.com/daveemin0-sudo/NigeriaLife/pull/57) → `feature/type-any-amount` (do not merge to main).
 
 **Merged:** keke `7f36a3d`, seated-car-legs `3dbe1d8`, Stage 0, world-audit `cfa80ff` (classifier fixed).
 
@@ -37,45 +37,44 @@ Teleport fallbacks are **not** wrong location. Wrong location only on map/door a
 | wrong location | 158 | **11** (all `map-keke`) |
 | open place as building | 8 | 8 |
 
-Ranked list: `docs/audit/WORLD_AUDIT.md`. Stage 2 targets include Elegushi Beach, Freedom Park, Lekki Conservation, Jabi Lake (open air as room shell).
+Ranked list: `docs/audit/WORLD_AUDIT.md`.
 
-#### Regression vs baseline `bf55dab` (Chromium / SwiftShader, `/NigeriaLife/`)
+#### Regression vs baseline `bf55dab`
 
-**Passed on integration (priority):** ridelegs, solidworld, allphones (143 draws / 80k tris, no model 404s), ridepickup, seats; anyamount content checks.
+No check that passed on baseline cleanly failed on integration in the priority compare set. phonefit and rides improved. Full 155-suite e2e was interrupted mid-run (HMR / Stage 2 edits) and will be re-run on integration after Stage 2 merge.
 
-**Suite-by-suite vs baseline (same failing set on both unless noted):**
+### Stage 2 — open places (`cursor/stage-2-open-places-181d`)
 
-| Check | Baseline `bf55dab` | Integration | Verdict |
-| --- | --- | --- | --- |
-| `anyamount: ran to completion` (puppeteer click) | FAIL | FAIL | Pre-existing flake |
-| `farwalk` first checks | FAIL (crash on dress key) | dress/clothes PASS; pace walkers:0 | Not a clean baseline pass→fail; pace still open |
-| `streetcar` first kerb / reboard / bonnet | FAIL | FAIL (slightly more gotIn) | Pre-existing |
-| rides taxi/keke/okada drawn as selves | FAIL×3+ | mostly PASS; keke side `ours:false` | Integration better overall |
-| phonefit weather 36px / HUD row overlaps / minimap N | many FAIL | weather+N+sleep/today fixed; phone nav below bottom remains | Integration better |
-| phonefit phone-nav below bottom | FAIL | FAIL | Pre-existing |
+Open-air system: `room.openAir`, `InteriorPrefabs.createOpenGround`, outdoor sky (`isOpenAir()`), no cutaway/ceiling, lake helper `attachOpenAirLake`.
 
-**No check that passed on baseline cleanly failed on integration** in this compare set. phonefit and rides improved.
+**Enterable open-air places (Chromium / SwiftShader / `/NigeriaLife/`, desktop 1280×720):**
 
-**Follow-up HUD fixes on Stage 1:** sleep status under today/chat; minimap N inside circle; weather 36×36 (`MiniMap.ts`, `theme/phone.css`).
+| Place | Key | Notes |
+| --- | --- | --- |
+| Elegushi Beach | `lagoon-beach` | Sea, foam, swim line, living activities |
+| Freedom Park | `freedom-park` | Lawns, stage, no room shell |
+| Lekki Conservation | `lekki-conservation` | Canopy / boardwalk |
+| Ikeja Golf Club | `ikeja-golf` | Open course + pavilion |
+| Millennium Park | `millennium-park` | Abuja fountain park, `inside:true` |
+| Jabi Lake Park | `jabi-lake-park` | Boardwalk / boats / gym / suya — **not** the mall |
+| Pleasure Park | `pleasure-park` | PH big wheel / lawns |
 
-**Full 156-suite run:** started / in progress after this handover update. Live worldaudit re-visit still pending (reprocess used prior photos).
+**Evidence:** `cursor/evidence-stage-2` → `evidence/stage-2/REPORT.md` + PNGs.
 
-### Stage 2 — open places (in progress) (`cursor/stage-2-open-places-181d` @ `ecb6fb8`)
+**Left as street-ground (by design):** Eagle Square, PH waterfront. Markets/malls/offices stay building shells (audit OPEN_AIR heuristic false positives).
 
-- Open-air place system: `room.openAir`, `InteriorPrefabs.createOpenGround`, outdoor sky (`isOpenAir()`), no cutaway/ceiling.
-- **Elegushi Beach**, **Freedom Park**, **Lekki Conservation Centre** are openAir (no walls/ceiling, outdoor sky).
-- Smoke (Chromium): all three `openAir:true`, shell=`interior_open_ground`, walls=0, skyIndoors=false. Evidence: `cursor/evidence-stage-2`.
-- Next on Stage 2: Jabi Lake waterfront (not the mall), remaining OPEN_AIR from audit; then Stage 3.
+**Not tested:** phone hardware, Samsung A16, iPhone.
 
 ## Open bugs / follow-ups
 
-- Farwalk pace: often `walkers:0` at default spawn (few baked walk draws in 5s); Broad Street sample can yield median ≫ 1.45.
+- Farwalk pace: often `walkers:0` at default spawn; Broad Street sample can yield median ≫ 1.45.
 - Phone app nav buttons measuring below the viewport bottom (pre-existing).
 - streetcar first-spot button null (pre-existing flake).
 - 2 shared skins + meshopt without IBM corruption.
 - Expressway chrome “Third Mainland…” at Dangote z≈3500.
 - 11 real map-keke wrong-location places.
-- Open-air places still use `InteriorPrefabs.createRoom` shells → Stage 2.
+- Full e2e + live worldaudit re-run still needed on integration tip after Stage 2 merge.
+- Jabi Lake Park lake mesh is present in code; desktop smoke showed boardwalk/gym/suya — deepen lake presence if needed in Stage 5 polish.
 
 ## Performance
 
@@ -84,6 +83,7 @@ Ranked list: `docs/audit/WORLD_AUDIT.md`. Stage 2 targets include Elegushi Beach
 
 ## Exact next step
 
-1. Finish / log full `npm run test:e2e` (exclude or limit `worldaudit`) on `cursor/integration-1`.
-2. Continue Stage 2 — Freedom Park, Lekki Conservation, Jabi Lake, remaining OPEN_AIR; push evidence; then Stage 3 home life.
+1. Merge Stage 2 into `cursor/integration-1`; push evidence branch; update PR #58.
+2. Re-run full e2e (no worldaudit first) on integration; then live worldaudit.
+3. **Stage 3 — Home life:** real beds (mattress/pillows/duvet/sleeper), every seat correct, staff schedules (gateman/driver/cook/cleaner), repair visits with visible work + pay at hand-over.
 EOF
