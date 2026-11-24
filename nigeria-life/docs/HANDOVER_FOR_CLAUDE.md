@@ -57,6 +57,7 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | District fallback | Nearest-centre only within 80 m |
 | Aso Rock / Eagle Square / PH refinery | Dest + district bounds; Asokoro rock pocket before Maitama so boulevard land prices stay prime |
 | Venue seat sweep | Regulars off tabletops/backrests (lounge, MMIA, golf, hospitals, Oshodi, NASS, airfield) |
+| Wuse nightlife strip expanded | Hustle/Cubana/Play/Trukadero/Emab/City Park solid façades in Wuse (off Garki) |
 | Wuse Market stand clear | Stand/dest moved to (−175, 178) off solid gate posts |
 | Millennium/Pleasure/Brick House districts | New millennium_park district; d_line west to Pleasure Park; old_gra west so Brick House is Old GRA |
 | Aso Rock lookout solid | Platform + granite foot solid at Shehu Shagari north end; dest at (0,−90) |
