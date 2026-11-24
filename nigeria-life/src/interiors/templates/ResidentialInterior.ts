@@ -17,7 +17,7 @@ import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
 import { HouseDecorationSystem, type PlacedItem } from '../../housing/HouseDecorationSystem';
 import { Television, CHANNELS } from '../../housing/Television';
-import { TV_SCREEN, buildFurniture } from '../../housing/FurnitureModels';
+import { TV_SCREEN, buildFurniture, sitSpots } from '../../housing/FurnitureModels';
 import { Builder } from '../../world/kit/ArchKit';
 import { PlaceActions, type PlaceAction, type PlaceHost } from '../../destinations/PlaceActions';
 import type { NavGrid } from '../../interactions/NavGrid';
@@ -540,9 +540,11 @@ export class ResidentialInterior {
       HOME.bed.facing = turn;
       stand = HOME.bed.side;
     } else if (card === 'flat-tv' && kind.seat) {
-      HOME.sofa.seat.copy(onIt(kind.seat.x, kind.seat.z));
+      const spot = sitSpots(kind)[Math.floor(sitSpots(kind).length / 2)] ?? { ...kind.seat, top: kind.seat.top ?? 0.55 };
+      HOME.sofa.seat.copy(onIt(spot.x, spot.z));
       HOME.sofa.front.copy(front);
       HOME.sofa.facing = Math.atan2(face.x, face.z);
+      HOME.sofa.top = spot.top;
     } else if (card === 'flat-fridge') {
       HOME.fridge.position.set(item.x, 0, item.z);
       HOME.fridge.front.copy(front);
@@ -835,15 +837,45 @@ export class ResidentialInterior {
       run: (host) => {
         const set = this.sets.get(item.uid);
         const choices: Array<{ label: string; note?: string; pick: () => void }> = [];
-        if (kind.use === 'seat' && kind.seat) {
+        if (kind.use === 'seat' && (kind.seat || kind.seats?.length)) {
           const turn = (item.turns * Math.PI) / 2;
           const face = decor.facing(item.turns);
           const size = decor.footprint(item.modelType, item.turns);
-          const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.55;
-          const seat = new THREE.Vector3(item.x + kind.seat.x * Math.cos(turn) + kind.seat.z * Math.sin(turn), 0, item.z - kind.seat.x * Math.sin(turn) + kind.seat.z * Math.cos(turn));
-          const front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
-          if (item.modelType === 'toilet_wc') choices.push({ label: 'Use the toilet', note: 'Bladder back to 100', pick: () => { this.life.useToilet(seat, front, Math.atan2(face.x, face.z)); } });
-          else choices.push({ label: 'Sit down', pick: () => { this.life.sitAt(seat, front, Math.atan2(face.x, face.z)); } });
+          const onIt = (x: number, z: number) => new THREE.Vector3(
+            item.x + x * Math.cos(turn) + z * Math.sin(turn), 0,
+            item.z - x * Math.sin(turn) + z * Math.cos(turn),
+          );
+          const spots = sitSpots(kind);
+          const dining = /dining_table|plastic_set/.test(item.modelType);
+          // Nearest cushion/chair to the player
+          const ox = this.group.position.x;
+          const oz = this.group.position.z;
+          const px = host.actor.root.position.x - ox;
+          const pz = host.actor.root.position.z - oz;
+          let best = spots[0];
+          let bestD = Infinity;
+          for (const s of spots) {
+            const at = onIt(s.x, s.z);
+            const d = (at.x - px) ** 2 + (at.z - pz) ** 2;
+            if (d < bestD) { bestD = d; best = s; }
+          }
+          const seat = onIt(best.x, best.z);
+          let facing: number;
+          let front: THREE.Vector3;
+          if (dining) {
+            // Face the table centre; approach from behind the chair (away from the table)
+            facing = Math.atan2(item.x - seat.x, item.z - seat.z);
+            const awayX = seat.x - item.x;
+            const awayZ = seat.z - item.z;
+            const len = Math.hypot(awayX, awayZ) || 1;
+            front = new THREE.Vector3(seat.x + (awayX / len) * 0.55, 0, seat.z + (awayZ / len) * 0.55);
+          } else {
+            const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.55;
+            facing = Math.atan2(face.x, face.z);
+            front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
+          }
+          if (item.modelType === 'toilet_wc') choices.push({ label: 'Use the toilet', note: 'Bladder back to 100', pick: () => { this.life.useToilet(seat, front, facing); } });
+          else choices.push({ label: 'Sit down', pick: () => { this.life.sitAt(seat, front, facing, best.top); } });
         }
         if (kind.use === 'bed' && kind.bed) {
           // Its foot points the way the piece faces; the sleeper gets in from whichever side has room to stand
@@ -2011,7 +2043,8 @@ export class ResidentialInterior {
     const others = standard === 'basic' ? s.beds.slice(0, 1) : s.beds;
     const covers = ['double_bed_purple', 'double_bed_blue', 'double_bed_green', 'double_bed_ankara', 'double_bed_red'];
     others.forEach((spot, i) => pieces.push({ id: covers[i % covers.length], ...spot }));
-    if (s.dining && standard !== 'basic') pieces.push({ id: 'dining_table_6', ...s.dining });
+    // Luxury / duplex: 10-seater (8 chairs). Comfortable flat: 6-seater (4 chairs).
+    if (s.dining && standard !== 'basic') pieces.push({ id: standard === 'luxury' ? 'dining_table_10' : 'dining_table_6', ...s.dining });
     // A bathtub in the bathroom of a well-off home
     if (standard !== 'basic') pieces.push({ id: 'bathtub', ...s.bath });
     for (const extra of s.extras) {
@@ -2095,12 +2128,25 @@ export class ResidentialInterior {
       const turn = (piece.turns * Math.PI) / 2;
       const face = decor.facing(piece.turns);
       const size = decor.footprint(piece.modelType, piece.turns);
+      const onIt = (x: number, z: number) => new THREE.Vector3(
+        piece.x + x * Math.cos(turn) + z * Math.sin(turn), 0,
+        piece.z - x * Math.sin(turn) + z * Math.cos(turn),
+      );
+      const spots = sitSpots(kind);
+      const local = spots[0] ?? kind.seat;
+      const at = local ? onIt(local.x, local.z) : new THREE.Vector3(piece.x, 0, piece.z);
+      const dining = /dining_table|plastic_set/.test(piece.modelType);
+      if (dining && local) {
+        const facing = Math.atan2(piece.x - at.x, piece.z - at.z);
+        const awayX = at.x - piece.x;
+        const awayZ = at.z - piece.z;
+        const len = Math.hypot(awayX, awayZ) || 1;
+        const front = new THREE.Vector3(at.x + (awayX / len) * 0.55, 0, at.z + (awayZ / len) * 0.55);
+        return { at, front, facing, top: local.top };
+      }
       const reach = (face.x !== 0 ? size.width : size.depth) / 2 + (kind.use === 'seat' ? 0.55 : 0.6);
-      const at = kind.seat
-        ? new THREE.Vector3(piece.x + kind.seat.x * Math.cos(turn) + kind.seat.z * Math.sin(turn), 0, piece.z - kind.seat.x * Math.sin(turn) + kind.seat.z * Math.cos(turn))
-        : new THREE.Vector3(piece.x, 0, piece.z);
       const front = new THREE.Vector3(piece.x + face.x * reach, 0, piece.z + face.z * reach);
-      return { at, front, facing: Math.atan2(face.x, face.z) };
+      return { at, front, facing: Math.atan2(face.x, face.z), top: local?.top };
     };
     const here = spot(fridge);
     const storey = fridge.storey ?? 0;

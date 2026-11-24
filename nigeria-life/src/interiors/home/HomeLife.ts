@@ -12,7 +12,7 @@ import { showGameToast } from '../../ui/GameToast';
 export const HOME = {
   room: { width: 44, length: 36 },
   bed: { root: new THREE.Vector3(10.5, 0, -5.0), side: new THREE.Vector3(7.35, 0, -5.4), top: 1.15, facing: 0 },
-  sofa: { seat: new THREE.Vector3(-7.65, 0, 2.5), front: new THREE.Vector3(-9.15, 0, 2.5), facing: -Math.PI / 2 },
+  sofa: { seat: new THREE.Vector3(-7.65, 0, 2.5), front: new THREE.Vector3(-9.15, 0, 2.5), facing: -Math.PI / 2, top: 0.55 },
   tv: new THREE.Vector3(-15.6, 0, 4),
   fridge: { position: new THREE.Vector3(-14.7, 0, 10.6), front: new THREE.Vector3(-13.35, 0, 10.6) },
   drum: { position: new THREE.Vector3(8.5, 0, 0.5), front: new THREE.Vector3(7.1, 0, 0.5) },
@@ -25,7 +25,7 @@ export const HOME = {
 export interface MealPlace {
   fridgeAt: THREE.Vector3;
   fridgeFront: THREE.Vector3;
-  seat: { at: THREE.Vector3; front: THREE.Vector3; facing: number } | null;
+  seat: { at: THREE.Vector3; front: THREE.Vector3; facing: number; top?: number } | null;
 }
 
 export type HomeActivity = 'sleeping' | 'watching_tv';
@@ -176,25 +176,26 @@ export class HomeLife {
   /** Walk to the sofa, sit and watch the match. Sitting there slowly restores a little energy. */
   public watchTv(): boolean {
     this.onWatch?.();
-    return this.sitAt(HOME.sofa.seat, HOME.sofa.front, HOME.sofa.facing);
+    return this.sitAt(HOME.sofa.seat, HOME.sofa.front, HOME.sofa.facing, HOME.sofa.top);
   }
 
   /**
    * Walk to a seat and sit on it: the sofa the home came with, or one the player has bought
    * and put down. `seat` and `front` are measured from the middle of the home; `facing` is
-   * the way the sitter looks.
+   * the way the sitter looks; `top` is the cushion height the hips rest on.
    */
-  public sitAt(seat: THREE.Vector3, front: THREE.Vector3, facing: number): boolean {
+  public sitAt(seat: THREE.Vector3, front: THREE.Vector3, facing: number, top = 0.55): boolean {
     const player = this.director.player;
     if (!player || this.director.interrupt(player) === 'locked') return false;
     const facingTv = facing;
     const standAt = front.clone();
+    const pose = { legs: 'sit' as const, arms: 'rest' as const, height: top };
 
     const sitDown = new Sequence('sit on sofa', [player]).add(
       steps.walk(player, this.world(standAt), { nav: this.nav, ifStuck: 'snap' }),
       steps.face(player, facingTv),
       steps.slide(player, this.world(seat), 0.45),
-      steps.setPose(player, { legs: 'sit', arms: 'rest' }),
+      steps.setPose(player, pose),
       steps.wait(0.3)
     );
     sitDown.onEnd((reason) => {
@@ -202,7 +203,7 @@ export class HomeLife {
       player.yaw = facingTv;
       player.hold = { release: (instant) => this.leaveFurniture(standAt, instant) };
       player.setScripted(true);
-      player.pose = { legs: 'sit', arms: 'rest' };
+      player.pose = { ...pose };
       this.begin('watching_tv');
     });
     return this.director.run(sitDown);
@@ -312,13 +313,14 @@ export class HomeLife {
     );
     const seat = place.seat;
     if (seat) {
+      const sitPose = { legs: 'sit' as const, arms: 'eat' as const, height: seat.top ?? 0.5 };
       eat.add(
         steps.walk(player, this.world(seat.front), { nav: this.nav, ifStuck: 'snap' }),
         steps.face(player, seat.facing),
         steps.slide(player, this.world(seat.at), 0.45),
-        steps.setPose(player, { legs: 'sit', arms: 'eat' }),
+        steps.setPose(player, sitPose),
         steps.wait(0.2),
-        steps.animate(player, { arms: 'eat' }, 3.4, [{ at: 0.6, run: finish }]),
+        steps.animate(player, { arms: 'eat', height: sitPose.height }, 3.4, [{ at: 0.6, run: finish }]),
         steps.setPose(player, { legs: 'stand', arms: 'rest' }),
         steps.slide(player, this.world(seat.front), 0.45),
       );
