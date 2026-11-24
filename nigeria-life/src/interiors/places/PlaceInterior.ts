@@ -313,7 +313,11 @@ export class PlaceInterior {
     this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: way.name, category: way.category, description: way.description, interactionPoint: this.world(0, length / 2 - 1), exitLabel: this.spec.door ? `🚪 ${this.spec.door.name}` : undefined });
     // A guest room has its own bathroom. The customers' toilet door belongs in the public rooms.
     // Open-air places have no back wall for a toilet door — amenities are built into the layout.
-    if (!openAir && !this.spec.key.endsWith('-town-suite') && !/-hotel-[12]-suite$/.test(this.spec.key)) this.addRestroom(furnitureFootprints);
+    if (openAir) {
+      this.restroomAt = { x: 0, clear: true };
+    } else if (!this.spec.key.endsWith('-town-suite') && !/-hotel-[12]-suite$/.test(this.spec.key)) {
+      this.addRestroom(furnitureFootprints);
+    }
     // The tables: what was built at table height, small enough to sit round
     this.tables = furnitureFootprints.filter((f) => f.height >= 0.6 && f.height <= 0.92 && f.maxX - f.minX >= 0.8 && f.maxZ - f.minZ >= 0.6 && f.maxX - f.minX <= 4.2 && f.maxZ - f.minZ <= 4.2);
 

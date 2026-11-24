@@ -486,7 +486,8 @@ const SPECS: PlaceSpec[] = [
     ] },
   ], [{ at: [2, 2.2], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [-2, 2.2], facing: Math.PI, outfit: 0xdc2626, sit: true }]),
   venue('the-library', 'The Library', 'Ikoyi · fine dining', 'Speakeasy · Private dining', '#78350f', 0x3f2a1d, 0x1c1917, (b) => {
-    for (const x of [-8, -4, 0, 4, 8]) { b.box(0x3b2416, 3.4, 3.6, 0.5, x, 0, -8.6); for (let r = 0; r < 4; r++) for (let i = 0; i < 9; i++) b.box([0x7f1d1d, 0x1e3a8a, 0x14532d, 0xa16207][(i + r) % 4], 0.3, 0.6, 0.3, x - 1.4 + i * 0.35, 0.3 + r * 0.85, -8.4); }
+    // Leave the east bay clear for the customers' toilet door on the back wall
+    for (const x of [-8, -4, 0, 4]) { b.box(0x3b2416, 3.4, 3.6, 0.5, x, 0, -8.6); for (let r = 0; r < 4; r++) for (let i = 0; i < 9; i++) b.box([0x7f1d1d, 0x1e3a8a, 0x14532d, 0xa16207][(i + r) % 4], 0.3, 0.6, 0.3, x - 1.4 + i * 0.35, 0.3 + r * 0.85, -8.4); }
     for (const [x, z] of [[-5, -2], [0, -2], [5, -2], [-2.5, 3], [2.5, 3]]) table(b, x, z, 0x1c1917, 2, 0x7f1d1d);
     counter(b, 7.5, 6, 3, 0x1c1917, 0xd4af37);
   }, [{ name: 'Mr Olu', title: 'Maître d', at: [-7.5, 6], facing: Math.PI / 2, outfit: 0x111827, gender: 'male', tie: true, says: 'Welcome. Your table is ready.' }], [
@@ -494,7 +495,7 @@ const SPECS: PlaceSpec[] = [
       { label: 'A private dinner, three courses', price: 85000, note: 'Hunger +60, Social +20', sit: true, seconds: 6, effect: need({ hunger: 60, social: 20 }), said: 'Seafood, steak, and a dessert you will talk about for a week.' },
       { label: 'A glass of wine', price: 30000, note: 'Fun +12', sit: true, seconds: 4, effect: need({ fun: 12 }), said: 'Quiet, cool, expensive. You feel like a chairman.' },
     ] },
-    { id: 'books', name: '📚 The shelves', at: [0, -8.4], stand: [0, -7.2], who: 'The Library', role: 'Shelves', text: 'Books from floor to ceiling.', choices: [{ label: 'Read for a while', note: 'Fun +8', arms: 'carry', seconds: 4, effect: need({ fun: 8 }), said: 'A first edition of Things Fall Apart. Careful with it.' }] },
+    { id: 'books', name: '📚 The shelves', at: [-4, -8.4], stand: [-4, -7.2], who: 'The Library', role: 'Shelves', text: 'Books from floor to ceiling.', choices: [{ label: 'Read for a while', note: 'Fun +8', arms: 'carry', seconds: 4, effect: need({ fun: 8 }), said: 'A first edition of Things Fall Apart. Careful with it.' }] },
   ], [{ at: [5, -1.05], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }]),
   venue('i-fitness', 'i-Fitness', 'Ikoyi · gym', 'Gym · Classes · Trainers', '#ea580c', 0x27272a, 0xf8fafc, (b) => {
     for (let i = 0; i < 5; i++) b.box(0x111827, 0.9, 1.3, 2, -8 + i * 2.2, 0, -6).box(0xef4444, 0.92, 0.12, 2, -8 + i * 2.2, 1.3, -6);
