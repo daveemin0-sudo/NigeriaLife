@@ -1435,7 +1435,7 @@ const ABUJA_SPECS: PlaceSpec[] = [
     { id: 'cafe', name: '☕ The café', at: [0, -6.5], stand: [0, -5.1], who: 'Lift attendant', role: 'Café', text: 'Something while you look?', choices: [{ label: 'Small chops and a latte', price: 7500, note: 'Hunger +25, Fun +10', sit: true, seconds: 5, effect: need({ hunger: 25, fun: 10 }), said: 'Puff-puff and samosa a hundred metres up.' }] },
   ], [{ at: [8, -1], facing: Math.PI / 2, outfit: 0xec4899, gender: 'female' }], [20, 18]), [225, 412]),
 
-  abuja(venue('wuse-market', 'Wuse Market', 'Wuse · market', 'Foodstuff · Fabric · Phones · Everything', '#14532d', 0x8b8378, 0xd6c7a1, (b) => {
+  abuja(venue('wuse-market', 'Wuse Market', 'Kashim Ibrahim Way, Wuse Zone 5', 'Foodstuff · Fabric · Phones · Everything', '#14532d', 0x8b8378, 0xd6c7a1, (b) => {
     stall(b, -8, -6, 0xdc2626, (bb, x, z) => { pile(bb, x - 0.5, z, 0xdc2626); pile(bb, x + 0.4, z, 0xf97316, 0.28); });
     stall(b, -2, -6, 0x16a34a, (bb, x, z) => { sack(bb, x - 0.5, z); sack(bb, x + 0.4, z, 0xfef3c7); });
     stall(b, 4, -6, 0x0f766e, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box(0x111827, 0.22, 0.05, 0.4, x - 0.7 + i * 0.45, 0.95, z); });
@@ -1456,7 +1456,7 @@ const ABUJA_SPECS: PlaceSpec[] = [
     { id: 'phones', name: '📱 Phones and gadgets', at: [4, -6], stand: [4, -4.5], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
   ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [26, 22]), [-175, 186]),
 
-  abuja(venue('millennium-park', 'Millennium Park', 'Maitama · park', 'Lawns · Fountain · Shade', '#14532d', 0x5aa83f, 0x166534, (b) => {
+  abuja(venue('millennium-park', 'Millennium Park', 'Maitama Green Corridor, Near Unity Fountain', 'Lawns · Fountain · Shade', '#14532d', 0x5aa83f, 0x166534, (b) => {
     // Open lawns around the Italian fountain — no walls. Paths cross the green.
     b.box(0xe7e5e4, 4, 0.04, 40, 0, 0.02, 0, { solid: false });
     b.box(0xe7e5e4, 40, 0.04, 4, 0, 0.02, 0, { solid: false });
@@ -1536,7 +1536,7 @@ const ABUJA_SPECS: PlaceSpec[] = [
     { at: [2, -3], facing: Math.PI, outfit: 0xfacc15 },
   ], [56, 44], true), [-440, 372]),
 
-  abuja(venue('jabi-lake-mall', 'Jabi Lake Mall', 'Jabi · mall', 'Shoprite · Food court · Cinema · Lake view', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
+  abuja(venue('jabi-lake-mall', 'Jabi Lake Mall', 'Bala Sokoto Way, Jabi Waterfront', 'Shoprite · Food court · Cinema · Lake view', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
     for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0xdc2626, 0xfacc15, 0x2563eb, 0x16a34a, 0xf8fafc]);
     for (const x of [-6, -3]) counter(b, x, 0, 1.6, 0xdc2626);
     counter(b, 7, -3, 4, 0xf59e0b);
@@ -1643,7 +1643,7 @@ const PH_SPECS: PlaceSpec[] = [
     { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'The new picture is at 7.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'Packed hall, loud laughs.' }] },
   ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }], [24, 20]), [-180, 389]),
 
-  abuja(venue('rivers-govt-house', 'Rivers State Government House', 'Rumuola · the Brick House', 'Office of the Governor', '#7c2d12', 0xe7e5e4, 0xf5efe6, (b) => {
+  abuja(venue('rivers-govt-house', 'Rivers State Government House', 'Harley Street / Azikiwe Road, Old GRA', 'Office of the Governor', '#7c2d12', 0xe7e5e4, 0xf5efe6, (b) => {
     counter(b, 0, -6, 6, 0x7c2d12, 0xd4af37);
     for (let f = 0; f < 3; f++) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.8, 1.6, 0.05, -0.8 + f * 0.8, 3, -8.8);
     for (const x of [-7, 7]) b.cylinder(0xf8fafc, 0.4, 5, x, 0, -4);
@@ -1705,7 +1705,7 @@ const PH_SPECS: PlaceSpec[] = [
     ] },
   ], [{ at: [-5, 3], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]), [240, 20]),
 
-  abuja(venue('pleasure-park', 'Pleasure Park', 'Rumuokoro · park', 'Big wheel · Lawns · Picnic · Kiosk', '#14532d', 0x5aa83f, 0x166534, (b) => {
+  abuja(venue('pleasure-park', 'Pleasure Park', 'Aba Road (Between Bori Camp & Air Force Base)', 'Big wheel · Lawns · Picnic · Kiosk', '#14532d', 0x5aa83f, 0x166534, (b) => {
     // Open fairground: lawns, path, big-wheel suggestion, picnic — no walls.
     b.box(0xe7e5e4, 4, 0.04, 36, 0, 0.02, 0, { solid: false });
     b.box(0xe7e5e4, 36, 0.04, 4, 0, 0.02, 0, { solid: false });
