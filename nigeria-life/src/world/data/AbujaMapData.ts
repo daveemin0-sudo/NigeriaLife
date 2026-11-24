@@ -282,7 +282,7 @@ export const ABUJA_LANDMARKS: MapLandmark[] = [
     name: 'Wuse Market',
     districtId: 'wuse',
     type: 'commercial',
-    position: new THREE.Vector3(-175, 0, 186),
+    position: new THREE.Vector3(-175, 0, 178),
     icon: '🛍️',
     title: 'Wuse Market',
     subtitle: 'Foodstuff, fabric, phones and everything else',

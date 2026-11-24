@@ -1455,7 +1455,7 @@ const ABUJA_SPECS: PlaceSpec[] = [
     ] },
     { id: 'fabric', name: '🧵 Fabric', at: [9, -6], stand: [9, -4.5], who: 'Alhaji Sani', role: 'Fabric stalls', text: 'Six yards, for an outfit?', choices: [buy('Six yards of Holland wax', 28000, { id: 'ankara_6', name: 'Holland wax, six yards', icon: '🧵', price: 28000, category: 'luxury', usable: false, description: 'Take it to a tailor.' }, 'He folded it neatly: real Holland, you will remember me.')] },
     { id: 'phones', name: '📱 Phones and gadgets', at: [4, -6], stand: [4, -4.5], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
-  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [26, 22]), [-175, 186]),
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [26, 22]), [-175, 178]),
 
   abuja(venue('millennium-park', 'Millennium Park', 'Maitama Green Corridor, Near Unity Fountain', 'Lawns · Fountain · Shade', '#14532d', 0x5aa83f, 0x166534, (b) => {
     // Open lawns around the Italian fountain — no walls. Paths cross the green.

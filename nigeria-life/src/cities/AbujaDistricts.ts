@@ -283,7 +283,8 @@ export function buildLandmarks(): Landmarks {
     }
     b.box(GREEN, 1.2, 7, 1.2, cx - 8, 0, cz - 38, { solid: true }).box(GREEN, 1.2, 7, 1.2, cx + 8, 0, cz - 38, { solid: true }).box(GREEN, 18, 1.6, 1.4, cx, 6, cz - 38);
     sign(group, ['WUSE MARKET'], 14, 1.4, cx, 6.1, cz - 38.8, Math.PI, '#14532d', '#fde68a');
-    places.push({ key: 'wuse-market', name: 'Wuse Market', category: 'Market', description: 'Foodstuff, fabric, phones and everything else, sold in a thousand stalls.', door: { x: cx, z: cz - 38 }, stand: { x: cx, z: cz - 42 }, inside: true });
+    // Gate at z≈190 is solid; stand must be on clear pavement south of it (z≤182)
+    places.push({ key: 'wuse-market', name: 'Wuse Market', category: 'Market', description: 'Foodstuff, fabric, phones and everything else, sold in a thousand stalls.', door: { x: cx, z: cz - 38 }, stand: { x: cx, z: 178 }, inside: true });
   }
 
   // --- Banex Plaza (Aminu Kano / Wuse 2): electronics sheds you cannot walk through
