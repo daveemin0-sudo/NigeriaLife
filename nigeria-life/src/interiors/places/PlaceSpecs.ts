@@ -282,22 +282,40 @@ const SPECS: PlaceSpec[] = [
   buka('amala-shitta', 'Amala Shitta', 'Surulere · buka', 'Amala · Ewedu · Gbegiri · Assorted'),
   MARINA_TOWERS,
   venue('freedom-park', 'Freedom Park', 'Lagos Island · arts', 'Arts · Music · History', '#92400e', 0x4d7c0f, 0xb45309, (b) => {
-    stage(b, 0, -6, 10, 4, 0x57534e);
-    b.box(0xf8fafc, 11, 0.3, 5, 0, 4.2, -6);
-    for (let r = 0; r < 4; r++) bench(b, 0, -1 + r * 1.6, 8);
-    for (let i = 0; i < 4; i++) b.box([0xdc2626, 0x2563eb, 0xfacc15, 0x16a34a][i], 0.1, 1.6, 1.2, -9.8, 1, -5 + i * 3);
-    counter(b, 7, 6, 3, 0xb45309);
+    // Open lawn amphitheatre — no room shell. Paths, stage, old-prison art wall, food kiosk, trees.
+    b.box(0xa8a29e, 4, 0.04, 28, 0, 0.02, 2, { solid: false });
+    b.box(0xa8a29e, 22, 0.04, 3.2, 0, 0.02, 10, { solid: false });
+    stage(b, 0, -10, 12, 5, 0x57534e);
+    b.box(0xf8fafc, 13, 0.25, 5.5, 0, 4.4, -10);
+    for (let r = 0; r < 5; r++) bench(b, 0, -4 + r * 1.7, 10);
+    for (let i = 0; i < 5; i++) b.box([0xdc2626, 0x2563eb, 0xfacc15, 0x16a34a, 0xf97316][i], 0.12, 1.8, 1.4, -16, 1, -8 + i * 3.2);
+    // Remnant prison wall stub (open-air memorial), not a full enclosure
+    b.box(0x78716c, 18, 2.4, 0.5, -2, 0, -16);
+    for (let i = 0; i < 4; i++) b.box(0x44403c, 1.4, 1.8, 0.08, -8 + i * 4, 0.3, -15.7);
+    counter(b, 12, 8, 3.5, 0xb45309);
+    palm(b, -18, 12); palm(b, 18, 6); palm(b, -14, -6); palm(b, 16, -12);
+    for (const [x, z] of [[-10, 14], [8, 14], [-6, 16]] as Array<[number, number]>) {
+      b.cylinder(0x57534e, 0.22, 3.2, x, 0, z, { topRadius: 0.16 });
+      b.dome(0x166534, 1.6, x, 3.0, z);
+    }
   }, [
-    { name: 'The band', title: 'Highlife band', at: [-2, -6.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'We dey play till late!' },
-    { name: 'Bimpe', title: 'Food seller', at: [7, 5], facing: Math.PI, outfit: 0xdb2777, gender: 'female', says: 'Asun, small chops, cold Chapman!' },
+    { name: 'The band', title: 'Highlife band', at: [-2, -10.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'We dey play till late!' },
+    { name: 'Bimpe', title: 'Food seller', at: [12, 7], facing: Math.PI, outfit: 0xdb2777, gender: 'female', says: 'Asun, small chops, cold Chapman!' },
+    { name: 'Curator Ada', title: 'Curator', at: [-14, -2], facing: Math.PI / 2, outfit: 0x1e3a8a, gender: 'female', says: 'This used to be Her Majesty’s Prison. Now it is art.' },
   ], [
-    { id: 'show', name: '🎭 Watch the show', at: [0, -4], stand: [0, -0.2], who: 'Gate attendant', role: 'Freedom Park', text: 'Live band tonight.', choices: [
+    { id: 'show', name: '🎭 Watch the show', at: [0, -8], stand: [0, -3.5], who: 'Gate attendant', role: 'Freedom Park', text: 'Live band tonight.', choices: [
       { label: 'Sit and watch the band', price: 5000, note: 'Fun +35, Social +10', sit: true, seconds: 6, effect: need({ fun: 35, social: 10 }), said: 'Highlife, then Afrobeat. The crowd sang every word.' },
       { label: 'Dance in front of the stage', note: 'Fun +25', dance: true, seconds: 8, effect: need({ fun: 25 }), said: 'You danced like nobody was watching. Everybody was.' },
     ] },
-    { id: 'art', name: '🖼️ Art exhibition', at: [-9.5, 0], stand: [-8, 0], who: 'Curator', role: 'Freedom Park', text: 'The old prison, and the artists who remember it.', choices: [{ label: 'Walk round the exhibition', note: 'Fun +12', arms: 'rest', seconds: 4, effect: need({ fun: 12 }), said: 'Paintings, sculptures, and the old cells. Lagos history up close.' }] },
-    { id: 'food', name: '🍢 Food & drinks', at: [7, 6], stand: [7, 4.6], who: 'Bimpe', role: 'Food seller', text: 'Wetin you go chop?', choices: [{ label: 'Asun and a cold Chapman', price: 6500, note: 'Hunger +40', sit: true, seconds: 4, effect: need({ hunger: 40 }), said: 'Peppered goat meat and a cold Chapman.' }] },
-  ], [{ at: [-2, -1], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [2, 0.6], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' }]),
+    { id: 'art', name: '🖼️ Art exhibition', at: [-15, 0], stand: [-13.5, 0], who: 'Curator Ada', role: 'Freedom Park', text: 'The old prison, and the artists who remember it.', choices: [{ label: 'Walk round the exhibition', note: 'Fun +12', arms: 'rest', seconds: 4, effect: need({ fun: 12 }), said: 'Paintings, sculptures, and the old cells. Lagos history up close.' }] },
+    { id: 'food', name: '🍢 Food & drinks', at: [12, 8], stand: [12, 6.4], who: 'Bimpe', role: 'Food seller', text: 'Wetin you go chop?', choices: [{ label: 'Asun and a cold Chapman', price: 6500, note: 'Hunger +40', sit: true, seconds: 4, effect: need({ hunger: 40 }), said: 'Peppered goat meat and a cold Chapman.' }] },
+    { id: 'walk', name: '🌳 Walk the lawns', at: [0, 12], stand: [0, 10.5], who: 'Freedom Park', role: 'Gardens', text: 'Paths through the old grounds.', choices: [{ label: 'Stroll the park', note: 'Free · Fun +10', arms: 'rest', seconds: 5, effect: need({ fun: 10 }), said: 'Shade, history plaques, children running on the grass.' }] },
+  ], [
+    { at: [-3, -4], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [3, -2.3], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
+    { at: [-1, -0.6], facing: Math.PI, outfit: 0xf8fafc },
+    { at: [6, 12], facing: -0.8, outfit: 0x16a34a, gender: 'female' },
+  ], [40, 36], true),
   venue('ivory-rooftop', 'Ivory Rooftop', 'Victoria Island · lounge', 'Sky lounge · Cocktails · Sunset DJ', '#111827', 0x292524, 0x0f172a, (b) => {
     counter(b, 0, -6, 8, 0x111827, 0xd4af37); bottles(b, 0, -7.8, 8);
     for (const [x, z] of [[-6, 0], [-2, 2], [2, 2], [6, 0]]) { b.box(0xf8fafc, 2.2, 0.45, 0.9, x, 0, z).box(0xf8fafc, 2.2, 0.55, 0.2, x, 0.45, z + 0.4); b.cylinder(0xd4af37, 0.4, 0.5, x, 0, z - 1.1, { sides: 12 }); }
@@ -353,15 +371,40 @@ const SPECS: PlaceSpec[] = [
     { id: 'desk', name: '💳 Membership', at: [-6, 6], stand: [-6, 4.7], who: 'Front desk', role: 'i-Fitness', text: 'Monthly membership?', choices: [{ label: 'Monthly membership', price: 120000, note: 'Health +15', effect: need({ health: 15 }), said: 'Card on your phone. See you every morning by six.' }] },
   ], [{ at: [-5.8, -6], facing: Math.PI, outfit: 0x2563eb }, { at: [6.5, 2.5], facing: 0, outfit: 0xdb2777, gender: 'female' }]),
   venue('lekki-conservation', 'Lekki Conservation Centre', 'Lekki · nature park', 'Canopy walk · Nature trail', '#166534', 0x3f6212, 0x166534, (b) => {
-    for (let i = 0; i < 14; i++) { const x = -9 + (i * 7) % 18; const z = -8 + Math.floor(i / 3) * 3.5; b.cylinder(0x57534e, 0.3, 5, x, 0, z).dome(i % 2 ? 0x15803d : 0x166534, 2, x, 4.4, z); }
-    b.box(0xa16207, 1.4, 0.2, 16, 0, 0.4, 0);
-    for (const [x, z] of [[-6, 6], [6, 6]]) b.box(0xb91c1c, 2.4, 0.03, 2.4, x, 0.02, z);
-    counter(b, 7, -7, 3, 0x78350f);
-  }, [{ name: 'Ranger Chuks', title: 'Ranger', at: [7, -8], facing: 0, outfit: 0x166534, gender: 'male', says: 'Welcome to the forest! Mind the monkeys.' }], [
-    { id: 'canopy', name: '🌳 Canopy walk', at: [7, -7], stand: [7, -5.7], who: 'Ranger Chuks', role: 'Lekki Conservation Centre', text: 'Forty metres up. Ready?', choices: [{ label: 'Do the canopy walk', price: 10000, note: 'Fun +35', arms: 'wave', seconds: 6, effect: need({ fun: 35, energy: -10 }), said: 'Forty metres up on a swinging bridge. Your legs shook; the view was worth it.' }] },
-    { id: 'picnic', name: '🧺 Picnic', at: [-6, 6], stand: [-6, 6], who: 'Ranger Chuks', role: 'Lekki Conservation Centre', text: 'Spread your mat.', choices: [{ label: 'A picnic on the grass', price: 15000, note: 'Hunger +30, Social +20, Fun +15', sit: true, seconds: 6, effect: need({ hunger: 30, social: 20, fun: 15 }), said: 'Jollof, chicken, a cold drink and good gist under the trees.' }] },
-    { id: 'boardwalk', name: '🐒 The boardwalk', at: [0, 0], stand: [0.9, 0], who: 'Monkeys', role: 'The forest', text: 'A monkey watches you.', choices: [{ label: 'Walk the boardwalk', price: 3000, note: 'Fun +10', arms: 'rest', seconds: 5, effect: need({ fun: 10 }), said: 'A monkey stole a biscuit from a child. Everybody laughed.' }] },
-  ], [{ at: [6, 6.4], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' }], [22, 22]),
+    // Open forest canopy — trees, boardwalk, picnic clearings; no walls or roof.
+    for (let i = 0; i < 28; i++) {
+      const x = -22 + (i * 11) % 44;
+      const z = -18 + Math.floor(i / 4) * 5.5;
+      b.cylinder(0x57534e, 0.32, 5.5 + (i % 3) * 0.4, x, 0, z, { topRadius: 0.22 });
+      b.dome(i % 2 ? 0x15803d : 0x166534, 2.1 + (i % 3) * 0.15, x, 5.0 + (i % 3) * 0.3, z);
+    }
+    // Raised boardwalk through the trees
+    b.box(0xa16207, 1.6, 0.22, 36, 0, 0.5, 0);
+    for (let i = 0; i < 9; i++) b.cylinder(0x78716c, 0.12, 0.55, 0, 0, -16 + i * 4);
+    // Picnic clearings
+    for (const [x, z] of [[-12, 12], [12, 12], [-8, -14]] as Array<[number, number]>) {
+      b.box(0xb91c1c, 3.2, 0.03, 3.2, x, 0.02, z, { solid: false });
+    }
+    // Ticket / ranger hut (small open pavilion, not a building shell)
+    counter(b, 14, -16, 3.5, 0x78350f);
+    b.cone(0xd6b46a, 3.2, 1.2, 14, 2.5, -16.5, 4);
+    // Canopy-walk towers + rope suggestion
+    b.box(0x78716c, 1.4, 8, 1.4, -18, 0, -8);
+    b.box(0x78716c, 1.4, 8, 1.4, 18, 0, 8);
+    b.box(0xa8a29e, 0.12, 0.12, 28, 0, 7.2, 0, { solid: false });
+  }, [
+    { name: 'Ranger Chuks', title: 'Ranger', at: [14, -17], facing: 0, outfit: 0x166534, gender: 'male', says: 'Welcome to the forest! Mind the monkeys.' },
+    { name: 'Guide Nneka', title: 'Nature guide', at: [-4, 2], facing: Math.PI / 2, outfit: 0x15803d, gender: 'female', says: 'Look up — monkeys dey for the canopy.' },
+  ], [
+    { id: 'canopy', name: '🌳 Canopy walk', at: [14, -16], stand: [14, -14.5], who: 'Ranger Chuks', role: 'Lekki Conservation Centre', text: 'Forty metres up. Ready?', choices: [{ label: 'Do the canopy walk', price: 10000, note: 'Fun +35', arms: 'wave', seconds: 6, effect: need({ fun: 35, energy: -10 }), said: 'Forty metres up on a swinging bridge. Your legs shook; the view was worth it.' }] },
+    { id: 'picnic', name: '🧺 Picnic', at: [-12, 12], stand: [-12, 10.5], who: 'Ranger Chuks', role: 'Lekki Conservation Centre', text: 'Spread your mat.', choices: [{ label: 'A picnic on the grass', price: 15000, note: 'Hunger +30, Social +20, Fun +15', sit: true, seconds: 6, effect: need({ hunger: 30, social: 20, fun: 15 }), said: 'Jollof, chicken, a cold drink and good gist under the trees.' }] },
+    { id: 'boardwalk', name: '🐒 The boardwalk', at: [0, 0], stand: [1.1, 0], who: 'Guide Nneka', role: 'The forest', text: 'A monkey watches you.', choices: [{ label: 'Walk the boardwalk', price: 3000, note: 'Fun +10', arms: 'rest', seconds: 5, effect: need({ fun: 10 }), said: 'A monkey stole a biscuit from a child. Everybody laughed.' }] },
+    { id: 'trail', name: '🥾 Nature trail', at: [8, -8], stand: [8, -6.5], who: 'Guide Nneka', role: 'Nature trail', text: 'Short loop under the trees.', choices: [{ label: 'Walk the nature trail', note: 'Free · Fun +12, Energy −5', arms: 'rest', seconds: 6, effect: need({ fun: 12, energy: -5 }), said: 'Bird calls, soft soil, a lizard on the path. Cool under the canopy.' }] },
+  ], [
+    { at: [12, 12.5], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' },
+    { at: [-10, 12.2], facing: Math.PI, outfit: 0x0ea5e9, sit: true },
+    { at: [2, 4], facing: 1.2, outfit: 0xf97316 },
+  ], [52, 44], true),
   venue('dangote-refinery', 'Dangote Refinery Visitors Centre', 'Lekki Free Zone', 'Tours · Control room · HR · Canteen', '#0f172a', 0xd4d4d8, 0x166534, (b) => {
     for (let i = 0; i < 4; i++) screen(b, -7 + i * 3.5, -8.7, 3, 1.6, 2, [0x22c55e, 0x38bdf8, 0xf59e0b, 0x22c55e][i]);
     for (let i = 0; i < 4; i++) desk(b, -7 + i * 3.5, -5.5);
