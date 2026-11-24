@@ -44,7 +44,7 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 | Markets | Balogun aisle atmosphere; Wuse + Mile 1 canopy stalls |
 | Homes | Ikeja GRA estate office: waiting chairs, brochure rack, water cooler, second sales agent, property wall; player residence still Stage 3 beds/staff |
 
-**Verified (desktop Chromium / SwiftShader / `--base=/NigeriaLife/` only — not phone hardware):** enter `interior_place_lasuth`, `interior_place_ikeja-gra`, `interior_residence`, `interior_place_abuja-town-suite`. Evidence: `cursor/evidence-stage-4` (update after this tip). PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60).
+**Verified (desktop Chromium / SwiftShader / `--base=/NigeriaLife/` only — not phone hardware):** enter `interior_place_lasuth`, `interior_place_ikeja-gra`, `interior_residence`, `interior_place_abuja-town-suite`. Evidence: `cursor/evidence-stage-4` @ `d214afb`. PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60). Merged into `cursor/integration-1` @ `850f588`.
 
 **Stage 4 complete for PlaceSpec interiors in audit order.** Remaining polish is Stage 5 QA + outdoor gateman / open-air market shells.
 
@@ -65,7 +65,6 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 
 ## Exact next step
 
-1. Merge this Stage 4 tip into `cursor/integration-1`.
-2. Finish clean full 155-suite e2e vs baseline; report every check that passed before and fails now.
-3. Start **Stage 5 — QA everywhere** (arrival, collisions, cards, seats, beds, activities, exits, rides, saves across Lagos / Abuja / PH).
+1. Finish clean full 155-suite e2e vs baseline on `cursor/integration-1` @ `850f588`; report every check that passed before and fails now.
+2. Start **Stage 5 — QA everywhere** (arrival, collisions, cards, seats, beds, activities, exits, rides, saves across Lagos / Abuja / PH).
 EOF
