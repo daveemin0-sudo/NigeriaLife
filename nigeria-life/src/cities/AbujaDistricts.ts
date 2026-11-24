@@ -308,6 +308,49 @@ export function buildLandmarks(): Landmarks {
     });
   }
 
+  // --- Wuse 2 nightlife strip (Ademola Crescent): solid façades, not empty Garki pins
+  {
+    const clubs: Array<{ key: string; name: string; cx: number; cz: number; colour: number; sign: string }> = [
+      { key: 'moscow-underground', name: 'Moscow Underground', cx: -210, cz: 250, colour: 0x111827, sign: 'MOSCOW UNDERGROUND' },
+      { key: 'nightlife-345', name: '345 Nightlife', cx: -230, cz: 255, colour: 0x1e1b4b, sign: '345 NIGHTLIFE' },
+    ];
+    for (const c of clubs) {
+      b.box(c.colour, 18, 8, 14, c.cx, 0, c.cz, { solid: true });
+      b.box(0xf8fafc, 20, 0.8, 16, c.cx, 8, c.cz);
+      lit.windows(0xfde68a, 5, 2, 16, 2, 6, c.cx, c.cz + 7.06, 0, { glow: true });
+      sign(group, [c.sign], 12, 1.4, c.cx, 5.5, c.cz + 7.3, 0, '#0f172a', '#fde68a');
+      places.push({
+        key: c.key,
+        name: c.name,
+        category: 'Club',
+        description: `${c.name} on Ademola Crescent. The building is solid.`,
+        door: { x: c.cx, z: c.cz + 8 },
+        stand: { x: c.cx, z: c.cz + 14 },
+        inside: false,
+      });
+    }
+  }
+
+  // --- Mogadishu Cantonment gatehouse (Asokoro / Keffi Road): solid walls at the pin
+  {
+    const cx = 95;
+    const cz = 55;
+    b.box(0x78716c, 28, 4, 2, cx, 0, cz - 10, { solid: true });
+    b.box(0x78716c, 2, 4, 24, cx - 14, 0, cz, { solid: true });
+    b.box(0x78716c, 2, 4, 24, cx + 14, 0, cz, { solid: true });
+    b.box(STONE, 8, 5, 6, cx, 0, cz - 10, { solid: true });
+    sign(group, ['MOGADISHU CANTONMENT'], 12, 1.2, cx, 4.2, cz - 11.2, Math.PI, '#44403c', '#f8fafc');
+    places.push({
+      key: 'mogadishu-cantonment',
+      name: 'Mogadishu Cantonment',
+      category: 'Military',
+      description: 'Barracks gate on Keffi Road. The walls stop you.',
+      door: { x: cx, z: cz - 12 },
+      stand: { x: cx, z: cz - 25 },
+      inside: false,
+    });
+  }
+
   // --- Jabi Lake and the mall on its shore
   {
     b.box(0x1d6fa5, 150, 0.06, 176, -475, 0, 280);
