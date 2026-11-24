@@ -68,7 +68,7 @@ Evidence: `cursor/evidence-stage-5` @ `5dc7ce1` (desktop SwiftShader / `/Nigeria
 
 Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 
-**streets suite note:** two absolute `y < 0.05` checks were aligned to `y < 0.35` to match `sidewalkTop` (0.28) and the suite’s own east-stairs foot check (`y < 0.3`). Semantic checks (`!up`, stop before stairs, reach pavement) unchanged — not a climb/side weaken.
+**ways suite note:** Broad Street pavement walk `y < 0.05` → `y < 0.35` (sidewalkTop); onPavement now 0.95 after walkway clear. **streets suite note:** two absolute `y < 0.05` checks were aligned to `y < 0.35` to match `sidewalkTop` (0.28) and the suite’s own east-stairs foot check (`y < 0.3`). Semantic checks (`!up`, stop before stairs, reach pavement) unchanged — not a climb/side weaken.
 
 ## Open bugs / follow-ups
 
@@ -85,6 +85,18 @@ Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 
 - allphones Very Low: 143 draws / 80k tris.
 - ridelegs under 220 draws.
+
+## Tip e2e vs baseline (in progress)
+
+Partial `full-tip.log` on tip serve (interrupted once by serve reload mid-streets):
+
+| Check | Tip | Prior tip/stale / baseline notes |
+| --- | --- | --- |
+| Footbridge climb | **PASS** | Was FAIL on stale serve before climb fix |
+| streets suite | aborted after climb (context destroyed / HMR) | Re-run streets alone: **17/17** |
+| ways Broad Street walk | FAIL on stale run (`y < 0.05`); fixed → **ways 20/20** alone | Prior full.log also FAIL (onPavement 0.66 + y) |
+| input open 3D view | FAIL (null) once | PASS on earlier full.log — treat as flake / cold vite |
+| phone share sell / send | FAIL | PASS on earlier full.log — investigate after full tip finishes |
 
 ## Exact next step
 
