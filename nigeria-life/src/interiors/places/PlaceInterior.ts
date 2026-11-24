@@ -23,6 +23,7 @@ import { attachViewing } from './ViewingCentre';
 import { attachTravellers } from './Travellers';
 import { attachNollywood } from '../../film/Nollywood';
 import { attachSparkDate } from '../../social/Spark';
+import { constrainBeachSwim, tickOpenAirBeach, type SwimZone } from './OpenAirBeach';
 import { attachOwambe } from '../../social/Owambe';
 import { attachStudio } from '../../music/Studio';
 import { attachPalaceCourt } from '../../social/Chieftaincy';
@@ -106,7 +107,17 @@ export interface PlaceSpec {
   key: string;
   name: string;
   district: string;
-  room: { width: number; length: number; height: number; floor: number; wall: number; /** A textured finish from Surfaces.floorSurface */ finish?: string };
+  room: {
+    width: number;
+    length: number;
+    height: number;
+    floor: number;
+    wall: number;
+    /** A textured finish from Surfaces.floorSurface */
+    finish?: string;
+    /** No walls or ceiling — beach, park, promenade */
+    openAir?: boolean;
+  };
   /** What the room is furnished with, drawn in its own space (the door is at +z) */
   build(b: Builder, room: THREE.Group): void;
   /** The sign on the back wall */
@@ -172,6 +183,7 @@ export class PlaceInterior {
     this.group.name = `place ${spec.key}`;
     knowHotelRoom(this, spec.key);
     const { width, length, height } = spec.room;
+    const openAir = !!spec.room.openAir;
     this.def = {
       id: `interior_place_${spec.key}`,
       name: spec.name,
@@ -184,10 +196,11 @@ export class PlaceInterior {
       interiorOrigin: origin,
       playerSpawnOffset: new THREE.Vector3(0, 0, length / 2 - 1.6),
       exitDoorOffset: new THREE.Vector3(0, 0, length / 2),
-      cameraOffset: new THREE.Vector3(0, 14, 16),
-      ambientLightColor: 0xfffaf0,
-      ambientLightIntensity: 1.4,
-      rooms: [{ id: `${spec.key}_room`, name: spec.name, size: { width, length, height }, centerOffset: new THREE.Vector3(), floorColor: spec.room.floor, wallColor: spec.room.wall }],
+      cameraOffset: openAir ? new THREE.Vector3(0, 22, 28) : new THREE.Vector3(0, 14, 16),
+      ambientLightColor: openAir ? 0xfff1d6 : 0xfffaf0,
+      ambientLightIntensity: openAir ? 0.85 : 1.4,
+      openAir,
+      rooms: [{ id: `${spec.key}_room`, name: spec.name, size: { width, length, height: openAir ? 0.5 : height }, centerOffset: new THREE.Vector3(), floorColor: spec.room.floor, wallColor: spec.room.wall }],
       stations: [],
       npcs: [],
     };
@@ -257,7 +270,10 @@ export class PlaceInterior {
   private build(): void {
     const before = new Set(this.group.children);
     const { width, length, height, floor, wall } = this.spec.room;
-    const shell = InteriorPrefabs.createRoom(width, length, height, floor, wall);
+    const openAir = !!this.spec.room.openAir;
+    const shell = openAir
+      ? InteriorPrefabs.createOpenGround(width, length, floor)
+      : InteriorPrefabs.createRoom(width, length, height, floor, wall);
     this.group.add(shell);
     if (this.spec.room.finish) {
       const mesh = shell.getObjectByName('interior_floor_mesh');
@@ -268,8 +284,10 @@ export class PlaceInterior {
         mesh.material.needsUpdate = true;
       }
     }
-    // Lights across the ceiling, so the room is bright at any hour
-    for (let x = -width / 2 + 4; x < width / 2 - 2; x += 7) for (let z = -length / 2 + 4; z < length / 2 - 2; z += 7) this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(x, height - 0.3, z), 0xfff7e6));
+    // Ceiling lights only indoors — open air uses the real sky
+    if (!openAir) {
+      for (let x = -width / 2 + 4; x < width / 2 - 2; x += 7) for (let z = -length / 2 + 4; z < length / 2 - 2; z += 7) this.group.add(InteriorPrefabs.createCeilingLight(new THREE.Vector3(x, height - 0.3, z), 0xfff7e6));
+    }
     const b = new Builder();
     this.spec.build(b, this.group);
     for (const work of PLACE_WORK[this.spec.key] ?? []) work.build?.(b);
@@ -280,7 +298,12 @@ export class PlaceInterior {
     this.built = this.group.children.filter((child) => !before.has(child));
     if (this.spec.sign) {
       const board = signBoard([this.spec.sign.text, this.spec.sign.sub], Math.min(width - 4, 10), 1.6, this.spec.sign.bg, '#ffffff');
-      board.position.set(0, height - 1.3, -length / 2 + 0.25);
+      if (openAir) {
+        // Post sign near the entrance, not a back-wall board in a phantom room
+        board.position.set(0, 1.4, length / 2 - 2.2);
+      } else {
+        board.position.set(0, height - 1.3, -length / 2 + 0.25);
+      }
       this.group.add(board);
     }
 
@@ -289,7 +312,8 @@ export class PlaceInterior {
     const way = this.spec.door ?? { name: `Way out of ${this.spec.name}`, category: 'Exit to the road', description: 'Back out to the expressway.' };
     this.interactiveList.push({ mesh: door, id: 'interior_exit_door', name: way.name, category: way.category, description: way.description, interactionPoint: this.world(0, length / 2 - 1), exitLabel: this.spec.door ? `🚪 ${this.spec.door.name}` : undefined });
     // A guest room has its own bathroom. The customers' toilet door belongs in the public rooms.
-    if (!this.spec.key.endsWith('-town-suite') && !/-hotel-[12]-suite$/.test(this.spec.key)) this.addRestroom(furnitureFootprints);
+    // Open-air places have no back wall for a toilet door — amenities are built into the layout.
+    if (!openAir && !this.spec.key.endsWith('-town-suite') && !/-hotel-[12]-suite$/.test(this.spec.key)) this.addRestroom(furnitureFootprints);
     // The tables: what was built at table height, small enough to sit round
     this.tables = furnitureFootprints.filter((f) => f.height >= 0.6 && f.height <= 0.92 && f.maxX - f.minX >= 0.8 && f.maxZ - f.minZ >= 0.6 && f.maxX - f.minX <= 4.2 && f.maxZ - f.minZ <= 4.2);
 
@@ -973,5 +997,26 @@ export class PlaceInterior {
   public update(delta: number, time: number): void {
     for (const npc of this.npcs) npc.update(delta, time);
     for (const tick of this.ticks) tick(delta);
+    if (this.spec.room.openAir && this.group.userData.beachSea) tickOpenAirBeach(delta);
+  }
+
+  /**
+   * Keep the player on the open-air plot / in the marked swim zone. Returns immersion 0..1.
+   * No-op when this place is not an open-air beach with a swim zone.
+   */
+  public constrainOpenAirPlayer(playerPos: THREE.Vector3): number {
+    const zone = this.group.userData.swimZone as SwimZone | undefined;
+    if (!this.spec.room.openAir || !zone) return 0;
+    const ox = this.group.position.x;
+    const oz = this.group.position.z;
+    const localX = playerPos.x - ox;
+    const localZ = playerPos.z - oz;
+    const { width, length } = this.spec.room;
+    const next = constrainBeachSwim(localX, localZ, zone, width / 2, length / 2);
+    playerPos.x = ox + next.x;
+    playerPos.z = oz + next.z;
+    if (next.immersion > 0.05) playerPos.y = Math.min(playerPos.y, zone.surfaceY - next.immersion * 0.55);
+    else if (playerPos.y < 0) playerPos.y = 0;
+    return next.immersion;
   }
 }

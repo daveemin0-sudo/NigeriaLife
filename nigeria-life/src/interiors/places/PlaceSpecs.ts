@@ -8,6 +8,7 @@ import type { Item } from '../../backend/types';
 import { SUPERMARKET_SPEC } from './SupermarketRoom';
 import { buildKitCar } from '../../world/vehicles/KitCar';
 import { FX_BUNDLES, SPRAY_HARD, buyCost, sellProceeds, formatHard, FX_BUY, FX_SELL } from '../../life/HardCurrency';
+import { attachOpenAirBeach } from './OpenAirBeach';
 
 /**
  * The insides of the places along the expressway: each laid out for what is done there, with
@@ -207,8 +208,30 @@ const MARINA_TOWERS: PlaceSpec = {
   ],
 };
 
-const venue = (key: string, name: string, district: string, sub: string, bg: string, floor: number, wall: number, extra: (b: Builder, room?: THREE.Group) => void, staff: PlaceSpec['staff'], stations: PlaceSpec['stations'], regulars: PlaceSpec['regulars'] = [], size: [number, number] = [20, 18]): PlaceSpec => ({
-  key, name, district, room: { width: size[0], length: size[1], height: 5, floor, wall }, sign: { text: name.toUpperCase(), sub, bg }, build: extra, staff, stations, regulars,
+const venue = (
+  key: string,
+  name: string,
+  district: string,
+  sub: string,
+  bg: string,
+  floor: number,
+  wall: number,
+  extra: (b: Builder, room?: THREE.Group) => void,
+  staff: PlaceSpec['staff'],
+  stations: PlaceSpec['stations'],
+  regulars: PlaceSpec['regulars'] = [],
+  size: [number, number] = [20, 18],
+  openAir = false,
+): PlaceSpec => ({
+  key,
+  name,
+  district,
+  room: { width: size[0], length: size[1], height: openAir ? 0.5 : 5, floor, wall, openAir: openAir || undefined },
+  sign: { text: name.toUpperCase(), sub, bg },
+  build: extra,
+  staff,
+  stations,
+  regulars,
 });
 
 const pocketAndBank = (be: { getData(): { walletCash: number; bank: { balance: number } } }) => be.getData().walletCash + be.getData().bank.balance;
@@ -792,39 +815,68 @@ const palm = (b: Builder, x: number, z: number) => {
 };
 
 const OUTDOOR: PlaceSpec[] = [
-  venue('lagoon-beach', 'Elegushi Beach', 'Lekki · beach', 'Beach bar · Cabanas · Horses · Beach party', '#0e7490', 0xe8d5a3, 0x7dd3fc, (b) => {
-    // The water at the back, the wash of the waves along it
-    b.box(0x0ea5e9, 30, 0.05, 6, 0, 0.01, -9.5);
-    for (let i = 0; i < 6; i++) b.box(0xf8fafc, 4, 0.03, 0.15, -12 + i * 5, 0.06, -6.6 + (i % 2) * 0.3);
-    for (let i = 0; i < 6; i++) umbrella(b, -10 + i * 4, -3, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf97316, 0xdb2777][i]);
-    // Cabanas: a curtained bed under a white roof
-    for (const x of [-9, -4]) b.box(0xf8fafc, 3, 0.1, 3, x, 2.6, 4).box(0xfef3c7, 2.4, 0.5, 2, x, 0, 4).box(0xf8fafc, 0.08, 2.6, 0.08, x - 1.4, 0, 2.6).box(0xf8fafc, 0.08, 2.6, 0.08, x + 1.4, 0, 2.6);
-    // The bar hut, the DJ's table and speakers, palms, and the horses
-    counter(b, 8, 4, 4, 0xb45309); b.cone(0xd6b46a, 3.6, 1.4, 8, 2.6, 3.5, 4);
-    b.box(0x111827, 2, 0.9, 0.8, -1, 0, -1).box(0x22d3ee, 1.8, 0.04, 0.6, -1, 0.91, -1, { glow: true }).box(0x111827, 0.8, 1.6, 0.8, -3, 0, -1).box(0x111827, 0.8, 1.6, 0.8, 1, 0, -1);
-    palm(b, -12.5, 8); palm(b, 12.5, -4); palm(b, 12, 8);
-    for (const [x, c] of [[-11, 0x78350f], [-9.5, 0xf5f5f4]] as Array<[number, number]>) b.box(c, 0.5, 0.8, 1.8, x, 1, 8).box(c, 0.3, 0.7, 0.5, x, 1.6, 8.9, { pitch: -0.5 }).box(0x44403c, 0.12, 1, 0.12, x - 0.15, 0, 7.4).box(0x44403c, 0.12, 1, 0.12, x + 0.15, 0, 8.6);
+  venue('lagoon-beach', 'Elegushi Beach', 'Lekki · beach', 'Beach bar · Cabanas · Horses · Swim · Beach party', '#0e7490', 0xe8d5a3, 0x7dd3fc, (b, room) => {
+    // Horizon sea, foam and swim line (shared shader sea — no boxed water tray)
+    if (room) attachOpenAirBeach(room, 48);
+    // Soft wet sand strip at the shore
+    b.box(0xd6c29a, 70, 0.04, 5, 0, 0.01, -20, { solid: false });
+    for (let i = 0; i < 10; i++) umbrella(b, -22 + i * 5, -8, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf97316, 0xdb2777][i % 6]);
+    // Cabanas: curtained beds under white roofs
+    for (const x of [-16, -8, 2]) b.box(0xf8fafc, 3.2, 0.1, 3.2, x, 2.6, 6).box(0xfef3c7, 2.5, 0.5, 2.2, x, 0, 6).box(0xf8fafc, 0.08, 2.6, 0.08, x - 1.5, 0, 4.5).box(0xf8fafc, 0.08, 2.6, 0.08, x + 1.5, 0, 4.5);
+    // Beach bar hut, DJ booth, speakers
+    counter(b, 14, 8, 5, 0xb45309); b.cone(0xd6b46a, 4.2, 1.5, 14, 2.7, 7.2, 4);
+    b.box(0x111827, 2.2, 0.9, 0.9, -2, 0, -2).box(0x22d3ee, 2, 0.04, 0.65, -2, 0.91, -2, { glow: true }).box(0x111827, 0.85, 1.6, 0.85, -4.2, 0, -2).box(0x111827, 0.85, 1.6, 0.85, 0.2, 0, -2);
+    // Suya stand & coconut seller crates
+    b.box(0x78350f, 1.6, 0.9, 0.8, 8, 0, 14).box(0x292524, 1.4, 0.05, 0.7, 8, 0.92, 14).cylinder(0xea580c, 0.22, 0.35, 8.3, 0.95, 14, { glow: true });
+    for (let i = 0; i < 5; i++) b.cylinder(0x92400e, 0.2, 0.35, -12 + i * 0.55, 0, 12, { topRadius: 0.18 });
+    // Football pitch markings on the sand (near entrance)
+    b.box(0xf8fafc, 12, 0.02, 0.08, 0, 0.03, 16, { solid: false }).box(0xf8fafc, 0.08, 0.02, 8, -6, 0.03, 16, { solid: false }).box(0xf8fafc, 0.08, 0.02, 8, 6, 0.03, 16, { solid: false });
+    // Palms along the plot (shared builder pieces)
+    for (const [x, z] of [[-28, 10], [-24, -6], [24, -4], [28, 12], [-20, 18], [18, 18]] as Array<[number, number]>) palm(b, x, z);
+    // Horses near the water
+    for (const [x, c] of [[-22, 0x78350f], [-19.5, 0xf5f5f4]] as Array<[number, number]>) b.box(c, 0.5, 0.8, 1.8, x, 1, 10).box(c, 0.3, 0.7, 0.5, x, 1.6, 10.9, { pitch: -0.5 }).box(0x44403c, 0.12, 1, 0.12, x - 0.15, 0, 9.4).box(0x44403c, 0.12, 1, 0.12, x + 0.15, 0, 10.6);
   }, [
-    { name: 'Kunle', title: 'Beach bar', at: [8, 3], facing: 0, outfit: 0xf97316, gender: 'male', says: 'Coconut, Chapman, suya! Cold cold!' },
-    { name: 'DJ Spinz', title: 'DJ', at: [-1, -1.8], facing: 0, outfit: 0x7c3aed, gender: 'male', says: 'Beach party every evening! Amapiano till the sun goes down.' },
-    { name: 'Baba Horse', title: 'Horse rides', at: [-10.3, 6.4], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Ride along the water! Small money.' },
+    { name: 'Kunle', title: 'Beach bar', at: [14, 7], facing: 0, outfit: 0xf97316, gender: 'male', says: 'Coconut, Chapman, suya! Cold cold!' },
+    { name: 'DJ Spinz', title: 'DJ', at: [-2, -2.6], facing: 0, outfit: 0x7c3aed, gender: 'male', says: 'Beach party every evening! Amapiano till the sun goes down.' },
+    { name: 'Baba Horse', title: 'Horse rides', at: [-20.5, 8.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Ride along the water! Small money.' },
+    { name: 'Suya Man', title: 'Suya', at: [8, 13.2], facing: Math.PI, outfit: 0xb45309, gender: 'male', says: 'Fresh stick! Yaji plenty!' },
+    { name: 'Mama Coconut', title: 'Coconuts', at: [-12, 11.5], facing: 0, outfit: 0x16a34a, gender: 'female', says: 'Fresh from the tree. I open am for you.' },
   ], [
-    { id: 'bar', name: '🥥 The beach bar', at: [8, 4], stand: [8, 5.3], who: 'Kunle', role: 'Beach bar', text: 'Wetin you go take?', choices: [
+    { id: 'bar', name: '🥥 The beach bar', at: [14, 8], stand: [14, 9.4], who: 'Kunle', role: 'Beach bar', text: 'Wetin you go take?', choices: [
       buy('Fresh coconut water', 1500, item('coconut', 'Fresh coconut', '🥥', 1500, 'food', true, 10), 'Cold coconut water, straight from the nut.'),
       { label: 'Suya and a cold drink', price: 4500, note: 'Hunger +35', sit: true, seconds: 4, effect: need({ hunger: 35, fun: 5 }), said: 'Hot suya with yaji, and a cold drink with it.' },
       { label: 'A Chapman in the shade', price: 3000, note: 'Fun +10', effect: need({ fun: 10, hunger: 5 }), said: 'Chapman with cucumber, cold as ice.' },
     ] },
-    { id: 'lounger', name: '🏖️ Loungers by the water', at: [-6, -3], stand: [-4.9, -1.8], who: 'Beach attendant', role: 'Elegushi Beach', text: 'Lounger or a cabana?', choices: [
+    { id: 'lounger', name: '🏖️ Loungers by the water', at: [-10, -8], stand: [-8.5, -6.5], who: 'Beach attendant', role: 'Elegushi Beach', text: 'Lounger or a cabana?', choices: [
       { label: 'Lie on a lounger by the water', price: 3000, note: 'Fun +30, Energy +10', sit: true, seconds: 6, effect: need({ fun: 30, energy: 10 }), said: 'Breeze, waves, Afrobeats. You needed this.' },
       { label: 'Rent a cabana for the day', price: 25000, note: 'Fun +35, Social +20', sit: true, seconds: 6, effect: need({ fun: 35, social: 20, energy: 15 }), said: 'Curtains, cushions, your own waiter. Big man things.' },
     ] },
-    { id: 'horse', name: '🐎 Horse ride', at: [-10.3, 8], stand: [-8.8, 7], who: 'Baba Horse', role: 'Horse rides', text: 'Once along the water and back?', choices: [
+    { id: 'horse', name: '🐎 Horse ride', at: [-20.5, 10], stand: [-18.5, 9], who: 'Baba Horse', role: 'Horse rides', text: 'Once along the water and back?', choices: [
       { label: 'Ride a horse along the shore', price: 5000, note: 'Fun +30', arms: 'wave', seconds: 7, effect: need({ fun: 30 }), said: 'Trotting along the water, the wind in your face. Baba Horse held the rope.' },
     ] },
-    { id: 'party', name: '🎶 The beach party', at: [-1, -1], stand: [-1, 0.6], who: 'DJ Spinz', role: 'DJ', text: 'Oya, enter the party!', choices: [
+    { id: 'party', name: '🎶 The beach party', at: [-2, -2], stand: [-2, -0.4], who: 'DJ Spinz', role: 'DJ', text: 'Oya, enter the party!', choices: [
       { label: 'Dance on the sand', note: 'Free · Fun +30, Social +15', dance: true, seconds: 8, effect: need({ fun: 30, social: 15 }), said: 'Shoes off, sand everywhere, the whole beach dancing.' },
     ] },
-  ], [{ at: [-8.9, -3], facing: Math.PI, outfit: 0xdc2626, sit: true }, { at: [-0.9, -3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [2, 0.3], facing: 2.6, outfit: 0xfacc15 }, { at: [-4, 4.2], facing: Math.PI, outfit: 0x0ea5e9, sit: true, gender: 'female' }], [28, 22]),
+    { id: 'suya', name: '🥩 Beach suya', at: [8, 14], stand: [8, 12.6], who: 'Suya Man', role: 'Suya', text: 'How many sticks?', choices: [
+      { label: 'Two sticks of suya', price: 2500, note: 'Hunger +25', seconds: 3, effect: need({ hunger: 25 }), said: 'Pepper heat, smoke in your hair, sea breeze with it.' },
+    ] },
+    { id: 'coconut', name: '🥥 Fresh coconut', at: [-12, 12], stand: [-12, 10.6], who: 'Mama Coconut', role: 'Coconuts', text: 'I open am now?', choices: [
+      buy('Fresh coconut', 1000, item('coconut', 'Fresh coconut', '🥥', 1000, 'food', true, 8), 'She cracked it open with one cut. Sweet water.'),
+    ] },
+    { id: 'football', name: '⚽ Beach football', at: [0, 16], stand: [0, 14.5], who: 'Beach boys', role: 'Football', text: 'Small game on the sand?', choices: [
+      { label: 'Play a quick match', note: 'Free · Fun +25, Energy −10', arms: 'swing', seconds: 8, effect: need({ fun: 25, energy: -10 }), said: 'Barefoot, soft sand, one goal with a shirt. You scored.' },
+    ] },
+    { id: 'swim', name: '🏊 Shallow swim', at: [0, -22], stand: [0, -18], who: 'Lifeguard', role: 'Swim zone', text: 'Only between the red buoys. No deep water.', choices: [
+      { label: 'Swim in the marked shallows', note: 'Free · Fun +20, Hygiene +15', arms: 'swing', seconds: 7, effect: need({ fun: 20, hygiene: 15 }), said: 'Warm lagoon water up to your chest. The buoys keep you in the safe zone.' },
+    ] },
+  ], [
+    { at: [-14, -8], facing: Math.PI, outfit: 0xdc2626, sit: true },
+    { at: [-6, -8], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+    { at: [4, -7.5], facing: Math.PI, outfit: 0xfacc15 },
+    { at: [-10, 6.5], facing: Math.PI, outfit: 0x0ea5e9, sit: true, gender: 'female' },
+    { at: [2, 15.5], facing: 0.4, outfit: 0x22c55e },
+    { at: [-3, 15.2], facing: -0.5, outfit: 0xf97316 },
+  ], [72, 48], true),
 
   venue('ikeja-golf', 'Ikeja Golf Club', 'Ikeja · golf', 'Clubhouse · Pro shop · Putting green · 9 holes', '#14532d', 0x92400e, 0xfef3c7, (b) => {
     // The putting green with its flag, the bar, the pro shop's racks of clubs, the honours board
