@@ -309,11 +309,16 @@ export function buildLandmarks(): Landmarks {
     });
   }
 
-  // --- Wuse 2 nightlife strip (Ademola Crescent): solid façades, not empty Garki pins
+  // --- Wuse 2 nightlife / leisure strip (Ademola Crescent): solid façades, not empty Garki pins
   {
-    const clubs: Array<{ key: string; name: string; cx: number; cz: number; colour: number; sign: string }> = [
+    const clubs: Array<{ key: string; name: string; cx: number; cz: number; colour: number; sign: string; cat?: string }> = [
       { key: 'moscow-underground', name: 'Moscow Underground', cx: -210, cz: 250, colour: 0x111827, sign: 'MOSCOW UNDERGROUND' },
       { key: 'nightlife-345', name: '345 Nightlife', cx: -230, cz: 255, colour: 0x1e1b4b, sign: '345 NIGHTLIFE' },
+      { key: 'hustle-bustle', name: 'Hustle & Bustle', cx: -190, cz: 270, colour: 0x7c2d12, sign: 'HUSTLE & BUSTLE' },
+      { key: 'cubana-lounge', name: 'Cubana Lounge', cx: -250, cz: 260, colour: 0x831843, sign: 'CUBANA LOUNGE' },
+      { key: 'play-imperial', name: 'Play Imperial', cx: -270, cz: 265, colour: 0x1e3a8a, sign: 'PLAY IMPERIAL' },
+      { key: 'trukadero', name: 'Trukadero Bowling', cx: -170, cz: 260, colour: 0x0f766e, sign: 'TRUKADERO', cat: 'Leisure' },
+      { key: 'emab-plaza', name: 'Emab Plaza', cx: -160, cz: 240, colour: 0xe7e5e4, sign: 'EMAB PLAZA', cat: 'Market' },
     ];
     for (const c of clubs) {
       b.box(c.colour, 18, 8, 14, c.cx, 0, c.cz, { solid: true });
@@ -323,13 +328,33 @@ export function buildLandmarks(): Landmarks {
       places.push({
         key: c.key,
         name: c.name,
-        category: 'Club',
+        category: c.cat ?? 'Club',
         description: `${c.name} on Ademola Crescent. The building is solid.`,
         door: { x: c.cx, z: c.cz + 8 },
         stand: { x: c.cx, z: c.cz + 14 },
         inside: false,
       });
     }
+  }
+
+  // --- City Park (Wuse): gate posts so the pin is not empty Garki
+  {
+    const cx = -280;
+    const cz = 280;
+    b.ground(0x5aa83f, 40, 36, cx, 0.02, cz);
+    b.box(0x166534, 1, 3, 1, cx - 8, 0, cz - 16, { solid: true });
+    b.box(0x166534, 1, 3, 1, cx + 8, 0, cz - 16, { solid: true });
+    b.box(0x166534, 18, 1.2, 1, cx, 2.5, cz - 16, { solid: true });
+    sign(group, ['CITY PARK'], 10, 1.2, cx, 3.2, cz - 16.8, Math.PI, '#14532d', '#fde68a');
+    places.push({
+      key: 'city-park-wuse',
+      name: 'City Park',
+      category: 'Park',
+      description: 'Garden dining and live bands in Wuse 2.',
+      door: { x: cx, z: cz - 16 },
+      stand: { x: cx, z: cz - 22 },
+      inside: false,
+    });
   }
 
   // --- Mogadishu Cantonment gatehouse (Asokoro / Keffi Road): solid walls at the pin
