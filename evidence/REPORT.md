@@ -21,6 +21,12 @@
 
 **Fix:** `Player.stayOnTheWay` no longer unsticks out of stair step solids (climb) or wall volumes (exit from inside a building). Pavement-height checks in `streets.mjs` aligned to `sidewalkTop` (0.28) / existing `y < 0.3` foot check.
 
+## Outdoor gateman
+
+| Shot | Result |
+| --- | --- |
+| `stage-5/gateman-street-390x844.png` | Musa Danjuma at Banana Island gatehouse post (hired + on duty, hour 10); figure visible at post |
+
 ## Also in this tip (no new shots yet)
 
 Outdoor gateman on `Compound.post`; Abuja/PH destination↔PlaceSpec alignment; Broad Street walkway clear (`plan` 17/17).
