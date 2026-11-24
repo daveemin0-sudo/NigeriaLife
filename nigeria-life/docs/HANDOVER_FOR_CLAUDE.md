@@ -29,34 +29,44 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 | Staff | Duty hours; arrive/leave toasts; gateman outside entrance; driver by carport |
 | Repairs | `HomeRepairs` + Staff phone tab — pay at hand-over |
 
-Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/daveemin0-sudo/NigeriaLife/pull/59). Merged into `cursor/integration-1`. CI green. **Still open:** full venue seat sweep; gateman on outdoor `Compound.post`.
+Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/daveemin0-sudo/NigeriaLife/pull/59). Merged into `cursor/integration-1`. CI green.
 
-### Stage 4 — real interiors (`cursor/stage-4-real-interiors-181d`)
+### Stage 4 — real interiors (`cursor/stage-4-real-interiors-181d` @ `4d4ee77`)
 
-Audit order done for **hospitals → banks → hotels → restaurants → markets → homes** (place shells). Station ids and prices unchanged throughout.
+Audit order done for **hospitals → banks → hotels → restaurants → markets → homes**. Station ids and prices unchanged.
 
 | Slice | What shipped |
 | --- | --- |
-| Hospitals | Shared `teachingHospital()` — LASUTH, National Hospital Abuja, UPTH. Ward beds, doctor, pharmacy, `ceramic_white` on LASUTH |
-| Banks | Shared `branchBank()` — Allen Avenue, town banks, richer CBN visitors centre; Allen `grey_granite` |
-| Hotels | Grand lobby polish on Eko Grand + Transcorp; town **guest suites** now have a Builder bed/desk/wardrobe shell (Hotel FineFurniture may still layer) |
-| Restaurants | Amala Shitta buka hall + Chop Express kitchen props |
-| Markets | Balogun aisle atmosphere; Wuse + Mile 1 canopy stalls |
-| Homes | Ikeja GRA estate office: waiting chairs, brochure rack, water cooler, second sales agent, property wall; player residence still Stage 3 beds/staff |
+| Hospitals | Shared `teachingHospital()` — LASUTH, National Hospital Abuja, UPTH |
+| Banks | Shared `branchBank()` — Allen Avenue, town banks, richer CBN |
+| Hotels | Grand lobbies + town guest suite Builder shells |
+| Restaurants | Amala Shitta + Chop Express kitchen props |
+| Markets | Balogun / Wuse / Mile 1 stalls |
+| Homes | Ikeja GRA estate office polish; residence still Stage 3 beds/staff |
 
-**Verified (desktop Chromium / SwiftShader / `--base=/NigeriaLife/` only — not phone hardware):** enter `interior_place_lasuth`, `interior_place_ikeja-gra`, `interior_residence`, `interior_place_abuja-town-suite`. Evidence: `cursor/evidence-stage-4` (update after this tip). PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60).
+Evidence: `cursor/evidence-stage-4` @ `d214afb`. PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60). Merged into `cursor/integration-1` @ `850f588` / `14a66d5`.
 
-**Stage 4 complete for PlaceSpec interiors in audit order.** Remaining polish is Stage 5 QA + outdoor gateman / open-air market shells.
+### Stage 5 — QA everywhere (started) (`cursor/stage-5-qa-everywhere-181d` @ `6d0d952`)
+
+PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61).
+
+| Fix | Detail |
+| --- | --- |
+| Jibowu P0 wrong location | Mainland bounds cover motor park (~92.5, −70) |
+| Mama Put P0 wrong location | Yaba maxZ −16 so Broad Street south stays Lagos Island |
+| District fallback | Nearest-centre only within 80 m |
+| Outdoor gateman | `HomeStaff.syncStreetGateman` on `Compound.post` for plotted homes |
 
 ## Open bugs / follow-ups
 
 - Farwalk pace / walkers:0; phone nav below viewport; streetcar first-spot flake (pre-existing on `bf55dab`).
-- Input suite flake: `the phone opens and its screen scrolls with the wheel` (`open:true, under:false, from:0,to:0`) — seen under SwiftShader; do **not** weaken; re-check on clean serve.
+- Input suite flake: phone wheel-scroll (`open:true, under:false`) under SwiftShader — do **not** weaken.
 - 2 shared skins + meshopt IBM.
-- 11 map-keke wrong-location places.
-- Full 155-suite e2e vs baseline `bf55dab` still running / needs clean uninterrupted compare on integration tip.
-- Gateman still not on outdoor `Compound.post` mesh.
-- Markets/malls remain building shells (audit OPEN_AIR false positives).
+- Remaining map-keke wrong-location pins (Abuja / Port Harcourt from WORLD_AUDIT).
+- Full 155-suite e2e vs baseline still needs a clean uninterrupted compare.
+- Outdoor gateman visual smoke + evidence not yet pushed.
+- Markets/malls still building shells (audit OPEN_AIR false positives).
+- Full venue seat sweep still open.
 
 ## Performance
 
@@ -65,7 +75,7 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 
 ## Exact next step
 
-1. Merge this Stage 4 tip into `cursor/integration-1`.
-2. Finish clean full 155-suite e2e vs baseline; report every check that passed before and fails now.
-3. Start **Stage 5 — QA everywhere** (arrival, collisions, cards, seats, beds, activities, exits, rides, saves across Lagos / Abuja / PH).
-EOF
+1. Smoke outdoor gateman + district labels at Jibowu / Mama Put; push `cursor/evidence-stage-5`.
+2. Fix remaining P0 wrong-location pins (Abuja/PH); continue seat/activity/arrival QA.
+3. Finish clean full 155-suite e2e vs `bf55dab`; report every check that passed before and fails now.
+4. Merge Stage 5 into `cursor/integration-1` when the first QA batch is verified.

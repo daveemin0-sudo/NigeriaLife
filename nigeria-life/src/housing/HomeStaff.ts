@@ -189,6 +189,8 @@ const REAL_DAY_MS = 86_400_000;
 
 export class HomeStaff {
   private static instance: HomeStaff | null = null;
+  /** Musa at the outdoor compound gatehouse (`Compound.post`), when the home has a plotted compound */
+  private streetGateman: { figure: Figure; parent: THREE.Group } | null = null;
   public static now: () => number = () => Date.now();
   public static currentDay: () => number = () => 1;
 
@@ -537,6 +539,32 @@ export class HomeStaff {
     this.refreshHomeFigures();
   }
 
+  /**
+   * Put the gateman on the outdoor compound gatehouse post when the player owns a plotted home.
+   * `post` is world XZ + facing from `CompoundDrawing.post`. Pass null to clear.
+   */
+  public syncStreetGateman(parent: THREE.Group | null, post: { x: number; z: number; yaw: number } | null): void {
+    const spec = this.roleSpec('gateman');
+    const show = !!(parent && post && spec && this.isHired('gateman') && this.onDuty('gateman'));
+    if (!show) {
+      if (this.streetGateman) this.streetGateman.figure.root.visible = false;
+      return;
+    }
+    if (!this.streetGateman || this.streetGateman.parent !== parent) {
+      this.streetGateman?.figure.root.removeFromParent();
+      const figure = new Figure(parent!, 'staff_gateman_street', spec!.name, spec!.look, [post!.x, post!.z], post!.yaw, 0, true);
+      figure.root.userData.staffRole = 'gateman';
+      this.streetGateman = { figure, parent: parent! };
+    } else {
+      this.streetGateman.figure.place(post!.x, post!.z, post!.yaw);
+    }
+    this.streetGateman.figure.root.visible = true;
+    this.streetGateman.figure.pose('stand', 'rest');
+    // Prefer the outdoor post — hide the interior stand-in when the street figure is up
+    const indoor = this.liveFigures.get('gateman');
+    if (indoor) indoor.figure.root.visible = false;
+  }
+
   /** True when this role should be seen on site at the current game hour. */
   public onDuty(role: StaffRoleId, hour?: number): boolean {
     const h = hour ?? this.gameHour();
@@ -634,14 +662,16 @@ export class HomeStaff {
         live.card.interactionPoint.set(origin.x + layout.start[0], 0, origin.z + layout.start[1] + 0.9);
       }
 
-      live.figure.root.visible = duty;
-      if (duty && existingCardIdx < 0) {
+      // Gateman prefers the outdoor compound post when it is up
+      const outdoorGate = spec.id === 'gateman' && !!this.streetGateman?.figure.root.visible;
+      live.figure.root.visible = duty && !outdoorGate;
+      if (duty && !outdoorGate && existingCardIdx < 0) {
         interactiveList.push(live.card);
-      } else if (!duty && existingCardIdx >= 0) {
+      } else if ((!duty || outdoorGate) && existingCardIdx >= 0) {
         interactiveList.splice(existingCardIdx, 1);
         PlaceActions.unregister(cardId);
       }
-      if (duty) this.registerStaffAction(cardId, live);
+      if (duty && !outdoorGate) this.registerStaffAction(cardId, live);
     }
   }
 
@@ -701,6 +731,8 @@ export class HomeStaff {
       this.state.lastRealDay = realDay;
       void this.onNewDay(this.state.lastPaidDay + daysElapsed);
     }
+
+    if (this.streetGateman?.figure.root.visible) this.streetGateman.figure.tick(delta);
 
     if (!inHome || !this.homeGroup) return;
     const origin = this.homeGroup.position;

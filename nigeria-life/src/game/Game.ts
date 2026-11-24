@@ -4743,7 +4743,12 @@ export class Game {
     this.deliveries.update(delta);
     this.messages.update(delta);
     Nollywood.get().tick(delta);
-    HomeStaff.get().tick(delta);
+    {
+      const plotId = this.currentHome();
+      const post = this.isPlotHome(plotId) ? this.plotWorld.compounds.get(plotId)?.drawing.post ?? null : null;
+      HomeStaff.get().syncStreetGateman(post ? this.plotWorld.group : null, post);
+    }
+    HomeStaff.get().tick(delta, this.world.interiorManager.isPlayerInside() && this.world.interiorManager.currentInterior?.id === 'interior_residence');
     Studio.get().tick(delta);
     Marriage.get().tick(delta);
     this.plotWorld.tick(delta);
