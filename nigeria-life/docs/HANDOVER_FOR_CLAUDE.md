@@ -8,6 +8,20 @@ Lead builder until then: Cursor cloud agent. Do **not** merge to `main`, do **no
 
 Evidence: `cursor/evidence-stage-0` @ `f229409`. solidworld 41/41; allphones 43/43. Ship 101/95 meshopt skins (2-skin unsafe).
 
+### Stage 0C — cards & HUD (owner iPhone) (`cursor/stage-0c-hud-181d`)
+
+PR [#63](https://github.com/daveemin0-sudo/NigeriaLife/pull/63). Watching card two-row layout; Dynamic Island `--nl-inset-top` ≥47px; short location pill; money = cash+bank (₦0 was wallet-only display bug). Evidence: `docs/evidence/hud-phone/`. **hudphone 6/6**.
+
+### Stage 0D / 1 — street clear + night light (owner iPhone) (`cursor/stage-0d-street-181d`)
+
+| Fix | Detail |
+| --- | --- |
+| Zebra / lanes / doorways | `blocksCrossing()` clears stalls, bins, fabric lamps of Broad zebra (z=10) + Martins (z=-62); Roads stall list drops z=12/−62 → 42/−55; Abuja/PH stall clear of crossing raised to 7 m; keepClear widened |
+| Solids | Stall tables remain solid via `obstructionsUnder(roads.group)`; named `roadside-stall-*` |
+| Night visibility | Lamp glow opacity 1.0, wider + fill discs, denser lamps (20 m), stronger bulbs; night timeline hemi/exposure bumped — still night, phone-readable |
+| Evidence | `docs/evidence/street-night/before|after/` — zebra night/day phone, kerb, pavement player, lamp pools |
+| Automated | **streetclear 7/7**; streetenviro still **stalls:13** |
+
 ### Stage 1 — integration (`cursor/integration-1`)
 
 Draft PR [#57](https://github.com/daveemin0-sudo/NigeriaLife/pull/57) / [#56](https://github.com/daveemin0-sudo/NigeriaLife/pull/56) → `feature/type-any-amount`. Audit teleport ≠ wrong location. Baseline compare: no clean pass→fail.
@@ -30,6 +44,10 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 | Repairs | `HomeRepairs` + Staff phone tab — pay at hand-over |
 
 Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/daveemin0-sudo/NigeriaLife/pull/59). Merged into `cursor/integration-1`. CI green.
+
+### Stage 3 follow-up — seat sit (owner iPhone) (`cursor/stage-3-seat-sit-181d`)
+
+PR [#62](https://github.com/daveemin0-sudo/NigeriaLife/pull/62). Sofa/armchair hips on cushion top (not sunk); dining chairs face table (all homes + duplex 8-chair set); automated body-vertex seat check. Evidence: `docs/evidence/seat-sit/`.
 
 ### Stage 4 — real interiors (`cursor/stage-4-real-interiors-181d` @ `4d4ee77`)
 
@@ -94,6 +112,7 @@ Code tip this batch: `8e2178e`+. Integration: merge after each stage-5 push.
 - Outdoor gateman: photo at Banana Island gatehouse (gateman-at-post-390x844.png) — desktop only.
 - Markets/malls still building shells (audit OPEN_AIR false positives).
 - Venue seat sweep: regulars moved onto chairs/benches (tabletop sits fixed).
+- Owner iPhone list: Stages **3 seat-sit**, **0C HUD**, **0D street** shipped on their branches — merge into `cursor/integration-1` when CI green.
 
 ## Performance
 
@@ -135,7 +154,8 @@ firstfive chain, livingcity stall-count / fast-clock wrongs, farwalk walkers:0, 
 
 ## Exact next step
 
-1. Optionally re-run full 155 on **current** integration tip (`ae1ce7d`+) for a clean FAIL list.
-2. Continue WORLD_AUDIT P2 chrome / unvisited town interiors; phonefit nav-btn bottom overflow if time.
-3. Do **not** merge to main or deploy.
+1. Merge stage-3-seat-sit / stage-0c-hud / stage-0d-street into `cursor/integration-1` after CI.
+2. Optionally re-run full 155 on **current** integration tip for a clean FAIL list.
+3. Continue WORLD_AUDIT P2 chrome / unvisited town interiors; phonefit nav-btn bottom overflow if time.
+4. Do **not** merge to main or deploy.
 
