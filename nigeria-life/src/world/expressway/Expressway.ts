@@ -467,8 +467,9 @@ export class Expressway {
     b.box(0xf8fafc, 0.06, 0.25, 3.6, s * (H + LAYBY.depth - 0.15), 2.62, bay.z);
     // The bench: a wooden seat on two legs, a back rail, facing the road
     const seatX = s * (H + LAYBY.depth + 0.45);
-    b.box(0x92400e, 0.42, 0.06, 2.4, seatX, 0.62, bay.z).box(0x92400e, 0.06, 0.32, 2.4, seatX + s * 0.22, 0.72, bay.z);
-    for (const dz of [-1.0, 1.0]) b.box(0x374151, 0.36, 0.42, 0.06, seatX, 0.2, bay.z + dz);
+    b.box(0x92400e, 0.42, 0.06, 2.4, seatX, 0.62, bay.z, { solid: false }).box(0x92400e, 0.06, 0.32, 2.4, seatX + s * 0.22, 0.72, bay.z, { solid: false });
+    for (const dz of [-1.0, 1.0]) b.box(0x374151, 0.36, 0.42, 0.06, seatX, 0.2, bay.z + dz, { solid: false });
+    this.solid('Lay-by bench', seatX - 0.28, seatX + 0.28, bay.z - 1.25, bay.z + 1.25, 0.7);
     this.bench(seatX, bay.z, s);
   }
 

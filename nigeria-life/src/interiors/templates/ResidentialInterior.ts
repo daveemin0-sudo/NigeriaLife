@@ -3,6 +3,7 @@ import { floorSurface, lightPool, repeated, smallTiles } from '../../graphics/Su
 import * as THREE from 'three';
 import { Fridge } from '../../housing/Fridge';
 import { HomeStaff } from '../../housing/HomeStaff';
+import { HomeRepairs } from '../../housing/HomeRepairs';
 import { Marriage } from '../../social/Marriage';
 import { QuitNotice } from '../../housing/QuitNotice';
 import type { LeaseView } from '../../life/Dues';
@@ -177,6 +178,7 @@ export class ResidentialInterior {
     this.def.name = home?.name ?? (standard === 'basic' ? 'Your room & parlour' : standard === 'comfortable' ? 'Your flat' : 'Your house');
     if (home?.area) this.def.districtName = home.area;
     HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
+    HomeRepairs.get().syncHome(this.group, this.plan, this.interactiveList);
     Marriage.get().syncHome(this.group, this.plan, this.interactiveList);
     if (this.plan) QuitNotice.sync(this.group, this.plan, this.interactiveList, this.exitDoor, () => ResidentialInterior.noticeNow?.() ?? null);
     this.applyPower();
@@ -500,6 +502,7 @@ export class ResidentialInterior {
     this.refreshGarden();
     this.refreshPets();
     HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
+    HomeRepairs.get().syncHome(this.group, this.plan, this.interactiveList);
     ResidentialInterior.onYard?.();
     for (const uid of [...this.sets.keys()]) {
       if (!standing.has(uid)) this.sets.delete(uid);
@@ -2605,6 +2608,7 @@ export class ResidentialInterior {
     this.life.update(delta);
     this.swingDoors(delta);
     HomeStaff.get().tick(delta, true);
+    HomeRepairs.get().tick(delta, true);
     // The pets about the house; the plants checked now and then as they grow
     const me = InteractionDirector.get().player?.worldPosition();
     const o = this.group.position;

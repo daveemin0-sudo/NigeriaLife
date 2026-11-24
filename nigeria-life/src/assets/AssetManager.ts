@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export interface AssetLoadProgress {
@@ -28,6 +29,8 @@ export class AssetManager {
 
   private constructor() {
     this.loader = new GLTFLoader();
+    // Character / vehicle GLBs may be meshopt-compressed; decoder ships with three.js
+    this.loader.setMeshoptDecoder(MeshoptDecoder);
   }
 
   public static getInstance(): AssetManager {

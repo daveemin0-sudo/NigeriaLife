@@ -118,10 +118,7 @@ export class AbujaCity implements CityInstance {
         { label: '📸 A picture under the eagle', note: 'Fun +10', arms: 'wave', seconds: 2.4, needs: { fun: 10 }, said: '📸 You, the eagle and the flags. Posted.' },
         { label: '🎖️ Watch the guards drill', note: 'Fun +8', arms: 'rest', seconds: 5, needs: { fun: 8 }, said: 'Left, right, halt! The guards drilled across the square in step.' },
       ] },
-      'millennium-park': { label: '🌳 Millennium Park', who: 'Millennium Park', role: 'Central Area', text: 'Lawns, shade and the fountain.', choices: [
-        { label: '⛲ Sit by the fountain', note: 'Fun +15, Energy +5', arms: 'rest', seconds: 6, needs: { fun: 15, energy: 5 }, said: 'The fountain sprayed cool air. A whole hour went by.' },
-        { label: '🚶 A walk round the park', note: 'Fun +10, Health +5', arms: 'wave', seconds: 5, needs: { fun: 10, health: 5 }, said: 'Round the lawns and back under the trees.' },
-      ] },
+      // millennium-park / jabi-lake-park: enterable open-air places (doors via inside:true)
     });
     // A cash machine in the wall of the bank on the boulevard
     const machine = createCashMachine({ id: 'savanna-bank-abuja', name: 'Savanna Bank', x: 16.9, z: -8.6, facing: -Math.PI / 2 });

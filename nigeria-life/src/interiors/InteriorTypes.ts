@@ -112,6 +112,11 @@ export interface InteriorDefinition {
   ambientLightIntensity: number;
   /** When it can be gone into. Left out, it never shuts. */
   hours?: OpeningHours;
+  /**
+   * Open-air place (beach, park, waterfront): no room shell, outdoor sky lighting,
+   * not a boxed interior. Cutaway walls are not used.
+   */
+  openAir?: boolean;
   rooms: InteriorRoomDef[];
   stations: InteriorStationDef[];
   npcs: InteriorNPCDef[];

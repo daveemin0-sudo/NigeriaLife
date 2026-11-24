@@ -92,8 +92,11 @@ export class MiniMap {
     g.closePath();
     g.fill();
     g.stroke();
-    // North (+z) on the rim, where it lies from here
+    // North (+z) on the rim, inside the circle so narrow phones do not clip "N" past the screen
     const n = this.el.querySelector<HTMLElement>('.nl-minimap-north');
-    if (n) n.style.transform = `translate(calc(-50% + ${(sin * 62).toFixed(1)}px), calc(-50% + ${(-cos * 62).toFixed(1)}px))`;
+    if (n) {
+      const rim = Math.max(28, this.el.clientWidth * 0.5 - 12);
+      n.style.transform = `translate(calc(-50% + ${(sin * rim).toFixed(1)}px), calc(-50% + ${(-cos * rim).toFixed(1)}px))`;
+    }
   }
 }

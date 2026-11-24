@@ -98,8 +98,10 @@ export class Roadside {
       const d = registry.getById(destination);
       if (!place || !d) continue;
       const { standX } = this.front(place);
-      d.streetPosition = new THREE.Vector3(standX, 0, place.z);
-      if (d.entrance) d.entrance.position = new THREE.Vector3(standX, 0, place.z);
+      const at = new THREE.Vector3(standX, 0, place.z);
+      d.streetPosition = at.clone();
+      d.mapPosition = at.clone();
+      if (d.entrance) d.entrance.position = at.clone();
       d.name = this.names.get(placeId) ?? d.name;
     }
     this.fleetGroup.name = 'Jets and yachts';
@@ -495,7 +497,7 @@ export class Roadside {
       };
     }
     // The outdoor places are gone into as well: onto the beach, into the clubhouse, the yacht club, the terminal
-    const going: Record<string, string> = { 'lagoon-beach': '🏖️ Go onto the beach', 'ikeja-golf': '⛳ Into the clubhouse', 'lagoon-marina': '🛥️ Into the yacht club', 'private-airfield': '✈️ Into the terminal' };
+    const going: Record<string, string> = { 'lagoon-beach': '🏖️ Go onto the beach', 'ikeja-golf': '⛳ Onto the course', 'lagoon-marina': '🛥️ Into the yacht club', 'private-airfield': '✈️ Into the terminal' };
     if (inside) return { label: () => going[placeId] ?? '🚪 Go inside', run: (host: PlaceHost) => host.enter(`roadside-${placeId}`, this.doorOf(placeId)) };
     const entry = menu[placeId] ?? moreMenu(placeId, { act, pay, openApp: (app) => this.hooks.openApp(app), openPump: (station) => this.hooks.openPump(station), openStateHouse: (mode) => this.hooks.openStateHouse(mode) }) ?? menu['government-house'];
     return { label: () => entry.label, run: (host: PlaceHost) => entry.run(host) };
