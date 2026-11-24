@@ -60,12 +60,13 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | CcHub | At (−12.5, −23.8) → **Yaba** (verified after mainland shrink) |
 | Broad Street walkway | Stalls clear of footbridges; hospital + Mega Plaza pushed east; bins at kerb — `plan` **17/17** |
 | Abuja/PH pins | Millennium/Wuse/Jabi PlaceSpec districts aligned; Wuse/Pleasure/Brick House dest coords matched to PlaceSpecs |
+| Outdoor gateman | Musa at Banana Island Compound.post when hired + on duty (verified photo) |
 | Footbridge climb | Unstick no longer ejects climbers from stair step solids; **streets 17/17** (desktop Chromium) |
 | Exit from inside | Unstick skipped for wall volumes so `Solids.step` can walk the player out of a building |
 
-Evidence: `cursor/evidence-stage-5` @ `b1e09b6` (desktop SwiftShader / `/NigeriaLife/` only — **not** phone hardware). Climb shots: `footbridge-climbing-390x844.png`, `footbridge-deck-390x844.png`.
+Evidence: `cursor/evidence-stage-5` @ `5dc7ce1` (desktop SwiftShader / `/NigeriaLife/` only — **not** phone hardware). Climb shots: `footbridge-climbing-390x844.png`, `footbridge-deck-390x844.png`.
 
-Code tip this batch: `10d07d9`. Integration: `9356ff9`.
+Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 
 **streets suite note:** two absolute `y < 0.05` checks were aligned to `y < 0.35` to match `sidewalkTop` (0.28) and the suite’s own east-stairs foot check (`y < 0.3`). Semantic checks (`!up`, stop before stairs, reach pavement) unchanged — not a climb/side weaken.
 
