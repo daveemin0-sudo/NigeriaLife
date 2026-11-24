@@ -32,7 +32,8 @@ export const PH_DISTRICTS: DistrictData[] = [
     tagline: 'Refineries, Storage Tanks & Oil Servicing HQs',
     zone: 'Industrial',
     center: new THREE.Vector3(300, 0, 140),
-    bounds: { minX: 79, maxX: 560, minZ: -280, maxZ: 560 },
+    // West edge covers the street refinery at (~30, −35); was Old GRA when minX was 79
+    bounds: { minX: 20, maxX: 560, minZ: -280, maxZ: 560 },
     color: 0x64748b,
     populationEstimate: '650K industrial engineers & workers',
     propertyCount: 520,
@@ -55,7 +56,7 @@ export const PH_DISTRICTS: DistrictData[] = [
     tagline: 'Colonial Mansions, Royal Palms & Golf Greens',
     zone: 'Island',
     center: new THREE.Vector3(-140, 0, -50),
-    bounds: { minX: -290, maxX: 79, minZ: -280, maxZ: 172 },
+    bounds: { minX: -290, maxX: 20, minZ: -280, maxZ: 172 },
     color: 0x22c55e,
     populationEstimate: '380K affluent residents',
     propertyCount: 880,

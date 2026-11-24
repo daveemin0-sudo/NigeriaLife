@@ -32,7 +32,8 @@ export const ABUJA_DISTRICTS: DistrictData[] = [
     tagline: 'Embassies, Transcorp Hilton & Millennium Park',
     zone: 'Island',
     center: new THREE.Vector3(190, 0, 30),
-    bounds: { minX: 0, maxX: 374, minZ: -100, maxZ: 166 },
+    // minX raised so Aso Rock at (~85, 50) is Asokoro, not Maitama
+    bounds: { minX: 100, maxX: 374, minZ: -100, maxZ: 166 },
     color: 0x38bdf8,
     populationEstimate: '420K dignitaries & elite residents',
     propertyCount: 950,
@@ -147,7 +148,8 @@ export const ABUJA_DISTRICTS: DistrictData[] = [
     tagline: 'Under the Shadow of Aso Rock & State House',
     zone: 'Special',
     center: new THREE.Vector3(472, 0, 100),
-    bounds: { minX: 374, maxX: 570, minZ: -100, maxZ: 436 },
+    // West edge covers the street-world rock / Three Arms drop (~85, 50); east keeps the map spawn
+    bounds: { minX: 55, maxX: 570, minZ: -100, maxZ: 436 },
     color: 0x475569,
     populationEstimate: '350K VIP residents',
     propertyCount: 720,
