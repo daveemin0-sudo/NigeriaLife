@@ -55,6 +55,7 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Jibowu P0 wrong location | Mainland bounds cover motor park (~92.5, −70) → **Mainland Central** (verified) |
 | Mama Put P0 wrong location | Yaba maxZ −16 so Broad Street south stays **Lagos Island** (verified) |
 | District fallback | Nearest-centre only within 80 m |
+| Aso Rock / Eagle Square / PH refinery | Dest + district bounds so map-keke set-down matches booked district |
 | Outdoor gateman | Musa at Banana Island Compound.post when hired + on duty (photo `gateman-at-post-390x844.png`) |
 | Jibowu district | Dedicated `jibowu` bounds (mainland no longer swallows Yaba/CcHub) |
 | CcHub | At (−12.5, −23.8) → **Yaba** (verified after mainland shrink) |
@@ -74,7 +75,7 @@ Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 - Farwalk pace / walkers:0; phone nav below viewport; streetcar first-spot flake (pre-existing on `bf55dab`).
 - Input suite flake: phone wheel-scroll (`open:true, under:false`) under SwiftShader — do **not** weaken.
 - 2 shared skins + meshopt IBM.
-- Remaining WORLD_AUDIT chrome (Aso Rock / Eagle Square / PH refinery) and map pins.
+- Remaining WORLD_AUDIT walk-through / broken-activity chrome; more map pins as found.
 - Full 155-suite e2e vs `bf55dab` on **current tip** (prior run used stale frozen serve).
 - Outdoor gateman: photo at Banana Island gatehouse (gateman-at-post-390x844.png) — desktop only.
 - Markets/malls still building shells (audit OPEN_AIR false positives).

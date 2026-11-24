@@ -17,13 +17,14 @@ export function getAbujaBenchmarkDestinations(defaultTransports: TransportOption
       city: 'abuja',
       district: 'cbd_abuja',
       districtName: 'Shehu Shagari Way, Central Business District',
-      mapPosition: new THREE.Vector3(-10, 0, 20),
+      // Match ABUJA_LANDMARKS.eagle_square — old (−11.5, 20) sat in Garki, not the CBD
+      mapPosition: new THREE.Vector3(42, 0, 247),
       mapVisualType: 'landmark',
       mapIcon: '🦅',
       exteriorType: 'parade_square',
-      streetPosition: new THREE.Vector3(-11.5, 0, 20),
+      streetPosition: new THREE.Vector3(42, 0, 247),
       entrance: {
-        position: new THREE.Vector3(-11.5, 0, 20),
+        position: new THREE.Vector3(42, 0, 247),
         promptLabel: 'Enter Eagle Square Grandstands',
         triggerRadius: 6.5,
       },
