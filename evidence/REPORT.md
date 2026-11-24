@@ -25,7 +25,8 @@
 
 | Shot | Result |
 | --- | --- |
-| `stage-5/gateman-street-390x844.png` | Musa Danjuma at Banana Island gatehouse post (hired + on duty, hour 10); figure visible at post |
+| `stage-5/gateman-at-post-390x844.png` | Musa Danjuma standing at the Banana Island gatehouse post (hired + on duty, 10:02 AM) |
+| `stage-5/gateman-street-390x844.png` | Wider street context from the compound |
 
 ## Also in this tip (no new shots yet)
 
