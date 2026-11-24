@@ -9087,16 +9087,46 @@ body.ui-modal-open .place-card {
   transform: translateX(-50%);
   max-width: calc(100vw - 24px);
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   padding: 8px 10px 8px 12px;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 999px;
+  border-radius: 18px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.24);
   z-index: var(--z-hud-active-interaction);
   pointer-events: auto;
   font-family: var(--nl-font);
+}
+
+/* Shop / buka status still appends icon+text+buttons flat — keep a single row for those */
+.buka-order-status:not(:has(.buka-status-head)) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.buka-status-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.buka-status-choices {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 1px;
+}
+
+.buka-status-choices::-webkit-scrollbar {
+  display: none;
 }
 
 /* While an order is running, its status line takes the proximity prompt's place */
@@ -9110,12 +9140,15 @@ body.ui-modal-open .buka-order-status {
 
 .buka-status-icon {
   font-size: 20px;
+  flex: none;
+  line-height: 1;
 }
 
 .buka-status-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .buka-status-name {
@@ -9123,6 +9156,8 @@ body.ui-modal-open .buka-order-status {
   font-weight: 800;
   color: #0f172a;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .buka-status-line {
@@ -9145,6 +9180,7 @@ body.ui-modal-open .buka-order-status {
   border: 1.5px solid #cbd5e1;
   border-radius: 999px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .buka-status-btn:hover {

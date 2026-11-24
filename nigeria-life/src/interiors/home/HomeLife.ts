@@ -100,12 +100,14 @@ export class HomeLife {
       };
     }
     if (this.activity === 'watching_tv') {
+      const watching = this.onTheTelevision();
       return {
         activity: 'watching_tv',
-        icon: this.onTheTelevision() ? '📺' : '🛋️',
-        title: this.onTheTelevision() ?? 'Sitting down',
+        icon: watching ? '📺' : '🛋️',
+        // Short phone title — channel chips carry Football / News / Music
+        title: watching ?? 'Sitting down',
         line: this.gained >= TV.mostEnergy ? 'Fully relaxed' : `Relaxing · Energy ${Math.round(stats.energy)}%`,
-        stopLabel: 'Stand up',
+        stopLabel: 'Stand',
         choices: this.channelChoices(),
       };
     }

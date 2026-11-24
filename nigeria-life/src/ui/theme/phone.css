@@ -216,27 +216,39 @@ body.nl-hud-hidden #v-btn-run {
     overflow: hidden;
   }
 
-  /* --- What the player is busy with (sleeping, eating): under today/chat, not on that row ----- */
+  /* --- What the player is busy with (sleeping, watching): under today/chat; clear of FABs ----- */
   html body .buka-order-status {
-    top: calc(env(safe-area-inset-top, 0px) + 176px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 176px) !important;
     bottom: auto !important;
     left: 8px !important;
-    right: 56px !important;
+    right: 64px !important; /* leave music + camera FABs clear */
     transform: none !important;
     width: auto !important;
     max-width: none !important;
-    padding: 5px 6px 5px 10px !important;
-    gap: 8px !important;
+    padding: 6px 8px !important;
+    gap: 6px !important;
     border-radius: 14px !important;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16) !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  html body .buka-order-status .buka-status-head {
+    gap: 8px !important;
   }
   html body .buka-order-status .buka-status-icon {
     font-size: 16px !important;
     width: auto !important;
     height: auto !important;
+    flex: none !important;
+  }
+  html body .buka-order-status .buka-status-text {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
   }
   html body .buka-order-status .buka-status-name {
     font-size: 12.5px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
   html body .buka-order-status .buka-status-line {
     font-size: 11px !important;
@@ -244,10 +256,15 @@ body.nl-hud-hidden #v-btn-run {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
   }
+  html body .buka-order-status .buka-status-choices {
+    gap: 5px !important;
+    padding-right: 2px !important;
+  }
   html body .buka-order-status .buka-status-btn {
     padding: 6px 10px !important;
     font-size: 12px !important;
-    min-height: 0 !important;
+    min-height: 36px !important;
+    flex: none !important;
   }
 
   /* --- The bar of buttons along the bottom: five that always fit, the icon over its name ----- */
@@ -983,7 +1000,8 @@ body.nl-hud-hidden #v-btn-run {
 /* --- Phone held upright: vitals fully visible; location/quest on the row beneath -------------- */
 @media (max-width: 700px) and (orientation: portrait) {
   html body .hud-center-pill-bar {
-    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    /* --nl-inset-top floors Dynamic Island / notch even when env() is 0 in phone preview */
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 8px) !important;
     left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
     right: calc(env(safe-area-inset-right, 0px) + 8px) !important;
     transform: none !important;
@@ -1037,35 +1055,42 @@ body.nl-hud-hidden #v-btn-run {
   }
   /* Row under the vitals card: quest (left) · chevron · place name (right) */
   html body .hud-header > .hud-top-right-group {
-    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 96px) !important;
     max-width: calc(50vw - 34px) !important;
   }
   html body .hud-top-right-group .hud-location {
     max-width: 100% !important;
   }
+  html body .hud-top-right-group .hud-location .loc-name,
+  html body .hud-top-right-group .hud-location .loc-sub {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
   html body .hud-top-left-badges,
   html body #hud-quest-tracker {
-    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 96px) !important;
     left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
     max-width: calc(50vw - 34px) !important;
   }
   html body #top-menu-btn,
   html body .top-menu-btn {
-    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 96px) !important;
   }
   html body[data-ui-mode="driving"] #top-menu-btn,
   html body[data-ui-mode="driving"] .top-menu-btn {
-    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 8px) !important;
   }
   html body .drive-controls .drive-top {
-    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 54px) !important;
   }
   html body #nl-minimap.nl-minimap {
-    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 8px) !important;
   }
   /* Next row: streak / today (left) · street chat (right) — must not share the quest/place row */
   html body #hud-today-chip {
-    top: calc(env(safe-area-inset-top, 0px) + 134px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 134px) !important;
     max-width: calc(50vw - 34px) !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -1073,22 +1098,22 @@ body.nl-hud-hidden #v-btn-run {
   }
   html body #street-chat-box.minimized,
   html body #street-chat-box.minimized.chat-mobile-adapted {
-    top: calc(env(safe-area-inset-top, 0px) + 134px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 134px) !important;
   }
-  /* Sleep / eat status sits under the today · chat row (must clear both) */
+  /* Sleep / eat / watching status sits under the today · chat row (must clear both) */
   html body .buka-order-status {
-    top: calc(env(safe-area-inset-top, 0px) + 176px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 176px) !important;
   }
   html body #music-fab {
-    top: calc(env(safe-area-inset-top, 0px) + 220px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 240px) !important;
     bottom: auto !important;
   }
   html body #view-fab {
-    top: calc(env(safe-area-inset-top, 0px) + 266px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 286px) !important;
     bottom: auto !important;
   }
   html body #game-toast-container {
-    top: calc(env(safe-area-inset-top, 0px) + 262px) !important;
+    top: calc(var(--nl-inset-top, env(safe-area-inset-top, 0px)) + 282px) !important;
   }
 }
 

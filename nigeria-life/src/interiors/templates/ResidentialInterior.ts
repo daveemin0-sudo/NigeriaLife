@@ -1193,12 +1193,18 @@ export class ResidentialInterior {
       }
       if (!this.televisions().some((set) => set.on)) (this.sets.get(CORE_TV) ?? this.television).turnOn('football');
     };
-    this.life.onTheTelevision = () => { const on = this.televisions().find((set) => set.on); return on ? `Watching: ${on.showing()}` : null; };
+    this.life.onTheTelevision = () => {
+      const on = this.televisions().find((set) => set.on);
+      if (!on) return null;
+      const short = on.channel === 'football' ? 'Football' : on.channel === 'news' ? 'News' : 'Music';
+      return `Watching · ${short}`;
+    };
     this.life.channelChoices = () => {
       const set = this.watched();
       return [
         ...CHANNELS.map((channel) => ({
           id: channel.id,
+          // Icon + short name; layout keeps chips on their own row so nothing overlaps the title
           label: `${channel.icon} ${channel.id === 'football' ? 'Football' : channel.id === 'news' ? 'News' : 'Music'}`,
           current: set.on && set.channel === channel.id,
           pick: () => { set.turnOn(channel.id); this.life.refresh(); },
