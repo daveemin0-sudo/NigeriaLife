@@ -29,11 +29,11 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 | Staff | Duty hours (cook 6:30–15, cleaner 8–16, driver 7–21, gateman always); arrive/leave toasts; gateman stands **outside** the entrance; driver by carport |
 | Repairs | `HomeRepairs` + Staff phone tab: electrician / AC / plumber / appliance — arrive, work, pay at hand-over, leave |
 
-**Evidence:** `cursor/evidence-stage-3` @ `9c27e0f` → `evidence/stage-3/REPORT.md`.
+**Evidence:** `cursor/evidence-stage-3` (latest tip) → `evidence/stage-3/REPORT.md`.
 
 **Verified in Chromium (desktop):** named bed duvets in residence; dining seat x=0.74; duty on at 12:00 / cook+driver off at 22:00; electrician call arrives.
 
-**Not yet verified:** sleep under duvet on presidential bed (visual); every venue seat; gateman on outdoor Compound.post.
+**Verified:** presidential bed sleep under duvet (`presidential-sleep.png`). **Still open:** full venue seat sweep; gateman on outdoor Compound.post.
 
 ## Open bugs / follow-ups
 
@@ -51,7 +51,6 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 
 ## Exact next step
 
-1. Finish Stage 3 browser smoke (beds/seats/staff/repairs); push evidence; merge to `cursor/integration-1`.
-2. Clean full e2e + live worldaudit on integration.
-3. Stage 4 — real interiors starting with LASUTH.
+1. Wait for clean full e2e on integration tip; log suite-by-suite vs baseline.
+2. Close Stage 3 gaps (Compound.post gateman) if needed; then Stage 4 — LASUTH first.
 EOF
