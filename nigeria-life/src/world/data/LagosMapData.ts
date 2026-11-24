@@ -79,7 +79,8 @@ export const LAGOS_DISTRICTS: DistrictData[] = [
     tagline: 'Heart of Lagos Hustle & Community Life',
     zone: 'Mainland',
     center: new THREE.Vector3(-35, 0, -45),
-    bounds: { minX: -75, maxX: 0, minZ: -75, maxZ: -15 },
+    // Includes Jibowu Motor Park (~92.5, -70) east of the denser mainland core
+    bounds: { minX: -75, maxX: 110, minZ: -95, maxZ: -15 },
     color: 0xf59e0b,
     populationEstimate: '3.8M residents',
     propertyCount: 3400,
@@ -102,7 +103,8 @@ export const LAGOS_DISTRICTS: DistrictData[] = [
     tagline: 'Startups, Student Housing & CcHub Innovation',
     zone: 'Mainland',
     center: new THREE.Vector3(-10, 0, -25),
-    bounds: { minX: -40, maxX: 20, minZ: -50, maxZ: -5 },
+    // Stop before Broad Street south (Mama Put at z≈-10 is Lagos Island, not Yaba)
+    bounds: { minX: -40, maxX: 20, minZ: -50, maxZ: -16 },
     color: 0x8b5cf6,
     populationEstimate: '1.4M residents & students',
     propertyCount: 1100,

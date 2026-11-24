@@ -69,3 +69,10 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 2. Finish clean full 155-suite e2e vs baseline; report every check that passed before and fails now.
 3. Start **Stage 5 — QA everywhere** (arrival, collisions, cards, seats, beds, activities, exits, rides, saves across Lagos / Abuja / PH).
 EOF
+### Stage 5 — QA everywhere (started) (`cursor/stage-5-qa-everywhere-181d`)
+
+First fixes on integration tip:
+- **P0 wrong location:** Mainland district bounds now cover Jibowu Motor Park; Yaba no longer steals Mama Put (Broad Street south) from Lagos Island; district closest-fallback capped at 80 m.
+- **Gateman:** `HomeStaff.syncStreetGateman` places Musa on `Compound.post` outdoors when the player’s home is a plotted compound; indoor stand-in stays hidden while the street figure is up.
+
+Still open: remaining wrong-location pins (Abuja/PH), UI overlaps, broken activities, walk-throughs, outdoor gateman visual smoke, full 155-suite compare.
