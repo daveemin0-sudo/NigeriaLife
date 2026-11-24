@@ -55,12 +55,11 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Jibowu P0 wrong location | Mainland bounds cover motor park (~92.5, −70) → **Mainland Central** (verified) |
 | Mama Put P0 wrong location | Yaba maxZ −16 so Broad Street south stays **Lagos Island** (verified) |
 | District fallback | Nearest-centre only within 80 m |
-| Outdoor gateman | `HomeStaff.syncStreetGateman` on `Compound.post` for plotted homes |
+| Outdoor gateman | Musa at Banana Island Compound.post when hired + on duty (photo `gateman-at-post-390x844.png`) |
 | Jibowu district | Dedicated `jibowu` bounds (mainland no longer swallows Yaba/CcHub) |
 | CcHub | At (−12.5, −23.8) → **Yaba** (verified after mainland shrink) |
 | Broad Street walkway | Stalls clear of footbridges; hospital + Mega Plaza pushed east; bins at kerb — `plan` **17/17** |
 | Abuja/PH pins | Millennium/Wuse/Jabi PlaceSpec districts aligned; Wuse/Pleasure/Brick House dest coords matched to PlaceSpecs |
-| Outdoor gateman | Musa at Banana Island Compound.post when hired + on duty (verified photo) |
 | Footbridge climb | Unstick no longer ejects climbers from stair step solids; **streets 17/17** (desktop Chromium) |
 | Exit from inside | Unstick skipped for wall volumes so `Solids.step` can walk the player out of a building |
 
@@ -77,7 +76,7 @@ Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 - 2 shared skins + meshopt IBM.
 - Remaining WORLD_AUDIT chrome (Aso Rock / Eagle Square / PH refinery) and map pins.
 - Full 155-suite e2e vs `bf55dab` on **current tip** (prior run used stale frozen serve).
-- Outdoor gateman: photo at Banana Island gatehouse () — desktop only.
+- Outdoor gateman: photo at Banana Island gatehouse (gateman-at-post-390x844.png) — desktop only.
 - Markets/malls still building shells (audit OPEN_AIR false positives).
 - Full venue seat sweep still open.
 
@@ -89,5 +88,5 @@ Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 ## Exact next step
 
 1. Restart clean full 155-suite e2e on Stage 5 / integration tip; compare to `bf55dab` one suite at a time.
-2. Smoke outdoor gateman + remaining WORLD_AUDIT P0 chrome; push evidence.
+2. Continue WORLD_AUDIT P0 chrome / seat sweep; keep full tip e2e running.
 3. Continue seat/activity/arrival QA across three cities.
