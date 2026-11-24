@@ -2,7 +2,31 @@ import * as THREE from 'three';
 import type { CityMapData, DistrictData, MapLandmark, MapProperty, MapBusiness } from './WorldDataTypes';
 
 export const LAGOS_DISTRICTS: DistrictData[] = [
-  // First in the list: it lies inside the wider Lekki bounds, and the first district that holds a point names it
+  // First: nested or gap-fill districts that must win over broader neighbours
+  {
+    id: 'jibowu',
+    name: 'Jibowu',
+    subtitle: 'Ikorodu Road Corridor, Mainland',
+    tagline: 'Interstate coaches and mainland transit',
+    zone: 'Mainland',
+    center: new THREE.Vector3(92.5, 0, -70),
+    bounds: { minX: 70, maxX: 120, minZ: -100, maxZ: -55 },
+    color: 0xf97316,
+    populationEstimate: 'Commuters & coach travellers',
+    propertyCount: 120,
+    businessCount: 80,
+    description: 'Motor park and coach yard on the Ikorodu Road corridor, east of the denser mainland core.',
+    landmarks: ['Jibowu Motor Park'],
+    visualTheme: {
+      buildingDensity: 0.55,
+      avgHeight: 4,
+      residentialRatio: 0.25,
+      commercialRatio: 0.55,
+      industrialRatio: 0.2,
+    },
+    streetSpawnPoint: new THREE.Vector3(92.5, 0, -69.6),
+  },
+  // Next: it lies inside the wider Lekki bounds, and the first district that holds a point names it
   {
     id: 'banana_island',
     name: 'Banana Island',
@@ -79,8 +103,8 @@ export const LAGOS_DISTRICTS: DistrictData[] = [
     tagline: 'Heart of Lagos Hustle & Community Life',
     zone: 'Mainland',
     center: new THREE.Vector3(-35, 0, -45),
-    // Includes Jibowu Motor Park (~92.5, -70) east of the denser mainland core
-    bounds: { minX: -75, maxX: 110, minZ: -95, maxZ: -15 },
+    // Stop west of Yaba (CcHub at x≈-12 must stay Yaba, not Mainland Central)
+    bounds: { minX: -75, maxX: -40, minZ: -75, maxZ: -15 },
     color: 0xf59e0b,
     populationEstimate: '3.8M residents',
     propertyCount: 3400,

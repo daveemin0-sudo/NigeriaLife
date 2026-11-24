@@ -1,0 +1,30 @@
+2:03:34 AM [vite] (client) Re-optimizing dependencies because vite config has changed
+
+  VITE v8.3.3  ready in 169 ms
+
+  ➜  Local:   http://127.0.0.1:5194/NigeriaLife/
+2:04:09 AM [vite] (client) [console.warn] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+2:04:09 AM [vite] (client) [console.warn] THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.
+2:04:30 AM [vite] (client) [console.warn] [AssetManager] GLB asset not found or failed to parse: "/NigeriaLife/models/aircraft/wazobia_jet737.glb". Falling back to procedural model. SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at GLTFLoader.parse (http://127.0.0.1:5194/NigeriaLife/node_modules/.vite/deps/three_examples_jsm_loaders_GLTFLoader__js.js?v=423203a4:248:23)
+    at Object.onLoad (http://127.0.0.1:5194/NigeriaLife/node_modules/.vite/deps/three_examples_jsm_loaders_GLTFLoader__js.js?v=423203a4:161:11)
+    at http://127.0.0.1:5194/NigeriaLife/node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=4b37fa0a:31883:35
+2:06:21 AM [vite] (client) page reload src/world/data/LagosMapData.ts
+2:06:26 AM [vite] (client) page reload src/world/data/LagosMapData.ts
+2:06:40 AM [vite] (client) page reload src/world/data/LagosMapData.ts
+2:06:51 AM [vite] (client) [console.warn] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+2:06:52 AM [vite] (client) [console.warn] THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.
+2:07:13 AM [vite] (client) [console.warn] [AssetManager] GLB asset not found or failed to parse: "/NigeriaLife/models/aircraft/wazobia_jet737.glb". Falling back to procedural model. SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at GLTFLoader.parse (http://127.0.0.1:5194/NigeriaLife/node_modules/.vite/deps/three_examples_jsm_loaders_GLTFLoader__js.js?v=423203a4:248:23)
+    at Object.onLoad (http://127.0.0.1:5194/NigeriaLife/node_modules/.vite/deps/three_examples_jsm_loaders_GLTFLoader__js.js?v=423203a4:161:11)
+    at http://127.0.0.1:5194/NigeriaLife/node_modules/.vite/deps/three.module-Bj7iJlUn.js?v=4b37fa0a:31883:35
+2:07:43 AM [vite] (client) page reload src/interiors/places/PlaceSpecs.ts
+2:07:44 AM [vite] (client) page reload src/interiors/places/PlaceSpecs.ts
+2:07:45 AM [vite] (client) page reload src/interiors/places/PlaceSpecs.ts
+2:07:50 AM [vite] (client) page reload src/destinations/data/AbujaBenchmarkPlaces.ts
+2:08:13 AM [vite] (client) page reload src/interiors/places/PlaceSpecs.ts
+2:08:30 AM [vite] (client) page reload src/destinations/data/PortHarcourtBenchmarkPlaces.ts
+2:08:37 AM [vite] (client) page reload src/destinations/data/PortHarcourtBenchmarkPlaces.ts
+2:08:39 AM [vite] (client) page reload src/interiors/places/PlaceSpecs.ts

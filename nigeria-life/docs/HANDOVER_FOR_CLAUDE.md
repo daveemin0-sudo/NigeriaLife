@@ -56,8 +56,11 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Mama Put P0 wrong location | Yaba maxZ −16 so Broad Street south stays **Lagos Island** (verified) |
 | District fallback | Nearest-centre only within 80 m |
 | Outdoor gateman | `HomeStaff.syncStreetGateman` on `Compound.post` for plotted homes |
+| Jibowu district | Dedicated `jibowu` bounds (mainland no longer swallows Yaba/CcHub) |
+| CcHub | At (−12.5, −23.8) → **Yaba** (verified after mainland shrink) |
+| Abuja/PH pins | Millennium/Wuse/Jabi PlaceSpec districts aligned; Wuse/Pleasure/Brick House dest coords matched to PlaceSpecs |
 
-Evidence: `cursor/evidence-stage-5` @ `4fa49dc` (desktop SwiftShader only).
+Evidence: `cursor/evidence-stage-5` @ `4fa49dc` (desktop SwiftShader only; re-smoke CcHub/Jibowu after this tip).
 
 ## Open bugs / follow-ups
 
