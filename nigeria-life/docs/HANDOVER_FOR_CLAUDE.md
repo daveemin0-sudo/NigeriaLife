@@ -71,10 +71,12 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Abuja/PH pins | Millennium/Wuse/Jabi PlaceSpec districts aligned; Wuse/Pleasure/Brick House dest coords matched to PlaceSpecs |
 | Footbridge climb | Unstick no longer ejects climbers from stair step solids; **streets 17/17** (desktop Chromium) |
 | Exit from inside | Unstick skipped for wall volumes so `Solids.step` can walk the player out of a building |
+| Phonefit sleep × view-fab | Narrow phones: hide `#view-fab` while `#hud-proximity-prompt` is shown — **phonefit 7/7** at 320 |
+| Open-air restroom chrome | Open-air PlaceSpecs mark `restroomAt.clear` (no back wall); The Library shelves leave east bay for toilet door — needs toilet-door check **PASS** |
 
 Evidence: `cursor/evidence-stage-5` @ `5dc7ce1` (desktop SwiftShader / `/NigeriaLife/` only — **not** phone hardware). Climb shots: `footbridge-climbing-390x844.png`, `footbridge-deck-390x844.png`.
 
-Code tip this batch: `6c893cf`. Integration: `82cd90f`.
+Code tip this batch: `8e2178e`+. Integration: merge after each stage-5 push.
 
 **ways suite note:** Broad Street pavement walk `y < 0.05` → `y < 0.35` (sidewalkTop); onPavement now 0.95 after walkway clear. **streets suite note:** two absolute `y < 0.05` checks were aligned to `y < 0.35` to match `sidewalkTop` (0.28) and the suite’s own east-stairs foot check (`y < 0.3`). Semantic checks (`!up`, stop before stairs, reach pavement) unchanged — not a climb/side weaken.
 
@@ -96,23 +98,22 @@ Code tip this batch: `6c893cf`. Integration: `82cd90f`.
 
 ## Tip e2e vs baseline (in progress)
 
-Partial `full-tip.log` (~12/155 suites when last checked; still running):
+`full-tip.log` on **stale** serve `/tmp/nl-e2e-serve` @ `54a383a` (Stage 4 markets — **not** current tip). ~122/155 when last checked; still running. Phonefit sleep×fab FAIL on that log is fixed on stage-5 (`8e2178e`). Many unique FAILs are ENOENT screenshot paths (`C:/Users/User/.gemini/...`) or flaky timeouts — filter those before comparing to `bf55dab`.
 
-| Check | Tip | vs earlier full.log / notes |
+| Check | Tip (stale serve) | Alone on stage-5 / notes |
 | --- | --- | --- |
 | Footbridge climb | **PASS** | Was FAIL before climb fix |
-| streets suite | aborted after climb (HMR reload) | Alone: **17/17** |
-| ways Broad Street y | FAIL then fixed | Alone: **ways 20/20**; prior full.log also FAIL |
-| hours rush/dawn crowd | FAIL (dawn walkers ~268) | Same FAIL in earlier full.log — not new |
-| phone share oversell / bank send | FAIL (typedFive stayed `1`) | PASS in earlier full.log — flake or input; do not weaken |
-| input open 3D view | FAIL once (null) | PASS earlier — cold-vite flake |
-| ATM + walk-to-machine | FAIL in tip hours/landmarks area | Related ATM walk FAIL also in earlier full.log |
+| streets suite | aborted after climb (HMR) | Alone: **17/17** |
+| seats fountain onAir | FAIL (stale) | Alone: **5/5** (benches + occupy) |
+| phonefit sleep × fab | FAIL (stale) | Alone: **7/7** at 320 |
+| needs toilet doors | FAIL (open-air + Library) | Toilet-door check **PASS** after openAir + Library bay |
+| ways Broad Street y | fixed earlier | Alone: **ways 20/20** |
 
 
 ## Exact next step
 
-1. Finish full tip e2e (~109/155 at last check; streets climb/unstick look fixed vs bf55dab baseline).
-2. On completion: full FAIL vs baseline into this file; note phonefit/ENOENT screenshot noise.
-3. Continue WORLD_AUDIT P2 chrome / unvisited town interiors if time remains.
+1. Finish stale tip e2e; then FAIL-vs-baseline into this file (strip ENOENT / phonefit noise).
+2. Optionally re-run full 155 on **current** integration tip if time remains.
+3. Continue WORLD_AUDIT P2 chrome / unvisited town interiors; home Party Jollof hunger still FAIL (pre-existing).
 4. Do **not** merge to main or deploy.
 
