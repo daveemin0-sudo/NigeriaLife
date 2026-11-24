@@ -126,6 +126,7 @@ export const LAND_PRICE_PER_SQM: Record<string, number> = {
   maitama: 1_100_000,
   asokoro: 1_000_000,
   cbd_abuja: 800_000,
+  millennium_park: 600_000,
   wuse: 550_000,
   garki: 450_000,
   jabi: 420_000,
@@ -154,7 +155,7 @@ export const plotArea = (def: PlotDef) => (def.rect.maxX - def.rect.minX) * (def
 export const LAND_GROWTH_PER_YEAR: Record<string, number> = {
   banana_island: 0.08, eko_atlantic: 0.12, victoria_island: 0.08, lagos_island: 0.07, lekki: 0.18, ikeja: 0.12,
   airport: 0.1, yaba: 0.14, surulere: 0.12, port_apapa: 0.06, mainland: 0.15, ajah: 0.22,
-  maitama: 0.07, asokoro: 0.07, cbd_abuja: 0.06, wuse: 0.09, garki: 0.08, jabi: 0.1, gwarinpa: 0.16, airport_abuja: 0.18,
+  maitama: 0.07, asokoro: 0.07, cbd_abuja: 0.06, millennium_park: 0.05, wuse: 0.09, garki: 0.08, jabi: 0.1, gwarinpa: 0.16, airport_abuja: 0.18,
   old_gra: 0.08, d_line: 0.1, trans_amadi: 0.09, township: 0.06, choba_uniport: 0.15, airport_ph: 0.18,
 };
 export const DEFAULT_LAND_GROWTH = 0.1;

@@ -83,8 +83,9 @@ export async function run(browser, check) {
   const along = await follow(page, 10, 106);
   const alongEnd = along[along.length - 1];
   const onPavement = along.filter((s) => s.on === 'pavement').length / along.length;
+  // Pavement sits at sidewalkTop (0.28); "street level" means not on the bridge (same as streets suite).
   check('a long walk down Broad Street keeps to the pavement, steps into the road only where a side street crosses, and stays on the ground under the footbridge',
-    Math.hypot(alongEnd.x - 10, alongEnd.z - 106) < 0.5 && onPavement > 0.85 && along.every((s) => !s.inside && s.y < 0.05), { alongEnd, onPavement: +onPavement.toFixed(2), steps: along.length });
+    Math.hypot(alongEnd.x - 10, alongEnd.z - 106) < 0.5 && onPavement > 0.85 && along.every((s) => !s.inside && s.y < 0.35), { alongEnd, onPavement: +onPavement.toFixed(2), steps: along.length });
 
   await put(page, 8.5, -22);
   const atBank = await follow(page, 16, -22, 20);

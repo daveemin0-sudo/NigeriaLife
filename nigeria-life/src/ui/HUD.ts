@@ -63,11 +63,14 @@ const LANDMARK_STREET_SPOTS: Record<string, string> = {
   millennium_tower: 'roadside-millennium-tower',
   wuse_market: 'roadside-wuse-market',
   jabi_lake_mall: 'roadside-jabi-lake-mall',
-  millennium_park: 'abuja-millennium-park',
+  jabi_lake_park: 'roadside-jabi-lake-park',
+  jabi_lake_waterfront: 'roadside-jabi-lake-park',
+  millennium_park: 'roadside-millennium-park',
+  millennium_park_abuja: 'roadside-millennium-park',
   national_hospital_abuja: 'roadside-national-hospital-abuja',
   mile_one_market: 'roadside-mile-one-market',
   ph_mall: 'roadside-ph-mall',
-  pleasure_park: 'ph-pleasure-park',
+  pleasure_park: 'roadside-pleasure-park',
   rivers_govt_house: 'roadside-rivers-govt-house',
   ph_waterfront: 'ph-waterfront',
   // Port Harcourt
@@ -489,8 +492,8 @@ export class HUD {
         <div id="driving-hawker-pill" style="display: none; align-items: center; justify-content: space-between; gap: 8px; background: rgba(20, 83, 45, 0.95); border: 1px solid #4ade80; border-radius: 8px; padding: 4px 10px; margin-top: 6px; font-size: 11px;">
           <span style="color: #fef08a; font-weight: 700;">🥤 Chidi at Window:</span>
           <div style="display: flex; gap: 6px;">
-            <button id="btn-traffic-water" style="background: #0284c7; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">💧 Water [J] ₦100</button>
-            <button id="btn-traffic-gala" style="background: #b91c1c; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">🌭 Gala [G] ₦250</button>
+            <button id="btn-traffic-water" style="background: #0284c7; color: #fff; border: 0; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 700; min-height: 36px;">💧 Water ₦100</button>
+            <button id="btn-traffic-gala" style="background: #b91c1c; color: #fff; border: 0; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 700; min-height: 36px;">🌭 Gala ₦250</button>
           </div>
         </div>
       </div>

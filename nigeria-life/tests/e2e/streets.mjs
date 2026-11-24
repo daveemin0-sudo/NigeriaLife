@@ -115,14 +115,15 @@ export async function run(browser, check) {
   await put(page, 9, 20);
   const under = await walk(page, 9, 36);
   const underRoad = await (async () => { await put(page, 0, 20); return walk(page, 0, 36); })();
+  // Pavement sits at sidewalkTop (0.28); road is 0. Same idea as the east-stairs foot check (y < 0.3).
   check('someone walking along the pavement or the road passes under the bridge at street level',
-    under.every((s) => s.y < 0.05 && !s.up) && under[under.length - 1].z > 35 && underRoad.every((s) => s.y < 0.05) && underRoad[underRoad.length - 1].z > 35, { end: under[under.length - 1] });
+    under.every((s) => s.y < 0.35 && !s.up) && under[under.length - 1].z > 35 && underRoad.every((s) => s.y < 0.35 && !s.up) && underRoad[underRoad.length - 1].z > 35, { end: under[under.length - 1] });
 
   await put(page, -8.6, 21);
   const side = await walk(page, -13.4, 21, 8);
   const stopped = side[side.length - 1];
   check('the side of a flight is a wall of concrete: walking into it from the pavement does not put the player half-way up the stairs',
-    side.every((s) => s.y < 0.05) && stopped.x > -10.5, { stopped });
+    side.every((s) => s.y < 0.35) && stopped.x > -10.5, { stopped });
 
   // ------------------------------------------------------------------ Buildings are solid
   // Walked straight at, as the keys walk: the way-finder (which would go round by the gate) is left out of it here.

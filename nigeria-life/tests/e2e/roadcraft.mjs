@@ -70,7 +70,10 @@ export async function run(browser, check) {
 
   // ------------------------------------------------------------------ Parked by the expressway: in a lay-by, off the road
   const bays = await page.evaluate(() => {
-    const obs = window.game.world.expressway.obstructions;
+    // Frontage/lay-bys beyond the first island stretch are deferred — build them before counting
+    const ex = window.game.world.expressway;
+    for (const z of [300, 500, 900, 1400, 2000]) ex.ensureChunksNear(z);
+    const obs = ex.obstructions;
     const cars = obs.filter((o) => o.owner === 'Parked car');
     const posts = obs.filter((o) => o.owner === 'Lay-by shade post');
     const onRoad = cars.filter((o) => Math.min(Math.abs(o.minX), Math.abs(o.maxX)) < 11);

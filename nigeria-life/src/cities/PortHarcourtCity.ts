@@ -101,10 +101,7 @@ export class PortHarcourtCity implements CityInstance {
     this.standing.push(...marks.obstructions);
     this.places = marks.places;
     placeDoors(this.group, this.interactiveList, this.places, 'ph', {
-      'pleasure-park': { label: '🎡 Pleasure Park', who: 'Pleasure Park', role: 'Rumuokoro', text: 'The big wheel is turning. What will it be?', choices: [
-        { label: '🎡 A ride on the big wheel', note: 'Fun +25', price: 2000, arms: 'rest', seconds: 7, needs: { fun: 25 }, said: 'Round and up: the whole Garden City, the creek and the flares at Trans-Amadi.' },
-        { label: '🧺 A picnic on the lawn', note: 'Fun +15, Social +10', price: 4500, arms: 'reach', seconds: 6, needs: { fun: 15, social: 10, hunger: 20 }, said: 'Suya, chapman and a breeze. Sunday done well.' },
-      ] },
+      // pleasure-park: enterable open-air place (inside:true)
       waterfront: { label: '⛵ The waterfront', who: 'Boatman Tamuno', role: 'Port Harcourt Waterfront', text: 'Boat to the islands, or fish fresh off the jetty?', choices: [
         { label: '⛵ A boat round the creek', note: 'Fun +25', price: 5000, arms: 'rest', seconds: 7, needs: { fun: 25 }, said: 'Past the mangroves and the fishing canoes, the city behind you.' },
         { label: '🐟 Roasted fish on the jetty', note: 'Hunger +40', price: 3500, arms: 'reach', seconds: 5, needs: { hunger: 40 }, said: 'Catfish off the grill with pepper sauce. Hot.' },

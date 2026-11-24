@@ -45,6 +45,11 @@ export const ABUJA_KEEP_OUT: Rect[] = [
   { minX: -560, maxX: -390, minZ: 180, maxZ: 422 },
   { minX: 18, maxX: 374, minZ: 436, maxZ: 684 },
   { minX: -324, maxX: -216, minZ: 436, maxZ: 502 },
+  // Nightlife façades south of Ademola + City Park lawn (keep townscape off them)
+  { minX: -330, maxX: -140, minZ: 320, maxZ: 348 },
+  { minX: -270, maxX: -230, minZ: 340, maxZ: 380 },
+  // Mogadishu gatehouse south of Gana Street
+  { minX: 86, maxX: 114, minZ: 22, maxZ: 48 },
 ];
 
 const D = (name: string, rect: Rect, kinds: District['kinds'], colours: number[], trims: number[], setback: [number, number], gap: [number, number]): District => ({ name, rect, kinds, colours, trims, setback, gap });
@@ -283,7 +288,99 @@ export function buildLandmarks(): Landmarks {
     }
     b.box(GREEN, 1.2, 7, 1.2, cx - 8, 0, cz - 38, { solid: true }).box(GREEN, 1.2, 7, 1.2, cx + 8, 0, cz - 38, { solid: true }).box(GREEN, 18, 1.6, 1.4, cx, 6, cz - 38);
     sign(group, ['WUSE MARKET'], 14, 1.4, cx, 6.1, cz - 38.8, Math.PI, '#14532d', '#fde68a');
-    places.push({ key: 'wuse-market', name: 'Wuse Market', category: 'Market', description: 'Foodstuff, fabric, phones and everything else, sold in a thousand stalls.', door: { x: cx, z: cz - 38 }, stand: { x: cx, z: cz - 42 }, inside: true });
+    // Gate at z≈190 is solid; stand must be on clear pavement south of it (z≤182)
+    places.push({ key: 'wuse-market', name: 'Wuse Market', category: 'Market', description: 'Foodstuff, fabric, phones and everything else, sold in a thousand stalls.', door: { x: cx, z: cz - 38 }, stand: { x: cx, z: 178 }, inside: true });
+  }
+
+  // --- Banex Plaza (Aminu Kano / Wuse 2): electronics sheds you cannot walk through
+  {
+    const cx = -190;
+    const cz = 200;
+    b.box(0xe7e5e4, 36, 9, 22, cx, 0, cz, { solid: true });
+    b.box(0x0f172a, 38, 1.2, 24, cx, 9, cz);
+    lit.windows(0xbae6fd, 8, 2, 34, 2.2, 7, cx, cz + 11.06, 0, { glow: true });
+    for (const dx of [-12, 0, 12]) {
+      b.box(0xf8fafc, 8, 3.2, 6, cx + dx, 0, cz - 14, { solid: true });
+    }
+    sign(group, ['BANEX PLAZA', 'PHONES · LAPTOPS · FOREX'], 16, 1.8, cx, 6.2, cz + 11.4, 0, '#0f172a', '#fde68a');
+    places.push({
+      key: 'banex-plaza',
+      name: 'Banex Plaza',
+      category: 'Market',
+      description: 'Phones, laptops and forex on Aminu Kano Crescent. The sheds are solid.',
+      door: { x: cx, z: cz + 12 },
+      stand: { x: cx, z: cz + 20 },
+      inside: false,
+    });
+  }
+
+  // --- Wuse 2 nightlife / leisure strip on Ademola Crescent (z≈318): solid façades south of the road.
+  // Stay clear of Usuma Street (x=−280) — façades on that line failed the city plan.
+  {
+    const clubs: Array<{ key: string; name: string; cx: number; cz: number; colour: number; sign: string; cat?: string }> = [
+      { key: 'moscow-underground', name: 'Moscow Underground', cx: -210, cz: 332, colour: 0x111827, sign: 'MOSCOW UNDERGROUND' },
+      { key: 'nightlife-345', name: '345 Nightlife', cx: -230, cz: 332, colour: 0x1e1b4b, sign: '345 NIGHTLIFE' },
+      { key: 'hustle-bustle', name: 'Hustle & Bustle', cx: -190, cz: 332, colour: 0x7c2d12, sign: 'HUSTLE & BUSTLE' },
+      { key: 'cubana-lounge', name: 'Cubana Lounge', cx: -250, cz: 332, colour: 0x831843, sign: 'CUBANA LOUNGE' },
+      { key: 'play-imperial', name: 'Play Imperial', cx: -310, cz: 332, colour: 0x1e3a8a, sign: 'PLAY IMPERIAL' },
+      { key: 'trukadero', name: 'Trukadero Bowling', cx: -170, cz: 332, colour: 0x0f766e, sign: 'TRUKADERO', cat: 'Leisure' },
+      { key: 'emab-plaza', name: 'Emab Plaza', cx: -150, cz: 332, colour: 0xe7e5e4, sign: 'EMAB PLAZA', cat: 'Market' },
+    ];
+    for (const c of clubs) {
+      b.box(c.colour, 18, 8, 14, c.cx, 0, c.cz, { solid: true });
+      b.box(0xf8fafc, 20, 0.8, 16, c.cx, 8, c.cz);
+      lit.windows(0xfde68a, 5, 2, 16, 2, 6, c.cx, c.cz - 7.06, Math.PI, { glow: true });
+      sign(group, [c.sign], 12, 1.4, c.cx, 5.5, c.cz - 7.3, Math.PI, '#0f172a', '#fde68a');
+      places.push({
+        key: c.key,
+        name: c.name,
+        category: c.cat ?? 'Club',
+        description: `${c.name} on Ademola Crescent. The building is solid.`,
+        door: { x: c.cx, z: c.cz - 8 },
+        stand: { x: c.cx, z: c.cz - 14 },
+        inside: false,
+      });
+    }
+  }
+
+  // --- City Park (Wuse): east of Usuma Street, north of Ademola — not on the carriageway
+  {
+    const cx = -250;
+    const cz = 360;
+    b.ground(0x5aa83f, 40, 36, cx, 0.02, cz);
+    b.box(0x166534, 1, 3, 1, cx - 8, 0, cz - 16, { solid: true });
+    b.box(0x166534, 1, 3, 1, cx + 8, 0, cz - 16, { solid: true });
+    b.box(0x166534, 18, 1.2, 1, cx, 2.5, cz - 16, { solid: true });
+    sign(group, ['CITY PARK'], 10, 1.2, cx, 3.2, cz - 16.8, Math.PI, '#14532d', '#fde68a');
+    places.push({
+      key: 'city-park-wuse',
+      name: 'City Park',
+      category: 'Park',
+      description: 'Garden dining and live bands in Wuse 2.',
+      door: { x: cx, z: cz - 16 },
+      stand: { x: cx, z: cz - 22 },
+      inside: false,
+    });
+  }
+
+  // --- Mogadishu Cantonment gatehouse (Asokoro pocket): south of Gana Street (z=60)
+  {
+    const cx = 100;
+    const cz = 35;
+    b.box(0x78716c, 22, 4, 2, cx, 0, cz - 8, { solid: true });
+    b.box(0x78716c, 2, 4, 18, cx - 11, 0, cz, { solid: true });
+    b.box(0x78716c, 2, 4, 18, cx + 11, 0, cz, { solid: true });
+    b.box(STONE, 8, 5, 6, cx, 0, cz - 8, { solid: true });
+    sign(group, ['MOGADISHU CANTONMENT'], 12, 1.2, cx, 4.2, cz - 9.2, Math.PI, '#44403c', '#f8fafc');
+    places.push({
+      key: 'mogadishu-cantonment',
+      name: 'Mogadishu Cantonment',
+      category: 'Military',
+      description: 'Barracks gate on Keffi Road. The walls stop you.',
+      door: { x: cx, z: cz - 10 },
+      stand: { x: cx, z: cz - 20 },
+      inside: false,
+    });
   }
 
   // --- Jabi Lake and the mall on its shore
@@ -300,6 +397,9 @@ export function buildLandmarks(): Landmarks {
     b.box(0xdc2626, 102, 1.4, 31, -475, 13, 397);
     sign(group, ['JABI LAKE MALL'], 22, 2.2, -475, 9.6, 412.3, 0, '#dc2626', '#ffffff');
     places.push({ key: 'jabi-lake-mall', name: 'Jabi Lake Mall', category: 'Mall', description: 'Shoprite, the food court, the cinema and the lake view.', door: { x: -475, z: 412.5 }, stand: { x: -475, z: 416 }, inside: true });
+    // Boardwalk park on the lake (open-air place — not the mall shell)
+    sign(group, ['JABI LAKE PARK'], 12, 1.4, -440, 2.0, 372, 0, '#0e7490', '#f8fafc');
+    places.push({ key: 'jabi-lake-park', name: 'Jabi Lake Park', category: 'Park', description: 'Boardwalk, boats, picnic lawns and the lake breeze.', door: { x: -440, z: 368 }, stand: { x: -440, z: 372 }, inside: true });
   }
 
   // --- Millennium Park: lawns, paths, a fountain in the middle, benches
@@ -318,7 +418,7 @@ export function buildLandmarks(): Landmarks {
     lit.cylinder(0xe0f2fe, 0.6, 6, cx, 0.9, cz, { topRadius: 0.1, glow: true });
     for (let i = 0; i < 16; i++) b.box(0x78350f, 2.2, 0.45, 0.6, cx - 100 + i * 13, 0, cz + (i % 2 ? 5 : -5));
     sign(group, ['MILLENNIUM PARK'], 14, 1.6, cx, 2.2, 444.5, Math.PI, '#14532d', '#fde68a');
-    places.push({ key: 'millennium-park', name: 'Millennium Park', category: 'Park', description: 'Lawns, shade and the fountain: Abuja\'s Sunday afternoon.', door: { x: cx, z: 444 }, stand: { x: cx, z: 446 }, inside: false });
+    places.push({ key: 'millennium-park', name: 'Millennium Park', category: 'Park', description: 'Lawns, shade and the fountain: Abuja\'s Sunday afternoon.', door: { x: cx, z: 444 }, stand: { x: cx, z: 446 }, inside: true });
   }
 
   // --- The National Hospital, Garki

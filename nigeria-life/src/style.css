@@ -5861,16 +5861,47 @@ body.ui-modal-open .place-card {
   --nl-transit-inset-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+.ride-compact-row {
+  display: none;
+}
+.ride-compact-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.ride-vehicle,
+.ride-dest {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+}
+.ride-dest-arrow {
+  opacity: 0.7;
+  font-weight: 700;
+}
+
 @media (max-width: 700px) {
   .transit-flight-card,
   .transit-ride-card {
-    top: calc(var(--nl-inset-top, 0px) + 10px);
-    left: calc(var(--nl-inset-left, 0px) + 10px);
-    right: calc(var(--nl-inset-right, 0px) + 10px);
+    top: calc(var(--nl-inset-top, 0px) + 8px);
+    left: calc(var(--nl-inset-left, 0px) + 8px);
+    right: calc(var(--nl-inset-right, 0px) + 8px);
     width: auto;
     max-width: none;
-    padding: 12px 14px;
+    padding: 8px 10px;
     border-radius: 14px;
+  }
+
+  .ride-compact-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ride-header-detail,
+  .ride-subtext {
+    display: none;
   }
 
   .ride-header h3 {
@@ -5886,20 +5917,38 @@ body.ui-modal-open .place-card {
     gap: 6px;
   }
 
-  .ride-subtext {
-    font-size: 11px;
-    margin-bottom: 10px;
-  }
-
   .ride-actions {
-    flex-wrap: wrap;
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
   }
 
   .btn-ride-skip,
   .btn-ride-back {
+    flex: 1 1 0;
     min-height: 44px;
     padding: 10px 14px;
     font-size: 13px;
+  }
+
+  .drive-hawker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    pointer-events: auto;
+  }
+  .drive-hawker[hidden] {
+    display: none !important;
+  }
+  .drive-hawker-btn {
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 10px;
+    color: #fff;
+    font: 800 12px/1 var(--nl-font);
+    pointer-events: auto;
   }
 
   .ride-camera-bar {

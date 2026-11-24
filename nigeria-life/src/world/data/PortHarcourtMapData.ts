@@ -32,7 +32,8 @@ export const PH_DISTRICTS: DistrictData[] = [
     tagline: 'Refineries, Storage Tanks & Oil Servicing HQs',
     zone: 'Industrial',
     center: new THREE.Vector3(300, 0, 140),
-    bounds: { minX: 79, maxX: 560, minZ: -280, maxZ: 560 },
+    // West edge covers the street refinery at (~30, −35); was Old GRA when minX was 79
+    bounds: { minX: 20, maxX: 560, minZ: -280, maxZ: 560 },
     color: 0x64748b,
     populationEstimate: '650K industrial engineers & workers',
     propertyCount: 520,
@@ -55,7 +56,8 @@ export const PH_DISTRICTS: DistrictData[] = [
     tagline: 'Colonial Mansions, Royal Palms & Golf Greens',
     zone: 'Island',
     center: new THREE.Vector3(-140, 0, -50),
-    bounds: { minX: -290, maxX: 79, minZ: -280, maxZ: 172 },
+    // West edge covers Brick House stand at (−370, −190); was Choba when minX was −290
+    bounds: { minX: -400, maxX: 20, minZ: -280, maxZ: 172 },
     color: 0x22c55e,
     populationEstimate: '380K affluent residents',
     propertyCount: 880,
@@ -78,7 +80,8 @@ export const PH_DISTRICTS: DistrictData[] = [
     tagline: 'Aba Road Arterial, Banks & Technology Plazas',
     zone: 'Mainland',
     center: new THREE.Vector3(-140, 0, 280),
-    bounds: { minX: -290, maxX: 79, minZ: 172, maxZ: 380 },
+    // West edge covers Pleasure Park gate at (−410, 194)
+    bounds: { minX: -450, maxX: 79, minZ: 172, maxZ: 380 },
     color: 0x3b82f6,
     populationEstimate: '980K traders & residents',
     propertyCount: 1850,
@@ -101,7 +104,8 @@ export const PH_DISTRICTS: DistrictData[] = [
     tagline: 'University of Port Harcourt & Student Strip',
     zone: 'Mainland',
     center: new THREE.Vector3(-420, 0, -50),
-    bounds: { minX: -560, maxX: -290, minZ: -280, maxZ: 172 },
+    // East edge stops before Brick House (now Old GRA west of −400)
+    bounds: { minX: -560, maxX: -400, minZ: -280, maxZ: 172 },
     color: 0x8b5cf6,
     populationEstimate: '1.2M students & lecturers',
     propertyCount: 1350,
@@ -182,7 +186,7 @@ export const PH_LANDMARKS: MapLandmark[] = [
   {
     id: 'rivers_govt_house',
     name: 'Rivers State Government House',
-    districtId: 'choba_uniport',
+    districtId: 'old_gra',
     type: 'landmark',
     position: new THREE.Vector3(-370, 0, -190),
     icon: '🏛️',

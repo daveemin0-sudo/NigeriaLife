@@ -12,7 +12,11 @@ import { Album, AGAMAS } from './Album';
  * Caught ones are counted in the album, and stay caught.
  */
 
-const OUTDOOR = new Set(['lagoon-beach', 'lagoon-marina', 'private-airfield', 'ikeja-golf']);
+const OUTDOOR = new Set([
+  'lagoon-beach', 'lagoon-marina', 'private-airfield', 'ikeja-golf',
+  'freedom-park', 'lekki-conservation', 'millennium-park', 'jabi-lake-park',
+  'pleasure-park',
+]);
 
 function lizard(): THREE.Group {
   const b = new Builder();

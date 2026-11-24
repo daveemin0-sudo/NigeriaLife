@@ -216,9 +216,9 @@ body.nl-hud-hidden #v-btn-run {
     overflow: hidden;
   }
 
-  /* --- What the player is busy with (sleeping, eating): a slim bar under the chips ----------- */
+  /* --- What the player is busy with (sleeping, eating): under today/chat, not on that row ----- */
   html body .buka-order-status {
-    top: calc(env(safe-area-inset-top, 0px) + 150px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 176px) !important;
     bottom: auto !important;
     left: 8px !important;
     right: 56px !important;
@@ -330,6 +330,11 @@ body.nl-hud-hidden #v-btn-run {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
   }
+  /* Action prompt owns the right column — tuck the view FAB so sleep/enter never covers it */
+  html body:has(#hud-proximity-prompt:not([style*="display: none"])) #view-fab {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
 
   /* --- The room's own card: a slim bar, its chips in one row that scrolls sideways ------------ */
   html body .place-card {
@@ -422,21 +427,67 @@ body.nl-hud-hidden #v-btn-run {
     display: none !important;
   }
 
-  /* --- Road ride HUD: fit 320px width below the top bar and stack camera switcher below -------- */
+  /* --- Road ride HUD: compact strip at the very top (below safe-area), road stays clear ------ */
   html body #ride-hud-card.transit-ride-card {
-    top: calc(env(safe-area-inset-top, 0px) + 138px) !important;
-    left: 8px !important;
-    right: 8px !important;
+    top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 8px) !important;
     width: auto !important;
     max-width: none !important;
-    padding: 10px 12px !important;
+    padding: 6px 8px !important;
     box-sizing: border-box !important;
+    border-radius: 12px !important;
   }
-  html body #ride-hud-card .ride-header h3 {
-    font-size: 13px !important;
+  html body #ride-hud-card .ride-header-detail,
+  html body #ride-hud-card .ride-subtext {
+    display: none !important;
+  }
+  html body #ride-hud-card .ride-compact-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+  html body #ride-hud-card .ride-compact-meta {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 4px 6px !important;
+    min-width: 0 !important;
+  }
+  html body #ride-hud-card .ride-vehicle,
+  html body #ride-hud-card .ride-dest {
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    color: #fff !important;
+    max-width: 36vw !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  html body #ride-hud-card .ride-dest-arrow {
+    opacity: 0.7 !important;
+    font-weight: 700 !important;
+    flex-shrink: 0 !important;
+  }
+  html body #ride-hud-card .ride-time-eta {
+    margin-left: auto !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    color: #38bdf8 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+  html body #ride-hud-card .ride-actions {
+    display: flex !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
   }
   html body #ride-hud-card .ride-actions button {
+    flex: 1 1 0 !important;
     min-height: 40px !important;
+    min-width: 0 !important;
+    padding: 8px 10px !important;
+    font-size: 13px !important;
   }
   html body #ride-camera-bar.ride-camera-bar {
     top: auto !important;
@@ -461,22 +512,77 @@ body.nl-hud-hidden #v-btn-run {
     padding: 6px 10px !important;
   }
 
-  /* --- Driving: the minimap takes the top right, so the place name is under the speed --------- */
+  /* --- Driving: minimap top-right; chips left; chevron clear of both; vitals hidden ----------- */
   html body[data-ui-mode="driving"] .hud-top-right-group,
   html body:has(#nl-minimap.is-on) .hud-top-right-group,
   html body[data-ui-mode="driving"] .hud-top-left-badges,
   html body[data-ui-mode="driving"] #hud-quest-tracker,
   html body[data-ui-mode="driving"] #hud-today-chip,
-  html body[data-ui-mode="driving"] #street-radar-bar {
+  html body[data-ui-mode="driving"] #street-radar-bar,
+  html body[data-ui-mode="driving"] .hud-center-pill-bar {
     display: none !important;
   }
 
   html body #nl-minimap.nl-minimap {
-    width: 104px !important;
-    height: 104px !important;
-    /* Its N stands just outside the circle: room for it inside the screen */
-    right: 20px !important;
+    width: 96px !important;
+    height: 96px !important;
+    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 10px) !important;
   }
+  html body[data-ui-mode="driving"] #top-menu-btn,
+  html body[data-ui-mode="driving"] .top-menu-btn {
+    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
+    right: auto !important;
+    transform: none !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+  /* Chips sit under the chevron and clear the minimap on the right */
+  html body .drive-controls .drive-top {
+    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 118px) !important;
+    max-width: none !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    align-items: center !important;
+  }
+  html body .drive-controls .drive-hawker {
+    position: absolute !important;
+    left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 8px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 102px) !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 8px 10px !important;
+    border-radius: 14px !important;
+    background: rgba(20, 83, 45, 0.95) !important;
+    border: 1px solid #4ade80 !important;
+    color: #fef08a !important;
+    font: 700 12px/1.2 var(--nl-font, system-ui, sans-serif) !important;
+    pointer-events: auto !important;
+    z-index: 2 !important;
+  }
+  html body .drive-controls .drive-hawker[hidden] {
+    display: none !important;
+  }
+  html body .drive-controls .drive-hawker-btn {
+    min-height: 40px !important;
+    min-width: 96px !important;
+    padding: 8px 12px !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    font: 800 12px/1 var(--nl-font, system-ui, sans-serif) !important;
+    color: #fff !important;
+    pointer-events: auto !important;
+  }
+  html body .drive-controls .drive-hawker-btn[data-water] { background: #0284c7 !important; }
+  html body .drive-controls .drive-hawker-btn[data-gala] { background: #b91c1c !important; }
   /* Tags in the phone's apps shrink with the row instead of poking out of it */
   html body #smartphone-wrapper .nl-tag {
     flex-shrink: 1 !important;
@@ -491,16 +597,17 @@ body.nl-hud-hidden #v-btn-run {
     min-width: 0 !important;
   }
   html body .drive-controls .drive-top {
-    left: 8px !important;
-    right: 124px !important;
+    left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 118px) !important;
     max-width: none !important;
     flex-wrap: wrap !important;
-    gap: 4px !important;
+    gap: 6px !important;
   }
   html body .drive-controls .drive-top > * {
-    padding: 5px 9px !important;
+    padding: 6px 10px !important;
     font-size: 11px !important;
-    min-height: 0 !important;
+    min-height: 36px !important;
+    box-sizing: border-box !important;
   }
   /* The speed above the steering, clear of the horn and the pedals */
   html body .drive-controls .drive-speed {
@@ -867,13 +974,70 @@ body.nl-hud-hidden #v-btn-run {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 64px) !important;
     left: 8px !important;
     right: 8px !important;
+    /* Stay clear of the left transit rail on narrow phones */
+    max-width: calc(100vw - 72px) !important;
+    margin-left: 56px !important;
   }
 }
 
-/* --- Phone held upright: the rows under the top card ------------------------------------------ */
+/* --- Phone held upright: vitals fully visible; location/quest on the row beneath -------------- */
 @media (max-width: 700px) and (orientation: portrait) {
+  html body .hud-center-pill-bar {
+    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 8px) !important;
+    transform: none !important;
+    max-width: none !important;
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    gap: 4px 8px !important;
+    padding: 5px 8px !important;
+    box-sizing: border-box !important;
+    justify-content: space-between !important;
+  }
+  /* Needs always get a full clear row so health/energy/food/cred never hide under money or location */
+  html body .hud-center-pill-bar .hud-vitals-bar {
+    display: flex !important;
+    flex: 1 0 100% !important;
+    order: 5 !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    padding: 2px 0 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  html body .hud-center-pill-bar .vital-item {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+  }
+  html body .hud-center-pill-bar .vital-track {
+    width: 28px !important;
+    height: 5px !important;
+  }
+  html body .hud-center-pill-bar .vital-val {
+    display: none !important;
+  }
+  html body .hud-center-pill-bar #hud-weather-label {
+    display: none !important;
+  }
+  /* Icon-only weather still needs a 36×36 tap target on narrow phones */
+  html body .hud-center-pill-bar #hud-weather-btn.hud-weather-btn {
+    min-width: 36px !important;
+    min-height: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  /* Row under the vitals card: quest (left) · chevron · place name (right) */
   html body .hud-header > .hud-top-right-group {
-    top: calc(env(safe-area-inset-top, 0px) + 80px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
     max-width: calc(50vw - 34px) !important;
   }
   html body .hud-top-right-group .hud-location {
@@ -881,19 +1045,27 @@ body.nl-hud-hidden #v-btn-run {
   }
   html body .hud-top-left-badges,
   html body #hud-quest-tracker {
-    top: calc(env(safe-area-inset-top, 0px) + 80px) !important;
-    left: 8px !important;
+    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
     max-width: calc(50vw - 34px) !important;
   }
-  /* Under the menu chevron: the row under the top card is the chevron's */
+  html body #top-menu-btn,
+  html body .top-menu-btn {
+    top: calc(env(safe-area-inset-top, 0px) + 96px) !important;
+  }
+  html body[data-ui-mode="driving"] #top-menu-btn,
+  html body[data-ui-mode="driving"] .top-menu-btn {
+    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+  }
   html body .drive-controls .drive-top {
-    top: calc(env(safe-area-inset-top, 0px) + 128px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
   }
   html body #nl-minimap.nl-minimap {
-    top: calc(env(safe-area-inset-top, 0px) + 80px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
   }
+  /* Next row: streak / today (left) · street chat (right) — must not share the quest/place row */
   html body #hud-today-chip {
-    top: calc(env(safe-area-inset-top, 0px) + 114px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 134px) !important;
     max-width: calc(50vw - 34px) !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -901,45 +1073,68 @@ body.nl-hud-hidden #v-btn-run {
   }
   html body #street-chat-box.minimized,
   html body #street-chat-box.minimized.chat-mobile-adapted {
-    top: calc(env(safe-area-inset-top, 0px) + 112px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 134px) !important;
+  }
+  /* Sleep / eat status sits under the today · chat row (must clear both) */
+  html body .buka-order-status {
+    top: calc(env(safe-area-inset-top, 0px) + 176px) !important;
   }
   html body #music-fab {
-    top: calc(env(safe-area-inset-top, 0px) + 152px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 220px) !important;
     bottom: auto !important;
   }
   html body #view-fab {
-    top: calc(env(safe-area-inset-top, 0px) + 198px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 266px) !important;
     bottom: auto !important;
   }
   html body #game-toast-container {
-    top: calc(env(safe-area-inset-top, 0px) + 194px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 262px) !important;
   }
 }
 
 /* --- Phone on its side: the top bar keeps one line, the rest under it ------------------------- */
 @media (max-height: 500px) and (orientation: landscape) {
+  html body .hud-center-pill-bar {
+    top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 10px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 10px) !important;
+    transform: none !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+  }
+  html body .hud-center-pill-bar .hud-vitals-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+  }
   html body .hud-top-left-badges,
   html body #hud-quest-tracker {
-    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 48px) !important;
     left: calc(env(safe-area-inset-left, 0px) + 10px) !important;
   }
   html body #hud-quest-tracker {
     max-width: min(240px, 30vw) !important;
   }
   html body .drive-controls .drive-top {
-    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 48px) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 10px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 110px) !important;
   }
   html body #nl-minimap.nl-minimap {
-    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
-    width: 92px !important;
-    height: 92px !important;
+    top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+    width: 88px !important;
+    height: 88px !important;
+  }
+  html body[data-ui-mode="driving"] #top-menu-btn,
+  html body[data-ui-mode="driving"] .top-menu-btn {
+    top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+    right: calc(env(safe-area-inset-right, 0px) + 102px) !important;
   }
   html body #hud-today-chip {
-    top: calc(env(safe-area-inset-top, 0px) + 86px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 48px) !important;
     left: calc(env(safe-area-inset-left, 0px) + 10px) !important;
   }
   html body .hud-header > .hud-top-right-group {
-    top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    top: calc(env(safe-area-inset-top, 0px) + 48px) !important;
     right: calc(env(safe-area-inset-right, 0px) + 10px) !important;
   }
   html body .hud-center-pill-bar {
@@ -972,6 +1167,17 @@ body.nl-hud-hidden #v-btn-run {
   html body #street-chat-box.minimized,
   html body #street-chat-box.minimized.chat-mobile-adapted {
     top: calc(env(safe-area-inset-top, 0px) + 92px) !important;
+  }
+  /* Keep toasts and radar clear of the quest / place row in landscape */
+  html body #game-toast-container {
+    top: calc(env(safe-area-inset-top, 0px) + 128px) !important;
+  }
+  html body #street-radar-bar,
+  html body #street-radar-bar.street-radar-bar {
+    top: calc(env(safe-area-inset-top, 0px) + 88px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    max-width: min(420px, calc(100vw - 280px)) !important;
   }
   html body #music-fab,
   html body #view-fab {
