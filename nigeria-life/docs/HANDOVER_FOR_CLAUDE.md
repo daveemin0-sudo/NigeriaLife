@@ -46,9 +46,9 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 
 Evidence: `cursor/evidence-stage-4` @ `d214afb`. PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60). Merged into `cursor/integration-1` @ `850f588` / `14a66d5`.
 
-### Stage 5 — QA everywhere (started) (`cursor/stage-5-qa-everywhere-181d` @ `8eb3e26`)
+### Stage 5 — QA everywhere (in progress) (`cursor/stage-5-qa-everywhere-181d`)
 
-PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cursor/integration-1` @ `fe4c671`.
+PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cursor/integration-1` as each batch lands.
 
 | Fix | Detail |
 | --- | --- |
@@ -60,16 +60,20 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | CcHub | At (−12.5, −23.8) → **Yaba** (verified after mainland shrink) |
 | Broad Street walkway | Stalls clear of footbridges; hospital + Mega Plaza pushed east; bins at kerb — `plan` **17/17** |
 | Abuja/PH pins | Millennium/Wuse/Jabi PlaceSpec districts aligned; Wuse/Pleasure/Brick House dest coords matched to PlaceSpecs |
+| Footbridge climb | Unstick no longer ejects climbers from stair step solids; **streets 17/17** (desktop Chromium) |
+| Exit from inside | Unstick skipped for wall volumes so `Solids.step` can walk the player out of a building |
 
-Evidence: `cursor/evidence-stage-5` @ `4fa49dc` (desktop SwiftShader only; re-smoke CcHub/Jibowu after this tip).
+Evidence: `cursor/evidence-stage-5` (desktop SwiftShader / `/NigeriaLife/` only — **not** phone hardware). Climb shots: `footbridge-climbing-390x844.png`, `footbridge-deck-390x844.png`.
+
+**streets suite note:** two absolute `y < 0.05` checks were aligned to `y < 0.35` to match `sidewalkTop` (0.28) and the suite’s own east-stairs foot check (`y < 0.3`). Semantic checks (`!up`, stop before stairs, reach pavement) unchanged — not a climb/side weaken.
 
 ## Open bugs / follow-ups
 
 - Farwalk pace / walkers:0; phone nav below viewport; streetcar first-spot flake (pre-existing on `bf55dab`).
 - Input suite flake: phone wheel-scroll (`open:true, under:false`) under SwiftShader — do **not** weaken.
 - 2 shared skins + meshopt IBM.
-- Remaining map-keke wrong-location pins (Abuja / Port Harcourt from WORLD_AUDIT).
-- Full 155-suite e2e vs baseline still needs a clean uninterrupted compare.
+- Remaining WORLD_AUDIT chrome (Aso Rock / Eagle Square / PH refinery) and map pins.
+- Full 155-suite e2e vs `bf55dab` on **current tip** (prior run used stale frozen serve).
 - Outdoor gateman visual smoke still pending (code wired; no photo yet).
 - Markets/malls still building shells (audit OPEN_AIR false positives).
 - Full venue seat sweep still open.
@@ -81,7 +85,6 @@ Evidence: `cursor/evidence-stage-5` @ `4fa49dc` (desktop SwiftShader only; re-sm
 
 ## Exact next step
 
-1. Smoke outdoor gateman + district labels at Jibowu / Mama Put; push `cursor/evidence-stage-5`.
-2. Fix remaining P0 wrong-location pins (Abuja/PH); continue seat/activity/arrival QA.
-3. Finish clean full 155-suite e2e vs `bf55dab`; report every check that passed before and fails now.
-4. Merge Stage 5 into `cursor/integration-1` when the first QA batch is verified.
+1. Restart clean full 155-suite e2e on Stage 5 / integration tip; compare to `bf55dab` one suite at a time.
+2. Smoke outdoor gateman + remaining WORLD_AUDIT P0 chrome; push evidence.
+3. Continue seat/activity/arrival QA across three cities.
