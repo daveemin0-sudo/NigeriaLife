@@ -48,3 +48,8 @@ PlaceSpec rebuilt with shared `teachingHospital()` layout:
 
 - `eko-grand-lobby.png` — Eko Grand: reception, lounge, pool loungers, porter
 - Shared `grandLobby()` also on Transcorp Hilton (with lobby bar)
+
+## Restaurants
+
+- `amala-shitta.png` — Amala Shitta buka: pots, menu board, cooler, server Boy Ade
+- Chop Express also enriched (fryer trays, fridge, ice cream freezer)
