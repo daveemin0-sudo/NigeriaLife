@@ -74,6 +74,8 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Phonefit sleep × view-fab | Narrow phones: hide `#view-fab` while `#hud-proximity-prompt` is shown — **phonefit 7/7** at 320 |
 | Open-air restroom chrome | Open-air PlaceSpecs mark `restroomAt.clear` (no back wall); The Library shelves leave east bay for toilet door — needs toilet-door check **PASS** |
 | Home Party Jollof | Cook from cupboard when fridge empty (Hunger +60) — **needs 9/9** |
+| Broad Street stalls | Restored ≥9 umbrella stalls clear of footbridges — **streetenviro 7/7** |
+| Abuja nightlife off roads | Clubs on Ademola (z≈332), City Park off Usuma, Mogadishu south of Gana — **plan 17/17** |
 
 Evidence: `cursor/evidence-stage-5` @ `5dc7ce1` (desktop SwiftShader / `/NigeriaLife/` only — **not** phone hardware). Climb shots: `footbridge-climbing-390x844.png`, `footbridge-deck-390x844.png`.
 

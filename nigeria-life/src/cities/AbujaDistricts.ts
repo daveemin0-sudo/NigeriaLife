@@ -45,6 +45,11 @@ export const ABUJA_KEEP_OUT: Rect[] = [
   { minX: -560, maxX: -390, minZ: 180, maxZ: 422 },
   { minX: 18, maxX: 374, minZ: 436, maxZ: 684 },
   { minX: -324, maxX: -216, minZ: 436, maxZ: 502 },
+  // Nightlife façades south of Ademola + City Park lawn (keep townscape off them)
+  { minX: -330, maxX: -140, minZ: 320, maxZ: 348 },
+  { minX: -270, maxX: -230, minZ: 340, maxZ: 380 },
+  // Mogadishu gatehouse south of Gana Street
+  { minX: 86, maxX: 114, minZ: 22, maxZ: 48 },
 ];
 
 const D = (name: string, rect: Rect, kinds: District['kinds'], colours: number[], trims: number[], setback: [number, number], gap: [number, number]): District => ({ name, rect, kinds, colours, trims, setback, gap });
@@ -309,38 +314,39 @@ export function buildLandmarks(): Landmarks {
     });
   }
 
-  // --- Wuse 2 nightlife / leisure strip (Ademola Crescent): solid façades, not empty Garki pins
+  // --- Wuse 2 nightlife / leisure strip on Ademola Crescent (z≈318): solid façades south of the road.
+  // Stay clear of Usuma Street (x=−280) — façades on that line failed the city plan.
   {
     const clubs: Array<{ key: string; name: string; cx: number; cz: number; colour: number; sign: string; cat?: string }> = [
-      { key: 'moscow-underground', name: 'Moscow Underground', cx: -210, cz: 250, colour: 0x111827, sign: 'MOSCOW UNDERGROUND' },
-      { key: 'nightlife-345', name: '345 Nightlife', cx: -230, cz: 255, colour: 0x1e1b4b, sign: '345 NIGHTLIFE' },
-      { key: 'hustle-bustle', name: 'Hustle & Bustle', cx: -190, cz: 270, colour: 0x7c2d12, sign: 'HUSTLE & BUSTLE' },
-      { key: 'cubana-lounge', name: 'Cubana Lounge', cx: -250, cz: 260, colour: 0x831843, sign: 'CUBANA LOUNGE' },
-      { key: 'play-imperial', name: 'Play Imperial', cx: -270, cz: 265, colour: 0x1e3a8a, sign: 'PLAY IMPERIAL' },
-      { key: 'trukadero', name: 'Trukadero Bowling', cx: -170, cz: 260, colour: 0x0f766e, sign: 'TRUKADERO', cat: 'Leisure' },
-      { key: 'emab-plaza', name: 'Emab Plaza', cx: -160, cz: 240, colour: 0xe7e5e4, sign: 'EMAB PLAZA', cat: 'Market' },
+      { key: 'moscow-underground', name: 'Moscow Underground', cx: -210, cz: 332, colour: 0x111827, sign: 'MOSCOW UNDERGROUND' },
+      { key: 'nightlife-345', name: '345 Nightlife', cx: -230, cz: 332, colour: 0x1e1b4b, sign: '345 NIGHTLIFE' },
+      { key: 'hustle-bustle', name: 'Hustle & Bustle', cx: -190, cz: 332, colour: 0x7c2d12, sign: 'HUSTLE & BUSTLE' },
+      { key: 'cubana-lounge', name: 'Cubana Lounge', cx: -250, cz: 332, colour: 0x831843, sign: 'CUBANA LOUNGE' },
+      { key: 'play-imperial', name: 'Play Imperial', cx: -310, cz: 332, colour: 0x1e3a8a, sign: 'PLAY IMPERIAL' },
+      { key: 'trukadero', name: 'Trukadero Bowling', cx: -170, cz: 332, colour: 0x0f766e, sign: 'TRUKADERO', cat: 'Leisure' },
+      { key: 'emab-plaza', name: 'Emab Plaza', cx: -150, cz: 332, colour: 0xe7e5e4, sign: 'EMAB PLAZA', cat: 'Market' },
     ];
     for (const c of clubs) {
       b.box(c.colour, 18, 8, 14, c.cx, 0, c.cz, { solid: true });
       b.box(0xf8fafc, 20, 0.8, 16, c.cx, 8, c.cz);
-      lit.windows(0xfde68a, 5, 2, 16, 2, 6, c.cx, c.cz + 7.06, 0, { glow: true });
-      sign(group, [c.sign], 12, 1.4, c.cx, 5.5, c.cz + 7.3, 0, '#0f172a', '#fde68a');
+      lit.windows(0xfde68a, 5, 2, 16, 2, 6, c.cx, c.cz - 7.06, Math.PI, { glow: true });
+      sign(group, [c.sign], 12, 1.4, c.cx, 5.5, c.cz - 7.3, Math.PI, '#0f172a', '#fde68a');
       places.push({
         key: c.key,
         name: c.name,
         category: c.cat ?? 'Club',
         description: `${c.name} on Ademola Crescent. The building is solid.`,
-        door: { x: c.cx, z: c.cz + 8 },
-        stand: { x: c.cx, z: c.cz + 14 },
+        door: { x: c.cx, z: c.cz - 8 },
+        stand: { x: c.cx, z: c.cz - 14 },
         inside: false,
       });
     }
   }
 
-  // --- City Park (Wuse): gate posts so the pin is not empty Garki
+  // --- City Park (Wuse): east of Usuma Street, north of Ademola — not on the carriageway
   {
-    const cx = -280;
-    const cz = 280;
+    const cx = -250;
+    const cz = 360;
     b.ground(0x5aa83f, 40, 36, cx, 0.02, cz);
     b.box(0x166534, 1, 3, 1, cx - 8, 0, cz - 16, { solid: true });
     b.box(0x166534, 1, 3, 1, cx + 8, 0, cz - 16, { solid: true });
@@ -357,22 +363,22 @@ export function buildLandmarks(): Landmarks {
     });
   }
 
-  // --- Mogadishu Cantonment gatehouse (Asokoro / Keffi Road): solid walls at the pin
+  // --- Mogadishu Cantonment gatehouse (Asokoro pocket): south of Gana Street (z=60)
   {
-    const cx = 95;
-    const cz = 55;
-    b.box(0x78716c, 28, 4, 2, cx, 0, cz - 10, { solid: true });
-    b.box(0x78716c, 2, 4, 24, cx - 14, 0, cz, { solid: true });
-    b.box(0x78716c, 2, 4, 24, cx + 14, 0, cz, { solid: true });
-    b.box(STONE, 8, 5, 6, cx, 0, cz - 10, { solid: true });
-    sign(group, ['MOGADISHU CANTONMENT'], 12, 1.2, cx, 4.2, cz - 11.2, Math.PI, '#44403c', '#f8fafc');
+    const cx = 100;
+    const cz = 35;
+    b.box(0x78716c, 22, 4, 2, cx, 0, cz - 8, { solid: true });
+    b.box(0x78716c, 2, 4, 18, cx - 11, 0, cz, { solid: true });
+    b.box(0x78716c, 2, 4, 18, cx + 11, 0, cz, { solid: true });
+    b.box(STONE, 8, 5, 6, cx, 0, cz - 8, { solid: true });
+    sign(group, ['MOGADISHU CANTONMENT'], 12, 1.2, cx, 4.2, cz - 9.2, Math.PI, '#44403c', '#f8fafc');
     places.push({
       key: 'mogadishu-cantonment',
       name: 'Mogadishu Cantonment',
       category: 'Military',
       description: 'Barracks gate on Keffi Road. The walls stop you.',
-      door: { x: cx, z: cz - 12 },
-      stand: { x: cx, z: cz - 25 },
+      door: { x: cx, z: cz - 10 },
+      stand: { x: cx, z: cz - 20 },
       inside: false,
     });
   }

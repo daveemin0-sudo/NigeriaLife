@@ -457,8 +457,9 @@ export class Roads {
 
     // Keep stalls clear of footbridge stairs/decks (they already pinch the pavement) and of
     // District 8's frontage around z≈70–80 where the walkway was fully blocked.
-    const stallZPositions = [-78, -62, -52, -22, 12, 44, 88, 118].filter(
-      (z) => !FOOTBRIDGES.some((bz) => Math.abs(z - bz) < 14),
+    // Aim for ≥9 after the bridge filter so the street still reads denser than the old 7.
+    const stallZPositions = [-90, -78, -70, -62, -52, -48, -18, 0, 12, 44, 55, 118, 130].filter(
+      (z) => !FOOTBRIDGES.some((bz) => Math.abs(z - bz) < 14) && !(z > 68 && z < 82),
     );
 
     stallZPositions.forEach((sz, idx) => {

@@ -60,7 +60,7 @@ export const ABUJA_DISTRICTS: DistrictData[] = [
     center: new THREE.Vector3(472, 0, 100),
     // Street-world rock / Three Arms pocket (checked before Maitama). East map spawn still
     // resolves via nearest-centre fallback within 80 m of center (472, 100).
-    bounds: { minX: 70, maxX: 120, minZ: 25, maxZ: 90 },
+    bounds: { minX: 70, maxX: 120, minZ: 10, maxZ: 90 },
     color: 0x475569,
     populationEstimate: '350K VIP residents',
     propertyCount: 720,
