@@ -69,9 +69,10 @@ export const FURNITURE: Record<string, FurnitureKind> = {
   nightstand: { solid: true, use: 'none' },
 
   // Dining & Kitchen
-  dining_table_6: { solid: true, use: 'seat', seat: { x: 0, z: 0.8 } },
-  dining_table_10: { solid: true, use: 'seat', seat: { x: 0, z: 1.2 } },
-  kitchen_island: { solid: true, use: 'seat', seat: { x: 0, z: 0.6 } },
+  // Sit on a side chair (x≈0.74 in fineDining), never on the table top
+  dining_table_6: { solid: true, use: 'seat', seat: { x: 0.74, z: 0 } },
+  dining_table_10: { solid: true, use: 'seat', seat: { x: 0.74, z: 0 } },
+  kitchen_island: { solid: true, use: 'seat', seat: { x: 0, z: 0.85 } },
   cooker: { solid: true, use: 'cook' },
   kerosene_stove: { solid: true, use: 'cook' },
   freezer: { solid: true, use: 'none' },

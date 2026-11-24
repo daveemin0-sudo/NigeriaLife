@@ -566,9 +566,10 @@ export class World {
   public getDistrictAtPosition(pos: THREE.Vector3): { name: string; sub: string } {
     // If player is inside a simulated 3-Tier Interior, display that interior's name
     if (this.interiorManager.isPlayerInside() && this.interiorManager.currentInterior) {
+      const cur = this.interiorManager.currentInterior;
       return {
-        name: this.interiorManager.currentInterior.name,
-        sub: `Interior • ${this.interiorManager.currentInterior.districtName}`,
+        name: cur.name,
+        sub: `${cur.openAir ? 'Outdoors' : 'Interior'} • ${cur.districtName}`,
       };
     }
 
@@ -617,7 +618,8 @@ export class World {
       holder.visible = !!group?.visible;
     }
     // Update Atmospheric Sky, Sun shadow camera follow & Time-of-Day (rooms keep their lights on)
-    this.skyEnvironment.indoors = this.interiorManager.isPlayerInside();
+    // Open-air places (beach, park) keep outdoor sky — not room fill lighting
+    this.skyEnvironment.indoors = this.interiorManager.isPlayerInside() && !this.interiorManager.isOpenAir();
     this.skyEnvironment.update(delta, playerPos);
     // Continuous dusk→dawn street lamps + window glow (sells night immersion without PointLights)
     this.roads.setLampIntensityForHour(this.skyEnvironment.currentHour);

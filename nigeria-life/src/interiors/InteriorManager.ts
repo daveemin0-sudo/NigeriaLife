@@ -345,6 +345,19 @@ export class InteriorManager {
     player.mesh.rotation.y = options.spawnYaw ?? 0; // Face forward into the room
     player.stopMoving();
     this.lastClearSpot = null;
+    // If the spawn sits inside furniture, step to the nearest clear floor
+    {
+      const nav = this.getActiveTemplate()?.nav;
+      if (nav && !nav.isFree(spawnPos.x, spawnPos.z)) {
+        const clear = nav.closestFree(spawnPos);
+        player.mesh.position.x = clear.x;
+        player.mesh.position.z = clear.z;
+        player.position.copy(player.mesh.position);
+        this.lastClearSpot = clear.clone();
+      } else if (nav) {
+        this.lastClearSpot = spawnPos.clone().setY(0);
+      }
+    }
     this.getActiveTemplate()?.onPlayerEntered?.();
 
     // 7. Activate dedicated interior camera and layer filter, framed on this room
@@ -361,8 +374,11 @@ export class InteriorManager {
     cameraManager.setLayerMode('interior');
     cameraManager.snapToPlayer(player, 'interior');
     const activeGroup = this.getActiveInteriorGroup();
-    if (activeGroup) this.cutaway.attach(activeGroup, target.interiorOrigin);
-    this.cutaway.update(0, cameraManager.camera, player.position, true);
+    // Open-air places have no walls — cutaway would only hide scenery
+    if (activeGroup && !target.openAir) {
+      this.cutaway.attach(activeGroup, target.interiorOrigin);
+      this.cutaway.update(0, cameraManager.camera, player.position, true);
+    }
 
     // 7b. If the idle queue has not warmed this room yet, compile its shaders now (after camera layers & cutaway are set)
     if (!this.warmed.has(target.id) && InteriorManager.warm) {
@@ -375,7 +391,8 @@ export class InteriorManager {
     this.applyRoomAmbient(target);
 
     // 8. Update HUD location badge and banner
-    hud.updateLocation(target.name, `Interior • ${target.districtName}`);
+    const placeKind = target.openAir ? 'Outdoors' : 'Interior';
+    hud.updateLocation(target.name, `${placeKind} • ${target.districtName}`);
     // The place's own name and where it is, not a generic line
     this.showInteriorBanner(target.name, target.districtName || 'Lagos');
 
@@ -779,7 +796,16 @@ export class InteriorManager {
   }
 
   private getActiveShell(): THREE.Object3D | null {
-    return this.getActiveInteriorGroup()?.getObjectByName('interior_room_shell') ?? null;
+    const g = this.getActiveInteriorGroup();
+    if (!g) return null;
+    return g.getObjectByName('interior_room_shell')
+      ?? g.getObjectByName('interior_open_ground')
+      ?? null;
+  }
+
+  /** True when the active place is open air (beach, park) — outdoor sky, no room shell. */
+  public isOpenAir(): boolean {
+    return !!this.currentInterior?.openAir;
   }
 
   /**
@@ -788,6 +814,7 @@ export class InteriorManager {
    */
   public updateCutaway(delta: number, camera: THREE.Camera, player: Player): void {
     if (!this.currentInterior) return;
+    if (this.currentInterior.openAir) return;
     this.cutaway.update(delta, camera, player.position);
     this.updateCeiling(camera);
   }
@@ -858,6 +885,11 @@ export class InteriorManager {
 
       player.mesh.position.x = THREE.MathUtils.clamp(player.mesh.position.x, minX, maxX);
       player.mesh.position.z = THREE.MathUtils.clamp(player.mesh.position.z, minZ, maxZ);
+      // Open-air beach: keep them out of deep water past the buoy line; lower body in shallows
+      const place = this.getActiveTemplate() as { constrainOpenAirPlayer?: (p: THREE.Vector3) => number } | null;
+      if (this.currentInterior.openAir && place?.constrainOpenAirPlayer) {
+        place.constrainOpenAirPlayer(player.mesh.position);
+      }
       player.position.copy(player.mesh.position);
     }
 

@@ -1,3 +1,5 @@
+import { LagosStreetLifeSystem } from '../world/LagosStreetLifeSystem';
+
 /**
  * Driving with fingers: steering on the left (a slider: a finger a little off the middle steers a
  * little, at either end fully; let go and the wheel comes back), the pedals on the right (hold GAS
@@ -37,6 +39,11 @@ export class DriveControls {
     this.el.className = 'drive-controls';
     this.el.innerHTML = `
       <div class="drive-top"><span class="drive-name" data-name></span><span class="drive-fuel" data-fuel></span><button class="drive-chip" data-music aria-label="Car stereo">🎵</button><button class="drive-chip" data-view aria-label="Camera view">👁 View</button><button class="drive-chip" data-refuel>⛽ Refuel</button></div>
+      <div class="drive-hawker" data-hawker hidden>
+        <span class="drive-hawker-label">🥤 Chidi at your window</span>
+        <button type="button" class="drive-hawker-btn" data-water>💧 Water ₦100</button>
+        <button type="button" class="drive-hawker-btn" data-gala>🌭 Gala ₦250</button>
+      </div>
       <div class="drive-steer" aria-label="Steering">
         <button class="drive-arrow" data-side="left" aria-label="Steer left">◀</button>
         <span class="drive-steer-knob" aria-hidden="true"></span>
@@ -125,6 +132,8 @@ export class DriveControls {
       else if ('out' in target.dataset) this.hooks.getOut();
       else if ('refuel' in target.dataset) this.hooks.refuel();
       else if ('view' in target.dataset) this.hooks.view();
+      else if ('water' in target.dataset) LagosStreetLifeSystem.getInstance().buyFromWindowHawker('water');
+      else if ('gala' in target.dataset) LagosStreetLifeSystem.getInstance().buyFromWindowHawker('gala');
       else if ('music' in target.dataset) {
         const on = this.hooks.music();
         target.classList.toggle('is-on', on);
@@ -141,16 +150,20 @@ export class DriveControls {
       for (const key of new Set(this.held.values())) this.hooks.keys[key] = false;
       this.held.clear();
       this.el.querySelectorAll('.is-down').forEach((b) => b.classList.remove('is-down'));
+      const hawker = this.el.querySelector<HTMLElement>('[data-hawker]');
+      if (hawker) hawker.hidden = true;
       return;
     }
     const name = this.el.querySelector('[data-name]')!;
     name.textContent = this.hooks.name();
     const speed = this.el.querySelector('[data-speed]')!;
     const fuel = this.el.querySelector('[data-fuel]')!;
+    const hawker = this.el.querySelector<HTMLElement>('[data-hawker]');
     this.el.querySelector('[data-music]')?.classList.toggle('is-on', this.hooks.musicOn());
     const tick = () => {
       speed.textContent = String(Math.round(Math.abs(this.hooks.speed()) * 3.6));
       fuel.textContent = `⛽ ${Math.round(this.hooks.fuel())}%`;
+      if (hawker) hawker.hidden = !LagosStreetLifeSystem.getInstance().isHawkerAtWindow;
       this.frame = requestAnimationFrame(tick);
     };
     tick();

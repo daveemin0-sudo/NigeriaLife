@@ -40,6 +40,8 @@ const modeOf = (state: string): 'walk' | 'idle' | 'talk' | 'dance' =>
 export class NPCs {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
+  /** Street solids: set by the game so patrol walkers slide along buildings and props */
+  public solids: (() => { step(fromX: number, fromZ: number, toX: number, toZ: number, radius: number): { x: number; z: number } } | null) | null = null;
 
   // Walking & animated crowd
   private pedestrians: AmbientPedestrian[] = [];
@@ -665,7 +667,18 @@ export class NPCs {
       }
       // Head back along the patrol line after stopping to greet someone
       this.hawkerGroup.rotation.y = this.hawkerDir > 0 ? 0 : Math.PI;
-      this.hawkerGroup.position.z += this.hawkerDir * this.hawkerSpeed * delta;
+      {
+        const fromZ = this.hawkerGroup.position.z;
+        const toZ = fromZ + this.hawkerDir * this.hawkerSpeed * delta;
+        const solids = this.solids?.();
+        if (solids) {
+          const slid = solids.step(this.hawkerGroup.position.x, fromZ, this.hawkerGroup.position.x, toZ, 0.3);
+          this.hawkerGroup.position.x = slid.x;
+          this.hawkerGroup.position.z = slid.z;
+        } else {
+          this.hawkerGroup.position.z = toZ;
+        }
+      }
       this.hawkerWalkTime += delta * 6.5;
       if (this.hawkerGroup.visible) {
         this.hawkerRig.updateAnimation(this.hawkerWalkTime, 'walk');
@@ -735,9 +748,17 @@ export class NPCs {
         ped.lateralOffset = THREE.MathUtils.lerp(ped.lateralOffset, targetLateral, Math.min(1, delta * 3.5));
         const sidewalkMinX = ped.baseX < 0 ? -10.8 : 8.6;
         const sidewalkMaxX = ped.baseX < 0 ? -8.6 : 10.8;
-        ped.group.position.x = THREE.MathUtils.clamp(ped.baseX + ped.lateralOffset, sidewalkMinX, sidewalkMaxX);
-
-        ped.group.position.z += ped.dir * ped.speed * delta;
+        const nextX = THREE.MathUtils.clamp(ped.baseX + ped.lateralOffset, sidewalkMinX, sidewalkMaxX);
+        const nextZ = ped.group.position.z + ped.dir * ped.speed * delta;
+        const solids = this.solids?.();
+        if (solids) {
+          const slid = solids.step(ped.group.position.x, ped.group.position.z, nextX, nextZ, 0.3);
+          ped.group.position.x = slid.x;
+          ped.group.position.z = slid.z;
+        } else {
+          ped.group.position.x = nextX;
+          ped.group.position.z = nextZ;
+        }
         ped.walkTime += delta * 6.5;
         ped.rig.updateAnimation(ped.walkTime, 'walk');
 
