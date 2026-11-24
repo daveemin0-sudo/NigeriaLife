@@ -271,15 +271,40 @@ const MARKET: PlaceSpec = {
   ],
 };
 
+/** Lagos buka hall: pot counter, cooler, wall menu, wooden tables with benches */
+const bukaHall = (b: Builder, accent = 0x15803d) => {
+  counter(b, 0, -5, 8, accent);
+  for (let i = 0; i < 4; i++) {
+    b.cylinder(0x52525b, 0.35, 0.45, -3 + i * 2, 1.1, -5.1, { sides: 12 });
+    b.cylinder([0x1c1917, 0xfacc15, accent, 0x7c2d12][i], 0.3, 0.05, -3 + i * 2, 1.55, -5.1);
+  }
+  // Wall menu board
+  screen(b, 0, -6.7, 5, 1.1, 2.4, 0xfacc15);
+  // Cooler of drinks
+  b.box(0x1e3a8a, 1.4, 1.5, 0.7, 6.5, 0, -4.2);
+  b.box(0x7dd3fc, 1.2, 1.1, 0.04, 6.5, 0.25, -3.82, { glow: true });
+  // Shelf of plates / nylon packs behind counter
+  shelf(b, -6.5, -6.5, 2.4, [0xf8fafc, 0xfacc15, accent]);
+  // Dining tables
+  for (const [x, z] of [[-4.5, 0], [0, 0], [4.5, 0], [-4.5, 3.5], [0, 3.5], [4.5, 3.5]]) {
+    b.box(0x92400e, 2.2, 0.75, 0.9, x, 0, z, { solid: true });
+    bench(b, x, z - 0.9, 2.2);
+    bench(b, x, z + 0.9, 2.2);
+  }
+  // Ceiling fan suggestion
+  b.cylinder(0x57534e, 0.08, 0.4, 0, 3.2, 1, { solid: false });
+  b.box(0x57534e, 1.6, 0.04, 0.18, 0, 3.5, 1, { solid: false });
+  plant(b, 7, 5);
+};
+
 const buka = (key: string, name: string, district: string, sub: string): PlaceSpec => ({
-  key, name, district, room: { width: 16, length: 14, height: 4, floor: 0xd6d3d1, wall: 0xfacc15 },
+  key, name, district, room: { width: 18, length: 16, height: 4, floor: 0xd6d3d1, wall: 0xfacc15 },
   sign: { text: name.toUpperCase(), sub, bg: '#15803d' },
-  build: (b) => {
-    counter(b, 0, -5, 8, 0x15803d);
-    for (let i = 0; i < 4; i++) b.cylinder(0x52525b, 0.35, 0.45, -3 + i * 2, 1.1, -5.1, { sides: 12 }).cylinder([0x1c1917, 0xfacc15, 0x15803d, 0x7c2d12][i], 0.3, 0.05, -3 + i * 2, 1.55, -5.1);
-    for (const [x, z] of [[-4.5, 0], [0, 0], [4.5, 0], [-4.5, 3.5], [0, 3.5], [4.5, 3.5]]) { b.box(0x92400e, 2.2, 0.75, 0.9, x, 0, z, { solid: true }); bench(b, x, z - 0.9, 2.2); bench(b, x, z + 0.9, 2.2); }
-  },
-  staff: [{ name: 'Iya Shitta', title: 'Owner', at: [0, -6], facing: 0, outfit: 0x15803d, gender: 'female', chef: true, says: 'Sit down! Amala dey hot, gbegiri dey sweet!' }],
+  build: (b) => { bukaHall(b, 0x15803d); },
+  staff: [
+    { name: 'Iya Shitta', title: 'Owner', at: [0, -6], facing: 0, outfit: 0x15803d, gender: 'female', chef: true, says: 'Sit down! Amala dey hot, gbegiri dey sweet!' },
+    { name: 'Boy Ade', title: 'Server', at: [3.5, -4.2], facing: Math.PI, outfit: 0xfacc15, gender: 'male', says: 'Table or takeaway?' },
+  ],
   regulars: [{ at: [-4.5, -0.9], facing: 0, outfit: 0x2563eb, sit: true }, { at: [4.5, 0.9], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' }, { at: [0, 4.4], facing: Math.PI, outfit: 0x16a34a, sit: true }],
   stations: [
     { id: 'counter', name: '🍲 Order at the counter', at: [0, -5], stand: [0, -3.8], who: 'Iya Shitta', role: name, text: 'Wetin I go give you?', choices: [
@@ -906,15 +931,29 @@ const IKEJA: PlaceSpec[] = [
     { id: 'agent', name: '🏡 Estate agent', at: [-3, -4], stand: [-3, -2.6], who: 'Mrs Adeyemi', role: 'Estate agent', text: 'Rent or buy?', choices: [{ label: 'See houses to rent and buy', note: 'Opens Houses', open: 'app:property' }] },
   ], [{ at: [6, 1.5], facing: -Math.PI / 2, outfit: 0xf59e0b, gender: 'female' }], [18, 16]),
   venue('chop-express', 'Chop Express', 'Ikeja · fast food', 'Rice · Chicken · Meat pie · Ice cream', '#dc2626', 0xf8fafc, 0xfde68a, (b) => {
-    counter(b, 0, -5, 8, 0xdc2626, 0xfacc15); screen(b, 0, -6.8, 6, 1.2, 2.6, 0xfacc15);
+    counter(b, 0, -5, 8, 0xdc2626, 0xfacc15);
+    screen(b, 0, -6.8, 6, 1.2, 2.6, 0xfacc15);
+    // Fryer / warmer tray on the counter
+    for (const x of [-2.5, -0.5, 1.5]) b.box(0x1c1917, 1.2, 0.2, 0.55, x, 1.12, -5.1, { solid: false });
+    b.box(0xf97316, 1.0, 0.08, 0.4, -2.5, 1.32, -5.1, { glow: true, solid: false });
+    // Drink fridge
+    b.box(0xe2e8f0, 1.3, 1.8, 0.7, 6.2, 0, -5.5);
+    b.box(0x7dd3fc, 1.1, 1.4, 0.04, 6.2, 0.2, -5.12, { glow: true });
+    // Ice cream freezer
+    b.box(0xf8fafc, 1.4, 0.85, 0.8, -6.2, 0, -4.5);
+    b.box(0xfce7f3, 1.2, 0.08, 0.65, -6.2, 0.85, -4.5, { solid: false });
     for (const [x, z] of [[-4, 1], [0, 1], [4, 1], [-4, 4], [4, 4]]) table(b, x, z, 0xfacc15, 2, 0xdc2626);
-  }, [{ name: 'Server Kemi', title: 'Server', at: [0, -6], facing: 0, outfit: 0xdc2626, gender: 'female', says: 'Welcome to Chop Express! What can I get you?' }], [
+    plant(b, 7, 5);
+  }, [
+    { name: 'Server Kemi', title: 'Server', at: [0, -6], facing: 0, outfit: 0xdc2626, gender: 'female', says: 'Welcome to Chop Express! What can I get you?' },
+    { name: 'Fryer Boy', title: 'Kitchen', at: [-3.5, -6.2], facing: 0, outfit: 0xf97316, gender: 'male', chef: true, says: 'Chicken dey hot!' },
+  ], [
     { id: 'counter', name: '🍗 Order', at: [0, -5], stand: [0, -3.7], who: 'Server Kemi', role: 'Chop Express', text: 'Eat in or takeaway?', choices: [
       { label: 'Jollof rice and chicken', price: 4800, note: 'Hunger +55', sit: true, seconds: 5, effect: need({ hunger: 55 }), said: 'Party jollof and a big chicken thigh.' },
       buy('A meat pie', 1500, item('meatpie', 'Meat pie', '🥧', 1500, 'food', true, 12), 'Hot meat pie in a paper bag.'),
       { label: 'Ice cream', price: 2500, note: 'Fun +8', effect: need({ fun: 8, hunger: 8 }), said: 'Vanilla with chocolate sauce.' },
     ] },
-  ], [{ at: [-4, 1.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 4.95], facing: Math.PI, outfit: 0xec4899, sit: true, gender: 'female' }], [16, 14]),
+  ], [{ at: [-4, 1.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 4.95], facing: Math.PI, outfit: 0xec4899, sit: true, gender: 'female' }], [18, 16]),
   venue('faith-arena', 'Faith Arena', 'Ikeja · church', 'Sunday 7, 9 & 11 am', '#1e3a8a', 0xe7e5e4, 0xdbeafe, (b) => {
     pews(b, 8, -4, 9);
     stage(b, 0, -10, 14, 4, 0x1e3a8a);
