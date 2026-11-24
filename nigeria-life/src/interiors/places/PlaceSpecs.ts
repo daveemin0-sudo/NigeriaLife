@@ -169,6 +169,16 @@ const stall = (b: Builder, x: number, z: number, canopy: number, goods: (b: Buil
   b.occupy(x - 1.2, x + 1.2, z - 0.55, z + 0.55, 0.95);
   goods(b, x, z);
 };
+/** Shared market atmosphere: hanging bulbs, aisle baskets, tarps over the walk */
+const marketAtmosphere = (b: Builder) => {
+  for (let i = 0; i < 8; i++) {
+    const x = -10 + i * 2.8;
+    b.cylinder(0x57534e, 0.02, 0.6, x, 4.2, -2, { solid: false });
+    b.cylinder(0xfde68a, 0.08, 0.12, x, 3.7, -2, { glow: true, solid: false });
+  }
+  for (let i = 0; i < 6; i++) b.cylinder(0xa16207, 0.32, 0.32, -8 + i * 1.4, 0, 7.5, { sides: 10 }).dome([0xdc2626, 0xf97316, 0xfacc15][i % 3], 0.28, -8 + i * 1.4, 0.32, 7.5);
+  b.box(0xb45309, 18, 0.04, 3.2, 0, 4.6, 1.5, { pitch: 0.08, solid: false });
+};
 /** A goat: body, legs, head, little horns */
 const goat = (b: Builder, x: number, z: number, yaw: number, coat = 0xe7e5e4) => {
   const f = { x: Math.sin(yaw), z: Math.cos(yaw) };
@@ -211,6 +221,7 @@ const MARKET: PlaceSpec = {
     b.box(0xa16207, 1.6, 1, 1, 4.5, 0, 8).box(0xf5f5f4, 0.25, 0.3, 0.35, 4.2, 1, 8).box(0xb45309, 0.25, 0.3, 0.35, 4.8, 1, 8.1);
     // Baskets down the aisle
     for (let i = 0; i < 6; i++) b.cylinder(0xa16207, 0.35, 0.35, -12 + i * 1.2, 0, 7, { sides: 10 }).dome([0xdc2626, 0xf97316, 0xfacc15][i % 3], 0.3, -12 + i * 1.2, 0.35, 7);
+    marketAtmosphere(b);
   },
   staff: [
     { name: 'Mama Bisi', title: 'Pepper & tomato seller', at: [-11, -9.4], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Customer! Fresh pepper, rodo, tatashe, tomato. I go do you well!' },
@@ -1405,23 +1416,25 @@ const ABUJA_SPECS: PlaceSpec[] = [
   ], [{ at: [8, -1], facing: Math.PI / 2, outfit: 0xec4899, gender: 'female' }], [20, 18]), [225, 412]),
 
   abuja(venue('wuse-market', 'Wuse Market', 'Wuse · market', 'Foodstuff · Fabric · Phones · Everything', '#14532d', 0x8b8378, 0xd6c7a1, (b) => {
-    for (let i = 0; i < 4; i++) {
-      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
-      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0xdc2626, 0xf59e0b, 0x65a30d, 0xfef3c7][i]);
-    }
-    for (let i = 0; i < 5; i++) sack(b, -7 + i * 1.2, 4, [0xf5f5f4, 0xfde68a][i % 2]);
-    for (let i = 0; i < 3; i++) b.box([0x7c3aed, 0x0891b2, 0xdb2777][i], 1.6, 2.2, 0.1, 5 + i * 1.8, 0.4, 5);
+    stall(b, -8, -6, 0xdc2626, (bb, x, z) => { pile(bb, x - 0.5, z, 0xdc2626); pile(bb, x + 0.4, z, 0xf97316, 0.28); });
+    stall(b, -2, -6, 0x16a34a, (bb, x, z) => { sack(bb, x - 0.5, z); sack(bb, x + 0.4, z, 0xfef3c7); });
+    stall(b, 4, -6, 0x0f766e, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box(0x111827, 0.22, 0.05, 0.4, x - 0.7 + i * 0.45, 0.95, z); });
+    stall(b, 9, -6, 0x7c3aed, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box([0x7c3aed, 0x0891b2, 0xdb2777, 0xfacc15][i], 0.45, 0.2, 0.9, x - 0.7 + i * 0.45, 0.95, z); });
+    stall(b, -6, 2, 0xf59e0b, (bb, x, z) => { for (let i = 0; i < 5; i++) sack(bb, x - 0.8 + i * 0.4, z, [0xf5f5f4, 0xfde68a][i % 2]); });
+    stall(b, 3, 2, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 3; i++) bb.box([0x7c3aed, 0x0891b2, 0xdb2777][i], 0.5, 1.4, 0.08, x - 0.6 + i * 0.55, 0.95, z); });
+    marketAtmosphere(b);
   }, [
-    { name: 'Mama Ngozi', title: 'Foodstuff', at: [-7, -6.2], facing: 0, outfit: 0xf59e0b, gender: 'female', says: 'Customer, come and buy. Fresh pepper, fresh tomato!' },
-    { name: 'Alhaji Sani', title: 'Fabric', at: [7, 3.5], facing: Math.PI, outfit: 0x0f766e, gender: 'male', cap: true, says: 'Original Holland wax. I will give you good price.' },
+    { name: 'Mama Ngozi', title: 'Foodstuff', at: [-8, -7.4], facing: 0, outfit: 0xf59e0b, gender: 'female', says: 'Customer, come and buy. Fresh pepper, fresh tomato!' },
+    { name: 'Alhaji Sani', title: 'Fabric', at: [9, -7.4], facing: 0, outfit: 0x0f766e, gender: 'male', cap: true, says: 'Original Holland wax. I will give you good price.' },
+    { name: 'Phone seller', title: 'Gadgets', at: [4, -7.4], facing: 0, outfit: 0x1d4ed8, gender: 'male', says: 'New and fairly used. Come check.' },
   ], [
-    { id: 'foodstuff', name: '🍅 Foodstuff', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Ngozi', role: 'Wuse Market', text: 'Rice, beans, pepper, oil: what are you cooking?', choices: [
+    { id: 'foodstuff', name: '🍅 Foodstuff', at: [-8, -6], stand: [-8, -4.5], who: 'Mama Ngozi', role: 'Wuse Market', text: 'Rice, beans, pepper, oil: what are you cooking?', choices: [
       buy('A paint bucket of rice', 9500, { id: 'rice_bucket', name: 'Rice (paint bucket)', icon: '🍚', price: 9500, category: 'food', usable: true, description: 'Enough rice for the week.' }, 'She shook the bucket to settle it and added a handful for you.'),
       buy('Pepper and tomatoes', 3500, { id: 'pepper_mix', name: 'Pepper and tomatoes', icon: '🌶️', price: 3500, category: 'food', usable: true, description: 'For stew.' }, 'Fresh tatashe, rodo and tomatoes in a black nylon.'),
     ] },
-    { id: 'fabric', name: '🧵 Fabric', at: [7, 5], stand: [7, 3.6], who: 'Alhaji Sani', role: 'Fabric stalls', text: 'Six yards, for an outfit?', choices: [buy('Six yards of Holland wax', 28000, { id: 'ankara_6', name: 'Holland wax, six yards', icon: '🧵', price: 28000, category: 'luxury', usable: false, description: 'Take it to a tailor.' }, 'He folded it neatly: real Holland, you will remember me.')] },
-    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
-  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [24, 20]), [-175, 186]),
+    { id: 'fabric', name: '🧵 Fabric', at: [9, -6], stand: [9, -4.5], who: 'Alhaji Sani', role: 'Fabric stalls', text: 'Six yards, for an outfit?', choices: [buy('Six yards of Holland wax', 28000, { id: 'ankara_6', name: 'Holland wax, six yards', icon: '🧵', price: 28000, category: 'luxury', usable: false, description: 'Take it to a tailor.' }, 'He folded it neatly: real Holland, you will remember me.')] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [4, -6], stand: [4, -4.5], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [26, 22]), [-175, 186]),
 
   abuja(venue('millennium-park', 'Millennium Park', 'Maitama · park', 'Lawns · Fountain · Shade', '#14532d', 0x5aa83f, 0x166534, (b) => {
     // Open lawns around the Italian fountain — no walls. Paths cross the green.
@@ -1576,23 +1589,24 @@ const ABUJA_SPECS: PlaceSpec[] = [
 // --- Port Harcourt: the places along its roads, out at their own doors (src/cities/PortHarcourtDistricts.ts) ---
 const PH_SPECS: PlaceSpec[] = [
   abuja(venue('mile-one-market', 'Mile 1 Market', 'Diobu · market', 'Periwinkle · Crayfish · Plantain · Fabric', '#14532d', 0x8b8378, 0xc8b48a, (b) => {
-    for (let i = 0; i < 4; i++) {
-      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
-      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0x78350f, 0xdc2626, 0x65a30d, 0xfacc15][i]);
-    }
+    stall(b, -8, -6, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.cylinder(0x94a3b8, 0.16, 0.22, x - 0.6 + i * 0.4, 0.95, z, { sides: 10 }); });
+    stall(b, -2, -6, 0x15803d, (bb, x, z) => { for (let i = 0; i < 3; i++) bb.cylinder(0xfacc15, 0.12, 0.45, x - 0.4 + i * 0.4, 0.95, z, { sides: 8 }); });
+    stall(b, 4, -6, 0x0f766e, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box(0x111827, 0.22, 0.05, 0.4, x - 0.7 + i * 0.45, 0.95, z); });
+    stall(b, 9, -6, 0x7c2d12, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box([0xf59e0b, 0x0891b2, 0x7c3aed, 0xdc2626][i], 0.45, 0.2, 0.9, x - 0.7 + i * 0.45, 0.95, z); });
     for (let i = 0; i < 6; i++) b.cylinder([0x1f2937, 0x57534e][i % 2], 0.4, 0.35, -7 + i * 1.3, 0, 4, { sides: 14 }).dome(0x44403c, 0.36, -7 + i * 1.3, 0.35, 4);
-    for (let i = 0; i < 3; i++) b.box([0xf59e0b, 0x0891b2, 0x7c3aed][i], 1.6, 2.2, 0.1, 5 + i * 1.8, 0.4, 5);
+    marketAtmosphere(b);
   }, [
-    { name: 'Mama Ibiere', title: 'Seafood', at: [-7, -6.2], facing: 0, outfit: 0x0891b2, gender: 'female', says: 'Fresh periwinkle, fresh crayfish! Come and price.' },
-    { name: 'Mr Ebi', title: 'Fabric', at: [7, 3.5], facing: Math.PI, outfit: 0x7c2d12, gender: 'male', says: 'George wrapper, Akwete, real Holland. Which one?' },
+    { name: 'Mama Ibiere', title: 'Seafood', at: [-8, -7.4], facing: 0, outfit: 0x0891b2, gender: 'female', says: 'Fresh periwinkle, fresh crayfish! Come and price.' },
+    { name: 'Mr Ebi', title: 'Fabric', at: [9, -7.4], facing: 0, outfit: 0x7c2d12, gender: 'male', says: 'George wrapper, Akwete, real Holland. Which one?' },
+    { name: 'Phone seller', title: 'Gadgets', at: [4, -7.4], facing: 0, outfit: 0x1d4ed8, gender: 'male', says: 'New and London used.' },
   ], [
-    { id: 'seafood', name: '🦐 Seafood', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Ibiere', role: 'Mile 1 Market', text: 'For native soup or for pepper soup?', choices: [
+    { id: 'seafood', name: '🦐 Seafood', at: [-8, -6], stand: [-8, -4.5], who: 'Mama Ibiere', role: 'Mile 1 Market', text: 'For native soup or for pepper soup?', choices: [
       buy('Periwinkle and crayfish', 6500, { id: 'periwinkle', name: 'Periwinkle and crayfish', icon: '🦐', price: 6500, category: 'food', usable: true, description: 'For native soup.' }, 'She packed it in a black nylon and added two extra crayfish.'),
       buy('A bunch of plantain', 4000, { id: 'plantain', name: 'Plantain (bunch)', icon: '🍌', price: 4000, category: 'food', usable: true, description: 'Ripe enough for dodo tomorrow.' }, 'Ripe in two days. Dodo time.'),
     ] },
-    { id: 'fabric', name: '🧵 George and wrappers', at: [7, 5], stand: [7, 3.6], who: 'Mr Ebi', role: 'Fabric stalls', text: 'For an occasion?', choices: [buy('A George wrapper', 35000, { id: 'george_wrapper', name: 'George wrapper', icon: '🧵', price: 35000, category: 'luxury', usable: false, description: 'For the next owambe.' }, 'He spread it out: real George, the colours will not fade.')] },
-    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Mile 1 Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
-  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x16a34a }], [24, 20]), [-211, 189]),
+    { id: 'fabric', name: '🧵 George and wrappers', at: [9, -6], stand: [9, -4.5], who: 'Mr Ebi', role: 'Fabric stalls', text: 'For an occasion?', choices: [buy('A George wrapper', 35000, { id: 'george_wrapper', name: 'George wrapper', icon: '🧵', price: 35000, category: 'luxury', usable: false, description: 'For the next owambe.' }, 'He spread it out: real George, the colours will not fade.')] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [4, -6], stand: [4, -4.5], who: 'Phone seller', role: 'Mile 1 Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x16a34a }], [26, 22]), [-211, 189]),
 
   abuja(venue('ph-mall', 'Port Harcourt Mall', 'Old GRA · mall', 'Shoprite · Food court · Cinema', '#0c4a6e', 0xf1f5f9, 0xf8fafc, (b) => {
     for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0x0c4a6e, 0xfacc15, 0xdc2626, 0x16a34a, 0xf8fafc]);
