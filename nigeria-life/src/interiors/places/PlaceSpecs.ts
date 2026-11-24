@@ -50,6 +50,43 @@ const stage = (b: Builder, x: number, z: number, w: number, d: number, colour = 
 const desk = (b: Builder, x: number, z: number, colour = 0xd6d3d1) => {
   b.box(colour, 1.6, 0.75, 0.75, x, 0, z).box(0x0f172a, 0.6, 0.4, 0.05, x, 0.78, z - 0.2, { solid: false }).box(0x38bdf8, 0.54, 0.32, 0.02, x, 0.82, z - 0.17, { glow: true, solid: false }).box(0x1f2937, 0.5, 0.5, 0.5, x, 0, z + 0.75);
 };
+/** Hospital bed: steel frame, mattress, sheet, pillow, IV stand and monitor cart */
+const hospitalBed = (b: Builder, x: number, z: number, sheet = 0x93c5fd) => {
+  b.box(0xcbd5e1, 1.15, 0.5, 2.3, x, 0, z);
+  b.box(0xf8fafc, 1.05, 0.22, 2.15, x, 0.5, z, { solid: false });
+  b.box(sheet, 1.0, 0.05, 2.05, x, 0.72, z, { solid: false });
+  b.box(0xe0f2fe, 0.7, 0.12, 0.4, x, 0.8, z - 0.85, { solid: false });
+  b.cylinder(0x64748b, 0.14, 0.04, x + 0.72, 0, z - 0.75, { solid: false });
+  b.cylinder(0x94a3b8, 0.028, 1.85, x + 0.72, 0, z - 0.75, { solid: false });
+  b.box(0xe0f2fe, 0.14, 0.24, 0.08, x + 0.82, 1.7, z - 0.75, { solid: false });
+  b.box(0x64748b, 0.38, 0.75, 0.38, x - 0.78, 0, z - 0.55, { solid: false });
+  b.box(0x059669, 0.3, 0.22, 0.04, x - 0.78, 0.9, z - 0.42, { glow: true, solid: false });
+  b.occupy(x - 0.65, x + 0.65, z - 1.15, z + 1.15, 0.85);
+};
+/**
+ * Teaching-hospital floor shared by LASUTH, National Hospital Abuja and UPTH.
+ * Door at +z: waiting benches → triage → consult (left) / pharmacy (right) → ward beds.
+ */
+const teachingHospital = (b: Builder, accent = 0xdc2626) => {
+  for (let i = 0; i < 3; i++) bench(b, -5 + i * 3.5, 7.2, 2.8, 0x3b82f6);
+  screen(b, 0, 8.6, 3.2, 0.9, 2.2, accent);
+  counter(b, -1, -6.2, 4.5, 0xf8fafc, 0x93c5fd);
+  b.box(0xfef3c7, 0.35, 0.02, 0.45, -3.5, 1.12, -6.2, { solid: false });
+  desk(b, -7.5, -2.5, 0xd6d3d1);
+  b.box(0x3b82f6, 0.5, 0.5, 0.5, -7.5, 0, -1.2);
+  b.occupy(-7.75, -7.25, -1.45, -0.95, 0.55);
+  shelf(b, 7.5, -7, 4, [0xf8fafc, 0x22c55e, accent, 0xfacc15]);
+  counter(b, 7, -4.5, 3.6, 0x16a34a, 0xf8fafc);
+  b.box(accent, 0.9, 0.9, 0.06, 9.2, 1.6, -7.5, { solid: false });
+  b.box(0xf8fafc, 0.28, 0.9, 0.07, 9.2, 1.6, -7.5, { solid: false });
+  b.box(0xf8fafc, 0.9, 0.28, 0.07, 9.2, 1.6, -7.5, { solid: false });
+  for (let i = 0; i < 3; i++) hospitalBed(b, -6 + i * 3, 3.8, 0x93c5fd);
+  for (const x of [-4.5, -1.5]) {
+    b.cylinder(0x94a3b8, 0.03, 2.4, x, 0, 2.2, { solid: false });
+    b.box(0xe0f2fe, 1.6, 1.4, 0.04, x, 1.0, 2.2, { solid: false });
+  }
+  plant(b, 9, 7);
+};
 const bottles = (b: Builder, x: number, z: number, w: number) => {
   b.box(0x1c1917, w, 2.4, 0.4, x, 0, z);
   for (let r = 0; r < 3; r++) for (let i = 0; i < Math.floor(w / 0.25); i++) b.cylinder([0xfacc15, 0x16a34a, 0xdc2626, 0x7c2d12, 0xe0f2fe][(i + r) % 5], 0.06, 0.32, x - w / 2 + 0.15 + i * 0.25, 0.55 + r * 0.6, z + 0.1, { glow: r === 1, sides: 8, solid: false });
@@ -760,19 +797,23 @@ const IKEJA: PlaceSpec[] = [
     { id: 'snacks', name: '🍩 Puff-puff', at: [9, 5], stand: [9, 6.3], who: 'Mama Puff', role: 'Snacks', text: 'How many?', choices: [buy('A nylon of puff-puff', 1000, item('puffpuff', 'Nylon of puff-puff', '🍩', 1000, 'food', true, 12), 'Ten hot puff-puff in a nylon.')] },
   ], [{ at: [-4, 3.3], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 3.3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [1, -2], facing: 0, outfit: 0xf97316 }], [22, 18]),
   venue('lasuth', 'LASUTH', 'Ikeja · teaching hospital', 'A&E 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
-    counter(b, -5, -6, 5, 0xf8fafc, 0x93c5fd); shelf(b, 6, -7, 4, [0xf8fafc, 0x22c55e, 0xdc2626]); counter(b, 6, -5, 4, 0x16a34a, 0xf8fafc);
-    for (let i = 0; i < 3; i++) b.box(0xf8fafc, 1.1, 0.6, 2.2, -6 + i * 3, 0, 4).box(0x93c5fd, 1, 0.15, 2, -6 + i * 3, 0.6, 4);
+    teachingHospital(b, 0xdc2626);
   }, [
-    { name: 'Nurse Amaka', title: 'Nurse', at: [-5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
-    { name: 'Pharmacist Bayo', title: 'Pharmacist', at: [6, -6], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+    { name: 'Nurse Amaka', title: 'Triage nurse', at: [-1, -7.2], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. Take a seat — the doctor will call you.' },
+    { name: 'Dr Okeke', title: 'Consultant', at: [-7.5, -3.6], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Come in. Tell me what hurts.' },
+    { name: 'Pharmacist Bayo', title: 'Pharmacist', at: [7, -5.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
   ], [
-    { id: 'clinic', name: '🩺 See a doctor', at: [-5, -6], stand: [-5, -4.7], who: 'Nurse Amaka', role: 'LASUTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +30', sit: true, seconds: 5, effect: need({ health: 30 }), said: 'The doctor checked you well and wrote a prescription.' }] },
-    { id: 'pharmacy', name: '💊 Pharmacy', at: [6, -5], stand: [6, -3.7], who: 'Pharmacist Bayo', role: 'Pharmacy', text: 'What do you need?', choices: [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-7.5, -2.5], stand: [-7.5, -1.1], who: 'Dr Okeke', role: 'LASUTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +30', sit: true, seconds: 5, effect: need({ health: 30 }), said: 'The doctor checked you well and wrote a prescription.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [7, -4.5], stand: [7, -3.1], who: 'Pharmacist Bayo', role: 'Pharmacy', text: 'What do you need?', choices: [
       buy('Malaria treatment', 6500, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 6500, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
       buy('Paracetamol', 1000, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1000, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
     ] },
-    { id: 'ward', name: '🛏️ Admission', at: [-3, 4], stand: [-3, 2.4], who: 'Nurse Amaka', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 45000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
-  ], [{ at: [-6, 4], facing: 0, outfit: 0x60a5fa, sit: true }], [20, 18]),
+    { id: 'ward', name: '🛏️ Admission', at: [-3, 3.8], stand: [-3, 2.2], who: 'Nurse Amaka', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 45000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
+  ], [
+    { at: [-5, 7.2], facing: Math.PI, outfit: 0x60a5fa, sit: true },
+    { at: [-1.5, 7.2], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
+    { at: [-6, 3.8], facing: 0, outfit: 0x94a3b8, sit: true },
+  ], [22, 20]),
   venue('ladipo-auto', 'Ladipo Auto Market', 'Mushin · auto parts', 'Parts · Mechanics · Panel beaters', '#78350f', 0x57534e, 0xd6d3d1, (b) => {
     b.box(0x7f1d1d, 2, 1.3, 4.4, -4, 0, -3).box(0x1e3a8a, 2, 1.3, 4.4, 2, 0, -3);
     for (let i = 0; i < 12; i++) b.cylinder(0x111111, 0.4, 0.25, 7 + (i % 3) * 0.9, Math.floor(i / 3) * 0.25, 4);
@@ -1344,21 +1385,22 @@ const ABUJA_SPECS: PlaceSpec[] = [
   ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-3, -3], facing: 0, outfit: 0xec4899, gender: 'female' }], [24, 20]), [-475, 416]),
 
   abuja(venue('national-hospital-abuja', 'National Hospital Abuja', 'Garki · hospital', 'Emergency 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
-    counter(b, -5, -6, 5, 0xf8fafc, 0x93c5fd);
-    shelf(b, 6, -7, 4, [0xf8fafc, 0x22c55e, 0xdc2626]);
-    counter(b, 6, -5, 4, 0x16a34a, 0xf8fafc);
-    for (let i = 0; i < 3; i++) b.box(0xf8fafc, 1.1, 0.6, 2.2, -6 + i * 3, 0, 4).box(0x93c5fd, 1, 0.15, 2, -6 + i * 3, 0.6, 4);
+    teachingHospital(b, 0xdc2626);
   }, [
-    { name: 'Nurse Aisha', title: 'Nurse', at: [-5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your folder, please. The doctor will see you now.' },
-    { name: 'Pharmacist Emeka', title: 'Pharmacist', at: [6, -6], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+    { name: 'Nurse Aisha', title: 'Triage nurse', at: [-1, -7.2], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your folder, please. The consultant will see you now.' },
+    { name: 'Dr Bello', title: 'Consultant', at: [-7.5, -3.6], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Sit. Tell me what hurts.' },
+    { name: 'Pharmacist Emeka', title: 'Pharmacist', at: [7, -5.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
   ], [
-    { id: 'clinic', name: '🩺 See a doctor', at: [-5, -6], stand: [-5, -4.7], who: 'Nurse Aisha', role: 'National Hospital', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 18000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant listened, checked everything and wrote it all down.' }] },
-    { id: 'pharmacy', name: '💊 Pharmacy', at: [6, -5], stand: [6, -3.7], who: 'Pharmacist Emeka', role: 'Pharmacy', text: 'What do you need?', choices: [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-7.5, -2.5], stand: [-7.5, -1.1], who: 'Dr Bello', role: 'National Hospital', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 18000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant listened, checked everything and wrote it all down.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [7, -4.5], stand: [7, -3.1], who: 'Pharmacist Emeka', role: 'Pharmacy', text: 'What do you need?', choices: [
       buy('Malaria treatment', 7000, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 7000, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
       buy('Paracetamol', 1200, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1200, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
     ] },
-    { id: 'ward', name: '🛏️ Admission', at: [-3, 4], stand: [-3, 2.4], who: 'Nurse Aisha', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 55000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
-  ], [{ at: [-6, 4], facing: 0, outfit: 0x60a5fa, sit: true }], [20, 18]), [-290, 443]),
+    { id: 'ward', name: '🛏️ Admission', at: [-3, 3.8], stand: [-3, 2.2], who: 'Nurse Aisha', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 55000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
+  ], [
+    { at: [-5, 7.2], facing: Math.PI, outfit: 0x60a5fa, sit: true },
+    { at: [-6, 3.8], facing: 0, outfit: 0x94a3b8, sit: true },
+  ], [22, 20]), [-290, 443]),
 
   abuja(venue('abuja-police', 'FCT Police Command', 'Garki · police', 'Police is your friend · 112', '#1e3a8a', 0xcbd5e1, 0xe2e8f0, (b) => {
     counter(b, -6, -5, 4, 0x1e3a8a, 0xf8fafc);
@@ -1443,26 +1485,22 @@ const PH_SPECS: PlaceSpec[] = [
   ]), [-370, -190]),
 
   abuja(venue('upth', 'University of Port Harcourt Teaching Hospital', 'Choba · UPTH', 'Emergency · Wards · Pharmacy', '#0e7490', 0xf8fafc, 0xecfeff, (b) => {
-    counter(b, 5, -6, 4, 0x0e7490, 0xf8fafc);
-    shelf(b, -7, -6, 3.2, [0xf8fafc, 0x14b8a6, 0xfacc15]);
-    for (let i = 0; i < 4; i++) {
-      b.box(0xf8fafc, 1, 0.55, 2.1, -6 + i * 2.4, 0, 3);
-      b.box(0x99f6e4, 0.9, 0.12, 1.9, -6 + i * 2.4, 0.55, 3);
-      b.box(0x0f766e, 0.15, 1.1, 0.15, -6.4 + i * 2.4, 0, 2.1);
-    }
-    b.box(0x0e7490, 1.2, 1.2, 0.08, 7.2, 1.4, -7);
-    b.box(0xf8fafc, 0.35, 1.2, 0.08, 7.2, 1.4, -7);
+    teachingHospital(b, 0x0e7490);
   }, [
-    { name: 'Nurse Ibiere', title: 'Nurse', at: [5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
-    { name: 'Pharmacist Tamuno', title: 'Pharmacist', at: [-7, -5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription from the ward?' },
+    { name: 'Nurse Ibiere', title: 'Triage nurse', at: [-1, -7.2], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
+    { name: 'Dr Harry', title: 'Consultant', at: [-7.5, -3.6], facing: 0, outfit: 0x0e7490, gender: 'male', says: 'Come. The creek is quiet — tell me what hurts.' },
+    { name: 'Pharmacist Tamuno', title: 'Pharmacist', at: [7, -5.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription from the ward?' },
   ], [
-    { id: 'clinic', name: '🩺 See a doctor', at: [5, -6], stand: [5, -4.6], who: 'Nurse Ibiere', role: 'UPTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant checked you and wrote it down. You can go.' }] },
-    { id: 'pharmacy', name: '💊 Pharmacy', at: [-7, -6], stand: [-7, -4.4], who: 'Pharmacist Tamuno', role: 'UPTH pharmacy', text: 'What do you need?', choices: [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-7.5, -2.5], stand: [-7.5, -1.1], who: 'Dr Harry', role: 'UPTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant checked you and wrote it down. You can go.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [7, -4.5], stand: [7, -3.1], who: 'Pharmacist Tamuno', role: 'UPTH pharmacy', text: 'What do you need?', choices: [
       buy('Malaria treatment', 6500, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 6500, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
       buy('Paracetamol', 1000, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1000, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
     ] },
-    { id: 'ward', name: '🛏️ The ward', at: [-2, 3], stand: [-2, 1.2], who: 'Nurse Ibiere', role: 'UPTH ward', text: 'Stay and rest. The creek is quiet from here.', choices: [{ label: 'Admitted overnight', price: 48000, note: 'Health +80', sit: true, seconds: 6, effect: need({ health: 80 }), said: 'Drip, rest, and you walk out stronger.' }] },
-  ], [{ at: [-4, 3], facing: Math.PI, outfit: 0x5eead4, sit: true, gender: 'female' }], [20, 18]), [120, -65]),
+    { id: 'ward', name: '🛏️ The ward', at: [-3, 3.8], stand: [-3, 2.2], who: 'Nurse Ibiere', role: 'UPTH ward', text: 'Stay and rest. The creek is quiet from here.', choices: [{ label: 'Admitted overnight', price: 48000, note: 'Health +80', sit: true, seconds: 6, effect: need({ health: 80 }), said: 'Drip, rest, and you walk out stronger.' }] },
+  ], [
+    { at: [-5, 7.2], facing: Math.PI, outfit: 0x5eead4, sit: true, gender: 'female' },
+    { at: [-6, 3.8], facing: 0, outfit: 0x94a3b8, sit: true },
+  ], [22, 20]), [120, -65]),
 
   abuja(venue('ph-police', 'Rivers State Police Command', 'Port Harcourt · police', 'Police is your friend · 112', '#14532d', 0xd6d3d1, 0xf5f5f4, (b) => {
     counter(b, 5, -5, 4, 0x14532d, 0xfde68a);
@@ -1713,11 +1751,16 @@ const QUIET_FLOOR: Record<string, string> = {
   'mile-one-market': 'parquet_wood',
   'ph-mall': 'ceramic_white',
   'rivers-govt-house': 'chevron_oak',
+  lasuth: 'ceramic_white',
 };
 for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
   spec.sign = undefined;
   const finish = QUIET_FLOOR[spec.key];
   if (finish) spec.room.finish = finish;
+}
+{
+  const lasuth = IKEJA.find((s) => s.key === 'lasuth');
+  if (lasuth) lasuth.room.finish = 'ceramic_white';
 }
 
 export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt')];
