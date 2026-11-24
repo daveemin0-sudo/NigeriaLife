@@ -64,6 +64,40 @@ const hospitalBed = (b: Builder, x: number, z: number, sheet = 0x93c5fd) => {
   b.occupy(x - 0.65, x + 0.65, z - 1.15, z + 1.15, 0.85);
 };
 /**
+ * High-street bank hall: teller glass, queue, ATM bay, manager desk, security gate.
+ * Station anchors stay near (0,-5) teller, (±6.9,6.6) ATM, (6,3) officer.
+ */
+const branchBank = (b: Builder, accent = 0x1e3a8a, atmLeft = true) => {
+  counter(b, 0, -5, 9, accent, 0xf8fafc, 1.1);
+  b.box(0xbfe3ff, 9, 1.45, 0.04, 0, 1.85, -5);
+  for (const x of [-3, 0, 3]) {
+    b.box(0xcbd5e1, 0.55, 0.06, 0.4, x, 1.12, -4.55, { solid: false });
+    b.box(0x0f172a, 0.42, 0.34, 0.05, x, 1.55, -5.35, { solid: false });
+    b.box(0x38bdf8, 0.36, 0.28, 0.02, x, 1.57, -5.3, { glow: true, solid: false });
+  }
+  for (let i = 0; i < 5; i++) b.cylinder(0x94a3b8, 0.04, 0.95, -3 + i * 1.4, 0, -1.5, { solid: false });
+  b.box(0xcbd5e1, 5.6, 0.02, 0.02, -0.2, 0.9, -1.5, { solid: false });
+  for (let i = 0; i < 4; i++) {
+    b.box(accent, 0.5, 0.45, 0.5, -3 + i, 0, 2);
+    b.box(accent, 0.5, 0.55, 0.08, -3 + i, 0.45, 1.75, { solid: false });
+  }
+  const atmXs = atmLeft ? [-7.5, -6.3] : [6.3, 7.5];
+  for (const x of atmXs) {
+    b.box(0x0284c7, 1.0, 2.2, 0.7, x, 0, 6.6);
+    b.box(0x38bdf8, 0.55, 0.42, 0.03, x, 1.45, 6.28, { glow: true });
+    b.box(0xcbd5e1, 0.4, 0.06, 0.05, x, 1.05, 6.28, { solid: false });
+    b.occupy(x - 0.55, x + 0.55, 6.2, 7.0, 2.2);
+  }
+  desk(b, 6, 3);
+  b.box(0x334155, 0.15, 2.4, 0.6, 3.5, 0, 7.2, { solid: false });
+  b.box(0x334155, 0.15, 2.4, 0.6, 5.1, 0, 7.2, { solid: false });
+  b.box(0x334155, 1.8, 0.25, 0.6, 4.3, 2.4, 7.2, { solid: false });
+  screen(b, 0, -7.6, 4, 0.9, 2.6, accent);
+  plant(b, 8.5, -6);
+  plant(b, 8.5, 6);
+};
+
+/**
  * Teaching-hospital floor shared by LASUTH, National Hospital Abuja and UPTH.
  * Door at +z: waiting benches → triage → consult (left) / pharmacy (right) → ward beds.
  */
@@ -1096,14 +1130,11 @@ const SIDE: PlaceSpec[] = [
   ], [{ at: [-3, 2.95], facing: Math.PI, outfit: 0x16a34a, sit: true }, { at: [3, 1.05], facing: 0, outfit: 0xdb2777, sit: true, gender: 'female' }], [14, 12]),
 
   venue('allen-bank', 'Eko Commercial Bank, Allen', 'Allen Avenue · bank', 'Allen Avenue branch · ATM', '#1e3a8a', 0xe5e7eb, 0xf8fafc, (b) => {
-    counter(b, 0, -5, 9, 0x1e3a8a, 0xf8fafc);
-    b.box(0xbfe3ff, 9, 1, 0.04, 0, 1.11, -5);
-    for (const x of [-7.5, -6.3]) b.box(0x334155, 0.9, 1.8, 0.5, x, 0, 6.6).box(0x38bdf8, 0.5, 0.4, 0.02, x, 1.2, 6.34, { glow: true });
-    desk(b, 6, 3);
-    for (let i = 0; i < 4; i++) b.box(0x1e3a8a, 0.5, 0.45, 0.5, -3 + i, 0, 2);
+    branchBank(b, 0x1e3a8a, true);
   }, [
     { name: 'Teller', title: 'Teller', at: [-2, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Next customer, please.' },
     { name: 'Mr Ajayi', title: 'Account officer', at: [6, 2.2], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Accounts, loans, cards. How can I help?' },
+    { name: 'Guard Musa', title: 'Security', at: [4.3, 6.5], facing: Math.PI, outfit: 0x334155, gender: 'male', cap: true, says: 'Walk through the detector. No weapons.' },
   ], [
     { id: 'teller', name: '🏦 The teller', at: [-2, -5], stand: [-2, -3.7], who: 'Teller', role: 'Eko Commercial Bank', text: 'Paying in or taking out?', choices: [
       { label: 'Pay ₦10,000 cash into my account', note: 'From your wallet', arms: 'reach', seconds: 2.5, effect: (be) => { be.depositToBank(10000); }, said: 'Counted, stamped, and the teller hands back your slip.' },
@@ -1111,7 +1142,10 @@ const SIDE: PlaceSpec[] = [
     ] },
     { id: 'atm', name: '🏧 Cash machines', at: [-6.9, 6.6], stand: [-6.9, 5.3], who: 'ATM', role: 'Eko Commercial Bank', text: 'Insert your card.', choices: [{ label: 'Use the cash machine', note: 'Opens Bank', open: 'app:bank' }] },
     { id: 'officer', name: '💼 Account officer', at: [6, 3], stand: [6, 4.4], who: 'Mr Ajayi', role: 'Account officer', text: 'A loan, a new card, or a business account?', choices: [{ label: 'Loans and accounts', note: 'Opens Bank', open: 'app:bank' }] },
-  ], [{ at: [-1, 2.05], facing: Math.PI, outfit: 0xf59e0b, sit: true }], [20, 16]),
+  ], [
+    { at: [-1, 2.05], facing: Math.PI, outfit: 0xf59e0b, sit: true },
+    { at: [-3, 2.05], facing: Math.PI, outfit: 0x16a34a, sit: true, gender: 'female' },
+  ], [20, 16]),
 
   venue('awolowo-fashion', 'Awolowo Way Fashion House', 'Obafemi Awolowo Way · fashion', 'Bespoke · Agbada · Kaftan · Ankara', '#7c3aed', 0xf5f5f4, 0xede9fe, (b) => {
     // The cutting table with cloth on it, sewing machines, mannequins in finished pieces
@@ -1249,13 +1283,39 @@ const ABUJA_SPECS: PlaceSpec[] = [
 
   abuja(venue('cbn-abuja', 'Central Bank of Nigeria', 'Central Business District · the apex bank', 'Visitors centre · Currency museum', '#0f172a', 0xd6d3d1, 0xe7e5e4, (b) => {
     counter(b, 0, -6, 6, 0x0f172a, 0xd4af37);
+    for (const x of [-3, 0, 3]) {
+      b.box(0x0f172a, 0.4, 0.32, 0.05, x, 1.5, -6.3, { solid: false });
+      b.box(0xd4af37, 0.34, 0.26, 0.02, x, 1.52, -6.25, { glow: true, solid: false });
+    }
     // Glass cases of notes and coins down each side, and the vault door at the back
-    for (const x of [-7, 7]) for (const z of [-3, 1, 5]) b.box(0x334155, 1.6, 0.9, 1, x, 0, z).box(0x86efac, 1.4, 0.5, 0.8, x, 0.9, z, { glow: true });
-    b.cylinder(0x9ca3af, 2.2, 0.4, 0, 2.6, -8.7, { sides: 24 }).cylinder(0x6b7280, 0.6, 0.5, 0, 2.6, -8.4, { sides: 12 });
-  }, [{ name: 'Guide Chinedu', title: 'Visitors centre', at: [0, -7], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Welcome. This is how the Naira is made and kept.' }], [
+    for (const x of [-7, 7]) for (const z of [-3, 1, 5]) {
+      b.box(0x334155, 1.6, 0.9, 1, x, 0, z);
+      b.box(0xbfe3ff, 1.45, 0.55, 0.85, x, 0.9, z, { solid: false });
+      b.box(0x86efac, 1.2, 0.02, 0.7, x, 1.15, z, { glow: true, solid: false });
+    }
+    // Round vault door
+    b.cylinder(0x9ca3af, 2.2, 0.4, 0, 2.6, -8.7, { sides: 24 });
+    b.cylinder(0x6b7280, 0.6, 0.5, 0, 2.6, -8.4, { sides: 12 });
+    b.box(0xd4af37, 0.15, 0.15, 0.2, 0.9, 2.6, -8.45, { solid: false });
+    // Security gate at the door
+    b.box(0x334155, 0.15, 2.4, 0.6, -2.2, 0, 7.5, { solid: false });
+    b.box(0x334155, 0.15, 2.4, 0.6, 2.2, 0, 7.5, { solid: false });
+    b.box(0x334155, 4.6, 0.25, 0.6, 0, 2.4, 7.5, { solid: false });
+    bench(b, -4, 4, 2.4, 0x1e3a8a);
+    bench(b, 4, 4, 2.4, 0x1e3a8a);
+    screen(b, 0, -8.5, 3.5, 0.8, 3.4, 0xd4af37);
+    plant(b, -8.5, -7);
+    plant(b, 8.5, -7);
+  }, [
+    { name: 'Guide Chinedu', title: 'Visitors centre', at: [0, -7], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Welcome. This is how the Naira is made and kept.' },
+    { name: 'Guard Halima', title: 'Security', at: [0, 6.8], facing: Math.PI, outfit: 0x334155, gender: 'female', cap: true, says: 'No photography past the gate.' },
+  ], [
     { id: 'museum', name: '💵 The currency museum', at: [-7, 1], stand: [-5.6, 1], who: 'Guide Chinedu', role: 'Currency museum', text: 'From the pound to the Naira, every note we have printed.', choices: [{ label: 'Take the tour', note: 'Fun +12', arms: 'rest', seconds: 6, effect: need({ fun: 12 }), said: 'The first Naira notes of 1973, the old 20 kobo, and why the 1,000 note changed.' }] },
     { id: 'coins', name: '🪙 The gift counter', at: [0, -6], stand: [0, -4.6], who: 'Guide Chinedu', role: 'Gift counter', text: 'Mint sets and commemorative coins.', choices: [buy('A commemorative coin set', 15000, { id: 'cbn_coins', name: 'CBN commemorative coins', icon: '🪙', price: 15000, category: 'luxury', usable: false, description: 'A mint set in a case.' }, 'A mint set in a velvet case.')] },
-  ], [{ at: [5, 1], facing: -Math.PI / 2, outfit: 0x2563eb }], [20, 18]), [196, 189]),
+  ], [
+    { at: [5, 1], facing: -Math.PI / 2, outfit: 0x2563eb },
+    { at: [-4, 4], facing: Math.PI, outfit: 0xf59e0b, sit: true },
+  ], [20, 18]), [196, 189]),
 
   abuja(venue('millennium-tower', 'Millennium Tower', 'Central Business District · observation deck', 'Observation deck · Café · 102 m up', '#0f766e', 0xe5e7eb, 0xccfbf1, (b) => {
     // The deck: glass all round, telescopes at the rail, the café counter
@@ -1659,21 +1719,18 @@ const townRooms = (city: string, place: string): PlaceSpec[] => {
   const bankOf = (variant: number): PlaceSpec => {
     const key = townRoomVariantKey(city, 'bank', variant);
     const atmLeft = variant === 1 ? !ph : ph;
+    const accent = ph ? 0x0f766e : 0x0f172a;
+    const atmX = atmLeft ? -6.9 : 6.9;
     const bank = venue(key, `${place} ${variant === 0 ? 'Bank' : variant === 1 ? 'Microfinance' : 'Bureau'}`, `${place} · bank`, 'Teller · ATM', '#0f172a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (b, room) => {
-      counter(b, 0, -5, 8, 0x0f172a, ph ? 0x99f6e4 : 0xd4af37);
-      for (const x of [-2.4, 0, 2.4]) b.box(0xe2e8f0, 1.5, 0.7, 0.04, x, 1.35, -4.5);
-      const atmX = atmLeft ? -6 : 6;
-      b.box(0x111827, 1.1, 1.6, 0.5, atmX, 0, 2).box(0x22c55e, 0.7, 0.5, 0.04, atmX, 1.2, 2.28, { glow: true });
-      for (let i = 0; i < 4; i++) b.box(0x1f2937, 0.5, 0.48, 0.5, -3 + i * 1.6, 0, variant === 2 ? 5.2 : 4);
-      for (let i = 0; i < 5; i++) b.cylinder(0x94a3b8, 0.04, 0.9, -2 + i * 1, 0, 1.2);
-      b.box(0xcbd5e1, 4.2, 0.02, 0.02, 0, 0.85, 1.2);
-      plant(b, atmLeft ? 7.2 : -7.2, -6);
-      plant(b, atmLeft ? 7.2 : -7.2, 5);
-      if (room) layFine(room, fineSofa(3, ph ? 0x0f766e : 0x1e3a8a, 0xe2e8f0, 0x1c1917), atmLeft ? 3.2 : -3.2, 0, 6.2, Math.PI);
-    }, [{ name: 'Teller Ngozi', title: 'Teller', at: [0, -6], facing: 0, outfit: 0x0f172a, gender: 'female', says: 'Good day. Cash, transfer, or the ATM on the wall.' }], [
+      branchBank(b, accent, atmLeft);
+      if (room) layFine(room, fineSofa(3, ph ? 0x0f766e : 0x1e3a8a, 0xe2e8f0, 0x1c1917), atmLeft ? 3.2 : -3.2, 0, 5.5, Math.PI);
+    }, [
+      { name: 'Teller Ngozi', title: 'Teller', at: [0, -6], facing: 0, outfit: accent, gender: 'female', says: 'Good day. Cash, transfer, or the ATM on the wall.' },
+      { name: 'Guard', title: 'Security', at: [4.3, 6.5], facing: Math.PI, outfit: 0x334155, gender: 'male', cap: true, says: 'Walk through. Bags open.' },
+    ], [
       { id: 'teller', name: 'Teller counter', at: [0, -5], stand: [0, -3.6], who: 'Teller Ngozi', role: 'Teller', text: 'How can the bank help?', choices: [{ label: 'Open the bank', note: 'Opens Bank', open: 'app:bank' }] },
-      { id: 'atm', name: 'ATM', at: [atmLeft ? -6 : 6, 2], stand: [atmLeft ? -4.6 : 4.6, 2], who: 'ATM', role: 'ATM', text: 'Cash, any hour.', choices: [{ label: 'Use the ATM', note: 'Opens Bank', open: 'app:bank' }] },
-    ], [{ at: [-1, 4], facing: Math.PI, outfit: 0x2563eb, sit: true }], [18, 16]);
+      { id: 'atm', name: 'ATM', at: [atmX, 6.6], stand: [atmX, 5.3], who: 'ATM', role: 'ATM', text: 'Cash, any hour.', choices: [{ label: 'Use the ATM', note: 'Opens Bank', open: 'app:bank' }] },
+    ], [{ at: [-1, 2.05], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 16]);
     bank.sign = undefined;
     bank.room.finish = variant === 2 ? 'parquet_wood' : ph ? 'terrazzo' : 'grey_granite';
     return bank;
@@ -1761,6 +1818,8 @@ for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
 {
   const lasuth = IKEJA.find((s) => s.key === 'lasuth');
   if (lasuth) lasuth.room.finish = 'ceramic_white';
+  const bank = [...IKEJA, ...SIDE].find((s) => s.key === 'allen-bank');
+  if (bank) bank.room.finish = 'grey_granite';
 }
 
 export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt')];
