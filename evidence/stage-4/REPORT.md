@@ -43,3 +43,8 @@ PlaceSpec rebuilt with shared `teachingHospital()` layout:
 
 - `allen-bank-hall.png` — Eko Commercial Bank, Allen: glass teller, queue, ATM bay, Guard Musa
 - Shared `branchBank()` also used by Abuja/PH town banks; CBN visitors centre enriched
+
+## Hotels
+
+- `eko-grand-lobby.png` — Eko Grand: reception, lounge, pool loungers, porter
+- Shared `grandLobby()` also on Transcorp Hilton (with lobby bar)
