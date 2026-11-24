@@ -31,34 +31,30 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 
 Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/daveemin0-sudo/NigeriaLife/pull/59). Merged into `cursor/integration-1`. CI green. **Still open:** full venue seat sweep; gateman on outdoor `Compound.post`.
 
-### Stage 4 — real interiors (started) (`cursor/stage-4-real-interiors-181d` @ `63f9a7a`)
+### Stage 4 — real interiors (`cursor/stage-4-real-interiors-181d` @ `e037c23`)
 
-**LASUTH first** + shared teaching-hospital floor for National Hospital Abuja and UPTH:
+Audit order done for **hospitals → banks → hotels → restaurants → markets → homes** (place shells). Station ids and prices unchanged throughout.
 
-- Waiting benches, triage counter, consult desk with **doctor**, pharmacy (shelf + cross), ward beds with mattress/sheet/pillow/IV/monitor/curtains
-- Room 22×20, `ceramic_white` floor on LASUTH
-- Station ids/prices unchanged (`clinic` / `pharmacy` / `ward`)
-- Nursing shift tasks re-aimed at new bed/chart coords
+| Slice | What shipped |
+| --- | --- |
+| Hospitals | Shared `teachingHospital()` — LASUTH, National Hospital Abuja, UPTH. Ward beds, doctor, pharmacy, `ceramic_white` on LASUTH |
+| Banks | Shared `branchBank()` — Allen Avenue, town banks, richer CBN visitors centre; Allen `grey_granite` |
+| Hotels | Grand lobby polish on Eko Grand + Transcorp; town **guest suites** now have a Builder bed/desk/wardrobe shell (Hotel FineFurniture may still layer) |
+| Restaurants | Amala Shitta buka hall + Chop Express kitchen props |
+| Markets | Balogun aisle atmosphere; Wuse + Mile 1 canopy stalls |
+| Homes | Ikeja GRA estate office: waiting chairs, brochure rack, water cooler, second sales agent, property wall; player residence still Stage 3 beds/staff |
 
-**Verified:** Chromium enter `interior_place_lasuth`; doctor present; finish ceramic; shiftskill + insides + workplaces **24/24**.  
-Evidence: `cursor/evidence-stage-4` @ `d214afb`. Desktop SwiftShader only — **not** phone hardware.
+**Verified (desktop Chromium / SwiftShader / `--base=/NigeriaLife/` only — not phone hardware):** enter `interior_place_lasuth`, `interior_place_ikeja-gra`, `interior_residence`, `interior_place_abuja-town-suite`. Evidence: `cursor/evidence-stage-4` @ `d214afb`. PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60).
 
-**Banks (this tip):** shared `branchBank()` hall — teller glass, queue rope, ATM bay, manager desk, security gate. Applied to Allen Avenue Eko bank, town banks (Abuja/PH), plus a richer CBN visitors centre. Allen finish `grey_granite`. Stations/prices unchanged.
-
-**Hotels:** shared  on Eko Grand and Transcorp Hilton — reception screens, chandelier, lounge, pool loungers, lift bay, luggage, porters. Station ids/prices unchanged.
-
-**Restaurants:** richer Amala Shitta buka hall + Chop Express kitchen (menu, cooler, fryer, ice cream freezer). Prices/station ids unchanged.
-
-**Markets:** Balogun aisle atmosphere; Wuse and Mile 1 rebuilt with canopy stalls. Station prices unchanged.
-
-**Not done yet in Stage 4:** homes interiors (bespoke layouts beyond Stage 3 beds/staff).
+**Stage 4 complete for PlaceSpec interiors in audit order.** Remaining polish is Stage 5 QA + outdoor gateman / open-air market shells.
 
 ## Open bugs / follow-ups
 
-- Farwalk pace / walkers:0; phone nav below viewport; streetcar first-spot flake (pre-existing).
+- Farwalk pace / walkers:0; phone nav below viewport; streetcar first-spot flake (pre-existing on `bf55dab`).
+- Input suite flake: `the phone opens and its screen scrolls with the wheel` (`open:true, under:false, from:0,to:0`) — seen under SwiftShader; do **not** weaken; re-check on clean serve.
 - 2 shared skins + meshopt IBM.
 - 11 map-keke wrong-location places.
-- Full 155-suite e2e vs baseline `bf55dab` still needs a clean uninterrupted run on integration tip (prior runs HMR-contaminated or cut short).
+- Full 155-suite e2e vs baseline `bf55dab` still running / needs clean uninterrupted compare on integration tip.
 - Gateman still not on outdoor `Compound.post` mesh.
 - Markets/malls remain building shells (audit OPEN_AIR false positives).
 
@@ -69,7 +65,7 @@ Evidence: `cursor/evidence-stage-4` @ `d214afb`. Desktop SwiftShader only — **
 
 ## Exact next step
 
-1. Merge Stage 4 tip into `cursor/integration-1`; restart clean full e2e; log suite-by-suite vs baseline.
-2. Continue Stage 4 audit order after hospitals: banks → hotels → restaurants → markets → homes.
-3. Then Stage 5 — QA everywhere.
+1. Merge this Stage 4 tip into `cursor/integration-1`.
+2. Finish clean full 155-suite e2e vs baseline; report every check that passed before and fails now.
+3. Start **Stage 5 — QA everywhere** (arrival, collisions, cards, seats, beds, activities, exits, rides, saves across Lagos / Abuja / PH).
 EOF

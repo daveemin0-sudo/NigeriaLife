@@ -936,11 +936,31 @@ const IKEJA: PlaceSpec[] = [
     ] },
   ], [], [20, 18]),
   venue('ikeja-gra', 'Ikeja GRA Estate Office', 'Ikeja GRA', 'Houses to rent and buy', '#14532d', 0xe7e5e4, 0xfef3c7, (b) => {
-    desk(b, -3, -4); desk(b, 3, -4); plant(b, -7, -6); plant(b, 7, -6);
+    desk(b, -3, -4); desk(b, 3, -4);
+    // Reception coffee table + waiting chairs
+    b.box(0x78350f, 1.2, 0.45, 0.7, 0, 0, 2);
+    for (const x of [-2.2, 2.2]) {
+      b.box(0x14532d, 0.55, 0.5, 0.55, x, 0, 2);
+      b.box(0x14532d, 0.55, 0.55, 0.1, x, 0.5, 1.7, { solid: false });
+    }
+    // Property photo wall
     for (let i = 0; i < 3; i++) b.box([0xfef3c7, 0xe2e8f0, 0xfecaca][i], 2, 1.4, 0.1, -4 + i * 4, 2, -7.9);
-  }, [{ name: 'Mrs Adeyemi', title: 'Estate agent', at: [-3, -5], facing: 0, outfit: 0x14532d, gender: 'female', says: 'Welcome to the GRA. Duplex, bungalow or flat?' }], [
+    // Brochure rack + water dispenser
+    b.box(0xd6d3d1, 0.7, 1.2, 0.35, 7, 0, -3);
+    for (let r = 0; r < 3; r++) b.box(0xf8fafc, 0.55, 0.02, 0.25, 7, 0.35 + r * 0.35, -2.9, { solid: false });
+    b.cylinder(0xe0f2fe, 0.28, 1.1, -7, 0, -2, { sides: 12 });
+    b.cylinder(0x38bdf8, 0.12, 0.15, -7, 1.1, -2, { glow: true, solid: false });
+    plant(b, -7, -6); plant(b, 7, -6); plant(b, 0, 6);
+    screen(b, 0, -7.6, 3.2, 0.7, 3.2, 0x14532d);
+  }, [
+    { name: 'Mrs Adeyemi', title: 'Estate agent', at: [-3, -5], facing: 0, outfit: 0x14532d, gender: 'female', says: 'Welcome to the GRA. Duplex, bungalow or flat?' },
+    { name: 'Mr Okon', title: 'Sales agent', at: [3, -5], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'I have a four-bed on Adeniyi Jones. Shall we view?' },
+  ], [
     { id: 'agent', name: '🏡 Estate agent', at: [-3, -4], stand: [-3, -2.6], who: 'Mrs Adeyemi', role: 'Estate agent', text: 'Rent or buy?', choices: [{ label: 'See houses to rent and buy', note: 'Opens Houses', open: 'app:property' }] },
-  ], [{ at: [6, 1.5], facing: -Math.PI / 2, outfit: 0xf59e0b, gender: 'female' }], [18, 16]),
+  ], [
+    { at: [-2.2, 2], facing: Math.PI, outfit: 0xf59e0b, sit: true, gender: 'female' },
+    { at: [2.2, 2], facing: Math.PI, outfit: 0x2563eb, sit: true },
+  ], [20, 18]),
   venue('chop-express', 'Chop Express', 'Ikeja · fast food', 'Rice · Chicken · Meat pie · Ice cream', '#dc2626', 0xf8fafc, 0xfde68a, (b) => {
     counter(b, 0, -5, 8, 0xdc2626, 0xfacc15);
     screen(b, 0, -6.8, 6, 1.2, 2.6, 0xfacc15);
@@ -1726,7 +1746,7 @@ export type TownRoomKind = 'shops' | 'office' | 'hotel' | 'bank' | 'market';
 export const townRoomKey = (city: string, kind: TownRoomKind) => `${city}-town-${kind}`;
 export const townRoomVariantKey = (city: string, kind: TownRoomKind, variant: number) =>
   variant === 0 ? townRoomKey(city, kind) : `${city}-town-${kind}-${variant}`;
-/** A guest room: the furniture is the real pieces, put in by the hotel (Hotel.ts). No sign on the inside wall. */
+/** A guest room: Builder shell so town suites are never empty white; Hotel.ts may layer FineFurniture too. */
 const guestRoom = (hotelKey: string, place: string, city: CityLook): PlaceSpec => ({
   key: hotelKey.endsWith('-hotel') ? hotelKey.replace(/-hotel$/, '-suite') : `${hotelKey}-suite`,
   name: `${place} hotel room`,
@@ -1737,7 +1757,27 @@ const guestRoom = (hotelKey: string, place: string, city: CityLook): PlaceSpec =
     wall: city === 'abuja' ? 0xf6efe4 : 0xe7f2ec,
     finish: city === 'abuja' ? 'royal_maroon' : 'calacatta_gold',
   },
-  build: () => { /* furnished when the room is attached */ },
+  build: (b) => {
+    const wood = city === 'ph' ? 0x0f766e : 0x7c2d12;
+    // King bed
+    b.box(0x3f2a1d, 2.4, 0.45, 2.5, -1, 0, -4);
+    b.box(0xf8fafc, 2.3, 0.22, 2.4, -1, 0.45, -4, { solid: false });
+    b.box(wood, 2.3, 0.08, 1.5, -1, 0.67, -3.5, { solid: false });
+    b.box(0x3f2a1d, 2.6, 1.4, 0.12, -1, 0, -5.2);
+    b.box(0xf8fafc, 0.8, 0.16, 0.4, -1.6, 0.7, -5.0, { solid: false });
+    b.box(0xf8fafc, 0.8, 0.16, 0.4, -0.4, 0.7, -5.0, { solid: false });
+    for (const x of [-2.6, 0.6]) {
+      b.box(0x5b3a1e, 0.5, 0.55, 0.45, x, 0, -5.0);
+      b.cylinder(0xfde68a, 0.12, 0.2, x, 0.7, -5.0, { glow: true, solid: false });
+    }
+    // Desk + chair, wardrobe, minibar, TV, rug
+    desk(b, 5, 0, 0xd6d3d1);
+    b.box(0x5b3a1e, 0.7, 2.2, 1.2, -6.5, 0, 1);
+    b.box(0x27272a, 0.55, 0.85, 0.55, -6.5, 0, 3.2);
+    b.box(0x0a0a0a, 0.06, 0.9, 1.5, 7.2, 1.1, -2);
+    b.box(0x9a3412, 3.0, 0.015, 2.0, 1, 0.01, 1, { solid: false });
+    plant(b, 6.5, 5);
+  },
   staff: [],
   stations: [],
   door: { name: 'Back to the lobby', category: 'Door', description: 'The corridor, and the front desk.' },
