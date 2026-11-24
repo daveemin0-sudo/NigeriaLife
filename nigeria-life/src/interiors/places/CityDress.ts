@@ -59,9 +59,24 @@ export function furnishLobby(group: THREE.Group, city: CityLook, variant: number
   if (!into) group.add(b.build('lobby fit', { roughness: 0.6 }));
   if (variant === 2) {
     layFine(group, fineDining(6, p.wood, p.cloth), 0, 0, 3.2, Math.PI / 2);
+    // Dining chairs register as sit surfaces for regulars / meal seats
+    if (into) {
+      for (const [x, z] of [[-0.9, 3.2], [0.9, 3.2], [0, 2.3], [0, 4.1]] as Array<[number, number]>) {
+        into.box(0x1f2937, 0.5, 0.45, 0.5, x, 0, z, { solid: false });
+        into.occupy(x - 0.25, x + 0.25, z - 0.25, z + 0.25, 0.55);
+      }
+    }
   } else {
-    layFine(group, fineSofa(3, p.cloth, p.cushion, p.wood), -3, 0, variant === 1 ? 4.2 : 2.6, Math.PI);
-    layFine(group, fineSofa(2, p.cloth, p.cushion, p.wood), variant === 1 ? -3 : 3.2, 0, variant === 1 ? 1.2 : 4.6, variant === 1 ? Math.PI / 2 : 0);
+    const sofaZ = variant === 1 ? 4.2 : 2.6;
+    const sideX = variant === 1 ? -3 : 3.2;
+    const sideZ = variant === 1 ? 1.2 : 4.6;
+    layFine(group, fineSofa(3, p.cloth, p.cushion, p.wood), -3, 0, sofaZ, Math.PI);
+    layFine(group, fineSofa(2, p.cloth, p.cushion, p.wood), sideX, 0, sideZ, variant === 1 ? Math.PI / 2 : 0);
+    // Seat tops for sitters (FineFurniture meshes alone are easy to miss in topAt)
+    if (into) {
+      into.occupy(-3 - 1.1, -3 + 1.1, sofaZ - 0.35, sofaZ + 0.35, 0.55);
+      into.occupy(sideX - 0.8, sideX + 0.8, sideZ - 0.35, sideZ + 0.35, 0.55);
+    }
   }
   layFine(group, fineLamp(), -7.4, 0, 2, 0);
   layFine(group, fineLamp(), 7.2, 0, 1, 0);
