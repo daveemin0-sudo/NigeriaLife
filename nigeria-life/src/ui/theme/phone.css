@@ -330,6 +330,11 @@ body.nl-hud-hidden #v-btn-run {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
   }
+  /* Action prompt owns the right column — tuck the view FAB so sleep/enter never covers it */
+  html body:has(#hud-proximity-prompt:not([style*="display: none"])) #view-fab {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
 
   /* --- The room's own card: a slim bar, its chips in one row that scrolls sideways ------------ */
   html body .place-card {
