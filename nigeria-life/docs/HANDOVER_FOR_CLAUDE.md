@@ -55,7 +55,7 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Jibowu P0 wrong location | Mainland bounds cover motor park (~92.5, −70) → **Mainland Central** (verified) |
 | Mama Put P0 wrong location | Yaba maxZ −16 so Broad Street south stays **Lagos Island** (verified) |
 | District fallback | Nearest-centre only within 80 m |
-| Aso Rock / Eagle Square / PH refinery | Dest + district bounds so map-keke set-down matches booked district |
+| Aso Rock / Eagle Square / PH refinery | Dest + district bounds; Asokoro rock pocket before Maitama so boulevard land prices stay prime |
 | Outdoor gateman | Musa at Banana Island Compound.post when hired + on duty (photo `gateman-at-post-390x844.png`) |
 | Jibowu district | Dedicated `jibowu` bounds (mainland no longer swallows Yaba/CcHub) |
 | CcHub | At (−12.5, −23.8) → **Yaba** (verified after mainland shrink) |

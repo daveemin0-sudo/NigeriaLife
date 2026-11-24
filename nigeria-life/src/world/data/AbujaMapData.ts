@@ -25,6 +25,32 @@ export const ABUJA_DISTRICTS: DistrictData[] = [
     },
     streetSpawnPoint: new THREE.Vector3(11.5, 0, 300),
   },
+
+  {
+    id: 'asokoro',
+    name: 'Asokoro (Aso Rock Enclave)',
+    subtitle: 'Presidential Villa & Granite Monolith',
+    tagline: 'Under the Shadow of Aso Rock & State House',
+    zone: 'Special',
+    center: new THREE.Vector3(472, 0, 100),
+    // Street-world rock / Three Arms pocket (checked before Maitama). East map spawn still
+    // resolves via nearest-centre fallback within 80 m of center (472, 100).
+    bounds: { minX: 70, maxX: 120, minZ: 25, maxZ: 90 },
+    color: 0x475569,
+    populationEstimate: '350K VIP residents',
+    propertyCount: 720,
+    businessCount: 310,
+    description: 'Exclusive enclave directly beneath the towering Aso Rock monolith. Presidential Villa (Aso Villa), National Assembly, and diplomatic mansions.',
+    landmarks: ['Aso Rock Monolith', 'Presidential Villa (Aso Villa)', 'Three Arms Zone Assembly Dome'],
+    visualTheme: {
+      buildingDensity: 0.5,
+      avgHeight: 6,
+      residentialRatio: 0.6,
+      commercialRatio: 0.4,
+      industrialRatio: 0.0,
+    },
+    streetSpawnPoint: new THREE.Vector3(475.4, 0, 30),
+  },
   {
     id: 'maitama',
     name: 'Maitama',
@@ -32,8 +58,7 @@ export const ABUJA_DISTRICTS: DistrictData[] = [
     tagline: 'Embassies, Transcorp Hilton & Millennium Park',
     zone: 'Island',
     center: new THREE.Vector3(190, 0, 30),
-    // minX raised so Aso Rock at (~85, 50) is Asokoro, not Maitama
-    bounds: { minX: 100, maxX: 374, minZ: -100, maxZ: 166 },
+    bounds: { minX: 0, maxX: 374, minZ: -100, maxZ: 166 },
     color: 0x38bdf8,
     populationEstimate: '420K dignitaries & elite residents',
     propertyCount: 950,
@@ -140,30 +165,6 @@ export const ABUJA_DISTRICTS: DistrictData[] = [
       industrialRatio: 0.0,
     },
     streetSpawnPoint: new THREE.Vector3(-475.4, 0, 30),
-  },
-  {
-    id: 'asokoro',
-    name: 'Asokoro (Aso Rock Enclave)',
-    subtitle: 'Presidential Villa & Granite Monolith',
-    tagline: 'Under the Shadow of Aso Rock & State House',
-    zone: 'Special',
-    center: new THREE.Vector3(472, 0, 100),
-    // West edge covers the street-world rock / Three Arms drop (~85, 50); east keeps the map spawn
-    bounds: { minX: 55, maxX: 570, minZ: -100, maxZ: 436 },
-    color: 0x475569,
-    populationEstimate: '350K VIP residents',
-    propertyCount: 720,
-    businessCount: 310,
-    description: 'Exclusive enclave directly beneath the towering Aso Rock monolith. Presidential Villa (Aso Villa), National Assembly, and diplomatic mansions.',
-    landmarks: ['Aso Rock Monolith', 'Presidential Villa (Aso Villa)', 'Three Arms Zone Assembly Dome'],
-    visualTheme: {
-      buildingDensity: 0.5,
-      avgHeight: 6,
-      residentialRatio: 0.6,
-      commercialRatio: 0.4,
-      industrialRatio: 0.0,
-    },
-    streetSpawnPoint: new THREE.Vector3(475.4, 0, 30),
   },
   {
     id: 'jabi',
