@@ -16,49 +16,67 @@ import { FX_BUNDLES, SPRAY_HARD, buyCost, sellProceeds, formatHard, FX_BUY, FX_S
 
 // --- Furniture ---------------------------------------------------------------------------------
 
-const counter = (b: Builder, x: number, z: number, w: number, colour = 0x7c4a1e, top = 0xe7e5e4, d = 0.9) => b.box(colour, w, 1.05, d, x, 0, z).box(top, w + 0.1, 0.06, d + 0.1, x, 1.05, z);
+const counter = (b: Builder, x: number, z: number, w: number, colour = 0x7c4a1e, top = 0xe7e5e4, d = 0.9) => {
+  b.box(colour, w, 1.05, d, x, 0, z).box(top, w + 0.1, 0.06, d + 0.1, x, 1.05, z, { solid: false });
+  b.occupy(x - w / 2, x + w / 2, z - d / 2, z + d / 2, 1.1);
+};
 const table = (b: Builder, x: number, z: number, top = 0x92400e, chairs = 4, chair = 0x1f2937) => {
-  b.cylinder(0x3f3f46, 0.07, 0.72, x, 0, z).cylinder(top, 0.62, 0.05, x, 0.72, z, { sides: 18 });
-  // A table to sit at and be served: where the place's seated meals are eaten
-  b.footprints.push({ minX: x - 0.62, maxX: x + 0.62, minZ: z - 0.62, maxZ: z + 0.62, height: 0.77 });
+  b.cylinder(0x3f3f46, 0.07, 0.72, x, 0, z, { solid: false }).cylinder(top, 0.62, 0.05, x, 0.72, z, { sides: 18, solid: false });
+  // One footprint for the whole table top (and seats around it stay walkable beside it)
+  b.occupy(x - 0.62, x + 0.62, z - 0.62, z + 0.62, 0.77);
   for (let i = 0; i < chairs; i++) {
     const a = (i / chairs) * Math.PI * 2;
-    b.box(chair, 0.42, 0.45, 0.42, x + Math.sin(a) * 0.95, 0, z + Math.cos(a) * 0.95).box(chair, 0.42, 0.5, 0.06, x + Math.sin(a) * 1.15, 0.45, z + Math.cos(a) * 1.15, { yaw: a });
+    const cx = x + Math.sin(a) * 0.95;
+    const cz = z + Math.cos(a) * 0.95;
+    b.box(chair, 0.42, 0.45, 0.42, cx, 0, cz).box(chair, 0.42, 0.5, 0.06, x + Math.sin(a) * 1.15, 0.45, z + Math.cos(a) * 1.15, { yaw: a, solid: false });
+    b.occupy(cx - 0.22, cx + 0.22, cz - 0.22, cz + 0.22, 0.55);
   }
 };
-const bench = (b: Builder, x: number, z: number, len: number, colour = 0x78350f) => b.box(colour, len, 0.08, 0.4, x, 0.45, z).box(colour, 0.08, 0.45, 0.35, x - len / 2 + 0.2, 0, z).box(colour, 0.08, 0.45, 0.35, x + len / 2 - 0.2, 0, z);
+const bench = (b: Builder, x: number, z: number, len: number, colour = 0x78350f) => {
+  b.box(colour, len, 0.08, 0.4, x, 0.45, z, { solid: false }).box(colour, 0.08, 0.45, 0.35, x - len / 2 + 0.2, 0, z, { solid: false }).box(colour, 0.08, 0.45, 0.35, x + len / 2 - 0.2, 0, z, { solid: false });
+  b.occupy(x - len / 2, x + len / 2, z - 0.22, z + 0.22, 0.55);
+};
 const shelf = (b: Builder, x: number, z: number, w: number, goods: number[], yaw = 0) => {
   b.box(0x57534e, w, 2.1, 0.5, x, 0, z, { yaw });
-  for (let row = 0; row < 3; row++) for (let i = 0; i < Math.floor(w / 0.35); i++) b.box(goods[(i + row) % goods.length], 0.26, 0.32, 0.3, x - w / 2 + 0.2 + i * 0.35, 0.25 + row * 0.62, z + 0.05, { yaw });
+  for (let row = 0; row < 3; row++) for (let i = 0; i < Math.floor(w / 0.35); i++) b.box(goods[(i + row) % goods.length], 0.26, 0.32, 0.3, x - w / 2 + 0.2 + i * 0.35, 0.25 + row * 0.62, z + 0.05, { yaw, solid: false });
 };
-const plant = (b: Builder, x: number, z: number) => b.cylinder(0x78350f, 0.28, 0.5, x, 0, z).dome(0x15803d, 0.55, x, 0.5, z).cone(0x16a34a, 0.35, 1.1, x, 0.7, z, 6);
-const screen = (b: Builder, x: number, z: number, w: number, h: number, y = 1.4, glow = 0x22c55e) => b.box(0x0a0a0a, w + 0.2, h + 0.2, 0.12, x, y - 0.1, z).box(glow, w, h, 0.02, x, y, z + 0.07, { glow: true });
-const stage = (b: Builder, x: number, z: number, w: number, d: number, colour = 0x1f2937) => b.box(colour, w, 0.7, d, x, 0, z).box(0x111827, w, 0.05, d, x, 0.7, z);
-const desk = (b: Builder, x: number, z: number, colour = 0xd6d3d1) => b.box(colour, 1.6, 0.75, 0.75, x, 0, z).box(0x0f172a, 0.6, 0.4, 0.05, x, 0.78, z - 0.2).box(0x38bdf8, 0.54, 0.32, 0.02, x, 0.82, z - 0.17, { glow: true }).box(0x1f2937, 0.5, 0.5, 0.5, x, 0, z + 0.75);
+const plant = (b: Builder, x: number, z: number) => {
+  b.cylinder(0x78350f, 0.28, 0.5, x, 0, z).dome(0x15803d, 0.55, x, 0.5, z).cone(0x16a34a, 0.35, 1.1, x, 0.7, z, 6);
+  b.occupy(x - 0.4, x + 0.4, z - 0.4, z + 0.4, 1.2);
+};
+const screen = (b: Builder, x: number, z: number, w: number, h: number, y = 1.4, glow = 0x22c55e) => b.box(0x0a0a0a, w + 0.2, h + 0.2, 0.12, x, y - 0.1, z, { solid: false }).box(glow, w, h, 0.02, x, y, z + 0.07, { glow: true, solid: false });
+const stage = (b: Builder, x: number, z: number, w: number, d: number, colour = 0x1f2937) => b.box(colour, w, 0.7, d, x, 0, z).box(0x111827, w, 0.05, d, x, 0.7, z, { solid: false });
+const desk = (b: Builder, x: number, z: number, colour = 0xd6d3d1) => {
+  b.box(colour, 1.6, 0.75, 0.75, x, 0, z).box(0x0f172a, 0.6, 0.4, 0.05, x, 0.78, z - 0.2, { solid: false }).box(0x38bdf8, 0.54, 0.32, 0.02, x, 0.82, z - 0.17, { glow: true, solid: false }).box(0x1f2937, 0.5, 0.5, 0.5, x, 0, z + 0.75);
+};
 const bottles = (b: Builder, x: number, z: number, w: number) => {
   b.box(0x1c1917, w, 2.4, 0.4, x, 0, z);
-  for (let r = 0; r < 3; r++) for (let i = 0; i < Math.floor(w / 0.25); i++) b.cylinder([0xfacc15, 0x16a34a, 0xdc2626, 0x7c2d12, 0xe0f2fe][(i + r) % 5], 0.06, 0.32, x - w / 2 + 0.15 + i * 0.25, 0.55 + r * 0.6, z + 0.1, { glow: r === 1, sides: 8 });
+  for (let r = 0; r < 3; r++) for (let i = 0; i < Math.floor(w / 0.25); i++) b.cylinder([0xfacc15, 0x16a34a, 0xdc2626, 0x7c2d12, 0xe0f2fe][(i + r) % 5], 0.06, 0.32, x - w / 2 + 0.15 + i * 0.25, 0.55 + r * 0.6, z + 0.1, { glow: r === 1, sides: 8, solid: false });
 };
 const pile = (b: Builder, x: number, z: number, colour: number, r = 0.35) => b.dome(colour, r, x, 0.92, z);
-const sack = (b: Builder, x: number, z: number, colour = 0xf5f5f4) => b.cylinder(colour, 0.32, 0.75, x, 0, z, { topRadius: 0.24, sides: 10 }).box(0x166534, 0.4, 0.18, 0.02, x, 0.35, z + 0.3);
+const sack = (b: Builder, x: number, z: number, colour = 0xf5f5f4) => b.cylinder(colour, 0.32, 0.75, x, 0, z, { topRadius: 0.24, sides: 10 }).box(0x166534, 0.4, 0.18, 0.02, x, 0.35, z + 0.3, { solid: false });
 /** A market stall: a table under a canopy, with what it sells piled on it */
 const stall = (b: Builder, x: number, z: number, canopy: number, goods: (b: Builder, x: number, z: number) => void) => {
   b.box(0x92400e, 2.4, 0.9, 1.1, x, 0, z);
-  for (const dx of [-1.15, 1.15]) for (const dz of [-0.5, 0.5]) b.cylinder(0x3f3f46, 0.035, 2.4, x + dx, 0, z + dz);
-  b.box(canopy, 2.8, 0.06, 1.6, x, 2.4, z, { pitch: 0.12 });
+  for (const dx of [-1.15, 1.15]) for (const dz of [-0.5, 0.5]) b.cylinder(0x3f3f46, 0.035, 2.4, x + dx, 0, z + dz, { solid: false });
+  b.box(canopy, 2.8, 0.06, 1.6, x, 2.4, z, { pitch: 0.12, solid: false });
+  b.occupy(x - 1.2, x + 1.2, z - 0.55, z + 0.55, 0.95);
   goods(b, x, z);
 };
 /** A goat: body, legs, head, little horns */
 const goat = (b: Builder, x: number, z: number, yaw: number, coat = 0xe7e5e4) => {
   const f = { x: Math.sin(yaw), z: Math.cos(yaw) };
-  b.box(coat, 0.32, 0.36, 0.75, x, 0.42, z, { yaw });
-  for (const [dx, dz] of [[-0.11, 0.28], [0.11, 0.28], [-0.11, -0.28], [0.11, -0.28]]) b.box(0x57534e, 0.07, 0.42, 0.07, x + dx * f.z + dz * f.x, 0, z + dz * f.z - dx * f.x);
-  b.box(coat, 0.2, 0.26, 0.3, x + f.x * 0.5, 0.68, z + f.z * 0.5, { yaw }).box(0x44403c, 0.04, 0.14, 0.04, x + f.x * 0.45 + f.z * 0.06, 0.92, z + f.z * 0.45 - f.x * 0.06, { yaw }).box(0x44403c, 0.04, 0.14, 0.04, x + f.x * 0.45 - f.z * 0.06, 0.92, z + f.z * 0.45 + f.x * 0.06, { yaw });
+  b.box(coat, 0.32, 0.36, 0.75, x, 0.42, z, { yaw, solid: false });
+  for (const [dx, dz] of [[-0.11, 0.28], [0.11, 0.28], [-0.11, -0.28], [0.11, -0.28]]) b.box(0x57534e, 0.07, 0.42, 0.07, x + dx * f.z + dz * f.x, 0, z + dz * f.z - dx * f.x, { solid: false });
+  b.box(coat, 0.2, 0.26, 0.3, x + f.x * 0.5, 0.68, z + f.z * 0.5, { yaw, solid: false }).box(0x44403c, 0.04, 0.14, 0.04, x + f.x * 0.45 + f.z * 0.06, 0.92, z + f.z * 0.45 - f.x * 0.06, { yaw, solid: false }).box(0x44403c, 0.04, 0.14, 0.04, x + f.x * 0.45 - f.z * 0.06, 0.92, z + f.z * 0.45 + f.x * 0.06, { yaw, solid: false });
+  b.occupy(x - 0.35, x + 0.35, z - 0.45, z + 0.45, 0.9);
 };
 const pews = (b: Builder, rows: number, z0: number, span: number) => {
   for (let r = 0; r < rows; r++) for (const side of [-1, 1]) {
     const x = side * (span / 2 + 0.8);
-    b.box(0x78350f, span, 0.45, 0.5, x, 0, z0 + r * 1.4).box(0x78350f, span, 0.6, 0.08, x, 0.45, z0 + r * 1.4 + 0.25);
+    const z = z0 + r * 1.4;
+    b.box(0x78350f, span, 0.45, 0.5, x, 0, z).box(0x78350f, span, 0.6, 0.08, x, 0.45, z + 0.25, { solid: false });
+    b.occupy(x - span / 2, x + span / 2, z - 0.28, z + 0.28, 0.55);
   }
 };
 
@@ -1328,8 +1346,8 @@ const look = (city: string): CityLook => (city === 'port_harcourt' ? 'ph' : 'abu
 /** One hotel lobby. variant 0, 1 and 2 are different rooms, so two hotels are not the same. */
 const hotelLobby = (key: string, place: string, city: string, variant: number): PlaceSpec => {
   const ph = city === 'port_harcourt';
-  const spec = venue(key, variant === 0 ? `${place} Suites` : `${place} ${variant === 1 ? 'Palace' : 'Creek'} Hotel`, `${place} · hotel`, 'Front desk · Your room · Bar', ph ? '#0f766e' : '#7c2d12', 0xffffff, ph ? 0xe7f2ec : 0xf6efe4, (_b, room) => {
-    if (room) furnishLobby(room, look(city), variant);
+  const spec = venue(key, variant === 0 ? `${place} Suites` : `${place} ${variant === 1 ? 'Palace' : 'Creek'} Hotel`, `${place} · hotel`, 'Front desk · Your room · Bar', ph ? '#0f766e' : '#7c2d12', 0xffffff, ph ? 0xe7f2ec : 0xf6efe4, (b, room) => {
+    if (room) furnishLobby(room, look(city), variant, b);
   }, [{ name: 'Receptionist Tonye', title: 'Front desk', at: [-4, -6], facing: 0, outfit: ph ? 0x0f766e : 0x7c2d12, gender: 'male', says: 'Welcome. A room is at the desk: a key card, yours until noon.' }, { name: 'Barman Ifeanyi', title: 'Bar', at: [5, -5], facing: 0, outfit: 0x111827, gender: 'male', says: 'What are we drinking?' }], [
     { id: 'bar', name: '🍹 The bar', at: [5, -4], stand: [5, -2.6], who: 'Barman Ifeanyi', role: 'Bar', text: 'Chapman, palm wine or a cold beer?', choices: [{ label: 'A Chapman', price: 2500, note: 'Fun +12', sit: true, seconds: 5, effect: need({ fun: 12, social: 6 }), said: 'Sweet, cold, with a slice of cucumber.' }] },
     { id: 'lounge', name: '🛋️ The lounge', at: [-3, 3], stand: [-3, 4.4], who: 'Lounge', role: `${place} Suites`, text: 'Soft chairs and the news on the TV.', choices: [{ label: 'Rest in the lounge', note: 'Energy +12', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 12 }), said: 'You nearly slept in the armchair.' }] },
@@ -1344,8 +1362,8 @@ const townRooms = (city: string, place: string): PlaceSpec[] => {
   const officeOf = (variant: number): PlaceSpec => {
     const key = townRoomVariantKey(city, 'office', variant);
     const titles = variant === 0 ? 'Offices' : variant === 1 ? 'Chambers' : 'Secretariat';
-    const office = venue(key, `${place} ${titles}`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : variant === 1 ? '#0f172a' : variant === 2 ? '#7c2d12' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (_b, room) => {
-      if (room) furnishOffice(room, look(city), variant);
+    const office = venue(key, `${place} ${titles}`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : variant === 1 ? '#0f172a' : variant === 2 ? '#7c2d12' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (b, room) => {
+      if (room) furnishOffice(room, look(city), variant, b);
     }, [{ name: 'Receptionist Halima', title: 'Front desk', at: [0, -6], facing: 0, outfit: ph ? 0x0f766e : 0x1e3a8a, gender: 'female', says: 'Good day. The jobs are on the board, and the manager takes people on.' }], [
       { id: 'desk', name: '🛎️ Front desk', at: [0, -5], stand: [0, -3.6], who: 'Receptionist Halima', role: 'Front desk', text: 'The companies upstairs are hiring. Shall I show you the openings?', choices: [{ label: 'See the jobs going', note: 'Opens Jobs', open: 'app:jobs' }, { label: 'Leave your CV', note: 'Social +6', arms: 'reach', seconds: 2, effect: need({ social: 6 }), said: 'She stamped it received. "We will call you."' }] },
       { id: 'wait', name: '🪑 The waiting chairs', at: [ph ? 3 : -2.4, 3.4], stand: [ph ? 3 : -2.4, 2], who: 'Waiting area', role: 'Reception', text: 'The air conditioning is strong.', choices: [{ label: 'Sit and cool off', note: 'Energy +8', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 8 }), said: 'Ten minutes under the AC. Sweat gone.' }] },

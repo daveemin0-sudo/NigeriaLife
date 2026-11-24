@@ -3,8 +3,15 @@ import { groundAt } from './density/StreetLayout';
 import { DrivableVehicle } from './DrivableVehicle';
 import type { InteractiveObject } from './World';
 import { SignageLibrary } from '../materials/SignageLibrary';
-import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { bodyOf, type CarBody } from './Bodies';
+import {
+  addKekeBody,
+  addOkadaBody,
+  buildKekeSteer,
+  buildOkadaSteer,
+  KEKE_LAYOUT,
+  OKADA_LAYOUT,
+} from './vehicles/KekeOkadaModels';
 
 export interface TrafficCar {
   group: THREE.Group;
@@ -494,66 +501,28 @@ export class Vehicles {
 
   // B. Keke NAPEP Tricycle
   private createKeke(): { group: THREE.Group; wheels: THREE.Mesh[] } {
-    const matLib = MaterialLibrary.getInstance();
     const keke = new THREE.Group();
     const wheels: THREE.Mesh[] = [];
+    addKekeBody(keke);
+    keke.add(buildKekeSteer());
 
-    const yellowPaint = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35, metalness: 0.15 });
-    const canopyMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.92 });
-    const cushionMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.75 });
-
-    // Chassis & Nose Cowl
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.55, 2.4), yellowPaint);
-    chassis.position.y = 0.58;
-    chassis.castShadow = true;
-    keke.add(chassis);
-
-    const noseCowl = new THREE.Mesh(new THREE.ConeGeometry(0.72, 0.95, 16), yellowPaint);
-    noseCowl.rotation.x = Math.PI;
-    noseCowl.scale.set(1, 1, 0.65);
-    noseCowl.position.set(0, 0.95, 1.1);
-    keke.add(noseCowl);
-
-    // Roll cage pillars
-    for (const px of [-0.70, 0.70]) {
-      for (const pz of [-1.05, 0.05, 0.95]) {
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.92, 8), matLib.ironRailingMaterial);
-        pillar.position.set(px, 1.42, pz);
-        keke.add(pillar);
-      }
-    }
-
-    // Curved Canvas Canopy
-    const roofGeo = new THREE.CylinderGeometry(0.76, 0.76, 2.15, 16);
-    roofGeo.scale(1, 0.28, 1);
-    const roof = new THREE.Mesh(roofGeo, canopyMat);
-    roof.rotation.x = Math.PI / 2;
-    roof.position.set(0, 1.95, -0.1);
-    keke.add(roof);
-
-    // Seats
-    const passengerBench = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.35, 0.55), cushionMat);
-    passengerBench.position.set(0, 0.82, -0.65);
-    keke.add(passengerBench);
-
-    // Cyclops Headlight
-    const headlight = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.16, 0.10, 16),
-      new THREE.MeshStandardMaterial({ color: 0xfffbeb, emissive: 0xfffaed, emissiveIntensity: 1.4, roughness: 0.15 })
+    const r = KEKE_LAYOUT.wheelRadius;
+    const { holder: fHolder, tire: fTire } = this.createRealisticWheel(r, 0.14, r * 0.64);
+    fHolder.position.set(
+      KEKE_LAYOUT.frontWheel.x,
+      KEKE_LAYOUT.frontWheel.y,
+      KEKE_LAYOUT.frontWheel.z,
     );
-    headlight.rotation.x = Math.PI / 2;
-    headlight.position.set(0, 0.86, 1.25);
-    keke.add(headlight);
-
-    // Realistic Wheels (1 Front, 2 Rear)
-    const { holder: fHolder, tire: fTire } = this.createRealisticWheel(0.32, 0.18, 0.18);
-    fHolder.position.set(0, 0.32, 1.15);
     wheels.push(fTire);
     keke.add(fHolder);
 
-    for (const rx of [-0.74, 0.74]) {
-      const { holder: rHolder, tire: rTire } = this.createRealisticWheel(0.32, 0.18, 0.18);
-      rHolder.position.set(rx, 0.32, -0.85);
+    for (const side of [-1, 1] as const) {
+      const { holder: rHolder, tire: rTire } = this.createRealisticWheel(r, 0.16, r * 0.64);
+      rHolder.position.set(
+        side * KEKE_LAYOUT.rearWheel.halfTrack,
+        KEKE_LAYOUT.rearWheel.y,
+        KEKE_LAYOUT.rearWheel.z,
+      );
       wheels.push(rTire);
       keke.add(rHolder);
     }
@@ -565,76 +534,35 @@ export class Vehicles {
   private createOkada(boxColorHex: number = 0xef4444): { group: THREE.Group; wheels: THREE.Mesh[] } {
     const okada = new THREE.Group();
     const wheels: THREE.Mesh[] = [];
+    addOkadaBody(okada, { courierBox: boxColorHex, tankColor: 0xdc2626 });
+    okada.add(buildOkadaSteer());
 
-    const frameMat = new THREE.MeshPhysicalMaterial({ color: 0x18181b, metalness: 0.85, roughness: 0.25 });
-    const tankMat = new THREE.MeshPhysicalMaterial({ color: 0xdc2626, metalness: 0.65, roughness: 0.2, clearcoat: 0.9 });
-    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.95, roughness: 0.15 });
-
-    // Frame
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.28, 1.6), frameMat);
-    frame.position.y = 0.62;
-    okada.add(frame);
-
-    // Sculpted Teardrop Fuel Tank
-    const tankGeo = new THREE.SphereGeometry(0.24, 12, 10);
-    tankGeo.scale(0.85, 0.95, 1.6);
-    const tank = new THREE.Mesh(tankGeo, tankMat);
-    tank.position.set(0, 0.86, 0.18);
-    okada.add(tank);
-
-    // Seat
-    const seat = new THREE.Mesh(
-      new THREE.BoxGeometry(0.26, 0.14, 0.68),
-      new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.85 })
-    );
-    seat.position.set(0, 0.82, -0.32);
-    okada.add(seat);
-
-    // Courier Delivery Box
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(0.52, 0.46, 0.46),
-      new THREE.MeshPhysicalMaterial({ color: boxColorHex, roughness: 0.4, clearcoat: 0.6 })
-    );
-    box.position.set(0, 1.05, -0.76);
-    box.castShadow = true;
-    okada.add(box);
-
-    // Handlebars & Headlight
-    const handlebar = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.04, 0.04), chromeMat);
-    handlebar.position.set(0, 1.05, 0.85);
-    okada.add(handlebar);
-
-    const headlight = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.12, 0.09, 14),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfffae0, emissiveIntensity: 1.5 })
-    );
-    headlight.rotation.x = Math.PI / 2;
-    headlight.position.set(0, 0.88, 0.94);
-    okada.add(headlight);
-
-    // Rider
-    const riderTorso = new THREE.Mesh(
-      new THREE.BoxGeometry(0.42, 0.55, 0.25),
-      new THREE.MeshStandardMaterial({ color: 0x1e3a8a })
-    );
-    riderTorso.position.set(0, 1.15, -0.05);
+    // Simple rider silhouette for parked / traffic bikes (ride uses full seated people)
+    const riderMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.7 });
+    const helmetMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.25 });
+    const riderTorso = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.48, 0.22), riderMat);
+    riderTorso.position.set(OKADA_LAYOUT.driver.x, 1.12, OKADA_LAYOUT.driver.z);
     okada.add(riderTorso);
-
-    const helmet = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 12, 12),
-      new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.2 })
-    );
-    helmet.position.set(0, 1.55, 0.0);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), helmetMat);
+    helmet.position.set(0, 1.48, OKADA_LAYOUT.driver.z + 0.02);
     okada.add(helmet);
 
-    // Realistic Wheels
-    const { holder: fHolder, tire: fTire } = this.createRealisticWheel(0.36, 0.12, 0.26);
-    fHolder.position.set(0, 0.35, 0.85);
+    const r = OKADA_LAYOUT.wheelRadius;
+    const { holder: fHolder, tire: fTire } = this.createRealisticWheel(r, 0.1, r * 0.62);
+    fHolder.position.set(
+      OKADA_LAYOUT.frontWheel.x,
+      OKADA_LAYOUT.frontWheel.y,
+      OKADA_LAYOUT.frontWheel.z,
+    );
     wheels.push(fTire);
     okada.add(fHolder);
 
-    const { holder: rHolder, tire: rTire } = this.createRealisticWheel(0.36, 0.12, 0.26);
-    rHolder.position.set(0, 0.35, -0.72);
+    const { holder: rHolder, tire: rTire } = this.createRealisticWheel(r, 0.1, r * 0.62);
+    rHolder.position.set(
+      OKADA_LAYOUT.rearWheel.x,
+      OKADA_LAYOUT.rearWheel.y,
+      OKADA_LAYOUT.rearWheel.z,
+    );
     wheels.push(rTire);
     okada.add(rHolder);
 

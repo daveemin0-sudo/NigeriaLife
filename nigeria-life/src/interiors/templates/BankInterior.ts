@@ -3,12 +3,14 @@ import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
+import { NavGrid } from '../../interactions/NavGrid';
 
 export class BankInterior {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
+  public nav: NavGrid;
 
   constructor() {
     this.group = new THREE.Group();
@@ -155,6 +157,7 @@ export class BankInterior {
       ],
     };
 
+    this.nav = new NavGrid(origin, 24, 22);
     this.build3DInterior();
   }
 
@@ -288,6 +291,24 @@ export class BankInterior {
     vaultDoor.rotation.x = Math.PI / 2;
     vaultDoor.position.set(-8, 2.2, -10.8);
     this.group.add(vaultDoor);
+
+    // Walk-blocking solids (floor runner at z=0 is decorative only — not blocked)
+    this.nav.blockRect(0, -6, 3.5, 0.7);
+    this.nav.blockRect(-8, 2, 0.6, 0.55);
+    this.nav.blockRect(-8, -1, 0.6, 0.55);
+    this.nav.blockRect(7, -5, 1.2, 0.8);
+    this.nav.blockRect(0, 1.5, 2.7, 0.55);
+    this.nav.blockRect(-0.8, 7.5, 0.15, 0.45);
+    this.nav.blockRect(0.8, 7.5, 0.15, 0.45);
+    this.nav.blockRect(-1.5, -2.2, 2.6, 0.12);
+    this.nav.blockRect(3.2, -2.0, 0.5, 0.1);
+    this.nav.blockRect(-9, 9.2, 0.45, 0.45);
+    this.nav.blockRect(9, 9.2, 0.45, 0.45);
+    this.nav.clearRect(0, 9, 0.8, 0.8);
+    this.nav.clearRect(0, 7.5, 0.45, 0.35);
+    this.nav.clearRect(0, -6 + 1.2, 0.5, 0.5);
+    this.nav.clearRect(-7, 2 + 1.0, 0.5, 0.5);
+    this.nav.clearRect(7, -5 + 1.2, 0.5, 0.5);
 
     // 5. Build NPCs
     for (const npcDef of this.def.npcs) {
