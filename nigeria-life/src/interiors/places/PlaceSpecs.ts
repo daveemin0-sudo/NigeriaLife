@@ -1799,8 +1799,8 @@ const hotelLobby = (key: string, place: string, city: string, variant: number): 
   }, [{ name: 'Receptionist Tonye', title: 'Front desk', at: [-4, -6], facing: 0, outfit: ph ? 0x0f766e : 0x7c2d12, gender: 'male', says: 'Welcome. A room is at the desk: a key card, yours until noon.' }, { name: 'Barman Ifeanyi', title: 'Bar', at: [5, -5], facing: 0, outfit: 0x111827, gender: 'male', says: 'What are we drinking?' }], [
     { id: 'bar', name: '🍹 The bar', at: [5, -4], stand: [5, -2.6], who: 'Barman Ifeanyi', role: 'Bar', text: 'Chapman, palm wine or a cold beer?', choices: [{ label: 'A Chapman', price: 2500, note: 'Fun +12', sit: true, seconds: 5, effect: need({ fun: 12, social: 6 }), said: 'Sweet, cold, with a slice of cucumber.' }] },
     { id: 'lounge', name: '🛋️ The lounge', at: [-3, 3], stand: [-3, 4.4], who: 'Lounge', role: `${place} Suites`, text: 'Soft chairs and the news on the TV.', choices: [{ label: 'Rest in the lounge', note: 'Energy +12', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 12 }), said: 'You nearly slept in the armchair.' }] },
-  // Sit on the lobby sofa cushion (variant 0/1), not empty floor at [3, 2.95]
-  ], [{ at: variant === 1 ? [-3, 4.2] : variant === 2 ? [0.9, 3.2] : [-3, 2.6], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 18]);
+  // Sit on the lobby sofa cushion (variant 0/1) or dining chair (variant 2), not empty floor
+  ], [{ at: variant === 1 ? [-3, 4.2] : variant === 2 ? [0, 2.3] : [-3, 2.6], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 18]);
   spec.sign = undefined;
   spec.room.finish = variant === 2 ? 'chevron_oak' : ph ? 'terrazzo' : 'calacatta_gold';
   return spec;
