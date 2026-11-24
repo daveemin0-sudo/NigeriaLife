@@ -31,7 +31,7 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 
 Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/daveemin0-sudo/NigeriaLife/pull/59). Merged into `cursor/integration-1`. CI green. **Still open:** full venue seat sweep; gateman on outdoor `Compound.post`.
 
-### Stage 4 — real interiors (`cursor/stage-4-real-interiors-181d` @ `e037c23`)
+### Stage 4 — real interiors (`cursor/stage-4-real-interiors-181d`)
 
 Audit order done for **hospitals → banks → hotels → restaurants → markets → homes** (place shells). Station ids and prices unchanged throughout.
 
@@ -44,7 +44,7 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 | Markets | Balogun aisle atmosphere; Wuse + Mile 1 canopy stalls |
 | Homes | Ikeja GRA estate office: waiting chairs, brochure rack, water cooler, second sales agent, property wall; player residence still Stage 3 beds/staff |
 
-**Verified (desktop Chromium / SwiftShader / `--base=/NigeriaLife/` only — not phone hardware):** enter `interior_place_lasuth`, `interior_place_ikeja-gra`, `interior_residence`, `interior_place_abuja-town-suite`. Evidence: `cursor/evidence-stage-4` @ `d214afb`. PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60).
+**Verified (desktop Chromium / SwiftShader / `--base=/NigeriaLife/` only — not phone hardware):** enter `interior_place_lasuth`, `interior_place_ikeja-gra`, `interior_residence`, `interior_place_abuja-town-suite`. Evidence: `cursor/evidence-stage-4` (update after this tip). PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60).
 
 **Stage 4 complete for PlaceSpec interiors in audit order.** Remaining polish is Stage 5 QA + outdoor gateman / open-air market shells.
 
