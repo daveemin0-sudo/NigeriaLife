@@ -73,6 +73,7 @@ PR [#61](https://github.com/daveemin0-sudo/NigeriaLife/pull/61). Merged into `cu
 | Exit from inside | Unstick skipped for wall volumes so `Solids.step` can walk the player out of a building |
 | Phonefit sleep × view-fab | Narrow phones: hide `#view-fab` while `#hud-proximity-prompt` is shown — **phonefit 7/7** at 320 |
 | Open-air restroom chrome | Open-air PlaceSpecs mark `restroomAt.clear` (no back wall); The Library shelves leave east bay for toilet door — needs toilet-door check **PASS** |
+| Home Party Jollof | Cook from cupboard when fridge empty (Hunger +60) — **needs 9/9** |
 
 Evidence: `cursor/evidence-stage-5` @ `5dc7ce1` (desktop SwiftShader / `/NigeriaLife/` only — **not** phone hardware). Climb shots: `footbridge-climbing-390x844.png`, `footbridge-deck-390x844.png`.
 
@@ -114,6 +115,6 @@ Code tip this batch: `8e2178e`+. Integration: merge after each stage-5 push.
 
 1. Finish stale tip e2e; then FAIL-vs-baseline into this file (strip ENOENT / phonefit noise).
 2. Optionally re-run full 155 on **current** integration tip if time remains.
-3. Continue WORLD_AUDIT P2 chrome / unvisited town interiors; home Party Jollof hunger still FAIL (pre-existing).
+3. Continue WORLD_AUDIT P2 chrome / unvisited town interiors.
 4. Do **not** merge to main or deploy.
 
