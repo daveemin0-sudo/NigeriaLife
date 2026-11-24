@@ -64,6 +64,40 @@ const hospitalBed = (b: Builder, x: number, z: number, sheet = 0x93c5fd) => {
   b.occupy(x - 0.65, x + 0.65, z - 1.15, z + 1.15, 0.85);
 };
 /**
+ * Five-star hotel lobby: reception, chandelier, lounge, pool, lift bay, luggage.
+ * Keep restaurant/buffet near (−6,3) and pool near (6,5) for existing stations.
+ */
+const grandLobby = (b: Builder, accent = 0xb45309, withBar = false) => {
+  counter(b, -5, -6, 7, accent, 0xf8fafc, 1.05);
+  for (const x of [-7, -5, -3]) {
+    b.box(0x0f172a, 0.4, 0.3, 0.05, x, 1.5, -6.3, { solid: false });
+    b.box(0x38bdf8, 0.34, 0.24, 0.02, x, 1.52, -6.25, { glow: true, solid: false });
+  }
+  b.cylinder(0xfacc15, 0.1, 1.3, 0, 3.6, 0).dome(0xfde68a, 1, 0, 3.2, 0, { glow: true });
+  for (const [x, z] of [[-6, 3], [-3, 3], [-6, 6]]) table(b, x, z, 0xf8fafc, 4, accent);
+  b.box(0x0284c7, 7, 0.08, 4.2, 6, 0.01, 5.2, { glow: true });
+  b.occupy(2.5, 9.5, 3.1, 7.3, 0.2);
+  for (const z of [3.2, 7.2]) {
+    b.box(0xf8fafc, 0.7, 0.35, 1.8, 9.2, 0, z);
+    b.box(0xf8fafc, 0.7, 0.55, 0.12, 9.2, 0.35, z - 0.85, { solid: false });
+  }
+  b.box(0x334155, 1.6, 2.4, 0.12, 10.5, 0, -7.5);
+  b.box(0xcbd5e1, 0.7, 2.2, 0.04, 10.15, 0.1, -7.42, { solid: false });
+  b.box(0xcbd5e1, 0.7, 2.2, 0.04, 10.85, 0.1, -7.42, { solid: false });
+  b.box(0x64748b, 0.9, 0.9, 0.55, 2, 0, -7);
+  b.box(0x1e3a8a, 0.7, 0.45, 0.4, 2, 0.9, -7, { solid: false });
+  b.box(0x7c2d12, 2.4, 0.02, 10, 0, 0.01, 2, { solid: false });
+  plant(b, -9.5, -7);
+  plant(b, 9.5, 7);
+  if (withBar) {
+    bottles(b, 6.5, -8.6, 4);
+    counter(b, 6.5, -6.5, 4, 0x1c1917, 0xd4af37);
+  } else {
+    b.box(0x7c2d12, 2.4, 0.6, 2, 6, 0, -6).box(0xf8fafc, 2.2, 0.2, 1.8, 6, 0.6, -6);
+  }
+};
+
+/**
  * High-street bank hall: teller glass, queue, ATM bay, manager desk, security gate.
  * Station anchors stay near (0,-5) teller, (±6.9,6.6) ATM, (6,3) officer.
  */
@@ -566,15 +600,18 @@ const SPECS: PlaceSpec[] = [
     { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'Nollywood blockbuster at 7.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'Funke Akindele had the whole hall laughing.' }] },
   ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-3, -3], facing: 0, outfit: 0xec4899, gender: 'female' }], [24, 20]),
   venue('eko-grand-hotel', 'Eko Grand Hotel', 'Mainland · hotel', '★★★★★ · Rooms · Restaurant', '#b45309', 0xf5f5f4, 0xe7d3b3, (b) => {
-    counter(b, -5, -6, 6, 0xb45309, 0xf8fafc);
-    b.cylinder(0xfacc15, 0.1, 1.2, 0, 3.8, 0).dome(0xfde68a, 0.9, 0, 3.4, 0, { glow: true });
-    b.box(0x0284c7, 6, 0.1, 4, 6, 0.01, 5, { glow: true });
-    for (const [x, z] of [[-6, 3], [-3, 3]]) table(b, x, z, 0xf8fafc, 4, 0xb45309);
-    b.box(0x7c2d12, 2.4, 0.6, 2, 6, 0, -6).box(0xf8fafc, 2.2, 0.2, 1.8, 6, 0.6, -6);
-  }, [{ name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0xb45309, gender: 'female', says: 'Welcome to Eko Grand. How can we help?' }], [
+    grandLobby(b, 0xb45309, false);
+  }, [
+    { name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0xb45309, gender: 'female', says: 'Welcome to Eko Grand. How can we help?' },
+    { name: 'Porter Tunde', title: 'Bellboy', at: [2, -6.2], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Your bags, sir? I take them up.' },
+    { name: 'Pool attendant', title: 'Pool', at: [8.5, 5], facing: -Math.PI / 2, outfit: 0x0284c7, gender: 'male', says: 'Towel and a lounger ready.' },
+  ], [
     { id: 'restaurant', name: '🍽️ Restaurant', at: [-6, 3], stand: [-6, 3.95], who: 'Waiter', role: 'Eko Grand Hotel', text: 'Lunch?', choices: [{ label: 'Seafood okra and pounded yam', price: 18000, note: 'Hunger +60', sit: true, seconds: 6, effect: need({ hunger: 60, fun: 10 }), said: 'Seafood okra, five-star style.' }] },
     { id: 'pool', name: '🏊 The pool', at: [6, 5], stand: [3.5, 5], who: 'Pool attendant', role: 'Eko Grand Hotel', text: 'Towel?', choices: [{ label: 'A swim', price: 10000, note: 'Fun +25, Hygiene +20', arms: 'swing', seconds: 6, effect: need({ fun: 25, hygiene: 20 }), said: 'Cool water, warm sun. You floated for an hour.' }] },
-  ], [{ at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true }], [22, 20]),
+  ], [
+    { at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true },
+    { at: [-6, 3.95], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+  ], [24, 20]),
   venue('police-command', 'Lagos State Police Command', 'Ikeja · police', 'Police is your friend · 112', '#1d4ed8', 0x94a3b8, 0x1e293b, (b) => {
     counter(b, -4, -5, 5, 0x1e3a8a); desk(b, 4, -4);
     for (const x of [6, 8]) b.box(0x3f3f46, 0.08, 3, 3, x, 0, 5);
@@ -1266,20 +1303,19 @@ const ABUJA_SPECS: PlaceSpec[] = [
   ], [{ at: [-2, 1], facing: Math.PI, outfit: 0x1e3a8a, sit: true }, { at: [2, 2.6], facing: Math.PI, outfit: 0x7f1d1d, sit: true }], [22, 20]), [342, -15]),
 
   abuja(venue('transcorp-hilton', 'Transcorp Hilton Abuja', 'Maitama · hotel', '★★★★★ · Lobby bar · Buffet · Pool', '#0c4a6e', 0xf5f5f4, 0xe7e5e4, (b) => {
-    counter(b, -5, -6, 7, 0x0c4a6e, 0xf8fafc);
-    b.cylinder(0xfacc15, 0.1, 1.4, 0, 3.6, 0).dome(0xfde68a, 1, 0, 3.2, 0, { glow: true });
-    bottles(b, 6.5, -8.6, 4);
-    counter(b, 6.5, -6.5, 4, 0x1c1917, 0xd4af37);
-    for (const [x, z] of [[-6, 3], [-3, 3], [-6, 6]]) table(b, x, z, 0xf8fafc, 4, 0x0c4a6e);
-    b.box(0x0284c7, 7, 0.1, 4, 6, 0.01, 5.5, { glow: true });
+    grandLobby(b, 0x0c4a6e, true);
   }, [
     { name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0x0c4a6e, gender: 'female', says: 'Welcome to Transcorp Hilton. Checking in?' },
     { name: 'Barman Ifeanyi', title: 'Lobby bar', at: [6.5, -7.5], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'Chapman, or something stronger?' },
+    { name: 'Porter Musa', title: 'Bellboy', at: [2, -6.2], facing: 0, outfit: 0x0c4a6e, gender: 'male', says: 'Bags to your room, madam?' },
   ], [
     { id: 'buffet', name: '🍽️ The buffet', at: [-6, 3], stand: [-6, 3.95], who: 'Waiter', role: 'Transcorp Hilton', text: 'The buffet is open.', choices: [{ label: 'The lunch buffet', price: 32000, note: 'Hunger +70, Fun +10', sit: true, seconds: 7, effect: need({ hunger: 70, fun: 10 }), said: 'Jollof, asun, pepper soup and three desserts. You went back twice.' }] },
     { id: 'bar', name: '🍹 The lobby bar', at: [6.5, -6.5], stand: [6.5, -5.1], who: 'Barman Ifeanyi', role: 'Lobby bar', text: 'What will it be?', choices: [{ label: 'A Chapman by the window', price: 7000, note: 'Fun +15, Social +10', sit: true, seconds: 5, effect: need({ fun: 15, social: 10 }), said: 'Half of Abuja is doing deals at the next table.' }] },
     { id: 'pool', name: '🏊 The pool', at: [6, 5.5], stand: [3, 5.5], who: 'Pool attendant', role: 'Transcorp Hilton', text: 'Towel and a lounger?', choices: [{ label: 'A swim', price: 18000, note: 'Fun +25, Hygiene +20', arms: 'swing', seconds: 6, effect: need({ fun: 25, hygiene: 20 }), said: 'Clear water, the Maitama hills behind it.' }] },
-  ], [{ at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true }, { at: [7.5, -5], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' }], [24, 20]), [280, 157]),
+  ], [
+    { at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true },
+    { at: [7.5, -5], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' },
+  ], [24, 20]), [280, 157]),
 
   abuja(venue('cbn-abuja', 'Central Bank of Nigeria', 'Central Business District · the apex bank', 'Visitors centre · Currency museum', '#0f172a', 0xd6d3d1, 0xe7e5e4, (b) => {
     counter(b, 0, -6, 6, 0x0f172a, 0xd4af37);
