@@ -29,7 +29,11 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 | Staff | Duty hours (cook 6:30–15, cleaner 8–16, driver 7–21, gateman always); arrive/leave toasts; gateman stands **outside** the entrance; driver by carport |
 | Repairs | `HomeRepairs` + Staff phone tab: electrician / AC / plumber / appliance — arrive, work, pay at hand-over, leave |
 
-**Not yet verified in-browser this tip:** sleep under duvet on presidential bed; every venue seat; staff hour transitions; full repair sequence screenshots.
+**Evidence:**  @  → .
+
+**Verified in Chromium (desktop):** named bed duvets in residence; dining seat x=0.74; duty on at 12:00 / cook+driver off at 22:00; electrician call arrives.
+
+**Not yet verified:** sleep under duvet on presidential bed (visual); every venue seat; gateman on outdoor Compound.post.
 
 ## Open bugs / follow-ups
 
