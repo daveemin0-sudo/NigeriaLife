@@ -225,8 +225,15 @@ export class Player {
     }
     const p = this.mesh.position;
     const solids = this.solids?.();
-    // Spawned or stood inside a solid: step out to the nearest free spot (no ghost walk-through)
-    if (solids?.at(p.x, p.z, 0)) {
+    const bridgeHere = !(this.footbridge && !this.footbridge());
+    const inLine = (x: number) => Math.abs(Math.abs(x) - fb.shape.stairX) <= fb.shape.stairHalfWidth + 0.15;
+    // On a flight the stairs carry you: their step meshes are solid for everyone else, but
+    // unsticking out of them dumps the climber back on the pavement (streets climb never finishes).
+    const onFlight = bridgeHere && inLine(p.x) && p.z >= fb.bottom - 0.4 && p.z <= fb.top;
+    // Spawned or stood inside a prop: step out to the nearest free spot. Inside a building wall
+    // volume, Solids.step already lets them walk out — unsticking would dump them into a hollow
+    // interior and trap them (streets: "someone who finds themselves inside a building…").
+    if (!onFlight && solids?.at(p.x, p.z, 0) && !solids.wallAt(p.x, p.z, 0)) {
       const free = closestFreeOnSolids(solids, p.x, p.z, WALKER_RADIUS, this.freeSpot);
       if (free.x !== p.x || free.z !== p.z) {
         p.x = free.x;
@@ -235,7 +242,7 @@ export class Player {
         return;
       }
     }
-    if (this.footbridge && !this.footbridge()) {
+    if (!bridgeHere) {
       if (!solids) return;
       const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
       p.x = step.x;
@@ -243,7 +250,6 @@ export class Player {
       this.keepClearOfBodies(cameFrom, solids);
       return;
     }
-    const inLine = (x: number) => Math.abs(Math.abs(x) - fb.shape.stairX) <= fb.shape.stairHalfWidth + 0.15;
     const inFlight = (x: number, z: number) => inLine(x) && z >= fb.bottom + 1.2 && z <= fb.top;
     const fromItsFoot = inLine(cameFrom.x) && cameFrom.z >= fb.bottom - 0.4 && cameFrom.z <= fb.top;
     // The foot of the stairs is the way on. Anywhere else, the flight is a block of concrete to walk round.
@@ -253,7 +259,7 @@ export class Player {
       return;
     }
     // On a flight the stairs' own rule governs. Everywhere else, buildings and walls are solid.
-    if (inLine(p.x) && p.z >= fb.bottom - 0.4 && p.z <= fb.top) return;
+    if (onFlight) return;
     if (solids) {
       const step = solids.step(cameFrom.x, cameFrom.z, p.x, p.z, 0.35);
       p.x = step.x;
