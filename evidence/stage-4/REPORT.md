@@ -53,3 +53,8 @@ PlaceSpec rebuilt with shared `teachingHospital()` layout:
 
 - `amala-shitta.png` — Amala Shitta buka: pots, menu board, cooler, server Boy Ade
 - Chop Express also enriched (fryer trays, fridge, ice cream freezer)
+
+## Markets
+
+- `balogun-market.png` — Balogun with aisle bulbs/tarps
+- Wuse + Mile 1 rebuilt with canopy stalls and gadget sellers
