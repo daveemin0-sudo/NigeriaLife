@@ -187,7 +187,7 @@ export function buildPhLandmarks(): PhLandmarks {
     b.box(0xfacc15, 6, 3, 4, cx - 40, 0, cz - 50, { solid: true });
     b.box(0x16a34a, 1, 6, 1, cx - 9, 0, cz - 83, { solid: true }).box(0x16a34a, 1, 6, 1, cx + 9, 0, cz - 83, { solid: true }).box(0x16a34a, 20, 1.4, 1.2, cx, 5, cz - 83);
     sign(group, ['PLEASURE PARK'], 14, 1.4, cx, 5.1, cz - 83.7, Math.PI, '#14532d', '#fde68a');
-    places.push({ key: 'pleasure-park', name: 'Pleasure Park', category: 'Park', description: 'The big wheel, the lawns and the Sunday crowd.', door: { x: cx, z: cz - 82 }, stand: { x: cx, z: cz - 86 }, inside: false });
+    places.push({ key: 'pleasure-park', name: 'Pleasure Park', category: 'Park', description: 'The big wheel, the lawns and the Sunday crowd.', door: { x: cx, z: cz - 82 }, stand: { x: cx, z: cz - 86 }, inside: true });
   }
 
   // --- Government House, the Brick House, on Rumuola Road

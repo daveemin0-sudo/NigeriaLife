@@ -300,6 +300,9 @@ export function buildLandmarks(): Landmarks {
     b.box(0xdc2626, 102, 1.4, 31, -475, 13, 397);
     sign(group, ['JABI LAKE MALL'], 22, 2.2, -475, 9.6, 412.3, 0, '#dc2626', '#ffffff');
     places.push({ key: 'jabi-lake-mall', name: 'Jabi Lake Mall', category: 'Mall', description: 'Shoprite, the food court, the cinema and the lake view.', door: { x: -475, z: 412.5 }, stand: { x: -475, z: 416 }, inside: true });
+    // Boardwalk park on the lake (open-air place — not the mall shell)
+    sign(group, ['JABI LAKE PARK'], 12, 1.4, -440, 2.0, 372, 0, '#0e7490', '#f8fafc');
+    places.push({ key: 'jabi-lake-park', name: 'Jabi Lake Park', category: 'Park', description: 'Boardwalk, boats, picnic lawns and the lake breeze.', door: { x: -440, z: 368 }, stand: { x: -440, z: 372 }, inside: true });
   }
 
   // --- Millennium Park: lawns, paths, a fountain in the middle, benches
@@ -318,7 +321,7 @@ export function buildLandmarks(): Landmarks {
     lit.cylinder(0xe0f2fe, 0.6, 6, cx, 0.9, cz, { topRadius: 0.1, glow: true });
     for (let i = 0; i < 16; i++) b.box(0x78350f, 2.2, 0.45, 0.6, cx - 100 + i * 13, 0, cz + (i % 2 ? 5 : -5));
     sign(group, ['MILLENNIUM PARK'], 14, 1.6, cx, 2.2, 444.5, Math.PI, '#14532d', '#fde68a');
-    places.push({ key: 'millennium-park', name: 'Millennium Park', category: 'Park', description: 'Lawns, shade and the fountain: Abuja\'s Sunday afternoon.', door: { x: cx, z: 444 }, stand: { x: cx, z: 446 }, inside: false });
+    places.push({ key: 'millennium-park', name: 'Millennium Park', category: 'Park', description: 'Lawns, shade and the fountain: Abuja\'s Sunday afternoon.', door: { x: cx, z: 444 }, stand: { x: cx, z: 446 }, inside: true });
   }
 
   // --- The National Hospital, Garki
