@@ -20,28 +20,38 @@ Evidence: `cursor/evidence-stage-2` @ `ec0ea3e` (desktop Chromium / SwiftShader 
 
 PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cursor/integration-1`.
 
-### Stage 3 — home life (in progress) (`cursor/stage-3-home-life-181d`)
+### Stage 3 — home life (`cursor/stage-3-home-life-181d` @ `2ec8e3d`)
 
 | Area | Done |
 | --- | --- |
-| Beds | Grand / presidential / foam mattress now expose named `bed duvet` for sleeper cover sync; expensive beds keep tall padded / winged headboards |
-| Seats | Dining table sit points moved onto side chairs (`x: 0.74`), not the tabletop |
-| Staff | Duty hours (cook 6:30–15, cleaner 8–16, driver 7–21, gateman always); arrive/leave toasts; gateman stands **outside** the entrance; driver by carport |
-| Repairs | `HomeRepairs` + Staff phone tab: electrician / AC / plumber / appliance — arrive, work, pay at hand-over, leave |
+| Beds | Grand / presidential / foam mattress expose named `bed duvet`; sleeper cover sync |
+| Seats | Dining sit on side chairs (`x: 0.74`), not the tabletop |
+| Staff | Duty hours; arrive/leave toasts; gateman outside entrance; driver by carport |
+| Repairs | `HomeRepairs` + Staff phone tab — pay at hand-over |
 
-**Evidence:** `cursor/evidence-stage-3` (latest tip) → `evidence/stage-3/REPORT.md`.
+Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/daveemin0-sudo/NigeriaLife/pull/59). Merged into `cursor/integration-1`. CI green. **Still open:** full venue seat sweep; gateman on outdoor `Compound.post`.
 
-**Verified in Chromium (desktop):** named bed duvets in residence; dining seat x=0.74; duty on at 12:00 / cook+driver off at 22:00; electrician call arrives.
+### Stage 4 — real interiors (started) (`cursor/stage-4-real-interiors-181d` @ `b577d6d`)
 
-**Verified:** presidential bed sleep under duvet (`presidential-sleep.png`). **Still open:** full venue seat sweep; gateman on outdoor Compound.post.
+**LASUTH first** + shared teaching-hospital floor for National Hospital Abuja and UPTH:
+
+- Waiting benches, triage counter, consult desk with **doctor**, pharmacy (shelf + cross), ward beds with mattress/sheet/pillow/IV/monitor/curtains
+- Room 22×20, `ceramic_white` floor on LASUTH
+- Station ids/prices unchanged (`clinic` / `pharmacy` / `ward`)
+- Nursing shift tasks re-aimed at new bed/chart coords
+
+**Verified:** Chromium enter `interior_place_lasuth`; doctor present; finish ceramic; shiftskill + insides + workplaces **24/24**.  
+Evidence: `cursor/evidence-stage-4` (see tip). Desktop SwiftShader only — **not** phone hardware.
+
+**Not done yet in Stage 4:** banks, hotels, restaurants, markets, homes interiors in audit order after LASUTH.
 
 ## Open bugs / follow-ups
 
 - Farwalk pace / walkers:0; phone nav below viewport; streetcar first-spot flake (pre-existing).
 - 2 shared skins + meshopt IBM.
 - 11 map-keke wrong-location places.
-- Full e2e re-run needed on clean vite (prior run HMR-contaminated mid Stage 2/3 edits).
-- Gateman still in home interior space (street-side of door), not yet the outdoor `Compound.post` mesh — Stage 5 polish if compound plot available.
+- Full 155-suite e2e vs baseline `bf55dab` still needs a clean uninterrupted run on integration tip (prior runs HMR-contaminated or cut short).
+- Gateman still not on outdoor `Compound.post` mesh.
 - Markets/malls remain building shells (audit OPEN_AIR false positives).
 
 ## Performance
@@ -51,6 +61,7 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 
 ## Exact next step
 
-1. Wait for clean full e2e on integration tip; log suite-by-suite vs baseline.
-2. Close Stage 3 gaps (Compound.post gateman) if needed; then Stage 4 — LASUTH first.
+1. Merge Stage 4 tip into `cursor/integration-1`; restart clean full e2e; log suite-by-suite vs baseline.
+2. Continue Stage 4 audit order after hospitals: banks → hotels → restaurants → markets → homes.
+3. Then Stage 5 — QA everywhere.
 EOF
