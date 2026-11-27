@@ -8,6 +8,17 @@ Lead builder until then: Cursor cloud agent. Do **not** merge to `main`, do **no
 
 Evidence: `cursor/evidence-stage-0` @ `f229409`. solidworld 41/41; allphones 43/43. Ship 101/95 meshopt skins (2-skin unsafe).
 
+### Stage 0C — cards & HUD (owner iPhone) (`cursor/stage-0c-hud-181d`)
+
+| Fix | Detail |
+| --- | --- |
+| Watching card | Two-row layout: icon+title+Stand on row 1; Football / News / Music / Off chips on row 2; short title `Watching · Football`; right inset clears music/camera FABs |
+| Dynamic Island | `SafeInsets` floors `--nl-inset-top` at **47px** on narrow touch phones when `env(safe-area)` is 0; phone.css top chrome uses `var(--nl-inset-top)` |
+| Location pill | `shortHudPlace()` — drops Gated / N-Bed / (rented); e.g. `Lekki Phase 1 Duplex`; full name in `title` |
+| Money ₦0 | Was **display**, not empty wealth: HUD showed `walletCash` only. Now shows **cash+bank** (title splits Cash · Bank). Confirmed: wallet 0 + bank 1.25m → `₦1,250,000` |
+
+Automated: `tests/e2e/hudphone.mjs` **6/6**. Evidence: `/opt/cursor/artifacts/hud-evidence/` (`before-watching-hud.png`, `watching-card.png`, `top-hud.png`).
+
 ### Stage 1 — integration (`cursor/integration-1`)
 
 Draft PR [#57](https://github.com/daveemin0-sudo/NigeriaLife/pull/57) / [#56](https://github.com/daveemin0-sudo/NigeriaLife/pull/56) → `feature/type-any-amount`. Audit teleport ≠ wrong location. Baseline compare: no clean pass→fail.

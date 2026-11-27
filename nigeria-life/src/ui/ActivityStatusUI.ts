@@ -37,6 +37,11 @@ export class ActivityStatusUI {
       return;
     }
     this.el.innerHTML = '';
+    this.el.classList.toggle('has-choices', (status.choices?.length ?? 0) > 0);
+
+    // Row 1: icon · title/line · stop — never overlapped by channel chips
+    const head = document.createElement('div');
+    head.className = 'buka-status-head';
     const icon = document.createElement('span');
     icon.className = 'buka-status-icon';
     icon.textContent = status.icon;
@@ -54,16 +59,23 @@ export class ActivityStatusUI {
     stop.id = `${this.el.id}-stop`;
     stop.textContent = status.stopLabel;
     stop.addEventListener('click', () => this.onStop());
-    this.el.append(icon, text);
-    for (const choice of status.choices ?? []) {
-      const button = document.createElement('button');
-      button.className = `buka-status-btn activity-choice${choice.current ? ' current' : ''}`;
-      button.dataset.choice = choice.id;
-      button.textContent = choice.label;
-      button.addEventListener('click', () => choice.pick());
-      this.el.append(button);
+    head.append(icon, text, stop);
+    this.el.append(head);
+
+    // Row 2: channel / action chips — scroll sideways on a phone, clear of music/camera FABs
+    if (status.choices?.length) {
+      const chips = document.createElement('div');
+      chips.className = 'buka-status-choices';
+      for (const choice of status.choices) {
+        const button = document.createElement('button');
+        button.className = `buka-status-btn activity-choice${choice.current ? ' current' : ''}`;
+        button.dataset.choice = choice.id;
+        button.textContent = choice.label;
+        button.addEventListener('click', () => choice.pick());
+        chips.append(button);
+      }
+      this.el.append(chips);
     }
-    this.el.append(stop);
     this.el.style.display = 'flex';
   }
 }
