@@ -4,11 +4,11 @@ import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
 import { NavGrid } from '../../interactions/NavGrid';
-import { airliner } from '../../world/landmarks/Airport';
 import { AIRPORTS, ROUTES, type FlightCity } from '../../travel/Flights';
-import { HumanMeshBuilder, type HumanConfig } from '../../graphics/HumanMeshBuilder';
-import { bakeToGeometry } from '../../graphics/MeshBaker';
 import { Kit, M, WAYFINDING, contactShade, floorPlane, lightPool, mergeFloorDecals, signMesh } from '../airport/TerminalKit';
+import { BAG_COLOURS, LuggageBatch, type BagKind } from '../airport/Luggage';
+import { AirportCrowd } from '../airport/AirportCrowd';
+import { APRON, APRON_CREW, ApronLife } from '../airport/ApronLife';
 
 /**
  * The airport terminal, gone into from the kerb: one domestic terminal hall, laid out the way a
@@ -32,6 +32,7 @@ const COUNTERS = [-23.5, -20.5, -17.5, -14.5, -11.5, -8.5];
 const LANES = [-2.5, 3.5];
 const GATES = [8, 20];
 const CAROUSEL = new THREE.Vector3(16, 0, 10);
+const ARRIVALS_DOOR = 26.2;
 const BELT_STRAIGHT = 6;
 const BELT_RADIUS = 1.5;
 
@@ -69,8 +70,18 @@ export class AirportInterior {
   private boardsFor = '';
   private sinceBoards = 99;
   private readonly boards: Array<{ canvas: HTMLCanvasElement; texture: THREE.CanvasTexture; kind: 'departures' | 'gate'; gate?: number }> = [];
-  private readonly tarmacLights: THREE.Mesh[] = [];
-  private readonly carouselBags: Array<{ group: THREE.Group; trackT: number }> = [];
+  private apron!: ApronLife;
+  private beltPlates!: THREE.InstancedMesh;
+  private beltBags!: LuggageBatch;
+  /** Bags on the belt: along the loop (t), or still sliding down the feed (ramp 0 to 1); away while someone has it */
+  private readonly onBelt: Array<{ kind: BagKind; colour: number; t: number; ramp: number; away: number; turn: number }> = [];
+  private beltRun = 0;
+  private crowd!: AirportCrowd;
+  private readonly bm = new THREE.Matrix4();
+  private readonly bq = new THREE.Quaternion();
+  private readonly be = new THREE.Euler();
+  private readonly bv = new THREE.Vector3();
+  private readonly bone = new THREE.Vector3(1, 1, 1);
 
   constructor() {
     this.group = new THREE.Group();
@@ -241,13 +252,7 @@ export class AirportInterior {
         staff('npc_checkin_funke', 'Funke Adeyemi', 'Check-in Agent', 'NigeriaLife Air', { x: -20.5, z: 3.4 }, 0, 0x0f7a46, 'female', 'Good morning! Ticket and ID, please. Any bags to check in?'),
         staff('npc_checkin_tunde', 'Tunde Bakare', 'Check-in Agent', 'NigeriaLife Air', { x: -14.5, z: 3.4 }, 0, 0x0f7a46, 'male', 'Place your bag on the scale for me. Window or aisle?', { hasTie: true }),
         staff('npc_checkin_amaka', 'Amaka Obi', 'Check-in Agent', 'NigeriaLife Air', { x: -8.5, z: 3.4 }, 0, 0x0f7a46, 'female', 'Boarding starts forty minutes before departure. Security is just ahead.'),
-        // Passengers at the counters and in the queue
-        traveller('npc_pax_bola', 'Bola', { x: -20.5, z: 5.3 }, Math.PI, 0x7c3aed, 'female', 'My bag is 21 kilos. I hope they will not charge me for one kilo!'),
-        traveller('npc_pax_segun', 'Segun', { x: -14.5, z: 5.3 }, Math.PI, 0x1e40af, 'male', 'Abuja for a meeting. In and out today.'),
-        traveller('npc_pax_hauwa', 'Hauwa', { x: -19.5, z: 7.1 }, Math.PI, 0x9f1239, 'female', 'This queue is moving at least.'),
-        traveller('npc_pax_obinna', 'Obinna', { x: -16.5, z: 7.1 }, Math.PI, 0x334155, 'male', 'I came two hours early. Lagos traffic, you never know.'),
-        traveller('npc_pax_kemi', 'Kemi', { x: -12, z: 8.5 }, Math.PI, 0xb45309, 'female', 'First time flying to Port Harcourt. I am excited!'),
-        traveller('npc_pax_musa', 'Musa', { x: -21, z: 9.9 }, Math.PI, 0x166534, 'male', 'Going home to see my mother in Abuja.'),
+        // The passengers in the queue and walking through are the crowd (AirportCrowd), not set figures
         // Information desk
         staff('npc_info_grace', 'Grace Okon', 'Information', 'FAAN Passenger Services', { x: 0, z: 10.4 }, 0, 0x1e3a8a, 'female', 'Welcome! Check-in is on your left, arrivals and taxis on your right.'),
         // Security
@@ -286,14 +291,14 @@ export class AirportInterior {
     this.group.add(this.buildInfoDesk());
     this.group.add(this.buildSecurity());
     this.group.add(this.buildGates());
-    this.group.add(this.buildSeatedTravellers());
     this.group.add(this.buildCafe());
     this.group.add(this.buildShop());
     this.group.add(this.buildLounge());
     this.group.add(this.buildBaggageHall());
     this.group.add(this.buildSigns());
     this.group.add(this.buildFloorLight());
-    this.group.add(this.buildApron());
+    this.apron = new ApronLife();
+    this.group.add(this.apron.group);
     this.group.add(this.eyeOnly = this.buildEyeLevelOnly());
 
     // The way back out to the kerb: the middle door of the entrance
@@ -324,6 +329,9 @@ export class AirportInterior {
         interactionPoint: npcDef.relativePosition.clone().add(new THREE.Vector3(Math.sin(npcDef.rotationY) * 1.1, 0, Math.cos(npcDef.rotationY) * 1.1)),
       });
     }
+
+    this.crowd = this.buildCrowd();
+    this.group.add(this.crowd.group);
 
     mergeFloorDecals(this.group);
 
@@ -416,6 +424,9 @@ export class AirportInterior {
       for (const sx of [-1.7, 1.7]) back.box(M.black, 0.16, 3.0, 0.32, gx + sx, 0, z + 0.06);
       back.box(M.black, 0.06, 3.0, 0.08, gx, 0, z + 0.12);
     }
+    // The arrivals door, at the far right: passengers come in off the apron here
+    back.box(M.black, 2.4, 0.18, 0.32, ARRIVALS_DOOR, 3.0, z + 0.06);
+    for (const sx of [-1.2, 1.2]) back.box(M.black, 0.16, 3.0, 0.32, ARRIVALS_DOOR + sx, 0, z + 0.06);
     shell.add(back.build('shell_wall_back'));
     return shell;
   }
@@ -718,78 +729,6 @@ export class AirportInterior {
     return g;
   }
 
-  /**
-   * People waiting at the gates, sitting on the benches: posed once, baked into one mesh per look
-   * and repeated, so twenty people are a handful of draws
-   */
-  private buildSeatedTravellers(): THREE.Group {
-    const g = new THREE.Group();
-    // Named like the people, so the cut-away never fades them
-    g.name = 'interior_npc_seated';
-    const looks: HumanConfig[] = [
-      { gender: 'male', username: '', outfit: 'agbada', outfitColor: 0xf1ece0, hairstyle: 'fila', lod: 'street' },
-      { gender: 'female', username: '', outfit: 'casual_blouse', outfitColor: 0xb3261e, hairstyle: 'braids', lod: 'street' },
-      { gender: 'male', username: '', outfit: 'lecturer_suit', outfitColor: 0x1f2937, hairstyle: 'short_crop', lod: 'street' },
-      { gender: 'female', username: '', outfit: 'blue_dress', outfitColor: 0x6d28d9, hairstyle: 'gele', lod: 'street' },
-      { gender: 'male', username: '', outfit: 'casual_tee', outfitColor: 0x0f766e, hairstyle: 'fade', lod: 'street' },
-      { gender: 'female', username: '', outfit: 'peplum_skirt', outfitColor: 0xd97706, hairstyle: 'bob_wig', lod: 'street' },
-      { gender: 'male', username: '', outfit: 'casual_tee', outfitColor: 0x1e3a8a, hairstyle: 'short_crop', lod: 'street' },
-    ];
-    // Every seat on the benches, then about one in three taken (always the same ones)
-    const seats: Array<{ x: number; z: number; turn: number }> = [];
-    let n = 7;
-    for (const cx of GATES) {
-      for (const rz of [-12.5, -9.5, -6.5]) {
-        for (const bx of [cx - 3.4, cx + 3.4]) {
-          for (let i = 0; i < 5; i++) {
-            n = (n * 1103515245 + 12345) & 0x7fffffff;
-            if (n % 100 >= 24) continue;
-            seats.push({ x: bx + 1.24 - i * 0.62, z: rz - 0.04, turn: ((n >> 8) % 3 - 1) * 0.1 });
-          }
-        }
-      }
-    }
-    const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62 });
-    const m = new THREE.Matrix4();
-    looks.forEach((look, i) => {
-      // Each look spread through the hall, never the same person three seats in a row
-      const mine = seats.filter((_, k) => k % looks.length === i);
-      if (!mine.length) return;
-      const rig = HumanMeshBuilder.createHuman(look);
-      rig.nameTag.visible = false;
-      if (rig.phoneMesh) rig.phoneMesh.visible = false;
-      const root = new THREE.Group();
-      rig.group.scale.setScalar(0.94);
-      rig.group.position.y = -0.77 * 0.94;
-      rig.leftLeg.rotation.set(-1.42, 0, -0.06);
-      rig.rightLeg.rotation.set(-1.42, 0, 0.06);
-      if (rig.leftLowerLeg) rig.leftLowerLeg.rotation.x = 1.4;
-      if (rig.rightLowerLeg) rig.rightLowerLeg.rotation.x = 1.4;
-      // Hands in the lap, or holding a phone up to read
-      rig.leftArm.rotation.x = -0.45;
-      rig.rightArm.rotation.x = i % 2 ? -0.9 : -0.45;
-      if (rig.leftForearm) rig.leftForearm.rotation.x = -0.7;
-      if (rig.rightForearm) rig.rightForearm.rotation.x = i % 2 ? -1.1 : -0.7;
-      root.add(rig.group);
-      // Baked as the light figure, not the full character model (about 43k triangles a person,
-      // too many for twenty people on a low-end phone): leaving the phone out asks for that
-      const geo = bakeToGeometry(root, { exclude: [rig.phoneMesh ?? new THREE.Object3D()] });
-      if (!geo) return;
-      const mesh = new THREE.InstancedMesh(geo, material, mine.length);
-      mine.forEach((st, k) => {
-        // The benches face the glass and the aircraft (toward -z)
-        m.makeRotationY(Math.PI + st.turn);
-        m.setPosition(st.x, 0.55, st.z);
-        mesh.setMatrixAt(k, m);
-        this.group.add(contactShade(0.6, 0.7, st.x, st.z - 0.35, 0.25));
-      });
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.castShadow = true;
-      g.add(mesh);
-    });
-    return g;
-  }
-
   private buildCafe(): THREE.Group {
     const k = new Kit();
     // The counter along the wall, its pastry case, the coffee machine and the shelves behind
@@ -927,50 +866,73 @@ export class AirportInterior {
     const k = new Kit();
     const R = BELT_RADIUS;
     const Ls = BELT_STRAIGHT;
+    // The stainless sides, a black rubber bumper along the top edge, the island in the middle
     for (const side of [-1, 1]) {
-      k.box(M.steel, 0.22, 0.5, Ls, side * (R + 0.25), 0, 0);
-      k.box(M.rubber, 0.7, 0.08, Ls, side * R, 0.42, 0, 0, 0, side * 0.15);
+      k.box(M.steel, 0.12, 0.44, Ls, side * (R + 0.42), 0, 0);
+      k.rod(M.rubber, 0.05, Ls, side * (R + 0.42), 0.46, 0, Math.PI / 2, 10);
+      k.box(M.black, 0.08, 0.06, Ls, side * (R + 0.38), 0.0, 0);
     }
     for (const end of [-1, 1]) {
-      const cap = new THREE.CylinderGeometry(R + 0.36, R + 0.36, 0.5, 24, 1, true, end > 0 ? 0 : Math.PI, Math.PI);
-      cap.translate(0, 0.25, 0);
+      const cap = new THREE.CylinderGeometry(R + 0.42, R + 0.42, 0.44, 32, 1, true, end > 0 ? 0 : Math.PI, Math.PI);
+      cap.translate(0, 0.22, 0);
       k.geo(M.steel, cap, 0, 0, end * Ls / 2);
-      const bed = new THREE.RingGeometry(R - 0.35, R + 0.35, 24, 1, end > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI);
-      bed.rotateX(-Math.PI / 2);
-      k.geo(M.rubber, bed, 0, 0.47, end * Ls / 2);
+      const bumper = new THREE.TorusGeometry(R + 0.42, 0.05, 8, 32, Math.PI);
+      bumper.rotateX(Math.PI / 2);
+      bumper.rotateY(end > 0 ? 0 : Math.PI);
+      k.geo(M.rubber, bumper, 0, 0.46, end * Ls / 2);
+      const isle = new THREE.CylinderGeometry(R - 0.4, R - 0.4, 0.5, 32, 1, false, end > 0 ? 0 : Math.PI, Math.PI);
+      isle.translate(0, 0.25, 0);
+      k.geo(M.steel, isle, 0, 0, end * Ls / 2);
     }
-    k.box(M.solid, 1.8, 0.4, Ls + 0.4, 0, 0, 0);
-    // The chute from the wall, with its flaps
-    k.box(M.steel, 1.1, 0.15, 3.0, 0, 1.0, -Ls / 2 - 2.2, 0, 0.35);
-    k.box(M.black, 1.6, 2.4, 0.3, 0, 0, -Ls / 2 - 3.8);
-    for (let i = 0; i < 5; i++) k.box(M.rubber, 0.24, 0.8, 0.02, -0.48 + i * 0.24, 0.6, -Ls / 2 - 3.62);
+    k.box(M.steel, 2 * (R - 0.4), 0.5, Ls, 0, 0, 0);
+    k.box(M.metalDark, 2 * (R + 0.42), 0.4, Ls, 0, 0, 0); // the dark bed under the plates
+    // The feed: bags come through rubber flaps in the baggage-room wall and slide down a sloped belt
+    const run = 2.2;
+    const drop = 1.05;
+    const slope = Math.atan2(drop, run);
+    const ramp = new THREE.BoxGeometry(0.9, 0.05, Math.hypot(run, drop));
+    k.geo(M.rubber, ramp, 0, 0.5 + drop / 2, -Ls / 2 - R + 0.2 - run / 2, 0, slope);
+    for (const side of [-0.5, 0.5]) {
+      const rail = new THREE.BoxGeometry(0.06, 0.22, Math.hypot(run, drop));
+      k.geo(M.steel, rail, side, 0.6 + drop / 2, -Ls / 2 - R + 0.2 - run / 2, 0, slope);
+      k.box(M.steel, 0.08, 0.5 + drop - 0.05, 0.08, side, 0, -Ls / 2 - R - run + 0.4);
+    }
+    const wallZ = -Ls / 2 - R - run - 0.25;
+    k.box(M.metalDark, 3.6, 3.4, 0.2, 0, 0, wallZ - 0.12);
+    k.box(M.black, 1.3, 1.0, 0.1, 0, 1.05, wallZ + 0.02);
+    for (let i = 0; i < 6; i++) k.box(M.rubber, 0.2, 0.7, 0.015, -0.5 + i * 0.2, 1.33, wallZ + 0.09);
+    k.box(M.steel, 1.5, 0.12, 0.16, 0, 2.05, wallZ + 0.02);
     belt.add(k.build('belt'));
-    // Bags going round
-    const bagColours = [0x1e3a8a, 0x991b1b, 0x15803d, 0xd97706, 0x334155, 0x7c3aed, 0x111827, 0xeab308];
-    bagColours.forEach((color, i) => {
-      const bag = new THREE.Group();
-      const size = [0.62 + (i % 3) * 0.06, 0.28 + (i % 2) * 0.08, 0.42];
-      const body = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), new THREE.MeshStandardMaterial({ color, roughness: 0.55 }));
-      body.position.y = size[1] / 2;
-      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.04), M.chrome);
-      handle.position.set(0, size[1] + 0.02, -size[2] / 2 + 0.05);
-      const tag = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.08), M.solid);
-      tag.position.set(0.15, size[1] + 0.01, 0.1);
-      bag.add(body, handle, tag);
-      const t = i / bagColours.length;
-      const p = this.beltPoint(t);
-      bag.position.copy(p.pos);
-      bag.rotation.y = p.angle;
-      belt.add(bag);
-      this.carouselBags.push({ group: bag, trackT: t });
+    // The moving plates: overlapping crescents, so the ring reads as a belt going round
+    const plate = new THREE.Shape();
+    plate.moveTo(-0.36, -0.2);
+    plate.quadraticCurveTo(0, -0.14, 0.36, -0.2);
+    plate.lineTo(0.36, 0.22);
+    plate.quadraticCurveTo(0, 0.28, -0.36, 0.22);
+    plate.closePath();
+    const plateGeo = new THREE.ExtrudeGeometry(plate, { depth: 0.022, bevelEnabled: false, curveSegments: 6 });
+    plateGeo.rotateX(Math.PI / 2);
+    const total = 2 * Ls + 2 * Math.PI * R;
+    const plates = Math.round(total / 0.33);
+    this.beltPlates = new THREE.InstancedMesh(plateGeo, new THREE.MeshStandardMaterial({ color: 0x2b2f35, roughness: 0.55, metalness: 0.35, name: 'belt plates' }), plates);
+    this.beltPlates.name = 'belt plates';
+    this.beltPlates.frustumCulled = false;
+    this.beltPlates.receiveShadow = true;
+    belt.add(this.beltPlates);
+    // The bags riding round, in the same kit the travellers carry
+    this.beltBags = new LuggageBatch({ rollerLying: 16, ghana: 10, duffel: 10, carton: 10 });
+    belt.add(this.beltBags.group);
+    const kinds: BagKind[] = ['rollerLying', 'rollerLying', 'ghana', 'carton', 'duffel', 'rollerLying', 'ghana', 'rollerLying', 'carton', 'duffel', 'rollerLying', 'ghana', 'rollerLying'];
+    kinds.forEach((kind, i) => {
+      this.onBelt.push({ kind, colour: BAG_COLOURS[(i * 5) % BAG_COLOURS.length], t: i / kinds.length + (i % 3) * 0.012, ramp: -1, away: 0, turn: (i % 4) * 0.35 - 0.5 });
     });
+    this.stepBelt(0);
     const sign = signMesh(['BELT 1', 'NL 205 from Abuja'], 3.2, 1.0, { bg: '#111827', fg: '#ffcc1a', density: 140 });
-    sign.position.set(0, 3.3, 0);
-    sign.rotation.y = -Math.PI / 2;
+    sign.position.set(0, 2.85, wallZ + 0.04);
     belt.add(sign);
     group.add(belt);
     this.nav.blockRect(CAROUSEL.x, CAROUSEL.z, Ls / 2 + R + 0.5, R + 0.5);
-    this.nav.blockRect(CAROUSEL.x - Ls / 2 - 3, CAROUSEL.z, 1.6, 0.9);
+    this.nav.blockRect(CAROUSEL.x - Ls / 2 - R - 1.2, CAROUSEL.z, 1.3, 1.9);
     group.add(contactShade(Ls + 4, 4.2, CAROUSEL.x, CAROUSEL.z, 0.35));
 
     // SIM desk and cab desk by the arrivals doors
@@ -1167,73 +1129,6 @@ export class AirportInterior {
 
   // --- Outside the glass: the apron and the aircraft on their stands ----------------------------------
 
-  private buildApron(): THREE.Group {
-    const g = new THREE.Group();
-    g.name = 'apron view';
-    const apron = new THREE.Mesh(floorPlane(160, 80, 8), M.apron);
-    apron.position.set(0, -0.03, -L / 2 - 40);
-    g.add(apron);
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(400, 200), new THREE.MeshStandardMaterial({ color: 0x6b7d3a, roughness: 1 }));
-    grass.rotation.x = -Math.PI / 2;
-    grass.position.set(0, -0.06, -L / 2 - 180);
-    g.add(grass);
-    const k = new Kit();
-    // Stand markings: yellow lead-in lines, stop bars, white safety lines
-    for (const sx of [GATES[0], -22]) {
-      k.box(M.yellow, 0.25, 0.006, 30, sx, 0, -L / 2 - 20);
-      k.box(M.yellow, 4, 0.006, 0.3, sx, 0, -L / 2 - 8);
-      k.box(M.solid, 0.15, 0.006, 26, sx - 6, 0, -L / 2 - 19);
-      k.box(M.solid, 0.15, 0.006, 26, sx + 6, 0, -L / 2 - 19);
-    }
-    k.box(M.solid, 160, 0.006, 0.3, 0, 0, -L / 2 - 3);
-    k.box(M.yellow, 160, 0.006, 0.25, 0, 0, -L / 2 - 44);
-    // Ground equipment: a baggage tractor with its carts, a stairs truck, a fuel truck, cones
-    const tug = (x: number, z: number, yaw: number) => {
-      k.soft(M.yellow, 1.3, 1.0, 2.2, x, 0.25, z, 0.1, yaw);
-      k.box(M.black, 1.2, 0.6, 0.9, x, 1.25, z, yaw);
-      for (let i = 1; i <= 3; i++) {
-        const cx = x - Math.sin(yaw) * (i * 2.6);
-        const cz = z - Math.cos(yaw) * (i * 2.6);
-        k.box(M.metalDark, 1.5, 0.12, 2.2, cx, 0.45, cz, yaw);
-        k.box(M.steel, 1.5, 0.9, 0.05, cx, 0.57, cz, yaw);
-        this.goods(k, 0.6, 0.35, 0.45, cx, 0.57, cz, [0x1e3a8a, 0x991b1b, 0x334155][i - 1]);
-      }
-    };
-    tug(16, -L / 2 - 12, Math.PI / 2);
-    k.box(M.solid, 2.4, 2.2, 7, -30, 0.4, -L / 2 - 16);
-    k.box(M.black, 2.4, 1.3, 1.8, -30, 0.5, -L / 2 - 11.6);
-    for (const [cx, cz] of [[2, -L / 2 - 8], [14, -L / 2 - 8], [-28, -L / 2 - 8], [-16, -L / 2 - 8]]) {
-      k.cyl(M.red, 0.02, 0.17, 0.5, cx, 0, cz, 10);
-    }
-    // The stairs up to the forward door of the aircraft at Gate 1
-    const stairsX = GATES[0] + 2.8;
-    const stairsZ = -L / 2 - 16.6;
-    k.box(M.solid, 1.6, 0.9, 4.5, stairsX + 1.8, 0, stairsZ, 0);
-    for (let i = 0; i < 7; i++) k.box(M.metalDark, 1.2, 0.08, 0.35, stairsX + 0.4 + i * 0.32, 0.25 + i * 0.19, stairsZ);
-    k.box(M.solid, 0.05, 0.9, 2.6, stairsX + 1.4, 1.1, stairsZ - 0.65, 0, 0, -0.5);
-    g.add(k.build('apron equipment'));
-    // Two of the airline's aircraft on their stands, nose to the terminal
-    for (const sx of [GATES[0], -22]) {
-      const plane = airliner();
-      plane.rotation.y = -Math.PI / 2;
-      plane.position.set(sx, 0, -L / 2 - 20.75);
-      g.add(plane);
-      g.add(contactShade(22, 26, sx, -L / 2 - 20, 0.35));
-    }
-    // Apron floodlight masts with their blinking tops
-    for (const mx of [-50, -2, 46]) {
-      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 22, 10), M.steel);
-      mast.position.set(mx, 11, -L / 2 - 48);
-      const head = new THREE.Mesh(new THREE.BoxGeometry(3, 1.2, 0.8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 0.6 }));
-      head.position.set(mx, 22.4, -L / 2 - 48);
-      const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0xff1f1f, emissiveIntensity: 2 }));
-      beacon.position.set(mx, 23.3, -L / 2 - 48);
-      g.add(mast, head, beacon);
-      this.tarmacLights.push(beacon);
-    }
-    return g;
-  }
-
   // --- Small things used in many places -----------------------------------------------------------
 
   private goodsMaterials = new Map<number, THREE.MeshStandardMaterial>();
@@ -1267,6 +1162,121 @@ export class AirportInterior {
     this.nav.blockRect(x, z, 0.4, 0.4);
   }
 
+  // --- The people --------------------------------------------------------------------------------------
+
+  private buildCrowd(): AirportCrowd {
+    // Who sits: about three in ten gate seats, some café chairs, a few lounge armchairs (always the same)
+    const seats: Array<{ x: number; z: number; yaw: number }> = [];
+    let n = 7;
+    const roll = () => (n = (n * 1103515245 + 12345) & 0x7fffffff) % 100;
+    for (const cx of GATES) {
+      for (const rz of [-12.5, -9.5, -6.5]) {
+        for (const bx of [cx - 3.4, cx + 3.4]) {
+          for (let i = 0; i < 5; i++) if (roll() < 30) seats.push({ x: bx + 1.24 - i * 0.62, z: rz - 0.04, yaw: Math.PI });
+        }
+      }
+    }
+    for (const [tx, tz] of [[-22.5, -10.5], [-19, -10.5], [-22.5, -7.5], [-19, -7.5], [-17.5, -4.2]]) {
+      for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        if (roll() < 40) seats.push({ x: tx + Math.sin(a) * 0.78, z: tz + Math.cos(a) * 0.78, yaw: a + Math.PI });
+      }
+    }
+    for (const [ax, az] of [[-25, -15], [-20.5, -17.5], [-17.4, -15]]) {
+      if (roll() < 70) seats.push({ x: ax, z: az + 0.95, yaw: Math.PI });
+    }
+    return new AirportCrowd({
+      counters: [-20.5, -8.5],
+      // From the head (by the counters) back through the lanes to where the queue is joined
+      queue: [[-9.0, 7.1], [-22.8, 7.1], [-22.8, 8.5], [-8.7, 8.5], [-8.7, 9.9], [-22.8, 9.9], [-22.8, 11.5], [-14, 11.5]],
+      lanes: LANES,
+      gates: GATES,
+      boarding: [APRON.gate1Stairs, APRON.busDoor],
+      arrivalsFrom: APRON.arrivalsStairs,
+      seats,
+      beltSpots: [
+        ...[12.4, 13.2, 14.0, 14.8, 15.6, 16.4, 17.2, 18.0, 18.8, 19.6].map((x) => ({ x, z: 7.55, yaw: 0 })),
+        ...[12.4, 13.2, 14.0, 18.0, 18.8, 19.6].map((x) => ({ x, z: 12.45, yaw: Math.PI })),
+        { x: 21.35, z: 9.3, yaw: -Math.PI / 2 },
+        { x: 21.35, z: 10.7, yaw: -Math.PI / 2 },
+      ],
+      takeBag: (x, z) => this.takeBag(x, z),
+      playerAt: () => AirportInterior.playerAt(),
+      crew: APRON_CREW,
+      origin: this.group.position,
+    });
+  }
+
+  /** The belt going round: its plates, the bags on it, and new bags sliding down the feed */
+  private stepBelt(delta: number): void {
+    const Ls = BELT_STRAIGHT;
+    const R = BELT_RADIUS;
+    const total = 2 * Ls + 2 * Math.PI * R;
+    const speed = 0.45;
+    this.beltRun = (this.beltRun + delta * speed) % total;
+    const n = this.beltPlates.count;
+    for (let i = 0; i < n; i++) {
+      const p = this.beltPoint(i / n + this.beltRun / total);
+      this.be.set(0, p.angle, 0);
+      this.bm.compose(this.bv.set(p.pos.x, 0.42 + (i % 2) * 0.006, p.pos.z), this.bq.setFromEuler(this.be), this.bone);
+      this.beltPlates.setMatrixAt(i, this.bm);
+    }
+    this.beltPlates.instanceMatrix.needsUpdate = true;
+    // Where the feed meets the ring (the far end's apex), and whether that bit of belt is clear
+    const apex = (2 * Ls + 1.5 * Math.PI * R) / total;
+    const clear = () => this.onBelt.every((b) => b.ramp >= 0 || b.away > 0 || Math.abs(((b.t - apex + 1.5) % 1) - 0.5) > 0.055);
+    const run = 2.2;
+    const drop = 1.05;
+    const slope = Math.atan2(drop, run);
+    this.beltBags.begin();
+    for (const b of this.onBelt) {
+      if (b.away > 0) {
+        b.away -= delta;
+        if (b.away > 0) continue;
+        // Another bag through the flaps
+        const kinds: BagKind[] = ['rollerLying', 'rollerLying', 'ghana', 'carton', 'duffel'];
+        b.kind = kinds[Math.floor(Math.random() * kinds.length)];
+        b.colour = BAG_COLOURS[Math.floor(Math.random() * BAG_COLOURS.length)];
+        b.ramp = 0;
+      }
+      if (b.ramp >= 0) {
+        if (b.ramp < 1) b.ramp = Math.min(1, b.ramp + delta / 3.2);
+        else if (clear()) {
+          b.ramp = -1;
+          b.t = apex;
+        }
+      } else {
+        b.t = (b.t + (delta * speed) / total) % 1;
+      }
+      if (b.ramp >= 0) {
+        const z = -Ls / 2 - R + 0.2 - run * (1 - b.ramp);
+        this.be.set(slope, Math.PI / 2 + b.turn * 0.3, 0, 'YXZ');
+        this.bm.compose(this.bv.set(0, 0.53 + drop * (1 - b.ramp), z), this.bq.setFromEuler(this.be), this.bone);
+      } else {
+        const p = this.beltPoint(b.t);
+        this.be.set(0, p.angle + Math.PI / 2 + b.turn, 0, 'YXZ');
+        this.bm.compose(this.bv.set(p.pos.x, 0.445, p.pos.z), this.bq.setFromEuler(this.be), this.bone);
+      }
+      this.beltBags.add(b.kind, this.bm, b.colour);
+    }
+    this.beltBags.end();
+  }
+
+  /** Someone at the belt lifts off a bag passing within reach (hall coordinates), if there is one */
+  private takeBag(x: number, z: number): { kind: BagKind; colour: number } | null {
+    // The belt is turned a quarter: its own x runs against the hall's z
+    const lx = CAROUSEL.z - z;
+    const lz = x - CAROUSEL.x;
+    for (const b of this.onBelt) {
+      if (b.ramp >= 0 || b.away > 0) continue;
+      const p = this.beltPoint(b.t).pos;
+      if ((p.x - lx) ** 2 + (p.z - lz) ** 2 < 1.3) {
+        b.away = 5 + Math.random() * 8;
+        return { kind: b.kind, colour: b.colour };
+      }
+    }
+    return null;
+  }
+
   // --- The baggage belt's track and the moving parts --------------------------------------------------
 
   private beltPoint(t: number): { pos: THREE.Vector3; angle: number } {
@@ -1298,14 +1308,9 @@ export class AirportInterior {
     const at = AirportInterior.playerAt();
     // Not at eye level either, where a badge a metre wide covered the person's face
     if (at) for (const npc of this.npcs) npc.badge.visible = !eye && npc.group.getWorldPosition(this.scratch).distanceToSquared(at) < 20;
-    for (const bag of this.carouselBags) {
-      bag.trackT = (bag.trackT + delta * 0.025) % 1;
-      const p = this.beltPoint(bag.trackT);
-      bag.group.position.copy(p.pos);
-      bag.group.rotation.y = p.angle;
-    }
-    const blink = Math.sin(this.clock * 3) > 0.6 ? 2.4 : 0.3;
-    for (const beacon of this.tarmacLights) (beacon.material as THREE.MeshStandardMaterial).emissiveIntensity = blink;
+    this.stepBelt(delta);
+    this.crowd.update(delta);
+    this.apron.update(delta);
     this.sinceBoards += delta;
     if (this.sinceBoards > 2) {
       this.sinceBoards = 0;
