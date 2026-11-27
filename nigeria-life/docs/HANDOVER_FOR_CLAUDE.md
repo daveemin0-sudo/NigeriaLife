@@ -139,11 +139,23 @@ Perf inside (2× rAF after `graphics.choose`, desktop last venue in session — 
 
 **Unverified on return:** Balogun VL tris (~241k) vs street cap; nav through new tarp posts vs stall `occupy`; live shop flows (`app:shopping`) in mall zones; Wuse/Jabi/mile-one density pass.
 
-Still unfinished / follow-on: **the-library** / Ikoyi fine dining density; denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts; **homes** audit next; Wuse / Mile 1 / town `marketAtmosphere()` shells.
+Still unfinished / follow-on: **the-library** / Ikoyi fine dining density; denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts; Wuse / Mile 1 / town `marketAtmosphere()` shells.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
+### Homes / residence dressing (`cursor/integration-1`)
 
+Root cause: plan-built homes (`HomePlan` shells + catalogue furniture) had partitions, POP ceiling, and fittings but **no zone clutter** — read as empty white/orange boxes vs Lagos lived-in density (ART-BIBLE: sachet water, shoes, prepaid meter, kitchen props).
+
+**Shipped:** `HomeDress.ts` — per plan-key dressing dispatched from `ResidentialInterior.applyPlan()` (and `buildUpper()` for duplex). Zones: entrance sign + prepaid meter + shoe mat; parlour wall calendar, sachet crate, DSTV stack (comfortable+); kitchen spice/pot run; bedroom wardrobe; bathroom toiletries; corridor runner/shoes; duplex stair rail; house carport tools. **`HomeStandard`** scales luxury vs basic density. Station ids unchanged (`flat-tv`, `flat-bed`, `flat-fridge`, `flat-drum`, `home_toilet_*`, `home_shower_*`).
+
+Templates covered: `self-contain:1:-:v3` (e.g. `prop_mushin_room`), `room-parlour:1:-:v3`, `flat:N:-:v3` (e.g. `prop_mainland_apt`), `house:*`, `house:*:2s` duplex upstairs.
+
+Evidence branch: `cursor/evidence-homes-181d` — `docs/evidence/homes/` (phone 390×844 Mushin parlour/kitchen + mainland parlour/bedroom eye; desktop 1280×800 mainland parlour/corridor **play camera**; `stations.json` all `ok: true`).
+
+Perf inside `prop_mainland_apt` (`flat:3:-:v3`, 2× rAF after `graphics.choose`): **Very Low** 232 draws / 111k tris; **Medium (balanced)** 386 draws / 219k tris (`docs/evidence/homes/perf.json`).
+
+**Unverified on return:** nav through new wardrobe/sideboard occupies vs furniture spots; Mushin VL tri budget; live sleep/cook/bath flows after clutter solids; duplex upstairs dressing vs master ensuite door swing.
 
 ### Broad Street Very Low triangle budget
 
@@ -270,7 +282,7 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 | Hotels | Grand lobbies + town guest suite Builder shells |
 | Restaurants | Amala Shitta + Chop Express kitchen props |
 | Markets | Balogun + Computer Village + Palms + Ikeja City Mall dedicated floors; Wuse / Mile 1 stalls |
-| Homes | Ikeja GRA estate office polish; residence still Stage 3 beds/staff |
+| Homes | `HomeDress.ts` per plan key; residence zones + starter flats (Mushin self-contain, mainland flat) |
 
 Evidence: `cursor/evidence-stage-4` @ `d214afb`. PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60). Merged into `cursor/integration-1` @ `850f588` / `14a66d5`.
 

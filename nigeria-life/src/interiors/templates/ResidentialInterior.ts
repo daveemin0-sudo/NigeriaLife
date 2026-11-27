@@ -22,6 +22,7 @@ import { Builder } from '../../world/kit/ArchKit';
 import { PlaceActions, type PlaceAction, type PlaceHost } from '../../destinations/PlaceActions';
 import type { NavGrid } from '../../interactions/NavGrid';
 import { HomeLife, HOME, type MealPlace } from '../home/HomeLife';
+import { buildHomeDressing, buildHomeDressingUpper } from '../home/HomeDress';
 import type { HomeStandard } from '../../housing/HomeStandard';
 import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
 import { roomDoor, DOOR_STYLES, type DoorStyle } from '../../housing/MoreFurniture';
@@ -1789,6 +1790,8 @@ export class ResidentialInterior {
     this.storeyLights = plan.lights.slice(0, 4).map((light) => InteriorPrefabs.createCeilingLight(new THREE.Vector3(light.x, wallH - 0.2, light.z), 0xffedd5));
     for (const light of this.storeyLights) g.add(light);
 
+    this.attachHomeDressing(plan, g.add, solid);
+
     // The doors in the doorways
     this.hangDoors(plan.doors, this.group, 0);
 
@@ -1834,6 +1837,24 @@ export class ResidentialInterior {
 
     this.life.reblock();
     HouseDecorationSystem.getInstance().attach(this.room);
+  }
+
+  /** Nigerian clutter per plan key: walls stay clear of furniture spots and station anchors. */
+  private attachHomeDressing(
+    plan: HomePlan,
+    add: (part: THREE.Object3D) => void,
+    solid: (x: number, z: number, halfWidth: number, halfLength: number) => void,
+  ): void {
+    const std = ResidentialInterior.standardNow?.() ?? this.standard;
+    const { group, footprints } = buildHomeDressing(plan, std);
+    group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+    add(group);
+    for (const fp of footprints) {
+      if (fp.height < 0.45) continue;
+      const cx = (fp.minX + fp.maxX) / 2;
+      const cz = (fp.minZ + fp.maxZ) / 2;
+      solid(cx, cz, Math.max(0.12, (fp.maxX - fp.minX) / 2 - 0.02), Math.max(0.12, (fp.maxZ - fp.minZ) / 2 - 0.02));
+    }
   }
 
   /** Every toilet can be used and every shower stood under, each from where it is in its room */
@@ -2394,6 +2415,19 @@ export class ResidentialInterior {
     }
     this.partitions(up.walls, add, solid);
     add(this.finishWalls(up.walls, W, L, T, wallH));
+
+    {
+      const std = ResidentialInterior.standardNow?.() ?? this.standard;
+      const { group, footprints } = buildHomeDressingUpper(plan, std);
+      group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+      add(group);
+      for (const fp of footprints) {
+        if (fp.height < 0.45) continue;
+        const cx = (fp.minX + fp.maxX) / 2;
+        const cz = (fp.minZ + fp.maxZ) / 2;
+        solid(cx, cz, Math.max(0.12, (fp.maxX - fp.minX) / 2 - 0.02), Math.max(0.12, (fp.maxZ - fp.minZ) / 2 - 0.02));
+      }
+    }
 
     // The front: a low wall the length of the house, over the step a balcony
     const parapet = new THREE.Mesh(new THREE.BoxGeometry(W, 1.0, T), this.wallPaint);
