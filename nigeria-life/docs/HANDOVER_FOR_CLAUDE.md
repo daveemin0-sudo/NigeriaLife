@@ -35,16 +35,23 @@ Edited existing tests (same behaviour, sidewalk height):
 | `ways` Broad Street walk | `y < 0.05` | `y < 0.35` | Pavement is at `sidewalkTop` (0.28); still requires not on bridge / not inside |
 | `streets` under bridge / stair side | `y < 0.05` | `y < 0.35` | Same street-level intent as east-stairs foot check (`y < 0.3`) |
 
-Clean tip FAIL / bf55 PASS fixed:
+Clean tip FAIL / bf55 PASS fixed (tip now `c009dd9`):
 
-- **ways** stadium Gate A + quay path brushed stall tables at kerb (`x≈9.15`). Stalls moved to shop-front inset (`x≈±12.55`) so kerb walk stays clear. Re-check: brushes 0 / 0; onPavement 0.95.
+- **ways** stadium Gate A + quay path brushed stall tables at kerb (`x≈9.15`). Stalls moved to shop-front inset (`x≈±12.55`) so kerb walk stays clear (`5430d8c`). Full-log ways FAILs are from pre-fix tip-fresh copy — re-run ways after rebuild.
+- **hours** stadium `status().open` lagged `setHour` (no landmark `update` frame). Wired `landmarks.setClock(() => sky.currentHour)` like interiors (`b536460`).
+- **phone** send amount: `get()` preferred empty memory over typed input. Prefer live `data-bind` value (`c009dd9`).
+- **buka** Home from a chair: instant `forceFree` cleared hold but left `legs: 'sit'`. Instant rise now sets stand (`c009dd9`).
+- **shop** basket while walking: carry arms only applied when `!glbModel`. Apply carry on procedural rig + skinned GLB (`c009dd9`).
 
+Named flakes / shared (tip and bf55): phone wheel scroll; invest typedFive; streets dawn walkers high; sidewalk `onPavement` ratio.
+
+Still comparing once bf55 finishes: `view` cutaway (all walls / dollhouse), `places` food filter + unaffordable fare, `land`/`server`/`accountsave` timeouts.
 
 Fresh serves (never reused):
-- tip `28e15cb` → `http://127.0.0.1:5201/NigeriaLife/` from `/tmp/nl-e2e-tip-fresh`
-- baseline `bf55dab` → `http://127.0.0.1:5202/NigeriaLife/` from `/tmp/nl-e2e-bf55-fresh`
+- tip tip-fresh started at `28e15cb` → `http://127.0.0.1:5201/NigeriaLife/` from `/tmp/nl-e2e-tip-fresh` (working tree patched for stadium/stall; product tip `c009dd9`)
+- baseline `bf55dab` → `http://127.0.0.1:5202/` from `/tmp/nl-e2e-bf55-fresh`
 
-Both running full suite lists (159 tip / 152 baseline). Log: `/tmp/nl-regression-fresh/{tip,bf55}-full.log`. Will fix clean pass→fail (except named flakes).
+Both still running. Log: `/tmp/nl-regression-fresh/{tip,bf55}-full.log`. After both finish: rebuild tip-fresh from `c009dd9`, re-run clean-fail suites one at a time.
 
 ### Character files — 2 shared skins + meshopt (`cursor/character-2skins-181d` @ `e197196`, merged @ `28e15cb`)
 
