@@ -53,7 +53,7 @@ Perf inside LASUTH (2× rAF after `graphics.choose`): **Very Low** 35 draws / 29
 
 **Unverified on return:** manual walk of all partition door gaps vs nav; clinic/pharmacy/ward purchases in live play; whether Medium tris (~308k) needs a LOD pass on ceiling tiles; portraits of new staff NPCs at peak light; jobs hook `lasuth-nursing` shift path through new clutter.
 
-### Amala Shitta buka redo (`cursor/integration-1` @ `0695f51`)
+### Amala Shitta buka redo (`cursor/integration-1` @ `24436d1`)
 
 Root cause: `amala-shitta` used sparse shared `bukaHall()` on flat cream shell — empty box with six tables.
 
