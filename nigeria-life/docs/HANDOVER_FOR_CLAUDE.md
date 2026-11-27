@@ -11,15 +11,23 @@ Merged into `cursor/integration-1` @ `28e15cb` (includes character 2-skins):
 - `cursor/stage-0d-street-181d` @ `ecaffdb` (PR #64)
 - `cursor/stage-3-seat-sit-181d` @ `6441046` (PR #62)
 
-Next: open places redo; interiors redo.
+Next: remaining open places (same treatment); interiors redo.
 
-### Open places redo — plan (from architecture pass; not started)
+### Open places redo — Elegushi first cut (shipped)
 
 Root cause: open places are **pocket interiors** at `(-3000, …)`. Enter hides the city (`setStreetModeVisibility(false)`), drops a finite `createOpenGround` slab + green `createGroundPlot` disc, and uses high **interior** diorama camera — so they read as platforms in a grey void.
 
 **Preferred approach (first cut, keep pocket):** kill void edge with per-venue horizon skirts; skip/recolour green disc for open-air; lower camera toward street eye; keep stations/ids. **Embed in city** is the larger follow-on (don’t hide street; spawn at door).
 
-**Elegushi first** (`lagoon-beach`): extend `OpenAirBeach` sand/sea past rails → sand finish → swim bobbers / horse tick → beach ambience → camera tweak → phone+desktop evidence. Key files: `PlaceSpecs.ts`, `PlaceInterior.ts`, `OpenAirBeach.ts`, `InteriorPrefabs.createOpenGround`, `InteriorManager.enterInterior` / `createGroundPlot`, `Camera.ts`.
+**Elegushi first cut** (`lagoon-beach`) @ `27ea4a9`:
+- Horizon skirts (sand apron, far sea disc, sky band) past plot rails — no green lawn disc on open-air
+- Animated multi-octave sea shader (foam crests, shoreline wash, sky reflection) + wet sand strip + `beach_sand` floor finish
+- Swim bobbers in buoy zone; horses with riders along shore; walking vendors; surf + crowd ambience
+- Open-air camera: street-height pitch/follow (`OPEN_AIR_PITCH` ~0.48, ~9–14 m leash) instead of room diorama
+- Station ids/prices/activities unchanged (`bar`, `lounger`, `horse`, `party`, `suya`, `coconut`, `football`, `swim`)
+- Files: `OpenAirBeach.ts`, `PlaceSpecs.ts`, `PlaceInterior.ts`, `InteriorPrefabs.ts`, `InteriorManager.ts`, `Camera.ts`, `Surfaces.ts`
+
+Still unfinished / follow-on: phone+desktop evidence screenshots; denser crowd meshes (still capsule LODs); DJ/music tied to live beach-party hours; other open places (Freedom Park, golf, Jabi, etc.) still on green disc / high camera until same treatment; embed-in-city is later.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
@@ -52,7 +60,7 @@ Fresh serves:
 - verify tip `54a8752` on `:5203`
 - baseline `bf55dab` on `:5202`
 
-Full tip+bf55 still running. Next: open places redo (Elegushi first).
+Full tip+bf55 still running. Next: remaining open places after Elegushi @ `27ea4a9`.
 
 ### Character files — 2 shared skins + meshopt (`cursor/character-2skins-181d` @ `e197196`, merged @ `28e15cb`)
 
