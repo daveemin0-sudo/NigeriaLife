@@ -29,7 +29,7 @@ Root cause: open places are **pocket interiors** at `(-3000, …)`. Enter hides 
 
 Evidence: `cursor/evidence-elegushi-181d` @ `7197467` (PR #65; first set `39a6c27`, v2 set `2777c6e`) — phone 390×844 + desktop 1280×800 at street-height play camera (`docs/evidence/elegushi-beach/`). Sea-over-sand defect (plane centred `shoreZ - SEA_L*0.38`) **fixed** in this tip: sea/lake near edge flush at shoreline (`shoreZ - SEA_L*0.5`).
 
-**Freedom Park first cut** (`freedom-park`) @ `PENDING_HASH` (same open-air pattern as Elegushi; park not sea):
+**Freedom Park first cut** (`freedom-park`) @ `2def2ef` (same open-air pattern as Elegushi; park not sea):
 - Already had `openAir: true` (street camera / no green disc); was still a finite lawn slab in grey void — now `OpenAirPark.ts` horizon lawn skirts, sky band, distant city fringe, path apron past rails
 - Fringe trees + heritage stone stubs; walkers on paths; crowd murmur + soft highlife bed + leaf rustle
 - Stage PA stacks, extra paths/palms/plaque plinths; `park_lawn` floor finish
