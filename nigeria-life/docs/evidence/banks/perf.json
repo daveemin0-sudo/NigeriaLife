@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T17:06Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "allen-bank (Eko Commercial Bank, Allen Avenue)",
+  "veryLow": {
+    "calls": 65,
+    "tris": 216216
+  },
+  "medium": {
+    "calls": 162,
+    "tris": 587480
+  }
+}
