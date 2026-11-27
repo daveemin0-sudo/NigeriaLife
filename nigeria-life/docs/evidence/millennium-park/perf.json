@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T18:24Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "Millennium Park",
+  "veryLow": {
+    "calls": 37,
+    "tris": 42306
+  },
+  "medium": {
+    "calls": 70,
+    "tris": 152078
+  }
+}
