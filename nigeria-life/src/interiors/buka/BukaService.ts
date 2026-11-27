@@ -541,6 +541,8 @@ export class BukaService {
     player.hold = null;
     if (seat) this.director.release(seat.id, player);
     if (instant || !seat) {
+      // Instant rise (forceFree / leave room): stand at once — do not leave legs in sit
+      player.pose = { legs: 'stand', arms: 'rest' };
       player.setScripted(false);
       return;
     }

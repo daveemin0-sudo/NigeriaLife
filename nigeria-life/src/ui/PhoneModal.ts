@@ -149,9 +149,14 @@ export class PhoneModal {
       say: (text, tone) => phone.say(text, tone),
       confirm: (question, yes) => phone.confirm(question, yes),
       get: <T,>(key: string, initial: T) => {
-        if (phone.memory.has(key)) return phone.memory.get(key) as T;
+        // Prefer what is typed in the field: a stale empty memory entry (after a refresh or
+        // a prior clear) must not hide digits the player just typed into the input.
         const input = phone.screen?.querySelector<HTMLInputElement>(`[data-bind="${key}"]`);
-        if (input && input.value !== '') return input.value as unknown as T;
+        if (input && input.value !== '') {
+          phone.memory.set(key, input.value);
+          return input.value as unknown as T;
+        }
+        if (phone.memory.has(key)) return phone.memory.get(key) as T;
         return initial;
       },
       set: (key, value) => { phone.memory.set(key, value); },

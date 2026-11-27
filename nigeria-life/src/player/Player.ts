@@ -434,9 +434,18 @@ export class Player {
 
   public update(delta: number, keys?: Record<string, boolean>): void {
     this.updateBody(delta, keys);
-    // Something in the hands (a shop basket) stays held while walking about freely
-    if (!this.actor.scripted && this.actor.carried && this.humanRig && !this.glbModel) {
-      holdCarriedItem(this.humanRig);
+    // Something in the hands (a shop basket) stays held while walking about freely.
+    // Procedural rig always gets the carry pose (tests and fallback). Skinned GLB uses the
+    // carry/push clip so arms are not left in a free walk when a basket is held.
+    if (!this.actor.scripted && this.actor.carried) {
+      if (this.humanRig) holdCarriedItem(this.humanRig);
+      if (this.skinned) {
+        this.actor.pose = {
+          legs: this.isMoving ? 'walk' : 'stand',
+          arms: 'carry',
+        };
+        this.skinned.applyPose(this.actor.pose);
+      }
     }
   }
 
