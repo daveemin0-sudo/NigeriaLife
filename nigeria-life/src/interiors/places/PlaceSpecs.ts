@@ -462,41 +462,156 @@ const MARKET: PlaceSpec = {
   ],
 };
 
-/** Lagos buka hall: pot counter, cooler, wall menu, wooden tables with benches */
-const bukaHall = (b: Builder, accent = 0x15803d) => {
-  counter(b, 0, -5, 8, accent);
+/**
+ * Amala Shitta — dense Surulere buka: counter, seating hall, kitchen/fire, wash-up, entrance queue.
+ * Station anchor unchanged: counter (0,−5) / stand (0,−3.8). Job omorogun tasks stay near x≈−3..1, z≈−6.
+ */
+const amalaShittaBukaFloor = (b: Builder, accent = 0x15803d) => {
+  const wall = 0xfef3c7;
+  const trim = 0xca8a04;
+  const wood = 0x78350f;
+  const slate = 0x57534e;
+
+  // Corrugated ceiling panels + warm bulbs (dressing only)
+  for (let x = -9; x <= 9; x += 3.2) {
+    for (let z = -8; z <= 8; z += 3.2) {
+      b.box(0xd6d3d1, 2.9, 0.05, 2.9, x, 4.05, z, { solid: false });
+      b.box(0x78716c, 2.7, 0.03, 0.12, x, 4.12, z, { solid: false });
+    }
+  }
+  for (const [x, z] of [[-6, -2], [0, 1], [6, -4], [-3, 5], [5, 6], [-8, 4]] as const) {
+    b.cylinder(slate, 0.04, 0.55, x, 3.55, z, { solid: false });
+    b.cylinder(0xfde68a, 0.12, 0.14, x, 3.15, z, { glow: true, solid: false });
+  }
+  for (const [x, z] of [[-4, 2], [4, 0], [0, 6]] as const) {
+    b.cylinder(slate, 0.06, 0.35, x, 3.9, z, { solid: false });
+    b.box(slate, 1.4, 0.04, 0.16, x, 4.05, z, { solid: false });
+  }
+
+  // Windows + wall menu boards
+  for (const wx of [-7.5, -3.5, 0.5, 4.5, 7.5]) hospitalWindow(b, wx, -9.05, 2.0);
+  for (const wz of [-6, -2, 2, 6]) {
+    hospitalWindow(b, -10.95, wz, 2.0, 1.35, false);
+    hospitalWindow(b, 10.95, wz, 2.0, 1.35, false);
+  }
+  screen(b, 0, -9.0, 7.5, 1.25, 2.35, 0xfacc15);
+  b.box(accent, 4.2, 0.65, 0.08, -8.5, 2.5, -9.08, { solid: false });
+  b.box(0xf8fafc, 3.8, 0.48, 0.04, -8.5, 2.5, -9.04, { solid: false });
+  b.box(0xdc2626, 3.0, 0.55, 0.08, 8.2, 2.45, -9.08, { solid: false });
+  b.box(0xfacc15, 2.6, 0.38, 0.04, 8.2, 2.45, -9.04, { glow: true, solid: false });
+
+  // Zone partitions: kitchen (left), wash-up (right), serving pass
+  hospitalWallZ(b, -5.8, -9.2, 3.5, wall, -5.5);
+  hospitalWallZ(b, 5.8, -9.2, -1.5, wall, -5.0);
+  hospitalWallX(b, -3.5, -10.5, 10.5, wall, 0);
+  b.box(trim, 3.2, 2.45, 0.12, 0, 0, -3.4);
+  b.box(accent, 1.1, 0.4, 0.06, 0, 2.0, -3.34, { solid: false });
+  b.occupy(-0.85, 0.85, -3.3, -3.5, 2.5);
+
+  // --- Entrance (+z): queue, takeaway shelf, shoe corner ---
   for (let i = 0; i < 4; i++) {
-    b.cylinder(0x52525b, 0.35, 0.45, -3 + i * 2, 1.1, -5.1, { sides: 12 });
-    b.cylinder([0x1c1917, 0xfacc15, accent, 0x7c2d12][i], 0.3, 0.05, -3 + i * 2, 1.55, -5.1);
+    b.cylinder(0x94a3b8, 0.03, 0.9, -2.5 + i * 1.6, 0, 7.8, { solid: false });
+    b.box(0xdc2626, 0.55, 0.35, 0.35, -2.5 + i * 1.6, 0.92, 7.8, { solid: false });
   }
-  // Wall menu board
-  screen(b, 0, -6.7, 5, 1.1, 2.4, 0xfacc15);
-  // Cooler of drinks
-  b.box(0x1e3a8a, 1.4, 1.5, 0.7, 6.5, 0, -4.2);
-  b.box(0x7dd3fc, 1.2, 1.1, 0.04, 6.5, 0.25, -3.82, { glow: true });
-  // Shelf of plates / nylon packs behind counter
-  shelf(b, -6.5, -6.5, 2.4, [0xf8fafc, 0xfacc15, accent]);
-  // Dining tables
-  for (const [x, z] of [[-4.5, 0], [0, 0], [4.5, 0], [-4.5, 3.5], [0, 3.5], [4.5, 3.5]]) {
-    b.box(0x92400e, 2.2, 0.75, 0.9, x, 0, z, { solid: true });
-    bench(b, x, z - 0.9, 2.2);
-    bench(b, x, z + 0.9, 2.2);
+  bench(b, 7, 7.5, 2.4, wood);
+  bench(b, -8, 6.8, 2.2, 0x64748b);
+  b.box(0x1c1917, 1.2, 0.08, 0.9, -9, 0.01, 8.2, { solid: false });
+  b.box(0xf97316, 0.9, 0.55, 0.45, 9, 0, 7.2);
+  b.box(0xf8fafc, 0.75, 0.38, 0.04, 9, 0.28, 7.2, { solid: false });
+  screen(b, 0, 8.5, 4.5, 0.85, 2.0, accent);
+
+  // --- Counter / service (station zone) ---
+  counter(b, 0, -5, 8.5, accent, 0xf8fafc, 1.05);
+  counter(b, 4.2, -5.8, 3.4, wood, 0xe7e5e4, 0.95);
+  for (let i = 0; i < 4; i++) {
+    b.cylinder(0x52525b, 0.38, 0.52, -3 + i * 2, 1.15, -5.15, { sides: 14 });
+    b.cylinder([0x1c1917, 0xfacc15, accent, 0x7c2d12][i], 0.32, 0.06, -3 + i * 2, 1.62, -5.15, { solid: false });
+    b.box(0x44403c, 0.12, 0.18, 0.12, -3 + i * 2, 1.72, -5.15, { solid: false });
   }
-  // Ceiling fan suggestion
-  b.cylinder(0x57534e, 0.08, 0.4, 0, 3.2, 1, { solid: false });
-  b.box(0x57534e, 1.6, 0.04, 0.18, 0, 3.5, 1, { solid: false });
-  plant(b, 7, 5);
+  shelf(b, -2, -8.2, 3.6, [0xf8fafc, 0xfacc15, accent, 0xdc2626]);
+  for (let i = 0; i < 5; i++) b.box([0xf8fafc, 0xfacc15, 0x16a34a][i % 3], 0.35, 0.08, 0.28, -0.8 + i * 0.42, 1.18, -4.55, { solid: false });
+
+  // Drinks cooler (right of counter — job NPC post 6.5,−5.5)
+  b.box(0x1e3a8a, 1.5, 1.55, 0.75, 6.5, 0, -5.2);
+  b.box(0x7dd3fc, 1.25, 1.15, 0.05, 6.5, 0.28, -4.78, { glow: true, solid: false });
+  b.box(0xfacc15, 0.55, 0.42, 0.42, 6.5, 1.55, -4.78, { solid: false });
+
+  // --- Seating hall: wooden tables, benches, plastic chairs ---
+  const seatTables: Array<[number, number]> = [[-7, 1.5], [-2.5, 2], [2.5, 1.8], [7, 2.5], [-7, 5.5], [-2, 6], [3, 5.8], [7.5, 6.5]];
+  for (const [x, z] of seatTables) {
+    b.box(wood, 2.1, 0.78, 0.95, x, 0, z, { solid: true });
+    bench(b, x, z - 0.95, 2.1, 0x92400e);
+    bench(b, x, z + 0.95, 2.1, 0x92400e);
+    for (const side of [-1, 1]) {
+      const cx = x + side * 1.35;
+      b.box(0xf97316, 0.38, 0.48, 0.38, cx, 0, z, { solid: false });
+      b.box(0xf97316, 0.38, 0.5, 0.07, cx, 0.48, z + 0.18, { solid: false });
+    }
+    b.box(0x1c1917, 0.35, 0.08, 0.25, x, 0.8, z, { solid: false });
+    b.box(0x6b4f2a, 0.28, 0.05, 0.22, x - 0.2, 0.84, z, { solid: false });
+  }
+  for (const [x, z] of [[0, 3.5], [4.5, 4.2]] as const) table(b, x, z, 0x92400e, 4, 0x1f2937);
+
+  // --- Kitchen / fire (left wing) ---
+  b.box(0xdc2626, 3.5, 0.06, 3.2, -8.5, 0.01, -6.5, { solid: false });
+  for (const [px, pz, col] of [[-9, -7.2, 0x1c1917], [-7.5, -6.8, 0x44403c], [-8.2, -5.5, accent]] as const) {
+    b.cylinder(0x52525b, 0.55, 0.62, px, 0, pz, { sides: 16 });
+    b.cylinder(col, 0.48, 0.08, px, 0.65, pz, { solid: false });
+    b.box(0x78716c, 0.22, 0.35, 0.22, px + 0.35, 0.85, pz, { solid: false });
+  }
+  for (let i = 0; i < 6; i++) b.box(wood, 0.35, 0.22, 0.55, -10.2, i * 0.24, -4.5 + (i % 2) * 0.4, { yaw: 0.15 });
+  b.box(0x44403c, 1.8, 1.5, 0.08, -10.5, 0.75, -8.2, { solid: false });
+  b.box(0x57534e, 2.2, 0.55, 1.0, -8, 0, -3.2);
+  shelf(b, -9.5, -3.5, 2.0, [0xdc2626, 0xf97316, 0x16a34a, 0xfacc15]);
+  for (let i = 0; i < 4; i++) sack(b, -7.5 + i * 0.55, -2.8, [0xfef3c7, 0xe7e5e4, 0xd6d3d1][i % 3]);
+
+  // --- Wash-up (right wing) ---
+  counter(b, 8.5, -4.8, 2.8, 0x64748b, 0xe0f2fe, 0.85);
+  b.box(0x94a3b8, 1.6, 0.9, 0.65, 9.5, 0, -4.5);
+  b.box(0x38bdf8, 1.3, 0.06, 0.5, 9.5, 0.85, -4.5, { glow: true, solid: false });
+  for (const z of [-6.5, -5.5, -3.8]) {
+    b.cylinder(0x0284c7, 0.28, 0.55, 9.2, 0, z, { sides: 10 });
+    b.box(0x7dd3fc, 0.22, 0.18, 0.22, 9.2, 0.58, z, { solid: false });
+  }
+  for (let i = 0; i < 5; i++) b.box(0xf8fafc, 0.42, 0.06, 0.42, 7.8, 0.55 + i * 0.14, -2.2, { solid: false });
+  b.box(0x15803d, 0.5, 0.7, 0.5, 8.8, 0, -2.5);
+  b.box(0x166534, 0.45, 0.1, 0.45, 8.8, 0.7, -2.5, { solid: false });
+
+  // Clutter: takeaway packs, crate, fan, wall calendar
+  for (const [x, z] of [[-1, -1.2], [2, -2], [5, 0.5], [-5, 4]] as const) {
+    b.box(0xfacc15, 0.32, 0.22, 0.28, x, 0.92, z, { solid: false });
+    b.box(0xf8fafc, 0.28, 0.08, 0.24, x, 0.82, z, { solid: false });
+  }
+  b.box(0x78350f, 0.65, 0.55, 0.45, -0.5, 0, 7.0);
+  plant(b, -9.5, 3.5);
 };
 
 const buka = (key: string, name: string, district: string, sub: string): PlaceSpec => ({
-  key, name, district, room: { width: 18, length: 16, height: 4, floor: 0xd6d3d1, wall: 0xfacc15 },
+  key,
+  name,
+  district,
+  room: { width: 24, length: 20, height: 4.2, floor: 0x78716c, wall: 0xfef3c7 },
   sign: { text: name.toUpperCase(), sub, bg: '#15803d' },
-  build: (b) => { bukaHall(b, 0x15803d); },
+  build: (b) => { amalaShittaBukaFloor(b, 0x15803d); },
   staff: [
     { name: 'Iya Shitta', title: 'Owner', at: [0, -6], facing: 0, outfit: 0x15803d, gender: 'female', chef: true, says: 'Sit down! Amala dey hot, gbegiri dey sweet!' },
     { name: 'Boy Ade', title: 'Server', at: [3.5, -4.2], facing: Math.PI, outfit: 0xfacc15, gender: 'male', says: 'Table or takeaway?' },
+    { name: 'Aunty Bose', title: 'Wash-up', at: [8.5, -5.2], facing: -Math.PI / 2, outfit: 0x0ea5e9, gender: 'female', says: 'Bring the plates. I go wash am sharp sharp.' },
+    { name: 'Tunde', title: 'Kitchen hand', at: [-7.5, -5.8], facing: 0.35, outfit: 0x7c2d12, gender: 'male', chef: true, says: 'The fire no dey sleep. Turn amala well.' },
+    { name: 'Mama Zobo', title: 'Drinks', at: [6.5, -4.5], facing: Math.PI, outfit: 0xdb2777, gender: 'female', says: 'Cold zobo, Coke, malt — wetin you want?' },
   ],
-  regulars: [{ at: [-4.5, -0.9], facing: 0, outfit: 0x2563eb, sit: true }, { at: [4.5, 0.9], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' }, { at: [0, 4.4], facing: Math.PI, outfit: 0x16a34a, sit: true }],
+  regulars: [
+    { at: [-7, 0.55], facing: 0, outfit: 0x2563eb, sit: true },
+    { at: [-2.5, 1.05], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
+    { at: [2.5, 0.85], facing: 0, outfit: 0x16a34a, sit: true },
+    { at: [7, 1.55], facing: Math.PI, outfit: 0xfacc15, sit: true },
+    { at: [-7, 4.55], facing: Math.PI, outfit: 0x1e3a8a, sit: true, gender: 'female' },
+    { at: [-2, 5.05], facing: 0, outfit: 0xdc2626, sit: true },
+    { at: [3, 4.85], facing: Math.PI, outfit: 0x7c3aed, sit: true, gender: 'female' },
+    { at: [0, 2.6], facing: Math.PI / 2, outfit: 0x0f172a, sit: true },
+    { at: [-1, 7.2], facing: Math.PI, outfit: 0x64748b },
+    { at: [2.5, 7.5], facing: -0.5, outfit: 0xea580c, gender: 'female' },
+  ],
   stations: [
     { id: 'counter', name: '🍲 Order at the counter', at: [0, -5], stand: [0, -3.8], who: 'Iya Shitta', role: name, text: 'Wetin I go give you?', choices: [
       { label: 'Amala, ewedu, gbegiri and assorted meat', price: 4500, note: 'Hunger +65', sit: true, seconds: 5, effect: need({ hunger: 65, fun: 5 }), said: 'Hot amala, soft and black, with gbegiri. Your hand smelt of it for hours.' },
@@ -2186,6 +2301,8 @@ for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
   if (lasuth) lasuth.room.finish = 'terrazzo';
   const bank = [...IKEJA, ...SIDE].find((s) => s.key === 'allen-bank');
   if (bank) bank.room.finish = 'grey_granite';
+  const amala = SPECS.find((s) => s.key === 'amala-shitta');
+  if (amala) amala.room.finish = 'grey_granite';
 }
 
 {

@@ -53,6 +53,20 @@ Perf inside LASUTH (2× rAF after `graphics.choose`): **Very Low** 35 draws / 29
 
 **Unverified on return:** manual walk of all partition door gaps vs nav; clinic/pharmacy/ward purchases in live play; whether Medium tris (~308k) needs a LOD pass on ceiling tiles; portraits of new staff NPCs at peak light; jobs hook `lasuth-nursing` shift path through new clutter.
 
+### Amala Shitta buka redo (`cursor/integration-1` @ `0695f51`)
+
+Root cause: `amala-shitta` used sparse shared `bukaHall()` on flat cream shell — empty box with six tables.
+
+**Shipped:** dedicated `amalaShittaBukaFloor()` (24×20, grey_granite floor, cream walls). Zones: entrance queue/takeaway, counter/service (pots, menu), eight-table seating hall, kitchen/fire (left), wash-up (right). Corrugated ceiling, pendant bulbs, side/back windows, partition door gaps. **5 staff + 10 regulars** in zone.
+
+Station id/prices unchanged: `counter` (e2e `insides` assorted meat ₦4,500 + `stations.json` ok; job omorogun path coords unchanged).
+
+Evidence branch: `cursor/evidence-amala-181d` — `docs/evidence/amala-shitta/` (phone 390×844 counter + seating, eye; desktop 1280×800 counter + seating, **play camera**).
+
+Perf inside buka (2× rAF after `graphics.choose`): **Very Low** 60 draws / 79k tris; **Medium (balanced)** 123 draws / 247k tris (`docs/evidence/amala-shitta/perf.json`).
+
+**Unverified on return:** nav through kitchen/wash-up gaps with new clutter; partition walls vs camera clip; Medium draw/tri budget vs street VL cap; evening-hour lighting on new ceiling bulbs; shift job path with 5 staff portraits overlapping.
+
 Still unfinished / follow-on: denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).

@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T16:30Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "Amala Shitta",
+  "veryLow": {
+    "calls": 60,
+    "tris": 79019
+  },
+  "medium": {
+    "calls": 123,
+    "tris": 246992
+  }
+}
