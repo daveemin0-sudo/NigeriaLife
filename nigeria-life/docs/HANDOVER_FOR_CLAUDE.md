@@ -58,6 +58,11 @@ Still unfinished / follow-on: denser crowd meshes; live-hours music; Broad Stree
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
 
+
+### Broad Street Very Low triangle budget
+
+Measured ~118–136k tris at `graphics.choose('veryLow')` (over ≤110k). Top cost: `facade_detail` window/AC/tank bakes. Fix @ tip: hide `facade_detail` on Very Low only (shells stay); remasured **170 draws / 107k tris**. Calls were already ≤250.
+
 ### Fresh full regression (in progress)
 
 ### Fresh regression notes (tip vs `bf55dab`)

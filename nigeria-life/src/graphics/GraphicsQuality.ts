@@ -363,8 +363,12 @@ export class GraphicsQuality {
       // Not kept, but still applied for this visit
     }
 
-    // Avoid unused-var lint if scene is only needed when we would traverse materials
-    void scene;
+    // Very Low Broad Street budget ≤110k tris: facade window/AC/tank dressing is the
+    // biggest optional cost once crowds are off. Keep the shell; drop the detail bake.
+    const showFacadeDetail = level !== 'veryLow';
+    scene.traverse((obj) => {
+      if (obj.name === 'facade_detail') obj.visible = showFacadeDetail;
+    });
   }
 
   /**
