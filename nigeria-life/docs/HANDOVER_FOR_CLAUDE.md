@@ -35,23 +35,24 @@ Edited existing tests (same behaviour, sidewalk height):
 | `ways` Broad Street walk | `y < 0.05` | `y < 0.35` | Pavement is at `sidewalkTop` (0.28); still requires not on bridge / not inside |
 | `streets` under bridge / stair side | `y < 0.05` | `y < 0.35` | Same street-level intent as east-stairs foot check (`y < 0.3`) |
 
-Clean tip FAIL / bf55 PASS fixed (tip now `c009dd9`):
+Clean tip FAIL / bf55 PASS — fixed and **re-verified** on fresh tip `54a8752` @ `:5203` (`/tmp/nl-e2e-tip-verify`, log `tip-verify-hours-ways-phone.log`):
 
-- **ways** stadium Gate A + quay path brushed stall tables at kerb (`x≈9.15`). Stalls moved to shop-front inset (`x≈±12.55`) so kerb walk stays clear (`5430d8c`). Full-log ways FAILs are from pre-fix tip-fresh copy — re-run ways after rebuild.
-- **hours** stadium `status().open` lagged `setHour` (no landmark `update` frame). Wired `landmarks.setClock(() => sky.currentHour)` like interiors (`b536460`).
-- **phone** send amount: `get()` preferred empty memory over typed input. Prefer live `data-bind` value (`c009dd9`).
-- **buka** Home from a chair: instant `forceFree` cleared hold but left `legs: 'sit'`. Instant rise now sets stand (`c009dd9`).
-- **shop** basket while walking: carry arms only applied when `!glbModel`. Apply carry on procedural rig + skinned GLB (`c009dd9`).
+| Check | bf55 | tip pre-fix | tip verify |
+| --- | --- | --- | --- |
+| hours stadium shut at 03:00 | PASS | FAIL `stadiumAtThree:true` | **PASS** `false` (`b536460`) |
+| ways Gate A / quay brushes | PASS 0/0 | FAIL 1/3 | **PASS** 0/0 (`5430d8c`) |
+| phone send over-balance refused | PASS | FAIL empty amount | **PASS** (`c009dd9`) |
 
-Named flakes / shared (tip and bf55): phone wheel scroll; invest typedFive; streets dawn walkers high; sidewalk `onPavement` ratio.
+Also shipped (shared bf55 FAIL too — still worth fixing): buka instant stand + shop GLB carry arms (`c009dd9`).
 
-Still comparing once bf55 finishes: `view` cutaway (all walls / dollhouse), `places` food filter + unaffordable fare, `land`/`server`/`accountsave` timeouts.
+Named flakes / shared tip+bf55: phone wheel; invest typedFive; streets dawn walkers; sidewalk `onPavement`; `view` dollhouse all-walls; `places` food filter + unaffordable fare; land/server/accountsave timeouts.
 
-Fresh serves (never reused):
-- tip tip-fresh started at `28e15cb` → `http://127.0.0.1:5201/NigeriaLife/` from `/tmp/nl-e2e-tip-fresh` (working tree patched for stadium/stall; product tip `c009dd9`)
-- baseline `bf55dab` → `http://127.0.0.1:5202/` from `/tmp/nl-e2e-bf55-fresh`
+Fresh serves:
+- full tip `28e15cb` copy still on `:5201` (pre-fix log)
+- verify tip `54a8752` on `:5203`
+- baseline `bf55dab` on `:5202`
 
-Both still running. Log: `/tmp/nl-regression-fresh/{tip,bf55}-full.log`. After both finish: rebuild tip-fresh from `c009dd9`, re-run clean-fail suites one at a time.
+Full tip+bf55 still running. Next: open places redo (Elegushi first).
 
 ### Character files — 2 shared skins + meshopt (`cursor/character-2skins-181d` @ `e197196`, merged @ `28e15cb`)
 
