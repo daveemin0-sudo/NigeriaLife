@@ -54,9 +54,11 @@ export async function run(browser, check) {
   await enter(page, 'faith-arena');
   const above = await view(page);
   const named = await page.evaluate(() => window.game.hud.onCycleCameraPreset());
+  // FOV eases toward the preset; under load a single frame can still be mid-lerp (tip saw 61.85 / 40.15).
+  for (let i = 0; i < 10; i++) { await advance(page, 0.05); await wait(20); }
   const eye = await view(page);
   check('inside view: in Faith Arena the camera button goes from the room seen from above to the inside view: eye height, a step behind the player, inside the walls, under a ceiling, looking the way they face',
-    !above.eye && above.height > 6 && named === 'eye' && eye.eye && eye.inside && eye.height > 1.4 && eye.height < 2.9 && eye.behind < 3 && eye.along > 0.85 && eye.ceiling === true && eye.fov === 62,
+    !above.eye && above.height > 6 && named === 'eye' && eye.eye && eye.inside && eye.height > 1.4 && eye.height < 2.9 && eye.behind < 3 && eye.along > 0.85 && eye.ceiling === true && Math.abs(eye.fov - 62) < 1,
     { above, named, eye });
 
   // Forward on the keyboard: the way the view looks
@@ -95,8 +97,9 @@ export async function run(browser, check) {
 
   // One press more: the room from above again, with no ceiling in the way
   const next = await page.evaluate(() => window.game.hud.onCycleCameraPreset());
+  for (let i = 0; i < 10; i++) { await advance(page, 0.05); await wait(20); }
   const back = await view(page);
-  check('inside view: one press more and the room is seen from above again, the ceiling gone', next === 'close' && !back.eye && back.ceiling !== true && back.height > 4 && back.fov === 40, { next, back });
+  check('inside view: one press more and the room is seen from above again, the ceiling gone', next === 'close' && !back.eye && back.ceiling !== true && back.height > 4 && Math.abs(back.fov - 40) < 1, { next, back });
 
   check('inside view: no errors in the page', log.errors.length === 0, log.errors.slice(0, 5));
   await page.evaluate(() => { try { localStorage.removeItem('nl_inside_view_v1'); } catch {} });
