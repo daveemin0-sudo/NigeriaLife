@@ -18,8 +18,8 @@ Captured through the real client (headless Chrome, SwiftShader, `lagoon-beach` e
 | --- | --- |
 | `v2-phone-sea-waves.png` / `v2-desktop-sea-waves.png` | Waterline: wet-sand strip, red swim buoys, swimmers, sea band at the horizon, palm, cabana umbrella |
 | `v2-phone-sea-horizon.png` / `v2-desktop-sea-horizon.png` | Looking at the sea from mid-beach: horizon, swimmers beyond the buoys — **shows the defect below** |
-| `v2-phone-shore-umbrellas.png` / `v2-desktop-shore-umbrellas.png` | Along the shore: umbrellas, palms, horse + rider, foam streaks |
-| `v2-phone-huts-palms.png` / `v2-desktop-huts-palms.png` | Back toward the entrance gate over clean sand, sky gradient (no grey void) |
+| `v2-phone-shore-umbrellas.png` / `v2-desktop-shore-umbrellas.png` | Along the shore: umbrellas, palms, horse + rider, white foam flecks |
+| `v2-phone-huts-palms.png` / `v2-desktop-huts-palms.png` | Back toward the entrance gate: cabana canopies and clean sand, sky gradient at the horizon (no grey void) |
 | `v2-phone-default-play-cam.png` / `v2-desktop-default-play-cam.png` | Default open-air camera (pitch 0.48) at the DJ booth |
 
 ### Honest finding (not hidden)
