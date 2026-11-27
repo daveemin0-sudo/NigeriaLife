@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T16:55Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "Eko Grand Hotel lobby",
+  "veryLow": {
+    "calls": 106,
+    "tris": 285325
+  },
+  "medium": {
+    "calls": 231,
+    "tris": 747890
+  }
+}
