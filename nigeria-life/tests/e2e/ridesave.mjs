@@ -695,8 +695,9 @@ async function turnBackRun(browser, check) {
     });
     await advance(page, 2);
     const now = await state(page, b.name);
+    // Label is "↩ Turn back"; the no-refund + destination wording lives on the button title (tooltip), not the visible text.
     check(`ridesave turn back ${city}: the ride card offers "Turn back", saying the fare is not refunded and naming where it goes back to`,
-      !!started && button.shown && /Turn back/.test(button.text) && /no refund/.test(button.text) && /Turn back to .+\. The fare is not refunded\./.test(button.title), { button });
+      !!started && button.shown && /Turn back/.test(button.text) && /Turn back to .+\. The fare is not refunded\./.test(button.title), { button });
     check(`ridesave turn back ${city}: pressed, the player is set down where the ride was booked (not at ${b.name}), the ride over and that spot saved at once`,
       near(turned, b.from) && !near(turned, b.spot, 20) && !turned.active && turned.ride === null && near(turned.saved, b.from, 0.05) && turned.saved.rideTo === null && /You turned back to .+ The fare is not refunded/.test(now.toasts),
       { from: b.from, spot: b.spot, turned, toasts: now.toasts });
