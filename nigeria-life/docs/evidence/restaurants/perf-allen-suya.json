@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T17:21Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "Mai Suya Spot",
+  "veryLow": {
+    "calls": 57,
+    "tris": 179919
+  },
+  "medium": {
+    "calls": 130,
+    "tris": 443656
+  }
+}
