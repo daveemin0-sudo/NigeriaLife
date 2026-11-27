@@ -1,0 +1,14 @@
+{
+  "measuredAt": "2026-11-27T18:08Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "prop_mainland_apt residence",
+  "planKey": "flat:3:-:v3",
+  "veryLow": {
+    "calls": 232,
+    "tris": 110964
+  },
+  "medium": {
+    "calls": 386,
+    "tris": 219136
+  }
+}
