@@ -113,7 +113,33 @@ Perf inside (2× rAF after `graphics.choose`): **Chop Express** VL 73 draws / 18
 
 **Unverified on return:** Chop Express nav through fry partition vs enlarged 22×18 room; mama-put partition occupy vs waiter path; live buka order flow after dressing mesh; Allen suya room size still matches side-street shell.
 
-Still unfinished / follow-on: **the-library** / Ikoyi fine dining density; denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts; **markets** audit next.
+### Markets + malls redo (`cursor/integration-1` — after restaurants @ `a5fd330`)
+
+Root cause: Lagos **Balogun** had stall props but no perimeter shell (grey void at tarp edges); **Computer Village**, **The Palms** (`shopwell-mall`), and **Ikeja City Mall** were thin `venue()` shelf/counter shells — empty mall boxes. Skipped open-air parks; Wuse / Mile 1 / town markets still on `marketAtmosphere()` only (Abuja follow-on).
+
+**Shipped:** dedicated floors in `PlaceSpecs.ts` (stations/prices/ids unchanged):
+
+| Venue | Floor | Room | Staff + shoppers |
+| --- | --- | --- | --- |
+| **Balogun Market** | `balogunMarketFloor()` — corrugated ceiling, tarp perimeter, aisle queue, weigh/cash bay, storage sacks, eight stall rows + goat pen (existing grid) | 32×26 | 9 staff + 10 regulars |
+| **Computer Village** | `computerVillageFloor()` — dealer signs, shop partitions, glass counters, repair bench, banner row, box/spool clutter | 30×20 | 5 staff + 7 regulars |
+| **The Palms Mall** | `palmsMallFloor()` — supermarket aisles/tills/trolleys, food court, cinema lobby, escalator shell | 24×20 | 2 staff + 7 regulars (incl. seated) |
+| **Ikeja City Mall** | `ikejaCityMallFloor()` — wider Shoprite bay, mall atrium lighting, food court + cinema zones | 26×20 | 2 staff + 7 regulars |
+
+Evidence branch: `cursor/evidence-markets-181d` — `docs/evidence/markets/` (phone 390×844 ×2 per venue, eye; desktop 1280×800 play camera ×2; `stations.json` all `ok: true`; `perf.json`).
+
+Perf inside (2× rAF after `graphics.choose`, desktop last venue in session — see `perf.json` per key):
+
+| Venue | Very Low draws / tris | Medium (balanced) draws / tris |
+| --- | --- | --- |
+| Balogun Market | 93 / 241k | 221 / 644k |
+| Computer Village | 73 / 161k | 164 / 430k |
+| The Palms Mall | 61 / 160k | 113 / 379k |
+| Ikeja City Mall | 65 / 159k | 117 / 381k |
+
+**Unverified on return:** Balogun VL tris (~241k) vs street cap; nav through new tarp posts vs stall `occupy`; live shop flows (`app:shopping`) in mall zones; Wuse/Jabi/mile-one density pass.
+
+Still unfinished / follow-on: **the-library** / Ikoyi fine dining density; denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts; **homes** audit next; Wuse / Mile 1 / town `marketAtmosphere()` shells.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
@@ -243,7 +269,7 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 | Banks | Allen: `allenBankBranchFloor()`; town banks still `branchBank()`; CBN bespoke |
 | Hotels | Grand lobbies + town guest suite Builder shells |
 | Restaurants | Amala Shitta + Chop Express kitchen props |
-| Markets | Balogun / Wuse / Mile 1 stalls |
+| Markets | Balogun + Computer Village + Palms + Ikeja City Mall dedicated floors; Wuse / Mile 1 stalls |
 | Homes | Ikeja GRA estate office polish; residence still Stage 3 beds/staff |
 
 Evidence: `cursor/evidence-stage-4` @ `d214afb`. PR [#60](https://github.com/daveemin0-sudo/NigeriaLife/pull/60). Merged into `cursor/integration-1` @ `850f588` / `14a66d5`.
@@ -294,7 +320,7 @@ Code tip this batch: `8e2178e`+. Integration: merge after each stage-5 push.
 - Remaining WORLD_AUDIT walk-through / broken-activity chrome; more map pins as found.
 - Full 155-suite e2e vs `bf55dab` on **current tip** (prior run used stale frozen serve).
 - Outdoor gateman: photo at Banana Island gatehouse (gateman-at-post-390x844.png) — desktop only.
-- Markets/malls still building shells (audit OPEN_AIR false positives).
+- Lagos flagship markets/malls dense (`balogun-market`, `computer-village`, `shopwell-mall`, `ikeja-city-mall`); Wuse/Mile 1/town markets still thin; audit may still flag OPEN_AIR on “Market” names.
 - Venue seat sweep: regulars moved onto chairs/benches (tabletop sits fixed).
 - Owner iPhone list: Stages **3 seat-sit**, **0C HUD**, **0D street** shipped on their branches — merge into `cursor/integration-1` when CI green.
 

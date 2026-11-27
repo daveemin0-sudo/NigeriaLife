@@ -1,0 +1,50 @@
+[
+  {
+    "id": "place_balogun-market_pepper",
+    "ok": true
+  },
+  {
+    "id": "place_balogun-market_cloth",
+    "ok": true
+  },
+  {
+    "id": "place_balogun-market_goats",
+    "ok": true
+  },
+  {
+    "id": "place_computer-village_phones",
+    "ok": true
+  },
+  {
+    "id": "place_computer-village_repair",
+    "ok": true
+  },
+  {
+    "id": "place_computer-village_consoles",
+    "ok": true
+  },
+  {
+    "id": "place_shopwell-mall_shelves",
+    "ok": true
+  },
+  {
+    "id": "place_shopwell-mall_food",
+    "ok": true
+  },
+  {
+    "id": "place_shopwell-mall_cinema",
+    "ok": true
+  },
+  {
+    "id": "place_ikeja-city-mall_groceries",
+    "ok": true
+  },
+  {
+    "id": "place_ikeja-city-mall_food",
+    "ok": true
+  },
+  {
+    "id": "place_ikeja-city-mall_cinema",
+    "ok": true
+  }
+]
