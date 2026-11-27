@@ -53,3 +53,17 @@ This gives each hanging garment a morph target `Seated`, solved against the pose
 **Body type:** the free pack gives one body type per gender, the very muscular "Superhero"; the build slims it (see above). The "Regular" everyday proportions are in the paid Source version. Swapping it in needs only `BODY` changed in the script, and the slimming factors then set near 1.
 
 **One pack quirk:** its glTF refers to `T_Hair_1_Normal_png.png`, `T_Hair_2_Normal_png.png` and `T_Eye_Normal_png.png`, which the zip does not contain. Copy `T_Hair_1_Normal.png` (and the others) to those names first.
+
+
+## Shipping compression (meshopt + 2 shared skins)
+
+After `add_lod` / `add_seated`, compress with **scene** quantization so skins stay shared:
+
+```
+SRC_MALE=/path/to/uncompressed_male.glb SRC_FEMALE=/path/to/uncompressed_female.glb \
+  ./compress_shared_skins.sh
+```
+
+Or: `npx @gltf-transform/cli meshopt IN OUT --quantization-volume scene`.
+
+Required result: **2 skins** (65 and 73 joints), 102 meshes, 116 primitives, 236 nodes, 19 animations, `Seated` morph, 145,963 / 153,633 triangles. Default `mesh` volume splits to 101/95 skins — do not ship that; do not merge skins after the fact.

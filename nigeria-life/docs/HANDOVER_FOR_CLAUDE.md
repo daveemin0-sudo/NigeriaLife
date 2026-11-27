@@ -11,7 +11,22 @@ Merged into `cursor/integration-1` @ `6bbce58`:
 - `cursor/stage-0d-street-181d` @ `ecaffdb` (PR #64)
 - `cursor/stage-3-seat-sit-181d` @ `6441046` (PR #62)
 
-Next: character 2-skin meshopt; fresh full regression vs `bf55dab`; open places redo; interiors redo.
+Next: fresh full regression vs `bf55dab`; open places redo; interiors redo.
+
+### Character files — 2 shared skins + meshopt (`cursor/character-2skins-181d`)
+
+Rebuilt from pre-meshopt bases (`c20db99`) with `gltf-transform meshopt --quantization-volume scene`.
+
+| | Male | Female |
+| --- | --- | --- |
+| Skins | **2** (65, 73 joints) | **2** (65, 73) |
+| Meshes / prims / nodes / anims | 102 / 116 / 236 / 19 | same |
+| Triangles | 145,963 | 153,633 |
+| Seated morph | yes | yes |
+| File size | 2.29 MB (was 2.79 MB @ 101 skins) | 2.39 MB (was 2.92 MB @ 95 skins) |
+
+Recipe: `tools/characters/compress_shared_skins.sh`. Do **not** merge skins after meshopt. Evidence: `docs/evidence/character-2skins/`.
+
 
 
 ### Stage 0 — corrections (`cursor/stage-0-corrections` @ `8609aac`)
