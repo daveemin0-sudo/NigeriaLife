@@ -168,9 +168,10 @@ export class InteriorManager {
       this.group.add(template.group);
     }
 
-    // Each room stands on its own plot of ground, which is all the camera sees around it
-    for (const child of this.group.children) {
-      child.add(this.createGroundPlot());
+    // Each room stands on its own plot of ground, which is all the camera sees around it.
+    // Open-air places bring their own horizon skirts — a green lawn disc reads as a void platform.
+    for (const template of this.templates) {
+      if (!template.def.openAir) template.group.add(this.createGroundPlot());
     }
 
     // Tag entire interior group with INTERIOR layer
@@ -368,7 +369,8 @@ export class InteriorManager {
       target.interiorOrigin,
       shellSize?.width ?? room.size.width,
       shellSize?.length ?? room.size.length,
-      shell?.userData.view as { width: number; length: number } | undefined
+      shell?.userData.view as { width: number; length: number } | undefined,
+      { openAir: !!target.openAir },
     );
     cameraManager.setMode('interior');
     cameraManager.setLayerMode('interior');
@@ -884,10 +886,15 @@ export class InteriorManager {
       const maxZ = origin.z + halfL;
 
       player.mesh.position.x = THREE.MathUtils.clamp(player.mesh.position.x, minX, maxX);
-      player.mesh.position.z = THREE.MathUtils.clamp(player.mesh.position.z, minZ, maxZ);
+      // Open-air beach swim zones reach a little past the back edge
+      const place = this.getActiveTemplate() as {
+        constrainOpenAirPlayer?: (p: THREE.Vector3) => number;
+        group?: THREE.Group;
+      } | null;
+      const hasSwim = !!(this.currentInterior.openAir && place?.group?.userData?.swimZone);
+      player.mesh.position.z = THREE.MathUtils.clamp(player.mesh.position.z, hasSwim ? minZ - 6 : minZ, maxZ);
       // Open-air beach: keep them out of deep water past the buoy line; lower body in shallows
-      const place = this.getActiveTemplate() as { constrainOpenAirPlayer?: (p: THREE.Vector3) => number } | null;
-      if (this.currentInterior.openAir && place?.constrainOpenAirPlayer) {
+      if (hasSwim && place?.constrainOpenAirPlayer) {
         place.constrainOpenAirPlayer(player.mesh.position);
       }
       player.position.copy(player.mesh.position);

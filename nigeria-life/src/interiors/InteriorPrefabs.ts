@@ -50,6 +50,7 @@ export class InteriorPrefabs {
   /**
    * Open-air ground: sand / grass / promenade with no walls or ceiling.
    * Soft invisible rails keep the player on the plot without a tower-box feel.
+   * Horizon skirts (sea, sand apron) are attached by venue helpers past these rails.
    */
   public static createOpenGround(
     width: number,
@@ -73,7 +74,7 @@ export class InteriorPrefabs {
     floor.receiveShadow = true;
     ground.add(floor);
 
-    // Invisible soft bounds (knee-high) so the player cannot walk off the plot into void
+    // Invisible soft bounds (knee-high). No back rail — beaches/lakes open to the waterline.
     const railMat = new THREE.MeshBasicMaterial({ visible: false });
     const railH = 1.2;
     const thick = 0.5;
@@ -83,7 +84,6 @@ export class InteriorPrefabs {
       m.name = 'open_air_rail';
       ground.add(m);
     };
-    mk(width + thick * 2, thick, 0, -length / 2 - thick / 2);
     mk(width + thick * 2, thick, 0, length / 2 + thick / 2);
     mk(thick, length, -width / 2 - thick / 2, 0);
     mk(thick, length, width / 2 + thick / 2, 0);

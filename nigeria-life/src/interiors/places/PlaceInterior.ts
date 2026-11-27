@@ -23,7 +23,7 @@ import { attachViewing } from './ViewingCentre';
 import { attachTravellers } from './Travellers';
 import { attachNollywood } from '../../film/Nollywood';
 import { attachSparkDate } from '../../social/Spark';
-import { constrainBeachSwim, tickOpenAirBeach, type SwimZone } from './OpenAirBeach';
+import { constrainBeachSwim, releaseOpenAirBeach, resumeOpenAirBeach, tickOpenAirBeach, type SwimZone } from './OpenAirBeach';
 import { attachOwambe } from '../../social/Owambe';
 import { attachStudio } from '../../music/Studio';
 import { attachPalaceCourt } from '../../social/Chieftaincy';
@@ -196,9 +196,10 @@ export class PlaceInterior {
       interiorOrigin: origin,
       playerSpawnOffset: new THREE.Vector3(0, 0, length / 2 - 1.6),
       exitDoorOffset: new THREE.Vector3(0, 0, length / 2),
-      cameraOffset: openAir ? new THREE.Vector3(0, 22, 28) : new THREE.Vector3(0, 14, 16),
+      // Open-air: street-height chase, not a high diorama over a platform
+      cameraOffset: openAir ? new THREE.Vector3(0, 4.2, 9.5) : new THREE.Vector3(0, 14, 16),
       ambientLightColor: openAir ? 0xfff1d6 : 0xfffaf0,
-      ambientLightIntensity: openAir ? 0.85 : 1.4,
+      ambientLightIntensity: openAir ? 0.95 : 1.4,
       openAir,
       rooms: [{ id: `${spec.key}_room`, name: spec.name, size: { width, length, height: openAir ? 0.5 : height }, centerOffset: new THREE.Vector3(), floorColor: spec.room.floor, wallColor: spec.room.wall }],
       stations: [],
@@ -1000,6 +1001,14 @@ export class PlaceInterior {
   private server: Figure | null = null;
   /** Seats taken by the player's own meals now, so two orders do not share a chair */
   private seatsInUse = new Set<string>();
+
+  public onPlayerEntered(): void {
+    if (this.spec.room.openAir && this.group.userData.beachLife) resumeOpenAirBeach(this.group);
+  }
+
+  public onPlayerLeft(): void {
+    if (this.spec.room.openAir && this.group.userData.beachSea) releaseOpenAirBeach();
+  }
 
   public update(delta: number, time: number): void {
     for (const npc of this.npcs) npc.update(delta, time);

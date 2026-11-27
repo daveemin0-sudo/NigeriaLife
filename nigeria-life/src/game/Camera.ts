@@ -19,8 +19,12 @@ const PORTRAIT_MIN_HORIZ_EYE = 60;
 const INTERIOR_YAW = 0.62;
 /** Room diorama: high enough to read furniture layout without going fully top-down */
 const INTERIOR_PITCH = 0.95;
+/** Open-air pocket (beach, park): near street eye — ground-level play, not a high diorama */
+const OPEN_AIR_PITCH = 0.48;
+const OPEN_AIR_YAW = 0.35;
 /** How far the view drifts from the room centre toward the player (0 = fixed room view, 1 = follows the player) */
 const INTERIOR_FOLLOW = 0.45;
+const OPEN_AIR_FOLLOW = 0.92;
 /** How far the room is raised on the screen, as a share of the camera distance, to clear the cards along the bottom */
 const INTERIOR_SCREEN_LIFT = 0.12;
 /** Seconds between checks for buildings between the street camera and the player */
@@ -50,6 +54,8 @@ export class GameCamera {
   private roomFrameDistance: number = 30;
   private roomCenter: THREE.Vector3 | null = null;
   private roomRadius: number = 15;
+  /** Open-air place: street-height follow instead of room diorama */
+  private openAirView = false;
   /** 0 = whole-room view, 1 = moved in on the player (while they sit at a table, say) */
   private closeUp: number = 0;
   private closeUpTarget: number = 0;
@@ -249,22 +255,38 @@ export class GameCamera {
   /**
    * Point the interior camera at a room: it looks down into it from a front corner,
    * far enough back that most of the floor is in view on the current screen shape.
+   * Open-air places use a lower street-like chase so the ground fills the view.
    */
-  public frameRoom(center: THREE.Vector3, width: number, length: number, view?: { width: number; length: number }): void {
+  public frameRoom(
+    center: THREE.Vector3,
+    width: number,
+    length: number,
+    view?: { width: number; length: number },
+    opts?: { openAir?: boolean },
+  ): void {
     this.roomCenter = center.clone();
     this.roomWidth = width;
     this.roomLength = length;
+    this.openAirView = !!opts?.openAir;
     // A big home is not shown whole from far off: a part of it the size of `view`, following the player through it
     const w = view ? Math.min(width, view.width) : width;
     const l = view ? Math.min(length, view.length) : length;
-    this.bigRoom = w < width || l < length;
+    this.bigRoom = this.openAirView || w < width || l < length;
     this.roomRadius = 0.5 * Math.hypot(w, l);
-    this.roomFrameDistance = this.computeRoomFrameDistance();
+    if (this.openAirView) {
+      // Street eye height: short leash, follow the player — not a high platform overview
+      this.roomFrameDistance = Math.min(14, Math.max(9, this.roomRadius * 0.22));
+      this.interiorYaw = OPEN_AIR_YAW;
+      this.interiorPitch = OPEN_AIR_PITCH;
+      this.targetInteriorPitch = OPEN_AIR_PITCH;
+    } else {
+      this.roomFrameDistance = this.computeRoomFrameDistance();
+      this.interiorYaw = INTERIOR_YAW;
+      this.interiorPitch = INTERIOR_PITCH;
+      this.targetInteriorPitch = INTERIOR_PITCH;
+    }
     this.interiorDistance = this.roomFrameDistance;
     this.targetInteriorDistance = this.roomFrameDistance;
-    this.interiorYaw = INTERIOR_YAW;
-    this.interiorPitch = INTERIOR_PITCH;
-    this.targetInteriorPitch = INTERIOR_PITCH;
     this.currentPreset = this.interiorEye ? 'eye' : 'street';
     this.closeUp = 0;
     this.closeUpTarget = 0;
@@ -292,11 +314,13 @@ export class GameCamera {
 
   /** The point the interior camera looks at: the room centre, pulled part of the way toward the player. */
   private interiorFocus(player: Player): THREE.Vector3 {
-    const focus = new THREE.Vector3(player.position.x, 1.0, player.position.z);
+    const focus = new THREE.Vector3(player.position.x, this.openAirView ? 1.35 : 1.0, player.position.z);
     if (this.roomCenter) {
       // Aerial / high isometric hold the plan centre so multi-room layouts stay inspectable
       const overview = this.currentPreset === 'aerial' || this.currentPreset === 'isometric';
-      const baseFollow = overview ? (this.bigRoom ? 0.28 : 0.12) : (this.bigRoom ? 0.9 : INTERIOR_FOLLOW);
+      const baseFollow = this.openAirView
+        ? OPEN_AIR_FOLLOW
+        : overview ? (this.bigRoom ? 0.28 : 0.12) : (this.bigRoom ? 0.9 : INTERIOR_FOLLOW);
       const follow = THREE.MathUtils.lerp(baseFollow, 0.95, this.closeUp);
       focus.set(
         THREE.MathUtils.lerp(this.roomCenter.x, player.position.x, follow),
@@ -408,20 +432,20 @@ export class GameCamera {
         return;
       }
       if (preset === 'close') {
-        this.targetInteriorPitch = 0.62;
-        this.targetInteriorDistance = this.roomFrameDistance * 0.55;
+        this.targetInteriorPitch = this.openAirView ? 0.32 : 0.62;
+        this.targetInteriorDistance = this.roomFrameDistance * (this.openAirView ? 0.7 : 0.55);
       } else if (preset === 'street') {
-        this.targetInteriorPitch = INTERIOR_PITCH;
+        this.targetInteriorPitch = this.openAirView ? OPEN_AIR_PITCH : INTERIOR_PITCH;
         this.targetInteriorDistance = this.roomFrameDistance;
       } else if (preset === 'isometric') {
         // Raised isometric — whole-home cutaway, walls still readable
-        this.targetInteriorPitch = 1.12;
+        this.targetInteriorPitch = this.openAirView ? 0.85 : 1.12;
         this.targetInteriorDistance = this.roomFrameDistance * 1.35;
         this.closeUp = 0;
         this.closeUpTarget = 0;
       } else if (preset === 'aerial') {
         // Dollhouse overview: near top-down so every room division is inspectable
-        this.targetInteriorPitch = 1.42;
+        this.targetInteriorPitch = this.openAirView ? 1.15 : 1.42;
         this.targetInteriorDistance = this.roomFrameDistance * 1.75;
         this.closeUp = 0;
         this.closeUpTarget = 0;
@@ -485,9 +509,9 @@ export class GameCamera {
       return;
     }
     if (this.mode === 'interior') {
-      this.interiorYaw = INTERIOR_YAW;
-      this.interiorPitch = INTERIOR_PITCH;
-      this.targetInteriorPitch = INTERIOR_PITCH;
+      this.interiorYaw = this.openAirView ? OPEN_AIR_YAW : INTERIOR_YAW;
+      this.interiorPitch = this.openAirView ? OPEN_AIR_PITCH : INTERIOR_PITCH;
+      this.targetInteriorPitch = this.interiorPitch;
       this.interiorDistance = this.roomFrameDistance;
       this.targetInteriorDistance = this.roomFrameDistance;
     } else {
@@ -895,7 +919,9 @@ export class GameCamera {
 
     // Keep the same zoom relative to the room when the screen shape changes
     const zoom = this.interiorDistance / this.roomFrameDistance;
-    this.roomFrameDistance = this.computeRoomFrameDistance();
+    this.roomFrameDistance = this.openAirView
+      ? Math.min(14, Math.max(9, this.roomRadius * 0.22))
+      : this.computeRoomFrameDistance();
     this.interiorDistance = this.roomFrameDistance * zoom;
   }
 }

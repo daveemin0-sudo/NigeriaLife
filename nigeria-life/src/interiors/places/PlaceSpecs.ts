@@ -1043,13 +1043,17 @@ const palm = (b: Builder, x: number, z: number) => {
 
 const OUTDOOR: PlaceSpec[] = [
   venue('lagoon-beach', 'Elegushi Beach', 'Lekki · beach', 'Beach bar · Cabanas · Horses · Swim · Beach party', '#0e7490', 0xe8d5a3, 0x7dd3fc, (b, room) => {
-    // Horizon sea, foam and swim line (shared shader sea — no boxed water tray)
-    if (room) attachOpenAirBeach(room, 48);
-    // Soft wet sand strip at the shore
-    b.box(0xd6c29a, 70, 0.04, 5, 0, 0.01, -20, { solid: false });
-    for (let i = 0; i < 10; i++) umbrella(b, -22 + i * 5, -8, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf97316, 0xdb2777][i % 6]);
-    // Cabanas: curtained beds under white roofs
-    for (const x of [-16, -8, 2]) b.box(0xf8fafc, 3.2, 0.1, 3.2, x, 2.6, 6).box(0xfef3c7, 2.5, 0.5, 2.2, x, 0, 6).box(0xf8fafc, 0.08, 2.6, 0.08, x - 1.5, 0, 4.5).box(0xf8fafc, 0.08, 2.6, 0.08, x + 1.5, 0, 4.5);
+    // Horizon sea past the rails, wet/dry sand, swim bobbers, horses, vendors (OpenAirBeach)
+    if (room) attachOpenAirBeach(room, 48, 72);
+    for (let i = 0; i < 12; i++) umbrella(b, -26 + i * 4.5, -8 + (i % 3) * 0.4, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf97316, 0xdb2777][i % 6]);
+    // Cabanas / beach huts: curtained beds under white roofs
+    for (const x of [-20, -12, -4, 4]) b.box(0xf8fafc, 3.2, 0.1, 3.2, x, 2.6, 6).box(0xfef3c7, 2.5, 0.5, 2.2, x, 0, 6).box(0xf8fafc, 0.08, 2.6, 0.08, x - 1.5, 0, 4.5).box(0xf8fafc, 0.08, 2.6, 0.08, x + 1.5, 0, 4.5);
+    // Thatch beach huts near the entrance
+    for (const x of [-28, 22]) {
+      b.box(0xb45309, 3.6, 2.2, 3.2, x, 0, 14);
+      b.cone(0xd6b46a, 3.4, 1.4, x, 2.4, 14, 5);
+      b.box(0x78350f, 1.2, 1.8, 0.08, x, 0, 12.4);
+    }
     // Beach bar hut, DJ booth, speakers
     counter(b, 14, 8, 5, 0xb45309); b.cone(0xd6b46a, 4.2, 1.5, 14, 2.7, 7.2, 4);
     b.box(0x111827, 2.2, 0.9, 0.9, -2, 0, -2).box(0x22d3ee, 2, 0.04, 0.65, -2, 0.91, -2, { glow: true }).box(0x111827, 0.85, 1.6, 0.85, -4.2, 0, -2).box(0x111827, 0.85, 1.6, 0.85, 0.2, 0, -2);
@@ -1058,9 +1062,13 @@ const OUTDOOR: PlaceSpec[] = [
     for (let i = 0; i < 5; i++) b.cylinder(0x92400e, 0.2, 0.35, -12 + i * 0.55, 0, 12, { topRadius: 0.18 });
     // Football pitch markings on the sand (near entrance)
     b.box(0xf8fafc, 12, 0.02, 0.08, 0, 0.03, 16, { solid: false }).box(0xf8fafc, 0.08, 0.02, 8, -6, 0.03, 16, { solid: false }).box(0xf8fafc, 0.08, 0.02, 8, 6, 0.03, 16, { solid: false });
-    // Palms along the plot (shared builder pieces)
-    for (const [x, z] of [[-28, 10], [-24, -6], [24, -4], [28, 12], [-20, 18], [18, 18]] as Array<[number, number]>) palm(b, x, z);
-    // Horses near the water
+    // Palms along the plot and past the rails toward the sea
+    for (const [x, z] of [
+      [-28, 10], [-24, -6], [24, -4], [28, 12], [-20, 18], [18, 18],
+      [-32, 2], [-30, -10], [30, -8], [32, 6], [-16, 20], [12, 20],
+      [-8, -12], [8, -14], [-26, 16], [26, 16],
+    ] as Array<[number, number]>) palm(b, x, z);
+    // Waiting horses by Baba Horse (moving riders are spawned by OpenAirBeach)
     for (const [x, c] of [[-22, 0x78350f], [-19.5, 0xf5f5f4]] as Array<[number, number]>) b.box(c, 0.5, 0.8, 1.8, x, 1, 10).box(c, 0.3, 0.7, 0.5, x, 1.6, 10.9, { pitch: -0.5 }).box(0x44403c, 0.12, 1, 0.12, x - 0.15, 0, 9.4).box(0x44403c, 0.12, 1, 0.12, x + 0.15, 0, 10.6);
   }, [
     { name: 'Kunle', title: 'Beach bar', at: [14, 7], facing: 0, outfit: 0xf97316, gender: 'male', says: 'Coconut, Chapman, suya! Cold cold!' },
@@ -1103,6 +1111,10 @@ const OUTDOOR: PlaceSpec[] = [
     { at: [-10, 6.5], facing: Math.PI, outfit: 0x0ea5e9, sit: true, gender: 'female' },
     { at: [2, 15.5], facing: 0.4, outfit: 0x22c55e },
     { at: [-3, 15.2], facing: -0.5, outfit: 0xf97316 },
+    { at: [10, -6], facing: Math.PI, outfit: 0x7c3aed, sit: true, gender: 'female' },
+    { at: [-18, -5], facing: 0.8, outfit: 0xea580c },
+    { at: [16, 4], facing: -1.2, outfit: 0xf8fafc },
+    { at: [0, 10], facing: Math.PI, outfit: 0x2563eb },
   ], [72, 48], true),
 
   venue('ikeja-golf', 'Ikeja Golf Club', 'Ikeja · golf', 'Clubhouse · Pro shop · Putting green · 9 holes', '#14532d', 0x4d7c0f, 0x166534, (b) => {
@@ -1957,6 +1969,11 @@ for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
   if (lasuth) lasuth.room.finish = 'ceramic_white';
   const bank = [...IKEJA, ...SIDE].find((s) => s.key === 'allen-bank');
   if (bank) bank.room.finish = 'grey_granite';
+}
+
+{
+  const beach = OUTDOOR.find((s) => s.key === 'lagoon-beach');
+  if (beach) beach.room.finish = 'beach_sand';
 }
 
 export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt')];
