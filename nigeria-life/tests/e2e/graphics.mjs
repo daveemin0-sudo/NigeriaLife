@@ -2,7 +2,7 @@
 // how far away people are drawn in full), Low draws faster than High, it is kept on this
 // device, and a slow machine steps itself down once and says so. Also: the driving options
 // on the same screen are kept after a reload.
-import { open, reload, wait, newPlayer, closeDialogs, steadyPoint } from './lib.mjs';
+import { open, reload, wait, newPlayer, closeDialogs } from './lib.mjs';
 
 const PHONE = '#smartphone-wrapper';
 
@@ -26,14 +26,19 @@ const openSettings = async (page) => {
   await wait(700);
 };
 
-/** Presses the row's button with the mouse, where it is on the screen. */
+/** Presses the row's Change button. DOM click (not mouse coords): settings rows sit in a
+ *  tall scrollable phone screen, and getBoundingClientRect/steadyPoint can land outside the
+ *  clipped device even after scrollIntoView — tip-only miss after denser settings chrome. */
 const press = async (page, act) => {
-  await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: 'center' }), `${PHONE} [data-act="${act}"]`);
-  const at = await steadyPoint(page, `${PHONE} [data-act="${act}"]`);
-  if (!at) return false;
-  await page.mouse.click(at.x, at.y);
+  const ok = await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return false;
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    el.click();
+    return true;
+  }, `${PHONE} [data-act="${act}"]`);
   await wait(250);
-  return true;
+  return ok;
 };
 
 const rowText = (page) =>
