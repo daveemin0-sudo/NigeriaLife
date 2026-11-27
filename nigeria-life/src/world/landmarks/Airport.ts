@@ -41,7 +41,7 @@ export type FlightState =
   | 'Arrived';
 
 /** An airliner in the airline's colours, nose toward +x, standing on its wheels. */
-function airliner(): THREE.Group {
+export function airliner(): THREE.Group {
   const b = new Builder();
   const body = 2.1;
 

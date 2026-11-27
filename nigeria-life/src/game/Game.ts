@@ -63,6 +63,7 @@ import { ChatBox } from '../ui/ChatBox';
 import { PostProcessingManager } from '../graphics/PostProcessingManager';
 import { FlightExperience } from '../transit/FlightExperience';
 import { RoadRideExperience } from '../transit/RoadRideExperience';
+import { AirportInterior } from '../interiors/templates/AirportInterior';
 import { RidePickup, PICKUP_LEAST_ROAD, PICKUP_REACH } from '../transit/RidePickup';
 import { RideBar } from '../ui/RideBar';
 import { createHumanForConfig } from '../player/HumanFromConfig';
@@ -431,6 +432,9 @@ export class Game {
     // Each account keeps its own hustles, ladder and album
     Activity.player = () => BackendService.getInstance().getData().id || 'local';
     this.world = new World(this.scene, this.renderer);
+    // The terminal's departure boards keep the game's time
+    AirportInterior.hourNow = () => this.world.skyEnvironment.currentHour;
+    AirportInterior.playerAt = () => this.player?.position ?? null;
     this.updateCameraColliders(this.world.cityManager.currentCityId);
     this.world.viewCamera = this.cameraManager.camera;
 

@@ -14,6 +14,8 @@ export class InteriorNPCMesh {
   public group: THREE.Group;
   public def: InteriorNPCDef;
   public humanRig: HumanRig;
+  /** The name badge over the head */
+  public badge!: THREE.Sprite;
   /** Lets scripted interactions (serving, waving back) direct this character */
   public actor: Actor;
   private animOffset: number = Math.random() * Math.PI * 2;
@@ -97,7 +99,8 @@ export class InteriorNPCMesh {
     // Build the anatomical human rig
     this.humanRig = HumanMeshBuilder.createHuman({
       gender,
-      username: def.name,
+      // A badge shown only up close stands in for the @name pill, which showed through walls
+      username: def.badge === 'near' ? '' : def.name,
       skinTone: skinHex,
       outfit,
       outfitColor: def.outfitColor,
@@ -137,6 +140,8 @@ export class InteriorNPCMesh {
     const sprite = new THREE.Sprite(spriteMat);
     sprite.scale.set(1.8, 0.45, 1);
     sprite.position.y = isFemale ? 2.3 : 2.4;
+    sprite.visible = def.badge !== 'near';
+    this.badge = sprite;
     this.group.add(sprite);
 
     this.actor = InteractionDirector.get().register(
