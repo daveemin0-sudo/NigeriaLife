@@ -15,6 +15,8 @@ const EYE_FOV = 62;
 /** Minimum horizontal FOV (degrees) on narrow portrait screens */
 const PORTRAIT_MIN_HORIZ_STREET = 60;
 const PORTRAIT_MIN_HORIZ_INTERIOR = 46;
+/** Half the width of the slice of a big room framed round the player on a tall phone screen (metres) */
+const PORTRAIT_BIG_ROOM_HALF_WIDTH = 5.2;
 const PORTRAIT_MIN_HORIZ_EYE = 60;
 const INTERIOR_YAW = 0.62;
 /** Room diorama: high enough to read furniture layout without going fully top-down */
@@ -287,6 +289,10 @@ export class GameCamera {
     const halfFov = THREE.MathUtils.degToRad(fov / 2);
     // Wide screens are limited by height, tall phone screens by width
     const fitWidth = this.roomRadius / (Math.tan(halfFov) * this.camera.aspect);
+    // A big room on a tall phone screen: fitting its whole followed part across the narrow width put the
+    // camera so far out that people were a few pixels tall. Here the view follows the player, so a slice
+    // about ten metres across is framed round them instead (pinch out still shows more)
+    if (this.bigRoom && this.camera.aspect < 1) return PORTRAIT_BIG_ROOM_HALF_WIDTH / (Math.tan(halfFov) * this.camera.aspect);
     return Math.max(this.roomRadius * 1.75, fitWidth * 1.05);
   }
 
