@@ -829,6 +829,161 @@ const amalaShittaBukaFloor = (b: Builder, accent = 0x15803d) => {
   plant(b, -9.5, 3.5);
 };
 
+/**
+ * Chop Express — Ikeja fast food: fry line, counter queue, dine-in tables, drinks freezer.
+ * Station anchor unchanged: counter (0,−5) / stand (0,−3.7). Job paths near fryer and table (−4,2).
+ */
+const chopExpressFastFoodFloor = (b: Builder, accent = 0xdc2626) => {
+  const wall = 0xfde68a;
+  const cream = 0xf8fafc;
+  const slate = 0x57534e;
+
+  for (let x = -8; x <= 8; x += 3.2) {
+    for (let z = -7; z <= 7; z += 3.2) {
+      b.box(0xe5e7eb, 2.9, 0.04, 2.9, x, 3.95, z, { solid: false });
+      b.box(0xfef9c3, 0.38, 0.06, 0.38, x, 3.88, z, { glow: true, solid: false });
+    }
+  }
+  for (const wx of [-6.5, -3.5, 0.5, 3.5, 6.5]) hospitalWindow(b, wx, -8.05, 2.0);
+  for (const wz of [-5, -1.5, 2, 5.5]) {
+    hospitalWindow(b, -9.95, wz, 2.0, 1.3, false);
+    hospitalWindow(b, 9.95, wz, 2.0, 1.3, false);
+  }
+  screen(b, 0, -7.8, 7.5, 1.15, 2.4, 0xfacc15);
+  b.box(accent, 4.5, 0.6, 0.08, -7.5, 2.5, -7.76, { solid: false });
+  b.box(cream, 4.0, 0.42, 0.04, -7.5, 2.5, -7.72, { solid: false });
+  b.box(0x1e3a8a, 3.2, 0.55, 0.08, 7.5, 2.45, -7.76, { solid: false });
+
+  hospitalWallZ(b, -4.8, -8.2, 2.5, wall, -4.5);
+  hospitalWallX(b, 1.2, -9.8, 9.8, wall, -2.8);
+  b.box(0xf97316, 0.9, 0.38, 0.06, 1.2, 2.05, -2.74, { solid: false });
+
+  for (let i = 0; i < 5; i++) {
+    b.cylinder(0x94a3b8, 0.03, 0.85, -2 + i * 1.1, 0, 6.8, { solid: false });
+    b.box(accent, 0.45, 0.32, 0.32, -2 + i * 1.1, 0.86, 6.8, { solid: false });
+  }
+  bench(b, -7, 6.5, 2.4, 0x64748b);
+  screen(b, 0, 7.5, 4.5, 0.85, 2.0, accent);
+
+  counter(b, 0, -5, 8, accent, 0xfacc15, 1.05);
+  counter(b, -6.5, -5.5, 2.8, 0x1c1917, cream, 0.95);
+  for (const x of [-2.5, -0.5, 1.5]) {
+    b.box(0x1c1917, 1.2, 0.2, 0.55, x, 1.12, -5.1, { solid: false });
+    b.box(0xf97316, 1.0, 0.08, 0.4, x, 1.32, -5.1, { glow: true, solid: false });
+  }
+  b.box(0x1e3a8a, 1.5, 1.55, 0.75, 6.2, 0, -5.5);
+  b.box(0x7dd3fc, 1.25, 1.15, 0.05, 6.2, 0.28, -5.12, { glow: true, solid: false });
+  b.box(cream, 1.4, 0.85, 0.8, -6.2, 0, -4.5);
+  b.box(0xfce7f3, 1.2, 0.08, 0.65, -6.2, 0.85, -4.5, { solid: false });
+
+  b.box(0xdc2626, 3.8, 0.06, 3.2, -8, 0.01, -6.5, { solid: false });
+  for (const [px, pz] of [[-8.5, -6.8], [-7.2, -7.5], [-9.2, -5.8]] as const) {
+    b.cylinder(0x52525b, 0.52, 0.6, px, 0, pz, { sides: 14 });
+    b.cylinder(0xfacc15, 0.44, 0.08, px, 0.65, pz, { solid: false });
+    b.box(0x78716c, 0.22, 0.32, 0.22, px + 0.35, 0.88, pz, { solid: false });
+  }
+  shelf(b, -8.5, -3.8, 2.2, [cream, accent, 0xf97316, 0xfacc15]);
+  b.box(0x1c1917, 1.8, 1.4, 0.08, -9.2, 0.7, -5.2, { solid: false });
+
+  counter(b, 8.5, -4.5, 2.6, 0x64748b, cream, 0.85);
+  b.box(0x94a3b8, 1.4, 0.85, 0.6, 9.2, 0, -4.5);
+  for (let i = 0; i < 4; i++) b.box(cream, 0.4, 0.06, 0.4, 8.0, 0.55 + i * 0.14, -2.5, { solid: false });
+
+  const tables: Array<[number, number]> = [[-4, 1], [0, 1], [4, 1], [-4, 4], [4, 4]];
+  for (const [x, z] of tables) {
+    table(b, x, z, 0xfacc15, 4, 0xdc2626);
+    for (const side of [-1, 1]) {
+      const cx = x + side * 1.35;
+      b.box(0xf97316, 0.38, 0.48, 0.38, cx, 0, z, { solid: false });
+      b.box(0xf97316, 0.38, 0.5, 0.07, cx, 0.48, z + 0.18, { solid: false });
+    }
+    b.box(0x1c1917, 0.35, 0.08, 0.25, x, 0.78, z, { solid: false });
+  }
+
+  desk(b, 6.5, -4.2, cream);
+  b.box(accent, 0.9, 0.55, 0.06, 6.5, 1.05, -4.2, { solid: false });
+  for (const [x, z] of [[-1, 2.5], [2, -2], [7, 5]] as const) {
+    b.box(0xfacc15, 0.3, 0.2, 0.26, x, 0.9, z, { solid: false });
+    b.box(cream, 0.26, 0.08, 0.22, x, 0.82, z, { solid: false });
+  }
+  b.cylinder(slate, 0.04, 0.55, 3, 3.55, 2, { solid: false });
+  b.cylinder(0xfde68a, 0.12, 0.14, 3, 3.15, 2, { glow: true, solid: false });
+  plant(b, 7.5, 5.5);
+  plant(b, -8.5, 3.5);
+};
+
+/**
+ * Mai Suya Spot — Allen Avenue roadside grill: coal pits, yaji station, chiller, plastic seating.
+ * Station anchor unchanged: grill (0,−3.5) / stand (0,−2.2). Tables at (−3,2), (0,2), (3,2).
+ */
+const maiSuyaSpotFloor = (b: Builder, accent = 0xb45309) => {
+  const wall = 0xfed7aa;
+  const ember = 0xf97316;
+  const sackCol = 0xfef3c7;
+
+  for (let x = -5; x <= 5; x += 2.6) {
+    for (let z = -5; z <= 5; z += 2.6) {
+      b.box(0xd6d3d1, 2.4, 0.04, 2.4, x, 3.65, z, { solid: false });
+      b.cylinder(0x57534e, 0.04, 0.35, x, 3.75, z, { solid: false });
+      b.box(0xfde68a, 0.14, 0.06, 0.14, x, 3.35, z, { glow: true, solid: false });
+    }
+  }
+  b.box(accent, 3.8, 0.55, 0.08, 0, 2.35, -5.92, { solid: false });
+  b.box(0xf8fafc, 3.4, 0.4, 0.04, 0, 2.35, -5.88, { solid: false });
+  for (const wx of [-4.5, 0, 4.5]) hospitalWindow(b, wx, -5.05, 1.65);
+  hospitalWindow(b, -5.95, 0, 1.5, 1.2, false);
+  hospitalWindow(b, 5.95, 0, 1.5, 1.2, false);
+
+  hospitalWallZ(b, -2.8, -5.2, 3.5, wall, 2.5);
+  b.box(0x166534, 0.85, 0.35, 0.06, 0, 2.05, 2.44, { solid: false });
+
+  b.box(0x111827, 3.2, 0.92, 1.15, 0, 0, -3.5);
+  b.box(ember, 2.9, 0.05, 0.85, 0, 0.92, -3.5, { glow: true, solid: false });
+  for (let i = 0; i < 10; i++) b.box(0x7c2d12, 0.08, 0.06, 0.55, -1.4 + i * 0.31, 1.0, -3.5);
+  b.box(0x57534e, 2.6, 0.06, 0.9, 2.8, 0.01, -3.5, { solid: false });
+  b.box(ember, 2.4, 0.04, 0.75, 2.8, 0.88, -3.5, { glow: true, solid: false });
+  for (let i = 0; i < 6; i++) b.box(0x7c2d12, 0.07, 0.05, 0.5, 2.2 + i * 0.3, 0.95, -3.5);
+
+  counter(b, -4.2, -3.8, 2.2, 0x78350f, sackCol, 0.85);
+  for (let i = 0; i < 5; i++) b.box([0xdc2626, 0xfacc15, 0x7c2d12][i % 3], 0.22, 0.16, 0.22, -4.6 + i * 0.28, 0.92, -3.8, { solid: false });
+  pile(b, -4.2, -2.8, 0xfef3c7, 0.28);
+  pile(b, -3.6, -2.6, 0xe7e5e4, 0.25);
+  b.box(0x1c1917, 0.55, 0.4, 0.4, -3.2, 0.92, -3.6, { solid: false });
+
+  b.box(0x1e3a8a, 1.1, 1.45, 0.6, 4.5, 0, -4.2);
+  b.box(0x7dd3fc, 0.9, 1.1, 0.05, 4.5, 0.25, -3.82, { glow: true, solid: false });
+  shelf(b, 4.5, -2.5, 1.6, [0xfacc15, 0x16a34a, 0xdc2626]);
+
+  for (const [x, z] of [[-3, 2], [0, 2], [3, 2]] as const) {
+    table(b, x, z, 0xf8fafc, 4, 0xdc2626);
+    for (const side of [-1, 1]) {
+      const cx = x + side * 1.2;
+      b.box(0xf97316, 0.38, 0.48, 0.38, cx, 0, z, { solid: false });
+      b.box(0xf97316, 0.38, 0.5, 0.07, cx, 0.48, z + 0.18, { solid: false });
+    }
+    b.box(0xf8fafc, 0.32, 0.06, 0.28, x, 0.8, z, { solid: false });
+    b.box(0x7c2d12, 0.28, 0.05, 0.24, x - 0.15, 0.84, z, { solid: false });
+  }
+  bench(b, -4.5, 4.2, 2.0, 0x78350f);
+  bench(b, 4.5, 4.2, 2.0, 0x78350f);
+
+  for (let i = 0; i < 3; i++) {
+    b.cylinder(0x94a3b8, 0.03, 0.75, -1.5 + i * 1.5, 0, 5.0, { solid: false });
+    b.box(ember, 0.4, 0.3, 0.3, -1.5 + i * 1.5, 0.78, 5.0, { solid: false });
+  }
+  screen(b, 0, 5.2, 3.5, 0.75, 1.8, accent);
+
+  counter(b, 3.5, -4.8, 2.0, 0x64748b, 0xe0f2fe, 0.75);
+  b.cylinder(0x0284c7, 0.22, 0.5, 3.5, 0, -4.2, { sides: 10 });
+  b.box(0x7dd3fc, 0.18, 0.16, 0.18, 3.5, 0.52, -4.2, { solid: false });
+  for (let i = 0; i < 4; i++) b.box(0xf8fafc, 0.38, 0.06, 0.38, 2.8, 0.55 + i * 0.12, -2.2, { solid: false });
+
+  b.box(0x15803d, 0.48, 0.68, 0.48, -4.8, 0, -2.0);
+  b.box(0x1c1917, 2.2, 0.85, 0.12, 0, 0.85, -5.3, { solid: false });
+  b.box(accent, 1.8, 0.65, 0.05, 0, 1.55, -5.28, { glow: true, solid: false });
+  plant(b, -4.8, 4.5);
+};
+
 const buka = (key: string, name: string, district: string, sub: string): PlaceSpec => ({
   key,
   name,
@@ -1548,29 +1703,29 @@ const IKEJA: PlaceSpec[] = [
     { at: [2.2, 2], facing: Math.PI, outfit: 0x2563eb, sit: true },
   ], [20, 18]),
   venue('chop-express', 'Chop Express', 'Ikeja · fast food', 'Rice · Chicken · Meat pie · Ice cream', '#dc2626', 0xf8fafc, 0xfde68a, (b) => {
-    counter(b, 0, -5, 8, 0xdc2626, 0xfacc15);
-    screen(b, 0, -6.8, 6, 1.2, 2.6, 0xfacc15);
-    // Fryer / warmer tray on the counter
-    for (const x of [-2.5, -0.5, 1.5]) b.box(0x1c1917, 1.2, 0.2, 0.55, x, 1.12, -5.1, { solid: false });
-    b.box(0xf97316, 1.0, 0.08, 0.4, -2.5, 1.32, -5.1, { glow: true, solid: false });
-    // Drink fridge
-    b.box(0xe2e8f0, 1.3, 1.8, 0.7, 6.2, 0, -5.5);
-    b.box(0x7dd3fc, 1.1, 1.4, 0.04, 6.2, 0.2, -5.12, { glow: true });
-    // Ice cream freezer
-    b.box(0xf8fafc, 1.4, 0.85, 0.8, -6.2, 0, -4.5);
-    b.box(0xfce7f3, 1.2, 0.08, 0.65, -6.2, 0.85, -4.5, { solid: false });
-    for (const [x, z] of [[-4, 1], [0, 1], [4, 1], [-4, 4], [4, 4]]) table(b, x, z, 0xfacc15, 2, 0xdc2626);
-    plant(b, 7, 5);
+    chopExpressFastFoodFloor(b, 0xdc2626);
   }, [
     { name: 'Server Kemi', title: 'Server', at: [0, -6], facing: 0, outfit: 0xdc2626, gender: 'female', says: 'Welcome to Chop Express! What can I get you?' },
     { name: 'Fryer Boy', title: 'Kitchen', at: [-3.5, -6.2], facing: 0, outfit: 0xf97316, gender: 'male', chef: true, says: 'Chicken dey hot!' },
+    { name: 'Mr Ibe', title: 'Branch manager', at: [6.5, -5.5], facing: -Math.PI / 2, outfit: 0xdc2626, gender: 'male', tie: true, says: 'Fast hands, clean hands. Order 47 is up!' },
+    { name: 'Ice cream girl', title: 'Dessert counter', at: [-6.2, -4.2], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Vanilla or chocolate?' },
+    { name: 'Cleaner', title: 'Floor staff', at: [-4, 2.5], facing: 0.4, outfit: 0x64748b, gender: 'male', says: 'Table three is ready for the next customer.' },
   ], [
     { id: 'counter', name: '🍗 Order', at: [0, -5], stand: [0, -3.7], who: 'Server Kemi', role: 'Chop Express', text: 'Eat in or takeaway?', choices: [
       { label: 'Jollof rice and chicken', price: 4800, note: 'Hunger +55', sit: true, seconds: 5, effect: need({ hunger: 55 }), said: 'Party jollof and a big chicken thigh.' },
       buy('A meat pie', 1500, item('meatpie', 'Meat pie', '🥧', 1500, 'food', true, 12), 'Hot meat pie in a paper bag.'),
       { label: 'Ice cream', price: 2500, note: 'Fun +8', effect: need({ fun: 8, hunger: 8 }), said: 'Vanilla with chocolate sauce.' },
     ] },
-  ], [{ at: [-4, 1.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 4.95], facing: Math.PI, outfit: 0xec4899, sit: true, gender: 'female' }], [18, 16]),
+  ], [
+    { at: [-4, 1.95], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [0, 1.95], facing: Math.PI, outfit: 0x16a34a, sit: true, gender: 'female' },
+    { at: [4, 1.95], facing: Math.PI, outfit: 0xfacc15, sit: true },
+    { at: [-4, 4.95], facing: Math.PI, outfit: 0x1e3a8a, sit: true },
+    { at: [4, 4.95], facing: Math.PI, outfit: 0xec4899, sit: true, gender: 'female' },
+    { at: [0, 6.2], facing: Math.PI, outfit: 0x7c3aed },
+    { at: [-7, 0.5], facing: 0.8, outfit: 0x0f172a, sit: true },
+    { at: [7, 3.2], facing: -1.2, outfit: 0xdc2626, gender: 'female' },
+  ], [22, 18]),
   venue('faith-arena', 'Faith Arena', 'Ikeja · church', 'Sunday 7, 9 & 11 am', '#1e3a8a', 0xe7e5e4, 0xdbeafe, (b) => {
     pews(b, 8, -4, 9);
     stage(b, 0, -10, 14, 4, 0x1e3a8a);
@@ -1824,17 +1979,27 @@ const SIDE: PlaceSpec[] = [
   ], [{ at: [5, -3.6], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [2, 4.4], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' }], [16, 14]),
 
   venue('allen-suya', 'Mai Suya Spot', 'Allen Avenue · suya', 'Suya · Kilishi · Cold drinks', '#b45309', 0x57534e, 0xfed7aa, (b) => {
-    // The grill, its coals glowing, sticks of meat on it
-    b.box(0x111827, 3, 0.9, 1, 0, 0, -3.5).box(0xf97316, 2.8, 0.05, 0.8, 0, 0.9, -3.5, { glow: true });
-    for (let i = 0; i < 8; i++) b.box(0x7c2d12, 0.08, 0.06, 0.6, -1.2 + i * 0.34, 1, -3.5);
-    for (const [x, z] of [[-3, 2], [0, 2], [3, 2]]) table(b, x, z, 0xf8fafc, 2, 0xdc2626);
-  }, [{ name: 'Mai Suya', title: 'Suya man', at: [0, -4.4], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Hot suya! Plenty yaji, plenty onions!' }], [
+    maiSuyaSpotFloor(b, 0xb45309);
+  }, [
+    { name: 'Mai Suya', title: 'Suya man', at: [0, -4.4], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Hot suya! Plenty yaji, plenty onions!' },
+    { name: 'Musa', title: 'Apprentice', at: [2.5, -3.8], facing: -Math.PI / 2, outfit: 0xf97316, gender: 'male', says: 'Fan the coals. Customer dey wait.' },
+    { name: 'Mallam Sani', title: 'Night grill', at: [-2.5, -3.6], facing: Math.PI / 2, outfit: 0x1c1917, gender: 'male', says: 'Kilishi dry, yaji sharp.' },
+  ], [
     { id: 'grill', name: '🍢 The grill', at: [0, -3.5], stand: [0, -2.2], who: 'Mai Suya', role: 'Suya man', text: 'How much suya?', choices: [
       { label: 'Suya with onions and yaji', price: 2500, note: 'Hunger +25', sit: true, seconds: 4, effect: need({ hunger: 25, fun: 5 }), said: 'Wrapped in newspaper, hot, peppery. You ate it at the table under the lights.' },
       buy('Suya and kilishi to take away', 6000, item('suya_pack', 'Suya and kilishi, wrapped', '🍢', 6000, 'food', true, 18), 'Wrapped in newspaper and foil, still smoking.'),
       { label: 'A cold Chapman', price: 3000, note: 'Fun +8', effect: need({ fun: 8, hunger: 4 }), said: 'Cold Chapman in a tall glass.' },
     ] },
-  ], [{ at: [-3, 2.95], facing: Math.PI, outfit: 0x16a34a, sit: true }, { at: [3, 1.05], facing: 0, outfit: 0xdb2777, sit: true, gender: 'female' }], [14, 12]),
+  ], [
+    { at: [-3, 2.95], facing: Math.PI, outfit: 0x16a34a, sit: true },
+    { at: [0, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [3, 2.95], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+    { at: [-3, 0.5], facing: 0, outfit: 0xfacc15, sit: true },
+    { at: [3, 0.8], facing: Math.PI, outfit: 0x7c2d12, sit: true },
+    { at: [0, 4.5], facing: Math.PI, outfit: 0xdc2626 },
+    { at: [-4.5, 4.5], facing: 0.6, outfit: 0x0f172a, gender: 'female' },
+    { at: [4.2, 4.8], facing: -0.8, outfit: 0x15803d },
+  ], [14, 12]),
 
   venue('allen-bank', 'Eko Commercial Bank, Allen', 'Allen Avenue · bank', 'Allen Avenue branch · ATM', '#1e3a8a', 0xe5e7eb, 0xf8fafc, (b) => {
     allenBankBranchFloor(b, 0x1e3a8a, true);

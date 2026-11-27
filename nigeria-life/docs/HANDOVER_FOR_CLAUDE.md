@@ -95,7 +95,23 @@ Perf inside buka (2× rAF after `graphics.choose`): **Very Low** 60 draws / 79k 
 
 **Unverified on return:** nav through kitchen/wash-up gaps with new clutter; partition walls vs camera clip; Medium draw/tri budget vs street VL cap; evening-hour lighting on new ceiling bulbs; shift job path with 5 staff portraits overlapping.
 
-Still unfinished / follow-on: denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts.
+### Restaurant / eatery redo batch (`cursor/integration-1` — tip after Allen bank `dcca563`)
+
+Root cause: `chop-express` and `allen-suya` had thin inline `venue()` props; Broad Street `mama-put` / `chop-life` (`RestaurantInterior`) was a warm shell with counter/stove prefabs only. **Skipped:** Amala Shitta (dense above).
+
+**Shipped:**
+
+| Venue | Floor / dressing | Room | Staff + regulars | Stations (unchanged) |
+| --- | --- | --- | --- | --- |
+| **Chop Express** | `chopExpressFastFoodFloor()` — fry line, queue, dine-in tables, wash/chiller, signage | 22×18 | 5 staff + 8 regulars | `counter` — jollof ₦4,800; meat pie ₦1,500; ice cream ₦2,500 |
+| **Mai Suya Spot** | `maiSuyaSpotFloor()` — twin grills, yaji/onion, chiller, plastic seating, wash | 14×12 | 3 staff + 8 regulars | `grill` — suya ₦2,500; takeaway ₦6,000; Chapman ₦3,000 |
+| **Mama Put Buka** | `dressMamaPutBroadStreet()` in `RestaurantInterior.ts` (BukaService anchors preserved) | 24×22 template | 2 staff + 3 seated regulars (template) | `buka_food_counter`, `buka_table_vip` (BukaMenu prices) |
+
+Evidence branch: `cursor/evidence-restaurants-181d` — `docs/evidence/restaurants/` (phone 390×844 + desktop 1280×800 play camera per venue; `perf-*.json`, `stations-*.json`).
+
+**Unverified on return:** Chop Express nav through fry partition vs enlarged 22×18 room; mama-put partition occupy vs waiter path; live buka order flow after dressing mesh; Allen suya room size still matches side-street shell.
+
+Still unfinished / follow-on: **the-library** / Ikoyi fine dining density; denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts; **markets** audit next.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
