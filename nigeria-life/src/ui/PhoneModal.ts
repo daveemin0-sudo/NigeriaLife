@@ -159,7 +159,15 @@ export class PhoneModal {
         if (phone.memory.has(key)) return phone.memory.get(key) as T;
         return initial;
       },
-      set: (key, value) => { phone.memory.set(key, value); },
+      set: (key, value) => {
+        phone.memory.set(key, value);
+        // Keep the live field in sync. Otherwise get() prefers a non-empty DOM value and a
+        // clear (e.g. chat after Send) is written back into memory on the next refresh.
+        const input = phone.screen?.querySelector<HTMLInputElement>(`[data-bind="${key}"]`);
+        if (input && (typeof value === 'string' || typeof value === 'number')) {
+          input.value = String(value);
+        }
+      },
     };
     services.rides.onChange = () => this.refresh();
     services.deliveries.onChange = () => this.refresh();
