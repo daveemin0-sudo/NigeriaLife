@@ -481,10 +481,13 @@ export class Roads {
         !blocksCrossing(z),
     );
 
+    // Pavement is 6.5 m beyond the kerb. Stalls sit against the shop fronts so the
+    // kerb-side walk (x≈±9–11) stays clear — paths from (10,0) must not brush stall tables.
+    const pavementWalk = 6.5;
+    const stallInset = 0.95;
     stallZPositions.forEach((sz, idx) => {
       const side = idx % 2 === 0 ? -1 : 1;
-      // Closer to the kerb than the shop fronts so a 2 m walkway stays open
-      const sx = side * (this.roadWidth / 2 + 2.15);
+      const sx = side * (this.roadWidth / 2 + pavementWalk - stallInset);
       const theme = umbrellaThemes[idx % umbrellaThemes.length];
 
       const stallGroup = new THREE.Group();

@@ -26,6 +26,20 @@ Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d
 
 ### Fresh full regression (in progress)
 
+### Fresh regression notes (tip vs `bf55dab`)
+
+Edited existing tests (same behaviour, sidewalk height):
+
+| Suite | Old assertion | New assertion | Why same |
+| --- | --- | --- | --- |
+| `ways` Broad Street walk | `y < 0.05` | `y < 0.35` | Pavement is at `sidewalkTop` (0.28); still requires not on bridge / not inside |
+| `streets` under bridge / stair side | `y < 0.05` | `y < 0.35` | Same street-level intent as east-stairs foot check (`y < 0.3`) |
+
+Clean tip FAIL / bf55 PASS fixed:
+
+- **ways** stadium Gate A + quay path brushed stall tables at kerb (`x≈9.15`). Stalls moved to shop-front inset (`x≈±12.55`) so kerb walk stays clear. Re-check: brushes 0 / 0; onPavement 0.95.
+
+
 Fresh serves (never reused):
 - tip `28e15cb` → `http://127.0.0.1:5201/NigeriaLife/` from `/tmp/nl-e2e-tip-fresh`
 - baseline `bf55dab` → `http://127.0.0.1:5202/NigeriaLife/` from `/tmp/nl-e2e-bf55-fresh`
