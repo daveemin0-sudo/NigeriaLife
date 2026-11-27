@@ -6,14 +6,22 @@ Lead builder until then: Cursor cloud agent. Do **not** merge to `main`, do **no
 
 ### Late owner-fix merges (this tip)
 
-Merged into `cursor/integration-1` @ `6bbce58`:
+Merged into `cursor/integration-1` @ `28e15cb` (includes character 2-skins):
 - `cursor/stage-0c-hud-181d` @ `482698c` (PR #63)
 - `cursor/stage-0d-street-181d` @ `ecaffdb` (PR #64)
 - `cursor/stage-3-seat-sit-181d` @ `6441046` (PR #62)
 
-Next: fresh full regression vs `bf55dab`; open places redo; interiors redo.
+Next: open places redo; interiors redo.
 
-### Character files — 2 shared skins + meshopt (`cursor/character-2skins-181d`)
+### Fresh full regression (in progress)
+
+Fresh serves (never reused):
+- tip `28e15cb` → `http://127.0.0.1:5201/NigeriaLife/` from `/tmp/nl-e2e-tip-fresh`
+- baseline `bf55dab` → `http://127.0.0.1:5202/NigeriaLife/` from `/tmp/nl-e2e-bf55-fresh`
+
+Both running full suite lists (159 tip / 152 baseline). Log: `/tmp/nl-regression-fresh/{tip,bf55}-full.log`. Will fix clean pass→fail (except named flakes).
+
+### Character files — 2 shared skins + meshopt (`cursor/character-2skins-181d` @ `e197196`, merged @ `28e15cb`)
 
 Rebuilt from pre-meshopt bases (`c20db99`) with `gltf-transform meshopt --quantization-volume scene`.
 
