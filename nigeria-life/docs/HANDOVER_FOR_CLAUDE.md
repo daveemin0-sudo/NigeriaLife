@@ -37,7 +37,27 @@ Evidence: `cursor/evidence-elegushi-181d` @ `7197467` (PR #65; first set `39a6c2
 - Same kit also wired onto other open lawns: `lekki-conservation`, `ikeja-golf`, `millennium-park`, `pleasure-park` (Jabi keeps `attachOpenAirLake`)
 - Files: `OpenAirPark.ts` (new), `PlaceSpecs.ts`, `PlaceInterior.ts`, `Surfaces.ts`, `OpenAirBeach.ts` (sea clip)
 
-Evidence: `cursor/evidence-freedom-park-181d` (phone 390×844 mid-lawn + stage, desktop 1280×800; `docs/evidence/freedom-park/`). Perf (choose): Freedom VL 78/118k, balanced 191/445k; Lekki VL 53/66k; Golf VL 57/64k; Elegushi VL 65/191k (sea grid). Broad Street VL measured 237 draws / **136k tris** (over 110k) — open tip investigation, not place-specific.
+Evidence: `cursor/evidence-freedom-park-181d` (phone 390×844 mid-lawn + stage, desktop 1280×800; `docs/evidence/freedom-park/`). Perf (choose): Freedom VL 78/118k, balanced 191/445k; Elegushi VL 65/191k (sea grid). Broad Street VL measured 237 draws / **136k tris** (over 110k) — open tip investigation, not place-specific.
+
+**Open lawns / lakes (play camera, 390×844 + 1280×800)** — `tests/e2e/capture_openplaces.mjs`; no feature changes (horizons read grass/water, not grey void):
+
+| Place | Evidence branch @ SHA | Folder |
+| --- | --- | --- |
+| Lekki Conservation (canopy ~12 m) | `cursor/evidence-lekki-conservation-181d` @ `ccee099` | `docs/evidence/lekki-conservation/` |
+| Jabi Lake | `cursor/evidence-jabi-lake-181d` @ `90f2c6f` | `docs/evidence/jabi-lake/` |
+| Millennium Park | `cursor/evidence-millennium-park-181d` @ `fd1d3a1` | `docs/evidence/millennium-park/` |
+| Ikeja Golf | `cursor/evidence-ikeja-golf-181d` @ `e74eee8` | `docs/evidence/ikeja-golf/` |
+| Pleasure Park | `cursor/evidence-pleasure-park-181d` @ `f5cc9bf` | `docs/evidence/pleasure-park/` |
+
+Perf inside each (2× rAF after `graphics.choose`; Medium = balanced):
+
+| Place | Very Low draws / tris | Medium draws / tris |
+| --- | --- | --- |
+| Lekki Conservation | 36 / 50k | 69 / 166k |
+| Jabi Lake Park | 29 / 33k | 61 / 136k |
+| Millennium Park | 37 / 42k | 70 / 152k |
+| Ikeja Golf Club | 27 / 21k | 59 / 111k |
+| Pleasure Park | 38 / 36k | 80 / 157k |
 
 ### LASUTH interior redo (`cursor/integration-1` @ `fed9a71`)
 
@@ -139,7 +159,7 @@ Perf inside (2× rAF after `graphics.choose`, desktop last venue in session — 
 
 **Unverified on return:** Balogun VL tris (~241k) vs street cap; nav through new tarp posts vs stall `occupy`; live shop flows (`app:shopping`) in mall zones; Wuse/Jabi/mile-one density pass.
 
-Still unfinished / follow-on: **the-library** / Ikoyi fine dining density; denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts; Wuse / Mile 1 / town `marketAtmosphere()` shells.
+Still unfinished / follow-on: **the-library** / Ikoyi fine dining density; denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; yacht club skirts; Wuse / Mile 1 / town `marketAtmosphere()` shells.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
