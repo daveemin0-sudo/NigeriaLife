@@ -31,10 +31,19 @@ export class Landmarks {
   public readonly buildingSite: Landmark;
   public readonly list: Landmark[];
   public readonly interactiveList: InteractiveObject[] = [];
+  /** Live game hour for landmarks that report open/shut from `status()` without waiting a frame */
+  private hour: () => number = () => 12;
 
   constructor() {
     this.group.name = 'Landmarks';
-    this.stadium = createStadium({ id: 'surulere-stadium', name: 'National Stadium, Surulere', x: -74, z: 15, teams: ['Eko United', 'Rivers Stars'] });
+    this.stadium = createStadium({
+      id: 'surulere-stadium',
+      name: 'National Stadium, Surulere',
+      x: -74,
+      z: 15,
+      teams: ['Eko United', 'Rivers Stars'],
+      hour: () => this.hour(),
+    });
     this.port = createPort({ id: 'apapa-port', name: 'Apapa Port', x: -87.5, z: 76, ship: 'MV EKO PRIDE' });
     // Murtala Muhammed, in Ikeja: behind its hall on Ikorodu Road, with its own road out to it
     this.airport = createAirport({
@@ -82,6 +91,11 @@ export class Landmarks {
     const landmark = this.list.find((one) => ids.includes(one.id) || one.interactive.some((thing) => ids.includes(thing.id)));
     if (!landmark) return null;
     return new THREE.Vector3((landmark.zone.minX + landmark.zone.maxX) / 2, 0, (landmark.zone.minZ + landmark.zone.maxZ) / 2);
+  }
+
+  /** Wire the sky clock so `status().open` matches `setHour` immediately. */
+  public setClock(hour: () => number): void {
+    this.hour = hour;
   }
 
   public update(delta: number, hour: number): void {

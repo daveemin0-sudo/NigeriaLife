@@ -217,6 +217,7 @@ export class World {
     }
     // Places that keep hours are shut outside them
     this.interiorManager.clock = () => this.skyEnvironment.currentHour;
+    this.landmarks.setClock(() => this.skyEnvironment.currentHour);
 
     // 9. Dedicated Isometric World Map Presentation Layer
     this.worldMap = new WorldMap(this.scene);
