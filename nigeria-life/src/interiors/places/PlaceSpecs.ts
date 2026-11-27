@@ -99,6 +99,131 @@ const grandLobby = (b: Builder, accent = 0xb45309, withBar = false) => {
 };
 
 /**
+ * Eko Grand Hotel lobby (VI): reception, concierge, lounge, restaurant, bar, pool deck, lift bay.
+ * Station anchors unchanged: restaurant (−6,3), pool (6,5); Hotel.ts reception/lift at (−5,−6) / (10.78,−7.5).
+ */
+const ekoGrandHotelLobby = (b: Builder, accent = 0xb45309) => {
+  const wall = 0xe7d3b3;
+  const cream = 0xf5f5f4;
+  const marble = 0xf8fafc;
+  const wood = 0x5b3a1e;
+  const gold = 0xd4af37;
+  const walnut = 0x7c2d12;
+
+  for (let x = -10; x <= 10; x += 3.2) {
+    for (let z = -9; z <= 9; z += 3.2) {
+      b.box(0xe2ddd5, 2.9, 0.04, 2.9, x, 4.85, z, { solid: false });
+      b.box(0xfffbeb, 0.35, 0.06, 0.35, x + 1.0, 4.78, z - 1.0, { glow: true, solid: false });
+    }
+  }
+
+  screen(b, 0, -9.1, 8.5, 1.0, 2.5, accent);
+  b.box(gold, 5.2, 0.65, 0.06, 0, 3.15, -9.06, { solid: false });
+  b.box(marble, 4.8, 0.42, 0.03, 0, 3.15, -9.02, { solid: false });
+  b.box(accent, 2.2, 0.5, 0.06, -9, 2.35, -9.06, { solid: false });
+  b.box(0x0284c7, 1.8, 0.4, 0.03, -9, 2.35, -9.02, { glow: true, solid: false });
+
+  for (const wx of [-8, -4, 0, 4, 8]) hospitalWindow(b, wx, -9.05, 2.3);
+  for (const wz of [-5.5, -1.5, 2.5, 6.5]) {
+    hospitalWindow(b, -11.95, wz, 2.1, 1.4, false);
+    hospitalWindow(b, 11.95, wz, 2.1, 1.4, false);
+  }
+
+  b.box(0x334155, 3.4, 2.85, 0.16, 0, 0, 9.88);
+  b.box(0xbae6fd, 1.35, 2.45, 0.04, -1.0, 1.42, 9.93, { glow: true, solid: false });
+  b.box(0xbae6fd, 1.35, 2.45, 0.04, 1.0, 1.42, 9.93, { glow: true, solid: false });
+  b.box(gold, 3.5, 0.12, 0.08, 0, 2.85, 9.92, { solid: false });
+
+  hospitalWallX(b, 0.5, -11, 11, wall, -5.8);
+  hospitalWallZ(b, 3.8, -9.2, 3.5, 0xf3e8d8, 0.2);
+  hospitalWallZ(b, -3.2, 2.5, 8.8, 0xf3e8d8, 5.8);
+  b.box(gold, 0.08, 2.5, 3.2, 3.8, 0, -2.8, { solid: false });
+  b.box(gold, 0.08, 2.5, 3.2, -3.2, 0, 5.5, { solid: false });
+
+  counter(b, -5, -6, 7, accent, marble, 1.08);
+  for (const x of [-7, -5, -3]) {
+    b.box(0x0f172a, 0.42, 0.32, 0.05, x, 1.52, -6.28, { solid: false });
+    b.box(0x38bdf8, 0.36, 0.26, 0.02, x, 1.54, -6.23, { glow: true, solid: false });
+  }
+  for (let i = 0; i < 5; i++) {
+    b.cylinder(0x94a3b8, 0.035, 0.95, -4 + i * 1.1, 0, -3.8, { solid: false });
+    b.box(gold, 1.0, 0.02, 0.02, -4 + i * 1.1, 0.92, -3.8, { solid: false });
+  }
+
+  desk(b, 2.5, -7.4, cream);
+  b.box(gold, 1.3, 0.38, 0.04, 2.5, 1.05, -7.52, { glow: true, solid: false });
+  desk(b, -9.2, -3.2, 0xe7e5e4);
+  b.box(0x1e3a8a, 0.55, 0.45, 0.08, -9.2, 1.05, -3.2, { solid: false });
+
+  b.box(0xc4b5a0, 3.0, 0.012, 18, 0, 0.01, -1.5, { solid: false });
+  b.box(gold, 0.1, 0.015, 18, -1.35, 0.012, -1.5, { solid: false });
+  b.box(gold, 0.1, 0.015, 18, 1.35, 0.012, -1.5, { solid: false });
+  b.box(0x9a3412, 12, 0.02, 4.5, 0, 0.01, 3.5, { solid: false });
+
+  b.cylinder(gold, 0.12, 1.35, 0, 3.65, 0).dome(0xfde68a, 1.1, 0, 3.25, 0, { glow: true });
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    b.cylinder(0xfacc15, 0.035, 0.28, Math.sin(a) * 1.0, 3.35, Math.cos(a) * 1.0, { glow: true, solid: false });
+  }
+
+  const sofa = (x: number, z: number, w: number, col: number) => {
+    b.box(col, w, 0.45, 0.85, x, 0, z);
+    b.box(col, w, 0.55, 0.12, x, 0.45, z - 0.38, { solid: false });
+    b.box(col, 0.12, 0.55, 0.85, x - w / 2 + 0.06, 0.45, z + 0.38, { solid: false });
+    b.box(col, 0.12, 0.55, 0.85, x + w / 2 - 0.06, 0.45, z + 0.38, { solid: false });
+    b.box(0xb45309, w - 0.3, 0.18, 0.7, x, 0.48, z, { solid: false });
+    b.occupy(x - w / 2, x + w / 2, z - 0.48, z + 0.48, 0.58);
+  };
+  sofa(-8, -0.5, 2.6, walnut);
+  sofa(-1.5, 0.8, 2.2, 0x1e3a8a);
+  sofa(1.5, -0.2, 2.4, walnut);
+  for (const [x, z] of [[-6.5, 2.2], [-3.5, 1.8], [3.5, 1.5]] as const) bench(b, x, z, 2.2, wood);
+
+  counter(b, -8, 4.2, 2.8, wood, marble, 0.95);
+  b.box(gold, 1.6, 0.35, 0.04, -8, 1.05, 4.15, { solid: false });
+  for (const [x, z] of [[-7.2, 3.0], [-4.8, 3.2], [-6.5, 5.2], [-4, 5.8], [-8.2, 6.2]] as const) table(b, x, z, marble, 4, wood);
+
+  counter(b, 4.5, -5.2, 4.2, 0x1c1917, gold, 1.05);
+  bottles(b, 4.5, -7.0, 3.8);
+  for (const z of [-5.5, -4.2]) {
+    b.box(0x78350f, 0.75, 0.08, 0.4, 3.2, 0.72, z, { solid: false });
+    b.cylinder(0xfacc15, 0.07, 0.22, 3.2, 0.82, z, { glow: true, solid: false });
+    b.occupy(2.85, 3.55, z - 0.22, z + 0.22, 0.9);
+  }
+
+  b.box(0x0284c7, 7, 0.08, 4.2, 6, 0.01, 5.2, { glow: true });
+  b.occupy(2.5, 9.5, 3.1, 7.3, 0.2);
+  for (const z of [3.4, 7.0]) {
+    b.box(marble, 0.75, 0.38, 1.85, 9.0, 0, z);
+    b.box(marble, 0.75, 0.58, 0.12, 9.0, 0.38, z - 0.88, { solid: false });
+    b.box(accent, 0.55, 0.25, 0.08, 9.0, 0.55, z - 0.82, { solid: false });
+  }
+  b.box(0x0ea5e9, 1.1, 0.55, 0.45, 7.5, 0, 6.5);
+  for (let i = 0; i < 4; i++) b.box([0xf8fafc, 0x38bdf8, 0xfacc15, 0xf8fafc][i], 0.35, 0.22, 0.2, 7.5, 0.38 + i * 0.28, 6.35, { solid: false });
+
+  b.box(0x334155, 1.7, 2.55, 0.14, 10.5, 0, -7.5);
+  b.box(0xcbd5e1, 0.72, 2.25, 0.04, 10.15, 0.1, -7.42, { solid: false });
+  b.box(0xcbd5e1, 0.72, 2.25, 0.04, 10.85, 0.1, -7.42, { solid: false });
+  b.box(walnut, 0.85, 2.2, 0.1, 9.0, 0, -7.5, { solid: false });
+  b.box(gold, 0.65, 0.35, 0.04, 9.0, 1.8, -7.44, { glow: true, solid: false });
+
+  b.box(0x64748b, 0.95, 0.92, 0.6, 2, 0, -7.2);
+  b.box(0x1e3a8a, 0.72, 0.48, 0.42, 2, 0.95, -7.2, { solid: false });
+  b.box(0x64748b, 0.55, 0.85, 0.55, -1.5, 0, -7.2);
+  for (const dx of [-0.22, 0.22]) b.cylinder(0x1f2937, 0.16, 0.06, 2 + dx, 0.45, -6.85, { solid: false });
+
+  for (const [x, z, col] of [[-10, 6.5, 0x7c2d12], [10, -6, 0x5b3a1e], [-9.5, -7.5, accent], [9.5, 7, 0x78350f]] as const) {
+    plant(b, x, z);
+    b.box(col, 0.65, 1.1, 0.06, x, 1.1, z, { solid: false });
+  }
+  for (const [x, z] of [[-7, 7.5], [5, 7.8], [0, 7.2]] as const) bench(b, x, z, 2.4, 0x57534e);
+  b.box(0x0f172a, 1.4, 1.6, 0.08, 6.5, 0.8, -8.2, { solid: false });
+  b.box(gold, 1.1, 1.3, 0.04, 6.5, 0.8, -8.16, { glow: true, solid: false });
+  b.box(0x44403c, 0.22, 0.35, 0.25, -6, 0.92, -2.5, { solid: false });
+  b.box(0x44403c, 0.22, 0.35, 0.25, 5.5, 0.92, 2.8, { solid: false });
+};
+
+/**
  * High-street bank hall: teller glass, queue, ATM bay, manager desk, security gate.
  * Station anchors stay near (0,-5) teller, (±6.9,6.6) ATM, (6,3) officer.
  */
@@ -953,18 +1078,33 @@ const SPECS: PlaceSpec[] = [
     { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'Nollywood blockbuster at 7.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'Funke Akindele had the whole hall laughing.' }] },
   ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-3, -3], facing: 0, outfit: 0xec4899, gender: 'female' }], [24, 20]),
   venue('eko-grand-hotel', 'Eko Grand Hotel', 'Mainland · hotel', '★★★★★ · Rooms · Restaurant', '#b45309', 0xf5f5f4, 0xe7d3b3, (b) => {
-    grandLobby(b, 0xb45309, false);
+    ekoGrandHotelLobby(b, 0xb45309);
   }, [
     { name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0xb45309, gender: 'female', says: 'Welcome to Eko Grand. How can we help?' },
     { name: 'Porter Tunde', title: 'Bellboy', at: [2, -6.2], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Your bags, sir? I take them up.' },
+    { name: 'Mr Lawal', title: 'Hotel manager', at: [-9.2, -4.2], facing: 0, outfit: 0xb45309, gender: 'male', tie: true, says: 'Five-star service. Can you give it?' },
+    { name: 'Concierge Adaeze', title: 'Concierge', at: [2.5, -8.4], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Theatre tickets, airport pickup, anything — just ask.' },
+    { name: 'Chef Emeka', title: 'Restaurant', at: [-8, 5], facing: Math.PI / 2, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Seafood okra is the special today.' },
+    { name: 'Waiter Kunle', title: 'Dining', at: [-4, 4.2], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Your table is ready, sir.' },
     { name: 'Pool attendant', title: 'Pool', at: [8.5, 5], facing: -Math.PI / 2, outfit: 0x0284c7, gender: 'male', says: 'Towel and a lounger ready.' },
+    { name: 'Barman Segun', title: 'Lobby bar', at: [4.5, -6.4], facing: 0, outfit: 0x111827, gender: 'male', says: 'Chapman or a Heineken?' },
   ], [
     { id: 'restaurant', name: '🍽️ Restaurant', at: [-6, 3], stand: [-6, 3.95], who: 'Waiter', role: 'Eko Grand Hotel', text: 'Lunch?', choices: [{ label: 'Seafood okra and pounded yam', price: 18000, note: 'Hunger +60', sit: true, seconds: 6, effect: need({ hunger: 60, fun: 10 }), said: 'Seafood okra, five-star style.' }] },
     { id: 'pool', name: '🏊 The pool', at: [6, 5], stand: [3.5, 5], who: 'Pool attendant', role: 'Eko Grand Hotel', text: 'Towel?', choices: [{ label: 'A swim', price: 10000, note: 'Fun +25, Hygiene +20', arms: 'swing', seconds: 6, effect: need({ fun: 25, hygiene: 20 }), said: 'Cool water, warm sun. You floated for an hour.' }] },
   ], [
     { at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true },
     { at: [-6, 3.95], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
-  ], [24, 20]),
+    { at: [-7.5, 5.1], facing: Math.PI, outfit: 0xb45309, sit: true },
+    { at: [-4.2, 6.0], facing: Math.PI, outfit: 0x2563eb, sit: true, gender: 'female' },
+    { at: [-8, 0.2], facing: 0.3, outfit: 0xfacc15, sit: true },
+    { at: [1.8, 1.0], facing: -0.4, outfit: 0x16a34a, sit: true },
+    { at: [3.5, -4.8], facing: 0.8, outfit: 0xf8fafc, sit: true },
+    { at: [9.2, 4.0], facing: Math.PI, outfit: 0x0284c7, sit: true },
+    { at: [0, 7.3], facing: Math.PI, outfit: 0x9333ea, sit: true, gender: 'female' },
+    { at: [-5, -3.5], facing: 0.5, outfit: 0x78716c },
+    { at: [6, -2.5], facing: -0.6, outfit: 0x1e3a8a, gender: 'female' },
+    { at: [8, 7.2], facing: Math.PI, outfit: 0xea580c },
+  ], [26, 22]),
   venue('police-command', 'Lagos State Police Command', 'Ikeja · police', 'Police is your friend · 112', '#1d4ed8', 0x94a3b8, 0x1e293b, (b) => {
     counter(b, -4, -5, 5, 0x1e3a8a); desk(b, 4, -4);
     for (const x of [6, 8]) b.box(0x3f3f46, 0.08, 3, 3, x, 0, 5);
@@ -2303,6 +2443,8 @@ for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
   if (bank) bank.room.finish = 'grey_granite';
   const amala = SPECS.find((s) => s.key === 'amala-shitta');
   if (amala) amala.room.finish = 'grey_granite';
+  const ekoLobby = SPECS.find((s) => s.key === 'eko-grand-hotel');
+  if (ekoLobby) ekoLobby.room.finish = 'calacatta_gold';
 }
 
 {
