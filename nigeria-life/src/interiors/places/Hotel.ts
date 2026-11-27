@@ -836,7 +836,7 @@ class Suite {
       steps.face(player, SUITE.armchair.facing),
       steps.call('television on', () => { this.screen.visible = true; }),
       steps.slide(player, this.room.at(SUITE.armchair.seat[0], SUITE.armchair.seat[1]), 0.45),
-      steps.animate(player, { legs: 'sit', arms: 'rest' }, 8, [{
+      steps.animate(player, { legs: 'sit', arms: 'rest', height: 0.55 }, 8, [{
         at: 0.95, run: () => {
           host.backend.modifyNeed('fun', 18);
           host.backend.rest(8, 0, false);
@@ -1293,14 +1293,14 @@ class TownSuite {
       steps.walk(actor, stand, { speed: 2.2, ifStuck: 'snap' }),
       steps.face(actor, seat),
       steps.slide(actor, seat, 0.45),
-      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest', height: 0.5 }),
       steps.wait(0.3),
     );
     down.onEnd((reason) => {
       if (reason !== 'done') return;
       actor.hold = { release: (instant) => this.standFrom(stand, instant) };
       actor.setScripted(true);
-      actor.pose = { legs: 'sit', arms: 'rest' };
+      actor.pose = { legs: 'sit', arms: 'rest', height: 0.5 };
       this.seated = true;
       host.say('You sit down.', 'info');
     });

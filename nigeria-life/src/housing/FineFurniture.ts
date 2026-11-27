@@ -278,7 +278,8 @@ export function fineDining(seats: 6 | 10, top: number, seat: number): THREE.Grou
   for (let c = 0; c < each; c++) {
     const cz = -len / 2 + 0.3 + c * step;
     for (const side of [-1, 1]) {
-      const cx = side * 0.74;
+      // Chair centres aligned with sit spots (0.95) so hips land on the pad, not inside the table
+      const cx = side * 0.95;
       for (const [lx, lz] of [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17], [0.17, 0.17]]) b.shape(0x3f2a17, new THREE.CylinderGeometry(0.018, 0.016, 0.44, 8), cx + lx, 0.22, cz + lz);
       b.shape(seat, soft(0.44, 0.07, 0.44, 0.03), cx, 0.47, cz);
       // The back, curved toward the sitter, on the side away from the table

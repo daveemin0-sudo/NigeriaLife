@@ -759,12 +759,14 @@ export class PlaceInterior {
     const actor = host.actor;
     if (host.director.interrupt(actor) === 'locked') return;
     const arms: ArmPose = meal ? 'eat' : c.arms && c.arms !== 'reach' ? c.arms : 'rest';
+    const top = this.topAt(seat[0], seat[1]) || 0.5;
+    const sitPose = { legs: 'sit' as const, arms, height: top };
     const sitting = new Sequence(`${st.id} ${c.label}`, [actor]).add(
       steps.walk(actor, this.world(from[0], from[1]), { ifStuck: 'snap' }),
       steps.face(actor, yaw),
       steps.slide(actor, this.world(seat[0], seat[1]), 0.5),
-      steps.setPose(actor, { legs: 'sit', arms }),
-      steps.animate(actor, { legs: 'sit', arms }, c.seconds ?? 2, [{ at: 0.9, run: () => this.settle(c, host) }]),
+      steps.setPose(actor, sitPose),
+      steps.animate(actor, sitPose, c.seconds ?? 2, [{ at: 0.9, run: () => this.settle(c, host) }]),
       steps.setPose(actor, { legs: 'stand', arms: 'rest' }),
       steps.slide(actor, this.world(from[0], from[1]), 0.5),
     );
@@ -882,15 +884,16 @@ export class PlaceInterior {
     const behind = this.world(spot.behind[0], spot.behind[1]);
     const meal = new Sequence(`eat ${c.label}`, [actor]);
     meal.maxSeconds = 150;
+    const chairTop = this.topAt(spot.seat[0], spot.seat[1]) || 0.5;
     meal.add(
       steps.walk(actor, behind, { ifStuck: 'snap' }),
       steps.face(actor, seat),
       steps.slide(actor, seat, 0.45),
       steps.face(actor, spot.yaw),
-      steps.setPose(actor, { legs: 'sit', arms: 'rest' }),
+      steps.setPose(actor, { legs: 'sit', arms: 'rest', height: chairTop }),
       steps.call('call for the food', () => this.bring(spot, plate, () => { served = true; })),
       steps.until('the food comes', () => served, 45, 'continue'),
-      steps.animate(actor, { arms: 'eat' }, c.seconds ?? 5, [{ at: 0.15, run: () => {
+      steps.animate(actor, { arms: 'eat', height: chairTop }, c.seconds ?? 5, [{ at: 0.15, run: () => {
         c.effect?.(host.backend);
         if (c.item) host.backend.addItem(c.item);
         if (c.said) host.say(c.said, 'success');

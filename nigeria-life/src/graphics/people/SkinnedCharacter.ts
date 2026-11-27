@@ -611,8 +611,13 @@ export async function loadSkinnedCharacter(
   const applyPose = (pose: PoseState) => {
     const state = clipForPose(pose);
     play(state, 0.3);
-    // A bed's mattress (or any raised surface lain on) lifts the sleeper onto it
-    root.position.y = groundY + (state === 'lie' && pose.height ? pose.height : 0);
+    // A bed's mattress lifts the sleeper onto it. A seat's cushion lifts the sitter so hips
+    // rest on the cushion top (sit clips assume a ~0.48 m seat under the pelvis).
+    const SIT_CLIP_HIP = 0.48;
+    const SIT_HIP_ABOVE = 0.20;
+    if (state === 'lie' && pose.height) root.position.y = groundY + pose.height;
+    else if (state === 'sit' && pose.height != null) root.position.y = groundY + Math.max(0, pose.height + SIT_HIP_ABOVE - SIT_CLIP_HIP);
+    else root.position.y = groundY;
   };
 
   const applyAppearance = (cfg: CharacterConfig) => {

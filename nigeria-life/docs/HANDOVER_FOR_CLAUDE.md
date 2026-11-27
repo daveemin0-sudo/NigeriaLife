@@ -52,9 +52,20 @@ PR [#58](https://github.com/daveemin0-sudo/NigeriaLife/pull/58). Merged into `cu
 
 Evidence: `cursor/evidence-stage-3` @ `43a21a7`. PR [#59](https://github.com/daveemin0-sudo/NigeriaLife/pull/59). Merged into `cursor/integration-1`. CI green.
 
-### Stage 3 follow-up — seat sit (owner iPhone) (`cursor/stage-3-seat-sit-181d`)
+### Stage 3 follow-up — seat sit (owner iPhone bugs) (`cursor/stage-3-seat-sit-181d`)
 
-PR [#62](https://github.com/daveemin0-sudo/NigeriaLife/pull/62). Sofa/armchair hips on cushion top (not sunk); dining chairs face table (all homes + duplex 8-chair set); automated body-vertex seat check. Evidence: `docs/evidence/seat-sit/`.
+Owner: sofa hips sank into cushion; dining sit put body inside the table.
+
+| Fix | Detail |
+| --- | --- |
+| Sofa / armchair | `pose.height` = cushion top (0.55); procedural drop + skinned root lift so hips sit **on** the pad; sit spots slightly forward (`z: 0.14`) so the back rests on the backrest |
+| Dining | Every chair listed (`diningSitLocals`); face **toward table centre**; approach from behind the chair; chairs at `x: ±0.95`; luxury duplex ships `dining_table_10` (**8 chairs**) |
+| Venues / hotel | `sitAndDo` / meal `toTable` / hotel armchair pass seat `topAt` into the sit pose |
+| Automated check | `tests/e2e/home_seats.mjs` — every sofa + all 8 duplex dining chairs; hips ≥ cushion top; no deep body verts in seat pad or table slab — **7/7** |
+
+Before/after (phone 390×844): `before-sofa-sit.png`, `after-sofa-sit.png`, `after-sofa-sit-side.png`, `before-dining-sit.png`, `after-dining-sit.png`, `after-dining-sit-side.png` under `/opt/cursor/artifacts/seat-evidence/`. Metrics after: sofa hipY≈0.77 on top 0.55 (skinned rootY≈+0.31); dining hipY≈0.72 facing table.
+
+**Still open (owner list, other stages):** Yaba zebra stall (0D/1); night street light (0D/1); Watching card / Dynamic Island / location pill / ₦0 check (0C).
 
 ### Stage 4 — real interiors (`cursor/stage-4-real-interiors-181d` @ `4d4ee77`)
 

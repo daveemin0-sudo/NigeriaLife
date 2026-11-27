@@ -4,6 +4,17 @@ import type { FurnitureKind } from './FurnitureModels';
 import { fineBed, fineSofa } from './FineFurniture';
 import { duvet } from '../world/kit/SoftKit';
 
+/** Local sofa/armchair sit spots (kept here to avoid a cycle with FurnitureModels). */
+function sofaSeats(n: number): Array<{ x: number; z: number; top: number }> {
+  const each = 0.74;
+  const inside = Math.max(1, n) * each;
+  return Array.from({ length: Math.max(1, n) }, (_, i) => ({
+    x: -inside / 2 + (i + 0.5) * each,
+    z: 0.14,
+    top: 0.55,
+  }));
+}
+
 /**
  * More furniture, for every pocket: the small television a first flat starts with and the big
  * ones it grows into, a foam mattress, plastic chairs, a washing machine that is a washing
@@ -336,8 +347,24 @@ export const MORE_MAKERS: Record<string, () => THREE.Group> = {
 export const MORE_KINDS: Record<string, FurnitureKind> = {
   coffee_table: { solid: true, use: 'none' },
   foam_mattress: { solid: true, use: 'bed', bed: { x: 0, z: 0.6, top: 0.25, side: 0.75 } },
-  plastic_set: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },
-  plastic_set_red: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },
+  plastic_set: {
+    solid: true,
+    use: 'seat',
+    seat: { x: -0.36, z: 0.45, top: 0.46 },
+    seats: [
+      { x: -0.36, z: 0.45, top: 0.46 },
+      { x: 0.36, z: 0.45, top: 0.46 },
+    ],
+  },
+  plastic_set_red: {
+    solid: true,
+    use: 'seat',
+    seat: { x: -0.36, z: 0.45, top: 0.46 },
+    seats: [
+      { x: -0.36, z: 0.45, top: 0.46 },
+      { x: 0.36, z: 0.45, top: 0.46 },
+    ],
+  },
   hotel_king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.8, top: 0.74, side: 1.2 } },
   super_king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.8, top: 0.74, side: 1.3 } },
   presidential_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.85, top: 0.74, side: 1.55 } },
@@ -347,9 +374,9 @@ export const MORE_KINDS: Record<string, FurnitureKind> = {
   potted_plant: { solid: true, use: 'none' },
   ...Object.fromEntries(TV_SIZES.map((inches) => [`tv_${inches}`, { solid: true, use: 'tv' } as FurnitureKind])),
   ...Object.fromEntries(SOFA_FINISHES.flatMap((f) => [
-    [`sofa3_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } } as FurnitureKind],
-    [`sofa2_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } } as FurnitureKind],
-    [`armchair_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.06 } } as FurnitureKind],
+    [`sofa3_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.14, top: 0.55 }, seats: sofaSeats(3) } as FurnitureKind],
+    [`sofa2_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.14, top: 0.55 }, seats: sofaSeats(2) } as FurnitureKind],
+    [`armchair_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.12, top: 0.55 }, seats: sofaSeats(1) } as FurnitureKind],
   ])),
   ...Object.fromEntries(BED_FINISHES.flatMap((f) => [
     [`double_bed_${f.id}`, { solid: true, use: 'bed', bed: { x: 0, z: 0.75, top: 0.7, side: 0.85 } } as FurnitureKind],

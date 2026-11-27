@@ -33,7 +33,7 @@ export type ArmPose = 'rest' | 'swing' | 'wave' | 'eat' | 'carry' | 'reach' | 't
 export interface PoseState {
   legs: LegPose;
   arms: ArmPose;
-  /** For 'lie': how high the surface being lain on is (a mattress top) */
+  /** For 'lie': mattress top. For 'sit': cushion/seat top the hips rest on. */
   height?: number;
 }
 
@@ -76,8 +76,10 @@ export function neutralJoints(): JointValues {
   };
 }
 
-/** Hip height is 0.76 and a seat is 0.5 high, so a seated body sits this much lower. */
-const SEAT_DROP = 0.17;
+/** How far above the cushion top the hip joint sits so thighs rest on it, not in it. */
+const SIT_HIP_ABOVE = 0.20;
+/** Fallback seat-top height when a sit pose does not name one. */
+const DEFAULT_SEAT_TOP = 0.5;
 /** The hip joint's height when standing */
 const HIP = 0.77;
 
@@ -118,7 +120,9 @@ export function poseTargets(pose: PoseState, time: number, out: JointValues): Jo
     out.leftKnee = 1.36;
     out.rightKnee = 1.36;
     out.torsoLift = Math.sin(time * 2) * 0.01;
-    out.drop = SEAT_DROP;
+    // Hips a little above the cushion top so the body sits on it, not through it
+    const seatTop = pose.height ?? DEFAULT_SEAT_TOP;
+    out.drop = Math.max(0, HIP - seatTop - SIT_HIP_ABOVE);
   } else if (pose.legs === 'bow') {
     // Ruku: straight legs, the back level, the head in line with it
     out.leftLegX = 0;
