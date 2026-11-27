@@ -43,15 +43,13 @@ const enterMamaPut = async (page) => {
     }
   });
   await wait(800);
-  await makeOpen(page, 'mama-put');
   await page.evaluate(() => {
     const g = window.game;
-    const door = g.world.buildings.placeDoors.find((d) => d.buildingId === 'mama-put');
     g.player.stopMoving();
-    g.player.mesh.position.set(door.x, 0, door.z);
-    g.hud.showInteractionCard(door);
-    document.getElementById('card-action-btn')?.click();
+    g.player.mesh.position.set(-9, 0, -6.5);
   });
+  await wait(200);
+  await enterInterior(page, 'mama-put');
   await playUntil(page, () => (window.game.world.interiorManager.currentInterior?.type === 'restaurant' && !window.game.world.interiorManager.isTransitioning ? true : null), 40);
   await play(page, 1.5);
 };

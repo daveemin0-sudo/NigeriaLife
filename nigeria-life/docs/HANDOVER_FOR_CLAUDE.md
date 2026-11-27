@@ -109,6 +109,8 @@ Root cause: `chop-express` and `allen-suya` had thin inline `venue()` props; Bro
 
 Evidence branch: `cursor/evidence-restaurants-181d` — `docs/evidence/restaurants/` (phone 390×844 + desktop 1280×800 play camera per venue; `perf-*.json`, `stations-*.json`).
 
+Perf inside (2× rAF after `graphics.choose`): **Chop Express** VL 73 draws / 187k tris; Medium 192 / 562k. **Mai Suya** VL 57 / 180k tris; Medium 130 / 444k. **Mama Put** VL 159 / 33k tris; Medium 243 / 179k tris.
+
 **Unverified on return:** Chop Express nav through fry partition vs enlarged 22×18 room; mama-put partition occupy vs waiter path; live buka order flow after dressing mesh; Allen suya room size still matches side-street shell.
 
 Still unfinished / follow-on: **the-library** / Ikoyi fine dining density; denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts; **markets** audit next.
