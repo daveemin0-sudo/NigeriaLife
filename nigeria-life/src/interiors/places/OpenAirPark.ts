@@ -229,14 +229,14 @@ export function attachOpenAirPark(group: THREE.Group, length: number, width = 40
   skyBand.position.set(0, 20, 0);
   skirts.add(skyBand);
 
-  // Distant Lagos Island city tips on the far ring (colonial-prison → arts park still sits in the city)
+  // Distant Lagos Island city tips on the far ring (keep sparse — pocket already draws the player mesh)
   const city = new THREE.Group();
   city.name = 'open_air_park_city_fringe';
-  for (let i = 0; i < 28; i++) {
-    const a = (i / 28) * Math.PI * 2 + 0.1;
-    const r = 165 + (i % 5) * 6;
-    const h = 4 + (i % 7) * 1.8 + (i % 3) * 0.6;
-    const box = new THREE.Mesh(new THREE.BoxGeometry(2.2 + (i % 3) * 0.8, h, 2.2), CITY_MAT);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + 0.1;
+    const r = 168 + (i % 4) * 5;
+    const h = 5 + (i % 5) * 2.0;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(2.4 + (i % 2) * 0.8, h, 2.2), CITY_MAT);
     box.position.set(Math.sin(a) * r, h / 2 - 0.05, Math.cos(a) * r);
     city.add(box);
   }
@@ -273,20 +273,14 @@ export function attachOpenAirPark(group: THREE.Group, length: number, width = 40
   const fringe = new THREE.Group();
   fringe.name = 'open_air_park_fringe_trees';
   const canopyPulse: THREE.Mesh[] = [];
+  // Sparse fringe — enough to kill the void, not enough to blow the Very Low triangle budget
   const treeSpots: Array<[number, number, number, boolean]> = [
-    // Behind stage / prison wall
-    [-22, -halfL - 4, 1.05, false], [-14, -halfL - 8, 0.95, true], [-6, -halfL - 5, 1.15, false],
-    [4, -halfL - 9, 1.0, true], [12, -halfL - 4, 1.1, false], [20, -halfL - 7, 0.9, true],
-    // Sides
-    [-halfW - 5, -10, 1.0, false], [-halfW - 8, 0, 1.15, true], [-halfW - 4, 10, 0.95, false],
-    [-halfW - 10, 16, 1.05, true], [halfW + 5, -8, 1.1, true], [halfW + 9, 2, 0.95, false],
-    [halfW + 4, 12, 1.15, true], [halfW + 8, -14, 1.0, false],
-    // Toward entrance / street side
-    [-18, halfL + 4, 1.0, true], [-8, halfL + 7, 1.1, false], [6, halfL + 5, 0.95, true],
-    [16, halfL + 8, 1.05, false], [-24, halfL - 2, 0.9, false], [24, halfL - 4, 1.0, true],
-    // Outer ring
-    [-30, -2, 1.2, true], [30, 4, 1.15, false], [-28, 14, 1.0, false], [28, -12, 1.05, true],
-    [0, -halfL - 14, 1.25, false], [-16, 22, 1.0, true], [14, 22, 1.1, false],
+    [-22, -halfL - 4, 1.05, false], [-6, -halfL - 5, 1.15, false], [12, -halfL - 4, 1.1, false],
+    [20, -halfL - 7, 0.9, true], [-halfW - 6, -8, 1.0, false], [-halfW - 8, 8, 1.1, true],
+    [halfW + 6, -6, 1.05, true], [halfW + 5, 10, 1.0, false],
+    [-16, halfL + 5, 1.0, true], [8, halfL + 6, 1.05, false], [20, halfL + 4, 0.95, true],
+    [-28, 2, 1.15, false], [28, -4, 1.1, true], [0, -halfL - 12, 1.2, false],
+    [-14, 20, 1.0, true], [14, 20, 1.05, false],
   ];
   for (const [x, z, s, alt] of treeSpots) {
     const tree = makeTree(x, z, s, alt);

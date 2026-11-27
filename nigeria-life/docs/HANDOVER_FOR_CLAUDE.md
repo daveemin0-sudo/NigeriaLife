@@ -37,7 +37,9 @@ Evidence: `cursor/evidence-elegushi-181d` @ `7197467` (PR #65; first set `39a6c2
 - Same kit also wired onto other open lawns: `lekki-conservation`, `ikeja-golf`, `millennium-park`, `pleasure-park` (Jabi keeps `attachOpenAirLake`)
 - Files: `OpenAirPark.ts` (new), `PlaceSpecs.ts`, `PlaceInterior.ts`, `Surfaces.ts`, `OpenAirBeach.ts` (sea clip)
 
-Still unfinished / follow-on: denser crowd meshes (still capsule LODs); music tied to live Freedom Park / beach-party hours; Freedom Park evidence screenshots not taken; embed-in-city is later; optional shared open-air kit extraction (beach + park person/horizon helpers); yacht club / other non-lawn open places may still need venue-specific skirts.
+Evidence: `cursor/evidence-freedom-park-181d` (phone 390×844 mid-lawn + stage, desktop 1280×800; `docs/evidence/freedom-park/`). Perf (choose): Freedom VL 78/118k, balanced 191/445k; Lekki VL 53/66k; Golf VL 57/64k; Elegushi VL 65/191k (sea grid). Broad Street VL measured 237 draws / **136k tris** (over 110k) — open tip investigation, not place-specific.
+
+Still unfinished / follow-on: denser crowd meshes; live-hours music; Broad Street VL tris budget; interiors redo (LASUTH); embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
