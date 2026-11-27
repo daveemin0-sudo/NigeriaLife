@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T18:19Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "Lekki Conservation",
+  "veryLow": {
+    "calls": 36,
+    "tris": 49792
+  },
+  "medium": {
+    "calls": 69,
+    "tris": 166184
+  }
+}
