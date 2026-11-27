@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T17:15Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "Chop Express",
+  "veryLow": {
+    "calls": 73,
+    "tris": 187125
+  },
+  "medium": {
+    "calls": 192,
+    "tris": 562338
+  }
+}

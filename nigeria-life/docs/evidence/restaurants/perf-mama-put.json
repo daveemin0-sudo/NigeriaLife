@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T17:29Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "Mama Put Buka",
+  "veryLow": {
+    "calls": 159,
+    "tris": 33275
+  },
+  "medium": {
+    "calls": 243,
+    "tris": 179167
+  }
+}
