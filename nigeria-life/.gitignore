@@ -35,3 +35,4 @@ scratch/
 
 # World audit raw frames (sheets + report are committed)
 docs/audit/raw/
+tools/characters/node_modules/
