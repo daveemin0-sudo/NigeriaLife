@@ -27,7 +27,9 @@ Root cause: open places are **pocket interiors** at `(-3000, …)`. Enter hides 
 - Station ids/prices/activities unchanged (`bar`, `lounger`, `horse`, `party`, `suya`, `coconut`, `football`, `swim`)
 - Files: `OpenAirBeach.ts`, `PlaceSpecs.ts`, `PlaceInterior.ts`, `InteriorPrefabs.ts`, `InteriorManager.ts`, `Camera.ts`, `Surfaces.ts`
 
-Still unfinished / follow-on: phone+desktop evidence screenshots; denser crowd meshes (still capsule LODs); DJ/music tied to live beach-party hours; other open places (Freedom Park, golf, Jabi, etc.) still on green disc / high camera until same treatment; embed-in-city is later.
+Evidence: `cursor/evidence-elegushi-181d` @ `39a6c27` (PR #65) — phone 390×844 + desktop 1280×800 at street-height play camera (`docs/evidence/elegushi-beach/`).
+
+Still unfinished / follow-on: denser crowd meshes (still capsule LODs); DJ/music tied to live beach-party hours; other open places (Freedom Park, golf, Jabi, etc.) still on green disc / high camera until same treatment; embed-in-city is later; sea-to-horizon framing can be stronger in evidence angles.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
