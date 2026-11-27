@@ -306,7 +306,7 @@ export function attachOpenAirBeach(group: THREE.Group, length: number, width = 7
   sideSand.position.set(0, -0.12, 10);
   skirts.add(sideSand);
 
-  // Distant sea disc past the animated mesh
+  // Distant sea disc past the animated mesh (entirely beyond the shoreline)
   const farSea = new THREE.Mesh(new THREE.CircleGeometry(200, 40), HORIZON_SEA_MAT);
   farSea.rotation.x = -Math.PI / 2;
   farSea.position.set(0, -0.18, shoreZ - SEA_L * 0.55);
@@ -326,11 +326,11 @@ export function attachOpenAirBeach(group: THREE.Group, length: number, width = 7
   wet.receiveShadow = true;
   group.add(wet);
 
-  // Animated sea
+  // Animated sea — near edge exactly at the shoreline (z <= shoreZ), never over dry sand
   const sea = new THREE.Mesh(SEA_GEO, WAVE_MAT);
   sea.name = 'open_air_sea';
   sea.rotation.x = -Math.PI / 2;
-  sea.position.set(0, -0.06, shoreZ - SEA_L * 0.38);
+  sea.position.set(0, -0.06, shoreZ - SEA_L * 0.5);
   sea.renderOrder = 1;
   group.add(sea);
 
@@ -479,7 +479,8 @@ export function attachOpenAirLake(group: THREE.Group, length: number): SwimZone 
   const sea = new THREE.Mesh(SEA_GEO, LAKE_MAT);
   sea.name = 'open_air_lake';
   sea.rotation.x = -Math.PI / 2;
-  sea.position.set(0, -0.05, shoreZ - SEA_L * 0.35);
+  // Near edge flush with the shore — do not draw lake water over the lawn
+  sea.position.set(0, -0.05, shoreZ - SEA_L * 0.5);
   sea.renderOrder = 1;
   group.add(sea);
 

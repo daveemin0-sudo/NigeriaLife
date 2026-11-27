@@ -24,6 +24,7 @@ import { attachTravellers } from './Travellers';
 import { attachNollywood } from '../../film/Nollywood';
 import { attachSparkDate } from '../../social/Spark';
 import { constrainBeachSwim, releaseOpenAirBeach, resumeOpenAirBeach, tickOpenAirBeach, type SwimZone } from './OpenAirBeach';
+import { releaseOpenAirPark, resumeOpenAirPark, tickOpenAirPark } from './OpenAirPark';
 import { attachOwambe } from '../../social/Owambe';
 import { attachStudio } from '../../music/Studio';
 import { attachPalaceCourt } from '../../social/Chieftaincy';
@@ -1004,16 +1005,19 @@ export class PlaceInterior {
 
   public onPlayerEntered(): void {
     if (this.spec.room.openAir && this.group.userData.beachLife) resumeOpenAirBeach(this.group);
+    if (this.spec.room.openAir && this.group.userData.parkLife) resumeOpenAirPark(this.group);
   }
 
   public onPlayerLeft(): void {
     if (this.spec.room.openAir && this.group.userData.beachSea) releaseOpenAirBeach();
+    if (this.spec.room.openAir && this.group.userData.parkLife) releaseOpenAirPark();
   }
 
   public update(delta: number, time: number): void {
     for (const npc of this.npcs) npc.update(delta, time);
     for (const tick of this.ticks) tick(delta);
     if (this.spec.room.openAir && this.group.userData.beachSea) tickOpenAirBeach(delta);
+    if (this.spec.room.openAir && this.group.userData.parkLife) tickOpenAirPark(delta);
   }
 
   /**

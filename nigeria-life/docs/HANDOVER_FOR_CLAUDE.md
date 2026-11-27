@@ -27,9 +27,17 @@ Root cause: open places are **pocket interiors** at `(-3000, …)`. Enter hides 
 - Station ids/prices/activities unchanged (`bar`, `lounger`, `horse`, `party`, `suya`, `coconut`, `football`, `swim`)
 - Files: `OpenAirBeach.ts`, `PlaceSpecs.ts`, `PlaceInterior.ts`, `InteriorPrefabs.ts`, `InteriorManager.ts`, `Camera.ts`, `Surfaces.ts`
 
-Evidence: `cursor/evidence-elegushi-181d` @ `7197467` (PR #65; first set `39a6c27`, v2 set `2777c6e`) — phone 390×844 + desktop 1280×800 at street-height play camera (`docs/evidence/elegushi-beach/`). **Defect found in evidence:** the animated sea plane (`OpenAirBeach.ts`, `SEA_L=280` centred `shoreZ - SEA_L*0.38`) spans ~34 m past the shoreline onto the sand and is drawn over it, so mid-beach from the street camera the sand reads as a flat slate-navy slab; horizon/swimmers/palms/cabanas/horses are otherwise visible. Fix next: clip sea to `z <= shoreZ`.
+Evidence: `cursor/evidence-elegushi-181d` @ `7197467` (PR #65; first set `39a6c27`, v2 set `2777c6e`) — phone 390×844 + desktop 1280×800 at street-height play camera (`docs/evidence/elegushi-beach/`). Sea-over-sand defect (plane centred `shoreZ - SEA_L*0.38`) **fixed** in this tip: sea/lake near edge flush at shoreline (`shoreZ - SEA_L*0.5`).
 
-Still unfinished / follow-on: denser crowd meshes (still capsule LODs); DJ/music tied to live beach-party hours; other open places (Freedom Park, golf, Jabi, etc.) still on green disc / high camera until same treatment; embed-in-city is later; sea-to-horizon framing can be stronger in evidence angles.
+**Freedom Park first cut** (`freedom-park`) @ `PENDING_HASH` (same open-air pattern as Elegushi; park not sea):
+- Already had `openAir: true` (street camera / no green disc); was still a finite lawn slab in grey void — now `OpenAirPark.ts` horizon lawn skirts, sky band, distant city fringe, path apron past rails
+- Fringe trees + heritage stone stubs; walkers on paths; crowd murmur + soft highlife bed + leaf rustle
+- Stage PA stacks, extra paths/palms/plaque plinths; `park_lawn` floor finish
+- Station ids/prices/activities unchanged (`show`, `art`, `food`, `walk`)
+- Same kit also wired onto other open lawns: `lekki-conservation`, `ikeja-golf`, `millennium-park`, `pleasure-park` (Jabi keeps `attachOpenAirLake`)
+- Files: `OpenAirPark.ts` (new), `PlaceSpecs.ts`, `PlaceInterior.ts`, `Surfaces.ts`, `OpenAirBeach.ts` (sea clip)
+
+Still unfinished / follow-on: denser crowd meshes (still capsule LODs); music tied to live Freedom Park / beach-party hours; Freedom Park evidence screenshots not taken; embed-in-city is later; optional shared open-air kit extraction (beach + park person/horizon helpers); yacht club / other non-lawn open places may still need venue-specific skirts.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
@@ -44,6 +52,7 @@ Edited existing tests (same behaviour, sidewalk height):
 | --- | --- | --- | --- |
 | `ways` Broad Street walk | `y < 0.05` | `y < 0.35` | Pavement is at `sidewalkTop` (0.28); still requires not on bridge / not inside |
 | `streets` under bridge / stair side | `y < 0.05` | `y < 0.35` | Same street-level intent as east-stairs foot check (`y < 0.3`) |
+| `expressway` place count | `places.length === 46` | `=== 50` (`32ea226`) | Same: pieces + every roadside card in world; Allen/Awolowo densification added four doors |
 
 Clean tip FAIL / bf55 PASS — fixed and **re-verified** on fresh tip `54a8752` @ `:5203` (`/tmp/nl-e2e-tip-verify`, log `tip-verify-hours-ways-phone.log`):
 

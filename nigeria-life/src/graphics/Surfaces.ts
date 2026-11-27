@@ -192,6 +192,27 @@ export function floorSurface(style: string): { map: THREE.CanvasTexture | null; 
           g.stroke();
         }
       }) };
+    case 'park_lawn':
+      return { metres: 2.8, map: texture('floor park lawn', 512, (g, n) => {
+        g.fillStyle = '#4d7c0f'; g.fillRect(0, 0, n, n);
+        const r = random(61);
+        for (let k = 0; k < 16000; k++) {
+          const tone = r();
+          g.fillStyle = tone < 0.35 ? 'rgba(22,101,52,0.35)' : tone < 0.7 ? 'rgba(134,239,172,0.14)' : 'rgba(0,0,0,0.08)';
+          g.fillRect(r() * n, r() * n, 1 + r() * 2, 1 + r() * 2);
+        }
+        // Soft grass blade streaks
+        for (let k = 0; k < 120; k++) {
+          g.strokeStyle = `rgba(21,128,61,${0.05 + r() * 0.08})`;
+          g.lineWidth = 1 + r() * 2;
+          g.beginPath();
+          const x = r() * n;
+          const y = r() * n;
+          g.moveTo(x, y);
+          g.lineTo(x + (r() - 0.5) * 10, y - 4 - r() * 10);
+          g.stroke();
+        }
+      }) };
     case 'ceramic_white':
     default:
       // Big white tiles with faint grey veins: the polished floor of a good Lagos home

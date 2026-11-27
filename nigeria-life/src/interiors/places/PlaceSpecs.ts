@@ -9,6 +9,7 @@ import { SUPERMARKET_SPEC } from './SupermarketRoom';
 import { buildKitCar } from '../../world/vehicles/KitCar';
 import { FX_BUNDLES, SPRAY_HARD, buyCost, sellProceeds, formatHard, FX_BUY, FX_SELL } from '../../life/HardCurrency';
 import { attachOpenAirBeach, attachOpenAirLake } from './OpenAirBeach';
+import { attachOpenAirPark } from './OpenAirPark';
 
 /**
  * The insides of the places along the expressway: each laid out for what is done there, with
@@ -422,20 +423,31 @@ const SPECS: PlaceSpec[] = [
   MARKET,
   buka('amala-shitta', 'Amala Shitta', 'Surulere · buka', 'Amala · Ewedu · Gbegiri · Assorted'),
   MARINA_TOWERS,
-  venue('freedom-park', 'Freedom Park', 'Lagos Island · arts', 'Arts · Music · History', '#92400e', 0x4d7c0f, 0xb45309, (b) => {
+  venue('freedom-park', 'Freedom Park', 'Lagos Island · arts', 'Arts · Music · History', '#92400e', 0x4d7c0f, 0xb45309, (b, room) => {
+    // Horizon lawns, fringe trees, walkers, crowd/highlife ambience (OpenAirPark) — not a platform in a void
+    if (room) attachOpenAirPark(room, 36, 40);
     // Open lawn amphitheatre — no room shell. Paths, stage, old-prison art wall, food kiosk, trees.
     b.box(0xa8a29e, 4, 0.04, 28, 0, 0.02, 2, { solid: false });
     b.box(0xa8a29e, 22, 0.04, 3.2, 0, 0.02, 10, { solid: false });
+    b.box(0xa8a29e, 3.2, 0.04, 18, -10, 0.02, -2, { solid: false });
+    b.box(0xa8a29e, 3.2, 0.04, 14, 10, 0.02, 4, { solid: false });
     stage(b, 0, -10, 12, 5, 0x57534e);
     b.box(0xf8fafc, 13, 0.25, 5.5, 0, 4.4, -10);
+    // Stage PA / speaker stacks — colonial-prison → live arts venue
+    b.box(0x1f2937, 0.9, 1.6, 0.7, -5.5, 0.7, -11.5).box(0x1f2937, 0.9, 1.6, 0.7, 5.5, 0.7, -11.5);
+    b.box(0x111827, 0.7, 0.5, 0.5, -5.5, 2.4, -11.5).box(0x111827, 0.7, 0.5, 0.5, 5.5, 2.4, -11.5);
     for (let r = 0; r < 5; r++) bench(b, 0, -4 + r * 1.7, 10);
     for (let i = 0; i < 5; i++) b.box([0xdc2626, 0x2563eb, 0xfacc15, 0x16a34a, 0xf97316][i], 0.12, 1.8, 1.4, -16, 1, -8 + i * 3.2);
     // Remnant prison wall stub (open-air memorial), not a full enclosure
     b.box(0x78716c, 18, 2.4, 0.5, -2, 0, -16);
     for (let i = 0; i < 4; i++) b.box(0x44403c, 1.4, 1.8, 0.08, -8 + i * 4, 0.3, -15.7);
+    // Heritage plaque plinths along the path
+    b.box(0x57534e, 0.9, 1.1, 0.5, -8, 0, 8).box(0xe7e5e4, 0.7, 0.55, 0.06, -8, 0.7, 8.3, { solid: false });
+    b.box(0x57534e, 0.9, 1.1, 0.5, 8, 0, 8).box(0xe7e5e4, 0.7, 0.55, 0.06, 8, 0.7, 8.3, { solid: false });
     counter(b, 12, 8, 3.5, 0xb45309);
     palm(b, -18, 12); palm(b, 18, 6); palm(b, -14, -6); palm(b, 16, -12);
-    for (const [x, z] of [[-10, 14], [8, 14], [-6, 16]] as Array<[number, number]>) {
+    palm(b, -6, 16); palm(b, 10, 16);
+    for (const [x, z] of [[-10, 14], [8, 14], [4, -14], [-18, -2], [18, -8], [0, 15]] as Array<[number, number]>) {
       b.cylinder(0x57534e, 0.22, 3.2, x, 0, z, { topRadius: 0.16 });
       b.dome(0x166534, 1.6, x, 3.0, z);
     }
@@ -512,7 +524,9 @@ const SPECS: PlaceSpec[] = [
     { id: 'shower', name: '🚿 Shower', at: [9.85, -4.2], stand: [9.15, -4.2], who: 'Changing room', role: 'i-Fitness', text: 'Towels and soap at the desk. Hot water today.', choices: [{ label: 'Shower and change', note: 'Hygiene full', arms: 'reach', seconds: 5, effect: (be) => { (be as unknown as { takeShower(): void }).takeShower(); }, said: '🚿 Hot water, soap and a clean towel. Fresh again.' }] },
     { id: 'desk', name: '💳 Membership', at: [-6, 6], stand: [-6, 4.7], who: 'Front desk', role: 'i-Fitness', text: 'Monthly membership?', choices: [{ label: 'Monthly membership', price: 120000, note: 'Health +15', effect: need({ health: 15 }), said: 'Card on your phone. See you every morning by six.' }] },
   ], [{ at: [-5.8, -6], facing: Math.PI, outfit: 0x2563eb }, { at: [6.5, 2.5], facing: 0, outfit: 0xdb2777, gender: 'female' }]),
-  venue('lekki-conservation', 'Lekki Conservation Centre', 'Lekki · nature park', 'Canopy walk · Nature trail', '#166534', 0x3f6212, 0x166534, (b) => {
+  venue('lekki-conservation', 'Lekki Conservation Centre', 'Lekki · nature park', 'Canopy walk · Nature trail', '#166534', 0x3f6212, 0x166534, (b, room) => {
+    // Horizon forest past the rails — no grey void
+    if (room) attachOpenAirPark(room, 44, 52);
     // Open forest canopy — trees, boardwalk, picnic clearings; no walls or roof.
     for (let i = 0; i < 28; i++) {
       const x = -22 + (i * 11) % 44;
@@ -530,10 +544,18 @@ const SPECS: PlaceSpec[] = [
     // Ticket / ranger hut (small open pavilion, not a building shell)
     counter(b, 14, -16, 3.5, 0x78350f);
     b.cone(0xd6b46a, 3.2, 1.2, 14, 2.5, -16.5, 4);
-    // Canopy-walk towers + rope suggestion
-    b.box(0x78716c, 1.4, 8, 1.4, -18, 0, -8);
-    b.box(0x78716c, 1.4, 8, 1.4, 18, 0, 8);
-    b.box(0xa8a29e, 0.12, 0.12, 28, 0, 7.2, 0, { solid: false });
+    // Canopy walk ~12 m above the trees: towers, deck, rope rails
+    b.box(0x78716c, 1.6, 12.5, 1.6, -18, 0, -8);
+    b.box(0x78716c, 1.6, 12.5, 1.6, 18, 0, 8);
+    b.box(0xa8a29e, 36, 0.2, 2.2, 0, 11.8, 0);
+    b.box(0xd6b46a, 36, 0.08, 0.1, 0, 12.9, -1.05);
+    b.box(0xd6b46a, 36, 0.08, 0.1, 0, 12.9, 1.05);
+    for (let i = 0; i < 10; i++) {
+      b.box(0xd6b46a, 0.1, 1.1, 0.1, -18 + i * 4, 11.8, -1.05);
+      b.box(0xd6b46a, 0.1, 1.1, 0.1, -18 + i * 4, 11.8, 1.05);
+    }
+    // Access stairs from the ranger hut up to the deck
+    for (let s = 0; s < 10; s++) b.box(0xa8a29e, 2.2, 0.18, 1.0, 14, 0.3 + s * 1.15, -14 + s * 0.85);
   }, [
     { name: 'Ranger Chuks', title: 'Ranger', at: [14, -17], facing: 0, outfit: 0x166534, gender: 'male', says: 'Welcome to the forest! Mind the monkeys.' },
     { name: 'Guide Nneka', title: 'Nature guide', at: [-4, 2], facing: Math.PI / 2, outfit: 0x15803d, gender: 'female', says: 'Look up — monkeys dey for the canopy.' },
@@ -1117,7 +1139,9 @@ const OUTDOOR: PlaceSpec[] = [
     { at: [0, 10], facing: Math.PI, outfit: 0x2563eb },
   ], [72, 48], true),
 
-  venue('ikeja-golf', 'Ikeja Golf Club', 'Ikeja · golf', 'Clubhouse · Pro shop · Putting green · 9 holes', '#14532d', 0x4d7c0f, 0x166534, (b) => {
+  venue('ikeja-golf', 'Ikeja Golf Club', 'Ikeja · golf', 'Clubhouse · Pro shop · Putting green · 9 holes', '#14532d', 0x4d7c0f, 0x166534, (b, room) => {
+    // Horizon fairway past the rails — no grey void
+    if (room) attachOpenAirPark(room, 36, 48);
     // Open course: fairway, putting green, open pavilion clubhouse — no room shell.
     b.box(0x65a30d, 40, 0.04, 8, 0, 0.02, -14, { solid: false });
     b.cylinder(0x4d7c0f, 4.2, 0.08, -8, 0, -2, { sides: 28 });
@@ -1470,7 +1494,9 @@ const ABUJA_SPECS: PlaceSpec[] = [
     { id: 'phones', name: '📱 Phones and gadgets', at: [4, -6], stand: [4, -4.5], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
   ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [26, 22]), [-175, 178]),
 
-  abuja(venue('millennium-park', 'Millennium Park', 'Maitama Green Corridor, Near Unity Fountain', 'Lawns · Fountain · Shade', '#14532d', 0x5aa83f, 0x166534, (b) => {
+  abuja(venue('millennium-park', 'Millennium Park', 'Maitama Green Corridor, Near Unity Fountain', 'Lawns · Fountain · Shade', '#14532d', 0x5aa83f, 0x166534, (b, room) => {
+    // Horizon lawns + walkers past the rails — no grey void
+    if (room) attachOpenAirPark(room, 40, 48);
     // Open lawns around the Italian fountain — no walls. Paths cross the green.
     b.box(0xe7e5e4, 4, 0.04, 40, 0, 0.02, 0, { solid: false });
     b.box(0xe7e5e4, 40, 0.04, 4, 0, 0.02, 0, { solid: false });
@@ -1724,7 +1750,9 @@ const PH_SPECS: PlaceSpec[] = [
     ] },
   ], [{ at: [-5, 3], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]), [240, 20]),
 
-  abuja(venue('pleasure-park', 'Pleasure Park', 'Aba Road (Between Bori Camp & Air Force Base)', 'Big wheel · Lawns · Picnic · Kiosk', '#14532d', 0x5aa83f, 0x166534, (b) => {
+  abuja(venue('pleasure-park', 'Pleasure Park', 'Aba Road (Between Bori Camp & Air Force Base)', 'Big wheel · Lawns · Picnic · Kiosk', '#14532d', 0x5aa83f, 0x166534, (b, room) => {
+    // Horizon lawns + walkers past the rails — no grey void
+    if (room) attachOpenAirPark(room, 40, 44);
     // Open fairground: lawns, path, big-wheel suggestion, picnic — no walls.
     b.box(0xe7e5e4, 4, 0.04, 36, 0, 0.02, 0, { solid: false });
     b.box(0xe7e5e4, 36, 0.04, 4, 0, 0.02, 0, { solid: false });
@@ -1974,6 +2002,16 @@ for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
 {
   const beach = OUTDOOR.find((s) => s.key === 'lagoon-beach');
   if (beach) beach.room.finish = 'beach_sand';
+  const park = SPECS.find((s) => s.key === 'freedom-park');
+  if (park) park.room.finish = 'park_lawn';
+  for (const key of ['lekki-conservation', 'ikeja-golf'] as const) {
+    const s = [...SPECS, ...OUTDOOR].find((p) => p.key === key);
+    if (s) s.room.finish = 'park_lawn';
+  }
+  for (const key of ['millennium-park', 'pleasure-park', 'jabi-lake-park'] as const) {
+    const s = ABUJA_SPECS.find((p) => p.key === key) ?? PH_SPECS.find((p) => p.key === key);
+    if (s) s.room.finish = 'park_lawn';
+  }
 }
 
 export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt')];
