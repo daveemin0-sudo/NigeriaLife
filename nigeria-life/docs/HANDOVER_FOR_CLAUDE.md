@@ -13,6 +13,17 @@ Merged into `cursor/integration-1` @ `28e15cb` (includes character 2-skins):
 
 Next: open places redo; interiors redo.
 
+### Open places redo — plan (from architecture pass; not started)
+
+Root cause: open places are **pocket interiors** at `(-3000, …)`. Enter hides the city (`setStreetModeVisibility(false)`), drops a finite `createOpenGround` slab + green `createGroundPlot` disc, and uses high **interior** diorama camera — so they read as platforms in a grey void.
+
+**Preferred approach (first cut, keep pocket):** kill void edge with per-venue horizon skirts; skip/recolour green disc for open-air; lower camera toward street eye; keep stations/ids. **Embed in city** is the larger follow-on (don’t hide street; spawn at door).
+
+**Elegushi first** (`lagoon-beach`): extend `OpenAirBeach` sand/sea past rails → sand finish → swim bobbers / horse tick → beach ambience → camera tweak → phone+desktop evidence. Key files: `PlaceSpecs.ts`, `PlaceInterior.ts`, `OpenAirBeach.ts`, `InteriorPrefabs.createOpenGround`, `InteriorManager.enterInterior` / `createGroundPlot`, `Camera.ts`.
+
+Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
+
+
 ### Fresh full regression (in progress)
 
 Fresh serves (never reused):
