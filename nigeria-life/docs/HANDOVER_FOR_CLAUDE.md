@@ -4,6 +4,16 @@ Lead builder until then: Cursor cloud agent. Do **not** merge to `main`, do **no
 
 ## Finished
 
+### Late owner-fix merges (this tip)
+
+Merged into `cursor/integration-1` @ `6bbce58`:
+- `cursor/stage-0c-hud-181d` @ `482698c` (PR #63)
+- `cursor/stage-0d-street-181d` @ `ecaffdb` (PR #64)
+- `cursor/stage-3-seat-sit-181d` @ `6441046` (PR #62)
+
+Next: character 2-skin meshopt; fresh full regression vs `bf55dab`; open places redo; interiors redo.
+
+
 ### Stage 0 — corrections (`cursor/stage-0-corrections` @ `8609aac`)
 
 Evidence: `cursor/evidence-stage-0` @ `f229409`. solidworld 41/41; allphones 43/43. Ship 101/95 meshopt skins (2-skin unsafe).
@@ -65,7 +75,7 @@ Owner: sofa hips sank into cushion; dining sit put body inside the table.
 
 Before/after (phone 390×844): `before-sofa-sit.png`, `after-sofa-sit.png`, `after-sofa-sit-side.png`, `before-dining-sit.png`, `after-dining-sit.png`, `after-dining-sit-side.png` under `/opt/cursor/artifacts/seat-evidence/`. Metrics after: sofa hipY≈0.77 on top 0.55 (skinned rootY≈+0.31); dining hipY≈0.72 facing table.
 
-**Still open (owner list, other stages):** Yaba zebra stall (0D/1); night street light (0D/1); Watching card / Dynamic Island / location pill / ₦0 check (0C).
+**Merged into `cursor/integration-1`:** seat-sit + Stage 0C HUD + Stage 0D street (see tips below).
 
 ### Stage 4 — real interiors (`cursor/stage-4-real-interiors-181d` @ `4d4ee77`)
 
