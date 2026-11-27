@@ -24,3 +24,10 @@ Captured through the real client (headless Chrome, SwiftShader, `lagoon-beach` e
 
 ### Honest finding (not hidden)
 The beach is no longer a platform in a grey void: horizon sky, far sea, buoys, swimmers, horses, palms and huts are visible. **But** from the default/street camera over the mid-beach the dry sand turns into a flat slate-navy slab (see `v2-*-default-play-cam`, `v2-*-sea-horizon`, and the existing `elegushi-phone-shore.png`). Cause (from `OpenAirBeach.ts`): the animated sea plane is 280 long centred at `shoreZ - 106` → it spans local z −270…+10, i.e. ~34 m past the shore line (z −24) onto the sand, and it is drawn after the opaque sand (`transparent`, `depthWrite:false`). Area z > +10 (huts/entrance) renders as clean sand. Fix for the next pass: limit the sea mesh to `z ≤ shoreZ` (shift centre by `SEA_L/2`), and push the wet-sand strip/foam to the actual waterline.
+
+## v3 — after sea shoreline clip (`shoreZ - SEA_L*0.5` on tip `2def2ef`+)
+
+Retaken phone 390×844 + desktop 1280×800 at street-height play camera with the sea plane clipped so it no longer covers dry sand:
+- `v3-*-midbeach-sea.png`
+- `v3-*-waterline.png`
+- `v3-*-umbrellas.png`
