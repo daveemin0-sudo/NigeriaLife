@@ -39,7 +39,7 @@ Evidence: `cursor/evidence-elegushi-181d` @ `7197467` (PR #65; first set `39a6c2
 
 Evidence: `cursor/evidence-freedom-park-181d` (phone 390×844 mid-lawn + stage, desktop 1280×800; `docs/evidence/freedom-park/`). Perf (choose): Freedom VL 78/118k, balanced 191/445k; Lekki VL 53/66k; Golf VL 57/64k; Elegushi VL 65/191k (sea grid). Broad Street VL measured 237 draws / **136k tris** (over 110k) — open tip investigation, not place-specific.
 
-### LASUTH interior redo (`cursor/integration-1` @ `dbee41e`)
+### LASUTH interior redo (`cursor/integration-1` @ `fed9a71`)
 
 Root cause: LASUTH used shared sparse `teachingHospital()` on flat `ceramic_white` — read as an empty white box.
 
