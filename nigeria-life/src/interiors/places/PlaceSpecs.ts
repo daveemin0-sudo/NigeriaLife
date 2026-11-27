@@ -1007,9 +1007,10 @@ const maiSuyaSpotFloor = (b: Builder, accent = 0xb45309) => {
   pile(b, -3.6, -2.6, 0xe7e5e4, 0.25);
   b.box(0x1c1917, 0.55, 0.4, 0.4, -3.2, 0.92, -3.6, { solid: false });
 
-  b.box(0x1e3a8a, 1.1, 1.45, 0.6, 4.5, 0, -4.2);
-  b.box(0x7dd3fc, 0.9, 1.1, 0.05, 4.5, 0.25, -3.82, { glow: true, solid: false });
-  shelf(b, 4.5, -2.5, 1.6, [0xfacc15, 0x16a34a, 0xdc2626]);
+  // East back bay (x≈5, z≤−3.6) kept clear for the customers' toilet door on the back wall.
+  b.box(0x1e3a8a, 1.1, 1.45, 0.6, 4.5, 0, -1.6);
+  b.box(0x7dd3fc, 0.9, 1.1, 0.05, 4.5, 0.25, -1.22, { glow: true, solid: false });
+  shelf(b, 4.5, -0.2, 1.6, [0xfacc15, 0x16a34a, 0xdc2626]);
 
   for (const [x, z] of [[-3, 2], [0, 2], [3, 2]] as const) {
     table(b, x, z, 0xf8fafc, 4, 0xdc2626);
@@ -1030,10 +1031,10 @@ const maiSuyaSpotFloor = (b: Builder, accent = 0xb45309) => {
   }
   screen(b, 0, 5.2, 3.5, 0.75, 1.8, accent);
 
-  counter(b, 3.5, -4.8, 2.0, 0x64748b, 0xe0f2fe, 0.75);
-  b.cylinder(0x0284c7, 0.22, 0.5, 3.5, 0, -4.2, { sides: 10 });
-  b.box(0x7dd3fc, 0.18, 0.16, 0.18, 3.5, 0.52, -4.2, { solid: false });
-  for (let i = 0; i < 4; i++) b.box(0xf8fafc, 0.38, 0.06, 0.38, 2.8, 0.55 + i * 0.12, -2.2, { solid: false });
+  counter(b, 2.2, -1.4, 2.0, 0x64748b, 0xe0f2fe, 0.75);
+  b.cylinder(0x0284c7, 0.22, 0.5, 2.2, 0, -0.8, { sides: 10 });
+  b.box(0x7dd3fc, 0.18, 0.16, 0.18, 2.2, 0.52, -0.8, { solid: false });
+  for (let i = 0; i < 4; i++) b.box(0xf8fafc, 0.38, 0.06, 0.38, 1.6, 0.55 + i * 0.12, -0.4, { solid: false });
 
   b.box(0x15803d, 0.48, 0.68, 0.48, -4.8, 0, -2.0);
   b.box(0x1c1917, 2.2, 0.85, 0.12, 0, 0.85, -5.3, { solid: false });
