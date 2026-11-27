@@ -156,6 +156,185 @@ const teachingHospital = (b: Builder, accent = 0xdc2626) => {
   }
   plant(b, 9, 7);
 };
+
+/** Partial wall: runs along z at fixed x, with an optional door gap centred at `gapAt` (metres, room-local). */
+const hospitalWallZ = (b: Builder, x: number, z0: number, z1: number, colour = 0xcbd5e1, gapAt?: number, gapW = 1.4) => {
+  const lo = Math.min(z0, z1);
+  const hi = Math.max(z0, z1);
+  if (gapAt === undefined) {
+    b.box(colour, 0.14, 2.55, hi - lo, x, 0, (lo + hi) / 2);
+    b.box(0x94a3b8, 0.16, 0.08, hi - lo, x, 2.55, (lo + hi) / 2, { solid: false });
+    b.occupy(x - 0.1, x + 0.1, lo, hi, 2.6);
+    return;
+  }
+  const g0 = gapAt - gapW / 2;
+  const g1 = gapAt + gapW / 2;
+  if (g0 > lo + 0.2) {
+    const seg = g0 - lo;
+    b.box(colour, 0.14, 2.55, seg, x, 0, lo + seg / 2);
+    b.box(0x94a3b8, 0.16, 0.08, seg, x, 2.55, lo + seg / 2, { solid: false });
+    b.occupy(x - 0.1, x + 0.1, lo, g0, 2.6);
+  }
+  if (hi > g1 + 0.2) {
+    const seg = hi - g1;
+    b.box(colour, 0.14, 2.55, seg, x, 0, g1 + seg / 2);
+    b.box(0x94a3b8, 0.16, 0.08, seg, x, 2.55, g1 + seg / 2, { solid: false });
+    b.occupy(x - 0.1, x + 0.1, g1, hi, 2.6);
+  }
+};
+
+/** Wall strip along x at fixed z (optional door gap). */
+const hospitalWallX = (b: Builder, z: number, x0: number, x1: number, colour = 0xcbd5e1, gapAt?: number, gapW = 1.6) => {
+  const lo = Math.min(x0, x1);
+  const hi = Math.max(x0, x1);
+  const place = (a: number, seg: number) => {
+    b.box(colour, seg, 2.55, 0.14, a + seg / 2, 0, z);
+    b.box(0x94a3b8, seg, 0.08, 0.16, a + seg / 2, 2.55, z, { solid: false });
+    b.occupy(a, a + seg, z - 0.1, z + 0.1, 2.6);
+  };
+  if (gapAt === undefined) { place(lo, hi - lo); return; }
+  const g0 = gapAt - gapW / 2;
+  const g1 = gapAt + gapW / 2;
+  if (g0 > lo + 0.2) place(lo, g0 - lo);
+  if (hi > g1 + 0.2) place(g1, hi - g1);
+};
+
+/** Window bay on a wall plane at (x,z), facing +z when `alongX` is true. */
+const hospitalWindow = (b: Builder, x: number, z: number, w: number, h = 1.35, alongX = true) => {
+  const y = 1.55;
+  if (alongX) {
+    b.box(0x64748b, w, h, 0.1, x, y, z, { solid: false });
+    b.box(0xbae6fd, w - 0.22, h - 0.28, 0.03, x, y, z + 0.06, { glow: true, solid: false });
+    for (let i = 0; i < 4; i++) b.box(0x475569, 0.04, h - 0.2, 0.04, x - w / 2 + 0.12 + i * ((w - 0.24) / 3), y, z + 0.05, { solid: false });
+  } else {
+    b.box(0x64748b, 0.1, h, w, x, y, z, { solid: false });
+    b.box(0xbae6fd, 0.03, h - 0.28, w - 0.22, x + 0.06, y, z, { glow: true, solid: false });
+    for (let i = 0; i < 4; i++) b.box(0x475569, 0.04, h - 0.2, 0.04, x + 0.05, y, z - w / 2 + 0.12 + i * ((w - 0.24) / 3), { solid: false });
+  }
+};
+
+/**
+ * LASUTH outpatient floor: reception, waiting, triage/A&E, consult, pharmacy, ward — dense teaching-hospital kit.
+ * Station anchors: clinic (−7.5,−2.5), pharmacy (7,−4.5), ward (−3,3.8); triage reception (−1,−6.2).
+ */
+const lasuthHospitalFloor = (b: Builder, accent = 0xdc2626) => {
+  const wall = 0xcbd5e1;
+  const trim = 0x94a3b8;
+  const teal = 0x0d9488;
+  const navy = 0x1e3a8a;
+
+  // --- Ceilings: grid tiles + fluorescent strips (dressing only) ---
+  for (let x = -10; x <= 10; x += 2.6) {
+    for (let z = -9; z <= 9; z += 2.6) {
+      b.box(0xe2e8f0, 2.4, 0.04, 2.4, x, 4.78, z, { solid: false });
+      b.box(0xf0fdf4, 1.6, 0.07, 0.28, x, 4.7, z, { glow: true, solid: false });
+    }
+  }
+
+  // --- Signage on back wall ---
+  screen(b, 0, -9.15, 8.5, 1.05, 2.0, accent);
+  b.box(accent, 3.6, 0.55, 0.06, -8, 2.45, -9.12, { solid: false });
+  b.box(0xf8fafc, 3.2, 0.38, 0.03, -8, 2.45, -9.08, { solid: false });
+  b.box(navy, 2.8, 0.5, 0.06, 8, 2.4, -9.12, { solid: false });
+  b.box(0xfacc15, 2.4, 0.35, 0.03, 8, 2.4, -9.08, { glow: true, solid: false });
+
+  // Windows along back and side walls
+  for (const wx of [-7.5, -3.5, 0.5, 4.5, 8.5]) hospitalWindow(b, wx, -9.05, 2.2);
+  for (const wz of [-6, -2, 2, 6]) { hospitalWindow(b, -10.95, wz, 2.0, 1.35, false); hospitalWindow(b, 10.95, wz, 2.0, 1.35, false); }
+
+  // --- Zone partitions ---
+  hospitalWallZ(b, -5.2, -9.2, 2.5, wall, -2.4);
+  hospitalWallZ(b, 5.2, -9.2, 2.2, wall, -3.8);
+  hospitalWallX(b, 0.8, -10.5, 10.5, wall, -0.2);
+  hospitalWallZ(b, 2.8, 0.5, 8.5, wall, 4.2);
+  b.box(trim, 3.2, 2.55, 0.14, 0, 0, 4.5);
+  b.box(0x16a34a, 0.9, 0.35, 0.06, 0, 2.1, 4.44, { solid: false });
+  b.occupy(-1.6, 1.6, 4.35, 4.55, 2.6);
+
+  // --- Reception & triage (south wing, −z) ---
+  counter(b, -1, -6.2, 4.5, navy, 0xf8fafc, 1.05);
+  counter(b, 3.2, -6.5, 3.2, accent, 0xfef3c7, 0.95);
+  b.box(0xfef3c7, 0.35, 0.02, 0.45, -3.5, 1.12, -6.2, { solid: false });
+  b.box(0xdc2626, 1.1, 0.9, 0.06, 1.2, 1.7, -6.35, { glow: true, solid: false });
+  for (let i = 0; i < 4; i++) {
+    b.cylinder(0x64748b, 0.03, 0.95, -2 + i * 1.3, 0, -4.2, { solid: false });
+    b.box(0xe0f2fe, 1.15, 0.02, 0.02, -2 + i * 1.3, 0.92, -4.2, { solid: false });
+  }
+  desk(b, -7.5, -7.2, 0xd6d3d1);
+  b.box(0x3b82f6, 0.55, 0.55, 0.55, -7.5, 0, -6.4);
+  b.occupy(-7.75, -7.25, -6.65, -6.15, 0.55);
+
+  // --- A&E bay (centre-back) ---
+  b.box(accent, 4.2, 0.08, 3.6, -0.5, 0.01, -8.2, { solid: false });
+  for (const [dx, dz] of [[-1.4, -7.8], [0.6, -7.6], [-0.4, -8.4]] as const) {
+    hospitalBed(b, -0.5 + dx, dz, 0xe0f2fe);
+  }
+  b.box(0x64748b, 1.2, 0.85, 0.6, 2.2, 0, -8.3);
+  for (let i = 0; i < 3; i++) b.box([0xdc2626, 0xf8fafc, 0x16a34a][i], 0.22, 0.22, 0.22, 2.0 + i * 0.28, 0.9, -8.0 + i * 0.15, { solid: false });
+
+  // --- Consulting room (left) — clinic station desk ---
+  desk(b, -7.5, -2.5, 0xe7e5e4);
+  b.box(0xf8fafc, 1.9, 0.72, 0.85, -8.8, 0, -1.2);
+  b.box(0x3b82f6, 0.5, 0.5, 0.5, -9.4, 0, -0.6);
+  b.occupy(-9.65, -9.15, -0.85, -0.35, 0.55);
+  b.box(0xf8fafc, 2.0, 0.22, 0.05, -8.8, 0.72, -1.2, { solid: false });
+  b.cylinder(0x94a3b8, 0.04, 2.1, -6.5, 0, -0.4, { solid: false });
+  b.box(0xe0f2fe, 1.4, 1.2, 0.05, -6.5, 0.95, -0.4, { solid: false });
+  shelf(b, -9.5, -4.8, 2.2, [0xf8fafc, accent, 0x2563eb, 0x16a34a]);
+  screen(b, -8.2, -5.25, 2.0, 0.85, 1.35, navy);
+  for (const x of [-9.2, -7.8]) {
+    b.box(0x1f2937, 0.55, 0.5, 0.55, x, 0, 0.8);
+    b.box(0x1f2937, 0.55, 0.55, 0.1, x, 0.5, 0.55, { solid: false });
+    b.occupy(x - 0.28, x + 0.28, 0.55, 1.05, 0.55);
+  }
+
+  // --- Pharmacy (right) — station counter ---
+  counter(b, 7, -4.5, 3.6, 0x16a34a, 0xf8fafc);
+  shelf(b, 7.5, -7, 4, [0xf8fafc, 0x22c55e, accent, 0xfacc15]);
+  shelf(b, 9.2, -2.5, 2.4, [0x2563eb, 0xdc2626, 0xf8fafc]);
+  b.box(0xe2e8f0, 1.3, 1.85, 0.7, 9.5, 0, -4.8);
+  b.box(0x7dd3fc, 1.1, 1.45, 0.04, 9.5, 0.2, -4.42, { glow: true });
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 5; i++) {
+    b.cylinder([0xfacc15, 0x16a34a, 0xdc2626, 0x7c2d12, 0xe0f2fe][i], 0.07, 0.28, 6.2 + i * 0.32, 1.08 + r * 0.55, -2.2, { sides: 8, solid: false });
+  }
+  b.box(accent, 0.9, 0.9, 0.06, 9.2, 1.6, -7.5, { solid: false });
+  b.box(0xf8fafc, 0.28, 0.9, 0.07, 9.2, 1.6, -7.5, { solid: false });
+  b.box(0xf8fafc, 0.9, 0.28, 0.07, 9.2, 1.6, -7.5, { solid: false });
+
+  // --- Ward (forward, −x) ---
+  for (let i = 0; i < 4; i++) hospitalBed(b, -7.5 + i * 2.4, 3.8, [0x93c5fd, 0xbae6fd, 0xa5f3fc, 0x7dd3fc][i]);
+  hospitalBed(b, -5.5, 6.2, 0x93c5fd);
+  hospitalBed(b, -2.5, 6.2, 0xbae6fd);
+  counter(b, 6.5, 5.5, 3.2, teal, 0xf8fafc, 0.85);
+  b.box(0x059669, 0.55, 0.35, 0.05, 6.5, 1.0, 5.35, { glow: true, solid: false });
+  for (const x of [-4.5, -1.5]) {
+    b.cylinder(0x94a3b8, 0.03, 2.4, x, 0, 5.5, { solid: false });
+    b.box([0x0d9488, accent][x < 0 ? 0 : 1], 1.6, 1.4, 0.04, x, 1.0, 5.5, { solid: false });
+  }
+  b.box(0x64748b, 0.9, 0.55, 0.45, -9.0, 0, 5.2);
+  for (let i = 0; i < 4; i++) b.box(0xf8fafc, 0.35, 0.25, 0.2, -9.0, 0.35 + i * 0.3, 5.05, { solid: false });
+
+  // --- Waiting gallery (+z, entrance side) ---
+  for (let i = 0; i < 5; i++) bench(b, -6 + i * 2.8, 7.2, 2.6, [0x3b82f6, 0x2563eb, 0x1d4ed8, 0x3b82f6, 0x2563eb][i]);
+  bench(b, -7.5, 5.2, 2.4, 0x64748b);
+  bench(b, 7.5, 5.8, 2.6, 0x64748b);
+  screen(b, 0, 8.35, 3.8, 0.95, 2.1, accent);
+  b.cylinder(0xe0f2fe, 0.28, 1.15, 8.5, 0, 7.5, { sides: 12 });
+  b.cylinder(0x38bdf8, 0.11, 0.14, 8.5, 1.15, 7.5, { glow: true, solid: false });
+  b.box(0xd6d3d1, 0.65, 0.45, 0.35, -8.5, 0, 7.0);
+  for (let r = 0; r < 2; r++) b.box(0xf8fafc, 0.5, 0.02, 0.28, -8.5, 0.38 + r * 0.32, 6.92, { solid: false });
+  plant(b, 9, 7);
+  plant(b, -9.5, 2.5);
+
+  // Wheelchairs, trolley, bins — corridor clutter
+  for (const [wx, wz] of [[1.5, -1.5], [4, 1.8], [-2.5, -3.5], [3, 3.2]] as const) {
+    b.box(0x475569, 0.55, 0.85, 0.7, wx, 0, wz);
+    for (const dx of [-0.22, 0.22]) b.cylinder(0x1f2937, 0.18, 0.06, wx + dx, 0.42, wz + 0.28, { solid: false });
+    b.occupy(wx - 0.35, wx + 0.35, wz - 0.4, wz + 0.4, 0.9);
+  }
+  b.box(0x15803d, 0.42, 0.65, 0.42, 5.8, 0, 0.2);
+  b.box(0x166534, 0.38, 0.08, 0.38, 5.8, 0.65, 0.2, { solid: false });
+};
 const bottles = (b: Builder, x: number, z: number, w: number) => {
   b.box(0x1c1917, w, 2.4, 0.4, x, 0, z);
   for (let r = 0; r < 3; r++) for (let i = 0; i < Math.floor(w / 0.25); i++) b.cylinder([0xfacc15, 0x16a34a, 0xdc2626, 0x7c2d12, 0xe0f2fe][(i + r) % 5], 0.06, 0.32, x - w / 2 + 0.15 + i * 0.25, 0.55 + r * 0.6, z + 0.1, { glow: r === 1, sides: 8, solid: false });
@@ -926,12 +1105,16 @@ const IKEJA: PlaceSpec[] = [
     { id: 'interstate', name: '🚍 Interstate buses', at: [6, -6], stand: [6, -4.7], who: 'Interstate clerk', role: 'Interstate buses', text: 'Where you dey go?', choices: [{ label: 'Buses to Abuja and Port Harcourt', note: 'Tickets', open: 'interstate' }] },
     { id: 'snacks', name: '🍩 Puff-puff', at: [9, 5], stand: [9, 6.3], who: 'Mama Puff', role: 'Snacks', text: 'How many?', choices: [buy('A nylon of puff-puff', 1000, item('puffpuff', 'Nylon of puff-puff', '🍩', 1000, 'food', true, 12), 'Ten hot puff-puff in a nylon.')] },
   ], [{ at: [-4, 3], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [1, -2], facing: 0, outfit: 0xf97316 }], [22, 18]),
-  venue('lasuth', 'LASUTH', 'Ikeja · teaching hospital', 'A&E 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
-    teachingHospital(b, 0xdc2626);
+  venue('lasuth', 'LASUTH', 'Ikeja · teaching hospital', 'A&E 24 hours · Clinics · Pharmacy', '#dc2626', 0xcbd5e1, 0x94a3b8, (b) => {
+    lasuthHospitalFloor(b, 0xdc2626);
   }, [
     { name: 'Nurse Amaka', title: 'Triage nurse', at: [-1, -7.2], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. Take a seat — the doctor will call you.' },
     { name: 'Dr Okeke', title: 'Consultant', at: [-7.5, -3.6], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Come in. Tell me what hurts.' },
     { name: 'Pharmacist Bayo', title: 'Pharmacist', at: [7, -5.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+    { name: 'Security Tunde', title: 'Hospital security', at: [0, 8.5], facing: Math.PI, outfit: 0x1f2937, gender: 'male', says: 'No smoking past this point. Queues are on your left.' },
+    { name: 'Lab Tech Chioma', title: 'Laboratory', at: [8.5, -2.5], facing: Math.PI / 2, outfit: 0x0d9488, gender: 'female', says: 'Bring the form. We run CBC, malaria, and sugar.' },
+    { name: 'Porter Musa', title: 'Porter', at: [-2, 5.5], facing: 0, outfit: 0x64748b, gender: 'male', says: 'Wheelchair? I go carry am for you.' },
+    { name: 'Records Ayo', title: 'Medical records', at: [3.2, -7.2], facing: 0, outfit: 0x2563eb, gender: 'male', tie: true, says: 'Folder number or phone number — we pull your file.' },
   ], [
     { id: 'clinic', name: '🩺 See a doctor', at: [-7.5, -2.5], stand: [-7.5, -1.1], who: 'Dr Okeke', role: 'LASUTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +30', sit: true, seconds: 5, effect: need({ health: 30 }), said: 'The doctor checked you well and wrote a prescription.' }] },
     { id: 'pharmacy', name: '💊 Pharmacy', at: [7, -4.5], stand: [7, -3.1], who: 'Pharmacist Bayo', role: 'Pharmacy', text: 'What do you need?', choices: [
@@ -942,9 +1125,15 @@ const IKEJA: PlaceSpec[] = [
   ], [
     { at: [-5, 7.2], facing: Math.PI, outfit: 0x60a5fa, sit: true },
     { at: [-1.5, 7.2], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
-    // Waiting bench (not the ward mattress — that reads as tabletop height)
     { at: [2, 7.2], facing: Math.PI, outfit: 0x94a3b8, sit: true },
-  ], [22, 20]),
+    { at: [5.5, 7.2], facing: Math.PI, outfit: 0x16a34a, sit: true },
+    { at: [-8, 5.2], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+    { at: [0, -1.5], facing: 0.4, outfit: 0xfacc15 },
+    { at: [4.5, 1.5], facing: -0.8, outfit: 0x2563eb, gender: 'female' },
+    { at: [-3.5, 3.5], facing: 1.2, outfit: 0x5eead4, gender: 'female' },
+    { at: [7, 5.5], facing: Math.PI, outfit: 0x0f172a, sit: true },
+    { at: [-6, -5], facing: 0.2, outfit: 0x78716c },
+  ], [26, 22]),
   venue('ladipo-auto', 'Ladipo Auto Market', 'Mushin · auto parts', 'Parts · Mechanics · Panel beaters', '#78350f', 0x57534e, 0xd6d3d1, (b) => {
     b.box(0x7f1d1d, 2, 1.3, 4.4, -4, 0, -3).box(0x1e3a8a, 2, 1.3, 4.4, 2, 0, -3);
     for (let i = 0; i < 12; i++) b.cylinder(0x111111, 0.4, 0.25, 7 + (i % 3) * 0.9, Math.floor(i / 3) * 0.25, 4);
@@ -1985,7 +2174,7 @@ const QUIET_FLOOR: Record<string, string> = {
   'mile-one-market': 'parquet_wood',
   'ph-mall': 'ceramic_white',
   'rivers-govt-house': 'chevron_oak',
-  lasuth: 'ceramic_white',
+  lasuth: 'terrazzo',
 };
 for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
   spec.sign = undefined;
@@ -1994,7 +2183,7 @@ for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
 }
 {
   const lasuth = IKEJA.find((s) => s.key === 'lasuth');
-  if (lasuth) lasuth.room.finish = 'ceramic_white';
+  if (lasuth) lasuth.room.finish = 'terrazzo';
   const bank = [...IKEJA, ...SIDE].find((s) => s.key === 'allen-bank');
   if (bank) bank.room.finish = 'grey_granite';
 }

@@ -39,7 +39,21 @@ Evidence: `cursor/evidence-elegushi-181d` @ `7197467` (PR #65; first set `39a6c2
 
 Evidence: `cursor/evidence-freedom-park-181d` (phone 390×844 mid-lawn + stage, desktop 1280×800; `docs/evidence/freedom-park/`). Perf (choose): Freedom VL 78/118k, balanced 191/445k; Lekki VL 53/66k; Golf VL 57/64k; Elegushi VL 65/191k (sea grid). Broad Street VL measured 237 draws / **136k tris** (over 110k) — open tip investigation, not place-specific.
 
-Still unfinished / follow-on: denser crowd meshes; live-hours music; Broad Street VL tris budget; interiors redo (LASUTH); embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts.
+### LASUTH interior redo (`cursor/integration-1` @ `dbee41e`)
+
+Root cause: LASUTH used shared sparse `teachingHospital()` on flat `ceramic_white` — read as an empty white box.
+
+**Shipped:** dedicated `lasuthHospitalFloor()` (partitions, windows, ceiling grid/lights, reception/triage, A&E beds, OPD consult, pharmacy shelves, ward bay, waiting gallery). Room **26×22**, terrazzo floor, grey-blue shell walls. **7 staff + 10 visitors/regulars.** National Hospital Abuja / UPTH still on `teachingHospital()`.
+
+Station ids/prices unchanged: `clinic`, `pharmacy`, `ward` (e2e `stations.json` all `ok: true`).
+
+Evidence branch: `cursor/evidence-lasuth-181d` — `docs/evidence/lasuth/` (phone 390×844 waiting + ward corridor; desktop 1280×800 reception + pharmacy; eye camera).
+
+Perf inside LASUTH (2× rAF after `graphics.choose`): **Very Low** 35 draws / 29k tris; **Medium (balanced)** 90 draws / 308k tris (`docs/evidence/lasuth/perf.json`).
+
+**Unverified on return:** manual walk of all partition door gaps vs nav; clinic/pharmacy/ward purchases in live play; whether Medium tris (~308k) needs a LOD pass on ceiling tiles; portraits of new staff NPCs at peak light; jobs hook `lasuth-nursing` shift path through new clutter.
+
+Still unfinished / follow-on: denser crowd meshes; live-hours music; Broad Street VL tris budget; Abuja/UPTH hospital density pass; embed-in-city; Millennium/Pleasure/Jabi evidence shots; yacht club skirts.
 
 Architecture notes from [Map open places architecture](bc-f447f356-91d0-57d2-93d6-1fc2182fe221).
 
@@ -160,7 +174,7 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 
 | Slice | What shipped |
 | --- | --- |
-| Hospitals | Shared `teachingHospital()` — LASUTH, National Hospital Abuja, UPTH |
+| Hospitals | LASUTH: `lasuthHospitalFloor()`; Abuja + UPTH still `teachingHospital()` |
 | Banks | Shared `branchBank()` — Allen Avenue, town banks, richer CBN |
 | Hotels | Grand lobbies + town guest suite Builder shells |
 | Restaurants | Amala Shitta + Chop Express kitchen props |
