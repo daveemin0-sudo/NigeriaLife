@@ -1,0 +1,11 @@
+{
+  "errors": [
+    "CONSOLE Failed to load resource: the server responded with a status of 403 (Forbidden) [http://127.0.0.1:5188/@fs/tmp/nl-s3-seats/nigeria-life/node_modules/@fontsource-variable/dancing-script/files/dancing-script-latin-wght-normal.woff2]",
+    "CONSOLE Failed to load resource: the server responded with a status of 403 (Forbidden) [http://127.0.0.1:5188/@fs/tmp/nl-s3-seats/nigeria-life/node_modules/@fontsource/righteous/files/righteous-latin-400-normal.woff2]",
+    "CONSOLE Failed to load resource: the server responded with a status of 403 (Forbidden) [http://127.0.0.1:5188/@fs/tmp/nl-s3-seats/nigeria-life/node_modules/@fontsource/righteous/files/righteous-latin-400-normal.woff]",
+    "CONSOLE Failed to load resource: the server responded with a status of 403 (Forbidden) [http://127.0.0.1:5188/@fs/tmp/nl-s3-seats/nigeria-life/node_modules/@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2]",
+    "CONSOLE Failed to load resource: the server responded with a status of 403 (Forbidden) [http://127.0.0.1:5188/@fs/tmp/nl-s3-seats/nigeria-life/node_modules/@fontsource-variable/outfit/files/outfit-latin-ext-wght-normal.woff2]",
+    "CONSOLE Failed to load resource: the server responded with a status of 403 (Forbidden) [http://127.0.0.1:5188/@fs/tmp/nl-s3-seats/nigeria-life/node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2]",
+    "CONSOLE Failed to load resource: the server responded with a status of 403 (Forbidden) [http://127.0.0.1:5188/@fs/tmp/nl-s3-seats/nigeria-life/node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2]"
+  ]
+}

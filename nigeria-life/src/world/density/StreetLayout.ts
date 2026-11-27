@@ -160,6 +160,21 @@ export const SIDE_STREETS: SideStreet[] = [
 /** Z ranges where Broad Street's sidewalks, kerbs and gutters open for a junction */
 export const MAIN_JUNCTION_GAPS: Array<[number, number]> = [[CROSS_STREET_Z - 4.5, CROSS_STREET_Z + 4.5]];
 
+/**
+ * Painted zebra crossings along Broad Street (and the Martins Street junction).
+ * Roadside stalls, bins and kerb props must stay clear of these so people can cross
+ * and traffic can see the stripes — owner bug: stall sitting on the Yaba zebra.
+ */
+export const BROAD_ZEBRA_ZS: readonly number[] = [10, CROSS_STREET_Z];
+/** How far a stall's centre must stay from a zebra's centre (half stripe length ≈ 2.25 m + margin) */
+export const ZEBRA_STALL_CLEAR = 6.5;
+
+/** True when a roadside spot would sit on or beside a zebra / junction throat */
+export function blocksCrossing(z: number, clear = ZEBRA_STALL_CLEAR): boolean {
+  if (BROAD_ZEBRA_ZS.some((zebra) => Math.abs(z - zebra) < clear)) return true;
+  return isInJunctionGap(z);
+}
+
 export function isInJunctionGap(z: number): boolean {
   return MAIN_JUNCTION_GAPS.some(([a, b]) => z >= a && z <= b);
 }

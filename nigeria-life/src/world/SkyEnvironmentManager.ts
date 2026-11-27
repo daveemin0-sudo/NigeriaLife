@@ -124,10 +124,10 @@ interface LightingKeyframe {
 }
 
 const LIGHTING_TIMELINE: LightingKeyframe[] = [
-  // Night stays readable (streetlamps + moon) but deeper contrast than midday wash
-  // Nights are moonlit, never black: the street and the player stay readable even with NEPA off
-  { hour: 0.0,  sunColor: 0x8098cc, sunIntensity: 0.95, hemiSky: 0x5a6fa4, hemiGround: 0x2e3648, hemiIntensity: 1.05, fogColor: 0x1d2638, fogDensity: 0.0052, exposure: 1.03 },
-  { hour: 5.5,  sunColor: 0x8098cc, sunIntensity: 1.0, hemiSky: 0x5e72a6, hemiGround: 0x30384a, hemiIntensity: 1.08, fogColor: 0x232c40, fogDensity: 0.0052, exposure: 1.03 },
+  // Night stays believable but phone-readable: road, pavement, player and nearby people clear
+  // under streetlamps + moon (owner: nights were too dark on iPhone preview)
+  { hour: 0.0,  sunColor: 0x9ab0d8, sunIntensity: 1.28, hemiSky: 0x7488b8, hemiGround: 0x445268, hemiIntensity: 1.38, fogColor: 0x283448, fogDensity: 0.0038, exposure: 1.18 },
+  { hour: 5.5,  sunColor: 0x9ab0d8, sunIntensity: 1.30, hemiSky: 0x788cba, hemiGround: 0x46546a, hemiIntensity: 1.40, fogColor: 0x2a364a, fogDensity: 0.0038, exposure: 1.18 },
   // Dawn — warm first light
   { hour: 6.2,  sunColor: 0xff9a4a, sunIntensity: 1.35, hemiSky: 0xffb070, hemiGround: 0x5a4433, hemiIntensity: 0.50, fogColor: 0xa86a48, fogDensity: 0.0064, exposure: 0.98 },
   { hour: 7.5,  sunColor: 0xfff2d4, sunIntensity: 2.35, hemiSky: 0xcde4ff, hemiGround: 0x8a7a62, hemiIntensity: 0.66, fogColor: 0xe2d6c2, fogDensity: 0.0050, exposure: 1.05 },
@@ -136,8 +136,8 @@ const LIGHTING_TIMELINE: LightingKeyframe[] = [
   // Golden hour — stronger amber key + warmer fog (immersion seller)
   { hour: 18.0, sunColor: 0xff8a3a, sunIntensity: 2.55, hemiSky: 0xffa858, hemiGround: 0x6a4028, hemiIntensity: 0.58, fogColor: 0xe8a060, fogDensity: 0.0064, exposure: 1.04 },
   { hour: 19.2, sunColor: 0xe86848, sunIntensity: 1.15, hemiSky: 0x9a5a88, hemiGround: 0x3a2838, hemiIntensity: 0.58, fogColor: 0x523048, fogDensity: 0.0065, exposure: 0.97 },
-  { hour: 20.5, sunColor: 0x7890c8, sunIntensity: 0.98, hemiSky: 0x5c70a4, hemiGround: 0x2e3648, hemiIntensity: 1.06, fogColor: 0x1f283a, fogDensity: 0.0052, exposure: 1.03 },
-  { hour: 24.0, sunColor: 0x8098cc, sunIntensity: 0.95, hemiSky: 0x5a6fa4, hemiGround: 0x2e3648, hemiIntensity: 1.05, fogColor: 0x1d2638, fogDensity: 0.0052, exposure: 1.03 },
+  { hour: 20.5, sunColor: 0x92a8d4, sunIntensity: 1.24, hemiSky: 0x7084b4, hemiGround: 0x405064, hemiIntensity: 1.34, fogColor: 0x2a364a, fogDensity: 0.0038, exposure: 1.16 },
+  { hour: 24.0, sunColor: 0x9ab0d8, sunIntensity: 1.28, hemiSky: 0x7488b8, hemiGround: 0x445268, hemiIntensity: 1.38, fogColor: 0x283448, fogDensity: 0.0038, exposure: 1.18 },
 ];
 
 export class SkyEnvironmentManager {

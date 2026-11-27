@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../../materials/MaterialLibrary';
 import { seededRandom } from '../../graphics/MeshBaker';
-import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, addPavement, type SideStreet } from './StreetLayout';
+import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, addPavement, blocksCrossing, type SideStreet } from './StreetLayout';
 import { StreetStalls, lagosStallSells, type StallSpot } from '../street/StreetStalls';
 
 // Occupancy bit flags
@@ -353,9 +353,12 @@ export class CityFabric {
         const lampZ = narrow ? (isX ? st.fixed + sign * (st.halfRoad + 0.2) : mid) : pz;
         const inJunction = s <= st.from + 5 || s >= st.to - 5 || this.inOtherRoad(lampX, lampZ, st) || this.inMainCorridor(lampX, lampZ);
 
-        if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction) {
+        // Stalls and lamps stay off zebra crossings / junction paint (Broad Street z=10, Martins z=-62)
+        const worldZ = isX ? pz : mid;
+        const onCrossing = blocksCrossing(worldZ);
+        if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction && !onCrossing) {
           if (!this.beforeAPlot(lampX, lampZ)) this.addStreetLamp(lampX, lampZ, isX, -sign);
-        } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st) && !this.beforeAPlot(px, pz)) {
+        } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !onCrossing && !this.inOtherRoad(px, pz, st) && !this.beforeAPlot(px, pz)) {
           this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2, narrow);
         }
       }

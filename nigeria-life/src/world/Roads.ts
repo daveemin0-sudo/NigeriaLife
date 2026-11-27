@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../materials/MaterialLibrary';
 import { SignageLibrary } from '../materials/SignageLibrary';
-import { isInJunctionGap, splitAroundJunctions, FOOTBRIDGE, FOOTBRIDGES, bridgeNear } from './density/StreetLayout';
+import { isInJunctionGap, splitAroundJunctions, FOOTBRIDGE, FOOTBRIDGES, bridgeNear, blocksCrossing } from './density/StreetLayout';
 
 export class Roads {
   public group: THREE.Group;
@@ -13,13 +13,13 @@ export class Roads {
    *  light: every light in the street is worked out in the shader of every material, so seven lamp
    *  lights made every street shader bigger and slower to build (the hang on first reaching a street) */
   public streetGlowMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffdcaa,
+    color: 0xffe6b8,
     map: Roads.glowTexture(),
     transparent: true,
     opacity: 0,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    fog: true,
+    fog: false, // keep pools readable through night fog on phone
   });
   private streetGlows: THREE.Mesh[] = [];
 
@@ -129,14 +129,16 @@ export class Roads {
     this.group.add(mesh);
   }
 
-  private static glowDisc = new THREE.CircleGeometry(6.5, 24);
+  // Wider soft pool so asphalt + kerb + nearby people read under each lamp on phone sizes
+  private static glowDisc = new THREE.CircleGeometry(11, 28);
+  private static glowFill = new THREE.CircleGeometry(16, 28);
 
   private buildStreetLights(): void {
-    // Street lamps on alternating sides every 24 meters
+    // Street lamps on alternating sides every 20 meters (denser pools for phone night)
     const lampX = 7.5;
     const mats = MaterialLibrary.getInstance();
 
-    for (let z = -80; z <= 80; z += 24) {
+    for (let z = -80; z <= 80; z += 20) {
       const poleSide = (z / 24) % 2 === 0 ? 1 : -1;
       const lampGroup = new THREE.Group();
       lampGroup.position.set(poleSide * lampX, 0, z);
@@ -194,6 +196,16 @@ export class Roads {
       this.streetGlows.push(glow);
       lampGroup.add(glow);
 
+      // Softer fill disc so pavement between lamps still reads on phone
+      const fill = new THREE.Mesh(Roads.glowFill, this.streetGlowMaterial);
+      fill.rotation.x = -Math.PI / 2;
+      fill.position.set(-poleSide * 0.4, 0.035, 0);
+      fill.scale.setScalar(0.85);
+      fill.renderOrder = 0;
+      fill.visible = false;
+      this.streetGlows.push(fill);
+      lampGroup.add(fill);
+
       this.group.add(lampGroup);
     }
   }
@@ -229,18 +241,20 @@ export class Roads {
    */
   public setLampIntensityForHour(hour: number): void {
     const h = ((hour % 24) + 24) % 24;
+    // Night pools must read on phone: keep believable dusk, but ground under each lamp stays bright
+    const nightGlow = 1.0;
     let glow = 0;
-    if (h >= 19.6 || h < 5.7) glow = 0.88;
-    else if (h >= 17.8 && h < 19.6) glow = this.smooth01((h - 17.8) / 1.8) * 0.88;
-    else if (h >= 5.7 && h < 6.9) glow = (1 - this.smooth01((h - 5.7) / 1.2)) * 0.88;
+    if (h >= 19.6 || h < 5.7) glow = nightGlow;
+    else if (h >= 17.8 && h < 19.6) glow = this.smooth01((h - 17.8) / 1.8) * nightGlow;
+    else if (h >= 5.7 && h < 6.9) glow = (1 - this.smooth01((h - 5.7) / 1.2)) * nightGlow;
 
     this.setLampGlow(glow);
 
     for (const mat of this.streetBulbMaterials) {
       if (glow > 0.04) {
-        // Warm sodium/LED mix — stronger as night deepens
-        mat.emissive.setHex(glow > 0.55 ? 0xfff4e0 : 0xffc570);
-        mat.emissiveIntensity = 0.25 + glow * 3.2;
+        // Warm sodium/LED mix — stronger as night deepens so pavement + player stay readable
+        mat.emissive.setHex(glow > 0.55 ? 0xfff8e8 : 0xffc570);
+        mat.emissiveIntensity = 0.45 + glow * 4.2;
       } else {
         mat.emissive.setHex(0xffedd5);
         mat.emissiveIntensity = 0.15;
@@ -455,11 +469,16 @@ export class Roads {
       { color: 0x9333ea, label: 'SUNGLASSES & ACCESSORIES', item: 'shades' },
     ];
 
-    // Keep stalls clear of footbridge stairs/decks (they already pinch the pavement) and of
-    // District 8's frontage around z≈70–80 where the walkway was fully blocked.
-    // Aim for ≥9 after the bridge filter so the street still reads denser than the old 7.
-    const stallZPositions = [-90, -78, -70, -62, -52, -48, -18, 0, 12, 44, 55, 118, 130].filter(
-      (z) => !FOOTBRIDGES.some((bz) => Math.abs(z - bz) < 14) && !(z > 68 && z < 82),
+    // Keep stalls clear of footbridge stairs/decks (they already pinch the pavement), of
+    // District 8's frontage around z≈70–80 where the walkway was fully blocked, and of
+    // zebra crossings / junction throats (owner: stall sat on the Yaba zebra at z≈10).
+    // Aim for ≥9 after filters so the street still reads denser than the old 7.
+    // Replacements: -55 instead of -62 (Martins zebra), 42 instead of 12 (Broad zebra).
+    const stallZPositions = [-90, -78, -70, -55, -52, -48, -18, 0, 42, 44, 55, 118, 130].filter(
+      (z) =>
+        !FOOTBRIDGES.some((bz) => Math.abs(z - bz) < 14) &&
+        !(z > 68 && z < 82) &&
+        !blocksCrossing(z),
     );
 
     stallZPositions.forEach((sz, idx) => {
@@ -469,6 +488,7 @@ export class Roads {
       const theme = umbrellaThemes[idx % umbrellaThemes.length];
 
       const stallGroup = new THREE.Group();
+      stallGroup.name = `roadside-stall-${idx}`;
       stallGroup.position.set(sx, 0.28, sz);
 
       // 1. Umbrella pole (powder-coated metallic tube)
@@ -498,10 +518,11 @@ export class Roads {
       rim.position.y = 2.22;
       stallGroup.add(rim);
 
-      // 3. Wooden market display table
+      // 3. Wooden market display table (solid — players must not walk through stalls)
       const tableGeo = new THREE.BoxGeometry(1.6, 0.8, 1.0);
       const tableMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
       const table = new THREE.Mesh(tableGeo, tableMat);
+      table.name = 'stall-table';
       table.position.set(0, 0.4, 0.35);
       table.castShadow = true;
       table.receiveShadow = true;
