@@ -61,7 +61,7 @@ Root cause: `eko-grand-hotel` used shared sparse `grandLobby()` on flat cream sh
 
 Station ids/prices unchanged: `restaurant` (₦18,000 seafood okra), `pool` (₦10,000 swim); Hotel.ts cards unchanged: `reception`, `lift` (e2e `stations.json` all `ok: true`).
 
-Evidence branch: `cursor/evidence-eko-181d` — `docs/evidence/eko-hotel/` (phone 390×844 reception + restaurant eye; desktop 1280×800 reception + lounge/pool **play camera**).
+Evidence branch: `cursor/evidence-eko-181d` @ `66d4757` — `docs/evidence/eko-hotel/` (phone 390×844 reception + restaurant eye; desktop 1280×800 reception + lounge/pool **play camera**).
 
 Perf inside lobby (2× rAF after `graphics.choose`): **Very Low** 106 draws / 285k tris; **Medium (balanced)** 231 draws / 748k tris (`docs/evidence/eko-hotel/perf.json`).
 
