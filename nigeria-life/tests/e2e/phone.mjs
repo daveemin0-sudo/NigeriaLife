@@ -33,14 +33,16 @@ const has = (page, selector) => page.evaluate((sel) => !!document.querySelector(
 const text = (page, selector) => page.evaluate((sel) => document.querySelector(sel)?.textContent.replace(/\s+/g, ' ').trim() ?? null, `${PHONE} ${selector}`);
 const title = (page) => text(page, '#phone-title');
 const notice = (page) => page.evaluate(() => { const el = document.getElementById('phone-notice'); return el && !el.hidden ? el.textContent : null; });
-/** Types into a field with the real keyboard. */
+/** Types into a phone field and fires `input` so data-bind memory matches the DOM (long amounts were flaky with bare keyboard.type). */
 const type = async (page, selector, value) => {
   await click(page, selector);
-  await page.keyboard.down('Control');
-  await page.keyboard.press('a');
-  await page.keyboard.up('Control');
-  await page.keyboard.press('Backspace');
-  if (value) await page.keyboard.type(value);
+  await page.evaluate((sel, next) => {
+    const el = document.querySelector(`#smartphone-wrapper ${sel}`);
+    if (!el) throw new Error(`Nothing on the phone matches ${sel}`);
+    el.focus();
+    el.value = next;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, selector, value);
   await wait(160);
 };
 const ledger = (page, kind) => page.evaluate((type) => window.game.hud.backend.getData().transactionHistory.filter((tx) => tx.type === type).length, kind);
