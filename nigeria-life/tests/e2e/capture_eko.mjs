@@ -30,7 +30,10 @@ const enterEko = async (page) => {
     g.hud.showInteractionCard(card);
     document.getElementById('card-action-btn')?.click();
   });
-  await playUntil(page, () => (window.game.world.interiorManager.currentInterior && !window.game.world.interiorManager.isTransitioning ? true : null), 25);
+  await playUntil(page, () => {
+    const im = window.game.world.interiorManager;
+    return im.currentInterior?.id === 'interior_place_eko-grand-hotel' && !im.isTransitioning ? true : null;
+  }, 60);
   await play(page, 1.5);
 };
 

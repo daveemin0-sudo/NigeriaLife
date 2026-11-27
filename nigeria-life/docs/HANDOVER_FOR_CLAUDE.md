@@ -53,6 +53,20 @@ Perf inside LASUTH (2× rAF after `graphics.choose`): **Very Low** 35 draws / 29
 
 **Unverified on return:** manual walk of all partition door gaps vs nav; clinic/pharmacy/ward purchases in live play; whether Medium tris (~308k) needs a LOD pass on ceiling tiles; portraits of new staff NPCs at peak light; jobs hook `lasuth-nursing` shift path through new clutter.
 
+### Eko Grand Hotel lobby redo (`cursor/integration-1` @ `88bb583`)
+
+Root cause: `eko-grand-hotel` used shared sparse `grandLobby()` on flat cream shell — empty luxury box.
+
+**Shipped:** dedicated `ekoGrandHotelLobby()` (26×22, `calacatta_gold` floor, cream shell walls). Zones: entrance doors/windows, reception queue + key-desk monitors, concierge, marble inlay + chandelier, lounge sofas, lobby bar, restaurant tables (station anchor), pool deck + loungers, lift bay shell/stairs sign (animated lift still Hotel.ts), luggage carts. **8 staff + 12 guests/regulars** in zone.
+
+Station ids/prices unchanged: `restaurant` (₦18,000 seafood okra), `pool` (₦10,000 swim); Hotel.ts cards unchanged: `reception`, `lift` (e2e `stations.json` all `ok: true`).
+
+Evidence branch: `cursor/evidence-eko-181d` — `docs/evidence/eko-hotel/` (phone 390×844 reception + restaurant eye; desktop 1280×800 reception + lounge/pool **play camera**).
+
+Perf inside lobby (2× rAF after `graphics.choose`): **Very Low** 106 draws / 285k tris; **Medium (balanced)** 231 draws / 748k tris (`docs/evidence/eko-hotel/perf.json`).
+
+**Unverified on return:** nav through partition gaps vs new clutter; lift/reception coords with enlarged room; VL tri budget (~285k); live check-in/lift/room flow after lobby resize; job shift `eko-grand-staff` path through new bar/restaurant clutter; Owambe/Nollywood/Studio event stage overlay at (4,−2.8).
+
 ### Amala Shitta buka redo (`cursor/integration-1` @ `24436d1`)
 
 Root cause: `amala-shitta` used sparse shared `bukaHall()` on flat cream shell — empty box with six tables.
