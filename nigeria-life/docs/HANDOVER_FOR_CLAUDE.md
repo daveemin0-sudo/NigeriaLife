@@ -65,7 +65,21 @@ Evidence branch: `cursor/evidence-eko-181d` @ `66d4757` — `docs/evidence/eko-h
 
 Perf inside lobby (2× rAF after `graphics.choose`): **Very Low** 106 draws / 285k tris; **Medium (balanced)** 231 draws / 748k tris (`docs/evidence/eko-hotel/perf.json`).
 
-**Unverified on return:** nav through partition gaps vs new clutter; lift/reception coords with enlarged room; VL tri budget (~285k); live check-in/lift/room flow after lobby resize; job shift `eko-grand-staff` path through new bar/restaurant clutter; Owambe/Nollywood/Studio event stage overlay at (4,−2.8).
+**Unverified on return:** nav through partition gaps vs new clutter; lift/reception coords with enlarged room; VL tri budget (~285k); live check-in/lift/room flow after lobby resize; job shift `eko-grand-staff` path through new bar/restaurant clutter; Owambe/Nollywood/Studio event overlay at (4,−2.8).
+
+### Allen Avenue bank redo (`cursor/integration-1`)
+
+Root cause: `allen-bank` used shared sparse `branchBank()` on flat `grey_granite` — a white banking box with little Lagos branch density.
+
+**Shipped:** dedicated `allenBankBranchFloor()` (20×16, grey_granite floor, grey-blue shell walls). Zones: entrance security gate + metal detector, queue rails to teller glass row, waiting benches + forms desk, manager office partition, ATM privacy bay, CCTV/plants/brochure shelves. **5 staff + 10 customers/regulars** in zone. Lagos IKEJA/SIDE has no other branch keys (only `allen-bank`); town `bankOf()` branches and CBN still on shared `branchBank()` / bespoke CBN kit.
+
+Station ids/prices unchanged: `teller` (₦10,000 pay-in via `depositToBank`), `atm`, `officer` (open Bank app) (e2e `stations.json` all `ok: true`).
+
+Evidence branch: `cursor/evidence-banks-181d` — `docs/evidence/banks/` (phone 390×844 queue + ATM eye; desktop 1280×800 teller hall + manager office **play camera**).
+
+Perf inside allen-bank (2× rAF after `graphics.choose`): **Very Low** 65 draws / 216k tris; **Medium (balanced)** 162 draws / 587k tris (`docs/evidence/banks/perf.json`).
+
+**Unverified on return:** nav through security gate + queue vs new rails; live ₦10,000 teller deposit; Medium tri budget vs street VL cap; guard shift path at entrance clutter.
 
 ### Amala Shitta buka redo (`cursor/integration-1` @ `24436d1`)
 
@@ -208,7 +222,7 @@ Audit order done for **hospitals → banks → hotels → restaurants → market
 | Slice | What shipped |
 | --- | --- |
 | Hospitals | LASUTH: `lasuthHospitalFloor()`; Abuja + UPTH still `teachingHospital()` |
-| Banks | Shared `branchBank()` — Allen Avenue, town banks, richer CBN |
+| Banks | Allen: `allenBankBranchFloor()`; town banks still `branchBank()`; CBN bespoke |
 | Hotels | Grand lobbies + town guest suite Builder shells |
 | Restaurants | Amala Shitta + Chop Express kitchen props |
 | Markets | Balogun / Wuse / Mile 1 stalls |

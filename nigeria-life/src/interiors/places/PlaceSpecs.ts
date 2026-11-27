@@ -339,6 +339,124 @@ const hospitalWindow = (b: Builder, x: number, z: number, w: number, h = 1.35, a
 };
 
 /**
+ * Eko Commercial Bank, Allen Avenue: security gate, queue rails, teller glass, waiting/forms, manager suite, ATM bay.
+ * Station anchors: teller (−2,−5), ATM (−6.9,6.6), officer (6,3).
+ */
+const allenBankBranchFloor = (b: Builder, accent = 0x1e3a8a, atmLeft = true) => {
+  const wall = 0xe2e8f0;
+  const navy = 0x1e3a8a;
+  const granite = 0xf8fafc;
+  const gold = 0xd4af37;
+  const charcoal = 0x334155;
+
+  for (let x = -9; x <= 9; x += 2.5) {
+    for (let z = -7; z <= 7; z += 2.5) {
+      b.box(0xe2e8f0, 2.2, 0.04, 2.2, x, 4.72, z, { solid: false });
+      b.box(0xf0f9ff, 0.38, 0.06, 0.28, x + 0.65, 4.66, z - 0.65, { glow: true, solid: false });
+    }
+  }
+
+  screen(b, 0, -7.55, 7.2, 0.95, 2.0, accent);
+  b.box(gold, 4.8, 0.55, 0.06, 0, 2.55, -7.52, { solid: false });
+  b.box(0x0284c7, 4.2, 0.38, 0.03, 0, 2.55, -7.48, { glow: true, solid: false });
+  b.box(accent, 2.4, 0.48, 0.06, -8.2, 2.35, -7.52, { solid: false });
+  b.box(granite, 2.0, 0.32, 0.03, -8.2, 2.35, -7.48, { solid: false });
+
+  for (const wx of [-7.5, -3.5, 0.5, 4.5, 8]) hospitalWindow(b, wx, -7.5, 2.0);
+  for (const wz of [-4.5, -0.5, 3.5, 6.5]) {
+    hospitalWindow(b, -9.85, wz, 1.85, 1.25, false);
+    hospitalWindow(b, 9.85, wz, 1.85, 1.25, false);
+  }
+
+  // Security gate at entrance (+z)
+  for (const x of [-2.1, 2.1]) {
+    b.box(charcoal, 0.14, 2.35, 0.55, x, 0, 7.65, { solid: false });
+    b.box(0x64748b, 0.08, 2.1, 0.5, x, 0.12, 7.68, { solid: false });
+  }
+  b.box(charcoal, 4.4, 0.22, 0.55, 0, 2.35, 7.65, { solid: false });
+  b.box(0x16a34a, 0.55, 0.35, 0.05, 0, 2.55, 7.62, { glow: true, solid: false });
+  b.cylinder(0x94a3b8, 0.32, 0.95, -3.4, 0, 6.9, { sides: 12 });
+  b.cylinder(0xfacc15, 0.12, 0.15, -3.4, 0.95, 6.9, { glow: true, solid: false });
+  b.box(0x1f2937, 0.22, 0.35, 0.28, -3.4, 0.92, 6.75, { solid: false });
+
+  hospitalWallZ(b, 4.8, -7.5, 2.8, wall, 6.0);
+  hospitalWallZ(b, -4.2, 3.2, 7.2, 0xf1f5f9, 5.0);
+  hospitalWallX(b, 2.5, -10, 10, wall, 5.5);
+
+  // Queue rails → teller row (station −2,−5)
+  counter(b, -2, -5, 10, accent, granite, 1.05);
+  b.box(0xbfe3ff, 10, 1.42, 0.04, -2, 1.82, -5);
+  for (const x of [-5.5, -2, 1.5, 4.5]) {
+    b.box(0xcbd5e1, 0.55, 0.06, 0.38, x, 1.1, -4.55, { solid: false });
+    b.box(0x0f172a, 0.42, 0.34, 0.05, x, 1.52, -5.28, { solid: false });
+    b.box(0x38bdf8, 0.36, 0.28, 0.02, x, 1.54, -5.22, { glow: true, solid: false });
+  }
+  for (let i = 0; i < 6; i++) {
+    b.cylinder(0x94a3b8, 0.04, 0.92, -4.5 + i * 1.1, 0, -1.8, { solid: false });
+    b.box(gold, 0.02, 0.9, 0.02, -4.5 + i * 1.1, 0.92, -1.8, { solid: false });
+  }
+  b.box(0xcbd5e1, 6.5, 0.02, 0.02, -2.5, 0.9, -1.8, { solid: false });
+  for (let i = 0; i < 5; i++) {
+    b.box(accent, 0.48, 0.42, 0.48, -4.8 + i * 1.1, 0, 1.5);
+    b.box(navy, 0.48, 0.52, 0.08, -4.8 + i * 1.1, 0.42, 1.72, { solid: false });
+  }
+
+  // Forms desk + waiting gallery
+  desk(b, -8.2, 2.2, 0xe7e5e4);
+  b.box(0xf8fafc, 0.45, 0.06, 0.32, -8.2, 0.78, 2.05, { solid: false });
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    b.box(0xfef3c7, 0.28, 0.02, 0.2, -8.8 + c * 0.32, 0.36 + r * 0.12, 2.38, { solid: false });
+  }
+  for (let i = 0; i < 4; i++) bench(b, -7 + i * 2.6, 6.5, 2.4, [0x1e3a8a, 0x2563eb, 0x1e40af, 0x1d4ed8][i]);
+  bench(b, 7.5, 5.8, 2.5, charcoal);
+  screen(b, 2.5, 7.8, 3.2, 0.85, 1.95, accent);
+  b.box(0xdc2626, 0.28, 0.28, 0.28, 8.5, 2.65, -7.2, { solid: false });
+  b.box(0x111827, 0.12, 0.12, 0.5, 8.5, 2.9, -6.95, { solid: false });
+  b.box(0xdc2626, 0.22, 0.22, 0.22, -9.0, 2.55, 0.5, { solid: false });
+  b.box(0x111827, 0.1, 0.1, 0.45, -9.0, 2.78, 0.72, { solid: false });
+
+  // Manager suite (officer station 6,3)
+  desk(b, 6, 3);
+  b.box(gold, 1.35, 0.35, 0.04, 6, 1.05, 3.38, { solid: false });
+  b.box(charcoal, 0.14, 2.45, 3.8, 3.2, 0, 4.2);
+  b.box(0xbae6fd, 0.04, 2.15, 3.4, 2.95, 0.15, 4.2, { glow: true, solid: false });
+  b.box(wall, 3.6, 2.45, 0.14, 7.5, 0, 2.5);
+  b.box(accent, 1.1, 0.45, 0.06, 7.8, 2.0, 2.44, { solid: false });
+  shelf(b, 8.5, 4.8, 2.0, [0x1e3a8a, 0xf8fafc, gold, 0x16a34a]);
+  b.box(0x1f2937, 0.65, 0.5, 0.55, 5.2, 0, 5.5);
+  b.box(0x1f2937, 0.65, 0.55, 0.1, 5.2, 0.5, 5.35, { solid: false });
+  b.occupy(4.88, 5.52, 5.25, 5.75, 0.55);
+
+  // ATM bay (station −6.9,6.6)
+  const atmXs = atmLeft ? [-7.5, -6.3] : [6.3, 7.5];
+  for (const x of atmXs) {
+    b.box(0x0284c7, 1.05, 2.15, 0.72, x, 0, 6.55);
+    b.box(0x38bdf8, 0.52, 0.4, 0.03, x, 1.42, 6.22, { glow: true });
+    b.box(0xcbd5e1, 0.38, 0.06, 0.05, x, 1.02, 6.22, { solid: false });
+    b.occupy(x - 0.55, x + 0.55, 6.15, 7.0, 2.2);
+  }
+  b.box(charcoal, 0.12, 2.2, 2.8, atmLeft ? -8.35 : 8.35, 0, 6.5, { solid: false });
+  b.box(0x64748b, 0.04, 2.0, 2.6, atmLeft ? -8.28 : 8.28, 0.1, 6.5, { solid: false });
+  screen(b, atmLeft ? -6.9 : 6.9, 7.5, 2.2, 0.75, 1.85, accent);
+
+  // Brochure shelves, water cooler, plants
+  shelf(b, 9.2, -5.5, 2.2, [0xf8fafc, accent, 0x16a34a, gold]);
+  b.cylinder(0x1f2937, 0.22, 1.05, 8.8, 0, -6.5);
+  b.cylinder(0x38bdf8, 0.14, 0.22, 8.8, 1.05, -6.5, { glow: true, solid: false });
+  b.box(0xd6d3d1, 0.55, 0.45, 0.35, -9.2, 0, -4.5);
+  for (let r = 0; r < 2; r++) b.box(0xf8fafc, 0.42, 0.02, 0.28, -9.2, 0.38 + r * 0.32, -4.62, { solid: false });
+  for (const [x, z, col] of [[-9, 6.8, 0x15803d], [9.5, -2, accent], [3.5, -7, charcoal], [-5, 4.5, gold]] as const) {
+    plant(b, x, z);
+    b.box(col, 0.55, 1.0, 0.06, x, 1.05, z, { solid: false });
+  }
+  b.box(0x64748b, 0.95, 0.92, 0.6, 1.5, 0, -6.8);
+  b.box(navy, 0.7, 0.48, 0.42, 1.5, 0.92, -6.8, { solid: false });
+  b.box(charcoal, 0.15, 2.4, 0.6, 3.5, 0, 7.2, { solid: false });
+  b.box(charcoal, 0.15, 2.4, 0.6, 5.1, 0, 7.2, { solid: false });
+  b.box(charcoal, 1.8, 0.25, 0.6, 4.3, 2.4, 7.2, { solid: false });
+};
+
+/**
  * LASUTH outpatient floor: reception, waiting, triage/A&E, consult, pharmacy, ward — dense teaching-hospital kit.
  * Station anchors: clinic (−7.5,−2.5), pharmacy (7,−4.5), ward (−3,3.8); triage reception (−1,−6.2).
  */
@@ -1719,11 +1837,13 @@ const SIDE: PlaceSpec[] = [
   ], [{ at: [-3, 2.95], facing: Math.PI, outfit: 0x16a34a, sit: true }, { at: [3, 1.05], facing: 0, outfit: 0xdb2777, sit: true, gender: 'female' }], [14, 12]),
 
   venue('allen-bank', 'Eko Commercial Bank, Allen', 'Allen Avenue · bank', 'Allen Avenue branch · ATM', '#1e3a8a', 0xe5e7eb, 0xf8fafc, (b) => {
-    branchBank(b, 0x1e3a8a, true);
+    allenBankBranchFloor(b, 0x1e3a8a, true);
   }, [
     { name: 'Teller', title: 'Teller', at: [-2, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Next customer, please.' },
     { name: 'Mr Ajayi', title: 'Account officer', at: [6, 2.2], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Accounts, loans, cards. How can I help?' },
     { name: 'Guard Musa', title: 'Security', at: [4.3, 6.5], facing: Math.PI, outfit: 0x334155, gender: 'male', cap: true, says: 'Walk through the detector. No weapons.' },
+    { name: 'Adeola', title: 'Customer service', at: [-8.2, 3], facing: Math.PI / 2, outfit: 0x2563eb, gender: 'female', says: 'Account opening forms? BVN update? Sit, I will help.' },
+    { name: 'Teller Bola', title: 'Teller', at: [1.5, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Cash or transfer?' },
   ], [
     { id: 'teller', name: '🏦 The teller', at: [-2, -5], stand: [-2, -3.7], who: 'Teller', role: 'Eko Commercial Bank', text: 'Paying in or taking out?', choices: [
       { label: 'Pay ₦10,000 cash into my account', note: 'From your wallet', arms: 'reach', seconds: 2.5, effect: (be) => { be.depositToBank(10000); }, said: 'Counted, stamped, and the teller hands back your slip.' },
@@ -1734,6 +1854,14 @@ const SIDE: PlaceSpec[] = [
   ], [
     { at: [-1, 2.05], facing: Math.PI, outfit: 0xf59e0b, sit: true },
     { at: [-3, 2.05], facing: Math.PI, outfit: 0x16a34a, sit: true, gender: 'female' },
+    { at: [-3.5, -1.2], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' },
+    { at: [-1.2, -0.5], facing: 0, outfit: 0x0f172a, gender: 'male' },
+    { at: [0.8, 0.6], facing: Math.PI, outfit: 0xdb2777, gender: 'female' },
+    { at: [-6.8, 5.2], facing: -0.3, outfit: 0x15803d, gender: 'male' },
+    { at: [-7.2, 6.8], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'male' },
+    { at: [2.5, 6.2], facing: Math.PI, outfit: 0x0369a1, sit: true, gender: 'female' },
+    { at: [5.8, 5.6], facing: -Math.PI / 2, outfit: 0x57534e },
+    { at: [5.0, 4.8], facing: 0, outfit: 0x1e3a8a, sit: true, gender: 'male' },
   ], [20, 16]),
 
   venue('awolowo-fashion', 'Awolowo Way Fashion House', 'Obafemi Awolowo Way · fashion', 'Bespoke · Agbada · Kaftan · Ankara', '#7c3aed', 0xf5f5f4, 0xede9fe, (b) => {
