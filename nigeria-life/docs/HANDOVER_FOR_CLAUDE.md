@@ -27,7 +27,7 @@ Root cause: open places are **pocket interiors** at `(-3000, …)`. Enter hides 
 - Station ids/prices/activities unchanged (`bar`, `lounger`, `horse`, `party`, `suya`, `coconut`, `football`, `swim`)
 - Files: `OpenAirBeach.ts`, `PlaceSpecs.ts`, `PlaceInterior.ts`, `InteriorPrefabs.ts`, `InteriorManager.ts`, `Camera.ts`, `Surfaces.ts`
 
-Evidence: `cursor/evidence-elegushi-181d` @ `39a6c27` (PR #65) — phone 390×844 + desktop 1280×800 at street-height play camera (`docs/evidence/elegushi-beach/`).
+Evidence: `cursor/evidence-elegushi-181d` @ `7197467` (PR #65; first set `39a6c27`, v2 set `2777c6e`) — phone 390×844 + desktop 1280×800 at street-height play camera (`docs/evidence/elegushi-beach/`). **Defect found in evidence:** the animated sea plane (`OpenAirBeach.ts`, `SEA_L=280` centred `shoreZ - SEA_L*0.38`) spans ~34 m past the shoreline onto the sand and is drawn over it, so mid-beach from the street camera the sand reads as a flat slate-navy slab; horizon/swimmers/palms/cabanas/horses are otherwise visible. Fix next: clip sea to `z <= shoreZ`.
 
 Still unfinished / follow-on: denser crowd meshes (still capsule LODs); DJ/music tied to live beach-party hours; other open places (Freedom Park, golf, Jabi, etc.) still on green disc / high camera until same treatment; embed-in-city is later; sea-to-horizon framing can be stronger in evidence angles.
 
