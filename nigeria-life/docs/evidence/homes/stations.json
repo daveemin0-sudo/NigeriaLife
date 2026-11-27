@@ -1,0 +1,22 @@
+[
+  {
+    "id": "flat-tv",
+    "ok": true
+  },
+  {
+    "id": "flat-bed",
+    "ok": true
+  },
+  {
+    "id": "flat-fridge",
+    "ok": true
+  },
+  {
+    "id": "flat-drum",
+    "ok": true
+  },
+  {
+    "id": "home_wash",
+    "ok": true
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "key": "self-contain:1:-:v3",
+  "standard": "basic",
+  "rooms": [
+    "Room",
+    "Bathroom"
+  ]
+}
