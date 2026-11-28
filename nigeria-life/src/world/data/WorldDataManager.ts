@@ -68,7 +68,8 @@ export class WorldDataManager {
         return district;
       }
     }
-    // Default fallback to closest district center
+    // Same nearby-only fallback as districtIn — avoid mislabelling gaps between districts
+    const MAX_FALLBACK = 80;
     let closest: DistrictData | undefined = undefined;
     let minDist = Infinity;
     for (const district of this.currentCity.districts) {
@@ -78,7 +79,7 @@ export class WorldDataManager {
         closest = district;
       }
     }
-    return closest;
+    return minDist > MAX_FALLBACK ? undefined : closest;
   }
 
   /**
@@ -91,12 +92,16 @@ export class WorldDataManager {
     if (!data) return undefined;
     const inside = data.districts.find((d) => pos.x >= d.bounds.minX && pos.x <= d.bounds.maxX && pos.z >= d.bounds.minZ && pos.z <= d.bounds.maxZ);
     if (inside) return inside;
+    // Only fall back to the nearest centre when it is actually nearby — otherwise a gap
+    // between districts (e.g. Jibowu before mainland was expanded) was labelled Banana Island.
+    const MAX_FALLBACK = 80;
     let closest: DistrictData | undefined;
     let minDist = Infinity;
     for (const district of data.districts) {
       const d = district.center.distanceTo(pos);
       if (d < minDist) { minDist = d; closest = district; }
     }
+    if (minDist > MAX_FALLBACK) return undefined;
     return closest;
   }
 

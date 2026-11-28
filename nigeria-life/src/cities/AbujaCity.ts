@@ -38,6 +38,8 @@ export class AbujaCity implements CityInstance {
   private flagMeshes: THREE.Mesh[] = [];
   /** The places Abuja is known for, with their doors on the street */
   public places: AbujaPlace[] = [];
+  /** Solids registered while landmarks are drawn, before `standing` is assembled */
+  private earlyStanding: Obstruction[] = [];
   /** The districts' buildings, a square at a time: shown only within sight of the player */
   private tiles: CityTile[] = [];
   private sinceTiles = 1;
@@ -87,7 +89,7 @@ export class AbujaCity implements CityInstance {
     // The ordinary buildings of the city: offices, shops, flats, houses, a hotel, along the boulevard and behind it
     const town = buildTownscape('Abuja townscape', ABUJA_BUILDINGS);
     this.group.add(town.group);
-    this.standing = [...town.obstructions, ...roads.obstructions];
+    this.standing = [...this.earlyStanding, ...town.obstructions, ...roads.obstructions];
     // The districts along the avenues, drawn a square of the city at a time, so what is beyond the view is left out
     const { districts } = abujaBuildings();
     const streetBuildings = districts.flatMap((d) => d.buildings);
@@ -118,10 +120,7 @@ export class AbujaCity implements CityInstance {
         { label: '📸 A picture under the eagle', note: 'Fun +10', arms: 'wave', seconds: 2.4, needs: { fun: 10 }, said: '📸 You, the eagle and the flags. Posted.' },
         { label: '🎖️ Watch the guards drill', note: 'Fun +8', arms: 'rest', seconds: 5, needs: { fun: 8 }, said: 'Left, right, halt! The guards drilled across the square in step.' },
       ] },
-      'millennium-park': { label: '🌳 Millennium Park', who: 'Millennium Park', role: 'Central Area', text: 'Lawns, shade and the fountain.', choices: [
-        { label: '⛲ Sit by the fountain', note: 'Fun +15, Energy +5', arms: 'rest', seconds: 6, needs: { fun: 15, energy: 5 }, said: 'The fountain sprayed cool air. A whole hour went by.' },
-        { label: '🚶 A walk round the park', note: 'Fun +10, Health +5', arms: 'wave', seconds: 5, needs: { fun: 10, health: 5 }, said: 'Round the lawns and back under the trees.' },
-      ] },
+      // millennium-park / jabi-lake-park: enterable open-air places (doors via inside:true)
     });
     // A cash machine in the wall of the bank on the boulevard
     const machine = createCashMachine({ id: 'savanna-bank-abuja', name: 'Savanna Bank', x: 16.9, z: -8.6, facing: -Math.PI / 2 });
@@ -400,20 +399,17 @@ export class AbujaCity implements CityInstance {
     peak3.position.set(-50, 14, 4);
     rockGroup.add(peak3);
 
-    // Aso Rock Lookout Platform in foreground
-    const platformGeo = new THREE.BoxGeometry(16, 1.2, 8);
-    const platformMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
-    const platform = new THREE.Mesh(platformGeo, platformMat);
-    // The lookout at the end of the avenue, looking up at the rock
-    platform.position.set(0, 0.6, 112);
-    rockGroup.add(platform);
-
-    // Plaque & flagpole
-    const plaqueGeo = new THREE.BoxGeometry(4, 1.8, 0.3);
-    const plaqueMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
-    const plaque = new THREE.Mesh(plaqueGeo, plaqueMat);
-    plaque.position.set(0, 1.8, 112);
-    rockGroup.add(plaque);
+    // Lookout platform + granite foot: solid so the pin is not a walk-through void.
+    // rockGroup is at z=-205; local z=112 → world z≈-93 (end of Shehu Shagari Way).
+    const look = new Builder();
+    look.box(0xe2e8f0, 16, 1.2, 8, 0, 0, 112, { solid: true });
+    look.box(0x1e293b, 4, 1.8, 0.3, 0, 1.2, 112, { solid: false });
+    // Lower mass of the rock — you walk up to it, not through it
+    look.box(0x785a44, 40, 18, 24, 0, 0, 84, { solid: true });
+    rockGroup.add(look.build('aso rock lookout', { roughness: 0.85 }));
+    // Collision must be registered separately (visual mesh alone is not a solid).
+    // Pushed into earlyStanding — constructor assigns `standing` after this landmark is drawn.
+    this.earlyStanding.push(...look.obstructions('aso-rock', 0, -205));
 
     this.group.add(rockGroup);
 

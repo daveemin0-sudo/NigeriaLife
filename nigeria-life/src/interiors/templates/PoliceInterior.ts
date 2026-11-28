@@ -3,12 +3,14 @@ import type { InteriorDefinition } from '../InteriorTypes';
 import { InteriorPrefabs } from '../InteriorPrefabs';
 import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
+import { NavGrid } from '../../interactions/NavGrid';
 
 export class PoliceInterior {
   public group: THREE.Group;
   public interactiveList: InteractiveObject[] = [];
   public npcs: InteriorNPCMesh[] = [];
   public def: InteriorDefinition;
+  public nav: NavGrid;
 
   constructor() {
     this.group = new THREE.Group();
@@ -133,6 +135,7 @@ export class PoliceInterior {
       ],
     };
 
+    this.nav = new NavGrid(origin, 24, 22);
     this.build3DInterior();
   }
 
@@ -246,6 +249,19 @@ export class PoliceInterior {
       flagGroup.add(stripe);
     }
     this.group.add(flagGroup);
+
+    this.nav.blockRect(-4, -4, 2.25, 0.8);
+    this.nav.blockRect(-4, 2, 1.2, 0.8);
+    this.nav.blockRect(6, -5, 3.25, 2.75);
+    this.nav.blockRect(-11.5, 0, 0.55, 0.95);
+    this.nav.blockRect(0, 5, 1.8, 0.35);
+    this.nav.blockRect(3.5, 7.2, 1.35, 0.35);
+    this.nav.blockRect(-1.5, 3.2, 0.1, 0.1);
+    this.nav.blockRect(1.5, 3.2, 0.1, 0.1);
+    this.nav.blockRect(10.2, -4, 0.5, 3.5);
+    this.nav.clearRect(0, 9, 0.8, 0.8);
+    this.nav.clearRect(-4, -4 + 1.2, 0.5, 0.5);
+    this.nav.clearRect(6, -5 + 1.5, 0.6, 0.6);
 
     // 5. Build NPCs
     for (const npcDef of this.def.npcs) {

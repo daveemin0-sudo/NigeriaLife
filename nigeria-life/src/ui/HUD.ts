@@ -45,6 +45,24 @@ import { CareerMinigames } from '../jobs/CareerMinigames';
 import { Dues } from '../life/Dues';
 import { PerfReadout } from './PerfReadout';
 
+/**
+ * Short place label for the top HUD location pill so long names
+ * ("Your duplex at 1 Banana Island", "Lekki Phase 1 Gated 4-Bed Duplex") do not crowd the need bars.
+ */
+export function shortHudPlace(name: string, maxLen = 22): string {
+  let s = (name || '').replace(/\s+/g, ' ').trim();
+  if (!s) return s;
+  s = s.replace(/\s*\((?:rented|owned|purchased|leased)\)\s*/gi, ' ').trim();
+  s = s.replace(/\s+at\s+\d+\s+.+$/i, '');
+  s = s.replace(/\bGated\b/gi, '').replace(/\b\d+-Bed\b/gi, '');
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  if (s.length <= maxLen) return s;
+  const cut = s.split(/[·•|,–—]/)[0].trim();
+  if (cut.length >= 8 && cut.length <= maxLen) return cut;
+  const clipped = s.slice(0, Math.max(8, maxLen - 1)).replace(/\s+\S*$/, '').trimEnd();
+  return (clipped || s.slice(0, maxLen - 1)).trimEnd() + '…';
+}
+
 /** Map landmarks that have no interior, matched to the street object where their activity happens */
 const LANDMARK_STREET_SPOTS: Record<string, string> = {
   // Abuja
@@ -63,11 +81,14 @@ const LANDMARK_STREET_SPOTS: Record<string, string> = {
   millennium_tower: 'roadside-millennium-tower',
   wuse_market: 'roadside-wuse-market',
   jabi_lake_mall: 'roadside-jabi-lake-mall',
-  millennium_park: 'abuja-millennium-park',
+  jabi_lake_park: 'roadside-jabi-lake-park',
+  jabi_lake_waterfront: 'roadside-jabi-lake-park',
+  millennium_park: 'roadside-millennium-park',
+  millennium_park_abuja: 'roadside-millennium-park',
   national_hospital_abuja: 'roadside-national-hospital-abuja',
   mile_one_market: 'roadside-mile-one-market',
   ph_mall: 'roadside-ph-mall',
-  pleasure_park: 'ph-pleasure-park',
+  pleasure_park: 'roadside-pleasure-park',
   rivers_govt_house: 'roadside-rivers-govt-house',
   ph_waterfront: 'ph-waterfront',
   // Port Harcourt
@@ -489,8 +510,8 @@ export class HUD {
         <div id="driving-hawker-pill" style="display: none; align-items: center; justify-content: space-between; gap: 8px; background: rgba(20, 83, 45, 0.95); border: 1px solid #4ade80; border-radius: 8px; padding: 4px 10px; margin-top: 6px; font-size: 11px;">
           <span style="color: #fef08a; font-weight: 700;">🥤 Chidi at Window:</span>
           <div style="display: flex; gap: 6px;">
-            <button id="btn-traffic-water" style="background: #0284c7; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">💧 Water [J] ₦100</button>
-            <button id="btn-traffic-gala" style="background: #b91c1c; color: #fff; border: 0; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 700;">🌭 Gala [G] ₦250</button>
+            <button id="btn-traffic-water" style="background: #0284c7; color: #fff; border: 0; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 700; min-height: 36px;">💧 Water ₦100</button>
+            <button id="btn-traffic-gala" style="background: #b91c1c; color: #fff; border: 0; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 700; min-height: 36px;">🌭 Gala ₦250</button>
           </div>
         </div>
       </div>
@@ -628,10 +649,16 @@ export class HUD {
     const moneyEl = document.getElementById('hud-money');
     if (moneyEl) {
       {
+        // Top bar shows what the player can spend (cash + bank). Pocket-only ₦0 with a full
+        // bank looked like a display bug on phone; title still splits cash vs bank.
+        const cash = data.walletCash ?? 0;
+        const bank = data.bank?.balance ?? 0;
+        const naira = cash + bank;
         const usd = data.walletUsd ?? 0;
         const gbp = data.walletGbp ?? 0;
         const hard = [usd > 0 ? `$${usd.toLocaleString()}` : '', gbp > 0 ? `£${gbp.toLocaleString()}` : ''].filter(Boolean).join(' · ');
-        moneyEl.textContent = hard ? `₦${data.walletCash.toLocaleString()} · ${hard}` : `₦${data.walletCash.toLocaleString()}`;
+        moneyEl.textContent = hard ? `₦${naira.toLocaleString()} · ${hard}` : `₦${naira.toLocaleString()}`;
+        moneyEl.title = `Cash ₦${cash.toLocaleString()} · Bank ₦${bank.toLocaleString()}`;
       }
     }
 
@@ -1540,8 +1567,16 @@ export class HUD {
   public updateLocation(name: string, sub: string): void {
     const nameEl = document.getElementById('hud-loc-name');
     const subEl = document.getElementById('hud-loc-sub');
-    if (nameEl && nameEl.textContent !== name) nameEl.textContent = name;
-    if (subEl && subEl.textContent !== sub) subEl.textContent = sub;
+    const short = shortHudPlace(name);
+    const shortSub = shortHudPlace(sub, 28);
+    if (nameEl) {
+      if (nameEl.textContent !== short) nameEl.textContent = short;
+      nameEl.title = name;
+    }
+    if (subEl) {
+      if (subEl.textContent !== shortSub) subEl.textContent = shortSub;
+      subEl.title = sub;
+    }
   }
 
   public updateWeatherButton(type: string): void {

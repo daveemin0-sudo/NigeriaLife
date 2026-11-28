@@ -5,8 +5,66 @@ import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
 import type { NavGrid } from '../../interactions/NavGrid';
 import { BukaService, COUNTER_FRONT, WAITER_POST, COOK_POST } from '../buka/BukaService';
+import { Builder } from '../../world/kit/ArchKit';
 
 const ROOM = { width: 24, length: 22, height: 4.5 };
+
+/** Dressing around BukaService anchors — counter (−4,−5), stove (−4,−8.5), tables, door at +z. */
+function dressMamaPutBroadStreet(b: Builder): void {
+  const wall = 0xfef3c7;
+  const wood = 0x78350f;
+  const accent = 0x15803d;
+
+  for (let x = -9; x <= 9; x += 3.2) {
+    for (let z = -9; z <= 9; z += 3.2) {
+      b.box(0xd6d3d1, 2.9, 0.05, 2.9, x, 4.05, z, { solid: false });
+      b.cylinder(0x57534e, 0.04, 0.55, x, 3.55, z, { solid: false });
+      b.box(0xfde68a, 0.12, 0.14, 0.12, x, 3.15, z, { glow: true, solid: false });
+    }
+  }
+  for (const wx of [-7, -3, 1, 5, 9]) {
+    b.box(0xbae6fd, 1.8, 1.2, 0.06, wx, 1.6, -10.92, { solid: false });
+    b.box(0x1e3a8a, 1.9, 1.3, 0.1, wx, 1.55, -10.95, { solid: false });
+  }
+  for (const wz of [-6, -2, 2, 6]) {
+    b.box(0xbae6fd, 1.4, 1.05, 0.06, -11.92, 1.5, wz, { solid: false });
+    b.box(0x1e3a8a, 1.5, 1.15, 0.1, -11.95, 1.45, wz, { solid: false });
+    b.box(0xbae6fd, 1.4, 1.05, 0.06, 11.92, 1.5, wz, { solid: false });
+  }
+  b.box(accent, 5.2, 0.65, 0.08, 0, 2.5, -10.88, { solid: false });
+  b.box(0xf8fafc, 4.8, 0.48, 0.04, 0, 2.5, -10.84, { solid: false });
+
+  b.box(wall, 0.12, 2.45, 7, -8.5, 0, -2.5, { solid: false });
+  b.box(wood, 0.08, 2.5, 3.2, -1.2, 0, -5.5, { solid: false });
+  b.occupy(-1.35, -1.05, -5.65, -5.35, 2.5);
+
+  for (let i = 0; i < 4; i++) {
+    b.cylinder(0x94a3b8, 0.03, 0.85, -3 + i * 2, 0, 8.5, { solid: false });
+    b.box(0xdc2626, 0.4, 0.3, 0.3, -3 + i * 2, 0.86, 8.5, { solid: false });
+  }
+  for (const [x, z] of [[-8, 7.5], [8, 7.5], [-8, -8.5], [8, 4]] as const) {
+    b.box(wood, 2.2, 0.08, 0.4, x, 0.45, z, { solid: false });
+    b.box(wood, 0.08, 0.45, 0.35, x - 1.0, 0, z, { solid: false });
+    b.box(wood, 0.08, 0.45, 0.35, x + 1.0, 0, z, { solid: false });
+    b.occupy(x - 1.1, x + 1.1, z - 0.22, z + 0.22, 0.55);
+  }
+
+  b.box(0xfacc15, 3.6, 0.55, 0.45, -10, 0, -8.5);
+  b.box(0x1c1917, 1.2, 0.08, 0.9, -10, 0.01, -7.5, { solid: false });
+  for (let i = 0; i < 5; i++) b.box(wood, 0.35, 0.22, 0.55, -10.5, i * 0.24, -7.2 + (i % 2) * 0.4, { yaw: 0.15, solid: false });
+  b.box(0x1e3a8a, 1.5, 1.55, 0.75, 9, 0, -5.2, { solid: false });
+  b.box(0x7dd3fc, 1.25, 1.15, 0.05, 9, 0.28, -4.82, { glow: true, solid: false });
+
+  b.box(0x57534e, 2.0, 0.9, 0.7, 8, 0, 3.5, { solid: false });
+  for (let i = 0; i < 4; i++) b.box([0xfacc15, 0x16a34a, 0xdc2626][i % 3], 0.26, 0.24, 0.26, 7.2 + i * 0.32, 0.92, 3.4, { solid: false });
+
+  for (const [x, z] of [[2, 8], [6, 6], [-2, 7], [0, -1]] as const) {
+    b.box(0xfacc15, 0.3, 0.2, 0.26, x, 0.9, z, { solid: false });
+    b.box(0xf8fafc, 0.26, 0.08, 0.22, x, 0.82, z, { solid: false });
+  }
+  b.cylinder(0x15803d, 0.25, 0.95, -10, 0, 4, { sides: 12 });
+  b.cylinder(0x38bdf8, 0.1, 0.14, -10, 0.95, 4, { glow: true, solid: false });
+}
 
 /** Regulars who are already at their tables. `seat` counts four per table, clockwise from the east chair. */
 const DINERS: Array<{ def: Omit<InteriorNPCDef, 'relativePosition' | 'rotationY'>; seat: number; dish: string; eaten: number }> = [
@@ -182,6 +240,10 @@ export class RestaurantInterior {
       description: 'Step back out onto Broad Street.',
       interactionPoint: worldPoint(0, 9.7),
     });
+
+    const dress = new Builder().around(0, 0);
+    dressMamaPutBroadStreet(dress);
+    this.group.add(dress.build('mama put dressing', { roughness: 0.62 }));
 
     // 4. Kitchen: food warmer counter, stove, steam. Tables, chairs and the pass come from the service.
     const foodWarmer = InteriorPrefabs.createFoodWarmer(new THREE.Vector3(-4, 0, -5), 0);

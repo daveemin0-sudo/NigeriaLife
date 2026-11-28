@@ -1,0 +1,74 @@
+{
+  "stalls": [
+    {
+      "x": -9.15,
+      "z": -90,
+      "distZebra": 100
+    },
+    {
+      "x": 9.15,
+      "z": -78,
+      "distZebra": 88
+    },
+    {
+      "x": -9.15,
+      "z": -70,
+      "distZebra": 80
+    },
+    {
+      "x": 9.15,
+      "z": -55,
+      "distZebra": 65
+    },
+    {
+      "x": -9.15,
+      "z": -52,
+      "distZebra": 62
+    },
+    {
+      "x": 9.15,
+      "z": -48,
+      "distZebra": 58
+    },
+    {
+      "x": -9.15,
+      "z": -18,
+      "distZebra": 28
+    },
+    {
+      "x": 9.15,
+      "z": 0,
+      "distZebra": 10
+    },
+    {
+      "x": -9.15,
+      "z": 42,
+      "distZebra": 32
+    },
+    {
+      "x": 9.15,
+      "z": 44,
+      "distZebra": 34
+    },
+    {
+      "x": -9.15,
+      "z": 55,
+      "distZebra": 45
+    },
+    {
+      "x": 9.15,
+      "z": 118,
+      "distZebra": 108
+    },
+    {
+      "x": -9.15,
+      "z": 130,
+      "distZebra": 120
+    }
+  ],
+  "nearZebra": [],
+  "fabricNear": [],
+  "onZebra": [],
+  "stallCount": 13,
+  "glowOpacity": 0
+}

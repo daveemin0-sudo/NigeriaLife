@@ -3,6 +3,7 @@ import { floorSurface, lightPool, repeated, smallTiles } from '../../graphics/Su
 import * as THREE from 'three';
 import { Fridge } from '../../housing/Fridge';
 import { HomeStaff } from '../../housing/HomeStaff';
+import { HomeRepairs } from '../../housing/HomeRepairs';
 import { Marriage } from '../../social/Marriage';
 import { QuitNotice } from '../../housing/QuitNotice';
 import type { LeaseView } from '../../life/Dues';
@@ -16,11 +17,12 @@ import { InteriorNPCMesh } from '../InteriorNPCMesh';
 import type { InteractiveObject } from '../../world/World';
 import { HouseDecorationSystem, type PlacedItem } from '../../housing/HouseDecorationSystem';
 import { Television, CHANNELS } from '../../housing/Television';
-import { TV_SCREEN, buildFurniture } from '../../housing/FurnitureModels';
+import { TV_SCREEN, buildFurniture, sitSpots } from '../../housing/FurnitureModels';
 import { Builder } from '../../world/kit/ArchKit';
 import { PlaceActions, type PlaceAction, type PlaceHost } from '../../destinations/PlaceActions';
 import type { NavGrid } from '../../interactions/NavGrid';
 import { HomeLife, HOME, type MealPlace } from '../home/HomeLife';
+import { buildHomeDressing, buildHomeDressingUpper } from '../home/HomeDress';
 import type { HomeStandard } from '../../housing/HomeStandard';
 import { type RoomForFurniture } from '../../housing/HouseDecorationSystem';
 import { roomDoor, DOOR_STYLES, type DoorStyle } from '../../housing/MoreFurniture';
@@ -177,6 +179,7 @@ export class ResidentialInterior {
     this.def.name = home?.name ?? (standard === 'basic' ? 'Your room & parlour' : standard === 'comfortable' ? 'Your flat' : 'Your house');
     if (home?.area) this.def.districtName = home.area;
     HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
+    HomeRepairs.get().syncHome(this.group, this.plan, this.interactiveList);
     Marriage.get().syncHome(this.group, this.plan, this.interactiveList);
     if (this.plan) QuitNotice.sync(this.group, this.plan, this.interactiveList, this.exitDoor, () => ResidentialInterior.noticeNow?.() ?? null);
     this.applyPower();
@@ -500,6 +503,7 @@ export class ResidentialInterior {
     this.refreshGarden();
     this.refreshPets();
     HomeStaff.get().syncHome(this.group, this.plan, this.interactiveList);
+    HomeRepairs.get().syncHome(this.group, this.plan, this.interactiveList);
     ResidentialInterior.onYard?.();
     for (const uid of [...this.sets.keys()]) {
       if (!standing.has(uid)) this.sets.delete(uid);
@@ -537,9 +541,11 @@ export class ResidentialInterior {
       HOME.bed.facing = turn;
       stand = HOME.bed.side;
     } else if (card === 'flat-tv' && kind.seat) {
-      HOME.sofa.seat.copy(onIt(kind.seat.x, kind.seat.z));
+      const spot = sitSpots(kind)[Math.floor(sitSpots(kind).length / 2)] ?? { ...kind.seat, top: kind.seat.top ?? 0.55 };
+      HOME.sofa.seat.copy(onIt(spot.x, spot.z));
       HOME.sofa.front.copy(front);
       HOME.sofa.facing = Math.atan2(face.x, face.z);
+      HOME.sofa.top = spot.top;
     } else if (card === 'flat-fridge') {
       HOME.fridge.position.set(item.x, 0, item.z);
       HOME.fridge.front.copy(front);
@@ -832,15 +838,45 @@ export class ResidentialInterior {
       run: (host) => {
         const set = this.sets.get(item.uid);
         const choices: Array<{ label: string; note?: string; pick: () => void }> = [];
-        if (kind.use === 'seat' && kind.seat) {
+        if (kind.use === 'seat' && (kind.seat || kind.seats?.length)) {
           const turn = (item.turns * Math.PI) / 2;
           const face = decor.facing(item.turns);
           const size = decor.footprint(item.modelType, item.turns);
-          const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.55;
-          const seat = new THREE.Vector3(item.x + kind.seat.x * Math.cos(turn) + kind.seat.z * Math.sin(turn), 0, item.z - kind.seat.x * Math.sin(turn) + kind.seat.z * Math.cos(turn));
-          const front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
-          if (item.modelType === 'toilet_wc') choices.push({ label: 'Use the toilet', note: 'Bladder back to 100', pick: () => { this.life.useToilet(seat, front, Math.atan2(face.x, face.z)); } });
-          else choices.push({ label: 'Sit down', pick: () => { this.life.sitAt(seat, front, Math.atan2(face.x, face.z)); } });
+          const onIt = (x: number, z: number) => new THREE.Vector3(
+            item.x + x * Math.cos(turn) + z * Math.sin(turn), 0,
+            item.z - x * Math.sin(turn) + z * Math.cos(turn),
+          );
+          const spots = sitSpots(kind);
+          const dining = /dining_table|plastic_set/.test(item.modelType);
+          // Nearest cushion/chair to the player
+          const ox = this.group.position.x;
+          const oz = this.group.position.z;
+          const px = host.actor.root.position.x - ox;
+          const pz = host.actor.root.position.z - oz;
+          let best = spots[0];
+          let bestD = Infinity;
+          for (const s of spots) {
+            const at = onIt(s.x, s.z);
+            const d = (at.x - px) ** 2 + (at.z - pz) ** 2;
+            if (d < bestD) { bestD = d; best = s; }
+          }
+          const seat = onIt(best.x, best.z);
+          let facing: number;
+          let front: THREE.Vector3;
+          if (dining) {
+            // Face the table centre; approach from behind the chair (away from the table)
+            facing = Math.atan2(item.x - seat.x, item.z - seat.z);
+            const awayX = seat.x - item.x;
+            const awayZ = seat.z - item.z;
+            const len = Math.hypot(awayX, awayZ) || 1;
+            front = new THREE.Vector3(seat.x + (awayX / len) * 0.55, 0, seat.z + (awayZ / len) * 0.55);
+          } else {
+            const reach = (face.x !== 0 ? size.width : size.depth) / 2 + 0.55;
+            facing = Math.atan2(face.x, face.z);
+            front = new THREE.Vector3(item.x + face.x * reach, 0, item.z + face.z * reach);
+          }
+          if (item.modelType === 'toilet_wc') choices.push({ label: 'Use the toilet', note: 'Bladder back to 100', pick: () => { this.life.useToilet(seat, front, facing); } });
+          else choices.push({ label: 'Sit down', pick: () => { this.life.sitAt(seat, front, facing, best.top); } });
         }
         if (kind.use === 'bed' && kind.bed) {
           // Its foot points the way the piece faces; the sleeper gets in from whichever side has room to stand
@@ -866,27 +902,26 @@ export class ResidentialInterior {
           const stocked = fridge.count();
           choices.push({
             label: 'Cook Party Jollof & Fried Dodo',
-            note: stocked ? 'Uses food from the fridge · Hunger +60, Cooking +1' : 'Stock the fridge first',
+            note: stocked ? 'Uses food from the fridge · Hunger +60, Cooking +1' : 'From the cupboard · Hunger +60, Cooking +1',
             pick: () => {
               const ingredient = fridge.pickIngredient([
                 'jollof', 'rice', 'tomato', 'plantain', 'dodo', 'gala_snack', 'akara', 'suya', 'boli', 'egusi',
               ]);
-              if (!ingredient) {
-                host.say('The fridge is empty. Buy food or put groceries in before you cook.', 'warning');
-                return;
-              }
-              const used = fridge.useUp(ingredient.id);
-              if (!used) {
-                host.say('That food is gone from the fridge.', 'warning');
-                return;
-              }
+              const used = ingredient ? fridge.useUp(ingredient.id) : null;
+              const hunger = 60;
               this.actOut(item, host, [
-                { pose: { arms: 'reach' }, seconds: 4.5, effect: () => { host.say(`🍳 Cooking with ${used.name} from the fridge…`, 'info'); } },
+                { pose: { arms: 'reach' }, seconds: 4.5, effect: () => {
+                  host.say(used
+                    ? `🍳 Cooking with ${used.name} from the fridge…`
+                    : '🍳 Cooking Party Jollof from the cupboard…', 'info');
+                } },
                 { pose: { arms: 'eat' }, seconds: 3, effect: () => {
-                  host.backend.modifyNeed('hunger', 60);
+                  host.backend.modifyNeed('hunger', hunger);
                   host.backend.modifyNeed('energy', -10);
                   host.backend.addSkillExp('cooking', 1);
-                  host.say(`Smoky party jollof with fried plantain — made from ${used.name}. Hunger up, cooking +1.`, 'success');
+                  host.say(used
+                    ? `Smoky party jollof with fried plantain — made from ${used.name}. Hunger up, cooking +1.`
+                    : 'Smoky party jollof with fried plantain from the cupboard. Hunger up, cooking +1. Stock the fridge next time.', 'success');
                 } },
               ]);
             },
@@ -1191,12 +1226,18 @@ export class ResidentialInterior {
       }
       if (!this.televisions().some((set) => set.on)) (this.sets.get(CORE_TV) ?? this.television).turnOn('football');
     };
-    this.life.onTheTelevision = () => { const on = this.televisions().find((set) => set.on); return on ? `Watching: ${on.showing()}` : null; };
+    this.life.onTheTelevision = () => {
+      const on = this.televisions().find((set) => set.on);
+      if (!on) return null;
+      const short = on.channel === 'football' ? 'Football' : on.channel === 'news' ? 'News' : 'Music';
+      return `Watching · ${short}`;
+    };
     this.life.channelChoices = () => {
       const set = this.watched();
       return [
         ...CHANNELS.map((channel) => ({
           id: channel.id,
+          // Icon + short name; layout keeps chips on their own row so nothing overlaps the title
           label: `${channel.icon} ${channel.id === 'football' ? 'Football' : channel.id === 'news' ? 'News' : 'Music'}`,
           current: set.on && set.channel === channel.id,
           pick: () => { set.turnOn(channel.id); this.life.refresh(); },
@@ -1749,6 +1790,8 @@ export class ResidentialInterior {
     this.storeyLights = plan.lights.slice(0, 4).map((light) => InteriorPrefabs.createCeilingLight(new THREE.Vector3(light.x, wallH - 0.2, light.z), 0xffedd5));
     for (const light of this.storeyLights) g.add(light);
 
+    this.attachHomeDressing(plan, g.add, solid);
+
     // The doors in the doorways
     this.hangDoors(plan.doors, this.group, 0);
 
@@ -1794,6 +1837,24 @@ export class ResidentialInterior {
 
     this.life.reblock();
     HouseDecorationSystem.getInstance().attach(this.room);
+  }
+
+  /** Nigerian clutter per plan key: walls stay clear of furniture spots and station anchors. */
+  private attachHomeDressing(
+    plan: HomePlan,
+    add: (part: THREE.Object3D) => void,
+    solid: (x: number, z: number, halfWidth: number, halfLength: number) => void,
+  ): void {
+    const std = ResidentialInterior.standardNow?.() ?? this.standard;
+    const { group, footprints } = buildHomeDressing(plan, std);
+    group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+    add(group);
+    for (const fp of footprints) {
+      if (fp.height < 0.45) continue;
+      const cx = (fp.minX + fp.maxX) / 2;
+      const cz = (fp.minZ + fp.maxZ) / 2;
+      solid(cx, cz, Math.max(0.12, (fp.maxX - fp.minX) / 2 - 0.02), Math.max(0.12, (fp.maxZ - fp.minZ) / 2 - 0.02));
+    }
   }
 
   /** Every toilet can be used and every shower stood under, each from where it is in its room */
@@ -2009,7 +2070,8 @@ export class ResidentialInterior {
     const others = standard === 'basic' ? s.beds.slice(0, 1) : s.beds;
     const covers = ['double_bed_purple', 'double_bed_blue', 'double_bed_green', 'double_bed_ankara', 'double_bed_red'];
     others.forEach((spot, i) => pieces.push({ id: covers[i % covers.length], ...spot }));
-    if (s.dining && standard !== 'basic') pieces.push({ id: 'dining_table_6', ...s.dining });
+    // Luxury / duplex: 10-seater (8 chairs). Comfortable flat: 6-seater (4 chairs).
+    if (s.dining && standard !== 'basic') pieces.push({ id: standard === 'luxury' ? 'dining_table_10' : 'dining_table_6', ...s.dining });
     // A bathtub in the bathroom of a well-off home
     if (standard !== 'basic') pieces.push({ id: 'bathtub', ...s.bath });
     for (const extra of s.extras) {
@@ -2093,12 +2155,25 @@ export class ResidentialInterior {
       const turn = (piece.turns * Math.PI) / 2;
       const face = decor.facing(piece.turns);
       const size = decor.footprint(piece.modelType, piece.turns);
+      const onIt = (x: number, z: number) => new THREE.Vector3(
+        piece.x + x * Math.cos(turn) + z * Math.sin(turn), 0,
+        piece.z - x * Math.sin(turn) + z * Math.cos(turn),
+      );
+      const spots = sitSpots(kind);
+      const local = spots[0] ?? kind.seat;
+      const at = local ? onIt(local.x, local.z) : new THREE.Vector3(piece.x, 0, piece.z);
+      const dining = /dining_table|plastic_set/.test(piece.modelType);
+      if (dining && local) {
+        const facing = Math.atan2(piece.x - at.x, piece.z - at.z);
+        const awayX = at.x - piece.x;
+        const awayZ = at.z - piece.z;
+        const len = Math.hypot(awayX, awayZ) || 1;
+        const front = new THREE.Vector3(at.x + (awayX / len) * 0.55, 0, at.z + (awayZ / len) * 0.55);
+        return { at, front, facing, top: local.top };
+      }
       const reach = (face.x !== 0 ? size.width : size.depth) / 2 + (kind.use === 'seat' ? 0.55 : 0.6);
-      const at = kind.seat
-        ? new THREE.Vector3(piece.x + kind.seat.x * Math.cos(turn) + kind.seat.z * Math.sin(turn), 0, piece.z - kind.seat.x * Math.sin(turn) + kind.seat.z * Math.cos(turn))
-        : new THREE.Vector3(piece.x, 0, piece.z);
       const front = new THREE.Vector3(piece.x + face.x * reach, 0, piece.z + face.z * reach);
-      return { at, front, facing: Math.atan2(face.x, face.z) };
+      return { at, front, facing: Math.atan2(face.x, face.z), top: local?.top };
     };
     const here = spot(fridge);
     const storey = fridge.storey ?? 0;
@@ -2340,6 +2415,19 @@ export class ResidentialInterior {
     }
     this.partitions(up.walls, add, solid);
     add(this.finishWalls(up.walls, W, L, T, wallH));
+
+    {
+      const std = ResidentialInterior.standardNow?.() ?? this.standard;
+      const { group, footprints } = buildHomeDressingUpper(plan, std);
+      group.traverse((child) => child.layers.set(RENDER_LAYERS.INTERIOR));
+      add(group);
+      for (const fp of footprints) {
+        if (fp.height < 0.45) continue;
+        const cx = (fp.minX + fp.maxX) / 2;
+        const cz = (fp.minZ + fp.maxZ) / 2;
+        solid(cx, cz, Math.max(0.12, (fp.maxX - fp.minX) / 2 - 0.02), Math.max(0.12, (fp.maxZ - fp.minZ) / 2 - 0.02));
+      }
+    }
 
     // The front: a low wall the length of the house, over the step a balcony
     const parapet = new THREE.Mesh(new THREE.BoxGeometry(W, 1.0, T), this.wallPaint);
@@ -2605,6 +2693,7 @@ export class ResidentialInterior {
     this.life.update(delta);
     this.swingDoors(delta);
     HomeStaff.get().tick(delta, true);
+    HomeRepairs.get().tick(delta, true);
     // The pets about the house; the plants checked now and then as they grow
     const me = InteractionDirector.get().player?.worldPosition();
     const o = this.group.position;

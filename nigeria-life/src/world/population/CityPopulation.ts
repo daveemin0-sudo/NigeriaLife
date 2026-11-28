@@ -88,6 +88,10 @@ interface Agent {
   /** The stall this one trades at, or haggles at (index into the street's stalls) */
   stall?: number;
   stallOf?: number;
+  /** Last step was blocked by a solid — keep querying solids next frame (budget priority) */
+  solidBlock?: boolean;
+  /** Consecutive fully-blocked solid steps; escape hatch clears this so walkers never stay stuck */
+  solidStuck?: number;
 }
 
 /**
@@ -296,6 +300,25 @@ export class CityPopulation {
   private readonly owedFar = new Float64Array(FAR_EVERY);
   /** Who the walkers step round this frame: the player, or the vehicle the player is driving */
   public avoid: Array<{ x: number; z: number; r: number }> = [];
+  /**
+   * Street solids (buildings, stalls, benches, poles): set by the game.
+   * Walkers query the Solids spatial grid with a per-frame budget and slide/steer around
+   * without allocating, without jitter, and without stepping onto the carriageway.
+   */
+  public solids: (() => {
+    step(fromX: number, fromZ: number, toX: number, toZ: number, radius: number, out?: { x: number; z: number; stopped: boolean }, propsOnly?: boolean): { x: number; z: number; stopped: boolean };
+    at(x: number, z: number, radius?: number): boolean;
+    propAt?(x: number, z: number, radius?: number): boolean;
+  } | null) | null = null;
+  /** How many solid queries remain this frame (reset in update) */
+  private solidChecksLeft = 0;
+  private static readonly SOLID_CHECKS_PER_FRAME = 72;
+  /** Scratch for Solids.step — never allocate per walker */
+  private readonly solidStep = { x: 0, z: 0, stopped: false };
+  /** Player xz this frame — solids only for walkers near the camera (far crowd stays on the network) */
+  private solidFocusX = 0;
+  private solidFocusZ = 0;
+  private solidFocus2 = 90 * 90;
   private bodyPool: PersonBody[] = [];
 
   private rand = seededRandom(90210);
@@ -780,14 +803,144 @@ export class CityPopulation {
     if (d < 0.22) {
       a.x = x;
       a.z = z;
+      a.solidBlock = false;
       return true;
     }
     const step = Math.min(d, Math.max(0.4, a.speed) * delta);
-    a.x += (dx / d) * step;
-    a.z += (dz / d) * step;
+    const nx = a.x + (dx / d) * step;
+    const nz = a.z + (dz / d) * step;
+    this.applySolidStep(a, nx, nz);
     a.yaw = Math.atan2(dx, dz);
     a.phase += delta * (Math.max(0.4, a.speed) / 1.35);
     return false;
+  }
+
+  /** Whether this walker may query the Solids grid this frame (budget + round-robin). */
+  private takeSolidCheck(a: Agent): boolean {
+    if (this.solidChecksLeft <= 0) return false;
+    // Far from the player: stay on the pavement network so citywide commute sims never
+    // strand. Clear any leftover block so a near brush does not chase them across town.
+    const dx = a.x - this.solidFocusX;
+    const dz = a.z - this.solidFocusZ;
+    if (dx * dx + dz * dz > this.solidFocus2) {
+      a.solidBlock = false;
+      a.solidStuck = 0;
+      return false;
+    }
+    // Near: blocked walkers always re-check; others share the budget by id + tick
+    if (!a.solidBlock && (a.id + this.tick) % 3 !== 0) return false;
+    this.solidChecksLeft -= 1;
+    return true;
+  }
+
+  /**
+   * Move to (nx, nz) unless a solid is in the way: slide along it, or briefly steer
+   * aside on the pavement (never onto the carriageway). Uses the Solids spatial grid.
+   * Crossing the road skips solids (walkers are on the carriageway on purpose). After a
+   * short run of full blocks, reverse a pacer or take one escape step so nobody stays stuck.
+   */
+  private applySolidStep(a: Agent, nx: number, nz: number): void {
+    const solids = this.solids?.();
+    // Road crossers stay on the carriageway on purpose. Network "going" walkers stay on the
+    // pavement graph (bf55 commute) — prop solids (stalls/poles) on a node edge stranded
+    // morning set-out (livingcity stuck>0 / afterFast wrong). Pacers near the camera still
+    // steer around street props for what the player sees.
+    if (!solids || a.xing || a.willCross || a.life?.state === 'going') {
+      a.x = nx;
+      a.z = nz;
+      a.solidBlock = false;
+      a.solidStuck = 0;
+      return;
+    }
+    const blockedAt = (x: number, z: number, r: number) => solids.at(x, z, r);
+    if (!this.takeSolidCheck(a)) {
+      // Budget miss: still never step into a prop/solid near the player (cheap at-query, no slide).
+      // Already standing in one (trader, set-down): free to walk out.
+      const fdx = a.x - this.solidFocusX;
+      const fdz = a.z - this.solidFocusZ;
+      if (fdx * fdx + fdz * fdz <= this.solidFocus2
+        && blockedAt(nx, nz, 0.28)
+        && !blockedAt(a.x, a.z, 0)) return;
+      a.x = nx;
+      a.z = nz;
+      return;
+    }
+    const slid = solids.step(a.x, a.z, nx, nz, 0.3, this.solidStep);
+    if (!slid.stopped && slid.x === nx && slid.z === nz) {
+      a.x = nx;
+      a.z = nz;
+      a.solidBlock = false;
+      a.solidStuck = 0;
+      return;
+    }
+    // Partial slide along a face — progress without jitter
+    if (!slid.stopped) {
+      a.x = slid.x;
+      a.z = slid.z;
+      a.solidBlock = true;
+      a.solidStuck = (a.solidStuck ?? 0) + 1;
+      return;
+    }
+    a.solidBlock = true;
+    a.solidStuck = (a.solidStuck ?? 0) + 1;
+    // Perpendicular to the intended step (works for pacers and route walkers)
+    const mdx = nx - a.x;
+    const mdz = nz - a.z;
+    const len = Math.hypot(mdx, mdz) || 1;
+    const px = -mdz / len;
+    const pz = mdx / len;
+    // Prefer the pavement side away from Broad Street's carriageway
+    const prefer = a.onMainWalk ? (Math.sign(a.x) || 1) * Math.sign(px || 1) : (a.variant % 2 ? 1 : -1);
+    const signs = prefer >= 0 ? [1, -1] : [-1, 1];
+    const spans = a.solidStuck > 4 ? [0.55, 1.05, 1.55] : [0.55, 1.05];
+    for (let si = 0; si < signs.length; si++) {
+      const s = signs[si];
+      for (let di = 0; di < spans.length; di++) {
+        const dist = spans[di];
+        const lx = a.x + px * s * dist;
+        const lz = a.z + pz * s * dist;
+        if (a.onMainWalk && Math.abs(lx) < MAIN_ROAD.halfRoad + 0.65) continue;
+        const alt = solids.step(a.x, a.z, lx, lz, 0.3, this.solidStep);
+        if (alt.stopped) continue;
+        if (a.onMainWalk && Math.abs(alt.x) < MAIN_ROAD.halfRoad + 0.65) continue;
+        a.x = alt.x;
+        a.z = alt.z;
+        a.fx = px * s * 0.35;
+        a.fz = pz * s * 0.35;
+        a.ft = Math.max(a.ft ?? 0, 0.4);
+        return;
+      }
+    }
+    // Still blocked: bounce pacers; then hunt a free cell past / around the solid (never into it)
+    if (a.solidStuck === 6) a.dir = -a.dir;
+    if (a.solidStuck < 10) {
+      a.x = slid.x;
+      a.z = slid.z;
+      return;
+    }
+    for (let t = 0.8; t <= 3.2; t += 0.6) {
+      const candidates = [
+        { x: a.x + (mdx / len) * t, z: a.z + (mdz / len) * t },
+        { x: a.x + px * t, z: a.z + pz * t },
+        { x: a.x - px * t, z: a.z - pz * t },
+      ];
+      for (let ci = 0; ci < candidates.length; ci++) {
+        const c = candidates[ci];
+        if (a.onMainWalk && Math.abs(c.x) < MAIN_ROAD.halfRoad + 0.65) continue;
+        if (blockedAt(c.x, c.z, 0.25)) continue;
+        a.x = c.x;
+        a.z = c.z;
+        a.solidStuck = 0;
+        a.solidBlock = false;
+        a.fx = 0;
+        a.fz = 0;
+        a.ft = 0;
+        return;
+      }
+    }
+    // Last resort: stay put this frame (still outside the solid); next tick retries
+    a.x = slid.x;
+    a.z = slid.z;
   }
 
   /**
@@ -862,8 +1015,9 @@ export class CityPopulation {
       a.dir = 1;
       along = a.min;
     }
-    if (a.axis === 'x') a.x = along;
-    else a.z = along;
+    const nx = a.axis === 'x' ? along : a.x;
+    const nz = a.axis === 'z' ? along : a.z;
+    this.applySolidStep(a, nx, nz);
     a.yaw = a.axis === 'z' ? (a.dir > 0 ? 0 : Math.PI) : a.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
 
     if (e && e.phase === 'pace' && a.axis === 'z') {
@@ -1801,6 +1955,14 @@ export class CityPopulation {
     this.lastSeen.clear();
     // The time owed to each turn of those who are not moved every frame
     const tick = this.tick++;
+    this.solidChecksLeft = CityPopulation.SOLID_CHECKS_PER_FRAME;
+    if (playerPos) {
+      this.solidFocusX = playerPos.x;
+      this.solidFocusZ = playerPos.z;
+    }
+    // Near-camera walkers only — keeps kerb/crossing sims free while the player still sees avoidance
+    const focusR = Math.max(this.nearDistance, 28);
+    this.solidFocus2 = focusR * focusR;
     for (let k = 0; k < HIDDEN_EVERY; k++) this.owedHidden[k] += frameDelta;
     for (let k = 0; k < FAR_EVERY; k++) this.owedFar[k] += frameDelta;
     let moved = 0;

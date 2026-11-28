@@ -2,6 +2,18 @@ import * as THREE from 'three';
 import { Builder } from '../world/kit/ArchKit';
 import type { FurnitureKind } from './FurnitureModels';
 import { fineBed, fineSofa } from './FineFurniture';
+import { duvet } from '../world/kit/SoftKit';
+
+/** Local sofa/armchair sit spots (kept here to avoid a cycle with FurnitureModels). */
+function sofaSeats(n: number): Array<{ x: number; z: number; top: number }> {
+  const each = 0.74;
+  const inside = Math.max(1, n) * each;
+  return Array.from({ length: Math.max(1, n) }, (_, i) => ({
+    x: -inside / 2 + (i + 0.5) * each,
+    z: 0.14,
+    top: 0.55,
+  }));
+}
 
 /**
  * More furniture, for every pocket: the small television a first flat starts with and the big
@@ -71,14 +83,28 @@ function grandBed(width: number, length: number, o: { head: number; headboard: n
   const pw = (width - 0.3) / 2;
   for (const x of [-pw / 2 - 0.05, pw / 2 + 0.05]) b.box(0xffffff, pw, 0.2, 0.5, x, 0.72, -half + 0.45).box(0xf8fafc, pw - 0.1, 0.18, 0.4, x, 0.8, -half + 0.78);
   b.box(o.runner, 0.42, 0.16, 0.34, -0.25, 0.72, -half + 1.05).box(o.runner, 0.42, 0.16, 0.34, 0.25, 0.72, -half + 1.05);
-  // The duvet over the lower part, the runner across its foot
-  b.box(o.linen, width - 0.02, 0.08, length * 0.62, 0, 0.72, half - length * 0.31 - 0.04);
-  b.box(o.runner, width - 0.02, 0.09, 0.5, 0, 0.725, half - 0.55);
+  // Soft duvet (named for sleep cover sync) over the lower part; runner across its foot
   for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.box(0x1c1917, 0.12, 0.06, 0.12, x * (width / 2 - 0.05), 0, z * (half - 0.05));
   if (o.bench) {
     b.box(o.frame, width * 0.7, 0.42, 0.5, 0, 0, half + 0.42).box(o.runner, width * 0.7 - 0.06, 0.1, 0.46, 0, 0.42, half + 0.42);
   }
-  return b.build('grand bed');
+  const group = b.build('grand bed');
+  const cloth = new THREE.Mesh(
+    duvet(width - 0.12, length * 0.58, 0.32, { folds: 7, puff: o.wings ? 0.1 : 0.07, seed: width * 5 }),
+    new THREE.MeshStandardMaterial({ color: o.linen, roughness: 0.88, side: THREE.DoubleSide }),
+  );
+  cloth.name = 'bed duvet';
+  cloth.position.set(0, 0.74, half - length * 0.29);
+  cloth.castShadow = true;
+  cloth.receiveShadow = true;
+  group.add(cloth);
+  const runner = new THREE.Mesh(
+    new THREE.BoxGeometry(width - 0.08, 0.06, 0.48),
+    new THREE.MeshStandardMaterial({ color: o.runner, roughness: 0.7 }),
+  );
+  runner.position.set(0, 0.78, half - 0.5);
+  group.add(runner);
+  return group;
 }
 
 function bunkBed(): THREE.Group {
@@ -99,7 +125,15 @@ function foamMattress(): THREE.Group {
   const b = new Builder();
   b.box(0xe2e8f0, 1.4, 0.2, 1.95, 0, 0, 0).box(0xfbbf24, 1.42, 0.03, 1.3, 0, 0.2, 0.3).box(0xf97316, 1.42, 0.035, 0.18, 0, 0.2, -0.3);
   b.box(0xffffff, 0.6, 0.12, 0.38, 0, 0.2, -0.7);
-  return b.build('foam mattress');
+  const group = b.build('foam mattress');
+  const cloth = new THREE.Mesh(
+    duvet(1.28, 1.15, 0.18, { folds: 4, puff: 0.04, seed: 3 }),
+    new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.92, side: THREE.DoubleSide }),
+  );
+  cloth.name = 'bed duvet';
+  cloth.position.set(0, 0.24, 0.25);
+  group.add(cloth);
+  return group;
 }
 
 /** A white or red plastic table with two plastic chairs in front of it */
@@ -313,8 +347,24 @@ export const MORE_MAKERS: Record<string, () => THREE.Group> = {
 export const MORE_KINDS: Record<string, FurnitureKind> = {
   coffee_table: { solid: true, use: 'none' },
   foam_mattress: { solid: true, use: 'bed', bed: { x: 0, z: 0.6, top: 0.25, side: 0.75 } },
-  plastic_set: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },
-  plastic_set_red: { solid: true, use: 'seat', seat: { x: -0.36, z: 0.45 } },
+  plastic_set: {
+    solid: true,
+    use: 'seat',
+    seat: { x: -0.36, z: 0.45, top: 0.46 },
+    seats: [
+      { x: -0.36, z: 0.45, top: 0.46 },
+      { x: 0.36, z: 0.45, top: 0.46 },
+    ],
+  },
+  plastic_set_red: {
+    solid: true,
+    use: 'seat',
+    seat: { x: -0.36, z: 0.45, top: 0.46 },
+    seats: [
+      { x: -0.36, z: 0.45, top: 0.46 },
+      { x: 0.36, z: 0.45, top: 0.46 },
+    ],
+  },
   hotel_king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.8, top: 0.74, side: 1.2 } },
   super_king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.8, top: 0.74, side: 1.3 } },
   presidential_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.85, top: 0.74, side: 1.55 } },
@@ -324,9 +374,9 @@ export const MORE_KINDS: Record<string, FurnitureKind> = {
   potted_plant: { solid: true, use: 'none' },
   ...Object.fromEntries(TV_SIZES.map((inches) => [`tv_${inches}`, { solid: true, use: 'tv' } as FurnitureKind])),
   ...Object.fromEntries(SOFA_FINISHES.flatMap((f) => [
-    [`sofa3_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } } as FurnitureKind],
-    [`sofa2_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } } as FurnitureKind],
-    [`armchair_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.06 } } as FurnitureKind],
+    [`sofa3_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.14, top: 0.55 }, seats: sofaSeats(3) } as FurnitureKind],
+    [`sofa2_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.14, top: 0.55 }, seats: sofaSeats(2) } as FurnitureKind],
+    [`armchair_${f.id}`, { solid: true, use: 'seat', seat: { x: 0, z: 0.12, top: 0.55 }, seats: sofaSeats(1) } as FurnitureKind],
   ])),
   ...Object.fromEntries(BED_FINISHES.flatMap((f) => [
     [`double_bed_${f.id}`, { solid: true, use: 'bed', bed: { x: 0, z: 0.75, top: 0.7, side: 0.85 } } as FurnitureKind],

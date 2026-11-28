@@ -47,6 +47,50 @@ export class InteriorPrefabs {
    * Build a modular room with floor, cutaway low front walls (for isometric camera clarity),
    * and high back/side walls.
    */
+  /**
+   * Open-air ground: sand / grass / promenade with no walls or ceiling.
+   * Soft invisible rails keep the player on the plot without a tower-box feel.
+   * Horizon skirts (sea, sand apron) are attached by venue helpers past these rails.
+   */
+  public static createOpenGround(
+    width: number,
+    length: number,
+    floorColor: number = 0xe8d5a3,
+  ): THREE.Group {
+    const ground = new THREE.Group();
+    ground.name = 'interior_open_ground';
+    ground.userData.size = { width, length, height: 0.5 };
+    ground.userData.openAir = true;
+
+    const floorGeo = new THREE.BoxGeometry(width, 0.35, length);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: floorColor,
+      roughness: 0.92,
+      metalness: 0.02,
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.name = 'interior_floor_mesh';
+    floor.position.set(0, -0.17, 0);
+    floor.receiveShadow = true;
+    ground.add(floor);
+
+    // Invisible soft bounds (knee-high). No back rail — beaches/lakes open to the waterline.
+    const railMat = new THREE.MeshBasicMaterial({ visible: false });
+    const railH = 1.2;
+    const thick = 0.5;
+    const mk = (w: number, l: number, x: number, z: number) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, railH, l), railMat);
+      m.position.set(x, railH / 2, z);
+      m.name = 'open_air_rail';
+      ground.add(m);
+    };
+    mk(width + thick * 2, thick, 0, length / 2 + thick / 2);
+    mk(thick, length, -width / 2 - thick / 2, 0);
+    mk(thick, length, width / 2 + thick / 2, 0);
+
+    return ground;
+  }
+
   public static createRoom(
     width: number,
     length: number,

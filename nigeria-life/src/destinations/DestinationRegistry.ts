@@ -982,13 +982,14 @@ export class DestinationRegistry {
       city: 'abuja',
       district: 'asokoro',
       districtName: 'Three Arms Zone, Asokoro',
-      mapPosition: new THREE.Vector3(85, 0, 50),
+      // Match the lookout at the north end of Shehu Shagari Way (rockGroup z≈−93)
+      mapPosition: new THREE.Vector3(0, 0, -93),
       mapVisualType: 'landmark',
       mapIcon: '⛰️',
       exteriorType: 'rock_monolith',
-      streetPosition: new THREE.Vector3(85, 0, 50),
+      streetPosition: new THREE.Vector3(0, 0, -90),
       entrance: {
-        position: new THREE.Vector3(85, 0, 50),
+        position: new THREE.Vector3(0, 0, -90),
         promptLabel: 'Inspect Aso Rock Monolith',
         triggerRadius: 10.0,
       },

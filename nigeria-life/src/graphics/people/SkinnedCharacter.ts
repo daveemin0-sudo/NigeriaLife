@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ClothRig } from './ClothRig';
 import { makePosture, POSTURE } from './Posture';
 import { AssetManager } from '../../assets/AssetManager';
+import { assetUrl } from '../../assets/assetUrl';
 import { WARDROBE_CATALOGUE, type CharacterConfig } from '../../player/CharacterCustomization';
 import { makeClothMaterial, makeSkinMaterial } from './CharacterSurfaces';
 import type { Pattern } from './Fabrics';
@@ -536,7 +537,7 @@ export async function loadSkinnedCharacter(
   gender: 'male' | 'female',
   config: CharacterConfig,
 ): Promise<SkinnedCharacterHandle | null> {
-  const url = `/models/characters/human_${gender}.glb`;
+  const url = assetUrl(`models/characters/human_${gender}.glb`);
   const scene = await AssetManager.getInstance().instantiate(url);
   if (!scene) return null;
 
@@ -610,8 +611,13 @@ export async function loadSkinnedCharacter(
   const applyPose = (pose: PoseState) => {
     const state = clipForPose(pose);
     play(state, 0.3);
-    // A bed's mattress (or any raised surface lain on) lifts the sleeper onto it
-    root.position.y = groundY + (state === 'lie' && pose.height ? pose.height : 0);
+    // A bed's mattress lifts the sleeper onto it. A seat's cushion lifts the sitter so hips
+    // rest on the cushion top (sit clips assume a ~0.48 m seat under the pelvis).
+    const SIT_CLIP_HIP = 0.48;
+    const SIT_HIP_ABOVE = 0.20;
+    if (state === 'lie' && pose.height) root.position.y = groundY + pose.height;
+    else if (state === 'sit' && pose.height != null) root.position.y = groundY + Math.max(0, pose.height + SIT_HIP_ABOVE - SIT_CLIP_HIP);
+    else root.position.y = groundY;
   };
 
   const applyAppearance = (cfg: CharacterConfig) => {

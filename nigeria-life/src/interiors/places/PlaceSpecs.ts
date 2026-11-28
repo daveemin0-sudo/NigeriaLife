@@ -8,6 +8,8 @@ import type { Item } from '../../backend/types';
 import { SUPERMARKET_SPEC } from './SupermarketRoom';
 import { buildKitCar } from '../../world/vehicles/KitCar';
 import { FX_BUNDLES, SPRAY_HARD, buyCost, sellProceeds, formatHard, FX_BUY, FX_SELL } from '../../life/HardCurrency';
+import { attachOpenAirBeach, attachOpenAirLake } from './OpenAirBeach';
+import { attachOpenAirPark } from './OpenAirPark';
 
 /**
  * The insides of the places along the expressway: each laid out for what is done there, with
@@ -16,49 +18,667 @@ import { FX_BUNDLES, SPRAY_HARD, buyCost, sellProceeds, formatHard, FX_BUY, FX_S
 
 // --- Furniture ---------------------------------------------------------------------------------
 
-const counter = (b: Builder, x: number, z: number, w: number, colour = 0x7c4a1e, top = 0xe7e5e4, d = 0.9) => b.box(colour, w, 1.05, d, x, 0, z).box(top, w + 0.1, 0.06, d + 0.1, x, 1.05, z);
+const counter = (b: Builder, x: number, z: number, w: number, colour = 0x7c4a1e, top = 0xe7e5e4, d = 0.9) => {
+  b.box(colour, w, 1.05, d, x, 0, z).box(top, w + 0.1, 0.06, d + 0.1, x, 1.05, z, { solid: false });
+  b.occupy(x - w / 2, x + w / 2, z - d / 2, z + d / 2, 1.1);
+};
 const table = (b: Builder, x: number, z: number, top = 0x92400e, chairs = 4, chair = 0x1f2937) => {
-  b.cylinder(0x3f3f46, 0.07, 0.72, x, 0, z).cylinder(top, 0.62, 0.05, x, 0.72, z, { sides: 18 });
-  // A table to sit at and be served: where the place's seated meals are eaten
-  b.footprints.push({ minX: x - 0.62, maxX: x + 0.62, minZ: z - 0.62, maxZ: z + 0.62, height: 0.77 });
+  b.cylinder(0x3f3f46, 0.07, 0.72, x, 0, z, { solid: false }).cylinder(top, 0.62, 0.05, x, 0.72, z, { sides: 18, solid: false });
+  // One footprint for the whole table top (and seats around it stay walkable beside it)
+  b.occupy(x - 0.62, x + 0.62, z - 0.62, z + 0.62, 0.77);
   for (let i = 0; i < chairs; i++) {
     const a = (i / chairs) * Math.PI * 2;
-    b.box(chair, 0.42, 0.45, 0.42, x + Math.sin(a) * 0.95, 0, z + Math.cos(a) * 0.95).box(chair, 0.42, 0.5, 0.06, x + Math.sin(a) * 1.15, 0.45, z + Math.cos(a) * 1.15, { yaw: a });
+    const cx = x + Math.sin(a) * 0.95;
+    const cz = z + Math.cos(a) * 0.95;
+    b.box(chair, 0.42, 0.45, 0.42, cx, 0, cz).box(chair, 0.42, 0.5, 0.06, x + Math.sin(a) * 1.15, 0.45, z + Math.cos(a) * 1.15, { yaw: a, solid: false });
+    b.occupy(cx - 0.22, cx + 0.22, cz - 0.22, cz + 0.22, 0.55);
   }
 };
-const bench = (b: Builder, x: number, z: number, len: number, colour = 0x78350f) => b.box(colour, len, 0.08, 0.4, x, 0.45, z).box(colour, 0.08, 0.45, 0.35, x - len / 2 + 0.2, 0, z).box(colour, 0.08, 0.45, 0.35, x + len / 2 - 0.2, 0, z);
+const bench = (b: Builder, x: number, z: number, len: number, colour = 0x78350f) => {
+  b.box(colour, len, 0.08, 0.4, x, 0.45, z, { solid: false }).box(colour, 0.08, 0.45, 0.35, x - len / 2 + 0.2, 0, z, { solid: false }).box(colour, 0.08, 0.45, 0.35, x + len / 2 - 0.2, 0, z, { solid: false });
+  b.occupy(x - len / 2, x + len / 2, z - 0.22, z + 0.22, 0.55);
+};
 const shelf = (b: Builder, x: number, z: number, w: number, goods: number[], yaw = 0) => {
   b.box(0x57534e, w, 2.1, 0.5, x, 0, z, { yaw });
-  for (let row = 0; row < 3; row++) for (let i = 0; i < Math.floor(w / 0.35); i++) b.box(goods[(i + row) % goods.length], 0.26, 0.32, 0.3, x - w / 2 + 0.2 + i * 0.35, 0.25 + row * 0.62, z + 0.05, { yaw });
+  for (let row = 0; row < 3; row++) for (let i = 0; i < Math.floor(w / 0.35); i++) b.box(goods[(i + row) % goods.length], 0.26, 0.32, 0.3, x - w / 2 + 0.2 + i * 0.35, 0.25 + row * 0.62, z + 0.05, { yaw, solid: false });
 };
-const plant = (b: Builder, x: number, z: number) => b.cylinder(0x78350f, 0.28, 0.5, x, 0, z).dome(0x15803d, 0.55, x, 0.5, z).cone(0x16a34a, 0.35, 1.1, x, 0.7, z, 6);
-const screen = (b: Builder, x: number, z: number, w: number, h: number, y = 1.4, glow = 0x22c55e) => b.box(0x0a0a0a, w + 0.2, h + 0.2, 0.12, x, y - 0.1, z).box(glow, w, h, 0.02, x, y, z + 0.07, { glow: true });
-const stage = (b: Builder, x: number, z: number, w: number, d: number, colour = 0x1f2937) => b.box(colour, w, 0.7, d, x, 0, z).box(0x111827, w, 0.05, d, x, 0.7, z);
-const desk = (b: Builder, x: number, z: number, colour = 0xd6d3d1) => b.box(colour, 1.6, 0.75, 0.75, x, 0, z).box(0x0f172a, 0.6, 0.4, 0.05, x, 0.78, z - 0.2).box(0x38bdf8, 0.54, 0.32, 0.02, x, 0.82, z - 0.17, { glow: true }).box(0x1f2937, 0.5, 0.5, 0.5, x, 0, z + 0.75);
+const plant = (b: Builder, x: number, z: number) => {
+  b.cylinder(0x78350f, 0.28, 0.5, x, 0, z).dome(0x15803d, 0.55, x, 0.5, z).cone(0x16a34a, 0.35, 1.1, x, 0.7, z, 6);
+  b.occupy(x - 0.4, x + 0.4, z - 0.4, z + 0.4, 1.2);
+};
+const screen = (b: Builder, x: number, z: number, w: number, h: number, y = 1.4, glow = 0x22c55e) => b.box(0x0a0a0a, w + 0.2, h + 0.2, 0.12, x, y - 0.1, z, { solid: false }).box(glow, w, h, 0.02, x, y, z + 0.07, { glow: true, solid: false });
+const stage = (b: Builder, x: number, z: number, w: number, d: number, colour = 0x1f2937) => b.box(colour, w, 0.7, d, x, 0, z).box(0x111827, w, 0.05, d, x, 0.7, z, { solid: false });
+const desk = (b: Builder, x: number, z: number, colour = 0xd6d3d1) => {
+  b.box(colour, 1.6, 0.75, 0.75, x, 0, z).box(0x0f172a, 0.6, 0.4, 0.05, x, 0.78, z - 0.2, { solid: false }).box(0x38bdf8, 0.54, 0.32, 0.02, x, 0.82, z - 0.17, { glow: true, solid: false }).box(0x1f2937, 0.5, 0.5, 0.5, x, 0, z + 0.75);
+};
+/** Hospital bed: steel frame, mattress, sheet, pillow, IV stand and monitor cart */
+const hospitalBed = (b: Builder, x: number, z: number, sheet = 0x93c5fd) => {
+  b.box(0xcbd5e1, 1.15, 0.5, 2.3, x, 0, z);
+  b.box(0xf8fafc, 1.05, 0.22, 2.15, x, 0.5, z, { solid: false });
+  b.box(sheet, 1.0, 0.05, 2.05, x, 0.72, z, { solid: false });
+  b.box(0xe0f2fe, 0.7, 0.12, 0.4, x, 0.8, z - 0.85, { solid: false });
+  b.cylinder(0x64748b, 0.14, 0.04, x + 0.72, 0, z - 0.75, { solid: false });
+  b.cylinder(0x94a3b8, 0.028, 1.85, x + 0.72, 0, z - 0.75, { solid: false });
+  b.box(0xe0f2fe, 0.14, 0.24, 0.08, x + 0.82, 1.7, z - 0.75, { solid: false });
+  b.box(0x64748b, 0.38, 0.75, 0.38, x - 0.78, 0, z - 0.55, { solid: false });
+  b.box(0x059669, 0.3, 0.22, 0.04, x - 0.78, 0.9, z - 0.42, { glow: true, solid: false });
+  b.occupy(x - 0.65, x + 0.65, z - 1.15, z + 1.15, 0.85);
+};
+/**
+ * Five-star hotel lobby: reception, chandelier, lounge, pool, lift bay, luggage.
+ * Keep restaurant/buffet near (−6,3) and pool near (6,5) for existing stations.
+ */
+const grandLobby = (b: Builder, accent = 0xb45309, withBar = false) => {
+  counter(b, -5, -6, 7, accent, 0xf8fafc, 1.05);
+  for (const x of [-7, -5, -3]) {
+    b.box(0x0f172a, 0.4, 0.3, 0.05, x, 1.5, -6.3, { solid: false });
+    b.box(0x38bdf8, 0.34, 0.24, 0.02, x, 1.52, -6.25, { glow: true, solid: false });
+  }
+  b.cylinder(0xfacc15, 0.1, 1.3, 0, 3.6, 0).dome(0xfde68a, 1, 0, 3.2, 0, { glow: true });
+  for (const [x, z] of [[-6, 3], [-3, 3], [-6, 6]]) table(b, x, z, 0xf8fafc, 4, accent);
+  b.box(0x0284c7, 7, 0.08, 4.2, 6, 0.01, 5.2, { glow: true });
+  b.occupy(2.5, 9.5, 3.1, 7.3, 0.2);
+  for (const z of [3.2, 7.2]) {
+    b.box(0xf8fafc, 0.7, 0.35, 1.8, 9.2, 0, z);
+    b.box(0xf8fafc, 0.7, 0.55, 0.12, 9.2, 0.35, z - 0.85, { solid: false });
+  }
+  b.box(0x334155, 1.6, 2.4, 0.12, 10.5, 0, -7.5);
+  b.box(0xcbd5e1, 0.7, 2.2, 0.04, 10.15, 0.1, -7.42, { solid: false });
+  b.box(0xcbd5e1, 0.7, 2.2, 0.04, 10.85, 0.1, -7.42, { solid: false });
+  b.box(0x64748b, 0.9, 0.9, 0.55, 2, 0, -7);
+  b.box(0x1e3a8a, 0.7, 0.45, 0.4, 2, 0.9, -7, { solid: false });
+  b.box(0x7c2d12, 2.4, 0.02, 10, 0, 0.01, 2, { solid: false });
+  plant(b, -9.5, -7);
+  plant(b, 9.5, 7);
+  if (withBar) {
+    bottles(b, 6.5, -8.6, 4);
+    counter(b, 6.5, -6.5, 4, 0x1c1917, 0xd4af37);
+  } else {
+    b.box(0x7c2d12, 2.4, 0.6, 2, 6, 0, -6).box(0xf8fafc, 2.2, 0.2, 1.8, 6, 0.6, -6);
+  }
+};
+
+/**
+ * Eko Grand Hotel lobby (VI): reception, concierge, lounge, restaurant, bar, pool deck, lift bay.
+ * Station anchors unchanged: restaurant (−6,3), pool (6,5); Hotel.ts reception/lift at (−5,−6) / (10.78,−7.5).
+ */
+const ekoGrandHotelLobby = (b: Builder, accent = 0xb45309) => {
+  const wall = 0xe7d3b3;
+  const cream = 0xf5f5f4;
+  const marble = 0xf8fafc;
+  const wood = 0x5b3a1e;
+  const gold = 0xd4af37;
+  const walnut = 0x7c2d12;
+
+  for (let x = -10; x <= 10; x += 3.2) {
+    for (let z = -9; z <= 9; z += 3.2) {
+      b.box(0xe2ddd5, 2.9, 0.04, 2.9, x, 4.85, z, { solid: false });
+      b.box(0xfffbeb, 0.35, 0.06, 0.35, x + 1.0, 4.78, z - 1.0, { glow: true, solid: false });
+    }
+  }
+
+  screen(b, 0, -9.1, 8.5, 1.0, 2.5, accent);
+  b.box(gold, 5.2, 0.65, 0.06, 0, 3.15, -9.06, { solid: false });
+  b.box(marble, 4.8, 0.42, 0.03, 0, 3.15, -9.02, { solid: false });
+  b.box(accent, 2.2, 0.5, 0.06, -9, 2.35, -9.06, { solid: false });
+  b.box(0x0284c7, 1.8, 0.4, 0.03, -9, 2.35, -9.02, { glow: true, solid: false });
+
+  for (const wx of [-8, -4, 0, 4, 8]) hospitalWindow(b, wx, -9.05, 2.3);
+  for (const wz of [-5.5, -1.5, 2.5, 6.5]) {
+    hospitalWindow(b, -11.95, wz, 2.1, 1.4, false);
+    hospitalWindow(b, 11.95, wz, 2.1, 1.4, false);
+  }
+
+  b.box(0x334155, 3.4, 2.85, 0.16, 0, 0, 9.88);
+  b.box(0xbae6fd, 1.35, 2.45, 0.04, -1.0, 1.42, 9.93, { glow: true, solid: false });
+  b.box(0xbae6fd, 1.35, 2.45, 0.04, 1.0, 1.42, 9.93, { glow: true, solid: false });
+  b.box(gold, 3.5, 0.12, 0.08, 0, 2.85, 9.92, { solid: false });
+
+  hospitalWallX(b, 0.5, -11, 11, wall, -5.8);
+  hospitalWallZ(b, 3.8, -9.2, 3.5, 0xf3e8d8, 0.2);
+  hospitalWallZ(b, -3.2, 2.5, 8.8, 0xf3e8d8, 5.8);
+  b.box(gold, 0.08, 2.5, 3.2, 3.8, 0, -2.8, { solid: false });
+  b.box(gold, 0.08, 2.5, 3.2, -3.2, 0, 5.5, { solid: false });
+
+  counter(b, -5, -6, 7, accent, marble, 1.08);
+  for (const x of [-7, -5, -3]) {
+    b.box(0x0f172a, 0.42, 0.32, 0.05, x, 1.52, -6.28, { solid: false });
+    b.box(0x38bdf8, 0.36, 0.26, 0.02, x, 1.54, -6.23, { glow: true, solid: false });
+  }
+  for (let i = 0; i < 5; i++) {
+    b.cylinder(0x94a3b8, 0.035, 0.95, -4 + i * 1.1, 0, -3.8, { solid: false });
+    b.box(gold, 1.0, 0.02, 0.02, -4 + i * 1.1, 0.92, -3.8, { solid: false });
+  }
+
+  desk(b, 2.5, -7.4, cream);
+  b.box(gold, 1.3, 0.38, 0.04, 2.5, 1.05, -7.52, { glow: true, solid: false });
+  desk(b, -9.2, -3.2, 0xe7e5e4);
+  b.box(0x1e3a8a, 0.55, 0.45, 0.08, -9.2, 1.05, -3.2, { solid: false });
+
+  b.box(0xc4b5a0, 3.0, 0.012, 18, 0, 0.01, -1.5, { solid: false });
+  b.box(gold, 0.1, 0.015, 18, -1.35, 0.012, -1.5, { solid: false });
+  b.box(gold, 0.1, 0.015, 18, 1.35, 0.012, -1.5, { solid: false });
+  b.box(0x9a3412, 12, 0.02, 4.5, 0, 0.01, 3.5, { solid: false });
+
+  b.cylinder(gold, 0.12, 1.35, 0, 3.65, 0).dome(0xfde68a, 1.1, 0, 3.25, 0, { glow: true });
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    b.cylinder(0xfacc15, 0.035, 0.28, Math.sin(a) * 1.0, 3.35, Math.cos(a) * 1.0, { glow: true, solid: false });
+  }
+
+  const sofa = (x: number, z: number, w: number, col: number) => {
+    b.box(col, w, 0.45, 0.85, x, 0, z);
+    b.box(col, w, 0.55, 0.12, x, 0.45, z - 0.38, { solid: false });
+    b.box(col, 0.12, 0.55, 0.85, x - w / 2 + 0.06, 0.45, z + 0.38, { solid: false });
+    b.box(col, 0.12, 0.55, 0.85, x + w / 2 - 0.06, 0.45, z + 0.38, { solid: false });
+    b.box(0xb45309, w - 0.3, 0.18, 0.7, x, 0.48, z, { solid: false });
+    b.occupy(x - w / 2, x + w / 2, z - 0.48, z + 0.48, 0.58);
+  };
+  sofa(-8, -0.5, 2.6, walnut);
+  sofa(-1.5, 0.8, 2.2, 0x1e3a8a);
+  sofa(1.5, -0.2, 2.4, walnut);
+  for (const [x, z] of [[-6.5, 2.2], [-3.5, 1.8], [3.5, 1.5]] as const) bench(b, x, z, 2.2, wood);
+
+  counter(b, -8, 4.2, 2.8, wood, marble, 0.95);
+  b.box(gold, 1.6, 0.35, 0.04, -8, 1.05, 4.15, { solid: false });
+  for (const [x, z] of [[-7.2, 3.0], [-4.8, 3.2], [-6.5, 5.2], [-4, 5.8], [-8.2, 6.2]] as const) table(b, x, z, marble, 4, wood);
+
+  counter(b, 4.5, -5.2, 4.2, 0x1c1917, gold, 1.05);
+  bottles(b, 4.5, -7.0, 3.8);
+  for (const z of [-5.5, -4.2]) {
+    b.box(0x78350f, 0.75, 0.08, 0.4, 3.2, 0.72, z, { solid: false });
+    b.cylinder(0xfacc15, 0.07, 0.22, 3.2, 0.82, z, { glow: true, solid: false });
+    b.occupy(2.85, 3.55, z - 0.22, z + 0.22, 0.9);
+  }
+
+  b.box(0x0284c7, 7, 0.08, 4.2, 6, 0.01, 5.2, { glow: true });
+  b.occupy(2.5, 9.5, 3.1, 7.3, 0.2);
+  for (const z of [3.4, 7.0]) {
+    b.box(marble, 0.75, 0.38, 1.85, 9.0, 0, z);
+    b.box(marble, 0.75, 0.58, 0.12, 9.0, 0.38, z - 0.88, { solid: false });
+    b.box(accent, 0.55, 0.25, 0.08, 9.0, 0.55, z - 0.82, { solid: false });
+  }
+  b.box(0x0ea5e9, 1.1, 0.55, 0.45, 7.5, 0, 6.5);
+  for (let i = 0; i < 4; i++) b.box([0xf8fafc, 0x38bdf8, 0xfacc15, 0xf8fafc][i], 0.35, 0.22, 0.2, 7.5, 0.38 + i * 0.28, 6.35, { solid: false });
+
+  b.box(0x334155, 1.7, 2.55, 0.14, 10.5, 0, -7.5);
+  b.box(0xcbd5e1, 0.72, 2.25, 0.04, 10.15, 0.1, -7.42, { solid: false });
+  b.box(0xcbd5e1, 0.72, 2.25, 0.04, 10.85, 0.1, -7.42, { solid: false });
+  b.box(walnut, 0.85, 2.2, 0.1, 9.0, 0, -7.5, { solid: false });
+  b.box(gold, 0.65, 0.35, 0.04, 9.0, 1.8, -7.44, { glow: true, solid: false });
+
+  b.box(0x64748b, 0.95, 0.92, 0.6, 2, 0, -7.2);
+  b.box(0x1e3a8a, 0.72, 0.48, 0.42, 2, 0.95, -7.2, { solid: false });
+  b.box(0x64748b, 0.55, 0.85, 0.55, -1.5, 0, -7.2);
+  for (const dx of [-0.22, 0.22]) b.cylinder(0x1f2937, 0.16, 0.06, 2 + dx, 0.45, -6.85, { solid: false });
+
+  for (const [x, z, col] of [[-10, 6.5, 0x7c2d12], [10, -6, 0x5b3a1e], [-9.5, -7.5, accent], [9.5, 7, 0x78350f]] as const) {
+    plant(b, x, z);
+    b.box(col, 0.65, 1.1, 0.06, x, 1.1, z, { solid: false });
+  }
+  for (const [x, z] of [[-7, 7.5], [5, 7.8], [0, 7.2]] as const) bench(b, x, z, 2.4, 0x57534e);
+  b.box(0x0f172a, 1.4, 1.6, 0.08, 6.5, 0.8, -8.2, { solid: false });
+  b.box(gold, 1.1, 1.3, 0.04, 6.5, 0.8, -8.16, { glow: true, solid: false });
+  b.box(0x44403c, 0.22, 0.35, 0.25, -6, 0.92, -2.5, { solid: false });
+  b.box(0x44403c, 0.22, 0.35, 0.25, 5.5, 0.92, 2.8, { solid: false });
+};
+
+/**
+ * High-street bank hall: teller glass, queue, ATM bay, manager desk, security gate.
+ * Station anchors stay near (0,-5) teller, (±6.9,6.6) ATM, (6,3) officer.
+ */
+const branchBank = (b: Builder, accent = 0x1e3a8a, atmLeft = true) => {
+  counter(b, 0, -5, 9, accent, 0xf8fafc, 1.1);
+  b.box(0xbfe3ff, 9, 1.45, 0.04, 0, 1.85, -5);
+  for (const x of [-3, 0, 3]) {
+    b.box(0xcbd5e1, 0.55, 0.06, 0.4, x, 1.12, -4.55, { solid: false });
+    b.box(0x0f172a, 0.42, 0.34, 0.05, x, 1.55, -5.35, { solid: false });
+    b.box(0x38bdf8, 0.36, 0.28, 0.02, x, 1.57, -5.3, { glow: true, solid: false });
+  }
+  for (let i = 0; i < 5; i++) b.cylinder(0x94a3b8, 0.04, 0.95, -3 + i * 1.4, 0, -1.5, { solid: false });
+  b.box(0xcbd5e1, 5.6, 0.02, 0.02, -0.2, 0.9, -1.5, { solid: false });
+  for (let i = 0; i < 4; i++) {
+    b.box(accent, 0.5, 0.45, 0.5, -3 + i, 0, 2);
+    b.box(accent, 0.5, 0.55, 0.08, -3 + i, 0.45, 1.75, { solid: false });
+  }
+  const atmXs = atmLeft ? [-7.5, -6.3] : [6.3, 7.5];
+  for (const x of atmXs) {
+    b.box(0x0284c7, 1.0, 2.2, 0.7, x, 0, 6.6);
+    b.box(0x38bdf8, 0.55, 0.42, 0.03, x, 1.45, 6.28, { glow: true });
+    b.box(0xcbd5e1, 0.4, 0.06, 0.05, x, 1.05, 6.28, { solid: false });
+    b.occupy(x - 0.55, x + 0.55, 6.2, 7.0, 2.2);
+  }
+  desk(b, 6, 3);
+  b.box(0x334155, 0.15, 2.4, 0.6, 3.5, 0, 7.2, { solid: false });
+  b.box(0x334155, 0.15, 2.4, 0.6, 5.1, 0, 7.2, { solid: false });
+  b.box(0x334155, 1.8, 0.25, 0.6, 4.3, 2.4, 7.2, { solid: false });
+  screen(b, 0, -7.6, 4, 0.9, 2.6, accent);
+  plant(b, 8.5, -6);
+  plant(b, 8.5, 6);
+};
+
+/**
+ * Teaching-hospital floor shared by LASUTH, National Hospital Abuja and UPTH.
+ * Door at +z: waiting benches → triage → consult (left) / pharmacy (right) → ward beds.
+ */
+const teachingHospital = (b: Builder, accent = 0xdc2626) => {
+  for (let i = 0; i < 3; i++) bench(b, -5 + i * 3.5, 7.2, 2.8, 0x3b82f6);
+  screen(b, 0, 8.6, 3.2, 0.9, 2.2, accent);
+  counter(b, -1, -6.2, 4.5, 0xf8fafc, 0x93c5fd);
+  b.box(0xfef3c7, 0.35, 0.02, 0.45, -3.5, 1.12, -6.2, { solid: false });
+  desk(b, -7.5, -2.5, 0xd6d3d1);
+  b.box(0x3b82f6, 0.5, 0.5, 0.5, -7.5, 0, -1.2);
+  b.occupy(-7.75, -7.25, -1.45, -0.95, 0.55);
+  shelf(b, 7.5, -7, 4, [0xf8fafc, 0x22c55e, accent, 0xfacc15]);
+  counter(b, 7, -4.5, 3.6, 0x16a34a, 0xf8fafc);
+  b.box(accent, 0.9, 0.9, 0.06, 9.2, 1.6, -7.5, { solid: false });
+  b.box(0xf8fafc, 0.28, 0.9, 0.07, 9.2, 1.6, -7.5, { solid: false });
+  b.box(0xf8fafc, 0.9, 0.28, 0.07, 9.2, 1.6, -7.5, { solid: false });
+  for (let i = 0; i < 3; i++) hospitalBed(b, -6 + i * 3, 3.8, 0x93c5fd);
+  for (const x of [-4.5, -1.5]) {
+    b.cylinder(0x94a3b8, 0.03, 2.4, x, 0, 2.2, { solid: false });
+    b.box(0xe0f2fe, 1.6, 1.4, 0.04, x, 1.0, 2.2, { solid: false });
+  }
+  plant(b, 9, 7);
+};
+
+/** Partial wall: runs along z at fixed x, with an optional door gap centred at `gapAt` (metres, room-local). */
+const hospitalWallZ = (b: Builder, x: number, z0: number, z1: number, colour = 0xcbd5e1, gapAt?: number, gapW = 1.4) => {
+  const lo = Math.min(z0, z1);
+  const hi = Math.max(z0, z1);
+  if (gapAt === undefined) {
+    b.box(colour, 0.14, 2.55, hi - lo, x, 0, (lo + hi) / 2);
+    b.box(0x94a3b8, 0.16, 0.08, hi - lo, x, 2.55, (lo + hi) / 2, { solid: false });
+    b.occupy(x - 0.1, x + 0.1, lo, hi, 2.6);
+    return;
+  }
+  const g0 = gapAt - gapW / 2;
+  const g1 = gapAt + gapW / 2;
+  if (g0 > lo + 0.2) {
+    const seg = g0 - lo;
+    b.box(colour, 0.14, 2.55, seg, x, 0, lo + seg / 2);
+    b.box(0x94a3b8, 0.16, 0.08, seg, x, 2.55, lo + seg / 2, { solid: false });
+    b.occupy(x - 0.1, x + 0.1, lo, g0, 2.6);
+  }
+  if (hi > g1 + 0.2) {
+    const seg = hi - g1;
+    b.box(colour, 0.14, 2.55, seg, x, 0, g1 + seg / 2);
+    b.box(0x94a3b8, 0.16, 0.08, seg, x, 2.55, g1 + seg / 2, { solid: false });
+    b.occupy(x - 0.1, x + 0.1, g1, hi, 2.6);
+  }
+};
+
+/** Wall strip along x at fixed z (optional door gap). */
+const hospitalWallX = (b: Builder, z: number, x0: number, x1: number, colour = 0xcbd5e1, gapAt?: number, gapW = 1.6) => {
+  const lo = Math.min(x0, x1);
+  const hi = Math.max(x0, x1);
+  const place = (a: number, seg: number) => {
+    b.box(colour, seg, 2.55, 0.14, a + seg / 2, 0, z);
+    b.box(0x94a3b8, seg, 0.08, 0.16, a + seg / 2, 2.55, z, { solid: false });
+    b.occupy(a, a + seg, z - 0.1, z + 0.1, 2.6);
+  };
+  if (gapAt === undefined) { place(lo, hi - lo); return; }
+  const g0 = gapAt - gapW / 2;
+  const g1 = gapAt + gapW / 2;
+  if (g0 > lo + 0.2) place(lo, g0 - lo);
+  if (hi > g1 + 0.2) place(g1, hi - g1);
+};
+
+/** Window bay on a wall plane at (x,z), facing +z when `alongX` is true. */
+const hospitalWindow = (b: Builder, x: number, z: number, w: number, h = 1.35, alongX = true) => {
+  const y = 1.55;
+  if (alongX) {
+    b.box(0x64748b, w, h, 0.1, x, y, z, { solid: false });
+    b.box(0xbae6fd, w - 0.22, h - 0.28, 0.03, x, y, z + 0.06, { glow: true, solid: false });
+    for (let i = 0; i < 4; i++) b.box(0x475569, 0.04, h - 0.2, 0.04, x - w / 2 + 0.12 + i * ((w - 0.24) / 3), y, z + 0.05, { solid: false });
+  } else {
+    b.box(0x64748b, 0.1, h, w, x, y, z, { solid: false });
+    b.box(0xbae6fd, 0.03, h - 0.28, w - 0.22, x + 0.06, y, z, { glow: true, solid: false });
+    for (let i = 0; i < 4; i++) b.box(0x475569, 0.04, h - 0.2, 0.04, x + 0.05, y, z - w / 2 + 0.12 + i * ((w - 0.24) / 3), { solid: false });
+  }
+};
+
+/**
+ * Eko Commercial Bank, Allen Avenue: security gate, queue rails, teller glass, waiting/forms, manager suite, ATM bay.
+ * Station anchors: teller (−2,−5), ATM (−6.9,6.6), officer (6,3).
+ */
+const allenBankBranchFloor = (b: Builder, accent = 0x1e3a8a, atmLeft = true) => {
+  const wall = 0xe2e8f0;
+  const navy = 0x1e3a8a;
+  const granite = 0xf8fafc;
+  const gold = 0xd4af37;
+  const charcoal = 0x334155;
+
+  for (let x = -9; x <= 9; x += 2.5) {
+    for (let z = -7; z <= 7; z += 2.5) {
+      b.box(0xe2e8f0, 2.2, 0.04, 2.2, x, 4.72, z, { solid: false });
+      b.box(0xf0f9ff, 0.38, 0.06, 0.28, x + 0.65, 4.66, z - 0.65, { glow: true, solid: false });
+    }
+  }
+
+  screen(b, 0, -7.55, 7.2, 0.95, 2.0, accent);
+  b.box(gold, 4.8, 0.55, 0.06, 0, 2.55, -7.52, { solid: false });
+  b.box(0x0284c7, 4.2, 0.38, 0.03, 0, 2.55, -7.48, { glow: true, solid: false });
+  b.box(accent, 2.4, 0.48, 0.06, -8.2, 2.35, -7.52, { solid: false });
+  b.box(granite, 2.0, 0.32, 0.03, -8.2, 2.35, -7.48, { solid: false });
+
+  for (const wx of [-7.5, -3.5, 0.5, 4.5, 8]) hospitalWindow(b, wx, -7.5, 2.0);
+  for (const wz of [-4.5, -0.5, 3.5, 6.5]) {
+    hospitalWindow(b, -9.85, wz, 1.85, 1.25, false);
+    hospitalWindow(b, 9.85, wz, 1.85, 1.25, false);
+  }
+
+  // Security gate at entrance (+z)
+  for (const x of [-2.1, 2.1]) {
+    b.box(charcoal, 0.14, 2.35, 0.55, x, 0, 7.65, { solid: false });
+    b.box(0x64748b, 0.08, 2.1, 0.5, x, 0.12, 7.68, { solid: false });
+  }
+  b.box(charcoal, 4.4, 0.22, 0.55, 0, 2.35, 7.65, { solid: false });
+  b.box(0x16a34a, 0.55, 0.35, 0.05, 0, 2.55, 7.62, { glow: true, solid: false });
+  b.cylinder(0x94a3b8, 0.32, 0.95, -3.4, 0, 6.9, { sides: 12 });
+  b.cylinder(0xfacc15, 0.12, 0.15, -3.4, 0.95, 6.9, { glow: true, solid: false });
+  b.box(0x1f2937, 0.22, 0.35, 0.28, -3.4, 0.92, 6.75, { solid: false });
+
+  hospitalWallZ(b, 4.8, -7.5, 2.8, wall, 6.0);
+  hospitalWallZ(b, -4.2, 3.2, 7.2, 0xf1f5f9, 5.0);
+  hospitalWallX(b, 2.5, -10, 10, wall, 5.5);
+
+  // Queue rails → teller row (station −2,−5)
+  counter(b, -2, -5, 10, accent, granite, 1.05);
+  b.box(0xbfe3ff, 10, 1.42, 0.04, -2, 1.82, -5);
+  for (const x of [-5.5, -2, 1.5, 4.5]) {
+    b.box(0xcbd5e1, 0.55, 0.06, 0.38, x, 1.1, -4.55, { solid: false });
+    b.box(0x0f172a, 0.42, 0.34, 0.05, x, 1.52, -5.28, { solid: false });
+    b.box(0x38bdf8, 0.36, 0.28, 0.02, x, 1.54, -5.22, { glow: true, solid: false });
+  }
+  for (let i = 0; i < 6; i++) {
+    b.cylinder(0x94a3b8, 0.04, 0.92, -4.5 + i * 1.1, 0, -1.8, { solid: false });
+    b.box(gold, 0.02, 0.9, 0.02, -4.5 + i * 1.1, 0.92, -1.8, { solid: false });
+  }
+  b.box(0xcbd5e1, 6.5, 0.02, 0.02, -2.5, 0.9, -1.8, { solid: false });
+  for (let i = 0; i < 5; i++) {
+    b.box(accent, 0.48, 0.42, 0.48, -4.8 + i * 1.1, 0, 1.5);
+    b.box(navy, 0.48, 0.52, 0.08, -4.8 + i * 1.1, 0.42, 1.72, { solid: false });
+  }
+
+  // Forms desk + waiting gallery
+  desk(b, -8.2, 2.2, 0xe7e5e4);
+  b.box(0xf8fafc, 0.45, 0.06, 0.32, -8.2, 0.78, 2.05, { solid: false });
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    b.box(0xfef3c7, 0.28, 0.02, 0.2, -8.8 + c * 0.32, 0.36 + r * 0.12, 2.38, { solid: false });
+  }
+  for (let i = 0; i < 4; i++) bench(b, -7 + i * 2.6, 6.5, 2.4, [0x1e3a8a, 0x2563eb, 0x1e40af, 0x1d4ed8][i]);
+  bench(b, 7.5, 5.8, 2.5, charcoal);
+  screen(b, 2.5, 7.8, 3.2, 0.85, 1.95, accent);
+  b.box(0xdc2626, 0.28, 0.28, 0.28, 8.5, 2.65, -7.2, { solid: false });
+  b.box(0x111827, 0.12, 0.12, 0.5, 8.5, 2.9, -6.95, { solid: false });
+  b.box(0xdc2626, 0.22, 0.22, 0.22, -9.0, 2.55, 0.5, { solid: false });
+  b.box(0x111827, 0.1, 0.1, 0.45, -9.0, 2.78, 0.72, { solid: false });
+
+  // Manager suite (officer station 6,3)
+  desk(b, 6, 3);
+  b.box(gold, 1.35, 0.35, 0.04, 6, 1.05, 3.38, { solid: false });
+  b.box(charcoal, 0.14, 2.45, 3.8, 3.2, 0, 4.2);
+  b.box(0xbae6fd, 0.04, 2.15, 3.4, 2.95, 0.15, 4.2, { glow: true, solid: false });
+  b.box(wall, 3.6, 2.45, 0.14, 7.5, 0, 2.5);
+  b.box(accent, 1.1, 0.45, 0.06, 7.8, 2.0, 2.44, { solid: false });
+  shelf(b, 8.5, 4.8, 2.0, [0x1e3a8a, 0xf8fafc, gold, 0x16a34a]);
+  b.box(0x1f2937, 0.65, 0.5, 0.55, 5.2, 0, 5.5);
+  b.box(0x1f2937, 0.65, 0.55, 0.1, 5.2, 0.5, 5.35, { solid: false });
+  b.occupy(4.88, 5.52, 5.25, 5.75, 0.55);
+
+  // ATM bay (station −6.9,6.6)
+  const atmXs = atmLeft ? [-7.5, -6.3] : [6.3, 7.5];
+  for (const x of atmXs) {
+    b.box(0x0284c7, 1.05, 2.15, 0.72, x, 0, 6.55);
+    b.box(0x38bdf8, 0.52, 0.4, 0.03, x, 1.42, 6.22, { glow: true });
+    b.box(0xcbd5e1, 0.38, 0.06, 0.05, x, 1.02, 6.22, { solid: false });
+    b.occupy(x - 0.55, x + 0.55, 6.15, 7.0, 2.2);
+  }
+  b.box(charcoal, 0.12, 2.2, 2.8, atmLeft ? -8.35 : 8.35, 0, 6.5, { solid: false });
+  b.box(0x64748b, 0.04, 2.0, 2.6, atmLeft ? -8.28 : 8.28, 0.1, 6.5, { solid: false });
+  screen(b, atmLeft ? -6.9 : 6.9, 7.5, 2.2, 0.75, 1.85, accent);
+
+  // Brochure shelves, water cooler, plants
+  shelf(b, 9.2, -5.5, 2.2, [0xf8fafc, accent, 0x16a34a, gold]);
+  b.cylinder(0x1f2937, 0.22, 1.05, 8.8, 0, -6.5);
+  b.cylinder(0x38bdf8, 0.14, 0.22, 8.8, 1.05, -6.5, { glow: true, solid: false });
+  b.box(0xd6d3d1, 0.55, 0.45, 0.35, -9.2, 0, -4.5);
+  for (let r = 0; r < 2; r++) b.box(0xf8fafc, 0.42, 0.02, 0.28, -9.2, 0.38 + r * 0.32, -4.62, { solid: false });
+  for (const [x, z, col] of [[-9, 6.8, 0x15803d], [9.5, -2, accent], [3.5, -7, charcoal], [-5, 4.5, gold]] as const) {
+    plant(b, x, z);
+    b.box(col, 0.55, 1.0, 0.06, x, 1.05, z, { solid: false });
+  }
+  b.box(0x64748b, 0.95, 0.92, 0.6, 1.5, 0, -6.8);
+  b.box(navy, 0.7, 0.48, 0.42, 1.5, 0.92, -6.8, { solid: false });
+  b.box(charcoal, 0.15, 2.4, 0.6, 3.5, 0, 7.2, { solid: false });
+  b.box(charcoal, 0.15, 2.4, 0.6, 5.1, 0, 7.2, { solid: false });
+  b.box(charcoal, 1.8, 0.25, 0.6, 4.3, 2.4, 7.2, { solid: false });
+};
+
+/**
+ * LASUTH outpatient floor: reception, waiting, triage/A&E, consult, pharmacy, ward — dense teaching-hospital kit.
+ * Station anchors: clinic (−7.5,−2.5), pharmacy (7,−4.5), ward (−3,3.8); triage reception (−1,−6.2).
+ */
+const lasuthHospitalFloor = (b: Builder, accent = 0xdc2626) => {
+  const wall = 0xcbd5e1;
+  const trim = 0x94a3b8;
+  const teal = 0x0d9488;
+  const navy = 0x1e3a8a;
+
+  // --- Ceilings: grid tiles + fluorescent strips (dressing only) ---
+  for (let x = -10; x <= 10; x += 2.6) {
+    for (let z = -9; z <= 9; z += 2.6) {
+      b.box(0xe2e8f0, 2.4, 0.04, 2.4, x, 4.78, z, { solid: false });
+      b.box(0xf0fdf4, 1.6, 0.07, 0.28, x, 4.7, z, { glow: true, solid: false });
+    }
+  }
+
+  // --- Signage on back wall ---
+  screen(b, 0, -9.15, 8.5, 1.05, 2.0, accent);
+  b.box(accent, 3.6, 0.55, 0.06, -8, 2.45, -9.12, { solid: false });
+  b.box(0xf8fafc, 3.2, 0.38, 0.03, -8, 2.45, -9.08, { solid: false });
+  b.box(navy, 2.8, 0.5, 0.06, 8, 2.4, -9.12, { solid: false });
+  b.box(0xfacc15, 2.4, 0.35, 0.03, 8, 2.4, -9.08, { glow: true, solid: false });
+
+  // Windows along back and side walls
+  for (const wx of [-7.5, -3.5, 0.5, 4.5, 8.5]) hospitalWindow(b, wx, -9.05, 2.2);
+  for (const wz of [-6, -2, 2, 6]) { hospitalWindow(b, -10.95, wz, 2.0, 1.35, false); hospitalWindow(b, 10.95, wz, 2.0, 1.35, false); }
+
+  // --- Zone partitions ---
+  hospitalWallZ(b, -5.2, -9.2, 2.5, wall, -2.4);
+  hospitalWallZ(b, 5.2, -9.2, 2.2, wall, -3.8);
+  hospitalWallX(b, 0.8, -10.5, 10.5, wall, -0.2);
+  hospitalWallZ(b, 2.8, 0.5, 8.5, wall, 4.2);
+  b.box(trim, 3.2, 2.55, 0.14, 0, 0, 4.5);
+  b.box(0x16a34a, 0.9, 0.35, 0.06, 0, 2.1, 4.44, { solid: false });
+  b.occupy(-1.6, 1.6, 4.35, 4.55, 2.6);
+
+  // --- Reception & triage (south wing, −z) ---
+  counter(b, -1, -6.2, 4.5, navy, 0xf8fafc, 1.05);
+  counter(b, 3.2, -6.5, 3.2, accent, 0xfef3c7, 0.95);
+  b.box(0xfef3c7, 0.35, 0.02, 0.45, -3.5, 1.12, -6.2, { solid: false });
+  b.box(0xdc2626, 1.1, 0.9, 0.06, 1.2, 1.7, -6.35, { glow: true, solid: false });
+  for (let i = 0; i < 4; i++) {
+    b.cylinder(0x64748b, 0.03, 0.95, -2 + i * 1.3, 0, -4.2, { solid: false });
+    b.box(0xe0f2fe, 1.15, 0.02, 0.02, -2 + i * 1.3, 0.92, -4.2, { solid: false });
+  }
+  desk(b, -7.5, -7.2, 0xd6d3d1);
+  b.box(0x3b82f6, 0.55, 0.55, 0.55, -7.5, 0, -6.4);
+  b.occupy(-7.75, -7.25, -6.65, -6.15, 0.55);
+
+  // --- A&E bay (centre-back) ---
+  b.box(accent, 4.2, 0.08, 3.6, -0.5, 0.01, -8.2, { solid: false });
+  for (const [dx, dz] of [[-1.4, -7.8], [0.6, -7.6], [-0.4, -8.4]] as const) {
+    hospitalBed(b, -0.5 + dx, dz, 0xe0f2fe);
+  }
+  b.box(0x64748b, 1.2, 0.85, 0.6, 2.2, 0, -8.3);
+  for (let i = 0; i < 3; i++) b.box([0xdc2626, 0xf8fafc, 0x16a34a][i], 0.22, 0.22, 0.22, 2.0 + i * 0.28, 0.9, -8.0 + i * 0.15, { solid: false });
+
+  // --- Consulting room (left) — clinic station desk ---
+  desk(b, -7.5, -2.5, 0xe7e5e4);
+  b.box(0xf8fafc, 1.9, 0.72, 0.85, -8.8, 0, -1.2);
+  b.box(0x3b82f6, 0.5, 0.5, 0.5, -9.4, 0, -0.6);
+  b.occupy(-9.65, -9.15, -0.85, -0.35, 0.55);
+  b.box(0xf8fafc, 2.0, 0.22, 0.05, -8.8, 0.72, -1.2, { solid: false });
+  b.cylinder(0x94a3b8, 0.04, 2.1, -6.5, 0, -0.4, { solid: false });
+  b.box(0xe0f2fe, 1.4, 1.2, 0.05, -6.5, 0.95, -0.4, { solid: false });
+  shelf(b, -9.5, -4.8, 2.2, [0xf8fafc, accent, 0x2563eb, 0x16a34a]);
+  screen(b, -8.2, -5.25, 2.0, 0.85, 1.35, navy);
+  for (const x of [-9.2, -7.8]) {
+    b.box(0x1f2937, 0.55, 0.5, 0.55, x, 0, 0.8);
+    b.box(0x1f2937, 0.55, 0.55, 0.1, x, 0.5, 0.55, { solid: false });
+    b.occupy(x - 0.28, x + 0.28, 0.55, 1.05, 0.55);
+  }
+
+  // --- Pharmacy (right) — station counter ---
+  counter(b, 7, -4.5, 3.6, 0x16a34a, 0xf8fafc);
+  shelf(b, 7.5, -7, 4, [0xf8fafc, 0x22c55e, accent, 0xfacc15]);
+  shelf(b, 9.2, -2.5, 2.4, [0x2563eb, 0xdc2626, 0xf8fafc]);
+  b.box(0xe2e8f0, 1.3, 1.85, 0.7, 9.5, 0, -4.8);
+  b.box(0x7dd3fc, 1.1, 1.45, 0.04, 9.5, 0.2, -4.42, { glow: true });
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 5; i++) {
+    b.cylinder([0xfacc15, 0x16a34a, 0xdc2626, 0x7c2d12, 0xe0f2fe][i], 0.07, 0.28, 6.2 + i * 0.32, 1.08 + r * 0.55, -2.2, { sides: 8, solid: false });
+  }
+  b.box(accent, 0.9, 0.9, 0.06, 9.2, 1.6, -7.5, { solid: false });
+  b.box(0xf8fafc, 0.28, 0.9, 0.07, 9.2, 1.6, -7.5, { solid: false });
+  b.box(0xf8fafc, 0.9, 0.28, 0.07, 9.2, 1.6, -7.5, { solid: false });
+
+  // --- Ward (forward, −x) ---
+  for (let i = 0; i < 4; i++) hospitalBed(b, -7.5 + i * 2.4, 3.8, [0x93c5fd, 0xbae6fd, 0xa5f3fc, 0x7dd3fc][i]);
+  hospitalBed(b, -5.5, 6.2, 0x93c5fd);
+  hospitalBed(b, -2.5, 6.2, 0xbae6fd);
+  counter(b, 6.5, 5.5, 3.2, teal, 0xf8fafc, 0.85);
+  b.box(0x059669, 0.55, 0.35, 0.05, 6.5, 1.0, 5.35, { glow: true, solid: false });
+  for (const x of [-4.5, -1.5]) {
+    b.cylinder(0x94a3b8, 0.03, 2.4, x, 0, 5.5, { solid: false });
+    b.box([0x0d9488, accent][x < 0 ? 0 : 1], 1.6, 1.4, 0.04, x, 1.0, 5.5, { solid: false });
+  }
+  b.box(0x64748b, 0.9, 0.55, 0.45, -9.0, 0, 5.2);
+  for (let i = 0; i < 4; i++) b.box(0xf8fafc, 0.35, 0.25, 0.2, -9.0, 0.35 + i * 0.3, 5.05, { solid: false });
+
+  // --- Waiting gallery (+z, entrance side) ---
+  for (let i = 0; i < 5; i++) bench(b, -6 + i * 2.8, 7.2, 2.6, [0x3b82f6, 0x2563eb, 0x1d4ed8, 0x3b82f6, 0x2563eb][i]);
+  bench(b, -7.5, 5.2, 2.4, 0x64748b);
+  bench(b, 7.5, 5.8, 2.6, 0x64748b);
+  screen(b, 0, 8.35, 3.8, 0.95, 2.1, accent);
+  b.cylinder(0xe0f2fe, 0.28, 1.15, 8.5, 0, 7.5, { sides: 12 });
+  b.cylinder(0x38bdf8, 0.11, 0.14, 8.5, 1.15, 7.5, { glow: true, solid: false });
+  b.box(0xd6d3d1, 0.65, 0.45, 0.35, -8.5, 0, 7.0);
+  for (let r = 0; r < 2; r++) b.box(0xf8fafc, 0.5, 0.02, 0.28, -8.5, 0.38 + r * 0.32, 6.92, { solid: false });
+  plant(b, 9, 7);
+  plant(b, -9.5, 2.5);
+
+  // Wheelchairs, trolley, bins — corridor clutter
+  for (const [wx, wz] of [[1.5, -1.5], [4, 1.8], [-2.5, -3.5], [3, 3.2]] as const) {
+    b.box(0x475569, 0.55, 0.85, 0.7, wx, 0, wz);
+    for (const dx of [-0.22, 0.22]) b.cylinder(0x1f2937, 0.18, 0.06, wx + dx, 0.42, wz + 0.28, { solid: false });
+    b.occupy(wx - 0.35, wx + 0.35, wz - 0.4, wz + 0.4, 0.9);
+  }
+  b.box(0x15803d, 0.42, 0.65, 0.42, 5.8, 0, 0.2);
+  b.box(0x166534, 0.38, 0.08, 0.38, 5.8, 0.65, 0.2, { solid: false });
+};
 const bottles = (b: Builder, x: number, z: number, w: number) => {
   b.box(0x1c1917, w, 2.4, 0.4, x, 0, z);
-  for (let r = 0; r < 3; r++) for (let i = 0; i < Math.floor(w / 0.25); i++) b.cylinder([0xfacc15, 0x16a34a, 0xdc2626, 0x7c2d12, 0xe0f2fe][(i + r) % 5], 0.06, 0.32, x - w / 2 + 0.15 + i * 0.25, 0.55 + r * 0.6, z + 0.1, { glow: r === 1, sides: 8 });
+  for (let r = 0; r < 3; r++) for (let i = 0; i < Math.floor(w / 0.25); i++) b.cylinder([0xfacc15, 0x16a34a, 0xdc2626, 0x7c2d12, 0xe0f2fe][(i + r) % 5], 0.06, 0.32, x - w / 2 + 0.15 + i * 0.25, 0.55 + r * 0.6, z + 0.1, { glow: r === 1, sides: 8, solid: false });
 };
 const pile = (b: Builder, x: number, z: number, colour: number, r = 0.35) => b.dome(colour, r, x, 0.92, z);
-const sack = (b: Builder, x: number, z: number, colour = 0xf5f5f4) => b.cylinder(colour, 0.32, 0.75, x, 0, z, { topRadius: 0.24, sides: 10 }).box(0x166534, 0.4, 0.18, 0.02, x, 0.35, z + 0.3);
+const sack = (b: Builder, x: number, z: number, colour = 0xf5f5f4) => b.cylinder(colour, 0.32, 0.75, x, 0, z, { topRadius: 0.24, sides: 10 }).box(0x166534, 0.4, 0.18, 0.02, x, 0.35, z + 0.3, { solid: false });
 /** A market stall: a table under a canopy, with what it sells piled on it */
 const stall = (b: Builder, x: number, z: number, canopy: number, goods: (b: Builder, x: number, z: number) => void) => {
   b.box(0x92400e, 2.4, 0.9, 1.1, x, 0, z);
-  for (const dx of [-1.15, 1.15]) for (const dz of [-0.5, 0.5]) b.cylinder(0x3f3f46, 0.035, 2.4, x + dx, 0, z + dz);
-  b.box(canopy, 2.8, 0.06, 1.6, x, 2.4, z, { pitch: 0.12 });
+  for (const dx of [-1.15, 1.15]) for (const dz of [-0.5, 0.5]) b.cylinder(0x3f3f46, 0.035, 2.4, x + dx, 0, z + dz, { solid: false });
+  b.box(canopy, 2.8, 0.06, 1.6, x, 2.4, z, { pitch: 0.12, solid: false });
+  b.occupy(x - 1.2, x + 1.2, z - 0.55, z + 0.55, 0.95);
   goods(b, x, z);
 };
+/** Shared market atmosphere: hanging bulbs, aisle baskets, tarps over the walk */
+const marketAtmosphere = (b: Builder) => {
+  for (let i = 0; i < 8; i++) {
+    const x = -10 + i * 2.8;
+    b.cylinder(0x57534e, 0.02, 0.6, x, 4.2, -2, { solid: false });
+    b.cylinder(0xfde68a, 0.08, 0.12, x, 3.7, -2, { glow: true, solid: false });
+  }
+  for (let i = 0; i < 6; i++) b.cylinder(0xa16207, 0.32, 0.32, -8 + i * 1.4, 0, 7.5, { sides: 10 }).dome([0xdc2626, 0xf97316, 0xfacc15][i % 3], 0.28, -8 + i * 1.4, 0.32, 7.5);
+  b.box(0xb45309, 18, 0.04, 3.2, 0, 4.6, 1.5, { pitch: 0.08, solid: false });
+};
+
+/**
+ * Balogun Market — semi-covered Lagos island stalls: tarp perimeter, trade rows, goat pen, cash/weigh bay.
+ * Station anchors unchanged on stall grid (−11..7, −8 / −1) and goats (10,8).
+ */
+const balogunMarketFloor = (b: Builder, accent = 0xb45309) => {
+  const wall = 0xd6c7a1;
+  const tarp = 0xb45309;
+
+  for (let x = -14; x <= 14; x += 3.2) {
+    for (let z = -11; z <= 11; z += 3.2) {
+      b.box(0x78716c, 3.0, 0.05, 3.0, x, 5.82, z, { solid: false });
+      b.box(0x57534e, 2.7, 0.03, 0.12, x, 5.88, z, { solid: false });
+    }
+  }
+  for (const [x, z] of [[-11, -4], [-4, 2], [3, -6], [10, 3], [-7, 8], [8, -2]] as const) {
+    b.cylinder(0x52525b, 0.06, 0.5, x, 5.35, z, { solid: false });
+    b.cylinder(0xfde68a, 0.14, 0.16, x, 4.95, z, { glow: true, solid: false });
+  }
+  for (const z of [-9, -3, 3, 9]) {
+    b.box(tarp, 0.1, 3.8, 4.8, -15.2, 1.6, z, { solid: false });
+    b.box(tarp, 0.1, 3.8, 4.8, 15.2, 1.6, z, { solid: false });
+  }
+  for (const x of [-12, -6, 0, 6, 12]) {
+    b.box(tarp, 4.5, 0.06, 0.1, x, 4.2, -12.2, { pitch: 0.1, solid: false });
+  }
+  screen(b, 0, -12.05, 11, 1.15, 2.45, accent);
+  b.box(accent, 4.2, 0.6, 0.08, -11, 2.55, -12.02, { solid: false });
+  b.box(0xf8fafc, 3.8, 0.42, 0.04, -11, 2.55, -11.98, { solid: false });
+  for (const wx of [-10, -6, -2, 2, 6, 10]) hospitalWindow(b, wx, -11.95, 2.1);
+  hospitalWallX(b, 3.5, -14, 14, wall, -0.5);
+  hospitalWallZ(b, -4, -12, 1.5, wall, 4.5);
+  b.box(0xa16207, 0.12, 2.4, 8.5, 4.5, 0, 3.2, { solid: false });
+
+  counter(b, -13, 10, 2.8, 0x78350f, 0xf8fafc, 0.85);
+  b.box(0xfacc15, 0.7, 0.45, 0.06, -13, 1.1, 9.85, { solid: false });
+  b.box(0x15803d, 0.65, 0.85, 0.55, 12, 0, 10);
+  b.box(0x166534, 0.6, 0.1, 0.5, 12, 0.85, 10, { solid: false });
+  for (let i = 0; i < 4; i++) sack(b, 11.5, -11 + i * 1.1, [0xfef3c7, 0xe7e5e4, 0xd6d3d1, 0xf5f5f4][i]);
+  for (let i = 0; i < 5; i++) {
+    b.cylinder(0x94a3b8, 0.03, 0.88, -4 + i * 2, 0, 8.8, { solid: false });
+    b.box(0xdc2626, 0.45, 0.32, 0.32, -4 + i * 2, 0.9, 8.8, { solid: false });
+  }
+
+  stall(b, -11, -8, 0xdc2626, (b, x, z) => { pile(b, x - 0.7, z, 0xdc2626); pile(b, x, z, 0xef4444, 0.3); pile(b, x + 0.7, z, 0xf97316, 0.3); });
+  stall(b, -5, -8, 0x16a34a, (b, x, z) => { sack(b, x - 0.8, z - 0.9); sack(b, x, z - 0.9, 0xfef3c7); pile(b, x - 0.4, z, 0xfef9c3); pile(b, x + 0.5, z, 0xa16207); });
+  stall(b, 1, -8, 0xf59e0b, (b, x, z) => { for (let i = 0; i < 5; i++) b.box(0x78350f, 0.18, 0.18, 0.7, x - 0.9 + i * 0.4, 0.92, z, { yaw: 0.3 }); b.box(0xfacc15, 0.9, 0.2, 0.3, x + 0.6, 0.92, z + 0.2); });
+  stall(b, 7, -8, 0x7f1d1d, (b, x, z) => { for (let i = 0; i < 4; i++) b.box(0xb91c1c, 0.3, 0.55, 0.12, x - 0.8 + i * 0.5, 1.6, z - 0.3); b.box(0x9f1239, 1.6, 0.12, 0.6, x, 0.92, z); });
+  stall(b, -11, -1, 0x0369a1, (b, x, z) => { for (let i = 0; i < 6; i++) b.box(i % 2 ? 0x78350f : 0x94a3b8, 0.5, 0.06, 0.16, x - 0.9 + (i % 3) * 0.6, 0.94 + Math.floor(i / 3) * 0.08, z - 0.2 + Math.floor(i / 3) * 0.3, { yaw: 0.4 }); });
+  stall(b, -5, -1, 0xea580c, (b, x, z) => { for (let i = 0; i < 6; i++) b.box([0xf59e0b, 0xdc2626, 0x15803d, 0xfacc15][i % 4], 0.22, 0.16, 0.16, x - 0.8 + i * 0.32, 0.92, z); b.box(0xfde047, 0.5, 0.3, 0.3, x + 0.6, 0.92, z + 0.3); });
+  stall(b, 1, -1, 0xca8a04, (b, x, z) => { for (let i = 0; i < 4; i++) b.cylinder(i % 2 ? 0xb91c1c : 0xfacc15, 0.14, 0.45, x - 0.75 + i * 0.5, 0.92, z, { sides: 8 }); });
+  stall(b, 7, -1, 0x7c3aed, (b, x, z) => { for (let i = 0; i < 5; i++) b.box([0xe11d48, 0x0ea5e9, 0xfacc15, 0x10b981, 0x7c3aed][i], 0.4, 0.25, 0.9, x - 0.9 + i * 0.45, 0.92, z); });
+  b.box(0x78350f, 6, 0.9, 0.08, 10, 0, 6).box(0x78350f, 6, 0.9, 0.08, 10, 0, 10).box(0x78350f, 0.08, 0.9, 4, 7, 0, 8).box(0x78350f, 0.08, 0.9, 4, 13, 0, 8);
+  goat(b, 9, 7.2, 0.6); goat(b, 11.2, 8.4, -1.2, 0xf5f5f4); goat(b, 9.6, 9.1, 2.4, 0x78350f); goat(b, 12, 6.9, 0.2, 0x292524);
+  b.box(0xa16207, 1.6, 1, 1, 4.5, 0, 8).box(0xf5f5f4, 0.25, 0.3, 0.35, 4.2, 1, 8).box(0xb45309, 0.25, 0.3, 0.35, 4.8, 1, 8.1);
+  for (let i = 0; i < 6; i++) b.cylinder(0xa16207, 0.35, 0.35, -12 + i * 1.2, 0, 7, { sides: 10 }).dome([0xdc2626, 0xf97316, 0xfacc15][i % 3], 0.3, -12 + i * 1.2, 0.35, 7);
+  marketAtmosphere(b);
+  for (const [x, z] of [[-8, 5], [0, 6], [5, 4], [-3, -4], [9, -2]] as const) {
+    b.box(0x78350f, 0.55, 0.42, 0.42, x, 0.92, z, { solid: false });
+    b.box(0xfacc15, 0.48, 0.35, 0.38, x + 0.35, 0.88, z, { solid: false });
+  }
+};
+
 /** A goat: body, legs, head, little horns */
 const goat = (b: Builder, x: number, z: number, yaw: number, coat = 0xe7e5e4) => {
   const f = { x: Math.sin(yaw), z: Math.cos(yaw) };
-  b.box(coat, 0.32, 0.36, 0.75, x, 0.42, z, { yaw });
-  for (const [dx, dz] of [[-0.11, 0.28], [0.11, 0.28], [-0.11, -0.28], [0.11, -0.28]]) b.box(0x57534e, 0.07, 0.42, 0.07, x + dx * f.z + dz * f.x, 0, z + dz * f.z - dx * f.x);
-  b.box(coat, 0.2, 0.26, 0.3, x + f.x * 0.5, 0.68, z + f.z * 0.5, { yaw }).box(0x44403c, 0.04, 0.14, 0.04, x + f.x * 0.45 + f.z * 0.06, 0.92, z + f.z * 0.45 - f.x * 0.06, { yaw }).box(0x44403c, 0.04, 0.14, 0.04, x + f.x * 0.45 - f.z * 0.06, 0.92, z + f.z * 0.45 + f.x * 0.06, { yaw });
+  b.box(coat, 0.32, 0.36, 0.75, x, 0.42, z, { yaw, solid: false });
+  for (const [dx, dz] of [[-0.11, 0.28], [0.11, 0.28], [-0.11, -0.28], [0.11, -0.28]]) b.box(0x57534e, 0.07, 0.42, 0.07, x + dx * f.z + dz * f.x, 0, z + dz * f.z - dx * f.x, { solid: false });
+  b.box(coat, 0.2, 0.26, 0.3, x + f.x * 0.5, 0.68, z + f.z * 0.5, { yaw, solid: false }).box(0x44403c, 0.04, 0.14, 0.04, x + f.x * 0.45 + f.z * 0.06, 0.92, z + f.z * 0.45 - f.x * 0.06, { yaw, solid: false }).box(0x44403c, 0.04, 0.14, 0.04, x + f.x * 0.45 - f.z * 0.06, 0.92, z + f.z * 0.45 + f.x * 0.06, { yaw, solid: false });
+  b.occupy(x - 0.35, x + 0.35, z - 0.45, z + 0.45, 0.9);
 };
 const pews = (b: Builder, rows: number, z0: number, span: number) => {
   for (let r = 0; r < rows; r++) for (const side of [-1, 1]) {
     const x = side * (span / 2 + 0.8);
-    b.box(0x78350f, span, 0.45, 0.5, x, 0, z0 + r * 1.4).box(0x78350f, span, 0.6, 0.08, x, 0.45, z0 + r * 1.4 + 0.25);
+    const z = z0 + r * 1.4;
+    b.box(0x78350f, span, 0.45, 0.5, x, 0, z).box(0x78350f, span, 0.6, 0.08, x, 0.45, z + 0.25, { solid: false });
+    b.occupy(x - span / 2, x + span / 2, z - 0.28, z + 0.28, 0.55);
   }
 };
 
@@ -71,23 +691,7 @@ const need = (changes: Record<string, number>) => (backend: { modifyNeed(n: neve
 const MARKET: PlaceSpec = {
   key: 'balogun-market', name: 'Balogun Market', district: 'Lagos Island · market', room: { width: 32, length: 26, height: 6, floor: 0x8b8378, wall: 0xd6c7a1 },
   sign: { text: 'BALOGUN MARKET', sub: 'Pepper · Rice · Meat · Fish · Goats · Cloth', bg: '#b45309' },
-  build: (b) => {
-    // Rows of stalls down the hall, each its own trade
-    stall(b, -11, -8, 0xdc2626, (b, x, z) => { pile(b, x - 0.7, z, 0xdc2626); pile(b, x, z, 0xef4444, 0.3); pile(b, x + 0.7, z, 0xf97316, 0.3); });
-    stall(b, -5, -8, 0x16a34a, (b, x, z) => { sack(b, x - 0.8, z - 0.9); sack(b, x, z - 0.9, 0xfef3c7); pile(b, x - 0.4, z, 0xfef9c3); pile(b, x + 0.5, z, 0xa16207); });
-    stall(b, 1, -8, 0xf59e0b, (b, x, z) => { for (let i = 0; i < 5; i++) b.box(0x78350f, 0.18, 0.18, 0.7, x - 0.9 + i * 0.4, 0.92, z, { yaw: 0.3 }); b.box(0xfacc15, 0.9, 0.2, 0.3, x + 0.6, 0.92, z + 0.2); });
-    stall(b, 7, -8, 0x7f1d1d, (b, x, z) => { for (let i = 0; i < 4; i++) b.box(0xb91c1c, 0.3, 0.55, 0.12, x - 0.8 + i * 0.5, 1.6, z - 0.3); b.box(0x9f1239, 1.6, 0.12, 0.6, x, 0.92, z); });
-    stall(b, -11, -1, 0x0369a1, (b, x, z) => { for (let i = 0; i < 6; i++) b.box(i % 2 ? 0x78350f : 0x94a3b8, 0.5, 0.06, 0.16, x - 0.9 + (i % 3) * 0.6, 0.94 + Math.floor(i / 3) * 0.08, z - 0.2 + Math.floor(i / 3) * 0.3, { yaw: 0.4 }); });
-    stall(b, -5, -1, 0xea580c, (b, x, z) => { for (let i = 0; i < 6; i++) b.box([0xf59e0b, 0xdc2626, 0x15803d, 0xfacc15][i % 4], 0.22, 0.16, 0.16, x - 0.8 + i * 0.32, 0.92, z); b.box(0xfde047, 0.5, 0.3, 0.3, x + 0.6, 0.92, z + 0.3); });
-    stall(b, 1, -1, 0xca8a04, (b, x, z) => { for (let i = 0; i < 4; i++) b.cylinder(i % 2 ? 0xb91c1c : 0xfacc15, 0.14, 0.45, x - 0.75 + i * 0.5, 0.92, z, { sides: 8 }); });
-    stall(b, 7, -1, 0x7c3aed, (b, x, z) => { for (let i = 0; i < 5; i++) b.box([0xe11d48, 0x0ea5e9, 0xfacc15, 0x10b981, 0x7c3aed][i], 0.4, 0.25, 0.9, x - 0.9 + i * 0.45, 0.92, z); });
-    // The goat pen, with goats in it, and a coop of chickens beside it
-    b.box(0x78350f, 6, 0.9, 0.08, 10, 0, 6).box(0x78350f, 6, 0.9, 0.08, 10, 0, 10).box(0x78350f, 0.08, 0.9, 4, 7, 0, 8).box(0x78350f, 0.08, 0.9, 4, 13, 0, 8);
-    goat(b, 9, 7.2, 0.6); goat(b, 11.2, 8.4, -1.2, 0xf5f5f4); goat(b, 9.6, 9.1, 2.4, 0x78350f); goat(b, 12, 6.9, 0.2, 0x292524);
-    b.box(0xa16207, 1.6, 1, 1, 4.5, 0, 8).box(0xf5f5f4, 0.25, 0.3, 0.35, 4.2, 1, 8).box(0xb45309, 0.25, 0.3, 0.35, 4.8, 1, 8.1);
-    // Baskets down the aisle
-    for (let i = 0; i < 6; i++) b.cylinder(0xa16207, 0.35, 0.35, -12 + i * 1.2, 0, 7, { sides: 10 }).dome([0xdc2626, 0xf97316, 0xfacc15][i % 3], 0.3, -12 + i * 1.2, 0.35, 7);
-  },
+  build: (b) => { balogunMarketFloor(b, 0xb45309); },
   staff: [
     { name: 'Mama Bisi', title: 'Pepper & tomato seller', at: [-11, -9.4], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Customer! Fresh pepper, rodo, tatashe, tomato. I go do you well!' },
     { name: 'Alhaji Sani', title: 'Grains seller', at: [-5, -9.4], facing: 0, outfit: 0xf5f5f4, gender: 'male', says: 'Rice, beans, garri, all na original. Buy by mudu or bag.' },
@@ -99,7 +703,18 @@ const MARKET: PlaceSpec = {
     { name: 'Alhaja Kudi', title: 'Cloth seller', at: [7, -2.4], facing: 0, outfit: 0x7c3aed, gender: 'female', says: 'Original lace, Ankara, aso-oke. Owambe ready!' },
     { name: 'Baba Sule', title: 'Goat seller', at: [10, 11], facing: Math.PI, outfit: 0xf8fafc, gender: 'male', says: 'Healthy goat! Ram for Sallah. Chicken too.' },
   ],
-  regulars: [{ at: [-8, 3], facing: 2.4, outfit: 0x2563eb }, { at: [-2, 4], facing: 0.8, outfit: 0xec4899, gender: 'female' }, { at: [3, 2.6], facing: -1, outfit: 0x16a34a }, { at: [-12, 9], facing: 3.1, outfit: 0xfacc15, gender: 'female' }],
+  regulars: [
+    { at: [-8, 3], facing: 2.4, outfit: 0x2563eb },
+    { at: [-2, 4], facing: 0.8, outfit: 0xec4899, gender: 'female' },
+    { at: [3, 2.6], facing: -1, outfit: 0x16a34a },
+    { at: [-12, 9], facing: 3.1, outfit: 0xfacc15, gender: 'female' },
+    { at: [-6, 0.5], facing: 0.5, outfit: 0x7c3aed, gender: 'female' },
+    { at: [0, 5], facing: Math.PI, outfit: 0xdc2626 },
+    { at: [5, 7.5], facing: 2.2, outfit: 0x0ea5e9 },
+    { at: [-10, 5.5], facing: -0.4, outfit: 0xf97316, gender: 'female' },
+    { at: [8, 4], facing: 1.1, outfit: 0x1e3a8a },
+    { at: [-4, 7], facing: 2.8, outfit: 0x15803d, gender: 'female' },
+  ],
   stations: [
     { id: 'pepper', name: '🌶️ Pepper & tomatoes', at: [-11, -8], stand: [-11, -6.6], who: 'Mama Bisi', role: 'Pepper & tomato seller', text: 'Wetin you want? I go add jara for you.', choices: [
       buy('A paint bucket of tomatoes', 8000, item('mkt_tomato', 'Paint bucket of tomatoes', '🍅', 8000), 'Mama Bisi tied the tomatoes in a black nylon and added two for jara.'),
@@ -147,16 +762,312 @@ const MARKET: PlaceSpec = {
   ],
 };
 
+/**
+ * Amala Shitta — dense Surulere buka: counter, seating hall, kitchen/fire, wash-up, entrance queue.
+ * Station anchor unchanged: counter (0,−5) / stand (0,−3.8). Job omorogun tasks stay near x≈−3..1, z≈−6.
+ */
+const amalaShittaBukaFloor = (b: Builder, accent = 0x15803d) => {
+  const wall = 0xfef3c7;
+  const trim = 0xca8a04;
+  const wood = 0x78350f;
+  const slate = 0x57534e;
+
+  // Corrugated ceiling panels + warm bulbs (dressing only)
+  for (let x = -9; x <= 9; x += 3.2) {
+    for (let z = -8; z <= 8; z += 3.2) {
+      b.box(0xd6d3d1, 2.9, 0.05, 2.9, x, 4.05, z, { solid: false });
+      b.box(0x78716c, 2.7, 0.03, 0.12, x, 4.12, z, { solid: false });
+    }
+  }
+  for (const [x, z] of [[-6, -2], [0, 1], [6, -4], [-3, 5], [5, 6], [-8, 4]] as const) {
+    b.cylinder(slate, 0.04, 0.55, x, 3.55, z, { solid: false });
+    b.cylinder(0xfde68a, 0.12, 0.14, x, 3.15, z, { glow: true, solid: false });
+  }
+  for (const [x, z] of [[-4, 2], [4, 0], [0, 6]] as const) {
+    b.cylinder(slate, 0.06, 0.35, x, 3.9, z, { solid: false });
+    b.box(slate, 1.4, 0.04, 0.16, x, 4.05, z, { solid: false });
+  }
+
+  // Windows + wall menu boards
+  for (const wx of [-7.5, -3.5, 0.5, 4.5, 7.5]) hospitalWindow(b, wx, -9.05, 2.0);
+  for (const wz of [-6, -2, 2, 6]) {
+    hospitalWindow(b, -10.95, wz, 2.0, 1.35, false);
+    hospitalWindow(b, 10.95, wz, 2.0, 1.35, false);
+  }
+  screen(b, 0, -9.0, 7.5, 1.25, 2.35, 0xfacc15);
+  b.box(accent, 4.2, 0.65, 0.08, -8.5, 2.5, -9.08, { solid: false });
+  b.box(0xf8fafc, 3.8, 0.48, 0.04, -8.5, 2.5, -9.04, { solid: false });
+  b.box(0xdc2626, 3.0, 0.55, 0.08, 8.2, 2.45, -9.08, { solid: false });
+  b.box(0xfacc15, 2.6, 0.38, 0.04, 8.2, 2.45, -9.04, { glow: true, solid: false });
+
+  // Zone partitions: kitchen (left), wash-up (right), serving pass
+  hospitalWallZ(b, -5.8, -9.2, 3.5, wall, -5.5);
+  hospitalWallZ(b, 5.8, -9.2, -1.5, wall, -5.0);
+  hospitalWallX(b, -3.5, -10.5, 10.5, wall, 0);
+  b.box(trim, 3.2, 2.45, 0.12, 0, 0, -3.4);
+  b.box(accent, 1.1, 0.4, 0.06, 0, 2.0, -3.34, { solid: false });
+  b.occupy(-0.85, 0.85, -3.3, -3.5, 2.5);
+
+  // --- Entrance (+z): queue, takeaway shelf, shoe corner ---
+  for (let i = 0; i < 4; i++) {
+    b.cylinder(0x94a3b8, 0.03, 0.9, -2.5 + i * 1.6, 0, 7.8, { solid: false });
+    b.box(0xdc2626, 0.55, 0.35, 0.35, -2.5 + i * 1.6, 0.92, 7.8, { solid: false });
+  }
+  bench(b, 7, 7.5, 2.4, wood);
+  bench(b, -8, 6.8, 2.2, 0x64748b);
+  b.box(0x1c1917, 1.2, 0.08, 0.9, -9, 0.01, 8.2, { solid: false });
+  b.box(0xf97316, 0.9, 0.55, 0.45, 9, 0, 7.2);
+  b.box(0xf8fafc, 0.75, 0.38, 0.04, 9, 0.28, 7.2, { solid: false });
+  screen(b, 0, 8.5, 4.5, 0.85, 2.0, accent);
+
+  // --- Counter / service (station zone) ---
+  counter(b, 0, -5, 8.5, accent, 0xf8fafc, 1.05);
+  counter(b, 4.2, -5.8, 3.4, wood, 0xe7e5e4, 0.95);
+  for (let i = 0; i < 4; i++) {
+    b.cylinder(0x52525b, 0.38, 0.52, -3 + i * 2, 1.15, -5.15, { sides: 14 });
+    b.cylinder([0x1c1917, 0xfacc15, accent, 0x7c2d12][i], 0.32, 0.06, -3 + i * 2, 1.62, -5.15, { solid: false });
+    b.box(0x44403c, 0.12, 0.18, 0.12, -3 + i * 2, 1.72, -5.15, { solid: false });
+  }
+  shelf(b, -2, -8.2, 3.6, [0xf8fafc, 0xfacc15, accent, 0xdc2626]);
+  for (let i = 0; i < 5; i++) b.box([0xf8fafc, 0xfacc15, 0x16a34a][i % 3], 0.35, 0.08, 0.28, -0.8 + i * 0.42, 1.18, -4.55, { solid: false });
+
+  // Drinks cooler (right of counter — job NPC post 6.5,−5.5)
+  b.box(0x1e3a8a, 1.5, 1.55, 0.75, 6.5, 0, -5.2);
+  b.box(0x7dd3fc, 1.25, 1.15, 0.05, 6.5, 0.28, -4.78, { glow: true, solid: false });
+  b.box(0xfacc15, 0.55, 0.42, 0.42, 6.5, 1.55, -4.78, { solid: false });
+
+  // --- Seating hall: wooden tables, benches, plastic chairs ---
+  const seatTables: Array<[number, number]> = [[-7, 1.5], [-2.5, 2], [2.5, 1.8], [7, 2.5], [-7, 5.5], [-2, 6], [3, 5.8], [7.5, 6.5]];
+  for (const [x, z] of seatTables) {
+    b.box(wood, 2.1, 0.78, 0.95, x, 0, z, { solid: true });
+    bench(b, x, z - 0.95, 2.1, 0x92400e);
+    bench(b, x, z + 0.95, 2.1, 0x92400e);
+    for (const side of [-1, 1]) {
+      const cx = x + side * 1.35;
+      b.box(0xf97316, 0.38, 0.48, 0.38, cx, 0, z, { solid: false });
+      b.box(0xf97316, 0.38, 0.5, 0.07, cx, 0.48, z + 0.18, { solid: false });
+    }
+    b.box(0x1c1917, 0.35, 0.08, 0.25, x, 0.8, z, { solid: false });
+    b.box(0x6b4f2a, 0.28, 0.05, 0.22, x - 0.2, 0.84, z, { solid: false });
+  }
+  for (const [x, z] of [[0, 3.5], [4.5, 4.2]] as const) table(b, x, z, 0x92400e, 4, 0x1f2937);
+
+  // --- Kitchen / fire (left wing) ---
+  b.box(0xdc2626, 3.5, 0.06, 3.2, -8.5, 0.01, -6.5, { solid: false });
+  for (const [px, pz, col] of [[-9, -7.2, 0x1c1917], [-7.5, -6.8, 0x44403c], [-8.2, -5.5, accent]] as const) {
+    b.cylinder(0x52525b, 0.55, 0.62, px, 0, pz, { sides: 16 });
+    b.cylinder(col, 0.48, 0.08, px, 0.65, pz, { solid: false });
+    b.box(0x78716c, 0.22, 0.35, 0.22, px + 0.35, 0.85, pz, { solid: false });
+  }
+  for (let i = 0; i < 6; i++) b.box(wood, 0.35, 0.22, 0.55, -10.2, i * 0.24, -4.5 + (i % 2) * 0.4, { yaw: 0.15 });
+  b.box(0x44403c, 1.8, 1.5, 0.08, -10.5, 0.75, -8.2, { solid: false });
+  b.box(0x57534e, 2.2, 0.55, 1.0, -8, 0, -3.2);
+  shelf(b, -9.5, -3.5, 2.0, [0xdc2626, 0xf97316, 0x16a34a, 0xfacc15]);
+  for (let i = 0; i < 4; i++) sack(b, -7.5 + i * 0.55, -2.8, [0xfef3c7, 0xe7e5e4, 0xd6d3d1][i % 3]);
+
+  // --- Wash-up (right wing) ---
+  counter(b, 8.5, -4.8, 2.8, 0x64748b, 0xe0f2fe, 0.85);
+  b.box(0x94a3b8, 1.6, 0.9, 0.65, 9.5, 0, -4.5);
+  b.box(0x38bdf8, 1.3, 0.06, 0.5, 9.5, 0.85, -4.5, { glow: true, solid: false });
+  for (const z of [-6.5, -5.5, -3.8]) {
+    b.cylinder(0x0284c7, 0.28, 0.55, 9.2, 0, z, { sides: 10 });
+    b.box(0x7dd3fc, 0.22, 0.18, 0.22, 9.2, 0.58, z, { solid: false });
+  }
+  for (let i = 0; i < 5; i++) b.box(0xf8fafc, 0.42, 0.06, 0.42, 7.8, 0.55 + i * 0.14, -2.2, { solid: false });
+  b.box(0x15803d, 0.5, 0.7, 0.5, 8.8, 0, -2.5);
+  b.box(0x166534, 0.45, 0.1, 0.45, 8.8, 0.7, -2.5, { solid: false });
+
+  // Clutter: takeaway packs, crate, fan, wall calendar
+  for (const [x, z] of [[-1, -1.2], [2, -2], [5, 0.5], [-5, 4]] as const) {
+    b.box(0xfacc15, 0.32, 0.22, 0.28, x, 0.92, z, { solid: false });
+    b.box(0xf8fafc, 0.28, 0.08, 0.24, x, 0.82, z, { solid: false });
+  }
+  b.box(0x78350f, 0.65, 0.55, 0.45, -0.5, 0, 7.0);
+  plant(b, -9.5, 3.5);
+};
+
+/**
+ * Chop Express — Ikeja fast food: fry line, counter queue, dine-in tables, drinks freezer.
+ * Station anchor unchanged: counter (0,−5) / stand (0,−3.7). Job paths near fryer and table (−4,2).
+ */
+const chopExpressFastFoodFloor = (b: Builder, accent = 0xdc2626) => {
+  const wall = 0xfde68a;
+  const cream = 0xf8fafc;
+  const slate = 0x57534e;
+
+  for (let x = -8; x <= 8; x += 3.2) {
+    for (let z = -7; z <= 7; z += 3.2) {
+      b.box(0xe5e7eb, 2.9, 0.04, 2.9, x, 3.95, z, { solid: false });
+      b.box(0xfef9c3, 0.38, 0.06, 0.38, x, 3.88, z, { glow: true, solid: false });
+    }
+  }
+  for (const wx of [-6.5, -3.5, 0.5, 3.5, 6.5]) hospitalWindow(b, wx, -8.05, 2.0);
+  for (const wz of [-5, -1.5, 2, 5.5]) {
+    hospitalWindow(b, -9.95, wz, 2.0, 1.3, false);
+    hospitalWindow(b, 9.95, wz, 2.0, 1.3, false);
+  }
+  screen(b, 0, -7.8, 7.5, 1.15, 2.4, 0xfacc15);
+  b.box(accent, 4.5, 0.6, 0.08, -7.5, 2.5, -7.76, { solid: false });
+  b.box(cream, 4.0, 0.42, 0.04, -7.5, 2.5, -7.72, { solid: false });
+  b.box(0x1e3a8a, 3.2, 0.55, 0.08, 7.5, 2.45, -7.76, { solid: false });
+
+  hospitalWallZ(b, -4.8, -8.2, 2.5, wall, -4.5);
+  hospitalWallX(b, 1.2, -9.8, 9.8, wall, -2.8);
+  b.box(0xf97316, 0.9, 0.38, 0.06, 1.2, 2.05, -2.74, { solid: false });
+
+  for (let i = 0; i < 5; i++) {
+    b.cylinder(0x94a3b8, 0.03, 0.85, -2 + i * 1.1, 0, 6.8, { solid: false });
+    b.box(accent, 0.45, 0.32, 0.32, -2 + i * 1.1, 0.86, 6.8, { solid: false });
+  }
+  bench(b, -7, 6.5, 2.4, 0x64748b);
+  screen(b, 0, 7.5, 4.5, 0.85, 2.0, accent);
+
+  counter(b, 0, -5, 8, accent, 0xfacc15, 1.05);
+  counter(b, -6.5, -5.5, 2.8, 0x1c1917, cream, 0.95);
+  for (const x of [-2.5, -0.5, 1.5]) {
+    b.box(0x1c1917, 1.2, 0.2, 0.55, x, 1.12, -5.1, { solid: false });
+    b.box(0xf97316, 1.0, 0.08, 0.4, x, 1.32, -5.1, { glow: true, solid: false });
+  }
+  b.box(0x1e3a8a, 1.5, 1.55, 0.75, 6.2, 0, -5.5);
+  b.box(0x7dd3fc, 1.25, 1.15, 0.05, 6.2, 0.28, -5.12, { glow: true, solid: false });
+  b.box(cream, 1.4, 0.85, 0.8, -6.2, 0, -4.5);
+  b.box(0xfce7f3, 1.2, 0.08, 0.65, -6.2, 0.85, -4.5, { solid: false });
+
+  b.box(0xdc2626, 3.8, 0.06, 3.2, -8, 0.01, -6.5, { solid: false });
+  for (const [px, pz] of [[-8.5, -6.8], [-7.2, -7.5], [-9.2, -5.8]] as const) {
+    b.cylinder(0x52525b, 0.52, 0.6, px, 0, pz, { sides: 14 });
+    b.cylinder(0xfacc15, 0.44, 0.08, px, 0.65, pz, { solid: false });
+    b.box(0x78716c, 0.22, 0.32, 0.22, px + 0.35, 0.88, pz, { solid: false });
+  }
+  shelf(b, -8.5, -3.8, 2.2, [cream, accent, 0xf97316, 0xfacc15]);
+  b.box(0x1c1917, 1.8, 1.4, 0.08, -9.2, 0.7, -5.2, { solid: false });
+
+  counter(b, 8.5, -4.5, 2.6, 0x64748b, cream, 0.85);
+  b.box(0x94a3b8, 1.4, 0.85, 0.6, 9.2, 0, -4.5);
+  for (let i = 0; i < 4; i++) b.box(cream, 0.4, 0.06, 0.4, 8.0, 0.55 + i * 0.14, -2.5, { solid: false });
+
+  const tables: Array<[number, number]> = [[-4, 1], [0, 1], [4, 1], [-4, 4], [4, 4]];
+  for (const [x, z] of tables) {
+    table(b, x, z, 0xfacc15, 4, 0xdc2626);
+    for (const side of [-1, 1]) {
+      const cx = x + side * 1.35;
+      b.box(0xf97316, 0.38, 0.48, 0.38, cx, 0, z, { solid: false });
+      b.box(0xf97316, 0.38, 0.5, 0.07, cx, 0.48, z + 0.18, { solid: false });
+    }
+    b.box(0x1c1917, 0.35, 0.08, 0.25, x, 0.78, z, { solid: false });
+  }
+
+  desk(b, 6.5, -4.2, cream);
+  b.box(accent, 0.9, 0.55, 0.06, 6.5, 1.05, -4.2, { solid: false });
+  for (const [x, z] of [[-1, 2.5], [2, -2], [7, 5]] as const) {
+    b.box(0xfacc15, 0.3, 0.2, 0.26, x, 0.9, z, { solid: false });
+    b.box(cream, 0.26, 0.08, 0.22, x, 0.82, z, { solid: false });
+  }
+  b.cylinder(slate, 0.04, 0.55, 3, 3.55, 2, { solid: false });
+  b.cylinder(0xfde68a, 0.12, 0.14, 3, 3.15, 2, { glow: true, solid: false });
+  plant(b, 7.5, 5.5);
+  plant(b, -8.5, 3.5);
+};
+
+/**
+ * Mai Suya Spot — Allen Avenue roadside grill: coal pits, yaji station, chiller, plastic seating.
+ * Station anchor unchanged: grill (0,−3.5) / stand (0,−2.2). Tables at (−3,2), (0,2), (3,2).
+ */
+const maiSuyaSpotFloor = (b: Builder, accent = 0xb45309) => {
+  const wall = 0xfed7aa;
+  const ember = 0xf97316;
+  const sackCol = 0xfef3c7;
+
+  for (let x = -5; x <= 5; x += 2.6) {
+    for (let z = -5; z <= 5; z += 2.6) {
+      b.box(0xd6d3d1, 2.4, 0.04, 2.4, x, 3.65, z, { solid: false });
+      b.cylinder(0x57534e, 0.04, 0.35, x, 3.75, z, { solid: false });
+      b.box(0xfde68a, 0.14, 0.06, 0.14, x, 3.35, z, { glow: true, solid: false });
+    }
+  }
+  b.box(accent, 3.8, 0.55, 0.08, 0, 2.35, -5.92, { solid: false });
+  b.box(0xf8fafc, 3.4, 0.4, 0.04, 0, 2.35, -5.88, { solid: false });
+  for (const wx of [-4.5, 0, 4.5]) hospitalWindow(b, wx, -5.05, 1.65);
+  hospitalWindow(b, -5.95, 0, 1.5, 1.2, false);
+  hospitalWindow(b, 5.95, 0, 1.5, 1.2, false);
+
+  hospitalWallZ(b, -2.8, -5.2, 3.5, wall, 2.5);
+  b.box(0x166534, 0.85, 0.35, 0.06, 0, 2.05, 2.44, { solid: false });
+
+  b.box(0x111827, 3.2, 0.92, 1.15, 0, 0, -3.5);
+  b.box(ember, 2.9, 0.05, 0.85, 0, 0.92, -3.5, { glow: true, solid: false });
+  for (let i = 0; i < 10; i++) b.box(0x7c2d12, 0.08, 0.06, 0.55, -1.4 + i * 0.31, 1.0, -3.5);
+  b.box(0x57534e, 2.6, 0.06, 0.9, 2.8, 0.01, -3.5, { solid: false });
+  b.box(ember, 2.4, 0.04, 0.75, 2.8, 0.88, -3.5, { glow: true, solid: false });
+  for (let i = 0; i < 6; i++) b.box(0x7c2d12, 0.07, 0.05, 0.5, 2.2 + i * 0.3, 0.95, -3.5);
+
+  counter(b, -4.2, -3.8, 2.2, 0x78350f, sackCol, 0.85);
+  for (let i = 0; i < 5; i++) b.box([0xdc2626, 0xfacc15, 0x7c2d12][i % 3], 0.22, 0.16, 0.22, -4.6 + i * 0.28, 0.92, -3.8, { solid: false });
+  pile(b, -4.2, -2.8, 0xfef3c7, 0.28);
+  pile(b, -3.6, -2.6, 0xe7e5e4, 0.25);
+  b.box(0x1c1917, 0.55, 0.4, 0.4, -3.2, 0.92, -3.6, { solid: false });
+
+  // East back bay (x≈5, z≤−3.6) kept clear for the customers' toilet door on the back wall.
+  b.box(0x1e3a8a, 1.1, 1.45, 0.6, 4.5, 0, -1.6);
+  b.box(0x7dd3fc, 0.9, 1.1, 0.05, 4.5, 0.25, -1.22, { glow: true, solid: false });
+  shelf(b, 4.5, -0.2, 1.6, [0xfacc15, 0x16a34a, 0xdc2626]);
+
+  for (const [x, z] of [[-3, 2], [0, 2], [3, 2]] as const) {
+    table(b, x, z, 0xf8fafc, 4, 0xdc2626);
+    for (const side of [-1, 1]) {
+      const cx = x + side * 1.2;
+      b.box(0xf97316, 0.38, 0.48, 0.38, cx, 0, z, { solid: false });
+      b.box(0xf97316, 0.38, 0.5, 0.07, cx, 0.48, z + 0.18, { solid: false });
+    }
+    b.box(0xf8fafc, 0.32, 0.06, 0.28, x, 0.8, z, { solid: false });
+    b.box(0x7c2d12, 0.28, 0.05, 0.24, x - 0.15, 0.84, z, { solid: false });
+  }
+  bench(b, -4.5, 4.2, 2.0, 0x78350f);
+  bench(b, 4.5, 4.2, 2.0, 0x78350f);
+
+  for (let i = 0; i < 3; i++) {
+    b.cylinder(0x94a3b8, 0.03, 0.75, -1.5 + i * 1.5, 0, 5.0, { solid: false });
+    b.box(ember, 0.4, 0.3, 0.3, -1.5 + i * 1.5, 0.78, 5.0, { solid: false });
+  }
+  screen(b, 0, 5.2, 3.5, 0.75, 1.8, accent);
+
+  counter(b, 2.2, -1.4, 2.0, 0x64748b, 0xe0f2fe, 0.75);
+  b.cylinder(0x0284c7, 0.22, 0.5, 2.2, 0, -0.8, { sides: 10 });
+  b.box(0x7dd3fc, 0.18, 0.16, 0.18, 2.2, 0.52, -0.8, { solid: false });
+  for (let i = 0; i < 4; i++) b.box(0xf8fafc, 0.38, 0.06, 0.38, 1.6, 0.55 + i * 0.12, -0.4, { solid: false });
+
+  b.box(0x15803d, 0.48, 0.68, 0.48, -4.8, 0, -2.0);
+  b.box(0x1c1917, 2.2, 0.85, 0.12, 0, 0.85, -5.3, { solid: false });
+  b.box(accent, 1.8, 0.65, 0.05, 0, 1.55, -5.28, { glow: true, solid: false });
+  plant(b, -4.8, 4.5);
+};
+
 const buka = (key: string, name: string, district: string, sub: string): PlaceSpec => ({
-  key, name, district, room: { width: 16, length: 14, height: 4, floor: 0xd6d3d1, wall: 0xfacc15 },
+  key,
+  name,
+  district,
+  room: { width: 24, length: 20, height: 4.2, floor: 0x78716c, wall: 0xfef3c7 },
   sign: { text: name.toUpperCase(), sub, bg: '#15803d' },
-  build: (b) => {
-    counter(b, 0, -5, 8, 0x15803d);
-    for (let i = 0; i < 4; i++) b.cylinder(0x52525b, 0.35, 0.45, -3 + i * 2, 1.1, -5.1, { sides: 12 }).cylinder([0x1c1917, 0xfacc15, 0x15803d, 0x7c2d12][i], 0.3, 0.05, -3 + i * 2, 1.55, -5.1);
-    for (const [x, z] of [[-4.5, 0], [0, 0], [4.5, 0], [-4.5, 3.5], [0, 3.5], [4.5, 3.5]]) { b.box(0x92400e, 2.2, 0.75, 0.9, x, 0, z, { solid: true }); bench(b, x, z - 0.9, 2.2); bench(b, x, z + 0.9, 2.2); }
-  },
-  staff: [{ name: 'Iya Shitta', title: 'Owner', at: [0, -6], facing: 0, outfit: 0x15803d, gender: 'female', chef: true, says: 'Sit down! Amala dey hot, gbegiri dey sweet!' }],
-  regulars: [{ at: [-4.5, -0.9], facing: 0, outfit: 0x2563eb, sit: true }, { at: [4.5, 0.9], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' }, { at: [0, 4.4], facing: Math.PI, outfit: 0x16a34a, sit: true }],
+  build: (b) => { amalaShittaBukaFloor(b, 0x15803d); },
+  staff: [
+    { name: 'Iya Shitta', title: 'Owner', at: [0, -6], facing: 0, outfit: 0x15803d, gender: 'female', chef: true, says: 'Sit down! Amala dey hot, gbegiri dey sweet!' },
+    { name: 'Boy Ade', title: 'Server', at: [3.5, -4.2], facing: Math.PI, outfit: 0xfacc15, gender: 'male', says: 'Table or takeaway?' },
+    { name: 'Aunty Bose', title: 'Wash-up', at: [8.5, -5.2], facing: -Math.PI / 2, outfit: 0x0ea5e9, gender: 'female', says: 'Bring the plates. I go wash am sharp sharp.' },
+    { name: 'Tunde', title: 'Kitchen hand', at: [-7.5, -5.8], facing: 0.35, outfit: 0x7c2d12, gender: 'male', chef: true, says: 'The fire no dey sleep. Turn amala well.' },
+    { name: 'Mama Zobo', title: 'Drinks', at: [6.5, -4.5], facing: Math.PI, outfit: 0xdb2777, gender: 'female', says: 'Cold zobo, Coke, malt — wetin you want?' },
+  ],
+  regulars: [
+    { at: [-7, 0.55], facing: 0, outfit: 0x2563eb, sit: true },
+    { at: [-2.5, 1.05], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
+    { at: [2.5, 0.85], facing: 0, outfit: 0x16a34a, sit: true },
+    { at: [7, 1.55], facing: Math.PI, outfit: 0xfacc15, sit: true },
+    { at: [-7, 4.55], facing: Math.PI, outfit: 0x1e3a8a, sit: true, gender: 'female' },
+    { at: [-2, 5.05], facing: 0, outfit: 0xdc2626, sit: true },
+    { at: [3, 4.85], facing: Math.PI, outfit: 0x7c3aed, sit: true, gender: 'female' },
+    { at: [0, 2.6], facing: Math.PI / 2, outfit: 0x0f172a, sit: true },
+    { at: [-1, 7.2], facing: Math.PI, outfit: 0x64748b },
+    { at: [2.5, 7.5], facing: -0.5, outfit: 0xea580c, gender: 'female' },
+  ],
   stations: [
     { id: 'counter', name: '🍲 Order at the counter', at: [0, -5], stand: [0, -3.8], who: 'Iya Shitta', role: name, text: 'Wetin I go give you?', choices: [
       { label: 'Amala, ewedu, gbegiri and assorted meat', price: 4500, note: 'Hunger +65', sit: true, seconds: 5, effect: need({ hunger: 65, fun: 5 }), said: 'Hot amala, soft and black, with gbegiri. Your hand smelt of it for hours.' },
@@ -189,8 +1100,30 @@ const MARINA_TOWERS: PlaceSpec = {
   ],
 };
 
-const venue = (key: string, name: string, district: string, sub: string, bg: string, floor: number, wall: number, extra: (b: Builder, room?: THREE.Group) => void, staff: PlaceSpec['staff'], stations: PlaceSpec['stations'], regulars: PlaceSpec['regulars'] = [], size: [number, number] = [20, 18]): PlaceSpec => ({
-  key, name, district, room: { width: size[0], length: size[1], height: 5, floor, wall }, sign: { text: name.toUpperCase(), sub, bg }, build: extra, staff, stations, regulars,
+const venue = (
+  key: string,
+  name: string,
+  district: string,
+  sub: string,
+  bg: string,
+  floor: number,
+  wall: number,
+  extra: (b: Builder, room?: THREE.Group) => void,
+  staff: PlaceSpec['staff'],
+  stations: PlaceSpec['stations'],
+  regulars: PlaceSpec['regulars'] = [],
+  size: [number, number] = [20, 18],
+  openAir = false,
+): PlaceSpec => ({
+  key,
+  name,
+  district,
+  room: { width: size[0], length: size[1], height: openAir ? 0.5 : 5, floor, wall, openAir: openAir || undefined },
+  sign: { text: name.toUpperCase(), sub, bg },
+  build: extra,
+  staff,
+  stations,
+  regulars,
 });
 
 const pocketAndBank = (be: { getData(): { walletCash: number; bank: { balance: number } } }) => be.getData().walletCash + be.getData().bank.balance;
@@ -240,23 +1173,52 @@ const SPECS: PlaceSpec[] = [
   MARKET,
   buka('amala-shitta', 'Amala Shitta', 'Surulere · buka', 'Amala · Ewedu · Gbegiri · Assorted'),
   MARINA_TOWERS,
-  venue('freedom-park', 'Freedom Park', 'Lagos Island · arts', 'Arts · Music · History', '#92400e', 0x4d7c0f, 0xb45309, (b) => {
-    stage(b, 0, -6, 10, 4, 0x57534e);
-    b.box(0xf8fafc, 11, 0.3, 5, 0, 4.2, -6);
-    for (let r = 0; r < 4; r++) bench(b, 0, -1 + r * 1.6, 8);
-    for (let i = 0; i < 4; i++) b.box([0xdc2626, 0x2563eb, 0xfacc15, 0x16a34a][i], 0.1, 1.6, 1.2, -9.8, 1, -5 + i * 3);
-    counter(b, 7, 6, 3, 0xb45309);
+  venue('freedom-park', 'Freedom Park', 'Lagos Island · arts', 'Arts · Music · History', '#92400e', 0x4d7c0f, 0xb45309, (b, room) => {
+    // Horizon lawns, fringe trees, walkers, crowd/highlife ambience (OpenAirPark) — not a platform in a void
+    if (room) attachOpenAirPark(room, 36, 40);
+    // Open lawn amphitheatre — no room shell. Paths, stage, old-prison art wall, food kiosk, trees.
+    b.box(0xa8a29e, 4, 0.04, 28, 0, 0.02, 2, { solid: false });
+    b.box(0xa8a29e, 22, 0.04, 3.2, 0, 0.02, 10, { solid: false });
+    b.box(0xa8a29e, 3.2, 0.04, 18, -10, 0.02, -2, { solid: false });
+    b.box(0xa8a29e, 3.2, 0.04, 14, 10, 0.02, 4, { solid: false });
+    stage(b, 0, -10, 12, 5, 0x57534e);
+    b.box(0xf8fafc, 13, 0.25, 5.5, 0, 4.4, -10);
+    // Stage PA / speaker stacks — colonial-prison → live arts venue
+    b.box(0x1f2937, 0.9, 1.6, 0.7, -5.5, 0.7, -11.5).box(0x1f2937, 0.9, 1.6, 0.7, 5.5, 0.7, -11.5);
+    b.box(0x111827, 0.7, 0.5, 0.5, -5.5, 2.4, -11.5).box(0x111827, 0.7, 0.5, 0.5, 5.5, 2.4, -11.5);
+    for (let r = 0; r < 5; r++) bench(b, 0, -4 + r * 1.7, 10);
+    for (let i = 0; i < 5; i++) b.box([0xdc2626, 0x2563eb, 0xfacc15, 0x16a34a, 0xf97316][i], 0.12, 1.8, 1.4, -16, 1, -8 + i * 3.2);
+    // Remnant prison wall stub (open-air memorial), not a full enclosure
+    b.box(0x78716c, 18, 2.4, 0.5, -2, 0, -16);
+    for (let i = 0; i < 4; i++) b.box(0x44403c, 1.4, 1.8, 0.08, -8 + i * 4, 0.3, -15.7);
+    // Heritage plaque plinths along the path
+    b.box(0x57534e, 0.9, 1.1, 0.5, -8, 0, 8).box(0xe7e5e4, 0.7, 0.55, 0.06, -8, 0.7, 8.3, { solid: false });
+    b.box(0x57534e, 0.9, 1.1, 0.5, 8, 0, 8).box(0xe7e5e4, 0.7, 0.55, 0.06, 8, 0.7, 8.3, { solid: false });
+    counter(b, 12, 8, 3.5, 0xb45309);
+    palm(b, -18, 12); palm(b, 18, 6); palm(b, -14, -6); palm(b, 16, -12);
+    palm(b, -6, 16); palm(b, 10, 16);
+    for (const [x, z] of [[-10, 14], [8, 14], [4, -14], [-18, -2], [18, -8], [0, 15]] as Array<[number, number]>) {
+      b.cylinder(0x57534e, 0.22, 3.2, x, 0, z, { topRadius: 0.16 });
+      b.dome(0x166534, 1.6, x, 3.0, z);
+    }
   }, [
-    { name: 'The band', title: 'Highlife band', at: [-2, -6.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'We dey play till late!' },
-    { name: 'Bimpe', title: 'Food seller', at: [7, 5], facing: Math.PI, outfit: 0xdb2777, gender: 'female', says: 'Asun, small chops, cold Chapman!' },
+    { name: 'The band', title: 'Highlife band', at: [-2, -10.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'We dey play till late!' },
+    { name: 'Bimpe', title: 'Food seller', at: [12, 7], facing: Math.PI, outfit: 0xdb2777, gender: 'female', says: 'Asun, small chops, cold Chapman!' },
+    { name: 'Curator Ada', title: 'Curator', at: [-14, -2], facing: Math.PI / 2, outfit: 0x1e3a8a, gender: 'female', says: 'This used to be Her Majesty’s Prison. Now it is art.' },
   ], [
-    { id: 'show', name: '🎭 Watch the show', at: [0, -4], stand: [0, -0.2], who: 'Gate attendant', role: 'Freedom Park', text: 'Live band tonight.', choices: [
+    { id: 'show', name: '🎭 Watch the show', at: [0, -8], stand: [0, -3.5], who: 'Gate attendant', role: 'Freedom Park', text: 'Live band tonight.', choices: [
       { label: 'Sit and watch the band', price: 5000, note: 'Fun +35, Social +10', sit: true, seconds: 6, effect: need({ fun: 35, social: 10 }), said: 'Highlife, then Afrobeat. The crowd sang every word.' },
       { label: 'Dance in front of the stage', note: 'Fun +25', dance: true, seconds: 8, effect: need({ fun: 25 }), said: 'You danced like nobody was watching. Everybody was.' },
     ] },
-    { id: 'art', name: '🖼️ Art exhibition', at: [-9.5, 0], stand: [-8, 0], who: 'Curator', role: 'Freedom Park', text: 'The old prison, and the artists who remember it.', choices: [{ label: 'Walk round the exhibition', note: 'Fun +12', arms: 'rest', seconds: 4, effect: need({ fun: 12 }), said: 'Paintings, sculptures, and the old cells. Lagos history up close.' }] },
-    { id: 'food', name: '🍢 Food & drinks', at: [7, 6], stand: [7, 4.6], who: 'Bimpe', role: 'Food seller', text: 'Wetin you go chop?', choices: [{ label: 'Asun and a cold Chapman', price: 6500, note: 'Hunger +40', sit: true, seconds: 4, effect: need({ hunger: 40 }), said: 'Peppered goat meat and a cold Chapman.' }] },
-  ], [{ at: [-2, -1], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [2, 0.6], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' }]),
+    { id: 'art', name: '🖼️ Art exhibition', at: [-15, 0], stand: [-13.5, 0], who: 'Curator Ada', role: 'Freedom Park', text: 'The old prison, and the artists who remember it.', choices: [{ label: 'Walk round the exhibition', note: 'Fun +12', arms: 'rest', seconds: 4, effect: need({ fun: 12 }), said: 'Paintings, sculptures, and the old cells. Lagos history up close.' }] },
+    { id: 'food', name: '🍢 Food & drinks', at: [12, 8], stand: [12, 6.4], who: 'Bimpe', role: 'Food seller', text: 'Wetin you go chop?', choices: [{ label: 'Asun and a cold Chapman', price: 6500, note: 'Hunger +40', sit: true, seconds: 4, effect: need({ hunger: 40 }), said: 'Peppered goat meat and a cold Chapman.' }] },
+    { id: 'walk', name: '🌳 Walk the lawns', at: [0, 12], stand: [0, 10.5], who: 'Freedom Park', role: 'Gardens', text: 'Paths through the old grounds.', choices: [{ label: 'Stroll the park', note: 'Free · Fun +10', arms: 'rest', seconds: 5, effect: need({ fun: 10 }), said: 'Shade, history plaques, children running on the grass.' }] },
+  ], [
+    { at: [-3, -4], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [3, -2.3], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
+    { at: [-1, -0.6], facing: Math.PI, outfit: 0xf8fafc },
+    { at: [6, 12], facing: -0.8, outfit: 0x16a34a, gender: 'female' },
+  ], [40, 36], true),
   venue('ivory-rooftop', 'Ivory Rooftop', 'Victoria Island · lounge', 'Sky lounge · Cocktails · Sunset DJ', '#111827', 0x292524, 0x0f172a, (b) => {
     counter(b, 0, -6, 8, 0x111827, 0xd4af37); bottles(b, 0, -7.8, 8);
     for (const [x, z] of [[-6, 0], [-2, 2], [2, 2], [6, 0]]) { b.box(0xf8fafc, 2.2, 0.45, 0.9, x, 0, z).box(0xf8fafc, 2.2, 0.55, 0.2, x, 0.45, z + 0.4); b.cylinder(0xd4af37, 0.4, 0.5, x, 0, z - 1.1, { sides: 12 }); }
@@ -286,7 +1248,8 @@ const SPECS: PlaceSpec[] = [
     ] },
   ], [{ at: [2, 2.2], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [-2, 2.2], facing: Math.PI, outfit: 0xdc2626, sit: true }]),
   venue('the-library', 'The Library', 'Ikoyi · fine dining', 'Speakeasy · Private dining', '#78350f', 0x3f2a1d, 0x1c1917, (b) => {
-    for (const x of [-8, -4, 0, 4, 8]) { b.box(0x3b2416, 3.4, 3.6, 0.5, x, 0, -8.6); for (let r = 0; r < 4; r++) for (let i = 0; i < 9; i++) b.box([0x7f1d1d, 0x1e3a8a, 0x14532d, 0xa16207][(i + r) % 4], 0.3, 0.6, 0.3, x - 1.4 + i * 0.35, 0.3 + r * 0.85, -8.4); }
+    // Leave the east bay clear for the customers' toilet door on the back wall
+    for (const x of [-8, -4, 0, 4]) { b.box(0x3b2416, 3.4, 3.6, 0.5, x, 0, -8.6); for (let r = 0; r < 4; r++) for (let i = 0; i < 9; i++) b.box([0x7f1d1d, 0x1e3a8a, 0x14532d, 0xa16207][(i + r) % 4], 0.3, 0.6, 0.3, x - 1.4 + i * 0.35, 0.3 + r * 0.85, -8.4); }
     for (const [x, z] of [[-5, -2], [0, -2], [5, -2], [-2.5, 3], [2.5, 3]]) table(b, x, z, 0x1c1917, 2, 0x7f1d1d);
     counter(b, 7.5, 6, 3, 0x1c1917, 0xd4af37);
   }, [{ name: 'Mr Olu', title: 'Maître d', at: [-7.5, 6], facing: Math.PI / 2, outfit: 0x111827, gender: 'male', tie: true, says: 'Welcome. Your table is ready.' }], [
@@ -294,7 +1257,7 @@ const SPECS: PlaceSpec[] = [
       { label: 'A private dinner, three courses', price: 85000, note: 'Hunger +60, Social +20', sit: true, seconds: 6, effect: need({ hunger: 60, social: 20 }), said: 'Seafood, steak, and a dessert you will talk about for a week.' },
       { label: 'A glass of wine', price: 30000, note: 'Fun +12', sit: true, seconds: 4, effect: need({ fun: 12 }), said: 'Quiet, cool, expensive. You feel like a chairman.' },
     ] },
-    { id: 'books', name: '📚 The shelves', at: [0, -8.4], stand: [0, -7.2], who: 'The Library', role: 'Shelves', text: 'Books from floor to ceiling.', choices: [{ label: 'Read for a while', note: 'Fun +8', arms: 'carry', seconds: 4, effect: need({ fun: 8 }), said: 'A first edition of Things Fall Apart. Careful with it.' }] },
+    { id: 'books', name: '📚 The shelves', at: [-4, -8.4], stand: [-4, -7.2], who: 'The Library', role: 'Shelves', text: 'Books from floor to ceiling.', choices: [{ label: 'Read for a while', note: 'Fun +8', arms: 'carry', seconds: 4, effect: need({ fun: 8 }), said: 'A first edition of Things Fall Apart. Careful with it.' }] },
   ], [{ at: [5, -1.05], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }]),
   venue('i-fitness', 'i-Fitness', 'Ikoyi · gym', 'Gym · Classes · Trainers', '#ea580c', 0x27272a, 0xf8fafc, (b) => {
     for (let i = 0; i < 5; i++) b.box(0x111827, 0.9, 1.3, 2, -8 + i * 2.2, 0, -6).box(0xef4444, 0.92, 0.12, 2, -8 + i * 2.2, 1.3, -6);
@@ -311,16 +1274,51 @@ const SPECS: PlaceSpec[] = [
     { id: 'shower', name: '🚿 Shower', at: [9.85, -4.2], stand: [9.15, -4.2], who: 'Changing room', role: 'i-Fitness', text: 'Towels and soap at the desk. Hot water today.', choices: [{ label: 'Shower and change', note: 'Hygiene full', arms: 'reach', seconds: 5, effect: (be) => { (be as unknown as { takeShower(): void }).takeShower(); }, said: '🚿 Hot water, soap and a clean towel. Fresh again.' }] },
     { id: 'desk', name: '💳 Membership', at: [-6, 6], stand: [-6, 4.7], who: 'Front desk', role: 'i-Fitness', text: 'Monthly membership?', choices: [{ label: 'Monthly membership', price: 120000, note: 'Health +15', effect: need({ health: 15 }), said: 'Card on your phone. See you every morning by six.' }] },
   ], [{ at: [-5.8, -6], facing: Math.PI, outfit: 0x2563eb }, { at: [6.5, 2.5], facing: 0, outfit: 0xdb2777, gender: 'female' }]),
-  venue('lekki-conservation', 'Lekki Conservation Centre', 'Lekki · nature park', 'Canopy walk · Nature trail', '#166534', 0x3f6212, 0x166534, (b) => {
-    for (let i = 0; i < 14; i++) { const x = -9 + (i * 7) % 18; const z = -8 + Math.floor(i / 3) * 3.5; b.cylinder(0x57534e, 0.3, 5, x, 0, z).dome(i % 2 ? 0x15803d : 0x166534, 2, x, 4.4, z); }
-    b.box(0xa16207, 1.4, 0.2, 16, 0, 0.4, 0);
-    for (const [x, z] of [[-6, 6], [6, 6]]) b.box(0xb91c1c, 2.4, 0.03, 2.4, x, 0.02, z);
-    counter(b, 7, -7, 3, 0x78350f);
-  }, [{ name: 'Ranger Chuks', title: 'Ranger', at: [7, -8], facing: 0, outfit: 0x166534, gender: 'male', says: 'Welcome to the forest! Mind the monkeys.' }], [
-    { id: 'canopy', name: '🌳 Canopy walk', at: [7, -7], stand: [7, -5.7], who: 'Ranger Chuks', role: 'Lekki Conservation Centre', text: 'Forty metres up. Ready?', choices: [{ label: 'Do the canopy walk', price: 10000, note: 'Fun +35', arms: 'wave', seconds: 6, effect: need({ fun: 35, energy: -10 }), said: 'Forty metres up on a swinging bridge. Your legs shook; the view was worth it.' }] },
-    { id: 'picnic', name: '🧺 Picnic', at: [-6, 6], stand: [-6, 6], who: 'Ranger Chuks', role: 'Lekki Conservation Centre', text: 'Spread your mat.', choices: [{ label: 'A picnic on the grass', price: 15000, note: 'Hunger +30, Social +20, Fun +15', sit: true, seconds: 6, effect: need({ hunger: 30, social: 20, fun: 15 }), said: 'Jollof, chicken, a cold drink and good gist under the trees.' }] },
-    { id: 'boardwalk', name: '🐒 The boardwalk', at: [0, 0], stand: [0.9, 0], who: 'Monkeys', role: 'The forest', text: 'A monkey watches you.', choices: [{ label: 'Walk the boardwalk', price: 3000, note: 'Fun +10', arms: 'rest', seconds: 5, effect: need({ fun: 10 }), said: 'A monkey stole a biscuit from a child. Everybody laughed.' }] },
-  ], [{ at: [6, 6.4], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' }], [22, 22]),
+  venue('lekki-conservation', 'Lekki Conservation Centre', 'Lekki · nature park', 'Canopy walk · Nature trail', '#166534', 0x3f6212, 0x166534, (b, room) => {
+    // Horizon forest past the rails — no grey void
+    if (room) attachOpenAirPark(room, 44, 52);
+    // Open forest canopy — trees, boardwalk, picnic clearings; no walls or roof.
+    for (let i = 0; i < 28; i++) {
+      const x = -22 + (i * 11) % 44;
+      const z = -18 + Math.floor(i / 4) * 5.5;
+      b.cylinder(0x57534e, 0.32, 5.5 + (i % 3) * 0.4, x, 0, z, { topRadius: 0.22 });
+      b.dome(i % 2 ? 0x15803d : 0x166534, 2.1 + (i % 3) * 0.15, x, 5.0 + (i % 3) * 0.3, z);
+    }
+    // Raised boardwalk through the trees
+    b.box(0xa16207, 1.6, 0.22, 36, 0, 0.5, 0);
+    for (let i = 0; i < 9; i++) b.cylinder(0x78716c, 0.12, 0.55, 0, 0, -16 + i * 4);
+    // Picnic clearings
+    for (const [x, z] of [[-12, 12], [12, 12], [-8, -14]] as Array<[number, number]>) {
+      b.box(0xb91c1c, 3.2, 0.03, 3.2, x, 0.02, z, { solid: false });
+    }
+    // Ticket / ranger hut (small open pavilion, not a building shell)
+    counter(b, 14, -16, 3.5, 0x78350f);
+    b.cone(0xd6b46a, 3.2, 1.2, 14, 2.5, -16.5, 4);
+    // Canopy walk ~12 m above the trees: towers, deck, rope rails
+    b.box(0x78716c, 1.6, 12.5, 1.6, -18, 0, -8);
+    b.box(0x78716c, 1.6, 12.5, 1.6, 18, 0, 8);
+    b.box(0xa8a29e, 36, 0.2, 2.2, 0, 11.8, 0);
+    b.box(0xd6b46a, 36, 0.08, 0.1, 0, 12.9, -1.05);
+    b.box(0xd6b46a, 36, 0.08, 0.1, 0, 12.9, 1.05);
+    for (let i = 0; i < 10; i++) {
+      b.box(0xd6b46a, 0.1, 1.1, 0.1, -18 + i * 4, 11.8, -1.05);
+      b.box(0xd6b46a, 0.1, 1.1, 0.1, -18 + i * 4, 11.8, 1.05);
+    }
+    // Access stairs from the ranger hut up to the deck
+    for (let s = 0; s < 10; s++) b.box(0xa8a29e, 2.2, 0.18, 1.0, 14, 0.3 + s * 1.15, -14 + s * 0.85);
+  }, [
+    { name: 'Ranger Chuks', title: 'Ranger', at: [14, -17], facing: 0, outfit: 0x166534, gender: 'male', says: 'Welcome to the forest! Mind the monkeys.' },
+    { name: 'Guide Nneka', title: 'Nature guide', at: [-4, 2], facing: Math.PI / 2, outfit: 0x15803d, gender: 'female', says: 'Look up — monkeys dey for the canopy.' },
+  ], [
+    { id: 'canopy', name: '🌳 Canopy walk', at: [14, -16], stand: [14, -14.5], who: 'Ranger Chuks', role: 'Lekki Conservation Centre', text: 'Forty metres up. Ready?', choices: [{ label: 'Do the canopy walk', price: 10000, note: 'Fun +35', arms: 'wave', seconds: 6, effect: need({ fun: 35, energy: -10 }), said: 'Forty metres up on a swinging bridge. Your legs shook; the view was worth it.' }] },
+    { id: 'picnic', name: '🧺 Picnic', at: [-12, 12], stand: [-12, 10.5], who: 'Ranger Chuks', role: 'Lekki Conservation Centre', text: 'Spread your mat.', choices: [{ label: 'A picnic on the grass', price: 15000, note: 'Hunger +30, Social +20, Fun +15', sit: true, seconds: 6, effect: need({ hunger: 30, social: 20, fun: 15 }), said: 'Jollof, chicken, a cold drink and good gist under the trees.' }] },
+    { id: 'boardwalk', name: '🐒 The boardwalk', at: [0, 0], stand: [1.1, 0], who: 'Guide Nneka', role: 'The forest', text: 'A monkey watches you.', choices: [{ label: 'Walk the boardwalk', price: 3000, note: 'Fun +10', arms: 'rest', seconds: 5, effect: need({ fun: 10 }), said: 'A monkey stole a biscuit from a child. Everybody laughed.' }] },
+    { id: 'trail', name: '🥾 Nature trail', at: [8, -8], stand: [8, -6.5], who: 'Guide Nneka', role: 'Nature trail', text: 'Short loop under the trees.', choices: [{ label: 'Walk the nature trail', note: 'Free · Fun +12, Energy −5', arms: 'rest', seconds: 6, effect: need({ fun: 12, energy: -5 }), said: 'Bird calls, soft soil, a lizard on the path. Cool under the canopy.' }] },
+  ], [
+    { at: [12, 12.5], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' },
+    { at: [-10, 12.2], facing: Math.PI, outfit: 0x0ea5e9, sit: true },
+    { at: [2, 4], facing: 1.2, outfit: 0xf97316 },
+  ], [52, 44], true),
   venue('dangote-refinery', 'Dangote Refinery Visitors Centre', 'Lekki Free Zone', 'Tours · Control room · HR · Canteen', '#0f172a', 0xd4d4d8, 0x166534, (b) => {
     for (let i = 0; i < 4; i++) screen(b, -7 + i * 3.5, -8.7, 3, 1.6, 2, [0x22c55e, 0x38bdf8, 0xf59e0b, 0x22c55e][i]);
     for (let i = 0; i < 4; i++) desk(b, -7 + i * 3.5, -5.5);
@@ -401,25 +1399,48 @@ const SPECS: PlaceSpec[] = [
     { id: 'sales', name: '🚗 Talk to sales', at: [-6, 6], stand: [-6, 7.4], who: 'Mr Kunle', role: 'Sales manager', text: 'Corolla or Chiron, we have it.', choices: [{ label: 'See every car and buy', note: 'Opens Cars', open: 'app:garage' }] },
   ], [{ at: [2, 0], facing: -0.6, outfit: 0xf8fafc }], [24, 18]),
   venue('shopwell-mall', 'The Palms Mall', 'Lekki · mall', 'Supermarket · Food court · Cinema', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
-    for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0xdc2626, 0xfacc15, 0x2563eb, 0x16a34a, 0xf8fafc]);
-    for (const x of [-6, -3]) counter(b, x, 0, 1.6, 0xdc2626);
-    counter(b, 7, -3, 4, 0xf59e0b); for (const [x, z] of [[5, 2], [8, 2], [5, 5.5], [8, 5.5]]) table(b, x, z, 0xf8fafc, 2, 0xdc2626);
-    screen(b, -5, 8.7, 4, 1.4, 2.4, 0x7c3aed);
+    palmsMallFloor(b, 0xdc2626);
   }, [{ name: 'Cashier Nkem', title: 'Cashier', at: [-6, -1], facing: Math.PI, outfit: 0xdc2626, gender: 'female', says: 'Next customer!' }, { name: 'Chef Ali', title: 'Shawarma', at: [7, -4], facing: 0, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Shawarma with double sausage?' }], [
     { id: 'shelves', name: '🛒 Shop the shelves', at: [-3, -6], stand: [-3, -4.8], who: 'Supermarket', role: 'The Palms', text: 'Everything under one roof.', choices: [{ label: 'Shop', note: 'Opens Shopping', open: 'app:shopping' }] },
     { id: 'food', name: '🌯 Food court', at: [7, -3], stand: [7, -1.7], who: 'Chef Ali', role: 'Shawarma', text: 'Wetin you want?', choices: [{ label: 'Shawarma and a Coke', price: 5500, note: 'Hunger +45', sit: true, seconds: 5, effect: need({ hunger: 45 }), said: 'Double sausage, extra cream. Correct shawarma.' }] },
     { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'Nollywood blockbuster at 7.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'Funke Akindele had the whole hall laughing.' }] },
-  ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-3, -3], facing: 0, outfit: 0xec4899, gender: 'female' }], [24, 20]),
+  ], [
+    { at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [-3, -3], facing: 0, outfit: 0xec4899, gender: 'female' },
+    { at: [-7, 2], facing: 0.4, outfit: 0x16a34a },
+    { at: [2, 5.8], facing: Math.PI, outfit: 0xf59e0b, sit: true },
+    { at: [-9, -5], facing: 0.8, outfit: 0x7c3aed, gender: 'female' },
+    { at: [9, 1], facing: -1.1, outfit: 0x1e3a8a },
+    { at: [0, 6.5], facing: Math.PI, outfit: 0xfacc15 },
+  ], [24, 20]),
   venue('eko-grand-hotel', 'Eko Grand Hotel', 'Mainland · hotel', '★★★★★ · Rooms · Restaurant', '#b45309', 0xf5f5f4, 0xe7d3b3, (b) => {
-    counter(b, -5, -6, 6, 0xb45309, 0xf8fafc);
-    b.cylinder(0xfacc15, 0.1, 1.2, 0, 3.8, 0).dome(0xfde68a, 0.9, 0, 3.4, 0, { glow: true });
-    b.box(0x0284c7, 6, 0.1, 4, 6, 0.01, 5, { glow: true });
-    for (const [x, z] of [[-6, 3], [-3, 3]]) table(b, x, z, 0xf8fafc, 4, 0xb45309);
-    b.box(0x7c2d12, 2.4, 0.6, 2, 6, 0, -6).box(0xf8fafc, 2.2, 0.2, 1.8, 6, 0.6, -6);
-  }, [{ name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0xb45309, gender: 'female', says: 'Welcome to Eko Grand. How can we help?' }], [
+    ekoGrandHotelLobby(b, 0xb45309);
+  }, [
+    { name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0xb45309, gender: 'female', says: 'Welcome to Eko Grand. How can we help?' },
+    { name: 'Porter Tunde', title: 'Bellboy', at: [2, -6.2], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Your bags, sir? I take them up.' },
+    { name: 'Mr Lawal', title: 'Hotel manager', at: [-9.2, -4.2], facing: 0, outfit: 0xb45309, gender: 'male', tie: true, says: 'Five-star service. Can you give it?' },
+    { name: 'Concierge Adaeze', title: 'Concierge', at: [2.5, -8.4], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Theatre tickets, airport pickup, anything — just ask.' },
+    { name: 'Chef Emeka', title: 'Restaurant', at: [-8, 5], facing: Math.PI / 2, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Seafood okra is the special today.' },
+    { name: 'Waiter Kunle', title: 'Dining', at: [-4, 4.2], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Your table is ready, sir.' },
+    { name: 'Pool attendant', title: 'Pool', at: [8.5, 5], facing: -Math.PI / 2, outfit: 0x0284c7, gender: 'male', says: 'Towel and a lounger ready.' },
+    { name: 'Barman Segun', title: 'Lobby bar', at: [4.5, -6.4], facing: 0, outfit: 0x111827, gender: 'male', says: 'Chapman or a Heineken?' },
+  ], [
     { id: 'restaurant', name: '🍽️ Restaurant', at: [-6, 3], stand: [-6, 3.95], who: 'Waiter', role: 'Eko Grand Hotel', text: 'Lunch?', choices: [{ label: 'Seafood okra and pounded yam', price: 18000, note: 'Hunger +60', sit: true, seconds: 6, effect: need({ hunger: 60, fun: 10 }), said: 'Seafood okra, five-star style.' }] },
     { id: 'pool', name: '🏊 The pool', at: [6, 5], stand: [3.5, 5], who: 'Pool attendant', role: 'Eko Grand Hotel', text: 'Towel?', choices: [{ label: 'A swim', price: 10000, note: 'Fun +25, Hygiene +20', arms: 'swing', seconds: 6, effect: need({ fun: 25, hygiene: 20 }), said: 'Cool water, warm sun. You floated for an hour.' }] },
-  ], [{ at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true }], [22, 20]),
+  ], [
+    { at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true },
+    { at: [-6, 3.95], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+    { at: [-7.5, 5.1], facing: Math.PI, outfit: 0xb45309, sit: true },
+    { at: [-4.2, 6.0], facing: Math.PI, outfit: 0x2563eb, sit: true, gender: 'female' },
+    { at: [-8, 0.2], facing: 0.3, outfit: 0xfacc15, sit: true },
+    { at: [1.8, 1.0], facing: -0.4, outfit: 0x16a34a, sit: true },
+    { at: [3.5, -4.8], facing: 0.8, outfit: 0xf8fafc, sit: true },
+    { at: [9.2, 4.0], facing: Math.PI, outfit: 0x0284c7, sit: true },
+    { at: [0, 7.3], facing: Math.PI, outfit: 0x9333ea, sit: true, gender: 'female' },
+    { at: [-5, -3.5], facing: 0.5, outfit: 0x78716c },
+    { at: [6, -2.5], facing: -0.6, outfit: 0x1e3a8a, gender: 'female' },
+    { at: [8, 7.2], facing: Math.PI, outfit: 0xea580c },
+  ], [26, 22]),
   venue('police-command', 'Lagos State Police Command', 'Ikeja · police', 'Police is your friend · 112', '#1d4ed8', 0x94a3b8, 0x1e293b, (b) => {
     counter(b, -4, -5, 5, 0x1e3a8a); desk(b, 4, -4);
     for (const x of [6, 8]) b.box(0x3f3f46, 0.08, 3, 3, x, 0, 5);
@@ -607,11 +1628,141 @@ const glassCase = (b: Builder, x: number, z: number, goods: number) => {
   b.box(0x0f172a, 3, 1.6, 0.3, x, 1.2, z - 1.4);
 };
 
+/**
+ * Computer Village — Otigba phone/laptop lane: shop dividers, glass counters, repair bench, banner row.
+ * Dealer row unchanged at z≈−6; repair station (−8,3).
+ */
+const computerVillageFloor = (b: Builder, accent = 0x1d4ed8) => {
+  const wall = 0xd4d4d8;
+
+  for (let x = -13; x <= 13; x += 3.0) {
+    for (let z = -8; z <= 8; z += 3.0) {
+      b.box(0xe5e7eb, 2.8, 0.04, 2.8, x, 4.85, z, { solid: false });
+      b.box(0xfef9c3, 0.42, 0.06, 0.42, x, 4.78, z, { glow: true, solid: false });
+    }
+  }
+  screen(b, 0, -9.05, 12, 1.1, 2.4, accent);
+  for (const wx of [-10, -5, 0, 5, 10]) hospitalWindow(b, wx, -9.0, 2.0);
+  for (const wz of [-5, 0, 5]) {
+    hospitalWindow(b, -14.85, wz, 2.0, 1.3, false);
+    hospitalWindow(b, 14.85, wz, 2.0, 1.3, false);
+  }
+  hospitalWallZ(b, -5, -9.2, 2.5, wall, -4);
+  hospitalWallZ(b, 1, -9.2, 2.5, wall, -2);
+  hospitalWallZ(b, 7, -9.2, 2.5, wall, 0);
+  for (const [x, col] of [[-8, 0x2563eb], [-2, 0x111827], [4, 0xdb2777], [10, 0x7c3aed]] as const) {
+    b.box(col, 2.6, 0.55, 0.08, x, 2.55, -8.55, { solid: false });
+    b.box(0xf8fafc, 2.2, 0.38, 0.04, x, 2.55, -8.51, { solid: false });
+  }
+  glassCase(b, -8, -6, 0x111827);
+  glassCase(b, -2, -6, 0x94a3b8);
+  glassCase(b, 4, -6, 0xf8fafc);
+  glassCase(b, 10, -6, 0x27272a);
+  b.box(0x78350f, 2.4, 0.9, 1, -8, 0, 3).box(0x22d3ee, 0.6, 0.02, 0.4, -8, 0.92, 3, { glow: true });
+  counter(b, -8, 3.6, 2.8, 0xf59e0b, 0x1f2937, 0.85);
+  for (let i = 0; i < 4; i++) b.box(0x57534e, 0.35, 0.06, 0.25, -9 + i * 0.42, 0.95, 2.35, { solid: false });
+  for (let i = 0; i < 6; i++) b.box([0xdc2626, 0x2563eb, 0xfacc15][i % 3], 0.1, 0.9, 2.6, -13.8, 2.6, -8 + i * 3);
+  for (const [x, z] of [[-4, -2], [2, 0], [8, -1], [-6, 4], [5, 5], [0, 3]] as const) {
+    b.box(0xf8fafc, 0.35, 0.28, 0.55, x, 0.92, z, { solid: false });
+    b.box(0x111827, 0.32, 0.25, 0.5, x + 0.38, 0.9, z, { solid: false });
+  }
+  for (const [x, z] of [[-1, 2], [6, 2], [-10, -0.5]] as const) {
+    b.cylinder(0x57534e, 0.35, 0.28, x, 0, z, { sides: 14 });
+    b.box(0x1f2937, 0.15, 0.12, 0.4, x, 0.35, z, { solid: false });
+  }
+  for (let i = 0; i < 4; i++) {
+    b.cylinder(0x94a3b8, 0.03, 0.9, -4.5 + i * 3, 0, 7.2, { solid: false });
+    b.box(accent, 0.5, 0.35, 0.35, -4.5 + i * 3, 0.92, 7.2, { solid: false });
+  }
+  bench(b, 12, 6.2, 2.2, 0x64748b);
+  screen(b, 0, 8.4, 5, 0.85, 2.0, accent);
+  plant(b, -13, 5);
+  plant(b, 13, -3);
+};
+
+/** The Palms Mall — supermarket aisles, tills, food court, cinema zone (stations unchanged). */
+const palmsMallFloor = (b: Builder, accent = 0xdc2626) => {
+  const wall = 0xf1f5f9;
+  const marble = 0xf8fafc;
+
+  for (let x = -10; x <= 10; x += 2.8) {
+    for (let z = -9; z <= 9; z += 2.8) {
+      b.box(0xe2e8f0, 2.6, 0.04, 2.6, x, 4.82, z, { solid: false });
+      b.box(0xfff7ed, 0.38, 0.06, 0.38, x, 4.75, z, { glow: true, solid: false });
+    }
+  }
+  screen(b, -5, -9.05, 6, 1.0, 2.3, 0x7c3aed);
+  b.box(accent, 4.5, 0.55, 0.08, 0, 2.55, -9.02, { solid: false });
+  for (const wx of [-8, -4, 0, 4, 8]) hospitalWindow(b, wx, -9.0, 2.0);
+  for (const wz of [-6, -2, 2, 6]) {
+    hospitalWindow(b, -11.9, wz, 1.9, 1.3, false);
+    hospitalWindow(b, 11.9, wz, 1.9, 1.3, false);
+  }
+  hospitalWallZ(b, 4.2, -9.2, 0.5, wall, 3.2);
+  hospitalWallX(b, -1.5, -11, 11, wall, 4.5);
+  hospitalWallZ(b, -6.5, 3.5, 8.5, marble, 6.5);
+
+  for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0xdc2626, 0xfacc15, 0x2563eb, 0x16a34a, 0xf8fafc]);
+  shelf(b, -9.5, -3.5, 2.2, [0xf8fafc, accent, 0x16a34a]);
+  for (const x of [-6, -3]) counter(b, x, 0, 1.6, accent);
+  for (let t = 0; t < 3; t++) {
+    b.cylinder(0x94a3b8, 0.28, 0.7, -9 + t * 2.5, 0, 1.5, { sides: 12 });
+    b.box(marble, 0.65, 0.42, 0.08, -9 + t * 2.5, 0.72, 1.5, { solid: false });
+  }
+  counter(b, 7, -3, 4, 0xf59e0b);
+  b.box(0xf97316, 0.9, 0.38, 0.06, 7, 1.05, -3.35, { solid: false });
+  for (const [x, z] of [[5, 2], [8, 2], [5, 5.5], [8, 5.5]]) table(b, x, z, marble, 2, accent);
+  b.box(0x78350f, 1.1, 0.85, 0.55, 6.2, 0, -5.5);
+  screen(b, -5, 8.7, 4, 1.4, 2.4, 0x7c3aed);
+  for (const z of [-6.5, -4.8, 6.2]) bench(b, -10.5, z, 2.4, 0x64748b);
+  for (const [x, z] of [[-1, -3], [2, 1], [9, 4]] as const) plant(b, x, z);
+  b.box(0x64748b, 0.15, 2.4, 0.6, 3.5, 0, 7.2, { solid: false });
+  b.box(0x64748b, 0.15, 2.4, 0.6, 5.1, 0, 7.2, { solid: false });
+  b.box(0x475569, 1.8, 0.25, 0.6, 4.3, 2.4, 7.2, { solid: false });
+};
+
+/** Ikeja City Mall — wider Shoprite front, food court, cinema lobby (station anchors unchanged). */
+const ikejaCityMallFloor = (b: Builder, accent = 0xdc2626) => {
+  const wall = 0xf1f5f9;
+  const marble = 0xf8fafc;
+
+  for (let x = -11; x <= 11; x += 2.9) {
+    for (let z = -9; z <= 9; z += 2.9) {
+      b.box(0xe2e8f0, 2.7, 0.04, 2.7, x, 4.82, z, { solid: false });
+      b.box(0xfef3c7, 0.4, 0.06, 0.4, x, 4.75, z, { glow: true, solid: false });
+    }
+  }
+  b.box(accent, 5.2, 0.6, 0.08, 0, 2.55, -9.02, { solid: false });
+  b.box(marble, 4.8, 0.42, 0.04, 0, 2.55, -8.98, { solid: false });
+  for (const wx of [-9, -5, -1, 3, 7]) hospitalWindow(b, wx, -9.0, 2.0);
+  for (const wz of [-6, -2, 2, 6]) {
+    hospitalWindow(b, -12.85, wz, 1.9, 1.3, false);
+    hospitalWindow(b, 12.85, wz, 1.9, 1.3, false);
+  }
+  hospitalWallZ(b, 5.5, -9.2, 0.5, wall, 3.5);
+  hospitalWallX(b, -0.5, -12, 12, wall, 4.8);
+  hospitalWallZ(b, -7, 3.2, 8.8, marble, 6.2);
+
+  for (let i = 0; i < 5; i++) shelf(b, -10 + i * 3.4, -7, 2.8, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, marble]);
+  shelf(b, -11, -3.8, 2.4, [accent, 0x16a34a, 0x2563eb]);
+  for (const x of [-8, -5, -2]) counter(b, x, -1, 1.6, accent);
+  for (let t = 0; t < 4; t++) {
+    b.cylinder(0x94a3b8, 0.3, 0.72, -10 + t * 2.2, 0, 2, { sides: 12 });
+    b.box(marble, 0.7, 0.45, 0.08, -10 + t * 2.2, 0.74, 2, { solid: false });
+  }
+  counter(b, 8, -2, 4, 0xf97316);
+  for (const [x, z] of [[6, 3], [9, 3], [6, 6], [9, 6]]) table(b, x, z, marble, 2, 0xf97316);
+  screen(b, -6, 8.7, 5, 1.6, 2.4, 0x7c3aed);
+  for (const z of [-7, -4.5, 6.5]) bench(b, -11, z, 2.5, 0x64748b);
+  bench(b, 10.5, 7, 2.2, 0x78350f);
+  plant(b, -2, 5.5);
+  plant(b, 11, -5);
+  b.cylinder(accent, 0.1, 1.25, 0, 3.4, 0, { glow: true });
+};
+
 const IKEJA: PlaceSpec[] = [
   venue('computer-village', 'Computer Village', 'Ikeja · Otigba', 'Phones · Laptops · Audio · Watches · Consoles · Repairs', '#1d4ed8', 0xd4d4d8, 0xbfdbfe, (b) => {
-    glassCase(b, -8, -6, 0x111827); glassCase(b, -2, -6, 0x94a3b8); glassCase(b, 4, -6, 0xf8fafc); glassCase(b, 10, -6, 0x27272a);
-    b.box(0x78350f, 2.4, 0.9, 1, -8, 0, 3).box(0x22d3ee, 0.6, 0.02, 0.4, -8, 0.92, 3, { glow: true });
-    for (let i = 0; i < 6; i++) b.box([0xdc2626, 0x2563eb, 0xfacc15][i % 3], 0.1, 0.9, 2.6, -13.8, 2.6, -8 + i * 3);
+    computerVillageFloor(b, 0x1d4ed8);
   }, [
     { name: 'Emeka Phones', title: 'Phone dealer', at: [-8, -7.2], facing: 0, outfit: 0x2563eb, gender: 'male', says: 'Customer! Original phones, UK-used and new. Come check.' },
     { name: 'Tunde Laptops', title: 'Laptop dealer', at: [-2, -7.2], facing: 0, outfit: 0x111827, gender: 'male', says: 'Laptops for school, for work, for gaming.' },
@@ -635,12 +1786,17 @@ const IKEJA: PlaceSpec[] = [
       { label: 'Replace my cracked screen', price: 35000, note: 'While you wait', arms: 'reach', seconds: 5, effect: () => {}, said: 'Twenty minutes, one tiny screwdriver, and your screen is like new.' },
       buy('A power bank, 20,000 mAh', 25000, { id: 'powerbank', name: 'Power bank, 20,000 mAh', icon: '🔋', price: 25000, category: 'gadget', usable: false, description: 'For when NEPA takes light.' }, 'Charged and tested.'),
     ] },
-  ], [{ at: [0, 0], facing: 2, outfit: 0x16a34a }, { at: [6, 1], facing: -1, outfit: 0xec4899, gender: 'female' }], [30, 20]),
+  ], [
+    { at: [0, 0], facing: 2, outfit: 0x16a34a },
+    { at: [6, 1], facing: -1, outfit: 0xec4899, gender: 'female' },
+    { at: [-4, 2.5], facing: 0.6, outfit: 0x2563eb },
+    { at: [2, 4], facing: Math.PI, outfit: 0xfacc15, gender: 'female' },
+    { at: [-10, 0.5], facing: 0.2, outfit: 0x7c3aed },
+    { at: [8, 4.5], facing: -0.8, outfit: 0x1e3a8a, gender: 'female' },
+    { at: [-1, 6], facing: 2.4, outfit: 0xdc2626 },
+  ], [30, 20]),
   venue('ikeja-city-mall', 'Ikeja City Mall', 'Ikeja · Alausa', 'Supermarket · Cinema · Food court', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
-    for (let i = 0; i < 5; i++) shelf(b, -10 + i * 3.4, -7, 2.8, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf8fafc]);
-    for (const x of [-8, -5, -2]) counter(b, x, -1, 1.6, 0xdc2626);
-    counter(b, 8, -2, 4, 0xf97316); for (const [x, z] of [[6, 3], [9, 3], [6, 6], [9, 6]]) table(b, x, z, 0xf8fafc, 2, 0xf97316);
-    screen(b, -6, 8.7, 5, 1.6, 2.4, 0x7c3aed);
+    ikejaCityMallFloor(b, 0xdc2626);
   }, [{ name: 'Cashier Bola', title: 'Cashier', at: [-5, -2], facing: Math.PI, outfit: 0xdc2626, gender: 'female', says: 'Next!' }, { name: 'Food court', title: 'Grill', at: [8, -3], facing: 0, outfit: 0xf8fafc, gender: 'male', chef: true, says: 'Chicken and chips?' }], [
     { id: 'groceries', name: '🛒 Supermarket', at: [-3, -7], stand: [-3, -5.8], who: 'Supermarket', role: 'Ikeja City Mall', text: 'Fill your trolley.', choices: [
       buy('A week of groceries', 45000, item('groceries_week', 'A week of groceries', '🛒', 45000, 'food', true, 30), 'Rice, bread, eggs, milk, noodles, drinks: the trolley is full.'),
@@ -648,7 +1804,15 @@ const IKEJA: PlaceSpec[] = [
     ] },
     { id: 'food', name: '🍗 Food court', at: [8, -2], stand: [8, -0.7], who: 'Grill', role: 'Food court', text: 'What will it be?', choices: [{ label: 'Chicken and chips with a Coke', price: 6000, note: 'Hunger +45', sit: true, seconds: 5, effect: need({ hunger: 45 }), said: 'Hot chicken, crispy chips, cold Coke.' }] },
     { id: 'cinema', name: '🎬 Cinema', at: [-6, 8.6], stand: [-6, 7.4], who: 'Box office', role: 'Cinema', text: 'Next show in ten minutes.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'The whole hall screamed at the twist.' }] },
-  ], [{ at: [6, 3.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-8, -4], facing: 0, outfit: 0xf59e0b, gender: 'female' }], [26, 20]),
+  ], [
+    { at: [6, 3.95], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [-8, -4], facing: 0, outfit: 0xf59e0b, gender: 'female' },
+    { at: [-2, 1.5], facing: 0.5, outfit: 0x16a34a },
+    { at: [3, 5.5], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+    { at: [-10, 5], facing: 1.2, outfit: 0x1e3a8a },
+    { at: [10, -5], facing: -0.5, outfit: 0xfacc15 },
+    { at: [0, 7], facing: Math.PI, outfit: 0x64748b, gender: 'female' },
+  ], [26, 20]),
   venue('allen-lounge', 'Allen Lounge', 'Ikeja · Allen Avenue', 'Afrobeats · Shisha · Small chops', '#db2777', 0x1c1917, 0x111827, (b) => {
     counter(b, 0, -6, 8, 0x111827, 0xdb2777); bottles(b, 0, -7.8, 8);
     for (const [x, z] of [[-6, 2], [-2, 4], [2, 4], [6, 2]]) { b.box(0x7c3aed, 2.2, 0.45, 0.9, x, 0, z).box(0x7c3aed, 2.2, 0.55, 0.2, x, 0.45, z + 0.4); b.cylinder(0x111827, 0.4, 0.5, x, 0, z - 1.1, { sides: 12 }).cylinder(0x22d3ee, 0.08, 0.6, x + 0.2, 0.5, z - 1.1, { glow: true }); }
@@ -660,7 +1824,7 @@ const IKEJA: PlaceSpec[] = [
     ] },
     { id: 'shisha', name: '💨 Shisha & small chops', at: [-6, 2], stand: [-6, 1.5], who: 'Waitress', role: 'Allen Lounge', text: 'Flavour?', choices: [{ label: 'Shisha and a small chops platter', price: 27000, note: 'Fun +20, Hunger +30', sit: true, seconds: 6, effect: need({ fun: 20, hunger: 30, social: 10 }), said: 'Mint shisha, puff-puff, samosa and spring rolls.' }] },
     { id: 'floor', name: '💃 The dance floor', at: [0, -2], stand: [0, -2], who: 'DJ', role: 'Allen Lounge', text: 'Oya shake body!', choices: [{ label: 'Dance', note: 'Fun +30', dance: true, seconds: 8, effect: need({ fun: 30, social: 10 }), said: 'The DJ played your song. You owned the floor.' }] },
-  ], [{ at: [-2, 4.4], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [1, -2], facing: 0.6, outfit: 0xfacc15 }], [20, 18]),
+  ], [{ at: [-2, 4], facing: Math.PI, outfit: 0xf8fafc, sit: true, gender: 'female' }, { at: [1, -2], facing: 0.6, outfit: 0xfacc15 }], [20, 18]),
   venue('oshodi-interchange', 'Oshodi Transport Interchange', 'Oshodi · terminal', 'BRT · Danfo · Interstate', '#1d4ed8', 0xd4d4d8, 0xe0f2fe, (b) => {
     for (const x of [-6, 0, 6]) counter(b, x, -6, 3, 0x1d4ed8, 0xf8fafc);
     screen(b, 0, -8.7, 10, 1.4, 3.2, 0xfacc15);
@@ -674,21 +1838,36 @@ const IKEJA: PlaceSpec[] = [
     { id: 'brt', name: '🚌 BRT to the island', at: [-6, -6], stand: [-6, -4.7], who: 'Ticket clerk', role: 'BRT tickets', text: 'CMS, Obalende, TBS.', choices: [{ label: 'Take the BRT to Lagos Island', note: 'To Broad Street', open: 'bus-island' }] },
     { id: 'interstate', name: '🚍 Interstate buses', at: [6, -6], stand: [6, -4.7], who: 'Interstate clerk', role: 'Interstate buses', text: 'Where you dey go?', choices: [{ label: 'Buses to Abuja and Port Harcourt', note: 'Tickets', open: 'interstate' }] },
     { id: 'snacks', name: '🍩 Puff-puff', at: [9, 5], stand: [9, 6.3], who: 'Mama Puff', role: 'Snacks', text: 'How many?', choices: [buy('A nylon of puff-puff', 1000, item('puffpuff', 'Nylon of puff-puff', '🍩', 1000, 'food', true, 12), 'Ten hot puff-puff in a nylon.')] },
-  ], [{ at: [-4, 3.3], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 3.3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [1, -2], facing: 0, outfit: 0xf97316 }], [22, 18]),
-  venue('lasuth', 'LASUTH', 'Ikeja · teaching hospital', 'A&E 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
-    counter(b, -5, -6, 5, 0xf8fafc, 0x93c5fd); shelf(b, 6, -7, 4, [0xf8fafc, 0x22c55e, 0xdc2626]); counter(b, 6, -5, 4, 0x16a34a, 0xf8fafc);
-    for (let i = 0; i < 3; i++) b.box(0xf8fafc, 1.1, 0.6, 2.2, -6 + i * 3, 0, 4).box(0x93c5fd, 1, 0.15, 2, -6 + i * 3, 0.6, 4);
+  ], [{ at: [-4, 3], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [1, -2], facing: 0, outfit: 0xf97316 }], [22, 18]),
+  venue('lasuth', 'LASUTH', 'Ikeja · teaching hospital', 'A&E 24 hours · Clinics · Pharmacy', '#dc2626', 0xcbd5e1, 0x94a3b8, (b) => {
+    lasuthHospitalFloor(b, 0xdc2626);
   }, [
-    { name: 'Nurse Amaka', title: 'Nurse', at: [-5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
-    { name: 'Pharmacist Bayo', title: 'Pharmacist', at: [6, -6], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+    { name: 'Nurse Amaka', title: 'Triage nurse', at: [-1, -7.2], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. Take a seat — the doctor will call you.' },
+    { name: 'Dr Okeke', title: 'Consultant', at: [-7.5, -3.6], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Come in. Tell me what hurts.' },
+    { name: 'Pharmacist Bayo', title: 'Pharmacist', at: [7, -5.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+    { name: 'Security Tunde', title: 'Hospital security', at: [0, 8.5], facing: Math.PI, outfit: 0x1f2937, gender: 'male', says: 'No smoking past this point. Queues are on your left.' },
+    { name: 'Lab Tech Chioma', title: 'Laboratory', at: [8.5, -2.5], facing: Math.PI / 2, outfit: 0x0d9488, gender: 'female', says: 'Bring the form. We run CBC, malaria, and sugar.' },
+    { name: 'Porter Musa', title: 'Porter', at: [-2, 5.5], facing: 0, outfit: 0x64748b, gender: 'male', says: 'Wheelchair? I go carry am for you.' },
+    { name: 'Records Ayo', title: 'Medical records', at: [3.2, -7.2], facing: 0, outfit: 0x2563eb, gender: 'male', tie: true, says: 'Folder number or phone number — we pull your file.' },
   ], [
-    { id: 'clinic', name: '🩺 See a doctor', at: [-5, -6], stand: [-5, -4.7], who: 'Nurse Amaka', role: 'LASUTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +30', sit: true, seconds: 5, effect: need({ health: 30 }), said: 'The doctor checked you well and wrote a prescription.' }] },
-    { id: 'pharmacy', name: '💊 Pharmacy', at: [6, -5], stand: [6, -3.7], who: 'Pharmacist Bayo', role: 'Pharmacy', text: 'What do you need?', choices: [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-7.5, -2.5], stand: [-7.5, -1.1], who: 'Dr Okeke', role: 'LASUTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +30', sit: true, seconds: 5, effect: need({ health: 30 }), said: 'The doctor checked you well and wrote a prescription.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [7, -4.5], stand: [7, -3.1], who: 'Pharmacist Bayo', role: 'Pharmacy', text: 'What do you need?', choices: [
       buy('Malaria treatment', 6500, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 6500, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
       buy('Paracetamol', 1000, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1000, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
     ] },
-    { id: 'ward', name: '🛏️ Admission', at: [-3, 4], stand: [-3, 2.4], who: 'Nurse Amaka', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 45000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
-  ], [{ at: [-6, 4], facing: 0, outfit: 0x60a5fa, sit: true }], [20, 18]),
+    { id: 'ward', name: '🛏️ Admission', at: [-3, 3.8], stand: [-3, 2.2], who: 'Nurse Amaka', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 45000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
+  ], [
+    { at: [-5, 7.2], facing: Math.PI, outfit: 0x60a5fa, sit: true },
+    { at: [-1.5, 7.2], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
+    { at: [2, 7.2], facing: Math.PI, outfit: 0x94a3b8, sit: true },
+    { at: [5.5, 7.2], facing: Math.PI, outfit: 0x16a34a, sit: true },
+    { at: [-8, 5.2], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+    { at: [0, -1.5], facing: 0.4, outfit: 0xfacc15 },
+    { at: [4.5, 1.5], facing: -0.8, outfit: 0x2563eb, gender: 'female' },
+    { at: [-3.5, 3.5], facing: 1.2, outfit: 0x5eead4, gender: 'female' },
+    { at: [7, 5.5], facing: Math.PI, outfit: 0x0f172a, sit: true },
+    { at: [-6, -5], facing: 0.2, outfit: 0x78716c },
+  ], [26, 22]),
   venue('ladipo-auto', 'Ladipo Auto Market', 'Mushin · auto parts', 'Parts · Mechanics · Panel beaters', '#78350f', 0x57534e, 0xd6d3d1, (b) => {
     b.box(0x7f1d1d, 2, 1.3, 4.4, -4, 0, -3).box(0x1e3a8a, 2, 1.3, 4.4, 2, 0, -3);
     for (let i = 0; i < 12; i++) b.cylinder(0x111111, 0.4, 0.25, 7 + (i % 3) * 0.9, Math.floor(i / 3) * 0.25, 4);
@@ -704,21 +1883,55 @@ const IKEJA: PlaceSpec[] = [
     ] },
   ], [], [20, 18]),
   venue('ikeja-gra', 'Ikeja GRA Estate Office', 'Ikeja GRA', 'Houses to rent and buy', '#14532d', 0xe7e5e4, 0xfef3c7, (b) => {
-    desk(b, -3, -4); desk(b, 3, -4); plant(b, -7, -6); plant(b, 7, -6);
+    desk(b, -3, -4); desk(b, 3, -4);
+    // Reception coffee table + waiting chairs
+    b.box(0x78350f, 1.2, 0.45, 0.7, 0, 0, 2);
+    for (const x of [-2.2, 2.2]) {
+      b.box(0x14532d, 0.55, 0.5, 0.55, x, 0, 2);
+      b.box(0x14532d, 0.55, 0.55, 0.1, x, 0.5, 1.7, { solid: false });
+    }
+    // Property photo wall
     for (let i = 0; i < 3; i++) b.box([0xfef3c7, 0xe2e8f0, 0xfecaca][i], 2, 1.4, 0.1, -4 + i * 4, 2, -7.9);
-  }, [{ name: 'Mrs Adeyemi', title: 'Estate agent', at: [-3, -5], facing: 0, outfit: 0x14532d, gender: 'female', says: 'Welcome to the GRA. Duplex, bungalow or flat?' }], [
+    // Brochure rack + water dispenser
+    b.box(0xd6d3d1, 0.7, 1.2, 0.35, 7, 0, -3);
+    for (let r = 0; r < 3; r++) b.box(0xf8fafc, 0.55, 0.02, 0.25, 7, 0.35 + r * 0.35, -2.9, { solid: false });
+    b.cylinder(0xe0f2fe, 0.28, 1.1, -7, 0, -2, { sides: 12 });
+    b.cylinder(0x38bdf8, 0.12, 0.15, -7, 1.1, -2, { glow: true, solid: false });
+    plant(b, -7, -6); plant(b, 7, -6); plant(b, 0, 6);
+    screen(b, 0, -7.6, 3.2, 0.7, 3.2, 0x14532d);
+  }, [
+    { name: 'Mrs Adeyemi', title: 'Estate agent', at: [-3, -5], facing: 0, outfit: 0x14532d, gender: 'female', says: 'Welcome to the GRA. Duplex, bungalow or flat?' },
+    { name: 'Mr Okon', title: 'Sales agent', at: [3, -5], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'I have a four-bed on Adeniyi Jones. Shall we view?' },
+  ], [
     { id: 'agent', name: '🏡 Estate agent', at: [-3, -4], stand: [-3, -2.6], who: 'Mrs Adeyemi', role: 'Estate agent', text: 'Rent or buy?', choices: [{ label: 'See houses to rent and buy', note: 'Opens Houses', open: 'app:property' }] },
-  ], [{ at: [6, 1.5], facing: -Math.PI / 2, outfit: 0xf59e0b, gender: 'female' }], [18, 16]),
+  ], [
+    { at: [-2.2, 2], facing: Math.PI, outfit: 0xf59e0b, sit: true, gender: 'female' },
+    { at: [2.2, 2], facing: Math.PI, outfit: 0x2563eb, sit: true },
+  ], [20, 18]),
   venue('chop-express', 'Chop Express', 'Ikeja · fast food', 'Rice · Chicken · Meat pie · Ice cream', '#dc2626', 0xf8fafc, 0xfde68a, (b) => {
-    counter(b, 0, -5, 8, 0xdc2626, 0xfacc15); screen(b, 0, -6.8, 6, 1.2, 2.6, 0xfacc15);
-    for (const [x, z] of [[-4, 1], [0, 1], [4, 1], [-4, 4], [4, 4]]) table(b, x, z, 0xfacc15, 2, 0xdc2626);
-  }, [{ name: 'Server Kemi', title: 'Server', at: [0, -6], facing: 0, outfit: 0xdc2626, gender: 'female', says: 'Welcome to Chop Express! What can I get you?' }], [
+    chopExpressFastFoodFloor(b, 0xdc2626);
+  }, [
+    { name: 'Server Kemi', title: 'Server', at: [0, -6], facing: 0, outfit: 0xdc2626, gender: 'female', says: 'Welcome to Chop Express! What can I get you?' },
+    { name: 'Fryer Boy', title: 'Kitchen', at: [-3.5, -6.2], facing: 0, outfit: 0xf97316, gender: 'male', chef: true, says: 'Chicken dey hot!' },
+    { name: 'Mr Ibe', title: 'Branch manager', at: [6.5, -5.5], facing: -Math.PI / 2, outfit: 0xdc2626, gender: 'male', tie: true, says: 'Fast hands, clean hands. Order 47 is up!' },
+    { name: 'Ice cream girl', title: 'Dessert counter', at: [-6.2, -4.2], facing: 0, outfit: 0xdb2777, gender: 'female', says: 'Vanilla or chocolate?' },
+    { name: 'Cleaner', title: 'Floor staff', at: [-4, 2.5], facing: 0.4, outfit: 0x64748b, gender: 'male', says: 'Table three is ready for the next customer.' },
+  ], [
     { id: 'counter', name: '🍗 Order', at: [0, -5], stand: [0, -3.7], who: 'Server Kemi', role: 'Chop Express', text: 'Eat in or takeaway?', choices: [
       { label: 'Jollof rice and chicken', price: 4800, note: 'Hunger +55', sit: true, seconds: 5, effect: need({ hunger: 55 }), said: 'Party jollof and a big chicken thigh.' },
       buy('A meat pie', 1500, item('meatpie', 'Meat pie', '🥧', 1500, 'food', true, 12), 'Hot meat pie in a paper bag.'),
       { label: 'Ice cream', price: 2500, note: 'Fun +8', effect: need({ fun: 8, hunger: 8 }), said: 'Vanilla with chocolate sauce.' },
     ] },
-  ], [{ at: [-4, 1.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [4, 4.95], facing: Math.PI, outfit: 0xec4899, sit: true, gender: 'female' }], [16, 14]),
+  ], [
+    { at: [-4, 1.95], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [0, 1.95], facing: Math.PI, outfit: 0x16a34a, sit: true, gender: 'female' },
+    { at: [4, 1.95], facing: Math.PI, outfit: 0xfacc15, sit: true },
+    { at: [-4, 4.95], facing: Math.PI, outfit: 0x1e3a8a, sit: true },
+    { at: [4, 4.95], facing: Math.PI, outfit: 0xec4899, sit: true, gender: 'female' },
+    { at: [0, 6.2], facing: Math.PI, outfit: 0x7c3aed },
+    { at: [-7, 0.5], facing: 0.8, outfit: 0x0f172a, sit: true },
+    { at: [7, 3.2], facing: -1.2, outfit: 0xdc2626, gender: 'female' },
+  ], [22, 18]),
   venue('faith-arena', 'Faith Arena', 'Ikeja · church', 'Sunday 7, 9 & 11 am', '#1e3a8a', 0xe7e5e4, 0xdbeafe, (b) => {
     pews(b, 8, -4, 9);
     stage(b, 0, -10, 14, 4, 0x1e3a8a);
@@ -757,7 +1970,7 @@ const IKEJA: PlaceSpec[] = [
       buy('A box of chocolates', 8000, item('chocolates', 'Box of chocolates', '🍫', 8000, 'food', true, 10), 'For somebody special.'),
     ] },
     { id: 'lounge', name: '🛋️ Business lounge', at: [6, 7], stand: [6, 6.5], who: 'Lounge host', role: 'Lounge', text: 'Welcome to the lounge.', choices: [{ label: 'Relax in the lounge', price: 40000, note: 'Energy +40, Hunger +30', sit: true, seconds: 6, effect: need({ energy: 40, hunger: 30 }), said: 'Soft chair, cold drink, quiet. Your flight is on time.' }] },
-  ], [{ at: [-5, -4], facing: Math.PI, outfit: 0x2563eb }, { at: [9, 7.4], facing: Math.PI, outfit: 0x111827, sit: true }, { at: [2, 3], facing: 0.4, outfit: 0xdb2777, gender: 'female' }], [26, 24]),
+  ], [{ at: [-5, -4], facing: Math.PI, outfit: 0x2563eb }, { at: [9, 7], facing: Math.PI, outfit: 0x111827, sit: true }, { at: [2, 3], facing: 0.4, outfit: 0xdb2777, gender: 'female' }], [26, 24]),
 ];
 
 
@@ -774,68 +1987,118 @@ const palm = (b: Builder, x: number, z: number) => {
 };
 
 const OUTDOOR: PlaceSpec[] = [
-  venue('lagoon-beach', 'Elegushi Beach', 'Lekki · beach', 'Beach bar · Cabanas · Horses · Beach party', '#0e7490', 0xe8d5a3, 0x7dd3fc, (b) => {
-    // The water at the back, the wash of the waves along it
-    b.box(0x0ea5e9, 30, 0.05, 6, 0, 0.01, -9.5);
-    for (let i = 0; i < 6; i++) b.box(0xf8fafc, 4, 0.03, 0.15, -12 + i * 5, 0.06, -6.6 + (i % 2) * 0.3);
-    for (let i = 0; i < 6; i++) umbrella(b, -10 + i * 4, -3, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf97316, 0xdb2777][i]);
-    // Cabanas: a curtained bed under a white roof
-    for (const x of [-9, -4]) b.box(0xf8fafc, 3, 0.1, 3, x, 2.6, 4).box(0xfef3c7, 2.4, 0.5, 2, x, 0, 4).box(0xf8fafc, 0.08, 2.6, 0.08, x - 1.4, 0, 2.6).box(0xf8fafc, 0.08, 2.6, 0.08, x + 1.4, 0, 2.6);
-    // The bar hut, the DJ's table and speakers, palms, and the horses
-    counter(b, 8, 4, 4, 0xb45309); b.cone(0xd6b46a, 3.6, 1.4, 8, 2.6, 3.5, 4);
-    b.box(0x111827, 2, 0.9, 0.8, -1, 0, -1).box(0x22d3ee, 1.8, 0.04, 0.6, -1, 0.91, -1, { glow: true }).box(0x111827, 0.8, 1.6, 0.8, -3, 0, -1).box(0x111827, 0.8, 1.6, 0.8, 1, 0, -1);
-    palm(b, -12.5, 8); palm(b, 12.5, -4); palm(b, 12, 8);
-    for (const [x, c] of [[-11, 0x78350f], [-9.5, 0xf5f5f4]] as Array<[number, number]>) b.box(c, 0.5, 0.8, 1.8, x, 1, 8).box(c, 0.3, 0.7, 0.5, x, 1.6, 8.9, { pitch: -0.5 }).box(0x44403c, 0.12, 1, 0.12, x - 0.15, 0, 7.4).box(0x44403c, 0.12, 1, 0.12, x + 0.15, 0, 8.6);
+  venue('lagoon-beach', 'Elegushi Beach', 'Lekki · beach', 'Beach bar · Cabanas · Horses · Swim · Beach party', '#0e7490', 0xe8d5a3, 0x7dd3fc, (b, room) => {
+    // Horizon sea past the rails, wet/dry sand, swim bobbers, horses, vendors (OpenAirBeach)
+    if (room) attachOpenAirBeach(room, 48, 72);
+    for (let i = 0; i < 12; i++) umbrella(b, -26 + i * 4.5, -8 + (i % 3) * 0.4, [0xdc2626, 0xfacc15, 0x16a34a, 0x2563eb, 0xf97316, 0xdb2777][i % 6]);
+    // Cabanas / beach huts: curtained beds under white roofs
+    for (const x of [-20, -12, -4, 4]) b.box(0xf8fafc, 3.2, 0.1, 3.2, x, 2.6, 6).box(0xfef3c7, 2.5, 0.5, 2.2, x, 0, 6).box(0xf8fafc, 0.08, 2.6, 0.08, x - 1.5, 0, 4.5).box(0xf8fafc, 0.08, 2.6, 0.08, x + 1.5, 0, 4.5);
+    // Thatch beach huts near the entrance
+    for (const x of [-28, 22]) {
+      b.box(0xb45309, 3.6, 2.2, 3.2, x, 0, 14);
+      b.cone(0xd6b46a, 3.4, 1.4, x, 2.4, 14, 5);
+      b.box(0x78350f, 1.2, 1.8, 0.08, x, 0, 12.4);
+    }
+    // Beach bar hut, DJ booth, speakers
+    counter(b, 14, 8, 5, 0xb45309); b.cone(0xd6b46a, 4.2, 1.5, 14, 2.7, 7.2, 4);
+    b.box(0x111827, 2.2, 0.9, 0.9, -2, 0, -2).box(0x22d3ee, 2, 0.04, 0.65, -2, 0.91, -2, { glow: true }).box(0x111827, 0.85, 1.6, 0.85, -4.2, 0, -2).box(0x111827, 0.85, 1.6, 0.85, 0.2, 0, -2);
+    // Suya stand & coconut seller crates
+    b.box(0x78350f, 1.6, 0.9, 0.8, 8, 0, 14).box(0x292524, 1.4, 0.05, 0.7, 8, 0.92, 14).cylinder(0xea580c, 0.22, 0.35, 8.3, 0.95, 14, { glow: true });
+    for (let i = 0; i < 5; i++) b.cylinder(0x92400e, 0.2, 0.35, -12 + i * 0.55, 0, 12, { topRadius: 0.18 });
+    // Football pitch markings on the sand (near entrance)
+    b.box(0xf8fafc, 12, 0.02, 0.08, 0, 0.03, 16, { solid: false }).box(0xf8fafc, 0.08, 0.02, 8, -6, 0.03, 16, { solid: false }).box(0xf8fafc, 0.08, 0.02, 8, 6, 0.03, 16, { solid: false });
+    // Palms along the plot and past the rails toward the sea
+    for (const [x, z] of [
+      [-28, 10], [-24, -6], [24, -4], [28, 12], [-20, 18], [18, 18],
+      [-32, 2], [-30, -10], [30, -8], [32, 6], [-16, 20], [12, 20],
+      [-8, -12], [8, -14], [-26, 16], [26, 16],
+    ] as Array<[number, number]>) palm(b, x, z);
+    // Waiting horses by Baba Horse (moving riders are spawned by OpenAirBeach)
+    for (const [x, c] of [[-22, 0x78350f], [-19.5, 0xf5f5f4]] as Array<[number, number]>) b.box(c, 0.5, 0.8, 1.8, x, 1, 10).box(c, 0.3, 0.7, 0.5, x, 1.6, 10.9, { pitch: -0.5 }).box(0x44403c, 0.12, 1, 0.12, x - 0.15, 0, 9.4).box(0x44403c, 0.12, 1, 0.12, x + 0.15, 0, 10.6);
   }, [
-    { name: 'Kunle', title: 'Beach bar', at: [8, 3], facing: 0, outfit: 0xf97316, gender: 'male', says: 'Coconut, Chapman, suya! Cold cold!' },
-    { name: 'DJ Spinz', title: 'DJ', at: [-1, -1.8], facing: 0, outfit: 0x7c3aed, gender: 'male', says: 'Beach party every evening! Amapiano till the sun goes down.' },
-    { name: 'Baba Horse', title: 'Horse rides', at: [-10.3, 6.4], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Ride along the water! Small money.' },
+    { name: 'Kunle', title: 'Beach bar', at: [14, 7], facing: 0, outfit: 0xf97316, gender: 'male', says: 'Coconut, Chapman, suya! Cold cold!' },
+    { name: 'DJ Spinz', title: 'DJ', at: [-2, -2.6], facing: 0, outfit: 0x7c3aed, gender: 'male', says: 'Beach party every evening! Amapiano till the sun goes down.' },
+    { name: 'Baba Horse', title: 'Horse rides', at: [-20.5, 8.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Ride along the water! Small money.' },
+    { name: 'Suya Man', title: 'Suya', at: [8, 13.2], facing: Math.PI, outfit: 0xb45309, gender: 'male', says: 'Fresh stick! Yaji plenty!' },
+    { name: 'Mama Coconut', title: 'Coconuts', at: [-12, 11.5], facing: 0, outfit: 0x16a34a, gender: 'female', says: 'Fresh from the tree. I open am for you.' },
   ], [
-    { id: 'bar', name: '🥥 The beach bar', at: [8, 4], stand: [8, 5.3], who: 'Kunle', role: 'Beach bar', text: 'Wetin you go take?', choices: [
+    { id: 'bar', name: '🥥 The beach bar', at: [14, 8], stand: [14, 9.4], who: 'Kunle', role: 'Beach bar', text: 'Wetin you go take?', choices: [
       buy('Fresh coconut water', 1500, item('coconut', 'Fresh coconut', '🥥', 1500, 'food', true, 10), 'Cold coconut water, straight from the nut.'),
       { label: 'Suya and a cold drink', price: 4500, note: 'Hunger +35', sit: true, seconds: 4, effect: need({ hunger: 35, fun: 5 }), said: 'Hot suya with yaji, and a cold drink with it.' },
       { label: 'A Chapman in the shade', price: 3000, note: 'Fun +10', effect: need({ fun: 10, hunger: 5 }), said: 'Chapman with cucumber, cold as ice.' },
     ] },
-    { id: 'lounger', name: '🏖️ Loungers by the water', at: [-6, -3], stand: [-4.9, -1.8], who: 'Beach attendant', role: 'Elegushi Beach', text: 'Lounger or a cabana?', choices: [
+    { id: 'lounger', name: '🏖️ Loungers by the water', at: [-10, -8], stand: [-8.5, -6.5], who: 'Beach attendant', role: 'Elegushi Beach', text: 'Lounger or a cabana?', choices: [
       { label: 'Lie on a lounger by the water', price: 3000, note: 'Fun +30, Energy +10', sit: true, seconds: 6, effect: need({ fun: 30, energy: 10 }), said: 'Breeze, waves, Afrobeats. You needed this.' },
       { label: 'Rent a cabana for the day', price: 25000, note: 'Fun +35, Social +20', sit: true, seconds: 6, effect: need({ fun: 35, social: 20, energy: 15 }), said: 'Curtains, cushions, your own waiter. Big man things.' },
     ] },
-    { id: 'horse', name: '🐎 Horse ride', at: [-10.3, 8], stand: [-8.8, 7], who: 'Baba Horse', role: 'Horse rides', text: 'Once along the water and back?', choices: [
+    { id: 'horse', name: '🐎 Horse ride', at: [-20.5, 10], stand: [-18.5, 9], who: 'Baba Horse', role: 'Horse rides', text: 'Once along the water and back?', choices: [
       { label: 'Ride a horse along the shore', price: 5000, note: 'Fun +30', arms: 'wave', seconds: 7, effect: need({ fun: 30 }), said: 'Trotting along the water, the wind in your face. Baba Horse held the rope.' },
     ] },
-    { id: 'party', name: '🎶 The beach party', at: [-1, -1], stand: [-1, 0.6], who: 'DJ Spinz', role: 'DJ', text: 'Oya, enter the party!', choices: [
+    { id: 'party', name: '🎶 The beach party', at: [-2, -2], stand: [-2, -0.4], who: 'DJ Spinz', role: 'DJ', text: 'Oya, enter the party!', choices: [
       { label: 'Dance on the sand', note: 'Free · Fun +30, Social +15', dance: true, seconds: 8, effect: need({ fun: 30, social: 15 }), said: 'Shoes off, sand everywhere, the whole beach dancing.' },
     ] },
-  ], [{ at: [-8.9, -3], facing: Math.PI, outfit: 0xdc2626, sit: true }, { at: [-0.9, -3], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' }, { at: [2, 0.3], facing: 2.6, outfit: 0xfacc15 }, { at: [-4, 4.2], facing: Math.PI, outfit: 0x0ea5e9, sit: true, gender: 'female' }], [28, 22]),
-
-  venue('ikeja-golf', 'Ikeja Golf Club', 'Ikeja · golf', 'Clubhouse · Pro shop · Putting green · 9 holes', '#14532d', 0x92400e, 0xfef3c7, (b) => {
-    // The putting green with its flag, the bar, the pro shop's racks of clubs, the honours board
-    b.cylinder(0x4d7c0f, 3.6, 0.06, -5, 0, -2, { sides: 24 }).cylinder(0x111111, 0.12, 0.07, -4, 0, -1.4, { sides: 10 }).cylinder(0xf8fafc, 0.03, 1.6, -4, 0, -1.4).box(0xdc2626, 0.03, 0.35, 0.5, -4, 1.25, -1.15);
-    counter(b, 7, -6, 5, 0x78350f, 0xd4af37); bottles(b, 7, -7.8, 5);
-    for (let i = 0; i < 3; i++) { b.box(0x1f2937, 1.6, 1.2, 0.5, 6 + i * 1.8, 0, 5); for (let j = 0; j < 5; j++) b.cylinder(0xd1d5db, 0.025, 1.1, 5.5 + i * 1.8 + j * 0.25, 1.1, 5); }
-    b.box(0x78350f, 3.6, 2.2, 0.1, -6, 1.2, -8.9).box(0xd4af37, 3.2, 0.2, 0.12, -6, 2.9, -8.9);
-    for (const [x, z] of [[-7, 5], [-3, 5]]) table(b, x, z, 0xf8fafc, 4, 0x166534);
-  }, [
-    { name: 'Mr Oduya', title: 'Club secretary', at: [-6, -7.2], facing: 0, outfit: 0x14532d, gender: 'male', tie: true, says: 'Members and their guests. Green fee for visitors.' },
-    { name: 'Musa', title: 'Caddie', at: [-1, -3], facing: -1.2, outfit: 0xfacc15, gender: 'male', says: 'Oga, I sabi this course. Every hole.' },
-    { name: 'Barman Tayo', title: 'Clubhouse bar', at: [7, -7], facing: 0, outfit: 0x111827, gender: 'male', says: 'Chapman? Pepper soup?' },
+    { id: 'suya', name: '🥩 Beach suya', at: [8, 14], stand: [8, 12.6], who: 'Suya Man', role: 'Suya', text: 'How many sticks?', choices: [
+      { label: 'Two sticks of suya', price: 2500, note: 'Hunger +25', seconds: 3, effect: need({ hunger: 25 }), said: 'Pepper heat, smoke in your hair, sea breeze with it.' },
+    ] },
+    { id: 'coconut', name: '🥥 Fresh coconut', at: [-12, 12], stand: [-12, 10.6], who: 'Mama Coconut', role: 'Coconuts', text: 'I open am now?', choices: [
+      buy('Fresh coconut', 1000, item('coconut', 'Fresh coconut', '🥥', 1000, 'food', true, 8), 'She cracked it open with one cut. Sweet water.'),
+    ] },
+    { id: 'football', name: '⚽ Beach football', at: [0, 16], stand: [0, 14.5], who: 'Beach boys', role: 'Football', text: 'Small game on the sand?', choices: [
+      { label: 'Play a quick match', note: 'Free · Fun +25, Energy −10', arms: 'swing', seconds: 8, effect: need({ fun: 25, energy: -10 }), said: 'Barefoot, soft sand, one goal with a shirt. You scored.' },
+    ] },
+    { id: 'swim', name: '🏊 Shallow swim', at: [0, -22], stand: [0, -18], who: 'Lifeguard', role: 'Swim zone', text: 'Only between the red buoys. No deep water.', choices: [
+      { label: 'Swim in the marked shallows', note: 'Free · Fun +20, Hygiene +15', arms: 'swing', seconds: 7, effect: need({ fun: 20, hygiene: 15 }), said: 'Warm lagoon water up to your chest. The buoys keep you in the safe zone.' },
+    ] },
   ], [
-    { id: 'course', name: '⛳ Nine holes', at: [-6, -8], stand: [-6, -6.4], who: 'Mr Oduya', role: 'Club secretary', text: 'Guests pay a green fee. Musa will caddie for you.', choices: [
+    { at: [-14, -8], facing: Math.PI, outfit: 0xdc2626, sit: true },
+    { at: [-6, -8], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+    { at: [4, -7.5], facing: Math.PI, outfit: 0xfacc15 },
+    { at: [-10, 6.5], facing: Math.PI, outfit: 0x0ea5e9, sit: true, gender: 'female' },
+    { at: [2, 15.5], facing: 0.4, outfit: 0x22c55e },
+    { at: [-3, 15.2], facing: -0.5, outfit: 0xf97316 },
+    { at: [10, -6], facing: Math.PI, outfit: 0x7c3aed, sit: true, gender: 'female' },
+    { at: [-18, -5], facing: 0.8, outfit: 0xea580c },
+    { at: [16, 4], facing: -1.2, outfit: 0xf8fafc },
+    { at: [0, 10], facing: Math.PI, outfit: 0x2563eb },
+  ], [72, 48], true),
+
+  venue('ikeja-golf', 'Ikeja Golf Club', 'Ikeja · golf', 'Clubhouse · Pro shop · Putting green · 9 holes', '#14532d', 0x4d7c0f, 0x166534, (b, room) => {
+    // Horizon fairway past the rails — no grey void
+    if (room) attachOpenAirPark(room, 36, 48);
+    // Open course: fairway, putting green, open pavilion clubhouse — no room shell.
+    b.box(0x65a30d, 40, 0.04, 8, 0, 0.02, -14, { solid: false });
+    b.cylinder(0x4d7c0f, 4.2, 0.08, -8, 0, -2, { sides: 28 });
+    b.cylinder(0x111111, 0.14, 0.08, -7, 0, -1.2, { sides: 10 });
+    b.cylinder(0xf8fafc, 0.03, 1.7, -7, 0, -1.2).box(0xdc2626, 0.03, 0.35, 0.5, -7, 1.3, -0.95);
+    // Open pavilion (posts + roof), not four walls
+    for (const [x, z] of [[10, -8], [18, -8], [10, -2], [18, -2]] as Array<[number, number]>) b.cylinder(0x78716c, 0.16, 3.2, x, 0, z);
+    b.box(0xd6b46a, 10, 0.2, 8, 14, 3.2, -5);
+    counter(b, 14, -6, 5, 0x78350f, 0xd4af37); bottles(b, 14, -7.8, 5);
+    for (let i = 0; i < 3; i++) { b.box(0x1f2937, 1.6, 1.2, 0.5, 6 + i * 1.8, 0, 8); for (let j = 0; j < 5; j++) b.cylinder(0xd1d5db, 0.025, 1.1, 5.5 + i * 1.8 + j * 0.25, 1.1, 8); }
+    b.box(0x78350f, 3.6, 2.2, 0.1, -14, 1.2, 10).box(0xd4af37, 3.2, 0.2, 0.12, -14, 2.9, 10);
+    for (const [x, z] of [[-12, 6], [-6, 6]] as Array<[number, number]>) table(b, x, z, 0xf8fafc, 4, 0x166534);
+    palm(b, -20, -10); palm(b, 22, 4); palm(b, -18, 12);
+  }, [
+    { name: 'Mr Oduya', title: 'Club secretary', at: [-10, -6], facing: 0, outfit: 0x14532d, gender: 'male', tie: true, says: 'Members and their guests. Green fee for visitors.' },
+    { name: 'Musa', title: 'Caddie', at: [-4, -3], facing: -1.2, outfit: 0xfacc15, gender: 'male', says: 'Oga, I sabi this course. Every hole.' },
+    { name: 'Barman Tayo', title: 'Clubhouse bar', at: [14, -7], facing: 0, outfit: 0x111827, gender: 'male', says: 'Chapman? Pepper soup?' },
+  ], [
+    { id: 'course', name: '⛳ Nine holes', at: [-10, -8], stand: [-10, -6.4], who: 'Mr Oduya', role: 'Club secretary', text: 'Guests pay a green fee. Musa will caddie for you.', choices: [
       { label: 'Play nine holes with a caddie', price: 50000, note: 'Fun +40 · Fitness', arms: 'swing', seconds: 7, effect: (be) => { need({ fun: 40, energy: -15 })(be as never); (be as unknown as { addSkillExp(s: string, n: number): void }).addSkillExp('fitness', 1); }, said: 'Two birdies and one ball in the bush. Musa carried the bag and read every green.' },
       { label: 'Become a member', price: 3500000, note: 'Social +30 · a year', arms: 'shake', seconds: 3, effect: need({ social: 30 }), item: { id: 'golf_membership', name: 'Ikeja Golf Club membership card', icon: '⛳', price: 3500000, category: 'document', usable: false, description: 'A member of the Ikeja Golf Club. Your name is on the board.' }, said: 'Welcome to the club. Your name goes on the members’ board.' },
     ] },
-    { id: 'green', name: '🏌️ The putting green', at: [-5, -2], stand: [-6.6, -0.6], who: 'Musa', role: 'Caddie', text: 'Practise your putting, free for anybody.', choices: [
+    { id: 'green', name: '🏌️ The putting green', at: [-8, -2], stand: [-9.5, -0.4], who: 'Musa', role: 'Caddie', text: 'Practise your putting, free for anybody.', choices: [
       { label: 'Practise putting', note: 'Free · Fun +10', arms: 'swing', seconds: 5, effect: need({ fun: 10 }), said: 'Ten putts. Seven in the hole. Not bad at all.' },
     ] },
-    { id: 'bar', name: '🍲 The clubhouse bar', at: [7, -6], stand: [7, -4.7], who: 'Barman Tayo', role: 'Clubhouse bar', text: 'After the round?', choices: [
+    { id: 'bar', name: '🍲 The clubhouse bar', at: [14, -6], stand: [14, -4.7], who: 'Barman Tayo', role: 'Clubhouse bar', text: 'After the round?', choices: [
       { label: 'Pepper soup and a Chapman', price: 9000, note: 'Hunger +40, Social +15', sit: true, seconds: 5, effect: need({ hunger: 40, social: 15 }), said: 'Goat meat pepper soup, and the gist of the nineteenth hole.' },
       { label: 'A drink with the members', price: 6000, note: 'Social +20', effect: need({ social: 20 }), said: 'A retired general told you about the 1985 club championship. Twice.' },
     ] },
-    { id: 'shop', name: '🏷️ The pro shop', at: [7.8, 5], stand: [7.8, 3.7], who: 'Pro shop', role: 'Ikeja Golf Club', text: 'Clubs, balls, gloves.', choices: [
+    { id: 'shop', name: '🏷️ The pro shop', at: [7.8, 8], stand: [7.8, 6.5], who: 'Pro shop', role: 'Ikeja Golf Club', text: 'Clubs, balls, gloves.', choices: [
       buy('A set of golf clubs and a bag', 450000, { id: 'golf_clubs', name: 'Golf clubs and bag', icon: '🏌️', price: 450000, category: 'luxury', usable: false, description: 'Irons, woods, a putter and a leather bag.' }, 'A full set in a leather bag, carried to your car.', 'Into your bag'),
       buy('A box of golf balls', 15000, { id: 'golf_balls', name: 'Box of golf balls', icon: '⚪', price: 15000, category: 'luxury', usable: false, description: 'A dozen new balls.' }, 'A dozen new balls.', 'Into your bag'),
     ] },
-  ], [{ at: [-7, 5.95], facing: Math.PI, outfit: 0xf8fafc, sit: true }, { at: [-3, 4.05], facing: 0, outfit: 0x1e3a8a, sit: true }], [24, 20]),
+  ], [{ at: [-12, 6.95], facing: Math.PI, outfit: 0xf8fafc, sit: true }, { at: [-5.05, 6], facing: -Math.PI / 2, outfit: 0x1e3a8a, sit: true }], [48, 36], true),
 
   venue('lagoon-marina', 'Eko Marina Yacht Club', 'Lagoon · marina', 'Berths · Fuel · Chandlery · Bar on the deck', '#0e7490', 0xe2e8f0, 0xf8fafc, (b) => {
     // Glass across the back, the lagoon beyond it
@@ -886,7 +2149,7 @@ const OUTDOOR: PlaceSpec[] = [
     { id: 'bar', name: '🥂 The bar', at: [7, -6], stand: [7, -4.7], who: 'Lounge host', role: 'Bar', text: 'Champagne?', choices: [
       { label: 'A glass of champagne', price: 35000, note: 'Fun +15, Social +10', effect: need({ fun: 15, social: 10 }), said: 'Cold champagne. The big men in the lounge nodded at you.' },
     ] },
-  ], [{ at: [5, 1.3], facing: Math.PI, outfit: 0x111827, sit: true }], [24, 20]),
+  ], [{ at: [5, 1], facing: Math.PI, outfit: 0x111827, sit: true }], [24, 20]),
 ];
 
 
@@ -922,27 +2185,36 @@ const SIDE: PlaceSpec[] = [
   ], [{ at: [5, -3.6], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [2, 4.4], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' }], [16, 14]),
 
   venue('allen-suya', 'Mai Suya Spot', 'Allen Avenue · suya', 'Suya · Kilishi · Cold drinks', '#b45309', 0x57534e, 0xfed7aa, (b) => {
-    // The grill, its coals glowing, sticks of meat on it
-    b.box(0x111827, 3, 0.9, 1, 0, 0, -3.5).box(0xf97316, 2.8, 0.05, 0.8, 0, 0.9, -3.5, { glow: true });
-    for (let i = 0; i < 8; i++) b.box(0x7c2d12, 0.08, 0.06, 0.6, -1.2 + i * 0.34, 1, -3.5);
-    for (const [x, z] of [[-3, 2], [0, 2], [3, 2]]) table(b, x, z, 0xf8fafc, 2, 0xdc2626);
-  }, [{ name: 'Mai Suya', title: 'Suya man', at: [0, -4.4], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Hot suya! Plenty yaji, plenty onions!' }], [
+    maiSuyaSpotFloor(b, 0xb45309);
+  }, [
+    { name: 'Mai Suya', title: 'Suya man', at: [0, -4.4], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Hot suya! Plenty yaji, plenty onions!' },
+    { name: 'Musa', title: 'Apprentice', at: [2.5, -3.8], facing: -Math.PI / 2, outfit: 0xf97316, gender: 'male', says: 'Fan the coals. Customer dey wait.' },
+    { name: 'Mallam Sani', title: 'Night grill', at: [-2.5, -3.6], facing: Math.PI / 2, outfit: 0x1c1917, gender: 'male', says: 'Kilishi dry, yaji sharp.' },
+  ], [
     { id: 'grill', name: '🍢 The grill', at: [0, -3.5], stand: [0, -2.2], who: 'Mai Suya', role: 'Suya man', text: 'How much suya?', choices: [
       { label: 'Suya with onions and yaji', price: 2500, note: 'Hunger +25', sit: true, seconds: 4, effect: need({ hunger: 25, fun: 5 }), said: 'Wrapped in newspaper, hot, peppery. You ate it at the table under the lights.' },
       buy('Suya and kilishi to take away', 6000, item('suya_pack', 'Suya and kilishi, wrapped', '🍢', 6000, 'food', true, 18), 'Wrapped in newspaper and foil, still smoking.'),
       { label: 'A cold Chapman', price: 3000, note: 'Fun +8', effect: need({ fun: 8, hunger: 4 }), said: 'Cold Chapman in a tall glass.' },
     ] },
-  ], [{ at: [-3, 2.95], facing: Math.PI, outfit: 0x16a34a, sit: true }, { at: [3, 1.05], facing: 0, outfit: 0xdb2777, sit: true, gender: 'female' }], [14, 12]),
+  ], [
+    { at: [-3, 2.95], facing: Math.PI, outfit: 0x16a34a, sit: true },
+    { at: [0, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [3, 2.95], facing: Math.PI, outfit: 0xdb2777, sit: true, gender: 'female' },
+    { at: [-3, 0.5], facing: 0, outfit: 0xfacc15, sit: true },
+    { at: [3, 0.8], facing: Math.PI, outfit: 0x7c2d12, sit: true },
+    { at: [0, 4.5], facing: Math.PI, outfit: 0xdc2626 },
+    { at: [-4.5, 4.5], facing: 0.6, outfit: 0x0f172a, gender: 'female' },
+    { at: [4.2, 4.8], facing: -0.8, outfit: 0x15803d },
+  ], [14, 12]),
 
   venue('allen-bank', 'Eko Commercial Bank, Allen', 'Allen Avenue · bank', 'Allen Avenue branch · ATM', '#1e3a8a', 0xe5e7eb, 0xf8fafc, (b) => {
-    counter(b, 0, -5, 9, 0x1e3a8a, 0xf8fafc);
-    b.box(0xbfe3ff, 9, 1, 0.04, 0, 1.11, -5);
-    for (const x of [-7.5, -6.3]) b.box(0x334155, 0.9, 1.8, 0.5, x, 0, 6.6).box(0x38bdf8, 0.5, 0.4, 0.02, x, 1.2, 6.34, { glow: true });
-    desk(b, 6, 3);
-    for (let i = 0; i < 4; i++) b.box(0x1e3a8a, 0.5, 0.45, 0.5, -3 + i, 0, 2);
+    allenBankBranchFloor(b, 0x1e3a8a, true);
   }, [
     { name: 'Teller', title: 'Teller', at: [-2, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Next customer, please.' },
     { name: 'Mr Ajayi', title: 'Account officer', at: [6, 2.2], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Accounts, loans, cards. How can I help?' },
+    { name: 'Guard Musa', title: 'Security', at: [4.3, 6.5], facing: Math.PI, outfit: 0x334155, gender: 'male', cap: true, says: 'Walk through the detector. No weapons.' },
+    { name: 'Adeola', title: 'Customer service', at: [-8.2, 3], facing: Math.PI / 2, outfit: 0x2563eb, gender: 'female', says: 'Account opening forms? BVN update? Sit, I will help.' },
+    { name: 'Teller Bola', title: 'Teller', at: [1.5, -6], facing: 0, outfit: 0x1e3a8a, gender: 'female', says: 'Cash or transfer?' },
   ], [
     { id: 'teller', name: '🏦 The teller', at: [-2, -5], stand: [-2, -3.7], who: 'Teller', role: 'Eko Commercial Bank', text: 'Paying in or taking out?', choices: [
       { label: 'Pay ₦10,000 cash into my account', note: 'From your wallet', arms: 'reach', seconds: 2.5, effect: (be) => { be.depositToBank(10000); }, said: 'Counted, stamped, and the teller hands back your slip.' },
@@ -950,7 +2222,18 @@ const SIDE: PlaceSpec[] = [
     ] },
     { id: 'atm', name: '🏧 Cash machines', at: [-6.9, 6.6], stand: [-6.9, 5.3], who: 'ATM', role: 'Eko Commercial Bank', text: 'Insert your card.', choices: [{ label: 'Use the cash machine', note: 'Opens Bank', open: 'app:bank' }] },
     { id: 'officer', name: '💼 Account officer', at: [6, 3], stand: [6, 4.4], who: 'Mr Ajayi', role: 'Account officer', text: 'A loan, a new card, or a business account?', choices: [{ label: 'Loans and accounts', note: 'Opens Bank', open: 'app:bank' }] },
-  ], [{ at: [-1, 2.05], facing: Math.PI, outfit: 0xf59e0b, sit: true }], [20, 16]),
+  ], [
+    { at: [-1, 2.05], facing: Math.PI, outfit: 0xf59e0b, sit: true },
+    { at: [-3, 2.05], facing: Math.PI, outfit: 0x16a34a, sit: true, gender: 'female' },
+    { at: [-3.5, -1.2], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' },
+    { at: [-1.2, -0.5], facing: 0, outfit: 0x0f172a, gender: 'male' },
+    { at: [0.8, 0.6], facing: Math.PI, outfit: 0xdb2777, gender: 'female' },
+    { at: [-6.8, 5.2], facing: -0.3, outfit: 0x15803d, gender: 'male' },
+    { at: [-7.2, 6.8], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'male' },
+    { at: [2.5, 6.2], facing: Math.PI, outfit: 0x0369a1, sit: true, gender: 'female' },
+    { at: [5.8, 5.6], facing: -Math.PI / 2, outfit: 0x57534e },
+    { at: [5.0, 4.8], facing: 0, outfit: 0x1e3a8a, sit: true, gender: 'male' },
+  ], [20, 16]),
 
   venue('awolowo-fashion', 'Awolowo Way Fashion House', 'Obafemi Awolowo Way · fashion', 'Bespoke · Agbada · Kaftan · Ankara', '#7c3aed', 0xf5f5f4, 0xede9fe, (b) => {
     // The cutting table with cloth on it, sewing machines, mannequins in finished pieces
@@ -1068,33 +2351,58 @@ const ABUJA_SPECS: PlaceSpec[] = [
   ], [
     { id: 'gallery', name: '🏛️ Watch the Senate sit', at: [0, 4], stand: [0, 5.4], who: 'Sergeant-at-Arms', role: 'Public gallery', text: 'Sit quietly. They are on the budget.', choices: [{ label: 'Watch from the gallery', note: 'Fun +15, Social +5', sit: true, seconds: 8, effect: need({ fun: 15, social: 5 }), said: 'Point of order! The Senate President banged the gavel and the budget went to second reading.' }] },
     { id: 'rep', name: '🤝 See your representative', at: [3, -7], stand: [3, -5.6], who: 'Clerk Hauwa', role: 'National Assembly', text: 'Your member has five minutes after plenary.', choices: [{ label: 'Tell them what your street needs', note: 'Social +15', arms: 'wave', seconds: 4, effect: need({ social: 15 }), said: 'The honourable member wrote it down and promised a borehole. We will see.' }] },
-  ], [{ at: [-2, 1], facing: Math.PI, outfit: 0x1e3a8a, sit: true }, { at: [2, 2.6], facing: Math.PI, outfit: 0x7f1d1d, sit: true }], [22, 20]), [342, -15]),
+  ], [{ at: [-2, 1], facing: Math.PI, outfit: 0x1e3a8a, sit: true }, { at: [2, 1], facing: Math.PI, outfit: 0x7f1d1d, sit: true }], [22, 20]), [342, -15]),
 
   abuja(venue('transcorp-hilton', 'Transcorp Hilton Abuja', 'Maitama · hotel', '★★★★★ · Lobby bar · Buffet · Pool', '#0c4a6e', 0xf5f5f4, 0xe7e5e4, (b) => {
-    counter(b, -5, -6, 7, 0x0c4a6e, 0xf8fafc);
-    b.cylinder(0xfacc15, 0.1, 1.4, 0, 3.6, 0).dome(0xfde68a, 1, 0, 3.2, 0, { glow: true });
-    bottles(b, 6.5, -8.6, 4);
-    counter(b, 6.5, -6.5, 4, 0x1c1917, 0xd4af37);
-    for (const [x, z] of [[-6, 3], [-3, 3], [-6, 6]]) table(b, x, z, 0xf8fafc, 4, 0x0c4a6e);
-    b.box(0x0284c7, 7, 0.1, 4, 6, 0.01, 5.5, { glow: true });
+    grandLobby(b, 0x0c4a6e, true);
   }, [
     { name: 'Front desk', title: 'Receptionist', at: [-5, -7], facing: 0, outfit: 0x0c4a6e, gender: 'female', says: 'Welcome to Transcorp Hilton. Checking in?' },
     { name: 'Barman Ifeanyi', title: 'Lobby bar', at: [6.5, -7.5], facing: 0, outfit: 0x111827, gender: 'male', tie: true, says: 'Chapman, or something stronger?' },
+    { name: 'Porter Musa', title: 'Bellboy', at: [2, -6.2], facing: 0, outfit: 0x0c4a6e, gender: 'male', says: 'Bags to your room, madam?' },
   ], [
     { id: 'buffet', name: '🍽️ The buffet', at: [-6, 3], stand: [-6, 3.95], who: 'Waiter', role: 'Transcorp Hilton', text: 'The buffet is open.', choices: [{ label: 'The lunch buffet', price: 32000, note: 'Hunger +70, Fun +10', sit: true, seconds: 7, effect: need({ hunger: 70, fun: 10 }), said: 'Jollof, asun, pepper soup and three desserts. You went back twice.' }] },
     { id: 'bar', name: '🍹 The lobby bar', at: [6.5, -6.5], stand: [6.5, -5.1], who: 'Barman Ifeanyi', role: 'Lobby bar', text: 'What will it be?', choices: [{ label: 'A Chapman by the window', price: 7000, note: 'Fun +15, Social +10', sit: true, seconds: 5, effect: need({ fun: 15, social: 10 }), said: 'Half of Abuja is doing deals at the next table.' }] },
     { id: 'pool', name: '🏊 The pool', at: [6, 5.5], stand: [3, 5.5], who: 'Pool attendant', role: 'Transcorp Hilton', text: 'Towel and a lounger?', choices: [{ label: 'A swim', price: 18000, note: 'Fun +25, Hygiene +20', arms: 'swing', seconds: 6, effect: need({ fun: 25, hygiene: 20 }), said: 'Clear water, the Maitama hills behind it.' }] },
-  ], [{ at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true }, { at: [7.5, -5], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' }], [24, 20]), [280, 157]),
+  ], [
+    { at: [-3, 3.95], facing: Math.PI, outfit: 0x0f172a, sit: true },
+    { at: [7.5, -5], facing: Math.PI, outfit: 0x7c3aed, gender: 'female' },
+  ], [24, 20]), [280, 157]),
 
   abuja(venue('cbn-abuja', 'Central Bank of Nigeria', 'Central Business District · the apex bank', 'Visitors centre · Currency museum', '#0f172a', 0xd6d3d1, 0xe7e5e4, (b) => {
     counter(b, 0, -6, 6, 0x0f172a, 0xd4af37);
+    for (const x of [-3, 0, 3]) {
+      b.box(0x0f172a, 0.4, 0.32, 0.05, x, 1.5, -6.3, { solid: false });
+      b.box(0xd4af37, 0.34, 0.26, 0.02, x, 1.52, -6.25, { glow: true, solid: false });
+    }
     // Glass cases of notes and coins down each side, and the vault door at the back
-    for (const x of [-7, 7]) for (const z of [-3, 1, 5]) b.box(0x334155, 1.6, 0.9, 1, x, 0, z).box(0x86efac, 1.4, 0.5, 0.8, x, 0.9, z, { glow: true });
-    b.cylinder(0x9ca3af, 2.2, 0.4, 0, 2.6, -8.7, { sides: 24 }).cylinder(0x6b7280, 0.6, 0.5, 0, 2.6, -8.4, { sides: 12 });
-  }, [{ name: 'Guide Chinedu', title: 'Visitors centre', at: [0, -7], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Welcome. This is how the Naira is made and kept.' }], [
+    for (const x of [-7, 7]) for (const z of [-3, 1, 5]) {
+      b.box(0x334155, 1.6, 0.9, 1, x, 0, z);
+      b.box(0xbfe3ff, 1.45, 0.55, 0.85, x, 0.9, z, { solid: false });
+      b.box(0x86efac, 1.2, 0.02, 0.7, x, 1.15, z, { glow: true, solid: false });
+    }
+    // Round vault door
+    b.cylinder(0x9ca3af, 2.2, 0.4, 0, 2.6, -8.7, { sides: 24 });
+    b.cylinder(0x6b7280, 0.6, 0.5, 0, 2.6, -8.4, { sides: 12 });
+    b.box(0xd4af37, 0.15, 0.15, 0.2, 0.9, 2.6, -8.45, { solid: false });
+    // Security gate at the door
+    b.box(0x334155, 0.15, 2.4, 0.6, -2.2, 0, 7.5, { solid: false });
+    b.box(0x334155, 0.15, 2.4, 0.6, 2.2, 0, 7.5, { solid: false });
+    b.box(0x334155, 4.6, 0.25, 0.6, 0, 2.4, 7.5, { solid: false });
+    bench(b, -4, 4, 2.4, 0x1e3a8a);
+    bench(b, 4, 4, 2.4, 0x1e3a8a);
+    screen(b, 0, -8.5, 3.5, 0.8, 3.4, 0xd4af37);
+    plant(b, -8.5, -7);
+    plant(b, 8.5, -7);
+  }, [
+    { name: 'Guide Chinedu', title: 'Visitors centre', at: [0, -7], facing: 0, outfit: 0x0f172a, gender: 'male', tie: true, says: 'Welcome. This is how the Naira is made and kept.' },
+    { name: 'Guard Halima', title: 'Security', at: [0, 6.8], facing: Math.PI, outfit: 0x334155, gender: 'female', cap: true, says: 'No photography past the gate.' },
+  ], [
     { id: 'museum', name: '💵 The currency museum', at: [-7, 1], stand: [-5.6, 1], who: 'Guide Chinedu', role: 'Currency museum', text: 'From the pound to the Naira, every note we have printed.', choices: [{ label: 'Take the tour', note: 'Fun +12', arms: 'rest', seconds: 6, effect: need({ fun: 12 }), said: 'The first Naira notes of 1973, the old 20 kobo, and why the 1,000 note changed.' }] },
     { id: 'coins', name: '🪙 The gift counter', at: [0, -6], stand: [0, -4.6], who: 'Guide Chinedu', role: 'Gift counter', text: 'Mint sets and commemorative coins.', choices: [buy('A commemorative coin set', 15000, { id: 'cbn_coins', name: 'CBN commemorative coins', icon: '🪙', price: 15000, category: 'luxury', usable: false, description: 'A mint set in a case.' }, 'A mint set in a velvet case.')] },
-  ], [{ at: [5, 1], facing: -Math.PI / 2, outfit: 0x2563eb }], [20, 18]), [196, 189]),
+  ], [
+    { at: [5, 1], facing: -Math.PI / 2, outfit: 0x2563eb },
+    { at: [-4, 4], facing: Math.PI, outfit: 0xf59e0b, sit: true },
+  ], [20, 18]), [196, 189]),
 
   abuja(venue('millennium-tower', 'Millennium Tower', 'Central Business District · observation deck', 'Observation deck · Café · 102 m up', '#0f766e', 0xe5e7eb, 0xccfbf1, (b) => {
     // The deck: glass all round, telescopes at the rail, the café counter
@@ -1108,26 +2416,115 @@ const ABUJA_SPECS: PlaceSpec[] = [
     { id: 'cafe', name: '☕ The café', at: [0, -6.5], stand: [0, -5.1], who: 'Lift attendant', role: 'Café', text: 'Something while you look?', choices: [{ label: 'Small chops and a latte', price: 7500, note: 'Hunger +25, Fun +10', sit: true, seconds: 5, effect: need({ hunger: 25, fun: 10 }), said: 'Puff-puff and samosa a hundred metres up.' }] },
   ], [{ at: [8, -1], facing: Math.PI / 2, outfit: 0xec4899, gender: 'female' }], [20, 18]), [225, 412]),
 
-  abuja(venue('wuse-market', 'Wuse Market', 'Wuse · market', 'Foodstuff · Fabric · Phones · Everything', '#14532d', 0x8b8378, 0xd6c7a1, (b) => {
-    for (let i = 0; i < 4; i++) {
-      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
-      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0xdc2626, 0xf59e0b, 0x65a30d, 0xfef3c7][i]);
-    }
-    for (let i = 0; i < 5; i++) sack(b, -7 + i * 1.2, 4, [0xf5f5f4, 0xfde68a][i % 2]);
-    for (let i = 0; i < 3; i++) b.box([0x7c3aed, 0x0891b2, 0xdb2777][i], 1.6, 2.2, 0.1, 5 + i * 1.8, 0.4, 5);
+  abuja(venue('wuse-market', 'Wuse Market', 'Kashim Ibrahim Way, Wuse Zone 5', 'Foodstuff · Fabric · Phones · Everything', '#14532d', 0x8b8378, 0xd6c7a1, (b) => {
+    stall(b, -8, -6, 0xdc2626, (bb, x, z) => { pile(bb, x - 0.5, z, 0xdc2626); pile(bb, x + 0.4, z, 0xf97316, 0.28); });
+    stall(b, -2, -6, 0x16a34a, (bb, x, z) => { sack(bb, x - 0.5, z); sack(bb, x + 0.4, z, 0xfef3c7); });
+    stall(b, 4, -6, 0x0f766e, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box(0x111827, 0.22, 0.05, 0.4, x - 0.7 + i * 0.45, 0.95, z); });
+    stall(b, 9, -6, 0x7c3aed, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box([0x7c3aed, 0x0891b2, 0xdb2777, 0xfacc15][i], 0.45, 0.2, 0.9, x - 0.7 + i * 0.45, 0.95, z); });
+    stall(b, -6, 2, 0xf59e0b, (bb, x, z) => { for (let i = 0; i < 5; i++) sack(bb, x - 0.8 + i * 0.4, z, [0xf5f5f4, 0xfde68a][i % 2]); });
+    stall(b, 3, 2, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 3; i++) bb.box([0x7c3aed, 0x0891b2, 0xdb2777][i], 0.5, 1.4, 0.08, x - 0.6 + i * 0.55, 0.95, z); });
+    marketAtmosphere(b);
   }, [
-    { name: 'Mama Ngozi', title: 'Foodstuff', at: [-7, -6.2], facing: 0, outfit: 0xf59e0b, gender: 'female', says: 'Customer, come and buy. Fresh pepper, fresh tomato!' },
-    { name: 'Alhaji Sani', title: 'Fabric', at: [7, 3.5], facing: Math.PI, outfit: 0x0f766e, gender: 'male', cap: true, says: 'Original Holland wax. I will give you good price.' },
+    { name: 'Mama Ngozi', title: 'Foodstuff', at: [-8, -7.4], facing: 0, outfit: 0xf59e0b, gender: 'female', says: 'Customer, come and buy. Fresh pepper, fresh tomato!' },
+    { name: 'Alhaji Sani', title: 'Fabric', at: [9, -7.4], facing: 0, outfit: 0x0f766e, gender: 'male', cap: true, says: 'Original Holland wax. I will give you good price.' },
+    { name: 'Phone seller', title: 'Gadgets', at: [4, -7.4], facing: 0, outfit: 0x1d4ed8, gender: 'male', says: 'New and fairly used. Come check.' },
   ], [
-    { id: 'foodstuff', name: '🍅 Foodstuff', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Ngozi', role: 'Wuse Market', text: 'Rice, beans, pepper, oil: what are you cooking?', choices: [
+    { id: 'foodstuff', name: '🍅 Foodstuff', at: [-8, -6], stand: [-8, -4.5], who: 'Mama Ngozi', role: 'Wuse Market', text: 'Rice, beans, pepper, oil: what are you cooking?', choices: [
       buy('A paint bucket of rice', 9500, { id: 'rice_bucket', name: 'Rice (paint bucket)', icon: '🍚', price: 9500, category: 'food', usable: true, description: 'Enough rice for the week.' }, 'She shook the bucket to settle it and added a handful for you.'),
       buy('Pepper and tomatoes', 3500, { id: 'pepper_mix', name: 'Pepper and tomatoes', icon: '🌶️', price: 3500, category: 'food', usable: true, description: 'For stew.' }, 'Fresh tatashe, rodo and tomatoes in a black nylon.'),
     ] },
-    { id: 'fabric', name: '🧵 Fabric', at: [7, 5], stand: [7, 3.6], who: 'Alhaji Sani', role: 'Fabric stalls', text: 'Six yards, for an outfit?', choices: [buy('Six yards of Holland wax', 28000, { id: 'ankara_6', name: 'Holland wax, six yards', icon: '🧵', price: 28000, category: 'luxury', usable: false, description: 'Take it to a tailor.' }, 'He folded it neatly: real Holland, you will remember me.')] },
-    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
-  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [24, 20]), [-175, 186]),
+    { id: 'fabric', name: '🧵 Fabric', at: [9, -6], stand: [9, -4.5], who: 'Alhaji Sani', role: 'Fabric stalls', text: 'Six yards, for an outfit?', choices: [buy('Six yards of Holland wax', 28000, { id: 'ankara_6', name: 'Holland wax, six yards', icon: '🧵', price: 28000, category: 'luxury', usable: false, description: 'Take it to a tailor.' }, 'He folded it neatly: real Holland, you will remember me.')] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [4, -6], stand: [4, -4.5], who: 'Phone seller', role: 'Wuse Market', text: 'New and fairly used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x2563eb }], [26, 22]), [-175, 178]),
 
-  abuja(venue('jabi-lake-mall', 'Jabi Lake Mall', 'Jabi · mall', 'Shoprite · Food court · Cinema · Lake view', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
+  abuja(venue('millennium-park', 'Millennium Park', 'Maitama Green Corridor, Near Unity Fountain', 'Lawns · Fountain · Shade', '#14532d', 0x5aa83f, 0x166534, (b, room) => {
+    // Horizon lawns + walkers past the rails — no grey void
+    if (room) attachOpenAirPark(room, 40, 48);
+    // Open lawns around the Italian fountain — no walls. Paths cross the green.
+    b.box(0xe7e5e4, 4, 0.04, 40, 0, 0.02, 0, { solid: false });
+    b.box(0xe7e5e4, 40, 0.04, 4, 0, 0.02, 0, { solid: false });
+    b.cylinder(0xa8a29e, 6, 0.7, 0, 0, -6, { sides: 28 });
+    b.cylinder(0x7dd3fc, 5.4, 0.08, 0, 0.7, -6, { sides: 28, glow: true });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      b.cylinder(0xe0f2fe, 0.18, 2.8, Math.sin(a) * 3.2, 0.75, -6 + Math.cos(a) * 3.2, { topRadius: 0.04, glow: true });
+    }
+    b.cylinder(0xe0f2fe, 0.45, 5, 0, 0.75, -6, { topRadius: 0.08, glow: true });
+    // Benches around the fountain rim (sit here — not on the basin lip)
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      bench(b, Math.sin(a) * 8, -6 + Math.cos(a) * 8, 2.4);
+    }
+    for (let i = 0; i < 10; i++) bench(b, -16 + i * 3.5, 8 + (i % 2) * 2, 2.4);
+    for (const [x, z] of [[-18, -14], [18, -12], [-14, 14], [16, 12], [-8, -18], [10, -16]] as Array<[number, number]>) {
+      b.cylinder(0x57534e, 0.28, 4.2, x, 0, z, { topRadius: 0.18 });
+      b.dome(0x166534, 2.0, x, 4.0, z);
+    }
+    palm(b, -20, 4); palm(b, 20, 2);
+  }, [
+    { name: 'Park keeper', title: 'Keeper', at: [6, -14], facing: 0, outfit: 0x14532d, gender: 'male', says: 'Welcome. Keep off the flower beds.' },
+    { name: 'Ice-cream seller', title: 'Ice cream', at: [-10, 10], facing: Math.PI, outfit: 0xf8fafc, gender: 'female', says: 'Vanilla, chocolate, or both?' },
+  ], [
+    { id: 'fountain', name: '⛲ The fountain', at: [0, 2], stand: [0, 3.2], who: 'Millennium Park', role: 'Fountain', text: 'Cool spray on a hot afternoon.', choices: [
+      { label: 'Sit by the fountain', note: 'Fun +15, Energy +5', sit: true, seconds: 6, effect: need({ fun: 15, energy: 5 }), said: 'The fountain sprayed cool air. A whole hour went by.' },
+    ] },
+    { id: 'walk', name: '🚶 Park walk', at: [0, 12], stand: [0, 10], who: 'Park keeper', role: 'Millennium Park', text: 'Round the lawns?', choices: [
+      { label: 'A walk round the park', note: 'Fun +10, Health +5', arms: 'wave', seconds: 5, effect: need({ fun: 10, health: 5 }), said: 'Round the lawns and back under the trees.' },
+    ] },
+    { id: 'picnic', name: '🧺 Picnic lawn', at: [-12, 8], stand: [-12, 6.5], who: 'Ice-cream seller', role: 'Lawns', text: 'Spread a mat in the shade.', choices: [
+      { label: 'Picnic on the grass', price: 8000, note: 'Hunger +25, Fun +15', sit: true, seconds: 5, effect: need({ hunger: 25, fun: 15 }), said: 'Jollof in a cooler, soft grass, children chasing bubbles.' },
+      buy('Ice cream cone', 1500, item('ice_cream', 'Ice cream', '🍦', 1500, 'food', true, 5), 'Cold and sweet. Drips on your hand.'),
+    ] },
+  ], [
+    { at: [-16, 8], facing: Math.PI, outfit: 0xfacc15, sit: true, gender: 'female' },
+    { at: [5, 8], facing: Math.PI, outfit: 0x2563eb, sit: true },
+    { at: [-3, -3], facing: 0.4, outfit: 0x16a34a },
+  ], [48, 40], true), [196, 446]),
+
+  abuja(venue('jabi-lake-park', 'Jabi Lake Park', 'Jabi · waterfront', 'Boardwalk · Boats · Picnic · Sunset', '#0e7490', 0x5aa83f, 0x0ea5e9, (b, room) => {
+    // Open waterfront: lake to the horizon, boardwalk, boats, picnic lawns — not the mall shell.
+    if (room) attachOpenAirLake(room, 44);
+    b.box(0x92400e, 3.2, 0.28, 36, 0, 0.15, -4);
+    for (let i = 0; i < 8; i++) b.cylinder(0x78716c, 0.14, 0.5, 0, 0, -18 + i * 5);
+    // Small hire boats at the shore
+    for (const x of [-10, -4, 4, 10]) {
+      b.box(0xf8fafc, 2.2, 0.35, 0.9, x, 0.05, -18);
+      b.box(0x0ea5e9, 1.8, 0.15, 0.55, x, 0.35, -18);
+    }
+    // Outdoor gym pads
+    for (const [x, z] of [[-14, 10], [-10, 10], [10, 10], [14, 10]] as Array<[number, number]>) {
+      b.box(0x292524, 1.4, 0.08, 1.4, x, 0.02, z, { solid: false });
+      b.cylinder(0x52525b, 0.08, 1.6, x - 0.4, 0, z);
+      b.cylinder(0x52525b, 0.08, 1.6, x + 0.4, 0, z);
+    }
+    for (let i = 0; i < 6; i++) bench(b, -12 + i * 5, 6, 2.6);
+    palm(b, -20, 8); palm(b, 20, 6); palm(b, -18, -8); palm(b, 18, -6);
+    counter(b, 14, 12, 3, 0xb45309);
+  }, [
+    { name: 'Boat man', title: 'Boat hire', at: [-6, -16], facing: 0, outfit: 0x0e7490, gender: 'male', says: 'Canoe or speedboat? Small money for the lake.' },
+    { name: 'Suya Mama', title: 'Lakeside suya', at: [14, 11], facing: Math.PI, outfit: 0xb45309, gender: 'female', says: 'Hot stick by the water!' },
+  ], [
+    { id: 'boat', name: '⛵ Boat on the lake', at: [-4, -16], stand: [-4, -14], who: 'Boat man', role: 'Boat hire', text: 'Once round the buoy and back?', choices: [
+      { label: 'Hire a canoe', price: 5000, note: 'Fun +30', arms: 'swing', seconds: 7, effect: need({ fun: 30 }), said: 'Paddle soft, lake still. You stayed inside the marked water.' },
+      { label: 'A short speedboat ride', price: 12000, note: 'Fun +35', arms: 'wave', seconds: 6, effect: need({ fun: 35 }), said: 'Spray in your face, then back to the boardwalk before the deep water.' },
+    ] },
+    { id: 'boardwalk', name: '🛹 Boardwalk', at: [0, -4], stand: [1.2, -4], who: 'Jabi Lake Park', role: 'Boardwalk', text: 'Jog, skate, or stroll.', choices: [
+      { label: 'Jog the boardwalk', note: 'Free · Fun +12, Health +8', arms: 'swing', seconds: 6, effect: need({ fun: 12, health: 8, energy: -8 }), said: 'Paved path, lake breeze, other joggers nodding as you pass.' },
+      { label: 'Sit and watch the sunset', note: 'Fun +15, Energy +5', sit: true, seconds: 6, effect: need({ fun: 15, energy: 5 }), said: 'Orange light on the water. Abuja going quiet.' },
+    ] },
+    { id: 'gym', name: '🏋️ Outdoor gym', at: [-12, 10], stand: [-12, 8.5], who: 'Jabi Lake Park', role: 'Outdoor gym', text: 'Bars and pads by the lawn.', choices: [
+      { label: 'A quick workout', note: 'Free · Health +10, Energy −15', arms: 'carry', seconds: 5, effect: need({ health: 10, energy: -15 }), said: 'Pull-ups over the lake view. Sweaty and proud.' },
+    ] },
+    { id: 'suya', name: '🥩 Lakeside suya', at: [14, 12], stand: [14, 10.5], who: 'Suya Mama', role: 'Suya', text: 'How many sticks?', choices: [
+      { label: 'Two sticks by the water', price: 2500, note: 'Hunger +25', seconds: 3, effect: need({ hunger: 25 }), said: 'Pepper heat, lake breeze. Perfect.' },
+    ] },
+  ], [
+    { at: [-10, 6.5], facing: Math.PI, outfit: 0xf97316, sit: true },
+    { at: [5, 6.2], facing: Math.PI, outfit: 0x0ea5e9, sit: true, gender: 'female' },
+    { at: [2, -3], facing: Math.PI, outfit: 0xfacc15 },
+  ], [56, 44], true), [-440, 372]),
+
+  abuja(venue('jabi-lake-mall', 'Jabi Lake Mall', 'Bala Sokoto Way, Jabi Waterfront', 'Shoprite · Food court · Cinema · Lake view', '#dc2626', 0xf1f5f9, 0xf8fafc, (b) => {
     for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0xdc2626, 0xfacc15, 0x2563eb, 0x16a34a, 0xf8fafc]);
     for (const x of [-6, -3]) counter(b, x, 0, 1.6, 0xdc2626);
     counter(b, 7, -3, 4, 0xf59e0b);
@@ -1144,21 +2541,22 @@ const ABUJA_SPECS: PlaceSpec[] = [
   ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }, { at: [-3, -3], facing: 0, outfit: 0xec4899, gender: 'female' }], [24, 20]), [-475, 416]),
 
   abuja(venue('national-hospital-abuja', 'National Hospital Abuja', 'Garki · hospital', 'Emergency 24 hours · Clinics · Pharmacy', '#dc2626', 0xf1f5f9, 0xe0f2fe, (b) => {
-    counter(b, -5, -6, 5, 0xf8fafc, 0x93c5fd);
-    shelf(b, 6, -7, 4, [0xf8fafc, 0x22c55e, 0xdc2626]);
-    counter(b, 6, -5, 4, 0x16a34a, 0xf8fafc);
-    for (let i = 0; i < 3; i++) b.box(0xf8fafc, 1.1, 0.6, 2.2, -6 + i * 3, 0, 4).box(0x93c5fd, 1, 0.15, 2, -6 + i * 3, 0.6, 4);
+    teachingHospital(b, 0xdc2626);
   }, [
-    { name: 'Nurse Aisha', title: 'Nurse', at: [-5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your folder, please. The doctor will see you now.' },
-    { name: 'Pharmacist Emeka', title: 'Pharmacist', at: [6, -6], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
+    { name: 'Nurse Aisha', title: 'Triage nurse', at: [-1, -7.2], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your folder, please. The consultant will see you now.' },
+    { name: 'Dr Bello', title: 'Consultant', at: [-7.5, -3.6], facing: 0, outfit: 0x1e3a8a, gender: 'male', says: 'Sit. Tell me what hurts.' },
+    { name: 'Pharmacist Emeka', title: 'Pharmacist', at: [7, -5.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription?' },
   ], [
-    { id: 'clinic', name: '🩺 See a doctor', at: [-5, -6], stand: [-5, -4.7], who: 'Nurse Aisha', role: 'National Hospital', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 18000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant listened, checked everything and wrote it all down.' }] },
-    { id: 'pharmacy', name: '💊 Pharmacy', at: [6, -5], stand: [6, -3.7], who: 'Pharmacist Emeka', role: 'Pharmacy', text: 'What do you need?', choices: [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-7.5, -2.5], stand: [-7.5, -1.1], who: 'Dr Bello', role: 'National Hospital', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 18000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant listened, checked everything and wrote it all down.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [7, -4.5], stand: [7, -3.1], who: 'Pharmacist Emeka', role: 'Pharmacy', text: 'What do you need?', choices: [
       buy('Malaria treatment', 7000, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 7000, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
       buy('Paracetamol', 1200, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1200, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
     ] },
-    { id: 'ward', name: '🛏️ Admission', at: [-3, 4], stand: [-3, 2.4], who: 'Nurse Aisha', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 55000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
-  ], [{ at: [-6, 4], facing: 0, outfit: 0x60a5fa, sit: true }], [20, 18]), [-290, 443]),
+    { id: 'ward', name: '🛏️ Admission', at: [-3, 3.8], stand: [-3, 2.2], who: 'Nurse Aisha', role: 'Ward', text: 'Stay the night and rest.', choices: [{ label: 'Admitted overnight', price: 55000, note: 'Health +80, Energy full', sit: true, seconds: 6, effect: (be) => { need({ health: 80 })(be as never); (be as unknown as { rest(e: number, h: number): void }).rest(100, 20); }, said: 'Drip, rest, good care. You walk out strong.' }] },
+  ], [
+    { at: [-5, 7.2], facing: Math.PI, outfit: 0x60a5fa, sit: true },
+    { at: [2, 7.2], facing: Math.PI, outfit: 0x94a3b8, sit: true },
+  ], [22, 20]), [-290, 443]),
 
   abuja(venue('abuja-police', 'FCT Police Command', 'Garki · police', 'Police is your friend · 112', '#1e3a8a', 0xcbd5e1, 0xe2e8f0, (b) => {
     counter(b, -6, -5, 4, 0x1e3a8a, 0xf8fafc);
@@ -1199,23 +2597,24 @@ const ABUJA_SPECS: PlaceSpec[] = [
 // --- Port Harcourt: the places along its roads, out at their own doors (src/cities/PortHarcourtDistricts.ts) ---
 const PH_SPECS: PlaceSpec[] = [
   abuja(venue('mile-one-market', 'Mile 1 Market', 'Diobu · market', 'Periwinkle · Crayfish · Plantain · Fabric', '#14532d', 0x8b8378, 0xc8b48a, (b) => {
-    for (let i = 0; i < 4; i++) {
-      counter(b, -7 + i * 4.6, -5, 3, 0x7c4a1e, 0xd6d3d1);
-      for (let k = 0; k < 3; k++) pile(b, -8 + i * 4.6 + k, -5, [0x78350f, 0xdc2626, 0x65a30d, 0xfacc15][i]);
-    }
+    stall(b, -8, -6, 0x0369a1, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.cylinder(0x94a3b8, 0.16, 0.22, x - 0.6 + i * 0.4, 0.95, z, { sides: 10 }); });
+    stall(b, -2, -6, 0x15803d, (bb, x, z) => { for (let i = 0; i < 3; i++) bb.cylinder(0xfacc15, 0.12, 0.45, x - 0.4 + i * 0.4, 0.95, z, { sides: 8 }); });
+    stall(b, 4, -6, 0x0f766e, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box(0x111827, 0.22, 0.05, 0.4, x - 0.7 + i * 0.45, 0.95, z); });
+    stall(b, 9, -6, 0x7c2d12, (bb, x, z) => { for (let i = 0; i < 4; i++) bb.box([0xf59e0b, 0x0891b2, 0x7c3aed, 0xdc2626][i], 0.45, 0.2, 0.9, x - 0.7 + i * 0.45, 0.95, z); });
     for (let i = 0; i < 6; i++) b.cylinder([0x1f2937, 0x57534e][i % 2], 0.4, 0.35, -7 + i * 1.3, 0, 4, { sides: 14 }).dome(0x44403c, 0.36, -7 + i * 1.3, 0.35, 4);
-    for (let i = 0; i < 3; i++) b.box([0xf59e0b, 0x0891b2, 0x7c3aed][i], 1.6, 2.2, 0.1, 5 + i * 1.8, 0.4, 5);
+    marketAtmosphere(b);
   }, [
-    { name: 'Mama Ibiere', title: 'Seafood', at: [-7, -6.2], facing: 0, outfit: 0x0891b2, gender: 'female', says: 'Fresh periwinkle, fresh crayfish! Come and price.' },
-    { name: 'Mr Ebi', title: 'Fabric', at: [7, 3.5], facing: Math.PI, outfit: 0x7c2d12, gender: 'male', says: 'George wrapper, Akwete, real Holland. Which one?' },
+    { name: 'Mama Ibiere', title: 'Seafood', at: [-8, -7.4], facing: 0, outfit: 0x0891b2, gender: 'female', says: 'Fresh periwinkle, fresh crayfish! Come and price.' },
+    { name: 'Mr Ebi', title: 'Fabric', at: [9, -7.4], facing: 0, outfit: 0x7c2d12, gender: 'male', says: 'George wrapper, Akwete, real Holland. Which one?' },
+    { name: 'Phone seller', title: 'Gadgets', at: [4, -7.4], facing: 0, outfit: 0x1d4ed8, gender: 'male', says: 'New and London used.' },
   ], [
-    { id: 'seafood', name: '🦐 Seafood', at: [-7, -5], stand: [-7, -3.7], who: 'Mama Ibiere', role: 'Mile 1 Market', text: 'For native soup or for pepper soup?', choices: [
+    { id: 'seafood', name: '🦐 Seafood', at: [-8, -6], stand: [-8, -4.5], who: 'Mama Ibiere', role: 'Mile 1 Market', text: 'For native soup or for pepper soup?', choices: [
       buy('Periwinkle and crayfish', 6500, { id: 'periwinkle', name: 'Periwinkle and crayfish', icon: '🦐', price: 6500, category: 'food', usable: true, description: 'For native soup.' }, 'She packed it in a black nylon and added two extra crayfish.'),
       buy('A bunch of plantain', 4000, { id: 'plantain', name: 'Plantain (bunch)', icon: '🍌', price: 4000, category: 'food', usable: true, description: 'Ripe enough for dodo tomorrow.' }, 'Ripe in two days. Dodo time.'),
     ] },
-    { id: 'fabric', name: '🧵 George and wrappers', at: [7, 5], stand: [7, 3.6], who: 'Mr Ebi', role: 'Fabric stalls', text: 'For an occasion?', choices: [buy('A George wrapper', 35000, { id: 'george_wrapper', name: 'George wrapper', icon: '🧵', price: 35000, category: 'luxury', usable: false, description: 'For the next owambe.' }, 'He spread it out: real George, the colours will not fade.')] },
-    { id: 'phones', name: '📱 Phones and gadgets', at: [2, -5], stand: [2, -3.7], who: 'Phone seller', role: 'Mile 1 Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
-  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x16a34a }], [24, 20]), [-211, 189]),
+    { id: 'fabric', name: '🧵 George and wrappers', at: [9, -6], stand: [9, -4.5], who: 'Mr Ebi', role: 'Fabric stalls', text: 'For an occasion?', choices: [buy('A George wrapper', 35000, { id: 'george_wrapper', name: 'George wrapper', icon: '🧵', price: 35000, category: 'luxury', usable: false, description: 'For the next owambe.' }, 'He spread it out: real George, the colours will not fade.')] },
+    { id: 'phones', name: '📱 Phones and gadgets', at: [4, -6], stand: [4, -4.5], who: 'Phone seller', role: 'Mile 1 Market', text: 'New and London used.', choices: [{ label: 'See the phones and gadgets', note: 'Opens Shopping', open: 'app:shopping' }] },
+  ], [{ at: [-3, -3], facing: Math.PI, outfit: 0xdb2777, gender: 'female' }, { at: [3, 1], facing: 0, outfit: 0x16a34a }], [26, 22]), [-211, 189]),
 
   abuja(venue('ph-mall', 'Port Harcourt Mall', 'Old GRA · mall', 'Shoprite · Food court · Cinema', '#0c4a6e', 0xf1f5f9, 0xf8fafc, (b) => {
     for (let i = 0; i < 4; i++) shelf(b, -8 + i * 3.5, -6, 2.8, [0x0c4a6e, 0xfacc15, 0xdc2626, 0x16a34a, 0xf8fafc]);
@@ -1232,7 +2631,7 @@ const PH_SPECS: PlaceSpec[] = [
     { id: 'cinema', name: '🎬 Cinema', at: [-5, 8.6], stand: [-5, 7.4], who: 'Box office', role: 'Cinema', text: 'The new picture is at 7.', choices: [{ label: 'A ticket and popcorn', price: 7000, note: 'Fun +30', sit: true, arms: 'rest', seconds: 8, effect: need({ fun: 30 }), said: 'Packed hall, loud laughs.' }] },
   ], [{ at: [5, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }], [24, 20]), [-180, 389]),
 
-  abuja(venue('rivers-govt-house', 'Rivers State Government House', 'Rumuola · the Brick House', 'Office of the Governor', '#7c2d12', 0xe7e5e4, 0xf5efe6, (b) => {
+  abuja(venue('rivers-govt-house', 'Rivers State Government House', 'Harley Street / Azikiwe Road, Old GRA', 'Office of the Governor', '#7c2d12', 0xe7e5e4, 0xf5efe6, (b) => {
     counter(b, 0, -6, 6, 0x7c2d12, 0xd4af37);
     for (let f = 0; f < 3; f++) b.box(f === 1 ? 0xffffff : 0x16a34a, 0.8, 1.6, 0.05, -0.8 + f * 0.8, 3, -8.8);
     for (const x of [-7, 7]) b.cylinder(0xf8fafc, 0.4, 5, x, 0, -4);
@@ -1243,26 +2642,22 @@ const PH_SPECS: PlaceSpec[] = [
   ]), [-370, -190]),
 
   abuja(venue('upth', 'University of Port Harcourt Teaching Hospital', 'Choba · UPTH', 'Emergency · Wards · Pharmacy', '#0e7490', 0xf8fafc, 0xecfeff, (b) => {
-    counter(b, 5, -6, 4, 0x0e7490, 0xf8fafc);
-    shelf(b, -7, -6, 3.2, [0xf8fafc, 0x14b8a6, 0xfacc15]);
-    for (let i = 0; i < 4; i++) {
-      b.box(0xf8fafc, 1, 0.55, 2.1, -6 + i * 2.4, 0, 3);
-      b.box(0x99f6e4, 0.9, 0.12, 1.9, -6 + i * 2.4, 0.55, 3);
-      b.box(0x0f766e, 0.15, 1.1, 0.15, -6.4 + i * 2.4, 0, 2.1);
-    }
-    b.box(0x0e7490, 1.2, 1.2, 0.08, 7.2, 1.4, -7);
-    b.box(0xf8fafc, 0.35, 1.2, 0.08, 7.2, 1.4, -7);
+    teachingHospital(b, 0x0e7490);
   }, [
-    { name: 'Nurse Ibiere', title: 'Nurse', at: [5, -7], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
-    { name: 'Pharmacist Tamuno', title: 'Pharmacist', at: [-7, -5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription from the ward?' },
+    { name: 'Nurse Ibiere', title: 'Triage nurse', at: [-1, -7.2], facing: 0, outfit: 0x5eead4, gender: 'female', says: 'Your card, please. The doctor will see you.' },
+    { name: 'Dr Harry', title: 'Consultant', at: [-7.5, -3.6], facing: 0, outfit: 0x0e7490, gender: 'male', says: 'Come. The creek is quiet — tell me what hurts.' },
+    { name: 'Pharmacist Tamuno', title: 'Pharmacist', at: [7, -5.5], facing: 0, outfit: 0xf8fafc, gender: 'male', says: 'Prescription from the ward?' },
   ], [
-    { id: 'clinic', name: '🩺 See a doctor', at: [5, -6], stand: [5, -4.6], who: 'Nurse Ibiere', role: 'UPTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant checked you and wrote it down. You can go.' }] },
-    { id: 'pharmacy', name: '💊 Pharmacy', at: [-7, -6], stand: [-7, -4.4], who: 'Pharmacist Tamuno', role: 'UPTH pharmacy', text: 'What do you need?', choices: [
+    { id: 'clinic', name: '🩺 See a doctor', at: [-7.5, -2.5], stand: [-7.5, -1.1], who: 'Dr Harry', role: 'UPTH', text: 'What is the problem?', choices: [{ label: 'Consultation and treatment', price: 15000, note: 'Health +35', sit: true, seconds: 5, effect: need({ health: 35 }), said: 'The consultant checked you and wrote it down. You can go.' }] },
+    { id: 'pharmacy', name: '💊 Pharmacy', at: [7, -4.5], stand: [7, -3.1], who: 'Pharmacist Tamuno', role: 'UPTH pharmacy', text: 'What do you need?', choices: [
       buy('Malaria treatment', 6500, { id: 'malaria_pack', name: 'Malaria treatment pack', icon: '💊', price: 6500, category: 'medicine', usable: true, description: 'Three days of tablets. Finish the dose.' }, 'Three days of tablets. Finish the dose.'),
       buy('Paracetamol', 1000, { id: 'paracetamol', name: 'Paracetamol', icon: '💊', price: 1000, category: 'medicine', usable: true, description: 'For headache and fever.' }, 'A strip of paracetamol.'),
     ] },
-    { id: 'ward', name: '🛏️ The ward', at: [-2, 3], stand: [-2, 1.2], who: 'Nurse Ibiere', role: 'UPTH ward', text: 'Stay and rest. The creek is quiet from here.', choices: [{ label: 'Admitted overnight', price: 48000, note: 'Health +80', sit: true, seconds: 6, effect: need({ health: 80 }), said: 'Drip, rest, and you walk out stronger.' }] },
-  ], [{ at: [-4, 3], facing: Math.PI, outfit: 0x5eead4, sit: true, gender: 'female' }], [20, 18]), [120, -65]),
+    { id: 'ward', name: '🛏️ The ward', at: [-3, 3.8], stand: [-3, 2.2], who: 'Nurse Ibiere', role: 'UPTH ward', text: 'Stay and rest. The creek is quiet from here.', choices: [{ label: 'Admitted overnight', price: 48000, note: 'Health +80', sit: true, seconds: 6, effect: need({ health: 80 }), said: 'Drip, rest, and you walk out stronger.' }] },
+  ], [
+    { at: [-5, 7.2], facing: Math.PI, outfit: 0x5eead4, sit: true, gender: 'female' },
+    { at: [2, 7.2], facing: Math.PI, outfit: 0x94a3b8, sit: true },
+  ], [22, 20]), [120, -65]),
 
   abuja(venue('ph-police', 'Rivers State Police Command', 'Port Harcourt · police', 'Police is your friend · 112', '#14532d', 0xd6d3d1, 0xf5f5f4, (b) => {
     counter(b, 5, -5, 4, 0x14532d, 0xfde68a);
@@ -1297,6 +2692,41 @@ const PH_SPECS: PlaceSpec[] = [
       { label: 'Ask how long it takes', note: 'Free', arms: 'talk', seconds: 2, effect: () => {}, said: '"Capture today if the network holds. Cash or transfer."' },
     ] },
   ], [{ at: [-5, 3], facing: Math.PI, outfit: 0x0ea5e9, sit: true }], [18, 16]), [240, 20]),
+
+  abuja(venue('pleasure-park', 'Pleasure Park', 'Aba Road (Between Bori Camp & Air Force Base)', 'Big wheel · Lawns · Picnic · Kiosk', '#14532d', 0x5aa83f, 0x166534, (b, room) => {
+    // Horizon lawns + walkers past the rails — no grey void
+    if (room) attachOpenAirPark(room, 40, 44);
+    // Open fairground: lawns, path, big-wheel suggestion, picnic — no walls.
+    b.box(0xe7e5e4, 4, 0.04, 36, 0, 0.02, 0, { solid: false });
+    b.box(0xe7e5e4, 36, 0.04, 4, 0, 0.02, 0, { solid: false });
+    // Big wheel: A-frames + rim cabins (compact, open-air)
+    for (const s of [-1, 1]) b.box(0x64748b, 0.5, 10, 0.5, s * 3.5, 0, -12, { roll: s * 0.2 });
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      b.box([0xdc2626, 0xfacc15, 0x2563eb, 0x16a34a][i % 4], 0.9, 0.8, 0.9, Math.cos(a) * 6, 4 + Math.sin(a) * 6, -12, { glow: true });
+    }
+    b.cylinder(0xf8fafc, 0.7, 0.9, 0, 9.5, -12, { sides: 12 });
+    for (let i = 0; i < 8; i++) bench(b, -14 + i * 4, 10, 2.4);
+    counter(b, -14, -4, 3.5, 0xfacc15);
+    palm(b, -20, 8); palm(b, 18, 6); palm(b, 16, -8);
+  }, [
+    { name: 'Ticket mama', title: 'Gate', at: [0, 14], facing: Math.PI, outfit: 0x16a34a, gender: 'female', says: 'Welcome! Big wheel or picnic?' },
+    { name: 'Suya boy', title: 'Kiosk', at: [-14, -5], facing: 0, outfit: 0xb45309, gender: 'male', says: 'Stick and Chapman for the lawn!' },
+  ], [
+    { id: 'wheel', name: '🎡 The big wheel', at: [0, -10], stand: [0, -6], who: 'Ticket mama', role: 'Pleasure Park', text: 'Round and up over the Garden City.', choices: [
+      { label: 'A ride on the big wheel', price: 2000, note: 'Fun +25', arms: 'rest', seconds: 7, effect: need({ fun: 25 }), said: 'Round and up: the whole Garden City, the creek and the flares at Trans-Amadi.' },
+    ] },
+    { id: 'picnic', name: '🧺 Picnic lawn', at: [-8, 10], stand: [-8, 8.5], who: 'Suya boy', role: 'Lawns', text: 'Spread a mat under the trees.', choices: [
+      { label: 'A picnic on the lawn', price: 4500, note: 'Fun +15, Social +10', sit: true, seconds: 6, effect: need({ fun: 15, social: 10, hunger: 20 }), said: 'Suya, chapman and a breeze. Sunday done well.' },
+    ] },
+    { id: 'walk', name: '🚶 Park stroll', at: [8, 4], stand: [8, 2.5], who: 'Pleasure Park', role: 'Paths', text: 'Lawns and the Sunday crowd.', choices: [
+      { label: 'Walk the park', note: 'Free · Fun +10', arms: 'wave', seconds: 5, effect: need({ fun: 10 }), said: 'Children running, music from a speaker, soft grass underfoot.' },
+    ] },
+  ], [
+    { at: [-12, 10.5], facing: Math.PI, outfit: 0xf97316, sit: true, gender: 'female' },
+    { at: [4, 10.2], facing: Math.PI, outfit: 0x0ea5e9, sit: true },
+    { at: [2, -4], facing: 0.5, outfit: 0xfacc15 },
+  ], [44, 40], true), [-410, 194]),
 ];
 
 // --- Every shop, office, hotel, bank and market along Abuja's and Port Harcourt's streets ---
@@ -1306,7 +2736,7 @@ export type TownRoomKind = 'shops' | 'office' | 'hotel' | 'bank' | 'market';
 export const townRoomKey = (city: string, kind: TownRoomKind) => `${city}-town-${kind}`;
 export const townRoomVariantKey = (city: string, kind: TownRoomKind, variant: number) =>
   variant === 0 ? townRoomKey(city, kind) : `${city}-town-${kind}-${variant}`;
-/** A guest room: the furniture is the real pieces, put in by the hotel (Hotel.ts). No sign on the inside wall. */
+/** A guest room: Builder shell so town suites are never empty white; Hotel.ts may layer FineFurniture too. */
 const guestRoom = (hotelKey: string, place: string, city: CityLook): PlaceSpec => ({
   key: hotelKey.endsWith('-hotel') ? hotelKey.replace(/-hotel$/, '-suite') : `${hotelKey}-suite`,
   name: `${place} hotel room`,
@@ -1317,7 +2747,27 @@ const guestRoom = (hotelKey: string, place: string, city: CityLook): PlaceSpec =
     wall: city === 'abuja' ? 0xf6efe4 : 0xe7f2ec,
     finish: city === 'abuja' ? 'royal_maroon' : 'calacatta_gold',
   },
-  build: () => { /* furnished when the room is attached */ },
+  build: (b) => {
+    const wood = city === 'ph' ? 0x0f766e : 0x7c2d12;
+    // King bed
+    b.box(0x3f2a1d, 2.4, 0.45, 2.5, -1, 0, -4);
+    b.box(0xf8fafc, 2.3, 0.22, 2.4, -1, 0.45, -4, { solid: false });
+    b.box(wood, 2.3, 0.08, 1.5, -1, 0.67, -3.5, { solid: false });
+    b.box(0x3f2a1d, 2.6, 1.4, 0.12, -1, 0, -5.2);
+    b.box(0xf8fafc, 0.8, 0.16, 0.4, -1.6, 0.7, -5.0, { solid: false });
+    b.box(0xf8fafc, 0.8, 0.16, 0.4, -0.4, 0.7, -5.0, { solid: false });
+    for (const x of [-2.6, 0.6]) {
+      b.box(0x5b3a1e, 0.5, 0.55, 0.45, x, 0, -5.0);
+      b.cylinder(0xfde68a, 0.12, 0.2, x, 0.7, -5.0, { glow: true, solid: false });
+    }
+    // Desk + chair, wardrobe, minibar, TV, rug
+    desk(b, 5, 0, 0xd6d3d1);
+    b.box(0x5b3a1e, 0.7, 2.2, 1.2, -6.5, 0, 1);
+    b.box(0x27272a, 0.55, 0.85, 0.55, -6.5, 0, 3.2);
+    b.box(0x0a0a0a, 0.06, 0.9, 1.5, 7.2, 1.1, -2);
+    b.box(0x9a3412, 3.0, 0.015, 2.0, 1, 0.01, 1, { solid: false });
+    plant(b, 6.5, 5);
+  },
   staff: [],
   stations: [],
   door: { name: 'Back to the lobby', category: 'Door', description: 'The corridor, and the front desk.' },
@@ -1328,12 +2778,13 @@ const look = (city: string): CityLook => (city === 'port_harcourt' ? 'ph' : 'abu
 /** One hotel lobby. variant 0, 1 and 2 are different rooms, so two hotels are not the same. */
 const hotelLobby = (key: string, place: string, city: string, variant: number): PlaceSpec => {
   const ph = city === 'port_harcourt';
-  const spec = venue(key, variant === 0 ? `${place} Suites` : `${place} ${variant === 1 ? 'Palace' : 'Creek'} Hotel`, `${place} · hotel`, 'Front desk · Your room · Bar', ph ? '#0f766e' : '#7c2d12', 0xffffff, ph ? 0xe7f2ec : 0xf6efe4, (_b, room) => {
-    if (room) furnishLobby(room, look(city), variant);
+  const spec = venue(key, variant === 0 ? `${place} Suites` : `${place} ${variant === 1 ? 'Palace' : 'Creek'} Hotel`, `${place} · hotel`, 'Front desk · Your room · Bar', ph ? '#0f766e' : '#7c2d12', 0xffffff, ph ? 0xe7f2ec : 0xf6efe4, (b, room) => {
+    if (room) furnishLobby(room, look(city), variant, b);
   }, [{ name: 'Receptionist Tonye', title: 'Front desk', at: [-4, -6], facing: 0, outfit: ph ? 0x0f766e : 0x7c2d12, gender: 'male', says: 'Welcome. A room is at the desk: a key card, yours until noon.' }, { name: 'Barman Ifeanyi', title: 'Bar', at: [5, -5], facing: 0, outfit: 0x111827, gender: 'male', says: 'What are we drinking?' }], [
     { id: 'bar', name: '🍹 The bar', at: [5, -4], stand: [5, -2.6], who: 'Barman Ifeanyi', role: 'Bar', text: 'Chapman, palm wine or a cold beer?', choices: [{ label: 'A Chapman', price: 2500, note: 'Fun +12', sit: true, seconds: 5, effect: need({ fun: 12, social: 6 }), said: 'Sweet, cold, with a slice of cucumber.' }] },
     { id: 'lounge', name: '🛋️ The lounge', at: [-3, 3], stand: [-3, 4.4], who: 'Lounge', role: `${place} Suites`, text: 'Soft chairs and the news on the TV.', choices: [{ label: 'Rest in the lounge', note: 'Energy +12', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 12 }), said: 'You nearly slept in the armchair.' }] },
-  ], [{ at: [3, 2.95], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 18]);
+  // Sit on the lobby sofa cushion (variant 0/1) or dining chair (variant 2), not empty floor
+  ], [{ at: variant === 1 ? [-3, 4.2] : variant === 2 ? [0, 2.3] : [-3, 2.6], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 18]);
   spec.sign = undefined;
   spec.room.finish = variant === 2 ? 'chevron_oak' : ph ? 'terrazzo' : 'calacatta_gold';
   return spec;
@@ -1344,8 +2795,8 @@ const townRooms = (city: string, place: string): PlaceSpec[] => {
   const officeOf = (variant: number): PlaceSpec => {
     const key = townRoomVariantKey(city, 'office', variant);
     const titles = variant === 0 ? 'Offices' : variant === 1 ? 'Chambers' : 'Secretariat';
-    const office = venue(key, `${place} ${titles}`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : variant === 1 ? '#0f172a' : variant === 2 ? '#7c2d12' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (_b, room) => {
-      if (room) furnishOffice(room, look(city), variant);
+    const office = venue(key, `${place} ${titles}`, `${place} · offices`, 'Reception · A desk · The Jobs app', ph ? '#0f766e' : variant === 1 ? '#0f172a' : variant === 2 ? '#7c2d12' : '#1e3a8a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (b, room) => {
+      if (room) furnishOffice(room, look(city), variant, b);
     }, [{ name: 'Receptionist Halima', title: 'Front desk', at: [0, -6], facing: 0, outfit: ph ? 0x0f766e : 0x1e3a8a, gender: 'female', says: 'Good day. The jobs are on the board, and the manager takes people on.' }], [
       { id: 'desk', name: '🛎️ Front desk', at: [0, -5], stand: [0, -3.6], who: 'Receptionist Halima', role: 'Front desk', text: 'The companies upstairs are hiring. Shall I show you the openings?', choices: [{ label: 'See the jobs going', note: 'Opens Jobs', open: 'app:jobs' }, { label: 'Leave your CV', note: 'Social +6', arms: 'reach', seconds: 2, effect: need({ social: 6 }), said: 'She stamped it received. "We will call you."' }] },
       { id: 'wait', name: '🪑 The waiting chairs', at: [ph ? 3 : -2.4, 3.4], stand: [ph ? 3 : -2.4, 2], who: 'Waiting area', role: 'Reception', text: 'The air conditioning is strong.', choices: [{ label: 'Sit and cool off', note: 'Energy +8', sit: true, arms: 'rest', seconds: 6, effect: need({ energy: 8 }), said: 'Ten minutes under the AC. Sweat gone.' }] },
@@ -1388,21 +2839,18 @@ const townRooms = (city: string, place: string): PlaceSpec[] => {
   const bankOf = (variant: number): PlaceSpec => {
     const key = townRoomVariantKey(city, 'bank', variant);
     const atmLeft = variant === 1 ? !ph : ph;
+    const accent = ph ? 0x0f766e : 0x0f172a;
+    const atmX = atmLeft ? -6.9 : 6.9;
     const bank = venue(key, `${place} ${variant === 0 ? 'Bank' : variant === 1 ? 'Microfinance' : 'Bureau'}`, `${place} · bank`, 'Teller · ATM', '#0f172a', 0xffffff, ph ? 0xe7f2ec : 0xf8fafc, (b, room) => {
-      counter(b, 0, -5, 8, 0x0f172a, ph ? 0x99f6e4 : 0xd4af37);
-      for (const x of [-2.4, 0, 2.4]) b.box(0xe2e8f0, 1.5, 0.7, 0.04, x, 1.35, -4.5);
-      const atmX = atmLeft ? -6 : 6;
-      b.box(0x111827, 1.1, 1.6, 0.5, atmX, 0, 2).box(0x22c55e, 0.7, 0.5, 0.04, atmX, 1.2, 2.28, { glow: true });
-      for (let i = 0; i < 4; i++) b.box(0x1f2937, 0.5, 0.48, 0.5, -3 + i * 1.6, 0, variant === 2 ? 5.2 : 4);
-      for (let i = 0; i < 5; i++) b.cylinder(0x94a3b8, 0.04, 0.9, -2 + i * 1, 0, 1.2);
-      b.box(0xcbd5e1, 4.2, 0.02, 0.02, 0, 0.85, 1.2);
-      plant(b, atmLeft ? 7.2 : -7.2, -6);
-      plant(b, atmLeft ? 7.2 : -7.2, 5);
-      if (room) layFine(room, fineSofa(3, ph ? 0x0f766e : 0x1e3a8a, 0xe2e8f0, 0x1c1917), atmLeft ? 3.2 : -3.2, 0, 6.2, Math.PI);
-    }, [{ name: 'Teller Ngozi', title: 'Teller', at: [0, -6], facing: 0, outfit: 0x0f172a, gender: 'female', says: 'Good day. Cash, transfer, or the ATM on the wall.' }], [
+      branchBank(b, accent, atmLeft);
+      if (room) layFine(room, fineSofa(3, ph ? 0x0f766e : 0x1e3a8a, 0xe2e8f0, 0x1c1917), atmLeft ? 3.2 : -3.2, 0, 5.5, Math.PI);
+    }, [
+      { name: 'Teller Ngozi', title: 'Teller', at: [0, -6], facing: 0, outfit: accent, gender: 'female', says: 'Good day. Cash, transfer, or the ATM on the wall.' },
+      { name: 'Guard', title: 'Security', at: [4.3, 6.5], facing: Math.PI, outfit: 0x334155, gender: 'male', cap: true, says: 'Walk through. Bags open.' },
+    ], [
       { id: 'teller', name: 'Teller counter', at: [0, -5], stand: [0, -3.6], who: 'Teller Ngozi', role: 'Teller', text: 'How can the bank help?', choices: [{ label: 'Open the bank', note: 'Opens Bank', open: 'app:bank' }] },
-      { id: 'atm', name: 'ATM', at: [atmLeft ? -6 : 6, 2], stand: [atmLeft ? -4.6 : 4.6, 2], who: 'ATM', role: 'ATM', text: 'Cash, any hour.', choices: [{ label: 'Use the ATM', note: 'Opens Bank', open: 'app:bank' }] },
-    ], [{ at: [-1, 4], facing: Math.PI, outfit: 0x2563eb, sit: true }], [18, 16]);
+      { id: 'atm', name: 'ATM', at: [atmX, 6.6], stand: [atmX, 5.3], who: 'ATM', role: 'ATM', text: 'Cash, any hour.', choices: [{ label: 'Use the ATM', note: 'Opens Bank', open: 'app:bank' }] },
+    ], [{ at: [-1, 2.05], facing: Math.PI, outfit: 0x2563eb, sit: true }], [20, 16]);
     bank.sign = undefined;
     bank.room.finish = variant === 2 ? 'parquet_wood' : ph ? 'terrazzo' : 'grey_granite';
     return bank;
@@ -1480,11 +2928,37 @@ const QUIET_FLOOR: Record<string, string> = {
   'mile-one-market': 'parquet_wood',
   'ph-mall': 'ceramic_white',
   'rivers-govt-house': 'chevron_oak',
+  lasuth: 'terrazzo',
 };
 for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
   spec.sign = undefined;
   const finish = QUIET_FLOOR[spec.key];
   if (finish) spec.room.finish = finish;
+}
+{
+  const lasuth = IKEJA.find((s) => s.key === 'lasuth');
+  if (lasuth) lasuth.room.finish = 'terrazzo';
+  const bank = [...IKEJA, ...SIDE].find((s) => s.key === 'allen-bank');
+  if (bank) bank.room.finish = 'grey_granite';
+  const amala = SPECS.find((s) => s.key === 'amala-shitta');
+  if (amala) amala.room.finish = 'grey_granite';
+  const ekoLobby = SPECS.find((s) => s.key === 'eko-grand-hotel');
+  if (ekoLobby) ekoLobby.room.finish = 'calacatta_gold';
+}
+
+{
+  const beach = OUTDOOR.find((s) => s.key === 'lagoon-beach');
+  if (beach) beach.room.finish = 'beach_sand';
+  const park = SPECS.find((s) => s.key === 'freedom-park');
+  if (park) park.room.finish = 'park_lawn';
+  for (const key of ['lekki-conservation', 'ikeja-golf'] as const) {
+    const s = [...SPECS, ...OUTDOOR].find((p) => p.key === key);
+    if (s) s.room.finish = 'park_lawn';
+  }
+  for (const key of ['millennium-park', 'pleasure-park', 'jabi-lake-park'] as const) {
+    const s = ABUJA_SPECS.find((p) => p.key === key) ?? PH_SPECS.find((p) => p.key === key);
+    if (s) s.room.finish = 'park_lawn';
+  }
 }
 
 export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt')];

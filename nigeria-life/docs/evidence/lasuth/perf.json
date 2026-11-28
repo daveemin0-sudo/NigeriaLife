@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-27T16:22Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "place": "LASUTH",
+  "veryLow": {
+    "calls": 35,
+    "tris": 28971
+  },
+  "medium": {
+    "calls": 90,
+    "tris": 307515
+  }
+}

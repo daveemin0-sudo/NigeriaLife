@@ -190,21 +190,32 @@ export async function run(browser, check) {
   // ---------------------------------------------------------------------------------------
   // 6. Striking a wall at a glancing angle slides along it instead of sticking
   // ---------------------------------------------------------------------------------------
+  // Denser Broad Street stalls left thin solids at z=30 that are not facades; pick a kerb-side
+  // solid with a real run along +z so the glance has a wall to slide on.
   const wall = await page.evaluate(() => {
     const g = window.game;
     const solids = g.solidsHere();
-    // Find a solid edge east of Broad Street: step east from the kerb until something is solid
     let wallX = null;
-    for (let x = 8; x < 40; x += 0.25) {
-      if (solids.at(x, 30, 1.2)) {
-        wallX = x;
-        break;
+    let wallZ = 30;
+    for (let z = 20; z <= 60 && wallX === null; z += 5) {
+      for (let x = 8; x < 40; x += 0.25) {
+        if (!solids.at(x, z, 1.2)) continue;
+        let run = 0;
+        for (let zz = z; zz < z + 12; zz += 0.5) {
+          if (!solids.at(x, zz, 1.2)) break;
+          run += 0.5;
+        }
+        if (run >= 8) {
+          wallX = x;
+          wallZ = z;
+          break;
+        }
       }
     }
     if (wallX === null) return { wallX };
-    const r = window.__drive({ x: wallX - 3, z: 30, heading: 0.35, speed: 8, holdSpeed: 8 }, 3, 1 / 60, () => ({}));
+    const r = window.__drive({ x: wallX - 3, z: wallZ, heading: 0.35, speed: 8, holdSpeed: 8 }, 3, 1 / 60, () => ({}));
     const end = r[r.length - 1];
-    return { wallX, travelledZ: end.z - 30, endX: end.x, inside: solids.at(end.x, end.z, 0.2), speed: end.s };
+    return { wallX, wallZ, travelledZ: end.z - wallZ, endX: end.x, inside: solids.at(end.x, end.z, 0.2), speed: end.s };
   });
   check(
     'steering: a car driven into a building at a glancing angle slides along it (keeps moving, never ends up inside)',

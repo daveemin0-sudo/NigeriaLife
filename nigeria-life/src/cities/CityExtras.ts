@@ -150,7 +150,7 @@ export function placeDoors(group: THREE.Group, list: InteractiveObject[], places
     const stand = new THREE.Vector3(place.stand.x, 0, place.stand.z);
     list.push({ mesh, id, name: place.name, category: place.category, description: place.description, interactionPoint: stand.clone() });
     if (place.inside) {
-      const words = place.category === 'Hospital' ? '🏥 Go in to the hospital' : place.category === 'Hotel' ? '🏨 Into the lobby' : place.category === 'Market' ? '🛍️ Into the market' : place.category === 'Mall' ? '🛒 Into the mall' : place.key === 'millennium-tower' ? '🛗 Up to the observation deck' : '🚪 Go inside';
+      const words = place.category === 'Hospital' ? '🏥 Go in to the hospital' : place.category === 'Hotel' ? '🏨 Into the lobby' : place.category === 'Market' ? '🛍️ Into the market' : place.category === 'Mall' ? '🛒 Into the mall' : place.category === 'Park' ? '🌳 Into the park' : place.key === 'millennium-tower' ? '🛗 Up to the observation deck' : '🚪 Go inside';
       PlaceActions.register(id, { label: () => words, run: (host) => host.enter(id, stand) });
       continue;
     }

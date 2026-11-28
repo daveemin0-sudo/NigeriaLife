@@ -37,6 +37,9 @@ export type FurnitureUse =
 /** Where a piece is attached in a room: standing on the floor or mounted on a wall */
 export type FurnitureMount = 'floor' | 'wall';
 
+/** One place to sit on a piece: local offset on the piece, and how high the cushion/seat top is. */
+export type SitSpot = { x: number; z: number; top?: number };
+
 export interface FurnitureKind {
   /** People walk round it. A rug is walked over. Wall furniture hangs above head height. */
   solid: boolean;
@@ -44,20 +47,55 @@ export interface FurnitureKind {
   mount?: FurnitureMount;
   /** Height in metres above floor level for wall-mounted items */
   elevation?: number;
-  /** Where someone sits on it, measured on the piece (a seat only) */
-  seat?: { x: number; z: number };
+  /** Where someone sits on it, measured on the piece (a seat only). Prefer `seats` when there are several. */
+  seat?: SitSpot;
+  /** Every chair or cushion on this piece (sofa seats, dining chairs). Used when present. */
+  seats?: SitSpot[];
   /** Where someone lies on it (a bed only): where their feet are, how high the mattress is, and how far out from its middle its side is */
   bed?: { x: number; z: number; top: number; side: number };
 }
 
+/** Sofa / armchair cushions: one spot per seat, slightly forward of the cushion centre so the back rests on the backrest. */
+export function sofaSitLocals(seats: number): SitSpot[] {
+  const each = 0.74;
+  const inside = Math.max(1, seats) * each;
+  return Array.from({ length: Math.max(1, seats) }, (_, i) => ({
+    x: -inside / 2 + (i + 0.5) * each,
+    z: 0.14,
+    top: 0.55,
+  }));
+}
+
+/** Dining chairs around a fineDining table: 4 for a 6-seater, 8 for a 10-seater. Outside the table edge. */
+export function diningSitLocals(capacity: 6 | 10): SitSpot[] {
+  const len = capacity === 10 ? 3.4 : 2.2;
+  const each = capacity === 10 ? 4 : 2;
+  const step = (len - 0.6) / Math.max(1, each - 1);
+  const out: SitSpot[] = [];
+  for (let c = 0; c < each; c++) {
+    const cz = -len / 2 + 0.3 + c * step;
+    for (const side of [-1, 1] as const) {
+      // 0.95 m from centre — past the 0.55 m table edge so torso clears the top when facing in
+      out.push({ x: side * 0.95, z: cz, top: 0.505 });
+    }
+  }
+  return out;
+}
+
+/** Every sit spot on a piece, with a cushion height (defaults to 0.5 m). */
+export function sitSpots(kind: FurnitureKind): Array<Required<SitSpot>> {
+  const list = kind.seats?.length ? kind.seats : kind.seat ? [kind.seat] : [];
+  return list.map((s) => ({ x: s.x, z: s.z, top: s.top ?? 0.5 }));
+}
+
 export const FURNITURE: Record<string, FurnitureKind> = {
-  // Comfort & Seating
-  sofa_emerald: { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } },
-  sectional_sofa: { solid: true, use: 'seat', seat: { x: 0, z: 0.1 } },
-  armchair: { solid: true, use: 'seat', seat: { x: 0, z: 0.06 } },
-  chaise_longue: { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } },
-  ottoman: { solid: true, use: 'seat', seat: { x: 0, z: 0 } },
-  velvet_looveseat: { solid: true, use: 'seat', seat: { x: 0, z: 0.08 } },
+  // Comfort & Seating — hips on cushion top (≈0.55), back against the backrest
+  sofa_emerald: { solid: true, use: 'seat', seat: { x: 0, z: 0.14, top: 0.55 }, seats: sofaSitLocals(3) },
+  sectional_sofa: { solid: true, use: 'seat', seat: { x: 0, z: 0.14, top: 0.55 }, seats: sofaSitLocals(3) },
+  armchair: { solid: true, use: 'seat', seat: { x: 0, z: 0.12, top: 0.55 }, seats: sofaSitLocals(1) },
+  chaise_longue: { solid: true, use: 'seat', seat: { x: 0, z: 0.14, top: 0.55 } },
+  ottoman: { solid: true, use: 'seat', seat: { x: 0, z: 0, top: 0.42 } },
+  velvet_looveseat: { solid: true, use: 'seat', seat: { x: 0, z: 0.14, top: 0.55 }, seats: sofaSitLocals(2) },
 
   // Bedroom & Sleep
   king_bed: { solid: true, use: 'bed', bed: { x: 0, z: 0.75, top: 0.7, side: 1.05 } },
@@ -68,10 +106,10 @@ export const FURNITURE: Record<string, FurnitureKind> = {
   walkin_closet: { solid: true, use: 'none' },
   nightstand: { solid: true, use: 'none' },
 
-  // Dining & Kitchen
-  dining_table_6: { solid: true, use: 'seat', seat: { x: 0, z: 0.8 } },
-  dining_table_10: { solid: true, use: 'seat', seat: { x: 0, z: 1.2 } },
-  kitchen_island: { solid: true, use: 'seat', seat: { x: 0, z: 0.6 } },
+  // Dining & Kitchen — sit on a chair facing the table, legs under it (never inside the top)
+  dining_table_6: { solid: true, use: 'seat', seat: { x: 0.95, z: 0, top: 0.505 }, seats: diningSitLocals(6) },
+  dining_table_10: { solid: true, use: 'seat', seat: { x: 0.95, z: 0, top: 0.505 }, seats: diningSitLocals(10) },
+  kitchen_island: { solid: true, use: 'seat', seat: { x: 0, z: 0.85, top: 0.72 } },
   cooker: { solid: true, use: 'cook' },
   kerosene_stove: { solid: true, use: 'cook' },
   freezer: { solid: true, use: 'none' },
@@ -83,7 +121,7 @@ export const FURNITURE: Record<string, FurnitureKind> = {
   bathtub: { solid: true, use: 'bath' },
   rain_shower: { solid: true, use: 'bath' },
   jacuzzi_spa: { solid: true, use: 'bath' },
-  toilet_wc: { solid: true, use: 'seat', seat: { x: 0, z: 0 } },
+  toilet_wc: { solid: true, use: 'seat', seat: { x: 0, z: 0, top: 0.43 } },
   // The garden and the pets
   planter_box: { solid: true, use: 'garden' },
   flower_pots: { solid: true, use: 'garden' },
@@ -105,7 +143,7 @@ export const FURNITURE: Record<string, FurnitureKind> = {
 
   // Work, Studio & Skills
   executive_desk: { solid: true, use: 'work', seat: { x: 0, z: 0.55 } },
-  ergonomic_chair: { solid: true, use: 'seat', seat: { x: 0, z: 0 } },
+  ergonomic_chair: { solid: true, use: 'seat', seat: { x: 0, z: 0, top: 0.48 } },
   dual_pc_setup: { solid: true, use: 'work', seat: { x: 0, z: 0.5 } },
   creator_ringlight: { solid: true, use: 'work' },
   bookshelf: { solid: true, use: 'work' },
@@ -131,11 +169,11 @@ export const FURNITURE: Record<string, FurnitureKind> = {
   drum_bucket: { solid: true, use: 'bath' },
 
   // Luxury & Outdoor
-  pool_lounger: { solid: true, use: 'seat', seat: { x: 0, z: 0.2 } },
+  pool_lounger: { solid: true, use: 'seat', seat: { x: 0, z: 0.2, top: 0.42 } },
   outdoor_fountain: { solid: true, use: 'none' },
   wine_wall: { solid: true, use: 'drink' },
   home_gym: { solid: true, use: 'fitness' },
-  massage_chair: { solid: true, use: 'seat', seat: { x: 0, z: 0.05 } },
+  massage_chair: { solid: true, use: 'seat', seat: { x: 0, z: 0.05, top: 0.48 } },
   private_helicopter: { solid: true, use: 'none' },
   drinks_trolley: { solid: true, use: 'drink' },
   vintage_gramophone: { solid: true, use: 'music' },

@@ -1,0 +1,50 @@
+{
+  "measuredAt": "2026-11-27T17:49Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "venues": {
+    "balogun-market": {
+      "place": "Balogun Market",
+      "veryLow": {
+        "calls": 93,
+        "tris": 240759
+      },
+      "medium": {
+        "calls": 221,
+        "tris": 643556
+      }
+    },
+    "computer-village": {
+      "place": "Computer Village",
+      "veryLow": {
+        "calls": 73,
+        "tris": 161136
+      },
+      "medium": {
+        "calls": 164,
+        "tris": 430258
+      }
+    },
+    "shopwell-mall": {
+      "place": "The Palms Mall",
+      "veryLow": {
+        "calls": 61,
+        "tris": 159713
+      },
+      "medium": {
+        "calls": 113,
+        "tris": 379266
+      }
+    },
+    "ikeja-city-mall": {
+      "place": "Ikeja City Mall",
+      "veryLow": {
+        "calls": 65,
+        "tris": 159160
+      },
+      "medium": {
+        "calls": 117,
+        "tris": 381139
+      }
+    }
+  }
+}

@@ -18,10 +18,10 @@ import type { HomePlan } from './HomePlan';
  * every day from the bank.
  *
  * Each hired staff member is seen inside the home (`Figure`) and does their job:
- * - Cook (Mama Chidinma): cooks Nigerian meals and puts them in the home fridge (`Fridge.get().put`).
- * - Cleaner (Sisi Blessing): sweeps and mops the home and raises the player's hygiene.
- * - Driver (Sunday Okafor): stands by the entrance/carport and ties into the "Your car" ride (`RideService`).
- * - Gateman (Musa Danjuma): stands guard by the front door, salutes when you come home, and boosts social/cred.
+ * - Cook (Mama Chidinma): arrives ~6:30, cooks, leaves ~15:00. Stocks the fridge (`Fridge.get().put`).
+ * - Cleaner (Sisi Blessing): arrives ~8:00, tidies, leaves ~16:00. Raises hygiene while at home.
+ * - Driver (Sunday Okafor): resumes ~7:00 by the carport; goes home after the owner is back for the night (~21:00).
+ * - Gateman (Musa Danjuma): stays at the gate / outside the entrance — never inside the house.
  */
 
 export type StaffRoleId = 'cook' | 'cleaner' | 'driver' | 'gateman';
@@ -45,8 +45,8 @@ export const STAFF_ROLES: readonly StaffRoleSpec[] = [
     name: 'Mama Chidinma',
     icon: '🍲',
     dailyWage: 4_500,
-    duty: 'Stocks the fridge with fresh home-cooked meals every day',
-    summary: 'Prepares smoky Party Jollof, Egusi Soup & Pounded Yam, and Fried Rice & Dodo and puts them straight into your home fridge.',
+    duty: 'Arrives at dawn, stocks the fridge, leaves mid-afternoon',
+    summary: 'Prepares smoky Party Jollof, Egusi Soup & Pounded Yam, and Fried Rice & Dodo and puts them straight into your home fridge. On duty about 6:30–15:00.',
     greeting: 'Nne, food don ready! Check the fridge when you are hungry.',
     look: {
       gender: 'female',
@@ -64,8 +64,8 @@ export const STAFF_ROLES: readonly StaffRoleSpec[] = [
     name: 'Sisi Blessing',
     icon: '🧹',
     dailyWage: 3_500,
-    duty: 'Keeps the home spotless and raises your hygiene',
-    summary: 'Sweeps the parlour, mops the tiles, scrubs the bathroom, and keeps your hygiene high whenever you are at home.',
+    duty: 'Arrives mid-morning, tidies, leaves before evening',
+    summary: 'Sweeps the parlour, mops the tiles, scrubs the bathroom, and keeps your hygiene high while she is on duty (about 8:00–16:00).',
     greeting: 'Every corner dey shine like glass today! Rest well.',
     look: {
       gender: 'female',
@@ -83,8 +83,8 @@ export const STAFF_ROLES: readonly StaffRoleSpec[] = [
     name: 'Sunday Okafor',
     icon: '🚘',
     dailyWage: 6_000,
-    duty: 'Brings your car round and drives you anywhere for free ("Your car" ride)',
-    summary: 'Waits by the entrance and carport. Ties into the "Your car" ride in Ride and on the map so you ride across Lagos for free.',
+    duty: 'Resumes around 7 AM; goes home after you are back for the night',
+    summary: 'Waits by the carport from about 7:00. Ties into the "Your car" ride. Goes home after 21:00 once you are settled for the night.',
     greeting: 'Oga, the car is washed and the tank is full. Where are we heading?',
     look: {
       gender: 'male',
@@ -103,8 +103,8 @@ export const STAFF_ROLES: readonly StaffRoleSpec[] = [
     name: 'Musa Danjuma',
     icon: '🛡️',
     dailyWage: 3_000,
-    duty: 'Stands watch at the front door day and night',
-    summary: 'Watches the compound gate and front entrance round the clock, salutes when you step in, and keeps your compound respected.',
+    duty: 'Stays at the gatehouse / gate outside — never inside the house',
+    summary: 'Watches the compound gate and the street side of the entrance round the clock. Salutes when you step in. Never comes into the parlour.',
     greeting: 'Twale Oga! Compound dey kampe, nobody fit try rubbish here!',
     look: {
       gender: 'male',
@@ -173,12 +173,24 @@ interface LiveStaffFigure {
   points: Array<[number, number]>;
   pointIndex: number;
   stepTimer: number;
+  /** Last on-duty flag, for arrive/leave toasts */
+  wasOnDuty?: boolean;
 }
+
+/** Game-hour windows when each role is visible on site */
+const DUTY: Record<StaffRoleId, { from: number; to: number }> = {
+  cook: { from: 6.5, to: 15 },
+  cleaner: { from: 8, to: 16 },
+  driver: { from: 7, to: 21 },
+  gateman: { from: 0, to: 24 },
+};
 
 const REAL_DAY_MS = 86_400_000;
 
 export class HomeStaff {
   private static instance: HomeStaff | null = null;
+  /** Musa at the outdoor compound gatehouse (`Compound.post`), when the home has a plotted compound */
+  private streetGateman: { figure: Figure; parent: THREE.Group } | null = null;
   public static now: () => number = () => Date.now();
   public static currentDay: () => number = () => 1;
 
@@ -527,6 +539,48 @@ export class HomeStaff {
     this.refreshHomeFigures();
   }
 
+  /**
+   * Put the gateman on the outdoor compound gatehouse post when the player owns a plotted home.
+   * `post` is world XZ + facing from `CompoundDrawing.post`. Pass null to clear.
+   */
+  public syncStreetGateman(parent: THREE.Group | null, post: { x: number; z: number; yaw: number } | null): void {
+    const spec = this.roleSpec('gateman');
+    const show = !!(parent && post && spec && this.isHired('gateman') && this.onDuty('gateman'));
+    if (!show) {
+      if (this.streetGateman) this.streetGateman.figure.root.visible = false;
+      return;
+    }
+    if (!this.streetGateman || this.streetGateman.parent !== parent) {
+      this.streetGateman?.figure.root.removeFromParent();
+      const figure = new Figure(parent!, 'staff_gateman_street', spec!.name, spec!.look, [post!.x, post!.z], post!.yaw, 0, true);
+      figure.root.userData.staffRole = 'gateman';
+      this.streetGateman = { figure, parent: parent! };
+    } else {
+      this.streetGateman.figure.place(post!.x, post!.z, post!.yaw);
+    }
+    this.streetGateman.figure.root.visible = true;
+    this.streetGateman.figure.pose('stand', 'rest');
+    // Prefer the outdoor post — hide the interior stand-in when the street figure is up
+    const indoor = this.liveFigures.get('gateman');
+    if (indoor) indoor.figure.root.visible = false;
+  }
+
+  /** True when this role should be seen on site at the current game hour. */
+  public onDuty(role: StaffRoleId, hour?: number): boolean {
+    const h = hour ?? this.gameHour();
+    const win = DUTY[role];
+    if (win.from <= win.to) return h >= win.from && h < win.to;
+    return h >= win.from || h < win.to;
+  }
+
+  private gameHour(): number {
+    try {
+      const sky = (window as unknown as { game?: { world?: { skyEnvironment?: { currentHour?: number } } } }).game?.world?.skyEnvironment;
+      if (typeof sky?.currentHour === 'number') return sky.currentHour;
+    } catch { /* tests / SSR */ }
+    return 12;
+  }
+
   private spotsFor(role: StaffRoleId, plan: HomePlan | null): { start: [number, number]; facing: number; route: Array<[number, number]> } {
     const cooker = plan?.spots.cooker ?? { x: -11.5, z: 8.2 };
     const fridge = plan?.spots.fridge ?? { x: -14.0, z: 10.2 };
@@ -545,13 +599,15 @@ export class HomeStaff {
       return { start: a, facing: Math.PI / 2, route: [a, b, c] };
     }
     if (role === 'driver') {
-      const a: [number, number] = [entrance.x - 2.3, entrance.z - 1.5];
-      const b: [number, number] = [entrance.x - 3.4, entrance.z - 1.5];
-      return { start: a, facing: 0, route: [a, b] };
+      // Carport / just outside the entrance, not deep in the parlour
+      const a: [number, number] = [entrance.x - 2.6, entrance.z + 0.4];
+      const b: [number, number] = [entrance.x - 3.5, entrance.z + 0.4];
+      return { start: a, facing: Math.PI, route: [a, b] };
     }
-    // gateman
-    const gateSpot: [number, number] = [entrance.x + 1.9, entrance.z - 1.1];
-    return { start: gateSpot, facing: Math.PI, route: [gateSpot] };
+    // Gateman: street side of the door (outside the house), never in the parlour
+    const gateSpot: [number, number] = [entrance.x + 2.0, entrance.z + 1.6];
+    const gateB: [number, number] = [entrance.x + 0.6, entrance.z + 1.6];
+    return { start: gateSpot, facing: Math.PI, route: [gateSpot, gateB] };
   }
 
   public refreshHomeFigures(): void {
@@ -576,6 +632,7 @@ export class HomeStaff {
       }
 
       const layout = this.spotsFor(spec.id, this.homePlan);
+      const duty = this.onDuty(spec.id);
       if (!live || live.figure.root.parent !== group) {
         if (live) live.figure.root.removeFromParent();
         const figure = new Figure(group, `staff_${spec.id}`, spec.name, spec.look, layout.start, layout.facing, 0, true);
@@ -596,19 +653,25 @@ export class HomeStaff {
           points: layout.route,
           pointIndex: 0,
           stepTimer: 2.5,
+          wasOnDuty: duty,
         };
         this.liveFigures.set(spec.id, live);
       } else {
-        live.figure.root.visible = true;
         live.points = layout.route;
         live.figure.place(layout.start[0], layout.start[1], layout.facing);
         live.card.interactionPoint.set(origin.x + layout.start[0], 0, origin.z + layout.start[1] + 0.9);
       }
 
-      if (existingCardIdx < 0) {
+      // Gateman prefers the outdoor compound post when it is up
+      const outdoorGate = spec.id === 'gateman' && !!this.streetGateman?.figure.root.visible;
+      live.figure.root.visible = duty && !outdoorGate;
+      if (duty && !outdoorGate && existingCardIdx < 0) {
         interactiveList.push(live.card);
+      } else if ((!duty || outdoorGate) && existingCardIdx >= 0) {
+        interactiveList.splice(existingCardIdx, 1);
+        PlaceActions.unregister(cardId);
       }
-      this.registerStaffAction(cardId, live);
+      if (duty && !outdoorGate) this.registerStaffAction(cardId, live);
     }
   }
 
@@ -669,6 +732,8 @@ export class HomeStaff {
       void this.onNewDay(this.state.lastPaidDay + daysElapsed);
     }
 
+    if (this.streetGateman?.figure.root.visible) this.streetGateman.figure.tick(delta);
+
     if (!inHome || !this.homeGroup) return;
     const origin = this.homeGroup.position;
 
@@ -685,7 +750,24 @@ export class HomeStaff {
     }
 
     for (const live of this.liveFigures.values()) {
-      if (!this.isHired(live.role) || !live.figure.root.visible) continue;
+      if (!this.isHired(live.role)) continue;
+      const duty = this.onDuty(live.role);
+      if (live.wasOnDuty !== duty) {
+        live.wasOnDuty = duty;
+        live.figure.root.visible = duty;
+        const cardId = `staff_home_${live.role}`;
+        const idx = this.homeInteractive?.findIndex((o) => o.id === cardId) ?? -1;
+        if (duty) {
+          if (idx < 0 && this.homeInteractive) this.homeInteractive.push(live.card);
+          this.registerStaffAction(cardId, live);
+          showGameToast(`${live.spec.icon} ${live.spec.name} has arrived for duty.`, 'info', 3500);
+        } else {
+          if (idx >= 0) this.homeInteractive?.splice(idx, 1);
+          PlaceActions.unregister(cardId);
+          showGameToast(`${live.spec.icon} ${live.spec.name} has gone home for the day.`, 'info', 3500);
+        }
+      }
+      if (!duty || !live.figure.root.visible) continue;
       live.figure.tick(delta);
       const [fx, fz] = live.figure.where();
       live.card.interactionPoint.set(origin.x + fx, 0, origin.z + fz + 0.9);

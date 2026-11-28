@@ -373,9 +373,9 @@ export class Expressway {
           }
         }
         // A car parked in front of the shop, now and then (in a lay-by: see laybys)
-        if (!tall && this.rand() < 0.3 && !EXPRESS_BRIDGES.some((bz) => Math.abs(bz - cz) < 14)) {
-          // Most stand empty, free for whoever pulls in
-          bays.push({ side, z: cz, colour: CAR_PAINT[Math.floor(this.rand() * CAR_PAINT.length)], parked: this.rand() < 0.35 });
+        if (!tall && this.rand() < 0.45 && !EXPRESS_BRIDGES.some((bz) => Math.abs(bz - cz) < 14)) {
+          // Enough bays hold a car that the kerb still reads as Lagos lay-bys (not empty cuts)
+          bays.push({ side, z: cz, colour: CAR_PAINT[Math.floor(this.rand() * CAR_PAINT.length)], parked: this.rand() < 0.7 });
         }
         if (!tall) {
           // A shop sign over the ground floor, and a roof
@@ -467,8 +467,9 @@ export class Expressway {
     b.box(0xf8fafc, 0.06, 0.25, 3.6, s * (H + LAYBY.depth - 0.15), 2.62, bay.z);
     // The bench: a wooden seat on two legs, a back rail, facing the road
     const seatX = s * (H + LAYBY.depth + 0.45);
-    b.box(0x92400e, 0.42, 0.06, 2.4, seatX, 0.62, bay.z).box(0x92400e, 0.06, 0.32, 2.4, seatX + s * 0.22, 0.72, bay.z);
-    for (const dz of [-1.0, 1.0]) b.box(0x374151, 0.36, 0.42, 0.06, seatX, 0.2, bay.z + dz);
+    b.box(0x92400e, 0.42, 0.06, 2.4, seatX, 0.62, bay.z, { solid: false }).box(0x92400e, 0.06, 0.32, 2.4, seatX + s * 0.22, 0.72, bay.z, { solid: false });
+    for (const dz of [-1.0, 1.0]) b.box(0x374151, 0.36, 0.42, 0.06, seatX, 0.2, bay.z + dz, { solid: false });
+    this.solid('Lay-by bench', seatX - 0.28, seatX + 0.28, bay.z - 1.25, bay.z + 1.25, 0.7);
     this.bench(seatX, bay.z, s);
   }
 

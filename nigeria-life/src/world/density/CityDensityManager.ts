@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../../materials/MaterialLibrary';
 import { CityFabric } from './CityFabric';
+import { blocksCrossing } from './StreetLayout';
 
 export class CityDensityManager {
   public group: THREE.Group;
@@ -31,8 +32,8 @@ export class CityDensityManager {
   // STREET PROPS & DETAILS (Drainage, Generators, Signs, Cones, Tanks)
   // =========================================================================
   private buildStreetDetailsAndProps(): void {
-    // A. Security Booths at key compound entries
-    this.createSecurityBooth(-14.5, 0, 16);
+    // A. Security Booths at key compound entries (clear of Broad Street zebra at z=10)
+    this.createSecurityBooth(-14.5, 0, 24);
     this.createSecurityBooth(14.5, 0, -32);
 
     // B. Soundproof Generator Metal Cages (Yellow & Black caution stripes)
@@ -40,11 +41,11 @@ export class CityDensityManager {
     this.createGenCage(14.5, 0, -8);
     this.createGenCage(-14.5, 0, -74);
 
-    // C. LAWMA Lagos Trash Wheelie Bins along sidewalks
+    // C. LAWMA Lagos Trash Wheelie Bins along sidewalks — never on a zebra or junction throat
     for (let z of [-90, -80, -55, -40, -18, 2, 22, 40, 60, 80]) {
-      // At the kerb, so the middle of the pavement stays open
-      this.createTrashBin(-7.75, 0, z);
-      this.createTrashBin(7.75, 0, z + 10);
+      // Hard against the kerb (halfRoad=7) so a 2 m clear way remains toward the shop fronts
+      if (!blocksCrossing(z)) this.createTrashBin(-7.35, 0, z);
+      if (!blocksCrossing(z + 10)) this.createTrashBin(7.35, 0, z + 10);
     }
 
     // D. Traffic Warning Signs & Speed Limit 40 km/h

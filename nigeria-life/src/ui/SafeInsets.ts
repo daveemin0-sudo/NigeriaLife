@@ -65,8 +65,14 @@ export function readSafeInsets(): {
     : 0;
   const transitBottom = Math.max(bottom, touchFloor);
 
+  // Real iPhones report a large safe-area under the Dynamic Island / notch. Desktop phone
+  // previews and some WebViews report 0 — still keep the clock/money clear of that chrome.
+  let top = Math.max(0, Math.round(safeTop));
+  const narrow = Math.min(window.innerWidth, window.innerHeight) <= 500;
+  if (isTouchLike() && narrow && top < 44) top = 47;
+
   return {
-    top: Math.max(0, Math.round(safeTop)),
+    top,
     right: Math.max(0, Math.round(safeRight)),
     bottom,
     left: Math.max(0, Math.round(safeLeft)),

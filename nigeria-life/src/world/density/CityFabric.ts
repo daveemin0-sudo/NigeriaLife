@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from '../../materials/MaterialLibrary';
 import { seededRandom } from '../../graphics/MeshBaker';
-import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, addPavement, type SideStreet } from './StreetLayout';
+import { MAIN_ROAD, MAIN_CORRIDOR_HALF, SIDE_STREETS, CROSS_STREET_Z, PARK_IN, addPavement, blocksCrossing, ZEBRA_STALL_CLEAR, type SideStreet } from './StreetLayout';
 import { StreetStalls, lagosStallSells, type StallSpot } from '../street/StreetStalls';
 
 // Occupancy bit flags
@@ -353,10 +353,33 @@ export class CityFabric {
         const lampZ = narrow ? (isX ? st.fixed + sign * (st.halfRoad + 0.2) : mid) : pz;
         const inJunction = s <= st.from + 5 || s >= st.to - 5 || this.inOtherRoad(lampX, lampZ, st) || this.inMainCorridor(lampX, lampZ);
 
+        // Stalls and lamps stay off zebra crossings / junction paint (Broad Street z=10, Martins z=-62).
+        // Keep lamp vs stall as else-if (same ticks as bf55) so sidewalk RNG stays aligned — only skip the
+        // place when on a zebra. N-S stalls slide along the road instead of dropping.
+        const worldZ = isX ? pz : mid;
+        const onCrossing = blocksCrossing(worldZ);
         if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction) {
-          if (!this.beforeAPlot(lampX, lampZ)) this.addStreetLamp(lampX, lampZ, isX, -sign);
+          if (!onCrossing && !this.beforeAPlot(lampX, lampZ)) this.addStreetLamp(lampX, lampZ, isX, -sign);
         } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st) && !this.beforeAPlot(px, pz)) {
-          this.addUmbrellaStall(px, pz, isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2, narrow);
+          const yaw = isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2;
+          if (!onCrossing) {
+            this.addUmbrellaStall(px, pz, yaw, narrow);
+          } else if (!isX) {
+            // N-S street: slide past the zebra along the road (E-W edge on a zebra z has no clear spot)
+            for (const dir of [1, -1] as const) {
+              const nz = mid + dir * (ZEBRA_STALL_CLEAR + 0.5);
+              if (
+                nz >= st.from + 5 &&
+                nz <= st.to - 5 &&
+                !blocksCrossing(nz) &&
+                !this.inOtherRoad(px, nz, st) &&
+                !this.beforeAPlot(px, nz)
+              ) {
+                this.addUmbrellaStall(px, nz, yaw, narrow);
+                break;
+              }
+            }
+          }
         }
       }
     }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Obstruction } from '../plan/CityPlan';
+import { shouldSolidify } from '../plan/CollisionSpace';
 
 /**
  * The building kit: the one way large structures are put together.
@@ -14,6 +15,9 @@ import type { Obstruction } from '../plan/CityPlan';
  * Because the result is one mesh, it cannot be measured for the city plan the way a hand-built
  * group is. So each part says whether it stands on the ground, and the builder keeps the
  * list of what does: those are the building's footprints, handed to the plan directly.
+ *
+ * Floor-standing mass is solid by default (see CollisionSpace.shouldSolidify). Pass
+ * `{ solid: false }` for rugs, floor markings, open doorways and other walk-over dressing.
  */
 
 const colour = new THREE.Color();
@@ -38,7 +42,10 @@ export interface PartOptions {
   pitch?: number;
   /** Tilt about the z axis, radians */
   roll?: number;
-  /** A body people and cars cannot pass through. Recorded as a footprint for the city plan. */
+  /**
+   * A body people and cars cannot pass through. Recorded as a footprint for the city plan.
+   * Omit to use the default: floor-standing mass is solid; rugs/glow/elevated trim are not.
+   */
   solid?: boolean;
   /** Lit from within: stays bright at night */
   glow?: boolean;
@@ -83,7 +90,7 @@ export class Builder {
   /** A box, given by its size and the point at the middle of its base. */
   public box(hex: number, width: number, height: number, depth: number, x: number, baseY: number, z: number, options: PartOptions = {}): this {
     this.place(new THREE.BoxGeometry(width, height, depth), hex, x, baseY + height / 2, z, options);
-    if (options.solid) {
+    if (shouldSolidify(height, baseY, options)) {
       const turned = Math.abs(Math.sin(options.yaw ?? 0)) > 0.7;
       const w = turned ? depth : width;
       const d = turned ? width : depth;
@@ -95,7 +102,7 @@ export class Builder {
   /** An upright cylinder (a column, a tank, a mast), by its radius and the middle of its base. */
   public cylinder(hex: number, radius: number, height: number, x: number, baseY: number, z: number, options: PartOptions & { topRadius?: number; sides?: number } = {}): this {
     this.place(new THREE.CylinderGeometry(options.topRadius ?? radius, radius, height, options.sides ?? 14), hex, x, baseY + height / 2, z, options);
-    if (options.solid) this.footprints.push({ minX: x - radius - this.originX, maxX: x + radius - this.originX, minZ: z - radius - this.originZ, maxZ: z + radius - this.originZ, height });
+    if (shouldSolidify(height, baseY, options)) this.footprints.push({ minX: x - radius - this.originX, maxX: x + radius - this.originX, minZ: z - radius - this.originZ, maxZ: z + radius - this.originZ, height });
     return this;
   }
 
@@ -152,11 +159,13 @@ export class Builder {
     const paneW = (wallWidth / columns) * 0.62;
     const paneH = (wallHeight / rows) * 0.56;
     const alongX = Math.abs(Math.cos(facing)) > 0.5; // the wall runs along x when it faces ±z
+    // Panes are dressing on a wall already solid; they must not add their own footprints
+    const paneOpts: PartOptions = { ...options, solid: false };
     for (let c = 0; c < columns; c++) {
       for (let r = 0; r < rows; r++) {
         const along = -wallWidth / 2 + ((c + 0.5) * wallWidth) / columns;
         const y = baseY + ((r + 0.5) * wallHeight) / rows - paneH / 2;
-        this.box(hex, alongX ? paneW : 0.08, paneH, alongX ? 0.08 : paneW, x + (alongX ? along : 0), y, z + (alongX ? 0 : along), options);
+        this.box(hex, alongX ? paneW : 0.08, paneH, alongX ? 0.08 : paneW, x + (alongX ? along : 0), y, z + (alongX ? 0 : along), paneOpts);
       }
     }
     return this;

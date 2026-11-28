@@ -1,0 +1,11 @@
+{
+  "measuredAt": "2026-11-27T16:05Z",
+  "method": "graphics.choose(level) then 2 rAF sample; Medium = balanced",
+  "broadStreet_veryLow": { "calls": 237, "tris": 136764, "note": "draws ≤250 OK; tris over 110k budget — tip investigation open" },
+  "places": {
+    "Freedom Park": { "veryLow": { "calls": 78, "tris": 118376 }, "medium": { "calls": 191, "tris": 445133 } },
+    "Elegushi": { "veryLow": { "calls": 65, "tris": 191451 }, "medium": { "calls": 115, "tris": 449724 } },
+    "Lekki Conservation": { "veryLow": { "calls": 53, "tris": 66310 }, "medium": { "calls": 85, "tris": 182622 } },
+    "Ikeja Golf": { "veryLow": { "calls": 57, "tris": 64059 }, "medium": { "calls": 89, "tris": 152414 } }
+  }
+}

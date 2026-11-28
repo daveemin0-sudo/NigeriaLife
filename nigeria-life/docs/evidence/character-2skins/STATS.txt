@@ -1,0 +1,10 @@
+character-2skins — scene quantization + meshopt
+Source: git c20db99 uncompressed bases (2 shared skins)
+Command: gltf-transform meshopt IN OUT --quantization-volume scene --level high
+
+male:   2 skins (65, 73), 102 meshes, 116 prims, 236 nodes, 19 anims, Seated, 145963 tris
+        size 2,398,272 bytes (was 2,926,104 with 101 skins)
+female: 2 skins (65, 73), 102 meshes, 116 prims, 236 nodes, 19 anims, Seated, 153633 tris
+        size 2,506,808 bytes (was 3,058,604 with 95 skins)
+
+Visual: phone front/side/walk + desktop — limbs intact (no spidery IBM failure).

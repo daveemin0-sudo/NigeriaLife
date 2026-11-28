@@ -1,12 +1,13 @@
 import { BackendService } from '../../backend/BackendService';
 import { Fridge } from '../../housing/Fridge';
+import { HomeRepairs, REPAIR_KINDS, type RepairKind } from '../../housing/HomeRepairs';
 import { HomeStaff, STAFF_ROLES, type StaffRoleId, type StaffRoleSpec } from '../../housing/HomeStaff';
 import { chips, empty, esc, naira } from '../../ui/kit/html';
 import type { PhoneApp } from '../PhoneApp';
 
 /**
  * Staff app on the phone: hire a cook, a cleaner, a driver, or a gateman for the player's home,
- * paid every day from the bank.
+ * paid every day from the bank. Also call a tradesperson for home repairs.
  */
 
 let syncedAt = 0;
@@ -57,23 +58,49 @@ export const staffApp: PhoneApp = {
   name: 'Staff',
   icon: '🧹',
   tint: ['#0f766e', '#1e3a5f'],
-  purpose: 'Cook, cleaner, driver and gateman for your home',
-  badge: () => HomeStaff.get().hiredList().length,
+  purpose: 'Staff and repairs for your home',
+  badge: () => HomeStaff.get().hiredList().length + (HomeRepairs.get().busy() ? 1 : 0),
   render(host) {
     const staff = HomeStaff.get();
+    const repairs = HomeRepairs.get();
     if (Date.now() - syncedAt > 8_000) {
       syncedAt = Date.now();
       void staff.syncFromServer();
     }
-    const tab = host.get<'all' | 'working'>('staff-tab', 'all');
+    const tab = host.get<'all' | 'working' | 'repairs'>('staff-tab', 'all');
     const hired = staff.hiredList();
     const dailyTotal = staff.dailyWageTotal();
     const bank = BackendService.getInstance().getData().bank.balance;
     const fridgeCount = Fridge.get().count();
+    const activeRepair = repairs.active();
 
     const listToShow = tab === 'working'
       ? STAFF_ROLES.filter((s) => staff.isHired(s.id))
       : STAFF_ROLES;
+
+    const repairCards = REPAIR_KINDS.map((spec) => {
+      const busy = repairs.busy();
+      const isThis = activeRepair?.id === spec.id;
+      return `
+        <div class="nl-card ${isThis ? 'nl-card--live' : ''}">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="font-size:26px; width:40px; height:40px; border-radius:10px; background:var(--nl-surface-2); display:grid; place-items:center;">${spec.icon}</div>
+              <div>
+                <div class="nl-card-title">${esc(spec.name)}</div>
+                <div class="nl-card-line" style="margin-top:1px;"><span class="nl-tag">${esc(spec.title)}</span></div>
+              </div>
+            </div>
+            <span class="nl-tag ${isThis ? 'nl-tag--good' : ''}">${naira(spec.fee)} at hand-over</span>
+          </div>
+          <div class="nl-card-line">${isThis ? 'On site — pay when the job is done.' : 'Call them to the house. They work, then you pay at hand-over.'}</div>
+          <div style="margin-top:6px;">
+            <button class="nl-btn nl-btn--primary nl-btn--block" data-act="call-repair" data-kind="${esc(spec.id)}" ${busy && !isThis ? 'disabled' : ''}>
+              ${isThis ? 'Already here' : `Call ${esc(spec.name)}`}
+            </button>
+          </div>
+        </div>`;
+    }).join('');
 
     return {
       title: 'Staff',
@@ -85,20 +112,26 @@ export const staffApp: PhoneApp = {
           <div class="nl-hero-actions">
             <button class="nl-btn nl-btn--glass" data-set="staff-tab" data-value="all">📋 All Staff (${STAFF_ROLES.length})</button>
             <button class="nl-btn nl-btn--glass" data-set="staff-tab" data-value="working">👥 Working (${hired.length})</button>
+            <button class="nl-btn nl-btn--glass" data-set="staff-tab" data-value="repairs">🔧 Repairs</button>
           </div>
         </div>
-        <div class="nl-section">Domestic Personnel</div>
         ${chips('staff-tab', tab, [
           ['all', `All Staff (${STAFF_ROLES.length})`],
           ['working', `Working Now (${hired.length})`],
+          ['repairs', 'Repairs'],
         ])}
+        ${
+          tab === 'repairs'
+            ? `<div class="nl-section">Call a tradesperson</div><div class="nl-list" style="margin-top:8px;">${repairCards}</div>`
+            : `<div class="nl-section">Domestic Personnel</div>
         <div class="nl-list" style="margin-top:8px;">
           ${
             listToShow.length === 0
               ? empty('🧹', 'No home staff hired yet', 'Hire Mama Chidinma, Sisi Blessing, Sunday Okafor, or Musa Danjuma from the All Staff tab.')
               : listToShow.map((spec) => renderStaffCard(spec, staff.isHired(spec.id), bank)).join('')
           }
-        </div>
+        </div>`
+        }
       `,
     };
   },
@@ -146,6 +179,13 @@ export const staffApp: PhoneApp = {
       backend.restoreNeed('social', 15);
       backend.addStreetCred(3);
       host.say('🛡️ Musa Danjuma salutes at the gate! Social +15%, Street Cred +3.', 'good');
+      host.refresh();
+      return;
+    }
+    if (action === 'call-repair') {
+      const kind = (el.dataset.kind ?? '') as RepairKind;
+      const res = HomeRepairs.get().call(kind);
+      host.say(res.message, res.ok ? 'good' : 'bad');
       host.refresh();
     }
   },

@@ -72,6 +72,8 @@ export interface StadiumOptions {
   x: number;
   z: number;
   teams: [string, string];
+  /** Live game hour (0–24). When set, `status().open` follows it even before the next `update` frame. */
+  hour?: () => number;
 }
 
 export interface StadiumLandmark extends Landmark {
@@ -420,6 +422,9 @@ export function createStadium(options: StadiumOptions): StadiumLandmark {
 
   let time = 0;
   let bouncing = false;
+  /** Last game hour passed to `update` (fallback when no live `options.hour` is wired) */
+  let hourNow = 12;
+  const hourOf = () => options.hour?.() ?? hourNow;
 
   return {
     id: options.id,
@@ -481,6 +486,7 @@ export function createStadium(options: StadiumOptions): StadiumLandmark {
     doors: [{ name: `Gate A of ${options.name}`, x: site.x + OUTER_X + 2.4, z: site.z + GATE_Z }],
     update(delta, hour) {
       time += delta;
+      hourNow = hour;
       open = hour >= OPENS && hour < CLOSES;
       // Daylight by day; under the lights in the evening; dark when the ground is shut
       const dark = hour < 6.5 || hour >= 18.5;
@@ -511,15 +517,18 @@ export function createStadium(options: StadiumOptions): StadiumLandmark {
       const score = `${sim.teams[0].toUpperCase()}  ${sim.score[0]} - ${sim.score[1]}  ${sim.teams[1].toUpperCase()}`;
       show(score, sim.celebrating > 0 ? 'GOAL!' : sim.fullTime ? 'FULL TIME' : `${sim.minute}'`, sim.celebrating > 0);
     },
-    status: () => ({
-      open,
-      teams: sim.teams,
-      score: [...sim.score],
-      minute: sim.minute,
-      matchNumber: sim.matchNumber,
-      hasTicket: hasTicket(),
-      crowd: seats.length,
-      ball: { x: sim.ball.x, z: sim.ball.z },
-    }),
+    status: () => {
+      const h = hourOf();
+      return {
+        open: h >= OPENS && h < CLOSES,
+        teams: sim.teams,
+        score: [...sim.score],
+        minute: sim.minute,
+        matchNumber: sim.matchNumber,
+        hasTicket: hasTicket(),
+        crowd: seats.length,
+        ball: { x: sim.ball.x, z: sim.ball.z },
+      };
+    },
   };
 }

@@ -59,7 +59,7 @@ function roadsideStalls(city: 'abuja' | 'port_harcourt', streets: CityStreets, d
   const free = (x: number, z: number) =>
     z > av.from + 8 && z < av.to - 8 &&
     !streets.keepClear(x, z) &&
-    Math.abs(z - streets.crossing) > 5 &&
+    Math.abs(z - streets.crossing) > 7 &&
     !gaps.some((g) => z > g.from - 3 && z < g.to + 3) &&
     // Not in front of anyone's door, and not on top of another stall
     !doors.some((d) => Math.sign(d.x) === Math.sign(x) && Math.abs(d.x) < av.halfRoad + av.walk + 6 && Math.abs(d.z - z) < 3.5) &&
@@ -136,7 +136,7 @@ const STREETS: Record<'abuja' | 'port_harcourt', CityStreets> = {
     gap: 22,
     walkers: 95,
     groups: 7,
-    keepClear: (x, z) => Math.abs(z - 15.5) < 3 || (x > 0 && Math.abs(z - 35) < 10) || (x > 0 && Math.abs(z + 8.6) < 2.5) || (x < 0 && z < -72),
+    keepClear: (x, z) => Math.abs(z - 15.5) < 6.5 || (x > 0 && Math.abs(z - 35) < 10) || (x > 0 && Math.abs(z + 8.6) < 2.5) || (x < 0 && z < -72),
     seed: 5150,
     roads: ABUJA_ROADS,
     walkEvery: 36,
@@ -151,7 +151,7 @@ const STREETS: Record<'abuja' | 'port_harcourt', CityStreets> = {
     gap: 14,
     walkers: 145,
     groups: 12,
-    keepClear: (x, z) => Math.abs(z - 15.5) < 3 || (x > 0 && Math.abs(z - 38) < 10) || (x > 0 && Math.abs(z + 22.4) < 2.5) || (x < 0 && z < -70 && z > -86),
+    keepClear: (x, z) => Math.abs(z - 15.5) < 6.5 || (x > 0 && Math.abs(z - 38) < 10) || (x > 0 && Math.abs(z + 22.4) < 2.5) || (x < 0 && z < -70 && z > -86),
     seed: 6270,
     roads: PH_ROADS,
     walkEvery: 22,
