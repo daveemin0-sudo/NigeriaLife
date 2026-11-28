@@ -200,6 +200,7 @@ Clean tip FAIL / bf55 PASS — fixed and **re-verified** on fresh tip `54a8752` 
 | hours stadium shut at 03:00 | PASS | FAIL `stadiumAtThree:true` | **PASS** `false` (`b536460`) |
 | ways Gate A / quay brushes | PASS 0/0 | FAIL 1/3 | **PASS** 0/0 (`5430d8c`) |
 | phone send over-balance refused | PASS | FAIL empty amount | **PASS** (`c009dd9`) |
+| seats lagoon lounger onAir | PASS `onAir:[]` | FAIL `top:2.18` (umbrella canopy) | **PASS** `top:0.53` (`5c8e31f` — `topAt` skips hits `y > 1.35`) |
 
 Also shipped (shared bf55 FAIL too — still worth fixing): buka instant stand + shop GLB carry arms (`c009dd9`).
 
