@@ -346,6 +346,8 @@ export class GameCamera {
    */
   /** Is there a wall at this point on the ground? (set by the game) The driving camera stays on this side of one */
   public blocked: ((x: number, z: number) => boolean) | null = null;
+  /** Indoors: is this point on the floor under furniture (a counter, a shelf, a coffee machine)? Set by the game */
+  public insideBlocked: ((x: number, z: number) => boolean) | null = null;
   private vehCamRoom = 11.2;
 
   /** Where the street camera is easing round to; the player turning it themselves takes over */
@@ -884,6 +886,22 @@ export class GameCamera {
       want.z = THREE.MathUtils.clamp(want.z, this.roomCenter.z - hz, this.roomCenter.z + hz);
     }
     want.y = Math.min(want.y, 2.9);
+    // Not inside the furniture behind the player (sat at a café table with the coffee machine behind):
+    // the camera comes in along the line from their head until it is clear
+    if (this.insideBlocked) {
+      const fx = want.x - player.position.x, fz = want.z - player.position.z;
+      let keep = 1;
+      for (let t = 0.3; t <= 1.001; t += 0.1) {
+        if (this.insideBlocked(player.position.x + fx * t, player.position.z + fz * t)) {
+          keep = Math.max(0.12, t - 0.2);
+          break;
+        }
+      }
+      if (keep < 1) {
+        want.x = player.position.x + fx * keep;
+        want.z = player.position.z + fz * keep;
+      }
+    }
     const look = new THREE.Vector3(player.position.x + Math.sin(this.eyeYaw) * 2.2, head - 0.15 - Math.sin(this.eyePitch) * 1.5, player.position.z + Math.cos(this.eyeYaw) * 2.2);
     const ease = this.eyeSnap ? 1 : Math.min(1, delta * 7);
     this.eyeSnap = false;

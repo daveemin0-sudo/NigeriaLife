@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { outOfPerson, type PersonBody } from '../world/Bodies';
 import { Activity } from '../life/Activity';
 import { 
   type InteriorDefinition, 
@@ -52,6 +53,10 @@ interface InteriorTemplate {
   /** In a two-storey home: the floor the player is on, and the floor they walk on there */
   storey?: number;
   activeFloor?: () => THREE.Mesh | null;
+  /** The room's people as bodies on the floor (world coordinates), when it keeps its own crowd */
+  peopleNear?: (x: number, z: number, range: number, out: PersonBody[]) => void;
+  /** Its standing figures (staff at their counters, people about the room) */
+  npcs?: Array<{ group: THREE.Object3D }>;
 }
 
 export interface EnterOptions {
@@ -902,6 +907,7 @@ export class InteriorManager {
    * Scripted actions (sitting on a chair, lying on a bed) go where they need to.
    */
   private keepOffFurniture(player: Player): void {
+    this.keepOffPeople(player);
     const nav = this.getActiveNav();
     if (!nav) return;
     const spot = player.mesh.position;
@@ -924,6 +930,43 @@ export class InteriorManager {
       spot.z = last.z;
     }
     if (nav.isFree(spot.x, spot.z)) (this.lastClearSpot ??= new THREE.Vector3()).set(spot.x, 0, spot.z);
+    player.position.copy(spot);
+  }
+
+  private readonly bodies: PersonBody[] = [];
+  private readonly bodyAt = new THREE.Vector3();
+
+  /**
+   * Walking about freely in a room, the player does not pass through people: the staff at their
+   * counters, and the room's own crowd if it keeps one. A step into someone is moved out round them.
+   * Scripted actions (sitting down beside someone, being served) go where they need to.
+   */
+  private keepOffPeople(player: Player): void {
+    if (player.actor.scripted) return;
+    const template = this.getActiveTemplate();
+    if (!template) return;
+    const spot = player.mesh.position;
+    const out = this.bodies;
+    out.length = 0;
+    template.peopleNear?.(spot.x, spot.z, 1.5, out);
+    for (const npc of template.npcs ?? []) {
+      if (!npc.group.visible) continue;
+      npc.group.getWorldPosition(this.bodyAt);
+      if (Math.abs(this.bodyAt.x - spot.x) < 1.5 && Math.abs(this.bodyAt.z - spot.z) < 1.5) out.push({ x: this.bodyAt.x, z: this.bodyAt.z, r: 0.28 });
+    }
+    if (!out.length) return;
+    for (let pass = 0; pass < 2; pass++) {
+      let moved = false;
+      for (const body of out) {
+        const free = outOfPerson(spot.x, spot.z, 0.28, body);
+        if (free) {
+          spot.x = free.x;
+          spot.z = free.z;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
     player.position.copy(spot);
   }
 

@@ -8,6 +8,9 @@ import { AIRPORTS, ROUTES, type FlightCity } from '../../travel/Flights';
 import { Kit, M, WAYFINDING, contactShade, floorPlane, lightPool, mergeFloorDecals, signMesh } from '../airport/TerminalKit';
 import { BAG_COLOURS, LuggageBatch, type BagKind } from '../airport/Luggage';
 import { AirportCrowd } from '../airport/AirportCrowd';
+import { AirportServices, type AirportSeat } from '../airport/AirportServices';
+import { AirportSound } from '../airport/AirportSound';
+import { RigRegistry } from '../../graphics/people/RigRegistry';
 import { APRON, APRON_CREW, ApronLife } from '../airport/ApronLife';
 
 /**
@@ -77,6 +80,10 @@ export class AirportInterior {
   private readonly onBelt: Array<{ kind: BagKind; colour: number; t: number; ramp: number; away: number; turn: number }> = [];
   private beltRun = 0;
   private crowd!: AirportCrowd;
+  /** Seats nobody in the crowd is in: the player may sit on these */
+  private readonly freeSeats: AirportSeat[] = [];
+  private services!: AirportServices;
+  private sound!: AirportSound;
   private readonly bm = new THREE.Matrix4();
   private readonly bq = new THREE.Quaternion();
   private readonly be = new THREE.Euler();
@@ -317,6 +324,7 @@ export class AirportInterior {
     // People
     for (const npcDef of this.def.npcs) {
       const npc = new InteriorNPCMesh(npcDef);
+      this.dressForWork(npc);
       this.npcs.push(npc);
       this.group.add(npc.group);
       this.group.add(contactShade(0.9, 0.9, npcDef.relativePosition.x, npcDef.relativePosition.z, 0.35));
@@ -326,17 +334,22 @@ export class AirportInterior {
         name: npcDef.name,
         category: `Airport • ${npcDef.role}`,
         description: npcDef.dialogueGreeting,
-        interactionPoint: npcDef.relativePosition.clone().add(new THREE.Vector3(Math.sin(npcDef.rotationY) * 1.1, 0, Math.cos(npcDef.rotationY) * 1.1)),
+        // In front of them, on clear floor (staff behind a counter are spoken to across it)
+        interactionPoint: this.nav.closestFree(npcDef.relativePosition.clone().add(new THREE.Vector3(Math.sin(npcDef.rotationY) * 1.1, 0, Math.cos(npcDef.rotationY) * 1.1)).add(this.group.position)).sub(this.group.position),
       });
     }
 
     this.crowd = this.buildCrowd();
     this.group.add(this.crowd.group);
+    // What the player can do here besides flying: sit, eat, shop, rest in the lounge, the toilets
+    this.services = new AirportServices(this.group, this.group.position, this.nav, this.freeSeats);
+    this.services.register(this.interactiveList, this.group, { leaf: this.buildToilets() });
+    this.sound = new AirportSound();
 
     mergeFloorDecals(this.group);
 
-    // Interaction points above are room-relative; the player walks in world space
-    for (const obj of this.interactiveList) obj.interactionPoint.add(this.group.position);
+    // Interaction points above are room-relative; the player walks in world space (the services' own are already)
+    for (const obj of this.interactiveList) if (!obj.id.startsWith('airport_sit_') && !['airport_cafe_counter', 'airport_shop_till', 'airport_toilets'].includes(obj.id)) obj.interactionPoint.add(this.group.position);
     this.refreshBoards(true);
   }
 
@@ -354,6 +367,27 @@ export class AirportInterior {
     // Over the door, on the side facing into the hall (the door group's +z, as its own sign was)
     exit.position.set(0, 3.45, 0.12);
     door.add(exit);
+  }
+
+  /** Lit screens made by `monitor`, waiting to be added to the group their desk is built into */
+  private readonly screens: THREE.Mesh[] = [];
+
+  /**
+   * A desk computer: a slim black monitor on its stand, its screen lit with what the desk works on.
+   * `y` is the desk top; the screen faces along `yaw` (0 = toward +z).
+   */
+  private monitor(k: Kit, x: number, y: number, z: number, yaw: number, lines: string[]): void {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const at = (along: number) => ({ x: x + s * along, z: z + c * along });
+    k.box(M.black, 0.24, 0.015, 0.17, x, y, z, yaw);
+    const neck = at(-0.03);
+    k.box(M.black, 0.045, 0.2, 0.03, neck.x, y + 0.01, neck.z, yaw);
+    k.box(M.black, 0.54, 0.34, 0.03, x, y + 0.19, z, yaw);
+    const face = at(0.017);
+    const screen = signMesh(lines, 0.5, 0.3, { bg: '#0b3d2a', fg: '#d1fae5', accent: '#ffcc1a', density: 320 });
+    screen.position.set(face.x, y + 0.36, face.z);
+    screen.rotation.y = yaw;
+    this.screens.push(screen);
   }
 
   /** A station to walk up to: its mesh, and the spot a person stands at to use it */
@@ -519,8 +553,7 @@ export class AirportInterior {
       k.soft(M.solid, 1.9, 1.02, 0.75, cx, 0, 4.2, 0.08);
       k.box(M.wood, 2.0, 0.05, 0.85, cx, 1.02, 4.2);
       k.box(M.green, 1.9, 0.12, 0.02, cx, 0.82, 4.58);
-      k.box(M.black, 0.08, 0.3, 0.08, cx - 0.35, 1.07, 3.95);
-      k.box(M.screen, 0.5, 0.32, 0.04, cx - 0.35, 1.37, 3.95, Math.PI);
+      this.monitor(k, cx - 0.35, 1.07, 3.95, Math.PI, ['NigeriaLife Air', 'Check-in · NL 204']);
       k.box(M.black, 0.42, 0.02, 0.15, cx - 0.35, 1.08, 4.2);
       k.box(M.black, 0.22, 0.12, 0.18, cx + 0.45, 1.07, 4.3); // boarding pass printer
       // The bag scale between counters, with its little display
@@ -549,6 +582,7 @@ export class AirportInterior {
       this.nav.blockRect(-5.6, kz, 0.35, 0.3);
     }
     const g = k.build('checkin');
+    for (const sc of this.screens.splice(0)) g.add(sc);
     // The lit advertising panels on the back of the wall, facing the café
     const ads: Array<[string[], { bg: string; fg: string; accent: string }]> = [
       [['Obudu Mountain Resort', 'Cool air. Cable car. Cross River.'], { bg: '#0e5a3a', fg: '#f6f3e8', accent: '#ffcc1a' }],
@@ -709,13 +743,13 @@ export class AirportInterior {
       k.soft(M.solid, 2.6, 1.05, 0.75, gx, 0, -16.2, 0.08);
       k.box(M.wood, 2.7, 0.05, 0.85, gx, 1.05, -16.2);
       k.box(M.green, 2.6, 0.12, 0.02, gx, 0.85, -15.82);
-      k.box(M.screen, 0.5, 0.32, 0.04, gx - 0.5, 1.38, -16.4, Math.PI);
-      k.box(M.black, 0.1, 0.3, 0.1, gx - 0.5, 1.07, -16.4);
+      this.monitor(k, gx - 0.5, 1.07, -16.4, Math.PI, ['Boarding', `Gate ${gx === GATES[0] ? 1 : 2}`]);
       k.cyl(M.steel, 0.05, 0.05, 2.4, gx + 1.9, 0, -16.6, 10);
       this.nav.blockRect(gx, -16.6, 1.5, 0.9);
       this.group.add(contactShade(3.2, 1.4, gx, -16.2, 0.4));
     }
     const g = k.build('gate seating');
+    for (const sc of this.screens.splice(0)) g.add(sc);
     GATES.forEach((gx, i) => {
       const number = signMesh([`GATE ${i + 1}`], 2.6, 0.7, { bg: '#ffcc1a', fg: '#16181c', density: 160 });
       number.position.set(gx, 3.6, -19.85);
@@ -941,16 +975,35 @@ export class AirportInterior {
       d.soft(M.solid, 2.6, 1.05, 0.8, x, 0, 17, 0.08);
       d.box(colour, 2.6, 0.18, 0.02, x, 0.8, 16.58);
       d.box(M.wood, 2.7, 0.05, 0.9, x, 1.05, 17);
-      d.box(M.screen, 0.45, 0.3, 0.04, x + 0.6, 1.37, 17.2);
+      this.monitor(d, x + 0.7, 1.07, 17.25, 0, x > 20 ? ['NaijaTel', 'New SIM · Register'] : ['Airport Cabs', 'Bookings']);
+      // The card machine at the front, a tray of business cards or SIM packs beside it
+      d.box(M.black, 0.09, 0.05, 0.17, x - 0.6, 1.08, 16.82, 0.2);
+      d.box(M.screen, 0.07, 0.01, 0.06, x - 0.6, 1.13, 16.8, 0.2);
+      // A tall backdrop behind the agent, in the desk's colours
+      d.box(M.metalDark, 3.2, 3.3, 0.12, x, 0, 18.75);
       this.nav.blockRect(x, 17.4, 1.5, 0.9);
+      this.nav.blockRect(x, 18.75, 1.7, 0.2);
     }
     for (let i = 0; i < 4; i++) this.trolley(d, 9 + i * 0.32, 12.6, Math.PI / 2);
     const desks = d.build('arrivals desks');
+    for (const sc of this.screens.splice(0)) desks.add(sc);
+    // The backdrops' faces: the telecom's colours with its offers, the cab desk's fixed fares
+    const simBoard = signMesh(['NaijaTel', 'SIM card N1,500 · Register in 5 min', 'Airtime · Data bundles · eSIM'], 3.0, 1.5, { bg: '#facc15', fg: '#111827', accent: '#111827', density: 120 });
+    simBoard.position.set(24, 1.62, 18.68);
+    simBoard.rotation.y = Math.PI;
+    const cabBoard = signMesh(['Airport Cabs · Fixed fares', 'Ikeja N8,500 · Yaba N15,000', 'Victoria Island N25,000 · Lekki N30,000'], 3.0, 1.5, { bg: '#0f7a46', fg: '#ffffff', accent: '#facc15', density: 120 });
+    cabBoard.position.set(11, 1.62, 18.68);
+    cabBoard.rotation.y = Math.PI;
+    desks.add(simBoard, cabBoard);
+    // SIM packs on a little stand, in the network's colours
+    const packs = new Kit();
+    for (let i = 0; i < 8; i++) packs.box(i % 2 ? M.yellow : M.solid, 0.08, 0.12, 0.012, 23.3 + (i % 4) * 0.11, 1.08 + Math.floor(i / 4) * 0.14, 16.75, 0, -0.2);
+    desks.add(packs.build('sim packs'));
     const sim = signMesh(['SIM cards · Airtime · Data'], 2.8, 0.55, { bg: '#facc15', fg: '#111827', density: 150 });
-    sim.position.set(24, 2.2, 17.45);
+    sim.position.set(24, 2.95, 18.66);
     sim.rotation.y = Math.PI;
     const cab = signMesh(['Airport Cabs · Fixed fares'], 2.8, 0.55, { bg: '#0f7a46', fg: '#ffffff', density: 150 });
-    cab.position.set(11, 2.2, 17.45);
+    cab.position.set(11, 2.95, 18.66);
     cab.rotation.y = Math.PI;
     desks.add(sim, cab);
     group.add(desks);
@@ -1162,27 +1215,98 @@ export class AirportInterior {
     this.nav.blockRect(x, z, 0.4, 0.4);
   }
 
+  /** The crowd as bodies the player cannot walk through (world coordinates in and out) */
+  public peopleNear(x: number, z: number, range: number, out: Array<{ x: number; z: number; r: number }>): void {
+    const o = this.group.position;
+    const from = out.length;
+    this.crowd.peopleNear(x - o.x, z - o.z, range, out);
+    for (let i = from; i < out.length; i++) {
+      out[i].x += o.x;
+      out[i].z += o.z;
+    }
+  }
+
+  /**
+   * The staff in their working clothes, as the drawn model shows them: the airline's agents in its
+   * green shirts over navy, FAAN security in dark uniforms and caps, the captain in white with a
+   * dark cap, each shop and desk in its own colours. (The look is the one the model is dressed from.)
+   */
+  private dressForWork(npc: InteriorNPCMesh): void {
+    const look = RigRegistry.entryOfGroup(npc.humanRig.group)?.look as unknown as Record<string, unknown> | undefined;
+    if (!look) return;
+    const d = npc.def;
+    const female = d.gender === 'female';
+    const role = `${d.role} ${d.title}`.toLowerCase();
+    const uniform = (top: string, colour: number, below: number, extra: Record<string, unknown> = {}) =>
+      Object.assign(look, {
+        outfit: top,
+        outfitColor: colour,
+        bottom: female && !extra.trousers ? 'pencil_skirt' : 'trousers',
+        trousersColor: below,
+        shoes: female && !extra.trousers ? 'heels' : 'oxfords',
+        shoeColor: 0x111111,
+        hat: undefined,
+        ...extra,
+      });
+    if (role.includes('captain')) uniform('corporate_shirt', 0xf8fafc, 0x0f172a, { hat: 'cap', hatColor: 0x0f172a });
+    else if (role.includes('security') || role.includes('x-ray')) uniform('corporate_shirt', 0x1f2937, 0x111827, { hat: 'cap', hatColor: 0x111827, shoes: 'boots', trousers: true, bottom: 'trousers' });
+    else if (role.includes('agent') && role.includes('nigerialife') || role.includes('gate agent') || role.includes('check-in')) uniform(female ? 'button_shirt' : 'corporate_shirt', 0x0f7a46, 0x1f2a44);
+    else if (role.includes('information')) uniform(female ? 'button_shirt' : 'corporate_shirt', 0x1e3a8a, 0x111827);
+    else if (role.includes('lounge')) uniform('button_shirt', 0x7f1d1d, 0x111111);
+    else if (role.includes('barista')) uniform('polo_shirt', 0x7c2d12, 0x111111, { hat: 'cap', hatColor: 0x7c2d12, trousers: true, bottom: 'trousers', shoes: 'sneakers' });
+    else if (role.includes('cashier')) uniform('polo_shirt', 0x0e7490, 0x1f2a44, { trousers: true, bottom: 'trousers', shoes: 'sneakers' });
+    else if (role.includes('sim')) uniform('polo_shirt', 0xfacc15, 0x111111, { hat: 'cap', hatColor: 0xfacc15, trousers: true, bottom: 'trousers', shoes: 'sneakers' });
+    else if (role.includes('cab')) uniform('corporate_shirt', 0x166534, 0x111111);
+    else if (role.includes('cleaner')) uniform('polo_shirt', 0x0d9488, 0x0f3d3a, { trousers: true, bottom: 'trousers', shoes: 'sneakers' });
+  }
+
+  /** The toilets in the left wall airside, by the café: a door that swings, and its sign. Returns the leaf. */
+  private buildToilets(): THREE.Object3D {
+    const holder = new THREE.Group();
+    holder.name = 'toilets door';
+    holder.position.set(-W / 2 + 0.02, 0, -1.0);
+    holder.rotation.y = Math.PI / 2;
+    const k = new Kit();
+    k.box(M.metalDark, 1.3, 2.3, 0.1, 0, 0, 0);
+    const frame = k.build('toilets frame');
+    const pivot = new THREE.Group();
+    pivot.position.set(-0.5, 0, 0.06);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.15, 0.05), M.woodDark);
+    leaf.position.set(0.5, 1.075, 0);
+    pivot.add(leaf);
+    const sign = signMesh(['🚻 Toilets', 'Ladies · Gents'], 1.4, 0.5, WAYFINDING);
+    sign.position.set(0, 2.65, 0.08);
+    holder.add(frame, pivot, sign);
+    this.group.add(holder);
+    this.nav.clearRect(-26.8, -1.0, 0.5, 0.5);
+    return pivot;
+  }
+
   // --- The people --------------------------------------------------------------------------------------
 
   private buildCrowd(): AirportCrowd {
-    // Who sits: about three in ten gate seats, some café chairs, a few lounge armchairs (always the same)
+    // Every seat in the hall. About three in ten gate seats, some café chairs and a few lounge
+    // armchairs have someone in them (always the same ones); the rest are free for the player
     const seats: Array<{ x: number; z: number; yaw: number }> = [];
     let n = 7;
     const roll = () => (n = (n * 1103515245 + 12345) & 0x7fffffff) % 100;
+    const seat = (s: AirportSeat, crowd: boolean) => (crowd ? seats.push({ x: s.x, z: s.z, yaw: s.yaw }) : this.freeSeats.push(s));
+    let k = 0;
     for (const cx of GATES) {
       for (const rz of [-12.5, -9.5, -6.5]) {
         for (const bx of [cx - 3.4, cx + 3.4]) {
-          for (let i = 0; i < 5; i++) if (roll() < 30) seats.push({ x: bx + 1.24 - i * 0.62, z: rz - 0.04, yaw: Math.PI });
+          for (let i = 0; i < 5; i++) seat({ id: `airport_seat_${k++}`, x: bx + 1.24 - i * 0.62, z: rz - 0.04, yaw: Math.PI, top: 0.49, kind: 'gate' }, roll() < 30);
         }
       }
     }
     for (const [tx, tz] of [[-22.5, -10.5], [-19, -10.5], [-22.5, -7.5], [-19, -7.5], [-17.5, -4.2]]) {
       for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-        if (roll() < 40) seats.push({ x: tx + Math.sin(a) * 0.78, z: tz + Math.cos(a) * 0.78, yaw: a + Math.PI });
+        seat({ id: `airport_seat_${k++}`, x: tx + Math.sin(a) * 0.78, z: tz + Math.cos(a) * 0.78, yaw: a + Math.PI, top: 0.52, kind: 'cafe', table: [tx, tz] }, roll() < 40);
       }
     }
     for (const [ax, az] of [[-25, -15], [-20.5, -17.5], [-17.4, -15]]) {
-      if (roll() < 70) seats.push({ x: ax, z: az + 0.95, yaw: Math.PI });
+      seat({ id: `airport_seat_${k++}`, x: ax, z: az + 0.95, yaw: Math.PI, top: 0.45, kind: 'lounge' }, roll() < 70);
+      seat({ id: `airport_seat_${k++}`, x: ax, z: az - 0.95, yaw: 0, top: 0.45, kind: 'lounge' }, false);
     }
     return new AirportCrowd({
       counters: [-20.5, -8.5],
@@ -1298,6 +1422,32 @@ export class AirportInterior {
     return { pos: new THREE.Vector3(R * Math.cos(a), 0.46, -Ls / 2 - R * Math.sin(a)), angle: -Math.PI / 2 + a };
   }
 
+  public onPlayerEntered(): void {
+    this.sound.start();
+  }
+
+  public onPlayerLeft(): void {
+    this.sound.stop();
+  }
+
+  /** What the public address says next: boarding calls for this airport's flights, arrivals on the belt, reminders */
+  private announcements(): string[] {
+    const here = this.cityHere();
+    const names: Record<string, string> = { lagos: 'Lagos', abuja: 'Abuja', port_harcourt: 'Port Harcourt', ibadan: 'Ibadan' };
+    const out: string[] = [];
+    for (const r of ROUTES.filter((x) => x.from === here)) {
+      const to = names[r.to] ?? r.to;
+      out.push(`Ladies and gentlemen, NigeriaLife Air flight ${r.flight} to ${to} is now boarding at Gate ${r.gate}. Please have your boarding pass and identification ready.`);
+      out.push(`This is the final call for passengers on flight ${r.flight} to ${to}. Please proceed immediately to Gate ${r.gate}. The gate will close in five minutes.`);
+    }
+    const into = ROUTES.find((x) => x.to === here);
+    if (into) out.push(`Baggage from flight ${into.flight}, arriving from ${names[into.from] ?? into.from}, is now on Belt 1.`);
+    out.push('For your safety, please do not leave your luggage unattended. Unattended bags will be removed by airport security.');
+    out.push('Passengers are reminded that liquids over one hundred millilitres are not allowed through security. Thank you.');
+    out.push('Welcome to the airport. Smoking is not allowed anywhere inside the terminal.');
+    return out;
+  }
+
   public update(delta: number, animTime: number): void {
     this.clock += delta;
     this.npcs.forEach((npc) => npc.update(delta, animTime));
@@ -1310,6 +1460,7 @@ export class AirportInterior {
     if (at) for (const npc of this.npcs) npc.badge.visible = !eye && npc.group.getWorldPosition(this.scratch).distanceToSquared(at) < 20;
     this.stepBelt(delta);
     this.crowd.update(delta);
+    this.sound.update(delta, () => this.announcements());
     this.apron.update(delta);
     this.sinceBoards += delta;
     if (this.sinceBoards > 2) {

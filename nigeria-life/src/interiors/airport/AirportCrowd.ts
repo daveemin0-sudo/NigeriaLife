@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BakedPeople, type BakedMode } from '../../graphics/people/BakedPeople';
+import { SkinnedCrowd } from '../../graphics/people/SkinnedCrowd';
 import type { StreetLook } from '../../graphics/people/SkinnedCharacter';
 import { RENDER_LAYERS } from '../InteriorTypes';
 import { BAG_COLOURS, LuggageBatch, type BagKind } from './Luggage';
@@ -111,6 +112,10 @@ const WOMEN: Array<Partial<StreetLook> & { set?: boolean }> = [
 ];
 
 const QUEUE_GAP = 0.82;
+const SIT_FORWARD = 0.17;
+const SIT_UP = 0.07;
+/** How close two people walking may come before they step round each other */
+const PERSONAL = 0.62;
 const QUEUE_MAX = 19;
 const WALK = 1.25;
 /** Metres walked in one full stride (both legs) of the walk */
@@ -126,6 +131,8 @@ const angleTo = (from: number, to: number): number => {
 export class AirportCrowd {
   public readonly group = new THREE.Group();
   private readonly baked: BakedPeople;
+  /** The few nearest the player, drawn as the full model: faces, eyes, the cut of their clothes */
+  private readonly near: SkinnedCrowd;
   private readonly bags: LuggageBatch;
   private readonly people: Person[] = [];
   private readonly queue: Person[] = [];
@@ -157,6 +164,7 @@ export class AirportCrowd {
     people.name = 'interior_npc_crowd_people';
     this.group.add(people);
     this.baked = new BakedPeople(people);
+    this.near = new SkinnedCrowd(people);
     this.bags = new LuggageBatch({ roller: 60, rollerLying: 24, ghana: 40, duffel: 30, carton: 24, trolley: 20 });
     this.group.add(this.bags.group);
     // A soft shadow on the floor under everyone
@@ -173,7 +181,11 @@ export class AirportCrowd {
 
     for (const s of layout.seats) {
       const id = this.nextId++;
-      this.seated.push({ ...s, y: s.y ?? 0, id, look: this.lookFor(id), h: this.heightOf(id) });
+      // The model's sitting pose has its hips behind and below where its feet stand: brought forward
+      // onto the cushion and up to the seat's height, so nobody sinks into the leather or the backrest
+      const x = s.x + Math.sin(s.yaw) * SIT_FORWARD;
+      const z = s.z + Math.cos(s.yaw) * SIT_FORWARD;
+      this.seated.push({ ...s, x, z, y: (s.y ?? 0) + SIT_UP, id, look: this.lookFor(id), h: this.heightOf(id) });
     }
     this.startingCrowd();
     for (const c of layout.crew) this.crewMember(c);
@@ -459,9 +471,24 @@ export class AirportCrowd {
           p.mode = 'idle';
           return;
         }
-        const move = Math.min(d, (s.speed ?? p.speed) * dt);
-        p.x += (dx / d) * move;
-        p.z += (dz / d) * move;
+        let move = Math.min(d, (s.speed ?? p.speed) * dt);
+        // Someone close ahead: ease off and step round them, to the right, as people do
+        const ux = dx / d, uz = dz / d;
+        let side = 0;
+        for (const q of this.people) {
+          if (q === p || q.gone || Math.abs(q.y - p.y) > 0.5) continue;
+          const ox = q.x - p.x, oz = q.z - p.z;
+          if (Math.abs(ox) > PERSONAL || Math.abs(oz) > PERSONAL) continue;
+          const ahead = ox * ux + oz * uz;
+          const across = ox * -uz + oz * ux;
+          const gap = Math.hypot(ox, oz);
+          if (gap >= PERSONAL || ahead < -0.1) continue;
+          side += (across >= 0 ? -1 : 1) * (PERSONAL - gap);
+          if (ahead > 0.15 && Math.abs(across) < 0.35) move *= 0.55;
+        }
+        side = Math.max(-0.6, Math.min(0.6, side));
+        p.x += ux * move + -uz * side * dt * 1.6;
+        p.z += uz * move + ux * side * dt * 1.6;
         p.cycle += move / STRIDE;
         this.face(p, dx, dz, dt);
         p.mode = 'walk';
@@ -557,6 +584,14 @@ export class AirportCrowd {
     }
   }
 
+  /** Everyone standing or walking near a point (the hall's coordinates), as bodies on the floor */
+  public peopleNear(x: number, z: number, range: number, out: Array<{ x: number; z: number; r: number }>): void {
+    for (const p of this.people) {
+      if (p.gone || p.y > 0.3) continue;
+      if (Math.abs(p.x - x) < range && Math.abs(p.z - z) < range) out.push({ x: p.x, z: p.z, r: p.trolley ? 0.42 : 0.26 });
+    }
+  }
+
   // --- Drawing ---------------------------------------------------------------------------------------
 
   public update(delta: number): void {
@@ -564,10 +599,20 @@ export class AirportCrowd {
     this.hasPlayer = !!at;
     if (at) this.player.copy(at).sub(this.layout.origin);
     this.step(Math.min(delta, 0.1));
-    this.draw();
+    this.draw(delta);
   }
 
-  private draw(): void {
+  private draw(delta: number): void {
+    const mask = 1 << RENDER_LAYERS.INTERIOR;
+    if (this.hasPlayer) {
+      const reach2 = SkinnedCrowd.reach * SkinnedCrowd.reach;
+      for (const p of this.people) {
+        if (p.gone) continue;
+        const d2 = (p.x - this.player.x) ** 2 + (p.z - this.player.z) ** 2;
+        if (d2 < reach2) this.near.offer({ id: p.id, look: p.look, lookKey: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, scale: p.h, mode: p.mode === 'walk' ? 'walk' : p.mode === 'talk' ? 'talk' : 'idle', d2, layers: mask });
+      }
+    }
+    this.near.sync(delta);
     this.baked.begin();
     this.bags.begin();
     let shade = 0;
@@ -581,7 +626,8 @@ export class AirportCrowd {
     }
     for (const p of this.people) {
       if (p.gone) continue;
-      this.baked.draw(p.id, p.look, p.id, p.x, p.y, p.z, p.yaw, p.h, p.mode, p.cycle);
+      // Drawn as a full model this frame: not drawn again as the baked one
+      if (!this.near.handleOf(p.id)) this.baked.draw(p.id, p.look, p.id, p.x, p.y, p.z, p.yaw, p.h, p.mode, p.cycle);
       shadeAt(p.x, p.y, p.z, 1);
       this.drawLuggage(p);
     }
@@ -590,7 +636,6 @@ export class AirportCrowd {
     this.shadeMesh.count = shade;
     this.shadeMesh.instanceMatrix.needsUpdate = true;
     // New batches of people are made as new cuts of clothes and actions appear: drawn with the rooms
-    const mask = 1 << RENDER_LAYERS.INTERIOR;
     this.group.traverse((o) => {
       if (o.layers.mask !== mask) o.layers.set(RENDER_LAYERS.INTERIOR);
     });

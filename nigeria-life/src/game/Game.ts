@@ -2438,6 +2438,10 @@ export class Game {
     };
     // Only buildings and walls bring the chase camera in: passing a lamp post or a kiosk does not make it jump
     this.cameraManager.blocked = (x, z) => this.solidsHere()?.wallAt(x, z, 0.4) ?? false;
+    this.cameraManager.insideBlocked = (x, z) => {
+      const nav = this.world.interiorManager.isPlayerInside() ? this.world.interiorManager.getActiveNav() : null;
+      return nav ? !nav.isFree(x, z) : false;
+    };
     // Broad Street is crossed on foot at the junction's zebra crossings or over the footbridge, nowhere else
     let toldAt = 0;
     this.player.mayNotStep = (fromX, fromZ, toX, toZ) => {
