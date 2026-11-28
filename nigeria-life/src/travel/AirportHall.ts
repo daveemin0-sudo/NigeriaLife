@@ -27,7 +27,59 @@ export interface HallSetting {
  * has baggage claim, a telecom desk (SIM / airtime), and cab pickup onto the street.
  * Nothing in here flies anyone anywhere: the flight is boarded at the aircraft, outside.
  */
+let hall: HallSetting | null = null;
+
+/** The city whose airport the player is in (Lagos before the hall has been opened) */
+export function hallCity(): FlightCity {
+  return hall?.city() ?? 'lagos';
+}
+
+/** Where an airport cab sets a passenger down in town, in the city the player is in */
+export function townDrop(): THREE.Vector3 | null {
+  return hall?.townDrop() ?? null;
+}
+
+/** The arrivals cab desk's offers: out to the kerb on foot, or a paid cab into town. */
+export function cabChoices(host: PlaceHost): Array<{ label: string; note?: string; pick: () => void }> {
+  if (!hall) return [];
+  const setting = hall;
+  const city = setting.city();
+  const kerb = setting.kerb();
+  const town = setting.townDrop();
+  return [
+    {
+      label: `Cab into ${AIRPORTS[city].city}`,
+      note: `₦${ARRIVAL_CAB_FARE.toLocaleString()} · Dropped in town`,
+      pick: () => {
+        if (!town) {
+          host.say('No cab is free right now. Walk out to the kerb instead.', 'warning');
+          return;
+        }
+        if (!host.backend.pay(ARRIVAL_CAB_FARE, `${AIRPORTS[city].name} arrivals cab`, 'TRAVEL_COST')) {
+          host.say(`The cab is ₦${ARRIVAL_CAB_FARE.toLocaleString()} and you do not have it.`, 'warning');
+          return;
+        }
+        host.say(`Cab paid. You are dropped in ${AIRPORTS[city].city}. Welcome.`, 'success');
+        host.leave(town, 0);
+      },
+    },
+    {
+      label: 'Walk out to the kerb',
+      note: 'Free · Street outside the terminal',
+      pick: () => {
+        if (!kerb) {
+          host.say('The kerb doors are closed right now.', 'warning');
+          return;
+        }
+        host.say(`Out to the arrivals kerb at ${AIRPORTS[city].name}. From here you can walk or hail a ride.`, 'info');
+        host.leave(kerb, 0);
+      },
+    },
+  ];
+}
+
 export function openAirportHall(setting: HallSetting): void {
+  hall = setting;
   const flights = FlightService.get();
   const cityName = (city: FlightCity) => AIRPORTS[city].city;
 
@@ -231,43 +283,11 @@ export function openAirportHall(setting: HallSetting): void {
   const cabPickup: PlaceAction = {
     label: () => '🚕 Cab pickup',
     run: (host: PlaceHost) => {
-      const city = setting.city();
-      const kerb = setting.kerb();
-      const town = setting.townDrop();
       host.ask({
         who: 'Cab pickup',
-        role: `${AIRPORTS[city].name}  ·  arrivals`,
+        role: `${AIRPORTS[setting.city()].name}  ·  arrivals`,
         text: 'Welcome. Walk out to the kerb, or take a cab into town.',
-        choices: [
-          {
-            label: 'Walk out to the kerb',
-            note: 'Free · Street outside the terminal',
-            pick: () => {
-              if (!kerb) {
-                host.say('The kerb doors are closed right now.', 'warning');
-                return;
-              }
-              host.say(`Out to the arrivals kerb at ${AIRPORTS[city].name}. From here you can walk or hail a ride.`, 'info');
-              host.leave(kerb, 0);
-            },
-          },
-          {
-            label: `Cab into ${cityName(city)}`,
-            note: `₦${ARRIVAL_CAB_FARE.toLocaleString()} · Dropped in town`,
-            pick: () => {
-              if (!town) {
-                host.say('No cab is free right now. Walk out to the kerb instead.', 'warning');
-                return;
-              }
-              if (!host.backend.pay(ARRIVAL_CAB_FARE, `${AIRPORTS[city].name} arrivals cab`, 'TRAVEL_COST')) {
-                host.say(`The cab is ₦${ARRIVAL_CAB_FARE.toLocaleString()} and you do not have it.`, 'warning');
-                return;
-              }
-              host.say(`Cab paid. You are dropped in ${cityName(city)}. Welcome.`, 'success');
-              host.leave(town, 0);
-            },
-          },
-        ],
+        choices: cabChoices(host),
       });
     },
   };

@@ -1,11 +1,16 @@
 import * as THREE from 'three';
-import { buildGrandTerminal, grandTerminalExtras, parkedFootprints, parkRows } from './GrandTerminal';
-import { Builder, signBoard } from '../kit/ArchKit';
+import { buildGrandTerminal, grandTerminalExtras, parkedFootprints, parkRows, TERMINAL } from './GrandTerminal';
+import { flyingAirliner, parkedAirliners } from './OutdoorAirliner';
+import { LIVERIES } from '../../interiors/airport/Airliner';
+import { Builder } from '../kit/ArchKit';
 import { createCashMachine } from '../kit/CashMachine';
 import { clickBox, figure, type Landmark, type LandmarkHost } from './Landmark';
 import { Sequence, steps, type Step } from '../../interactions/Sequence';
 import type { Actor } from '../../interactions/Actor';
 import { FlightService, AIRLINE, AIRPORTS, ROUTES, type FlightCity } from '../../travel/Flights';
+import { townDrop } from '../../travel/AirportHall';
+import { Greeters, Talk, goodDay, naira, oga, ogaMi, sir, tipChoices } from '../../interactions/Talk';
+import type { PlaceHost } from '../../destinations/PlaceActions';
 
 export { AIRLINE };
 
@@ -24,10 +29,24 @@ export { AIRLINE };
  */
 
 const DRAWN = { x: -100, z: -125 };
+/** The terminal's door to the apron, by the stand the flight works from (x as drawn) */
+const APRON_DOOR_X = -70;
+/** Where a cab from the kerb goes in each city, and the places a driver shouts out */
+const TOWN: Record<FlightCity, { name: string; calls: string; fare: number }> = {
+  lagos: { name: 'Lagos Island (Broad Street)', calls: 'Island, Lekki, VI, Ikeja', fare: 8_000 },
+  abuja: { name: 'Abuja city centre', calls: 'Wuse, Maitama, Garki', fare: 6_000 },
+  port_harcourt: { name: 'Port Harcourt town', calls: 'GRA, Rumuokoro, Trans-Amadi', fare: 6_000 },
+  ibadan: { name: 'Ibadan town', calls: 'Dugbe, Bodija', fare: 5_000 },
+};
+
+/** What the terminal says to those who have just landed, over the apron */
+const WELCOME: Partial<Record<FlightCity, string[]>> = {
+  lagos: ['WELCOME TO LAGOS', 'EKO O NI BAJE!'],
+  abuja: ['WELCOME TO ABUJA', 'CENTRE OF UNITY'],
+  port_harcourt: ['WELCOME TO PORT HARCOURT', 'THE GARDEN CITY'],
+};
 
 const WHITE = 0xf8fafc;
-const LIVERY_GREEN = 0x0b7a43;
-const LIVERY_GOLD = 0xf2b705;
 const DARK = 0x1f2937;
 
 export type FlightState =
@@ -40,131 +59,6 @@ export type FlightState =
   | 'Landing'
   | 'Taxiing to the stand'
   | 'Arrived';
-
-/** An airliner in the airline's colours, nose toward +x, standing on its wheels. */
-export function airliner(): THREE.Group {
-  const b = new Builder();
-  const body = 2.1;
-
-  // --- Fuselage ---
-  // Main passenger cabin
-  b.tube(WHITE, 1.35, 1.35, 11.5, 0.5, body, 0);
-  // Forward fuselage
-  b.tube(WHITE, 1.35, 1.15, 3.8, 8.15, body, 0);
-  // Cockpit section and aerodynamic nose cone
-  b.tube(WHITE, 1.15, 0.45, 2.8, 11.45, body - 0.12, 0);
-  b.tube(0x334155, 0.45, 0.25, 0.9, 13.3, body - 0.15, 0);
-  // Aft fuselage taper
-  b.tube(WHITE, 0.65, 1.35, 6.2, -8.35, body + 0.16, 0);
-  // Tail cone and APU exhaust
-  b.tube(0x94a3b8, 0.28, 0.65, 2.2, -12.55, body + 0.35, 0);
-  b.tube(DARK, 0.16, 0.16, 0.25, -13.75, body + 0.35, 0);
-
-  // --- Flight Deck Cockpit Windscreen ---
-  // Dark tinted multi-pane flight deck glass
-  b.box(DARK, 0.85, 0.45, 1.3, 10.6, body + 0.38, 0, { pitch: -0.16 });
-  b.box(0x0c4a6e, 0.8, 0.4, 0.75, 10.15, body + 0.36, 0.85, { yaw: -0.38, pitch: -0.14 });
-  b.box(0x0c4a6e, 0.8, 0.4, 0.75, 10.15, body + 0.36, -0.85, { yaw: 0.38, pitch: -0.14 });
-  b.box(0xe2e8f0, 0.95, 0.08, 1.45, 10.6, body + 0.62, 0);
-
-  // --- Livery Cheatlines & Passenger Windows ---
-  // Dynamic emerald green cheatline along both flanks
-  b.box(LIVERY_GREEN, 14.5, 0.32, 2.74, 0.0, body - 0.68, 0);
-  // Bright gold pinstripe accent
-  b.box(LIVERY_GOLD, 14.5, 0.1, 2.76, 0.0, body - 0.44, 0);
-  // Continuous dark blue window ribbon with passenger windows
-  b.box(0x0c4a6e, 13.8, 0.25, 2.78, 0.0, body + 0.16, 0);
-  b.box(0x7dd3fc, 13.2, 0.14, 2.8, 0.0, body + 0.16, 0);
-
-  // --- Passenger Doors & Exits ---
-  // Forward passenger door L1 (port side, z = -1.39) - exact match for boarding stairs
-  b.box(0xd1d5db, 0.95, 1.75, 0.06, 4.5, body - 0.75, -1.39);
-  b.box(WHITE, 0.82, 1.62, 0.08, 4.5, body - 0.75, -1.39);
-  b.box(0x0c4a6e, 0.22, 0.36, 0.1, 4.5, body + 0.08, -1.39);
-  b.box(0x475569, 0.14, 0.06, 0.12, 4.2, body - 0.12, -1.39);
-  // Aft passenger door L2 (port side)
-  b.box(0xd1d5db, 0.9, 1.65, 0.06, -6.6, body - 0.65, -1.39);
-  b.box(WHITE, 0.78, 1.52, 0.08, -6.6, body - 0.65, -1.39);
-  // Starboard service doors R1 & R2 (z = +1.39)
-  b.box(0xd1d5db, 0.95, 1.75, 0.06, 4.5, body - 0.75, 1.39);
-  b.box(WHITE, 0.82, 1.62, 0.08, 4.5, body - 0.75, 1.39);
-  b.box(0xd1d5db, 0.9, 1.65, 0.06, -6.6, body - 0.65, 1.39);
-  b.box(WHITE, 0.78, 1.52, 0.08, -6.6, body - 0.65, 1.39);
-  // Overwing emergency exits
-  b.box(0xd1d5db, 0.68, 1.1, 0.06, -0.2, body - 0.45, -1.39);
-  b.box(0xd1d5db, 0.68, 1.1, 0.06, -0.2, body - 0.45, 1.39);
-
-  // --- Wings & Flap Track Fairings ---
-  // Aerodynamic swept wings with polished leading edge
-  b.box(0xe5e7eb, 3.2, 0.24, 8.8, -1.1, body - 0.52, 4.8, { yaw: -0.34, roll: -0.06 });
-  b.box(0xe5e7eb, 3.2, 0.24, 8.8, -1.1, body - 0.52, -4.8, { yaw: 0.34, roll: 0.06 });
-  // Wing belly center fairing
-  b.box(WHITE, 5.6, 0.65, 3.4, -0.6, body - 0.92, 0);
-  // Flap track canoe fairings under wings
-  for (const side of [-1, 1]) {
-    for (const dist of [2.8, 4.6, 6.4]) {
-      b.tube(0x9ca3af, 0.1, 0.16, 1.4, -2.4 - dist * 0.18, body - 0.82, side * dist, { sides: 8 });
-    }
-  }
-  // Upward canted winglet / sharklets at wingtips in emerald green with gold stripe
-  b.box(LIVERY_GREEN, 0.95, 1.35, 0.14, -2.5, body + 0.15, 8.92, { roll: 0.15 });
-  b.box(LIVERY_GOLD, 0.95, 0.12, 0.16, -2.5, body + 0.45, 8.92, { roll: 0.15 });
-  b.box(LIVERY_GREEN, 0.95, 1.35, 0.14, -2.5, body + 0.15, -8.92, { roll: -0.15 });
-  b.box(LIVERY_GOLD, 0.95, 0.12, 0.16, -2.5, body + 0.45, -8.92, { roll: -0.15 });
-  // Wingtip navigation & strobe lights
-  b.box(0xef4444, 0.16, 0.16, 0.16, -2.5, body + 0.82, 8.95, { glow: true });
-  b.box(0x22c55e, 0.16, 0.16, 0.16, -2.5, body + 0.82, -8.95, { glow: true });
-  b.box(0xffffff, 0.12, 0.12, 0.12, -2.7, body + 0.82, 8.95, { glow: true });
-  b.box(0xffffff, 0.12, 0.12, 0.12, -2.7, body + 0.82, -8.95, { glow: true });
-
-  // --- High-Bypass Turbofan Engines ---
-  for (const side of [-1, 1]) {
-    const ez = side * 3.4;
-    // Pylon attaching engine to wing
-    b.box(0xcbd5e1, 1.8, 0.52, 0.24, 0.7, body - 0.52, ez);
-    // Aerodynamic nacelle cowl
-    b.tube(WHITE, 0.68, 0.72, 2.5, 1.1, body - 0.92, ez);
-    // Polished chrome intake lip
-    b.tube(0xd1d5db, 0.72, 0.7, 0.22, 2.42, body - 0.92, ez);
-    // Dark engine interior
-    b.tube(DARK, 0.62, 0.62, 0.15, 2.22, body - 0.92, ez);
-    // Central spinner cone
-    b.cone(0x374151, 0.22, 0.42, 2.15, body - 1.12, ez, 12, { pitch: Math.PI / 2 });
-    // Exhaust nozzle & cone
-    b.tube(0x475569, 0.42, 0.56, 0.6, -0.3, body - 0.92, ez);
-    b.cone(0x1f2937, 0.24, 0.52, -0.6, body - 1.16, ez, 10, { pitch: -Math.PI / 2 });
-  }
-
-  // --- Empennage / Tail ---
-  // Swept vertical stabilizer in emerald green
-  b.box(LIVERY_GREEN, 3.2, 4.4, 0.25, -10.2, body + 1.25, 0, { roll: 0.45 });
-  b.box(0xe2e8f0, 0.16, 4.5, 0.27, -9.0, body + 1.25, 0, { roll: 0.45 });
-  b.box(DARK, 0.05, 3.8, 0.27, -11.4, body + 1.45, 0, { roll: 0.45 });
-  // Airline golden sun disc emblem on both sides of tail fin
-  b.cylinder(LIVERY_GOLD, 0.85, 0.32, -10.8, body + 3.15, 0, { pitch: Math.PI / 2, sides: 24 });
-  // Swept horizontal tailplanes with elevator surfaces
-  b.box(0xe5e7eb, 2.2, 0.18, 3.4, -11.6, body + 0.82, 2.2, { yaw: -0.36 });
-  b.box(0xe5e7eb, 2.2, 0.18, 3.4, -11.6, body + 0.82, -2.2, { yaw: 0.36 });
-
-  // --- Tricycle Landing Gear ---
-  // Nose gear
-  b.cylinder(0x9ca3af, 0.1, 1.25, 8.5, 0.3, 0);
-  b.tube(DARK, 0.32, 0.32, 0.22, 8.5, 0.32, 0.22, { sides: 12 });
-  b.tube(DARK, 0.32, 0.32, 0.22, 8.5, 0.32, -0.22, { sides: 12 });
-  b.box(0xfef08a, 0.15, 0.15, 0.15, 8.65, 0.8, 0, { glow: true });
-  // Main gear (twin multi-wheel bogies under wing roots)
-  for (const side of [-1, 1]) {
-    const mz = side * 1.95;
-    b.cylinder(0x9ca3af, 0.14, 1.4, -1.2, 0.3, mz);
-    b.box(0x4b5563, 1.2, 0.15, 0.25, -1.2, 0.32, mz);
-    b.tube(DARK, 0.42, 0.42, 0.24, -1.6, 0.42, mz + 0.22, { sides: 14 });
-    b.tube(DARK, 0.42, 0.42, 0.24, -1.6, 0.42, mz - 0.22, { sides: 14 });
-    b.tube(DARK, 0.42, 0.42, 0.24, -0.8, 0.42, mz + 0.22, { sides: 14 });
-    b.tube(DARK, 0.42, 0.42, 0.24, -0.8, 0.42, mz - 0.22, { sides: 14 });
-  }
-
-  return b.build('airliner');
-}
 
 interface Leg {
   state: FlightState;
@@ -180,26 +74,36 @@ interface Leg {
   away?: boolean;
 }
 
-const STAND = { x: -90, z: -127 };
-const RUNWAY_Z = -146;
+/**
+ * The stand the flight works from, nose in to the terminal: the middle of the aircraft. Its nose
+ * stops a little short of the glass, and its forward door (on its east side) is where the steps go.
+ */
+const STAND = { x: -79, z: -131.1 };
+/** The two other stands, each with an aircraft at its jet bridge */
+const PARKED_STANDS = [-108, -137];
+const RUNWAY_Z = -159.6;
+/** The aircraft: an ATR 72 at its real size (27 m long, 27 m across the wings) */
+const HALF_LENGTH = 13.6;
+const HALF_SPAN = 13.4;
+/** The forward door, on the stand: its sill, and where it is (the steps' top) */
+const DOOR = { sill: 1.37, x: STAND.x + 1.3, z: STAND.z + HALF_LENGTH - 3.2 };
 
 /** One whole flight, there and back, as the places the aircraft is moved to in turn. */
 const FLIGHT: Leg[] = [
-  { state: 'Boarding', seconds: 18, x: STAND.x, y: 0, z: STAND.z, heading: 180 },
-  { state: 'Pushback', seconds: 8, x: -80, y: 0, z: STAND.z, heading: 180, ease: 'both' },
-  { state: 'Pushback', seconds: 4, x: -79, y: 0, z: -128, heading: 270, ease: 'both' },
-  { state: 'Taxiing', seconds: 7, x: -78, y: 0, z: -144.5, heading: 270, ease: 'both' },
-  { state: 'Taxiing', seconds: 4, x: -80, y: 0, z: RUNWAY_Z, heading: 180, ease: 'both' },
-  { state: 'Taking off', seconds: 9, x: -136, y: 0, z: RUNWAY_Z, heading: 180, ease: 'in' },
+  { state: 'Boarding', seconds: 18, x: STAND.x, y: 0, z: STAND.z, heading: 90 },
+  // Pushed back off the stand, tail first, and turned on to the runway facing west
+  { state: 'Pushback', seconds: 9, x: STAND.x, y: 0, z: -150, heading: 90, ease: 'both' },
+  { state: 'Pushback', seconds: 5, x: -76, y: 0, z: RUNWAY_Z, heading: 180, ease: 'both' },
+  { state: 'Taxiing', seconds: 4, x: -82, y: 0, z: RUNWAY_Z, heading: 180, ease: 'both' },
+  { state: 'Taking off', seconds: 9, x: -142, y: 0, z: RUNWAY_Z, heading: 180, ease: 'in' },
   { state: 'Taking off', seconds: 9, x: -330, y: 58, z: RUNWAY_Z, heading: 180, pitch: 0.24, ease: 'climb' },
   { state: 'In flight', seconds: 20, x: -340, y: 52, z: RUNWAY_Z, heading: 0, away: true },
   { state: 'Approaching', seconds: 9, x: -150, y: 0, z: RUNWAY_Z, heading: 0, pitch: 0.07, ease: 'descend' },
-  { state: 'Landing', seconds: 10, x: -86, y: 0, z: RUNWAY_Z, heading: 0, ease: 'out' },
-  { state: 'Taxiing to the stand', seconds: 4, x: -78, y: 0, z: -144, heading: 90, ease: 'both' },
-  { state: 'Taxiing to the stand', seconds: 6, x: -78, y: 0, z: -129, heading: 90, ease: 'both' },
-  { state: 'Taxiing to the stand', seconds: 4, x: -80, y: 0, z: STAND.z, heading: 180, ease: 'both' },
-  { state: 'Taxiing to the stand', seconds: 4, x: STAND.x, y: 0, z: STAND.z, heading: 180, ease: 'out' },
-  { state: 'Arrived', seconds: 12, x: STAND.x, y: 0, z: STAND.z, heading: 180 },
+  { state: 'Landing', seconds: 10, x: -84, y: 0, z: RUNWAY_Z, heading: 0, ease: 'out' },
+  // Off the runway and nose in to the stand
+  { state: 'Taxiing to the stand', seconds: 5, x: STAND.x, y: 0, z: -150, heading: 90, ease: 'both' },
+  { state: 'Taxiing to the stand', seconds: 7, x: STAND.x, y: 0, z: STAND.z, heading: 90, ease: 'out' },
+  { state: 'Arrived', seconds: 12, x: STAND.x, y: 0, z: STAND.z, heading: 90 },
 ];
 const FLIGHT_SECONDS = FLIGHT.reduce((total, leg) => total + leg.seconds, 0);
 /** When in the round each state begins, in seconds */
@@ -323,47 +227,39 @@ export function createAirport(options: AirportOptions): AirportLandmark {
 
   // --- Ground -----------------------------------------------------------------------------
   // Mown grass over the airport's own grounds, under everything else (the airfield, the forecourt, the car park)
-  b.ground(0x5f8f32, 95, 80, -110.5, 0.006, -116);
-  b.ground(0x4d7c0f, 92, 70, -113.5, 0.012, -123);
-  b.ground(0xa1a1aa, 68, 34, -102, 0.02, -128.5);
-  b.ground(0x18181b, 88, 11, -113, 0.026, RUNWAY_Z);
-  b.ground(0xbdb5a8, 43, 5, -90.5, 0.02, -100.5);
-  // Taxiway links between apron and runway
-  b.ground(0x27272a, 14, 17, -78, 0.024, -137.5);
-  b.ground(0x27272a, 14, 17, -136, 0.024, -137.5);
+  b.ground(0x5f8f32, 124, 103, -121.5, 0.006, -117.5);
+  b.ground(0x4d7c0f, 121, 52, -121.5, 0.012, -142);
+  // The apron behind the terminal, the runway along the north, and the taxiway between them
+  b.ground(0xa1a1aa, 91, 32, -106.5, 0.02, -132);
+  b.ground(0x18181b, 120, 11, -122, 0.026, RUNWAY_Z);
+  b.ground(0x27272a, 16, 7, STAND.x, 0.024, -151);
+  b.ground(0x27272a, 16, 7, -137, 0.024, -151);
 
-  // Runway threshold piano keys and touchdown zone markings
-  for (let x = -150; x <= -76; x += 6) b.ground(WHITE, 3.2, 0.35, x, 0.036, RUNWAY_Z);
-  for (const end of [-153.5, -72.5]) {
+  // Runway: the piano keys at each end, the centre line, the edge lights, the green threshold lights
+  for (const end of [-178, -66]) {
     for (let k = -4; k <= 4; k++) if (k !== 0) b.ground(WHITE, 3.6, 0.45, end, 0.036, RUNWAY_Z + k * 1.05);
   }
-  // Runway edge lights (amber/white) and green threshold bar lights
-  for (let x = -154; x <= -72; x += 7) {
+  for (let x = -172; x <= -72; x += 6) b.ground(WHITE, 3.2, 0.35, x, 0.036, RUNWAY_Z);
+  for (let x = -181; x <= -63; x += 7) {
     b.box(0xfef08a, 0.22, 0.25, 0.22, x, 0, RUNWAY_Z - 5.2, { glow: true }).box(0xfef08a, 0.22, 0.25, 0.22, x, 0, RUNWAY_Z + 5.2, { glow: true });
   }
   for (let k = -4.5; k <= 4.5; k += 1.2) {
-    b.box(0x22c55e, 0.22, 0.22, 0.22, -154, 0, RUNWAY_Z + k, { glow: true });
-    b.box(0x22c55e, 0.22, 0.22, 0.22, -72, 0, RUNWAY_Z + k, { glow: true });
+    b.box(0x22c55e, 0.22, 0.22, 0.22, -181.5, 0, RUNWAY_Z + k, { glow: true });
+    b.box(0x22c55e, 0.22, 0.22, 0.22, -62.5, 0, RUNWAY_Z + k, { glow: true });
   }
 
-  // Taxi lines, apron markings and aircraft stand safety envelopes
+  // On the apron: a yellow lead-in line to each stand and the bar its nose wheel stops at; a red box round each
   const TAXI = 0xfacc15;
-  b.ground(TAXI, 0.28, 16, -78, 0.036, -134.5);
-  b.ground(TAXI, 48, 0.28, -102, 0.036, STAND.z);
-  // Stand lead-in lines and nose wheel stop bars
-  for (const x of [STAND.x, -112]) b.ground(TAXI, 0.35, 6, x - 7, 0.036, STAND.z);
-  // Red safety boundary boxes around Stand 1 and Stand 2
-  b.ground(0xdc2626, 26, 0.28, -90, 0.036, -119.5);
-  b.ground(0xdc2626, 26, 0.28, -90, 0.036, -134.5);
-  b.ground(0xdc2626, 0.28, 15, -77, 0.036, -127);
-  b.ground(0xdc2626, 0.28, 15, -103, 0.036, -127);
-  b.ground(0xdc2626, 22, 0.28, -112, 0.036, -119.5);
-  b.ground(0xdc2626, 22, 0.28, -112, 0.036, -134.5);
-  b.ground(0xdc2626, 0.28, 15, -123, 0.036, -127);
-  // Taxiway blue edge marker lights
-  for (const z of [-130, -135, -140]) {
-    b.box(0x38bdf8, 0.18, 0.2, 0.18, -85.5, 0, z, { glow: true });
-    b.box(0x38bdf8, 0.18, 0.2, 0.18, -70.5, 0, z, { glow: true });
+  b.ground(TAXI, 0.3, 36.5, STAND.x, 0.036, -136.5);
+  for (const x of PARKED_STANDS) b.ground(TAXI, 0.3, 30, x, 0.036, -133.3);
+  for (const x of [STAND.x, ...PARKED_STANDS]) {
+    b.ground(TAXI, 3, 0.35, x, 0.036, STAND.z + HALF_LENGTH - 2.4);
+    b.ground(0xdc2626, 28, 0.28, x, 0.036, -116.7).ground(0xdc2626, 28, 0.28, x, 0.036, -146);
+    b.ground(0xdc2626, 0.28, 29.3, x - 14, 0.036, -131.35).ground(0xdc2626, 0.28, 29.3, x + 14, 0.036, -131.35);
+  }
+  // Blue lights along the taxiway edges
+  for (const z of [-148.5, -153.5]) {
+    for (const x of [STAND.x - 8, STAND.x + 8, -145, -129]) b.box(0x38bdf8, 0.18, 0.2, 0.18, x, 0, z, { glow: true });
   }
 
   // A road of its own, where the city has none that comes this way: out of the forecourt and round to the avenue
@@ -383,32 +279,31 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   const rows = parkRows(options.approach?.alongZ);
   buildGrandTerminal(b, rows);
   for (const f of parkedFootprints(rows)) b.occupy(f.minX, f.maxX, f.minZ, f.maxZ, 1.5);
-  // Doors onto the apron
-  for (const x of [-98, -84]) b.box(0x0f172a, 3.2, 2.8, 0.2, x, 0, -115.38, { solid: false });
+  // The door onto the apron, by the stand the flight works from
+  b.box(0x0f172a, 3.2, 2.8, 0.2, APRON_DOOR_X, 0, TERMINAL.back - 0.18, { solid: false });
+  b.box(0x0b7a43, 3.8, 0.4, 0.3, APRON_DOOR_X, 2.8, TERMINAL.back - 0.2, { solid: false });
 
-  // --- Articulated Passenger Jet Bridges ---
-  // Gate 1 Jet Bridge (extending from second-floor Gate 1 at x = -84 to Stand 1)
-  b.cylinder(0xe2e8f0, 1.2, 2.8, -84, 3.8, -115.5, { sides: 16 });
-  b.box(WHITE, 1.9, 2.1, 7.2, -87.8, 3.0, -119.5, { yaw: -0.78, pitch: -0.09 });
-  b.box(0x7dd3fc, 0.08, 0.9, 6.6, -88.5, 3.5, -119.5, { yaw: -0.78, glow: true });
-  b.box(0xf1f5f9, 1.7, 1.9, 6.4, -92.2, 2.2, -123.8, { yaw: -0.78, pitch: -0.06 });
-  b.box(DARK, 1.85, 2.0, 0.6, -93.6, 1.75, -125.0, { yaw: -0.78 });
-  b.cylinder(0x94a3b8, 0.14, 2.2, -92.2, 0, -123.8);
-  b.tube(DARK, 0.35, 0.35, 0.8, -92.2, 0.35, -123.8);
-  b.box(0x334155, 2.1, 2.1, 1.4, -94.2, 1.45, -125.4, { yaw: 0.15 });
-  b.box(DARK, 2.3, 2.2, 0.25, -94.35, 1.45, -125.7, { yaw: 0.15 });
+  // The parked aircraft's bodies, and the main wheels under their wings: nobody walks through them
+  for (const x of PARKED_STANDS) {
+    b.occupy(x - 1.45, x + 1.45, STAND.z - HALF_LENGTH + 1, STAND.z + HALF_LENGTH - 0.4, 4.2);
+    b.occupy(x - 2.6, x + 2.6, STAND.z + 0.6, STAND.z + 2.4, 1.2);
+  }
 
-  // Gate 2 Jet Bridge (extending from second-floor Gate 2 at x = -104 to Stand 2)
-  b.cylinder(0xe2e8f0, 1.2, 2.8, -104, 3.8, -115.5, { sides: 16 });
-  b.box(WHITE, 1.9, 2.1, 7.2, -108.5, 3.0, -119.5, { yaw: 0.82, pitch: -0.09 });
-  b.box(0x7dd3fc, 0.08, 0.9, 6.6, -109.2, 3.5, -119.5, { yaw: 0.82, glow: true });
-  b.box(0xf1f5f9, 1.7, 1.9, 6.4, -113.8, 2.2, -123.8, { yaw: 0.82, pitch: -0.06 });
-  b.cylinder(0x94a3b8, 0.14, 2.2, -113.8, 0, -123.8);
-  b.box(0x334155, 2.1, 2.1, 1.4, -115.8, 1.45, -125.4, { yaw: -0.2 });
-  b.box(DARK, 2.3, 2.2, 0.25, -116.0, 1.45, -125.7, { yaw: -0.2 });
+  // --- Jet bridges: from the terminal's upper floor out to the forward door of each parked aircraft ---
+  for (const x of PARKED_STANDS) {
+    const tx = x + 3.4;
+    const doorZ = STAND.z + HALF_LENGTH - 3.2;
+    // The tunnel, glazed along its side, on a wheeled leg; and the cab that meets the door
+    b.box(0xe2e8f0, 2.1, 2.4, doorZ - TERMINAL.back + 1.6, tx, 1.25, (TERMINAL.back + doorZ) / 2 - 0.6, { solid: false });
+    b.box(0x7dd3fc, 0.06, 0.7, doorZ - TERMINAL.back, tx + 1.07, 2.4, (TERMINAL.back + doorZ) / 2 - 0.6, { solid: false, glow: true });
+    b.box(0xcbd5e1, 2.0, 2.5, 2.4, x + 2.0, 1.2, doorZ, { solid: false });
+    b.box(0x334155, 0.3, 2.3, 2.2, x + 1.15, 1.3, doorZ, { solid: false });
+    b.cylinder(0x94a3b8, 0.16, 1.25, tx, 0, doorZ - 1.4, { solid: false });
+    b.tube(DARK, 0.32, 0.32, 0.7, tx, 0.32, doorZ - 1.4, { sides: 12 });
+  }
 
   // --- The control tower ------------------------------------------------------------------
-  const tower = { x: -120, z: -108 };
+  const tower = { x: -172.5, z: -140.5 };
   b.box(0xe5e7eb, 8.5, 3.6, 7.5, tower.x, 0, tower.z, { solid: true });
   b.windows(0x7dd3fc, 4, 1, 7.2, 1.0, 2.2, tower.x, tower.z + 3.77, 0, { glow: true });
   b.cylinder(0xf1f5f9, 2.2, 17.5, tower.x, 0, tower.z, { topRadius: 1.8, sides: 18 });
@@ -424,8 +319,8 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   b.box(0xef4444, 0.35, 0.35, 0.35, tower.x + 1.4, 25.65, tower.z, { glow: true });
 
   // --- The hangar -------------------------------------------------------------------------
-  const hangar = { x: -144, z: -122 };
-  b.box(0xcbd5e1, 18, 9.2, 16, hangar.x, 0, hangar.z, { solid: true });
+  const hangar = { x: -169, z: -125 };
+  b.box(0xcbd5e1, 18, 9.2, 14, hangar.x, 0, hangar.z, { solid: true });
   b.box(0x94a3b8, 18.6, 0.3, 8.5, hangar.x, 10.0, hangar.z - 4.1, { pitch: -0.22 });
   b.box(0x94a3b8, 18.6, 0.3, 8.5, hangar.x, 10.0, hangar.z + 4.1, { pitch: 0.22 });
   b.box(0xcbd5e1, 0.3, 1.2, 10, hangar.x + 9, 9.2, hangar.z);
@@ -433,70 +328,67 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   b.box(0x1e293b, 0.18, 7.2, 13, hangar.x + 9.04, 0, hangar.z);
 
   // --- Ground equipment -------------------------------------------------------------------
-  // Steps up to the forward door of the aircraft on the stand
-  const stairs = { x: STAND.x - 4.5, top: STAND.z + 1.4 };
+  // Steps up to the forward door of the aircraft on the stand, from the east
+  const stairs = { x: DOOR.x, z: DOOR.z };
   for (let step = 0; step < 6; step++) {
-    b.box(0xe5e7eb, 1.3, 1.5 - step * 0.25, 0.55, stairs.x, 0, stairs.top + 0.28 + step * 0.55);
+    b.box(0xe5e7eb, 0.55, DOOR.sill - step * 0.228, 1.3, stairs.x + 0.28 + step * 0.55, 0, stairs.z);
   }
-  b.box(0xfacc15, 1.6, 0.52, 1.8, stairs.x, 0, stairs.top + 3.9);
-  b.box(0x94a3b8, 0.06, 1.0, 3.4, stairs.x - 0.65, 1.1, stairs.top + 1.65, { pitch: 0.42 });
-  b.box(0x94a3b8, 0.06, 1.0, 3.4, stairs.x + 0.65, 1.1, stairs.top + 1.65, { pitch: 0.42 });
+  b.box(0xfacc15, 1.8, 0.52, 1.6, stairs.x + 3.9, 0, stairs.z);
+  b.box(0x94a3b8, 3.4, 1.0, 0.06, stairs.x + 1.65, 1.0, stairs.z - 0.65, { roll: -0.4 });
+  b.box(0x94a3b8, 3.4, 1.0, 0.06, stairs.x + 1.65, 1.0, stairs.z + 0.65, { roll: -0.4 });
 
-  // Pushback Tug with tow hitch
-  b.box(0xf97316, 2.2, 1.1, 1.5, -78.5, 0.2, -121.5);
-  b.box(DARK, 1.5, 0.7, 1.4, -78.8, 1.3, -121.5);
-  b.tube(DARK, 0.45, 0.45, 0.32, -77.7, 0.45, -120.7, { sides: 12 });
-  b.tube(DARK, 0.45, 0.45, 0.32, -77.7, 0.45, -122.3, { sides: 12 });
-  b.tube(DARK, 0.45, 0.45, 0.32, -79.3, 0.45, -120.7, { sides: 12 });
-  b.tube(DARK, 0.45, 0.45, 0.32, -79.3, 0.45, -122.3, { sides: 12 });
-  b.cylinder(0xfacc15, 0.08, 2.8, -80.6, 0.3, -121.5, { roll: Math.PI / 2 });
+  // The pushback tug, waiting beside the nose
+  b.box(0xf97316, 1.5, 1.1, 2.2, STAND.x - 5, 0.2, -118.6);
+  b.box(DARK, 1.4, 0.7, 1.5, STAND.x - 5, 1.3, -118.9);
+  for (const [dx, dz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.tube(DARK, 0.45, 0.45, 0.32, STAND.x - 5 + dx, 0.45, -118.6 + dz, { sides: 12 });
 
-  // Baggage tractor with train of luggage carts
-  b.box(0xf97316, 1.8, 1.0, 1.2, -79.5, 0.2, -117).box(DARK, 1.2, 0.6, 1.1, -79.8, 1.2, -117);
+  // The baggage tractor and its train of carts, under the west wing by the hold
+  b.box(0xf97316, 1.2, 1.0, 1.8, STAND.x - 5.5, 0.2, -133).box(DARK, 1.1, 0.6, 1.2, STAND.x - 5.5, 1.2, -133.3);
   for (let cart = 0; cart < 3; cart++) {
-    const x = -82 - cart * 2.3;
-    b.box(0x64748b, 1.9, 0.2, 1.2, x, 0.45, -117);
-    b.box(cart === 1 ? 0x1d4ed8 : cart === 2 ? 0x15803d : 0xb91c1c, 1.5, 0.7, 1, x, 0.65, -117);
-    b.box(DARK, 1.6, 0.4, 1.3, x, 0, -117);
+    const z = -135.5 - cart * 2.3;
+    b.box(0x64748b, 1.2, 0.2, 1.9, STAND.x - 5.5, 0.45, z);
+    b.box(cart === 1 ? 0x1d4ed8 : cart === 2 ? 0x15803d : 0xb91c1c, 1, 0.7, 1.5, STAND.x - 5.5, 0.65, z);
+    b.box(DARK, 1.3, 0.4, 1.6, STAND.x - 5.5, 0, z);
   }
 
-  // Aviation fuel tanker bowser
-  b.box(0xdc2626, 1.8, 1.8, 2.2, -104.5, 0.4, -120.5);
-  b.box(DARK, 0.8, 0.8, 2.1, -104.5, 1.4, -120.5);
-  b.tube(0xe5e7eb, 0.95, 0.95, 3.4, -107.2, 1.55, -120.5);
-  b.box(DARK, 5.0, 0.5, 2.2, -106.2, 0, -120.5);
+  // The fuel bowser, under the east wing
+  b.box(0xdc2626, 2.2, 1.8, 1.8, STAND.x + 7, 0.4, -129.5);
+  b.box(DARK, 2.1, 0.8, 0.8, STAND.x + 7, 1.4, -129.5);
+  b.tube(0xe5e7eb, 0.95, 0.95, 3.4, STAND.x + 7, 1.55, -132.2, { yaw: Math.PI / 2 });
+  b.box(DARK, 2.2, 0.5, 5.0, STAND.x + 7, 0, -131.2);
 
   // Apron high-mast floodlight towers
-  for (const [x, z] of [[-128.5, -116.5], [-71, -116.5]]) {
+  for (const [x, z] of [[-122.5, -116.4], [-93.5, -116.4], [-63.8, -116.4]]) {
     b.cylinder(0x94a3b8, 0.28, 16, x, 0, z, { topRadius: 0.16, solid: true });
     b.box(0x475569, 3.2, 0.8, 0.4, x, 16.0, z - 0.2);
     b.box(0xfff7c2, 3.0, 0.6, 0.15, x, 16.0, z - 0.4, { glow: true });
   }
 
   // Windsock on swivel mast
-  b.cylinder(0xe5e7eb, 0.08, 5.5, -131, 0, -134);
-  b.tube(0xf97316, 0.45, 0.18, 2.1, -130, 5.4, -134);
-  b.tube(WHITE, 0.35, 0.28, 0.7, -130, 5.4, -134);
+  b.cylinder(0xe5e7eb, 0.08, 5.5, -155, 0, -141);
+  b.tube(0xf97316, 0.45, 0.18, 2.1, -154, 5.4, -141);
+  b.tube(WHITE, 0.35, 0.28, 0.7, -154, 5.4, -141);
 
   // --- The fence between the street and the airfield --------------------------------------
   const FENCE = 0x64748b;
-  b.box(FENCE, 40.5, 2.4, 0.2, -137.75, 0, -90.4, { solid: true }).box(FENCE, 0.2, 2.4, 12.6, -117.5, 0, -96.7, { solid: true }).box(FENCE, 3.2, 2.4, 0.2, -116, 0, -103, { solid: true });
-  b.box(FENCE, 0.2, 2.4, 40.5, -69.4, 0, -135.25, { solid: true }).box(FENCE, 89, 2.4, 0.2, -113.5, 0, -155.5, { solid: true });
-  b.box(FENCE, 0.2, 2.4, 65.1, -157.9, 0, -122.95, { solid: true });
+  // Round the airfield: north beyond the runway, west and east; and across from the terminal's west end, airside from the car parks
+  b.box(FENCE, 121, 2.4, 0.2, -121.5, 0, -168, { solid: true });
+  b.box(FENCE, 0.2, 2.4, 51, -182, 0, -142.5, { solid: true });
+  b.box(FENCE, 0.2, 2.4, 52, -61, 0, -142, { solid: true });
+  b.box(FENCE, 31.4, 2.4, 0.2, -166.3, 0, -117, { solid: true });
+  b.box(FENCE, 4.4, 2.4, 0.2, -63.2, 0, -116, { solid: true });
 
   const group = b.build(options.ids[0]);
   group.position.set(site.x, 0, site.z);
   const local = (x: number, y: number, z: number) => new THREE.Vector3(x - DRAWN.x, y, z - DRAWN.z);
 
-  const hangarSign = signBoard([AIRLINE, 'Aircraft Maintenance & Engineering'], 10, 1.6, '#f8fafc', '#0b7a43');
-  hangarSign.position.copy(local(hangar.x + 9.14, 7.2, hangar.z));
-  hangarSign.rotation.y = Math.PI / 2;
+  const hangarSign = { lines: [AIRLINE, 'Aircraft Maintenance & Engineering'], width: 10, height: 1.6, bg: '#f8fafc', ink: '#0b7a43', at: local(hangar.x + 9.14, 7.2, hangar.z), turn: Math.PI / 2 };
   const marshal = figure(0xfacc15, 0x1f2937, 0x5b3a1e, 0xf97316);
-  marshal.position.copy(local(STAND.x - 10.5, 0, STAND.z + 2.6));
-  marshal.rotation.y = Math.PI / 2;
+  marshal.position.copy(local(STAND.x - 3.5, 0, -117.6));
+  marshal.rotation.y = Math.PI;
   const porter = figure(0x1d4ed8, 0x1f2937, 0x6b4226);
-  porter.position.copy(local(-77.6, 0, -99.6));
-  group.add(hangarSign, marshal, porter, grandTerminalExtras(name, code, local, rows));
+  porter.position.copy(local(-77.6, 0, -100.6));
+  group.add(marshal, porter, grandTerminalExtras(name, code, local, rows, WELCOME[options.city] ?? [`WELCOME TO ${AIRPORTS[options.city].city.toUpperCase()}`], [hangarSign]));
 
   // The radar turns
   const radar = new Builder().box(0xf97316, 3.2, 0.5, 0.14, 0, 0.5, 0).box(0x94a3b8, 0.14, 0.5, 0.14, 0, 0, 0).build('radar');
@@ -504,10 +396,11 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   group.add(radar);
 
   // --- The aircraft -----------------------------------------------------------------------
-  const parked = airliner();
-  parked.position.copy(local(-112, 0, STAND.z));
-  parked.rotation.y = Math.PI;
-  const working = airliner();
+  // Two at their jet bridges, nose in, merged into one; and the one that flies
+  const noseIn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2);
+  const parked = parkedAirliners('atr', LIVERIES.eko, PARKED_STANDS.map((x) => new THREE.Matrix4().compose(local(x, 0, STAND.z), noseIn, new THREE.Vector3(1, 1, 1))));
+  const plane = flyingAirliner('atr', LIVERIES.nigerialife);
+  const working = plane.group;
   group.add(parked, working);
 
   // --- The departures board, on the front of the terminal ----------------------------------
@@ -517,7 +410,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const board = new THREE.Mesh(new THREE.PlaneGeometry(9, 2.8), new THREE.MeshBasicMaterial({ map: texture }));
-  board.position.copy(local(-90, 5.9, -102.5));
+  board.position.copy(local(-103, 9.2, -102.62));
   board.userData.surface = true;
   group.add(board);
   let shown = '';
@@ -580,6 +473,76 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   machine.group.position.copy(local(-68.3, 0, -102.6));
   group.add(machine.group);
   const entrance = at(-80, -101.2);
+
+  // --- At the kerb, two who speak first: a taxi driver by his cab, and an officer by the doors ---
+  const driver = figure(0xf8fafc, 0x1f2937, 0x5b3a1e);
+  driver.position.copy(local(-93.5, 0, -100.1));
+  driver.rotation.y = Math.PI;
+  const officer = figure(0x1f2937, 0x1f2937, 0x6b4226, 0x1f2937);
+  officer.position.copy(local(-86.5, 0, -101.6));
+  group.add(driver, officer);
+  const driverId = `${options.ids[0]}-cab-driver`;
+  const officerId = `${options.ids[0]}-officer`;
+  const driverAt = at(-93.5, -101.3);
+  const officerAt = at(-86.5, -100.4);
+  const town = TOWN[options.city];
+  const ride = (host: PlaceHost, fare: number) => {
+    const drop = townDrop();
+    if (!drop || !Talk.rideTo) {
+      host.say(`Emeka: "Ah, ${oga().toLowerCase()}, the road is blocked now. Try the cab desk inside."`, 'info');
+      return;
+    }
+    host.say(`Emeka: "Enter, ${oga().toLowerCase()}! Make we go."`, 'success');
+    Talk.rideTo(drop, town.name, fare);
+  };
+  const cabDriver = (host: PlaceHost) => {
+    const who = 'Emeka';
+    const role = 'Taxi driver · Arrivals kerb';
+    const decline = () => host.ask({
+      who, role,
+      text: `No wahala, ${oga().toLowerCase()}. But find me something now, make I take guide. Fuel money!`,
+      choices: tipChoices(host, who, [200, 500], `${oga()}, God bless you! Safe journey.`, `Okay o, ${oga().toLowerCase()}. Next time!`),
+    });
+    host.ask({
+      who, role,
+      text: `${oga()}! Welcome to ${AIRPORTS[options.city].city}! Where you dey go? ${town.calls}? Make I carry you. My motor clean, AC dey work well well!`,
+      choices: [
+        { label: `🚕 Take me to ${town.name}`, note: naira(town.fare), pick: () => ride(host, town.fare) },
+        {
+          label: 'Ah, that price is too much',
+          pick: () => host.ask({
+            who, role,
+            text: `${oga()}, fuel price na wahala o! But because of you: ${naira(town.fare - 1_000)}. Last price!`,
+            choices: [
+              { label: `Okay, ${naira(town.fare - 1_000)}. Let's go`, pick: () => ride(host, town.fare - 1_000) },
+              { label: 'No, thank you', pick: decline },
+            ],
+          }),
+        },
+        { label: 'No, I have a ride', pick: decline },
+      ],
+    });
+  };
+  const officerTalk = (host: PlaceHost) => {
+    host.ask({
+      who: 'Sergeant Bello',
+      role: 'FAAN Aviation Security · Kerb',
+      text: `${goodDay()}, ${sir()}! Welcome to ${name}. Departures is upstairs on the deck; arrivals and the way in are right here. ${ogaMi()}, anything for the boys? We dey here since morning o.`,
+      choices: [
+        ...tipChoices(host, 'Sergeant Bello', [500, 1_000], `${oga()}, you be correct person! God go bless you.`, `No wahala, ${oga().toLowerCase()}. Enjoy yourself!`),
+        { label: 'Where do I get a cab?', pick: () => host.say(`Sergeant Bello: "The registered cab desk is inside, by the belt, ${sir()}. Or talk to the drivers by the taxis here."`, 'info') },
+      ],
+    });
+  };
+  const kerbTalk = new Greeters([
+    { id: driverId, x: driverAt.x, z: driverAt.z, radius: 1.3, open: cabDriver },
+    { id: officerId, x: officerAt.x, z: officerAt.z, radius: 1.3, open: officerTalk },
+  ]);
+  /** Only greet in the city the player is in: the airport's group is drawn only there */
+  const inThisCity = () => {
+    for (let n: THREE.Object3D | null = group; n; n = n.parent) if (!n.visible) return false;
+    return true;
+  };
   const leaving = flights.routesFrom(options.city);
   const description = `${AIRLINE} flies from here to ${leaving.map((route) => AIRPORTS[route.to].city).join(' and ')}. Buy a ticket and check in inside, then walk out to the aircraft.`;
 
@@ -589,13 +552,13 @@ export function createAirport(options: AirportOptions): AirportLandmark {
   const atStand = () => pose.state === 'Boarding' || pose.state === 'Arrived';
 
   // --- On the apron: the door from the terminal, and the steps up to the aircraft -----------
-  const apronDoor = at(-91, -117.4);
-  const stepsFoot = at(stairs.x, stairs.top + 4.6);
-  const cabinDoor = at(stairs.x, stairs.top + 0.2);
+  const apronDoor = at(APRON_DOOR_X, TERMINAL.back - 2.2);
+  const stepsFoot = at(stairs.x + 4.4, stairs.z);
+  const cabinDoor = at(stairs.x - 0.05, stairs.z);
   const doorBox = clickBox(4, 3, 2.4);
-  doorBox.position.copy(local(-91, 1.5, -116));
-  const stepsBox = clickBox(2.6, 3, 5.4);
-  stepsBox.position.copy(local(stairs.x, 1.5, stairs.top + 2.2));
+  doorBox.position.copy(local(APRON_DOOR_X, 1.5, TERMINAL.back - 0.9));
+  const stepsBox = clickBox(5.4, 3, 2.6);
+  stepsBox.position.copy(local(stairs.x + 2.2, 1.5, stairs.z));
   group.add(doorBox, stepsBox);
   const stepsId = `${options.ids[0]}-steps`;
   const apronDoorId = `${options.ids[0]}-apron-door`;
@@ -617,7 +580,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
       flight.clock = Math.floor(flight.clock / FLIGHT_SECONDS) * FLIGHT_SECONDS + ARRIVED_FROM + 0.05;
       landmark.update?.(0, 12);
     },
-    zone: { minX: -158 + move.x, maxX: -63 + move.x, minZ: -156 + move.z, maxZ: -76 + move.z },
+    zone: { minX: -183 + move.x, maxX: -60 + move.x, minZ: -169 + move.z, maxZ: -66 + move.z },
     group,
     obstructions: b.obstructions(name, site.x, site.z),
     interactive: [
@@ -630,6 +593,8 @@ export function createAirport(options: AirportOptions): AirportLandmark {
         description,
         interactionPoint: entrance,
       })),
+      { mesh: driver, id: driverId, name: 'Emeka (taxi driver)', category: 'Airport · Arrivals kerb', description: 'A cab into town, if the price is right.', interactionPoint: driverAt },
+      { mesh: officer, id: officerId, name: 'Sergeant Bello (FAAN)', category: 'Airport · Kerb', description: 'Keeps an eye on the doors.', interactionPoint: officerAt },
       {
         mesh: stepsBox,
         id: stepsId,
@@ -651,6 +616,8 @@ export function createAirport(options: AirportOptions): AirportLandmark {
       ...(options.ownDoor
         ? Object.fromEntries(options.ids.map((id) => [id, { label: () => '🚪 Go into the terminal', run: (host: LandmarkHost) => host.enter('airport', entrance) }]))
         : {}),
+      [driverId]: { label: () => '💬 Talk to Emeka', run: (host: PlaceHost) => { kerbTalk.open(driverId); void host; } },
+      [officerId]: { label: () => '💬 Talk to Sergeant Bello', run: (host: PlaceHost) => { kerbTalk.open(officerId); void host; } },
       [apronDoorId]: {
         label: () => '🚪 Into the terminal, and through to the street',
         run: (host) => host.enter('airport', entrance),
@@ -681,7 +648,7 @@ export function createAirport(options: AirportOptions): AirportLandmark {
           const board = new Sequence('board the aircraft', [actor]).add(
             steps.walk(actor, stepsFoot, { speed: 4 }),
             steps.face(actor, cabinDoor),
-            climb(actor, () => cabinDoor, 1.5, 2.2),
+            climb(actor, () => cabinDoor, DOOR.sill, 2.2),
             steps.call('through the door', () => {
               const result = flights.board(options.city);
               if (!result.ok) {
@@ -712,7 +679,9 @@ export function createAirport(options: AirportOptions): AirportLandmark {
       working.visible = !pose.away;
       working.position.set(pose.x - DRAWN.x, pose.y, pose.z - DRAWN.z);
       working.rotation.set(0, (-pose.heading * Math.PI) / 180, pose.pitch);
+      if (!pose.away && pose.state !== 'Boarding' && pose.state !== 'Arrived') for (const prop of plane.props) prop.rotation.x += delta * 28;
       radar.rotation.y += delta * 1.6;
+      if (inThisCity()) kerbTalk.tick(delta);
       const route = showing();
       const back = ROUTES.find((other) => other.from === route.to && other.to === route.from);
       show([
@@ -723,8 +692,8 @@ export function createAirport(options: AirportOptions): AirportLandmark {
     status: () => {
       const turned = (pose.heading * Math.PI) / 180;
       // The box round the aircraft as it stands: half its length one way, half its span the other
-      const halfX = Math.abs(Math.cos(turned)) * 8.1 + Math.abs(Math.sin(turned)) * 6.9;
-      const halfZ = Math.abs(Math.sin(turned)) * 8.1 + Math.abs(Math.cos(turned)) * 6.9;
+      const halfX = Math.abs(Math.cos(turned)) * HALF_LENGTH + Math.abs(Math.sin(turned)) * HALF_SPAN;
+      const halfZ = Math.abs(Math.sin(turned)) * HALF_LENGTH + Math.abs(Math.cos(turned)) * HALF_SPAN;
       const x = pose.x + move.x;
       const z = pose.z + move.z;
       return {

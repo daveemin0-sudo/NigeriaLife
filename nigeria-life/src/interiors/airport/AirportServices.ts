@@ -172,11 +172,12 @@ export class AirportServices {
 
   // --- The café --------------------------------------------------------------------------------------
 
-  private cafeMenu(host: PlaceHost): void {
+  /** The café's menu, put by Blessing; `text` is what she says first */
+  public cafeMenu(host: PlaceHost, text = 'Welcome! What will you have? I will bring it to your table.'): void {
     host.ask({
       who: 'Blessing',
       role: 'Barista · Buka Express Café',
-      text: 'Welcome! What will you have? I will bring it to your table.',
+      text,
       choices: CAFE_MENU.map((m) => ({
         label: `${m.name} · ${naira(m.price)}`,
         note: m.drink ? 'A drink, at a table' : `Hunger +${m.hunger}`,
@@ -243,11 +244,12 @@ export class AirportServices {
 
   // --- The shop --------------------------------------------------------------------------------------
 
-  private shopMenu(host: PlaceHost): void {
+  /** The shop's stock, read out by Sule; `text` is what he says first */
+  public shopMenu(host: PlaceHost, text = 'What do you need for the journey?'): void {
     host.ask({
       who: 'Sule',
       role: 'Cashier · Naija Mart',
-      text: 'What do you need for the journey?',
+      text,
       choices: SHOP_STOCK.map((s) => ({
         label: `${s.icon} ${s.name} · ${naira(s.price)}`,
         note: s.category === 'food' ? 'Into your bag' : s.category === 'gadget' ? 'Gadget' : 'Gift',
@@ -276,7 +278,7 @@ export class AirportServices {
 
   // --- The lounge and the toilets ----------------------------------------------------------------------
 
-  private lounge(host: PlaceHost): void {
+  public lounge(host: PlaceHost): void {
     const fee = 40000;
     const seat = this.freeSeat('lounge', [-21, -15]);
     if (!seat) {

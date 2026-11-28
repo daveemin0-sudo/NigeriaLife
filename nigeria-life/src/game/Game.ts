@@ -1,3 +1,5 @@
+import { showWelcomeBanner } from '../ui/WelcomeBanner';
+import { Talk } from '../interactions/Talk';
 import { MusicPlayer } from '../audio/MusicPlayer';
 import { tickWater } from '../graphics/Water';
 import { thisLoad } from '../app/LoadTimes';
@@ -435,6 +437,12 @@ export class Game {
     // The terminal's departure boards keep the game's time
     AirportInterior.hourNow = () => this.world.skyEnvironment.currentHour;
     AirportInterior.playerAt = () => this.player?.position ?? null;
+    // People who greet the player who walks up to them: where the player is, a card to speak with, sir or ma
+    Talk.playerAt = () => this.player?.position ?? null;
+    Talk.withHost = (run) => this.hud?.withPlaceHost(run);
+    Talk.woman = () => this.player?.config?.gender === 'female';
+    Talk.hour = () => this.world?.skyEnvironment.currentHour ?? 12;
+    Talk.rideTo = (point, name, fare) => this.hud?.onRideTo?.(point, name, Math.round(fare * RideService.fareFactor()));
     this.updateCameraColliders(this.world.cityManager.currentCityId);
     this.world.viewCamera = this.cameraManager.camera;
 
@@ -4057,7 +4065,7 @@ export class Game {
     CloudSyncService.getInstance().saveNow();
     const there = MOTOR_PARKS[cityId as CoachCity];
     if (ridden && there) {
-      showGameToast(`${ridden.route.coach} has pulled in at ${there.name}. Welcome to ${there.city}. The gate to the street is ahead.`, 'success', 6200);
+      showWelcomeBanner(cityId, `${ridden.route.coach} has pulled in at ${there.name}. The gate to the street is ahead.`);
     }
   }
 
@@ -4175,7 +4183,7 @@ export class Game {
     } else {
       const airport = AIRPORTS[apron];
       if (flown && airport) {
-        showGameToast(`${flown.route.flight} has landed at ${airport.name}. Welcome to ${airport.city}. The terminal is ahead: go through it for the street.`, 'success', 6200);
+        showWelcomeBanner(apron, `${flown.route.flight} has landed at ${airport.name}. The terminal is ahead: go through it for the street.`);
       }
     }
     const journeyCompleted = this.onJourneyCompleted;

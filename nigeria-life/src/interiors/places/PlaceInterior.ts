@@ -1,3 +1,4 @@
+import { Greeters, greeted } from '../../interactions/Talk';
 import * as THREE from 'three';
 import { askAmount } from '../../ui/AmountSheet';
 import { Sequence, steps } from '../../interactions/Sequence';
@@ -136,6 +137,9 @@ export interface PlaceSpec {
   door?: { name: string; category: string; description: string };
 }
 
+/** Every place's room by its key, as soon as it is made (before it is built): for the ways between rooms */
+export const placeRooms = new Map<string, PlaceInterior>();
+
 const PEOPLE = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
 
 /** A chair put where something is done sitting and nothing was there to sit on: facing `yaw` */
@@ -176,12 +180,15 @@ export class PlaceInterior {
    * opens on the corridor, the corridor's stairs go down to the lobby. Set by the place itself.
    */
   public leadsTo: (() => { id: string; spawnAt: THREE.Vector3; spawnYaw: number } | null) | null = null;
+  /** The people at their counters, who greet a customer who walks up and stops there */
+  private greeters: Greeters | null = null;
 
   constructor(spec: PlaceSpec, origin: THREE.Vector3, comeOutAt: THREE.Vector3) {
     this.spec = spec;
     this.group.position.copy(origin);
     this.group.name = `place ${spec.key}`;
     knowHotelRoom(this, spec.key);
+    placeRooms.set(spec.key, this);
     const { width, length, height } = spec.room;
     const openAir = !!spec.room.openAir;
     this.def = {
@@ -363,8 +370,17 @@ export class PlaceInterior {
       this.group.add(marker);
       const id = `place_${this.spec.key}_${st.id}`;
       this.interactiveList.push({ mesh: marker, id, name: st.name, category: this.spec.name, description: st.text, interactionPoint: this.world(st.stand[0], st.stand[1]) });
-      PlaceActions.register(id, { label: () => st.name, run: (host) => this.offer(st, host) });
+      PlaceActions.register(id, { label: () => st.name, run: (host) => { this.greeters?.quiet(id); this.offer(st, host); } });
     }
+    // Where someone works the station (a person stands at it, not a machine or a box), they speak first
+    const manned = (st: StationSpec) => this.spec.staff.some((s) => Math.hypot(s.at[0] - st.at[0], s.at[1] - st.at[1]) < 3.2);
+    this.greeters = new Greeters(this.spec.stations.filter(manned).map((st) => ({
+      id: `place_${this.spec.key}_${st.id}`,
+      x: st.stand[0],
+      z: st.stand[1],
+      radius: 1.05,
+      open: (host: PlaceHost) => this.offer(st, host, true),
+    })), this.group.position);
     // Everything done sitting down has a seat: the chair itself, a bench beside it, or a chair put there
     for (const st of this.spec.stations) if (st.choices.some((c) => c.sit && !(this.tables.length && /Hunger \+/.test(c.note ?? '')))) this.seatFor(st);
     for (const work of PLACE_WORK[this.spec.key] ?? []) this.addWork(work);
@@ -523,11 +539,11 @@ export class PlaceInterior {
   }
 
   /** The station's choices; the one picked is acted out, and its money and goods change hands as it happens */
-  private offer(st: StationSpec, host: PlaceHost): void {
+  private offer(st: StationSpec, host: PlaceHost, greet = false): void {
     host.ask({
       who: st.who,
       role: st.role,
-      text: st.text,
+      text: greet ? greeted(st.text) : st.text,
       choices: st.choices.map((c) => ({
         label: c.label,
         note: c.price ? `₦${c.price.toLocaleString()}${c.note ? ` · ${c.note}` : ''}` : c.note,
@@ -1003,6 +1019,7 @@ export class PlaceInterior {
 
   public update(delta: number, time: number): void {
     for (const npc of this.npcs) npc.update(delta, time);
+    this.greeters?.tick(delta);
     for (const tick of this.ticks) tick(delta);
     if (this.spec.room.openAir && this.group.userData.beachSea) tickOpenAirBeach(delta);
   }

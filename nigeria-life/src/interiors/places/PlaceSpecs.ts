@@ -1,3 +1,4 @@
+import { AIRPORT_UPPER } from '../airport/AirportUpper';
 import type * as THREE from 'three';
 import type { Builder } from '../../world/kit/ArchKit';
 import { fineFridge, fineSofa } from '../../housing/FineFurniture';
@@ -1959,4 +1960,4 @@ for (const spec of [...ABUJA_SPECS, ...PH_SPECS]) {
   if (bank) bank.room.finish = 'grey_granite';
 }
 
-export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt')];
+export const PLACE_SPECS: PlaceSpec[] = [...SPECS, ...IKEJA, ...OUTDOOR, ...SIDE, LAGOS_BARBERS, SUPERMARKET_SPEC, mart('station-island', 'NaijaPetro Mart, Island'), mart('station-bridge', 'NaijaPetro Mart, Bridge End'), mart('station-mainland', 'NaijaPetro Mart, Mainland'), mart('station-ikeja', 'NaijaPetro Mart, Ikeja'), ...HOTEL_SPECS, ...ABUJA_SPECS, ...PH_SPECS, ...townRooms('abuja', 'Abuja'), ...townRooms('port_harcourt', 'Port Harcourt'), AIRPORT_UPPER];

@@ -10,6 +10,12 @@ import { BAG_COLOURS, LuggageBatch, type BagKind } from '../airport/Luggage';
 import { AirportCrowd } from '../airport/AirportCrowd';
 import { AirportServices, SEAT_FORWARD, seatLift, type AirportSeat } from '../airport/AirportServices';
 import { AirportSound } from '../airport/AirportSound';
+import { AirportTalk } from '../airport/AirportTalk';
+import { Escalator, GlassLift, rideLift, rideStair } from '../airport/Vertical';
+import { ESCALATOR_RUN, HALL_DOWN, HALL_LIFT, HALL_UP, HALL_UP_STAND, LEVEL_RISE, UPPER_ID, UPPER_KEY, UPPER_LIFT, UPPER_TOP } from '../airport/Levels';
+import { placeRooms } from '../places/PlaceInterior';
+import { PlaceActions } from '../../destinations/PlaceActions';
+import { Sequence, steps } from '../../interactions/Sequence';
 import { RigRegistry } from '../../graphics/people/RigRegistry';
 import { APRON, APRON_CREW, ApronLife } from '../airport/ApronLife';
 
@@ -86,6 +92,11 @@ export class AirportInterior {
   private readonly freeSeats: AirportSeat[] = [];
   private services!: AirportServices;
   private sound!: AirportSound;
+  /** The staff who greet a passenger who walks up, and what they say */
+  private talk!: AirportTalk;
+  /** The ways up to the upper level: two escalators and a glass lift */
+  private escalators: Escalator[] = [];
+  private lift!: GlassLift;
   private readonly bm = new THREE.Matrix4();
   private readonly bq = new THREE.Quaternion();
   private readonly be = new THREE.Euler();
@@ -282,6 +293,7 @@ export class AirportInterior {
         // Arrivals
         staff('npc_sim_desk', 'Kunle', 'SIM Agent', 'Arrivals', { x: 24, z: 18 }, Math.PI, 0xfacc15, 'male', 'New SIM or airtime? I can register it for you in five minutes.'),
         staff('npc_cab_desk', 'Chief Okafor', 'Cab Desk', 'Airport Cabs', { x: 11, z: 18 }, Math.PI, 0x1e3a8a, 'male', 'Registered airport cab, fixed price to the Island. Where are you going?'),
+        staff('npc_porter_musa', 'Musa', 'Porter', 'Baggage Hall', { x: 22.8, z: 12.4 }, -Math.PI / 2, 0x1d4ed8, 'male', 'Oga, make I carry your load go the cab?'),
         staff('npc_cleaner_titi', 'Titi', 'Cleaner', 'Terminal Services', { x: 3, z: 8.5 }, 0.6, 0x0d9488, 'female', 'Mind the wet floor, please. Good morning!'),
       ],
     };
@@ -304,6 +316,7 @@ export class AirportInterior {
     this.group.add(this.buildShop());
     this.group.add(this.buildLounge());
     this.buildPrayerRooms();
+    this.buildLevels();
     this.group.add(this.buildBaggageHall());
     this.group.add(this.buildSigns());
     this.group.add(this.buildFloorLight());
@@ -348,6 +361,7 @@ export class AirportInterior {
     this.services = new AirportServices(this.group, this.group.position, this.nav, this.freeSeats);
     this.services.register(this.interactiveList, this.group, { leaf: this.buildToilets() });
     this.sound = new AirportSound();
+    this.talk = new AirportTalk(this.def.npcs, this.services, this.group.position);
 
     mergeFloorDecals(this.group);
 
@@ -1018,6 +1032,112 @@ export class AirportInterior {
     pieces.back.add(words);
   }
 
+  /**
+   * The way up to the upper level (the food court, duty free and the viewing gallery), between the
+   * information desk and the baggage hall: two escalators rising toward the airside, up on the left
+   * and down on the right, into a landing with the way through lit above it; and a glass lift beside
+   * them whose car really goes up and comes down.
+   */
+  private buildLevels(): void {
+    const up = new Escalator({ x: HALL_UP.x, z: HALL_UP.foot, rise: LEVEL_RISE, run: ESCALATOR_RUN, up: true });
+    const down = new Escalator({ x: HALL_DOWN.x, z: HALL_DOWN.foot, rise: LEVEL_RISE, run: ESCALATOR_RUN, up: false });
+    this.escalators = [up, down];
+    this.lift = new GlassLift({ x: HALL_LIFT.x, z: HALL_LIFT.z, travel: H - 2.6, shaft: H });
+    this.group.add(up.group, down.group, this.lift.group);
+
+    // The landing at the top: a slab hung from the roof, glass at its sides, the way through at its back
+    const k = new Kit();
+    const top = HALL_UP.foot - ESCALATOR_RUN;
+    const x0 = HALL_UP.x - 0.85, x1 = HALL_DOWN.x + 0.85;
+    const back = top - 3.6;
+    k.box(M.solid, x1 - x0, 0.35, top - back + 0.4, (x0 + x1) / 2, LEVEL_RISE - 0.35, (top + back) / 2 - 0.2);
+    k.box(M.floorDark, x1 - x0, 0.02, top - back, (x0 + x1) / 2, LEVEL_RISE, (top + back) / 2);
+    for (const x of [x0, x1]) {
+      k.box(M.chrome, 0.05, 1.05, top - back, x, LEVEL_RISE, (top + back) / 2);
+      for (const z of [back + 0.2, top - 0.2]) k.cyl(M.chrome, 0.025, 0.025, H - LEVEL_RISE, x, LEVEL_RISE, z, 8);
+    }
+    // The wall at the back of the landing, its doorway lit, and the words over it
+    k.box(M.plasterWarm, x1 - x0 + 1.2, H - LEVEL_RISE, 0.2, (x0 + x1) / 2, LEVEL_RISE, back);
+    k.box(M.lamp, 1.6, 2.3, 0.05, (x0 + x1) / 2, LEVEL_RISE, back + 0.12);
+    const g = k.build('upper landing');
+    const glass = new THREE.MeshStandardMaterial({ color: 0xbfe0f2, transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.2, depthWrite: false });
+    for (const x of [x0, x1]) {
+      const pane = new THREE.Mesh(new THREE.BoxGeometry(0.03, 1.0, top - back), glass);
+      pane.position.set(x, LEVEL_RISE + 0.5, (top + back) / 2);
+      g.add(pane);
+    }
+    const sign = signMesh(['⬆ UPPER LEVEL', 'Food Court · Duty Free · Viewing Gallery'], 4.4, 0.9, WAYFINDING);
+    sign.position.set((x0 + x1) / 2, LEVEL_RISE + 2.95, back + 0.14);
+    const foot = signMesh(['⬆ Upper level  ·  🛗 Lift'], 2.6, 0.42, WAYFINDING);
+    foot.position.set(HALL_LIFT.x, 2.75, HALL_LIFT.z + 1.02);
+    g.add(sign, foot);
+    this.group.add(g);
+
+    // Nobody walks into the escalators' low ends or the lift shaft
+    this.nav.blockRect((x0 + x1) / 2, (HALL_UP.foot + top) / 2, (x1 - x0) / 2 - 0.15, (HALL_UP.foot - top) / 2);
+    this.nav.blockRect(HALL_LIFT.x, HALL_LIFT.z, 1.05, 1.0);
+
+    // Going up: on the escalator, or in the lift
+    const marker = (x: number, z: number) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.6, 1.4), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      m.position.set(x, 0.8, z);
+      this.group.add(m);
+      return m;
+    };
+    this.interactiveList.push(
+      { mesh: marker(HALL_UP.x, HALL_UP.foot + 0.4), id: 'airport_escalator_up', name: '⬆ Escalator to the upper level', category: 'Airport · Upper level', description: 'Up to the food court, duty free and the viewing gallery.', interactionPoint: new THREE.Vector3(HALL_UP_STAND.x, 0, HALL_UP_STAND.z) },
+      { mesh: marker(HALL_LIFT.x, HALL_LIFT.z + 1.2), id: 'airport_lift_up', name: '🛗 Glass lift', category: 'Airport · Upper level', description: 'Up to the food court, duty free and the viewing gallery.', interactionPoint: new THREE.Vector3(HALL_LIFT.x, 0, HALL_LIFT.stand) },
+    );
+    const here = (x: number, z: number) => this.group.position.clone().add(new THREE.Vector3(x, 0, z));
+    PlaceActions.register('airport_escalator_up', {
+      label: () => '⬆ Escalator up to the food court',
+      run: (host) => {
+        const actor = host.actor;
+        const upper = placeRooms.get(UPPER_KEY);
+        if (!upper || host.director.interrupt(actor) === 'locked') return;
+        const ride = new Sequence('escalator up', [actor]).locked().add(
+          steps.walk(actor, here(HALL_UP_STAND.x, HALL_UP_STAND.z), { nav: this.nav, ifStuck: 'snap' }),
+          steps.face(actor, Math.PI),
+          steps.slide(actor, here(HALL_UP.x, HALL_UP.foot + 0.3), 0.5),
+          rideStair(actor, here(HALL_UP.x, HALL_UP.foot), here(HALL_UP.x, top), 0, LEVEL_RISE, 7),
+        );
+        ride.onEnd((reason) => {
+          actor.root.position.y = 0;
+          if (reason === 'done') host.ride(UPPER_ID, upper.at(HALL_UP.x, UPPER_TOP - 1.0), Math.PI);
+        });
+        host.director.run(ride);
+      },
+    });
+    PlaceActions.register('airport_lift_up', {
+      label: () => '🛗 Lift up to the food court',
+      run: (host) => {
+        const actor = host.actor;
+        const upper = placeRooms.get(UPPER_KEY);
+        if (!upper || host.director.interrupt(actor) === 'locked') return;
+        const lift = this.lift;
+        const inside = here(HALL_LIFT.x, HALL_LIFT.z);
+        const ride = new Sequence('lift up', [actor]).locked().add(
+          steps.walk(actor, here(HALL_LIFT.x, HALL_LIFT.stand), { nav: this.nav, ifStuck: 'snap' }),
+          steps.face(actor, inside),
+          steps.animate(actor, { arms: 'reach' }, 0.6, [{ at: 0.5, run: () => lift.doors(true) }]),
+          steps.wait(0.7),
+          steps.slide(actor, inside, 0.9, { legs: 'walk', arms: 'swing' }),
+          steps.face(actor, 0),
+          steps.call('doors close', () => { lift.doors(false); }),
+          steps.wait(0.6),
+          rideLift(actor, lift, 1),
+        );
+        ride.onEnd((reason) => {
+          actor.root.position.y = 0;
+          lift.send(0);
+          lift.doors(false);
+          if (reason === 'done') host.ride(UPPER_ID, upper.at(UPPER_LIFT.x, UPPER_LIFT.stand), Math.PI);
+        });
+        host.director.run(ride);
+      },
+    });
+  }
+
   // --- Arrivals: the belt, SIM and cab desks ---------------------------------------------------------
 
   private buildBaggageHall(): THREE.Group {
@@ -1600,6 +1720,9 @@ export class AirportInterior {
     this.stepBelt(delta);
     this.crowd.update(delta);
     this.sound.update(delta, () => this.announcements());
+    this.talk.update(delta);
+    for (const e of this.escalators) e.tick(delta);
+    this.lift.tick(delta);
     this.apron.update(delta);
     this.sinceBoards += delta;
     if (this.sinceBoards > 2) {
