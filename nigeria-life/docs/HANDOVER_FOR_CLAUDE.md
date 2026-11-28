@@ -207,6 +207,8 @@ Clean tip FAIL / bf55 PASS — fixed and **re-verified** on fresh tip `54a8752` 
 
 Lagos stalls / livingcity (Stage 0D zebra clear @ `ecaffdb`): fabric keeps stalls off Broad/Martins zebras (N-S slide @ `4dde2c4`/`ccaf3dd`); livingcity Lagos assert is `14–20` stalls + `agents >= 400` (frozen `=== 440` already false on bf55). Abuja/PH agent headcounts softened the same way. **Crowd solids:** network `going` walkers skip street props (`4c44ab4`) — tip-only morning `stuck>0` / `afterFast.wrong` from stalls on the pavement graph; re-verify livingcity. Still watch: hour-14 `gaveUp` flake, PH stall `dueUp` at 21:30.
 
+**Tip-only character (2-skin meshopt GLBs):** `garments45` leg poke-through (mini/knee skirt idle >1%; senator sit hands) vs bf55 PASS on larger GLBs; `clothingstyle` studio `#cs-shot` never filled (`shotShown:false`) then `game.modules` undefined mid-suite. Shared with bf55: `anyamount` clickable flake, `farwalk` walkers:0.
+
 Also shipped (shared bf55 FAIL too — still worth fixing): buka instant stand + shop GLB carry arms (`c009dd9`).
 
 Named flakes / shared tip+bf55: phone wheel; invest typedFive; streets dawn walkers; sidewalk `onPavement`; `view` dollhouse all-walls; `places` food filter + unaffordable fare; land/server/accountsave timeouts; clothing* ProtocolError under load.
