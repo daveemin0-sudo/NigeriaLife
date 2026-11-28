@@ -205,7 +205,7 @@ Clean tip FAIL / bf55 PASS — fixed and **re-verified** on fresh tip `54a8752` 
 | towns Trukadero drop | PASS drift 0 @ (−42,35) | FAIL drift 14 (map −170,332 / street −170,318) | **PASS** (`a7ab3df` verify 19/19) |
 | onboarding Take me reachable | PASS | FAIL under HUD chips (inset floor) | **PASS** 26/26 (`a6a179c` tip-verify-onboarding) |
 
-Lagos stalls / livingcity (Stage 0D zebra clear @ `ecaffdb`): fabric keeps stalls off Broad/Martins zebras (N-S slide @ `4dde2c4`); livingcity Lagos assert is `14–20` stalls + `agents >= 400` (frozen `=== 440` already false on bf55). Abuja/PH agent headcounts softened the same way. Still tip-only open: Lagos morning `stuck>0`, `afterFast.wrong` ~19, hour-14 `gaveUp` flake, PH stall `dueUp` at 21:30.
+Lagos stalls / livingcity (Stage 0D zebra clear @ `ecaffdb`): fabric keeps stalls off Broad/Martins zebras (N-S slide @ `4dde2c4`/`ccaf3dd`); livingcity Lagos assert is `14–20` stalls + `agents >= 400` (frozen `=== 440` already false on bf55). Abuja/PH agent headcounts softened the same way. **Crowd solids:** network `going` walkers skip street props (`4c44ab4`) — tip-only morning `stuck>0` / `afterFast.wrong` from stalls on the pavement graph; re-verify livingcity. Still watch: hour-14 `gaveUp` flake, PH stall `dueUp` at 21:30.
 
 Also shipped (shared bf55 FAIL too — still worth fixing): buka instant stand + shop GLB carry arms (`c009dd9`).
 
