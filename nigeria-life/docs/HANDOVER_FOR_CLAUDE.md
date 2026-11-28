@@ -202,7 +202,8 @@ Clean tip FAIL / bf55 PASS — fixed and **re-verified** on fresh tip `54a8752` 
 | phone send over-balance refused | PASS | FAIL empty amount | **PASS** (`c009dd9`) |
 | seats lagoon lounger onAir | PASS `onAir:[]` | FAIL `top:2.18` (umbrella canopy) | **PASS** `top:0.53` (`5c8e31f` — `topAt` skips hits `y > 1.35`) |
 | lightingweather night sun dim | PASS `sun:0.97` | FAIL `sun:1.25` (phone-readable moon bump) | **fix** moon `sunIntensity` ≤0.99, hemi kept high (`a7ab3df`) |
-| towns Trukadero drop | PASS drift 0 @ (−42,35) | FAIL drift 14 (map −170,332 / street −170,318) | **fix** street+entrance pinned to bowling map pin (`a7ab3df`) |
+| towns Trukadero drop | PASS drift 0 @ (−42,35) | FAIL drift 14 (map −170,332 / street −170,318) | **PASS** (`a7ab3df` verify 19/19) |
+| onboarding Take me reachable | PASS | FAIL under HUD chips (inset floor) | **fix** first-steps `inset+176` (`a6a179c`) — re-verify when tip free |
 
 Also shipped (shared bf55 FAIL too — still worth fixing): buka instant stand + shop GLB carry arms (`c009dd9`).
 
