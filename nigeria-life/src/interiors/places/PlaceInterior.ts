@@ -660,7 +660,10 @@ export class PlaceInterior {
       const m = (hit.object as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
       const first = Array.isArray(m) ? m[0] : m;
       if (!(hit.object as THREE.Mesh).isMesh || (first && first.transparent && first.opacity < 0.05)) continue;
-      return hit.point.y - o.y;
+      const y = hit.point.y - o.y;
+      // Skip beach umbrellas / cabana roofs / hanging lamps — seat tops are never this high.
+      if (y > 1.35) continue;
+      return y;
     }
     return 0;
   }
