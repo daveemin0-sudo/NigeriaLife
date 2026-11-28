@@ -1076,13 +1076,14 @@ export function getAbujaBenchmarkDestinations(defaultTransports: TransportOption
       city: 'abuja',
       district: 'wuse',
       districtName: '131B Ademola Adetokunbo Crescent, Wuse 2',
+      // Map pin + kerb drop-off share the bowling landmark (AbujaDistricts trukadero cx/cz).
       mapPosition: new THREE.Vector3(-170, 0, 332),
       mapVisualType: 'culture',
       mapIcon: '🎳',
       exteriorType: 'viewing_centre',
-      streetPosition: new THREE.Vector3(-170, 0, 318),
+      streetPosition: new THREE.Vector3(-170, 0, 332),
       entrance: {
-        position: new THREE.Vector3(-170, 0, 318),
+        position: new THREE.Vector3(-170, 0, 332),
         promptLabel: 'Enter Trukadero Bowling Concourse',
         triggerRadius: 6.5,
       },
