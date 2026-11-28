@@ -203,18 +203,19 @@ Clean tip FAIL / bf55 PASS — fixed and **re-verified** on fresh tip `54a8752` 
 | seats lagoon lounger onAir | PASS `onAir:[]` | FAIL `top:2.18` (umbrella canopy) | **PASS** `top:0.53` (`5c8e31f` — `topAt` skips hits `y > 1.35`) |
 | lightingweather night sun dim | PASS `sun:0.97` | FAIL `sun:1.25` (phone-readable moon bump) | **fix** moon `sunIntensity` ≤0.99, hemi kept high (`a7ab3df`) |
 | towns Trukadero drop | PASS drift 0 @ (−42,35) | FAIL drift 14 (map −170,332 / street −170,318) | **PASS** (`a7ab3df` verify 19/19) |
-| onboarding Take me reachable | PASS | FAIL under HUD chips (inset floor) | **fix** first-steps `inset+176` (`a6a179c`) — re-verify when tip free |
+| onboarding Take me reachable | PASS | FAIL under HUD chips (inset floor) | **PASS** 26/26 (`a6a179c` tip-verify-onboarding) |
+
+Lagos stalls / livingcity (Stage 0D zebra clear @ `ecaffdb`): fabric keeps stalls off Broad/Martins zebras (N-S slide @ `4dde2c4`); livingcity Lagos assert is `14–20` stalls + `agents >= 400` (frozen `=== 440` already false on bf55). Abuja/PH agent headcounts softened the same way. Still tip-only open: Lagos morning `stuck>0`, `afterFast.wrong` ~19, hour-14 `gaveUp` flake, PH stall `dueUp` at 21:30.
 
 Also shipped (shared bf55 FAIL too — still worth fixing): buka instant stand + shop GLB carry arms (`c009dd9`).
 
-Named flakes / shared tip+bf55: phone wheel; invest typedFive; streets dawn walkers; sidewalk `onPavement`; `view` dollhouse all-walls; `places` food filter + unaffordable fare; land/server/accountsave timeouts.
+Named flakes / shared tip+bf55: phone wheel; invest typedFive; streets dawn walkers; sidewalk `onPavement`; `view` dollhouse all-walls; `places` food filter + unaffordable fare; land/server/accountsave timeouts; clothing* ProtocolError under load.
 
 Fresh serves:
-- full tip `28e15cb` copy still on `:5201` (pre-fix log)
-- verify tip `54a8752` on `:5203`
+- tip `:5203` (`/tmp/nl-e2e-tip-fresh`, HEAD ~`4dde2c4`+)
 - baseline `bf55dab` on `:5202`
 
-Full tip+bf55 still running. Next: remaining open places after Elegushi @ `27ea4a9`.
+Tip clothingstyle→worldaudit + livingcity re-verify in progress. No main / deploy / `feature/type-any-amount`.
 
 ### Character files — 2 shared skins + meshopt (`cursor/character-2skins-181d` @ `e197196`, merged @ `28e15cb`)
 

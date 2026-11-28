@@ -354,11 +354,12 @@ export class CityFabric {
         const inJunction = s <= st.from + 5 || s >= st.to - 5 || this.inOtherRoad(lampX, lampZ, st) || this.inMainCorridor(lampX, lampZ);
 
         // Stalls and lamps stay off zebra crossings / junction paint (Broad Street z=10, Martins z=-62).
-        // N-S streets: slide the stall along the road past the zebra instead of dropping it (kept ~20 Lagos stalls).
+        // Keep lamp vs stall as else-if (same ticks as bf55) so sidewalk RNG stays aligned — only skip the
+        // place when on a zebra. N-S stalls slide along the road instead of dropping.
         const worldZ = isX ? pz : mid;
         const onCrossing = blocksCrossing(worldZ);
-        if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction && !onCrossing) {
-          if (!this.beforeAPlot(lampX, lampZ)) this.addStreetLamp(lampX, lampZ, isX, -sign);
+        if (tick % 12 === (side === 0 ? 0 : 6) && !inJunction) {
+          if (!onCrossing && !this.beforeAPlot(lampX, lampZ)) this.addStreetLamp(lampX, lampZ, isX, -sign);
         } else if (tick % 4 === 1 && this.rand() < 0.5 && !inJunction && !this.inOtherRoad(px, pz, st) && !this.beforeAPlot(px, pz)) {
           const yaw = isX ? (sign > 0 ? Math.PI : 0) : sign > 0 ? -Math.PI / 2 : Math.PI / 2;
           if (!onCrossing) {

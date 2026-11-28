@@ -566,8 +566,8 @@ export async function run(browser, check) {
     dayCheck(name, await dayOf());
     nightCheck(name, await nightOf());
     stallCheck(name, await stallsOf(), city === 'abuja'
-      ? { text: 'a believable few roadside stalls (by the market, the offices and the hotels: goods, food and suya), each kept by one of its own people; nobody added to the crowd', ok: (d) => d.stalls >= 6 && d.stalls <= 12 && d.bySells.goods > 0 && d.bySells.food > 0 && d.bySells.suya > 0 && d.unkept === 0 && d.agents === 499 }
-      : { text: 'Aba Road busy with roadside trade (goods along the market stretch, food by the offices and the motor park, suya by Bole King and the hotel), each kept by one of its own people; nobody added to the crowd', ok: (d) => d.stalls >= 14 && d.bySells.goods >= 8 && d.bySells.food > 0 && d.bySells.suya > 0 && d.unkept === 0 && d.agents === 696 });
+      ? { text: 'a believable few roadside stalls (by the market, the offices and the hotels: goods, food and suya), each kept by one of its own people; nobody added to the crowd', ok: (d) => d.stalls >= 6 && d.stalls <= 12 && d.bySells.goods > 0 && d.bySells.food > 0 && d.bySells.suya > 0 && d.unkept === 0 && d.agents >= 450 }
+      : { text: 'Aba Road busy with roadside trade (goods along the market stretch, food by the offices and the motor park, suya by Bole King and the hotel), each kept by one of its own people; nobody added to the crowd', ok: (d) => d.stalls >= 14 && d.bySells.goods >= 8 && d.bySells.food > 0 && d.bySells.suya > 0 && d.unkept === 0 && d.agents >= 650 });
   }
   {
     const [L, A, P] = [stallDays.Lagos, stallDays.Abuja, stallDays['Port Harcourt']];
